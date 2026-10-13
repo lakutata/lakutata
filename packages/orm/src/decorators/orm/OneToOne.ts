@@ -1,1 +1,1 @@
-export {OneToOne} from 'typeorm/decorator/relations/OneToOne.js'
+export {OneToOne} from '#typeorm/decorator/relations/OneToOne.js'

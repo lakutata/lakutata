@@ -1,1 +1,1 @@
-export {ObjectIdColumn} from 'typeorm/decorator/columns/ObjectIdColumn.js'
+export {ObjectIdColumn} from '#typeorm/decorator/columns/ObjectIdColumn.js'

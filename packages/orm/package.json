@@ -48,12 +48,16 @@
     },
     "./package.json": "./package.json"
   },
+  "imports": {
+    "#typeorm/*": "./dist/typeorm/*"
+  },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
+    "build:typeorm": "tsc -p tsconfig.typeorm.json && node -e \"require('node:fs').writeFileSync('dist/typeorm/package.json', JSON.stringify({type: 'commonjs'}) + '\\\\n')\"",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs-pkg": "node ../../scripts/package-build/cjs-package.mjs",
-    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
+    "build:js": "npm run build:typeorm && npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\"",
@@ -61,13 +65,76 @@
   },
   "dependencies": {
     "@sqltools/formatter": "^1.2.5",
-    "ansis": "4.2.0",
+    "ansis": "4.4.0",
+    "dayjs": "^1.11.23",
+    "debug": "^4.4.3",
+    "dedent": "^1.7.2",
     "reflect-metadata": "0.2.2",
-    "typeorm": "1.1.2"
+    "sql-highlight": "^6.1.0",
+    "tinyglobby": "^0.2.17",
+    "tslib": "^2.8.1"
   },
   "peerDependencies": {
+    "@google-cloud/spanner": "^8.0.0",
     "@lakutata/core": "3.0.0",
-    "@lakutata/utils": "3.0.0"
+    "@lakutata/utils": "3.0.0",
+    "@sap/hana-client": "^2.14.22",
+    "better-sqlite3": "^12.0.0",
+    "ioredis": "^5.0.4",
+    "mongodb": "^7.0.0",
+    "mssql": "^12.0.0",
+    "mysql2": "^3.15.3",
+    "oracledb": "^6.3.0 || ^7.0.0",
+    "pg": "^8.5.1",
+    "pg-native": "^3.0.0",
+    "pg-query-stream": "^4.0.0",
+    "redis": "^5.0.0 || ^6.0.0",
+    "sql.js": "^1.4.0",
+    "typeorm-aurora-data-api-driver": "^3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@google-cloud/spanner": {
+      "optional": true
+    },
+    "@sap/hana-client": {
+      "optional": true
+    },
+    "better-sqlite3": {
+      "optional": true
+    },
+    "ioredis": {
+      "optional": true
+    },
+    "mongodb": {
+      "optional": true
+    },
+    "mssql": {
+      "optional": true
+    },
+    "mysql2": {
+      "optional": true
+    },
+    "oracledb": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "pg-native": {
+      "optional": true
+    },
+    "pg-query-stream": {
+      "optional": true
+    },
+    "redis": {
+      "optional": true
+    },
+    "sql.js": {
+      "optional": true
+    },
+    "typeorm-aurora-data-api-driver": {
+      "optional": true
+    }
   },
   "engines": {
     "node": "^22.13.0 || >=24.11.0"
@@ -79,5 +146,8 @@
     "LICENSE",
     "package.json",
     "THIRD_PARTY_NOTICES.md"
-  ]
+  ],
+  "devDependencies": {
+    "@types/debug": "4.1.13"
+  }
 }

@@ -1,1 +1,1 @@
-export {AfterLoad} from 'typeorm/decorator/listeners/AfterLoad.js'
+export {AfterLoad} from '#typeorm/decorator/listeners/AfterLoad.js'

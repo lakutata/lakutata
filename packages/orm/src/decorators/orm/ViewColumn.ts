@@ -1,1 +1,1 @@
-export {ViewColumn} from 'typeorm/decorator/columns/ViewColumn.js'
+export {ViewColumn} from '#typeorm/decorator/columns/ViewColumn.js'

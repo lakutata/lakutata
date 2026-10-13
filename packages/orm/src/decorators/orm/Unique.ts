@@ -1,1 +1,1 @@
-export {Unique} from 'typeorm/decorator/Unique.js'
+export {Unique} from '#typeorm/decorator/Unique.js'

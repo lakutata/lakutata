@@ -1,0 +1,41 @@
+{
+  "//": "The source of TypeORM (typeorm), built as TypeORM builds it (its tsconfig.json and tsconfig.node.json, on @tsconfig/node20), without its command line",
+  "compilerOptions": {
+    "lib": ["es2023"],
+    "target": "es2022",
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "declaration": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "ignoreDeprecations": "6.0",
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "pretty": true,
+    "resolveJsonModule": true,
+    "sourceMap": true,
+    "inlineSources": true,
+    "strictFunctionTypes": false,
+    "strictPropertyInitialization": false,
+    "stripInternal": true,
+    "useDefineForClassFields": false,
+    "useUnknownInCatchVariables": false,
+    "rootDir": "typeorm",
+    "outDir": "dist/typeorm"
+  },
+  "include": ["typeorm"],
+  "exclude": [
+    "typeorm/cli.ts",
+    "typeorm/cli-ts-node-commonjs.ts",
+    "typeorm/cli-ts-node-esm.ts",
+    "typeorm/commands/*Command.ts"
+  ]
+}

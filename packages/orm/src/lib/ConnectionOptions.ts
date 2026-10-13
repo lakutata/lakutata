@@ -1,4 +1,4 @@
-import {type DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
+import {type DataSourceOptions} from '#typeorm/data-source/DataSourceOptions.js'
 
 /**
  * The connection options with the defaults of the framework: the null and undefined values of the where conditions

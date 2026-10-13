@@ -1,1 +1,1 @@
-export {AfterRecover} from 'typeorm/decorator/listeners/AfterRecover.js'
+export {AfterRecover} from '#typeorm/decorator/listeners/AfterRecover.js'

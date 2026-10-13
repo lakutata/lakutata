@@ -21,6 +21,19 @@ const collect = (condition) => {
     if (typeof condition === 'string') return condition.endsWith('.js') && entries.add(condition)
     if (condition && typeof condition === 'object') Object.entries(condition).forEach(([key, value]) => key !== 'types' && collect(value))
 }
+//The imports of the package (#name/*, the imports of its package.json) in the CommonJS build: dist/cjs/package.json is
+//the package scope of its files, without the imports of the package, which Node.js does not let point out of a scope (no
+//.. in their targets). They are rewritten to the relative paths of their targets.
+const imports = Object.entries(manifest.imports ?? {}).filter(([key, target]) => key.endsWith('/*') && typeof target === 'string' && target.endsWith('/*'))
+for (const file of imports.length ? [...globSync('dist/cjs/**/*.js'), ...globSync('dist/cjs/**/*.d.ts')].map((file) => path.resolve(file)) : []) {
+    const text = readFileSync(file, 'utf8')
+    let rewritten = text
+    for (const [key, target] of imports) {
+        const relative = path.relative(path.dirname(file), path.resolve(target.slice(0, -1))).split(path.sep).join('/')
+        for (const quote of ['\'', '"']) rewritten = rewritten.replaceAll(`${quote}${key.slice(0, -1)}`, `${quote}${relative.startsWith('.') ? relative : `./${relative}`}/`)
+    }
+    if (rewritten !== text) writeFileSync(file, rewritten)
+}
 for (const target of Object.values(manifest.exports ?? {})) collect(target?.require)
 //The patterns of the subpaths (./helper/*) expanded to their files
 for (const file of [...entries].flatMap((entry) => entry.includes('*') ? globSync(entry) : [entry]).map((entry) => path.resolve(entry))) {

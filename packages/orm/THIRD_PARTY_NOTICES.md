@@ -1,12 +1,24 @@
 # Third-party notices
 
-Parts of `@lakutata/orm` are derived from the third-party projects listed below. They are rewritten in TypeScript and
-modified; the original copyright notices and license terms are reproduced here as required.
+Parts of `@lakutata/orm` are derived from the third-party projects listed below; the original copyright notices and
+license terms are reproduced here as required.
+
+## TypeORM 1.1.2
+
+The source of TypeORM, its packages `typeorm` and `@typeorm/legacy-naming-strategies`
+(https://github.com/typeorm/typeorm, the tag and commit in `typeorm/UPSTREAM.json`): `typeorm/` of the repository,
+built into `dist/typeorm`.
+
+Modifications: the imports of `typeorm` of the legacy naming strategies rewritten to the source beside them; the changes
+of lakutata marked with `lakutata:` comments in the source. The command line of TypeORM (`cli.ts`,
+`commands/*Command.ts`) is not built.
+
+Its license is the MIT License of TypeORM reproduced below.
 
 ## TypeORM 0.3.24
 
-The generation of the migrations: `src/providers/migration/GenerateMigration.ts`, from the command
-`typeorm migration:generate` (`src/commands/MigrationGenerateCommand.ts`).
+The generation of the migrations: `src/providers/migration/GenerateMigration.ts`, rewritten in TypeScript from the
+command `typeorm migration:generate` (`src/commands/MigrationGenerateCommand.ts`).
 
 Modifications: a provider of the application, run when the environment variable `MIGRATION_GENERATE` is set, for each
 Database component or provider; the migrations import their types from `@lakutata/orm` or `lakutata/orm`.

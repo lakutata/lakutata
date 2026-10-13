@@ -1,1 +1,1 @@
-export {Index} from 'typeorm/decorator/Index.js'
+export {Index} from '#typeorm/decorator/Index.js'

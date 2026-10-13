@@ -1,1 +1,1 @@
-export {TreeParent} from 'typeorm/decorator/tree/TreeParent.js'
+export {TreeParent} from '#typeorm/decorator/tree/TreeParent.js'

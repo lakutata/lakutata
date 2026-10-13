@@ -1,1 +1,1 @@
-export {RelationId} from 'typeorm/decorator/relations/RelationId.js'
+export {RelationId} from '#typeorm/decorator/relations/RelationId.js'

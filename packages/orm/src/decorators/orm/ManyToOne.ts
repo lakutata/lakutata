@@ -1,1 +1,1 @@
-export {ManyToOne} from 'typeorm/decorator/relations/ManyToOne.js'
+export {ManyToOne} from '#typeorm/decorator/relations/ManyToOne.js'

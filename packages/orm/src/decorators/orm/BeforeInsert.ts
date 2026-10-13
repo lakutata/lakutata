@@ -1,1 +1,1 @@
-export {BeforeInsert} from 'typeorm/decorator/listeners/BeforeInsert.js'
+export {BeforeInsert} from '#typeorm/decorator/listeners/BeforeInsert.js'

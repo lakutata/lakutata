@@ -1,1 +1,1 @@
-export {EventSubscriber} from 'typeorm/decorator/listeners/EventSubscriber.js'
+export {EventSubscriber} from '#typeorm/decorator/listeners/EventSubscriber.js'

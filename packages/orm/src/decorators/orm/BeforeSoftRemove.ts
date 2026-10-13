@@ -1,1 +1,1 @@
-export {BeforeSoftRemove} from 'typeorm/decorator/listeners/BeforeSoftRemove.js'
+export {BeforeSoftRemove} from '#typeorm/decorator/listeners/BeforeSoftRemove.js'

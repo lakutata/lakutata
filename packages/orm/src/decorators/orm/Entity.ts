@@ -1,1 +1,1 @@
-export {Entity} from 'typeorm/decorator/entity/Entity.js'
+export {Entity} from '#typeorm/decorator/entity/Entity.js'

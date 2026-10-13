@@ -1,1 +1,1 @@
-export {JoinTable} from 'typeorm/decorator/relations/JoinTable.js'
+export {JoinTable} from '#typeorm/decorator/relations/JoinTable.js'

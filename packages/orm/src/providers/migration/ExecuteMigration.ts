@@ -1,9 +1,9 @@
 import {Provider, DTO, Application} from '@lakutata/core'
 import {Configurable, Transient} from '@lakutata/core/decorator/di'
-import {type DataSourceOptions} from 'typeorm/data-source/DataSourceOptions.js'
-import {DataSource} from 'typeorm/data-source/DataSource.js'
-import {MigrationExecutor} from 'typeorm/migration/MigrationExecutor.js'
-import {type Migration} from 'typeorm/migration/Migration.js'
+import {type DataSourceOptions} from '#typeorm/data-source/DataSourceOptions.js'
+import {DataSource} from '#typeorm/data-source/DataSource.js'
+import {MigrationExecutor} from '#typeorm/migration/MigrationExecutor.js'
+import {type Migration} from '#typeorm/migration/Migration.js'
 import ansi from 'ansis'
 import {connectionOptionsOf} from '../../lib/ConnectionOptions.js'
 

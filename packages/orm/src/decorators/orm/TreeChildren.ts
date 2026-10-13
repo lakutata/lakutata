@@ -1,1 +1,1 @@
-export {TreeChildren} from 'typeorm/decorator/tree/TreeChildren.js'
+export {TreeChildren} from '#typeorm/decorator/tree/TreeChildren.js'

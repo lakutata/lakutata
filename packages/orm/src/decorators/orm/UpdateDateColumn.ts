@@ -1,1 +1,1 @@
-export {UpdateDateColumn} from 'typeorm/decorator/columns/UpdateDateColumn.js'
+export {UpdateDateColumn} from '#typeorm/decorator/columns/UpdateDateColumn.js'

@@ -1,0 +1,4 @@
+{
+  "//": "The TypeScript options of the source of TypeORM for the editors: the build uses ../tsconfig.typeorm.json",
+  "extends": "../tsconfig.typeorm.json"
+}
