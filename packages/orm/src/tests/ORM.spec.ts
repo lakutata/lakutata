@@ -136,7 +136,7 @@ describe('The ORM', (): void => {
         assert.deepStrictEqual(await database.query('SELECT COUNT(*) AS count FROM author'), [{count: 2}])
         const manager = database.manager
         await container.destroy()
-        assert.strictEqual(manager.connection.isInitialized, false)
+        assert.strictEqual(manager.dataSource.isInitialized, false)
     })
 
     it('ignores the null and undefined values of the where conditions, unless the options set their behavior', async (): Promise<void> => {

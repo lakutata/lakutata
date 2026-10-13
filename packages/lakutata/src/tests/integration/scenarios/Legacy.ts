@@ -87,6 +87,7 @@ const setupHttpEntrypoint = (): ReturnType<typeof buildHTTPEntrypoint> => buildH
     const app: Express = express()
     app.use(express.json())
     const db: Database = await module.getObject<Database>('db')
+    //manager.connection as the applications of lakutata 2.x read it: deprecated by TypeORM 1 (dataSource), still there
     app.get('/health', (_req: Request, res: Response): void => void res.send({errno: null, errMsg: null, data: {database: db.manager.connection.isInitialized}}))
     routeMap.forEach((methods: Set<string>, route: string): void => {
         methods.forEach((method: string): void => {

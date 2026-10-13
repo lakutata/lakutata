@@ -142,7 +142,7 @@ class ObjectController extends Controller {
             counter: ++this.counter.value,
             now: this.clock.now(),
             visits: await this.visits.getRepository(Visit).count(),
-            connection: this.visits.manager.connection.options.database
+            connection: this.visits.manager.dataSource.options.database
         }
     }
 }
@@ -214,7 +214,7 @@ Application
             assert.ok(existsSync(path.join(scenario, 'data', 'visits.db')))
             //A provider of the application gets its own connection
             const visits: DatabaseProvider = await app.getObject<DatabaseProvider>('visits')
-            connections.push(visits.manager.connection)
+            connections.push(visits.manager.dataSource)
             assert.strictEqual(await visits.getRepository(Visit).count(), 3)
         })
 
