@@ -1,5 +1,7 @@
 import { TypeORMError } from "../../error/TypeORMError"
+import { EmbeddedBTree } from "./EmbeddedBTree"
 import type { EmbeddedFile } from "./EmbeddedFile"
+import { EmbeddedKeyEncoding } from "./EmbeddedKeyEncoding"
 import { EmbeddedKeydir } from "./EmbeddedKeydir"
 import {
     encodeRecord,
@@ -10,8 +12,8 @@ import {
 import type { EmbeddedDocument, EmbeddedValues } from "./EmbeddedValues"
 
 /**
- * lakutata: an index of an embedded collection, as MongoDB lists it. Only the unique ones are enforced; the others are
- * kept to be listed.
+ * lakutata: an index of an embedded collection, as MongoDB lists it: its fields and their directions, whether its keys
+ * are unique, whether the documents without its fields are left out of it. Its expiration is kept, not applied.
  */
 export interface EmbeddedIndex {
     name: string
@@ -75,15 +77,19 @@ export class EmbeddedCollectionStore {
     liveBytes = 0
 
     /**
-     * The unique indexes: the keys of their values to the keys of the _id of their documents.
+     * The entries of the indexes (the keys of the values of the documents, then the keys of their _id), by their names.
      */
-    protected readonly uniques = new Map<string, Map<string, string>>()
+    readonly trees = new Map<string, EmbeddedBTree>()
+
+    readonly encoding: EmbeddedKeyEncoding
 
     constructor(
         readonly name: string,
         readonly file: EmbeddedFile,
         readonly values: EmbeddedValues,
-    ) {}
+    ) {
+        this.encoding = new EmbeddedKeyEncoding(values)
+    }
 
     /**
      * Creates the file of a collection: its header record.
@@ -174,7 +180,7 @@ export class EmbeddedCollectionStore {
             file.truncate(committed)
             file.sync()
         }
-        if (store) store.buildUniques()
+        if (store) store.buildIndexes(store.indexes)
         return store
     }
 
@@ -256,7 +262,7 @@ export class EmbeddedCollectionStore {
      */
     write(changes: EmbeddedChange[]): void {
         if (!changes.length) return
-        const uniques = this.checkUniques(changes)
+        const entries = this.indexChanges(changes)
         const records: Buffer[] = changes.map((change) =>
             change.next
                 ? encodeRecord(
@@ -284,11 +290,9 @@ export class EmbeddedCollectionStore {
             }
             offset += records[index].length
         })
-        for (const [index, values] of uniques) {
-            const owners = this.uniques.get(index)!
-            for (const [value, owner] of values)
-                if (owner === null) owners.delete(value)
-                else owners.set(value, owner)
+        for (const { tree, removed, added, id } of entries) {
+            for (const key of removed) tree.delete(key, id)
+            for (const key of added) tree.insert(key, id)
         }
     }
 
@@ -300,7 +304,7 @@ export class EmbeddedCollectionStore {
     createIndex(index: EmbeddedIndex): void {
         if (this.indexes.some((existing) => existing.name === index.name))
             return
-        if (index.unique) this.uniques.set(index.name, this.uniqueMap(index))
+        this.buildIndexes([index])
         this.file.append(
             Buffer.concat([
                 encodeRecord(
@@ -331,7 +335,7 @@ export class EmbeddedCollectionStore {
             ]),
         )
         this.indexes.splice(position, 1)
-        this.uniques.delete(name)
+        this.trees.delete(name)
         return true
     }
 
@@ -373,54 +377,52 @@ export class EmbeddedCollectionStore {
     }
 
     /**
-     * Builds the unique indexes from the documents.
-     */
-    protected buildUniques(): void {
-        for (const index of this.indexes)
-            if (index.unique) this.uniques.set(index.name, this.uniqueMap(index))
-    }
-
-    /**
-     * The map of a unique index from the documents; it fails on their duplicate keys.
+     * Builds indexes from the documents, read once; it fails on the duplicate keys of a unique one.
      *
-     * @param index
+     * @param indexes
      */
-    protected uniqueMap(index: EmbeddedIndex): Map<string, string> {
-        const owners = new Map<string, string>()
+    protected buildIndexes(indexes: EmbeddedIndex[]): void {
+        if (!indexes.length) return
+        const trees = indexes.map(() => new EmbeddedBTree())
         for (const document of this.documents()) {
-            const value = this.uniqueKey(index, document)
-            if (value === undefined) continue
-            if (owners.has(value))
-                throw new EmbeddedDuplicateKeyError(
-                    this.name,
-                    index.name,
-                    this.keyValue(index, document),
-                )
-            owners.set(
-                value,
-                this.values.idKey(document._id).toString("latin1"),
-            )
+            const id = this.values.idKey(document._id)
+            indexes.forEach((index, position) => {
+                for (const key of this.keysOf(index, document)) {
+                    if (index.unique && this.ownerOf(trees[position], key))
+                        throw new EmbeddedDuplicateKeyError(
+                            this.name,
+                            index.name,
+                            this.keyValue(index, document),
+                        )
+                    trees[position].insert(key, id)
+                }
+            })
         }
-        return owners
+        indexes.forEach((index, position) =>
+            this.trees.set(index.name, trees[position]),
+        )
     }
 
     /**
-     * The changes of the unique indexes of a write, checked: for each index, the keys of its values to the keys of the
-     * _id of their documents (null: removed).
+     * The changes of the entries of the indexes of a write, its unique keys checked (also between its changes).
      *
      * @param changes
      */
-    protected checkUniques(
-        changes: EmbeddedChange[],
-    ): Map<string, Map<string, string | null>> {
-        const pending = new Map<string, Map<string, string | null>>()
+    protected indexChanges(changes: EmbeddedChange[]): {
+        tree: EmbeddedBTree
+        removed: Buffer[]
+        added: Buffer[]
+        id: Buffer
+    }[] {
+        const entries: {
+            tree: EmbeddedBTree
+            removed: Buffer[]
+            added: Buffer[]
+            id: Buffer
+        }[] = []
         const inserted = new Set<string>()
-        const ownerOf = (index: string, value: string) => {
-            const changed = pending.get(index)
-            return changed?.has(value)
-                ? changed.get(value)
-                : this.uniques.get(index)!.get(value)
-        }
+        // The keys of the unique indexes written: their owners (the keys of their _id), null for the ones removed
+        const pending = new Map<string, Map<string, string | null>>()
         for (const change of changes) {
             const owner = change.key.toString("latin1")
             if (!change.previous && change.next) {
@@ -431,58 +433,76 @@ export class EmbeddedCollectionStore {
                 inserted.add(owner)
             }
             for (const index of this.indexes) {
-                if (!index.unique) continue
-                let changed = pending.get(index.name)
-                if (!changed) pending.set(index.name, (changed = new Map()))
-                if (change.previous) {
-                    const value = this.uniqueKey(index, change.previous)
-                    if (
-                        value !== undefined &&
-                        ownerOf(index.name, value) === owner
-                    )
-                        changed.set(value, null)
-                }
-                if (change.next) {
-                    const value = this.uniqueKey(index, change.next)
-                    if (value === undefined) continue
-                    const existing = ownerOf(index.name, value)
-                    if (
-                        existing !== undefined &&
-                        existing !== null &&
-                        existing !== owner
-                    )
-                        throw new EmbeddedDuplicateKeyError(
-                            this.name,
-                            index.name,
-                            this.keyValue(index, change.next),
+                const tree = this.trees.get(index.name)!
+                const before = change.previous
+                    ? this.keysOf(index, change.previous)
+                    : []
+                const after = change.next ? this.keysOf(index, change.next) : []
+                const kept = new Set(before.map((key) => key.toString("latin1")))
+                const now = new Set(after.map((key) => key.toString("latin1")))
+                const removed = before.filter(
+                    (key) => !now.has(key.toString("latin1")),
+                )
+                const added = after.filter(
+                    (key) => !kept.has(key.toString("latin1")),
+                )
+                if (index.unique) {
+                    let written = pending.get(index.name)
+                    if (!written) pending.set(index.name, (written = new Map()))
+                    for (const key of removed)
+                        written.set(key.toString("latin1"), null)
+                    for (const key of added) {
+                        const text = key.toString("latin1")
+                        const existing = written.has(text)
+                            ? written.get(text)
+                            : this.ownerOf(tree, key)?.toString("latin1")
+                        if (
+                            existing !== undefined &&
+                            existing !== null &&
+                            existing !== owner
                         )
-                    changed.set(value, owner)
+                            throw new EmbeddedDuplicateKeyError(
+                                this.name,
+                                index.name,
+                                this.keyValue(index, change.next!),
+                            )
+                        written.set(text, owner)
+                    }
                 }
+                entries.push({
+                    tree: tree,
+                    removed: removed,
+                    added: added,
+                    id: change.key,
+                })
             }
         }
-        return pending
+        return entries
     }
 
     /**
-     * The key of a document in a unique index: the values of its fields (missing: null), undefined when a sparse
-     * index has none of them.
+     * The key of the _id of the document holding a key in an index, if any.
+     *
+     * @param tree
+     * @param key
+     */
+    protected ownerOf(tree: EmbeddedBTree, key: Buffer): Buffer | undefined {
+        for (const [, id] of tree.range(
+            { key: key, inclusive: true },
+            { key: key, inclusive: true },
+        ))
+            return id
+        return undefined
+    }
+
+    /**
+     * The keys of a document in an index.
      *
      * @param index
      * @param document
      */
-    protected uniqueKey(
-        index: EmbeddedIndex,
-        document: EmbeddedDocument,
-    ): string | undefined {
-        const values = Object.keys(index.key).map((path) =>
-            this.values.valueAt(document, path),
-        )
-        if (index.sparse && values.every((value) => value === undefined))
-            return undefined
-        return this.values.bson.EJSON.stringify(
-            values.map((value) => (value === undefined ? null : value)),
-            { relaxed: false },
-        )
+    protected keysOf(index: EmbeddedIndex, document: EmbeddedDocument): Buffer[] {
+        return this.encoding.keysOf(index.key, index.sparse, document)
     }
 
     /**

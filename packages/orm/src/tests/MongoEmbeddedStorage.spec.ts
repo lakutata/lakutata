@@ -2,6 +2,8 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {createRequire} from 'node:module'
 import type * as BSON from 'bson'
+import {EmbeddedBTree} from '#typeorm/driver/mongo-embedded/EmbeddedBTree.js'
+import {EmbeddedKeyEncoding} from '#typeorm/driver/mongo-embedded/EmbeddedKeyEncoding.js'
 import {EmbeddedKeydir} from '#typeorm/driver/mongo-embedded/EmbeddedKeydir.js'
 import {EmbeddedValues} from '#typeorm/driver/mongo-embedded/EmbeddedValues.js'
 
@@ -13,6 +15,19 @@ const require: NodeJS.Require = createRequire(import.meta.url)
 const bson: typeof BSON = require('bson')
 
 const values: EmbeddedValues = new EmbeddedValues(bson, require('mingo'))
+
+const encoding: EmbeddedKeyEncoding = new EmbeddedKeyEncoding(values)
+
+/**
+ * A random generator of the tests, seeded
+ * @param seed
+ */
+function seededRandom(seed: number): () => number {
+    return (): number => {
+        seed = (Math.imul(seed, 1103515245) + 12345) >>> 0
+        return seed / 4294967296
+    }
+}
 
 describe('The storage of mongo-embedded', (): void => {
 
@@ -61,5 +76,77 @@ describe('The storage of mongo-embedded', (): void => {
         }
         //A document whose _id is not its first element (an integer name is serialized first)
         assert.ok(values.idKeyOf(Buffer.from(bson.BSON.serialize({_id: 'x', 1: 'one'}))).equals(values.idKey('x')))
+    })
+
+    it('orders the entries of its indexes as a sorted list of them, through inserts and deletions', (): void => {
+        const tree: EmbeddedBTree = new EmbeddedBTree()
+        const model: Map<string, [Buffer, Buffer]> = new Map()
+        const random: () => number = seededRandom(7)
+        const entryOf = (): [Buffer, Buffer] => [encoding.encode(Math.floor(random() * 3000) - 1500), values.idKey(Math.floor(random() * 20))]
+        for (let step = 0; step < 60000; step++) {
+            const [key, id] = entryOf()
+            const text: string = Buffer.concat([key, Buffer.of(0xff), id]).toString('latin1')
+            if (random() < 0.7) {
+                assert.strictEqual(tree.insert(key, id), !model.has(text), 'insert')
+                model.set(text, [key, id])
+            } else {
+                assert.strictEqual(tree.delete(key, id), model.has(text), 'delete')
+                model.delete(text)
+            }
+            assert.ok(tree.has(key, id) === model.has(text))
+        }
+        const sorted: [Buffer, Buffer][] = [...model.values()].sort((a: [Buffer, Buffer], b: [Buffer, Buffer]): number => Buffer.compare(a[0], b[0]) || Buffer.compare(a[1], b[1]))
+        const text = (entries: Iterable<[Buffer, Buffer]>): string[] => [...entries].map(([key, id]: [Buffer, Buffer]): string => `${key.toString('hex')}/${id.toString('hex')}`)
+        assert.strictEqual(tree.size, sorted.length)
+        assert.deepStrictEqual(text(tree.range()), text(sorted))
+        assert.deepStrictEqual(text(tree.range(undefined, undefined, true)), text(sorted).reverse())
+        //The ranges of keys, their bounds included or not, read forwards and backwards
+        const lower: Buffer = encoding.encode(-100), upper: Buffer = encoding.encode(250)
+        for (const [lowerInclusive, upperInclusive] of [[true, true], [false, true], [true, false], [false, false]]) {
+            const expected: string[] = text(sorted.filter(([key]: [Buffer, Buffer]): boolean => {
+                const fromLower: number = Buffer.compare(key, lower), fromUpper: number = Buffer.compare(key, upper)
+                return (fromLower > 0 || (fromLower === 0 && lowerInclusive)) && (fromUpper < 0 || (fromUpper === 0 && upperInclusive))
+            }))
+            assert.deepStrictEqual(text(tree.range({key: lower, inclusive: lowerInclusive}, {key: upper, inclusive: upperInclusive})), expected)
+            assert.deepStrictEqual(text(tree.range({key: lower, inclusive: lowerInclusive}, {key: upper, inclusive: upperInclusive}, true)), expected.reverse())
+        }
+        const prefix: Buffer = encoding.encode(42)
+        assert.deepStrictEqual(text(tree.prefixed(prefix)), text(sorted.filter(([key]: [Buffer, Buffer]): boolean => key.equals(prefix))))
+    })
+
+    it('encodes the values of the indexes in the order of MongoDB', (): void => {
+        const id: BSON.ObjectId = new bson.ObjectId()
+        //Each type in its bracket, the brackets in the order of MongoDB
+        const ordered: unknown[] = [
+            null, NaN, -Infinity, -1e300, -2, -1.5, -1, 0, 1e-300, 1, 1.5, 2, 2 ** 53, Infinity,
+            '', '\u0000', 'a', 'a\u0000', 'a\u0000b', 'ab', 'b', 'é', '中',
+            new bson.Binary(Buffer.from('a')), new bson.Binary(Buffer.from('ab')), id, new bson.ObjectId(),
+            false, true, new Date(-1), new Date(0), new Date(1)
+        ]
+        const encoded: Buffer[] = ordered.map((value: unknown): Buffer => encoding.encode(value))
+        for (let index = 1; index < encoded.length; index++) assert.ok(Buffer.compare(encoded[index - 1], encoded[index]) < 0, `${String(ordered[index - 1])} < ${String(ordered[index])}`)
+        //Descending: the order reversed
+        const descending: Buffer[] = encoded.map((key: Buffer): Buffer => encoding.direct(key, -1))
+        for (let index = 1; index < descending.length; index++) assert.ok(Buffer.compare(descending[index - 1], descending[index]) > 0)
+        //0 and -0 are one key, 1 and its Int32 and Long too
+        assert.ok(encoding.encode(0).equals(encoding.encode(-0)))
+        assert.ok(encoding.encode(1).equals(encoding.encode(new bson.Int32(1))) && encoding.encode(1).equals(encoding.encode(bson.Long.fromNumber(1))))
+    })
+
+    it('keys the documents in an index as MongoDB does', (): void => {
+        const keys = (fields: { [path: string]: number }, sparse: boolean, document: object): string[] => encoding.keysOf(fields, sparse, document).map((key: Buffer): string => key.toString('hex'))
+        const hex = (...items: unknown[]): string => Buffer.concat(items.map((item: unknown): Buffer => encoding.encode(item))).toString('hex')
+        //An array: one key per item, the items of the objects of an array followed by the path, an empty array as null
+        assert.deepStrictEqual(keys({tags: 1}, false, {tags: ['a', 'b', 'a']}), [hex('a'), hex('b')])
+        assert.deepStrictEqual(keys({'authors.name': 1}, false, {authors: [{name: 'x'}, {name: 'y'}]}), [hex('x'), hex('y')])
+        assert.deepStrictEqual(keys({tags: 1}, false, {tags: []}), [hex(null)])
+        assert.deepStrictEqual(keys({'tags.0': 1}, false, {tags: ['a', 'b']}), [hex('a')])
+        //Missing: null, unless the index is sparse and all of its fields are missing
+        assert.deepStrictEqual(keys({a: 1, b: 1}, false, {a: 1}), [hex(1, null)])
+        assert.deepStrictEqual(keys({a: 1}, true, {b: 1}), [])
+        assert.deepStrictEqual(keys({a: 1, b: 1}, true, {a: 1}), [hex(1, null)])
+        //Several fields: one of them may be an array
+        assert.deepStrictEqual(keys({a: 1, b: 1}, false, {a: [1, 2], b: 'x'}), [hex(1, 'x'), hex(2, 'x')])
+        assert.throws((): unknown => keys({a: 1, b: 1}, false, {a: [1, 2], b: [3, 4]}), /cannot index parallel arrays/)
     })
 })
