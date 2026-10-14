@@ -29,6 +29,15 @@ export interface EmbeddedStoreOptions {
 const EXTENSION = ".log"
 
 /**
+ * lakutata: the path of the snapshot of the file of a collection.
+ *
+ * @param file
+ */
+function snapshotOf(file: string): string {
+    return file.slice(0, -EXTENSION.length) + ".snapshot"
+}
+
+/**
  * lakutata: the name of the file of a collection: its name (the characters of the names of files) and the hash of
  * it (the names differing by their case, on the systems ignoring it).
  *
@@ -107,10 +116,14 @@ export class EmbeddedStore {
                     values,
                     new EmbeddedCollectionCache(store.budget),
                     file,
+                    snapshotOf(file),
                 )
                 if (collection)
                     store.collections.set(collection.name, collection)
-                else fs.rmSync(file, { force: true })
+                else {
+                    fs.rmSync(file, { force: true })
+                    fs.rmSync(snapshotOf(file), { force: true })
+                }
             }
         } catch (error) {
             store.closeFiles()
@@ -201,8 +214,10 @@ export class EmbeddedStore {
         this.collections.delete(name)
         this.unsynced.delete(collection.file)
         collection.close()
-        if (collection.file instanceof EmbeddedDiskFile)
+        if (collection.file instanceof EmbeddedDiskFile) {
             fs.rmSync(collection.file.path, { force: true })
+            fs.rmSync(snapshotOf(collection.file.path), { force: true })
+        }
         return true
     }
 
@@ -214,7 +229,9 @@ export class EmbeddedStore {
     }
 
     /**
-     * Closes the database: its files written to the disk and closed, its directory unlocked.
+     * Closes the database: its files written to the disk, the snapshots of the collections changed written (a
+     * snapshot failing to be written is left as it was: the records written after it are read again), its files
+     * closed, its directory unlocked.
      */
     async close(): Promise<void> {
         if (this.timer) clearTimeout(this.timer)
@@ -224,6 +241,18 @@ export class EmbeddedStore {
                 for (const collection of this.collections.values())
                     this.unsynced.add(collection.file)
             this.sync()
+            for (const collection of this.collections.values())
+                if (
+                    collection.changed &&
+                    collection.file instanceof EmbeddedDiskFile
+                ) {
+                    const snapshot = snapshotOf(collection.file.path)
+                    try {
+                        collection.writeSnapshot(snapshot)
+                    } catch {
+                        fs.rmSync(`${snapshot}.tmp`, { force: true })
+                    }
+                }
         } finally {
             this.closeFiles()
             this.unlock()

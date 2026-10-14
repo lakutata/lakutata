@@ -1,3 +1,6 @@
+import { randomBytes } from "crypto"
+import * as fs from "fs"
+import * as zlib from "zlib"
 import { TypeORMError } from "../../error/TypeORMError"
 import type { EmbeddedBound } from "./EmbeddedBTree"
 import { EmbeddedBTree } from "./EmbeddedBTree"
@@ -65,11 +68,45 @@ interface PendingRecord {
 }
 
 /**
+ * lakutata: the first bytes of a snapshot of a collection.
+ */
+const SNAPSHOT_MAGIC = Buffer.from("LKEMBSN1")
+
+/**
+ * lakutata: a commit record (all of them are these bytes).
+ */
+const COMMIT_RECORD = encodeRecord(RecordType.Commit, Buffer.alloc(0))
+
+/**
+ * lakutata: a number rounded up to a multiple of 8 (the alignment of the arrays of 8 bytes).
+ *
+ * @param value
+ */
+function align(value: number): number {
+    return Math.ceil(value / 8) * 8
+}
+
+/**
  * lakutata: the documents of a collection: written to its file (records appended, an operation in one write), read by
  * the offsets of their records kept in its keydir, outside the heap of V8.
  */
 export class EmbeddedCollectionStore {
-    readonly keydir = new EmbeddedKeydir()
+    keydir = new EmbeddedKeydir()
+
+    /**
+     * The id of its file (written in its header record): a snapshot is the one of the file it was written from.
+     */
+    logId?: string
+
+    /**
+     * Whether it changed since its snapshot was written or read.
+     */
+    changed = false
+
+    /**
+     * How it was opened: from its snapshot (and the records written after it), or from all the records of its file.
+     */
+    openedFrom: "snapshot" | "records" = "records"
 
     readonly indexes: EmbeddedIndex[] = []
 
@@ -115,38 +152,66 @@ export class EmbeddedCollectionStore {
         values: EmbeddedValues,
         cache: EmbeddedCollectionCache,
     ): EmbeddedCollectionStore {
+        const id = randomBytes(8).toString("hex")
         file.append(
             Buffer.concat([
                 encodeRecord(
                     RecordType.Header,
-                    values.bson.BSON.serialize({ name: name, format: 1 }),
+                    values.bson.BSON.serialize({
+                        name: name,
+                        format: 1,
+                        id: id,
+                    }),
                 ),
-                encodeRecord(RecordType.Commit, Buffer.alloc(0)),
+                COMMIT_RECORD,
             ]),
         )
-        return new EmbeddedCollectionStore(name, file, values, cache)
+        const store = new EmbeddedCollectionStore(name, file, values, cache)
+        store.logId = id
+        store.changed = true
+        return store
     }
 
     /**
-     * Opens the file of a collection: its records read (their CRC-32 checked) and applied an operation at a time; the
-     * records after its last operation (cut by a crash) are cut off. A record whose CRC-32 does not match, followed by
-     * a whole operation, is the corruption of the file: it fails. Undefined for a file without its header record.
+     * Opens the file of a collection: its snapshot read when it is the one of the file, then the records written after
+     * it applied; else all its records (their CRC-32 checked) applied an operation at a time, its indexes built from
+     * its documents. The records after its last operation (cut by a crash) are cut off. A record whose CRC-32 does not
+     * match, followed by a whole operation, is the corruption of the file: it fails. Undefined for a file without its
+     * header record (cut when it was created).
      *
      * @param file
      * @param values
      * @param cache
      * @param path the path of the file, for the errors
+     * @param snapshot the path of its snapshot
      */
     static open(
         file: EmbeddedFile,
         values: EmbeddedValues,
         cache: EmbeddedCollectionCache,
         path: string,
+        snapshot?: string,
     ): EmbeddedCollectionStore | undefined {
-        const reader = new EmbeddedRecordReader(file)
-        let store: EmbeddedCollectionStore | undefined
+        const first = new EmbeddedRecordReader(file).next(true)
+        if (typeof first === "string") return undefined
+        if (first.type !== RecordType.Header)
+            throw new TypeORMError(
+                `The file ${path} is not a file of mongo-embedded`,
+            )
+        const header = values.deserialize(first.payload)
+        const store = new EmbeddedCollectionStore(
+            header.name,
+            file,
+            values,
+            cache,
+        )
+        store.logId = header.id
+        const start = snapshot ? store.readSnapshot(snapshot) : undefined
+        const replaying = start !== undefined
+        const reader = new EmbeddedRecordReader(file, start ?? 0)
+        const created: EmbeddedIndex[] = []
         let pending: PendingRecord[] = []
-        let committed = 0
+        let committed = start ?? 0
         for (;;) {
             const record = reader.next(true)
             if (record === "end" || record === "torn") break
@@ -157,36 +222,24 @@ export class EmbeddedCollectionStore {
                     )
                 break
             }
-            if (!store) {
-                if (record.type !== RecordType.Header)
-                    throw new TypeORMError(
-                        `The file ${path} is not a file of mongo-embedded`,
-                    )
-                store = new EmbeddedCollectionStore(
-                    values.deserialize(record.payload).name,
-                    file,
-                    values,
-                    cache,
-                )
-            }
             if (record.type === RecordType.Commit) {
-                for (const done of pending) store.recover(done)
+                for (const done of pending)
+                    if (replaying) store.replay(done, created)
+                    else store.recover(done)
                 pending = []
                 committed = record.offset + record.length
                 continue
             }
+            const keyed =
+                record.type === RecordType.Put ||
+                record.type === RecordType.Delete
             pending.push({
                 type: record.type,
                 offset: record.offset,
                 length: record.length,
-                key:
-                    record.type === RecordType.Put ||
-                    record.type === RecordType.Delete
-                        ? values.idKeyOf(record.payload)
-                        : undefined,
+                key: keyed ? values.idKeyOf(record.payload) : undefined,
                 payload:
-                    record.type === RecordType.CreateIndex ||
-                    record.type === RecordType.DropIndex
+                    (replaying && record.type === RecordType.Put) || !keyed
                         ? values.deserialize(record.payload)
                         : undefined,
             })
@@ -195,8 +248,162 @@ export class EmbeddedCollectionStore {
             file.truncate(committed)
             file.sync()
         }
-        if (store) store.buildIndexes(store.indexes)
+        if (replaying) {
+            store.openedFrom = "snapshot"
+            store.buildIndexes(
+                created.filter((index) => store.indexes.includes(index)),
+            )
+            store.changed = committed > start
+        } else {
+            store.buildIndexes(store.indexes)
+            store.changed = true
+        }
         return store
+    }
+
+    /**
+     * Writes its snapshot: its keydir and the trees of its indexes as they are in memory, and the offset of its file
+     * they are the state of (beside the file, then renamed over it). It is checked by its CRC-32 when it is read.
+     *
+     * @param path
+     */
+    writeSnapshot(path: string): void {
+        const keydir = this.keydir.export()
+        const trees = this.indexes
+            .filter((index) => this.trees.has(index.name))
+            .map((index) => ({
+                name: index.name,
+                ...this.trees.get(index.name)!.export(),
+            }))
+        const header = this.values.bson.BSON.serialize({
+            format: 1,
+            logId: this.logId,
+            logOffset: this.file.size,
+            liveBytes: this.liveBytes,
+            indexes: this.indexes,
+            multikey: [...this.multikey],
+            keydir: {
+                state: keydir.state,
+                sizes: keydir.buffers.map((buffer) => buffer.byteLength),
+            },
+            trees: trees.map((tree) => ({
+                name: tree.name,
+                state: tree.state,
+                sizes: tree.buffers.map((buffer) => buffer.byteLength),
+            })),
+        })
+        const length = Buffer.allocUnsafe(4)
+        length.writeUInt32LE(header.length)
+        const parts: Uint8Array[] = [length, header]
+        let size = 16 + header.length
+        const pad = () => {
+            if (size % 8) parts.push(Buffer.alloc(align(size) - size))
+            size = align(size)
+        }
+        pad()
+        for (const buffer of [
+            ...keydir.buffers,
+            ...trees.flatMap((tree) => tree.buffers),
+        ]) {
+            parts.push(buffer)
+            size += buffer.byteLength
+            pad()
+        }
+        let checksum = 0
+        for (const part of parts) checksum = zlib.crc32(part, checksum)
+        const crc = Buffer.allocUnsafe(4)
+        crc.writeUInt32LE(checksum)
+        const temporary = `${path}.tmp`
+        const descriptor = fs.openSync(temporary, "w")
+        try {
+            for (const part of [SNAPSHOT_MAGIC, crc, ...parts]) {
+                let written = 0
+                while (written < part.byteLength)
+                    written += fs.writeSync(
+                        descriptor,
+                        part,
+                        written,
+                        part.byteLength - written,
+                    )
+            }
+        } finally {
+            fs.closeSync(descriptor)
+        }
+        fs.renameSync(temporary, path)
+        this.changed = false
+    }
+
+    /**
+     * Reads its snapshot, when it is whole and the one of its file (its id, an offset of it ending an operation): the
+     * offset its records are applied from; undefined otherwise.
+     *
+     * @param path
+     */
+    protected readSnapshot(path: string): number | undefined {
+        let data: Buffer
+        try {
+            data = fs.readFileSync(path)
+        } catch {
+            return undefined
+        }
+        try {
+            if (
+                data.length < 16 ||
+                !data.subarray(0, 8).equals(SNAPSHOT_MAGIC) ||
+                zlib.crc32(data.subarray(12)) !== data.readUInt32LE(8)
+            )
+                return undefined
+            // Its arrays of 8 bytes aligned
+            if (data.byteOffset % 8) data = Buffer.from(data)
+            const length = data.readUInt32LE(12)
+            const header = this.values.deserialize(
+                data.subarray(16, 16 + length),
+            )
+            if (
+                header.format !== 1 ||
+                header.logId !== this.logId ||
+                header.logOffset > this.file.size
+            )
+                return undefined
+            const end = Buffer.allocUnsafe(RECORD_HEADER)
+            this.file.readInto(
+                end,
+                0,
+                RECORD_HEADER,
+                header.logOffset - RECORD_HEADER,
+            )
+            if (!end.equals(COMMIT_RECORD)) return undefined
+            let position = align(16 + length)
+            const take = (size: number): Uint8Array => {
+                const bytes = new Uint8Array(
+                    data.buffer,
+                    data.byteOffset + position,
+                    size,
+                )
+                position = align(position + size)
+                return bytes
+            }
+            this.keydir = EmbeddedKeydir.import(
+                header.keydir.state,
+                header.keydir.sizes.map(take),
+            )
+            for (const tree of header.trees)
+                this.trees.set(
+                    tree.name,
+                    EmbeddedBTree.import(tree.state, tree.sizes.map(take)),
+                )
+            this.indexes.push(...header.indexes)
+            for (const name of header.multikey) this.multikey.add(name)
+            this.liveBytes = header.liveBytes
+            return header.logOffset
+        } catch {
+            this.keydir = new EmbeddedKeydir()
+            this.trees.clear()
+            this.indexes.length = 0
+            this.multikey.clear()
+            this.liveBytes = 0
+            return undefined
+        }
     }
 
     /**
@@ -247,13 +454,15 @@ export class EmbeddedCollectionStore {
         const slot = this.keydir.find(key)
         if (slot < 0) return undefined
         const length = this.keydir.lengthAt(slot)
-        const payload = Buffer.allocUnsafe(length - RECORD_HEADER)
-        this.file.readInto(
-            payload,
-            0,
-            payload.length,
-            this.keydir.offsetAt(slot) + RECORD_HEADER,
+        const offset = this.keydir.offsetAt(slot)
+        const record = Buffer.allocUnsafe(length)
+        this.file.readInto(record, 0, length, offset)
+        const payload = record.subarray(RECORD_HEADER)
+        if (
+            zlib.crc32(payload, zlib.crc32(record.subarray(8, 9))) !==
+            record.readUInt32LE(4)
         )
+            throw this.corrupted(offset)
         const document = this.values.deserialize(payload)
         this.cache.set(text, document, cachedSizeOf(length))
         return document
@@ -270,8 +479,9 @@ export class EmbeddedCollectionStore {
         }
         const reader = new EmbeddedRecordReader(this.file)
         for (;;) {
-            const record = reader.next(false)
-            if (typeof record === "string") return
+            const record = reader.next(true)
+            if (record === "end") return
+            if (typeof record === "string") throw this.corrupted(reader.position)
             if (record.type !== RecordType.Put) continue
             const key = this.values.idKeyOf(record.payload)
             const slot = this.keydir.find(key)
@@ -295,6 +505,7 @@ export class EmbeddedCollectionStore {
     write(changes: EmbeddedChange[]): void {
         if (!changes.length) return
         const entries = this.indexChanges(changes)
+        this.changed = true
         const records: Buffer[] = changes.map((change) =>
             change.next
                 ? encodeRecord(
@@ -365,6 +576,7 @@ export class EmbeddedCollectionStore {
         if (this.indexes.some((existing) => existing.name === index.name))
             return
         this.buildIndexes([index])
+        this.changed = true
         this.file.append(
             Buffer.concat([
                 encodeRecord(
@@ -385,6 +597,7 @@ export class EmbeddedCollectionStore {
     dropIndex(name: string): boolean {
         const position = this.indexes.findIndex((index) => index.name === name)
         if (position < 0) return false
+        this.changed = true
         this.file.append(
             Buffer.concat([
                 encodeRecord(
@@ -403,6 +616,17 @@ export class EmbeddedCollectionStore {
     close(): void {
         this.cache.close()
         this.file.close()
+    }
+
+    /**
+     * The error of a record of its file whose CRC-32 does not match.
+     *
+     * @param offset
+     */
+    protected corrupted(offset: number): TypeORMError {
+        return new TypeORMError(
+            `The file ${(this.file as { path?: string }).path ?? this.name} of mongo-embedded is corrupted at its offset ${offset}`,
+        )
     }
 
     /**
@@ -433,6 +657,61 @@ export class EmbeddedCollectionStore {
                     (index) => index.name === record.payload!.name,
                 )
                 if (position >= 0) this.indexes.splice(position, 1)
+                break
+            }
+        }
+    }
+
+    /**
+     * Applies a record written after the snapshot read: its document in the keydir and the indexes (the indexes created
+     * are built once the records are applied).
+     *
+     * @param record
+     * @param created the indexes created by the records
+     */
+    protected replay(record: PendingRecord, created: EmbeddedIndex[]): void {
+        switch (record.type) {
+            case RecordType.Put:
+            case RecordType.Delete: {
+                const previous = this.get(record.key!)
+                const next =
+                    record.type === RecordType.Put ? record.payload : undefined
+                const id = record.key!
+                for (const index of this.indexes) {
+                    const tree = this.trees.get(index.name)
+                    if (!tree) continue
+                    const before = previous ? this.keysOf(index, previous) : []
+                    const after = next ? this.keysOf(index, next) : []
+                    for (const key of before) tree.delete(key, id)
+                    for (const key of after) tree.insert(key, id)
+                    if (after.length > 1) this.multikey.add(index.name)
+                }
+                this.cache.delete(id.toString("latin1"))
+                if (next)
+                    this.liveBytes +=
+                        record.length -
+                        this.keydir.set(id, record.offset, record.length)
+                else this.liveBytes -= this.keydir.delete(id)
+                break
+            }
+            case RecordType.CreateIndex:
+                if (
+                    !this.indexes.some(
+                        (index) => index.name === record.payload!.name,
+                    )
+                ) {
+                    const index = record.payload as EmbeddedIndex
+                    this.indexes.push(index)
+                    created.push(index)
+                }
+                break
+            case RecordType.DropIndex: {
+                const position = this.indexes.findIndex(
+                    (index) => index.name === record.payload!.name,
+                )
+                if (position >= 0) this.indexes.splice(position, 1)
+                this.trees.delete(record.payload!.name)
+                this.multikey.delete(record.payload!.name)
                 break
             }
         }

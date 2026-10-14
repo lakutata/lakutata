@@ -42,9 +42,9 @@ function hashOf(key: Uint8Array): number {
  * address (its chunk times the size of the chunks, plus its place in it).
  */
 class KeyArena {
-    protected readonly chunks: Buffer[] = []
+    chunks: Buffer[] = []
 
-    protected position = CHUNK_SIZE
+    position = CHUNK_SIZE
 
     /**
      * Adds a key; its address.
@@ -246,6 +246,71 @@ export class EmbeddedKeydir {
                     this.offsets[slot],
                     this.lengths[slot],
                 ]
+    }
+
+    /**
+     * The state of the keydir as buffers (its arrays and the chunks of its arena, shared, not copied), and the numbers
+     * telling them apart.
+     */
+    export(): { state: number[]; buffers: Uint8Array[] } {
+        const view = (array: ArrayBufferView) =>
+            new Uint8Array(array.buffer, array.byteOffset, array.byteLength)
+        return {
+            state: [
+                this.mask + 1,
+                this.live,
+                this.deleted,
+                this.arena.chunks.length,
+                this.arena.position,
+            ],
+            // The last chunk of the arena up to its end
+            buffers: [
+                view(this.hashes),
+                view(this.keys),
+                view(this.offsets),
+                view(this.lengths),
+                ...this.arena.chunks.map((chunk, index) =>
+                    index === this.arena.chunks.length - 1
+                        ? view(chunk.subarray(0, this.arena.position))
+                        : view(chunk),
+                ),
+            ],
+        }
+    }
+
+    /**
+     * A keydir from its state exported (its buffers used as they are, aligned on 8 bytes).
+     *
+     * @param state
+     * @param buffers
+     */
+    static import(state: number[], buffers: Uint8Array[]): EmbeddedKeydir {
+        const [capacity, live, deleted, chunks, position] = state
+        const keydir = new EmbeddedKeydir(1)
+        const array = <T>(Type: new (buffer: ArrayBufferLike, offset: number, length: number) => T, bytes: Uint8Array, size: number): T =>
+            new Type(bytes.buffer, bytes.byteOffset, bytes.byteLength / size)
+        keydir.hashes = array(Uint32Array, buffers[0], 4)
+        keydir.keys = array(Float64Array, buffers[1], 8)
+        keydir.offsets = array(Float64Array, buffers[2], 8)
+        keydir.lengths = array(Uint32Array, buffers[3], 4)
+        keydir.mask = capacity - 1
+        keydir.live = live
+        keydir.deleted = deleted
+        keydir.arena = new KeyArena()
+        keydir.arena.chunks = buffers
+            .slice(4, 4 + chunks)
+            .map((bytes) =>
+                Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+            )
+        // The last chunk whole again, to be written on
+        const last = keydir.arena.chunks.length - 1
+        if (last >= 0 && keydir.arena.chunks[last].length < CHUNK_SIZE) {
+            const chunk = Buffer.allocUnsafe(CHUNK_SIZE)
+            keydir.arena.chunks[last].copy(chunk)
+            keydir.arena.chunks[last] = chunk
+        }
+        keydir.arena.position = position
+        return keydir
     }
 
     /**

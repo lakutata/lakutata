@@ -1,6 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {appendFile, mkdtemp, readdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
+import {appendFile, cp, mkdtemp, readdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import {crc32} from 'node:zlib'
 import {tmpdir} from 'node:os'
@@ -200,10 +200,15 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         assert.strictEqual(await dataSource.getMongoRepository(Post).findOneBy({title: 'uncommitted'}), null)
         await dataSource.destroy()
         assert.strictEqual((await stat(file)).size, whole.length)
-        //A byte changed in a record followed by whole operations: the file is corrupted
+        //A byte changed in a record (of the last document) followed by whole operations: the file is corrupted. Its
+        //snapshot read, the record is checked when it is read; without it, when the file is opened
         const corrupted: Buffer = Buffer.from(whole)
-        corrupted[100] ^= 0xff
+        corrupted[whole.length - 50] ^= 0xff
         await writeFile(file, corrupted)
+        dataSource = await open(database)
+        await assert.rejects(dataSource.getMongoRepository(Post).find(), /The file .* of mongo-embedded is corrupted at its offset \d+/)
+        await dataSource.destroy()
+        await rm(file.replace(/\.log$/, '.snapshot'))
         await assert.rejects(open(database), /The file .* of mongo-embedded is corrupted at its offset \d+/)
     }))
 
@@ -267,6 +272,36 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
             assert.deepStrictEqual((await posts.find({where: {tags: 'y'}, order: {title: 'ASC'}})).map((post: Post): string => post.title), ['hello', 'world'])
             await dataSource.destroy()
         }
+    }))
+
+    it('opens from its snapshot, the writes made after it applied', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const database: string = path.join(directory, 'snapshot')
+        const opened = (dataSource: DataSource): string => (dataSource.mongoManager.mongoQueryRunner.databaseConnection as unknown as {store: {collection(name: string, create: boolean): {openedFrom: string}}}).store.collection('post', false).openedFrom
+        let dataSource: DataSource = await open(database)
+        const [hello, world] = await savePosts(dataSource.getMongoRepository(Post))
+        await dataSource.destroy()
+        dataSource = await open(database)
+        assert.strictEqual(opened(dataSource), 'snapshot')
+        //Written after the snapshot, without closing (a crash): an indexed field changed, a document deleted, one added
+        const posts: MongoRepository<Post> = dataSource.getMongoRepository(Post)
+        await posts.update(hello.id, {title: 'renamed'})
+        await posts.delete(world.id)
+        await posts.save({title: 'fourth', tags: ['z'], views: 4, author: {name: 'Linus', city: 'Helsinki'}})
+        const copy: string = path.join(directory, 'copy')
+        await cp(database, copy, {recursive: true})
+        await rm(path.join(copy, 'LOCK'))
+        await dataSource.destroy()
+        const recovered: DataSource = await open(copy)
+        assert.strictEqual(opened(recovered), 'snapshot')
+        const again: MongoRepository<Post> = recovered.getMongoRepository(Post)
+        assert.deepStrictEqual((await again.find({order: {title: 'ASC'}})).map((post: Post): string => post.title), ['fourth', 'renamed', 'third'])
+        assert.strictEqual(await again.count({title: 'hello'}), 0)
+        assert.strictEqual(await again.count({title: 'world'}), 0)
+        assert.strictEqual((await again.findOneBy({title: 'renamed'}))?.views, 1)
+        //The unique index: the title freed is free, the title taken is taken
+        await again.save({title: 'world', tags: [], views: 0, author: {name: 'Grace', city: 'New York'}})
+        await assert.rejects(again.save({title: 'renamed', tags: [], views: 0, author: {name: 'Ada', city: 'London'}}), {code: 11000})
+        await recovered.destroy()
     }))
 
     it('connects the Database component', async (): Promise<void> => {

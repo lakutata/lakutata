@@ -254,6 +254,51 @@ export class EmbeddedBTree {
     }
 
     /**
+     * The state of the tree as buffers (the chunks of its pages, shared, not copied), and the numbers telling them
+     * apart.
+     */
+    export(): { state: number[]; buffers: Uint8Array[] } {
+        // The last chunk up to its last page
+        const used = this.pages - (this.chunks.length - 1) * PAGES_PER_CHUNK
+        return {
+            state: [this.root, this.pages, this.count, this.chunks.length],
+            buffers: this.chunks.map((chunk, index) =>
+                index === this.chunks.length - 1
+                    ? chunk.subarray(0, used * PAGE)
+                    : chunk,
+            ),
+        }
+    }
+
+    /**
+     * A tree from its state exported (its buffers used as they are).
+     *
+     * @param state
+     * @param buffers
+     */
+    static import(state: number[], buffers: Uint8Array[]): EmbeddedBTree {
+        const [root, pages, count, chunks] = state
+        const tree = new EmbeddedBTree()
+        tree.chunks = buffers
+            .slice(0, chunks)
+            .map((bytes) =>
+                Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+            )
+        // The last chunk whole again, to be written on
+        const last = tree.chunks.length - 1
+        if (last >= 0 && tree.chunks[last].length < PAGE * PAGES_PER_CHUNK) {
+            const chunk = Buffer.allocUnsafe(PAGE * PAGES_PER_CHUNK)
+            tree.chunks[last].copy(chunk)
+            tree.chunks[last] = chunk
+        }
+        tree.root = root
+        tree.pages = pages
+        tree.count = count
+        tree.free = []
+        return tree
+    }
+
+    /**
      * Removes all the entries.
      */
     clear(): void {
