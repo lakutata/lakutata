@@ -40,4 +40,11 @@ export interface MongoEmbeddedDataSourceOptions extends BaseDataSourceOptions {
      * @default 67108864 (64 MiB)
      */
     readonly cacheSize?: number
+
+    /**
+     * When the file of a collection is compacted (its live documents copied to a new file, the writes going on): from
+     * a size (16 MiB by default) when it is a ratio of the bytes of its live documents (2 by default); false compacts
+     * none.
+     */
+    readonly compaction?: false | { minimumSize?: number; ratio?: number }
 }

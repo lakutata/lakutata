@@ -28,6 +28,7 @@ export class MongoEmbeddedDriver extends MongoDriver {
                 sync: options.sync,
                 syncInterval: options.syncInterval,
                 cacheSize: options.cacheSize,
+                compaction: options.compaction,
             },
             this.embedded.mingo,
             this.embedded.bson,

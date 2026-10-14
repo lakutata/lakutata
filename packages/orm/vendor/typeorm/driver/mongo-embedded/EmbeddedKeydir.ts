@@ -99,8 +99,8 @@ class KeyArena {
 /**
  * lakutata: the records of the documents of a collection by the keys of their _id, outside the heap of V8, whose
  * maps hold up to 2^23 entries: an open addressing hash table (linear probing) of typed arrays, its keys in an arena.
- * A slot holds the hash of its key (0 empty, 1 deleted), the address of its key, and the offset and length of the
- * record of the document. It holds up to 0.7 × 2^28 keys.
+ * A slot holds the hash of its key (0 empty, 1 deleted), the address of its key, and the file (a number), offset and
+ * length of the record of the document. It holds up to 0.7 × 2^28 keys.
  */
 export class EmbeddedKeydir {
     protected hashes: Uint32Array
@@ -110,6 +110,8 @@ export class EmbeddedKeydir {
     protected offsets: Float64Array
 
     protected lengths: Uint32Array
+
+    protected files: Uint8Array
 
     protected arena: KeyArena
 
@@ -175,13 +177,23 @@ export class EmbeddedKeydir {
     }
 
     /**
+     * The file of the record of a slot.
+     *
+     * @param slot
+     */
+    fileAt(slot: number): number {
+        return this.files[slot]
+    }
+
+    /**
      * Sets the record of a key; the length of the record it replaces, or 0.
      *
      * @param key
      * @param offset
      * @param length
+     * @param file
      */
-    set(key: Uint8Array, offset: number, length: number): number {
+    set(key: Uint8Array, offset: number, length: number, file = 0): number {
         const hash = hashOf(key)
         let slot = hash & this.mask
         let free = -1
@@ -197,6 +209,7 @@ export class EmbeddedKeydir {
                 const previous = this.lengths[slot]
                 this.offsets[slot] = offset
                 this.lengths[slot] = length
+                this.files[slot] = file
                 return previous
             }
             slot = (slot + 1) & this.mask
@@ -209,6 +222,7 @@ export class EmbeddedKeydir {
         this.keys[slot] = this.arena.add(key)
         this.offsets[slot] = offset
         this.lengths[slot] = length
+        this.files[slot] = file
         this.live++
         if (this.live + this.deleted > (this.mask + 1) * LOAD) this.grow()
         return 0
@@ -269,6 +283,7 @@ export class EmbeddedKeydir {
                 view(this.keys),
                 view(this.offsets),
                 view(this.lengths),
+                view(this.files),
                 ...this.arena.chunks.map((chunk, index) =>
                     index === this.arena.chunks.length - 1
                         ? view(chunk.subarray(0, this.arena.position))
@@ -293,12 +308,13 @@ export class EmbeddedKeydir {
         keydir.keys = array(Float64Array, buffers[1], 8)
         keydir.offsets = array(Float64Array, buffers[2], 8)
         keydir.lengths = array(Uint32Array, buffers[3], 4)
+        keydir.files = array(Uint8Array, buffers[4], 1)
         keydir.mask = capacity - 1
         keydir.live = live
         keydir.deleted = deleted
         keydir.arena = new KeyArena()
         keydir.arena.chunks = buffers
-            .slice(4, 4 + chunks)
+            .slice(5, 5 + chunks)
             .map((bytes) =>
                 Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength),
             )
@@ -324,7 +340,8 @@ export class EmbeddedKeydir {
             throw new TypeORMError(
                 `A collection of mongo-embedded holds up to ${Math.floor(MAXIMUM_CAPACITY * LOAD)} documents`,
             )
-        const { hashes, keys, offsets, lengths, arena, mask, live } = this
+        const { hashes, keys, offsets, lengths, files, arena, mask, live } =
+            this
         this.allocate(capacity)
         for (let old = 0; old <= mask; old++) {
             const hash = hashes[old]
@@ -335,6 +352,7 @@ export class EmbeddedKeydir {
             this.keys[slot] = this.arena.add(arena.read(keys[old]))
             this.offsets[slot] = offsets[old]
             this.lengths[slot] = lengths[old]
+            this.files[slot] = files[old]
         }
         this.live = live
     }
@@ -344,6 +362,7 @@ export class EmbeddedKeydir {
         this.keys = new Float64Array(capacity)
         this.offsets = new Float64Array(capacity)
         this.lengths = new Uint32Array(capacity)
+        this.files = new Uint8Array(capacity)
         this.arena = new KeyArena()
         this.mask = capacity - 1
         this.live = 0

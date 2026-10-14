@@ -40,9 +40,11 @@ with the semantics of MongoDB by mingo. The option `sync` tells when the writes 
 (the default, every `syncInterval`, 100 ms: a write survives a crash of the process, the last interval may be lost on a
 power loss), `'always'` or `'never'`. The documents read are cached in memory (`cacheSize`, 64 MiB by default): a scan
 of a collection whose documents are all cached reads none of its files. A crash cutting a write leaves the database as
-it was before it. One process opens the directory: it is locked. As with MongoDB, the relations, the query builders and
-the transactions of TypeORM are not supported, and the migrations are written by hand with the `MongoQueryRunner`, not
-generated. Its `ObjectId` and `Binary` are the ones of the CommonJS module of `bson`.
+it was before it. The file of a collection is compacted while it is written (option `compaction`: from 16 MiB, when it
+is twice the size of its live documents), and its indexes are written to a snapshot when the database is closed, read
+when it is opened again. One process opens the directory: it is locked. As with MongoDB, the relations, the query
+builders and the transactions of TypeORM are not supported, and the migrations are written by hand with the
+`MongoQueryRunner`, not generated. Its `ObjectId` and `Binary` are the ones of the CommonJS module of `bson`.
 
 The query result cache stored in Redis (`cache: {type: 'redis'}` or `'ioredis'`) needs `redis` or `ioredis`.
 

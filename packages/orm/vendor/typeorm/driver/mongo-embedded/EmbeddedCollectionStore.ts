@@ -108,6 +108,21 @@ export class EmbeddedCollectionStore {
      */
     openedFrom: "snapshot" | "records" = "records"
 
+    /**
+     * The number of its file in the slots of its keydir (0 or 1): a compaction writes a new file, of the other number.
+     */
+    generation = 0
+
+    /**
+     * Its file before the compaction running: the documents not copied yet are read from it.
+     */
+    previous?: EmbeddedFile
+
+    /**
+     * The compaction running.
+     */
+    compacting?: Promise<void>
+
     readonly indexes: EmbeddedIndex[] = []
 
     /**
@@ -131,7 +146,7 @@ export class EmbeddedCollectionStore {
 
     constructor(
         readonly name: string,
-        readonly file: EmbeddedFile,
+        public file: EmbeddedFile,
         readonly values: EmbeddedValues,
         readonly cache: EmbeddedCollectionCache,
     ) {
@@ -276,7 +291,8 @@ export class EmbeddedCollectionStore {
                 ...this.trees.get(index.name)!.export(),
             }))
         const header = this.values.bson.BSON.serialize({
-            format: 1,
+            format: 2,
+            generation: this.generation,
             logId: this.logId,
             logOffset: this.file.size,
             liveBytes: this.liveBytes,
@@ -360,7 +376,7 @@ export class EmbeddedCollectionStore {
                 data.subarray(16, 16 + length),
             )
             if (
-                header.format !== 1 ||
+                header.format !== 2 ||
                 header.logId !== this.logId ||
                 header.logOffset > this.file.size
             )
@@ -395,6 +411,7 @@ export class EmbeddedCollectionStore {
             this.indexes.push(...header.indexes)
             for (const name of header.multikey) this.multikey.add(name)
             this.liveBytes = header.liveBytes
+            this.generation = header.generation
             return header.logOffset
         } catch {
             this.keydir = new EmbeddedKeydir()
@@ -456,7 +473,7 @@ export class EmbeddedCollectionStore {
         const length = this.keydir.lengthAt(slot)
         const offset = this.keydir.offsetAt(slot)
         const record = Buffer.allocUnsafe(length)
-        this.file.readInto(record, 0, length, offset)
+        this.fileOf(this.keydir.fileAt(slot)).readInto(record, 0, length, offset)
         const payload = record.subarray(RECORD_HEADER)
         if (
             zlib.crc32(payload, zlib.crc32(record.subarray(8, 9))) !==
@@ -477,7 +494,27 @@ export class EmbeddedCollectionStore {
             yield* this.cache.documents()
             return
         }
-        const reader = new EmbeddedRecordReader(this.file)
+        // During a compaction, the documents not copied yet are in the previous file
+        for (const [file, generation] of this.previous
+            ? [
+                  [this.previous, this.generation ^ 1] as const,
+                  [this.file, this.generation] as const,
+              ]
+            : [[this.file, this.generation] as const])
+            yield* this.liveDocuments(file, generation)
+    }
+
+    /**
+     * The documents of a file its keydir holds (cached while the cache has room).
+     *
+     * @param file
+     * @param generation
+     */
+    protected *liveDocuments(
+        file: EmbeddedFile,
+        generation: number,
+    ): Generator<EmbeddedDocument> {
+        const reader = new EmbeddedRecordReader(file)
         for (;;) {
             const record = reader.next(true)
             if (record === "end") return
@@ -485,7 +522,11 @@ export class EmbeddedCollectionStore {
             if (record.type !== RecordType.Put) continue
             const key = this.values.idKeyOf(record.payload)
             const slot = this.keydir.find(key)
-            if (slot < 0 || this.keydir.offsetAt(slot) !== record.offset)
+            if (
+                slot < 0 ||
+                this.keydir.fileAt(slot) !== generation ||
+                this.keydir.offsetAt(slot) !== record.offset
+            )
                 continue
             const text = key.toString("latin1")
             let document = this.cache.get(text)
@@ -528,7 +569,12 @@ export class EmbeddedCollectionStore {
             if (change.next) {
                 this.liveBytes +=
                     records[index].length -
-                    this.keydir.set(change.key, offset, records[index].length)
+                    this.keydir.set(
+                        change.key,
+                        offset,
+                        records[index].length,
+                        this.generation,
+                    )
                 this.cache.set(
                     text,
                     change.next,
@@ -613,9 +659,177 @@ export class EmbeddedCollectionStore {
         return true
     }
 
+    /**
+     * Whether its file is worth compacting: larger than a size, and a ratio of the bytes of its live documents.
+     *
+     * @param minimumSize
+     * @param ratio
+     */
+    isWorthCompacting(minimumSize: number, ratio: number): boolean {
+        return (
+            !this.previous &&
+            this.file.size >= minimumSize &&
+            this.file.size > this.liveBytes * ratio
+        )
+    }
+
+    /**
+     * Starts a compaction: a new file (its header record and the records of its indexes) is written from now on, the
+     * live documents of the previous one copied to it then.
+     *
+     * @param next
+     */
+    beginCompaction(next: EmbeddedFile): void {
+        const id = randomBytes(8).toString("hex")
+        next.append(
+            Buffer.concat([
+                encodeRecord(
+                    RecordType.Header,
+                    this.values.bson.BSON.serialize({
+                        name: this.name,
+                        format: 1,
+                        id: id,
+                    }),
+                ),
+                ...this.indexes.map((index) =>
+                    encodeRecord(
+                        RecordType.CreateIndex,
+                        this.values.bson.BSON.serialize(index),
+                    ),
+                ),
+                COMMIT_RECORD,
+            ]),
+        )
+        this.previous = this.file
+        this.file = next
+        this.generation ^= 1
+        this.logId = id
+        this.changed = true
+    }
+
+    /**
+     * Copies the documents of the previous file its keydir still holds there to the current one, a batch (one operation)
+     * at a time, yielding between the batches (the writes made meanwhile are written to the current file).
+     */
+    *copyLiveDocuments(): Generator<void> {
+        const previous = this.previous!
+        const old = this.generation ^ 1
+        const reader = new EmbeddedRecordReader(previous)
+        let records: Buffer[] = []
+        let keys: Buffer[] = []
+        const flush = () => {
+            if (!records.length) return
+            let offset = this.file.append(
+                Buffer.concat([...records, COMMIT_RECORD]),
+            )
+            records.forEach((record, index) => {
+                this.keydir.set(keys[index], offset, record.length, this.generation)
+                offset += record.length
+            })
+            records = []
+            keys = []
+        }
+        for (;;) {
+            const record = reader.next(true)
+            if (record === "end") break
+            if (typeof record === "string") throw this.corrupted(reader.position)
+            if (record.type !== RecordType.Put) continue
+            const key = this.values.idKeyOf(record.payload)
+            const slot = this.keydir.find(key)
+            if (
+                slot < 0 ||
+                this.keydir.fileAt(slot) !== old ||
+                this.keydir.offsetAt(slot) !== record.offset
+            )
+                continue
+            records.push(encodeRecord(RecordType.Put, record.payload))
+            keys.push(key)
+            if (records.length < 1000) continue
+            flush()
+            yield
+        }
+        flush()
+    }
+
+    /**
+     * Ends a compaction: the previous file closed (its documents all copied).
+     */
+    endCompaction(): void {
+        this.previous!.close()
+        this.previous = undefined
+    }
+
+    /**
+     * Applies the records of the file of a compaction cut by a crash (written after the ones of its file), then runs
+     * the compaction to its end: its documents not copied yet copied.
+     *
+     * @param next
+     * @param path the path of the file, for the errors
+     */
+    resumeCompaction(next: EmbeddedFile, path: string): void {
+        const first = new EmbeddedRecordReader(next).next(true)
+        if (typeof first === "string" || first.type !== RecordType.Header)
+            throw new TypeORMError(
+                `The file ${path} is not a file of mongo-embedded`,
+            )
+        this.previous = this.file
+        this.file = next
+        this.generation ^= 1
+        this.logId = this.values.deserialize(first.payload).id
+        const created: EmbeddedIndex[] = []
+        const reader = new EmbeddedRecordReader(next, first.offset + first.length)
+        let pending: PendingRecord[] = []
+        let committed = first.offset + first.length
+        for (;;) {
+            const record = reader.next(true)
+            if (record === "end" || record === "torn") break
+            if (record === "checksum") {
+                if (EmbeddedCollectionStore.isFollowedByCommit(next, reader))
+                    throw this.corrupted(reader.position)
+                break
+            }
+            if (record.type === RecordType.Commit) {
+                for (const done of pending) this.replay(done, created)
+                pending = []
+                committed = record.offset + record.length
+                continue
+            }
+            const keyed =
+                record.type === RecordType.Put ||
+                record.type === RecordType.Delete
+            pending.push({
+                type: record.type,
+                offset: record.offset,
+                length: record.length,
+                key: keyed ? this.values.idKeyOf(record.payload) : undefined,
+                payload:
+                    record.type !== RecordType.Delete
+                        ? this.values.deserialize(record.payload)
+                        : undefined,
+            })
+        }
+        if (committed < next.size) {
+            next.truncate(committed)
+            next.sync()
+        }
+        this.buildIndexes(created.filter((index) => this.indexes.includes(index)))
+        for (const _ of this.copyLiveDocuments()) continue
+        this.changed = true
+    }
+
     close(): void {
         this.cache.close()
+        this.previous?.close()
         this.file.close()
+    }
+
+    /**
+     * The file of a number of the slots of the keydir.
+     *
+     * @param generation
+     */
+    protected fileOf(generation: number): EmbeddedFile {
+        return generation === this.generation ? this.file : this.previous!
     }
 
     /**
@@ -639,7 +853,12 @@ export class EmbeddedCollectionStore {
             case RecordType.Put:
                 this.liveBytes +=
                     record.length -
-                    this.keydir.set(record.key!, record.offset, record.length)
+                    this.keydir.set(
+                        record.key!,
+                        record.offset,
+                        record.length,
+                        this.generation,
+                    )
                 break
             case RecordType.Delete:
                 this.liveBytes -= this.keydir.delete(record.key!)
@@ -690,7 +909,12 @@ export class EmbeddedCollectionStore {
                 if (next)
                     this.liveBytes +=
                         record.length -
-                        this.keydir.set(id, record.offset, record.length)
+                        this.keydir.set(
+                            id,
+                            record.offset,
+                            record.length,
+                            this.generation,
+                        )
                 else this.liveBytes -= this.keydir.delete(id)
                 break
             }

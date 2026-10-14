@@ -46,7 +46,7 @@ export class EmbeddedDiskFile implements EmbeddedFile {
 
     size: number
 
-    constructor(readonly path: string) {
+    constructor(public path: string) {
         this.descriptor = fs.openSync(
             path,
             fs.constants.O_RDWR | fs.constants.O_CREAT,

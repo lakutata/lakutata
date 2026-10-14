@@ -21,12 +21,25 @@ export interface EmbeddedStoreOptions {
     sync?: EmbeddedSync
     syncInterval?: number
     cacheSize?: number
+    compaction?: false | { minimumSize?: number; ratio?: number }
 }
 
 /**
  * lakutata: the extension of the files of the collections.
  */
 const EXTENSION = ".log"
+
+/**
+ * lakutata: the extension added to the file of a collection for the file of its compaction.
+ */
+const NEXT = ".next"
+
+/**
+ * lakutata: yields the event loop.
+ */
+function yieldLoop(): Promise<void> {
+    return new Promise((resolve) => setImmediate(resolve))
+}
 
 /**
  * lakutata: the path of the snapshot of the file of a collection.
@@ -118,11 +131,13 @@ export class EmbeddedStore {
                     file,
                     snapshotOf(file),
                 )
-                if (collection)
+                if (collection) {
                     store.collections.set(collection.name, collection)
-                else {
+                    store.resumeCompaction(collection, file)
+                } else {
                     fs.rmSync(file, { force: true })
                     fs.rmSync(snapshotOf(file), { force: true })
+                    fs.rmSync(file + NEXT, { force: true })
                 }
             }
         } catch (error) {
@@ -173,6 +188,7 @@ export class EmbeddedStore {
      * @param collection
      */
     written(collection: EmbeddedCollectionStore): Promise<void> {
+        this.compactIfWorth(collection)
         if (!this.directory || this.options.sync === "never")
             return Promise.resolve()
         this.unsynced.add(collection.file)
@@ -236,6 +252,8 @@ export class EmbeddedStore {
     async close(): Promise<void> {
         if (this.timer) clearTimeout(this.timer)
         this.timer = undefined
+        for (const collection of this.collections.values())
+            await collection.compacting
         try {
             if (this.directory)
                 for (const collection of this.collections.values())
@@ -244,6 +262,7 @@ export class EmbeddedStore {
             for (const collection of this.collections.values())
                 if (
                     collection.changed &&
+                    !collection.previous &&
                     collection.file instanceof EmbeddedDiskFile
                 ) {
                     const snapshot = snapshotOf(collection.file.path)
@@ -274,6 +293,93 @@ export class EmbeddedStore {
             throw error
         }
         for (const write of waiting) write.resolve()
+    }
+
+    /**
+     * Starts the compaction of a collection when its file is worth it (and none runs).
+     *
+     * @param collection
+     */
+    protected compactIfWorth(collection: EmbeddedCollectionStore): void {
+        const options = this.options.compaction
+        if (options === false || collection.compacting) return
+        if (
+            !collection.isWorthCompacting(
+                options?.minimumSize ?? 16 * 1024 * 1024,
+                options?.ratio ?? 2,
+            )
+        )
+            return
+        collection.compacting = this.compact(collection).finally(() => {
+            collection.compacting = undefined
+        })
+    }
+
+    /**
+     * Compacts a collection: its live documents copied to a new file, a batch between two yields of the event loop,
+     * the writes made meanwhile written to it; then the new file written to the disk and renamed over the previous
+     * one. A compaction failing leaves the collection on its two files (the next opening resumes it).
+     *
+     * @param collection
+     */
+    protected async compact(collection: EmbeddedCollectionStore): Promise<void> {
+        collection.beginCompaction(
+            collection.file instanceof EmbeddedDiskFile
+                ? new EmbeddedDiskFile(collection.file.path + NEXT)
+                : new EmbeddedMemoryFile(),
+        )
+        try {
+            for (const _ of collection.copyLiveDocuments()) await yieldLoop()
+            this.endCompaction(collection)
+        } catch {
+            // Its two files are read until the next opening resumes it
+        }
+    }
+
+    /**
+     * Ends the compaction of a collection: the new file written to the disk, the previous one closed, the new one
+     * renamed over it (its snapshot removed: it is the one of the previous file).
+     *
+     * @param collection
+     */
+    protected endCompaction(collection: EmbeddedCollectionStore): void {
+        const next = collection.file
+        if (!(next instanceof EmbeddedDiskFile)) {
+            collection.endCompaction()
+            return
+        }
+        const path = (collection.previous as EmbeddedDiskFile).path
+        next.sync()
+        collection.endCompaction()
+        fs.renameSync(next.path, path)
+        next.path = path
+        fs.rmSync(snapshotOf(path), { force: true })
+        this.unsynced.add(next)
+    }
+
+    /**
+     * Resumes the compaction of a collection cut by a crash, when its file is there (a file cut when it was created is
+     * removed).
+     *
+     * @param collection
+     * @param file the path of the file of the collection
+     */
+    protected resumeCompaction(
+        collection: EmbeddedCollectionStore,
+        file: string,
+    ): void {
+        if (!fs.existsSync(file + NEXT)) return
+        const next = new EmbeddedDiskFile(file + NEXT)
+        try {
+            collection.resumeCompaction(next, file + NEXT)
+        } catch (error) {
+            if (collection.file === next) throw error
+            // Its header cut: nothing was written to it
+            next.close()
+            fs.rmSync(file + NEXT, { force: true })
+            return
+        }
+        this.endCompaction(collection)
     }
 
     protected closeFiles(): void {

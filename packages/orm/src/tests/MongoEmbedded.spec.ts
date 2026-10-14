@@ -1,5 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
+import {cpSync} from 'node:fs'
 import {appendFile, cp, mkdtemp, readdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import {crc32} from 'node:zlib'
@@ -302,6 +303,56 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await again.save({title: 'world', tags: [], views: 0, author: {name: 'Grace', city: 'New York'}})
         await assert.rejects(again.save({title: 'renamed', tags: [], views: 0, author: {name: 'Ada', city: 'London'}}), {code: 11000})
         await recovered.destroy()
+    }))
+
+    it('compacts the file of a collection while it is written, and resumes a compaction cut by a crash', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const database: string = path.join(directory, 'compacted')
+        type Store = {collection(name: string, create: boolean): {compacting?: Promise<void>, liveBytes: number, file: {size: number}}}
+        const storeOf = (dataSource: DataSource): Store => (dataSource.mongoManager.mongoQueryRunner.databaseConnection as unknown as {store: Store}).store
+        const openCompacting = (location: string): Promise<DataSource> => new DataSource({type: 'mongo-embedded', database: location, compaction: {minimumSize: 64 * 1024, ratio: 2}}).initialize()
+        let dataSource: DataSource = await openCompacting(database)
+        let runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        await runner.createCollectionIndex('items', {n: 1}, {name: 'n', unique: true})
+        await runner.insertMany('items', Array.from({length: 5000}, (_: unknown, index: number): object => ({n: index, version: 0, text: 'x'.repeat(100)})))
+        //Updated until a compaction starts, then updated again while it runs
+        for (let version = 1; !storeOf(dataSource).collection('items', false).compacting; version++) await runner.updateMany('items', {}, {$set: {version: version}})
+        const compacting: Promise<void> = storeOf(dataSource).collection('items', false).compacting!
+        //Its files copied at once while it runs (its first batch copied): a crash cutting it
+        const copy: string = path.join(directory, 'crashed')
+        cpSync(database, copy, {recursive: true})
+        assert.ok((await readdir(copy)).some((file: string): boolean => file.endsWith('.log.next')), 'the file of the compaction')
+        await runner.updateMany('items', {n: {$lt: 100}}, {$set: {version: -1}})
+        await runner.deleteMany('items', {n: {$gte: 4900}}, {})
+        await compacting
+        const store = storeOf(dataSource).collection('items', false)
+        assert.ok(store.file.size < store.liveBytes * 2, `${store.file.size} bytes for ${store.liveBytes} live`)
+        assert.ok(!(await readdir(database)).some((file: string): boolean => file.endsWith('.next')))
+        const check = async (checked: MongoQueryRunner, label: string): Promise<void> => {
+            assert.strictEqual(await checked.countDocuments('items', {}), 4900, label)
+            assert.strictEqual(await checked.countDocuments('items', {version: -1}), 100, label)
+            assert.strictEqual((await checked.cursor('items', {n: 4899}).toArray())[0]?.n, 4899, label)
+            assert.strictEqual((await checked.cursor('items', {n: 4950}).toArray()).length, 0, label)
+            await assert.rejects(checked.insertOne('items', {n: 7}, {}), {code: 11000}, label)
+        }
+        await check(runner, 'compacted')
+        await dataSource.destroy()
+        //Opened from its snapshot, then from its records only
+        dataSource = await openCompacting(database)
+        await check(dataSource.mongoManager.mongoQueryRunner, 'snapshot')
+        await dataSource.destroy()
+        for (const file of await readdir(database)) if (file.endsWith('.snapshot')) await rm(path.join(database, file))
+        dataSource = await openCompacting(database)
+        await check(dataSource.mongoManager.mongoQueryRunner, 'records')
+        await dataSource.destroy()
+        //The copy made while it ran: the compaction resumed when it is opened
+        await rm(path.join(copy, 'LOCK'))
+        dataSource = await openCompacting(copy)
+        runner = dataSource.mongoManager.mongoQueryRunner
+        assert.ok(!(await readdir(copy)).some((file: string): boolean => file.endsWith('.next')))
+        assert.strictEqual(await runner.countDocuments('items', {}), 5000)
+        assert.strictEqual(await runner.countDocuments('items', {version: -1}), 0)
+        assert.strictEqual(await runner.countDocuments('items', {version: 0}), 0)
+        await dataSource.destroy()
     }))
 
     it('connects the Database component', async (): Promise<void> => {
