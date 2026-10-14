@@ -4,6 +4,7 @@ import type {
     EmbeddedCollectionStore,
     EmbeddedIndex,
 } from "./EmbeddedCollectionStore"
+import { EmbeddedPlanner } from "./EmbeddedPlanner"
 import type { EmbeddedStoreOptions } from "./EmbeddedStore"
 import { EmbeddedStore } from "./EmbeddedStore"
 import type { EmbeddedDocument } from "./EmbeddedValues"
@@ -13,6 +14,19 @@ import { EmbeddedValues } from "./EmbeddedValues"
  * lakutata: the documents read between two yields of the event loop, in a scan of a collection.
  */
 const YIELD_EVERY = 1000
+
+/**
+ * lakutata: the tags of the encoded values an index does not order as MongoDB sorts them (the objects, the arrays, the
+ * regular expressions, the others): a sort by the index stops when it meets one.
+ */
+const UNORDERED_TAGS = new Set([0x30, 0x40, 0xa0, 0xe0])
+
+/**
+ * lakutata: yields the event loop.
+ */
+function yieldLoop(): Promise<void> {
+    return new Promise((resolve) => setImmediate(resolve))
+}
 
 /**
  * lakutata: the error of a method of the client of MongoDB that the embedded client does not have.
@@ -35,8 +49,7 @@ async function* scan(
     let count = 0
     for (const document of collection.documents()) {
         yield document
-        if (++count % YIELD_EVERY === 0)
-            await new Promise((resolve) => setImmediate(resolve))
+        if (++count % YIELD_EVERY === 0) await yieldLoop()
     }
 }
 
@@ -136,6 +149,19 @@ export class EmbeddedFindCursor extends EmbeddedResults {
     }
 
     protected async documents(): Promise<EmbeddedDocument[]> {
+        // Sorted by an index: the documents read in its order, up to the limit
+        const ordered =
+            this.order && this.limited
+                ? this.collection.ordered(
+                      this.query,
+                      this.order,
+                      this.skipped + this.limited,
+                  )
+                : undefined
+        if (ordered)
+            return this.collection.values.mingo
+                .find(ordered.slice(this.skipped), {}, this.projection)
+                .all()
         // Without an order, the documents after the limit are not read
         const matches = await this.collection.matching(
             this.query,
@@ -227,6 +253,9 @@ export class EmbeddedCollection {
         const skip = options?.skip ?? 0
         const limit = options?.limit ? skip + options.limit : Infinity
         const filter = this.values.copy(query ?? {})
+        const exact = this.exactCount(filter)
+        if (exact !== undefined)
+            return Math.max(Math.min(exact, limit) - skip, 0)
         const matcher = new this.values.mingo.Query(filter)
         let count = 0
         for await (const document of this.candidates(filter))
@@ -484,15 +513,68 @@ export class EmbeddedCollection {
     ): AsyncGenerator<EmbeddedDocument> {
         const collection = this.collection()
         if (!collection) return
-        const ids = this.idsOf(filter._id)
-        if (!ids) {
+        const plan = new EmbeddedPlanner(collection).plan(filter)
+        if (plan.kind === "scan") {
             yield* scan(collection)
             return
         }
-        for (const id of ids) {
-            const document = collection.get(this.values.idKey(id))
+        // The keys collected before the documents are read: the writes made meanwhile change the index
+        const keys =
+            plan.kind === "id"
+                ? plan.ids.map((id) => this.values.idKey(id))
+                : [...collection.idsIn(plan.index, plan.ranges)]
+        const seen = new Set<string>()
+        let count = 0
+        for (const key of keys) {
+            const text = key.toString("latin1")
+            if (seen.has(text)) continue
+            seen.add(text)
+            const document = collection.get(key)
             if (document) yield document
+            if (++count % YIELD_EVERY === 0) await yieldLoop()
         }
+    }
+
+    /**
+     * The documents matching a filter in the order of a sort of one field, up to a number, read in the order of an
+     * index of the field (from its range in the filter, if any); undefined when no index gives that order, or the walk
+     * meets a value it does not order as MongoDB sorts it. The walk is synchronous (the index is not changed meanwhile).
+     *
+     * @param query
+     * @param sort
+     * @param count
+     */
+    ordered(
+        query: EmbeddedDocument,
+        sort: EmbeddedDocument,
+        count: number,
+    ): EmbeddedDocument[] | undefined {
+        const collection = this.collection()
+        if (!collection) return []
+        const planner = new EmbeddedPlanner(collection)
+        const walk = planner.sortIndex(sort)
+        if (!walk) return undefined
+        const filter = this.values.copy(query ?? {})
+        const plan = planner.plan(filter)
+        if (plan.kind === "id" || (plan.kind === "index" && plan.index !== walk.index))
+            return undefined
+        const ranges =
+            plan.kind === "index" && plan.ranges.length === 1 ? plan.ranges : [{}]
+        const index = collection.indexes.find((item) => item.name === walk.index)!
+        const descending = Object.values(index.key)[0] === -1 || Object.values(index.key)[0] === "-1"
+        const matcher = new this.values.mingo.Query(filter)
+        const documents: EmbeddedDocument[] = []
+        const tree = collection.trees.get(walk.index)!
+        for (const range of ranges)
+            for (const [key, id] of tree.range(range.lower, range.upper, walk.reverse)) {
+                if (UNORDERED_TAGS.has(descending ? ~key[0] & 0xff : key[0]))
+                    return undefined
+                const document = collection.get(id)
+                if (!document || !matcher.test(document)) continue
+                documents.push(document)
+                if (documents.length >= count) return documents
+            }
+        return documents
     }
 
     /**
@@ -539,22 +621,32 @@ export class EmbeddedCollection {
     }
 
     /**
-     * The _ids a filter of _id gives: a value, $eq or $in; undefined for the other filters.
+     * The number of the documents a filter matches, counted without reading them when its plan is exact.
      *
-     * @param id
+     * @param filter
      */
-    protected idsOf(id: any): any[] | undefined {
-        if (id === undefined) return undefined
-        if (!this.isPlainObject(id)) return [id]
-        const operators = Object.keys(id)
-        if (operators.length !== 1) return undefined
-        if (operators[0] === "$eq" && !this.isPlainObject(id.$eq))
-            return [id.$eq]
-        if (operators[0] === "$in" && Array.isArray(id.$in))
-            return id.$in.every((item: any) => !this.isPlainObject(item))
-                ? id.$in
-                : undefined
-        return undefined
+    protected exactCount(filter: EmbeddedDocument): number | undefined {
+        const collection = this.collection()
+        if (!collection) return 0
+        const plan = new EmbeddedPlanner(collection).plan(filter)
+        if (!plan.exact) return undefined
+        if (plan.kind === "scan") return collection.keydir.size
+        if (plan.kind === "id")
+            return new Set(
+                plan.ids
+                    .map((id) => this.values.idKey(id))
+                    .filter((key) => collection.has(key))
+                    .map((key) => key.toString("latin1")),
+            ).size
+        let count = 0
+        if (!plan.multikey) {
+            for (const _ of collection.idsIn(plan.index, plan.ranges)) count++
+            return count
+        }
+        const ids = new Set<string>()
+        for (const id of collection.idsIn(plan.index, plan.ranges))
+            ids.add(id.toString("latin1"))
+        return ids.size
     }
 
     protected isPlainObject(value: any): boolean {

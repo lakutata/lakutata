@@ -8,6 +8,7 @@ import path from 'node:path'
 import {Container} from '@lakutata/core'
 import * as BSON from 'bson'
 import {DataSource, type MongoRepository} from '../exports/ORM.js'
+import type {MongoQueryRunner} from '#typeorm/driver/mongodb/MongoQueryRunner.js'
 import {Column, CreateDateColumn, DeleteDateColumn, Entity, Index, ObjectIdColumn, UpdateDateColumn} from '../exports/ORMDecorators.js'
 import {Database} from '../exports/DatabaseComponent.js'
 
@@ -205,6 +206,52 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await writeFile(file, corrupted)
         await assert.rejects(open(database), /The file .* of mongo-embedded is corrupted at its offset \d+/)
     }))
+
+    it('finds by its indexes the documents a scan finds', async (): Promise<void> => {
+        const dataSource: DataSource = await new DataSource({type: 'mongo-embedded'}).initialize()
+        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        let seed: number = 11
+        const random = (): number => (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 4294967296
+        const pick = <T>(items: T[]): T => items[Math.floor(random() * items.length)]
+        const values: unknown[] = [null, 0, 1, 2, 2.5, -3, 7, 'a', 'b', 'ab', '', true, false, new Date(0), new Date(1000), [1, 2], ['a', 7], [], {x: 1}]
+        const documents: object[] = Array.from({length: 400}, (_: unknown, index: number): object => {
+            const document: Record<string, unknown> = {n: index}
+            if (random() < 0.9) document.v = pick(values)
+            if (random() < 0.9) document.w = pick(values)
+            document.tags = Array.from({length: Math.floor(random() * 3)}, (): unknown => pick([1, 2, 3, 'x', 'y']))
+            return document
+        })
+        await runner.insertMany('plain', documents.map((document: object): object => ({...document})))
+        await runner.insertMany('indexed', documents.map((document: object): object => ({...document})))
+        await runner.createCollectionIndex('indexed', {v: 1}, {name: 'v'})
+        await runner.createCollectionIndex('indexed', {tags: 1}, {name: 'tags'})
+        await runner.createCollectionIndex('indexed', {w: -1, n: 1}, {name: 'w_n'})
+        const filters: object[] = [
+            {v: 1}, {v: 'a'}, {v: true}, {v: new Date(0)}, {v: null}, {v: {$eq: 2}}, {v: {$in: [1, 'b', 7]}}, {v: {$in: [null, 1]}},
+            {v: {$gt: 1}}, {v: {$gte: 1, $lt: 7}}, {v: {$lte: 'ab'}}, {v: {$gt: 0, $ne: 2}}, {v: {$gt: 1, $lt: 'z'}}, {v: {$ne: 1}},
+            {v: {$exists: false}}, {v: {$nin: [1, 2]}}, {v: [1, 2]}, {v: {x: 1}}, {v: {$gt: new Date(500)}},
+            {tags: 'x'}, {tags: {$in: [1, 'y']}}, {tags: {$gt: 1, $lt: 3}}, {tags: {$gte: 2}}, {tags: []},
+            {w: 7}, {w: {$in: ['a', 2]}}, {w: {$gt: 1}}, {$and: [{v: {$gte: 0}}, {w: 'b'}]}, {v: 1, w: {$ne: null}}, {}
+        ]
+        const ids = (found: Record<string, unknown>[]): unknown[] => found.map((document: Record<string, unknown>): unknown => document.n).sort((a: unknown, b: unknown): number => Number(a) - Number(b))
+        for (const filter of filters) {
+            const label: string = JSON.stringify(filter)
+            const expected: Record<string, unknown>[] = await runner.cursor('plain', filter).toArray()
+            assert.deepStrictEqual(ids(await runner.cursor('indexed', filter).toArray()), ids(expected), label)
+            assert.strictEqual(await runner.countDocuments('indexed', filter), expected.length, label)
+            const sorts: Record<string, 1 | -1>[] = [{v: 1}, {v: -1}, {w: 1}, {n: -1}]
+            for (const sort of sorts) {
+                const options = (cursor: ReturnType<MongoQueryRunner['cursor']>): ReturnType<MongoQueryRunner['cursor']> => cursor.sort({...sort, n: 1}).skip(3).limit(10)
+                const single = (cursor: ReturnType<MongoQueryRunner['cursor']>): ReturnType<MongoQueryRunner['cursor']> => cursor.sort(sort).skip(3).limit(10)
+                assert.deepStrictEqual((await options(runner.cursor('indexed', filter)).toArray()).map((document: Record<string, unknown>): unknown => document.n), (await options(runner.cursor('plain', filter)).toArray()).map((document: Record<string, unknown>): unknown => document.n), `${label} ${JSON.stringify(sort)}`)
+                //Sorted by one field (by its index): the same values in the same order (the order of the ties is free, null
+                //and missing are equal)
+                const field: string = Object.keys(sort)[0]
+                assert.deepStrictEqual((await single(runner.cursor('indexed', filter)).toArray()).map((document: Record<string, unknown>): string => JSON.stringify(document[field] ?? null)), (await single(runner.cursor('plain', filter)).toArray()).map((document: Record<string, unknown>): string => JSON.stringify(document[field] ?? null)), `${label} ${JSON.stringify(sort)}`)
+            }
+        }
+        await dataSource.destroy()
+    })
 
     it('connects the Database component', async (): Promise<void> => {
         const container: Container = new Container()

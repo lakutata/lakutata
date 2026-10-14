@@ -1,4 +1,5 @@
 import { TypeORMError } from "../../error/TypeORMError"
+import type { EmbeddedBound } from "./EmbeddedBTree"
 import { EmbeddedBTree } from "./EmbeddedBTree"
 import type { EmbeddedFile } from "./EmbeddedFile"
 import { EmbeddedKeyEncoding } from "./EmbeddedKeyEncoding"
@@ -80,6 +81,12 @@ export class EmbeddedCollectionStore {
      * The entries of the indexes (the keys of the values of the documents, then the keys of their _id), by their names.
      */
     readonly trees = new Map<string, EmbeddedBTree>()
+
+    /**
+     * The indexes a document of which has several keys (the items of an array): their ranges of two bounds are not the
+     * ones of the queries, and their order is not the one of the sorts.
+     */
+    readonly multikey = new Set<string>()
 
     readonly encoding: EmbeddedKeyEncoding
 
@@ -290,10 +297,31 @@ export class EmbeddedCollectionStore {
             }
             offset += records[index].length
         })
-        for (const { tree, removed, added, id } of entries) {
+        for (const { index, tree, removed, added, id, keys } of entries) {
             for (const key of removed) tree.delete(key, id)
             for (const key of added) tree.insert(key, id)
+            if (keys > 1) this.multikey.add(index)
         }
+    }
+
+    /**
+     * The keys of the _id of the documents of the entries of ranges of an index, in its order (or reversed): a
+     * document is given once for each of its keys in the ranges.
+     *
+     * @param index
+     * @param ranges
+     * @param reverse
+     */
+    *idsIn(
+        index: string,
+        ranges: { lower?: EmbeddedBound; upper?: EmbeddedBound }[],
+        reverse = false,
+    ): Generator<Buffer> {
+        const tree = this.trees.get(index)
+        if (!tree) return
+        for (const range of reverse ? [...ranges].reverse() : ranges)
+            for (const [, id] of tree.range(range.lower, range.upper, reverse))
+                yield id
     }
 
     /**
@@ -336,6 +364,7 @@ export class EmbeddedCollectionStore {
         )
         this.indexes.splice(position, 1)
         this.trees.delete(name)
+        this.multikey.delete(name)
         return true
     }
 
@@ -387,7 +416,9 @@ export class EmbeddedCollectionStore {
         for (const document of this.documents()) {
             const id = this.values.idKey(document._id)
             indexes.forEach((index, position) => {
-                for (const key of this.keysOf(index, document)) {
+                const keys = this.keysOf(index, document)
+                if (keys.length > 1) this.multikey.add(index.name)
+                for (const key of keys) {
                     if (index.unique && this.ownerOf(trees[position], key))
                         throw new EmbeddedDuplicateKeyError(
                             this.name,
@@ -409,16 +440,20 @@ export class EmbeddedCollectionStore {
      * @param changes
      */
     protected indexChanges(changes: EmbeddedChange[]): {
+        index: string
         tree: EmbeddedBTree
         removed: Buffer[]
         added: Buffer[]
         id: Buffer
+        keys: number
     }[] {
         const entries: {
+            index: string
             tree: EmbeddedBTree
             removed: Buffer[]
             added: Buffer[]
             id: Buffer
+            keys: number
         }[] = []
         const inserted = new Set<string>()
         // The keys of the unique indexes written: their owners (the keys of their _id), null for the ones removed
@@ -470,10 +505,12 @@ export class EmbeddedCollectionStore {
                     }
                 }
                 entries.push({
+                    index: index.name,
                     tree: tree,
                     removed: removed,
                     added: added,
                     id: change.key,
+                    keys: after.length,
                 })
             }
         }
