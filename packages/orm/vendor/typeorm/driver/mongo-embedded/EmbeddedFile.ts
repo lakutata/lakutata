@@ -38,6 +38,11 @@ export interface EmbeddedFile {
 }
 
 /**
+ * lakutata: the bytes read or written by a call of the system (a call reads or writes up to 2^31 - 1 bytes).
+ */
+const IO_CHUNK = 1024 * 1024 * 1024
+
+/**
  * lakutata: a file of the disk, opened for reading and writing, written at the offset of its end (not in the append
  * mode of the system, whose offsets are not the ones the file is read at on every system).
  */
@@ -63,7 +68,7 @@ export class EmbeddedDiskFile implements EmbeddedFile {
                 this.descriptor,
                 data,
                 written,
-                data.length - written,
+                Math.min(data.length - written, IO_CHUNK),
                 offset + written,
             )
         this.size += data.length
@@ -82,7 +87,7 @@ export class EmbeddedDiskFile implements EmbeddedFile {
                 this.descriptor,
                 buffer,
                 offset + read,
-                length - read,
+                Math.min(length - read, IO_CHUNK),
                 position + read,
             )
             if (count === 0) break

@@ -78,6 +78,11 @@ const SNAPSHOT_MAGIC = Buffer.from("LKEMBSN1")
 const COMMIT_RECORD = encodeRecord(RecordType.Commit, Buffer.alloc(0))
 
 /**
+ * lakutata: the bytes read or written by a call of the system (a call reads or writes up to 2^31 - 1 bytes).
+ */
+const IO_CHUNK = 1024 * 1024 * 1024
+
+/**
  * lakutata: a number rounded up to a multiple of 8 (the alignment of the arrays of 8 bytes).
  *
  * @param value
@@ -339,7 +344,7 @@ export class EmbeddedCollectionStore {
                         descriptor,
                         part,
                         written,
-                        part.byteLength - written,
+                        Math.min(part.byteLength - written, IO_CHUNK),
                     )
             }
         } finally {
@@ -374,7 +379,7 @@ export class EmbeddedCollectionStore {
                         descriptor,
                         bytes,
                         done,
-                        size - done,
+                        Math.min(size - done, IO_CHUNK),
                         position + done,
                     )
                     if (count === 0) throw new Error("The snapshot is cut")
