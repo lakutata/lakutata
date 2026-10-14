@@ -1,10 +1,18 @@
 import { TypeORMError } from "../../error/TypeORMError"
 import type {
-    EmbeddedCollectionState,
-    EmbeddedDocument,
+    EmbeddedChange,
+    EmbeddedCollectionStore,
     EmbeddedIndex,
-} from "./EmbeddedStore"
+} from "./EmbeddedCollectionStore"
+import type { EmbeddedStoreOptions } from "./EmbeddedStore"
 import { EmbeddedStore } from "./EmbeddedStore"
+import type { EmbeddedDocument } from "./EmbeddedValues"
+import { EmbeddedValues } from "./EmbeddedValues"
+
+/**
+ * lakutata: the documents read between two yields of the event loop, in a scan of a collection.
+ */
+const YIELD_EVERY = 1000
 
 /**
  * lakutata: the error of a method of the client of MongoDB that the embedded client does not have.
@@ -13,6 +21,23 @@ import { EmbeddedStore } from "./EmbeddedStore"
  */
 function notSupported(method: string): TypeORMError {
     return new TypeORMError(`${method} is not supported by mongo-embedded`)
+}
+
+/**
+ * lakutata: the documents of a collection held when it is called, read in the order of its file, the event loop
+ * yielded to every YIELD_EVERY documents.
+ *
+ * @param collection
+ */
+async function* scan(
+    collection: EmbeddedCollectionStore,
+): AsyncGenerator<EmbeddedDocument> {
+    let count = 0
+    for (const document of collection.documents()) {
+        yield document
+        if (++count % YIELD_EVERY === 0)
+            await new Promise((resolve) => setImmediate(resolve))
+    }
 }
 
 /**
@@ -25,18 +50,18 @@ export abstract class EmbeddedResults {
     protected buffer?: any[]
 
     async toArray(): Promise<any[]> {
-        const documents = this.read()
+        const documents = await this.read()
         this.buffer = []
         return documents
     }
 
     async next(): Promise<any | null> {
-        this.buffer ??= this.read()
+        this.buffer ??= await this.read()
         return this.buffer.shift() ?? null
     }
 
     async hasNext(): Promise<boolean> {
-        this.buffer ??= this.read()
+        this.buffer ??= await this.read()
         return this.buffer.length > 0
     }
 
@@ -52,17 +77,17 @@ export abstract class EmbeddedResults {
     /**
      * The documents, transformed.
      */
-    protected read(): any[] {
-        const documents = this.documents()
+    protected async read(): Promise<any[]> {
+        const documents = await this.documents()
         return this.transform
             ? documents.map((document) => this.transform!(document))
             : documents
     }
 
     /**
-     * The copies of the documents of the results.
+     * The documents of the results, the caller's own.
      */
-    protected abstract documents(): EmbeddedDocument[]
+    protected abstract documents(): Promise<EmbeddedDocument[]>
 }
 
 /**
@@ -86,7 +111,7 @@ export class EmbeddedFindCursor extends EmbeddedResults {
     }
 
     filter(query: EmbeddedDocument): this {
-        this.query = this.collection.store.copy(query)
+        this.query = query
         return this
     }
 
@@ -110,17 +135,23 @@ export class EmbeddedFindCursor extends EmbeddedResults {
         return this
     }
 
-    protected documents(): EmbeddedDocument[] {
-        const store = this.collection.store
-        let cursor = store.mingo.find(
-            this.collection.candidates(this.query),
+    protected async documents(): Promise<EmbeddedDocument[]> {
+        // Without an order, the documents after the limit are not read
+        const matches = await this.collection.matching(
             this.query,
+            !this.order && this.limited
+                ? this.skipped + this.limited
+                : Infinity,
+        )
+        let cursor = this.collection.values.mingo.find(
+            matches,
+            {},
             this.projection,
         )
         if (this.order) cursor = cursor.sort(this.order)
         if (this.skipped) cursor = cursor.skip(this.skipped)
         if (this.limited) cursor = cursor.limit(this.limited)
-        return cursor.all().map((document: any) => store.copy(document))
+        return cursor.all()
     }
 }
 
@@ -128,17 +159,21 @@ export class EmbeddedFindCursor extends EmbeddedResults {
  * lakutata: the results of an aggregation of an embedded collection, or of a list of documents.
  */
 export class EmbeddedArrayCursor extends EmbeddedResults {
-    constructor(protected readonly compute: () => EmbeddedDocument[]) {
+    constructor(
+        protected readonly compute: () => Promise<EmbeddedDocument[]>,
+    ) {
         super()
     }
 
-    protected documents(): EmbeddedDocument[] {
+    protected documents(): Promise<EmbeddedDocument[]> {
         return this.compute()
     }
 }
 
 /**
  * lakutata: a collection of an embedded MongoDB, with the methods of the collections of MongoDB that TypeORM calls.
+ * Its writes find their documents first (a scan yielding the event loop), then read each of them again, test it and
+ * write it at once, as the other operations change them meanwhile.
  */
 export class EmbeddedCollection {
     constructor(
@@ -146,48 +181,34 @@ export class EmbeddedCollection {
         readonly store: EmbeddedStore,
     ) {}
 
-    /**
-     * The state of the collection, created when it is written.
-     *
-     * @param create
-     */
-    state(create = false): EmbeddedCollectionState | undefined {
-        return this.store.collection(this.collectionName, create)
+    get values(): EmbeddedValues {
+        return this.store.values
     }
 
     /**
-     * The documents a filter may match: the ones of its _id when it gives them, else all.
+     * The documents matching a filter, up to a limit.
      *
      * @param query
+     * @param limit
      */
-    candidates(query?: EmbeddedDocument): EmbeddedDocument[] {
-        const state = this.state()
-        if (!state) return []
-        const ids = this.idsOf(query?._id)
-        if (!ids) return [...state.documents.values()]
+    async matching(
+        query?: EmbeddedDocument,
+        limit = Infinity,
+    ): Promise<EmbeddedDocument[]> {
+        const filter = this.values.copy(query ?? {})
+        const matcher = new this.values.mingo.Query(filter)
         const documents: EmbeddedDocument[] = []
-        for (const id of ids) {
-            const document = state.documents.get(this.store.idKey(id))
-            if (document) documents.push(document)
+        if (limit <= 0) return documents
+        for await (const document of this.candidates(filter)) {
+            if (!matcher.test(document)) continue
+            documents.push(document)
+            if (documents.length >= limit) break
         }
         return documents
     }
 
-    /**
-     * The documents matching a filter (not copied).
-     *
-     * @param query
-     */
-    matching(query?: EmbeddedDocument): EmbeddedDocument[] {
-        const filter = this.store.copy(query ?? {})
-        const matcher = new this.store.mingo.Query(filter)
-        return this.candidates(filter).filter((document) =>
-            matcher.test(document),
-        )
-    }
-
     find(query?: EmbeddedDocument, options?: EmbeddedDocument) {
-        const cursor = new EmbeddedFindCursor(this, this.store.copy(query ?? {}))
+        const cursor = new EmbeddedFindCursor(this, query ?? {})
         if (options?.projection) cursor.project(options.projection)
         if (options?.sort) cursor.sort(options.sort)
         if (options?.skip) cursor.skip(options.skip)
@@ -203,9 +224,14 @@ export class EmbeddedCollection {
         query?: EmbeddedDocument,
         options?: EmbeddedDocument,
     ): Promise<number> {
-        let count = this.matching(query).length - (options?.skip ?? 0)
-        if (options?.limit) count = Math.min(count, options.limit)
-        return Math.max(count, 0)
+        const skip = options?.skip ?? 0
+        const limit = options?.limit ? skip + options.limit : Infinity
+        const filter = this.values.copy(query ?? {})
+        const matcher = new this.values.mingo.Query(filter)
+        let count = 0
+        for await (const document of this.candidates(filter))
+            if (matcher.test(document) && ++count >= limit) break
+        return Math.max(count - skip, 0)
     }
 
     async count(
@@ -216,53 +242,45 @@ export class EmbeddedCollection {
     }
 
     async estimatedDocumentCount(): Promise<number> {
-        return this.state()?.documents.size ?? 0
+        return this.collection()?.keydir.size ?? 0
     }
 
     async distinct(key: string, query?: EmbeddedDocument): Promise<any[]> {
         const values = new Map<string, any>()
-        for (const document of this.matching(query)) {
-            const value = this.store.valueAt(document, key)
+        for (const document of await this.matching(query)) {
+            const value = this.values.valueAt(document, key)
             for (const item of Array.isArray(value) ? value : [value])
                 if (item !== undefined)
                     values.set(
-                        this.store.bson.EJSON.stringify(
+                        this.values.bson.EJSON.stringify(
                             { value: item },
                             { relaxed: false },
                         ),
                         item,
                     )
         }
-        return [...values.values()].map((value) => this.store.copy(value))
+        return [...values.values()]
     }
 
     aggregate(pipeline: EmbeddedDocument[], options?: EmbeddedDocument) {
-        return new EmbeddedArrayCursor(() =>
-            this.store.mingo.aggregate(
-                this.matching().map((document) => this.store.copy(document)),
-                pipeline,
-                {
-                    ...options,
-                    collectionResolver: (name: string) =>
-                        new EmbeddedCollection(name, this.store)
-                            .matching()
-                            .map((document) => this.store.copy(document)),
-                },
-            ),
+        return new EmbeddedArrayCursor(async () =>
+            this.values.mingo.aggregate(await this.matching(), pipeline, {
+                ...options,
+                // The collections of $lookup, read at once
+                collectionResolver: (name: string) => [
+                    ...(this.store.collection(name, false)?.documents() ?? []),
+                ],
+            }),
         )
     }
 
     async insertOne(document: EmbeddedDocument) {
-        const [stored] = this.prepareInserts([document])
-        this.store.insert(this.state(true)!, [stored])
-        await this.store.persist()
+        const [stored] = await this.insert([document])
         return { acknowledged: true, insertedId: stored._id }
     }
 
     async insertMany(documents: EmbeddedDocument[]) {
-        const stored = this.prepareInserts(documents)
-        this.store.insert(this.state(true)!, stored)
-        await this.store.persist()
+        const stored = await this.insert(documents)
         const insertedIds: { [index: number]: any } = {}
         stored.forEach((document, index) => (insertedIds[index] = document._id))
         return {
@@ -297,26 +315,34 @@ export class EmbeddedCollection {
             throw new TypeORMError(
                 "Replacement document must not contain atomic operators",
             )
-        const [target] = this.matching(query)
-        if (!target) {
+        const filter = this.values.copy(query ?? {})
+        const [found] = await this.matching(filter, 1)
+        const collection = this.collection(true)!
+        const current = found
+            ? this.current(collection, filter, found)
+            : undefined
+        if (!current) {
             if (!options?.upsert) return this.updateResult(0, 0)
-            const document = this.store.copy(replacement)
-            document._id ??= this.equalities(query)._id
-            const [stored] = this.prepareInserts([document])
-            this.store.insert(this.state(true)!, [stored])
-            await this.store.persist()
+            const document = this.values.copy(replacement)
+            document._id ??= this.equalities(filter)._id
+            const [stored] = await this.insert([document])
             return this.updateResult(0, 0, stored._id)
         }
-        const next = this.store.copy(replacement)
+        const next = { _id: current._id, ...this.values.copy(replacement) }
         if (
-            next._id !== undefined &&
-            this.store.idKey(next._id) !== this.store.idKey(target._id)
+            !this.values
+                .idKey(next._id)
+                .equals(this.values.idKey(current._id))
         )
             throw this.immutableId()
-        this.store.replace(this.state(true)!, [
-            [target, { _id: target._id, ...next }],
+        collection.write([
+            {
+                key: this.values.idKey(current._id),
+                previous: current,
+                next: next,
+            },
         ])
-        await this.store.persist()
+        await this.store.written(collection)
         return this.updateResult(1, 1)
     }
 
@@ -341,8 +367,9 @@ export class EmbeddedCollection {
         if (options?.sparse) index.sparse = true
         if (options?.expireAfterSeconds !== undefined)
             index.expireAfterSeconds = options.expireAfterSeconds
-        this.store.createIndex(this.state(true)!, index)
-        await this.store.persist()
+        const collection = this.collection(true)!
+        collection.createIndex(index)
+        await this.store.written(collection)
         return name
     }
 
@@ -356,7 +383,7 @@ export class EmbeddedCollection {
     async indexes(): Promise<EmbeddedDocument[]> {
         return [
             { v: 2, key: { _id: 1 }, name: "_id_" },
-            ...(this.state()?.indexes ?? []).map((index) => ({
+            ...(this.collection()?.indexes ?? []).map((index) => ({
                 v: 2,
                 ...index,
             })),
@@ -364,13 +391,7 @@ export class EmbeddedCollection {
     }
 
     listIndexes() {
-        return new EmbeddedArrayCursor(() => {
-            const state = this.state()
-            return [
-                { v: 2, key: { _id: 1 }, name: "_id_" },
-                ...(state?.indexes ?? []).map((index) => ({ v: 2, ...index })),
-            ]
-        })
+        return new EmbeddedArrayCursor(() => this.indexes())
     }
 
     async indexExists(names: string | string[]): Promise<boolean> {
@@ -391,17 +412,20 @@ export class EmbeddedCollection {
     }
 
     async dropIndex(name: string): Promise<EmbeddedDocument> {
-        const state = this.state()
-        if (!state || !this.store.dropIndex(state, name))
+        const collection = this.collection()
+        if (!collection || !collection.dropIndex(name))
             throw new TypeORMError(`index not found with name [${name}]`)
-        await this.store.persist()
+        await this.store.written(collection)
         return { ok: 1 }
     }
 
     async dropIndexes(): Promise<boolean> {
-        const state = this.state()
-        if (state) for (const index of [...state.indexes]) this.store.dropIndex(state, index.name)
-        await this.store.persist()
+        const collection = this.collection()
+        if (collection) {
+            for (const index of [...collection.indexes])
+                collection.dropIndex(index.name)
+            await this.store.written(collection)
+        }
         return true
     }
 
@@ -442,6 +466,79 @@ export class EmbeddedCollection {
     }
 
     /**
+     * The store of the collection, created when it is written.
+     *
+     * @param create
+     */
+    protected collection(create = false): EmbeddedCollectionStore | undefined {
+        return this.store.collection(this.collectionName, create)
+    }
+
+    /**
+     * The documents a filter may match: the ones of its _id when it gives them, else all of them.
+     *
+     * @param filter
+     */
+    protected async *candidates(
+        filter: EmbeddedDocument,
+    ): AsyncGenerator<EmbeddedDocument> {
+        const collection = this.collection()
+        if (!collection) return
+        const ids = this.idsOf(filter._id)
+        if (!ids) {
+            yield* scan(collection)
+            return
+        }
+        for (const id of ids) {
+            const document = collection.get(this.values.idKey(id))
+            if (document) yield document
+        }
+    }
+
+    /**
+     * A document found by a write, read again: undefined when it is not held or does not match any more.
+     *
+     * @param collection
+     * @param filter
+     * @param found
+     */
+    protected current(
+        collection: EmbeddedCollectionStore,
+        filter: EmbeddedDocument,
+        found: EmbeddedDocument,
+    ): EmbeddedDocument | undefined {
+        const current = collection.get(this.values.idKey(found._id))
+        return current && new this.values.mingo.Query(filter).test(current)
+            ? current
+            : undefined
+    }
+
+    /**
+     * Inserts documents, their _id added when missing (also to the documents given, as MongoDB does); the documents
+     * stored.
+     *
+     * @param documents
+     */
+    protected async insert(
+        documents: EmbeddedDocument[],
+    ): Promise<EmbeddedDocument[]> {
+        const stored = documents.map((document) => {
+            if (document._id === undefined)
+                document._id = new this.values.bson.ObjectId()
+            return this.values.copy(document)
+        })
+        const collection = this.collection(true)!
+        collection.write(
+            stored.map((document) => ({
+                key: this.values.idKey(document._id),
+                next: document,
+            })),
+        )
+        await this.store.written(collection)
+        return stored
+    }
+
+    /**
      * The _ids a filter of _id gives: a value, $eq or $in; undefined for the other filters.
      *
      * @param id
@@ -454,8 +551,7 @@ export class EmbeddedCollection {
         if (operators[0] === "$eq" && !this.isPlainObject(id.$eq))
             return [id.$eq]
         if (operators[0] === "$in" && Array.isArray(id.$in))
-            return id.$in.filter((item: any) => !this.isPlainObject(item))
-                .length === id.$in.length
+            return id.$in.every((item: any) => !this.isPlainObject(item))
                 ? id.$in
                 : undefined
         return undefined
@@ -468,35 +564,22 @@ export class EmbeddedCollection {
     }
 
     /**
-     * Copies the documents to insert, their _id added when missing (also to the documents given, as MongoDB does).
-     *
-     * @param documents
-     */
-    protected prepareInserts(documents: EmbeddedDocument[]): EmbeddedDocument[] {
-        return documents.map((document) => {
-            if (document._id === undefined)
-                document._id = new this.store.bson.ObjectId()
-            return this.store.copy(document)
-        })
-    }
-
-    /**
      * The fields a filter sets by equality, for the document of an upsert.
      *
-     * @param query
+     * @param filter
      */
-    protected equalities(query?: EmbeddedDocument): EmbeddedDocument {
+    protected equalities(filter: EmbeddedDocument): EmbeddedDocument {
         const fields: EmbeddedDocument = {}
-        for (const key of Object.keys(query ?? {})) {
+        for (const key of Object.keys(filter)) {
             if (key.startsWith("$")) continue
-            const value = query![key]
+            const value = filter[key]
             if (!this.isPlainObject(value)) fields[key] = value
             else if (Object.keys(value).length === 1 && "$eq" in value)
                 fields[key] = value.$eq
         }
         const document: EmbeddedDocument = {}
         if (Object.keys(fields).length)
-            this.store.mingo.update(document, { $set: fields })
+            this.values.mingo.update(document, { $set: fields })
         return document
     }
 
@@ -509,47 +592,58 @@ export class EmbeddedCollection {
         if (Array.isArray(update)) throw notSupported("An update pipeline")
         if (!Object.keys(update).every((key) => key.startsWith("$")))
             throw new TypeORMError("Update document requires atomic operators")
-        const { $setOnInsert, ...modifier } = this.store.copy(update)
-        const matched = this.matching(query)
-        const targets = many ? matched : matched.slice(0, 1)
-        if (!targets.length && options?.upsert) {
-            const document = this.equalities(query)
-            this.store.mingo.update(document, modifier, options.arrayFilters)
-            if ($setOnInsert)
-                this.store.mingo.update(document, { $set: $setOnInsert })
-            const [stored] = this.prepareInserts([document])
-            this.store.insert(this.state(true)!, [stored])
-            await this.store.persist()
-            return this.updateResult(0, 0, stored._id)
-        }
-        const changes: [EmbeddedDocument, EmbeddedDocument][] = []
-        for (const target of targets) {
-            const next = this.store.copy(target)
-            const changed: string[] = this.store.mingo.update(
+        const { $setOnInsert, ...modifier } = this.values.copy(update)
+        const filter = this.values.copy(query ?? {})
+        const found = await this.matching(filter, many ? Infinity : 1)
+        const collection = this.collection(true)!
+        const changes: EmbeddedChange[] = []
+        let matched = 0
+        for (const document of found) {
+            const current = this.current(collection, filter, document)
+            if (!current) continue
+            matched++
+            const next = this.values.copy(current)
+            const changed: string[] = this.values.mingo.update(
                 next,
                 modifier,
                 options?.arrayFilters,
             )
             if (!changed.length) continue
-            if (this.store.idKey(next._id) !== this.store.idKey(target._id))
+            const key = this.values.idKey(current._id)
+            if (!this.values.idKey(next._id).equals(key))
                 throw this.immutableId()
-            changes.push([target, next])
+            changes.push({ key: key, previous: current, next: next })
         }
-        if (changes.length) {
-            this.store.replace(this.state(true)!, changes)
-            await this.store.persist()
+        if (!matched && options?.upsert) {
+            const document = this.equalities(filter)
+            this.values.mingo.update(document, modifier, options.arrayFilters)
+            if ($setOnInsert)
+                this.values.mingo.update(document, { $set: $setOnInsert })
+            const [stored] = await this.insert([document])
+            return this.updateResult(0, 0, stored._id)
         }
-        return this.updateResult(targets.length, changes.length)
+        collection.write(changes)
+        if (changes.length) await this.store.written(collection)
+        return this.updateResult(matched, changes.length)
     }
 
     protected async delete(query: EmbeddedDocument | undefined, many: boolean) {
-        const matched = this.matching(query)
-        const targets = many ? matched : matched.slice(0, 1)
-        if (targets.length) {
-            this.store.remove(this.state(true)!, targets)
-            await this.store.persist()
+        const filter = this.values.copy(query ?? {})
+        const found = await this.matching(filter, many ? Infinity : 1)
+        const collection = this.collection()
+        if (!collection) return { acknowledged: true, deletedCount: 0 }
+        const changes: EmbeddedChange[] = []
+        for (const document of found) {
+            const current = this.current(collection, filter, document)
+            if (current)
+                changes.push({
+                    key: this.values.idKey(current._id),
+                    previous: current,
+                })
         }
-        return { acknowledged: true, deletedCount: targets.length }
+        collection.write(changes)
+        if (changes.length) await this.store.written(collection)
+        return { acknowledged: true, deletedCount: changes.length }
     }
 
     protected updateResult(matched: number, modified: number, upsertedId?: any) {
@@ -591,20 +685,17 @@ export class EmbeddedDb {
 
     async dropDatabase(): Promise<boolean> {
         this.store.clear()
-        await this.store.persist()
         return true
     }
 
     async dropCollection(name: string): Promise<boolean> {
-        const existed = this.store.drop(name)
-        await this.store.persist()
-        return existed
+        return this.store.drop(name)
     }
 }
 
 /**
  * lakutata: the client of an embedded MongoDB, with the API of the client of MongoDB that TypeORM calls: its
- * collections in the memory of the process, queried and updated by mingo, written to a file.
+ * collections in the files of a directory (or in memory), queried and updated by mingo.
  */
 export class EmbeddedClient {
     protected database?: EmbeddedDb
@@ -612,24 +703,26 @@ export class EmbeddedClient {
     constructor(readonly store: EmbeddedStore) {}
 
     /**
-     * Opens a database: its file read when it exists.
+     * Opens a database: its directory locked, the files of its collections read.
      *
-     * @param file the file of the database, or ":memory:"
+     * @param directory the directory of the database, or ":memory:"
+     * @param options
      * @param mingo
      * @param bson
      */
     static async connect(
-        file: string | undefined,
+        directory: string | undefined,
+        options: EmbeddedStoreOptions,
         mingo: any,
         bson: any,
     ): Promise<EmbeddedClient> {
-        const store = new EmbeddedStore(
-            file && file !== ":memory:" ? file : undefined,
-            mingo,
-            bson,
+        return new EmbeddedClient(
+            EmbeddedStore.open(
+                directory && directory !== ":memory:" ? directory : undefined,
+                new EmbeddedValues(bson, mingo),
+                options,
+            ),
         )
-        await store.load()
-        return new EmbeddedClient(store)
     }
 
     db(name = "embedded"): EmbeddedDb {

@@ -1,115 +1,125 @@
-import { promises as fs } from "fs"
+import { createHash } from "crypto"
+import * as fs from "fs"
+import * as path from "path"
 import { TypeORMError } from "../../error/TypeORMError"
+import { EmbeddedCollectionStore } from "./EmbeddedCollectionStore"
+import type { EmbeddedFile } from "./EmbeddedFile"
+import { EmbeddedDiskFile, EmbeddedMemoryFile } from "./EmbeddedFile"
+import type { EmbeddedValues } from "./EmbeddedValues"
 
 /**
- * lakutata: a document of an embedded collection.
+ * lakutata: when the writes are written to the disk (fsync): after each write ("always", the writes made together
+ * sharing one), every interval ("interval"), or when the system does ("never").
  */
-export type EmbeddedDocument = { [key: string]: any }
+export type EmbeddedSync = "always" | "interval" | "never"
 
 /**
- * lakutata: an index of an embedded collection, as MongoDB lists it. Only the unique ones are enforced; the others are
- * kept to be listed.
+ * lakutata: the options of the storage of an embedded MongoDB.
  */
-export interface EmbeddedIndex {
-    name: string
-    key: { [field: string]: any }
-    unique?: boolean
-    sparse?: boolean
-    expireAfterSeconds?: number
+export interface EmbeddedStoreOptions {
+    sync?: EmbeddedSync
+    syncInterval?: number
 }
 
 /**
- * lakutata: the error of a duplicate key, with the code and the message of the one of MongoDB.
+ * lakutata: the extension of the files of the collections.
  */
-export class EmbeddedDuplicateKeyError extends TypeORMError {
-    readonly code = 11000
+const EXTENSION = ".log"
 
-    constructor(
-        readonly collection: string,
-        readonly index: string,
-        readonly keyValue: { [field: string]: any },
-    ) {
-        super(
-            `E11000 duplicate key error collection: ${collection} index: ${index} dup key: ${JSON.stringify(keyValue)}`,
-        )
+/**
+ * lakutata: the name of the file of a collection: its name (the characters of the names of files) and the hash of
+ * it (the names differing by their case, on the systems ignoring it).
+ *
+ * @param name
+ */
+function fileNameOf(name: string): string {
+    const safe = name.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 64)
+    const hash = createHash("sha1").update(name).digest("hex").slice(0, 8)
+    return `${safe}.${hash}${EXTENSION}`
+}
+
+/**
+ * lakutata: whether a process runs.
+ *
+ * @param pid
+ */
+function isRunning(pid: number): boolean {
+    try {
+        process.kill(pid, 0)
+        return true
+    } catch (error) {
+        return error.code === "EPERM"
     }
 }
 
 /**
- * lakutata: a collection of an embedded MongoDB: its documents by the key of their _id, its indexes, and for each
- * unique index the key of the _id of the document holding each of its keys.
- */
-export interface EmbeddedCollectionState {
-    name: string
-    documents: Map<string, EmbeddedDocument>
-    indexes: EmbeddedIndex[]
-    uniques: Map<string, Map<string, string>>
-}
-
-/**
- * lakutata: the collections of an embedded MongoDB, in the memory of the process, written to a file after each change
- * (the Extended JSON of the collections, written beside it then renamed over it).
+ * lakutata: the collections of an embedded MongoDB: the files of a directory (created when missing, locked by the
+ * process which opens it), or files in memory (":memory:").
  */
 export class EmbeddedStore {
-    protected readonly collections = new Map<string, EmbeddedCollectionState>()
+    protected readonly collections = new Map<string, EmbeddedCollectionStore>()
 
-    protected writing: Promise<void> = Promise.resolve()
+    protected readonly unsynced = new Set<EmbeddedFile>()
 
-    protected pending?: Promise<void>
+    protected waiting: { resolve: () => void; reject: (error: Error) => void }[] =
+        []
 
-    constructor(
-        readonly file: string | undefined,
-        readonly mingo: any,
-        readonly bson: any,
+    protected syncScheduled = false
+
+    protected timer?: ReturnType<typeof setTimeout>
+
+    protected constructor(
+        readonly directory: string | undefined,
+        readonly values: EmbeddedValues,
+        readonly options: EmbeddedStoreOptions,
     ) {}
 
     /**
-     * Reads the file of the database, when it exists.
+     * Opens a database: its directory locked, the files of its collections read.
+     *
+     * @param directory the directory of the database, or undefined for a database in memory
+     * @param values
+     * @param options
      */
-    async load(): Promise<void> {
-        if (!this.file) return
-        let text: string
+    static open(
+        directory: string | undefined,
+        values: EmbeddedValues,
+        options: EmbeddedStoreOptions,
+    ): EmbeddedStore {
+        const store = new EmbeddedStore(directory, values, options)
+        if (!directory) return store
+        fs.mkdirSync(directory, { recursive: true })
+        store.lock()
         try {
-            text = await fs.readFile(this.file, "utf8")
+            for (const name of fs.readdirSync(directory)) {
+                if (!name.endsWith(EXTENSION)) continue
+                const file = path.join(directory, name)
+                const collection = EmbeddedCollectionStore.open(
+                    new EmbeddedDiskFile(file),
+                    values,
+                    file,
+                )
+                if (collection)
+                    store.collections.set(collection.name, collection)
+                else fs.rmSync(file, { force: true })
+            }
         } catch (error) {
-            if (error.code === "ENOENT") return
+            store.closeFiles()
+            store.unlock()
             throw error
         }
-        const content = this.bson.EJSON.parse(text, { relaxed: true })
-        for (const name of Object.keys(content.collections ?? {})) {
-            const saved = content.collections[name]
-            const state = this.collection(name, true)!
-            for (const document of saved.documents)
-                state.documents.set(this.idKey(document._id), document)
-            for (const index of saved.indexes) this.createIndex(state, index)
-        }
+        return store
     }
 
     /**
-     * Writes the database to its file, once the writes started before are done; the writes asked before it starts are
-     * done by it.
+     * The names of the collections.
      */
-    persist(): Promise<void> {
-        if (!this.file) return Promise.resolve()
-        if (this.pending) return this.pending
-        const pending = this.writing.then(() => {
-            this.pending = undefined
-            return this.write()
-        })
-        this.pending = pending
-        this.writing = pending.catch(() => undefined)
-        return pending
+    names(): string[] {
+        return [...this.collections.keys()]
     }
 
     /**
-     * Waits for the writes of the file.
-     */
-    async close(): Promise<void> {
-        await this.writing
-    }
-
-    /**
-     * The state of a collection, created when asked
+     * A collection, created when asked.
      *
      * @param name
      * @param create
@@ -117,321 +127,146 @@ export class EmbeddedStore {
     collection(
         name: string,
         create: boolean,
-    ): EmbeddedCollectionState | undefined {
-        let state = this.collections.get(name)
-        if (!state && create) {
-            state = {
-                name: name,
-                documents: new Map(),
-                indexes: [],
-                uniques: new Map(),
-            }
-            this.collections.set(name, state)
+    ): EmbeddedCollectionStore | undefined {
+        let collection = this.collections.get(name)
+        if (!collection && create) {
+            collection = EmbeddedCollectionStore.create(
+                name,
+                this.directory
+                    ? new EmbeddedDiskFile(
+                          path.join(this.directory, fileNameOf(name)),
+                      )
+                    : new EmbeddedMemoryFile(),
+                this.values,
+            )
+            this.collections.set(name, collection)
         }
-        return state
+        return collection
     }
 
     /**
-     * Removes a collection; whether it existed.
+     * After a write of a collection: resolved once it is written as the option sync tells.
+     *
+     * @param collection
+     */
+    written(collection: EmbeddedCollectionStore): Promise<void> {
+        if (!this.directory || this.options.sync === "never")
+            return Promise.resolve()
+        this.unsynced.add(collection.file)
+        if (this.options.sync === "always")
+            return new Promise((resolve, reject) => {
+                this.waiting.push({ resolve: resolve, reject: reject })
+                if (this.syncScheduled) return
+                this.syncScheduled = true
+                setImmediate(() => {
+                    try {
+                        this.sync()
+                    } catch {
+                        // the writes waiting for it are rejected
+                    }
+                })
+            })
+        if (!this.timer) {
+            this.timer = setTimeout(() => {
+                this.timer = undefined
+                try {
+                    this.sync()
+                } catch {
+                    // the next write or the closing syncs again
+                }
+            }, this.options.syncInterval ?? 100)
+            this.timer.unref?.()
+        }
+        return Promise.resolve()
+    }
+
+    /**
+     * Removes a collection and its file; whether it existed.
      *
      * @param name
      */
     drop(name: string): boolean {
-        return this.collections.delete(name)
+        const collection = this.collections.get(name)
+        if (!collection) return false
+        this.collections.delete(name)
+        this.unsynced.delete(collection.file)
+        collection.close()
+        if (collection.file instanceof EmbeddedDiskFile)
+            fs.rmSync(collection.file.path, { force: true })
+        return true
     }
 
     /**
      * Removes all the collections.
      */
     clear(): void {
+        for (const name of this.names()) this.drop(name)
+    }
+
+    /**
+     * Closes the database: its files written to the disk and closed, its directory unlocked.
+     */
+    async close(): Promise<void> {
+        if (this.timer) clearTimeout(this.timer)
+        this.timer = undefined
+        try {
+            if (this.directory)
+                for (const collection of this.collections.values())
+                    this.unsynced.add(collection.file)
+            this.sync()
+        } finally {
+            this.closeFiles()
+            this.unlock()
+        }
+    }
+
+    /**
+     * Writes the files written to the disk, and resolves the writes waiting for it.
+     */
+    protected sync(): void {
+        this.syncScheduled = false
+        const waiting = this.waiting
+        this.waiting = []
+        try {
+            for (const file of this.unsynced) file.sync()
+            this.unsynced.clear()
+        } catch (error) {
+            for (const write of waiting) write.reject(error)
+            throw error
+        }
+        for (const write of waiting) write.resolve()
+    }
+
+    protected closeFiles(): void {
+        for (const collection of this.collections.values()) collection.close()
         this.collections.clear()
     }
 
     /**
-     * The key of an _id in the maps of the documents.
-     *
-     * @param id
+     * Locks the directory: its file LOCK holds the pid of the process, removed when it does not run any more.
      */
-    idKey(id: any): string {
-        if (id instanceof this.bson.ObjectId) return `o${id.toHexString()}`
-        if (typeof id === "string") return `s${id}`
-        if (typeof id === "number") return `n${id}`
-        return `e${this.bson.EJSON.stringify(id, { relaxed: false })}`
-    }
-
-    /**
-     * A copy of a value, as BSON stores it: the undefined fields dropped, the undefined items of the arrays null, the
-     * buffers Binary, the values of BSON of another copy of bson (its ES module, when the driver has its CommonJS
-     * module) made with the one of the driver, which mingo compares.
-     *
-     * @param value
-     */
-    copy(value: any): any {
-        if (value === undefined) return null
-        if (value === null || typeof value !== "object") return value
-        if (Array.isArray(value)) return value.map((item) => this.copy(item))
-        if (value instanceof Date) return new Date(value.getTime())
-        if (value instanceof Uint8Array)
-            return new this.bson.Binary(Buffer.from(value))
-        if (value instanceof this.bson.Binary)
-            return new this.bson.Binary(
-                Buffer.from(value.buffer),
-                value.sub_type,
-            )
-        if (
-            typeof value._bsontype === "string" &&
-            !(value instanceof (this.bson[value._bsontype] ?? Object))
-        )
-            return this.bson.EJSON.deserialize(
-                this.bson.EJSON.serialize({ value: value }, { relaxed: false }),
-                { relaxed: false },
-            ).value
-        const prototype = Object.getPrototypeOf(value)
-        // ObjectId, Decimal128, Long... are not changed
-        if (prototype !== Object.prototype && prototype !== null) return value
-        const copied: EmbeddedDocument = {}
-        for (const key of Object.keys(value))
-            if (value[key] !== undefined) copied[key] = this.copy(value[key])
-        return copied
-    }
-
-    /**
-     * The value at a path of a document.
-     *
-     * @param document
-     * @param path
-     */
-    valueAt(document: EmbeddedDocument, path: string): any {
-        let value: any = document
-        for (const name of path.split(".")) {
-            if (value === null || typeof value !== "object") return undefined
-            value = value[name]
-        }
-        return value
-    }
-
-    /**
-     * Adds documents; none of them when one of them has a duplicate key.
-     *
-     * @param state
-     * @param documents
-     */
-    insert(state: EmbeddedCollectionState, documents: EmbeddedDocument[]) {
-        const added: string[] = []
-        try {
-            for (const document of documents) {
-                const key = this.idKey(document._id)
-                if (state.documents.has(key))
-                    throw new EmbeddedDuplicateKeyError(state.name, "_id_", {
-                        _id: document._id,
-                    })
-                this.indexDocument(state, key, document)
-                state.documents.set(key, document)
-                added.push(key)
-            }
-        } catch (error) {
-            for (const key of added.reverse()) {
-                this.unindexDocument(state, key, state.documents.get(key)!)
-                state.documents.delete(key)
-            }
-            throw error
-        }
-    }
-
-    /**
-     * Replaces documents (their _id kept); none of them when one of them has a duplicate key.
-     *
-     * @param state
-     * @param changes the documents and their replacements
-     */
-    replace(
-        state: EmbeddedCollectionState,
-        changes: [EmbeddedDocument, EmbeddedDocument][],
-    ) {
-        const replaced: [string, EmbeddedDocument, EmbeddedDocument][] = []
-        try {
-            for (const [previous, next] of changes) {
-                const key = this.idKey(previous._id)
-                this.unindexDocument(state, key, previous)
-                try {
-                    this.indexDocument(state, key, next)
-                } catch (error) {
-                    this.indexDocument(state, key, previous)
-                    throw error
-                }
-                state.documents.set(key, next)
-                replaced.push([key, previous, next])
-            }
-        } catch (error) {
-            for (const [key, previous, next] of replaced.reverse()) {
-                this.unindexDocument(state, key, next)
-                this.indexDocument(state, key, previous)
-                state.documents.set(key, previous)
-            }
-            throw error
-        }
-    }
-
-    /**
-     * Removes documents.
-     *
-     * @param state
-     * @param documents
-     */
-    remove(state: EmbeddedCollectionState, documents: EmbeddedDocument[]) {
-        for (const document of documents) {
-            const key = this.idKey(document._id)
-            this.unindexDocument(state, key, document)
-            state.documents.delete(key)
-        }
-    }
-
-    /**
-     * Adds an index, unless one of its name exists; a unique one fails on the duplicate keys of the documents.
-     *
-     * @param state
-     * @param index
-     */
-    createIndex(state: EmbeddedCollectionState, index: EmbeddedIndex) {
-        if (state.indexes.some((existing) => existing.name === index.name))
-            return
-        if (index.unique) {
-            const keys = new Map<string, string>()
-            for (const [key, document] of state.documents) {
-                const value = this.uniqueKey(index, document)
-                if (value === undefined) continue
-                if (keys.has(value))
-                    throw new EmbeddedDuplicateKeyError(
-                        state.name,
-                        index.name,
-                        this.keyValue(index, document),
+    protected lock(): void {
+        const lock = path.join(this.directory!, "LOCK")
+        for (let attempt = 0; ; attempt++) {
+            try {
+                const descriptor = fs.openSync(lock, "wx")
+                fs.writeSync(descriptor, String(process.pid))
+                fs.closeSync(descriptor)
+                return
+            } catch (error) {
+                if (error.code !== "EEXIST" || attempt > 0) throw error
+                const pid = Number(fs.readFileSync(lock, "utf8"))
+                if (pid && isRunning(pid))
+                    throw new TypeORMError(
+                        `The database ${this.directory} of mongo-embedded is opened by ${pid === process.pid ? "this process" : `the process ${pid}`}`,
                     )
-                keys.set(value, key)
+                fs.rmSync(lock, { force: true })
             }
-            state.uniques.set(index.name, keys)
-        }
-        state.indexes.push(index)
-    }
-
-    /**
-     * Removes an index; whether it existed.
-     *
-     * @param state
-     * @param name
-     */
-    dropIndex(state: EmbeddedCollectionState, name: string): boolean {
-        const position = state.indexes.findIndex((index) => index.name === name)
-        if (position < 0) return false
-        state.indexes.splice(position, 1)
-        state.uniques.delete(name)
-        return true
-    }
-
-    /**
-     * Adds the keys of a document to the unique indexes, after checking them all.
-     *
-     * @param state
-     * @param key
-     * @param document
-     */
-    protected indexDocument(
-        state: EmbeddedCollectionState,
-        key: string,
-        document: EmbeddedDocument,
-    ) {
-        const values: [Map<string, string>, string][] = []
-        for (const index of state.indexes) {
-            if (!index.unique) continue
-            const value = this.uniqueKey(index, document)
-            if (value === undefined) continue
-            const keys = state.uniques.get(index.name)!
-            const owner = keys.get(value)
-            if (owner !== undefined && owner !== key)
-                throw new EmbeddedDuplicateKeyError(
-                    state.name,
-                    index.name,
-                    this.keyValue(index, document),
-                )
-            values.push([keys, value])
-        }
-        for (const [keys, value] of values) keys.set(value, key)
-    }
-
-    /**
-     * Removes the keys of a document from the unique indexes.
-     *
-     * @param state
-     * @param key
-     * @param document
-     */
-    protected unindexDocument(
-        state: EmbeddedCollectionState,
-        key: string,
-        document: EmbeddedDocument,
-    ) {
-        for (const index of state.indexes) {
-            if (!index.unique) continue
-            const value = this.uniqueKey(index, document)
-            if (value === undefined) continue
-            const keys = state.uniques.get(index.name)!
-            if (keys.get(value) === key) keys.delete(value)
         }
     }
 
-    /**
-     * The key of a document in a unique index: the values of its fields (missing: null), undefined when a sparse
-     * index has none of them.
-     *
-     * @param index
-     * @param document
-     */
-    protected uniqueKey(
-        index: EmbeddedIndex,
-        document: EmbeddedDocument,
-    ): string | undefined {
-        const values = Object.keys(index.key).map((path) =>
-            this.valueAt(document, path),
-        )
-        if (index.sparse && values.every((value) => value === undefined))
-            return undefined
-        return this.bson.EJSON.stringify(
-            values.map((value) => (value === undefined ? null : value)),
-            { relaxed: false },
-        )
-    }
-
-    /**
-     * The fields of a document in an index, for the message of a duplicate key.
-     *
-     * @param index
-     * @param document
-     */
-    protected keyValue(
-        index: EmbeddedIndex,
-        document: EmbeddedDocument,
-    ): { [field: string]: any } {
-        const value: { [field: string]: any } = {}
-        for (const path of Object.keys(index.key))
-            value[path] = this.valueAt(document, path) ?? null
-        return value
-    }
-
-    /**
-     * Writes the collections to the file: beside it, then renamed over it.
-     */
-    protected async write(): Promise<void> {
-        const collections: { [name: string]: any } = {}
-        for (const [name, state] of this.collections)
-            collections[name] = {
-                indexes: state.indexes,
-                documents: [...state.documents.values()],
-            }
-        const text = this.bson.EJSON.stringify(
-            { collections: collections },
-            { relaxed: true },
-        )
-        const temporary = `${this.file}.tmp`
-        await fs.writeFile(temporary, text)
-        await fs.rename(temporary, this.file!)
+    protected unlock(): void {
+        if (this.directory)
+            fs.rmSync(path.join(this.directory, "LOCK"), { force: true })
     }
 }

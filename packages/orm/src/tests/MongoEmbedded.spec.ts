@@ -1,7 +1,8 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {mkdtemp, rm, stat} from 'node:fs/promises'
+import {appendFile, mkdtemp, readdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
+import {crc32} from 'node:zlib'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {Container} from '@lakutata/core'
@@ -71,8 +72,18 @@ async function inDirectory(fn: (directory: string) => Promise<void>): Promise<vo
 }
 
 /**
+ * The file of the collection of the posts of a database
+ * @param database its directory
+ */
+async function postFile(database: string): Promise<string> {
+    const name: string | undefined = (await readdir(database)).find((file: string): boolean => file.startsWith('post.') && file.endsWith('.log'))
+    assert.ok(name, 'the file of the posts')
+    return path.join(database, name)
+}
+
+/**
  * Open an embedded MongoDB
- * @param database its file, or ':memory:'
+ * @param database its directory, or ':memory:'
  */
 async function open(database: string): Promise<DataSource> {
     return new DataSource({type: 'mongo-embedded', database: database, entities: [Post], synchronize: true}).initialize()
@@ -136,13 +147,13 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
-    it('writes the database to its file, and reads it again', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
-        const file: string = path.join(directory, 'posts.json')
+    it('writes the database to its directory, and reads it again', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const file: string = path.join(directory, 'posts')
         let dataSource: DataSource = await open(file)
         const [hello, , third] = await savePosts(dataSource.getMongoRepository(Post))
         await dataSource.getMongoRepository(Post).softRemove(third)
         await dataSource.destroy()
-        assert.ok((await stat(file)).size > 4096)
+        assert.ok((await stat(await postFile(file))).size > 4096)
         dataSource = await open(file)
         const posts: MongoRepository<Post> = dataSource.getMongoRepository(Post)
         const reread: Post | null = await posts.findOneBy({_id: hello.id})
@@ -156,6 +167,43 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         assert.ok((await posts.findOne({where: {title: 'third'}, withDeleted: true}))?.deletedAt instanceof Date)
         await assert.rejects(posts.save({title: 'world', tags: [], views: 0, author: {name: 'Linus', city: 'Helsinki'}}), {code: 11000})
         await dataSource.destroy()
+    }))
+
+    it('locks its directory: one data source opens it', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const database: string = path.join(directory, 'locked')
+        const dataSource: DataSource = await open(database)
+        await assert.rejects(open(database), /The database .*locked of mongo-embedded is opened by this process/)
+        await dataSource.destroy()
+        //Left by a process which does not run any more
+        await writeFile(path.join(database, 'LOCK'), '999999')
+        await (await open(database)).destroy()
+    }))
+
+    it('recovers from a crash: drops the operation cut, refuses a file corrupted', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const database: string = path.join(directory, 'crashed')
+        let dataSource: DataSource = await open(database)
+        await savePosts(dataSource.getMongoRepository(Post))
+        await dataSource.destroy()
+        const file: string = await postFile(database)
+        const whole: Buffer = await readFile(file)
+        //A whole record of a document without the commit of its operation, then a record cut by a crash
+        const payload: Buffer = Buffer.from(bson.BSON.serialize({_id: new bson.ObjectId(), title: 'uncommitted', tags: [], views: 0, author: {name: 'Linus', city: 'Helsinki'}}))
+        const record: Buffer = Buffer.alloc(9 + payload.length)
+        record.writeUInt32LE(payload.length, 0)
+        record.writeUInt32LE(crc32(payload, crc32(Buffer.of(1))), 4)
+        record[8] = 1
+        payload.copy(record, 9)
+        await appendFile(file, Buffer.concat([record, record.subarray(0, 20)]))
+        dataSource = await open(database)
+        assert.strictEqual(await dataSource.getMongoRepository(Post).count(), 3)
+        assert.strictEqual(await dataSource.getMongoRepository(Post).findOneBy({title: 'uncommitted'}), null)
+        await dataSource.destroy()
+        assert.strictEqual((await stat(file)).size, whole.length)
+        //A byte changed in a record followed by whole operations: the file is corrupted
+        const corrupted: Buffer = Buffer.from(whole)
+        corrupted[100] ^= 0xff
+        await writeFile(file, corrupted)
+        await assert.rejects(open(database), /The file .* of mongo-embedded is corrupted at its offset \d+/)
     }))
 
     it('connects the Database component', async (): Promise<void> => {

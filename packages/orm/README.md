@@ -33,12 +33,15 @@ do not share it. The database driver is not a dependency: install the driver of 
 | Google Cloud Spanner | `spanner` | `@google-cloud/spanner` (8) |
 
 `mongo-embedded` (added by lakutata) is the MongoDB of TypeORM (its entities with an `@ObjectIdColumn`, the MongoDB
-operators of the find options, the `MongoRepository`) on collections held in the memory of the process, queried with the
-semantics of MongoDB by mingo, and written to the file of the option `database` (`':memory:'`, the default, writes no
-file): the whole file once each write is done, the writes made meanwhile written together (a `save()` of an array is one
-write, or one per chunk). The file is not locked: one process opens it. As with MongoDB, the relations, the query
-builders and the transactions of TypeORM are not supported, and the migrations are written by hand with the
-`MongoQueryRunner`, not generated. Its `ObjectId` and `Binary` are the ones of the CommonJS module of `bson`.
+operators of the find options, the `MongoRepository`) on a database of the process: its documents are written to the
+files of the directory of the option `database` (created when missing; `':memory:'`, the default, keeps them in memory),
+each write appended in one write, found by their `_id` from an index held in memory outside the heap of V8, and queried
+with the semantics of MongoDB by mingo. The option `sync` tells when the writes are written to the disk: `'interval'`
+(the default, every `syncInterval`, 100 ms: a write survives a crash of the process, the last interval may be lost on a
+power loss), `'always'` or `'never'`. A crash cutting a write leaves the database as it was before it. One process opens
+the directory: it is locked. As with MongoDB, the relations, the query builders and the transactions of TypeORM are not
+supported, and the migrations are written by hand with the `MongoQueryRunner`, not generated. Its `ObjectId` and
+`Binary` are the ones of the CommonJS module of `bson`.
 
 The query result cache stored in Redis (`cache: {type: 'redis'}` or `'ioredis'`) needs `redis` or `ioredis`.
 
