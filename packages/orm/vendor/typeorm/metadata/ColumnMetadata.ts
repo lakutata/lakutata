@@ -988,7 +988,7 @@ export class ColumnMetadata {
         let propertyNames = this.embeddedMetadata
             ? this.embeddedMetadata.parentPrefixes
             : []
-        if (dataSource.driver.options.type === "mongodb")
+        if ((dataSource.driver.options.type === "mongodb" || dataSource.driver.options.type === "mongo-embedded")) // lakutata: mongo-embedded, a MongoDB driver
             // we don't need to include embedded name for the mongodb column names
             propertyNames = []
         return dataSource.namingStrategy.columnName(

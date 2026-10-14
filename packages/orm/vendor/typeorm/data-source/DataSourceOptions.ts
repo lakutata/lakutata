@@ -6,6 +6,7 @@ import type { CockroachDataSourceOptions } from "../driver/cockroachdb/Cockroach
 import type { CordovaDataSourceOptions } from "../driver/cordova/CordovaDataSourceOptions"
 import type { ExpoDataSourceOptions } from "../driver/expo/ExpoDataSourceOptions"
 import type { MongoDataSourceOptions } from "../driver/mongodb/MongoDataSourceOptions"
+import type { MongoEmbeddedDataSourceOptions } from "../driver/mongo-embedded/MongoEmbeddedDataSourceOptions" // lakutata: an embedded MongoDB
 import type { MysqlDataSourceOptions } from "../driver/mysql/MysqlDataSourceOptions"
 import type { NativescriptDataSourceOptions } from "../driver/nativescript/NativescriptDataSourceOptions"
 import type { OracleDataSourceOptions } from "../driver/oracle/OracleDataSourceOptions"
@@ -28,6 +29,7 @@ export type DataSourceOptions =
     | CordovaDataSourceOptions
     | ExpoDataSourceOptions
     | MongoDataSourceOptions
+    | MongoEmbeddedDataSourceOptions // lakutata: an embedded MongoDB
     | MysqlDataSourceOptions
     | NativescriptDataSourceOptions
     | OracleDataSourceOptions

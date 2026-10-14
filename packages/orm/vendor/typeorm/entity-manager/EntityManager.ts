@@ -1528,7 +1528,7 @@ export class EntityManager {
         if (repoFromMap) return repoFromMap
 
         // if repository was not found then create it, store its instance and return it
-        if (this.dataSource.driver.options.type === "mongodb") {
+        if ((this.dataSource.driver.options.type === "mongodb" || this.dataSource.driver.options.type === "mongo-embedded")) { // lakutata: mongo-embedded, a MongoDB driver
             const newRepository = new MongoRepository(
                 target,
                 this,

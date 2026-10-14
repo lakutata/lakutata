@@ -120,6 +120,7 @@ export {type NativescriptDataSourceOptions} from '#typeorm/driver/nativescript/N
 export {type ReactNativeDataSourceOptions} from '#typeorm/driver/react-native/ReactNativeDataSourceOptions.js'
 export {type SqljsDataSourceOptions} from '#typeorm/driver/sqljs/SqljsDataSourceOptions.js'
 export {type MongoDataSourceOptions} from '#typeorm/driver/mongodb/MongoDataSourceOptions.js'
+export {type MongoEmbeddedDataSourceOptions} from '#typeorm/driver/mongo-embedded/MongoEmbeddedDataSourceOptions.js'
 export {type AuroraMysqlDataSourceOptions} from '#typeorm/driver/aurora-mysql/AuroraMysqlDataSourceOptions.js'
 export {
     type AuroraMysqlConnectionCredentialsOptions

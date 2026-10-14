@@ -249,7 +249,7 @@ export class EmbeddedMetadata {
     }
 
     protected buildPrefix(connection: dataSource): string {
-        if (connection.driver.options.type === "mongodb")
+        if ((connection.driver.options.type === "mongodb" || connection.driver.options.type === "mongo-embedded")) // lakutata: mongo-embedded, a MongoDB driver
             return this.propertyName
 
         const prefixes: string[] = []

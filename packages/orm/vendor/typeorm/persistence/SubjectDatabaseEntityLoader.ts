@@ -111,7 +111,7 @@ export class SubjectDatabaseEntityLoader {
 
             // load database entities for all given ids
             let entities: any[]
-            if (this.queryRunner.dataSource.driver.options.type === "mongodb") {
+            if ((this.queryRunner.dataSource.driver.options.type === "mongodb" || this.queryRunner.dataSource.driver.options.type === "mongo-embedded")) { // lakutata: mongo-embedded, a MongoDB driver
                 const mongoRepo =
                     this.queryRunner.manager.getRepository<ObjectLiteral>(
                         subjectGroup.target,

@@ -21,6 +21,10 @@ export function requireDriverPackage(name: string): any {
             return require("mssql")
         case "mongodb":
             return require("mongodb")
+        case "mingo":
+            return require("mingo")
+        case "bson":
+            return require("bson")
         case "mysql2":
             return require("mysql2")
         case "oracledb":

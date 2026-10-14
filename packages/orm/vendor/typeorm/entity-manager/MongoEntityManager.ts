@@ -198,7 +198,7 @@ export class MongoEntityManager extends EntityManager {
             this.convertFindManyOptionsOrConditionsToMongodbQuery(
                 optionsOrConditions,
             ) ?? {}
-        const objectIdClass = PlatformTools.load("mongodb").ObjectId
+        const objectIdClass = ((this.dataSource.driver as any).mongodb ?? PlatformTools.load("mongodb")).ObjectId // lakutata: the ObjectId of the driver
         query["_id"] = {
             $in: ids.map((id) => {
                 if (typeof id === "string") {
@@ -1053,7 +1053,7 @@ export class MongoEntityManager extends EntityManager {
             if (!hasNested) return query
         }
 
-        const objectIdClass = PlatformTools.load("mongodb").ObjectId
+        const objectIdClass = ((this.dataSource.driver as any).mongodb ?? PlatformTools.load("mongodb")).ObjectId // lakutata: the ObjectId of the driver
         return this.rewriteObjectIdQuery(query, propertyName, objectIdClass)
     }
 
@@ -1265,7 +1265,7 @@ export class MongoEntityManager extends EntityManager {
         metadata: EntityMetadata,
         idMap: any,
     ): ObjectLiteral {
-        const objectIdInstance = PlatformTools.load("mongodb").ObjectId
+        const objectIdInstance = ((this.dataSource.driver as any).mongodb ?? PlatformTools.load("mongodb")).ObjectId // lakutata: the ObjectId of the driver
 
         // check first if it's ObjectId compatible:
         // string, number, Buffer, ObjectId or ObjectId-like
@@ -1367,7 +1367,7 @@ export class MongoEntityManager extends EntityManager {
         optionsOrConditions?: any,
         maybeOptions?: MongoFindOneOptions<Entity>,
     ): Promise<Entity | null> {
-        const objectIdClass = PlatformTools.load("mongodb").ObjectId
+        const objectIdClass = ((this.dataSource.driver as any).mongodb ?? PlatformTools.load("mongodb")).ObjectId // lakutata: the ObjectId of the driver
         const id =
             optionsOrConditions instanceof objectIdClass ||
             typeof optionsOrConditions === "string"

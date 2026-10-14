@@ -119,7 +119,7 @@ export class EntityMetadataValidator {
                 )
         }
 
-        if (!(driver.options.type === "mongodb")) {
+        if (!((driver.options.type === "mongodb" || driver.options.type === "mongo-embedded"))) { // lakutata: mongo-embedded, a MongoDB driver
             entityMetadata.columns
                 .filter((column) => !column.isVirtualProperty)
                 .forEach((column) => {

@@ -9,6 +9,7 @@ import { CordovaDriver } from "./cordova/CordovaDriver"
 import type { Driver } from "./Driver"
 import { ExpoDriver } from "./expo/ExpoDriver"
 import { MongoDriver } from "./mongodb/MongoDriver"
+import { MongoEmbeddedDriver } from "./mongo-embedded/MongoEmbeddedDriver" // lakutata: an embedded MongoDB
 import { MysqlDriver } from "./mysql/MysqlDriver"
 import { NativescriptDriver } from "./nativescript/NativescriptDriver"
 import { OracleDriver } from "./oracle/OracleDriver"
@@ -50,6 +51,8 @@ export class DriverFactory {
                 return new MysqlDriver(dataSource)
             case "mongodb":
                 return new MongoDriver(dataSource)
+            case "mongo-embedded": // lakutata: an embedded MongoDB
+                return new MongoEmbeddedDriver(dataSource)
             case "mssql":
                 return new SqlServerDriver(dataSource)
             case "mysql":
@@ -79,6 +82,7 @@ export class DriverFactory {
                     "expo",
                     "mariadb",
                     "mongodb",
+                    "mongo-embedded", // lakutata: an embedded MongoDB
                     "mssql",
                     "mysql",
                     "nativescript",

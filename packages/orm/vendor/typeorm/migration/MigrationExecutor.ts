@@ -98,7 +98,7 @@ export class MigrationExecutor {
         return this.withQueryRunner(async (queryRunner) => {
             // There is no need to check if migrations table exists for MongoDB,
             // as it's handled in loadExecutedMigrations
-            if (this.dataSource.driver.options.type !== "mongodb") {
+            if (this.dataSource.driver.options.type !== "mongodb" && this.dataSource.driver.options.type !== "mongo-embedded") { // lakutata: mongo-embedded, a MongoDB driver
                 const exist = await queryRunner.hasTable(this.migrationsTable)
 
                 if (!exist) return []
@@ -505,7 +505,7 @@ export class MigrationExecutor {
         queryRunner: QueryRunner,
     ): Promise<void> {
         // If driver is mongo no need to create
-        if (this.dataSource.driver.options.type === "mongodb") {
+        if ((this.dataSource.driver.options.type === "mongodb" || this.dataSource.driver.options.type === "mongo-embedded")) { // lakutata: mongo-embedded, a MongoDB driver
             return
         }
         const tableExist = await queryRunner.hasTable(this.migrationsTable) // todo: table name should be configurable
@@ -558,7 +558,7 @@ export class MigrationExecutor {
     protected async loadExecutedMigrations(
         queryRunner: QueryRunner,
     ): Promise<Migration[]> {
-        if (this.dataSource.driver.options.type === "mongodb") {
+        if ((this.dataSource.driver.options.type === "mongodb" || this.dataSource.driver.options.type === "mongo-embedded")) { // lakutata: mongo-embedded, a MongoDB driver
             const mongoRunner = queryRunner as MongoQueryRunner
             return mongoRunner
                 .cursor(this.migrationsTableName, {})
@@ -682,7 +682,7 @@ export class MigrationExecutor {
             values["timestamp"] = migration.timestamp
             values["name"] = migration.name
         }
-        if (this.dataSource.driver.options.type === "mongodb") {
+        if ((this.dataSource.driver.options.type === "mongodb" || this.dataSource.driver.options.type === "mongo-embedded")) { // lakutata: mongo-embedded, a MongoDB driver
             const mongoRunner = queryRunner as MongoQueryRunner
             await mongoRunner.databaseConnection
                 .db(this.dataSource.driver.database!)
@@ -728,7 +728,7 @@ export class MigrationExecutor {
             conditions["name"] = migration.name
         }
 
-        if (this.dataSource.driver.options.type === "mongodb") {
+        if ((this.dataSource.driver.options.type === "mongodb" || this.dataSource.driver.options.type === "mongo-embedded")) { // lakutata: mongo-embedded, a MongoDB driver
             const mongoRunner = queryRunner as MongoQueryRunner
             await mongoRunner.databaseConnection
                 .db(this.dataSource.driver.database!)

@@ -28,8 +28,17 @@ do not share it. The database driver is not a dependency: install the driver of 
 | Microsoft SQL Server | `mssql` | `mssql` (12) |
 | Oracle | `oracle` | `oracledb` |
 | MongoDB | `mongodb` | `mongodb` (7) |
+| MongoDB embedded in the process | `mongo-embedded` | `mingo` and `bson` (7) |
 | SAP HANA | `sap` | `@sap/hana-client` |
 | Google Cloud Spanner | `spanner` | `@google-cloud/spanner` (8) |
+
+`mongo-embedded` (added by lakutata) is the MongoDB of TypeORM (its entities with an `@ObjectIdColumn`, the MongoDB
+operators of the find options, the `MongoRepository`) on collections held in the memory of the process, queried with the
+semantics of MongoDB by mingo, and written to the file of the option `database` (`':memory:'`, the default, writes no
+file): the whole file once each write is done, the writes made meanwhile written together (a `save()` of an array is one
+write, or one per chunk). The file is not locked: one process opens it. As with MongoDB, the relations, the query
+builders and the transactions of TypeORM are not supported, and the migrations are written by hand with the
+`MongoQueryRunner`, not generated. Its `ObjectId` and `Binary` are the ones of the CommonJS module of `bson`.
 
 The query result cache stored in Redis (`cache: {type: 'redis'}` or `'ioredis'`) needs `redis` or `ioredis`.
 

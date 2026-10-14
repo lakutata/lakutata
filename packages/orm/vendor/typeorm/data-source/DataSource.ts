@@ -489,7 +489,7 @@ export class DataSource {
     getMongoRepository<Entity extends ObjectLiteral>(
         target: EntityTarget<Entity>,
     ): MongoRepository<Entity> {
-        if (!(this.driver.options.type === "mongodb"))
+        if (!((this.driver.options.type === "mongodb" || this.driver.options.type === "mongo-embedded"))) // lakutata: mongo-embedded, a MongoDB driver
             throw new TypeORMError(
                 `You can use getMongoRepository only for MongoDB connections.`,
             )

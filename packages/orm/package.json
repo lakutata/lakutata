@@ -80,7 +80,9 @@
     "@lakutata/utils": "3.0.0",
     "@sap/hana-client": "^2.14.22",
     "better-sqlite3": "^12.0.0",
+    "bson": "^7.0.0",
     "ioredis": "^5.0.4",
+    "mingo": "^7.2.0",
     "mongodb": "^7.0.0",
     "mssql": "^12.0.0",
     "mysql2": "^3.15.3",
@@ -102,7 +104,13 @@
     "better-sqlite3": {
       "optional": true
     },
+    "bson": {
+      "optional": true
+    },
     "ioredis": {
+      "optional": true
+    },
+    "mingo": {
       "optional": true
     },
     "mongodb": {

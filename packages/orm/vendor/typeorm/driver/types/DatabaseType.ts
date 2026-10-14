@@ -11,6 +11,7 @@ export type DatabaseType =
     | "expo"
     | "mariadb"
     | "mongodb"
+    | "mongo-embedded" // lakutata: an embedded MongoDB
     | "mssql"
     | "mysql"
     | "nativescript"
