@@ -356,25 +356,41 @@ export class EmbeddedCollectionStore {
      * @param path
      */
     protected readSnapshot(path: string): number | undefined {
-        let data: Buffer
+        let descriptor: number
         try {
-            data = fs.readFileSync(path)
+            descriptor = fs.openSync(path, "r")
         } catch {
             return undefined
         }
         try {
-            if (
-                data.length < 16 ||
-                !data.subarray(0, 8).equals(SNAPSHOT_MAGIC) ||
-                zlib.crc32(data.subarray(12)) !== data.readUInt32LE(8)
-            )
-                return undefined
-            // Its arrays of 8 bytes aligned
-            if (data.byteOffset % 8) data = Buffer.from(data)
-            const length = data.readUInt32LE(12)
-            const header = this.values.deserialize(
-                data.subarray(16, 16 + length),
-            )
+            // Read a part at a time, each one its own buffer (the buffers of Bun hold up to 4 GiB)
+            let position = 0
+            let checksum = 0
+            const read = (size: number, checked = true): Buffer => {
+                const bytes = Buffer.allocUnsafe(size)
+                let done = 0
+                while (done < size) {
+                    const count = fs.readSync(
+                        descriptor,
+                        bytes,
+                        done,
+                        size - done,
+                        position + done,
+                    )
+                    if (count === 0) throw new Error("The snapshot is cut")
+                    done += count
+                }
+                position += size
+                if (checked) checksum = zlib.crc32(bytes, checksum)
+                return bytes
+            }
+            const skipPadding = () => {
+                if (position % 8) read(align(position) - position)
+            }
+            if (!read(8, false).equals(SNAPSHOT_MAGIC)) return undefined
+            const expected = read(4, false).readUInt32LE(0)
+            const length = read(4).readUInt32LE(0)
+            const header = this.values.deserialize(read(length))
             if (
                 header.format !== 2 ||
                 header.logId !== this.logId ||
@@ -389,25 +405,28 @@ export class EmbeddedCollectionStore {
                 header.logOffset - RECORD_HEADER,
             )
             if (!end.equals(COMMIT_RECORD)) return undefined
-            let position = align(16 + length)
             const take = (size: number): Uint8Array => {
-                const bytes = new Uint8Array(
-                    data.buffer,
-                    data.byteOffset + position,
-                    size,
-                )
-                position = align(position + size)
-                return bytes
+                skipPadding()
+                return read(size)
             }
-            this.keydir = EmbeddedKeydir.import(
-                header.keydir.state,
-                header.keydir.sizes.map(take),
+            const keydir = header.keydir.sizes.map(take)
+            const trees = header.trees.map((tree: { sizes: number[] }) =>
+                tree.sizes.map(take),
             )
-            for (const tree of header.trees)
-                this.trees.set(
-                    tree.name,
-                    EmbeddedBTree.import(tree.state, tree.sizes.map(take)),
-                )
+            skipPadding()
+            if (
+                checksum !== expected ||
+                position !== fs.fstatSync(descriptor).size
+            )
+                return undefined
+            this.keydir = EmbeddedKeydir.import(header.keydir.state, keydir)
+            header.trees.forEach(
+                (tree: { name: string; state: number[] }, index: number) =>
+                    this.trees.set(
+                        tree.name,
+                        EmbeddedBTree.import(tree.state, trees[index]),
+                    ),
+            )
             this.indexes.push(...header.indexes)
             for (const name of header.multikey) this.multikey.add(name)
             this.liveBytes = header.liveBytes
@@ -420,6 +439,8 @@ export class EmbeddedCollectionStore {
             this.multikey.clear()
             this.liveBytes = 0
             return undefined
+        } finally {
+            fs.closeSync(descriptor)
         }
     }
 

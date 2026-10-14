@@ -305,6 +305,13 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await again.save({title: 'world', tags: [], views: 0, author: {name: 'Grace', city: 'New York'}})
         await assert.rejects(again.save({title: 'renamed', tags: [], views: 0, author: {name: 'Ada', city: 'London'}}), {code: 11000})
         await recovered.destroy()
+        //A snapshot cut: its records read
+        const snapshot: string = (await postFile(copy)).replace(/\.log$/, '.snapshot')
+        await writeFile(snapshot, (await readFile(snapshot)).subarray(0, 100))
+        const fromRecords: DataSource = await open(copy)
+        assert.strictEqual(opened(fromRecords), 'records')
+        assert.deepStrictEqual((await fromRecords.getMongoRepository(Post).find({order: {title: 'ASC'}})).map((post: Post): string => post.title), ['fourth', 'renamed', 'third', 'world'])
+        await fromRecords.destroy()
     }))
 
     it('compacts the file of a collection while it is written, and resumes a compaction cut by a crash', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
