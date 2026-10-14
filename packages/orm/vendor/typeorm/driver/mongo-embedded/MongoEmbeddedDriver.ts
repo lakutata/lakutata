@@ -24,7 +24,11 @@ export class MongoEmbeddedDriver extends MongoDriver {
         const options = this.options as unknown as MongoEmbeddedDataSourceOptions
         const client = await EmbeddedClient.connect(
             options.database,
-            { sync: options.sync, syncInterval: options.syncInterval },
+            {
+                sync: options.sync,
+                syncInterval: options.syncInterval,
+                cacheSize: options.cacheSize,
+            },
             this.embedded.mingo,
             this.embedded.bson,
         )

@@ -38,19 +38,22 @@ function notSupported(method: string): TypeORMError {
 }
 
 /**
- * lakutata: the documents of a collection held when it is called, read in the order of its file, the event loop
- * yielded to every YIELD_EVERY documents.
+ * lakutata: documents in batches of YIELD_EVERY, the event loop yielded to between them.
  *
- * @param collection
+ * @param documents
  */
-async function* scan(
-    collection: EmbeddedCollectionStore,
-): AsyncGenerator<EmbeddedDocument> {
-    let count = 0
-    for (const document of collection.documents()) {
-        yield document
-        if (++count % YIELD_EVERY === 0) await yieldLoop()
+async function* batches(
+    documents: Iterable<EmbeddedDocument>,
+): AsyncGenerator<EmbeddedDocument[]> {
+    let batch: EmbeddedDocument[] = []
+    for (const document of documents) {
+        batch.push(document)
+        if (batch.length < YIELD_EVERY) continue
+        yield batch
+        batch = []
+        await yieldLoop()
     }
+    if (batch.length) yield batch
 }
 
 /**
@@ -158,26 +161,36 @@ export class EmbeddedFindCursor extends EmbeddedResults {
                       this.skipped + this.limited,
                   )
                 : undefined
+        const values = this.collection.values
         if (ordered)
-            return this.collection.values.mingo
-                .find(ordered.slice(this.skipped), {}, this.projection)
-                .all()
-        // Without an order, the documents after the limit are not read
+            return this.projected(
+                ordered
+                    .slice(this.skipped)
+                    .map((document) => values.copy(document)),
+            )
+        // Without an order, the documents after the limit are not read; the documents of the results only are copied
         const matches = await this.collection.matching(
             this.query,
             !this.order && this.limited
                 ? this.skipped + this.limited
                 : Infinity,
+            false,
         )
-        let cursor = this.collection.values.mingo.find(
-            matches,
-            {},
-            this.projection,
-        )
+        let cursor = values.mingo.find(matches, {})
         if (this.order) cursor = cursor.sort(this.order)
         if (this.skipped) cursor = cursor.skip(this.skipped)
         if (this.limited) cursor = cursor.limit(this.limited)
-        return cursor.all()
+        return this.projected(
+            cursor.all().map((document: EmbeddedDocument) => values.copy(document)),
+        )
+    }
+
+    protected projected(documents: EmbeddedDocument[]): EmbeddedDocument[] {
+        return this.projection
+            ? this.collection.values.mingo
+                  .find(documents, {}, this.projection)
+                  .all()
+            : documents
     }
 }
 
@@ -212,24 +225,27 @@ export class EmbeddedCollection {
     }
 
     /**
-     * The documents matching a filter, up to a limit.
+     * The documents matching a filter, up to a limit: copies, the caller's own, unless they are not to be changed.
      *
      * @param query
      * @param limit
+     * @param copy whether they are copies (else shared with the store)
      */
     async matching(
         query?: EmbeddedDocument,
         limit = Infinity,
+        copy = true,
     ): Promise<EmbeddedDocument[]> {
         const filter = this.values.copy(query ?? {})
         const matcher = new this.values.mingo.Query(filter)
         const documents: EmbeddedDocument[] = []
         if (limit <= 0) return documents
-        for await (const document of this.candidates(filter)) {
-            if (!matcher.test(document)) continue
-            documents.push(document)
-            if (documents.length >= limit) break
-        }
+        for await (const batch of this.candidates(filter))
+            for (const document of batch) {
+                if (!matcher.test(document)) continue
+                documents.push(copy ? this.values.copy(document) : document)
+                if (documents.length >= limit) return documents
+            }
         return documents
     }
 
@@ -258,8 +274,10 @@ export class EmbeddedCollection {
             return Math.max(Math.min(exact, limit) - skip, 0)
         const matcher = new this.values.mingo.Query(filter)
         let count = 0
-        for await (const document of this.candidates(filter))
-            if (matcher.test(document) && ++count >= limit) break
+        for await (const batch of this.candidates(filter))
+            for (const document of batch)
+                if (matcher.test(document) && ++count >= limit)
+                    return Math.max(count - skip, 0)
         return Math.max(count - skip, 0)
     }
 
@@ -296,9 +314,11 @@ export class EmbeddedCollection {
             this.values.mingo.aggregate(await this.matching(), pipeline, {
                 ...options,
                 // The collections of $lookup, read at once
-                collectionResolver: (name: string) => [
-                    ...(this.store.collection(name, false)?.documents() ?? []),
-                ],
+                collectionResolver: (name: string) =>
+                    [
+                        ...(this.store.collection(name, false)?.documents() ??
+                            []),
+                    ].map((document) => this.values.copy(document)),
             }),
         )
     }
@@ -345,7 +365,7 @@ export class EmbeddedCollection {
                 "Replacement document must not contain atomic operators",
             )
         const filter = this.values.copy(query ?? {})
-        const [found] = await this.matching(filter, 1)
+        const [found] = await this.matching(filter, 1, false)
         const collection = this.collection(true)!
         const current = found
             ? this.current(collection, filter, found)
@@ -510,12 +530,12 @@ export class EmbeddedCollection {
      */
     protected async *candidates(
         filter: EmbeddedDocument,
-    ): AsyncGenerator<EmbeddedDocument> {
+    ): AsyncGenerator<EmbeddedDocument[]> {
         const collection = this.collection()
         if (!collection) return
         const plan = new EmbeddedPlanner(collection).plan(filter)
         if (plan.kind === "scan") {
-            yield* scan(collection)
+            yield* batches(collection.documents())
             return
         }
         // The keys collected before the documents are read: the writes made meanwhile change the index
@@ -524,15 +544,17 @@ export class EmbeddedCollection {
                 ? plan.ids.map((id) => this.values.idKey(id))
                 : [...collection.idsIn(plan.index, plan.ranges)]
         const seen = new Set<string>()
-        let count = 0
-        for (const key of keys) {
-            const text = key.toString("latin1")
-            if (seen.has(text)) continue
-            seen.add(text)
-            const document = collection.get(key)
-            if (document) yield document
-            if (++count % YIELD_EVERY === 0) await yieldLoop()
-        }
+        yield* batches(
+            (function* () {
+                for (const key of keys) {
+                    const text = key.toString("latin1")
+                    if (seen.has(text)) continue
+                    seen.add(text)
+                    const document = collection.get(key)
+                    if (document) yield document
+                }
+            })(),
+        )
     }
 
     /**
@@ -571,7 +593,7 @@ export class EmbeddedCollection {
                     return undefined
                 const document = collection.get(id)
                 if (!document || !matcher.test(document)) continue
-                documents.push(document)
+                documents.push(this.values.copy(document))
                 if (documents.length >= count) return documents
             }
         return documents
@@ -686,7 +708,7 @@ export class EmbeddedCollection {
             throw new TypeORMError("Update document requires atomic operators")
         const { $setOnInsert, ...modifier } = this.values.copy(update)
         const filter = this.values.copy(query ?? {})
-        const found = await this.matching(filter, many ? Infinity : 1)
+        const found = await this.matching(filter, many ? Infinity : 1, false)
         const collection = this.collection(true)!
         const changes: EmbeddedChange[] = []
         let matched = 0
@@ -721,7 +743,7 @@ export class EmbeddedCollection {
 
     protected async delete(query: EmbeddedDocument | undefined, many: boolean) {
         const filter = this.values.copy(query ?? {})
-        const found = await this.matching(filter, many ? Infinity : 1)
+        const found = await this.matching(filter, many ? Infinity : 1, false)
         const collection = this.collection()
         if (!collection) return { acknowledged: true, deletedCount: 0 }
         const changes: EmbeddedChange[] = []

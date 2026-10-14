@@ -31,4 +31,13 @@ export interface MongoEmbeddedDataSourceOptions extends BaseDataSourceOptions {
      * @default 100
      */
     readonly syncInterval?: number
+
+    /**
+     * The memory of the documents cached (read without reading their file again), in bytes, estimated from their size
+     * (about 4 times their BSON); 0 caches none. A scan reads the documents cached when they are all the ones of the
+     * collection.
+     *
+     * @default 67108864 (64 MiB)
+     */
+    readonly cacheSize?: number
 }

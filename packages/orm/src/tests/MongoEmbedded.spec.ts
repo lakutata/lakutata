@@ -253,6 +253,22 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
+    it('caches the documents: the ones given are copies, the cache of 0 bytes reads its files', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        for (const cacheSize of [undefined, 0]) {
+            const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: path.join(directory, `cache-${cacheSize}`), cacheSize: cacheSize, entities: [Post], synchronize: true}).initialize()
+            const posts: MongoRepository<Post> = dataSource.getMongoRepository(Post)
+            await savePosts(posts)
+            const found: Post = (await posts.findOneBy({title: 'hello'}))!
+            found.tags.push('changed')
+            found.author.name = 'changed'
+            ;(await posts.find())[0].tags.length = 0
+            const again: Post = (await posts.findOneBy({title: 'hello'}))!
+            assert.deepStrictEqual([again.tags, again.author.name], [['x', 'y'], 'Ada'], String(cacheSize))
+            assert.deepStrictEqual((await posts.find({where: {tags: 'y'}, order: {title: 'ASC'}})).map((post: Post): string => post.title), ['hello', 'world'])
+            await dataSource.destroy()
+        }
+    }))
+
     it('connects the Database component', async (): Promise<void> => {
         const container: Container = new Container()
         const database: Database = await container.set(Database, {options: {type: 'mongo-embedded', entities: [Post], synchronize: true}})

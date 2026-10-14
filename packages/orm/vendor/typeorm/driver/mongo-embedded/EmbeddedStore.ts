@@ -2,6 +2,7 @@ import { createHash } from "crypto"
 import * as fs from "fs"
 import * as path from "path"
 import { TypeORMError } from "../../error/TypeORMError"
+import { EmbeddedCacheBudget, EmbeddedCollectionCache } from "./EmbeddedCache"
 import { EmbeddedCollectionStore } from "./EmbeddedCollectionStore"
 import type { EmbeddedFile } from "./EmbeddedFile"
 import { EmbeddedDiskFile, EmbeddedMemoryFile } from "./EmbeddedFile"
@@ -19,6 +20,7 @@ export type EmbeddedSync = "always" | "interval" | "never"
 export interface EmbeddedStoreOptions {
     sync?: EmbeddedSync
     syncInterval?: number
+    cacheSize?: number
 }
 
 /**
@@ -68,11 +70,17 @@ export class EmbeddedStore {
 
     protected timer?: ReturnType<typeof setTimeout>
 
+    protected readonly budget: EmbeddedCacheBudget
+
     protected constructor(
         readonly directory: string | undefined,
         readonly values: EmbeddedValues,
         readonly options: EmbeddedStoreOptions,
-    ) {}
+    ) {
+        this.budget = new EmbeddedCacheBudget(
+            options.cacheSize ?? 64 * 1024 * 1024,
+        )
+    }
 
     /**
      * Opens a database: its directory locked, the files of its collections read.
@@ -97,6 +105,7 @@ export class EmbeddedStore {
                 const collection = EmbeddedCollectionStore.open(
                     new EmbeddedDiskFile(file),
                     values,
+                    new EmbeddedCollectionCache(store.budget),
                     file,
                 )
                 if (collection)
@@ -138,6 +147,7 @@ export class EmbeddedStore {
                       )
                     : new EmbeddedMemoryFile(),
                 this.values,
+                new EmbeddedCollectionCache(this.budget),
             )
             this.collections.set(name, collection)
         }

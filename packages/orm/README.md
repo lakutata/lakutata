@@ -38,10 +38,11 @@ files of the directory of the option `database` (created when missing; `':memory
 each write appended in one write, found by their `_id` from an index held in memory outside the heap of V8, and queried
 with the semantics of MongoDB by mingo. The option `sync` tells when the writes are written to the disk: `'interval'`
 (the default, every `syncInterval`, 100 ms: a write survives a crash of the process, the last interval may be lost on a
-power loss), `'always'` or `'never'`. A crash cutting a write leaves the database as it was before it. One process opens
-the directory: it is locked. As with MongoDB, the relations, the query builders and the transactions of TypeORM are not
-supported, and the migrations are written by hand with the `MongoQueryRunner`, not generated. Its `ObjectId` and
-`Binary` are the ones of the CommonJS module of `bson`.
+power loss), `'always'` or `'never'`. The documents read are cached in memory (`cacheSize`, 64 MiB by default): a scan
+of a collection whose documents are all cached reads none of its files. A crash cutting a write leaves the database as
+it was before it. One process opens the directory: it is locked. As with MongoDB, the relations, the query builders and
+the transactions of TypeORM are not supported, and the migrations are written by hand with the `MongoQueryRunner`, not
+generated. Its `ObjectId` and `Binary` are the ones of the CommonJS module of `bson`.
 
 The query result cache stored in Redis (`cache: {type: 'redis'}` or `'ioredis'`) needs `redis` or `ioredis`.
 

@@ -1,6 +1,8 @@
 import { TypeORMError } from "../../error/TypeORMError"
 import type { EmbeddedBound } from "./EmbeddedBTree"
 import { EmbeddedBTree } from "./EmbeddedBTree"
+import type { EmbeddedCollectionCache } from "./EmbeddedCache"
+import { cachedSizeOf } from "./EmbeddedCache"
 import type { EmbeddedFile } from "./EmbeddedFile"
 import { EmbeddedKeyEncoding } from "./EmbeddedKeyEncoding"
 import { EmbeddedKeydir } from "./EmbeddedKeydir"
@@ -94,6 +96,7 @@ export class EmbeddedCollectionStore {
         readonly name: string,
         readonly file: EmbeddedFile,
         readonly values: EmbeddedValues,
+        readonly cache: EmbeddedCollectionCache,
     ) {
         this.encoding = new EmbeddedKeyEncoding(values)
     }
@@ -104,11 +107,13 @@ export class EmbeddedCollectionStore {
      * @param name
      * @param file
      * @param values
+     * @param cache
      */
     static create(
         name: string,
         file: EmbeddedFile,
         values: EmbeddedValues,
+        cache: EmbeddedCollectionCache,
     ): EmbeddedCollectionStore {
         file.append(
             Buffer.concat([
@@ -119,7 +124,7 @@ export class EmbeddedCollectionStore {
                 encodeRecord(RecordType.Commit, Buffer.alloc(0)),
             ]),
         )
-        return new EmbeddedCollectionStore(name, file, values)
+        return new EmbeddedCollectionStore(name, file, values, cache)
     }
 
     /**
@@ -129,11 +134,13 @@ export class EmbeddedCollectionStore {
      *
      * @param file
      * @param values
+     * @param cache
      * @param path the path of the file, for the errors
      */
     static open(
         file: EmbeddedFile,
         values: EmbeddedValues,
+        cache: EmbeddedCollectionCache,
         path: string,
     ): EmbeddedCollectionStore | undefined {
         const reader = new EmbeddedRecordReader(file)
@@ -159,6 +166,7 @@ export class EmbeddedCollectionStore {
                     values.deserialize(record.payload).name,
                     file,
                     values,
+                    cache,
                 )
             }
             if (record.type === RecordType.Commit) {
@@ -228,37 +236,54 @@ export class EmbeddedCollectionStore {
     }
 
     /**
-     * The document of a key, read from the file.
+     * The document of a key, cached or read from the file (and cached). It is shared: it must not be changed.
      *
      * @param key
      */
-    get(key: Uint8Array): EmbeddedDocument | undefined {
+    get(key: Buffer): EmbeddedDocument | undefined {
+        const text = key.toString("latin1")
+        const cached = this.cache.get(text)
+        if (cached) return cached
         const slot = this.keydir.find(key)
         if (slot < 0) return undefined
-        const payload = Buffer.allocUnsafe(
-            this.keydir.lengthAt(slot) - RECORD_HEADER,
-        )
+        const length = this.keydir.lengthAt(slot)
+        const payload = Buffer.allocUnsafe(length - RECORD_HEADER)
         this.file.readInto(
             payload,
             0,
             payload.length,
             this.keydir.offsetAt(slot) + RECORD_HEADER,
         )
-        return this.values.deserialize(payload)
+        const document = this.values.deserialize(payload)
+        this.cache.set(text, document, cachedSizeOf(length))
+        return document
     }
 
     /**
-     * The documents held when it is called, in the order of the file.
+     * The documents held when it is called: the ones cached when they are all, else the ones of the file in its order
+     * (cached while the cache has room). They are shared: they must not be changed.
      */
     *documents(): Generator<EmbeddedDocument> {
+        if (this.cache.size === this.keydir.size) {
+            yield* this.cache.documents()
+            return
+        }
         const reader = new EmbeddedRecordReader(this.file)
         for (;;) {
             const record = reader.next(false)
             if (typeof record === "string") return
             if (record.type !== RecordType.Put) continue
-            const slot = this.keydir.find(this.values.idKeyOf(record.payload))
-            if (slot >= 0 && this.keydir.offsetAt(slot) === record.offset)
-                yield this.values.deserialize(record.payload)
+            const key = this.values.idKeyOf(record.payload)
+            const slot = this.keydir.find(key)
+            if (slot < 0 || this.keydir.offsetAt(slot) !== record.offset)
+                continue
+            const text = key.toString("latin1")
+            let document = this.cache.get(text)
+            if (!document) {
+                document = this.values.deserialize(record.payload)
+                this.cache.offer(text, document, cachedSizeOf(record.length))
+            }
+            yield document
         }
     }
 
@@ -288,12 +313,19 @@ export class EmbeddedCollectionStore {
             ]),
         )
         changes.forEach((change, index) => {
+            const text = change.key.toString("latin1")
             if (change.next) {
                 this.liveBytes +=
                     records[index].length -
                     this.keydir.set(change.key, offset, records[index].length)
+                this.cache.set(
+                    text,
+                    change.next,
+                    cachedSizeOf(records[index].length),
+                )
             } else {
                 this.liveBytes -= this.keydir.delete(change.key)
+                this.cache.delete(text)
             }
             offset += records[index].length
         })
@@ -369,6 +401,7 @@ export class EmbeddedCollectionStore {
     }
 
     close(): void {
+        this.cache.close()
         this.file.close()
     }
 
