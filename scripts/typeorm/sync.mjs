@@ -148,7 +148,8 @@ try {
         for (const [relative, text] of theirs) write(relative, text)
         counts.added = theirs.size
     } else {
-        const base = sourceOf(clone(upstream.tag).directory)
+        //The tag imported before cloned once: synced again, it is both the base and theirs
+        const base = upstream.tag === tag ? theirs : sourceOf(clone(upstream.tag).directory)
         const ours = oursOf(base, theirs)
         for (const relative of new Set([...base.keys(), ...theirs.keys(), ...ours.keys()])) {
             const [b, t, o] = [base.get(relative), theirs.get(relative), ours.get(relative)]
