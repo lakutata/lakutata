@@ -243,6 +243,8 @@ node -e "import('@lakutata/builder').then(b => b.buildInstaller({project: '/w', 
             //The icons of the application, in its sizes
             assert.strictEqual(exec(container, 'ls /usr/share/icons/hicolor/256x256/apps/hello-desk.png /usr/share/icons/hicolor/16x16/apps/hello-desk.png | wc -l').trim(), '2')
             assert.strictEqual(exec(container, 'cat "/opt/Hello Desk/resources/main.resources/texts/hello.txt"'), 'Hello')
+            //Its native addon, in the resources of Electron (the node_modules of its native tree)
+            assert.strictEqual(exec(container, 'ls "/opt/Hello Desk/resources/main.native/node_modules/hello-addon/build/Release/addon.node" | wc -l').trim(), '1')
             install('1.0.1')
             assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true), line('preinstall', 'upgrade', true), line('postinstall', 'upgrade', true)])
             exec(container, system === 'debian' ? 'apt-get remove -y -qq hello-desk >/dev/null 2>&1' : 'dnf remove -y -q hello-desk >/dev/null 2>&1')

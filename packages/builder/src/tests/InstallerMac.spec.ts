@@ -150,6 +150,8 @@ describe('The installers of macOS', {skip: (process.platform !== 'darwin' || pro
         install('1.0.0')
         //Its resources next to its archive; the ${...} of the scripts are theirs
         assert.strictEqual(exec('cat "/Applications/Hello Desk.app/Contents/Resources/main.resources/texts/hello.txt"'), 'Hello')
+        //Its native addon, in the resources of Electron (the node_modules of its native tree)
+        assert.strictEqual(exec('ls "/Applications/Hello Desk.app/Contents/Resources/main.native/node_modules/hello-addon/build/Release/addon.node" | wc -l').trim(), '1')
         //The icon of the application (icns)
         assert.strictEqual(exec('defaults read "/Applications/Hello Desk.app/Contents/Info" CFBundleIconFile').trim(), 'icon.icns')
         assert.strictEqual(exec('head -c 4 "/Applications/Hello Desk.app/Contents/Resources/icon.icns"'), 'icns')

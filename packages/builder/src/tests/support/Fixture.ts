@@ -13,17 +13,11 @@ function icon(): Buffer {
 }
 
 /**
- * The application of the tests of the installers: a service answering what it runs with (its environment, its user, its
- * directory, its resource, its native addon built when it is installed by node-gyp), and a command (hello)
- * @param fixture its directory
- * @param dependencies its other dependencies (the builder)
+ * The native addon of the applications of the tests (hello-addon, in their addon directory): built when it is installed
+ * (node-gyp), on Node-API, which Electron loads as node does
+ * @param file writes a file of the application
  */
-export function writeServiceFixture(fixture: string, dependencies: Record<string, string> = {}): void {
-    const file = (name: string, content: string): void => {
-        mkdirSync(path.dirname(path.join(fixture, name)), {recursive: true})
-        writeFileSync(path.join(fixture, name), content)
-    }
-    //A native addon built when it is installed (node-gyp)
+function writeAddon(file: (name: string, content: string) => void): void {
     file('addon/package.json', JSON.stringify({name: 'hello-addon', version: '1.0.0', main: 'index.js', gypfile: true, scripts: {install: 'node-gyp rebuild'}}))
     file('addon/binding.gyp', JSON.stringify({targets: [{target_name: 'addon', sources: ['addon.c']}]}))
     file('addon/addon.c', `#include <node_api.h>
@@ -44,6 +38,20 @@ NAPI_MODULE_INIT() {
 }
 `)
     file('addon/index.js', `module.exports = require(require('node:path').join(__dirname, 'build', 'Release', 'addon.node'))`)
+}
+
+/**
+ * The application of the tests of the installers: a service answering what it runs with (its environment, its user, its
+ * directory, its resource, its native addon built when it is installed by node-gyp), and a command (hello)
+ * @param fixture its directory
+ * @param dependencies its other dependencies (the builder)
+ */
+export function writeServiceFixture(fixture: string, dependencies: Record<string, string> = {}): void {
+    const file = (name: string, content: string): void => {
+        mkdirSync(path.dirname(path.join(fixture, name)), {recursive: true})
+        writeFileSync(path.join(fixture, name), content)
+    }
+    writeAddon(file)
     //A service answering what it runs with, and a command
     file('assets/hello.txt', 'Hello')
     writeFileSync(path.join(fixture, 'icon.png'), icon())
@@ -88,8 +96,8 @@ process.on('SIGTERM', () => process.exit(0))
 }
 
 /**
- * The Electron application of the tests of the installers (Hello Desk): a main process quitting once ready, a resource,
- * and the scripts of the installers writing what they are run with to a log (/tmp/hello-desk-hooks.log, the
+ * The Electron application of the tests of the installers (Hello Desk): a main process loading its native addon and
+ * quitting once ready, a resource, and the scripts of the installers writing what they are run with to a log (/tmp/hello-desk-hooks.log, the
  * hello-desk-hooks.log of ProgramData): what the installer does, whether the application is installed, its directory
  * @param fixture its directory
  * @param versions the versions of electron and of electron-builder
@@ -100,7 +108,8 @@ export function writeElectronFixture(fixture: string, versions: { electron: stri
         mkdirSync(path.dirname(path.join(fixture, name)), {recursive: true})
         writeFileSync(path.join(fixture, name), content)
     }
-    file('build/index.js', `const {app} = require('electron')\napp.whenReady().then(() => app.quit())\n`)
+    writeAddon(file)
+    file('build/index.js', `const {app} = require('electron')\nrequire('hello-addon').arch()\napp.whenReady().then(() => app.quit())\n`)
     file('assets/hello.txt', 'Hello')
     writeFileSync(path.join(fixture, 'icon.png'), icon())
     for (const hook of ['preinstall', 'postinstall', 'preremove', 'postremove']) {
@@ -111,6 +120,7 @@ export function writeElectronFixture(fixture: string, versions: { electron: stri
     file('package.json', JSON.stringify({
         name: 'hello-desk', productName: 'Hello Desk', version: '1.0.0', description: 'Says hello', author: 'Acme <ops@acme.test>', license: 'MIT',
         homepage: 'https://acme.test', main: 'build/index.js',
+        dependencies: {'hello-addon': 'file:./addon'},
         devDependencies: {...dependencies, 'electron': versions.electron, 'electron-builder': versions.builder},
         lakutata: {
             icon: 'icon.png',

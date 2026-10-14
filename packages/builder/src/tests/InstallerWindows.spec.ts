@@ -203,6 +203,8 @@ describe('The installers of Windows', {skip: !INSTALL && 'LAKUTATA_WINDOWS_INSTA
         assert.strictEqual(run(setup('1.0.0')), '0')
         assert.deepStrictEqual(hooks(), [line('preinstall', 'install', false), line('postinstall', 'install', true)])
         assert.strictEqual(readFileSync(path.join(directory, 'resources', 'main.resources', 'texts', 'hello.txt'), 'utf8'), 'Hello')
+        //Its native addon, in the resources of Electron (the node_modules of its native tree)
+        assert.ok(existsSync(path.join(directory, 'resources', 'main.native', 'node_modules', 'hello-addon', 'build', 'Release', 'addon.node')))
         //Its executables extracted (the ones of ARM64 too), their icon the one of the application
         assert.ok(existsSync(path.join(directory, 'Hello Desk.exe')))
         assert.deepStrictEqual(await iconSizes(path.join(directory, 'Hello Desk.exe')), ICO_SIZES)

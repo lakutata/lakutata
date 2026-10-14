@@ -225,13 +225,16 @@ export async function buildElectronInstaller(project: string, manifest: Record<s
     try {
         //The application of electron-builder: its main process, its package.json; its native addons and its resources next to it
         const application: string = path.join(work, 'app')
+        //The directory of the native addons and of the resources, copied into the resources of Electron: electron-builder
+        //leaves out the node_modules at the root of a directory it copies, the packages of the native tree
+        const extra: string = path.join(work, 'extra')
         const bundle: BundleResult = await bundleProject({
             project: project,
             entry: options.entry,
             minify: options.minify,
             external: ['electron', ...options.external ?? []],
             outfile: path.join(application, 'main.cjs'),
-            directories: {native: path.join(work, 'main.native'), resources: path.join(work, 'main.resources')}
+            directories: {native: path.join(extra, 'main.native'), resources: path.join(extra, 'main.resources')}
         })
         warnings.push(...bundle.warnings)
         const maintainer: string = platform === 'linux' ? packageMaintainer(author, name, warnings) : author ?? name
@@ -293,10 +296,7 @@ export async function buildElectronInstaller(project: string, manifest: Record<s
             ...existsSync(electronDist) ? {electronDist: electronDist} : {},
             directories: {app: 'app', output: outdir},
             files: ['main.cjs', 'package.json'],
-            extraResources: [
-                ...bundle.nativeDirectory ? [{from: bundle.nativeDirectory, to: path.basename(bundle.nativeDirectory)}] : [],
-                ...bundle.resourcesDirectory ? [{from: bundle.resourcesDirectory, to: path.basename(bundle.resourcesDirectory)}] : []
-            ],
+            extraResources: bundle.nativeDirectory || bundle.resourcesDirectory ? [{from: extra}] : [],
             //The dependencies are bundled
             npmRebuild: false,
             ...platform === 'linux' ? {linux: {maintainer: maintainer, ...config.vendor ? {vendor: config.vendor} : {}}} : {},
