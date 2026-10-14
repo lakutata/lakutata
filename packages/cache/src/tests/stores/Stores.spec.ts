@@ -107,15 +107,12 @@ const CASES: Record<string, StoreCase> = {
         options: (namespace?: string): CacheStoreOptions => ({type: 'sqlite', database: path.join(directory, 'cache.sqlite'), table: 'kv', namespace: namespace}),
         key: (key: string, namespace?: string): string => namespace ? `${namespace}:${key}` : key,
         raw: async (): Promise<RawAccess> => {
-            const sqlite3: any = (await import('sqlite3') as any).default
-            const database: any = await new Promise((resolve: (database: any) => void, reject: (error: Error) => void): void => {
-                const opened: any = new sqlite3.Database(path.join(directory, 'cache.sqlite'), (error: Error | null): void => error ? reject(error) : resolve(opened))
-            })
-            const run = (method: 'all' | 'run', sql: string, params: unknown[]): Promise<any> => new Promise((resolve: (rows: any) => void, reject: (error: Error) => void): void => database[method](sql, params, (error: Error | null, rows: any): void => error ? reject(error) : resolve(rows)))
+            const Database: any = (await import('better-sqlite3') as any).default
+            const database: any = new Database(path.join(directory, 'cache.sqlite'))
             return {
-                read: async (key: string): Promise<string | undefined> => (await run('all', 'SELECT value FROM kv WHERE key = ?', [key]))[0]?.value,
-                write: async (key: string, data: string): Promise<void> => void await run('run', 'INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)', [key, data]),
-                close: (): Promise<void> => new Promise((resolve: () => void): void => database.close(resolve))
+                read: async (key: string): Promise<string | undefined> => database.prepare('SELECT value FROM kv WHERE key = ?').get(key)?.value,
+                write: async (key: string, data: string): Promise<void> => void database.prepare('INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)').run(key, data),
+                close: async (): Promise<void> => database.close()
             }
         },
         scopedClear: true

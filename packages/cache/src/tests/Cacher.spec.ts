@@ -1,5 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
+import {execFileSync, execSync} from 'node:child_process'
 import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
@@ -28,6 +29,19 @@ async function inDirectory(fn: (directory: string) => Promise<void>): Promise<vo
         await rm(directory, {recursive: true, force: true})
     }
 }
+
+/**
+ * Whether Bun is installed
+ */
+const BUN: boolean = ((): boolean => {
+    try {
+        //bun.cmd (npm) on Windows, run by cmd.exe
+        execSync('bun --version', {stdio: 'ignore'})
+        return true
+    } catch {
+        return false
+    }
+})()
 
 describe('Cacher', (): void => {
 
@@ -196,6 +210,24 @@ describe('Cacher', (): void => {
         //Clearing a namespace keeps the other entries
         const content: { cache: [string, { value: string }][] } = JSON.parse(await readFile(filename, 'utf8'))
         assert.deepStrictEqual(content.cache, [['other', {value: '{"value":1}'}], ['ns:new', {value: '{"value":1}'}]])
+    }))
+
+    it('caches in SQLite on Bun, with bun:sqlite', {skip: !BUN && 'Bun is not installed'}, async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        //Bun does not load better-sqlite3: without it installed, the store runs on bun:sqlite
+        const script: string = path.join(directory, 'sqlite.mjs')
+        await writeFile(script, `const {Container} = await import(${JSON.stringify(import.meta.resolve('@lakutata/core'))})
+const {Cacher} = await import(${JSON.stringify(import.meta.resolve('../exports/Cache.js'))})
+const container = new Container()
+const cacher = await container.set(Cacher, {stores: {type: 'sqlite', database: ${JSON.stringify(path.join(directory, 'cache.db'))}, table: 'kv', namespace: 'app'}})
+await cacher.multipleSet([{key: 'a', value: {x: 1}}, {key: 'b', value: 2}])
+const values = await cacher.multipleGet(['a', 'b'])
+const deleted = await cacher.del('b')
+await cacher.clear()
+console.log(JSON.stringify([values, deleted, (await cacher.get('a')) ?? null]))
+await container.destroy()
+`)
+        const output: string = execFileSync('bun', [script], {cwd: directory, encoding: 'utf8', shell: process.platform === 'win32'})
+        assert.deepStrictEqual(JSON.parse(output.trim()), [[{x: 1}, 2], true, null])
     }))
 
     it('reports the missing drivers', async (): Promise<void> => {

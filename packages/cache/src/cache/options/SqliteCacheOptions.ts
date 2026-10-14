@@ -3,12 +3,16 @@ import {Expect} from '@lakutata/core/decorator/dto'
 
 /**
  * The options of the SQLite store: one row per entry in a table of a SQLite database file. It needs the optional peer
- * dependency `sqlite3` (`npm install sqlite3`): without it, the cache's creation fails with
- * `CacheDriverNotFoundException`.
+ * dependency `better-sqlite3` (`npm install better-sqlite3`): without it, the cache's creation fails with
+ * `CacheDriverNotFoundException`. On Bun, which does not load better-sqlite3, it uses Bun's own `bun:sqlite`, with
+ * nothing to install.
  *
  * When the cache starts, it opens the database (creating the file) and creates the table when missing:
  * `(key VARCHAR(255) PRIMARY KEY, value TEXT)`. An expired row is a miss; it stays in the table until it is read,
  * overwritten or cleared. The values are kept as JSON.
+ * @remarks The statements run synchronously: a statement waiting for a database locked by another connection blocks
+ * the event loop, up to `busyTimeout`. better-sqlite3 is a native addon built for the ABI of one runtime: an Electron
+ * application needs the build of its Electron version, not the one of Node.js.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'

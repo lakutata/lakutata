@@ -258,7 +258,7 @@ Application.run({
 /**
  * The packages of native addons of the repository the tests use (dependencies of its other packages)
  */
-const NATIVE_PACKAGES: string[] = ['sqlite3', 'sharp']
+const NATIVE_PACKAGES: string[] = ['better-sqlite3', 'sharp']
 const missing: string | undefined = NATIVE_PACKAGES.find((name: string): boolean => !existsSync(path.join(ROOT, 'node_modules', name)))
 
 /**
@@ -321,6 +321,11 @@ describe('The packing of an application with native addons', {skip: missing ? `$
      */
     const EXPECTED: RegExp = /^cpu \w+ \| sub \w+ \| local \w+ \| sharp 97 \| sqlite 2$/
 
+    /**
+     * What the application prints on Bun, which does not load better-sqlite3: each other addon used
+     */
+    const EXPECTED_BUN: RegExp = /^cpu \w+ \| sub \w+ \| local \w+ \| sharp 97$/
+
     before((): void => {
         native = mkdtempSync(path.join(tmpdir(), 'lakutata-native-'))
         const app: string = path.join(native, 'app')
@@ -337,12 +342,12 @@ describe('The packing of an application with native addons', {skip: missing ? `$
         writeFileSync(path.join(native, 'sub', 'build', 'Release', 'sub.node'), readFileSync(addon))
         mkdirSync(path.join(app, 'native'), {recursive: true})
         writeFileSync(path.join(app, 'native', 'local.node'), readFileSync(addon))
-        //The addons loaded by bindings (sqlite3), by a platform package linked with a library (sharp), by their path
+        //The addons loaded by bindings (better-sqlite3, not on Bun), by a platform package linked with a library (sharp), by their path
         //(cpu-info), imported and dynamically imported by an ES module
         mkdirSync(path.join(app, 'build'))
         writeFileSync(path.join(app, 'package.json'), JSON.stringify({name: 'natapp', version: '1.0.0', type: 'module', main: 'build/App.js'}))
         writeFileSync(path.join(app, 'build', 'App.js'), `#!/usr/bin/env node
-import sqlite3 from 'sqlite3'
+import Database from 'better-sqlite3'
 import cpu from 'cpu-info'
 import sub from 'native-sub'
 import {createRequire} from 'node:module'
@@ -351,14 +356,12 @@ const out = ['cpu ' + cpu().arch, sub(), 'local ' + local.getCPUInfo().arch]
 void (async () => {
     const sharp = (await import('sharp')).default
     out.push('sharp ' + (await sharp({create: {width: 2, height: 2, channels: 3, background: 'red'}}).png().toBuffer()).length)
-    new sqlite3.Database(':memory:').get('select 1+1 as x', (error, row) => {
-        out.push('sqlite ' + (error ? error.message : row.x))
-        console.log(out.join(' | '))
-    })
+    if (!process.versions.bun) out.push('sqlite ' + new Database(':memory:').prepare('select 1+1 as x').get().x)
+    console.log(out.join(' | '))
 })()
 `)
         mkdirSync(path.join(app, 'node_modules', '@img'), {recursive: true})
-        for (const name of ['sqlite3', 'sharp']) symlinkSync(path.join(ROOT, 'node_modules', name), path.join(app, 'node_modules', name), 'dir')
+        for (const name of ['better-sqlite3', 'sharp']) symlinkSync(path.join(ROOT, 'node_modules', name), path.join(app, 'node_modules', name), 'dir')
         for (const name of readdirSync(path.join(ROOT, 'node_modules', '@img'))) symlinkSync(path.join(ROOT, 'node_modules', '@img', name), path.join(app, 'node_modules', '@img', name), 'dir')
         symlinkSync(path.join(native, 'sub'), path.join(app, 'node_modules', 'native-sub'), 'dir')
         symlinkSync(path.join(native, 'cpu-info'), path.join(app, 'node_modules', 'cpu-info'), 'dir')
@@ -375,12 +378,12 @@ void (async () => {
     it('bundles the application, its native packages next to it', async (): Promise<void> => {
         const bundled = await runNative(process.execPath, [CLI, 'package', 'bundle'])
         assert.strictEqual(bundled.code, 0, bundled.output)
-        assert.match(bundled.output, /the native addons \(cpu-info, native-sub, sharp, sqlite3\)/)
-        //The packages needed at run time only: not the ones installing sqlite3 (prebuild-install, node-gyp); laid out as npm
+        assert.match(bundled.output, /the native addons \(better-sqlite3, cpu-info, native-sub, sharp\)/)
+        //The packages needed at run time only: not the ones installing better-sqlite3 (prebuild-install, node-gyp); laid out as npm
         //lays them out, without links (the packages of the workspace, the ones linked to the repository are copied)
         const tree: string = path.join(native, 'dist', 'natapp.native')
         const packages: string[] = readdirSync(path.join(tree, 'node_modules'))
-        for (const name of ['cpu-info', 'native-sub', 'sharp', 'sqlite3', 'bindings']) assert.ok(packages.includes(name), packages.join(', '))
+        for (const name of ['better-sqlite3', 'cpu-info', 'native-sub', 'sharp', 'bindings']) assert.ok(packages.includes(name), packages.join(', '))
         assert.deepStrictEqual(links(tree), [])
         const stored: string = listFiles(tree).filter((file: string): boolean => path.basename(file) === 'package.json').map((file: string): string => file.split(path.sep).join('/')).join('\n')
         assert.match(stored, /bindings\/package\.json/)
@@ -398,13 +401,13 @@ void (async () => {
         //A project whose packages are installed in its node_modules (not linked): the tree is its layout, without link
         const project: string = path.join(path.dirname(native), 'installed')
         mkdirSync(path.join(project, 'node_modules'), {recursive: true})
-        for (const name of ['sqlite3', 'bindings', 'file-uri-to-path']) cpSync(realpathSync(path.join(ROOT, 'node_modules', name)), path.join(project, 'node_modules', name), {recursive: true})
+        for (const name of ['better-sqlite3', 'bindings', 'file-uri-to-path']) cpSync(realpathSync(path.join(ROOT, 'node_modules', name)), path.join(project, 'node_modules', name), {recursive: true})
         writeFileSync(path.join(project, 'package.json'), JSON.stringify({name: 'installed', version: '1.0.0', main: 'index.js'}))
-        writeFileSync(path.join(project, 'index.js'), `new (require('sqlite3').Database)(':memory:').get('select 1 + 1 as x', (error, row) => console.log('sqlite ' + (error ? error.message : row.x)))`)
+        writeFileSync(path.join(project, 'index.js'), `console.log('sqlite ' + new (require('better-sqlite3'))(':memory:').prepare('select 1 + 1 as x').get().x)`)
         const bundled = await runNative(process.execPath, [CLI, 'package', 'bundle'], {}, project)
         assert.strictEqual(bundled.code, 0, bundled.output)
         const tree: string = path.join(project, 'dist', 'installed.native')
-        assert.ok(existsSync(path.join(tree, 'node_modules', 'sqlite3', 'package.json')))
+        assert.ok(existsSync(path.join(tree, 'node_modules', 'better-sqlite3', 'package.json')))
         assert.ok(existsSync(path.join(tree, 'node_modules', 'bindings', 'package.json')))
         assert.deepStrictEqual(links(tree), [])
         const moved: string = path.join(path.dirname(native), 'installed-moved')
@@ -491,7 +494,7 @@ void (async () => {
     it('makes an executable which extracts its native packages once into its cache directory', async (): Promise<void> => {
         const made = await runNative(process.execPath, [CLI, 'package', 'exe', '--outdir', 'bin'])
         assert.strictEqual(made.code, 0, made.output)
-        assert.match(made.output, /Native addons embedded, extracted at the first run: cpu-info, native-sub, sharp, sqlite3/)
+        assert.match(made.output, /Native addons embedded, extracted at the first run: better-sqlite3, cpu-info, native-sub, sharp/)
         const directory: string = path.join(path.dirname(native), 'elsewhere')
         mkdirSync(directory)
         const executable: string = path.join(directory, `natapp${EXE}`)
@@ -510,29 +513,29 @@ void (async () => {
     it('makes an executable of Bun which extracts its native packages into its cache directory', {skip: !BUN && 'Bun is not installed'}, async (): Promise<void> => {
         const made = await runNative(process.execPath, [CLI, 'package', 'exe', '--runtime', 'bun', '--outdir', 'bun'])
         assert.strictEqual(made.code, 0, made.output)
-        assert.match(made.output, /Native addons embedded, extracted at the first run: cpu-info, native-sub, sharp, sqlite3/)
+        assert.match(made.output, /Native addons embedded, extracted at the first run: better-sqlite3, cpu-info, native-sub, sharp/)
         const directory: string = path.join(path.dirname(native), 'bun-elsewhere')
         mkdirSync(directory)
         const executable: string = path.join(directory, `natapp${EXE}`)
         writeFileSync(executable, readFileSync(path.join(native, 'bun', `natapp${EXE}`)), {mode: 0o755})
         const cache: string = path.join(directory, 'cache')
-        assert.match((await runNative(executable, [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, directory)).output.trim(), EXPECTED)
+        assert.match((await runNative(executable, [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, directory)).output.trim(), EXPECTED_BUN)
         assert.ok(existsSync(path.join(cache, 'native', readdirSync(path.join(cache, 'native'))[0], '.complete')))
-        assert.match((await runNative(executable, [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, directory)).output.trim(), EXPECTED)
+        assert.match((await runNative(executable, [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, directory)).output.trim(), EXPECTED_BUN)
     })
 
     for (const runtime of ['node', 'bun'] as const) {
         it(`makes the executable of ${runtime} in a directory, which loads its native packages next to it`, {skip: runtime === 'bun' && !BUN && 'Bun is not installed'}, async (): Promise<void> => {
             const made = await runNative(process.execPath, [CLI, 'package', 'exe', '--runtime', runtime, '--layout', 'directory', '--outdir', `layout-${runtime}`])
             assert.strictEqual(made.code, 0, made.output)
-            assert.match(made.output, /Native addons next to the executable: cpu-info, native-sub, sharp, sqlite3/)
+            assert.match(made.output, /Native addons next to the executable: better-sqlite3, cpu-info, native-sub, sharp/)
             const directory: string = path.join(native, `layout-${runtime}`, 'natapp')
             assert.deepStrictEqual(readdirSync(directory).sort(), ['native', process.platform === 'win32' ? 'natapp.exe' : 'natapp'].sort())
             //Moved (installed), it runs without extracting anything
             const installed: string = path.join(path.dirname(native), `installed-${runtime}`)
             cpSync(directory, installed, {recursive: true})
             const cache: string = path.join(path.dirname(native), `not-extracted-${runtime}`)
-            assert.match((await runNative(path.join(installed, 'natapp'), [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, path.dirname(native))).output.trim(), EXPECTED)
+            assert.match((await runNative(path.join(installed, 'natapp'), [], {LAKUTATA_NATIVE_DIR: cache, PATH: ''}, path.dirname(native))).output.trim(), runtime === 'bun' ? EXPECTED_BUN : EXPECTED)
             assert.ok(!existsSync(cache))
         })
     }

@@ -34,10 +34,12 @@ await check('@lakutata/orm loads typeorm under ESM', () => {
 })
 
 // Cacher store drivers (optional CJS peers) — loaded by the Cacher driver loader
-const {loadDriver} = await import('../packages/cache/dist/esm/cache/lib/loadDriver.js')
-for (const [member, packages] of [['createClient', ['redis', '@redis/client']], ['Client', ['memjs']], ['MongoClient', ['mongodb']], ['createPool', ['mysql2']], ['Pool', ['pg']], ['Database', ['sqlite3']]]) {
+const {loadDriver} = await import('../packages/cache/dist/esm/cache/lib/LoadDriver.js')
+for (const [member, packages] of [['createClient', ['redis', '@redis/client']], ['Client', ['memjs']], ['MongoClient', ['mongodb']], ['createPool', ['mysql2']], ['Pool', ['pg']]]) {
     await check(`${packages[0]} driver loads`, async () => { if (typeof (await loadDriver(member, ...packages))[member] !== 'function') throw new Error(`${member} not callable`) })
 }
+// better-sqlite3: its module is its class Database
+await check('better-sqlite3 driver loads', async () => { new (await loadDriver('default', 'better-sqlite3'))(':memory:').close() })
 
 // nats (the NATS component of @lakutata/nats) — named imports of the CJS nats client
 const natsPackage = await import('../packages/nats/dist/esm/exports/Nats.js')

@@ -21,7 +21,7 @@ A store whose package is missing fails the cache's creation with `CacheDriverNot
 | Redis 4+ (or Valkey) | `'redis'` | `redis` (4 or 5) |
 | Memcache | `'memcache'` | `memjs` |
 | MongoDB | `'mongo'` | `mongodb` |
-| SQLite | `'sqlite'` | `sqlite3` |
+| SQLite | `'sqlite'` | `better-sqlite3` (12); none on Bun (`bun:sqlite`) |
 | PostgreSQL | `'postgres'` | `pg` |
 | MySQL / MariaDB | `'mysql'` | `mysql2` |
 
@@ -161,7 +161,7 @@ All are exported by `lakutata/com/cacher` and `@lakutata/cache`. The typings doc
 
 | Exception | Thrown when |
 |---|---|
-| `CacheDriverNotFoundException` (`E_CACHE_DRIVER_NOT_FOUND`) | The cache starts with a store whose driver package (`redis`, `memjs`, `mongodb`, `sqlite3`, `pg`, `mysql2`) is not installed |
+| `CacheDriverNotFoundException` (`E_CACHE_DRIVER_NOT_FOUND`) | The cache starts with a store whose driver package (`redis`, `memjs`, `mongodb`, `better-sqlite3`, `pg`, `mysql2`) is not installed |
 | `InvalidValueException` (from `lakutata`) | The cache options are invalid, when the component is created |
 
 The failures of the stores (a refused connection, a failed query) are their drivers' errors: they fail the cache's

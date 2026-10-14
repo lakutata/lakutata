@@ -10,7 +10,7 @@ const DRIVERS: Record<string, () => Promise<any>> = {
     'redis': () => import('redis'),
     '@redis/client': () => import('@redis/client'),
     'mysql2': () => import('mysql2'),
-    'sqlite3': () => import('sqlite3'),
+    'better-sqlite3': () => import('better-sqlite3'),
     'mongodb': () => import('mongodb'),
     'memjs': () => import('memjs')
 }
@@ -28,7 +28,8 @@ function isPackageMissing(error: unknown, packageName: string): boolean {
 
 /**
  * Load the driver package of a store, the first installed of the candidates
- * @param member a member of the driver API, to find it in the ESM namespace or the CommonJS exports
+ * @param member a member of the driver API, to find it in the ESM namespace or the CommonJS exports; 'default' for a
+ * driver whose module is its API (a class)
  * @param packageNames
  */
 export async function loadDriver<T = any>(member: string, ...packageNames: string[]): Promise<T> {
@@ -36,6 +37,8 @@ export async function loadDriver<T = any>(member: string, ...packageNames: strin
     for (const packageName of packageNames) {
         try {
             const driver: any = await (DRIVERS[packageName] ?? ((): Promise<any> => import(packageName)))()
+            //The module itself: the default export of the ESM namespace (and of the interop of the CommonJS builds)
+            if (member === 'default') return (driver.default ?? driver) as T
             return (driver[member] === undefined && driver.default ? driver.default : driver) as T
         } catch (e) {
             if (!isPackageMissing(e, packageName)) throw e
