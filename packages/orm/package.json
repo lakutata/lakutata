@@ -49,11 +49,11 @@
     "./package.json": "./package.json"
   },
   "imports": {
-    "#typeorm/*": "./dist/typeorm/*"
+    "#typeorm/*": "./dist/vendor/typeorm/*"
   },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
-    "build:typeorm": "tsc -p tsconfig.typeorm.json && node -e \"require('node:fs').writeFileSync('dist/typeorm/package.json', JSON.stringify({type: 'commonjs'}) + '\\\\n')\"",
+    "build:typeorm": "tsc -p tsconfig.typeorm.json && node -e \"require('node:fs').writeFileSync('dist/vendor/typeorm/package.json', JSON.stringify({type: 'commonjs'}) + '\\\\n')\"",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs-pkg": "node ../../scripts/package-build/cjs-package.mjs",

@@ -1,17 +1,17 @@
-// The source of TypeORM in @lakutata/orm (packages/orm/typeorm): imported from the repository of TypeORM at a tag, then
-// brought to a newer tag by a three-way merge of each of its files, which keeps the changes made to it in lakutata. The
-// base of the merge is the source of the tag imported before (UPSTREAM.json), fetched again; ours is the source in the
-// package; theirs is the source of the new tag. A file not changed in lakutata takes the one of the new tag, a file not
-// changed upstream keeps ours, a file changed on both sides is merged by git merge-file: its conflicts are left in it
-// with their markers, and listed. The files of lakutata in the directory (UPSTREAM.json, README.md, package.json) are not
-// in the source of TypeORM: they are kept.
+// The source of TypeORM in @lakutata/orm (packages/orm/vendor/typeorm): imported from the repository of TypeORM at a
+// tag, then brought to a newer tag by a three-way merge of each of its files, which keeps the changes made to it in
+// lakutata. The base of the merge is the source of the tag imported before (UPSTREAM.json), fetched again; ours is the
+// source in the package; theirs is the source of the new tag. A file not changed in lakutata takes the one of the new
+// tag, a file not changed upstream keeps ours, a file changed on both sides is merged by git merge-file: its conflicts
+// are left in it with their markers, and listed. The files of lakutata in the directory (UPSTREAM.json, README.md,
+// package.json) are not in the source of TypeORM: they are kept.
 //
 // The source of TypeORM is the one of its package typeorm (packages/typeorm/src, src before TypeORM 1.1.2), and of its package
 // @typeorm/legacy-naming-strategies (packages/legacy-naming-strategies/src, in legacy-naming-strategies), whose imports of
 // typeorm are rewritten to the source beside it: the base and the new tag are rewritten alike, the merge sees no change.
 //
 // Run: node scripts/typeorm/sync.mjs <tag> [--target <directory>]
-// --target merges into another directory than packages/orm/typeorm (to try an upgrade on a copy)
+// --target merges into another directory than packages/orm/vendor/typeorm (to try an upgrade on a copy)
 
 import {execFileSync} from 'node:child_process'
 import {existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, mkdirSync, rmdirSync, globSync} from 'node:fs'
@@ -35,7 +35,7 @@ const UPSTREAM = 'UPSTREAM.json'
 
 const {values: args, positionals} = parseArgs({
     allowPositionals: true,
-    options: {target: {type: 'string', default: path.join(ROOT, 'packages', 'orm', 'typeorm')}}
+    options: {target: {type: 'string', default: path.join(ROOT, 'packages', 'orm', 'vendor', 'typeorm')}}
 })
 const tag = positionals[0]
 if (!tag) {

@@ -7,8 +7,8 @@ at the tag recorded in `UPSTREAM.json`:
 - the package `@typeorm/legacy-naming-strategies` (`packages/legacy-naming-strategies/src`), in
   `legacy-naming-strategies`, its imports of `typeorm` rewritten to the source beside it.
 
-The package builds it with its own TypeScript options into `dist/typeorm` (CommonJS), and imports it as `#typeorm/...`.
-lakutata does not lint it: its style is TypeORM's.
+The package builds it with its own TypeScript options into `dist/vendor/typeorm` (CommonJS), and imports it as
+`#typeorm/...`. lakutata does not lint it: its style is TypeORM's.
 
 ## Changing it
 

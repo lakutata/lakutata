@@ -130,8 +130,9 @@ on one documented since (its entry removed with `node scripts/api-docs/check.mjs
 
 ## The source of TypeORM
 
-`@lakutata/orm` holds the source of TypeORM in `packages/orm/typeorm`, built into `dist/typeorm` and imported as
-`#typeorm/*` (`packages/orm/typeorm/README.md`). It keeps the style of TypeORM, which ESLint does not check.
+`@lakutata/orm` holds the source of TypeORM in `packages/orm/vendor/typeorm`, built into `dist/vendor/typeorm` and
+imported as `#typeorm/*` (`packages/orm/vendor/typeorm/README.md`). It keeps the style of TypeORM, which ESLint does
+not check.
 
 - A change of lakutata goes in new files where possible; a change of a file of TypeORM is marked with a `lakutata:`
   comment. It is committed apart from the upgrades.

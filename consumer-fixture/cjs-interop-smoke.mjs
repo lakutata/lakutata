@@ -21,8 +21,8 @@ const {createRequire} = await import('node:module')
 const requireCJS = createRequire(import.meta.url)
 
 // TypeORM (the Database component of @lakutata/orm) — named imports from deep subpaths of its CommonJS build in the
-// package (dist/typeorm, the #typeorm/* imports of the package)
-const {DataSource} = await import('../packages/orm/dist/typeorm/data-source/DataSource.js')
+// package (dist/vendor/typeorm, the #typeorm/* imports of the package)
+const {DataSource} = await import('../packages/orm/dist/vendor/typeorm/data-source/DataSource.js')
 await check('typeorm DataSource construct', () => { new DataSource({type: 'better-sqlite3', database: ':memory:'}) })
 await check('CJS @lakutata/orm loads typeorm', () => {
     if (typeof requireCJS('../packages/orm/dist/cjs/exports/DatabaseComponent.js').Database !== 'function') throw new Error('Database missing')

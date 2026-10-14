@@ -5,8 +5,8 @@ import stylistic from '@stylistic/eslint-plugin'
 import globals from 'globals'
 
 export default defineConfig([
-    //The source of TypeORM in @lakutata/orm keeps the style of TypeORM, merged from its repository (packages/orm/typeorm)
-    globalIgnores(['**/node_modules/', '**/dist/', '**/distro/', 'proposal/', 'consumer-fixture/.examples/', 'packages/orm/typeorm/']),
+    //The source of TypeORM in @lakutata/orm keeps the style of TypeORM, merged from its repository (packages/orm/vendor/typeorm)
+    globalIgnores(['**/node_modules/', '**/dist/', '**/distro/', 'proposal/', 'consumer-fixture/.examples/', 'packages/orm/vendor/typeorm/']),
     {
         files: ['**/*.ts', '**/*.mts', '**/*.cts'],
         extends: [js.configs.recommended, tseslint.configs.recommended],

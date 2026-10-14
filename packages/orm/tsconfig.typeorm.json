@@ -28,14 +28,14 @@
     "stripInternal": true,
     "useDefineForClassFields": false,
     "useUnknownInCatchVariables": false,
-    "rootDir": "typeorm",
-    "outDir": "dist/typeorm"
+    "rootDir": "vendor/typeorm",
+    "outDir": "dist/vendor/typeorm"
   },
-  "include": ["typeorm"],
+  "include": ["vendor/typeorm"],
   "exclude": [
-    "typeorm/cli.ts",
-    "typeorm/cli-ts-node-commonjs.ts",
-    "typeorm/cli-ts-node-esm.ts",
-    "typeorm/commands/*Command.ts"
+    "vendor/typeorm/cli.ts",
+    "vendor/typeorm/cli-ts-node-commonjs.ts",
+    "vendor/typeorm/cli-ts-node-esm.ts",
+    "vendor/typeorm/commands/*Command.ts"
   ]
 }

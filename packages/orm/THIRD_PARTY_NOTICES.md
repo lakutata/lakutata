@@ -6,8 +6,8 @@ license terms are reproduced here as required.
 ## TypeORM 1.1.2
 
 The source of TypeORM, its packages `typeorm` and `@typeorm/legacy-naming-strategies`
-(https://github.com/typeorm/typeorm, the tag and commit in `typeorm/UPSTREAM.json`): `typeorm/` of the repository,
-built into `dist/typeorm`.
+(https://github.com/typeorm/typeorm, the tag and commit in `vendor/typeorm/UPSTREAM.json`): `vendor/typeorm/` of the
+repository, built into `dist/vendor/typeorm`.
 
 Modifications: the imports of `typeorm` of the legacy naming strategies rewritten to the source beside them; the changes
 of lakutata marked with `lakutata:` comments in the source. The command line of TypeORM (`cli.ts`,
