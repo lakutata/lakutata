@@ -1,11 +1,13 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
+import {spawn, type ChildProcess} from 'node:child_process'
 import {cpSync} from 'node:fs'
 import {appendFile, cp, mkdtemp, readdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import {crc32} from 'node:zlib'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {Container} from '@lakutata/core'
 import * as BSON from 'bson'
 import {DataSource, type MongoRepository} from '../exports/ORM.js'
@@ -354,6 +356,46 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         assert.strictEqual(await runner.countDocuments('items', {version: 0}), 0)
         await dataSource.destroy()
     }))
+
+    for (const sync of ['interval', 'always'] as const) {
+        it(`keeps every write acknowledged when its process is killed (sync ${sync})`, async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+            const database: string = path.join(directory, 'killed')
+            let dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: database, sync: sync}).initialize()
+            await dataSource.mongoManager.mongoQueryRunner.createCollectionIndex('items', {n: 1}, {name: 'n', unique: true})
+            await dataSource.mongoManager.mongoQueryRunner.insertMany('items', Array.from({length: 1000}, (_: unknown, index: number): object => ({n: -1 - index})), {})
+            await dataSource.destroy()
+            //A process writing one document at a time, telling each one once it is acknowledged, killed while it writes
+            const typeorm: string = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../vendor/typeorm/index.js')
+            const child: ChildProcess = spawn(process.execPath, ['-e', `
+                const {DataSource} = require(${JSON.stringify(typeorm)})
+                new DataSource({type: 'mongo-embedded', database: ${JSON.stringify(database)}, sync: ${JSON.stringify(sync)}}).initialize().then(async (dataSource) => {
+                    for (let n = 0; ; n++) {
+                        await dataSource.mongoManager.mongoQueryRunner.insertOne('items', {n: n, text: 'x'.repeat(200)}, {})
+                        process.stdout.write(n + '\\n')
+                    }
+                })
+            `], {stdio: ['ignore', 'pipe', 'inherit']})
+            const acknowledged: number[] = await new Promise((resolve: (acknowledged: number[]) => void): void => {
+                let output: string = ''
+                child.stdout!.on('data', (data: Buffer): void => {
+                    output += data.toString()
+                    const lines: string[] = output.split('\n').slice(0, -1)
+                    if (lines.length < 500) return
+                    child.kill('SIGKILL')
+                    resolve(lines.map(Number))
+                })
+            })
+            await new Promise((resolve: (value: unknown) => void): unknown => child.once('exit', resolve))
+            //Opened from its snapshot (the records written after it applied), its lock left by the process killed
+            dataSource = await new DataSource({type: 'mongo-embedded', database: database}).initialize()
+            const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+            assert.strictEqual((runner.databaseConnection as unknown as {store: {collection(name: string, create: boolean): {openedFrom: string}}}).store.collection('items', false).openedFrom, 'snapshot')
+            const found: Set<number> = new Set((await runner.cursor('items', {n: {$gte: 0}}).toArray()).map((document: {n: number}): number => document.n))
+            for (const n of acknowledged) assert.ok(found.has(n), `the document ${n} acknowledged`)
+            assert.strictEqual(await runner.countDocuments('items', {n: {$lt: 0}}), 1000)
+            await dataSource.destroy()
+        }))
+    }
 
     it('connects the Database component', async (): Promise<void> => {
         const container: Container = new Container()

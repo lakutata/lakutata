@@ -8,7 +8,7 @@ const PAGE = 4096
 /**
  * lakutata: the pages of a chunk of the memory of a tree (2 MiB).
  */
-const PAGES_PER_CHUNK = 512
+const PAGES_PER_CHUNK = 512 // the pages are located by shifts of 9 bits
 
 /**
  * lakutata: the size of the header of a page: its type (1 byte, then 1 unused), its number of entries (2), the start
@@ -455,20 +455,27 @@ export class EmbeddedBTree {
         key: Uint8Array,
         id: Uint8Array,
     ): number {
-        const [buffer, base] = this.locate(page)
-        const at = base + buffer.readUInt16LE(base + HEADER + position * 2)
-        const keyLength = buffer.readUInt16LE(at)
+        // Compared byte by byte (the keys are short: a call of Buffer.compare costs more)
+        const buffer = this.chunks[page >>> 9]
+        const base = (page & 511) * PAGE
+        const slot = base + HEADER + position * 2
+        const at = base + (buffer[slot] | (buffer[slot + 1] << 8))
+        const keyLength = buffer[at] | (buffer[at + 1] << 8)
         const keyStart = at + 3
-        const order = buffer.compare(
-            key,
-            0,
-            key.length,
-            keyStart,
-            keyStart + keyLength,
-        )
-        if (order !== 0) return order
+        const shorter = keyLength < key.length ? keyLength : key.length
+        for (let index = 0; index < shorter; index++) {
+            const difference = buffer[keyStart + index] - key[index]
+            if (difference !== 0) return difference
+        }
+        if (keyLength !== key.length) return keyLength - key.length
         const idStart = keyStart + keyLength
-        return buffer.compare(id, 0, id.length, idStart, idStart + buffer[at + 2])
+        const idLength = buffer[at + 2]
+        const shorterId = idLength < id.length ? idLength : id.length
+        for (let index = 0; index < shorterId; index++) {
+            const difference = buffer[idStart + index] - id[index]
+            if (difference !== 0) return difference
+        }
+        return idLength - id.length
     }
 
     /**
@@ -551,20 +558,17 @@ export class EmbeddedBTree {
     }
 
     protected locate(page: number): [Buffer, number] {
-        return [
-            this.chunks[Math.floor(page / PAGES_PER_CHUNK)],
-            (page % PAGES_PER_CHUNK) * PAGE,
-        ]
+        return [this.chunks[page >>> 9], (page & 511) * PAGE]
     }
 
     protected typeOf(page: number): number {
-        const [buffer, base] = this.locate(page)
-        return buffer[base]
+        return this.chunks[page >>> 9][(page & 511) * PAGE]
     }
 
     protected countOf(page: number): number {
-        const [buffer, base] = this.locate(page)
-        return buffer.readUInt16LE(base + 2)
+        const buffer = this.chunks[page >>> 9]
+        const base = (page & 511) * PAGE
+        return buffer[base + 2] | (buffer[base + 3] << 8)
     }
 
     protected nextOf(page: number): number {
