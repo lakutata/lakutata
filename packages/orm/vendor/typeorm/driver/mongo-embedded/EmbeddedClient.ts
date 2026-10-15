@@ -22,6 +22,157 @@ const YIELD_EVERY = 1000
 const UNORDERED_TAGS = new Set([0x30, 0x40, 0xa0, 0xe0])
 
 /**
+ * lakutata: the stages of a pipeline that change each document alone, run on the documents a batch at a time before a
+ * $group of the batch.
+ */
+const DOCUMENT_STAGES = new Set([
+    "$match",
+    "$project",
+    "$addFields",
+    "$set",
+    "$unset",
+    "$unwind",
+    "$replaceRoot",
+    "$replaceWith",
+    "$redact",
+])
+
+/**
+ * lakutata: the groups of a batch merged with the groups merged before them, once they doubled since the last merge
+ * (and are this many at least): their memory is the one of the groups, their time linear.
+ */
+const MERGED_GROUPS = 10000
+
+/**
+ * lakutata: a $group run on the documents a batch at a time (its stages before it on each batch, then its $group),
+ * the groups of the batches merged by a $group of their results (the arrays of $push and $addToSet concatenated),
+ * then completed (the averages divided, the fields in the order of the $group), then the rest of the pipeline.
+ */
+interface BatchedGroup {
+    batch: EmbeddedDocument[]
+    merge: EmbeddedDocument[]
+    complete: EmbeddedDocument[]
+    rest: EmbeddedDocument[]
+    /**
+     * Its results without a document: none, but the count 0 of a stage $count (as mingo counts).
+     */
+    empty: EmbeddedDocument[]
+}
+
+/**
+ * lakutata: whether a value is an object of its own (not an array, a date, an ObjectId...).
+ *
+ * @param value
+ */
+function isPlain(value: any): boolean {
+    if (value === null || typeof value !== "object") return false
+    const prototype = Object.getPrototypeOf(value)
+    return prototype === Object.prototype || prototype === null
+}
+
+/**
+ * lakutata: the $group of a pipeline run in batches, when it is its first stage after stages of each document and
+ * its accumulators are merged by accumulators ($sum, $count, $min, $max, $first, $last, $avg, $push, $addToSet; the
+ * stage $count is a $group); undefined otherwise.
+ *
+ * @param stages
+ */
+function batchedGroupOf(stages: EmbeddedDocument[]): BatchedGroup | undefined {
+    const stageOf = (stage: any): string | undefined =>
+        isPlain(stage) && Object.keys(stage).length === 1
+            ? Object.keys(stage)[0]
+            : undefined
+    let position = 0
+    while (DOCUMENT_STAGES.has(stageOf(stages[position]) ?? "")) position++
+    const stage = stages[position]
+    let group: EmbeddedDocument
+    let rest = stages.slice(position + 1)
+    let empty: EmbeddedDocument[] = []
+    if (stageOf(stage) === "$count" && typeof stage.$count === "string") {
+        group = { _id: null, [stage.$count]: { $sum: 1 } }
+        rest = [{ $project: { _id: 0 } }, ...rest]
+        empty = [{ [stage.$count]: 0 }]
+    } else if (stageOf(stage) === "$group" && isPlain(stage.$group) && "_id" in stage.$group)
+        group = stage.$group
+    else return undefined
+    const partial: EmbeddedDocument = { _id: group._id }
+    const merged: EmbeddedDocument = { _id: "$_id" }
+    const arrays: EmbeddedDocument = {}
+    const divided: EmbeddedDocument = {}
+    const helpers: string[] = []
+    for (const field of Object.keys(group)) {
+        if (field === "_id") continue
+        const accumulator = stageOf(group[field])
+        if (!accumulator) return undefined
+        const expression = group[field][accumulator]
+        switch (accumulator) {
+            case "$sum":
+            case "$count":
+                partial[field] = group[field]
+                merged[field] = { $sum: `$${field}` }
+                break
+            case "$min":
+            case "$max":
+            case "$first":
+            case "$last":
+                partial[field] = group[field]
+                merged[field] = { [accumulator]: `$${field}` }
+                break
+            case "$push":
+            case "$addToSet":
+                partial[field] = group[field]
+                merged[field] = { $push: `$${field}` }
+                arrays[field] = {
+                    $reduce: {
+                        input: `$${field}`,
+                        initialValue: [],
+                        in:
+                            accumulator === "$push"
+                                ? { $concatArrays: ["$$value", "$$this"] }
+                                : { $setUnion: ["$$value", "$$this"] },
+                    },
+                }
+                break
+            case "$avg": {
+                // The sum and the number of the numbers, divided once merged into the field (null until then, in
+                // the place of the field)
+                const sum = `__lakutata_sum_${helpers.length}`
+                const count = `__lakutata_count_${helpers.length}`
+                helpers.push(sum, count)
+                partial[sum] = { $sum: expression }
+                partial[count] = {
+                    $sum: { $cond: [{ $isNumber: expression }, 1, 0] },
+                }
+                merged[field] = { $first: { $literal: null } }
+                merged[sum] = { $sum: `$${sum}` }
+                merged[count] = { $sum: `$${count}` }
+                divided[field] = {
+                    $cond: [
+                        { $eq: [`$${count}`, 0] },
+                        null,
+                        { $divide: [`$${sum}`, `$${count}`] },
+                    ],
+                }
+                break
+            }
+            default:
+                return undefined
+        }
+    }
+    const merge: EmbeddedDocument[] = [{ $group: merged }]
+    if (Object.keys(arrays).length) merge.push({ $addFields: arrays })
+    return {
+        batch: [...stages.slice(0, position), { $group: partial }],
+        merge: merge,
+        complete: helpers.length
+            ? [{ $addFields: divided }, { $unset: helpers }]
+            : [],
+        rest: rest,
+        empty: empty,
+    }
+}
+
+/**
  * lakutata: yields the event loop.
  */
 function yieldLoop(): Promise<void> {
@@ -343,22 +494,89 @@ export class EmbeddedCollection {
                     this.isMatchStage(pipeline[filters.length])
                 )
                     filters.push(pipeline[filters.length].$match)
+            const filter = filters.length > 1 ? { $and: filters } : filters[0]
+            const stages = pipeline.slice(filters.length)
+            const aggregation = {
+                ...options,
+                // The collections of $lookup, read at once
+                collectionResolver: (name: string) =>
+                    [
+                        ...(this.store.collection(name, false)?.documents() ??
+                            []),
+                    ].map((document) => this.values.copy(document)),
+            }
+            // A $group (after stages of each document) run in batches: the memory of its groups, not of the documents
+            const batched =
+                options?.collation || options?.let
+                    ? undefined
+                    : batchedGroupOf(stages)
+            if (batched)
+                return this.groupedInBatches(filter, batched, aggregation)
             return this.values.mingo.aggregate(
-                await this.matching(
-                    filters.length > 1 ? { $and: filters } : filters[0],
-                ),
-                pipeline.slice(filters.length),
-                {
-                    ...options,
-                    // The collections of $lookup, read at once
-                    collectionResolver: (name: string) =>
-                        [
-                            ...(this.store.collection(name, false)?.documents() ??
-                                []),
-                        ].map((document) => this.values.copy(document)),
-                },
+                await this.matching(filter),
+                stages,
+                aggregation,
             )
         })
+    }
+
+    /**
+     * The results of a pipeline whose $group runs in batches: each batch of the documents matching the filter grouped,
+     * the groups merged, then completed, then the rest of the pipeline run on them.
+     *
+     * @param filter
+     * @param batched
+     * @param options
+     */
+    protected async groupedInBatches(
+        filter: EmbeddedDocument | undefined,
+        batched: BatchedGroup,
+        options: EmbeddedDocument,
+    ): Promise<EmbeddedDocument[]> {
+        const mingo = this.values.mingo
+        let groups: EmbeddedDocument[] = []
+        let merged = 0
+        for await (const batch of this.matchingBatches(filter))
+            for (const group of mingo.aggregate(
+                batch.map((document) => this.values.copy(document)),
+                batched.batch,
+                options,
+            )) {
+                groups.push(group)
+                if (groups.length >= Math.max(2 * merged, MERGED_GROUPS)) {
+                    groups = mingo.aggregate(groups, batched.merge, options)
+                    merged = groups.length
+                }
+            }
+        groups = groups.length
+            ? mingo.aggregate(
+                  groups,
+                  [...batched.merge, ...batched.complete],
+                  options,
+              )
+            : batched.empty.map((document) => ({ ...document }))
+        return batched.rest.length
+            ? mingo.aggregate(groups, batched.rest, options)
+            : groups
+    }
+
+    /**
+     * The documents matching a filter, in batches (a scan yielding the event loop between them), shared with the store
+     * (not to be changed).
+     *
+     * @param query
+     */
+    protected async *matchingBatches(
+        query?: EmbeddedDocument,
+    ): AsyncGenerator<EmbeddedDocument[]> {
+        const filter = this.values.copy(query ?? {})
+        const matches = Object.keys(filter).length
+            ? this.matcherOf(filter)
+            : undefined
+        for await (const batch of this.candidates(filter)) {
+            const matched = matches ? batch.filter(matches) : batch
+            if (matched.length) yield matched
+        }
     }
 
     async insertOne(document: EmbeddedDocument) {

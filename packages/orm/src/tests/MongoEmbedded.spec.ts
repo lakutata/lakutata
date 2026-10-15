@@ -267,6 +267,47 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
+    it('groups the documents in batches as mingo groups them all', async (): Promise<void> => {
+        const mingo = createRequire(import.meta.url)('mingo')
+        const dataSource: DataSource = await new DataSource({type: 'mongo-embedded'}).initialize()
+        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        let seed: number = 7
+        const random = (): number => (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 4294967296
+        const pick = <T>(items: T[]): T => items[Math.floor(random() * items.length)]
+        //More documents than the groups merged at once (10,000): the groups of the batches merged several times
+        await runner.insertMany('items', Array.from({length: 12000}, (_: unknown, n: number): object => {
+            const document: Record<string, unknown> = {n: n}
+            if (random() < 0.9) document.g = pick(['a', 'b', 'c', null, 1, 2.5])
+            if (random() < 0.9) document.v = pick([0, 1, 2, -3, 2.5, 'text', null, true, new Date(0)])
+            document.tags = Array.from({length: Math.floor(random() * 3)}, (): string => pick(['x', 'y', 'z']))
+            if (random() < 0.5) document.a = {b: pick([1, 2, 'k'])}
+            return document
+        }))
+        const stored: Record<string, unknown>[] = await runner.cursor('items', {}).toArray()
+        const pipelines: object[][] = [
+            [{$group: {_id: '$g', s: {$sum: '$v'}, c: {$count: {}}, ones: {$sum: 1}}}],
+            [{$group: {_id: '$g', avg: {$avg: '$v'}, min: {$min: '$v'}, max: {$max: '$v'}}}],
+            [{$group: {_id: '$g', first: {$first: '$v'}, last: {$last: '$v'}, pushed: {$push: '$v'}}}],
+            [{$group: {_id: '$g', set: {$addToSet: '$v'}}}],
+            [{$group: {_id: '$n', s: {$sum: '$v'}}}],
+            [{$group: {_id: null, avg: {$avg: '$v'}, n: {$sum: 1}, mean: {$avg: '$n'}}}],
+            [{$unwind: '$tags'}, {$group: {_id: '$tags', n: {$sum: 1}, ns: {$push: '$n'}}}],
+            [{$match: {v: {$gte: 0}}}, {$project: {g: 1, w: {$multiply: ['$n', 2]}}}, {$group: {_id: {g: '$g'}, total: {$sum: '$w'}}}, {$sort: {total: -1}}, {$limit: 3}],
+            [{$group: {_id: '$a.b', n: {$sum: 1}}}],
+            [{$count: 'n'}],
+            [{$match: {v: 'none'}}, {$count: 'n'}],
+            [{$match: {g: 'a'}}, {$group: {_id: '$v', n: {$sum: 1}}}, {$match: {n: {$gt: 100}}}],
+            //Run on all the documents at once
+            [{$sort: {n: -1}}, {$group: {_id: '$g', first: {$first: '$n'}}}],
+            [{$group: {_id: '$g', merged: {$mergeObjects: '$a'}}}]
+        ]
+        //The order of the groups and of the items of $addToSet is not the one of MongoDB
+        const normalized = (results: Record<string, unknown>[]): string[] => results.map((result: Record<string, unknown>): string => bson.EJSON.stringify(Array.isArray(result.set) ? {...result, set: result.set.map((value: unknown): string => bson.EJSON.stringify({value: value})).sort()} : result, {relaxed: false})).sort()
+        for (const pipeline of pipelines)
+            assert.deepStrictEqual(normalized(await runner.aggregate('items', pipeline).toArray()), normalized(mingo.aggregate(stored, pipeline)), JSON.stringify(pipeline))
+        await dataSource.destroy()
+    })
+
     it('finds, updates and deletes by the _id alone the documents mingo tests', async (): Promise<void> => {
         const dataSource: DataSource = await new DataSource({type: 'mongo-embedded'}).initialize()
         const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
