@@ -49,6 +49,17 @@ export interface MongoEmbeddedDataSourceOptions extends BaseDataSourceOptions {
     readonly compaction?: false | { minimumSize?: number; ratio?: number }
 
     /**
+     * When the snapshot of a collection (its index of the _id and its indexes, the state of an offset of its file) is
+     * written while it is open, besides its closing: when the bytes written to its file since its snapshot are a size
+     * (64 MiB by default) and a ratio of its file (0.25 by default). The opening after a crash reads its snapshot,
+     * then the records written after it only (else all the records of its file, the indexes built again: 60 s for
+     * 10,000,000 documents of two indexes). A snapshot is written at once, about 1 s for 10,000,000 documents (the
+     * thread of the application waits for it with the option worker false); its size is about the one of the index of
+     * the _id and of the indexes. false writes the snapshots at the closing only.
+     */
+    readonly snapshot?: false | { minimumSize?: number; ratio?: number }
+
+    /**
      * Whether the database runs in a worker thread (the default): its queries, its writes and its files out of the
      * event loop of the application, which they do not block; their arguments and their results sent between the
      * threads in BSON (about 20 µs a call, the documents of the results decoded in the thread of the application, a

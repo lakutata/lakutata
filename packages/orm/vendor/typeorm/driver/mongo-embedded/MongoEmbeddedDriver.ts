@@ -30,6 +30,7 @@ export class MongoEmbeddedDriver extends MongoDriver {
             syncInterval: options.syncInterval,
             cacheSize: options.cacheSize,
             compaction: options.compaction,
+            snapshot: options.snapshot,
         }
         const client =
             options.worker === false

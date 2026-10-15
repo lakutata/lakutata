@@ -139,6 +139,16 @@ export class EmbeddedCollectionStore {
      */
     building?: Promise<void>
 
+    /**
+     * The offset of its file its snapshot is the state of (0 without a snapshot).
+     */
+    snapshotOffset = 0
+
+    /**
+     * Whether a snapshot of it is to be written (at the next turn of the event loop).
+     */
+    snapshotScheduled = false
+
     readonly indexes: EmbeddedIndex[] = []
 
     /**
@@ -281,6 +291,7 @@ export class EmbeddedCollectionStore {
         }
         if (replaying) {
             store.openedFrom = "snapshot"
+            store.snapshotOffset = start
             store.buildIndexes(
                 created.filter((index) => store.indexes.includes(index)),
             )
@@ -363,6 +374,7 @@ export class EmbeddedCollectionStore {
         }
         fs.renameSync(temporary, path)
         this.changed = false
+        this.snapshotOffset = this.file.size
     }
 
     /**

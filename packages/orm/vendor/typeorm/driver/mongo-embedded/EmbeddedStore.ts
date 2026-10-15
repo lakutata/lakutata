@@ -22,6 +22,7 @@ export interface EmbeddedStoreOptions {
     syncInterval?: number
     cacheSize?: number
     compaction?: false | { minimumSize?: number; ratio?: number }
+    snapshot?: false | { minimumSize?: number; ratio?: number }
 }
 
 /**
@@ -195,8 +196,9 @@ export class EmbeddedStore {
     written(collection: EmbeddedCollectionStore): Promise<void> {
         if (this.closing) return Promise.resolve()
         this.compactIfWorth(collection)
-        if (!this.directory || this.options.sync === "never")
-            return Promise.resolve()
+        if (!this.directory) return Promise.resolve()
+        this.snapshotIfWorth(collection)
+        if (this.options.sync === "never") return Promise.resolve()
         this.unsynced.add(collection.file)
         if (this.options.sync === "always")
             return new Promise((resolve, reject) => {
@@ -305,6 +307,54 @@ export class EmbeddedStore {
     }
 
     /**
+     * Writes the snapshot of a collection (at the next turn of the event loop) when the bytes written to its file since
+     * its snapshot are a size (64 MiB by default) and a ratio of its file (0.25 by default): the opening after a crash
+     * then reads the records written after it only. Its file is synced first (the snapshot is the state of an offset
+     * of it). The snapshot is written at once (about 1 s for 10,000,000 documents of two indexes), not while the
+     * collection is compacted, an index of it built, or the database closed.
+     *
+     * @param collection
+     */
+    protected snapshotIfWorth(collection: EmbeddedCollectionStore): void {
+        const options = this.options.snapshot
+        if (
+            options === false ||
+            collection.snapshotScheduled ||
+            !(collection.file instanceof EmbeddedDiskFile)
+        )
+            return
+        const appended = collection.file.size - collection.snapshotOffset
+        if (
+            appended <
+            Math.max(
+                options?.minimumSize ?? 64 * 1024 * 1024,
+                (options?.ratio ?? 0.25) * collection.file.size,
+            )
+        )
+            return
+        collection.snapshotScheduled = true
+        setImmediate(() => {
+            collection.snapshotScheduled = false
+            if (
+                this.closing ||
+                this.collections.get(collection.name) !== collection ||
+                collection.previous ||
+                collection.building
+            )
+                return
+            const file = collection.file as EmbeddedDiskFile
+            const snapshot = snapshotOf(file.path)
+            try {
+                file.sync()
+                collection.writeSnapshot(snapshot)
+            } catch {
+                // The previous snapshot (or none) is read with the records after it
+                fs.rmSync(`${snapshot}.tmp`, { force: true })
+            }
+        })
+    }
+
+    /**
      * Starts the compaction of a collection when its file is worth it (and none runs).
      *
      * @param collection
@@ -366,6 +416,7 @@ export class EmbeddedStore {
         fs.renameSync(next.path, path)
         next.path = path
         fs.rmSync(snapshotOf(path), { force: true })
+        collection.snapshotOffset = 0
         this.unsynced.add(next)
     }
 

@@ -611,6 +611,49 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await fromRecords.destroy()
     }))
 
+    it('writes the snapshots of its collections while they are written: a crash reads the records after the last one', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const database: string = path.join(directory, 'snapshots')
+        type Collection = {snapshotOffset: number, openedFrom: string, file: {size: number}}
+        const collectionOf = (dataSource: DataSource): Collection => (dataSource.mongoManager.mongoQueryRunner.databaseConnection as unknown as {store: {collection(name: string, create: boolean): Collection}}).store.collection('items', false)
+        const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: database, worker: false, snapshot: {minimumSize: 64 * 1024, ratio: 0.25}}).initialize()
+        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        //Written until a snapshot is written (at the next turn of the event loop), then written after it
+        let n: number = 0
+        while (!collectionOf(dataSource)?.snapshotOffset) {
+            await runner.insertMany('items', Array.from({length: 100}, (): object => ({n: n++, text: 'x'.repeat(200)})))
+            await new Promise((resolve: (value: unknown) => void): unknown => setImmediate(resolve))
+        }
+        const written: number = n
+        const offset: number = collectionOf(dataSource).snapshotOffset
+        assert.ok(offset > 64 * 1024 && offset === collectionOf(dataSource).file.size)
+        await runner.insertMany('items', Array.from({length: 10}, (): object => ({n: n++, text: 'after'})))
+        await runner.updateOne('items', {n: 0}, {$set: {text: 'updated'}}, {})
+        assert.ok(collectionOf(dataSource).snapshotOffset === offset, 'not written again')
+        //Its files copied while it is open (a crash): opened from the snapshot, the records after it applied
+        const copy: string = path.join(directory, 'copy')
+        await cp(database, copy, {recursive: true})
+        await rm(path.join(copy, 'LOCK'))
+        await dataSource.destroy()
+        const check = async (location: string, openedFrom: string): Promise<void> => {
+            const opened: DataSource = await new DataSource({type: 'mongo-embedded', database: location, worker: false}).initialize()
+            assert.strictEqual(collectionOf(opened).openedFrom, openedFrom)
+            const items: MongoQueryRunner = opened.mongoManager.mongoQueryRunner
+            assert.deepStrictEqual([await items.countDocuments('items', {}), await items.countDocuments('items', {text: 'after'}), (await items.cursor('items', {n: 0}).toArray())[0].text], [n, 10, 'updated'], location)
+            await opened.destroy()
+        }
+        await check(copy, 'snapshot')
+        //A file cut before the offset of its snapshot (a power loss): its records read, the snapshot not used
+        const cut: string = path.join(directory, 'cut')
+        await cp(copy, cut, {recursive: true})
+        const log: string = (await readdir(cut)).find((file: string): boolean => file.endsWith('.log'))!
+        await writeFile(path.join(cut, log), (await readFile(path.join(cut, log))).subarray(0, offset - 1000))
+        const opened: DataSource = await new DataSource({type: 'mongo-embedded', database: cut, worker: false}).initialize()
+        assert.strictEqual(collectionOf(opened).openedFrom, 'records')
+        const left: number = await opened.mongoManager.mongoQueryRunner.countDocuments('items', {})
+        assert.ok(left > 0 && left <= written, `${left} documents`)
+        await opened.destroy()
+    }))
+
     it('compacts the file of a collection while it is written, and resumes a compaction cut by a crash', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         const database: string = path.join(directory, 'compacted')
         type Store = {collection(name: string, create: boolean): {compacting?: Promise<void>, liveBytes: number, file: {size: number}}}
