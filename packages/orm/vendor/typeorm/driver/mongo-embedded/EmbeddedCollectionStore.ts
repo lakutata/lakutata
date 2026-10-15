@@ -48,12 +48,13 @@ export class EmbeddedDuplicateKeyError extends TypeORMError {
 
 /**
  * lakutata: a change of a document in a write: its key, its version before (none for an insertion) and after (none
- * for a deletion).
+ * for a deletion), and the version after serialized, when it is already.
  */
 export interface EmbeddedChange {
     key: Buffer
     previous?: EmbeddedDocument
     next?: EmbeddedDocument
+    data?: Buffer
 }
 
 /**
@@ -577,7 +578,7 @@ export class EmbeddedCollectionStore {
             change.next
                 ? encodeRecord(
                       RecordType.Put,
-                      this.values.serialize(change.next),
+                      change.data ?? this.values.serialize(change.next),
                   )
                 : encodeRecord(
                       RecordType.Delete,

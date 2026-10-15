@@ -405,7 +405,7 @@ export class EmbeddedCollection {
         const [found] = await this.matching(filter, 1, false)
         const collection = this.collection(true)!
         const current = found
-            ? this.current(collection, filter, found)
+            ? this.current(collection, this.matcherOf(filter), found)
             : undefined
         if (!current) {
             if (!options?.upsert) return this.updateResult(0, 0)
@@ -640,21 +640,32 @@ export class EmbeddedCollection {
      * A document found by a write, read again: undefined when it is not held or does not match any more.
      *
      * @param collection
-     * @param filter
+     * @param matches the test of the filter of the write
      * @param found
      */
     protected current(
         collection: EmbeddedCollectionStore,
-        filter: EmbeddedDocument,
+        matches: (document: EmbeddedDocument) => boolean,
         found: EmbeddedDocument,
     ): EmbeddedDocument | undefined {
         const current = collection.get(this.values.idKey(found._id))
-        if (!current) return undefined
+        return current && matches(current) ? current : undefined
+    }
+
+    /**
+     * The test of a filter, compiled by mingo once (when a document needs it): a filter of the _id alone is not
+     * compiled for the documents of which the _id is its value.
+     *
+     * @param filter
+     */
+    protected matcherOf(
+        filter: EmbeddedDocument,
+    ): (document: EmbeddedDocument) => boolean {
         const id = this.idOf(filter)
-        if (id !== undefined && this.isId(current._id, id)) return current
-        return new this.values.mingo.Query(filter).test(current)
-            ? current
-            : undefined
+        let query: any
+        return (document) =>
+            (id !== undefined && this.isId(document._id, id)) ||
+            (query ??= new this.values.mingo.Query(filter)).test(document)
     }
 
     /**
@@ -781,6 +792,17 @@ export class EmbeddedCollection {
         return document
     }
 
+    /**
+     * Updates the documents a filter matches (the first one, unless many): read in batches, each batch of documents
+     * read again, updated by mingo together and written as one operation, the event loop yielded between them. A
+     * batch failing (an update failing on a document, a duplicate key) is written a document at a time up to the one
+     * failing, as MongoDB writes the documents in their order.
+     *
+     * @param query
+     * @param update
+     * @param options
+     * @param many
+     */
     protected async update(
         query: EmbeddedDocument,
         update: EmbeddedDocument,
@@ -792,25 +814,44 @@ export class EmbeddedCollection {
             throw new TypeORMError("Update document requires atomic operators")
         const { $setOnInsert, ...modifier } = this.values.copy(update)
         const filter = this.values.copy(query ?? {})
-        const found = await this.matching(filter, many ? Infinity : 1, false)
+        const matches = this.matcherOf(filter)
         const collection = this.collection(true)!
-        const changes: EmbeddedChange[] = []
+        // The keys of the documents updated: a scan meets again the ones it wrote
+        const updated = new Set<string>()
         let matched = 0
-        for (const document of found) {
-            const current = this.current(collection, filter, document)
-            if (!current) continue
-            matched++
-            const next = this.values.copy(current)
-            const changed: string[] = this.values.mingo.update(
-                next,
-                modifier,
-                options?.arrayFilters,
-            )
-            if (!changed.length) continue
-            const key = this.values.idKey(current._id)
-            if (!this.values.idKey(next._id).equals(key))
-                throw this.immutableId()
-            changes.push({ key: key, previous: current, next: next })
+        let modified = 0
+        let synced: Promise<void> | undefined
+        try {
+            for await (const batch of this.candidates(filter)) {
+                const currents: EmbeddedDocument[] = []
+                for (const document of batch) {
+                    if (!many && currents.length) break
+                    const key = this.values
+                        .idKey(document._id)
+                        .toString("latin1")
+                    if (updated.has(key)) continue
+                    const current = this.current(collection, matches, document)
+                    if (!current) continue
+                    updated.add(key)
+                    currents.push(current)
+                }
+                matched += currents.length
+                const written = await this.writeInOrder(
+                    collection,
+                    currents,
+                    (documents) =>
+                        this.updateChanges(
+                            documents,
+                            modifier,
+                            options?.arrayFilters,
+                        ),
+                )
+                modified += written
+                if (written) synced = this.synced(collection)
+                if (!many && matched) break
+            }
+        } finally {
+            await synced
         }
         if (!matched && options?.upsert) {
             const document = this.equalities(filter)
@@ -820,28 +861,127 @@ export class EmbeddedCollection {
             const [stored] = await this.insert([document])
             return this.updateResult(0, 0, stored._id)
         }
-        collection.write(changes)
-        if (changes.length) await this.store.written(collection)
-        return this.updateResult(matched, changes.length)
+        return this.updateResult(matched, modified)
     }
 
+    /**
+     * The changes of documents updated together by mingo (once for all of them): the documents of which the BSON
+     * changed.
+     *
+     * @param documents
+     * @param modifier
+     * @param arrayFilters
+     */
+    protected updateChanges(
+        documents: EmbeddedDocument[],
+        modifier: EmbeddedDocument,
+        arrayFilters: EmbeddedDocument[] | undefined,
+    ): EmbeddedChange[] {
+        const nexts = documents.map((document) => this.values.copy(document))
+        this.values.mingo.updateMany(nexts, {}, modifier, {
+            arrayFilters: arrayFilters,
+        })
+        const changes: EmbeddedChange[] = []
+        documents.forEach((current, position) => {
+            const next = nexts[position]
+            const key = this.values.idKey(current._id)
+            if (!this.values.idKey(next._id).equals(key))
+                throw this.immutableId()
+            const data = this.values.serialize(next)
+            if (!data.equals(this.values.serialize(current)))
+                changes.push({
+                    key: key,
+                    previous: current,
+                    next: next,
+                    data: data,
+                })
+        })
+        return changes
+    }
+
+    /**
+     * Writes the changes of documents as one operation (at once, before it awaits); when they fail, a document at a
+     * time up to the one failing, the error thrown once the ones written before it are written as the option sync
+     * tells; the number of the changes written.
+     *
+     * @param collection
+     * @param documents
+     * @param changesOf the changes of documents
+     */
+    protected async writeInOrder(
+        collection: EmbeddedCollectionStore,
+        documents: EmbeddedDocument[],
+        changesOf: (documents: EmbeddedDocument[]) => EmbeddedChange[],
+    ): Promise<number> {
+        if (!documents.length) return 0
+        try {
+            const changes = changesOf(documents)
+            collection.write(changes)
+            return changes.length
+        } catch (error) {
+            if (documents.length === 1) throw error
+        }
+        let written = 0
+        try {
+            for (const document of documents) {
+                const changes = changesOf([document])
+                collection.write(changes)
+                written += changes.length
+            }
+        } catch (error) {
+            if (written) await this.store.written(collection)
+            throw error
+        }
+        return written
+    }
+
+    /**
+     * After a batch of a write: resolved once it is written as the option sync tells (with the batches before it),
+     * awaited by the write once its batches are written (its failure handled meanwhile).
+     *
+     * @param collection
+     */
+    protected synced(collection: EmbeddedCollectionStore): Promise<void> {
+        const synced = this.store.written(collection)
+        synced.catch(() => {})
+        return synced
+    }
+
+    /**
+     * Deletes the documents a filter matches (the first one, unless many): read in batches, each batch of documents
+     * read again and deleted as one operation, the event loop yielded between them.
+     *
+     * @param query
+     * @param many
+     */
     protected async delete(query: EmbeddedDocument | undefined, many: boolean) {
         const filter = this.values.copy(query ?? {})
-        const found = await this.matching(filter, many ? Infinity : 1, false)
+        const matches = this.matcherOf(filter)
         const collection = this.collection()
         if (!collection) return { acknowledged: true, deletedCount: 0 }
-        const changes: EmbeddedChange[] = []
-        for (const document of found) {
-            const current = this.current(collection, filter, document)
-            if (current)
-                changes.push({
-                    key: this.values.idKey(current._id),
-                    previous: current,
-                })
+        let deleted = 0
+        let synced: Promise<void> | undefined
+        try {
+            for await (const batch of this.candidates(filter)) {
+                const changes: EmbeddedChange[] = []
+                for (const document of batch) {
+                    if (!many && changes.length) break
+                    const current = this.current(collection, matches, document)
+                    if (current)
+                        changes.push({
+                            key: this.values.idKey(current._id),
+                            previous: current,
+                        })
+                }
+                collection.write(changes)
+                deleted += changes.length
+                if (changes.length) synced = this.synced(collection)
+                if (!many && deleted) break
+            }
+        } finally {
+            await synced
         }
-        collection.write(changes)
-        if (changes.length) await this.store.written(collection)
-        return { acknowledged: true, deletedCount: changes.length }
+        return { acknowledged: true, deletedCount: deleted }
     }
 
     protected updateResult(matched: number, modified: number, upsertedId?: any) {

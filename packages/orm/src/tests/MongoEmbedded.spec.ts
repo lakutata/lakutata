@@ -308,6 +308,43 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
+    it('updates and deletes many documents in batches: each once, in their order, the event loop yielded', async (): Promise<void> => {
+        const dataSource: DataSource = await new DataSource({type: 'mongo-embedded'}).initialize()
+        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        const count: number = 4500
+        //The values of u even, but the one of the document 2600: its $inc meets the one of the document 2601
+        await runner.insertMany('items', Array.from({length: count}, (_: unknown, n: number): object => ({n: n, v: n % 10, u: n === 2600 ? 5201 : 2 * n})))
+        await runner.createCollectionIndex('items', {v: 1}, {name: 'v'})
+        await runner.createCollectionIndex('items', {u: 1}, {name: 'u', unique: true})
+        let ticks: number = 0
+        let running: boolean = true
+        const tick = (): void => {
+            ticks++
+            if (running) setImmediate(tick)
+        }
+        setImmediate(tick)
+        //A scan, and an index of the field updated: each document updated once
+        const scanned = await runner.updateMany('items', {n: {$gte: 0}}, {$inc: {hits: 1}}, {}) as Record<string, number>
+        //A document failing: the ones before it in the order of the scan written (the batches before its one, and its
+        //batch up to it), not the ones after it
+        const order: number[] = (await runner.cursor('items', {}).toArray()).map((document: Record<string, number>): number => document.n)
+        assert.ok(order.indexOf(2600) > 2000, 'the document failing after two batches')
+        await assert.rejects(runner.updateMany('items', {}, {$inc: {u: 1}}, {}), {code: 11000})
+        const values = new Map<number, number>((await runner.cursor('items', {}).toArray()).map((document: Record<string, number>): [number, number] => [document.n, document.u]))
+        assert.deepStrictEqual(order.filter((n: number): boolean => values.get(n) !== (n === 2600 ? 5201 : 2 * n)), order.slice(0, order.indexOf(2600)))
+        const indexed = await runner.updateMany('items', {v: {$gte: 0}}, {$inc: {v: 10, hits: 1}}, {}) as Record<string, number>
+        running = false
+        assert.deepStrictEqual([scanned.matchedCount, scanned.modifiedCount, indexed.matchedCount, indexed.modifiedCount], [count, count, count, count])
+        assert.ok(ticks >= 8, `the event loop yielded ${ticks} times`)
+        assert.deepStrictEqual(await runner.distinct('items', 'hits', {}), [2])
+        assert.strictEqual(await runner.countDocuments('items', {v: {$gte: 10}}), count)
+        //Deleted in batches
+        assert.strictEqual((await runner.deleteMany('items', {n: {$lt: 4000}}, {})).deletedCount, 4000)
+        assert.strictEqual((await runner.deleteOne('items', {n: {$gte: 0}})).deletedCount, 1)
+        assert.strictEqual(await runner.countDocuments('items', {}), count - 4001)
+        await dataSource.destroy()
+    })
+
     it('stores the numbers of BSON as BSON reads them: their _id the same keys after a reopening', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         const database: string = path.join(directory, 'numbers')
         const reopen = async (): Promise<[DataSource, MongoQueryRunner]> => {

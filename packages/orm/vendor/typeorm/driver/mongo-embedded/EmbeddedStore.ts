@@ -348,8 +348,11 @@ export class EmbeddedStore {
             collection.endCompaction()
             return
         }
-        const path = (collection.previous as EmbeddedDiskFile).path
+        const previous = collection.previous as EmbeddedDiskFile
+        const path = previous.path
         next.sync()
+        // The writes of the previous file not synced yet: the new file, synced, holds them
+        this.unsynced.delete(previous)
         collection.endCompaction()
         fs.renameSync(next.path, path)
         next.path = path
