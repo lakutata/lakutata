@@ -345,6 +345,55 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
+    it('builds an index on the documents there in batches: the reads go on, the writes wait for it', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const database: string = path.join(directory, 'built')
+        let dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: database}).initialize()
+        let runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        const plain = (value: object): object => value
+        await runner.insertMany('items', Array.from({length: 5000}, (_: unknown, n: number): object => plain({_id: n, n: n, v: n % 7})))
+        let ticks: number = 0
+        let running: boolean = true
+        const tick = (): void => {
+            ticks++
+            if (running) setImmediate(tick)
+        }
+        setImmediate(tick)
+        const events: string[] = []
+        const done = (event: string) => (): number => events.push(event)
+        await Promise.all([
+            runner.createCollectionIndex('items', {v: 1}, {name: 'v'}).then(done('built')),
+            runner.cursor('items', plain({_id: 3})).toArray().then(done('read')),
+            runner.insertOne('items', plain({_id: 5000, n: 5000, v: 3})).then(done('inserted')),
+            runner.updateMany('items', {n: {$lt: 100}}, {$set: {v: 100}}).then(done('updated')),
+            runner.deleteOne('items', plain({_id: 4999})).then(done('deleted'))
+        ])
+        running = false
+        assert.strictEqual(events[0], 'read')
+        assert.ok(['inserted', 'updated', 'deleted'].every((event: string): boolean => events.indexOf(event) > events.indexOf('built')), events.join())
+        assert.ok(ticks >= 4, `the event loop yielded ${ticks} times`)
+        //The index holds the writes made while it was built: its counts are the ones of a scan
+        const check = async (checked: MongoQueryRunner, label: string): Promise<void> => {
+            for (const v of [0, 3, 6, 100])
+                assert.strictEqual(await checked.countDocuments('items', {v: v}), (await checked.cursor('items', {$expr: {$eq: ['$v', v]}}).toArray()).length, `${label} ${v}`)
+            assert.strictEqual(await checked.countDocuments('items', {v: 100}), 100, label)
+        }
+        await check(runner, 'built')
+        //A unique index failing on the documents there: not created, the writes going on
+        await assert.rejects(runner.createCollectionIndex('items', {v: 1}, {name: 'unique', unique: true}), {code: 11000})
+        await runner.insertOne('items', plain({_id: 5001, n: 5001, v: 3}))
+        assert.ok(!(await runner.collectionIndexExists('items', 'unique')))
+        //Closed while an index is built: the closing waits for it
+        const pending: Promise<string> = runner.createCollectionIndex('items', {n: 1}, {name: 'n'})
+        await dataSource.destroy()
+        await pending
+        dataSource = await new DataSource({type: 'mongo-embedded', database: database}).initialize()
+        runner = dataSource.mongoManager.mongoQueryRunner
+        assert.ok(await runner.collectionIndexExists('items', ['v', 'n']))
+        await check(runner, 'reopened')
+        assert.strictEqual(await runner.countDocuments('items', {n: {$gte: 4990}}), 11)
+        await dataSource.destroy()
+    }))
+
     it('stores the numbers of BSON as BSON reads them: their _id the same keys after a reopening', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         const database: string = path.join(directory, 'numbers')
         const reopen = async (): Promise<[DataSource, MongoQueryRunner]> => {

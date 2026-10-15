@@ -84,6 +84,11 @@ const COMMIT_RECORD = encodeRecord(RecordType.Commit, Buffer.alloc(0))
 const IO_CHUNK = 1024 * 1024 * 1024
 
 /**
+ * lakutata: the documents read by the build of an index between two yields of the event loop.
+ */
+const BUILD_BATCH = 1000
+
+/**
  * lakutata: a number rounded up to a multiple of 8 (the alignment of the arrays of 8 bytes).
  *
  * @param value
@@ -128,6 +133,11 @@ export class EmbeddedCollectionStore {
      * The compaction running.
      */
     compacting?: Promise<void>
+
+    /**
+     * The build of an index running: the writes of the collection wait for it.
+     */
+    building?: Promise<void>
 
     readonly indexes: EmbeddedIndex[] = []
 
@@ -641,25 +651,57 @@ export class EmbeddedCollectionStore {
     }
 
     /**
-     * Adds an index, unless one of its name exists; a unique one fails on the duplicate keys of the documents.
+     * Adds an index, unless one of its name exists: built from the documents, read in batches with the event loop
+     * yielded between them, while the writes of the collection wait (building); a unique one fails on the duplicate
+     * keys of the documents. The queries use it once it is built.
      *
      * @param index
      */
-    createIndex(index: EmbeddedIndex): void {
+    async createIndex(index: EmbeddedIndex): Promise<void> {
+        while (this.building) await this.building
         if (this.indexes.some((existing) => existing.name === index.name))
             return
-        this.buildIndexes([index])
-        this.changed = true
-        this.file.append(
-            Buffer.concat([
-                encodeRecord(
-                    RecordType.CreateIndex,
-                    this.values.bson.BSON.serialize(index),
-                ),
-                encodeRecord(RecordType.Commit, Buffer.alloc(0)),
-            ]),
-        )
-        this.indexes.push(index)
+        let built!: () => void
+        this.building = new Promise((resolve) => (built = resolve))
+        try {
+            // Its documents read from one file
+            while (this.compacting) await this.compacting
+            const tree = new EmbeddedBTree()
+            let multikey = false
+            let read = 0
+            for (const document of this.documents()) {
+                const id = this.values.idKey(document._id)
+                const keys = this.keysOf(index, document)
+                if (keys.length > 1) multikey = true
+                for (const key of keys) {
+                    if (index.unique && this.ownerOf(tree, key))
+                        throw new EmbeddedDuplicateKeyError(
+                            this.name,
+                            index.name,
+                            this.keyValue(index, document),
+                        )
+                    tree.insert(key, id)
+                }
+                if (++read % BUILD_BATCH === 0)
+                    await new Promise((resolve) => setImmediate(resolve))
+            }
+            this.trees.set(index.name, tree)
+            if (multikey) this.multikey.add(index.name)
+            this.changed = true
+            this.file.append(
+                Buffer.concat([
+                    encodeRecord(
+                        RecordType.CreateIndex,
+                        this.values.bson.BSON.serialize(index),
+                    ),
+                    encodeRecord(RecordType.Commit, Buffer.alloc(0)),
+                ]),
+            )
+            this.indexes.push(index)
+        } finally {
+            this.building = undefined
+            built()
+        }
     }
 
     /**

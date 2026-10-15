@@ -92,6 +92,11 @@ export class EmbeddedStore {
 
     protected timer?: ReturnType<typeof setTimeout>
 
+    /**
+     * Whether it is closing or closed: the writes made then are synced by the closing.
+     */
+    protected closing = false
+
     protected readonly budget: EmbeddedCacheBudget
 
     protected constructor(
@@ -188,6 +193,7 @@ export class EmbeddedStore {
      * @param collection
      */
     written(collection: EmbeddedCollectionStore): Promise<void> {
+        if (this.closing) return Promise.resolve()
         this.compactIfWorth(collection)
         if (!this.directory || this.options.sync === "never")
             return Promise.resolve()
@@ -250,10 +256,13 @@ export class EmbeddedStore {
      * closed, its directory unlocked.
      */
     async close(): Promise<void> {
+        this.closing = true
         if (this.timer) clearTimeout(this.timer)
         this.timer = undefined
-        for (const collection of this.collections.values())
+        for (const collection of this.collections.values()) {
+            await collection.building
             await collection.compacting
+        }
         try {
             if (this.directory)
                 for (const collection of this.collections.values())

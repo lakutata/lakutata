@@ -226,7 +226,8 @@ export class EmbeddedArrayCursor extends EmbeddedResults {
 /**
  * lakutata: a collection of an embedded MongoDB, with the methods of the collections of MongoDB that TypeORM calls.
  * Its writes find their documents first (a scan yielding the event loop), then read each of them again, test it and
- * write it at once, as the other operations change them meanwhile.
+ * write it at once, as the other operations change them meanwhile. They wait for the build of an index of the
+ * collection (building), and write at once once it is built, with no await between.
  */
 export class EmbeddedCollection {
     constructor(
@@ -404,6 +405,7 @@ export class EmbeddedCollection {
         const filter = this.values.copy(query ?? {})
         const [found] = await this.matching(filter, 1, false)
         const collection = this.collection(true)!
+        while (collection?.building) await collection.building
         const current = found
             ? this.current(collection, this.matcherOf(filter), found)
             : undefined
@@ -454,7 +456,7 @@ export class EmbeddedCollection {
         if (options?.expireAfterSeconds !== undefined)
             index.expireAfterSeconds = options.expireAfterSeconds
         const collection = this.collection(true)!
-        collection.createIndex(index)
+        await collection.createIndex(index)
         await this.store.written(collection)
         return name
     }
@@ -499,6 +501,7 @@ export class EmbeddedCollection {
 
     async dropIndex(name: string): Promise<EmbeddedDocument> {
         const collection = this.collection()
+        while (collection?.building) await collection.building
         if (!collection || !collection.dropIndex(name))
             throw new TypeORMError(`index not found with name [${name}]`)
         await this.store.written(collection)
@@ -507,6 +510,7 @@ export class EmbeddedCollection {
 
     async dropIndexes(): Promise<boolean> {
         const collection = this.collection()
+        while (collection?.building) await collection.building
         if (collection) {
             for (const index of [...collection.indexes])
                 collection.dropIndex(index.name)
@@ -714,6 +718,7 @@ export class EmbeddedCollection {
             return this.values.copy(document)
         })
         const collection = this.collection(true)!
+        while (collection?.building) await collection.building
         collection.write(
             stored.map((document) => ({
                 key: this.values.idKey(document._id),
@@ -823,6 +828,7 @@ export class EmbeddedCollection {
         let synced: Promise<void> | undefined
         try {
             for await (const batch of this.candidates(filter)) {
+                while (collection?.building) await collection.building
                 const currents: EmbeddedDocument[] = []
                 for (const document of batch) {
                     if (!many && currents.length) break
@@ -963,6 +969,7 @@ export class EmbeddedCollection {
         let synced: Promise<void> | undefined
         try {
             for await (const batch of this.candidates(filter)) {
+                while (collection?.building) await collection.building
                 const changes: EmbeddedChange[] = []
                 for (const document of batch) {
                     if (!many && changes.length) break
@@ -1022,11 +1029,16 @@ export class EmbeddedDb {
     }
 
     async dropDatabase(): Promise<boolean> {
+        for (const name of this.store.names())
+            while (this.store.collection(name, false)?.building)
+                await this.store.collection(name, false)!.building
         this.store.clear()
         return true
     }
 
     async dropCollection(name: string): Promise<boolean> {
+        while (this.store.collection(name, false)?.building)
+            await this.store.collection(name, false)!.building
         return this.store.drop(name)
     }
 }
