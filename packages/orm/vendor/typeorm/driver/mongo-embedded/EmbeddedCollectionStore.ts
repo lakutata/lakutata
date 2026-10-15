@@ -47,6 +47,36 @@ export class EmbeddedDuplicateKeyError extends TypeORMError {
 }
 
 /**
+ * lakutata: an error of a document of an insertMany (its duplicate key): its index in the documents, the code and the
+ * message of its error, and the fields of its key.
+ */
+export interface EmbeddedWriteError {
+    index: number
+    code: number
+    errmsg: string
+    keyValue?: { [field: string]: any }
+}
+
+/**
+ * lakutata: the error of an insertMany of which documents were not inserted, with the fields of the MongoBulkWriteError
+ * of MongoDB: the code and the message of its first error, its errors (writeErrors), and the number and the _id of the
+ * documents inserted (insertedCount, insertedIds by their indexes). Ordered, the documents after the first one failing
+ * are not inserted; unordered, the other ones are.
+ */
+export class EmbeddedBulkWriteError extends TypeORMError {
+    readonly code: number
+
+    constructor(
+        readonly writeErrors: EmbeddedWriteError[],
+        readonly insertedCount: number,
+        readonly insertedIds: { [index: number]: any },
+    ) {
+        super(writeErrors[0].errmsg)
+        this.code = writeErrors[0].code
+    }
+}
+
+/**
  * lakutata: a change of a document in a write: its key, its version before (none for an insertion) and after (none
  * for a deletion), and the version after serialized, when it is already.
  */

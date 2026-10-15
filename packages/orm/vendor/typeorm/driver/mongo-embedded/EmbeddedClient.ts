@@ -3,8 +3,13 @@ import type {
     EmbeddedChange,
     EmbeddedCollectionStore,
     EmbeddedIndex,
+    EmbeddedWriteError,
 } from "./EmbeddedCollectionStore"
-import { SCAN_TIMEOUT } from "./EmbeddedCollectionStore"
+import {
+    EmbeddedBulkWriteError,
+    EmbeddedDuplicateKeyError,
+    SCAN_TIMEOUT,
+} from "./EmbeddedCollectionStore"
 import { EmbeddedPlanner } from "./EmbeddedPlanner"
 import type { EmbeddedStoreOptions } from "./EmbeddedStore"
 import { EmbeddedStore } from "./EmbeddedStore"
@@ -701,13 +706,60 @@ export class EmbeddedCollection {
         return { acknowledged: true, insertedId: stored._id }
     }
 
-    async insertMany(documents: EmbeddedDocument[]) {
-        const stored = await this.insert(documents)
+    /**
+     * Inserts documents as MongoDB inserts them: their _id added when missing (to the documents given), written in
+     * batches of 1000 (each one an operation, the event loop yielded between them). A document of which a key is a
+     * duplicate is not inserted: ordered (by default), the ones after it are not either; unordered (ordered: false),
+     * they are. The documents not inserted fail the insertMany (EmbeddedBulkWriteError) once the others are written.
+     *
+     * @param documents
+     * @param options
+     */
+    async insertMany(
+        documents: EmbeddedDocument[],
+        options?: EmbeddedDocument,
+    ) {
+        const ordered = options?.ordered !== false
+        for (const document of documents)
+            if (document._id === undefined)
+                document._id = new this.values.bson.ObjectId()
+        const collection = this.collection(true)!
         const insertedIds: { [index: number]: any } = {}
-        stored.forEach((document, index) => (insertedIds[index] = document._id))
+        const writeErrors: EmbeddedWriteError[] = []
+        let insertedCount = 0
+        let synced: Promise<void> | undefined
+        try {
+            for (let start = 0; start < documents.length; start += YIELD_EVERY) {
+                if (start) await yieldLoop()
+                while (collection.building) await collection.building
+                const batch = documents
+                    .slice(start, start + YIELD_EVERY)
+                    .map((document) => this.values.copy(document))
+                const inserted = this.writeInsertions(
+                    collection,
+                    batch,
+                    ordered,
+                    writeErrors,
+                    start,
+                )
+                for (const index of inserted)
+                    insertedIds[start + index] = batch[index]._id
+                insertedCount += inserted.length
+                if (inserted.length) synced = this.synced(collection)
+                if (ordered && writeErrors.length) break
+            }
+        } finally {
+            await synced
+        }
+        if (writeErrors.length)
+            throw new EmbeddedBulkWriteError(
+                writeErrors,
+                insertedCount,
+                insertedIds,
+            )
         return {
             acknowledged: true,
-            insertedCount: stored.length,
+            insertedCount: insertedCount,
             insertedIds: insertedIds,
         }
     }
@@ -1296,6 +1348,53 @@ export class EmbeddedCollection {
             throw error
         }
         return written
+    }
+
+    /**
+     * Writes the insertions of a batch of documents as one operation; when a key of them is a duplicate, a document at
+     * a time, the ones failing told (and, ordered, the ones after the first one failing not written); the indexes in
+     * the batch of the documents written.
+     *
+     * @param collection
+     * @param batch
+     * @param ordered
+     * @param writeErrors the errors of the documents failing
+     * @param start the index of the batch in the documents of the insertMany
+     */
+    protected writeInsertions(
+        collection: EmbeddedCollectionStore,
+        batch: EmbeddedDocument[],
+        ordered: boolean,
+        writeErrors: EmbeddedWriteError[],
+        start: number,
+    ): number[] {
+        const insertion = (document: EmbeddedDocument): EmbeddedChange => ({
+            key: this.values.idKey(document._id),
+            next: document,
+        })
+        try {
+            collection.write(batch.map(insertion))
+            return batch.map((_, index) => index)
+        } catch (error) {
+            if (!(error instanceof EmbeddedDuplicateKeyError)) throw error
+        }
+        const inserted: number[] = []
+        for (const [index, document] of batch.entries()) {
+            try {
+                collection.write([insertion(document)])
+                inserted.push(index)
+            } catch (error) {
+                if (!(error instanceof EmbeddedDuplicateKeyError)) throw error
+                writeErrors.push({
+                    index: start + index,
+                    code: error.code,
+                    errmsg: error.message,
+                    keyValue: error.keyValue,
+                })
+                if (ordered) break
+            }
+        }
+        return inserted
     }
 
     /**

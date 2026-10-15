@@ -51,20 +51,22 @@ call); the worker thread holds mingo and bson, bundled into the package. Its lim
 (`--max-old-space-size`); exceeding them ends the worker thread, not the process, its calls failing and its directory
 unlocked (a heap of 256 MB or less may end the process on Node.js 24; Bun does not apply them). `worker: false` runs it
 in the thread of the application, where the JavaScript functions of the queries (`$where`, `$function`, `$accumulator`)
-also run. The long writes (`updateMany`, `deleteMany`, an index created on the documents there) are made in batches of
-1000 documents, the event loop yielded between them; a write failing on a document leaves the documents before it
-written, as MongoDB does without a transaction. A `$group` (or a stage `$count`) first in a pipeline, after stages of
-each document (`$match`, `$project`, `$unwind`...), runs a batch of documents at a time, its memory the one of its
-groups. A cursor read with `next()`, `hasNext()` or `for await` (the `createCursor` and `createEntityCursor` of the
-`MongoRepository`) reads a batch of 1000 documents at a time when it has no order (and no limit of 1000 or less);
-`toArray()` reads them at once. The documents written while a cursor reads may be read (a document updated, again); the
-file of a collection is not compacted while a cursor reads it, and a cursor not read for 10 minutes is closed when it
-is. A sort without an index holds all the documents it sorts in memory (a `limit` after it too): index the fields the
-large collections are sorted on. As with MongoDB, the relations, the query builders and the transactions of TypeORM are
-not supported, and the migrations are written by hand with the `MongoQueryRunner`, not generated. Its `ObjectId` and
-`Binary` are the ones of the CommonJS module of `bson`: `import {ObjectId} from 'lakutata/orm'` gives the class of the
-ids of its entities (the `ObjectId` of `import {ObjectId} from 'bson'` in an ES module is another class, `instanceof`
-false for the ids; the queries take both).
+also run. The long writes (`insertMany`, `updateMany`, `deleteMany`, an index created on the documents there) are made
+in batches of 1000 documents, the event loop yielded between them; a write failing on a document leaves the documents
+before it written, as MongoDB does without a transaction. As in MongoDB, an `insertMany` stops at its first duplicate
+key, or inserts the other documents with `ordered: false`, and fails with the `writeErrors`, the `insertedCount` and the
+`insertedIds` of its documents. A `$group` (or a stage `$count`) first in a pipeline, after stages of each document
+(`$match`, `$project`, `$unwind`...), runs a batch of documents at a time, its memory the one of its groups. A cursor
+read with `next()`, `hasNext()` or `for await` (the `createCursor` and `createEntityCursor` of the `MongoRepository`)
+reads a batch of 1000 documents at a time when it has no order (and no limit of 1000 or less); `toArray()` reads them at
+once. The documents written while a cursor reads may be read (a document updated, again); the file of a collection is
+not compacted while a cursor reads it, and a cursor not read for 10 minutes is closed when it is. A sort without an
+index holds all the documents it sorts in memory (a `limit` after it too): index the fields the large collections are
+sorted on. As with MongoDB, the relations, the query builders and the transactions of TypeORM are not supported, and the
+migrations are written by hand with the `MongoQueryRunner`, not generated. Its `ObjectId` and `Binary` are the ones of
+the CommonJS module of `bson`: `import {ObjectId} from 'lakutata/orm'` gives the class of the ids of its entities (the
+`ObjectId` of `import {ObjectId} from 'bson'` in an ES module is another class, `instanceof` false for the ids; the
+queries take both).
 
 The query result cache stored in Redis (`cache: {type: 'redis'}` or `'ioredis'`) needs `redis` or `ioredis`.
 

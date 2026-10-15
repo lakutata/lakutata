@@ -8,6 +8,8 @@ import {
     EmbeddedResults,
     isStreamed,
 } from "./EmbeddedClient"
+import type { EmbeddedWriteError } from "./EmbeddedCollectionStore"
+import { EmbeddedBulkWriteError } from "./EmbeddedCollectionStore"
 import type { EmbeddedStoreOptions } from "./EmbeddedStore"
 import type { EmbeddedDocument } from "./EmbeddedValues"
 import { embeddedWorkerCode } from "./EmbeddedWorkerCode"
@@ -70,6 +72,12 @@ const DOCUMENT_ARGUMENTS: { [method: string]: number } = {
     insertMany: 0,
     replaceOne: 1,
 }
+
+/**
+ * lakutata: the documents of an insertMany sent to the worker thread in a call (their encoding a stall of about 10 ms
+ * of this thread, the event loop yielded between the calls).
+ */
+const SENT_DOCUMENTS = 10000
 
 /**
  * lakutata: the cursor of a find of a collection of the worker thread: its filter, projection, order, skip and limit
@@ -190,15 +198,58 @@ export class EmbeddedWorkerCollection {
      *
      * @param documents
      */
-    async insertMany(documents: EmbeddedDocument[]) {
+    async insertMany(
+        documents: EmbeddedDocument[],
+        options?: EmbeddedDocument,
+    ) {
         for (const document of documents)
             document._id ??= new this.client.bson.ObjectId()
-        // The documents encoded one at a time (each of them smaller than the internal buffer of bson)
-        return this.client.call(
-            "collection",
-            { collection: this.collectionName, method: "insertMany", args: [] },
-            encodeDocuments(this.client.bson, documents),
-        )
+        const ordered = options?.ordered !== false
+        const insertedIds: { [index: number]: any } = {}
+        const writeErrors: EmbeddedWriteError[] = []
+        let insertedCount = 0
+        // Sent in parts (each one encoded a document at a time, smaller than the internal buffer of bson), their
+        // results and their errors combined as the ones of one insertMany
+        for (let start = 0; start < documents.length; start += SENT_DOCUMENTS) {
+            let result: EmbeddedDocument
+            try {
+                result = await this.client.call(
+                    "collection",
+                    {
+                        collection: this.collectionName,
+                        method: "insertMany",
+                        args: [options],
+                    },
+                    encodeDocuments(
+                        this.client.bson,
+                        documents.slice(start, start + SENT_DOCUMENTS),
+                    ),
+                )
+            } catch (error) {
+                if (!Array.isArray(error.writeErrors)) throw error
+                result = error
+                for (const writeError of error.writeErrors as EmbeddedWriteError[])
+                    writeErrors.push({
+                        ...writeError,
+                        index: start + writeError.index,
+                    })
+            }
+            insertedCount += result.insertedCount
+            for (const index of Object.keys(result.insertedIds))
+                insertedIds[start + Number(index)] = result.insertedIds[index]
+            if (ordered && writeErrors.length) break
+        }
+        if (writeErrors.length)
+            throw new EmbeddedBulkWriteError(
+                writeErrors,
+                insertedCount,
+                insertedIds,
+            )
+        return {
+            acknowledged: true,
+            insertedCount: insertedCount,
+            insertedIds: insertedIds,
+        }
     }
 
     async countDocuments(...args: any[]) {

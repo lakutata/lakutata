@@ -387,6 +387,39 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
+    it('inserts many documents as MongoDB does: ordered or not, the documents inserted told by its error', async (): Promise<void> => {
+        const plain = (value: object): object => value
+        for (const worker of [true, false]) {
+            const label: string = `worker ${worker}`
+            const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', worker: worker}).initialize()
+            const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+            await runner.insertMany('items', [plain({_id: 10500}), plain({_id: 11000})])
+            const documents = (): object[] => Array.from({length: 12000}, (_: unknown, n: number): object => plain({_id: n, n: n}))
+            const indexes = (error: Record<string, any>): number[] => error.writeErrors.map((writeError: {index: number}): number => writeError.index)
+            //Ordered: the documents before the first duplicate inserted (after a part sent to the worker thread, and
+            //batches), not the ones after it
+            await assert.rejects(runner.insertMany('items', documents()), (error: Error & Record<string, any>): boolean => {
+                assert.deepStrictEqual([error.code, indexes(error), error.insertedCount, Object.keys(error.insertedIds).length, error.insertedIds[10499]], [11000, [10500], 10500, 10500, 10499], label)
+                assert.match(error.message, /^E11000 duplicate key error collection: items index: _id_ dup key: \{"_id":10500\}$/)
+                return true
+            })
+            assert.strictEqual(await runner.countDocuments('items', {}), 2 + 10500, label)
+            //Unordered: all the documents but the duplicates
+            await runner.deleteMany('items', plain({_id: {$lt: 10500}}), {})
+            await assert.rejects(runner.insertMany('items', documents(), {ordered: false}), (error: Error & Record<string, any>): boolean => {
+                assert.deepStrictEqual([error.code, indexes(error), error.insertedCount], [11000, [10500, 11000], 11998], label)
+                return true
+            })
+            assert.strictEqual(await runner.countDocuments('items', {}), 12000, label)
+            //Its result; a duplicate in the documents given
+            const result = await runner.insertMany('other', [plain({_id: 'a'}), plain({_id: 'b'})])
+            assert.deepStrictEqual([result.insertedCount, {...result.insertedIds}], [2, {0: 'a', 1: 'b'}], label)
+            await assert.rejects(runner.insertMany('other', [plain({_id: 'c'}), plain({_id: 'c'}), plain({_id: 'd'})]), (error: Error & Record<string, any>): boolean => error.insertedCount === 1 && indexes(error)[0] === 1)
+            assert.deepStrictEqual((await runner.cursor('other', {}).toArray()).map((document: Record<string, unknown>): unknown => document._id).sort(), ['a', 'b', 'c'], label)
+            await dataSource.destroy()
+        }
+    })
+
     it('builds an index on the documents there in batches: the reads go on, the writes wait for it', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         const database: string = path.join(directory, 'built')
         let dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: database}).initialize()
