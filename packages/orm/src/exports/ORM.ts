@@ -5,6 +5,7 @@ export {type QueryResultCacheOptions} from '#typeorm/cache/QueryResultCacheOptio
 export {type IsolationLevel} from '#typeorm/driver/types/IsolationLevel.js'
 
 export * from '#typeorm/globals.js'
+export {ObjectId} from '#typeorm/driver/mongo-embedded/EmbeddedObjectId.js'
 export * from '#typeorm/common/EntityTarget.js'
 export * from '#typeorm/common/ObjectType.js'
 export * from '#typeorm/common/ObjectLiteral.js'

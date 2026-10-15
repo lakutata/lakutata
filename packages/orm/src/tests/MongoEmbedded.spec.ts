@@ -10,7 +10,7 @@ import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {Container} from '@lakutata/core'
 import * as BSON from 'bson'
-import {DataSource, type MongoRepository} from '../exports/ORM.js'
+import {DataSource, type MongoRepository, ObjectId} from '../exports/ORM.js'
 import type {MongoQueryRunner} from '#typeorm/driver/mongodb/MongoQueryRunner.js'
 import {Column, CreateDateColumn, DeleteDateColumn, Entity, Index, ObjectIdColumn, UpdateDateColumn} from '../exports/ORMDecorators.js'
 import {Database} from '../exports/DatabaseComponent.js'
@@ -435,6 +435,20 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         assert.strictEqual(await runner.countDocuments('items', {n: {$gte: 4990}}), 11)
         await dataSource.destroy()
     }))
+
+    it('exports the ObjectId of its entities: the class of their ids, in both clients', async (): Promise<void> => {
+        assert.strictEqual(ObjectId, bson.ObjectId)
+        assert.notStrictEqual(ObjectId, BSON.ObjectId)
+        for (const worker of [true, false]) {
+            const dataSource: DataSource = await open(':memory:', worker)
+            const posts: MongoRepository<Post> = dataSource.getMongoRepository(Post)
+            const [hello] = await savePosts(posts)
+            assert.ok(hello.id instanceof ObjectId, `saved (worker ${worker})`)
+            const found: Post | null = await posts.findOneBy({_id: new ObjectId(hello.id.toHexString())})
+            assert.ok(found?.id instanceof ObjectId && found.id.equals(hello.id), `found (worker ${worker})`)
+            await dataSource.destroy()
+        }
+    })
 
     it('runs in a worker thread as in this thread: the values of BSON, the results and the errors the same', async (): Promise<void> => {
         const plain = (value: object): object => value

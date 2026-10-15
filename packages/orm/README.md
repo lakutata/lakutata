@@ -62,7 +62,9 @@ file of a collection is not compacted while a cursor reads it, and a cursor not 
 is. A sort without an index holds all the documents it sorts in memory (a `limit` after it too): index the fields the
 large collections are sorted on. As with MongoDB, the relations, the query builders and the transactions of TypeORM are
 not supported, and the migrations are written by hand with the `MongoQueryRunner`, not generated. Its `ObjectId` and
-`Binary` are the ones of the CommonJS module of `bson`.
+`Binary` are the ones of the CommonJS module of `bson`: `import {ObjectId} from 'lakutata/orm'` gives the class of the
+ids of its entities (the `ObjectId` of `import {ObjectId} from 'bson'` in an ES module is another class, `instanceof`
+false for the ids; the queries take both).
 
 The query result cache stored in Redis (`cache: {type: 'redis'}` or `'ioredis'`) needs `redis` or `ioredis`.
 
