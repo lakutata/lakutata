@@ -303,6 +303,50 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
+    it('stores the numbers of BSON as BSON reads them: their _id the same keys after a reopening', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const database: string = path.join(directory, 'numbers')
+        const reopen = async (): Promise<[DataSource, MongoQueryRunner]> => {
+            const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: database}).initialize()
+            return [dataSource, dataSource.mongoManager.mongoQueryRunner]
+        }
+        const plain = (value: object): object => value
+        let [dataSource, runner] = await reopen()
+        const big: BSON.Long = bson.Long.fromString('1152921504606846976')
+        const odd: BSON.Long = bson.Long.fromString('9007199254740993')
+        await runner.insertOne('items', plain({_id: bson.Long.fromNumber(5), name: 'long', v: bson.Long.fromNumber(3)}))
+        await runner.insertOne('items', plain({_id: new bson.Int32(7), name: 'int32'}))
+        await runner.insertOne('items', plain({_id: new BSON.Int32(9), name: 'esm'}))
+        await runner.insertOne('items', plain({_id: big, name: 'big'}))
+        await runner.insertOne('items', plain({_id: odd, name: 'odd'}))
+        //The same values as MongoDB compares them
+        for (const id of [5, 5n, new bson.Double(7), 9, 2 ** 60])
+            await assert.rejects(runner.insertOne('items', plain({_id: id})), {code: 11000}, String(id))
+        const state = async (): Promise<unknown> => {
+            const by = async (value: object): Promise<string> => (await runner.cursor('items', plain(value)).toArray()).map((document: Record<string, unknown>): unknown => document.name).join()
+            return {
+                documents: (await runner.cursor('items', {}).toArray()).map((document: Record<string, any>): string => `${document.name} ${typeof document._id} ${document._id}`).sort(),
+                found: [
+                    await by({_id: 5}), await by({_id: bson.Long.fromNumber(5)}), await by({_id: 7}), await by({_id: new bson.Double(7)}), await by({_id: 9n}),
+                    await by({_id: big}), await by({_id: odd}), await by({_id: 2 ** 53 + 2}), await by({v: 3}), await by({v: new bson.Int32(3)})
+                ]
+            }
+        }
+        const expected: unknown = {
+            documents: ['big object 1152921504606846976', 'esm number 9', 'int32 number 7', 'long number 5', 'odd object 9007199254740993'],
+            found: ['long', 'long', 'int32', 'int32', 'esm', 'big', 'odd', '', 'long', 'long']
+        }
+        assert.deepStrictEqual(await state(), expected)
+        await dataSource.destroy()
+        ;[dataSource, runner] = await reopen()
+        assert.deepStrictEqual(await state(), expected, 'from the snapshot')
+        await dataSource.destroy()
+        for (const file of await readdir(database))
+            if (file.endsWith('.snapshot')) await rm(path.join(database, file))
+        ;[dataSource, runner] = await reopen()
+        assert.deepStrictEqual(await state(), expected, 'from the log')
+        await dataSource.destroy()
+    }))
+
     it('caches the documents: the ones given are copies, the cache of 0 bytes reads its files', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         for (const cacheSize of [undefined, 0]) {
             const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: path.join(directory, `cache-${cacheSize}`), cacheSize: cacheSize, entities: [Post], synchronize: true}).initialize()

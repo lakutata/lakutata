@@ -4,6 +4,11 @@
 export type EmbeddedDocument = { [key: string]: any }
 
 /**
+ * lakutata: the bound of the integers of 64 bits BSON reads as numbers (its option promoteLongs): from -2^53 to 2^53.
+ */
+const PROMOTED_LONG = 2 ** 53
+
+/**
  * lakutata: the values of an embedded MongoDB: their copies as BSON stores them, the keys of the _id of the documents,
  * and the serialization of the documents (their _id first, read without deserializing them).
  */
@@ -15,15 +20,30 @@ export class EmbeddedValues {
 
     /**
      * A copy of a value, as BSON stores it: the undefined fields dropped, the undefined items of the arrays null, the
-     * buffers Binary, the values of BSON of another copy of bson (its ES module, when the driver has its CommonJS
-     * module) made with the one of the driver, which mingo compares.
+     * buffers Binary, the numbers of BSON (Int32, Double, Long, bigint) the ones BSON reads back, the values of BSON of
+     * another copy of bson (its ES module, when the driver has its CommonJS module) made with the one of the driver,
+     * which mingo compares.
      *
      * @param value
      */
     copy(value: any): any {
         if (value === undefined) return null
+        // The numbers of BSON as BSON reads them, numbers but the integers of 64 bits beyond 2^53 (the key of an _id
+        // is the same after a reopening)
+        if (typeof value === "bigint")
+            return value >= -BigInt(PROMOTED_LONG) &&
+                value <= BigInt(PROMOTED_LONG)
+                ? Number(value)
+                : this.bson.Long.fromBigInt(value)
         if (value === null || typeof value !== "object") return value
         if (Array.isArray(value)) return value.map((item) => this.copy(item))
+        const prototype = Object.getPrototypeOf(value)
+        if (prototype === Object.prototype || prototype === null) {
+            const copied: EmbeddedDocument = {}
+            for (const key of Object.keys(value))
+                if (value[key] !== undefined) copied[key] = this.copy(value[key])
+            return copied
+        }
         if (value instanceof Date) return new Date(value.getTime())
         if (value instanceof Uint8Array)
             return new this.bson.Binary(Buffer.from(value))
@@ -32,21 +52,24 @@ export class EmbeddedValues {
                 Buffer.from(value.buffer),
                 value.sub_type,
             )
+        const type = value._bsontype
+        if (type === "Int32" || type === "Double") return value.valueOf()
         if (
-            typeof value._bsontype === "string" &&
-            !(value instanceof (this.bson[value._bsontype] ?? Object))
+            type === "Long" &&
+            value.greaterThanOrEqual(-PROMOTED_LONG) &&
+            value.lessThanOrEqual(PROMOTED_LONG)
+        )
+            return value.toNumber()
+        if (
+            typeof type === "string" &&
+            !(value instanceof (this.bson[type] ?? Object))
         )
             return this.bson.EJSON.deserialize(
                 this.bson.EJSON.serialize({ value: value }, { relaxed: false }),
                 { relaxed: false },
             ).value
-        const prototype = Object.getPrototypeOf(value)
         // ObjectId, Decimal128, Long... are not changed
-        if (prototype !== Object.prototype && prototype !== null) return value
-        const copied: EmbeddedDocument = {}
-        for (const key of Object.keys(value))
-            if (value[key] !== undefined) copied[key] = this.copy(value[key])
-        return copied
+        return value
     }
 
     /**
@@ -83,6 +106,15 @@ export class EmbeddedValues {
             return key
         }
         if (typeof id === "number") return this.numberKey(id)
+        // A Long beyond 2^53 that a number is exactly: the key of the number (MongoDB compares them by their values)
+        if (id?._bsontype === "Long") {
+            const number = id.toNumber()
+            if (
+                Math.abs(number) < 2 ** 63 &&
+                this.bson.Long.fromNumber(number).equals(id)
+            )
+                return this.numberKey(number)
+        }
         const text = Buffer.from(
             this.bson.EJSON.stringify(id, { relaxed: false }),
         )
