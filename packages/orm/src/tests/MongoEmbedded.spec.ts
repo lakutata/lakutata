@@ -247,6 +247,11 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
             const expected: Record<string, unknown>[] = await runner.cursor('plain', filter).toArray()
             assert.deepStrictEqual(ids(await runner.cursor('indexed', filter).toArray()), ids(expected), label)
             assert.strictEqual(await runner.countDocuments('indexed', filter), expected.length, label)
+            //The leading $match stages of an aggregation read by the indexes
+            for (const pipeline of [[{$match: filter}, {$count: 'n'}], [{$match: filter}, {$match: {n: {$gte: 100}}}, {$group: {_id: null, total: {$sum: '$n'}}}]]) {
+                const aggregated = async (name: string): Promise<unknown> => runner.aggregate(name, pipeline).toArray()
+                assert.deepStrictEqual(await aggregated('indexed'), await aggregated('plain'), `${label} ${JSON.stringify(pipeline)}`)
+            }
             const sorts: Record<string, 1 | -1>[] = [{v: 1}, {v: -1}, {w: 1}, {n: -1}]
             for (const sort of sorts) {
                 const options = (cursor: ReturnType<MongoQueryRunner['cursor']>): ReturnType<MongoQueryRunner['cursor']> => cursor.sort({...sort, n: 1}).skip(3).limit(10)

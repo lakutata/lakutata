@@ -332,17 +332,32 @@ export class EmbeddedCollection {
     }
 
     aggregate(pipeline: EmbeddedDocument[], options?: EmbeddedDocument) {
-        return new EmbeddedArrayCursor(async () =>
-            this.values.mingo.aggregate(await this.matching(), pipeline, {
-                ...options,
-                // The collections of $lookup, read at once
-                collectionResolver: (name: string) =>
-                    [
-                        ...(this.store.collection(name, false)?.documents() ??
-                            []),
-                    ].map((document) => this.values.copy(document)),
-            }),
-        )
+        return new EmbeddedArrayCursor(async () => {
+            // The leading $match stages: the filter of the documents read (by the indexes it may use), unless a
+            // collation or variables of the options change it
+            const filters: EmbeddedDocument[] = []
+            if (!options?.collation && !options?.let)
+                while (
+                    filters.length < pipeline.length &&
+                    this.isMatchStage(pipeline[filters.length])
+                )
+                    filters.push(pipeline[filters.length].$match)
+            return this.values.mingo.aggregate(
+                await this.matching(
+                    filters.length > 1 ? { $and: filters } : filters[0],
+                ),
+                pipeline.slice(filters.length),
+                {
+                    ...options,
+                    // The collections of $lookup, read at once
+                    collectionResolver: (name: string) =>
+                        [
+                            ...(this.store.collection(name, false)?.documents() ??
+                                []),
+                        ].map((document) => this.values.copy(document)),
+                },
+            )
+        })
     }
 
     async insertOne(document: EmbeddedDocument) {
@@ -731,6 +746,19 @@ export class EmbeddedCollection {
         if (value === null || typeof value !== "object") return false
         const prototype = Object.getPrototypeOf(value)
         return prototype === Object.prototype || prototype === null
+    }
+
+    /**
+     * Whether a stage of a pipeline is a $match of a filter, and nothing else.
+     *
+     * @param stage
+     */
+    protected isMatchStage(stage: any): boolean {
+        return (
+            this.isPlainObject(stage) &&
+            Object.keys(stage).length === 1 &&
+            this.isPlainObject(stage.$match)
+        )
     }
 
     /**
