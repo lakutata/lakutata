@@ -1,5 +1,6 @@
 import * as fs from "fs"
 import * as path from "path"
+import type { ResourceLimits } from "worker_threads"
 import { Worker } from "worker_threads"
 import { TypeORMError } from "../../error/TypeORMError"
 import { EmbeddedArrayCursor, EmbeddedResults } from "./EmbeddedClient"
@@ -383,11 +384,13 @@ export class EmbeddedWorkerClient {
      * @param directory the directory of the database, or ":memory:"
      * @param options
      * @param bson
+     * @param resourceLimits the limits of the worker thread, if any (the ones of this thread otherwise)
      */
     static async connect(
         directory: string | undefined,
         options: EmbeddedStoreOptions,
         bson: any,
+        resourceLimits?: ResourceLimits,
     ): Promise<EmbeddedWorkerClient> {
         if (!embeddedWorkerCode)
             throw new TypeORMError(
@@ -399,6 +402,7 @@ export class EmbeddedWorkerClient {
         const worker = new Worker(embeddedWorkerCode, {
             eval: true,
             workerData: { [WORKER_DATA_KEY]: data },
+            ...(resourceLimits ? { resourceLimits: resourceLimits } : {}),
         })
         const opened = await new Promise<EmbeddedReply>((resolve) => {
             const done = (reply: EmbeddedReply) => {

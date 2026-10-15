@@ -45,9 +45,12 @@ is twice the size of its live documents), and its indexes are written to a snaps
 when it is opened again. One process opens the directory: it is locked. The database runs in a worker thread (option
 `worker`, `true` by default): its queries, writes and files do not block the event loop of the application, their
 arguments and results crossing the threads in BSON (about 20 µs a call); the worker thread holds mingo and bson, bundled
-into the package. `worker: false` runs it in the thread of the application, where the JavaScript functions of the
-queries (`$where`, `$function`, `$accumulator`) also run. The long writes (`updateMany`, `deleteMany`, an index created
-on the documents there) are made in batches of 1000 documents, the event loop yielded between them; a write failing on a
+into the package. Its limits (`workerResourceLimits`, the `resourceLimits` of Node.js) are unset by default: it has the
+ones of the thread of the application (`--max-old-space-size`); exceeding them ends the worker thread, not the process,
+its calls failing and its directory unlocked (a heap of 256 MB or less may end the process on Node.js 24; Bun does not
+apply them). `worker: false` runs it in the thread of the application, where the JavaScript functions of the queries
+(`$where`, `$function`, `$accumulator`) also run. The long writes (`updateMany`, `deleteMany`, an index created on the
+documents there) are made in batches of 1000 documents, the event loop yielded between them; a write failing on a
 document leaves the documents before it written, as MongoDB does without a transaction. As with MongoDB, the relations,
 the query builders and the transactions of TypeORM are not supported, and the migrations are written by hand with the
 `MongoQueryRunner`, not generated. Its `ObjectId` and `Binary` are the ones of the CommonJS module of `bson`.

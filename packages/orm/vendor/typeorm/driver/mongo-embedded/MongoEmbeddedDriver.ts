@@ -43,6 +43,7 @@ export class MongoEmbeddedDriver extends MongoDriver {
                       options.database,
                       storeOptions,
                       this.embedded.bson,
+                      options.workerResourceLimits,
                   )
         this.queryRunner = new MongoQueryRunner(this.dataSource, client as any)
         ObjectUtils.assign(this.queryRunner, {

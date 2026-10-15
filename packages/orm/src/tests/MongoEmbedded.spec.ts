@@ -448,6 +448,19 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await assert.rejects(functions(true), /The functions of JavaScript of a query are not sent to the worker thread of mongo-embedded/)
     })
 
+    it('gives its worker thread the limits of the option workerResourceLimits, else the ones of this thread', async (): Promise<void> => {
+        const limitsOf = async (options: object): Promise<number> => {
+            const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', ...options}).initialize()
+            try {
+                return (dataSource.mongoManager.mongoQueryRunner.databaseConnection as unknown as {worker: {resourceLimits: {maxOldGenerationSizeMb: number}}}).worker.resourceLimits.maxOldGenerationSizeMb
+            } finally {
+                await dataSource.destroy()
+            }
+        }
+        assert.strictEqual(await limitsOf({workerResourceLimits: {maxOldGenerationSizeMb: 512}}), 512)
+        assert.ok(await limitsOf({}) > 512)
+    })
+
     it('fails the calls when its worker thread exits, its directory unlocked; it lets the process exit', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         const database: string = path.join(directory, 'exited')
         const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: database}).initialize()

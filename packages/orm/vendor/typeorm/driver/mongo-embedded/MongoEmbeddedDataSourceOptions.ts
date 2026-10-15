@@ -58,4 +58,35 @@ export interface MongoEmbeddedDataSourceOptions extends BaseDataSourceOptions {
      * @default true
      */
     readonly worker?: boolean
+
+    /**
+     * The limits of the worker thread (the resourceLimits of the workers of Node.js), unset by default: it has then the
+     * ones of the thread of the application (its heap the size of the option --max-old-space-size, or the default of
+     * V8). A worker thread exceeding them is ended, not the process: its calls fail, and its directory is unlocked, to
+     * be opened again. A maxOldGenerationSizeMb of 256 MB or less may end the whole process instead (Node.js 24 runs out
+     * of memory before it ends the worker thread); Bun does not apply them. Not used by the option worker false.
+     */
+    readonly workerResourceLimits?: {
+        /**
+         * The heap of the objects of the worker thread (its old generation), in MB.
+         */
+        readonly maxOldGenerationSizeMb?: number
+
+        /**
+         * The heap of the objects created recently (its young generation), in MB.
+         */
+        readonly maxYoungGenerationSizeMb?: number
+
+        /**
+         * The memory of the code compiled, in MB.
+         */
+        readonly codeRangeSizeMb?: number
+
+        /**
+         * The stack of the worker thread, in MB.
+         *
+         * @default 4
+         */
+        readonly stackSizeMb?: number
+    }
 }
