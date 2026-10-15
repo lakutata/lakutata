@@ -489,6 +489,26 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await assert.rejects(functions(true), /The functions of JavaScript of a query are not sent to the worker thread of mongo-embedded/)
     })
 
+    it('sends to its worker thread the calls and the results larger than the buffer of bson (17 MiB)', async (): Promise<void> => {
+        const dataSource: DataSource = await new DataSource({type: 'mongo-embedded'}).initialize()
+        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        const plain = (value: object): object => value
+        //An insertMany of 26 MB
+        await runner.insertMany('small', Array.from({length: 60000}, (_: unknown, n: number): object => ({n: n, text: 'x'.repeat(400)})))
+        assert.strictEqual(await runner.countDocuments('small', {}), 60000)
+        //Batches of 1000 documents of 20 KB (20 MB), read at once and a batch at a time
+        await runner.insertMany('large', Array.from({length: 1100}, (_: unknown, n: number): object => ({n: n, text: 'y'.repeat(20000)})))
+        assert.strictEqual((await runner.cursor('large', {}).toArray()).length, 1100)
+        let streamed: number = 0
+        for await (const document of runner.cursor('large', {})) streamed += document.text.length === 20000 ? 1 : 0
+        assert.strictEqual(streamed, 1100)
+        //A filter of 20 MB
+        await runner.insertMany('keyed', Array.from({length: 10}, (_: unknown, n: number): object => plain({_id: `value-${String(n * 7).padStart(7, '0')}`})))
+        const keys: string[] = Array.from({length: 800000}, (_: unknown, n: number): string => `value-${String(n).padStart(7, '0')}`)
+        assert.strictEqual(await runner.countDocuments('keyed', plain({_id: {$in: keys}})), 10)
+        await dataSource.destroy()
+    })
+
     it('gives its worker thread the limits of the option workerResourceLimits, else the ones of this thread', async (): Promise<void> => {
         const limitsOf = async (options: object): Promise<number> => {
             const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', ...options}).initialize()

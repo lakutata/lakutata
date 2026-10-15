@@ -29,6 +29,10 @@ export interface EmbeddedWorkerData {
  */
 export interface EmbeddedRequest {
     id: number
+    /**
+     * The documents of an insertMany (its first argument), each one in BSON (encodeDocuments).
+     */
+    documents?: Uint8Array
     op:
         | "collection"
         | "db"
@@ -43,7 +47,7 @@ export interface EmbeddedRequest {
 
 /**
  * lakutata: the reply of the worker thread to a call (the id 0 is the one of its opening): its result in BSON
- * ({ result }), the documents of a find or an aggregation in batches of BSON ({ documents }), the id of a cursor and
+ * ({ result }), the documents of a find or an aggregation in batches (encodeDocuments), the id of a cursor and
  * whether it is read to its end, or its error.
  */
 export interface EmbeddedReply {
@@ -113,6 +117,64 @@ export const DB_METHODS = new Set(["dropDatabase", "dropCollection"])
 export const SERIALIZE_OPTIONS = { ignoreUndefined: true }
 
 /**
+ * lakutata: the size of the internal buffer of bson, the most it serializes by default.
+ */
+const BSON_BUFFER = 17 * 1024 * 1024
+
+/**
+ * lakutata: a value in BSON. One larger than the internal buffer of bson (17 MiB) is serialized with a buffer of its
+ * size (bson keeps it then): the documents are encoded one at a time (encodeDocuments), each of them smaller.
+ *
+ * @param bson
+ * @param value
+ */
+export function encode(bson: any, value: EmbeddedDocument): Uint8Array {
+    try {
+        return bson.serialize(value, SERIALIZE_OPTIONS)
+    } catch (error) {
+        const size = bson.calculateObjectSize(value, SERIALIZE_OPTIONS)
+        if (size <= BSON_BUFFER) throw error
+        return bson.serialize(value, {
+            ...SERIALIZE_OPTIONS,
+            minInternalBufferSize: size,
+        })
+    }
+}
+
+/**
+ * lakutata: documents in BSON, one after the other.
+ *
+ * @param bson
+ * @param documents
+ */
+export function encodeDocuments(
+    bson: any,
+    documents: EmbeddedDocument[],
+): Uint8Array {
+    return Buffer.concat(documents.map((document) => encode(bson, document)))
+}
+
+/**
+ * lakutata: the documents of encodeDocuments.
+ *
+ * @param bson
+ * @param bytes
+ */
+export function decodeDocuments(
+    bson: any,
+    bytes: Uint8Array,
+): EmbeddedDocument[] {
+    const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+    const documents: EmbeddedDocument[] = []
+    for (let at = 0; at < buffer.length; ) {
+        const size = buffer.readInt32LE(at)
+        documents.push(bson.deserialize(buffer.subarray(at, at + size)))
+        at += size
+    }
+    return documents
+}
+
+/**
  * lakutata: an error of the worker thread, to send to the main thread.
  *
  * @param bson
@@ -125,8 +187,7 @@ export function describeError(bson: any, error: any): EmbeddedWorkerError {
             if (key !== "message" && key !== "stack") fields[key] = error[key]
     let serialized: Uint8Array | undefined
     try {
-        if (Object.keys(fields).length)
-            serialized = bson.serialize(fields, SERIALIZE_OPTIONS)
+        if (Object.keys(fields).length) serialized = encode(bson, fields)
     } catch {
         // Fields that BSON does not hold: the name and the message only
     }

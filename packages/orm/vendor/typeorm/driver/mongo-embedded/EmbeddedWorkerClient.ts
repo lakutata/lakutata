@@ -17,8 +17,10 @@ import type {
     EmbeddedWorkerData,
 } from "./EmbeddedWorkerProtocol"
 import {
+    decodeDocuments,
+    encode,
+    encodeDocuments,
     errorOf,
-    SERIALIZE_OPTIONS,
     WORKER_DATA_KEY,
 } from "./EmbeddedWorkerProtocol"
 
@@ -191,7 +193,12 @@ export class EmbeddedWorkerCollection {
     async insertMany(documents: EmbeddedDocument[]) {
         for (const document of documents)
             document._id ??= new this.client.bson.ObjectId()
-        return this.call("insertMany", [documents])
+        // The documents encoded one at a time (each of them smaller than the internal buffer of bson)
+        return this.client.call(
+            "collection",
+            { collection: this.collectionName, method: "insertMany", args: [] },
+            encodeDocuments(this.client.bson, documents),
+        )
     }
 
     async countDocuments(...args: any[]) {
@@ -456,15 +463,14 @@ export class EmbeddedWorkerClient {
      *
      * @param op
      * @param call the arguments of the call
+     * @param documents the documents of an insertMany (encodeDocuments)
      */
     async call(
         op: EmbeddedRequest["op"],
         call: EmbeddedDocument,
+        documents?: Uint8Array,
     ): Promise<any> {
-        const reply = await this.request(
-            op,
-            this.bson.serialize(call, SERIALIZE_OPTIONS),
-        )
+        const reply = await this.request(op, encode(this.bson, call), documents)
         if (reply.error) throw errorOf(this.bson, reply.error)
         return reply.payload
             ? this.bson.deserialize(reply.payload).result
@@ -483,15 +489,12 @@ export class EmbeddedWorkerClient {
         call: EmbeddedDocument,
     ): Promise<EmbeddedDocument[]> {
         assertNoFunction(op === "find" ? [call.query, call.projection, call.sort] : [call.pipeline, call.options])
-        const reply = await this.request(
-            op,
-            this.bson.serialize(call, SERIALIZE_OPTIONS),
-        )
+        const reply = await this.request(op, encode(this.bson, call))
         if (reply.error) throw errorOf(this.bson, reply.error)
         const documents: EmbeddedDocument[] = []
         for (const [position, batch] of (reply.batches ?? []).entries()) {
             if (position) await yieldLoop()
-            for (const document of this.bson.deserialize(batch).documents)
+            for (const document of decodeDocuments(this.bson, batch))
                 documents.push(document)
         }
         return documents
@@ -505,16 +508,13 @@ export class EmbeddedWorkerClient {
      */
     async *streamed(call: EmbeddedDocument): AsyncGenerator<EmbeddedDocument[]> {
         assertNoFunction([call.query, call.projection, call.sort])
-        let reply = await this.request(
-            "open",
-            this.bson.serialize(call, SERIALIZE_OPTIONS),
-        )
+        let reply = await this.request("open", encode(this.bson, call))
         let ended = false
         try {
             for (;;) {
                 if (reply.error) throw errorOf(this.bson, reply.error)
                 for (const batch of reply.batches ?? [])
-                    yield this.bson.deserialize(batch).documents
+                    yield decodeDocuments(this.bson, batch)
                 if (reply.done || reply.cursor === undefined) {
                     ended = true
                     return
@@ -555,10 +555,12 @@ export class EmbeddedWorkerClient {
      *
      * @param op
      * @param payload
+     * @param documents the documents of an insertMany (encodeDocuments)
      */
     protected request(
         op: EmbeddedRequest["op"],
         payload?: Uint8Array,
+        documents?: Uint8Array,
     ): Promise<EmbeddedReply> {
         if (this.failure)
             return Promise.resolve({
@@ -573,7 +575,12 @@ export class EmbeddedWorkerClient {
             this.calls.set(id, resolve)
             // The worker thread keeps the process running while a call waits for it
             if (this.calls.size === 1) this.worker.ref()
-            const request: EmbeddedRequest = { id: id, op: op, payload: payload }
+            const request: EmbeddedRequest = {
+                id: id,
+                op: op,
+                payload: payload,
+                documents: documents,
+            }
             this.worker.postMessage(request)
         })
     }

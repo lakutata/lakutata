@@ -14,9 +14,11 @@ import type {
 import {
     COLLECTION_METHODS,
     DB_METHODS,
+    decodeDocuments,
     describeError,
+    encode,
+    encodeDocuments,
     REPLY_BATCH,
-    SERIALIZE_OPTIONS,
     WORKER_DATA_KEY,
 } from "./EmbeddedWorkerProtocol"
 
@@ -37,10 +39,7 @@ async function batchesOf(documents: EmbeddedDocument[]): Promise<Uint8Array[]> {
     for (let start = 0; start < documents.length; start += REPLY_BATCH) {
         if (start) await yieldLoop()
         batches.push(
-            bson.serialize(
-                { documents: documents.slice(start, start + REPLY_BATCH) },
-                SERIALIZE_OPTIONS,
-            ),
+            encodeDocuments(bson, documents.slice(start, start + REPLY_BATCH)),
         )
     }
     return batches
@@ -102,9 +101,7 @@ async function more(id: number, request: EmbeddedRequest): Promise<EmbeddedReply
         id: request.id,
         cursor: id,
         done: false,
-        batches: [
-            bson.serialize({ documents: result.value }, SERIALIZE_OPTIONS),
-        ],
+        batches: [encodeDocuments(bson, result.value)],
     }
 }
 
@@ -128,11 +125,11 @@ async function handle(
                     `${call.method} is not a method of the collections of mongo-embedded`,
                 )
             const collection: any = client.db().collection(call.collection)
-            const result = await collection[call.method](...call.args)
-            return {
-                id: request.id,
-                payload: bson.serialize({ result: result }, SERIALIZE_OPTIONS),
-            }
+            const args = request.documents
+                ? [decodeDocuments(bson, request.documents), ...call.args]
+                : call.args
+            const result = await collection[call.method](...args)
+            return { id: request.id, payload: encode(bson, { result: result }) }
         }
         case "db": {
             if (!DB_METHODS.has(call.method))
@@ -141,10 +138,7 @@ async function handle(
                 )
             const db: any = client.db()
             const result = await db[call.method](...call.args)
-            return {
-                id: request.id,
-                payload: bson.serialize({ result: result }, SERIALIZE_OPTIONS),
-            }
+            return { id: request.id, payload: encode(bson, { result: result }) }
         }
         case "find":
         case "open": {
