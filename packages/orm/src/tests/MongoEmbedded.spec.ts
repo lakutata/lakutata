@@ -261,6 +261,48 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
+    it('finds, updates and deletes by the _id alone the documents mingo tests', async (): Promise<void> => {
+        const dataSource: DataSource = await new DataSource({type: 'mongo-embedded'}).initialize()
+        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        const objectId: BSON.ObjectId = new bson.ObjectId()
+        const stored: unknown[] = ['a', '', '1', 1, 2.5, 0, NaN, objectId, new Date(0), true, {x: 1}]
+        const documents = (): object[] => stored.map((id: unknown, index: number): object => ({_id: id, n: index}))
+        //The filters of the _id alone, and the same filters in an $and (tested by mingo)
+        await runner.insertMany('alone', documents())
+        await runner.insertMany('tested', documents())
+        const queried: unknown[] = [...stored, -0, '2.5', 2, new bson.ObjectId(), new BSON.ObjectId(objectId.toHexString()), objectId.toHexString(), new Date(0), {x: 1}]
+        const ns = (found: Record<string, unknown>[]): unknown[] => found.map((document: Record<string, unknown>): unknown => document.n)
+        const alone = (id: unknown): object => ({_id: id})
+        const tested = (id: unknown): object => ({$and: [{_id: id}]})
+        for (const id of queried) {
+            const label: string = String(id)
+            assert.deepStrictEqual(ns(await runner.cursor('alone', alone(id)).toArray()), ns(await runner.cursor('tested', tested(id)).toArray()), label)
+            assert.deepStrictEqual(await runner.countDocuments('alone', alone(id)), await runner.countDocuments('tested', tested(id)), label)
+            const update = async (name: string, filter: object): Promise<unknown> => {
+                const {matchedCount, modifiedCount} = await runner.updateOne(name, filter, {$inc: {hits: 1}}) as Record<string, unknown>
+                return [matchedCount, modifiedCount]
+            }
+            assert.deepStrictEqual(await update('alone', alone(id)), await update('tested', tested(id)), label)
+        }
+        const all = async (name: string): Promise<unknown[]> => (await runner.cursor(name, {}).toArray()).sort((a: Record<string, number>, b: Record<string, number>): number => a.n - b.n)
+        assert.deepStrictEqual(await all('alone'), await all('tested'))
+        //The documents found are copies
+        const [found] = await runner.cursor('alone', alone('a')).toArray()
+        found.n = -1
+        assert.strictEqual((await runner.cursor('alone', alone('a')).toArray())[0].n, 0)
+        //Without an order: the skip and the limit cut the documents in their order, the projection applied
+        const order: unknown[] = ns(await runner.cursor('alone', {}).toArray())
+        for (const [skip, limit] of [[0, 0], [0, 3], [2, 0], [2, 3], [10, 5], [20, 1]])
+            assert.deepStrictEqual(ns(await runner.cursor('alone', {}).skip(skip).limit(limit).toArray()), order.slice(skip, limit ? skip + limit : undefined), `${skip} ${limit}`)
+        assert.deepStrictEqual(await runner.cursor('alone', alone('a')).project({_id: 0, n: 1}).toArray(), [{n: 0}])
+        for (const id of queried) {
+            const {deletedCount} = await runner.deleteOne('tested', tested(id))
+            assert.strictEqual((await runner.deleteOne('alone', alone(id))).deletedCount, deletedCount, String(id))
+        }
+        assert.deepStrictEqual(await all('alone'), await all('tested'))
+        await dataSource.destroy()
+    })
+
     it('caches the documents: the ones given are copies, the cache of 0 bytes reads its files', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         for (const cacheSize of [undefined, 0]) {
             const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: path.join(directory, `cache-${cacheSize}`), cacheSize: cacheSize, entities: [Post], synchronize: true}).initialize()

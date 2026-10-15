@@ -176,6 +176,20 @@ export class EmbeddedFindCursor extends EmbeddedResults {
                 : Infinity,
             false,
         )
+        // Without an order, a skip and a limit of counts (integers, not negative) cut the documents found, in their
+        // order: mingo is not needed
+        if (
+            !this.order &&
+            Number.isInteger(this.skipped) &&
+            this.skipped >= 0 &&
+            Number.isInteger(this.limited) &&
+            this.limited >= 0
+        )
+            return this.projected(
+                matches
+                    .slice(this.skipped)
+                    .map((document) => values.copy(document)),
+            )
         let cursor = values.mingo.find(matches, {})
         if (this.order) cursor = cursor.sort(this.order)
         if (this.skipped) cursor = cursor.skip(this.skipped)
@@ -237,6 +251,14 @@ export class EmbeddedCollection {
         copy = true,
     ): Promise<EmbeddedDocument[]> {
         const filter = this.values.copy(query ?? {})
+        // A filter of the _id alone: the document of its key, not tested by mingo when its _id is the value itself
+        const id = this.idOf(filter)
+        if (id !== undefined) {
+            const document = this.collection()?.get(this.values.idKey(id))
+            if (!document || limit <= 0) return []
+            if (this.isId(document._id, id))
+                return [copy ? this.values.copy(document) : document]
+        }
         const matcher = new this.values.mingo.Query(filter)
         const documents: EmbeddedDocument[] = []
         if (limit <= 0) return documents
@@ -612,9 +634,43 @@ export class EmbeddedCollection {
         found: EmbeddedDocument,
     ): EmbeddedDocument | undefined {
         const current = collection.get(this.values.idKey(found._id))
-        return current && new this.values.mingo.Query(filter).test(current)
+        if (!current) return undefined
+        const id = this.idOf(filter)
+        if (id !== undefined && this.isId(current._id, id)) return current
+        return new this.values.mingo.Query(filter).test(current)
             ? current
             : undefined
+    }
+
+    /**
+     * The value of a filter of the _id alone, when it is a string, a number or an ObjectId (the documents it matches
+     * are the one of the key of that value); undefined for the other filters.
+     *
+     * @param filter
+     */
+    protected idOf(filter: EmbeddedDocument): any {
+        let fields = 0
+        for (const _ in filter) if (++fields > 1) return undefined
+        const id = filter._id
+        return typeof id === "string" ||
+            typeof id === "number" ||
+            id instanceof this.values.bson.ObjectId
+            ? id
+            : undefined
+    }
+
+    /**
+     * Whether the _id of a document is the value of a filter of the _id alone itself (the filter matches it then):
+     * the same string or number, or an ObjectId of the same bytes.
+     *
+     * @param documentId
+     * @param id the value of the filter, given by idOf()
+     */
+    protected isId(documentId: any, id: any): boolean {
+        return typeof id === "object"
+            ? documentId instanceof this.values.bson.ObjectId &&
+                  documentId.equals(id)
+            : documentId === id
     }
 
     /**
