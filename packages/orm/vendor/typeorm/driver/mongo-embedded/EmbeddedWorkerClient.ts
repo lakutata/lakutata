@@ -3,7 +3,11 @@ import * as path from "path"
 import type { ResourceLimits } from "worker_threads"
 import { Worker } from "worker_threads"
 import { TypeORMError } from "../../error/TypeORMError"
-import { EmbeddedArrayCursor, EmbeddedResults } from "./EmbeddedClient"
+import {
+    EmbeddedArrayCursor,
+    EmbeddedResults,
+    isStreamed,
+} from "./EmbeddedClient"
 import type { EmbeddedStoreOptions } from "./EmbeddedStore"
 import type { EmbeddedDocument } from "./EmbeddedValues"
 import { embeddedWorkerCode } from "./EmbeddedWorkerCode"
@@ -111,14 +115,24 @@ export class EmbeddedWorkerFindCursor extends EmbeddedResults {
     }
 
     protected documents(): Promise<EmbeddedDocument[]> {
-        return this.collection.client.documents("find", {
+        return this.collection.client.documents("find", this.call())
+    }
+
+    protected batches(): AsyncIterator<EmbeddedDocument[]> | undefined {
+        return isStreamed(this.order, this.skipped, this.limited)
+            ? this.collection.client.streamed(this.call())
+            : undefined
+    }
+
+    protected call(): EmbeddedDocument {
+        return {
             collection: this.collection.collectionName,
             query: this.query,
             projection: this.projection,
             sort: this.order,
             skip: this.skipped,
             limit: this.limited,
-        })
+        }
     }
 }
 
@@ -481,6 +495,42 @@ export class EmbeddedWorkerClient {
                 documents.push(document)
         }
         return documents
+    }
+
+    /**
+     * The documents of a find read a batch at a time: a cursor of the worker thread, read as they are asked (closed
+     * at its end, or when the stream is closed before it).
+     *
+     * @param call the arguments of the find
+     */
+    async *streamed(call: EmbeddedDocument): AsyncGenerator<EmbeddedDocument[]> {
+        assertNoFunction([call.query, call.projection, call.sort])
+        let reply = await this.request(
+            "open",
+            this.bson.serialize(call, SERIALIZE_OPTIONS),
+        )
+        let ended = false
+        try {
+            for (;;) {
+                if (reply.error) throw errorOf(this.bson, reply.error)
+                for (const batch of reply.batches ?? [])
+                    yield this.bson.deserialize(batch).documents
+                if (reply.done || reply.cursor === undefined) {
+                    ended = true
+                    return
+                }
+                reply = await this.request(
+                    "more",
+                    this.bson.serialize({ cursor: reply.cursor }),
+                )
+            }
+        } finally {
+            if (!ended && reply.cursor !== undefined)
+                void this.request(
+                    "kill",
+                    this.bson.serialize({ cursor: reply.cursor }),
+                )
+        }
     }
 
     /**

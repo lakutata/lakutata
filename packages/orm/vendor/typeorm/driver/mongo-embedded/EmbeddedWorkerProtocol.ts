@@ -22,22 +22,36 @@ export interface EmbeddedWorkerData {
  *  - "db": a method of the database ({ method, args })
  *  - "find": the documents of a find ({ collection, query, projection, sort, skip, limit })
  *  - "aggregate": the documents of an aggregation ({ collection, pipeline, options })
+ *  - "open": a cursor of a find read a batch at a time, and its first batch (as "find")
+ *  - "more": the next batch of a cursor ({ cursor })
+ *  - "kill": the closing of a cursor ({ cursor })
  *  - "close": the closing of the database
  */
 export interface EmbeddedRequest {
     id: number
-    op: "collection" | "db" | "find" | "aggregate" | "close"
+    op:
+        | "collection"
+        | "db"
+        | "find"
+        | "aggregate"
+        | "open"
+        | "more"
+        | "kill"
+        | "close"
     payload?: Uint8Array
 }
 
 /**
  * lakutata: the reply of the worker thread to a call (the id 0 is the one of its opening): its result in BSON
- * ({ result }), the documents of a find or an aggregation in batches of BSON ({ documents }), or its error.
+ * ({ result }), the documents of a find or an aggregation in batches of BSON ({ documents }), the id of a cursor and
+ * whether it is read to its end, or its error.
  */
 export interface EmbeddedReply {
     id: number
     payload?: Uint8Array
     batches?: Uint8Array[]
+    cursor?: number
+    done?: boolean
     error?: EmbeddedWorkerError
 }
 

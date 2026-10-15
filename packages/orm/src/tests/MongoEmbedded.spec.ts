@@ -555,6 +555,73 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         assert.strictEqual(output, 'written 1')
     }))
 
+    it('reads a cursor a batch at a time with next(): the documents of toArray(), closed at its end or when it is closed', async (): Promise<void> => {
+        for (const worker of [true, false]) {
+            const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', worker: worker, entities: [Post], synchronize: true}).initialize()
+            const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+            await runner.insertMany('items', Array.from({length: 2500}, (_: unknown, n: number): object => ({n: n, odd: n % 2 === 1})))
+            const ns = (documents: Record<string, unknown>[]): unknown[] => documents.map((document: Record<string, unknown>): unknown => document.n)
+            const all: unknown[] = ns(await runner.cursor('items', {}).toArray())
+            const streamed: unknown[] = []
+            for await (const document of runner.cursor('items', {})) streamed.push(document.n)
+            assert.deepStrictEqual(streamed, all, `for await (worker ${worker})`)
+            //A filter, a skip, a limit of more than a batch, a projection
+            const chained = (): ReturnType<MongoQueryRunner['cursor']> => runner.cursor('items', {odd: true}).skip(10).limit(1100).project({_id: 0, n: 1})
+            const read: unknown[] = []
+            const cursor = chained()
+            while (await cursor.hasNext()) read.push(await cursor.next())
+            assert.deepStrictEqual(read, await chained().toArray(), `hasNext (worker ${worker})`)
+            assert.strictEqual(read.length, 1100)
+            //toArray() after next(): the documents not given yet
+            const partly = runner.cursor('items', {})
+            const first: unknown[] = ns([await partly.next(), await partly.next()])
+            assert.deepStrictEqual([...first, ...ns(await partly.toArray())], all, `toArray after next (worker ${worker})`)
+            //Closed before its end
+            const closed = runner.cursor('items', {})
+            await closed.next()
+            await closed.close()
+            assert.strictEqual(await closed.next(), null)
+            //The entities of TypeORM
+            const posts: MongoRepository<Post> = dataSource.getMongoRepository(Post)
+            await savePosts(posts)
+            const titles: string[] = []
+            for await (const post of posts.createEntityCursor()) titles.push(post instanceof Post ? post.title : 'not a Post')
+            assert.deepStrictEqual(titles.sort(), ['hello', 'third', 'world'], `entities (worker ${worker})`)
+            await dataSource.destroy()
+        }
+    })
+
+    it('holds the compaction of a collection while a cursor reads it; a cursor not read for 10 minutes is closed', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: path.join(directory, 'held'), worker: false, compaction: {minimumSize: 64 * 1024, ratio: 2}}).initialize()
+        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        type Collection = {compacting?: Promise<void>, scans: Set<{read: number}>, file: {size: number}}
+        const collectionOf = (): Collection => (runner.databaseConnection as unknown as {store: {collection(name: string, create: boolean): Collection}}).store.collection('items', false)
+        await runner.insertMany('items', Array.from({length: 3000}, (_: unknown, n: number): object => ({n: n, text: 'x'.repeat(100)})))
+        await runner.createCollectionIndex('items', {n: 1}, {name: 'n'})
+        //Rewritten by the index (no scan) while a cursor reads: not compacted
+        const rewrite = async (): Promise<unknown> => runner.updateMany('items', {n: {$gte: 0}}, {$inc: {version: 1}}, {})
+        const cursor = runner.cursor('items', {})
+        await cursor.next()
+        for (let rewritten = 0; rewritten < 4; rewritten++) await rewrite()
+        assert.ok(!collectionOf().compacting, 'not compacted while the cursor reads')
+        const size: number = collectionOf().file.size
+        //Read to its end: the compaction starts
+        let read: number = 1
+        while (await cursor.next()) read++
+        assert.strictEqual(read, 3000)
+        await collectionOf().compacting
+        assert.ok(collectionOf().file.size < size, 'compacted once the cursor ended')
+        //A cursor not read for 10 minutes: the compaction starts, the cursor is closed
+        const idle = runner.cursor('items', {})
+        await idle.next()
+        for (const scan of collectionOf().scans) scan.read -= 11 * 60 * 1000
+        for (let rewritten = 0; !collectionOf().compacting && rewritten < 20; rewritten++) await rewrite()
+        assert.ok(collectionOf().compacting, 'compacted')
+        await collectionOf().compacting
+        await assert.rejects(idle.toArray(), /The cursor of mongo-embedded is closed: it was not read for 10 minutes/)
+        await dataSource.destroy()
+    }))
+
     it('stores the numbers of BSON as BSON reads them: their _id the same keys after a reopening', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         const database: string = path.join(directory, 'numbers')
         const reopen = async (): Promise<[DataSource, MongoQueryRunner]> => {

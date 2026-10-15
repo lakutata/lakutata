@@ -58,6 +58,21 @@ export interface EmbeddedChange {
 }
 
 /**
+ * lakutata: a scan of the file of a collection running: when it read last, and whether it is closed (a compaction
+ * began after it was not read for SCAN_TIMEOUT).
+ */
+export interface EmbeddedScan {
+    read: number
+    closed: boolean
+}
+
+/**
+ * lakutata: the time after which a scan not read any more (a cursor not read nor closed) lets its collection be
+ * compacted, the scan closed (10 minutes, the timeout of the cursors of MongoDB).
+ */
+export const SCAN_TIMEOUT = 10 * 60 * 1000
+
+/**
  * lakutata: a record of an operation being recovered.
  */
 interface PendingRecord {
@@ -138,6 +153,12 @@ export class EmbeddedCollectionStore {
      * The build of an index running: the writes of the collection wait for it.
      */
     building?: Promise<void>
+
+    /**
+     * The scans of its file running: it is not compacted while one of them read in the last SCAN_TIMEOUT (a scan reads
+     * the files of a compaction as they are when it begins).
+     */
+    readonly scans = new Set<EmbeddedScan>()
 
     /**
      * The offset of its file its snapshot is the state of (0 without a snapshot).
@@ -738,6 +759,19 @@ export class EmbeddedCollectionStore {
         this.trees.delete(name)
         this.multikey.delete(name)
         return true
+    }
+
+    /**
+     * Whether a scan of its file read in the last SCAN_TIMEOUT; else its scans are closed (their next read fails).
+     *
+     * @param now
+     */
+    isScanned(now = Date.now()): boolean {
+        for (const scan of this.scans)
+            if (now - scan.read < SCAN_TIMEOUT) return true
+        for (const scan of this.scans) scan.closed = true
+        this.scans.clear()
+        return false
     }
 
     /**

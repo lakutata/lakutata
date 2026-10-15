@@ -4,6 +4,7 @@ import type { MessagePort } from "worker_threads"
 import { parentPort, workerData } from "worker_threads"
 import { TypeORMError } from "../../error/TypeORMError"
 import { EmbeddedClient } from "./EmbeddedClient"
+import { SCAN_TIMEOUT } from "./EmbeddedCollectionStore"
 import type { EmbeddedDocument } from "./EmbeddedValues"
 import type {
     EmbeddedReply,
@@ -46,6 +47,68 @@ async function batchesOf(documents: EmbeddedDocument[]): Promise<Uint8Array[]> {
 }
 
 /**
+ * lakutata: a cursor of the worker thread read a batch at a time, closed when it is not read for SCAN_TIMEOUT (as
+ * MongoDB closes them).
+ */
+interface Cursor {
+    batches: AsyncIterator<EmbeddedDocument[]>
+    timer?: ReturnType<typeof setTimeout>
+}
+
+const cursors = new Map<number, Cursor>()
+
+let nextCursor = 1
+
+/**
+ * lakutata: closes a cursor of the worker thread.
+ *
+ * @param id
+ */
+function kill(id: number): void {
+    const cursor = cursors.get(id)
+    if (!cursor) return
+    cursors.delete(id)
+    clearTimeout(cursor.timer)
+    void cursor.batches.return?.()?.catch(() => {})
+}
+
+/**
+ * lakutata: the next batch of a cursor of the worker thread, the cursor closed at its end.
+ *
+ * @param id
+ * @param request
+ */
+async function more(id: number, request: EmbeddedRequest): Promise<EmbeddedReply> {
+    const cursor = cursors.get(id)
+    if (!cursor)
+        throw new TypeORMError(
+            `The cursor of mongo-embedded is closed: it was not read for ${SCAN_TIMEOUT / 60000} minutes`,
+        )
+    clearTimeout(cursor.timer)
+    let result: IteratorResult<EmbeddedDocument[]>
+    try {
+        result = await cursor.batches.next()
+    } catch (error) {
+        kill(id)
+        throw error
+    }
+    if (result.done) {
+        kill(id)
+        return { id: request.id, cursor: id, done: true, batches: [] }
+    }
+    cursor.timer = setTimeout(() => kill(id), SCAN_TIMEOUT)
+    cursor.timer.unref?.()
+    return {
+        id: request.id,
+        cursor: id,
+        done: false,
+        batches: [
+            bson.serialize({ documents: result.value }, SERIALIZE_OPTIONS),
+        ],
+    }
+}
+
+/**
  * lakutata: the reply of the worker thread to a call of the main thread.
  *
  * @param client
@@ -83,7 +146,8 @@ async function handle(
                 payload: bson.serialize({ result: result }, SERIALIZE_OPTIONS),
             }
         }
-        case "find": {
+        case "find":
+        case "open": {
             const cursor = client
                 .db()
                 .collection(call.collection)
@@ -92,11 +156,21 @@ async function handle(
             if (call.sort) cursor.sort(call.sort)
             if (call.skip !== undefined) cursor.skip(call.skip)
             if (call.limit !== undefined) cursor.limit(call.limit)
-            return {
-                id: request.id,
-                batches: await batchesOf(await cursor.toArray()),
-            }
+            const batches = request.op === "open" && cursor.streamedBatches()
+            if (!batches)
+                return {
+                    id: request.id,
+                    batches: await batchesOf(await cursor.toArray()),
+                }
+            const id = nextCursor++
+            cursors.set(id, { batches: batches })
+            return more(id, request)
         }
+        case "more":
+            return more(call.cursor, request)
+        case "kill":
+            kill(call.cursor)
+            return { id: request.id }
         case "aggregate":
             return {
                 id: request.id,

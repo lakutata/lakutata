@@ -4,6 +4,7 @@ import type {
     EmbeddedCollectionStore,
     EmbeddedIndex,
 } from "./EmbeddedCollectionStore"
+import { SCAN_TIMEOUT } from "./EmbeddedCollectionStore"
 import { EmbeddedPlanner } from "./EmbeddedPlanner"
 import type { EmbeddedStoreOptions } from "./EmbeddedStore"
 import { EmbeddedStore } from "./EmbeddedStore"
@@ -208,32 +209,78 @@ async function* batches(
 }
 
 /**
+ * lakutata: whether the documents of a find are read a batch at a time by next() (a stream): without an order (its
+ * documents are sorted together), with a skip and a limit of counts, the limit none or more than a batch (a few
+ * documents are read at once, by their _id or an index).
+ *
+ * @param order
+ * @param skipped
+ * @param limited
+ */
+export function isStreamed(
+    order: EmbeddedDocument | undefined,
+    skipped: number | undefined,
+    limited: number | undefined,
+): boolean {
+    const skip = skipped ?? 0
+    const limit = limited ?? 0
+    return (
+        !order &&
+        Number.isInteger(skip) &&
+        skip >= 0 &&
+        Number.isInteger(limit) &&
+        (limit === 0 || limit > YIELD_EVERY)
+    )
+}
+
+/**
  * lakutata: the results of a query of an embedded collection, read with the API of the cursors of MongoDB. TypeORM
- * sets their transform, applied to each document read.
+ * sets their transform, applied to each document read. toArray() reads them at once; next() reads them a batch at a
+ * time when they stream (batches()), else at once; toArray() after next() gives the ones not given yet.
  */
 export abstract class EmbeddedResults {
     transform?: (document: EmbeddedDocument) => any
 
+    /**
+     * The documents read and not given yet (transformed), none before a read.
+     */
     protected buffer?: any[]
 
+    /**
+     * The batches of the documents not read yet, while they stream.
+     */
+    protected stream?: AsyncIterator<EmbeddedDocument[]>
+
     async toArray(): Promise<any[]> {
-        const documents = await this.read()
+        if (this.buffer === undefined) {
+            const documents = await this.read()
+            this.buffer = []
+            return documents
+        }
+        const documents = this.buffer
         this.buffer = []
+        while (this.stream) {
+            const batch = await this.nextBatch()
+            if (batch) for (const document of batch) documents.push(document)
+        }
         return documents
     }
 
     async next(): Promise<any | null> {
-        this.buffer ??= await this.read()
-        return this.buffer.shift() ?? null
+        await this.fill()
+        return this.buffer!.shift() ?? null
     }
 
     async hasNext(): Promise<boolean> {
-        this.buffer ??= await this.read()
-        return this.buffer.length > 0
+        await this.fill()
+        return this.buffer!.length > 0
     }
 
     async close(): Promise<void> {
         this.buffer = []
+        const stream = this.stream
+        this.stream = undefined
+        await stream?.return?.()
     }
 
     async *[Symbol.asyncIterator](): AsyncGenerator<any> {
@@ -249,6 +296,41 @@ export abstract class EmbeddedResults {
         return this.transform
             ? documents.map((document) => this.transform!(document))
             : documents
+    }
+
+    /**
+     * Reads documents not given yet, unless they are all read: the stream begun at the first read.
+     */
+    protected async fill(): Promise<void> {
+        if (this.buffer === undefined) {
+            this.stream = this.batches()
+            this.buffer = this.stream ? [] : await this.read()
+        }
+        while (!this.buffer.length && this.stream) {
+            const batch = await this.nextBatch()
+            if (batch) this.buffer = batch
+        }
+    }
+
+    /**
+     * The next batch of the stream, transformed; undefined once it ended.
+     */
+    protected async nextBatch(): Promise<any[] | undefined> {
+        const result = await this.stream!.next()
+        if (result.done) {
+            this.stream = undefined
+            return undefined
+        }
+        return this.transform
+            ? result.value.map((document) => this.transform!(document))
+            : result.value
+    }
+
+    /**
+     * The batches of the documents read by next(), when they stream; undefined when they are read at once.
+     */
+    protected batches(): AsyncIterator<EmbeddedDocument[]> | undefined {
+        return undefined
     }
 
     /**
@@ -356,6 +438,41 @@ export class EmbeddedFindCursor extends EmbeddedResults {
                   .find(documents, {}, this.projection)
                   .all()
             : documents
+    }
+
+    /**
+     * The batches of its documents (copies, projected), read as they are asked when they stream (isStreamed); the
+     * documents written while they are read may be read (a document updated, again).
+     */
+    streamedBatches(): AsyncIterator<EmbeddedDocument[]> | undefined {
+        return this.batches()
+    }
+
+    protected batches(): AsyncIterator<EmbeddedDocument[]> | undefined {
+        return isStreamed(this.order, this.skipped, this.limited)
+            ? this.streamed()
+            : undefined
+    }
+
+    protected async *streamed(): AsyncGenerator<EmbeddedDocument[]> {
+        const values = this.collection.values
+        let skip = this.skipped
+        let left = this.limited || Infinity
+        for await (const batch of this.collection.matchingBatches(this.query)) {
+            let documents = batch
+            if (skip) {
+                const skipped = Math.min(skip, documents.length)
+                documents = documents.slice(skipped)
+                skip -= skipped
+            }
+            if (documents.length > left) documents = documents.slice(0, left)
+            left -= documents.length
+            if (documents.length)
+                yield this.projected(
+                    documents.map((document) => values.copy(document)),
+                )
+            if (!left) return
+        }
     }
 }
 
@@ -566,7 +683,7 @@ export class EmbeddedCollection {
      *
      * @param query
      */
-    protected async *matchingBatches(
+    async *matchingBatches(
         query?: EmbeddedDocument,
     ): AsyncGenerator<EmbeddedDocument[]> {
         const filter = this.values.copy(query ?? {})
@@ -794,7 +911,29 @@ export class EmbeddedCollection {
         if (!collection) return
         const plan = new EmbeddedPlanner(collection).plan(filter)
         if (plan.kind === "scan") {
-            yield* batches(collection.documents())
+            // A scan of its files: the collection is not compacted while it reads (unless it is not read any more)
+            const scan = { read: Date.now(), closed: false }
+            collection.scans.add(scan)
+            const documents = batches(collection.documents())
+            const closed = () =>
+                new TypeORMError(
+                    `The cursor of mongo-embedded is closed: it was not read for ${SCAN_TIMEOUT / 60000} minutes`,
+                )
+            try {
+                for (;;) {
+                    // Closed: its files are not read any more (the compaction closes them)
+                    if (scan.closed) throw closed()
+                    const batch = await documents.next()
+                    if (batch.done) break
+                    if (scan.closed) throw closed()
+                    scan.read = Date.now()
+                    yield batch.value
+                }
+            } finally {
+                await documents.return(undefined)
+                collection.scans.delete(scan)
+                this.store.scanned(collection)
+            }
             return
         }
         // The keys collected before the documents are read: the writes made meanwhile change the index

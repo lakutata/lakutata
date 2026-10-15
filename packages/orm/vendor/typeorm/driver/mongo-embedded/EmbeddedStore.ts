@@ -228,6 +228,16 @@ export class EmbeddedStore {
     }
 
     /**
+     * After a scan of a collection ended: the compaction it held back starts, when it is worth it.
+     *
+     * @param collection
+     */
+    scanned(collection: EmbeddedCollectionStore): void {
+        if (!this.closing && this.collections.get(collection.name) === collection)
+            this.compactIfWorth(collection)
+    }
+
+    /**
      * Removes a collection and its file; whether it existed.
      *
      * @param name
@@ -366,7 +376,9 @@ export class EmbeddedStore {
             !collection.isWorthCompacting(
                 options?.minimumSize ?? 16 * 1024 * 1024,
                 options?.ratio ?? 2,
-            )
+            ) ||
+            // Not while its file is scanned (a cursor read): the next write tries again
+            collection.isScanned()
         )
             return
         collection.compacting = this.compact(collection).finally(() => {
