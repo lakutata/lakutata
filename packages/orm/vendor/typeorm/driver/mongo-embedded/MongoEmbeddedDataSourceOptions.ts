@@ -3,8 +3,8 @@ import type { BaseDataSourceOptions } from "../../data-source/BaseDataSourceOpti
 /**
  * lakutata: the options of an embedded MongoDB, a database of the process: its documents in the files of a directory
  * (the records of their versions appended), found by their _id from an index held in memory (outside the heap of V8),
- * queried and updated with the semantics of MongoDB (by mingo). It needs the packages mingo and bson. One process
- * opens a directory: it is locked.
+ * queried and updated with the semantics of MongoDB (by mingo), in a worker thread by default. It needs the packages
+ * mingo and bson. One process opens a directory: it is locked.
  */
 export interface MongoEmbeddedDataSourceOptions extends BaseDataSourceOptions {
     /**
@@ -47,4 +47,15 @@ export interface MongoEmbeddedDataSourceOptions extends BaseDataSourceOptions {
      * none.
      */
     readonly compaction?: false | { minimumSize?: number; ratio?: number }
+
+    /**
+     * Whether the database runs in a worker thread (the default): its queries, its writes and its files out of the
+     * event loop of the application, which they do not block; their arguments and their results sent between the
+     * threads in BSON (about 20 µs a call, the documents of the results decoded in the thread of the application, a
+     * batch at a time). false runs it in the thread of the application: its calls are faster, and the functions of
+     * JavaScript of its queries ($where, $function, $accumulator), which are not sent to a worker thread, run.
+     *
+     * @default true
+     */
+    readonly worker?: boolean
 }

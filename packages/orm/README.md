@@ -42,8 +42,14 @@ power loss), `'always'` or `'never'`. The documents read are cached in memory (`
 of a collection whose documents are all cached reads none of its files. A crash cutting a write leaves the database as
 it was before it. The file of a collection is compacted while it is written (option `compaction`: from 16 MiB, when it
 is twice the size of its live documents), and its indexes are written to a snapshot when the database is closed, read
-when it is opened again. One process opens the directory: it is locked. As with MongoDB, the relations, the query
-builders and the transactions of TypeORM are not supported, and the migrations are written by hand with the
+when it is opened again. One process opens the directory: it is locked. The database runs in a worker thread (option
+`worker`, `true` by default): its queries, writes and files do not block the event loop of the application, their
+arguments and results crossing the threads in BSON (about 20 µs a call); the worker thread holds mingo and bson, bundled
+into the package. `worker: false` runs it in the thread of the application, where the JavaScript functions of the
+queries (`$where`, `$function`, `$accumulator`) also run. The long writes (`updateMany`, `deleteMany`, an index created
+on the documents there) are made in batches of 1000 documents, the event loop yielded between them; a write failing on a
+document leaves the documents before it written, as MongoDB does without a transaction. As with MongoDB, the relations,
+the query builders and the transactions of TypeORM are not supported, and the migrations are written by hand with the
 `MongoQueryRunner`, not generated. Its `ObjectId` and `Binary` are the ones of the CommonJS module of `bson`.
 
 The query result cache stored in Redis (`cache: {type: 'redis'}` or `'ioredis'`) needs `redis` or `ioredis`.

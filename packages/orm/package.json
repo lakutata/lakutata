@@ -53,7 +53,7 @@
   },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
-    "build:typeorm": "tsc -p tsconfig.typeorm.json && node -e \"require('node:fs').writeFileSync('dist/vendor/typeorm/package.json', JSON.stringify({type: 'commonjs'}) + '\\\\n')\"",
+    "build:typeorm": "tsc -p tsconfig.typeorm.json && node -e \"require('node:fs').writeFileSync('dist/vendor/typeorm/package.json', JSON.stringify({type: 'commonjs'}) + '\\\\n')\" && node scripts/embedded-worker.mjs",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs-pkg": "node ../../scripts/package-build/cjs-package.mjs",
@@ -156,6 +156,7 @@
     "THIRD_PARTY_NOTICES.md"
   ],
   "devDependencies": {
-    "@types/debug": "4.1.13"
+    "@types/debug": "4.1.13",
+    "esbuild": "^0.28.2"
   }
 }

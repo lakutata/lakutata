@@ -1,0 +1,568 @@
+import * as fs from "fs"
+import * as path from "path"
+import { Worker } from "worker_threads"
+import { TypeORMError } from "../../error/TypeORMError"
+import { EmbeddedArrayCursor, EmbeddedResults } from "./EmbeddedClient"
+import type { EmbeddedStoreOptions } from "./EmbeddedStore"
+import type { EmbeddedDocument } from "./EmbeddedValues"
+import { embeddedWorkerCode } from "./EmbeddedWorkerCode"
+import type {
+    EmbeddedReply,
+    EmbeddedRequest,
+    EmbeddedWorkerData,
+} from "./EmbeddedWorkerProtocol"
+import {
+    errorOf,
+    SERIALIZE_OPTIONS,
+    WORKER_DATA_KEY,
+} from "./EmbeddedWorkerProtocol"
+
+/**
+ * lakutata: yields the event loop.
+ */
+function yieldLoop(): Promise<void> {
+    return new Promise((resolve) => setImmediate(resolve))
+}
+
+/**
+ * lakutata: the error of a method of the client of MongoDB that the embedded client does not have.
+ *
+ * @param method
+ */
+function notSupported(method: string): TypeORMError {
+    return new TypeORMError(`${method} is not supported by mongo-embedded`)
+}
+
+/**
+ * lakutata: throws when a value of a query holds a function: BSON does not send it to the worker thread (the
+ * functions of JavaScript of $where, $function and $accumulator run in the client of the option worker false).
+ *
+ * @param value
+ */
+function assertNoFunction(value: any): void {
+    if (typeof value === "function")
+        throw new TypeORMError(
+            "The functions of JavaScript of a query are not sent to the worker thread of mongo-embedded: they run with its option worker false",
+        )
+    if (value === null || typeof value !== "object") return
+    if (Array.isArray(value)) {
+        for (const item of value) assertNoFunction(item)
+        return
+    }
+    const prototype = Object.getPrototypeOf(value)
+    if (prototype !== Object.prototype && prototype !== null) return
+    for (const key of Object.keys(value)) assertNoFunction(value[key])
+}
+
+/**
+ * lakutata: the arguments of the methods of the collections that are documents, not queries: a function of a document
+ * is not stored, in both clients.
+ */
+const DOCUMENT_ARGUMENTS: { [method: string]: number } = {
+    insertOne: 0,
+    insertMany: 0,
+    replaceOne: 1,
+}
+
+/**
+ * lakutata: the cursor of a find of a collection of the worker thread: its filter, projection, order, skip and limit
+ * sent with the call reading it.
+ */
+export class EmbeddedWorkerFindCursor extends EmbeddedResults {
+    protected projection?: EmbeddedDocument
+
+    protected order?: EmbeddedDocument
+
+    protected skipped?: number
+
+    protected limited?: number
+
+    constructor(
+        protected readonly collection: EmbeddedWorkerCollection,
+        protected query: EmbeddedDocument,
+    ) {
+        super()
+    }
+
+    filter(query: EmbeddedDocument): this {
+        this.query = query
+        return this
+    }
+
+    project(projection: EmbeddedDocument): this {
+        this.projection = projection
+        return this
+    }
+
+    sort(order: EmbeddedDocument): this {
+        this.order = order
+        return this
+    }
+
+    skip(count: number): this {
+        this.skipped = count
+        return this
+    }
+
+    limit(count: number): this {
+        this.limited = count
+        return this
+    }
+
+    protected documents(): Promise<EmbeddedDocument[]> {
+        return this.collection.client.documents("find", {
+            collection: this.collection.collectionName,
+            query: this.query,
+            projection: this.projection,
+            sort: this.order,
+            skip: this.skipped,
+            limit: this.limited,
+        })
+    }
+}
+
+/**
+ * lakutata: a collection of the worker thread, with the methods of the collections of MongoDB that TypeORM calls:
+ * each of them a call of the worker thread.
+ */
+export class EmbeddedWorkerCollection {
+    constructor(
+        readonly collectionName: string,
+        readonly client: EmbeddedWorkerClient,
+    ) {}
+
+    find(query?: EmbeddedDocument, options?: EmbeddedDocument) {
+        const cursor = new EmbeddedWorkerFindCursor(this, query ?? {})
+        if (options?.projection) cursor.project(options.projection)
+        if (options?.sort) cursor.sort(options.sort)
+        if (options?.skip) cursor.skip(options.skip)
+        if (options?.limit) cursor.limit(options.limit)
+        return cursor
+    }
+
+    async findOne(query?: EmbeddedDocument, options?: EmbeddedDocument) {
+        return this.find(query, options).limit(1).next()
+    }
+
+    aggregate(pipeline: EmbeddedDocument[], options?: EmbeddedDocument) {
+        return new EmbeddedArrayCursor(() =>
+            this.client.documents("aggregate", {
+                collection: this.collectionName,
+                pipeline: pipeline,
+                options: options,
+            }),
+        )
+    }
+
+    listIndexes() {
+        return new EmbeddedArrayCursor(() => this.indexes())
+    }
+
+    /**
+     * Inserts a document, its _id added when missing (to the document given, as MongoDB does).
+     *
+     * @param document
+     */
+    async insertOne(document: EmbeddedDocument) {
+        document._id ??= new this.client.bson.ObjectId()
+        return this.call("insertOne", [document])
+    }
+
+    /**
+     * Inserts documents, their _id added when missing (to the documents given, as MongoDB does).
+     *
+     * @param documents
+     */
+    async insertMany(documents: EmbeddedDocument[]) {
+        for (const document of documents)
+            document._id ??= new this.client.bson.ObjectId()
+        return this.call("insertMany", [documents])
+    }
+
+    async countDocuments(...args: any[]) {
+        return this.call("countDocuments", args)
+    }
+
+    async count(...args: any[]) {
+        return this.call("count", args)
+    }
+
+    async estimatedDocumentCount(...args: any[]) {
+        return this.call("estimatedDocumentCount", args)
+    }
+
+    async distinct(...args: any[]) {
+        return this.call("distinct", args)
+    }
+
+    async updateOne(...args: any[]) {
+        return this.call("updateOne", args)
+    }
+
+    async updateMany(...args: any[]) {
+        return this.call("updateMany", args)
+    }
+
+    async replaceOne(...args: any[]) {
+        return this.call("replaceOne", args)
+    }
+
+    async deleteOne(...args: any[]) {
+        return this.call("deleteOne", args)
+    }
+
+    async deleteMany(...args: any[]) {
+        return this.call("deleteMany", args)
+    }
+
+    async createIndex(...args: any[]) {
+        return this.call("createIndex", args)
+    }
+
+    async createIndexes(...args: any[]) {
+        return this.call("createIndexes", args)
+    }
+
+    async indexes(...args: any[]) {
+        return this.call("indexes", args)
+    }
+
+    async indexExists(...args: any[]) {
+        return this.call("indexExists", args)
+    }
+
+    async indexInformation(...args: any[]) {
+        return this.call("indexInformation", args)
+    }
+
+    async dropIndex(...args: any[]) {
+        return this.call("dropIndex", args)
+    }
+
+    async dropIndexes(...args: any[]) {
+        return this.call("dropIndexes", args)
+    }
+
+    async isCapped(...args: any[]) {
+        return this.call("isCapped", args)
+    }
+
+    async bulkWrite(...args: any[]) {
+        return this.call("bulkWrite", args)
+    }
+
+    async findOneAndDelete(...args: any[]) {
+        return this.call("findOneAndDelete", args)
+    }
+
+    async findOneAndReplace(...args: any[]) {
+        return this.call("findOneAndReplace", args)
+    }
+
+    async findOneAndUpdate(...args: any[]) {
+        return this.call("findOneAndUpdate", args)
+    }
+
+    async rename(...args: any[]) {
+        return this.call("rename", args)
+    }
+
+    initializeOrderedBulkOp(): never {
+        throw notSupported("initializeOrderedBulkOp")
+    }
+
+    initializeUnorderedBulkOp(): never {
+        throw notSupported("initializeUnorderedBulkOp")
+    }
+
+    watch(): never {
+        throw notSupported("watch")
+    }
+
+    /**
+     * Calls a method of the collection in the worker thread.
+     *
+     * @param method
+     * @param args
+     */
+    protected call(method: string, args: any[]): Promise<any> {
+        args.forEach((arg, position) => {
+            if (DOCUMENT_ARGUMENTS[method] !== position) assertNoFunction(arg)
+        })
+        return this.client.call("collection", {
+            collection: this.collectionName,
+            method: method,
+            args: args,
+        })
+    }
+}
+
+/**
+ * lakutata: the database of the worker thread.
+ */
+export class EmbeddedWorkerDb {
+    protected readonly collections = new Map<string, EmbeddedWorkerCollection>()
+
+    constructor(
+        readonly databaseName: string,
+        protected readonly client: EmbeddedWorkerClient,
+    ) {}
+
+    collection(name: string): EmbeddedWorkerCollection {
+        let collection = this.collections.get(name)
+        if (!collection) {
+            collection = new EmbeddedWorkerCollection(name, this.client)
+            this.collections.set(name, collection)
+        }
+        return collection
+    }
+
+    async dropDatabase(): Promise<boolean> {
+        return this.client.call("db", { method: "dropDatabase", args: [] })
+    }
+
+    async dropCollection(name: string): Promise<boolean> {
+        return this.client.call("db", { method: "dropCollection", args: [name] })
+    }
+}
+
+/**
+ * lakutata: the client of an embedded MongoDB run in a worker thread (the option worker), with the API of the client
+ * of MongoDB that TypeORM calls: its calls and their results sent in BSON (the documents of a find decoded in
+ * batches, the event loop yielded between them). The worker thread does not keep the process running while no call
+ * waits for it. When it exits (its heap out of memory...), the calls waiting fail, and the directory it locked is
+ * unlocked.
+ */
+export class EmbeddedWorkerClient {
+    /**
+     * The calls waiting for their reply, by their ids.
+     */
+    protected readonly calls = new Map<number, (reply: EmbeddedReply) => void>()
+
+    protected nextId = 1
+
+    /**
+     * Why the calls fail: the worker thread exited, or the database is closed.
+     */
+    protected failure?: TypeORMError
+
+    protected database?: EmbeddedWorkerDb
+
+    /**
+     * Its closing (the calls of close() share it).
+     */
+    protected closing?: Promise<void>
+
+    protected constructor(
+        protected readonly worker: Worker,
+        readonly bson: any,
+        readonly directory: string | undefined,
+    ) {
+        worker.on("message", (reply: EmbeddedReply) => this.replied(reply))
+        worker.on("error", (error) =>
+            this.exited(
+                new TypeORMError(
+                    `The worker thread of mongo-embedded failed: ${error.message}`,
+                ),
+            ),
+        )
+        worker.on("exit", (code) =>
+            this.exited(
+                new TypeORMError(
+                    `The worker thread of mongo-embedded exited (${code})`,
+                ),
+            ),
+        )
+        worker.unref()
+    }
+
+    /**
+     * Opens a database in a worker thread: resolved once the worker thread opened it (its directory locked, the files
+     * of its collections read).
+     *
+     * @param directory the directory of the database, or ":memory:"
+     * @param options
+     * @param bson
+     */
+    static async connect(
+        directory: string | undefined,
+        options: EmbeddedStoreOptions,
+        bson: any,
+    ): Promise<EmbeddedWorkerClient> {
+        if (!embeddedWorkerCode)
+            throw new TypeORMError(
+                "The code of the worker thread of mongo-embedded is not built (the build of @lakutata/orm writes it): open it with the option worker false",
+            )
+        const onDisk =
+            directory && directory !== ":memory:" ? directory : undefined
+        const data: EmbeddedWorkerData = { directory: onDisk, options: options }
+        const worker = new Worker(embeddedWorkerCode, {
+            eval: true,
+            workerData: { [WORKER_DATA_KEY]: data },
+        })
+        const opened = await new Promise<EmbeddedReply>((resolve) => {
+            const done = (reply: EmbeddedReply) => {
+                worker.off("message", done)
+                worker.off("error", failed)
+                worker.off("exit", exited)
+                resolve(reply)
+            }
+            const failed = (error: Error) =>
+                done({ id: 0, error: { name: error.name, message: error.message } })
+            const exited = (code: number) =>
+                done({
+                    id: 0,
+                    error: {
+                        name: "TypeORMError",
+                        message: `The worker thread of mongo-embedded exited (${code}) before it opened the database`,
+                    },
+                })
+            worker.on("message", done)
+            worker.on("error", failed)
+            worker.on("exit", exited)
+        })
+        if (opened.error) {
+            await worker.terminate()
+            throw errorOf(bson, opened.error)
+        }
+        return new EmbeddedWorkerClient(worker, bson, onDisk)
+    }
+
+    db(name = "embedded"): EmbeddedWorkerDb {
+        this.database ??= new EmbeddedWorkerDb(name, this)
+        return this.database
+    }
+
+    /**
+     * Calls the worker thread: its result.
+     *
+     * @param op
+     * @param call the arguments of the call
+     */
+    async call(
+        op: EmbeddedRequest["op"],
+        call: EmbeddedDocument,
+    ): Promise<any> {
+        const reply = await this.request(
+            op,
+            this.bson.serialize(call, SERIALIZE_OPTIONS),
+        )
+        if (reply.error) throw errorOf(this.bson, reply.error)
+        return reply.payload
+            ? this.bson.deserialize(reply.payload).result
+            : undefined
+    }
+
+    /**
+     * The documents of a find or an aggregation of the worker thread, decoded a batch at a time, the event loop yielded
+     * between them.
+     *
+     * @param op
+     * @param call the arguments of the call
+     */
+    async documents(
+        op: "find" | "aggregate",
+        call: EmbeddedDocument,
+    ): Promise<EmbeddedDocument[]> {
+        assertNoFunction(op === "find" ? [call.query, call.projection, call.sort] : [call.pipeline, call.options])
+        const reply = await this.request(
+            op,
+            this.bson.serialize(call, SERIALIZE_OPTIONS),
+        )
+        if (reply.error) throw errorOf(this.bson, reply.error)
+        const documents: EmbeddedDocument[] = []
+        for (const [position, batch] of (reply.batches ?? []).entries()) {
+            if (position) await yieldLoop()
+            for (const document of this.bson.deserialize(batch).documents)
+                documents.push(document)
+        }
+        return documents
+    }
+
+    /**
+     * Closes the database (its files written to the disk, its snapshots), then the worker thread: the calls still
+     * waiting then fail.
+     */
+    close(): Promise<void> {
+        this.closing ??= this.closeWorker()
+        return this.closing
+    }
+
+    protected async closeWorker(): Promise<void> {
+        if (this.failure) return
+        const reply = await this.request("close")
+        this.fail(new TypeORMError("The database of mongo-embedded is closed"))
+        await this.worker.terminate()
+        if (reply.error) throw errorOf(this.bson, reply.error)
+    }
+
+    /**
+     * Sends a call to the worker thread: its reply (the failure of the worker thread replies to the calls waiting).
+     *
+     * @param op
+     * @param payload
+     */
+    protected request(
+        op: EmbeddedRequest["op"],
+        payload?: Uint8Array,
+    ): Promise<EmbeddedReply> {
+        if (this.failure)
+            return Promise.resolve({
+                id: 0,
+                error: {
+                    name: "TypeORMError",
+                    message: this.failure.message,
+                },
+            })
+        const id = this.nextId++
+        return new Promise((resolve) => {
+            this.calls.set(id, resolve)
+            // The worker thread keeps the process running while a call waits for it
+            if (this.calls.size === 1) this.worker.ref()
+            const request: EmbeddedRequest = { id: id, op: op, payload: payload }
+            this.worker.postMessage(request)
+        })
+    }
+
+    protected replied(reply: EmbeddedReply): void {
+        const resolve = this.calls.get(reply.id)
+        if (!resolve) return
+        this.calls.delete(reply.id)
+        if (!this.calls.size) this.worker.unref()
+        resolve(reply)
+    }
+
+    /**
+     * Fails the calls waiting, and the calls made after them.
+     *
+     * @param failure
+     */
+    protected fail(failure: TypeORMError): void {
+        this.failure = failure
+        for (const resolve of this.calls.values())
+            resolve({
+                id: 0,
+                error: { name: "TypeORMError", message: failure.message },
+            })
+        this.calls.clear()
+    }
+
+    /**
+     * After the worker thread exited, not closed: the calls waiting fail, and the directory it locked (its file LOCK
+     * holding the pid of this process) is unlocked.
+     *
+     * @param failure
+     */
+    protected exited(failure: TypeORMError): void {
+        if (this.failure) return
+        this.fail(failure)
+        if (!this.directory) return
+        const lock = path.join(this.directory, "LOCK")
+        try {
+            if (fs.readFileSync(lock, "utf8") === String(process.pid))
+                fs.rmSync(lock, { force: true })
+        } catch {
+            // No file LOCK
+        }
+    }
+}

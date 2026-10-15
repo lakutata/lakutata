@@ -88,9 +88,10 @@ async function postFile(database: string): Promise<string> {
 /**
  * Open an embedded MongoDB
  * @param database its directory, or ':memory:'
+ * @param worker whether it runs in a worker thread (the default), or in this thread (its store read by the tests)
  */
-async function open(database: string): Promise<DataSource> {
-    return new DataSource({type: 'mongo-embedded', database: database, entities: [Post], synchronize: true}).initialize()
+async function open(database: string, worker?: boolean): Promise<DataSource> {
+    return new DataSource({type: 'mongo-embedded', database: database, entities: [Post], synchronize: true, worker: worker}).initialize()
 }
 
 /**
@@ -394,6 +395,112 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     }))
 
+    it('runs in a worker thread as in this thread: the values of BSON, the results and the errors the same', async (): Promise<void> => {
+        const plain = (value: object): object => value
+        const scenario = async (worker: boolean): Promise<string> => {
+            const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', worker: worker}).initialize()
+            const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+            const failure = async (promise: Promise<unknown>): Promise<object> => promise.then((): object => ({}), (error: Error & Record<string, unknown>): object => ({name: error.name, message: error.message, code: error.code, keyValue: error.keyValue}))
+            const documents: Record<string, unknown>[] = [
+                {_id: new bson.ObjectId('652f1c0a9d3e4b7f8a1c2d3e'), at: new Date(0), body: Buffer.from('ab'), text: 'abc', nan: NaN, zero: -0, big: 5n, long: bson.Long.fromString('9007199254740993'), list: [1, undefined, 3], nested: {missing: undefined, v: 1}, n: 2},
+                {_id: 'x', n: 1, esm: new BSON.ObjectId('652f1c0a9d3e4b7f8a1c2d3f')}
+            ]
+            const inserted = await runner.insertMany('values', documents.map((document: Record<string, unknown>): object => ({...document})))
+            const added: Record<string, unknown> = {n: 3}
+            await runner.insertOne('values', added)
+            const results: Record<string, unknown> = {
+                inserted: inserted.insertedIds,
+                added: added._id instanceof bson.ObjectId,
+                all: await runner.cursor('values', plain({_id: {$in: ['x', documents[0]._id]}})).sort({n: 1}).toArray(),
+                regex: await runner.cursor('values', plain({text: /^ab/})).toArray(),
+                nan: await runner.countDocuments('values', {nan: NaN}),
+                date: await runner.countDocuments('values', {at: {$lt: new Date(1)}}),
+                long: await runner.countDocuments('values', {long: bson.Long.fromString('9007199254740993')}),
+                bigint: await runner.countDocuments('values', {big: 5}),
+                undefined: await runner.countDocuments('values', {missing: undefined}),
+                esm: await runner.countDocuments('values', {esm: new BSON.ObjectId('652f1c0a9d3e4b7f8a1c2d3f')}),
+                projected: await runner.cursor('values', plain({_id: 'x'})).project({_id: 0, n: 1}).toArray(),
+                skipped: (await runner.cursor('values', {}).sort({n: -1}).skip(1).limit(1).toArray()).map((document: Record<string, unknown>): unknown => document.n),
+                aggregated: await runner.aggregate('values', [{$match: {n: {$gte: 2}}}, {$group: {_id: null, total: {$sum: '$n'}}}]).toArray(),
+                distinct: await runner.distinct('values', 'n', {}),
+                updated: await runner.updateMany('values', {n: {$gte: 2}}, {$inc: {n: 10}}, {}),
+                indexes: [await runner.createCollectionIndex('values', {n: 1}, {name: 'n', unique: true}), await runner.collectionIndexExists('values', 'n')],
+                duplicate: await failure(runner.insertOne('values', plain({_id: 'y', n: 1}))),
+                unsupported: await failure(runner.findOneAndUpdate('values', {}, {$set: {n: 0}}, {})),
+                deleted: await runner.deleteMany('values', {n: {$gte: 12}}, {}),
+                left: await runner.countDocuments('values', {})
+            }
+            await dataSource.destroy()
+            return bson.EJSON.stringify(results, {relaxed: false})
+        }
+        assert.strictEqual(await scenario(true), await scenario(false))
+        //The functions of JavaScript of the queries run in this thread only
+        const functions = async (worker: boolean): Promise<unknown[]> => {
+            const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', worker: worker}).initialize()
+            await dataSource.mongoManager.mongoQueryRunner.insertOne('values', {n: 1})
+            try {
+                return await dataSource.mongoManager.mongoQueryRunner.cursor('values', plain({$where: function (this: {n: number}): boolean { return this.n === 1 }})).toArray()
+            } finally {
+                await dataSource.destroy()
+            }
+        }
+        assert.strictEqual((await functions(false)).length, 1)
+        await assert.rejects(functions(true), /The functions of JavaScript of a query are not sent to the worker thread of mongo-embedded/)
+    })
+
+    it('fails the calls when its worker thread exits, its directory unlocked; it lets the process exit', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const database: string = path.join(directory, 'exited')
+        const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: database}).initialize()
+        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        await runner.insertMany('items', Array.from({length: 1000}, (_: unknown, n: number): object => ({n: n})))
+        //Its worker thread ended while a call waits (as when its heap runs out)
+        const waiting: Promise<unknown> = runner.insertMany('items', Array.from({length: 20000}, (_: unknown, n: number): object => ({n: 1000 + n})))
+        await (runner.databaseConnection as unknown as {worker: {terminate(): Promise<number>}}).worker.terminate()
+        await assert.rejects(waiting, /The worker thread of mongo-embedded exited/)
+        await assert.rejects(runner.countDocuments('items', {}), /The worker thread of mongo-embedded exited/)
+        await dataSource.destroy()
+        //Closed while a write waits (its batches yielding): the closing resolves, the write fails, the closings share
+        //one
+        const closed: DataSource = await new DataSource({type: 'mongo-embedded'}).initialize()
+        const closedRunner: MongoQueryRunner = closed.mongoManager.mongoQueryRunner
+        await closedRunner.insertMany('items', Array.from({length: 20000}, (_: unknown, n: number): object => ({n: n})))
+        const updating: Promise<unknown> = closedRunner.updateMany('items', {}, {$inc: {n: 1}}, {})
+        const client = closedRunner.databaseConnection as unknown as {close(): Promise<void>}
+        const timeout = (promise: Promise<unknown>): Promise<unknown> => Promise.race([promise, new Promise((_: unknown, reject: (error: Error) => void): unknown => setTimeout((): void => reject(new Error('it waits forever')), 10000).unref())])
+        const failed: Promise<void> = assert.rejects(timeout(updating), (error: Error): boolean => error.message !== 'it waits forever')
+        await timeout(Promise.all([client.close(), client.close()]))
+        await failed
+        await assert.rejects(closedRunner.countDocuments('items', {}), /The database of mongo-embedded is closed/)
+        //Opened again: the lock of the worker thread removed, the documents written before kept
+        const again: DataSource = await new DataSource({type: 'mongo-embedded', database: database}).initialize()
+        assert.ok(await again.mongoManager.mongoQueryRunner.countDocuments('items', {n: {$lt: 1000}}) === 1000)
+        await again.destroy()
+        //A process that does not close its database exits (its worker thread does not keep it running)
+        const typeorm: string = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../vendor/typeorm/index.js')
+        const output: string = await new Promise((resolve: (output: string) => void, reject: (error: Error) => void): void => {
+            const child: ChildProcess = spawn(process.execPath, ['-e', `
+                const {DataSource} = require(${JSON.stringify(typeorm)})
+                new DataSource({type: 'mongo-embedded', database: ${JSON.stringify(path.join(directory, 'left'))}}).initialize().then(async (dataSource) => {
+                    await dataSource.mongoManager.mongoQueryRunner.insertOne('items', {n: 1}, {})
+                    console.log('written ' + await dataSource.mongoManager.mongoQueryRunner.countDocuments('items', {}))
+                })
+            `], {stdio: ['ignore', 'pipe', 'inherit']})
+            let printed: string = ''
+            child.stdout!.on('data', (data: Buffer): void => {
+                printed += data.toString()
+            })
+            const timer: NodeJS.Timeout = setTimeout((): void => {
+                child.kill('SIGKILL')
+                reject(new Error('the process did not exit'))
+            }, 20000)
+            child.once('exit', (): void => {
+                clearTimeout(timer)
+                resolve(printed.trim())
+            })
+        })
+        assert.strictEqual(output, 'written 1')
+    }))
+
     it('stores the numbers of BSON as BSON reads them: their _id the same keys after a reopening', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         const database: string = path.join(directory, 'numbers')
         const reopen = async (): Promise<[DataSource, MongoQueryRunner]> => {
@@ -457,10 +564,10 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
     it('opens from its snapshot, the writes made after it applied', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         const database: string = path.join(directory, 'snapshot')
         const opened = (dataSource: DataSource): string => (dataSource.mongoManager.mongoQueryRunner.databaseConnection as unknown as {store: {collection(name: string, create: boolean): {openedFrom: string}}}).store.collection('post', false).openedFrom
-        let dataSource: DataSource = await open(database)
+        let dataSource: DataSource = await open(database, false)
         const [hello, world] = await savePosts(dataSource.getMongoRepository(Post))
         await dataSource.destroy()
-        dataSource = await open(database)
+        dataSource = await open(database, false)
         assert.strictEqual(opened(dataSource), 'snapshot')
         //Written after the snapshot, without closing (a crash): an indexed field changed, a document deleted, one added
         const posts: MongoRepository<Post> = dataSource.getMongoRepository(Post)
@@ -471,7 +578,7 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await cp(database, copy, {recursive: true})
         await rm(path.join(copy, 'LOCK'))
         await dataSource.destroy()
-        const recovered: DataSource = await open(copy)
+        const recovered: DataSource = await open(copy, false)
         assert.strictEqual(opened(recovered), 'snapshot')
         const again: MongoRepository<Post> = recovered.getMongoRepository(Post)
         assert.deepStrictEqual((await again.find({order: {title: 'ASC'}})).map((post: Post): string => post.title), ['fourth', 'renamed', 'third'])
@@ -485,7 +592,7 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         //A snapshot cut: its records read
         const snapshot: string = (await postFile(copy)).replace(/\.log$/, '.snapshot')
         await writeFile(snapshot, (await readFile(snapshot)).subarray(0, 100))
-        const fromRecords: DataSource = await open(copy)
+        const fromRecords: DataSource = await open(copy, false)
         assert.strictEqual(opened(fromRecords), 'records')
         assert.deepStrictEqual((await fromRecords.getMongoRepository(Post).find({order: {title: 'ASC'}})).map((post: Post): string => post.title), ['fourth', 'renamed', 'third', 'world'])
         await fromRecords.destroy()
@@ -495,7 +602,7 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         const database: string = path.join(directory, 'compacted')
         type Store = {collection(name: string, create: boolean): {compacting?: Promise<void>, liveBytes: number, file: {size: number}}}
         const storeOf = (dataSource: DataSource): Store => (dataSource.mongoManager.mongoQueryRunner.databaseConnection as unknown as {store: Store}).store
-        const openCompacting = (location: string): Promise<DataSource> => new DataSource({type: 'mongo-embedded', database: location, compaction: {minimumSize: 64 * 1024, ratio: 2}}).initialize()
+        const openCompacting = (location: string): Promise<DataSource> => new DataSource({type: 'mongo-embedded', database: location, compaction: {minimumSize: 64 * 1024, ratio: 2}, worker: false}).initialize()
         let dataSource: DataSource = await openCompacting(database)
         let runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
         await runner.createCollectionIndex('items', {n: 1}, {name: 'n', unique: true})
@@ -570,8 +677,9 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
                 })
             })
             await new Promise((resolve: (value: unknown) => void): unknown => child.once('exit', resolve))
-            //Opened from its snapshot (the records written after it applied), its lock left by the process killed
-            dataSource = await new DataSource({type: 'mongo-embedded', database: database}).initialize()
+            //Opened from its snapshot (the records written after it applied), its lock left by the process killed (the
+            //process wrote in its worker thread)
+            dataSource = await new DataSource({type: 'mongo-embedded', database: database, worker: false}).initialize()
             const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
             assert.strictEqual((runner.databaseConnection as unknown as {store: {collection(name: string, create: boolean): {openedFrom: string}}}).store.collection('items', false).openedFrom, 'snapshot')
             const found: Set<number> = new Set((await runner.cursor('items', {n: {$gte: 0}}).toArray()).map((document: {n: number}): number => document.n))

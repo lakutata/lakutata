@@ -5,11 +5,14 @@ import { MongoDriver } from "../mongodb/MongoDriver"
 import { MongoQueryRunner } from "../mongodb/MongoQueryRunner"
 import type { ReturningType } from "../types/ReturningType"
 import { EmbeddedClient } from "./EmbeddedClient"
+import type { EmbeddedStoreOptions } from "./EmbeddedStore"
+import { EmbeddedWorkerClient } from "./EmbeddedWorkerClient"
 import type { MongoEmbeddedDataSourceOptions } from "./MongoEmbeddedDataSourceOptions"
 
 /**
  * lakutata: the driver of an embedded MongoDB. It is the driver of MongoDB, its query runner, entity manager and
- * repositories, with a client of the same API holding the collections in the memory of the process.
+ * repositories, with a client of the same API holding the collections in the process: in a worker thread (the option
+ * worker, by default), or in the thread of the application.
  */
 export class MongoEmbeddedDriver extends MongoDriver {
     /**
@@ -18,21 +21,29 @@ export class MongoEmbeddedDriver extends MongoDriver {
     embedded: { mingo: any; bson: any }
 
     /**
-     * Opens the database: its file read when it exists.
+     * Opens the database: its files read when they exist, in a worker thread unless the option worker is false.
      */
     async connect(): Promise<void> {
         const options = this.options as unknown as MongoEmbeddedDataSourceOptions
-        const client = await EmbeddedClient.connect(
-            options.database,
-            {
-                sync: options.sync,
-                syncInterval: options.syncInterval,
-                cacheSize: options.cacheSize,
-                compaction: options.compaction,
-            },
-            this.embedded.mingo,
-            this.embedded.bson,
-        )
+        const storeOptions: EmbeddedStoreOptions = {
+            sync: options.sync,
+            syncInterval: options.syncInterval,
+            cacheSize: options.cacheSize,
+            compaction: options.compaction,
+        }
+        const client =
+            options.worker === false
+                ? await EmbeddedClient.connect(
+                      options.database,
+                      storeOptions,
+                      this.embedded.mingo,
+                      this.embedded.bson,
+                  )
+                : await EmbeddedWorkerClient.connect(
+                      options.database,
+                      storeOptions,
+                      this.embedded.bson,
+                  )
         this.queryRunner = new MongoQueryRunner(this.dataSource, client as any)
         ObjectUtils.assign(this.queryRunner, {
             manager: this.dataSource.manager,
