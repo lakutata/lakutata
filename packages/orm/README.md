@@ -513,7 +513,8 @@ The package throws the TypeORM errors, exported by `lakutata/orm`:
 
 ## See also
 
-- The guide: `doc/en/ORMIntegration.md` of the package `lakutata` (Chinese in `doc/zh`).
+- The guides, in the package `lakutata` (`doc/en`, Chinese in `doc/zh`): `Database.md`, `DatabaseDrivers.md`,
+  `MongoEmbedded.md`, `Entities.md`, `Migrations.md`.
 - The TypeORM documentation: [typeorm.io](https://typeorm.io) (the entities, the relations, the find options, the
   query builder, the migrations).
 - `@lakutata/core`: the application, the components and providers, the dependency injection.

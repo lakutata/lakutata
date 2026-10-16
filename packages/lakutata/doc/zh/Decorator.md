@@ -300,4 +300,4 @@ export class User {
 }
 ```
 
-见 [ORMIntegration](ORMIntegration.md)。
+见 [Entities](Entities.md)。

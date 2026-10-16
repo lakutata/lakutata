@@ -341,4 +341,4 @@ export class User {
 }
 ```
 
-See [ORMIntegration](ORMIntegration.md).
+See [Entities](Entities.md).
