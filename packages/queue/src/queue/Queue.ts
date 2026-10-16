@@ -145,7 +145,8 @@ export type QueueResultsOptions = {
     keep?: Duration
     /**
      * The name of a component keeping the results (a `Cacher`: its `get(key)` and `set(key, value, ttl)`), used
-     * instead of the driver.
+     * instead of the driver. It also keeps the groups of the queues for the drivers which cannot list them (RabbitMQ):
+     * the applications share it (a Redis store...) for `request()` and `result()` to find the groups without naming one.
      * @default the driver, when it keeps the results
      */
     store?: string
@@ -427,6 +428,11 @@ type PendingRequest = {
 type ResultStore = {
     get(key: string): Promise<QueueResultRecord | true | undefined>
     set(key: string, record: QueueResultRecord, ttl: number): Promise<void>
+    //The groups of the queues, kept for the drivers which cannot list them (a store component only)
+    groups?: {
+        read(name: string): Promise<string[]>
+        add(name: string, group: string): Promise<void>
+    }
 }
 
 /**
@@ -519,6 +525,9 @@ export class Queue extends Component {
 
     #stopping: boolean = false
 
+    //Aborted when the component is destroyed: the waits of the retries end
+    readonly #stop: AbortController = new AbortController()
+
     /**
      * Initializer: the driver connected, the result store chosen, the replies received.
      * @protected
@@ -538,6 +547,7 @@ export class Queue extends Component {
      */
     protected async destroy(): Promise<void> {
         this.#stopping = true
+        this.#stop.abort()
         await Promise.allSettled([...this.#subscriptions].map((subscription: QueueSubscription): Promise<void> => subscription.stop()))
         this.#subscriptions.clear()
         //The entrypoint has drained its actions already: the processings left are the ones of consume()
@@ -603,13 +613,19 @@ export class Queue extends Component {
      */
     public async request<Result = unknown, Input extends object = object>(name: string, input: Input, options: RequestOptions = {}): Promise<Result> {
         const timeout: number = milliseconds(options.timeout ?? this.requestTimeout)
-        const groups: string[] = await this.#driver.groups(name)
+        const groups: string[] = await this.groupsOf(name)
         if (!options.group && groups.length > 1) throw new QueueAmbiguousGroupException('The queue {name} is processed by the groups {groups}: the request names its group', {name: name, groups: groups.join(', ')})
         const replies: boolean = this.#driver.capabilities.reply && !!this.#driver.reply && !!this.#driver.replyAddress
         if (!replies) {
             if (!this.#store) throw new QueueCapabilityException('The driver of the queue has no reply channel and no result is kept: a request cannot get its reply')
             const job: Job = await this.add(name, input, options)
-            return job.result<Result>({timeout: timeout, group: options.group})
+            try {
+                return await job.result<Result>({timeout: timeout, group: options.group})
+            } catch (error) {
+                //Its result read from the results kept: not there in time is a request timed out
+                if (error instanceof QueueResultNotFoundException) throw new QueueRequestTimeoutException('No reply to the message {id} of the queue {name} in {timeout} ms', {id: job.id, name: name, timeout: timeout})
+                throw error
+            }
         }
         const headers: Record<string, string> = {[`${HEADER}reply-to`]: this.#driver.replyAddress!()}
         if (options.group) headers[`${HEADER}reply-group`] = options.group
@@ -670,7 +686,7 @@ export class Queue extends Component {
         let interval: number = 50
         for (;;) {
             if (!group) {
-                const groups: string[] = await this.#driver.groups(name)
+                const groups: string[] = await this.groupsOf(name)
                 if (groups.length > 1) throw new QueueAmbiguousGroupException('The queue {name} is processed by the groups {groups}: the result names its group', {name: name, groups: groups.join(', ')})
                 group = groups[0]
             }
@@ -702,7 +718,9 @@ export class Queue extends Component {
      */
     public async prepare(name: string, options: Pick<QueueConsumerOptions, 'group'> = {}): Promise<void> {
         this.assertName(name)
-        await this.#driver.register?.(name, this.groupOf(options))
+        const group: string = this.groupOf(options)
+        await this.#driver.register?.(name, group)
+        await this.registered(name, group)
     }
 
     /**
@@ -730,6 +748,7 @@ export class Queue extends Component {
         const ordered: boolean = !!options.ordered
         if (ordered && !this.#driver.capabilities.ordering) throw new QueueCapabilityException('The driver of the queue cannot order the messages by key: the consumer of {name} cannot be ordered', {name: name})
         const group: string = this.groupOf(options)
+        await this.registered(name, group)
         const subscription: QueueSubscription = await this.#driver.consume({
             name: name,
             group: group,
@@ -748,6 +767,26 @@ export class Queue extends Component {
         }
         this.#subscriptions.add(stoppable)
         return stoppable
+    }
+
+    /**
+     * The groups of a queue: listed by the driver, else read from the store of the results (the groups registered
+     * there by the instances sharing it), else none known
+     * @param name The queue.
+     * @protected
+     */
+    protected async groupsOf(name: string): Promise<string[]> {
+        return await this.#driver.groups(name) ?? await this.#store?.groups?.read(name) ?? []
+    }
+
+    /**
+     * Keep a group registered in the store of the results when the driver cannot list the groups
+     * @param name The queue.
+     * @param group The group.
+     * @protected
+     */
+    protected async registered(name: string, group: string): Promise<void> {
+        if (this.#store?.groups && await this.#driver.groups(name) === undefined) await this.#store.groups.add(name, group)
     }
 
     /**
@@ -881,7 +920,14 @@ export class Queue extends Component {
     protected async retry(delivery: QueueDelivery, delay: number, attempt: number): Promise<void> {
         const capabilities: QueueCapabilities = this.#driver.capabilities
         if (capabilities.redeliverAfter) return delivery.retry(delay)
-        if (!capabilities.delay && delay > 0) await sleep(delay)
+        if (!capabilities.delay && delay > 0) {
+            try {
+                await sleep(delay, undefined, {signal: this.#stop.signal})
+            } catch {
+                //The component destroyed meanwhile: delivered again later
+                return delivery.abandon()
+            }
+        }
         const message: QueueMessage = delivery.message
         await this.#driver.send({
             ...message,
@@ -1014,11 +1060,25 @@ export class Queue extends Component {
         if (results.store) {
             const component: any = await this.getObject(results.store)
             if (typeof component?.get !== 'function' || typeof component?.set !== 'function') throw new QueueCapabilityException('The result store {store} has no get() and set()', {store: results.store})
+            const groupsKey = (name: string): string => `lkt:queue:groups\u0000${name}`
             return {
                 get: async (key: string): Promise<QueueResultRecord | true | undefined> => (await component.get(key)) ?? undefined,
                 set: async (key: string, record: QueueResultRecord, ttl: number): Promise<void> => {
                     await component.set(key, record, ttl)
                     await component.set(this.endKey(...this.splitKey(key)), true, ttl + EXPIRED_MEMORY)
+                },
+                groups: {
+                    read: async (name: string): Promise<string[]> => {
+                        const groups: unknown = await component.get(groupsKey(name))
+                        return Array.isArray(groups) ? groups.map(String) : []
+                    },
+                    //Read, then written: two groups registered at once may lose one, written again at its next start
+                    add: async (name: string, group: string): Promise<void> => {
+                        const groups: unknown = await component.get(groupsKey(name))
+                        const known: string[] = Array.isArray(groups) ? groups.map(String) : []
+                        //Kept for good (a time to live of 0)
+                        if (!known.includes(group)) await component.set(groupsKey(name), [...known, group], 0)
+                    }
                 }
             }
         }

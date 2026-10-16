@@ -40,6 +40,10 @@ export type RecordingDriverOptions = {
      * The lease of the deliveries.
      */
     lease?: number
+    /**
+     * The groups not listed (as RabbitMQ): the queue keeps them in the store of its results.
+     */
+    unlistedGroups?: boolean
 }
 
 /**
@@ -59,9 +63,14 @@ export class RecordingDriver extends QueueDriver {
     //The extensions of the leases
     public extended: number = 0
 
+    //The groups registered
+    public readonly registered: {name: string, group: string}[] = []
+
     protected readonly withoutDeliveryCount: boolean
 
     protected readonly keepOpen: boolean
+
+    protected readonly unlistedGroups: boolean
 
     /**
      * @param driver The driver wrapped.
@@ -72,6 +81,7 @@ export class RecordingDriver extends QueueDriver {
         this.capabilities = {...driver.capabilities, ...options.capabilities}
         this.withoutDeliveryCount = !!options.withoutDeliveryCount
         this.keepOpen = !!options.keepOpen
+        this.unlistedGroups = !!options.unlistedGroups
         this.lease = options.lease ?? driver.lease
     }
 
@@ -113,11 +123,12 @@ export class RecordingDriver extends QueueDriver {
         })
     }
 
-    public async groups(name: string): Promise<string[]> {
-        return this.driver.groups(name)
+    public async groups(name: string): Promise<string[] | undefined> {
+        return this.unlistedGroups ? undefined : this.driver.groups(name)
     }
 
     public async register(name: string, group: string): Promise<void> {
+        this.registered.push({name: name, group: group})
         await this.driver.register?.(name, group)
     }
 

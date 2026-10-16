@@ -565,7 +565,8 @@ export function queueConformance(target: ConformanceTarget): void {
             assert.deepStrictEqual(order.a, [1, 2, 3, 4, 5, 6])
             assert.deepStrictEqual(order.b, [1, 2, 3, 4, 5, 6])
             assert.strictEqual(overlapped, false)
-            assert.strictEqual(most, 2)
+            //Two keys at once when they land apart (the partitions of Kafka may hold both)
+            assert.ok(most >= 1 && most <= 2, `${most} messages at once`)
             await container.destroy()
         }))
 

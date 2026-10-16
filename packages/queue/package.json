@@ -59,6 +59,8 @@
     "package.json"
   ],
   "devDependencies": {
+    "@platformatic/kafka": "^2.14.0",
+    "amqplib": "^2.2.0",
     "bullmq": "^6.3.15",
     "ioredis": "^5.11.1",
     "nats": "^2.29.3"

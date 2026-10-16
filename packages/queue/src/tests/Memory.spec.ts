@@ -36,6 +36,27 @@ describe('The memory driver', (): void => {
         await container.destroy()
     })
 
+    it('processes two keys at once when ordered', async (): Promise<void> => {
+        const container: Container = new Container()
+        const queue: Queue = await container.setNamed('queue', Queue)
+        let concurrent: number = 0
+        let most: number = 0
+        let done: number = 0
+        await queue.consume('keys', async (): Promise<void> => {
+            most = Math.max(most, ++concurrent)
+            await sleep(20)
+            concurrent--
+            done++
+        }, {ordered: true, concurrency: 4})
+        for (let n: number = 0; n < 3; n++) {
+            await queue.add('keys', {}, {key: 'a'})
+            await queue.add('keys', {}, {key: 'b'})
+        }
+        await until((): boolean => done === 6)
+        assert.strictEqual(most, 2)
+        await container.destroy()
+    })
+
     it('keeps the id of a message for the deduplication until it is acknowledged', async (): Promise<void> => {
         const container: Container = new Container()
         const queue: Queue = await container.setNamed('queue', Queue)

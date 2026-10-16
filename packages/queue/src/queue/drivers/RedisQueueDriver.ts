@@ -99,6 +99,9 @@ export class RedisQueueDriver extends QueueDriver {
 
     readonly #workers: Set<BullWorker> = new Set()
 
+    //The workers stopped, closing once their jobs end
+    readonly #closing: Set<Promise<void>> = new Set()
+
     readonly #address: string
 
     #replyHandler?: (reply: QueueReply) => void
@@ -190,7 +193,7 @@ export class RedisQueueDriver extends QueueDriver {
      * Register the group of the queue, then process its BullMQ queue with a worker.
      * @param options The queue, the group and the concurrency.
      * @param handler Processes a delivery.
-     * @returns The subscription: `stop()` pauses the worker (the jobs being processed go on).
+     * @returns The subscription: `stop()` takes no job any more, its worker closed once the jobs being processed end.
      */
     public async consume(options: QueueConsumeOptions, handler: (delivery: QueueDelivery) => Promise<void>): Promise<QueueSubscription> {
         const client: Redis = this.#connected()
@@ -215,7 +218,12 @@ export class RedisQueueDriver extends QueueDriver {
         this.#workers.add(worker)
         return {
             stop: async (): Promise<void> => {
+                if (!this.#workers.delete(worker)) return
+                //No job taken from now on; closed once the jobs being processed end, without waiting for them
                 await worker.pause(true)
+                const closing: Promise<void> = worker.close().catch((): void => undefined)
+                this.#closing.add(closing)
+                void closing.finally((): boolean => this.#closing.delete(closing))
             }
         }
     }
@@ -289,6 +297,7 @@ export class RedisQueueDriver extends QueueDriver {
     public async close(): Promise<void> {
         await Promise.allSettled([...this.#workers].map((worker: BullWorker): Promise<void> => worker.close()))
         this.#workers.clear()
+        await Promise.allSettled([...this.#closing])
         await Promise.allSettled([...this.#queues.values()].map((queue: BullQueue): Promise<void> => queue.close()))
         this.#queues.clear()
         this.#replyHandler = undefined

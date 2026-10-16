@@ -233,9 +233,10 @@ export abstract class QueueDriver {
     /**
      * The groups consuming a queue (the ones known to the driver).
      * @param name The queue.
-     * @returns The names of the groups.
+     * @returns The names of the groups, undefined when the driver cannot list them (the queue then keeps them in the
+     * store of its results).
      */
-    public abstract groups(name: string): Promise<string[]>
+    public abstract groups(name: string): Promise<string[] | undefined>
 
     /**
      * Register a group of a queue before it consumes the queue: the messages sent from then on are kept for it. A

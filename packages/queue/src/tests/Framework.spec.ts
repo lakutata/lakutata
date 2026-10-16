@@ -1,19 +1,22 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Component, Container} from '@lakutata/core'
+import {Container} from '@lakutata/core'
 import {buildEntrypoints, Controller, Entrypoint} from '@lakutata/entrypoint'
 import {
     type Job,
     MemoryQueueDriver,
     Queue,
     QueueAction,
+    QueueAmbiguousGroupException,
     QueueCapabilityException,
     type QueueDeadLetter,
     queueEntrypoint,
     QueueInvalidMessageException,
+    QueueRequestTimeoutException,
     type QueueJobContext
 } from '../exports/Queue.js'
 import {RecordingDriver, type RecordingDriverOptions, sleep, until} from './support/RecordingDriver.js'
+import {ResultCache} from './support/ResultCache.js'
 
 /**
  * A queue on a memory driver, its capabilities or its lease replaced: what the queue does for the drivers
@@ -27,22 +30,6 @@ async function queueOn(driverOptions: RecordingDriverOptions = {}, options: Reco
     const driver: RecordingDriver = new RecordingDriver(new MemoryQueueDriver(), driverOptions)
     const queue: Queue = await container.setNamed('queue', Queue, {driver: {type: 'custom', driver: driver}, ...options})
     return {container: container, queue: queue, driver: driver}
-}
-
-/**
- * A store of the results, as a Cacher
- */
-class ResultCache extends Component {
-    public readonly entries: Map<string, {value: unknown, expiresAt: number}> = new Map()
-
-    public async get(key: string): Promise<unknown> {
-        const entry: {value: unknown, expiresAt: number} | undefined = this.entries.get(key)
-        return entry && entry.expiresAt > Date.now() ? entry.value : undefined
-    }
-
-    public async set(key: string, value: unknown, ttl: number): Promise<void> {
-        this.entries.set(key, {value: value, expiresAt: Date.now() + ttl})
-    }
 }
 
 class OrderedController extends Controller {
@@ -125,6 +112,44 @@ describe('The queue component', (): void => {
         const bare = await queueOn({capabilities: {results: false, reply: false}})
         await assert.rejects(bare.queue.request('sum', {a: 1, b: 1}), QueueCapabilityException)
         await bare.container.destroy()
+    })
+
+    it('keeps the groups in the store of the results when the driver cannot list them', async (): Promise<void> => {
+        const prepare = async (target: Container): Promise<void> => void await target.setNamed('cache', ResultCache)
+        const {container, queue} = await queueOn({capabilities: {results: false}, unlistedGroups: true}, {results: {store: 'cache'}}, prepare)
+        await queue.consume('quote', async (): Promise<string> => 'from a', {group: 'a'})
+        //One group known: the result read without naming it
+        const job: Job = await queue.add('quote', {})
+        assert.strictEqual(await job.result(), 'from a')
+        await queue.prepare('quote', {group: 'b'})
+        await assert.rejects(queue.request('quote', {}), QueueAmbiguousGroupException)
+        const cache: ResultCache = await container.get<ResultCache>('cache')
+        assert.deepStrictEqual(await cache.get('lkt:queue:groups\u0000quote'), ['a', 'b'])
+        await container.destroy()
+    })
+
+    it('times a request out when its result is not kept in time, without a reply channel', async (): Promise<void> => {
+        const prepare = async (target: Container): Promise<void> => void await target.setNamed('cache', ResultCache)
+        const {container, queue} = await queueOn({capabilities: {results: false, reply: false}}, {results: {store: 'cache'}}, prepare)
+        await queue.consume('slow', async (): Promise<void> => sleep(200))
+        await assert.rejects(queue.request('slow', {}, {timeout: '30ms'}), QueueRequestTimeoutException)
+        await container.destroy()
+    })
+
+    it('abandons a retry waiting in place when the component is destroyed', async (): Promise<void> => {
+        const {container, queue, driver} = await queueOn({capabilities: {redeliverAfter: false, delay: false}, keepOpen: true})
+        let failed: number = 0
+        await queue.consume('wait', async (): Promise<void> => {
+            failed++
+            throw new Error('retried after a minute')
+        }, {backoff: '1m', onError: (): void => undefined})
+        await queue.add('wait', {})
+        await until((): boolean => failed === 1)
+        const destroyed: number = Date.now()
+        await container.destroy()
+        assert.ok(Date.now() - destroyed < 1000)
+        assert.deepStrictEqual(driver.decisionsOf('wait'), ['abandon'])
+        assert.strictEqual(driver.sentTo('wait').length, 1)
     })
 
     it('extends the lease of a delivery while it is processed', async (): Promise<void> => {
