@@ -14,6 +14,7 @@ import type * as orm from 'lakutata/orm'
 import type * as dtos from 'lakutata/dtos'
 import type * as utils from 'lakutata/utils'
 import type * as mutex from 'lakutata/com/mutex'
+import type * as queue from 'lakutata/com/queue'
 import type * as containerd from 'lakutata/com/containerd'
 import type * as docker from 'lakutata/com/docker'
 import type * as database from 'lakutata/com/database'
@@ -36,6 +37,7 @@ export type _orm = typeof orm
 export type _dtos = typeof dtos
 export type _utils = typeof utils
 export type _mutex = typeof mutex
+export type _queue = typeof queue
 export type _containerd = typeof containerd
 export type _docker = typeof docker
 export type _database = typeof database
