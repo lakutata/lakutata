@@ -657,7 +657,9 @@ export class BaseObject extends AsyncConstructor {
      */
     public getMethod(name: string | symbol, throwExceptionIfNotFound: boolean = false): (...args: any[]) => any | Promise<any> {
         if (this.hasMethod(name)) {
-            return (...args: any[]) => this[name](...args)
+            //Named: else V8 names it after the code below in the stack traces (MethodNotFoundException.methodName)
+            const callMethod = (...args: any[]): any => this[name](...args)
+            return callMethod
         } else if (throwExceptionIfNotFound) {
             throw new MethodNotFoundException('Method "{methodName}" not found in "{className}"', {
                 methodName: name,

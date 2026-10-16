@@ -86,6 +86,24 @@ await describe('BaseObject Test', async function (): Promise<void> {
     await it('get instance\'s not exist method should throw error when second argument throwExceptionIfNotFound set to true', async (): Promise<void> => {
         assert.throws(() => instance.getMethod('notExist', true), MethodNotFoundException)
     })
+    await it('calls a method got by its name without a misleading frame in the stack of its errors', async (): Promise<void> => {
+        class FailingObject extends BaseObject {
+            public fail(): void {
+                throw new Error('failed')
+            }
+        }
+
+        const failing: FailingObject = await rootContainer.build(FailingObject)
+        let stack: string = ''
+        try {
+            failing.getMethod('fail')()
+        } catch (error: unknown) {
+            stack = (error as Error).stack ?? ''
+        }
+        assert.ok(stack.includes('callMethod'), stack)
+        //V8 named the anonymous function after the code below it: "at MethodNotFoundException.methodName"
+        assert.ok(!stack.includes('MethodNotFoundException'), stack)
+    })
     await it('get object should access its parent container', async (): Promise<void> => {
         await assert.doesNotReject(() => instance.getTestObjectInRootContainer())
     })
