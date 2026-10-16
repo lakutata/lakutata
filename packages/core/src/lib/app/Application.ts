@@ -159,6 +159,12 @@ export class Application extends Module {
     static #consoleLogger: Promise<ILogger> | undefined
 
     /**
+     * Whether the application is exiting: a step of its bootstrap that exits it (a command of the migrations) ends its
+     * launch
+     */
+    static #exiting: boolean = false
+
+    /**
      * Preset the options of the applications, before they run: the packages assembling the framework preset their
      * components (the `lakutata` package presets its Logger as `log` and its Entrypoint as `entrypoint`). An object
      * given to `run()` under a preset name replaces the preset one when it gives its class, or completes its options
@@ -425,6 +431,7 @@ export class Application extends Module {
      */
     protected static async launchApplication(): Promise<Application> {
         this.eventEmitter.once('exit', async (app: Application, exitCode: number, signal?: NodeJS.Signals) => {
+            this.#exiting = true
             try {
                 //The done handler, told why the application exits
                 const reason: ApplicationExitReason = signal ? {code: exitCode ? exitCode : 0, signal: signal} : {code: exitCode ? exitCode : 0}
@@ -538,6 +545,8 @@ export class Application extends Module {
                 .then((applicationOptions: ApplicationOptions) => {
                     if (applicationOptions.shutdownSignals) this.listenShutdownSignals(applicationOptions.shutdownSignals)
                     applicationOptions.bootstrap?.push(async (target: Module) => {
+                        //Exited by a step of the bootstrap: its container is being destroyed, it does not launch
+                        if (Application.#exiting) return
                         const launchedCallbackRemover = function (this: Application) {
                             this.options.bootstrap?.pop()
                             As<BootstrapOption[]>(Reflect.getOwnMetadata('#bootstrap', this))?.pop()

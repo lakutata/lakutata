@@ -220,6 +220,15 @@ Application.run({id: 'signals.app', name: 'SignalsApp', components: {keeper: {cl
             assert.strictEqual((await runWithSignals(application('', true), ['SIGINT', 'SIGINT'])).code, 130)
         })
 
+        it('end the launch once a step of the bootstrap exits the application, as the commands of the migrations do', (): void => {
+            const run = runApplication(`
+Application.run({id: 'exit.app', name: 'ExitApp', components: {log: {class: MemoryLogger}}, bootstrap: [async (app) => app.exit(0)]})
+    .onLaunched(() => console.log('LAUNCHED'))`)
+            assert.strictEqual(run.status, 0, run.output)
+            //The launch does not go on: no error of its container destroyed, no launched handler
+            assert.doesNotMatch(run.output, /FatalException|ObjectDestroyed|LAUNCHED/)
+        })
+
         it('launch once: the handlers added after the launch do not launch it again, a launched handler is called at once', (): void => {
             const run = runApplication(`
 let launches = 0

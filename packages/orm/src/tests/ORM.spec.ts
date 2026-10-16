@@ -290,9 +290,12 @@ describe('The ORM', (): void => {
         it('shows, runs and reverts the migrations of the database', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
             const shown: SpawnSyncReturns<string> = command(directory, {MIGRATION_SHOW: '1'})
             assert.strictEqual(shown.status, 0, shown.stderr)
+            //The application exited by the command does not go on with its launch
+            assert.doesNotMatch(shown.stderr, /FatalException|ObjectDestroyed/)
             assert.match(shown.stdout, /\[db\] \[ \] CreateNote1700000000000\n\[db\] \[ \] CreateTag1700000000001\n\[db\] 2 pending migrations/)
             const ran: SpawnSyncReturns<string> = command(directory, {MIGRATION_RUN: '1'})
             assert.strictEqual(ran.status, 0, ran.stderr)
+            assert.doesNotMatch(ran.stderr, /FatalException|ObjectDestroyed/)
             assert.match(ran.stdout, /Migration CreateNote1700000000000 has been run\n.*Migration CreateTag1700000000001 has been run/)
             assert.deepStrictEqual(await tablesOf(path.join(directory, 'db.db')), ['note', 'tag'])
             assert.match(command(directory, {MIGRATION_RUN: '1'}).stdout, /\[db\] No pending migration/)
