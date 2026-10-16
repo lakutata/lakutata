@@ -26,7 +26,8 @@ drivers load their clients when the component starts:
 
 ## Usage
 
-Register the component and the adapter, then declare the actions:
+Register the component and the adapter, start the entrypoint at launch (`bootstrap: ['entrypoint']`: created on its first
+use otherwise, its actions would not consume), then declare the actions:
 
 ```typescript
 import {Application} from 'lakutata'
@@ -61,7 +62,9 @@ Application.run(() => ({
             controllers: [ImageController],
             queue: queueEntrypoint('queue')
         })
-    }
+    },
+    //Created at launch: the actions consume from then on
+    bootstrap: ['entrypoint']
 }))
 ```
 

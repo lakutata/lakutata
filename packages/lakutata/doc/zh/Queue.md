@@ -4,7 +4,7 @@
 
 ## 1. 配置
 
-用 `buildQueueOptions` 在应用的 `components` 中声明 `Queue`（按惯例命名为 `queue`），并把队列的适配器交给 entrypoint。不指定 `driver` 时，消息保存在进程的内存中。
+用 `buildQueueOptions` 在应用的 `components` 中声明 `Queue`（按惯例命名为 `queue`），把队列的适配器交给 entrypoint，并让 entrypoint 在启动时创建（`bootstrap: ['entrypoint']`；否则它要到第一次被使用时才创建，动作不会开始消费）。不指定 `driver` 时，消息保存在进程的内存中。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -27,7 +27,9 @@ Application.run(() => ({
             //把消息投递给 @QueueAction 动作
             queue: queueEntrypoint('queue')
         })
-    }
+    },
+    //在启动时创建：动作从此开始消费
+    bootstrap: ['entrypoint']
 }))
 ```
 

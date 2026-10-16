@@ -57,7 +57,9 @@ export type QueueEntrypointOptions = {
  *             controllers: [MailController],
  *             queue: queueEntrypoint('queue')
  *         })
- *     }
+ *     },
+ *     //Created at launch: the actions consume from then on
+ *     bootstrap: ['entrypoint']
  * }))
  * ```
  */

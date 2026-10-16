@@ -9,8 +9,10 @@ driver. The README of `@lakutata/queue` gives the details.
 
 ## 1. Configuration
 
-Declare `Queue` in the `components` of the application with `buildQueueOptions` (named `queue` by convention), and give
-the entrypoint the adapter of the queues. Without `driver`, the messages are kept in the memory of the process.
+Declare `Queue` in the `components` of the application with `buildQueueOptions` (named `queue` by convention), give
+the entrypoint the adapter of the queues, and start the entrypoint at launch (`bootstrap: ['entrypoint']`: created on
+its first use otherwise, its actions would not consume). Without `driver`, the messages are kept in the memory of the
+process.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -33,7 +35,9 @@ Application.run(() => ({
             //Delivers the messages to the @QueueAction actions
             queue: queueEntrypoint('queue')
         })
-    }
+    },
+    //Created at launch: the actions consume from then on
+    bootstrap: ['entrypoint']
 }))
 ```
 
