@@ -10,6 +10,7 @@
 | `lakutata/decorator/asst` | `@Before`、`@After` |
 | `lakutata/decorator/orm` | TypeORM 的装饰器（`@Entity`、`@Column` 等） |
 | `lakutata/com/mutex` | `@Synchronized` |
+| `lakutata/com/queue` | `@QueueAction` |
 
 ## 1. 依赖注入（`lakutata/decorator/di`）
 
@@ -263,7 +264,11 @@ class Prices extends Component {
 
 `@Synchronized` 让控制器动作在持有 `Mutex` 组件的锁时执行，锁在输入校验和访问控制通过之后获取。见 [Mutex](Mutex.md)。
 
-## 6. 数据库实体（`lakutata/decorator/orm`）
+## 6. 消息队列（`lakutata/com/queue`）
+
+`@QueueAction(queue, dto?, options?)` 让控制器动作成为一个队列的消费者：`queueEntrypoint` 适配器把队列的消息投递给它，正常返回时确认，失败后重试，次数用完后进入死信队列。见 [Queue](Queue.md)。
+
+## 7. 数据库实体（`lakutata/decorator/orm`）
 
 `lakutata/decorator/orm` 重新导出 TypeORM 的装饰器：
 

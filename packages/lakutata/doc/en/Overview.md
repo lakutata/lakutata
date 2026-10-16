@@ -91,6 +91,7 @@ Application
 | `lakutata/com/database`, `lakutata/provider/database` | The `Database` component and provider |
 | `lakutata/com/cacher` | The `Cacher` component |
 | `lakutata/com/mutex` | The `Mutex` component, `@Synchronized` |
+| `lakutata/com/queue` | The `Queue` component, `@QueueAction`, `queueEntrypoint` |
 | `lakutata/com/i18n` | The `I18n` component, the `Translator`, the language middleware |
 | `lakutata/com/docker` | The `Docker` component |
 | `lakutata/com/containerd` | The `Containerd` component |
@@ -109,10 +110,11 @@ Outside this package: `@lakutata/cli` (the `lakutata` command: projects, bundles
 | [Core](Core.md) | The application, the container, the lifetimes, dependency injection, modules, the lifecycle |
 | [DTOValidation](DTOValidation.md) | DTOs, the schemas, the validation of the options, inputs and results |
 | [Decorator](Decorator.md) | The decorators of each subpath |
-| [ActionPattern](ActionPattern.md) | The controllers, their actions and their transports (HTTP, CLI, services, schedules) |
+| [ActionPattern](ActionPattern.md) | The controllers, their actions and their transports (HTTP, CLI, services, schedules, queues) |
 | [ORMIntegration](ORMIntegration.md) | The `Database` component and TypeORM |
 | [I18n](I18n.md) | The messages of each language |
 | [Mutex](Mutex.md) | The locks between the instances and the processes |
+| [Queue](Queue.md) | The message queues: producers, `@QueueAction` consumers, retries, dead letters, results |
 | [DockerIntegration](DockerIntegration.md) | The `Docker` component |
 | [ContainerdIntegration](ContainerdIntegration.md) | The `Containerd` component |
 | [Security](Security.md) | Hashing, ciphers, signatures, passwords |

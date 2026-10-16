@@ -231,6 +231,7 @@ class UserController extends Controller {
 | `service` | `grpcServiceEntrypoint({port})` | `@lakutata/grpc/service` | `@lakutata/grpc` |
 | `service` | `natsServiceEntrypoint('nats')` | `@lakutata/nats` | `@lakutata/nats` |
 | `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | |
+| `queue` | `queueEntrypoint('queue')`（`@QueueAction` 动作） | `lakutata/com/queue` | 驱动的客户端（见 [Queue](Queue.md)） |
 
 每个选项可以是一个适配器或适配器数组。`lakutata/com/entrypoint` 中的 `buildHTTPEntrypoint`、`buildCLIEntrypoint` 和 `buildServiceEntrypoint` 用于以 lakutata 2.x 的风格编写入口函数，以接入其他库；`EntrypointAdapter`（来自 `@lakutata/entrypoint/channel`）是适配器的接口。
 

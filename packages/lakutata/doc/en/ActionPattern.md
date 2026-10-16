@@ -269,6 +269,7 @@ stops.
 | `service` | `grpcServiceEntrypoint({port})` | `@lakutata/grpc/service` | `@lakutata/grpc` |
 | `service` | `natsServiceEntrypoint('nats')` | `@lakutata/nats` | `@lakutata/nats` |
 | `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | |
+| `queue` | `queueEntrypoint('queue')` (the `@QueueAction` actions) | `lakutata/com/queue` | the client of the driver (see [Queue](Queue.md)) |
 
 Each option takes one adapter or an array of adapters. `buildHTTPEntrypoint`, `buildCLIEntrypoint` and
 `buildServiceEntrypoint` (from `lakutata/com/entrypoint`) type an entrypoint function in the style of lakutata 2.x, to

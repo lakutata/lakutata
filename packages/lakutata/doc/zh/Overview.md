@@ -83,6 +83,7 @@ Application
 | `lakutata/com/database`、`lakutata/provider/database` | `Database` 组件和提供者 |
 | `lakutata/com/cacher` | `Cacher` 组件 |
 | `lakutata/com/mutex` | `Mutex` 组件、`@Synchronized` |
+| `lakutata/com/queue` | `Queue` 组件、`@QueueAction`、`queueEntrypoint` |
 | `lakutata/com/i18n` | `I18n` 组件、`Translator`、语言中间件 |
 | `lakutata/com/docker` | `Docker` 组件 |
 | `lakutata/com/containerd` | `Containerd` 组件 |
@@ -99,10 +100,11 @@ Application
 | [Core](Core.md) | 应用、容器、生命周期类型、依赖注入、模块、应用的生命周期 |
 | [DTOValidation](DTOValidation.md) | DTO、校验规则，以及选项、输入和返回值的校验 |
 | [Decorator](Decorator.md) | 各子路径的装饰器 |
-| [ActionPattern](ActionPattern.md) | 控制器、动作及其传输方式（HTTP、CLI、服务、定时任务） |
+| [ActionPattern](ActionPattern.md) | 控制器、动作及其传输方式（HTTP、CLI、服务、定时任务、消息队列） |
 | [ORMIntegration](ORMIntegration.md) | `Database` 组件与 TypeORM |
 | [I18n](I18n.md) | 多语言消息 |
 | [Mutex](Mutex.md) | 实例与进程之间的锁 |
+| [Queue](Queue.md) | 消息队列：生产者、`@QueueAction` 消费者、重试、死信、结果 |
 | [DockerIntegration](DockerIntegration.md) | `Docker` 组件 |
 | [ContainerdIntegration](ContainerdIntegration.md) | `Containerd` 组件 |
 | [Security](Security.md) | 哈希、加解密、签名、密码 |

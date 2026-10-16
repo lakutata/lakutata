@@ -12,6 +12,7 @@ these subpaths:
 | `lakutata/decorator/asst` | `@Before`, `@After` |
 | `lakutata/decorator/orm` | The TypeORM decorators (`@Entity`, `@Column`…) |
 | `lakutata/com/mutex` | `@Synchronized` |
+| `lakutata/com/queue` | `@QueueAction` |
 
 ## 1. Dependency injection (`lakutata/decorator/di`)
 
@@ -300,7 +301,13 @@ class Prices extends Component {
 `@Synchronized` runs a controller action holding a lock of the `Mutex` component, acquired once the input is validated
 and the access is allowed. See [Mutex](Mutex.md).
 
-## 6. Database entities (`lakutata/decorator/orm`)
+## 6. Queues (`lakutata/com/queue`)
+
+`@QueueAction(queue, dto?, options?)` makes a controller action the consumer of a queue: the `queueEntrypoint` adapter
+delivers it the messages of the queue, acknowledged when it returns, retried after a failure, then sent to the dead letter
+queue. See [Queue](Queue.md).
+
+## 7. Database entities (`lakutata/decorator/orm`)
 
 `lakutata/decorator/orm` re-exports the decorators of TypeORM:
 
