@@ -1,4 +1,5 @@
 import * as fs from "fs"
+import { TypeORMError } from "../../error/TypeORMError"
 
 /**
  * lakutata: the file of the records of a collection, written at its end only.
@@ -34,6 +35,9 @@ export interface EmbeddedFile {
      */
     truncate(size: number): void
 
+    /**
+     * Closes it: its uses after throw (a file of a collection dropped while a cursor reads it, a write runs on it).
+     */
     close(): void
 }
 
@@ -47,7 +51,10 @@ const IO_CHUNK = 1024 * 1024 * 1024
  * mode of the system, whose offsets are not the ones the file is read at on every system).
  */
 export class EmbeddedDiskFile implements EmbeddedFile {
-    protected readonly descriptor: number
+    /**
+     * Its descriptor, -1 once it is closed: the system may give its number to another file opened since.
+     */
+    protected descriptor: number
 
     size: number
 
@@ -61,11 +68,12 @@ export class EmbeddedDiskFile implements EmbeddedFile {
     }
 
     append(data: Uint8Array): number {
+        const descriptor = this.opened()
         const offset = this.size
         let written = 0
         while (written < data.length)
             written += fs.writeSync(
-                this.descriptor,
+                descriptor,
                 data,
                 written,
                 Math.min(data.length - written, IO_CHUNK),
@@ -81,10 +89,11 @@ export class EmbeddedDiskFile implements EmbeddedFile {
         length: number,
         position: number,
     ): number {
+        const descriptor = this.opened()
         let read = 0
         while (read < length) {
             const count = fs.readSync(
-                this.descriptor,
+                descriptor,
                 buffer,
                 offset + read,
                 Math.min(length - read, IO_CHUNK),
@@ -97,16 +106,29 @@ export class EmbeddedDiskFile implements EmbeddedFile {
     }
 
     sync(): void {
-        fs.fsyncSync(this.descriptor)
+        fs.fsyncSync(this.opened())
     }
 
     truncate(size: number): void {
-        fs.ftruncateSync(this.descriptor, size)
+        fs.ftruncateSync(this.opened(), size)
         this.size = size
     }
 
     close(): void {
+        if (this.descriptor < 0) return
         fs.closeSync(this.descriptor)
+        this.descriptor = -1
+    }
+
+    /**
+     * Its descriptor; it throws once it is closed.
+     */
+    protected opened(): number {
+        if (this.descriptor < 0)
+            throw new TypeORMError(
+                `The file ${this.path} of mongo-embedded is closed`,
+            )
+        return this.descriptor
     }
 }
 
@@ -121,9 +143,12 @@ const MEMORY_CHUNK_SIZE = 8 * 1024 * 1024
 export class EmbeddedMemoryFile implements EmbeddedFile {
     protected readonly chunks: Buffer[] = []
 
+    protected closed = false
+
     size = 0
 
     append(data: Uint8Array): number {
+        this.assertOpened()
         const offset = this.size
         let written = 0
         while (written < data.length) {
@@ -151,6 +176,7 @@ export class EmbeddedMemoryFile implements EmbeddedFile {
         length: number,
         position: number,
     ): number {
+        this.assertOpened()
         const end = Math.min(position + length, this.size)
         let read = 0
         while (position + read < end) {
@@ -174,5 +200,14 @@ export class EmbeddedMemoryFile implements EmbeddedFile {
     close(): void {
         this.chunks.length = 0
         this.size = 0
+        this.closed = true
+    }
+
+    /**
+     * Throws once it is closed.
+     */
+    protected assertOpened(): void {
+        if (this.closed)
+            throw new TypeORMError("A file of mongo-embedded in memory is closed")
     }
 }

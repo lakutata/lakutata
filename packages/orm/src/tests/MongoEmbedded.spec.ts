@@ -12,6 +12,7 @@ import {Container} from '@lakutata/core'
 import * as BSON from 'bson'
 import {DataSource, type MongoRepository, ObjectId} from '../exports/ORM.js'
 import type {MongoQueryRunner} from '#typeorm/driver/mongodb/MongoQueryRunner.js'
+import {EmbeddedDiskFile} from '#typeorm/driver/mongo-embedded/EmbeddedFile.js'
 import {Column, CreateDateColumn, DeleteDateColumn, Entity, Index, ObjectIdColumn, UpdateDateColumn} from '../exports/ORMDecorators.js'
 import {Database} from '../exports/DatabaseComponent.js'
 
@@ -104,6 +105,34 @@ async function savePosts(posts: MongoRepository<Post>): Promise<Post[]> {
         {title: 'world', tags: ['y'], views: 5, author: {name: 'Grace', city: 'New York'}},
         {title: 'third', tags: [], views: 9, author: {name: 'Ada', city: 'Paris'}}
     ])
+}
+
+/**
+ * The internals of a collection of mongo-embedded the tests read (worker false)
+ */
+type CompactedCollection = {compacting?: Promise<void>, previous?: object, building?: Promise<void>, file: object}
+
+/**
+ * The store of a database of mongo-embedded (worker false)
+ * @param dataSource
+ */
+function compactedStoreOf(dataSource: DataSource): {collection(name: string, create: boolean): CompactedCollection | undefined, scanned(collection: CompactedCollection): void} {
+    return (dataSource.mongoManager.mongoQueryRunner.databaseConnection as unknown as {store: ReturnType<typeof compactedStoreOf>}).store
+}
+
+/**
+ * Open a database whose collection items is worth compacting (its file four times its documents, larger than the block
+ * of its readers), compacted from its next write, its documents read from its file (no cache)
+ * @param database its directory
+ * @param options
+ */
+async function openWorthCompacting(database: string, options: {sync?: 'always'} = {}): Promise<DataSource> {
+    const grown: DataSource = await new DataSource({type: 'mongo-embedded', database: database, compaction: false, worker: false}).initialize()
+    const runner: MongoQueryRunner = grown.mongoManager.mongoQueryRunner
+    await runner.insertMany('items', Array.from({length: 3000}, (_: unknown, n: number): object => ({n: n, version: 0, text: 'x'.repeat(1000)})))
+    for (let version = 1; version <= 3; version++) await runner.updateMany('items', {}, {$set: {version: version}})
+    await grown.destroy()
+    return new DataSource({type: 'mongo-embedded', database: database, compaction: {minimumSize: 64 * 1024, ratio: 2}, cacheSize: 0, worker: false, ...options}).initialize()
 }
 
 describe('The embedded MongoDB (mongo-embedded)', (): void => {
@@ -918,6 +947,83 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         assert.strictEqual(await runner.countDocuments('items', {}), 5000)
         assert.strictEqual(await runner.countDocuments('items', {version: -1}), 0)
         assert.strictEqual(await runner.countDocuments('items', {version: 0}), 0)
+        await dataSource.destroy()
+    }))
+
+    it('acknowledges the write starting a compaction once the file holding it is synced (sync always)', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const dataSource: DataSource = await openWorthCompacting(directory, {sync: 'always'})
+        const items = (): CompactedCollection => compactedStoreOf(dataSource).collection('items', false)!
+        //The files synced (not their paths: the file of the compaction is renamed when it ends)
+        const synced: EmbeddedDiskFile[] = []
+        const sync: () => void = EmbeddedDiskFile.prototype.sync
+        EmbeddedDiskFile.prototype.sync = function (this: EmbeddedDiskFile): void {
+            synced.push(this)
+            sync.call(this)
+        }
+        try {
+            const file: object = items().file
+            //A write without a scan (a scan holds the compaction until it ends)
+            await dataSource.mongoManager.mongoQueryRunner.insertOne('items', {n: -1})
+            assert.ok(items().compacting || items().previous, 'compacted from the write')
+            assert.ok(synced.includes(file as EmbeddedDiskFile), 'the file of the write synced')
+        } finally {
+            EmbeddedDiskFile.prototype.sync = sync
+        }
+        await items().compacting
+        await dataSource.destroy()
+    }))
+
+    it('drops a collection while it is compacted: its files removed, the compaction stopped', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        let dataSource: DataSource = await openWorthCompacting(directory)
+        let runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        await runner.updateOne('items', {n: 0}, {$set: {version: -1}})
+        const compacting: Promise<void> | undefined = compactedStoreOf(dataSource).collection('items', false)!.compacting
+        assert.ok(compacting, 'compacted from the write')
+        await runner.clearTable('items')
+        await compacting
+        assert.deepStrictEqual((await readdir(directory)).filter((file: string): boolean => file !== 'LOCK'), [])
+        await runner.insertMany('others', Array.from({length: 100}, (_: unknown, n: number): object => ({n: n})))
+        await dataSource.destroy()
+        dataSource = await new DataSource({type: 'mongo-embedded', database: directory, worker: false}).initialize()
+        runner = dataSource.mongoManager.mongoQueryRunner
+        assert.strictEqual(await runner.countDocuments('items', {}), 0)
+        assert.strictEqual(await runner.countDocuments('others', {}), 100)
+        await dataSource.destroy()
+    }))
+
+    it('starts no compaction while an index is built (it reads one file), then the one held back', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const dataSource: DataSource = await openWorthCompacting(directory)
+        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        const items = (): CompactedCollection => compactedStoreOf(dataSource).collection('items', false)!
+        const building: Promise<unknown> = runner.createCollectionIndex('items', {n: 1}, {name: 'n'})
+        await new Promise((resolve: (value: unknown) => void): unknown => setImmediate(resolve))
+        assert.ok(items().building, 'the index built in batches')
+        //A scan ending meanwhile
+        compactedStoreOf(dataSource).scanned(items())
+        assert.ok(!items().compacting && !items().previous, 'not compacted while the index is built')
+        await building
+        assert.ok(items().compacting || items().previous, 'compacted once the index is built')
+        await items().compacting
+        assert.strictEqual(await runner.countDocuments('items', {n: {$gte: 0}}), 3000)
+        await dataSource.destroy()
+    }))
+
+    it('ends a compaction once the cursors reading its two files end', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const dataSource: DataSource = await openWorthCompacting(directory)
+        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        const items = (): CompactedCollection => compactedStoreOf(dataSource).collection('items', false)!
+        await runner.updateOne('items', {n: 0}, {$set: {version: -1}})
+        assert.ok(items().compacting, 'compacted from the write')
+        //A cursor begun while it copies: it reads the previous file, then the new one
+        const cursor = runner.cursor('items', {})
+        const read: Set<number> = new Set([(await cursor.next())!.n])
+        await items().compacting
+        assert.ok(items().previous, 'the previous file kept while the cursor reads')
+        for (let document = await cursor.next(); document; document = await cursor.next()) read.add(document.n)
+        assert.strictEqual(read.size, 3000)
+        assert.ok(!items().previous, 'the compaction ended with the cursor')
+        assert.ok(!(await readdir(directory)).some((file: string): boolean => file.endsWith('.next')))
+        assert.strictEqual(await runner.countDocuments('items', {version: 3}), 2999)
         await dataSource.destroy()
     }))
 

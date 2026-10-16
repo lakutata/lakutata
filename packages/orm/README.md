@@ -60,16 +60,17 @@ key, or inserts the other documents with `ordered: false`, and fails with the `w
 read with `next()`, `hasNext()` or `for await` (the `createCursor` and `createEntityCursor` of the `MongoRepository`)
 reads a batch of 1000 documents at a time when it has no order (and no limit of 1000 or less); `toArray()` reads them at
 once. As with MongoDB, the documents written while a cursor reads may be missed (updated or deleted before it reads
-them, inserted) or read twice (while the collection is compacted); a compaction of the collection does not start while
-a cursor reads it, and a cursor not read for 10 minutes is closed when it is. A sort without an
-index holds all the documents it sorts in memory (a `limit` after it too): index the fields the large collections are
-sorted on. A key of an index holds about 1000 bytes at most (its values encoded with the `_id`: a string of 995 bytes
-with an `ObjectId`): a write giving a larger one fails before it is written, with the code 17280 of MongoDB before 4.2
-(an error of its document in an `insertMany`). As with MongoDB, the relations, the query builders and the transactions of TypeORM are not supported, and the
-migrations are written by hand with the `MongoQueryRunner`, not generated. Its `ObjectId` and `Binary` are the ones of
-the CommonJS module of `bson`: `import {ObjectId} from 'lakutata/orm'` gives the class of the ids of its entities (the
-`ObjectId` of `import {ObjectId} from 'bson'` in an ES module is another class, `instanceof` false for the ids; the
-queries take both).
+them, inserted) or read twice (while the collection is compacted); a compaction of the collection does not start while a
+cursor reads it (nor while an index of it is built), one running ends once the cursors reading its files end, and a
+cursor not read for 10 minutes is closed when it is. A sort without an index holds all the documents it sorts in memory
+(a `limit` after it too): index the fields the large collections are sorted on. A key of an index holds about 1000 bytes
+at most (its values encoded with the `_id`: a string of 995 bytes with an `ObjectId`): a write giving a larger one fails
+before it is written, with the code 17280 of MongoDB before 4.2 (an error of its document in an `insertMany`). As with
+MongoDB, the relations, the query builders and the transactions of TypeORM are not supported, and the migrations are
+written by hand with the `MongoQueryRunner`, not generated. Its `ObjectId` and `Binary` are the ones of the CommonJS
+module of `bson`: `import {ObjectId} from 'lakutata/orm'` gives the class of the ids of its entities (the `ObjectId` of
+`import {ObjectId} from 'bson'` in an ES module is another class, `instanceof` false for the ids; the queries take
+both).
 
 The query result cache stored in Redis (`cache: {type: 'redis'}` or `'ioredis'`) needs `redis` or `ioredis`.
 

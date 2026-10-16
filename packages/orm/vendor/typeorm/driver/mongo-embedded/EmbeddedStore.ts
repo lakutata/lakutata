@@ -98,6 +98,12 @@ export class EmbeddedStore {
      */
     protected closing = false
 
+    /**
+     * The collections whose compaction copied their documents, ended once no scan reads their previous file and no
+     * index of them is built (endCompactionIfIdle).
+     */
+    protected readonly ending = new Set<EmbeddedCollectionStore>()
+
     protected readonly budget: EmbeddedCacheBudget
 
     protected constructor(
@@ -195,11 +201,14 @@ export class EmbeddedStore {
      */
     written(collection: EmbeddedCollectionStore): Promise<void> {
         if (this.closing) return Promise.resolve()
+        // The file holding the write, before a compaction it starts makes another one the file of the collection
+        if (this.directory && this.options.sync !== "never")
+            this.unsynced.add(collection.file)
+        this.endCompactionIfIdle(collection)
         this.compactIfWorth(collection)
         if (!this.directory) return Promise.resolve()
         this.snapshotIfWorth(collection)
         if (this.options.sync === "never") return Promise.resolve()
-        this.unsynced.add(collection.file)
         if (this.options.sync === "always")
             return new Promise((resolve, reject) => {
                 this.waiting.push({ resolve: resolve, reject: reject })
@@ -228,17 +237,21 @@ export class EmbeddedStore {
     }
 
     /**
-     * After a scan of a collection ended: the compaction it held back starts, when it is worth it.
+     * After a scan of a collection, or the build of an index of it, ended: the compaction they held back ends, or
+     * starts when it is worth it.
      *
      * @param collection
      */
     scanned(collection: EmbeddedCollectionStore): void {
-        if (!this.closing && this.collections.get(collection.name) === collection)
-            this.compactIfWorth(collection)
+        if (this.closing || this.collections.get(collection.name) !== collection)
+            return
+        this.endCompactionIfIdle(collection)
+        this.compactIfWorth(collection)
     }
 
     /**
-     * Removes a collection and its file; whether it existed.
+     * Removes a collection and its files; whether it existed. Its compaction running stops; its cursors and its writes
+     * running fail (its files closed).
      *
      * @param name
      */
@@ -246,11 +259,16 @@ export class EmbeddedStore {
         const collection = this.collections.get(name)
         if (!collection) return false
         this.collections.delete(name)
+        this.ending.delete(collection)
         this.unsynced.delete(collection.file)
+        if (collection.previous) this.unsynced.delete(collection.previous)
+        // Its file: the previous one during a compaction (the file of the compaction is the current one)
+        const file = collection.previous ?? collection.file
         collection.close()
-        if (collection.file instanceof EmbeddedDiskFile) {
-            fs.rmSync(collection.file.path, { force: true })
-            fs.rmSync(snapshotOf(collection.file.path), { force: true })
+        if (file instanceof EmbeddedDiskFile) {
+            fs.rmSync(file.path, { force: true })
+            fs.rmSync(file.path + NEXT, { force: true })
+            fs.rmSync(snapshotOf(file.path), { force: true })
         }
         return true
     }
@@ -275,6 +293,9 @@ export class EmbeddedStore {
             await collection.building
             await collection.compacting
         }
+        // The compactions whose documents are copied ended (their scans end with the files)
+        for (const collection of this.ending) this.endCopiedCompaction(collection)
+        this.ending.clear()
         try {
             if (this.directory)
                 for (const collection of this.collections.values())
@@ -371,7 +392,14 @@ export class EmbeddedStore {
      */
     protected compactIfWorth(collection: EmbeddedCollectionStore): void {
         const options = this.options.compaction
-        if (options === false || collection.compacting) return
+        // Not while one runs or ends (previous), nor while an index is built: the build reads one file
+        if (
+            options === false ||
+            collection.compacting ||
+            collection.previous ||
+            collection.building
+        )
+            return
         if (
             !collection.isWorthCompacting(
                 options?.minimumSize ?? 16 * 1024 * 1024,
@@ -388,8 +416,9 @@ export class EmbeddedStore {
 
     /**
      * Compacts a collection: its live documents copied to a new file, a batch between two yields of the event loop,
-     * the writes made meanwhile written to it; then the new file written to the disk and renamed over the previous
-     * one. A compaction failing leaves the collection on its two files (the next opening resumes it).
+     * the writes made meanwhile written to it; then, once no scan reads the previous file (endCompactionIfIdle), the
+     * new file written to the disk and renamed over the previous one. A compaction failing leaves the collection on its
+     * two files (the next opening resumes it); the collection dropped or closed meanwhile stops it.
      *
      * @param collection
      */
@@ -400,7 +429,45 @@ export class EmbeddedStore {
                 : new EmbeddedMemoryFile(),
         )
         try {
-            for (const _ of collection.copyLiveDocuments()) await yieldLoop()
+            for (const _ of collection.copyLiveDocuments()) {
+                await yieldLoop()
+                // Its files closed meanwhile: the copy goes no further (it returns the generator)
+                if (collection.closed) return
+            }
+        } catch {
+            // Its two files are read until the next opening resumes it
+            return
+        }
+        this.ending.add(collection)
+        this.endCompactionIfIdle(collection)
+    }
+
+    /**
+     * Ends the compaction of a collection whose documents are copied, unless a scan reads its two files (in the last
+     * SCAN_TIMEOUT) or an index of it is built from them: the end of the last of them ends it (scanned), else its next
+     * write or the closing.
+     *
+     * @param collection
+     */
+    protected endCompactionIfIdle(collection: EmbeddedCollectionStore): void {
+        if (
+            !this.ending.has(collection) ||
+            collection.building ||
+            collection.isScanned()
+        )
+            return
+        this.ending.delete(collection)
+        this.endCopiedCompaction(collection)
+    }
+
+    /**
+     * Ends a compaction whose documents are copied; failing, it leaves the collection on its two files (the next
+     * opening resumes it).
+     *
+     * @param collection
+     */
+    protected endCopiedCompaction(collection: EmbeddedCollectionStore): void {
+        try {
             this.endCompaction(collection)
         } catch {
             // Its two files are read until the next opening resumes it

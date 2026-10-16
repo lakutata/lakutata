@@ -202,6 +202,11 @@ export class EmbeddedCollectionStore {
     compacting?: Promise<void>
 
     /**
+     * Whether its files are closed.
+     */
+    closed = false
+
+    /**
      * The build of an index running: the writes of the collection wait for it.
      */
     building?: Promise<void>
@@ -756,7 +761,8 @@ export class EmbeddedCollectionStore {
         let built!: () => void
         this.building = new Promise((resolve) => (built = resolve))
         try {
-            // Its documents read from one file
+            // No compaction copying its documents meanwhile (a compaction copied waits for the build to end, and none
+            // starts while it runs)
             while (this.compacting) await this.compacting
             const tree = new EmbeddedBTree()
             let multikey = false
@@ -1001,7 +1007,12 @@ export class EmbeddedCollectionStore {
         this.changed = true
     }
 
+    /**
+     * Closes its files (the database closed, or the collection dropped): a compaction running stops, their uses after
+     * throw.
+     */
     close(): void {
+        this.closed = true
         this.cache.close()
         this.previous?.close()
         this.file.close()

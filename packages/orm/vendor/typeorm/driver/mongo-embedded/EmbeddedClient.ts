@@ -850,7 +850,12 @@ export class EmbeddedCollection {
         if (options?.expireAfterSeconds !== undefined)
             index.expireAfterSeconds = options.expireAfterSeconds
         const collection = this.collection(true)!
-        await collection.createIndex(index)
+        try {
+            await collection.createIndex(index)
+        } finally {
+            // The compaction its build held back
+            this.store.scanned(collection)
+        }
         await this.store.written(collection)
         return name
     }
