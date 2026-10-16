@@ -172,13 +172,13 @@ export class SqljsDriver extends AbstractSqliteDriver {
 
         if (PlatformTools.type === "node") {
             try {
-                const content = Buffer.from(this.databaseConnection.export())
+                const content = Buffer.from(this.export())
                 await PlatformTools.writeFile(path, content)
             } catch (e) {
                 throw new TypeORMError(`Could not save database, error: ${e}`)
             }
         } else {
-            const database: Uint8Array = this.databaseConnection.export()
+            const database: Uint8Array = this.export()
             // convert Uint8Array to number array to improve local-storage storage
             const databaseArray = [].slice.call(database)
             if (this.options.useLocalForage) {
@@ -222,7 +222,11 @@ export class SqljsDriver extends AbstractSqliteDriver {
      * Returns the current database as Uint8Array.
      */
     export(): Uint8Array {
-        return this.databaseConnection.export()
+        const database: Uint8Array = this.databaseConnection.export()
+        // lakutata: the export of sql.js closes and opens the database again, which resets its pragmas: the foreign
+        // keys are enforced again, else they are not anymore after the first save
+        this.databaseConnection.exec(`PRAGMA foreign_keys = ON`)
+        return database
     }
 
     /**

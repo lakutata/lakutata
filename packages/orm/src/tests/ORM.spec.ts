@@ -155,6 +155,26 @@ describe('The ORM', (): void => {
         await container.destroy()
     })
 
+    it('keeps the foreign keys of sql.js enforced after it saved the database to its file', async (): Promise<void> => {
+        const directory: string = await mkdtemp(path.join(tmpdir(), 'lakutata-orm-sqljs-'))
+        const container: Container = new Container()
+        try {
+            const location: string = path.join(directory, 'library.sqlite')
+            //Each change is saved to the file: the export of sql.js opens the database again, its pragmas reset
+            const database: Database = await container.set(Database, {options: {type: 'sqljs', location: location, autoSave: true, entities: [Author, Book], synchronize: true}})
+            const author: Author = await database.getRepository(Author).save({name: 'Ada'})
+            await database.getRepository(Book).save({title: 'Notes', author: author})
+            assert.deepStrictEqual(await database.query('PRAGMA foreign_keys'), [{foreign_keys: 1}])
+            await assert.rejects(database.query('INSERT INTO "book" ("title", "authorId") VALUES (\'Letters\', 999)'), /FOREIGN KEY constraint failed/)
+            await assert.rejects(database.getRepository(Author).delete({id: author.id}), /FOREIGN KEY constraint failed/)
+            assert.strictEqual(await database.getRepository(Book).count(), 1)
+            assert.ok((await readFile(location)).length > 0)
+        } finally {
+            await container.destroy()
+            await rm(directory, {recursive: true, force: true})
+        }
+    })
+
     it('names the indices of the names outside ASCII as TypeORM 0.3 with NamingStrategyV03', (): void => {
         //The names of TypeORM 0.3.31 and 1.1.2 for the index of the column name of the table author_ä_profile
         assert.strictEqual(new NamingStrategyV03().indexName('author_ä_profile', ['name']), 'IDX_7c80da203eeefc6a00b847e985')
