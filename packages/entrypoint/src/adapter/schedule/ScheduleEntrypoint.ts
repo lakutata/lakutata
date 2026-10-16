@@ -141,15 +141,20 @@ export function scheduleEntrypoint(options: ScheduleEntrypointOptions = {}): Ent
     }
 
     /**
-     * Write a failed run to the log of the application
+     * Give a failed run to the onError handler, or write it to the log of the application; an error of the handler is
+     * written to the log
      * @param runtime
      * @param error
      * @param action
      * @param context
      */
     const report = async (runtime: ChannelRuntime<ScheduleContext>, error: unknown, action: ChannelActionInfo, context: ScheduleContext): Promise<void> => {
-        if (options.onError) return await options.onError(error, action, context)
-        await log(runtime, error, `The scheduled action ${action.name} (${context.schedule}) failed`)
+        if (!options.onError) return await log(runtime, error, `The scheduled action ${action.name} (${context.schedule}) failed`)
+        try {
+            await options.onError(error, action, context)
+        } catch (handlerError: unknown) {
+            await log(runtime, handlerError, `The onError handler of the scheduled action ${action.name} failed`)
+        }
     }
 
     /**

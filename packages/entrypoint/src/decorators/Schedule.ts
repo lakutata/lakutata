@@ -82,8 +82,8 @@ function ScheduleAddress(schedule: string | ScheduleOptions): Record<string, str
         address.every = parseDuration(options.every)
         address.schedule = `every ${typeof options.every === 'number' ? `${options.every}ms` : options.every}`
     } else if (options.cron !== undefined) {
-        //The expression is checked now, not at the first run
-        new Cron(options.cron, options.timezone)
+        //The expression is checked now, not at the first run; a valid one matching no date (February 30th) would never run
+        if (!new Cron(options.cron, options.timezone).next()) throw new SyntaxError(`The cron expression ${options.cron} matches no date`)
         address.cron = options.cron
         address.schedule = `cron ${options.cron}`
         if (options.timezone) address.timezone = options.timezone
@@ -110,7 +110,8 @@ function ScheduleAddress(schedule: string | ScheduleOptions): Record<string, str
  * @param schedule A duration text (`'30s'`, `'1h30m'`) for an interval, any other text for a cron expression
  * (`'0 *\/5 * * * *'`, `'@daily'`), or the schedule options.
  * @returns The method decorator.
- * @throws {SyntaxError} When the class is declared, if the interval or the cron expression is invalid.
+ * @throws {SyntaxError} When the class is declared, if the interval or the cron expression is invalid, or if the
+ * expression matches no date (`'0 0 30 2 *'`).
  * @throws {RangeError} When the class is declared, if the time zone is unknown.
  * @example
  * ```typescript
@@ -162,7 +163,8 @@ export function Schedule<ClassPrototype extends Controller, Method>(schedule: st
  * rules (false by default); `rule` is an access rule of the action; `middlewares` run before the ones `@UseMiddlewares`
  * adds to the method.
  * @returns The method decorator.
- * @throws {SyntaxError} When the class is declared, if the interval or the cron expression is invalid.
+ * @throws {SyntaxError} When the class is declared, if the interval or the cron expression is invalid, or if the
+ * expression matches no date (`'0 0 30 2 *'`).
  * @throws {RangeError} When the class is declared, if the time zone is unknown.
  * @throws {InvalidValueException} When the class is declared, if the action options are invalid.
  */

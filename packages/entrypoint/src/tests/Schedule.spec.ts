@@ -176,6 +176,25 @@ describe('Schedule adapter', (): void => {
         assert.match(String((errors[0] as unknown[])[0]), /The onSkip handler of the scheduled action .* failed/)
     })
 
+    it('writes an error of the onError handler to the log as such', async (): Promise<void> => {
+        const errors: unknown[][] = []
+        const original = console.error
+        console.error = (...args: unknown[]): void => void errors.push(args)
+        try {
+            const container: Container = await start({onError: (): never => {
+                throw new Error('The handler failed')
+            }})
+            await sleep(100)
+            await container.destroy()
+        } finally {
+            console.error = original
+        }
+        const messages: string[] = errors.map((args: unknown[]): string => String(args[0]))
+        assert.ok(messages.some((message: string): boolean => /The onError handler of the scheduled action JobController:failing failed/.test(message)), messages.join('\n'))
+        //Not taken for a failure of the lock
+        assert.ok(!messages.some((message: string): boolean => /The lock/.test(message)), messages.join('\n'))
+    })
+
     it('runs immediately and waits for the runs in progress when it stops', async (): Promise<void> => {
         const container: Container = await start({onError: (): void => undefined})
         //The slow job runs immediately
@@ -208,6 +227,15 @@ describe('Schedule adapter', (): void => {
             }
             void InvalidController
         }, /"25" is not a value from 0 to 23/)
+        //Valid, but no date matches it: it would never run
+        assert.throws((): void => {
+            class NeverController extends Controller {
+                @Schedule('0 0 30 2 *')
+                public async job(): Promise<void> {
+                }
+            }
+            void NeverController
+        }, (error: unknown): boolean => error instanceof SyntaxError && /The cron expression 0 0 30 2 \* matches no date/.test(error.message))
     })
 
     it('runs the exclusive actions in one instance at a time, their intervals aligned', async (): Promise<void> => {
