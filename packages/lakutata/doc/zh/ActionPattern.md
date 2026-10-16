@@ -286,25 +286,4 @@ service: [
 
 ### gRPC 与 NATS
 
-`grpcServiceEntrypoint`（`@lakutata/grpc/service`）通过 gRPC 提供服务动作：服务 `lakutata.service.v1.Service`（`SERVICE_PROTO`，供其他语言的客户端使用）以模式和输入的 JSON 调用动作，并以流的形式推送客户端的事件。用 `buildGRPCServiceProxy` 声明的 `GRPCServiceProxy` 调用远程应用的动作并监听其事件。调用的截止时间到达时会中止对应的动作（`this.signal`）。详见 `@lakutata/grpc` 的 README。
-
-```typescript
-import {Application} from 'lakutata'
-import {buildGRPCServiceProxy, type GRPCServiceProxy} from '@lakutata/grpc/service'
-
-Application
-    .run(() => ({
-        id: 'shop.app',
-        name: 'Shop',
-        components: {
-            orders: buildGRPCServiceProxy({address: 'orders.internal:50051'})
-        }
-    }))
-    .onLaunched(async (app: Application): Promise<void> => {
-        const orders: GRPCServiceProxy = await app.getObject<GRPCServiceProxy>('orders')
-        orders.on('orderChanged', (order: { id: number }): void => console.log(order))
-        console.log(await orders.invoke({cmd: 'order.get', id: 1}))
-    })
-```
-
-`natsServiceEntrypoint`（`@lakutata/nats`）通过 NATS 提供服务动作，订阅以应用 id 为名的主题，各实例共享同一个队列组；用 `buildServiceProxy` 声明的 `ServiceProxy` 调用它们。详见 `@lakutata/nats` 的 README。
+`grpcServiceEntrypoint`（`@lakutata/grpc/service`）和 `natsServiceEntrypoint`（`@lakutata/nats`）分别通过 gRPC 和 NATS 提供服务动作，它们的代理用来从其他应用调用这些动作。见 [GRPC](GRPC.md) 和 [NATS](NATS.md)。

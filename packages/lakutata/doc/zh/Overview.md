@@ -102,6 +102,8 @@ Application
 | [Decorator](Decorator.md) | 各子路径的装饰器 |
 | [ActionPattern](ActionPattern.md) | 控制器、动作及其传输方式（HTTP、CLI、服务、定时任务、消息队列） |
 | [CLI](CLI.md) | 命令行工具：命令、选项、提示输入、输出与退出码 |
+| [GRPC](GRPC.md) | 通过 gRPC 提供服务动作（`@lakutata/grpc`），以及从其他应用和其他语言调用它们 |
+| [NATS](NATS.md) | NATS 组件、通过 NATS 提供服务动作（`@lakutata/nats`）、服务代理及其事件 |
 | [Schedules](Schedules.md) | 定时任务：间隔、cron 表达式、只在一个实例中执行的任务 |
 | [ORMIntegration](ORMIntegration.md) | `Database` 组件与 TypeORM |
 | [I18n](I18n.md) | 多语言消息 |

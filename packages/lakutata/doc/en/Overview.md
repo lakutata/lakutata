@@ -113,6 +113,8 @@ component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (
 | [Decorator](Decorator.md) | The decorators, by subpath |
 | [ActionPattern](ActionPattern.md) | Controllers, actions and transports (HTTP, CLI, services, schedules, queues) |
 | [CLI](CLI.md) | Command line tools: commands, options, prompts, output and exit codes |
+| [GRPC](GRPC.md) | The service actions over gRPC (`@lakutata/grpc`), and calling them from other applications and languages |
+| [NATS](NATS.md) | The NATS component, the service actions over NATS (`@lakutata/nats`), the service proxies and their events |
 | [Schedules](Schedules.md) | Scheduled jobs: intervals, cron expressions, jobs run by one instance |
 | [ORMIntegration](ORMIntegration.md) | The `Database` component and TypeORM |
 | [I18n](I18n.md) | Messages in several languages |

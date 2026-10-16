@@ -346,31 +346,6 @@ service: [
 
 ### gRPC and NATS
 
-`grpcServiceEntrypoint` (`@lakutata/grpc/service`) serves the service actions over gRPC: the service
-`lakutata.service.v1.Service` (`SERVICE_PROTO`, for the clients of other languages) invokes an action with the JSON of
-its pattern and input, and streams the events of a client. `GRPCServiceProxy`, declared with `buildGRPCServiceProxy`,
-invokes the actions of a remote application and listens to its events. The deadline of a call aborts its action
-(`this.signal`). See the README of `@lakutata/grpc`.
-
-```typescript
-import {Application} from 'lakutata'
-import {buildGRPCServiceProxy, type GRPCServiceProxy} from '@lakutata/grpc/service'
-
-Application
-    .run(() => ({
-        id: 'shop.app',
-        name: 'Shop',
-        components: {
-            orders: buildGRPCServiceProxy({address: 'orders.internal:50051'})
-        }
-    }))
-    .onLaunched(async (app: Application): Promise<void> => {
-        const orders: GRPCServiceProxy = await app.getObject<GRPCServiceProxy>('orders')
-        orders.on('orderChanged', (order: { id: number }): void => console.log(order))
-        console.log(await orders.invoke({cmd: 'order.get', id: 1}))
-    })
-```
-
-`natsServiceEntrypoint` (`@lakutata/nats`) serves them over NATS, on the subject of the application id, the instances
-sharing a queue group; `ServiceProxy`, declared with `buildServiceProxy`, invokes them. See the README of
-`@lakutata/nats`.
+`grpcServiceEntrypoint` (`@lakutata/grpc/service`) and `natsServiceEntrypoint` (`@lakutata/nats`) serve the service
+actions over gRPC and over NATS; their proxies call them from other applications. See [GRPC](GRPC.md) and
+[NATS](NATS.md).
