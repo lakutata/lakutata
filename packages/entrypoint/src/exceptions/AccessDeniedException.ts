@@ -7,7 +7,15 @@ import {Exception} from '@lakutata/core'
 export class AccessDeniedException extends Exception {
     public errno: string | number = 'E_ACCESS_DENY'
 
-    public message: string = 'Access denied'
-
     public readonly statusCode: number = 403
+
+    /**
+     * Create the exception: its message is "Access denied" unless one is given.
+     * @param template The message, or a template filled from the parameters (see `Exception`), or an error whose
+     * message it takes; "Access denied" by default.
+     * @param params The parameters of the template.
+     */
+    constructor(template?: string | Error, ...params: any[]) {
+        super((template ?? 'Access denied') as string, ...params)
+    }
 }

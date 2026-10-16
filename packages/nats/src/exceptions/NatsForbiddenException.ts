@@ -7,6 +7,15 @@ import {Exception} from '@lakutata/core'
  */
 export class NatsForbiddenException extends Exception {
     public errno: string | number = 'E_NATS_FORBIDDEN'
-    public message: string = 'Forbidden'
     public statusCode: number = 403
+
+    /**
+     * Create the exception: its message is "Forbidden" unless one is given.
+     * @param template The message, or a template filled from the parameters (see `Exception`), or an error whose
+     * message it takes; "Forbidden" by default.
+     * @param params The parameters of the template.
+     */
+    constructor(template?: string | Error, ...params: any[]) {
+        super((template ?? 'Forbidden') as string, ...params)
+    }
 }

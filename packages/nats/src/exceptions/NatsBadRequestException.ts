@@ -7,6 +7,15 @@ import {Exception} from '@lakutata/core'
  */
 export class NatsBadRequestException extends Exception {
     public errno: string | number = 'E_NATS_BAD_REQUEST'
-    public message: string = 'Bad Request'
     public statusCode: number = 400
+
+    /**
+     * Create the exception: its message is "Bad Request" unless one is given.
+     * @param template The message, or a template filled from the parameters (see `Exception`), or an error whose
+     * message it takes; "Bad Request" by default.
+     * @param params The parameters of the template.
+     */
+    constructor(template?: string | Error, ...params: any[]) {
+        super((template ?? 'Bad Request') as string, ...params)
+    }
 }

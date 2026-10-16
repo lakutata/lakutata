@@ -10,6 +10,7 @@ import {Component, Container, DTO, Exception} from '@lakutata/core'
 import {Inject} from '@lakutata/core/decorator/di'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {
+    AccessDeniedException,
     ActionInvocation,
     buildEntrypoints,
     Controller,
@@ -87,6 +88,16 @@ class DeviceController extends Controller {
         })
     }
 
+    @GET('/denied', {rule: async (): Promise<boolean> => false})
+    public async denied(): Promise<void> {
+    }
+
+    @GET('/administrators', {rule: async (): Promise<boolean> => {
+        throw new AccessDeniedException('Only administrators')
+    }})
+    public async administrators(): Promise<void> {
+    }
+
     @GET('/client')
     public async client(): Promise<Record<string, unknown>> {
         //The getters of express read the settings of the application through the context
@@ -151,6 +162,19 @@ describe('Express adapter', (): void => {
         }
     })
 
+    it('answers the denied requests with 403 and the message of their exception', async (): Promise<void> => {
+        const {url, container} = await start()
+        try {
+            const denied: Response = await fetch(`${url}/denied`)
+            assert.strictEqual(denied.status, 403)
+            assert.deepStrictEqual(await denied.json(), {errno: 'E_ACCESS_DENY', errMsg: 'Access denied'})
+            //The message given by the rule is kept
+            assert.deepStrictEqual(await (await fetch(`${url}/administrators`)).json(), {errno: 'E_ACCESS_DENY', errMsg: 'Only administrators'})
+        } finally {
+            await container.destroy()
+        }
+    })
+
     it('writes the errors with their status', async (): Promise<void> => {
         const {url, container} = await start()
         const invalid: Response = await fetch(`${url}/device/sn-1`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: 1})})
@@ -192,7 +216,7 @@ describe('Express adapter', (): void => {
     it('mounts the application routes, the fallback and the envelope', async (): Promise<void> => {
         const {url, container} = await start({
             before: (app, {actionPrefixes, isActionPath}): void => {
-                assert.deepStrictEqual(actionPrefixes.sort(), ['/buffer', '/client', '/created', '/device', '/empty', '/events', '/file', '/missing', '/slow'])
+                assert.deepStrictEqual(actionPrefixes.sort(), ['/administrators', '/buffer', '/client', '/created', '/denied', '/device', '/empty', '/events', '/file', '/missing', '/slow'])
                 assert.ok(isActionPath('/device/x') && !isActionPath('/devices'))
                 app.get('/health', (request, response): unknown => response.json({status: 'ok'}))
             },

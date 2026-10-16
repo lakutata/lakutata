@@ -7,6 +7,15 @@ import {Exception} from '@lakutata/core'
  */
 export class NatsNotFoundException extends Exception {
     public errno: string | number = 'E_NATS_NOT_FOUND'
-    public message: string = 'Subject Not Found'
     public statusCode: number = 404
+
+    /**
+     * Create the exception: its message is "Subject Not Found" unless one is given.
+     * @param template The message, or a template filled from the parameters (see `Exception`), or an error whose
+     * message it takes; "Subject Not Found" by default.
+     * @param params The parameters of the template.
+     */
+    constructor(template?: string | Error, ...params: any[]) {
+        super((template ?? 'Subject Not Found') as string, ...params)
+    }
 }

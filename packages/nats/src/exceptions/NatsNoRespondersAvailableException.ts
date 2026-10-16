@@ -8,6 +8,15 @@ import {Exception} from '@lakutata/core'
  */
 export class NatsNoRespondersAvailableException extends Exception {
     public errno: string | number = 'E_NATS_NO_RESPONDERS_AVAILABLE'
-    public message: string = 'No Responders Available'
     public statusCode: number = 503
+
+    /**
+     * Create the exception: its message is "No Responders Available" unless one is given.
+     * @param template The message, or a template filled from the parameters (see `Exception`), or an error whose
+     * message it takes; "No Responders Available" by default.
+     * @param params The parameters of the template.
+     */
+    constructor(template?: string | Error, ...params: any[]) {
+        super((template ?? 'No Responders Available') as string, ...params)
+    }
 }

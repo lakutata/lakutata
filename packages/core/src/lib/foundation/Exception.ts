@@ -139,9 +139,10 @@ export abstract class Exception extends Error {
         super()
         if (b.length) {
             const template: string = a as string
-            const templatingArgs: unknown[] | Record<string, any> = b.length > 1 ? b : b[0]
+            //The parameters given one by one ({0}, {1}…), even a single one, or the object or array given alone
+            const templatingArgs: unknown[] | Record<string, any> = b.length > 1 || typeof b[0] !== 'object' || b[0] === null ? b : b[0]
             //Kept for the translations of the message, not an enumerable property (the errors sent are not changed)
-            Object.defineProperty(this, PARAMS, {value: b.length > 1 || typeof b[0] !== 'object' || b[0] === null ? b : b[0], enumerable: false})
+            Object.defineProperty(this, PARAMS, {value: templatingArgs, enumerable: false})
             try {
                 this.message = templating(template, templatingArgs, {ignoreMissing: true})
             } catch (e) {
@@ -168,7 +169,20 @@ export abstract class Exception extends Error {
                 .join(' ')
             this.message = `${message.charAt(0).toUpperCase()}${message.slice(1)}`
         }
-        this.errMsg = this.message
+        //message as an accessor writing errMsg too (enumerable as the message assigned before): a subclass setting its
+        //message in a field initializer (run after this constructor) keeps errMsg the same, errMsg staying a data
+        //property (serialized, logged as it is)
+        let message: string = this.message
+        Object.defineProperty(this, 'message', {
+            configurable: true,
+            enumerable: true,
+            get: (): string => message,
+            set: (value: string): void => {
+                message = value
+                As<{ errMsg: string }>(this).errMsg = value
+            }
+        })
+        this.errMsg = message
         this.err = this.name
     }
 

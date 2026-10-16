@@ -8,6 +8,15 @@ import {Exception} from '@lakutata/core'
  */
 export class NatsInternalServerException extends Exception {
     public errno: string | number = 'E_NATS_INTERNAL_SERVER'
-    public message: string = 'Internal Server Error'
     public statusCode: number = 500
+
+    /**
+     * Create the exception: its message is "Internal Server Error" unless one is given.
+     * @param template The message, or a template filled from the parameters (see `Exception`), or an error whose
+     * message it takes; "Internal Server Error" by default.
+     * @param params The parameters of the template.
+     */
+    constructor(template?: string | Error, ...params: any[]) {
+        super((template ?? 'Internal Server Error') as string, ...params)
+    }
 }

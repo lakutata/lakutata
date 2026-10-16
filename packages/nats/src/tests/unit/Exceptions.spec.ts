@@ -29,12 +29,15 @@ describe('Nats*Exception', (): void => {
             expect(e).toBeInstanceOf(Error)
             expect(e.errno).toBe(errno)
             expect(e.message).toBe(message)
+            expect(e.errMsg).toBe(message)
             expect(e.statusCode).toBe(statusCode)
         })
     }
 
-    it('constructor argument does not override the built-in message (default message is assigned after construction)', (): void => {
-        expect(new NatsForbiddenException('whatever').message).toBe('Forbidden')
+    it('keeps the message given to the constructor, the built-in one otherwise', (): void => {
+        expect(new NatsForbiddenException('whatever').message).toBe('whatever')
+        expect(new NatsForbiddenException('whatever').errMsg).toBe('whatever')
+        expect(new NatsForbiddenException('Subject {0} forbidden', 'a.b').errMsg).toBe('Subject a.b forbidden')
     })
 })
 

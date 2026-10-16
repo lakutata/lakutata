@@ -72,11 +72,34 @@ describe('The messages of the exceptions', (): void => {
         //The arguments are the data of the templates too: they are not appended
         assert.strictEqual(new TestException('{0} %s', 'a', 'b').message, 'a a')
         assert.strictEqual(new TestException('{name} failed', {name: 'job'}).message, 'job failed')
+        //A single parameter given alone fills {0} too
+        assert.strictEqual(new TestException('Order {0} not found', 7).message, 'Order 7 not found')
+        assert.strictEqual(new TestException('Subject {0} forbidden', 'a.b').message, 'Subject a.b forbidden')
+        assert.strictEqual(new TestException('Order {0} not found', [7]).message, 'Order 7 not found')
         //A template of the data missing is kept
         assert.strictEqual(new TestException('{0} {2}', 'a', 'b').message, 'a {2}')
         //An argument which cannot be formatted keeps its placeholder
         assert.strictEqual(new TestException('%j and %s', 5n, 'x').message, '%j and x')
         assert.strictEqual(new TestException('%x% off%%%d%d', Object.create(null), '12px').message, '%x% off%%dNaN')
+    })
+
+    it('keep errMsg the same as the message, the one a subclass sets in a field too', (): void => {
+        class FieldException extends Exception {
+            public errno: string = 'E_FIELD'
+
+            public message: string = 'Set by a field'
+        }
+
+        const field: FieldException = new FieldException()
+        assert.strictEqual(field.message, 'Set by a field')
+        assert.strictEqual(field.errMsg, 'Set by a field')
+        assert.strictEqual(field.stack?.split('\n')[0], 'FieldException: Set by a field')
+        //errMsg stays a data property, and both are serialized
+        assert.ok('value' in Object.getOwnPropertyDescriptor(field, 'errMsg')!)
+        assert.deepStrictEqual([JSON.parse(JSON.stringify(field)).message, JSON.parse(JSON.stringify(field)).errMsg], ['Set by a field', 'Set by a field'])
+        const changed: TestException = new TestException('First')
+        changed.message = 'Second'
+        assert.strictEqual(changed.errMsg, 'Second')
     })
 
     it('make the message of an exception built without arguments from the words of its class name', (): void => {
