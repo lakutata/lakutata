@@ -1,4 +1,4 @@
-# Lakutata containerd 集成
+# Lakutata Containerd 集成
 
 **containerd 组件**（`lakutata/com/containerd`，`@lakutata/containerd` 包）通过 [containerd](https://containerd.io) 的 gRPC API 管理一个 containerd 命名空间中的镜像、容器、CNI 网络和命名卷，不需要 Docker，也不需要 nerdctl。它面向只运行 containerd 的 Linux 机器，例如嵌入式设备：组件直接与 containerd 的套接字通信（gRPC 客户端用 TypeScript 编写，没有原生插件），并自己完成 nerdctl 在 containerd 之上所做的工作（从镜像仓库拉取、解包镜像层、生成容器的 OCI 规范、容器日志）。它的 API 与 Docker 组件一致（[DockerIntegration](DockerIntegration.md)）。全部选项见 `@lakutata/containerd` 的 README。
 

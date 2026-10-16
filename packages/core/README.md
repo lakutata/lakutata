@@ -5,7 +5,7 @@ The core of the lakutata framework: the IoC container and dependency injection, 
 validation (`DTO`, built on joi) used by the decorators `@Configurable`, `@Expect`, `@Accept` and `@Return`.
 
 Most applications install the umbrella package `lakutata`, which re-exports this package (`lakutata`,
-`lakutata/decorator/di`, `lakutata/decorator/dto`, `lakutata/decorator/asst`, `lakutata/dtos`) and presets a pino `log`
+`lakutata/decorator/di`, `lakutata/decorator/dto`, `lakutata/decorator/asst`, `lakutata/dtos`) and presets a `log`
 component and the `entrypoint` component. `@lakutata/core` alone is enough for a library or an application without
 them (it logs to the console then).
 
@@ -186,4 +186,4 @@ The typings document each declaration with examples.
 - The guides: `doc/en/Core.md`, `doc/en/DTOValidation.md`, `doc/en/Decorator.md` of the package `lakutata` (Chinese
   in `doc/zh`).
 - `@lakutata/entrypoint`: the controllers and their HTTP, CLI and service transports.
-- `@lakutata/logger`: the pino logger preset by `lakutata`.
+- `@lakutata/logger`: the logger that `lakutata` presets as `log` (pino-compatible JSON lines).

@@ -1,14 +1,14 @@
 # Lakutata Overview
 
-**Lakutata** is an IoC-based application framework for Node.js and TypeScript: one programming model for web
-services, CLI tools, desktop (Electron) applications and embedded devices. An application is a tree of objects created
-by a container (components, providers, modules, controllers), whose options and inputs are validated by DTOs, and whose
-controllers are served by transports: HTTP (Express, Fastify), CLI (Commander), service RPC (HTTP, Socket.IO,
-JSON-RPC 2.0, gRPC, NATS, Electron IPC) and schedules. One controller method can be all of them at once.
+**Lakutata** is an IoC application framework for Node.js and TypeScript. It gives web services, CLI tools, desktop
+(Electron) applications and embedded devices one programming model: an application is a tree of objects (components,
+providers, modules, controllers) that a container creates. DTOs validate their options and inputs, and transports expose
+the controllers: HTTP (Express, Fastify), CLI (Commander), service RPC (HTTP, Socket.IO, JSON-RPC 2.0, gRPC, NATS,
+Electron IPC), schedules and message queues. One controller method can serve all of them at once.
 
 The package `lakutata` re-exports the `@lakutata/*` packages under its subpaths (see the table below) and presets two
-components in every application: `log` (the pino `Logger`) and `entrypoint` (the `Entrypoint` that serves the
-controllers).
+components in every application: `log` (the `Logger`, which writes pino-compatible JSON lines) and `entrypoint` (the
+`Entrypoint` that serves the controllers).
 
 ## Requirements
 
@@ -31,8 +31,9 @@ npm install lakutata                      # or the framework in an existing proj
 }
 ```
 
-The transports and the integrations use optional peer dependencies, installed when used: `express` or `fastify`,
-`commander`, `socket.io`, `ws`, the database drivers (`pg`, `mysql2`, `better-sqlite3`…), the cache stores (`redis`…).
+Transports and integrations rely on optional peer dependencies that you install only when you use them: `express` or
+`fastify`, `commander`, `socket.io`, `ws`, database drivers (`pg`, `mysql2`, `better-sqlite3`…), cache stores
+(`redis`…).
 
 ## A first application
 
@@ -86,7 +87,7 @@ Application
 | `lakutata/adapter/express`, `lakutata/adapter/fastify` | The HTTP transports |
 | `lakutata/adapter/commander` | The CLI transport |
 | `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron` | The service transports |
-| `lakutata/com/logger` | The `Logger` component (pino), preset as `log` |
+| `lakutata/com/logger` | The `Logger` component, preset as `log` (pino-compatible JSON lines) |
 | `lakutata/orm`, `lakutata/decorator/orm` | TypeORM and its decorators |
 | `lakutata/com/database`, `lakutata/provider/database` | The `Database` component and provider |
 | `lakutata/com/cacher` | The `Cacher` component |
@@ -95,25 +96,25 @@ Application
 | `lakutata/com/i18n` | The `I18n` component, the `Translator`, the language middleware |
 | `lakutata/com/docker` | The `Docker` component |
 | `lakutata/com/containerd` | The `Containerd` component |
-| `lakutata/com/monitor` | The CPU, memory, event loop and HTTP monitors |
+| `lakutata/com/monitor` | CPU, memory, event loop and HTTP monitors |
 | `lakutata/security`, `lakutata/provider/passwordHash` | Hashing, ciphers, signatures, the `PasswordHash` provider |
 | `lakutata/utils` | The helper functions |
 
-Outside this package: `@lakutata/cli` (the `lakutata` command: projects, bundles, executables, migrations),
-`@lakutata/grpc` (gRPC client, server and service transport), `@lakutata/nats` (NATS component and service transport),
-`@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (the Model Context Protocol).
+Not part of this package: `@lakutata/cli` (the `lakutata` command for creating projects, bundling, building executables
+and running migrations), `@lakutata/grpc` (a gRPC client, server and service transport), `@lakutata/nats` (a NATS
+component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (the Model Context Protocol).
 
 ## The guides
 
 | Guide | Topic |
 |---|---|
-| [Core](Core.md) | The application, the container, the lifetimes, dependency injection, modules, the lifecycle |
-| [DTOValidation](DTOValidation.md) | DTOs, the schemas, the validation of the options, inputs and results |
-| [Decorator](Decorator.md) | The decorators of each subpath |
-| [ActionPattern](ActionPattern.md) | The controllers, their actions and their transports (HTTP, CLI, services, schedules, queues) |
+| [Core](Core.md) | The application, the container, lifetimes, dependency injection, modules and the lifecycle |
+| [DTOValidation](DTOValidation.md) | DTOs and schemas: validating options, inputs and results |
+| [Decorator](Decorator.md) | The decorators, by subpath |
+| [ActionPattern](ActionPattern.md) | Controllers, actions and transports (HTTP, CLI, services, schedules, queues) |
 | [ORMIntegration](ORMIntegration.md) | The `Database` component and TypeORM |
-| [I18n](I18n.md) | The messages of each language |
-| [Mutex](Mutex.md) | The locks between the instances and the processes |
+| [I18n](I18n.md) | Messages in several languages |
+| [Mutex](Mutex.md) | Locks shared between processes and instances |
 | [Queue](Queue.md) | The message queues: producers, `@QueueAction` consumers, retries, dead letters, results |
 | [DockerIntegration](DockerIntegration.md) | The `Docker` component |
 | [ContainerdIntegration](ContainerdIntegration.md) | The `Containerd` component |
@@ -121,5 +122,5 @@ Outside this package: `@lakutata/cli` (the `lakutata` command: projects, bundles
 | [Time](Time.md) | The `Time` class |
 | [HelperFunctions](HelperFunctions.md) | The helper functions of `lakutata/utils` |
 
-Each `@lakutata/*` package has its own README, and the typings of each subpath document every declaration with
-examples.
+Each `@lakutata/*` package has its own README, and the type declarations of every subpath document each export with an
+example.

@@ -36,7 +36,7 @@
 1. 解析它的 `@Inject` 属性；
 2. 为它的 `@Configurable` 属性赋予配置值，并由各自的校验规则校验（及转换）；未配置的属性保留其初始值，没有初始值时取校验规则的默认值；
 3. 执行它的 `init()`（在此抛出的错误会导致创建失败）；
-4. 在它可以被其他对象获取之后，执行它的 `startup()`：获取它的一方会等待 `startup()` 完成（失败时得到同样的错误）；但在 `startup()` 内部、直接或经由它所创建的对象去获取的对象，会立即拿到这个对象，所以它获取的对象可以反过来注入它（入口在这里启动各个适配器，适配器的钩子会获取注入了入口的 Authenticator）。之所以叫 `startup` 而不叫 `start`，是为了避免自带 `start()` 方法的类（如 `@lakutata/docker` 的容器）被框架自动启动；
+4. 执行它的 `startup()`。此时其他对象已经可以获取它，但要等 `startup()` 完成才拿到（失败时得到同样的错误）；例外是在 `startup()` 内部直接或经由它创建的对象去获取的一方，会立即拿到它，所以在那里获取的对象可以反过来注入它（入口就在 `startup()` 里启动各个适配器，适配器的钩子会获取一个注入了入口的 Authenticator）。方法叫 `startup` 而不是 `start`，是为了避免框架去启动那些自带 `start()` 方法的类（比如 `@lakutata/docker` 的容器）；
 5. 应用启动完成（且对象已启动）后，执行它的 `launched()`（不会被等待，其错误会被记录到日志）。
 
 销毁时（调用 `dispose()`，或创建它的对象、作用域、应用被销毁时），先等待 `startup()` 结束，再执行它的 `beforeDestroy()`，再销毁它创建的对象，最后执行它的 `destroy()`。每个对象都拥有自己的容器：通过 `this.getObject()` 创建的对象会随它一起销毁。
@@ -226,11 +226,11 @@ Application
 
 ## 6. 入口
 
-`entrypoint` 组件（`lakutata/com/entrypoint`）通过 HTTP、CLI、服务传输和定时任务对外提供控制器。用 `buildEntrypoints({controllers, http, cli, service, schedule})` 给出它的选项，并把它列入 `bootstrap`；详见 [ActionPattern](ActionPattern.md)。
+`entrypoint` 组件（`lakutata/com/entrypoint`）通过 HTTP、CLI、服务传输、定时任务和消息队列对外提供控制器。用 `buildEntrypoints({controllers, http, cli, service, schedule, queue})` 配置它，并把它列入 `bootstrap`；详见 [ActionPattern](ActionPattern.md)。
 
 ## 7. 不使用应用的容器
 
-测试、脚本和库可以在单独的容器中使用这些对象：
+测试、脚本和库可以不建应用，直接在一个容器里使用这些对象：
 
 ```typescript
 import {Component, Container, DTO} from 'lakutata'

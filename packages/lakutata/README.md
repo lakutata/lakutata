@@ -24,7 +24,7 @@ desktop (Electron) applications and embedded devices. An application is a tree o
 can be all of them at once.
 
 This package is the framework: it re-exports the `@lakutata/*` packages under the subpaths listed below, and presets
-the `log` (pino) and `entrypoint` components of the applications. Each subpath's typings document every declaration
+the `log` and `entrypoint` components of the applications. Each subpath's typings document every declaration
 with examples; each `@lakutata/*` package has its own README.
 
 ## Installation
@@ -100,7 +100,7 @@ Application
 | `lakutata/adapter/express`, `lakutata/adapter/fastify` | `@lakutata/entrypoint` | The HTTP transports, `staticUI` |
 | `lakutata/adapter/commander` | `@lakutata/entrypoint` | The CLI transport |
 | `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron` | `@lakutata/entrypoint` | The service transports |
-| `lakutata/com/logger` | `@lakutata/logger` | The `Logger` component (pino) preset as `log` |
+| `lakutata/com/logger` | `@lakutata/logger` | The `Logger` component preset as `log` (pino-compatible JSON lines) |
 | `lakutata/orm`, `lakutata/decorator/orm` | `@lakutata/orm` | TypeORM, its decorators |
 | `lakutata/com/database`, `lakutata/provider/database` | `@lakutata/orm` | The `Database` component and provider, the migration commands |
 | `lakutata/com/cacher` | `@lakutata/cache` | The `Cacher` component: memory, file, Redis, Memcached, MongoDB, SQLite, PostgreSQL, MySQL stores |

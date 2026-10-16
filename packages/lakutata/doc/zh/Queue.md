@@ -47,7 +47,7 @@ Application.run(() => ({
 组件的其他选项：
 
 - `defaults`：消费者的默认设置：`attempts`（3）、`backoff`（指数退避，从 1 秒到 1 分钟）、`concurrency`（1）、`timeout`（不限）、`group`（应用的 `appId`）。
-- `results`：`{keep}`（1 天）和 `{store}`：保存结果的 `Cacher` 组件的名称，代替驱动保存结果。RabbitMQ 和 Kafka 自身不保存结果，需要指定一个由各应用共用的存储（例如 Redis）。`false` 表示不保存结果。
+- `results`：`keep` 是结果保留多久（默认 1 天），`store` 是代替驱动保存结果的 `Cacher` 组件的名称。RabbitMQ 和 Kafka 自身不保存结果，需要指定一个各应用共用的存储（例如 Redis）。`false` 表示不保存结果。
 - `codec`：`'messagepack'`（默认，和 `@lakutata/nats` 相同）、`'json'`（方便其他语言的服务对接）或自定义的 `QueueCodec`。
 - `requestTimeout`：`request()` 和 `result()` 的等待时间（30 秒）。
 

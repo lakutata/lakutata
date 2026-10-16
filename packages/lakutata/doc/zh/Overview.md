@@ -1,8 +1,8 @@
 # Lakutata 概述
 
-**Lakutata** 是一个面向 Node.js 和 TypeScript 的、基于 IoC 的应用框架：Web 服务、命令行工具、桌面（Electron）应用和嵌入式设备使用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、模块、控制器），对象的选项和输入由 DTO 校验，控制器由各种传输方式对外提供：HTTP（Express、Fastify）、CLI（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC）以及定时任务。同一个控制器方法可以同时通过所有这些方式调用。
+**Lakutata** 是一个基于 IoC 的 Node.js / TypeScript 应用框架，让 Web 服务、命令行工具、桌面（Electron）应用和嵌入式设备共用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、模块、控制器）：DTO 校验对象的选项和输入，各种传输方式把控制器暴露出去——HTTP（Express、Fastify）、CLI（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC）、定时任务和消息队列。同一个控制器方法可以同时通过所有这些方式调用。
 
-`lakutata` 包通过各个子路径重新导出 `@lakutata/*` 系列包（见下表），并为每个应用预置两个组件：`log`（基于 pino 的 `Logger`）和 `entrypoint`（对外提供控制器的 `Entrypoint`）。
+`lakutata` 包通过各个子路径重新导出 `@lakutata/*` 系列包（见下表），并为每个应用预置两个组件：`log`（`Logger`，输出与 pino 兼容的 JSON 日志行）和 `entrypoint`（对外提供控制器的 `Entrypoint`）。
 
 ## 环境要求
 
@@ -24,7 +24,7 @@ npm install lakutata                      # 或在已有项目中安装框架
 }
 ```
 
-传输方式和各项集成依赖可选的 peer 依赖，用到时再安装：`express` 或 `fastify`、`commander`、`socket.io`、`ws`、数据库驱动（`pg`、`mysql2`、`better-sqlite3` 等）、缓存存储（`redis` 等）。
+传输方式和各项集成所需的客户端都是可选的 peer 依赖，用到时再安装：`express` 或 `fastify`、`commander`、`socket.io`、`ws`、数据库驱动（`pg`、`mysql2`、`better-sqlite3` 等）、缓存存储（`redis` 等）。
 
 ## 第一个应用
 
@@ -78,7 +78,7 @@ Application
 | `lakutata/adapter/express`、`lakutata/adapter/fastify` | HTTP 传输 |
 | `lakutata/adapter/commander` | CLI 传输 |
 | `lakutata/adapter/socket.io`、`lakutata/adapter/jsonrpc`、`lakutata/adapter/electron` | 服务传输 |
-| `lakutata/com/logger` | `Logger` 组件（pino），预置为 `log` |
+| `lakutata/com/logger` | `Logger` 组件，预置为 `log`（输出与 pino 兼容的 JSON 行） |
 | `lakutata/orm`、`lakutata/decorator/orm` | TypeORM 及其装饰器 |
 | `lakutata/com/database`、`lakutata/provider/database` | `Database` 组件和提供者 |
 | `lakutata/com/cacher` | `Cacher` 组件 |

@@ -1,4 +1,4 @@
-# Lakutata containerd Integration
+# Lakutata Containerd Integration
 
 The **containerd component** (`lakutata/com/containerd`, package `@lakutata/containerd`) manages the images, containers,
 CNI networks and named volumes of a [containerd](https://containerd.io) namespace over the gRPC API of containerd,
