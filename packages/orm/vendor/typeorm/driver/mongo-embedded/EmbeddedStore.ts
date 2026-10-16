@@ -409,7 +409,9 @@ export class EmbeddedStore {
 
     /**
      * Ends the compaction of a collection: the new file written to the disk, the previous one closed, the new one
-     * renamed over it (its snapshot removed: it is the one of the previous file).
+     * renamed over it (its snapshot removed: it is the one of the previous file). The directory is not synced: a
+     * rename lost by a crash leaves the two files, and the next opening resumes the compaction; a snapshot left is the
+     * one of the previous file, refused by its id.
      *
      * @param collection
      */
@@ -429,6 +431,7 @@ export class EmbeddedStore {
         next.path = path
         fs.rmSync(snapshotOf(path), { force: true })
         collection.snapshotOffset = 0
+        // The file of the collection from now on, synced by the next sync as the files written
         this.unsynced.add(next)
     }
 

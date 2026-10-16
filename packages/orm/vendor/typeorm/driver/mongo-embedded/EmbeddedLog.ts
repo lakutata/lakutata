@@ -12,7 +12,10 @@ export const RECORD_HEADER = 9
  * record; the records after the last commit record (an operation cut by a crash) are dropped when the file is opened.
  */
 export const RecordType = {
-    /** The first record of a file: the name of its collection. */
+    /**
+     * The first record of a file: the name of its collection, the format of the file (1), and its id (which its
+     * snapshot tells).
+     */
     Header: 0,
     /** A document (BSON, its _id first). */
     Put: 1,
@@ -39,7 +42,8 @@ export interface EmbeddedRecord {
 
 /**
  * lakutata: why a record could not be read: the end of the file, a record past its end (cut by a crash), a record
- * whose CRC-32 does not match.
+ * whose CRC-32 does not match. The CRC-32 does not cover the length of a record: a length damaged in the middle of a
+ * file reads as a record cut (past its end) or as a CRC-32 not matching (another record read).
  */
 export type EmbeddedRecordEnd = "end" | "torn" | "checksum"
 

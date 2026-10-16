@@ -207,6 +207,9 @@ export async function startEmbeddedWorker(
         port.postMessage({ id: 0, error: describeError(bson, error) })
         return
     }
+    // The calls are handled as they come, not queued: as on the main thread (worker false), a call awaiting (a write
+    // between its batches, a find) lets the next ones run, a close included; the replies are posted as the calls end,
+    // in any order, the client matching them by their id
     port.on("message", (request: EmbeddedRequest) => {
         handle(client, request).then(
             (reply) => port.postMessage(reply),

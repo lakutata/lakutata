@@ -566,6 +566,7 @@ export class EmbeddedWorkerClient {
                 if (reply.error) throw errorOf(this.bson, reply.error)
                 for (const batch of reply.batches ?? [])
                     yield decodeDocuments(this.bson, batch)
+                // No cursor: the find does not stream (isStreamed), all its documents replied at once
                 if (reply.done || reply.cursor === undefined) {
                     ended = true
                     return
@@ -576,6 +577,7 @@ export class EmbeddedWorkerClient {
                 )
             }
         } finally {
+            // Closed before its end (a cursor the worker thread did not close yet): killed, not awaited
             if (!ended && reply.cursor !== undefined)
                 void this.request(
                     "kill",
@@ -593,6 +595,11 @@ export class EmbeddedWorkerClient {
         return this.closing
     }
 
+    /**
+     * Closes the database, then ends the worker thread. Closed after the worker thread exited, it resolves (the
+     * database is closed). The calls fail before the thread is ended: its exit then does not remove the LOCK of the
+     * directory (exited), which may be the one of another connection of the process since the database closed it.
+     */
     protected async closeWorker(): Promise<void> {
         if (this.failure) return
         const reply = await this.request("close")

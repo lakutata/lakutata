@@ -30,7 +30,9 @@ export type EmbeddedOrderedValue = number | string | Date | boolean | object
  * lakutata: encodes the values of the indexes as bytes whose order (compared as bytes) is the one of MongoDB for the
  * numbers, the strings, the dates, the booleans, the ObjectIds and the binaries; the other values are encoded by
  * their Extended JSON, equal when they are. Each value is self-delimiting (a string is terminated, its zero bytes
- * escaped): the keys of several fields are their values concatenated, those of a descending field inverted.
+ * escaped): the keys of several fields are their values concatenated, those of a descending field inverted. The
+ * numbers are encoded as doubles: the integers of 64 bits beyond 2^53 and the Decimal128 of more than 15 significant
+ * digits are rounded, two of them may have one key.
  */
 export class EmbeddedKeyEncoding {
     constructor(protected readonly values: EmbeddedValues) {}
@@ -221,10 +223,12 @@ export class EmbeddedKeyEncoding {
     protected number(tag: number, value: number): Buffer {
         const key = Buffer.allocUnsafe(9)
         key[0] = tag
+        // NaN before all the numbers (-Infinity included), as MongoDB sorts it
         if (Number.isNaN(value)) {
             key.fill(0, 1)
             return key
         }
+        // -0 and 0 one key, as MongoDB compares them
         key.writeDoubleBE(value === 0 ? 0 : value, 1)
         // The bits of a double ordered as bytes: the sign bit set for the positive ones, all of them inverted for the
         // negative ones

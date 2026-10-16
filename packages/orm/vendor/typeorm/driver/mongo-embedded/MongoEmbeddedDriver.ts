@@ -54,8 +54,9 @@ export class MongoEmbeddedDriver extends MongoDriver {
 
     /**
      * Whether the persistence of the entities may insert them together: the embedded client inserts the documents of a
-     * save in one insertMany (one write of its file), and gives their _id in their order. The query builders, which
-     * the other uses of the returning statements are, are not supported by MongoDB.
+     * save with one insertMany (in batches of 1000 documents, each one written as one operation: a failure leaves the
+     * batches before it written), and gives their _id in their order. The query builders, which the other uses of the
+     * returning statements are, are not supported by MongoDB.
      *
      * @param returningType
      */

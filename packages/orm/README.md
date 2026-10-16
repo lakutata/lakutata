@@ -59,8 +59,9 @@ key, or inserts the other documents with `ordered: false`, and fails with the `w
 (`$match`, `$project`, `$unwind`...), runs a batch of documents at a time, its memory the one of its groups. A cursor
 read with `next()`, `hasNext()` or `for await` (the `createCursor` and `createEntityCursor` of the `MongoRepository`)
 reads a batch of 1000 documents at a time when it has no order (and no limit of 1000 or less); `toArray()` reads them at
-once. The documents written while a cursor reads may be read (a document updated, again); the file of a collection is
-not compacted while a cursor reads it, and a cursor not read for 10 minutes is closed when it is. A sort without an
+once. As with MongoDB, the documents written while a cursor reads may be missed (updated or deleted before it reads
+them, inserted) or read twice (while the collection is compacted); a compaction of the collection does not start while
+a cursor reads it, and a cursor not read for 10 minutes is closed when it is. A sort without an
 index holds all the documents it sorts in memory (a `limit` after it too): index the fields the large collections are
 sorted on. A key of an index holds about 1000 bytes at most (its values encoded with the `_id`: a string of 995 bytes
 with an `ObjectId`): a write giving a larger one fails before it is written, with the code 17280 of MongoDB before 4.2

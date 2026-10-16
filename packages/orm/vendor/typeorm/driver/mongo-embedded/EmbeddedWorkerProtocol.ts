@@ -8,7 +8,7 @@ import type { EmbeddedDocument } from "./EmbeddedValues"
 export const WORKER_DATA_KEY = "lakutataMongoEmbedded"
 
 /**
- * lakutata: the data of the worker thread of an embedded MongoDB: the directory of its database (or ":memory:") and
+ * lakutata: the data of the worker thread of an embedded MongoDB: the directory of its database (none in memory) and
  * the options of its store.
  */
 export interface EmbeddedWorkerData {
@@ -22,7 +22,8 @@ export interface EmbeddedWorkerData {
  *  - "db": a method of the database ({ method, args })
  *  - "find": the documents of a find ({ collection, query, projection, sort, skip, limit })
  *  - "aggregate": the documents of an aggregation ({ collection, pipeline, options })
- *  - "open": a cursor of a find read a batch at a time, and its first batch (as "find")
+ *  - "open": a cursor of a find read a batch at a time, and its first batch (as "find"); a find not streamed
+ *    (isStreamed) replies all its batches, without a cursor
  *  - "more": the next batch of a cursor ({ cursor })
  *  - "kill": the closing of a cursor ({ cursor })
  *  - "close": the closing of the database

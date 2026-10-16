@@ -182,8 +182,10 @@ export class Database extends Component {
     }
 
     /**
-     * Replace the naming strategy of the connection, which names the tables, the columns and the constraints of the
-     * entities. Set it before the metadata is used: the names already built are not renamed.
+     * Replace the naming strategy of the connection. The names of the tables, the columns and the constraints of the
+     * entities are built when it connects, with the `namingStrategy` of the connection options: they are not renamed,
+     * only the names built afterwards (the constraints a query runner creates unnamed) use this one. To name the
+     * entities, set the `namingStrategy` option.
      * @param instance The naming strategy.
      */
     public set namingStrategy(instance: NamingStrategyInterface) {

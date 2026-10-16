@@ -6,7 +6,7 @@ import fs from "fs"
 import path from "path"
 import { highlight } from "sql-highlight"
 import { type DatabaseType } from "../driver/types/DatabaseType"
-import { requireDriverPackage } from "./DriverPackages"
+import { requireDriverPackage } from "./DriverPackages" // lakutata: the drivers required by their names written out
 
 export { EventEmitter } from "events"
 export { ReadStream } from "fs"

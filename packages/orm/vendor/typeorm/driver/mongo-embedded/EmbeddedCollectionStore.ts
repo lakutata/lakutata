@@ -133,7 +133,10 @@ interface PendingRecord {
 }
 
 /**
- * lakutata: the first bytes of a snapshot of a collection.
+ * lakutata: the first bytes of a snapshot of a collection. A snapshot holds: these 8 bytes; the CRC-32 of the bytes
+ * after it (4 bytes, little endian); the length of its header (4 bytes, little endian); its header (BSON, its format
+ * 2, not the one of the files); then the buffers of the keydir and of the trees of the indexes, each one from a
+ * multiple of 8 bytes of the file (zero padding before it).
  */
 const SNAPSHOT_MAGIC = Buffer.from("LKEMBSN1")
 
@@ -204,8 +207,7 @@ export class EmbeddedCollectionStore {
     building?: Promise<void>
 
     /**
-     * The scans of its file running: it is not compacted while one of them read in the last SCAN_TIMEOUT (a scan reads
-     * the files of a compaction as they are when it begins).
+     * The scans of its files running: a compaction does not start while one of them read in the last SCAN_TIMEOUT.
      */
     readonly scans = new Set<EmbeddedScan>()
 
@@ -349,6 +351,8 @@ export class EmbeddedCollectionStore {
                 offset: record.offset,
                 length: record.length,
                 key: keyed ? values.idKeyOf(record.payload) : undefined,
+                // The documents replayed after a snapshot update the indexes; read from the start, the indexes are
+                // built once the records are read (from the documents read again)
                 payload:
                     (replaying && record.type === RecordType.Put) || !keyed
                         ? values.deserialize(record.payload)
@@ -375,7 +379,9 @@ export class EmbeddedCollectionStore {
 
     /**
      * Writes its snapshot: its keydir and the trees of its indexes as they are in memory, and the offset of its file
-     * they are the state of (beside the file, then renamed over it). It is checked by its CRC-32 when it is read.
+     * they are the state of (beside the file, then renamed over it). It is not written to the disk at once (synced): a
+     * snapshot cut by a crash is refused when it is read (its CRC-32 and its size), as the one of another file (its
+     * id, the commit record at its offset), the file then read from its start.
      *
      * @param path
      */
@@ -408,6 +414,7 @@ export class EmbeddedCollectionStore {
         const length = Buffer.allocUnsafe(4)
         length.writeUInt32LE(header.length)
         const parts: Uint8Array[] = [length, header]
+        // The magic, the CRC-32 and the length before the header
         let size = 16 + header.length
         const pad = () => {
             if (size % 8) parts.push(Buffer.alloc(align(size) - size))
@@ -605,8 +612,10 @@ export class EmbeddedCollectionStore {
     }
 
     /**
-     * The documents held when it is called: the ones cached when they are all, else the ones of the file in its order
-     * (cached while the cache has room). They are shared: they must not be changed.
+     * The documents of the collection: the ones cached when they all are (as they are when it is called), else the
+     * ones of its files read in their order as it is iterated (cached while the cache has room): a document written
+     * meanwhile may be missed (updated or deleted before it is read, inserted) or, while the collection is compacted,
+     * read twice. They are shared: they must not be changed.
      */
     *documents(): Generator<EmbeddedDocument> {
         if (this.cache.size === this.keydir.size) {
@@ -906,6 +915,9 @@ export class EmbeddedCollectionStore {
                 this.keydir.offsetAt(slot) !== record.offset
             )
                 continue
+            // Copied as it is: the same bytes, its live bytes unchanged. Its keydir slot checked above and set by
+            // the flush in one synchronous span (the flush before the yield): a write made meanwhile is not
+            // overwritten by its stale copy
             records.push(encodeRecord(RecordType.Put, record.payload))
             keys.push(key)
             if (records.length < 1000) continue

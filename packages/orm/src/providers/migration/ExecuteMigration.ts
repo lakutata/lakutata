@@ -26,8 +26,9 @@ class Executor extends MigrationExecutor {
 
 /**
  * Run, revert or show the migrations of a database of the application, with its options (MIGRATION_RUN, MIGRATION_REVERT,
- * MIGRATION_SHOW): the database is connected without synchronizing its schema nor running its migrations, the action
- * done, then the application exits (with the code 1 when the action fails)
+ * MIGRATION_SHOW): the database is connected without synchronizing its schema nor running its migrations, then the
+ * action done. Each database has its provider, in the order of the run: a failure exits the application with the code
+ * 1 (the databases after it are not reached), the last one exits it with the code 0
  */
 @Transient()
 export class ExecuteMigration extends Provider {
@@ -105,6 +106,8 @@ export class ExecuteMigration extends Provider {
                 return
             }
             case 'revert': {
+                //The migration reverted, read first (undoLastMigration does not tell it): the last by its id (the
+                //migrations of MongoDB have none: the order of their reading kept)
                 const [last] = (await executor.getExecutedMigrations()).sort((a: Migration, b: Migration): number => (b.id ?? 0) - (a.id ?? 0))
                 if (!last) return console.log(ansi.yellow`${this.prefix}No migration to revert`)
                 await dataSource.undoLastMigration({transaction: this.transactionMode, fake: this.fake})

@@ -18,7 +18,8 @@ import type { EmbeddedDocument } from "./EmbeddedValues"
 import { EmbeddedValues } from "./EmbeddedValues"
 
 /**
- * lakutata: the documents read between two yields of the event loop, in a scan of a collection.
+ * lakutata: the documents of a batch: read between two yields of the event loop (a scan, the ids of an index), written
+ * as one operation (an insertMany); a cursor whose limit is larger streams (isStreamed).
  */
 const YIELD_EVERY = 1000
 
@@ -52,8 +53,9 @@ const MERGED_GROUPS = 10000
 
 /**
  * lakutata: a $group run on the documents a batch at a time (its stages before it on each batch, then its $group),
- * the groups of the batches merged by a $group of their results (the arrays of $push and $addToSet concatenated),
- * then completed (the averages divided, the fields in the order of the $group), then the rest of the pipeline.
+ * the groups of the batches merged by a $group of their results (the arrays of $push concatenated, the ones of
+ * $addToSet united), then completed (the averages divided, the fields in the order of the $group), then the rest of
+ * the pipeline.
  */
 interface BatchedGroup {
     batch: EmbeddedDocument[]
@@ -448,7 +450,8 @@ export class EmbeddedFindCursor extends EmbeddedResults {
 
     /**
      * The batches of its documents (copies, projected), read as they are asked when they stream (isStreamed); the
-     * documents written while they are read may be read (a document updated, again).
+     * documents written while they are read may be missed or, while the collection is compacted, read twice
+     * (EmbeddedCollectionStore.documents).
      */
     streamedBatches(): AsyncIterator<EmbeddedDocument[]> | undefined {
         return this.batches()
@@ -499,9 +502,10 @@ export class EmbeddedArrayCursor extends EmbeddedResults {
 
 /**
  * lakutata: a collection of an embedded MongoDB, with the methods of the collections of MongoDB that TypeORM calls.
- * Its writes find their documents first (a scan yielding the event loop), then read each of them again, test it and
- * write it at once, as the other operations change them meanwhile. They wait for the build of an index of the
- * collection (building), and write at once once it is built, with no await between.
+ * Its writes find their documents a batch at a time (by their _id, an index or a scan, the event loop yielded between
+ * the batches), then read each document of a batch again, test it and write the batch at once, as the other
+ * operations change them meanwhile: a write of many documents is several operations. They wait for the build of an
+ * index of the collection (building), and write at once once it is built, with no await between.
  */
 export class EmbeddedCollection {
     constructor(
@@ -666,6 +670,8 @@ export class EmbeddedCollection {
                 options,
             )) {
                 groups.push(group)
+                // The groups merged stay before the ones of the batches after them, and a $group keeps the order of
+                // its documents: the $first and $last of the merge are the ones of the order of the documents
                 if (groups.length >= Math.max(2 * merged, MERGED_GROUPS)) {
                     groups = mingo.aggregate(groups, batched.merge, options)
                     merged = groups.length
@@ -684,8 +690,8 @@ export class EmbeddedCollection {
     }
 
     /**
-     * The documents matching a filter, in batches (a scan yielding the event loop between them), shared with the store
-     * (not to be changed).
+     * The documents matching a filter, in batches (candidates: the event loop yielded between them), shared with the
+     * store (not to be changed).
      *
      * @param query
      */
@@ -953,7 +959,8 @@ export class EmbeddedCollection {
     }
 
     /**
-     * The documents a filter may match: the ones of its _id when it gives them, else all of them.
+     * The documents a filter may match, in batches, the event loop yielded between them: the ones of its _id or of the
+     * ranges of an index when the planner gives them, else all of them by a scan of the files of the collection.
      *
      * @param filter
      */
@@ -978,6 +985,8 @@ export class EmbeddedCollection {
                     if (scan.closed) throw closed()
                     const batch = await documents.next()
                     if (batch.done) break
+                    // Closed while the batch was read (its read yields the event loop first): its files may have
+                    // changed under it
                     if (scan.closed) throw closed()
                     scan.read = Date.now()
                     yield batch.value
@@ -994,6 +1003,7 @@ export class EmbeddedCollection {
             plan.kind === "id"
                 ? plan.ids.map((id) => this.values.idKey(id))
                 : [...collection.idsIn(plan.index, plan.ranges)]
+        // Each document once: the values of a $in may repeat, a multikey index holds a document for each of its keys
         const seen = new Set<string>()
         yield* batches(
             (function* () {
@@ -1010,8 +1020,10 @@ export class EmbeddedCollection {
 
     /**
      * The documents matching a filter in the order of a sort of one field, up to a number, read in the order of an
-     * index of the field (from its range in the filter, if any); undefined when no index gives that order, or the walk
-     * meets a value it does not order as MongoDB sorts it. The walk is synchronous (the index is not changed meanwhile).
+     * index of the field (from its range in the filter, if any; all of it when the filter gives several ranges);
+     * undefined when no index gives that order, when the filter is planned on the _id or on another index, or when the
+     * walk meets a value it does not order as MongoDB sorts it (the documents then sorted in memory). The walk is
+     * synchronous (the index is not changed meanwhile).
      *
      * @param query
      * @param sort
@@ -1040,6 +1052,7 @@ export class EmbeddedCollection {
         const tree = collection.trees.get(walk.index)!
         for (const range of ranges)
             for (const [key, id] of tree.range(range.lower, range.upper, walk.reverse)) {
+                // The tag of the value (its bytes inverted in a descending index)
                 if (UNORDERED_TAGS.has(descending ? ~key[0] & 0xff : key[0]))
                     return undefined
                 const document = collection.get(id)
@@ -1316,9 +1329,10 @@ export class EmbeddedCollection {
     }
 
     /**
-     * Writes the changes of documents as one operation (at once, before it awaits); when they fail, a document at a
-     * time up to the one failing, the error thrown once the ones written before it are written as the option sync
-     * tells; the number of the changes written.
+     * Writes the changes of documents as one operation (at once, before it awaits); when they fail, whatever the error
+     * (of mingo, a changed _id, a key), a document at a time up to the one failing, as MongoDB writes them in order:
+     * the error thrown once the ones written before it are written as the option sync tells; the number of the changes
+     * written.
      *
      * @param collection
      * @param documents
@@ -1435,6 +1449,7 @@ export class EmbeddedCollection {
         let deleted = 0
         let synced: Promise<void> | undefined
         try {
+            // A document deleted leaves the collection: unlike an update, a scan does not meet it again
             for await (const batch of this.candidates(filter)) {
                 while (collection?.building) await collection.building
                 const changes: EmbeddedChange[] = []

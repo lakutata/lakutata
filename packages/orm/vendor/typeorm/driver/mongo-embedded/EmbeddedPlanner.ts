@@ -67,8 +67,8 @@ function after(bytes: Buffer): Buffer | undefined {
  * $and) on which its indexes may be used, without dropping a document the filter matches. An index is used for the
  * equalities and the lists of values ($eq, $in) of the values of a type it orders, other than null (which matches the
  * documents missing the field), and for the ranges of an ascending index ($gt, $gte, $lt, $lte); the other operators
- * ($ne, $nin, $not, $exists, $regex...) are left to the filter. An index of which a document has several keys is not
- * used for a range of two bounds (they may be met by different items of an array).
+ * ($ne, $nin, $not, $exists, $regex...) are left to the filter. An index of which a document has several keys keeps
+ * one bound of a range (its two bounds may be met by different items of an array), the filter testing the documents.
  */
 export class EmbeddedPlanner {
     constructor(protected readonly collection: EmbeddedCollectionStore) {}

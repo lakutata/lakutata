@@ -6,7 +6,10 @@ export type MigrationRunOptions = {
     /**
      * The transactions wrapping the migrations: `'all'` runs them all in one transaction (one failure rolls them all
      * back), `'each'` runs each one in its own transaction (the ones before a failure stay applied), `'none'` runs them
-     * without a transaction. A migration may override it with its own `transaction` property.
+     * without a transaction. With `'each'` or `'none'`, `runMigrations()` lets a migration choose with its own
+     * `transaction` property; with `'all'`, a pending migration having one fails the run
+     * (`ForbiddenTransactionModeOverrideError`). `undoLastMigration()` reverts in a transaction unless `'none'`,
+     * whatever the property of the migration.
      * @default The `migrationsTransactionMode` of the connection options for `runMigrations()`, else `'all'`
      */
     transaction?: 'all' | 'none' | 'each'
