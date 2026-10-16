@@ -13,7 +13,8 @@ const REPOSITORY: string = 'https://github.com/lakutata/lakutata'
 const GUIDES: {en: string, zh: string, guides: string[]}[] = [
     {en: 'Introduction', zh: '入门', guides: ['Overview']},
     {en: 'Fundamentals', zh: '基础', guides: ['Core', 'DTOValidation', 'Decorator', 'ActionPattern']},
-    {en: 'Components', zh: '组件', guides: ['ORMIntegration', 'I18n', 'Mutex', 'Queue', 'DockerIntegration', 'ContainerdIntegration']},
+    {en: 'Controllers and Entrypoints', zh: '控制器与入口', guides: ['CLI', 'Schedules', 'Queue']},
+    {en: 'Components', zh: '组件', guides: ['ORMIntegration', 'I18n', 'Mutex', 'DockerIntegration', 'ContainerdIntegration']},
     {en: 'Utilities', zh: '工具', guides: ['Security', 'Time', 'HelperFunctions']}
 ]
 

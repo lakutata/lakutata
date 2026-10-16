@@ -112,6 +112,8 @@ component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (
 | [DTOValidation](DTOValidation.md) | DTOs and schemas: validating options, inputs and results |
 | [Decorator](Decorator.md) | The decorators, by subpath |
 | [ActionPattern](ActionPattern.md) | Controllers, actions and transports (HTTP, CLI, services, schedules, queues) |
+| [CLI](CLI.md) | Command line tools: commands, options, prompts, output and exit codes |
+| [Schedules](Schedules.md) | Scheduled jobs: intervals, cron expressions, jobs run by one instance |
 | [ORMIntegration](ORMIntegration.md) | The `Database` component and TypeORM |
 | [I18n](I18n.md) | Messages in several languages |
 | [Mutex](Mutex.md) | Locks shared between processes and instances |

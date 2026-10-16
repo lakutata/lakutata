@@ -108,12 +108,7 @@ Each decorator takes its address, then optionally the DTO class of the input, th
 @CLIAction(command, DTOClass?, options?)
 ```
 
-- The command is its name, optionally followed by positional arguments (`'copy <source> [target]'`, `'<files...>'`);
-  the words before the name are groups (`'package exe <file>'`). The other properties of the DTO are options
-  (`--times 2`), the booleans flags (`--shout`); `.description()` of a schema is the help of its option, and the
-  `description` action option the help of the command.
-- The value returned is written to stdout (a string as it is, other values as JSON); an error is written to stderr and
-  the command ends with the code 1.
+The commands of a command line tool: see [CLI](CLI.md).
 
 ### Service: `@ServiceAction`
 
@@ -134,36 +129,8 @@ Each decorator takes its address, then optionally the DTO class of the input, th
 @Schedule(schedule, options?)
 ```
 
-The method runs on a schedule when the entrypoint has a schedule adapter (`schedule: scheduleEntrypoint()`). The
-schedule is a duration (`'30s'`, `'1h30m'`, an interval), a cron expression (`'0 */5 * * * *'`, 5 or 6 fields, or a
-macro such as `'@daily'`), or the options `{every}` or `{cron, timezone}` with:
-
-- `overlap` (default `false`): start a run while the previous one is in progress; otherwise the run is skipped;
-- `immediate` (default `false`): also run once as soon as the application launched;
-- `exclusive` (default `false`): run in one instance of the application at a time, with the locks of a mutex component
-  (`true` uses the component named `mutex`, `{mutex, key}` names it and the lock); see [Mutex](Mutex.md).
-
-Each run has its own scope and goes through the middlewares and the access control; the method receives an empty
-input, `this.context` is a `ScheduleContext` (its `schedule`, its planned time, its `run` number). An error thrown is
-given to the `onError` option of `scheduleEntrypoint`, or logged, and the next runs go on.
-
-```typescript
-import {Controller, ScheduleContext} from 'lakutata/com/entrypoint'
-import {Schedule} from 'lakutata/decorator/ctrl'
-
-class JobController extends Controller {
-    //Every 30 seconds, and once as soon as the application launched
-    @Schedule({every: '30s', immediate: true})
-    public async heartbeat(): Promise<void> {
-        if (this.context instanceof ScheduleContext) console.log(`run ${this.context.run} of ${this.context.schedule}`)
-    }
-
-    //At 03:00 every day in Shanghai, in one instance at a time (a mutex component named "mutex")
-    @Schedule({cron: '0 3 * * *', timezone: 'Asia/Shanghai', exclusive: true}, {name: 'Purge the expired sessions'})
-    public async purge(): Promise<void> {
-    }
-}
-```
+The jobs run at an interval or at the times of a cron expression. The second argument holds the action options: a job
+has no DTO. See [Schedules](Schedules.md).
 
 ### Prefixes: `@Prefix`
 

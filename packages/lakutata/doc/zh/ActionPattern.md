@@ -92,8 +92,7 @@ Application.run(() => ({
 @CLIAction(command, DTOClass?, options?)
 ```
 
-- 命令由名称和可选的位置参数组成（`'copy <source> [target]'`、`'<files...>'`）；名称前面的词是命令分组（`'package exe <file>'`）。DTO 的其他属性是选项（`--times 2`），布尔属性是开关（`--shout`）；校验规则的 `.description()` 是选项的帮助文本，动作选项 `description` 是命令的帮助文本。
-- 返回值写到 stdout（字符串原样输出，其他值输出为 JSON）；错误写到 stderr，命令以退出码 1 结束。
+命令行工具的命令，见 [CLI](CLI.md)。
 
 ### 服务：`@ServiceAction`
 
@@ -110,31 +109,7 @@ Application.run(() => ({
 @Schedule(schedule, options?)
 ```
 
-当入口配置了定时适配器（`schedule: scheduleEntrypoint()`）时，方法按计划执行。计划可以是时长（`'30s'`、`'1h30m'`，表示间隔）、cron 表达式（`'0 */5 * * * *'`，5 或 6 个字段，或 `'@daily'` 这样的宏），或者是 `{every}`、`{cron, timezone}` 形式的选项，并可附带：
-
-- `overlap`（默认 `false`）：上一次执行尚未结束时也开始新的执行；否则跳过本次；
-- `immediate`（默认 `false`）：应用启动后立即额外执行一次；
-- `exclusive`（默认 `false`）：借助互斥锁组件，同一时间只在应用的一个实例中执行（`true` 使用名为 `mutex` 的组件，`{mutex, key}` 指定组件名和锁名）；见 [Mutex](Mutex.md)。
-
-每次执行都有自己的作用域，并经过中间件和访问控制；方法接收空输入，`this.context` 是 `ScheduleContext`（含 `schedule`、计划时间、执行序号 `run`）。抛出的错误交给 `scheduleEntrypoint` 的 `onError` 选项，或记录到日志，后续执行照常进行。
-
-```typescript
-import {Controller, ScheduleContext} from 'lakutata/com/entrypoint'
-import {Schedule} from 'lakutata/decorator/ctrl'
-
-class JobController extends Controller {
-    //每 30 秒一次，并在应用启动后立即执行一次
-    @Schedule({every: '30s', immediate: true})
-    public async heartbeat(): Promise<void> {
-        if (this.context instanceof ScheduleContext) console.log(`run ${this.context.run} of ${this.context.schedule}`)
-    }
-
-    //上海时间每天 03:00，同一时间只在一个实例中执行（需要名为 "mutex" 的互斥锁组件）
-    @Schedule({cron: '0 3 * * *', timezone: 'Asia/Shanghai', exclusive: true}, {name: 'Purge the expired sessions'})
-    public async purge(): Promise<void> {
-    }
-}
-```
+按间隔或 cron 表达式的时间执行的任务。第二个参数是动作选项：定时任务没有 DTO。见 [Schedules](Schedules.md)。
 
 ### 前缀：`@Prefix`
 

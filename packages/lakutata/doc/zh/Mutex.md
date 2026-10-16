@@ -135,7 +135,7 @@ class ReportController extends Controller {
 }
 ```
 
-入口需要配置定时适配器：`buildEntrypoints({controllers: [ReportController], schedule: scheduleEntrypoint()})`（见 [ActionPattern](ActionPattern.md)）。
+入口需要配置定时适配器：`buildEntrypoints({controllers: [ReportController], schedule: scheduleEntrypoint()})`（见 [Schedules](Schedules.md)）。
 
 ## 5. 异常
 
