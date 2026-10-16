@@ -24,8 +24,8 @@ export interface QueueCodec {
  * `@lakutata/nats`: the value is first normalized through JSON (`JSON.parse(JSON.stringify(value))`), so that the
  * services written in other languages read plain data. A `Date` arrives as its ISO string (an input DTO converts it
  * back, a result stays a string), a `Buffer` as `{type: 'Buffer', data: [...]}`, a class instance as a plain object,
- * `undefined` as `null` (dropped from the objects); a `bigint` or a circular value fails the encoding with a
- * `TypeError`.
+ * `undefined` as `null` (dropped from the objects); a `bigint` or a circular value fails the encoding (a
+ * `QueueInvalidMessageException` from the queue).
  * @returns The codec.
  * @example
  * ```typescript

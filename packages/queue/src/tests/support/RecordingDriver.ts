@@ -19,6 +19,16 @@ export type Decision = {
 }
 
 /**
+ * The options of a {@link RecordingDriver}
+ */
+export type RecordingDriverOptions = {
+    capabilities?: Partial<QueueCapabilities>
+    withoutDeliveryCount?: boolean
+    keepOpen?: boolean
+    lease?: number
+}
+
+/**
  * The memory driver recording the messages sent and the decisions on the deliveries. Kept open when its queue component
  * is destroyed (`keepOpen`), it is given to the queue of another container, which receives the messages left.
  */
@@ -28,14 +38,25 @@ export class RecordingDriver extends MemoryQueueDriver {
 
     public readonly decisions: Decision[] = []
 
+    //The extensions of the leases
+    public extended: number = 0
+
+    public readonly lease?: number
+
+    protected readonly withoutDeliveryCount: boolean
+
+    protected readonly keepOpen: boolean
+
     /**
-     * @param capabilities The capabilities replaced (a driver which cannot deliver again after a delay...).
-     * @param withoutDeliveryCount Deliveries without their count (as Kafka and RabbitMQ).
-     * @param keepOpen Not closed by its queue component.
+     * @param options The capabilities replaced (a driver which cannot deliver again after a delay...), deliveries
+     * without their count (as Kafka and RabbitMQ), a driver not closed by its queue component, a lease.
      */
-    constructor(capabilities: Partial<QueueCapabilities> = {}, protected readonly withoutDeliveryCount: boolean = false, protected readonly keepOpen: boolean = false) {
+    constructor(options: RecordingDriverOptions = {}) {
         super()
-        Object.assign(this.capabilities, capabilities)
+        Object.assign(this.capabilities, options.capabilities ?? {})
+        this.withoutDeliveryCount = !!options.withoutDeliveryCount
+        this.keepOpen = !!options.keepOpen
+        this.lease = options.lease
     }
 
     public async send(message: QueueMessage): Promise<boolean> {
@@ -64,7 +85,10 @@ export class RecordingDriver extends MemoryQueueDriver {
                     record('abandon')
                     return delivery.abandon()
                 },
-                extend: (): Promise<void> => delivery.extend()
+                extend: (): Promise<void> => {
+                    this.extended++
+                    return delivery.extend()
+                }
             })
         })
     }

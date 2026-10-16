@@ -81,7 +81,7 @@ describe('The deliveries', (): void => {
 
     it('abandons the actions still running when the entrypoint stops: neither acknowledged nor dead, delivered again', async (): Promise<void> => {
         state.started = []
-        const driver: RecordingDriver = new RecordingDriver({}, false, true)
+        const driver: RecordingDriver = new RecordingDriver({keepOpen: true})
         const errors: unknown[] = []
         const first = await queueOn(driver)
         await first.container.set(Entrypoint, buildEntrypoints({
@@ -228,7 +228,7 @@ describe('The deliveries', (): void => {
     })
 
     it('retries with a copy for the failing group only when the driver cannot deliver again after a delay', async (): Promise<void> => {
-        const driver: RecordingDriver = new RecordingDriver({redeliverAfter: false, delay: false}, true)
+        const driver: RecordingDriver = new RecordingDriver({capabilities: {redeliverAfter: false, delay: false}, withoutDeliveryCount: true})
         const {container, queue} = await queueOn(driver)
         const attempts: number[] = []
         const times: number[] = []
@@ -255,7 +255,7 @@ describe('The deliveries', (): void => {
     })
 
     it('abandons the processings of consume() still running when the component is destroyed', async (): Promise<void> => {
-        const driver: RecordingDriver = new RecordingDriver({}, false, true)
+        const driver: RecordingDriver = new RecordingDriver({keepOpen: true})
         const {container, queue} = await queueOn(driver)
         let signal: AbortSignal | undefined
         await queue.consume('work.hang', async (input: Record<string, any>, context: QueueJobContext, received: AbortSignal): Promise<void> => {

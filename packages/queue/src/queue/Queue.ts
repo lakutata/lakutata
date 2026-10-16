@@ -59,6 +59,29 @@ function aborted(signal: AbortSignal): Promise<never> {
 }
 
 /**
+ * A codec whose failures are {@link QueueInvalidMessageException} (no retry can fix them)
+ * @param codec The codec.
+ */
+function guarded(codec: QueueCodec): QueueCodec {
+    return {
+        encode: (value: unknown): Uint8Array => {
+            try {
+                return codec.encode(value)
+            } catch (error) {
+                throw new QueueInvalidMessageException('A value of the queue cannot be encoded: {reason}', {reason: (error as Error)?.message ?? String(error)})
+            }
+        },
+        decode: (bytes: Uint8Array): unknown => {
+            try {
+                return codec.decode(bytes)
+            } catch (error) {
+                throw new QueueInvalidMessageException('A message of the queue cannot be decoded: {reason}', {reason: (error as Error)?.message ?? String(error)})
+            }
+        }
+    }
+}
+
+/**
  * The prefix of the headers of the queues (the headers of the applications cannot use it)
  */
 const HEADER: string = 'x-lkt-'
@@ -143,7 +166,8 @@ export interface QueueOptions {
     results?: false | QueueResultsOptions
     /**
      * The codec of the messages and the results: `'messagepack'` (as `@lakutata/nats`), `'json'`, or a
-     * {@link QueueCodec}.
+     * {@link QueueCodec}. A value it cannot encode (a `bigint`, a circular value) fails with a
+     * {@link QueueInvalidMessageException}: `add()` rejects, a result goes to the dead letter queue at once.
      * @default 'messagepack'
      */
     codec?: 'messagepack' | 'json' | QueueCodec
@@ -495,7 +519,7 @@ export class Queue extends Component {
      * @protected
      */
     protected async init(): Promise<void> {
-        this.#codec = this.codec === 'json' ? jsonQueueCodec() : this.codec === 'messagepack' ? messagePackQueueCodec() : this.codec
+        this.#codec = guarded(this.codec === 'json' ? jsonQueueCodec() : this.codec === 'messagepack' ? messagePackQueueCodec() : this.codec)
         this.#driver = this.driver.type === 'custom' ? this.driver.driver : new MemoryQueueDriver()
         await this.#driver.connect()
         this.#store = await this.resultStore()
