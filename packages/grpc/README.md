@@ -107,8 +107,8 @@ Application
   `CANCELLED` or `DEADLINE_EXCEEDED`.
 - A failed action is answered with its error (message, `errno`, other properties), thrown by the proxy as a
   `ServiceInvokeException`; the transport failures are thrown as a `GRPCError` (`UNAVAILABLE`, `DEADLINE_EXCEEDED`…).
-- Once the entrypoint stops, the new invocations fail with an `EntrypointStoppedException` while those in progress
-  complete; when it closes, the event streams end and the server closes.
+- Once the entrypoint stops, the new invocations fail (the proxy throws a `ServiceInvokeException` whose `errno` is
+  `E_ENTRYPOINT_STOPPED`) while those in progress complete; when it closes, the event streams end and the server closes.
 
 ### Calling the service from other languages
 
@@ -338,7 +338,7 @@ The typings document each declaration with examples.
 | `GRPCError` (`code`: a `GRPCStatus`, `path`) | A call fails: the server's status, or `UNAVAILABLE` (connection failed or lost, no status), `CANCELLED` (signal aborted, stream cancelled, call closed), `DEADLINE_EXCEEDED` (timeout passed), `RESOURCE_EXHAUSTED` (a message over `maxMessageSize`), `INTERNAL` (a message which cannot be decompressed or decoded), `UNKNOWN` (an HTTP status other than 200). A server handler throws it to end its call with its status. |
 | `ServiceInvokeException` (`E_SERVICE_INVOKE`, from `lakutata/com/entrypoint`) | `GRPCServiceProxy.invoke()`: the remote action failed; it carries the remote error's message and properties (`errno`…) |
 | `EntrypointStoppedException` (`E_ENTRYPOINT_STOPPED`) | An invocation arrived while the service's entrypoint is stopping (received by the proxy as a `ServiceInvokeException` with this errno) |
-| `Error` | `new GRPCConnection()` with an address which is not a unix socket path nor a `tcp://` URL; `decode()` with truncated or unexpected bytes; `GRPCServer.listen()` with the listen error (`EADDRINUSE`) |
+| `Error` | `new GRPCConnection()` with an address which is not a unix socket path, a `tcp://` URL nor `host:port`, or with TLS over a unix socket; `decode()` with truncated or unexpected bytes; `GRPCServer.listen()` with the listen error (`EADDRINUSE`) |
 
 A server answers a call to an unknown method or with an unsupported compression with `UNIMPLEMENTED`, a request over
 its `maxMessageSize` with `RESOURCE_EXHAUSTED`, and a call past its deadline with `DEADLINE_EXCEEDED`.

@@ -108,7 +108,8 @@ type ActionState = {
  *                 onSkip: (action, scheduledAt, reason): void => console.warn(`${action.name} skipped (${reason})`)
  *             })
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * })
  * ```
  */

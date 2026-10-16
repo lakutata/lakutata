@@ -119,7 +119,8 @@ export type JSONEnvelopeOptions = {
  *                 })
  *             })
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * })
  * ```
  */

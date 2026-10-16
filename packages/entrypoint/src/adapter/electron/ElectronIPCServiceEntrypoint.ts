@@ -223,7 +223,8 @@ async function loadIPCMain(): Promise<IPCMain> {
  *             controllers: [EchoController],
  *             service: electronIPCServiceEntrypoint()
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * })
  *
  * //In the preload script of a window

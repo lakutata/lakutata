@@ -81,7 +81,7 @@ export type ServiceEntrypoint = (module: Module, handler: ServiceEntrypointHandl
 export type CLIMap = Map<string, JSONSchema>
 /**
  * The HTTP actions given to an {@link HTTPEntrypoint}: each route (with its controller prefix) mapped to the set of
- * its HTTP methods (`GET`, `POST`…).
+ * its HTTP methods, as declared (`get`, `post`… from `@GET`, `@POST`…; `@HTTPAction` keeps the case it is given).
  */
 export type HTTPRouteMap<HTTPMethods = string> = Map<string, Set<HTTPMethods>>
 
@@ -334,7 +334,8 @@ export interface EntrypointActions<T extends BaseActionInfo> {
  *                 if (cliMap.has(command)) console.log(await handler(new CLIContext({command: command, data: {}})))
  *             })
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * }))
  * ```
  */
@@ -367,8 +368,9 @@ export const buildCLIEntrypoint: (entrypoint: CLIEntrypoint) => CLIEntrypoint = 
  *             controllers: [HealthController],
  *             http: buildHTTPEntrypoint((module, routeMap, handler, registerDestroy): void => {
  *                 const server: Server = createServer(async (request, response): Promise<void> => {
+ *                     //The route map holds the routes and the methods as declared: '/health', 'get'
  *                     const route: string = (request.url ?? '/').split('?')[0]
- *                     const method: string = request.method ?? 'GET'
+ *                     const method: string = (request.method ?? 'GET').toLowerCase()
  *                     if (!routeMap.get(route)?.has(method)) {
  *                         response.writeHead(404).end()
  *                         return
@@ -385,7 +387,8 @@ export const buildCLIEntrypoint: (entrypoint: CLIEntrypoint) => CLIEntrypoint = 
  *                 registerDestroy((): Promise<void> => new Promise((resolve): void => void server.close((): void => resolve())))
  *             })
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * }))
  * ```
  */
@@ -427,7 +430,8 @@ export const buildHTTPEntrypoint: (entrypoint: HTTPEntrypoint) => HTTPEntrypoint
  *                 registerDestroy((): void => void bus.off('request', listener))
  *             })
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * }))
  * ```
  */
@@ -478,7 +482,8 @@ export const buildServiceEntrypoint: (entrypoint: ServiceEntrypoint) => ServiceE
  *             http: expressHTTPEntrypoint({port: 3000}),
  *             schedule: scheduleEntrypoint()
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * }))
  * ```
  */
@@ -588,7 +593,8 @@ const LEGACY_CHANNELS: Set<string> = new Set(['cli', 'http', 'service'])
  *                 http: expressHTTPEntrypoint({port: 3000}),
  *                 service: socketIOServiceEntrypoint({port: 3001})
  *             })
- *         }
+ *         },
+ *         bootstrap: ['entrypoint']
  *     }))
  *     .onLaunched(async (app: Application): Promise<void> => {
  *         const entrypoint: Entrypoint = await app.getObject<Entrypoint>('entrypoint')

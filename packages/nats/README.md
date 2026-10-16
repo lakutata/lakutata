@@ -60,8 +60,8 @@ Application
 - `subscribe()` accepts the wildcards `*` (one token) and `>` (the remaining tokens). Its callback is called for each
   message as it arrives, or one message after the other with `{iterator: true}`; `{max: n}` ends the subscription
   after `n` messages. It returns the NATS `Subscription` (`unsubscribe()`, `drain()`).
-- `request()` waits for the first response; its timeout is in milliseconds, 1000 when omitted. A callback which throws
-  leaves the request unanswered (the requester times out) unless the subscription has an `errorResponse`.
+- `request()` waits for the first response; its timeout is in milliseconds, 10 minutes when omitted. A callback which
+  throws leaves the request unanswered (the requester times out) unless the subscription has an `errorResponse`.
 - A lost connection is reestablished in the background (`reconnect`, `maxReconnectAttempts`: 10 attempts per server
   by default, `-1` for ever); the requests sent meanwhile fail when their timeout passes. Once the client gives up,
   every call fails with the NATS client error `CONNECTION_CLOSED`.

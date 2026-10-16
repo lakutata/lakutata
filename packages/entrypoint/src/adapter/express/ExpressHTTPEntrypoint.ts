@@ -28,7 +28,7 @@ export type ExpressHookContext = {
      */
     readonly server: Server
     /**
-     * Each action route mapped to its HTTP methods, in lower case as declared (`'/users/:id'` → `{'get', 'delete'}`).
+     * Each action route mapped to its HTTP methods, as declared (`'/users/:id'` → `{'get', 'delete'}`).
      */
     readonly routes: Map<string, Set<string>>
     /**
@@ -199,7 +199,8 @@ function eventFrame(data: unknown, event?: string, id?: string): string {
  *                 fallback: staticUI('./ui/dist')
  *             })
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * })
  * ```
  */

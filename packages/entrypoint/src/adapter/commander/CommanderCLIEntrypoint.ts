@@ -319,7 +319,7 @@ function errorMessage(error: unknown): string {
  *     @CLIAction('greet <name>', GreetDTO)
  *     public async greet(input: GreetDTO): Promise<string> {
  *         const text: string = `Hello, ${input.name}`
- *         return (input.loud ? text.toUpperCase() : text).repeat(input.times ?? 1)
+ *         return Array(input.times ?? 1).fill(input.loud ? text.toUpperCase() : text).join('\n')
  *     }
  * }
  *
@@ -331,7 +331,8 @@ function errorMessage(error: unknown): string {
  *             controllers: [GreetController],
  *             cli: commanderCLIEntrypoint({bin: 'tool', description: 'A greeting tool', version: '1.0.0'})
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * })
  * ```
  */

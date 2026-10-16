@@ -108,8 +108,8 @@ function reply(response: ServerResponse, status: number, body: unknown): void {
  * A request is a `POST` to the path whose JSON body holds the action's pattern and input (`{"cmd": "echo", "text":
  * "hi"}`). The response is always 200 with the body `{success, error, payload}` (see `ServiceResponseCodec`): `payload`
  * is the result, or `error` the whole error object when the action failed (no matching action, validation…). A body that
- * is not JSON or exceeds `limit` is answered with 400 and an error body; any other method or path with 404. The CORS
- * headers allow any origin.
+ * is not JSON is answered with 400 and an error body, a body over `limit` with 413; any other method or path with 404.
+ * The CORS headers allow any origin.
  *
  * The events pushed to the clients (`Entrypoint.notify`, `Entrypoint.broadcast`) are streamed as Server-Sent Events by
  * `GET <path>/events`: each event's name is the SSE event, its arguments the JSON array of its data. A client gives its
@@ -144,7 +144,8 @@ function reply(response: ServerResponse, status: number, body: unknown): void {
  *             controllers: [EchoController],
  *             service: httpServiceEntrypoint({port: 3000, path: '/rpc'})
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * })
  *
  * //A client: the response is {"success": true, "error": null, "payload": "hi"}

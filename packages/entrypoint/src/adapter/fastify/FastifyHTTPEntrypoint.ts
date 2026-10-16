@@ -219,7 +219,8 @@ function isFastifyInstance(value: unknown): value is FastifyInstance {
  *                 }
  *             })
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * })
  * ```
  */

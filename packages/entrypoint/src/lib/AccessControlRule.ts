@@ -55,7 +55,8 @@ export type AccessControlRuleHandler<T extends BaseContext<Record<string, any>>>
  *             rules: [AdminRule],
  *             httpActionGroups: {admin: 'Administration'}
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * }))
  * ```
  */

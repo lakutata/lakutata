@@ -727,8 +727,8 @@ export class NATS extends Component {
 
     /**
      * Listen to a service event of an application. A listener registered again for the same event (by this method or
-     * {@link NATS.onceServiceEvent}) is ignored. A listener which throws is reported as an `'error'` event; the rejection of
-     * an asynchronous listener is not caught.
+     * {@link NATS.onceServiceEvent}) is ignored. A listener which throws, or an asynchronous listener which rejects, is
+     * reported as an `'error'` event.
      * @param serviceId The id of the application emitting the event (its `id` option).
      * @param eventName The event name.
      * @param listener The listener, receiving the event's arguments.

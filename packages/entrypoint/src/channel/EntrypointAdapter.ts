@@ -76,8 +76,8 @@ export interface ChannelRuntime<Context extends BaseContext = BaseContext> {
     /**
      * Resolves once every adapter of the entrypoint started and the application launched (its objects and its
      * bootstrap are ready), for the adapters acting on their own rather than on requests (running a command,
-     * triggering the schedules). Without an application (a bare container) it never resolves unless the entrypoint's
-     * `launched()` is called.
+     * triggering the schedules). Without an application (a bare container), it resolves once the entrypoint is
+     * initialized.
      */
     readonly ready: Promise<void>
 

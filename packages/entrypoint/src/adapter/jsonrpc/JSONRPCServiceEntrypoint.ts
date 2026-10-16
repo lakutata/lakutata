@@ -252,7 +252,8 @@ type WebSocketLike = {
  *                 jsonRPCServiceEntrypoint({name: 'rpc-ws', transport: 'websocket', port: 3001, path: '/rpc'})
  *             ]
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * })
  *
  * //An HTTP client: {"jsonrpc": "2.0", "id": 1, "result": {"id": 1, "name": "Ada"}}

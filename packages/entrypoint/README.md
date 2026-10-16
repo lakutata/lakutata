@@ -101,7 +101,8 @@ Application.run(() => ({
 - A controller is created for each request (`@Scoped`): its injected objects of the request are shared by the request.
 - The value returned is the response. `Result.status(201, data, headers)`, `Result.file(path)` and `Result.events()`
   (Server-Sent Events) control the HTTP response.
-- An exception is answered with its `statusCode` (HTTP) and its `errno`, `message` (JSON); an invalid input with 400.
+- Over HTTP (Express, Fastify), an exception is answered with its `statusCode` and the JSON `{errno, errMsg}`; an
+  invalid input with 400.
 
 ### Middlewares and access control
 
@@ -133,7 +134,8 @@ Application.run(() => ({
     name: 'Health',
     components: {
         entrypoint: buildEntrypoints({controllers: [HealthController], middlewares: [timing]})
-    }
+    },
+    bootstrap: ['entrypoint']
 }))
 ```
 

@@ -90,7 +90,8 @@ export function assetsMaxAge(value: string | number | undefined): number {
  *                 fallback: staticUI('./ui/dist', {assetsMaxAge: 86400})
  *             })
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * })
  * ```
  */

@@ -127,7 +127,8 @@ export type FastifyJSONEnvelopeOptions = {
  *                 })
  *             })
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * })
  * ```
  */

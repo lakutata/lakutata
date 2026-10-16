@@ -96,7 +96,8 @@ export type MiddlewareHandler = (invocation: ActionInvocation, next: Next) => Pr
  *             controllers: [StatusController],
  *             middlewares: [Timing]
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * }))
  * ```
  */

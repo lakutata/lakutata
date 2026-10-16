@@ -142,7 +142,8 @@ function clientIdOf(socket: Socket): string {
  *             controllers: [EchoController],
  *             service: socketIOServiceEntrypoint({port: 3000, options: {cors: {origin: '*'}}})
  *         })
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * })
  *
  * //A client, identified as client-1 (the events pushed by entrypoint.notify('client-1', 'progress', 50) reach it)
