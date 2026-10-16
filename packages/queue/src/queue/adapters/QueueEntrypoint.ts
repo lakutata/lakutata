@@ -28,8 +28,8 @@ export type QueueEntrypointOptions = {
 /**
  * The adapter of the queue channel: it consumes the queues of the `@QueueAction` actions through a {@link Queue}
  * component (by its registration name) and delivers each message to its action, in a {@link QueueContext}. The options
- * of the actions are checked when the adapter starts (an `ordered` action on a driver without the ordering fails it);
- * the messages are consumed once the application has launched. When the application stops, the consumers stop and the
+ * of the actions are checked and their groups registered when the adapter starts (an `ordered` action on a driver
+ * without the ordering fails it); the messages are consumed once the application has launched. When the application stops, the consumers stop and the
  * messages being processed complete (`shutdownTimeout` of the entrypoint); the ones still running then are delivered
  * again later, neither acknowledged nor sent to the dead letter queue.
  * @param queueComponentName The name of the {@link Queue} component.
@@ -91,6 +91,8 @@ export function queueEntrypoint(queueComponentName: string, options: QueueEntryp
             //The options of the actions checked now: a wrong one fails the start of the application
             for (const action of runtime.actions)
                 if (action.address.ordered && !queue.capabilities.ordering) throw new QueueCapabilityException('The driver of the queue cannot order the messages by key: the action {action} cannot be ordered', {action: action.name})
+            //Their groups registered now: the messages added once the application has launched are kept for them
+            for (const action of runtime.actions) await queue.prepare(action.address.queue, {group: action.address.group})
             //The messages consumed once the application has launched (its objects and the other adapters are ready)
             void runtime.ready.then(async (): Promise<void> => {
                 for (const action of runtime.actions) {

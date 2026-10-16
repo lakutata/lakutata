@@ -97,6 +97,8 @@ class SendInput extends DTO {
 export function queueConformance(target: ConformanceTarget): void {
     const run: string = randomUUID().slice(0, 8)
     let sequence: number = 0
+    //The containers of the test running
+    const containers: Container[] = []
 
     /**
      * A queue name of its own
@@ -111,6 +113,7 @@ export function queueConformance(target: ConformanceTarget): void {
      */
     const instance = async (backend: ConformanceBackend, options: Record<string, any> = {}): Promise<Instance> => {
         const container: Container = new Container()
+        containers.push(container)
         await target.prepare?.(container)
         const driver: RecordingDriver = new RecordingDriver(backend.driver())
         const queue: Queue = await container.setNamed('queue', Queue, {...target.options, driver: {type: 'custom', driver: driver}, ...options})
@@ -127,6 +130,8 @@ export function queueConformance(target: ConformanceTarget): void {
         try {
             await test(backend)
         } finally {
+            //The containers of a failed test too: their connections would keep the process running
+            await Promise.allSettled(containers.splice(0).map((container: Container): Promise<void> => container.destroy()))
             await backend.close()
         }
     }
@@ -456,12 +461,12 @@ export function queueConformance(target: ConformanceTarget): void {
         }))
 
         it('tells a result no longer kept from an unknown one', on(async (backend: ConformanceBackend): Promise<void> => {
-            const {container, queue} = await instance(backend, {results: {...target.options?.results, keep: '30ms'}})
+            const {container, queue} = await instance(backend, {results: {...target.options?.results, keep: '500ms'}})
             const name: string = named('short')
             await queue.consume(name, async (): Promise<string> => 'kept briefly')
             const job: Job = await queue.add(name, {})
             assert.strictEqual(await job.result(), 'kept briefly')
-            await sleep(60)
+            await sleep(600)
             await assert.rejects(job.result({wait: false}), QueueResultExpiredException)
             await container.destroy()
         }))

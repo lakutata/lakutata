@@ -136,13 +136,7 @@ export class MemoryQueueDriver extends QueueDriver {
      */
     public async consume(options: QueueConsumeOptions, handler: (delivery: QueueDelivery) => Promise<void>): Promise<QueueSubscription> {
         const named: Named = this.named(options.name)
-        let group: Group | undefined = named.groups.get(options.group)
-        if (!group) {
-            group = {name: options.group, ready: [], delayed: new Set(), keys: new Set(), subscribers: [], next: 0}
-            named.groups.set(options.group, group)
-            //The messages sent before the first group
-            if (named.groups.size === 1) for (const entry of named.backlog.splice(0)) this.schedule(group, entry, entry.message.delay ?? 0)
-        }
+        const group: Group = this.group(named, options.group)
         const subscriber: Subscriber = {
             handler: handler,
             concurrency: Math.max(1, options.concurrency),
@@ -159,6 +153,16 @@ export class MemoryQueueDriver extends QueueDriver {
                 target.subscribers = target.subscribers.filter((item: Subscriber): boolean => item !== subscriber)
             }
         }
+    }
+
+    /**
+     * Register a group of a queue: the messages sent from then on are kept for it (and the messages sent before the first
+     * group of the queue, for the first one).
+     * @param name The queue.
+     * @param group The group.
+     */
+    public async register(name: string, group: string): Promise<void> {
+        this.group(this.named(name), group)
     }
 
     /**
@@ -242,6 +246,23 @@ export class MemoryQueueDriver extends QueueDriver {
         this.#kept.clear()
         this.#results.clear()
         this.#replyHandler = undefined
+    }
+
+    /**
+     * The group of a queue, created when missing (the messages sent before the first group of the queue are given to it)
+     * @param named The queue.
+     * @param name The group.
+     * @protected
+     */
+    protected group(named: Named, name: string): Group {
+        let group: Group | undefined = named.groups.get(name)
+        if (!group) {
+            group = {name: name, ready: [], delayed: new Set(), keys: new Set(), subscribers: [], next: 0}
+            named.groups.set(name, group)
+            //The messages sent before the first group
+            if (named.groups.size === 1) for (const entry of named.backlog.splice(0)) this.schedule(group, entry, entry.message.delay ?? 0)
+        }
+        return group
     }
 
     /**

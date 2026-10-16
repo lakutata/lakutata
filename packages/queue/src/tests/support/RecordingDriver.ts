@@ -117,6 +117,10 @@ export class RecordingDriver extends QueueDriver {
         return this.driver.groups(name)
     }
 
+    public async register(name: string, group: string): Promise<void> {
+        await this.driver.register?.(name, group)
+    }
+
     public async saveResult(key: string, value: Uint8Array, ttl: number): Promise<void> {
         return this.driver.saveResult!(key, value, ttl)
     }

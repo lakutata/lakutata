@@ -26,12 +26,27 @@
     "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
-    "test:unit": "npm run compile && node --test --test-timeout=60000 \"dist/esm/tests/*.spec.js\""
+    "test:unit": "npm run compile && node --test --test-timeout=60000 \"dist/esm/tests/*.spec.js\"",
+    "test:servers": "sh test-env/run.sh"
   },
   "peerDependencies": {
     "@lakutata/core": "3.0.0",
     "@lakutata/entrypoint": "3.0.0",
-    "@lakutata/utils": "3.0.0"
+    "@lakutata/utils": "3.0.0",
+    "bullmq": "^6.3.15",
+    "ioredis": "^5.0.0",
+    "nats": "^2.29.3"
+  },
+  "peerDependenciesMeta": {
+    "bullmq": {
+      "optional": true
+    },
+    "ioredis": {
+      "optional": true
+    },
+    "nats": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=22"
@@ -42,5 +57,10 @@
     "*.md",
     "LICENSE",
     "package.json"
-  ]
+  ],
+  "devDependencies": {
+    "bullmq": "^6.3.15",
+    "ioredis": "^5.11.1",
+    "nats": "^2.29.3"
+  }
 }

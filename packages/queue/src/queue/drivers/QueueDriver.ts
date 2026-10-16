@@ -238,6 +238,14 @@ export abstract class QueueDriver {
     public abstract groups(name: string): Promise<string[]>
 
     /**
+     * Register a group of a queue before it consumes the queue: the messages sent from then on are kept for it. A
+     * driver registering its groups only when they consume does not have it.
+     * @param name The queue.
+     * @param group The group.
+     */
+    public register?(name: string, group: string): Promise<void>
+
+    /**
      * Keep a value (capability `results`).
      * @param key The key.
      * @param value The value.

@@ -25,6 +25,8 @@ import {
 import {MemoryQueueDriver} from './drivers/MemoryQueueDriver.js'
 import {MemoryQueueOptions} from './options/MemoryQueueOptions.js'
 import {CustomQueueOptions} from './options/CustomQueueOptions.js'
+import {RedisQueueOptions} from './options/RedisQueueOptions.js'
+import {RedisQueueDriver} from './drivers/RedisQueueDriver.js'
 import {jsonQueueCodec, messagePackQueueCodec, type QueueCodec} from './lib/Codec.js'
 import {type Duration, milliseconds} from './lib/Duration.js'
 import {type Backoff, backoffDelay} from './lib/Backoff.js'
@@ -92,10 +94,11 @@ const HEADER: string = 'x-lkt-'
 const EXPIRED_MEMORY: number = 7 * 24 * 3600 * 1000
 
 /**
- * The `driver` option of a {@link Queue}: the transport of its messages, told apart by `type`. Without it, the
- * messages are kept in memory ({@link MemoryQueueOptions}).
+ * The `driver` option of a {@link Queue}: the transport of its messages, told apart by `type`: in memory
+ * ({@link MemoryQueueOptions}, the default), Redis ({@link RedisQueueOptions}), or a driver of the application
+ * ({@link CustomQueueOptions}).
  */
-export type QueueDriverOptions = MemoryQueueOptions | CustomQueueOptions
+export type QueueDriverOptions = MemoryQueueOptions | RedisQueueOptions | CustomQueueOptions
 
 /**
  * The defaults of the consumers of a {@link Queue} ({@link QueueAction}, {@link Queue.consume}).
@@ -463,7 +466,7 @@ export class Queue extends Component {
     /**
      * The driver of the queue.
      */
-    @Configurable(DTO.Alternatives(MemoryQueueOptions.required(), CustomQueueOptions.required()).optional().default({type: 'memory'}))
+    @Configurable(DTO.Alternatives(MemoryQueueOptions.required(), RedisQueueOptions.required(), CustomQueueOptions.required()).optional().default({type: 'memory'}))
     protected readonly driver: QueueDriverOptions
 
     /**
@@ -520,7 +523,7 @@ export class Queue extends Component {
      */
     protected async init(): Promise<void> {
         this.#codec = guarded(this.codec === 'json' ? jsonQueueCodec() : this.codec === 'messagepack' ? messagePackQueueCodec() : this.codec)
-        this.#driver = this.driver.type === 'custom' ? this.driver.driver : new MemoryQueueDriver()
+        this.#driver = this.createDriver(this.driver)
         await this.#driver.connect()
         this.#store = await this.resultStore()
         this.#driver.onReply?.((reply: QueueReply): void => this.replied(reply))
@@ -681,6 +684,26 @@ export class Queue extends Component {
     }
 
     /**
+     * Register the group of a consumer before it consumes: the messages added from then on are kept for it, even when
+     * they are added before its first delivery ({@link queueEntrypoint} registers the groups of its actions while the
+     * application starts, before they consume once it has launched). {@link Queue.consume} registers its group too.
+     * @param name The queue.
+     * @param options The group (`defaults.group`, else the `appId` of the application, by default).
+     * @example
+     * ```typescript
+     * import type {Queue} from '@lakutata/queue'
+     *
+     * declare const queue: Queue
+     * await queue.prepare('mail.send', {group: 'mailer'})
+     * await queue.add('mail.send', {to: 'ada@example.com'})
+     * ```
+     */
+    public async prepare(name: string, options: Pick<QueueConsumerOptions, 'group'> = {}): Promise<void> {
+        this.assertName(name)
+        await this.#driver.register?.(name, this.groupOf(options))
+    }
+
+    /**
      * Process the messages of a queue: each message is given to the processor, acknowledged when it returns, retried
      * after a failure, then sent to `<queue>.dead`. The controller actions use it through {@link queueEntrypoint}.
      * @param name The queue.
@@ -704,8 +727,7 @@ export class Queue extends Component {
         this.assertName(name)
         const ordered: boolean = !!options.ordered
         if (ordered && !this.#driver.capabilities.ordering) throw new QueueCapabilityException('The driver of the queue cannot order the messages by key: the consumer of {name} cannot be ordered', {name: name})
-        //The application id (set by the application), else 'default' (a container without application)
-        const group: string = options.group ?? this.defaults.group ?? process.env.appId ?? 'default'
+        const group: string = this.groupOf(options)
         const subscription: QueueSubscription = await this.#driver.consume({
             name: name,
             group: group,
@@ -724,6 +746,16 @@ export class Queue extends Component {
         }
         this.#subscriptions.add(stoppable)
         return stoppable
+    }
+
+    /**
+     * The group of a consumer: its own, else the default of the queue, else the application id (set by the
+     * application), else 'default' (a container without application)
+     * @param options The options of the consumer.
+     * @protected
+     */
+    protected groupOf(options: Pick<QueueConsumerOptions, 'group'>): string {
+        return options.group ?? this.defaults.group ?? process.env.appId ?? 'default'
     }
 
     /**
@@ -946,6 +978,24 @@ export class Queue extends Component {
             }
         }
         return described
+    }
+
+    /**
+     * The driver of the options
+     * @param options The options of the driver.
+     * @protected
+     */
+    protected createDriver(options: QueueDriverOptions): QueueDriver {
+        switch (options.type) {
+            case 'custom':
+                return options.driver
+            case 'redis': {
+                const {type, ...redis} = options
+                return new RedisQueueDriver(redis)
+            }
+            default:
+                return new MemoryQueueDriver()
+        }
     }
 
     /**

@@ -13,7 +13,13 @@ exposes it as `lakutata/com/queue`.
 npm install @lakutata/queue
 ```
 
-The memory driver (the default) needs no other package: the messages are kept in the memory of the process.
+The memory driver (the default) needs no other package: the messages are kept in the memory of the process. The other
+drivers load their clients when the component starts:
+
+| Driver | `driver` option | Install | Server |
+|---|---|---|---|
+| Memory | `{type: 'memory'}` (the default) | — | — |
+| Redis | `{type: 'redis', url}` | `npm install bullmq ioredis` | Redis 5.0 or later (6.2 or later recommended) |
 
 ## Usage
 
@@ -91,24 +97,37 @@ The semantics:
 - **Messages.** A message is an object (the input of its action). The default codec is the one of `@lakutata/nats`:
   MessagePack after a JSON normalization, so a `Date` arrives as its ISO string (an input DTO converts it back; a result
   stays a string). `codec: 'json'` exchanges JSON with services written in other languages.
-- **The memory driver** keeps the messages in the process: they are lost when it exits, and the instances of an
-  application do not share them. A message added before the first consumer of its queue is kept for it (and only for
-  the first group: a dead letter queue consumed later by a second group gives it only the new letters). A delivery
-  abandoned when the application stops is not counted as an attempt.
+- **Registering the groups.** A group receives the messages added once it is registered: the actions of an application
+  register their groups while it starts (before it launches), `consume()` and `prepare()` register theirs. With the Redis
+  and NATS drivers, the messages added to a queue before any group registered are not delivered; the groups stay
+  registered on the server, so their messages are kept while none of their instances runs.
+
+## Drivers
+
+- **Memory** keeps the messages in the process: they are lost when it exits, and the instances of an application do not
+  share them. A message added before the first group of its queue is kept for it (and only for the first group: a dead
+  letter queue consumed later by a second group gives it only the new letters). A delivery abandoned when the
+  application stops is not counted as an attempt.
+- **Redis** (BullMQ): each queue and group is a BullMQ queue under the `prefix` of the keys (`lakutata` by default), its
+  jobs removed once processed; the results are keys expiring with `results.keep`, the replies of `request()` go through
+  Redis channels. It supports the delays, the priorities and the deduplication (while the message of the same id waits
+  or is processed), not the ordering by key. A delivery abandoned when the application stops counts as an attempt.
+  Before Redis 6.0, the delays and the retries may come up to a second late. Configure the server with
+  `maxmemory-policy noeviction`.
 
 ## API
 
 | Export | Description |
 |---|---|
-| `Queue` | The component: `add()`, `request()`, `result()`, `consume()`, `capabilities` |
+| `Queue` | The component: `add()`, `request()`, `result()`, `consume()`, `prepare()`, `capabilities` |
 | `buildQueueOptions` | The options of the component: `driver`, `defaults`, `results`, `codec`, `requestTimeout` |
 | `Job` | A message added: its `id`, its `result()` |
 | `QueueAction` | The decorator of the actions processing a queue |
 | `queueEntrypoint` | The adapter delivering the messages to the actions |
 | `QueueContext`, `QUEUE_CONTEXT_TYPE` | The context of a delivery (`'QUEUE'`) |
 | `QueueChannel` | The queue channel |
-| `QueueDriver`, `MemoryQueueDriver` | The drivers: the memory one, the base of a custom one |
-| `MemoryQueueOptions`, `CustomQueueOptions` | The options of the drivers |
+| `QueueDriver`, `MemoryQueueDriver`, `RedisQueueDriver` | The drivers, and the base of a custom one |
+| `MemoryQueueOptions`, `RedisQueueOptions`, `CustomQueueOptions` | The options of the drivers |
 | `messagePackQueueCodec`, `jsonQueueCodec`, `QueueCodec` | The codecs |
 
 ## Errors
@@ -124,9 +143,17 @@ The semantics:
 | `QueueJobFailedException` | `request()` or `result()` of a message which failed (its `error`, its `attempts`) |
 | `QueueProcessingTimeoutException` | The failure of a processing exceeding its `timeout` (retried) |
 | `QueueDiscardException` | Thrown by an action to drop its message |
+| `QueueDriverNotFoundException` | The client packages of the driver are not installed |
+| `QueueDriverVersionException` | The server is older than the driver supports |
 
 ## See also
 
 - `@lakutata/entrypoint`: the controllers, the channels and the other transports.
 - `@lakutata/cache`: a `Cacher` keeping the results (`results: {store: 'cache'}`) of the drivers keeping none.
 - `@lakutata/nats`: the messages between the services (at most once), the remote calls.
+
+## Testing the drivers
+
+`npm run test:unit` tests the memory driver. `npm run test:servers` (`test-env/run.sh`) starts the servers in Docker
+(the oldest version supported and the newest), runs the conformance suite of the drivers on each, then removes the
+containers; `test-env/run.sh redis` runs the Redis servers only.
