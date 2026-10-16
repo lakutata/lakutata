@@ -351,6 +351,8 @@ export function queueConformance(target: ConformanceTarget): void {
             assert.strictEqual(letter.error.message, 'boom')
             assert.strictEqual(letter.attempts, 3)
             assert.ok(!Number.isNaN(Date.parse(letter.failedAt)))
+            //Acknowledged once its result is kept, after the dead letter is sent
+            await until((): boolean => driver.decisionsOf(name).length === 3)
             if (has('redeliverAfter')) assert.deepStrictEqual(driver.decisions.filter((decision): boolean => decision.queue === name).map((decision): string => `${decision.decision}${decision.delay === undefined ? '' : `:${decision.delay}`}`), ['retry:50', 'retry:50', 'ack'])
             await assert.rejects(job.result({wait: false}), (error: unknown): boolean => {
                 assert.ok(error instanceof QueueJobFailedException)
@@ -370,6 +372,7 @@ export function queueConformance(target: ConformanceTarget): void {
             assert.strictEqual(actions.dead[0].jobId, 'invalid-1')
             assert.strictEqual(actions.dead[0].attempts, 1)
             assert.deepStrictEqual(actions.dead[0].input, {to: 'not an address'})
+            await until((): boolean => driver.decisionsOf(queues.validate).length === 1)
             assert.deepStrictEqual(driver.decisionsOf(queues.validate), ['ack'])
             await container.destroy()
         }))

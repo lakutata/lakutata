@@ -20,6 +20,7 @@ drivers load their clients when the component starts:
 |---|---|---|---|
 | Memory | `{type: 'memory'}` (the default) | — | — |
 | Redis | `{type: 'redis', url}` | `npm install bullmq ioredis` | Redis 5.0 or later (6.2 or later recommended) |
+| NATS JetStream | `{type: 'nats', servers}` | `npm install nats` | NATS 2.9.4 or later, with JetStream (`-js`) |
 
 ## Usage
 
@@ -114,6 +115,15 @@ The semantics:
   or is processed), not the ordering by key. A delivery abandoned when the application stops counts as an attempt.
   Before Redis 6.0, the delays and the retries may come up to a second late. Configure the server with
   `maxmemory-policy noeviction`.
+- **NATS JetStream**: each queue is a stream under the `prefix` (`lakutata` by default), keeping its messages for
+  `maxAge` (7 days by default, processed or not); each group is a durable consumer, created when the group registers;
+  the results are a key-value bucket, the replies of `request()` go to the inbox of the instance. A delivery not ended
+  within `ackWait` (30 seconds by default) is delivered again: the queue extends it every third of it while it is
+  processed. A consumer keeps the `ackWait` it was created with. The duplicates are dropped for 2 minutes after the first
+  message of their id, processed or not; the priorities and the ordering by key are not supported. The delays are
+  scheduled messages on NATS 2.12 and later; before, the messages are given back until they are due, and a delayed
+  message delivered once its time has passed may get one more attempt than `attempts`. A delivery abandoned when the
+  application stops counts as an attempt.
 
 ## API
 
@@ -126,8 +136,8 @@ The semantics:
 | `queueEntrypoint` | The adapter delivering the messages to the actions |
 | `QueueContext`, `QUEUE_CONTEXT_TYPE` | The context of a delivery (`'QUEUE'`) |
 | `QueueChannel` | The queue channel |
-| `QueueDriver`, `MemoryQueueDriver`, `RedisQueueDriver` | The drivers, and the base of a custom one |
-| `MemoryQueueOptions`, `RedisQueueOptions`, `CustomQueueOptions` | The options of the drivers |
+| `QueueDriver`, `MemoryQueueDriver`, `RedisQueueDriver`, `NatsQueueDriver` | The drivers, and the base of a custom one |
+| `MemoryQueueOptions`, `RedisQueueOptions`, `NatsQueueOptions`, `CustomQueueOptions` | The options of the drivers |
 | `messagePackQueueCodec`, `jsonQueueCodec`, `QueueCodec` | The codecs |
 
 ## Errors
@@ -156,4 +166,4 @@ The semantics:
 
 `npm run test:unit` tests the memory driver. `npm run test:servers` (`test-env/run.sh`) starts the servers in Docker
 (the oldest version supported and the newest), runs the conformance suite of the drivers on each, then removes the
-containers; `test-env/run.sh redis` runs the Redis servers only.
+containers; `test-env/run.sh redis` and `test-env/run.sh nats` run the servers of one driver.

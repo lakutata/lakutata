@@ -27,6 +27,8 @@ import {MemoryQueueOptions} from './options/MemoryQueueOptions.js'
 import {CustomQueueOptions} from './options/CustomQueueOptions.js'
 import {RedisQueueOptions} from './options/RedisQueueOptions.js'
 import {RedisQueueDriver} from './drivers/RedisQueueDriver.js'
+import {NatsQueueOptions} from './options/NatsQueueOptions.js'
+import {NatsQueueDriver} from './drivers/NatsQueueDriver.js'
 import {jsonQueueCodec, messagePackQueueCodec, type QueueCodec} from './lib/Codec.js'
 import {type Duration, milliseconds} from './lib/Duration.js'
 import {type Backoff, backoffDelay} from './lib/Backoff.js'
@@ -95,10 +97,10 @@ const EXPIRED_MEMORY: number = 7 * 24 * 3600 * 1000
 
 /**
  * The `driver` option of a {@link Queue}: the transport of its messages, told apart by `type`: in memory
- * ({@link MemoryQueueOptions}, the default), Redis ({@link RedisQueueOptions}), or a driver of the application
- * ({@link CustomQueueOptions}).
+ * ({@link MemoryQueueOptions}, the default), Redis ({@link RedisQueueOptions}), NATS JetStream
+ * ({@link NatsQueueOptions}), or a driver of the application ({@link CustomQueueOptions}).
  */
-export type QueueDriverOptions = MemoryQueueOptions | RedisQueueOptions | CustomQueueOptions
+export type QueueDriverOptions = MemoryQueueOptions | RedisQueueOptions | NatsQueueOptions | CustomQueueOptions
 
 /**
  * The defaults of the consumers of a {@link Queue} ({@link QueueAction}, {@link Queue.consume}).
@@ -466,7 +468,7 @@ export class Queue extends Component {
     /**
      * The driver of the queue.
      */
-    @Configurable(DTO.Alternatives(MemoryQueueOptions.required(), RedisQueueOptions.required(), CustomQueueOptions.required()).optional().default({type: 'memory'}))
+    @Configurable(DTO.Alternatives(MemoryQueueOptions.required(), RedisQueueOptions.required(), NatsQueueOptions.required(), CustomQueueOptions.required()).optional().default({type: 'memory'}))
     protected readonly driver: QueueDriverOptions
 
     /**
@@ -992,6 +994,10 @@ export class Queue extends Component {
             case 'redis': {
                 const {type, ...redis} = options
                 return new RedisQueueDriver(redis)
+            }
+            case 'nats': {
+                const {type, ...nats} = options
+                return new NatsQueueDriver(nats)
             }
             default:
                 return new MemoryQueueDriver()

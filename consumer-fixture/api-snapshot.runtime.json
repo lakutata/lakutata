@@ -405,6 +405,8 @@
     "Job",
     "MemoryQueueDriver",
     "MemoryQueueOptions",
+    "NatsQueueDriver",
+    "NatsQueueOptions",
     "QUEUE_CONTEXT_TYPE",
     "Queue",
     "QueueAction",
