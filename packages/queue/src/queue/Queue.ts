@@ -39,6 +39,26 @@ import {QueueDiscardException} from './exceptions/QueueDiscardException.js'
 import {type QueueJobError, QueueJobFailedException} from './exceptions/QueueJobFailedException.js'
 
 /**
+ * The reason of the processings aborted when the component is destroyed (they are delivered again later)
+ */
+class QueueStopped extends Error {
+    constructor() {
+        super('The queue component is destroyed before the processing completed')
+    }
+}
+
+/**
+ * A promise rejected with the reason of a signal when it is aborted
+ * @param signal The signal.
+ */
+function aborted(signal: AbortSignal): Promise<never> {
+    return new Promise((resolve: (value: never) => void, reject: (reason: unknown) => void): void => {
+        if (signal.aborted) return reject(signal.reason)
+        signal.addEventListener('abort', (): void => reject(signal.reason), {once: true})
+    })
+}
+
+/**
  * The prefix of the headers of the queues (the headers of the applications cannot use it)
  */
 const HEADER: string = 'x-lkt-'
@@ -462,6 +482,14 @@ export class Queue extends Component {
 
     readonly #subscriptions: Set<QueueSubscription> = new Set()
 
+    //The signals of the messages being processed, aborted when the component is destroyed
+    readonly #processing: Set<AbortController> = new Set()
+
+    //The processings running, awaited before the driver is closed
+    readonly #running: Set<Promise<void>> = new Set()
+
+    #stopping: boolean = false
+
     /**
      * Initializer: the driver connected, the result store chosen, the replies received.
      * @protected
@@ -475,12 +503,18 @@ export class Queue extends Component {
     }
 
     /**
-     * Destroyer: the consumers stopped, the requests waiting rejected, the driver closed.
+     * Destroyer: the consumers stopped, the messages still processed abandoned (delivered again later), the requests
+     * waiting rejected, the driver closed.
      * @protected
      */
     protected async destroy(): Promise<void> {
+        this.#stopping = true
         await Promise.allSettled([...this.#subscriptions].map((subscription: QueueSubscription): Promise<void> => subscription.stop()))
         this.#subscriptions.clear()
+        //The entrypoint has drained its actions already: the processings left are the ones of consume()
+        const stopped: QueueStopped = new QueueStopped()
+        for (const controller of this.#processing) controller.abort(stopped)
+        await Promise.allSettled([...this.#running])
         for (const [correlation, request] of this.#requests) {
             this.#requests.delete(correlation)
             request.reject(new QueueRequestTimeoutException('The queue is destroyed before the reply of the request {correlation}', {correlation: correlation}))
@@ -628,7 +662,8 @@ export class Queue extends Component {
      * @param name The queue.
      * @param processor Processes a message: its input, its context, the signal aborted at its time limit.
      * @param options The group, the concurrency, the retries, the time limit, the output queue.
-     * @returns The subscription: `stop()` ends the deliveries (the messages being processed go on).
+     * @returns The subscription: `stop()` ends the deliveries (the messages being processed go on; the ones still
+     * running when the component is destroyed are aborted and delivered again later).
      * @throws {QueueCapabilityException} When `ordered` is asked and the driver cannot order by key.
      * @example
      * ```typescript
@@ -652,7 +687,11 @@ export class Queue extends Component {
             group: group,
             concurrency: Math.max(1, Math.floor(options.concurrency ?? this.defaults.concurrency ?? 1)),
             ordered: ordered
-        }, (delivery: QueueDelivery): Promise<void> => this.process(delivery, processor, options))
+        }, (delivery: QueueDelivery): Promise<void> => {
+            const running: Promise<void> = this.process(delivery, processor, options)
+            this.#running.add(running)
+            return running.finally((): boolean => this.#running.delete(running))
+        })
         const stoppable: QueueSubscription = {
             stop: async (): Promise<void> => {
                 this.#subscriptions.delete(stoppable)
@@ -711,7 +750,8 @@ export class Queue extends Component {
         const message: QueueMessage = delivery.message
         const headers: Record<string, string> = message.headers
         const attempts: number = Number(headers[`${HEADER}attempts`] ?? options.attempts ?? this.defaults.attempts ?? 3)
-        const attempt: number = delivery.deliveryCount ?? Number(headers[`${HEADER}attempt`] ?? 1)
+        //The attempt of the copy sent again (by the drivers which cannot deliver again after a delay), and its deliveries
+        const attempt: number = Number(headers[`${HEADER}attempt`] ?? 1) + (delivery.deliveryCount ?? 1) - 1
         const context: QueueJobContext = {
             queue: message.name,
             jobId: message.id,
@@ -723,6 +763,7 @@ export class Queue extends Component {
         }
         let input: Record<string, any> = {}
         const controller: AbortController = new AbortController()
+        this.#processing.add(controller)
         const limit: number | undefined = (options.timeout ?? this.defaults.timeout) === undefined ? undefined : milliseconds((options.timeout ?? this.defaults.timeout)!)
         const timer: NodeJS.Timeout | undefined = limit ? setTimeout((): void => controller.abort(new QueueProcessingTimeoutException('The processing of the message {id} of the queue {name} exceeded {limit} ms', {id: message.id, name: message.name, limit: limit})), limit) : undefined
         //The lease of the delivery extended while it is processed
@@ -730,20 +771,24 @@ export class Queue extends Component {
             delivery.extend().catch((): void => undefined)
         }, Math.max(1, Math.floor(this.#driver.lease / 3))) : undefined
         try {
+            if (this.#stopping) controller.abort(new QueueStopped())
             input = this.#codec.decode(message.body) as Record<string, any>
-            const value: unknown = await processor(input, context, controller.signal)
+            //The processing ends at its time limit even when the processor goes on (its result is then dropped)
+            const running: Promise<unknown> = processor(input, context, controller.signal)
+            running.catch((): void => undefined)
+            const value: unknown = await Promise.race([running, aborted(controller.signal)])
             if (controller.signal.aborted) throw controller.signal.reason
             if (options.output !== undefined && value !== undefined) await this.add(options.output, value as object)
             await this.finished(message, delivery.group, {status: 'completed', value: value, attempts: attempt, finishedAt: new Date().toISOString()})
             await delivery.ack()
         } catch (error) {
             //The application stops: delivered again later
-            if (error instanceof EntrypointStoppedException) return delivery.abandon()
+            if (error instanceof EntrypointStoppedException || error instanceof QueueStopped) return delivery.abandon()
             if (error instanceof QueueDiscardException) return delivery.ack()
             await Promise.resolve(options.onError?.(error, context)).catch((): void => undefined)
             if (this.isRetryable(error) && attempt < attempts) {
                 const backoff: Backoff = headers[`${HEADER}backoff`] ? JSON.parse(headers[`${HEADER}backoff`]) : options.backoff ?? this.defaults.backoff ?? {type: 'exponential', delay: '1s', max: '1m'}
-                return this.retry(delivery, backoffDelay(backoff, attempt))
+                return this.retry(delivery, backoffDelay(backoff, attempt), attempt)
             }
             const described: QueueJobError = this.describe(error)
             if (!message.name.endsWith('.dead')) {
@@ -761,26 +806,31 @@ export class Queue extends Component {
             await this.finished(message, delivery.group, {status: 'failed', error: described, attempts: attempt, finishedAt: new Date().toISOString()})
             await delivery.ack()
         } finally {
+            this.#processing.delete(controller)
             clearTimeout(timer)
             clearInterval(lease)
         }
     }
 
     /**
-     * Deliver a message again after a delay: by the driver, else as a new message of the next attempt
+     * Deliver a message again after a delay: by the driver, else as a copy of the next attempt sent to the group only
+     * (delayed by the driver, else after a wait holding the delivery)
      * @param delivery The delivery.
      * @param delay The delay, in milliseconds.
+     * @param attempt The attempt which failed.
      * @protected
      */
-    protected async retry(delivery: QueueDelivery, delay: number): Promise<void> {
-        if (this.#driver.capabilities.redeliverAfter) return delivery.retry(delay)
+    protected async retry(delivery: QueueDelivery, delay: number, attempt: number): Promise<void> {
+        const capabilities: QueueCapabilities = this.#driver.capabilities
+        if (capabilities.redeliverAfter) return delivery.retry(delay)
+        if (!capabilities.delay && delay > 0) await sleep(delay)
         const message: QueueMessage = delivery.message
-        const attempt: number = Number(message.headers[`${HEADER}attempt`] ?? 1)
         await this.#driver.send({
             ...message,
             headers: {...message.headers, [`${HEADER}attempt`]: String(attempt + 1)},
-            delay: this.#driver.capabilities.delay ? delay : undefined,
-            dedupe: false
+            delay: capabilities.delay && delay > 0 ? delay : undefined,
+            dedupe: false,
+            group: delivery.group
         })
         await delivery.ack()
     }

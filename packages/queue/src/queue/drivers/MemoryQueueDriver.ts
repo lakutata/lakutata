@@ -115,7 +115,9 @@ export class MemoryQueueDriver extends QueueDriver {
         const named: Named = this.named(message.name)
         const id: string = `${message.name}\u0000${message.id}`
         if (message.dedupe && this.#kept.has(id)) return false
-        const groups: Group[] = [...named.groups.values()]
+        const target: Group | undefined = message.group === undefined ? undefined : named.groups.get(message.group)
+        if (message.group !== undefined && !target) return true
+        const groups: Group[] = target ? [target] : [...named.groups.values()]
         const copies: number = groups.length || 1
         this.#kept.set(id, (this.#kept.get(id) ?? 0) + copies)
         if (!groups.length) {
@@ -362,13 +364,18 @@ export class MemoryQueueDriver extends QueueDriver {
                 else this.#kept.delete(id)
             }),
             retry: async (delay?: number): Promise<void> => end((): void => this.schedule(group, entry, delay ?? 0)),
-            abandon: async (): Promise<void> => end((): void => this.schedule(group, entry, 0)),
+            //An abandoned delivery does not count as an attempt
+            abandon: async (): Promise<void> => end((): void => {
+                entry.deliveries--
+                this.schedule(group, entry, 0)
+            }),
             extend: async (): Promise<void> => {}
         }
+        //A handler ending without a decision, or failing: delivered again after a second (an attempt counted, so a
+        //message whose handler always fails does not loop at once)
         subscriber.handler(delivery).then(
-            //A handler ending without a decision: delivered again
-            (): Promise<void> => delivery.abandon(),
-            (): Promise<void> => delivery.abandon()
+            (): Promise<void> => delivery.retry(1000),
+            (): Promise<void> => delivery.retry(1000)
         ).catch((): void => undefined)
     }
 }

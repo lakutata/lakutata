@@ -70,6 +70,11 @@ export interface QueueMessage {
      * Drop the message when one of the same id is kept (dedupe).
      */
     dedupe?: boolean
+    /**
+     * The only group the message is delivered to: a copy sent again for the next attempt of that group (by the drivers
+     * which cannot deliver again after a delay). Without it, every group of the queue receives the message.
+     */
+    group?: string
 }
 
 /**

@@ -83,12 +83,18 @@ The semantics:
   the `appId` of its application by default: two applications consuming one queue each receive its messages, unless
   they name the same `group`. `request()` and `result()` name the group when several groups consume the queue.
 - **Stopping.** When the application stops, the consumers stop and the messages being processed complete
-  (`shutdownTimeout` of the entrypoint); the ones still running then are delivered again later.
+  (`shutdownTimeout` of the entrypoint); the ones still running then are delivered again later, neither acknowledged
+  nor dead. The processings of `consume()` still running when the component is destroyed are aborted (their signal)
+  and delivered again later too.
+- **Time limit.** A processing exceeding its `timeout` fails with `QueueProcessingTimeoutException` and is retried: its
+  signal is aborted, and what it returns afterwards is dropped.
 - **Messages.** A message is an object (the input of its action). The default codec is the one of `@lakutata/nats`:
   MessagePack after a JSON normalization, so a `Date` arrives as its ISO string (an input DTO converts it back; a result
   stays a string). `codec: 'json'` exchanges JSON with services written in other languages.
 - **The memory driver** keeps the messages in the process: they are lost when it exits, and the instances of an
-  application do not share them. A message added before the first consumer of its queue is kept for it.
+  application do not share them. A message added before the first consumer of its queue is kept for it (and only for
+  the first group: a dead letter queue consumed later by a second group gives it only the new letters). A delivery
+  abandoned when the application stops is not counted as an attempt.
 
 ## API
 

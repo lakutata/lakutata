@@ -12,19 +12,7 @@ import {
     type QueueJobContext,
     QueueInvalidMessageException
 } from '../exports/Queue.js'
-
-/**
- * Wait until a condition holds
- * @param condition
- * @param timeout
- */
-async function until(condition: () => boolean, timeout: number = 5000): Promise<void> {
-    const deadline: number = Date.now() + timeout
-    while (!condition()) {
-        if (Date.now() > deadline) throw new Error('The condition did not hold in time')
-        await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 5))
-    }
-}
+import {until} from './support/RecordingDriver.js'
 
 /**
  * A queue in a container
