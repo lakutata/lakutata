@@ -747,10 +747,10 @@ export class EmbeddedCollectionStore {
     }
 
     /**
-     * Adds an index, unless one of its name exists: built from the documents, read in batches with the event loop
-     * yielded between them, while the writes of the collection wait (building); it fails on a key of a document too
-     * large (EmbeddedKeyTooLongError), and a unique one on the duplicate keys of the documents, the index not added.
-     * The queries use it once it is built.
+     * Adds an index, unless one of its name exists: built from the documents (read from the two files of a compaction
+     * whose end it holds), in batches with the event loop yielded between them, while the writes of the collection wait
+     * (building) and no compaction starts; it fails on a key of a document too large (EmbeddedKeyTooLongError), and a
+     * unique one on the duplicate keys of the documents, the index not added. The queries use it once it is built.
      *
      * @param index
      */
