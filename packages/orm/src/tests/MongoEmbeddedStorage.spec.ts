@@ -161,6 +161,19 @@ describe('The storage of mongo-embedded', (): void => {
         //A key too large for an entry is refused, the tree unchanged
         assert.throws((): boolean => mixed.insert(Buffer.alloc(largest + 1), values.idKey(0)), /too large/)
         assert.strictEqual(mixed.size, sorted.length)
+        //Long ids (a string _id): the largest keys with them
+        const longIds: EmbeddedBTree = new EmbeddedBTree()
+        const idOf = (index: number): Buffer => values.idKey(`${index}`.padStart(200, '_'))
+        const longest: number = 1018 - 3 - 4 - idOf(0).length
+        assert.ok(EmbeddedBTree.fits(Buffer.alloc(longest), idOf(0)))
+        assert.ok(!EmbeddedBTree.fits(Buffer.alloc(longest + 1), idOf(0)))
+        const withLongIds: [Buffer, Buffer][] = []
+        for (let index = 0; index < 600; index++) {
+            const key: Buffer = Buffer.alloc(random() < 0.3 ? longest : 1 + Math.floor(random() * 30), 0x61 + index % 26)
+            withLongIds.push([key, idOf(index)])
+            assert.strictEqual(longIds.insert(key, idOf(index)), true)
+        }
+        assert.deepStrictEqual(text(longIds.range()), text(withLongIds.sort(byEntry)))
     })
 
     it('encodes the values of the indexes in the order of MongoDB', (): void => {

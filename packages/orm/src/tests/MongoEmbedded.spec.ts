@@ -299,6 +299,12 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
                 assert.deepStrictEqual(error.writeErrors.map((writeError: Record<string, unknown>): unknown => writeError.index), [1], label)
                 return true
             })
+            //An index of the documents there, one of their keys too large: not created, the writes going on
+            await runner.insertOne('texts', {text: 'z'.repeat(1100)})
+            await assert.rejects(runner.createCollectionIndex('texts', {text: 1}, {name: 'text'}), {code: 17280}, label)
+            assert.deepStrictEqual((await runner.collectionIndexes('texts')).map((index: Record<string, unknown>): unknown => index.name), ['_id_'], label)
+            await runner.insertOne('texts', {text: 'short'})
+            assert.strictEqual(await runner.countDocuments('texts', {}), 2, label)
             await dataSource.destroy()
         }
     })

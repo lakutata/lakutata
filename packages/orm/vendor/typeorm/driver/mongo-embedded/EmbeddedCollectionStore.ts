@@ -743,8 +743,9 @@ export class EmbeddedCollectionStore {
 
     /**
      * Adds an index, unless one of its name exists: built from the documents, read in batches with the event loop
-     * yielded between them, while the writes of the collection wait (building); a unique one fails on the duplicate
-     * keys of the documents. The queries use it once it is built.
+     * yielded between them, while the writes of the collection wait (building); it fails on a key of a document too
+     * large (EmbeddedKeyTooLongError), and a unique one on the duplicate keys of the documents, the index not added.
+     * The queries use it once it is built.
      *
      * @param index
      */
@@ -765,6 +766,13 @@ export class EmbeddedCollectionStore {
                 const keys = this.keysOf(index, document)
                 if (keys.length > 1) multikey = true
                 for (const key of keys) {
+                    if (!EmbeddedBTree.fits(key, id))
+                        throw new EmbeddedKeyTooLongError(
+                            this.name,
+                            index.name,
+                            key.length,
+                            this.keyValue(index, document),
+                        )
                     if (index.unique && this.ownerOf(tree, key))
                         throw new EmbeddedDuplicateKeyError(
                             this.name,
