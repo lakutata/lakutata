@@ -1,4 +1,4 @@
-import {describe, it} from 'node:test'
+import {describe, it, type TestContext} from 'node:test'
 import assert from 'node:assert'
 import {randomUUID} from 'node:crypto'
 import {Container, DTO} from '@lakutata/core'
@@ -131,11 +131,15 @@ export function queueConformance(target: ConformanceTarget): void {
      * Run a test on a new backend
      * @param test The test.
      */
-    const on = (test: (backend: ConformanceBackend) => Promise<void>) => async (): Promise<void> => {
+    const on = (test: (backend: ConformanceBackend) => Promise<void>) => async (context: TestContext): Promise<void> => {
         sequence++
         const backend: ConformanceBackend = await target.backend()
         try {
             await test(backend)
+        } catch (error) {
+            //Printed at once: the summary of the runner waits for the process to end, which a connection left open prevents
+            console.error(`[${target.name}] ${context.name}:`, error)
+            throw error
         } finally {
             //The containers of a failed test too: their connections would keep the process running
             await Promise.allSettled(containers.splice(0).map((container: Container): Promise<void> => container.destroy()))
@@ -308,7 +312,7 @@ export function queueConformance(target: ConformanceTarget): void {
             const {container, queue} = await instance(backend)
             await entrypoint(container, errors)
             const job: Job = await queue.add(queues.timeout, {})
-            assert.strictEqual(await job.result({timeout: '5s'}), 'run 2')
+            assert.strictEqual(await job.result({timeout: target.patience ?? 5000}), 'run 2')
             assert.deepStrictEqual(actions.attempts, [1, 2])
             assert.strictEqual(errors.length, 1)
             assert.ok(errors[0] instanceof QueueProcessingTimeoutException)
