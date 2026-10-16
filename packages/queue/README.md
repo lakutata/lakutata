@@ -21,6 +21,7 @@ drivers load their clients when the component starts:
 | Memory | `{type: 'memory'}` (the default) | — | — |
 | Redis | `{type: 'redis', url}` | `npm install bullmq ioredis` | Redis 5.0 or later (6.2 or later recommended) |
 | NATS JetStream | `{type: 'nats', servers}` | `npm install nats` | NATS 2.9.4 or later, with JetStream (`-js`) |
+| RabbitMQ | `{type: 'rabbitmq', url}` and `results: {store}` | `npm install amqplib` | RabbitMQ 3.6 or later |
 
 ## Usage
 
@@ -124,6 +125,15 @@ The semantics:
   scheduled messages on NATS 2.12 and later; before, the messages are given back until they are due, and a delayed
   message delivered once its time has passed may get one more attempt than `attempts`. A delivery abandoned when the
   application stops counts as an attempt.
+- **RabbitMQ**: each group of a queue is a durable queue under the `prefix` (`lakutata` by default), bound to a direct
+  exchange; a delayed message goes through a delay queue of its delay; a retry is a copy sent to the group, its attempt
+  in its headers; the replies of `request()` are the direct replies of RabbitMQ. RabbitMQ keeps no result and cannot
+  list the groups of a queue: give the queue a store (`results: {store: 'cache'}`, a `Cacher` component) shared by the
+  applications (a Redis store...), which keeps the results and the groups. The priorities go from 0 to 10; the
+  duplicates are not dropped, the ordering by key is not supported. A delivery abandoned when the application stops is
+  not counted as an attempt. The driver reconnects by itself and consumes again. RabbitMQ 3.8.15 and later close a
+  channel whose delivery is not ended within `consumer_timeout` (30 minutes by default): its messages are delivered
+  again.
 
 ## API
 
@@ -136,8 +146,8 @@ The semantics:
 | `queueEntrypoint` | The adapter delivering the messages to the actions |
 | `QueueContext`, `QUEUE_CONTEXT_TYPE` | The context of a delivery (`'QUEUE'`) |
 | `QueueChannel` | The queue channel |
-| `QueueDriver`, `MemoryQueueDriver`, `RedisQueueDriver`, `NatsQueueDriver` | The drivers, and the base of a custom one |
-| `MemoryQueueOptions`, `RedisQueueOptions`, `NatsQueueOptions`, `CustomQueueOptions` | The options of the drivers |
+| `QueueDriver`, `MemoryQueueDriver`, `RedisQueueDriver`, `NatsQueueDriver`, `RabbitMQQueueDriver` | The drivers, and the base of a custom one |
+| `MemoryQueueOptions`, `RedisQueueOptions`, `NatsQueueOptions`, `RabbitMQQueueOptions`, `CustomQueueOptions` | The options of the drivers |
 | `messagePackQueueCodec`, `jsonQueueCodec`, `QueueCodec` | The codecs |
 
 ## Errors
@@ -166,4 +176,4 @@ The semantics:
 
 `npm run test:unit` tests the memory driver. `npm run test:servers` (`test-env/run.sh`) starts the servers in Docker
 (the oldest version supported and the newest), runs the conformance suite of the drivers on each, then removes the
-containers; `test-env/run.sh redis` and `test-env/run.sh nats` run the servers of one driver.
+containers; `test-env/run.sh redis`, `nats` or `rabbitmq` runs the servers of one driver.

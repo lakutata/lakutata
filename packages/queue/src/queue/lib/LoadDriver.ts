@@ -8,7 +8,8 @@ import {QueueDriverNotFoundException} from '../exceptions/QueueDriverNotFoundExc
 const DRIVERS: Record<string, () => Promise<any>> = {
     'bullmq': () => import('bullmq'),
     'ioredis': () => import('ioredis'),
-    'nats': () => import('nats')
+    'nats': () => import('nats'),
+    'amqplib': () => import('amqplib')
 }
 
 /**

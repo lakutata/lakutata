@@ -5,6 +5,7 @@
 #   test-env/run.sh            every server
 #   test-env/run.sh redis      the Redis servers only
 #   test-env/run.sh nats       the NATS servers only
+#   test-env/run.sh rabbitmq   the RabbitMQ servers only
 set -u
 cd "$(dirname "$0")/.."
 npm run compile >/dev/null || exit 1
@@ -12,6 +13,7 @@ ONLY="${1:-}"
 REDIS_IMAGES="redis:5.0-alpine redis:6.2-alpine redis:8-alpine"
 # NATS 2.9.4: the delays given back until due; 2.12 and later: the scheduled messages
 NATS_IMAGES="nats:2.9.4 nats:latest"
+RABBITMQ_IMAGES="rabbitmq:3.6 rabbitmq:4"
 CONTAINERS=""
 cleanup() {
     [ -n "$CONTAINERS" ] && docker rm -f -v $CONTAINERS >/dev/null 2>&1
@@ -57,5 +59,26 @@ if [ -z "$ONLY" ] || [ "$ONLY" = nats ]; then
         INDEX=$((INDEX + 1))
     done
     QUEUE_TEST_NATS="$URLS" node --test --test-concurrency=1 --test-timeout=120000 dist/esm/tests/servers/Nats.spec.js || STATUS=1
+fi
+if [ -z "$ONLY" ] || [ "$ONLY" = rabbitmq ]; then
+    URLS=""
+    INDEX=0
+    for IMAGE in $RABBITMQ_IMAGES; do
+        NAME="lk-queue-rabbitmq-$INDEX"
+        docker rm -f -v "$NAME" >/dev/null 2>&1
+        docker run -d --name "$NAME" -p 127.0.0.1::5672 "$IMAGE" >/dev/null || exit 1
+        CONTAINERS="$CONTAINERS $NAME"
+        # Its log tells when it has started (rabbitmqctl run before it has written its Erlang cookie crashes it)
+        for attempt in $(seq 1 120); do
+            docker logs "$NAME" 2>&1 | grep -q "Server startup complete" && break
+            sleep 1
+        done
+        URLS="$URLS${URLS:+,}amqp://127.0.0.1:$(port "$NAME" 5672)"
+        export "QUEUE_TEST_RABBITMQ_NAME_$INDEX=$IMAGE"
+        # The reconnection test restarts its application
+        export "QUEUE_TEST_RABBITMQ_CONTAINER_$INDEX=$NAME"
+        INDEX=$((INDEX + 1))
+    done
+    QUEUE_TEST_RABBITMQ="$URLS" node --test --test-concurrency=1 --test-timeout=120000 dist/esm/tests/servers/RabbitMQ.spec.js || STATUS=1
 fi
 exit $STATUS

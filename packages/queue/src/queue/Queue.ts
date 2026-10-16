@@ -29,6 +29,8 @@ import {RedisQueueOptions} from './options/RedisQueueOptions.js'
 import {RedisQueueDriver} from './drivers/RedisQueueDriver.js'
 import {NatsQueueOptions} from './options/NatsQueueOptions.js'
 import {NatsQueueDriver} from './drivers/NatsQueueDriver.js'
+import {RabbitMQQueueOptions} from './options/RabbitMQQueueOptions.js'
+import {RabbitMQQueueDriver} from './drivers/RabbitMQQueueDriver.js'
 import {jsonQueueCodec, messagePackQueueCodec, type QueueCodec} from './lib/Codec.js'
 import {type Duration, milliseconds} from './lib/Duration.js'
 import {type Backoff, backoffDelay} from './lib/Backoff.js'
@@ -98,9 +100,10 @@ const EXPIRED_MEMORY: number = 7 * 24 * 3600 * 1000
 /**
  * The `driver` option of a {@link Queue}: the transport of its messages, told apart by `type`: in memory
  * ({@link MemoryQueueOptions}, the default), Redis ({@link RedisQueueOptions}), NATS JetStream
- * ({@link NatsQueueOptions}), or a driver of the application ({@link CustomQueueOptions}).
+ * ({@link NatsQueueOptions}), RabbitMQ ({@link RabbitMQQueueOptions}), or a driver of the application
+ * ({@link CustomQueueOptions}).
  */
-export type QueueDriverOptions = MemoryQueueOptions | RedisQueueOptions | NatsQueueOptions | CustomQueueOptions
+export type QueueDriverOptions = MemoryQueueOptions | RedisQueueOptions | NatsQueueOptions | RabbitMQQueueOptions | CustomQueueOptions
 
 /**
  * The defaults of the consumers of a {@link Queue} ({@link QueueAction}, {@link Queue.consume}).
@@ -474,7 +477,7 @@ export class Queue extends Component {
     /**
      * The driver of the queue.
      */
-    @Configurable(DTO.Alternatives(MemoryQueueOptions.required(), RedisQueueOptions.required(), NatsQueueOptions.required(), CustomQueueOptions.required()).optional().default({type: 'memory'}))
+    @Configurable(DTO.Alternatives(MemoryQueueOptions.required(), RedisQueueOptions.required(), NatsQueueOptions.required(), RabbitMQQueueOptions.required(), CustomQueueOptions.required()).optional().default({type: 'memory'}))
     protected readonly driver: QueueDriverOptions
 
     /**
@@ -1045,6 +1048,10 @@ export class Queue extends Component {
                 const {type, ...nats} = options
                 return new NatsQueueDriver(nats)
             }
+            case 'rabbitmq': {
+                const {type, ...rabbitmq} = options
+                return new RabbitMQQueueDriver(rabbitmq)
+            }
             default:
                 return new MemoryQueueDriver()
         }
@@ -1064,7 +1071,8 @@ export class Queue extends Component {
             return {
                 get: async (key: string): Promise<QueueResultRecord | true | undefined> => (await component.get(key)) ?? undefined,
                 set: async (key: string, record: QueueResultRecord, ttl: number): Promise<void> => {
-                    await component.set(key, record, ttl)
+                    //Kept as the codec gives it back, as the results kept by the drivers (a value it cannot encode fails)
+                    await component.set(key, this.#codec.decode(this.#codec.encode(record)), ttl)
                     await component.set(this.endKey(...this.splitKey(key)), true, ttl + EXPIRED_MEMORY)
                 },
                 groups: {
