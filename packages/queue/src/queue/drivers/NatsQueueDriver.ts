@@ -14,6 +14,7 @@ import {
 import type {NatsQueueOptions} from '../options/NatsQueueOptions.js'
 import {loadDriver} from '../lib/LoadDriver.js'
 import {versionAtLeast} from '../lib/Version.js'
+import {nameToken} from '../lib/Names.js'
 import {milliseconds} from '../lib/Duration.js'
 import {QueueDriverVersionException} from '../exceptions/QueueDriverVersionException.js'
 
@@ -531,15 +532,6 @@ export class NatsQueueDriver extends QueueDriver {
         if (!this.#manager || !this.#connection) throw new Error('The NATS driver of the queues is not connected')
         return this.#manager
     }
-}
-
-/**
- * A name as a token of the names of NATS (streams, consumers, buckets, subjects): the letters, the digits and `-`
- * kept, every other character written `_<hex>_`
- * @param name The name.
- */
-function nameToken(name: string): string {
-    return name.replace(/[^A-Za-z0-9-]/gu, (character: string): string => `_${character.codePointAt(0)!.toString(16)}_`)
 }
 
 /**

@@ -31,6 +31,8 @@ import {NatsQueueOptions} from './options/NatsQueueOptions.js'
 import {NatsQueueDriver} from './drivers/NatsQueueDriver.js'
 import {RabbitMQQueueOptions} from './options/RabbitMQQueueOptions.js'
 import {RabbitMQQueueDriver} from './drivers/RabbitMQQueueDriver.js'
+import {KafkaQueueOptions} from './options/KafkaQueueOptions.js'
+import {KafkaQueueDriver} from './drivers/KafkaQueueDriver.js'
 import {jsonQueueCodec, messagePackQueueCodec, type QueueCodec} from './lib/Codec.js'
 import {type Duration, milliseconds} from './lib/Duration.js'
 import {type Backoff, backoffDelay} from './lib/Backoff.js'
@@ -100,10 +102,10 @@ const EXPIRED_MEMORY: number = 7 * 24 * 3600 * 1000
 /**
  * The `driver` option of a {@link Queue}: the transport of its messages, told apart by `type`: in memory
  * ({@link MemoryQueueOptions}, the default), Redis ({@link RedisQueueOptions}), NATS JetStream
- * ({@link NatsQueueOptions}), RabbitMQ ({@link RabbitMQQueueOptions}), or a driver of the application
- * ({@link CustomQueueOptions}).
+ * ({@link NatsQueueOptions}), RabbitMQ ({@link RabbitMQQueueOptions}), Kafka ({@link KafkaQueueOptions}), or a driver of
+ * the application ({@link CustomQueueOptions}).
  */
-export type QueueDriverOptions = MemoryQueueOptions | RedisQueueOptions | NatsQueueOptions | RabbitMQQueueOptions | CustomQueueOptions
+export type QueueDriverOptions = MemoryQueueOptions | RedisQueueOptions | NatsQueueOptions | RabbitMQQueueOptions | KafkaQueueOptions | CustomQueueOptions
 
 /**
  * The defaults of the consumers of a {@link Queue} ({@link QueueAction}, {@link Queue.consume}).
@@ -477,7 +479,7 @@ export class Queue extends Component {
     /**
      * The driver of the queue.
      */
-    @Configurable(DTO.Alternatives(MemoryQueueOptions.required(), RedisQueueOptions.required(), NatsQueueOptions.required(), RabbitMQQueueOptions.required(), CustomQueueOptions.required()).optional().default({type: 'memory'}))
+    @Configurable(DTO.Alternatives(MemoryQueueOptions.required(), RedisQueueOptions.required(), NatsQueueOptions.required(), RabbitMQQueueOptions.required(), KafkaQueueOptions.required(), CustomQueueOptions.required()).optional().default({type: 'memory'}))
     protected readonly driver: QueueDriverOptions
 
     /**
@@ -1051,6 +1053,10 @@ export class Queue extends Component {
             case 'rabbitmq': {
                 const {type, ...rabbitmq} = options
                 return new RabbitMQQueueDriver(rabbitmq)
+            }
+            case 'kafka': {
+                const {type, ...kafka} = options
+                return new KafkaQueueDriver(kafka)
             }
             default:
                 return new MemoryQueueDriver()

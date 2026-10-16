@@ -23,7 +23,7 @@ import {
     QueueResultExpiredException,
     QueueResultNotFoundException
 } from '../../exports/Queue.js'
-import {RecordingDriver, sleep, until} from '../support/RecordingDriver.js'
+import {RecordingDriver, sleep, until as waitUntil} from '../support/RecordingDriver.js'
 
 /**
  * A backend of the tests: its drivers share its queues
@@ -68,6 +68,11 @@ export type ConformanceTarget = {
      * Registers the other objects of a container before its queue component (the store of the results...).
      */
     prepare?: (container: Container) => Promise<void>
+    /**
+     * How long a test waits for a delivery, in milliseconds (the consumers of some servers take a while to join).
+     * @default 5000
+     */
+    patience?: number
 }
 
 /**
@@ -95,6 +100,8 @@ class SendInput extends DTO {
  * @param target The driver tested.
  */
 export function queueConformance(target: ConformanceTarget): void {
+    //Wait for a condition as long as the target needs
+    const until = (condition: () => boolean, timeout?: number): Promise<void> => waitUntil(condition, Math.max(timeout ?? 0, target.patience ?? 5000))
     const run: string = randomUUID().slice(0, 8)
     let sequence: number = 0
     //The containers of the test running

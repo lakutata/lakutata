@@ -22,6 +22,7 @@ drivers load their clients when the component starts:
 | Redis | `{type: 'redis', url}` | `npm install bullmq ioredis` | Redis 5.0 or later (6.2 or later recommended) |
 | NATS JetStream | `{type: 'nats', servers}` | `npm install nats` | NATS 2.9.4 or later, with JetStream (`-js`) |
 | RabbitMQ | `{type: 'rabbitmq', url}` and `results: {store}` | `npm install amqplib` | RabbitMQ 3.6 or later |
+| Kafka | `{type: 'kafka', brokers}` and `results: {store}` | `npm install @platformatic/kafka` (Node.js 22.22 or 24.6 and later) | Kafka 3.5 or later |
 
 ## Usage
 
@@ -100,8 +101,8 @@ The semantics:
   MessagePack after a JSON normalization, so a `Date` arrives as its ISO string (an input DTO converts it back; a result
   stays a string). `codec: 'json'` exchanges JSON with services written in other languages.
 - **Registering the groups.** A group receives the messages added once it is registered: the actions of an application
-  register their groups while it starts (before it launches), `consume()` and `prepare()` register theirs. With the Redis
-  and NATS drivers, the messages added to a queue before any group registered are not delivered; the groups stay
+  register their groups while it starts (before it launches), `consume()` and `prepare()` register theirs. With the
+  drivers of the servers, the messages added to a queue before any group registered are not delivered; the groups stay
   registered on the server, so their messages are kept while none of their instances runs.
 
 ## Drivers
@@ -134,6 +135,18 @@ The semantics:
   not counted as an attempt. The driver reconnects by itself and consumes again. RabbitMQ 3.8.15 and later close a
   channel whose delivery is not ended within `consumer_timeout` (30 minutes by default): its messages are delivered
   again.
+- **Kafka**: each queue is a topic under the `prefix` (`lakutata` by default), created with `partitions` (1 by default)
+  and `replicas`; each group of a queue is a consumer group, its offsets set at the end of the topic when it registers.
+  The messages of a partition are processed in their order, one at a time: `concurrency` is the number of partitions an
+  instance processes at once, the messages of a `key` share a partition (the ordering by key). A failed message is
+  retried in place after its backoff, holding its partition; its attempts are counted by the instance processing it (a
+  message delivered again to another instance, after a rebalance or a restart, starts its attempts again). A message is
+  committed once acknowledged; abandoned, it is fetched again from its partition. Kafka keeps no result and has no reply
+  channel: give the queue a store (`results: {store: 'cache'}`), `request()` reads the results it keeps. The delays,
+  the priorities and the deduplication are not supported. A consumer joining a group waits for the
+  `group.initial.rebalance.delay.ms` of the brokers (3 seconds by default) the first time; the client sends the
+  heartbeats while the messages are processed. A consumer group without members is removed by Kafka once its offsets
+  expire (`offsets.retention.minutes`, 7 days by default).
 
 ## API
 
@@ -146,8 +159,8 @@ The semantics:
 | `queueEntrypoint` | The adapter delivering the messages to the actions |
 | `QueueContext`, `QUEUE_CONTEXT_TYPE` | The context of a delivery (`'QUEUE'`) |
 | `QueueChannel` | The queue channel |
-| `QueueDriver`, `MemoryQueueDriver`, `RedisQueueDriver`, `NatsQueueDriver`, `RabbitMQQueueDriver` | The drivers, and the base of a custom one |
-| `MemoryQueueOptions`, `RedisQueueOptions`, `NatsQueueOptions`, `RabbitMQQueueOptions`, `CustomQueueOptions` | The options of the drivers |
+| `QueueDriver`, `MemoryQueueDriver`, `RedisQueueDriver`, `NatsQueueDriver`, `RabbitMQQueueDriver`, `KafkaQueueDriver` | The drivers, and the base of a custom one |
+| `MemoryQueueOptions`, `RedisQueueOptions`, `NatsQueueOptions`, `RabbitMQQueueOptions`, `KafkaQueueOptions`, `CustomQueueOptions` | The options of the drivers |
 | `messagePackQueueCodec`, `jsonQueueCodec`, `QueueCodec` | The codecs |
 
 ## Errors
@@ -176,4 +189,5 @@ The semantics:
 
 `npm run test:unit` tests the memory driver. `npm run test:servers` (`test-env/run.sh`) starts the servers in Docker
 (the oldest version supported and the newest), runs the conformance suite of the drivers on each, then removes the
-containers; `test-env/run.sh redis`, `nats` or `rabbitmq` runs the servers of one driver.
+containers; `test-env/run.sh redis`, `nats`, `rabbitmq` or `kafka` runs the servers of one driver (the Kafka brokers on
+the ports 19092 and 19093).

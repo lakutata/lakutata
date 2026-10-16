@@ -6,6 +6,7 @@
 #   test-env/run.sh redis      the Redis servers only
 #   test-env/run.sh nats       the NATS servers only
 #   test-env/run.sh rabbitmq   the RabbitMQ servers only
+#   test-env/run.sh kafka      the Kafka brokers only (on the ports 19092 and 19093: a broker tells its address)
 set -u
 cd "$(dirname "$0")/.."
 npm run compile >/dev/null || exit 1
@@ -14,6 +15,8 @@ REDIS_IMAGES="redis:5.0-alpine redis:6.2-alpine redis:8-alpine"
 # NATS 2.9.4: the delays given back until due; 2.12 and later: the scheduled messages
 NATS_IMAGES="nats:2.9.4 nats:latest"
 RABBITMQ_IMAGES="rabbitmq:3.6 rabbitmq:4"
+# Kafka 3.5 (Confluent Platform 7.5.0) and the latest Apache Kafka, single KRaft nodes
+KAFKA_IMAGES="confluentinc/cp-kafka:7.5.0 apache/kafka:latest"
 CONTAINERS=""
 cleanup() {
     [ -n "$CONTAINERS" ] && docker rm -f -v $CONTAINERS >/dev/null 2>&1
@@ -80,5 +83,34 @@ if [ -z "$ONLY" ] || [ "$ONLY" = rabbitmq ]; then
         INDEX=$((INDEX + 1))
     done
     QUEUE_TEST_RABBITMQ="$URLS" node --test --test-concurrency=1 --test-timeout=120000 dist/esm/tests/servers/RabbitMQ.spec.js || STATUS=1
+fi
+if [ -z "$ONLY" ] || [ "$ONLY" = kafka ]; then
+    URLS=""
+    INDEX=0
+    for IMAGE in $KAFKA_IMAGES; do
+        NAME="lk-queue-kafka-$INDEX"
+        PORT=$((19092 + INDEX))
+        docker rm -f -v "$NAME" >/dev/null 2>&1
+        docker run -d --name "$NAME" -p "127.0.0.1:$PORT:$PORT" \
+            -e KAFKA_NODE_ID=1 -e KAFKA_PROCESS_ROLES=broker,controller -e CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qk \
+            -e KAFKA_LISTENERS="PLAINTEXT://0.0.0.0:$PORT,CONTROLLER://0.0.0.0:9093" \
+            -e KAFKA_ADVERTISED_LISTENERS="PLAINTEXT://127.0.0.1:$PORT" \
+            -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093 \
+            -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+            -e KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT \
+            -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
+            -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1 \
+            -e KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0 \
+            "$IMAGE" >/dev/null || exit 1
+        CONTAINERS="$CONTAINERS $NAME"
+        for attempt in $(seq 1 120); do
+            docker logs "$NAME" 2>&1 | grep -q "Kafka Server started" && break
+            sleep 1
+        done
+        URLS="$URLS${URLS:+,}127.0.0.1:$PORT"
+        export "QUEUE_TEST_KAFKA_NAME_$INDEX=$IMAGE"
+        INDEX=$((INDEX + 1))
+    done
+    QUEUE_TEST_KAFKA="$URLS" node --test --test-concurrency=1 --test-timeout=120000 dist/esm/tests/servers/Kafka.spec.js || STATUS=1
 fi
 exit $STATUS

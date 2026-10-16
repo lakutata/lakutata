@@ -2,7 +2,7 @@ import {Exception} from '@lakutata/core'
 
 /**
  * Thrown when a {@link Queue} connects with a driver whose client packages are not installed: `bullmq` and `ioredis` for
- * the Redis driver, `nats` for NATS JetStream, `amqplib` for RabbitMQ. Its message names the package to install. Its `errno` is
+ * the Redis driver, `nats` for NATS JetStream, `amqplib` for RabbitMQ, `@platformatic/kafka` for Kafka. Its message names the package to install. Its `errno` is
  * `'E_QUEUE_DRIVER_NOT_FOUND'`.
  */
 export class QueueDriverNotFoundException extends Exception {

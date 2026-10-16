@@ -14,6 +14,10 @@ describe('The client packages of the drivers', (): void => {
         assert.strictEqual(typeof ioredis.Redis, 'function')
         const nats: {connect?: unknown} = await loadDriver('connect', 'nats')
         assert.strictEqual(typeof nats.connect, 'function')
+        const amqplib: {connect?: unknown} = await loadDriver('connect', 'amqplib')
+        assert.strictEqual(typeof amqplib.connect, 'function')
+        const kafka: {Producer?: unknown} = await loadDriver('Producer', '@platformatic/kafka')
+        assert.strictEqual(typeof kafka.Producer, 'function')
     })
 
     it('report a package missing, told to install it, or to bundle again a bundled application', async (): Promise<void> => {

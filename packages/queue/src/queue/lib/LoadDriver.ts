@@ -9,7 +9,8 @@ const DRIVERS: Record<string, () => Promise<any>> = {
     'bullmq': () => import('bullmq'),
     'ioredis': () => import('ioredis'),
     'nats': () => import('nats'),
-    'amqplib': () => import('amqplib')
+    'amqplib': () => import('amqplib'),
+    '@platformatic/kafka': () => import('@platformatic/kafka')
 }
 
 /**

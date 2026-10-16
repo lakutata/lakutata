@@ -198,6 +198,8 @@ export class RedisQueueDriver extends QueueDriver {
     public async consume(options: QueueConsumeOptions, handler: (delivery: QueueDelivery) => Promise<void>): Promise<QueueSubscription> {
         const client: Redis = this.#connected()
         await this.register(options.name, options.group)
+        //The driver closed meanwhile: no worker created after it
+        if (this.#client !== client) throw new Error('The Redis driver of the queues is closed')
         //The acknowledgements waiting for BullMQ to complete their jobs
         const completions: Map<string, () => void> = new Map()
         const worker: BullWorker = new this.#bullmq.Worker(this.bullName(options.name, options.group), (job: Job, token?: string): Promise<void> => this.#process(options, job, token!, handler, completions), {

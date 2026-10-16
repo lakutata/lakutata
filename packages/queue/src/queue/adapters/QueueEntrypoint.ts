@@ -95,7 +95,8 @@ export function queueEntrypoint(queueComponentName: string, options: QueueEntryp
             for (const action of runtime.actions) await queue.prepare(action.address.queue, {group: action.address.group})
             //The messages consumed once the application has launched (its objects and the other adapters are ready)
             void runtime.ready.then(async (): Promise<void> => {
-                for (const action of runtime.actions) {
+                //The actions consume at once (a consumer of some servers takes a while to join its group)
+                await Promise.all(runtime.actions.map(async (action: ChannelActionInfo): Promise<void> => {
                     if (stopped) return
                     const {queue: name, ...address} = action.address as Record<string, any>
                     try {
@@ -108,15 +109,13 @@ export function queueEntrypoint(queueComponentName: string, options: QueueEntryp
                                 await log(runtime, error, `The queue action ${action.name} failed on the message ${context.jobId} of ${context.queue} (attempt ${context.attempt} of ${context.attempts})`)
                             }
                         })
-                        if (stopped) {
-                            await subscription.stop()
-                            return
-                        }
+                        if (stopped) return await subscription.stop()
                         subscriptions.add(subscription)
                     } catch (error: unknown) {
-                        await log(runtime, error, `The queue action ${action.name} does not consume the queue ${name}`)
+                        //Failing because the application stopped meanwhile: nothing to report
+                        if (!stopped) await log(runtime, error, `The queue action ${action.name} does not consume the queue ${name}`)
                     }
-                }
+                }))
             })
         },
         stop: async (): Promise<void> => {
