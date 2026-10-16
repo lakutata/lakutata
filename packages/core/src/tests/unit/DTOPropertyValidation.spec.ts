@@ -40,6 +40,12 @@ class DependentDTO extends DTO {
     public max: number
 }
 
+@IndexSignature(DTO.Any())
+class ContextDTO extends DTO {
+    @Expect(DTO.Any())
+    public request: any
+}
+
 @IndexSignature(DTO.Number())
 class IndexedDTO extends DTO {
     [key: string]: number
@@ -149,6 +155,33 @@ describe('DTO property validation', (): void => {
             unique.list.fill(0)
         })
         assert.deepStrictEqual(JSON.parse(JSON.stringify(unique.list)), [1, 2, 3])
+    })
+
+    it('keeps the functions of the nested objects working, with their own properties', (): void => {
+        //A function with methods of its own, as an express application: its own bind registers a route
+        const app: any = function (): void {
+        }
+        app.settings = {trust: 'yes'}
+        app.get = function (this: any, key: string): string {
+            return this.settings[key]
+        }
+        app.bind = (): never => {
+            throw new Error('The own bind of the function was called')
+        }
+        //A getter reading the application, as the ip of an express request
+        const request: any = {
+            app: app,
+            born: new Date(0),
+            get trust(): string {
+                return this.app.get('trust')
+            }
+        }
+        const context: ContextDTO = new ContextDTO({request: request})
+        assert.strictEqual(context.request.trust, 'yes')
+        assert.strictEqual(context.request.app.settings.trust, 'yes')
+        assert.strictEqual(context.request.app(), undefined)
+        //The methods are called on their object: the internal slots of a Date
+        assert.strictEqual(context.request.born.getTime(), 0)
     })
 
     it('validates the properties constrained together with the whole object', (): void => {

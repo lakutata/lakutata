@@ -14,12 +14,14 @@ import {
     buildEntrypoints,
     Controller,
     Entrypoint,
+    type HTTPContext,
     MiddlewareHandler,
     Next,
     Result
 } from '../exports/Entrypoint.js'
 import {GET, POST} from '../exports/CTRLDecorators.js'
 import {expressHTTPEntrypoint, ExpressHTTPEntrypointOptions, jsonEnvelope, staticUI} from '../exports/ExpressAdapter.js'
+import type {Request} from 'express'
 
 class DeviceDTO extends DTO {
     @Expect(DTO.String().required())
@@ -85,6 +87,13 @@ class DeviceController extends Controller {
         })
     }
 
+    @GET('/client')
+    public async client(): Promise<Record<string, unknown>> {
+        //The getters of express read the settings of the application through the context
+        const request: Request = (this.context as HTTPContext).request as unknown as Request
+        return {ip: request.ip, hostname: request.hostname, protocol: request.protocol, query: request.query}
+    }
+
     @GET('/slow')
     public async slow(): Promise<string> {
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 150))
@@ -128,6 +137,20 @@ describe('Express adapter', (): void => {
         await container.destroy()
     })
 
+    it('gives the actions and the middlewares the express request, its getters included', async (): Promise<void> => {
+        let ipOfMiddleware: string | undefined
+        const {url, container} = await start({}, {middlewares: [async (invocation: ActionInvocation, next: Next): Promise<unknown> => {
+            ipOfMiddleware = ((invocation.context as HTTPContext).request as unknown as Request).ip
+            return await next()
+        }]})
+        try {
+            assert.deepStrictEqual(await (await fetch(`${url}/client?page=2`)).json(), {ip: '127.0.0.1', hostname: '127.0.0.1', protocol: 'http', query: {page: '2'}})
+            assert.strictEqual(ipOfMiddleware, '127.0.0.1')
+        } finally {
+            await container.destroy()
+        }
+    })
+
     it('writes the errors with their status', async (): Promise<void> => {
         const {url, container} = await start()
         const invalid: Response = await fetch(`${url}/device/sn-1`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: 1})})
@@ -169,7 +192,7 @@ describe('Express adapter', (): void => {
     it('mounts the application routes, the fallback and the envelope', async (): Promise<void> => {
         const {url, container} = await start({
             before: (app, {actionPrefixes, isActionPath}): void => {
-                assert.deepStrictEqual(actionPrefixes.sort(), ['/buffer', '/created', '/device', '/empty', '/events', '/file', '/missing', '/slow'])
+                assert.deepStrictEqual(actionPrefixes.sort(), ['/buffer', '/client', '/created', '/device', '/empty', '/events', '/file', '/missing', '/slow'])
                 assert.ok(isActionPath('/device/x') && !isActionPath('/devices'))
                 app.get('/health', (request, response): unknown => response.json({status: 'ok'}))
             },

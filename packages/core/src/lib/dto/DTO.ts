@@ -195,7 +195,12 @@ function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any,
                 }
             }
         }
-        return propertyValue.bind(target)
+        //A method is called on its object, not on the proxy (the internal slots of a Date, a Map); the function itself is
+        //kept, with its own properties: an express application is a function whose methods (its own bind among them)
+        //its requests read
+        return new Proxy(propertyValue, {
+            apply: (method: any, _thisArg: any, args: any[]): any => Reflect.apply(method, target, args)
+        })
     }
     return new Proxy(propertyValue, {
         set(target: any, p: string | symbol, value: any, receiver: any): boolean {
