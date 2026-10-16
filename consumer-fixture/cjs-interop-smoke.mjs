@@ -86,6 +86,12 @@ await check('CJS @lakutata/mutex loads', () => {
     if (typeof requireCJS('../packages/mutex/dist/cjs/exports/Mutex.js').Mutex !== 'function') throw new Error('Mutex missing')
 })
 
+// @lakutata/queue — the message queues (their clients loaded when used)
+await check('CJS @lakutata/queue loads', () => {
+    const queue = requireCJS('../packages/queue/dist/cjs/exports/Queue.js')
+    if (typeof queue.Queue !== 'function' || typeof queue.queueEntrypoint !== 'function') throw new Error('Queue missing')
+})
+
 // @lakutata/grpc — the gRPC over HTTP/2 of containerd, BuildKit and the service actions
 await check('CJS @lakutata/grpc loads', () => {
     if (typeof requireCJS('../packages/grpc/dist/cjs/exports/GRPC.js').GRPCServer !== 'function') throw new Error('GRPCServer missing')

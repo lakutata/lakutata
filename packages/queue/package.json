@@ -1,0 +1,46 @@
+{
+  "name": "@lakutata/queue",
+  "version": "3.0.0",
+  "description": "The message queues of the lakutata framework: messages added by the Queue component and processed by controller actions (@QueueAction), acknowledged, retried and dead-lettered alike over memory, Redis, NATS JetStream, Kafka or RabbitMQ.",
+  "type": "module",
+  "main": "./dist/cjs/exports/Queue.js",
+  "types": "./dist/cjs/exports/Queue.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/exports/Queue.d.ts",
+        "default": "./dist/esm/exports/Queue.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Queue.d.ts",
+        "default": "./dist/cjs/exports/Queue.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs-pkg": "node ../../scripts/package-build/cjs-package.mjs",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
+    "rebuild": "npm run clean && npm run build:js",
+    "compile": "npm run rebuild",
+    "test:unit": "npm run compile && node --test --test-timeout=60000 \"dist/esm/tests/*.spec.js\""
+  },
+  "peerDependencies": {
+    "@lakutata/core": "3.0.0",
+    "@lakutata/entrypoint": "3.0.0",
+    "@lakutata/utils": "3.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "!dist/*/tests",
+    "*.md",
+    "LICENSE",
+    "package.json"
+  ]
+}

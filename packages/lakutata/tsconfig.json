@@ -47,6 +47,9 @@
             "@lakutata/mutex": [
                 "../mutex/dist/types/exports/Mutex"
             ],
+            "@lakutata/queue": [
+                "../queue/dist/types/exports/Queue"
+            ],
             "@lakutata/containerd": [
                 "../containerd/dist/types/exports/Containerd"
             ],

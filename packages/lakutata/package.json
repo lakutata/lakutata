@@ -94,6 +94,16 @@
         "default": "./dist/cjs/exports/MutexComponent.js"
       }
     },
+    "./com/queue": {
+      "import": {
+        "types": "./dist/types/exports/QueueComponent.d.ts",
+        "default": "./dist/esm/exports/QueueComponent.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/QueueComponent.d.ts",
+        "default": "./dist/cjs/exports/QueueComponent.js"
+      }
+    },
     "./com/i18n": {
       "import": {
         "types": "./dist/types/exports/I18nComponent.d.ts",
@@ -336,6 +346,7 @@
     "@lakutata/monitor": "3.0.0",
     "@lakutata/mutex": "3.0.0",
     "@lakutata/orm": "3.0.0",
+    "@lakutata/queue": "3.0.0",
     "@lakutata/security": "3.0.0",
     "@lakutata/utils": "3.0.0"
   },
