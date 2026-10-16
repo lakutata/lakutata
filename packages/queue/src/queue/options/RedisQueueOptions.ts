@@ -12,6 +12,9 @@ import {Expect} from '@lakutata/core/decorator/dto'
  *
  * The groups of a queue are kept in Redis once they consumed it: a message is added for each of them, even while none
  * of their instances runs. A message added before any group consumed its queue is dropped.
+ *
+ * The driver connects when the component starts, which fails when the server cannot be reached then. Afterwards, while
+ * the server cannot be reached, the client reconnects and the calls wait for it instead of failing.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'

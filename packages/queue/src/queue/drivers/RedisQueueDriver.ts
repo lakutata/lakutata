@@ -115,6 +115,7 @@ export class RedisQueueDriver extends QueueDriver {
 
     /**
      * Load the client packages, connect, check the version of the server and subscribe to the replies.
+     * @throws {Error} When the server cannot be reached.
      * @throws {QueueDriverNotFoundException} When `bullmq` or `ioredis` is not installed.
      * @throws {QueueDriverVersionException} When the server is older than Redis 5.0.
      */
@@ -126,12 +127,27 @@ export class RedisQueueDriver extends QueueDriver {
             username: this.options.username,
             password: this.options.password,
             //BullMQ waits for the server rather than failing its blocking commands
-            maxRetriesPerRequest: null
+            maxRetriesPerRequest: null,
+            //Connected below: a server unreachable when the component starts fails it
+            lazyConnect: true
         }
         const client: Redis = this.options.url
             ? new Client(this.options.url, options)
             : new Client({...options, host: this.options.host ?? '127.0.0.1', port: this.options.port ?? 6379, tls: this.options.tls ? {} : undefined})
-        //The client reconnects by itself, its commands wait meanwhile
+        let failure: Error | undefined
+        const remember = (error: Error): void => {
+            failure = error
+        }
+        client.on('error', remember)
+        try {
+            await client.connect()
+        } catch (error) {
+            client.disconnect()
+            //The error of the connection tells why (the rejection only that it is closed)
+            throw new Error(`The Redis server of the queues cannot be reached: ${(failure ?? error as Error).message}`, {cause: error})
+        }
+        //Once connected, the client reconnects by itself, its commands wait meanwhile
+        client.off('error', remember)
         client.on('error', (): void => undefined)
         const info: string = await client.info('server')
         this.version = /redis_version:([^\r\n]+)/.exec(info)?.[1]?.trim() ?? '0'
