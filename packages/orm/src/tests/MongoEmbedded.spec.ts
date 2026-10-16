@@ -346,20 +346,43 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
     })
 
     it('keys the integers of 64 bits exactly in its indexes, as MongoDB compares the numbers', async (): Promise<void> => {
-        const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', worker: false}).initialize()
-        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
-        await runner.createCollectionIndex('ids', {id: 1}, {name: 'id', unique: true})
-        //Integers beyond 2^53 a double rounds to one value: distinct keys
-        const ids: BSON.Long[] = ['9007199254740992', '9007199254740993', '4611686018427387904', '4611686018427387905', '9223372036854775807', '-9223372036854775808'].map((text: string): BSON.Long => BSON.Long.fromString(text))
-        for (const id of ids) await runner.insertOne('ids', {id: id})
-        for (const id of ids) assert.strictEqual(await runner.countDocuments('ids', {id: id}), 1, id.toString())
-        //Read in the order of the index (a sort with a limit)
-        const sorted: string[] = (await runner.cursor('ids', {}).sort({id: 1}).limit(10).toArray()).map((document: Record<string, any>): string => document.id.toString())
-        assert.deepStrictEqual(sorted, ['-9223372036854775808', '9007199254740992', '9007199254740993', '4611686018427387904', '4611686018427387905', '9223372036854775807'])
-        //The same integer as a Decimal128: a duplicate key, as in MongoDB
-        await assert.rejects(runner.insertOne('ids', {id: BSON.Decimal128.fromString('9007199254740993')}), {code: 11000})
-        await dataSource.destroy()
+        for (const worker of [false, true]) {
+            const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', worker: worker}).initialize()
+            const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+            await runner.createCollectionIndex('ids', {id: 1}, {name: 'id', unique: true})
+            //Integers beyond 2^53 a double rounds to one value: distinct keys
+            const ids: BSON.Long[] = ['9007199254740992', '9007199254740993', '4611686018427387904', '4611686018427387905', '9223372036854775807', '-9223372036854775808'].map((text: string): BSON.Long => BSON.Long.fromString(text))
+            for (const id of ids) await runner.insertOne('ids', {id: id})
+            for (const id of ids) assert.strictEqual(await runner.countDocuments('ids', {id: id}), 1, id.toString())
+            //Read in the order of the index (a sort with a limit)
+            const sorted: string[] = (await runner.cursor('ids', {}).sort({id: 1}).limit(10).toArray()).map((document: Record<string, any>): string => document.id.toString())
+            assert.deepStrictEqual(sorted, ['-9223372036854775808', '9007199254740992', '9007199254740993', '4611686018427387904', '4611686018427387905', '9223372036854775807'])
+            //The same integer as a Decimal128: a duplicate key, as in MongoDB
+            await assert.rejects(runner.insertOne('ids', {id: BSON.Decimal128.fromString('9007199254740993')}), {code: 11000})
+            await dataSource.destroy()
+        }
     })
+
+    it('refuses the snapshots of another format of the keys: its indexes built again from its documents', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        let dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: directory, worker: false}).initialize()
+        await dataSource.mongoManager.mongoQueryRunner.insertMany('items', Array.from({length: 100}, (_: unknown, n: number): object => ({n: n})))
+        await dataSource.mongoManager.mongoQueryRunner.createCollectionIndex('items', {n: 1}, {name: 'n'})
+        await dataSource.destroy()
+        //Its snapshot made the one of the format 2 (the keys of 9 bytes), its CRC-32 written again
+        const snapshot: string = path.join(directory, (await readdir(directory)).find((file: string): boolean => file.endsWith('.snapshot'))!)
+        const bytes: Buffer = await readFile(snapshot)
+        const header: number = bytes.indexOf(Buffer.from('format\u0000', 'latin1'))
+        assert.strictEqual(bytes.readInt32LE(header + 7), 3)
+        bytes.writeInt32LE(2, header + 7)
+        bytes.writeUInt32LE(crc32(bytes.subarray(12)), 8)
+        await writeFile(snapshot, bytes)
+        dataSource = await new DataSource({type: 'mongo-embedded', database: directory, worker: false}).initialize()
+        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        assert.strictEqual((runner.databaseConnection as unknown as {store: {collection(name: string, create: boolean): {openedFrom: string}}}).store.collection('items', false).openedFrom, 'records')
+        assert.strictEqual(await runner.countDocuments('items', {n: {$gte: 50}}), 50)
+        assert.strictEqual(await runner.countDocuments('items', {n: {$in: [1, 2, 200]}}), 2)
+        await dataSource.destroy()
+    }))
 
     it('creates a collection when a document is inserted in it, not by an update or a replacement matching nothing', async (): Promise<void> => {
         const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', worker: false}).initialize()
