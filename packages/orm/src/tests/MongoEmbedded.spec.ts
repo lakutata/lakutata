@@ -35,7 +35,7 @@ class Author {
 class Post {
 
     @ObjectIdColumn()
-    public id: BSON.ObjectId
+    public id: ObjectId
 
     @Index({unique: true})
     @Column()

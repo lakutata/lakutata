@@ -31,3 +31,9 @@ function loadObjectId(): typeof BSONObjectId {
  * console.log(post?.id instanceof ObjectId) // true
  */
 export const ObjectId: typeof BSONObjectId = loadObjectId()
+
+/**
+ * lakutata: the type of the ids of the entities of MongoDB, the instances of {@link ObjectId}, to declare their
+ * `@ObjectIdColumn()` properties (`public id: ObjectId`).
+ */
+export type ObjectId = BSONObjectId
