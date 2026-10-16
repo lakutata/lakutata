@@ -1,0 +1,71 @@
+/*
+ * The colors of the logo of Lakutata: its yellow (#ffde00) and its black. The yellow is too light for the text on a
+ * white page: the links and the highlights of the light mode are a deep gold of the same hue (#8a6d00, 4.9:1 on
+ * white); the dark mode uses the yellow itself. The buttons are the yellow with black text, as the logo.
+ */
+:root {
+    --lkt-yellow: #ffde00;
+    --lkt-yellow-light: #ffe84d;
+    --lkt-yellow-dark: #f2d200;
+    --lkt-black: #1a1a1a;
+    --lkt-gold: #8a6d00;
+    --lkt-gold-light: #a68300;
+
+    --vp-c-brand-1: var(--lkt-gold);
+    --vp-c-brand-2: var(--lkt-gold-light);
+    --vp-c-brand-3: var(--lkt-yellow-dark);
+    --vp-c-brand-soft: rgba(255, 222, 0, 0.18);
+
+    --vp-button-brand-border: transparent;
+    --vp-button-brand-text: var(--lkt-black);
+    --vp-button-brand-bg: var(--lkt-yellow);
+    --vp-button-brand-hover-border: transparent;
+    --vp-button-brand-hover-text: var(--lkt-black);
+    --vp-button-brand-hover-bg: var(--lkt-yellow-light);
+    --vp-button-brand-active-border: transparent;
+    --vp-button-brand-active-text: var(--lkt-black);
+    --vp-button-brand-active-bg: var(--lkt-yellow-dark);
+
+    --vp-home-hero-name-color: transparent;
+    --vp-home-hero-name-background: -webkit-linear-gradient(120deg, var(--lkt-black) 30%, var(--lkt-gold-light));
+    --vp-home-hero-image-background-image: linear-gradient(-45deg, var(--lkt-yellow) 50%, #ffb800 50%);
+    --vp-home-hero-image-filter: blur(56px);
+}
+
+.dark {
+    --vp-c-brand-1: var(--lkt-yellow);
+    --vp-c-brand-2: var(--lkt-yellow-light);
+    --vp-c-brand-3: var(--lkt-yellow-dark);
+    --vp-c-brand-soft: rgba(255, 222, 0, 0.14);
+
+    --vp-home-hero-name-background: -webkit-linear-gradient(120deg, var(--lkt-yellow) 30%, #fff3a0);
+    --vp-home-hero-image-background-image: linear-gradient(-45deg, rgba(255, 222, 0, 0.55) 50%, rgba(255, 184, 0, 0.45) 50%);
+}
+
+@media (min-width: 640px) {
+    :root {
+        --vp-home-hero-image-filter: blur(64px);
+    }
+}
+
+@media (min-width: 960px) {
+    :root {
+        --vp-home-hero-image-filter: blur(72px);
+    }
+}
+
+/* The logo of the navigation bar, a little larger than the default */
+.VPNavBarTitle .logo {
+    height: 28px;
+}
+
+/* The inline code in the color of the text: the brand color is for the links */
+:root,
+.dark {
+    --vp-code-color: var(--vp-c-text-1);
+}
+
+/* The long names of the API reference wrap in the sidebar rather than being cut */
+.VPSidebarItem .text {
+    overflow-wrap: anywhere;
+}

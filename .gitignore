@@ -299,6 +299,8 @@ build/**/*
 # Re-ignore OS junk files that the src negation above would otherwise re-include
 **/.DS_Store
 package-lock.json
+#The website installs its tools from its own lockfile (its builds are repeatable)
+!website/package-lock.json
 .env
 .package.json.bak
 src/tests/**/*.csv

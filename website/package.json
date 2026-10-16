@@ -1,0 +1,18 @@
+{
+  "name": "lakutata-website",
+  "private": true,
+  "description": "The website of the lakutata framework: the guides of packages/lakutata/doc, the READMEs of the packages and the API reference of the subpaths, built with VitePress.",
+  "type": "module",
+  "scripts": {
+    "content": "node scripts/content.mjs",
+    "dev": "npm run content && vitepress dev src",
+    "build": "npm run content && vitepress build src",
+    "preview": "vitepress preview src"
+  },
+  "devDependencies": {
+    "typedoc": "^0.28.20",
+    "typedoc-plugin-markdown": "^4.14.0",
+    "typedoc-vitepress-theme": "^1.1.4",
+    "vitepress": "^1.6.4"
+  }
+}
