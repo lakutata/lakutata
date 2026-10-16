@@ -1,9 +1,10 @@
 import {
-    MemoryQueueDriver,
+    QueueDriver,
     type QueueCapabilities,
     type QueueConsumeOptions,
     type QueueDelivery,
     type QueueMessage,
+    type QueueReply,
     type QueueSubscription
 } from '../../exports/Queue.js'
 
@@ -22,17 +23,34 @@ export type Decision = {
  * The options of a {@link RecordingDriver}
  */
 export type RecordingDriverOptions = {
+    /**
+     * The capabilities replaced (a driver which cannot deliver again after a delay...): the queue then does what the
+     * driver would.
+     */
     capabilities?: Partial<QueueCapabilities>
+    /**
+     * Deliveries without their count (as Kafka and RabbitMQ).
+     */
     withoutDeliveryCount?: boolean
+    /**
+     * The driver wrapped is not closed by the queue component (another queue component uses it next).
+     */
     keepOpen?: boolean
+    /**
+     * The lease of the deliveries.
+     */
     lease?: number
 }
 
 /**
- * The memory driver recording the messages sent and the decisions on the deliveries. Kept open when its queue component
- * is destroyed (`keepOpen`), it is given to the queue of another container, which receives the messages left.
+ * A driver wrapping another one, recording the messages sent and the decisions on the deliveries: the tests see what the
+ * queue component asks of any driver.
  */
-export class RecordingDriver extends MemoryQueueDriver {
+export class RecordingDriver extends QueueDriver {
+
+    public readonly capabilities: QueueCapabilities
+
+    public readonly lease?: number
 
     public readonly sent: QueueMessage[] = []
 
@@ -41,31 +59,33 @@ export class RecordingDriver extends MemoryQueueDriver {
     //The extensions of the leases
     public extended: number = 0
 
-    public readonly lease?: number
-
     protected readonly withoutDeliveryCount: boolean
 
     protected readonly keepOpen: boolean
 
     /**
-     * @param options The capabilities replaced (a driver which cannot deliver again after a delay...), deliveries
-     * without their count (as Kafka and RabbitMQ), a driver not closed by its queue component, a lease.
+     * @param driver The driver wrapped.
+     * @param options The capabilities replaced, the deliveries without their count, the driver kept open, the lease.
      */
-    constructor(options: RecordingDriverOptions = {}) {
+    constructor(public readonly driver: QueueDriver, options: RecordingDriverOptions = {}) {
         super()
-        Object.assign(this.capabilities, options.capabilities ?? {})
+        this.capabilities = {...driver.capabilities, ...options.capabilities}
         this.withoutDeliveryCount = !!options.withoutDeliveryCount
         this.keepOpen = !!options.keepOpen
-        this.lease = options.lease
+        this.lease = options.lease ?? driver.lease
+    }
+
+    public async connect(): Promise<void> {
+        await this.driver.connect()
     }
 
     public async send(message: QueueMessage): Promise<boolean> {
         this.sent.push(message)
-        return super.send(message)
+        return this.driver.send(message)
     }
 
     public async consume(options: QueueConsumeOptions, handler: (delivery: QueueDelivery) => Promise<void>): Promise<QueueSubscription> {
-        return super.consume(options, (delivery: QueueDelivery): Promise<void> => {
+        return this.driver.consume(options, (delivery: QueueDelivery): Promise<void> => {
             const record = (decision: Decision['decision'], delay?: number): void => {
                 this.decisions.push({queue: delivery.message.name, id: delivery.message.id, group: delivery.group, decision: decision, delay: delay})
             }
@@ -93,8 +113,32 @@ export class RecordingDriver extends MemoryQueueDriver {
         })
     }
 
+    public async groups(name: string): Promise<string[]> {
+        return this.driver.groups(name)
+    }
+
+    public async saveResult(key: string, value: Uint8Array, ttl: number): Promise<void> {
+        return this.driver.saveResult!(key, value, ttl)
+    }
+
+    public async readResult(key: string): Promise<Uint8Array | undefined> {
+        return this.driver.readResult!(key)
+    }
+
+    public replyAddress(): string {
+        return this.driver.replyAddress!()
+    }
+
+    public async reply(address: string, reply: QueueReply): Promise<void> {
+        return this.driver.reply!(address, reply)
+    }
+
+    public onReply(handler: (reply: QueueReply) => void): void {
+        this.driver.onReply?.(handler)
+    }
+
     public async close(): Promise<void> {
-        if (!this.keepOpen) await super.close()
+        if (!this.keepOpen) await this.driver.close()
     }
 
     /**
