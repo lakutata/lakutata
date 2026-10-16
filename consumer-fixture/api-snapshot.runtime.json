@@ -403,6 +403,8 @@
   "lakutata/com/queue": [
     "CustomQueueOptions",
     "Job",
+    "KafkaQueueDriver",
+    "KafkaQueueOptions",
     "MemoryQueueDriver",
     "MemoryQueueOptions",
     "NatsQueueDriver",
@@ -424,6 +426,8 @@
     "QueueRequestTimeoutException",
     "QueueResultExpiredException",
     "QueueResultNotFoundException",
+    "RabbitMQQueueDriver",
+    "RabbitMQQueueOptions",
     "RedisQueueDriver",
     "RedisQueueOptions",
     "buildQueueOptions",

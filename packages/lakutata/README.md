@@ -105,7 +105,7 @@ Application
 | `lakutata/com/database`, `lakutata/provider/database` | `@lakutata/orm` | The `Database` component and provider, the migration commands |
 | `lakutata/com/cacher` | `@lakutata/cache` | The `Cacher` component: memory, file, Redis, Memcached, MongoDB, SQLite, PostgreSQL, MySQL stores |
 | `lakutata/com/mutex` | `@lakutata/mutex` | The `Mutex` component, `@Synchronized` |
-| `lakutata/com/queue` | `@lakutata/queue` | The `Queue` component, `@QueueAction`, `queueEntrypoint`: message queues in memory, Redis (BullMQ) or NATS JetStream (Kafka, RabbitMQ to come) |
+| `lakutata/com/queue` | `@lakutata/queue` | The `Queue` component, `@QueueAction`, `queueEntrypoint`: message queues in memory, Redis (BullMQ), NATS JetStream, RabbitMQ or Kafka |
 | `lakutata/com/i18n` | `@lakutata/i18n` | The `I18n` component, the `Translator`, the language middleware |
 | `lakutata/com/docker` | `@lakutata/docker` | The `Docker` component |
 | `lakutata/com/containerd` | `@lakutata/containerd` | The `Containerd` component (containerd without Docker, BuildKit builds) |
