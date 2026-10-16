@@ -40,7 +40,7 @@ Application.run(() => ({
 | `{type: 'kafka', brokers}` | `@platformatic/kafka`（Node.js 22.22 / 24.6 起） | Kafka 3.5 起 | 按键保序，`partitions`（默认 1）；需要 `results.store` |
 | `{type: 'custom', driver}` | | | 应用自己实现的 `QueueDriver` |
 
-客户端都是可选的 peer 依赖，在组件启动时才加载：缺少客户端包时启动失败并抛出 `QueueDriverNotFoundException`，服务端版本太旧时抛出 `QueueDriverVersionException`，连不上服务端时抛出连接错误。启动之后，驱动会自动重连。每个驱动还接受 `prefix`（默认 `lakutata`），作为它在服务端创建的名称的前缀，用来隔开共用同一个服务端的应用。
+客户端都是可选的 peer 依赖，在组件启动时才加载：缺少客户端包时启动失败并抛出 `QueueDriverNotFoundException`，服务端版本太旧时抛出 `QueueDriverVersionException`，连不上服务端时抛出连接错误。启动之后，驱动会自动重连。使用服务端的驱动还接受 `prefix`（默认 `lakutata`），作为它们在服务端创建的名称的前缀，用来隔开共用同一个服务端的应用。
 
 组件的其他选项：
 

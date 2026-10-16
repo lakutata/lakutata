@@ -181,6 +181,7 @@ The semantics:
 
 ## See also
 
+- `doc/en/Queue.md` of the package `lakutata` (Chinese in `doc/zh`): the guide of the queues.
 - `@lakutata/entrypoint`: the controllers, the channels and the other transports.
 - `@lakutata/cache`: a `Cacher` keeping the results (`results: {store: 'cache'}`) of the drivers keeping none.
 - `@lakutata/nats`: the messages between the services (at most once), the remote calls.

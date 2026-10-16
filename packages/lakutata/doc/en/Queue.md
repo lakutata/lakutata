@@ -48,8 +48,8 @@ Application.run(() => ({
 
 The clients are optional peer dependencies, loaded when the component starts: a missing one fails it with
 `QueueDriverNotFoundException`, a server too old with `QueueDriverVersionException`, an unreachable server with its
-connection error. Once started, the drivers reconnect by themselves. Each driver also takes a `prefix` (`lakutata` by
-default) for the names it creates on the server, to keep apart the applications sharing it.
+connection error. Once started, the drivers reconnect by themselves. The drivers of the servers also take a `prefix`
+(`lakutata` by default) for the names they create on the server, to keep apart the applications sharing it.
 
 The other options of the component:
 
