@@ -8,12 +8,14 @@ import type { EmbeddedDocument } from "./EmbeddedValues"
 export const WORKER_DATA_KEY = "lakutataMongoEmbedded"
 
 /**
- * lakutata: the data of the worker thread of an embedded MongoDB: the directory of its database (none in memory) and
- * the options of its store.
+ * lakutata: the data of the worker thread of an embedded MongoDB: the directory of its database (none in memory), the
+ * options of its store, and the token of the connection in the file LOCK of the directory (the client removes the
+ * LOCK of its connection when the worker thread exits).
  */
 export interface EmbeddedWorkerData {
     directory?: string
     options: EmbeddedStoreOptions
+    token: string
 }
 
 /**

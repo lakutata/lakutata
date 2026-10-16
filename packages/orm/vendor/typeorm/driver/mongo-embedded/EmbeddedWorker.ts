@@ -202,6 +202,7 @@ export async function startEmbeddedWorker(
             data.options,
             mingo,
             bson,
+            data.token,
         )
     } catch (error) {
         port.postMessage({ id: 0, error: describeError(bson, error) })

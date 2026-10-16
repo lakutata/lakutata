@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {spawn, type ChildProcess} from 'node:child_process'
-import {cpSync} from 'node:fs'
+import {cpSync, existsSync} from 'node:fs'
 import {appendFile, cp, mkdtemp, readdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import {crc32} from 'node:zlib'
@@ -266,6 +266,7 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await runner.createCollectionIndex('indexed', {w: -1, n: 1}, {name: 'w_n'})
         const filters: object[] = [
             {v: 1}, {v: 'a'}, {v: true}, {v: new Date(0)}, {v: null}, {v: {$eq: 2}}, {v: {$in: [1, 'b', 7]}}, {v: {$in: [null, 1]}},
+            {v: {$in: [1, 1, 'a', 'a', 7, 7.0]}}, {tags: {$in: ['x', 'x', 1]}},
             {v: {$gt: 1}}, {v: {$gte: 1, $lt: 7}}, {v: {$lte: 'ab'}}, {v: {$gt: 0, $ne: 2}}, {v: {$gt: 1, $lt: 'z'}}, {v: {$ne: 1}},
             {v: {$exists: false}}, {v: {$nin: [1, 2]}}, {v: [1, 2]}, {v: {x: 1}}, {v: {$gt: new Date(500)}},
             {tags: 'x'}, {tags: {$in: [1, 'y']}}, {tags: {$gt: 1, $lt: 3}}, {tags: {$gte: 2}}, {tags: []},
@@ -293,6 +294,12 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
                 assert.deepStrictEqual((await single(runner.cursor('indexed', filter)).toArray()).map((document: Record<string, unknown>): string => JSON.stringify(document[field] ?? null)), (await single(runner.cursor('plain', filter)).toArray()).map((document: Record<string, unknown>): string => JSON.stringify(document[field] ?? null)), `${label} ${JSON.stringify(sort)}`)
             }
         }
+        //A value twice in a $in, on indexes of one key per document (the counts read the index only): counted once
+        await runner.insertMany('scalar', [{name: 'a', number: 1}, {name: 'b', number: 2}])
+        await runner.createCollectionIndex('scalar', {name: 1}, {name: 'name'})
+        await runner.createCollectionIndex('scalar', {number: 1}, {name: 'number'})
+        assert.strictEqual(await runner.countDocuments('scalar', {name: {$in: ['a', 'a', 'b']}}), 2)
+        assert.strictEqual(await runner.countDocuments('scalar', {number: {$in: [1, BSON.Long.fromNumber(1)]}}), 1)
         await dataSource.destroy()
     })
 
@@ -336,6 +343,38 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
             assert.strictEqual(await runner.countDocuments('texts', {}), 2, label)
             await dataSource.destroy()
         }
+    })
+
+    it('keys the integers of 64 bits exactly in its indexes, as MongoDB compares the numbers', async (): Promise<void> => {
+        const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', worker: false}).initialize()
+        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        await runner.createCollectionIndex('ids', {id: 1}, {name: 'id', unique: true})
+        //Integers beyond 2^53 a double rounds to one value: distinct keys
+        const ids: BSON.Long[] = ['9007199254740992', '9007199254740993', '4611686018427387904', '4611686018427387905', '9223372036854775807', '-9223372036854775808'].map((text: string): BSON.Long => BSON.Long.fromString(text))
+        for (const id of ids) await runner.insertOne('ids', {id: id})
+        for (const id of ids) assert.strictEqual(await runner.countDocuments('ids', {id: id}), 1, id.toString())
+        //Read in the order of the index (a sort with a limit)
+        const sorted: string[] = (await runner.cursor('ids', {}).sort({id: 1}).limit(10).toArray()).map((document: Record<string, any>): string => document.id.toString())
+        assert.deepStrictEqual(sorted, ['-9223372036854775808', '9007199254740992', '9007199254740993', '4611686018427387904', '4611686018427387905', '9223372036854775807'])
+        //The same integer as a Decimal128: a duplicate key, as in MongoDB
+        await assert.rejects(runner.insertOne('ids', {id: BSON.Decimal128.fromString('9007199254740993')}), {code: 11000})
+        await dataSource.destroy()
+    })
+
+    it('creates a collection when a document is inserted in it, not by an update or a replacement matching nothing', async (): Promise<void> => {
+        const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', worker: false}).initialize()
+        const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+        const names = (): string[] => (runner.databaseConnection as unknown as {store: {names(): string[]}}).store.names().sort()
+        await runner.updateOne('a', {x: 1}, {$set: {y: 1}})
+        await runner.updateMany('b', {x: 1}, {$set: {y: 1}})
+        await runner.replaceOne('c', {x: 1}, {y: 1})
+        await runner.deleteMany('d', {x: 1}, {})
+        assert.deepStrictEqual(names(), [])
+        await runner.updateOne('e', {x: 1}, {$set: {y: 1}}, {upsert: true})
+        await runner.replaceOne('f', {x: 1}, {y: 1}, {upsert: true})
+        assert.deepStrictEqual(names(), ['e', 'f'])
+        assert.strictEqual(await runner.countDocuments('e', {x: 1, y: 1}), 1)
+        await dataSource.destroy()
     })
 
     it('groups the documents in batches as mingo groups them all', async (): Promise<void> => {
@@ -691,6 +730,40 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
             })
         })
         assert.strictEqual(output, 'written 1')
+    }))
+
+    it('unlocks its directory when its worker thread exits while it opens the database', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        //A database long to open: no snapshot, its documents read again for its index
+        let dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: directory, worker: false}).initialize()
+        await dataSource.mongoManager.mongoQueryRunner.insertMany('items', Array.from({length: 100000}, (_: unknown, n: number): object => ({n: n, text: 'x'.repeat(100)})))
+        await dataSource.mongoManager.mongoQueryRunner.createCollectionIndex('items', {n: 1}, {name: 'n'})
+        await dataSource.destroy()
+        for (const file of await readdir(directory)) if (file.endsWith('.snapshot')) await rm(path.join(directory, file))
+        //Its worker thread ended once it locked the directory (as out of memory while it reads its files)
+        const threads: {Worker: new (...args: any[]) => {terminate(): Promise<number>}} = createRequire(import.meta.url)('node:worker_threads')
+        const Worker = threads.Worker
+        const created: {terminate(): Promise<number>}[] = []
+        threads.Worker = class extends Worker {
+            constructor(...args: any[]) {
+                super(...args)
+                created.push(this)
+            }
+        }
+        try {
+            const opening: Promise<DataSource> = new DataSource({type: 'mongo-embedded', database: directory}).initialize()
+            opening.catch((): void => undefined)
+            //Locked: its file LOCK written
+            const lock: string = path.join(directory, 'LOCK')
+            while (!existsSync(lock) || !(await readFile(lock, 'utf8').catch((): string => ''))) await new Promise((resolve: (value: unknown) => void): unknown => setImmediate(resolve))
+            await created[0].terminate()
+            await assert.rejects(opening, /exited \(1\) before it opened the database/)
+        } finally {
+            threads.Worker = Worker
+        }
+        assert.ok(!existsSync(path.join(directory, 'LOCK')), 'the directory unlocked')
+        dataSource = await new DataSource({type: 'mongo-embedded', database: directory, worker: false}).initialize()
+        assert.strictEqual(await dataSource.mongoManager.mongoQueryRunner.countDocuments('items', {}), 100000)
+        await dataSource.destroy()
     }))
 
     it('reads a cursor a batch at a time with next(): the documents of toArray(), closed at its end or when it is closed', async (): Promise<void> => {

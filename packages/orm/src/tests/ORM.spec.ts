@@ -172,6 +172,12 @@ describe('The ORM', (): void => {
         assert.ok(database.hasMetadata(Author) && database.hasMetadata('note'))
         await database.getRepository('note').save({title: 'a'})
         assert.strictEqual(await database.getRepository('note').count(), 1)
+        //The entities given as objects of them
+        const objects: DatabaseProvider = await container.set(DatabaseProvider, {
+            options: {type: 'better-sqlite3', database: ':memory:', entities: {Author: Author, Book: Book}, synchronize: true},
+            entities: {Note: Note}
+        })
+        assert.ok(objects.hasMetadata(Author) && objects.hasMetadata(Book) && objects.hasMetadata('note'))
         await container.destroy()
     })
 

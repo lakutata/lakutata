@@ -1,5 +1,4 @@
-import * as fs from "fs"
-import * as path from "path"
+import { randomBytes } from "crypto"
 import type { ResourceLimits } from "worker_threads"
 import { Worker } from "worker_threads"
 import { TypeORMError } from "../../error/TypeORMError"
@@ -11,6 +10,7 @@ import {
 import type { EmbeddedWriteError } from "./EmbeddedCollectionStore"
 import { EmbeddedBulkWriteError } from "./EmbeddedCollectionStore"
 import type { EmbeddedStoreOptions } from "./EmbeddedStore"
+import { unlockDirectory } from "./EmbeddedStore"
 import type { EmbeddedDocument } from "./EmbeddedValues"
 import { embeddedWorkerCode } from "./EmbeddedWorkerCode"
 import type {
@@ -426,10 +426,17 @@ export class EmbeddedWorkerClient {
      */
     protected closing?: Promise<void>
 
+    /**
+     * @param worker
+     * @param bson
+     * @param directory
+     * @param token the token of the connection in the file LOCK of the directory
+     */
     protected constructor(
         protected readonly worker: Worker,
         readonly bson: any,
         readonly directory: string | undefined,
+        protected readonly token: string,
     ) {
         worker.on("message", (reply: EmbeddedReply) => this.replied(reply))
         worker.on("error", (error) =>
@@ -470,7 +477,12 @@ export class EmbeddedWorkerClient {
             )
         const onDisk =
             directory && directory !== ":memory:" ? directory : undefined
-        const data: EmbeddedWorkerData = { directory: onDisk, options: options }
+        const token = randomBytes(8).toString("hex")
+        const data: EmbeddedWorkerData = {
+            directory: onDisk,
+            options: options,
+            token: token,
+        }
         const worker = new Worker(embeddedWorkerCode, {
             eval: true,
             workerData: { [WORKER_DATA_KEY]: data },
@@ -499,9 +511,12 @@ export class EmbeddedWorkerClient {
         })
         if (opened.error) {
             await worker.terminate()
+            // Its directory locked by the worker thread exited before it opened it (out of memory while it read its
+            // files): unlocked (a failure replied by the worker thread unlocked it already)
+            if (onDisk) unlockDirectory(onDisk, token)
             throw errorOf(bson, opened.error)
         }
-        return new EmbeddedWorkerClient(worker, bson, onDisk)
+        return new EmbeddedWorkerClient(worker, bson, onDisk, token)
     }
 
     db(name = "embedded"): EmbeddedWorkerDb {
@@ -597,8 +612,8 @@ export class EmbeddedWorkerClient {
 
     /**
      * Closes the database, then ends the worker thread. Closed after the worker thread exited, it resolves (the
-     * database is closed). The calls fail before the thread is ended: its exit then does not remove the LOCK of the
-     * directory (exited), which may be the one of another connection of the process since the database closed it.
+     * database is closed). The calls fail before the thread is ended: its exit is not taken for a failure (exited),
+     * the database unlocked its directory.
      */
     protected async closeWorker(): Promise<void> {
         if (this.failure) return
@@ -668,20 +683,13 @@ export class EmbeddedWorkerClient {
 
     /**
      * After the worker thread exited, not closed: the calls waiting fail, and the directory it locked (its file LOCK
-     * holding the pid of this process) is unlocked.
+     * holding the token of the connection) is unlocked.
      *
      * @param failure
      */
     protected exited(failure: TypeORMError): void {
         if (this.failure) return
         this.fail(failure)
-        if (!this.directory) return
-        const lock = path.join(this.directory, "LOCK")
-        try {
-            if (fs.readFileSync(lock, "utf8") === String(process.pid))
-                fs.rmSync(lock, { force: true })
-        } catch {
-            // No file LOCK
-        }
+        if (this.directory) unlockDirectory(this.directory, this.token)
     }
 }

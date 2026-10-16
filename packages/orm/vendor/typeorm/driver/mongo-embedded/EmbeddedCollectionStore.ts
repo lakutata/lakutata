@@ -135,7 +135,7 @@ interface PendingRecord {
 /**
  * lakutata: the first bytes of a snapshot of a collection. A snapshot holds: these 8 bytes; the CRC-32 of the bytes
  * after it (4 bytes, little endian); the length of its header (4 bytes, little endian); its header (BSON, its format
- * 2, not the one of the files); then the buffers of the keydir and of the trees of the indexes, each one from a
+ * 3, not the one of the files: the version of the keys of the indexes); then the buffers of the keydir and of the trees of the indexes, each one from a
  * multiple of 8 bytes of the file (zero padding before it).
  */
 const SNAPSHOT_MAGIC = Buffer.from("LKEMBSN1")
@@ -399,7 +399,7 @@ export class EmbeddedCollectionStore {
                 ...this.trees.get(index.name)!.export(),
             }))
         const header = this.values.bson.BSON.serialize({
-            format: 2,
+            format: 3,
             generation: this.generation,
             logId: this.logId,
             logOffset: this.file.size,
@@ -502,7 +502,7 @@ export class EmbeddedCollectionStore {
             const length = read(4).readUInt32LE(0)
             const header = this.values.deserialize(read(length))
             if (
-                header.format !== 2 ||
+                header.format !== 3 ||
                 header.logId !== this.logId ||
                 header.logOffset > this.file.size
             )

@@ -798,11 +798,13 @@ export class EmbeddedCollection {
             )
         const filter = this.values.copy(query ?? {})
         const [found] = await this.matching(filter, 1, false)
-        const collection = this.collection(true)!
+        // A collection missing is not created (unless the upsert inserts)
+        const collection = this.collection()
         while (collection?.building) await collection.building
-        const current = found
-            ? this.current(collection, this.matcherOf(filter), found)
-            : undefined
+        const current =
+            found && collection
+                ? this.current(collection, this.matcherOf(filter), found)
+                : undefined
         if (!current) {
             if (!options?.upsert) return this.updateResult(0, 0)
             const document = this.values.copy(replacement)
@@ -817,14 +819,14 @@ export class EmbeddedCollection {
                 .equals(this.values.idKey(current._id))
         )
             throw this.immutableId()
-        collection.write([
+        collection!.write([
             {
                 key: this.values.idKey(current._id),
                 previous: current,
                 next: next,
             },
         ])
-        await this.store.written(collection)
+        await this.store.written(collection!)
         return this.updateResult(1, 1)
     }
 
@@ -955,7 +957,8 @@ export class EmbeddedCollection {
     }
 
     /**
-     * The store of the collection, created when it is written.
+     * The store of the collection, created when a document is inserted in it (an upsert too) or an index created, as
+     * MongoDB creates it.
      *
      * @param create
      */
@@ -1248,42 +1251,44 @@ export class EmbeddedCollection {
         const { $setOnInsert, ...modifier } = this.values.copy(update)
         const filter = this.values.copy(query ?? {})
         const matches = this.matcherOf(filter)
-        const collection = this.collection(true)!
+        // A collection missing is not created (unless the upsert inserts)
+        const collection = this.collection()
         // The keys of the documents updated: a scan meets again the ones it wrote
         const updated = new Set<string>()
         let matched = 0
         let modified = 0
         let synced: Promise<void> | undefined
         try {
-            for await (const batch of this.candidates(filter)) {
-                while (collection?.building) await collection.building
-                const currents: EmbeddedDocument[] = []
-                for (const document of batch) {
-                    if (!many && currents.length) break
-                    const key = this.values
-                        .idKey(document._id)
-                        .toString("latin1")
-                    if (updated.has(key)) continue
-                    const current = this.current(collection, matches, document)
-                    if (!current) continue
-                    updated.add(key)
-                    currents.push(current)
+            if (collection)
+                for await (const batch of this.candidates(filter)) {
+                    while (collection?.building) await collection.building
+                    const currents: EmbeddedDocument[] = []
+                    for (const document of batch) {
+                        if (!many && currents.length) break
+                        const key = this.values
+                            .idKey(document._id)
+                            .toString("latin1")
+                        if (updated.has(key)) continue
+                        const current = this.current(collection, matches, document)
+                        if (!current) continue
+                        updated.add(key)
+                        currents.push(current)
+                    }
+                    matched += currents.length
+                    const written = await this.writeInOrder(
+                        collection,
+                        currents,
+                        (documents) =>
+                            this.updateChanges(
+                                documents,
+                                modifier,
+                                options?.arrayFilters,
+                            ),
+                    )
+                    modified += written
+                    if (written) synced = this.synced(collection)
+                    if (!many && matched) break
                 }
-                matched += currents.length
-                const written = await this.writeInOrder(
-                    collection,
-                    currents,
-                    (documents) =>
-                        this.updateChanges(
-                            documents,
-                            modifier,
-                            options?.arrayFilters,
-                        ),
-                )
-                modified += written
-                if (written) synced = this.synced(collection)
-                if (!many && matched) break
-            }
         } finally {
             await synced
         }
@@ -1552,12 +1557,14 @@ export class EmbeddedClient {
         options: EmbeddedStoreOptions,
         mingo: any,
         bson: any,
+        token?: string,
     ): Promise<EmbeddedClient> {
         return new EmbeddedClient(
             EmbeddedStore.open(
                 directory && directory !== ":memory:" ? directory : undefined,
                 new EmbeddedValues(bson, mingo),
                 options,
+                token,
             ),
         )
     }

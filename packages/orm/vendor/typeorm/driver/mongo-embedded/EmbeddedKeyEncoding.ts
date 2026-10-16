@@ -22,6 +22,34 @@ const Tag = {
 } as const
 
 /**
+ * lakutata: the bound of the integers of 64 bits (2^63).
+ */
+const LONG_BOUND = 2n ** 63n
+
+/**
+ * lakutata: the integer of a Decimal128 (its string) when it is one; undefined for a fraction, NaN or an infinity.
+ *
+ * @param text
+ */
+function integerOf(text: string): bigint | undefined {
+    const parts = /^(-?)(\d+)(?:\.(\d+))?(?:E([+-]\d+))?$/i.exec(text)
+    if (!parts) return undefined
+    const [, sign, whole, fraction = "", exponent = "0"] = parts
+    // The digits, and the power of 10 they are multiplied by
+    const shift = Number(exponent) - fraction.length
+    // An integer of more than 64 bits: rounded as a double (its digits not computed)
+    if (whole.length + Number(exponent) > 20) return undefined
+    let digits = BigInt(whole + fraction)
+    if (shift >= 0) digits *= 10n ** BigInt(shift)
+    else {
+        const divisor = 10n ** BigInt(-shift)
+        if (digits % divisor !== 0n) return undefined
+        digits /= divisor
+    }
+    return sign ? -digits : digits
+}
+
+/**
  * lakutata: the types of the values whose encoding keeps their order (the ranges of an index may be used for them).
  */
 export type EmbeddedOrderedValue = number | string | Date | boolean | object
@@ -30,9 +58,10 @@ export type EmbeddedOrderedValue = number | string | Date | boolean | object
  * lakutata: encodes the values of the indexes as bytes whose order (compared as bytes) is the one of MongoDB for the
  * numbers, the strings, the dates, the booleans, the ObjectIds and the binaries; the other values are encoded by
  * their Extended JSON, equal when they are. Each value is self-delimiting (a string is terminated, its zero bytes
- * escaped): the keys of several fields are their values concatenated, those of a descending field inverted. The
- * numbers are encoded as doubles: the integers of 64 bits beyond 2^53 and the Decimal128 of more than 15 significant
- * digits are rounded, two of them may have one key.
+ * escaped): the keys of several fields are their values concatenated, those of a descending field inverted. A
+ * number is its double, then the difference of an integer of 64 bits from it (the integers beyond 2^53 a double
+ * rounds): the integers are exact (a Long, a bigint, a Decimal128 of an integer; 2^53 + 1 one key in all of them), the
+ * Decimal128 of a fraction rounded to their double (more than 15 significant digits may share a key).
  */
 export class EmbeddedKeyEncoding {
     constructor(protected readonly values: EmbeddedValues) {}
@@ -52,7 +81,7 @@ export class EmbeddedKeyEncoding {
             case "boolean":
                 return Buffer.of(Tag.Boolean, value ? 1 : 0)
             case "bigint":
-                return this.number(Tag.Number, Number(value))
+                return this.integer(value)
         }
         if (value instanceof Date)
             return this.number(Tag.Date, value.getTime())
@@ -77,10 +106,16 @@ export class EmbeddedKeyEncoding {
                 return key
             }
             case "Long":
+                return this.integer(BigInt(value.toString()))
             case "Int32":
             case "Double":
-            case "Decimal128":
-                return this.number(Tag.Number, Number(value.toString()))
+                return this.number(Tag.Number, Number(value.valueOf()))
+            case "Decimal128": {
+                const integer = integerOf(value.toString())
+                return integer === undefined
+                    ? this.number(Tag.Number, Number(value.toString()))
+                    : this.integer(integer)
+            }
             case "Timestamp": {
                 const key = Buffer.allocUnsafe(9)
                 key[0] = Tag.Timestamp
@@ -220,12 +255,21 @@ export class EmbeddedKeyEncoding {
         return values
     }
 
-    protected number(tag: number, value: number): Buffer {
-        const key = Buffer.allocUnsafe(9)
+    /**
+     * A double ordered as bytes (a number, a date): its tag, its 8 bytes; a number then the difference of its integer
+     * from the double (2 bytes, 0 for the doubles), ordering the integers a double rounds.
+     *
+     * @param tag
+     * @param value
+     * @param difference the integer minus the double (|difference| <= 1024 for the integers of 64 bits)
+     */
+    protected number(tag: number, value: number, difference = 0): Buffer {
+        const key = Buffer.allocUnsafe(tag === Tag.Number ? 11 : 9)
         key[0] = tag
+        if (tag === Tag.Number) key.writeUInt16BE(difference + 0x8000, 9)
         // NaN before all the numbers (-Infinity included), as MongoDB sorts it
         if (Number.isNaN(value)) {
-            key.fill(0, 1)
+            key.fill(0, 1, 9)
             return key
         }
         // -0 and 0 one key, as MongoDB compares them
@@ -235,6 +279,19 @@ export class EmbeddedKeyEncoding {
         if (key[1] & 0x80) for (let index = 1; index < 9; index++) key[index] = ~key[index] & 0xff
         else key[1] |= 0x80
         return key
+    }
+
+    /**
+     * An integer, exact up to 64 bits: its double, then its difference from it (the integers larger are rounded to
+     * their double).
+     *
+     * @param value
+     */
+    protected integer(value: bigint): Buffer {
+        const double = Number(value)
+        if (value < -LONG_BOUND || value > LONG_BOUND)
+            return this.number(Tag.Number, double)
+        return this.number(Tag.Number, double, Number(value - BigInt(double)))
     }
 
     /**

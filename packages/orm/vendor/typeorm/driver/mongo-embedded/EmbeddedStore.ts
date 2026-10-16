@@ -1,4 +1,4 @@
-import { createHash } from "crypto"
+import { createHash, randomBytes } from "crypto"
 import * as fs from "fs"
 import * as path from "path"
 import { TypeORMError } from "../../error/TypeORMError"
@@ -78,6 +78,32 @@ function isRunning(pid: number): boolean {
 }
 
 /**
+ * lakutata: the content of the file LOCK of a directory opened by a connection: the pid of its process, then the token
+ * of the connection (the connections of a process told apart).
+ *
+ * @param token
+ */
+function lockContent(token: string): string {
+    return `${process.pid}\n${token}`
+}
+
+/**
+ * lakutata: removes the file LOCK of a directory when it is the one of a connection (its token).
+ *
+ * @param directory
+ * @param token
+ */
+export function unlockDirectory(directory: string, token: string): void {
+    const lock = path.join(directory, "LOCK")
+    try {
+        if (fs.readFileSync(lock, "utf8") === lockContent(token))
+            fs.rmSync(lock, { force: true })
+    } catch {
+        // No file LOCK
+    }
+}
+
+/**
  * lakutata: the collections of an embedded MongoDB: the files of a directory (created when missing, locked by the
  * process which opens it), or files in memory (":memory:").
  */
@@ -106,10 +132,17 @@ export class EmbeddedStore {
 
     protected readonly budget: EmbeddedCacheBudget
 
+    /**
+     * @param directory
+     * @param values
+     * @param options
+     * @param token the token of the connection in the file LOCK of the directory
+     */
     protected constructor(
         readonly directory: string | undefined,
         readonly values: EmbeddedValues,
         readonly options: EmbeddedStoreOptions,
+        protected readonly token: string,
     ) {
         this.budget = new EmbeddedCacheBudget(
             options.cacheSize ?? 64 * 1024 * 1024,
@@ -122,13 +155,15 @@ export class EmbeddedStore {
      * @param directory the directory of the database, or undefined for a database in memory
      * @param values
      * @param options
+     * @param token the token of the connection in the file LOCK of the directory (a random one by default)
      */
     static open(
         directory: string | undefined,
         values: EmbeddedValues,
         options: EmbeddedStoreOptions,
+        token = randomBytes(8).toString("hex"),
     ): EmbeddedStore {
-        const store = new EmbeddedStore(directory, values, options)
+        const store = new EmbeddedStore(directory, values, options, token)
         if (!directory) return store
         fs.mkdirSync(directory, { recursive: true })
         store.lock()
@@ -533,19 +568,20 @@ export class EmbeddedStore {
     }
 
     /**
-     * Locks the directory: its file LOCK holds the pid of the process, removed when it does not run any more.
+     * Locks the directory: its file LOCK holds the pid of the process and the token of the connection, removed when the
+     * process does not run any more.
      */
     protected lock(): void {
         const lock = path.join(this.directory!, "LOCK")
         for (let attempt = 0; ; attempt++) {
             try {
                 const descriptor = fs.openSync(lock, "wx")
-                fs.writeSync(descriptor, String(process.pid))
+                fs.writeSync(descriptor, lockContent(this.token))
                 fs.closeSync(descriptor)
                 return
             } catch (error) {
                 if (error.code !== "EEXIST" || attempt > 0) throw error
-                const pid = Number(fs.readFileSync(lock, "utf8"))
+                const pid = Number(fs.readFileSync(lock, "utf8").split("\n")[0])
                 if (pid && isRunning(pid))
                     throw new TypeORMError(
                         `The database ${this.directory} of mongo-embedded is opened by ${pid === process.pid ? "this process" : `the process ${pid}`}`,
@@ -556,7 +592,6 @@ export class EmbeddedStore {
     }
 
     protected unlock(): void {
-        if (this.directory)
-            fs.rmSync(path.join(this.directory, "LOCK"), { force: true })
+        if (this.directory) unlockDirectory(this.directory, this.token)
     }
 }

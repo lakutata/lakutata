@@ -170,7 +170,16 @@ export class EmbeddedPlanner {
             return {
                 kind: "index",
                 index: index.name,
-                ranges: ranges,
+                // Each value once (a $in may repeat one, 1 and 1.0 are one key): the ranges of the values, each one
+                // the keys of its prefix (self-delimiting), do not overlap
+                ranges: ranges.filter(
+                    (range, position) =>
+                        !position ||
+                        Buffer.compare(
+                            range.lower!.key,
+                            ranges[position - 1].lower!.key,
+                        ) !== 0,
+                ),
                 exact: true,
                 multikey: multikey,
             }

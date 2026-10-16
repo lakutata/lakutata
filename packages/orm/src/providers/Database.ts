@@ -228,10 +228,11 @@ export class Database extends Provider {
      * @protected
      */
     protected async init(): Promise<void> {
-        const entities: MixedList<Function | string | EntitySchema> = this.entities ? this.entities : []
+        //A MixedList is an array or an object of its items (as the migration commands of the application merge them)
+        const items = (list: MixedList<Function | string | EntitySchema> | undefined): unknown[] => Array.isArray(list) ? list : Object.values(list ?? {})
         const options: DataSourceOptions = {
             ...this.options,
-            entities: [...As<any[]>(this.options.entities ? this.options.entities : []), ...As<any[]>(entities)]
+            entities: As<any[]>([...items(this.options.entities), ...items(this.entities)])
         }
         this.#datasource = await (new DataSource(connectionOptionsOf(options))).initialize()
     }
