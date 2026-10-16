@@ -114,6 +114,55 @@ describe('The storage of mongo-embedded', (): void => {
         assert.deepStrictEqual(text(tree.prefixed(prefix)), text(sorted.filter(([key]: [Buffer, Buffer]): boolean => key.equals(prefix))))
     })
 
+    it('splits its pages by the bytes of their entries, whatever their sizes', (): void => {
+        const text = (entries: Iterable<[Buffer, Buffer]>): string[] => [...entries].map(([key, id]: [Buffer, Buffer]): string => `${key.toString('hex')}/${id.toString('hex')}`)
+        const byEntry = (a: [Buffer, Buffer], b: [Buffer, Buffer]): number => Buffer.compare(a[0], b[0]) || Buffer.compare(a[1], b[1])
+        //Many small entries, then large ones after them: a split by their count left a half larger than a page
+        const tree: EmbeddedBTree = new EmbeddedBTree()
+        const entries: [Buffer, Buffer][] = []
+        for (let index = 0; index < 45; index++) entries.push([Buffer.from(`a${String(index).padStart(3, '0')}`), values.idKey(index)])
+        for (let index = 0; index < 8; index++) entries.push([Buffer.concat([Buffer.alloc(980, 0x7a), Buffer.of(index)]), values.idKey(100 + index)])
+        for (const [key, id] of entries) assert.strictEqual(tree.insert(key, id), true)
+        assert.strictEqual(tree.size, entries.length)
+        for (const [key, id] of entries) assert.ok(tree.has(key, id))
+        assert.deepStrictEqual(text(tree.range()), text([...entries].sort(byEntry)))
+        //Keys of random sizes up to the largest one, inserted and deleted
+        const mixed: EmbeddedBTree = new EmbeddedBTree()
+        const model: Map<string, [Buffer, Buffer]> = new Map()
+        //The names of the entries of the model, to delete one at random
+        const names: string[] = []
+        const random: () => number = seededRandom(11)
+        const largest: number = 1018 - 3 - 4 - values.idKey(0).length
+        for (let step = 0; step < 20000; step++) {
+            if (random() < 0.75 || !names.length) {
+                const length: number = random() < 0.15 ? 100 + Math.floor(random() * (largest - 99)) : 1 + Math.floor(random() * 20)
+                const key: Buffer = Buffer.alloc(length)
+                for (let index = 0; index < length; index++) key[index] = 0x61 + Math.floor(random() * 4)
+                const id: Buffer = values.idKey(Math.floor(random() * 50))
+                const name: string = `${key.toString('hex')}/${id.toString('hex')}`
+                assert.strictEqual(mixed.insert(key, id), !model.has(name), 'insert')
+                if (!model.has(name)) names.push(name)
+                model.set(name, [key, id])
+            } else {
+                const index: number = Math.floor(random() * names.length)
+                const name: string = names[index]
+                names[index] = names[names.length - 1]
+                names.pop()
+                const [key, id] = model.get(name)!
+                assert.strictEqual(mixed.delete(key, id), true, 'delete')
+                model.delete(name)
+            }
+        }
+        const sorted: [Buffer, Buffer][] = [...model.values()].sort(byEntry)
+        assert.strictEqual(mixed.size, sorted.length)
+        for (const [key, id] of sorted) assert.ok(mixed.has(key, id))
+        assert.deepStrictEqual(text(mixed.range()), text(sorted))
+        assert.deepStrictEqual(text(mixed.range(undefined, undefined, true)), text(sorted).reverse())
+        //A key too large for an entry is refused, the tree unchanged
+        assert.throws((): boolean => mixed.insert(Buffer.alloc(largest + 1), values.idKey(0)), /too large/)
+        assert.strictEqual(mixed.size, sorted.length)
+    })
+
     it('encodes the values of the indexes in the order of MongoDB', (): void => {
         const id: BSON.ObjectId = new bson.ObjectId()
         //Each type in its bracket, the brackets in the order of MongoDB

@@ -47,8 +47,27 @@ export class EmbeddedDuplicateKeyError extends TypeORMError {
 }
 
 /**
- * lakutata: an error of a document of an insertMany (its duplicate key): its index in the documents, the code and the
- * message of its error, and the fields of its key.
+ * lakutata: the error of a key too large for an index (its values encoded, with the _id, about 1000 bytes at most),
+ * with the code of the one of MongoDB before 4.2 (KeyTooLong). The write fails before it is written.
+ */
+export class EmbeddedKeyTooLongError extends TypeORMError {
+    readonly code = 17280
+
+    constructor(
+        readonly collection: string,
+        readonly index: string,
+        readonly size: number,
+        readonly keyValue: { [field: string]: any },
+    ) {
+        super(
+            `Key too large to index: collection: ${collection} index: ${index} key size: ${size} bytes`,
+        )
+    }
+}
+
+/**
+ * lakutata: an error of a document of an insertMany (its duplicate key, or its key too large): its index in the
+ * documents, the code and the message of its error, and the fields of its key.
  */
 export interface EmbeddedWriteError {
     index: number
@@ -1162,6 +1181,15 @@ export class EmbeddedCollectionStore {
                 const added = after.filter(
                     (key) => !kept.has(key.toString("latin1")),
                 )
+                // Checked before the write is written: an entry not fitting a tree would throw once it is
+                for (const key of added)
+                    if (!EmbeddedBTree.fits(key, change.key))
+                        throw new EmbeddedKeyTooLongError(
+                            this.name,
+                            index.name,
+                            key.length,
+                            this.keyValue(index, change.next!),
+                        )
                 if (index.unique) {
                     let written = pending.get(index.name)
                     if (!written) pending.set(index.name, (written = new Map()))

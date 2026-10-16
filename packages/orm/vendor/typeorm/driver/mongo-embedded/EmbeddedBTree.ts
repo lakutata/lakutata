@@ -26,12 +26,20 @@ const LEAF = 1
 const INTERNAL = 2
 
 /**
- * lakutata: the largest entry: a page holds 4 of them at least, so that a split always leaves room.
+ * lakutata: the bytes of a page for its entries and their directory.
  */
-const MAXIMUM_ENTRY = Math.floor((PAGE - HEADER) / 4) - 2
+const CAPACITY = PAGE - HEADER
 
 /**
- * lakutata: an id greater than any (the ids have up to 255 bytes).
+ * lakutata: the largest entry (in an internal page): with its offset in the directory, a quarter of a page at most. A
+ * page split by the bytes of its entries (middleOf) then leaves two halves each fitting a page, whatever the sizes of
+ * its entries.
+ */
+const MAXIMUM_ENTRY = Math.floor(CAPACITY / 4) - 2
+
+/**
+ * lakutata: an id greater than any (the ids have up to 255 bytes). With the empty id, it turns a bound of keys into a
+ * bound of entries (a key, then an id): before or after all the entries of its key.
  */
 const GREATEST_ID = Buffer.alloc(256, 0xff)
 
@@ -82,14 +90,24 @@ export class EmbeddedBTree {
     }
 
     /**
-     * Adds an entry; false when it exists.
+     * Whether an entry fits a tree: its key and id of MAXIMUM_ENTRY bytes at most, with their sizes and a child (in an
+     * internal page, where a split of its leaf may copy it).
+     *
+     * @param key
+     * @param id
+     */
+    static fits(key: Uint8Array, id: Uint8Array): boolean {
+        return 3 + key.length + id.length + 4 <= MAXIMUM_ENTRY && id.length <= 255
+    }
+
+    /**
+     * Adds an entry; false when it exists. An entry not fitting the tree (fits) throws, the tree unchanged.
      *
      * @param key
      * @param id
      */
     insert(key: Uint8Array, id: Uint8Array): boolean {
-        const size = 3 + key.length + id.length + 4
-        if (size > MAXIMUM_ENTRY || id.length > 255)
+        if (!EmbeddedBTree.fits(key, id))
             throw new TypeORMError(
                 `The key of an index of mongo-embedded is too large: ${key.length} bytes`,
             )
@@ -346,10 +364,13 @@ export class EmbeddedBTree {
             buffer.writeUInt16LE(offset, base + 4)
             return undefined
         }
-        // The page split in two: its entries and the new one shared
+        // The page split in two: its entries and the new one shared by their bytes. A leaf keeps the entries before
+        // the middle, its new sibling the others, the first of which is copied up to the parent; an internal page
+        // moves its middle entry up, its child becoming the first child of the sibling. The parent leads the keys
+        // equal to an entry to its child (childFor)
         const entries = this.entriesOf(page)
         entries.splice(position, 0, entry)
-        const middle = entries.length >> 1
+        const middle = this.middleOf(entries, internal)
         const sibling = this.allocate(internal ? INTERNAL : LEAF)
         if (internal) {
             const up = entries[middle]
@@ -368,7 +389,44 @@ export class EmbeddedBTree {
     }
 
     /**
-     * Writes the entries of a page again, packed.
+     * Where the entries of a page split in two are divided (the entry at the position starting the second half of a
+     * leaf, or moved up from an internal page): the halves as near in bytes as possible, each fitting a page, each with
+     * an entry at least. As an entry takes a quarter of a page at most and the entries split overflow a page, the
+     * position exists.
+     *
+     * @param entries
+     * @param internal
+     */
+    protected middleOf(entries: Entry[], internal: boolean): number {
+        const sizes = entries.map(
+            (entry) =>
+                2 + 3 + entry.key.length + entry.id.length + (internal ? 4 : 0),
+        )
+        const total = sizes.reduce((sum, size) => sum + size, 0)
+        let middle = -1
+        let difference = Infinity
+        let before = 0
+        // An internal page moves its middle entry up: its last entry cannot be it
+        const end = entries.length - (internal ? 1 : 0)
+        for (let position = 1; position < end; position++) {
+            before += sizes[position - 1]
+            const after = total - before - (internal ? sizes[position] : 0)
+            if (before > CAPACITY || after > CAPACITY) continue
+            if (Math.abs(before - after) < difference) {
+                middle = position
+                difference = Math.abs(before - after)
+            }
+        }
+        if (middle < 0)
+            throw new TypeORMError(
+                "lakutata: the entries of a page of an index of mongo-embedded cannot be split",
+            )
+        return middle
+    }
+
+    /**
+     * Writes the entries of a page again, packed. Entries not fitting it throw before any of them is written (the
+     * page is left as it was).
      *
      * @param page
      * @param entries
@@ -376,6 +434,13 @@ export class EmbeddedBTree {
     protected rewrite(page: number, entries: Entry[]): void {
         const [buffer, base] = this.locate(page)
         const internal = buffer[base] === INTERNAL
+        let bytes = 0
+        for (const entry of entries)
+            bytes += 2 + 3 + entry.key.length + entry.id.length + (internal ? 4 : 0)
+        if (bytes > CAPACITY)
+            throw new TypeORMError(
+                "lakutata: the entries of a page of an index of mongo-embedded do not fit it",
+            )
         let end = PAGE
         entries.forEach((entry, index) => {
             end -= 3 + entry.key.length + entry.id.length + (internal ? 4 : 0)

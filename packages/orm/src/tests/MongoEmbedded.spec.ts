@@ -267,6 +267,42 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
+    it('indexes the values of mixed sizes, each document found by them; a key too large fails its write before it is written', async (): Promise<void> => {
+        for (const worker of [false, true]) {
+            const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', worker: worker}).initialize()
+            const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
+            await runner.createCollectionIndex('names', {n: 1}, {name: 'n'})
+            await runner.createCollectionIndex('names', {name: 1}, {name: 'name', unique: true})
+            let seed: number = 7
+            const random = (): number => (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 4294967296
+            //Short names, and a tenth of long ones (up to the largest key with an ObjectId)
+            const names: string[] = Array.from({length: 3000}, (_: unknown, index: number): string => {
+                const length: number = random() < 0.1 ? 100 + Math.floor(random() * 880) : 5 + Math.floor(random() * 15)
+                return `${index}:${Array.from({length: length}, (): string => String.fromCharCode(97 + Math.floor(random() * 26))).join('')}`
+            })
+            //One at a time, as entities saved one by one
+            for (const [n, name] of names.entries()) await runner.insertOne('names', {n: n, name: name})
+            const label: string = `worker: ${worker}`
+            assert.strictEqual(await runner.countDocuments('names', {name: {$gte: ''}}), names.length, label)
+            const found: string[] = (await runner.cursor('names', {name: {$gte: ''}}).toArray()).map((document: Record<string, unknown>): string => String(document.name))
+            assert.deepStrictEqual(found.sort(), [...names].sort(), label)
+            for (const name of names.filter((_: string, index: number): boolean => index % 97 === 0)) assert.strictEqual(await runner.countDocuments('names', {name: name}), 1, label)
+            await assert.rejects(runner.insertOne('names', {n: -1, name: names[1234]}), {code: 11000}, label)
+            //Not written, in none of the indexes
+            await assert.rejects(runner.insertOne('names', {n: -2, name: 'x'.repeat(1100)}), {code: 17280}, label)
+            assert.strictEqual(await runner.countDocuments('names', {}), names.length, label)
+            assert.strictEqual(await runner.countDocuments('names', {n: -2}), 0, label)
+            //An error of its document in an insertMany
+            await assert.rejects(runner.insertMany('names', [{n: -3, name: 'a'}, {n: -4, name: 'y'.repeat(1100)}, {n: -5, name: 'b'}]), (error: Record<string, any>): boolean => {
+                assert.strictEqual(error.code, 17280, label)
+                assert.strictEqual(error.insertedCount, 1, label)
+                assert.deepStrictEqual(error.writeErrors.map((writeError: Record<string, unknown>): unknown => writeError.index), [1], label)
+                return true
+            })
+            await dataSource.destroy()
+        }
+    })
+
     it('groups the documents in batches as mingo groups them all', async (): Promise<void> => {
         const mingo = createRequire(import.meta.url)('mingo')
         const dataSource: DataSource = await new DataSource({type: 'mongo-embedded'}).initialize()

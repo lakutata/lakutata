@@ -8,6 +8,7 @@ import type {
 import {
     EmbeddedBulkWriteError,
     EmbeddedDuplicateKeyError,
+    EmbeddedKeyTooLongError,
     SCAN_TIMEOUT,
 } from "./EmbeddedCollectionStore"
 import { EmbeddedPlanner } from "./EmbeddedPlanner"
@@ -1351,9 +1352,10 @@ export class EmbeddedCollection {
     }
 
     /**
-     * Writes the insertions of a batch of documents as one operation; when a key of them is a duplicate, a document at
-     * a time, the ones failing told (and, ordered, the ones after the first one failing not written); the indexes in
-     * the batch of the documents written.
+     * Writes the insertions of a batch of documents as one operation; when a key of them is a duplicate or too large, a
+     * document at a time, the ones failing told (and, ordered, the ones after the first one failing not written); the
+     * indexes in the batch of the documents written. The errors of the documents are thrown before their write is
+     * written; the other errors (of the file) end the insertMany.
      *
      * @param collection
      * @param batch
@@ -1372,11 +1374,14 @@ export class EmbeddedCollection {
             key: this.values.idKey(document._id),
             next: document,
         })
+        const isOfDocument = (error: unknown): boolean =>
+            error instanceof EmbeddedDuplicateKeyError ||
+            error instanceof EmbeddedKeyTooLongError
         try {
             collection.write(batch.map(insertion))
             return batch.map((_, index) => index)
         } catch (error) {
-            if (!(error instanceof EmbeddedDuplicateKeyError)) throw error
+            if (!isOfDocument(error)) throw error
         }
         const inserted: number[] = []
         for (const [index, document] of batch.entries()) {
@@ -1384,7 +1389,13 @@ export class EmbeddedCollection {
                 collection.write([insertion(document)])
                 inserted.push(index)
             } catch (error) {
-                if (!(error instanceof EmbeddedDuplicateKeyError)) throw error
+                if (
+                    !(
+                        error instanceof EmbeddedDuplicateKeyError ||
+                        error instanceof EmbeddedKeyTooLongError
+                    )
+                )
+                    throw error
                 writeErrors.push({
                     index: start + index,
                     code: error.code,
