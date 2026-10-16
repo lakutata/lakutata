@@ -2,7 +2,6 @@ import {format as utilFormat} from 'node:util'
 import {getAppId, getAppName} from './BasicInfo.js'
 import {templating} from '@lakutata/utils/Templating'
 import {As} from '@lakutata/utils/As'
-import {camelCase} from '@lakutata/utils/CamelCase'
 import {DevNull} from '@lakutata/utils/DevNull'
 
 /**
@@ -84,7 +83,8 @@ export function exceptionParams(exception: Error): Record<string, unknown> | unk
  *   leaves its placeholder in the message; building the message never throws.
  * - `new XxxException('Order not found')`: the message as given.
  * - `new XxxException(error)`: the message of another error.
- * - `new XxxException()`: a message made from the class name.
+ * - `new XxxException()`: a message made from the words of the class name, the acronyms kept (`Order not found
+ *   exception` for `OrderNotFoundException`, `HTTP request exception` for `HTTPRequestException`).
  *
  * The template parameters are kept for the translation of the message, see {@link exceptionParams}.
  * @example
@@ -158,8 +158,14 @@ export abstract class Exception extends Error {
                 this.message = As<Error>(a).message
             }
         } else {
-            //Empty message
-            const message: string = camelCase(this.name).toLowerCase()
+            //Empty message: the words of the class name, in lower case but the acronyms
+            const message: string = this.name
+                .replace(/([a-z\d])([A-Z])/g, '$1 $2')
+                .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+                .split(/[\s_-]+/)
+                .filter((word: string): boolean => !!word)
+                .map((word: string): string => /^[A-Z\d]{2,}$/.test(word) ? word : word.toLowerCase())
+                .join(' ')
             this.message = `${message.charAt(0).toUpperCase()}${message.slice(1)}`
         }
         this.errMsg = this.message

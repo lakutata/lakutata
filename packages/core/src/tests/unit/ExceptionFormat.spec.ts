@@ -78,4 +78,24 @@ describe('The messages of the exceptions', (): void => {
         assert.strictEqual(new TestException('%j and %s', 5n, 'x').message, '%j and x')
         assert.strictEqual(new TestException('%x% off%%%d%d', Object.create(null), '12px').message, '%x% off%%dNaN')
     })
+
+    it('make the message of an exception built without arguments from the words of its class name', (): void => {
+        class OrderNotFoundException extends Exception {
+            public errno: string = 'E_ORDER_NOT_FOUND'
+        }
+
+        class HTTPRequestException extends Exception {
+            public errno: string = 'E_HTTP_REQUEST'
+        }
+
+        class Http2StreamError extends Exception {
+            public errno: string = 'E_HTTP2_STREAM'
+        }
+
+        assert.strictEqual(new OrderNotFoundException().message, 'Order not found exception')
+        assert.strictEqual(new OrderNotFoundException().errMsg, 'Order not found exception')
+        assert.strictEqual(new HTTPRequestException().message, 'HTTP request exception')
+        assert.strictEqual(new Http2StreamError().message, 'Http2 stream error')
+        assert.strictEqual(new TestException().message, 'Test exception')
+    })
 })
