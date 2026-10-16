@@ -101,7 +101,7 @@ Application.run(() => ({
   event above which a possible memory leak is warned of (0 for no warning; the listeners are never limited). A component
   sets its own default with `protected readonly maxListeners: number = 0`, or its declaration sets it:
   `{class: MyComponent, maxListeners: 0}`.
-- **Startup check**: when a module (or the application) initializes, it checks the options of every object it declares
+- **Startup check**: when the application launches, it checks the options of every object it declares
   (components, providers and objects) before any of them is created, so a mistake shows up at startup even for an
   object that is never used:
   - a value that does not match the schema of its `@Configurable` property fails the startup with an
@@ -112,7 +112,7 @@ Application.run(() => ({
   A class that reads options without configurable properties (through `getConfigurableRecords()`) overrides the static
   `acceptsOption(name, value)` to accept them without a warning. The values validated by external (asynchronous) rules
   are validated when the object is created. The check is disabled with `checkOptions: false` in the options of the
-  application or of the module.
+  application.
 
 ### 1.3 `@Autoload`
 
@@ -124,7 +124,7 @@ transient class in the requesting container. The mark is not inherited.
 
 | Decorator | One instance… | Default of |
 |---|---|---|
-| `@Singleton(lock?)` | per container registering the class | `Component`, `Module` (locked) |
+| `@Singleton(lock?)` | per container registering the class | `Component` (locked) |
 | `@Scoped(lock?)` | per scope (a request of an entrypoint) | `Provider`, `Controller` (locked) |
 | `@Transient(lock?)` | per resolution | `BaseObject` |
 

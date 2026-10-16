@@ -1,6 +1,6 @@
 # Lakutata 核心
 
-本指南介绍框架的核心（`@lakutata/core` 包，由 `lakutata`、`lakutata/decorator/di`、`lakutata/decorator/dto` 和 `lakutata/decorator/asst` 重新导出）：对象及其容器、生命周期类型与作用域、异步构造、依赖注入、模块以及应用的生命周期。更多细节见 `@lakutata/core` 的 README 和各导出的类型声明。
+本指南介绍框架的核心（`@lakutata/core` 包，由 `lakutata`、`lakutata/decorator/di`、`lakutata/decorator/dto` 和 `lakutata/decorator/asst` 重新导出）：对象及其容器、生命周期类型与作用域、异步构造、依赖注入、在多个应用之间共享功能，以及应用的生命周期。更多细节见 `@lakutata/core` 的 README 和各导出的类型声明。
 
 ## 1. 对象与容器
 
@@ -11,8 +11,7 @@
 | `BaseObject` | 根类：异步构造、`init()`/`destroy()`、`getObject()` | `@Transient` |
 | `Provider` | 存在于某个作用域（如一次请求）中的功能单元（仓储、哈希器等） | `@Scoped` |
 | `Component` | 整个应用共享的长期服务（日志、数据库、入口等），同时是事件发射器 | `@Singleton`（锁定） |
-| `Module` | 拥有自己的组件、提供者和对象的组件 | `@Singleton`（锁定） |
-| `Application` | 根模块，由 `Application.run()` 创建 | |
+| `Application` | 应用本身：声明组件、提供者和对象，由 `Application.run()` 创建 | |
 | `Controller`（`lakutata/com/entrypoint`） | 处理入口请求的提供者 | `@Scoped`（锁定） |
 
 ### 生命周期类型
@@ -23,7 +22,7 @@
 | `@Scoped()` | 每个作用域一个（`container.createScope()`；入口的每次请求是一个作用域，根容器本身也是一个作用域） |
 | `@Transient()` | 每次解析都新建，从不缓存 |
 
-子类继承父类的生命周期类型。`Component` 和 `Module` 锁定了自己的类型：子类声明其他类型会抛出 `LifetimeLockedException`；`Provider` 默认是 `@Scoped`，也可以声明为 `@Transient` 或 `@Singleton`（与 2.x 相同：一个实例由各作用域共享，例如 `@lakutata/nats` 的 `ServiceProxy`）；长期持有资源（连接、订阅、服务器）的对象更适合用 `Component`。单例注入作用域对象时，拿到的是创建它的那个作用域的实例。`@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock)` 是这三个装饰器的完整写法。
+子类继承父类的生命周期类型。`Component` 锁定了自己的类型：子类声明其他类型会抛出 `LifetimeLockedException`；`Provider` 默认是 `@Scoped`，也可以声明为 `@Transient` 或 `@Singleton`（与 2.x 相同：一个实例由各作用域共享，例如 `@lakutata/nats` 的 `ServiceProxy`）；长期持有资源（连接、订阅、服务器）的对象更适合用 `Component`。单例注入作用域对象时，拿到的是创建它的那个作用域的实例。`@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock)` 是这三个装饰器的完整写法。
 
 ### 作用域
 
@@ -97,7 +96,7 @@ Application
 
 标记了 `@Autoload()` 的类在第一次被请求时自动注册，而不是报错：单例注册到根容器，作用域类注册到最近的作用域，瞬态类注册到发起请求的容器。无法解析的注册项会使创建失败并抛出 `DependencyInjectionException`。
 
-`@Configurable(schema, fn?)` 把属性声明为对象的选项：它的值来自对象的声明（`{class: Mailer, host: 'smtp.example.com'}`）或 `getObject()` 的第二个参数，经校验规则校验后，如果提供了 `fn` 再交给 `fn` 处理。模块在初始化时会检查其声明的对象的选项：不合法的值会使初始化失败并抛出 `InvalidObjectOptionsException`，不是可配置属性的选项会给出警告。
+`@Configurable(schema, fn?)` 把属性声明为对象的选项：它的值来自对象的声明（`{class: Mailer, host: 'smtp.example.com'}`）或 `getObject()` 的第二个参数，经校验规则校验后，如果提供了 `fn` 再交给 `fn` 处理。应用在启动时会检查它声明的对象的选项：不合法的值会抛出 `InvalidObjectOptionsException` 并终止启动，不是可配置属性的选项会给出警告。
 
 ```typescript
 import {Application, Component, Provider} from 'lakutata'
@@ -123,43 +122,47 @@ class Reports extends Component {
 }
 ```
 
-## 4. 模块
+## 4. 在多个应用之间共享功能
 
-`Module` 在其 `options` 属性的初始值中，用与应用相同的选项声明自己的组件、提供者和对象。模块内的对象先从模块解析依赖，再从应用解析；应用的对象看不到模块内的对象。在应用（或父模块）的 `objects.named` 中声明模块，它的选项写在 `options` 下（合并到其初始值之上），并把它列入 `bootstrap` 以便在启动时创建。
-
-模块被创建时，先检查选项，再注册对象，然后依次执行它的 `bootstrap`。模块外部的对象获取它时（`getObject()`、`@Inject`），要等这些步骤全部完成才会拿到它，若某一步失败则得到该步骤的错误；模块自己的对象（由这些步骤创建）则会立即拿到它。
+多个应用都要用到的功能，做成一个包来共享。包导出一个 `Component`（或 `Provider`），再导出一个生成其声明的函数，框架自带的包都是这样做的（`lakutata/com/database` 的 `buildDatabaseOptions`、`lakutata/com/queue` 的 `buildQueueOptions`）。应用自己给组件起名，把选项传给这个函数；应用启动时，组件的 `@Configurable` 校验规则会检查这些选项，其他对象按这个名字注入该组件。
 
 ```typescript
-import {Application, Component, Module, type ModuleOptions} from 'lakutata'
+import {Application, Component, type ComponentOptions, DTO} from 'lakutata'
+import {Configurable, Inject} from 'lakutata/decorator/di'
 
-class Billing extends Component {
-    public charge(amount: number): void {
-        console.log(`Charged ${amount}`)
+//包里：组件，以及生成其声明的函数
+export interface BillingOptions {
+    currency: string
+}
+
+export class Billing extends Component {
+    @Configurable(DTO.String().length(3).required())
+    public readonly currency: string
+
+    public charge(amount: number): string {
+        return `Charged ${amount} ${this.currency}`
     }
 }
 
-class PaymentModule extends Module {
-    protected options: ModuleOptions = {
-        components: {
-            billing: {class: Billing}
-        },
-        bootstrap: ['billing']
-    }
+export function buildBillingOptions(options: BillingOptions): ComponentOptions<BillingOptions> {
+    return {class: Billing, ...options}
+}
+
+//应用里
+class Checkout extends Component {
+    @Inject('billing')
+    protected readonly billing: Billing
 }
 
 Application.run(() => ({
     id: 'shop.app',
     name: 'Shop',
-    objects: {
-        named: {
-            payment: {class: PaymentModule}
-        }
-    },
-    bootstrap: ['payment']
+    components: {
+        billing: buildBillingOptions({currency: 'EUR'}),
+        checkout: {class: Checkout}
+    }
 }))
 ```
-
-`module.reload()` 会销毁模块及其对象，然后重新初始化。
 
 ## 5. 应用
 
@@ -174,7 +177,7 @@ Application.run(() => ({
 | `mode` | `'development'` 或 `'production'`，在环境变量未指定时生效（见下文） |
 | `shutdownSignals` | 使应用优雅退出的信号（默认 `['SIGTERM', 'SIGINT']`），或 `false` |
 | `components`、`providers` | 按名称声明的组件和提供者：`{class, ...options}` |
-| `objects` | 其他对象（模块、普通对象）：`{named: {...}, anonymous: [...]}` |
+| `objects` | 其他对象：`{named: {...}, anonymous: [...]}` |
 | `bootstrap` | 启动时依次执行的步骤：名称、symbol 或类（创建该对象），或以应用为参数调用的异步函数 |
 | `checkOptions` | 启动时检查所声明对象的选项（默认 `true`） |
 

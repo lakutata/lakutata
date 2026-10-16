@@ -1,7 +1,7 @@
 # @lakutata/core
 
 The core of the lakutata framework: the IoC container and dependency injection, the object model (`BaseObject`,
-`Component`, `Provider`, `Module`, `Application`) with its asynchronous construction and destruction, and the schema
+`Component`, `Provider`, `Application`) with its asynchronous construction and destruction, and the schema
 validation (`DTO`, built on joi) used by the decorators `@Configurable`, `@Expect`, `@Accept` and `@Return`.
 
 Most applications install the umbrella package `lakutata`, which re-exports this package (`lakutata`,
@@ -151,7 +151,7 @@ await container.destroy()
 | Export | Subpath | What it is |
 |---|---|---|
 | `Application` | `lakutata` | The application: `run()`, `env()`, `alias()`, `onLaunched()`, `onDone()`, `onFatalException()`, `getObject()`, `exit()` |
-| `Module` | `lakutata` | A group of components, providers and objects with its own container |
+| `Module` | `lakutata` | The base class of `Application`: the container and the declared objects live here |
 | `Component` | `lakutata` | A singleton service with events (`emit`, `on`…) |
 | `Provider` | `lakutata` | A scoped object (one per scope) |
 | `BaseObject` | `lakutata` | The root class: asynchronous construction (`init`), destruction (`destroy`), `getObject` |

@@ -2,7 +2,8 @@
 
 This guide covers the core of the framework, the `@lakutata/core` package that `lakutata`, `lakutata/decorator/di`,
 `lakutata/decorator/dto` and `lakutata/decorator/asst` re-export: objects and their container, lifetimes and scopes,
-asynchronous construction, dependency injection, modules, and the application lifecycle. The README of `@lakutata/core`
+asynchronous construction, dependency injection, sharing features between applications, and the application
+lifecycle. The README of `@lakutata/core`
 and the type declarations of each export give the details.
 
 ## 1. Objects and the container
@@ -14,8 +15,7 @@ An IoC container creates every object of an application; you never call `new`. T
 | `BaseObject` | The root class: asynchronous construction, `init()`/`destroy()`, `getObject()` | `@Transient` |
 | `Provider` | A unit of work that lives in a scope such as a request (a repository, a password hasher) | `@Scoped` |
 | `Component` | A long-lived service shared by the whole application (a logger, a database, an entrypoint); also an event emitter | `@Singleton` (locked) |
-| `Module` | A component that owns components, providers and objects of its own | `@Singleton` (locked) |
-| `Application` | The root module, created by `Application.run()` | |
+| `Application` | The application: it declares the components, providers and objects, and is created by `Application.run()` | |
 | `Controller` (`lakutata/com/entrypoint`) | A provider that handles the requests of an entrypoint | `@Scoped` (locked) |
 
 ### Lifetimes
@@ -26,7 +26,7 @@ An IoC container creates every object of an application; you never call `new`. T
 | `@Scoped()` | per scope (`container.createScope()`; each request of an entrypoint is a scope, the root container is one too) |
 | `@Transient()` | per resolution, never cached |
 
-Subclasses inherit the lifetime. `Component` and `Module` lock theirs: a subclass that declares a different one throws a
+Subclasses inherit the lifetime. `Component` locks its lifetime: a subclass that declares a different one throws a
 `LifetimeLockedException`. A `Provider` is `@Scoped` by default but may be declared `@Transient` or `@Singleton` (as in
 2.x, one instance shared by all scopes, like the `ServiceProxy` of `@lakutata/nats`). A long-lived object that owns
 resources (connections, subscriptions, servers) is better written as a `Component`. When a singleton injects a scoped
@@ -122,8 +122,8 @@ cannot be resolved fails the creation with a `DependencyInjectionException`.
 
 `@Configurable(schema, fn?)` turns a property into an option of the object. Its value comes from the object's
 declaration (`{class: Mailer, host: 'smtp.example.com'}`) or from the second argument of `getObject()`; the schema
-validates it, and `fn`, when given, transforms it. A module checks the options of the objects it declares when it
-initializes: an invalid value fails the module with an `InvalidObjectOptionsException`, and an option that matches no
+validates it, and `fn`, when given, transforms it. The application checks the options of the objects it declares when
+it launches: an invalid value stops the launch with an `InvalidObjectOptionsException`, and an option that matches no
 configurable property produces a warning.
 
 ```typescript
@@ -150,49 +150,51 @@ class Reports extends Component {
 }
 ```
 
-## 4. Modules
+## 4. Sharing features between applications
 
-A `Module` declares its own components, providers and objects in the initializer of its `options` property, with the
-same options as an application. Its objects resolve their dependencies from the module first, then from the application;
-the application's objects cannot see the module's. Declare a module under `objects.named` of the application (or of a
-parent module), give its options under `options` (merged over the initializer), and list it in `bootstrap` to start it
-at launch.
-
-When a module is created, its options are checked, its objects are registered, and its `bootstrap` runs in order. An
-object outside the module that requests it (`getObject()`, `@Inject`) receives it once these steps are complete, or
-receives the error of the step that failed; the module's own objects, which these steps create, receive it immediately.
+To use a feature in several applications, put it in a package. The package exports a `Component` (or a `Provider`) and
+a function that builds its declaration, the way the packages of the framework do (`buildDatabaseOptions` of
+`lakutata/com/database`, `buildQueueOptions` of `lakutata/com/queue`). The application declares the component under a
+name of its choice and passes the options to the function. The component's `@Configurable` schemas check the options
+when the application launches, and the other objects inject the component by its name.
 
 ```typescript
-import {Application, Component, Module, type ModuleOptions} from 'lakutata'
+import {Application, Component, type ComponentOptions, DTO} from 'lakutata'
+import {Configurable, Inject} from 'lakutata/decorator/di'
 
-class Billing extends Component {
-    public charge(amount: number): void {
-        console.log(`Charged ${amount}`)
+//In the package: the component, and the function that builds its declaration
+export interface BillingOptions {
+    currency: string
+}
+
+export class Billing extends Component {
+    @Configurable(DTO.String().length(3).required())
+    public readonly currency: string
+
+    public charge(amount: number): string {
+        return `Charged ${amount} ${this.currency}`
     }
 }
 
-class PaymentModule extends Module {
-    protected options: ModuleOptions = {
-        components: {
-            billing: {class: Billing}
-        },
-        bootstrap: ['billing']
-    }
+export function buildBillingOptions(options: BillingOptions): ComponentOptions<BillingOptions> {
+    return {class: Billing, ...options}
+}
+
+//In the application
+class Checkout extends Component {
+    @Inject('billing')
+    protected readonly billing: Billing
 }
 
 Application.run(() => ({
     id: 'shop.app',
     name: 'Shop',
-    objects: {
-        named: {
-            payment: {class: PaymentModule}
-        }
-    },
-    bootstrap: ['payment']
+    components: {
+        billing: buildBillingOptions({currency: 'EUR'}),
+        checkout: {class: Checkout}
+    }
 }))
 ```
-
-`module.reload()` destroys the module and its objects, then initializes it again.
 
 ## 5. The application
 
@@ -207,7 +209,7 @@ Application.run(() => ({
 | `mode` | `'development'` or `'production'`, when the environment gives none (see below) |
 | `shutdownSignals` | The signals that end the application gracefully (default `['SIGTERM', 'SIGINT']`), or `false` |
 | `components`, `providers` | The components and providers by name: `{class, ...options}` |
-| `objects` | Other objects (modules, plain objects): `{named: {...}, anonymous: [...]}` |
+| `objects` | Other objects: `{named: {...}, anonymous: [...]}` |
 | `bootstrap` | The steps run in order at launch: a name, a symbol or a class (the object is created), or an async function that receives the application |
 | `checkOptions` | Check the options of the declared objects at launch (default `true`) |
 

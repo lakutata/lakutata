@@ -2,7 +2,7 @@
 
 **Lakutata** is an IoC application framework for Node.js and TypeScript. It gives web services, CLI tools, desktop
 (Electron) applications and embedded devices one programming model: an application is a tree of objects (components,
-providers, modules, controllers) that a container creates. DTOs validate their options and inputs, and transports expose
+providers, controllers) that a container creates. DTOs validate their options and inputs, and transports expose
 the controllers: HTTP (Express, Fastify), CLI (Commander), service RPC (HTTP, Socket.IO, JSON-RPC 2.0, gRPC, NATS,
 Electron IPC), schedules and message queues. One controller method can serve all of them at once.
 
@@ -77,7 +77,7 @@ Application
 
 | Subpath | What it provides |
 |---|---|
-| `lakutata` | `Application`, `Module`, `Component`, `Provider`, `BaseObject`, `Container`, `DTO`, `Exception`, `Time`, `isPackaged`, `resourcesPath`, the validation messages |
+| `lakutata` | `Application`, `Component`, `Provider`, `BaseObject`, `Container`, `DTO`, `Exception`, `Time`, `isPackaged`, `resourcesPath`, the validation messages |
 | `lakutata/decorator/di` | `@Inject`, `@Configurable`, `@Autoload`, `@Singleton`, `@Scoped`, `@Transient`, `@Lifetime` |
 | `lakutata/decorator/dto` | `@Expect`, `@Accept`, `@Return`, `@IndexSignature` |
 | `lakutata/decorator/asst` | `@Before`, `@After` |
@@ -108,7 +108,7 @@ component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (
 
 | Guide | Topic |
 |---|---|
-| [Core](Core.md) | The application, the container, lifetimes, dependency injection, modules and the lifecycle |
+| [Core](Core.md) | The application, the container, lifetimes, dependency injection, sharing features between applications, and the lifecycle |
 | [DTOValidation](DTOValidation.md) | DTOs and schemas: validating options, inputs and results |
 | [Decorator](Decorator.md) | The decorators, by subpath |
 | [ActionPattern](ActionPattern.md) | Controllers, actions and transports (HTTP, CLI, services, schedules, queues) |

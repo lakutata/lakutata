@@ -92,11 +92,11 @@ Application.run(() => ({
 
 - **取值**：优先使用配置里给的值，其次是属性的初始值（`protected readonly host: string = '127.0.0.1'`），最后是校验规则的默认值（`DTO.Number().default(80)`）。初始值会和配置值一样经过校验和转换；子类可以用自己的初始值给出自己的默认值。
 - **`maxListeners`**：所有组件都有这个可配置属性（默认 11），表示同一个事件的监听器超过多少个时给出可能内存泄漏的警告（0 表示不警告；监听器数量从不受限制）。组件可以用 `protected readonly maxListeners: number = 0` 设置自己的默认值，也可以在声明里设置：`{class: MyComponent, maxListeners: 0}`。
-- **启动检查**：模块（或应用）初始化时，会在创建任何对象之前检查它声明的所有对象（组件、提供者和对象）的选项，所以即使某个对象从未被使用，配置错误也会在启动时暴露：
+- **启动检查**：应用启动时，会在创建任何对象之前检查它声明的所有对象（组件、提供者和对象）的选项，所以即使某个对象从未被使用，配置错误也会在启动时暴露：
   - 不符合 `@Configurable` 属性校验规则的值会导致启动失败，抛出 `InvalidObjectOptionsException`，并列出所有不合法的选项；
   - 不是该类 `@Configurable` 属性的选项会被忽略并给出警告，警告中列出该类的可配置属性（用于发现拼错的选项名）。
 
-  通过 `getConfigurableRecords()` 读取非可配置属性选项的类，可以覆盖静态方法 `acceptsOption(name, value)` 来接受这些选项，不产生警告。由外部（异步）规则校验的值在对象创建时校验。在应用或模块的选项中设置 `checkOptions: false` 可以关闭这项检查。
+  通过 `getConfigurableRecords()` 读取非可配置属性选项的类，可以覆盖静态方法 `acceptsOption(name, value)` 来接受这些选项，不产生警告。由外部（异步）规则校验的值在对象创建时校验。在应用的选项中设置 `checkOptions: false` 可以关闭这项检查。
 
 ### 1.3 `@Autoload`
 
@@ -106,7 +106,7 @@ Application.run(() => ({
 
 | 装饰器 | 实例数量 | 默认用于 |
 |---|---|---|
-| `@Singleton(lock?)` | 每个注册该类的容器一个 | `Component`、`Module`（锁定） |
+| `@Singleton(lock?)` | 每个注册该类的容器一个 | `Component`（锁定） |
 | `@Scoped(lock?)` | 每个作用域一个（入口的一次请求） | `Provider`、`Controller`（锁定） |
 | `@Transient(lock?)` | 每次解析一个 | `BaseObject` |
 

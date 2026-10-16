@@ -1,6 +1,6 @@
 # Lakutata 概述
 
-**Lakutata** 是一个基于 IoC 的 Node.js / TypeScript 应用框架，让 Web 服务、命令行工具、桌面（Electron）应用和嵌入式设备共用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、模块、控制器）：DTO 校验对象的选项和输入，各种传输方式把控制器暴露出去——HTTP（Express、Fastify）、CLI（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC）、定时任务和消息队列。同一个控制器方法可以同时通过所有这些方式调用。
+**Lakutata** 是一个基于 IoC 的 Node.js / TypeScript 应用框架，让 Web 服务、命令行工具、桌面（Electron）应用和嵌入式设备共用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、控制器）：DTO 校验对象的选项和输入，各种传输方式把控制器暴露出去——HTTP（Express、Fastify）、CLI（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC）、定时任务和消息队列。同一个控制器方法可以同时通过所有这些方式调用。
 
 `lakutata` 包通过各个子路径重新导出 `@lakutata/*` 系列包（见下表），并为每个应用预置两个组件：`log`（`Logger`，输出与 pino 兼容的 JSON 日志行）和 `entrypoint`（对外提供控制器的 `Entrypoint`）。
 
@@ -68,7 +68,7 @@ Application
 
 | 子路径 | 内容 |
 |---|---|
-| `lakutata` | `Application`、`Module`、`Component`、`Provider`、`BaseObject`、`Container`、`DTO`、`Exception`、`Time`、`isPackaged`、`resourcesPath`、校验消息 |
+| `lakutata` | `Application`、`Component`、`Provider`、`BaseObject`、`Container`、`DTO`、`Exception`、`Time`、`isPackaged`、`resourcesPath`、校验消息 |
 | `lakutata/decorator/di` | `@Inject`、`@Configurable`、`@Autoload`、`@Singleton`、`@Scoped`、`@Transient`、`@Lifetime` |
 | `lakutata/decorator/dto` | `@Expect`、`@Accept`、`@Return`、`@IndexSignature` |
 | `lakutata/decorator/asst` | `@Before`、`@After` |
@@ -97,7 +97,7 @@ Application
 
 | 指南 | 主题 |
 |---|---|
-| [Core](Core.md) | 应用、容器、生命周期类型、依赖注入、模块、应用的生命周期 |
+| [Core](Core.md) | 应用、容器、生命周期类型、依赖注入、在多个应用之间共享功能、应用的生命周期 |
 | [DTOValidation](DTOValidation.md) | DTO、校验规则，以及选项、输入和返回值的校验 |
 | [Decorator](Decorator.md) | 各子路径的装饰器 |
 | [ActionPattern](ActionPattern.md) | 控制器、动作及其传输方式（HTTP、CLI、服务、定时任务、消息队列） |

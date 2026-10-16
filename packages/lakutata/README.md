@@ -90,7 +90,7 @@ Application
 
 | Subpath | Package | What it provides |
 |---|---|---|
-| `lakutata` | `@lakutata/core` | `Application`, `Module`, `Component`, `Provider`, `BaseObject`, `Container`, `DTO`, `Exception`, `Time`, the validation schemas and messages |
+| `lakutata` | `@lakutata/core` | `Application`, `Component`, `Provider`, `BaseObject`, `Container`, `DTO`, `Exception`, `Time`, the validation schemas and messages |
 | `lakutata/decorator/di` | `@lakutata/core` | `@Inject`, `@Configurable`, `@Autoload`, `@Singleton`, `@Scoped`, `@Transient` |
 | `lakutata/decorator/dto` | `@lakutata/core` | `@Expect`, `@Accept`, `@Return`, `@IndexSignature` |
 | `lakutata/decorator/asst` | `@lakutata/core` | `@Before`, `@After` |
