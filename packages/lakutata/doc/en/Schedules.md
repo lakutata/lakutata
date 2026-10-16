@@ -104,8 +104,8 @@ The macros are `@yearly` (or `@annually`), `@monthly`, `@weekly`, `@daily` (or `
 2026) does not run that day, and a time repeated in autumn runs once.
 
 **Mistakes.** An invalid interval or cron expression throws a `SyntaxError`, and an unknown time zone a `RangeError`, as
-soon as the controller class is defined, before the application starts. A valid expression that never matches, such as
-30 February (`'0 0 30 2 *'`), is accepted but never runs, and nothing is logged.
+soon as the controller class is defined, before the application starts. So does an expression that no date matches, such
+as 30 February (`'0 0 30 2 *'`): it would never run.
 
 ## 3. When the runs happen
 

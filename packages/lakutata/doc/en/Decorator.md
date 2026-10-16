@@ -214,7 +214,7 @@ the methods of the parent still use the property with its former type.
 ## 2. Controller actions (`lakutata/decorator/ctrl`)
 
 These decorators apply to the methods (and, for `@Prefix` and `@UseMiddlewares`, to the classes) of the subclasses of
-`Controller`; [ActionPattern](ActionPattern.md) describes them in detail.
+`Controller`; [Controllers](Controllers.md) describes them in detail.
 
 | Decorator | Address |
 |---|---|

@@ -287,7 +287,7 @@ exit code 2, skipping the done handlers and the teardown.
 
 The `entrypoint` component (`lakutata/com/entrypoint`) serves the controllers over HTTP, the CLI, service transports,
 schedules and message queues. Configure it with `buildEntrypoints({controllers, http, cli, service, schedule, queue})`
-and list it in `bootstrap`; see [ActionPattern](ActionPattern.md).
+and list it in `bootstrap`; see [Entrypoint](Entrypoint.md).
 
 ## 7. A container without an application
 

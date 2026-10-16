@@ -1,116 +1,26 @@
-# Lakutata Controllers and Actions
+# Lakutata HTTP and Service Transports
 
-The `Entrypoint` component (`lakutata/com/entrypoint`, package `@lakutata/entrypoint`) serves the methods of the
-controllers, the **actions**, over several transports. An action is addressed by an HTTP route, a CLI command, a
-service pattern or a schedule, and one method can carry several of these addresses at once: its input is validated by
-its DTO, checked by the access control and passed through the middlewares the same way whatever the transport. The
-README of `@lakutata/entrypoint` and the typings of `lakutata/com/entrypoint` and `lakutata/decorator/ctrl` give the
-details.
+This guide covers the HTTP adapters and the service transports. The controllers, the actions, their input and their
+results are described in [Controllers](Controllers.md); the entrypoint and the list of its adapters in
+[Entrypoint](Entrypoint.md); the middlewares and the access control in [Middlewares](Middlewares.md).
 
-## 1. Controllers
-
-A controller extends `Controller` (`lakutata/com/entrypoint`), a provider whose lifetime is `@Scoped` (locked): each
-request creates its own controller in the request's scope and destroys it when the request ends; the providers it
-injects are scoped to the request too.
-
-- `this.context` is the context of the request: an `HTTPContext` (its `request`, `response`, `route`, `method`), a
-  `CLIContext` (its `command`), a `ServiceContext` (its `clientId`) or a `ScheduleContext`; tell them apart by their
-  class or their `type`.
-- `this.signal` is an `AbortSignal` aborted when the request is: its client gone, its deadline exceeded, or the
-  entrypoint stopping. Long-running actions should stop then: their result is dropped.
-- The method receives its input (the data of the request, validated by the DTO of the action, its defaults applied and
-  its unknown keys removed) as a plain object, not a DTO instance. Without a DTO, the input is accepted as it is.
-- The value returned is the response; an exception is answered with its `statusCode` (HTTP) and its `errno` and
-  message, an invalid input with the status 400.
-
-```typescript
-import {Application, DTO} from 'lakutata'
-import {buildEntrypoints, Controller, scheduleEntrypoint} from 'lakutata/com/entrypoint'
-import {CLIAction, GET, POST, Schedule, ServiceAction} from 'lakutata/decorator/ctrl'
-import {Expect} from 'lakutata/decorator/dto'
-import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
-import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
-import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
-
-class GetOrderDTO extends DTO {
-    //The route parameters and the query are strings: strict(false) converts them
-    @Expect(DTO.Number().integer().strict(false).required())
-    public id: number
-}
-
-class CreateOrderDTO extends DTO {
-    @Expect(DTO.String().required())
-    public product: string
-
-    @Expect(DTO.Number().integer().min(1).default(1))
-    public quantity: number
-}
-
-class OrderController extends Controller {
-    //GET /orders/42, the command "order --id 42", the service message {cmd: 'order.get', id: 42}
-    @GET('/orders/:id', GetOrderDTO)
-    @CLIAction('order', GetOrderDTO)
-    @ServiceAction({cmd: 'order.get'}, GetOrderDTO)
-    public async get(input: GetOrderDTO): Promise<{ id: number }> {
-        return {id: input.id}
-    }
-
-    //POST /orders with a JSON body
-    @POST('/orders', CreateOrderDTO)
-    public async create(input: CreateOrderDTO): Promise<{ product: string, quantity: number }> {
-        return input
-    }
-
-    //Every 5 minutes
-    @Schedule('5m')
-    public async report(): Promise<void> {
-    }
-}
-
-Application.run(() => ({
-    id: 'orders.app',
-    name: 'Orders',
-    components: {
-        entrypoint: buildEntrypoints({
-            controllers: [OrderController],
-            http: expressHTTPEntrypoint({port: 8080}),
-            cli: commanderCLIEntrypoint(),
-            service: socketIOServiceEntrypoint({port: 8081}),
-            schedule: scheduleEntrypoint()
-        })
-    },
-    bootstrap: ['entrypoint']
-}))
-```
-
-## 2. The action decorators (`lakutata/decorator/ctrl`)
-
-Each decorator takes its address, then optionally the DTO class of the input, then optionally the action options
-(`acl`, `name`, `description`, `groups`, `rule`, `middlewares`).
-
-### HTTP: `@HTTPAction`, `@GET`, `@POST`, `@PUT`, `@PATCH`, `@DELETE`, `@HEAD`, `@OPTIONS`
+## 1. HTTP actions: `@HTTPAction`, `@GET`, `@POST`, `@PUT`, `@PATCH`, `@DELETE`, `@HEAD`, `@OPTIONS`
 
 ```text
 @HTTPAction(route, method | methods, DTOClass?, options?)
 @GET(route, DTOClass?, options?)
 ```
 
-- The route uses the syntax of the HTTP adapter (`/users/:id`); the method is case-insensitive (`'get'`, `['get', 'post']`).
-- The input is the query merged with the parsed body (JSON or URL-encoded), then the route parameters over them. The
-  query values and the route parameters are strings and the schemas are strict: convert them with `.strict(false)`.
+- The route uses the syntax of the HTTP adapter (`/users/:id`); `@HTTPAction` takes one method or several
+  (`['get', 'post']`).
+- The input is the query merged with the parsed body (JSON; URL-encoded forms with Express only), then the route
+  parameters over them. The query values and the route parameters are strings and the schemas are strict: convert them
+  with `.strict(false)`.
 - The value returned is answered as JSON (204 for `undefined`). `Result.status(201, data, headers)`,
   `Result.file(path)` and `Result.events(producer)` (Server-Sent Events), from `lakutata/com/entrypoint`, control the
   response.
 
-### CLI: `@CLIAction`
-
-```text
-@CLIAction(command, DTOClass?, options?)
-```
-
-The commands of a command line tool: see [CLI](CLI.md).
-
-### Service: `@ServiceAction`
+## 2. Service actions: `@ServiceAction`
 
 ```text
 @ServiceAction(pattern, DTOClass?, options?)
@@ -123,124 +33,9 @@ The commands of a command line tool: see [CLI](CLI.md).
   `error` holds the properties of the error (`errno`, `errMsg`, `statusCode`, `message`…); JSON-RPC answers with its
   own `result` and `error`. A message no pattern matches fails with `ControllerActionNotFoundException`.
 
-### Schedules: `@Schedule`
+## 3. The transports
 
-```text
-@Schedule(schedule, options?)
-```
-
-The jobs run at an interval or at the times of a cron expression. The second argument holds the action options: a job
-has no DTO. See [Schedules](Schedules.md).
-
-### Prefixes: `@Prefix`
-
-`@Prefix({route, command, pattern})` on a controller class prefixes its actions: `route` is prepended to the HTTP
-routes, `command` to the CLI commands (joined by `:`, `user` and `get` give `user:get`), `pattern` is merged into the
-service patterns.
-
-```typescript
-import {DTO} from 'lakutata'
-import {Controller} from 'lakutata/com/entrypoint'
-import {CLIAction, GET, Prefix, ServiceAction} from 'lakutata/decorator/ctrl'
-import {Expect} from 'lakutata/decorator/dto'
-
-class UserIdDTO extends DTO {
-    @Expect(DTO.String().required())
-    public id: string
-}
-
-@Prefix({route: '/users', command: 'user', pattern: {resource: 'user'}})
-class UserController extends Controller {
-    //GET /users/:id, the command "user:get <id>" and the message {resource: 'user', act: 'get', id}
-    @GET('/:id', UserIdDTO)
-    @CLIAction('get <id>', UserIdDTO)
-    @ServiceAction({act: 'get'}, UserIdDTO)
-    public async get(input: UserIdDTO): Promise<{ id: string }> {
-        return {id: input.id}
-    }
-}
-```
-
-## 3. Middlewares and access control
-
-A middleware runs around an action, before its input validation and its access control: a function
-`(invocation, next) => Promise<unknown>` or a `Middleware` class. They are given to `buildEntrypoints({middlewares})`
-(every action), to an adapter's `middlewares` option, to `@UseMiddlewares(...)` on a controller class or a method, and to
-the `middlewares` action option.
-
-```typescript
-import {type ActionInvocation, Controller, type Next} from 'lakutata/com/entrypoint'
-import {GET, UseMiddlewares} from 'lakutata/decorator/ctrl'
-
-async function timing(invocation: ActionInvocation, next: Next): Promise<unknown> {
-    const started: number = Date.now()
-    try {
-        return await next()
-    } finally {
-        console.log(`${invocation.context.type} took ${Date.now() - started} ms`)
-    }
-}
-
-@UseMiddlewares(timing)
-class HealthController extends Controller {
-    @GET('/health')
-    public async health(): Promise<string> {
-        return 'ok'
-    }
-}
-```
-
-An action declared with `{acl: true}` is checked by the rules given to `buildEntrypoints({rules})`: `AccessControlRule`
-subclasses, created for each request, whose `rule()` resolving `false` denies it with an `AccessDeniedException` (HTTP
-403). The `rule` action option is the action's own rule.
-
-```typescript
-import {AccessControlRule, ContextType, Controller, type HTTPContext} from 'lakutata/com/entrypoint'
-import {DELETE} from 'lakutata/decorator/ctrl'
-
-class AdminRule extends AccessControlRule<HTTPContext> {
-    public get supportContextTypes(): ContextType[] {
-        return [ContextType.HTTP]
-    }
-
-    public async rule(): Promise<boolean> {
-        if (!this.targetAction.groups.includes('admin')) return true
-        return this.context.request.headers['x-role'] === 'admin'
-    }
-}
-
-class UserController extends Controller {
-    @DELETE('/users/:id', {acl: true, groups: ['admin']})
-    public async remove(input: { id: string }): Promise<void> {
-    }
-}
-
-//buildEntrypoints({controllers: [UserController], rules: [AdminRule], httpActionGroups: {admin: 'Administration'}})
-```
-
-The groups of an action must be declared in `httpActionGroups`, `cliActionGroups` or `serviceActionGroups` of
-`buildEntrypoints`. `shutdownTimeout` (default 30000 ms) is the time given to the running requests when the entrypoint
-stops.
-
-## 4. The transports
-
-| Option of `buildEntrypoints` | Adapter | Subpath | Install |
-|---|---|---|---|
-| `http` | `expressHTTPEntrypoint({port})` | `lakutata/adapter/express` | `express` |
-| `http` | `fastifyHTTPEntrypoint({port})` | `lakutata/adapter/fastify` | `fastify` |
-| `cli` | `commanderCLIEntrypoint()` | `lakutata/adapter/commander` | `commander` (`@inquirer/prompts` for the prompts) |
-| `service` | `socketIOServiceEntrypoint({port})` | `lakutata/adapter/socket.io` | `socket.io` |
-| `service` | `jsonRPCServiceEntrypoint()` (HTTP, WebSocket, stdio) | `lakutata/adapter/jsonrpc` | `ws` for WebSocket |
-| `service` | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) |
-| `service` | `httpServiceEntrypoint({port})` (`POST /`, events by SSE) | `lakutata/com/entrypoint` | |
-| `service` | `grpcServiceEntrypoint({port})` | `@lakutata/grpc/service` | `@lakutata/grpc` |
-| `service` | `natsServiceEntrypoint('nats')` | `@lakutata/nats` | `@lakutata/nats` |
-| `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | |
-| `queue` | `queueEntrypoint('queue')` (the `@QueueAction` actions) | `lakutata/com/queue` | the client of the driver (see [Queue](Queue.md)) |
-
-Each option takes one adapter or an array of adapters. `buildHTTPEntrypoint`, `buildCLIEntrypoint` and
-`buildServiceEntrypoint` (from `lakutata/com/entrypoint`) type an entrypoint function in the style of lakutata 2.x, to
-plug another library; `EntrypointAdapter` (from `@lakutata/entrypoint/channel`) is the interface of the adapters.
+The adapters of the transports, and the packages they need, are listed in [Entrypoint](Entrypoint.md), section 2.
 
 ### From an entrypoint function of 2.x to the HTTP adapters
 

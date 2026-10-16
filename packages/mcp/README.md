@@ -378,6 +378,7 @@ stops.
 ## See also
 
 - `@lakutata/entrypoint` (`lakutata/com/entrypoint`): the entrypoint, the controllers, `@Prefix`, the middlewares and
-  the access control (`doc/en/ActionPattern.md` of the package `lakutata`, Chinese in `doc/zh`).
+  the access control (`doc/en/Controllers.md`, `Entrypoint.md` and `Middlewares.md` of the package `lakutata`,
+  Chinese in `doc/zh`).
 - [The Model Context Protocol](https://modelcontextprotocol.io): the specification and the clients.
 - `@lakutata/core` (`lakutata`): the components, `Application`, the DTOs and the dependency injection.

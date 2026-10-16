@@ -125,7 +125,7 @@ class Bank extends Component {
 ## 4. 框架中的 DTO
 
 - **对象选项**：`@Configurable(schema)`（来自 `lakutata/decorator/di`）校验组件或提供者的选项；见 [Core](Core.md)。
-- **控制器动作**：传给 `@GET`、`@POST`、`@CLIAction`、`@ServiceAction` 等的 DTO 校验动作的输入；输入不合法时以状态码 400 响应。见 [ActionPattern](ActionPattern.md)。
+- **控制器动作**：传给 `@GET`、`@POST`、`@CLIAction`、`@ServiceAction` 等的 DTO 校验动作的输入；输入不合法时以状态码 400 响应。见 [Controllers](Controllers.md)。
 - **分页**（`lakutata/dtos`）：`PaginationSearchDTO` 和 `PaginationResultDTO` 是分页动作的输入和结果，`paginator` 负责计算分页；`FlexibleDTO` 是接受任意字段的 DTO。
 - **校验消息**：错误消息支持多语言；`lakutata` 中的 `registerValidationMessages`、`runInValidationLanguage` 和 `currentValidationLanguage` 管理其语言，I18n 组件的语言中间件为每个请求设置语言（见 [I18n](I18n.md)）。
 

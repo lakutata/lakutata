@@ -111,7 +111,10 @@ component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (
 | [Core](Core.md) | The application, the container, lifetimes, dependency injection, sharing features between applications, and the lifecycle |
 | [DTOValidation](DTOValidation.md) | DTOs and schemas: validating options, inputs and results |
 | [Decorator](Decorator.md) | The decorators, by subpath |
-| [ActionPattern](ActionPattern.md) | Controllers, actions and transports (HTTP, CLI, services, schedules, queues) |
+| [Controllers](Controllers.md) | Controllers and actions: their addresses, input and results, prefixes, inheritance |
+| [Entrypoint](Entrypoint.md) | The entrypoint component: its options and adapters, starting and stopping, the list of the actions |
+| [Middlewares](Middlewares.md) | The middlewares and the access control of the actions |
+| [ActionPattern](ActionPattern.md) | The HTTP adapters and the service transports |
 | [CLI](CLI.md) | Command line tools: commands, options, prompts, output and exit codes |
 | [GRPC](GRPC.md) | The service actions over gRPC (`@lakutata/grpc`), and calling them from other applications and languages |
 | [NATS](NATS.md) | The NATS component, the service actions over NATS (`@lakutata/nats`), the service proxies and their events |

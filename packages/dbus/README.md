@@ -261,6 +261,7 @@ error too.
 ## See also
 
 - `@lakutata/entrypoint` (`lakutata/com/entrypoint`): the entrypoint, the controllers, the middlewares and the access
-  control (`doc/en/ActionPattern.md` of the package `lakutata`, Chinese in `doc/zh`).
+  control (`doc/en/Controllers.md`, `Entrypoint.md` and `Middlewares.md` of the package `lakutata`, Chinese in
+  `doc/zh`).
 - [dbus-sdk](https://github.com/myq1991/node-dbus-sdk): the D-Bus protocol, its client classes and its local services.
 - `@lakutata/core` (`lakutata`): the components, `Application` and the dependency injection.

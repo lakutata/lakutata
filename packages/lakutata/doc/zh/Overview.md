@@ -100,7 +100,10 @@ Application
 | [Core](Core.md) | 应用、容器、生命周期类型、依赖注入、在多个应用之间共享功能、应用的生命周期 |
 | [DTOValidation](DTOValidation.md) | DTO、校验规则，以及选项、输入和返回值的校验 |
 | [Decorator](Decorator.md) | 各子路径的装饰器 |
-| [ActionPattern](ActionPattern.md) | 控制器、动作及其传输方式（HTTP、CLI、服务、定时任务、消息队列） |
+| [Controllers](Controllers.md) | 控制器与动作：地址、输入与结果、前缀、继承 |
+| [Entrypoint](Entrypoint.md) | 入口组件：选项与适配器、启动与停止、动作列表 |
+| [Middlewares](Middlewares.md) | 动作的中间件与访问控制 |
+| [ActionPattern](ActionPattern.md) | HTTP 适配器与服务传输方式 |
 | [CLI](CLI.md) | 命令行工具：命令、选项、提示输入、输出与退出码 |
 | [GRPC](GRPC.md) | 通过 gRPC 提供服务动作（`@lakutata/grpc`），以及从其他应用和其他语言调用它们 |
 | [NATS](NATS.md) | NATS 组件、通过 NATS 提供服务动作（`@lakutata/nats`）、服务代理及其事件 |

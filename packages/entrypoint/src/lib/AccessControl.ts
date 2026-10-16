@@ -51,7 +51,8 @@ import {As, isSubclassOf} from '@lakutata/utils'
  *     name: 'Report',
  *     components: {
  *         entrypoint: {class: AuditedEntrypoint, controllers: [ReportController]}
- *     }
+ *     },
+ *     bootstrap: ['entrypoint']
  * }))
  * ```
  */

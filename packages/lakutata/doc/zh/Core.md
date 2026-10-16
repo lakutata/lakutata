@@ -229,7 +229,7 @@ Application
 
 ## 6. 入口
 
-`entrypoint` 组件（`lakutata/com/entrypoint`）通过 HTTP、CLI、服务传输、定时任务和消息队列对外提供控制器。用 `buildEntrypoints({controllers, http, cli, service, schedule, queue})` 配置它，并把它列入 `bootstrap`；详见 [ActionPattern](ActionPattern.md)。
+`entrypoint` 组件（`lakutata/com/entrypoint`）通过 HTTP、CLI、服务传输、定时任务和消息队列对外提供控制器。用 `buildEntrypoints({controllers, http, cli, service, schedule, queue})` 配置它，并把它列入 `bootstrap`；详见 [Entrypoint](Entrypoint.md)。
 
 ## 7. 不使用应用的容器
 

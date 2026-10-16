@@ -183,7 +183,7 @@ export class NamedPortServer extends Server<string> {
 
 ## 2. 控制器动作（`lakutata/decorator/ctrl`）
 
-这些装饰器用于 `Controller` 子类的方法（`@Prefix` 和 `@UseMiddlewares` 也可用于类）；详见 [ActionPattern](ActionPattern.md)。
+这些装饰器用于 `Controller` 子类的方法（`@Prefix` 和 `@UseMiddlewares` 也可用于类）；详见 [Controllers](Controllers.md)。
 
 | 装饰器 | 地址 |
 |---|---|

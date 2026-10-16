@@ -1,100 +1,19 @@
-# Lakutata 控制器与动作
+# Lakutata HTTP 与服务传输
 
-`Entrypoint` 组件（`lakutata/com/entrypoint`，`@lakutata/entrypoint` 包）通过多种传输方式对外提供控制器的方法，即**动作**。动作的地址可以是 HTTP 路由、CLI 命令、服务模式或定时计划，同一个方法可以同时拥有多个地址：无论通过哪种传输方式调用，它的输入都以相同的方式经过 DTO 校验、访问控制和中间件。更多细节见 `@lakutata/entrypoint` 的 README，以及 `lakutata/com/entrypoint` 和 `lakutata/decorator/ctrl` 的类型声明。
+本指南介绍 HTTP 适配器和服务传输方式。控制器、动作及其输入和结果见 [Controllers](Controllers.md)；入口及其适配器列表见 [Entrypoint](Entrypoint.md)；中间件和访问控制见 [Middlewares](Middlewares.md)。
 
-## 1. 控制器
-
-控制器继承 `Controller`（`lakutata/com/entrypoint`），它是一个生命周期为 `@Scoped`（锁定）的提供者：每次请求都会在该请求的作用域中创建自己的控制器，请求结束时销毁；控制器注入的提供者也属于该请求的作用域。
-
-- `this.context` 是请求的上下文：`HTTPContext`（含 `request`、`response`、`route`、`method`）、`CLIContext`（含 `command`）、`ServiceContext`（含 `clientId`）或 `ScheduleContext`；可通过类或 `type` 区分。
-- `this.signal` 是一个 `AbortSignal`，在请求被中止时触发：客户端断开、超过截止时间或入口正在停止。耗时较长的动作应随之停止，因为它的结果会被丢弃。
-- 方法接收的输入（请求的数据，经动作的 DTO 校验，填充默认值并移除未知字段）是一个普通对象，而不是 DTO 实例。没有 DTO 时，输入原样传入。
-- 返回值就是响应；抛出的异常以其 `statusCode`（HTTP）以及 `errno` 和消息作为响应，输入不合法时返回状态码 400。
-
-```typescript
-import {Application, DTO} from 'lakutata'
-import {buildEntrypoints, Controller, scheduleEntrypoint} from 'lakutata/com/entrypoint'
-import {CLIAction, GET, POST, Schedule, ServiceAction} from 'lakutata/decorator/ctrl'
-import {Expect} from 'lakutata/decorator/dto'
-import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
-import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
-import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
-
-class GetOrderDTO extends DTO {
-    //路由参数和查询参数都是字符串：strict(false) 会转换它们
-    @Expect(DTO.Number().integer().strict(false).required())
-    public id: number
-}
-
-class CreateOrderDTO extends DTO {
-    @Expect(DTO.String().required())
-    public product: string
-
-    @Expect(DTO.Number().integer().min(1).default(1))
-    public quantity: number
-}
-
-class OrderController extends Controller {
-    //GET /orders/42、命令 "order --id 42"、服务消息 {cmd: 'order.get', id: 42}
-    @GET('/orders/:id', GetOrderDTO)
-    @CLIAction('order', GetOrderDTO)
-    @ServiceAction({cmd: 'order.get'}, GetOrderDTO)
-    public async get(input: GetOrderDTO): Promise<{ id: number }> {
-        return {id: input.id}
-    }
-
-    //POST /orders，请求体为 JSON
-    @POST('/orders', CreateOrderDTO)
-    public async create(input: CreateOrderDTO): Promise<{ product: string, quantity: number }> {
-        return input
-    }
-
-    //每 5 分钟执行一次
-    @Schedule('5m')
-    public async report(): Promise<void> {
-    }
-}
-
-Application.run(() => ({
-    id: 'orders.app',
-    name: 'Orders',
-    components: {
-        entrypoint: buildEntrypoints({
-            controllers: [OrderController],
-            http: expressHTTPEntrypoint({port: 8080}),
-            cli: commanderCLIEntrypoint(),
-            service: socketIOServiceEntrypoint({port: 8081}),
-            schedule: scheduleEntrypoint()
-        })
-    },
-    bootstrap: ['entrypoint']
-}))
-```
-
-## 2. 动作装饰器（`lakutata/decorator/ctrl`）
-
-每个装饰器的参数依次为：地址，可选的输入 DTO 类，可选的动作选项（`acl`、`name`、`description`、`groups`、`rule`、`middlewares`）。
-
-### HTTP：`@HTTPAction`、`@GET`、`@POST`、`@PUT`、`@PATCH`、`@DELETE`、`@HEAD`、`@OPTIONS`
+## 1. HTTP 动作：`@HTTPAction`、`@GET`、`@POST`、`@PUT`、`@PATCH`、`@DELETE`、`@HEAD`、`@OPTIONS`
 
 ```text
 @HTTPAction(route, method | methods, DTOClass?, options?)
 @GET(route, DTOClass?, options?)
 ```
 
-- 路由使用 HTTP 适配器的语法（`/users/:id`）；方法不区分大小写（`'get'`、`['get', 'post']`）。
-- 输入由查询参数和解析后的请求体（JSON 或 URL 编码）合并而成，路由参数覆盖在其上。查询参数和路由参数都是字符串，而校验规则是严格的：用 `.strict(false)` 进行转换。
+- 路由使用 HTTP 适配器的语法（`/users/:id`）；`@HTTPAction` 可以接受一个或多个方法（`['get', 'post']`）。
+- 输入由查询参数和解析后的请求体（JSON；URL 编码的表单只有 Express 支持）合并而成，路由参数覆盖在其上。查询参数和路由参数都是字符串，而校验规则是严格的：用 `.strict(false)` 进行转换。
 - 返回值以 JSON 响应（`undefined` 时为 204）。`lakutata/com/entrypoint` 中的 `Result.status(201, data, headers)`、`Result.file(path)` 和 `Result.events(producer)`（Server-Sent Events）用于控制响应。
 
-### CLI：`@CLIAction`
-
-```text
-@CLIAction(command, DTOClass?, options?)
-```
-
-命令行工具的命令，见 [CLI](CLI.md)。
-
-### 服务：`@ServiceAction`
+## 2. 服务动作：`@ServiceAction`
 
 ```text
 @ServiceAction(pattern, DTOClass?, options?)
@@ -103,112 +22,9 @@ Application.run(() => ({
 - 模式是一个对象（最多嵌套 2 层），消息必须包含这些键且值相同；字符串值可以是通配符（`'user.*'`）。匹配的模式中最具体的一个胜出。输入是去掉模式中各键后的消息。
 - 调用方收到 `{success: true, error: null, payload}`，或 `{success: false, error, payload: null}`，其中 `error` 包含错误的各属性（`errno`、`errMsg`、`statusCode`、`message` 等）；JSON-RPC 则以它自己的 `result` 和 `error` 响应。没有模式匹配的消息会以 `ControllerActionNotFoundException` 失败。
 
-### 定时任务：`@Schedule`
+## 3. 传输方式
 
-```text
-@Schedule(schedule, options?)
-```
-
-按间隔或 cron 表达式的时间执行的任务。第二个参数是动作选项：定时任务没有 DTO。见 [Schedules](Schedules.md)。
-
-### 前缀：`@Prefix`
-
-在控制器类上使用 `@Prefix({route, command, pattern})` 为它的动作添加前缀：`route` 加在 HTTP 路由之前，`command` 加在 CLI 命令之前（以 `:` 连接，`user` 和 `get` 得到 `user:get`），`pattern` 合并到服务模式中。
-
-```typescript
-import {DTO} from 'lakutata'
-import {Controller} from 'lakutata/com/entrypoint'
-import {CLIAction, GET, Prefix, ServiceAction} from 'lakutata/decorator/ctrl'
-import {Expect} from 'lakutata/decorator/dto'
-
-class UserIdDTO extends DTO {
-    @Expect(DTO.String().required())
-    public id: string
-}
-
-@Prefix({route: '/users', command: 'user', pattern: {resource: 'user'}})
-class UserController extends Controller {
-    //GET /users/:id、命令 "user:get <id>"、消息 {resource: 'user', act: 'get', id}
-    @GET('/:id', UserIdDTO)
-    @CLIAction('get <id>', UserIdDTO)
-    @ServiceAction({act: 'get'}, UserIdDTO)
-    public async get(input: UserIdDTO): Promise<{ id: string }> {
-        return {id: input.id}
-    }
-}
-```
-
-## 3. 中间件与访问控制
-
-中间件包裹在动作外围执行，早于输入校验和访问控制：可以是函数 `(invocation, next) => Promise<unknown>`，也可以是 `Middleware` 类。可以把它们交给 `buildEntrypoints({middlewares})`（作用于所有动作）、适配器的 `middlewares` 选项、控制器类或方法上的 `@UseMiddlewares(...)`，以及动作选项 `middlewares`。
-
-```typescript
-import {type ActionInvocation, Controller, type Next} from 'lakutata/com/entrypoint'
-import {GET, UseMiddlewares} from 'lakutata/decorator/ctrl'
-
-async function timing(invocation: ActionInvocation, next: Next): Promise<unknown> {
-    const started: number = Date.now()
-    try {
-        return await next()
-    } finally {
-        console.log(`${invocation.context.type} took ${Date.now() - started} ms`)
-    }
-}
-
-@UseMiddlewares(timing)
-class HealthController extends Controller {
-    @GET('/health')
-    public async health(): Promise<string> {
-        return 'ok'
-    }
-}
-```
-
-声明了 `{acl: true}` 的动作由 `buildEntrypoints({rules})` 中的规则检查：规则是 `AccessControlRule` 的子类，每次请求都会创建，其 `rule()` 返回 `false` 时以 `AccessDeniedException`（HTTP 403）拒绝请求。动作选项 `rule` 是该动作自己的规则。
-
-```typescript
-import {AccessControlRule, ContextType, Controller, type HTTPContext} from 'lakutata/com/entrypoint'
-import {DELETE} from 'lakutata/decorator/ctrl'
-
-class AdminRule extends AccessControlRule<HTTPContext> {
-    public get supportContextTypes(): ContextType[] {
-        return [ContextType.HTTP]
-    }
-
-    public async rule(): Promise<boolean> {
-        if (!this.targetAction.groups.includes('admin')) return true
-        return this.context.request.headers['x-role'] === 'admin'
-    }
-}
-
-class UserController extends Controller {
-    @DELETE('/users/:id', {acl: true, groups: ['admin']})
-    public async remove(input: { id: string }): Promise<void> {
-    }
-}
-
-//buildEntrypoints({controllers: [UserController], rules: [AdminRule], httpActionGroups: {admin: 'Administration'}})
-```
-
-动作的分组必须在 `buildEntrypoints` 的 `httpActionGroups`、`cliActionGroups` 或 `serviceActionGroups` 中声明。`shutdownTimeout`（默认 30000 毫秒）是入口停止时留给正在处理的请求的时间。
-
-## 4. 传输方式
-
-| `buildEntrypoints` 的选项 | 适配器 | 子路径 | 需安装 |
-|---|---|---|---|
-| `http` | `expressHTTPEntrypoint({port})` | `lakutata/adapter/express` | `express` |
-| `http` | `fastifyHTTPEntrypoint({port})` | `lakutata/adapter/fastify` | `fastify` |
-| `cli` | `commanderCLIEntrypoint()` | `lakutata/adapter/commander` | `commander`（交互提示需要 `@inquirer/prompts`） |
-| `service` | `socketIOServiceEntrypoint({port})` | `lakutata/adapter/socket.io` | `socket.io` |
-| `service` | `jsonRPCServiceEntrypoint()`（HTTP、WebSocket、stdio） | `lakutata/adapter/jsonrpc` | WebSocket 需要 `ws` |
-| `service` | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | （Electron） |
-| `service` | `httpServiceEntrypoint({port})`（`POST /`，事件通过 SSE 推送） | `lakutata/com/entrypoint` | |
-| `service` | `grpcServiceEntrypoint({port})` | `@lakutata/grpc/service` | `@lakutata/grpc` |
-| `service` | `natsServiceEntrypoint('nats')` | `@lakutata/nats` | `@lakutata/nats` |
-| `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | |
-| `queue` | `queueEntrypoint('queue')`（`@QueueAction` 动作） | `lakutata/com/queue` | 驱动的客户端（见 [Queue](Queue.md)） |
-
-每个选项可以是一个适配器或适配器数组。`lakutata/com/entrypoint` 中的 `buildHTTPEntrypoint`、`buildCLIEntrypoint` 和 `buildServiceEntrypoint` 用于以 lakutata 2.x 的风格编写入口函数，以接入其他库；`EntrypointAdapter`（来自 `@lakutata/entrypoint/channel`）是适配器的接口。
+各传输方式的适配器及其需要安装的包，见 [Entrypoint](Entrypoint.md) 第 2 节。
 
 ### 从 2.x 的入口函数迁移到 HTTP 适配器
 
