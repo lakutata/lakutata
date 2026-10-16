@@ -18,8 +18,9 @@ import {ServiceContext} from '../context/ServiceContext.js'
  * payload: null}`, `error` holding its properties (`errno`, `errMsg`, `statusCode`, `message`…); JSON-RPC answers it as
  * an error response. A message no pattern matches fails with `ControllerActionNotFoundException`.
  * @param pattern The pattern of the action: an object (nested 2 levels at most) whose keys the messages must hold with
- * the same values; a string value may be a glob (`'user.*'`, `*` any characters, `?` one). The most specific pattern
- * matching a message wins. The controller's `@Prefix({pattern})` is merged into it.
+ * the same values, the keys of a nested object too (`{res: {name: 'user'}}` does not match `{res: {name: 'order'}}`); a
+ * string value may be a glob (`'user.*'`, `*` any characters, `?` one). The most specific pattern matching a message
+ * wins. The controller's `@Prefix({pattern})` is merged into it.
  * @returns The method decorator.
  * @throws {InvalidActionPatternDepthException} When the class is declared, if the pattern is nested more than 2 levels.
  * @example
@@ -74,8 +75,9 @@ export function ServiceAction<ClassPrototype extends Controller, Method>(pattern
  * returned is sent back as `{success: true, error: null, payload}`, an error as `{success: false, error, payload:
  * null}` (a JSON-RPC result or error response).
  * @param pattern The pattern of the action: an object (nested 2 levels at most) whose keys the messages must hold with
- * the same values; a string value may be a glob (`'user.*'`, `*` any characters, `?` one). The most specific pattern
- * matching a message wins. The controller's `@Prefix({pattern})` is merged into it.
+ * the same values, the keys of a nested object too (`{res: {name: 'user'}}` does not match `{res: {name: 'order'}}`); a
+ * string value may be a glob (`'user.*'`, `*` any characters, `?` one). The most specific pattern matching a message
+ * wins. The controller's `@Prefix({pattern})` is merged into it.
  * @param dtoConstructor The DTO class validating the input: the message without the keys of the pattern.
  * @returns The method decorator.
  * @throws {InvalidActionPatternDepthException} When the class is declared, if the pattern is nested more than 2 levels.
@@ -86,8 +88,9 @@ export function ServiceAction<ClassPrototype extends Controller, Method, DTOCons
  * without the keys of the pattern, is accepted as it is. The value returned is sent back as `{success: true, error:
  * null, payload}`, an error as `{success: false, error, payload: null}` (a JSON-RPC result or error response).
  * @param pattern The pattern of the action: an object (nested 2 levels at most) whose keys the messages must hold with
- * the same values; a string value may be a glob (`'user.*'`, `*` any characters, `?` one). The most specific pattern
- * matching a message wins. The controller's `@Prefix({pattern})` is merged into it.
+ * the same values, the keys of a nested object too (`{res: {name: 'user'}}` does not match `{res: {name: 'order'}}`); a
+ * string value may be a glob (`'user.*'`, `*` any characters, `?` one). The most specific pattern matching a message
+ * wins. The controller's `@Prefix({pattern})` is merged into it.
  * @param actionOptions The action options: `acl` runs the access control rules (false by default); `name` (unique in
  * the service actions, `ClassName:method` by default), `description` and `groups` describe the action; `rule` is an
  * access rule of the action; `middlewares` run before the ones `@UseMiddlewares` adds to the method.
@@ -104,8 +107,9 @@ export function ServiceAction<ClassPrototype extends Controller, Method>(pattern
  * plain object. The value returned is sent back as `{success: true, error: null, payload}`, an error as `{success:
  * false, error, payload: null}` (a JSON-RPC result or error response).
  * @param pattern The pattern of the action: an object (nested 2 levels at most) whose keys the messages must hold with
- * the same values; a string value may be a glob (`'user.*'`, `*` any characters, `?` one). The most specific pattern
- * matching a message wins. The controller's `@Prefix({pattern})` is merged into it.
+ * the same values, the keys of a nested object too (`{res: {name: 'user'}}` does not match `{res: {name: 'order'}}`); a
+ * string value may be a glob (`'user.*'`, `*` any characters, `?` one). The most specific pattern matching a message
+ * wins. The controller's `@Prefix({pattern})` is merged into it.
  * @param dtoConstructor The DTO class validating the input: the message without the keys of the pattern.
  * @param actionOptions The action options: `acl` runs the access control rules (false by default); `name` (unique in
  * the service actions, `ClassName:method` by default), `description` and `groups` describe the action; `rule` is an

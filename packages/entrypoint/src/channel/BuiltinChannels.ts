@@ -2,6 +2,7 @@ import type {ActionPattern} from '@lakutata/core'
 import {getObjectPropertyPaths, uniqueArray} from '@lakutata/utils'
 import {ChannelDefinition, ChannelEntry, ChannelMatch, ChannelMatcher, defineChannel} from './Channel.js'
 import {PatternManager} from '../lib/pattern/PatternManager.js'
+import {flattenPattern, flattenSubject} from '../lib/pattern/FlattenPattern.js'
 import {stringifyPattern} from '../lib/StringifyPattern.js'
 import {prefixCommand, prefixPattern, prefixRoute} from '../lib/Prefix.js'
 import {ContextType, type BaseContext} from '../context/BaseContext.js'
@@ -84,11 +85,12 @@ export const ServiceChannel: ChannelDefinition = defineChannel({
     describe: (pattern: ActionPattern): Record<string, unknown> => ({pattern: pattern}),
     prefix: (prefix, pattern: ActionPattern): ActionPattern | undefined => prefix.pattern === undefined ? undefined : prefixPattern(prefix.pattern, pattern),
     createMatcher: (entries: ChannelEntry[]): ChannelMatcher => {
+        //The values of the nested objects are compared one by one: {res: {name: 'user'}} matches as {'res.name': 'user'}
         const patterns: PatternManager = new PatternManager()
-        for (const entry of entries) patterns.add(entry.details.pattern, entry)
+        for (const entry of entries) patterns.add(flattenPattern(entry.details.pattern), entry)
         return {
             match: (context: BaseContext): ChannelMatch | undefined => {
-                const entry: ChannelEntry | null = patterns.find((context as ServiceContext).input)
+                const entry: ChannelEntry | null = patterns.find(flattenSubject((context as ServiceContext).input))
                 return entry ? {entry: entry} : undefined
             }
         }
