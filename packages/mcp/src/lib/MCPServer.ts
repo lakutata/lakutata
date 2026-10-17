@@ -175,6 +175,23 @@ function registerPrompt(server: McpServer, runtime: ChannelRuntime<MCPContext>, 
 }
 
 /**
+ * The actions to serve, one per tool name, prompt name or resource URI: an address declared by two controllers is served
+ * by the one registered last, as on the other channels (the entrypoint merges the identical declarations, the ones
+ * differing by their title or hints reach the adapter both)
+ * @param actions
+ */
+function lastDeclaredActions(actions: ReadonlyArray<ChannelActionInfo>): ChannelActionInfo[] {
+    const served: Map<string, ChannelActionInfo> = new Map()
+    for (const action of actions) {
+        const kind: MCPRequestKind = action.kind as MCPRequestKind
+        const address: string = `${kind}:${String(action[kind])}`
+        served.delete(address)
+        served.set(address, action)
+    }
+    return [...served.values()]
+}
+
+/**
  * Build an MCP server (`McpServer` of `@modelcontextprotocol/server`) serving the actions of an MCP channel runtime as
  * its tools, resources and prompts, as the adapters do: for a custom adapter connecting it to another transport
  * (`await server.connect(transport)`). The tools answer their errors as results with `isError: true` (a tool declaring
@@ -227,7 +244,7 @@ export function buildMCPServer(runtime: ChannelRuntime<MCPContext>, info: MCPSer
         name: info.serverName ?? Application.appName ?? 'lakutata',
         version: info.serverVersion ?? '1.0.0'
     }, {instructions: info.instructions})
-    for (const action of runtime.actions) {
+    for (const action of lastDeclaredActions(runtime.actions)) {
         switch (action.kind as MCPRequestKind) {
             case 'tool':
                 registerTool(server, runtime, action)
