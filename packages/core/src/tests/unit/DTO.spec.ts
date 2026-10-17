@@ -6,6 +6,7 @@ import {Accept} from '../../decorators/dto/Accept.js'
 import {Return} from '../../decorators/dto/Return.js'
 import {DevNull} from '@lakutata/utils/DevNull'
 import {IndexSignature} from '../../decorators/dto/IndexSignature.js'
+import {PaginationSearchDTO} from '../../dto/PaginationSearchDTO.js'
 
 class CachedParentDTO extends DTO {
     @Expect(DTO.String().required())
@@ -268,6 +269,14 @@ await describe('DTO Test', async function (): Promise<void> {
     await it('HttpDocument() accepts the HTML and the XML documents only', async (): Promise<void> => {
         for (const document of ['<html><body>x</body></html>', '<?xml version="1.0"?><a/>', '<a><b>x</b></a>']) assert.equal(DTO.isValid(document, DTO.HttpDocument()), true, document)
         for (const value of ['plain text', '{"json": true}', '<note><to></note>']) assert.equal(DTO.isValid(value, DTO.HttpDocument()), false, value)
+    })
+    await it('PaginationSearchDTO takes its limit and offset from a query string, with their defaults', async (): Promise<void> => {
+        const query: PaginationSearchDTO = await PaginationSearchDTO.validateAsync(As<PaginationSearchDTO>({limit: '20', offset: '40'}))
+        assert.equal(query.limit, 20)
+        assert.equal(query.offset, 40)
+        const defaults: PaginationSearchDTO = await PaginationSearchDTO.validateAsync({})
+        assert.deepEqual([defaults.limit, defaults.offset], [10, 0])
+        for (const invalid of [{limit: 'ten'}, {limit: '-1'}, {offset: 1.5}]) assert.equal(PaginationSearchDTO.isValid(invalid), false, JSON.stringify(invalid))
     })
 })
 
