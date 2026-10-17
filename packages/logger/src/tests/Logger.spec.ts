@@ -46,6 +46,24 @@ await container.destroy()`)
         assert.match(output, /ERROR \(Unknown\/\d+\): with error\n {4}err: \{\n {6}"type": "Error",/)
     })
 
+    it('colors the standard output when it is a terminal, unless NO_COLOR is set or colorize is false', (): void => {
+        //The standard output of the child is a pipe: a terminal is simulated
+        const run = (options: string, terminal: boolean, noColor?: string): string => execFileSync(process.execPath, ['--input-type=module', '-e', `
+import {Container} from '@lakutata/core'
+import {Logger} from '${new URL('../exports/Logger.js', import.meta.url).href}'
+process.stdout.isTTY = ${terminal}
+const container = new Container()
+const logger = await container.set(Logger, ${options})
+logger.info('hello')
+await container.destroy()`], {cwd: fileURLToPath(new URL('.', import.meta.url)), encoding: 'utf8', env: {...process.env, NO_COLOR: noColor ?? ''}})
+        const colored = (output: string): boolean => output.includes('\x1b[')
+        assert.ok(colored(run('{}', true)))
+        assert.ok(!colored(run('{}', false)))
+        assert.ok(!colored(run('{}', true, '1')))
+        assert.ok(!colored(run('{colorize: false}', true)))
+        assert.ok(colored(run('{colorize: true}', false)))
+    })
+
     it('loads where SharedArrayBuffer is missing (a preload script of Electron requiring the framework)', (): void => {
         //Required as the preload scripts do (an import of node:fs by Node.js itself needs SharedArrayBuffer)
         const output: string = execFileSync(process.execPath, ['--input-type=commonjs', '-e', `

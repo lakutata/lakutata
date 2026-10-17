@@ -60,7 +60,7 @@ Application
 |---|---|---|
 | `level` | `'trace'` | The lowest level written: `'trace'` (10), `'debug'` (20), `'info'` (30), `'warn'` (40), `'error'` (50), `'fatal'` (60, only `fatal()`) or `'silent'` (nothing) |
 | `pretty` | `true` | Readable lines when `true`, pino's JSON lines when `false` |
-| `colorize` | `true` | Colors the readable lines written to `process.stdout` (never the other streams, nor the JSON) |
+| `colorize` | on a terminal | Colors the readable lines written to `process.stdout`; by default when it is a terminal and `NO_COLOR` is not set (never the other streams, nor the JSON) |
 | `sync` | `false` | Writes each line at once; otherwise the lines are buffered until the next turn of the event loop (or 16 KB) |
 | `destinations` | `[process.stdout]` | The writable streams receiving every line; not closed by the logger |
 | `redactedHeaders` | `['authorization', 'cookie', 'set-cookie', 'proxy-authorization']` | The headers of a logged request or response written as `[Redacted]` (case-insensitive); the list replaces the default one, `[]` redacts none |

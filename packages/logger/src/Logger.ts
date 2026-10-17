@@ -94,10 +94,11 @@ export class Logger extends Component implements ILogger {
     /**
      * Color the readable lines written to `process.stdout` (the level, the message, the properties); the other
      * destinations and the JSON lines are never colored.
-     * @default true
+     * @default true when the standard output is a terminal and the `NO_COLOR` environment variable is not set (a
+     * standard output redirected to a file or a pipe gets no escape codes)
      * @protected
      */
-    @Configurable(DTO.Boolean().optional().default(true))
+    @Configurable(DTO.Boolean().optional().default((): boolean => !!process.stdout.isTTY && !process.env.NO_COLOR))
     protected readonly colorize: boolean
 
     /**
