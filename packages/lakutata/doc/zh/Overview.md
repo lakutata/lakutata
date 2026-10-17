@@ -113,6 +113,7 @@ Application
 | [MongoEmbedded](MongoEmbedded.md) | 应用内的 MongoDB，文档保存在文件中 |
 | [Entities](Entities.md) | 实体、查询、事务与错误 |
 | [Migrations](Migrations.md) | 编写、生成和执行迁移 |
+| [Cache](Cache.md) | `Cacher` 组件：`wrap()`、各种存储及其分层、存储保存的值 |
 | [I18n](I18n.md) | 多语言消息 |
 | [Mutex](Mutex.md) | 实例与进程之间的锁 |
 | [Queue](Queue.md) | 消息队列：生产者、`@QueueAction` 消费者、重试、死信、结果 |

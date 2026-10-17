@@ -129,8 +129,8 @@ access, 404 for a missing route or action, 409 for a lock not acquired…). Each
 - The guides, in this package: `doc/en` (English) and `doc/zh` (Chinese): `Overview.md`, `Core.md`, `DTOValidation.md`,
   `Decorator.md`, `Controllers.md`, `Entrypoint.md`, `Middlewares.md`, `ActionPattern.md`, `CLI.md`, `GRPC.md`,
   `NATS.md`, `Schedules.md`, `Database.md`, `DatabaseDrivers.md`, `MongoEmbedded.md`, `Entities.md`, `Migrations.md`,
-  `I18n.md`, `Mutex.md`, `Queue.md`, `DockerIntegration.md`, `ContainerdIntegration.md`, `Security.md`, `Time.md`,
-  `HelperFunctions.md`.
+  `Cache.md`, `I18n.md`, `Mutex.md`, `Queue.md`, `DockerIntegration.md`, `ContainerdIntegration.md`, `Security.md`,
+  `Time.md`, `HelperFunctions.md`.
 - `@lakutata/cli`: creating, building and packaging the applications.
 
 ## License

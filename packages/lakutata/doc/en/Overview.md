@@ -124,6 +124,7 @@ component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (
 | [MongoEmbedded](MongoEmbedded.md) | A MongoDB inside the application, its documents in files |
 | [Entities](Entities.md) | The entities, the queries, the transactions and the errors |
 | [Migrations](Migrations.md) | Writing, generating and running the migrations |
+| [Cache](Cache.md) | The `Cacher` component: `wrap()`, the stores and their tiers, what they keep |
 | [I18n](I18n.md) | Messages in several languages |
 | [Mutex](Mutex.md) | Locks shared between processes and instances |
 | [Queue](Queue.md) | The message queues: producers, `@QueueAction` consumers, retries, dead letters, results |
