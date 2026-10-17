@@ -6,7 +6,7 @@ import {Expect} from '@lakutata/core/decorator/dto'
  * other processes), the values as they are (not copied, not converted to JSON). It needs no optional dependency.
  *
  * It is the store of a cache without `stores`; declared, it is a tier in front of a slower store (the first store of
- * the list is read first, the hits of a later store are written back to the earlier ones).
+ * the list is read first; only `wrap()` copies an entry found in a later store to the earlier ones).
  * @example
  * ```typescript
  * import {Application} from 'lakutata'

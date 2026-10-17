@@ -6,9 +6,9 @@ import {CacheStoreOptions} from '../types/CacheStoreOptions.js'
  */
 export interface CacherOptions {
     /**
-     * The stores, the fastest first: the options of one store or an array of them, `type` choosing the store (`'file'`,
-     * `'redis'`, `'memcache'`, `'mongo'`, `'sqlite'`, `'postgres'`, `'mysql'`). A read returns the entry of the first
-     * store holding it; a write or a deletion goes to all of them. The in-memory store is used only without stores.
+     * The stores, the fastest first: the options of one store or an array of them, `type` choosing the store
+     * (`'memory'`, `'file'`, `'redis'`, `'memcache'`, `'mongo'`, `'sqlite'`, `'postgres'`, `'mysql'`). A read returns the
+     * entry of the first store holding it; a write or a deletion goes to all of them.
      * @default one in-memory store
      */
     stores?: CacheStoreOptions[] | CacheStoreOptions

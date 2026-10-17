@@ -22,7 +22,7 @@ interface MysqlDriver {
 
 /**
  * The MySQL store
- * Table format: (id VARCHAR(255) PRIMARY KEY, value TEXT), with "{namespace}:{key}" ids
+ * Table format: (id VARCHAR(255) PRIMARY KEY, value MEDIUMTEXT), with "{namespace}:{key}" ids
  */
 export class MysqlStore extends SerializedCacheStore {
 
