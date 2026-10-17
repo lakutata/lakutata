@@ -85,7 +85,13 @@ const RESOLVING: string = 'lakutataNativeResolving'
  * The files of the packages node never loads: their types, their source maps, their sources in TypeScript, their
  * documentation, the sources and the objects of their addons in C and C++ (better-sqlite3 holds the source of SQLite)
  */
-const UNUSED: RegExp = /\.(d\.[cm]?ts|[cm]?ts|map|md|markdown|c|cc|cpp|cxx|h|hh|hpp|hxx|o|obj)$/i
+const UNUSED: RegExp = /\.(d\.[cm]?ts|[cm]?ts|map|md|markdown|c|cc|cpp|cxx|h|hh|hpp|hxx|o|obj|a|lib|exp|pdb|ilk)$/i
+
+/**
+ * The files of the builds of the addons in build/ (node-gyp, CMake), which node never loads: their makefiles, their
+ * configurations, their objects and their dependency files; the addons and their libraries are kept
+ */
+const BUILD_FILES: RegExp = /^build\/(?:.*\/)?(?:\.deps|obj|obj\.target|CMakeFiles)\/|^build\/(?:.*\/)?(?:Makefile|[^/]+\.mk|config\.gypi|gyp-(?:mac|win)-tool|CMakeCache\.txt|cmake_install\.cmake|build\.ninja|\.ninja_deps|\.ninja_log|compile_commands\.json|[^/]+\.(?:vcxproj|vcxproj\.filters|sln|tlog))$/
 
 /**
  * The JavaScript files, which a package keeps when they are loaded (traced)
@@ -551,7 +557,12 @@ export class NativeCollector {
      * @param root
      */
     protected packageFiles(root: string): string[] {
-        const files: string[] = packageFiles(root).filter((file: string): boolean => !UNUSED.test(file))
+        //The builds of cargo (the Rust addons) are in target/
+        const cargo: boolean = existsSync(path.join(root, 'Cargo.toml'))
+        const files: string[] = packageFiles(root).filter((file: string): boolean => {
+            const relative: string = path.relative(root, file).split(path.sep).join('/')
+            return !UNUSED.test(file) && !BUILD_FILES.test(relative) && !(cargo && relative.startsWith('target/'))
+        })
         const loaded: Set<string> | undefined = this.loaded.get(root)
         if (!loaded || this.whole.has(root) || this.package(root)?.libraries) return files
         return files.filter((file: string): boolean => !SCRIPT.test(file) || loaded.has(file))

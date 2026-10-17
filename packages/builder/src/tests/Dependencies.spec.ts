@@ -140,4 +140,24 @@ exports.load = async (name) => {
         assert.deepStrictEqual(result.native?.modules, ['addon'])
         assert.strictEqual(runWithoutPackages(project, result.outfile), 'component addon')
     })
+
+    it('ships the files of the packages of addons, without their sources and what built them (node-gyp, CMake, cargo)', async (): Promise<void> => {
+        const project: string = path.join(work, 'built')
+        const shipped: string[] = ['index.js', 'data/table.json', 'build/Release/addon.node', 'build/Release/libshared.dylib']
+        const unused: string[] = ['cpp/binding.cc', 'deps/lib/libfixed.a', 'target/release/libaddon.dylib', 'build/Makefile', 'build/addon.target.mk', 'build/config.gypi',
+            'build/Release/.deps/Release/addon.node.d', 'build/Release/obj.target/addon/cpp/binding.o', 'build/CMakeFiles/addon.dir/flags.make', 'build/CMakeCache.txt', 'build/build.ninja']
+        writeProject(project, {
+            'package.json': JSON.stringify({name: 'built', version: '1.0.0', main: 'build/index.js'}),
+            'build/index.js': 'console.log(require(\'addon\').name)\n',
+            'node_modules/addon/package.json': JSON.stringify({name: 'addon', version: '1.0.0', main: 'index.js'}),
+            'node_modules/addon/Cargo.toml': '[package]\nname = "addon"\n',
+            ...Object.fromEntries([...shipped, ...unused].filter((file: string): boolean => file !== 'index.js').map((file: string): [string, string] => [`node_modules/addon/${file}`, 'built'])),
+            'node_modules/addon/index.js': 'exports.name = \'addon\'\n'
+        })
+        const result = await bundleProject({project: project})
+        const files: string[] = result.native!.files.map((file): string => file.path)
+        for (const file of shipped) assert.ok(files.includes(`node_modules/addon/${file}`), file)
+        for (const file of unused) assert.ok(!files.includes(`node_modules/addon/${file}`), file)
+        assert.strictEqual(runWithoutPackages(project, result.outfile), 'addon')
+    })
 })
