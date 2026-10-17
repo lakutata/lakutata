@@ -154,4 +154,4 @@ export function isMissingOrder(error: unknown): boolean {
 | `EntrypointStoppedException` | `E_ENTRYPOINT_STOPPED` | 应用正在停止（503） |
 | `ServiceInvokeException` | `E_SERVICE_INVOKE` | 通过 NATS 或 gRPC 的代理调用失败 |
 
-每个包的 README 列出了它自己的异常。没有被任何代码捕获的异常，以及导致应用启动失败的异常，会交给应用的处理函数（`onUncaughtException`、`onFatalException`，见 [Core](Core.md) 第 5 节）。
+每个包的 README 列出了它自己的异常。没有被任何代码捕获的异常，以及导致应用启动失败的异常，会交给应用的处理函数（`onUncaughtException`、`onFatalException`，见 [Application](Application.md) 第 2 节）。

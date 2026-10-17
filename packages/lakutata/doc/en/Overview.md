@@ -108,7 +108,9 @@ component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (
 
 | Guide | Topic |
 |---|---|
-| [Core](Core.md) | The application, the container, lifetimes, dependency injection, sharing features between applications, and the lifecycle |
+| [Application](Application.md) | The application: its options, the fluent API, the lifecycle, the mode, packed applications |
+| [Objects](Objects.md) | Components, providers and their container: lifetimes, scopes, creation and teardown, a container without an application |
+| [Injection](Injection.md) | Dependency injection, the options of objects, sharing features between applications |
 | [DTOValidation](DTOValidation.md) | DTOs and schemas: validating options, inputs and results |
 | [Exceptions](Exceptions.md) | Declaring exceptions, their messages, what the clients receive, the exceptions of the framework |
 | [Logger](Logger.md) | The `log` component: writing lines, readable lines or JSON, destinations, another logger |

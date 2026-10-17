@@ -126,11 +126,12 @@ access, 404 for a missing route or action, 409 for a lock not acquired…). Each
 
 ## See also
 
-- The guides, in this package: `doc/en` (English) and `doc/zh` (Chinese): `Overview.md`, `Core.md`, `DTOValidation.md`,
-  `Exceptions.md`, `Logger.md`, `Decorator.md`, `Time.md`, `HelperFunctions.md`, `Controllers.md`, `Entrypoint.md`,
-  `Middlewares.md`, `HTTP.md`, `CLI.md`, `ServiceCalls.md`, `GRPC.md`, `NATS.md`, `Schedules.md`, `Queue.md`,
-  `Database.md`, `DatabaseDrivers.md`, `MongoEmbedded.md`, `Entities.md`, `Migrations.md`, `Cache.md`, `Mutex.md`,
-  `I18n.md`, `DockerIntegration.md`, `ContainerdIntegration.md`, `Monitor.md`, `Security.md`, `DBus.md`, `MCP.md`.
+- The guides, in this package: `doc/en` (English) and `doc/zh` (Chinese): `Overview.md`, `Application.md`, `Objects.md`,
+  `Injection.md`, `DTOValidation.md`, `Exceptions.md`, `Logger.md`, `Decorator.md`, `Time.md`, `HelperFunctions.md`,
+  `Controllers.md`, `Entrypoint.md`, `Middlewares.md`, `HTTP.md`, `CLI.md`, `ServiceCalls.md`, `GRPC.md`, `NATS.md`,
+  `Schedules.md`, `Queue.md`, `Database.md`, `DatabaseDrivers.md`, `MongoEmbedded.md`, `Entities.md`, `Migrations.md`,
+  `Cache.md`, `Mutex.md`, `I18n.md`, `DockerIntegration.md`, `ContainerdIntegration.md`, `Monitor.md`, `Security.md`,
+  `DBus.md`, `MCP.md`.
 - `@lakutata/cli`: creating, building and packaging the applications.
 
 ## License

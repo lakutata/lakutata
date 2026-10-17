@@ -170,6 +170,6 @@ events for the reads.
 
 ## See also
 
-- `@lakutata/core` (`lakutata`): the components, `Application` and the dependency injection (`doc/en/Core.md` of the
-  package `lakutata`, Chinese in `doc/zh`).
+- `@lakutata/core` (`lakutata`): the components, `Application` and the dependency injection (`doc/en/Objects.md` and
+  `doc/en/Injection.md` of the package `lakutata`, Chinese in `doc/zh`).
 - `@lakutata/mutex` (`lakutata/com/mutex`): the locks, to compute a cached value in one instance at a time.

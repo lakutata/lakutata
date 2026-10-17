@@ -97,7 +97,9 @@ Application
 
 | 指南 | 主题 |
 |---|---|
-| [Core](Core.md) | 应用、容器、生命周期类型、依赖注入、在多个应用之间共享功能、应用的生命周期 |
+| [Application](Application.md) | 应用：选项、链式 API、生命周期、运行模式、打包后的应用 |
+| [Objects](Objects.md) | 组件、提供者及其容器：生命周期类型、作用域、创建与销毁、不使用应用的容器 |
+| [Injection](Injection.md) | 依赖注入、对象的选项、在多个应用之间共享功能 |
 | [DTOValidation](DTOValidation.md) | DTO、校验规则，以及选项、输入和返回值的校验 |
 | [Exceptions](Exceptions.md) | 声明异常、异常的消息、客户端收到的内容、框架的异常 |
 | [Logger](Logger.md) | `log` 组件：写日志、可读的行或 JSON、输出目标、换用其他日志记录器 |

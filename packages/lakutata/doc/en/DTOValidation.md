@@ -154,7 +154,7 @@ class Bank extends Component {
 ## 4. DTOs in the framework
 
 - **Object options**: `@Configurable(schema)` (from `lakutata/decorator/di`) validates an option of a component or a
-  provider; see [Core](Core.md).
+  provider; see [Injection](Injection.md).
 - **Controller actions**: the DTO given to `@GET`, `@POST`, `@CLIAction`, `@ServiceAction`… validates the input of the
   action; invalid input gets a 400 response. See [Controllers](Controllers.md).
 - **Pagination** (`lakutata/dtos`): `PaginationSearchDTO` and `PaginationResultDTO` are the input and the result of

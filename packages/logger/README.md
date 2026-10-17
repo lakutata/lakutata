@@ -133,6 +133,6 @@ and the circular references are replaced.
 
 ## See also
 
-- `doc/en/Core.md` of the package `lakutata` (Chinese in `doc/zh`): the components and the application lifecycle.
+- `doc/en/Application.md` of the package `lakutata` (Chinese in `doc/zh`): the components and the application lifecycle.
 - `@lakutata/core` (`lakutata`): `Application`, the components and the console logger of core.
 - `@lakutata/monitor` (`lakutata/com/monitor`): the process monitors, whose statistics the logger can report.

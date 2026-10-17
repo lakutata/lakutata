@@ -35,7 +35,7 @@ Application
 ```
 
 - 按名字 `log` 注入它。类型可以写成 `Logger`，也可以写成 `lakutata` 中的 `ILogger`，这是应用的所有日志记录器都实现的接口。
-- 应用的处理函数（`onLaunched`、`onDone`、`onUncaughtException`、`onFatalException`）的第二个参数就是它（见 [Core](Core.md) 第 5 节）。
+- 应用的处理函数（`onLaunched`、`onDone`、`onUncaughtException`、`onFatalException`）的第二个参数就是它（见 [Application](Application.md) 第 2 节）。
 - 它的选项写在 `components` 的 `log` 中，不需要 `class`（第 4 节）。
 
 ## 2. 写一行日志

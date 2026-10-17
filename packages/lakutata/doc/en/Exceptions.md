@@ -169,5 +169,5 @@ The framework throws exceptions of its own. The ones met most often:
 | `ServiceInvokeException` | `E_SERVICE_INVOKE` | A call through a proxy of NATS or gRPC failed |
 
 The README of each package lists its own exceptions. An exception that nothing catches, and an exception that stops the
-launch of the application, go to its handlers (`onUncaughtException`, `onFatalException`, see [Core](Core.md), section
-5).
+launch of the application, go to its handlers (`onUncaughtException`, `onFatalException`, see
+[Application](Application.md), section 2).

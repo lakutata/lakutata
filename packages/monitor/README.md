@@ -109,6 +109,6 @@ monitor with options it does not have is warned of when the application starts.
 
 ## See also
 
-- `doc/en/Core.md` of the package `lakutata` (Chinese in `doc/zh`): the components and the bootstrap.
+- `doc/en/Application.md` of the package `lakutata` (Chinese in `doc/zh`): the components and the bootstrap.
 - `@lakutata/core` (`lakutata`): the components, `Application` and the dependency injection.
 - `@lakutata/logger` (`lakutata/com/logger`): the logger, to write the reports.

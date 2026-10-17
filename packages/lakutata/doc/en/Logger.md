@@ -39,7 +39,7 @@ Application
 - Inject it by its name, `log`. Type it as `Logger`, or as `ILogger` (from `lakutata`), the interface that every
   logger of an application implements.
 - The handlers of the application (`onLaunched`, `onDone`, `onUncaughtException`, `onFatalException`) receive it as
-  their second argument (see [Core](Core.md), section 5).
+  their second argument (see [Application](Application.md), section 2).
 - Its options go into the `log` entry of `components`, without `class` (section 4).
 
 ## 2. Writing a line

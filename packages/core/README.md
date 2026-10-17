@@ -183,7 +183,7 @@ The typings document each declaration with examples.
 
 ## See also
 
-- The guides: `doc/en/Core.md`, `doc/en/DTOValidation.md`, `doc/en/Decorator.md` of the package `lakutata` (Chinese
-  in `doc/zh`).
+- The guides: `doc/en/Application.md`, `doc/en/Objects.md`, `doc/en/Injection.md`, `doc/en/DTOValidation.md`,
+  `doc/en/Decorator.md` of the package `lakutata` (Chinese in `doc/zh`).
 - `@lakutata/entrypoint`: the controllers and their HTTP, CLI and service transports.
 - `@lakutata/logger`: the logger that `lakutata` presets as `log` (pino-compatible JSON lines).
