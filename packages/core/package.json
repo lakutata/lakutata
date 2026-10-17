@@ -87,7 +87,7 @@
     "reflect-metadata": "0.2.2"
   },
   "engines": {
-    "node": ">=22"
+    "node": "^22.13.0 || >=24.11.0"
   },
   "files": [
     "dist",
