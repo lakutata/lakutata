@@ -1,6 +1,6 @@
 # Lakutata 安全
 
-`lakutata/security`（`@lakutata/security` 包）提供基于 bcrypt 的密码哈希（`PasswordHash`）、基于 HMAC 的消息签名（`Mac`）、基于 AES-256-GCM 的认证加密（`Crypt`），支持密钥轮换，以及它们底层的函数。它基于 `node:crypto` 实现（bcrypt 用 JavaScript 实现），没有可选依赖。`lakutata/provider/passwordHash` 只导出 `PasswordHash`。更多细节见 `@lakutata/security` 的 README。
+`lakutata/security`（`@lakutata/security` 包）提供基于 bcrypt 的密码哈希（`PasswordHash`）、基于 HMAC 的消息签名（`Mac`）和基于 AES-256-GCM 的认证加密（`Crypt`），以及它们所基于的函数；其中 `Mac` 和 `Crypt` 支持密钥轮换。它基于 `node:crypto` 实现（bcrypt 用 JavaScript 实现），没有可选依赖。`lakutata/provider/passwordHash` 只导出 `PasswordHash`。更多细节见 `@lakutata/security` 的 README。
 
 ## 1. 提供者
 
@@ -33,7 +33,7 @@ Application
         const token: string = mac.signMessage('user:42')
         //消息被篡改时抛出 InvalidSignatureException
         console.log(mac.unsignMessage(token))
-        //分离的签名
+        //单独的签名，不附在消息上
         const signature: string = mac.sign('payload')
         console.log(mac.verify('payload', signature))
 
@@ -46,7 +46,7 @@ Application
 
 - **密码**：`PasswordHash.hash()` 拒绝 UTF-8 编码超过 72 字节的密码（bcrypt 会忽略超出的字节），抛出 `PasswordTooLongException`；对这类密码，`validate()` 返回 `false`。哈希值请原样保存，并用 `validate()` 校验，不要用 `===` 比较。
 - **密钥**：`Mac` 和 `Crypt` 的密钥是至少 16 个字符的字符串。请用 `generateSecret()` 生成（32 个随机字节，base64url）：把密码当作密钥使用容易被暴力破解。
-- **密钥轮换**：把新密钥放在最前面，在仍需读取旧密钥签名或加密的数据期间保留旧密钥。
+- **密钥轮换**：把新密钥放在最前面；只要还要读取用旧密钥签名或加密的数据，就保留旧密钥。
 - **格式**：签名和加密数据都是不带填充的 base64url 字符串，可以安全地用于 URL 和 Cookie。
 
 ## 2. 按用途选择工具
@@ -81,7 +81,7 @@ const body: string = JSON.stringify({order: 42})
 const signature: string = hmac(body, key, 'sha512')
 console.log(verifyHMAC(body, signature, key, 'sha512'))
 
-//用随机密钥加密，可以用当前或之前的密钥解密
+//用一个密钥加密，用给出的任一密钥解密：当前的或之前的
 const encrypted: string = encryptByKey('card ending 4242', key)
 console.log(decryptByKey(encrypted, [key, generateSecret()]).toString('utf8'))
 
@@ -95,10 +95,10 @@ console.log(constantTimeEqual('presented-token', process.env.API_TOKEN ?? ''))
 
 ## 4. 错误
 
-| 异常 | 时机 |
+| 异常 | 什么时候 |
 |---|---|
 | `PasswordTooLongException` | `PasswordHash.hash()` 的密码 UTF-8 编码超过 72 字节 |
-| `InvalidSignatureException` | `Mac.unsignMessage()` 的消息被篡改、没有签名或由未知密钥签名 |
+| `InvalidSignatureException` | `Mac.unsignMessage()` 的消息被篡改过、没有签名，或者由未知的密钥签名 |
 | `DecryptionFailedException` | `Crypt.decrypt()`、`decryptString()`、`decryptByKey()`、`decryptByPassword()`：密钥或口令错误，数据被篡改或截断 |
 | `InvalidObjectOptionsException`（来自 `lakutata`） | 应用启动时提供者的选项不合法：没有密钥、密钥短于 16 个字符、未知算法、`saltRounds` 不在 4 到 31 之间 |
 

@@ -134,7 +134,7 @@ When an action fails, its transport reports the exception:
 
 With the `I18nMiddleware`, the message of an exception is translated into the language of the request, from the key
 `errors.<errno>` and the parameters of its template (see
-[I18n](I18n.md#the-messages-of-the-exceptions)). Out of a request, `exceptionParams(exception)`, from `lakutata`, gives
+[I18n](I18n.md#exception-messages)). Out of a request, `exceptionParams(exception)`, from `lakutata`, gives
 those parameters.
 
 To recognize an exception, use `instanceof` within the application, and `errno` across processes: the clients receive

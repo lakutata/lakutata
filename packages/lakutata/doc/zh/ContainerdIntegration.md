@@ -1,8 +1,8 @@
 # Lakutata Containerd 集成
 
-**containerd 组件**（`lakutata/com/containerd`，`@lakutata/containerd` 包）通过 [containerd](https://containerd.io) 的 gRPC API 管理一个 containerd 命名空间中的镜像、容器、CNI 网络和命名卷，不需要 Docker，也不需要 nerdctl。它面向只运行 containerd 的 Linux 机器，例如嵌入式设备：组件直接与 containerd 的套接字通信（gRPC 客户端用 TypeScript 编写，没有原生插件），并自己完成 nerdctl 在 containerd 之上所做的工作（从镜像仓库拉取、解包镜像层、生成容器的 OCI 规范、容器日志）。它的 API 与 Docker 组件一致（[DockerIntegration](DockerIntegration.md)）。全部选项见 `@lakutata/containerd` 的 README。
+**containerd 组件**（`lakutata/com/containerd`，`@lakutata/containerd` 包）通过 [containerd](https://containerd.io) 的 gRPC API 管理一个 containerd 命名空间中的镜像、容器、CNI 网络和命名卷，不需要 Docker，也不需要 nerdctl。它面向只运行 containerd 的 Linux 机器，例如嵌入式设备：组件直接与 containerd 的套接字通信（gRPC 客户端用 TypeScript 编写，没有原生插件），并自己完成 nerdctl 在 containerd 之上所做的工作（从镜像仓库拉取、解包镜像层、生成容器的 OCI 规范、容器日志）。它的 API 沿用 Docker 组件的 API（[DockerIntegration](DockerIntegration.md)）。全部选项见 `@lakutata/containerd` 的 README。
 
-它创建的容器就是 nerdctl 的容器：带有 nerdctl 的标签（`nerdctl/name`、`nerdctl/hostname` 等），因此 `nerdctl ps` 和 `ctr containers ls` 都能列出它们。
+它创建的容器与 nerdctl 创建的容器相同：带有 nerdctl 的标签（`nerdctl/name`、`nerdctl/hostname` 等），因此 `nerdctl ps` 和 `ctr containers ls` 都能列出它们。
 
 ## 1. 环境要求
 
@@ -56,7 +56,7 @@ Application
     })
 ```
 
-组件在创建时连接 containerd：`socketPath` 上没有 containerd 时，应用启动失败并抛出 `ContainerdConnectionException`。命名空间不存在时会被创建。每个组件只在一个命名空间中工作；要管理多个命名空间，就为每个命名空间声明一个组件。
+组件在创建时连接 containerd：`socketPath` 上没有 containerd 时，组件创建失败，抛出 `ContainerdConnectionException`；组件列在 `bootstrap` 里时，应用因此启动失败。命名空间不存在时会被创建。每个组件只在一个命名空间中工作；要管理多个命名空间，就为每个命名空间声明一个组件。
 
 ### 与 Docker 组件的不同
 
@@ -167,7 +167,7 @@ async function containers(containerd: Containerd): Promise<void> {
     //同时删除它的快照和状态
     await container.remove({force: true})
 
-    //按名称、标识符或其前缀查找；按标签列出
+    //带有这些标签的容器；getContainer() 按名称、id 或 id 的前缀查找一个容器
     console.log(await containerd.listContainers({app: 'worker'}))
 }
 ```
@@ -175,7 +175,7 @@ async function containers(containerd: Containerd): Promise<void> {
 - `devices` 在容器中创建主机的设备（单个设备，或某个目录下的所有设备，如 `/dev/snd`）。对于之后才插入的设备，绑定挂载它们所在的目录，并用 `deviceCgroupRules` 允许它们的设备号，与 Docker 的 `--device-cgroup-rule` 相同：`binds: [{hostPath: '/dev', containerPath: '/dev'}], deviceCgroupRules: ['c 188:* rwm']`。
 - 在 cgroup v2 上，容器有自己的 cgroup 命名空间（`cgroupns: 'host'` 则共享主机的）。
 - 容器的系统调用像 nerdctl 一样由 seccomp 过滤：使用 containerd 的默认配置，并放行容器 `capabilities` 所允许的系统调用（`capabilities: ['SYS_ADMIN']` 允许 `mount`、`unshare` 等）。`seccompProfile: 'unconfined'` 关闭过滤，给出文件路径则使用该 OCI 配置；特权容器不受限制。
-- `privileged`、`capabilities` / `capabilitiesDrop`、`readonlyRootfs`、`pidMode: 'host'`、`ipcMode: 'host'`、`sysctls`、`extraHosts`、`dns`、`shmSize`、`pidsLimit`、`cpuSet`、`cpuShares`、`memorySwap`、`OOMKillDisable` 与 Docker 的同名选项相同。
+- `privileged`、`capabilities` / `capabilitiesDrop`、`readonlyRootfs`、`pidMode: 'host'`、`ipcMode: 'host'`、`sysctls`、`extraHosts`、`dns`、`shmSize`、`pidsLimit`、`cpuSet`、`cpuShares`、`memorySwap`、`OOMKillDisable` 与 Docker 的同名选项作用相同。
 - `update()` 修改资源和重启策略以外的设置时，只对组件创建的容器有效（组件把它们的设置保存在 `dataRoot` 中）。
 
 ### 卷
@@ -260,7 +260,7 @@ BuildKit 使用组件的镜像仓库凭据（或 `auth`）拉取基础镜像。
 
 ## 7. 平台与事件
 
-`containerd.supportedPlatforms()` 返回本机能运行的平台：本机平台，以及在 `binfmt_misc` 中注册的模拟器（QEMU、Rosetta）对应的平台。注册了模拟器后，就能运行其他平台的容器：先拉取该平台的镜像，再 `createContainer({image: 'alpine:3.20', platform: 'linux/amd64', cmd: ['uname', '-m']})`。
+`containerd.supportedPlatforms()` 返回本机可以运行的平台：本机平台，以及在 `binfmt_misc` 中注册的模拟器（QEMU、Rosetta）对应的平台。注册了模拟器后，就能运行其他平台的容器：先拉取该平台的镜像，再 `createContainer({image: 'alpine:3.20', platform: 'linux/amd64', cmd: ['uname', '-m']})`。
 
 `containerd.events(signal)` 以流的形式返回命名空间中 containerd 的事件：
 

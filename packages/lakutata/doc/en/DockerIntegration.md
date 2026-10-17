@@ -23,8 +23,9 @@ remote host.
 | TCP, HTTPS | `host`, `port`, `ca`, `cert`, `key` as PEM contents (`buildDockerHttpsConnectionOptions`) |
 | SSH | `host`, `port`, `username`, `sshAuthAgent` (`buildDockerSSHConnectionOptions`) |
 
-When it is created, the component pings the daemon and negotiates the API version: an unreachable daemon fails the
-launch with `DockerConnectionException`. `timeout` (milliseconds) is the time a request may stay idle.
+When it is created, the component pings the daemon and negotiates the API version: an unreachable daemon makes its
+creation fail with `DockerConnectionException`; when the component is listed in `bootstrap`, the application then fails
+to start. `timeout` (milliseconds) is how long a request may stay idle.
 
 ```typescript
 import {readFileSync} from 'node:fs'
@@ -185,13 +186,13 @@ async function containers(docker: Docker): Promise<void> {
 
 - A `DockerContainer` is a snapshot: its operations refresh it; the changes made by others are seen by getting it
   again (`docker.getContainer(id)`, which also takes a name or a short ID).
-- Starting a running container or stopping a stopped one does nothing, as the Docker CLI.
-- `exec()` runs without TTY nor stdin. An array command runs as it is; a string is a command line, run by
+- Starting a running container, or stopping a stopped one, does nothing, as with the Docker CLI.
+- `exec()` runs without a TTY or stdin. An array command runs as it is; a string is a command line, run by
   `/bin/sh -c`.
 - `kill()` sends `SIGKILL` by default, or the signal given.
 - `commit()` makes an image of a container, `exportDirectory()` writes a directory of a container as a tar archive.
-- Not provided: attaching to the main process, copying files into a container, the volumes (other than by `prune()`)
-  and the daemon's events.
+- Not provided: attaching to the main process, copying files into a container, managing the volumes (other than pruning
+  them) and the events of the daemon.
 
 ## 5. Networks
 

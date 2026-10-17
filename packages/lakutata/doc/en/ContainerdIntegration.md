@@ -5,11 +5,11 @@ CNI networks and named volumes of a [containerd](https://containerd.io) namespac
 without Docker and without nerdctl. It targets the Linux machines that run containerd alone, such as embedded devices:
 the component talks to the socket of containerd (its gRPC client is written in TypeScript, no native addon), and does
 by itself what nerdctl does on top of it (pulling from the registries, unpacking the layers, generating the OCI
-specifications of the containers, their logs). Its API follows the one of the Docker component
+specifications of the containers, their logs). Its API follows that of the Docker component
 ([DockerIntegration](DockerIntegration.md)). The README of `@lakutata/containerd` gives every option.
 
-The containers it creates are the ones of nerdctl: they carry its labels (`nerdctl/name`, `nerdctl/hostname`…), so
-`nerdctl ps` and `ctr containers ls` list them.
+The containers it creates are the same as the containers nerdctl creates: they carry its labels (`nerdctl/name`,
+`nerdctl/hostname`…), so `nerdctl ps` and `ctr containers ls` list them.
 
 ## 1. Requirements
 
@@ -63,9 +63,10 @@ Application
     })
 ```
 
-The component connects when it is created: without containerd on `socketPath`, the application fails to start with a
-`ContainerdConnectionException`. Its namespace is created when it does not exist. Each component works in one
-namespace; declare one component per namespace to manage several.
+The component connects when it is created: without containerd on `socketPath`, its creation fails with a
+`ContainerdConnectionException`; when the component is listed in `bootstrap`, the application then fails to start. Its
+namespace is created when it does not exist. Each component works in one namespace; declare one component per namespace
+to manage several.
 
 ### What differs from the Docker component
 
@@ -178,7 +179,7 @@ async function containers(containerd: Containerd): Promise<void> {
     //Its snapshot and its state removed
     await container.remove({force: true})
 
-    //By its name, its identifier or a prefix of it; by labels
+    //The containers with these labels; getContainer() finds one by its name, its id or a prefix of its id
     console.log(await containerd.listContainers({app: 'worker'}))
 }
 ```
@@ -193,8 +194,8 @@ async function containers(containerd: Containerd): Promise<void> {
   `seccompProfile: 'unconfined'` disables it, the path of a file gives an OCI profile; the privileged containers are
   unconfined.
 - `privileged`, `capabilities` / `capabilitiesDrop`, `readonlyRootfs`, `pidMode: 'host'`, `ipcMode: 'host'`, `sysctls`,
-  `extraHosts`, `dns`, `shmSize`, `pidsLimit`, `cpuSet`, `cpuShares`, `memorySwap`, `OOMKillDisable` are the options of
-  Docker of the same names.
+  `extraHosts`, `dns`, `shmSize`, `pidsLimit`, `cpuSet`, `cpuShares`, `memorySwap`, `OOMKillDisable` work as the options
+  of Docker with the same names.
 - `update()` with other settings than the resources and the restart policy only works for the containers the component
   created (it keeps their settings in `dataRoot`).
 
@@ -253,8 +254,8 @@ async function networks(containerd: Containerd): Promise<void> {
 ```
 
 The networks of a container are set up by its runc hooks, as nerdctl does: they are added when its task is created and
-deleted when it stops, also when containerd restarts it by its restart policy (after a reboot, without the
-application). Its address is given at each start and written in its `/etc/hosts`.
+deleted when it stops, also when containerd restarts it under its restart policy (after a reboot, for example, while the
+application is not running). Its address is given at each start and written in its `/etc/hosts`.
 
 ## 6. Builds
 
@@ -291,7 +292,7 @@ BuildKit pulls the base images with the registry credentials of the component (o
 
 ## 7. Platforms and events
 
-`containerd.supportedPlatforms()` gives the platforms the machine runs: its own, and the ones of the emulators
+`containerd.supportedPlatforms()` gives the platforms the machine can run: its own, and the ones of the emulators
 registered in `binfmt_misc` (QEMU, Rosetta). A container of another platform runs once its emulator is registered:
 `createContainer({image: 'alpine:3.20', platform: 'linux/amd64', cmd: ['uname', '-m']})` after pulling that platform.
 
@@ -324,5 +325,5 @@ network exists, its subnet overlaps another one, or a container uses it), `Conta
 
 ## 9. Limits of this version
 
-- The projects of Compose are not supported.
+- Compose projects are not supported.
 - The logs of the containers have no timestamps.

@@ -199,7 +199,7 @@ class Images extends Component {
 
 ## 6. 异常
 
-| 异常 | 何时抛出 |
+| 异常 | 什么时候 |
 |---|---|
 | `QueueInvalidMessageException`（400） | 消息不是对象、队列名为空、消息头使用了 `x-lkt-`、值无法编码 |
 | `QueueCapabilityException` | 驱动不支持的选项（`priority`、`dedupe`、`delay`、`ordered`），没有保存结果 |

@@ -1,9 +1,10 @@
 # Lakutata Security
 
 `lakutata/security` (package `@lakutata/security`) provides password hashing with bcrypt (`PasswordHash`), message
-signatures with HMAC (`Mac`), authenticated encryption with AES-256-GCM (`Crypt`), with key rotation, and the functions
-under them. It is built on `node:crypto` (bcrypt is implemented in JavaScript) and has no optional dependency.
-`lakutata/provider/passwordHash` exports `PasswordHash` alone. The README of `@lakutata/security` gives the details.
+signatures with HMAC (`Mac`) and authenticated encryption with AES-256-GCM (`Crypt`), the last two with key rotation,
+and the functions they are built on. It uses `node:crypto` (bcrypt is implemented in JavaScript) and has no optional
+dependency. `lakutata/provider/passwordHash` exports `PasswordHash` alone. The README of `@lakutata/security` gives the
+details.
 
 ## 1. The providers
 
@@ -51,8 +52,8 @@ Application
 - **Passwords**: `PasswordHash.hash()` rejects the passwords longer than 72 bytes in UTF-8 (bcrypt ignores the
   following bytes) with `PasswordTooLongException`, and `validate()` gives `false` for them. Store the hash as it is and
   check it with `validate()`, never with `===`.
-- **Keys**: the keys of `Mac` and `Crypt` are strings of at least 16 characters. Generate them with `generateSecret()` (32
-  random bytes, base64url): a password used as a key is open to brute force.
+- **Keys**: the keys of `Mac` and `Crypt` are strings of at least 16 characters. Generate them with `generateSecret()`
+  (32 random bytes, base64url): a password used as a key is open to brute force.
 - **Key rotation**: put the new key first and keep the previous ones while the data they signed or encrypted is still
   read.
 - **Formats**: the signatures and the encrypted data are base64url strings without padding, safe in URLs and cookies.
@@ -89,7 +90,7 @@ const body: string = JSON.stringify({order: 42})
 const signature: string = hmac(body, key, 'sha512')
 console.log(verifyHMAC(body, signature, key, 'sha512'))
 
-//Encryption with a random key, decrypted with the current or a previous key
+//Encrypted with a key, decrypted with any of the keys given: the current one or a previous one
 const encrypted: string = encryptByKey('card ending 4242', key)
 console.log(decryptByKey(encrypted, [key, generateSecret()]).toString('utf8'))
 
@@ -106,9 +107,9 @@ console.log(constantTimeEqual('presented-token', process.env.API_TOKEN ?? ''))
 | Exception | When |
 |---|---|
 | `PasswordTooLongException` | `PasswordHash.hash()` with a password longer than 72 bytes in UTF-8 |
-| `InvalidSignatureException` | `Mac.unsignMessage()` with a message changed, unsigned or signed by an unknown key |
+| `InvalidSignatureException` | `Mac.unsignMessage()` with a message that was changed, that has no signature, or that an unknown key signed |
 | `DecryptionFailedException` | `Crypt.decrypt()`, `decryptString()`, `decryptByKey()`, `decryptByPassword()`: a wrong key or password, changed or truncated data |
 | `InvalidObjectOptionsException` (from `lakutata`) | The application starts with invalid provider options: no key, a key shorter than 16 characters, an unknown algorithm, `saltRounds` outside 4 to 31 |
 
-`verify()`, `verifyHMAC()`, `validate()` and `constantTimeEqual()` return `false` for a wrong or malformed signature, hash
-or secret instead of throwing.
+`verify()`, `verifyHMAC()`, `validate()` and `constantTimeEqual()` return `false` for a wrong or malformed signature,
+hash or secret instead of throwing.

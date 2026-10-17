@@ -227,7 +227,7 @@ The `interactive` option decides when the tool asks:
 | `noCommand` | `'help'` | Without arguments: `'help'` writes the help and exits with code 1, `'ignore'` runs nothing and leaves the application running |
 | `exit` | `'application'` | After the command: `'application'` stops the application and exits with the code of the command, `'process'` only sets `process.exitCode`, `'none'` does nothing, and a function receives the code |
 | `configure` | | `(program) => void`, called with the Commander program once the commands are added, before the arguments are read: global options, hooks |
-| `translate` | | Translates the help and the prompts (see [I18n](I18n.md#the-help-and-the-prompts-of-a-command-line-tool)) |
+| `translate` | | Translates the help and the prompts (see [I18n](I18n.md#help-and-prompts-of-a-command-line-tool)) |
 | `middlewares` | | The middlewares of the commands of this adapter, run after the ones of the entrypoint |
 | `name` | | The name of the adapter, to tell several apart |
 
