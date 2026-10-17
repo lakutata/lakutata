@@ -13,7 +13,7 @@ import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
 import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
 
 class OrderIdDTO extends DTO {
-    //路由参数和命令行参数都是文本：strict(false) 会转换它们
+    //路由参数是文本：strict(false) 会转换它（命令行会自行转换它的参数）
     @Expect(DTO.Number().integer().strict(false).required())
     public id: number
 }
@@ -141,7 +141,7 @@ $ node dist/index.js order 42
 
 然后由动作的 DTO 校验：
 
-- 能转换时，值会被转换成校验规则要求的类型。查询参数、路由参数和命令行参数都是文本：要求数字的规则需要 `.strict(false)` 才能接受 `'42'`；
+- 查询参数和路由参数的值都是文本：要求数字或布尔值的规则需要 `.strict(false)`，才能转换 `'42'` 或 `'true'`。命令行则会自行把参数和选项转换成对应属性的类型（见 [CLI](CLI.md)）；
 - 补上默认值，去掉 DTO 没有声明的键（上例中的 `extra`）；
 - 输入不合法时，请求以 `InvalidValueException` 结束，HTTP 返回状态码 400。消息指出第一个不合法的值：`"product" is required`。使用 I18n 中间件时，消息是请求的语言。
 

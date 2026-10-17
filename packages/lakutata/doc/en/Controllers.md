@@ -16,7 +16,7 @@ import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
 import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
 
 class OrderIdDTO extends DTO {
-    //Route parameters and command line arguments are text: strict(false) converts them
+    //A route parameter is text: strict(false) converts it (the command line converts its arguments itself)
     @Expect(DTO.Number().integer().strict(false).required())
     public id: number
 }
@@ -155,8 +155,9 @@ Each transport builds the input from its request:
 
 The DTO of the action then validates it:
 
-- a value is converted to the type of its schema when it can be. The query, the route parameters and the command line
-  arguments are text: a schema that expects a number needs `.strict(false)` to accept `'42'`;
+- the values of the query and of the route parameters are text: a schema that expects a number or a boolean needs
+  `.strict(false)` to convert `'42'` or `'true'`. The command line gives its arguments and options the type of their
+  property itself ([CLI](CLI.md));
 - the defaults are applied, and the keys the DTO does not declare are removed (`extra` above);
 - an invalid input stops the request with an `InvalidValueException`, answered with the status 400 over HTTP. The
   message names the first invalid value: `"product" is required`. With the I18n middleware, it is in the language of
