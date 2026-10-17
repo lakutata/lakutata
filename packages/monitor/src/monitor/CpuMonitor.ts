@@ -6,9 +6,10 @@ import {round, Samples} from './lib/Samples.js'
 /**
  * The CPU monitor: measures the CPU time the process uses (user plus system, all its threads), as a percentage of one
  * core: 100 is one core fully busy, and a process using several cores (worker threads, the libuv thread pool) goes
- * above 100. It takes a sample every second, each the average usage over that second, and keeps the statistics of
+ * above 100. It takes a sample every second, each the average usage since the previous one, and keeps the statistics of
  * every sample since it was created or last {@link CpuMonitor.reset}: the latest, the minimum, the maximum, the mean
- * and percentiles, in constant memory.
+ * and percentiles, in constant memory. A sample taken late, the event loop having been blocked, counts once per second
+ * it covers, so that the mean and the percentiles weigh the busy periods by their duration.
  *
  * Declare it in the `components` of the application (`{class: CpuMonitor}`) and get it with `@Inject` or
  * `getObject()`; it is a singleton. It starts sampling when it is created: list it in `bootstrap` to measure from the
@@ -72,7 +73,7 @@ export class CpuMonitor extends Component implements IMonitor<ICpuMonitorStatist
 
     /**
      * Take a sample: the CPU usage since the previous sample (user plus system time over the elapsed time, in percent of
-     * one core). Called every second.
+     * one core), recorded once per second it covers. Called every second, later when the event loop was blocked.
      * @protected
      */
     protected sampleCpuUsage(): void {
@@ -82,7 +83,11 @@ export class CpuMonitor extends Component implements IMonitor<ICpuMonitorStatist
         const elapsedMicroseconds: number = Number(now - this.#previousTime) / 1000
         this.#previousUsage = usage
         this.#previousTime = now
-        if (elapsedMicroseconds > 0) this.#samples.record(cpuMicroseconds / elapsedMicroseconds * 100)
+        if (elapsedMicroseconds <= 0) return
+        const percent: number = cpuMicroseconds / elapsedMicroseconds * 100
+        //A late sample covers several seconds: it weighs as many samples
+        const seconds: number = Math.max(1, Math.round(elapsedMicroseconds / 1e6))
+        for (let second: number = 0; second < seconds; second++) this.#samples.record(percent)
     }
 
     protected async init(): Promise<void> {

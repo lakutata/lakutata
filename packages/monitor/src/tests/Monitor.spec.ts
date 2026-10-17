@@ -60,6 +60,20 @@ describe('The monitors', (): void => {
         await container.destroy()
     })
 
+    it('weigh the CPU samples by the time they cover', async (): Promise<void> => {
+        const container: Container = new Container()
+        const monitor: CpuMonitor = await container.set(CpuMonitor)
+        try {
+            //The event loop blocked for 3 seconds: one late sample covers them
+            busy(3000)
+            await sleep(1100)
+            //3 busy seconds and 1 idle second: about 75 %, not the 50 % of the two samples
+            assert.ok(monitor.statistics.usageAvg > 62, `usage avg ${monitor.statistics.usageAvg}`)
+        } finally {
+            await container.destroy()
+        }
+    })
+
     it('sample the memory when created', async (): Promise<void> => {
         const container: Container = new Container()
         const monitor: MemoryMonitor = await container.set(MemoryMonitor)
