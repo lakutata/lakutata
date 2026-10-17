@@ -44,6 +44,25 @@ function guideSidebar(language: 'en' | 'zh', base: string): DefaultTheme.Sidebar
 }
 
 /**
+ * The sidebar of the examples of a language: the pages its index (README.md) links to, in its order
+ * @param language The language of the pages.
+ */
+function exampleSidebar(language: 'en' | 'zh'): DefaultTheme.SidebarItem[] {
+    const directory: string = join(ROOT, 'packages/lakutata/doc', language, 'examples')
+    const base: string = language === 'zh' ? '/zh/examples/' : '/examples/'
+    if (!existsSync(join(directory, 'README.md'))) return []
+    const pages: string[] = [...readFileSync(join(directory, 'README.md'), 'utf8').matchAll(/\]\(([A-Za-z]+)\.md\)/g)].map((match): string => match[1])
+    return [{
+        text: language === 'zh' ? '示例' : 'Examples',
+        link: base,
+        items: pages.filter((page: string): boolean => existsSync(join(directory, `${page}.md`))).map((page: string): DefaultTheme.SidebarItem => ({
+            text: readFileSync(join(directory, `${page}.md`), 'utf8').split('\n')[0].replace(/^#\s*/, ''),
+            link: `${base}${page}`
+        }))
+    }]
+}
+
+/**
  * The sidebar of the packages of a language
  * @param language The language of the pages.
  */
@@ -95,8 +114,10 @@ function apiSidebars(language: 'en' | 'zh'): Record<string, DefaultTheme.Sidebar
  * @param page The page.
  */
 const editLink = ({filePath}: {filePath: string}): string => {
+    const example = /^(zh\/)?examples\/(.*)$/.exec(filePath)
     const source: string = filePath.startsWith('guide/') ? `packages/lakutata/doc/en/${filePath.slice(6)}`
         : filePath.startsWith('zh/guide/') ? `packages/lakutata/doc/zh/${filePath.slice(9)}`
+            : example ? `packages/lakutata/doc/${example[1] ? 'zh' : 'en'}/examples/${example[2] === 'index.md' ? 'README.md' : example[2]}`
             : filePath.startsWith('packages/') && filePath !== 'packages/index.md' ? `packages/${filePath.slice(9).replace(/\.md$/, '')}/README.md`
                 : filePath.startsWith('zh/packages/') && filePath !== 'zh/packages/index.md' ? `packages/${filePath.slice(12).replace(/\.md$/, '')}/README.zh-CN.md`
                     : `website/src/${filePath}`
@@ -116,7 +137,7 @@ const HTML_ELEMENTS: Set<string> = new Set(('a abbr b blockquote br caption code
  * @param path The path of the page in the website.
  */
 function verbatim(path: string): boolean {
-    return /^(zh\/)?(guide|packages|api)\//.test(path)
+    return /^(zh\/)?(guide|examples|packages|api)\//.test(path)
 }
 
 export default defineConfig({
@@ -160,12 +181,14 @@ export default defineConfig({
             themeConfig: {
                 nav: [
                     {text: 'Guide', link: '/guide/Overview', activeMatch: '/guide/'},
+                    {text: 'Examples', link: '/examples/', activeMatch: '/examples/'},
                     {text: 'API', link: '/api/', activeMatch: '/api/'},
                     {text: 'Packages', link: '/packages/', activeMatch: '/packages/'},
                     {text: 'npm', link: 'https://www.npmjs.com/package/lakutata'}
                 ],
                 sidebar: {
                     '/guide/': guideSidebar('en', '/guide'),
+                    '/examples/': exampleSidebar('en'),
                     ...apiSidebars('en'),
                     '/packages/': packageSidebar('en')
                 },
@@ -183,12 +206,14 @@ export default defineConfig({
             themeConfig: {
                 nav: [
                     {text: '指南', link: '/zh/guide/Overview', activeMatch: '/zh/guide/'},
+                    {text: '示例', link: '/zh/examples/', activeMatch: '/zh/examples/'},
                     {text: 'API', link: '/zh/api/', activeMatch: '/zh/api/'},
                     {text: '包列表', link: '/zh/packages/', activeMatch: '/zh/packages/'},
                     {text: 'npm', link: 'https://www.npmjs.com/package/lakutata'}
                 ],
                 sidebar: {
                     '/zh/guide/': guideSidebar('zh', '/zh/guide'),
+                    '/zh/examples/': exampleSidebar('zh'),
                     ...apiSidebars('zh'),
                     '/zh/packages/': packageSidebar('zh')
                 },

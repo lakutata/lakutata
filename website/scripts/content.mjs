@@ -1,6 +1,6 @@
 //The content of the website, generated from the repository before VitePress builds it: the logo, the guides of
-//packages/lakutata/doc (English and Chinese), the READMEs of the published packages (README.md and README.zh-CN.md,
-//their relative links pointed to GitHub) and the API reference of the subpaths of lakutata (TypeDoc, from the
+//packages/lakutata/doc (English and Chinese) and their examples, the READMEs of the published packages (README.md and
+//README.zh-CN.md, their relative links pointed to GitHub) and the API reference of the subpaths of lakutata (TypeDoc, from the
 //declarations of the built packages: run `npm run build` at the root of the repository first), also under /zh/api/
 //with a Chinese note (its text is the one of the declarations).
 //
@@ -35,6 +35,21 @@ function guides() {
         fresh(join(SRC, target))
         for (const file of readdirSync(source).filter((name) => name.endsWith('.md')))
             writeFileSync(join(SRC, target, file), readFileSync(join(source, file), 'utf8'))
+    }
+}
+
+/**
+ * The examples, as they are (their README is the index), their links to the guides pointed to the guides of the website
+ */
+function examples() {
+    for (const [language, target, guides] of [['en', 'examples', '/guide/'], ['zh', 'zh/examples', '/zh/guide/']]) {
+        const source = join(ROOT, 'packages/lakutata/doc', language, 'examples')
+        fresh(join(SRC, target))
+        if (!existsSync(source)) continue
+        for (const file of readdirSync(source).filter((name) => name.endsWith('.md'))) {
+            const content = readFileSync(join(source, file), 'utf8').replace(/\]\(\.\.\/([^)\s]+)\)/g, `](${guides}$1)`)
+            writeFileSync(join(SRC, target, file === 'README.md' ? 'index.md' : file), content)
+        }
     }
 }
 
@@ -163,5 +178,6 @@ function logo() {
 
 logo()
 guides()
+examples()
 packages()
 if (!process.argv.includes('--no-api')) await api()
