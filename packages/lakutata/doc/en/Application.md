@@ -93,12 +93,11 @@ running `bun App.js`; executables built by Bun do not read it).
 
 ## 5. The packed application
 
-`isPackaged()` (from `lakutata`) tells whether the application is running as a bundle (`lakutata package bundle`) or as
-an executable (`lakutata package exe`). The files it reads at run time (the built pages of a web application,
-templates, data) are declared under `lakutata.resources` in its `package.json`, in the same form as electron-builder's
-`extraResources`: `[{"from": "../ui/dist", "to": "ui"}]`. When packed, `resourcesPath()` returns the directory holding
-them; when not, it returns `undefined` and the application reads them from the build directory:
-`const ui = resourcesPath() ? path.join(resourcesPath()!, 'ui') : uiBuildDirectory`.
+`lakutata package bundle`, `package exe` and `package installer` pack the compiled application into a bundle, an
+executable or installers. When it runs packed, `isPackaged()` (from `lakutata`) returns `true`, and `resourcesPath()`
+returns the directory of its resources, the files declared in the `lakutata.resources` of its `package.json`; when not
+packed, it returns `undefined` and the application reads those files from where they are built. See
+[Packaging](Packaging.md).
 
 ## 6. Entrypoints
 

@@ -11,7 +11,7 @@ hero:
   actions:
     - theme: brand
       text: 开始使用
-      link: /zh/guide/Overview
+      link: /zh/guide/GettingStarted
     - theme: alt
       text: API 参考
       link: /api/
@@ -73,4 +73,4 @@ Application.run(() => ({
 }))
 ```
 
-[概述](/zh/guide/Overview)介绍框架的基本概念，之后每篇指南讲解框架的一个部分。
+[快速开始](/zh/guide/GettingStarted)带你创建第一个项目；[概述](/zh/guide/Overview)介绍框架的基本概念，之后每篇指南讲解框架的一个部分。

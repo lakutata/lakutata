@@ -4,65 +4,9 @@
 
 `lakutata` 包通过各个子路径重新导出 `@lakutata/*` 系列包（见下表），并为每个应用预置两个组件：`log`（`Logger`，输出与 pino 兼容的 JSON 日志行）和 `entrypoint`（对外提供控制器的 `Entrypoint`）。
 
-## 环境要求
+## 从哪里开始
 
-- Node.js 22.13 或更高版本（Node.js 24 需 24.11 或更高）。
-- ESM（`"type": "module"`）；包里同时提供了 CommonJS 构建。
-- TypeScript 需开启 `experimentalDecorators` 和 `emitDecoratorMetadata`。框架所需的编译选项以 `lakutata/tsconfig.json` 发布。
-
-## 安装
-
-```bash
-npx @lakutata/cli create --name my-app   # 从模板创建新项目（Web、服务、CLI、Electron 等）
-npm install lakutata                      # 或在已有项目中安装框架
-```
-
-```json
-{
-  "extends": "lakutata/tsconfig.json",
-  "compilerOptions": {"rootDir": "src", "outDir": "dist"}
-}
-```
-
-传输方式和各项集成所需的客户端都是可选的 peer 依赖，用到时再安装：`express` 或 `fastify`、`commander`、`socket.io`、`ws`、数据库驱动（`pg`、`mysql2`、`better-sqlite3` 等）、缓存存储（`redis` 等）。
-
-## 第一个应用
-
-```typescript
-import {Application, DTO, type ILogger} from 'lakutata'
-import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
-import {GET, ServiceAction} from 'lakutata/decorator/ctrl'
-import {Expect} from 'lakutata/decorator/dto'
-import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
-
-class GreetDTO extends DTO {
-    @Expect(DTO.String().optional().default('world'))
-    public name: string
-}
-
-class GreetController extends Controller {
-    //GET /greet?name=you，以及服务动作 {cmd: 'greet', name: 'you'}
-    @GET('/greet', GreetDTO)
-    @ServiceAction({cmd: 'greet'}, GreetDTO)
-    public async greet(input: GreetDTO): Promise<{ message: string }> {
-        return {message: `Hello, ${input.name}!`}
-    }
-}
-
-Application
-    .run(() => ({
-        id: 'com.example.greeter',
-        name: 'Greeter',
-        components: {
-            entrypoint: buildEntrypoints({
-                controllers: [GreetController],
-                http: expressHTTPEntrypoint({port: 8080})
-            })
-        },
-        bootstrap: ['entrypoint']
-    }))
-    .onLaunched((app: Application, log: ILogger): void => log.info('%s started', app.appName))
-```
+[GettingStarted](GettingStarted.md) 用模板创建第一个项目，并演示第一个应用；[ProjectStructure](ProjectStructure.md) 介绍项目中的文件；下面的各篇指南分别介绍框架的各个部分。
 
 ## 子路径
 
@@ -91,12 +35,14 @@ Application
 | `lakutata/security`、`lakutata/provider/passwordHash` | 哈希、加解密、签名、`PasswordHash` 提供者 |
 | `lakutata/utils` | 辅助函数 |
 
-不在本包中的：`@lakutata/cli`（`lakutata` 命令：项目、打包、可执行文件、迁移）、`@lakutata/grpc`（gRPC 客户端、服务端和服务传输）、`@lakutata/nats`（NATS 组件和服务传输）、`@lakutata/dbus`（D-Bus）和 `@lakutata/mcp`（Model Context Protocol）。
+不在本包中的：`@lakutata/cli`（`lakutata` 命令：创建项目、执行迁移、打包应用，见 [Command](Command.md)）、`@lakutata/grpc`（gRPC 客户端、服务端和服务传输）、`@lakutata/nats`（NATS 组件和服务传输）、`@lakutata/dbus`（D-Bus）和 `@lakutata/mcp`（Model Context Protocol）。
 
 ## 指南
 
 | 指南 | 主题 |
 |---|---|
+| [GettingStarted](GettingStarted.md) | 环境要求、创建项目、在已有项目中加入 Lakutata、第一个应用 |
+| [ProjectStructure](ProjectStructure.md) | 用模板创建的项目中的文件、脚本和可选功能，以及自己的模板 |
 | [Application](Application.md) | 应用：选项、链式 API、生命周期、运行模式、打包后的应用 |
 | [Objects](Objects.md) | 组件、提供者及其容器：生命周期类型、作用域、创建与销毁、不使用应用的容器 |
 | [Injection](Injection.md) | 依赖注入、对象的选项、在多个应用之间共享功能 |
@@ -130,5 +76,7 @@ Application
 | [Security](Security.md) | 哈希、加解密、签名、密码 |
 | [DBus](DBus.md) | D-Bus 服务和客户端（`@lakutata/dbus`）：方法、对象、属性、信号 |
 | [MCP](MCP.md) | 模型上下文协议（`@lakutata/mcp`）的工具、资源和提示词，基于 stdio 和 HTTP |
+| [Command](Command.md) | `lakutata` 命令：创建项目、工作区、迁移、翻译、环境变量 |
+| [Packaging](Packaging.md) | 单文件包、可执行文件和安装包，以及打包后的应用在运行时读取什么 |
 
 每个 `@lakutata/*` 包都有自己的 README，各子路径的类型声明也为每个声明附带了说明和示例。

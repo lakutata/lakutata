@@ -10,68 +10,11 @@ The package `lakutata` re-exports the `@lakutata/*` packages under its subpaths 
 components in every application: `log` (the `Logger`, which writes pino-compatible JSON lines) and `entrypoint` (the
 `Entrypoint` that serves the controllers).
 
-## Requirements
+## Where to start
 
-- Node.js 22.13 or later (24.11 or later on Node.js 24).
-- ESM (`"type": "module"`); the package also ships CommonJS builds.
-- TypeScript with `experimentalDecorators` and `emitDecoratorMetadata`. The package publishes the compiler options the
-  framework needs as `lakutata/tsconfig.json`.
-
-## Installation
-
-```bash
-npx @lakutata/cli create --name my-app   # a new project from a template (web, service, CLI, Electron…)
-npm install lakutata                      # or the framework in an existing project
-```
-
-```json
-{
-  "extends": "lakutata/tsconfig.json",
-  "compilerOptions": {"rootDir": "src", "outDir": "dist"}
-}
-```
-
-Transports and integrations rely on optional peer dependencies that you install only when you use them: `express` or
-`fastify`, `commander`, `socket.io`, `ws`, database drivers (`pg`, `mysql2`, `better-sqlite3`…), cache stores
-(`redis`…).
-
-## A first application
-
-```typescript
-import {Application, DTO, type ILogger} from 'lakutata'
-import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
-import {GET, ServiceAction} from 'lakutata/decorator/ctrl'
-import {Expect} from 'lakutata/decorator/dto'
-import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
-
-class GreetDTO extends DTO {
-    @Expect(DTO.String().optional().default('world'))
-    public name: string
-}
-
-class GreetController extends Controller {
-    //GET /greet?name=you, and the service action {cmd: 'greet', name: 'you'}
-    @GET('/greet', GreetDTO)
-    @ServiceAction({cmd: 'greet'}, GreetDTO)
-    public async greet(input: GreetDTO): Promise<{ message: string }> {
-        return {message: `Hello, ${input.name}!`}
-    }
-}
-
-Application
-    .run(() => ({
-        id: 'com.example.greeter',
-        name: 'Greeter',
-        components: {
-            entrypoint: buildEntrypoints({
-                controllers: [GreetController],
-                http: expressHTTPEntrypoint({port: 8080})
-            })
-        },
-        bootstrap: ['entrypoint']
-    }))
-    .onLaunched((app: Application, log: ILogger): void => log.info('%s started', app.appName))
-```
+[GettingStarted](GettingStarted.md) creates a first project from a template and shows a first application;
+[ProjectStructure](ProjectStructure.md) describes the files of a project; the guides below cover each part of the
+framework.
 
 ## The subpaths
 
@@ -100,14 +43,17 @@ Application
 | `lakutata/security`, `lakutata/provider/passwordHash` | Hashing, ciphers, signatures, the `PasswordHash` provider |
 | `lakutata/utils` | The helper functions |
 
-Not part of this package: `@lakutata/cli` (the `lakutata` command for creating projects, bundling, building executables
-and running migrations), `@lakutata/grpc` (a gRPC client, server and service transport), `@lakutata/nats` (a NATS
-component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (the Model Context Protocol).
+Not part of this package: `@lakutata/cli` (the `lakutata` command for creating projects, running migrations and packing
+applications, see [Command](Command.md)), `@lakutata/grpc` (a gRPC client, server and service transport),
+`@lakutata/nats` (a NATS component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (the Model
+Context Protocol).
 
 ## The guides
 
 | Guide | Topic |
 |---|---|
+| [GettingStarted](GettingStarted.md) | Requirements, creating a project, adding Lakutata to an existing project, a first application |
+| [ProjectStructure](ProjectStructure.md) | The files, scripts and features of the projects made from the templates, and templates of your own |
 | [Application](Application.md) | The application: its options, the fluent API, the lifecycle, the mode, packed applications |
 | [Objects](Objects.md) | Components, providers and their container: lifetimes, scopes, creation and teardown, a container without an application |
 | [Injection](Injection.md) | Dependency injection, the options of objects, sharing features between applications |
@@ -141,6 +87,8 @@ component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (
 | [Security](Security.md) | Hashing, ciphers, signatures, passwords |
 | [DBus](DBus.md) | A D-Bus service and client (`@lakutata/dbus`): methods, objects, properties, signals |
 | [MCP](MCP.md) | The tools, resources and prompts of the Model Context Protocol (`@lakutata/mcp`), over stdio and HTTP |
+| [Command](Command.md) | The `lakutata` command: creating projects, workspaces, migrations, translations, environment variables |
+| [Packaging](Packaging.md) | Bundles, executables and installers, and what a packed application reads at run time |
 
 Each `@lakutata/*` package has its own README, and the type declarations of every subpath document each export with an
 example.

@@ -11,7 +11,7 @@ hero:
   actions:
     - theme: brand
       text: Get started
-      link: /guide/Overview
+      link: /guide/GettingStarted
     - theme: alt
       text: API reference
       link: /api/
@@ -73,4 +73,5 @@ Application.run(() => ({
 }))
 ```
 
-The [Overview](/guide/Overview) introduces the concepts; each guide then covers one part of the framework.
+[Getting Started](/guide/GettingStarted) creates a first project; the [Overview](/guide/Overview) introduces the
+concepts, and each guide then covers one part of the framework.

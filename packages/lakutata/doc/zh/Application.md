@@ -68,7 +68,7 @@ Application
 
 ## 5. 打包后的应用
 
-`isPackaged()`（来自 `lakutata`）表示应用是否以打包形式运行（`lakutata package bundle` 的打包产物或 `lakutata package exe` 的可执行文件）。应用运行时要读取的文件（Web 应用构建好的页面、模板、数据等）在 `package.json` 的 `lakutata.resources` 中声明，写法和 electron-builder 的 `extraResources` 一样：`[{"from": "../ui/dist", "to": "ui"}]`。打包后，`resourcesPath()` 返回这些文件所在的目录；未打包时返回 `undefined`，由应用到构建目录中查找：`const ui = resourcesPath() ? path.join(resourcesPath()!, 'ui') : uiBuildDirectory`。
+`lakutata package bundle`、`package exe` 和 `package installer` 把编译好的应用打包成单文件包、可执行文件或安装包。以打包形式运行时，`isPackaged()`（来自 `lakutata`）返回 `true`，`resourcesPath()` 返回资源所在的目录，资源就是 `package.json` 的 `lakutata.resources` 中声明的文件；未打包时，它返回 `undefined`，应用从这些文件的构建位置读取它们。详见 [Packaging](Packaging.md)。
 
 ## 6. 入口
 
