@@ -3,6 +3,8 @@ import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
 import {PassThrough} from 'node:stream'
 import {durationOf, takeOverUpgrades, upgrade} from './support/Upgrade.js'
+import {keepAliveAgent, postThrough} from './support/KeepAlive.js'
+import type {Agent} from 'node:http'
 import {Container, DTO, Exception} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {buildEntrypoints, Controller, Entrypoint, httpRequestOfContext, ServiceContext} from '../exports/Entrypoint.js'
@@ -87,6 +89,22 @@ async function post(port: number, body: unknown, headers: Record<string, string>
 }
 
 describe('The JSON-RPC 2.0 service adapter', (): void => {
+
+    //A body still arriving when its limit is passed: its rest is read and dropped
+    it('keeps the connection of a body of HTTP larger than its limit usable', async (): Promise<void> => {
+        const {port, container} = await start({path: '/rpc', limit: 64})
+        const agent: Agent = keepAliveAgent()
+        try {
+            const large = await postThrough(`http://127.0.0.1:${port}/rpc`, JSON.stringify({jsonrpc: '2.0', method: 'echo', params: {value: 1, padding: 'x'.repeat(1024 * 1024)}, id: 1}), agent)
+            //The next request of the client goes through the same connection
+            const next = await postThrough(`http://127.0.0.1:${port}/rpc`, JSON.stringify({jsonrpc: '2.0', method: 'echo', params: {value: 2}, id: 2}), agent)
+            assert.strictEqual(large.status, 413)
+            assert.strictEqual(JSON.parse(next.body).result.value, 2)
+        } finally {
+            agent.destroy()
+            await container.destroy()
+        }
+    })
 
     it('dispatches the requests of HTTP to the service actions', async (): Promise<void> => {
         const {port, container} = await start({path: '/rpc'})

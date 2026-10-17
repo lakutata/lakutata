@@ -2,6 +2,8 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
 import {durationOf, takeOverUpgrades, upgrade} from './support/Upgrade.js'
+import {keepAliveAgent, postThrough} from './support/KeepAlive.js'
+import type {Agent} from 'node:http'
 import {Container, DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {buildEntrypoints, Controller, Entrypoint, httpRequestOfContext, httpServiceEntrypoint, type HTTPServiceEntrypointOptions, Result, ServiceContext, type FileResult, type StatusResult} from '../exports/Entrypoint.js'
@@ -144,6 +146,22 @@ describe('HTTP service adapter', (): void => {
         const large = await invoke(`${url}/api`, {cmd: 'echo', value: 1, padding: 'x'.repeat(100)})
         assert.deepStrictEqual([large.status, large.error.message], [413, 'The body of the request is larger than 64 bytes'])
         await container.destroy()
+    })
+
+    //A body still arriving when its limit is passed: its rest is read and dropped
+    it('keeps the connection of a body larger than its limit usable', async (): Promise<void> => {
+        const {url, container} = await start({limit: 64})
+        const agent: Agent = keepAliveAgent()
+        try {
+            const large = await postThrough(url, JSON.stringify({cmd: 'echo', value: 1, padding: 'x'.repeat(1024 * 1024)}), agent)
+            //The next request of the client goes through the same connection
+            const next = await postThrough(url, JSON.stringify({cmd: 'echo', value: 2}), agent)
+            assert.strictEqual(large.status, 413)
+            assert.strictEqual(JSON.parse(next.body).payload.value, 2)
+        } finally {
+            agent.destroy()
+            await container.destroy()
+        }
     })
 
     it('streams the events pushed to the clients (Server-Sent Events), to every client', async (): Promise<void> => {

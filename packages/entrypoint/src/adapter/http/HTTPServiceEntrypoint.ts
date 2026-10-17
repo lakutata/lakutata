@@ -7,6 +7,7 @@ import {ServiceChannel} from '../../channel/BuiltinChannels.js'
 import {ServiceResponseCodec, type ServiceResponse} from '../../lib/ServiceResponseCodec.js'
 import {EntrypointStoppedException} from '../../exceptions/EntrypointStoppedException.js'
 import {trackConnections} from '../../lib/Connections.js'
+import {readBody} from '../../lib/ReadBody.js'
 
 /**
  * The options of {@link httpServiceEntrypoint}.
@@ -98,22 +99,6 @@ function clientIdOf(request: IncomingMessage, url: URL): string | undefined {
 function reply(response: ServerResponse, status: number, body: unknown): void {
     if (response.headersSent || response.writableEnded) return
     response.writeHead(status, {...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8'}).end(JSON.stringify(body))
-}
-
-/**
- * The body of a request, up to a limit
- * @param request
- * @param limit
- */
-async function readBody(request: IncomingMessage, limit: number): Promise<string> {
-    const chunks: Buffer[] = []
-    let size: number = 0
-    for await (const chunk of request) {
-        size += (chunk as Buffer).length
-        if (size > limit) throw Object.assign(new Error(`The body of the request is larger than ${limit} bytes`), {statusCode: 413})
-        chunks.push(chunk as Buffer)
-    }
-    return Buffer.concat(chunks).toString('utf8')
 }
 
 /**

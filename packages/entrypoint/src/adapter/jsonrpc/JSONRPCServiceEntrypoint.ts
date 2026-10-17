@@ -8,6 +8,7 @@ import {ServiceChannel} from '../../channel/BuiltinChannels.js'
 import {JSONRPCErrorCode, JSONRPCProtocol, type JSONRPCDispatch, type JSONRPCMappingOptions, type JSONRPCResponse} from './JSONRPCProtocol.js'
 import {applicationOf} from '../../lib/ApplicationOf.js'
 import {trackConnections} from '../../lib/Connections.js'
+import {readBody} from '../../lib/ReadBody.js'
 
 /**
  * The options of {@link jsonRPCServiceEntrypoint}: its transport, and how the requests map to the service actions (see
@@ -107,22 +108,6 @@ function clientIdOf(request: IncomingMessage): string | undefined {
     const given: string | string[] | null | undefined = request.headers.id ?? url.searchParams.get('id')
     const id: string | undefined = Array.isArray(given) ? given[0] : given ?? undefined
     return id && id.length <= 200 ? id : undefined
-}
-
-/**
- * The body of a request, up to a limit
- * @param request
- * @param limit
- */
-async function readBody(request: IncomingMessage, limit: number): Promise<string> {
-    const chunks: Buffer[] = []
-    let size: number = 0
-    for await (const chunk of request) {
-        size += (chunk as Buffer).length
-        if (size > limit) throw Object.assign(new Error(`The body of the request is larger than ${limit} bytes`), {status: 413})
-        chunks.push(chunk as Buffer)
-    }
-    return Buffer.concat(chunks).toString('utf8')
 }
 
 /**
@@ -378,8 +363,8 @@ export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
                             //Only notifications: no content
                             if (!response.headersSent) response.writeHead(204, CORS_HEADERS).end()
                         })
-                    }, (error: Error & { status?: number }): void => {
-                        response.writeHead(error.status ?? 400, {...CORS_HEADERS, 'Content-Type': 'application/json'}).end(JSON.stringify({jsonrpc: '2.0', id: null, error: {code: -32600, message: error.message}}))
+                    }, (error: Error & { statusCode?: number }): void => {
+                        response.writeHead(error.statusCode ?? 400, {...CORS_HEADERS, 'Content-Type': 'application/json'}).end(JSON.stringify({jsonrpc: '2.0', id: null, error: {code: -32600, message: error.message}}))
                     })
                 })
                 return await listen(server)
