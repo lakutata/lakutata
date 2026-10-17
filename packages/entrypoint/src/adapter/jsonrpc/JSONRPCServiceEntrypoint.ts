@@ -22,7 +22,9 @@ export type JSONRPCServiceEntrypointOptions = JSONRPCMappingOptions & {
     /**
      * The transport of the messages: `'http'` (a `POST` per message), `'websocket'` (a message per WebSocket text
      * frame, with the events pushed; it needs the optional package `ws`), or `'stdio'` (the process's standard input
-     * and output, for a child process, with the events pushed).
+     * and output, for a child process, with the events pushed). With `'stdio'`, the standard output belongs to the
+     * protocol: the application's logs must be written to the standard error
+     * (`{class: Logger, destinations: [process.stderr]}`), or they corrupt the messages.
      * @default 'http'
      */
     transport?: 'http' | 'websocket' | 'stdio'
