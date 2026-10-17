@@ -109,12 +109,12 @@ log.error(new Error('connection refused'), 'payment failed')
 |---|---|---|
 | `level` | `'trace'` | 写出的最低级别：`'trace'`、`'debug'`、`'info'`、`'warn'`、`'error'`、`'fatal'`（只写 `fatal()` 的日志）或 `'silent'`（什么都不写） |
 | `pretty` | `true` | 写可读的行；`false` 写 JSON 行 |
-| `colorize` | `true` | 给写到标准输出的可读行加上颜色 |
+| `colorize` | 在终端中时 | 给写到标准输出的可读行加上颜色 |
 | `destinations` | `[process.stdout]` | 接收日志行的流（第 5 节） |
 | `sync` | `false` | 每一行立即写出，而不是成批写出（第 6 节） |
 | `redactedHeaders` | `['authorization', 'cookie', 'set-cookie', 'proxy-authorization']` | 写成 `[Redacted]` 的请求头；这个列表会替换默认列表，`[]` 表示不隐去任何请求头 |
 
-即使标准输出被重定向到文件，`colorize` 也会加上颜色：这时请把它设为 `false`，或者改用 JSON 行。
+默认情况下，只有标准输出是终端、并且没有设置环境变量 `NO_COLOR` 时，可读行才带颜色：重定向到文件或者被日志收集器读取的标准输出不会包含颜色控制码。设置 `colorize: true` 时总是加上颜色。
 
 ## 5. 输出目标
 

@@ -128,8 +128,7 @@ When an action fails, its transport reports the exception:
 
 - Choose `statusCode` by what the client can do about the error: 400 to 499 when the request is wrong (404 for a
   missing resource, 409 for a conflict), 500 and above when the application failed.
-- An input refused by its DTO is an `InvalidValueException`. HTTP answers it with 400, the status of its cause (a
-  `SchemaValidationException`); its own `statusCode` is 500, and the service transports send both.
+- An input refused by its DTO is an `InvalidValueException`, whose status is 400: an error of the client.
 
 ## 5. Translating and recognizing an exception
 
@@ -160,7 +159,7 @@ The framework throws exceptions of its own. The ones met most often:
 
 | Exception | `errno` | When |
 |---|---|---|
-| `InvalidValueException` | `E_INVALID_VALUE` | A DTO refuses a value: the input of an action (400 over HTTP), a call to `validate()` |
+| `InvalidValueException` | `E_INVALID_VALUE` | A DTO refuses a value: the input of an action, a call to `validate()` (400) |
 | `InvalidObjectOptionsException` | `E_INVALID_OBJECT_OPTIONS` | The options of an object are invalid, when the application starts |
 | `DependencyInjectionException` | `E_DEPENDENCY_INJECTION` | An object cannot be created: a dependency is missing |
 | `AccessDeniedException` | `E_ACCESS_DENY` | The access control refuses a request (403) |

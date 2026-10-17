@@ -119,7 +119,7 @@ export async function pay(orderId: number, charge: () => Promise<void>): Promise
 | 定时任务 | 没有客户端：异常交给 `onError`，或者写入日志（见 [Schedules](Schedules.md)） |
 
 - 选择 `statusCode` 时看错误出在哪一方：请求有误时用 400 到 499（资源不存在用 404，冲突用 409），应用自身出错时用 500 及以上。
-- 被 DTO 拒绝的输入是 `InvalidValueException`。HTTP 以 400 响应它，这是它的原因（一个 `SchemaValidationException`）的状态码；它自己的 `statusCode` 是 500，服务传输方式会把两者都发给客户端。
+- 被 DTO 拒绝的输入是 `InvalidValueException`，它的状态码是 400，表示客户端的错误。
 
 ## 5. 翻译与识别异常
 
@@ -145,7 +145,7 @@ export function isMissingOrder(error: unknown): boolean {
 
 | 异常 | `errno` | 什么时候 |
 |---|---|---|
-| `InvalidValueException` | `E_INVALID_VALUE` | DTO 拒绝了一个值：动作的输入（HTTP 上为 400），或者对 `validate()` 的调用 |
+| `InvalidValueException` | `E_INVALID_VALUE` | DTO 拒绝了一个值：动作的输入，或者对 `validate()` 的调用（400） |
 | `InvalidObjectOptionsException` | `E_INVALID_OBJECT_OPTIONS` | 应用启动时，某个对象的选项无效 |
 | `DependencyInjectionException` | `E_DEPENDENCY_INJECTION` | 无法创建对象：缺少某个依赖 |
 | `AccessDeniedException` | `E_ACCESS_DENY` | 访问控制拒绝了请求（403） |

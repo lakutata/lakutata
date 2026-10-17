@@ -120,13 +120,14 @@ collector reads these lines; use them in production.
 |---|---|---|
 | `level` | `'trace'` | The lowest level written: `'trace'`, `'debug'`, `'info'`, `'warn'`, `'error'`, `'fatal'` (only the lines of `fatal()`) or `'silent'` (nothing) |
 | `pretty` | `true` | Readable lines; `false` writes the JSON lines |
-| `colorize` | `true` | Colors the readable lines written to the standard output |
+| `colorize` | on a terminal | Colors the readable lines written to the standard output |
 | `destinations` | `[process.stdout]` | The streams that receive the lines (section 5) |
 | `sync` | `false` | Writes each line at once, instead of in batches (section 6) |
 | `redactedHeaders` | `['authorization', 'cookie', 'set-cookie', 'proxy-authorization']` | The headers written as `[Redacted]`; the list replaces the default one, and `[]` redacts none |
 
-`colorize` colors the standard output even when it is redirected to a file: set it to `false` then, or write JSON
-lines.
+By default, the readable lines are colored when the standard output is a terminal and the `NO_COLOR` environment
+variable is not set: a standard output redirected to a file or read by a collector gets no escape codes.
+`colorize: true` colors it in any case.
 
 ## 5. Destinations
 
