@@ -124,7 +124,7 @@ Inside the method, two properties describe the request:
 | `@ServiceAction(pattern)` | A service pattern | [ServiceCalls](ServiceCalls.md), [GRPC](GRPC.md), [NATS](NATS.md) |
 | `@Schedule(schedule)` | An interval or a cron expression | [Schedules](Schedules.md) |
 | `@QueueAction(queue)` (`lakutata/com/queue`) | A message queue | [Queue](Queue.md) |
-| `@MCPTool(name)` (`@lakutata/mcp`), `@DBusMethod(...)` (`@lakutata/dbus`) | An MCP tool, a D-Bus method | The README of their package |
+| `@MCPTool(name)` (`@lakutata/mcp`), `@DBusMethod(...)` (`@lakutata/dbus`) | An MCP tool, a D-Bus method | [MCP](MCP.md), [DBus](DBus.md) |
 
 The decorators of the first five rows come from `lakutata/decorator/ctrl`, unless the table names another subpath.
 They take the address first, then the DTO class of the input, then the action options; the DTO and the options can be

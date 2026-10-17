@@ -113,6 +113,8 @@ component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (
 | [Exceptions](Exceptions.md) | Declaring exceptions, their messages, what the clients receive, the exceptions of the framework |
 | [Logger](Logger.md) | The `log` component: writing lines, readable lines or JSON, destinations, another logger |
 | [Decorator](Decorator.md) | The decorators, by subpath |
+| [Time](Time.md) | The `Time` class |
+| [HelperFunctions](HelperFunctions.md) | The helper functions of `lakutata/utils` |
 | [Controllers](Controllers.md) | Controllers and actions: their addresses, input and results, prefixes, inheritance |
 | [Entrypoint](Entrypoint.md) | The entrypoint component: its options and adapters, starting and stopping, the list of the actions |
 | [Middlewares](Middlewares.md) | The middlewares and the access control of the actions |
@@ -122,20 +124,21 @@ component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (
 | [GRPC](GRPC.md) | The service actions over gRPC (`@lakutata/grpc`), and calling them from other applications and languages |
 | [NATS](NATS.md) | The NATS component, the service actions over NATS (`@lakutata/nats`), the service proxies and their events |
 | [Schedules](Schedules.md) | Scheduled jobs: intervals, cron expressions, jobs run by one instance |
+| [Queue](Queue.md) | The message queues: producers, `@QueueAction` consumers, retries, dead letters, results |
 | [Database](Database.md) | The `Database` component and provider, the connection options, several databases |
 | [DatabaseDrivers](DatabaseDrivers.md) | The database drivers, one by one: what to install, their options, their limits |
 | [MongoEmbedded](MongoEmbedded.md) | A MongoDB inside the application, its documents in files |
 | [Entities](Entities.md) | The entities, the queries, the transactions and the errors |
 | [Migrations](Migrations.md) | Writing, generating and running the migrations |
 | [Cache](Cache.md) | The `Cacher` component: `wrap()`, the stores and their tiers, what they keep |
-| [I18n](I18n.md) | Messages in several languages |
 | [Mutex](Mutex.md) | Locks shared between processes and instances |
-| [Queue](Queue.md) | The message queues: producers, `@QueueAction` consumers, retries, dead letters, results |
+| [I18n](I18n.md) | Messages in several languages |
 | [DockerIntegration](DockerIntegration.md) | The `Docker` component |
 | [ContainerdIntegration](ContainerdIntegration.md) | The `Containerd` component |
+| [Monitor](Monitor.md) | The CPU, memory, event loop and HTTP request monitors |
 | [Security](Security.md) | Hashing, ciphers, signatures, passwords |
-| [Time](Time.md) | The `Time` class |
-| [HelperFunctions](HelperFunctions.md) | The helper functions of `lakutata/utils` |
+| [DBus](DBus.md) | A D-Bus service and client (`@lakutata/dbus`): methods, objects, properties, signals |
+| [MCP](MCP.md) | The tools, resources and prompts of the Model Context Protocol (`@lakutata/mcp`), over stdio and HTTP |
 
 Each `@lakutata/*` package has its own README, and the type declarations of every subpath document each export with an
 example.

@@ -60,8 +60,8 @@ Application.run(() => ({
 | `service` | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | [NATS](NATS.md) |
 | `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | | [Schedules](Schedules.md) |
 | `queue` | `queueEntrypoint()` | `lakutata/com/queue` | 队列服务器的客户端 | [Queue](Queue.md) |
-| `mcp` | `httpMCPEntrypoint()`、`stdioMCPEntrypoint()` | `@lakutata/mcp` | `@lakutata/mcp` | `@lakutata/mcp` 的 README |
-| `dbus` | `dbusEntrypoint()` | `@lakutata/dbus` | `@lakutata/dbus` | `@lakutata/dbus` 的 README |
+| `mcp` | `httpMCPEntrypoint()`、`stdioMCPEntrypoint()` | `@lakutata/mcp` | `@lakutata/mcp` | [MCP](MCP.md) |
+| `dbus` | `dbusEntrypoint()` | `@lakutata/dbus` | `@lakutata/dbus` | [DBus](DBus.md) |
 
 ## 3. 多个适配器
 

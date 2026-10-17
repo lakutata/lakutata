@@ -112,7 +112,7 @@ $ node dist/index.js order 42
 | `@ServiceAction(pattern)` | 服务模式 | [ServiceCalls](ServiceCalls.md)、[GRPC](GRPC.md)、[NATS](NATS.md) |
 | `@Schedule(schedule)` | 间隔或 cron 表达式 | [Schedules](Schedules.md) |
 | `@QueueAction(queue)`（`lakutata/com/queue`） | 消息队列 | [Queue](Queue.md) |
-| `@MCPTool(name)`（`@lakutata/mcp`）、`@DBusMethod(...)`（`@lakutata/dbus`） | MCP 工具、D-Bus 方法 | 各自包的 README |
+| `@MCPTool(name)`（`@lakutata/mcp`）、`@DBusMethod(...)`（`@lakutata/dbus`） | MCP 工具、D-Bus 方法 | [MCP](MCP.md)、[DBus](DBus.md) |
 
 除非表中注明了其他子路径，前五行的装饰器都来自 `lakutata/decorator/ctrl`。它们依次接受地址、输入的 DTO 类和动作选项，DTO 和选项都可以省略。`@Schedule` 是例外：它不接受 DTO，因为定时任务没有输入。
 

@@ -102,6 +102,8 @@ Application
 | [Exceptions](Exceptions.md) | 声明异常、异常的消息、客户端收到的内容、框架的异常 |
 | [Logger](Logger.md) | `log` 组件：写日志、可读的行或 JSON、输出目标、换用其他日志记录器 |
 | [Decorator](Decorator.md) | 各子路径的装饰器 |
+| [Time](Time.md) | `Time` 类 |
+| [HelperFunctions](HelperFunctions.md) | `lakutata/utils` 的辅助函数 |
 | [Controllers](Controllers.md) | 控制器与动作：地址、输入与结果、前缀、继承 |
 | [Entrypoint](Entrypoint.md) | 入口组件：选项与适配器、启动与停止、动作列表 |
 | [Middlewares](Middlewares.md) | 动作的中间件与访问控制 |
@@ -111,19 +113,20 @@ Application
 | [GRPC](GRPC.md) | 通过 gRPC 提供服务动作（`@lakutata/grpc`），以及从其他应用和其他语言调用它们 |
 | [NATS](NATS.md) | NATS 组件、通过 NATS 提供服务动作（`@lakutata/nats`）、服务代理及其事件 |
 | [Schedules](Schedules.md) | 定时任务：间隔、cron 表达式、只在一个实例中执行的任务 |
+| [Queue](Queue.md) | 消息队列：生产者、`@QueueAction` 消费者、重试、死信、结果 |
 | [Database](Database.md) | `Database` 组件与提供者、连接选项、多个数据库 |
 | [DatabaseDrivers](DatabaseDrivers.md) | 逐个介绍数据库驱动：需要安装什么、选项、限制 |
 | [MongoEmbedded](MongoEmbedded.md) | 应用内的 MongoDB，文档保存在文件中 |
 | [Entities](Entities.md) | 实体、查询、事务与错误 |
 | [Migrations](Migrations.md) | 编写、生成和执行迁移 |
 | [Cache](Cache.md) | `Cacher` 组件：`wrap()`、各种存储及其分层、存储保存的值 |
-| [I18n](I18n.md) | 多语言消息 |
 | [Mutex](Mutex.md) | 实例与进程之间的锁 |
-| [Queue](Queue.md) | 消息队列：生产者、`@QueueAction` 消费者、重试、死信、结果 |
+| [I18n](I18n.md) | 多语言消息 |
 | [DockerIntegration](DockerIntegration.md) | `Docker` 组件 |
 | [ContainerdIntegration](ContainerdIntegration.md) | `Containerd` 组件 |
+| [Monitor](Monitor.md) | CPU、内存、事件循环和 HTTP 请求的监控器 |
 | [Security](Security.md) | 哈希、加解密、签名、密码 |
-| [Time](Time.md) | `Time` 类 |
-| [HelperFunctions](HelperFunctions.md) | `lakutata/utils` 的辅助函数 |
+| [DBus](DBus.md) | D-Bus 服务和客户端（`@lakutata/dbus`）：方法、对象、属性、信号 |
+| [MCP](MCP.md) | 模型上下文协议（`@lakutata/mcp`）的工具、资源和提示词，基于 stdio 和 HTTP |
 
 每个 `@lakutata/*` 包都有自己的 README，各子路径的类型声明也为每个声明附带了说明和示例。
