@@ -1,5 +1,7 @@
 # @lakutata/builder
 
+English | [中文](README.zh-CN.md)
+
 The builder for lakutata applications. The `package bundle`, `package exe` and `package installer` commands of
 `@lakutata/cli` use it, and a project's scripts can call it directly:
 

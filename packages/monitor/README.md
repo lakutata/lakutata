@@ -1,5 +1,7 @@
 # @lakutata/monitor
 
+English | [中文](README.zh-CN.md)
+
 The monitors of the lakutata framework: components that measure the process's CPU usage, memory, event loop delay and
 utilization, and the duration of the HTTP requests it receives, using Node.js histograms in constant memory. Each one
 exposes a `statistics` getter (the latest value, minimum, maximum, mean and percentiles since it was created or last

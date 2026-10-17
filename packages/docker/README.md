@@ -1,5 +1,7 @@
 # @lakutata/docker
 
+English | [中文](README.zh-CN.md)
+
 The Docker component of the lakutata framework. It drives a Docker daemon through the Docker Engine API, without the
 Docker CLI: it pulls, builds (with BuildKit), imports, exports, tags and pushes images; creates, runs and manages
 containers (exec, interactive TTYs, logs, stats, commit, file export); and manages networks. It connects to a local
@@ -231,12 +233,12 @@ console.log((await docker.listContainers()).map((container: DockerContainer): st
 - `createTTY()` runs `/bin/sh` by default; its `cmd` follows the same rules as for `exec()`. Its write failures are
   logged by the application's `log` component, or to the console when there is none.
 - `kill()` sends `SIGKILL` by default, or the signal given (`'SIGHUP'`, `15`).
-- `update()` changes the memory limit, the CPUs and the restart policy live, and the name by renaming the container.
-  Any other setting recreates the container from its whole configuration (command, mounts, networks, with the
-  anonymous volumes mounted again). The new container is created under a temporary name and replaces the old one only
-  once it is created (and started, if the old one was running), so a failure leaves the old one as it was. The
-  container's ID changes, and its files outside volumes are not kept.
-- `state.startedAt` and `state.finishedAt` are `null` when the container was never started or never exited.
+- `update()` changes the memory limit, the CPUs and the restart policy live, and the name by renaming the container. Any
+  other setting recreates the container from its whole configuration (command, mounts, networks, with the anonymous
+  volumes mounted again). The new container is created under a temporary name and replaces the old one only once it is
+  created (and started, if the old one was running), so a failure leaves the old one as it was. The container's ID
+  changes, and its files outside volumes are not kept.
+- `state.startedAt` is `null` when the container was never started, and `state.finishedAt` when it never exited.
 - Not provided: attaching to the main process, copying files into a container, managing volumes (other than with
   `prune()`), and the daemon's events.
 
@@ -294,11 +296,11 @@ examples.
 | `DockerImageNotFoundException` (`E_DOCKER_IMAGE_NOT_FOUND`) | `getImage()` finds no image with this ID or name; `createContainer()` (or a recreation by `update()`) with a missing image; an operation on an image that was removed |
 | `DockerImagePullException` (`E_DOCKER_IMAGE_PULL`) | `pullImage()` fails, or the component is destroyed during the pull |
 | `DockerImageBuildException` (`E_DOCKER_IMAGE_BUILD`) | `buildImage()` fails: a failed step, a missing file, a base image that cannot be pulled, or the component destroyed during the build |
-| `DockerImageImportException` (`E_DOCKER_IMAGE_IMPORT`) | `importImage()`: the daemon rejects the archive, or the loaded image is unknown |
+| `DockerImageImportException` (`E_DOCKER_IMAGE_IMPORT`) | `importImage()`: the daemon rejects the archive, or the image it loaded cannot be found afterwards |
 | `DockerImagePushException` (`E_DOCKER_IMAGE_PUSH`) | `push()`: the registry refuses the push |
 | `DockerImageRepoTagNotFoundException` (`E_DOCKER_IMAGE_REPO_TAG_NOT_FOUND`) | `export()` with a tag that the image does not have, and `createRepoTagIfNotExists: false` |
 | `DockerNetworkNotFoundException` (`E_DOCKER_NETWORK_NOT_FOUND`) | `getNetwork()` or `removeNetwork()` with an ID, short ID or name that matches no network; a container created or recreated on a missing network |
-| `DockerRequestException` (`E_DOCKER_REQUEST`) | The daemon refuses a request and none of the exceptions above applies: its `statusCode` is the HTTP status (409 for a name already in use or a container that is not running, 401 for credentials refused by `loginRepository()`, 400 for an invalid setting, 500…), and its message is the daemon's |
+| `DockerRequestException` (`E_DOCKER_REQUEST`) | The daemon refuses a request and none of the exceptions above applies: its `statusCode` is the HTTP status (409 for a name already in use or a container that is not running, 401 for credentials refused by `loginRepository()`, 400 for an invalid setting, 500 for an error of the daemon), and its message is the daemon's |
 | `InvalidMethodAcceptException` (from `lakutata`) | The options of a call are invalid |
 | The errors of Node.js | The daemon becomes unreachable after the component's creation (`ECONNREFUSED`…); the `source` file of `importImage()` cannot be read (`ENOENT`…) |
 

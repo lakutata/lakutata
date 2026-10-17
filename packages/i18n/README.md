@@ -1,5 +1,7 @@
 # @lakutata/i18n
 
+English | [中文](README.zh-CN.md)
+
 The internationalization component of the lakutata framework. It holds the application's messages for each language,
 by key, written in [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) and
 formatted for their language by the built-in `Intl` of Node.js (numbers, currencies, dates, plurals, selects), with no
@@ -82,7 +84,7 @@ Application
 | `validationMessages` | `true` | Whether the built-in validation messages of the languages are registered |
 
 **Fallbacks.** A message missing in a language is looked up in its `fallback` languages (and in theirs), then in its
-less specific tags (`zh-Hant-TW`, `zh-Hant`, `zh`), then in the default language. It is always formatted in the
+less specific tags (for `zh-Hant-TW`: `zh-Hant`, then `zh`), then in the default language. It is always formatted in the
 requested language: an English message used for a German request writes `1.000`. A key found nowhere throws
 `I18nMissingKeyException`, or returns the key itself with `missing: 'key'`.
 
@@ -91,8 +93,8 @@ requested language: an English message used for a German request writes `1.000`.
 them negotiates the language: an unsupported language is looked up as given, then falls back.
 
 **At run time**, `addMessages(locale, messages)` adds or replaces messages. A new language becomes supported
-(`getLocales()`, `negotiate()`) unless the `locales` option lists the languages, and its validation messages are
-registered as at creation. The promise that `addMessages()` returns resolves once they are; `t()` gives the new
+(`getLocales()`, `negotiate()`) unless the `locales` option lists the languages; its validation messages are registered
+as at creation in any case. The promise that `addMessages()` returns resolves once they are; `t()` gives the new
 messages as soon as `addMessages()` returns.
 
 ### The translator of a request

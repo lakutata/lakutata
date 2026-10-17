@@ -1,5 +1,7 @@
 # @lakutata/orm
 
+English | [中文](README.zh-CN.md)
+
 The ORM of the lakutata framework, built on [TypeORM](https://typeorm.io) 1. It provides the `Database` component (a
 connection shared by the application), the `Database` provider (a connection of its own), the entity decorators, the
 TypeORM API (repositories, find operators, query builders, migrations), and the migration commands of an application
@@ -81,11 +83,11 @@ compaction back: the compaction closes it, and its next read fails (in the worke
 10 minutes in any case).
 
 A sort without an index holds all the documents it sorts in memory, even with a `limit` after it: index the fields that
-large collections are sorted on. A sort with a `limit` reads the order of an index; otherwise mingo sorts in memory,
-placing the integers beyond 2^53 (kept as `Long`) after the other numbers, in the order of their text. An index key
-holds about 1000 bytes at most (its values are encoded with the `_id`: a string of 995 bytes with an `ObjectId`). A
-write that would create a larger key fails before it is written, with the code 17280 that MongoDB used before 4.2 (in
-an `insertMany`, as an error of that document).
+large collections are sorted on. A sort with a `limit` on an indexed field reads the order of the index; otherwise mingo
+sorts in memory, placing the integers beyond 2^53 (kept as `Long`) after the other numbers, in the order of their text.
+An index key holds about 1000 bytes at most (its values are encoded with the `_id`: with an `ObjectId` as `_id`, a
+string of 995 bytes at most). A write that would create a larger key fails before it is written, with the code 17280
+that MongoDB used before 4.2 (in an `insertMany`, as an error of that document).
 
 As with the `mongodb` type, TypeORM's relations, query builders and transactions are not supported (`transaction()`
 runs its function without a transaction), and migrations are written by hand (through `queryRunner.manager`, a

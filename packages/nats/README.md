@@ -1,5 +1,7 @@
 # @lakutata/nats
 
+English | [中文](README.zh-CN.md)
+
 The NATS component of the lakutata framework. It provides a connection to a NATS server to publish, subscribe and send
 requests (with MessagePack or JSON payloads), serves an application's service channel over NATS
 (`natsServiceEntrypoint`), offers proxies that invoke the actions of other services and listen to their events
@@ -226,20 +228,20 @@ transfers never delay small messages: the sender stores the encoded payload and 
 receiver reads the object, then deletes it. Callbacks, actions and `invoke()` always see the whole value.
 
 - This bulk channel is on by default (`bulk: true`) and needs JetStream. When it cannot start (no JetStream, or the
-  bucket is refused), the component prints a warning and starts without it.
+  server refuses the bucket), the component prints a warning and starts without it.
 - Applications that exchange large payloads must share a bucket: set the same `bulkBucket` on all of them. The default
   bucket depends on the `name` option (`lkt-bulk-{name}`, or `lkt-bulk-default` without a name), so two applications
   with different names cannot read each other's objects (`NatsBulkException`).
 - Objects that are never read (the requester has gone, a response was lost) expire after `bulkTTL` (5 minutes by
   default); `bulkReplicas` sets the number of replicas of the bucket in a cluster. Both apply when the bucket is
   created.
-- A large response is relayed when the requester has declared the bulk channel (its requests carry this
-  declaration). A large request is relayed when the responders support it. The component learns this from an earlier
-  response on the same subject, or else asks once with a probe of the subject (`_LKT.BULK.<subject>`): responders with
-  the bulk channel answer it and older versions ignore it, in which case the request is sent as a plain message and
-  fails if it exceeds `max_payload`.
-- Applications without the bulk channel (`bulk: false`, or versions that predate it) keep working with the others:
-  they receive the payloads directly, and a payload over `max_payload` fails.
+- A large response is relayed when the requester has declared the bulk channel (its requests carry this declaration). A
+  large request is relayed when the responders support it. The component learns this from an earlier response on the
+  same subject, or else asks once with a probe of the subject (`_LKT.BULK.<subject>`): responders with the bulk channel
+  answer it and older versions ignore it, in which case the request is sent as a plain message and fails if it exceeds
+  `max_payload`.
+- Applications without the bulk channel (`bulk: false`, or versions that predate it) keep working with the others: they
+  receive the payloads directly, and a payload over `max_payload` fails.
 - Published messages and service events are never relayed: over `max_payload`, `publish()` and `emitServiceEvent()`
   throw the NATS client error `MAX_PAYLOAD_EXCEEDED`.
 

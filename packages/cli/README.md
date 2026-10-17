@@ -1,5 +1,7 @@
 # @lakutata/cli
 
+English | [中文](README.zh-CN.md)
+
 The command line tool of the [lakutata](https://github.com/lakutata/lakutata) framework.
 
 ```bash
@@ -22,7 +24,7 @@ both the features and the confirmation).
 | `--id <id>` | the ID of the application (a package name), by default its name in lower case |
 | `--template <template>` | the template (`default` when it is not given): an official template (listed by `lakutata templates`), `npm:<package>[@<version>]`, `github:<owner>/<repo>[#<ref>]` or a directory |
 | `--path <directory>` | the directory in which the project directory is created, by default the current one |
-| `--init` | create the project in the `--path` directory itself, which must exist and may hold files: the files it already has are kept (a warning lists those that the template also has, to merge by hand), and only the files written are filled |
+| `--init` | create the project in the `--path` directory itself, which must exist and may hold files: the files it already has are kept (a warning lists those that the template also has, to merge by hand), and only the files the tool writes are filled with the information of the project |
 | `--description`, `--author`, `--license` | information about the application |
 | `--with <features>` | the optional features of the template to enable, separated by commas (listed by `lakutata templates`): `i18n`, `installer`. In a terminal, without `--with` or `--yes`, you choose them from a list |
 | `--package-manager <npm\|pnpm\|yarn\|none>` | the package manager that installs the dependencies (`none` installs nothing): npm by default, or pnpm or yarn when one of them started the tool |
@@ -35,12 +37,12 @@ lakutata create --name my-service --template service --with i18n --yes
 ```
 
 Every official template has the `i18n` feature: the messages of the application in several languages
-(`lakutata/com/i18n`), in `src/locales` (`en.json`, `zh-CN.json`) and bundled with the code. Each request is answered
-in its own language, including its validation errors (command line tools and Electron applications use the language
-of the environment). The feature also adds the `i18n:check` and `i18n:types` scripts. The `cli`, `service` and `web-*`
+(`lakutata/com/i18n`), in `src/locales` (`en.json`, `zh-CN.json`) and bundled with the code. Each request is answered in
+its own language, including its validation errors (command line tools and Electron applications use the language of the
+environment). The feature also adds the `i18n:check` and `i18n:types` scripts. The `cli`, `service` and `web-*`
 templates also have the `installer` feature: the `lakutata.installer` configuration of the application and the scripts
-that make its installers (on the machine, and for Linux in Docker), with a system service for the `service` and
-`web-*` templates.
+that make its installers (on the machine, and for Linux in Docker), and, in the `service` and `web-*` templates, a
+system service.
 
 ### `lakutata templates`
 
@@ -64,8 +66,8 @@ a terminal):
   `"lakutata": {"template": "default", "features": {"i18n": "The messages in several languages"}}`;
 - the files of a feature are in `features/<name>/`, beside `template/` (and published with it, in the `files` of the
   package). They are added to the project when the feature is enabled: a JSON file that the project already has is
-  merged into it (objects merged by key, arrays replaced: the scripts of `package.json`, the options of
-  `tsconfig.json`), and any other file replaces the one of the template;
+  merged into it (its objects merged by key, such as the scripts of `package.json` and the options of `tsconfig.json`,
+  and its arrays replaced), and any other file replaces the one of the template;
 - the files of the template can hold blocks for a feature: the lines between `//@if <feature>` and `//@end` (or
   `//@else`; `//@if !<feature>` for when the feature is not enabled) are kept when the feature is enabled and removed
   otherwise, and the marker lines are always removed. The markers are written as comments of the file's language:
@@ -98,10 +100,10 @@ that these projects use, without lerna.
 Run a script in every package that has it, in the order of their dependencies (in `dependencies`, `devDependencies`,
 `peerDependencies` and `optionalDependencies`): a package starts once the packages it depends on, directly or not, have
 finished, and packages that do not depend on each other run at the same time. The scripts run with the package manager
-of the project: the `packageManager` field of a `package.json`, else a lock file (`pnpm-lock.yaml` or
-`pnpm-workspace.yaml` for pnpm, `yarn.lock`, `package-lock.json`), looked for from the root of the workspace up; npm by
-default. Each line of output starts with the name of its package. The scripts take no extra arguments. When no package
-has the script, the command says so and succeeds.
+of the project: the `packageManager` field of the root `package.json`, else the files at the root (`pnpm-lock.yaml` or
+`pnpm-workspace.yaml` for pnpm, `yarn.lock`, `package-lock.json`); npm by default. Each line of output starts with the
+name of its package. The scripts take no extra arguments. When no package has the script, the command says so and
+succeeds.
 
 | Option | |
 |---|---|
@@ -171,7 +173,8 @@ addon are not changed. Repeating a change changes nothing.
     macOS, its install name must be `@rpath/libfoo.dylib` (set with `install_name_tool -id`): the command says so when
     it is not;
   - `--crate`: a crate, for a Rust addon (`cargo add`).
-- `lakutata native include <directory>`: a directory of headers (C++).
+- `lakutata native include <directory>`: a directory of headers (C++), of the package or an absolute directory of the
+  system.
 - `lakutata native define <NAME[=value]>`: a preprocessor definition (C++).
 
 `--platform mac|linux|win` makes the change for one platform only (a library file sets its own platform: `.dylib` macOS,
@@ -184,7 +187,7 @@ target to change when the build file has several. What is written, by build syst
 | Library | `libraries` | `target_link_libraries` | `rustc-link-lib` |
 | pkg-config | `<!@(pkg-config ...)` | `pkg_check_modules(... IMPORTED_TARGET ...)` | the `-sys` crates |
 | Framework | `xcode_settings.OTHER_LDFLAGS` | `-framework` in `if(APPLE)` | `rustc-link-lib=framework=` |
-| Dynamic library | `copies`, the rpath | `INSTALL_RPATH` (`BUILD_WITH_INSTALL_RPATH`), a `POST_BUILD` copy | `rustc-cdylib-link-arg`, a `postbuild:native` copy |
+| Dynamic library | `copies`, the rpath | `INSTALL_RPATH` (`BUILD_WITH_INSTALL_RPATH`), a `POST_BUILD` copy | `rustc-cdylib-link-arg`, a copy in `build:native` |
 | Headers, definitions | `include_dirs`, `defines` | `target_include_directories`, `target_compile_definitions` | none (crates) |
 | Platform | `conditions` (`OS=="mac"`, `OS!="win"`) | `if(APPLE)`, `if(WIN32)`, `if(NOT WIN32)`, `if(CMAKE_SYSTEM_NAME STREQUAL "Linux")` | `LAKUTATA_NATIVE_MACOS`, `_LINUX`, `_WINDOWS`, `_UNIX` |
 

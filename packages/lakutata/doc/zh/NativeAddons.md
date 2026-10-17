@@ -109,7 +109,7 @@ lakutata native link libc --crate                   # 一个 crate（Rust：carg
 ✔ Linked deps/lib/libbar.dylib (gyp): binding.gyp
 ```
 
-- **文件还是系统的库**：含有 `/`，或者以 `.a`、`.lib`、`.so`、`.dylib`、`.dll` 结尾的值，是包中的文件；其他值是系统中某个库的名称。这些文件必须在包内，因为它们要随包一起发布。
+- **文件还是系统的库**：含有 `/`，或者以 `.a`、`.lib`、`.so`、`.dylib`、`.dll` 结尾的值，是包中的文件；其他值是系统中某个库的名称。这些文件必须在包内，因为它们要随包一起发布；头文件目录要么在包内，要么是系统中的绝对路径。
 - **修改适用的平台**：库文件决定它自己的平台（`.dylib` 是 macOS，`.so` 是 Linux，`.dll` 和 `.lib` 是 Windows，`.a` 是除 Windows 以外的所有平台），`--framework` 表示 macOS，`--pkg-config` 表示除 Windows 以外的所有平台，`--platform mac|linux|win` 指定一个平台。修改针对的不是本机的平台时，命令会提示（`! The change is for win: it is built and tried there`）。
 - **动态库**在构建插件时被复制到插件旁边，运行时插件通过它的 rpath（macOS 上是 `@loader_path`，Linux 上是 `$ORIGIN`）在那里找到它们。在 macOS 上，库的安装名称（install name）必须是 `@rpath/libbar.dylib`（`install_name_tool -id @rpath/libbar.dylib deps/lib/libbar.dylib`），不是时命令会提醒你。在 Windows 上，DLL 通过它的导入库链接，导入库必须在它旁边（`deps/lib/bar.dll` 和 `deps/lib/bar.lib`）。
 - **Rust 插件**通过 `build.rs` 链接原生库，`build.rs` 从 `.cargo/config.toml` 读取这些库（`lakutata native link` 写在那里）。`include`、`define` 和 `--pkg-config` 会被拒绝，因为 Rust 用 crate 来做这些事（`--crate` 用 `cargo add` 添加一个 crate，它会在 crate 的仓库中查找）。
@@ -123,7 +123,7 @@ lakutata native link libc --crate                   # 一个 crate（Rust：carg
 | 库 | `libraries` | `target_link_libraries` | `rustc-link-lib` |
 | pkg-config | `<!@(pkg-config ...)` | `pkg_check_modules(... IMPORTED_TARGET ...)` | `-sys` crate |
 | 框架 | `xcode_settings.OTHER_LDFLAGS` | `if(APPLE)` 中的 `-framework` | `rustc-link-lib=framework=` |
-| 动态库 | `copies`、rpath | `INSTALL_RPATH`（`BUILD_WITH_INSTALL_RPATH`）、一个 `POST_BUILD` 复制命令 | `rustc-cdylib-link-arg`、一个 `postbuild:native` 复制脚本 |
+| 动态库 | `copies`、rpath | `INSTALL_RPATH`（`BUILD_WITH_INSTALL_RPATH`）、一个 `POST_BUILD` 复制命令 | `rustc-cdylib-link-arg`、`build:native` 中的复制命令 |
 | 头文件、宏定义 | `include_dirs`、`defines` | `target_include_directories`、`target_compile_definitions` | 无（用 crate） |
 | 平台 | `conditions`（`OS=="mac"`、`OS!="win"`） | `if(APPLE)`、`if(WIN32)`、`if(NOT WIN32)`、`if(CMAKE_SYSTEM_NAME STREQUAL "Linux")` | `LAKUTATA_NATIVE_MACOS`、`_LINUX`、`_WINDOWS`、`_UNIX` |
 

@@ -1,5 +1,7 @@
 # @lakutata/mcp
 
+English | [中文](README.zh-CN.md)
+
 The MCP channel for the [lakutata](https://github.com/lakutata/lakutata) framework. The
 [Model Context Protocol](https://modelcontextprotocol.io) (MCP) is how AI applications (Claude Desktop, Claude Code,
 IDEs, agents) give a model access to the tools, data and prompts of other programs. This package serves an
@@ -84,7 +86,7 @@ Application.run(() => ({
 ### Connecting an AI client
 
 Over stdio, the client runs the application as a subprocess. With Claude Code, run
-`claude mcp add devices -- node dist/app.js`; with Claude Desktop and most other clients, add the server to their MCP
+`claude mcp add devices -- node build/App.js`; with Claude Desktop and most other clients, add the server to their MCP
 configuration:
 
 ```text
@@ -120,7 +122,7 @@ expects.
 | a `CallToolResult` (`{content: [...]}`) | the result as is |
 | `undefined` | an empty result |
 
-An error reaches the model as a result with `isError: true` and the text `errno: errMsg`, so the model can correct its
+An error reaches the model as a result with `isError: true` and the text `errno: message`, so the model can correct its
 input and call the tool again.
 
 ### Resources

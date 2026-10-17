@@ -1,5 +1,7 @@
 # @lakutata/utils
 
+English | [中文](README.zh-CN.md)
+
 The utilities of the lakutata framework. `Time` is a date and time in an IANA time zone, with a moment-style API
 (formatting, calendar arithmetic across daylight saving time changes, comparisons). The helpers, shared by the framework
 and its applications, cover strings, objects, arrays and sets, hashes and encodings, UUIDs, IP addresses, globs and
@@ -295,7 +297,7 @@ instead of throwing.
 
 | Error | Thrown when |
 |---|---|
-| `RangeError` | `new Time()` (and the `Time` comparisons) with a string that is not a date; `Time.timezone()` with an unknown time zone; `randomString()` with a negative or fractional length or an empty character set; `signedToHex()`/`unsignedToHex()` with a number that is not an integer or does not fit in the width; `hexToSigned()`/`hexToUnsigned()` with a value beyond `Number.MAX_SAFE_INTEGER`; `hexToIEEE754()` with a number of digits other than 8 or 16; `UUID.v1()`/`UUID.v3()`/`UUID.v4()`/`UUID.v5()`/`UUID.v6()` with a buffer that is too small (nothing is written); `MessagePack.encode()` with a `bigint` outside the 64-bit ranges; `MessagePack.decode()` with empty or truncated bytes |
+| `RangeError` | `new Time()` (and the `Time` comparisons) with a string that is not a date; the `timezone()` of a `Time` with an unknown time zone; `randomString()` with a negative or fractional length or an empty character set; `signedToHex()`/`unsignedToHex()` with a number that is not an integer or does not fit in the width; `hexToSigned()`/`hexToUnsigned()` with a value beyond `Number.MAX_SAFE_INTEGER`; `hexToIEEE754()` with a number of digits other than 8 or 16; `UUID.v1()`/`UUID.v3()`/`UUID.v4()`/`UUID.v5()`/`UUID.v6()` with a buffer that is too small (nothing is written); `MessagePack.encode()` with a `bigint` outside the 64-bit ranges; `MessagePack.decode()` with empty or truncated bytes |
 | `SyntaxError` | `hexToSigned()`, `hexToUnsigned()`, `hexToIEEE754()` with a character that is not a hexadecimal digit, or with no digits |
 | `TypeError` | `UUID.parse()`, `UUID.version()`, `UUID.v3()`/`UUID.v5()` with an invalid UUID; `sortKeys()`/`sortObject()` with a value that is not a plain object or an array; `sortArray()` by a property, when an item is `null` or `undefined`; `ObjectPath.set()` through a `null` value, or with a path through `__proto__`, `constructor` or `prototype`; `templating()` with a template that is not a string |
 | `MissingValueError` | `templating()` with a placeholder that has no value, unless `ignoreMissing` is set |

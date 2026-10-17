@@ -1,5 +1,7 @@
 # @lakutata/entrypoint
 
+English | [中文](README.zh-CN.md)
+
 The entrypoint of the lakutata framework: controllers and their actions, served by transports. One controller method
 can be an HTTP route, a CLI command, a service action (called over HTTP, Socket.IO, JSON-RPC, gRPC, NATS or Electron
 IPC) and a scheduled job at the same time. Whatever the transport, a request goes through the same middlewares, its

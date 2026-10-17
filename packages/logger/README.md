@@ -1,5 +1,7 @@
 # @lakutata/logger
 
+English | [中文](README.zh-CN.md)
+
 The logger component of the lakutata framework. It writes pino's log format (one JSON object per line) or readable
 lines, colored on a terminal, to stdout or any writable streams, buffering them for speed and flushing them when the
 process exits. The umbrella package `lakutata` presets it as the `log` component of every application (created first,
@@ -128,7 +130,7 @@ examples.
 
 | Exception | When |
 |---|---|
-| `InvalidObjectOptionsException` (from `lakutata`) | The application starts with invalid logger options: an unknown `level`, a destination that is not a stream (`InvalidValueException` when the logger is created outside the checked options, as in a bare `Container`) |
+| `InvalidObjectOptionsException` (from `lakutata`) | The application starts with invalid logger options: an unknown `level`, a destination that is not a stream (a logger created without this check, by a bare `Container` for example, throws `InvalidValueException` instead) |
 
 A log method never throws because of what it logs: values that cannot be serialized (functions, symbols) are left
 out, and circular references are replaced.

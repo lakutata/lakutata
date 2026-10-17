@@ -1,5 +1,7 @@
 # @lakutata/mutex
 
+English | [中文](README.zh-CN.md)
+
 The lock component of the lakutata framework: named locks that let one holder at a time do a piece of work. Depending
 on the driver (memory, lock files, Redis, PostgreSQL or MySQL), a lock is shared by the components of a process, by the
 processes of a host, or by every instance of an application. A lock is held with a token and renewed while it is held;

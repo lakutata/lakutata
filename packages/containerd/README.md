@@ -1,5 +1,7 @@
 # @lakutata/containerd
 
+English | [中文](README.zh-CN.md)
+
 The containerd component of the lakutata framework. It manages the images, containers, CNI networks and named volumes of
 a [containerd](https://containerd.io) namespace by talking directly to containerd's gRPC socket, without a Docker daemon
 or nerdctl (the gRPC client is written in TypeScript, with no native addon). It targets Linux machines that run

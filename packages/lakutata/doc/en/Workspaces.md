@@ -35,12 +35,13 @@ Docker scripts left out):
 - **The packages** are the directories that the patterns of `workspaces` match and that hold a `package.json` with a
   `name`: `*` matches within one directory name, `**` any number of directories, and `!packages/old` leaves a directory
   out. `node_modules` and the directories starting with a dot are never searched. A pnpm workspace lists its patterns in
-  `pnpm-workspace.yaml` instead, as a list under `packages:` (`- 'packages/*'` lines, or `['packages/*']`). - **The
-  commands work from any directory** of the workspace: they use the nearest parent directory that declares a workspace.
-  - **The dependencies between packages** are the ones in `dependencies`, `devDependencies`, `peerDependencies` or
-  `optionalDependencies`, whatever their range (`^0.0.1`, `*`, `workspace:*`, `file:`). - **The build tools**
-  (`@lakutata/cli`, `typescript`, `@types/node`) are development dependencies of the root, so every package can use them
-  in its scripts.
+  `pnpm-workspace.yaml` instead, as a list under `packages:` (`- 'packages/*'` lines, or `['packages/*']`).
+- **The commands work from any directory** of the workspace: they use the nearest parent directory that declares a
+  workspace.
+- **The dependencies between packages** are the ones in `dependencies`, `devDependencies`, `peerDependencies` or
+  `optionalDependencies`, whatever their range (`^0.0.1`, `*`, `workspace:*`, `file:`).
+- **The build tools** (`@lakutata/cli`, `typescript`, `@types/node`) are development dependencies of the root, so every
+  package can use them in its scripts.
 
 `lakutata list` shows the packages, their versions, their directories and the packages each one depends on. Here,
 `app` (the server) depends on `ui` (the web interface), whose built pages it serves:
@@ -107,17 +108,19 @@ Version 0.0.16 → 0.0.17
 
 - **The current version** is the `version` of `lerna.json` when that file gives one, else the one of the root
   `package.json`, else the highest version among the packages, a prerelease included (`0.0.0` when there is none). The
-  new version is written back there, and into every package, the private ones included. - **The bumps** are `major`,
-  `minor`, `patch`, `premajor`, `preminor`, `prepatch`, `prerelease`, or an explicit version. `--preid <id>` names the
-  prerelease of the `pre…` bumps (`beta` gives `1.3.0-beta.0`; without it, `1.3.0-0`). - **The dependencies between the
-  packages** follow: `^0.0.16` becomes `^0.0.17`, and so do `~`, `>=`, `=` and `workspace:^` ranges. `*`, `workspace:*`
-  and `file:` dependencies are left as they are. With `0.x` versions this matters, because `^0.0.16` does not accept
-  `0.0.17`. - **The lock file** follows too: `package-lock.json` or `pnpm-lock.yaml` is updated, so that `npm ci` (or
+  new version is written back there, and into every package, the private ones included.
+- **The bumps** are `major`, `minor`, `patch`, `premajor`, `preminor`, `prepatch`, `prerelease`, or an explicit version.
+  `--preid <id>` names the prerelease of the `pre…` bumps (`beta` gives `1.3.0-beta.0`; without it, `1.3.0-0`).
+- **The dependencies between the packages** follow: `^0.0.16` becomes `^0.0.17`, and so do `~`, `>=`, `=` and
+  `workspace:^` ranges. `*`, `workspace:*` and `file:` dependencies are left as they are. With `0.x` versions this
+  matters, because `^0.0.16` does not accept `0.0.17`.
+- **The lock file** follows too: `package-lock.json` or `pnpm-lock.yaml` is updated, so that `npm ci` (or
   `pnpm install --frozen-lockfile`) still accepts it. A `yarn.lock` is not: the command reminds you to run
-  `yarn install`. - **`--git`** commits the changed files, and only them, with the message `v1.3.0` and tags the commit
-  `v1.3.0`. Nothing is pushed. The repository and the tag are checked before a file is changed. - **The confirmation**
-  is asked only in a terminal: in CI, or when the output is piped, the version is given at once. `--yes` skips it in a
-  terminal too.
+  `yarn install`.
+- **`--git`** commits the changed files, and only them, with the message `v1.3.0` and tags the commit `v1.3.0`. Nothing
+  is pushed. The repository and the tag are checked before a file is changed.
+- **The confirmation** is asked only in a terminal: in CI, or when the output is piped, the version is given at once.
+  `--yes` skips it in a terminal too.
 
 ## 4. Adding a package
 
@@ -157,15 +160,16 @@ any package: `import {greet} from '@shop/shared'`.
 
 - **Where**: in the directory of the packages of the workspace, without the scope of the name: the directory of the
   first pattern such as `apps/*` (`packages/*` when there is one). A workspace whose patterns have no such directory
-  (only packages named one by one, or `packages/**`) is refused. - **Its version** is the version of the workspace
-  (`0.0.1` without one, or with the independent versions of lerna), and `--to` adds the dependency
-  `"@shop/shared": "^0.0.1"`. - **Its files**: `src/index.ts` (an example function to replace), a test run by
-  `node --test`, and a `package.json` whose scripts are `clean`, `build` (`tsc`), `rebuild` and `test`. It compiles
-  `src` into `build`, with its type declarations, which its `exports` give to the other packages. Code that the web
-  interface also uses must not use the modules of Node.js. - **Private**: the package is `"private": true`. Remove that
-  line to publish it (`npm publish -w @shop/shared`). - **Nothing is installed**: run the install of the package manager
-  of the workspace afterwards, as the command says (`pnpm install`, `yarn install`), so that the other packages see the
-  new one.
+  (only packages named one by one, or `packages/**`) is refused.
+- **Its version** is the version of the workspace (`0.0.1` without one, or with the independent versions of lerna), and
+  `--to` adds the dependency `"@shop/shared": "^0.0.1"`.
+- **Its files**: `src/index.ts` (an example function to replace), a test run by `node --test`, and a `package.json`
+  whose scripts are `clean`, `build` (`tsc`), `rebuild` and `test`. It compiles `src` into `build`, with its type
+  declarations, which its `exports` give to the other packages. Code that the web interface also uses must not use the
+  modules of Node.js.
+- **Private**: the package is `"private": true`. Remove that line to publish it (`npm publish -w @shop/shared`).
+- **Nothing is installed**: run the install of the package manager of the workspace afterwards, as the command says
+  (`pnpm install`, `yarn install`), so that the other packages see the new one.
 
 `lakutata add <name> --native gyp|cmake|rust` creates a native addon instead: see [NativeAddons](NativeAddons.md).
 

@@ -14,6 +14,7 @@
 
 </div>
 
+English | [中文](README.zh-CN.md)
 
 # lakutata
 
@@ -98,8 +99,8 @@ Application
 
 | Subpath | Package | What it provides |
 |---|---|---|
-| `lakutata` | `@lakutata/core` | `Application`, `Component`, `Provider`, `BaseObject`, `Container`, `DTO`, `Exception`, `Time`, the validation schemas and messages |
-| `lakutata/decorator/di` | `@lakutata/core` | `@Inject`, `@Configurable`, `@Autoload`, `@Singleton`, `@Scoped`, `@Transient` |
+| `lakutata` | `@lakutata/core` | `Application`, `Component`, `Provider`, `BaseObject`, `Container`, `DTO`, `Exception`, `Time`, `isPackaged`, `resourcesPath`, the validation schemas and messages |
+| `lakutata/decorator/di` | `@lakutata/core` | `@Inject`, `@Configurable`, `@Autoload`, `@Lifetime`, `@Singleton`, `@Scoped`, `@Transient` |
 | `lakutata/decorator/dto` | `@lakutata/core` | `@Expect`, `@Accept`, `@Return`, `@IndexSignature` |
 | `lakutata/decorator/asst` | `@lakutata/core` | `@Before`, `@After` |
 | `lakutata/dtos` | `@lakutata/core` | `PaginationSearchDTO`, `PaginationResultDTO`, `paginator`, `FlexibleDTO`, the JSON Schema conversion |

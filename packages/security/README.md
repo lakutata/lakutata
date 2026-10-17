@@ -1,5 +1,7 @@
 # @lakutata/security
 
+English | [中文](README.zh-CN.md)
+
 The security toolkit of the lakutata framework, built on `node:crypto`: password hashing with bcrypt (`PasswordHash`),
 message signatures with HMAC (`Mac`) and authenticated encryption with AES-256-GCM (`Crypt`), both with key rotation,
 plus lower-level functions (HMAC signatures, random keys, constant-time comparison, encryption with a key or a
@@ -133,7 +135,7 @@ examples.
 | `PasswordTooLongException` (`E_PASSWORD_TOO_LONG`) | `PasswordHash.hash()` with a password longer than 72 bytes in UTF-8 |
 | `InvalidSignatureException` (`E_INVALID_SIGNATURE`) | `Mac.unsignMessage()` with a message changed, unsigned or signed by an unknown key |
 | `DecryptionFailedException` (`E_DECRYPTION_FAILED`) | `Crypt.decrypt()`, `decryptString()`, `decryptByKey()`, `decryptByPassword()`: a wrong key or password, changed or truncated data |
-| `InvalidObjectOptionsException` (from `lakutata`) | The application starts with invalid provider options: no key, a key shorter than 16 characters, an unknown algorithm, `saltRounds` outside 4 to 31 (`InvalidValueException` when the provider is created outside the checked options, as in a bare `Container`) |
+| `InvalidObjectOptionsException` (from `lakutata`) | The application starts with invalid provider options: no key, a key shorter than 16 characters, an unknown algorithm, `saltRounds` outside 4 to 31 (a provider created without this check, by a bare `Container` for example, throws `InvalidValueException` instead) |
 | `RangeError` | `generateSecret()` with a negative or too large number of bytes; `hmac()`, `verifyHMAC()`, `encryptByKey()`, `decryptByKey()` with an empty key |
 
 These exceptions have the HTTP status 500 unless the application maps them. `verify()`, `verifyHMAC()` (given a key),

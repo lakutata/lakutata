@@ -1,5 +1,7 @@
 # @lakutata/core
 
+English | [中文](README.zh-CN.md)
+
 The core of the lakutata framework: the IoC container and dependency injection, the object model (`BaseObject`,
 `Component`, `Provider`, `Application`) with its asynchronous construction and destruction, and schema validation
 (`DTO`, a validation engine with the API of joi), which the `@Configurable`, `@Expect`, `@Accept` and `@Return`

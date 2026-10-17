@@ -1,11 +1,13 @@
 # @lakutata/queue
 
+English | [中文](README.zh-CN.md)
+
 Message queues for the [lakutata](https://www.npmjs.com/package/lakutata) framework. The `Queue` component adds
 messages, and controller actions declared with `@QueueAction` process them through the `queueEntrypoint` adapter, with
 the same input DTOs, access control and middlewares as the other channels. A message is acknowledged when its action
 returns and delivered again after a failure; once its attempts are used up, it goes to the dead letter queue
 `<queue>.dead`. The value the action returns is the message's result (`queue.request()`, `queue.result()`) and can be
-passed on to another queue (`output`). The umbrella package exposes this package as `lakutata/com/queue`.
+passed on to another queue (`output`). The umbrella package `lakutata` exposes this package as `lakutata/com/queue`.
 
 ## Installation
 
@@ -74,7 +76,7 @@ Add messages and read their results:
 import type {Job, Queue} from '@lakutata/queue'
 
 declare const queue: Queue
-//Fire and forget: delivered after 10 seconds, and added at most once while the job image-7 is kept
+//Fire and forget: delivered after 10 seconds; dropped while a message with the id image-7 is kept (dedupe)
 await queue.add('image.extract', {id: 7}, {jobId: 'image-7', dedupe: true, delay: '10s'})
 //Add and wait for the result
 const result: {pages: number} = await queue.request('image.extract', {id: 8}, {timeout: '30s'})

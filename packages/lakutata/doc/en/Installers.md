@@ -33,11 +33,12 @@ its native addons (`native/`) and its resources (`resources/`). The program is m
 - **On each platform**: the installers of a platform are made on that platform, for the architecture of the machine
   (section 7 covers the other platforms and architectures); a `pkg` package installs on the Macs of that architecture
   only. The executables use the C library of the system they are made on, so make the Linux packages for glibc systems
-  on a glibc system, and the `apk` packages on Alpine. - **The tools** nFPM, NSIS, WiX and WinSW are downloaded once
-  into the cache of the tool (`LAKUTATA_CACHE_DIR`). `LAKUTATA_NFPM`, `LAKUTATA_NSIS`, `LAKUTATA_WIX` and
-  `LAKUTATA_WINSW` name other copies, for machines without a network, or for Linux architectures other than x64 and
-  arm64 (nFPM has releases for these two only). macOS needs no download. - **The version** of the installers is the
-  `version` of the `package.json` of the application.
+  on a glibc system, and the `apk` packages on Alpine.
+- **The tools** nFPM, NSIS, WiX and WinSW are downloaded once into the cache of the tool (`LAKUTATA_CACHE_DIR`).
+  `LAKUTATA_NFPM`, `LAKUTATA_NSIS`, `LAKUTATA_WIX` and `LAKUTATA_WINSW` name other copies, for machines without a
+  network, or for Linux architectures other than x64 and arm64 (nFPM has releases for these two only). macOS needs no
+  download.
+- **The version** of the installers is the `version` of the `package.json` of the application.
 
 ## 2. The configuration
 
@@ -103,9 +104,10 @@ error: The script lakutata.installer.mac.scripts.postinstall (scripts/missing.sh
 | Removal | by the package manager | `sudo /usr/local/lib/<name>/uninstall` | like other Windows programs |
 
 - **macOS does not remove packages**: the `uninstall` script installed with the application removes it, its service and
-  its link in the PATH. - **The removal keeps** the data, the environment file and the user of the service, so that a
-  new installation finds them again. - The archives (`tar.gz`, `zip`) only hold the application: they register no
-  service and run no script.
+  its link in the PATH.
+- **The removal keeps** the data, the environment file and the user of the service, so that a new installation finds
+  them again.
+- The archives (`tar.gz`, `zip`) only hold the application: they register no service and run no script.
 
 ## 4. The service
 

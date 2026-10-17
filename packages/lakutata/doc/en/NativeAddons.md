@@ -120,18 +120,18 @@ lakutata native link libc --crate                   # a crate (Rust: cargo add)
 ✔ Linked deps/lib/libbar.dylib (gyp): binding.gyp
 ```
 
-- **A file or a system library**: a value with a `/`, or ending in `.a`, `.lib`, `.so`, `.dylib` or `.dll`, is a file
-  of the package; any other value is the name of a library of the system. The files must be inside the package, since
-  they are shipped with it.
+- **A file or a system library**: a value with a `/`, or ending in `.a`, `.lib`, `.so`, `.dylib` or `.dll`, is a file of
+  the package; any other value is the name of a library of the system. The files must be inside the package, since they
+  are shipped with it; a directory of headers is one of the package, or an absolute directory of the system.
 - **The platform** of a change: a library file gives its own (`.dylib` macOS, `.so` Linux, `.dll` and `.lib` Windows,
   `.a` every platform but Windows), `--framework` means macOS, `--pkg-config` every platform but Windows, and
   `--platform mac|linux|win` chooses one. A change for a platform other than the machine's is noted
   (`! The change is for win: it is built and tried there`).
 - **Dynamic libraries** are copied next to the addon when it is built, and the addon finds them there at run time
   through its rpath (`@loader_path` on macOS, `$ORIGIN` on Linux). On macOS, the install name of the library must be
-  `@rpath/libbar.dylib` (`install_name_tool -id @rpath/libbar.dylib deps/lib/libbar.dylib`): the command tells you
-  when it is not. On Windows, a DLL is linked through its import library, which must be next to it
-  (`deps/lib/bar.dll` and `deps/lib/bar.lib`).
+  `@rpath/libbar.dylib` (`install_name_tool -id @rpath/libbar.dylib deps/lib/libbar.dylib`): the command tells you when
+  it is not. On Windows, a DLL is linked through its import library, which must be next to it (`deps/lib/bar.dll` and
+  `deps/lib/bar.lib`).
 - **Rust addons** link their native libraries through `build.rs`, which reads them from `.cargo/config.toml` (where
   `lakutata native link` writes them); `include`, `define` and `--pkg-config` are refused, since Rust uses crates for
   these (`--crate` adds one with `cargo add`, which looks it up in the registry of crates).
@@ -145,7 +145,7 @@ What each change writes, by build system:
 | Library | `libraries` | `target_link_libraries` | `rustc-link-lib` |
 | pkg-config | `<!@(pkg-config ...)` | `pkg_check_modules(... IMPORTED_TARGET ...)` | the `-sys` crates |
 | Framework | `xcode_settings.OTHER_LDFLAGS` | `-framework` in `if(APPLE)` | `rustc-link-lib=framework=` |
-| Dynamic library | `copies`, the rpath | `INSTALL_RPATH` (`BUILD_WITH_INSTALL_RPATH`), a `POST_BUILD` copy | `rustc-cdylib-link-arg`, a `postbuild:native` copy |
+| Dynamic library | `copies`, the rpath | `INSTALL_RPATH` (`BUILD_WITH_INSTALL_RPATH`), a `POST_BUILD` copy | `rustc-cdylib-link-arg`, a copy in `build:native` |
 | Headers, definitions | `include_dirs`, `defines` | `target_include_directories`, `target_compile_definitions` | none (crates) |
 | Platform | `conditions` (`OS=="mac"`, `OS!="win"`) | `if(APPLE)`, `if(WIN32)`, `if(NOT WIN32)`, `if(CMAKE_SYSTEM_NAME STREQUAL "Linux")` | `LAKUTATA_NATIVE_MACOS`, `_LINUX`, `_WINDOWS`, `_UNIX` |
 
@@ -204,8 +204,9 @@ The application depends on the addon package, and imports it as any package (`im
   into `dist/<name>.native/`, which is shipped with the bundle; an executable embeds them, or holds them next to it in
   the directory layout ([Packaging](Packaging.md)). The addon is built for the platform of the machine that packs the
   application, so pack the application of each platform on that platform (a CI matrix, or a container of the
-  architecture for Linux). - **Electron**: the addons are copied as they are installed. The addons that `lakutata add`
-  creates run in Electron without being rebuilt, as do all the addons built on Node-API; an addon built on the V8 API of
-  Node.js must be installed in its build for Electron before packing (`electron-rebuild`). - **Bun**: Bun loads the
-  addons of Node-API; an executable of Bun warns of the addons built on the V8 API of Node.js. - **Alpine (musl)**: the
-  executables of Node.js do not load native addons there: make them with Bun.
+  architecture for Linux).
+- **Electron**: the addons are copied as they are installed. The addons that `lakutata add` creates run in Electron
+  without being rebuilt, as do all the addons built on Node-API; an addon built on the V8 API of Node.js must be
+  installed in its build for Electron before packing (`electron-rebuild`).
+- **Bun**: Bun loads the addons of Node-API; an executable of Bun warns of the addons built on the V8 API of Node.js.
+- **Alpine (musl)**: the executables of Node.js do not load native addons there: make them with Bun.

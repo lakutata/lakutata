@@ -1,5 +1,7 @@
 # @lakutata/grpc
 
+English | [中文](README.zh-CN.md)
+
 gRPC for the lakutata framework, written in TypeScript on top of the HTTP/2 module of Node.js, with no native addon and
 no generated code. It provides a client (`GRPCConnection`: unix sockets, TCP, TLS and mutual TLS; unary,
 server-streaming and bidirectional calls), a server (`GRPCServer`) and a schema-driven protobuf codec (`encode`,
@@ -207,11 +209,11 @@ try {
 }
 ```
 
-- The HTTP/2 session opens with the first call and opens again after it closes; it keeps the process alive only while
-  calls are in progress. Failed calls are not retried.
-- Calls fail with a `GRPCError`: the server's status, or `UNAVAILABLE` (connection failed or lost), `CANCELLED`
-  (signal aborted), `DEADLINE_EXCEEDED` (timeout passed), `RESOURCE_EXHAUSTED` (a response over `maxMessageSize`,
-  unlimited by default) or `INTERNAL` (a response that cannot be decompressed or decoded).
+- The HTTP/2 session opens with the first call, and again with the next call after it closes; it keeps the process alive
+  only while calls are in progress. Failed calls are not retried.
+- Calls fail with a `GRPCError`: the server's status, or `UNAVAILABLE` (connection failed or lost), `CANCELLED` (signal
+  aborted), `DEADLINE_EXCEEDED` (timeout passed), `RESOURCE_EXHAUSTED` (a response over `maxMessageSize`, unlimited by
+  default) or `INTERNAL` (a response that cannot be decompressed or decoded).
 - Metadata values are sent as they are (no percent or base64 encoding).
 
 ### The server
