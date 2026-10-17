@@ -1,13 +1,13 @@
 # @lakutata/entrypoint
 
-The entrypoint of the lakutata framework: the controllers and their actions, served by transports. One controller
-method can be an HTTP route, a CLI command, a service action (invoked over HTTP, Socket.IO, JSON-RPC, gRPC, NATS or
-Electron IPC) and a scheduled job at the same time; its input is validated by its DTO, checked by the access control and
-passed through the middlewares the same way whatever the transport.
+The entrypoint of the lakutata framework: controllers and their actions, served by transports. One controller method
+can be an HTTP route, a CLI command, a service action (called over HTTP, Socket.IO, JSON-RPC, gRPC, NATS or Electron
+IPC) and a scheduled job at the same time. Whatever the transport, a request goes through the same middlewares, its
+input is validated by the same DTO, and the same access control applies.
 
-The umbrella package `lakutata` re-exports it: `lakutata/com/entrypoint` (the component, the controllers, the
-contexts, the results), `lakutata/decorator/ctrl` (the action decorators) and `lakutata/adapter/*` (the transports),
-and presets the `entrypoint` component of the applications.
+The umbrella package `lakutata` re-exports it as `lakutata/com/entrypoint` (the component, controllers, contexts and
+results), `lakutata/decorator/ctrl` (the action decorators) and `lakutata/adapter/*` (the transports), and presets the
+`entrypoint` component in every application.
 
 ## Installation
 
@@ -15,7 +15,7 @@ and presets the `entrypoint` component of the applications.
 npm install lakutata
 ```
 
-The transports use optional peer dependencies, installed when used:
+The transports rely on optional peer dependencies, which you install only when you use them:
 
 | Transport | Subpath | Install |
 |---|---|---|
@@ -71,7 +71,7 @@ class OrderController extends Controller {
         return input
     }
 
-    //Every 5 minutes (with {every: '5m', exclusive: true} and a mutex component: in one instance at a time)
+    //Every 5 minutes (with {every: '5m', exclusive: true} and a mutex component, in one instance at a time)
     @Schedule('5m')
     public async report(): Promise<void> {
     }
@@ -93,15 +93,17 @@ Application.run(() => ({
 }))
 ```
 
-### The request of an action
+### Inside an action
 
-- `this.context` is the context of the request: `HTTPContext` (its `request`, `response`, `route`, `method`),
-  `CLIContext` (its `command`), `ServiceContext` (its `clientId`) or `ScheduleContext`.
-- `this.signal` is aborted when the request is: its client gone, its deadline exceeded, the entrypoint stopping.
-- A controller is created for each request (`@Scoped`): its injected objects of the request are shared by the request.
-- The value returned is the response. `Result.status(201, data, headers)`, `Result.file(path)` and `Result.events()`
+- `this.context` is the request's context: `HTTPContext` (with `request`, `response`, `route`, `method`),
+  `CLIContext` (with `command`), `ServiceContext` (with `clientId`) or `ScheduleContext`.
+- `this.signal` is aborted when the request is aborted: the client goes away, the deadline passes or the entrypoint
+  stops.
+- A controller is created for each request (`@Scoped`), and the request-scoped objects it injects are shared within
+  that request.
+- The returned value is the response. `Result.status(201, data, headers)`, `Result.file(path)` and `Result.events()`
   (Server-Sent Events) control the HTTP response.
-- Over HTTP (Express, Fastify), an exception is answered with its `statusCode` and the JSON `{errno, errMsg}`; an
+- Over HTTP (Express, Fastify), an exception is answered with its `statusCode` and the JSON `{errno, errMsg}`, and
   invalid input with 400.
 
 ### Middlewares and access control
@@ -110,8 +112,9 @@ Application.run(() => ({
 import {Application} from 'lakutata'
 import {buildEntrypoints, Controller, type ActionInvocation, type Next} from 'lakutata/com/entrypoint'
 import {GET, UseMiddlewares} from 'lakutata/decorator/ctrl'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
 
-//Runs around the action: before its input validation and its access control
+//Runs around the action, before input validation and access control
 async function timing(invocation: ActionInvocation, next: Next): Promise<unknown> {
     const started: number = Date.now()
     try {
@@ -121,6 +124,7 @@ async function timing(invocation: ActionInvocation, next: Next): Promise<unknown
     }
 }
 
+//For the actions of this controller (buildEntrypoints({middlewares: [timing]}) would run it for every action)
 @UseMiddlewares(timing)
 class HealthController extends Controller {
     @GET('/health')
@@ -133,14 +137,14 @@ Application.run(() => ({
     id: 'health.app',
     name: 'Health',
     components: {
-        entrypoint: buildEntrypoints({controllers: [HealthController], middlewares: [timing]})
+        entrypoint: buildEntrypoints({controllers: [HealthController], http: expressHTTPEntrypoint({port: 3000})})
     },
     bootstrap: ['entrypoint']
 }))
 ```
 
-The access control: an action declared with `{acl: true}` is checked by the rules given to `buildEntrypoints({rules})`
-(`AccessControlRule` subclasses, created for each request); a rule resolving `false` denies it with
+Access control: an action declared with `{acl: true}` is checked by the rules given to `buildEntrypoints({rules})`
+(`AccessControlRule` subclasses, created for each request). A rule that resolves to `false` denies the request with
 `AccessDeniedException` (HTTP 403).
 
 ## API
@@ -158,7 +162,7 @@ The access control: an action declared with `{acl: true}` is checked by the rule
 | `HTTPAction`, `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS` | `lakutata/decorator/ctrl` | HTTP routes |
 | `CLIAction`, `ServiceAction`, `Schedule` | `lakutata/decorator/ctrl` | Commands, service actions, scheduled jobs |
 | `Prefix`, `UseMiddlewares` | `lakutata/decorator/ctrl` | A prefix for the routes, commands and patterns of a controller; its middlewares |
-| `expressHTTPEntrypoint`, `fastifyHTTPEntrypoint` | `lakutata/adapter/express`, `lakutata/adapter/fastify` | HTTP transports (with static UIs) |
+| `expressHTTPEntrypoint`, `fastifyHTTPEntrypoint` | `lakutata/adapter/express`, `lakutata/adapter/fastify` | HTTP transports (`staticUI` with Express) |
 | `commanderCLIEntrypoint` | `lakutata/adapter/commander` | CLI transport |
 | `socketIOServiceEntrypoint`, `jsonRPCServiceEntrypoint`, `electronIPCServiceEntrypoint` | `lakutata/adapter/*` | Service transports |
 | `EntrypointAdapter`, `ChannelRuntime` | `@lakutata/entrypoint/channel` | Writing a transport or a channel |
@@ -179,8 +183,8 @@ The typings document each declaration with examples.
 
 ## See also
 
-- The guides, in the package `lakutata` (`doc/en`, Chinese in `doc/zh`): `Controllers.md`, `Entrypoint.md`,
+- The guides in the `lakutata` package (`doc/en`, Chinese in `doc/zh`): `Controllers.md`, `Entrypoint.md`,
   `Middlewares.md`, `HTTP.md` (the HTTP adapters), `ServiceCalls.md` (the service transports), `CLI.md`, `Schedules.md`.
-- `@lakutata/core`: the DTOs, the dependency injection and the application.
-- `@lakutata/mutex`: `@Synchronized` actions and the `exclusive` schedules.
+- `@lakutata/core`: DTOs, dependency injection and the application.
+- `@lakutata/mutex`: `@Synchronized` actions and `exclusive` schedules.
 - `@lakutata/grpc`, `@lakutata/nats`: the service transports over gRPC and NATS.

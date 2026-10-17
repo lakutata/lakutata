@@ -1,9 +1,10 @@
 # @lakutata/security
 
 The security toolkit of the lakutata framework, built on `node:crypto`: password hashing with bcrypt (`PasswordHash`),
-message signatures with HMAC (`Mac`), authenticated encryption with AES-256-GCM (`Crypt`), with key rotation, and the
-functions under them (random keys, constant-time comparison, encryption with a key or a password). The umbrella package
-`lakutata` re-exports it as `lakutata/security`, and `PasswordHash` alone as `lakutata/provider/passwordHash`.
+message signatures with HMAC (`Mac`) and authenticated encryption with AES-256-GCM (`Crypt`), both with key rotation,
+plus lower-level functions (HMAC signatures, random keys, constant-time comparison, encryption with a key or a
+password). The umbrella package `lakutata` re-exports it as `lakutata/security`, and `PasswordHash` alone as
+`lakutata/provider/passwordHash`.
 
 ## Installation
 
@@ -17,8 +18,8 @@ It has no optional dependencies: bcrypt is implemented in JavaScript, the rest u
 
 ### The providers in an application
 
-Declare the providers in the `providers` of the application, with their keys read from the environment, then get them
-with `getObject()` or `@Inject`. They are scoped, like every provider.
+Declare the providers in the application's `providers`, with their keys read from the environment, then get them with
+`getObject()` or `@Inject`. They are scoped, the default lifetime of providers.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -60,18 +61,19 @@ Application
 | Generate a key or a token | `generateSecret()` | — | base64url random bytes (32 by default) |
 | Compare a secret received with the expected one | `constantTimeEqual()` | no: use `PasswordHash.validate()` | boolean |
 
-- **Passwords**: `PasswordHash.hash()` rejects passwords longer than 72 bytes in UTF-8 (bcrypt ignores the following
-  bytes) with `PasswordTooLongException`, and `validate()` gives `false` for them. Each hash has its own random salt and
-  its cost (`saltRounds`, 4 to 31, 10 by default: each extra round doubles the time); store the hash as is and check it
-  with `validate()`, never with `===`. `validate()` gives `false` for a value which is not a bcrypt hash.
-- **Keys**: the keys of `Mac` and `Crypt` are strings of at least 16 characters, used as their UTF-8 bytes. Generate
-  them with `generateSecret()` (32 random bytes): the key derivations of `Mac`, `Crypt` and `encryptByKey()` are fast, so a
-  password used as a key is open to brute force. The functions refuse an empty key with a `RangeError`, but do not
-  check the key's length otherwise.
-- **Key rotation**: put the new key first and keep the previous ones while the data they signed or encrypted is read;
-  the first key signs and encrypts, every key verifies and decrypts.
-- **Formats**: the signatures and the encrypted data are base64url strings without padding, safe in URLs and cookies.
-  The encrypted data is authenticated: any change makes the decryption fail rather than return altered data.
+- **Passwords**: `PasswordHash.hash()` rejects a password longer than 72 bytes in UTF-8 with
+  `PasswordTooLongException` (bcrypt would ignore the extra bytes), and `validate()` returns `false` for such
+  passwords. Each hash includes its own random salt and its cost (`saltRounds`, 4 to 31, 10 by default; each extra
+  round doubles the time). Store the hash as is and check it with `validate()`, never with `===`. `validate()` returns
+  `false` for a value that is not a bcrypt hash.
+- **Keys**: the keys of `Mac` and `Crypt` are strings of at least 16 characters, used as UTF-8 bytes. Generate them
+  with `generateSecret()` (32 random bytes): `Mac`, `Crypt` and `encryptByKey()` process their keys quickly, without
+  slow key stretching, so a password used as a key is open to brute force. The functions reject an empty key with a
+  `RangeError` but do not otherwise check its length.
+- **Key rotation**: put the new key first, and keep the previous ones as long as data they signed or encrypted is still
+  read. The first key signs and encrypts; every key verifies and decrypts.
+- **Formats**: signatures and encrypted data are base64url strings without padding, safe in URLs and cookies.
+  Encrypted data is authenticated: any change makes decryption fail instead of returning altered data.
 
 ### The functions
 
@@ -121,7 +123,8 @@ console.log(constantTimeEqual('presented-token', process.env.API_TOKEN ?? ''))
 | `constantTimeEqual` | Compare two secrets in constant time, whatever their lengths |
 | `PasswordTooLongException`, `InvalidSignatureException`, `DecryptionFailedException` | The exceptions |
 
-All are exported by `lakutata/security` and `@lakutata/security`. The typings document each declaration with examples.
+All of them are exported by `lakutata/security` and `@lakutata/security`. The typings document each declaration with
+examples.
 
 ## Errors
 
@@ -133,11 +136,11 @@ All are exported by `lakutata/security` and `@lakutata/security`. The typings do
 | `InvalidObjectOptionsException` (from `lakutata`) | The application starts with invalid provider options: no key, a key shorter than 16 characters, an unknown algorithm, `saltRounds` outside 4 to 31 (`InvalidValueException` when the provider is created outside the checked options, as in a bare `Container`) |
 | `RangeError` | `generateSecret()` with a negative or too large number of bytes; `hmac()`, `verifyHMAC()`, `encryptByKey()`, `decryptByKey()` with an empty key |
 
-The exceptions have the HTTP status 500 unless the application maps them; `verify()`, `verifyHMAC()` (given a key),
+These exceptions have the HTTP status 500 unless the application maps them. `verify()`, `verifyHMAC()` (given a key),
 `validate()` and `constantTimeEqual()` return `false` for a wrong or malformed signature, hash or secret instead of
 throwing.
 
 ## See also
 
-- `doc/en/Security.md` of the package `lakutata` (Chinese in `doc/zh`): the guide of the security tools.
-- `@lakutata/core` (`lakutata`): the providers, `Application` and the dependency injection.
+- `doc/en/Security.md` in the `lakutata` package (Chinese in `doc/zh`): the guide to the security tools.
+- `@lakutata/core` (`lakutata`): providers, `Application` and dependency injection.

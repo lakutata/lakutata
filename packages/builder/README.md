@@ -1,31 +1,33 @@
 # @lakutata/builder
 
-The builder of the applications of the lakutata framework, used by the `bundle` and `executable` commands of
-`@lakutata/cli`, and usable from the scripts of a project:
+The builder for lakutata applications. The `package bundle`, `package exe` and `package installer` commands of
+`@lakutata/cli` use it, and a project's scripts can call it directly:
 
 ```js
 import {buildExecutable, buildInstaller, bundleProject} from '@lakutata/builder'
 
-//dist/<name>.cjs, run by node, its native addons and its resources next to it
+//dist/<name>.cjs, run by node, with its native addons and its resources next to it
 await bundleProject({project: process.cwd()})
-//dist/<name>, which runs without Node.js: Node.js (by default) or Bun embedded, one file or a directory
+//An executable that runs without Node.js installed, with Node.js (the default) or Bun embedded. With layout
+//'directory': dist/<name>/<name>, its native addons and resources next to it; with 'file' (the default): dist/<name>
 await buildExecutable({project: process.cwd(), runtime: 'node', layout: 'directory'})
-//dist/installer: the installers of the platform (deb, rpm, apk, archlinux, tar.gz on Linux; pkg, tar.gz on macOS;
-//nsis, msi, zip on Windows), its service registered
+//dist/installer: the installers for the current platform (deb, rpm, apk, archlinux, tar.gz on Linux; pkg, tar.gz on
+//macOS; nsis, msi, zip on Windows), which also register the application's service when it declares one
 await buildInstaller({project: process.cwd()})
 ```
 
-The application is compiled first (`tsc`, which emits the metadata of the decorators). The bundle is one CommonJS file
-(esbuild); the native addons, which cannot be bundled, are gathered with what they load at run time into a native tree,
-with the files the application reads by their paths, which the bundler does not follow (the scripts it runs on their
-own: the workers, the pools of workers, `fork()`, `require(path.join(__dirname, 'x.js'))`, bundled; its data files and
-directories, copied: the paths given from their modules are found and rewritten; what cannot be shipped is in the
-`warnings` of the result);
-the resources of the application (the `lakutata.resources` of its `package.json`) are found at run time by
-`resourcesPath()` of lakutata. The installers are configured by the `lakutata.installer` of the `package.json`. See the
-documentation of `lakutata package bundle`, `lakutata package exe` and `lakutata package installer` in `@lakutata/cli`.
+The builder works on the compiled application: build the project with `tsc` first, since `tsc` emits the decorator
+metadata. The bundle is one CommonJS file, made by esbuild. Native addons cannot be bundled, so they are gathered, with
+what they load at run time, into a native tree. The tree also holds the files that the application reads by path,
+which the bundler does not follow: the scripts it runs on their own (workers, worker pools, `fork()`,
+`require(path.join(__dirname, 'x.js'))`) are bundled, and its data files and directories are copied. The builder finds
+the paths built from a module's location and rewrites them; whatever it cannot ship is listed in the `warnings` of the
+result. At run time, `resourcesPath()` from lakutata locates the application's resources, declared by
+`lakutata.resources` in its `package.json`. The installers are configured by `lakutata.installer` in the same file. See
+`lakutata package bundle`, `lakutata package exe` and `lakutata package installer` in the `@lakutata/cli`
+documentation.
 
-The installers of Linux are tested in containers (Docker): `npm run test:installer` makes them on Debian and Alpine,
-installs, upgrades and removes them on Debian and Fedora (systemd) and Alpine (OpenRC). The ones of macOS are installed
-in a virtual machine of macOS (`npm run test:installer:mac`, tart), the ones of Windows on Windows as an administrator
-(`LAKUTATA_WINDOWS_INSTALL=1 npm run test:installer:windows`).
+The Linux installers are tested in containers (Docker): `npm run test:installer` builds them on Debian and Alpine, then
+installs, upgrades and removes them on Debian and Fedora (systemd) and on Alpine (OpenRC). The macOS installers are
+installed in a macOS virtual machine (`npm run test:installer:mac`, with tart), and the Windows installers on Windows,
+as an administrator (`LAKUTATA_WINDOWS_INSTALL=1 npm run test:installer:windows`).

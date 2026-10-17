@@ -17,15 +17,15 @@
 
 # lakutata
 
-An IoC-based application framework for Node.js and TypeScript: one programming model for web services, CLI tools,
-desktop (Electron) applications and embedded devices. An application is a tree of objects created by a container
-(components, providers, controllers), validated by DTOs, and served by transports: HTTP (Express, Fastify), CLI
-(Commander), service RPC (HTTP, Socket.IO, JSON-RPC 2.0, gRPC, NATS, Electron IPC) and schedules — one controller method
-can be all of them at once.
+An IoC-based application framework for Node.js and TypeScript, with one programming model for web services, CLI tools,
+desktop (Electron) applications and embedded devices. An application is a tree of objects (components, providers,
+controllers) that a container creates. DTOs validate their options and inputs, and transports expose the controllers:
+HTTP (Express, Fastify), CLI (Commander), service RPC (HTTP, Socket.IO, JSON-RPC 2.0, gRPC, NATS, Electron IPC),
+schedules and message queues. One controller method can serve all of them at once.
 
-This package is the framework: it re-exports the `@lakutata/*` packages under the subpaths listed below, and presets
-the `log` and `entrypoint` components of the applications. Each subpath's typings document every declaration
-with examples; each `@lakutata/*` package has its own README.
+This package is the framework itself: it re-exports the `@lakutata/*` packages under the subpaths listed below and
+presets two components in every application, `log` and `entrypoint`. The typings of each subpath document every
+declaration with examples, and each `@lakutata/*` package has its own README.
 
 ## Installation
 
@@ -34,19 +34,27 @@ npx @lakutata/cli create --name my-app   # a new project from a template (web, s
 npm install lakutata                      # or the framework in an existing project
 ```
 
-Node.js 22.13 or later (24.11 or later on Node.js 24), ESM (`"type": "module"`). The TypeScript options the framework needs are published as
-`lakutata/tsconfig.json`:
+The framework needs Node.js `^22.13.0 || >=24.11.0`: 22.13 or a later 22.x, or 24.11 and later (not 23). Projects
+use ES modules (`"type": "module"`), as the templates do; the package also ships CommonJS builds. The TypeScript
+options that the framework needs are published as `lakutata/tsconfig.json`:
 
 ```json
 {
   "extends": "lakutata/tsconfig.json",
-  "compilerOptions": {"rootDir": "src", "outDir": "dist"}
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "build"
+  },
+  "include": ["src"]
 }
 ```
 
-The transports and the integrations use optional peer dependencies, installed when used: `express` or `fastify`,
-`commander`, `socket.io`, `ws`, the database drivers (`pg`, `mysql2`, `better-sqlite3`…), the cache stores (`redis`…), see each
-package's README.
+Keep `include`: the published options compile JavaScript files too (`allowJs`), so without it a configuration file at
+the root of the project (`eslint.config.js`, `vite.config.ts`) breaks the build.
+
+The transports and integrations rely on optional peer dependencies, which you install only when you use them: `express`
+or `fastify`, `commander`, `socket.io`, `ws`, the database drivers (`pg`, `mysql2`, `better-sqlite3`…) and the cache
+stores (`redis`…). Each package's README lists its own.
 
 ## Usage
 
@@ -97,7 +105,7 @@ Application
 | `lakutata/dtos` | `@lakutata/core` | `PaginationSearchDTO`, `PaginationResultDTO`, `paginator`, `FlexibleDTO`, the JSON Schema conversion |
 | `lakutata/com/entrypoint` | `@lakutata/entrypoint` | `Entrypoint`, `buildEntrypoints`, `Controller`, the contexts, the results, the access control, the middlewares, `httpServiceEntrypoint`, `scheduleEntrypoint` |
 | `lakutata/decorator/ctrl` | `@lakutata/entrypoint` | `@HTTPAction`, `@GET`…`@OPTIONS`, `@CLIAction`, `@ServiceAction`, `@Schedule`, `@Prefix`, `@UseMiddlewares` |
-| `lakutata/adapter/express`, `lakutata/adapter/fastify` | `@lakutata/entrypoint` | The HTTP transports, `staticUI` |
+| `lakutata/adapter/express`, `lakutata/adapter/fastify` | `@lakutata/entrypoint` | The HTTP transports, `staticUI` (Express only) |
 | `lakutata/adapter/commander` | `@lakutata/entrypoint` | The CLI transport |
 | `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron` | `@lakutata/entrypoint` | The service transports |
 | `lakutata/com/logger` | `@lakutata/logger` | The `Logger` component preset as `log` (pino-compatible JSON lines) |
@@ -112,17 +120,18 @@ Application
 | `lakutata/com/monitor` | `@lakutata/monitor` | The CPU, memory, event loop and HTTP monitors |
 | `lakutata/security`, `lakutata/provider/passwordHash` | `@lakutata/security` | Hashing, ciphers, signatures, the `PasswordHash` provider |
 | `lakutata/utils` | `@lakutata/utils` | The helpers (strings, objects, arrays, time, files, globs, encodings, guards) |
-| `lakutata/tsconfig.json` | | The compiler options of the applications |
+| `lakutata/tsconfig.json` | | The compiler options for applications |
 
-Outside this package: `@lakutata/cli` (the `lakutata` command: projects, bundles, executables, installers, migrations),
-`@lakutata/grpc` (gRPC client, server and service transport), `@lakutata/nats` (NATS component and service transport),
-`@lakutata/dbus` (D-Bus), `@lakutata/mcp` (the Model Context Protocol).
+Not part of this package: `@lakutata/cli` (the `lakutata` command for projects, bundles, executables, installers and
+migrations), `@lakutata/grpc` (a gRPC client, server and service transport), `@lakutata/nats` (a NATS component and
+service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (the Model Context Protocol).
 
 ## Errors
 
-The framework's exceptions extend `Exception` (from `lakutata`): an `errno` (`E_…`), a `message`, the application's id
-and name, and a `statusCode` the HTTP transports answer with (500 by default; 400 for an invalid input, 403 for a denied
-access, 404 for a missing route or action, 409 for a lock not acquired…). Each package's README lists its exceptions.
+The framework's exceptions extend `Exception` (from `lakutata`). Each one has an `errno` (`E_…`), a `message`, the
+application's id and name, and a `statusCode` that the HTTP transports use as the response status: 500 by default, 400
+for invalid input, 403 when access is denied, 404 for a missing route or action, 409 when a lock is not acquired, and so
+on. Each package's README lists its exceptions.
 
 ## See also
 
@@ -133,7 +142,7 @@ access, 404 for a missing route or action, 409 for a lock not acquired…). Each
   `DatabaseDrivers.md`, `MongoEmbedded.md`, `Entities.md`, `Migrations.md`, `Cache.md`, `Mutex.md`, `I18n.md`,
   `DockerIntegration.md`, `ContainerdIntegration.md`, `Monitor.md`, `Security.md`, `DBus.md`, `MCP.md`, `Command.md`,
   `Packaging.md`.
-- `@lakutata/cli`: creating, building and packaging the applications.
+- `@lakutata/cli`: creating, building and packaging applications.
 
 ## License
 
