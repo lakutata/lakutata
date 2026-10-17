@@ -78,6 +78,7 @@ function runPackageScript(packageManager: PackageManager, pkg: WorkspacePackage,
 export async function runScript(workspace: Workspace, script: string, options: RunOptions = {}): Promise<RunResult> {
     const packageManager: PackageManager = projectPackageManager(workspace.root)
     const inScope = (pkg: WorkspacePackage): boolean => !options.scope?.length || options.scope.some((pattern: string): boolean => matchName(pkg.name, pattern))
+    if (options.scope?.length && !workspace.packages.some(inScope)) throw new Error(`The workspace has no package matching ${options.scope.join(', ')} (${workspace.packages.map((pkg: WorkspacePackage): string => pkg.name).join(', ')})`)
     const selected: WorkspacePackage[] = workspace.packages.filter((pkg: WorkspacePackage): boolean => inScope(pkg) && !!pkg.scripts[script])
     const skipped: string[] = workspace.packages.filter((pkg: WorkspacePackage): boolean => inScope(pkg) && !pkg.scripts[script]).map((pkg: WorkspacePackage): string => pkg.name)
     const selectedNames: Set<string> = new Set(selected.map((pkg: WorkspacePackage): string => pkg.name))

@@ -8,6 +8,14 @@ import {type ProcessResult} from '../../types/ProcessResult.js'
 const VERSION: RegExp = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/
 
 /**
+ * Whether a string is a version (1.2.3, 1.3.0-beta.0)
+ * @param version
+ */
+export function isVersion(version: string): boolean {
+    return VERSION.test(version)
+}
+
+/**
  * The next version
  * @param current
  * @param bump a bump, or a version
@@ -98,6 +106,16 @@ export function planVersion(workspace: Workspace, bump: string, preid?: string):
  * @param options
  */
 export async function applyVersion(workspace: Workspace, plan: VersionPlan, options: VersionOptions = {}): Promise<string[]> {
+    const git = async (args: string[]): Promise<string> => {
+        const result = await runCommand('git', args, workspace.root)
+        if (result.code !== 0) throw new Error(`git ${args[0]} failed: ${result.output.trim()}`)
+        return result.output
+    }
+    //Checked before a file is changed: a repository, and a tag which does not exist yet
+    if (options.git) {
+        if ((await runCommand('git', ['rev-parse', '--is-inside-work-tree'], workspace.root).catch((error: Error): ProcessResult => ({code: 1, output: error.message}))).code !== 0) throw new Error(`${workspace.root} is not in a git repository: --git commits the version there`)
+        if ((await runCommand('git', ['rev-parse', '-q', '--verify', `refs/tags/v${plan.to}`], workspace.root)).code === 0) throw new Error(`The tag v${plan.to} exists already`)
+    }
     const names: Set<string> = new Set(workspace.packages.map((pkg: WorkspacePackage): string => pkg.name))
     const changed: JSONFile[] = []
     for (const pkg of workspace.packages) {
@@ -110,8 +128,8 @@ export async function applyVersion(workspace: Workspace, plan: VersionPlan, opti
         }
         changed.push(pkg.manifest)
     }
-    //The version of the workspace is kept by lerna.json when it has one, by the root package.json otherwise
-    if (workspace.lerna) {
+    //The version of the workspace is kept by lerna.json when it gives one, by the root package.json otherwise
+    if (workspace.lerna?.data.version !== undefined) {
         workspace.lerna.data.version = plan.to
         changed.push(workspace.lerna)
     } else {
@@ -140,12 +158,9 @@ export async function applyVersion(workspace: Workspace, plan: VersionPlan, opti
         warn('yarn.lock is not updated: run yarn install')
     }
     if (options.git) {
-        const git = async (args: string[]): Promise<void> => {
-            const result = await runCommand('git', args, workspace.root)
-            if (result.code !== 0) throw new Error(`git ${args[0]} failed: ${result.output.trim()}`)
-        }
+        //Only the files of the version are committed, the changes staged before kept staged
         await git(['add', ...files])
-        await git(['commit', '-m', `v${plan.to}`])
+        await git(['commit', '-m', `v${plan.to}`, '--', ...files])
         await git(['tag', `v${plan.to}`])
     }
     return files

@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import {readdir, readFile, writeFile} from 'node:fs/promises'
 import path from 'node:path'
-import {newestVersion} from '../Registry.js'
+import {highestVersion} from '../Registry.js'
 
 /**
  * The fields of the dependencies of a package
@@ -92,14 +92,24 @@ async function expandPattern(root: string, pattern: string): Promise<string[]> {
 }
 
 /**
- * The patterns of the packages of a pnpm workspace
+ * The patterns of the packages of a pnpm workspace: a block list (one "- 'packages/*'" per line) or a flow list
+ * (packages: ['packages/*', 'apps/*'], on one line or on several)
  * @param file
  */
 async function pnpmPatterns(file: string): Promise<string[]> {
     const patterns: string[] = []
+    const text: string = await readFile(file, 'utf8')
+    const flow: RegExpExecArray | null = /^packages:\s*\[([^\]]*)\]/m.exec(text)
+    if (flow) {
+        for (const item of flow[1].replace(/#.*$/gm, '').split(',')) {
+            const pattern: string = item.trim().replace(/^(['"])(.*)\1$/, '$2')
+            if (pattern) patterns.push(pattern)
+        }
+        return patterns
+    }
     let inPackages: boolean = false
-    for (const line of (await readFile(file, 'utf8')).split('\n')) {
-        if (/^packages:\s*$/.test(line)) {
+    for (const line of text.split('\n')) {
+        if (/^packages:\s*(#.*)?$/.test(line)) {
             inPackages = true
             continue
         }
@@ -236,8 +246,9 @@ export class Workspace {
 
     /**
      * The fixed version of the workspace: the one of lerna.json, of the root package.json, or the highest of the packages
+     * (a prerelease above the releases included)
      */
     public get version(): string | undefined {
-        return this.lerna?.data.version ?? this.manifest.data.version ?? newestVersion(this.packages.map((pkg: WorkspacePackage): string | undefined => pkg.version).filter((version: string | undefined): version is string => !!version))
+        return this.lerna?.data.version ?? this.manifest.data.version ?? highestVersion(this.packages.map((pkg: WorkspacePackage): string | undefined => pkg.version).filter((version: string | undefined): version is string => !!version))
     }
 }

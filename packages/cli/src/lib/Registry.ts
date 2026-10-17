@@ -52,6 +52,14 @@ export function compareVersions(a: string, b: string): number {
 }
 
 /**
+ * The highest of versions, the prereleases included (the strings which are not versions left out)
+ * @param versions
+ */
+export function highestVersion(versions: string[]): string | undefined {
+    return versions.filter((version: string): boolean => !!versionParts(version)).sort(compareVersions).at(-1)
+}
+
+/**
  * The newest version of a major version (the prereleases only when the major version has no release)
  * @param versions
  * @param major any major version when undefined

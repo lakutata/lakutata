@@ -121,6 +121,13 @@ describe('The workspace commands', (): void => {
         rmSync(path.join(root, 'events.log'))
         assert.strictEqual((await runCommand(['run', 'rebuild', '--scope', 'a*', 't*'])).code, 0)
         assert.deepStrictEqual([...scriptEvents().keys()].sort(), ['app', 'tools'])
+        //A scope matching no package is an error (a typo), not a script missing
+        const unmatched = await runCommand(['run', 'rebuild', '--scope', 'nomatch'])
+        assert.strictEqual(unmatched.code, 1)
+        assert.match(unmatched.stderr, /The workspace has no package matching nomatch \(/)
+        const missing = await runCommand(['run', 'lint', '--scope', 'app'])
+        assert.strictEqual(missing.code, 0, missing.stderr)
+        assert.match(missing.stdout, /No package has the script lint/)
     })
 
     it('gives the scripts the environment of the user, not the one of the application of the tool', async (): Promise<void> => {
@@ -192,6 +199,9 @@ describe('The workspace commands', (): void => {
         const hasGit: boolean = spawnSync('git', ['--version']).status === 0
         if (hasGit) {
             for (const args of [['init', '-q'], ['config', 'user.email', 'test@example.com'], ['config', 'user.name', 'Test'], ['add', '-A'], ['commit', '-q', '-m', 'init']]) execFileSync('git', args, {cwd: root})
+            //A change staged before: not committed with the version
+            writeFileSync(path.join(root, 'NOTES.md'), 'notes\n')
+            execFileSync('git', ['add', 'NOTES.md'], {cwd: root})
         }
         const result = await runCommand(['version', 'preminor', '--preid', 'beta', '--yes', ...(hasGit ? ['--git'] : [])])
         assert.strictEqual(result.code, 0, result.stderr)
@@ -199,7 +209,36 @@ describe('The workspace commands', (): void => {
         assert.deepStrictEqual(readManifest('packages/b').dependencies, {a: '~1.3.0-beta.0'})
         if (hasGit) {
             assert.strictEqual(execFileSync('git', ['tag'], {cwd: root}).toString().trim(), 'v1.3.0-beta.0')
-            assert.strictEqual(execFileSync('git', ['status', '--porcelain'], {cwd: root}).toString().trim(), '')
+            assert.strictEqual(execFileSync('git', ['status', '--porcelain'], {cwd: root}).toString().trim(), 'A  NOTES.md')
+            assert.doesNotMatch(execFileSync('git', ['show', '--name-only', '--format=', 'HEAD'], {cwd: root}).toString(), /NOTES\.md/)
+            //A tag which exists already: refused before a file is changed
+            execFileSync('git', ['tag', 'v1.3.0-beta.1'], {cwd: root})
+            const tagged = await runCommand(['version', 'prerelease', '--yes', '--git'])
+            assert.strictEqual(tagged.code, 1)
+            assert.match(tagged.stderr, /The tag v1\.3\.0-beta\.1 exists already/)
+            assert.strictEqual(readManifest('.').version, '1.3.0-beta.0')
+        }
+    })
+
+    it('takes the highest version of the packages, a prerelease included, and writes it where it reads it', async (): Promise<void> => {
+        writePackage('.', {name: 'root', private: true, workspaces: ['packages/*']})
+        writePackage('packages/a', {name: 'a', version: '1.0.0'})
+        writePackage('packages/b', {name: 'b', version: '2.0.0-beta.0', dependencies: {a: '^1.0.0'}})
+        const listed = await runCommand(['list'])
+        assert.match(listed.stdout, /2 packages, version 2\.0\.0-beta\.0/)
+        assert.strictEqual((await runCommand(['version', 'prerelease', '--yes'])).code, 0)
+        for (const directory of ['.', 'packages/a', 'packages/b']) assert.strictEqual(readManifest(directory).version, '2.0.0-beta.1')
+        //A lerna.json without version: the version stays in the root package.json
+        writeFileSync(path.join(root, 'lerna.json'), '{}\n')
+        assert.strictEqual((await runCommand(['version', 'patch', '--yes'])).code, 0)
+        assert.strictEqual(readManifest('.').version, '2.0.0')
+        assert.strictEqual(readFileSync(path.join(root, 'lerna.json'), 'utf8'), '{}\n')
+        //--git outside of a repository: refused before a file is changed
+        if (spawnSync('git', ['--version']).status === 0 && spawnSync('git', ['rev-parse'], {cwd: root}).status !== 0) {
+            const outside = await runCommand(['version', 'patch', '--yes', '--git'])
+            assert.strictEqual(outside.code, 1)
+            assert.match(outside.stderr, /is not in a git repository/)
+            assert.strictEqual(readManifest('packages/a').version, '2.0.0')
         }
     })
 
