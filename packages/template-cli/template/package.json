@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "build": "lakutata run rebuild",
-    "test": "lakutata run test",
+    "test": "npm run build && lakutata run test",
     "start": "npm start -w app",
     "package:bundle": "npm run build && npm run package:bundle -w app -- --outfile ../../dist/{$APP_ID}.cjs",
     "package:exe": "npm run build && npm run package:exe -w app -- --outdir ../../dist",

@@ -15,7 +15,7 @@ A [lakutata](https://github.com/lakutata/lakutata) Electron application. The pro
 
 ```bash
 npm run dev            # the renderer served by Vite (hot reload) in the window of the application, with its DevTools
-npm test               # the tests of the packages (the actions of the main process, without Electron)
+npm test               # build the packages and run their tests (the actions of the main process, without Electron)
 npm run build          # build the packages, in the order of their dependencies (ui, then app)
 npm start              # start the built application
 npm run package:host      # the installers of this platform: dist/installer (deb, dmg, nsis…)

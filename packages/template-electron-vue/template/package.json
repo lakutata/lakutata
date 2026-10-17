@@ -11,7 +11,7 @@
   ],
   "scripts": {
     "build": "lakutata run rebuild",
-    "test": "lakutata run test",
+    "test": "npm run build && lakutata run test",
     "dev": "lakutata run dev --parallel",
     "start": "npm start -w app",
     "package:host": "npm run build && npm run package -w app -- --outdir ../../dist/installer",

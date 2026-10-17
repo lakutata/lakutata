@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "build": "lakutata run rebuild",
-    "test": "lakutata run test",
+    "test": "npm run build && lakutata run test",
     "dev": "lakutata run build:server && lakutata run dev",
     "migration:generate": "lakutata migration generate --package app",
     "migration:create": "lakutata migration create --package app",

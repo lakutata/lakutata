@@ -9,7 +9,7 @@ other packages are the ones it uses (`npx lakutata add <name>`: a package of Typ
 
 ```bash
 npm run build                           # build the packages, in the order of their dependencies: node packages/app/build/App.js greet --name you
-npm test                                # the tests of the packages
+npm test                                # build the packages and run their tests
 npm run package:exe                     # the executable of this platform: dist/{$APP_ID} (dist/{$APP_ID}.exe on Windows)
 ./dist/{$APP_ID} greet --name you       # run a command (--help lists them)
 npm run package:bundle                  # one JavaScript file with the dependencies: node dist/{$APP_ID}.cjs greet --name you

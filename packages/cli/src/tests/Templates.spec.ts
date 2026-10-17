@@ -369,8 +369,7 @@ describe('The templates of the repository', (): void => {
         assert.strictEqual(JSON.parse(readFileSync(path.join(project, 'packages', 'app', 'package.json'), 'utf8')).bin.greeter, 'build/App.js')
         assert.deepStrictEqual(JSON.parse(readFileSync(path.join(project, 'package.json'), 'utf8')).workspaces, ['packages/*'])
         install(project, ['@types/node'])
-        const built = await runIn('npm', ['run', 'build'], project)
-        assert.strictEqual(built.code, 0, built.output)
+        //npm test builds the packages first: run on a project just created, it runs their tests
         const tested = await runIn('npm', ['test'], project)
         assert.strictEqual(tested.code, 0, tested.output)
         assert.match(tested.output, /pass 4/)
