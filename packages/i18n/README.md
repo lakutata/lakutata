@@ -1,11 +1,11 @@
 # @lakutata/i18n
 
-The internationalization component of the lakutata framework: the application's messages in each language, by key,
-written in [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) and formatted in their
-language by the `Intl` of Node.js (numbers, currencies, dates, plurals, selects), with no third-party library. It also
-provides the middleware choosing the language of each request (its `Translator`, its validation errors and its
-exceptions in that language), the translation of the Commander CLI help, and the tools checking the translations. The
-umbrella package `lakutata` re-exports it as `lakutata/com/i18n`.
+The internationalization component of the lakutata framework. It holds the application's messages for each language,
+by key, written in [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) and
+formatted for their language by the built-in `Intl` of Node.js (numbers, currencies, dates, plurals, selects), with no
+third-party library. It also provides the middleware that chooses the language of each request (so that the request's
+`Translator`, validation errors and exceptions are in that language), the translation of the Commander CLI help, and
+tools that check the translations. The umbrella package `lakutata` re-exports it as `lakutata/com/i18n`.
 
 ## Installation
 
@@ -13,25 +13,25 @@ umbrella package `lakutata` re-exports it as `lakutata/com/i18n`.
 npm install lakutata
 ```
 
-The component needs nothing more. `I18nMiddleware` and `commanderTranslator` use the entrypoint component
-(`lakutata/com/entrypoint`, the optional peer dependency `@lakutata/entrypoint`), included in `lakutata`.
+The component needs nothing else. `I18nMiddleware` and `commanderTranslator` use the entrypoint component
+(`lakutata/com/entrypoint`, the optional peer dependency `@lakutata/entrypoint`), which `lakutata` includes.
 
 ## Usage
 
 ### The component and its messages
 
-Register the component with `buildI18nOptions()` in the `components` of the application, named `i18n` (the name the
-middleware and `commanderTranslator` use), and give it its messages:
+Register the component with `buildI18nOptions()` in the application's `components`, under the name `i18n` (the name
+the middleware and `commanderTranslator` use), and give it its messages:
 
-- `directory`: one or several directories (a path, or an alias of the application such as `@locales`) read when the
-  component is created. A language is a JSON file named by its tag (`en.json`, `zh-CN.json`), or a directory named by
-  its tag whose files and subdirectories prefix their keys (`zh-TW/order.json` gives `order.*`,
+- `directory`: one or more directories (a path, or an application alias such as `@locales`), read when the component
+  is created. A language is either a JSON file named after its tag (`en.json`, `zh-CN.json`), or a directory named
+  after its tag, whose files and subdirectories prefix their keys (`zh-TW/order.json` gives `order.*`,
   `zh-TW/admin/user.json` gives `admin.user.*`). Both layouts can be mixed.
-- `messages`: the messages by language in the code (object literals or imported JSON), bundled with it; added after
-  the directories, they replace the same keys.
+- `messages`: the messages by language, in the code (object literals or imported JSON), so they are bundled with it.
+  They are added after the directories and replace the same keys.
 
-The nesting of the JSON is the one of the keys: `{"order": {"count": "..."}}` holds the key `order.count`; a key part
-cannot contain `.`.
+The nesting of the JSON gives the keys: `{"order": {"count": "..."}}` holds the key `order.count`. No part of a key can
+contain `.`.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -55,7 +55,7 @@ Application
                 fallback: {'zh-TW': 'zh-CN'},
                 //The currency of {price, number, currency} when the message and its arguments give none
                 currency: 'CNY',
-                //The time zone of the dates and the times (the process's one by default)
+                //The time zone of dates and times (the process's by default)
                 timeZone: 'Asia/Shanghai'
             })
         }
@@ -71,34 +71,34 @@ Application
 
 | Option | Default | Description |
 |---|---|---|
-| `directory` | none | The directories of the messages, aliases accepted; the later ones replace the same keys |
-| `messages` | none | The messages by language given in the code, added after the directories |
+| `directory` | none | The message directories (aliases accepted); later ones replace the same keys |
+| `messages` | none | The messages by language, given in the code and added after the directories |
 | `locales` | the default language, then the languages of the messages (alphabetical) | The supported languages, which `negotiate()` chooses from |
 | `defaultLocale` | `'en'` | The default language |
-| `fallback` | none | The languages a message missing in a language is looked up in next (`{'zh-TW': 'zh-CN'}`, or a list) |
-| `missing` | `'throw'`, `'key'` when `NODE_ENV=production` | `'throw'` throws on a missing message, argument or currency; `'key'` gives the key, writes a missing argument as `{name}` and a currency argument without a currency as a plain number, each with a warning `I18nWarning` emitted once (per key, or per message and argument) |
+| `fallback` | none | The languages to look in next when a language lacks a message (`{'zh-TW': 'zh-CN'}`, or a list) |
+| `missing` | `'throw'`, `'key'` when `NODE_ENV=production` | `'throw'` throws on a missing message, argument or currency; `'key'` returns the key, writes a missing argument as `{name}` and a currency argument without a currency as a plain number, emitting an `I18nWarning` once for each (per key and language, or per message and argument) |
 | `currency` | none | The ISO 4217 currency of `{price, number, currency}` when neither the style nor a `currency` argument gives one (without it, such a message throws, or gives a plain number with `missing: 'key'`) |
-| `timeZone` | the process's | The IANA time zone of the dates and the times |
+| `timeZone` | the process's | The IANA time zone of dates and times |
 | `validationMessages` | `true` | Whether the built-in validation messages of the languages are registered |
 
-**Fallbacks.** A message missing in a language is looked up in its `fallback` languages (and theirs), then in its less
-specific tags (`zh-Hant-TW`, `zh-Hant`, `zh`), then in the default language. It is always formatted in the language
-asked: an English message given to a German request writes `1.000`. A key found nowhere throws
-`I18nMissingKeyException`, or gives the key itself with `missing: 'key'`.
+**Fallbacks.** A message missing in a language is looked up in its `fallback` languages (and in theirs), then in its
+less specific tags (`zh-Hant-TW`, `zh-Hant`, `zh`), then in the default language. It is always formatted in the
+requested language: an English message used for a German request writes `1.000`. A key found nowhere throws
+`I18nMissingKeyException`, or returns the key itself with `missing: 'key'`.
 
-**Out of a request** (a schedule, a singleton component), the component gives `t(key, params, locale)`,
-`has(key, locale)`, `format(message, params, locale)`, and `translator(locale)`, a translator of one language. None of
+**Outside a request** (in a schedule or a singleton component), the component provides `t(key, params, locale)`,
+`has(key, locale)`, `format(message, params, locale)`, and `translator(locale)`, a translator for one language. None of
 them negotiates the language: an unsupported language is looked up as given, then falls back.
 
 **At run time**, `addMessages(locale, messages)` adds or replaces messages. A new language becomes supported
 (`getLocales()`, `negotiate()`) unless the `locales` option lists the languages, and its validation messages are
-registered as at the creation; the promise it returns resolves once they are (the messages themselves are given by
-`t()` as soon as it returns).
+registered as at creation. The promise that `addMessages()` returns resolves once they are; `t()` gives the new
+messages as soon as `addMessages()` returns.
 
 ### The translator of a request
 
-With `I18nMiddleware` in the `middlewares` of the entrypoint, each request has a language, and its objects (the
-controller, the `@Scoped` providers, the access control rules) inject the same `Translator` of that language:
+With `I18nMiddleware` in the entrypoint's `middlewares`, each request has a language, and its objects (the controller,
+the `@Scoped` providers, the access control rules) inject the same `Translator` for that language:
 
 ```typescript
 import {Application} from 'lakutata'
@@ -142,30 +142,30 @@ Application.run(() => ({
 }))
 ```
 
-A translator (`Translator`, and the `ITranslator` of `translator(locale)`) has `locale`, `t(key, params)`, `has(key)`,
-`format(message, params)`, `number(value, options)` (`Intl.NumberFormat`) and `date(value, options)`
-(`Intl.DateTimeFormat`, in the `timeZone` option). The `Translator` of a request without the middleware throws
+A translator (`Translator`, and the `ITranslator` returned by `translator(locale)`) has `locale`, `t(key, params)`,
+`has(key)`, `format(message, params)`, `number(value, options)` (`Intl.NumberFormat`) and `date(value, options)`
+(`Intl.DateTimeFormat`, in the `timeZone` option). Without the middleware, a request's `Translator` throws
 `I18nTranslatorException`.
 
 ### The language of each request
 
-The middleware reads the languages a request asks for, preferred first, then negotiates them with the supported
-languages (the default language when none matches) and sets `context.locale`:
+The middleware reads the languages a request asks for, preferred first, negotiates them with the supported languages
+(the default language when none matches) and sets `context.locale`:
 
 | Transport | Languages read, preferred first |
 |---|---|
 | HTTP (Express, Fastify) | The query parameter `?lang=`, the cookie `lang`, then `Accept-Language` (by quality) |
-| Socket.IO | The query parameter `lang`, the cookie `lang` and `Accept-Language` of the connection's handshake |
-| HTTP service adapter, JSON-RPC adapter (HTTP, WebSocket) | The query parameter `lang`, the cookie `lang` and `Accept-Language` of the HTTP request (for WebSocket, of the request opening the connection) |
+| Socket.IO | The query parameter `lang`, the cookie `lang` and `Accept-Language` of the connection handshake |
+| HTTP service adapter, JSON-RPC adapter (HTTP, WebSocket) | The query parameter `lang`, the cookie `lang` and `Accept-Language` of the HTTP request (for WebSocket, of the request that opened the connection) |
 | Command line, Electron IPC, JSON-RPC over stdio | The variable named by `environmentVariable` (none by default), `LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG`, then the process's language |
 | Schedules | None: the default language |
 
-A query or cookie value which is not a language tag is skipped. The negotiation tries each requested language in turn:
-the same tag, then its language alone (`en-GB` gives `en`), then another tag of its language (`pt-PT` gives `pt-BR`, in
-the order of the supported languages).
+A query or cookie value that is not a language tag is skipped. Negotiation tries each requested language in turn: the
+same tag, then its language alone (`en-GB` gives `en`), then another tag of the same language (`pt-PT` gives `pt-BR`,
+in the order of the supported languages).
 
-A subclass changes the component (`@Inject('...') protected readonly i18n`), the names `queryParameter` and `cookie`,
-`environmentVariable`, or the languages read (`requested(context)`):
+A subclass can change the component (`@Inject('...') protected readonly i18n`), the `queryParameter` and `cookie`
+names, `environmentVariable`, or the languages read (`requested(context)`):
 
 ```typescript
 import {type BaseContext} from 'lakutata/com/entrypoint'
@@ -188,20 +188,20 @@ export class LanguageMiddleware extends I18nMiddleware {
 
 | Syntax | Example |
 |---|---|
-| Argument | `Hello, {name}`: a number is formatted in the language, a `Date` as a date, the rest as a string |
+| Argument | `Hello, {name}`: a number is formatted for the language, a `Date` as a date, anything else as a string |
 | Number | `{n, number}`, `{n, number, integer}`, `{n, number, percent}` |
-| Currency | `{price, number, currency}` (the `currency` argument, else the `currency` option), `{price, number, currency/EUR}` |
+| Currency | `{price, number, currency}` (the `currency` argument, or else the `currency` option), `{price, number, currency/EUR}` |
 | Date, time | `{at, date, short}`, `{at, time, long}`; the styles `short`, `medium` (the default), `long`, `full`; a `Date`, a timestamp, a date string or an object with `toDate()` |
-| Plural | `{count, plural, =0 {none} one {# item} other {# items}}`: the `=n` options first, then the plural rules of the language; `#` is the number; `offset:1` supported |
+| Plural | `{count, plural, =0 {none} one {# item} other {# items}}`: the `=n` options first, then the plural rules of the language; `#` is the number; `offset:1` is supported |
 | Ordinal | `{place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}` |
 | Select | `{role, select, admin {Administrator} other {User}}` |
 | Quoting | `''` writes an apostrophe; `'{literal}'` writes braces (`'#'` writes `#` in a plural) |
 
 `plural`, `selectordinal` and `select` need an `other` option. A message is parsed the first time it is used; a syntax
-error throws `I18nMessageSyntaxException` naming its language, key and position.
+error throws `I18nMessageSyntaxException`, which names its language, key and position.
 
-The application can declare its keys and their arguments, so that a wrong key or a missing argument fails the
-compilation (`lakutata i18n types` generates it from the default language; without it, any key is accepted):
+The application can declare its keys and their arguments, so that a wrong key or a missing argument fails compilation
+(`lakutata i18n types` generates the declaration from the default language; without it, any key is accepted):
 
 ```text
 //src/i18n.d.ts
@@ -217,11 +217,11 @@ declare module 'lakutata/com/i18n' {
 
 ### The validation messages and the exceptions
 
-With the middleware, the validation errors of a request (its input DTO, `@Accept`/`@Return`, the `DTO.validate` calls
-of its code) are in its language. The component registers, when it is created (and for a language added by
-`addMessages()`), the built-in validation messages of its languages (20 languages are built in: `en`, `zh-CN`,
-`zh-TW`, `ja`, `ko`, `fr`, `de`, `es`, `pt-BR`, `it`, `nl`, `pl`, `ru`, `uk`, `tr`, `vi`, `th`, `id`, `hi`, `ar`), layered with the application's messages under `validation`, by error
-code, in the syntax of the validation templates (not ICU):
+With the middleware, a request's validation errors (from its input DTO, `@Accept`/`@Return`, and the `DTO.validate`
+calls in its code) are in its language. When it is created (and for a language added by `addMessages()`), the component
+registers the built-in validation messages of its languages. 20 languages are built in: `en`, `zh-CN`, `zh-TW`, `ja`,
+`ko`, `fr`, `de`, `es`, `pt-BR`, `it`, `nl`, `pl`, `ru`, `uk`, `tr`, `vi`, `th`, `id`, `hi`, `ar`. The application's
+messages under `validation` are layered on top, by error code, in the syntax of the validation templates (not ICU):
 
 ```json
 {
@@ -232,12 +232,12 @@ code, in the syntax of the validation templates (not ICU):
 }
 ```
 
-A language's validation messages are those of the languages it falls back to, replaced by its own built-in ones, then
-by its own application messages. `validationMessages: false` registers the application's messages only.
+A language's validation messages are those of the languages it falls back to, replaced by its own built-in messages,
+then by its own application messages. `validationMessages: false` registers only the application's messages.
 
-An exception thrown by a request whose `errno` has a message `errors.<errno>` gets that message in the request's
-language, formatted with the parameters of its template (`{id}`, or `{0}`, `{1}` for the parameters given one by one);
-its `errno` is unchanged:
+When a request throws an exception whose `errno` has a message under `errors.<errno>`, the exception gets that message
+in the request's language, formatted with the parameters of its template (`{id}`, or `{0}`, `{1}` for parameters
+passed one by one); its `errno` stays unchanged:
 
 ```typescript
 import {Exception} from 'lakutata'
@@ -294,7 +294,7 @@ Application.run(() => ({
 ### Checking the translations
 
 `loadCatalogs`, `checkCatalogs` and `generateMessageTypes` are the functions behind `lakutata i18n check` and
-`lakutata i18n types`, for a script or the CI:
+`lakutata i18n types`, for use in a script or in CI:
 
 ```typescript
 import {checkCatalogs, loadCatalogs, type CatalogIssue, type Catalogs} from 'lakutata/com/i18n'
@@ -310,38 +310,38 @@ if (issues.some((issue: CatalogIssue): boolean => issue.level === 'error')) proc
 | Export | What it is |
 |---|---|
 | `I18n` | The component: `t`, `has`, `format`, `translator`, `negotiate`, `addMessages`, `getLocales`, `getDefaultLocale`, `getKeys`, `getTimeZone` |
-| `buildI18nOptions` | Builds the component options of `I18n` |
+| `buildI18nOptions` | Builds the component options for `I18n` |
 | `I18nOptions` | The options: `directory`, `messages`, `locales`, `defaultLocale`, `fallback`, `missing`, `currency`, `timeZone`, `validationMessages` |
-| `Translator` | The scoped provider injected in the objects of a request, in the request's language |
-| `ITranslator` | A translator of one language: `locale`, `t`, `has`, `format`, `number`, `date` |
-| `LocaleTranslator` | The `ITranslator` given by `I18n.translator()` |
-| `I18nMiddleware` | The entrypoint middleware choosing the language of each request (`lakutata/com/i18n`, `@lakutata/i18n/middleware`) |
+| `Translator` | The scoped provider injected into the objects of a request, in the request's language |
+| `ITranslator` | A translator for one language: `locale`, `t`, `has`, `format`, `number`, `date` |
+| `LocaleTranslator` | The `ITranslator` returned by `I18n.translator()` |
+| `I18nMiddleware` | The entrypoint middleware that chooses the language of each request (`lakutata/com/i18n`, `@lakutata/i18n/middleware`) |
 | `commanderTranslator`, `CommanderTranslatorOptions` | The translation of the Commander CLI help, and its options (`lakutata/com/i18n`, `@lakutata/i18n/middleware`) |
 | `I18nMessages`, `MessageKey`, `MessageParams` | The declaration of the application's keys and arguments, and the types derived from it |
-| `NestedMessages`, `Catalogs` | The messages of a language nested by key parts; the loaded messages by language and key |
+| `NestedMessages`, `Catalogs` | A language's messages, nested by key part; the loaded messages by language and key |
 | `loadCatalogs`, `checkCatalogs`, `CatalogIssue`, `generateMessageTypes` | Load the message directories, check the translations, generate the key types |
-| `normalizeLocale`, `parseAcceptLanguage`, `environmentLocales`, `negotiateLocale`, `fallbackChain` | The language tag helpers |
-| `parseMessage`, `messageArguments`, `MessagePart` | The ICU MessageFormat parser and the arguments of a message |
+| `normalizeLocale`, `parseAcceptLanguage`, `environmentLocales`, `negotiateLocale`, `fallbackChain` | Language tag helpers |
+| `parseMessage`, `messageArguments`, `MessagePart` | The ICU MessageFormat parser, and the arguments of a message |
 | `I18nCatalogException`, `I18nMessageSyntaxException`, `I18nMissingKeyException`, `I18nMissingParameterException`, `I18nTranslatorException` | The exceptions |
 
-All are exported by `lakutata/com/i18n`; `@lakutata/i18n` exports them except the middleware ones, exported by
-`@lakutata/i18n/middleware`. The typings document each declaration with examples.
+All are exported by `lakutata/com/i18n`; `@lakutata/i18n` exports all but the middleware ones, which
+`@lakutata/i18n/middleware` exports. The typings document each declaration, with examples.
 
 ## Errors
 
 | Exception | When |
 |---|---|
-| `I18nCatalogException` (`E_I18N_CATALOG`) | The component's creation, `addMessages()` or `loadCatalogs()`: a missing directory, invalid JSON, a file or directory name which is not a language tag, an invalid key or value, an option which is not a language tag, an alias without an application; `generateMessageTypes()`: the default language has no messages |
-| `I18nMessageSyntaxException` (`E_I18N_MESSAGE_SYNTAX`) | A message is not valid ICU MessageFormat, when it is first used (or parsed by `format()`, `parseMessage()`, `generateMessageTypes()`) |
+| `I18nCatalogException` (`E_I18N_CATALOG`) | Creating the component, `addMessages()` or `loadCatalogs()`: a missing directory, invalid JSON, a file or directory name that is not a language tag, an invalid key or value, an option that is not a language tag, an alias without an application; `generateMessageTypes()`: the default language has no messages |
+| `I18nMessageSyntaxException` (`E_I18N_MESSAGE_SYNTAX`) | A message is not valid ICU MessageFormat, when it is first used (or parsed by `format()`, `parseMessage()` or `generateMessageTypes()`) |
 | `I18nMissingKeyException` (`E_I18N_MISSING_KEY`) | `t()`: no message has the key, with `missing: 'throw'` |
 | `I18nMissingParameterException` (`E_I18N_MISSING_PARAMETER`) | `t()`, `format()`: an argument is missing, or a currency argument has no currency, with `missing: 'throw'` |
-| `I18nTranslatorException` (`E_I18N_TRANSLATOR`) | The `Translator` is used without the `I18nMiddleware`, or out of a request |
+| `I18nTranslatorException` (`E_I18N_TRANSLATOR`) | The `Translator` is used without the `I18nMiddleware`, or outside a request |
 | `InvalidValueException` (from `lakutata`) | The component's options are invalid, when it is created |
 
 ## See also
 
-- `doc/en/I18n.md` of the package `lakutata` (Chinese in `doc/zh`): the guide of the internationalization.
-- `@lakutata/entrypoint` (`lakutata/com/entrypoint`): the controllers, the middlewares and the adapters.
-- `@lakutata/core` (`lakutata`): the components, `Application`, the DTO validation and its languages
+- `doc/en/I18n.md` in the `lakutata` package (Chinese version in `doc/zh`): the internationalization guide.
+- `@lakutata/entrypoint` (`lakutata/com/entrypoint`): controllers, middlewares and adapters.
+- `@lakutata/core` (`lakutata`): components, `Application`, DTO validation and its languages
   (`loadValidationMessages`, `registerValidationMessages`, `runInValidationLanguage`).
 - `@lakutata/cli`: the `lakutata i18n check`, `lakutata i18n types` and `lakutata i18n add` commands.
