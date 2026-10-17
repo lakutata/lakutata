@@ -7,13 +7,14 @@ import {HTTPContext} from '../../context/HTTPContext.js'
 /**
  * Expose the controller method as an HTTP OPTIONS action on a route, to describe the communication options of a
  * resource: the shorthand of `@HTTPAction(route, 'options', …)`. The adapter assembles the input: by default, the query
- * string merged with the parsed body (JSON or URL encoded), then the route parameters over them. The middlewares run,
- * the input is validated against the DTO (the defaults applied, the unknown keys removed; without a DTO, it is accepted
- * as it is), the access control runs when `acl` is set, then the method receives the validated input as a plain object.
- * The query values and the route parameters are strings and the DTO schemas are strict: convert them with
- * `.strict(false)`. The value returned is answered by the adapter's responder: as JSON by default, with the status 204
- * for `undefined`; `Result.status()` sets a status and headers. An error thrown is answered as `{errno, errMsg}` with
- * the first 4xx `statusCode` along its causes (400 for an invalid input), else its own `statusCode`, else 500.
+ * string merged with the parsed body (JSON; URL encoded with Express), then the route parameters over them. The
+ * middlewares run, the input is validated against the DTO (the defaults applied, the unknown keys removed; without a
+ * DTO, it is accepted as it is), the access control runs when `acl` is set, then the method receives the validated
+ * input as a plain object. The query values and the route parameters are strings and the DTO schemas are strict:
+ * convert them with `.strict(false)`. The value returned is answered by the adapter's responder: as JSON by default,
+ * with the status 204 for `undefined`; `Result.status()` sets a status and headers. An error thrown is answered as
+ * `{errno, errMsg}` with the first 4xx `statusCode` along its causes (400 for an invalid input), else its own
+ * `statusCode`, else 500.
  * @param r The route, in the syntax of the HTTP adapter (`/users/:id`); the controller's `@Prefix({route})` is
  * prepended to it.
  * @returns The method decorator.

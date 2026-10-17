@@ -9,11 +9,11 @@ import {HTTPContext} from '../context/HTTPContext.js'
  * Expose the controller method as an HTTP action answering a route for an HTTP method, served by the HTTP adapters of
  * the entrypoint (`expressHTTPEntrypoint`, `fastifyHTTPEntrypoint`). Without a DTO, the input is accepted as it is.
  *
- * On a request, the adapter assembles the input: by default, the query string merged with the parsed body (JSON or URL
- * encoded), then the route parameters over them. The middlewares run, the input is validated against the DTO (the
- * defaults applied, the unknown keys removed), the access control runs when `acl` is set, then the method receives the
- * validated input as a plain object, not a DTO instance. The query values and the route parameters are strings and the
- * DTO schemas are strict: convert them with `.strict(false)` (`DTO.Number().strict(false)`).
+ * On a request, the adapter assembles the input: by default, the query string merged with the parsed body (JSON; URL
+ * encoded with Express), then the route parameters over them. The middlewares run, the input is validated against the
+ * DTO (the defaults applied, the unknown keys removed), the access control runs when `acl` is set, then the method
+ * receives the validated input as a plain object, not a DTO instance. The query values and the route parameters are
+ * strings and the DTO schemas are strict: convert them with `.strict(false)` (`DTO.Number().strict(false)`).
  *
  * The value returned is answered by the adapter's responder: as JSON by default, with the status 204 for `undefined`;
  * return `Result.status()`, `Result.file()` or `Result.events()` for a status and headers, a file or server-sent

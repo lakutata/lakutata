@@ -20,7 +20,7 @@ import {
     Next,
     Result
 } from '../exports/Entrypoint.js'
-import {GET, POST} from '../exports/CTRLDecorators.js'
+import {GET, HEAD, POST} from '../exports/CTRLDecorators.js'
 import {expressHTTPEntrypoint, ExpressHTTPEntrypointOptions, jsonEnvelope, staticUI} from '../exports/ExpressAdapter.js'
 import type {Request} from 'express'
 
@@ -68,6 +68,22 @@ class DeviceController extends Controller {
 
     @GET('/empty')
     public async empty(): Promise<void> {
+    }
+
+    @GET('/status')
+    public async status(): Promise<unknown> {
+        return Result.status(200, undefined, {'X-State': 'ok'})
+    }
+
+    //The GET action declared first: the HEAD action answers the HEAD requests all the same
+    @GET('/probe')
+    public async probe(): Promise<string> {
+        return 'get'
+    }
+
+    @HEAD('/probe')
+    public async probeHead(): Promise<unknown> {
+        return Result.status(200, undefined, {'X-Probe': 'head'})
     }
 
     @GET('/buffer')
@@ -213,10 +229,36 @@ describe('Express adapter', (): void => {
         await rm(fileDirectory, {recursive: true, force: true})
     })
 
+    it('keeps the status given by an action without data, 200 included', async (): Promise<void> => {
+        const {url, container} = await start()
+        try {
+            const status: Response = await fetch(`${url}/status`)
+            assert.strictEqual(status.status, 200)
+            assert.strictEqual(status.headers.get('x-state'), 'ok')
+        } finally {
+            await container.destroy()
+        }
+    })
+
+    it('answers the HEAD requests with the HEAD action of the route, else with its GET action', async (): Promise<void> => {
+        const {url, container} = await start()
+        try {
+            const head: Response = await fetch(`${url}/probe`, {method: 'HEAD'})
+            assert.strictEqual(head.status, 200)
+            assert.strictEqual(head.headers.get('x-probe'), 'head')
+            assert.strictEqual(await (await fetch(`${url}/probe`)).json(), 'get')
+            const headOfGet: Response = await fetch(`${url}/device/sn-1`, {method: 'HEAD'})
+            assert.strictEqual(headOfGet.status, 200)
+            assert.strictEqual(await headOfGet.text(), '')
+        } finally {
+            await container.destroy()
+        }
+    })
+
     it('mounts the application routes, the fallback and the envelope', async (): Promise<void> => {
         const {url, container} = await start({
             before: (app, {actionPrefixes, isActionPath}): void => {
-                assert.deepStrictEqual(actionPrefixes.sort(), ['/administrators', '/buffer', '/client', '/created', '/denied', '/device', '/empty', '/events', '/file', '/missing', '/slow'])
+                assert.deepStrictEqual(actionPrefixes.sort(), ['/administrators', '/buffer', '/client', '/created', '/denied', '/device', '/empty', '/events', '/file', '/missing', '/probe', '/slow', '/status'])
                 assert.ok(isActionPath('/device/x') && !isActionPath('/devices'))
                 app.get('/health', (request, response): unknown => response.json({status: 'ok'}))
             },

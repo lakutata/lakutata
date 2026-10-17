@@ -11,6 +11,7 @@ import {HTTPChannel} from '../../channel/BuiltinChannels.js'
 import {EventsResult, FileResult, StatusResult} from '../../lib/Result.js'
 import {RouteNotFoundException} from '../../exceptions/RouteNotFoundException.js'
 import {trackConnections} from '../../lib/Connections.js'
+import {markExplicitStatus} from '../../lib/ExplicitStatus.js'
 import {FastifyJSONResponder, type FastifyResponder} from './Responders.js'
 
 /**
@@ -307,6 +308,7 @@ export function fastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
         if (result instanceof FileResult) return await sendFile(result, request, reply)
         if (result instanceof StatusResult) {
             reply.code(result.status).headers(result.headers)
+            markExplicitStatus(reply.raw)
             return respond.success(reply, result.data, request)
         }
         respond.success(reply, result, request)

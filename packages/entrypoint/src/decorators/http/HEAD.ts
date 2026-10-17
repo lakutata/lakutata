@@ -7,14 +7,14 @@ import {HTTPContext} from '../../context/HTTPContext.js'
 /**
  * Expose the controller method as an HTTP HEAD action on a route, to answer the headers of a resource without its body:
  * the shorthand of `@HTTPAction(route, 'head', …)`. The adapter assembles the input: by default, the query string
- * merged with the parsed body (JSON or URL encoded), then the route parameters over them. The middlewares run, the
- * input is validated against the DTO (the defaults applied, the unknown keys removed; without a DTO, it is accepted as
- * it is), the access control runs when `acl` is set, then the method receives the validated input as a plain object.
- * The query values and the route parameters are strings and the DTO schemas are strict: convert them with
+ * merged with the parsed body (JSON; URL encoded with Express), then the route parameters over them. The middlewares
+ * run, the input is validated against the DTO (the defaults applied, the unknown keys removed; without a DTO, it is
+ * accepted as it is), the access control runs when `acl` is set, then the method receives the validated input as a
+ * plain object. The query values and the route parameters are strings and the DTO schemas are strict: convert them with
  * `.strict(false)`. The value returned is answered by the adapter's responder: as JSON by default, with the status 204
  * for `undefined`; `Result.status()` sets a status and headers. An error thrown is answered as `{errno, errMsg}` with
- * the first 4xx `statusCode` along its causes (400 for an invalid input), else its own `statusCode`, else 500.
- * With Fastify, a GET action also answers the HEAD requests of its route unless the route has a HEAD action.
+ * the first 4xx `statusCode` along its causes (400 for an invalid input), else its own `statusCode`, else 500. A GET
+ * action also answers the HEAD requests of its route, unless the route has a HEAD action.
  * @param r The route, in the syntax of the HTTP adapter (`/users/:id`); the controller's `@Prefix({route})` is
  * prepended to it.
  * @returns The method decorator.
@@ -39,7 +39,7 @@ export function HEAD<ClassPrototype extends Controller, Method>(r: string): Meth
  * over them (the default of the adapters); the method receives it validated, as a plain object. The value returned is
  * answered as JSON (204 for `undefined`), an error as `{errno, errMsg}` with its status (400 for an invalid input, else
  * 500 by default).
- * With Fastify, a GET action also answers the HEAD requests of its route unless the route has a HEAD action.
+ * A GET action also answers the HEAD requests of its route, unless the route has a HEAD action.
  * @param r The route, in the syntax of the HTTP adapter (`/users/:id`); the controller's `@Prefix({route})` is
  * prepended to it.
  * @param dtoConstructor The DTO class validating the input; the query values and the route parameters are strings,
@@ -52,7 +52,7 @@ export function HEAD<ClassPrototype extends Controller, Method, DTOConstructor e
  * `@HTTPAction(route, 'head', …)`. The input is the query string merged with the parsed body, then the route parameters
  * over them (the default of the adapters), accepted as it is. The value returned is answered as JSON (204 for
  * `undefined`), an error as `{errno, errMsg}` with its status (500 by default).
- * With Fastify, a GET action also answers the HEAD requests of its route unless the route has a HEAD action.
+ * A GET action also answers the HEAD requests of its route, unless the route has a HEAD action.
  * @param r The route, in the syntax of the HTTP adapter (`/users/:id`); the controller's `@Prefix({route})` is
  * prepended to it.
  * @param actionOptions The action options: `acl` runs the access control rules (false by default); `name` (unique in the
@@ -70,7 +70,7 @@ export function HEAD<ClassPrototype extends Controller, Method>(r: string, actio
  * then the route parameters over them (the default of the adapters); the method receives it validated, as a plain
  * object. The value returned is answered as JSON (204 for `undefined`), an error as `{errno, errMsg}` with its status
  * (400 for an invalid input, else 500 by default).
- * With Fastify, a GET action also answers the HEAD requests of its route unless the route has a HEAD action.
+ * A GET action also answers the HEAD requests of its route, unless the route has a HEAD action.
  * @param r The route, in the syntax of the HTTP adapter (`/users/:id`); the controller's `@Prefix({route})` is
  * prepended to it.
  * @param dtoConstructor The DTO class validating the input; the query values and the route parameters are strings,

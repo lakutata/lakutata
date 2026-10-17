@@ -10,6 +10,7 @@ import {HTTPChannel} from '../../channel/BuiltinChannels.js'
 import {EventsResult, FileResult, StatusResult} from '../../lib/Result.js'
 import {RouteNotFoundException} from '../../exceptions/RouteNotFoundException.js'
 import {trackConnections} from '../../lib/Connections.js'
+import {markExplicitStatus} from '../../lib/ExplicitStatus.js'
 import {ExpressResponder, JSONResponder} from './Responders.js'
 
 /**
@@ -288,6 +289,7 @@ export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}
         if (result instanceof FileResult) return await sendFile(result, request, response)
         if (result instanceof StatusResult) {
             response.status(result.status).set(result.headers)
+            markExplicitStatus(response)
             return respond.success(response, result.data, request)
         }
         respond.success(response, result, request)
@@ -342,7 +344,10 @@ export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}
             const isActionPath = (requestPath: string): boolean => actionPrefixes.some((prefix: string): boolean => requestPath === prefix || requestPath.startsWith(`${prefix}/`))
             await options.before?.(app, {module: runtime.module, server: server, routes: routes, actionPrefixes: actionPrefixes, isActionPath: isActionPath})
             if (options.body !== false) app.use(express.json({limit: options.body?.limit ?? '1mb'}), express.urlencoded({extended: true, limit: options.body?.limit ?? '1mb'}))
-            for (const action of runtime.actions) {
+            //The HEAD actions first: express answers a HEAD request with the first GET route of its path when no HEAD route
+            //comes before it
+            const isHead = (action: ChannelActionInfo): boolean => String(action.address.method).toLowerCase() === 'head'
+            for (const action of [...runtime.actions.filter(isHead), ...runtime.actions.filter((action: ChannelActionInfo): boolean => !isHead(action))]) {
                 const method: string = String(action.address.method).toLowerCase()
                 const register: unknown = (app as any)[method]
                 if (typeof register !== 'function') throw new TypeError(`Unsupported HTTP method "${action.address.method}" of the route "${action.address.route}"`)

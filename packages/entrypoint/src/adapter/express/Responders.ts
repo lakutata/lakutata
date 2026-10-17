@@ -1,6 +1,7 @@
 import type {Request, Response} from 'express'
 import {describeError, type HTTPErrorOrigin, statusOfError} from '../../lib/HTTPErrors.js'
 import {envelopeOf, errorExtraOf} from '../../lib/Envelope.js'
+import {hasExplicitStatus} from '../../lib/ExplicitStatus.js'
 
 export {describeError, statusOfError, type HTTPErrorOrigin}
 
@@ -40,7 +41,7 @@ export interface ExpressResponder {
 export const JSONResponder: ExpressResponder = {
     success: (response: Response, data: unknown): void => {
         if (data === undefined) {
-            response.status(response.statusCode === 200 ? 204 : response.statusCode).end()
+            response.status(response.statusCode === 200 && !hasExplicitStatus(response) ? 204 : response.statusCode).end()
             return
         }
         response.json(data)

@@ -1,6 +1,7 @@
 import type {FastifyReply, FastifyRequest} from 'fastify'
 import {describeError, type HTTPErrorOrigin, statusOfError} from '../../lib/HTTPErrors.js'
 import {envelopeOf, errorExtraOf} from '../../lib/Envelope.js'
+import {hasExplicitStatus} from '../../lib/ExplicitStatus.js'
 
 /**
  * How {@link fastifyHTTPEntrypoint} writes the results and the errors of the actions (its `respond` option). Implement
@@ -47,7 +48,7 @@ function sendJSON(reply: FastifyReply, data: unknown): void {
 export const FastifyJSONResponder: FastifyResponder = {
     success: (reply: FastifyReply, data: unknown): void => {
         if (data === undefined) {
-            reply.code(reply.statusCode === 200 ? 204 : reply.statusCode).send()
+            reply.code(reply.statusCode === 200 && !hasExplicitStatus(reply.raw) ? 204 : reply.statusCode).send()
             return
         }
         sendJSON(reply, data)
