@@ -12,146 +12,158 @@ lakutata create --name my-app
 
 ### `lakutata create`
 
-Create a project from a template. The options are given on the command line; in a terminal, the missing ones are asked,
-and the project is created once it is confirmed (`--yes` skips the confirmation).
+Create a project from a template. The options are given on the command line. In a terminal, the tool asks for the
+name when it is missing, offers the features of the template, and creates the project once you confirm (`--yes` skips
+both the features and the confirmation).
 
 | Option | |
 |---|---|
 | `--name <name>` | the name of the application (required) |
-| `--id <id>` | the ID of the application (a package name), its name in lower case by default |
-| `--template <template>` | the template, `default` by default: an official template (`lakutata templates` lists them), `npm:<package>[@<version>]`, `github:<owner>/<repo>[#<ref>]` or a directory |
-| `--path <directory>` | the directory the project directory is created in, the current one by default |
-| `--init` | create the project in the directory itself (it may exist and not be empty) |
-| `--description`, `--author`, `--license` | the information of the application |
-| `--with <features>` | the optional features of the template enabled, separated by commas (`lakutata templates` lists them): `i18n`. In a terminal without `--with`, they are chosen |
-| `--package-manager <npm\|pnpm\|yarn\|none>` | the package manager installing the dependencies, the one running the tool by default |
+| `--id <id>` | the ID of the application (a package name), by default its name in lower case |
+| `--template <template>` | the template (`default` when it is not given): an official template (listed by `lakutata templates`), `npm:<package>[@<version>]`, `github:<owner>/<repo>[#<ref>]` or a directory |
+| `--path <directory>` | the directory in which the project directory is created, by default the current one |
+| `--init` | create the project in the `--path` directory itself, which must exist and may hold files: the files of the template replace those with the same names |
+| `--description`, `--author`, `--license` | information about the application |
+| `--with <features>` | the optional features of the template to enable, separated by commas (listed by `lakutata templates`): `i18n`, `installer`. In a terminal, without `--with` or `--yes`, you choose them from a list |
+| `--package-manager <npm\|pnpm\|yarn\|none>` | the package manager that installs the dependencies (`none` installs nothing): npm by default, or pnpm or yarn when one of them started the tool |
 | `--no-git` | do not initialize a git repository |
-| `--yes` | create the project without confirmation |
+| `--yes` | create the project without asking for the features or for a confirmation |
 
 ```bash
 lakutata create --name my-service --template service --package-manager pnpm --yes
 lakutata create --name my-service --template service --with i18n --yes
 ```
 
-The official templates have the feature `i18n`: the messages of the application in several languages
-(`lakutata/com/i18n`), in `src/locales` (`en.json`, `zh-CN.json`), bundled with the code; each request answered in its
-language (the language of the environment for the command line tools and the Electron applications), its validation
-errors too; the scripts `i18n:check` and `i18n:types`.
+Every official template has the `i18n` feature: the messages of the application in several languages
+(`lakutata/com/i18n`), in `src/locales` (`en.json`, `zh-CN.json`) and bundled with the code. Each request is answered
+in its own language, including its validation errors (command line tools and Electron applications use the language
+of the environment). The feature also adds the `i18n:check` and `i18n:types` scripts. The `cli`, `service` and `web-*`
+templates also have the `installer` feature: the `lakutata.installer` configuration of the application and the scripts
+that make its installers (on the machine, and for Linux in Docker), with a system service for the `service` and
+`web-*` templates.
 
 ### `lakutata templates`
 
-List the official templates. They are npm packages (`@lakutata/template-<name>`) listed by the catalog package
-`@lakutata/templates`, downloaded from the npm registry of the user (a mirror such as npmmirror works as it does for the
-dependencies): no access to GitHub is needed. The catalog is kept for a day (`--refresh` fetches it again).
+List the official templates. They are npm packages (`@lakutata/template-<name>`), listed by the catalog package
+`@lakutata/templates` and downloaded from the user's npm registry (a mirror such as npmmirror works, as it does for the
+dependencies), so no access to GitHub is needed. The catalog is cached for a day (`--refresh` fetches it again).
 
-The version of an official template is the newest one of the major version of the tool. The downloaded templates are
-kept: when the registry cannot be reached, the kept ones are used.
+The tool uses the newest release of an official template within its own major version. Downloaded templates are
+cached: when the registry cannot be reached, the newest cached release of that major version is used, and without one
+the command fails.
 
-A template package has its files in its `template/` directory. The npm packages cannot hold some files under their
-name: `_gitignore`, `_npmrc`… are renamed `.gitignore`, `.npmrc`… when the project is created. The text files are filled
-with the information of the project: `{$APP_NAME}`, `{$APP_ID}`, `{$APP_DESC}`, `{$APP_AUTHOR}`, `{$APP_LICENSE}` and
-`{$LAKUTATA_VERSION}` (the version of the framework).
+A template package keeps its files in its `template/` directory. npm packages cannot hold some files under their real
+names, so `_gitignore`, `_npmrc`… are renamed `.gitignore`, `.npmrc`… when the project is created. The text files are
+filled with the information of the project: `{$APP_NAME}`, `{$APP_ID}`, `{$APP_DESC}`, `{$APP_AUTHOR}`,
+`{$APP_LICENSE}` and `{$LAKUTATA_VERSION}` (the version of the framework).
 
-A template has optional features, which `lakutata create --with <features>` enables (or the user chooses in a terminal):
+A template can have optional features, which `lakutata create --with <features>` enables (or which the user chooses in
+a terminal):
 
-- they are declared by the `package.json` of the template package, their names and their descriptions:
+- the `package.json` of the template package declares them, with their names and descriptions:
   `"lakutata": {"template": "default", "features": {"i18n": "The messages in several languages"}}`;
-- the files of a feature are in `features/<name>/`, beside `template/` (published with it, in the `files` of the
-  package): they are added to the project when the feature is enabled; a JSON file the project has is merged into its
-  one (the scripts of `package.json`, the options of `tsconfig.json`);
-- the files of the template have the blocks of the features, the lines between `//@if <feature>` and `//@end` (or
-  `//@else`; `//@if !<feature>` when the feature is not enabled), kept when the feature is enabled and removed
-  otherwise; the lines of the markers are removed. The markers are comments of their languages: `//@if i18n`,
-  `#@if i18n`, `<!--@if i18n-->`, `/*@if i18n*/`.
+- the files of a feature are in `features/<name>/`, beside `template/` (and published with it, in the `files` of the
+  package). They are added to the project when the feature is enabled: a JSON file that the project already has is
+  merged into it (objects merged by key, arrays replaced: the scripts of `package.json`, the options of
+  `tsconfig.json`), and any other file replaces the one of the template;
+- the files of the template can hold blocks for a feature: the lines between `//@if <feature>` and `//@end` (or
+  `//@else`; `//@if !<feature>` for when the feature is not enabled) are kept when the feature is enabled and removed
+  otherwise, and the marker lines are always removed. The markers are written as comments of the file's language:
+  `//@if i18n`, `#@if i18n`, `<!--@if i18n-->`, `/*@if i18n*/`.
 
 ### `lakutata info`
 
-Show the versions of the tool, of the framework (and their latest versions), of Node.js, and of the framework of the
-project of the current directory.
+Show the versions of the tool and of the framework (with their latest versions), of Node.js, and the version of the
+framework that the project in the current directory uses.
 
 ### `lakutata clean [paths...]`
 
-Remove paths of the package of the current directory, on every platform (as `rm -rf`, without `shx` or `rimraf`):
-`lakutata clean build dist`. Without paths, the output directories of its `tsconfig.json` are removed (`outDir`, and
-`declarationDir` when it has one, read through the configurations it extends): `"clean": "lakutata clean"`. A missing
-path is skipped; the paths outside of the package, the package itself, `src`, `node_modules`, `.git` and `package.json`
-are never removed. In a workspace, `lakutata run clean` runs the `clean` script of each package.
+Remove paths of the package in the current directory, on every platform (like `rm -rf`, without `shx` or `rimraf`):
+`lakutata clean build dist`. Without paths, it removes the output directories of its `tsconfig.json` (`outDir`, and
+`declarationDir` when there is one, following the configurations it extends): `"clean": "lakutata clean"`. A missing
+path is skipped. Paths outside the package, the package itself, `src`, `node_modules`, `.git` and `package.json` are
+never removed. In a workspace, `lakutata run clean` runs the `clean` script of each package.
 
 ## Workspaces
 
-The projects made of several packages (`app`, `ui`, `proxy`…) are npm workspaces (the `workspaces` of the root
-`package.json`, or a `pnpm-workspace.yaml`). The tool builds and versions their packages; it is the part of lerna the
-projects use, without lerna.
+Projects made of several packages (`app`, `ui`, `proxy`…) are npm workspaces (the `workspaces` field of the root
+`package.json`, or a `pnpm-workspace.yaml`). The tool builds and versions their packages: it covers the part of lerna
+that these projects use, without lerna.
 
 ### `lakutata run <script>`
 
-Run a script in the packages having it, in the order of their dependencies (a package runs once the packages it depends
-on ran); the packages independent of each other run at the same time. The output is prefixed by the name of the package.
+Run a script in every package that has it, in the order of their dependencies: a package starts once the packages it
+depends on have finished, and packages that do not depend on each other run at the same time. The scripts always run
+with `npm run`, also in a pnpm or yarn workspace. Each line of output starts with the name of its package.
 
 | Option | |
 |---|---|
-| `--concurrency <n>` | how many packages run at a time, the number of the processors by default |
-| `--parallel` | run all the packages at once, without waiting for their dependencies: the long-running scripts (`lakutata run dev --parallel`) |
-| `--no-bail` | do not stop at the first failure: the packages which do not depend on the failed ones run |
-| `--scope <names...>` | the packages run, by name (`*` wildcards) |
+| `--concurrency <n>` | how many packages run at a time, by default the number of processors |
+| `--parallel` | run all the packages at once, without waiting for their dependencies: for scripts that keep running (`lakutata run dev --parallel`) |
+| `--no-bail` | do not stop at the first failure: the packages that do not depend on a failed one still run |
+| `--scope <names...>` | only the packages with these names (`*` is a wildcard) |
 
 ### `lakutata version <bump>`
 
-Give all the packages the next version (`major`, `minor`, `patch`, `premajor`, `preminor`, `prepatch`, `prerelease`
-with `--preid <id>`, or a version), update the dependencies between them (`^0.0.16` becomes `^0.0.17`: with the `0.x`
-versions a range matches its version only) and the lock file (`npm ci` fails otherwise). The version of the workspace is
-the one of `lerna.json` when there is one, of the root `package.json` otherwise. `--git` commits the changes and tags
-them `v<version>`; `--yes` gives the version without confirmation.
+Give every package the next version (`major`, `minor`, `patch`, `premajor`, `preminor`, `prepatch`, `prerelease` with
+`--preid <id>`, or a version), and update the dependencies between them (`^0.0.16` becomes `^0.0.17`: with `0.x`
+versions, a range matches only its own version). The command also updates `package-lock.json` or `pnpm-lock.yaml`,
+without which `npm ci` would fail. A `yarn.lock` is not updated (the command warns you to run `yarn install`), and a
+failed update is only a warning. The version of the workspace is the `version` of `lerna.json` when that file exists,
+else that of the root `package.json`, else the highest version of the packages (`0.0.0` when none has one). `--git`
+commits the changes and tags them `v<version>`; `--yes` gives the version without asking for a confirmation.
 
 ### `lakutata add <name>`
 
-Add a package to the workspace: `packages/<name>` (without its scope), of the version of the workspace, with its
-`clean`, `build`, `rebuild` and `test` scripts and a test; `--to <package>` makes a package of the workspace depend on it.
-Then `npm install` links it.
+Add a package to the workspace in `packages/<name>` (without its scope), whatever the patterns of the workspace: they
+must include `packages/*` for the other commands to see the package. Its version is the `version` of `lerna.json`,
+else that of the root `package.json`, else `0.0.1`. It has `clean`, `build`, `rebuild` and `test` scripts and a test,
+and `--to <package>` adds it to the dependencies of another package of the workspace. The command installs nothing:
+run `npm install` afterwards to link the package.
 
-- `lakutata add greeting`: a TypeScript package (`src/index.ts` compiled into `build`, its declarations emitted).
-- `lakutata add @acme/capture --native [gyp|cmake|rust]`: a native addon, by its build system:
-  - `gyp` (by default): C++ with [node-addon-api](https://github.com/nodejs/node-addon-api), built by node-gyp from
+- `lakutata add greeting`: a TypeScript package (`src/index.ts` compiled into `build`, with its declarations).
+- `lakutata add @acme/capture --native [gyp|cmake|rust]`: a native addon, with one of these build systems:
+  - `gyp` (the default): C++ with [node-addon-api](https://github.com/nodejs/node-addon-api), built by node-gyp from
     `binding.gyp`;
   - `cmake`: C++ with node-addon-api, built by [cmake-js](https://github.com/cmake-js/cmake-js) from `CMakeLists.txt`;
   - `rust`: Rust with [napi-rs](https://napi.rs), built by cargo (`Cargo.toml`, `build.rs`, `rust/lib.rs`).
 
-  Node-API is stable across the versions of Node.js and Electron: the same addon runs in both without being rebuilt.
-  The addon is built into `build/Release` (`npm run build:native`, and when the package is installed), loaded by
-  node-gyp-build from `src/index.ts`, compiled into `dist`; the C++ ones are built for the Macs with Intel and with Apple
-  silicon in one file. `lakutata native` links their libraries; `binding.gyp` and `CMakeLists.txt` also show in their
-  comments how the libraries and the options of the build are given: the libraries of the system, pkg-config, the
-  static libraries of the package, the dynamic libraries shipped with the addon (copied next to it, found there by its
-  rpath), the standard of C++, the options of each platform; a library built by its own Makefile is built before by a
-  script (`build:deps`).
-  `lakutata package bundle` and `lakutata package exe` ship the addon with the application, its dynamic libraries too. Building
-  it needs a C++ toolchain (with CMake for `cmake`), or Rust for `rust`.
+  Node-API is stable across versions of Node.js and Electron, so the same addon runs in both without being rebuilt.
+  The addon is built into `build/Release` (by `npm run build:native`, and when the package is installed) and loaded by
+  node-gyp-build from `src/index.ts`, which is compiled into `dist`. The C++ addons are built for Intel and Apple
+  silicon Macs in one file. `lakutata native` links their libraries. The comments of `binding.gyp` and `CMakeLists.txt`
+  also show how to give libraries and build options: system libraries, pkg-config, static libraries of the package,
+  dynamic libraries shipped with the addon (copied next to it and found there through its rpath), the C++ standard,
+  and the options of each platform. A library with its own Makefile is built before the addon, by a script
+  (`build:deps`). `lakutata package bundle` and `lakutata package exe` ship the addon, and its dynamic libraries, with
+  the application. Building it needs a C++ toolchain (with CMake for `cmake`), or Rust for `rust`.
 
 ### `lakutata native <action> <value>`
 
-Change the build of the native addon of the current directory, found by its build file (`binding.gyp`,
-`CMakeLists.txt`, `Cargo.toml`): its text is edited in place, its comments and its layout kept; the sources of the
-addon are not changed. A change already made changes nothing.
+Change the build of the native addon in the current directory, found by its build file (`binding.gyp`,
+`CMakeLists.txt` or `Cargo.toml`). The file is edited in place, keeping its comments and layout; the sources of the
+addon are not changed. Repeating a change changes nothing.
 
 - `lakutata native link <library>`: link a library:
-  - a library of the system: `lakutata native link pcap` (`ws2_32` with `--platform win`);
+  - a system library: `lakutata native link pcap` (`ws2_32` with `--platform win`);
   - `--pkg-config`: a library found by pkg-config (`lakutata native link libpcap --pkg-config`; not on Windows);
-  - `--framework`: a framework of macOS (`lakutata native link CoreFoundation --framework`);
+  - `--framework`: a macOS framework (`lakutata native link CoreFoundation --framework`);
   - a file of the package: a static library (`deps/lib/libfoo.a`; `foo.lib` on Windows) is linked into the addon; a
-    dynamic one (`deps/lib/libfoo.dylib`, `libfoo.so`, `foo.dll` with its import library `foo.lib`) is copied next to
-    the addon and found there at run time by its rpath (`@loader_path` on macOS, `$ORIGIN` on Linux). On macOS, its
-    install name must be `@rpath/libfoo.dylib` (`install_name_tool -id`): the command tells it otherwise;
-  - `--crate`: a crate of a Rust addon (`cargo add`).
+    dynamic library (`deps/lib/libfoo.dylib`, `libfoo.so`, or `foo.dll` with its import library `foo.lib`) is copied
+    next to the addon and found there at run time through its rpath (`@loader_path` on macOS, `$ORIGIN` on Linux). On
+    macOS, its install name must be `@rpath/libfoo.dylib` (set with `install_name_tool -id`): the command says so when
+    it is not;
+  - `--crate`: a crate, for a Rust addon (`cargo add`).
 - `lakutata native include <directory>`: a directory of headers (C++).
-- `lakutata native define <NAME[=value]>`: a definition of the preprocessor (C++).
+- `lakutata native define <NAME[=value]>`: a preprocessor definition (C++).
 
-`--platform mac|linux|win` makes the change for one platform (the files of the libraries give theirs: `.dylib` macOS,
-`.so` Linux, `.dll` and `.lib` Windows, `.a` every platform but Windows); `--target <name>` names the target changed
-when the build file has several. What is written, by build system:
+`--platform mac|linux|win` makes the change for one platform only (a library file sets its own platform: `.dylib`
+macOS, `.so` Linux, `.dll` and `.lib` Windows, `.a` every platform but Windows). `--target <name>` names the target to
+change when the build file has several. What is written, by build system:
 
 | | gyp | CMake | Rust |
 |---|---|---|---|
-| File | `binding.gyp`, or the `.gypi` it includes declaring the target | `CMakeLists.txt` | `.cargo/config.toml` (`[env]`), read by `build.rs` |
+| File | `binding.gyp`, or the `.gypi` it includes that declares the target | `CMakeLists.txt` | `.cargo/config.toml` (`[env]`), read by `build.rs` |
 | Library | `libraries` | `target_link_libraries` | `rustc-link-lib` |
 | pkg-config | `<!@(pkg-config ...)` | `pkg_check_modules(... IMPORTED_TARGET ...)` | the `-sys` crates |
 | Framework | `xcode_settings.OTHER_LDFLAGS` | `-framework` in `if(APPLE)` | `rustc-link-lib=framework=` |
@@ -159,8 +171,8 @@ when the build file has several. What is written, by build system:
 | Headers, definitions | `include_dirs`, `defines` | `target_include_directories`, `target_compile_definitions` | none (crates) |
 | Platform | `conditions` (`OS=="mac"`) | `if(APPLE)`, `if(WIN32)`, `if(CMAKE_SYSTEM_NAME STREQUAL "Linux")` | `LAKUTATA_NATIVE_MACOS`, `_LINUX`, `_WINDOWS`, `_UNIX` |
 
-The Rust libraries are given to `build.rs` (by `lakutata add --native rust`), which gives them to cargo for the addon
-only: the flags of rustc would be given to every crate it builds.
+For a Rust addon, the libraries are passed to `build.rs` (written by `lakutata add --native rust`), which passes them
+to cargo for the addon only: flags given to rustc would apply to every crate it builds.
 
 ### `lakutata list`
 
@@ -174,142 +186,155 @@ List the packages, their versions and the packages they depend on.
 | `lerna version patch --no-git-tag-version --no-push -y` | `lakutata version patch --yes` |
 | `lerna version patch` | `lakutata version patch --git` (the tag is not pushed) |
 
-The publication stays `npm publish -w <package>`. The tool does not bump the packages independently, does not write
-changelogs from the commits and does not cache the builds: the workspaces needing it keep lerna (or nx, turborepo) next
-to it.
+Packages are still published with `npm publish -w <package>`. The tool does not version packages independently, write
+changelogs from the commits or cache builds: workspaces that need these keep lerna (or nx, turborepo) alongside it.
 
 ## Bundles and executables
 
-The application of the current directory, compiled (`tsc`, which emits the metadata of the decorators), is packed by
-`@lakutata/builder`: the one installed in the project (`npm install --save-dev @lakutata/builder`, as the templates
-packing their applications do), else the one installed with the tool. Its functions (`bundleProject`,
-`buildExecutable`) pack the applications from the scripts too.
+These commands pack the application in the current directory, which must be compiled first (by `tsc`, which emits the
+metadata of the decorators). The work is done by `@lakutata/builder`: the copy installed in the project
+(`npm install --save-dev @lakutata/builder`, as the templates that pack their application do), else the one installed
+with the tool (a global install of the tool does not include it, as the builder is an optional peer dependency). Scripts
+can also pack applications with its functions (`bundleProject`, `buildExecutable`).
 
 ### `lakutata package bundle`
 
-Bundle the application and its dependencies into one CommonJS file (esbuild), run by node without `node_modules`:
-`dist/<name>.cjs`, the name being the first `bin` of the `package.json`, or its name without its scope. The entry is the
-`main` of the `package.json` (`--entry` changes it), the bundle is minified with the names of the classes kept
-(`--no-minify`), `import.meta.url` is the URL of the bundle.
+Bundle the application and its dependencies into one CommonJS file (with esbuild) that node runs without
+`node_modules`: `dist/<name>.cjs`, where the name is the first `bin` of the `package.json`, else the package name
+without its scope. The entry is the `main` of the `package.json`, else `build/App.js` (`--entry` changes it). The
+bundle is minified, keeping the names of the classes (`--no-minify` turns minifying off), and `import.meta.url` is the
+URL of the bundle.
 
 | Option | |
 |---|---|
-| `--entry <file>` | the compiled entry, the `main` of the `package.json` by default |
+| `--entry <file>` | the compiled entry, by default the `main` of the `package.json`, else `build/App.js` |
 | `--outfile <file>` | the bundle, `dist/<name>.cjs` by default |
 | `--no-minify` | do not minify the bundle |
 | `--external <modules...>` | the modules left out of the bundle, loaded at run time from a `node_modules` next to it |
 
-The bundles are CommonJS modules (the executables of Node.js run them): the ES modules of the application are converted,
-without top-level `await` (await in an async function).
+Bundles are CommonJS modules, because the executables of Node.js run them. The ES modules of the application are
+converted, so they cannot use top-level `await`: await inside an async function instead.
 
-The native addons (`.node` files) cannot be bundled: their packages are found while the application is bundled (the
-packages holding addons, and the packages loading them with computed paths, such as sharp) and left out of the bundle,
-with what they load at run time (the JavaScript they require, the packages of the shared libraries linked with their
-addons, such as libvips), laid out as in `node_modules`: `dist/<name>.native/`, distributed with the bundle. The tree
-holds the files loaded at run time: the packages of the addons and of the shared libraries have all their files, the
-other packages the JavaScript they load (traced) and their other files (the data they read), the packages loading their
-files by paths which cannot be followed (`require(path.join(__dirname, name))`) all their files; the types, the source
-maps, the TypeScript sources and the documentation of the packages are left out. The addons of
-the application itself (`require('./x.node')`, `createRequire(import.meta.url)('./x.node')`) are there too. The
-packages of the framework, and the ones built on it, are bundled with the application whatever they depend on (one copy
-of the framework, its classes and its container): their native dependencies are in the tree. The optional dependencies
-of a package which are not installed (the drivers of the stores the application does not use: `peerDependenciesMeta`
-optional, `optionalDependencies`) are left out: loading one throws at run time, as without the bundle.
+Native addons (`.node` files) cannot be bundled. While bundling, the tool finds the packages that hold addons, and the
+packages that load them through computed paths (such as sharp). It leaves them out of the bundle, with what they load
+at run time (the JavaScript they require, and the packages of the shared libraries linked with their addons, such as
+libvips), and lays them out as in `node_modules` in `dist/<name>.native/`, which is distributed with the bundle. This
+tree holds the files loaded at run time: all the files of the packages of addons and shared libraries; for the other
+packages, the JavaScript they load (traced) and their other files (the data they read); and all the files of the
+packages that load their files through paths that cannot be followed (`require(path.join(__dirname, name))`). The type
+declarations, source maps, TypeScript sources and documentation of the packages are left out. The addons of the
+application itself (`require('./x.node')`, `createRequire(import.meta.url)('./x.node')`) go into the tree too. The
+packages of the framework, and those built on it, are always bundled with the application, whatever they depend on,
+so that there is one copy of the framework, its classes and its container; their native dependencies go into the
+tree. Optional dependencies that are not installed (the drivers of stores the application does not use:
+`peerDependenciesMeta` optional, `optionalDependencies`) are left out: loading one throws at run time, as it would
+without the bundle.
 
-The files the application reads by their paths are not followed by the bundler: the scripts it runs on their own (its
-workers, `new Worker()`, the pools of workers given a file; its child processes, `fork()`; the modules it loads by their
-paths, `require(path.join(__dirname, 'x.js'))`), its data (`fs.readFileSync(path.join(__dirname, 'defaults.json'))`, a
-directory of schemas). And the bundle is not where its modules were: `path.resolve(__dirname, '../../schema')` of a
-module of `build/config/` is the `schema/` of the project, not once bundled in `dist/`. A path to a file given from its
-module is found wherever it is written, in the modules of the application and in the ones of its packages, and the
-expression rewritten to the file in the native tree (`dist/<name>.native/.lakutata/files/`, the directories as in the
-project, the packages linked from outside of it under `node_modules/`):
+The bundler does not follow the files that the application reads by path: the scripts it runs on their own (workers,
+`new Worker()`, worker pools given a file; child processes, `fork()`; modules loaded by path,
+`require(path.join(__dirname, 'x.js'))`) and its data (`fs.readFileSync(path.join(__dirname, 'defaults.json'))`, a
+directory of schemas). Also, the bundle is not where the modules were: in a module of `build/config/`,
+`path.resolve(__dirname, '../../schema')` is the `schema/` directory of the project, but no longer once bundled into
+`dist/`. The tool finds every path to a file built from the location of its module, wherever it is written, in the
+modules of the application and in those of its packages, and rewrites the expression to point to the file in the
+native tree (`dist/<name>.native/.lakutata/files/`, with the directories as in the project, and the packages linked
+from outside it under `node_modules/`):
 
 | The path names | |
 |---|---|
-| a script (`.js`, `.cjs`) | bundled on its own with what it loads (a CommonJS file, whatever the type of the project) |
-| another file | copied (a `package.json` its type CommonJS, as the scripts next to it) |
+| a script (`.js`, `.cjs`) | bundled on its own with what it loads (as a CommonJS file, whatever the module type of the project) |
+| another file | copied (a `package.json` gets the type CommonJS, like the scripts next to it) |
 | a directory of data | its files copied |
-| a directory holding the module (`path.join(__dirname, '..')`: the application, its packages) | not shipped, warned of: its files are declared as resources (`lakutata.resources`, below) |
-| a directory holding scripts or packages (`package.json`, `node_modules`) | not shipped, warned of: its scripts need their packages at run time |
+| a directory holding the module (`path.join(__dirname, '..')`: the application, its packages) | not shipped, with a warning: declare its files as resources (`lakutata.resources`, below) |
+| a directory holding scripts or packages (`package.json`, `node_modules`) | not shipped, with a warning: its scripts would need their packages at run time |
 | nothing yet (a directory the application creates) | left as it is |
 
-The paths followed:
+The paths that are followed:
 
 | Path | |
 |---|---|
-| `new URL('./worker.js', import.meta.url)` | the URL of the module (as Vite); `pathToFileURL(__filename)` too |
-| `import.meta.url + '/../worker.js'` | a text of the URL of the module |
-| `path.join(__dirname, 'worker.js')`, `path.resolve(__dirname, …)` | `import.meta.dirname`, `path.dirname(fileURLToPath(import.meta.url))` too |
+| `new URL('./worker.js', import.meta.url)` | the URL of the module (as in Vite); also `pathToFileURL(__filename)` |
+| `import.meta.url + '/../worker.js'` | the URL of the module as a string |
+| `path.join(__dirname, 'worker.js')`, `path.resolve(__dirname, …)` | also with `import.meta.dirname` or `path.dirname(fileURLToPath(import.meta.url))` |
 | `__dirname + '/worker.js'`, `` `${__dirname}/worker.js` `` | |
-| `require.resolve('./worker')`, `require.resolve(path.resolve(__dirname, '../lib/worker'))` | the extension found as node finds it |
-| `` path.join(__dirname, 'locales', `${lang}.json`) ``, `` new URL(`./jobs/${name}.js`, import.meta.url) `` | known in part: every file and directory its pattern matches (an expression matches a part of a name), its expression kept |
+| `require.resolve('./worker')`, `require.resolve(path.resolve(__dirname, '../lib/worker'))` | the extension is found as node finds it |
+| `` path.join(__dirname, 'locales', `${lang}.json`) ``, `` new URL(`./jobs/${name}.js`, import.meta.url) `` | partly known: every file and directory its pattern matches (an expression matches part of a name), with the expression kept |
 
-The code of tsc (`(0, node_path_1.join)(__dirname, 'worker.js')`) is followed. A script also imported by the application
-is warned of: it is bundled twice, its module apart in each (its state, its classes). The workers of node
-(`worker_threads`) whose scripts cannot be followed are warned of with their file and line, in the modules of the
-application (the packages start workers from the paths their users give): a path known at run time only
-(`new Worker(file)`, a variable or a property of a class holding one of the paths above is followed), or a path relative
-to the current directory of the process (`new Worker('./worker.js')`, which node reads from there, not from the module);
-their scripts are given from the directory of their module, or shipped as resources. The workers running a source
-(`eval: true`) need nothing. The warnings name the modules of the application only, with their file and line.
+The code emitted by tsc (`(0, node_path_1.join)(__dirname, 'worker.js')`) is followed too. A script that the
+application also imports gets a warning: it is bundled twice, with a separate copy of its module (its state, its
+classes) in each. Node.js workers (`worker_threads`) whose scripts cannot be followed get a warning in the modules of
+the application (packages start workers from the paths their users give): a path known only at run time
+(`new Worker(file)`; a variable or a class property holding one of the paths above is followed), or a path relative
+to the current directory of the process (`new Worker('./worker.js')`, which node resolves from there, not from the
+module). Build the paths of their scripts from the directory of their module, or ship the scripts as resources.
+Workers that run source code (`eval: true`) need nothing. The warnings name only the modules of the application,
+with their file and line.
 
 The resources of the application, the files it reads at run time (the built pages of a web application, templates,
-data), are declared by the `lakutata.resources` of its `package.json`, as the `extraResources` of electron-builder:
+data), are declared in the `lakutata.resources` of its `package.json`, as a list of `{from, to}` objects (like the
+`extraResources` of electron-builder, but without its strings, globs or filters):
 
 ```json
 "lakutata": {"resources": [{"from": "../ui/dist", "to": "ui"}]}
 ```
 
-`from` is a file or a directory of the project, `to` its path in the resources: `dist/<name>.resources/`, distributed
-with the bundle. The application finds them by `resourcesPath()` of lakutata (`undefined` when it does not run packed,
-`isPackaged()` tells it).
+`from` is a file or a directory of the project, and `to` its path among the resources, in `dist/<name>.resources/`,
+which is distributed with the bundle. The application finds them through `resourcesPath()` of lakutata (`undefined`
+when it does not run packed, which `isPackaged()` tells).
 
 ### `lakutata package exe`
 
-Make the executable of the application for the platform it runs on, which runs without Node.js installed: the bundle
-embedded in the Node.js binary running the tool (the single executable applications of Node.js), `dist/<name>`
-(`dist/<name>.exe` on Windows), with the code cache of the bundle (V8). The Node.js embedded is the version running the
-tool.
+Make an executable of the application for the platform it runs on, which runs without Node.js installed: `dist/<name>`
+(`dist/<name>.exe` on Windows). The bundle is embedded, with its V8 code cache, in a copy of the Node.js binary running
+the tool (a single executable application of Node.js), so the embedded Node.js is the version running the tool. In an
+executable, `import.meta.url` is the URL of the executable itself.
 
-With `--runtime bun`, the bundle is compiled by Bun (`bun build --compile --bytecode`, its bytecode is not parsed at
-start) instead: the Bun of the project (the `bun`
-package of npm, `npm install --save-dev bun`), else the one of the system. Its executables are smaller, start faster and
-use less memory; the runtime is Bun's (JavaScriptCore, its implementation of the APIs of Node.js). The bundle and its
-native addons are the ones of the executables of Node.js, which do not change for it. As them, the executables of Bun do
-not load the `.env` and the `bunfig.toml` of the directory they run in (the application loads its `.env`), and the
-mode is the one of their run: Bun replaces `process.env.NODE_ENV` with the mode of its build, the bundle reads it.
+With `--runtime bun`, Bun compiles the bundle instead (`bun build --compile --bytecode`: the code is compiled to
+bytecode, so it is not parsed at start), using the Bun of the project (the `bun` package of npm,
+`npm install --save-dev bun`), else the one of the system. Its executables are smaller, start faster and use less
+memory; the runtime is then Bun (JavaScriptCore, with its implementation of the Node.js APIs). The native addons are
+those of Node.js, not rebuilt for Bun, and Bun does not load all of them: an executable of Bun with better-sqlite3
+builds, but fails when it starts. Like the executables of Node.js, the executables of Bun do not load the `.env` or the
+`bunfig.toml` of the directory they run in (an application that needs one loads it itself, or uses `LAKUTATA_ENV_FILE`),
+and the mode is that of the run: Bun would replace `process.env.NODE_ENV` with the mode of its build, but the bundle
+reads it at run time.
 
-The executables of the other platforms are made on them, as the applications are built there: their native addons are
-built for them, and they are tried there. The CI gives the machines of the platforms (a matrix of the Linux, macOS and
-Windows runners); the Linux architectures are also made in a container of the architecture (`docker run --platform
-linux/arm64`, as the cross builds of the templates).
+Make the executables of other platforms on those platforms: the native addons of the application are built there for
+them, and the executables can be tested there. A CI provides the machines (a matrix of Linux, macOS and Windows
+runners); the Linux architectures can also be built in a container of the architecture
+(`docker run --platform linux/arm64`, as the cross builds of the templates do).
 
 | Option | |
 |---|---|
 | `--outdir <directory>` | the directory of the executable, `dist` by default |
-| `--runtime <node\|bun>` | the runtime embedded: `node` (by default) or `bun` |
-| `--layout <file\|directory>` | one file (by default), or a directory: `dist/<name>/` holding the executable, its native addons (`native/`) and its resources (`resources/`), loaded from there without extraction (the installers, the images) |
-| `--entry`, `--no-minify`, `--external` | as `lakutata package bundle` |
+| `--runtime <node\|bun>` | the embedded runtime: `node` (the default) or `bun` |
+| `--layout <file\|directory>` | one file (the default), or a directory: `dist/<name>/` holds the executable, its native addons (`native/`) and its resources (`resources/`), loaded from there without extraction (for the installers and the images) |
+| `--entry`, `--no-minify`, `--external` | as for `lakutata package bundle`; `--external` works with `--runtime bun` only: the executables of Node.js fail to load the external modules |
 
-The native addons, the files read by their paths and the resources are embedded in the executable (`--layout file`): at its
-first run, it extracts them into its cache directory (`~/.cache/<name>`, `~/Library/Caches/<name>` on macOS,
-`%LOCALAPPDATA%\<name>\Cache` on Windows, or `LAKUTATA_NATIVE_DIR`; the temporary directory when it cannot be written),
-in a directory named after their content:
-the next runs load them from there, the versions of the program do not share it. The addons need the system libraries they were built for (the
-glibc version of the Linux prebuilt addons). The child processes of an executable run it (`process.execPath`): started
-for one of its scripts (`fork(path.join(__dirname, 'child.js'))`, `spawn(process.execPath, [script])`), it runs the
-script as node does (its arguments, `require.main`), not the application.
+With `--layout file`, the native addons, the files read by path and the resources are embedded in the executable. At
+its first run, the executable extracts them into `native/<hash>`, a directory named after their content, in its cache
+directory: `~/Library/Caches/<name>` on macOS, `%LOCALAPPDATA%\<name>\Cache` on Windows, `$XDG_CACHE_HOME/<name>` or
+else `~/.cache/<name>` on Linux, or the directory given by `LAKUTATA_NATIVE_DIR`. When the cache directory cannot be
+written, it uses `<name>` in the temporary directory. The next runs load them from there, and different versions of
+the program do not share it. The addons need the system libraries they were built for (the glibc version of the Linux
+prebuilt addons).
 
-The executables of macOS are signed ad hoc. The ones of Windows made by Node.js keep the signature of `node.exe`, which
-does not match anymore: sign them before distributing them.
+The child processes of an executable run the executable itself (`process.execPath`). With `--layout file`, an
+executable started for one of its scripts (`fork(path.join(__dirname, 'child.js'))`,
+`spawn(process.execPath, [script])`) runs that script as node does (its arguments, `require.main`), not the
+application. With `--layout directory`, and so in the installers, it starts the application again instead of running
+the script.
+
+The executables for macOS are signed ad hoc. Those for Windows made with Node.js keep the signature of `node.exe`,
+which no longer matches: sign them before distributing them.
 
 ### `lakutata package installer`
 
-Make the installers of the application for the platform it runs on (as electron-builder): its executable in a directory
-(`lakutata package exe --layout directory`) installed with its native addons and its resources, its program in the PATH,
-its service registered. The installers of the other platforms are made on them (the ones of Linux in a container).
-They are configured by the `lakutata.installer` of the `package.json`:
+Make the installers of the application for the platform it runs on (as electron-builder does). They install its
+executable in the directory layout (`lakutata package exe --layout directory`) with its native addons and its
+resources, put its program in the PATH and register its service. Make the installers of other platforms on those
+platforms (the Linux ones can be made in a container). They are configured by the `lakutata.installer` of the
+`package.json`:
 
 ```json
 "lakutata": {
@@ -322,61 +347,64 @@ They are configured by the `lakutata.installer` of the `package.json`:
 
 | Option | |
 |---|---|
-| `name` | the name of the package (lower case), the one of the program by default |
-| `appId` | the identifier of the application (reverse DNS, `com.acme.app`), its name by default: the identifier of the package of macOS and the label of its service, the key of its uninstaller and of its upgrades on Windows |
-| `productName` | the name shown to the users (the installers, the programs of Windows), its name by default |
-| `description`, `maintainer`, `homepage`, `license`, `vendor` | the ones of the `package.json` by default (the maintainer is its author) |
-| `runtime` | the runtime of the executable: `node` (by default) or `bun`; `electron` for an Electron application (below) |
-| `addToPath` | the program in the PATH (`/usr/bin/<program>`, the PATH of the machine on Windows), by default |
+| `name` | the name of the package (lower case), by default that of the program |
+| `appId` | the identifier of the application (reverse DNS, `com.acme.app`), by default its name: on macOS, the identifier of the package and the label of the service; on Windows, the key of its uninstaller and of its upgrades |
+| `productName` | the name shown to users (in the installers, and in the list of programs on Windows), by default the `productName` of the `package.json`, else the name |
+| `description`, `maintainer`, `homepage`, `license`, `vendor` | by default those of the `package.json` (the maintainer is its author) |
+| `runtime` | the runtime of the executable: `node` (the default) or `bun`; `electron` for an Electron application (below) |
+| `addToPath` | put the program in the PATH (`/usr/bin/<program>`; on Windows, the PATH of the machine), `true` by default |
 | `service` | `true` or the options of the service (below), none by default |
-| `linux.targets` | `deb`, `rpm`, `archlinux`, `tar.gz` on the systems of the glibc (`deb`, `rpm`, `tar.gz` by default), `apk`, `tar.gz` on Alpine (musl) |
-| `linux.depends`, `linux.recommends`, `linux.section`, `linux.priority` | the packages of the system it needs, recommends, its section and priority (deb) |
+| `linux.targets` | `deb`, `rpm`, `archlinux`, `tar.gz` on glibc systems (`deb`, `rpm`, `tar.gz` by default); `apk`, `tar.gz` on Alpine (musl) |
+| `linux.depends`, `linux.recommends`, `linux.section`, `linux.priority` | the system packages it needs and recommends, its section and its priority (deb) |
 | `mac.targets` | `pkg`, `tar.gz` (both by default) |
 | `win.targets` | `nsis`, `msi`, `zip` (all by default) |
-| `electron` | the configuration of electron-builder of an Electron application, merged over the one made from these options |
+| `electron` | the electron-builder configuration of an Electron application, merged over the one made from these options |
 
-The packages of Linux are made by nFPM (downloaded once into the cache of lakutata, `LAKUTATA_NFPM` gives another one),
-in `dist/installer` (`--outdir`): the application is installed in `/opt/<name>`, the C++ library of the runtime is a
-dependency. The executables link the C library of the system they are made on: the packages of the systems of the glibc
-are made on one of them, the `apk` packages on Alpine, with Bun (`"runtime": "bun"`) when the application has native
+The Linux packages are made by nFPM (downloaded once into the cache of lakutata; `LAKUTATA_NFPM` gives another copy) in
+`dist/installer` (`--outdir`). They install the application in `/opt/<name>`, with the C++ runtime library as a
+dependency. The executables link the C library of the system they are made on, so make the packages for glibc systems
+on a glibc system, and the `apk` packages on Alpine, with Bun (`"runtime": "bun"`) when the application has native
 addons: the executables of Node.js do not load them on musl.
 
-The installers of macOS are made by its tools (`pkgbuild`, `productbuild`): the `pkg` package installs the application in
-`/usr/local/lib/<name>`, its program in `/usr/local/bin`; the packages of macOS are not removed by the system:
-`sudo /usr/local/lib/<name>/uninstall` removes it. They are signed ad hoc (the Developer ID signature and the
-notarization, which the distribution out of the machines of the organization needs, are not made yet).
+The macOS installers are made with the tools of macOS (`pkgbuild`, `productbuild`). The `pkg` package installs the
+application in `/usr/local/lib/<name>` and its program in `/usr/local/bin`. macOS does not remove packages:
+`sudo /usr/local/lib/<name>/uninstall` removes the application. The `pkg` package is not signed, and the executable it
+installs is signed ad hoc only (the Developer ID signature and the notarization, which distribution outside the
+machines of the organization needs, are not made yet).
 
-The installers of Windows are made on Windows: the installer of NSIS (`<name>-<version>-<arch>-setup.exe`) and the
-package of Windows Installer (`.msi`, made by WiX, for the deployments of the organizations) install the application in
-`C:\Program Files\<name>`, its data in `C:\ProgramData\<name>`; they are removed as the programs of Windows. Their tools
-are downloaded once into the cache of lakutata (NSIS 3, WiX 3, WinSW; `LAKUTATA_NSIS`, `LAKUTATA_WIX`, `LAKUTATA_WINSW`
-give other ones). The executables keep the signature of Node.js, which does not match anymore: sign them (signtool)
-before distributing them.
+The Windows installers are made on Windows: the NSIS installer (`<name>-<version>-<arch>-setup.exe`) and the Windows
+Installer package (`.msi`, made by WiX, for deployment in organizations) install the application in
+`C:\Program Files\<name>` and its data in `C:\ProgramData\<name>`; they are removed like other Windows programs. Their
+tools are downloaded once into the cache of lakutata (NSIS 3, WiX 3, WinSW; `LAKUTATA_NSIS`, `LAKUTATA_WIX` and
+`LAKUTATA_WINSW` give other copies). The executables made with Node.js (`"runtime": "node"`) keep the signature of
+Node.js, which no longer matches: sign them (signtool) before distributing them.
 
-The service runs the application at the start of the system: systemd (`/usr/lib/systemd/system/<service>.service`),
-OpenRC on Alpine (`/etc/init.d/<service>`), launchd on macOS (`/Library/LaunchDaemons/<appId>.plist`), or WinSW on Windows
-(`<name>-service.exe` next to the application, a service of Windows: `Restart-Service <service>`). It is started by the
-installation, restarted by the upgrades, stopped and disabled before the removal.
+The service runs the application when the system starts: systemd (`/usr/lib/systemd/system/<service>.service`), OpenRC
+on Alpine (`/etc/init.d/<service>`), launchd on macOS (`/Library/LaunchDaemons/<appId>.plist`), or WinSW on Windows
+(`<name>-service.exe` next to the application, registered as a Windows service: `Restart-Service <service>`). The
+installation starts it, an upgrade restarts it, and the removal stops and disables it first.
 
 | Service option | |
 |---|---|
-| `name`, `description` | the ones of the package by default |
+| `name`, `description` | those of the package by default |
 | `args` | the arguments of the application |
-| `env` | its environment (`MODE=production` by default), written to `/etc/<name>/<name>.env` (`/usr/local/etc/<name>/<name>.env` on macOS, `C:\ProgramData\<name>\<name>.env` on Windows), which the administrators change (kept by the upgrades) |
-| `user` | its user: a system user named after the package by default (`_<name>` on macOS, hidden), created by the installation, or `root`; on Windows its virtual account by default (`NT SERVICE\<service>`), `LocalService`, `NetworkService` or `LocalSystem` |
-| `restart` | `on-failure` (by default), `always` or `no` |
-| `autoStart` | enabled and started by the installation, by default |
+| `env` | its environment (`MODE=production` by default), written to `/etc/<name>/<name>.env` (`/usr/local/etc/<name>/<name>.env` on macOS, `C:\ProgramData\<name>\<name>.env` on Windows), which administrators may edit (upgrades keep it) |
+| `user` | its user: by default a system user named after the package (`_<name>` on macOS, hidden), created by the installation, or `root`; on Windows, by default its virtual account (`NT SERVICE\<service>`), or `LocalService`, `NetworkService` or `LocalSystem` |
+| `restart` | `on-failure` (the default), `always` or `no` |
+| `autoStart` | enabled and started by the installation, `true` by default |
 
-Its working directory is `/var/lib/<name>` (`/usr/local/var/lib/<name>` on macOS, its log `/usr/local/var/log/<name>.log`;
-`C:\ProgramData\<name>` on Windows, its logs in `logs`), owned by its user (its data). `SIGTERM` ends it gracefully (on
-Windows, the stop of the service: Ctrl+C, `SIGINT` for Node.js).
+Its working directory, which holds its data and is owned by its user, is `/var/lib/<name>` (`/usr/local/var/lib/<name>`
+on macOS, with its log in `/usr/local/var/log/<name>.log`; `C:\ProgramData\<name>` on Windows, with its logs in `logs`).
+`SIGTERM` ends it gracefully (on Windows, stopping the service sends a Ctrl+C, which Node.js receives as `SIGINT`).
 
-The executables load the environment file given by the `LAKUTATA_ENV_FILE` environment variable before the application
-starts (the service of Windows, whose wrapper has none): its lines `NAME=value` or `NAME="value"`, its comments (`#`).
+Every bundle and executable, and so every installed application, loads the environment file named by the
+`LAKUTATA_ENV_FILE` environment variable before the application starts (the Windows service gets its environment this
+way, as its wrapper has no environment file): lines `NAME=value` or `NAME="value"`, and comments (`#`). The values of
+the file override the variables that are already set.
 
-The installers run the scripts of the application (files of the project), as the ones of electron-builder: the ones of a
-platform, which its installers run, replaced by the ones of an installer (a moment each), the native ones of a package of
-Linux, the file of NSIS included by its installer:
+The installers run scripts of the application (files of the project), as with electron-builder: the scripts of a
+platform, which all its installers run; the scripts of one installer, each replacing the platform's script for the
+same moment; the native scripts of a Linux package; and an NSIS file included by the NSIS installer:
 
 ```json
 "installer": {
@@ -392,123 +420,129 @@ Linux, the file of NSIS included by its installer:
 
 | Script | |
 |---|---|
-| `preinstall` | before the files of the application are installed (on Windows Installer, an upgrade has removed the version it replaces) |
-| `postinstall` | after they are installed, before the service is started (on an upgrade, the one of the version replaced may still run) |
+| `preinstall` | before the files of the application are installed (with Windows Installer, an upgrade has already removed the version it replaces) |
+| `postinstall` | after they are installed, before the service starts (during an upgrade, the service of the version replaced may still run) |
 | `preremove` | before the removal, once the service is stopped |
 | `postremove` | after the files are removed |
 
-They are given what the installer does: `install` or `upgrade` (`preinstall`, `postinstall`), `remove` (`preremove`,
-`postremove`; an upgrade runs no removal script), as their first argument (`$1`, `$args[0]` in PowerShell), and the
-directory of the application (`LAKUTATA_INSTALL_DIR`). They run as root (as the system on Windows). Their failure is the
-one of the installation (or of the removal). Each package manager tells it in its own way (dpkg `configure <version>`,
-rpm the number of the versions, apk and pacman their upgrade scripts): the installers translate them.
+Their first argument (`$1`, `$args[0]` in PowerShell) tells what the installer does: `install` or `upgrade`
+(`preinstall`, `postinstall`), or `remove` (`preremove`, `postremove`; an upgrade runs no removal script).
+`LAKUTATA_INSTALL_DIR` gives the directory of the application. They run as root (on Windows, as an administrator with
+NSIS and as the system account with Windows Installer). When a script fails, the installation (or the removal) fails.
+Each package manager signals an upgrade in its own way (dpkg with `configure <version>`, rpm with the number of
+installed versions, apk and pacman with their upgrade scripts): the installers translate them into these arguments.
 
-- Linux (`linux.scripts`, `linux.<deb|rpm|apk|archlinux>.scripts`): scripts run by the interpreter of their first line
-  (`#!/bin/sh` by default), embedded in the scripts of the packages. `linux.<package>.nativeScripts` are run as the
-  package manager runs the scripts of the package, with its own arguments (`preinstall`, `postinstall`, `preremove`,
-  `postremove`; `preupgrade`, `postupgrade` for apk and archlinux).
-- macOS (`mac.scripts`, `mac.pkg.scripts`): sh scripts as on Linux; the removal ones are run by the `uninstall` script of
-  the application (the packages of macOS are not removed by the system).
-- Windows (`win.scripts`, `win.<nsis|msi>.scripts`): scripts of PowerShell (`.ps1`, run by Windows PowerShell; Windows
-  Installer runs them by a command line, which they must fit in: about 23 KB each). `win.nsis.include` is a file of NSIS
-  (`.nsh`) included by the installer of NSIS, whose macros are inserted: `customHeader`, `customInit`, `customInstall` (at
+- Linux (`linux.scripts`, `linux.<deb|rpm|apk|archlinux>.scripts`): scripts run by the interpreter named on their first
+  line (`#!/bin/sh` by default), embedded in the scripts of the packages. `linux.<package>.nativeScripts` are run the
+  way the package manager runs the scripts of the package, with its own arguments (`preinstall`, `postinstall`,
+  `preremove`, `postremove`; `preupgrade`, `postupgrade` for apk and archlinux).
+- macOS (`mac.scripts`, `mac.pkg.scripts`): sh scripts, as on Linux; the `uninstall` script of the application runs
+  the removal scripts (macOS does not remove packages).
+- Windows (`win.scripts`, `win.<nsis|msi>.scripts`): PowerShell scripts (`.ps1`, run by Windows PowerShell; Windows
+  Installer runs them through a command line, which each must fit in: about 23 KB). `win.nsis.include` is an NSIS file
+  (`.nsh`) included by the NSIS installer, which inserts its macros: `customHeader`, `customInit`, `customInstall` (at
   the end of the installation), `customUnInit`, `customUnInstall` (at the start of the removal).
-- The archives (`tar.gz`, `zip`) run none.
+- Archives (`tar.gz`, `zip`) run no scripts.
 
-The installers of an Electron application (`"runtime": "electron"`) are made by electron-builder (a dependency of the
-project): its main process bundled with its dependencies (Electron left out) in the archive of the application, its
-native addons and its resources (`lakutata.resources`: its renderer, its preload script, read from `resourcesPath()`)
-next to it, in the resources of Electron. Its installers are the targets of electron-builder (`deb` on Linux, `dmg` on
-macOS, `nsis` on Windows by default: `linux.targets`, `mac.targets`, `win.targets`); `name`, `appId`, `productName`, its
-description, maintainer, homepage and license are given to electron-builder, `electron` gives the rest (its icons, its
-file associations, its signature, its updates…). It is not a service. Its scripts are run by:
+The installers of an Electron application (`"runtime": "electron"`) are made by electron-builder, a dependency of the
+project. Its main process is bundled with its dependencies (Electron left out) into the archive of the application,
+and its native addons and resources (`lakutata.resources`: its renderer and its preload script, read from
+`resourcesPath()`) go next to it, in the resources of Electron. Its installers are targets of electron-builder (by
+default `deb` on Linux, `dmg` on macOS and `nsis` on Windows: `linux.targets`, `mac.targets`, `win.targets`). `name`,
+`appId`, `productName`, the description, maintainer, homepage and license are given to electron-builder, and
+`electron` gives the rest (icons, file associations, signature, updates…). An Electron application is not a service.
+Its scripts are run by:
 
 | Installer | Scripts |
 |---|---|
-| `deb`, `rpm` (the packages of fpm) | all (embedded after the scripts of electron-builder) |
-| `pkg` (macOS) | `preinstall`, `postinstall` (an application of macOS is removed by its user) |
-| `nsis` (Windows) | `preinstall`, `postinstall`, `preremove` (its uninstaller ends with the removal of the files); the file of NSIS of `win.nsis.include` defines the other macros |
+| `deb`, `rpm` (packages made by fpm) | all (embedded after the scripts of electron-builder) |
+| `pkg` (macOS) | `preinstall`, `postinstall` (a macOS application is removed by its user) |
+| `nsis` (Windows) | `preinstall`, `postinstall`, `preremove` (its uninstaller ends by removing the files); the NSIS file of `win.nsis.include` defines the other macros |
 | the others (`AppImage`, `dmg`, `portable`, `msi`…) | none |
 
-The packages of fpm made on Linux arm64 need the fpm of the system (`gem install fpm`, `USE_SYSTEM_FPM=true`): the one
-electron-builder downloads is the one of x64. On Windows arm64, the installers of NSIS filter the executables by the BCJ
-filter (`ELECTRON_BUILDER_7Z_FILTER`): the ARM64 one, which 7-Zip chooses, is not extracted by them.
+On Linux arm64, the fpm packages need the fpm of the system (`gem install fpm`, `USE_SYSTEM_FPM=true`), because the
+one electron-builder downloads is built for x64. On Windows arm64, the NSIS installers compress the executables with
+the BCJ filter (`ELECTRON_BUILDER_7Z_FILTER`), because they cannot extract files compressed with the ARM64 filter,
+which 7-Zip would choose.
 
 | Command option | |
 |---|---|
-| `--target <targets...>` | the installers made, the ones of the configuration by default |
+| `--target <targets...>` | the installers to make, by default those of the configuration |
 | `--outdir <directory>` | the directory of the installers, `dist/installer` by default |
-| `--entry`, `--no-minify`, `--external` | as `lakutata package bundle` |
+| `--entry`, `--no-minify`, `--external` | as for `lakutata package exe` |
 
 ## Migrations
 
 ### `lakutata migration <action>`
 
-The migrations of the databases of the application (its Database components and providers): `generate`, `run`, `revert`
-and `show` run the script of the package building and starting the application (`dev` by default) with an environment
-variable (`MIGRATION_GENERATE`, `MIGRATION_RUN`, `MIGRATION_REVERT`, `MIGRATION_SHOW`): the application connects its
-databases with their options, without synchronizing their schemas nor running their migrations, does the command,
-tells what it did and exits, without starting its components nor its entrypoints. `create` writes a file.
+Manage the migrations of the databases of the application (its Database components and providers). `generate`, `run`,
+`revert` and `show` run the package script that builds and starts the application (`dev` by default, always through
+`npm run`) with an environment variable (`MIGRATION_GENERATE`, `MIGRATION_RUN`, `MIGRATION_REVERT`, `MIGRATION_SHOW`).
+The application then connects to its databases with their options, without synchronizing their schemas or running
+their migrations, runs the command, reports what it did and exits, without starting its components or its
+entrypoints. `create` only writes a file.
 
 | Action | |
 |---|---|
-| `generate` | the migrations of the changes of the entities: the application compares them with its databases and writes the migrations into the directory, one file `<timestamp>-<name of the database>.ts` per database changed (`cross-env MIGRATION_GENERATE=./src/migrations npm run dev` of lakutata 2.x); without change, nothing is generated and the command fails |
-| `create <name>` | an empty migration, written by hand (`up` and `down`): `<timestamp>-<name>.ts`, its class `<Name><timestamp>` |
-| `show` | the migrations of the options of the databases, run `[X]` or pending `[ ]` |
+| `generate` | migrations for the changes of the entities: the application compares the entities with its databases and writes the migrations into the directory, one file `<timestamp>-<database name>.ts` per changed database (what `cross-env MIGRATION_GENERATE=./src/migrations npm run dev` did in lakutata 2.x); when nothing changed, nothing is generated and the command fails |
+| `create <name>` | an empty migration to write by hand (`up` and `down`): `<timestamp>-<name>.ts`, with the class `<Name><timestamp>` |
+| `show` | the migrations in the options of the databases, run (`[X]`) or pending (`[ ]`) |
 | `run` | the pending migrations (`up`) |
-| `revert` | the last migration run (`down`), one at a time; the application having several databases, `--database` is required |
+| `revert` | the last migration run (`down`), one at a time; when the application has several databases, `--database` is required |
 
 | Option | |
 |---|---|
 | `--dir <directory>` | the directory of the migrations, relative to the package, `src/migrations` by default (`generate`, `create`) |
-| `--script <script>` | the script building and starting the application, `dev` by default |
-| `--package <name>` | the package of the workspace of the application, run from the workspace (the current directory by default) |
-| `--database <name>` | the database: the name of its Database component or provider, all by default (`MIGRATION_DATABASE`) |
-| `--transaction <mode>` | the transactions of the migrations run or reverted: `all` (one, by default), `each` or `none` (`MIGRATION_TRANSACTION`) |
+| `--script <script>` | the script that builds and starts the application, `dev` by default |
+| `--package <name>` | the package of the application in the workspace, when the command runs from elsewhere in the workspace (by default, the package in the current directory) |
+| `--database <name>` | the database: the name of its Database component or provider, all of them by default (`MIGRATION_DATABASE`) |
+| `--transaction <mode>` | the transactions of the migrations run or reverted: `all` (one for all), `each` or `none`; by default the `migrationsTransactionMode` of the database, else `all` (`MIGRATION_TRANSACTION`) |
 | `--fake` | mark the migrations as run or reverted without executing them (`MIGRATION_FAKE`) |
 
-The migrations are compiled with the application and given to the options of their database (`migrations: [...]`,
-run when it connects with `migrationsRun: true`). The commands fail (exit code 1) when the application has no database
-(but `generate`, which generates nothing), when the database given is not one of the application, and when a migration
-fails.
+The migrations are compiled with the application and listed in the options of their database (`migrations: [...]`;
+they run when it connects with `migrationsRun: true`). The commands fail (exit code 1) when the application has no
+database (except `generate`, which then generates nothing), when the given database is not one of the application,
+and when a migration fails.
 
 ## Languages
 
 ### `lakutata i18n <action> [locale]`
 
-The messages of the languages of the application (`lakutata/com/i18n`), in a directory (`--dir`, `locales` by
-default; several separated by commas): a file by language (`zh-CN.json`) or a directory by language (`zh-CN/`).
+Manage the messages of the languages of the application (`lakutata/com/i18n`), kept in a directory (`--dir`, `locales`
+by default; several separated by commas) with one file (`zh-CN.json`) or one directory (`zh-CN/`) per language.
 
-- `lakutata i18n check`: checks the messages of the languages against the ones of the default language (`--default`,
-  `en` by default), and fails on their errors:
-  - errors: a syntax error of ICU MessageFormat, a key the default language does not have, an argument the default
-    message does not have (missing when the message is formatted), a validation message of an unknown code or with the
-    variables of another code;
-  - warnings: a message missing (the one of a fallback is given), an argument of the default message not used, a
-    message the same as the default one (not translated yet). `--strict` fails on them too, for the CI.
-- `lakutata i18n types`: declares the keys of the messages of the default language and their arguments
-  (`--out`, `src/i18n.d.ts` by default): a key misspelled or an argument missing is then an error of the compilation.
-  `--module @lakutata/i18n` declares them for the applications importing `@lakutata/i18n` rather than
+- `lakutata i18n check`: checks the messages of each language against those of the default language (`--default`,
+  `en` by default), and fails on errors:
+  - errors: an ICU MessageFormat syntax error, a key the default language does not have, an argument the default
+    message does not have (missing when the message is formatted), a validation message with an unknown code or with
+    the variables of another code;
+  - warnings: a missing message (the message of a fallback language is given instead), an argument of the default
+    message that is not used, a message identical to the default one (not translated yet). `--strict` fails on
+    warnings too, for CI.
+- `lakutata i18n types`: declares the message keys of the default language and their arguments (`--out`,
+  `src/i18n.d.ts` by default), so that a misspelled key or a missing argument is a compile error.
+  `--module @lakutata/i18n` declares them for applications that import `@lakutata/i18n` rather than
   `lakutata/com/i18n`.
-- `lakutata i18n add <locale>`: adds a language, made of the messages of the default language, as a file or a directory
-  as the default language has (its validation messages left: the language has its built-in ones). They are to be
-  translated; `check` tells the ones which are not.
+- `lakutata i18n add <locale>`: adds a language as a copy of the messages of the default language, in a file or a
+  directory like the default language (without its validation messages: the language has built-in ones). Translate
+  them; `check` reports the ones that are not translated yet.
 
 ## The language of the tool
 
-The help of the tool (the descriptions of its commands and of their options) and its prompts are in English, Chinese
-(Simplified, `zh-CN`) or Chinese (Traditional, `zh-TW`): the language of `LAKUTATA_LANG` (`LAKUTATA_LANG=zh-CN`), then
-of the environment (`LC_ALL`, `LC_MESSAGES`, `LANG`), then of the system; English otherwise. The names of the commands
-and of the options, the results and the errors are in English.
+The help of the tool (the descriptions of its commands and options), its prompts, the validation errors of the
+options and a few results (the plan of `lakutata version`, a declined confirmation) are in English, Simplified Chinese
+(`zh-CN`) or Traditional Chinese (`zh-TW`). The language comes from `LAKUTATA_LANG` (`LAKUTATA_LANG=zh-CN`), then from
+the environment (`LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG`), then from the system; English is used when none of them
+matches. The names of the commands and options, and the other results and errors, are in English.
 
 ## Environment
 
 | Variable | |
 |---|---|
-| `LAKUTATA_NPM_REGISTRY` | the npm registry of the templates (`npm_config_registry`, or `https://registry.npmjs.org`) |
-| `LAKUTATA_GITHUB_DOWNLOAD` | a mirror of GitHub for the `github:` templates (`https://github.com`) |
-| `LAKUTATA_CACHE_DIR` | the directory of the cache (`$XDG_CACHE_HOME/lakutata`, or `~/.cache/lakutata`) |
-| `LAKUTATA_LANG` | the language of the help and of the prompts of the tool (`zh-CN`, `zh-TW`, `en`), the one of the environment by default |
+| `LAKUTATA_NPM_REGISTRY` | the npm registry of the templates (by default `npm_config_registry`, else `https://registry.npmjs.org`) |
+| `LAKUTATA_GITHUB_DOWNLOAD` | a GitHub mirror for the `github:` templates (`https://github.com` by default) |
+| `LAKUTATA_CACHE_DIR` | the cache directory (by default `$XDG_CACHE_HOME/lakutata`, else `~/.cache/lakutata`) |
+| `LAKUTATA_LANG` | the language of the tool (`zh-CN`, `zh-TW`, `en`), by default that of the environment |
 
-The tool is itself a lakutata application: its commands are the CLI actions of a controller, served by the commander
-adapter of the entrypoint.
+The tool is itself a lakutata application: its commands are the CLI actions of its controllers, served by the
+commander adapter of the entrypoint.
