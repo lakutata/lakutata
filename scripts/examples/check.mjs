@@ -18,8 +18,9 @@
 //Its files are the code blocks after a line holding their path only: **`packages/app/src/App.ts`**. A page of several
 //projects creates each of them; its files and the files it removes start with the name of their project
 //(**`orders/packages/app/src/App.ts`**), and its commands with the project they run in (run: orders: npm test). The
-//projects use the node_modules of the repository (a link): build the packages first (npm run build), nothing is
-//installed. Run the checks one after the other: the tests of the projects listen on their ports.
+//node_modules of a project link the packages of the repository and those of its own workspace, as an install would:
+//build the packages first (npm run build), nothing is installed. Run the checks one after the other: the tests of the
+//projects listen on their ports.
 import {spawnSync} from 'node:child_process'
 import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
@@ -67,6 +68,40 @@ function withoutComments(code) {
 }
 
 /**
+ * The node_modules of a project, as an install makes them: links to the packages of the repository, and to the packages
+ * of the workspace of the project, which import each other (ui, resources…)
+ * @param project The directory of the project.
+ */
+function linkModules(project) {
+    const modules = join(project, 'node_modules')
+    const repository = join(ROOT, 'node_modules')
+    const own = new Map()
+    const packages = join(project, 'packages')
+    if (existsSync(packages)) {
+        for (const directory of readdirSync(packages)) {
+            const manifest = join(packages, directory, 'package.json')
+            if (existsSync(manifest)) own.set(JSON.parse(readFileSync(manifest, 'utf8')).name, join(packages, directory))
+        }
+    }
+    const scopes = new Set([...own.keys()].filter((name) => name.startsWith('@')).map((name) => name.split('/')[0]))
+    mkdirSync(modules)
+    for (const entry of readdirSync(repository)) {
+        if (own.has(entry)) continue
+        if (!scopes.has(entry)) {
+            symlinkSync(join(repository, entry), join(modules, entry), 'dir')
+            continue
+        }
+        //A scope shared with the workspace: its packages one by one
+        mkdirSync(join(modules, entry))
+        for (const child of readdirSync(join(repository, entry))) if (!own.has(`${entry}/${child}`)) symlinkSync(join(repository, entry, child), join(modules, entry, child), 'dir')
+    }
+    for (const [name, directory] of own) {
+        mkdirSync(dirname(join(modules, name)), {recursive: true})
+        symlinkSync(directory, join(modules, name), 'dir')
+    }
+}
+
+/**
  * Run a command in a directory, its output kept
  * @param command The command line.
  * @param cwd The directory.
@@ -104,7 +139,7 @@ function check(page, keep) {
                 const [name, template, ...features] = step.value.split(/\s+/)
                 run(`node "${CLI}" create --name ${name} --template "${join(ROOT, 'packages', `template-${template}`)}" --path "${work}" --package-manager none --no-git --yes${features.length ? ` --with ${features.join(',')}` : ''}`, work)
                 projects.push(join(work, name))
-                symlinkSync(join(ROOT, 'node_modules'), join(work, name, 'node_modules'), 'dir')
+                linkModules(join(work, name))
                 for (const [file, code] of files) {
                     if (several && !file.startsWith(`${name}/`)) continue
                     mkdirSync(dirname(locate(file)), {recursive: true})
@@ -129,7 +164,7 @@ function check(page, keep) {
 
 const keep = process.argv.includes('--keep')
 const wanted = process.argv.slice(2).filter((arg) => arg !== '--keep')
-const pages = wanted.length ? wanted : readdirSync(join(PAGES, 'en', 'examples')).filter((name) => name.endsWith('.md') && name !== 'index.md').map((name) => name.slice(0, -3))
+const pages = wanted.length ? wanted : readdirSync(join(PAGES, 'en', 'examples')).filter((name) => name.endsWith('.md') && name !== 'README.md').map((name) => name.slice(0, -3))
 let failed = 0
 for (const page of pages) {
     try {

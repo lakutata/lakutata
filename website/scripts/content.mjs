@@ -27,14 +27,16 @@ function fresh(directory) {
 }
 
 /**
- * The guides, as they are: their links are to each other
+ * The guides, as they are: their links are to each other, and to the examples (pointed to the examples of the website)
  */
 function guides() {
-    for (const [language, target] of [['en', 'guide'], ['zh', 'zh/guide']]) {
+    for (const [language, target, examples] of [['en', 'guide', '/examples/'], ['zh', 'zh/guide', '/zh/examples/']]) {
         const source = join(ROOT, 'packages/lakutata/doc', language)
         fresh(join(SRC, target))
-        for (const file of readdirSync(source).filter((name) => name.endsWith('.md')))
-            writeFileSync(join(SRC, target, file), readFileSync(join(source, file), 'utf8'))
+        for (const file of readdirSync(source).filter((name) => name.endsWith('.md'))) {
+            const content = readFileSync(join(source, file), 'utf8').replace(/\]\(examples\/([^)\s]*)\)/g, (_match, page) => `](${examples}${page === 'README.md' ? '' : page})`)
+            writeFileSync(join(SRC, target, file), content)
+        }
     }
 }
 

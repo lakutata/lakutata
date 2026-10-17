@@ -166,6 +166,8 @@ export default defineConfig({
     },
     description: 'An IoC framework for Node.js and TypeScript: web services, CLI tools, desktop and embedded applications',
     cleanUrls: true,
+    //The links to localhost are the ones of the reader's machine (the examples run there)
+    ignoreDeadLinks: 'localhostLinks',
     //The configuration in a chunk of its own, rather than in every page
     metaChunk: true,
     lastUpdated: false,
