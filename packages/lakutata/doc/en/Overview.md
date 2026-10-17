@@ -110,6 +110,8 @@ component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (
 |---|---|
 | [Core](Core.md) | The application, the container, lifetimes, dependency injection, sharing features between applications, and the lifecycle |
 | [DTOValidation](DTOValidation.md) | DTOs and schemas: validating options, inputs and results |
+| [Exceptions](Exceptions.md) | Declaring exceptions, their messages, what the clients receive, the exceptions of the framework |
+| [Logger](Logger.md) | The `log` component: writing lines, readable lines or JSON, destinations, another logger |
 | [Decorator](Decorator.md) | The decorators, by subpath |
 | [Controllers](Controllers.md) | Controllers and actions: their addresses, input and results, prefixes, inheritance |
 | [Entrypoint](Entrypoint.md) | The entrypoint component: its options and adapters, starting and stopping, the list of the actions |

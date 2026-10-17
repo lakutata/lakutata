@@ -99,6 +99,8 @@ Application
 |---|---|
 | [Core](Core.md) | 应用、容器、生命周期类型、依赖注入、在多个应用之间共享功能、应用的生命周期 |
 | [DTOValidation](DTOValidation.md) | DTO、校验规则，以及选项、输入和返回值的校验 |
+| [Exceptions](Exceptions.md) | 声明异常、异常的消息、客户端收到的内容、框架的异常 |
+| [Logger](Logger.md) | `log` 组件：写日志、可读的行或 JSON、输出目标、换用其他日志记录器 |
 | [Decorator](Decorator.md) | 各子路径的装饰器 |
 | [Controllers](Controllers.md) | 控制器与动作：地址、输入与结果、前缀、继承 |
 | [Entrypoint](Entrypoint.md) | 入口组件：选项与适配器、启动与停止、动作列表 |
