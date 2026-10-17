@@ -92,7 +92,8 @@ export class MCPContext<T extends Record<string, any> = {}> extends BaseContext<
     public readonly uri?: string
 
     /**
-     * The id of the client's session, when its transport has sessions; `undefined` otherwise.
+     * The id of the client's session, set by an adapter of your own whose transport has sessions; the adapters of the
+     * package (`stdioMCPEntrypoint`, `httpMCPEntrypoint`) set none.
      */
     @Expect(DTO.String().optional())
     public readonly sessionId?: string

@@ -207,6 +207,7 @@ function lastDeclaredActions(actions: ReadonlyArray<ChannelActionInfo>): Channel
  * import {Application} from 'lakutata'
  * import {buildEntrypoints, type ChannelRuntime, type EntrypointAdapter} from 'lakutata/com/entrypoint'
  * import {buildMCPServer, MCPChannel, type MCPContext} from '@lakutata/mcp'
+ * //@modelcontextprotocol/server, a dependency of @lakutata/mcp: add it to the dependencies of the application
  * import {StdioServerTransport} from '@modelcontextprotocol/server/stdio'
  *
  * type MCPServer = ReturnType<typeof buildMCPServer>

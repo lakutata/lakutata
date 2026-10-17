@@ -240,7 +240,7 @@ async function writeResponse(webResponse: Response, response: ServerResponse): P
  * }
  *
  * //Throwing answers 401
- * function VerifyToken(request: IncomingMessage): MCPAuthInfo {
+ * function verifyToken(request: IncomingMessage): MCPAuthInfo {
  *     const token: string = request.headers.authorization?.replace(/^Bearer /, '') ?? ''
  *     if (token !== process.env.MCP_TOKEN) throw new Error('Invalid token')
  *     return {token: token, clientId: 'assistant', scopes: ['clock']}
@@ -253,7 +253,7 @@ async function writeResponse(webResponse: Response, response: ServerResponse): P
  *     components: {
  *         entrypoint: buildEntrypoints({
  *             controllers: [ClockController],
- *             mcp: httpMCPEntrypoint({port: 3000, authenticate: VerifyToken})
+ *             mcp: httpMCPEntrypoint({port: 3000, authenticate: verifyToken})
  *         })
  *     },
  *     bootstrap: ['entrypoint']

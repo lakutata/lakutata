@@ -13,8 +13,9 @@ import {round, Samples} from './lib/Samples.js'
  * It keeps the count and the statistics of the durations since it was created or last {@link HttpRequestMonitor.reset},
  * in constant memory. The entries reach it in batches, shortly after the responses end, so a request just answered may
  * not be counted yet. Declare it in the `components` of the application (`{class: HttpRequestMonitor}`) and get it with
- * `@Inject` or `getObject()`; it is a singleton. It only sees the requests ending after its creation: list it in
- * `bootstrap` to measure from the launch; it stops when the component is destroyed.
+ * `@Inject` or `getObject()`; it is a singleton. It only sees the requests starting after its creation (a request in
+ * progress when it is created is not counted): list it in `bootstrap` to measure from the launch; it stops when the
+ * component is destroyed.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'

@@ -43,10 +43,12 @@ function addressKey(interfaceName: string, member: string, path: string): string
 
 /**
  * The definition of the D-Bus channel of the entrypoint, named `dbus`: its actions are the methods of D-Bus interfaces,
- * addressed by `{member, interface, path}` (the method name from `@DBusMethod`, the interface and the path template from
- * `@DBusInterface`). A call matches an action by its interface, its method and its object path; a call matching none
- * fails with `ControllerActionNotFoundException`. `@DBusMethod` and {@link dbusEntrypoint} use it: an application only
- * needs it to write an adapter of its own.
+ * addressed by `{member, interface, path}` (the method name from `@DBusMethod`, the interface and the path template
+ * from `@DBusInterface`). A call matches an action by its interface, its method and its object path; a call matching
+ * none fails with `ControllerActionNotFoundException` in an adapter dispatching through the channel (with
+ * {@link dbusEntrypoint}, the bus answers such a call with `org.freedesktop.DBus.Error.UnknownObject` or
+ * `UnknownMethod`).
+ * `@DBusMethod` and {@link dbusEntrypoint} use it: an application only needs it to write an adapter of its own.
  */
 export const DBusChannel: ChannelDefinition = hasChannel('dbus') ? getChannel('dbus') : defineChannel({
     name: 'dbus',

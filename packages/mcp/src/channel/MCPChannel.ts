@@ -55,8 +55,9 @@ function addressKey(kind: MCPRequestKind, name: string): string {
  * The definition of the MCP channel of the entrypoint, named `mcp`: its actions are tools (`{tool: name}`), resources
  * (`{resource: uri}`) or prompts (`{prompt: name}`), declared with `@MCPTool`, `@MCPResource` and `@MCPPrompt`. A
  * request matches an action by its kind and its name (the resource URI template as declared); a request matching none
- * fails with `ControllerActionNotFoundException`. The decorators and the adapters use it: an application only needs it
- * to write an adapter of its own (see {@link buildMCPServer}).
+ * fails with `ControllerActionNotFoundException` in an adapter dispatching through the channel (with the adapters of
+ * the package, the MCP server answers it with an invalid params error). The decorators and the adapters use it: an
+ * application only needs it to write an adapter of its own (see {@link buildMCPServer}).
  */
 export const MCPChannel: ChannelDefinition = hasChannel('mcp') ? getChannel('mcp') : defineChannel({
     name: 'mcp',

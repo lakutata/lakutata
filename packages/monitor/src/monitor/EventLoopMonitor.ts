@@ -4,16 +4,19 @@ import {IEventLoopMonitorStatistics} from './interfaces/IEventLoopMonitorStatist
 import {IMonitor} from './interfaces/IMonitor.js'
 
 /**
- * The event loop monitor: measures how late the event loop of the main thread runs its timers (the event loop delay,
- * in milliseconds, with Node's `monitorEventLoopDelay` at a 1 ms resolution) and how busy it is (its utilization, in
- * percent of the time). A growing delay means synchronous work (CPU-bound code, synchronous I/O, large JSON) blocks the
- * other requests; a utilization near 100 means the loop has no idle time left.
+ * The event loop monitor: measures the event loop of the thread that creates it, the main thread or a worker: the
+ * intervals between the runs of a 1 ms timer (the event loop delay, in milliseconds, with Node's
+ * `monitorEventLoopDelay` at a 1 ms resolution: about 1 ms when the loop is idle) and how busy the loop is (its
+ * utilization, in percent of the time). A growing delay means synchronous work (CPU-bound code, synchronous I/O, large
+ * JSON) blocks the other requests; a utilization near 100 means the loop has no idle time left. The 1 ms timer costs
+ * about 1.5 % of a core.
  *
- * Both cover the time since the monitor was created or last {@link EventLoopMonitor.reset}: the delays are a
- * histogram of every measure, the utilization is the share of that whole time the loop was busy. Declare it in the
- * `components` of the application (`{class: EventLoopMonitor}`) and get it with `@Inject` or `getObject()`; it is a
- * singleton. It starts measuring when it is created: list it in `bootstrap` to measure from the launch; it stops when
- * the component is destroyed.
+ * Both cover the time since the monitor was created or last {@link EventLoopMonitor.reset}: the delays are a histogram
+ * of every measure (its minimum, maximum and mean are those of the histogram, not exact), the utilization is the share
+ * of that whole time the loop was busy (100 right after a reset, the loop busy running the code that calls it). Declare
+ * it in the `components` of the application (`{class: EventLoopMonitor}`) and get it with `@Inject` or `getObject()`;
+ * it is a singleton. It starts measuring when it is created: list it in `bootstrap` to measure from the launch; it
+ * stops when the component is destroyed.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
