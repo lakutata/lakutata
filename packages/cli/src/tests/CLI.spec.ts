@@ -209,14 +209,29 @@ describe('The command line tool', (): void => {
         assert.ok(existsSync(path.join(work, 'fromdir', '.gitignore')))
     })
 
-    it('creates a project in an existing directory', async (): Promise<void> => {
+    it('creates a project in an existing directory, its files kept as they are', async (): Promise<void> => {
         const directory: string = path.join(work, 'existing')
-        mkdirSync(directory)
+        mkdirSync(path.join(directory, 'node_modules', 'x'), {recursive: true})
         writeFileSync(path.join(directory, 'README.md'), 'kept')
+        //A file of the template already there: kept, the one of the template not copied
+        writeFileSync(path.join(directory, 'package.json'), '{"name": "mine"}\n')
+        //Files that are not the template's: neither filled nor renamed
+        writeFileSync(path.join(directory, 'notes.txt'), 'id {$APP_ID}\n')
+        writeFileSync(path.join(directory, 'node_modules', 'x', 'a.txt'), 'name {$APP_NAME}\n')
+        writeFileSync(path.join(directory, '_npmrc'), 'kept\n')
         const created = await runCommand(['create', '--name', 'here', '--path', directory, '--init', '--package-manager', 'none', '--no-git'], directory)
         assert.strictEqual(created.code, 0, created.stderr)
+        assert.match(created.stdout, /copied \(3 files\)/)
+        assert.match(created.stderr, /The files of the directory are kept: package\.json/)
         assert.strictEqual(readFileSync(path.join(directory, 'README.md'), 'utf8'), 'kept')
-        assert.strictEqual(JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8')).name, 'here')
+        assert.strictEqual(readFileSync(path.join(directory, 'package.json'), 'utf8'), '{"name": "mine"}\n')
+        assert.strictEqual(readFileSync(path.join(directory, 'notes.txt'), 'utf8'), 'id {$APP_ID}\n')
+        assert.strictEqual(readFileSync(path.join(directory, 'node_modules', 'x', 'a.txt'), 'utf8'), 'name {$APP_NAME}\n')
+        assert.ok(existsSync(path.join(directory, '_npmrc')))
+        assert.ok(!existsSync(path.join(directory, '.npmrc')))
+        //The files of the template, filled
+        assert.match(readFileSync(path.join(directory, 'src', 'App.ts'), 'utf8'), /console\.log\('here'/)
+        assert.ok(existsSync(path.join(directory, '.gitignore')))
     })
 
     it('fails with the errors of the arguments', async (): Promise<void> => {

@@ -1,5 +1,5 @@
 import {existsSync} from 'node:fs'
-import {cp, readdir, readFile, rename, stat, writeFile} from 'node:fs/promises'
+import {cp, mkdir, readdir, readFile, stat, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {Component} from 'lakutata'
 import {Autoload, Inject, Singleton} from 'lakutata/decorator/di'
@@ -51,7 +51,7 @@ function isText(content: Buffer): boolean {
 }
 
 /**
- * The files of a directory, relative to it
+ * The files of a directory, relative to it, without the directories which are not copied (SKIPPED)
  * @param directory
  * @param base
  */
@@ -59,6 +59,7 @@ async function listFiles(directory: string, base: string = directory): Promise<s
     const files: string[] = []
     for (const entry of await readdir(directory, {withFileTypes: true})) {
         const target: string = path.join(directory, entry.name)
+        if (entry.isDirectory() && SKIPPED.includes(entry.name)) continue
         if (entry.isDirectory()) files.push(...await listFiles(target, base))
         else if (entry.isFile()) files.push(path.relative(base, target))
     }
@@ -96,21 +97,25 @@ export class ProjectCreator extends Component {
     }
 
     /**
-     * Copy the files of a template into the directory of the project
+     * Copy the files of a template into the directory of the project; the files the directory has already (--init)
+     * are kept as they are, the ones of the template not copied
      * @param template
      * @param directory
-     * @return the paths of the files of the project, relative to its directory
+     * @param kept the files of the directory kept, relative to it
+     * @return the paths of the files copied, relative to the directory
      */
-    protected async copy(template: PreparedTemplate, directory: string): Promise<string[]> {
-        await cp(template.root, directory, {
-            recursive: true,
-            filter: (source: string): boolean => !SKIPPED.includes(path.basename(source))
-        })
+    protected async copy(template: PreparedTemplate, directory: string, kept: string[]): Promise<string[]> {
         const files: string[] = []
-        for (const file of await listFiles(directory)) {
+        for (const file of await listFiles(template.root)) {
             //"_gitignore" becomes ".gitignore"
             const renamed: string = projectPath(file)
-            if (renamed !== file) await rename(path.join(directory, file), path.join(directory, renamed))
+            const target: string = path.join(directory, renamed)
+            if (existsSync(target)) {
+                kept.push(renamed)
+                continue
+            }
+            await mkdir(path.dirname(target), {recursive: true})
+            await cp(path.join(template.root, file), target)
             files.push(renamed)
         }
         return files
@@ -151,13 +156,16 @@ export class ProjectCreator extends Component {
      */
     public async create(plan: ProjectPlan, template: PreparedTemplate): Promise<void> {
         await this.checkDirectory(plan.directory, plan.init)
-        const files: string[] = await this.copy(template, plan.directory)
+        for (const feature of plan.features) if (!(feature in template.features)) throw new Error(`The template has no feature ${feature}`)
+        //Only the files written are filled: the other files of the directory (--init) are not the template's
+        const kept: string[] = []
+        const files: string[] = await this.copy(template, plan.directory, kept)
         for (const feature of plan.features) {
-            if (!(feature in template.features)) throw new Error(`The template has no feature ${feature}`)
             const directory: string = path.join(template.featuresDirectory, feature)
-            if (existsSync(directory)) files.push(...await applyFeatureFiles(directory, plan.directory))
+            if (existsSync(directory)) files.push(...await applyFeatureFiles(directory, plan.directory, new Set(files), kept))
         }
         done(`Template ${template.label} copied (${files.length} files${plan.features.length ? `, with ${plan.features.join(', ')}` : ''})`)
+        if (kept.length) warn(`The files of the directory are kept: ${[...new Set(kept)].sort().join(', ')}. Their versions in the template are not copied: merge what you need of them by hand (the scripts and the dependencies of package.json)`)
         await this.fill(plan.directory, files, {
             $APP_NAME: plan.name,
             $APP_ID: plan.id,

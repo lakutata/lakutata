@@ -73,13 +73,21 @@ async function listFiles(directory: string, base: string = directory): Promise<s
  * (the scripts of package.json, the options of tsconfig.json)
  * @param featureDirectory
  * @param project
+ * @param written the files the creation of the project wrote: the other files of the directory (--init) are kept as
+ * they are, added to kept
+ * @param kept
  * @return the files added to the project, relative to it
  */
-export async function applyFeatureFiles(featureDirectory: string, project: string): Promise<string[]> {
+export async function applyFeatureFiles(featureDirectory: string, project: string, written?: Set<string>, kept: string[] = []): Promise<string[]> {
     const added: string[] = []
     for (const file of await listFiles(featureDirectory)) {
         const relative: string = projectPath(file)
         const target: string = path.join(project, relative)
+        //A file the directory had before the project was created (--init) is kept as it is
+        if (written && existsSync(target) && !written.has(relative)) {
+            kept.push(relative)
+            continue
+        }
         await mkdir(path.dirname(target), {recursive: true})
         if (existsSync(target) && file.endsWith('.json')) {
             const merged: unknown = mergeJson(JSON.parse(await readFile(target, 'utf8')), JSON.parse(await readFile(path.join(featureDirectory, file), 'utf8')))
