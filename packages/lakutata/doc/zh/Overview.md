@@ -104,8 +104,8 @@ Application
 | [Entrypoint](Entrypoint.md) | 入口组件：选项与适配器、启动与停止、动作列表 |
 | [Middlewares](Middlewares.md) | 动作的中间件与访问控制 |
 | [HTTP](HTTP.md) | HTTP 适配器：路由、输入、响应、错误，以及 Express 和 Fastify 的功能 |
-| [ActionPattern](ActionPattern.md) | 服务传输方式 |
 | [CLI](CLI.md) | 命令行工具：命令、选项、提示输入、输出与退出码 |
+| [ServiceCalls](ServiceCalls.md) | 通过 HTTP、Socket.IO、JSON-RPC 2.0 和 Electron 调用服务动作：模式、响应、客户端及其事件 |
 | [GRPC](GRPC.md) | 通过 gRPC 提供服务动作（`@lakutata/grpc`），以及从其他应用和其他语言调用它们 |
 | [NATS](NATS.md) | NATS 组件、通过 NATS 提供服务动作（`@lakutata/nats`）、服务代理及其事件 |
 | [Schedules](Schedules.md) | 定时任务：间隔、cron 表达式、只在一个实例中执行的任务 |

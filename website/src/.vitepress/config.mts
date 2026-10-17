@@ -13,7 +13,7 @@ const REPOSITORY: string = 'https://github.com/lakutata/lakutata'
 const GUIDES: {en: string, zh: string, guides: string[]}[] = [
     {en: 'Introduction', zh: '入门', guides: ['Overview']},
     {en: 'Fundamentals', zh: '基础', guides: ['Core', 'DTOValidation', 'Decorator']},
-    {en: 'Controllers and Entrypoints', zh: '控制器与入口', guides: ['Controllers', 'Entrypoint', 'Middlewares', 'HTTP', 'ActionPattern', 'CLI', 'GRPC', 'NATS', 'Schedules', 'Queue']},
+    {en: 'Controllers and Entrypoints', zh: '控制器与入口', guides: ['Controllers', 'Entrypoint', 'Middlewares', 'HTTP', 'CLI', 'ServiceCalls', 'GRPC', 'NATS', 'Schedules', 'Queue']},
     {en: 'Data', zh: '数据', guides: ['Database', 'DatabaseDrivers', 'MongoEmbedded', 'Entities', 'Migrations', 'Cache']},
     {en: 'Components', zh: '组件', guides: ['I18n', 'Mutex', 'DockerIntegration', 'ContainerdIntegration']},
     {en: 'Utilities', zh: '工具', guides: ['Security', 'Time', 'HelperFunctions']}

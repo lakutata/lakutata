@@ -109,7 +109,7 @@ $ node dist/index.js order 42
 |---|---|---|
 | `@GET(route)`、`@POST`、`@PUT`、`@PATCH`、`@DELETE`、`@HEAD`、`@OPTIONS`、`@HTTPAction(route, methods)` | HTTP 路由 | [HTTP](HTTP.md) |
 | `@CLIAction(command)` | 命令 | [CLI](CLI.md) |
-| `@ServiceAction(pattern)` | 服务模式 | [ActionPattern](ActionPattern.md)、[GRPC](GRPC.md)、[NATS](NATS.md) |
+| `@ServiceAction(pattern)` | 服务模式 | [ServiceCalls](ServiceCalls.md)、[GRPC](GRPC.md)、[NATS](NATS.md) |
 | `@Schedule(schedule)` | 间隔或 cron 表达式 | [Schedules](Schedules.md) |
 | `@QueueAction(queue)`（`lakutata/com/queue`） | 消息队列 | [Queue](Queue.md) |
 | `@MCPTool(name)`（`@lakutata/mcp`）、`@DBusMethod(...)`（`@lakutata/dbus`） | MCP 工具、D-Bus 方法 | 各自包的 README |

@@ -180,8 +180,7 @@ The typings document each declaration with examples.
 ## See also
 
 - The guides, in the package `lakutata` (`doc/en`, Chinese in `doc/zh`): `Controllers.md`, `Entrypoint.md`,
-  `Middlewares.md`, `HTTP.md` (the HTTP adapters), `ActionPattern.md` (the service transports), `CLI.md`,
-  `Schedules.md`.
+  `Middlewares.md`, `HTTP.md` (the HTTP adapters), `ServiceCalls.md` (the service transports), `CLI.md`, `Schedules.md`.
 - `@lakutata/core`: the DTOs, the dependency injection and the application.
 - `@lakutata/mutex`: `@Synchronized` actions and the `exclusive` schedules.
 - `@lakutata/grpc`, `@lakutata/nats`: the service transports over gRPC and NATS.

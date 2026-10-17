@@ -56,10 +56,10 @@ The adapters:
 | `http` | `expressHTTPEntrypoint()` | `lakutata/adapter/express` | `express` | [HTTP](HTTP.md) |
 | `http` | `fastifyHTTPEntrypoint()` | `lakutata/adapter/fastify` | `fastify` | [HTTP](HTTP.md) |
 | `cli` | `commanderCLIEntrypoint()` | `lakutata/adapter/commander` | `commander` | [CLI](CLI.md) |
-| `service` | `httpServiceEntrypoint()` | `lakutata/com/entrypoint` | | [ActionPattern](ActionPattern.md) |
-| `service` | `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io` | [ActionPattern](ActionPattern.md) |
-| `service` | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | `ws`, for WebSocket | [ActionPattern](ActionPattern.md) |
-| `service` | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) | [ActionPattern](ActionPattern.md) |
+| `service` | `httpServiceEntrypoint()` | `lakutata/com/entrypoint` | | [ServiceCalls](ServiceCalls.md) |
+| `service` | `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io` | [ServiceCalls](ServiceCalls.md) |
+| `service` | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | `ws`, for WebSocket | [ServiceCalls](ServiceCalls.md) |
+| `service` | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) | [ServiceCalls](ServiceCalls.md) |
 | `service` | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | [GRPC](GRPC.md) |
 | `service` | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | [NATS](NATS.md) |
 | `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | | [Schedules](Schedules.md) |
@@ -183,7 +183,7 @@ The service transports that keep their clients connected (Socket.IO, Electron, t
 JSON-RPC over WebSocket or stdio, gRPC) can receive events from the application.
 `entrypoint.notify(clientId, event, ...args)` sends an event to the client whose id an action found in
 `this.context.clientId`, and returns whether that client received it. `entrypoint.broadcast(event, ...args)` sends it to
-every connected client, and returns their number. See [GRPC](GRPC.md) and [ActionPattern](ActionPattern.md).
+every connected client, and returns their number. See [GRPC](GRPC.md) and [ServiceCalls](ServiceCalls.md).
 
 ## 7. Customizing the entrypoint
 

@@ -115,8 +115,8 @@ component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (
 | [Entrypoint](Entrypoint.md) | The entrypoint component: its options and adapters, starting and stopping, the list of the actions |
 | [Middlewares](Middlewares.md) | The middlewares and the access control of the actions |
 | [HTTP](HTTP.md) | The HTTP adapters: routes, input, responses, errors, the features of Express and Fastify |
-| [ActionPattern](ActionPattern.md) | The service transports |
 | [CLI](CLI.md) | Command line tools: commands, options, prompts, output and exit codes |
+| [ServiceCalls](ServiceCalls.md) | The service actions over HTTP, Socket.IO, JSON-RPC 2.0 and Electron: patterns, responses, clients and their events |
 | [GRPC](GRPC.md) | The service actions over gRPC (`@lakutata/grpc`), and calling them from other applications and languages |
 | [NATS](NATS.md) | The NATS component, the service actions over NATS (`@lakutata/nats`), the service proxies and their events |
 | [Schedules](Schedules.md) | Scheduled jobs: intervals, cron expressions, jobs run by one instance |

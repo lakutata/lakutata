@@ -346,7 +346,7 @@ its `maxMessageSize` with `RESOURCE_EXHAUSTED`, and a call past its deadline wit
 ## See also
 
 - `@lakutata/entrypoint` (`lakutata/com/entrypoint`): the entrypoint, the controllers and the service actions
-  (`doc/en/ActionPattern.md` of the package `lakutata`, Chinese in `doc/zh`).
+  (`doc/en/ServiceCalls.md` of the package `lakutata`, Chinese in `doc/zh`).
 - `@lakutata/nats`: the service actions over NATS, with the same patterns.
 - `@lakutata/containerd` (`doc/en/ContainerdIntegration.md` of the package `lakutata`): containerd and BuildKit, over
   this client.

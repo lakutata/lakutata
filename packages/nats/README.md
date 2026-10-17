@@ -297,6 +297,7 @@ connection timeout when no server can be reached at the start. The codec's error
 ## See also
 
 - `@lakutata/entrypoint` (`lakutata/com/entrypoint`, `lakutata/decorator/ctrl`): the controllers, `@ServiceAction` and
-  the other transports; `doc/en/ActionPattern.md` of the package `lakutata` (Chinese in `doc/zh`) for the patterns.
+  the other transports; section 2 of `doc/en/ServiceCalls.md` in the package `lakutata` (Chinese in `doc/zh`) for the
+  patterns.
 - `@lakutata/grpc/service`: the same service channel and proxy over gRPC.
 - `docs/large-payload-design.md`: the design of the large payloads.

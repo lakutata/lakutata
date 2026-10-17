@@ -121,7 +121,7 @@ Inside the method, two properties describe the request:
 |---|---|---|
 | `@GET(route)`, `@POST`, `@PUT`, `@PATCH`, `@DELETE`, `@HEAD`, `@OPTIONS`, `@HTTPAction(route, methods)` | An HTTP route | [HTTP](HTTP.md) |
 | `@CLIAction(command)` | A command | [CLI](CLI.md) |
-| `@ServiceAction(pattern)` | A service pattern | [ActionPattern](ActionPattern.md), [GRPC](GRPC.md), [NATS](NATS.md) |
+| `@ServiceAction(pattern)` | A service pattern | [ServiceCalls](ServiceCalls.md), [GRPC](GRPC.md), [NATS](NATS.md) |
 | `@Schedule(schedule)` | An interval or a cron expression | [Schedules](Schedules.md) |
 | `@QueueAction(queue)` (`lakutata/com/queue`) | A message queue | [Queue](Queue.md) |
 | `@MCPTool(name)` (`@lakutata/mcp`), `@DBusMethod(...)` (`@lakutata/dbus`) | An MCP tool, a D-Bus method | The README of their package |
