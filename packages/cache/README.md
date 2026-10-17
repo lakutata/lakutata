@@ -1,9 +1,9 @@
 # @lakutata/cache
 
-The cache component of the lakutata framework: a key-value cache with expiration (TTLs in milliseconds), the
-cache-aside `wrap()` with its background refresh, and events, backed by one or more stores: memory, a JSON file,
-Redis, Memcache, MongoDB, SQLite, PostgreSQL or MySQL. Several stores make tiers, the fastest first. The umbrella
-package `lakutata` re-exports it as `lakutata/com/cacher`.
+The cache component of the lakutata framework: a key-value cache whose entries expire (TTLs are in milliseconds),
+with a cache-aside `wrap()` method that can refresh values in the background, and events. It is backed by one or more
+stores: memory, a JSON file, Redis, Memcache, MongoDB, SQLite, PostgreSQL or MySQL. Several stores form tiers, with the
+fastest first. The umbrella package `lakutata` re-exports it as `lakutata/com/cacher`.
 
 ## Installation
 
@@ -11,14 +11,15 @@ package `lakutata` re-exports it as `lakutata/com/cacher`.
 npm install lakutata
 ```
 
-The memory and file stores need nothing more; the other stores use optional peer dependencies, installed when used.
-A store whose package is missing fails the cache's creation with `CacheDriverNotFoundException`.
+The memory and file stores need nothing else. The other stores rely on optional peer dependencies: install the
+package of each store you use. When a store's package is missing, creating the cache fails with
+`CacheDriverNotFoundException`.
 
 | Store | `type` | Install |
 |---|---|---|
-| Memory (also the store of a cache without `stores`) | `'memory'` | none |
+| Memory (the default when `stores` is not set) | `'memory'` | none |
 | JSON file | `'file'` | none |
-| Redis 4+ (or Valkey) | `'redis'` | `redis` (4 or 5) |
+| Redis or Valkey (`clear()` needs Redis 6+) | `'redis'` | `redis` (4 or 5) |
 | Memcache | `'memcache'` | `memjs` |
 | MongoDB | `'mongo'` | `mongodb` |
 | SQLite | `'sqlite'` | `better-sqlite3` (12); none on Bun (`bun:sqlite`) |
@@ -62,9 +63,9 @@ Application
 
 ### Cache-aside with `wrap()`
 
-`wrap()` returns the cached value, or computes it, caches it and returns it. The concurrent calls on one key share one
-computation. With a refresh threshold, a value close to its expiration is returned at once and recomputed in the
-background.
+`wrap()` returns the cached value; when there is none, it computes the value, caches it and returns it. Concurrent
+calls for the same key share one computation. With a refresh threshold, a value that is about to expire is returned at
+once and recomputed in the background.
 
 ```typescript
 import {Component} from 'lakutata'
@@ -113,16 +114,18 @@ Application.run(() => ({
 }))
 ```
 
-- A read returns the entry of the first store holding it; only `wrap()` copies an entry found in a lower store to
-  the stores above it.
-- A store failing to read is a miss; its error is emitted as an `'error'` event. A store failing to write or delete
-  rejects the call, unless `nonBlocking: true` (the calls then return without waiting for the stores).
-- A store which cannot connect when the cache starts fails its creation, and so the application's start (a Redis
-  store with `throwOnConnectError: false` keeps trying in the background instead).
-- The memory store keeps the values by reference. The other stores keep them as JSON: a `Buffer` is kept, a `Date`
-  comes back as its ISO string, a class instance as a plain object.
-- `namespace` separates the applications sharing a backend: `clear()` then deletes the namespace's entries only
-  (except Memcache, whose `clear()` flushes the whole server).
+- A read returns the entry from the first store that holds it. Only `wrap()` copies an entry found in a lower store
+  to the stores above it.
+- A failed read counts as a miss, and its error is emitted as an `'error'` event. A failed write or deletion rejects
+  the call, unless `nonBlocking: true` is set (calls then return without waiting for the stores).
+- When a store cannot connect, creating the cache fails (a Redis store with `throwOnConnectError: false` keeps trying
+  in the background instead). The application fails to start only when the cache is created during the start: when it
+  is listed in `bootstrap`, or injected into an object that is. Otherwise the `getObject()` call or the injection that
+  creates it fails.
+- The memory store keeps values by reference. The other stores keep them as JSON: a `Buffer` comes back as a
+  `Buffer`, but a `Date` comes back as its ISO string and a class instance as a plain object.
+- `namespace` keeps apart applications that share a backend: `clear()` then deletes only the entries in the namespace
+  (except with Memcache, where `clear()` flushes the whole server).
 
 ### Events
 
@@ -145,31 +148,33 @@ cache.on('error', (error: Error): void => console.error('Cache store error', err
 
 | Export | What it is |
 |---|---|
-| `Cacher` | The component: `set`, `get`, `multipleSet`, `multipleGet`, `getTTL`, `wrap`, `del`, `multipleDel`, `clear`, the events `set`, `del`, `clear`, `refresh`, `error` |
-| `buildCacherOptions` | Builds the component options of a `Cacher` |
+| `Cacher` | The component: `set`, `get`, `multipleSet`, `multipleGet`, `getTTL`, `wrap`, `del`, `multipleDel`, `clear`; the events `set`, `del`, `clear`, `refresh`, `error` |
+| `buildCacherOptions` | Builds the component options for a `Cacher` |
 | `CacherOptions` | The options: `stores`, `ttl`, `refreshThreshold`, `refreshAllStores`, `nonBlocking` |
-| `CacheStoreOptions` | The options of one store, told apart by `type` |
+| `CacheStoreOptions` | The options of a single store, distinguished by `type` |
 | `MemoryCacheOptions`, `FileCacheOptions`, `RedisCacheOptions`, `MemcacheCacheOptions`, `MongoCacheOptions`, `SqliteCacheOptions`, `PostgresCacheOptions`, `MysqlCacheOptions` | The options of each store |
 | `WrapOptions` | The TTL and refresh threshold of a `wrap()` call |
-| `MultipleSetInput` | An entry of `multipleSet()` |
+| `MultipleSetInput` | An entry passed to `multipleSet()` |
 | `OnSetEventData`, `OnDeleteEventData`, `OnRefreshEventData` | The data of the `set`, `del` and `refresh` events |
 | `CacheDriverNotFoundException` | A store's driver package is not installed |
 
-All are exported by `lakutata/com/cacher` and `@lakutata/cache`. The typings document each declaration with examples.
+All of them are exported by `lakutata/com/cacher` and `@lakutata/cache`. The typings document every declaration, with
+examples.
 
 ## Errors
 
 | Exception | Thrown when |
 |---|---|
-| `CacheDriverNotFoundException` (`E_CACHE_DRIVER_NOT_FOUND`) | The cache starts with a store whose driver package (`redis`, `memjs`, `mongodb`, `better-sqlite3`, `pg`, `mysql2`) is not installed |
-| `InvalidValueException` (from `lakutata`) | The cache options are invalid, when the component is created |
+| `CacheDriverNotFoundException` (`E_CACHE_DRIVER_NOT_FOUND`) | The cache is created with a store whose driver package (`redis`, `memjs`, `mongodb`, `better-sqlite3`, `pg`, `mysql2`) is not installed |
+| `InvalidObjectOptionsException` (from `lakutata`) | An option of the cache has an invalid value; the application fails to start |
 
-The failures of the stores (a refused connection, a failed query) are their drivers' errors: they fail the cache's
-creation when it connects, reject the writes and deletions (without `nonBlocking`), and are emitted as `'error'`
-events for the reads.
+Store failures (a refused connection, a failed query) are reported with the errors of their drivers. A failure to
+connect makes the cache's creation fail, a failed write or deletion rejects the call (unless `nonBlocking` is set), and
+a failed read is emitted as an `'error'` event.
 
 ## See also
 
-- `@lakutata/core` (`lakutata`): the components, `Application` and the dependency injection (`doc/en/Objects.md` and
-  `doc/en/Injection.md` of the package `lakutata`, Chinese in `doc/zh`).
-- `@lakutata/mutex` (`lakutata/com/mutex`): the locks, to compute a cached value in one instance at a time.
+- `doc/en/Cache.md` in the `lakutata` package (Chinese version in `doc/zh`): the guide to the cache.
+- `@lakutata/core` (`lakutata`): components, `Application` and dependency injection (see `doc/en/Objects.md` and
+  `doc/en/Injection.md` in the `lakutata` package, and their Chinese versions in `doc/zh`).
+- `@lakutata/mutex` (`lakutata/com/mutex`): locks, to compute a cached value in only one instance at a time.

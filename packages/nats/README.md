@@ -1,10 +1,10 @@
 # @lakutata/nats
 
-The NATS component of the lakutata framework: a connection to a NATS server to publish, subscribe and send requests
-(MessagePack or JSON payloads), the service channel of an application served over NATS (`natsServiceEntrypoint`), the
-proxies invoking the actions of the other services and listening to their events (`ServiceProxy`), and the large
-payloads relayed through a JetStream object store. The umbrella package `lakutata` does not re-export it: import it
-from `@lakutata/nats`.
+The NATS component of the lakutata framework. It provides a connection to a NATS server to publish, subscribe and send
+requests (with MessagePack or JSON payloads), serves an application's service channel over NATS
+(`natsServiceEntrypoint`), offers proxies that invoke the actions of other services and listen to their events
+(`ServiceProxy`), and relays large payloads through a JetStream object store. The umbrella package `lakutata` does not
+re-export it: import it from `@lakutata/nats`.
 
 ## Installation
 
@@ -12,11 +12,11 @@ from `@lakutata/nats`.
 npm install lakutata @lakutata/nats
 ```
 
-It uses the NATS client `nats` (a dependency) and needs, on the server side:
+It uses the NATS client `nats` (installed as a dependency). On the server side, it needs:
 
-- a NATS server 2.2 or later (the message headers, which the large payloads need);
-- JetStream enabled (`nats-server -js`, or `jetstream {}` in its configuration) for the large payloads. Without it the
-  component starts anyway, prints a warning, and only the payloads over the server's `max_payload` fail.
+- a NATS server 2.2 or later (for message headers, which large payloads need);
+- JetStream enabled (`nats-server -js`, or `jetstream {}` in the server configuration) for large payloads. Without it,
+  the component still starts and prints a warning; only payloads over the server's `max_payload` then fail.
 
 ```shell
 docker run -d --name nats -p 4222:4222 nats:2.12-alpine -js
@@ -27,7 +27,9 @@ docker run -d --name nats -p 4222:4222 nats:2.12-alpine -js
 ### The NATS component
 
 Register the `NATS` component with `buildNatsClientOptions`, then get it with `getObject()` or `@Inject`. It connects
-when it is created: an unreachable server fails the application's start (after `timeout`, 20 seconds by default).
+when it is created: when no server can be reached, its creation fails after `timeout` (20 seconds by default). The
+application then fails to start if the component is created during the start (listed in `bootstrap`, or injected into
+an object that is).
 
 ```typescript
 import {Application} from 'lakutata'
@@ -55,35 +57,36 @@ Application
     })
 ```
 
-- `publish()` sends a message to every subscription of the subject (one per queue group); it is lost when nobody
-  listens.
-- `subscribe()` accepts the wildcards `*` (one token) and `>` (the remaining tokens). Its callback is called for each
-  message as it arrives, or one message after the other with `{iterator: true}`; `{max: n}` ends the subscription
+- `publish()` sends a message to every subscription of the subject (only one member of each queue group receives
+  it); the message is lost when nobody is listening.
+- `subscribe()` accepts the wildcards `*` (one token) and `>` (all remaining tokens). Its callback is called for each
+  message as it arrives, or for one message after another with `{iterator: true}`; `{max: n}` ends the subscription
   after `n` messages. It returns the NATS `Subscription` (`unsubscribe()`, `drain()`).
-- `request()` waits for the first response; its timeout is in milliseconds, 10 minutes when omitted. A callback which
-  throws leaves the request unanswered (the requester times out) unless the subscription has an `errorResponse`.
-- A lost connection is reestablished in the background (`reconnect`, `maxReconnectAttempts`: 10 attempts per server
-  by default, `-1` for ever); the requests sent meanwhile fail when their timeout passes. Once the client gives up,
-  every call fails with the NATS client error `CONNECTION_CLOSED`.
-- When the application stops, the component drains its connections: the messages in progress are handled and the
-  outgoing ones flushed before they close.
+- `request()` waits for the first response. Its timeout is in milliseconds and defaults to 10 minutes. When a
+  responder's callback throws, the request goes unanswered and the requester times out, unless the subscription has
+  an `errorResponse`.
+- A lost connection is reestablished in the background (`reconnect`; `maxReconnectAttempts` is 10 attempts per server
+  by default, `-1` to retry forever). Requests sent in the meantime fail when their timeout expires. Once the client
+  gives up, every call fails with the NATS client error `CONNECTION_CLOSED`.
+- When the application stops, the component drains its connections: messages in progress are handled and outgoing
+  messages are flushed before the connections close.
 
-The connection options: `servers`, `codec`, `timeout`, `token`, `user`, `pass`, `debug`, `maxPingOut`,
-`maxReconnectAttempts`, `name`, `noEcho`, `noRandomize`, `pingInterval`, `reconnect`, and the large payloads'
-`bulk`, `bulkBucket`, `bulkTTL`, `bulkReplicas` (see [Large payloads](#large-payloads)).
+The connection options are `servers`, `codec`, `timeout`, `token`, `user`, `pass`, `debug`, `maxPingOut`,
+`maxReconnectAttempts`, `name`, `noEcho`, `noRandomize`, `pingInterval` and `reconnect`, plus the large-payload options
+`bulk`, `bulkBucket`, `bulkTTL` and `bulkReplicas` (see [Large payloads](#large-payloads)).
 
 ### The codecs
 
-Every payload is encoded with the component's `codec`, the same on both sides of a subject:
+Every payload is encoded with the component's `codec`, which must be the same on both sides of a subject:
 
 - `messagePackCodec()` (the default): MessagePack, compact and fast;
-- `jsonCodec()`: JSON text, readable and easy for the clients of other languages.
+- `jsonCodec()`: JSON text, readable and easy to handle for clients written in other languages.
 
-Both send a value as a one-element array (`[value]`) and normalize it through JSON first, so that the clients of
-other languages receive plain JSON data: a `Date` arrives as its ISO string, a `Buffer` as
-`{type: 'Buffer', data: [...]}`, a class instance as a plain object, `undefined` as `null`; a `bigint` fails the
-encoding. Any object with `encode(value): Uint8Array` and `decode(bytes)` can be given, such as `StringCodec()`
-(re-exported from `nats`) for string payloads.
+Both send a value as a one-element array (`[value]`) and first normalize it through JSON, so that clients in other
+languages receive plain JSON data: a `Date` arrives as its ISO string, a `Buffer` as `{type: 'Buffer', data: [...]}`,
+a class instance as a plain object, and `undefined` as `null`; a `bigint` cannot be encoded. Any object with
+`encode(value): Uint8Array` and `decode(bytes)` can serve as the codec, such as `StringCodec()` (re-exported from
+`nats`) for string payloads.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -100,9 +103,9 @@ Application.run({
 
 ### Serving the service actions over NATS
 
-`natsServiceEntrypoint` serves the service channel of the `Entrypoint` component: the requests sent to the
-application's id are dispatched to the `@ServiceAction` methods of the controllers, and answered with a service
-response `{success, error, payload}`.
+`natsServiceEntrypoint` serves the `Entrypoint` component's service channel over NATS: requests sent to the
+application's id are dispatched to the controllers' `@ServiceAction` methods and answered with a service response
+`{success, error, payload}`.
 
 ```typescript
 import {Application, DTO} from 'lakutata'
@@ -145,26 +148,26 @@ Application
     })
 ```
 
-- The subject is the application id unless the `subject` option sets another; the proxies use it as their
-  `serviceId`. The service events stay under the application id.
-- The instances of the service join one queue group (`{subject}.serviceQueue` by default): each request is handled by
-  one instance.
-- A failed action (no matching action, invalid input, access denied, an exception) is answered with its error's
-  properties; a request which cannot be decoded is answered with an error too, so the requester never waits for its
+- The subject is the application id, unless the `subject` option sets another one; proxies use the subject as their
+  `serviceId`. The events of `NATS.emitServiceEvent()` always use the application id.
+- All instances of the service join one queue group (`{subject}.serviceQueue` by default), so each request is handled
+  by a single instance.
+- A failed action (no matching action, invalid input, access denied, an exception) is answered with the properties of
+  its error. A request that cannot be decoded is also answered with an error, so the requester never waits for its
   timeout.
-- `Entrypoint.broadcast()` publishes its events under the entrypoint's subject, to the service proxies (counted 0:
-  NATS does not tell how many receive them); `NATS.emitServiceEvent()` publishes under the application id.
-  `Entrypoint.notify()` does not reach the NATS clients (NATS has no client ids).
-- When the entrypoint stops, its subscription is drained: no new request is received (the callers retry, see below)
+- `Entrypoint.broadcast()` publishes its events to the service proxies under the entrypoint's subject, and returns 0,
+  because NATS does not tell how many clients receive them; `NATS.emitServiceEvent()` publishes under the application
+  id. `Entrypoint.notify()` does not reach NATS clients, since NATS has no client ids.
+- When the entrypoint stops, its subscription is drained: it receives no new requests (callers retry them, see below),
   and the requests in progress are answered.
-- It is `SetupNatsServiceEntrypoint` of 2.x, renamed as the functions of 3.0 (no alias): the applications of 2.x rename
-  their calls, as the ones of `BuildServiceProxy` (`buildServiceProxy`), `JSONCodec` (`jsonCodec`) and `MessagePackCodec`
-  (`messagePackCodec`).
+- In 2.x it was `SetupNatsServiceEntrypoint`. Like all functions in 3.0, it was renamed without an alias, so
+  applications written for 2.x must rename their calls, as they must for `BuildServiceProxy` (now `buildServiceProxy`),
+  `JSONCodec` (`jsonCodec`) and `MessagePackCodec` (`messagePackCodec`).
 
 ### Invoking a service: the service proxy
 
-A `ServiceProxy` invokes the actions of one remote service and listens to its events. It is a singleton provider, shared
-by the requests: declare one per service with `buildServiceProxy` in the `providers` of the application, as in 2.x.
+A `ServiceProxy` invokes the actions of one remote service and listens to its events. It is a singleton provider shared
+by all requests: declare one per service with `buildServiceProxy` in the application's `providers`, as in 2.x.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -201,41 +204,44 @@ Application
     })
 ```
 
-- `invoke(input, timeout)` returns the action's result. Its timeout defaults to 10 minutes: a service which is not
-  running fails at once, so the timeout only bounds an action which is too slow.
-- A request nobody received (`NatsNoRespondersAvailableException`: the service is not running, or restarting) is sent
-  again, `maxRetries` times (3 by default) every `retryDelay` milliseconds (100 by default), then thrown. A timeout and
-  a failure of the service are never retried: the action may have run, and a non-idempotent action never runs twice.
-- A failed action is thrown as a `ServiceInvokeException`: its message is the remote error's, its `errno`,
-  `statusCode` and other properties are copied from it, and its `service` is the service id.
-- `on(event, listener)`, `once(event, listener)` and `off(event, listener?)` listen to the events the service emits
-  with `NATS.emitServiceEvent()`. With `on(event, listener, true)`, each event goes to one listener among those
-  registered so, across the applications (a queue group). The events are delivered at most once: an application not
-  connected when one is emitted misses it. The listeners registered through a proxy are removed when it is
-  destroyed.
+- `invoke(input, timeout)` returns the action's result. Its timeout defaults to 10 minutes: a call to a service that is
+  not running fails at once, so the timeout only limits actions that are too slow.
+- A request that no instance received (`NatsNoRespondersAvailableException`: the service is not running, or is
+  restarting) is sent again up to `maxRetries` times (3 by default), every `retryDelay` milliseconds (100 by default);
+  after that, the exception is thrown. Timeouts and failures of the service are never retried, because the action may
+  already have run: this way, a non-idempotent action never runs twice.
+- A failed action is thrown as a `ServiceInvokeException`. Its message is that of the remote error, its `errno`,
+  `statusCode` and other properties are copied from the remote error, and its `service` is the service id.
+- `on(event, listener)`, `once(event, listener)` and `off(event, listener?)` manage listeners for the events that the
+  service emits with `NATS.emitServiceEvent()`. With `on(event, listener, true)`, each event goes to only one of the
+  listeners registered this way, across all applications (a queue group). Events are delivered at most once: an
+  application that is not connected when an event is emitted misses it. The listeners registered through a proxy are
+  removed when the proxy is destroyed.
 
 ### Large payloads
 
-A NATS message cannot exceed the server's `max_payload` (1 MiB by default). The component relays the requests and the
-responses of 90% of `max_payload` or more through a JetStream object store, over a second connection, so the large
-transfers never delay the small messages: the sender stores the encoded payload and sends a small reference, the
-receiver reads the object and deletes it. The callbacks, the actions and `invoke()` see the whole value.
+A NATS message cannot exceed the server's `max_payload` (1 MiB by default). The component relays requests and
+responses of 90% of `max_payload` or more through a JetStream object store, over a second connection, so that large
+transfers never delay small messages: the sender stores the encoded payload and sends a small reference, and the
+receiver reads the object, then deletes it. Callbacks, actions and `invoke()` always see the whole value.
 
-- It is on by default (`bulk: true`) and needs JetStream. When it cannot start (no JetStream, the bucket refused), the
-  component prints a warning and starts without it.
-- The applications exchanging large payloads must share their bucket: set the same `bulkBucket` on all of them. The
-  default bucket depends on the `name` option (`lkt-bulk-{name}`, `lkt-bulk-default` without it), so two applications
+- This bulk channel is on by default (`bulk: true`) and needs JetStream. When it cannot start (no JetStream, or the
+  bucket is refused), the component prints a warning and starts without it.
+- Applications that exchange large payloads must share a bucket: set the same `bulkBucket` on all of them. The default
+  bucket depends on the `name` option (`lkt-bulk-{name}`, or `lkt-bulk-default` without a name), so two applications
   with different names cannot read each other's objects (`NatsBulkException`).
-- The objects not read (a requester gone, a response lost) expire after `bulkTTL` (5 minutes by default);
-  `bulkReplicas` sets the bucket's replicas in a cluster. Both apply when the bucket is created.
-- A large response is relayed when the requester declared the bulk channel (its requests carry it). A large request
-  is relayed when the responders support it: learned from a previous response on the same subject, else asked once by
-  a probe of the subject (`_LKT.BULK.<subject>`), which the responders with the bulk channel answer and the older
-  versions ignore (the request is then sent as a message, and fails over `max_payload`).
-- The applications without the bulk channel (`bulk: false`, or the versions before it) keep working with the others:
-  they receive the payloads themselves, and a payload over `max_payload` fails.
-- The published messages and the service events are never relayed: over `max_payload`, `publish()` and
-  `emitServiceEvent()` throw the NATS client error `MAX_PAYLOAD_EXCEEDED`.
+- Objects that are never read (the requester has gone, a response was lost) expire after `bulkTTL` (5 minutes by
+  default); `bulkReplicas` sets the number of replicas of the bucket in a cluster. Both apply when the bucket is
+  created.
+- A large response is relayed when the requester has declared the bulk channel (its requests carry this
+  declaration). A large request is relayed when the responders support it. The component learns this from an earlier
+  response on the same subject, or else asks once with a probe of the subject (`_LKT.BULK.<subject>`): responders with
+  the bulk channel answer it and older versions ignore it, in which case the request is sent as a plain message and
+  fails if it exceeds `max_payload`.
+- Applications without the bulk channel (`bulk: false`, or versions that predate it) keep working with the others:
+  they receive the payloads directly, and a payload over `max_payload` fails.
+- Published messages and service events are never relayed: over `max_payload`, `publish()` and `emitServiceEvent()`
+  throw the NATS client error `MAX_PAYLOAD_EXCEEDED`.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -256,48 +262,51 @@ Application.run({
 })
 ```
 
-`NATS.bulkEnabled`, `bulkThreshold`, `bulkStatus()` and `headersSupported` tell the state of the bulk channel;
-`putBulk()`, `getBulk()` and `deleteBulk()` use its object store directly. The design is described in
-`docs/large-payload-design.md` (Chinese).
+`NATS.bulkEnabled`, `bulkThreshold`, `bulkStatus()` and `headersSupported` report the state of the bulk channel;
+`putBulk()`, `getBulk()` and `deleteBulk()` access its object store directly. The design is described in
+`docs/large-payload-design.md` (in Chinese).
 
 ## API
 
 | Export | What it is |
 |---|---|
-| `NATS` | The component: `publish`, `request`, `subscribe`, `emitServiceEvent`, `onServiceEvent`, `onceServiceEvent`, `offServiceEvent`, the bulk channel (`bulkEnabled`, `bulkThreshold`, `headersSupported`, `putBulk`, `getBulk`, `deleteBulk`, `bulkStatus`), the event `error` |
-| `buildNatsClientOptions` | Builds the component options of a `NATS` component |
+| `NATS` | The component: `publish`, `request`, `subscribe`, `emitServiceEvent`, `onServiceEvent`, `onceServiceEvent`, `offServiceEvent`, the bulk channel (`bulkEnabled`, `bulkThreshold`, `headersSupported`, `putBulk`, `getBulk`, `deleteBulk`, `bulkStatus`); the `error` event |
+| `buildNatsClientOptions` | Builds the component options for a `NATS` component |
 | `NatsClientOptions` | Its options: the connection, the codec and the bulk channel |
 | `SubscribeOptions` | The options of `subscribe()`: `queue`, `max`, `iterator`, `errorResponse` |
-| `messagePackCodec`, `jsonCodec` | The codecs of the payloads |
+| `messagePackCodec`, `jsonCodec` | The payload codecs |
 | `StringCodec`, `Codec`, `Subscription`, `RetentionPolicy` | Re-exported from `nats` |
-| `natsServiceEntrypoint` | The service adapter of an entrypoint served over NATS |
+| `natsServiceEntrypoint` | The entrypoint's service adapter over NATS |
 | `NatsServiceEntrypointOptions` | Its options: `subject`, `queue`, `name`, `middlewares` |
-| `ServiceProxy` | The singleton provider invoking the actions of a remote service and listening to its events |
-| `buildServiceProxy` | Builds the provider options of a `ServiceProxy` |
+| `ServiceProxy` | The singleton provider that invokes the actions of a remote service and listens to its events |
+| `buildServiceProxy` | Builds the provider options for a `ServiceProxy` |
 | `BuildServiceProxyOptions` | Its options: `natsComponentName`, `serviceId`, `maxRetries`, `retryDelay` |
 | `ServiceInvokeException` and the `Nats*Exception` classes | See [Errors](#errors) |
 
-The typings document each declaration with examples.
+The typings document every declaration, with examples.
 
 ## Errors
 
 | Exception | Thrown when |
 |---|---|
 | `ServiceInvokeException` (`E_SERVICE_INVOKE`, or the remote error's `errno`) | `ServiceProxy.invoke()`: the remote action failed; it carries the remote error's properties and the `service` id. Re-exported from `@lakutata/entrypoint` |
-| `NatsNoRespondersAvailableException` (`E_NATS_NO_RESPONDERS_AVAILABLE`, 503) | `request()`: nobody listens on the subject; `invoke()` after its retries |
+| `NatsNoRespondersAvailableException` (`E_NATS_NO_RESPONDERS_AVAILABLE`, 503) | `request()`: nobody is listening on the subject; `invoke()`, after its retries |
 | `NatsRequestTimeoutException` (`E_NATS_REQUEST_TIMEOUT`, 408) | `request()`, `invoke()`: no response in time |
-| `NatsBulkException` (`E_NATS_BULK`, 502) | The bulk channel failed: disabled, the object store refused a write or a read, an object expired or in another bucket. On the service side, the requester receives it as a `ServiceInvokeException` whose `errno` is `E_NATS_BULK` |
-| `NatsBadRequestException` (400), `NatsForbiddenException` (403), `NatsNotFoundException` (404), `NatsInternalServerException` (500) | `request()`: an error of the NATS client with that code; the core requests do not produce them |
-| `InvalidValueException` (from `lakutata`) | The component options are invalid, when the component is created |
+| `NatsBulkException` (`E_NATS_BULK`, 502) | The bulk channel failed: it is disabled, the object store refused a write or a read, or an object expired or is in another bucket. When this happens on the service side, the requester receives a `ServiceInvokeException` whose `errno` is `E_NATS_BULK` |
+| `NatsBadRequestException` (400), `NatsForbiddenException` (403), `NatsNotFoundException` (404), `NatsInternalServerException` (500) | `request()`: a NATS client error with that code; core NATS requests do not produce them |
+| `InvalidObjectOptionsException` (from `lakutata`) | An option of the component has an invalid value; the application fails to start |
+| `InvalidValueException` (from `lakutata`) | The component is created without `servers` |
 
-The other failures are the NATS client's errors (`NatsError`, with a `code`): `MAX_PAYLOAD_EXCEEDED` for a payload
-over `max_payload` which is not relayed, `CONNECTION_CLOSED` once the connection is closed, `CONNECTION_REFUSED` or a
-connection timeout when no server can be reached at the start. The codec's errors (a `bigint`, a circular value) are thrown as they are.
+Other failures are errors of the NATS client (`NatsError`, with a `code`): `MAX_PAYLOAD_EXCEEDED` for a payload over
+`max_payload` that is not relayed, `CONNECTION_CLOSED` once the connection is closed, and `CONNECTION_REFUSED` or a
+connection timeout when no server can be reached at the start. Codec errors (a `bigint`, a circular value) are thrown
+as they are.
 
 ## See also
 
-- `@lakutata/entrypoint` (`lakutata/com/entrypoint`, `lakutata/decorator/ctrl`): the controllers, `@ServiceAction` and
-  the other transports; section 2 of `doc/en/ServiceCalls.md` in the package `lakutata` (Chinese in `doc/zh`) for the
-  patterns.
+- `doc/en/NATS.md` in the `lakutata` package (Chinese version in `doc/zh`): the guide to NATS.
+- `@lakutata/entrypoint` (`lakutata/com/entrypoint`, `lakutata/decorator/ctrl`): controllers, `@ServiceAction` and the
+  other transports; for patterns, see section 2 of `doc/en/ServiceCalls.md` in the `lakutata` package (Chinese version
+  in `doc/zh`).
 - `@lakutata/grpc/service`: the same service channel and proxy over gRPC.
 - `docs/large-payload-design.md`: the design of the large payloads.

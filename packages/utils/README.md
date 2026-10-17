@@ -1,10 +1,10 @@
 # @lakutata/utils
 
-The utilities of the lakutata framework: `Time`, a date and time in an IANA time zone with the API of moment (formatting,
-calendar arithmetic across the daylight saving time changes, comparisons), and the helpers the framework and its
-applications share: strings, objects, arrays and sets, hashes and encodings, UUIDs, IP addresses, globs, statistics. The
-helpers are plain functions and classes, usable anywhere, inside an application or not. The umbrella package `lakutata`
-re-exports them as `lakutata/utils`, and `Time` from `lakutata` too.
+The utilities of the lakutata framework. `Time` is a date and time in an IANA time zone, with a moment-style API
+(formatting, calendar arithmetic across daylight saving time changes, comparisons). The helpers, shared by the framework
+and its applications, cover strings, objects, arrays and sets, hashes and encodings, UUIDs, IP addresses, globs and
+statistics. They are plain functions and classes that can be used anywhere, inside an application or not. The umbrella
+package `lakutata` re-exports them as `lakutata/utils`, and also exports `Time` from `lakutata` itself.
 
 ## Installation
 
@@ -12,13 +12,13 @@ re-exports them as `lakutata/utils`, and `Time` from `lakutata` too.
 npm install lakutata
 ```
 
-It has no optional dependencies: everything is implemented on Node.js (22 or later) and its `Intl` time zone data.
+It has no optional dependencies: everything is built on Node.js (22 or later) and its `Intl` time zone data.
 
 ## Usage
 
 ### The helpers in an application
 
-Import the helpers where they are needed: they need no registration.
+Import the helpers where you need them; they do not need to be registered.
 
 ```typescript
 import {Application, Component, Time} from 'lakutata'
@@ -116,9 +116,9 @@ console.log(Statistics.median(latencies), Statistics.quantile(latencies, 0.9))
 
 ### Time
 
-A `Time` is an instant in a time zone: `new Time()` is now in the default zone (the `TZ` environment variable, else the
-system's), `timezone(name)` gives the same instant in another zone. Its methods never modify it: the setters and the
-arithmetic return a new `Time`.
+A `Time` is an instant in a time zone: `new Time()` is the current time in the default zone (the `TZ` environment
+variable, else the system's zone), and `timezone(name)` gives the same instant in another zone. The methods of `Time`
+never modify the instance: setters and arithmetic return a new `Time`.
 
 #### Time zones
 
@@ -139,15 +139,15 @@ console.log(Time.timezones().includes('Asia/Kolkata'))
 //true
 ```
 
-A string without offset and the array of the wall clock fields are read in the time zone of the `Time` reading them:
-the default zone for `new Time()`, the instance's zone for its comparisons and `diff()` (`paris.isSame('2024-03-09',
-'day')` is a day in Paris). `timezone()` throws a `RangeError` for a zone the runtime does not know, and `timezone('')`
-gives the default zone. The methods inherited from `Date`
-(`getHours()`, `setHours()`…) use the process's time zone and modify the instance: use the `Time` methods instead.
+A string without an offset, and an array of wall clock fields, are read in the default zone by the constructor, and in
+the instance's zone by its comparisons and `diff()` (`paris.isSame('2024-03-09', 'day')` compares with that day in
+Paris). `timezone()` throws a `RangeError` for a zone that the runtime does not know, and `timezone('')` gives the
+default zone. The methods inherited from `Date` (`getHours()`, `setHours()`…) use the process's time zone, and their
+setters modify the instance: use the `Time` methods instead.
 
 #### Formatting
 
-`format()` takes the tokens of moment (in English); the text in brackets is kept as is.
+`format()` takes moment's format tokens (in English); text in brackets is kept as is.
 
 ```typescript
 import {Time} from 'lakutata'
@@ -187,20 +187,21 @@ console.log(start.isBetween('2024-03-01', '2024-03-31', null, '[]'), Time.max(st
 //true 2024-03-09T08:00:00-05:00
 ```
 
-- `add()` and `subtract()` move the wall clock for the years, quarters, months, weeks and days (their fractions
-  rounded: `1.5` days is 2 days), and the instant for the hours, minutes, seconds and milliseconds.
+- `add()` and `subtract()` move the wall clock for years, quarters, months, weeks and days (fractions are rounded:
+  `1.5` days is 2 days), and the instant for hours, minutes, seconds and milliseconds.
 - A wall clock time skipped by a daylight saving time change (02:30 when the clocks jump from 02:00 to 03:00) moves
-  forward by the length of the gap (03:30), whatever the time it comes from; a repeated one (the clocks turned back)
-  keeps the offset of the time when it can, else is the earlier one.
-- `diff()` is `this - other`, truncated toward zero unless its third argument is `true`; the months count calendar
-  months, the days the wall clock days.
-- An invalid time (an array field out of range) does not throw: `format()` gives `'Invalid date'`, and `Time.max()` and
-  `Time.min()` ignore it.
+  forward by the length of the gap (to 03:30), whatever time it was computed from. A time that occurs twice (when the
+  clocks are turned back) keeps the offset of the time it was computed from when possible, and is otherwise the
+  earlier one.
+- `diff()` is `this - other`, truncated toward zero unless its third argument is `true`; months are counted as
+  calendar months, and days as wall clock days.
+- An invalid time (an array field out of range) does not throw: its `format()` returns `'Invalid date'`, and
+  `Time.max()` and `Time.min()` ignore it.
 
 ## API
 
-All are exported by `lakutata/utils` and `@lakutata/utils`; `Time` also by `lakutata`. The typings document each
-declaration with examples.
+All of them are exported by `lakutata/utils` and `@lakutata/utils`, and `Time` also by `lakutata`. The typings
+document every declaration, with examples.
 
 ### Time
 
@@ -208,7 +209,7 @@ declaration with examples.
 |---|---|
 | `Time` | A date and time in a time zone: `timezone`, the field getters and setters (`year`, `month`, `date`, `hours`, `weekday`, `isoWeeks`…), `get`/`set`, `add`/`subtract`, `startOf`/`endOf`, `format`, `diff`, `isBefore`/`isSame`/`isAfter`/`isBetween`, `toObject`, `clone`; the static `timezones`, `max`, `min` |
 | `TimeInput` | What `new Time()` and the comparisons accept: a `Time`, a `Date`, milliseconds, a date string, the wall clock fields |
-| `TimeObject` | The wall clock fields given by `toObject()` |
+| `TimeObject` | The wall clock fields returned by `toObject()` |
 | `UnitOfTime` | The units of the `Time` methods (`'day'`, `'days'`, `'d'`…) |
 
 ### Strings
@@ -218,7 +219,7 @@ declaration with examples.
 | `camelCase` | Convert a string of any case into camelCase |
 | `noCase`, `NoCaseOptions`, `SplitOptions` | Convert a string of any case into lower case words separated by spaces |
 | `templating`, `TemplatingOptions`, `MissingValueError` | Fill the `{key}` and `{{key}}` (HTML-escaped) placeholders of a template |
-| `randomString` | A random string of a length, from a named or custom character set |
+| `randomString` | A random string of a given length, from a named or custom character set |
 | `nonceString` | A random string of 32 letters and digits |
 
 ### Objects and classes
@@ -226,18 +227,18 @@ declaration with examples.
 | Export | What it is |
 |---|---|
 | `As` | Cast a value to a type, for the type checker only |
-| `cloneDeep` | Deep copy a value, its classes, collections and circular references kept |
-| `ObjectPath` | Get, set and test a nested property by its path (`'a.b[0].c'`); the paths through a prototype are refused |
+| `cloneDeep` | Deep-copy a value, keeping its classes, collections and circular references |
+| `ObjectPath` | Get, set and test a nested property by its path (`'a.b[0].c'`); paths through a prototype are refused |
 | `getObjectPropertyPaths` | List the paths of the leaf values of an object |
 | `getObjectNestingDepth` | Measure how deeply an object nests |
-| `isEmptyObject` | Whether a value is empty: `null`, `undefined`, an empty `Map` or `Set`, an object without own property |
+| `isEmptyObject` | Whether a value is empty: `null`, `undefined`, an empty `Map` or `Set`, an object without own properties |
 | `objectHash`, `ObjectHashOptions` | Hash a value by its content, whatever the order of its keys |
-| `sortKeys`, `SortKeysOptions` | Copy a plain object with its keys sorted by a comparison |
+| `sortKeys`, `SortKeysOptions` | Copy a plain object with its keys sorted by a comparison function |
 | `sortObject`, `SortObjectOptions` | Copy a plain object with its keys in alphabetical order |
 | `objectToMap` | Convert an object into a map of its properties |
 | `objectConstructor` | The class of an object |
 | `objectPrototype` | The prototype of a class |
-| `objectParentConstructor`, `objectParentConstructors` | The parent class, and all the ancestors, of a class |
+| `objectParentConstructor`, `objectParentConstructors` | The parent class of a class, and all its ancestors |
 | `isSubclassOf` | Whether a class extends another one |
 
 ### Arrays and sets
@@ -245,7 +246,7 @@ declaration with examples.
 | Export | What it is |
 |---|---|
 | `sortArray`, `SortArrayOptions` | Sort an array in place by its items or their properties |
-| `uniqueArray` | Remove the duplicates of an array |
+| `uniqueArray` | Remove duplicates from an array |
 | `mergeArray`, `mergeSet`, `mergeMap` | Merge two arrays, sets or maps into a new one |
 | `arrayToSet`, `setToArray` | Convert between an array and a set |
 | `convertArrayLikeToIterable`, `convertArrayLikeToStream` | Iterate or stream the items of a string, a buffer or a typed array |
@@ -259,9 +260,9 @@ declaration with examples.
 | `gracefulExit` | Exit the process once cleanup functions have run |
 | `DevNull` | Accept any arguments and ignore them |
 | `isPromise`, `isPromiseLike` | Whether a value is a real promise, or any thenable |
-| `isAbortError` | Whether an error is an abort error: named `AbortError` (`AbortController.abort()`, `fetch`) or of code `ABORT_ERR` (Node.js) |
+| `isAbortError` | Whether an error is an abort error: named `AbortError` (`AbortController.abort()`, `fetch`) or with the code `ABORT_ERR` (Node.js) |
 | `pathExists` | Whether a file or a directory exists |
-| `isPath` | Whether a string is written as a file system path |
+| `isPath` | Whether a string has the form of a file system path |
 | `Glob`, `GlobSync`, `GlobOptions` | List the files matching glob patterns |
 | `isGlobString` | Whether a string is a glob pattern |
 
@@ -289,22 +290,22 @@ declaration with examples.
 
 ## Errors
 
-The utilities throw the standard JavaScript errors, and one error class of their own; the guards (`Is*`) return
-`false` instead of throwing.
+The utilities throw standard JavaScript errors, plus one error class of their own; the guards (`is*`) return `false`
+instead of throwing.
 
 | Error | Thrown when |
 |---|---|
-| `RangeError` | `new Time()` (and the `Time` comparisons) with a string which is not a date; `Time.timezone()` with an unknown time zone; `randomString()` with a negative or fractional length or an empty character set; `signedToHex()`/`unsignedToHex()` with a number which is not an integer or does not fit in the width; `hexToSigned()`/`hexToUnsigned()` with a value beyond `Number.MAX_SAFE_INTEGER`; `hexToIEEE754()` with other than 8 or 16 digits; `UUID.v1()`/`UUID.v3()`/`UUID.v4()`/`UUID.v5()`/`UUID.v6()` with a buffer too small (nothing written); `MessagePack.encode()` with a `bigint` out of the 64-bit ranges; `MessagePack.decode()` with empty or truncated bytes |
-| `SyntaxError` | `hexToSigned()`, `hexToUnsigned()`, `hexToIEEE754()` with a character which is not a hexadecimal digit, or no digit |
-| `TypeError` | `UUID.parse()`, `UUID.version()`, `UUID.v3()`/`UUID.v5()` with an invalid UUID; `sortKeys()`/`sortObject()` with a value which is not a plain object or an array; `sortArray()` by a property of an item which is `null` or `undefined`; `ObjectPath.set()` through a `null` value, or with a path through `__proto__`, `constructor` or `prototype`; `templating()` with a template which is not a string |
-| `MissingValueError` | `templating()` with a placeholder without value, unless `ignoreMissing` |
-| `Error` | `objectHash()` with `undefined`, an unknown algorithm or encoding, or an unsupported type (a `Promise`) without `ignoreUnknown`; `MessagePack.encode()` with a function, a symbol, a `Map` key which is neither a string nor a number, or more than 100 levels of nesting; the `Statistics` methods with an empty or too short array |
+| `RangeError` | `new Time()` (and the `Time` comparisons) with a string that is not a date; `Time.timezone()` with an unknown time zone; `randomString()` with a negative or fractional length or an empty character set; `signedToHex()`/`unsignedToHex()` with a number that is not an integer or does not fit in the width; `hexToSigned()`/`hexToUnsigned()` with a value beyond `Number.MAX_SAFE_INTEGER`; `hexToIEEE754()` with a number of digits other than 8 or 16; `UUID.v1()`/`UUID.v3()`/`UUID.v4()`/`UUID.v5()`/`UUID.v6()` with a buffer that is too small (nothing is written); `MessagePack.encode()` with a `bigint` outside the 64-bit ranges; `MessagePack.decode()` with empty or truncated bytes |
+| `SyntaxError` | `hexToSigned()`, `hexToUnsigned()`, `hexToIEEE754()` with a character that is not a hexadecimal digit, or with no digits |
+| `TypeError` | `UUID.parse()`, `UUID.version()`, `UUID.v3()`/`UUID.v5()` with an invalid UUID; `sortKeys()`/`sortObject()` with a value that is not a plain object or an array; `sortArray()` by a property, when an item is `null` or `undefined`; `ObjectPath.set()` through a `null` value, or with a path through `__proto__`, `constructor` or `prototype`; `templating()` with a template that is not a string |
+| `MissingValueError` | `templating()` with a placeholder that has no value, unless `ignoreMissing` is set |
+| `Error` | `objectHash()` with `undefined`, an unknown algorithm or encoding, or an unsupported type (a `Promise`) without `ignoreUnknown`; `MessagePack.encode()` with a function, a symbol, a `Map` key that is neither a string nor a number, or more than 100 levels of nesting; the `Statistics` methods with an array that is empty or too short |
 
 The typings of each helper list the errors it throws.
 
 ## See also
 
-- `doc/en/HelperFunctions.md` and `doc/en/Time.md` of the package `lakutata` (Chinese in `doc/zh`): the guides of the
-  helpers and of `Time`.
-- `@lakutata/core` (`lakutata`): `Application`, the components and the dependency injection, which re-exports `Time`.
-- `@lakutata/security` (`lakutata/security`): the passwords, signatures and encryption, for the hashes used as secrets.
+- `doc/en/HelperFunctions.md` and `doc/en/Time.md` in the `lakutata` package (Chinese versions in `doc/zh`): the
+  guides to the helpers and to `Time`.
+- `@lakutata/core` (`lakutata`): `Application`, components and dependency injection; it re-exports `Time`.
+- `@lakutata/security` (`lakutata/security`): passwords, signatures and encryption, for hashes used as secrets.

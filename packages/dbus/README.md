@@ -1,11 +1,11 @@
 # @lakutata/dbus
 
-The D-Bus channel of the [lakutata](https://github.com/lakutata/lakutata) framework: the application owns a service
-name on a bus (the system bus, the session bus or a private bus) and serves its controllers as the interfaces of D-Bus
-objects: their methods, properties and signals. It also has a D-Bus client component, to call the other services of a
-bus, read their properties and listen to their signals. The protocol is implemented by
+The D-Bus channel of the [lakutata](https://github.com/lakutata/lakutata) framework. The application owns a service
+name on a bus (the system bus, the session bus or a private bus) and serves its controllers as interfaces of D-Bus
+objects, with methods, properties and signals. The package also provides a D-Bus client component that calls other
+services on a bus, reads their properties and listens to their signals. The protocol is implemented by
 [dbus-sdk](https://github.com/myq1991/node-dbus-sdk), whose classes this package re-exports. The umbrella package
-`lakutata` does not re-export it: import it from `@lakutata/dbus`.
+`lakutata` does not re-export this package: import it from `@lakutata/dbus`.
 
 ## Installation
 
@@ -13,17 +13,18 @@ bus, read their properties and listen to their signals. The protocol is implemen
 npm install lakutata @lakutata/dbus
 ```
 
-- It needs a D-Bus daemon, as on Linux: the system bus (`/var/run/dbus/system_bus_socket`), the session bus of a
-  desktop session (`DBUS_SESSION_BUS_ADDRESS`), or a private `dbus-daemon`. Owning a name on the system bus needs a bus
-  policy allowing it (a file of `/etc/dbus-1/system.d/`).
-- Node.js 22 or later; its peer dependencies `@lakutata/core` and `@lakutata/entrypoint` come with `lakutata`.
+- It needs a D-Bus daemon, as found on Linux: the system bus (`/var/run/dbus/system_bus_socket`), the session bus of
+  a desktop session (`DBUS_SESSION_BUS_ADDRESS`), or a private `dbus-daemon`. To own a name on the system bus, a bus
+  policy must allow it (a file in `/etc/dbus-1/system.d/`).
+- It needs Node.js 22 or later. Its peer dependencies, `@lakutata/core` and `@lakutata/entrypoint`, are installed with
+  `lakutata`.
 
 ## Usage
 
 ### A D-Bus service
 
-`dbusEntrypoint` is the `dbus` adapter of the entrypoint. A controller declared with `@DBusInterface` serves an
-interface at an object path; its `@DBusMethod` actions are the interface's methods.
+`dbusEntrypoint` is the entrypoint's `dbus` adapter. A controller declared with `@DBusInterface` serves an interface at
+an object path, and its `@DBusMethod` actions are the methods of that interface.
 
 ```typescript
 import {Application, DTO} from 'lakutata'
@@ -69,19 +70,22 @@ Application.run(() => ({
 }))
 ```
 
-- **The input** of a method with a DTO is one argument, a dictionary of variants (`a{sv}`) holding the DTO's
-  properties; a method without a DTO takes no argument. The input goes through the middlewares, the validation and the
-  access control of the entrypoint, as in the other channels.
-- **The result** has the type of the `returns` option (a DTO is `a{sv}`, or a signature such as `'s'`), or else the type
-  of the `@Return` schema: an object is `a{sv}`, a string `s`, a boolean `b`, an integer `x`, another number `d`, an
-  array `av`, the other values a variant `v`. Without them, the method has no result. The dates are sent as ISO
-  strings, the `null` and `undefined` values are left out (a variant has no null).
-- **The errors** reach the callers as D-Bus errors named after their `errno`, prefixed by the service name
-  (`com.example.DeviceService.E_OFFLINE`), with their message.
-- **The context** of the methods is a `DBusContext`: `context.path`, `context.interface` and `context.member`.
-- **Several controllers** at the same path are the interfaces of the same objects. The objects implement
+- **Input**: a method with a DTO takes one argument, a dictionary of variants (`a{sv}`) holding the DTO's properties;
+  a method without a DTO takes no argument. The input goes through the entrypoint's middlewares, validation and access
+  control, as on the other channels.
+- **Result**: its type is given by the `returns` option (a DTO, sent as `a{sv}`, or a signature such as `'s'`), or
+  else by the `@Return` schema: an object becomes `a{sv}`, a string `s`, a boolean `b`, an integer or a bigint `x`, any
+  other number `d`, an array `av`, and any other value a variant `v`. Without either, the method has no result. Dates
+  are sent as ISO strings, and `null` and `undefined` values are left out of objects and arrays (a variant cannot hold
+  null). A method whose result is a single type (`'s'`, `'i'`…) must return a value: `undefined` fails the call.
+- **Errors** reach the callers as D-Bus errors named after their `errno` and prefixed with the service name
+  (`com.example.DeviceService.E_OFFLINE`), with their message. An element of the `errno` that does not start with a
+  letter gets an `E` prefix (`500` becomes `E500`, `_HIDDEN` becomes `E_HIDDEN`).
+- **Context**: the context of the methods is a `DBusContext`, with `context.path`, `context.interface` and
+  `context.member`.
+- **Several controllers** with the same path are interfaces of the same objects. Every object also implements
   `org.freedesktop.DBus.Properties`, `Introspectable` and `Peer`, and the root object `/` implements `ObjectManager`.
-- A method may also carry the decorators of the other channels (`@ServiceAction`, `@GET`…).
+- A method can also carry the decorators of other channels (`@ServiceAction`, `@GET`…).
 
 ### The adapter
 
@@ -89,29 +93,35 @@ Application.run(() => ({
 dbus: dbusEntrypoint({bus: 'system', service: 'com.example.DeviceService', replaceExisting: true})
 ```
 
-- `bus`: `'session'` (default, the address in `DBUS_SESSION_BUS_ADDRESS`), `'system'` (`DBUS_SYSTEM_BUS_ADDRESS`, else
-  `unix:path=/var/run/dbus/system_bus_socket`), the address of a bus (`unix:path=…`, `tcp:host=…,port=…`), or the path
-  of the socket of a private bus.
-- `service`: the well-known name of the service. The adapter fails to start when another connection owns it
-  (`replaceExisting` takes it when its owner allows it, `allowReplacement` lets another service take it).
-- `name` and `middlewares`: the adapter's name, and the middlewares of its calls (after the global ones).
-- It stops gracefully with the entrypoint: the name is released, the calls in progress end, then the connection
-  closes.
+- `bus`: `'session'` (the default: the address in `DBUS_SESSION_BUS_ADDRESS`), `'system'` (`DBUS_SYSTEM_BUS_ADDRESS`,
+  else `unix:path=/var/run/dbus/system_bus_socket`), a bus address (`unix:path=…`, `tcp:host=…,port=…`), or the socket
+  path of a private bus.
+- `service`: the well-known name of the service, two or more elements of letters, digits and `_` separated by dots.
+  D-Bus also allows `-` in service names, but this name prefixes the error names, which cannot contain it. The adapter
+  fails to start when another connection owns the name. `replaceExisting` takes the name over when its owner allows
+  it, and `allowReplacement` lets another service take it over: the replaced adapter then keeps running without the
+  name, and does not get it back.
+- `decode`: how the arguments of method calls and the property values written by clients are decoded (`DecodeOpts`
+  of `dbus-sdk`). By default (`{int64: 'number'}`), 64-bit integers arrive as numbers when they are safe integers, else
+  as bigints, so that `DTO.Number()` accepts them; `{int64: 'bigint'}` decodes them all as bigints, for `DTO.BigInt()`.
+- `name` and `middlewares`: the adapter's name, and the middlewares for its calls (run after the global ones).
+- It stops gracefully with the entrypoint: it releases the name, lets the calls in progress finish, then closes the
+  connection.
 
 ### Objects, properties and signals
 
-The path of an interface is either a path (`/com/example/Manager`), whose object is exported when the adapter starts
-and stays exported while it runs (`DBusObjectManager.removeObject()` does not remove it), or a template
-(`/com/example/Devices/{sn}`), whose objects are added and removed with `DBusObjectManager`. The
-variables of the path are merged into the input of the methods, as the route parameters (they take precedence over the
-client's input).
+The path of an interface is either a fixed path (`/com/example/Manager`) or a template (`/com/example/Devices/{sn}`).
+The object at a fixed path is exported when the adapter starts and stays exported while it runs
+(`DBusObjectManager.removeObject()` does not remove it). The objects of a template are added and removed with
+`DBusObjectManager`. The variables of the path are merged into the input of the methods, like route parameters, and
+take precedence over the values sent by the client.
 
-A property is a value of an object, kept by `DBusObjectManager`: the application sets it, the clients read it and are
-notified of its changes (`PropertiesChanged`); until it is set, its value is its `initial` value. A `writable`
-property is also written by the clients: the value is validated by the property's `schema` (the errors are given to the
-client), kept, and `DBusObjectManager` emits `propertyWritten`. A write which must reach a device, or may fail after
-the validation, is better a method: its errors are given to the caller. A signal's data is validated by its DTO when it
-is emitted.
+A property is a value of an object, kept by `DBusObjectManager`. The application sets it, and clients read it and are
+notified when it changes (`PropertiesChanged`); until it is set, it has its `initial` value. Clients can also write a
+`writable` property: the value is validated by the property's `schema` (validation errors are returned to the client),
+stored, and `DBusObjectManager` emits `propertyWritten`. A write that must reach a device, or that may fail after
+validation, is better made a method, whose errors are returned to the caller. A signal's data is validated by its DTO
+when the signal is emitted.
 
 ```typescript
 import {Component, DTO} from 'lakutata'
@@ -179,15 +189,14 @@ export class Devices extends Component {
 }
 ```
 
-`DBusObjectManager` is autoloaded, one per application: inject it in any object (`@Inject(DBusObjectManager)`) or get
-it (`getObject(DBusObjectManager)`). The objects added before the adapter starts are exported when it starts. The
-clients are told of the objects added and removed by the `ObjectManager` of the service (`InterfacesAdded`,
-`InterfacesRemoved`).
+`DBusObjectManager` is autoloaded, one per application: inject it into any object (`@Inject(DBusObjectManager)`) or get
+it with `getObject(DBusObjectManager)`. Objects added before the adapter starts are exported when it starts. The
+service's `ObjectManager` tells clients about added and removed objects (`InterfacesAdded`, `InterfacesRemoved`).
 
 ### The client
 
-`DBusClientComponent` connects to a bus when it is created, to call the services, read their objects and properties,
-and listen to their signals; it disconnects when the application stops.
+`DBusClientComponent` connects to a bus when it is created; use it to call services, read their objects and
+properties, and listen to their signals. It disconnects when the application stops.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -229,39 +238,41 @@ Application
 
 | Export | What it is |
 |---|---|
-| `dbusEntrypoint`, `DBusEntrypointOptions` | The adapter of the entrypoint (its `dbus` option): the bus, the service name |
+| `dbusEntrypoint`, `DBusEntrypointOptions` | The entrypoint's adapter (for its `dbus` option) and its options: `bus`, `service`, `replaceExisting`, `allowReplacement`, `decode`, `name`, `middlewares` |
 | `DBusInterface`, `DBusInterfaceOptions` | Class decorator: a controller served as a D-Bus interface at an object path or path template |
-| `DBusMethod`, `DBusMethodOptions` | Method decorator: an action served as a method of the interface, the type of its result |
-| `defineDBusSignal`, `DBusSignalDefinition` | Declares a signal, its DTO or signature |
+| `DBusMethod`, `DBusMethodOptions` | Method decorator: serves an action as a method of the interface; the options include the type of its result (`returns`) |
+| `defineDBusSignal`, `DBusSignalDefinition` | Declares a signal, with its DTO or signature |
 | `defineDBusProperty`, `DBusPropertyDefinition`, `DBusPropertyOptions` | Declares a property: its signature, `writable`, `initial`, `schema` |
-| `DBusInterfaceDeclaration` | The declaration `@DBusInterface` records |
-| `DBusObjectManager` | The objects of the templates, the property values and the signals: `addObject`, `removeObject`, `hasObject`, `objects`, `setPropertyValue`, `getPropertyValue`, `emitSignal`; the `propertyWritten` event |
-| `DBusPropertyWrite` | A property written by a client, the argument of `propertyWritten` |
-| `DBusContext`, `DBusContextParams`, `DBUS_CONTEXT_TYPE` | The context of the method calls: `path`, `interface`, `member` |
-| `DBusChannel` | The definition of the `dbus` channel, for the custom adapters |
-| `DBusClientComponent` | The client: `invoke`, `interface`, `interfaceSignal`, `object`, `service`, `services`, `listNames`, `listServices`, `nameHasOwner`, `getNameOwner`, `addMatch`, the connection events |
-| `buildDBusClientOptions`, `DBusClientOptions` | The client's declaration and options: `busAddress`, `timeout`, `callTimeout`, `decode` (`DecodeOpts` of `dbus-sdk`; the 64-bit integers are numbers by default) |
+| `DBusInterfaceDeclaration` | The declaration recorded by `@DBusInterface` |
+| `DBusObjectManager` | Manages the objects of path templates, property values and signals: `addObject`, `removeObject`, `hasObject`, `objects`, `setPropertyValue`, `getPropertyValue`, `emitSignal`; the `propertyWritten` event |
+| `DBusPropertyWrite` | A property write by a client: the argument of `propertyWritten` |
+| `DBusContext`, `DBusContextParams`, `DBUS_CONTEXT_TYPE` | The context of method calls: `path`, `interface`, `member` |
+| `DBusChannel` | The definition of the `dbus` channel, for custom adapters |
+| `DBusClientComponent` | The client: `invoke`, `interface`, `interfaceSignal`, `object`, `service`, `services`, `listNames`, `listBusNames`, `listServices`, `listActivatableNames`, `nameHasOwner`, `getNameOwner`, `addMatch`, `removeMatch`, `uniqueName`; `on`, `once`, `off` and `removeListener` for the connection events (`serviceOnline`, `serviceOffline`, `serviceReplaced`, `methodCall`, `nameOwnerChanged`, `nameLost`, `nameAcquired`, `connectionClose`, `connectionError`) |
+| `buildDBusClientOptions`, `DBusClientOptions` | The client's declaration and options: `busAddress`, `timeout`, `callTimeout`, `decode` (`DecodeOpts` of `dbus-sdk`; 64-bit integers are numbers by default) |
 | `DBus`, `DBusRemoteInterface`, `DBusObject`, `DBusService`, `LocalService`, `LocalObject`, `LocalInterface`, `DBusSignedValue`, `DBusSignalEmitter`, `Signature`, `createDBusError`, `RequestNameFlags`, `RequestNameResultCode`, `BusNameBasicInfo`, `ConnectOpts`, `DecodeOpts`, `InvokeOpts` | Re-exported from dbus-sdk 2 (`DBusRemoteInterface` is its `DBusInterface`; see its MIGRATION.md for the changes from 1.x) |
 
-The typings document each declaration with examples.
+The typings document every declaration, with examples.
 
 ## Errors
 
 | Error | When |
 |---|---|
-| `TypeError` | An invalid interface, member or service name, or object path, when the class is declared or `dbusEntrypoint()` is called; `DBusObjectManager.addObject()` with a template; the start of the adapter, when a `@DBusMethod` belongs to a controller without `@DBusInterface` |
+| `TypeError` | An invalid interface, member or service name, object path, or signature (of a property, a signal or a `returns` option), when it is declared or `dbusEntrypoint()` is called; `DBusObjectManager.addObject()` with a template; the adapter's start, when a `@DBusMethod` belongs to a controller without `@DBusInterface` |
 | `Error` (`The DBus name … is owned by another service`) | The adapter's start, when another connection owns the service name; the entrypoint fails to start |
-| The errors of dbus-sdk (`UnknownBusAddressError`, a connection error…) | The adapter's start or the client's creation, when the bus cannot be reached; the client's calls, when a method answers a D-Bus error |
-| `InvalidValueException` (from `lakutata`) | `setPropertyValue()` or `emitSignal()` with a value its schema or DTO refuses; the client's options when it is created |
+| The errors of dbus-sdk (`UnknownBusAddressError`, a connection error…) | The adapter's start or the client's creation, when the bus cannot be reached; the client's calls, when a method replies with a D-Bus error |
+| `InvalidValueException` (from `lakutata`) | `setPropertyValue()` or `emitSignal()` with a value that its schema or DTO rejects; the client's creation, when `busAddress` is missing |
+| `InvalidObjectOptionsException` (from `lakutata`) | An option of the client has an invalid value (`timeout`, `decode`…); the application fails to start |
 
-The errors thrown by the actions are given to the callers as D-Bus errors named after their `errno`
-(`com.example.DeviceService.E_OFFLINE`), with their message; a client writing an invalid property value gets a D-Bus
-error too.
+Errors thrown by the actions reach the callers as D-Bus errors named after their `errno`
+(`com.example.DeviceService.E_OFFLINE`), with their message. A client that writes an invalid property value also gets
+a D-Bus error.
 
 ## See also
 
-- `@lakutata/entrypoint` (`lakutata/com/entrypoint`): the entrypoint, the controllers, the middlewares and the access
-  control (`doc/en/Controllers.md`, `Entrypoint.md` and `Middlewares.md` of the package `lakutata`, Chinese in
-  `doc/zh`).
+- `doc/en/DBus.md` in the `lakutata` package (Chinese version in `doc/zh`): the guide to D-Bus.
+- `@lakutata/entrypoint` (`lakutata/com/entrypoint`): the entrypoint, controllers, middlewares and access control (see
+  `doc/en/Controllers.md`, `Entrypoint.md` and `Middlewares.md` in the `lakutata` package, and their Chinese versions
+  in `doc/zh`).
 - [dbus-sdk](https://github.com/myq1991/node-dbus-sdk): the D-Bus protocol, its client classes and its local services.
-- `@lakutata/core` (`lakutata`): the components, `Application` and the dependency injection.
+- `@lakutata/core` (`lakutata`): components, `Application` and dependency injection.
