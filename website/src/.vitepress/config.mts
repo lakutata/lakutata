@@ -44,21 +44,25 @@ function guideSidebar(language: 'en' | 'zh', base: string): DefaultTheme.Sidebar
 }
 
 /**
- * The sidebar of the packages
+ * The sidebar of the packages of a language
+ * @param language The language of the pages.
  */
-function packageSidebar(): DefaultTheme.SidebarItem[] {
+function packageSidebar(language: 'en' | 'zh'): DefaultTheme.SidebarItem[] {
+    const base: string = language === 'zh' ? '/zh/packages/' : '/packages/'
     return [{
-        text: 'Packages',
-        link: '/packages/',
-        items: publishedPackages().map((manifest): DefaultTheme.SidebarItem => ({text: manifest.name, link: `/packages/${manifest.directory}`}))
+        text: language === 'zh' ? '包列表' : 'Packages',
+        link: base,
+        items: publishedPackages().map((manifest): DefaultTheme.SidebarItem => ({text: manifest.name, link: `${base}${manifest.directory}`}))
     }]
 }
 
 /**
  * The sidebars of the API reference, one by module (a page carries the sidebar of its module only: the whole reference
- * in every page would make them heavy), and the list of the modules for its index
+ * in every page would make them heavy), and the list of the modules for its index; the Chinese website has the same
+ * pages under /zh/api/
+ * @param language The language of the website.
  */
-function apiSidebars(): Record<string, DefaultTheme.SidebarItem[]> {
+function apiSidebars(language: 'en' | 'zh'): Record<string, DefaultTheme.SidebarItem[]> {
     const file: string = resolve(dirname(fileURLToPath(import.meta.url)), '../api/typedoc-sidebar.json')
     if (!existsSync(file)) return {}
     const modules: {name: string, link: string, items: DefaultTheme.SidebarItem[]}[] = []
@@ -68,16 +72,20 @@ function apiSidebars(): Record<string, DefaultTheme.SidebarItem[]> {
     const collect = (items: DefaultTheme.SidebarItem[]): void => {
         for (const item of items) {
             //Its groups (the classes, the functions...), without the modules of its subpaths
-            if (isModule(item)) modules.push({name: item.link!.slice('/api/'.length, -1), link: item.link!, items: (item.items ?? []).filter((child): boolean => !isModule(child) && !isFolder(child))})
+            if (isModule(item)) modules.push({name: item.link!.replace(/^(\/zh)?\/api\//, '').slice(0, -1), link: item.link!, items: (item.items ?? []).filter((child): boolean => !isModule(child) && !isFolder(child))})
             collect((item.items ?? []).filter((child): boolean => !!child.items?.length))
         }
     }
-    collect(JSON.parse(readFileSync(file, 'utf8')))
+    const prefix: string = language === 'zh' ? '/zh' : ''
+    //The links of the Chinese pages
+    const localized = (items: DefaultTheme.SidebarItem[]): DefaultTheme.SidebarItem[] => items.map((item): DefaultTheme.SidebarItem => ({...item, ...(item.link ? {link: `${prefix}${item.link}`} : {}), ...(item.items ? {items: localized(item.items)} : {})}))
+    collect(localized(JSON.parse(readFileSync(file, 'utf8'))))
     modules.sort((a, b): number => a.name.localeCompare(b.name))
-    const index: DefaultTheme.SidebarItem = {text: 'Modules', link: '/api/', items: modules.map((module): DefaultTheme.SidebarItem => ({text: module.name, link: module.link}))}
-    const sidebars: Record<string, DefaultTheme.SidebarItem[]> = {'/api/': [index]}
+    const root: string = `${prefix}/api/`
+    const index: DefaultTheme.SidebarItem = {text: language === 'zh' ? '模块' : 'Modules', link: root, items: modules.map((module): DefaultTheme.SidebarItem => ({text: module.name, link: module.link}))}
+    const sidebars: Record<string, DefaultTheme.SidebarItem[]> = {[root]: [index]}
     for (const module of modules)
-        sidebars[module.link] = [{text: '← All modules', link: '/api/'}, {text: module.name, link: module.link, items: module.items}]
+        sidebars[module.link] = [{text: language === 'zh' ? '← 所有模块' : '← All modules', link: root}, {text: module.name, link: module.link, items: module.items}]
     return sidebars
 }
 
@@ -90,7 +98,8 @@ const editLink = ({filePath}: {filePath: string}): string => {
     const source: string = filePath.startsWith('guide/') ? `packages/lakutata/doc/en/${filePath.slice(6)}`
         : filePath.startsWith('zh/guide/') ? `packages/lakutata/doc/zh/${filePath.slice(9)}`
             : filePath.startsWith('packages/') && filePath !== 'packages/index.md' ? `packages/${filePath.slice(9).replace(/\.md$/, '')}/README.md`
-                : `website/src/${filePath}`
+                : filePath.startsWith('zh/packages/') && filePath !== 'zh/packages/index.md' ? `packages/${filePath.slice(12).replace(/\.md$/, '')}/README.zh-CN.md`
+                    : `website/src/${filePath}`
     return `https://github.com/lakutata/lakutata/edit/main/${source}`
 }
 
@@ -107,7 +116,7 @@ const HTML_ELEMENTS: Set<string> = new Set(('a abbr b blockquote br caption code
  * @param path The path of the page in the website.
  */
 function verbatim(path: string): boolean {
-    return /^(guide|zh\/guide|packages|api)\//.test(path)
+    return /^(zh\/)?(guide|packages|api)\//.test(path)
 }
 
 export default defineConfig({
@@ -157,8 +166,8 @@ export default defineConfig({
                 ],
                 sidebar: {
                     '/guide/': guideSidebar('en', '/guide'),
-                    ...apiSidebars(),
-                    '/packages/': packageSidebar()
+                    ...apiSidebars('en'),
+                    '/packages/': packageSidebar('en')
                 },
                 editLink: {
                     pattern: editLink,
@@ -174,12 +183,14 @@ export default defineConfig({
             themeConfig: {
                 nav: [
                     {text: '指南', link: '/zh/guide/Overview', activeMatch: '/zh/guide/'},
-                    {text: 'API（英文）', link: '/api/'},
-                    {text: '包列表（英文）', link: '/packages/'},
+                    {text: 'API', link: '/zh/api/', activeMatch: '/zh/api/'},
+                    {text: '包列表', link: '/zh/packages/', activeMatch: '/zh/packages/'},
                     {text: 'npm', link: 'https://www.npmjs.com/package/lakutata'}
                 ],
                 sidebar: {
-                    '/zh/guide/': guideSidebar('zh', '/zh/guide')
+                    '/zh/guide/': guideSidebar('zh', '/zh/guide'),
+                    ...apiSidebars('zh'),
+                    '/zh/packages/': packageSidebar('zh')
                 },
                 editLink: {
                     pattern: editLink,
@@ -204,7 +215,7 @@ export default defineConfig({
             options: {
                 //The guides and the packages: the API reference has its own sidebar
                 _render(source, environment, markdown): string {
-                    if (environment.relativePath.startsWith('api/')) return ''
+                    if (/^(zh\/)?api\//.test(environment.relativePath)) return ''
                     return markdown.render(source, environment)
                 },
                 locales: {

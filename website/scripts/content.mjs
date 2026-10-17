@@ -1,11 +1,12 @@
 //The content of the website, generated from the repository before VitePress builds it: the logo, the guides of
-//packages/lakutata/doc (English and Chinese), the READMEs of the published packages (their relative links pointed to
-//GitHub) and the API reference of the subpaths of lakutata (TypeDoc, from the declarations of the built packages: run
-//`npm run build` at the root of the repository first).
+//packages/lakutata/doc (English and Chinese), the READMEs of the published packages (README.md and README.zh-CN.md,
+//their relative links pointed to GitHub) and the API reference of the subpaths of lakutata (TypeDoc, from the
+//declarations of the built packages: run `npm run build` at the root of the repository first), also under /zh/api/
+//with a Chinese note (its text is the one of the declarations).
 //
 //  node scripts/content.mjs            everything
 //  node scripts/content.mjs --no-api   the guides and the packages only (faster, while writing)
-import {existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {dirname, join, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {Application} from 'typedoc'
@@ -38,29 +39,47 @@ function guides() {
 }
 
 /**
- * The READMEs of the packages, their relative links pointed to the files of the repository
+ * The languages of the pages of the packages: their README, the line of their README linking to the other language
+ * (the website has its own switch), the section of the README of the repository listing them
+ */
+const PACKAGE_PAGES = [
+    {target: 'packages', readme: 'README.md', switch: /^English \| \[中文\]\(README\.zh-CN\.md\)\n\n/m, title: 'Packages', section: 'Packages', repository: 'README.md'},
+    {target: 'zh/packages', readme: 'README.zh-CN.md', switch: /^\[English\]\(README\.md\) \| 中文\n\n/m, title: '包列表', section: '包', repository: 'README.zh-CN.md'}
+]
+
+/**
+ * A section of a README of the repository, without its heading, its links to the directories of the packages pointed
+ * to their pages
+ * @param file The README.
+ * @param heading The heading of the section.
+ */
+function repositorySection(file, heading) {
+    const text = readFileSync(join(ROOT, file), 'utf8')
+    const start = text.indexOf(`\n## ${heading}\n`)
+    if (start < 0) throw new Error(`${file} has no section "${heading}"`)
+    const end = text.indexOf('\n## ', start + 1)
+    return text.slice(start + heading.length + 5, end < 0 ? undefined : end).trim().replace(/\]\(packages\/([^)\s]+)\)/g, '](./$1)')
+}
+
+/**
+ * The READMEs of the packages, in English and in Chinese (the English one when a package has no Chinese one), their
+ * relative links pointed to the files of the repository; their lists, from the README of the repository
  */
 function packages() {
-    fresh(join(SRC, 'packages'))
     const list = publishedPackages()
-    for (const manifest of list) {
-        const readme = join(ROOT, 'packages', manifest.directory, 'README.md')
-        if (!existsSync(readme)) continue
-        const content = readFileSync(readme, 'utf8').replace(/\]\((?!https?:|mailto:|#)([^)\s]+)\)/g, (_match, target) => `](${REPOSITORY}/blob/main/packages/${manifest.directory}/${target.replace(/^\.\//, '')})`)
-        writeFileSync(join(SRC, 'packages', `${manifest.directory}.md`), content)
+    for (const language of PACKAGE_PAGES) {
+        fresh(join(SRC, language.target))
+        for (const manifest of list) {
+            const directory = join(ROOT, 'packages', manifest.directory)
+            const readme = [language.readme, 'README.md'].map((name) => join(directory, name)).find(existsSync)
+            if (!readme) continue
+            const content = readFileSync(readme, 'utf8')
+                .replace(PACKAGE_PAGES[0].switch, '').replace(PACKAGE_PAGES[1].switch, '')
+                .replace(/\]\((?!https?:|mailto:|#)([^)\s]+)\)/g, (_match, target) => `](${REPOSITORY}/blob/main/packages/${manifest.directory}/${target.replace(/^\.\//, '')})`)
+            writeFileSync(join(SRC, language.target, `${manifest.directory}.md`), content)
+        }
+        writeFileSync(join(SRC, language.target, 'index.md'), `# ${language.title}\n\n${repositorySection(language.repository, language.section)}\n`)
     }
-    const rows = list.map((manifest) => `| [${manifest.name}](./${manifest.directory}) | ${(manifest.description ?? '').replace(/\|/g, '\\|')} |`)
-    writeFileSync(join(SRC, 'packages', 'index.md'), [
-        '# Packages',
-        '',
-        'The framework is a set of packages. `lakutata` re-exports all of them under its subpaths, and each can also be',
-        'installed on its own.',
-        '',
-        '| Package | Description |',
-        '|---|---|',
-        ...rows,
-        ''
-    ].join('\n'))
 }
 
 /**
@@ -120,6 +139,18 @@ async function api() {
     const project = await application.convert()
     if (!project) throw new Error('TypeDoc could not read the declarations')
     await application.generateOutputs(project)
+    //The same pages in the Chinese website (their links are relative), a note under their title
+    const chinese = join(SRC, 'zh', 'api')
+    fresh(chinese)
+    cpSync(join(SRC, 'api'), chinese, {recursive: true, filter: (file) => !file.endsWith('typedoc-sidebar.json')})
+    const note = (directory) => {
+        for (const entry of readdirSync(directory, {withFileTypes: true})) {
+            const file = join(directory, entry.name)
+            if (entry.isDirectory()) note(file)
+            else if (entry.name.endsWith('.md')) writeFileSync(file, readFileSync(file, 'utf8').replace(/^(# .*\n)/m, '$1\n::: info 说明\n本页由源码中的注释生成，内容为英文。\n:::\n'))
+        }
+    }
+    note(chinese)
 }
 
 /**

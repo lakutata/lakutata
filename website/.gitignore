@@ -3,7 +3,9 @@ node_modules/
 src/guide/
 src/zh/guide/
 src/packages/
+src/zh/packages/
 src/api/
+src/zh/api/
 src/public/logo.svg
 .api/
 # Built by VitePress

@@ -6,7 +6,7 @@
   "scripts": {
     "content": "node scripts/content.mjs",
     "dev": "npm run content && vitepress dev src",
-    "build": "npm run content && vitepress build src",
+    "build": "npm run content && node --max-old-space-size=8192 node_modules/vitepress/bin/vitepress.js build src",
     "preview": "vitepress preview src"
   },
   "devDependencies": {

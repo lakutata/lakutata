@@ -14,7 +14,7 @@ hero:
       link: /zh/guide/GettingStarted
     - theme: alt
       text: API 参考
-      link: /api/
+      link: /zh/api/
     - theme: alt
       text: GitHub
       link: https://github.com/lakutata/lakutata

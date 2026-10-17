@@ -6,7 +6,7 @@
 
 面向 Node.js 和 TypeScript 的 IoC 应用框架
 
-[网站](https://lakutata.com/zh/) · [快速开始](https://lakutata.com/zh/guide/GettingStarted) · [API 参考](https://lakutata.com/api/) · [English](README.md)
+[网站](https://lakutata.com/zh/) · [快速开始](https://lakutata.com/zh/guide/GettingStarted) · [API 参考](https://lakutata.com/zh/api/) · [English](README.md)
 
 ![npm](https://img.shields.io/npm/v/lakutata?logo=npm)
 ![node](https://img.shields.io/node/v/lakutata?logo=nodedotjs)
