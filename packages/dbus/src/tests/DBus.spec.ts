@@ -1,7 +1,9 @@
-import {after, afterEach, before, it} from 'node:test'
+import {after, afterEach, before, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Container, type ComponentOptions, type ModuleOptions} from '@lakutata/core'
-import {buildEntrypoints, Entrypoint, type ActionInvocation, type MiddlewareHandler, type Next} from '@lakutata/entrypoint'
+import {Container, DTO, Exception, type ComponentOptions, type ModuleOptions} from '@lakutata/core'
+import {Expect} from '@lakutata/core/decorator/dto'
+import {buildEntrypoints, Controller, Entrypoint, type ActionInvocation, type MiddlewareHandler, type Next} from '@lakutata/entrypoint'
+import {DBusInt64} from 'dbus-sdk'
 import {
     buildDBusClientOptions,
     DBus,
@@ -10,13 +12,69 @@ import {
     DBusContext,
     dbusEntrypoint,
     DBusEntrypointOptions,
+    DBusInterface,
+    DBusMethod,
     DBusObjectManager,
-    DBusPropertyWrite
+    DBusPropertyWrite,
+    defineDBusProperty,
+    defineDBusSignal
 } from '../exports/DBus.js'
 import {describeBus, startBus, TestBus} from './support/Bus.js'
 import {contexts, DeviceChanged, DeviceController, DeviceLevel, DeviceState, ManagerController} from './support/Controllers.js'
 
 const SERVICE: string = 'com.example.Devices'
+
+const BigCount = defineDBusProperty<number>('Big', 'x', {writable: true, initial: 0, schema: DTO.Number().integer()})
+
+class AmountDTO extends DTO {
+    @Expect(DTO.Number().integer().required())
+    public n: number
+}
+
+class HiddenException extends Exception {
+    public errno: string = '_HIDDEN'
+}
+
+@DBusInterface('com.example.Check', {path: '/com/example/Check', properties: [BigCount]})
+class CheckController extends Controller {
+    @DBusMethod('Amount', AmountDTO, {returns: 'x'})
+    public async amount(input: AmountDTO): Promise<number> {
+        return input.n
+    }
+
+    @DBusMethod('Hidden')
+    public async hidden(): Promise<void> {
+        throw new HiddenException('Hidden')
+    }
+
+    @DBusMethod('Twice', {returns: 's'})
+    public async first(): Promise<string> {
+        return 'first'
+    }
+
+    @DBusMethod('Twice', {returns: 'i'})
+    public async second(): Promise<number> {
+        return 2
+    }
+}
+
+describe('The DBus declarations', (): void => {
+    it('check the name of the service and the signatures', (): void => {
+        //D-Bus allows "-" in the names of the services, not in the names of the errors they prefix
+        assert.throws((): unknown => dbusEntrypoint({service: 'com.example.my-service'}), /Invalid DBus service name "com.example.my-service"/)
+        assert.throws((): unknown => defineDBusProperty('Bad', 'zz'), /Invalid DBus signature "zz" of the property Bad/)
+        assert.throws((): unknown => defineDBusProperty('Pair', 'ss'), /a single complete type/)
+        assert.throws((): unknown => defineDBusSignal('Bad', 'zz'), /Invalid DBus signature "zz" of the signal Bad/)
+        assert.throws((): void => {
+            class BadResultController extends Controller {
+                @DBusMethod('Bad', {returns: 'zz'})
+                public async bad(): Promise<void> {
+                }
+            }
+            void BadResultController
+        }, /Invalid DBus signature "zz" of the result of the method Bad/)
+    })
+})
 
 let bus: TestBus
 
@@ -111,6 +169,18 @@ describeBus('DBus adapter', (): void => {
         await assert.rejects(call(client, '/com/example/Manager', 'com.example.Manager', 'Configure', {sn: 'A1', retries: -1}), {name: `${SERVICE}.E_INVALID_VALUE`})
         await client.disconnect()
         await container.destroy()
+    })
+
+    it('gives the 64-bit integers as numbers, names the errors and serves a method declared twice once', async (): Promise<void> => {
+        const {manager, client} = await start({}, {controllers: [CheckController]})
+        //An int64 of the input and of a written property is a number, which the schemas of numbers accept
+        assert.deepStrictEqual((await call(client, '/com/example/Check', 'com.example.Check', 'Amount', {n: 3000000000})).map(Number), [3000000000])
+        await client.invoke({service: SERVICE, objectPath: '/com/example/Check', interface: 'org.freedesktop.DBus.Properties', method: 'Set', signature: 'ssv', args: ['com.example.Check', 'Big', new DBusInt64(5n)]})
+        assert.strictEqual(manager.getPropertyValue('/com/example/Check', BigCount), 5)
+        //An element of an error name starts with a letter
+        await assert.rejects(call(client, '/com/example/Check', 'com.example.Check', 'Hidden'), {name: `${SERVICE}.E_HIDDEN`})
+        //The declaration registered last
+        assert.deepStrictEqual(await call(client, '/com/example/Check', 'com.example.Check', 'Twice'), [2])
     })
 
     it('adds and removes the objects of the templates', async (): Promise<void> => {

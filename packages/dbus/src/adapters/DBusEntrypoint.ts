@@ -1,12 +1,12 @@
 import EventEmitter from 'node:events'
 import {FlexibleDTO} from '@lakutata/core/dtos'
 import type {ChannelActionInfo, ChannelRuntime, EntrypointAdapter, MiddlewareDefinition} from '@lakutata/entrypoint'
-import {LocalInterface, LocalObject, LocalService, RequestNameFlags, RequestNameResultCode, type ConnectOpts} from 'dbus-sdk'
+import {LocalInterface, LocalObject, LocalService, RequestNameFlags, RequestNameResultCode, type ConnectOpts, type DecodeOpts} from 'dbus-sdk'
 import {DBusChannel} from '../channel/DBusChannel.js'
 import {DBusContext} from '../context/DBusContext.js'
 import {ATTACH, DBusObjectManager, type DBusObjectSink, STORE} from '../components/DBusObjectManager.js'
 import {type DBusInterfaceDeclaration, type DBusPropertyDefinition, type DBusSignalDefinition, getDBusInterfaceDeclaration} from '../lib/Declarations.js'
-import {checkInterfaceName, compilePathTemplate, errorName, type PathTemplate} from '../lib/Names.js'
+import {checkServiceName, compilePathTemplate, errorName, type PathTemplate} from '../lib/Names.js'
 import {toEncodable, schemaSignature} from '../lib/Signature.js'
 
 /**
@@ -28,9 +28,10 @@ export type DBusEntrypointOptions = {
      */
     bus?: 'session' | 'system' | string
     /**
-     * The well-known name the service owns on the bus (`'com.example.DeviceService'`): two or more elements separated by
-     * dots. The clients address the service by it, and it prefixes the names of the D-Bus errors. On the system bus,
-     * the bus policy (`/etc/dbus-1/system.d/`) must allow the process to own it.
+     * The well-known name the service owns on the bus (`'com.example.DeviceService'`): two or more elements of letters,
+     * digits and `_`, separated by dots. The clients address the service by it, and it prefixes the names of the D-Bus
+     * errors (which may not hold the `-` that D-Bus allows in the names of the services). On the system bus, the bus
+     * policy (`/etc/dbus-1/system.d/`) must allow the process to own it.
      */
     service: string
     /**
@@ -41,10 +42,17 @@ export type DBusEntrypointOptions = {
     replaceExisting?: boolean
     /**
      * Let another connection take the name with `replaceExisting`. The adapter is not stopped when the name is taken:
-     * the clients reach the new owner.
+     * the clients reach the new owner, and the adapter keeps running without the name, which it does not get back when
+     * the new owner releases it.
      * @default false
      */
     allowReplacement?: boolean
+    /**
+     * How the arguments of the method calls and the values the clients write to the properties are decoded
+     * (`DecodeOpts` of `dbus-sdk`): `types`, `dictionaries`, `int64` (`'number'` or `'bigint'`), as for the client.
+     * @default {int64: 'number'} (the 64-bit integers as numbers when they are safe integers, else bigints)
+     */
+    decode?: DecodeOpts
     /**
      * The middlewares of this adapter's method calls, run after the entrypoint's global middlewares.
      * @default []
@@ -139,7 +147,7 @@ function toMethodError(error: unknown): Error {
  * ```
  */
 export function dbusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapter<DBusContext> {
-    checkInterfaceName(options.service)
+    checkServiceName(options.service)
     let service: LocalService | undefined
     let detach: (() => void) | undefined
     const exported: Map<string, ExportedObject> = new Map()
@@ -170,7 +178,11 @@ export function dbusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
         for (const action of runtime.actions) {
             const {path, interface: interfaceName, member} = action.address
             if (path === undefined || interfaceName === undefined) throw new TypeError(`The DBus method ${member} of ${action.controller} has no interface: declare its controller with @DBusInterface`)
-            interfacesAt(path, interfaceName).methods.push(action)
+            //A method declared twice in an interface is served by the declaration registered last
+            const methods: ChannelActionInfo[] = interfacesAt(path, interfaceName).methods
+            const declared: number = methods.findIndex((method: ChannelActionInfo): boolean => method.address.member === member)
+            if (declared >= 0) methods.splice(declared, 1)
+            methods.push(action)
         }
         return templates
     }
@@ -286,7 +298,8 @@ export function dbusEntrypoint(options: DBusEntrypointOptions): EntrypointAdapte
             let flags: number = RequestNameFlags.DBUS_NAME_FLAG_DO_NOT_QUEUE
             if (options.replaceExisting) flags |= RequestNameFlags.DBUS_NAME_FLAG_REPLACE_EXISTING
             if (options.allowReplacement) flags |= RequestNameFlags.DBUS_NAME_FLAG_ALLOW_REPLACEMENT
-            const result: RequestNameResultCode = await localService.run({...connect, flags: flags} as any)
+            //The 64-bit integers as numbers, as the client gives them: the schemas of numbers accept them
+            const result: RequestNameResultCode = await localService.run({...connect, decode: {int64: 'number', ...options.decode}, flags: flags} as any)
             if (result !== RequestNameResultCode.DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER && result !== RequestNameResultCode.DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER) {
                 await localService.stop().catch((): undefined => undefined)
                 throw new Error(`The DBus name ${options.service} is owned by another service`)

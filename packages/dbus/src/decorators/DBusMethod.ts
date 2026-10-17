@@ -4,6 +4,7 @@ import {ActionOptions, getActionDTOAndOptions, registerControllerAction} from '@
 import {DBusChannel} from '../channel/DBusChannel.js'
 import type {DBusContext} from '../context/DBusContext.js'
 import {schemaSignature} from '../lib/Signature.js'
+import {checkSingleType} from '../lib/Names.js'
 
 /**
  * The options of {@link DBusMethod}: the options of a controller action (`name`, `description`, `acl`, `rule`,
@@ -31,7 +32,7 @@ export type DBusMethodOptions = ActionOptions<DBusContext> & {
  * (`com.example.DeviceService.E_OFFLINE`), with its message; an `errno` already containing dots is used as it is.
  * The same method may also carry the decorators of the other channels (`@ServiceAction`, `@GET`…).
  * @param name The name of the method (`'Reboot'`): letters, digits and `_`, not starting with a digit; 255 characters at
- * most. Unique in its interface.
+ * most. A name declared twice in an interface is served by the declaration registered last, as on the other channels.
  * @returns The method decorator.
  * @throws {TypeError} When the method is declared, if its name is invalid; when the adapter starts, if its controller
  * has no `@DBusInterface`.
@@ -80,7 +81,7 @@ export function DBusMethod<ClassPrototype extends Controller, Method>(name: stri
  * of the object path template are merged into it. An error thrown by the action is answered as a D-Bus error named
  * after its `errno`, prefixed by the service name (`com.example.DeviceService.E_OFFLINE`).
  * @param name The name of the method (`'Reboot'`): letters, digits and `_`, not starting with a digit; 255 characters at
- * most. Unique in its interface.
+ * most. A name declared twice in an interface is served by the declaration registered last, as on the other channels.
  * @param dtoConstructor The DTO of the method's input, given by the client as an `a{sv}` dictionary.
  * @returns The method decorator.
  * @throws {TypeError} When the method is declared, if its name is invalid; when the adapter starts, if its controller
@@ -94,7 +95,7 @@ export function DBusMethod<ClassPrototype extends Controller, Method, DTOConstru
  * of the object path template are merged into it. An error thrown by the action is answered as a D-Bus error named
  * after its `errno`, prefixed by the service name (`com.example.DeviceService.E_OFFLINE`).
  * @param name The name of the method (`'Reboot'`): letters, digits and `_`, not starting with a digit; 255 characters at
- * most. Unique in its interface.
+ * most. A name declared twice in an interface is served by the declaration registered last, as on the other channels.
  * @param options The options of the action, and the type of its result (`returns`).
  * @returns The method decorator.
  * @throws {TypeError} When the method is declared, if its name is invalid; when the adapter starts, if its controller
@@ -109,7 +110,7 @@ export function DBusMethod<ClassPrototype extends Controller, Method>(name: stri
  * of the object path template are merged into it. An error thrown by the action is answered as a D-Bus error named
  * after its `errno`, prefixed by the service name (`com.example.DeviceService.E_OFFLINE`).
  * @param name The name of the method (`'Reboot'`): letters, digits and `_`, not starting with a digit; 255 characters at
- * most. Unique in its interface.
+ * most. A name declared twice in an interface is served by the declaration registered last, as on the other channels.
  * @param dtoConstructor The DTO of the method's input, given by the client as an `a{sv}` dictionary.
  * @param options The options of the action, and the type of its result (`returns`).
  * @returns The method decorator.
@@ -125,7 +126,7 @@ export function DBusMethod<ClassPrototype extends Controller, Method, DTOConstru
             ? getActionDTOAndOptions(dtoConstructorOrOptions as DTOConstructor, actionOptions)
             : getActionDTOAndOptions(actionOptions)
         const pattern: Record<string, string> = {member: name}
-        if (returns !== undefined) pattern.returns = typeof returns === 'string' ? returns : schemaSignature(returns)
+        if (returns !== undefined) pattern.returns = typeof returns === 'string' ? checkSingleType(returns, `the result of the method ${name}`) : schemaSignature(returns)
         registerControllerAction(DBusChannel, target, propertyKey as never, pattern, dtoConstructor, validatedOptions)
         return descriptor
     }

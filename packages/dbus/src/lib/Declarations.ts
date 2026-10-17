@@ -1,5 +1,5 @@
 import {DTO, type Schema} from '@lakutata/core'
-import {checkInterfaceName, checkMemberName, checkPathTemplate} from './Names.js'
+import {checkInterfaceName, checkMemberName, checkPathTemplate, checkSingleType} from './Names.js'
 import {schemaSignature} from './Signature.js'
 
 /**
@@ -153,6 +153,7 @@ export type DBusInterfaceDeclaration = {
 export function defineDBusSignal<T = Record<string, unknown>>(name: string, data: typeof DTO | string = 'a{sv}'): DBusSignalDefinition<T> {
     checkMemberName(name, 'signal')
     const isDTO: boolean = typeof data === 'function'
+    if (!isDTO) checkSingleType(data as string, `the signal ${name}`)
     return {
         kind: 'signal',
         name: name,
@@ -168,11 +169,12 @@ export function defineDBusSignal<T = Record<string, unknown>>(name: string, data
  * @typeParam T The values of the property.
  * @param name The member name of the property (`'State'`): letters, digits and `_`, not starting with a digit; 255
  * characters at most.
- * @param type The D-Bus signature of its values (`'s'`, `'i'`, `'b'`, `'a{sv}'`…); it is not checked against `schema`.
+ * @param type The D-Bus signature of its values (`'s'`, `'i'`, `'b'`, `'a{sv}'`…), a single complete type; it is not
+ * checked against `schema`.
  * @param options Whether the clients may write it, its initial value and the schema of its values; none by default
  * (read-only, no initial value, every value accepted).
  * @returns The property's definition.
- * @throws {TypeError} When the name is invalid.
+ * @throws {TypeError} When the name or the signature is invalid.
  * @example
  * ```typescript
  * import {DTO} from 'lakutata'
@@ -192,6 +194,7 @@ export function defineDBusSignal<T = Record<string, unknown>>(name: string, data
  */
 export function defineDBusProperty<T = unknown>(name: string, type: string, options: DBusPropertyOptions<T> = {}): DBusPropertyDefinition<T> {
     checkMemberName(name, 'property')
+    checkSingleType(type, `the property ${name}`)
     const schema: Schema | undefined = options.schema
     return {
         kind: 'property',
