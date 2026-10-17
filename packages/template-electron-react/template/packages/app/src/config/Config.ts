@@ -28,9 +28,9 @@ export type ConfigOptions = {
      */
     ipcMain?: IPCMain
     /**
-     * The port of the HTTP entrypoint of the development, none by default: the actions invoked by the tools (Postman,
-     * curl: POST / with their pattern and their input), the events pushed to them received (GET /events, Server-Sent
-     * Events), the id of their client in the header id (or the query id of the events)
+     * The port of an HTTP entrypoint for development, none by default. Tools (Postman, curl) invoke the actions with
+     * POST / and the message (the pattern and the input), receive the events pushed to them with GET /events
+     * (Server-Sent Events), and give their client id in the id header (or the id query parameter)
      */
     devPort?: number
 }

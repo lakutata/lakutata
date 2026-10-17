@@ -27,7 +27,7 @@ export function config(): ApplicationOptions {
                 //The messages in the language of its environment (LANG)
                 middlewares: [I18nMiddleware],
                 //@end
-                //The actions of the controllers are the commands; the missing required options are asked in a terminal
+                //The actions of the controllers are the commands; the missing required options are asked for in a terminal
                 cli: commanderCLIEntrypoint({bin: '{$APP_ID}', description: manifest.description, version: manifest.version})
             })
         },

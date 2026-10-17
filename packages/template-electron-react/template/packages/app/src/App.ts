@@ -15,7 +15,7 @@ const directory: string = resourcesPath() ?? path.dirname(fileURLToPath(import.m
  */
 const renderer: string | undefined = process.argv.find((argument: string): boolean => argument.startsWith('--renderer='))?.slice('--renderer='.length)
 
-//One instance of the application: a second one gives its window back to the first one
+//A single instance of the application: a second one exits, and the first one brings its window to the front
 if (!electron.app.requestSingleInstanceLock()) {
     electron.app.exit(0)
 } else {
