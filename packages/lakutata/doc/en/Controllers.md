@@ -111,8 +111,8 @@ Inside the method, two properties describe the request:
 
   Every context also has `data`, the input as it arrived (before validation), and `locale`, the language of the
   request when the I18n middleware is used.
-- `this.signal` is an `AbortSignal`. It is aborted when the request is: the client went away, the deadline of a gRPC call
-  passed, or the application is stopping and its `shutdownTimeout` ran out. Once it is aborted, the result of the
+- `this.signal` is an `AbortSignal`. It is aborted when the request is: the client went away, the deadline of a gRPC
+  call passed, or the application is stopping and its `shutdownTimeout` ran out. Once it is aborted, the result of the
   action is dropped; a long action should check it and stop early.
 
 ## 3. The action decorators

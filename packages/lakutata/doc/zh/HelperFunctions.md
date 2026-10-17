@@ -118,7 +118,7 @@ console.log(UUID.validate(UUID.v4()))
 |---|---|
 | `delay(ms)` | 等待指定的毫秒数 |
 | `gracefulExit` | 执行完清理函数后退出进程 |
-| `pathExists(path)`、`isPath(text)` | 文件或目录是否存在；字符串是否是路径的写法 |
+| `pathExists(path)`、`isPath(text)` | 文件或目录是否存在；字符串看起来是否像路径 |
 | `Glob(patterns, options?)`、`GlobSync`、`isGlobString` | 匹配 glob 模式的文件；字符串是否是 glob 模式 |
 | `isPromise`、`isPromiseLike`、`isAbortError` | 值是否是 Promise 或 thenable；错误是否是 Node.js 的中止错误 |
 | `isSymbol`、`isNativeFunction`、`isHTML`、`isXML` | 类型判断 |
@@ -137,4 +137,4 @@ console.log(Statistics.median(latencies), Statistics.quantile(latencies, 0.9))
 //13.5 90
 ```
 
-类型判断函数（`Is*`）不会抛出异常，而是返回 `false`；其他函数抛出标准的 JavaScript 错误（`RangeError`、`TypeError`），`templating()` 还会抛出 `MissingValueError`。
+类型判断函数（`is…`）不会抛出异常，而是返回 `false`；其他函数抛出标准的 JavaScript 错误（`RangeError`、`TypeError`），`templating()` 还会抛出 `MissingValueError`。

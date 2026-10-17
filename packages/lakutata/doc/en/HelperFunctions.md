@@ -2,9 +2,9 @@
 
 `lakutata/utils` (package `@lakutata/utils`) exports the helpers the framework and its applications share: strings,
 objects, arrays and sets, hashes and encodings, UUIDs, IP addresses, globs, statistics, and `Time`
-(see [Time](Time.md)). They are plain functions and classes with no dependency: import them where they are needed,
-inside an application or not, without registration. The README of `@lakutata/utils` and the typings of each helper give
-the details and the errors they throw.
+(see [Time](Time.md)). They are plain functions and classes with no dependencies: import them wherever they are needed,
+inside an application or not; nothing needs to be registered. The README of `@lakutata/utils` and the type declarations
+of each helper give the details, including the errors they throw.
 
 ```typescript
 import {Application, Component, Time} from 'lakutata'
@@ -52,7 +52,7 @@ Application
 | Helper | What it does |
 |---|---|
 | `ObjectPath.get()`, `.set()`, `.has()` | Reads, sets and tests a nested property by its path (`'a.b[0].c'`) |
-| `cloneDeep(value)` | Deep copy, the classes, collections and circular references kept |
+| `cloneDeep(value)` | A deep copy that keeps classes, collections and circular references |
 | `objectHash(value, options?)` | A hash of a value by its content, whatever the order of its keys |
 | `sortArray(array, ...options)` | Sorts an array in place, by its items or their properties (`by`, `order`, `customOrders`, `computed`) |
 | `sortKeys(object, options?)` | A copy of a plain object with its keys sorted by a comparison (`deep`, `compare`) |
@@ -97,9 +97,9 @@ console.log(uniqueArray([3, 1, 3, 2]), Object.keys(sortObject({b: 1, a: 2})))
 | `MessagePack` | Serializes values to and from MessagePack bytes or strings |
 | `UUID` | Generates (`v1`, `v3`, `v4`, `v5`, `v6`), validates, parses and stringifies UUIDs |
 | `URLBuilder` | Parses a URL of any scheme into its attributes, or builds one from them |
-| `hexToUnsigned`, `unsignedToHex(value, bits = 32)` | Hexadecimal and unsigned integers (8 to 128 bits) |
-| `hexToSigned`, `signedToHex(value, bits = 32)` | Hexadecimal and signed integers (two's complement) |
-| `hexToIEEE754`, `ieee754ToHex` | Hexadecimal and IEEE 754 floating point numbers |
+| `hexToUnsigned`, `unsignedToHex(value, bits = 32)` | Converts between hexadecimal and unsigned integers (8 to 128 bits) |
+| `hexToSigned`, `signedToHex(value, bits = 32)` | Converts between hexadecimal and signed integers (two's complement) |
+| `hexToIEEE754`, `ieee754ToHex` | Converts between hexadecimal and IEEE 754 floating point numbers |
 | `IP`, `IPv4`, `IPv6` | Validate, convert and compare IP addresses and CIDR blocks |
 
 ```typescript
@@ -122,11 +122,11 @@ console.log(UUID.validate(UUID.v4()))
 |---|---|
 | `delay(ms)` | Waits for a number of milliseconds |
 | `gracefulExit` | Exits the process once cleanup functions have run |
-| `pathExists(path)`, `isPath(text)` | Whether a file or directory exists; whether a string is written as a path |
+| `pathExists(path)`, `isPath(text)` | Whether a file or directory exists; whether a string looks like a path |
 | `Glob(patterns, options?)`, `GlobSync`, `isGlobString` | The files matching glob patterns; whether a string is a glob pattern |
 | `isPromise`, `isPromiseLike`, `isAbortError` | Whether a value is a promise or a thenable; whether an error is an abort error of Node.js |
 | `isSymbol`, `isNativeFunction`, `isHTML`, `isXML` | Type guards |
-| `As<T>(value)`, `DevNull(...args)` | A cast for the type checker only; a function ignoring its arguments |
+| `As<T>(value)`, `DevNull(...args)` | A cast for the type checker only; a function that ignores its arguments |
 
 ```typescript
 import {delay, Glob, pathExists, Statistics} from 'lakutata/utils'
@@ -141,5 +141,5 @@ console.log(Statistics.median(latencies), Statistics.quantile(latencies, 0.9))
 //13.5 90
 ```
 
-The guards (`Is*`) return `false` instead of throwing; the other helpers throw the standard JavaScript errors
-(`RangeError`, `TypeError`), and `templating()` a `MissingValueError`.
+The type guards (`is…`) return `false` instead of throwing; the other helpers throw standard JavaScript errors
+(`RangeError`, `TypeError`), and `templating()` throws a `MissingValueError`.

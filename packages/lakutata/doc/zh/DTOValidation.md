@@ -1,6 +1,6 @@
 # Lakutata DTO 与数据校验
 
-**DTO**（数据传输对象）是用校验规则声明属性的类。框架用它们校验对象的选项（`@Configurable`）、方法的参数和返回值（`@Accept`、`@Return`）以及控制器动作的输入。`DTO` 由 `lakutata` 导出，相关装饰器由 `lakutata/decorator/dto` 导出；校验引擎是框架自带的，API 与 joi 相同（并扩展了 bigint 和下文的数值类型）。
+**DTO**（数据传输对象）是用校验规则声明属性的类。框架用 DTO 校验对象的选项（`@Configurable`）、方法的参数和返回值（`@Accept`、`@Return`）以及控制器动作的输入。`DTO` 由 `lakutata` 导出，相关装饰器由 `lakutata/decorator/dto` 导出；校验引擎是框架自带的，API 与 joi 相同（并扩展了 bigint 和下文的数值类型）。
 
 ## 1. 定义 DTO
 
@@ -40,23 +40,35 @@ class CustomerDTO extends DTO {
 
 校验规则由 `DTO` 的静态方法构建：`DTO.String()`、`DTO.Number()`、`DTO.BigInt()`、`DTO.Boolean()`、`DTO.Date()`、`DTO.Binary()`、`DTO.Symbol()`、`DTO.Object()`、`DTO.Array()`、`DTO.Alternatives()`、`DTO.Any()`、`DTO.Function()`、`DTO.AsyncFunction()`、`DTO.Class()`、`DTO.InstanceOf()`、`DTO.Cron()`、`DTO.Glob()`、`DTO.Ref()`、`DTO.Link()` 等。规则方法与 joi 相同（`.required()`、`.optional()`、`.default()`、`.valid()`、`.min()`、`.max()`、`.pattern()`、`.email()`、`.uri()` 等）。
 
-- **默认严格**：类型不对的值会被拒绝，而不是被转换（字符串 `'5'` 不是数字 5）。需要转换时调用 `.strict(false)`，例如 HTTP 的查询参数和路由参数总是字符串。
+- **默认严格**：类型不对的值会被拒绝，而不是被转换（字符串 `'5'` 不是数字 5）。需要转换时调用 `.strict(false)`，例如 HTTP 的查询参数和路由参数，它们总是字符串。
 - **数值类型**：`DTO.Number()` 提供整数类型 `int8`、`uint8`、`int16`、`uint16`、`int32`、`uint32`、`int64` 和 `uint64`（64 位类型限于 JavaScript 的安全整数范围），以及浮点类型 `float`（32 位范围）和 `double`。
-- **校验选项**：默认在遇到第一个错误时停止（`abortEarly`），并移除未知字段（`stripUnknown`）。DTO 作为校验规则使用时，可用 `MyDTO.options({...})` 指定其他选项。
+- **校验选项**：默认在遇到第一个错误时停止（`abortEarly`），并移除未知字段（`stripUnknown`）。`MyDTO.options({...})` 返回使用其他选项的 DTO 校验规则。
 - **DTO 类作为校验规则**：`MyDTO.Schema()` 是它的对象校验规则，`MyDTO.required()` 和 `MyDTO.optional()` 是标记为必填或可选的同一规则。凡是需要校验规则的地方（`@Accept`、`@Return`、动作装饰器）都可以直接使用 DTO 类。
 
 ## 2. 校验
 
 ```typescript
+import {DTO} from 'lakutata'
+import {Expect} from 'lakutata/decorator/dto'
+
+class CustomerDTO extends DTO {
+    @Expect(DTO.String().min(2).required())
+    public name: string
+
+    @Expect(DTO.Number().integer().min(0).default(0))
+    public credit: number
+}
+
 //构造时校验：填充默认值，移除未知字段 "note"；数据不合法时抛出 InvalidValueException
-const customer: CustomerDTO = new CustomerDTO({name: 'Ada', email: 'ada@example.com', address: {city: 'London'}, note: 'vip'})
+const customer: CustomerDTO = new CustomerDTO({name: 'Ada', note: 'vip'})
 
 //DTO 实例会校验对其属性的每次修改：不合法的修改会抛出异常并被撤销
 customer.credit = 10
 
-//不创建实例直接校验：返回校验后的值，或抛出 InvalidValueException
-const data: CustomerDTO = CustomerDTO.validate({name: 'Ada', email: 'ada@example.com', address: {city: 'London'}})
-const later: CustomerDTO = await CustomerDTO.validateAsync({name: 'Ada', email: 'ada@example.com', address: {city: 'London'}})
+//不创建实例直接校验：返回校验后的数据（普通对象），或抛出 InvalidValueException
+const received: any = JSON.parse('{"name": "Ada"}')
+const data: CustomerDTO = CustomerDTO.validate(received)
+const later: CustomerDTO = await CustomerDTO.validateAsync(received)
 
 //只检查，不抛出异常
 const valid: boolean = CustomerDTO.isValid({name: ''})
@@ -72,11 +84,11 @@ const port: number = DTO.validate(8080, DTO.Number().port().required())
 | 装饰器 | 作用对象 | 效果 |
 |---|---|---|
 | `@Expect(schema)` | DTO 的属性 | 声明属性的校验规则 |
-| `@IndexSignature(schema)` | DTO 类 | 保留没有 `@Expect` 规则的字段并按该规则校验，而不是移除它们 |
+| `@IndexSignature(schema)` | DTO 类 | 保留没有 `@Expect` 规则的字段，并按这条规则校验它们，而不是移除 |
 | `@Accept(...schemas)` | 方法 | 每次调用时按位置校验参数；失败时抛出 `InvalidMethodAcceptException` |
 | `@Return(schema)` | 方法 | 每次调用时校验返回值（异步方法会等待其结果）；失败时抛出 `InvalidMethodReturnException` |
 
-`@Accept` 和 `@Return` 把校验后的值交给方法（或调用方）：已填充默认值、已移除未知字段。用 DTO 类校验参数或返回值时，得到的是普通对象，而不是该类的实例。缺少的参数会被接受，除非它的规则是必填的（`MyDTO.required()`）。
+`@Accept` 和 `@Return` 把校验后的值交给方法（或调用方）：默认值已填充，未知字段已移除。用 DTO 类校验参数或返回值时，得到的是普通对象，而不是该类的实例。缺少的参数会被接受，除非它的规则是必填的（`MyDTO.required()`）。
 
 ```typescript
 import {Component, DTO} from 'lakutata'
@@ -137,7 +149,16 @@ DTO 和校验规则可以与 JSON Schema（draft 04、06、07、2019-09 和 2020
 
 ```typescript
 import {DTO} from 'lakutata'
+import {Expect} from 'lakutata/decorator/dto'
 import {toJsonSchema} from 'lakutata/dtos'
+
+class UserDTO extends DTO {
+    @Expect(DTO.Number().integer().required())
+    public id: number
+
+    @Expect(DTO.String().required())
+    public name: string
+}
 
 UserDTO.toJsonSchema()                  //JSON Schema 2020-12（默认）
 UserDTO.toJsonSchema('draft-07')        //'draft-2020-12' | 'draft-2019-09' | 'draft-07' | 'draft-04'
@@ -145,28 +166,37 @@ UserDTO.toOpenAPIJsonSchema()           //OpenAPI 3.1（默认），或 '3.0'
 toJsonSchema(DTO.String().email(), {target: 'openapi-3.0'})   //任意校验规则，或 DTO 类
 ```
 
-- 生成的 JSON Schema 描述的是校验规则在不做转换时接受的值，因此 ajv（配合 ajv-formats）等校验器接受的值与之完全一致；JSON Schema 无法表达的内容（自定义规则、对其他值的引用、类型转换）会被丢弃，所以 JSON Schema 接受的值只会更多，不会更少。
-- 未知字段遵循校验选项：在 lakutata 的默认选项（`allowUnknown`、`stripUnknown`）下，对象接受未知字段；使用其他选项时通过 `preferences` 传入。
-- 数值类型转换为整数边界（`int8` 到 `uint64`）和浮点范围；OpenAPI 还会给出 `int32`、`int64`、`float` 和 `double` 格式名。
+- 生成的 JSON Schema 描述的是校验规则在不做转换时接受的值，ajv（配合 ajv-formats）等校验器接受的也是这些值。JSON Schema 无法表达的内容（自定义规则、对其他值的引用、类型转换）会被省略，所以 JSON Schema 可能接受原规则拒绝的值，但不会拒绝原规则接受的值。
+- 未知字段遵循校验选项：在 lakutata 的默认选项（`allowUnknown`、`stripUnknown`）下，对象接受未知字段；要按其他选项转换，通过 `preferences` 传入这些选项。
+- 数值类型转换为整数边界（`int8` 到 `uint64`）和浮点范围；在 OpenAPI 中还会带上 `int32`、`int64`、`float` 和 `double` 格式。
 
 ### 5.2 导入
 
 ```typescript
-import {DTO} from 'lakutata'
+import {readFileSync} from 'node:fs'
+import {DTO, type JSONSchema} from 'lakutata'
 import {fromJsonSchema} from 'lakutata/dtos'
 
-const schema = fromJsonSchema({type: 'object', properties: {id: {type: 'integer'}}, required: ['id']})
+const userJsonSchema: JSONSchema = {
+    type: 'object',
+    properties: {id: {type: 'integer'}, name: {type: 'string'}},
+    required: ['id']
+}
+
+//校验规则
+const schema = fromJsonSchema(userJsonSchema)
 DTO.validate({id: 1}, schema)
 
-//生成 DTO 类，它是调用该方法的类的子类
+//生成 DTO 类，它是调用 fromJsonSchema() 的那个类的子类
 const UserDTO = DTO.fromJsonSchema(userJsonSchema)
 const user = new UserDTO({id: 1, name: 'Alice'})
 
 //OpenAPI 文档中各对象 schema（components.schemas）对应的 DTO 类，按名称取用
+const openApiDocument: Record<string, unknown> = JSON.parse(readFileSync('openapi.json', 'utf8'))
 const {Pet, Person} = DTO.fromOpenAPI(openApiDocument)
 ```
 
-- 导入的校验规则按 JSON Schema 的语义校验：不转换值（`convert: true` 时转换），未知字段遵循 `additionalProperties`，格式校验与 ajv-formats 一致，并会填充默认值。
+- 导入的校验规则按 JSON Schema 的语义校验：不转换值（除非传入 `convert: true`），未知字段遵循 `additionalProperties`，格式校验与 ajv-formats 一致，并会填充默认值。
 - 引用通过 JSON pointer、`$anchor` 和 `$id` 解析（其他文档通过 `schemas` 传入，OpenAPI 文档通过 `document` 传入）；支持递归引用。
 - 版本从 `$schema` 读取，或通过 `dialect` 指定（默认 2020-12）。
-- 对 lakutata 的校验规则而言，JSON Schema 会丢失信息（自定义规则、类型转换）：要原样存储并恢复校验规则，请保存它的 `describe()` 输出（不含函数时是一个 JSON 值），再用 `DTO.Build(description)` 重建。
+- 把 lakutata 的校验规则转换为 JSON Schema 会丢失信息（自定义规则、类型转换）：要原样存储并恢复校验规则，请保存它的 `describe()` 输出（不含函数时是一个 JSON 值），再用 `DTO.Build(description)` 重建。

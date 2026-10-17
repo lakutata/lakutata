@@ -1,6 +1,6 @@
 # Lakutata 装饰器
 
-框架用装饰器声明依赖、选项、动作和校验（TypeScript 的 `experimentalDecorators` 与 `emitDecoratorMetadata`，两者都已在 `lakutata/tsconfig.json` 中开启）。装饰器由以下子路径导出：
+依赖、选项、动作和校验都用装饰器声明（TypeScript 的 `experimentalDecorators` 和 `emitDecoratorMetadata`，两者都已在 `lakutata/tsconfig.json` 中开启）。装饰器由以下子路径导出：
 
 | 子路径 | 装饰器 |
 |---|---|
@@ -52,11 +52,11 @@ class Signup extends Component {
 }
 ```
 
-无法解析的注册项会使对象创建失败，并抛出 `DependencyInjectionException`。
+依赖无法解析时，对象创建失败，抛出 `DependencyInjectionException`。
 
 ### 1.2 `@Configurable`
 
-`@Configurable(schema?, fn?)` 把属性声明为对象的选项，选项值来自对象的声明（`{class: Server, port: 8080}`）或 `getObject()` 的第二个参数。值先由校验规则（默认 `DTO.Any()`）校验（及转换），如果提供了 `fn`，再交给 `fn` 处理（调用时 `this` 为该实例）。
+`@Configurable(schema?, fn?)` 把属性声明为对象的选项，选项值来自对象的声明（`{class: Server, port: 8080}`）或 `getObject()` 的第二个参数。值先经过校验规则（默认 `DTO.Any()`）校验和转换；如果提供了 `fn`，再交给 `fn` 处理，调用时 `this` 是这个实例。
 
 ```typescript
 import {Application, Component, DTO} from 'lakutata'
@@ -91,12 +91,12 @@ Application.run(() => ({
 ```
 
 - **取值**：优先使用配置里给的值，其次是属性的初始值（`protected readonly host: string = '127.0.0.1'`），最后是校验规则的默认值（`DTO.Number().default(80)`）。初始值会和配置值一样经过校验和转换；子类可以用自己的初始值给出自己的默认值。
-- **`maxListeners`**：所有组件都有这个可配置属性（默认 11），表示同一个事件的监听器超过多少个时给出可能内存泄漏的警告（0 表示不警告；监听器数量从不受限制）。组件可以用 `protected readonly maxListeners: number = 0` 设置自己的默认值，也可以在声明里设置：`{class: MyComponent, maxListeners: 0}`。
+- **`maxListeners`**：所有组件都有这个可配置属性（默认 11），同一个事件的监听器超过这个数量时，会发出警告，提示可能有内存泄漏（0 表示不警告；监听器的数量本身从不受限制）。组件可以用 `protected readonly maxListeners: number = 0` 设置自己的默认值，也可以在声明里设置：`{class: MyComponent, maxListeners: 0}`。
 - **启动检查**：应用启动时，会在创建任何对象之前检查它声明的所有对象（组件、提供者和对象）的选项，所以即使某个对象从未被使用，配置错误也会在启动时暴露：
   - 不符合 `@Configurable` 属性校验规则的值会导致启动失败，抛出 `InvalidObjectOptionsException`，并列出所有不合法的选项；
-  - 不是该类 `@Configurable` 属性的选项会被忽略并给出警告，警告中列出该类的可配置属性（用于发现拼错的选项名）。
+  - 不是该类 `@Configurable` 属性的选项（例如拼错的选项名）会被忽略，并发出警告，警告中列出该类的可配置属性。
 
-  通过 `getConfigurableRecords()` 读取非可配置属性选项的类，可以覆盖静态方法 `acceptsOption(name, value)` 来接受这些选项，不产生警告。由外部（异步）规则校验的值在对象创建时校验。在应用的选项中设置 `checkOptions: false` 可以关闭这项检查。
+  不通过可配置属性、而是通过 `getConfigurableRecords()` 读取选项的类，可以覆盖静态方法 `acceptsOption(name, value)` 来接受这些选项，这样就不会产生警告。由外部（异步）规则校验的值在对象创建时校验。在应用的选项中设置 `checkOptions: false` 可以关闭这项检查。
 
 ### 1.3 `@Autoload`
 
@@ -110,13 +110,13 @@ Application.run(() => ({
 | `@Scoped(lock?)` | 每个作用域一个（入口的一次请求） | `Provider`、`Controller`（锁定） |
 | `@Transient(lock?)` | 每次解析一个 | `BaseObject` |
 
-`@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock?)` 是它们的完整写法。`lock` 为 `true` 时，子类不能声明其他生命周期类型（子类定义时抛出 `LifetimeLockedException`）；`Provider` 可以是单例（与 2.x 相同）。
+`@Lifetime('SINGLETON' | 'SCOPED' | 'TRANSIENT', lock?)` 是它们的完整写法。`lock` 为 `true` 时，子类不能声明其他生命周期（定义这样的子类会抛出 `LifetimeLockedException`）。`Provider` 可以是单例，与 2.x 相同。
 
 ```typescript
 import {Provider} from 'lakutata'
 import {Transient} from 'lakutata/decorator/di'
 
-//每个使用者都得到自己的构建器，各自保存状态
+//每个注入它的对象都得到自己的构建器实例，各自保存状态
 @Transient()
 export class QueryBuilder extends Provider {
     protected readonly clauses: string[] = []
@@ -131,8 +131,8 @@ export class QueryBuilder extends Provider {
 ### 1.5 子类的属性
 
 - **继承**：子类继承父类的 `@Inject` 和 `@Configurable` 属性。子类重新声明某个属性时，会取代父类对它的声明，不论使用的是哪种装饰器，以最近一层的声明为准（父类注入的属性，在子类里用 `@Configurable` 重新声明后，只按配置处理，不再注入；反之亦然）。
-- **属性的类型**：TypeScript 允许子类在重新声明属性时把类型改窄（例如把 `Store` 改成 `MemoryStore`），但不允许换成其他类型：把 `number` 换成 `string` 会报 `TS2416`（`Property 'port' in type 'BrokenServer' is not assignable to the same property in base type 'PlainServer'`），而且没有任何编译选项可以关闭这个检查。如果父类允许子类替换某个属性的类型，就用泛型参数来声明这个属性：
-  - 父类在类上声明泛型参数，按属性命名并以 `Type` 结尾（属性 `store` 对应 `StoreType`）。加上约束（`extends Store`）：父类可以按约束的类型使用这个属性，子类也只能换成兼容的类型。再加上默认类型（`= Store`）：不需要替换类型的子类，继承时不用填写类型参数；
+- **属性的类型**：TypeScript 允许子类在重新声明属性时把类型改窄（例如把 `Store` 改成 `MemoryStore`），但不允许换成其他类型：把 `number` 换成 `string` 会报 `TS2416`（`Property 'port' in type 'BrokenServer' is not assignable to the same property in base type 'PlainServer'`），而且没有任何编译选项可以关闭这个检查。如果子类可能需要给某个属性换一种类型，父类就用泛型参数来声明这个属性：
+  - 父类在类上声明泛型参数，按属性命名并以 `Type` 结尾（属性 `store` 对应 `StoreType`）。加上约束（`extends Store`）：父类可以按约束的类型使用这个属性，子类也只能换成兼容的类型；再加上默认类型（`= Store`）：不需要替换类型的子类，继承时不用填写类型参数；
   - 子类在 `extends` 处填入具体类型。只有需要更换装饰器时，才在子类里重新声明这个属性。
 
 ```typescript
@@ -181,6 +181,8 @@ export class NamedPortServer extends Server<string> {
 
 在 `MemoryRepository` 里，IDE 会把 `this.store` 当作 `MemoryStore` 来补全；在 `Repository` 里则当作 `Store`。如果父类没有声明泛型参数，子类只能在属性上用 `// @ts-expect-error` 压制这个错误，而父类的方法仍会按原来的类型使用这个属性。
 
+像 `NamedPortServer` 这样不带初始值地重新声明属性，在 `useDefineForClassFields: false` 下可以编译，`lakutata/tsconfig.json` 已经这样设置。设为 `true`（TypeScript 对 `ES2022` 及更新的编译目标的默认值）时，编译器会报 `TS2612`；这时在属性前加上 `declare`（`@Configurable(...) declare protected readonly port: string`），装饰器照样生效。
+
 ## 2. 控制器动作（`lakutata/decorator/ctrl`）
 
 这些装饰器用于 `Controller` 子类的方法（`@Prefix` 和 `@UseMiddlewares` 也可用于类）；详见 [Controllers](Controllers.md)。
@@ -225,7 +227,7 @@ CLI 命令名称前面的词是命令分组：`@CLIAction('package exe <name>', 
 | 装饰器 | 效果 |
 |---|---|
 | `@Expect(schema)` | DTO 属性的校验规则（`DTO.String().required()`） |
-| `@IndexSignature(schema)` | DTO 类保留没有规则的字段，并按该规则校验 |
+| `@IndexSignature(schema)` | DTO 类保留没有规则的字段，并按这条规则校验它们 |
 | `@Accept(...schemas)` | 每次调用方法时按位置校验参数 |
 | `@Return(schema)` | 每次调用方法时校验返回值 |
 
@@ -233,7 +235,7 @@ CLI 命令名称前面的词是命令分组：`@CLIAction('package exe <name>', 
 
 ## 4. 辅助装饰器（`lakutata/decorator/asst`）
 
-`@Before(fn)` 在方法每次调用之前以其参数执行一个函数：函数返回的数组会替换传给方法的参数。`@After(fn)` 在每次调用之后以其结果执行一个函数：函数返回的非 `undefined` 值会替换结果。这些函数调用时 `this` 为该实例；只有方法是异步的，函数才可以是异步的。
+`@Before(fn)` 在方法每次调用之前执行一个函数，传入方法的参数：函数返回的数组会替换传给方法的参数。`@After(fn)` 在每次调用之后执行一个函数，传入方法的结果：函数返回的非 `undefined` 值会替换结果。这些函数调用时 `this` 为该实例；只有方法是异步的，函数才可以是异步的。
 
 ```typescript
 import {Component} from 'lakutata'
@@ -262,11 +264,11 @@ class Prices extends Component {
 
 ## 5. 锁（`lakutata/com/mutex`）
 
-`@Synchronized` 让控制器动作在持有 `Mutex` 组件的锁时执行，锁在输入校验和访问控制通过之后获取。见 [Mutex](Mutex.md)。
+`@Synchronized` 让控制器动作在 `Mutex` 组件的锁的保护下执行，锁在输入校验和访问控制通过之后获取。见 [Mutex](Mutex.md)。
 
 ## 6. 消息队列（`lakutata/com/queue`）
 
-`@QueueAction(queue, dto?, options?)` 让控制器动作成为一个队列的消费者：`queueEntrypoint` 适配器把队列的消息投递给它，正常返回时确认，失败后重试，次数用完后进入死信队列。见 [Queue](Queue.md)。
+`@QueueAction(queue, dto?, options?)` 让控制器动作成为一个队列的消费者：`queueEntrypoint` 适配器把队列的消息投递给它。动作正常返回时确认消息，失败后重试，重试次数用完后把消息送进死信队列。见 [Queue](Queue.md)。
 
 ## 7. 数据库实体（`lakutata/decorator/orm`）
 

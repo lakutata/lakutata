@@ -1,10 +1,9 @@
 # Lakutata DTO and Validation
 
-A **DTO** (data transfer object) is a class whose properties are declared with validation schemas. The framework
-validates with them the options of the objects (`@Configurable`), the arguments and results of methods (`@Accept`,
-`@Return`) and the inputs of the controller actions. `DTO` is exported by `lakutata`, the decorators by
-`lakutata/decorator/dto`; the validation engine is the framework's own, with the API of joi (extended with bigints and
-the numeric types below).
+A **DTO** (data transfer object) is a class whose properties are declared with validation schemas. The framework uses
+DTOs to validate the options of objects (`@Configurable`), the arguments and results of methods (`@Accept`, `@Return`)
+and the input of controller actions. `DTO` is exported by `lakutata` and the decorators by `lakutata/decorator/dto`; the
+validation engine is the framework's own, with the API of joi (extended with bigints and the numeric types below).
 
 ## 1. Defining a DTO
 
@@ -45,16 +44,16 @@ class CustomerDTO extends DTO {
 The schemas are built by the static methods of `DTO`: `DTO.String()`, `DTO.Number()`, `DTO.BigInt()`, `DTO.Boolean()`,
 `DTO.Date()`, `DTO.Binary()`, `DTO.Symbol()`, `DTO.Object()`, `DTO.Array()`, `DTO.Alternatives()`, `DTO.Any()`,
 `DTO.Function()`, `DTO.AsyncFunction()`, `DTO.Class()`, `DTO.InstanceOf()`, `DTO.Cron()`, `DTO.Glob()`, `DTO.Ref()`,
-`DTO.Link()`… Their rules are the ones of joi (`.required()`, `.optional()`, `.default()`, `.valid()`, `.min()`,
+`DTO.Link()`… Their rules are those of joi (`.required()`, `.optional()`, `.default()`, `.valid()`, `.min()`,
 `.max()`, `.pattern()`, `.email()`, `.uri()`…).
 
 - **Strict by default**: a value of the wrong type is rejected, not converted (the string `'5'` is not the number 5).
-  Call `.strict(false)` to convert, as for the query strings and route parameters of HTTP, which are always strings.
+  Call `.strict(false)` to convert, for example for HTTP query strings and route parameters, which are always strings.
 - **Numeric types**: `DTO.Number()` provides the integer types `int8`, `uint8`, `int16`, `uint16`, `int32`, `uint32`,
   `int64` and `uint64` (the 64-bit types limited to the safe integers of JavaScript), and the floating point types
   `float` (32-bit range) and `double`.
-- **Validation options**: by default the validation stops at the first error (`abortEarly`), and the unknown keys are
-  removed (`stripUnknown`). `MyDTO.options({...})` gives other options for a DTO used as a schema.
+- **Validation options**: by default, validation stops at the first error (`abortEarly`) and unknown keys are removed
+  (`stripUnknown`). `MyDTO.options({...})` returns the schema of a DTO with other options.
 - **A DTO class as a schema**: `MyDTO.Schema()` is its object schema, `MyDTO.required()` and `MyDTO.optional()` the same
   schema marked required or optional. A DTO class is accepted wherever a schema is expected (`@Accept`, `@Return`, the
   action decorators).
@@ -62,18 +61,30 @@ The schemas are built by the static methods of `DTO`: `DTO.String()`, `DTO.Numbe
 ## 2. Validating
 
 ```typescript
-//Validated when constructed: the defaults applied, the unknown key "note" removed;
-//an InvalidValueException is thrown when the data is invalid
-const customer: CustomerDTO = new CustomerDTO({name: 'Ada', email: 'ada@example.com', address: {city: 'London'}, note: 'vip'})
+import {DTO} from 'lakutata'
+import {Expect} from 'lakutata/decorator/dto'
+
+class CustomerDTO extends DTO {
+    @Expect(DTO.String().min(2).required())
+    public name: string
+
+    @Expect(DTO.Number().integer().min(0).default(0))
+    public credit: number
+}
+
+//Validated when constructed: defaults are applied and the unknown key "note" is removed;
+//invalid data throws an InvalidValueException
+const customer: CustomerDTO = new CustomerDTO({name: 'Ada', note: 'vip'})
 
 //A DTO instance validates each change of its properties: an invalid change throws and is undone
 customer.credit = 10
 
-//Validated without an instance: the validated value, or an InvalidValueException
-const data: CustomerDTO = CustomerDTO.validate({name: 'Ada', email: 'ada@example.com', address: {city: 'London'}})
-const later: CustomerDTO = await CustomerDTO.validateAsync({name: 'Ada', email: 'ada@example.com', address: {city: 'London'}})
+//Validated without creating an instance: returns the validated data (a plain object) or throws an InvalidValueException
+const received: any = JSON.parse('{"name": "Ada"}')
+const data: CustomerDTO = CustomerDTO.validate(received)
+const later: CustomerDTO = await CustomerDTO.validateAsync(received)
 
-//Checked without exception
+//Checked without throwing
 const valid: boolean = CustomerDTO.isValid({name: ''})
 
 //Any value against any schema
@@ -88,13 +99,13 @@ own by default) and the validation options.
 | Decorator | Applies to | Effect |
 |---|---|---|
 | `@Expect(schema)` | A property of a DTO | Declares the schema of the property |
-| `@IndexSignature(schema)` | A DTO class | Keeps the keys without `@Expect` schema, validated against the schema, instead of removing them |
+| `@IndexSignature(schema)` | A DTO class | Keeps the keys that have no `@Expect` schema, validating them against this schema, instead of removing them |
 | `@Accept(...schemas)` | A method | Validates the arguments of each call, by position; throws `InvalidMethodAcceptException` |
 | `@Return(schema)` | A method | Validates the result of each call (awaited for an async method); throws `InvalidMethodReturnException` |
 
-`@Accept` and `@Return` give the method (or its caller) the validated values: defaults applied, unknown keys removed.
-A DTO class validates an argument or a result against its schema, and the value given is a plain object, not an
-instance of the class. A missing argument is accepted unless its schema is required (`MyDTO.required()`).
+`@Accept` and `@Return` pass the validated values on to the method (or to its caller), with defaults applied and unknown
+keys removed. When a DTO class validates an argument or a result, the value passed on is a plain object, not an instance
+of the class. A missing argument is accepted unless its schema is required (`MyDTO.required()`).
 
 ```typescript
 import {Component, DTO} from 'lakutata'
@@ -145,12 +156,12 @@ class Bank extends Component {
 - **Object options**: `@Configurable(schema)` (from `lakutata/decorator/di`) validates an option of a component or a
   provider; see [Core](Core.md).
 - **Controller actions**: the DTO given to `@GET`, `@POST`, `@CLIAction`, `@ServiceAction`… validates the input of the
-  action; an invalid input is answered with the status 400. See [Controllers](Controllers.md).
-- **Pagination** (`lakutata/dtos`): `PaginationSearchDTO` and `PaginationResultDTO` are the input and the result of the
-  paginated actions, `paginator` computes the pages; `FlexibleDTO` is a DTO accepting any key.
-- **Validation messages**: the messages of the errors are translated; `registerValidationMessages`,
-  `runInValidationLanguage` and `currentValidationLanguage` (from `lakutata`) manage their languages, and the language
-  middleware of the I18n component sets the language of each request (see [I18n](I18n.md)).
+  action; invalid input gets a 400 response. See [Controllers](Controllers.md).
+- **Pagination** (`lakutata/dtos`): `PaginationSearchDTO` and `PaginationResultDTO` are the input and the result of
+  paginated actions, and `paginator` computes the pages; `FlexibleDTO` is a DTO that accepts any key.
+- **Validation messages**: error messages can be translated; `registerValidationMessages`, `runInValidationLanguage` and
+  `currentValidationLanguage` (from `lakutata`) manage their languages, and the language middleware of the I18n
+  component sets the language of each request (see [I18n](I18n.md)).
 
 ## 5. JSON Schema and OpenAPI
 
@@ -162,7 +173,16 @@ documents.
 
 ```typescript
 import {DTO} from 'lakutata'
+import {Expect} from 'lakutata/decorator/dto'
 import {toJsonSchema} from 'lakutata/dtos'
+
+class UserDTO extends DTO {
+    @Expect(DTO.Number().integer().required())
+    public id: number
+
+    @Expect(DTO.String().required())
+    public name: string
+}
 
 UserDTO.toJsonSchema()                  //JSON Schema 2020-12 (default)
 UserDTO.toJsonSchema('draft-07')        //'draft-2020-12' | 'draft-2019-09' | 'draft-07' | 'draft-04'
@@ -170,36 +190,45 @@ UserDTO.toOpenAPIJsonSchema()           //OpenAPI 3.1 (default), or '3.0'
 toJsonSchema(DTO.String().email(), {target: 'openapi-3.0'})   //any schema, or a DTO class
 ```
 
-- The JSON Schema describes the values the schema accepts without conversion, so ajv (with ajv-formats) and other
-  validators accept exactly these values; what JSON Schema cannot express (custom rules, references to other values,
-  conversions) is dropped, so the JSON Schema may accept more values, never fewer.
-- The unknown keys follow the validation options: with the defaults of lakutata (`allowUnknown`, `stripUnknown`) the
-  objects accept them; pass `preferences` to convert for other options.
-- The numeric types convert to integer bounds (`int8` to `uint64`) and float ranges; OpenAPI also names the formats
+- The JSON Schema describes the values the schema accepts without conversion, and ajv (with ajv-formats) and other
+  validators accept those values. What JSON Schema cannot express (custom rules, references to other values,
+  conversions) is left out, so the JSON Schema may also accept values the schema rejects, never the reverse.
+- Unknown keys follow the validation options: with the defaults of lakutata (`allowUnknown`, `stripUnknown`), objects
+  accept them; pass `preferences` to convert a schema for other options.
+- The numeric types become integer bounds (`int8` to `uint64`) and float ranges; in OpenAPI they also get the formats
   `int32`, `int64`, `float` and `double`.
 
 ### 5.2 Import
 
 ```typescript
-import {DTO} from 'lakutata'
+import {readFileSync} from 'node:fs'
+import {DTO, type JSONSchema} from 'lakutata'
 import {fromJsonSchema} from 'lakutata/dtos'
 
-const schema = fromJsonSchema({type: 'object', properties: {id: {type: 'integer'}}, required: ['id']})
+const userJsonSchema: JSONSchema = {
+    type: 'object',
+    properties: {id: {type: 'integer'}, name: {type: 'string'}},
+    required: ['id']
+}
+
+//A schema
+const schema = fromJsonSchema(userJsonSchema)
 DTO.validate({id: 1}, schema)
 
-//A DTO class, a subclass of the class it is created from
+//A DTO class, a subclass of the class on which fromJsonSchema() is called
 const UserDTO = DTO.fromJsonSchema(userJsonSchema)
 const user = new UserDTO({id: 1, name: 'Alice'})
 
 //The DTO classes of the object schemas of an OpenAPI document (components.schemas), by name
+const openApiDocument: Record<string, unknown> = JSON.parse(readFileSync('openapi.json', 'utf8'))
 const {Pet, Person} = DTO.fromOpenAPI(openApiDocument)
 ```
 
-- The imported schemas validate like JSON Schema: the values are not converted (`convert: true` converts them), the
-  unknown keys follow `additionalProperties`, the formats validate like ajv-formats, and the defaults are applied.
-- The references resolve by JSON pointer, `$anchor` and `$id` (pass other documents with `schemas`, an OpenAPI document
-  with `document`); recursive references are supported.
+- Imported schemas validate as JSON Schema does: values are not converted (unless `convert: true` is given), unknown
+  keys follow `additionalProperties`, formats are checked as ajv-formats checks them, and defaults are applied.
+- References are resolved by JSON pointer, `$anchor` and `$id` (pass other documents in `schemas`, and an OpenAPI
+  document in `document`); recursive references are supported.
 - The version is read from `$schema`, or given with `dialect` (default: 2020-12).
-- JSON Schema is lossy for the schemas of lakutata (custom rules, conversions): to store a schema and restore it
-  exactly, keep its `describe()` output (a JSON value unless it holds functions) and rebuild it with
+- Converting a lakutata schema to JSON Schema loses information (custom rules, conversions): to store a schema and
+  restore it exactly, keep its `describe()` output (a JSON value unless it contains functions) and rebuild it with
   `DTO.Build(description)`.
