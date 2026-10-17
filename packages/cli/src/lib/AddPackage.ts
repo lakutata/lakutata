@@ -3,6 +3,7 @@ import {mkdir, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {Workspace, type WorkspacePackage} from './workspace/Workspace.js'
 import {type PackageManager, projectPackageManager} from './Processes.js'
+import {isVersion} from './workspace/Version.js'
 
 /**
  * The versions of the dependencies of the native addons
@@ -116,17 +117,17 @@ function libraryFiles(name: string, version: string): Files {
  * Greet someone
  * @param name
  */
-export function Greet(name: string): string {
+export function greet(name: string): string {
     return \`Hello, \${name}\`
 }
 `,
         'src/tests/index.spec.ts': `import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Greet} from '../index.js'
+import {greet} from '../index.js'
 
 describe('${name}', (): void => {
     it('greets', (): void => {
-        assert.strictEqual(Greet('lakutata'), 'Hello, lakutata')
+        assert.strictEqual(greet('lakutata'), 'Hello, lakutata')
     })
 })
 `,
@@ -259,7 +260,8 @@ target_link_libraries(\${PROJECT_NAME} \${CMAKE_JS_LIB})
 #     target_link_libraries(\${PROJECT_NAME} foo)
 # - a dynamic library shipped with the addon (deps/lib), copied next to it and found there at run time:
 #     target_link_libraries(\${PROJECT_NAME} \${CMAKE_SOURCE_DIR}/deps/lib/libfoo.so)
-#     set_target_properties(\${PROJECT_NAME} PROPERTIES BUILD_RPATH "$<IF:$<PLATFORM_ID:Darwin>,@loader_path,$ORIGIN>")
+#     set_target_properties(\${PROJECT_NAME} PROPERTIES BUILD_WITH_INSTALL_RPATH ON INSTALL_RPATH @loader_path)
+#       (Linux: $ORIGIN; the rpath of the addon is then its directory only, not the one of the library on this machine)
 #     add_custom_command(TARGET \${PROJECT_NAME} POST_BUILD COMMAND \${CMAKE_COMMAND} -E copy \${CMAKE_SOURCE_DIR}/deps/lib/libfoo.so $<TARGET_FILE_DIR:\${PROJECT_NAME}>)
 #   (Windows: the DLL linked by its import library, deps/lib/foo.lib, and copied next to the addon, where Windows finds
 #   it; no rpath)
@@ -428,7 +430,8 @@ function nativeFiles(name: string, version: string, build: NativeBuild): Files {
         rust: {
             files: rustFiles(target, version),
             buildNative: 'napi build --release --output-dir build/Release',
-            install: 'napi build --release --output-dir build/Release',
+            //Its postbuild:native script copies the dynamic libraries lakutata native link gives next to the addon
+            install: 'npm run build:native',
             sources: ['rust', 'Cargo.toml', 'build.rs'],
             dependencies: {'node-gyp-build': NATIVE_VERSIONS['node-gyp-build'], '@napi-rs/cli': NATIVE_VERSIONS['@napi-rs/cli']},
             devDependencies: {},
@@ -482,21 +485,21 @@ const binding: Binding = createRequire(import.meta.url)('node-gyp-build')(path.r
  * Greet someone, in ${build === 'rust' ? 'Rust' : 'C++'}
  * @param name
  */
-export function Greet(name: string): string {
+export function greet(name: string): string {
     return binding.greet(name)
 }
 `,
         'src/tests/index.spec.ts': `import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Greet} from '../index.js'
+import {greet} from '../index.js'
 
 describe('${name}', (): void => {
     it('greets in ${build === 'rust' ? 'Rust' : 'C++'}', (): void => {
-        assert.strictEqual(Greet('lakutata'), 'Hello, lakutata (native)')
+        assert.strictEqual(greet('lakutata'), 'Hello, lakutata (native)')
     })
 
     it('throws the errors of the addon as JavaScript errors', (): void => {
-        assert.throws((): unknown => Greet(42 as unknown as string), ${build === 'rust' ? '/String/' : "{name: 'TypeError', message: 'The name must be a string'}"})
+        assert.throws((): unknown => greet(42 as unknown as string), ${build === 'rust' ? '/String/' : "{name: 'TypeError', message: 'The name must be a string'}"})
     })
 })
 `,
@@ -537,8 +540,9 @@ export async function addPackage(options: AddPackageOptions): Promise<AddPackage
     if (!packagesDirectory) throw new Error(`The workspace has no directory of packages (a pattern such as packages/* in its workspaces): ${workspace.patterns.join(', ')}`)
     const directory: string = path.join(packagesDirectory, options.name.replace(/^@[^/]+\//, ''))
     if (existsSync(directory)) throw new Error(`${path.relative(process.cwd(), directory) || directory} exists already`)
-    //The version of the workspace, as lakutata version and list give it
-    const version: string = workspace.version ?? '0.0.1'
+    //The version of the workspace, as lakutata version and list give it (0.0.1 without one, or with the independent
+    //versions of lerna)
+    const version: string = workspace.version !== undefined && isVersion(workspace.version) ? workspace.version : '0.0.1'
     const files: Files = options.native ? nativeFiles(options.name, version, options.native) : libraryFiles(options.name, version)
     for (const [file, content] of Object.entries(files)) {
         await mkdir(path.dirname(path.join(directory, file)), {recursive: true})

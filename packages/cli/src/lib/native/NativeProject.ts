@@ -128,6 +128,7 @@ function scopeOf(change: NativeChange, library?: LibraryFile): Scope {
         return 'mac'
     }
     if (library && change.platform && library.platform !== 'unix' && change.platform !== library.platform) throw new Error(`${library.file} is a library of ${library.platform}, not of ${change.platform}`)
+    if (change.pkgConfig && change.platform === 'win') throw new Error('pkg-config is not on Windows: link the library by its file (deps/lib/foo.lib) or by its name')
     if (change.platform) return change.platform
     if (library) return library.platform
     //pkg-config is not on Windows
@@ -297,7 +298,8 @@ async function changeCMake(directory: string, change: NativeChange, library: Lib
     } else if (library?.kind === 'dynamic') {
         commands([
             link(source(library.platform === 'win' ? importLibrary(directory, library) : library.file)),
-            ...(library.platform === 'win' ? [] : [['set_target_properties', name, 'PROPERTIES', 'BUILD_RPATH', library.platform === 'mac' ? '@loader_path' : '$ORIGIN']]),
+            //The rpath of the addon is its directory only, not the directories of the libraries on the machine building it
+            ...(library.platform === 'win' ? [] : [['set_target_properties', name, 'PROPERTIES', 'BUILD_WITH_INSTALL_RPATH', 'ON', 'INSTALL_RPATH', library.platform === 'mac' ? '@loader_path' : '$ORIGIN']]),
             //Copied next to the addon, found there at run time
             ['add_custom_command', 'TARGET', name, 'POST_BUILD', 'COMMAND', '${CMAKE_COMMAND}', '-E', 'copy_if_different', source(library.file), `$<TARGET_FILE_DIR:${name}>`]
         ])

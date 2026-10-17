@@ -147,6 +147,18 @@ fn system() -> String {
 ${source.replace('format!("Hello, {} (native)", name)', 'format!("Hello, {} ({}, {}, {}, {}{})", name, system(), unsafe { text(from_static()) }, unsafe { text(from_dynamic()) }, 43, framework())')}`
 }
 
+/**
+ * Whether pkg-config finds zlib (its zlib.pc)
+ */
+const PKG_CONFIG_ZLIB: boolean = has('pkg-config') && ((): boolean => {
+    try {
+        execFileSync('pkg-config', ['--exists', 'zlib'])
+        return true
+    } catch {
+        return false
+    }
+})()
+
 describe('lakutata native', (): void => {
     before((): void => {
         work = realpathSync(mkdtempSync(path.join(tmpdir(), 'lakutata-native-')))
@@ -166,7 +178,7 @@ describe('lakutata native', (): void => {
                 ['link', `deps/lib/${DYNAMIC}`],
                 ...(MAC ? [['link', 'CoreFoundation', '--framework']] : []),
                 ...(build === 'rust' ? [] : [
-                    ...(has('pkg-config') ? [['link', 'zlib', '--pkg-config']] : []),
+                    ...(PKG_CONFIG_ZLIB ? [['link', 'zlib', '--pkg-config']] : []),
                     ['include', 'deps/include'],
                     ['define', 'TRACE_LEVEL=3']
                 ])
@@ -212,7 +224,15 @@ describe('lakutata native', (): void => {
                 const linked: string = execFileSync('otool', ['-L', path.join(release, 'addon.node')], {encoding: 'utf8'})
                 for (const library of ['CoreFoundation.framework', 'libz', `@rpath/${DYNAMIC}`]) assert.match(linked, new RegExp(library.replace(/\./g, '\\.')), linked)
                 if (build !== 'rust') assert.deepStrictEqual(execFileSync('lipo', ['-archs', path.join(release, 'addon.node')], {encoding: 'utf8'}).trim().split(' ').sort(), ['arm64', 'x86_64'])
+                //Its rpath is its directory only, not the directories of the machine building it
+                const commands: string = execFileSync('otool', ['-l', path.join(release, 'addon.node')], {encoding: 'utf8'})
+                assert.deepStrictEqual([...new Set([...commands.matchAll(/cmd LC_RPATH\n\s+cmdsize \d+\n\s+path (\S+)/g)].map((matched: RegExpExecArray): string => matched[1]))], ['@loader_path'])
             }
+            //Built again when the package is installed, its dynamic library copied next to it
+            rmSync(path.join(directory, 'build'), {recursive: true})
+            const installed = await runIn('npm', ['run', 'install'], directory)
+            assert.strictEqual(installed.code, 0, installed.output)
+            assert.ok(existsSync(path.join(release, DYNAMIC)), installed.output)
             //Moved away from the libraries of the package: the dynamic one is found next to the addon
             const moved: string = path.join(work, `moved-${build}`)
             cpSync(release, moved, {recursive: true})
@@ -236,6 +256,9 @@ describe('lakutata native', (): void => {
         const framework = await runIn(process.execPath, [CLI, 'native', 'link', 'IOKit', '--framework', '--platform', 'linux'], directory)
         assert.notStrictEqual(framework.code, 0)
         assert.match(framework.output, /The frameworks are the libraries of macOS/)
+        const pkgConfig = await runIn(process.execPath, [CLI, 'native', 'link', 'pcap', '--pkg-config', '--platform', 'win'], directory)
+        assert.notStrictEqual(pkgConfig.code, 0)
+        assert.match(pkgConfig.output, /pkg-config is not on Windows/)
         const crate = await runIn(process.execPath, [CLI, 'native', 'link', 'libc', '--crate'], directory)
         assert.notStrictEqual(crate.code, 0)
         assert.match(crate.output, /The crates are the libraries of the Rust addons/)
