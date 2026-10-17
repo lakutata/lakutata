@@ -292,6 +292,10 @@ export async function buildInstaller(options: InstallerOptions): Promise<Install
     if (!/^[A-Za-z0-9][A-Za-z0-9.-]*$/.test(appId)) throw new Error(`The identifier of the application "${appId}" must be letters, digits, "." and "-" (lakutata.installer.appId)`)
     const service: ServiceOptions | undefined = config.service === true ? {} : config.service || undefined
     if (service?.name !== undefined && !/^[A-Za-z0-9_.@-]+$/.test(service.name)) throw new Error(`The name of the service "${service.name}" must be letters, digits, "_", ".", "@" and "-"`)
+    //A user of the system (Linux, macOS), an account of Windows (DOMAIN\user, NT SERVICE\name, a managed account ending in $)
+    if (service?.user !== undefined && !(windows ? /^[A-Za-z0-9_][A-Za-z0-9_. @-]*(\\[A-Za-z0-9_][A-Za-z0-9_. @-]*)?\$?$/ : /^[A-Za-z_][A-Za-z0-9_.-]*$/).test(service.user)) {
+        throw new Error(`The user of the service "${service.user}" must be ${windows ? 'an account of Windows (LocalService, NetworkService, LocalSystem, DOMAIN\\user)' : 'a name of user: letters, digits, "_", "." and "-"'} (lakutata.installer.service.user)`)
+    }
     const platform: 'linux' | 'mac' | 'win' = mac ? 'mac' : windows ? 'win' : 'linux'
     const scripts: Record<string, TargetScripts> = resolveScripts(project, platform, config[platform] as PlatformScripts | undefined, targets, warnings)
     const application = applicationIcon(project, manifest)

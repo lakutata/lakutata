@@ -58,6 +58,11 @@ export type PlatformScripts = {
 }
 
 /**
+ * The options of a platform which are not the ones of an installer
+ */
+const PLATFORM_OPTIONS: string[] = ['targets', 'scripts', 'depends', 'recommends', 'section', 'priority']
+
+/**
  * The installers which run no script (archives, copied by their users)
  */
 const ARCHIVES: string[] = ['tar.gz', 'zip']
@@ -107,7 +112,7 @@ function installerHooks(project: string, scripts: unknown, where: string, window
  * The scripts of the installers made on a platform: the ones of the platform (lakutata.installer.<platform>.scripts),
  * replaced by the ones of each installer (lakutata.installer.<platform>.<installer>.scripts), the native ones of the
  * packages of Linux (nativeScripts), the file of NSIS included by its installer (win.nsis.include). The ones an
- * installer does not run are told (warnings)
+ * installer does not run are told (warnings); the options of the installers not made are checked too
  * @param project
  * @param platform its name in the configuration: linux, mac or win
  * @param config its configuration
@@ -122,13 +127,14 @@ export function resolveScripts(project: string, platform: 'linux' | 'mac' | 'win
     const common: Partial<Record<InstallerHook, ScriptFile>> = installerHooks(project, config?.scripts, `${where}.scripts`, windows)
     const resolved: Record<string, TargetScripts> = {}
     const unrun: string[] = []
-    for (const target of targets) {
+    const configured: string[] = Object.keys(config ?? {}).filter((key: string): boolean => !PLATFORM_OPTIONS.includes(key) && !targets.includes(key))
+    for (const target of [...targets, ...configured]) {
         const options: unknown = config?.[target]
         if (options !== undefined && (!options || typeof options !== 'object' || Array.isArray(options))) throw new Error(`${where}.${target} must be an object`)
         const own = (options ?? {}) as { scripts?: unknown, nativeScripts?: unknown, include?: unknown }
         const scripts: TargetScripts = {hooks: {...common, ...installerHooks(project, own.scripts, `${where}.${target}.scripts`, windows)}, native: {}}
         if (own.nativeScripts !== undefined) {
-            if (!native || platform !== 'linux' || ARCHIVES.includes(target)) throw new Error(`${where}.${target}.nativeScripts: the native scripts are the ones of the packages of Linux lakutata makes (deb, rpm, apk, archlinux), not the ones of Electron`)
+            if (!native || platform !== 'linux' || ARCHIVES.includes(target)) throw new Error(`${where}.${target}.nativeScripts: the native scripts are the ones of the packages of Linux lakutata makes (deb, rpm, apk, archlinux)${native ? '' : ', not the ones of Electron'}`)
             if (!own.nativeScripts || typeof own.nativeScripts !== 'object' || Array.isArray(own.nativeScripts)) throw new Error(`${where}.${target}.nativeScripts must be {"<script>": "<file>"}`)
             //The upgrades of deb and rpm run their scripts of the installation and of the removal
             const names: readonly string[] = target === 'apk' || target === 'archlinux' ? NATIVE_HOOKS : INSTALLER_HOOKS
@@ -142,6 +148,8 @@ export function resolveScripts(project: string, platform: 'linux' | 'mac' | 'win
             if (typeof own.include === 'string' && !/\.nsh$/i.test(own.include)) throw new Error(`${where}.nsis.include (${own.include}) must be a file of NSIS (.nsh)`)
             scripts.include = read(project, own.include, `${where}.nsis.include`)
         }
+        //Checked only: not made
+        if (!targets.includes(target)) continue
         //The ones the installer does not run
         const run: readonly InstallerHook[] = hooks(target)
         const skipped: InstallerHook[] = INSTALLER_HOOKS.filter((hook: InstallerHook): boolean => !!scripts.hooks[hook] && !run.includes(hook))

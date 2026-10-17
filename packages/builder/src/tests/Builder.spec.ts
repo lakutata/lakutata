@@ -76,13 +76,36 @@ console.log(require('./words.js') + ' ' + require('node:fs').readFileSync(requir
         assert.deepStrictEqual(job.ProgramArguments.slice(3), ['/usr/local/lib/reader/read', '--serve'])
         assert.strictEqual(job.UserName, '_reader')
         assert.deepStrictEqual(job.KeepAlive, {SuccessfulExit: false})
+        assert.strictEqual(job.RunAtLoad, true)
         assert.strictEqual(job.WorkingDirectory, '/usr/local/var/lib/reader')
+        //Installed on the Macs of the architecture of the program only
+        assert.match(readFileSync(path.join(expanded, 'Distribution'), 'utf8'), new RegExp(`hostArchitectures="${arch === 'arm64' ? 'arm64' : 'x86_64'}"`))
+        //Enabled and started by the installation
+        assert.match(readFileSync(path.join(component, 'Scripts', 'postinstall'), 'utf8'), /\nlaunchctl enable system\/com\.acme\.reader\nlaunchctl bootout system\/com\.acme\.reader/)
         //Its scripts are sh, its program runs from the payload
         execFileSync('sh', ['-n', path.join(component, 'Scripts', 'postinstall')])
         execFileSync('sh', ['-n', path.join(payload, 'usr', 'local', 'lib', 'reader', 'uninstall')])
         assert.match(readFileSync(path.join(component, 'Scripts', 'postinstall'), 'utf8'), /PORT="18080"/)
         assert.ok(lstatSync(path.join(payload, 'usr', 'local', 'lib', 'reader', 'read')).mode & 0o111)
         assert.strictEqual(execFileSync(path.join(payload, 'usr', 'local', 'lib', 'reader', 'read'), [], {cwd: tmpdir(), env: {PATH: ''}}).toString().trim(), 'read Hello')
+    })
+
+    it('disables at its installation a service of macOS which does not start with the system, restarted by its upgrades when it runs', {skip: process.platform !== 'darwin' && 'made on macOS'}, async (): Promise<void> => {
+        write('package.json', JSON.stringify({
+            name: 'reader', version: '1.2.3', main: 'build/index.js',
+            lakutata: {installer: {mac: {targets: ['pkg']}, service: {autoStart: false}}}
+        }))
+        const result = await buildInstaller({project: project})
+        const expanded: string = path.join(project, 'expanded-manual')
+        rmSync(expanded, {recursive: true, force: true})
+        execFileSync('pkgutil', ['--expand-full', result.files[0].file, expanded])
+        const component: string = path.join(expanded, readdirSync(expanded).find((name: string): boolean => name.endsWith('.pkg'))!)
+        const postinstall: string = readFileSync(path.join(component, 'Scripts', 'postinstall'), 'utf8')
+        execFileSync('sh', ['-n', path.join(component, 'Scripts', 'postinstall')])
+        //What the installation does comes from the preinstall script
+        assert.match(readFileSync(path.join(component, 'Scripts', 'preinstall'), 'utf8'), /lakutata_action=upgrade; else lakutata_action=install/)
+        assert.match(postinstall, /\nif launchctl print system\/reader >\/dev\/null 2>&1; then\n {4}launchctl bootout system\/reader[\s\S]*\n {4}launchctl bootstrap system \/Library\/LaunchDaemons\/reader\.plist\nelif \[ "\$lakutata_action" = install \]; then\n {4}launchctl disable system\/reader\nfi\n/)
+        assert.doesNotMatch(postinstall, /launchctl enable/)
     })
 
     it('checks the scripts of the installers: their moments, their files, the installers running them', async (): Promise<void> => {
@@ -96,6 +119,17 @@ console.log(require('./words.js') + ' ' + require('node:fs').readFileSync(requir
             installer({[platform === 'mac' ? 'pkg' : 'msi']: {nativeScripts: {postinstall: 'scripts/missing.sh'}}})
             await assert.rejects(buildInstaller({project: project, targets: [platform === 'mac' ? 'pkg' : 'msi']}), /the native scripts are the ones of the packages of Linux/)
         }
+        //The options of the installers which are not made are checked too
+        const other: string = {mac: 'pkg', win: 'msi', linux: 'rpm'}[platform]!
+        installer({[other]: {scripts: {postinstall: `scripts/missing.${platform === 'win' ? 'ps1' : 'sh'}`}}})
+        await assert.rejects(buildInstaller({project: project, targets: [platform === 'win' ? 'zip' : 'tar.gz']}), new RegExp(`lakutata\\.installer\\.${platform}\\.${other}\\.scripts\\.postinstall \\(scripts/missing\\.(sh|ps1)\\) does not exist`))
+        if (platform !== 'linux') {
+            installer({[other]: {nativeScripts: {postinstall: 'scripts/missing.sh'}}})
+            await assert.rejects(buildInstaller({project: project, targets: [platform === 'win' ? 'zip' : 'tar.gz']}), (error: Error): boolean => /the native scripts are the ones of the packages of Linux lakutata makes \(deb, rpm, apk, archlinux\)$/.test(error.message))
+        }
+        //The user of the service is a name of user (or an account of Windows)
+        write('package.json', JSON.stringify({name: 'reader', version: '1.0.0', main: 'build/index.js', lakutata: {installer: {service: {user: 'nobody; rm -rf /'}}}}))
+        await assert.rejects(buildInstaller({project: project}), /The user of the service "nobody; rm -rf \/" must be/)
         if (platform === 'win') {
             write('scripts/postinstall.sh', 'true')
             installer({scripts: {postinstall: 'scripts/postinstall.sh'}})

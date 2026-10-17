@@ -1,4 +1,4 @@
-import {chmod, cp, mkdir, rm, stat, symlink, writeFile} from 'node:fs/promises'
+import {chmod, cp, mkdir, readFile, rm, stat, symlink, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {archiveDirectory} from '../Archive.js'
 import {runCommand} from '../Processes.js'
@@ -77,7 +77,7 @@ ${service.user === 'root' ? '' : `    <key>UserName</key>
 `}    <key>WorkingDirectory</key>
     <string>${xml(paths.data)}</string>
     <key>RunAtLoad</key>
-    ${service.autoStart ? '<true/>' : '<false/>'}
+    <true/>
     <key>KeepAlive</key>
     ${keepAlive}
     <key>ThrottleInterval</key>
@@ -108,8 +108,8 @@ function installerHooks(plan: InstallerPlan): Partial<Record<InstallerHook, Scri
 const ACTION_FILE: string = '"$INSTALLER_TEMP/lakutata-action"'
 
 /**
- * The script run before the installation (and the upgrades), when the application has scripts: what the installation
- * does (an upgrade replaces the program installed), the preinstall script of the application
+ * The script run before the installation (and the upgrades), when the application has scripts or a service: what the
+ * installation does (an upgrade replaces the program installed), the preinstall script of the application
  * @param plan
  */
 function preInstall(plan: InstallerPlan): string {
@@ -137,11 +137,9 @@ function postInstall(plan: InstallerPlan): string {
         '#!/bin/sh',
         'set -e',
         ...service ? serviceInstallation(plan, service) : [],
-        ...hooks.postinstall ? [
-            `lakutata_action="$(cat ${ACTION_FILE} 2>/dev/null || echo install)"`,
-            ...embeddedShell(hooks.postinstall, plan.prefix, '"$lakutata_action"')
-        ] : [],
-        ...service ? serviceStart(plan) : [],
+        `lakutata_action="$(cat ${ACTION_FILE} 2>/dev/null || echo install)"`,
+        ...hooks.postinstall ? embeddedShell(hooks.postinstall, plan.prefix, '"$lakutata_action"') : [],
+        ...service ? serviceStart(plan, service) : [],
         ''
     ].join('\n')
 }
@@ -192,18 +190,30 @@ function serviceInstallation(plan: InstallerPlan, service: Service): string[] {
 }
 
 /**
- * The service loaded again: started (RunAtLoad), or stopped by the upgrade
+ * The service started: enabled, loaded again (started by RunAtLoad, the one of the version replaced stopped first). A
+ * service which does not start with the system (autoStart false) is disabled by its installation (launchd would load
+ * it when the system starts, and run it), and restarted by the upgrades when it runs, as systemd does
  * @param plan
+ * @param service
  */
-function serviceStart(plan: InstallerPlan): string[] {
+function serviceStart(plan: InstallerPlan, service: Service): string[] {
     const paths = installPaths(plan)
-    return [
-        //Loaded again: started (RunAtLoad), or stopped by the upgrade; bootout returns before the job of the version
-        //replaced is unloaded (the application ending gracefully, ExitTimeOut): bootstrap fails until it is
+    const load: string[] = [
+        //bootout returns before the job of the version replaced is unloaded (the application ending gracefully,
+        //ExitTimeOut): bootstrap fails until it is
         `launchctl bootout system/${plan.appId} 2>/dev/null || true`,
         'waited=0',
         `while launchctl print system/${plan.appId} >/dev/null 2>&1 && [ "$waited" -lt 70 ]; do sleep 0.5; waited=$((waited + 1)); done`,
         `launchctl bootstrap system ${paths.daemon}`
+    ]
+    if (service.autoStart) return [`launchctl enable system/${plan.appId}`, ...load]
+    return [
+        `if launchctl print system/${plan.appId} >/dev/null 2>&1; then`,
+        ...load.map((line: string): string => `    ${line}`),
+        'elif [ "$lakutata_action" = install ]; then',
+        //Started by its administrator: sudo launchctl enable system/<appId>, then sudo launchctl bootstrap system <plist>
+        `    launchctl disable system/${plan.appId}`,
+        'fi'
     ]
 }
 
@@ -266,7 +276,7 @@ export async function buildMacPackages(plan: InstallerPlan, targets: MacTarget[]
             await writeFile(path.join(root, 'Library', 'LaunchDaemons', `${plan.appId}.plist`), launchDaemon(plan, plan.service), {mode: 0o644})
         }
         const hooks = installerHooks(plan)
-        if (hooks.preinstall || hooks.postinstall) {
+        if (hooks.preinstall || hooks.postinstall || plan.service) {
             await writeFile(path.join(scripts, 'preinstall'), preInstall(plan))
             await chmod(path.join(scripts, 'preinstall'), 0o755)
         }
@@ -279,7 +289,14 @@ export async function buildMacPackages(plan: InstallerPlan, targets: MacTarget[]
         if (built.code !== 0) throw new Error(`The pkg package cannot be made: ${built.output.trim()}`)
         const file: string = path.join(outdir, `${plan.name}-${plan.version}-${packageArch()}.pkg`)
         await rm(file, {force: true})
-        const product = await runCommand('productbuild', ['--identifier', plan.appId, '--version', plan.version, '--package', component, file], work)
+        //Installed on the Macs of the architecture of the program only (productbuild gives both)
+        const distribution: string = path.join(work, 'distribution.xml')
+        const synthesized = await runCommand('productbuild', ['--synthesize', '--package', component, distribution], work)
+        if (synthesized.code !== 0) throw new Error(`The pkg package cannot be made: ${synthesized.output.trim()}`)
+        const architectures: string = `hostArchitectures="${packageArch() === 'arm64' ? 'arm64' : 'x86_64'}"`
+        const options: string = await readFile(distribution, 'utf8')
+        await writeFile(distribution, /hostArchitectures="[^"]*"/.test(options) ? options.replace(/hostArchitectures="[^"]*"/, architectures) : options.replace('<options ', `<options ${architectures} `))
+        const product = await runCommand('productbuild', ['--distribution', distribution, '--package-path', work, '--identifier', plan.appId, '--version', plan.version, file], work)
         if (product.code !== 0) throw new Error(`The pkg package cannot be made: ${product.output.trim()}`)
         files.push({target: target, file: file, size: (await stat(file)).size})
     }
