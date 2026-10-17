@@ -104,7 +104,7 @@ outputs of the interfaces.
 | Feature | Templates | What it adds |
 |---|---|---|
 | `i18n` | all | The messages of the languages in `src/locales` (`en`, `zh-CN`), the `i18n` component, the language middleware, and the scripts `i18n:check` and `i18n:types` ([I18n](I18n.md)) |
-| `installer` | `cli`, `service`, `web-*` | The `lakutata.installer` of the application, the scripts that make the installers (on the machine, and for Linux in Docker), and for the services a system service ([Packaging](Packaging.md)) |
+| `installer` | `cli`, `service`, `web-*` | The `lakutata.installer` of the application, the scripts that make the installers (on the machine, and for Linux in Docker), and for the services a system service ([Installers](Installers.md)) |
 
 The Electron templates make installers without this feature.
 

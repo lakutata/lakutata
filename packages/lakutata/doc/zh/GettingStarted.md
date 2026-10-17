@@ -144,4 +144,4 @@ curl 'http://localhost:8080/greet?name=you'
 - [ProjectStructure](ProjectStructure.md)：项目中的文件和脚本。
 - [Application](Application.md)、[Objects](Objects.md) 和 [Injection](Injection.md)：怎样声明应用，以及应用中的对象如何创建、如何获取彼此。
 - [Controllers](Controllers.md) 和 [HTTP](HTTP.md)：动作、它们的输入和响应。
-- [Command](Command.md) 和 [Packaging](Packaging.md)：`lakutata` 命令和打包后的应用。
+- [Command](Command.md)、[Workspaces](Workspaces.md)、[NativeAddons](NativeAddons.md)、[Packaging](Packaging.md) 和 [Installers](Installers.md)：`lakutata` 命令、项目中的各个包，以及打包后的应用。

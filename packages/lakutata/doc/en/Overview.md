@@ -87,8 +87,11 @@ Context Protocol).
 | [Security](Security.md) | Hashing, ciphers, signatures, passwords |
 | [DBus](DBus.md) | A D-Bus service and client (`@lakutata/dbus`): methods, objects, properties, signals |
 | [MCP](MCP.md) | The tools, resources and prompts of the Model Context Protocol (`@lakutata/mcp`), over stdio and HTTP |
-| [Command](Command.md) | The `lakutata` command: creating projects, workspaces, migrations, translations, environment variables |
-| [Packaging](Packaging.md) | Bundles, executables and installers, and what a packed application reads at run time |
+| [Command](Command.md) | The `lakutata` command: creating projects, migrations, translations, environment variables |
+| [Workspaces](Workspaces.md) | Projects of several packages: running their scripts, giving them a version, adding packages |
+| [NativeAddons](NativeAddons.md) | Native addons in C++ or Rust: creating them, linking libraries, shipping them |
+| [Packaging](Packaging.md) | Bundles and executables, and what a packed application reads at run time |
+| [Installers](Installers.md) | The installers of each platform, services, installer scripts, signing |
 
 Each `@lakutata/*` package has its own README, and the type declarations of every subpath document each export with an
 example.

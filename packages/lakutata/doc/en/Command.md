@@ -1,8 +1,9 @@
 # Lakutata Command Line Tool
 
 The **`lakutata` command** (package `@lakutata/cli`) creates projects from templates, runs scripts across the packages
-of a workspace and gives them versions, runs the migrations of an application, checks its translations, and packs it
-into bundles, executables and installers. The README of `@lakutata/cli` lists every option.
+of a workspace and gives them versions, adds packages and native addons, runs the migrations of an application, checks
+its translations, and packs it into bundles, executables and installers. The README of `@lakutata/cli` lists every
+option.
 
 ## 1. Installing and running it
 
@@ -71,58 +72,14 @@ dependencies).
   the `outDir` of its `tsconfig.json`. It refuses paths outside the package, and `src`, `node_modules`, `package.json`
   and `.git`. The templates call it from their `build` or `rebuild` scripts.
 
-## 3. Workspaces
+## 3. Workspaces and native addons
 
-A workspace is a repository holding several packages: the `workspaces` field of its root `package.json` (or a
-`pnpm-workspace.yaml`) lists their directories. Every template but `default` makes a workspace (`packages/app`, plus
-`packages/ui` for a web interface). These commands work from any directory of the workspace.
+`lakutata list`, `run`, `version` and `add` work on a workspace, a repository of several packages: they list its
+packages, run a script in each of them in the order of their dependencies, give them one version, and add packages. See
+[Workspaces](Workspaces.md).
 
-`lakutata list` shows the packages, their versions and directories, and the packages of the workspace each one depends
-on.
-
-### `lakutata run`
-
-`lakutata run <script>` runs an npm script in every package that has it, in the order of their dependencies: a package
-starts once the packages it depends on have finished, and packages that do not depend on each other run at the same
-time. Each line of output starts with the name of its package.
-
-| Option | Meaning |
-|---|---|
-| `--scope <names...>` | Only these packages (`*` matches any characters); the packages they depend on are not added |
-| `--parallel` | All the packages at once, without waiting for their dependencies: for scripts that keep running, such as dev servers and watchers |
-| `--concurrency <n>` | How many packages run at a time (the number of processors by default) |
-| `--no-bail` | Go on after a failure (the packages that depend on the failed one are skipped) |
-
-The scripts run with the package manager of the project (the `packageManager` field of its root `package.json`, else its
-lock file: pnpm, yarn or npm) and take no extra arguments. The command fails (exit code 1) when a script fails, and
-succeeds with a note when no package has the script.
-
-### `lakutata version`
-
-`lakutata version <bump>` gives every package of the workspace its next version, and updates the dependencies between
-them:
-
-```bash
-lakutata version patch                     # 1.2.3 → 1.2.4, after a confirmation in a terminal
-lakutata version minor --git --yes         # also commits the change and tags it v1.3.0
-lakutata version prerelease --preid beta   # 1.3.0 → 1.3.1-beta.0, then 1.3.1-beta.1
-lakutata version 2.0.0
-```
-
-All the packages share one version: the `version` of `lerna.json` when that file exists, else the one of the root
-`package.json`, else the highest version of the packages. The command writes the new version back there and into every
-package, keeps ranges such as `workspace:*` and the operators of the others, and updates `package-lock.json` or
-`pnpm-lock.yaml` (run `yarn install` for a `yarn.lock`). It pushes nothing. A workspace managed by lerna keeps its
-`lerna.json`: lakutata reads and writes its `version` only.
-
-### `lakutata add` and `native`
-
-`lakutata add <name>` creates a TypeScript package (`--native gyp|cmake|rust` for a native addon) in the directory of
-the packages of the workspace (`packages/<name>`, or `apps/<name>` when its pattern is `apps/*`), with the version of
-the workspace; `--to <package>` adds it to the dependencies of another package. The command installs nothing: run the
-install of your package manager afterwards, as its output says. `lakutata native <link|include|define> <value>` changes
-the build file of the native addon in the current directory (it links a library, adds a directory of headers, or defines
-a macro); its help describes the options.
+`lakutata add <name> --native gyp|cmake|rust` adds a native addon written in C++ or Rust, and
+`lakutata native <link|include|define> <value>` links libraries to it. See [NativeAddons](NativeAddons.md).
 
 ## 4. Migrations and translations
 
@@ -135,8 +92,9 @@ adds a language. See [I18n](I18n.md#command-line-tools).
 
 ## 5. Packaging
 
-`lakutata package bundle`, `package exe` and `package installer` pack a compiled application into one JavaScript file,
-into an executable that runs without Node.js, or into installers. See [Packaging](Packaging.md).
+`lakutata package bundle` and `package exe` pack a compiled application into one JavaScript file, or into an executable
+that runs without Node.js: see [Packaging](Packaging.md). `lakutata package installer` makes its installers, which can
+register it as a service: see [Installers](Installers.md).
 
 ## 6. Environment variables
 
@@ -149,4 +107,4 @@ into an executable that runs without Node.js, or into installers. See [Packaging
 | `NO_COLOR` | Turns the colors off |
 
 The scripts and the applications the tool runs get the environment the tool was started with. The variables of the
-packed applications are described in [Packaging](Packaging.md).
+packed applications are described in [Packaging](Packaging.md), section 6.

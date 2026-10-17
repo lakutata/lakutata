@@ -76,7 +76,10 @@
 | [Security](Security.md) | 哈希、加解密、签名、密码 |
 | [DBus](DBus.md) | D-Bus 服务和客户端（`@lakutata/dbus`）：方法、对象、属性、信号 |
 | [MCP](MCP.md) | 模型上下文协议（`@lakutata/mcp`）的工具、资源和提示词，基于 stdio 和 HTTP |
-| [Command](Command.md) | `lakutata` 命令：创建项目、工作区、迁移、翻译、环境变量 |
-| [Packaging](Packaging.md) | 单文件包、可执行文件和安装包，以及打包后的应用在运行时读取什么 |
+| [Command](Command.md) | `lakutata` 命令：创建项目、迁移、翻译、环境变量 |
+| [Workspaces](Workspaces.md) | 由多个包组成的项目：运行各个包的脚本、统一版本号、添加包 |
+| [NativeAddons](NativeAddons.md) | 用 C++ 或 Rust 编写的原生插件：创建、链接库、发布 |
+| [Packaging](Packaging.md) | 单文件包和可执行文件，以及打包后的应用在运行时读取什么 |
+| [Installers](Installers.md) | 各平台的安装包、服务、安装脚本、签名 |
 
 每个 `@lakutata/*` 包都有自己的 README，各子路径的类型声明也为每个声明附带了说明和示例。

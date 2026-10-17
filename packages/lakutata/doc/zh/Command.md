@@ -1,6 +1,6 @@
 # Lakutata 命令行工具
 
-**`lakutata` 命令**（`@lakutata/cli` 包）用模板创建项目，在工作区的各个包中运行脚本并统一版本号，执行应用的数据库迁移，检查应用的翻译，并把应用打包成单个文件、可执行文件和安装包。全部选项见 `@lakutata/cli` 的 README。
+**`lakutata` 命令**（`@lakutata/cli` 包）用模板创建项目，在工作区的各个包中运行脚本并统一版本号，添加包和原生插件，执行应用的数据库迁移，检查应用的翻译，并把应用打包成单个文件、可执行文件和安装包。全部选项见 `@lakutata/cli` 的 README。
 
 ## 1. 安装与运行
 
@@ -49,41 +49,11 @@ lakutata create --name tool --template cli --package-manager none --no-git
 - `lakutata info` 显示工具、框架（能访问仓库时还显示最新版本）和 Node.js 的版本，以及当前目录的项目所用的框架版本。
 - `lakutata clean [paths...]` 在任何平台上删除当前目录所在包中的路径；不给路径时，删除其 `tsconfig.json` 的 `outDir`。它拒绝删除包以外的路径，以及 `src`、`node_modules`、`package.json` 和 `.git`。模板在 `build` 或 `rebuild` 脚本中调用它。
 
-## 3. 工作区
+## 3. 工作区与原生插件
 
-工作区是一个包含多个包的仓库：根目录 `package.json` 的 `workspaces` 字段（或 `pnpm-workspace.yaml`）列出各个包的目录。除 `default` 以外的模板创建的都是工作区（`packages/app`，有 Web 界面时还有 `packages/ui`）。以下命令可以在工作区的任意目录中运行。
+`lakutata list`、`run`、`version` 和 `add` 作用于工作区，即包含多个包的仓库：它们列出工作区的包，按依赖顺序在每个包中运行脚本，给所有包统一版本号，并添加新的包。见 [Workspaces](Workspaces.md)。
 
-`lakutata list` 显示各个包、它们的版本和目录，以及每个包依赖的工作区内的包。
-
-### `lakutata run`
-
-`lakutata run <script>` 在每个有该 npm 脚本的包中运行它，并按依赖顺序执行：一个包要等它依赖的包都执行完才开始，互不依赖的包同时执行。每行输出都以所属包的名称开头。
-
-| 选项 | 含义 |
-|---|---|
-| `--scope <names...>` | 只运行这些包（`*` 匹配任意字符）；不会自动加入它们依赖的包 |
-| `--parallel` | 所有包同时运行，不等待依赖：用于一直运行的脚本，例如开发服务器和监视进程 |
-| `--concurrency <n>` | 同时运行的包数（默认为处理器数量） |
-| `--no-bail` | 失败后继续运行（依赖失败包的那些包会被跳过） |
-
-脚本通过项目所用的包管理器运行（根目录 `package.json` 的 `packageManager` 字段，没有时看锁文件：pnpm、yarn 或 npm），并且不能传入额外的参数。有脚本失败时，命令失败（退出码 1）；没有任何包有这个脚本时，命令给出提示并正常结束。
-
-### `lakutata version`
-
-`lakutata version <bump>` 给工作区的所有包设置下一个版本，并更新它们之间的依赖：
-
-```bash
-lakutata version patch                     # 1.2.3 → 1.2.4，在终端里会先请求确认
-lakutata version minor --git --yes         # 同时提交修改，并打上标签 v1.3.0
-lakutata version prerelease --preid beta   # 1.3.0 → 1.3.1-beta.0，再执行一次是 1.3.1-beta.1
-lakutata version 2.0.0
-```
-
-所有包共用一个版本：有 `lerna.json` 时取其 `version`，否则取根目录 `package.json` 的版本，再否则取各包中最高的版本。命令把新版本写回原处和每个包，保留 `workspace:*` 这类范围以及其他范围的运算符，并更新 `package-lock.json` 或 `pnpm-lock.yaml`（`yarn.lock` 需要自己运行 `yarn install` 更新）。它不推送任何内容。用 lerna 管理的工作区可以保留 `lerna.json`：lakutata 只读写其中的 `version`。
-
-### `lakutata add` 和 `native`
-
-`lakutata add <name>` 在工作区的包目录中创建一个 TypeScript 包（加上 `--native gyp|cmake|rust` 则创建原生插件），例如 `packages/<name>`，工作区的模式是 `apps/*` 时则是 `apps/<name>`；它的版本就是工作区的版本，`--to <package>` 把它加入另一个包的依赖。命令不安装任何东西：之后请按它的提示，用你的包管理器安装依赖。`lakutata native <link|include|define> <value>` 修改当前目录中原生插件的构建文件（链接一个库、添加头文件目录或定义宏），选项见它的帮助。
+`lakutata add <name> --native gyp|cmake|rust` 添加一个用 C++ 或 Rust 编写的原生插件，`lakutata native <link|include|define> <value>` 给它链接库。见 [NativeAddons](NativeAddons.md)。
 
 ## 4. 迁移与翻译
 
@@ -93,7 +63,7 @@ lakutata version 2.0.0
 
 ## 5. 打包
 
-`lakutata package bundle`、`package exe` 和 `package installer` 把编译好的应用打包成单个 JavaScript 文件、不需要安装 Node.js 就能运行的可执行文件，或者安装包。见 [Packaging](Packaging.md)。
+`lakutata package bundle` 和 `package exe` 把编译好的应用打包成单个 JavaScript 文件，或者不需要安装 Node.js 就能运行的可执行文件，见 [Packaging](Packaging.md)。`lakutata package installer` 制作应用的安装包，安装包还可以把应用注册为服务，见 [Installers](Installers.md)。
 
 ## 6. 环境变量
 
@@ -105,4 +75,4 @@ lakutata version 2.0.0
 | `LAKUTATA_CACHE_DIR` | 工具的缓存目录：模板，以及制作安装包所用的工具（默认 `$XDG_CACHE_HOME/lakutata`，否则 `~/.cache/lakutata`） |
 | `NO_COLOR` | 关闭颜色 |
 
-工具运行的脚本和应用，拿到的是工具启动时的环境变量。打包后的应用所用的环境变量见 [Packaging](Packaging.md)。
+工具运行的脚本和应用，拿到的是工具启动时的环境变量。打包后的应用所用的环境变量见 [Packaging](Packaging.md) 第 6 节。

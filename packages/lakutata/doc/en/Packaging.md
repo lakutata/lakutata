@@ -5,26 +5,22 @@ A compiled application can be shipped without its `node_modules`, in three forms
 - a **bundle**: one JavaScript file that Node.js runs;
 - an **executable**: one program that runs without Node.js installed;
 - **installers**: the packages of the system (deb, rpm, pkg, msi…) that install the executable, put its program in the
-  PATH and can register it as a service.
+  PATH and can register it as a service ([Installers](Installers.md)).
 
 `lakutata package bundle`, `package exe` and `package installer` make them with `@lakutata/builder`, which the project
-installs (`npm install --save-dev @lakutata/builder`; the templates that pack their application already have it). The
-README of `@lakutata/cli` gives every rule.
+installs (`npm install --save-dev @lakutata/builder`; the templates that pack their application already have it).
 
 ## 1. What is packed
 
 - **The compiled application**: the output of `tsc` (which emits the metadata of the decorators), not the TypeScript
   sources, so build it first. The entry is `--entry`, else the `main` of the `package.json`, else `build/App.js`.
+- **Its dependencies**, bundled by esbuild into one file, except the native addons and the files read by path
+  (sections 3 and 4). The packages of the framework, and those built on it, are always bundled, so that there is one
+  copy of the framework, of its classes and of its container.
 - **CommonJS**: the bundle is a CommonJS file, so the application cannot use top-level `await`; await inside an async
   function instead.
-- **Native addons**: the packages holding `.node` files (better-sqlite3, sharp…) cannot be bundled. They are left out,
-  with the code and the libraries they load at run time (but not the C and C++ sources of the packages), and laid out as
-  in `node_modules` in a directory shipped with the bundle.
 - **Optional dependencies** that are not installed (the drivers of the stores the application does not use) are left
   out: loading one throws at run time, as it would without the bundle.
-- **Files read by path**: a path built from the location of a module (`path.join(import.meta.dirname, 'child.js')`,
-  `new URL('./defaults.json', import.meta.url)`) is found and rewritten. A script at that path is bundled on its own,
-  any other file is copied. The README of `@lakutata/cli` lists the forms of paths that are followed.
 - **Resources**: the other files the application reads at run time (the built pages of a web interface, templates,
   data) are declared in its `package.json` (section 6).
 
@@ -33,12 +29,19 @@ README of `@lakutata/cli` gives every rule.
 ```bash
 npm run build
 npx lakutata package bundle      # dist/<name>.cjs
-node dist/my-app.cjs
+node dist/greet.cjs
+```
+
+```
+✔ dist/greet.cjs (1.1 MB): node dist/greet.cjs
+✔ dist/greet.native: the native addons (better-sqlite3) and the scripts run on their own (build/child.js), distributed with the bundle
+✔ dist/greet.resources: the resources (texts), distributed with the bundle
 ```
 
 The name is the first `bin` of the `package.json`, else the name of the package without its scope. When needed, two
 directories are written next to the bundle and must be shipped with it: `dist/<name>.native/` (native addons, scripts
-run on their own, files read by path) and `dist/<name>.resources/` (the resources).
+run on their own, files read by path) and `dist/<name>.resources/` (the resources). The bundle runs from any
+directory, once moved with them.
 
 | Option | Meaning |
 |---|---|
@@ -47,16 +50,76 @@ run on their own, files read by path) and `dist/<name>.resources/` (the resource
 | `--no-minify` | Do not minify the bundle (the names of the classes are kept either way) |
 | `--external <modules...>` | Modules left out of the bundle, loaded at run time from a `node_modules` next to it |
 
-## 3. Executables
+## 3. Native addons
+
+The packages holding `.node` files (better-sqlite3, the addons of the workspace made by
+[`lakutata add --native`](NativeAddons.md)), and the packages that load them through computed paths (sharp), cannot be
+bundled. They are left out, and laid out as in `node_modules` in `dist/<name>.native/`, with what they load at run time:
+
+- all their files, and those of the packages of the shared libraries their addons link (such as the libvips of sharp),
+  but not their C and C++ sources and objects (better-sqlite3 holds the sources of SQLite);
+- the JavaScript they load;
+- the addons of the application itself (`createRequire(import.meta.url)('./x.node')`).
+
+The type declarations, source maps, TypeScript sources and documentation of the packages are left out. An addon is
+built for the platform and the architecture of the machine, and needs the system libraries it was built for, so pack
+the application of each platform on that platform.
+
+## 4. Files read by path
+
+The bundle is not where the modules were: a script started on its own (a worker, a child process of `fork()`) or a
+file the application reads (`defaults.json`, a directory of schemas) would not be found next to it. The tool finds the
+paths built from the location of a module, in the modules of the application and in those of its packages, and
+rewrites them to point into `dist/<name>.native/`:
+
+| Path | |
+|---|---|
+| `new URL('./worker.js', import.meta.url)` | Also `pathToFileURL(__filename)` |
+| `path.join(import.meta.dirname, 'child.js')`, `path.resolve(__dirname, '../schema')` | Also with `path.dirname(fileURLToPath(import.meta.url))` |
+| `__dirname + '/worker.js'`, `` `${__dirname}/worker.js` `` | |
+| `require.resolve('./worker')` | The extension is found as Node.js finds it |
+| `` path.join(__dirname, 'locales', `${lang}.json`) `` | Partly known: every file its pattern matches is shipped |
+
+| The path names | |
+|---|---|
+| A script (`.js`, `.cjs`) | Bundled on its own, with what it loads |
+| Another file, a directory of data | Copied |
+| A directory that holds the module (`path.join(__dirname, '..')`: the application, its package) | Not shipped, with a warning: declare its files as resources |
+| A directory that holds scripts or packages (`package.json`, `node_modules`) | Not shipped, with a warning: its scripts would need their packages at run time |
+| Nothing yet (a directory the application creates) | Left as it is |
+
+```typescript
+import {fork} from 'node:child_process'
+import {readFileSync} from 'node:fs'
+import path from 'node:path'
+
+//Both are shipped: the script bundled on its own, the file copied
+fork(path.join(import.meta.dirname, 'child.js'), ['one', 'two'])
+const defaults: Record<string, unknown> = JSON.parse(readFileSync(new URL('./defaults.json', import.meta.url), 'utf8'))
+```
+
+The tool warns, with the file and the line, of what it cannot follow in the modules of the application: a worker whose
+path is known only at run time (`new Worker(file)`) or relative to the current directory (`new Worker('./worker.js')`),
+and a script that the application also imports (it would be bundled twice, with two copies of its module). Build these
+paths from the directory of their module, or ship the files as resources.
+
+## 5. Executables
 
 ```bash
 npx lakutata package exe                   # dist/<name> (dist/<name>.exe on Windows), with Node.js
 npx lakutata package exe --runtime bun     # with Bun
 ```
 
+```
+› Node.js v24.11.1 embedded
+› Resources embedded, extracted at the first run: texts
+› Scripts run on their own embedded, extracted at the first run: build/child.js
+✔ dist/greet (darwin-arm64, 112.9 MB)
+```
+
 An executable is made for the platform it is made on. Make the executables of the other platforms on those platforms,
 as their native addons are built there: a CI matrix of Linux, macOS and Windows machines, or a container of the
-architecture for Linux (`docker run --platform linux/arm64`).
+architecture for Linux (`docker run --platform linux/arm64`); the README of the `cli` template shows both.
 
 | Option | Meaning |
 |---|---|
@@ -67,85 +130,23 @@ architecture for Linux (`docker run --platform linux/arm64`).
 | `--outdir <directory>` | Where the executable is written, `dist` by default |
 | `--entry`, `--no-minify`, `--external` | As for a bundle |
 
-- **Extraction**: an executable of the file layout extracts what it embeds into its cache directory, in a directory
-  named after the content, so each version extracts once: `~/Library/Caches/<name>` on macOS,
+- **Extraction**: an executable of the file layout extracts what it embeds at its first run, into its cache directory,
+  in a directory named after the content, so each version extracts once: `~/Library/Caches/<name>` on macOS,
   `%LOCALAPPDATA%\<name>\Cache` on Windows, `$XDG_CACHE_HOME/<name>` or `~/.cache/<name>` on Linux, or the directory
-  given by `LAKUTATA_NATIVE_DIR`.
-- **Native addons**: an addon needs the system libraries it was built for. Bun loads the addons of Node-API, but may not
-  load those built on the V8 API of Node.js: an executable of Bun warns of them (with better-sqlite3, it builds but
-  fails when it starts). On Alpine (musl), the executables of Node.js do not load native addons: make them with Bun.
+  given by `LAKUTATA_NATIVE_DIR`. When the cache directory cannot be written, it uses `<name>` in the temporary
+  directory (not when `LAKUTATA_NATIVE_DIR` is given).
+- **Native addons**: Bun loads the addons of Node-API, but may not load those built on the V8 API of Node.js: an
+  executable of Bun warns of them, and fails when it loads such a package (better-sqlite3, for example). On Alpine
+  (musl), the executables of Node.js do not load native addons: make them with Bun.
 - **External modules**: the `--external` modules are loaded from a `node_modules` next to the executable.
 - **Child processes**: an executable started for one of its scripts (`fork(path.join(import.meta.dirname, 'child.js'))`)
-  runs that script, as Node.js does, in both layouts.
+  runs that script, in both layouts, with its arguments. With Node.js, `require.main` is that script, as in Node.js;
+  with Bun, it is not.
+- **No `.env`**: the executables do not load the `.env` of the directory they run in; use `LAKUTATA_ENV_FILE`
+  (section 6).
 - **Icon and signature**: `lakutata.icon` in the `package.json` (a square PNG of 256 px or more) becomes the icon of the
   Windows executables. The executables of macOS are signed ad hoc. The ones of Windows made with Node.js keep the
   signature of `node.exe`, which no longer matches: sign them (signtool) before distributing them.
-
-## 4. Installers
-
-```bash
-npx lakutata package installer     # dist/installer/
-```
-
-The installers are configured by `lakutata.installer` in the `package.json`:
-
-```json
-{
-  "lakutata": {
-    "installer": {
-      "service": {"env": {"PORT": "8080"}},
-      "linux": {"targets": ["deb", "rpm", "tar.gz"]}
-    }
-  }
-}
-```
-
-| Platform | Installers (default) | Application installed in | Made with |
-|---|---|---|---|
-| Linux (glibc) | `deb`, `rpm`, `tar.gz` (also `archlinux`) | `/opt/<name>` | nFPM |
-| Linux (musl, Alpine) | `apk`, `tar.gz` | `/opt/<name>` | nFPM |
-| macOS | `pkg`, `tar.gz` | `/usr/local/lib/<name>` | `pkgbuild`, `productbuild` |
-| Windows | `nsis`, `msi`, `zip` | `C:\Program Files\<name>` | NSIS, WiX |
-
-- An installer holds the executable of the directory layout (`runtime: "bun"` in `lakutata.installer` makes it with
-  Bun). Like the executables, the installers of a platform are made on that platform; `--target` chooses some of them.
-- nFPM, NSIS, WiX and WinSW are downloaded once into the cache of the tool (`LAKUTATA_NFPM`, `LAKUTATA_NSIS`,
-  `LAKUTATA_WIX` and `LAKUTATA_WINSW` give other copies).
-- The other fields: `name` (the name of the package, the one of the program by default), `appId`, `productName`,
-  `description`, `maintainer`, `homepage`, `license`, `vendor` (from the `package.json` by default), `addToPath`
-  (`true` by default), and the scripts run by the installers (`preinstall`, `postinstall`, `preremove`, `postremove`),
-  which the README of `@lakutata/cli` describes.
-- Signature: the `pkg` installers of macOS are not signed, and the executables they hold are signed ad hoc only; a
-  Developer ID signature and notarization are not made. On Windows, the executables made with Node.js keep the signature
-  of `node.exe`, which no longer matches: sign them (signtool) before distributing them.
-
-**The service** (`service: true`, or its options) runs the application when the system starts: systemd, OpenRC on
-Alpine, launchd on macOS, WinSW on Windows. The installation starts it, an upgrade restarts it, and the removal stops it
-first. Stopping the service ends the application gracefully (with `SIGTERM`; on Windows, with a Ctrl+C, which Node.js
-receives as `SIGINT`).
-
-| Service option | Meaning |
-|---|---|
-| `name`, `description` | Those of the package by default |
-| `args` | The arguments of the application |
-| `env` | Its environment (`MODE=production` by default), written to an environment file that administrators may change and upgrades keep: `/etc/<name>/<name>.env` on Linux |
-| `user` | Its user: by default a system user named after the package, created by the installation (on Windows, the virtual account of the service) |
-| `restart` | `on-failure` (default), `always` or `no` |
-| `autoStart` | Start it with the system (`true` by default) |
-
-Its working directory is `/var/lib/<name>` on Linux, `/usr/local/var/lib/<name>` on macOS and `C:\ProgramData\<name>` on
-Windows.
-
-## 5. Electron applications
-
-With `"runtime": "electron"`, `package installer` hands the work to electron-builder, which the project installs with
-`electron`. The main process is bundled (Electron left out), and its native addons and resources go into the resources
-of Electron. The installers are `deb` on Linux, `dmg` on macOS and `nsis` on Windows by default (`linux.targets`,
-`mac.targets`, `win.targets`), and `lakutata.installer.electron` is merged into the configuration of electron-builder
-(icons, signature, updates…). An Electron application is not a service. The native addons are copied as they are
-installed (electron-builder does not rebuild them): before packing, install the builds made for Electron
-(`electron-rebuild`, or `prebuild-install --runtime electron`); an addon of Node-API, such as sqlite3, runs in both. The
-`electron-react` and `electron-vue` templates are configured this way.
 
 ## 6. At run time
 
@@ -185,3 +186,7 @@ const ui: string = resources ? path.join(resources, 'ui') : path.join(path.dirna
 
 Every packed form loads the environment file named by `LAKUTATA_ENV_FILE` before the application starts: its lines
 `NAME=value` or `NAME="value"`, and comments (`#`). Its values replace the variables already set.
+
+```bash
+LAKUTATA_ENV_FILE=/etc/greet.env ./greet
+```

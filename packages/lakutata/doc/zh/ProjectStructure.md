@@ -89,7 +89,7 @@ shop/
 | 功能 | 模板 | 加入的内容 |
 |---|---|---|
 | `i18n` | 全部 | `src/locales` 中各语言的消息（`en`、`zh-CN`）、`i18n` 组件、语言中间件，以及 `i18n:check` 和 `i18n:types` 脚本（[I18n](I18n.md)） |
-| `installer` | `cli`、`service`、`web-*` | 应用的 `lakutata.installer`、制作安装包的脚本（在本机制作，以及在 Docker 中制作 Linux 的安装包），服务类模板还会注册系统服务（[Packaging](Packaging.md)） |
+| `installer` | `cli`、`service`、`web-*` | 应用的 `lakutata.installer`、制作安装包的脚本（在本机制作，以及在 Docker 中制作 Linux 的安装包），服务类模板还会注册系统服务（[Installers](Installers.md)） |
 
 Electron 模板不需要这个功能也能制作安装包。
 

@@ -160,4 +160,5 @@ curl 'http://localhost:8080/greet?name=you'
 - [Application](Application.md), [Objects](Objects.md) and [Injection](Injection.md): how an application is declared,
   and how its objects are created and obtain one another.
 - [Controllers](Controllers.md) and [HTTP](HTTP.md): actions, their input and their responses.
-- [Command](Command.md) and [Packaging](Packaging.md): the `lakutata` command and the packed applications.
+- [Command](Command.md), [Workspaces](Workspaces.md), [NativeAddons](NativeAddons.md), [Packaging](Packaging.md) and
+  [Installers](Installers.md): the `lakutata` command, the packages of a project, and the packed applications.
