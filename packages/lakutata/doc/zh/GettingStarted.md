@@ -49,7 +49,7 @@ npx @lakutata/cli create --name shop --template service --with i18n,installer
 | `npm start` | 启动编译好的应用 |
 | `npm test` | 编译项目并运行测试（`node --test`） |
 
-其他模板是包含多个包的工作区，要先运行 `npm run build` 再运行 `npm test`：它们的 `test` 脚本只运行各个包的测试，不会先构建。
+其他模板是包含多个包的工作区，它们的脚本作用于每个包，`npm test` 也会先构建各个包再运行测试（见 [ProjectStructure](ProjectStructure.md) 第 2 节）。
 
 ## 3. 在已有项目中加入 Lakutata
 

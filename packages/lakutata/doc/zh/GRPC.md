@@ -1,6 +1,6 @@
 # Lakutata gRPC
 
-`@lakutata/grpc` 包让应用通过 gRPC 提供服务动作，也能从另一个应用调用这些动作；任何有 gRPC 库的语言都可以调用它们。它用 TypeScript 基于 Node.js（22 或更高版本）的 HTTP/2 模块实现，不需要原生插件，也不需要生成代码。`lakutata` 不包含这个包，需要另外安装：
+`@lakutata/grpc` 包让应用通过 gRPC 提供服务动作，也能从另一个应用调用这些动作；任何有 gRPC 库的语言都可以调用它们。它用 TypeScript 基于 Node.js（`^22.13.0 || >=24.11.0`）的 HTTP/2 模块实现，不需要原生插件，也不需要生成代码。`lakutata` 不包含这个包，需要另外安装：
 
 ```bash
 npm install lakutata @lakutata/grpc

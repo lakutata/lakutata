@@ -22,7 +22,7 @@ both the features and the confirmation).
 | `--id <id>` | the ID of the application (a package name), by default its name in lower case |
 | `--template <template>` | the template (`default` when it is not given): an official template (listed by `lakutata templates`), `npm:<package>[@<version>]`, `github:<owner>/<repo>[#<ref>]` or a directory |
 | `--path <directory>` | the directory in which the project directory is created, by default the current one |
-| `--init` | create the project in the `--path` directory itself, which must exist and may hold files: the files of the template replace those with the same names |
+| `--init` | create the project in the `--path` directory itself, which must exist and may hold files: the files it already has are kept (a warning lists those that the template also has, to merge by hand), and only the files written are filled |
 | `--description`, `--author`, `--license` | information about the application |
 | `--with <features>` | the optional features of the template to enable, separated by commas (listed by `lakutata templates`): `i18n`, `installer`. In a terminal, without `--with` or `--yes`, you choose them from a list |
 | `--package-manager <npm\|pnpm\|yarn\|none>` | the package manager that installs the dependencies (`none` installs nothing): npm by default, or pnpm or yarn when one of them started the tool |
@@ -93,8 +93,9 @@ that these projects use, without lerna.
 ### `lakutata run <script>`
 
 Run a script in every package that has it, in the order of their dependencies: a package starts once the packages it
-depends on have finished, and packages that do not depend on each other run at the same time. The scripts always run
-with `npm run`, also in a pnpm or yarn workspace. Each line of output starts with the name of its package.
+depends on have finished, and packages that do not depend on each other run at the same time. The scripts run with the
+package manager of the project: the `packageManager` field of the root `package.json`, else its lock file (pnpm, yarn or
+npm). Each line of output starts with the name of its package.
 
 | Option | |
 |---|---|
@@ -115,11 +116,12 @@ commits the changes and tags them `v<version>`; `--yes` gives the version withou
 
 ### `lakutata add <name>`
 
-Add a package to the workspace in `packages/<name>` (without its scope), whatever the patterns of the workspace: they
-must include `packages/*` for the other commands to see the package. Its version is the `version` of `lerna.json`,
-else that of the root `package.json`, else `0.0.1`. It has `clean`, `build`, `rebuild` and `test` scripts and a test,
-and `--to <package>` adds it to the dependencies of another package of the workspace. The command installs nothing:
-run `npm install` afterwards to link the package.
+Add a package to the workspace, in its directory of packages (without its scope): the directory of the first pattern of
+the workspace such as `apps/*`, `packages/*` when there is one, so that the other commands see the package; a workspace
+whose packages are all named one by one is refused. Its version is that of the workspace (`lerna.json`, else the root
+`package.json`, else the highest version of the packages). It has `clean`, `build`, `rebuild` and `test` scripts and a
+test, and `--to <package>` adds it to the dependencies of another package of the workspace. The command installs
+nothing: run the install of the package manager of the project afterwards, as its output says, to link the package.
 
 - `lakutata add greeting`: a TypeScript package (`src/index.ts` compiled into `build`, with its declarations).
 - `lakutata add @acme/capture --native [gyp|cmake|rust]`: a native addon, with one of these build systems:
@@ -216,19 +218,19 @@ Bundles are CommonJS modules, because the executables of Node.js run them. The E
 converted, so they cannot use top-level `await`: await inside an async function instead.
 
 Native addons (`.node` files) cannot be bundled. While bundling, the tool finds the packages that hold addons, and the
-packages that load them through computed paths (such as sharp). It leaves them out of the bundle, with what they load
-at run time (the JavaScript they require, and the packages of the shared libraries linked with their addons, such as
+packages that load them through computed paths (such as sharp). It leaves them out of the bundle, with what they load at
+run time (the JavaScript they require, and the packages of the shared libraries linked with their addons, such as
 libvips), and lays them out as in `node_modules` in `dist/<name>.native/`, which is distributed with the bundle. This
 tree holds the files loaded at run time: all the files of the packages of addons and shared libraries; for the other
 packages, the JavaScript they load (traced) and their other files (the data they read); and all the files of the
 packages that load their files through paths that cannot be followed (`require(path.join(__dirname, name))`). The type
-declarations, source maps, TypeScript sources and documentation of the packages are left out. The addons of the
-application itself (`require('./x.node')`, `createRequire(import.meta.url)('./x.node')`) go into the tree too. The
-packages of the framework, and those built on it, are always bundled with the application, whatever they depend on,
-so that there is one copy of the framework, its classes and its container; their native dependencies go into the
-tree. Optional dependencies that are not installed (the drivers of stores the application does not use:
-`peerDependenciesMeta` optional, `optionalDependencies`) are left out: loading one throws at run time, as it would
-without the bundle.
+declarations, source maps, TypeScript sources and documentation of the packages are left out, and so are the C and C++
+sources and objects of the addons (better-sqlite3 holds the source of SQLite). The addons of the application itself
+(`require('./x.node')`, `createRequire(import.meta.url)('./x.node')`) go into the tree too. The packages of the
+framework, and those built on it, are always bundled with the application, whatever they depend on, so that there is one
+copy of the framework, its classes and its container; their native dependencies go into the tree. Optional dependencies
+that are not installed (the drivers of stores the application does not use: `peerDependenciesMeta` optional,
+`optionalDependencies`) are left out: loading one throws at run time, as it would without the bundle.
 
 The bundler does not follow the files that the application reads by path: the scripts it runs on their own (workers,
 `new Worker()`, worker pools given a file; child processes, `fork()`; modules loaded by path,
@@ -293,11 +295,11 @@ With `--runtime bun`, Bun compiles the bundle instead (`bun build --compile --by
 bytecode, so it is not parsed at start), using the Bun of the project (the `bun` package of npm,
 `npm install --save-dev bun`), else the one of the system. Its executables are smaller, start faster and use less
 memory; the runtime is then Bun (JavaScriptCore, with its implementation of the Node.js APIs). The native addons are
-those of Node.js, not rebuilt for Bun, and Bun does not load all of them: an executable of Bun with better-sqlite3
-builds, but fails when it starts. Like the executables of Node.js, the executables of Bun do not load the `.env` or the
-`bunfig.toml` of the directory they run in (an application that needs one loads it itself, or uses `LAKUTATA_ENV_FILE`),
-and the mode is that of the run: Bun would replace `process.env.NODE_ENV` with the mode of its build, but the bundle
-reads it at run time.
+those of Node.js, not rebuilt for Bun. Bun loads the addons of Node-API, but may not load those built on the V8 API of
+Node.js: the tool warns of them (with better-sqlite3, the executable builds but fails when it starts). Like the
+executables of Node.js, the executables of Bun do not load the `.env` or the `bunfig.toml` of the directory they run in
+(an application that needs one loads it itself, or uses `LAKUTATA_ENV_FILE`), and the mode is that of the run: Bun would
+replace `process.env.NODE_ENV` with the mode of its build, but the bundle reads it at run time.
 
 Make the executables of other platforms on those platforms: the native addons of the application are built there for
 them, and the executables can be tested there. A CI provides the machines (a matrix of Linux, macOS and Windows
@@ -309,7 +311,7 @@ runners); the Linux architectures can also be built in a container of the archit
 | `--outdir <directory>` | the directory of the executable, `dist` by default |
 | `--runtime <node\|bun>` | the embedded runtime: `node` (the default) or `bun` |
 | `--layout <file\|directory>` | one file (the default), or a directory: `dist/<name>/` holds the executable, its native addons (`native/`) and its resources (`resources/`), loaded from there without extraction (for the installers and the images) |
-| `--entry`, `--no-minify`, `--external` | as for `lakutata package bundle`; `--external` works with `--runtime bun` only: the executables of Node.js fail to load the external modules |
+| `--entry`, `--no-minify`, `--external` | as for `lakutata package bundle`: the external modules are loaded from a `node_modules` next to the executable |
 
 With `--layout file`, the native addons, the files read by path and the resources are embedded in the executable. At
 its first run, the executable extracts them into `native/<hash>`, a directory named after their content, in its cache
@@ -319,11 +321,9 @@ written, it uses `<name>` in the temporary directory. The next runs load them fr
 the program do not share it. The addons need the system libraries they were built for (the glibc version of the Linux
 prebuilt addons).
 
-The child processes of an executable run the executable itself (`process.execPath`). With `--layout file`, an
-executable started for one of its scripts (`fork(path.join(__dirname, 'child.js'))`,
-`spawn(process.execPath, [script])`) runs that script as node does (its arguments, `require.main`), not the
-application. With `--layout directory`, and so in the installers, it starts the application again instead of running
-the script.
+The child processes of an executable run the executable itself (`process.execPath`). In both layouts, an executable
+started for one of its scripts (`fork(path.join(__dirname, 'child.js'))`, `spawn(process.execPath, [script])`) runs that
+script as node does (its arguments, `require.main`), not the application.
 
 The executables for macOS are signed ad hoc. Those for Windows made with Node.js keep the signature of `node.exe`,
 which no longer matches: sign them before distributing them.
@@ -476,11 +476,11 @@ which 7-Zip would choose.
 ### `lakutata migration <action>`
 
 Manage the migrations of the databases of the application (its Database components and providers). `generate`, `run`,
-`revert` and `show` run the package script that builds and starts the application (`dev` by default, always through
-`npm run`) with an environment variable (`MIGRATION_GENERATE`, `MIGRATION_RUN`, `MIGRATION_REVERT`, `MIGRATION_SHOW`).
-The application then connects to its databases with their options, without synchronizing their schemas or running
-their migrations, runs the command, reports what it did and exits, without starting its components or its
-entrypoints. `create` only writes a file.
+`revert` and `show` run the package script that builds and starts the application (`dev` by default, run by the package
+manager of the project) with an environment variable (`MIGRATION_GENERATE`, `MIGRATION_RUN`, `MIGRATION_REVERT`,
+`MIGRATION_SHOW`). The application then connects to its databases with their options, without synchronizing their
+schemas or running their migrations, runs the command, reports what it did and exits, without starting its components or
+its entrypoints. `create` only writes a file.
 
 | Action | |
 |---|---|

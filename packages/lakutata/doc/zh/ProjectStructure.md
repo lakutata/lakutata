@@ -68,7 +68,7 @@ shop/
 | 脚本（根目录） | 作用 |
 |---|---|
 | `npm run build` | 按依赖顺序构建每个包（`lakutata run rebuild`） |
-| `npm test` | 运行每个包的测试（`lakutata run test`），不会先构建：请先运行 `npm run build` |
+| `npm test` | 先构建每个包，再运行它们的测试（`npm run build && lakutata run test`） |
 | `npm run dev` | 同时启动每个包的 `dev` 脚本（`lakutata run dev --parallel`）：应用，以及界面的开发服务器（如果有界面） |
 | `npm start` | 启动编译好的应用（`npm start -w app`） |
 | `npm run version:patch` | 给每个包设置下一个补丁版本（`lakutata version patch --yes`） |

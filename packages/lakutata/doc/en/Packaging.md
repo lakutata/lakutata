@@ -18,8 +18,8 @@ README of `@lakutata/cli` gives every rule.
 - **CommonJS**: the bundle is a CommonJS file, so the application cannot use top-level `await`; await inside an async
   function instead.
 - **Native addons**: the packages holding `.node` files (better-sqlite3, sharp…) cannot be bundled. They are left out,
-  with the code and the libraries they load at run time, and laid out as in `node_modules` in a directory shipped with
-  the bundle.
+  with the code and the libraries they load at run time (but not the C and C++ sources of the packages), and laid out as
+  in `node_modules` in a directory shipped with the bundle.
 - **Optional dependencies** that are not installed (the drivers of the stores the application does not use) are left
   out: loading one throws at run time, as it would without the bundle.
 - **Files read by path**: a path built from the location of a module (`path.join(import.meta.dirname, 'child.js')`,
@@ -71,14 +71,12 @@ architecture for Linux (`docker run --platform linux/arm64`).
   named after the content, so each version extracts once: `~/Library/Caches/<name>` on macOS,
   `%LOCALAPPDATA%\<name>\Cache` on Windows, `$XDG_CACHE_HOME/<name>` or `~/.cache/<name>` on Linux, or the directory
   given by `LAKUTATA_NATIVE_DIR`.
-- **Native addons**: an addon needs the system libraries it was built for. Bun does not load every addon of Node.js:
-  an executable of Bun with better-sqlite3 builds, but fails when it starts. On Alpine (musl), the executables of
-  Node.js do not load native addons: make them with Bun.
-- **External modules**: only the executables of Bun load the `--external` modules from a `node_modules` next to them;
-  the executables of Node.js cannot load them.
-- **Child processes**: in the file layout, an executable started for one of its scripts
-  (`fork(path.join(import.meta.dirname, 'child.js'))`) runs that script, as Node.js does. In the directory layout, it
-  starts the application again instead.
+- **Native addons**: an addon needs the system libraries it was built for. Bun loads the addons of Node-API, but may not
+  load those built on the V8 API of Node.js: an executable of Bun warns of them (with better-sqlite3, it builds but
+  fails when it starts). On Alpine (musl), the executables of Node.js do not load native addons: make them with Bun.
+- **External modules**: the `--external` modules are loaded from a `node_modules` next to the executable.
+- **Child processes**: an executable started for one of its scripts (`fork(path.join(import.meta.dirname, 'child.js'))`)
+  runs that script, as Node.js does, in both layouts.
 - **Icon and signature**: `lakutata.icon` in the `package.json` (a square PNG of 256 px or more) becomes the icon of the
   Windows executables. The executables of macOS are signed ad hoc. The ones of Windows made with Node.js keep the
   signature of `node.exe`, which no longer matches: sign them (signtool) before distributing them.

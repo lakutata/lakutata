@@ -17,8 +17,8 @@ npm install lakutata          # the framework
 npm install @lakutata/core    # or the core only
 ```
 
-The package needs Node.js 22 or later. Projects use ES modules (`"type": "module"`); the package also ships CommonJS
-builds. The decorators need these TypeScript options:
+The package needs Node.js `^22.13.0 || >=24.11.0`. Projects use ES modules (`"type": "module"`); the package also ships
+CommonJS builds. The decorators need these TypeScript options:
 
 ```json
 {

@@ -55,8 +55,8 @@ The scripts of the `default` template:
 | `npm start` | Starts the compiled application |
 | `npm test` | Compiles the project and runs its tests (`node --test`) |
 
-In the other templates, which are workspaces of several packages, run `npm run build` before `npm test`: their `test`
-script runs the tests of the packages without building them.
+The other templates are workspaces of several packages; their scripts work on every package, and `npm test` builds them
+before running their tests ([ProjectStructure](ProjectStructure.md), section 2).
 
 ## 3. Adding Lakutata to an existing project
 

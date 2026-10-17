@@ -19,8 +19,8 @@ service actions. The umbrella package `lakutata` does not re-export it: import i
 npm install lakutata @lakutata/mcp
 ```
 
-It needs Node.js 22 or later. Its peer dependencies `@lakutata/core` and `@lakutata/entrypoint` come with `lakutata`;
-the protocol itself is implemented by its dependency `@modelcontextprotocol/server`.
+It needs Node.js `^22.13.0 || >=24.11.0`. Its peer dependencies `@lakutata/core` and `@lakutata/entrypoint` come with
+`lakutata`; the protocol itself is implemented by its dependency `@modelcontextprotocol/server`.
 
 ## Usage
 

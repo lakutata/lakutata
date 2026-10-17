@@ -12,7 +12,7 @@
 
 - **编译后的应用**：打包的是 `tsc` 的输出（`tsc` 会生成装饰器的元数据），而不是 TypeScript 源码，所以要先构建。入口依次是 `--entry`、`package.json` 的 `main`、`build/App.js`。
 - **CommonJS**：单文件包是 CommonJS 文件，所以应用不能使用顶层 `await`，请在异步函数里 await。
-- **原生插件**：含有 `.node` 文件的包（better-sqlite3、sharp 等）不能打进单文件包。它们连同运行时加载的代码和库一起被排除在外，按 `node_modules` 的结构放在一个随单文件包发布的目录中。
+- **原生插件**：含有 `.node` 文件的包（better-sqlite3、sharp 等）不能打进单文件包。它们连同运行时加载的代码和库（但不包括这些包的 C 和 C++ 源码）一起被排除在外，按 `node_modules` 的结构放在一个随单文件包发布的目录中。
 - **未安装的可选依赖**（应用没有用到的存储驱动）会被排除：运行时加载它会抛出异常，和不打包时一样。
 - **按路径读取的文件**：由模块位置构造的路径（`path.join(import.meta.dirname, 'child.js')`、`new URL('./defaults.json', import.meta.url)`）会被找到并改写。路径指向脚本时，单独打包这个脚本；指向其他文件时，复制该文件。能识别哪些路径写法，见 `@lakutata/cli` 的 README。
 - **资源**：应用运行时读取的其他文件（Web 界面构建好的页面、模板、数据）在 `package.json` 中声明（第 6 节）。
@@ -53,9 +53,9 @@ npx lakutata package exe --runtime bun     # 使用 Bun
 | `--entry`、`--no-minify`、`--external` | 与单文件包相同 |
 
 - **解压**：单文件布局的可执行文件把嵌入的内容解压到缓存目录中一个以内容命名的子目录，所以每个版本只解压一次：macOS 上是 `~/Library/Caches/<name>`，Windows 上是 `%LOCALAPPDATA%\<name>\Cache`，Linux 上是 `$XDG_CACHE_HOME/<name>` 或 `~/.cache/<name>`，也可以用 `LAKUTATA_NATIVE_DIR` 指定目录。
-- **原生插件**：原生插件需要它构建时所针对的系统库。Bun 不能加载 Node.js 的所有原生插件：带 better-sqlite3 的 Bun 可执行文件能构建成功，但启动时会失败。在 Alpine（musl）上，Node.js 的可执行文件不能加载原生插件，请用 Bun 制作。
-- **外部模块**：只有 Bun 的可执行文件会从旁边的 `node_modules` 加载 `--external` 指定的模块；Node.js 的可执行文件加载不了它们。
-- **子进程**：在单文件布局中，可执行文件被启动来运行它的某个脚本时（`fork(path.join(import.meta.dirname, 'child.js'))`），会像 Node.js 一样运行这个脚本。在目录布局中，它会把应用重新启动一遍。
+- **原生插件**：原生插件需要它构建时所针对的系统库。Bun 能加载基于 Node-API 的插件，但不一定能加载基于 Node.js V8 API 的插件，Bun 可执行文件会对这类插件发出警告（带 better-sqlite3 时能构建成功，但启动时会失败）。在 Alpine（musl）上，Node.js 的可执行文件不能加载原生插件，请用 Bun 制作。
+- **外部模块**：`--external` 指定的模块从可执行文件旁边的 `node_modules` 加载。
+- **子进程**：可执行文件被启动来运行它的某个脚本时（`fork(path.join(import.meta.dirname, 'child.js'))`），会像 Node.js 一样运行这个脚本，两种布局都是如此。
 - **图标与签名**：`package.json` 中的 `lakutata.icon`（256 像素或更大的正方形 PNG）会成为 Windows 可执行文件的图标。macOS 的可执行文件使用临时签名（ad hoc）。用 Node.js 制作的 Windows 可执行文件保留着 `node.exe` 的签名，而这个签名已经不再匹配：发布前请用 signtool 重新签名。
 
 ## 4. 安装包

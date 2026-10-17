@@ -41,7 +41,7 @@ lakutata create --name tool --template cli --package-manager none --no-git
 
 在终端里运行时，工具会询问缺少的名称，列出模板的可选功能供选择，展示将要创建的内容并请求确认。之后它复制模板，填入名称、ID 和包的其他信息，安装依赖（`<包管理器> install`），再执行 `git init`（不提交）。官方模板取与工具主版本号相同的最新正式版，从 npm 仓库下载，并保存在工具的缓存中；没有网络时，如果以前下载过，就使用缓存中的模板。
 
-使用 `--init` 时，模板中的文件会替换目录中同名的文件（例如 `package.json`、`README.md`）：请在可以撤销修改的目录中使用，例如 git 仓库。
+使用 `--init` 时，目录中已有的文件会保留：模板中同名的文件不会复制过去，工具会发出警告列出这些文件，需要的内容请手动合并（`package.json` 主要是其中的脚本和依赖）。
 
 ### `lakutata templates`、`info` 和 `clean`
 
@@ -66,7 +66,7 @@ lakutata create --name tool --template cli --package-manager none --no-git
 | `--concurrency <n>` | 同时运行的包数（默认为处理器数量） |
 | `--no-bail` | 失败后继续运行（依赖失败包的那些包会被跳过） |
 
-脚本通过 `npm run` 运行，在 pnpm 或 yarn 的工作区里也是如此，并且不能传入额外的参数。有脚本失败时，命令失败（退出码 1）；没有任何包有这个脚本时，命令给出提示并正常结束。
+脚本通过项目所用的包管理器运行（根目录 `package.json` 的 `packageManager` 字段，没有时看锁文件：pnpm、yarn 或 npm），并且不能传入额外的参数。有脚本失败时，命令失败（退出码 1）；没有任何包有这个脚本时，命令给出提示并正常结束。
 
 ### `lakutata version`
 
@@ -83,7 +83,7 @@ lakutata version 2.0.0
 
 ### `lakutata add` 和 `native`
 
-`lakutata add <name>` 在 `packages/<name>` 中创建一个 TypeScript 包（加上 `--native gyp|cmake|rust` 则创建原生插件），因此工作区必须包含 `packages/*`；`--to <package>` 把它加入另一个包的依赖。命令不安装任何东西：之后请运行 `npm install`。`lakutata native <link|include|define> <value>` 修改当前目录中原生插件的构建文件（链接一个库、添加头文件目录或定义宏），选项见它的帮助。
+`lakutata add <name>` 在工作区的包目录中创建一个 TypeScript 包（加上 `--native gyp|cmake|rust` 则创建原生插件），例如 `packages/<name>`，工作区的模式是 `apps/*` 时则是 `apps/<name>`；它的版本就是工作区的版本，`--to <package>` 把它加入另一个包的依赖。命令不安装任何东西：之后请按它的提示，用你的包管理器安装依赖。`lakutata native <link|include|define> <value>` 修改当前目录中原生插件的构建文件（链接一个库、添加头文件目录或定义宏），选项见它的帮助。
 
 ## 4. 迁移与翻译
 

@@ -8,7 +8,7 @@
 
 | 功能 | 需要 |
 |---|---|
-| 全部功能 | Linux，带 runc 的 containerd 1.6 或更高版本，Node.js 22 或更高版本；应用以 root 运行，或属于拥有 containerd 套接字的用户组 |
+| 全部功能 | Linux，带 runc 的 containerd 1.6 或更高版本，Node.js `^22.13.0 || >=24.11.0`；应用以 root 运行，或属于拥有 containerd 套接字的用户组 |
 | CNI 网络（包括默认的 `bridge`）、端口发布 | CNI 插件（`bridge`、`portmap`、`host-local` 等，位于 `/opt/cni/bin`、`/usr/lib/cni` 或 `/usr/libexec/cni`，即 `cniPath` 选项）以及 iptables |
 | 带 `stdin` 的 `exec()`、分开的 `stdout`/`stderr`、终端 | 主机上的 `mkfifo`（没有时，`exec()` 把两种输出都放在 `stdout` 中） |
 | 构建 | BuildKit 守护进程（`buildkitd`），本地或远程 |

@@ -77,7 +77,7 @@ shop/
 | Script (root) | What it does |
 |---|---|
 | `npm run build` | Builds every package, in the order of their dependencies (`lakutata run rebuild`) |
-| `npm test` | Runs the tests of every package (`lakutata run test`), without building them: run `npm run build` first |
+| `npm test` | Builds every package, then runs their tests (`npm run build && lakutata run test`) |
 | `npm run dev` | Starts the `dev` script of every package at once (`lakutata run dev --parallel`): the application, and the dev server of the interface when there is one |
 | `npm start` | Starts the compiled application (`npm start -w app`) |
 | `npm run version:patch` | Gives every package the next patch version (`lakutata version patch --yes`) |

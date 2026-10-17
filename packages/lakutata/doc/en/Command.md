@@ -56,8 +56,9 @@ package, installs the dependencies (`<manager> install`) and runs `git init` (wi
 is the newest release for the major version of the tool, downloaded from the npm registry and kept in the cache of the
 tool; without a network, a template downloaded earlier is used when there is one.
 
-With `--init`, the files of the template replace the files of the directory that have the same names (a `package.json`,
-a `README.md`): use it on a directory whose changes you can undo, such as a git repository.
+With `--init`, the files the directory already has are kept: a file of the template with the same name is not copied,
+and a warning lists these files so that you can merge what you need by hand (for `package.json`, its scripts and
+dependencies).
 
 ### `lakutata templates`, `info` and `clean`
 
@@ -92,8 +93,9 @@ time. Each line of output starts with the name of its package.
 | `--concurrency <n>` | How many packages run at a time (the number of processors by default) |
 | `--no-bail` | Go on after a failure (the packages that depend on the failed one are skipped) |
 
-The scripts run with `npm run`, also in a pnpm or yarn workspace, and take no extra arguments. The command fails (exit
-code 1) when a script fails, and succeeds with a note when no package has the script.
+The scripts run with the package manager of the project (the `packageManager` field of its root `package.json`, else its
+lock file: pnpm, yarn or npm) and take no extra arguments. The command fails (exit code 1) when a script fails, and
+succeeds with a note when no package has the script.
 
 ### `lakutata version`
 
@@ -115,11 +117,12 @@ package, keeps ranges such as `workspace:*` and the operators of the others, and
 
 ### `lakutata add` and `native`
 
-`lakutata add <name>` creates a TypeScript package in `packages/<name>` (`--native gyp|cmake|rust` for a native addon),
-so the workspace must include `packages/*`; `--to <package>` adds it to the dependencies of another package. The command
-installs nothing: run `npm install` afterwards. `lakutata native <link|include|define> <value>` changes the build file
-of the native addon in the current directory (it links a library, adds a directory of headers, or defines a macro); its
-help describes the options.
+`lakutata add <name>` creates a TypeScript package (`--native gyp|cmake|rust` for a native addon) in the directory of
+the packages of the workspace (`packages/<name>`, or `apps/<name>` when its pattern is `apps/*`), with the version of
+the workspace; `--to <package>` adds it to the dependencies of another package. The command installs nothing: run the
+install of your package manager afterwards, as its output says. `lakutata native <link|include|define> <value>` changes
+the build file of the native addon in the current directory (it links a library, adds a directory of headers, or defines
+a macro); its help describes the options.
 
 ## 4. Migrations and translations
 

@@ -16,8 +16,8 @@ npm install lakutata @lakutata/dbus
 - It needs a D-Bus daemon, as found on Linux: the system bus (`/var/run/dbus/system_bus_socket`), the session bus of
   a desktop session (`DBUS_SESSION_BUS_ADDRESS`), or a private `dbus-daemon`. To own a name on the system bus, a bus
   policy must allow it (a file in `/etc/dbus-1/system.d/`).
-- It needs Node.js 22 or later. Its peer dependencies, `@lakutata/core` and `@lakutata/entrypoint`, are installed with
-  `lakutata`.
+- It needs Node.js `^22.13.0 || >=24.11.0`. Its peer dependencies, `@lakutata/core` and `@lakutata/entrypoint`, are
+  installed with `lakutata`.
 
 ## Usage
 
