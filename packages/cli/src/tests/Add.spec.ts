@@ -141,7 +141,11 @@ describe('lakutata add', (): void => {
         assert.strictEqual(added.code, 0, added.output)
         assert.match(added.output, /Package @acme\/greeting 2\.0\.0 added: apps[\\/]greeting/)
         assert.match(added.output, /Next: pnpm install \(links the package\), then pnpm --filter @acme\/greeting run rebuild/)
-        assert.strictEqual(JSON.parse(readFileSync(path.join(root, 'apps', 'greeting', 'package.json'), 'utf8')).version, '2.0.0')
+        const manifest = JSON.parse(readFileSync(path.join(root, 'apps', 'greeting', 'package.json'), 'utf8'))
+        assert.strictEqual(manifest.version, '2.0.0')
+        //Its scripts run by the package manager of the workspace
+        assert.strictEqual(manifest.scripts.rebuild, 'pnpm run clean && pnpm run build')
+        assert.match(readFileSync(path.join(root, 'apps', 'greeting', 'README.md'), 'utf8'), /pnpm run rebuild {2}# compile\npnpm test {9}# run the tests/)
         //The commands of the workspace see it
         const listed = await runIn(process.execPath, [CLI, 'list'], root)
         assert.match(listed.output, /@acme\/greeting\s+2\.0\.0 \(private\)\s+apps[\\/]greeting/)

@@ -20,13 +20,41 @@ export function detectPackageManager(): PackageManager {
 }
 
 /**
+ * Whether a directory is the root of a workspace: its package.json declares workspaces, or a pnpm-workspace.yaml is
+ * next to it
+ * @param directory
+ */
+function workspaceRoot(directory: string): boolean {
+    const manifest: string = path.join(directory, 'package.json')
+    if (!existsSync(manifest)) return false
+    if (existsSync(path.join(directory, 'pnpm-workspace.yaml'))) return true
+    try {
+        const workspaces: unknown = JSON.parse(readFileSync(manifest, 'utf8')).workspaces
+        return Array.isArray(workspaces) || Array.isArray((workspaces as { packages?: unknown } | undefined)?.packages)
+    } catch {
+        return false
+    }
+}
+
+/**
  * The package manager of a project: the packageManager field of its package.json ("pnpm@9.15.0"), else its lock file
- * (pnpm-lock.yaml or pnpm-workspace.yaml, yarn.lock, package-lock.json), looked for from the directory up to the root;
- * npm by default
+ * (pnpm-lock.yaml or pnpm-workspace.yaml, yarn.lock, package-lock.json), looked for from the directory up to the root
+ * of its workspace (the directory itself when it is in none); npm by default
  * @param directory The directory of the project, or of one of the packages of its workspace.
  */
 export function projectPackageManager(directory: string): PackageManager {
-    for (let current: string = path.resolve(directory); ; current = path.dirname(current)) {
+    const start: string = path.resolve(directory)
+    //The directories of the project: up to the nearest root of a workspace, the directory itself without one
+    const directories: string[] = []
+    for (let current: string = start; ; current = path.dirname(current)) {
+        directories.push(current)
+        if (workspaceRoot(current)) break
+        if (path.dirname(current) === current) {
+            directories.splice(1)
+            break
+        }
+    }
+    for (const current of directories) {
         const manifest: string = path.join(current, 'package.json')
         if (existsSync(manifest)) {
             let declared: unknown
@@ -40,8 +68,9 @@ export function projectPackageManager(directory: string): PackageManager {
         }
         if (existsSync(path.join(current, 'pnpm-lock.yaml')) || existsSync(path.join(current, 'pnpm-workspace.yaml'))) return 'pnpm'
         if (existsSync(path.join(current, 'yarn.lock'))) return 'yarn'
-        if (existsSync(path.join(current, 'package-lock.json')) || path.dirname(current) === current) return 'npm'
+        if (existsSync(path.join(current, 'package-lock.json'))) return 'npm'
     }
+    return 'npm'
 }
 
 /**

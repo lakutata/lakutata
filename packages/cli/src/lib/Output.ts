@@ -43,5 +43,5 @@ export function warn(message: string): void {
 export function table(rows: [string, string][], title?: string): string {
     const width: number = Math.max(...rows.map(([name]): number => name.length))
     const lines: string[] = rows.map(([name, value]): string => `  ${styled('blue', name.padEnd(width))}  ${value}`)
-    return `${title ? `${styled('bold', title)}\n` : ''}${lines.join('\n')}\n`
+    return `${title ? `${styled('bold', title)}\n` : ''}${lines.map((line: string): string => `${line}\n`).join('')}`
 }

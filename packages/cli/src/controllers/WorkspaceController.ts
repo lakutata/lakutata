@@ -64,6 +64,6 @@ export class WorkspaceController extends Controller {
         return table(workspace.packages.map((pkg: WorkspacePackage): [string, string] => [
             pkg.name,
             `${pkg.version ?? '-'}${pkg.private ? ' (private)' : ''}  ${path.relative(workspace.root, pkg.directory)}${pkg.dependencies.length ? `  → ${pkg.dependencies.join(', ')}` : ''}`
-        ]), `${workspace.packages.length} packages, version ${workspace.version ?? '-'}`)
+        ]), `${workspace.packages.length} ${workspace.packages.length === 1 ? 'package' : 'packages'}, version ${workspace.version ?? '-'}`)
     }
 }

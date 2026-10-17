@@ -339,7 +339,9 @@ async function changeRust(directory: string, change: NativeChange, library: Libr
         directives.push(`rustc-link-search=native=${path.posix.dirname(library.file)}`, `rustc-link-lib=static=${library.name}`)
     } else if (library?.kind === 'dynamic') {
         if (library.platform === 'win') importLibrary(directory, library)
-        directives.push(`rustc-link-search=native=${path.posix.dirname(library.file)}`, `rustc-link-lib=dylib=${library.name}`)
+        //A versioned library (libfoo.so.1) by its file name: -lfoo would find libfoo.so
+        const base: string = path.posix.basename(library.file)
+        directives.push(`rustc-link-search=native=${path.posix.dirname(library.file)}`, /\.so\.\d/.test(base) ? `rustc-link-lib=dylib:+verbatim=${base}` : `rustc-link-lib=dylib=${library.name}`)
         if (library.platform === 'mac') directives.push('rustc-cdylib-link-arg=-Wl,-rpath,@loader_path')
         if (library.platform === 'linux') directives.push('rustc-cdylib-link-arg=-Wl,-rpath,$ORIGIN')
     } else {
@@ -354,13 +356,15 @@ async function changeRust(directory: string, change: NativeChange, library: Libr
         files.push('.cargo/config.toml')
     }
     if (library?.kind === 'dynamic') {
-        //Copied next to the addon after its build (when it is built on the platform of the library)
+        //Copied next to the addon by its build (when it is built on the platform of the library), whatever the package
+        //manager running it (pnpm runs no post scripts by default)
         const manifestFile: string = path.join(directory, 'package.json')
         const manifest: { scripts?: Record<string, string> } = JSON.parse(await readFile(manifestFile, 'utf8'))
         const copy: string = `node -e "const fs=require('node:fs');if(fs.existsSync('${library.file}'))fs.copyFileSync('${library.file}','build/Release/${path.posix.basename(library.file)}')"`
         const scripts: Record<string, string> = manifest.scripts ?? {}
-        if (!(scripts['postbuild:native'] ?? '').includes(copy)) {
-            scripts['postbuild:native'] = scripts['postbuild:native'] ? `${scripts['postbuild:native']} && ${copy}` : copy
+        const build: string = scripts['build:native'] ?? 'napi build --release --output-dir build/Release'
+        if (!build.includes(copy) && !(scripts['postbuild:native'] ?? '').includes(copy)) {
+            scripts['build:native'] = `${build} && ${copy}`
             manifest.scripts = scripts
             await writeFile(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`)
             files.push('package.json')
@@ -381,6 +385,10 @@ export async function changeNative(directory: string, change: NativeChange): Pro
     if (change.crate && build !== 'rust') throw new Error('The crates are the libraries of the Rust addons')
     const library: LibraryFile | undefined = change.action === 'link' && !change.crate && !change.pkgConfig && !change.framework ? libraryOfFile(directory, change.value) : undefined
     const scope: Scope = scopeOf(change, library)
+    //The headers of the package, or of the system (an absolute directory): the addon is built where it is installed
+    if (change.action === 'include' && !path.isAbsolute(change.value) && path.relative(directory, path.resolve(directory, change.value)).startsWith('..')) {
+        throw new Error(`${change.value} is not in the package: the addon is built where the package is installed (give a directory of the package, or an absolute directory of the system)`)
+    }
     const files: string[] = build === 'gyp'
         ? await changeGyp(directory, change, library, scope)
         : build === 'cmake' ? await changeCMake(directory, change, library, scope) : await changeRust(directory, change, library, scope)

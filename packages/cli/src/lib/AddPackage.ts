@@ -93,8 +93,9 @@ function tsConfig(outDir: string): string {
  * The files of a TypeScript package
  * @param name
  * @param version
+ * @param packageManager the one of the workspace, which runs its scripts
  */
-function libraryFiles(name: string, version: string): Files {
+function libraryFiles(name: string, version: string, packageManager: PackageManager): Files {
     return {
         'package.json': `${JSON.stringify({
             name: name,
@@ -108,7 +109,7 @@ function libraryFiles(name: string, version: string): Files {
             scripts: {
                 clean: 'lakutata clean',
                 build: 'tsc',
-                rebuild: 'npm run clean && npm run build',
+                rebuild: `${packageManager} run clean && ${packageManager} run build`,
                 test: 'node --test "build/tests/**/*.spec.js"'
             }
         }, null, 2)}\n`,
@@ -131,7 +132,7 @@ describe('${name}', (): void => {
     })
 })
 `,
-        'README.md': `# ${name}\n\n\`\`\`bash\nnpm run rebuild   # compile\nnpm test          # run the tests\n\`\`\`\n`
+        'README.md': `# ${name}\n\n\`\`\`bash\n${`${packageManager} run rebuild`.padEnd(17)} # compile\n${`${packageManager} test`.padEnd(17)} # run the tests\n\`\`\`\n`
     }
 }
 
@@ -218,7 +219,7 @@ function gypFiles(target: string): Files {
  */
 function cMakeFiles(target: string): Files {
     return {
-        'CMakeLists.txt': `# The build of the addon by cmake-js (npm run build:native)
+        'CMakeLists.txt': `# The build of the addon by cmake-js (its build:native script)
 cmake_minimum_required(VERSION 3.15)
 cmake_policy(SET CMP0091 NEW)
 cmake_policy(SET CMP0042 NEW)
@@ -404,8 +405,9 @@ architecture of the machine (\`rustup target add\` builds the other ones).`
  * @param name
  * @param version
  * @param build
+ * @param packageManager the one of the workspace, which runs its scripts
  */
-function nativeFiles(name: string, version: string, build: NativeBuild): Files {
+function nativeFiles(name: string, version: string, build: NativeBuild, packageManager: PackageManager): Files {
     const target: string = name.replace(/^@[^/]+\//, '').replace(/[^A-Za-z0-9_]/g, '_')
     const builds: Record<NativeBuild, { files: Files, buildNative: string, install: string, sources: string[], dependencies: Record<string, string>, devDependencies: Record<string, string>, toolchain: string }> = {
         gyp: {
@@ -430,8 +432,8 @@ function nativeFiles(name: string, version: string, build: NativeBuild): Files {
         rust: {
             files: rustFiles(target, version),
             buildNative: 'napi build --release --output-dir build/Release',
-            //Its postbuild:native script copies the dynamic libraries lakutata native link gives next to the addon
-            install: 'npm run build:native',
+            //Its build:native script copies the dynamic libraries lakutata native link gives next to the addon
+            install: `${packageManager} run build:native`,
             sources: ['rust', 'Cargo.toml', 'build.rs'],
             dependencies: {'node-gyp-build': NATIVE_VERSIONS['node-gyp-build'], '@napi-rs/cli': NATIVE_VERSIONS['@napi-rs/cli']},
             devDependencies: {},
@@ -458,7 +460,7 @@ function nativeFiles(name: string, version: string, build: NativeBuild): Files {
                 'clean:native': build === 'rust' ? 'lakutata clean build target' : 'lakutata clean build',
                 'build:native': chosen.buildNative,
                 build: 'tsc',
-                rebuild: 'npm run clean && npm run build:native && npm run build',
+                rebuild: `${packageManager} run clean && ${packageManager} run build:native && ${packageManager} run build`,
                 test: 'node --test "dist/tests/**/*.spec.js"'
             },
             dependencies: chosen.dependencies,
@@ -512,12 +514,12 @@ Node-API is stable across the versions of Node.js and Electron: the same addon r
 \`lakutata package bundle\` and \`lakutata package exe\` ship it with the application.
 
 \`\`\`bash
-npm run rebuild   # build the addon (build/Release) and compile the TypeScript (dist)
-npm test          # run the tests
+${`${packageManager} run rebuild`.padEnd(17)} # build the addon (build/Release) and compile the TypeScript (dist)
+${`${packageManager} test`.padEnd(17)} # run the tests
 \`\`\`
 
 A library built by its own Makefile (or its own build) is built before the addon by a script, then linked by it:
-\`"build:deps": "make -C deps/foo"\`, \`"build:native": "npm run build:deps && ${chosen.buildNative}"\`.
+\`"build:deps": "make -C deps/foo"\`, \`"build:native": "${packageManager} run build:deps && ${chosen.buildNative}"\`.
 
 Building the addon needs ${chosen.toolchain}.
 `
@@ -543,7 +545,8 @@ export async function addPackage(options: AddPackageOptions): Promise<AddPackage
     //The version of the workspace, as lakutata version and list give it (0.0.1 without one, or with the independent
     //versions of lerna)
     const version: string = workspace.version !== undefined && isVersion(workspace.version) ? workspace.version : '0.0.1'
-    const files: Files = options.native ? nativeFiles(options.name, version, options.native) : libraryFiles(options.name, version)
+    const packageManager: PackageManager = projectPackageManager(workspace.root)
+    const files: Files = options.native ? nativeFiles(options.name, version, options.native, packageManager) : libraryFiles(options.name, version, packageManager)
     for (const [file, content] of Object.entries(files)) {
         await mkdir(path.dirname(path.join(directory, file)), {recursive: true})
         await writeFile(path.join(directory, file), content)
@@ -552,5 +555,5 @@ export async function addPackage(options: AddPackageOptions): Promise<AddPackage
         dependent.manifest.data.dependencies = {...(dependent.manifest.data.dependencies ?? {}), [options.name]: `^${version}`}
         await dependent.manifest.write()
     }
-    return {directory: directory, files: Object.keys(files), version: version, packageManager: projectPackageManager(workspace.root), to: dependent?.name}
+    return {directory: directory, files: Object.keys(files), version: version, packageManager: packageManager, to: dependent?.name}
 }

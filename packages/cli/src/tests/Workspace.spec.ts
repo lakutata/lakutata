@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {nextVersion, updateRange} from '../lib/workspace/Version.js'
+import {projectPackageManager} from '../lib/Processes.js'
 
 const CLI: string = fileURLToPath(new URL('../CLIApp.js', import.meta.url))
 
@@ -136,6 +137,7 @@ describe('The workspace commands', (): void => {
         const result = await runCommand(['run', 'env'])
         assert.strictEqual(result.code, 0, result.stderr)
         assert.match(result.stdout, /NODE_ENV=undefined/)
+        assert.match((await runCommand(['list'])).stdout, /^1 package, version 1\.0\.0\n/)
     })
 
     it('runs the scripts with the package manager of the workspace', {skip: process.platform === 'win32' && 'the stand-in of pnpm is a shell script'}, async (): Promise<void> => {
@@ -240,6 +242,22 @@ describe('The workspace commands', (): void => {
             assert.match(outside.stderr, /is not in a git repository/)
             assert.strictEqual(readManifest('packages/a').version, '2.0.0')
         }
+    })
+
+    it('finds the package manager of a project in its directory and its workspace, not above them', (): void => {
+        //A lock file above the workspace (the home directory) does not count
+        writeFileSync(path.join(root, 'yarn.lock'), '')
+        writePackage('workspace', {name: 'workspace', private: true, workspaces: ['packages/*']})
+        writePackage('workspace/packages/app', {name: 'app'})
+        writePackage('alone', {name: 'alone'})
+        assert.strictEqual(projectPackageManager(path.join(root, 'workspace')), 'npm')
+        assert.strictEqual(projectPackageManager(path.join(root, 'workspace', 'packages', 'app')), 'npm')
+        assert.strictEqual(projectPackageManager(path.join(root, 'alone')), 'npm')
+        //The lock file of the workspace counts for its packages
+        writeFileSync(path.join(root, 'workspace', 'pnpm-lock.yaml'), '')
+        assert.strictEqual(projectPackageManager(path.join(root, 'workspace', 'packages', 'app')), 'pnpm')
+        writePackage('alone', {name: 'alone', packageManager: 'yarn@4.5.0'})
+        assert.strictEqual(projectPackageManager(path.join(root, 'alone')), 'yarn')
     })
 
     it('fails outside of a workspace', async (): Promise<void> => {
