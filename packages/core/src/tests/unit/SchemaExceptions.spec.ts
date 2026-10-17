@@ -68,6 +68,8 @@ describe('Schema exceptions', (): void => {
     it('keep the validation details in the cause of InvalidValueException', async (): Promise<void> => {
         const sync: unknown = thrown((): unknown => VLDMethods.validate({name: 'x'}, VLD.object({name: VLD.string().min(2)})))
         assert.ok(sync instanceof InvalidValueException)
+        //An error of the caller, as its cause
+        assert.strictEqual(sync.statusCode, 400)
         assert.ok(sync.cause instanceof SchemaValidationException)
         assert.deepStrictEqual(sync.cause.details.map((detail) => detail.type), ['string.min'])
         const async: unknown = await VLDMethods.validateAsync({name: 'x'}, VLD.object({name: VLD.string().min(2)})).catch((e: unknown): unknown => e)

@@ -126,7 +126,7 @@ describe('HTTP service adapter', (): void => {
         assert.deepStrictEqual(await invoke(url, {cmd: 'echo', value: 3}), {status: 200, success: true, error: null, payload: {value: 3, method: 'POST'}})
         assert.deepStrictEqual(await invoke(url, {cmd: 'whoami'}, 'postman'), {status: 200, success: true, error: null, payload: 'postman'})
         const invalid = await invoke(url, {cmd: 'echo', value: 'x'})
-        assert.strictEqual(invalid.error.errno, 'E_INVALID_VALUE')
+        assert.deepStrictEqual([invalid.error.errno, invalid.error.statusCode], ['E_INVALID_VALUE', 400])
         assert.strictEqual((await invoke(url, {cmd: 'unknown'})).success, false)
         //Not JSON
         const malformed = await invoke(url, '{cmd')
