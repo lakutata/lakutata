@@ -442,7 +442,7 @@ export class I18n extends Component {
      * @param locale The language tag: the default language by default, and when it is not a language tag.
      * @returns The formatted message. With `missing: 'key'`, the key itself when no message has it, `{name}` in place
      * of a missing argument, and a plain number for a currency argument without a currency, each with a warning
-     * emitted once (per key, or per message and argument).
+     * emitted once (per key and language, or per message and argument).
      * @throws {I18nMissingKeyException} When no message has the key and the `missing` mode is `'throw'`.
      * @throws {I18nMissingParameterException} When an argument is missing, or a currency argument has no currency, and
      * the `missing` mode is `'throw'`.

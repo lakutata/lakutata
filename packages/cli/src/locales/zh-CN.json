@@ -14,7 +14,7 @@
           "author": "应用的作者",
           "license": "应用的许可证",
           "packageManager": "安装依赖使用的包管理器，默认是运行本工具的那个（none 表示不安装）",
-          "with": "启用模板的可选功能，多个用逗号分隔（lakutata templates 会列出）：i18n",
+          "with": "启用模板的可选功能，多个用逗号分隔（lakutata templates 会列出）：i18n、installer",
           "git": "初始化 git 仓库",
           "yes": "不经确认直接创建项目"
         }
@@ -114,7 +114,7 @@
           "script": "构建并启动应用的包脚本（generate、run、revert、show）",
           "package": "应用所在的工作区包（默认是当前目录）",
           "database": "数据库：其 Database 组件或提供者的名称（默认全部；应用有多个数据库时，回滚必须指定）",
-          "transaction": "执行或回滚迁移的事务方式：all（一个事务，默认）、each（每个迁移一个）或 none",
+          "transaction": "执行或回滚迁移的事务方式：all（所有迁移一个事务）、each（每个迁移一个）或 none；默认取数据库的 migrationsTransactionMode，没有时为 all",
           "fake": "只标记迁移为已执行或已回滚，不实际执行"
         }
       },

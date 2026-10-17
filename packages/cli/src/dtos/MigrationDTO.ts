@@ -20,7 +20,7 @@ export class MigrationDTO extends DTO {
     @Expect(DTO.String().optional().description('The database: the name of its Database component or provider (all by default; required to revert when the application has several)'))
     public database?: string
 
-    @Expect(DTO.String().valid('all', 'none', 'each').optional().description('The transactions of the migrations run or reverted: all (one, by default), each (one per migration) or none'))
+    @Expect(DTO.String().valid('all', 'none', 'each').optional().description('The transactions of the migrations run or reverted: all (one for all), each (one per migration) or none; by default the migrationsTransactionMode of the database, else all'))
     public transaction?: 'all' | 'none' | 'each'
 
     @Expect(DTO.Boolean().optional().default(false).description('Mark the migrations as run or reverted without executing them'))

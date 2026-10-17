@@ -249,7 +249,7 @@ Application.run({
     })
 
     it('bundles an application without native addon as it is', (): void => {
-        assert.doesNotMatch(readFileSync(path.join(project, 'dist', 'greet.cjs'), 'utf8'), /LakutataNativeRequire/)
+        assert.doesNotMatch(readFileSync(path.join(project, 'dist', 'greet.cjs'), 'utf8'), /lakutataNativeRequire/)
         assert.ok(!existsSync(path.join(project, 'dist', 'greet.native')))
     })
 
