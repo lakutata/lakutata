@@ -1,4 +1,5 @@
 import {Module} from '../core/Module.js'
+import {__destroy} from '../base/BaseObject.js'
 import {Container} from '../core/Container.js'
 import {ApplicationConfigLoader} from './ApplicationConfigLoader.js'
 import {ApplicationOptions} from '../../options/ApplicationOptions.js'
@@ -163,6 +164,12 @@ export class Application extends Module {
      * launch
      */
     static #exiting: boolean = false
+
+    /**
+     * The listener of the end of the process once nothing keeps it busy (beforeExit): the launched application exits
+     * gracefully then, as with exit()
+     */
+    static #naturalEnd: (() => void) | undefined
 
     /**
      * Preset the options of the applications, before they run: the packages assembling the framework preset their
@@ -424,6 +431,36 @@ export class Application extends Module {
     }
 
     /**
+     * End the launched application gracefully once nothing keeps the process busy (no server, connection or timer
+     * left): its exit, with the exit code the process has (`process.exitCode`, 0 by default), as with `exit()`. A
+     * process ending so does not wait for an exit, so the done handlers and the teardown would not run otherwise.
+     * @param app The launched application.
+     * @protected
+     */
+    protected static listenNaturalEnd(app: Application): void {
+        Application.stopListeningNaturalEnd()
+        const listener = (): void => {
+            Application.stopListeningNaturalEnd()
+            //Exiting already (a signal, exit()): its teardown runs
+            if (Application.#exiting) return
+            const code: number = Number(process.exitCode ?? 0)
+            Application.eventEmitter.emit('exit', app, Number.isInteger(code) ? code : 1)
+        }
+        Application.#naturalEnd = listener
+        process.once('beforeExit', listener)
+    }
+
+    /**
+     * Stop ending the application with the process: it exits, or it is destroyed (disposed by a test, which leaves the
+     * end of the process to its runner)
+     * @protected
+     */
+    protected static stopListeningNaturalEnd(): void {
+        if (Application.#naturalEnd) process.removeListener('beforeExit', Application.#naturalEnd)
+        Application.#naturalEnd = undefined
+    }
+
+    /**
      * Launch the application: environment variables, aliases, options (or the database migration command given by the
      * `MIGRATION_*` environment variables), then the application created in a new root container.
      * @returns The application, once its bootstrap has completed.
@@ -558,6 +595,7 @@ export class Application extends Module {
                         markApplicationLaunched(target)
                         //The application launched is the one the signals end (its launched handlers may receive them)
                         Reflect.set(this, 'appInstance', target)
+                        Application.listenNaturalEnd(As<Application>(target))
                         this.eventEmitter.emit(ApplicationState.Launched, As<Application>(target))
                     })
                     //Resolved once the application is initialized (its objects loaded, its bootstrap run), rejected with
@@ -652,6 +690,17 @@ export class Application extends Module {
      */
     public get timezone(): string {
         return getBasicInfo().timezone
+    }
+
+    /**
+     * The framework's destroyer, see {@link Module}: a destroyed application no longer ends with the process.
+     * @param hooks The steps the framework's subclasses run before `destroy()`.
+     * @returns Resolves once the application and its objects are destroyed.
+     * @protected
+     */
+    protected async [__destroy](...hooks: (() => Promise<void>)[]): Promise<void> {
+        Application.stopListeningNaturalEnd()
+        return await super[__destroy](...hooks)
     }
 
     /**

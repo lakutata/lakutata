@@ -273,6 +273,37 @@ Application.run({id: 'exit.app', name: 'ExitApp'})
             assert.ok(Date.now() - started < 5000, `${Date.now() - started} ms`)
         })
 
+        it('end gracefully once nothing keeps the process busy: done, the objects destroyed, the exit code of the process', (): void => {
+            const script = (exitCode: string): string => `
+class Worker extends Component {
+    async destroy() { console.log('DESTROYED worker') }
+}
+Application.run({id: 'idle.app', name: 'IdleApp', components: {worker: {class: Worker}}, bootstrap: ['worker']})
+    .onLaunched(() => { ${exitCode} })
+    .onDone((app, logger, reason) => console.log('DONE ' + JSON.stringify(reason)))`
+            const ended = runApplication(script(''))
+            assert.strictEqual(ended.status, 0, ended.output)
+            assert.match(ended.output, /DONE \{"code":0\}/)
+            assert.match(ended.output, /DESTROYED worker/)
+            //The exit code the application set
+            const failed = runApplication(script('process.exitCode = 3'))
+            assert.strictEqual(failed.status, 3, failed.output)
+            assert.match(failed.output, /DONE \{"code":3\}/)
+            assert.match(failed.output, /DESTROYED worker/)
+        })
+
+        it('leave the end of the process to it once disposed: no done handler, the exit code of the process', (): void => {
+            const disposed = runApplication(`
+Application.run({id: 'disposed.app', name: 'DisposedApp'})
+    .onLaunched(async (app) => {
+        await app.dispose()
+        process.exitCode = 5
+    })
+    .onDone(() => console.log('DONE'))`)
+            assert.strictEqual(disposed.status, 5, disposed.output)
+            assert.doesNotMatch(disposed.output, /DONE/)
+        })
+
         it('end at once on a signal received while the application launches', {skip: POSIX_SIGNALS}, async (): Promise<void> => {
             const run = await runWithSignals(`
 class Slow extends Component {
