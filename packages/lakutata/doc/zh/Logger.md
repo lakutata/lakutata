@@ -1,6 +1,6 @@
 # Lakutata 日志
 
-每个 `lakutata` 应用都有一个日志记录器：由这个包预设的 `log` 组件（`lakutata/com/logger` 中的 `Logger`）。它把可读的日志行，或者供日志收集器读取的 pino 格式的 JSON 行，写到标准输出或其他流中。框架本身也通过它写日志。
+每个 `lakutata` 应用都有一个日志记录器：由这个包预置的 `log` 组件（`lakutata/com/logger` 中的 `Logger`）。它把可读的日志行，或者供日志收集器读取的 pino 格式的 JSON 行，写到标准输出或其他流中。框架本身也通过它写日志。
 
 ## 1. `log` 组件
 
@@ -23,7 +23,7 @@ Application
         id: 'shop.app',
         name: 'Shop',
         components: {
-            //预设的日志记录器的选项：不需要 class
+            //预置的日志记录器的选项：不需要 class
             log: {level: 'info', pretty: process.env.NODE_ENV !== 'production'},
             orders: {class: Orders}
         }

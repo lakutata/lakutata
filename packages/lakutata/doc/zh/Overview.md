@@ -82,4 +82,4 @@
 | [Packaging](Packaging.md) | 单文件包和可执行文件，以及打包后的应用在运行时读取什么 |
 | [Installers](Installers.md) | 各平台的安装包、服务、安装脚本、签名 |
 
-每个 `@lakutata/*` 包都有自己的 README，各子路径的类型声明也为每个声明附带了说明和示例。
+每个 `@lakutata/*` 包都有自己的 README，各子路径的类型声明中，每一项也都附有说明和示例。
