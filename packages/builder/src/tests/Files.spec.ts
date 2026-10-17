@@ -277,6 +277,16 @@ main()
         ].join('\n'))
     })
 
+    for (const runtime of ['node', 'bun'] as const) {
+        it(`runs the scripts of an executable started for them (fork()) instead of the application, in the directory layout of the installers, with ${runtime}`, {skip: runtime === 'bun' && !hasBun() && 'Bun is not installed'}, async (): Promise<void> => {
+            const project: string = path.join(work, 'anywhere')
+            const result = await buildExecutable({project: project, outdir: path.join(project, `executable-directory-${runtime}`), runtime: runtime, layout: 'directory'})
+            assert.strictEqual(execFileSync(result.file, [], {cwd: tmpdir(), env: {PATH: ''}, timeout: 60000}).toString().trim(), [
+                'piscina 4', runtime === 'bun' ? 'workerpool skipped' : 'workerpool 6', 'tinypool 6', 'property 50', 'assigned legacy', 'fork child', 'require plugin'
+            ].join('\n'))
+        })
+    }
+
     it('copies the files and the directories of data the application reads by their paths, warns of the ones it cannot ship', async (): Promise<void> => {
         const project: string = path.join(work, 'resources')
         //The module reading them is deeper than the bundle (build/config, dist): their paths from it are not the same

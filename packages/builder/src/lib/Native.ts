@@ -83,9 +83,9 @@ const RESOLVING: string = 'lakutataNativeResolving'
 
 /**
  * The files of the packages node never loads: their types, their source maps, their sources in TypeScript, their
- * documentation
+ * documentation, the sources and the objects of their addons in C and C++ (better-sqlite3 holds the source of SQLite)
  */
-const UNUSED: RegExp = /\.(d\.[cm]?ts|[cm]?ts|map|md|markdown)$/i
+const UNUSED: RegExp = /\.(d\.[cm]?ts|[cm]?ts|map|md|markdown|c|cc|cpp|cxx|h|hh|hpp|hxx|o|obj)$/i
 
 /**
  * The JavaScript files, which a package keeps when they are loaded (traced)

@@ -29,6 +29,12 @@ export type NativeRuntimeConfig = {
      * .lakutata/workers): the tree is not looked for (nor extracted)
      */
     root?: string
+    /**
+     * Whether the bundle is the one of an executable, which its process.execPath runs (in both layouts): it runs the
+     * scripts of its tree it is started for (fork()), and an executable of Node.js loads the modules left out of the
+     * bundle (--external) from next to it
+     */
+    executable?: boolean
 }
 
 /**
@@ -66,7 +72,7 @@ export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
     const path: typeof import('node:path') = nodeRequire('node:path')
     const fs: typeof import('node:fs') = nodeRequire('node:fs')
     const os: typeof import('node:os') = nodeRequire('node:os')
-    const {createRequire} = nodeRequire('node:module') as typeof import('node:module')
+    const {createRequire, isBuiltin} = nodeRequire('node:module') as typeof import('node:module')
     let sea: typeof import('node:sea') | undefined
     try {
         sea = nodeRequire('node:sea')
@@ -150,11 +156,15 @@ export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
         return modules.has(id.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0])
     }
     const tree = (): NodeJS.Require => treeRequire ??= createRequire(path.join(locate(), 'index.js'))
+    //The modules left out of the bundle (--external), next to an executable of Node.js: the require of its single
+    //executable application loads the modules of node only (the one of a bundle run by node loads them)
+    const disk: NodeJS.Require | undefined = sea?.isSea() ? createRequire(process.execPath) : undefined
+    const outside = (id: string): NodeJS.Require => disk && !isBuiltin(id) ? disk : nodeRequire
 
     //The files loaded by their paths (the scripts of the tree): the require of an executable of Node.js loads the modules of
     //node only
-    const require = ((id: string): unknown => fromTree(id) ? tree()(id) : path.isAbsolute(id) ? createRequire(id)(id) : nodeRequire(id)) as NodeJS.Require & { lakutataNative(key: string): unknown, lakutataFiles(key: string): string, lakutataFilesURL(key: string): string, lakutataScript(): boolean }
-    require.resolve = ((id: string, options?: { paths?: string[] }): string => fromTree(id) ? tree().resolve(id, options) : nodeRequire.resolve(id, options)) as NodeJS.RequireResolve
+    const require = ((id: string): unknown => fromTree(id) ? tree()(id) : path.isAbsolute(id) ? createRequire(id)(id) : outside(id)(id)) as NodeJS.Require & { lakutataNative(key: string): unknown, lakutataFiles(key: string): string, lakutataFilesURL(key: string): string, lakutataScript(): boolean }
+    require.resolve = ((id: string, options?: { paths?: string[] }): string => fromTree(id) ? tree().resolve(id, options) : outside(id).resolve(id, options)) as NodeJS.RequireResolve
     require.cache = nodeRequire.cache
     require.main = nodeRequire.main
     require.extensions = nodeRequire.extensions
@@ -171,7 +181,7 @@ export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
     //An executable started to run a script of its tree (fork(), spawn(process.execPath, [script]): process.execPath is the
     //executable): it runs the script as node runs it, the application not started
     require.lakutataScript = (): boolean => {
-        if (!config.embedded || config.root !== undefined) return false
+        if (!(config.embedded || config.executable) || config.root !== undefined) return false
         const scripts: string = path.join(locate(), '.lakutata', 'files') + path.sep
         const at: number = [1, 2].find((index: number): boolean => !!process.argv[index] && path.resolve(process.argv[index]).startsWith(scripts)) ?? -1
         if (at < 0) return false

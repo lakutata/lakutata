@@ -390,6 +390,8 @@ void (async () => {
         //The libraries of sharp: libvips, its package (macOS, Linux) or with its addon (Windows)
         assert.match(stored, process.platform === 'win32' ? /@img\/sharp-win32-/ : /sharp-libvips-/)
         assert.doesNotMatch(stored, /prebuild-install|node-gyp/)
+        //The sources of the addons are left out (better-sqlite3 holds the C source of SQLite, 9 MB)
+        assert.deepStrictEqual(listFiles(tree).filter((file: string): boolean => /\.(c|cc|cpp|cxx|h|hh|hpp|hxx|o|obj)$/i.test(file)), [])
         //Moved with its tree, it runs without the node_modules of the project
         const moved: string = path.join(path.dirname(native), 'moved')
         cpSync(path.join(native, 'dist'), moved, {recursive: true})
@@ -494,6 +496,7 @@ void (async () => {
     it('makes an executable which extracts its native packages once into its cache directory', async (): Promise<void> => {
         const made = await runNative(process.execPath, [CLI, 'package', 'exe', '--outdir', 'bin'])
         assert.strictEqual(made.code, 0, made.output)
+        assert.doesNotMatch(made.output, /V8 API/)
         assert.match(made.output, /Native addons embedded, extracted at the first run: better-sqlite3, cpu-info, native-sub, sharp/)
         const directory: string = path.join(path.dirname(native), 'elsewhere')
         mkdirSync(directory)
@@ -513,6 +516,9 @@ void (async () => {
     it('makes an executable of Bun which extracts its native packages into its cache directory', {skip: !BUN && 'Bun is not installed'}, async (): Promise<void> => {
         const made = await runNative(process.execPath, [CLI, 'package', 'exe', '--runtime', 'bun', '--outdir', 'bun'])
         assert.strictEqual(made.code, 0, made.output)
+        //better-sqlite3 is built on the V8 API of Node.js, which Bun does not load; the other addons on Node-API
+        assert.match(made.output, /better-sqlite3: its addon is built on the V8 API of Node\.js/)
+        assert.doesNotMatch(made.output, /(cpu-info|native-sub|sharp): its addon/)
         assert.match(made.output, /Native addons embedded, extracted at the first run: better-sqlite3, cpu-info, native-sub, sharp/)
         const directory: string = path.join(path.dirname(native), 'bun-elsewhere')
         mkdirSync(directory)

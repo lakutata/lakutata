@@ -39,6 +39,11 @@ export type BundleOptions = {
      */
     runtime?: 'node' | 'bun'
     /**
+     * Whether the bundle is the one of an executable (buildExecutable): it runs the scripts of its tree it is started
+     * for, in both layouts, and on Node.js it loads the modules left out of it from next to the executable
+     */
+    executable?: boolean
+    /**
      * The directories of the native tree and of the resources (when they are not embedded), next to the bundle by
      * default (<name>.native and <name>.resources): the bundle loads them by their names from its directory
      */
@@ -261,15 +266,19 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
         const embeddedFiles: NativeFile[] = [...native?.files ?? [], ...resources.files.map((file: NativeFile): NativeFile => ({...file, path: `${EMBEDDED_RESOURCES}/${file.path}`}))]
         native = {modules: native?.modules ?? [], files: embeddedFiles, links: native?.links ?? [], hash: hashNativeTree(embeddedFiles, native?.links ?? [])}
     }
-    if (native && embedded) {
+    const executable: boolean = embedded || !!options.executable
+    if (native && executable) {
         //An executable runs the scripts of its tree it is started for (fork()) instead of the application
         const hashbang: string = /^#![^\n]*\n/.exec(code)?.[0] ?? ''
         code = `${hashbang}if (!require.lakutataScript()) {\n${code.slice(hashbang.length)}\n}\n`
     }
     if (native) {
         //The require loading the native packages is the first code, after the hashbang
-        code = prepend(code, nativeBanner({name: name, hash: native.hash, directory: path.basename(nativeDirectory), modules: native.modules, embedded: embedded}))
+        code = prepend(code, nativeBanner({name: name, hash: native.hash, directory: path.basename(nativeDirectory), modules: native.modules, embedded: embedded, executable: executable}))
         if (!embedded) await writeNativeTree(native, nativeDirectory)
+    } else if (executable && options.runtime !== 'bun') {
+        //Without tree, an executable of Node.js still loads the modules left out of the bundle from next to it
+        code = prepend(code, nativeBanner({name: name, hash: '', directory: '', modules: [], embedded: false, executable: true}))
     }
     if (!embedded) {
         for (const file of resources.files) {

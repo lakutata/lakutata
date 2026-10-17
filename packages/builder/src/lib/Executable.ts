@@ -7,7 +7,7 @@ import {detectLibc} from './Platform.js'
 import {runCommand} from './Processes.js'
 import {bundleProject, programName, type BundleOptions, type BundleResult} from './Bundle.js'
 import {applicationIcon, icoFile, setExecutableIcon} from './Icons.js'
-import {packNativeTree} from './Native.js'
+import {packNativeTree, type NativeFile} from './Native.js'
 import {BUN_NATIVE_ASSETS, NATIVE_DATA_ASSET, NATIVE_INDEX_ASSET} from './NativeRuntime.js'
 
 export type ExecutableOptions = Omit<BundleOptions, 'outfile' | 'native' | 'directories'> & {
@@ -209,6 +209,25 @@ async function compileWithBun(bun: { command: string, version: string }, bundle:
 }
 
 /**
+ * The packages of a native tree whose addons are built on the V8 API of Node.js (they export
+ * node_register_module_v<ABI>), not on Node-API (napi_register_module_v1): Bun may not load them (better-sqlite3)
+ * @param files The files of the native tree.
+ * @returns The names of the packages (or of the addons of the application itself), sorted.
+ */
+export function v8Addons(files: NativeFile[]): string[] {
+    const names: Set<string> = new Set()
+    for (const file of files) {
+        if (!file.path.endsWith('.node')) continue
+        const content: Buffer = file.content ?? readFileSync(file.source)
+        if (!content.includes('node_register_module_v') || content.includes('napi_register_module_v1')) continue
+        const at: number = file.path.lastIndexOf('node_modules/')
+        const parts: string[] = at < 0 ? [path.posix.basename(file.path)] : file.path.slice(at + 'node_modules/'.length).split('/')
+        names.add(parts[0].startsWith('@') ? parts.slice(0, 2).join('/') : parts[0])
+    }
+    return [...names].sort()
+}
+
+/**
  * Make the executable of the application for the platform it is made on, which runs without Node.js installed: its bundle
  * embedded in the Node.js binary running the tool (the single executable applications of Node.js), or compiled by Bun.
  * The executables of the other platforms are made on them (their native addons are built there), as the applications are
@@ -233,6 +252,7 @@ export async function buildExecutable(options: ExecutableOptions): Promise<Execu
             ...options,
             outfile: path.join(work, 'main.cjs'),
             native: directory ? 'directory' : 'embedded',
+            executable: true,
             directories: {native: path.join(target, 'native'), resources: path.join(target, 'resources')}
         })
         //The executables of Node.js do not load the native addons on musl (postject rewrites their symbols): the ones of Bun do
@@ -246,6 +266,8 @@ export async function buildExecutable(options: ExecutableOptions): Promise<Execu
         const made: string = path.join(work, 'executable', path.basename(file))
         await mkdir(path.dirname(made), {recursive: true})
         const warnings: string[] = [...bundle.warnings]
+        //Bun loads the addons of Node-API; an addon built on the V8 API of Node.js may fail when it is loaded
+        if (bun) for (const name of v8Addons(bundle.native?.files ?? [])) warnings.push(`${name}: its addon is built on the V8 API of Node.js, not on Node-API, and Bun may not load it (the executable then fails when it loads the package): make the executable with Node.js (--runtime node)`)
         //The icon of the application: the one of the executables of Windows (the ones of macOS and Linux have none)
         const application = applicationIcon(project, manifest)
         const icon: Buffer | undefined = application && process.platform === 'win32' ? icoFile(application.image) : undefined

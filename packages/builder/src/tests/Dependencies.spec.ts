@@ -1,10 +1,22 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {execFileSync} from 'node:child_process'
-import {mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync} from 'node:fs'
+import {execFileSync, execSync} from 'node:child_process'
+import {cpSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {bundleProject} from '../index.js'
+import {buildExecutable, bundleProject} from '../index.js'
+
+/**
+ * Whether Bun is installed
+ */
+function hasBun(): boolean {
+    try {
+        execSync('bun --version', {stdio: 'ignore'})
+        return true
+    } catch {
+        return false
+    }
+}
 
 /**
  * Write the files of a project
@@ -74,6 +86,33 @@ exports.load = async (name) => {
         })
         const result = await bundleProject({project: project})
         assert.strictEqual(runWithoutPackages(project, result.outfile), 'fakepg bundled | missing MODULE_NOT_FOUND')
+    })
+
+    it('loads the external modules of an executable from a node_modules next to it, whatever its runtime and its layout', async (): Promise<void> => {
+        //Without native tree, and with one (a file the application reads by its path)
+        const sources: Record<string, string> = {
+            'external': 'console.log(require(\'extdemo\') + \' \' + require(\'node:path\').basename(\'/a/b\'))\n',
+            'external-tree': 'console.log(require(\'extdemo\') + \' \' + require(\'node:fs\').readFileSync(require(\'node:path\').join(__dirname, \'b.txt\'), \'utf8\'))\n'
+        }
+        for (const [name, source] of Object.entries(sources)) {
+            const project: string = path.join(work, name)
+            writeProject(project, {
+                'package.json': JSON.stringify({name: name, version: '1.0.0', main: 'build/index.js'}),
+                'build/index.js': source,
+                'build/b.txt': 'b',
+                'node_modules/extdemo/package.json': JSON.stringify({name: 'extdemo', version: '1.0.0', main: 'index.js'}),
+                'node_modules/extdemo/index.js': 'module.exports = \'external\'\n'
+            })
+            for (const runtime of hasBun() ? ['node', 'bun'] as const : ['node'] as const) {
+                for (const layout of ['file', 'directory'] as const) {
+                    const result = await buildExecutable({project: project, outdir: path.join(project, `executable-${runtime}-${layout}`), runtime: runtime, layout: layout, external: ['extdemo']})
+                    //The module given next to the executable
+                    cpSync(path.join(project, 'node_modules'), path.join(path.dirname(result.file), 'node_modules'), {recursive: true})
+                    const printed: string = execFileSync(result.file, [], {cwd: tmpdir(), env: {PATH: '', LAKUTATA_NATIVE_DIR: path.join(work, `${name}-cache`)}, timeout: 60000}).toString().trim()
+                    assert.strictEqual(printed, 'external b', `${name}, ${runtime}, ${layout}`)
+                }
+            }
+        }
     })
 
     it('fails on the packages not installed which are not optional', async (): Promise<void> => {
