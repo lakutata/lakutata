@@ -7,7 +7,7 @@
 An IoC application framework for Node.js and TypeScript
 
 [Website](https://lakutata.com) · [Getting started](https://lakutata.com/guide/GettingStarted) ·
-[API reference](https://lakutata.com/api/) · [中文](README.zh-CN.md)
+[Examples](https://lakutata.com/examples/) · [API reference](https://lakutata.com/api/) · [中文](README.zh-CN.md)
 
 ![npm](https://img.shields.io/npm/v/lakutata?logo=npm)
 ![node](https://img.shields.io/node/v/lakutata?logo=nodedotjs)
@@ -101,8 +101,9 @@ The templates of `lakutata create` are the `@lakutata/template-*` packages, list
 
 ## Documentation
 
-- [lakutata.com](https://lakutata.com): the guides, in English and Chinese, and the API reference. Their sources are
-  [`packages/lakutata/doc`](packages/lakutata/doc) (`en`, `zh`) and the type declarations of the packages.
+- [lakutata.com](https://lakutata.com): the guides and the examples, in English and Chinese, and the API reference.
+  Their sources are [`packages/lakutata/doc`](packages/lakutata/doc) (`en`, `zh`, and their `examples`) and the type
+  declarations of the packages.
 - Each package has a README with its options, API and errors.
 
 ## Development

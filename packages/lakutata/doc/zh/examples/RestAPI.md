@@ -71,7 +71,7 @@ export class TaskIdDTO extends DTO {
  * 新任务
  */
 export class CreateTaskDTO extends DTO {
-    @Expect(DTO.String().trim().min(1).max(200).required())
+    @Expect(DTO.String().trim().strict(false).min(1).max(200).required())
     public title: string
 }
 
@@ -79,7 +79,7 @@ export class CreateTaskDTO extends DTO {
  * 任务的修改
  */
 export class UpdateTaskDTO extends TaskIdDTO {
-    @Expect(DTO.String().trim().min(1).max(200).optional())
+    @Expect(DTO.String().trim().strict(false).min(1).max(200).optional())
     public title?: string
 
     @Expect(DTO.Boolean().optional())
@@ -99,6 +99,7 @@ export class TaskSearchDTO extends PaginationSearchDTO {
 
 - HTTP 动作的输入由路由参数、请求体和查询字符串合并而成；
 - 路由参数和查询字符串都是文本：`.strict(false)` 把 `'1'` 转换为数字 1，把 `'false'` 转换为布尔值，否则这些规则会拒绝文本；
+- 只有加上 `.strict(false)`，`.trim()` 才会去掉标题首尾的空格；严格模式下的规则会直接拒绝这样的标题；
 - `TaskSearchDTO` 继承自 `PaginationSearchDTO`（来自 `lakutata/dtos`），用它的 `limit`（默认 10）和 `offset`（默认 0）选择一页。
 
 ## 4. 异常
@@ -283,6 +284,7 @@ export function config(port: number = Number(process.env.PORT ?? 8080), database
 - 新增 `database` 组件：SQLite 数据库文件（服务运行目录下的 `tasks.sqlite`，或者环境变量 `DATABASE` 指定的文件）、它的实体，以及连接时运行的迁移；
 - 用 `TaskController` 替换示例控制器；
 - `jsonEnvelope()` 不再设置 `errorStatus`：结果和错误都是 `{errno, errMsg, data}`，错误保留各自的状态码（400、401、404），这是 REST 客户端所期望的；
+- 请求体最多 1 MB（模板允许 100 MB），对任务来说足够了；
 - `bootstrap: ['database', 'entrypoint']`：先连接数据库并运行迁移，再让 HTTP 服务器开始监听。
 
 模板中的中间件 `Authenticate.ts` 保留不变：设置了环境变量 `API_TOKEN` 时，请求必须带上 `Authorization: Bearer <API_TOKEN>`。

@@ -120,7 +120,7 @@ Application
 
 ## 另见
 
-- 指南在这个包的 `doc/zh`（中文）和 `doc/en`（英文）中：`Overview.md`、`GettingStarted.md`、`ProjectStructure.md`、`Application.md`、`Objects.md`、`Injection.md`、`DTOValidation.md`、`Exceptions.md`、`Logger.md`、`Decorator.md`、`Time.md`、`HelperFunctions.md`、`Controllers.md`、`Entrypoint.md`、`Middlewares.md`、`HTTP.md`、`CLI.md`、`ServiceCalls.md`、`GRPC.md`、`NATS.md`、`Schedules.md`、`Queue.md`、`Database.md`、`DatabaseDrivers.md`、`MongoEmbedded.md`、`Entities.md`、`Migrations.md`、`Cache.md`、`Mutex.md`、`I18n.md`、`DockerIntegration.md`、`ContainerdIntegration.md`、`Monitor.md`、`Security.md`、`DBus.md`、`MCP.md`、`Command.md`、`Workspaces.md`、`NativeAddons.md`、`Packaging.md`、`Installers.md`。
+- 指南在这个包的 `doc/zh`（中文）和 `doc/en`（英文）中：`Overview.md`、`GettingStarted.md`、`ProjectStructure.md`、`Application.md`、`Objects.md`、`Injection.md`、`DTOValidation.md`、`Exceptions.md`、`Logger.md`、`Decorator.md`、`Time.md`、`HelperFunctions.md`、`Controllers.md`、`Entrypoint.md`、`Middlewares.md`、`HTTP.md`、`CLI.md`、`ServiceCalls.md`、`GRPC.md`、`NATS.md`、`Schedules.md`、`Queue.md`、`Database.md`、`DatabaseDrivers.md`、`MongoEmbedded.md`、`Entities.md`、`Migrations.md`、`Cache.md`、`Mutex.md`、`I18n.md`、`DockerIntegration.md`、`ContainerdIntegration.md`、`Monitor.md`、`Security.md`、`DBus.md`、`MCP.md`、`Command.md`、`Workspaces.md`、`NativeAddons.md`、`Packaging.md`、`Installers.md`；示例在 `doc/zh/examples` 和 `doc/en/examples` 中：从模板构建的完整应用。
 - `@lakutata/cli`：创建、构建和打包应用。
 
 ## 许可证

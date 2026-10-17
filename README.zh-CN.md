@@ -6,7 +6,7 @@
 
 面向 Node.js 和 TypeScript 的 IoC 应用框架
 
-[网站](https://lakutata.com/zh/) · [快速开始](https://lakutata.com/zh/guide/GettingStarted) · [API 参考](https://lakutata.com/zh/api/) · [English](README.md)
+[网站](https://lakutata.com/zh/) · [快速开始](https://lakutata.com/zh/guide/GettingStarted) · [示例](https://lakutata.com/zh/examples/) · [API 参考](https://lakutata.com/zh/api/) · [English](README.md)
 
 ![npm](https://img.shields.io/npm/v/lakutata?logo=npm)
 ![node](https://img.shields.io/node/v/lakutata?logo=nodedotjs)
@@ -93,7 +93,7 @@ Application.run(() => ({
 
 ## 文档
 
-- [lakutata.com](https://lakutata.com/zh/)：中英文指南和 API 参考。指南的源文件在 [`packages/lakutata/doc`](packages/lakutata/doc)（`en`、`zh`），API 参考来自各个包的类型声明。
+- [lakutata.com](https://lakutata.com/zh/)：中英文指南、示例和 API 参考。指南和示例的源文件在 [`packages/lakutata/doc`](packages/lakutata/doc)（`en`、`zh` 及其中的 `examples`），API 参考来自各个包的类型声明。
 - 每个包都有自己的 README，说明它的选项、API 和错误。
 
 ## 开发

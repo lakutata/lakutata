@@ -78,7 +78,7 @@ export class TaskIdDTO extends DTO {
  * A new task
  */
 export class CreateTaskDTO extends DTO {
-    @Expect(DTO.String().trim().min(1).max(200).required())
+    @Expect(DTO.String().trim().strict(false).min(1).max(200).required())
     public title: string
 }
 
@@ -86,7 +86,7 @@ export class CreateTaskDTO extends DTO {
  * The changes of a task
  */
 export class UpdateTaskDTO extends TaskIdDTO {
-    @Expect(DTO.String().trim().min(1).max(200).optional())
+    @Expect(DTO.String().trim().strict(false).min(1).max(200).optional())
     public title?: string
 
     @Expect(DTO.Boolean().optional())
@@ -108,6 +108,7 @@ Each action validates its input with a DTO before it runs, and refuses invalid i
 - the input of an HTTP action merges the route parameters, the body and the query string;
 - the route parameters and the query string are text: `.strict(false)` converts `'1'` to the number 1 and `'false'` to
   the boolean, which the schemas otherwise refuse;
+- `.trim()` removes the spaces around the title only with `.strict(false)`: a strict schema refuses them instead;
 - `TaskSearchDTO` extends `PaginationSearchDTO` (from `lakutata/dtos`), whose `limit` (10 by default) and `offset` (0)
   select a page.
 
@@ -300,6 +301,7 @@ This is the `Config.ts` of the template, with:
 - the `TaskController` instead of the example controller;
 - `jsonEnvelope()` without `errorStatus`: the results and the errors are `{errno, errMsg, data}`, and the errors keep
   their status (400, 401, 404), which REST clients expect;
+- a body of 1 MB at most (the template allows 100 MB), more than a task needs;
 - `bootstrap: ['database', 'entrypoint']`: the database is connected and migrated before the HTTP server listens.
 
 The template's middleware `Authenticate.ts` stays: when the `API_TOKEN` environment variable is set, the requests must

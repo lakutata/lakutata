@@ -14,7 +14,8 @@ components in every application: `log` (the `Logger`, which writes pino-compatib
 
 [GettingStarted](GettingStarted.md) creates a first project from a template and shows a first application;
 [ProjectStructure](ProjectStructure.md) describes the files of a project; the guides below cover each part of the
-framework.
+framework. The [examples](examples/README.md) build whole applications from the templates: a REST API, a command line
+tool, a web and a desktop application, calls between services, background jobs, an MCP server and a service on a device.
 
 ## The subpaths
 

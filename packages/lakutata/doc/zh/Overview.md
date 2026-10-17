@@ -6,7 +6,7 @@
 
 ## 从哪里开始
 
-[GettingStarted](GettingStarted.md) 用模板创建第一个项目，并演示第一个应用；[ProjectStructure](ProjectStructure.md) 介绍项目中的文件；下面的各篇指南分别介绍框架的各个部分。
+[GettingStarted](GettingStarted.md) 用模板创建第一个项目，并演示第一个应用；[ProjectStructure](ProjectStructure.md) 介绍项目中的文件；下面的各篇指南分别介绍框架的各个部分。[示例](examples/README.md) 从模板出发构建完整的应用：REST API、命令行工具、Web 应用和桌面应用、服务之间的调用、后台任务、MCP 服务器，以及设备上的服务。
 
 ## 子路径
 

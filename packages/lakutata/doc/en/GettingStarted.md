@@ -156,6 +156,7 @@ curl 'http://localhost:8080/greet?name=you'
 
 ## 5. Next
 
+- [Examples](examples/README.md): whole applications built from the templates, step by step.
 - [ProjectStructure](ProjectStructure.md): the files of a project and its scripts.
 - [Application](Application.md), [Objects](Objects.md) and [Injection](Injection.md): how an application is declared,
   and how its objects are created and obtain one another.

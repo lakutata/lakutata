@@ -141,6 +141,7 @@ curl 'http://localhost:8080/greet?name=you'
 
 ## 5. 接下来
 
+- [示例](examples/README.md)：一步步从模板构建完整的应用。
 - [ProjectStructure](ProjectStructure.md)：项目中的文件和脚本。
 - [Application](Application.md)、[Objects](Objects.md) 和 [Injection](Injection.md)：怎样声明应用，以及应用中的对象如何创建、如何获取彼此。
 - [Controllers](Controllers.md) 和 [HTTP](HTTP.md)：动作、它们的输入和响应。
