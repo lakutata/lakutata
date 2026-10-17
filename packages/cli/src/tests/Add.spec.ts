@@ -126,6 +126,30 @@ describe('lakutata add', (): void => {
         assert.match(ran.output, /Hello, bundle \(from a dynamic library\)/)
     })
 
+    it('adds the package in the directory of the packages of the workspace, of its version, installed with its package manager', async (): Promise<void> => {
+        //A pnpm workspace whose packages are in apps/, without version in its root package.json
+        const root: string = path.join(work, 'apps-workspace')
+        mkdirSync(path.join(root, 'apps', 'web'), {recursive: true})
+        writeFileSync(path.join(root, 'package.json'), JSON.stringify({name: 'apps-workspace', private: true, workspaces: ['apps/*', 'tools/cli']}))
+        writeFileSync(path.join(root, 'pnpm-lock.yaml'), 'lockfileVersion: \'9.0\'\n')
+        writeFileSync(path.join(root, 'apps', 'web', 'package.json'), JSON.stringify({name: 'web', version: '2.0.0'}))
+        const added = await runIn(process.execPath, [CLI, 'add', '@acme/greeting'], root)
+        assert.strictEqual(added.code, 0, added.output)
+        assert.match(added.output, /Package @acme\/greeting 2\.0\.0 added: apps[\\/]greeting/)
+        assert.match(added.output, /Next: pnpm install \(links the package\), then pnpm --filter @acme\/greeting run rebuild/)
+        assert.strictEqual(JSON.parse(readFileSync(path.join(root, 'apps', 'greeting', 'package.json'), 'utf8')).version, '2.0.0')
+        //The commands of the workspace see it
+        const listed = await runIn(process.execPath, [CLI, 'list'], root)
+        assert.match(listed.output, /@acme\/greeting\s+2\.0\.0 \(private\)\s+apps[\\/]greeting/)
+        //A workspace without a directory of packages (only packages named one by one)
+        const named: string = path.join(work, 'named-workspace')
+        mkdirSync(path.join(named, 'cli'), {recursive: true})
+        writeFileSync(path.join(named, 'package.json'), JSON.stringify({name: 'named-workspace', private: true, workspaces: ['cli']}))
+        const refused = await runIn(process.execPath, [CLI, 'add', 'greeting'], named)
+        assert.notStrictEqual(refused.code, 0)
+        assert.match(refused.output, /has no directory of packages/)
+    })
+
     it('refuses an invalid name, a name taken, an unknown dependent, and a directory outside of a workspace', async (): Promise<void> => {
         const root: string = workspace(work, 'refused')
         const invalid = await runIn(process.execPath, [CLI, 'add', 'Capital Name'], root)

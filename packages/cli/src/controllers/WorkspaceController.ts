@@ -47,12 +47,14 @@ export class WorkspaceController extends Controller {
         return undefined
     }
 
-    @CLIAction('add <name>', AddPackageDTO, {description: 'Add a package to the workspace (packages/<name>): TypeScript, or a native addon with --native [gyp|cmake|rust]'})
+    @CLIAction('add <name>', AddPackageDTO, {description: 'Add a package to the workspace (in its directory of packages: packages/<name>): TypeScript, or a native addon with --native [gyp|cmake|rust]'})
     public async add(input: AddPackageDTO): Promise<undefined> {
         const native: NativeBuild | undefined = input.native === true ? 'gyp' : input.native || undefined
         const result: AddPackageResult = await addPackage({name: input.name, native: native, to: input.to})
         done(`${native ? `Native addon (${native})` : 'Package'} ${input.name} ${result.version} added: ${path.relative(process.cwd(), result.directory) || '.'} (${result.files.join(', ')})${result.to ? `, a dependency of ${result.to}` : ''}`)
-        process.stdout.write(`Next: npm install (links the package${native ? ', builds the addon' : ''}), then npm run rebuild -w ${input.name}\n`)
+        //The command building the package, by the package manager of the workspace
+        const rebuild: string = {npm: `npm run rebuild -w ${input.name}`, pnpm: `pnpm --filter ${input.name} run rebuild`, yarn: `yarn workspace ${input.name} run rebuild`}[result.packageManager]
+        process.stdout.write(`Next: ${result.packageManager} install (links the package${native ? ', builds the addon' : ''}), then ${rebuild}\n`)
         return undefined
     }
 

@@ -1,4 +1,5 @@
 import {type ChildProcess, spawn, type SpawnOptions} from 'node:child_process'
+import {existsSync, readFileSync} from 'node:fs'
 import path from 'node:path'
 import {LaunchEnvironment} from './Environment.js'
 import {type ProcessResult} from '../types/ProcessResult.js'
@@ -16,6 +17,31 @@ export function detectPackageManager(): PackageManager {
     if (agent.startsWith('pnpm')) return 'pnpm'
     if (agent.startsWith('yarn')) return 'yarn'
     return 'npm'
+}
+
+/**
+ * The package manager of a project: the packageManager field of its package.json ("pnpm@9.15.0"), else its lock file
+ * (pnpm-lock.yaml or pnpm-workspace.yaml, yarn.lock, package-lock.json), looked for from the directory up to the root;
+ * npm by default
+ * @param directory The directory of the project, or of one of the packages of its workspace.
+ */
+export function projectPackageManager(directory: string): PackageManager {
+    for (let current: string = path.resolve(directory); ; current = path.dirname(current)) {
+        const manifest: string = path.join(current, 'package.json')
+        if (existsSync(manifest)) {
+            let declared: unknown
+            try {
+                declared = JSON.parse(readFileSync(manifest, 'utf8')).packageManager
+            } catch {
+                declared = undefined
+            }
+            const name: string | undefined = typeof declared === 'string' ? declared.split('@')[0] : undefined
+            if (name === 'npm' || name === 'pnpm' || name === 'yarn') return name
+        }
+        if (existsSync(path.join(current, 'pnpm-lock.yaml')) || existsSync(path.join(current, 'pnpm-workspace.yaml'))) return 'pnpm'
+        if (existsSync(path.join(current, 'yarn.lock'))) return 'yarn'
+        if (existsSync(path.join(current, 'package-lock.json')) || path.dirname(current) === current) return 'npm'
+    }
 }
 
 /**

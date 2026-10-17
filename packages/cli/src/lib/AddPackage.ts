@@ -2,6 +2,7 @@ import {existsSync} from 'node:fs'
 import {mkdir, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {Workspace, type WorkspacePackage} from './workspace/Workspace.js'
+import {type PackageManager, projectPackageManager} from './Processes.js'
 
 /**
  * The versions of the dependencies of the native addons
@@ -48,6 +49,10 @@ export type AddPackageResult = {
      * Its version, the one of the workspace
      */
     version: string
+    /**
+     * The package manager of the workspace, which installs it
+     */
+    packageManager: PackageManager
     /**
      * The package depending on it
      */
@@ -527,9 +532,13 @@ export async function addPackage(options: AddPackageOptions): Promise<AddPackage
     if (workspace.packages.some((pkg: WorkspacePackage): boolean => pkg.name === options.name)) throw new Error(`The workspace has already a package ${options.name}`)
     const dependent: WorkspacePackage | undefined = options.to === undefined ? undefined : workspace.packages.find((pkg: WorkspacePackage): boolean => pkg.name === options.to)
     if (options.to !== undefined && !dependent) throw new Error(`The workspace has no package ${options.to} (${workspace.packages.map((pkg: WorkspacePackage): string => pkg.name).join(', ')})`)
-    const directory: string = path.join(workspace.root, 'packages', options.name.replace(/^@[^/]+\//, ''))
+    //In the directory of the packages of the workspace (packages/*, apps/*…), so that its patterns include it
+    const packagesDirectory: string | undefined = workspace.packagesDirectory
+    if (!packagesDirectory) throw new Error(`The workspace has no directory of packages (a pattern such as packages/* in its workspaces): ${workspace.patterns.join(', ')}`)
+    const directory: string = path.join(packagesDirectory, options.name.replace(/^@[^/]+\//, ''))
     if (existsSync(directory)) throw new Error(`${path.relative(process.cwd(), directory) || directory} exists already`)
-    const version: string = workspace.lerna?.data.version ?? workspace.manifest.data.version ?? '0.0.1'
+    //The version of the workspace, as lakutata version and list give it
+    const version: string = workspace.version ?? '0.0.1'
     const files: Files = options.native ? nativeFiles(options.name, version, options.native) : libraryFiles(options.name, version)
     for (const [file, content] of Object.entries(files)) {
         await mkdir(path.dirname(path.join(directory, file)), {recursive: true})
@@ -539,5 +548,5 @@ export async function addPackage(options: AddPackageOptions): Promise<AddPackage
         dependent.manifest.data.dependencies = {...(dependent.manifest.data.dependencies ?? {}), [options.name]: `^${version}`}
         await dependent.manifest.write()
     }
-    return {directory: directory, files: Object.keys(files), version: version, to: dependent?.name}
+    return {directory: directory, files: Object.keys(files), version: version, packageManager: projectPackageManager(workspace.root), to: dependent?.name}
 }

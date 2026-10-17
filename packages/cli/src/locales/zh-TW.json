@@ -58,9 +58,9 @@
         }
       },
       "add": {
-        "description": "向工作區新增一個套件（packages/<名稱>）：TypeScript 套件，或用 --native [gyp|cmake|rust] 新增原生外掛",
+        "description": "向工作區新增一個套件（放在工作區的套件目錄中：packages/<名稱>）：TypeScript 套件，或用 --native [gyp|cmake|rust] 新增原生外掛",
         "arguments": {
-          "name": "套件的名稱（工作區的 packages/<名稱>）"
+          "name": "套件的名稱（它在工作區套件目錄中的目錄：packages/<名稱>）"
         },
         "options": {
           "native": "原生外掛，依建置系統：gyp（C++，node-gyp，預設）、cmake（C++，cmake-js）或 rust（napi-rs）",

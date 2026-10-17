@@ -131,6 +131,20 @@ describe('The workspace commands', (): void => {
         assert.match(result.stdout, /NODE_ENV=undefined/)
     })
 
+    it('runs the scripts with the package manager of the workspace', {skip: process.platform === 'win32' && 'the stand-in of pnpm is a shell script'}, async (): Promise<void> => {
+        sicService()
+        //A pnpm workspace: a stand-in of pnpm records its arguments and runs npm
+        writeFileSync(path.join(root, 'package.json'), JSON.stringify({...readManifest('.'), packageManager: 'pnpm@9.15.0'}))
+        const bin: string = path.join(root, 'stand-in')
+        mkdirSync(bin)
+        writeFileSync(path.join(bin, 'pnpm'), `#!/bin/sh\necho "$@" >> "${path.join(root, 'pnpm.log')}"\nexec npm "$@"\n`, {mode: 0o755})
+        const ran = await new Promise<{ code: number, output: string }>((resolve): void => {
+            execFile(process.execPath, [CLI, 'run', 'rebuild', '--scope', 'app'], {cwd: root, env: {...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`}}, (error: ExecFileException | null, stdout: string, stderr: string): void => resolve({code: error ? 1 : 0, output: stdout + stderr}))
+        })
+        assert.strictEqual(ran.code, 0, ran.output)
+        assert.strictEqual(readFileSync(path.join(root, 'pnpm.log'), 'utf8').trim(), 'run rebuild')
+    })
+
     it('runs all the packages at once with --parallel', async (): Promise<void> => {
         sicService()
         assert.strictEqual((await runCommand(['run', 'rebuild', '--parallel'])).code, 0)

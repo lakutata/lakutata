@@ -58,9 +58,9 @@
         }
       },
       "add": {
-        "description": "向工作区添加一个包（packages/<名称>）：TypeScript 包，或用 --native [gyp|cmake|rust] 添加原生插件",
+        "description": "向工作区添加一个包（放在工作区的包目录中：packages/<名称>）：TypeScript 包，或用 --native [gyp|cmake|rust] 添加原生插件",
         "arguments": {
-          "name": "包的名称（工作区的 packages/<名称>）"
+          "name": "包的名称（它在工作区包目录中的目录：packages/<名称>）"
         },
         "options": {
           "native": "原生插件，按构建系统：gyp（C++，node-gyp，默认）、cmake（C++，cmake-js）或 rust（napi-rs）",

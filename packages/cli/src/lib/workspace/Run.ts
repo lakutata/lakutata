@@ -1,6 +1,6 @@
 import os from 'node:os'
 import {LaunchEnvironment} from '../Environment.js'
-import {spawnCommand} from '../Processes.js'
+import {type PackageManager, projectPackageManager, spawnCommand} from '../Processes.js'
 import {styled, warn} from '../Output.js'
 import {matchName, type Workspace, type WorkspacePackage} from './Workspace.js'
 
@@ -36,15 +36,16 @@ export type RunResult = {
 const COLORS = ['cyan', 'magenta', 'yellow', 'green', 'blue', 'red'] as const
 
 /**
- * Run a script of a package, its output prefixed with the name of the package
+ * Run a script of a package with the package manager of the workspace, its output prefixed with the name of the package
+ * @param packageManager
  * @param pkg
  * @param script
  * @param args
  * @param prefix
  */
-function runPackageScript(pkg: WorkspacePackage, script: string, args: string[], prefix: string): Promise<number> {
+function runPackageScript(packageManager: PackageManager, pkg: WorkspacePackage, script: string, args: string[], prefix: string): Promise<number> {
     return new Promise((resolve: (code: number) => void): void => {
-        const child = spawnCommand('npm', ['run', script, ...(args.length ? ['--', ...args] : [])], {cwd: pkg.directory, env: LaunchEnvironment})
+        const child = spawnCommand(packageManager, ['run', script, ...(args.length ? ['--', ...args] : [])], {cwd: pkg.directory, env: LaunchEnvironment})
         const forward = (stream: NodeJS.ReadableStream, target: NodeJS.WritableStream): void => {
             let pending: string = ''
             stream.on('data', (chunk: Buffer): void => {
@@ -75,6 +76,7 @@ function runPackageScript(pkg: WorkspacePackage, script: string, args: string[],
  * @param options
  */
 export async function runScript(workspace: Workspace, script: string, options: RunOptions = {}): Promise<RunResult> {
+    const packageManager: PackageManager = projectPackageManager(workspace.root)
     const inScope = (pkg: WorkspacePackage): boolean => !options.scope?.length || options.scope.some((pattern: string): boolean => matchName(pkg.name, pattern))
     const selected: WorkspacePackage[] = workspace.packages.filter((pkg: WorkspacePackage): boolean => inScope(pkg) && !!pkg.scripts[script])
     const skipped: string[] = workspace.packages.filter((pkg: WorkspacePackage): boolean => inScope(pkg) && !pkg.scripts[script]).map((pkg: WorkspacePackage): string => pkg.name)
@@ -103,7 +105,7 @@ export async function runScript(workspace: Workspace, script: string, options: R
                 if (done.has(pkg.name) || blocked.has(pkg.name) || running.has(pkg.name) || failed.includes(pkg.name)) continue
                 if (![...waitsFor.get(pkg.name)!].every((name: string): boolean => done.has(name))) continue
                 const prefix: string = styled(COLORS[selected.indexOf(pkg) % COLORS.length], `${pkg.name.padEnd(width)} │`)
-                running.set(pkg.name, runPackageScript(pkg, script, options.args ?? [], prefix).then((code: number): void => {
+                running.set(pkg.name, runPackageScript(packageManager, pkg, script, options.args ?? [], prefix).then((code: number): void => {
                     running.delete(pkg.name)
                     if (code === 0) {
                         done.add(pkg.name)

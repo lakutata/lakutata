@@ -117,7 +117,21 @@ async function pnpmPatterns(file: string): Promise<string[]> {
  */
 export class Workspace {
 
-    protected constructor(public readonly root: string, public readonly manifest: JSONFile, public readonly packages: WorkspacePackage[], public readonly lerna: JSONFile | undefined) {
+    protected constructor(public readonly root: string, public readonly manifest: JSONFile, public readonly packages: WorkspacePackage[], public readonly lerna: JSONFile | undefined, public readonly patterns: string[] = []) {
+    }
+
+    /**
+     * The directory where new packages go: the one of the first pattern of the workspace of the form <directory>/*
+     * (packages/* when it has it), undefined when its packages are all named one by one
+     */
+    public get packagesDirectory(): string | undefined {
+        const directories: string[] = this.patterns
+            .filter((pattern: string): boolean => !pattern.startsWith('!'))
+            .map((pattern: string): string => pattern.replace(/^\.\//, ''))
+            .filter((pattern: string): boolean => /^[^*?{}[\]!]+\/\*$/.test(pattern))
+            .map((pattern: string): string => pattern.slice(0, -2))
+        const directory: string | undefined = directories.includes('packages') ? 'packages' : directories[0]
+        return directory === undefined ? undefined : path.join(this.root, directory)
     }
 
     /**
@@ -170,7 +184,7 @@ export class Workspace {
             pkg.dependencies = [...dependencies]
         }
         const lernaFile: string = path.join(root, 'lerna.json')
-        return new Workspace(root, manifest, packages, existsSync(lernaFile) ? await JSONFile.read(lernaFile) : undefined)
+        return new Workspace(root, manifest, packages, existsSync(lernaFile) ? await JSONFile.read(lernaFile) : undefined, patterns)
     }
 
     /**
