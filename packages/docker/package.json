@@ -2,6 +2,7 @@
   "name": "@lakutata/docker",
   "version": "3.0.0",
   "description": "The Docker component of the lakutata framework: images (pull, build with BuildKit, import, export, push), containers, their TTYs and networks, over the Docker Engine API.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Docker.js",
   "types": "./dist/cjs/exports/Docker.d.ts",

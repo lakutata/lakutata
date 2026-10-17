@@ -2,6 +2,7 @@
   "name": "@lakutata/utils",
   "version": "3.0.0",
   "description": "Utilities of the lakutata framework: Time and the helpers.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Utils.js",
   "types": "./dist/cjs/exports/Utils.d.ts",

@@ -2,6 +2,7 @@
   "name": "@lakutata/grpc",
   "version": "3.0.0",
   "description": "gRPC for the lakutata framework: its client and its server over HTTP/2 with a schema-driven protobuf codec (no native addon), and the service entrypoint and the service proxy of the service actions over gRPC.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/GRPC.js",
   "types": "./dist/cjs/exports/GRPC.d.ts",

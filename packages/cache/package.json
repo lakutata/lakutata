@@ -2,6 +2,7 @@
   "name": "@lakutata/cache",
   "version": "3.0.0",
   "description": "The cache component of the lakutata framework (memory, file, Redis, Memcache, MongoDB, SQLite, PostgreSQL, MySQL stores).",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Cache.js",
   "types": "./dist/cjs/exports/Cache.d.ts",

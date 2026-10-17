@@ -2,6 +2,7 @@
   "name": "@lakutata/core",
   "version": "3.0.0",
   "description": "Core of the lakutata IoC framework (IoC/DI, BaseObject, DTO/validation, decorators, console logger, monitor).",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Core.js",
   "types": "./dist/cjs/exports/Core.d.ts",

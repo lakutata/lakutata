@@ -2,6 +2,7 @@
   "name": "@lakutata/logger",
   "version": "3.0.0",
   "description": "The logger component of the lakutata framework.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Logger.js",
   "types": "./dist/cjs/exports/Logger.d.ts",

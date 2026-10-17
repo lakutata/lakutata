@@ -115,4 +115,4 @@ Lakutata 3 把框架和它的各个包都放进了这个仓库。`lakutata` 的 
 
 ## 许可证
 
-[MIT](packages/lakutata/LICENSE)
+[MIT](LICENSE)

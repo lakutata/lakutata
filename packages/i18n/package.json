@@ -2,6 +2,7 @@
   "name": "@lakutata/i18n",
   "version": "3.0.0",
   "description": "The internationalization of the lakutata framework: the messages of each language by their keys (ICU MessageFormat), the language of each request, the messages of the validation.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/I18n.js",
   "types": "./dist/cjs/exports/I18n.d.ts",

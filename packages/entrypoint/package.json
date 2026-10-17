@@ -2,6 +2,7 @@
   "name": "@lakutata/entrypoint",
   "version": "3.0.0",
   "description": "The entrypoint component of the lakutata framework: controllers and the dispatch of the CLI, HTTP and service actions.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Entrypoint.js",
   "types": "./dist/cjs/exports/Entrypoint.d.ts",

@@ -2,6 +2,7 @@
   "name": "@lakutata/monitor",
   "version": "3.0.0",
   "description": "The monitors of the lakutata framework: the CPU, the memory, the event loop and the HTTP requests of the process, on the histograms of Node.js.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Monitor.js",
   "types": "./dist/cjs/exports/Monitor.d.ts",

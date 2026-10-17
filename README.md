@@ -129,4 +129,4 @@ Lakutata 3 brought the framework and its packages into this repository. The 2.x 
 
 ## License
 
-[MIT](packages/lakutata/LICENSE)
+[MIT](LICENSE)

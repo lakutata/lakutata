@@ -2,6 +2,7 @@
   "name": "@lakutata/mutex",
   "version": "3.0.0",
   "description": "The locks of the lakutata framework: mutual exclusion between the instances and the processes of an application, over memory, files, Redis, PostgreSQL or MySQL, held by tokens, renewed while they are held.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Mutex.js",
   "types": "./dist/cjs/exports/Mutex.d.ts",

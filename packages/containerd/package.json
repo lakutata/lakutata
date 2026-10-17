@@ -2,6 +2,7 @@
   "name": "@lakutata/containerd",
   "version": "3.0.0",
   "description": "The containerd component of the lakutata framework: images (pull, push, import, export, of any platform), containers and their processes, over the API of containerd, for the systems which run containerd without Docker.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Containerd.js",
   "types": "./dist/cjs/exports/Containerd.d.ts",

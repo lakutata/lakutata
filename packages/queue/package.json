@@ -2,6 +2,7 @@
   "name": "@lakutata/queue",
   "version": "3.0.0",
   "description": "The message queues of the lakutata framework: messages added by the Queue component and processed by controller actions (@QueueAction), acknowledged, retried and dead-lettered alike over memory, Redis, NATS JetStream, Kafka or RabbitMQ.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Queue.js",
   "types": "./dist/cjs/exports/Queue.d.ts",

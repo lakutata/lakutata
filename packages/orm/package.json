@@ -2,6 +2,7 @@
   "name": "@lakutata/orm",
   "version": "3.0.0",
   "description": "The ORM of the lakutata framework, on TypeORM: the Database component and provider, the entity decorators and the generation of the migrations.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/ORM.js",
   "types": "./dist/cjs/exports/ORM.d.ts",

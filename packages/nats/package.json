@@ -2,6 +2,7 @@
   "name": "@lakutata/nats",
   "version": "3.0.0",
   "description": "The NATS component of the lakutata framework: messaging, service proxies, service entrypoint and large payloads.",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Nats.js",
   "types": "./dist/cjs/exports/Nats.d.ts",

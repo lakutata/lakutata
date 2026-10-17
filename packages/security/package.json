@@ -2,6 +2,7 @@
   "name": "@lakutata/security",
   "version": "3.0.0",
   "description": "Security providers and functions of the lakutata framework (password hashing, signatures, encryption).",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Security.js",
   "types": "./dist/cjs/exports/Security.d.ts",
