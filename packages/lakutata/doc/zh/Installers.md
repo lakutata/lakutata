@@ -25,7 +25,7 @@ npx lakutata package installer --target pkg     # 只制作其中几种
 | macOS | `pkg`、`tar.gz` | `<name>-<version>-arm64.pkg`、`<name>-<version>-darwin-arm64.tar.gz` | `pkgbuild`、`productbuild` |
 | Windows | `nsis`、`msi`、`zip` | `<name>-<version>-x64-setup.exe`、`<name>-<version>-x64.msi`、`<name>-<version>-win-x64.zip` | NSIS、WiX、WinSW |
 
-- **在各自的平台上制作**：某个平台的安装包要在那个平台上制作，针对的是本机的架构（其他平台和架构见第 7 节）。可执行文件使用制作它的系统的 C 库，所以面向 glibc 系统的 Linux 软件包要在 glibc 系统上制作，`apk` 软件包要在 Alpine 上制作。
+- **在各自的平台上制作**：某个平台的安装包要在那个平台上制作，针对的是本机的架构（其他平台和架构见第 7 节），`pkg` 软件包也只能安装在这种架构的 Mac 上。可执行文件使用制作它的系统的 C 库，所以面向 glibc 系统的 Linux 软件包要在 glibc 系统上制作，`apk` 软件包要在 Alpine 上制作。
 - **制作工具** nFPM、NSIS、WiX 和 WinSW 只下载一次，保存在工具的缓存中（`LAKUTATA_CACHE_DIR`）。`LAKUTATA_NFPM`、`LAKUTATA_NSIS`、`LAKUTATA_WIX` 和 `LAKUTATA_WINSW` 可以指定其他副本，用于没有网络的机器，或者 x64 和 arm64 以外的 Linux 架构（nFPM 只发布了这两种）。macOS 不需要下载任何工具。
 - **安装包的版本**就是应用 `package.json` 中的 `version`。
 
@@ -69,7 +69,7 @@ npx lakutata package installer --target pkg     # 只制作其中几种
 
 `lakutata.icon`（与 `lakutata.installer` 并列）是一张 256 像素或更大的正方形 PNG 图片：它是 Windows 可执行文件和安装程序的图标，也是 Electron 应用的图标。
 
-配置在构建任何东西之前就会检查，出错时会指出是哪个字段：
+配置在构建任何东西之前就会检查，不制作的那些安装包的选项也会检查，出错时会指出是哪个字段：
 
 ```
 error: The name of the package "Bad Name" must be lower case letters, digits, "+", "-" and "." (lakutata.installer.name)
@@ -119,7 +119,7 @@ error: The script lakutata.installer.mac.scripts.postinstall (scripts/missing.sh
 | `env` | `MODE=production` | 服务的环境变量，加在 `MODE=production` 之上 |
 | `user` | 安装时创建的系统用户：Linux 上是 `<name>`，macOS 上是 `_<name>`（隐藏）；Windows 上是虚拟账户 `NT SERVICE\<service>` | 运行服务的用户；也可以是 `root`（Linux、macOS），或 Windows 上的 `LocalService`、`NetworkService`、`LocalSystem` |
 | `restart` | `on-failure` | 失败时重启（`on-failure`）、每次结束都重启（`always`），或者从不重启（`no`）；在 Windows 上和 OpenRC 下，`on-failure` 和 `always` 的效果相同 |
-| `autoStart` | `true` | 安装时启用并启动服务 |
+| `autoStart` | `true` | 安装时启用并启动服务；为 `false` 时由管理员启用并启动它（`sudo systemctl enable --now <service>`；在 macOS 上先 `sudo launchctl enable system/<appId>`，再 `sudo launchctl bootstrap system /Library/LaunchDaemons/<appId>.plist`） |
 
 - **环境变量文件**保存 `env`。管理员可以修改它，升级和卸载都会保留这些修改。服务启动时读取它，所以修改后请重启服务（`sudo systemctl restart <service>`、`sudo rc-service <service> restart`、`sudo launchctl kickstart -k system/<appId>`、`Restart-Service <service>`）。
 - **工作目录**属于服务的用户：应用的数据写在这里，用相对路径或 `process.cwd()` 即可。

@@ -74,7 +74,7 @@ type Binding = {
 /** The addon built into build/Release, loaded from the directory of the package */
 const binding: Binding = createRequire(import.meta.url)('node-gyp-build')(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'))
 
-export function Greet(name: string): string {
+export function greet(name: string): string {
     return binding.greet(name)
 }
 ```
@@ -145,7 +145,7 @@ What each change writes, by build system:
 | Library | `libraries` | `target_link_libraries` | `rustc-link-lib` |
 | pkg-config | `<!@(pkg-config ...)` | `pkg_check_modules(... IMPORTED_TARGET ...)` | the `-sys` crates |
 | Framework | `xcode_settings.OTHER_LDFLAGS` | `-framework` in `if(APPLE)` | `rustc-link-lib=framework=` |
-| Dynamic library | `copies`, the rpath | `BUILD_RPATH`, a `POST_BUILD` copy | `rustc-cdylib-link-arg`, a `postbuild:native` copy |
+| Dynamic library | `copies`, the rpath | `INSTALL_RPATH` (`BUILD_WITH_INSTALL_RPATH`), a `POST_BUILD` copy | `rustc-cdylib-link-arg`, a `postbuild:native` copy |
 | Headers, definitions | `include_dirs`, `defines` | `target_include_directories`, `target_compile_definitions` | none (crates) |
 | Platform | `conditions` (`OS=="mac"`, `OS!="win"`) | `if(APPLE)`, `if(WIN32)`, `if(NOT WIN32)`, `if(CMAKE_SYSTEM_NAME STREQUAL "Linux")` | `LAKUTATA_NATIVE_MACOS`, `_LINUX`, `_WINDOWS`, `_UNIX` |
 
@@ -197,16 +197,15 @@ A library built by its own Makefile is built before the addon by a script of the
 
 ## 4. Shipping an addon
 
-The application depends on the addon package, and imports it as any package (`import {Greet} from '@acme/capture'`).
+The application depends on the addon package, and imports it as any package (`import {greet} from '@acme/capture'`).
 
 - **Bundles and executables**: `lakutata package bundle` leaves the addon packages out of the bundle and writes them,
-  with their files (their JavaScript, the addon, its dynamic libraries) but without their C and C++ sources, into
-  `dist/<name>.native/`, which is shipped with the bundle; an executable embeds them, or holds them next to it in the
-  directory layout ([Packaging](Packaging.md)). The addon is built for the platform of the machine that packs the
+  with their files (their JavaScript, the addon, its dynamic libraries) but without their sources and what built them,
+  into `dist/<name>.native/`, which is shipped with the bundle; an executable embeds them, or holds them next to it in
+  the directory layout ([Packaging](Packaging.md)). The addon is built for the platform of the machine that packs the
   application, so pack the application of each platform on that platform (a CI matrix, or a container of the
-  architecture for Linux).
-- **Electron**: the addons are copied as they are installed. The addons that `lakutata add` creates run in Electron
-  without being rebuilt, as do all the addons built on Node-API; an addon built on the V8 API of Node.js must be
-  installed in its build for Electron before packing (`electron-rebuild`).
-- **Bun**: Bun loads the addons of Node-API; an executable of Bun warns of the addons built on the V8 API of Node.js.
-- **Alpine (musl)**: the executables of Node.js do not load native addons there: make them with Bun.
+  architecture for Linux). - **Electron**: the addons are copied as they are installed. The addons that `lakutata add`
+  creates run in Electron without being rebuilt, as do all the addons built on Node-API; an addon built on the V8 API of
+  Node.js must be installed in its build for Electron before packing (`electron-rebuild`). - **Bun**: Bun loads the
+  addons of Node-API; an executable of Bun warns of the addons built on the V8 API of Node.js. - **Alpine (musl)**: the
+  executables of Node.js do not load native addons there: make them with Bun.

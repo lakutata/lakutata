@@ -43,7 +43,7 @@ node dist/greet.cjs
 
 含有 `.node` 文件的包（better-sqlite3，以及工作区中由 [`lakutata add --native`](NativeAddons.md) 创建的插件），以及通过计算出的路径加载它们的包（sharp），不能打进单文件包。它们被排除在外，按 `node_modules` 的结构放在 `dist/<name>.native/` 中，连同它们在运行时加载的内容：
 
-- 它们的全部文件，以及插件所链接的共享库所在的包（例如 sharp 的 libvips）的全部文件，但不包括 C 和 C++ 源码和目标文件（better-sqlite3 带有 SQLite 的源码）；
+- 它们的全部文件，以及插件所链接的共享库所在的包（例如 sharp 的 libvips）的全部文件，但不包括 C 和 C++ 源码和目标文件（better-sqlite3 带有 SQLite 的源码），也不包括构建它们时产生的文件（`build/` 中 node-gyp 和 CMake 的文件、cargo 的 `target` 目录、静态库和导入库）；
 - 它们加载的 JavaScript；
 - 应用自己的插件（`createRequire(import.meta.url)('./x.node')`）。
 

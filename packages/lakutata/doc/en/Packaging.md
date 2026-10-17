@@ -57,9 +57,9 @@ The packages holding `.node` files (better-sqlite3, the addons of the workspace 
 bundled. They are left out, and laid out as in `node_modules` in `dist/<name>.native/`, with what they load at run time:
 
 - all their files, and those of the packages of the shared libraries their addons link (such as the libvips of sharp),
-  but not their C and C++ sources and objects (better-sqlite3 holds the sources of SQLite);
-- the JavaScript they load;
-- the addons of the application itself (`createRequire(import.meta.url)('./x.node')`).
+  but not their C and C++ sources and objects (better-sqlite3 holds the sources of SQLite), nor what built them (the
+  files of node-gyp and of CMake in `build/`, the `target` directory of cargo, the static and import libraries); - the
+  JavaScript they load; - the addons of the application itself (`createRequire(import.meta.url)('./x.node')`).
 
 The type declarations, source maps, TypeScript sources and documentation of the packages are left out. An addon is
 built for the platform and the architecture of the machine, and needs the system libraries it was built for, so pack

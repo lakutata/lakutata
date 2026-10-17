@@ -31,13 +31,13 @@ its native addons (`native/`) and its resources (`resources/`). The program is m
 | Windows | `nsis`, `msi`, `zip` | `<name>-<version>-x64-setup.exe`, `<name>-<version>-x64.msi`, `<name>-<version>-win-x64.zip` | NSIS, WiX, WinSW |
 
 - **On each platform**: the installers of a platform are made on that platform, for the architecture of the machine
-  (section 7 covers the other platforms and architectures). The executables use the C library of the system they are
-  made on, so make the Linux packages for glibc systems on a glibc system, and the `apk` packages on Alpine.
-- **The tools** nFPM, NSIS, WiX and WinSW are downloaded once into the cache of the tool (`LAKUTATA_CACHE_DIR`).
-  `LAKUTATA_NFPM`, `LAKUTATA_NSIS`, `LAKUTATA_WIX` and `LAKUTATA_WINSW` name other copies, for machines without a
-  network, or for Linux architectures other than x64 and arm64 (nFPM has releases for these two only). macOS needs no
-  download.
-- **The version** of the installers is the `version` of the `package.json` of the application.
+  (section 7 covers the other platforms and architectures); a `pkg` package installs on the Macs of that architecture
+  only. The executables use the C library of the system they are made on, so make the Linux packages for glibc systems
+  on a glibc system, and the `apk` packages on Alpine. - **The tools** nFPM, NSIS, WiX and WinSW are downloaded once
+  into the cache of the tool (`LAKUTATA_CACHE_DIR`). `LAKUTATA_NFPM`, `LAKUTATA_NSIS`, `LAKUTATA_WIX` and
+  `LAKUTATA_WINSW` name other copies, for machines without a network, or for Linux architectures other than x64 and
+  arm64 (nFPM has releases for these two only). macOS needs no download. - **The version** of the installers is the
+  `version` of the `package.json` of the application.
 
 ## 2. The configuration
 
@@ -81,7 +81,8 @@ The installers are configured by `lakutata.installer` in the `package.json` of t
 `lakutata.icon` (beside `lakutata.installer`) is a square PNG image of 256 pixels or more: the icon of the Windows
 executable and installers, and of the Electron applications.
 
-The configuration is checked before anything is built, and an error names the field:
+The configuration is checked before anything is built, the options of the installers that are not made included, and an
+error names the field:
 
 ```
 error: The name of the package "Bad Name" must be lower case letters, digits, "+", "-" and "." (lakutata.installer.name)
@@ -101,11 +102,10 @@ error: The script lakutata.installer.mac.scripts.postinstall (scripts/missing.sh
 | Its logs | the journal of systemd (`journalctl -u <service>`); `/var/log/<name>.log` with OpenRC | `/usr/local/var/log/<name>.log` | `C:\ProgramData\<name>\logs` |
 | Removal | by the package manager | `sudo /usr/local/lib/<name>/uninstall` | like other Windows programs |
 
-- **macOS does not remove packages**: the `uninstall` script installed with the application removes it, its service
-  and its link in the PATH.
-- **The removal keeps** the data, the environment file and the user of the service, so that a new installation finds
-  them again.
-- The archives (`tar.gz`, `zip`) only hold the application: they register no service and run no script.
+- **macOS does not remove packages**: the `uninstall` script installed with the application removes it, its service and
+  its link in the PATH. - **The removal keeps** the data, the environment file and the user of the service, so that a
+  new installation finds them again. - The archives (`tar.gz`, `zip`) only hold the application: they register no
+  service and run no script.
 
 ## 4. The service
 
@@ -135,7 +135,7 @@ the removal stops and disables it first.
 | `env` | `MODE=production` | Its environment, added to `MODE=production` |
 | `user` | A system user created by the installation: `<name>` on Linux, `_<name>` (hidden) on macOS; on Windows the virtual account `NT SERVICE\<service>` | The user it runs as; `root` (Linux, macOS), or `LocalService`, `NetworkService`, `LocalSystem` on Windows |
 | `restart` | `on-failure` | Restart it when it fails (`on-failure`), whenever it ends (`always`), or never (`no`); on Windows and with OpenRC, `on-failure` and `always` behave alike |
-| `autoStart` | `true` | Enable and start it at the installation |
+| `autoStart` | `true` | Enable and start it at the installation; otherwise the administrator enables and starts it (`sudo systemctl enable --now <service>`; on macOS, `sudo launchctl enable system/<appId>`, then `sudo launchctl bootstrap system /Library/LaunchDaemons/<appId>.plist`) |
 
 - **The environment file** holds `env`. Administrators can change it, and upgrades and removals keep their changes. The
   service reads it when it starts, so restart the service after changing it (`sudo systemctl restart <service>`,
