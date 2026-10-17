@@ -119,7 +119,7 @@ Inside the method, two properties describe the request:
 
 | Decorator | Address | Guide |
 |---|---|---|
-| `@GET(route)`, `@POST`, `@PUT`, `@PATCH`, `@DELETE`, `@HEAD`, `@OPTIONS`, `@HTTPAction(route, methods)` | An HTTP route | [ActionPattern](ActionPattern.md) |
+| `@GET(route)`, `@POST`, `@PUT`, `@PATCH`, `@DELETE`, `@HEAD`, `@OPTIONS`, `@HTTPAction(route, methods)` | An HTTP route | [HTTP](HTTP.md) |
 | `@CLIAction(command)` | A command | [CLI](CLI.md) |
 | `@ServiceAction(pattern)` | A service pattern | [ActionPattern](ActionPattern.md), [GRPC](GRPC.md), [NATS](NATS.md) |
 | `@Schedule(schedule)` | An interval or a cron expression | [Schedules](Schedules.md) |

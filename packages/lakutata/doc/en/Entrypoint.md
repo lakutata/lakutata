@@ -53,8 +53,8 @@ The adapters:
 
 | Option | Adapter | Imported from | To install | Guide |
 |---|---|---|---|---|
-| `http` | `expressHTTPEntrypoint()` | `lakutata/adapter/express` | `express` | [ActionPattern](ActionPattern.md) |
-| `http` | `fastifyHTTPEntrypoint()` | `lakutata/adapter/fastify` | `fastify` | [ActionPattern](ActionPattern.md) |
+| `http` | `expressHTTPEntrypoint()` | `lakutata/adapter/express` | `express` | [HTTP](HTTP.md) |
+| `http` | `fastifyHTTPEntrypoint()` | `lakutata/adapter/fastify` | `fastify` | [HTTP](HTTP.md) |
 | `cli` | `commanderCLIEntrypoint()` | `lakutata/adapter/commander` | `commander` | [CLI](CLI.md) |
 | `service` | `httpServiceEntrypoint()` | `lakutata/com/entrypoint` | | [ActionPattern](ActionPattern.md) |
 | `service` | `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io` | [ActionPattern](ActionPattern.md) |

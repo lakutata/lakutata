@@ -49,8 +49,8 @@ Application.run(() => ({
 
 | 选项 | 适配器 | 导入自 | 需要安装 | 指南 |
 |---|---|---|---|---|
-| `http` | `expressHTTPEntrypoint()` | `lakutata/adapter/express` | `express` | [ActionPattern](ActionPattern.md) |
-| `http` | `fastifyHTTPEntrypoint()` | `lakutata/adapter/fastify` | `fastify` | [ActionPattern](ActionPattern.md) |
+| `http` | `expressHTTPEntrypoint()` | `lakutata/adapter/express` | `express` | [HTTP](HTTP.md) |
+| `http` | `fastifyHTTPEntrypoint()` | `lakutata/adapter/fastify` | `fastify` | [HTTP](HTTP.md) |
 | `cli` | `commanderCLIEntrypoint()` | `lakutata/adapter/commander` | `commander` | [CLI](CLI.md) |
 | `service` | `httpServiceEntrypoint()` | `lakutata/com/entrypoint` | | [ActionPattern](ActionPattern.md) |
 | `service` | `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io` | [ActionPattern](ActionPattern.md) |

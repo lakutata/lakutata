@@ -107,7 +107,7 @@ $ node dist/index.js order 42
 
 | 装饰器 | 地址 | 指南 |
 |---|---|---|
-| `@GET(route)`、`@POST`、`@PUT`、`@PATCH`、`@DELETE`、`@HEAD`、`@OPTIONS`、`@HTTPAction(route, methods)` | HTTP 路由 | [ActionPattern](ActionPattern.md) |
+| `@GET(route)`、`@POST`、`@PUT`、`@PATCH`、`@DELETE`、`@HEAD`、`@OPTIONS`、`@HTTPAction(route, methods)` | HTTP 路由 | [HTTP](HTTP.md) |
 | `@CLIAction(command)` | 命令 | [CLI](CLI.md) |
 | `@ServiceAction(pattern)` | 服务模式 | [ActionPattern](ActionPattern.md)、[GRPC](GRPC.md)、[NATS](NATS.md) |
 | `@Schedule(schedule)` | 间隔或 cron 表达式 | [Schedules](Schedules.md) |

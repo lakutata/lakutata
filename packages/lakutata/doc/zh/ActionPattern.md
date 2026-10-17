@@ -1,19 +1,8 @@
-# Lakutata HTTP 与服务传输
+# Lakutata 服务传输
 
-本指南介绍 HTTP 适配器和服务传输方式。控制器、动作及其输入和结果见 [Controllers](Controllers.md)；入口及其适配器列表见 [Entrypoint](Entrypoint.md)；中间件和访问控制见 [Middlewares](Middlewares.md)。
+本指南介绍服务传输方式。控制器、动作及其输入和结果见 [Controllers](Controllers.md)；入口及其适配器列表见 [Entrypoint](Entrypoint.md)；中间件和访问控制见 [Middlewares](Middlewares.md)；HTTP 适配器见 [HTTP](HTTP.md)。
 
-## 1. HTTP 动作：`@HTTPAction`、`@GET`、`@POST`、`@PUT`、`@PATCH`、`@DELETE`、`@HEAD`、`@OPTIONS`
-
-```text
-@HTTPAction(route, method | methods, DTOClass?, options?)
-@GET(route, DTOClass?, options?)
-```
-
-- 路由使用 HTTP 适配器的语法（`/users/:id`）；`@HTTPAction` 可以接受一个或多个方法（`['get', 'post']`）。
-- 输入由查询参数和解析后的请求体（JSON；URL 编码的表单只有 Express 支持）合并而成，路由参数覆盖在其上。查询参数和路由参数都是字符串，而校验规则是严格的：用 `.strict(false)` 进行转换。
-- 返回值以 JSON 响应（`undefined` 时为 204）。`lakutata/com/entrypoint` 中的 `Result.status(201, data, headers)`、`Result.file(path)` 和 `Result.events(producer)`（Server-Sent Events）用于控制响应。
-
-## 2. 服务动作：`@ServiceAction`
+## 1. 服务动作：`@ServiceAction`
 
 ```text
 @ServiceAction(pattern, DTOClass?, options?)
@@ -22,47 +11,9 @@
 - 模式是一个对象（最多嵌套 2 层），消息必须包含这些键且值相同；字符串值可以是通配符（`'user.*'`）。匹配的模式中最具体的一个胜出。输入是去掉模式中各键后的消息。
 - 调用方收到 `{success: true, error: null, payload}`，或 `{success: false, error, payload: null}`，其中 `error` 包含错误的各属性（`errno`、`errMsg`、`statusCode`、`message` 等）；JSON-RPC 则以它自己的 `result` 和 `error` 响应。没有模式匹配的消息会以 `ControllerActionNotFoundException` 失败。
 
-## 3. 传输方式
+## 2. 传输方式
 
 各传输方式的适配器及其需要安装的包，见 [Entrypoint](Entrypoint.md) 第 2 节。
-
-### 从 2.x 的入口函数迁移到 HTTP 适配器
-
-2.x 的 HTTP 入口函数（`buildHTTPEntrypoint`）仍然可以使用：它在入口的启动阶段被调用（此时它获取的对象，比如注入了入口的 Authenticator，都可以正常获取），并且会被等待，所以应用在它的服务开始监听之后才算启动完成。迁移到 `expressHTTPEntrypoint` 时：
-
-- 应用自己的中间件和路由（CORS、压缩、健康检查、Authenticator、Web UI）放进 `before` 钩子，钩子里用 `module.getObject()` 获取对象；请求体解析用 `body` 选项（`{limit: '100mb'}`）；服务器的 `keepAliveTimeout`/`headersTimeout` 用 `server` 选项；
-- 从请求构造动作输入（查询参数、请求体、会话中的值）用 `input` 选项；
-- `{errno, errMsg, data}` 封套用 `jsonEnvelope()`。2.x 的应用通常对动作的错误返回 200，而对 Express 中间件的错误（`next(error)`，比如 Authenticator 的 401）使用错误自带的状态码：`jsonEnvelope({actionErrorStatus: 200})` 的行为与此相同。如果用 `errorStatus: 200`，401 也会变成 200，按 401 跳转登录页的前端就会失效；
-- 应用封套里的其他字段（`timestamp`、`nonce`、请求 ID）用 `extra` 选项给出。它在每次响应时调用，成功和错误的响应都会带上这些字段：`jsonEnvelope({actionErrorStatus: 200, extra: () => ({timestamp: Date.now()})})`。这些字段排在 `errno`、`errMsg`、`data` 之后，不会覆盖这三个字段，因此不需要为了保留它们自己实现响应器。
-
-```typescript
-import {buildEntrypoints} from 'lakutata/com/entrypoint'
-import {expressHTTPEntrypoint, jsonEnvelope} from 'lakutata/adapter/express'
-import type {Express, NextFunction, Request, Response} from 'express'
-
-class Unauthorized extends Error {
-    public readonly errno: string = 'E_UNAUTHORIZED'
-
-    public readonly statusCode: number = 401
-}
-
-export const entrypoint = buildEntrypoints({
-    controllers: [],
-    http: expressHTTPEntrypoint({
-        port: 3000,
-        body: {limit: '100mb'},
-        before: async (app: Express): Promise<void> => {
-            app.get('/health', (_request: Request, response: Response): unknown => response.json({status: 'ok'}))
-            //请求的鉴权：它的错误保留自带的状态码（401）
-            app.use((request: Request, _response: Response, next: NextFunction): void => request.headers.authorization ? next() : next(new Unauthorized('Not logged in')))
-        },
-        //动作的错误在封套中以 200 返回，与 2.x 相同，并带上时间戳
-        respond: jsonEnvelope({actionErrorStatus: 200, extra: (): Record<string, unknown> => ({timestamp: Date.now()})})
-    })
-})
-```
-
-`fastifyHTTPEntrypoint` 的选项相同（使用 `fastifyJSONEnvelope({actionErrorStatus: 200, extra})`，Authenticator 写成 Fastify 的钩子）。自定义的响应器可以从 `error` 的第四个参数得到每个错误的来源（`'action'` 或 `'request'`）。
 
 ### 服务动作的客户端与推送事件
 

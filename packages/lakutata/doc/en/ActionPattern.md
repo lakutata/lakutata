@@ -1,26 +1,10 @@
-# Lakutata HTTP and Service Transports
+# Lakutata Service Transports
 
-This guide covers the HTTP adapters and the service transports. The controllers, the actions, their input and their
-results are described in [Controllers](Controllers.md); the entrypoint and the list of its adapters in
-[Entrypoint](Entrypoint.md); the middlewares and the access control in [Middlewares](Middlewares.md).
+This guide covers the service transports. The controllers, the actions, their input and their results are described in
+[Controllers](Controllers.md); the entrypoint and the list of its adapters in [Entrypoint](Entrypoint.md); the
+middlewares and the access control in [Middlewares](Middlewares.md); the HTTP adapters in [HTTP](HTTP.md).
 
-## 1. HTTP actions: `@HTTPAction`, `@GET`, `@POST`, `@PUT`, `@PATCH`, `@DELETE`, `@HEAD`, `@OPTIONS`
-
-```text
-@HTTPAction(route, method | methods, DTOClass?, options?)
-@GET(route, DTOClass?, options?)
-```
-
-- The route uses the syntax of the HTTP adapter (`/users/:id`); `@HTTPAction` takes one method or several
-  (`['get', 'post']`).
-- The input is the query merged with the parsed body (JSON; URL-encoded forms with Express only), then the route
-  parameters over them. The query values and the route parameters are strings and the schemas are strict: convert them
-  with `.strict(false)`.
-- The value returned is answered as JSON (204 for `undefined`). `Result.status(201, data, headers)`,
-  `Result.file(path)` and `Result.events(producer)` (Server-Sent Events), from `lakutata/com/entrypoint`, control the
-  response.
-
-## 2. Service actions: `@ServiceAction`
+## 1. Service actions: `@ServiceAction`
 
 ```text
 @ServiceAction(pattern, DTOClass?, options?)
@@ -33,59 +17,9 @@ results are described in [Controllers](Controllers.md); the entrypoint and the l
   `error` holds the properties of the error (`errno`, `errMsg`, `statusCode`, `message`…); JSON-RPC answers with its
   own `result` and `error`. A message no pattern matches fails with `ControllerActionNotFoundException`.
 
-## 3. The transports
+## 2. The transports
 
 The adapters of the transports, and the packages they need, are listed in [Entrypoint](Entrypoint.md), section 2.
-
-### From an entrypoint function of 2.x to the HTTP adapters
-
-An HTTP entrypoint function of 2.x (`buildHTTPEntrypoint`) keeps working: it is called in the startup of the entrypoint
-(the objects it gets, such as an authenticator injecting the entrypoint, are available) and awaited, so the application
-launches once its server listens. To move it to `expressHTTPEntrypoint`:
-
-- the middlewares and the routes of the application (CORS, compression, a health check, the authenticator, a web UI) go
-  into its `before` hook, which gets the objects with `module.getObject()`; the body parsers are its `body` option
-  (`{limit: '100mb'}`); the `keepAliveTimeout`/`headersTimeout` of the server its `server` option;
-- the input built from the request (the query, the body, a value of the session) is its `input` option;
-- the `{errno, errMsg, data}` envelope is `jsonEnvelope()`. The applications of 2.x usually answered the errors of the
-  actions with 200 and the errors of their express middlewares (`next(error)`: an authenticator's 401) with their
-  status: `jsonEnvelope({actionErrorStatus: 200})` does the same — `errorStatus: 200` would answer the 401 with 200 too,
-  which the clients redirecting to the login page on a 401 would miss;
-- the other fields of the envelope of the application (`timestamp`, `nonce`, a request id) are given by its `extra`
-  option, called for each response, results and errors: `jsonEnvelope({actionErrorStatus: 200, extra: () =>
-  ({timestamp: Date.now()})})`. They are added after `errno`, `errMsg` and `data`, which they never replace — no
-  responder of its own is needed to keep them.
-
-```typescript
-import {buildEntrypoints} from 'lakutata/com/entrypoint'
-import {expressHTTPEntrypoint, jsonEnvelope} from 'lakutata/adapter/express'
-import type {Express, NextFunction, Request, Response} from 'express'
-
-class Unauthorized extends Error {
-    public readonly errno: string = 'E_UNAUTHORIZED'
-
-    public readonly statusCode: number = 401
-}
-
-export const entrypoint = buildEntrypoints({
-    controllers: [],
-    http: expressHTTPEntrypoint({
-        port: 3000,
-        body: {limit: '100mb'},
-        before: async (app: Express): Promise<void> => {
-            app.get('/health', (_request: Request, response: Response): unknown => response.json({status: 'ok'}))
-            //The authenticator of the requests: its errors keep their status (401)
-            app.use((request: Request, _response: Response, next: NextFunction): void => request.headers.authorization ? next() : next(new Unauthorized('Not logged in')))
-        },
-        //The errors of the actions answered with 200 in the envelope, as in 2.x, with its timestamp
-        respond: jsonEnvelope({actionErrorStatus: 200, extra: (): Record<string, unknown> => ({timestamp: Date.now()})})
-    })
-})
-```
-
-`fastifyHTTPEntrypoint` takes the same options (`fastifyJSONEnvelope({actionErrorStatus: 200, extra})`, the authenticator
-being a hook of fastify). A responder of its own receives the origin of each error as the fourth argument of its
-`error` (`'action'` or `'request'`).
 
 ### The clients of the service actions and their events
 
