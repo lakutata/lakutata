@@ -103,15 +103,24 @@ function packages() {
 
 /**
  * The guides and the examples as plain Markdown, at the paths they have in the package lakutata (its doc/en/HTTP.md is
- * https://lakutata.com/doc/en/HTTP.md), for the AI assistants working on a project that has not installed it yet; and
- * llms.txt, their index (the guides listed by the Overview, the examples by their README)
+ * https://lakutata.com/doc/en/HTTP.md), for the AI assistants working on a project that has not installed it yet;
+ * llms.txt and zh/llms.txt, their indexes (the guides listed by the Overview, the examples by their README); and
+ * llms-full.txt and zh/llms-full.txt, all the guides of a language in one file
  */
 function markdown() {
     const doc = join(ROOT, 'packages/lakutata/doc')
     fresh(join(SRC, 'public', 'doc'))
     cpSync(doc, join(SRC, 'public', 'doc'), {recursive: true})
-    const rows = (file, directory) => [...readFileSync(join(doc, 'en', file), 'utf8').matchAll(/^\| \[([^\]]+)\]\(([\w-]+\.md)\) \| (.*) \|$/gm)]
-        .map(([, title, page, topic]) => `- [${title}](https://lakutata.com/doc/en/${directory}${page}): ${topic}`)
+    //The rows of the table of an index (Overview.md, examples/README.md): its pages, their titles and topics
+    const rows = (language, file) => [...readFileSync(join(doc, language, file), 'utf8').matchAll(/^\| \[([^\]]+)\]\(([\w-]+\.md)\) \| (.*) \|$/gm)]
+    const list = (language, file, directory) => rows(language, file).map(([, title, page, topic]) => `- [${title}](https://lakutata.com/doc/${language}/${directory}${page}): ${topic}`)
+    //All the guides of a language in one file, in the order of the Overview, each after the address of its own file
+    const full = (language) => ['Overview.md', ...rows(language, 'Overview.md').map(([, , page]) => page)]
+        .map((page) => `Source: https://lakutata.com/doc/${language}/${page}\n\n${readFileSync(join(doc, language, page), 'utf8').trim()}\n`)
+        .join('\n---\n\n')
+    mkdirSync(join(SRC, 'public', 'zh'), {recursive: true})
+    writeFileSync(join(SRC, 'public', 'llms-full.txt'), full('en'))
+    writeFileSync(join(SRC, 'public', 'zh', 'llms-full.txt'), full('zh'))
     writeFileSync(join(SRC, 'public', 'llms.txt'), [
         '# Lakutata',
         '',
@@ -122,18 +131,43 @@ function markdown() {
         '',
         'The Agent Skill of lakutata, for AI coding assistants: https://lakutata.com/skill/',
         '',
+        'All the guides in one file: https://lakutata.com/llms-full.txt',
+        '',
         '## Guides',
         '',
         '- [Overview](https://lakutata.com/doc/en/Overview.md): The subpaths of lakutata, and the list of the guides',
-        ...rows('Overview.md', ''),
+        ...list('en', 'Overview.md', ''),
         '',
         '## Examples',
         '',
-        ...rows('examples/README.md', 'examples/'),
+        ...list('en', 'examples/README.md', 'examples/'),
         '',
         '## Optional',
         '',
-        '- [Chinese](https://lakutata.com/doc/zh/Overview.md): the same guides and examples in Chinese, under https://lakutata.com/doc/zh/',
+        '- [Chinese](https://lakutata.com/zh/llms.txt): the same guides and examples in Chinese',
+        ''
+    ].join('\n'))
+    writeFileSync(join(SRC, 'public', 'zh', 'llms.txt'), [
+        '# Lakutata',
+        '',
+        '> 面向 Node.js 和 TypeScript 的 IoC 应用框架：Web 服务、命令行工具、桌面（Electron）应用和设备上的服务。下面的指南和示例都是 Markdown 原文。同样的文件也随 npm 包 lakutata 发布（node_modules/lakutata/doc/zh），版本和项目安装的版本一致；两者都有时以已安装的包为准，这里的文件跟随最新的源码。',
+        '',
+        '供 AI 编程助手使用的 lakutata 技能：https://lakutata.com/zh/skill/',
+        '',
+        '所有指南合在一个文件中：https://lakutata.com/zh/llms-full.txt',
+        '',
+        '## 指南',
+        '',
+        '- [Overview](https://lakutata.com/doc/zh/Overview.md): lakutata 的子路径和指南列表',
+        ...list('zh', 'Overview.md', ''),
+        '',
+        '## 示例',
+        '',
+        ...list('zh', 'examples/README.md', 'examples/'),
+        '',
+        '## Optional',
+        '',
+        '- [English](https://lakutata.com/llms.txt): 英文版的指南和示例',
         ''
     ].join('\n'))
 }

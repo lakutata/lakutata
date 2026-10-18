@@ -1,11 +1,13 @@
+import {execFileSync} from 'node:child_process'
 import {existsSync, readFileSync} from 'node:fs'
 import {dirname, join, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {defineConfig, type DefaultTheme} from 'vitepress'
+import {defineConfig, type DefaultTheme, type HeadConfig} from 'vitepress'
 import {publishedPackages} from '../../scripts/packages.mjs'
 
 const ROOT: string = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 const REPOSITORY: string = 'https://github.com/lakutata/lakutata'
+const SITE: string = 'https://lakutata.com'
 
 /**
  * The guides, in the order of the README of lakutata, by group
@@ -142,6 +144,80 @@ function verbatim(path: string): boolean {
     return /^(zh\/)?(guide|examples|packages|api|skill)\//.test(path)
 }
 
+/**
+ * The address of a page: the address of its directory for an index.md, without .md otherwise (cleanUrls)
+ * @param page The file of the page in the website.
+ */
+function pageAddress(page: string): string {
+    return `${SITE}/${page.replace(/(^|\/)index\.md$/, '$1').replace(/\.md$/, '')}`
+}
+
+/**
+ * The file of the repository a page comes from (none for the API reference, generated from the sources)
+ * @param page The file of the page in the website.
+ */
+function sourceOf(page: string): string | undefined {
+    const zh: boolean = page.startsWith('zh/')
+    const path: string = zh ? page.slice(3) : page
+    const language: string = zh ? 'zh' : 'en'
+    const readme: string = zh ? 'README.zh-CN.md' : 'README.md'
+    if (path.startsWith('api/')) return undefined
+    if (path.startsWith('guide/')) return `packages/lakutata/doc/${language}/${path.slice(6)}`
+    if (path.startsWith('examples/')) return `packages/lakutata/doc/${language}/examples/${path === 'examples/index.md' ? 'README.md' : path.slice(9)}`
+    if (path === 'packages/index.md') return readme
+    if (path.startsWith('packages/')) return `packages/${path.slice(9, -3)}/${readme}`
+    if (path === 'skill/index.md') return `plugins/lakutata/${readme}`
+    return `website/src/${page}`
+}
+
+/**
+ * The date of the last commit of a file of the repository, for the sitemap
+ * @param file The file.
+ */
+function lastCommit(file: string): string | undefined {
+    try {
+        return execFileSync('git', ['log', '-1', '--format=%cI', '--', file], {cwd: ROOT, encoding: 'utf8'}).trim() || undefined
+    } catch {
+        return undefined
+    }
+}
+
+/**
+ * The description of a page that gives none: its first paragraph of text (not a heading, a quote, a table, a list, a
+ * block of code or a container), without its Markdown, cut at the length that search engines show
+ * @param file The Markdown file of the page.
+ * @param chinese Whether the page is in Chinese, whose characters are wider: fewer of them are shown.
+ */
+function firstParagraph(file: string, chinese: boolean): string | undefined {
+    const paragraph: string[] = []
+    let fenced: boolean = false
+    let contained: boolean = false
+    for (const line of readFileSync(file, 'utf8').replace(/^---\n[\s\S]*?\n---\n/, '').split('\n')) {
+        if (/^\s*(```|~~~)/.test(line)) {
+            fenced = !fenced
+        } else if (!fenced && line.startsWith(':::')) {
+            contained = !contained
+        } else if (!fenced && !contained && line.trim() && !/^\s*(#|>|\||<|!\[|[-*+] |\d+\. )/.test(line)) {
+            paragraph.push(line.trim())
+            continue
+        }
+        if (paragraph.length) break
+    }
+    const text: string = paragraph.join(' ')
+        .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/<(https?:[^>]+)>/g, '$1')
+        .replace(/`([^`]*)`/g, '$1')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/\\([\\`*_[\]<>|])/g, '$1')
+        .replace(/\s+/g, ' ')
+        .trim()
+    const limit: number = chinese ? 110 : 160
+    if (text.length <= limit) return text || undefined
+    const cut: string = text.slice(0, limit - 1)
+    return `${chinese ? cut : cut.replace(/\s+\S*$/, '')}…`
+}
+
 export default defineConfig({
     title: 'Lakutata',
     markdown: {
@@ -174,8 +250,65 @@ export default defineConfig({
     ignoreDeadLinks: 'localhostLinks',
     //The configuration in a chunk of its own, rather than in every page
     metaChunk: true,
+    //No date on the pages: the sitemap dates them itself (sitemap.transformItems), by the files they come from
     lastUpdated: false,
-    sitemap: {hostname: 'https://lakutata.com'},
+    sitemap: {
+        hostname: SITE,
+        //The Chinese pages of the API reference repeat the English ones (both come from the comments of the sources), so
+        //they are not listed. The other pages are dated by the last commit of the file they come from
+        transformItems: (items) => items
+            .filter((item): boolean => !item.url.startsWith('zh/api/'))
+            .map((item) => {
+                const links = item.links?.filter((link): boolean => !link.url.startsWith('zh/api/'))
+                const source: string | undefined = sourceOf(item.url === '' || item.url.endsWith('/') ? `${item.url}index.md` : `${item.url}.md`)
+                return {...item, links: links && links.length > 1 ? links : undefined, lastmod: (source && lastCommit(source)) || item.lastmod}
+            })
+    },
+    //Every title ends with the name of the framework, so a guide's own title drops it (Lakutata Queues → Queues); a page
+    //without a description of its own is described by its first paragraph
+    transformPageData(pageData, {siteConfig}): void {
+        pageData.title = pageData.title.replace(/^Lakutata\s+(?=\S)/, '')
+        if (pageData.frontmatter.description || pageData.frontmatter.layout === 'home') return
+        const description: string | undefined = firstParagraph(join(siteConfig.srcDir, pageData.filePath), pageData.relativePath.startsWith('zh/'))
+        if (description) pageData.description = description
+    },
+    //The address search engines index a page by, and its card when it is shared; the home pages describe the framework
+    transformHead({pageData, title, description}): HeadConfig[] | void {
+        const page: string = pageData.relativePath
+        if (!page || pageData.isNotFound) return
+        const zh: boolean = page.startsWith('zh/')
+        const english: string = zh ? page.slice(3) : page
+        //The API reference is in English in both languages: its Chinese pages point to the English ones
+        const address: string = pageAddress(zh && english.startsWith('api/') ? english : page)
+        const image: string = `${SITE}/${zh ? 'og-zh.png' : 'og.png'}`
+        const head: HeadConfig[] = [
+            ['link', {rel: 'canonical', href: address}],
+            ['meta', {property: 'og:type', content: 'website'}],
+            ['meta', {property: 'og:site_name', content: 'Lakutata'}],
+            ['meta', {property: 'og:title', content: title}],
+            ['meta', {property: 'og:description', content: description}],
+            ['meta', {property: 'og:url', content: address}],
+            ['meta', {property: 'og:locale', content: zh ? 'zh_CN' : 'en_US'}],
+            ['meta', {property: 'og:image', content: image}],
+            ['meta', {property: 'og:image:width', content: '1200'}],
+            ['meta', {property: 'og:image:height', content: '630'}],
+            ['meta', {name: 'twitter:card', content: 'summary_large_image'}]
+        ]
+        if (english === 'index.md') head.push(['script', {type: 'application/ld+json'}, JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'SoftwareSourceCode',
+            name: 'Lakutata',
+            description: description,
+            url: address,
+            image: image,
+            codeRepository: REPOSITORY,
+            programmingLanguage: 'TypeScript',
+            runtimePlatform: 'Node.js',
+            license: 'https://opensource.org/licenses/MIT',
+            inLanguage: zh ? 'zh-CN' : 'en'
+        })])
+        return head
+    },
     head: [
         ['link', {rel: 'icon', type: 'image/svg+xml', href: '/logo.svg'}],
         ['meta', {name: 'theme-color', content: '#ffde00'}]

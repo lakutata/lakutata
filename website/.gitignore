@@ -13,6 +13,8 @@ src/zh/skill/
 src/public/lakutata-skill.zip
 src/public/doc/
 src/public/llms.txt
+src/public/llms-full.txt
+src/public/zh/
 src/public/logo.svg
 .api/
 # Built by VitePress

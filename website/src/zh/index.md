@@ -1,5 +1,6 @@
 ---
 layout: home
+titleTemplate: 所有 Node.js 应用，同一套编程模型
 
 hero:
   name: Lakutata

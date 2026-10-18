@@ -1,5 +1,6 @@
 ---
 layout: home
+titleTemplate: One programming model for every Node.js application
 
 hero:
   name: Lakutata
