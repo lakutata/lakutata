@@ -24,7 +24,7 @@ rm orders/packages/app/src/controllers/ExampleController.ts orders/packages/app/
 The two projects sit side by side, each a workspace whose service is `packages/app`
 ([ProjectStructure](../ProjectStructure.md)); the paths below start with the name of their project. They share no code:
 the action patterns and the shape of the messages are the contract between them. Nothing is installed: the HTTP
-service transport is part of lakutata, and the orders service calls it with `fetch()`.
+service transport and its proxy are part of lakutata.
 
 ## 2. The stock
 
@@ -302,26 +302,21 @@ The entrypoint has two adapters ([Entrypoint](../Entrypoint.md)):
 
 The `stock` component starts with 10 lamps and 3 desks.
 
-## 6. The proxy of the inventory
+## 6. The client of the inventory
 
-**`orders/packages/app/src/components/InventoryProxy.ts`**
+**`orders/packages/app/src/components/Inventory.ts`**
 
 ```typescript
-import {Component, DTO, Exception} from 'lakutata'
-import {ServiceInvokeException} from 'lakutata/com/entrypoint'
-import {Configurable} from 'lakutata/decorator/di'
+import {Component, Exception} from 'lakutata'
+import {type HTTPServiceProxy, ServiceInvokeException} from 'lakutata/com/entrypoint'
+import {Inject} from 'lakutata/decorator/di'
 
 export type OrderItem = { product: string, quantity: number }
 
 /**
- * The response of a service action: its result, or its error with all its properties
- */
-type Envelope<T> = { success: boolean, error: { message: string, errno?: string } | null, payload: T }
-
-/**
  * The inventory's errors that refuse an order: they are passed on to the clients of the orders service
  */
-const REFUSALS: string[] = ['E_OUT_OF_STOCK', 'E_PRODUCT_NOT_FOUND']
+const REFUSALS: unknown[] = ['E_OUT_OF_STOCK', 'E_PRODUCT_NOT_FOUND']
 
 /**
  * The inventory does not answer, or fails
@@ -333,52 +328,15 @@ export class InventoryUnavailableException extends Exception {
 }
 
 /**
- * The client of the inventory: it calls its service actions over HTTP
+ * The inventory, as the orders service uses it: its calls, and what their errors mean for an order
  */
-export class InventoryProxy extends Component {
+export class Inventory extends Component {
 
     /**
-     * The address where the inventory takes its service calls
+     * The proxy of the inventory's service actions (the component "inventoryService" of the options)
      */
-    @Configurable(DTO.String().uri().required())
-    protected readonly url: string
-
-    /**
-     * The token sent with the calls (the inventory's API_TOKEN)
-     */
-    @Configurable(DTO.String().optional())
-    protected readonly token?: string
-
-    /**
-     * The longest wait for a response, in milliseconds
-     */
-    @Configurable(DTO.Number().integer().positive().default(5000))
-    protected readonly timeout: number
-
-    /**
-     * Call an action of the inventory: return its result, or throw its error
-     * @param message the pattern of the action and its input
-     */
-    public async invoke<T>(message: Record<string, unknown>): Promise<T> {
-        let envelope: Envelope<T>
-        try {
-            const response: Response = await fetch(this.url, {
-                method: 'POST',
-                headers: {'Authorization': `Bearer ${this.token ?? ''}`, 'Content-Type': 'application/json'},
-                body: JSON.stringify(message),
-                signal: AbortSignal.timeout(this.timeout)
-            })
-            envelope = await response.json() as Envelope<T>
-        } catch (error) {
-            throw new InventoryUnavailableException('The inventory does not answer: {0}', (error as Error).message)
-        }
-        if (envelope.success) return envelope.payload
-        const error: { message: string, errno?: string } = envelope.error ?? {message: 'The call failed'}
-        //A refusal is thrown with all its properties (errno, errMsg, statusCode…), as the NATS and gRPC proxies do
-        if (REFUSALS.includes(error.errno ?? '')) throw Object.assign(new ServiceInvokeException(error.message), error, {service: 'inventory'})
-        //Any other error (a refused token, a message the inventory does not understand) is a failure of the orders service, not of its clients
-        throw new InventoryUnavailableException('The inventory fails: {0}', error.message)
-    }
+    @Inject('inventoryService')
+    protected readonly service: HTTPServiceProxy
 
     /**
      * Reserve the stock of an order; reserving the same order again changes nothing
@@ -386,25 +344,34 @@ export class InventoryProxy extends Component {
      * @param items
      */
     public async reserve(order: string, items: OrderItem[]): Promise<void> {
-        await this.invoke({resource: 'stock', act: 'reserve', order: order, items: items})
+        try {
+            //5 seconds at most
+            await this.service.invoke({resource: 'stock', act: 'reserve', order: order, items: items}, 5000)
+        } catch (error) {
+            //A refusal is thrown as it is, with all the properties of the inventory's error (errno, errMsg, statusCode…)
+            if (error instanceof ServiceInvokeException && REFUSALS.includes(error.errno)) throw error
+            //Any other error (no response, a refused token, a message the inventory does not understand) is a failure of the orders service, not of its clients
+            throw new InventoryUnavailableException('The inventory fails: {0}', (error as Error).message)
+        }
     }
 }
 ```
 
-The HTTP service transport comes with no client library ([ServiceCalls](../ServiceCalls.md), section 3): the proxy is a
-component of the orders service that posts the messages and reads the responses.
+The orders service calls the inventory through an `HTTPServiceProxy` ([ServiceCalls](../ServiceCalls.md), section 4),
+registered in its options as the `inventoryService` component (section 8). The proxy posts the messages and reads the
+responses. `Inventory` is a component of the orders service on top of it: it decides what the inventory's errors mean
+for an order.
 
-- Its options are `@Configurable` properties, validated when it is created: the inventory's address, the token, and the
-  longest wait for a response. The HTTP service transport sets no time limit on the calls, so the proxy sets its own
-  with `AbortSignal.timeout()`.
-- A refusal of an order crosses the call: the proxy throws a `ServiceInvokeException` (from `lakutata/com/entrypoint`)
-  that carries the properties of the inventory's error, including its `errno`, `errMsg` and `statusCode`, as the NATS
-  and gRPC proxies do. The HTTP adapter of the orders service answers with that status and that `errno`, so the client
-  receives the inventory's 409 `E_OUT_OF_STOCK`.
-- The inventory's other errors are not the client's fault. A refused token, or a message that the inventory does not
-  understand, is a failure of the orders service: it answers 503 `E_INVENTORY_UNAVAILABLE`, as when the inventory does
-  not answer.
-- The proxy recognizes the refusals by their `errno`: the class of an exception does not cross the call
+- `invoke()` takes the message and the longest wait for the response, here 5 seconds. The proxy waits 10 minutes by
+  default; an order should not wait that long, so the call gives its own limit.
+- A refusal of an order crosses the call: the proxy throws a `ServiceInvokeException` that carries the properties of
+  the inventory's error, including its `errno`, `errMsg` and `statusCode`. `Inventory` throws it again as it is, so the
+  HTTP adapter of the orders service answers with that status and that `errno`: the client receives the inventory's
+  409 `E_OUT_OF_STOCK`.
+- The inventory's other errors are not the client's fault. A refused token, a message that the inventory does not
+  understand, or no response at all (the proxy's `ServiceUnavailableException`) is a failure of the orders service: it
+  answers 503 `E_INVENTORY_UNAVAILABLE`.
+- `Inventory` recognizes the refusals by their `errno`: the class of an exception does not cross the call
   ([Exceptions](../Exceptions.md), section 5).
 - `reserve()` wraps the call in a typed method, so the controllers never build messages themselves.
 
@@ -446,7 +413,7 @@ import {randomUUID} from 'node:crypto'
 import {Controller} from 'lakutata/com/entrypoint'
 import {POST, Prefix} from 'lakutata/decorator/ctrl'
 import {Inject} from 'lakutata/decorator/di'
-import {type InventoryProxy, type OrderItem} from '../components/InventoryProxy.js'
+import {type Inventory, type OrderItem} from '../components/Inventory.js'
 import {PlaceOrderDTO} from '../dtos/OrderDTO.js'
 
 export type Order = { id: string, items: OrderItem[] }
@@ -455,10 +422,10 @@ export type Order = { id: string, items: OrderItem[] }
 export class OrderController extends Controller {
 
     /**
-     * The client of the inventory (the component "inventory" of the options)
+     * The inventory (the component "inventory" of the options)
      */
     @Inject('inventory')
-    protected readonly inventory: InventoryProxy
+    protected readonly inventory: Inventory
 
     /**
      * POST /orders {"items": [{"product": "lamp", "quantity": 2}]}
@@ -474,7 +441,7 @@ export class OrderController extends Controller {
 }
 ```
 
-- The controller injects the proxy (`@Inject('inventory')`) and calls it like any other component.
+- The controller injects the `inventory` component (`@Inject('inventory')`) and calls it like any other component.
 - The order gets its id before the call: if the call is sent again, the inventory still reserves the order only once.
 - An error of the call becomes the error of the request, so the controller needs no `try`.
 
@@ -484,13 +451,13 @@ export class OrderController extends Controller {
 
 ```typescript
 import type {ApplicationOptions} from 'lakutata'
-import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {buildEntrypoints, buildHTTPServiceProxy} from 'lakutata/com/entrypoint'
 import {expressHTTPEntrypoint, jsonEnvelope} from 'lakutata/adapter/express'
 import compression from 'compression'
 import {authenticate} from '../middlewares/Authenticate.js'
 import {HealthController} from '../controllers/HealthController.js'
 import {OrderController} from '../controllers/OrderController.js'
-import {InventoryProxy} from '../components/InventoryProxy.js'
+import {Inventory} from '../components/Inventory.js'
 
 /**
  * The options of the service
@@ -504,8 +471,9 @@ export function config(port: number = Number(process.env.PORT ?? 8080), inventor
         name: 'orders',
         mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
         components: {
-            //The client of the inventory, with the token for its calls
-            inventory: {class: InventoryProxy, url: inventory, token: process.env.INVENTORY_TOKEN},
+            //The proxy of the inventory's service actions, with the token for its calls
+            inventoryService: buildHTTPServiceProxy({url: inventory, headers: {Authorization: `Bearer ${process.env.INVENTORY_TOKEN ?? ''}`}}),
+            inventory: {class: Inventory},
             entrypoint: buildEntrypoints({
                 controllers: [HealthController, OrderController],
                 http: expressHTTPEntrypoint({
@@ -519,21 +487,23 @@ export function config(port: number = Number(process.env.PORT ?? 8080), inventor
                 })
             })
         },
-        //The client of the inventory is created at the start: an invalid INVENTORY_URL stops the service
-        bootstrap: ['inventory', 'entrypoint']
+        //The proxy is created at the start: an invalid INVENTORY_URL stops the service
+        bootstrap: ['inventoryService', 'entrypoint']
     }
 }
 ```
 
 This is the `Config.ts` of the template, with:
 
-- the `inventory` component: the proxy, with the inventory's address (`INVENTORY_URL`, `http://localhost:3000` by
-  default) and the token for its calls (`INVENTORY_TOKEN`, the inventory's `API_TOKEN`);
+- the `inventoryService` component: the proxy, with the inventory's address (`INVENTORY_URL`, `http://localhost:3000`
+  by default) and the token for its calls (`INVENTORY_TOKEN`, the inventory's `API_TOKEN`) in their `Authorization`
+  header;
+- the `inventory` component, which the controller injects;
 - the `OrderController` instead of the example controller;
 - `jsonEnvelope()` without `errorStatus`: the errors keep their status (400, 409, 503);
 - a body of 1 MB at most (the template allows 100 MB), more than an order needs;
-- `bootstrap: ['inventory', 'entrypoint']`: the proxy is created at the start, so an invalid `INVENTORY_URL` stops the
-  service at once, with `The option "url" of "inventory" (InventoryProxy) is invalid`.
+- `bootstrap: ['inventoryService', 'entrypoint']`: the proxy is created at the start, so an invalid `INVENTORY_URL`
+  stops the service at once, with `The option "url" of "inventoryService" (HTTPServiceProxy) is invalid`.
 
 The template's middleware `Authenticate.ts` stays: when the orders service has an `API_TOKEN` of its own, its clients
 must carry that token.
@@ -585,13 +555,13 @@ inventory (Ctrl+C) and place an order:
 ```bash
 curl -i -X POST localhost:8080/orders -H 'Content-Type: application/json' -d '{"items": [{"product": "lamp", "quantity": 1}]}'
 # HTTP/1.1 503 Service Unavailable
-# {"errno":"E_INVENTORY_UNAVAILABLE","errMsg":"The inventory does not answer: fetch failed","data":null}
+# {"errno":"E_INVENTORY_UNAVAILABLE","errMsg":"The inventory fails: The service http://localhost:3000 cannot be reached: connect ECONNREFUSED ::1:3000, connect ECONNREFUSED 127.0.0.1:3000","data":null}
 ```
 
 ## 10. Test it
 
-Each service has its own tests, which replace the template's test. The inventory's tests start it and call its actions
-as the orders service does:
+Each service has its own tests, which replace the template's test. The inventory's tests start it, post the messages
+of its actions and read the envelopes of the responses:
 
 **`inventory/packages/app/src/tests/App.spec.ts`**
 
@@ -844,8 +814,9 @@ app │ ℹ pass 5
   ([A REST API with a database](RestAPI.md)). There, the order id, as a unique key of the reservations, keeps an order
   from being reserved twice.
 - Other transports serve the same actions: Socket.IO, JSON-RPC ([ServiceCalls](../ServiceCalls.md)), NATS
-  ([NATS](../NATS.md)) or gRPC ([GRPC](../GRPC.md)), each an adapter of the `service` option. NATS and gRPC come with
-  their own proxies, which throw the same `ServiceInvokeException`.
+  ([NATS](../NATS.md)) or gRPC ([GRPC](../GRPC.md)), each an adapter of the `service` option. The proxies of NATS and
+  gRPC have the same `invoke()` and throw the same `ServiceInvokeException`: register `inventoryService` with their
+  builders instead and change the type of the proxy in `Inventory.ts`; the rest of `Inventory.ts` stays.
 
 <!--
 check:

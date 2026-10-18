@@ -148,6 +148,7 @@ Application.run(() => ({
 | `AccessControlRule`、`AccessControl` | `lakutata/com/entrypoint` | 访问控制 |
 | `Middleware`、`ActionInvocation`、`Next` | `lakutata/com/entrypoint` | 中间件 |
 | `httpServiceEntrypoint`、`scheduleEntrypoint` | `lakutata/com/entrypoint` | 基于 HTTP 的服务调用；定时任务 |
+| `HTTPServiceProxy`、`buildHTTPServiceProxy` | `lakutata/com/entrypoint` | 基于 HTTP 的服务的客户端：调用它的动作，接收它推送的事件 |
 | `Cron`、`parseDuration` | `lakutata/com/entrypoint` | cron 表达式和时长 |
 | `HTTPAction`、`GET`、`POST`、`PUT`、`PATCH`、`DELETE`、`HEAD`、`OPTIONS` | `lakutata/decorator/ctrl` | HTTP 路由 |
 | `CLIAction`、`ServiceAction`、`Schedule` | `lakutata/decorator/ctrl` | 命令、服务动作、定时任务 |
@@ -170,6 +171,7 @@ Application.run(() => ({
 | `DuplicateActionNameException` | 同一传输方式中有两个同名的动作 |
 | `InvalidPrefixException`、`InvalidMiddlewareException`、`InvalidChannelException`、`InvalidEntrypointAdapterException` | 控制器的声明或选项不合法 |
 | `ServiceInvokeException` | 远程服务动作失败（带有原错误的各个属性） |
+| `ServiceUnavailableException` | `HTTPServiceProxy` 调用的服务没有给出响应（HTTP 503） |
 
 ## 另见
 

@@ -3,10 +3,10 @@ import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
 import {durationOf, takeOverUpgrades, upgrade} from './support/Upgrade.js'
 import {keepAliveAgent, postThrough} from './support/KeepAlive.js'
-import type {Agent} from 'node:http'
+import {type Agent, createServer, type Server} from 'node:http'
 import {Container, DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
-import {buildEntrypoints, Controller, Entrypoint, httpRequestOfContext, httpServiceEntrypoint, type HTTPServiceEntrypointOptions, Result, ServiceContext, type FileResult, type StatusResult} from '../exports/Entrypoint.js'
+import {buildEntrypoints, buildHTTPServiceProxy, Controller, Entrypoint, httpRequestOfContext, httpServiceEntrypoint, type HTTPServiceEntrypointOptions, HTTPServiceProxy, Result, ServiceContext, ServiceInvokeException, ServiceUnavailableException, type FileResult, type StatusResult} from '../exports/Entrypoint.js'
 import {ServiceAction} from '../exports/CTRLDecorators.js'
 
 const abortedActions: string[] = []
@@ -26,6 +26,11 @@ class EchoController extends Controller {
     @ServiceAction({cmd: 'whoami'})
     public async whoami(): Promise<string | undefined> {
         return (this.context as ServiceContext).clientId
+    }
+
+    @ServiceAction({cmd: 'authorization'})
+    public async authorization(): Promise<string | undefined> {
+        return httpRequestOfContext(this.context as ServiceContext)?.headers.authorization
     }
 
     @ServiceAction({cmd: 'created'})
@@ -117,6 +122,15 @@ async function streamEvents(url: string): Promise<{ next: () => Promise<{ event:
         },
         close: (): void => aborted.abort()
     }
+}
+
+/**
+ * Wait until a condition holds (2 seconds at most)
+ * @param condition
+ */
+async function until(condition: () => boolean): Promise<void> {
+    for (let attempt: number = 0; attempt < 100 && !condition(); attempt++) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 20))
+    assert.ok(condition())
 }
 
 describe('HTTP service adapter', (): void => {
@@ -233,5 +247,86 @@ describe('HTTP service adapter', (): void => {
         assert.strictEqual(status, 'HTTP/1.1 101 Switching Protocols')
         assert.ok(await durationOf((): Promise<void> => container.destroy()) < 3000)
         await new Promise((resolve: (value: unknown) => void): unknown => socket.destroyed ? resolve(true) : socket.once('close', resolve))
+    })
+})
+
+describe('HTTP service proxy', (): void => {
+
+    it('invokes the actions, throws their errors, sends its headers and its client id', async (): Promise<void> => {
+        const {url, container} = await start()
+        try {
+            const proxy: HTTPServiceProxy = await container.set(HTTPServiceProxy, buildHTTPServiceProxy({url: url, headers: {Authorization: 'Bearer secret'}, clientId: 'proxy-1'}))
+            assert.strictEqual(proxy.id, 'proxy-1')
+            assert.deepStrictEqual(await proxy.invoke({cmd: 'echo', value: 3}), {value: 3, method: 'POST'})
+            assert.deepStrictEqual(await proxy.invoke({cmd: 'created'}), {id: 7})
+            assert.strictEqual(await proxy.invoke({cmd: 'whoami'}), 'proxy-1')
+            assert.strictEqual(await proxy.invoke({cmd: 'authorization'}), 'Bearer secret')
+            //The error of the action, its properties copied
+            await assert.rejects(proxy.invoke({cmd: 'echo', value: 'x'}), (error: unknown): boolean => error instanceof ServiceInvokeException && error.errno === 'E_INVALID_VALUE' && error.statusCode === 400 && error.service === url)
+            //Another path of the service: its error response
+            const elsewhere: HTTPServiceProxy = await container.setNamed('elsewhere', HTTPServiceProxy, {url: `${url}/api`})
+            await assert.rejects(elsewhere.invoke({cmd: 'echo', value: 1}), (error: unknown): boolean => error instanceof ServiceInvokeException && /POST \/ invokes the actions/.test(error.message))
+        } finally {
+            await container.destroy()
+        }
+    })
+
+    it('throws a ServiceUnavailableException when the service gives no response', async (): Promise<void> => {
+        const {url, container} = await start()
+        //The error page of a proxy in front of a service
+        const page: Server = createServer((request, response): void => void response.writeHead(502, {'Content-Type': 'text/html'}).end('<h1>Bad Gateway</h1>'))
+        await new Promise<void>((resolve: () => void): unknown => page.listen(0, '127.0.0.1', resolve))
+        try {
+            const slow: HTTPServiceProxy = await container.setNamed('slow', HTTPServiceProxy, {url: url})
+            await assert.rejects(slow.invoke({cmd: 'slow'}, 50), (error: unknown): boolean => error instanceof ServiceUnavailableException && error.message === `The service ${url} gave no response within 50 ms` && (error.cause as Error).name === 'TimeoutError' && error.statusCode === 503)
+            //The port of a server closed
+            const closed: Server = createServer()
+            await new Promise<void>((resolve: () => void): unknown => closed.listen(0, '127.0.0.1', resolve))
+            //localhost: ::1 and 127.0.0.1 both tried, both refused
+            const gone: string = `http://localhost:${(closed.address() as AddressInfo).port}`
+            await new Promise<unknown>((resolve: (value: unknown) => void): unknown => closed.close(resolve))
+            const unreachable: HTTPServiceProxy = await container.setNamed('unreachable', HTTPServiceProxy, {url: gone})
+            await assert.rejects(unreachable.invoke({cmd: 'echo', value: 1}), (error: unknown): boolean => error instanceof ServiceUnavailableException && /cannot be reached: connect ECONNREFUSED [\d.:]+(, connect ECONNREFUSED [\d.:]+)?$/.test(error.message) && error.service === gone)
+            const behind: HTTPServiceProxy = await container.setNamed('behind', HTTPServiceProxy, {url: `http://127.0.0.1:${(page.address() as AddressInfo).port}`})
+            await assert.rejects(behind.invoke({cmd: 'echo', value: 1}), /answered 502 without a service response/)
+        } finally {
+            page.close()
+            await container.destroy()
+        }
+    })
+
+    it('receives the events pushed to its client, and listens again once the service restarts', async (): Promise<void> => {
+        const first = await start()
+        const container: Container = new Container()
+        const proxy: HTTPServiceProxy = await container.set(HTTPServiceProxy, {url: first.url, clientId: 'desk', reconnectDelay: 50})
+        const opened: string[] = []
+        const received: unknown[][] = []
+        let done: number = 0
+        proxy.on('client', (id: string): void => void opened.push(id))
+        proxy.on('progress', (...args: unknown[]): void => void received.push(args))
+        proxy.once('done', (): void => void done++)
+        await until((): boolean => opened.length === 1)
+        assert.deepStrictEqual(opened, ['desk'])
+        first.entrypoint.notify('desk', 'progress', 1, {step: 'a'})
+        first.entrypoint.notify('desk', 'done')
+        first.entrypoint.notify('desk', 'done')
+        await until((): boolean => received.length === 1 && done === 1)
+        assert.deepStrictEqual(received, [[1, {step: 'a'}]])
+        //The service restarts on the same port: the stream is opened again
+        await first.container.destroy()
+        const second = await start({port: Number(new URL(first.url).port)})
+        try {
+            await until((): boolean => opened.length === 2)
+            assert.strictEqual(second.entrypoint.broadcast('progress', 2), 1)
+            await until((): boolean => received.length === 2)
+            assert.deepStrictEqual([received[1], done], [[2], 1])
+            //No listener left: the stream is closed
+            proxy.off('client').off('progress')
+            await until((): boolean => !second.entrypoint.notify('desk', 'progress', 3))
+            assert.strictEqual(received.length, 2)
+        } finally {
+            await container.destroy()
+            await second.container.destroy()
+        }
     })
 })

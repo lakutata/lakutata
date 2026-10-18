@@ -149,7 +149,10 @@ The HTTP service, Socket.IO and Electron answer with an envelope; JSON-RPC answe
 - `Result.status(status, data)` sends its data. A file or an event stream (`Result.file()`, `Result.events()`) cannot
   be sent: the call fails.
 
-These transports come with no client library. A client of the envelope throws its error, for example:
+The applications that call a service read the envelope through a proxy: `HTTPServiceProxy` for the HTTP service
+(section 4), and the proxies of the NATS and gRPC transports. A proxy returns the `payload`, or throws a
+`ServiceInvokeException` that carries the properties of the remote error. Other clients, such as the pages of a
+browser, read the envelope themselves, for example:
 
 ```typescript
 type Envelope<T> = { success: boolean, error: { message?: string, errno?: string } | null, payload: T }
@@ -166,9 +169,6 @@ export async function call<T>(message: Record<string, unknown>): Promise<T> {
     return envelope.payload
 }
 ```
-
-The proxies of the NATS and gRPC transports do the same: they throw a `ServiceInvokeException` carrying the properties
-of the remote error.
 
 ## 4. The transports
 
@@ -221,6 +221,52 @@ In a browser, `EventSource` reads them:
 const events: EventSource = new EventSource('http://localhost:3000/events?id=client-1')
 events.addEventListener('progress', (event: MessageEvent): void => console.log(JSON.parse(event.data)))
 ```
+
+Another application calls the service through an `HTTPServiceProxy`, a component registered with
+`buildHTTPServiceProxy()`. Here it calls the orders service of section 1:
+
+```typescript
+import {Application} from 'lakutata'
+import {buildHTTPServiceProxy, type HTTPServiceProxy, ServiceInvokeException} from 'lakutata/com/entrypoint'
+
+Application
+    .run(() => ({
+        id: 'shop.app',
+        name: 'Shop',
+        components: {
+            orders: buildHTTPServiceProxy({url: 'http://localhost:3000/'})
+        }
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        const orders: HTTPServiceProxy = await app.getObject<HTTPServiceProxy>('orders')
+        //{id: 1, product: 'lamp'}
+        console.log(await orders.invoke({resource: 'order', act: 'create', product: 'lamp'}))
+        try {
+            //5 seconds at most
+            await orders.invoke({resource: 'order', act: 'get', id: 9}, 5000)
+        } catch (error) {
+            //The error of the action, with its properties: E_ORDER_NOT_FOUND
+            if (error instanceof ServiceInvokeException) console.log(error.errno)
+        }
+    })
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `url` | | The address of the service, with the `path` of its adapter |
+| `headers` | | The headers sent with each call and with the event stream, such as `Authorization` |
+| `clientId` | a random UUID | The id of this client (section 5) |
+| `reconnectDelay` | `1000` | The delay, in milliseconds, before the event stream is opened again |
+
+- `invoke(message, timeout)` posts the message and returns the `payload`. The timeout is 10 minutes by default; when it
+  passes, the call is abandoned and the service aborts the signal of the action.
+- An action that fails throws a `ServiceInvokeException` with the properties of its error (section 3). A service that
+  gives no response throws a `ServiceUnavailableException` (`E_SERVICE_UNAVAILABLE`, status 503): it cannot be
+  reached, it does not answer within the timeout, or its answer is not an envelope (the error page of a proxy in front
+  of it).
+- `on(event, listener)`, `once()` and `off()` listen to the events that the service pushes to this client. The first
+  listener opens the event stream. When the stream drops, it is opened again after `reconnectDelay`; the events pushed
+  in the meantime are lost.
 
 ### Socket.IO
 

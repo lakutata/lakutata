@@ -473,6 +473,7 @@
     "buildCLIEntrypoint",
     "buildEntrypoints",
     "buildHTTPEntrypoint",
+    "buildHTTPServiceProxy",
     "buildServiceEntrypoint",
     "CLIContext",
     "ContextType",
@@ -487,6 +488,7 @@
     "HTTPContext",
     "httpRequestOfContext",
     "httpServiceEntrypoint",
+    "HTTPServiceProxy",
     "InvalidChannelException",
     "InvalidEntrypointAdapterException",
     "InvalidMiddlewareException",
@@ -501,6 +503,7 @@
     "scheduleEntrypoint",
     "ServiceContext",
     "ServiceInvokeException",
+    "ServiceUnavailableException",
     "StatusResult"
   ],
   "lakutata/adapter/express": [

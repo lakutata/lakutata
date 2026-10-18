@@ -17,7 +17,7 @@ rm inventory/packages/app/src/controllers/ExampleController.ts inventory/package
 rm orders/packages/app/src/controllers/ExampleController.ts orders/packages/app/src/dtos/GreetDTO.ts
 ```
 
-两个项目并排放在一起，每个都是一个工作区，服务在 `packages/app` 中（见 [ProjectStructure](../ProjectStructure.md)）；下面的路径都以所属项目的名字开头。两个项目不共享代码：动作的模式和消息的结构就是它们之间的约定。这里不需要安装任何包：HTTP 服务传输方式是 lakutata 自带的，订单服务用 `fetch()` 调用它。
+两个项目并排放在一起，每个都是一个工作区，服务在 `packages/app` 中（见 [ProjectStructure](../ProjectStructure.md)）；下面的路径都以所属项目的名字开头。两个项目不共享代码：动作的模式和消息的结构就是它们之间的约定。这里不需要安装任何包：HTTP 服务传输方式和它的代理都是 lakutata 自带的。
 
 ## 2. 库存
 
@@ -278,26 +278,21 @@ export function config(port: number = Number(process.env.PORT ?? 8080), serviceP
 
 `stock` 组件启动时有 10 盏台灯和 3 张书桌。
 
-## 6. 库存服务的代理
+## 6. 库存服务的客户端
 
-**`orders/packages/app/src/components/InventoryProxy.ts`**
+**`orders/packages/app/src/components/Inventory.ts`**
 
 ```typescript
-import {Component, DTO, Exception} from 'lakutata'
-import {ServiceInvokeException} from 'lakutata/com/entrypoint'
-import {Configurable} from 'lakutata/decorator/di'
+import {Component, Exception} from 'lakutata'
+import {type HTTPServiceProxy, ServiceInvokeException} from 'lakutata/com/entrypoint'
+import {Inject} from 'lakutata/decorator/di'
 
 export type OrderItem = { product: string, quantity: number }
 
 /**
- * 服务动作的响应：结果，或者带有全部属性的错误
+ * 库存服务中表示拒绝订单的错误：它们会原样传给订单服务的客户端
  */
-type Envelope<T> = { success: boolean, error: { message: string, errno?: string } | null, payload: T }
-
-/**
- * 库存服务拒绝订单时的错误：它们会传给订单服务的客户端
- */
-const REFUSALS: string[] = ['E_OUT_OF_STOCK', 'E_PRODUCT_NOT_FOUND']
+const REFUSALS: unknown[] = ['E_OUT_OF_STOCK', 'E_PRODUCT_NOT_FOUND']
 
 /**
  * 库存服务没有应答，或者出了故障
@@ -309,52 +304,15 @@ export class InventoryUnavailableException extends Exception {
 }
 
 /**
- * 库存服务的客户端：通过 HTTP 调用它的服务动作
+ * 订单服务眼中的库存服务：对它的调用，以及调用出错对订单意味着什么
  */
-export class InventoryProxy extends Component {
+export class Inventory extends Component {
 
     /**
-     * 库存服务接收服务调用的地址
+     * 库存服务的服务动作的代理（选项中的 "inventoryService" 组件）
      */
-    @Configurable(DTO.String().uri().required())
-    protected readonly url: string
-
-    /**
-     * 调用时使用的令牌（库存服务的 API_TOKEN）
-     */
-    @Configurable(DTO.String().optional())
-    protected readonly token?: string
-
-    /**
-     * 等待响应的最长时间，单位为毫秒
-     */
-    @Configurable(DTO.Number().integer().positive().default(5000))
-    protected readonly timeout: number
-
-    /**
-     * 调用库存服务的一个动作：返回结果，失败时抛出错误
-     * @param message 动作的模式及其输入
-     */
-    public async invoke<T>(message: Record<string, unknown>): Promise<T> {
-        let envelope: Envelope<T>
-        try {
-            const response: Response = await fetch(this.url, {
-                method: 'POST',
-                headers: {'Authorization': `Bearer ${this.token ?? ''}`, 'Content-Type': 'application/json'},
-                body: JSON.stringify(message),
-                signal: AbortSignal.timeout(this.timeout)
-            })
-            envelope = await response.json() as Envelope<T>
-        } catch (error) {
-            throw new InventoryUnavailableException('The inventory does not answer: {0}', (error as Error).message)
-        }
-        if (envelope.success) return envelope.payload
-        const error: { message: string, errno?: string } = envelope.error ?? {message: 'The call failed'}
-        //拒绝订单的错误带着全部属性（errno、errMsg、statusCode 等）抛出，和 NATS、gRPC 的代理一样
-        if (REFUSALS.includes(error.errno ?? '')) throw Object.assign(new ServiceInvokeException(error.message), error, {service: 'inventory'})
-        //其他错误（令牌被拒绝、库存服务看不懂的消息）是订单服务自己的故障，不是客户端的问题
-        throw new InventoryUnavailableException('The inventory fails: {0}', error.message)
-    }
+    @Inject('inventoryService')
+    protected readonly service: HTTPServiceProxy
 
     /**
      * 为订单预留库存；同一个订单再预留一次不会改变任何东西
@@ -362,17 +320,25 @@ export class InventoryProxy extends Component {
      * @param items
      */
     public async reserve(order: string, items: OrderItem[]): Promise<void> {
-        await this.invoke({resource: 'stock', act: 'reserve', order: order, items: items})
+        try {
+            //最多等待 5 秒
+            await this.service.invoke({resource: 'stock', act: 'reserve', order: order, items: items}, 5000)
+        } catch (error) {
+            //拒绝订单的错误原样抛出，带着库存服务错误的全部属性（errno、errMsg、statusCode 等）
+            if (error instanceof ServiceInvokeException && REFUSALS.includes(error.errno)) throw error
+            //其他错误（没有响应、令牌被拒绝、库存服务看不懂消息）都是订单服务自己的故障，不是客户端的问题
+            throw new InventoryUnavailableException('The inventory fails: {0}', (error as Error).message)
+        }
     }
 }
 ```
 
-HTTP 服务传输方式没有附带客户端库（见 [ServiceCalls](../ServiceCalls.md) 第 3 节），所以代理是订单服务自己的一个组件，负责发送消息、读取响应。
+订单服务通过 `HTTPServiceProxy`（见 [ServiceCalls](../ServiceCalls.md) 第 4 节）调用库存服务，它在选项中注册为 `inventoryService` 组件（第 8 节）。代理负责发送消息、读取响应。`Inventory` 是订单服务在代理之上的一个组件，它决定库存服务的各种错误对订单意味着什么。
 
-- 代理的选项是 `@Configurable` 属性，在创建时校验：库存服务的地址、令牌，以及等待响应的最长时间。HTTP 服务传输方式不限制调用的时间，所以代理用 `AbortSignal.timeout()` 自己设定时限。
-- 订单被拒绝时，错误会一路传回客户端：代理抛出一个 `ServiceInvokeException`（来自 `lakutata/com/entrypoint`），它带有库存服务错误的各项属性，包括 `errno`、`errMsg` 和 `statusCode`，NATS 和 gRPC 的代理也是这样做的。订单服务的 HTTP 适配器用这个状态码和这个 `errno` 响应，所以客户端收到的就是库存服务的 409 `E_OUT_OF_STOCK`。
-- 库存服务的其他错误不是客户端的问题。令牌被拒绝，或者库存服务看不懂收到的消息，都属于订单服务自己的故障：和库存服务没有应答时一样，订单服务以 503 `E_INVENTORY_UNAVAILABLE` 响应。
-- 代理通过 `errno` 识别拒绝，因为异常的类不会随调用传回来（见 [Exceptions](../Exceptions.md) 第 5 节）。
+- `invoke()` 接收消息和等待响应的最长时间，这里是 5 秒。代理默认等待 10 分钟，订单不该等这么久，所以这里给调用设定了自己的时限。
+- 订单被拒绝时，错误会一路传回客户端：代理抛出一个 `ServiceInvokeException`，它带有库存服务错误的各项属性，包括 `errno`、`errMsg` 和 `statusCode`。`Inventory` 把它原样抛出，订单服务的 HTTP 适配器就用这个状态码和这个 `errno` 响应，所以客户端收到的就是库存服务的 409 `E_OUT_OF_STOCK`。
+- 库存服务的其他错误不是客户端的问题。令牌被拒绝、库存服务看不懂收到的消息，或者根本没有响应（代理抛出的 `ServiceUnavailableException`），都属于订单服务自己的故障：订单服务以 503 `E_INVENTORY_UNAVAILABLE` 响应。
+- `Inventory` 通过 `errno` 识别拒绝，因为异常的类不会随调用传回来（见 [Exceptions](../Exceptions.md) 第 5 节）。
 - `reserve()` 给调用起了名字、加上了类型，控制器就不用自己拼消息了。
 
 ## 7. 订单
@@ -412,7 +378,7 @@ import {randomUUID} from 'node:crypto'
 import {Controller} from 'lakutata/com/entrypoint'
 import {POST, Prefix} from 'lakutata/decorator/ctrl'
 import {Inject} from 'lakutata/decorator/di'
-import {type InventoryProxy, type OrderItem} from '../components/InventoryProxy.js'
+import {type Inventory, type OrderItem} from '../components/Inventory.js'
 import {PlaceOrderDTO} from '../dtos/OrderDTO.js'
 
 export type Order = { id: string, items: OrderItem[] }
@@ -421,10 +387,10 @@ export type Order = { id: string, items: OrderItem[] }
 export class OrderController extends Controller {
 
     /**
-     * 库存服务的客户端（选项中的 "inventory" 组件）
+     * 库存服务（选项中的 "inventory" 组件）
      */
     @Inject('inventory')
-    protected readonly inventory: InventoryProxy
+    protected readonly inventory: Inventory
 
     /**
      * POST /orders {"items": [{"product": "lamp", "quantity": 2}]}
@@ -440,7 +406,7 @@ export class OrderController extends Controller {
 }
 ```
 
-- 控制器注入代理（`@Inject('inventory')`），像调用其他组件一样调用它。
+- 控制器注入 `inventory` 组件（`@Inject('inventory')`），像调用其他组件一样调用它。
 - 订单在调用之前就有了 id：即使这个调用再发一次，库存服务也只会为订单预留一次。
 - 调用的错误就是请求的错误，控制器不需要 `try`。
 
@@ -450,13 +416,13 @@ export class OrderController extends Controller {
 
 ```typescript
 import type {ApplicationOptions} from 'lakutata'
-import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {buildEntrypoints, buildHTTPServiceProxy} from 'lakutata/com/entrypoint'
 import {expressHTTPEntrypoint, jsonEnvelope} from 'lakutata/adapter/express'
 import compression from 'compression'
 import {authenticate} from '../middlewares/Authenticate.js'
 import {HealthController} from '../controllers/HealthController.js'
 import {OrderController} from '../controllers/OrderController.js'
-import {InventoryProxy} from '../components/InventoryProxy.js'
+import {Inventory} from '../components/Inventory.js'
 
 /**
  * 服务的选项
@@ -469,8 +435,9 @@ export function config(port: number = Number(process.env.PORT ?? 8080), inventor
         name: 'orders',
         mode: process.env.NODE_ENV === 'production' ? 'production' : 'development',
         components: {
-            //库存服务的客户端，以及调用时使用的令牌
-            inventory: {class: InventoryProxy, url: inventory, token: process.env.INVENTORY_TOKEN},
+            //库存服务的服务动作的代理，以及调用时使用的令牌
+            inventoryService: buildHTTPServiceProxy({url: inventory, headers: {Authorization: `Bearer ${process.env.INVENTORY_TOKEN ?? ''}`}}),
+            inventory: {class: Inventory},
             entrypoint: buildEntrypoints({
                 controllers: [HealthController, OrderController],
                 http: expressHTTPEntrypoint({
@@ -484,19 +451,20 @@ export function config(port: number = Number(process.env.PORT ?? 8080), inventor
                 })
             })
         },
-        //库存服务的客户端在启动时创建：INVENTORY_URL 无效时，服务无法启动
-        bootstrap: ['inventory', 'entrypoint']
+        //代理在启动时创建：INVENTORY_URL 无效时，服务无法启动
+        bootstrap: ['inventoryService', 'entrypoint']
     }
 }
 ```
 
 这是模板中的 `Config.ts`，改动如下：
 
-- 新增 `inventory` 组件，也就是代理，带有库存服务的地址（`INVENTORY_URL`，默认为 `http://localhost:3000`）和调用时使用的令牌（`INVENTORY_TOKEN`，即库存服务的 `API_TOKEN`）；
+- 新增 `inventoryService` 组件，也就是代理，带有库存服务的地址（`INVENTORY_URL`，默认为 `http://localhost:3000`），调用时在 `Authorization` 请求头中带上令牌（`INVENTORY_TOKEN`，即库存服务的 `API_TOKEN`）；
+- 新增 `inventory` 组件，由控制器注入；
 - 用 `OrderController` 替换示例控制器；
 - `jsonEnvelope()` 不再设置 `errorStatus`：错误保留各自的状态码（400、409、503）；
 - 请求体最多 1 MB（模板允许 100 MB），对订单来说足够了；
-- `bootstrap: ['inventory', 'entrypoint']`：代理在启动时创建，所以 `INVENTORY_URL` 无效时，服务会立即停止，并给出 `The option "url" of "inventory" (InventoryProxy) is invalid`。
+- `bootstrap: ['inventoryService', 'entrypoint']`：代理在启动时创建，所以 `INVENTORY_URL` 无效时，服务会立即停止，并给出 `The option "url" of "inventoryService" (HTTPServiceProxy) is invalid`。
 
 模板中的中间件 `Authenticate.ts` 保留不变：订单服务设置了自己的 `API_TOKEN` 时，它的客户端必须带上这个令牌。
 
@@ -546,12 +514,12 @@ curl localhost:3000 -H 'Content-Type: application/json' -d '{"resource": "stock"
 ```bash
 curl -i -X POST localhost:8080/orders -H 'Content-Type: application/json' -d '{"items": [{"product": "lamp", "quantity": 1}]}'
 # HTTP/1.1 503 Service Unavailable
-# {"errno":"E_INVENTORY_UNAVAILABLE","errMsg":"The inventory does not answer: fetch failed","data":null}
+# {"errno":"E_INVENTORY_UNAVAILABLE","errMsg":"The inventory fails: The service http://localhost:3000 cannot be reached: connect ECONNREFUSED ::1:3000, connect ECONNREFUSED 127.0.0.1:3000","data":null}
 ```
 
 ## 10. 测试
 
-每个服务都有自己的测试，它们替换了模板中的测试。库存服务的测试启动服务，然后像订单服务那样调用它的动作：
+每个服务都有自己的测试，它们替换了模板中的测试。库存服务的测试启动服务，发送它的动作的消息，并读取响应的封套：
 
 **`inventory/packages/app/src/tests/App.spec.ts`**
 
@@ -794,4 +762,4 @@ app │ ℹ pass 5
 - 在每个项目中运行 `npm run docker:build`，用模板中的 `Dockerfile` 构建镜像。在镜像中，库存服务在 `PORT`（8080）上提供健康检查，在 `SERVICE_PORT`（3000）上接收调用。在容器网络中，订单服务通过 `INVENTORY_URL=http://inventory:3000` 访问库存服务；对外只公开订单服务的端口。
 - 两个服务的令牌应来自同一份机密配置：库存服务的 `API_TOKEN`，以及订单服务的 `INVENTORY_TOKEN`。只有一方换了新令牌时，订单服务会以 503 响应。
 - 库存保存在内存中，订单则根本没有保存：请把它们存到数据库中（见 [带数据库的 REST API](RestAPI.md)）。那时把订单的 id 作为预留记录的唯一键，就能保证一个订单不会被预留两次。
-- 其他传输方式也能提供同样的动作：Socket.IO、JSON-RPC（见 [ServiceCalls](../ServiceCalls.md)）、NATS（见 [NATS](../NATS.md)）或 gRPC（见 [GRPC](../GRPC.md)），每种都是 `service` 选项中的一个适配器。NATS 和 gRPC 带有自己的代理，它们抛出同样的 `ServiceInvokeException`。
+- 其他传输方式也能提供同样的动作：Socket.IO、JSON-RPC（见 [ServiceCalls](../ServiceCalls.md)）、NATS（见 [NATS](../NATS.md)）或 gRPC（见 [GRPC](../GRPC.md)），每种都是 `service` 选项中的一个适配器。NATS 和 gRPC 的代理有同样的 `invoke()`，也抛出同样的 `ServiceInvokeException`：只需换用它们的构建函数注册 `inventoryService`，并改掉 `Inventory.ts` 中代理的类型，其余不变。

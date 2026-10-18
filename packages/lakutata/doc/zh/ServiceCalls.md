@@ -139,7 +139,7 @@ HTTP 服务、Socket.IO 和 Electron 以封套响应；JSON-RPC 使用它自己�
 - `error` 是错误所有自身属性的副本：`message`、`stack`、`errno`、`errMsg`、`statusCode`、`err`（它的类名）、`appId`、`appName`，以及异常类自己定义的属性。客户端收到的是动作抛出的完整错误。
 - `Result.status(status, data)` 发送它的数据。文件和事件流（`Result.file()`、`Result.events()`）无法发送：调用会失败。
 
-这些传输方式没有附带客户端库。客户端可以在失败时抛出封套中的错误，比如：
+调用服务的应用通过代理读取封套：HTTP 服务用 `HTTPServiceProxy`（第 4 节），NATS 和 gRPC 传输方式也各有代理。代理返回 `payload`，或者抛出带有远端错误属性的 `ServiceInvokeException`。其他客户端（例如浏览器中的页面）自己读取封套，比如：
 
 ```typescript
 type Envelope<T> = { success: boolean, error: { message?: string, errno?: string } | null, payload: T }
@@ -156,8 +156,6 @@ export async function call<T>(message: Record<string, unknown>): Promise<T> {
     return envelope.payload
 }
 ```
-
-NATS 和 gRPC 传输方式的代理也是这样做的：它们抛出带有远端错误属性的 `ServiceInvokeException`。
 
 ## 4. 传输方式
 
@@ -203,6 +201,45 @@ data: [50,"half"]
 const events: EventSource = new EventSource('http://localhost:3000/events?id=client-1')
 events.addEventListener('progress', (event: MessageEvent): void => console.log(JSON.parse(event.data)))
 ```
+
+其他应用通过 `HTTPServiceProxy` 调用这个服务，它是一个由 `buildHTTPServiceProxy()` 注册的组件。下面调用第 1 节的订单服务：
+
+```typescript
+import {Application} from 'lakutata'
+import {buildHTTPServiceProxy, type HTTPServiceProxy, ServiceInvokeException} from 'lakutata/com/entrypoint'
+
+Application
+    .run(() => ({
+        id: 'shop.app',
+        name: 'Shop',
+        components: {
+            orders: buildHTTPServiceProxy({url: 'http://localhost:3000/'})
+        }
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        const orders: HTTPServiceProxy = await app.getObject<HTTPServiceProxy>('orders')
+        //{id: 1, product: 'lamp'}
+        console.log(await orders.invoke({resource: 'order', act: 'create', product: 'lamp'}))
+        try {
+            //最多等待 5 秒
+            await orders.invoke({resource: 'order', act: 'get', id: 9}, 5000)
+        } catch (error) {
+            //动作的错误，带有它的各个属性：E_ORDER_NOT_FOUND
+            if (error instanceof ServiceInvokeException) console.log(error.errno)
+        }
+    })
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `url` | | 服务的地址，包括它的适配器的 `path` |
+| `headers` | | 每次调用和事件流都会带上的请求头，例如 `Authorization` |
+| `clientId` | 随机的 UUID | 这个客户端的 id（第 5 节） |
+| `reconnectDelay` | `1000` | 事件流断开后，隔多少毫秒重新打开 |
+
+- `invoke(message, timeout)` 发送消息并返回 `payload`。超时默认为 10 分钟；超时后放弃这次调用，服务端会中止动作的 signal。
+- 动作失败时抛出 `ServiceInvokeException`，带有它的错误的各个属性（第 3 节）。服务没有给出响应时抛出 `ServiceUnavailableException`（`E_SERVICE_UNAVAILABLE`，状态码 503）：无法连接到服务，服务在超时之前没有响应，或者它的响应不是封套（例如服务前面的代理返回的错误页面）。
+- `on(event, listener)`、`once()` 和 `off()` 监听服务推送给这个客户端的事件。第一个监听器会打开事件流。事件流断开后，隔 `reconnectDelay` 重新打开；断开期间推送的事件会丢失。
 
 ### Socket.IO
 

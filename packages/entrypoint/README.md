@@ -160,6 +160,7 @@ Access control: an action declared with `{acl: true}` is checked by the rules gi
 | `AccessControlRule`, `AccessControl` | `lakutata/com/entrypoint` | The access control |
 | `Middleware`, `ActionInvocation`, `Next` | `lakutata/com/entrypoint` | The middlewares |
 | `httpServiceEntrypoint`, `scheduleEntrypoint` | `lakutata/com/entrypoint` | The service over HTTP, the schedules |
+| `HTTPServiceProxy`, `buildHTTPServiceProxy` | `lakutata/com/entrypoint` | The client of a service over HTTP: its actions and its events |
 | `Cron`, `parseDuration` | `lakutata/com/entrypoint` | Cron expressions and durations |
 | `HTTPAction`, `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS` | `lakutata/decorator/ctrl` | HTTP routes |
 | `CLIAction`, `ServiceAction`, `Schedule` | `lakutata/decorator/ctrl` | Commands, service actions, scheduled jobs |
@@ -182,6 +183,7 @@ The typings document each declaration with examples.
 | `DuplicateActionNameException` | Two actions of a channel have the same name |
 | `InvalidPrefixException`, `InvalidMiddlewareException`, `InvalidChannelException`, `InvalidEntrypointAdapterException` | The declarations of the controllers or the options are invalid |
 | `ServiceInvokeException` | A remote service action failed (its error's properties copied) |
+| `ServiceUnavailableException` | A service called by an `HTTPServiceProxy` gave no response (HTTP 503) |
 
 ## See also
 
