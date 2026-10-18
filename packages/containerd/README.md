@@ -408,6 +408,7 @@ examples.
 
 ## See also
 
+- The guide on the website: [Containerd Integration](https://lakutata.com/guide/ContainerdIntegration).
 - `doc/en/ContainerdIntegration.md` in the `lakutata` package (Chinese version in `doc/zh`): the guide to the
   component.
 - `@lakutata/docker` (`lakutata/com/docker`): the same operations through a Docker daemon.

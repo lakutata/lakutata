@@ -144,5 +144,6 @@ throwing.
 
 ## See also
 
+- The guide on the website: [Security](https://lakutata.com/guide/Security).
 - `doc/en/Security.md` in the `lakutata` package (Chinese in `doc/zh`): the guide to the security tools.
 - `@lakutata/core` (`lakutata`): providers, `Application` and dependency injection.

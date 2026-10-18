@@ -158,6 +158,7 @@ cache.on('error', (error: Error): void => console.error('Cache store error', err
 
 ## 另见
 
+- 网站上的指南：[缓存](https://lakutata.com/zh/guide/Cache)。
 - `lakutata` 包中的 `doc/zh/Cache.md`：缓存指南。
 - `@lakutata/core`（`lakutata`）：组件、`Application` 和依赖注入（见 `lakutata` 包中的 `doc/zh/Objects.md` 和 `doc/zh/Injection.md`）。
 - `@lakutata/mutex`（`lakutata/com/mutex`）：锁，用来让缓存的值同一时间只在一个实例中计算。

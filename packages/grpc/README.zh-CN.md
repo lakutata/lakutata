@@ -319,6 +319,7 @@ console.log(route.name, route.points, route.labels, route.started, route.data)
 
 ## 另见
 
+- 网站上的指南：[gRPC](https://lakutata.com/zh/guide/GRPC)。
 - `@lakutata/entrypoint`（`lakutata/com/entrypoint`）：入口、控制器和服务动作（`lakutata` 包中的 `doc/zh/ServiceCalls.md`）。
 - `@lakutata/nats`：基于 NATS 的服务动作，使用相同的模式。
 - `@lakutata/containerd`（`lakutata` 包中的 `doc/zh/ContainerdIntegration.md`）：containerd 和 BuildKit，基于这个客户端实现。

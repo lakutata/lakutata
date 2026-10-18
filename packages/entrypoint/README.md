@@ -187,6 +187,8 @@ The typings document each declaration with examples.
 
 ## See also
 
+- The guides on the website: [Controllers and Actions](https://lakutata.com/guide/Controllers) and
+  [Entrypoint](https://lakutata.com/guide/Entrypoint).
 - The guides in the `lakutata` package (`doc/en`, Chinese in `doc/zh`): `Controllers.md`, `Entrypoint.md`,
   `Middlewares.md`, `HTTP.md` (the HTTP adapters), `ServiceCalls.md` (the service transports), `CLI.md`, `Schedules.md`.
 - `@lakutata/core`: DTOs, dependency injection and the application.

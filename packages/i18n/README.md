@@ -342,6 +342,7 @@ All are exported by `lakutata/com/i18n`; `@lakutata/i18n` exports all but the mi
 
 ## See also
 
+- The guide on the website: [Internationalization (i18n)](https://lakutata.com/guide/I18n).
 - `doc/en/I18n.md` in the `lakutata` package (Chinese version in `doc/zh`): the internationalization guide.
 - `@lakutata/entrypoint` (`lakutata/com/entrypoint`): controllers, middlewares and adapters.
 - `@lakutata/core` (`lakutata`): components, `Application`, DTO validation and its languages

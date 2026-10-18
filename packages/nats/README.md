@@ -306,6 +306,7 @@ as they are.
 
 ## See also
 
+- The guide on the website: [NATS](https://lakutata.com/guide/NATS).
 - `doc/en/NATS.md` in the `lakutata` package (Chinese version in `doc/zh`): the guide to NATS.
 - `@lakutata/entrypoint` (`lakutata/com/entrypoint`, `lakutata/decorator/ctrl`): controllers, `@ServiceAction` and the
   other transports; for patterns, see section 2 of `doc/en/ServiceCalls.md` in the `lakutata` package (Chinese version

@@ -189,6 +189,7 @@ Semantics:
 
 ## See also
 
+- The guide on the website: [Queues](https://lakutata.com/guide/Queue).
 - `doc/en/Queue.md` in the `lakutata` package (Chinese in `doc/zh`): the queue guide.
 - `@lakutata/entrypoint`: controllers, channels and the other transports.
 - `@lakutata/cache`: a `Cacher` to keep the results (`results: {store: 'cache'}`) for the drivers that keep none.

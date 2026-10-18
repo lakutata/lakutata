@@ -187,6 +187,9 @@ The typings document each declaration with examples.
 
 ## See also
 
+- The guides on the website: [Objects and Lifetimes](https://lakutata.com/guide/Objects),
+  [Dependency Injection](https://lakutata.com/guide/Injection) and
+  [DTO and Validation](https://lakutata.com/guide/DTOValidation).
 - The guides `doc/en/Application.md`, `doc/en/Objects.md`, `doc/en/Injection.md`, `doc/en/DTOValidation.md` and
   `doc/en/Decorator.md` in the `lakutata` package (Chinese in `doc/zh`).
 - `@lakutata/entrypoint`: the controllers and their HTTP, CLI and service transports.

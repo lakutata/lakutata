@@ -309,6 +309,7 @@ their exception, and listings in progress resolve with an empty list.
 
 ## See also
 
+- The guide on the website: [Docker Integration](https://lakutata.com/guide/DockerIntegration).
 - `doc/en/DockerIntegration.md` in the `lakutata` package (Chinese version in `doc/zh`): the guide to the Docker
   integration.
 - `@lakutata/containerd` (`lakutata/com/containerd`): the same API without a Docker daemon, over containerd.

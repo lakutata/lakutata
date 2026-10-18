@@ -185,6 +185,7 @@ Application.run(() => ({
 
 ## 另见
 
+- 网站上的指南：[互斥锁](https://lakutata.com/zh/guide/Mutex)。
 - `lakutata` 包中的 `doc/zh/Mutex.md`：锁的指南。
 - `@lakutata/entrypoint`（`lakutata/com/entrypoint`）：控制器、`@Schedule` 和定时任务适配器。
 - `@lakutata/core`（`lakutata`）：组件、`Application` 和依赖注入。

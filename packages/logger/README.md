@@ -137,6 +137,7 @@ out, and circular references are replaced.
 
 ## See also
 
+- The guide on the website: [Logging](https://lakutata.com/guide/Logger).
 - `doc/en/Logger.md` in the `lakutata` package (Chinese in `doc/zh`): the logger guide.
 - `doc/en/Application.md` in the same place: components and the application lifecycle.
 - `@lakutata/core` (`lakutata`): `Application`, components, and the console logger of the core package.

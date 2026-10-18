@@ -284,6 +284,7 @@ await docker.removeNetwork(network.id)
 
 ## 另见
 
+- 网站上的指南：[Docker 集成](https://lakutata.com/zh/guide/DockerIntegration)。
 - `lakutata` 包中的 `doc/zh/DockerIntegration.md`：Docker 集成指南。
 - `@lakutata/containerd`（`lakutata/com/containerd`）：同样的 API，基于 containerd，不需要 Docker 守护进程。
 - `@lakutata/core`（`lakutata`）：组件、`Application` 和依赖注入。

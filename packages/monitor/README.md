@@ -116,6 +116,7 @@ monitor does not have is ignored, with a warning when the application starts.
 
 ## See also
 
+- The guide on the website: [Monitors](https://lakutata.com/guide/Monitor).
 - `doc/en/Monitor.md` in the `lakutata` package (Chinese in `doc/zh`): the monitors guide.
 - `doc/en/Application.md` in the same place: components and the bootstrap.
 - `@lakutata/core` (`lakutata`): components, `Application` and dependency injection.

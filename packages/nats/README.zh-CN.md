@@ -244,6 +244,7 @@ Application.run({
 
 ## 另见
 
+- 网站上的指南：[NATS](https://lakutata.com/zh/guide/NATS)。
 - `lakutata` 包中的 `doc/zh/NATS.md`：NATS 指南。
 - `@lakutata/entrypoint`（`lakutata/com/entrypoint`、`lakutata/decorator/ctrl`）：控制器、`@ServiceAction` 和其他传输方式；模式见 `lakutata` 包中 `doc/zh/ServiceCalls.md` 的第 2 节。
 - `@lakutata/grpc/service`：同样的服务通道和代理，基于 gRPC。

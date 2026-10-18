@@ -349,6 +349,7 @@ over its `maxMessageSize` with `RESOURCE_EXHAUSTED`; and a call past its deadlin
 
 ## See also
 
+- The guide on the website: [gRPC](https://lakutata.com/guide/GRPC).
 - `@lakutata/entrypoint` (`lakutata/com/entrypoint`): the entrypoint, controllers and service actions
   (`doc/en/ServiceCalls.md` in the `lakutata` package, Chinese version in `doc/zh`).
 - `@lakutata/nats`: service actions over NATS, with the same patterns.

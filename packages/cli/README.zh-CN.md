@@ -350,3 +350,7 @@ Electron 应用（`"runtime": "electron"`）的安装包由 electron-builder 制
 | `LAKUTATA_LANG` | 工具的语言（`zh-CN`、`zh-TW`、`en`），默认取环境的语言 |
 
 这个工具本身也是一个 lakutata 应用：它的命令就是其控制器的命令行动作，由入口的 commander 适配器提供。
+
+## 另见
+
+- 网站上的指南：[命令行工具](https://lakutata.com/zh/guide/Command)、[工作区](https://lakutata.com/zh/guide/Workspaces)。

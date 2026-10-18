@@ -229,6 +229,7 @@ Application
 
 ## 另见
 
+- 网站上的指南：[D-Bus](https://lakutata.com/zh/guide/DBus)。
 - `lakutata` 包中的 `doc/zh/DBus.md`：D-Bus 指南。
 - `@lakutata/entrypoint`（`lakutata/com/entrypoint`）：入口、控制器、中间件和访问控制（见 `lakutata` 包中的 `doc/zh/Controllers.md`、`Entrypoint.md` 和 `Middlewares.md`）。
 - [dbus-sdk](https://github.com/myq1991/node-dbus-sdk)：D-Bus 协议、它的客户端类和本地服务。

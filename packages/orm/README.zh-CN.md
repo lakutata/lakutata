@@ -446,6 +446,7 @@ lakutata 的声明在类型声明中附有说明和示例；TypeORM 的声明见
 
 ## 另见
 
+- 网站上的指南：[数据库](https://lakutata.com/zh/guide/Database)、[实体、查询与事务](https://lakutata.com/zh/guide/Entities)、[迁移](https://lakutata.com/zh/guide/Migrations)。
 - `lakutata` 包中的指南（`doc/zh`）：`Database.md`、`DatabaseDrivers.md`、`MongoEmbedded.md`、`Entities.md`、`Migrations.md`。
 - TypeORM 的文档：[typeorm.io](https://typeorm.io)（实体、关系、查询选项、查询构造器、迁移）。
 - `@lakutata/core`：应用、组件和提供者、依赖注入。

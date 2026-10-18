@@ -576,3 +576,8 @@ matches. The names of the commands and options, and the other results and errors
 
 The tool is itself a lakutata application: its commands are the CLI actions of its controllers, served by the
 commander adapter of the entrypoint.
+
+## See also
+
+- The guides on the website: [Command Line Tool](https://lakutata.com/guide/Command) and
+  [Workspaces](https://lakutata.com/guide/Workspaces).

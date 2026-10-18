@@ -175,6 +175,7 @@ Application.run(() => ({
 
 ## 另见
 
+- 网站上的指南：[控制器与动作](https://lakutata.com/zh/guide/Controllers)、[Entrypoint](https://lakutata.com/zh/guide/Entrypoint)。
 - `lakutata` 包中的指南（`doc/zh`）：`Controllers.md`、`Entrypoint.md`、`Middlewares.md`、`HTTP.md`（HTTP 适配器）、`ServiceCalls.md`（服务调用的传输方式）、`CLI.md`、`Schedules.md`。
 - `@lakutata/core`：DTO、依赖注入和应用。
 - `@lakutata/mutex`：`@Synchronized` 动作和 `exclusive` 定时任务。

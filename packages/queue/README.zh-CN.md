@@ -129,6 +129,7 @@ console.log(await queue.result('image.extract', job.id, {timeout: '1m'}))
 
 ## 另见
 
+- 网站上的指南：[消息队列](https://lakutata.com/zh/guide/Queue)。
 - `lakutata` 包中的 `doc/zh/Queue.md`：消息队列指南。
 - `@lakutata/entrypoint`：控制器和各种传输方式。
 - `@lakutata/cache`：一个 `Cacher`，为自身不保存结果的驱动保存结果（`results: {store: 'cache'}`）。

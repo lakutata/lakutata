@@ -127,5 +127,6 @@ console.log(constantTimeEqual('presented-token', process.env.API_TOKEN ?? ''))
 
 ## 另见
 
+- 网站上的指南：[安全](https://lakutata.com/zh/guide/Security)。
 - `lakutata` 包中的 `doc/zh/Security.md`：安全工具指南。
 - `@lakutata/core`（`lakutata`）：提供者、`Application` 和依赖注入。

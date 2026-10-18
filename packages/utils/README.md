@@ -307,6 +307,8 @@ The typings of each helper list the errors it throws.
 
 ## See also
 
+- The guides on the website: [Time](https://lakutata.com/guide/Time) and
+  [Helper Functions](https://lakutata.com/guide/HelperFunctions).
 - `doc/en/HelperFunctions.md` and `doc/en/Time.md` in the `lakutata` package (Chinese versions in `doc/zh`): the
   guides to the helpers and to `Time`.
 - `@lakutata/core` (`lakutata`): `Application`, components and dependency injection; it re-exports `Time`.

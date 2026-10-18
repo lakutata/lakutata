@@ -538,6 +538,9 @@ The package throws the errors of the drivers and the TypeORM errors, which `laku
 
 ## See also
 
+- The guides on the website: [Databases](https://lakutata.com/guide/Database),
+  [Entities, Queries and Transactions](https://lakutata.com/guide/Entities) and
+  [Migrations](https://lakutata.com/guide/Migrations).
 - The guides in the `lakutata` package (`doc/en`, with Chinese in `doc/zh`): `Database.md`, `DatabaseDrivers.md`,
   `MongoEmbedded.md`, `Entities.md`, `Migrations.md`.
 - The TypeORM documentation: [typeorm.io](https://typeorm.io) (entities, relations, find options, the query builder,

@@ -214,6 +214,7 @@ examples.
 
 ## See also
 
+- The guide on the website: [Mutex](https://lakutata.com/guide/Mutex).
 - `doc/en/Mutex.md` in the `lakutata` package (Chinese version in `doc/zh`): the guide to locks.
 - `@lakutata/entrypoint` (`lakutata/com/entrypoint`): controllers, `@Schedule` and the schedule adapter.
 - `@lakutata/core` (`lakutata`): components, `Application` and dependency injection.

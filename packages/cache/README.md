@@ -176,6 +176,7 @@ a failed read is emitted as an `'error'` event.
 
 ## See also
 
+- The guide on the website: [Cache](https://lakutata.com/guide/Cache).
 - `doc/en/Cache.md` in the `lakutata` package (Chinese version in `doc/zh`): the guide to the cache.
 - `@lakutata/core` (`lakutata`): components, `Application` and dependency injection (see `doc/en/Objects.md` and
   `doc/en/Injection.md` in the `lakutata` package, and their Chinese versions in `doc/zh`).

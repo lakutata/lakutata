@@ -388,6 +388,7 @@ connection still open by then gets `503`).
 
 ## See also
 
+- The guide on the website: [MCP](https://lakutata.com/guide/MCP).
 - `@lakutata/entrypoint` (`lakutata/com/entrypoint`): the entrypoint, controllers, `@Prefix`, middlewares and access
   control (`doc/en/Controllers.md`, `Entrypoint.md` and `Middlewares.md` in the `lakutata` package, Chinese versions in
   `doc/zh`).

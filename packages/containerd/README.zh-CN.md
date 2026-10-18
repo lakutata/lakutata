@@ -366,6 +366,7 @@ Application
 
 ## 另见
 
+- 网站上的指南：[Containerd 集成](https://lakutata.com/zh/guide/ContainerdIntegration)。
 - `lakutata` 包中的 `doc/zh/ContainerdIntegration.md`：组件的指南。
 - `@lakutata/docker`（`lakutata/com/docker`）：通过 Docker 守护进程完成同样的操作。
 - `@lakutata/grpc`：组件及其构建所用的 gRPC 客户端。

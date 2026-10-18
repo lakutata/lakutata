@@ -176,6 +176,7 @@ await container.destroy()
 
 ## 另见
 
+- 网站上的指南：[对象与生命周期](https://lakutata.com/zh/guide/Objects)、[依赖注入](https://lakutata.com/zh/guide/Injection)、[DTO 与数据校验](https://lakutata.com/zh/guide/DTOValidation)。
 - `lakutata` 包中的指南 `doc/zh/Application.md`、`doc/zh/Objects.md`、`doc/zh/Injection.md`、`doc/zh/DTOValidation.md` 和 `doc/zh/Decorator.md`。
 - `@lakutata/entrypoint`：控制器，以及它们的 HTTP、命令行和服务调用传输方式。
 - `@lakutata/logger`：`lakutata` 预置为 `log` 的日志记录器（与 pino 兼容的 JSON 行）。

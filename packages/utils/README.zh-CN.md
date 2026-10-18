@@ -289,6 +289,7 @@ console.log(start.isBetween('2024-03-01', '2024-03-31', null, '[]'), Time.max(st
 
 ## 另见
 
+- 网站上的指南：[时间（Time）](https://lakutata.com/zh/guide/Time)、[辅助函数](https://lakutata.com/zh/guide/HelperFunctions)。
 - `lakutata` 包中的 `doc/zh/HelperFunctions.md` 和 `doc/zh/Time.md`：辅助函数和 `Time` 的指南。
 - `@lakutata/core`（`lakutata`）：`Application`、组件和依赖注入；它重新导出了 `Time`。
 - `@lakutata/security`（`lakutata/security`）：密码、签名和加密；要把哈希当作秘密使用时，请用它。

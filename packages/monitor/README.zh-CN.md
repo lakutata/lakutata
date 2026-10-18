@@ -101,6 +101,7 @@ Application
 
 ## 另见
 
+- 网站上的指南：[监控](https://lakutata.com/zh/guide/Monitor)。
 - `lakutata` 包中的 `doc/zh/Monitor.md`：监控指南。
 - 同一位置的 `doc/zh/Application.md`：组件和 bootstrap 步骤。
 - `@lakutata/core`（`lakutata`）：组件、`Application` 和依赖注入。

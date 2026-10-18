@@ -300,6 +300,7 @@ if (issues.some((issue: CatalogIssue): boolean => issue.level === 'error')) proc
 
 ## 另见
 
+- 网站上的指南：[国际化（i18n）](https://lakutata.com/zh/guide/I18n)。
 - `lakutata` 包中的 `doc/zh/I18n.md`：国际化指南。
 - `@lakutata/entrypoint`（`lakutata/com/entrypoint`）：控制器、中间件和适配器。
 - `@lakutata/core`（`lakutata`）：组件、`Application`、DTO 校验及其语言（`loadValidationMessages`、`registerValidationMessages`、`runInValidationLanguage`）。

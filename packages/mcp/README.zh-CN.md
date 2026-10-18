@@ -333,6 +333,7 @@ Application.run(() => ({
 
 ## 另见
 
+- 网站上的指南：[MCP](https://lakutata.com/zh/guide/MCP)。
 - `@lakutata/entrypoint`（`lakutata/com/entrypoint`）：入口、控制器、`@Prefix`、中间件和访问控制（见 `lakutata` 包中的 `doc/zh/Controllers.md`、`Entrypoint.md` 和 `Middlewares.md`）。
 - [模型上下文协议](https://modelcontextprotocol.io)：规范和客户端。
 - `@lakutata/core`（`lakutata`）：组件、`Application`、DTO 和依赖注入。

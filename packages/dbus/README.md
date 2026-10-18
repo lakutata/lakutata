@@ -272,6 +272,7 @@ a D-Bus error.
 
 ## See also
 
+- The guide on the website: [D-Bus](https://lakutata.com/guide/DBus).
 - `doc/en/DBus.md` in the `lakutata` package (Chinese version in `doc/zh`): the guide to D-Bus.
 - `@lakutata/entrypoint` (`lakutata/com/entrypoint`): the entrypoint, controllers, middlewares and access control (see
   `doc/en/Controllers.md`, `Entrypoint.md` and `Middlewares.md` in the `lakutata` package, and their Chinese versions

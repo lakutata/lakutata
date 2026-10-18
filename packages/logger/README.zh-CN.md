@@ -122,6 +122,7 @@ log.debug({query: 'SELECT 1', durationMs: 2.4})
 
 ## 另见
 
+- 网站上的指南：[日志](https://lakutata.com/zh/guide/Logger)。
 - `lakutata` 包中的 `doc/zh/Logger.md`：日志指南。
 - 同一位置的 `doc/zh/Application.md`：组件和应用的生命周期。
 - `@lakutata/core`（`lakutata`）：`Application`、组件，以及核心包的控制台日志记录器。

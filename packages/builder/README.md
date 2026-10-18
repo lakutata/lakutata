@@ -33,3 +33,8 @@ The Linux installers are tested in containers (Docker): `npm run test:installer`
 installs, upgrades and removes them on Debian and Fedora (systemd) and on Alpine (OpenRC). The macOS installers are
 installed in a macOS virtual machine (`npm run test:installer:mac`, with tart), and the Windows installers on Windows,
 as an administrator (`LAKUTATA_WINDOWS_INSTALL=1 npm run test:installer:windows`).
+
+## See also
+
+- The guides on the website: [Packaging](https://lakutata.com/guide/Packaging) and
+  [Installers](https://lakutata.com/guide/Installers).
