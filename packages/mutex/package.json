@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/mutex",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "The locks of the lakutata framework: mutual exclusion between the instances and the processes of an application, over memory, files, Redis, PostgreSQL or MySQL, held by tokens, renewed while they are held.",
   "keywords": [
     "lakutata",
@@ -52,7 +52,7 @@
     "test:stores": "sh test-env/run.sh"
   },
   "peerDependencies": {
-    "@lakutata/core": "3.0.0",
+    "@lakutata/core": "3.1.0",
     "mysql2": "^3.0.0",
     "pg": "^8.0.0",
     "redis": "^4.6.0 || ^5.0.0"

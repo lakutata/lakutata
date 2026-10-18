@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/template-cli",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "The command line template of the lakutata projects: a command line tool built into executables which run without Node.js.",
   "homepage": "https://lakutata.com/guide/ProjectStructure",
   "bugs": {
