@@ -1,6 +1,6 @@
 <div align="center">
 
-![lakutata](https://socialify.git.ci/lakutata/lakutata/image?description=1&descriptionEditable=An%20IoC-based%20universal%20application%20framework&font=Source%20Code%20Pro&forks=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Flakutata%2Flakutata%2Fmain%2Fassets%2Flogo.svg&name=1&pattern=Circuit%20Board&stargazers=1&theme=Auto)
+![lakutata](https://socialify.git.ci/lakutata/lakutata/image?description=1&descriptionEditable=An%20IoC-based%20universal%20application%20framework&font=Source%20Code%20Pro&forks=1&language=1&logo=https%3A%2F%2Fraw.githubusercontent.com%2Flakutata%2Flakutata%2Fmain%2Fpackages%2Flakutata%2Fassets%2Flogo.svg&name=1&pattern=Circuit%20Board&stargazers=1&theme=Auto)
 
 </div>
 
@@ -120,8 +120,10 @@ Application
 
 ## 另见
 
-- 指南在这个包的 `doc/zh`（中文）和 `doc/en`（英文）中：`Overview.md`、`GettingStarted.md`、`ProjectStructure.md`、`Application.md`、`Objects.md`、`Injection.md`、`DTOValidation.md`、`Exceptions.md`、`Logger.md`、`Decorator.md`、`Time.md`、`HelperFunctions.md`、`Controllers.md`、`Entrypoint.md`、`Middlewares.md`、`HTTP.md`、`CLI.md`、`ServiceCalls.md`、`GRPC.md`、`NATS.md`、`Schedules.md`、`Queue.md`、`Database.md`、`DatabaseDrivers.md`、`MongoEmbedded.md`、`Entities.md`、`Migrations.md`、`Cache.md`、`Mutex.md`、`I18n.md`、`DockerIntegration.md`、`ContainerdIntegration.md`、`Monitor.md`、`Security.md`、`DBus.md`、`MCP.md`、`Command.md`、`Workspaces.md`、`NativeAddons.md`、`Packaging.md`、`Installers.md`；示例在 `doc/zh/examples` 和 `doc/en/examples` 中：从模板构建的完整应用。
+- 网站 <https://lakutata.com/zh/>：指南、示例和 API 参考，中英文都有。
+- 指南在这个包的 `doc/zh`（中文）和 `doc/en`（英文）中：`Overview.md`、`GettingStarted.md`、`ProjectStructure.md`、`UpgradingFrom2.md`、`UpgradingFrom1.md`、`Application.md`、`Objects.md`、`Injection.md`、`DTOValidation.md`、`Exceptions.md`、`Logger.md`、`Decorator.md`、`Time.md`、`HelperFunctions.md`、`Controllers.md`、`Entrypoint.md`、`Middlewares.md`、`HTTP.md`、`CLI.md`、`ServiceCalls.md`、`GRPC.md`、`NATS.md`、`Schedules.md`、`Queue.md`、`Database.md`、`DatabaseDrivers.md`、`MongoEmbedded.md`、`Entities.md`、`Migrations.md`、`Cache.md`、`Mutex.md`、`I18n.md`、`DockerIntegration.md`、`ContainerdIntegration.md`、`Monitor.md`、`Security.md`、`DBus.md`、`MCP.md`、`Command.md`、`Workspaces.md`、`NativeAddons.md`、`Packaging.md`、`Installers.md`；示例在 `doc/zh/examples` 和 `doc/en/examples` 中：从模板构建的完整应用。
 - `@lakutata/cli`：创建、构建和打包应用。
+- 官方 Agent Skill（智能体技能），供 AI 编程助手在 lakutata 项目中使用：<https://lakutata.com/zh/skill/>。
 
 ## 许可证
 

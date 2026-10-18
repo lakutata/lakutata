@@ -12,7 +12,7 @@ lakutata 官方的 Agent Skill（智能体技能），供 AI 编程助手使用�
 
 1. **已安装的包中自带的指南**，即 `node_modules/lakutata/doc/en/`：它们描述的正是项目所用的版本，不需要联网，项目升级 `lakutata` 时也随之更新。
 2. **已安装的包的类型声明**，用来确认确切的函数签名和选项。
-3. **本网站上的 Markdown 格式指南**，例如 https://lakutata.com/doc/en/Overview.md，全部列在 https://lakutata.com/llms.txt 中：在项目还没有安装 lakutata（新项目），或者助手读不了 `node_modules` 时使用。它们跟随最新的源码，所以两者都有时，以已安装的包为准。
+3. **本网站上的 Markdown 格式指南**，例如 <https://lakutata.com/doc/en/Overview.md>，全部列在 <https://lakutata.com/llms.txt> 中：在项目还没有安装 lakutata（新项目），或者助手读不了 `node_modules` 时使用。它们跟随最新的源码，所以两者都有时，以已安装的包为准。
 
 因此框架更新时，技能本身很少需要更新。有些助手的文件工具会避开 `node_modules`（例如 Cursor、Devin Desktop 和 Gemini CLI，见各自的小节）；这时技能会通过终端命令读取指南，或者读取本网站上的版本。
 
