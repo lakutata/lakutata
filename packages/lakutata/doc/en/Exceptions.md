@@ -122,7 +122,7 @@ When an action fails, its transport reports the exception:
 |---|---|
 | HTTP | The status `statusCode` and `{errno, errMsg}` (see [HTTP](HTTP.md), section 6) |
 | Socket.IO, Electron, the HTTP service, NATS, gRPC | The whole error: all its own properties (see [ServiceCalls](ServiceCalls.md), section 3) |
-| JSON-RPC | An error with the code `-32000` and the whole error as its `data` |
+| JSON-RPC | An error with the code `-32602` for an invalid input, `-32601` when no action matches, `-32001` while the application stops, `-32000` otherwise, and the whole error as its `data` |
 | The command line | `error: <message>` on the standard error, and the exit code 1 (see [CLI](CLI.md)) |
 | Schedules | No client: the exception is given to `onError`, or logged (see [Schedules](Schedules.md)) |
 
@@ -138,8 +138,8 @@ With the `I18nMiddleware`, the message of an exception is translated into the la
 those parameters.
 
 To recognize an exception, use `instanceof` within the application, and `errno` across processes: the clients receive
-the properties of an error, not its class. The proxies of NATS and gRPC throw a `ServiceInvokeException` that carries
-the `errno` of the remote error.
+the properties of an error, not its class. The proxies of the HTTP service, NATS and gRPC throw a
+`ServiceInvokeException` that carries the `errno` of the remote error.
 
 ```typescript
 import {Exception} from 'lakutata'
@@ -166,7 +166,8 @@ The framework throws exceptions of its own. The ones met most often:
 | `RouteNotFoundException` | `E_ROUTE_NOT_FOUND` | No HTTP action has this route and method (404) |
 | `ControllerActionNotFoundException` | `E_CONTROLLER_ACTION_NOT_FOUND` | No action matches a service message or a command (404) |
 | `EntrypointStoppedException` | `E_ENTRYPOINT_STOPPED` | The application is stopping (503) |
-| `ServiceInvokeException` | `E_SERVICE_INVOKE` | A call through a proxy of NATS or gRPC failed |
+| `ServiceInvokeException` | `E_SERVICE_INVOKE` | An action called through a proxy (HTTP service, NATS, gRPC) failed; it carries the properties of the remote error |
+| `ServiceUnavailableException` | `E_SERVICE_UNAVAILABLE` | The service called by an `HTTPServiceProxy` gave no response (503) |
 
 The README of each package lists its own exceptions. An exception that nothing catches, and an exception that stops the
 launch of the application, go to its handlers (`onUncaughtException`, `onFatalException`, see

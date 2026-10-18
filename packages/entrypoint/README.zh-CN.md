@@ -169,7 +169,7 @@ Application.run(() => ({
 | `ControllerActionNotFoundException`、`RouteNotFoundException` | 没有与请求匹配的动作（HTTP 404） |
 | `EntrypointStoppedException` | 入口正在停止（HTTP 503） |
 | `DuplicateActionNameException` | 同一传输方式中有两个同名的动作 |
-| `InvalidPrefixException`、`InvalidMiddlewareException`、`InvalidChannelException`、`InvalidEntrypointAdapterException` | 控制器的声明或选项不合法 |
+| `InvalidActionGroupException`、`InvalidPrefixException`、`InvalidMiddlewareException`、`InvalidChannelException`、`InvalidEntrypointAdapterException` | 控制器的声明或选项不合法 |
 | `ServiceInvokeException` | 远程服务动作失败（带有原错误的各个属性） |
 | `ServiceUnavailableException` | `HTTPServiceProxy` 调用的服务没有给出响应（HTTP 503） |
 

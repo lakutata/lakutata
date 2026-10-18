@@ -489,6 +489,7 @@
     "httpRequestOfContext",
     "httpServiceEntrypoint",
     "HTTPServiceProxy",
+    "InvalidActionGroupException",
     "InvalidChannelException",
     "InvalidEntrypointAdapterException",
     "InvalidMiddlewareException",

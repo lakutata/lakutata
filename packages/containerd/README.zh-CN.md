@@ -45,7 +45,7 @@ Application
                 cgroupManager: 'cgroupfs',
                 //容器的日志、hosts、resolv.conf、设置，以及命名卷
                 dataRoot: '/var/lib/lakutata/containerd',
-                //组件启动容器时，超过 10 MiB 的日志文件会被轮转（0：从不轮转）
+                //组件启动容器时，超过 10 MiB 的日志文件会被轮转（默认为 0：从不轮转）
                 logMaxSize: 10 * 1024 * 1024,
                 registryAuths: {'registry.example.com': {username: 'deploy', password: 'secret'}},
                 insecureRegistries: ['localhost:5000']

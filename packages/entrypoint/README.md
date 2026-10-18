@@ -181,7 +181,7 @@ The typings document each declaration with examples.
 | `ControllerActionNotFoundException`, `RouteNotFoundException` | No action matches the request (HTTP 404) |
 | `EntrypointStoppedException` | The entrypoint is stopping (HTTP 503) |
 | `DuplicateActionNameException` | Two actions of a channel have the same name |
-| `InvalidPrefixException`, `InvalidMiddlewareException`, `InvalidChannelException`, `InvalidEntrypointAdapterException` | The declarations of the controllers or the options are invalid |
+| `InvalidActionGroupException`, `InvalidPrefixException`, `InvalidMiddlewareException`, `InvalidChannelException`, `InvalidEntrypointAdapterException` | The declarations of the controllers or the options are invalid |
 | `ServiceInvokeException` | A remote service action failed (its error's properties copied) |
 | `ServiceUnavailableException` | A service called by an `HTTPServiceProxy` gave no response (HTTP 503) |
 

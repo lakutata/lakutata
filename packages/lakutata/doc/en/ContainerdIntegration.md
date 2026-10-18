@@ -42,7 +42,7 @@ Application
                 cgroupManager: 'cgroupfs',
                 //The logs, hosts, resolv.conf and settings of the containers, and the named volumes
                 dataRoot: '/var/lib/lakutata/containerd',
-                //The log file of a container rotated beyond 10 MiB when the component starts it (0: never)
+                //The log file of a container rotated beyond 10 MiB when the component starts it (default 0: never)
                 logMaxSize: 10 * 1024 * 1024,
                 registryAuths: {'registry.example.com': {username: 'deploy', password: 'secret'}},
                 //The registries served over HTTP

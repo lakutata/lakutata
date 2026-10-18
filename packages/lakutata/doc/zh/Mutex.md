@@ -30,7 +30,7 @@ Application.run(() => ({
 | 驱动 | 共享范围 | 说明 |
 |---|---|---|
 | `{type: 'memory'}`（默认） | 一个进程内的各组件 | 开发、测试、单实例 |
-| `{type: 'file', directory}` | 一台机器上的各进程 | 以独占方式创建锁文件；已退出的进程持有的锁会被立即接管 |
+| `{type: 'file', directory?}` | 一台机器上的各进程 | 以独占方式创建锁文件（不指定 `directory` 时，放在系统临时目录下的 `lakutata-mutex` 中）；已退出的进程持有的锁会被立即接管 |
 | `{type: 'redis', url}` | 所有实例 | Redis 4+ 或 Valkey，需要 `redis` 包；有防护令牌；请使用 `noeviction`（被淘汰的键就是丢失的锁） |
 | `{type: 'postgres', host, database, username, password, mode}` | 所有实例 | 需要 `pg` 包；`mode: 'advisory'`（默认）：在独占的连接上使用咨询锁，连接关闭时释放，不能通过事务模式的 PgBouncer 使用；`mode: 'table'`：表中的行，会过期，有防护令牌 |
 | `{type: 'mysql', host, database, username, password, mode}` | 所有实例 | 需要 `mysql2` 包；`mode: 'advisory'`（默认）：在独占的连接上使用 `GET_LOCK`，集群的各节点之间不共享；`mode: 'table'`：表中的行，会过期，有防护令牌 |

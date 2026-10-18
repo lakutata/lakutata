@@ -69,8 +69,8 @@ dependencies).
 - `lakutata info` shows the versions of the tool, of the framework (with the latest ones when the registry can be
   reached) and of Node.js, and the version of the framework that the project of the current directory uses.
 - `lakutata clean [paths...]` removes paths of the package in the current directory, on every platform; without paths,
-  the `outDir` of its `tsconfig.json`. It refuses paths outside the package, and `src`, `node_modules`, `package.json`
-  and `.git`. The templates call it from their `build` or `rebuild` scripts.
+  the `outDir` and `declarationDir` of its `tsconfig.json`. It refuses paths outside the package, and `src`,
+  `node_modules`, `package.json` and `.git`. The templates call it from their `build` or `rebuild` scripts.
 
 ## 3. Workspaces and native addons
 

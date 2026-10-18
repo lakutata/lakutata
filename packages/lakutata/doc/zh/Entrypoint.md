@@ -95,7 +95,8 @@ export const entrypoint = buildEntrypoints({
 - 同一传输方式中有两个同名的动作（`DuplicateActionNameException`）；
 - 动作使用的分组没有在对应的 `*ActionGroups` 选项中声明（`InvalidActionGroupException`）；
 - 前缀与某个动作的模式冲突（`InvalidPrefixException`）；
-- 中间件既不是函数，也不是 `Middleware` 类（`InvalidMiddlewareException`）。
+- 中间件既不是函数，也不是 `Middleware` 类（`InvalidMiddlewareException`）；
+- 适配器放在了另一种传输方式的键下，或者某个选项既不是入口的选项，也不是传输方式（`InvalidEntrypointAdapterException`）。
 
 然后按选项的顺序依次启动各个适配器。某个适配器启动失败（比如端口已被占用）时，应用启动失败。命令行和定时任务在整个应用启动完成之后才开始。
 

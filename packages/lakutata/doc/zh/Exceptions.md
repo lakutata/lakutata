@@ -114,7 +114,7 @@ export async function pay(orderId: number, charge: () => Promise<void>): Promise
 |---|---|
 | HTTP | 状态码 `statusCode` 和 `{errno, errMsg}`（见 [HTTP](HTTP.md) 第 6 节） |
 | Socket.IO、Electron、HTTP 服务、NATS、gRPC | 完整的错误：它所有的自身属性（见 [ServiceCalls](ServiceCalls.md) 第 3 节） |
-| JSON-RPC | 错误码为 `-32000` 的错误，完整的错误放在 `data` 中 |
+| JSON-RPC | 一个错误：输入不合法时错误码为 `-32602`，没有匹配的动作时为 `-32601`，应用正在停止时为 `-32001`，其他情况为 `-32000`；完整的错误放在 `data` 中 |
 | 命令行 | 标准错误中的 `error: <消息>`，退出码为 1（见 [CLI](CLI.md)） |
 | 定时任务 | 没有客户端：异常交给 `onError`，或者写入日志（见 [Schedules](Schedules.md)） |
 
@@ -125,7 +125,7 @@ export async function pay(orderId: number, charge: () => Promise<void>): Promise
 
 使用 `I18nMiddleware` 时，异常的消息会按请求的语言翻译，翻译的键是 `errors.<errno>`，参数来自异常的模板（见 [I18n](I18n.md) 中的“异常消息的翻译”一节）。在请求之外，`lakutata` 中的 `exceptionParams(exception)` 返回这些参数。
 
-在应用内部用 `instanceof` 识别异常，跨进程时用 `errno`：客户端收到的是错误的属性，而不是它的类。NATS 和 gRPC 的代理抛出的 `ServiceInvokeException` 带有远端错误的 `errno`。
+在应用内部用 `instanceof` 识别异常，跨进程时用 `errno`：客户端收到的是错误的属性，而不是它的类。HTTP 服务、NATS 和 gRPC 的代理抛出的 `ServiceInvokeException` 带有远端错误的 `errno`。
 
 ```typescript
 import {Exception} from 'lakutata'
@@ -152,6 +152,7 @@ export function isMissingOrder(error: unknown): boolean {
 | `RouteNotFoundException` | `E_ROUTE_NOT_FOUND` | 没有 HTTP 动作对应这个路由和方法（404） |
 | `ControllerActionNotFoundException` | `E_CONTROLLER_ACTION_NOT_FOUND` | 没有动作与服务消息或命令匹配（404） |
 | `EntrypointStoppedException` | `E_ENTRYPOINT_STOPPED` | 应用正在停止（503） |
-| `ServiceInvokeException` | `E_SERVICE_INVOKE` | 通过 NATS 或 gRPC 的代理调用失败 |
+| `ServiceInvokeException` | `E_SERVICE_INVOKE` | 通过代理（HTTP 服务、NATS、gRPC）调用的动作失败；带有远端错误的各个属性 |
+| `ServiceUnavailableException` | `E_SERVICE_UNAVAILABLE` | `HTTPServiceProxy` 调用的服务没有给出响应（503） |
 
 每个包的 README 列出了它自己的异常。没有被任何代码捕获的异常，以及导致应用启动失败的异常，会交给应用的处理函数（`onUncaughtException`、`onFatalException`，见 [Application](Application.md) 第 2 节）。

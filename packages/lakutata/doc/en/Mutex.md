@@ -35,7 +35,7 @@ Application.run(() => ({
 | Driver | Shared by | Notes |
 |---|---|---|
 | `{type: 'memory'}` (default) | The components of a process | Development, tests, a single instance |
-| `{type: 'file', directory}` | The processes of a machine | Lock files, created exclusively; the lock of a process that died is taken over at once |
+| `{type: 'file', directory?}` | The processes of a machine | Lock files, created exclusively (in `lakutata-mutex` under the temporary directory of the system unless `directory` is given); the lock of a process that died is taken over at once |
 | `{type: 'redis', url}` | Every instance | Redis 4+ or Valkey, package `redis`; fencing tokens; use `noeviction` (an evicted key is a lost lock) |
 | `{type: 'postgres', host, database, username, password, mode}` | Every instance | Package `pg`; `mode: 'advisory'` (default): advisory locks on a connection of its own, released when it closes, not usable through PgBouncer in transaction mode; `mode: 'table'`: rows of a table, which expire, with fencing tokens |
 | `{type: 'mysql', host, database, username, password, mode}` | Every instance | Package `mysql2`; `mode: 'advisory'` (default): `GET_LOCK` on a connection of its own, which the nodes of a cluster do not share; `mode: 'table'`: rows of a table, which expire, with fencing tokens |

@@ -101,7 +101,9 @@ launch with its exception:
 - two actions of the same transport with the same name (`DuplicateActionNameException`);
 - an action in a group that its `*ActionGroups` option does not declare (`InvalidActionGroupException`);
 - a prefix that conflicts with the pattern of an action (`InvalidPrefixException`);
-- a middleware that is neither a function nor a `Middleware` class (`InvalidMiddlewareException`).
+- a middleware that is neither a function nor a `Middleware` class (`InvalidMiddlewareException`);
+- an adapter given under the key of another transport, or an option that is neither an option of the entrypoint nor a
+  transport (`InvalidEntrypointAdapterException`).
 
 Then the adapters start one after another, in the order of the options. One that fails, such as a server whose port is
 already in use, stops the launch. The command line and the scheduled jobs begin once the whole application has

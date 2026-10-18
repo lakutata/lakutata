@@ -18,7 +18,7 @@ export interface DBusClientOptions {
     timeout?: number
     /**
      * How long a call may wait for its reply, in milliseconds (a positive integer); a call's own `timeout` overrides it.
-     * @default dbus-sdk's default
+     * @default none: a call waits for its reply
      */
     callTimeout?: number
     /**

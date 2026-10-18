@@ -39,7 +39,7 @@ import {engineBinds, engineDevices, engineEndpoints, enginePortBindings, engineR
  * The Docker component: drives a Docker daemon over the Docker Engine API, to pull, build, import, export, tag and push
  * images, to create, run and manage containers (exec, TTYs, logs, stats, commit, archives) and to manage networks.
  * Register it in the `components` of an application (`{class: Docker}`, or the result of one of the
- * `BuildDocker*ConnectionOptions` functions) and get it with `getObject()` or `@Inject`; it is a singleton.
+ * `buildDocker*ConnectionOptions` functions) and get it with `getObject()` or `@Inject`; it is a singleton.
  *
  * Without `socketPath` nor `host`, it connects to the Docker of the environment: `DOCKER_HOST` (with
  * `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH` and `DOCKER_CLIENT_TIMEOUT`), else the named pipe `//./pipe/docker_engine` on

@@ -47,7 +47,7 @@ lakutata create --name tool --template cli --package-manager none --no-git
 
 - `lakutata templates` 列出官方模板及其可选功能。列表来自 npm 仓库，缓存一天（`--refresh` 会重新获取）。模板里有什么见 [ProjectStructure](ProjectStructure.md)。
 - `lakutata info` 显示工具、框架（能访问仓库时还显示最新版本）和 Node.js 的版本，以及当前目录的项目所用的框架版本。
-- `lakutata clean [paths...]` 在任何平台上删除当前目录所在包中的路径；不给路径时，删除其 `tsconfig.json` 的 `outDir`。它拒绝删除包以外的路径，以及 `src`、`node_modules`、`package.json` 和 `.git`。模板在 `build` 或 `rebuild` 脚本中调用它。
+- `lakutata clean [paths...]` 在任何平台上删除当前目录所在包中的路径；不给路径时，删除其 `tsconfig.json` 的 `outDir` 和 `declarationDir`。它拒绝删除包以外的路径，以及 `src`、`node_modules`、`package.json` 和 `.git`。模板在 `build` 或 `rebuild` 脚本中调用它。
 
 ## 3. 工作区与原生插件
 

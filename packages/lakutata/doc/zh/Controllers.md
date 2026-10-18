@@ -101,7 +101,7 @@ $ node dist/index.js order 42
   | `QueueContext`（`lakutata/com/queue`） | `'QUEUE'` | 见 [Queue](Queue.md) |
 
   所有上下文都有 `data`（输入到达时的样子，尚未校验）和 `locale`（使用 I18n 中间件时，请求的语言）。
-- `this.signal` 是一个 `AbortSignal`。请求被中止时它会触发：客户端离开、gRPC 调用的截止时间已过，或者应用正在停止而 `shutdownTimeout` 已用完。触发之后，动作的结果会被丢弃；耗时长的动作应该检查它并提前结束。
+- `this.signal` 是一个 `AbortSignal`（它的类型允许 `undefined`，所以要写成 `this.signal?.`）。请求被中止时它会触发：客户端离开、gRPC 调用的截止时间已过，或者应用正在停止而 `shutdownTimeout` 已用完。触发之后，动作的结果会被丢弃；耗时长的动作应该检查它并提前结束。
 
 ## 3. 动作装饰器
 
