@@ -2,6 +2,28 @@
   "name": "@lakutata/security",
   "version": "3.0.0",
   "description": "Security providers and functions of the lakutata framework (password hashing, signatures, encryption).",
+  "keywords": [
+    "lakutata",
+    "security",
+    "password-hashing",
+    "bcrypt",
+    "hmac",
+    "aes-gcm",
+    "encryption",
+    "crypto",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/security",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/security"
+  },
+  "author": "alex.ma",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Security.js",

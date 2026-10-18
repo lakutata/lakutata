@@ -1,7 +1,28 @@
 {
   "name": "@lakutata/utils",
   "version": "3.0.0",
-  "description": "Utilities of the lakutata framework: Time and the helpers.",
+  "description": "The utilities of the lakutata framework: Time (dates in IANA time zones) and the helpers for strings, objects, hashes, encodings, UUIDs, IP addresses and globs.",
+  "keywords": [
+    "lakutata",
+    "utils",
+    "helpers",
+    "time",
+    "timezone",
+    "uuid",
+    "glob",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/utils",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/utils"
+  },
+  "author": "alex.ma",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Utils.js",

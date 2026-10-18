@@ -2,6 +2,27 @@
   "name": "@lakutata/docker",
   "version": "3.0.0",
   "description": "The Docker component of the lakutata framework: images (pull, build with BuildKit, import, export, push), containers, their TTYs and networks, over the Docker Engine API.",
+  "keywords": [
+    "lakutata",
+    "docker",
+    "docker-engine-api",
+    "containers",
+    "images",
+    "buildkit",
+    "ssh",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/docker",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/docker"
+  },
+  "author": "alex.ma",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Docker.js",

@@ -2,9 +2,24 @@
   "name": "@lakutata/template-electron-react",
   "version": "3.0.0",
   "description": "The Electron template of the lakutata projects with React: the main process is a lakutata application serving the actions of its controllers to the React renderer (Vite) over IPC, packaged by electron-builder.",
+  "homepage": "https://lakutata.com/guide/ProjectStructure",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/template-electron-react"
+  },
+  "author": "alex.ma",
   "keywords": [
     "lakutata",
-    "lakutata-template"
+    "lakutata-template",
+    "template",
+    "electron",
+    "react",
+    "vite"
   ],
   "license": "MIT",
   "files": [

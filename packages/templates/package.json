@@ -2,8 +2,21 @@
   "name": "@lakutata/templates",
   "version": "3.0.0",
   "description": "The catalog of the official templates of the lakutata projects, read by @lakutata/cli.",
+  "homepage": "https://lakutata.com/guide/ProjectStructure",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/templates"
+  },
+  "author": "alex.ma",
   "keywords": [
-    "lakutata"
+    "lakutata",
+    "templates",
+    "scaffolding"
   ],
   "license": "MIT",
   "files": [

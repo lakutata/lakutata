@@ -2,9 +2,24 @@
   "name": "@lakutata/template-web-nuxt",
   "version": "3.0.0",
   "description": "The Nuxt web template of the lakutata projects: an HTTP API serving a Nuxt application (rendered on the server) from the same process, deployed as a Docker image.",
+  "homepage": "https://lakutata.com/guide/ProjectStructure",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/template-web-nuxt"
+  },
+  "author": "alex.ma",
   "keywords": [
     "lakutata",
-    "lakutata-template"
+    "lakutata-template",
+    "template",
+    "nuxt",
+    "vue",
+    "docker"
   ],
   "license": "MIT",
   "files": [

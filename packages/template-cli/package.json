@@ -2,9 +2,23 @@
   "name": "@lakutata/template-cli",
   "version": "3.0.0",
   "description": "The command line template of the lakutata projects: a command line tool built into executables which run without Node.js.",
+  "homepage": "https://lakutata.com/guide/ProjectStructure",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/template-cli"
+  },
+  "author": "alex.ma",
   "keywords": [
     "lakutata",
-    "lakutata-template"
+    "lakutata-template",
+    "template",
+    "cli",
+    "executable"
   ],
   "license": "MIT",
   "files": [

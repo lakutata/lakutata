@@ -2,6 +2,29 @@
   "name": "@lakutata/cache",
   "version": "3.0.0",
   "description": "The cache component of the lakutata framework (memory, file, Redis, Memcache, MongoDB, SQLite, PostgreSQL, MySQL stores).",
+  "keywords": [
+    "lakutata",
+    "cache",
+    "redis",
+    "memcached",
+    "mongodb",
+    "sqlite",
+    "postgresql",
+    "mysql",
+    "ttl",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/cache",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/cache"
+  },
+  "author": "alex.ma",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Cache.js",

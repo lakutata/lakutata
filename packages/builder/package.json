@@ -2,6 +2,29 @@
   "name": "@lakutata/builder",
   "version": "3.0.0",
   "description": "The builder of the applications of the lakutata framework: their bundles, their executables (Node.js, Bun) with their native addons and their resources.",
+  "keywords": [
+    "lakutata",
+    "bundler",
+    "esbuild",
+    "executable",
+    "single-executable-application",
+    "bun",
+    "native-addons",
+    "electron-builder",
+    "installer",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/builder",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/builder"
+  },
+  "author": "alex.ma",
   "type": "module",
   "main": "./dist/esm/index.js",
   "types": "./dist/types/index.d.ts",

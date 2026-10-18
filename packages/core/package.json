@@ -1,7 +1,30 @@
 {
   "name": "@lakutata/core",
   "version": "3.0.0",
-  "description": "Core of the lakutata IoC framework (IoC/DI, BaseObject, DTO/validation, decorators, console logger, monitor).",
+  "description": "The core of the lakutata framework: the IoC container and dependency injection, the object model with asynchronous construction, and DTO schema validation with the API of joi.",
+  "keywords": [
+    "lakutata",
+    "ioc",
+    "dependency-injection",
+    "di",
+    "container",
+    "decorators",
+    "dto",
+    "validation",
+    "joi",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/core",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/core"
+  },
+  "author": "alex.ma",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Core.js",

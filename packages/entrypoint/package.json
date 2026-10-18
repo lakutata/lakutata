@@ -2,6 +2,36 @@
   "name": "@lakutata/entrypoint",
   "version": "3.0.0",
   "description": "The entrypoint component of the lakutata framework: controllers and the dispatch of the CLI, HTTP and service actions.",
+  "keywords": [
+    "lakutata",
+    "controller",
+    "routing",
+    "http",
+    "express",
+    "fastify",
+    "commander",
+    "cli",
+    "socket.io",
+    "websocket",
+    "json-rpc",
+    "electron",
+    "ipc",
+    "schedule",
+    "cron",
+    "middleware",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/entrypoint",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/entrypoint"
+  },
+  "author": "alex.ma",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Entrypoint.js",

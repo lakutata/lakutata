@@ -2,6 +2,27 @@
   "name": "@lakutata/i18n",
   "version": "3.0.0",
   "description": "The internationalization of the lakutata framework: the messages of each language by their keys (ICU MessageFormat), the language of each request, the messages of the validation.",
+  "keywords": [
+    "lakutata",
+    "i18n",
+    "internationalization",
+    "localization",
+    "icu",
+    "messageformat",
+    "translation",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/i18n",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/i18n"
+  },
+  "author": "alex.ma",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/I18n.js",

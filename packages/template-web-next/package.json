@@ -2,9 +2,24 @@
   "name": "@lakutata/template-web-next",
   "version": "3.0.0",
   "description": "The Next.js web template of the lakutata projects: an HTTP API serving a Next.js application from the same process, deployed as a Docker image.",
+  "homepage": "https://lakutata.com/guide/ProjectStructure",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/template-web-next"
+  },
+  "author": "alex.ma",
   "keywords": [
     "lakutata",
-    "lakutata-template"
+    "lakutata-template",
+    "template",
+    "nextjs",
+    "react",
+    "docker"
   ],
   "license": "MIT",
   "files": [

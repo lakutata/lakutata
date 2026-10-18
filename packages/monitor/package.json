@@ -2,6 +2,27 @@
   "name": "@lakutata/monitor",
   "version": "3.0.0",
   "description": "The monitors of the lakutata framework: the CPU, the memory, the event loop and the HTTP requests of the process, on the histograms of Node.js.",
+  "keywords": [
+    "lakutata",
+    "monitor",
+    "monitoring",
+    "metrics",
+    "cpu",
+    "memory",
+    "event-loop",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/monitor",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/monitor"
+  },
+  "author": "alex.ma",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Monitor.js",

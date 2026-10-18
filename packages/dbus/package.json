@@ -2,6 +2,25 @@
   "name": "@lakutata/dbus",
   "version": "3.0.0",
   "description": "The DBus channel of the lakutata framework: controller actions served as the methods, properties and signals of DBus objects, and the DBus client component.",
+  "keywords": [
+    "lakutata",
+    "dbus",
+    "d-bus",
+    "linux",
+    "ipc",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/dbus",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/dbus"
+  },
+  "author": "alex.ma",
   "type": "module",
   "main": "./dist/cjs/exports/DBus.js",
   "types": "./dist/cjs/exports/DBus.d.ts",

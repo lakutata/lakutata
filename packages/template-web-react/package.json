@@ -2,9 +2,24 @@
   "name": "@lakutata/template-web-react",
   "version": "3.0.0",
   "description": "The React web template of the lakutata projects: an HTTP API serving a React single-page application built with Vite, deployed as a Docker image.",
+  "homepage": "https://lakutata.com/guide/ProjectStructure",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/template-web-react"
+  },
+  "author": "alex.ma",
   "keywords": [
     "lakutata",
-    "lakutata-template"
+    "lakutata-template",
+    "template",
+    "react",
+    "vite",
+    "docker"
   ],
   "license": "MIT",
   "files": [

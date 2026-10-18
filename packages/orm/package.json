@@ -2,6 +2,31 @@
   "name": "@lakutata/orm",
   "version": "3.0.0",
   "description": "The ORM of the lakutata framework, on TypeORM: the Database component and provider, the entity decorators and the generation of the migrations.",
+  "keywords": [
+    "lakutata",
+    "typeorm",
+    "orm",
+    "database",
+    "migrations",
+    "postgresql",
+    "mysql",
+    "sqlite",
+    "mongodb",
+    "sql.js",
+    "entity",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/orm",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/orm"
+  },
+  "author": "alex.ma",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/ORM.js",

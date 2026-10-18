@@ -2,6 +2,26 @@
   "name": "@lakutata/grpc",
   "version": "3.0.0",
   "description": "gRPC for the lakutata framework: its client and its server over HTTP/2 with a schema-driven protobuf codec (no native addon), and the service entrypoint and the service proxy of the service actions over gRPC.",
+  "keywords": [
+    "lakutata",
+    "grpc",
+    "protobuf",
+    "http2",
+    "rpc",
+    "microservices",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/grpc",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/grpc"
+  },
+  "author": "alex.ma",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/GRPC.js",

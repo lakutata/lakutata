@@ -2,6 +2,27 @@
   "name": "@lakutata/mutex",
   "version": "3.0.0",
   "description": "The locks of the lakutata framework: mutual exclusion between the instances and the processes of an application, over memory, files, Redis, PostgreSQL or MySQL, held by tokens, renewed while they are held.",
+  "keywords": [
+    "lakutata",
+    "mutex",
+    "lock",
+    "distributed-lock",
+    "redis",
+    "postgresql",
+    "mysql",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/mutex",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/mutex"
+  },
+  "author": "alex.ma",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Mutex.js",

@@ -2,6 +2,27 @@
   "name": "@lakutata/mcp",
   "version": "3.0.0",
   "description": "The MCP channel of the lakutata framework: controller actions served as the tools of a Model Context Protocol server, over stdio or HTTP.",
+  "keywords": [
+    "lakutata",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "llm",
+    "agent",
+    "tools",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/mcp",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/mcp"
+  },
+  "author": "alex.ma",
   "type": "module",
   "main": "./dist/cjs/exports/MCP.js",
   "types": "./dist/cjs/exports/MCP.d.ts",

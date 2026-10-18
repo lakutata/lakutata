@@ -2,6 +2,26 @@
   "name": "@lakutata/nats",
   "version": "3.0.0",
   "description": "The NATS component of the lakutata framework: messaging, service proxies, service entrypoint and large payloads.",
+  "keywords": [
+    "lakutata",
+    "nats",
+    "messaging",
+    "pubsub",
+    "microservices",
+    "rpc",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/nats",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/nats"
+  },
+  "author": "alex.ma",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/exports/Nats.js",

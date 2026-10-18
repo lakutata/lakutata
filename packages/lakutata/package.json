@@ -1,7 +1,7 @@
 {
   "name": "lakutata",
   "version": "3.0.0",
-  "description": "An IoC-based universal application framework.",
+  "description": "An IoC application framework for Node.js and TypeScript: one programming model for web services, CLI tools, desktop (Electron) and embedded applications.",
   "type": "module",
   "exports": {
     ".": {
@@ -323,7 +323,8 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/lakutata/lakutata.git"
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/lakutata"
   },
   "homepage": "https://lakutata.com",
   "bugs": {
@@ -333,7 +334,24 @@
   "keywords": [
     "lakutata",
     "framework",
-    "typescript"
+    "ioc",
+    "dependency-injection",
+    "di",
+    "typescript",
+    "nodejs",
+    "decorators",
+    "dto",
+    "validation",
+    "express",
+    "fastify",
+    "cli",
+    "electron",
+    "microservices",
+    "rpc",
+    "grpc",
+    "nats",
+    "typeorm",
+    "mcp"
   ],
   "dependencies": {
     "@lakutata/cache": "3.0.0",
