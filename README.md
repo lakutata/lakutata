@@ -105,6 +105,9 @@ The templates of `lakutata create` are the `@lakutata/template-*` packages, list
   Their sources are [`packages/lakutata/doc`](packages/lakutata/doc) (`en`, `zh`, and their `examples`) and the type
   declarations of the packages.
 - Each package has a README with its options, API and errors.
+- [`plugins/lakutata`](plugins/lakutata): the Agent Skill of the framework, for AI coding assistants. Any assistant:
+  `npx skills add lakutata/lakutata`; Claude Code: `/plugin install lakutata --marketplace lakutata/lakutata`; the
+  others, and how the skill works: [its page](https://lakutata.com/skill/).
 
 ## Development
 
@@ -126,7 +129,10 @@ the public API is documented.
 Lakutata 3 brought the framework and its packages into this repository. The 2.x releases of `lakutata` are tagged here
 (`2.0.x`). The 2.x versions of `@lakutata/cli`, `@lakutata/dbus` and `@lakutata/nats` come from
 [lakutata-packages](https://github.com/lakutata/lakutata-packages), and the 2.x templates from the
-`lakutata-template-*` repositories.
+`lakutata-template-*` repositories. To bring a 2.x project to 3.x, see
+[Upgrading from Lakutata 2.x](https://lakutata.com/guide/UpgradingFrom2); a project on Lakutata 1.x (`@lakutata/core`
+1.x and the `@lakutata-module/*` and `@lakutata-component/*` packages) follows
+[Upgrading from Lakutata 1.x](https://lakutata.com/guide/UpgradingFrom1) instead.
 
 ## License
 

@@ -1,0 +1,16 @@
+{
+  "name": "lakutata",
+  "owner": {
+    "name": "lakutata"
+  },
+  "metadata": {
+    "description": "The official plugins of the lakutata framework"
+  },
+  "plugins": [
+    {
+      "name": "lakutata",
+      "source": "./plugins/lakutata",
+      "description": "The official skill of the lakutata framework: writing, testing and upgrading applications built on lakutata 3.x"
+    }
+  ]
+}

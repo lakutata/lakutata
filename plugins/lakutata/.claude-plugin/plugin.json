@@ -1,0 +1,11 @@
+{
+  "name": "lakutata",
+  "description": "The official skill of the lakutata framework: writing, testing and upgrading applications built on lakutata 3.x",
+  "author": {
+    "name": "lakutata"
+  },
+  "homepage": "https://lakutata.com",
+  "repository": "https://github.com/lakutata/lakutata",
+  "license": "MIT",
+  "keywords": ["lakutata", "nodejs", "typescript", "ioc", "framework"]
+}

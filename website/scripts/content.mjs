@@ -1,11 +1,13 @@
 //The content of the website, generated from the repository before VitePress builds it: the logo, the guides of
 //packages/lakutata/doc (English and Chinese) and their examples, the READMEs of the published packages (README.md and
-//README.zh-CN.md, their relative links pointed to GitHub) and the API reference of the subpaths of lakutata (TypeDoc, from the
-//declarations of the built packages: run `npm run build` at the root of the repository first), also under /zh/api/
-//with a Chinese note (its text is the one of the declarations).
+//README.zh-CN.md, their relative links pointed to GitHub), the guides as plain Markdown with llms.txt, the Agent Skill
+//(its page and its zip) and the API reference of the subpaths of lakutata (TypeDoc, from the declarations of the built
+//packages: run `npm run build` at the root of the repository first), also under /zh/api/ with a Chinese note (its text
+//is the one of the declarations).
 //
 //  node scripts/content.mjs            everything
 //  node scripts/content.mjs --no-api   the guides and the packages only (faster, while writing)
+import {spawnSync} from 'node:child_process'
 import {cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {dirname, join, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -100,6 +102,63 @@ function packages() {
 }
 
 /**
+ * The guides and the examples as plain Markdown, at the paths they have in the package lakutata (its doc/en/HTTP.md is
+ * https://lakutata.com/doc/en/HTTP.md), for the AI assistants working on a project that has not installed it yet; and
+ * llms.txt, their index (the guides listed by the Overview, the examples by their README)
+ */
+function markdown() {
+    const doc = join(ROOT, 'packages/lakutata/doc')
+    fresh(join(SRC, 'public', 'doc'))
+    cpSync(doc, join(SRC, 'public', 'doc'), {recursive: true})
+    const rows = (file, directory) => [...readFileSync(join(doc, 'en', file), 'utf8').matchAll(/^\| \[([^\]]+)\]\(([\w-]+\.md)\) \| (.*) \|$/gm)]
+        .map(([, title, page, topic]) => `- [${title}](https://lakutata.com/doc/en/${directory}${page}): ${topic}`)
+    writeFileSync(join(SRC, 'public', 'llms.txt'), [
+        '# Lakutata',
+        '',
+        '> An IoC application framework for Node.js and TypeScript: web services, command line tools, desktop (Electron)',
+        '> applications and services on devices. The guides and the examples below are plain Markdown. The same files ship in',
+        '> the npm package lakutata (node_modules/lakutata/doc/en), in the version a project has installed: those win over these,',
+        '> which follow the latest sources.',
+        '',
+        'The Agent Skill of lakutata, for AI coding assistants: https://lakutata.com/skill/',
+        '',
+        '## Guides',
+        '',
+        '- [Overview](https://lakutata.com/doc/en/Overview.md): The subpaths of lakutata, and the list of the guides',
+        ...rows('Overview.md', ''),
+        '',
+        '## Examples',
+        '',
+        ...rows('examples/README.md', 'examples/'),
+        '',
+        '## Optional',
+        '',
+        '- [Chinese](https://lakutata.com/doc/zh/Overview.md): the same guides and examples in Chinese, under https://lakutata.com/doc/zh/',
+        ''
+    ].join('\n'))
+}
+
+/**
+ * The page of the Agent Skill (the README of its plugin, in English and in Chinese, its relative links pointed to the
+ * files of the repository) and the skill as a zip of its folder, to upload to the Claude apps
+ */
+function skill() {
+    const plugin = join(ROOT, 'plugins/lakutata')
+    for (const language of PACKAGE_PAGES) {
+        const target = join(SRC, language.target.replace('packages', 'skill'))
+        fresh(target)
+        const content = readFileSync(join(plugin, language.readme), 'utf8')
+            .replace(PACKAGE_PAGES[0].switch, '').replace(PACKAGE_PAGES[1].switch, '')
+            .replace(/\]\((?!https?:|mailto:|#)([^)\s]+)\)/g, (_match, link) => `](${REPOSITORY}/tree/main/plugins/lakutata/${link.replace(/^\.\//, '')})`)
+        writeFileSync(join(target, 'index.md'), content)
+    }
+    const zip = join(SRC, 'public', 'lakutata-skill.zip')
+    rmSync(zip, {force: true})
+    const packed = spawnSync('zip', ['-r', '-X', '-q', zip, 'lakutata', '-x', '*.DS_Store'], {cwd: join(plugin, 'skills'), stdio: 'inherit'})
+    if (packed.status !== 0) throw new Error('zip could not pack the skill')
+}
+
+/**
  * The API reference of the subpaths of lakutata, one module each (the TypeORM subpaths left to typeorm.io)
  */
 async function api() {
@@ -182,4 +241,6 @@ logo()
 guides()
 examples()
 packages()
+markdown()
+skill()
 if (!process.argv.includes('--no-api')) await api()

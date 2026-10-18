@@ -95,6 +95,7 @@ Application.run(() => ({
 
 - [lakutata.com](https://lakutata.com/zh/)：中英文指南、示例和 API 参考。指南和示例的源文件在 [`packages/lakutata/doc`](packages/lakutata/doc)（`en`、`zh` 及其中的 `examples`），API 参考来自各个包的类型声明。
 - 每个包都有自己的 README，说明它的选项、API 和错误。
+- [`plugins/lakutata`](plugins/lakutata)：框架的 Agent Skill（智能体技能），供 AI 编程助手使用。任何助手：`npx skills add lakutata/lakutata`；Claude Code：`/plugin install lakutata --marketplace lakutata/lakutata`；其他助手的安装方法和技能的工作方式见[它的页面](https://lakutata.com/zh/skill/)。
 
 ## 开发
 
@@ -111,7 +112,7 @@ cd website && npm ci && npm run dev    # 网站（需要先构建各个包）
 
 ## Lakutata 2.x
 
-Lakutata 3 把框架和它的各个包都放进了这个仓库。`lakutata` 的 2.x 版本在这里有标签（`2.0.x`）。`@lakutata/cli`、`@lakutata/dbus` 和 `@lakutata/nats` 的 2.x 版本来自 [lakutata-packages](https://github.com/lakutata/lakutata-packages)，2.x 的模板来自各个 `lakutata-template-*` 仓库。
+Lakutata 3 把框架和它的各个包都放进了这个仓库。`lakutata` 的 2.x 版本在这里有标签（`2.0.x`）。`@lakutata/cli`、`@lakutata/dbus` 和 `@lakutata/nats` 的 2.x 版本来自 [lakutata-packages](https://github.com/lakutata/lakutata-packages)，2.x 的模板来自各个 `lakutata-template-*` 仓库。把 2.x 项目升级到 3.x，见[从 Lakutata 2.x 升级](https://lakutata.com/zh/guide/UpgradingFrom2)；Lakutata 1.x 的项目（1.x 版本的 `@lakutata/core` 以及 `@lakutata-module/*`、`@lakutata-component/*` 包）请看[从 Lakutata 1.x 升级](https://lakutata.com/zh/guide/UpgradingFrom1)。
 
 ## 许可证
 

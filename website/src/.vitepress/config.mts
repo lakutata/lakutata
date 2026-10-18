@@ -11,7 +11,7 @@ const REPOSITORY: string = 'https://github.com/lakutata/lakutata'
  * The guides, in the order of the README of lakutata, by group
  */
 const GUIDES: {en: string, zh: string, guides: string[]}[] = [
-    {en: 'Introduction', zh: '入门', guides: ['Overview', 'GettingStarted', 'ProjectStructure']},
+    {en: 'Introduction', zh: '入门', guides: ['Overview', 'GettingStarted', 'ProjectStructure', 'UpgradingFrom2', 'UpgradingFrom1']},
     {en: 'Fundamentals', zh: '基础', guides: ['Application', 'Objects', 'Injection', 'DTOValidation', 'Exceptions', 'Logger', 'Decorator', 'Time', 'HelperFunctions']},
     {en: 'Controllers and Entrypoints', zh: '控制器与入口', guides: ['Controllers', 'Entrypoint', 'Middlewares', 'HTTP', 'CLI', 'ServiceCalls', 'GRPC', 'NATS', 'Schedules', 'Queue']},
     {en: 'Data', zh: '数据', guides: ['Database', 'DatabaseDrivers', 'MongoEmbedded', 'Entities', 'Migrations', 'Cache']},
@@ -120,7 +120,9 @@ const editLink = ({filePath}: {filePath: string}): string => {
             : example ? `packages/lakutata/doc/${example[1] ? 'zh' : 'en'}/examples/${example[2] === 'index.md' ? 'README.md' : example[2]}`
             : filePath.startsWith('packages/') && filePath !== 'packages/index.md' ? `packages/${filePath.slice(9).replace(/\.md$/, '')}/README.md`
                 : filePath.startsWith('zh/packages/') && filePath !== 'zh/packages/index.md' ? `packages/${filePath.slice(12).replace(/\.md$/, '')}/README.zh-CN.md`
-                    : `website/src/${filePath}`
+                    : filePath === 'skill/index.md' ? 'plugins/lakutata/README.md'
+                        : filePath === 'zh/skill/index.md' ? 'plugins/lakutata/README.zh-CN.md'
+                            : `website/src/${filePath}`
     return `https://github.com/lakutata/lakutata/edit/main/${source}`
 }
 
@@ -137,7 +139,7 @@ const HTML_ELEMENTS: Set<string> = new Set(('a abbr b blockquote br caption code
  * @param path The path of the page in the website.
  */
 function verbatim(path: string): boolean {
-    return /^(zh\/)?(guide|examples|packages|api)\//.test(path)
+    return /^(zh\/)?(guide|examples|packages|api|skill)\//.test(path)
 }
 
 export default defineConfig({
@@ -166,6 +168,8 @@ export default defineConfig({
     },
     description: 'An IoC framework for Node.js and TypeScript: web services, CLI tools, desktop and embedded applications',
     cleanUrls: true,
+    //The guides copied as plain Markdown (scripts/content.mjs) are files to download, not pages
+    srcExclude: ['public/**'],
     //The links to localhost are the ones of the reader's machine (the examples run there)
     ignoreDeadLinks: 'localhostLinks',
     //The configuration in a chunk of its own, rather than in every page
@@ -186,6 +190,7 @@ export default defineConfig({
                     {text: 'Examples', link: '/examples/', activeMatch: '/examples/'},
                     {text: 'API', link: '/api/', activeMatch: '/api/'},
                     {text: 'Packages', link: '/packages/', activeMatch: '/packages/'},
+                    {text: 'AI Skill', link: '/skill/', activeMatch: '/skill/'},
                     {text: 'npm', link: 'https://www.npmjs.com/package/lakutata'}
                 ],
                 sidebar: {
@@ -211,6 +216,7 @@ export default defineConfig({
                     {text: '示例', link: '/zh/examples/', activeMatch: '/zh/examples/'},
                     {text: 'API', link: '/zh/api/', activeMatch: '/zh/api/'},
                     {text: '包列表', link: '/zh/packages/', activeMatch: '/zh/packages/'},
+                    {text: 'AI 技能', link: '/zh/skill/', activeMatch: '/zh/skill/'},
                     {text: 'npm', link: 'https://www.npmjs.com/package/lakutata'}
                 ],
                 sidebar: {
