@@ -45,6 +45,10 @@ class DeviceTagsDTO extends FlexibleDTO {
 class ReportDTO extends DTO {
     @Expect(DTO.Number().integer().min(1).strict(false).required())
     public days: number
+
+    //Strict: a text is refused
+    @Expect(DTO.Number().integer().optional())
+    public weeks?: number
 }
 
 class DeviceController extends Controller {
@@ -123,11 +127,13 @@ Application
         })
 
         await check('the values of a query string are converted by the schemas not strict only (as lakutata 2.x)', async (): Promise<void> => {
-            //The schemas are strict by default: the numbers of PaginationSearchDTO are not converted from texts
-            const strict = await request('GET', '/devices?limit=3')
-            assert.strictEqual(strict.errno, 'E_INVALID_VALUE')
-            assert.match(strict.errMsg, /"limit" must be a number/)
+            //The numbers of PaginationSearchDTO are not strict: a search paginates from its query string
+            const page = (await request('GET', '/devices?limit=3&offset=1&site=north')).data
+            assert.deepStrictEqual(page.meta, {count: 3, total: 5, limit: 3, offset: 1})
             assert.deepStrictEqual((await request('GET', '/report?days=7')).data, {days: 7})
+            const strict = await request('GET', '/report?days=7&weeks=1')
+            assert.strictEqual(strict.errno, 'E_INVALID_VALUE')
+            assert.match(strict.errMsg, /"weeks" must be a number/)
         })
 
         await check('an invalid pagination is rejected', async (): Promise<void> => {
