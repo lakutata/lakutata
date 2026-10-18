@@ -465,10 +465,6 @@ const directory: string = resourcesPath() ?? path.dirname(fileURLToPath(import.m
  */
 const renderer: string | undefined = process.argv.find((argument: string): boolean => argument.startsWith('--renderer='))?.slice('--renderer='.length)
 
-//Name the application, in development too, where electron build/App.js runs as "Electron", so that its data directory
-//(with the settings) and its single-instance lock are its own
-electron.app.setName('notes')
-
 //A single instance of the application: a second one exits, and the first one brings its window to the front
 if (!electron.app.requestSingleInstanceLock()) {
     electron.app.exit(0)
@@ -491,14 +487,10 @@ if (!electron.app.requestSingleInstanceLock()) {
 }
 ```
 
-Two lines change in the `App.ts` of the template:
-
-- `electron.app.setName('notes')`. In development, `electron build/App.js` runs a file, not a package, so the
-  application is named `Electron`: on macOS its data directory would be `~/Library/Application Support/Electron`,
-  shared with every Electron application started the same way, and so would its single-instance lock. The packaged
-  application takes its name from its `package.json` anyway.
-- `settings`: the data directory of the application, `app.getPath('userData')`, is
-  `~/Library/Application Support/notes` on macOS, `%APPDATA%\notes` on Windows and `~/.config/notes` on Linux.
+One option is added to the `App.ts` of the template: `settings`, the file that remembers the notes folder, in the data
+directory of the application (`app.getPath('userData')`). That directory is named after the `productName` of
+`packages/app/package.json` (`notes`), in development as in the packaged application:
+`~/Library/Application Support/notes` on macOS, `%APPDATA%\notes` on Windows and `~/.config/notes` on Linux.
 
 The preload script of the template (`packages/app/src/preload.cts`) stays as it is: it gives the renderer the IPC
 channel for the actions and the events, and nothing else from Electron or Node.js.

@@ -435,10 +435,6 @@ const directory: string = resourcesPath() ?? path.dirname(fileURLToPath(import.m
  */
 const renderer: string | undefined = process.argv.find((argument: string): boolean => argument.startsWith('--renderer='))?.slice('--renderer='.length)
 
-//设置应用的名称，开发时也一样：electron build/App.js 运行时应用名为 "Electron"。有了自己的名称，数据目录（包括设置）
-//和单实例锁才是这个应用独有的
-electron.app.setName('notes')
-
 //应用只运行一个实例：再启动一个实例时，新实例直接退出，已在运行的实例把窗口切到前台
 if (!electron.app.requestSingleInstanceLock()) {
     electron.app.exit(0)
@@ -461,10 +457,7 @@ if (!electron.app.requestSingleInstanceLock()) {
 }
 ```
 
-和模板中的 `App.ts` 相比，改了两处：
-
-- `electron.app.setName('notes')`。开发时 `electron build/App.js` 运行的是一个文件而不是一个包，所以应用名为 `Electron`：它的数据目录在 macOS 上会是 `~/Library/Application Support/Electron`，所有这样启动的 Electron 应用都共用这个目录，单实例锁也一样。打包后的应用本来就从 `package.json` 取得名称。
-- `settings`：应用的数据目录 `app.getPath('userData')` 在 macOS 上是 `~/Library/Application Support/notes`，在 Windows 上是 `%APPDATA%\notes`，在 Linux 上是 `~/.config/notes`。
+和模板中的 `App.ts` 相比，只改了一处：`settings`，即记录笔记文件夹的文件，放在应用的数据目录（`app.getPath('userData')`）中。这个目录以 `packages/app/package.json` 的 `productName`（`notes`）命名，开发时和打包后都一样：在 macOS 上是 `~/Library/Application Support/notes`，在 Windows 上是 `%APPDATA%\notes`，在 Linux 上是 `~/.config/notes`。
 
 模板的预加载脚本（`packages/app/src/preload.cts`）保持不变：它只把动作和事件的 IPC 通道交给渲染进程，Electron 和 Node.js 的其他能力一概不暴露。
 

@@ -166,7 +166,7 @@ of the project (it may be outside the package, such as `../ui/dist`), `to` its p
 
 | How it runs | `isPackaged()` | `resourcesPath()` |
 |---|---|---|
-| Not packed (`node build/App.js`, `electron build/App.js`) | `false` | `undefined` |
+| Not packed (`node build/App.js`, `electron .`) | `false` | `undefined` |
 | A bundle | `true` | `dist/<name>.resources` next to the bundle |
 | An executable, file layout | `true` | The directory the resources were extracted to |
 | An executable, directory layout, or an installed application | `true` | `resources` next to the executable |

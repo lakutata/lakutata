@@ -129,7 +129,7 @@ npx lakutata package exe --runtime bun     # 使用 Bun
 
 | 运行方式 | `isPackaged()` | `resourcesPath()` |
 |---|---|---|
-| 未打包（`node build/App.js`、`electron build/App.js`） | `false` | `undefined` |
+| 未打包（`node build/App.js`、`electron .`） | `false` | `undefined` |
 | 单文件包 | `true` | 单文件包旁边的 `dist/<name>.resources` |
 | 可执行文件，单文件布局 | `true` | 资源解压到的目录 |
 | 可执行文件，目录布局，或已安装的应用 | `true` | 可执行文件旁边的 `resources` |

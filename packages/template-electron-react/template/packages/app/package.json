@@ -12,8 +12,8 @@
     "clean": "lakutata clean",
     "build": "tsc",
     "rebuild": "npm run clean && npm run build",
-    "dev": "npm run rebuild && electron build/App.js --renderer=http://localhost:5173",
-    "start": "electron build/App.js",
+    "dev": "npm run rebuild && electron . --renderer=http://localhost:5173",
+    "start": "electron .",
     "test": "node --test \"build/tests/**/*.spec.js\"",
     "package": "lakutata package installer"
   },
