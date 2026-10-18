@@ -53,27 +53,33 @@ lakutata 官方的 Agent Skill（智能体技能），供 AI 编程助手使用�
 
 ## Codex
 
-- **安装：** `npx skills add lakutata/lakutata -a codex` 把技能写入项目中的 `.agents/skills/lakutata`（加 `-g` 则写入 `~/.agents/skills`）。Codex 也能自己安装它，在会话中输入：
+- **安装：** Codex 可以从本仓库的插件市场安装插件：
+
+  ```bash
+  codex plugin marketplace add lakutata/lakutata
+  codex plugin add lakutata@lakutata
+  ```
+
+  在 Codex 命令行中，也可以在 `/plugins` 的插件浏览器里安装；技能从下一个会话开始可用。也可以运行 `npx skills add lakutata/lakutata -a codex`，把技能写入项目中的 `.agents/skills/lakutata`（加 `-g` 则写入 `~/.agents/skills`）。Codex 也能在会话中单独安装这个技能，放到 `~/.codex/skills`：
 
   ```text
   $skill-installer install https://github.com/lakutata/lakutata/tree/main/plugins/lakutata/skills/lakutata
   ```
 
-  这样会安装到 `~/.codex/skills`，对你的所有项目生效。
 - **文件夹：** 从当前文件夹到仓库根目录之间每一层的 `.agents/skills`，以及用户目录中的 `~/.agents/skills`。Codex 会跟随指向技能文件夹的符号链接。
-- **确认：** 在 Codex 命令行或 IDE 扩展中输入 `/skills`；输入 `$lakutata` 可以主动使用这个技能。在 ChatGPT 桌面应用中，打开侧边栏的 Skills。Codex 会自动发现新增和改动的技能；如果没有出现，重启 Codex。
-- **更新：** `npx skills update lakutata`。`$skill-installer` 不会覆盖已有的技能：重新安装之前，先删除 `~/.codex/skills/lakutata`。
-- **注意：** 技能可以在 Codex 命令行、它的 IDE 扩展以及 ChatGPT 桌面应用中的 Codex 里使用。想关闭这个技能又不删除它时，在 `~/.codex/config.toml` 中加一个 `[[skills.config]]` 条目，写上它的路径和 `enabled = false`。
-- **官方文档：** [Build skills](https://learn.chatgpt.com/docs/build-skills)。
+- **确认：** `codex plugin list` 列出已安装的插件。在 Codex 命令行或 IDE 扩展中，`/skills` 列出技能；输入 `$` 并选择 lakutata，可以主动使用这个技能。在 ChatGPT 桌面应用中，打开侧边栏的 Skills。Codex 会自动发现新增和改动的技能文件夹；如果没有出现，重启 Codex。
+- **更新：** `codex plugin marketplace upgrade lakutata` 刷新这个插件市场（插件带有版本号，技能每次改动都会随之更新）。用 `npx skills` 安装的技能用 `npx skills update lakutata` 更新。`$skill-installer` 不会覆盖已有的技能：重新安装之前，先删除 `~/.codex/skills/lakutata`。
+- **注意：** 插件可以在 Codex 命令行和 ChatGPT 桌面应用中使用；IDE 扩展不支持插件，改为读取技能文件夹。想关闭这个技能又不删除它时，在 `~/.codex/config.toml` 中加一个 `[[skills.config]]` 条目，写上它的路径和 `enabled = false`。
+- **官方文档：** [Build skills](https://learn.chatgpt.com/docs/build-skills)、[Plugins](https://learn.chatgpt.com/docs/plugins)。
 
 ## Cursor
 
-- **安装：** `npx skills add lakutata/lakutata -a cursor` 把技能写入项目中的 `.agents/skills/lakutata`（加 `-g` 则写入 `~/.cursor/skills`）。Cursor 只能通过插件从 GitHub 导入技能，而且要求仓库中有 `.cursor-plugin/marketplace.json`，本仓库没有这个文件。
+- **安装：** 打开 Customize，选择 From GitHub Repository，填入本仓库的地址 `https://github.com/lakutata/lakutata`；然后在 lakutata 插件上选择 Install，再选择项目或用户范围。在 Cursor 命令行中，先运行 `agent plugin marketplace add https://github.com/lakutata/lakutata`，再在 `/plugin` 中安装插件。也可以运行 `npx skills add lakutata/lakutata -a cursor`，把技能写入项目中的 `.agents/skills/lakutata`（加 `-g` 则写入 `~/.cursor/skills`）。
 - **文件夹：** 项目中的 `.cursor/skills` 或 `.agents/skills`，用户目录中的 `~/.cursor/skills` 或 `~/.agents/skills`；Cursor 也会加载 `.claude/skills` 和 `~/.claude/skills`。
 - **确认：** 打开侧边栏的 Customize，再打开 Skills。在 Agent 对话中输入 `/` 并搜索 lakutata，可以主动使用这个技能；在 Cursor 命令行中，`/skills` 列出所有技能。Cursor 在启动时查找技能。
-- **更新：** `npx skills update lakutata`，或者重新复制文件夹；然后重启 Cursor。
+- **更新：** 团队插件市场用 Refresh 更新，打开 Enable Auto Refresh 后每次推送都会更新。对于单个用户导入的仓库，Cursor 的工作人员在论坛上确认，插件会停留在导入时的那个提交上，这是一个已知的问题：在修复之前，可以用 `npx skills` 安装，再用 `npx skills update lakutata` 保持技能最新。手动复制的文件夹，再复制一次即可；然后重启 Cursor。
 - **注意：** Cursor 不让它的 Agent 访问被忽略的文件，而 `node_modules` 默认就被忽略：Agent 无法用文件工具打开已安装的包中的指南。这时技能会用终端命令读取它们（Cursor 不拦截终端命令），或者读取本网站上的版本。云端代理（Cloud Agents）能拿到 `~/.cursor/skills` 中的技能，拿不到 `~/.agents/skills` 中的技能。
-- **官方文档：** [Agent Skills](https://cursor.com/docs/skills)。
+- **官方文档：** [Agent Skills](https://cursor.com/docs/skills)、[Plugins](https://cursor.com/docs/plugins)。
 
 ## Devin Desktop
 
@@ -117,7 +123,7 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。它的智能体 De
     copilot plugin install lakutata@lakutata
     ```
 
-    在会话中：先 `/plugin marketplace add lakutata/lakutata`，再 `/plugin install lakutata@lakutata`。
+    在会话中：先 `/plugin marketplace add lakutata/lakutata`，再 `/plugin install lakutata@lakutata`。不经过插件市场：`copilot plugin install lakutata/lakutata:plugins/lakutata`。
   - VS Code：把这个市场加入设置项 `chat.plugins.marketplaces`（`"chat.plugins.marketplaces": ["lakutata/lakutata"]`），然后在扩展视图中搜索 `@agentPlugins`，安装 lakutata。VS Code 也会显示用 Copilot 命令行安装的插件。
   - 云端代理使用仓库中的内容：把技能提交到下面的某个文件夹中，或者在 `.github/copilot/settings.json` 中启用插件：
 
@@ -131,7 +137,7 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。它的智能体 De
   - 也可以运行 `npx skills add lakutata/lakutata -a github-copilot`，把技能写入项目中的 `.agents/skills/lakutata`（加 `-g` 则写入 `~/.copilot/skills`）。
 - **文件夹：** 仓库中的 `.github/skills`、`.claude/skills` 或 `.agents/skills`；用户目录中的 `~/.copilot/skills` 或 `~/.agents/skills`（VS Code 还读取 `~/.claude/skills`）。
 - **确认：** 在 Copilot 命令行中用 `/skills list` 或 `/skills info lakutata`；在提示中输入 `/lakutata` 可以主动使用这个技能，`/skills reload` 不用重启就能加载新的技能。在 VS Code 中，在对话框中输入 `/` 查看技能；从插件安装的技能是 `/lakutata:lakutata`。云端代理根据技能的描述决定是否使用它。
-- **更新：** 在 Copilot 命令行中运行 `copilot plugin update lakutata`。VS Code 通过 Extensions: Check for Extension Updates 检查插件更新，或者在打开 `extensions.autoUpdate` 时每 24 小时检查一次；它的文档把更新和插件的 `version` 绑定在一起，而这个插件没有设置版本号（它跟随仓库的提交），所以如果等不到更新，就重新安装插件。用 `npx skills` 安装的技能用 `npx skills update lakutata` 更新。
+- **更新：** 在 Copilot 命令行中运行 `copilot plugin update lakutata`。VS Code 通过 Extensions: Check for Extension Updates 检查插件更新，或者在打开 `extensions.autoUpdate` 时每 24 小时检查一次。Copilot 读取插件的 Agent Plugins 清单文件（`plugin.json`），技能每次改动，其中的版本号都会随之更新。用 `npx skills` 安装的技能用 `npx skills update lakutata` 更新。
 - **注意：** 在云端代理上，只有 `.github/workflows/copilot-setup-steps.yml` 安装了依赖（`npm ci`）时才有 `node_modules`；否则技能会读取本网站上的指南。Copilot 代码审查、GitHub Copilot 应用和 JetBrains IDE 中也能使用技能。
 - **官方文档：** [关于代理技能](https://docs.github.com/zh/copilot/concepts/agents/about-agent-skills)、[VS Code 中的 Agent plugins](https://code.visualstudio.com/docs/agent-customization/agent-plugins)。
 
@@ -143,12 +149,12 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。它的智能体 De
   https://github.com/lakutata/lakutata/tree/main/plugins/lakutata/skills/lakutata
   ```
 
-  Kiro 会把技能复制到你的技能文件夹中，立即生效。Kiro 命令行可以用 `npx skills add lakutata/lakutata -a kiro-cli`，写入项目中的 `.kiro/skills/lakutata`（加 `-g` 则写入 `~/.kiro/skills`）。Kiro 的 Powers 需要一个本仓库没有的清单文件。
+  Kiro 会把技能复制到你的技能文件夹中，立即生效。本仓库的插件文件夹也是一个 Kiro Power：Powers panel > Add Custom Power > Import power from GitHub；Kiro 的文档没有说明，Power 在仓库的子文件夹中时应该填什么地址。Kiro 命令行可以用 `npx skills add lakutata/lakutata -a kiro-cli`，把技能写入项目中的 `.kiro/skills/lakutata`（加 `-g` 则写入 `~/.kiro/skills`）。
 - **文件夹：** 项目中的 `.kiro/skills` 和用户目录中的 `~/.kiro/skills`；同名时，项目中的技能优先。Kiro 的文档没有提到 `.agents/skills`。
 - **确认：** 在 IDE 中看 Agent Steering & Skills 部分；在命令行中，`/context show` 列出会话中的技能。输入 `/lakutata` 可以主动使用这个技能。命令行在新的对话会话开始时查找技能。
-- **更新：** 它的文档没有说明。在 IDE 中重新导入技能；用 `npx skills` 安装的技能用 `npx skills update lakutata` 更新。
+- **更新：** 它的文档没有说明技能怎样更新：在 IDE 中重新导入技能即可。Power 可以在 Powers panel 中用 Check for updates 更新。用 `npx skills` 安装的技能用 `npx skills update lakutata` 更新。
 - **注意：** Kiro 命令行只在你信任工作区之后才加载其中的技能。自定义智能体默认不加载技能，除非在 `resources` 中列出，例如 `skill://.kiro/skills/*/SKILL.md`。网页版和手机版的 Kiro 没有用户目录中的技能（`~/.kiro/skills`）。
-- **官方文档：** [Skills](https://kiro.dev/docs/skills)。
+- **官方文档：** [Skills](https://kiro.dev/docs/skills)、[Install powers](https://kiro.dev/docs/powers/installation)。
 
 ## OpenCode
 

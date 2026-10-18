@@ -98,40 +98,55 @@ says. Each section also says how to ask for it explicitly.
 
 ## Codex
 
-- **Install:** `npx skills add lakutata/lakutata -a codex` writes the skill to `.agents/skills/lakutata` in the project
-  (with `-g`, to `~/.agents/skills`). Codex can also install it itself, in a session:
+- **Install:** Codex installs the plugin of this repository from its marketplace:
+
+  ```bash
+  codex plugin marketplace add lakutata/lakutata
+  codex plugin add lakutata@lakutata
+  ```
+
+  In Codex CLI, the plugin browser at `/plugins` installs it too; the skill is available from the next session. Or
+  `npx skills add lakutata/lakutata -a codex`, which writes the skill to `.agents/skills/lakutata` in the project (with
+  `-g`, to `~/.agents/skills`). Codex can also install the skill alone, in a session, into `~/.codex/skills`:
 
   ```text
   $skill-installer install https://github.com/lakutata/lakutata/tree/main/plugins/lakutata/skills/lakutata
   ```
 
-  This puts it in `~/.codex/skills`, for all your projects.
 - **Folders:** `.agents/skills` in each folder from the current one up to the root of the repository, and
   `~/.agents/skills` in your home folder. Codex follows symbolic links to skill folders.
-- **Check:** in Codex CLI or the IDE extension, `/skills`; type `$lakutata` to use the skill explicitly. In the ChatGPT
-  desktop app, open Skills in the sidebar. Codex notices new and changed skills on its own; restart it if one does not
-  appear.
-- **Update:** `npx skills update lakutata`. `$skill-installer` does not overwrite a skill: delete
-  `~/.codex/skills/lakutata` before installing it again.
-- **Note:** skills work in Codex CLI, its IDE extension and Codex in the ChatGPT desktop app. To turn the skill off
-  without deleting it, add a `[[skills.config]]` entry with its path and `enabled = false` to `~/.codex/config.toml`.
-- **Its documentation:** [Build skills](https://learn.chatgpt.com/docs/build-skills).
+- **Check:** `codex plugin list` lists the installed plugins. In Codex CLI or the IDE extension, `/skills` lists the
+  skills; type `$` and choose lakutata to use the skill explicitly. In the ChatGPT desktop app, open Skills in the
+  sidebar. Codex notices new and changed skill folders on its own; restart it if one does not appear.
+- **Update:** `codex plugin marketplace upgrade lakutata` refreshes the marketplace (the plugin carries a version that
+  changes whenever the skill does). A skill installed with `npx skills` is updated by `npx skills update lakutata`.
+  `$skill-installer` does not overwrite a skill: delete `~/.codex/skills/lakutata` before installing it again.
+- **Note:** plugins work in Codex CLI and the ChatGPT desktop app; the IDE extension does not support plugins and
+  reads the skill folders instead. To turn the skill off without deleting it, add a `[[skills.config]]` entry with its
+  path and `enabled = false` to `~/.codex/config.toml`.
+- **Its documentation:** [Build skills](https://learn.chatgpt.com/docs/build-skills),
+  [Plugins](https://learn.chatgpt.com/docs/plugins).
 
 ## Cursor
 
-- **Install:** `npx skills add lakutata/lakutata -a cursor` writes the skill to `.agents/skills/lakutata` in the
-  project (with `-g`, to `~/.cursor/skills`). Cursor imports skills from GitHub only inside a plugin, from a repository
-  that has a `.cursor-plugin/marketplace.json`, which this repository does not have.
+- **Install:** open Customize, choose From GitHub Repository and give the address of this repository,
+  `https://github.com/lakutata/lakutata`; then select Install on the lakutata plugin and choose a project or user scope.
+  In the Cursor CLI, `agent plugin marketplace add https://github.com/lakutata/lakutata`, then install the plugin from
+  `/plugin`. Or `npx skills add lakutata/lakutata -a cursor`, which writes the skill to `.agents/skills/lakutata` in
+  the project (with `-g`, to `~/.cursor/skills`).
 - **Folders:** `.cursor/skills` or `.agents/skills` in the project, `~/.cursor/skills` or `~/.agents/skills` in your
   home folder; Cursor also loads `.claude/skills` and `~/.claude/skills`.
 - **Check:** open Customize in the sidebar, then Skills. In the Agent chat, type `/` and search for lakutata to use the
   skill explicitly; in the Cursor CLI, `/skills` lists the skills. Cursor looks for skills when it starts.
-- **Update:** `npx skills update lakutata`, or copy the folder again; then restart Cursor.
+- **Update:** a team marketplace is updated with Refresh, or after each push with Enable Auto Refresh. For a
+  repository imported by one user, Cursor staff confirmed on its forum that the plugin stays on the commit it was
+  imported at, a known bug: until it is fixed, `npx skills` keeps the skill up to date with
+  `npx skills update lakutata`. A folder copied by hand is updated by copying it again; then restart Cursor.
 - **Note:** Cursor blocks the files it ignores from its Agent, and it ignores `node_modules` by default: the agent
   cannot open the guides of the installed package with its file tools. The skill then reads them with a terminal
   command, which Cursor does not block, or from this website. Cloud Agents get the skills of `~/.cursor/skills`, not
   those of `~/.agents/skills`.
-- **Its documentation:** [Agent Skills](https://cursor.com/docs/skills).
+- **Its documentation:** [Agent Skills](https://cursor.com/docs/skills), [Plugins](https://cursor.com/docs/plugins).
 
 ## Devin Desktop
 
@@ -194,7 +209,8 @@ Windsurf was renamed Devin Desktop on June 2, 2026. Devin Local, its agent, read
     copilot plugin install lakutata@lakutata
     ```
 
-    In a session: `/plugin marketplace add lakutata/lakutata`, then `/plugin install lakutata@lakutata`.
+    In a session: `/plugin marketplace add lakutata/lakutata`, then `/plugin install lakutata@lakutata`. Without the
+    marketplace: `copilot plugin install lakutata/lakutata:plugins/lakutata`.
   - VS Code: add the marketplace to the setting `chat.plugins.marketplaces`
     (`"chat.plugins.marketplaces": ["lakutata/lakutata"]`), then install lakutata from the Extensions view, searching
     for `@agentPlugins`. VS Code also shows the plugins installed with Copilot CLI.
@@ -216,9 +232,9 @@ Windsurf was renamed Devin Desktop on June 2, 2026. Devin Local, its agent, read
   explicitly, and `/skills reload` loads a new skill without a restart. In VS Code, type `/` in the chat to see the
   skills; from the plugin, the skill is `/lakutata:lakutata`. The cloud agent chooses a skill by its description.
 - **Update:** in Copilot CLI, `copilot plugin update lakutata`. VS Code checks for plugin updates with Extensions:
-  Check for Extension Updates, or every 24 hours when `extensions.autoUpdate` is on; its documentation ties an update
-  to a new `version` of the plugin, which this plugin does not set (it follows the commits), so if an update does not
-  arrive, install the plugin again. A skill installed with `npx skills` is updated by `npx skills update lakutata`.
+  Check for Extension Updates, or every 24 hours when `extensions.autoUpdate` is on. Copilot reads the Agent Plugins
+  manifest of the plugin (`plugin.json`), whose version changes whenever the skill does. A skill installed with
+  `npx skills` is updated by `npx skills update lakutata`.
 - **Note:** on the cloud agent, `node_modules` exists only when `.github/workflows/copilot-setup-steps.yml` installs
   the dependencies (`npm ci`); without it, the skill reads the guides from this website. Skills also work in Copilot
   code review, the GitHub Copilot app and the JetBrains IDEs.
@@ -234,19 +250,22 @@ Windsurf was renamed Devin Desktop on June 2, 2026. Devin Local, its agent, read
   https://github.com/lakutata/lakutata/tree/main/plugins/lakutata/skills/lakutata
   ```
 
-  Kiro copies the skill to your skills folder, and it works at once. For the Kiro CLI,
-  `npx skills add lakutata/lakutata -a kiro-cli` writes it to `.kiro/skills/lakutata` in the project (with `-g`, to
-  `~/.kiro/skills`). Kiro powers need a manifest that this repository does not have.
+  Kiro copies the skill to your skills folder, and it works at once. The plugin folder of this repository is also a
+  Kiro power: Powers panel > Add Custom Power > Import power from GitHub; the documentation of Kiro does not say which
+  address to give for a power in a subfolder of a repository. For the Kiro CLI,
+  `npx skills add lakutata/lakutata -a kiro-cli` writes the skill to `.kiro/skills/lakutata` in the project (with `-g`,
+  to `~/.kiro/skills`).
 - **Folders:** `.kiro/skills` in the project and `~/.kiro/skills` in your home folder; a skill of the project wins over
   one of the same name in your home folder. The documentation of Kiro does not name `.agents/skills`.
 - **Check:** in the IDE, the Agent Steering & Skills section; in the CLI, `/context show` lists the skills of the
   session. Type `/lakutata` to use the skill explicitly. The CLI looks for skills when a new chat session starts.
-- **Update:** its documentation does not say. Import the skill again in the IDE; a skill installed with `npx skills`
-  is updated by `npx skills update lakutata`.
+- **Update:** its documentation does not say for skills: import the skill again in the IDE. A power has Check for
+  updates in the Powers panel. A skill installed with `npx skills` is updated by `npx skills update lakutata`.
 - **Note:** the Kiro CLI loads the skills of a workspace only once you trust it. Custom agents load no skills unless
   their `resources` list them, for example `skill://.kiro/skills/*/SKILL.md`. Kiro on the web and on mobile has no
   skills of your home folder (`~/.kiro/skills`).
-- **Its documentation:** [Skills](https://kiro.dev/docs/skills).
+- **Its documentation:** [Skills](https://kiro.dev/docs/skills),
+  [Install powers](https://kiro.dev/docs/powers/installation).
 
 ## OpenCode
 
