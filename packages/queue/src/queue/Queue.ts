@@ -1058,8 +1058,10 @@ export class Queue extends Component {
                 const {type, ...kafka} = options
                 return new KafkaQueueDriver(kafka)
             }
-            default:
-                return new MemoryQueueDriver()
+            default: {
+                const {type, ...memory} = options
+                return new MemoryQueueDriver(memory)
+            }
         }
     }
 

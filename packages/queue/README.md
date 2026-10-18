@@ -116,8 +116,9 @@ Semantics:
 
 - **Memory** keeps the messages in the process: they are lost when it exits, and the instances of an application do not
   share them. A message added before its queue has any group is kept for the first group, and only for that one: a
-  dead letter queue that a second group starts consuming later gives it only new letters. A delivery abandoned when
-  the application stops does not count as an attempt.
+  dead letter queue that a second group starts consuming later gives it only new letters. Its `backlog` option caps
+  how many of them are kept (1000 for each queue by default; beyond that, the oldest are dropped). A delivery abandoned
+  when the application stops does not count as an attempt.
 - **Redis** (BullMQ): there is one BullMQ queue for each queue and group, under the key `prefix` (`lakutata` by
   default), and its jobs are removed once processed. Results are keys that expire after `results.keep`, and the
   replies to `request()` go through Redis channels. It supports delays, priorities and deduplication (while a message

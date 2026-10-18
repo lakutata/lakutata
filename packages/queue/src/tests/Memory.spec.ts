@@ -36,6 +36,29 @@ describe('The memory driver', (): void => {
         await container.destroy()
     })
 
+    it('keeps the last messages of its backlog for the first group of a queue, the ids of the others free again', async (): Promise<void> => {
+        const container: Container = new Container()
+        const queue: Queue = await container.setNamed('queue', Queue, {driver: {type: 'memory', backlog: 2}})
+        for (let n: number = 1; n <= 3; n++) await queue.add('backlog', {n: n}, {jobId: `job-${n}`, dedupe: true})
+        //The first message was dropped: its id may be sent again
+        await queue.add('backlog', {n: 4}, {jobId: 'job-1', dedupe: true})
+        const received: number[] = []
+        await queue.consume('backlog', async (input: Record<string, any>): Promise<void> => void received.push(input.n), {group: 'first'})
+        await until((): boolean => received.length === 2)
+        await sleep(20)
+        assert.deepStrictEqual(received, [3, 4])
+        //No backlog: the messages sent before the first group are dropped, as with the drivers of the servers
+        const none: Queue = await container.setNamed('none', Queue, {driver: {type: 'memory', backlog: 0}})
+        await none.add('early', {n: 1})
+        const later: number[] = []
+        await none.consume('early', async (input: Record<string, any>): Promise<void> => void later.push(input.n), {group: 'first'})
+        await none.add('early', {n: 2})
+        await until((): boolean => later.length === 1)
+        await sleep(20)
+        assert.deepStrictEqual(later, [2])
+        await container.destroy()
+    })
+
     it('processes two keys at once when ordered', async (): Promise<void> => {
         const container: Container = new Container()
         const queue: Queue = await container.setNamed('queue', Queue)

@@ -13,8 +13,8 @@ import {Expect} from '@lakutata/core/decorator/dto'
  *     id: 'memory-queue.app',
  *     name: 'MemoryQueue',
  *     components: {
- *         //The same as buildQueueOptions()
- *         queue: buildQueueOptions({driver: {type: 'memory'}})
+ *         //The same as buildQueueOptions(), but at most 100 messages kept for each queue no group consumes yet
+ *         queue: buildQueueOptions({driver: {type: 'memory', backlog: 100}})
  *     }
  * }))
  * ```
@@ -25,4 +25,13 @@ export class MemoryQueueOptions extends DTO {
      */
     @Expect(DTO.String().valid('memory').required())
     public type: 'memory'
+
+    /**
+     * The most messages kept for each queue that no group consumes yet, for its first group: when more arrive, the
+     * oldest are dropped. A dead letter queue (`<queue>.dead`) that the application does not consume keeps its last
+     * messages only. `0` keeps none, as the server-backed drivers do.
+     * @default 1000
+     */
+    @Expect(DTO.Number().integer().min(0).optional().default(1000))
+    public backlog?: number
 }

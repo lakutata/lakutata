@@ -226,9 +226,10 @@ whatever is kept right now); they reject with `QueueResultNotFoundException` whe
   name the same `group`. A group only receives messages added after it was registered: its actions register it while the
   application starts, and `consume()` and `queue.prepare(name, {group})` register it too. With the server-backed
   drivers, messages added to a queue before any group registered are not delivered; the memory driver keeps them for the
-  first group that registers, so an application on the memory driver consumes its dead letter queues (`<queue>.dead`),
-  or their messages stay in memory. Groups stay registered on the server, so their messages are kept even while none of
-  their instances is running.
+  first group that registers, up to `backlog` messages for each queue (`{type: 'memory', backlog: 1000}` by default),
+  and drops the oldest beyond that. So a dead letter queue (`<queue>.dead`) that nobody consumes keeps only its last
+  1000 messages in memory. Groups stay registered on the server, so their messages are kept even while none of their
+  instances is running.
 - **Messages.** A message is an object: the input of its action. With the default codec, a `Date` arrives as an ISO
   string (an input DTO can convert it back; in a result it stays a string), and a `bigint` is refused.
 

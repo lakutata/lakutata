@@ -8,6 +8,7 @@ import {
     type QueueReply,
     type QueueSubscription
 } from './QueueDriver.js'
+import type {MemoryQueueOptions} from '../options/MemoryQueueOptions.js'
 
 /**
  * A message kept for a group: its order of arrival, its deliveries, its timer while it is delayed
@@ -54,14 +55,14 @@ type Named = {
  * The memory driver of the queues (`{type: 'memory'}`, the default of a {@link Queue}): the messages are kept in the
  * memory of the process, delivered to the groups of the process, lost when it exits. It supports every capability
  * natively. A message sent to a queue no group consumes yet is kept for its first group (an application whose
- * components add messages before its entrypoint starts loses none); the groups consuming it later receive the messages
- * sent after them. For development, tests, desktop applications and the jobs whose loss does not matter; it needs no
- * package.
+ * components add messages before its entrypoint starts loses none), up to `backlog` messages for each queue: the
+ * oldest are dropped beyond it. The groups consuming the queue later receive the messages sent after them. For
+ * development, tests, desktop applications and the jobs whose loss does not matter; it needs no package.
  * @example
  * ```typescript
  * import {MemoryQueueDriver} from '@lakutata/queue'
  *
- * const driver = new MemoryQueueDriver()
+ * const driver = new MemoryQueueDriver({backlog: 100})
  * await driver.connect()
  * console.log(driver.capabilities.delay) //true
  * await driver.close()
@@ -90,6 +91,8 @@ export class MemoryQueueDriver extends QueueDriver {
 
     readonly #address: string = `memory:${randomUUID()}`
 
+    readonly #backlog: number
+
     #replyHandler?: (reply: QueueReply) => void
 
     #seq: number = 0
@@ -97,6 +100,14 @@ export class MemoryQueueDriver extends QueueDriver {
     #saved: number = 0
 
     #closed: boolean = false
+
+    /**
+     * @param options The most messages kept for each queue no group consumes yet (`backlog`, 1000 by default).
+     */
+    constructor(options: Omit<MemoryQueueOptions, 'type'> = {}) {
+        super()
+        this.#backlog = options.backlog ?? 1000
+    }
 
     /**
      * Nothing to connect.
@@ -107,7 +118,8 @@ export class MemoryQueueDriver extends QueueDriver {
     }
 
     /**
-     * Send a message to each group of its queue (to the first group to come when there is none).
+     * Send a message to each group of its queue (to the first group to come when there is none, the oldest message
+     * kept for it dropped beyond the backlog).
      * @param message The message.
      * @returns False when it is dropped as a duplicate.
      */
@@ -122,6 +134,7 @@ export class MemoryQueueDriver extends QueueDriver {
         this.#kept.set(id, (this.#kept.get(id) ?? 0) + copies)
         if (!groups.length) {
             named.backlog.push(this.entry(message))
+            for (const dropped of named.backlog.splice(0, Math.max(0, named.backlog.length - this.#backlog))) this.release(dropped.message)
             return true
         }
         for (const group of groups) this.schedule(group, this.entry(message), message.delay ?? 0)
@@ -280,6 +293,18 @@ export class MemoryQueueDriver extends QueueDriver {
     }
 
     /**
+     * Forget a copy of a message, acknowledged or dropped: once none is kept, its id may be sent again (deduplication)
+     * @param message The message.
+     * @protected
+     */
+    protected release(message: QueueMessage): void {
+        const id: string = `${message.name}\u0000${message.id}`
+        const kept: number = (this.#kept.get(id) ?? 1) - 1
+        if (kept > 0) this.#kept.set(id, kept)
+        else this.#kept.delete(id)
+    }
+
+    /**
      * A copy of a message for a group
      * @param message The message.
      * @protected
@@ -378,12 +403,7 @@ export class MemoryQueueDriver extends QueueDriver {
             message: entry.message,
             group: group.name,
             deliveryCount: entry.deliveries,
-            ack: async (): Promise<void> => end((): void => {
-                const id: string = `${entry.message.name}\u0000${entry.message.id}`
-                const kept: number = (this.#kept.get(id) ?? 1) - 1
-                if (kept > 0) this.#kept.set(id, kept)
-                else this.#kept.delete(id)
-            }),
+            ack: async (): Promise<void> => end((): void => this.release(entry.message)),
             retry: async (delay?: number): Promise<void> => end((): void => this.schedule(group, entry, delay ?? 0)),
             //An abandoned delivery does not count as an attempt
             abandon: async (): Promise<void> => end((): void => {
