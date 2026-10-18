@@ -55,6 +55,8 @@ Context Protocol).
 |---|---|
 | [GettingStarted](GettingStarted.md) | Requirements, creating a project, adding Lakutata to an existing project, a first application |
 | [ProjectStructure](ProjectStructure.md) | The files, scripts and features of the projects made from the templates, and templates of your own |
+| [UpgradingFrom2](UpgradingFrom2.md) | Upgrading a project from Lakutata 2.x (the package `lakutata` 2.x) |
+| [UpgradingFrom1](UpgradingFrom1.md) | Porting a project from Lakutata 1.x (`@lakutata/core` 1.x and the `@lakutata-module/*`, `@lakutata-component/*` packages) |
 | [Application](Application.md) | The application: its options, the fluent API, the lifecycle, the mode, packed applications |
 | [Objects](Objects.md) | Components, providers and their container: lifetimes, scopes, creation and teardown, a container without an application |
 | [Injection](Injection.md) | Dependency injection, the options of objects, sharing features between applications |

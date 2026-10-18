@@ -43,6 +43,8 @@
 |---|---|
 | [GettingStarted](GettingStarted.md) | 环境要求、创建项目、在已有项目中加入 Lakutata、第一个应用 |
 | [ProjectStructure](ProjectStructure.md) | 用模板创建的项目中的文件、脚本和可选功能，以及自己的模板 |
+| [UpgradingFrom2](UpgradingFrom2.md) | 把项目从 Lakutata 2.x（`lakutata` 包的 2.x 版本）升级 |
+| [UpgradingFrom1](UpgradingFrom1.md) | 把项目从 Lakutata 1.x（1.x 版本的 `@lakutata/core` 以及 `@lakutata-module/*`、`@lakutata-component/*` 包）移植过来 |
 | [Application](Application.md) | 应用：选项、链式 API、生命周期、运行模式、打包后的应用 |
 | [Objects](Objects.md) | 组件、提供者及其容器：生命周期类型、作用域、创建与销毁、不使用应用的容器 |
 | [Injection](Injection.md) | 依赖注入、对象的选项、在多个应用之间共享功能 |
