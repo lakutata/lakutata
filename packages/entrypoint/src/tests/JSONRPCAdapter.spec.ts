@@ -114,6 +114,9 @@ describe('The JSON-RPC 2.0 service adapter', (): void => {
             assert.deepStrictEqual((await post(port, {jsonrpc: '2.0', method: 'nothing', id: 2})).body, {jsonrpc: '2.0', id: 2, result: null})
             //A notification: no response
             assert.deepStrictEqual(await post(port, {jsonrpc: '2.0', method: 'echo', params: {value: 1}}), {status: 204, body: undefined})
+            //The preflights of the browsers: the headers they ask for are allowed
+            const preflight: Response = await fetch(`http://127.0.0.1:${port}/rpc`, {method: 'OPTIONS', headers: {'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization,content-type'}})
+            assert.deepStrictEqual([preflight.status, preflight.headers.get('access-control-allow-headers')], [204, 'authorization,content-type'])
         } finally {
             await container.destroy()
         }

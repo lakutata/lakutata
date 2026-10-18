@@ -200,7 +200,8 @@ pages of a web UI during its development. The Electron templates add it in devel
 - A request is a `POST` to `path`, its body the message as JSON. It is answered with 200 and the envelope, whatever the
   result of the action. A body that is not JSON is answered with 400, a body over `limit` with 413, another method or
   path with 404; these responses carry an envelope too.
-- The CORS headers allow any origin, the methods `GET`, `POST` and `OPTIONS`, and the headers `Content-Type` and `id`.
+- The CORS headers allow any origin, the methods `GET`, `POST` and `OPTIONS`, and any request header, such as
+  `Authorization`.
 - The client gives its id in the `id` header, or in the `id` query parameter (section 5).
 - `GET <path>/events` streams the events pushed to the client, as Server-Sent Events. The first event, `client`, gives
   the id of the client (a random one when the request gives none); then each event has its name, and the JSON array of
@@ -324,7 +325,7 @@ class OrderRPCController extends Controller {
   | `-32001` | The application is stopping |
 
 - Over HTTP, the requests are `POST`s to `path`, answered with 200; another method or path is answered with 404. The
-  CORS headers allow any origin.
+  CORS headers allow any origin and any request header.
 - Over WebSocket, each text frame is a message. The events pushed to the client are sent as notifications:
   `{"jsonrpc": "2.0", "method": "<event>", "params": [<arguments>]}`.
 

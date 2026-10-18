@@ -8,6 +8,7 @@ import {ServiceResponseCodec, type ServiceResponse} from '../../lib/ServiceRespo
 import {EntrypointStoppedException} from '../../exceptions/EntrypointStoppedException.js'
 import {trackConnections} from '../../lib/Connections.js'
 import {readBody} from '../../lib/ReadBody.js'
+import {preflightHeaders} from '../../lib/Preflight.js'
 
 /**
  * The options of {@link httpServiceEntrypoint}.
@@ -71,7 +72,8 @@ export function httpRequestOfContext(context: ServiceContext): IncomingMessage |
 }
 
 /**
- * The headers of the responses: the tools of the browsers may call the adapter (the development of the applications)
+ * The headers of the responses: the tools of the browsers may call the adapter (the development of the applications);
+ * a preflight is allowed the headers it asks for
  */
 const CORS_HEADERS: OutgoingHttpHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -109,7 +111,7 @@ function reply(response: ServerResponse, status: number, body: unknown): void {
  * "hi"}`). The response is always 200 with the body `{success, error, payload}` (see `ServiceResponseCodec`): `payload`
  * is the result, or `error` the whole error object when the action failed (no matching action, validation…). A body that
  * is not JSON is answered with 400 and an error body, a body over `limit` with 413; any other method or path with 404.
- * The CORS headers allow any origin.
+ * The CORS headers allow any origin, and the headers a preflight asks for (`Authorization`…).
  *
  * The events pushed to the clients (`Entrypoint.notify`, `Entrypoint.broadcast`) are streamed as Server-Sent Events by
  * `GET <path>/events`: each event's name is the SSE event, its arguments the JSON array of its data. A client gives its
@@ -239,7 +241,7 @@ export function httpServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}
         start: async (runtime: ChannelRuntime<ServiceContext>): Promise<void> => {
             server = createServer((request: IncomingMessage, response: ServerResponse): void => {
                 const url: URL = new URL(request.url ?? '/', 'http://localhost')
-                if (request.method === 'OPTIONS') return void response.writeHead(204, CORS_HEADERS).end()
+                if (request.method === 'OPTIONS') return void response.writeHead(204, preflightHeaders(request, CORS_HEADERS)).end()
                 if (request.method === 'GET' && url.pathname === eventsPath) return listen(request, response, url)
                 if (request.method === 'POST' && url.pathname === requestPath) return void invoke(runtime, request, response, url)
                 reply(response, 404, {success: false, error: {message: `POST ${requestPath} invokes the actions, GET ${eventsPath} streams their events`}, payload: null})

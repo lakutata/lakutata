@@ -9,6 +9,7 @@ import {JSONRPCErrorCode, JSONRPCProtocol, type JSONRPCDispatch, type JSONRPCMap
 import {applicationOf} from '../../lib/ApplicationOf.js'
 import {trackConnections} from '../../lib/Connections.js'
 import {readBody} from '../../lib/ReadBody.js'
+import {preflightHeaders} from '../../lib/Preflight.js'
 
 /**
  * The options of {@link jsonRPCServiceEntrypoint}: its transport, and how the requests map to the service actions (see
@@ -93,7 +94,8 @@ export type JSONRPCServiceEntrypointOptions = JSONRPCMappingOptions & {
 }
 
 /**
- * The headers of the responses of HTTP: the tools of the browsers may call the adapter
+ * The headers of the responses of HTTP: the tools of the browsers may call the adapter; a preflight is allowed the
+ * headers it asks for
  */
 const CORS_HEADERS: OutgoingHttpHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -214,11 +216,12 @@ type WebSocketLike = {
  * validation, otherwise `SERVER_ERROR` with the whole error object as its `data`.
  *
  * Over HTTP, a message is the body of a `POST` to the path, answered with 200 and the JSON response (204 when it held
- * only notifications); any other method or path is answered with 404, and the CORS headers allow any origin. Over
- * WebSocket and stdio, the events pushed by `Entrypoint.notify` and `Entrypoint.broadcast` are sent as notifications,
- * `{"jsonrpc": "2.0", "method": event, "params": args}`. The client id carried by `ServiceContext.clientId` is the `id`
- * header or `id` query parameter of the HTTP request or of the WebSocket connection (at most 200 characters; a random
- * one for a WebSocket connection without it), and `'stdio'` on stdio.
+ * only notifications); any other method or path is answered with 404. The CORS headers allow any origin, and the
+ * headers a preflight asks for (`Authorization`…). Over WebSocket and stdio, the events pushed by `Entrypoint.notify`
+ * and `Entrypoint.broadcast` are sent as notifications, `{"jsonrpc": "2.0", "method": event, "params": args}`. The
+ * client id carried by `ServiceContext.clientId` is the `id` header or `id` query parameter of the HTTP request or of
+ * the WebSocket connection (at most 200 characters; a random one for a WebSocket connection without it), and `'stdio'`
+ * on stdio.
  *
  * When an HTTP client disconnects before its response, the action's abort signal fires. When the entrypoint stops,
  * stdio stops reading, the new requests are answered with `STOPPING`, and once the requests in progress are answered
@@ -351,7 +354,7 @@ export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
             if (transport === 'http') {
                 server = createServer((request: IncomingMessage, response: ServerResponse): void => {
                     const url: URL = new URL(request.url ?? '/', 'http://localhost')
-                    if (request.method === 'OPTIONS') return void response.writeHead(204, CORS_HEADERS).end()
+                    if (request.method === 'OPTIONS') return void response.writeHead(204, preflightHeaders(request, CORS_HEADERS)).end()
                     if (request.method !== 'POST' || url.pathname !== path) {
                         return void response.writeHead(404, {...CORS_HEADERS, 'Content-Type': 'application/json'}).end(JSON.stringify({jsonrpc: '2.0', id: null, error: {code: -32600, message: `POST ${path} receives the requests of JSON-RPC 2.0`}}))
                     }

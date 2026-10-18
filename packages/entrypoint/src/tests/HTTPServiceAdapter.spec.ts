@@ -135,8 +135,10 @@ describe('HTTP service adapter', (): void => {
         const other: Response = await fetch(`${url}/other`)
         assert.strictEqual(other.status, 404)
         assert.match((await other.json() as { error: { message: string } }).error.message, /POST \/ invokes the actions, GET \/events streams their events/)
-        //The preflights of the browsers
+        //The preflights of the browsers: the headers they ask for are allowed (an Authorization header…)
         assert.strictEqual((await fetch(url, {method: 'OPTIONS'})).headers.get('access-control-allow-headers'), 'Content-Type, id')
+        const preflight: Response = await fetch(url, {method: 'OPTIONS', headers: {'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'authorization,content-type'}})
+        assert.deepStrictEqual([preflight.headers.get('access-control-allow-headers'), preflight.headers.get('vary')], ['authorization,content-type', 'Access-Control-Request-Headers'])
         await container.destroy()
     })
 
