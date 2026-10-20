@@ -135,9 +135,10 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。它的智能体 De
     ```
 
   - 也可以运行 `npx skills add lakutata/lakutata -a github-copilot`，把技能写入项目中的 `.agents/skills/lakutata`（加 `-g` 则写入 `~/.copilot/skills`）。
+  - 也可以用 GitHub 命令行运行 `gh skill install lakutata/lakutata lakutata --agent github-copilot --scope project`（见最后一节），把技能写入项目中的 `.agents/skills/lakutata`（加 `--scope user` 则写入 `~/.copilot/skills`）。
 - **文件夹：** 仓库中的 `.github/skills`、`.claude/skills` 或 `.agents/skills`；用户目录中的 `~/.copilot/skills` 或 `~/.agents/skills`（VS Code 还读取 `~/.claude/skills`）。
 - **确认：** 在 Copilot 命令行中用 `/skills list` 或 `/skills info lakutata`；在提示中输入 `/lakutata` 可以主动使用这个技能，`/skills reload` 不用重启就能加载新的技能。在 VS Code 中，在对话框中输入 `/` 查看技能；从插件安装的技能是 `/lakutata:lakutata`。云端代理根据技能的描述决定是否使用它。
-- **更新：** 在 Copilot 命令行中运行 `copilot plugin update lakutata`。VS Code 通过 Extensions: Check for Extension Updates 检查插件更新，或者在打开 `extensions.autoUpdate` 时每 24 小时检查一次。Copilot 读取插件的 Agent Plugins 清单文件（`plugin.json`），技能每次改动，其中的版本号都会随之更新。用 `npx skills` 安装的技能用 `npx skills update lakutata` 更新。
+- **更新：** 在 Copilot 命令行中运行 `copilot plugin update lakutata`。VS Code 通过 Extensions: Check for Extension Updates 检查插件更新，或者在打开 `extensions.autoUpdate` 时每 24 小时检查一次。Copilot 读取插件的 Agent Plugins 清单文件（`plugin.json`），技能每次改动，其中的版本号都会随之更新。用 `npx skills` 安装的技能用 `npx skills update lakutata` 更新，用 `gh skill` 安装的用 `gh skill update lakutata` 更新。
 - **注意：** 在云端代理上，只有 `.github/workflows/copilot-setup-steps.yml` 安装了依赖（`npm ci`）时才有 `node_modules`；否则技能会读取本网站上的指南。Copilot 代码审查、GitHub Copilot 应用和 JetBrains IDE 中也能使用技能。
 - **官方文档：** [关于代理技能](https://docs.github.com/zh/copilot/concepts/agents/about-agent-skills)、[VS Code 中的 Agent plugins](https://code.visualstudio.com/docs/agent-customization/agent-plugins)。
 
@@ -213,6 +214,16 @@ Windsurf 已于 2026 年 6 月 2 日更名为 Devin Desktop。它的智能体 De
   - 它在 `.agents/skills` 中保存一份副本，其他助手的文件夹以链接指向它。并不是每个助手的文档都说明会跟随这种链接：加上 `--copy` 可以写入真正的副本。
   - `npx skills update lakutata` 安装最新的提交，`npx skills remove lakutata` 删除这个技能。
   - 除非设置了 `DISABLE_TELEMETRY=1`，它会匿名地把安装记录报告给 skills.sh 的排行榜。
+- **gh skill：** [GitHub 命令行](https://cli.github.com/manual/gh_skill_install)（GitHub CLI）2.92 及以上版本可以为它支持的助手安装技能（`gh skill install --help` 会列出这些助手）。它的 `gh skill` 命令还处于预览阶段，使用前需要先登录（`gh auth login`）：
+
+  ```bash
+  gh skill install lakutata/lakutata lakutata
+  ```
+
+  - 它会询问要为哪些助手安装，以及装在当前项目中还是对你的所有项目生效；用 `--agent <助手>` 和 `--scope project` 或 `--scope user` 直接指定，就不会再问。无法询问时（例如在脚本中运行），它会为 GitHub Copilot 把技能装在当前项目中。
+  - 它把技能显示为 `lakutata/lakutata`（前面是插件名，后面是技能名），但写入的文件夹名是 `lakutata`。
+  - 它复制整个文件夹，并在 `SKILL.md` 的头部信息（frontmatter）中记下技能的来源，之后就能用 `gh skill update lakutata` 更新。
+  - 它从本仓库最新的 GitHub Release 安装技能；仓库没有 Release 时，从默认分支安装。
 - **手动复制：** 把 `lakutata` 文件夹（来自[这个 zip](https://lakutata.com/lakutata-skill.zip)，或本仓库中的 [skills/lakutata](skills/lakutata)）复制到你的助手的文档所写的技能文件夹中。大多数支持 Agent Skills 的助手都读取项目中的 `.agents/skills` 和用户目录中的 `~/.agents/skills`。
 - **不支持技能的助手：** 仍然把文件夹复制到项目中的 `.agents/skills/lakutata`，然后在助手读取的指令文件中（很多助手读取 `AGENTS.md`，见 [agents.md](https://agents.md)）加上一行：
 

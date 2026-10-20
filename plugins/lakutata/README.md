@@ -226,6 +226,9 @@ Windsurf was renamed Devin Desktop on June 2, 2026. Devin Local, its agent, read
 
   - Or `npx skills add lakutata/lakutata -a github-copilot`, which writes the skill to `.agents/skills/lakutata` in the
     project (with `-g`, to `~/.copilot/skills`).
+  - Or, with the GitHub CLI, `gh skill install lakutata/lakutata lakutata --agent github-copilot --scope project` (see
+    the last section), which writes the skill to `.agents/skills/lakutata` in the project (with `--scope user`, to
+    `~/.copilot/skills`).
 - **Folders:** `.github/skills`, `.claude/skills` or `.agents/skills` in the repository; `~/.copilot/skills` or
   `~/.agents/skills` in your home folder (VS Code also reads `~/.claude/skills`).
 - **Check:** in Copilot CLI, `/skills list` or `/skills info lakutata`; type `/lakutata` in a prompt to use the skill
@@ -234,7 +237,8 @@ Windsurf was renamed Devin Desktop on June 2, 2026. Devin Local, its agent, read
 - **Update:** in Copilot CLI, `copilot plugin update lakutata`. VS Code checks for plugin updates with Extensions:
   Check for Extension Updates, or every 24 hours when `extensions.autoUpdate` is on. Copilot reads the Agent Plugins
   manifest of the plugin (`plugin.json`), whose version changes whenever the skill does. A skill installed with
-  `npx skills` is updated by `npx skills update lakutata`.
+  `npx skills` is updated by `npx skills update lakutata`, and one installed with `gh skill` by
+  `gh skill update lakutata`.
 - **Note:** on the cloud agent, `node_modules` exists only when `.github/workflows/copilot-setup-steps.yml` installs
   the dependencies (`npm ci`); without it, the skill reads the guides from this website. Skills also work in Copilot
   code review, the GitHub Copilot app and the JetBrains IDEs.
@@ -365,6 +369,23 @@ The skill is one folder named `lakutata` that holds one file, `SKILL.md`; the fo
     documents that it follows such links: add `--copy` to write real copies.
   - `npx skills update lakutata` installs the latest commit, and `npx skills remove lakutata` removes the skill.
   - It reports installs anonymously to the skills.sh leaderboard unless `DISABLE_TELEMETRY=1` is set.
+- **gh skill:** the [GitHub CLI](https://cli.github.com/manual/gh_skill_install), version 2.92 or later, installs the
+  skill for the assistants it knows (`gh skill install --help` lists them). Its `gh skill` commands are in preview, and
+  you must be signed in to GitHub in the CLI (`gh auth login`):
+
+  ```bash
+  gh skill install lakutata/lakutata lakutata
+  ```
+
+  - It asks which assistants to install the skill for, and whether to install it in the current project or for all
+    your projects; `--agent <assistant>` and `--scope project` or `--scope user` skip the questions. When it cannot
+    ask (in a script, for example), it installs the skill for GitHub Copilot in the current project.
+  - It shows the skill as `lakutata/lakutata` (the name of the plugin, then the name of the skill), but the folder it
+    writes is named `lakutata`.
+  - It copies the folder and records where the skill came from in the frontmatter of `SKILL.md`, so
+    `gh skill update lakutata` can update it later.
+  - It installs the skill from the latest GitHub release of this repository, or from the default branch when the
+    repository has no release.
 - **By hand:** copy the `lakutata` folder (from [the zip](https://lakutata.com/lakutata-skill.zip), or
   [skills/lakutata](skills/lakutata) in this repository) into the skills folder the documentation of your assistant
   names. Most assistants that load Agent Skills read `.agents/skills` in the project and `~/.agents/skills` in your
