@@ -1,7 +1,6 @@
 {
   "name": "lakutata-monorepo",
   "private": true,
-  "version": "2.0.126",
   "type": "module",
   "workspaces": [
     "packages/*"
