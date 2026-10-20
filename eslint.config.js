@@ -106,6 +106,22 @@ export default defineConfig([
         }
     },
     {
+        //The browser entry of the WebRTC package, and the code it shares with the main entry: the APIs of the browsers
+        //only, nothing of Node.js or of the framework, so a frontend bundling it gets no server code
+        files: ['packages/webrtc/src/client/**/*.ts', 'packages/webrtc/src/shared/**/*.ts', 'packages/webrtc/src/protocol/**/*.ts'],
+        languageOptions: {
+            globals: globals.browser
+        },
+        rules: {
+            'no-restricted-imports': ['error', {
+                patterns: [
+                    {regex: '^node:', message: 'The browser entry may not use the modules of Node.js'},
+                    {regex: '^@lakutata/', message: 'The browser entry may not use the framework'}
+                ]
+            }]
+        }
+    },
+    {
         //The test suites of the validation engine are ported from joi as they are
         files: ['packages/core/src/tests/engine/**/*.ts'],
         rules: {

@@ -1,0 +1,218 @@
+import {
+    type Extensions,
+    RTP_EXTENSION_URI,
+    ReceiverEstimatedMaxBitrate,
+    type RtcpPacket,
+    RtcpPayloadSpecificFeedback,
+    RtcpRrPacket,
+    RtcpSourceDescriptionPacket,
+    RtcpSrPacket,
+    RtcpTransportLayerFeedback,
+    type RtpPacket,
+    debug,
+    rtpHeaderExtensionsParser
+} from '../imports/rtp.js'
+import {deliveredTrackCodec} from './codecCompatibility.js'
+import type {
+    RTCRtpReceiveParameters,
+    RTCRtpSimulcastParameters
+} from './parameters.js'
+import {RTCRtpReceiver} from './rtpReceiver.js'
+import type {RTCRtpSender} from './rtpSender.js'
+import type {RTCRtpTransceiver} from './rtpTransceiver.js'
+import {MediaStreamTrack} from './track.js'
+
+const log = debug('webrtc/peer/media/router')
+
+export class RtpRouter {
+    ssrcTable: {[ssrc: number]: RTCRtpReceiver | RTCRtpSender} = {}
+    ridTable: {[rid: string]: RTCRtpReceiver | RTCRtpSender} = {}
+    extIdUriMap: {[id: number]: string} = {}
+
+    constructor() {}
+
+    registerRtpSender(sender: RTCRtpSender) {
+        this.ssrcTable[sender.ssrc] = sender
+    }
+
+    private registerRtpReceiver(receiver: RTCRtpReceiver, ssrc: number) {
+        log('registerRtpReceiver', ssrc)
+        this.ssrcTable[ssrc] = receiver
+    }
+
+    registerRtpReceiverBySsrc(
+        transceiver: RTCRtpTransceiver,
+        params: RTCRtpReceiveParameters
+    ) {
+        log('registerRtpReceiverBySsrc', params)
+
+        params.encodings
+            .filter((e) => e.ssrc != undefined) // todo fix
+            .forEach((encode, i) => {
+                this.registerRtpReceiver(transceiver.receiver, encode.ssrc)
+                transceiver.addTrack(
+                    new MediaStreamTrack({
+                        ssrc: encode.ssrc,
+                        kind: transceiver.kind,
+                        id: transceiver.sender.trackId,
+                        remote: true,
+                        codec: deliveredTrackCodec(
+                            transceiver.kind,
+                            params.codecs[i],
+                            params.codecs
+                        )
+                    })
+                )
+                if (encode.rtx) {
+                    this.registerRtpReceiver(transceiver.receiver, encode.rtx.ssrc)
+                }
+            })
+
+        params.headerExtensions.forEach((extension) => {
+            this.extIdUriMap[extension.id] = extension.uri
+        })
+    }
+
+    registerRtpReceiverByRid(
+        transceiver: RTCRtpTransceiver,
+        param: RTCRtpSimulcastParameters,
+        params: RTCRtpReceiveParameters
+    ) {
+    // サイマルキャスト利用時のRTXをサポートしていないのでcodecs/encodingsは常に一つ
+        const [codec] = params.codecs
+
+        log('registerRtpReceiverByRid', param)
+        transceiver.addTrack(
+            new MediaStreamTrack({
+                rid: param.rid,
+                kind: transceiver.kind,
+                id: transceiver.sender.trackId,
+                remote: true,
+                codec
+            })
+        )
+        this.ridTable[param.rid] = transceiver.receiver
+    }
+
+    /**停止した transceiver の SSRC / RID 登録を解除する */
+    unregisterTransceiver(transceiver: RTCRtpTransceiver) {
+        const owners: (RTCRtpReceiver | RTCRtpSender)[] = [
+            transceiver.sender,
+            transceiver.receiver
+        ]
+        for (const [ssrc, owner] of Object.entries(this.ssrcTable)) {
+            if (owners.includes(owner)) {
+                delete this.ssrcTable[Number(ssrc)]
+            }
+        }
+        for (const [rid, owner] of Object.entries(this.ridTable)) {
+            if (owners.includes(owner)) {
+                delete this.ridTable[rid]
+            }
+        }
+    }
+
+    routeRtp = (packet: RtpPacket) => {
+        const extensions: Extensions = rtpHeaderExtensionsParser(
+            packet.header.extensions,
+            this.extIdUriMap
+        )
+
+        let rtpReceiver: RTCRtpReceiver | undefined = this.ssrcTable[
+            packet.header.ssrc
+        ] as RTCRtpReceiver
+
+        const rid = extensions[RTP_EXTENSION_URI.sdesRTPStreamID]
+        if (typeof rid === 'string') {
+            rtpReceiver = this.ridTable[rid] as RTCRtpReceiver | undefined
+            if (rtpReceiver) {
+                rtpReceiver.latestRid = rid
+                rtpReceiver.handleRtpByRid(packet, rid, extensions)
+            }
+        } else if (rtpReceiver) {
+            rtpReceiver.handleRtpBySsrc(packet, extensions)
+        } else {
+            // simulcast after send receiver report
+            rtpReceiver = Object.values(this.ridTable)
+                .filter((r): r is RTCRtpReceiver => r instanceof RTCRtpReceiver)
+                .find((r) => r.trackBySSRC[packet.header.ssrc])
+            if (rtpReceiver) {
+                log('simulcast register receiver by ssrc', packet.header.ssrc)
+                this.registerRtpReceiver(rtpReceiver, packet.header.ssrc)
+                rtpReceiver.handleRtpBySsrc(packet, extensions)
+            } else {
+                // bug
+            }
+        }
+
+        if (!rtpReceiver) {
+            log('ssrcReceiver not found')
+            return
+        }
+
+        const sdesMid = extensions[RTP_EXTENSION_URI.sdesMid]
+        if (typeof sdesMid === 'string') {
+            rtpReceiver.sdesMid = sdesMid
+        }
+
+        const repairedRid = extensions[
+            RTP_EXTENSION_URI.repairedRtpStreamId
+        ] as string
+        if (typeof repairedRid === 'string') {
+            rtpReceiver.latestRepairedRid = repairedRid
+        }
+    }
+
+    routeRtcp = (packet: RtcpPacket) => {
+        const recipients: (RTCRtpReceiver | RTCRtpSender)[] = []
+
+        switch (packet.type) {
+            case RtcpSrPacket.type:
+                {
+                    packet = packet as RtcpSrPacket
+                    recipients.push(this.ssrcTable[packet.ssrc])
+                }
+                break
+            case RtcpRrPacket.type:
+                {
+                    packet = packet as RtcpRrPacket
+                    packet.reports.forEach((report) => {
+                        recipients.push(this.ssrcTable[report.ssrc])
+                    })
+                }
+                break
+            case RtcpSourceDescriptionPacket.type:
+                //Source descriptions are not used
+                break
+            case RtcpTransportLayerFeedback.type:
+                {
+                    const rtpfb = packet as RtcpTransportLayerFeedback
+                    if (rtpfb.feedback) {
+                        recipients.push(this.ssrcTable[rtpfb.feedback.mediaSourceSsrc])
+                    }
+                }
+                break
+            case RtcpPayloadSpecificFeedback.type:
+                {
+                    const psfb = packet as RtcpPayloadSpecificFeedback
+                    switch (psfb.feedback.count) {
+                        case ReceiverEstimatedMaxBitrate.count:
+                            {
+                                const remb = psfb.feedback as ReceiverEstimatedMaxBitrate
+                                recipients.push(this.ssrcTable[remb.ssrcFeedbacks[0]])
+                            }
+                            break
+                        default:
+                            recipients.push(
+                                this.ssrcTable[psfb.feedback.senderSsrc] ||
+                  this.ssrcTable[psfb.feedback.mediaSsrc]
+                            )
+                    }
+                }
+                break
+        }
+        recipients
+            .filter((v) => v) // todo simulcast
+            .forEach((recipient) => recipient.handleRtcpPacket(packet))
+    }
+}

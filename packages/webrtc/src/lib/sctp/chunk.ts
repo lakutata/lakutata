@@ -1,0 +1,628 @@
+// ID Value    Chunk Type
+// -----       ----------
+// 0          - Payload Data (DATA)
+// 1          - Initiation (INIT)
+// 2          - Initiation Acknowledgement (INIT ACK)
+// 3          - Selective Acknowledgement (SACK)
+// 4          - Heartbeat Request (HEARTBEAT)
+// 5          - Heartbeat Acknowledgement (HEARTBEAT ACK)
+// 6          - Abort (ABORT)
+// 7          - Shutdown (SHUTDOWN)
+// 8          - Shutdown Acknowledgement (SHUTDOWN ACK)
+// 9          - Operation Error (ERROR)
+// 10         - State Cookie (COOKIE ECHO)
+// 11         - Cookie Acknowledgement (COOKIE ACK)
+// 12         - Reserved for Explicit Congestion Notification Echo
+//              (ECNE)
+// 13         - Reserved for Congestion Window Reduced (CWR)
+// 14         - Shutdown Complete (SHUTDOWN COMPLETE)
+// 15 to 62   - available
+// 63         - reserved for IETF-defined Chunk Extensions
+// 64 to 126  - available
+// 127        - reserved for IETF-defined Chunk Extensions
+// 128 to 190 - available
+// 191        - reserved for IETF-defined Chunk Extensions
+// 192 to 254 - available
+// 255        - reserved for IETF-defined Chunk Extensions
+
+import {crc32c} from './imports/common.js'
+
+export const SCTP_PADDING_MULTIPLE = 4
+export const SCTP_COMMON_HEADER_SIZE = 12
+export const SCTP_CHUNK_HEADER_SIZE = 4
+export const SCTP_DATA_FIXED_HEADER_SIZE = 12
+export const SCTP_DATA_CHUNK_HEADER_SIZE =
+    SCTP_CHUNK_HEADER_SIZE + SCTP_DATA_FIXED_HEADER_SIZE
+
+export class Chunk {
+    public get body(): Buffer | undefined {
+        return this._body
+    }
+    public set body(value: Buffer | undefined) {
+        this._body = value
+    }
+    static type = -1
+
+    constructor(
+        public flags = 0,
+        private _body: Buffer | undefined = Buffer.from('')
+    ) {}
+
+    get type() {
+        return Chunk.type
+    }
+
+    get bytes() {
+        if (!this.body) throw new Error()
+
+        const header = Buffer.alloc(SCTP_CHUNK_HEADER_SIZE)
+        header.writeUInt8(this.type, 0)
+        header.writeUInt8(this.flags, 1)
+        header.writeUInt16BE(this.body.length + SCTP_CHUNK_HEADER_SIZE, 2)
+
+        const data = Buffer.concat([
+            header,
+            this.body,
+            ...[...Array(padL(this.body.length))].map(() => Buffer.from('\x00'))
+        ])
+        return data
+    }
+}
+
+export class BaseInitChunk extends Chunk {
+    initiateTag: number
+    advertisedRwnd: number
+    outboundStreams: number
+    inboundStreams: number
+    initialTsn: number
+    params: [number, Buffer][]
+
+    constructor(
+        public flags = 0,
+        body?: Buffer
+    ) {
+        super(flags, body)
+
+        if (body) {
+            this.initiateTag = body.readUInt32BE(0)
+            this.advertisedRwnd = body.readUInt32BE(4)
+            this.outboundStreams = body.readUInt16BE(8)
+            this.inboundStreams = body.readUInt16BE(10)
+            this.initialTsn = body.readUInt32BE(12)
+            this.params = decodeParams(body.slice(16))
+        } else {
+            this.initiateTag = 0
+            this.advertisedRwnd = 0
+            this.outboundStreams = 0
+            this.inboundStreams = 0
+            this.initialTsn = 0
+            this.params = []
+        }
+    }
+
+    get body() {
+        const body = Buffer.alloc(16)
+        body.writeUInt32BE(this.initiateTag, 0)
+        body.writeUInt32BE(this.advertisedRwnd, 4)
+        body.writeUInt16BE(this.outboundStreams, 8)
+        body.writeUInt16BE(this.inboundStreams, 10)
+        body.writeUInt32BE(this.initialTsn, 12)
+        return Buffer.concat([body, encodeParams(this.params)])
+    }
+}
+
+export class InitChunk extends BaseInitChunk {
+    static type = 1 as const
+
+    get type() {
+        return InitChunk.type
+    }
+}
+
+export class InitAckChunk extends BaseInitChunk {
+    static type = 2 as const
+
+    get type() {
+        return InitAckChunk.type
+    }
+}
+
+export class ReConfigChunk extends BaseInitChunk {
+    static type = 130 as const
+
+    get type() {
+        return ReConfigChunk.type
+    }
+}
+
+export class ForwardTsnChunk extends Chunk {
+    static type = 192 as const
+    streams: [number, number][] = []
+    cumulativeTsn: number
+
+    constructor(
+        public flags = 0,
+        body: Buffer | undefined
+    ) {
+        super(flags, body)
+
+        if (body) {
+            this.cumulativeTsn = body.readUInt32BE(0)
+            let pos = 4
+            while (pos < body.length) {
+                this.streams.push([body.readUInt16BE(pos), body.readUInt16BE(pos + 2)])
+                pos += 4
+            }
+        } else {
+            this.cumulativeTsn = 0
+        }
+    }
+
+    get type() {
+        return ForwardTsnChunk.type
+    }
+
+    set body(_: Buffer) {}
+
+    get body() {
+        const body = Buffer.alloc(4)
+        body.writeUInt32BE(this.cumulativeTsn, 0)
+        return Buffer.concat([
+            body,
+            ...this.streams.map(([id, seq]) => {
+                const streamBuffer = Buffer.alloc(4)
+                streamBuffer.writeUInt16BE(id, 0)
+                streamBuffer.writeUInt16BE(seq, 2)
+                return streamBuffer
+            })
+        ])
+    }
+}
+
+export class DataChunk extends Chunk {
+    static type = 0 as const
+    get type() {
+        return DataChunk.type
+    }
+    tsn: number = 0
+    streamId: number = 0
+    streamSeqNum: number = 0
+    protocol: number = 0
+    userData: Buffer = Buffer.from('')
+    abandoned: boolean = false
+    acked: boolean = false
+    misses: number = 0
+    retransmit: boolean = false
+    sentCount: number = 0
+    bookSize: number = 0
+    expiry?: number
+    maxRetransmits?: number
+    sentTime?: number
+
+    constructor(
+        public flags = 0,
+        body: Buffer | undefined
+    ) {
+        super(flags, body)
+        if (body) {
+            this.tsn = body.readUInt32BE(0)
+            this.streamId = body.readUInt16BE(4)
+            this.streamSeqNum = body.readUInt16BE(6)
+            this.protocol = body.readUInt32BE(8)
+            this.userData = body.slice(12)
+        }
+    }
+
+    get bytes() {
+        const length = SCTP_DATA_CHUNK_HEADER_SIZE + this.userData.length
+        const header = Buffer.alloc(SCTP_DATA_CHUNK_HEADER_SIZE)
+        header.writeUInt8(this.type, 0)
+        header.writeUInt8(this.flags, 1)
+        header.writeUInt16BE(length, 2)
+        header.writeUInt32BE(this.tsn, 4)
+        header.writeUInt16BE(this.streamId, 8)
+        header.writeUInt16BE(this.streamSeqNum, 10)
+        header.writeUInt32BE(this.protocol, 12)
+
+        let data = Buffer.concat([header, this.userData])
+        if (length % 4) {
+            data = Buffer.concat([
+                data,
+                ...[...Array(padL(length))].map(() => Buffer.from('\x00'))
+            ])
+        }
+        return data
+    }
+}
+
+export class CookieEchoChunk extends Chunk {
+    static type = 10 as const
+
+    get type() {
+        return CookieEchoChunk.type
+    }
+}
+
+export class CookieAckChunk extends Chunk {
+    static type = 11 as const
+
+    get type() {
+        return CookieAckChunk.type
+    }
+}
+
+export class BaseParamsChunk extends Chunk {
+    params: [number, Buffer][] = []
+    constructor(
+        public flags = 0,
+        body: Buffer | undefined = undefined
+    ) {
+        super(flags, body)
+        if (body) {
+            this.params = decodeParams(body)
+        }
+    }
+
+    get body() {
+        return encodeParams(this.params)
+    }
+}
+
+export class AbortChunk extends BaseParamsChunk {
+    static type = 6 as const
+
+    get type() {
+        return AbortChunk.type
+    }
+}
+
+export class ErrorChunk extends BaseParamsChunk {
+    static type = 9 as const
+    static readonly CODE = {
+        InvalidStreamIdentifier: 1,
+        MissingMandatoryParameter: 2,
+        StaleCookieError: 3,
+        OutofResource: 4,
+        UnresolvableAddress: 5,
+        UnrecognizedChunkType: 6,
+        InvalidMandatoryParameter: 7,
+        UnrecognizedParameters: 8,
+        NoUserData: 9,
+        CookieReceivedWhileShuttingDown: 10,
+        RestartofanAssociationwithNewAddresses: 11,
+        UserInitiatedAbort: 12,
+        ProtocolViolation: 13
+    } as const
+
+    get type() {
+        return ErrorChunk.type
+    }
+
+    get descriptions() {
+        return this.params.map(([code, body]) => {
+            const name = (Object.entries(ErrorChunk.CODE).find(
+                ([, num]) => num === code
+            ) || [])[0]
+            return {name, body}
+        })
+    }
+}
+
+export class HeartbeatChunk extends BaseParamsChunk {
+    static type = 4 as const
+
+    get type() {
+        return HeartbeatChunk.type
+    }
+}
+
+export class HeartbeatAckChunk extends BaseParamsChunk {
+    static type = 5 as const
+
+    get type() {
+        return HeartbeatAckChunk.type
+    }
+}
+
+// https://tools.ietf.org/html/rfc6525#section-3.1
+// chunkReconfig represents an SCTP Chunk used to reconfigure streams.
+//
+//  0                   1                   2                   3
+//  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// | Type = 130    |  Chunk Flags  |      Chunk Length             |
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// \                                                               \
+// /                  Re-configuration Parameter                   /
+// \                                                               \
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// \                                                               \
+// /             Re-configuration Parameter (optional)             /
+// \                                                               \
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+export class ReconfigChunk extends BaseParamsChunk {
+    static type = 130 as const
+
+    get type() {
+        return ReconfigChunk.type
+    }
+}
+
+export class SackChunk extends Chunk {
+    static type = 3
+    get type() {
+        return SackChunk.type
+    }
+
+    gaps: [number, number][] = []
+    duplicates: number[] = []
+    cumulativeTsn = 0
+    advertisedRwnd = 0
+
+    constructor(
+        public flags = 0,
+        body: Buffer | undefined
+    ) {
+        super(flags, body)
+
+        if (body) {
+            this.cumulativeTsn = body.readUInt32BE(0)
+            this.advertisedRwnd = body.readUInt32BE(4)
+            const nbGaps = body.readUInt16BE(8)
+            const nbDuplicates = body.readUInt16BE(10)
+
+            let pos = 12;
+
+            [...Array(nbGaps)].forEach(() => {
+                this.gaps.push([body.readUInt16BE(pos), body.readUInt16BE(pos + 2)])
+                pos += 4
+            });
+
+            [...Array(nbDuplicates)].forEach(() => {
+                this.duplicates.push(body.readUInt32BE(pos))
+                pos += 4
+            })
+        }
+    }
+
+    get bytes() {
+        const length = 16 + 4 * (this.gaps.length + this.duplicates.length)
+        const header = Buffer.alloc(16)
+        header.writeUInt8(this.type, 0)
+        header.writeUInt8(this.flags, 1)
+        header.writeUInt16BE(length, 2)
+        header.writeUInt32BE(this.cumulativeTsn, 4)
+        header.writeUInt32BE(this.advertisedRwnd, 8)
+        header.writeUInt16BE(this.gaps.length, 12)
+        header.writeUInt16BE(this.duplicates.length, 14)
+
+        let data = Buffer.concat([
+            header,
+            ...this.gaps.map((gap) => {
+                const gapBuffer = Buffer.alloc(4)
+                gapBuffer.writeUInt16BE(gap[0], 0)
+                gapBuffer.writeUInt16BE(gap[1], 2)
+                return gapBuffer
+            })
+        ])
+        data = Buffer.concat([
+            data,
+            ...this.duplicates.map((tsn) => {
+                const tsnBuffer = Buffer.alloc(4)
+                tsnBuffer.writeUInt32BE(tsn, 0)
+                return tsnBuffer
+            })
+        ])
+        return data
+    }
+}
+
+export class ShutdownChunk extends Chunk {
+    static type = 7
+    get type() {
+        return ShutdownChunk.type
+    }
+
+    cumulativeTsn = 0
+
+    constructor(
+        public flags = 0,
+        body: Buffer | undefined
+    ) {
+        super(flags, body)
+
+        if (body) {
+            this.cumulativeTsn = body.readUInt32BE(0)
+        }
+    }
+
+    get body() {
+        const body = Buffer.alloc(4)
+        body.writeUInt32BE(this.cumulativeTsn, 0)
+        return body
+    }
+}
+
+export class ShutdownAckChunk extends Chunk {
+    static type = 8
+    get type() {
+        return ShutdownAckChunk.type
+    }
+}
+
+export class ShutdownCompleteChunk extends Chunk {
+    static type = 14
+    get type() {
+        return ShutdownCompleteChunk.type
+    }
+}
+
+const CHUNK_CLASSES: (typeof Chunk)[] = [
+    DataChunk,
+    InitChunk,
+    InitAckChunk,
+    SackChunk,
+    HeartbeatChunk,
+    HeartbeatAckChunk,
+    AbortChunk,
+    ShutdownChunk,
+    ShutdownAckChunk,
+    ErrorChunk,
+    CookieEchoChunk,
+    CookieAckChunk,
+    ShutdownCompleteChunk,
+    ReconfigChunk,
+    ForwardTsnChunk
+]
+
+export const CHUNK_BY_TYPE = CHUNK_CLASSES.reduce(
+    (acc: {[key: string]: typeof Chunk}, cur) => {
+        acc[cur.type] = cur
+        return acc
+    },
+    {}
+)
+
+function padL(l: number) {
+    const m = l % SCTP_PADDING_MULTIPLE
+    return m ? SCTP_PADDING_MULTIPLE - m : 0
+}
+
+function encodeParams(params: [number, Buffer][]) {
+    let body = Buffer.from('')
+    let padding = Buffer.from('')
+    params.forEach(([type, value]) => {
+        const length = value.length + 4
+        const paramHeader = Buffer.alloc(4)
+        paramHeader.writeUInt16BE(type, 0)
+        paramHeader.writeUInt16BE(length, 2)
+        body = Buffer.concat([body, padding, paramHeader, value])
+        padding = Buffer.concat(
+            [...Array(padL(length))].map(() => Buffer.from('\x00'))
+        )
+    })
+    return body
+}
+
+export function decodeParams(body: Buffer): [number, Buffer][] {
+    const params: [number, Buffer][] = []
+    let pos = 0
+    while (pos <= body.length - 4) {
+        const type = body.readUInt16BE(pos)
+        const length = body.readUInt16BE(pos + 2)
+        params.push([type, body.slice(pos + 4, pos + length)])
+        pos += length + padL(length)
+    }
+    return params
+}
+
+export function parsePacket(data: Buffer): [number, number, number, Chunk[]] {
+    if (data.length < SCTP_COMMON_HEADER_SIZE)
+        throw new Error('SCTP packet length is less than 12 bytes')
+
+    const sourcePort = data.readUInt16BE(0)
+    const destinationPort = data.readUInt16BE(2)
+    const verificationTag = data.readUInt32BE(4)
+
+    const checkSum = data.readUInt32LE(8)
+
+    //The checksum covers the packet with its own field as zeros: computed in three parts instead of on a copy
+    let expect = crc32c(data.subarray(0, 8))
+    expect = crc32c(ZERO_CHECKSUM, expect)
+    expect = crc32c(data.subarray(SCTP_COMMON_HEADER_SIZE), expect)
+
+    if (checkSum !== expect >>> 0) throw new Error('SCTP packet has invalid checksum')
+
+    const chunks: Chunk[] = []
+    let pos = SCTP_COMMON_HEADER_SIZE
+    while (pos + 4 <= data.length) {
+        const chunkType = data.readUInt8(pos)
+        const chunkFlags = data.readUInt8(pos + 1)
+        const chunkLength = data.readUInt16BE(pos + 2)
+        const chunkBody = data.slice(pos + 4, pos + chunkLength)
+        const ChunkClass = CHUNK_BY_TYPE[chunkType.toString()]
+        if (ChunkClass) {
+            chunks.push(new ChunkClass(chunkFlags, chunkBody))
+        } else {
+            throw new Error('unknown')
+        }
+        pos += chunkLength + padL(chunkLength)
+    }
+    return [sourcePort, destinationPort, verificationTag, chunks]
+}
+
+const ZERO_CHECKSUM = Buffer.alloc(4)
+
+//The length of a chunk on the wire, its padding included
+function wireLength(chunk: Chunk, bytes: Buffer | undefined): number {
+    if (chunk instanceof DataChunk) {
+        const length = SCTP_DATA_CHUNK_HEADER_SIZE + chunk.userData.length
+        return length + padL(length)
+    }
+    return bytes!.length
+}
+
+/**
+ * One SCTP packet with several chunks (bundling, RFC 9260 section 6.10): the control chunks go first. The packet is
+ * written in one buffer, DATA chunks without an intermediate copy
+ */
+export function serializePackets(
+    sourcePort: number,
+    destinationPort: number,
+    verificationTag: number,
+    chunks: Chunk[]
+): Buffer {
+    const serialized = chunks.map((chunk) =>
+        chunk instanceof DataChunk ? undefined : chunk.bytes
+    )
+    let total = SCTP_COMMON_HEADER_SIZE
+    for (let i = 0; i < chunks.length; i++) {
+        total += wireLength(chunks[i], serialized[i])
+    }
+    const packet = Buffer.allocUnsafe(total)
+    packet.writeUInt16BE(sourcePort, 0)
+    packet.writeUInt16BE(destinationPort, 2)
+    packet.writeUInt32BE(verificationTag, 4)
+    packet.writeUInt32LE(0, 8)
+    let offset = SCTP_COMMON_HEADER_SIZE
+    for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i]
+        const bytes = serialized[i]
+        if (bytes) {
+            bytes.copy(packet, offset)
+            offset += bytes.length
+            continue
+        }
+        const data = chunk as DataChunk
+        const length = SCTP_DATA_CHUNK_HEADER_SIZE + data.userData.length
+        packet.writeUInt8(data.type, offset)
+        packet.writeUInt8(data.flags, offset + 1)
+        packet.writeUInt16BE(length, offset + 2)
+        packet.writeUInt32BE(data.tsn, offset + 4)
+        packet.writeUInt16BE(data.streamId, offset + 8)
+        packet.writeUInt16BE(data.streamSeqNum, offset + 10)
+        packet.writeUInt32BE(data.protocol, offset + 12)
+        data.userData.copy(packet, offset + SCTP_DATA_CHUNK_HEADER_SIZE)
+        const padding = padL(length)
+        if (padding) packet.fill(0, offset + length, offset + length + padding)
+        offset += length + padding
+    }
+    packet.writeUInt32LE(crc32c(packet) >>> 0, 8)
+    return packet
+}
+
+/**
+ * The length of a chunk in a packet, padding included
+ */
+export function chunkWireLength(chunk: Chunk): number {
+    return wireLength(chunk, chunk instanceof DataChunk ? undefined : chunk.bytes)
+}
+
+export function serializePacket(
+    sourcePort: number,
+    destinationPort: number,
+    verificationTag: number,
+    chunk: Chunk
+) {
+    return serializePackets(sourcePort, destinationPort, verificationTag, [chunk])
+}

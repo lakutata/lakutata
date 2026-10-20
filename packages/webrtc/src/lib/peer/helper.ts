@@ -1,0 +1,87 @@
+import {EventEmitter} from 'node:events'
+import {debug} from './imports/common.js'
+
+const log = debug('webrtc/peer/helper')
+
+export function enumerate<T>(arr: T[]): [number, T][] {
+    return arr.map((v, i) => [i, v])
+}
+
+export function divide(from: string, split: string): [string, string] {
+    const arr = from.split(split)
+    return [arr[0], arr.slice(1).join(split)]
+}
+
+export class PromiseQueue {
+    queue: {promise: () => Promise<any>, done: () => void}[] = []
+    running = false
+
+    push = (promise: () => Promise<any>) =>
+        new Promise<void>((r) => {
+            this.queue.push({promise, done: r})
+            if (!this.running) void this.run()
+        })
+
+    private async run() {
+        const task = this.queue.shift()
+        if (task) {
+            this.running = true
+            //A failed task is logged and the queue goes on: its caller is released as for a task done
+            try {
+                await task.promise()
+            } catch (error) {
+                log('task failed', error)
+            }
+            task.done()
+
+            void this.run()
+        } else {
+            this.running = false
+        }
+    }
+}
+
+export class EventTarget extends EventEmitter {
+    override emit(type: string | symbol, ...args: any[]) {
+        if (typeof type !== 'string') {
+            return super.emit(type, ...args)
+        }
+
+        if (args.length === 0) {
+            return super.emit(type, new Event(type))
+        }
+
+        const [event, ...rest] = args
+        if (event && typeof event === 'object' && !('type' in event)) {
+            try {
+                Object.defineProperty(event, 'type', {
+                    configurable: true,
+                    enumerable: true,
+                    value: type
+                })
+            } catch {
+                return super.emit(type, {type, ...event}, ...rest)
+            }
+        }
+
+        return super.emit(type, event, ...rest)
+    }
+
+    addEventListener = (
+        type: string,
+        listener: (...args: any[]) => void,
+        options?: boolean | {once?: boolean}
+    ) => {
+        if (typeof options === 'object' && options?.once) {
+            this.once(type, listener)
+            return
+        }
+        this.addListener(type, listener)
+    }
+
+    removeEventListener = (type: string, listener: (...args: any[]) => void) => {
+        this.removeListener(type, listener)
+    }
+
+    dispatchEvent = (event: Event) => this.emit(event.type, event)
+}

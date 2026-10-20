@@ -92,6 +92,13 @@ await check('CJS @lakutata/queue loads', () => {
     if (typeof queue.Queue !== 'function' || typeof queue.queueEntrypoint !== 'function') throw new Error('Queue missing')
 })
 
+// @lakutata/webrtc — the signaling, the TURN server and the peer connections; the browser entry without the framework
+await check('CJS @lakutata/webrtc loads', () => {
+    const webrtc = requireCJS('../packages/webrtc/dist/cjs/exports/WebRTC.js')
+    if (typeof webrtc.Signaling !== 'function' || typeof webrtc.PeerConnection !== 'function' || typeof webrtc.TURNServer !== 'function') throw new Error('WebRTC missing')
+    if (typeof requireCJS('../packages/webrtc/dist/cjs/exports/Client.js').SignalingConnection !== 'function') throw new Error('SignalingConnection missing')
+})
+
 // @lakutata/grpc — the gRPC over HTTP/2 of containerd, BuildKit and the service actions
 await check('CJS @lakutata/grpc loads', () => {
     if (typeof requireCJS('../packages/grpc/dist/cjs/exports/GRPC.js').GRPCServer !== 'function') throw new Error('GRPCServer missing')

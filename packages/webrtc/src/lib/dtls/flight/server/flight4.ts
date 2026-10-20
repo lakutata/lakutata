@@ -1,0 +1,130 @@
+import {CurveType, certificateTypes, signatures} from '../../cipher/const.js'
+import type {CipherContext} from '../../context/cipher.js'
+import type {DtlsContext} from '../../context/dtls.js'
+import type {SrtpContext} from '../../context/srtp.js'
+import type {TransportContext} from '../../context/transport.js'
+import {ExtendedMasterSecret} from '../../handshake/extensions/extendedMasterSecret.js'
+import {RenegotiationIndication} from '../../handshake/extensions/renegotiationIndication.js'
+import {UseSRTP} from '../../handshake/extensions/useSrtp.js'
+import {Certificate} from '../../handshake/message/certificate.js'
+import {ServerCertificateRequest} from '../../handshake/message/server/certificateRequest.js'
+import {ServerHello} from '../../handshake/message/server/hello.js'
+import {ServerHelloDone} from '../../handshake/message/server/helloDone.js'
+import {ServerKeyExchange} from '../../handshake/message/server/keyExchange.js'
+import {debug} from '../../imports/common.js'
+import type {FragmentedHandshake} from '../../record/message/fragment.js'
+import type {Extension} from '../../typings/domain.js'
+import {Flight} from '../flight.js'
+
+const log = debug('webrtc/dtls/flight/server/flight4:log')
+
+export class Flight4 extends Flight {
+    constructor(
+        udp: TransportContext,
+        dtls: DtlsContext,
+        private cipher: CipherContext,
+        private srtp: SrtpContext
+    ) {
+        super(udp, dtls, 4, 6)
+    }
+
+    async exec(
+        clientHello: FragmentedHandshake,
+        certificateRequest: boolean = false
+    ) {
+        if (this.dtls.flight === 4) {
+            log(this.dtls.sessionId, 'flight4 twice')
+            this.send(this.dtls.lastMessage).catch((error) => log('send failed', error))
+            return
+        }
+        this.dtls.flight = 4
+        this.dtls.sequenceNumber = 1
+        this.dtls.bufferHandshakeCache([clientHello], false, 4)
+
+        const messages = [
+            this.sendServerHello(),
+            this.sendCertificate(),
+            this.sendServerKeyExchange(),
+            certificateRequest && this.sendCertificateRequest(),
+            this.sendServerHelloDone()
+        ].filter((v) => v) as Buffer[]
+
+        this.dtls.lastMessage = messages
+        await this.transmit(messages)
+    }
+
+    private sendServerHello() {
+    // todo fix; should use socket.extensions
+        const extensions: Extension[] = []
+        if (this.srtp.srtpProfile) {
+            extensions.push(
+                UseSRTP.create([this.srtp.srtpProfile], Buffer.from([0x00])).extension
+            )
+        }
+        if (this.dtls.options.extendedMasterSecret) {
+            extensions.push({
+                type: ExtendedMasterSecret.type,
+                data: Buffer.alloc(0)
+            })
+        }
+        const renegotiationIndication = RenegotiationIndication.createEmpty()
+        extensions.push(renegotiationIndication.extension)
+
+        const serverHello = new ServerHello(
+            this.dtls.version,
+            this.cipher.localRandom,
+            Buffer.from([0x00]),
+            this.cipher.cipherSuite,
+            0, // do not compression
+            extensions
+        )
+        const packets = this.createPacket([serverHello])
+        return Buffer.concat(packets.map((v) => v.serialize()))
+    }
+
+    // 7.4.2 Server Certificate
+    private sendCertificate() {
+        const certificate = new Certificate([Buffer.from(this.cipher.localCert)])
+
+        const packets = this.createPacket([certificate])
+        return Buffer.concat(packets.map((v) => v.serialize()))
+    }
+
+    private sendServerKeyExchange() {
+        const signature = this.cipher.generateKeySignature('sha256')
+        if (!this.cipher.signatureHashAlgorithm) throw new Error('not exist')
+
+        const keyExchange = new ServerKeyExchange(
+            CurveType.named_curve_3,
+            this.cipher.namedCurve,
+            this.cipher.localKeyPair.publicKey.length,
+            this.cipher.localKeyPair.publicKey,
+            this.cipher.signatureHashAlgorithm.hash,
+            this.cipher.signatureHashAlgorithm.signature,
+            signature.length,
+            signature
+        )
+
+        const packets = this.createPacket([keyExchange])
+        return Buffer.concat(packets.map((v) => v.serialize()))
+    }
+
+    // 7.4.4.  Certificate Request
+    private sendCertificateRequest() {
+        const handshake = new ServerCertificateRequest(
+            certificateTypes,
+            signatures,
+            []
+        )
+        log(this.dtls.sessionId, 'sendCertificateRequest', handshake)
+        const packets = this.createPacket([handshake])
+        return Buffer.concat(packets.map((v) => v.serialize()))
+    }
+
+    private sendServerHelloDone() {
+        const handshake = new ServerHelloDone()
+
+        const packets = this.createPacket([handshake])
+        return Buffer.concat(packets.map((v) => v.serialize()))
+    }
+}

@@ -1,0 +1,94 @@
+{
+  "name": "@lakutata/webrtc",
+  "version": "3.1.0",
+  "description": "WebRTC for the lakutata framework, in TypeScript without native code: the signaling, a STUN/TURN server, peer connections and data channels in Node.js, Electron and Bun, and a browser client.",
+  "keywords": [
+    "lakutata",
+    "webrtc",
+    "datachannel",
+    "signaling",
+    "turn",
+    "stun",
+    "ice",
+    "sctp",
+    "dtls",
+    "srtp",
+    "peer-to-peer",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/webrtc",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/webrtc"
+  },
+  "author": "alex.ma",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/cjs/exports/WebRTC.js",
+  "types": "./dist/cjs/exports/WebRTC.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/exports/WebRTC.d.ts",
+        "default": "./dist/esm/exports/WebRTC.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/WebRTC.d.ts",
+        "default": "./dist/cjs/exports/WebRTC.js"
+      }
+    },
+    "./client": {
+      "import": {
+        "types": "./dist/types/exports/Client.d.ts",
+        "default": "./dist/esm/exports/Client.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Client.d.ts",
+        "default": "./dist/cjs/exports/Client.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs-pkg": "node ../../scripts/package-build/cjs-package.mjs",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
+    "rebuild": "npm run clean && npm run build:js",
+    "compile": "npm run rebuild",
+    "test:unit": "npm run compile && node --test --test-timeout=60000 \"dist/esm/tests/**/*.spec.js\""
+  },
+  "engines": {
+    "node": "^22.13.0 || >=24.11.0"
+  },
+  "files": [
+    "dist",
+    "!dist/*/tests",
+    "*.md",
+    "LICENSE",
+    "package.json",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "peerDependencies": {
+    "@lakutata/core": "3.1.0",
+    "@lakutata/entrypoint": "3.1.0",
+    "socket.io-client": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@lakutata/core": {
+      "optional": true
+    },
+    "@lakutata/entrypoint": {
+      "optional": true
+    },
+    "socket.io-client": {
+      "optional": true
+    }
+  }
+}

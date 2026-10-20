@@ -1,0 +1,984 @@
+import {networkTests} from '../../support/requirements.js'
+import {describe, it, test, expect} from '../../support/vitest.js'
+import {setTimeout} from 'node:timers/promises'
+
+import {type Address, Event} from '../../../../lib/common/index.js'
+import {
+    CandidatePair,
+    CandidatePairState,
+    sortCandidatePairs
+} from '../../../../lib/ice/index.js'
+import {Candidate, candidatePriority} from '../../../../lib/ice/candidate.js'
+import {Connection} from '../../../../lib/ice/ice.js'
+import {classes, methods} from '../../../../lib/ice/stun/const.js'
+import {Message} from '../../../../lib/ice/stun/message.js'
+import type {Protocol} from '../../../../lib/ice/types/model.js'
+import {getHostAddresses} from '../../../../lib/ice/utils.js'
+import {
+    assertCandidateTypes,
+    createLocalStunServer,
+    createTcpOnlyConnections,
+    createTestConnection,
+    exchangeTcpOnlyCandidates,
+    getSelectedTcpSocket,
+    inviteAccept
+} from '../utils.js'
+
+class ProtocolMock implements Protocol {
+    type = 'mock'
+    responseAddr?: Address
+    responseMessage?: string
+    onRequestReceived: Event<[Message, Address, Buffer]> = new Event()
+    onDataReceived: Event<[Buffer]> = new Event()
+    localCandidate = new Candidate(
+        'some-foundation',
+        1,
+        'udp',
+        1234,
+        '1.2.3.4',
+        1234,
+        'host'
+    )
+    sentMessage?: Message
+    request = async () => {
+        return null as any
+    }
+    sendStun = async (message: Message) => {
+        this.sentMessage = message
+    }
+    async connectionMade() {}
+    async sendData() {}
+    async close() {}
+}
+
+const testWithIpv6Host = getHostAddresses(false, true, {
+    useLinkLocalAddress: true
+}).length
+    ? test
+    : test.skip
+const localStunHost = getHostAddresses(true, false)[0]
+const testWithLocalStun = localStunHost ? test : test.skip
+const googleStunServer: Address = ['stun.l.google.com', 19302]
+
+async function assertConnectWithStunServer(stunServer: Address) {
+    const a = createTestConnection(true, {stunServer})
+    const b = createTestConnection(false, {stunServer})
+
+    try {
+        await inviteAccept(a, b)
+
+        assertCandidateTypes(a, ['host', 'srflx'])
+        assertCandidateTypes(b, ['host', 'srflx'])
+
+        const candidateA = a.getDefaultCandidate()!
+        expect(candidateA).not.toBeUndefined()
+        expect(candidateA.type).toBe('srflx')
+        expect(candidateA.relatedAddress).not.toBeUndefined()
+        expect(candidateA.relatedPort).not.toBeUndefined()
+
+        const candidateB = b.getDefaultCandidate()!
+        expect(candidateB.type).toBe('srflx')
+        expect(candidateB.relatedAddress).not.toBeUndefined()
+        expect(candidateB.relatedPort).not.toBeUndefined()
+
+        await Promise.all([a.connect(), b.connect()])
+
+        await a.send(Buffer.from('howdee'))
+        let [data] = await b.onData.asPromise()
+        expect(data.toString()).toBe('howdee')
+
+        await b.send(Buffer.from('gotcha'));
+        [data] = await a.onData.asPromise()
+        expect(data.toString()).toBe('gotcha')
+    } finally {
+        await a.close()
+        await b.close()
+    }
+}
+
+describe('ice', () => {
+    test('test_peer_reflexive', async () => {
+        const connection = createTestConnection(true)
+        connection.remotePassword = 'remote-password'
+        connection.remoteUsername = 'remote-username'
+        const protocol = new ProtocolMock() as any
+
+        const request = new Message(methods.BINDING, classes.REQUEST)
+        request.setAttribute('PRIORITY', 456789)
+        request.setAttribute('USERNAME', `a:b`)
+
+        connection.checkIncoming(request, ['2.3.4.5', 2345], protocol)
+        expect(protocol.sentMessage).not.toBeNull()
+
+        // # check we have discovered a peer-reflexive candidate
+        expect(connection.remoteCandidates.length).toBe(1)
+        const candidate = connection.remoteCandidates[0]
+        expect(candidate.component).toBe(1)
+        expect(candidate.transport).toBe('udp')
+        expect(candidate.priority).toBe(456789)
+        expect(candidate.host).toBe('2.3.4.5')
+        expect(candidate.type).toBe('prflx')
+        expect(candidate.generation).toBe(undefined)
+
+        // # check a new pair was formed
+        expect(connection.checkList.length).toBe(1)
+        const pair = connection.checkList[0]
+        expect(pair.protocol).toBe(protocol)
+        expect(pair.remoteCandidate).toBe(candidate)
+
+        // # check a triggered check was scheduled
+        expect(pair.handle).not.toBeNull()
+        protocol.responseAddr = ['2.3.4.5', 2345]
+        protocol.responseMessage = 'bad'
+        await pair.handle?.awaitable
+    })
+
+    test('test_response_with_invalid_address', async () => {
+        const connection = createTestConnection(true)
+        connection.remotePassword = 'remote-password'
+        connection.remoteUsername = 'remote-username'
+
+        const protocol: any = new ProtocolMock()
+        protocol.responseAddr = ['3.4.5.6', 3456]
+        protocol.responseMessage = 'bad'
+
+        const pair = new CandidatePair(
+            protocol,
+            new Candidate('some-foundation', 1, 'udp', 2345, '2.3.4.5', 2345, 'host'),
+            true
+        )
+
+        await connection.checkStart(pair).awaitable
+        expect(pair.state).toBe(CandidatePairState.FAILED)
+    })
+
+    test('test_response_with_mismatched_port_fails', async () => {
+        // Arrange: host は一致するが port が異なる応答
+        const connection = createTestConnection(true)
+        connection.remotePassword = 'remote-password'
+        connection.remoteUsername = 'remote-username'
+
+        const protocol: any = new ProtocolMock()
+        protocol.responseAddr = ['2.3.4.5', 9999]
+        protocol.responseMessage = 'bad'
+
+        const pair = new CandidatePair(
+            protocol,
+            new Candidate('some-foundation', 1, 'udp', 2345, '2.3.4.5', 2345, 'host'),
+            true
+        )
+
+        // Act: connectivity check を実行する
+        await connection.checkStart(pair).awaitable
+
+        // Assert: port 不一致は一致と判定しないこと
+        expect(pair.state).toBe(CandidatePairState.FAILED)
+    })
+
+    test('test_same_protocol_and_candidate_instance_does_not_duplicate_pair', () => {
+        // Arrange
+        const connection = createTestConnection(true)
+        connection.remotePassword = 'remote-password'
+        connection.remoteUsername = 'remote-username'
+        const protocol = new ProtocolMock() as any
+        const request = new Message(methods.BINDING, classes.REQUEST)
+        request.setAttribute('PRIORITY', 456789)
+        request.setAttribute('USERNAME', `a:b`)
+
+        // Act: 同一 Protocol / 同一 remote candidate 経路で2回受信する
+        connection.checkIncoming(request, ['2.3.4.5', 2345], protocol)
+        connection.checkIncoming(request, ['2.3.4.5', 2345], protocol)
+
+        // Assert: candidate pair は重複作成されないこと
+        expect(connection.checkList.length).toBe(1)
+        expect(connection.remoteCandidates.length).toBe(1)
+    })
+
+    test('test_ice_lite_replies_role_conflict_without_switching_role', async () => {
+        const connection = createTestConnection(false, {iceLite: true})
+        connection.remotePassword = 'remote-password'
+        connection.remoteUsername = 'remote-username'
+        Object.defineProperty(
+            connection as unknown as Record<string, unknown>,
+            'tieBreaker',
+            {
+                value: 1n
+            }
+        )
+
+        const protocol = new ProtocolMock();
+        (connection as any).ensureProtocol(protocol)
+
+        const request = new Message(methods.BINDING, classes.REQUEST)
+        request
+            .setAttribute('USERNAME', 'a:b')
+            .setAttribute('PRIORITY', 1234)
+            .setAttribute('ICE-CONTROLLED', 2n)
+
+        protocol.onRequestReceived.execute(
+            request,
+            ['2.3.4.5', 2345],
+            Buffer.alloc(0)
+        )
+
+        expect(connection.iceControlling).toBe(false)
+        expect(protocol.sentMessage?.messageClass).toBe(classes.ERROR)
+        expect(protocol.sentMessage?.getAttributeValue('ERROR-CODE')).toEqual([
+            487,
+            'Role Conflict'
+        ])
+    })
+
+    test('test_connect', async () => {
+        const a = createTestConnection(true)
+        const b = createTestConnection(false)
+
+        await inviteAccept(a, b)
+
+        assertCandidateTypes(a, ['host'])
+        assertCandidateTypes(b, ['host'])
+
+        const candidate = a.getDefaultCandidate()
+        expect(candidate).not.toBeUndefined()
+        expect(candidate?.type).toBe('host')
+
+        await Promise.all([a.connect(), b.connect()])
+
+        // # send data a -> b
+        await a.send(Buffer.from('howdee'))
+        let [data] = await b.onData.asPromise()
+        expect(data.toString()).toBe('howdee')
+
+        // # send data b -> a
+        await b.send(Buffer.from('gotcha'));
+        [data] = await a.onData.asPromise()
+        expect(data.toString()).toBe('gotcha')
+
+        await a.close()
+        await b.close()
+    })
+
+    test('test_connect_tcp', async () => {
+        const {a, b} = createTcpOnlyConnections()
+
+        try {
+            // Arrange: offer/answer 交換では TCP candidate だけを相手へ見せる。
+            await exchangeTcpOnlyCandidates(a, b)
+
+            const tcpCandidatesA = a.localCandidates.filter(
+                (candidate) => candidate.transport === 'tcp'
+            )
+            const tcpCandidatesB = b.localCandidates.filter(
+                (candidate) => candidate.transport === 'tcp'
+            )
+
+            // Assert: gather 時点で IPv4 アドレスごとの active / passive TCP host candidate が作られる。
+            expect(tcpCandidatesA.map((candidate) => candidate.tcptype)).toContain(
+                'active'
+            )
+            expect(tcpCandidatesA.map((candidate) => candidate.tcptype)).toContain(
+                'passive'
+            )
+            expect(tcpCandidatesB.map((candidate) => candidate.tcptype)).toContain(
+                'active'
+            )
+            expect(tcpCandidatesB.map((candidate) => candidate.tcptype)).toContain(
+                'passive'
+            )
+            expect(
+                tcpCandidatesA.every(
+                    (candidate) =>
+                        candidate.type === 'host' &&
+            (candidate.tcptype === 'active'
+                ? candidate.port === 9
+                : candidate.tcptype === 'passive' && candidate.port > 0)
+                )
+            ).toBe(true)
+            expect(
+                tcpCandidatesB.every(
+                    (candidate) =>
+                        candidate.type === 'host' &&
+            (candidate.tcptype === 'active'
+                ? candidate.port === 9
+                : candidate.tcptype === 'passive' && candidate.port > 0)
+                )
+            ).toBe(true)
+
+            // Act: TCP candidate だけで connectivity check と nomination を完了させる。
+            await Promise.all([
+                a.addRemoteCandidate(undefined),
+                b.addRemoteCandidate(undefined)
+            ])
+            await Promise.all([a.connect(), b.connect()])
+
+            // Assert: controlling 側は active/passive の TCP pair を選ぶ。
+            // TCP は regular nomination で優先度最上位の pair (a active -> b passive host)
+            // だけを nominate するため、active になることは決定的。
+            expect(a.nominated?.localCandidate.transport).toBe('tcp')
+            expect(a.nominated?.localCandidate.tcptype).toBe('active')
+            expect(a.nominated?.remoteCandidate.transport).toBe('tcp')
+            expect(a.nominated?.remoteCandidate.tcptype).toBe('passive')
+            expect(a.nominated?.protocol.type).toBe('tcp')
+
+            // Assert: controlled 側も TCP pair を選び、incoming check から peer-reflexive candidate を学習している。
+            expect(b.nominated?.localCandidate.transport).toBe('tcp')
+            expect(b.nominated?.remoteCandidate.transport).toBe('tcp')
+            expect(b.nominated?.protocol.type).toBe('tcp')
+            expect(
+                b.remoteCandidates.some(
+                    (candidate) =>
+                        candidate.transport === 'tcp' &&
+            candidate.type === 'prflx' &&
+            candidate.tcptype === 'active'
+                )
+            ).toBe(true)
+
+            // Assert: 両端が同じ TCP 接続を選んでいる (a の active dial を b は passive で受けている)。
+            expect(b.nominated?.localCandidate.tcptype).toBe('passive')
+            expect(b.nominated?.remoteCandidate.type).toBe('prflx')
+            expect(b.nominated?.remoteCandidate.tcptype).toBe('active')
+            const socketA = getSelectedTcpSocket(a)
+            const socketB = getSelectedTcpSocket(b)
+            expect(socketA?.localPort).toBe(socketB?.remotePort)
+            expect(socketA?.remotePort).toBe(socketB?.localPort)
+
+            // Act: nomination 済み TCP pair 上で双方向に application data を流す。
+            await a.send(Buffer.from('howdee over tcp'))
+            const [data] = await b.onData.asPromise()
+            await b.send(Buffer.from('gotcha over tcp'))
+            const [echo] = await a.onData.asPromise()
+            await setTimeout(50)
+
+            // Assert: RFC 4571 framing の内側でデータが欠損なく到達する。
+            expect(data.toString()).toBe('howdee over tcp')
+            expect(echo.toString()).toBe('gotcha over tcp')
+
+            const tcpProtocolsA = (
+                (a as any).protocols as Array<{
+                    localCandidate?: Candidate
+                    activeSocketCount?: number
+                }>
+            ).filter((protocol) => protocol.localCandidate?.transport === 'tcp')
+            const tcpProtocolsB = (
+                (b as any).protocols as Array<{
+                    localCandidate?: Candidate
+                    activeSocketCount?: number
+                }>
+            ).filter((protocol) => protocol.localCandidate?.transport === 'tcp')
+
+            // Assert: selected pair に対応する TCP connection が維持されている。
+            expect(
+                tcpProtocolsA.reduce(
+                    (count, protocol) => count + (protocol.activeSocketCount ?? 0),
+                    0
+                )
+            ).toBeGreaterThan(0)
+            expect(
+                tcpProtocolsB.reduce(
+                    (count, protocol) => count + (protocol.activeSocketCount ?? 0),
+                    0
+                )
+            ).toBeGreaterThan(0)
+        } finally {
+            await a.close()
+            await b.close()
+        }
+    })
+
+    // test("test_connect_two_components", async () => {
+    //   const a = new Connection(true, { components: 2 });
+    //   const b = new Connection(false, { components: 2 });
+
+    //   // # invite / accept
+    //   await inviteAccept(a, b);
+
+    //   // # we should only have host candidates
+    //   assertCandidateTypes(a, ["host"]);
+    //   assertCandidateTypes(b, ["host"]);
+
+    //   // # there should be a default candidate for component 1
+    //   let candidate = a.getDefaultCandidate(1);
+    //   expect(candidate).not.toBeUndefined();
+    //   expect(candidate?.type).toBe("host");
+
+    //   // # there should be a default candidate for component 2
+    //   candidate = a.getDefaultCandidate(2);
+    //   expect(candidate).not.toBeUndefined();
+    //   expect(candidate?.type).toBe("host");
+
+    //   // # connect
+    //   await Promise.all([a.connect(), b.connect()]);
+    //   expect(a._components).toEqual(new Set([1, 2]));
+    //   expect(b._components).toEqual(new Set([1, 2]));
+
+    //   // # send data a -> b (component 1)
+    //   await a.sendTo(Buffer.from("howdee"), 1);
+    //   let [data, component] = await b.onData.asPromise();
+    //   expect(data).toEqual(Buffer.from("howdee"));
+    //   expect(component).toBe(1);
+
+    //   // # send data b -> a (component 1)
+    //   await b.sendTo(Buffer.from("gotcha"), 1);
+    //   [data, component] = await a.onData.asPromise();
+    //   expect(data).toEqual(Buffer.from("gotcha"));
+    //   expect(component).toBe(1);
+
+    //   // # send data a -> b (component 2)
+    //   await a.sendTo(Buffer.from("howdee 2"), 2);
+    //   [data, component] = await b.onData.asPromise();
+    //   expect(data.toString()).toEqual(Buffer.from("howdee 2").toString());
+    //   expect(component).toBe(2);
+
+    //   // # send data b -> a (component 2)
+    //   await b.sendTo(Buffer.from("gotcha 2"), 2);
+    //   [data, component] = await a.onData.asPromise();
+    //   expect(data.toString()).toEqual(Buffer.from("gotcha 2").toString());
+    //   expect(component).toBe(2);
+
+    //   await a.close();
+    //   await b.close();
+    // });
+
+    // test("test_connect_two_components_vs_one_component", async () => {
+    //   // """
+    //   // It is possible that some of the local candidates won't get paired with
+    //   // remote candidates, and some of the remote candidates won't get paired
+    //   // with local candidates.  This can happen if one agent doesn't include
+    //   // candidates for the all of the components for a media stream.  If this
+    //   // happens, the number of components for that media stream is effectively
+    //   // reduced, and considered to be equal to the minimum across both agents
+    //   // of the maximum component ID provided by each agent across all
+    //   // components for the media stream.
+    //   // """
+
+    //   const a = new Connection(true, { components: 2 });
+    //   const b = new Connection(false, { components: 1 });
+
+    //   // # invite / accept
+    //   await inviteAccept(a, b);
+    //   expect(a.localCandidates.length > 0).toBeTruthy();
+    //   assertCandidateTypes(a, ["host"]);
+
+    //   // # connect
+    //   await Promise.all([a.connect(), b.connect()]);
+    //   expect(a._components).toEqual(new Set([1]));
+    //   expect(b._components).toEqual(new Set([1]));
+
+    //   // # send data a -> b (component 1)
+    //   await a.sendTo(Buffer.from("howdee"), 1);
+    //   let [data, component] = await b.onData.asPromise();
+    //   expect(data).toEqual(Buffer.from("howdee"));
+    //   expect(component).toBe(1);
+
+    //   // # send data b -> a (component 1)
+    //   await b.sendTo(Buffer.from("gotcha"), 1);
+    //   [data, component] = await a.onData.asPromise();
+    //   expect(data).toEqual(Buffer.from("gotcha"));
+    //   expect(component).toBe(1);
+
+    //   // # close
+    //   await a.close();
+    //   await b.close();
+    // });
+
+    testWithIpv6Host('test_connect_ipv6', async () => {
+        const a = new Connection(true, {
+            useIpv4: false,
+            useIpv6: true,
+            useLinkLocalAddress: true
+        })
+        const b = new Connection(false, {
+            useIpv4: false,
+            useIpv6: true,
+            useLinkLocalAddress: true
+        })
+
+        // # invite / accept
+        await inviteAccept(a, b)
+        assertCandidateTypes(a, ['host'])
+
+        // # connect
+        await Promise.all([a.connect(), b.connect()])
+
+        // # send data a -> b
+        await a.send(Buffer.from('howdee'))
+        let [data] = await b.onData.asPromise()
+        expect(data.toString()).toBe('howdee')
+
+        // # send data b -> a
+        await b.send(Buffer.from('gotcha'));
+        [data] = await a.onData.asPromise()
+        expect(data.toString()).toBe('gotcha')
+
+        await a.close()
+        await b.close()
+    })
+
+    test('test_connect_reverse_order', async () => {
+        const a = createTestConnection(true)
+        const b = createTestConnection(false)
+
+        // # invite / accept
+        await inviteAccept(a, b)
+
+        // # introduce a delay so that B's checks complete before A's
+        await Promise.all([
+            setTimeout(1000).then(() => a.connect()),
+            b.connect()
+        ])
+
+        // # send data a -> b
+        await a.send(Buffer.from('howdee'))
+        let [data] = await b.onData.asPromise()
+        expect(data.toString()).toBe('howdee')
+
+        // # send data b -> a
+        await b.send(Buffer.from('gotcha'));
+        [data] = await a.onData.asPromise()
+        expect(data.toString()).toBe('gotcha')
+
+        await a.close()
+        await b.close()
+    })
+
+    test('test_connect_invalid_password', async () =>
+        new Promise<void>((done, fail) => {
+            (async () => {
+                const a = createTestConnection(true)
+                const b = createTestConnection(false)
+
+                await a.gatherCandidates()
+                b.remoteCandidates = a.localCandidates
+                b.remoteUsername = a.localUsername
+                b.remotePassword = a.remotePassword
+
+                await b.gatherCandidates()
+                a.remoteCandidates = b.localCandidates
+                a.remoteUsername = b.localUsername
+                a.remotePassword = 'wrong-password'
+
+                try {
+                    await Promise.all([a.connect(), b.connect()])
+                } catch (error: any) {
+                    expect(error.message).toBe('Remote username or password is missing')
+                    await a.close()
+                    await b.close()
+                    done()
+                }
+            })().catch(fail)
+        }))
+
+    test('test_connect_invalid_username', async () =>
+        new Promise<void>((done, fail) => {
+            (async () => {
+                const a = createTestConnection(true)
+                const b = createTestConnection(false)
+
+                await a.gatherCandidates()
+                b.remoteCandidates = a.localCandidates
+                b.remoteUsername = a.localUsername
+                b.remotePassword = a.remotePassword
+
+                await b.gatherCandidates()
+                a.remoteCandidates = b.localCandidates
+                a.remoteUsername = 'wrong-username'
+                a.remotePassword = b.localPassword
+
+                try {
+                    await Promise.all([a.connect(), b.connect()])
+                } catch (error: any) {
+                    expect(error.message).toBe('Remote username or password is missing')
+                    await a.close()
+                    await b.close()
+                    done()
+                }
+            })().catch(fail)
+        }))
+
+    test('test_connect_no_gather', async () =>
+        new Promise<void>((done, fail) => {
+            (async () => {
+                // """
+                // If local candidates gathering was not performed, connect fails.
+                // """
+
+                const conn = createTestConnection(true)
+                conn.remoteCandidates = [
+                    Candidate.fromSdp(
+                        '6815297761 1 udp 659136 1.2.3.4 31102 typ host generation 0'
+                    )
+                ]
+                conn.remoteUsername = 'foo'
+                conn.remotePassword = 'bar'
+                try {
+                    await conn.connect()
+                } catch (error: any) {
+                    expect(error.message).toBe(
+                        'Local candidates gathering was not performed'
+                    )
+                    await conn.close()
+                    done()
+                }
+            })().catch(fail)
+        }))
+
+    test('test_connect_no_local_candidates', async () =>
+        new Promise<void>((done, fail) => {
+            (async () => {
+                const conn = createTestConnection(true)
+
+                conn.localCandidatesEnd = true
+                conn.remoteCandidates = [
+                    Candidate.fromSdp(
+                        '6815297761 1 udp 659136 1.2.3.4 31102 typ host generation 0'
+                    )
+                ]
+                conn.remoteUsername = 'foo'
+                conn.remotePassword = 'bar'
+                try {
+                    await conn.connect()
+                } catch (error: any) {
+                    expect(error.message).toBe('ICE negotiation failed')
+                    await conn.close()
+                    done()
+                }
+            })().catch(fail)
+        }))
+
+    test('test_connect_no_remote_candidates', async () =>
+        new Promise<void>((done, fail) => {
+            (async () => {
+                const conn = createTestConnection(true)
+
+                await conn.gatherCandidates()
+                conn.remoteCandidates = []
+                conn.remoteUsername = 'foo'
+                conn.remotePassword = 'bar'
+                try {
+                    await conn.connect()
+                } catch (error: any) {
+                    expect(error.message).toBe('ICE negotiation failed')
+                    await conn.close()
+                    done()
+                }
+            })().catch(fail)
+        }))
+
+    test('test_connect_no_remote_credentials', async () =>
+        new Promise<void>((done, fail) => {
+            (async () => {
+                const conn = createTestConnection(true)
+
+                await conn.gatherCandidates()
+                conn.remoteCandidates = [
+                    Candidate.fromSdp(
+                        '6815297761 1 udp 659136 1.2.3.4 31102 typ host generation 0'
+                    )
+                ]
+                try {
+                    await conn.connect()
+                } catch (error: any) {
+                    expect(error.message).toBe('Remote username or password is missing')
+                    await conn.close()
+                    done()
+                }
+            })().catch(fail)
+        }))
+
+    test(
+        'test_connect_role_conflict_both_controlling',
+        async () => {
+            const a = createTestConnection(true)
+            const b = createTestConnection(true)
+
+            //@ts-expect-error a private and read-only field
+            a.tieBreaker = BigInt(1)
+            //@ts-expect-error a private and read-only field
+            b.tieBreaker = BigInt(2)
+
+            await inviteAccept(a, b)
+
+            try {
+                await Promise.all([a.connect(), b.connect()])
+            } catch {
+                //The roles are checked below, whatever the outcome of the connection
+            }
+            expect(a.iceControlling).toBe(false)
+            expect(b.iceControlling).toBe(true)
+
+            await a.close()
+            await b.close()
+        },
+        1000 * 60 * 60
+    )
+
+    test('ICE restart 後は offer/answer に合わせて controlling を再割当できる', async () => {
+        // Arrange: initial offerer が controlling
+        const a = createTestConnection(true)
+        expect(a.iceControlling).toBe(true)
+
+        // Act: 1 回目の generation を進め nominated を模す
+        await a.restart()
+        expect(a.generation).toBeGreaterThan(0)
+        // restart 直後は nominated が無いので answerer 側ロールへ変更できる
+        a.iceControlling = false
+
+        // Assert
+        expect(a.iceControlling).toBe(false);
+
+        // Act: selected pair がある間は通常の setter ではロールを変えない
+        (a as any).nominated = {id: 'pair-1'}
+        a.iceControlling = true
+        expect(a.iceControlling).toBe(false);
+
+        // Act: role conflict 修復は nominated 中でも強制的に切替可能
+        (a as any).switchRole(true)
+        expect(a.iceControlling).toBe(true)
+
+        await a.close()
+    })
+
+    test(
+        'test_connect_role_conflict_both_controlled',
+        async () => {
+            const a = createTestConnection(false)
+            const b = createTestConnection(false)
+
+            //@ts-expect-error a private and read-only field
+            a.tieBreaker = BigInt(1)
+            //@ts-expect-error a private and read-only field
+            b.tieBreaker = BigInt(2)
+
+            await inviteAccept(a, b)
+
+            await Promise.all([a.connect(), b.connect()])
+            expect(a.iceControlling).toBe(false)
+            expect(b.iceControlling).toBe(true)
+
+            await a.close()
+            await b.close()
+        },
+        1000 * 60 * 60
+    )
+
+    test('test_connect_with_stun_server', {...networkTests, timeout: 60 * 1000}, async () => {
+        await assertConnectWithStunServer(googleStunServer)
+    })
+
+    testWithLocalStun('test_connect_with_local_stun_server', async () => {
+        const server = await createLocalStunServer(localStunHost!)
+
+        try {
+            await assertConnectWithStunServer(server.address!)
+        } finally {
+            await server.close()
+        }
+    })
+
+    test(
+        'test_connect_with_stun_server_dns_lookup_error',
+        async () => {
+            const a = new Connection(true, {
+                stunServer: ['invalid', 19302]
+            })
+            const b = createTestConnection(false)
+
+            // # invite / accept
+            await inviteAccept(a, b)
+
+            assertCandidateTypes(a, ['host'])
+            assertCandidateTypes(b, ['host'])
+
+            // # connect
+            await Promise.all([a.connect(), b.connect()])
+
+            // # send data a -> b
+            await a.send(Buffer.from('howdee'))
+            let [data] = await b.onData.asPromise()
+            expect(data.toString()).toBe('howdee')
+
+            // # send data b -> a
+            await b.send(Buffer.from('gotcha'));
+            [data] = await a.onData.asPromise()
+            expect(data.toString()).toBe('gotcha')
+
+            await a.close()
+            await b.close()
+        },
+        1000 * 60
+    )
+
+    testWithIpv6Host(
+        'test_connect_with_stun_server_ipv6',
+        async () => {
+            const a = new Connection(true, {
+                stunServer: undefined,
+                useIpv4: false,
+                useIpv6: true,
+                useLinkLocalAddress: true
+            })
+            const b = new Connection(false, {
+                stunServer: undefined,
+                useIpv4: false,
+                useIpv6: true,
+                useLinkLocalAddress: true
+            })
+
+            // # invite / accept
+            await inviteAccept(a, b)
+
+            // # we would have both host and server-reflexive candidates
+            expect(a.localCandidates.length > 0).toBeTruthy()
+            a.localCandidates.forEach((v) => expect(v.type).toBe('host'))
+
+            // # connect
+            await Promise.all([a.connect(), b.connect()])
+
+            // # send data a -> b
+            await a.send(Buffer.from('howdee'))
+            let [data] = await b.onData.asPromise()
+            expect(data.toString()).toBe('howdee')
+
+            // # send data b -> a
+            await b.send(Buffer.from('gotcha'));
+            [data] = await a.onData.asPromise()
+            expect(data.toString()).toBe('gotcha')
+
+            await a.close()
+            await b.close()
+        },
+        60 * 1000
+    )
+
+    test('test_connect_to_ice_lite', async () => {
+        const a = createTestConnection(true)
+        a.remoteIsLite = true
+        const b = createTestConnection(false)
+
+        // # invite / accept
+        await inviteAccept(a, b)
+
+        // # we would have both host and server-reflexive candidates
+        assertCandidateTypes(a, ['host'])
+        assertCandidateTypes(b, ['host'])
+
+        const candidate = a.getDefaultCandidate()!
+        expect(candidate).not.toBeUndefined()
+        expect(candidate.type).toBe('host')
+
+        // # connect
+        await Promise.all([a.connect(), b.connect()])
+
+        // # send data a -> b
+        await a.send(Buffer.from('howdee'))
+        let [data] = await b.onData.asPromise()
+        expect(data.toString()).toBe('howdee')
+
+        // # send data b -> a
+        await b.send(Buffer.from('gotcha'));
+        [data] = await a.onData.asPromise()
+        expect(data.toString()).toBe('gotcha')
+
+        await a.close()
+        await b.close()
+    })
+
+    test('test_connect_as_ice_lite', async () => {
+        const full = createTestConnection(true, {
+            stunServer: undefined
+        })
+        const lite = createTestConnection(false, {
+            iceLite: true,
+            stunServer: undefined
+        })
+
+        // Arrange: full 側と ICE lite 側の候補と認証情報を交換する。
+        await inviteAccept(full, lite)
+
+        assertCandidateTypes(full, ['host'])
+        assertCandidateTypes(lite, ['host'])
+        expect(lite.iceLite).toBeTruthy()
+        expect(lite.iceControlling).toBeFalsy()
+
+        const liteProtocols = (lite as any).protocols as Protocol[]
+        let liteRequestCount = 0
+        liteProtocols.forEach((protocol) => {
+            const originalRequest = protocol.request.bind(protocol)
+            protocol.request = (async (...args: Parameters<Protocol['request']>) => {
+                liteRequestCount++
+                return originalRequest(...args)
+            }) as Protocol['request']
+        })
+
+        let fullReceived = false
+        full.onData.once(() => {
+            fullReceived = true
+        })
+
+        // Act: 選択済みペアができる前に送信しても配送されないことを確認する。
+        await lite.send(Buffer.from('before-selected-pair'))
+        await setTimeout(50)
+
+        // Assert: selected pair が未確定の間は送信が成立しない。
+        expect(fullReceived).toBeFalsy()
+        expect(lite.nominated).toBeUndefined()
+
+        // Act: full=controlling / lite=controlled の組み合わせで接続を完了させる。
+        await Promise.all([full.connect(), lite.connect()])
+
+        // Assert: ICE lite 側は自発的な connectivity check を送らず、incoming USE-CANDIDATE で確定する。
+        expect(liteRequestCount).toBe(0)
+        expect(full.iceControlling).toBeTruthy()
+        expect(lite.iceControlling).toBeFalsy()
+        expect(lite.nominated?.nominated).toBeTruthy()
+        expect(lite.nominated?.remoteNominated).toBeTruthy()
+
+        // Act: nominated pair 確定後の双方向通信を確認する。
+        await lite.send(Buffer.from('howdee'))
+        let [data] = await full.onData.asPromise()
+        expect(data.toString()).toBe('howdee')
+
+        await full.send(Buffer.from('gotcha'));
+        [data] = await lite.onData.asPromise()
+        expect(data.toString()).toBe('gotcha')
+
+        await full.close()
+        await lite.close()
+    })
+})
+
+describe('sortCandidatePairs', () => {
+    it('controlling', () => {
+        const host = {
+            type: 'host',
+            localCandidate: {priority: candidatePriority('host')},
+            remoteCandidate: {priority: candidatePriority('host')}
+        }
+
+        const relay = {
+            type: 'relay',
+            localCandidate: {priority: candidatePriority('relay')},
+            remoteCandidate: {priority: candidatePriority('relay')}
+        }
+
+        const res = sortCandidatePairs([host, relay], true)
+        expect(res).toEqual([host, relay])
+    })
+
+    it('controlled', () => {
+        const host = {
+            type: 'host',
+            localCandidate: {priority: candidatePriority('host')},
+            remoteCandidate: {priority: candidatePriority('host')}
+        }
+
+        const relay = {
+            type: 'relay',
+            localCandidate: {priority: candidatePriority('relay')},
+            remoteCandidate: {priority: candidatePriority('relay')}
+        }
+
+        const res = sortCandidatePairs([host, relay], true)
+        expect(res).toEqual([host, relay])
+    })
+})

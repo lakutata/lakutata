@@ -1,0 +1,622 @@
+import {SRTP_PROFILE} from './const.js'
+import {createWebRtcDomException, createWebRtcTypeError} from './errors.js'
+import {Event, debug} from './imports/common.js'
+import type {TransceiverManager} from './media/index.js'
+import type {RTCStats} from './media/stats.js'
+import type {PeerConfig} from './peerConnection.js'
+import type {SctpTransportManager} from './sctpManager.js'
+import type {MediaDescription, SessionDescription} from './sdp.js'
+import {
+    type DtlsKeys,
+    RTCCertificate,
+    RTCDtlsTransport
+} from './transport/dtls.js'
+import {
+    IceCandidate,
+    type IceGathererState,
+    type RTCIceCandidate,
+    type RTCIceCandidateInit,
+    type RTCIceConnectionState,
+    RTCIceGatherer,
+    RTCIceTransport
+} from './transport/ice.js'
+import type {ConnectionState} from './types/domain.js'
+import {parseIceServers, resolveTurnTransport} from './utils.js'
+
+const log = debug('webrtc/peer/secureTransportManager')
+export class SecureTransportManager {
+    connectionState: ConnectionState = 'new'
+    iceConnectionState: RTCIceConnectionState = 'new'
+    iceGatheringState: IceGathererState = 'new'
+    certificate?: RTCCertificate
+
+    readonly iceGatheringStateChange = new Event<[IceGathererState]>()
+    readonly iceConnectionStateChange = new Event<[RTCIceConnectionState]>()
+    readonly onIceCandidate = new Event<[IceCandidate | undefined]>()
+    readonly connectionStateChange = new Event<[ConnectionState]>()
+
+    private config: PeerConfig
+    private transceiverManager: TransceiverManager
+    private sctpManager: SctpTransportManager
+
+    constructor({
+        config,
+        transceiverManager,
+        sctpManager
+    }: {
+        config: PeerConfig
+        transceiverManager: TransceiverManager
+        sctpManager: SctpTransportManager
+    }) {
+        this.config = config
+        this.transceiverManager = transceiverManager
+        this.sctpManager = sctpManager
+
+        if (this.config.dtls) {
+            const {keys} = this.config.dtls
+
+            if (this.config.certificates[0]) {
+                this.certificate = this.config.certificates[0]
+            } else if (keys) {
+                this.setupCertificate(keys)
+            }
+        }
+    }
+
+    /**live な m-line (停止確定していない transceiver / SCTP) が使う transport */
+    get dtlsTransports() {
+        return uniqueTransports([
+            ...this.transceiverManager
+                .getTransceivers()
+                .filter((t) => !t.stopped)
+                .map((t) => t?.dtlsTransport),
+            this.sctpManager.sctpTransport?.dtlsTransport
+        ])
+    }
+
+    /**停止済み transceiver の transport も含めた全 transport */
+    private get allDtlsTransports() {
+        return uniqueTransports([
+            ...this.transceiverManager.getTransceivers().map((t) => t?.dtlsTransport),
+            this.sctpManager.sctpTransport?.dtlsTransport
+        ])
+    }
+
+    //Every transport created, the ones a BUNDLE group replaced included: all are stopped when the connection closes
+    private readonly createdTransports = new Set<RTCDtlsTransport>()
+
+    get iceTransports() {
+        return this.dtlsTransports.map((d) => d.iceTransport)
+    }
+
+    setupCertificate(keys: DtlsKeys) {
+        this.certificate = new RTCCertificate(
+            keys.keyPem,
+            keys.certPem,
+            keys.signatureHash
+        )
+    }
+
+    /**
+   * Resolve STUN/TURN options from the current PeerConfig.
+   * Always returns every server-related field (including undefined) so
+   * Connection.setIceServers can fully replace residual TURN credentials.
+   */
+    private resolveIceServerOptions() {
+        const iceServerOptions = parseIceServers(this.config.iceServers)
+        const turnTransport = resolveTurnTransport({
+            parsedTurnTransport: iceServerOptions.turnTransport,
+            configuredTurnTransport: this.config.turnTransport,
+            forceTurnTCP: this.config.forceTurnTCP
+        })
+        return {
+            stunServer: iceServerOptions.stunServer,
+            turnServer: iceServerOptions.turnServer,
+            turnUsername: iceServerOptions.turnUsername,
+            turnPassword: iceServerOptions.turnPassword,
+            turnTransport
+        }
+    }
+
+    /**
+   * Re-apply ICE servers from the current config to ICE transports that have
+   * not started gathering yet (`gatheringState === "new"`).
+   *
+   * JSEP (RFC 8829 §4.1.18) / ticket scope: server changes affect the next
+   * gathering phase. Once gathering has started or finished, leave the live
+   * Connection alone so existing candidates and TURN protocols are not
+   * disturbed. Used when TURN is learned after the gatherer was built
+   * (e.g. from a WHIP Link header) but before setLocalDescription gathers.
+   */
+    updateIceServers() {
+        const options = {
+            ...this.resolveIceServerOptions(),
+            forceTurn: this.config.iceTransportPolicy === 'relay',
+            useTcp: this.config.iceUseTcp,
+            turnUdpFamily: this.config.turnUdpFamily
+        }
+        for (const iceTransport of this.iceTransports) {
+            // Only update gatherers that have never gathered in this generation.
+            // Applying after gathering would leave stale TURN protocols in
+            // Connection.protocols that get re-advertised on a later restart.
+            if (iceTransport.gatheringState === 'new') {
+                iceTransport.setIceServers(options)
+            }
+        }
+    }
+
+    createTransport({inheritCredentials = true} = {}) {
+        const existing = inheritCredentials
+            ? this.iceTransports.find((transport) => transport.state !== 'closed')
+            : undefined
+
+        const iceGatherer = new RTCIceGatherer({
+            ...this.resolveIceServerOptions(),
+            iceLite: this.config.iceLite,
+            forceTurn: this.config.iceTransportPolicy === 'relay',
+            portRange: this.config.icePortRange,
+            interfaceAddresses: this.config.iceInterfaceAddresses,
+            additionalHostAddresses: this.config.iceAdditionalHostAddresses,
+            filterStunResponse: this.config.iceFilterStunResponse,
+            filterCandidatePair: this.config.iceFilterCandidatePair,
+            localPasswordPrefix: this.config.icePasswordPrefix,
+            useIpv4: this.config.iceUseIpv4,
+            useIpv6: this.config.iceUseIpv6,
+            useTcp: this.config.iceUseTcp,
+            tcpPassive: this.config.iceTcpPassive,
+            stunGatherTimeout: this.config.iceStunGatherTimeout,
+            turnConnectTimeout: this.config.iceTurnConnectTimeout,
+            turnTlsOptions: this.config.turnTlsOptions,
+            turnUdpFamily: this.config.turnUdpFamily,
+            useLinkLocalAddress: this.config.iceUseLinkLocalAddress
+        })
+
+        if (existing) {
+            iceGatherer.connection.localUsername = existing.connection.localUsername
+            iceGatherer.connection.localPassword = existing.connection.localPassword
+        }
+
+        iceGatherer.onGatheringStateChange.subscribe(() => {
+            this.updateIceGatheringState()
+        })
+        this.updateIceGatheringState()
+
+        const iceTransport = new RTCIceTransport(iceGatherer)
+        iceTransport.onStateChange.subscribe(() => {
+            this.updateIceConnectionState()
+        })
+
+        const dtlsTransport = new RTCDtlsTransport(
+            this.config,
+            iceTransport,
+            this.certificate,
+            srtpProfiles
+        )
+        this.createdTransports.add(dtlsTransport)
+
+        return dtlsTransport
+    }
+
+    /**
+   * sdpMid / sdpMLineIndex は ICE transport を所有する受け入れ済み m-line
+   * (BUNDLE なら tag) を呼び出し側で解決して渡す。
+   */
+    handleNewIceCandidate({
+        candidate,
+        sdpMid,
+        sdpMLineIndex
+    }: {
+        candidate: IceCandidate
+        sdpMid?: string
+        sdpMLineIndex?: number
+    }) {
+        candidate.sdpMid = sdpMid
+        candidate.sdpMLineIndex = sdpMLineIndex
+
+        if (
+            candidate.foundation &&
+      !candidate.foundation.startsWith('candidate:')
+        ) {
+            candidate.foundation = 'candidate:' + candidate.foundation
+        }
+
+        this.onIceCandidate.execute(candidate)
+
+        return candidate
+    }
+
+    async addIceCandidate(
+        sdp: SessionDescription,
+        candidateMessage: RTCIceCandidate | RTCIceCandidateInit | null
+    ) {
+        const candidateText = candidateMessage?.candidate
+        const sdpMid = candidateMessage?.sdpMid
+        const sdpMLineIndex = candidateMessage?.sdpMLineIndex
+        const usernameFragment = candidateMessage?.usernameFragment
+        const isEndOfCandidates =
+            candidateMessage == null || candidateText == null || candidateText === ''
+        const mediaIndices = this.resolveCandidateMediaIndices({
+            sdp,
+            isEndOfCandidates,
+            sdpMid,
+            sdpMLineIndex,
+            usernameFragment
+        })
+
+        if (isEndOfCandidates) {
+            const candidateTarget = mediaIndices
+                .map((index) => this.getTransportByMLineIndex(sdp, index))
+                .filter(
+                    (iceTransport): iceTransport is RTCIceTransport => !!iceTransport
+                )
+                .reduce((acc: RTCIceTransport[], transport) => {
+                    if (!acc.find(({id}) => id === transport.id)) {
+                        acc.push(transport)
+                    }
+                    return acc
+                }, [])
+
+            await Promise.all(
+                candidateTarget.map((iceTransport) =>
+                    iceTransport.addRemoteCandidate(undefined)
+                )
+            )
+            return {
+                kind: 'end-of-candidates' as const,
+                mediaIndices
+            }
+        }
+
+        const candidate = IceCandidate.fromJSON(candidateMessage)
+        if (!candidate) {
+            throw createWebRtcDomException(
+                'OperationError',
+                'Failed to parse ICE candidate'
+            )
+        }
+
+        const targetMediaIndex = mediaIndices[0]
+        const targetMedia = sdp.media[targetMediaIndex]
+        if (!targetMedia) {
+            throw createWebRtcDomException(
+                'OperationError',
+                'ICE media section not found'
+            )
+        }
+        candidate.sdpMid = targetMedia.rtp.muxId ?? undefined
+        candidate.sdpMLineIndex = targetMediaIndex
+
+        const iceTransport = this.getTransportByMLineIndex(sdp, targetMediaIndex)
+
+        if (!iceTransport) {
+            if (this.isRejectedMedia(targetMedia)) {
+                // 拒否 / 停止した m-line の候補は MID / index を保ったまま記録だけする
+                return {
+                    kind: 'candidate' as const,
+                    candidate,
+                    mediaIndices: [targetMediaIndex]
+                }
+            }
+            throw createWebRtcDomException(
+                'OperationError',
+                'ICE transport not found for candidate'
+            )
+        }
+
+        await iceTransport.addRemoteCandidate(candidate)
+        return {
+            kind: 'candidate' as const,
+            candidate,
+            mediaIndices: [targetMediaIndex]
+        }
+    }
+
+    private resolveCandidateMediaIndices({
+        sdp,
+        isEndOfCandidates,
+        sdpMid,
+        sdpMLineIndex,
+        usernameFragment
+    }: {
+        sdp: SessionDescription
+        isEndOfCandidates: boolean
+        sdpMid?: string | null
+        sdpMLineIndex?: number | null
+        usernameFragment?: string | null
+    }) {
+        let mediaIndices: number[]
+
+        if (typeof sdpMid === 'string') {
+            const mediaIndex = sdp.media.findIndex(
+                (media) => media.rtp.muxId === sdpMid
+            )
+            if (mediaIndex < 0) {
+                throw createWebRtcDomException(
+                    'OperationError',
+                    'Media section for sdpMid was not found'
+                )
+            }
+            mediaIndices = [mediaIndex]
+        } else if (typeof sdpMLineIndex === 'number') {
+            if (sdpMLineIndex < 0 || sdpMLineIndex >= sdp.media.length) {
+                throw createWebRtcDomException(
+                    'OperationError',
+                    'Media section for sdpMLineIndex was not found'
+                )
+            }
+            mediaIndices = [sdpMLineIndex]
+        } else if (isEndOfCandidates) {
+            mediaIndices = sdp.media.map((_, index) => index)
+        } else {
+            throw createWebRtcTypeError(
+                'sdpMid or sdpMLineIndex must be provided with a candidate'
+            )
+        }
+
+        if (typeof usernameFragment === 'string') {
+            const matchingIndices = mediaIndices.filter(
+                (index) =>
+                    sdp.media[index]?.iceParams?.usernameFragment === usernameFragment
+            )
+            if (matchingIndices.length === 0) {
+                throw createWebRtcDomException(
+                    'OperationError',
+                    'No media section matched the ICE usernameFragment'
+                )
+            }
+            mediaIndices = matchingIndices
+        }
+
+        return mediaIndices
+    }
+
+    private isRejectedMedia(media: MediaDescription) {
+        if (media.port === 0) {
+            return true
+        }
+        if (!['audio', 'video'].includes(media.kind)) {
+            return false
+        }
+        const transceiver = this.transceiverManager
+            .getTransceivers()
+            .find((t) => t.mid != undefined && t.mid === media.rtp.muxId)
+        return (
+            !transceiver ||
+      transceiver.stopped ||
+      transceiver.stopping ||
+      transceiver.pendingRejection
+        )
+    }
+
+    private getTransportByMid(mid?: string) {
+        if (!mid) {
+            return
+        }
+        let iceTransport: RTCIceTransport | undefined
+
+        const transceiver = this.transceiverManager
+            .getTransceivers()
+            .find((t) => t.mid === mid)
+        if (transceiver) {
+            iceTransport = transceiver.dtlsTransport?.iceTransport
+        } else if (!iceTransport && this.sctpManager.sctpTransport?.mid === mid) {
+            iceTransport = this.sctpManager.sctpTransport.dtlsTransport.iceTransport
+        }
+
+        if (iceTransport?.state === 'closed') {
+            return
+        }
+        return iceTransport
+    }
+
+    private getTransportByMLineIndex(sdp: SessionDescription, index: number) {
+        const media = sdp.media[index]
+        if (!media) {
+            return
+        }
+        const transport = this.getTransportByMid(media.rtp.muxId!)
+
+        return transport
+    }
+
+    restartIce() {
+        for (const transport of this.iceTransports) {
+            transport.restart()
+        }
+        // restart() resets each gatherer to "new"; refresh the aggregate cache
+        // even if a gatherer failed to emit onGatheringStateChange.
+        this.updateIceGatheringState()
+    }
+
+    setLocalRole({
+        type,
+        role,
+        roleOfTransport
+    }: {
+        type: 'offer' | 'answer'
+        /**transport 個別の role がない場合に使う local description 先頭の role */
+        role: 'auto' | 'client' | 'server' | undefined
+        /**local description でその transport を使う m-line の role */
+        roleOfTransport?: Map<RTCDtlsTransport, 'auto' | 'client' | 'server'>
+    }) {
+        for (const dtlsTransport of this.dtlsTransports) {
+            const iceTransport = dtlsTransport.iceTransport
+            if (iceTransport.connection.iceLite) {
+                iceTransport.connection.iceControlling = false
+            } else if (iceTransport.connection.remoteIsLite) {
+                // RFC 8445 S6.1.1
+                iceTransport.connection.iceControlling = true
+            } else if (type === 'offer') {
+                iceTransport.connection.iceControlling = true
+            } else {
+                iceTransport.connection.iceControlling = false
+            }
+
+            // # set DTLS role for mediasoup
+            if (type === 'answer') {
+                const transportRole = roleOfTransport?.get(dtlsTransport) ?? role
+                if (transportRole) {
+                    dtlsTransport.role = transportRole
+                }
+            }
+        }
+    }
+
+    // https://w3c.github.io/webrtc-pc/#dom-rtcicegatheringstate
+    private updateIceGatheringState() {
+        const all = this.iceTransports
+
+        function allMatch(...state: IceGathererState[]) {
+            return (
+                all.filter((check) => state.includes(check.gatheringState)).length ===
+        all.length
+            )
+        }
+
+        let newState: IceGathererState
+
+        if (all.length && allMatch('complete')) {
+            newState = 'complete'
+        } else if (!all.length || allMatch('new', 'complete')) {
+            newState = 'new'
+        } else if (all.map((check) => check.gatheringState).includes('gathering')) {
+            newState = 'gathering'
+        } else {
+            newState = 'new'
+        }
+
+        if (this.iceGatheringState === newState) {
+            return
+        }
+
+        this.iceGatheringState = newState
+        this.iceGatheringStateChange.execute(newState)
+    }
+
+    // https://w3c.github.io/webrtc-pc/#dom-rtciceconnectionstate
+    updateIceConnectionState() {
+        const all = this.iceTransports
+        let newState: RTCIceConnectionState
+
+        function allMatch(...state: RTCIceConnectionState[]) {
+            return (
+                all.filter((check) => state.includes(check.state)).length === all.length
+            )
+        }
+
+        function anyMatch(...state: RTCIceConnectionState[]) {
+            return all.some((check) => state.includes(check.state))
+        }
+
+        if (this.connectionState === 'closed') {
+            newState = 'closed'
+        } else if (anyMatch('failed')) {
+            newState = 'failed'
+        } else if (anyMatch('disconnected')) {
+            newState = 'disconnected'
+        } else if (allMatch('new', 'closed')) {
+            newState = 'new'
+        } else if (anyMatch('new', 'checking')) {
+            newState = 'checking'
+        } else if (allMatch('completed', 'closed')) {
+            newState = 'completed'
+        } else if (allMatch('connected', 'completed', 'closed')) {
+            newState = 'connected'
+        } else {
+            // unreachable?
+            newState = 'new'
+        }
+
+        if (this.iceConnectionState === newState) {
+            return
+        }
+
+        log('iceConnectionStateChange', newState)
+        this.iceConnectionState = newState
+        this.iceConnectionStateChange.execute(newState)
+
+        // Runtime ICE failure (e.g. RFC 7675 consent expiry) must surface on
+        // PeerConnection.connectionState without treating it as an explicit close().
+        if (newState === 'failed' && this.connectionState !== 'closed') {
+            this.setConnectionState('failed')
+        } else if (
+            newState === 'disconnected' &&
+      this.connectionState === 'connected'
+        ) {
+            this.setConnectionState('disconnected')
+        }
+    }
+
+    /**
+   * 未収集 (gatheringState=new) の ICE transport だけ候補を収集する。
+   * 収集済み transport は gather() が何もしないので、確立済み BUNDLE の transport は再収集されず、
+   * BUNDLE group 外に新設した独立 transport だけが候補を収集する。
+   */
+    async gatherCandidates() {
+        await Promise.allSettled(
+            this.iceTransports
+                .filter((iceTransport) => iceTransport.state !== 'closed')
+                .map((iceTransport) => iceTransport.gather())
+        ).catch((e) => {
+            log('gatherCandidates failed', e)
+        })
+    }
+
+    setConnectionState(state: ConnectionState) {
+        if (this.connectionState === state) {
+            return
+        }
+        log('connectionStateChange', state)
+        this.connectionState = state
+        this.connectionStateChange.execute(state)
+    }
+
+    async getStats(timestamp?: number): Promise<RTCStats[]> {
+        const stats: RTCStats[] = []
+
+        for (const dtlsTransport of this.dtlsTransports) {
+            const transportStats = await dtlsTransport.getStats(timestamp)
+            if (transportStats) {
+                stats.push(...transportStats)
+            }
+        }
+
+        return stats
+    }
+
+    async ensureCerts() {
+        if (!this.certificate) {
+            this.certificate = await RTCDtlsTransport.SetupCertificate()
+        }
+
+        for (const dtlsTransport of this.dtlsTransports) {
+            dtlsTransport.localCertificate = this.certificate
+        }
+    }
+
+    async close() {
+        this.setConnectionState('closed')
+
+        await Promise.allSettled(uniqueTransports([...this.allDtlsTransports, ...this.createdTransports]).map((t) => t.stop()))
+        this.createdTransports.clear()
+
+        this.iceGatheringStateChange.allUnsubscribe()
+        this.iceConnectionStateChange.allUnsubscribe()
+        this.onIceCandidate.allUnsubscribe()
+        this.connectionStateChange.allUnsubscribe()
+    }
+}
+
+function uniqueTransports(transports: (RTCDtlsTransport | undefined)[]) {
+    return transports.reduce((acc: RTCDtlsTransport[], cur) => {
+        if (cur && !acc.map((d) => d.id).includes(cur.id)) {
+            acc.push(cur)
+        }
+        return acc
+    }, [])
+}
+
+const srtpProfiles = [
+    SRTP_PROFILE.SRTP_AEAD_AES_128_GCM, // prefer
+    SRTP_PROFILE.SRTP_AES128_CM_HMAC_SHA1_80
+]

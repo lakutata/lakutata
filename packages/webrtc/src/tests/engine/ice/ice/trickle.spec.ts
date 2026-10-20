@@ -1,0 +1,56 @@
+import {describe, test, expect} from '../../support/vitest.js'
+import {setTimeout} from 'node:timers/promises'
+
+import type {Connection} from '../../../../lib/ice/index.js'
+import {assertCandidateTypes, createTestConnection} from '../utils.js'
+
+describe('IceTrickleTest', () => {
+    test('test_trickle_connect', async () => {
+        const a = createTestConnection(true)
+        const b = createTestConnection(false)
+
+        await a.gatherCandidates()
+        b.remoteUsername = a.localUsername
+        b.remotePassword = a.localPassword
+
+        await b.gatherCandidates()
+        a.remoteUsername = b.localUsername
+        a.remotePassword = b.localPassword
+
+        assertCandidateTypes(a, ['host'])
+        assertCandidateTypes(b, ['host'])
+
+        const candidate = a.getDefaultCandidate()!
+        expect(candidate).not.toBeUndefined()
+        expect(candidate.type).toBe('host')
+
+        const addCandidatesLater = async (a: Connection, b: Connection) => {
+            await setTimeout(100)
+            for (const candidate of b.localCandidates) {
+                void a.addRemoteCandidate(candidate)
+                await setTimeout(100)
+            }
+            void a.addRemoteCandidate(undefined)
+        }
+
+        await Promise.all([
+            a.connect(),
+            b.connect(),
+            addCandidatesLater(a, b),
+            addCandidatesLater(b, a)
+        ])
+
+        // # send data a -> b
+        await a.send(Buffer.from('howdee'))
+        let [data] = await b.onData.asPromise()
+        expect(data.toString()).toBe('howdee')
+
+        // # send data b -> a
+        await b.send(Buffer.from('gotcha'));
+        [data] = await a.onData.asPromise()
+        expect(data.toString()).toBe('gotcha')
+
+        await a.close()
+        await b.close()
+    })
+})

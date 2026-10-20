@@ -1,0 +1,29 @@
+import {bufferWriter, bufferWriterLE} from '../../common/index.js'
+import type {RtpHeader} from '../rtp/rtp.js'
+import type {DePacketizerBase} from './base.js'
+
+export class OpusRtpPayload implements DePacketizerBase {
+    payload!: Buffer
+
+    static deSerialize(buf: Buffer) {
+        const opus = new OpusRtpPayload()
+        opus.payload = buf
+        return opus
+    }
+
+    static isDetectedFinalPacketInSequence(_header: RtpHeader) {
+        return true
+    }
+
+    get isKeyframe() {
+        return true
+    }
+
+    static createCodecPrivate(samplingFrequency = 48000) {
+        return Buffer.concat([
+            Buffer.from('OpusHead'),
+            bufferWriter([1, 1], [1, 2]),
+            bufferWriterLE([2, 4, 2, 1], [312, samplingFrequency, 0, 0])
+        ])
+    }
+}

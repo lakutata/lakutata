@@ -46,8 +46,8 @@ tool, a web and a desktop application, calls between services, background jobs, 
 
 Not part of this package: `@lakutata/cli` (the `lakutata` command for creating projects, running migrations and packing
 applications, see [Command](Command.md)), `@lakutata/grpc` (a gRPC client, server and service transport),
-`@lakutata/nats` (a NATS component and service transport), `@lakutata/dbus` (D-Bus) and `@lakutata/mcp` (the Model
-Context Protocol).
+`@lakutata/nats` (a NATS component and service transport), `@lakutata/dbus` (D-Bus), `@lakutata/mcp` (the Model
+Context Protocol) and `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, peer connections).
 
 ## The guides
 
@@ -90,6 +90,7 @@ Context Protocol).
 | [Security](Security.md) | Hashing, ciphers, signatures, passwords |
 | [DBus](DBus.md) | A D-Bus service and client (`@lakutata/dbus`): methods, objects, properties, signals |
 | [MCP](MCP.md) | The tools, resources and prompts of the Model Context Protocol (`@lakutata/mcp`), over stdio and HTTP |
+| [WebRTC](WebRTC.md) | Peer-to-peer connections (`@lakutata/webrtc`): the signaling, the TURN server, browsers and applications |
 | [Command](Command.md) | The `lakutata` command: creating projects, migrations, translations, environment variables |
 | [Workspaces](Workspaces.md) | Projects of several packages: running their scripts, giving them a version, adding packages |
 | [NativeAddons](NativeAddons.md) | Native addons in C++ or Rust: creating them, linking libraries, shipping them |

@@ -17,7 +17,7 @@ const GUIDES: {en: string, zh: string, guides: string[]}[] = [
     {en: 'Fundamentals', zh: '基础', guides: ['Application', 'Objects', 'Injection', 'DTOValidation', 'Exceptions', 'Logger', 'Decorator', 'Time', 'HelperFunctions']},
     {en: 'Controllers and Entrypoints', zh: '控制器与入口', guides: ['Controllers', 'Entrypoint', 'Middlewares', 'HTTP', 'CLI', 'ServiceCalls', 'GRPC', 'NATS', 'Schedules', 'Queue']},
     {en: 'Data', zh: '数据', guides: ['Database', 'DatabaseDrivers', 'MongoEmbedded', 'Entities', 'Migrations', 'Cache']},
-    {en: 'Components', zh: '组件', guides: ['Mutex', 'I18n', 'DockerIntegration', 'ContainerdIntegration', 'Monitor', 'Security', 'DBus', 'MCP']},
+    {en: 'Components', zh: '组件', guides: ['Mutex', 'I18n', 'DockerIntegration', 'ContainerdIntegration', 'Monitor', 'Security', 'DBus', 'MCP', 'WebRTC']},
     {en: 'Tools', zh: '工具', guides: ['Command', 'Workspaces', 'NativeAddons', 'Packaging', 'Installers']}
 ]
 

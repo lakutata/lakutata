@@ -1,0 +1,82 @@
+import {setTimeout} from 'node:timers/promises'
+
+import type {DtlsContext} from '../context/dtls.js'
+import type {TransportContext} from '../context/transport.js'
+import {debug} from '../imports/common.js'
+import {createFragments, createPlaintext} from '../record/builder.js'
+import {ContentType} from '../record/const.js'
+import type {Handshake} from '../typings/domain.js'
+
+const warn = debug('webrtc/dtls/flight/flight:warn')
+const err = debug('webrtc/dtls/flight/flight:err')
+
+type FlightType = 'PREPARING' | 'SENDING' | 'WAITING' | 'FINISHED'
+
+export abstract class Flight {
+    state: FlightType = 'PREPARING'
+    static RetransmitCount = 10
+
+    constructor(
+        private transport: TransportContext,
+        public dtls: DtlsContext,
+        private flight: number,
+        private nextFlight?: number
+    ) {}
+
+    protected createPacket(handshakes: Handshake[]) {
+        const fragments = createFragments(this.dtls)(handshakes)
+        this.dtls.bufferHandshakeCache(fragments, true, this.flight)
+        const packets = createPlaintext(this.dtls)(
+            fragments.map((fragment) => ({
+                type: ContentType.handshake,
+                fragment: fragment.serialize()
+            })),
+            ++this.dtls.recordSequenceNumber
+        )
+        return packets
+    }
+
+    protected async transmit(buffers: Buffer[]) {
+        let retransmitCount = 0
+        for (; retransmitCount <= Flight.RetransmitCount; retransmitCount++) {
+            this.setState('SENDING')
+            this.send(buffers).catch((error) => {
+                err('fail to send', error)
+            })
+            this.setState('WAITING')
+
+            if (this.nextFlight === undefined) {
+                this.setState('FINISHED')
+                break
+            }
+
+            await setTimeout(1000 * ((retransmitCount + 1) / 2))
+
+            if (this.dtls.flight >= this.nextFlight) {
+                this.setState('FINISHED')
+                break
+            } else {
+                warn(
+                    this.dtls.sessionId,
+                    'retransmit',
+                    retransmitCount,
+                    this.dtls.flight
+                )
+            }
+        }
+
+        if (retransmitCount > Flight.RetransmitCount) {
+            err(this.dtls.sessionId, 'retransmit failed', retransmitCount)
+            throw new Error(
+                `over retransmitCount : ${this.flight} ${this.nextFlight}`
+            )
+        }
+    }
+
+    protected send = (buf: Buffer[]) =>
+        Promise.all(buf.map((v) => this.transport.send(v)))
+
+    private setState(state: FlightType) {
+        this.state = state
+    }
+}

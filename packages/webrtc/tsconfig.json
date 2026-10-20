@@ -1,0 +1,76 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "ESNext.Disposable"
+    ],
+    "declaration": true,
+    "moduleDetection": "auto",
+    "module": "Node16",
+    "rootDir": "src",
+    "moduleResolution": "Node16",
+    "allowSyntheticDefaultImports": true,
+    "types": [
+      "reflect-metadata",
+      "node"
+    ],
+    "jsx": "react",
+    "useDefineForClassFields": false,
+    "preserveConstEnums": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "outDir": "distro/src",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "strictPropertyInitialization": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "skipLibCheck": true,
+    "allowArbitraryExtensions": true,
+    "isolatedModules": true,
+    "declarationMap": true,
+    "paths": {
+      "@lakutata/core": [
+        "../core/dist/types/exports/Core"
+      ],
+      "@lakutata/core/decorator/di": [
+        "../core/dist/types/exports/DIDecorators"
+      ],
+      "@lakutata/core/decorator/dto": [
+        "../core/dist/types/exports/DTODecorators"
+      ],
+      "@lakutata/entrypoint": [
+        "../entrypoint/dist/types/exports/Entrypoint"
+      ],
+      "@lakutata/entrypoint/channel": [
+        "../entrypoint/dist/types/exports/Channel"
+      ],
+      "@lakutata/entrypoint/decorator/ctrl": [
+        "../entrypoint/dist/types/exports/CTRLDecorators"
+      ],
+      "@lakutata/entrypoint/adapter/socket.io": [
+        "../entrypoint/dist/types/exports/SocketIOAdapter"
+      ],
+      "@lakutata/entrypoint/adapter/jsonrpc": [
+        "../entrypoint/dist/types/exports/JSONRPCAdapter"
+      ],
+      "@lakutata/core/dtos": [
+        "../core/dist/types/exports/DTOs"
+      ]
+    }
+  },
+  "exclude": [
+    "node_modules",
+    "scripts",
+    "build",
+    "distro",
+    "publish.mjs",
+    "rollup.mjs",
+    "dist"
+  ]
+}

@@ -1,0 +1,386 @@
+import {randomUUID} from 'node:crypto'
+import {Candidate, candidateFoundation, candidatePriority} from './candidate.js'
+import type {MdnsLookup} from './dns/lookup.js'
+import type {Cancelable} from './helper.js'
+import {
+    type Address,
+    type Event,
+    type InterfaceAddresses,
+    type TlsConnectionOptions,
+    debug
+} from './imports/common.js'
+import {classes, methods} from './stun/const.js'
+import {Message} from './stun/message.js'
+import type {Protocol} from './types/model.js'
+
+const log = debug('webrtc/ice/iceBase:log')
+
+export interface IceConnection {
+    iceLite: boolean
+    iceControlling: boolean
+    localUsername: string
+    localPassword: string
+    remotePassword: string
+    remoteUsername: string
+    remoteIsLite: boolean
+    checkList: CandidatePair[]
+    localCandidates: Candidate[]
+    remoteCandidates: Candidate[]
+    candidatePairs: CandidatePair[]
+    stunServer?: Address
+    turnServer?: Address
+    generation: number
+    options: IceOptions
+    remoteCandidatesEnd: boolean
+    localCandidatesEnd: boolean
+    state: IceState
+    lookup?: MdnsLookup
+    nominated?: CandidatePair
+
+    readonly onData: Event<[Buffer]>
+    readonly stateChanged: Event<[IceState]>
+    readonly onIceCandidate: Event<[Candidate]>
+
+    restart(): Promise<void>
+
+    setIceServers(options: Partial<IceOptions>): void
+
+    setRemoteParams(params: {
+        iceLite: boolean
+        usernameFragment: string
+        password: string
+    }): void
+
+    gatherCandidates(): Promise<void>
+
+    connect(): Promise<void>
+
+    close(): Promise<void>
+
+    addRemoteCandidate(remoteCandidate: Candidate | undefined): Promise<void>
+
+    send(data: Buffer): Promise<void>
+
+    getDefaultCandidate(): Candidate | undefined
+    resetNominatedPair(): void
+}
+
+export interface CandidatePairStats {
+    packetsSent: number
+    packetsReceived: number
+    bytesSent: number
+    bytesReceived: number
+    rtt?: number
+    totalRoundTripTime: number
+    roundTripTimeMeasurements: number
+    requestsReceived: number
+    requestsSent: number
+    responsesReceived: number
+    responsesSent: number
+    retransmissionsReceived: number
+    retransmissionsSent: number
+    consentRequestsSent: number
+}
+
+export class CandidatePair implements CandidatePairStats {
+    readonly id = randomUUID().toString()
+    handle?: Cancelable<void>
+    nominated = false
+    remoteNominated = false
+    // 5.7.4.  Computing States
+    private _state = CandidatePairState.FROZEN
+    get state() {
+        return this._state
+    }
+
+    // Statistics tracking
+    packetsSent = 0
+    packetsReceived = 0
+    bytesSent = 0
+    bytesReceived = 0
+    rtt?: number
+    totalRoundTripTime = 0
+    roundTripTimeMeasurements = 0
+    requestsReceived = 0
+    requestsSent = 0
+    responsesReceived = 0
+    responsesSent = 0
+    retransmissionsReceived = 0
+    retransmissionsSent = 0
+    consentRequestsSent = 0
+    private readonly requestTransactionIds = new Set<string>()
+
+    toJSON() {
+        return this.json
+    }
+
+    get json() {
+        return {
+            protocol: this.protocol.type,
+            localCandidate: this.localCandidate.toSdp(),
+            remoteCandidate: this.remoteCandidate.toSdp()
+        }
+    }
+
+    constructor(
+        public protocol: Protocol,
+        public remoteCandidate: Candidate,
+        public iceControlling: boolean
+    ) {}
+
+    updateState(state: CandidatePairState) {
+        this._state = state
+    }
+
+    get localCandidate() {
+        if (!this.protocol.localCandidate) {
+            throw new Error('localCandidate not exist')
+        }
+        return this.protocol.localCandidate
+    }
+
+    get remoteAddr(): Address {
+        return [this.remoteCandidate.host, this.remoteCandidate.port]
+    }
+
+    get component() {
+        return this.localCandidate.component
+    }
+
+    get priority() {
+        return candidatePairPriority(
+            this.localCandidate,
+            this.remoteCandidate,
+            this.iceControlling
+        )
+    }
+
+    get foundation() {
+        return this.localCandidate.foundation
+    }
+
+    noteIncomingRequest(transactionId: string) {
+        const isRetransmission = this.requestTransactionIds.has(transactionId)
+        if (!isRetransmission) {
+            this.requestTransactionIds.add(transactionId)
+            return false
+        }
+        this.retransmissionsReceived++
+        return true
+    }
+}
+
+export const ICE_COMPLETED = 1 as const
+export const ICE_FAILED = 2 as const
+
+/** Basic consent check period in seconds (RFC 7675). Actual interval is 0.8–1.2× this. */
+export const CONSENT_INTERVAL = 5
+
+/**
+ * @deprecated Consent expiry is based on {@link CONSENT_TIMEOUT} (30s after the
+ * last valid response), not a consecutive failure count. Kept for API compatibility.
+ */
+export const CONSENT_FAILURES = 6
+
+/** RFC 7675: consent expires this many seconds after the last valid response. */
+export const CONSENT_TIMEOUT = 30
+
+/**
+ * Default single-shot response wait for consent requests (ms) when RTT is unknown.
+ * Independent of retransmission count. Downstream ICE-lite peers typically
+ * answer in 150–300ms; 1s is a conservative default used by interop patches.
+ */
+export const CONSENT_RESPONSE_TIMEOUT = 1000
+
+/** RFC 8445 §14.3: ICE RTO must not be less than 500ms. */
+export const CONSENT_RESPONSE_TIMEOUT_MIN = 500
+
+/**
+ * Compute consent response wait from pair RTT (seconds).
+ * Uses 2×RTT + 200ms jitter margin, floored at {@link CONSENT_RESPONSE_TIMEOUT_MIN}.
+ * Falls back to {@link CONSENT_RESPONSE_TIMEOUT} when RTT is unavailable.
+ */
+export function consentResponseTimeoutMs(rttSeconds?: number): number {
+    if (
+        rttSeconds === undefined ||
+    !Number.isFinite(rttSeconds) ||
+    rttSeconds <= 0
+    ) {
+        return CONSENT_RESPONSE_TIMEOUT
+    }
+    return Math.max(
+        CONSENT_RESPONSE_TIMEOUT_MIN,
+        Math.round(rttSeconds * 1000 * 2 + 200)
+    )
+}
+
+export enum CandidatePairState {
+    FROZEN = 0,
+    WAITING = 1,
+    IN_PROGRESS = 2,
+    SUCCEEDED = 3,
+    FAILED = 4
+}
+
+export type IceState =
+  | 'disconnected'
+  | 'closed'
+  | 'completed'
+  | 'new'
+  | 'connected'
+  | 'failed'
+
+export interface IceOptions {
+    /** Advertise and operate as an ICE lite agent. */
+    iceLite: boolean
+    useTcp: boolean
+    /**
+   * Gather passive TCP host candidates (opens a listening TCP server per
+   * interface). Defaults to true. Send-only agents that never accept inbound
+   * connections can set this false to avoid the listener while still gathering
+   * active TCP candidates.
+   */
+    tcpPassive?: boolean
+    /**
+   * Seconds to wait for server-reflexive candidates while gathering.
+   * Defaults to 5. Where UDP is blocked these STUN queries are never answered,
+   * so the wait always runs to the timeout; agents that must not stall on such
+   * networks can lower it.
+   */
+    stunGatherTimeout?: number
+    /**
+   * Seconds to wait for a TURN TCP/TLS connection to be established.
+   * Defaults to 8.
+   */
+    turnConnectTimeout?: number
+    stunServer?: Address
+    turnServer?: Address
+    turnUsername?: string
+    turnPassword?: string
+    turnTransport?: 'udp' | 'tcp' | 'tls'
+    turnTlsOptions?: TlsConnectionOptions
+    /**
+   * Preferred IP family of the TURN/UDP socket, applied only when turnServer
+   * is a hostname. Ignored for an IP literal turnServer, whose own family
+   * always selects the socket. Defaults to 4.
+   */
+    turnUdpFamily?: 4 | 6
+    forceTurn?: boolean
+    localPasswordPrefix?: string
+    useIpv4: boolean
+    useIpv6: boolean
+    useLinkLocalAddress?: boolean
+    portRange?: [number, number]
+    interfaceAddresses?: InterfaceAddresses
+    additionalHostAddresses?: string[]
+    filterStunResponse?: (
+        message: Message,
+        addr: Address,
+        protocol: Protocol
+    ) => boolean
+    filterCandidatePair?: (pair: CandidatePair) => boolean
+}
+
+export const defaultOptions: IceOptions = {
+    iceLite: false,
+    useTcp: false,
+    useIpv4: true,
+    useIpv6: true
+}
+
+export function validateRemoteCandidate(candidate: Candidate) {
+    // """
+    // Check the remote candidate is supported.
+    // """
+    if (!['host', 'relay', 'srflx'].includes(candidate.type))
+        throw new Error(`Unexpected candidate type "${candidate.type}"`)
+
+    // ipaddress.ip_address(candidate.host)
+    return candidate
+}
+
+export function sortCandidatePairs(
+    pairs: {
+        localCandidate: Pick<Candidate, 'priority'>
+        remoteCandidate: Pick<Candidate, 'priority'>
+    }[],
+    iceControlling: boolean
+) {
+    return pairs
+        .sort(
+            (a, b) =>
+                candidatePairPriority(
+                    a.localCandidate,
+                    a.remoteCandidate,
+                    iceControlling
+                ) -
+        candidatePairPriority(
+            b.localCandidate,
+            b.remoteCandidate,
+            iceControlling
+        )
+        )
+        .reverse()
+}
+
+// 5.7.2.  Computing Pair Priority and Ordering Pairs
+export function candidatePairPriority(
+    local: Pick<Candidate, 'priority'>,
+    remote: Pick<Candidate, 'priority'>,
+    iceControlling: boolean
+) {
+    const G = (iceControlling && local.priority) || remote.priority
+    const D = (iceControlling && remote.priority) || local.priority
+    return (1 << 32) * Math.min(G, D) + 2 * Math.max(G, D) + (G > D ? 1 : 0)
+}
+
+export async function serverReflexiveCandidate(
+    protocol: Protocol,
+    stunServer: Address
+) {
+    // """
+    // Query STUN server to obtain a server-reflexive candidate.
+    // """
+
+    // # perform STUN query
+    const request = new Message(methods.BINDING, classes.REQUEST)
+    try {
+        const [response] = await protocol.request(request, stunServer)
+
+        const localCandidate = protocol.localCandidate
+        if (!localCandidate) {
+            throw new Error('not exist')
+        }
+
+        const candidate = new Candidate(
+            candidateFoundation(
+                'srflx',
+                localCandidate.transport,
+                localCandidate.host
+            ),
+            localCandidate.component,
+            localCandidate.transport,
+            candidatePriority('srflx', {
+                transport: localCandidate.transport,
+                tcptype: localCandidate.tcptype
+            }),
+            response.getAttributeValue('XOR-MAPPED-ADDRESS')[0],
+            response.getAttributeValue('XOR-MAPPED-ADDRESS')[1],
+            'srflx',
+            localCandidate.host,
+            localCandidate.port,
+            localCandidate.tcptype
+        )
+        return candidate
+    } catch (error) {
+    // todo fix
+        log('error serverReflexiveCandidate', error)
+    }
+}
+
+export function validateAddress(addr?: Address): Address | undefined {
+    if (addr && Number.isNaN(addr[1])) {
+        return [addr[0], 443]
+    }
+    return addr
+}

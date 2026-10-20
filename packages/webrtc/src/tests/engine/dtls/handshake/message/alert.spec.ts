@@ -1,0 +1,8 @@
+import {test, expect} from '../../../support/vitest.js'
+import {Alert} from '../../../../../lib/dtls/handshake/message/alert.js'
+
+test('handshake_message_alert', () => {
+    const raw = Buffer.from([0x02, 0x0a])
+    const c = Alert.deSerialize(raw)
+    expect(raw).toEqual(c.serialize())
+})

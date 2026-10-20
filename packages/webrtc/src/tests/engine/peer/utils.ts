@@ -1,0 +1,209 @@
+import {afterEach, expect} from '../support/vitest.js'
+
+import {
+    type PeerConfig,
+    type RTCDataChannel,
+    type RTCDtlsTransport,
+    type RTCIceTransport,
+    RTCPeerConnection
+} from '../../../lib/peer/index.js'
+
+//The peer connections created by the tests of a file, closed after each test (the tests do not all close theirs)
+const created: Set<RTCPeerConnection> = new Set()
+let recording: boolean = false
+
+function recordPeerConnections() {
+    if (recording) return
+    recording = true
+    const prototype = RTCPeerConnection.prototype as unknown as Record<string, (...args: unknown[]) => RTCDtlsTransport>
+    const createDtlsTransport = prototype.createDtlsTransport
+    prototype.createDtlsTransport = function (this: RTCPeerConnection, ...args: unknown[]) {
+        created.add(this)
+        return createDtlsTransport.apply(this, args)
+    }
+}
+
+/**
+ * Closes after each test of the file the peer connections it created
+ */
+export function closePeerConnectionsAfterEach() {
+    recordPeerConnections()
+    afterEach(async () => {
+        const connections = [...created]
+        created.clear()
+        await Promise.allSettled(connections.map((pc) => pc.close()))
+    })
+}
+
+/**
+ * Create a PeerConnection with one data channel so that its first
+ * RTCIceTransport exists, and return both.
+ */
+export function createPeerConnectionWithIceTransport(
+    config: Partial<PeerConfig> = {}
+) {
+    const pc = new RTCPeerConnection({iceServers: [], ...config})
+    pc.createDataChannel('ice-transport')
+    const ice = (pc as any).secureManager.iceTransports[0] as RTCIceTransport
+    return {pc, ice}
+}
+
+export async function createDataChannelPair(
+    options:
+    | Partial<{
+        maxPacketLifeTime?: number | undefined
+        protocol: string
+        maxRetransmits?: number | undefined
+        ordered: boolean
+        negotiated: boolean
+        id?: number | undefined
+    }>
+    | undefined,
+    pc1 = new RTCPeerConnection(),
+    pc2 = new RTCPeerConnection()
+) {
+    let pair: RTCDataChannel[] = [],
+        bothOpen: Promise<void[]>
+    try {
+        if (options?.negotiated) {
+            pair = [pc1, pc2].map((pc) => pc.createDataChannel('', options))
+            bothOpen = Promise.all(
+                pair.map(
+                    (dc) =>
+                        new Promise<void>((r, e) => {
+                            dc.onopen = r
+                            dc.onerror = ({error}) => e(error)
+                        })
+                )
+            )
+        } else {
+            pair = [pc1.createDataChannel('', options)]
+            bothOpen = Promise.all([
+                new Promise<void>((r, e) => {
+                    pair[0].onopen = () => {
+                        r()
+                    }
+                    pair[0].onerror = ({error}) => e(error)
+                }),
+                new Promise<void>(
+                    (r, e) =>
+                        (pc2.ondatachannel = ({channel}) => {
+                            pair[1] = channel
+                            channel.onopen = () => {
+                                r()
+                            }
+                            channel.onerror = ({error}) => e(error)
+                        })
+                )
+            ])
+        }
+        exchangeIceCandidates(pc1, pc2)
+        await exchangeOfferAnswer(pc1, pc2)
+        await bothOpen
+        return pair
+    } finally {
+        for (const dc of pair) {
+            dc.onopen = dc.onerror = null
+        }
+    }
+}
+
+function exchangeIceCandidates(pc1: RTCPeerConnection, pc2: RTCPeerConnection) {
+    // private function
+    function doExchange(localPc: RTCPeerConnection, remotePc: RTCPeerConnection) {
+        localPc.onIceCandidate.subscribe((candidate) => {
+            if (!candidate) {
+                return
+            }
+            if (remotePc.signalingState !== 'closed') {
+                remotePc.addIceCandidate(candidate).catch((error) => {
+                    if ((error as Error).message !== 'The remote description was null') {
+                        throw error
+                    }
+                })
+            }
+        })
+    }
+
+    doExchange(pc1, pc2)
+    doExchange(pc2, pc1)
+}
+
+async function exchangeOfferAnswer(
+    caller: RTCPeerConnection,
+    callee: RTCPeerConnection
+) {
+    await exchangeOffer(caller, callee)
+    await exchangeAnswer(caller, callee)
+}
+
+async function exchangeOffer(
+    caller: RTCPeerConnection,
+    callee: RTCPeerConnection
+) {
+    await caller.setLocalDescription(await caller.createOffer())
+    await callee.setRemoteDescription(caller.localDescription!)
+}
+// Performs an answer exchange caller -> callee.
+async function exchangeAnswer(
+    caller: RTCPeerConnection,
+    callee: RTCPeerConnection
+) {
+    // Note that caller's remote description must be set first; if not,
+    // there's a chance that candidates from callee arrive at caller before
+    // it has a remote description to apply them to.
+    const answer = await callee.createAnswer()
+    await caller.setRemoteDescription(answer)
+    await callee.setLocalDescription(answer)
+}
+
+export function awaitMessage(channel: RTCDataChannel) {
+    return new Promise<string | Buffer>((resolve, reject) => {
+        void Promise.all([
+            new Promise<any>((r) =>
+                channel.addEventListener('message', (e) => {
+                    r(e.data)
+                })
+            ),
+            channel.onMessage.asPromise()
+        ]).then(([msg]) => resolve(msg))
+
+        channel.error.once(reject)
+    })
+}
+
+export async function generateAudioReceiveOnlyOffer(pc: RTCPeerConnection) {
+    pc.addTransceiver('audio', {direction: 'recvonly'})
+    return pc.createOffer()
+}
+
+function waitUntilEvent(obj, name) {
+    return new Promise((r) => obj.addEventListener(name, r, {once: true}))
+}
+
+export function addEventListenerPromise(
+    obj,
+    type,
+    listener?: (...args: any[]) => any
+) {
+    if (!listener) {
+        return waitUntilEvent(obj, type)
+    }
+    return new Promise((r) =>
+        obj.addEventListener(
+            type,
+            (e) => {
+                r(listener(e))
+            },
+            {once: true}
+        )
+    )
+}
+
+export function assert_equals(a, b, _msg: string) {
+    expect(a).toEqual(b)
+}
+
+export function assert_true(a, _msg: string) {
+    expect(a).toBeTruthy()
+}
