@@ -16,8 +16,11 @@ STUN server; the DTLS records arriving before the transport is ready are buffere
 while DTLS is connected; the transports a BUNDLE group replaced are stopped when the connection closes; the SCTP stack
 made faster (bundling, the acknowledgements sent with the data, a larger initial window, ring buffers) and its receive
 window enforced (RFC 9260, section 6.2), the room of a reset stream given back; the data channels sending without
-waiting, a message size of 256 KiB advertised; the TURN server given a range of relay ports, its timer kept stopped
-once closed; the tests ported to `node:test`.
+waiting, a message size of 256 KiB advertised; ICE using every STUN and TURN server of its configuration (one allocation
+per TURN server, its transports tried in turn), querying the STUN servers again and keeping the allocations the servers
+still have when ICE restarts, deleting its allocations when it closes; the TURN client retrying with a new nonce; the
+TURN server given a range of relay ports, its timer kept stopped once closed, the requests of an allocation checked with
+the credentials it was made with; the tests ported to `node:test`.
 
 ```
 MIT License

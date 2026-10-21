@@ -23,6 +23,7 @@ import {
     type IceConnection,
     type IceOptions,
     type IceState,
+    type TurnServerOptions,
     consentResponseTimeoutMs,
     defaultOptions,
     serverReflexiveCandidate,
@@ -34,13 +35,86 @@ import {TCP_CHECK_RESPONSE_TIMEOUT_MS, classes, methods} from './stun/const.js'
 import {Message} from './stun/message.js'
 import {StunProtocol} from './stun/protocol.js'
 import {TcpActiveProtocol, TcpPassiveProtocol} from './stun/tcpProtocol.js'
-import {createStunOverTurnClient} from './turn/protocol.js'
+import {type StunOverTurnProtocol, createStunOverTurnClient} from './turn/protocol.js'
 import type {Protocol, TransactionRequestOptions} from './types/model.js'
 import {getHostAddresses} from './utils.js'
 
 const log = debug('webrtc/ice/ice:log')
 
-/** Fallback STUN server when none is configured (constructor / setIceServers). */
+/**How long a transport to a TURN server is given before the next one is tried as well (ms) */
+const RELAY_ATTEMPT_DELAY = 1000
+
+/**The local preference of a relay candidate by the transport to its server: UDP first, then TCP, then TLS */
+const RELAY_PREFERENCE = {udp: 65535, tcp: 49151, tls: 32767}
+
+type RelayTransport = keyof typeof RELAY_PREFERENCE
+
+/** A way to reach a TURN server. */
+interface RelayAttempt {
+    address: Address
+    transport: RelayTransport
+    username: string
+    password: string
+}
+
+/** A TURN server: one relay candidate is gathered from it. */
+interface RelayServer {
+    /**the host */
+    key: string
+    /**its transports, tried in this order */
+    attempts: RelayAttempt[]
+}
+
+/**
+ * The TURN servers of the options: the entries of a host are the transports of one server (an entry without a
+ * transport is UDP, then TCP when UDP fails).
+ */
+function relayServersOf(options: IceOptions): RelayServer[] {
+    const entries: TurnServerOptions[] = []
+    if (options.turnServer && options.turnUsername && options.turnPassword) {
+        entries.push({
+            address: options.turnServer,
+            username: options.turnUsername,
+            password: options.turnPassword,
+            transport: options.turnTransport
+        })
+    }
+    entries.push(...(options.turnServers ?? []))
+    const servers = new Map<string, RelayServer>()
+    for (const entry of entries) {
+        const address = validateAddress(entry.address)
+        if (!address || !entry.username || !entry.password) continue
+        const key = address[0].toLowerCase()
+        let server = servers.get(key)
+        if (!server) {
+            server = {key, attempts: []}
+            servers.set(key, server)
+        }
+        const transports: RelayTransport[] =
+            entry.transport === undefined || entry.transport === 'udp' ? ['udp', 'tcp'] : [entry.transport]
+        for (const transport of transports) {
+            const known = server.attempts.some(
+                (attempt) =>
+                    attempt.transport === transport &&
+                    attempt.address[1] === address[1] &&
+                    attempt.username === entry.username &&
+                    attempt.password === entry.password
+            )
+            if (!known) server.attempts.push({address, transport, username: entry.username, password: entry.password})
+        }
+    }
+    return [...servers.values()]
+}
+
+/** The STUN servers of the options, each once. */
+function stunServersOf(options: IceOptions): Address[] {
+    const servers: Address[] = []
+    for (const server of [options.stunServer, ...(options.stunServers ?? [])]) {
+        const address = validateAddress(server)
+        if (address && !servers.some(([host, port]) => host === address[0] && port === address[1])) servers.push(address)
+    }
+    return servers
+}
 
 export class Connection implements IceConnection {
     localUsername = randomString(4)
@@ -53,6 +127,10 @@ export class Connection implements IceConnection {
     stunServer?: Address
     turnServer?: Address
     options: IceOptions
+    private stunServers: Address[] = []
+    private relayServers: RelayServer[] = []
+    /**the relays by the host of their TURN server */
+    private relays = new Map<string, StunOverTurnProtocol>()
     remoteCandidatesEnd = false
     localCandidatesEnd = false
     generation = -1
@@ -117,7 +195,9 @@ export class Connection implements IceConnection {
             turnServer: options.turnServer,
             turnUsername: options.turnUsername,
             turnPassword: options.turnPassword,
-            turnTransport: options.turnTransport
+            turnTransport: options.turnTransport,
+            stunServers: options.stunServers,
+            turnServers: options.turnServers
         }
         if (options.forceTurn !== undefined) {
             this.options.forceTurn = options.forceTurn
@@ -143,8 +223,10 @@ export class Connection implements IceConnection {
    */
     private applyStunTurnServersFromOptions() {
     //No STUN server unless one is configured, as RTCPeerConnection (no request to a public server by default)
-        this.stunServer = validateAddress(this.options.stunServer)
-        this.turnServer = validateAddress(this.options.turnServer)
+        this.stunServers = stunServersOf(this.options)
+        this.relayServers = relayServersOf(this.options)
+        this.stunServer = this.stunServers[0]
+        this.turnServer = validateAddress(this.options.turnServer) ?? this.relayServers[0]?.attempts[0]?.address
     }
 
     get iceControlling() {
@@ -241,8 +323,10 @@ export class Connection implements IceConnection {
 
             // ICE restart keeps transport protocols; re-advertise their host candidates
             // with the new generation / ufrag before gathering additional addresses.
+            // A relay is advertised again once its allocation is known to be still there.
+            const relays = [...this.relays.values()] as Protocol[]
             for (const protocol of this.protocols) {
-                if (protocol.localCandidate) {
+                if (protocol.localCandidate && !relays.includes(protocol)) {
                     protocol.localCandidate.generation = this.generation
                     protocol.localCandidate.ufrag = this.localUsername
                     this.appendLocalCandidate(protocol.localCandidate)
@@ -285,6 +369,144 @@ export class Connection implements IceConnection {
     private appendLocalCandidate(candidate: Candidate) {
         this.localCandidates.push(candidate)
         this.onIceCandidate.execute(candidate)
+    }
+
+    /**
+   * Whether a candidate with the same address and base was gathered already
+   * (RFC 8445, section 5.1.3): a server reflexive address that is a host
+   * address, or that another STUN server gave too.
+   */
+    private isRedundant(candidate: Candidate) {
+        const baseOf = (other: Candidate) =>
+            other.type === 'host' ? `${other.host}|${other.port}` : `${other.relatedAddress}|${other.relatedPort}`
+        return this.localCandidates.some(
+            (other) =>
+                other.transport === candidate.transport &&
+                other.host === candidate.host &&
+                other.port === candidate.port &&
+                other.type !== 'relay' &&
+                baseOf(other) === baseOf(candidate)
+        )
+    }
+
+    /**
+   * A relay candidate from each TURN server. An ICE restart keeps the
+   * allocation of a server when the server still has it; the relays of the
+   * servers no longer configured are closed.
+   */
+    private gatherRelayCandidates(servers: RelayServer[]): Promise<Candidate | void>[] {
+        for (const [key, relay] of this.relays) {
+            if (!servers.some((server) => server.key === key)) this.dropRelay(key, relay)
+        }
+        return servers.map(async (server) => {
+            const existing = this.relays.get(server.key)
+            if (existing) {
+                if (await existing.turn.refreshAllocation()) {
+                    if (this.relays.get(server.key) !== existing) return
+                    existing.localCandidate.generation = this.generation
+                    existing.localCandidate.ufrag = this.localUsername
+                    this.appendLocalCandidate(existing.localCandidate)
+                    return existing.localCandidate
+                }
+                this.dropRelay(server.key, existing)
+            }
+            const {protocol, attempt} = await this.allocateRelay(server)
+            if (this.state === 'closed' || this.relays.has(server.key)) {
+                await protocol.close()
+                return
+            }
+            this.ensureProtocol(protocol)
+            this.protocols.push(protocol)
+            this.relays.set(server.key, protocol)
+
+            const candidateAddress = protocol.turn.relayedAddress
+            const relatedAddress = protocol.turn.mappedAddress
+            log('turn candidateAddress', candidateAddress)
+
+            protocol.localCandidate = new Candidate(
+                candidateFoundation('relay', 'udp', candidateAddress[0], `${server.key}|${attempt.transport}`),
+                1,
+                'udp',
+                candidatePriority('relay', RELAY_PREFERENCE[attempt.transport]),
+                candidateAddress[0],
+                candidateAddress[1],
+                'relay',
+                relatedAddress[0],
+                relatedAddress[1],
+                undefined,
+                this.generation,
+                this.localUsername
+            )
+            this.appendLocalCandidate(protocol.localCandidate)
+            return protocol.localCandidate
+        }).map((promise) =>
+            promise.catch((error) => {
+                log('query TURN server', error)
+            })
+        )
+    }
+
+    /**
+   * Allocate a relay on a TURN server: its transports are tried in order, the
+   * next one when the one before fails or has not answered within
+   * RELAY_ATTEMPT_DELAY; the first allocation made is kept, a later one is
+   * deleted.
+   */
+    private allocateRelay(server: RelayServer): Promise<{protocol: StunOverTurnProtocol, attempt: RelayAttempt}> {
+        return new Promise((resolve, reject) => {
+            let next = 0
+            let pending = 0
+            let done = false
+            let timer: ReturnType<typeof setTimeout> | undefined
+            const start = () => {
+                clearTimeout(timer)
+                if (done || next >= server.attempts.length) return
+                const attempt = server.attempts[next++]
+                pending++
+                timer = setTimeout(start, RELAY_ATTEMPT_DELAY)
+                createStunOverTurnClient(
+                    {address: attempt.address, username: attempt.username, password: attempt.password},
+                    {
+                        portRange: this.options.portRange,
+                        interfaceAddresses: this.options.interfaceAddresses,
+                        transport: attempt.transport,
+                        tlsOptions: this.options.turnTlsOptions,
+                        connectTimeoutMs: (this.options.turnConnectTimeout ?? 8) * 1000,
+                        udpFamily: this.options.turnUdpFamily
+                    }
+                ).then(
+                    (protocol) => {
+                        pending--
+                        if (done) {
+                            protocol.close().catch((error) => log('close TURN relay', error))
+                            return
+                        }
+                        done = true
+                        clearTimeout(timer)
+                        resolve({protocol, attempt})
+                    },
+                    (error) => {
+                        pending--
+                        log('TURN allocation failed', attempt.transport, attempt.address, error)
+                        if (done) return
+                        if (next < server.attempts.length) {
+                            start()
+                        } else if (!pending) {
+                            done = true
+                            reject(error)
+                        }
+                    }
+                )
+            }
+            start()
+        })
+    }
+
+    /** Stop using a relay and delete its allocation. */
+    private dropRelay(key: string, relay: StunOverTurnProtocol) {
+        this.relays.delete(key)
+        this.protocols = this.protocols.filter((protocol) => protocol !== relay)
+        relay.close().catch((error) => log('close TURN relay', error))
     }
 
     private ensureProtocol(protocol: Protocol) {
@@ -398,15 +620,15 @@ export class Connection implements IceConnection {
 
     private getCandidatePromises(addresses: string[], timeout = 5) {
         const candidatePromises: Promise<unknown>[] = []
-        const {stunServer, turnServer} = this
-        const {turnUsername, turnPassword} = this.options
+        const {stunServers, relayServers} = this
         const gatherIceLite = this.iceLite
         const gatherRelayOnly =
-            !gatherIceLite &&
-      this.options.forceTurn &&
-      turnServer &&
-      turnUsername &&
-      turnPassword
+            !gatherIceLite && this.options.forceTurn && relayServers.length > 0
+        //The UDP host candidates of the generations before (an ICE restart) are queried again with the STUN servers
+        const knownHostProtocols = this.protocols.filter(
+            (protocol): protocol is StunProtocol =>
+                protocol instanceof StunProtocol && !!protocol.localCandidate
+        )
 
         addresses = addresses.filter((address) => {
             // ice restartで同じアドレスが追加されるのを防ぐ
@@ -534,14 +756,19 @@ export class Connection implements IceConnection {
             candidatePromises.push(...tcpCandidatePromises)
         }
 
-        if (!gatherIceLite && !gatherRelayOnly && stunServer) {
-            const stunCandidatePromises = localStunPromises.map(
-                async (protocolPromise) => {
+        if (!gatherIceLite && !gatherRelayOnly && stunServers.length) {
+            const hostProtocols: Promise<StunProtocol | undefined>[] = [
+                ...knownHostProtocols.map((protocol) => Promise.resolve(protocol)),
+                ...localStunPromises
+            ]
+            const stunCandidatePromises = hostProtocols.flatMap((protocolPromise) =>
+                stunServers.map(async (stunServer) => {
                     const protocol = await protocolPromise
                     if (!protocol) return
 
                     //The server reflexive candidate of an IPv4 host candidate; gathering waits for it at most timeout
-                    //seconds (a late answer still adds its candidate)
+                    //seconds (a late answer still adds its candidate, unless ICE restarted meanwhile)
+                    const generation = this.generation
                     const query = (async (): Promise<Candidate | void> => {
                         const host = protocol.localCandidate?.host
                         if (!host || !isIPv4(host)) return
@@ -551,9 +778,10 @@ export class Connection implements IceConnection {
                         ).catch((error) => {
                             log('error', error)
                         })
-                        if (candidate) {
-                            this.appendLocalCandidate(candidate)
-                        }
+                        if (!candidate || generation !== this.generation || this.isRedundant(candidate)) return
+                        candidate.generation = this.generation
+                        candidate.ufrag = this.localUsername
+                        this.appendLocalCandidate(candidate)
                         return candidate
                     })()
                     let timer: ReturnType<typeof setTimeout> | undefined
@@ -565,78 +793,14 @@ export class Connection implements IceConnection {
                         .catch((error) => {
                             log('query STUN server', error)
                         })
-                }
+                })
             )
 
             candidatePromises.push(...stunCandidatePromises)
         }
 
-        if (!gatherIceLite && turnServer && turnUsername && turnPassword) {
-            const turnCandidatePromise = (async () => {
-                const turnTransport = this.options.turnTransport ?? 'udp'
-                const protocol = await createStunOverTurnClient(
-                    {
-                        address: turnServer,
-                        username: turnUsername,
-                        password: turnPassword
-                    },
-                    {
-                        portRange: this.options.portRange,
-                        interfaceAddresses: this.options.interfaceAddresses,
-                        transport: turnTransport,
-                        tlsOptions: this.options.turnTlsOptions,
-                        connectTimeoutMs: (this.options.turnConnectTimeout ?? 8) * 1000,
-                        udpFamily: this.options.turnUdpFamily
-                    }
-                ).catch(async (e) => {
-                    if (turnTransport === 'udp') {
-                        return await createStunOverTurnClient(
-                            {
-                                address: turnServer,
-                                username: turnUsername,
-                                password: turnPassword
-                            },
-                            {
-                                portRange: this.options.portRange,
-                                interfaceAddresses: this.options.interfaceAddresses,
-                                transport: 'tcp',
-                                connectTimeoutMs: (this.options.turnConnectTimeout ?? 8) * 1000
-                            }
-                        )
-                    } else {
-                        throw e
-                    }
-                })
-                this.ensureProtocol(protocol)
-                this.protocols.push(protocol)
-
-                const candidateAddress = protocol.turn.relayedAddress
-                const relatedAddress = protocol.turn.mappedAddress
-
-                log('turn candidateAddress', candidateAddress)
-
-                protocol.localCandidate = new Candidate(
-                    candidateFoundation('relay', 'udp', candidateAddress[0]),
-                    1,
-                    'udp',
-                    candidatePriority('relay'),
-                    candidateAddress[0],
-                    candidateAddress[1],
-                    'relay',
-                    relatedAddress[0],
-                    relatedAddress[1],
-                    undefined,
-                    this.generation,
-                    this.localUsername
-                )
-                this.appendLocalCandidate(protocol.localCandidate)
-
-                return protocol.localCandidate
-            })().catch((error) => {
-                log('query TURN server', error)
-            })
-
-            candidatePromises.push(turnCandidatePromise)
+        if (!gatherIceLite) {
+            candidatePromises.push(...this.gatherRelayCandidates(relayServers))
         }
 
         return candidatePromises
@@ -1070,13 +1234,14 @@ export class Connection implements IceConnection {
         }
 
         this.nominated = undefined
-        for (const protocol of this.protocols) {
-            if (protocol.close) {
-                await protocol.close()
-            }
-        }
-
+        const protocols = this.protocols
         this.protocols = []
+        this.relays.clear()
+        //Together: closing a relay waits for its server to delete the allocation
+        await Promise.all(protocols.map(async (protocol) => {
+            await protocol.close?.()
+        }))
+
         this.localCandidates = []
 
         this.lookup?.close?.()

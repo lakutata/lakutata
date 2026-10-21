@@ -24,6 +24,7 @@ import {
     Transaction,
     addressEquals,
     buildTransactionOptions,
+    isChallenge,
     resolveRequestAddress
 } from '../stun/transaction.js'
 import type {Protocol, TransactionRequestOptions} from '../types/model.js'
@@ -38,6 +39,8 @@ import {
 const log = debug('webrtc/ice/turn/protocol')
 
 const DEFAULT_CHANNEL_REFRESH_TIME = 500
+/**How long closing waits for the server to delete the allocation (ms) */
+const DELETE_TIMEOUT = 1000
 const DEFAULT_ALLOCATION_LIFETIME = 600
 const UDP_TRANSPORT = 0x11000000
 
@@ -171,6 +174,8 @@ export class TurnProtocol implements Protocol {
     mappedAddress!: Address
     localCandidate!: Candidate
     transactions: {[hexId: string]: Transaction} = {}
+    /**When the allocation expires unless refreshed (ms since epoch), 0 when there is none */
+    private expiresAt = 0
     private refreshHandle?: Cancelable<void>
     private channelNumber = 0x4000
     private channelByAddr: {[key: string]: TurnChannel} = {}
@@ -235,6 +240,7 @@ export class TurnProtocol implements Protocol {
         this.mappedAddress = response.getAttributeValue('XOR-MAPPED-ADDRESS')
         const exp = response.getAttributeValue('LIFETIME')
         log('connect', this.relayedAddress, this.mappedAddress, {exp})
+        this.expiresAt = Date.now() + exp * 1000
 
         this.refresh(exp)
     }
@@ -261,7 +267,8 @@ export class TurnProtocol implements Protocol {
             ) {
                 const transaction = this.transactions[message.transactionIdHex]
                 if (transaction) {
-                    const verified = transaction.integrityKey
+                    //A challenge (a new nonce) comes without MESSAGE-INTEGRITY
+                    const verified = transaction.integrityKey && !isChallenge(message)
                         ? parseMessage(data, transaction.integrityKey)
                         : message
                     if (!verified) {
@@ -363,6 +370,7 @@ export class TurnProtocol implements Protocol {
                     )
                     exp = message.getAttributeValue('LIFETIME')
                     log('refresh', {exp})
+                    this.expiresAt = Date.now() + exp * 1000
                 } catch (error) {
                     if (abort.signal.aborted) {
                         return
@@ -701,8 +709,39 @@ export class TurnProtocol implements Protocol {
         await this.send(message.bytes, addr)
     }
 
+    /**
+   * Refresh the allocation now.
+   * @returns Whether the server still has it.
+   */
+    async refreshAllocation(): Promise<boolean> {
+        if (!this.expiresAt || this.transport.closed) {
+            return false
+        }
+        const request = new Message(methods.REFRESH, classes.REQUEST)
+        request.setAttribute('LIFETIME', this.lifetime)
+        try {
+            const [message] = await this.requestWithRetry(request, this.server)
+            this.expiresAt = Date.now() + message.getAttributeValue('LIFETIME') * 1000
+            return true
+        } catch (error) {
+            log('refresh failed', error)
+            this.expiresAt = 0
+            return false
+        }
+    }
+
     async close() {
         this.refreshHandle?.resolve?.()
+        //Delete the allocation on the server (a refresh with a lifetime of 0, RFC 8656 section 7), waiting a second at
+        //most for the answer
+        if (this.expiresAt > Date.now() && !this.transport.closed) {
+            this.expiresAt = 0
+            const request = new Message(methods.REFRESH, classes.REQUEST)
+            request.setAttribute('LIFETIME', 0)
+            await this.requestWithRetry(request, this.server, AbortSignal.timeout(DELETE_TIMEOUT)).catch((error) => {
+                log('delete allocation', error)
+            })
+        }
         await this.transport.close()
     }
 }

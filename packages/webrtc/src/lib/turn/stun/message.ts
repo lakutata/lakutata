@@ -173,6 +173,8 @@ export class Message extends AttributeRepository {
     }
 
     addMessageIntegrity(key: Buffer) {
+        //Signing again (a retry with a new nonce) replaces the integrity and the fingerprint after it
+        this.removeAttribute('FINGERPRINT').removeAttribute('MESSAGE-INTEGRITY')
         this.setAttribute('MESSAGE-INTEGRITY', this.messageIntegrity(key))
         return this
     }
@@ -189,6 +191,7 @@ export class Message extends AttributeRepository {
     }
 
     addFingerprint() {
+        this.removeAttribute('FINGERPRINT')
         this.setAttribute('FINGERPRINT', messageFingerprint(this.bytes))
         return this
     }

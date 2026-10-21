@@ -112,7 +112,8 @@ How the rooms behave:
   signaling connection closes (Socket.IO, or JSON-RPC over WebSocket) leaves its rooms; its peer-to-peer connections
   stay up until it comes back or they fail.
 - **ICE servers.** The members get the ICE servers from the server when they join, with TURN credentials valid for
-  `credentialTtl` (a day by default), and fetch new ones before they expire.
+  `credentialTtl` (a day by default), and fetch new ones before they expire. A relay keeps working after the
+  credentials it was made with expire.
 - **Checks.** A member signals only to the members of its rooms; the signals are limited in size (64 KiB) and in rate
   (50 per second on average), and the `authorize` option decides who joins which room.
 
@@ -170,9 +171,8 @@ string the client chooses once: joining again with the same session keeps the ot
 ## Limits
 
 - Audio and video are not supported yet: the connections of Node.js carry data channels.
-- A `PeerConnection` uses the first STUN URL and the first TURN URL of its ICE servers.
 - Throughput of one data channel between two Node.js processes on an Apple M4: about 60 MiB/s for large messages,
-  380,000 messages of 100 bytes per second.
+  440,000 messages of 100 bytes per second.
 
 ## API
 

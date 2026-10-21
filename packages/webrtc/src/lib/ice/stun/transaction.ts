@@ -152,7 +152,7 @@ export class Transaction {
             const hasIntegrity =
                 message.attributesKeys.includes('MESSAGE-INTEGRITY') ||
         message.attributesKeys.includes('MESSAGE-INTEGRITY-SHA256')
-            if (!hasIntegrity) {
+            if (!hasIntegrity && !isChallenge(message)) {
                 log(
                     'ignore unauthenticated STUN response (MESSAGE-INTEGRITY required)'
                 )
@@ -265,6 +265,20 @@ export class Transaction {
             this.onAbort = undefined
         }
     }
+}
+
+/**
+ * Whether an error response is a challenge of long-term credentials: a 401
+ * or 438 (Stale Nonce) with a new NONCE. A server cannot protect it with the
+ * key of the nonce it rejects, so it comes without MESSAGE-INTEGRITY and the
+ * client retries with the new nonce (RFC 8489, section 9.2.5).
+ */
+export function isChallenge(message: Message) {
+    if (message.messageClass !== classes.ERROR || !message.getAttributeValue('NONCE')) {
+        return false
+    }
+    const [code] = message.getAttributeValue('ERROR-CODE') ?? []
+    return code === 401 || code === 438
 }
 
 /**

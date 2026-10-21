@@ -107,7 +107,7 @@ connection. `TURNServer` is one, inside the application:
 | `secret` | a random one at each start | The secret of the short-lived credentials |
 | `users` | `{}` | Users with a fixed password, `{username: password}` |
 | `realm` | `'lakutata'` | The realm of the credentials |
-| `credentialTtl` | `86400` | How long the short-lived credentials are valid, in seconds |
+| `credentialTtl` | `86400` | How long the short-lived credentials are valid, in seconds; a relay made with them keeps working once they expire |
 | `maxAllocations` | no limit | The relays at once at most |
 
 The short-lived credentials follow the REST API of coturn: the username is `<expiry>:<user>` and the password is
@@ -313,6 +313,5 @@ pairs tried.
 
 - Audio and video are not supported yet: the connections of Node.js carry data channels. The browsers may add tracks to
   their connections to each other.
-- A `PeerConnection` uses the first STUN URL and the first TURN URL of its ICE servers.
 - The throughput of one data channel between two Node.js processes on an Apple M4 is about 60 MiB/s for large
-  messages, and 380,000 messages of 100 bytes per second.
+  messages, and 440,000 messages of 100 bytes per second.

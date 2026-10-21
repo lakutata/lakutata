@@ -85,7 +85,7 @@ Application.run(() => ({
 | `secret` | 每次启动时随机生成 | 短时凭据的密钥 |
 | `users` | `{}` | 使用固定密码的用户，`{username: password}` |
 | `realm` | `'lakutata'` | 凭据的 realm |
-| `credentialTtl` | `86400` | 短时凭据的有效期，单位秒 |
+| `credentialTtl` | `86400` | 短时凭据的有效期，单位秒；过期后，用它建立的中转照常工作 |
 | `maxAllocations` | 不限 | 同时最多多少个中转 |
 
 短时凭据遵循 coturn 的 REST API：用户名是 `<expiry>:<user>`，密码是 `base64(HMAC-SHA1(secret, username))`，持有密钥的服务器不用保存凭据就能校验。`turn.iceServers(user)` 给出一个客户端的 ICE 服务器和凭据，`turn.credentials(user)` 只给凭据，`createTURNCredentials(secret, user, ttl)` 为其他 TURN 服务器（配置了 `use-auth-secret` 的 coturn）生成凭据，`turn.allocations` 是正在使用的中转数量。
@@ -244,5 +244,4 @@ setDebugHandler((namespace: string, args: unknown[]): void => console.debug(name
 ## 11. 限制
 
 - 还不支持音视频：Node.js 端的连接只传数据通道。浏览器之间的连接可以自己添加音视频轨道。
-- `PeerConnection` 只使用 ICE 服务器里的第一个 STUN 地址和第一个 TURN 地址。
-- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 38 万条。
+- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 44 万条。

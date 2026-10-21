@@ -93,7 +93,7 @@ export class Telemetry extends Component {
 - **连接。** 成员为其他每个成员得到一个 `Peer`，带有到它的连接（`peer.connection`：浏览器里是 `RTCPeerConnection`，Node.js 里是 `PeerConnection`）。任何一方添加数据通道时，连接就会建立。offer 和 answer 按 W3C 的“完美协商”（perfect negotiation）交换：双方随时都可以添加通道，同时添加也没问题。双方只想共用一个通道时，两边都用 `negotiated: true` 和相同的 `id` 创建它。
 - **修复。** 连接失败，或者断开超过 5 秒，会自动重启 ICE。信令连接断开时，点对点连接保持不变；信令恢复后，客户端重新加入它的房间，其他成员保留到它的连接。成员刷新页面后以新的会话加入，其他成员会替换到它的连接。
 - **离开。** `room.leave()` 关闭这个房间的连接，其他成员收到 `peer-left`。成员的信令连接（Socket.IO，或 WebSocket 上的 JSON-RPC）关闭时，它会离开它的房间；它的点对点连接保持不变，直到它回来或者连接失败。
-- **ICE 服务器。** 成员加入房间时从服务端拿到 ICE 服务器，TURN 凭据在 `credentialTtl`（默认一天）内有效，到期前客户端会重新获取。
+- **ICE 服务器。** 成员加入房间时从服务端拿到 ICE 服务器，TURN 凭据在 `credentialTtl`（默认一天）内有效，到期前客户端会重新获取。凭据过期后，用它建立的中转照常工作。
 - **检查。** 成员只能给自己所在房间的成员发信令；信令的大小（64 KiB）和频率（平均每秒 50 条）有限制，`authorize` 选项决定谁能加入哪个房间。
 
 大消息：数据通道和任何一方之间都能传 64 KiB 以内的消息；Chrome 和这个包的连接能接收 256 KiB 以内的消息。两端都套上 `ChunkedChannel` 后，消息会被切成小块发送，再在对端拼回原样，任意大小的消息和文件都能传：
@@ -137,8 +137,7 @@ await transfer.send(new Uint8Array(50 * 1024 * 1024))
 ## 限制
 
 - 还不支持音视频：Node.js 端的连接只传数据通道。
-- `PeerConnection` 只使用 ICE 服务器里的第一个 STUN 地址和第一个 TURN 地址。
-- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 38 万条。
+- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 44 万条。
 
 ## API
 

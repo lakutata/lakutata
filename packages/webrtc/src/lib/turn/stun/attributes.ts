@@ -231,6 +231,11 @@ export class AttributeRepository {
         return this.attributes.map((attribute) => attribute[0])
     }
 
+    removeAttribute(key: AttributeKey) {
+        this.attributes = this.attributes.filter((attribute) => attribute[0] !== key)
+        return this
+    }
+
     clear() {
         this.attributes = []
     }

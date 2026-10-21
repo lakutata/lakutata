@@ -114,7 +114,16 @@ export class SecureTransportManager {
             turnServer: iceServerOptions.turnServer,
             turnUsername: iceServerOptions.turnUsername,
             turnPassword: iceServerOptions.turnPassword,
-            turnTransport
+            turnTransport,
+            stunServers: iceServerOptions.stunServers,
+            turnServers: iceServerOptions.turnServers.map((server) => ({
+                ...server,
+                transport: resolveTurnTransport({
+                    parsedTurnTransport: server.transport,
+                    configuredTurnTransport: this.config.turnTransport,
+                    forceTurnTCP: this.config.forceTurnTCP
+                })
+            }))
         }
     }
 

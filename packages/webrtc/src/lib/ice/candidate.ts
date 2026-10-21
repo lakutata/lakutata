@@ -203,12 +203,16 @@ function candidateTypePreference(candidateType: string, transport = 'udp') {
 export function candidateFoundation(
     candidateType: string,
     candidateTransport: string,
-    baseAddress: string
+    baseAddress: string,
+    server?: string
 ) {
     // """
     // See RFC 5245 - 4.1.1.3. Computing Foundations
     // """
-    const key = `${candidateType}|${candidateTransport}|${baseAddress}`
+    //The candidates from different STUN or TURN servers have different foundations (RFC 8445, section 5.1.1.3)
+    const key = server === undefined
+        ? `${candidateType}|${candidateTransport}|${baseAddress}`
+        : `${candidateType}|${candidateTransport}|${baseAddress}|${server}`
 
     return createHash('md5').update(key, 'ascii').digest('hex').slice(7)
 }

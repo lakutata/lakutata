@@ -258,6 +258,16 @@ export interface IceOptions {
     turnUsername?: string
     turnPassword?: string
     turnTransport?: 'udp' | 'tcp' | 'tls'
+    /**
+   * More STUN servers, queried as stunServer is: each one that answers gives
+   * a server reflexive candidate (the same address only once).
+   */
+    stunServers?: Address[]
+    /**
+   * More TURN servers, used as turnServer is: one relay candidate per server.
+   * The entries of a host are the transports of one server, tried in order.
+   */
+    turnServers?: TurnServerOptions[]
     turnTlsOptions?: TlsConnectionOptions
     /**
    * Preferred IP family of the TURN/UDP socket, applied only when turnServer
@@ -279,6 +289,15 @@ export interface IceOptions {
         protocol: Protocol
     ) => boolean
     filterCandidatePair?: (pair: CandidatePair) => boolean
+}
+
+/** A TURN server, reached with one transport. */
+export interface TurnServerOptions {
+    address: Address
+    username: string
+    password: string
+    /** UDP when undefined, with TCP when UDP fails. */
+    transport?: 'udp' | 'tcp' | 'tls'
 }
 
 export const defaultOptions: IceOptions = {
@@ -356,7 +375,8 @@ export async function serverReflexiveCandidate(
             candidateFoundation(
                 'srflx',
                 localCandidate.transport,
-                localCandidate.host
+                localCandidate.host,
+                stunServer[0]
             ),
             localCandidate.component,
             localCandidate.transport,

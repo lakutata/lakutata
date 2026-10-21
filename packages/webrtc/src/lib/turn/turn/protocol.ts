@@ -157,6 +157,8 @@ type TurnAllocation = {
     id: string
     relayId: string
     username: string
+    /**the key of the credentials the allocation was made with */
+    integrityKey: Buffer
     client: ClientEndpoint
     mappedAddress: Address
     lifetime: number
@@ -638,6 +640,7 @@ export class TurnServerProtocol {
             id: allocationId,
             relayId,
             username: auth.username,
+            integrityKey: auth.integrityKey,
             client: this.clientEndpoint(auth),
             mappedAddress: auth.remoteAddress,
             lifetime: this.clampLifetime(message.getAttributeValue('LIFETIME')),
@@ -973,14 +976,21 @@ export class TurnServerProtocol {
             }
         }
 
-        const password = this.getPassword(username, this.realm)
-        if (!password) {
-            return {
-                response: this.unauthorizedResponse(message, 401, 'Unauthorized')
+        //The requests of an allocation other than Allocate are checked with the key it was made with, its username
+        //unchanged: time-limited credentials (TURN REST API) that expire do not end the allocations made with them
+        const allocation =
+            method === methods.ALLOCATE ? undefined : this.getClientAllocation(input.clientId)
+        let integrityKey = allocation && allocation.username === username ? allocation.integrityKey : undefined
+        if (!integrityKey) {
+            const password = this.getPassword(username, this.realm)
+            if (!password) {
+                return {
+                    response: this.unauthorizedResponse(message, 401, 'Unauthorized')
+                }
             }
+            integrityKey = makeTurnIntegrityKey(username, this.realm, password)
         }
 
-        const integrityKey = makeTurnIntegrityKey(username, this.realm, password)
         const validated = parseMessage(input.data, integrityKey)
         if (!validated || validated.messageMethod !== method) {
             return {

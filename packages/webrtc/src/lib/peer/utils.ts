@@ -12,6 +12,7 @@ import {
     randomPort
 } from './imports/common.js'
 import {CipherContext} from './imports/dtls.js'
+import type {TurnServerOptions} from './imports/ice.js'
 
 import {Directions, type MediaDirection} from './media/rtpTransceiver.js'
 import {MediaStreamTrack} from './media/track.js'
@@ -111,13 +112,16 @@ export const compactNtp = (ntp: bigint) => {
 }
 
 export function parseIceServers(iceServers: RTCIceServer[]) {
+    //The first STUN and TURN URLs, and all of them in stunServers and turnServers
     const options: {
         stunServer?: Address
         turnServer?: Address
         turnUsername?: string
         turnPassword?: string
         turnTransport?: 'udp' | 'tcp' | 'tls'
-    } = {}
+        stunServers: Address[]
+        turnServers: TurnServerOptions[]
+    } = {stunServers: [], turnServers: []}
 
     for (const iceServer of iceServers) {
         const urls = Array.isArray(iceServer.urls)
@@ -129,15 +133,26 @@ export function parseIceServers(iceServers: RTCIceServer[]) {
                 continue
             }
 
-            if (!options.stunServer && parsed.kind === 'stun') {
-                options.stunServer = parsed.address
+            if (parsed.kind === 'stun') {
+                options.stunServer ??= parsed.address
+                options.stunServers.push(parsed.address)
             }
 
-            if (!options.turnServer && parsed.kind === 'turn') {
-                options.turnServer = parsed.address
-                options.turnTransport = parsed.transport
-                options.turnUsername = iceServer.username
-                options.turnPassword = iceServer.credential
+            if (parsed.kind === 'turn') {
+                if (!options.turnServer) {
+                    options.turnServer = parsed.address
+                    options.turnTransport = parsed.transport
+                    options.turnUsername = iceServer.username
+                    options.turnPassword = iceServer.credential
+                }
+                if (iceServer.username && iceServer.credential) {
+                    options.turnServers.push({
+                        address: parsed.address,
+                        username: iceServer.username,
+                        password: iceServer.credential,
+                        transport: parsed.transport
+                    })
+                }
             }
         }
     }
