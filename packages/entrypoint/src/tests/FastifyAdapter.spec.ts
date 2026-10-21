@@ -52,6 +52,11 @@ class DeviceController extends Controller {
         return input
     }
 
+    @POST('/text')
+    public async text(input: {body?: unknown}): Promise<{body: unknown}> {
+        return {body: input.body ?? null}
+    }
+
     @GET('/missing')
     public async missing(): Promise<void> {
         throw new MissingException('Nothing here')
@@ -143,6 +148,23 @@ describe('Fastify adapter', (): void => {
         await container.destroy()
     })
 
+    it('gives the actions the bodies of the text types as text', async (): Promise<void> => {
+        const {url, container} = await start({body: {text: ['application/sdp', 'text/*']}})
+        const post = async (contentType: string, body: string): Promise<Response> => fetch(`${url}/text`, {method: 'POST', headers: {'Content-Type': contentType}, body: body})
+        const sdp: string = 'v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=-\r\n'
+        assert.deepStrictEqual(await (await post('application/sdp', sdp)).json(), {body: sdp})
+        assert.deepStrictEqual(await (await post('text/csv; charset=utf-8', 'a,b')).json(), {body: 'a,b'})
+        assert.deepStrictEqual(await (await post('text/plain', 'plain')).json(), {body: 'plain'})
+        //A type fastify does not parse is refused
+        assert.strictEqual((await post('application/xml', '<a/>')).status, 415)
+        await container.destroy()
+        //Without the option: SDP is refused, and a text/plain body is not in the input
+        const plain = await start()
+        assert.strictEqual((await fetch(`${plain.url}/text`, {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: sdp})).status, 415)
+        assert.deepStrictEqual(await (await fetch(`${plain.url}/text`, {method: 'POST', headers: {'Content-Type': 'text/plain'}, body: 'plain'})).json(), {body: null})
+        await plain.container.destroy()
+    })
+
     it('writes the errors with their status', async (): Promise<void> => {
         const {url, container} = await start()
         const invalid: Response = await fetch(`${url}/device/sn-1`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: 1})})
@@ -210,7 +232,7 @@ describe('Fastify adapter', (): void => {
     it('mounts the application routes, the fallback and the envelope', async (): Promise<void> => {
         const {url, container} = await start({
             before: (app, {actionPrefixes, isActionPath}): void => {
-                assert.deepStrictEqual(actionPrefixes.sort(), ['/buffer', '/created', '/device', '/empty', '/events', '/file', '/missing', '/probe', '/slow', '/status'])
+                assert.deepStrictEqual(actionPrefixes.sort(), ['/buffer', '/created', '/device', '/empty', '/events', '/file', '/missing', '/probe', '/slow', '/status', '/text'])
                 assert.ok(isActionPath('/device/x') && !isActionPath('/devices'))
                 app.get('/health', async (): Promise<unknown> => ({status: 'ok'}))
             },

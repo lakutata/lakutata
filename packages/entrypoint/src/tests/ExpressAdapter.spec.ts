@@ -56,6 +56,11 @@ class DeviceController extends Controller {
         return input
     }
 
+    @POST('/text')
+    public async text(input: {body?: unknown}): Promise<{body: unknown}> {
+        return {body: input.body ?? null}
+    }
+
     @GET('/missing')
     public async missing(): Promise<void> {
         throw new MissingException('Nothing here')
@@ -164,6 +169,18 @@ describe('Express adapter', (): void => {
         await container.destroy()
     })
 
+    it('gives the actions the bodies of the text types as text', async (): Promise<void> => {
+        const {url, container} = await start({body: {text: ['application/sdp', 'text/*']}})
+        const post = async (contentType: string, body: string): Promise<unknown> => (await fetch(`${url}/text`, {method: 'POST', headers: {'Content-Type': contentType}, body: body})).json()
+        const sdp: string = 'v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=-\r\n'
+        assert.deepStrictEqual(await post('application/sdp', sdp), {body: sdp})
+        assert.deepStrictEqual(await post('text/csv; charset=utf-8', 'a,b'), {body: 'a,b'})
+        //A type not listed has no body in the input
+        assert.deepStrictEqual(await post('application/xml', '<a/>'), {body: null})
+        assert.deepStrictEqual(await post('application/json', JSON.stringify({sn: 'x'})), {body: null})
+        await container.destroy()
+    })
+
     it('gives the actions and the middlewares the express request, its getters included', async (): Promise<void> => {
         let ipOfMiddleware: string | undefined
         const {url, container} = await start({}, {middlewares: [async (invocation: ActionInvocation, next: Next): Promise<unknown> => {
@@ -258,7 +275,7 @@ describe('Express adapter', (): void => {
     it('mounts the application routes, the fallback and the envelope', async (): Promise<void> => {
         const {url, container} = await start({
             before: (app, {actionPrefixes, isActionPath}): void => {
-                assert.deepStrictEqual(actionPrefixes.sort(), ['/administrators', '/buffer', '/client', '/created', '/denied', '/device', '/empty', '/events', '/file', '/missing', '/probe', '/slow', '/status'])
+                assert.deepStrictEqual(actionPrefixes.sort(), ['/administrators', '/buffer', '/client', '/created', '/denied', '/device', '/empty', '/events', '/file', '/missing', '/probe', '/slow', '/status', '/text'])
                 assert.ok(isActionPath('/device/x') && !isActionPath('/devices'))
                 app.get('/health', (request, response): unknown => response.json({status: 'ok'}))
             },

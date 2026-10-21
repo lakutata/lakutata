@@ -109,7 +109,7 @@ HTTP/1.1 400 Bad Request
 | `port` | `80` | 端口；`0` 表示任选一个空闲端口。端口已被占用时，应用启动失败 |
 | `host` | 所有网络接口 | 监听的地址，比如 `'127.0.0.1'` 表示只接受本机的请求 |
 | `name` | | 适配器的名字，用来区分多个适配器 |
-| `body` | `{limit: '1mb'}` | JSON 和 URL 编码请求体的大小上限（`'5mb'`，或者字节数）；`false` 表示不解析请求体 |
+| `body` | `{limit: '1mb'}` | 请求体的大小上限（`'5mb'`，或者字节数）；`text`：按文本读取的内容类型（第 4 节）；`false` 表示不解析请求体 |
 | `server` | | Node.js HTTP 服务器的选项：`keepAliveTimeout`、`headersTimeout`、`requestTimeout`…… |
 | `app` | 新建的应用 | 一个已有的 Express 应用，动作会加到它上面 |
 | `input` | 查询参数和请求体 | 从请求构造输入（第 4 节） |
@@ -120,7 +120,7 @@ HTTP/1.1 400 Bad Request
 | `stop` | | 适配器停止、服务器关闭之后调用 |
 | `heartbeat` | `15000` | 每隔多久发送一条注释，让事件流保持连接，单位毫秒（第 5 节） |
 
-`fastifyHTTPEntrypoint()` 的选项相同，只是没有 `body`、`server` 和 `app`，取而代之的是 `fastify`：一个 Fastify 实例，或者要创建的实例的选项（`bodyLimit`，默认 1 MiB；`trustProxy`；`connectionTimeout`、`keepAliveTimeout`、`requestTimeout`；`logger`……）。
+`fastifyHTTPEntrypoint()` 的选项相同，只是没有 `server` 和 `app`，取而代之的是 `fastify`：一个 Fastify 实例，或者要创建的实例的选项（`bodyLimit`，默认 1 MiB；`trustProxy`；`connectionTimeout`、`keepAliveTimeout`、`requestTimeout`；`logger`……）。它的 `body` 选项只有 `text`，大小上限是实例的 `bodyLimit`。
 
 两者的不同之处：
 
@@ -191,6 +191,7 @@ POST /orders/7?id=1&note=a   请求体为 {"id": 5, "note": "b"}   →   {id: '7
 - **查询参数。** 出现多次的键是一个数组（`?tag=a&tag=b` → `tag: ['a', 'b']`）。在 Express 5 和 Fastify 中，方括号不会形成嵌套：`?filter[status]=open` 得到的键是 `'filter[status]'`。
 - **JSON 请求体。** 数组无法作为输入使用（Express 把它的元素放在以序号为名的键下，Fastify 忽略它）：列表要放在一个对象里发送（`{"items": [...]}`）。
 - **表单。** Express 会解析 URL 编码的请求体，方括号会形成嵌套（`a[b]=1` → `a: {b: '1'}`）；Fastify 以 415 拒绝它们。两者都不解析 `multipart/form-data`，也就是文件上传（第 7 节）。
+- **其他文本。** `body.text` 里列出的内容类型（`['application/sdp']`，或者用 `'text/*'` 表示一整类）按文本读取，放在输入的 `body` 属性里交给动作。Fastify 不解析的其他类型以 415 拒绝。
 - **上限。** 请求体超过上限时以 413 拒绝，JSON 格式错误时以 400 拒绝。
 
 `input` 选项从请求构造输入。比如，把客户端的地址和语言交给动作（只有声明了 `ip` 和 `language` 的 DTO 才会保留它们）：

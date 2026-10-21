@@ -113,7 +113,7 @@ The options of `expressHTTPEntrypoint()`:
 | `port` | `80` | The port; `0` picks a free port. A port already in use fails the application's start |
 | `host` | all the interfaces | The address to listen on, such as `'127.0.0.1'` for the local machine only |
 | `name` | | The name of the adapter, to tell several adapters apart |
-| `body` | `{limit: '1mb'}` | The size limit of the JSON and URL-encoded bodies (`'5mb'`, or a number of bytes); `false` parses no body |
+| `body` | `{limit: '1mb'}` | The size limit of the bodies (`'5mb'`, or a number of bytes); `text`: the content types read as text (section 4); `false` parses no body |
 | `server` | | The options of the Node.js HTTP server: `keepAliveTimeout`, `headersTimeout`, `requestTimeout`… |
 | `app` | a new application | An existing Express application to add the actions to |
 | `input` | the query and the body | Builds the input from the request (section 4) |
@@ -124,9 +124,10 @@ The options of `expressHTTPEntrypoint()`:
 | `stop` | | Called when the adapter stops, once its server is closed |
 | `heartbeat` | `15000` | How often a comment keeps the event streams alive, in milliseconds (section 5) |
 
-`fastifyHTTPEntrypoint()` takes the same options, except `body`, `server` and `app`, replaced by `fastify`: a Fastify
-instance, or the options of the instance to create (`bodyLimit`, 1 MiB by default; `trustProxy`; `connectionTimeout`,
-`keepAliveTimeout`, `requestTimeout`; `logger`…).
+`fastifyHTTPEntrypoint()` takes the same options, except `server` and `app`, replaced by `fastify`: a Fastify instance,
+or the options of the instance to create (`bodyLimit`, 1 MiB by default; `trustProxy`; `connectionTimeout`,
+`keepAliveTimeout`, `requestTimeout`; `logger`…). Its `body` option has only `text`, the size limit being the
+`bodyLimit` of the instance.
 
 Where they differ:
 
@@ -209,6 +210,9 @@ before the validation, without the route parameters.
   send a list inside an object (`{"items": [...]}`).
 - **Forms.** Express parses the URL-encoded bodies, the brackets nested (`a[b]=1` → `a: {b: '1'}`); Fastify refuses them
   with 415. Neither parses `multipart/form-data`, the file uploads (section 7).
+- **Other text.** The content types listed in `body.text` (`['application/sdp']`, or `'text/*'` for a whole type) are
+  read as text, given to the action in the `body` property of its input. Fastify refuses the other types it does not
+  parse with 415.
 - **Limits.** A body over the limit is refused with 413, malformed JSON with 400.
 
 The `input` option builds the input from the request. For example, to give the actions the address of the client and

@@ -12,6 +12,7 @@ import {EventsResult, FileResult, StatusResult} from '../../lib/Result.js'
 import {RouteNotFoundException} from '../../exceptions/RouteNotFoundException.js'
 import {trackConnections} from '../../lib/Connections.js'
 import {markExplicitStatus} from '../../lib/ExplicitStatus.js'
+import {isTextType} from '../../lib/TextBodies.js'
 import {FastifyJSONResponder, type FastifyResponder} from './Responders.js'
 
 /**
@@ -69,8 +70,16 @@ export type FastifyHTTPEntrypointOptions = {
      */
     fastify?: FastifyInstance | FastifyServerOptions
     /**
+     * The content types listed in `text` (`application/sdp`, or `text/*` for a whole type) are read as text: the actions
+     * get those bodies as a string, the `body` property of their input; the `bodyLimit` of fastify applies. Fastify
+     * answers a body of a type it does not parse (JSON and `text/plain` are parsed) with an error (415).
+     * @default none
+     */
+    body?: { text?: string[] }
+    /**
      * Build an action's input from a request. The route parameters are always merged over its result.
-     * @default the query parameters, then the properties of an object body over them (an array body is ignored)
+     * @default the query parameters, then the properties of an object body over them (an array body is ignored), or,
+     * for a body of one of the `text` types of the `body` option, its text as `body`
      */
     input?: (request: FastifyRequest) => Record<string, unknown>
     /**
@@ -226,9 +235,11 @@ function isFastifyInstance(value: unknown): value is FastifyInstance {
  */
 export function fastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}): EntrypointAdapter<HTTPContext> {
     const respond: FastifyResponder = options.respond ?? FastifyJSONResponder
+    const textTypes: string[] = options.body?.text ?? []
     const input: (request: FastifyRequest) => Record<string, unknown> = options.input ?? ((request: FastifyRequest): Record<string, unknown> => ({
         ...(request.query && typeof request.query === 'object' ? request.query as Record<string, unknown> : {}),
-        ...(request.body && typeof request.body === 'object' && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {})
+        ...(request.body && typeof request.body === 'object' && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {}),
+        ...(typeof request.body === 'string' && isTextType(request.headers['content-type'], textTypes) ? {body: request.body} : {})
     }))
     const streams: Set<AbortController> = new Set()
     let app: FastifyInstance | undefined
@@ -360,6 +371,13 @@ export function fastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
             for (const action of runtime.actions) routes.set(action.address.route, (routes.get(action.address.route) ?? new Set()).add(String(action.address.method).toUpperCase()))
             const actionPrefixes: string[] = actionPrefixesOf(routes.keys())
             const isActionPath = (requestPath: string): boolean => actionPrefixes.some((prefix: string): boolean => requestPath === prefix || requestPath.startsWith(`${prefix}/`))
+            //The parsers of the text types, before the hook (a hook adding a parser of one of them fails); the parsers the
+            //instance already has are kept (text/plain gives a text)
+            for (const type of textTypes) {
+                const contentType: string | RegExp = type.endsWith('/*') ? new RegExp(`^${type.slice(0, -1).replace(/[.+]/g, '\\$&')}`, 'i') : type
+                if (fastify.hasContentTypeParser(contentType)) continue
+                fastify.addContentTypeParser(contentType, {parseAs: 'string'}, (_request: FastifyRequest, body: string | Buffer, done: (error: Error | null, body?: unknown) => void): void => done(null, body))
+            }
             await options.before?.(fastify, {module: runtime.module, server: fastify.server, routes: routes, actionPrefixes: actionPrefixes, isActionPath: isActionPath})
             for (const action of runtime.actions) {
                 const method: string = String(action.address.method).toUpperCase()

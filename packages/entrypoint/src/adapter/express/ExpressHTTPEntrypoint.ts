@@ -1,5 +1,5 @@
 import express, {type Express, type NextFunction, type Request, type RequestHandler, type Response} from 'express'
-import {createServer, type Server, type ServerOptions} from 'node:http'
+import {createServer, type IncomingMessage, type Server, type ServerOptions} from 'node:http'
 import path from 'node:path'
 import type {Readable} from 'node:stream'
 import type {Module} from '@lakutata/core'
@@ -11,6 +11,7 @@ import {EventsResult, FileResult, StatusResult} from '../../lib/Result.js'
 import {RouteNotFoundException} from '../../exceptions/RouteNotFoundException.js'
 import {trackConnections} from '../../lib/Connections.js'
 import {markExplicitStatus} from '../../lib/ExplicitStatus.js'
+import {isTextType} from '../../lib/TextBodies.js'
 import {ExpressResponder, JSONResponder} from './Responders.js'
 
 /**
@@ -71,15 +72,18 @@ export type ExpressHTTPEntrypointOptions = {
      */
     app?: Express
     /**
-     * The JSON and URL-encoded body parsers, with their size limit (bytes, or a text such as `'5mb'`); a larger body is
-     * answered with an error (413). `false` installs no parser, leaving the parsing to the application. The parsers are
-     * installed after the `before` hook, so the middlewares added there do not see a parsed body.
+     * The body parsers: the JSON and URL-encoded ones, and a text parser for the content types listed in `text`
+     * (`application/sdp`, or `text/*` for a whole type): the actions get those bodies as a string, the `body` property of
+     * their input. Their size limit is `limit` (bytes, or a text such as `'5mb'`); a larger body is answered with an error
+     * (413). `false` installs no parser, leaving the parsing to the application. The parsers are installed after the
+     * `before` hook, so the middlewares added there do not see a parsed body.
      * @default {limit: '1mb'}
      */
-    body?: false | { limit?: string | number }
+    body?: false | { limit?: string | number, text?: string[] }
     /**
      * Build an action's input from a request. The route parameters are always merged over its result.
-     * @default the query parameters, then the properties of an object body over them
+     * @default the query parameters, then the properties of an object body over them, or, for a body of one of the
+     * `text` types of the `body` option, its text as `body`
      */
     input?: (request: Request) => Record<string, unknown>
     /**
@@ -206,7 +210,12 @@ function eventFrame(data: unknown, event?: string, id?: string): string {
  */
 export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}): EntrypointAdapter<HTTPContext> {
     const respond: ExpressResponder = options.respond ?? JSONResponder
-    const input: (request: Request) => Record<string, unknown> = options.input ?? ((request: Request): Record<string, unknown> => ({...(request.query as Record<string, unknown>), ...(request.body && typeof request.body === 'object' ? request.body : {})}))
+    const textTypes: string[] = options.body ? options.body.text ?? [] : []
+    const input: (request: Request) => Record<string, unknown> = options.input ?? ((request: Request): Record<string, unknown> => ({
+        ...(request.query as Record<string, unknown>),
+        ...(request.body && typeof request.body === 'object' ? request.body : {}),
+        ...(typeof request.body === 'string' && isTextType(request.headers['content-type'], textTypes) ? {body: request.body} : {})
+    }))
     const streams: Set<AbortController> = new Set()
     let server: Server | undefined
     let destroyConnections: (() => void) | undefined
@@ -344,7 +353,11 @@ export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}
             const actionPrefixes: string[] = actionPrefixesOf(routes.keys())
             const isActionPath = (requestPath: string): boolean => actionPrefixes.some((prefix: string): boolean => requestPath === prefix || requestPath.startsWith(`${prefix}/`))
             await options.before?.(app, {module: runtime.module, server: server, routes: routes, actionPrefixes: actionPrefixes, isActionPath: isActionPath})
-            if (options.body !== false) app.use(express.json({limit: options.body?.limit ?? '1mb'}), express.urlencoded({extended: true, limit: options.body?.limit ?? '1mb'}))
+            if (options.body !== false) {
+                const limit: string | number = options.body?.limit ?? '1mb'
+                app.use(express.json({limit: limit}), express.urlencoded({extended: true, limit: limit}))
+                if (textTypes.length) app.use(express.text({type: (request: IncomingMessage): boolean => isTextType(request.headers['content-type'], textTypes), limit: limit}))
+            }
             //The HEAD actions first: express answers a HEAD request with the first GET route of its path when no HEAD route
             //comes before it
             const isHead = (action: ChannelActionInfo): boolean => String(action.address.method).toLowerCase() === 'head'
