@@ -12,7 +12,7 @@ npm install lakutata @lakutata/webrtc
 
 | Entry point | Runs in | What it gives |
 |---|---|---|
-| `@lakutata/webrtc` | Node.js, the main process of Electron, Bun | `Signaling`, `SignalingController`, `TURNServer`, `SignalingClient`, `PeerConnection`, `MediaTrack`, `ChunkedChannel` |
+| `@lakutata/webrtc` | Node.js, the main process of Electron, Bun | `Signaling`, `SignalingController`, `TURNServer`, `SignalingClient`, `PeerConnection`, `MediaTrack`, `WHIP`, `WHIPController`, `ChunkedChannel` |
 | `@lakutata/webrtc/client` | Browsers, the renderer of Electron | `SignalingConnection`, `ChunkedChannel`, the types of the protocol |
 
 The browser entry uses only the APIs of the browsers; a frontend installs the same package, and the framework is not
@@ -350,7 +350,80 @@ another track of the same codec without negotiating again. The codecs are Opus a
 VP9 for the video; the `codecs` option of `PeerConnection` and of `SignalingClient` chooses them and their order, and a
 track created with a `codec` makes its connections negotiate that one.
 
-## 9. Deployment
+## 9. Publishing with WHIP
+
+WHIP (RFC 9725) publishes a stream with one HTTP request: the encoder (OBS, GStreamer, ffmpeg) or the browser posts its
+offer to the URL of the stream, and gets the answer and the URL of its session. The `WHIP` component answers the offers
+and emits `publish` with the session (its `id`, `stream`, `connection` and `tracks`) and `unpublish` when it ends: the
+publisher deleted it, its connection failed or closed, or the application stopped. `WHIPController` is its HTTP
+interface; the HTTP adapter must read `application/sdp` as text (its `body.text` option).
+
+```typescript
+import {Application, Component} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {buildWHIPOptions, type MediaTrack, type WHIP, type WHIPSession, WHIPController} from '@lakutata/webrtc'
+
+export class Studio extends Component {
+    protected async init(): Promise<void> {
+        const whip: WHIP = await this.getObject<WHIP>('whip')
+        whip.on('publish', (session: WHIPSession): void => {
+            session.tracks.forEach((track: MediaTrack): void => console.log(`${session.stream}: ${track.kind} ${track.codec}`))
+        })
+        whip.on('unpublish', (session: WHIPSession): void => console.log(`${session.stream} ended`))
+    }
+}
+
+Application.run(() => ({
+    id: 'studio.app',
+    name: 'Studio',
+    components: {
+        whip: buildWHIPOptions({
+            authorize: ({stream, token}): boolean => stream === 'live' && token === process.env.WHIP_TOKEN,
+            iceAdditionalHostAddresses: ['203.0.113.10'],
+            icePortRange: [40000, 40100]
+        }),
+        studio: {class: Studio},
+        entrypoint: buildEntrypoints({
+            controllers: [WHIPController],
+            http: expressHTTPEntrypoint({port: 8080, body: {text: ['application/sdp', 'application/trickle-ice-sdpfrag']}})
+        })
+    },
+    bootstrap: ['studio', 'entrypoint']
+}))
+```
+
+In OBS, choose the service WHIP, the server `https://studio.example.com/whip/live` and the bearer token; ffmpeg
+publishes with `-f whip -authorization <token> https://studio.example.com/whip/live` (stereo audio: `-ac 2`). The tracks
+of the session give their RTP packets, to record them or to send them on to other connections (section 8).
+
+| Request | Answer |
+|---|---|
+| `POST /whip/:stream` with the offer (`application/sdp`) | `201 Created`: the answer, `Location` (the session), `Link` (the ICE servers) |
+| `DELETE /whip/:stream/:session` | `200`: the session ends |
+| `OPTIONS` | `204`, with the CORS headers and `Accept-Post: application/sdp` |
+| `GET` | `204` |
+| `PATCH` | `405`: neither trickle ICE nor ICE restarts |
+
+The refusals: 401 with `WWW-Authenticate: Bearer` when `authorize` refuses, 415 for a body that is not
+`application/sdp`, 400 for an offer without audio or video, 503 once there are `maxSessions` sessions, 404 for an
+unknown session. The URL of a session is the capability to end it: its id is random, and its DELETE is not authorized
+again. A subclass with `@Prefix({route: '/live'})` serves the same interface under another path.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `authorize` | none | `({stream, token}, context) => boolean`: who may publish which stream |
+| `turn` | none | The name of a `TURNServer` component: the publishers get its ICE servers in the `Link` headers |
+| `iceServers` | `[]` | More ICE servers for the publishers |
+| `maxSessions` | `100` | The sessions at once at most, `0` for no limit |
+| `allowOrigin` | `'*'` | The origins the browsers may publish from |
+| `icePortRange`, `iceAdditionalHostAddresses` | | The candidates of the server: its UDP ports, its public address |
+| `codecs` | Opus, PCMU, VP8, H.264, VP9 | The codecs accepted |
+
+The answer carries all the candidates of the server, which gathers them before answering: behind a NAT or in a
+container, give it its public address and open its ports.
+
+## 10. Deployment
 
 - **Ports.** Open port 3478 over UDP and TCP, the relay ports (`relayPortRange`) over UDP, and the TLS port when TURN
   over TLS is on. In a container, publish them all; the relay range keeps the list short.
@@ -365,7 +438,7 @@ track created with a `codec` makes its connections negotiate that one.
 - **HTTPS.** Browsers allow WebRTC on any page, but the camera and the microphone only on secure pages (HTTPS or
   `localhost`).
 
-## 10. The signaling protocol
+## 11. The signaling protocol
 
 Clients in other languages and native applications speak the protocol directly. The requests are service calls whose
 pattern is `{method}`: over Socket.IO, the event `message` with `{method: 'webrtc.join', room: 'room-1'}` and an
@@ -397,7 +470,7 @@ pushes the events to the members: Socket.IO events, or JSON-RPC notifications wh
   `E_SIGNALING_NOT_A_MEMBER`, `E_SIGNALING_CLIENT_REQUIRED`, `E_INVALID_VALUE`. JSON-RPC over HTTP cannot carry the
   signaling: the events need a connection to be pushed through.
 
-## 11. When a connection fails
+## 12. When a connection fails
 
 `setDebugHandler()` gives the debug messages of ICE, DTLS, SCTP and TURN:
 
@@ -412,9 +485,10 @@ To check the TURN server, join a room from two clients with `iceTransportPolicy:
 the relays, and `turn.allocations` counts them. In Chrome, `chrome://webrtc-internals` shows the candidates and the
 pairs tried.
 
-## 12. Limits
+## 13. Limits
 
 - Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
   another connection.
+- WHIP supports neither trickle ICE nor ICE restarts.
 - The throughput of one data channel between two Node.js processes on an Apple M4 is about 60 MiB/s for large
   messages, and 440,000 messages of 100 bytes per second.

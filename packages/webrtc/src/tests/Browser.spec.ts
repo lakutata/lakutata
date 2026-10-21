@@ -14,7 +14,8 @@ import type {PeerChannel} from '../peer/PeerChannel.js'
 import type {PeerTrackEvent} from '../peer/PeerConnection.js'
 import type {RtpPacket} from '../peer/RtpPacket.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
-import {next, startServer, type TestServer} from './support/Server.js'
+import type {WHIPSession} from '../whip/WHIP.js'
+import {next, startServer, startWHIP, type TestServer} from './support/Server.js'
 
 //The browser tests use Playwright with the Chrome installed on the machine: the package playwright, else the one at
 //LAKUTATA_PLAYWRIGHT (its directory); they are skipped without them
@@ -358,6 +359,53 @@ describe('Browser', (): void => {
             files.server.close()
             await clients.destroy()
             await server.stop()
+        }
+    })
+
+    it('publishes the camera of Chrome with WHIP, from another origin (CORS)', {timeout: 90000}, async (t: TestContext): Promise<void> => {
+        const chrome: Browser | undefined = await launchChrome({media: true})
+        if (!chrome) return t.skip('Playwright or Chrome is not available')
+        const files: {url: string, server: Server} = await staticServer()
+        const {url, whip, container} = await startWHIP('express', {authorize: ({token}): boolean => token === 'browser-token'})
+        try {
+            const published: Promise<WHIPSession> = next<WHIPSession>((resolve: (session: WHIPSession) => void): unknown => whip.once('publish', resolve), 30000, 'publish')
+            const page: BrowserPage = await chrome.newPage()
+            await page.goto(files.url)
+            //The client of WHIP of a page: its offer with all its candidates, the answer, the URL of its session
+            const location: string = await page.evaluate<string>(`(async () => {
+                const camera = await navigator.mediaDevices.getUserMedia({audio: true, video: {width: 320, height: 240}})
+                const connection = new RTCPeerConnection()
+                for (const track of camera.getTracks()) connection.addTransceiver(track, {direction: 'sendonly', streams: [camera]})
+                await connection.setLocalDescription()
+                await new Promise((resolve) => {
+                    if (connection.iceGatheringState === 'complete') return resolve()
+                    connection.addEventListener('icegatheringstatechange', () => connection.iceGatheringState === 'complete' && resolve())
+                })
+                const response = await fetch(${JSON.stringify(`${url}/whip/studio`)}, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/sdp', 'Authorization': 'Bearer browser-token'},
+                    body: connection.localDescription.sdp
+                })
+                if (response.status !== 201) throw new Error('POST answered ' + response.status)
+                await connection.setRemoteDescription({type: 'answer', sdp: await response.text()})
+                await new Promise((resolve, reject) => {
+                    setTimeout(() => reject(new Error('not connected')), 20000)
+                    connection.addEventListener('connectionstatechange', () => connection.connectionState === 'connected' && resolve())
+                })
+                return response.headers.get('Location')
+            })()`)
+            const session: WHIPSession = await published
+            assert.strictEqual(location, `/whip/studio/${session.id}`)
+            assert.deepStrictEqual(session.tracks.map((track: MediaTrack): string => track.kind).sort(), ['audio', 'video'])
+            await Promise.all(session.tracks.map((track: MediaTrack): Promise<RtpPacket> => next<RtpPacket>((resolve: (packet: RtpPacket) => void): unknown => track.once('rtp', resolve), 20000, `the ${track.kind} of Chrome`)))
+            //The page ends its session
+            const unpublished: Promise<WHIPSession> = next<WHIPSession>((resolve: (ended: WHIPSession) => void): unknown => whip.once('unpublish', resolve), 10000, 'unpublish')
+            assert.strictEqual(await page.evaluate<number>(`fetch(${JSON.stringify(url)} + ${JSON.stringify(location)}, {method: 'DELETE'}).then((response) => response.status)`), 200)
+            assert.strictEqual((await unpublished).id, session.id)
+        } finally {
+            await chrome.close()
+            files.server.close()
+            await container.destroy()
         }
     })
 })

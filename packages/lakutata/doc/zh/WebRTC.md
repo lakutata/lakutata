@@ -8,7 +8,7 @@ npm install lakutata @lakutata/webrtc
 
 | 入口 | 运行在 | 提供什么 |
 |---|---|---|
-| `@lakutata/webrtc` | Node.js、Electron 的主进程、Bun | `Signaling`、`SignalingController`、`TURNServer`、`SignalingClient`、`PeerConnection`、`MediaTrack`、`ChunkedChannel` |
+| `@lakutata/webrtc` | Node.js、Electron 的主进程、Bun | `Signaling`、`SignalingController`、`TURNServer`、`SignalingClient`、`PeerConnection`、`MediaTrack`、`WHIP`、`WHIPController`、`ChunkedChannel` |
 | `@lakutata/webrtc/client` | 浏览器、Electron 的渲染进程 | `SignalingConnection`、`ChunkedChannel`、协议的类型 |
 
 浏览器入口只使用浏览器的接口；前端安装同一个包，框架不会随之安装。
@@ -282,7 +282,70 @@ export class Relay extends Component {
 
 `PeerConnection` 的方法和 `RTCPeerConnection` 一致：`addTrack(track, ...streamIds)`（对方把同一个流的轨道归在一起）、`addTransceiver(trackOrKind, {direction, streamIds})`（`recvonly` 表示只收不发）、`removeTrack(sender)`、`getTransceivers()`、`getSenders()` 和 `getReceivers()`；`sender.replaceTrack()` 换发同一编码的另一条轨道，不用重新协商。支持的编码：音频 Opus 和 PCMU，视频 VP8、H.264 和 VP9；`PeerConnection` 和 `SignalingClient` 的 `codecs` 选项决定用哪些、按什么顺序，用 `codec` 创建的轨道会让它的连接协商这一种编码。
 
-## 9. 部署
+## 9. 用 WHIP 推流
+
+WHIP（RFC 9725）用一个 HTTP 请求推一路流：编码器（OBS、GStreamer、ffmpeg）或浏览器把 offer 提交到这路流的 URL，拿回 answer 和它的会话 URL。`WHIP` 组件回答这些 offer，推流开始时发出 `publish`，带上会话（它的 `id`、`stream`、`connection` 和 `tracks`），结束时发出 `unpublish`：推流方删除了它，它的连接失败或关闭了，或者应用停止了。`WHIPController` 是它的 HTTP 接口；HTTP 适配器要把 `application/sdp` 按文本读取（`body.text` 选项）。
+
+```typescript
+import {Application, Component} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {buildWHIPOptions, type MediaTrack, type WHIP, type WHIPSession, WHIPController} from '@lakutata/webrtc'
+
+export class Studio extends Component {
+    protected async init(): Promise<void> {
+        const whip: WHIP = await this.getObject<WHIP>('whip')
+        whip.on('publish', (session: WHIPSession): void => {
+            session.tracks.forEach((track: MediaTrack): void => console.log(`${session.stream}: ${track.kind} ${track.codec}`))
+        })
+        whip.on('unpublish', (session: WHIPSession): void => console.log(`${session.stream} ended`))
+    }
+}
+
+Application.run(() => ({
+    id: 'studio.app',
+    name: 'Studio',
+    components: {
+        whip: buildWHIPOptions({
+            authorize: ({stream, token}): boolean => stream === 'live' && token === process.env.WHIP_TOKEN,
+            iceAdditionalHostAddresses: ['203.0.113.10'],
+            icePortRange: [40000, 40100]
+        }),
+        studio: {class: Studio},
+        entrypoint: buildEntrypoints({
+            controllers: [WHIPController],
+            http: expressHTTPEntrypoint({port: 8080, body: {text: ['application/sdp', 'application/trickle-ice-sdpfrag']}})
+        })
+    },
+    bootstrap: ['studio', 'entrypoint']
+}))
+```
+
+在 OBS 里，服务选 WHIP，服务器填 `https://studio.example.com/whip/live`，再填上 Bearer 令牌；ffmpeg 用 `-f whip -authorization <令牌> https://studio.example.com/whip/live` 推流（音频要是立体声：`-ac 2`）。会话的轨道交出 RTP 包，可以录制，也可以转发给其他连接（第 8 节）。
+
+| 请求 | 回答 |
+|---|---|
+| `POST /whip/:stream`，请求体是 offer（`application/sdp`） | `201 Created`：answer、`Location`（会话）、`Link`（ICE 服务器） |
+| `DELETE /whip/:stream/:session` | `200`：会话结束 |
+| `OPTIONS` | `204`，带 CORS 头和 `Accept-Post: application/sdp` |
+| `GET` | `204` |
+| `PATCH` | `405`：既不支持 Trickle ICE，也不支持 ICE 重启 |
+
+拒绝的情况：`authorize` 拒绝时回 401，带 `WWW-Authenticate: Bearer`；请求体不是 `application/sdp` 时回 415；offer 里没有音视频时回 400；已经有 `maxSessions` 个会话时回 503；会话不存在时回 404。会话的 URL 就是结束它的凭证：它的 id 是随机的，DELETE 不再做授权检查。子类加上 `@Prefix({route: '/live'})`，就能在另一个路径下提供同样的接口。
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `authorize` | 无 | `({stream, token}, context) => boolean`：谁能推哪路流 |
+| `turn` | 无 | 一个 `TURNServer` 组件的名字：推流方在 `Link` 头里拿到它的 ICE 服务器 |
+| `iceServers` | `[]` | 给推流方的更多 ICE 服务器 |
+| `maxSessions` | `100` | 同时最多多少个会话，`0` 表示不限 |
+| `allowOrigin` | `'*'` | 允许哪些来源的浏览器推流 |
+| `icePortRange`、`iceAdditionalHostAddresses` | | 服务器的候选地址：它的 UDP 端口、它的公网地址 |
+| `codecs` | Opus、PCMU、VP8、H.264、VP9 | 接受的编码 |
+
+answer 里带有服务器的全部候选地址，服务器收集完才回答：在 NAT 后面或者容器里，要告诉它自己的公网地址，并放开它的端口。
+
+## 10. 部署
 
 - **端口。** 放开 UDP 和 TCP 的 3478 端口、UDP 的中转端口（`relayPortRange`），开启了 TLS 上的 TURN 时还有 TLS 端口。在容器里要把它们全部发布出来；指定中转端口范围可以让需要发布的端口少一些。
 - **公网地址。** `publicAddress` 是客户端访问 TURN 服务器用的地址：主机的公网地址，或者转发了这些端口的 NAT 的地址。在局域网里用默认值就够了。
@@ -291,7 +354,7 @@ export class Relay extends Component {
 - **其他 TURN 服务器。** coturn（`use-auth-secret`，`static-auth-secret` 设为相同的密钥）接受 `createTURNCredentials()` 生成的凭据；把它写进 `Signaling` 的 `iceServers` 选项。
 - **HTTPS。** 浏览器在任何页面上都允许使用 WebRTC，但摄像头和麦克风只能在安全的页面上使用（HTTPS 或 `localhost`）。
 
-## 10. 信令协议
+## 11. 信令协议
 
 其他语言的客户端和原生应用可以直接使用这个协议。请求是模式为 `{method}` 的服务调用：Socket.IO 上是带确认回调（`{success, error, payload}`）的 `message` 事件，内容如 `{method: 'webrtc.join', room: 'room-1'}`；JSON-RPC 2.0 上是方法名为 `webrtc.join` 的请求。服务端把事件推给成员：Socket.IO 的事件，或者 `params` 里放着内容的 JSON-RPC 通知。
 
@@ -314,7 +377,7 @@ export class Relay extends Component {
 - 一对成员里，id 排在前面（按字符串比较）的一方是“礼让”的一方：双方同时发出 offer 时，它放弃自己的 offer，回答对方的。
 - 错误带有服务端异常的 `errno`：`E_SIGNALING_DENIED`、`E_SIGNALING_LIMIT`、`E_SIGNALING_NOT_A_MEMBER`、`E_SIGNALING_CLIENT_REQUIRED`、`E_INVALID_VALUE`。HTTP 上的 JSON-RPC 不能承载信令：事件需要通过一条连接推送。
 
-## 11. 连接失败时
+## 12. 连接失败时
 
 `setDebugHandler()` 给出 ICE、DTLS、SCTP 和 TURN 的调试信息：
 
@@ -327,7 +390,8 @@ setDebugHandler((namespace: string, args: unknown[]): void => console.debug(name
 
 要检查 TURN 服务器，可以让两个客户端用 `iceTransportPolicy: 'relay'` 加入同一个房间：它们只能经过中转连接，`turn.allocations` 会统计到它们。在 Chrome 里，`chrome://webrtc-internals` 能看到候选地址和尝试过的地址对。
 
-## 12. 限制
+## 13. 限制
 
 - Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
+- WHIP 不支持 Trickle ICE，也不支持 ICE 重启。
 - 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 44 万条。

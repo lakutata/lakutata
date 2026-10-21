@@ -4,7 +4,7 @@
 
 [lakutata](https://www.npmjs.com/package/lakutata) 框架的 WebRTC，用 TypeScript 编写，没有原生代码：安装时不需要编译器，能在 Node.js、Electron 的主进程和 Bun 中运行。它有两个入口：
 
-- `@lakutata/webrtc`，给应用用：信令（房间里的成员互相交换 offer、answer 和候选地址）、STUN 和 TURN 服务器，以及 Node.js 端的对等连接（数据通道、音视频轨道），接口和浏览器的 `RTCPeerConnection` 一致。
+- `@lakutata/webrtc`，给应用用：信令（房间里的成员互相交换 offer、answer 和候选地址）、STUN 和 TURN 服务器、WHIP 推流接收，以及 Node.js 端的对等连接（数据通道、音视频轨道），接口和浏览器的 `RTCPeerConnection` 一致。
 - `@lakutata/webrtc/client`，给浏览器和 Electron 的渲染进程用：把浏览器自带的 `RTCPeerConnection` 接到信令上。它只使用浏览器的接口，前端打包它时不会带上服务端代码。
 
 协议的实现（ICE、DTLS、SCTP 和数据通道、RTP 和 SRTP、STUN 和 TURN 服务器）改编自 [werift](https://github.com/shinyoshiaki/werift-webrtc)，见 `THIRD_PARTY_NOTICES.md`。
@@ -147,6 +147,42 @@ export class Camera extends Component {
 
 观看方要从关键帧开始解码：让编码器每一两秒出一个关键帧（ffmpeg 的 `-g`），或者在编码器支持时，收到轨道的 `keyframerequest` 事件就生成一个。支持的编码：音频 Opus 和 PCMU，视频 VP8、H.264 和 VP9（`PeerConnection` 和 `SignalingClient` 的 `codecs` 选项）。
 
+用 WHIP 推流（RFC 9725）：编码器（OBS、GStreamer、ffmpeg）和浏览器用一个 HTTP POST 提交 offer，就能推一路流。`WHIP` 组件回答它们，推流开始时发出 `publish`，带上会话（它的连接和轨道），结束时发出 `unpublish`；`WHIPController` 提供 `/whip/:stream` 接口。
+
+```typescript
+import {Application, Component} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {buildWHIPOptions, type MediaTrack, type WHIP, type WHIPSession, WHIPController} from '@lakutata/webrtc'
+
+export class Studio extends Component {
+    protected async init(): Promise<void> {
+        const whip: WHIP = await this.getObject<WHIP>('whip')
+        whip.on('publish', (session: WHIPSession): void => {
+            session.tracks.forEach((track: MediaTrack): void => console.log(`${session.stream}: ${track.kind} ${track.codec}`))
+        })
+    }
+}
+
+Application.run(() => ({
+    id: 'studio.app',
+    name: 'Studio',
+    components: {
+        //OBS：服务选 WHIP，服务器填 https://studio.example.com/whip/live，再填上 Bearer 令牌
+        whip: buildWHIPOptions({authorize: ({token}): boolean => token === process.env.WHIP_TOKEN}),
+        studio: {class: Studio},
+        entrypoint: buildEntrypoints({
+            controllers: [WHIPController],
+            //offer 的类型是 application/sdp，按文本读取
+            http: expressHTTPEntrypoint({port: 8080, body: {text: ['application/sdp', 'application/trickle-ice-sdpfrag']}})
+        })
+    },
+    bootstrap: ['studio', 'entrypoint']
+}))
+```
+
+answer 里带有服务器的全部候选地址：要告诉它自己的公网地址（`iceAdditionalHostAddresses`）和要放开的 UDP 端口（`icePortRange`）。`PATCH` 请求（Trickle ICE、ICE 重启）一律回 405；`body.text` 里也要列上 `application/trickle-ice-sdpfrag`，否则 Fastify 会在请求到达控制器之前以 415 拒绝它。ffmpeg 用 `-f whip -authorization <令牌> <URL>` 推流。
+
 ## 部署
 
 - **端口。** TURN 服务器在 3478 端口上监听 UDP 和 TCP（给了证书时还有 TLS）；中转使用 `relayPortRange` 里的 UDP 端口。在防火墙里放开这些端口，或者从容器发布它们。
@@ -177,6 +213,7 @@ export class Camera extends Component {
 ## 限制
 
 - Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
+- WHIP 不支持 Trickle ICE，也不支持 ICE 重启。
 - 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 44 万条。
 
 ## API
@@ -191,6 +228,8 @@ export class Camera extends Component {
 | `PeerConnection`、`PeerChannel` | Node.js 端的对等连接和数据通道 |
 | `MediaTrack`、`RtpPacket` | Node.js 端的音视频轨道和它的 RTP 包 |
 | `RtpTransceiver`、`RtpSender`、`RtpReceiver` | 连接里的音视频收发器（transceiver） |
+| `WHIP`、`buildWHIPOptions` | WHIP 推流接收：会话，`publish` 和 `unpublish` 事件 |
+| `WHIPController` | WHIP 的 HTTP 接口：`/whip/:stream` |
 | `Room`、`Peer` | 加入的房间，以及另一个成员和到它的连接 |
 | `ChunkedChannel` | 在数据通道上传任意大小的消息 |
 | `setDebugHandler` | ICE、DTLS、SCTP 和 TURN 的调试信息 |
@@ -206,11 +245,16 @@ export class Camera extends Component {
 | `SignalingNotAMemberException` | 发送方或接收方不在这个房间里 |
 | `SignalingClientRequiredException` | 请求所在的连接没法推送事件（HTTP） |
 | `SignalingConnectionException` | `SignalingClient` 缺少 `socket.io-client` 或 `WebSocket` |
+| `WHIPDeniedException` | `authorize` 拒绝了这路流（401） |
+| `WHIPLimitException` | 会话已经有 `maxSessions` 个（503） |
+| `WHIPOfferException` | offer 里没有音视频，或者连接不接受它（400） |
+| `WHIPMediaTypeException` | offer 不是 `application/sdp`（415） |
+| `WHIPSessionNotFoundException` | 请求的会话不存在（404） |
 | `SignalingRequestError` | 客户端上请求的错误，带有服务端异常的 `errno` |
 
 ## 测试
 
-`npm run test:unit` 运行协议、信令以及 Node.js 进程之间连接的测试。Chrome 的测试使用 Playwright 和本机安装的 Chrome：能引用 `playwright` 包（或者在 `LAKUTATA_PLAYWRIGHT` 指定的目录里找到它）时运行，否则跳过。把编码器的 H.264 发给 Chrome 的那个测试还需要带 `libx264` 的 `ffmpeg`。
+`npm run test:unit` 运行协议、信令以及 Node.js 进程之间连接的测试。Chrome 的测试使用 Playwright 和本机安装的 Chrome：能引用 `playwright` 包（或者在 `LAKUTATA_PLAYWRIGHT` 指定的目录里找到它）时运行，否则跳过。把编码器的 H.264 发给 Chrome 的那个测试还需要带 `libx264` 的 `ffmpeg`；WHIP 的测试需要带 WHIP 推流功能（FFmpeg 8 及以上）和 `libopus` 的 `ffmpeg`。
 
 ## 另见
 

@@ -6,8 +6,8 @@ WebRTC for the [lakutata](https://www.npmjs.com/package/lakutata) framework, wri
 it installs without a compiler and runs in Node.js, the main process of Electron and Bun. It has two entry points:
 
 - `@lakutata/webrtc`, for the applications: the signaling (rooms whose members exchange their offers, answers and
-  candidates), a STUN and TURN server, and the peer connections of Node.js (data channels, audio and video tracks), with
-  the same interface as `RTCPeerConnection` in the browsers.
+  candidates), a STUN and TURN server, the ingestion of WHIP, and the peer connections of Node.js (data channels, audio
+  and video tracks), with the same interface as `RTCPeerConnection` in the browsers.
 - `@lakutata/webrtc/client`, for the browsers and the renderer of Electron: it connects the browser's own
   `RTCPeerConnection` to the signaling. It uses only the browser's APIs, so a frontend bundling it gets no server code.
 
@@ -177,6 +177,47 @@ A viewer starts decoding at a key frame: give the encoder a key frame every seco
 encoder make one when the track emits `keyframerequest`, if it can. The codecs are Opus and PCMU for the audio, VP8,
 H.264 and VP9 for the video (the `codecs` option of `PeerConnection` and of `SignalingClient`).
 
+Publishing with WHIP (RFC 9725): encoders (OBS, GStreamer, ffmpeg) and browsers publish a stream with an HTTP POST of
+their offer. The `WHIP` component answers them, emits `publish` with the session (its connection and its tracks), and
+`unpublish` when it ends; `WHIPController` serves `/whip/:stream`.
+
+```typescript
+import {Application, Component} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {buildWHIPOptions, type MediaTrack, type WHIP, type WHIPSession, WHIPController} from '@lakutata/webrtc'
+
+export class Studio extends Component {
+    protected async init(): Promise<void> {
+        const whip: WHIP = await this.getObject<WHIP>('whip')
+        whip.on('publish', (session: WHIPSession): void => {
+            session.tracks.forEach((track: MediaTrack): void => console.log(`${session.stream}: ${track.kind} ${track.codec}`))
+        })
+    }
+}
+
+Application.run(() => ({
+    id: 'studio.app',
+    name: 'Studio',
+    components: {
+        //OBS: the service WHIP, the server https://studio.example.com/whip/live, and the bearer token
+        whip: buildWHIPOptions({authorize: ({token}): boolean => token === process.env.WHIP_TOKEN}),
+        studio: {class: Studio},
+        entrypoint: buildEntrypoints({
+            controllers: [WHIPController],
+            //The offers come as application/sdp, read as text
+            http: expressHTTPEntrypoint({port: 8080, body: {text: ['application/sdp', 'application/trickle-ice-sdpfrag']}})
+        })
+    },
+    bootstrap: ['studio', 'entrypoint']
+}))
+```
+
+The answers carry all the candidates of the server: give it its public address (`iceAdditionalHostAddresses`) and the
+UDP ports to open (`icePortRange`). A `PATCH` (trickle ICE, ICE restart) is answered with 405; list
+`application/trickle-ice-sdpfrag` in `body.text` too, or Fastify refuses it with 415 before it reaches the controller.
+ffmpeg publishes with `-f whip -authorization <token> <url>`.
+
 ## Deployment
 
 - **Ports.** The TURN server listens on port 3478 over UDP and TCP (and over TLS when given a certificate); the
@@ -219,6 +260,7 @@ string the client chooses once: joining again with the same session keeps the ot
 
 - Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
   another connection.
+- WHIP supports neither trickle ICE nor ICE restarts.
 - Throughput of one data channel between two Node.js processes on an Apple M4: about 60 MiB/s for large messages,
   440,000 messages of 100 bytes per second.
 
@@ -234,6 +276,8 @@ string the client chooses once: joining again with the same session keeps the ot
 | `PeerConnection`, `PeerChannel` | The peer connection and the data channel of Node.js |
 | `MediaTrack`, `RtpPacket` | An audio or video track of Node.js, and its RTP packets |
 | `RtpTransceiver`, `RtpSender`, `RtpReceiver` | The audio and video lines of a connection |
+| `WHIP`, `buildWHIPOptions` | The ingestion of WHIP: the sessions, the `publish` and `unpublish` events |
+| `WHIPController` | The HTTP interface of WHIP: `/whip/:stream` |
 | `Room`, `Peer` | A room joined, and another member with the connection to it |
 | `ChunkedChannel` | Messages of any size over a data channel |
 | `setDebugHandler` | The debug messages of ICE, DTLS, SCTP and TURN |
@@ -249,6 +293,11 @@ string the client chooses once: joining again with the same session keeps the ot
 | `SignalingNotAMemberException` | A signal from or to someone who is not in the room |
 | `SignalingClientRequiredException` | A request without a connection to push the events through (HTTP) |
 | `SignalingConnectionException` | `SignalingClient` without `socket.io-client`, or without `WebSocket` |
+| `WHIPDeniedException` | `authorize` refuses the stream (401) |
+| `WHIPLimitException` | `maxSessions` sessions already (503) |
+| `WHIPOfferException` | An offer without audio or video, or that the connection refuses (400) |
+| `WHIPMediaTypeException` | An offer that is not `application/sdp` (415) |
+| `WHIPSessionNotFoundException` | A request for a session that does not exist (404) |
 | `SignalingRequestError` | On the clients: the error of a request, with the `errno` of the server's exception |
 
 ## Testing
@@ -256,7 +305,8 @@ string the client chooses once: joining again with the same session keeps the ot
 `npm run test:unit` runs the tests of the protocols, of the signaling and of the connections between Node.js
 processes. The tests with Chrome use Playwright and the Chrome installed on the machine: they run when the package
 `playwright` can be imported (or is found in the directory given by `LAKUTATA_PLAYWRIGHT`), and are skipped otherwise.
-The one sending the H.264 of an encoder to Chrome also needs `ffmpeg` with `libx264`.
+The one sending the H.264 of an encoder to Chrome also needs `ffmpeg` with `libx264`, and the ones of WHIP need an
+`ffmpeg` with its WHIP muxer (FFmpeg 8 and later) and `libopus`.
 
 ## See also
 

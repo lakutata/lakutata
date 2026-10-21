@@ -59,6 +59,12 @@
       "@lakutata/entrypoint/adapter/jsonrpc": [
         "../entrypoint/dist/types/exports/JSONRPCAdapter"
       ],
+      "@lakutata/entrypoint/adapter/express": [
+        "../entrypoint/dist/types/exports/ExpressAdapter"
+      ],
+      "@lakutata/entrypoint/adapter/fastify": [
+        "../entrypoint/dist/types/exports/FastifyAdapter"
+      ],
       "@lakutata/core/dtos": [
         "../core/dist/types/exports/DTOs"
       ]

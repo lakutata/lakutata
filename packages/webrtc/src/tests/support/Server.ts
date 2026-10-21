@@ -4,9 +4,13 @@ import {Container} from '@lakutata/core'
 import {buildEntrypoints, Entrypoint} from '@lakutata/entrypoint'
 import {socketIOServiceEntrypoint} from '@lakutata/entrypoint/adapter/socket.io'
 import {jsonRPCServiceEntrypoint} from '@lakutata/entrypoint/adapter/jsonrpc'
+import {expressHTTPEntrypoint} from '@lakutata/entrypoint/adapter/express'
+import {fastifyHTTPEntrypoint} from '@lakutata/entrypoint/adapter/fastify'
 import {Signaling, type SignalingOptions} from '../../signaling/Signaling.js'
 import {SignalingController} from '../../signaling/SignalingController.js'
 import {TURNServer, type TURNServerOptions} from '../../turn/TURNServer.js'
+import {WHIP, type WHIPOptions} from '../../whip/WHIP.js'
+import {WHIPController} from '../../whip/WHIPController.js'
 
 /**
  * A signaling server for the tests: Socket.IO and JSON-RPC over WebSocket on random ports of 127.0.0.1, with a TURN
@@ -66,6 +70,29 @@ export async function startServer(options: {signaling?: SignalingOptions, turn?:
         jsonRPC: `ws://127.0.0.1:${jsonRPCPort}/`,
         stop: (): Promise<void> => container.destroy()
     }
+}
+
+const WHIP_TEXT_TYPES: string[] = ['application/sdp', 'application/trickle-ice-sdpfrag']
+
+/**
+ * A WHIP server on a random port of 127.0.0.1
+ * @param adapter
+ * @param options
+ */
+export async function startWHIP(adapter: 'express' | 'fastify', options: WHIPOptions = {}): Promise<{url: string, whip: WHIP, container: Container}> {
+    const container: Container = new Container()
+    const whip: WHIP = await container.setNamed<WHIP>('whip', WHIP, options)
+    let server: Server | undefined
+    const capture = (_app: unknown, context: {server: Server}): void => {
+        server = context.server
+    }
+    await container.setNamed<Entrypoint>('entrypoint', Entrypoint, buildEntrypoints({
+        controllers: [WHIPController],
+        http: adapter === 'express'
+            ? expressHTTPEntrypoint({port: 0, host: '127.0.0.1', body: {text: WHIP_TEXT_TYPES}, before: capture})
+            : fastifyHTTPEntrypoint({port: 0, host: '127.0.0.1', body: {text: WHIP_TEXT_TYPES}, before: capture})
+    }))
+    return {url: `http://127.0.0.1:${(server!.address() as AddressInfo).port}`, whip: whip, container: container}
 }
 
 /**
