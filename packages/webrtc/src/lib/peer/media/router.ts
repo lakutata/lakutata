@@ -203,9 +203,11 @@ export class RtpRouter {
                             }
                             break
                         default:
+                            //A feedback on a media source (a picture loss indication) goes to the sender of that
+                            //source: the source sending the feedback may be one this side receives (sendrecv)
                             recipients.push(
-                                this.ssrcTable[psfb.feedback.senderSsrc] ||
-                  this.ssrcTable[psfb.feedback.mediaSsrc]
+                                this.ssrcTable[psfb.feedback.mediaSsrc] ||
+                  this.ssrcTable[psfb.feedback.senderSsrc]
                             )
                     }
                 }

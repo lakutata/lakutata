@@ -4,10 +4,10 @@
 
 [lakutata](https://www.npmjs.com/package/lakutata) 框架的 WebRTC，用 TypeScript 编写，没有原生代码：安装时不需要编译器，能在 Node.js、Electron 的主进程和 Bun 中运行。它有两个入口：
 
-- `@lakutata/webrtc`，给应用用：信令（房间里的成员互相交换 offer、answer 和候选地址）、STUN 和 TURN 服务器，以及 Node.js 端的对等连接和数据通道，接口和浏览器的 `RTCPeerConnection` 一致。
+- `@lakutata/webrtc`，给应用用：信令（房间里的成员互相交换 offer、answer 和候选地址）、STUN 和 TURN 服务器，以及 Node.js 端的对等连接（数据通道、音视频轨道），接口和浏览器的 `RTCPeerConnection` 一致。
 - `@lakutata/webrtc/client`，给浏览器和 Electron 的渲染进程用：把浏览器自带的 `RTCPeerConnection` 接到信令上。它只使用浏览器的接口，前端打包它时不会带上服务端代码。
 
-协议的实现（ICE、DTLS、SCTP、数据通道、STUN 和 TURN 服务器）改编自 [werift](https://github.com/shinyoshiaki/werift-webrtc)，见 `THIRD_PARTY_NOTICES.md`。
+协议的实现（ICE、DTLS、SCTP 和数据通道、RTP 和 SRTP、STUN 和 TURN 服务器）改编自 [werift](https://github.com/shinyoshiaki/werift-webrtc)，见 `THIRD_PARTY_NOTICES.md`。
 
 ## 安装
 
@@ -90,7 +90,7 @@ export class Telemetry extends Component {
 
 房间的行为：
 
-- **连接。** 成员为其他每个成员得到一个 `Peer`，带有到它的连接（`peer.connection`：浏览器里是 `RTCPeerConnection`，Node.js 里是 `PeerConnection`）。任何一方添加数据通道时，连接就会建立。offer 和 answer 按 W3C 的“完美协商”（perfect negotiation）交换：双方随时都可以添加通道，同时添加也没问题。双方只想共用一个通道时，两边都用 `negotiated: true` 和相同的 `id` 创建它。
+- **连接。** 成员为其他每个成员得到一个 `Peer`，带有到它的连接（`peer.connection`：浏览器里是 `RTCPeerConnection`，Node.js 里是 `PeerConnection`）。任何一方添加数据通道或轨道时，连接就会建立。offer 和 answer 按 W3C 的“完美协商”（perfect negotiation）交换：双方随时都可以添加通道和轨道，同时添加也没问题。双方只想共用一个通道时，两边都用 `negotiated: true` 和相同的 `id` 创建它。
 - **修复。** 连接失败，或者断开超过 5 秒，会自动重启 ICE。信令连接断开时，点对点连接保持不变；信令恢复后，客户端重新加入它的房间，其他成员保留到它的连接。成员刷新页面后以新的会话加入，其他成员会替换到它的连接。
 - **离开。** `room.leave()` 关闭这个房间的连接，其他成员收到 `peer-left`。成员的信令连接（Socket.IO，或 WebSocket 上的 JSON-RPC）关闭时，它会离开它的房间；它的点对点连接保持不变，直到它回来或者连接失败。
 - **ICE 服务器。** 成员加入房间时从服务端拿到 ICE 服务器，TURN 凭据在 `credentialTtl`（默认一天）内有效，到期前客户端会重新获取。凭据过期后，用它建立的中转照常工作。
@@ -106,6 +106,46 @@ const transfer: ChunkedChannel = new ChunkedChannel(channel)
 transfer.on('message', (data: string | Uint8Array): void => console.log(`${data.length} received`))
 await transfer.send(new Uint8Array(50 * 1024 * 1024))
 ```
+
+音视频：浏览器把摄像头和麦克风的轨道加到 `peer.connection` 上，通过 peer 的 `track` 事件拿到对方的轨道。
+
+```typescript
+import {type Peer, type Room} from '@lakutata/webrtc/client'
+
+declare const room: Room
+declare const remoteVideo: HTMLVideoElement
+const camera: MediaStream = await navigator.mediaDevices.getUserMedia({audio: true, video: true})
+room.on('peer', (peer: Peer): void => {
+    for (const track of camera.getTracks()) peer.connection.addTrack(track, camera)
+    peer.on('track', (event: RTCTrackEvent): void => {
+        remoteVideo.srcObject = event.streams[0]
+    })
+})
+```
+
+Node.js 端不采集、不编码也不解码：应用的轨道传的是 RTP 包，也就是编码好的音视频。要发送的 `MediaTrack` 用 `writeRtp()` 写入编码器（ffmpeg、GStreamer）输出的包；收到的轨道通过 `rtp` 事件交出对方发来的包，用来录制或解码，`requestKeyFrame()` 向对方请求关键帧。把收到的轨道加到另一条连接上，它的包就会转发过去，那条连接的关键帧请求也会转回原来的发送方。下面是一个摄像头应用，发送 ffmpeg 编码的视频：
+
+```typescript
+import {createSocket, type Socket} from 'node:dgram'
+import {Component} from 'lakutata'
+import {MediaTrack, type Peer, type Room, SignalingClient} from '@lakutata/webrtc'
+
+//ffmpeg -f v4l2 -i /dev/video0 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -tune zerolatency -g 30
+//       -bsf:v dump_extra=freq=keyframe -f rtp rtp://127.0.0.1:5004
+export class Camera extends Component {
+    protected async init(): Promise<void> {
+        const video: MediaTrack = new MediaTrack('video', {codec: 'video/H264'})
+        const socket: Socket = createSocket('udp4')
+        socket.on('message', (datagram: Buffer): void => video.writeRtp(datagram))
+        socket.bind(5004)
+        const signaling: SignalingClient = await this.getObject(SignalingClient, {url: 'https://meet.example.com', id: 'camera-3'})
+        const room: Room = await signaling.join('camera-3')
+        room.on('peer', (peer: Peer): void => void peer.connection.addTrack(video, 'camera-3'))
+    }
+}
+```
+
+观看方要从关键帧开始解码：让编码器每一两秒出一个关键帧（ffmpeg 的 `-g`），或者在编码器支持时，收到轨道的 `keyframerequest` 事件就生成一个。支持的编码：音频 Opus 和 PCMU，视频 VP8、H.264 和 VP9（`PeerConnection` 和 `SignalingClient` 的 `codecs` 选项）。
 
 ## 部署
 
@@ -136,7 +176,7 @@ await transfer.send(new Uint8Array(50 * 1024 * 1024))
 
 ## 限制
 
-- 还不支持音视频：Node.js 端的连接只传数据通道。
+- Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
 - 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 44 万条。
 
 ## API
@@ -149,6 +189,8 @@ await transfer.send(new Uint8Array(50 * 1024 * 1024))
 | `createTURNCredentials` | 短时有效的 TURN 凭据（coturn 的 REST API） |
 | `SignalingClient` | 应用作为房间成员：`join()`、`close()` |
 | `PeerConnection`、`PeerChannel` | Node.js 端的对等连接和数据通道 |
+| `MediaTrack`、`RtpPacket` | Node.js 端的音视频轨道和它的 RTP 包 |
+| `RtpTransceiver`、`RtpSender`、`RtpReceiver` | 连接里的音视频收发器（transceiver） |
 | `Room`、`Peer` | 加入的房间，以及另一个成员和到它的连接 |
 | `ChunkedChannel` | 在数据通道上传任意大小的消息 |
 | `setDebugHandler` | ICE、DTLS、SCTP 和 TURN 的调试信息 |
@@ -168,7 +210,7 @@ await transfer.send(new Uint8Array(50 * 1024 * 1024))
 
 ## 测试
 
-`npm run test:unit` 运行协议、信令以及 Node.js 进程之间连接的测试。Chrome 的测试使用 Playwright 和本机安装的 Chrome：能引用 `playwright` 包（或者在 `LAKUTATA_PLAYWRIGHT` 指定的目录里找到它）时运行，否则跳过。
+`npm run test:unit` 运行协议、信令以及 Node.js 进程之间连接的测试。Chrome 的测试使用 Playwright 和本机安装的 Chrome：能引用 `playwright` 包（或者在 `LAKUTATA_PLAYWRIGHT` 指定的目录里找到它）时运行，否则跳过。把编码器的 H.264 发给 Chrome 的那个测试还需要带 `libx264` 的 `ffmpeg`。
 
 ## 另见
 

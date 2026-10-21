@@ -1,11 +1,25 @@
 import {DTO, Provider} from '@lakutata/core'
 import {Autoload, Configurable, Transient} from '@lakutata/core/decorator/di'
 import type {RTCDataChannel} from '../lib/peer/dataChannel.js'
-import {RTCPeerConnection, type RTCPeerConnectionConfig} from '../lib/peer/peerConnection.js'
+import type {RTCRtpTransceiver} from '../lib/peer/media/rtpTransceiver.js'
+import {MediaStream} from '../lib/peer/media/track.js'
+import {RTCPeerConnection, type RTCPeerConnectionConfig, type RTCTrackEvent} from '../lib/peer/peerConnection.js'
 import type {SignalingCandidate, SignalingDescription, SignalingIceServer} from '../protocol/SignalingProtocol.js'
 import type {DataChannelOptions} from '../shared/Connections.js'
 import {type DOMEventListener, type ListenerOptions, Events} from './Events.js'
+import {DEFAULT_CODECS, SUPPORTED_CODECS, engineCodecsOf} from './MediaCodecs.js'
+import {type MediaKind, MediaTrack, engineTrackOf, keyFrameRequested, trackOf} from './MediaTrack.js'
 import {PeerChannel} from './PeerChannel.js'
+import {
+    type RtpReceiver,
+    type RtpSender,
+    type RtpTransceiver,
+    type RtpTransceiverDirection,
+    engineSenderOf,
+    receiverOf,
+    senderOf,
+    transceiverOf
+} from './RtpTransceiver.js'
 
 /**
  * The configuration of a {@link PeerConnection}: the options of `RTCConfiguration` it supports, and the ones of a
@@ -13,7 +27,7 @@ import {PeerChannel} from './PeerChannel.js'
  */
 export interface PeerConnectionOptions {
     /**
-     * The STUN and TURN servers; the first STUN URL and the first TURN URL are used.
+     * The STUN and TURN servers.
      * @default []
      */
     iceServers?: SignalingIceServer[]
@@ -44,6 +58,51 @@ export interface PeerConnectionOptions {
      * @default true
      */
     iceUseIpv6?: boolean
+    /**
+     * The audio and video codecs offered and accepted, as MIME types in the order of preference: `audio/opus`,
+     * `audio/PCMU`, `video/VP8`, `video/H264`, `video/VP9`.
+     * @default ['audio/opus', 'audio/PCMU', 'video/VP8', 'video/H264', 'video/VP9']
+     */
+    codecs?: string[]
+}
+
+/**
+ * The options of `PeerConnection.addTransceiver()`.
+ */
+export interface RtpTransceiverInit {
+    /**
+     * The direction.
+     * @default 'sendrecv'
+     */
+    direction?: RtpTransceiverDirection
+    /**
+     * The ids of the streams of the track sent: the other peer groups the tracks of a stream (`event.streams` in the
+     * browsers, to play the audio and the video together).
+     * @default none
+     */
+    streamIds?: string[]
+}
+
+/**
+ * The `track` event of a {@link PeerConnection} in the W3C style, as `RTCTrackEvent`.
+ */
+export interface PeerTrackEvent {
+    /**
+     * The track received.
+     */
+    readonly track: MediaTrack
+    /**
+     * The streams of the track, as the other peer grouped them: their ids.
+     */
+    readonly streams: ReadonlyArray<{readonly id: string}>
+    /**
+     * The receiver of the track.
+     */
+    readonly receiver: RtpReceiver
+    /**
+     * The transceiver of the track.
+     */
+    readonly transceiver: RtpTransceiver
 }
 
 /**
@@ -59,7 +118,11 @@ export type PeerConnectionEvents = {
      */
     datachannel: [channel: PeerChannel]
     /**
-     * A new offer is needed (a channel was added, ICE was restarted).
+     * An audio or video track of the other peer, with the ids of its streams and its transceiver.
+     */
+    track: [track: MediaTrack, streamIds: string[], transceiver: RtpTransceiver]
+    /**
+     * A new offer is needed (a channel or a track was added, ICE was restarted).
      */
     negotiationneeded: []
     /**
@@ -111,9 +174,11 @@ function plainDescription(description: {type: string, sdp: string} | undefined |
 
 /**
  * A peer-to-peer connection of Node.js (and of Bun, of the main process of Electron), implemented in TypeScript: the
- * same interface as `RTCPeerConnection` of the browsers (offers and answers, candidates, data channels, ICE restart,
- * perfect negotiation), so the code and the signaling are the ones of a browser. Its events may be listened to in the
- * W3C style (`addEventListener`, the `on…` properties) or in the Node.js style (`on('datachannel', (channel) => …)`).
+ * same interface as `RTCPeerConnection` of the browsers (offers and answers, candidates, data channels, audio and video
+ * tracks, ICE restart, perfect negotiation), so the code and the signaling are the ones of a browser. Its events may be
+ * listened to in the W3C style (`addEventListener`, the `on…` properties) or in the Node.js style
+ * (`on('datachannel', (channel) => …)`). The tracks carry encoded audio and video, as RTP packets: see
+ * {@link MediaTrack}.
  *
  * Get a new one each time with `getObject(PeerConnection, options)` (it is `@Transient`, and needs no registration);
  * `close()` closes it and destroys the object, and the ones still open are closed when the application stops. With the
@@ -187,6 +252,12 @@ export class PeerConnection extends Provider {
     @Configurable(DTO.Boolean().optional().default(true))
     protected readonly iceUseIpv6: boolean
 
+    /**
+     * The audio and video codecs, in the order of preference.
+     */
+    @Configurable(DTO.Array().items(DTO.String().valid(...SUPPORTED_CODECS).insensitive()).optional().default(DEFAULT_CODECS))
+    protected readonly codecs: string[]
+
     readonly #events: Events = new Events(this)
 
     readonly #channels: WeakMap<RTCDataChannel, PeerChannel> = new WeakMap()
@@ -205,6 +276,7 @@ export class PeerConnection extends Provider {
             iceTransportPolicy: this.iceTransportPolicy,
             iceUseIpv4: this.iceUseIpv4,
             iceUseIpv6: this.iceUseIpv6,
+            codecs: engineCodecsOf(this.codecs),
             //The largest message the other peer may send, as Chrome accepts (below the SCTP window of 1 MiB)
             maxMessageSize: 262144
         }
@@ -219,6 +291,23 @@ export class PeerConnection extends Provider {
         connection.onDataChannel.subscribe((channel: RTCDataChannel): void => {
             const wrapped: PeerChannel = this.#wrap(channel)
             this.#fire('datachannel', {channel: wrapped}, wrapped)
+        })
+        connection.on('track', (event: RTCTrackEvent): void => {
+            const track: MediaTrack = trackOf(event.track, event.receiver)
+            const streamIds: string[] = event.streams.map((stream: MediaStream): string => stream.id)
+            const transceiver: RtpTransceiver = transceiverOf(event.transceiver)
+            this.#fire('track', {
+                track: track,
+                streams: streamIds.map((id: string): {id: string} => ({id: id})),
+                receiver: receiverOf(event.receiver),
+                transceiver: transceiver
+            }, track, streamIds, transceiver)
+        })
+        //The key frame requests of the other peer go to the track sent
+        connection.onTransceiverAdded.subscribe((transceiver: RTCRtpTransceiver): void => {
+            transceiver.sender.onPictureLossIndication.subscribe((): void => {
+                if (transceiver.sender.track) keyFrameRequested(trackOf(transceiver.sender.track))
+            })
         })
         connection.onNegotiationneeded.subscribe((): void => this.#fire('negotiationneeded', {}))
         connection.connectionStateChange.subscribe((state: string): void => this.#fire('connectionstatechange', {}, state))
@@ -308,6 +397,17 @@ export class PeerConnection extends Provider {
 
     public set ondatachannel(listener: DOMEventListener | null) {
         this.#events.setHandler('datachannel', listener)
+    }
+
+    /**
+     * The listener of `track`, given a {@link PeerTrackEvent}: the track, its streams, its receiver and transceiver.
+     */
+    public get ontrack(): ((event: PeerTrackEvent) => void) | null {
+        return this.#events.handler('track')
+    }
+
+    public set ontrack(listener: ((event: PeerTrackEvent) => void) | null) {
+        this.#events.setHandler('track', listener)
     }
 
     /**
@@ -475,6 +575,114 @@ export class PeerConnection extends Provider {
     }
 
     /**
+     * Add a track to send: it gets a transceiver (a new one, or one the other peer offered and nothing is sent on), and
+     * the connection negotiates (`negotiationneeded`).
+     * @param track The track: one to send, or one received from another connection (to forward it).
+     * @param streamIds The ids of its streams: the other peer groups the tracks of a stream (to play the audio and the
+     * video together).
+     * @returns Its sender.
+     * @example
+     * ```typescript
+     * import {MediaTrack, type PeerConnection, type RtpSender} from '@lakutata/webrtc'
+     *
+     * declare const connection: PeerConnection
+     * const audio: MediaTrack = new MediaTrack('audio', {codec: 'audio/opus'})
+     * const video: MediaTrack = new MediaTrack('video', {codec: 'video/H264'})
+     * //One stream: the browser plays them together (event.streams[0])
+     * const senders: RtpSender[] = [connection.addTrack(audio, 'camera'), connection.addTrack(video, 'camera')]
+     * ```
+     */
+    public addTrack(track: MediaTrack, ...streamIds: string[]): RtpSender {
+        const streams: MediaStream[] = streamIds.map((id: string): MediaStream => new MediaStream({id: id}))
+        return senderOf(this.#connection.addTrack(engineTrackOf(track), ...streams))
+    }
+
+    /**
+     * Stop sending the track of a sender (its transceiver stays, receiving only); the connection negotiates.
+     * @param sender The sender, given by `addTrack()`.
+     * @example
+     * ```typescript
+     * import type {PeerConnection, RtpSender} from '@lakutata/webrtc'
+     *
+     * declare const connection: PeerConnection
+     * declare const sender: RtpSender
+     * connection.removeTrack(sender)
+     * ```
+     */
+    public removeTrack(sender: RtpSender): void {
+        this.#connection.removeTrack(engineSenderOf(sender))
+    }
+
+    /**
+     * Add a transceiver: for a track to send, or of a kind, to receive one (`recvonly`); the connection negotiates.
+     * @param trackOrKind The track to send, or `audio` or `video`.
+     * @param init The direction, the ids of the streams of the track.
+     * @returns The transceiver.
+     * @example
+     * ```typescript
+     * import type {MediaTrack, PeerConnection} from '@lakutata/webrtc'
+     *
+     * declare const connection: PeerConnection
+     * //Offer to receive the camera and the microphone of the other peer
+     * connection.addTransceiver('audio', {direction: 'recvonly'})
+     * connection.addTransceiver('video', {direction: 'recvonly'})
+     * connection.on('track', (track: MediaTrack): void => console.log(`${track.kind} received`))
+     * ```
+     */
+    public addTransceiver(trackOrKind: MediaTrack | MediaKind, init: RtpTransceiverInit = {}): RtpTransceiver {
+        const streams: MediaStream[] = (init.streamIds ?? []).map((id: string): MediaStream => new MediaStream({id: id}))
+        return transceiverOf(this.#connection.addTransceiver(typeof trackOrKind === 'string' ? trackOrKind : engineTrackOf(trackOrKind), {
+            direction: init.direction ?? 'sendrecv',
+            streams: streams
+        }))
+    }
+
+    /**
+     * The transceivers, in the order of their lines.
+     * @returns The transceivers.
+     * @example
+     * ```typescript
+     * import type {PeerConnection, RtpTransceiver} from '@lakutata/webrtc'
+     *
+     * declare const connection: PeerConnection
+     * connection.getTransceivers().forEach((transceiver: RtpTransceiver): void => console.log(transceiver.mid, transceiver.currentDirection))
+     * ```
+     */
+    public getTransceivers(): RtpTransceiver[] {
+        return this.#connection.getTransceivers().map(transceiverOf)
+    }
+
+    /**
+     * The senders of the transceivers.
+     * @returns The senders.
+     * @example
+     * ```typescript
+     * import type {PeerConnection, RtpSender} from '@lakutata/webrtc'
+     *
+     * declare const connection: PeerConnection
+     * const sending: RtpSender[] = connection.getSenders().filter((sender: RtpSender): boolean => sender.track !== null)
+     * ```
+     */
+    public getSenders(): RtpSender[] {
+        return this.#connection.getSenders().map(senderOf)
+    }
+
+    /**
+     * The receivers of the transceivers.
+     * @returns The receivers.
+     * @example
+     * ```typescript
+     * import type {PeerConnection, RtpReceiver} from '@lakutata/webrtc'
+     *
+     * declare const connection: PeerConnection
+     * const receivers: RtpReceiver[] = connection.getReceivers()
+     * ```
+     */
+    public getReceivers(): RtpReceiver[] {
+        return this.#connection.getReceivers().map(receiverOf)
+    }
+
+    /**
      * Restart ICE: the next offer gathers new candidates (`negotiationneeded` fires), for a connection whose network
      * changed.
      * @example
@@ -544,7 +752,7 @@ export class PeerConnection extends Provider {
 
     /**
      * Add a listener of an event, given an event object (the W3C style).
-     * @param type The event: `icecandidate`, `datachannel`, `negotiationneeded`, `connectionstatechange`,
+     * @param type The event: `icecandidate`, `datachannel`, `track`, `negotiationneeded`, `connectionstatechange`,
      * `iceconnectionstatechange`, `icegatheringstatechange`, `signalingstatechange`.
      * @param listener The listener.
      * @param options `once`, `signal`.
@@ -582,7 +790,7 @@ export class PeerConnection extends Provider {
     /**
      * Add a listener of an event, given the value of the event (the Node.js style).
      * @param event The event.
-     * @param listener The listener: given the candidate, the channel, the new state.
+     * @param listener The listener: given the candidate, the channel, the track, the new state.
      * @returns The connection.
      * @example
      * ```typescript

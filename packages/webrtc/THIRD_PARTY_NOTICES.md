@@ -20,7 +20,8 @@ waiting, a message size of 256 KiB advertised; ICE using every STUN and TURN ser
 per TURN server, its transports tried in turn), querying the STUN servers again and keeping the allocations the servers
 still have when ICE restarts, deleting its allocations when it closes; the TURN client retrying with a new nonce; the
 TURN server given a range of relay ports, its timer kept stopped once closed, the requests of an allocation checked with
-the credentials it was made with; the tests ported to `node:test`.
+the credentials it was made with; the picture loss indications routed to the sender of their media source; the tests
+ported to `node:test`.
 
 ```
 MIT License

@@ -66,6 +66,11 @@ export interface SignalingClientOptions {
      * @default none
      */
     iceAdditionalHostAddresses?: string[]
+    /**
+     * The audio and video codecs of the connections, as MIME types in the order of preference (see `PeerConnection`).
+     * @default ['audio/opus', 'audio/PCMU', 'video/VP8', 'video/H264', 'video/VP9']
+     */
+    codecs?: string[]
 }
 
 /**
@@ -150,6 +155,12 @@ export class SignalingClient extends Provider {
     @Configurable(DTO.Array().items(DTO.String()).optional())
     protected readonly iceAdditionalHostAddresses?: string[]
 
+    /**
+     * The audio and video codecs of the connections.
+     */
+    @Configurable(DTO.Array().items(DTO.String()).optional())
+    protected readonly codecs?: string[]
+
     #clientId: string
 
     #socket?: {disconnect(): unknown}
@@ -170,7 +181,8 @@ export class SignalingClient extends Provider {
             createPeerConnection: (configuration: PeerConnectionConfiguration): Promise<PeerConnection> => this.getObject(PeerConnection, {
                 ...configuration,
                 icePortRange: this.icePortRange,
-                iceAdditionalHostAddresses: this.iceAdditionalHostAddresses
+                iceAdditionalHostAddresses: this.iceAdditionalHostAddresses,
+                ...this.codecs ? {codecs: this.codecs} : {}
             })
         })
     }

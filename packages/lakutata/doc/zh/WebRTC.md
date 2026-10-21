@@ -1,6 +1,6 @@
 # Lakutata WebRTC
 
-WebRTC 让两端直接点对点连接：浏览器、Electron 应用和 Node.js 进程之间交换数据不需要服务器转发，在 NAT 和防火墙后面也能连上。`@lakutata/webrtc` 包提供这些连接周边需要的一切：让两端互相认识的信令，给需要的网络用的 STUN 和 TURN 服务器，Node.js 端的对等连接，以及浏览器的客户端。它用 TypeScript 编写，没有原生代码，不属于 `lakutata`：
+WebRTC 让两端直接点对点连接：浏览器、Electron 应用和 Node.js 进程之间交换数据和音视频不需要服务器转发，在 NAT 和防火墙后面也能连上。`@lakutata/webrtc` 包提供这些连接周边需要的一切：让两端互相认识的信令，给需要的网络用的 STUN 和 TURN 服务器，Node.js 端的对等连接，以及浏览器的客户端。它用 TypeScript 编写，没有原生代码，不属于 `lakutata`：
 
 ```bash
 npm install lakutata @lakutata/webrtc
@@ -8,18 +8,18 @@ npm install lakutata @lakutata/webrtc
 
 | 入口 | 运行在 | 提供什么 |
 |---|---|---|
-| `@lakutata/webrtc` | Node.js、Electron 的主进程、Bun | `Signaling`、`SignalingController`、`TURNServer`、`SignalingClient`、`PeerConnection`、`ChunkedChannel` |
+| `@lakutata/webrtc` | Node.js、Electron 的主进程、Bun | `Signaling`、`SignalingController`、`TURNServer`、`SignalingClient`、`PeerConnection`、`MediaTrack`、`ChunkedChannel` |
 | `@lakutata/webrtc/client` | 浏览器、Electron 的渲染进程 | `SignalingConnection`、`ChunkedChannel`、协议的类型 |
 
 浏览器入口只使用浏览器的接口；前端安装同一个包，框架不会随之安装。
 
 ## 1. 连接是怎么建立的
 
-两端在知道怎么找到对方之前没法连接。每一端用 **offer** 或 **answer** 描述自己（编解码器、密钥、数据通道），并列出它的**候选地址**，也就是别人可能找到它的地址：它的本地地址、STUN 服务器看到的公网地址，以及 TURN 服务器上的一个地址，在其他办法都不通时由 TURN 服务器转发它的流量。这些消息经由两端都连着的一台服务器传递，这就是**信令**；两端拿到这些消息后，成对地测试候选地址（ICE），保留一对可用的，再给连接加密（DTLS）。之后数据通道就能双向传消息，可以选择可靠有序，也可以不要求。
+两端在知道怎么找到对方之前没法连接。每一端用 **offer** 或 **answer** 描述自己（编解码器、密钥、数据通道），并列出它的**候选地址**，也就是别人可能找到它的地址：它的本地地址、STUN 服务器看到的公网地址，以及 TURN 服务器上的一个地址，在其他办法都不通时由 TURN 服务器转发它的流量。这些消息经由两端都连着的一台服务器传递，这就是**信令**；两端拿到这些消息后，成对地测试候选地址（ICE），保留一对可用的，再给连接加密（DTLS）。之后数据通道就能双向传消息，可以选择可靠有序，也可以不要求；轨道则传音视频。
 
 这个包的信令以**房间**为单位：客户端加入房间，拿到已经在里面的成员，每两个成员之间互相交换 offer、answer 和候选地址。其余的事情都替你做好了：
 
-- offer 和 answer 按 W3C 的“完美协商”（perfect negotiation）交换：任何一方都可以随时添加数据通道，双方同时添加也没问题。
+- offer 和 answer 按 W3C 的“完美协商”（perfect negotiation）交换：任何一方都可以随时添加数据通道和轨道，双方同时添加也没问题。
 - 连接失败，或者断开超过 5 秒，会自动重启 ICE。
 - 信令连接断开时，点对点连接保持不变；客户端重新连上后，会重新加入它的房间。
 - 成员加入房间时拿到 ICE 服务器（带 TURN 凭据），凭据到期前会拿到新的。
@@ -118,7 +118,7 @@ room.on('peer-left', (peer: Peer): void => console.log(`${peer.id} left`))
 
 它的选项：`iceTransportPolicy`（`'relay'` 表示只用 TURN 中转）、`configuration`（`RTCPeerConnection` 的更多选项）、`createPeerConnection`（`RTCPeerConnection` 的其他实现）、`timeout`（请求的超时，默认 15 秒）。
 
-房间为其他每个成员发出 `peer` 事件：先是已经在房间里的成员，然后是每个新加入的成员。后来添加的监听函数会立即为已有的每个成员调用一次。`Peer` 有成员的 `id`、`metadata`、到它的连接 `connection`（一个 `RTCPeerConnection`：可以往里添加音视频轨道、读取统计信息），以及 `createDataChannel()`、`restartIce()` 和 `close()`，会发出 `datachannel`、`connectionstatechange`、`metadata`（成员带着新的 metadata 重新加入）、`error` 和 `close` 事件。一个成员连接关闭时，房间发出 `peer-left`：成员离开了，或者连接彻底断了。
+房间为其他每个成员发出 `peer` 事件：先是已经在房间里的成员，然后是每个新加入的成员。后来添加的监听函数会立即为已有的每个成员调用一次。`Peer` 有成员的 `id`、`metadata`、到它的连接 `connection`（一个 `RTCPeerConnection`：可以往里添加音视频轨道、读取统计信息），以及 `createDataChannel()`、`restartIce()` 和 `close()`，会发出 `datachannel`、`track`、`connectionstatechange`、`metadata`（成员带着新的 metadata 重新加入）、`error` 和 `close` 事件。一个成员连接关闭时，房间发出 `peer-left`：成员离开了，或者连接彻底断了。
 
 双方都可以创建通道：每一端通过 `datachannel` 拿到对方创建的通道。双方只想共用一个通道时，两边都用 `negotiated: true` 和相同的 `id` 创建它。
 
@@ -147,7 +147,7 @@ export class Telemetry extends Component {
 }
 ```
 
-`http:` 或 `https:` 的 URL 使用 Socket.IO（需要安装 `socket.io-client`），`ws:` 或 `wss:` 的 URL 使用 Node.js 22 和 Bun 自带的 `WebSocket` 走 JSON-RPC。它的选项：`url`、`id`（默认是随机的 UUID）、`path`（Socket.IO 的路径）、`auth`（Socket.IO 握手的更多字段，比如令牌）、`timeout`，以及它的连接的选项（`iceTransportPolicy`、`icePortRange`、`iceAdditionalHostAddresses`）。它是 `@Transient` 的：每次 `getObject()` 都得到一个新的客户端，`close()` 会离开它的房间并断开连接。
+`http:` 或 `https:` 的 URL 使用 Socket.IO（需要安装 `socket.io-client`），`ws:` 或 `wss:` 的 URL 使用 Node.js 22 和 Bun 自带的 `WebSocket` 走 JSON-RPC。它的选项：`url`、`id`（默认是随机的 UUID）、`path`（Socket.IO 的路径）、`auth`（Socket.IO 握手的更多字段，比如令牌）、`timeout`，以及它的连接的选项（`iceTransportPolicy`、`icePortRange`、`iceAdditionalHostAddresses`、`codecs`）。它是 `@Transient` 的：每次 `getObject()` 都得到一个新的客户端，`close()` 会离开它的房间并断开连接。
 
 ## 6. 不用信令的对等连接
 
@@ -176,7 +176,7 @@ export class Echo extends Component {
 }
 ```
 
-它的选项：`iceServers`、`iceTransportPolicy`，以及服务器用的 `icePortRange`（候选地址使用的 UDP 端口，用来在防火墙里放开）和 `iceAdditionalHostAddresses`（额外作为候选地址的地址，比如按相同端口号转发了这些端口的 NAT 的公网地址）。`PeerChannel` 可以发送字符串和二进制数据；二进制消息收到时是 `Buffer`，`binaryType` 为 `'arraybuffer'` 时是 `ArrayBuffer`。
+它的选项：`iceServers`、`iceTransportPolicy`，以及服务器用的 `icePortRange`（候选地址使用的 UDP 端口，用来在防火墙里放开）和 `iceAdditionalHostAddresses`（额外作为候选地址的地址，比如按相同端口号转发了这些端口的 NAT 的公网地址）；`codecs` 决定音视频用哪些编码。`PeerChannel` 可以发送字符串和二进制数据；二进制消息收到时是 `Buffer`，`binaryType` 为 `'arraybuffer'` 时是 `ArrayBuffer`。
 
 ## 7. 大消息和文件
 
@@ -196,7 +196,93 @@ transfer.channel.addEventListener('open', async (): Promise<void> => {
 
 通道必须是有序、可靠的（默认就是）。收到的消息超过 `maxMessageSize`（默认 64 MiB）时会被丢弃，并发出 `error` 事件。
 
-## 8. 部署
+## 8. 音视频
+
+一条轨道传一个来源的音频或视频。在浏览器里，把摄像头和麦克风的轨道加到和每个成员的连接上；对方在自己的 peer 上通过 `track` 事件拿到这些轨道，`event.streams` 把同一个来源的音频和视频归在一起：
+
+```typescript
+import {type Peer, type Room} from '@lakutata/webrtc/client'
+
+declare const room: Room
+declare const grid: HTMLElement
+const camera: MediaStream = await navigator.mediaDevices.getUserMedia({audio: true, video: true})
+room.on('peer', (peer: Peer): void => {
+    for (const track of camera.getTracks()) peer.connection.addTrack(track, camera)
+    const video: HTMLVideoElement = document.createElement('video')
+    video.autoplay = true
+    grid.append(video)
+    peer.on('track', (event: RTCTrackEvent): void => {
+        video.srcObject = event.streams[0]
+    })
+    peer.on('close', (): void => video.remove())
+})
+```
+
+每个成员都给其他每个成员发送时，有几个其他成员，它的视频就要发几份：这适合人少的房间。
+
+Node.js 端不采集、不编码也不解码：应用的轨道传的是 RTP 包，也就是编码好的音视频，来自编码器或者另一条连接。
+
+- `new MediaTrack(kind, {codec})` 创建一条要发送的轨道，`writeRtp()` 发送一个包：一个 `RtpPacket`，或者一个包的字节，比如 ffmpeg 和 GStreamer 发到 UDP 端口的数据报。每条连接给这些包换上自己的同步源（SSRC）和负载类型，序号和时间戳接着之前写入的包连续往下排。
+- 收到的轨道（`Peer` 或 `PeerConnection` 的 `track` 事件）通过 `rtp` 事件交出对方发来的包；`requestKeyFrame()` 向对方请求关键帧。
+- 把收到的轨道加到另一条连接上，它的包就会转发过去，那条连接的关键帧请求也会转回这条轨道的发送方（最多每 500 毫秒一次）。
+- 轨道的 `keyframerequest` 事件表示它发往的某个对端需要关键帧。
+
+一个摄像头应用，发送 ffmpeg 编码的视频：
+
+```typescript
+import {createSocket, type Socket} from 'node:dgram'
+import {Component} from 'lakutata'
+import {MediaTrack, type Peer, type Room, SignalingClient} from '@lakutata/webrtc'
+
+//ffmpeg -f v4l2 -i /dev/video0 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -tune zerolatency -g 30
+//       -bsf:v dump_extra=freq=keyframe -f rtp rtp://127.0.0.1:5004
+export class Camera extends Component {
+    protected async init(): Promise<void> {
+        const video: MediaTrack = new MediaTrack('video', {codec: 'video/H264'})
+        const socket: Socket = createSocket('udp4')
+        socket.on('message', (datagram: Buffer): void => video.writeRtp(datagram))
+        socket.bind(5004)
+        const signaling: SignalingClient = await this.getObject(SignalingClient, {url: 'https://meet.example.com', id: 'camera-3'})
+        const room: Room = await signaling.join('camera-3')
+        room.on('peer', (peer: Peer): void => void peer.connection.addTrack(video, 'camera-3'))
+    }
+}
+```
+
+观看方要从关键帧开始解码：让编码器每一两秒出一个关键帧（ffmpeg 的 `-g`），或者在编码器支持时，收到 `keyframerequest` 就生成一个。码流过滤器 `dump_extra` 把 H.264 的参数放到每个关键帧前面，浏览器需要从那里读到它们。
+
+一个应用把某个成员的摄像头转发给后来加入的观看方，每个观看方从应用而不是从摄像头那里拿到视频：
+
+```typescript
+import {Component} from 'lakutata'
+import {type MediaTrack, type Peer, type PeerTrackEvent, type Room, SignalingClient} from '@lakutata/webrtc'
+
+//摄像头的页面只把轨道加到和 relay 的连接上
+export class Relay extends Component {
+    protected async init(): Promise<void> {
+        const signaling: SignalingClient = await this.getObject(SignalingClient, {url: 'https://meet.example.com', id: 'relay'})
+        const room: Room = await signaling.join('stage')
+        const tracks: MediaTrack[] = []
+        const viewers: Set<Peer> = new Set()
+        room.on('peer', (peer: Peer): void => {
+            if (peer.id === 'camera') {
+                peer.on('track', (event: PeerTrackEvent): void => {
+                    tracks.push(event.track)
+                    for (const viewer of viewers) viewer.connection.addTrack(event.track, 'stage')
+                })
+                return
+            }
+            viewers.add(peer)
+            for (const track of tracks) peer.connection.addTrack(track, 'stage')
+            peer.on('close', (): void => void viewers.delete(peer))
+        })
+    }
+}
+```
+
+`PeerConnection` 的方法和 `RTCPeerConnection` 一致：`addTrack(track, ...streamIds)`（对方把同一个流的轨道归在一起）、`addTransceiver(trackOrKind, {direction, streamIds})`（`recvonly` 表示只收不发）、`removeTrack(sender)`、`getTransceivers()`、`getSenders()` 和 `getReceivers()`；`sender.replaceTrack()` 换发同一编码的另一条轨道，不用重新协商。支持的编码：音频 Opus 和 PCMU，视频 VP8、H.264 和 VP9；`PeerConnection` 和 `SignalingClient` 的 `codecs` 选项决定用哪些、按什么顺序，用 `codec` 创建的轨道会让它的连接协商这一种编码。
+
+## 9. 部署
 
 - **端口。** 放开 UDP 和 TCP 的 3478 端口、UDP 的中转端口（`relayPortRange`），开启了 TLS 上的 TURN 时还有 TLS 端口。在容器里要把它们全部发布出来；指定中转端口范围可以让需要发布的端口少一些。
 - **公网地址。** `publicAddress` 是客户端访问 TURN 服务器用的地址：主机的公网地址，或者转发了这些端口的 NAT 的地址。在局域网里用默认值就够了。
@@ -205,7 +291,7 @@ transfer.channel.addEventListener('open', async (): Promise<void> => {
 - **其他 TURN 服务器。** coturn（`use-auth-secret`，`static-auth-secret` 设为相同的密钥）接受 `createTURNCredentials()` 生成的凭据；把它写进 `Signaling` 的 `iceServers` 选项。
 - **HTTPS。** 浏览器在任何页面上都允许使用 WebRTC，但摄像头和麦克风只能在安全的页面上使用（HTTPS 或 `localhost`）。
 
-## 9. 信令协议
+## 10. 信令协议
 
 其他语言的客户端和原生应用可以直接使用这个协议。请求是模式为 `{method}` 的服务调用：Socket.IO 上是带确认回调（`{success, error, payload}`）的 `message` 事件，内容如 `{method: 'webrtc.join', room: 'room-1'}`；JSON-RPC 2.0 上是方法名为 `webrtc.join` 的请求。服务端把事件推给成员：Socket.IO 的事件，或者 `params` 里放着内容的 JSON-RPC 通知。
 
@@ -228,7 +314,7 @@ transfer.channel.addEventListener('open', async (): Promise<void> => {
 - 一对成员里，id 排在前面（按字符串比较）的一方是“礼让”的一方：双方同时发出 offer 时，它放弃自己的 offer，回答对方的。
 - 错误带有服务端异常的 `errno`：`E_SIGNALING_DENIED`、`E_SIGNALING_LIMIT`、`E_SIGNALING_NOT_A_MEMBER`、`E_SIGNALING_CLIENT_REQUIRED`、`E_INVALID_VALUE`。HTTP 上的 JSON-RPC 不能承载信令：事件需要通过一条连接推送。
 
-## 10. 连接失败时
+## 11. 连接失败时
 
 `setDebugHandler()` 给出 ICE、DTLS、SCTP 和 TURN 的调试信息：
 
@@ -241,7 +327,7 @@ setDebugHandler((namespace: string, args: unknown[]): void => console.debug(name
 
 要检查 TURN 服务器，可以让两个客户端用 `iceTransportPolicy: 'relay'` 加入同一个房间：它们只能经过中转连接，`turn.allocations` 会统计到它们。在 Chrome 里，`chrome://webrtc-internals` 能看到候选地址和尝试过的地址对。
 
-## 11. 限制
+## 12. 限制
 
-- 还不支持音视频：Node.js 端的连接只传数据通道。浏览器之间的连接可以自己添加音视频轨道。
+- Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
 - 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 44 万条。

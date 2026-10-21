@@ -1,10 +1,10 @@
 # Lakutata WebRTC
 
 WebRTC connects two endpoints directly, peer to peer: browsers, Electron applications and Node.js processes exchange
-data without a server relaying it, behind NATs and firewalls too. The package `@lakutata/webrtc` provides everything
-around these connections: the signaling that introduces the endpoints to each other, a STUN and TURN server for the
-networks that need one, the peer connections of Node.js, and a client for the browsers. It is written in TypeScript
-without native code, and it is not part of `lakutata`:
+data, audio and video without a server relaying it, behind NATs and firewalls too. The package `@lakutata/webrtc`
+provides everything around these connections: the signaling that introduces the endpoints to each other, a STUN and TURN
+server for the networks that need one, the peer connections of Node.js, and a client for the browsers. It is written in
+TypeScript without native code, and it is not part of `lakutata`:
 
 ```bash
 npm install lakutata @lakutata/webrtc
@@ -12,7 +12,7 @@ npm install lakutata @lakutata/webrtc
 
 | Entry point | Runs in | What it gives |
 |---|---|---|
-| `@lakutata/webrtc` | Node.js, the main process of Electron, Bun | `Signaling`, `SignalingController`, `TURNServer`, `SignalingClient`, `PeerConnection`, `ChunkedChannel` |
+| `@lakutata/webrtc` | Node.js, the main process of Electron, Bun | `Signaling`, `SignalingController`, `TURNServer`, `SignalingClient`, `PeerConnection`, `MediaTrack`, `ChunkedChannel` |
 | `@lakutata/webrtc/client` | Browsers, the renderer of Electron | `SignalingConnection`, `ChunkedChannel`, the types of the protocol |
 
 The browser entry uses only the APIs of the browsers; a frontend installs the same package, and the framework is not
@@ -25,13 +25,14 @@ Two endpoints cannot connect until each knows how to reach the other. Each one d
 its local addresses, its public address as a STUN server sees it, and an address on a TURN server that relays its
 traffic when nothing else gets through. These messages travel through a server both endpoints are connected to, the
 **signaling**; once the endpoints have them, they test the candidates in pairs (ICE), keep a working pair, and encrypt
-the connection (DTLS). The data channels then carry messages in both directions, reliable and ordered or not.
+the connection (DTLS). The data channels then carry messages in both directions, reliable and ordered or not, and the
+tracks carry audio and video.
 
 The signaling of this package works with **rooms**: a client joins a room, gets the members already there, and the
 offers, answers and candidates are exchanged between each pair of members. The rest is done for you:
 
-- The offers and the answers are exchanged as in the W3C "perfect negotiation": either member may add data channels at
-  any time, both at the same moment too.
+- The offers and the answers are exchanged as in the W3C "perfect negotiation": either member may add data channels and
+  tracks at any time, both at the same moment too.
 - A connection that fails, or stays disconnected for 5 seconds, restarts ICE by itself.
 - When the signaling connection drops, the peer-to-peer connections stay up, and the client joins its rooms again once
   it reconnects.
@@ -152,8 +153,8 @@ requests, 15 seconds by default).
 A room emits `peer` for each other member: the members already in the room, then each newcomer. A listener added later
 is called at once for the peers already there. A `Peer` has the member's `id`, its `metadata`, the `connection` to it
 (an `RTCPeerConnection`: add tracks to it, read its statistics), `createDataChannel()`, `restartIce()` and `close()`,
-and emits `datachannel`, `connectionstatechange`, `metadata` (the member joined again with new metadata), `error` and
-`close`. A room emits `peer-left` when a peer closes: its member left, or its connection was lost for good.
+and emits `datachannel`, `track`, `connectionstatechange`, `metadata` (the member joined again with new metadata),
+`error` and `close`. A room emits `peer-left` when a peer closes: its member left, or its connection was lost for good.
 
 Both members may create channels: each side gets the channels of the other one through `datachannel`. For a single
 channel shared by both, create it on both sides with `negotiated: true` and the same `id`.
@@ -187,9 +188,9 @@ export class Telemetry extends Component {
 
 An `http:` or `https:` URL uses Socket.IO (install `socket.io-client`), a `ws:` or `wss:` URL uses JSON-RPC over the
 `WebSocket` of Node.js 22 and Bun. Its options: `url`, `id` (a random UUID by default), `path` (of Socket.IO), `auth`
-(more fields of the Socket.IO handshake, a token), `timeout`, and the options of its connections
-(`iceTransportPolicy`, `icePortRange`, `iceAdditionalHostAddresses`). It is `@Transient`: each `getObject()` gives a new
-client, and `close()` leaves its rooms and disconnects.
+(more fields of the Socket.IO handshake, a token), `timeout`, and the options of its connections (`iceTransportPolicy`,
+`icePortRange`, `iceAdditionalHostAddresses`, `codecs`). It is `@Transient`: each `getObject()` gives a new client, and
+`close()` leaves its rooms and disconnects.
 
 ## 6. Peer connections without the signaling
 
@@ -222,7 +223,8 @@ export class Echo extends Component {
 
 Its options: `iceServers`, `iceTransportPolicy`, and those of a server: `icePortRange` (the UDP ports of its
 candidates, to open in a firewall) and `iceAdditionalHostAddresses` (more addresses offered as candidates, such as the
-public address of a NAT forwarding these ports with the same numbers). A `PeerChannel` sends strings and binary data; a
+public address of a NAT forwarding these ports with the same numbers); `codecs` chooses the audio and video codecs. A
+`PeerChannel` sends strings and binary data; a
 binary message arrives as a `Buffer`, or as an `ArrayBuffer` when `binaryType` is `'arraybuffer'`.
 
 ## 7. Large messages and files
@@ -247,7 +249,108 @@ transfer.channel.addEventListener('open', async (): Promise<void> => {
 The channel must be ordered and reliable (the default). A message received over `maxMessageSize` (64 MiB by default)
 is dropped with an `error` event.
 
-## 8. Deployment
+## 8. Audio and video
+
+A track carries the audio or the video of one source. In a browser, add the tracks of the camera and the microphone to
+the connection of each peer; the other member gets them with the `track` event of its peer, `event.streams` grouping
+the audio and the video of a source:
+
+```typescript
+import {type Peer, type Room} from '@lakutata/webrtc/client'
+
+declare const room: Room
+declare const grid: HTMLElement
+const camera: MediaStream = await navigator.mediaDevices.getUserMedia({audio: true, video: true})
+room.on('peer', (peer: Peer): void => {
+    for (const track of camera.getTracks()) peer.connection.addTrack(track, camera)
+    const video: HTMLVideoElement = document.createElement('video')
+    video.autoplay = true
+    grid.append(video)
+    peer.on('track', (event: RTCTrackEvent): void => {
+        video.srcObject = event.streams[0]
+    })
+    peer.on('close', (): void => video.remove())
+})
+```
+
+When every member sends to every other one, each sends its video once per other member: this suits small rooms.
+
+Node.js captures, encodes and decodes nothing: the tracks of an application carry RTP packets, the encoded audio and
+video, from an encoder or from another connection.
+
+- `new MediaTrack(kind, {codec})` creates a track to send, and `writeRtp()` sends a packet: an `RtpPacket`, or the
+  bytes of one, such as the datagrams ffmpeg and GStreamer send to a UDP port. Each connection gives the packets its own
+  synchronization source and payload type, and the sequence numbers and the timestamps go on from the ones written.
+- A received track (the `track` event of a `Peer` or of a `PeerConnection`) gives the packets of the other member with
+  its `rtp` event; `requestKeyFrame()` asks the other member for a key frame.
+- A received track added to another connection forwards its packets there, and the key frame requests of that
+  connection go back to the sender of the track (one every 500 ms at most).
+- The `keyframerequest` event of a track fires when a peer the track is sent to wants a key frame.
+
+A camera sending what ffmpeg encodes:
+
+```typescript
+import {createSocket, type Socket} from 'node:dgram'
+import {Component} from 'lakutata'
+import {MediaTrack, type Peer, type Room, SignalingClient} from '@lakutata/webrtc'
+
+//ffmpeg -f v4l2 -i /dev/video0 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -tune zerolatency -g 30
+//       -bsf:v dump_extra=freq=keyframe -f rtp rtp://127.0.0.1:5004
+export class Camera extends Component {
+    protected async init(): Promise<void> {
+        const video: MediaTrack = new MediaTrack('video', {codec: 'video/H264'})
+        const socket: Socket = createSocket('udp4')
+        socket.on('message', (datagram: Buffer): void => video.writeRtp(datagram))
+        socket.bind(5004)
+        const signaling: SignalingClient = await this.getObject(SignalingClient, {url: 'https://meet.example.com', id: 'camera-3'})
+        const room: Room = await signaling.join('camera-3')
+        room.on('peer', (peer: Peer): void => void peer.connection.addTrack(video, 'camera-3'))
+    }
+}
+```
+
+A viewer starts decoding at a key frame: give the encoder a key frame every second or two (`-g` of ffmpeg), or have the
+encoder make one when the track emits `keyframerequest`, if it can. The bitstream filter `dump_extra` puts the
+parameters of H.264 before each key frame, where the browsers need them.
+
+An application sending the camera of a member on to the viewers who join, each viewer getting the video from the
+application instead of the camera:
+
+```typescript
+import {Component} from 'lakutata'
+import {type MediaTrack, type Peer, type PeerTrackEvent, type Room, SignalingClient} from '@lakutata/webrtc'
+
+//The page of the camera adds its tracks to the peer of the relay only
+export class Relay extends Component {
+    protected async init(): Promise<void> {
+        const signaling: SignalingClient = await this.getObject(SignalingClient, {url: 'https://meet.example.com', id: 'relay'})
+        const room: Room = await signaling.join('stage')
+        const tracks: MediaTrack[] = []
+        const viewers: Set<Peer> = new Set()
+        room.on('peer', (peer: Peer): void => {
+            if (peer.id === 'camera') {
+                peer.on('track', (event: PeerTrackEvent): void => {
+                    tracks.push(event.track)
+                    for (const viewer of viewers) viewer.connection.addTrack(event.track, 'stage')
+                })
+                return
+            }
+            viewers.add(peer)
+            for (const track of tracks) peer.connection.addTrack(track, 'stage')
+            peer.on('close', (): void => void viewers.delete(peer))
+        })
+    }
+}
+```
+
+The methods of `PeerConnection` are those of `RTCPeerConnection`: `addTrack(track, ...streamIds)` (the other member
+groups the tracks of a stream), `addTransceiver(trackOrKind, {direction, streamIds})` (`recvonly` to receive without
+sending), `removeTrack(sender)`, `getTransceivers()`, `getSenders()` and `getReceivers()`; `sender.replaceTrack()` sends
+another track of the same codec without negotiating again. The codecs are Opus and PCMU for the audio, VP8, H.264 and
+VP9 for the video; the `codecs` option of `PeerConnection` and of `SignalingClient` chooses them and their order, and a
+track created with a `codec` makes its connections negotiate that one.
+
+## 9. Deployment
 
 - **Ports.** Open port 3478 over UDP and TCP, the relay ports (`relayPortRange`) over UDP, and the TLS port when TURN
   over TLS is on. In a container, publish them all; the relay range keeps the list short.
@@ -262,7 +365,7 @@ is dropped with an `error` event.
 - **HTTPS.** Browsers allow WebRTC on any page, but the camera and the microphone only on secure pages (HTTPS or
   `localhost`).
 
-## 9. The signaling protocol
+## 10. The signaling protocol
 
 Clients in other languages and native applications speak the protocol directly. The requests are service calls whose
 pattern is `{method}`: over Socket.IO, the event `message` with `{method: 'webrtc.join', room: 'room-1'}` and an
@@ -294,7 +397,7 @@ pushes the events to the members: Socket.IO events, or JSON-RPC notifications wh
   `E_SIGNALING_NOT_A_MEMBER`, `E_SIGNALING_CLIENT_REQUIRED`, `E_INVALID_VALUE`. JSON-RPC over HTTP cannot carry the
   signaling: the events need a connection to be pushed through.
 
-## 10. When a connection fails
+## 11. When a connection fails
 
 `setDebugHandler()` gives the debug messages of ICE, DTLS, SCTP and TURN:
 
@@ -309,9 +412,9 @@ To check the TURN server, join a room from two clients with `iceTransportPolicy:
 the relays, and `turn.allocations` counts them. In Chrome, `chrome://webrtc-internals` shows the candidates and the
 pairs tried.
 
-## 11. Limits
+## 12. Limits
 
-- Audio and video are not supported yet: the connections of Node.js carry data channels. The browsers may add tracks to
-  their connections to each other.
+- Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
+  another connection.
 - The throughput of one data channel between two Node.js processes on an Apple M4 is about 60 MiB/s for large
   messages, and 440,000 messages of 100 bytes per second.

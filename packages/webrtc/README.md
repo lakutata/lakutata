@@ -6,13 +6,13 @@ WebRTC for the [lakutata](https://www.npmjs.com/package/lakutata) framework, wri
 it installs without a compiler and runs in Node.js, the main process of Electron and Bun. It has two entry points:
 
 - `@lakutata/webrtc`, for the applications: the signaling (rooms whose members exchange their offers, answers and
-  candidates), a STUN and TURN server, and the peer connections and data channels of Node.js, with the same interface as
-  `RTCPeerConnection` in the browsers.
+  candidates), a STUN and TURN server, and the peer connections of Node.js (data channels, audio and video tracks), with
+  the same interface as `RTCPeerConnection` in the browsers.
 - `@lakutata/webrtc/client`, for the browsers and the renderer of Electron: it connects the browser's own
   `RTCPeerConnection` to the signaling. It uses only the browser's APIs, so a frontend bundling it gets no server code.
 
-The implementation of the protocols (ICE, DTLS, SCTP, the data channels, the STUN and TURN server) is derived from
-[werift](https://github.com/shinyoshiaki/werift-webrtc); see `THIRD_PARTY_NOTICES.md`.
+The implementation of the protocols (ICE, DTLS, SCTP and the data channels, RTP and SRTP, the STUN and TURN server) is
+derived from [werift](https://github.com/shinyoshiaki/werift-webrtc); see `THIRD_PARTY_NOTICES.md`.
 
 ## Installation
 
@@ -101,9 +101,9 @@ How the rooms behave:
 
 - **Connections.** A member gets a `Peer` for each other member, with its connection (`peer.connection`: an
   `RTCPeerConnection` in a browser, a `PeerConnection` in Node.js). The connection is set up when either side adds a
-  data channel. The offers and the answers are exchanged as in the W3C "perfect negotiation": both sides may add
-  channels at any time, even at the same moment. Use `negotiated: true` with the same `id` on both sides for a single
-  shared channel.
+  data channel or a track. The offers and the answers are exchanged as in the W3C "perfect negotiation": both sides may
+  add channels and tracks at any time, even at the same moment. Use `negotiated: true` with the same `id` on both sides
+  for a single shared channel.
 - **Repairs.** A connection that fails, or stays disconnected for 5 seconds, restarts ICE by itself. When the signaling
   connection drops, the peer-to-peer connections stay up; once it is back, the client joins its rooms again and the
   other members keep their connections to it. A member that reloads its page joins as a new session, and the other
@@ -129,6 +129,53 @@ const transfer: ChunkedChannel = new ChunkedChannel(channel)
 transfer.on('message', (data: string | Uint8Array): void => console.log(`${data.length} received`))
 await transfer.send(new Uint8Array(50 * 1024 * 1024))
 ```
+
+Audio and video: a browser adds the tracks of its camera and microphone to `peer.connection`, and gets the tracks of
+the other member with the `track` event of the peer.
+
+```typescript
+import {type Peer, type Room} from '@lakutata/webrtc/client'
+
+declare const room: Room
+declare const remoteVideo: HTMLVideoElement
+const camera: MediaStream = await navigator.mediaDevices.getUserMedia({audio: true, video: true})
+room.on('peer', (peer: Peer): void => {
+    for (const track of camera.getTracks()) peer.connection.addTrack(track, camera)
+    peer.on('track', (event: RTCTrackEvent): void => {
+        remoteVideo.srcObject = event.streams[0]
+    })
+})
+```
+
+Node.js captures, encodes and decodes nothing: the tracks of an application carry RTP packets, the encoded audio and
+video. A `MediaTrack` to send gets the packets of an encoder (ffmpeg, GStreamer) with `writeRtp()`; a received track
+gives the packets of the other member with its `rtp` event, to record or decode them, and `requestKeyFrame()` asks for
+a key frame. A received track added to another connection forwards its packets there, and the key frame requests of
+that connection go back to its sender. A camera sending what ffmpeg encodes:
+
+```typescript
+import {createSocket, type Socket} from 'node:dgram'
+import {Component} from 'lakutata'
+import {MediaTrack, type Peer, type Room, SignalingClient} from '@lakutata/webrtc'
+
+//ffmpeg -f v4l2 -i /dev/video0 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -tune zerolatency -g 30
+//       -bsf:v dump_extra=freq=keyframe -f rtp rtp://127.0.0.1:5004
+export class Camera extends Component {
+    protected async init(): Promise<void> {
+        const video: MediaTrack = new MediaTrack('video', {codec: 'video/H264'})
+        const socket: Socket = createSocket('udp4')
+        socket.on('message', (datagram: Buffer): void => video.writeRtp(datagram))
+        socket.bind(5004)
+        const signaling: SignalingClient = await this.getObject(SignalingClient, {url: 'https://meet.example.com', id: 'camera-3'})
+        const room: Room = await signaling.join('camera-3')
+        room.on('peer', (peer: Peer): void => void peer.connection.addTrack(video, 'camera-3'))
+    }
+}
+```
+
+A viewer starts decoding at a key frame: give the encoder a key frame every second or two (`-g` of ffmpeg), or have the
+encoder make one when the track emits `keyframerequest`, if it can. The codecs are Opus and PCMU for the audio, VP8,
+H.264 and VP9 for the video (the `codecs` option of `PeerConnection` and of `SignalingClient`).
 
 ## Deployment
 
@@ -170,7 +217,8 @@ string the client chooses once: joining again with the same session keeps the ot
 
 ## Limits
 
-- Audio and video are not supported yet: the connections of Node.js carry data channels.
+- Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
+  another connection.
 - Throughput of one data channel between two Node.js processes on an Apple M4: about 60 MiB/s for large messages,
   440,000 messages of 100 bytes per second.
 
@@ -184,6 +232,8 @@ string the client chooses once: joining again with the same session keeps the ot
 | `createTURNCredentials` | Short-lived TURN credentials (the REST API of coturn) |
 | `SignalingClient` | An application as a member of the rooms: `join()`, `close()` |
 | `PeerConnection`, `PeerChannel` | The peer connection and the data channel of Node.js |
+| `MediaTrack`, `RtpPacket` | An audio or video track of Node.js, and its RTP packets |
+| `RtpTransceiver`, `RtpSender`, `RtpReceiver` | The audio and video lines of a connection |
 | `Room`, `Peer` | A room joined, and another member with the connection to it |
 | `ChunkedChannel` | Messages of any size over a data channel |
 | `setDebugHandler` | The debug messages of ICE, DTLS, SCTP and TURN |
@@ -206,6 +256,7 @@ string the client chooses once: joining again with the same session keeps the ot
 `npm run test:unit` runs the tests of the protocols, of the signaling and of the connections between Node.js
 processes. The tests with Chrome use Playwright and the Chrome installed on the machine: they run when the package
 `playwright` can be imported (or is found in the directory given by `LAKUTATA_PLAYWRIGHT`), and are skipped otherwise.
+The one sending the H.264 of an encoder to Chrome also needs `ffmpeg` with `libx264`.
 
 ## See also
 

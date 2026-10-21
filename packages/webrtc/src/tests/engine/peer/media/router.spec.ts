@@ -13,6 +13,7 @@ import {
 import {RtpRouter} from '../../../../lib/peer/media/router.js'
 import {RTCRtpReceiver} from '../../../../lib/peer/media/rtpReceiver.js'
 import {RTCRtpSender} from '../../../../lib/peer/media/rtpSender.js'
+import {PictureLossIndication, RtcpPayloadSpecificFeedback} from '../../../../lib/rtp/index.js'
 import {createDtlsTransport} from '../fixture.js'
 
 describe('media/router', () => {
@@ -60,5 +61,27 @@ describe('media/router', () => {
             })
             router.routeRtp(packet)
         }).finally(() => receiver.stop())
+    })
+
+    test('routes a picture loss indication to the sender of its media source', () => {
+        const router = new RtpRouter()
+        //A sendrecv transceiver: the other side's source sends the feedback and is received here
+        const sender = new RTCRtpSender('video')
+        const receiver = new RTCRtpReceiver(defaultPeerConfig, 'video', sender.ssrc)
+        router.registerRtpSender(sender)
+        router.ssrcTable[4242] = receiver
+        let senderGotIt = false
+        let receiverGotIt = false
+        sender.onPictureLossIndication.subscribe(() => {
+            senderGotIt = true
+        })
+        receiver.handleRtcpPacket = () => {
+            receiverGotIt = true
+        }
+        router.routeRtcp(new RtcpPayloadSpecificFeedback({
+            feedback: new PictureLossIndication({senderSsrc: 4242, mediaSsrc: sender.ssrc})
+        }))
+        expect(senderGotIt).toBe(true)
+        expect(receiverGotIt).toBe(false)
     })
 })

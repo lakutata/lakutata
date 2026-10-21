@@ -1,16 +1,21 @@
 import type {SignalingCandidate, SignalingDescription} from '../protocol/SignalingProtocol.js'
-import type {ChannelOf, DataChannelOptions, PeerConnectionLike} from './Connections.js'
+import type {ChannelOf, DataChannelOptions, PeerConnectionLike, TrackEventOf} from './Connections.js'
 import {Emitter} from './Emitter.js'
 import {unrefTimer} from './Transports.js'
 
 /**
  * The events of a {@link Peer}.
  */
-export type PeerEvents<Channel> = {
+export type PeerEvents<Channel, TrackEvent = unknown> = {
     /**
      * A data channel the other member created.
      */
     datachannel: [channel: Channel]
+    /**
+     * An audio or video track of the other member: the `track` event of the connection (`event.track`,
+     * `event.streams`).
+     */
+    track: [event: TrackEvent]
     /**
      * The state of the connection changed: `new`, `connecting`, `connected`, `disconnected`, `failed`, `closed`.
      */
@@ -79,7 +84,7 @@ const DISCONNECTED_RESTART_DELAY: number = 5000
  * signaling is lost while their connection is up, and closes when the member leaves the room, when the connection
  * fails without the member in the room, and when the room is left.
  */
-export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLike> extends Emitter<PeerEvents<ChannelOf<Connection>>> {
+export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLike> extends Emitter<PeerEvents<ChannelOf<Connection>, TrackEventOf<Connection>>> {
 
     /**
      * The other member's id.
@@ -285,6 +290,7 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
         })
         connection.addEventListener('connectionstatechange', (): void => this.#stateChanged())
         connection.addEventListener('datachannel', (event: {channel: ChannelOf<Connection>}): void => void this.emit('datachannel', event.channel))
+        connection.addEventListener('track', (event: TrackEventOf<Connection>): void => void this.emit('track', event))
     }
 
     /**

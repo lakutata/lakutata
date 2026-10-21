@@ -83,7 +83,7 @@ export interface PeerConnectionLike<Channel extends DataChannelLike = DataChanne
     readonly localDescription: SignalingDescription | null
 
     /**
-     * Add a listener of an event: `negotiationneeded`, `icecandidate`, `connectionstatechange`, `datachannel`.
+     * Add a listener of an event: `negotiationneeded`, `icecandidate`, `connectionstatechange`, `datachannel`, `track`.
      * @param type The event.
      * @param listener The listener.
      */
@@ -147,3 +147,8 @@ export type PeerConnectionFactory<Connection extends PeerConnectionLike<any>> = 
  * The data channel type of a peer connection type
  */
 export type ChannelOf<Connection extends PeerConnectionLike<any>> = ReturnType<Connection['createDataChannel']>
+
+/**
+ * The track event type of a peer connection type: `RTCTrackEvent` in the browsers, `PeerTrackEvent` in Node.js
+ */
+export type TrackEventOf<Connection> = Connection extends {ontrack: ((event: infer Event) => any) | null} ? Event : never

@@ -2,12 +2,17 @@ import {describe, it, type TestContext} from 'node:test'
 import assert from 'node:assert'
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
+import {type ChildProcess, execFile, spawn} from 'node:child_process'
+import {createSocket, type Socket} from 'node:dgram'
 import {readFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import path from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {Container} from '@lakutata/core'
+import {MediaTrack} from '../peer/MediaTrack.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
+import type {PeerTrackEvent} from '../peer/PeerConnection.js'
+import type {RtpPacket} from '../peer/RtpPacket.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
 import {next, startServer, type TestServer} from './support/Server.js'
 
@@ -19,7 +24,7 @@ type BrowserPage = {goto(url: string): Promise<unknown>, evaluate<T>(code: strin
 /**
  * Chrome, through Playwright
  */
-async function launchChrome(): Promise<Browser | undefined> {
+async function launchChrome(options: {media?: boolean} = {}): Promise<Browser | undefined> {
     type Playwright = {chromium: {launch(options: Record<string, unknown>): Promise<Browser>}}
     let playwright: Playwright
     try {
@@ -32,7 +37,10 @@ async function launchChrome(): Promise<Browser | undefined> {
         return undefined
     }
     try {
-        return await playwright.chromium.launch({channel: 'chrome', headless: true})
+        //A fake camera and microphone, allowed without asking (Chrome then gathers candidates on all the interfaces, not on
+        //the default route only)
+        const args: string[] = options.media ? ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] : []
+        return await playwright.chromium.launch({channel: 'chrome', headless: true, args: args})
     } catch {
         return undefined
     }
@@ -92,6 +100,69 @@ function memberScript(options: {transport: 'socket.io' | 'jsonrpc', signaling: s
     })()`
 }
 
+/**
+ * The code of a page joining a room with the fake camera and microphone: it sends them to the members given (all
+ * without), and resolves once a video track of a member given is decoded (at once when it receives none)
+ * @param options
+ */
+function mediaScript(options: {signaling: string, id: string, room: string, sendTo?: string[] | 'all', receiveFrom?: string[] | 'all'}): string {
+    return `(async () => {
+        const {SignalingConnection} = await import('/exports/Client.js')
+        const socket = (await import('/socket.io.js')).io(${JSON.stringify(options.signaling)}, {auth: {id: ${JSON.stringify(options.id)}}, transports: ['websocket']})
+        const signaling = new SignalingConnection(socket)
+        const sendTo = ${JSON.stringify(options.sendTo ?? [])}
+        const receiveFrom = ${JSON.stringify(options.receiveFrom ?? [])}
+        const stream = sendTo.length ? await navigator.mediaDevices.getUserMedia({audio: true, video: {width: 320, height: 240}}) : undefined
+        const room = await signaling.join(${JSON.stringify(options.room)})
+        window.room = room
+        return await new Promise((resolve, reject) => {
+            setTimeout(() => reject(new Error('timed out')), 40000)
+            if (!receiveFrom.length) resolve({sending: true})
+            room.on('peer', (peer) => {
+                if (stream && (sendTo === 'all' || sendTo.includes(peer.id))) for (const track of stream.getTracks()) peer.connection.addTrack(track, stream)
+                if (receiveFrom !== 'all' && !receiveFrom.includes(peer.id)) return
+                peer.on('track', (event) => {
+                    if (event.track.kind !== 'video') return
+                    const timer = setInterval(async () => {
+                        for (const report of (await peer.connection.getStats(event.track)).values()) {
+                            if (report.type !== 'inbound-rtp' || !(report.framesDecoded > 0)) continue
+                            clearInterval(timer)
+                            resolve({from: peer.id, framesDecoded: report.framesDecoded, width: report.frameWidth, streams: event.streams.length})
+                        }
+                    }, 200)
+                })
+            })
+        })
+    })()`
+}
+
+/**
+ * Whether a VP8 payload starts a key frame (RFC 7741: the payload descriptor, then the inverse key frame bit)
+ * @param payload
+ */
+function startsVP8KeyFrame(payload: Buffer): boolean {
+    const start: boolean = (payload[0] & 0x10) !== 0 && (payload[0] & 0x07) === 0
+    let offset: number = 1
+    if (payload[0] & 0x80) {
+        const extension: number = payload[offset++]
+        if (extension & 0x80) offset += payload[offset] & 0x80 ? 2 : 1
+        if (extension & 0x40) offset++
+        if (extension & 0x30) offset++
+    }
+    return start && (payload[offset] & 0x01) === 0
+}
+
+type DecodedVideo = {from: string, framesDecoded: number, width: number, streams: number}
+
+/**
+ * Whether ffmpeg with libx264 is installed
+ */
+function ffmpegWithX264(): Promise<boolean> {
+    return new Promise((resolve: (available: boolean) => void): void => {
+        execFile('ffmpeg', ['-hide_banner', '-encoders'], (error: Error | null, stdout: string): void => resolve(!error && stdout.includes('libx264')))
+    })
+}
+
 describe('Browser', (): void => {
 
     it('connects Chrome (Socket.IO) and an application, a data channel between them', {timeout: 60000}, async (t: TestContext): Promise<void> => {
@@ -142,6 +213,150 @@ describe('Browser', (): void => {
         } finally {
             await chrome.close()
             files.server.close()
+            await server.stop()
+        }
+    })
+
+    it('sends the camera and the microphone of Chrome to an application, which asks for key frames', {timeout: 90000}, async (t: TestContext): Promise<void> => {
+        const chrome: Browser | undefined = await launchChrome({media: true})
+        if (!chrome) return t.skip('Playwright or Chrome is not available')
+        const files: {url: string, server: Server} = await staticServer()
+        const server: TestServer = await startServer()
+        const clients: Container = new Container()
+        try {
+            const recorder: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'recorder'})
+            const room: Room = await recorder.join('studio')
+            const tracks: Promise<MediaTrack[]> = next<MediaTrack[]>((resolve: (tracks: MediaTrack[]) => void): void => {
+                const received: MediaTrack[] = []
+                room.on('peer', (peer: Peer): void => {
+                    peer.on('track', (event: PeerTrackEvent): void => {
+                        received.push(event.track)
+                        if (received.length === 2) resolve(received)
+                    })
+                })
+            }, 40000, 'the tracks of Chrome')
+            const page: BrowserPage = await chrome.newPage()
+            await page.goto(files.url)
+            await page.evaluate(mediaScript({signaling: server.socketIO, id: 'camera', room: 'studio', sendTo: 'all'}))
+            const [audio, video] = (await tracks).sort((a: MediaTrack, b: MediaTrack): number => a.kind.localeCompare(b.kind))
+            assert.strictEqual(audio.codec, 'audio/opus')
+            assert.strictEqual(video.codec, 'video/VP8')
+            await Promise.all([audio, video].map((track: MediaTrack): Promise<RtpPacket> => next<RtpPacket>((resolve: (packet: RtpPacket) => void): unknown => track.once('rtp', resolve), 20000, `the ${track.kind}`)))
+            //Past the key frame of the start, Chrome makes one when asked
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 1500))
+            const keyFrame: Promise<RtpPacket> = next<RtpPacket>((resolve: (packet: RtpPacket) => void): void => {
+                video.on('rtp', (packet: RtpPacket): void => {
+                    if (startsVP8KeyFrame(packet.payload)) resolve(packet)
+                })
+            }, 5000, 'a key frame')
+            video.requestKeyFrame()
+            await keyFrame
+        } finally {
+            await chrome.close()
+            files.server.close()
+            await clients.destroy()
+            await server.stop()
+        }
+    })
+
+    it('forwards the camera of a page of Chrome to another one through an application', {timeout: 90000}, async (t: TestContext): Promise<void> => {
+        const chrome: Browser | undefined = await launchChrome({media: true})
+        if (!chrome) return t.skip('Playwright or Chrome is not available')
+        const files: {url: string, server: Server} = await staticServer()
+        const server: TestServer = await startServer()
+        const clients: Container = new Container()
+        try {
+            //The application sends on to the viewer what the camera sends it
+            const hub: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'hub'})
+            const room: Room = await hub.join('stage')
+            let viewer: Peer | undefined
+            const pending: PeerTrackEvent[] = []
+            const forward = (event: PeerTrackEvent): void => {
+                if (viewer) viewer.connection.addTrack(event.track, ...event.streams.map((stream: {id: string}): string => stream.id))
+                else pending.push(event)
+            }
+            room.on('peer', (peer: Peer): void => {
+                if (peer.id === 'camera') peer.on('track', forward)
+                if (peer.id !== 'viewer') return
+                viewer = peer
+                pending.splice(0).forEach(forward)
+            })
+            const camera: BrowserPage = await chrome.newPage()
+            const watching: BrowserPage = await chrome.newPage()
+            await Promise.all([camera.goto(files.url), watching.goto(files.url)])
+            await camera.evaluate(mediaScript({signaling: server.socketIO, id: 'camera', room: 'stage', sendTo: ['hub']}))
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 1500))
+            //The viewer decodes from a key frame the camera makes when the viewer asks, through the application
+            const decoded: DecodedVideo = await watching.evaluate<DecodedVideo>(mediaScript({signaling: server.socketIO, id: 'viewer', room: 'stage', receiveFrom: ['hub']}))
+            assert.strictEqual(decoded.from, 'hub')
+            assert.strictEqual(decoded.width, 320)
+            assert.strictEqual(decoded.streams, 1)
+        } finally {
+            await chrome.close()
+            files.server.close()
+            await clients.destroy()
+            await server.stop()
+        }
+    })
+
+    it('sends the cameras of two pages of Chrome to each other through the signaling', {timeout: 90000}, async (t: TestContext): Promise<void> => {
+        const chrome: Browser | undefined = await launchChrome({media: true})
+        if (!chrome) return t.skip('Playwright or Chrome is not available')
+        const files: {url: string, server: Server} = await staticServer()
+        const server: TestServer = await startServer()
+        try {
+            const first: BrowserPage = await chrome.newPage()
+            const second: BrowserPage = await chrome.newPage()
+            await Promise.all([first.goto(files.url), second.goto(files.url)])
+            const decoded: DecodedVideo[] = await Promise.all([
+                first.evaluate<DecodedVideo>(mediaScript({signaling: server.socketIO, id: 'first', room: 'call', sendTo: 'all', receiveFrom: 'all'})),
+                second.evaluate<DecodedVideo>(mediaScript({signaling: server.socketIO, id: 'second', room: 'call', sendTo: 'all', receiveFrom: 'all'}))
+            ])
+            assert.deepStrictEqual(decoded.map((video: DecodedVideo): string => video.from), ['second', 'first'])
+            for (const video of decoded) {
+                assert.strictEqual(video.width, 320)
+                assert.strictEqual(video.streams, 1)
+            }
+        } finally {
+            await chrome.close()
+            files.server.close()
+            await server.stop()
+        }
+    })
+
+    it('sends the H.264 of an encoder (ffmpeg) from an application to Chrome', {timeout: 90000}, async (t: TestContext): Promise<void> => {
+        if (!await ffmpegWithX264()) return t.skip('ffmpeg with libx264 is not available')
+        const chrome: Browser | undefined = await launchChrome({media: true})
+        if (!chrome) return t.skip('Playwright or Chrome is not available')
+        const files: {url: string, server: Server} = await staticServer()
+        const server: TestServer = await startServer()
+        const clients: Container = new Container()
+        const socket: Socket = createSocket('udp4')
+        let encoder: ChildProcess | undefined
+        try {
+            //The packets of ffmpeg, written to the track
+            const video: MediaTrack = new MediaTrack('video', {codec: 'video/H264'})
+            socket.on('message', (datagram: Buffer): void => video.writeRtp(datagram))
+            await new Promise<void>((resolve: () => void): unknown => socket.bind(0, '127.0.0.1', resolve))
+            encoder = spawn('ffmpeg', [
+                '-hide_banner', '-loglevel', 'error', '-re', '-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=30',
+                '-c:v', 'libx264', '-profile:v', 'baseline', '-level', '3.1', '-pix_fmt', 'yuv420p', '-tune', 'zerolatency', '-g', '30',
+                '-bsf:v', 'dump_extra=freq=keyframe', '-f', 'rtp', `rtp://127.0.0.1:${socket.address().port}?pkt_size=1200`
+            ], {stdio: 'ignore'})
+            const app: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'app'})
+            const room: Room = await app.join('broadcast')
+            room.on('peer', (peer: Peer): void => void peer.connection.addTrack(video, 'test-pattern'))
+            const page: BrowserPage = await chrome.newPage()
+            await page.goto(files.url)
+            const decoded: DecodedVideo = await page.evaluate<DecodedVideo>(mediaScript({signaling: server.socketIO, id: 'viewer', room: 'broadcast', receiveFrom: ['app']}))
+            assert.strictEqual(decoded.width, 320)
+            assert.strictEqual(decoded.streams, 1)
+        } finally {
+            encoder?.kill()
+            socket.close()
+            await chrome.close()
+            files.server.close()
+            await clients.destroy()
             await server.stop()
         }
     })
