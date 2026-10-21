@@ -12,7 +12,7 @@ npm install lakutata @lakutata/webrtc
 
 | Entry point | Runs in | What it gives |
 |---|---|---|
-| `@lakutata/webrtc` | Node.js, the main process of Electron, Bun | `Signaling`, `SignalingController`, `TURNServer`, `SignalingClient`, `PeerConnection`, `MediaTrack`, `WHIP`, `WHIPController`, `ChunkedChannel` |
+| `@lakutata/webrtc` | Node.js, the main process of Electron, Bun | `Signaling`, `SignalingController`, `TURNServer`, `SignalingClient`, `PeerConnection`, `MediaTrack`, `WHIP`, `WHIPController`, `Cluster`, `ChunkedChannel` |
 | `@lakutata/webrtc/client` | Browsers, the renderer of Electron | `SignalingConnection`, `ChunkedChannel`, the types of the protocol |
 
 The browser entry uses only the APIs of the browsers; a frontend installs the same package, and the framework is not
@@ -431,14 +431,306 @@ container, give it its public address and open its ports.
   the host, or that of its NAT when the NAT forwards the ports. On a local network the default is enough.
 - **The applications as members.** A server behind a NAT that forwards `icePortRange` with the same port numbers gives
   its public address in `iceAdditionalHostAddresses`; otherwise it relies on the TURN server like any client.
-- **Several instances.** Give their TURN servers the same `secret`, so each accepts the credentials made by the others.
-  A room lives in the memory of one instance: send all the members of a room to the same instance.
+- **Several instances.** Give them a `Cluster` (section 11), and their TURN servers the same `secret`, so each accepts
+  the credentials made by the others.
 - **Another TURN server.** coturn (`use-auth-secret`, `static-auth-secret` set to the same secret) accepts the
   credentials of `createTURNCredentials()`; list it in the `iceServers` option of `Signaling`.
 - **HTTPS.** Browsers allow WebRTC on any page, but the camera and the microphone only on secure pages (HTTPS or
   `localhost`).
 
-## 11. The signaling protocol
+## 11. Several instances
+
+Several instances of an application (the pods of a deployment, the processes behind a load balancer) work together
+through a `Cluster`: each instance is a node of the cluster, and the nodes talk through NATS or Redis. The components
+given its name work across the nodes:
+
+- the signaling puts the members connected to all the nodes in the same rooms;
+- the TURN servers tell the other nodes their address and their load, and each member gets the least loaded ones;
+- a WHIP session is ended whichever node its DELETE reaches.
+
+The bus carries only these messages. The audio, the video and the data go directly between the clients and the nodes,
+or through the TURN servers.
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+import {buildClusterOptions, buildSignalingOptions, SignalingController} from '@lakutata/webrtc'
+
+Application.run(() => ({
+    id: 'meet.app',
+    name: 'Meet',
+    components: {
+        cluster: buildClusterOptions({transport: {type: 'nats', servers: process.env.NATS_URL}}),
+        signaling: buildSignalingOptions({cluster: 'cluster', turnSecret: process.env.TURN_SECRET}),
+        entrypoint: buildEntrypoints({
+            controllers: [SignalingController],
+            service: socketIOServiceEntrypoint({port: 3000})
+        })
+    },
+    bootstrap: ['signaling', 'entrypoint']
+}))
+```
+
+| Option of `buildClusterOptions` | Default | |
+|---|---|---|
+| `transport` | (required) | `{type: 'nats', servers, user, pass, token}`; `{type: 'redis', url}` or `{type: 'redis', host, port, username, password, database, tls}`; `{type: 'memory'}` for the applications of one process (tests) |
+| `prefix` | `'lakutata.webrtc'` | The prefix of the subjects or channels: the clusters sharing a server stay separate with it |
+| `nodeId` | the host name and a random suffix | The id of the node; in Kubernetes the host name is the name of the pod |
+| `labels` | `{}` | What the other nodes see of this one (a zone, a region), to choose the TURN servers |
+| `heartbeatInterval` | `2000` | How often the node tells the others it is there, in milliseconds |
+| `requestTimeout` | `5000` | How long `request()` and `requestAll()` wait, in milliseconds |
+
+NATS needs `npm install nats`, and its core subjects are enough (no JetStream); Redis needs `npm install ioredis`, and
+only its channels are used (`PUBLISH`, `SUBSCRIBE`). The component connects when the application starts, and fails
+to start when the server cannot be reached then (in Kubernetes, the pod restarts until it can); afterwards it
+reconnects by itself. The other nodes take a node as gone after three heartbeat intervals without news of it, or at
+once when it stops.
+
+### The rooms across the nodes
+
+Each node tells the others who joins and leaves through it, and gets all the members of a node when that node comes up
+or when some of its news was lost (the bus restarting, for example). A signal to a member of another node goes through
+that node.
+
+- When a node stops, or the others cannot reach it any more, its members leave their rooms as `disconnected`: their
+  connections stay up while their clients reconnect to another node and join again.
+- A client joining again through another node before the first one saw it go is moved there: the others see it join
+  again, not leave.
+- `maxPeers` counts the members of all the nodes. Each room falls to one node (by hashing over the nodes), which admits
+  its members one at a time, so two members joining at once through different nodes cannot both take the last place.
+  When a node joins or leaves the cluster, some rooms fall to another node, and a member joining at that very moment
+  may be admitted over the limit.
+- Socket.IO behind a load balancer: its long polling sends the requests of a client one by one, and they must all reach
+  the same instance. Connect the clients with `transports: ['websocket']` (a single connection, so no sticky sessions),
+  or turn on sticky sessions in the load balancer.
+
+### The TURN servers of the cluster
+
+A TURN server joins the cluster with its `cluster` option and the `secret` shared by all of them (it refuses to start
+without one); it tells the others its address, its ports and its allocations every second. The `Signaling` and `WHIP`
+components given `turnSecret` give each client the two least loaded TURN servers that are not full, after the one of
+their own node (`turn`). `selectTURN` chooses otherwise, for example by the labels of the nodes:
+
+```typescript
+import {buildSignalingOptions, type ClusterTURNServer} from '@lakutata/webrtc'
+
+//The members whose id starts with eu- get the TURN servers of the nodes labeled {region: 'eu'}, and so on
+const signaling = buildSignalingOptions({
+    cluster: 'cluster',
+    turnSecret: process.env.TURN_SECRET,
+    selectTURN: (servers: ClusterTURNServer[], user: string): ClusterTURNServer[] => {
+        return servers.filter((server: ClusterTURNServer): boolean => user.startsWith(`${server.labels.region}-`))
+    }
+})
+```
+
+### WHIP behind a load balancer
+
+A WHIP session lives on the node that answered its POST. Given `cluster`, the `WHIP` component of another node
+receiving its DELETE asks the other nodes, and the one holding the session ends it. `maxSessions` counts the sessions
+of each node.
+
+### Kubernetes and k3s
+
+The manifests below deploy NATS, the signaling (two pods) and a TURN server on each node. The application is one image
+for both roles, chosen by the variable `ROLE`:
+
+```typescript
+import {Application, type ApplicationOptions} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+import {buildClusterOptions, buildSignalingOptions, buildTURNServerOptions, SignalingController} from '@lakutata/webrtc'
+
+const turn: boolean = process.env.ROLE === 'turn'
+const cluster = buildClusterOptions({transport: {type: 'nats', servers: process.env.NATS_URL}})
+const components: ApplicationOptions['components'] = turn
+    ? {
+        cluster: cluster,
+        //On the network of the node: its address, and its ports 3478 and 49160-49200
+        turn: buildTURNServerOptions({
+            cluster: 'cluster',
+            secret: process.env.TURN_SECRET,
+            publicAddress: process.env.PUBLIC_ADDRESS,
+            relayPortRange: [49160, 49200]
+        })
+    }
+    : {
+        cluster: cluster,
+        signaling: buildSignalingOptions({cluster: 'cluster', turnSecret: process.env.TURN_SECRET}),
+        entrypoint: buildEntrypoints({
+            controllers: [SignalingController],
+            service: socketIOServiceEntrypoint({port: 3000})
+        })
+    }
+
+Application.run(() => ({
+    id: 'meet.app',
+    name: 'Meet',
+    components: components,
+    bootstrap: turn ? ['turn'] : ['signaling', 'entrypoint']
+}))
+```
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: turn
+stringData:
+  secret: change-me
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      containers:
+        - name: nats
+          image: nats:latest
+          ports:
+            - containerPort: 4222
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+spec:
+  selector:
+    app: nats
+  ports:
+    - port: 4222
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signaling
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: signaling
+  template:
+    metadata:
+      labels:
+        app: signaling
+    spec:
+      containers:
+        - name: signaling
+          image: registry.example.com/meet:1.0.0
+          env:
+            - name: ROLE
+              value: signaling
+            - name: NATS_URL
+              value: nats://nats:4222
+            - name: TURN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: turn
+                  key: secret
+          ports:
+            - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signaling
+spec:
+  selector:
+    app: signaling
+  ports:
+    - port: 3000
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: turn
+spec:
+  selector:
+    matchLabels:
+      app: turn
+  template:
+    metadata:
+      labels:
+        app: turn
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: turn
+          image: registry.example.com/meet:1.0.0
+          env:
+            - name: ROLE
+              value: turn
+            - name: NATS_URL
+              value: nats://nats:4222
+            - name: PUBLIC_ADDRESS
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: TURN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: turn
+                  key: secret
+```
+
+- The TURN servers run on the network of their node (`hostNetwork`): the clients reach them at the address of the node,
+  on its ports. Open UDP and TCP 3478 and UDP 49160–49200 in the firewall of the nodes.
+- `status.hostIP` is the address of the node inside the cluster; it is the right one when the clients reach the nodes at
+  it (a local network, nodes with public addresses). Behind the NAT of a cloud, give `PUBLIC_ADDRESS` the public address
+  of each node instead, the NAT forwarding the same ports.
+- A pod on the network of its node resolves the names of the services with `dnsPolicy: ClusterFirstWithHostNet`.
+- The browsers reach the signaling through an Ingress or a load balancer in front of the Service `signaling`, connecting
+  with `transports: ['websocket']`.
+- A single NATS pod is enough for a test; in production, run a NATS cluster (its Helm chart) or a Redis with a replica.
+
+In the repository, `packages/webrtc/test-env/k3s/run.sh` deploys these manifests in k3s in Docker (two nodes, the code
+mounted instead of an image) and connects two members through two pods and the TURN servers only.
+
+### The cluster for the application
+
+The application talks to its other instances through the same component: messages to all the other nodes, and requests
+to one node or to all of them.
+
+```typescript
+import {Component} from 'lakutata'
+import type {Cluster, ClusterReply} from '@lakutata/webrtc'
+
+export class Viewers extends Component {
+    //The viewers of each stream on this node, counted by the application
+    protected readonly counts: Map<string, number> = new Map()
+
+    protected async init(): Promise<void> {
+        const cluster: Cluster = await this.getObject<Cluster>('cluster')
+        //Each node answers with its own count
+        cluster.handle<{stream: string}, number>('viewers', ({stream}: {stream: string}): number => this.counts.get(stream) ?? 0)
+        cluster.subscribe<{text: string}>('announcements', (message: {text: string}): void => console.log(message.text))
+    }
+
+    //The viewers of a stream on all the nodes
+    public async total(stream: string): Promise<number> {
+        const cluster: Cluster = await this.getObject<Cluster>('cluster')
+        const replies: ClusterReply<number>[] = await cluster.requestAll<number>('viewers', {stream: stream})
+        return replies.reduce((sum: number, reply: ClusterReply<number>): number => sum + reply.result, this.counts.get(stream) ?? 0)
+    }
+}
+```
+
+`cluster.nodes()` lists the nodes with their labels and what they announce (`announce()`), and the component emits
+`node-up`, `node-down` and `node-update`. The messages are sent as JSON; a message larger than the server carries (1 MiB
+by default on NATS) is sent in parts.
+
+## 12. The signaling protocol
 
 Clients in other languages and native applications speak the protocol directly. The requests are service calls whose
 pattern is `{method}`: over Socket.IO, the event `message` with `{method: 'webrtc.join', room: 'room-1'}` and an
@@ -470,7 +762,7 @@ pushes the events to the members: Socket.IO events, or JSON-RPC notifications wh
   `E_SIGNALING_NOT_A_MEMBER`, `E_SIGNALING_CLIENT_REQUIRED`, `E_INVALID_VALUE`. JSON-RPC over HTTP cannot carry the
   signaling: the events need a connection to be pushed through.
 
-## 12. When a connection fails
+## 13. When a connection fails
 
 `setDebugHandler()` gives the debug messages of ICE, DTLS, SCTP and TURN:
 
@@ -485,7 +777,7 @@ To check the TURN server, join a room from two clients with `iceTransportPolicy:
 the relays, and `turn.allocations` counts them. In Chrome, `chrome://webrtc-internals` shows the candidates and the
 pairs tried.
 
-## 13. Limits
+## 14. Limits
 
 - Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
   another connection.

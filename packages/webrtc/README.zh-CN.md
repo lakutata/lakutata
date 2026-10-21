@@ -4,7 +4,7 @@
 
 [lakutata](https://www.npmjs.com/package/lakutata) 框架的 WebRTC，用 TypeScript 编写，没有原生代码：安装时不需要编译器，能在 Node.js、Electron 的主进程和 Bun 中运行。它有两个入口：
 
-- `@lakutata/webrtc`，给应用用：信令（房间里的成员互相交换 offer、answer 和候选地址）、STUN 和 TURN 服务器、WHIP 推流接收，以及 Node.js 端的对等连接（数据通道、音视频轨道），接口和浏览器的 `RTCPeerConnection` 一致。
+- `@lakutata/webrtc`，给应用用：信令（房间里的成员互相交换 offer、answer 和候选地址）、STUN 和 TURN 服务器、WHIP 推流接收，以及 Node.js 端的对等连接（数据通道、音视频轨道），接口和浏览器的 `RTCPeerConnection` 一致。应用的多个实例可以通过 NATS 或 Redis 协同工作。
 - `@lakutata/webrtc/client`，给浏览器和 Electron 的渲染进程用：把浏览器自带的 `RTCPeerConnection` 接到信令上。它只使用浏览器的接口，前端打包它时不会带上服务端代码。
 
 协议的实现（ICE、DTLS、SCTP 和数据通道、RTP 和 SRTP、STUN 和 TURN 服务器）改编自 [werift](https://github.com/shinyoshiaki/werift-webrtc)，见 `THIRD_PARTY_NOTICES.md`。
@@ -15,7 +15,7 @@
 npm install @lakutata/webrtc
 ```
 
-应用还需要 `lakutata`（或者 `@lakutata/core` 和 `@lakutata/entrypoint`）。信令通过 entrypoint 的适配器提供，走 Socket.IO（`npm install socket.io`）或 WebSocket 上的 JSON-RPC（`npm install ws`）。应用作为成员通过 Socket.IO 加入房间时需要 `socket.io-client`；通过 JSON-RPC 加入时，使用 Node.js 22 和 Bun 自带的 `WebSocket`。
+应用还需要 `lakutata`（或者 `@lakutata/core` 和 `@lakutata/entrypoint`）。信令通过 entrypoint 的适配器提供，走 Socket.IO（`npm install socket.io`）或 WebSocket 上的 JSON-RPC（`npm install ws`）。应用作为成员通过 Socket.IO 加入房间时需要 `socket.io-client`；通过 JSON-RPC 加入时，使用 Node.js 22 和 Bun 自带的 `WebSocket`。多个实例协同工作时需要 `nats` 或 `ioredis`。
 
 前端安装同一个包，引用 `@lakutata/webrtc/client`；框架不会随之安装。
 
@@ -183,11 +183,38 @@ Application.run(() => ({
 
 answer 里带有服务器的全部候选地址：要告诉它自己的公网地址（`iceAdditionalHostAddresses`）和要放开的 UDP 端口（`icePortRange`）。`PATCH` 请求（Trickle ICE、ICE 重启）一律回 405；`body.text` 里也要列上 `application/trickle-ice-sdpfrag`，否则 Fastify 会在请求到达控制器之前以 415 拒绝它。ffmpeg 用 `-f whip -authorization <令牌> <URL>` 推流。
 
+应用的多个实例（比如一个部署里的多个 pod）通过 `Cluster` 协同工作：每个实例是一个节点，节点之间通过 NATS 或 Redis 通信。把它的名字告诉其他组件后，信令会把连在各个节点上的成员放进同一批房间，TURN 服务器会把自己的地址和负载告诉其他节点，WHIP 会话的 DELETE 请求不管到了哪个节点，都能结束这个会话。总线上只传这些消息：音视频和数据仍然在客户端和节点之间直接传输。
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+import {buildClusterOptions, buildSignalingOptions, SignalingController} from '@lakutata/webrtc'
+
+Application.run(() => ({
+    id: 'meet.app',
+    name: 'Meet',
+    components: {
+        //npm install nats；用 Redis 时写 {type: 'redis', url: process.env.REDIS_URL}，并 npm install ioredis
+        cluster: buildClusterOptions({transport: {type: 'nats', servers: process.env.NATS_URL}}),
+        //每个成员拿到集群里负载最低的两个 TURN 服务器，它们共用这个密钥
+        signaling: buildSignalingOptions({cluster: 'cluster', turnSecret: process.env.TURN_SECRET}),
+        entrypoint: buildEntrypoints({
+            controllers: [SignalingController],
+            service: socketIOServiceEntrypoint({port: 3000})
+        })
+    },
+    bootstrap: ['signaling', 'entrypoint']
+}))
+```
+
+TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个节点停止，或者其他节点连续三次收不到它的心跳时，它上面的成员以 `disconnected` 离开房间：它们的连接不会断开，客户端会重新连到别的节点。`maxPeers` 统计的是所有节点上的成员，WHIP 的 `maxSessions` 统计的是每个节点自己的会话。
+
 ## 部署
 
 - **端口。** TURN 服务器在 3478 端口上监听 UDP 和 TCP（给了证书时还有 TLS）；中转使用 `relayPortRange` 里的 UDP 端口。在防火墙里放开这些端口，或者从容器发布它们。
 - **地址。** `publicAddress` 是客户端访问服务器用的地址：主机的公网地址，或者转发了这些端口的 NAT 的地址。默认取主机第一个非内部的 IPv4 地址，在局域网里够用。
-- **多个实例。** 给它们的 TURN 服务器配置相同的 `secret`，这样一个实例生成的凭据其他实例也认。房间保存在一个实例的内存里：同一个房间的成员都要连到同一个实例。
+- **多个实例。** 给它们配置 `Cluster`（见上文），并给它们的 TURN 服务器配置相同的 `secret`。在负载均衡后面，Socket.IO 需要会话保持（sticky session），除非客户端用 `transports: ['websocket']` 连接。在 Kubernetes 里，在每个节点的网络上运行一个 TURN 服务器（使用 `hostNetwork` 的 DaemonSet）；部署清单见指南。
 - **其他 TURN 服务器。** 配置了 `use-auth-secret` 和相同密钥的 coturn 也接受这个包生成的凭据：把它写进 `Signaling` 的 `iceServers` 选项。
 
 ## 信令协议
@@ -221,6 +248,7 @@ answer 里带有服务器的全部候选地址：要告诉它自己的公网地�
 | 导出 | 说明 |
 |---|---|
 | `Signaling`、`buildSignalingOptions` | 房间组件：成员、信令、限制、`authorize`、ICE 服务器 |
+| `Cluster`、`buildClusterOptions` | 通过 NATS 或 Redis 协同工作的多个实例：`nodes()`、`publish()`、`request()`、`announce()` |
 | `SignalingController` | 通过 Socket.IO 和 JSON-RPC 提供信令的控制器 |
 | `TURNServer`、`buildTURNServerOptions` | STUN 和 TURN 服务器：`iceServers()`、`credentials()`、`allocations` |
 | `createTURNCredentials` | 短时有效的 TURN 凭据（coturn 的 REST API） |
@@ -250,11 +278,16 @@ answer 里带有服务器的全部候选地址：要告诉它自己的公网地�
 | `WHIPOfferException` | offer 里没有音视频，或者连接不接受它（400） |
 | `WHIPMediaTypeException` | offer 不是 `application/sdp`（415） |
 | `WHIPSessionNotFoundException` | 请求的会话不存在（404） |
+| `ClusterRequestException` | `Cluster.request()` 请求的节点不在集群里、没有对应的处理函数，或者处理函数出错 |
+| `ClusterTimeoutException` | `Cluster.request()` 没有按时得到答复 |
+| `ClusterTransportNotFoundException` | 集群用 NATS 或 Redis，但没有安装 `nats` 或 `ioredis` 包 |
 | `SignalingRequestError` | 客户端上请求的错误，带有服务端异常的 `errno` |
 
 ## 测试
 
 `npm run test:unit` 运行协议、信令以及 Node.js 进程之间连接的测试。Chrome 的测试使用 Playwright 和本机安装的 Chrome：能引用 `playwright` 包（或者在 `LAKUTATA_PLAYWRIGHT` 指定的目录里找到它）时运行，否则跳过。把编码器的 H.264 发给 Chrome 的那个测试还需要带 `libx264` 的 `ffmpeg`；WHIP 的测试需要带 WHIP 推流功能（FFmpeg 8 及以上）和 `libopus` 的 `ffmpeg`。
+
+`npm run test:servers` 在 Docker 里启动 NATS 和 Redis，运行集群在它们上面的测试（`test-env/cluster.sh`）。`test-env/k3s/run.sh` 在 Docker 里运行有两个节点的 k3s，在每个节点上部署信令和一个 TURN 服务器，然后让两个成员分别通过两个不同的 pod 连接，并且只经 TURN 服务器中转。
 
 ## 另见
 

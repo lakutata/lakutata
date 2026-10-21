@@ -7,7 +7,8 @@ it installs without a compiler and runs in Node.js, the main process of Electron
 
 - `@lakutata/webrtc`, for the applications: the signaling (rooms whose members exchange their offers, answers and
   candidates), a STUN and TURN server, the ingestion of WHIP, and the peer connections of Node.js (data channels, audio
-  and video tracks), with the same interface as `RTCPeerConnection` in the browsers.
+  and video tracks), with the same interface as `RTCPeerConnection` in the browsers. The instances of an application
+  work together through NATS or Redis.
 - `@lakutata/webrtc/client`, for the browsers and the renderer of Electron: it connects the browser's own
   `RTCPeerConnection` to the signaling. It uses only the browser's APIs, so a frontend bundling it gets no server code.
 
@@ -23,7 +24,7 @@ npm install @lakutata/webrtc
 An application also needs `lakutata` (or `@lakutata/core` and `@lakutata/entrypoint`). The signaling is served over
 Socket.IO (`npm install socket.io`) or JSON-RPC over WebSocket (`npm install ws`), through the adapters of the
 entrypoint. An application joining rooms over Socket.IO needs `socket.io-client`; over JSON-RPC, it uses the
-`WebSocket` built into Node.js 22 and Bun.
+`WebSocket` built into Node.js 22 and Bun. Instances working together need `nats` or `ioredis`.
 
 A frontend installs the same package and imports `@lakutata/webrtc/client`; the framework is not installed with it.
 
@@ -218,6 +219,40 @@ UDP ports to open (`icePortRange`). A `PATCH` (trickle ICE, ICE restart) is answ
 `application/trickle-ice-sdpfrag` in `body.text` too, or Fastify refuses it with 415 before it reaches the controller.
 ffmpeg publishes with `-f whip -authorization <token> <url>`.
 
+Several instances of an application (the pods of a deployment) work together through a `Cluster`: each instance is a
+node, and the nodes talk through NATS or Redis. Given its name, the signaling puts the members connected to all the
+nodes in the same rooms, the TURN servers tell the other nodes their address and their load, and a WHIP session is
+ended whichever node its DELETE reaches. The bus carries only these messages: the audio, the video and the data go
+directly between the clients and the nodes.
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+import {buildClusterOptions, buildSignalingOptions, SignalingController} from '@lakutata/webrtc'
+
+Application.run(() => ({
+    id: 'meet.app',
+    name: 'Meet',
+    components: {
+        //npm install nats; or {type: 'redis', url: process.env.REDIS_URL} with npm install ioredis
+        cluster: buildClusterOptions({transport: {type: 'nats', servers: process.env.NATS_URL}}),
+        //Each member gets the two least loaded TURN servers of the cluster, which share this secret
+        signaling: buildSignalingOptions({cluster: 'cluster', turnSecret: process.env.TURN_SECRET}),
+        entrypoint: buildEntrypoints({
+            controllers: [SignalingController],
+            service: socketIOServiceEntrypoint({port: 3000})
+        })
+    },
+    bootstrap: ['signaling', 'entrypoint']
+}))
+```
+
+A TURN server joins the cluster with its `cluster` option and the shared `secret`. The members of a node that stops,
+or that the other nodes cannot reach for three heartbeats, leave their rooms as `disconnected`: their connections stay
+up while their clients reconnect to another node. `maxPeers` counts the members of all the nodes; `maxSessions` of WHIP
+counts the sessions of each node.
+
 ## Deployment
 
 - **Ports.** The TURN server listens on port 3478 over UDP and TCP (and over TLS when given a certificate); the
@@ -225,8 +260,10 @@ ffmpeg publishes with `-f whip -authorization <token> <url>`.
 - **Addresses.** `publicAddress` is the address the clients reach the server at: the public address of the host, or of
   its NAT when the NAT forwards the ports. By default it is the first IPv4 address of the host that is not internal,
   which is enough on a local network.
-- **Several instances.** Give their TURN servers the same `secret`, so the credentials made by one are accepted by the
-  others. A room lives in the memory of one instance: send all the members of a room to the same instance.
+- **Several instances.** Give them a `Cluster` (see above), and their TURN servers the same `secret`. Behind a load
+  balancer, Socket.IO needs sticky sessions, unless the clients connect with `transports: ['websocket']`. In
+  Kubernetes, run a TURN server on the network of each node (a DaemonSet with `hostNetwork`); the guide has the
+  manifests.
 - **Another TURN server.** A coturn configured with `use-auth-secret` and the same secret accepts the credentials of
   this package: list it in the `iceServers` option of `Signaling`.
 
@@ -269,6 +306,7 @@ string the client chooses once: joining again with the same session keeps the ot
 | Export | Description |
 |---|---|
 | `Signaling`, `buildSignalingOptions` | The component of the rooms: members, signals, limits, `authorize`, the ICE servers |
+| `Cluster`, `buildClusterOptions` | The instances working together through NATS or Redis: `nodes()`, `publish()`, `request()`, `announce()` |
 | `SignalingController` | The controller serving the signaling over Socket.IO and JSON-RPC |
 | `TURNServer`, `buildTURNServerOptions` | The STUN and TURN server: `iceServers()`, `credentials()`, `allocations` |
 | `createTURNCredentials` | Short-lived TURN credentials (the REST API of coturn) |
@@ -298,6 +336,9 @@ string the client chooses once: joining again with the same session keeps the ot
 | `WHIPOfferException` | An offer without audio or video, or that the connection refuses (400) |
 | `WHIPMediaTypeException` | An offer that is not `application/sdp` (415) |
 | `WHIPSessionNotFoundException` | A request for a session that does not exist (404) |
+| `ClusterRequestException` | `Cluster.request()` to a node not in the cluster, without a handler, or whose handler failed |
+| `ClusterTimeoutException` | `Cluster.request()` not answered in time |
+| `ClusterTransportNotFoundException` | A cluster on NATS or Redis without the package `nats` or `ioredis` |
 | `SignalingRequestError` | On the clients: the error of a request, with the `errno` of the server's exception |
 
 ## Testing
@@ -307,6 +348,10 @@ processes. The tests with Chrome use Playwright and the Chrome installed on the 
 `playwright` can be imported (or is found in the directory given by `LAKUTATA_PLAYWRIGHT`), and are skipped otherwise.
 The one sending the H.264 of an encoder to Chrome also needs `ffmpeg` with `libx264`, and the ones of WHIP need an
 `ffmpeg` with its WHIP muxer (FFmpeg 8 and later) and `libopus`.
+
+`npm run test:servers` runs the tests of the cluster on NATS and Redis, started in Docker (`test-env/cluster.sh`).
+`test-env/k3s/run.sh` runs k3s in Docker with two nodes, deploys the signaling and a TURN server on each node, and
+connects two members through two different pods and the TURN servers only.
 
 ## See also
 

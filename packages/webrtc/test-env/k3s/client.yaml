@@ -1,0 +1,28 @@
+# The client of the end-to-end test (client.mjs), run once
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: client
+  namespace: webrtc
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: client
+          image: node:24-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["node", "/repo/packages/webrtc/test-env/k3s/client.mjs"]
+          env:
+            - name: SIGNALING_HOST
+              value: signaling.webrtc.svc.cluster.local
+          volumeMounts:
+            - name: repo
+              mountPath: /repo
+              readOnly: true
+      volumes:
+        - name: repo
+          hostPath:
+            path: /repo
+            type: Directory

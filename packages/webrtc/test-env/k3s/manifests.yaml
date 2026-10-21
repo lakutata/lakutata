@@ -1,0 +1,179 @@
+# The multi-instance deployment of the end-to-end test: NATS, the signaling (two pods on different nodes) and a TURN
+# server on the network of each node (a DaemonSet), all nodes of one cluster on NATS. The code is the repository,
+# mounted read-only at /repo on the nodes of k3s.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: webrtc
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: turn
+  namespace: webrtc
+stringData:
+  secret: e2e-shared-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats
+  namespace: webrtc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      containers:
+        - name: nats
+          image: nats:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4222
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  namespace: webrtc
+spec:
+  selector:
+    app: nats
+  ports:
+    - port: 4222
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signaling
+  namespace: webrtc
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: signaling
+  template:
+    metadata:
+      labels:
+        app: signaling
+    spec:
+      # One pod on each node
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: signaling
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: signaling
+          image: node:24-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["node", "/repo/packages/webrtc/test-env/k3s/app.mjs"]
+          env:
+            - name: ROLE
+              value: signaling
+            - name: NATS_URL
+              value: nats://nats:4222
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: TURN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: turn
+                  key: secret
+          ports:
+            - containerPort: 3000
+            - containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            periodSeconds: 2
+          volumeMounts:
+            - name: repo
+              mountPath: /repo
+              readOnly: true
+      volumes:
+        - name: repo
+          hostPath:
+            path: /repo
+            type: Directory
+---
+# The address of each pod (no load balancing): the client of the test picks two different pods
+apiVersion: v1
+kind: Service
+metadata:
+  name: signaling
+  namespace: webrtc
+spec:
+  clusterIP: None
+  selector:
+    app: signaling
+  ports:
+    - name: socket-io
+      port: 3000
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: turn
+  namespace: webrtc
+spec:
+  selector:
+    matchLabels:
+      app: turn
+  template:
+    metadata:
+      labels:
+        app: turn
+    spec:
+      # On the network of the node: its address is the one of the server, and the relay ports are the node's
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: turn
+          image: node:24-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["node", "/repo/packages/webrtc/test-env/k3s/app.mjs"]
+          env:
+            - name: ROLE
+              value: turn
+            - name: NATS_URL
+              value: nats://nats:4222
+            - name: PUBLIC_ADDRESS
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: TURN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: turn
+                  key: secret
+          volumeMounts:
+            - name: repo
+              mountPath: /repo
+              readOnly: true
+      volumes:
+        - name: repo
+          hostPath:
+            path: /repo
+            type: Directory

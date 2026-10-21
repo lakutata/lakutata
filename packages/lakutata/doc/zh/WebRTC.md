@@ -8,7 +8,7 @@ npm install lakutata @lakutata/webrtc
 
 | 入口 | 运行在 | 提供什么 |
 |---|---|---|
-| `@lakutata/webrtc` | Node.js、Electron 的主进程、Bun | `Signaling`、`SignalingController`、`TURNServer`、`SignalingClient`、`PeerConnection`、`MediaTrack`、`WHIP`、`WHIPController`、`ChunkedChannel` |
+| `@lakutata/webrtc` | Node.js、Electron 的主进程、Bun | `Signaling`、`SignalingController`、`TURNServer`、`SignalingClient`、`PeerConnection`、`MediaTrack`、`WHIP`、`WHIPController`、`Cluster`、`ChunkedChannel` |
 | `@lakutata/webrtc/client` | 浏览器、Electron 的渲染进程 | `SignalingConnection`、`ChunkedChannel`、协议的类型 |
 
 浏览器入口只使用浏览器的接口；前端安装同一个包，框架不会随之安装。
@@ -350,11 +350,273 @@ answer 里带有服务器的全部候选地址，服务器收集完才回答：�
 - **端口。** 放开 UDP 和 TCP 的 3478 端口、UDP 的中转端口（`relayPortRange`），开启了 TLS 上的 TURN 时还有 TLS 端口。在容器里要把它们全部发布出来；指定中转端口范围可以让需要发布的端口少一些。
 - **公网地址。** `publicAddress` 是客户端访问 TURN 服务器用的地址：主机的公网地址，或者转发了这些端口的 NAT 的地址。在局域网里用默认值就够了。
 - **应用作为成员。** 位于 NAT 后面的服务器，如果 NAT 按相同的端口号转发了 `icePortRange`，就把它的公网地址写进 `iceAdditionalHostAddresses`；否则它和其他客户端一样依靠 TURN 服务器。
-- **多个实例。** 给它们的 TURN 服务器配置相同的 `secret`，这样每个实例都认其他实例生成的凭据。房间保存在一个实例的内存里：同一个房间的成员都要连到同一个实例。
+- **多个实例。** 给它们配置 `Cluster`（第 11 节），并给它们的 TURN 服务器配置相同的 `secret`，这样每个实例都认其他实例生成的凭据。
 - **其他 TURN 服务器。** coturn（`use-auth-secret`，`static-auth-secret` 设为相同的密钥）接受 `createTURNCredentials()` 生成的凭据；把它写进 `Signaling` 的 `iceServers` 选项。
 - **HTTPS。** 浏览器在任何页面上都允许使用 WebRTC，但摄像头和麦克风只能在安全的页面上使用（HTTPS 或 `localhost`）。
 
-## 11. 信令协议
+## 11. 多个实例
+
+应用部署成多个实例时（Kubernetes 部署里的多个 pod、负载均衡后面的多个进程），给它们配置一个 `Cluster`：每个实例是集群里的一个节点，节点之间通过 NATS 或 Redis 通信。把它的名字告诉其他组件后，这些组件就能跨节点工作：
+
+- 信令把连在各个节点上的成员放进同一批房间；
+- TURN 服务器把自己的地址和负载告诉其他节点，每个成员拿到负载最低的几个；
+- WHIP 会话的 DELETE 请求不管到了哪个节点，都能结束这个会话。
+
+总线上只传这些消息。音视频和数据仍然在客户端和节点之间直接传输，或者经 TURN 服务器中转。
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+import {buildClusterOptions, buildSignalingOptions, SignalingController} from '@lakutata/webrtc'
+
+Application.run(() => ({
+    id: 'meet.app',
+    name: 'Meet',
+    components: {
+        cluster: buildClusterOptions({transport: {type: 'nats', servers: process.env.NATS_URL}}),
+        signaling: buildSignalingOptions({cluster: 'cluster', turnSecret: process.env.TURN_SECRET}),
+        entrypoint: buildEntrypoints({
+            controllers: [SignalingController],
+            service: socketIOServiceEntrypoint({port: 3000})
+        })
+    },
+    bootstrap: ['signaling', 'entrypoint']
+}))
+```
+
+| `buildClusterOptions` 的选项 | 默认值 | |
+|---|---|---|
+| `transport` | （必填） | `{type: 'nats', servers, user, pass, token}`；`{type: 'redis', url}` 或 `{type: 'redis', host, port, username, password, database, tls}`；`{type: 'memory'}` 用于同一个进程里的多个应用（测试） |
+| `prefix` | `'lakutata.webrtc'` | 主题（NATS）或频道（Redis）的前缀：共用一台服务器的多个集群靠它互相隔开 |
+| `nodeId` | 主机名加一个随机后缀 | 节点的 id；在 Kubernetes 里主机名就是 pod 的名字 |
+| `labels` | `{}` | 其他节点能看到的本节点标签（可用区、地区），挑选 TURN 服务器时可以用 |
+| `heartbeatInterval` | `2000` | 节点多久告诉其他节点一次自己还在，单位毫秒 |
+| `requestTimeout` | `5000` | `request()` 和 `requestAll()` 等待多久，单位毫秒 |
+
+用 NATS 需要 `npm install nats`，只用它的普通主题就够了（不需要 JetStream）；用 Redis 需要 `npm install ioredis`，只用到它的频道（`PUBLISH`、`SUBSCRIBE`）。组件在应用启动时连接服务器，连不上就启动失败（在 Kubernetes 里 pod 会一直重启，直到能连上）；之后断开了会自己重连。某个节点连续三个心跳间隔没有消息，其他节点就认为它已经不在了；节点正常停止时，其他节点会立即知道。
+
+### 跨节点的房间
+
+每个节点把通过自己加入和离开的成员告诉其他节点；某个节点刚上线，或者它的消息有丢失时（比如总线重启），其他节点会向它要一份完整的成员列表。发给另一个节点上成员的信令，经由那个节点转发。
+
+- 某个节点停止，或者其他节点联系不上它时，它上面的成员以 `disconnected` 离开房间：它们的连接不会断开，客户端重新连到别的节点后会再次加入。
+- 客户端在第一个节点察觉它断开之前就通过另一个节点重新加入时，它会转到新节点上：其他成员看到的是它重新加入，而不是离开。
+- `maxPeers` 统计的是所有节点上的成员。每个房间按哈希固定归属到一个节点，由这个节点逐个放行成员，所以两个成员同时通过不同节点加入时，不会都占到最后一个名额。有节点加入或离开集群时，部分房间会改归其他节点，恰好在这一刻加入的成员可能会超出上限。
+- 负载均衡后面的 Socket.IO：它的长轮询把一个客户端的请求逐个发出，这些请求必须都到同一个实例。让客户端用 `transports: ['websocket']` 连接（只有一条连接，不需要会话保持），或者在负载均衡上开启会话保持（sticky session）。
+
+### 集群里的 TURN 服务器
+
+TURN 服务器通过 `cluster` 选项和所有 TURN 服务器共用的 `secret` 加入集群（没有 `secret` 时它不会启动），并且每秒把自己的地址、端口和中转数量告诉其他节点。配置了 `turnSecret` 的 `Signaling` 和 `WHIP` 组件，会在本节点的 TURN 服务器（`turn`）之后，再把集群里负载最低、还没满的两个 TURN 服务器给每个客户端。用 `selectTURN` 可以换一种挑法，比如按节点的标签挑：
+
+```typescript
+import {buildSignalingOptions, type ClusterTURNServer} from '@lakutata/webrtc'
+
+//id 以 eu- 开头的成员拿到标签为 {region: 'eu'} 的节点上的 TURN 服务器，其他地区以此类推
+const signaling = buildSignalingOptions({
+    cluster: 'cluster',
+    turnSecret: process.env.TURN_SECRET,
+    selectTURN: (servers: ClusterTURNServer[], user: string): ClusterTURNServer[] => {
+        return servers.filter((server: ClusterTURNServer): boolean => user.startsWith(`${server.labels.region}-`))
+    }
+})
+```
+
+### 负载均衡后面的 WHIP
+
+WHIP 会话保存在回答了它的 POST 请求的那个节点上。配置了 `cluster` 后，另一个节点的 `WHIP` 组件收到这个会话的 DELETE 请求时，会去问其他节点，由持有会话的节点结束它。`maxSessions` 统计的是每个节点自己的会话。
+
+### Kubernetes 和 k3s
+
+下面的清单部署 NATS、信令（两个 pod），以及每个节点上的一个 TURN 服务器。应用只有一个镜像，两种角色由环境变量 `ROLE` 决定：
+
+```typescript
+import {Application, type ApplicationOptions} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+import {buildClusterOptions, buildSignalingOptions, buildTURNServerOptions, SignalingController} from '@lakutata/webrtc'
+
+const turn: boolean = process.env.ROLE === 'turn'
+const cluster = buildClusterOptions({transport: {type: 'nats', servers: process.env.NATS_URL}})
+const components: ApplicationOptions['components'] = turn
+    ? {
+        cluster: cluster,
+        //在节点的网络上：用节点的地址，以及节点的 3478 端口和 49160-49200 端口
+        turn: buildTURNServerOptions({
+            cluster: 'cluster',
+            secret: process.env.TURN_SECRET,
+            publicAddress: process.env.PUBLIC_ADDRESS,
+            relayPortRange: [49160, 49200]
+        })
+    }
+    : {
+        cluster: cluster,
+        signaling: buildSignalingOptions({cluster: 'cluster', turnSecret: process.env.TURN_SECRET}),
+        entrypoint: buildEntrypoints({
+            controllers: [SignalingController],
+            service: socketIOServiceEntrypoint({port: 3000})
+        })
+    }
+
+Application.run(() => ({
+    id: 'meet.app',
+    name: 'Meet',
+    components: components,
+    bootstrap: turn ? ['turn'] : ['signaling', 'entrypoint']
+}))
+```
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: turn
+stringData:
+  secret: change-me
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      containers:
+        - name: nats
+          image: nats:latest
+          ports:
+            - containerPort: 4222
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+spec:
+  selector:
+    app: nats
+  ports:
+    - port: 4222
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signaling
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: signaling
+  template:
+    metadata:
+      labels:
+        app: signaling
+    spec:
+      containers:
+        - name: signaling
+          image: registry.example.com/meet:1.0.0
+          env:
+            - name: ROLE
+              value: signaling
+            - name: NATS_URL
+              value: nats://nats:4222
+            - name: TURN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: turn
+                  key: secret
+          ports:
+            - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signaling
+spec:
+  selector:
+    app: signaling
+  ports:
+    - port: 3000
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: turn
+spec:
+  selector:
+    matchLabels:
+      app: turn
+  template:
+    metadata:
+      labels:
+        app: turn
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: turn
+          image: registry.example.com/meet:1.0.0
+          env:
+            - name: ROLE
+              value: turn
+            - name: NATS_URL
+              value: nats://nats:4222
+            - name: PUBLIC_ADDRESS
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: TURN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: turn
+                  key: secret
+```
+
+- TURN 服务器运行在所在节点的网络上（`hostNetwork`）：客户端通过节点的地址和节点的端口访问它。在节点的防火墙里放开 UDP 和 TCP 的 3478 端口，以及 UDP 的 49160–49200 端口。
+- `status.hostIP` 是节点在集群里的地址：客户端能通过这个地址访问节点时（局域网、有公网地址的节点）直接用它就行。在云服务商的 NAT 后面，要把每个节点的公网地址填进 `PUBLIC_ADDRESS`，并让 NAT 转发相同的端口。
+- 运行在节点网络上的 pod 要设置 `dnsPolicy: ClusterFirstWithHostNet`，才能解析服务的名字。
+- 浏览器经由 `signaling` 服务前面的 Ingress 或负载均衡访问信令，并用 `transports: ['websocket']` 连接。
+- 测试时一个 NATS pod 就够了；生产环境请运行 NATS 集群（用它的 Helm chart），或者带副本的 Redis。
+
+仓库里的 `packages/webrtc/test-env/k3s/run.sh` 在 Docker 里的 k3s 上部署这些清单（两个节点，挂载代码而不是使用镜像），然后让两个成员分别通过两个 pod 连接，并且只经 TURN 服务器中转。
+
+### 应用自己使用集群
+
+应用也可以通过同一个组件和自己的其他实例通信：给其他所有节点发消息，向一个或所有节点发请求。
+
+```typescript
+import {Component} from 'lakutata'
+import type {Cluster, ClusterReply} from '@lakutata/webrtc'
+
+export class Viewers extends Component {
+    //本节点上每路流的观众数，由应用自己统计
+    protected readonly counts: Map<string, number> = new Map()
+
+    protected async init(): Promise<void> {
+        const cluster: Cluster = await this.getObject<Cluster>('cluster')
+        //每个节点回答自己的观众数
+        cluster.handle<{stream: string}, number>('viewers', ({stream}: {stream: string}): number => this.counts.get(stream) ?? 0)
+        cluster.subscribe<{text: string}>('announcements', (message: {text: string}): void => console.log(message.text))
+    }
+
+    //一路流在所有节点上的观众数
+    public async total(stream: string): Promise<number> {
+        const cluster: Cluster = await this.getObject<Cluster>('cluster')
+        const replies: ClusterReply<number>[] = await cluster.requestAll<number>('viewers', {stream: stream})
+        return replies.reduce((sum: number, reply: ClusterReply<number>): number => sum + reply.result, this.counts.get(stream) ?? 0)
+    }
+}
+```
+
+`cluster.nodes()` 列出所有节点，以及它们的标签和公布的信息（`announce()`）；组件还会发出 `node-up`、`node-down` 和 `node-update` 事件。消息以 JSON 发送；比服务器单条消息上限还大的消息（NATS 默认 1 MiB）会分成几段发送。
+
+## 12. 信令协议
 
 其他语言的客户端和原生应用可以直接使用这个协议。请求是模式为 `{method}` 的服务调用：Socket.IO 上是带确认回调（`{success, error, payload}`）的 `message` 事件，内容如 `{method: 'webrtc.join', room: 'room-1'}`；JSON-RPC 2.0 上是方法名为 `webrtc.join` 的请求。服务端把事件推给成员：Socket.IO 的事件，或者 `params` 里放着内容的 JSON-RPC 通知。
 
@@ -377,7 +639,7 @@ answer 里带有服务器的全部候选地址，服务器收集完才回答：�
 - 一对成员里，id 排在前面（按字符串比较）的一方是“礼让”的一方：双方同时发出 offer 时，它放弃自己的 offer，回答对方的。
 - 错误带有服务端异常的 `errno`：`E_SIGNALING_DENIED`、`E_SIGNALING_LIMIT`、`E_SIGNALING_NOT_A_MEMBER`、`E_SIGNALING_CLIENT_REQUIRED`、`E_INVALID_VALUE`。HTTP 上的 JSON-RPC 不能承载信令：事件需要通过一条连接推送。
 
-## 12. 连接失败时
+## 13. 连接失败时
 
 `setDebugHandler()` 给出 ICE、DTLS、SCTP 和 TURN 的调试信息：
 
@@ -390,7 +652,7 @@ setDebugHandler((namespace: string, args: unknown[]): void => console.debug(name
 
 要检查 TURN 服务器，可以让两个客户端用 `iceTransportPolicy: 'relay'` 加入同一个房间：它们只能经过中转连接，`turn.allocations` 会统计到它们。在 Chrome 里，`chrome://webrtc-internals` 能看到候选地址和尝试过的地址对。
 
-## 13. 限制
+## 14. 限制
 
 - Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
 - WHIP 不支持 Trickle ICE，也不支持 ICE 重启。

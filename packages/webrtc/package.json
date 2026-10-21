@@ -64,7 +64,8 @@
     "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
-    "test:unit": "npm run compile && node --test --test-timeout=60000 \"dist/esm/tests/**/*.spec.js\""
+    "test:unit": "npm run compile && node --test --test-timeout=60000 \"dist/esm/tests/**/*.spec.js\"",
+    "test:servers": "sh test-env/cluster.sh"
   },
   "engines": {
     "node": "^22.13.0 || >=24.11.0"
