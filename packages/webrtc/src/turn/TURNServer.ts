@@ -1,10 +1,12 @@
 import {randomBytes} from 'node:crypto'
 import {networkInterfaces, type NetworkInterfaceInfo} from 'node:os'
-import {Component, type ComponentOptions, DTO} from '@lakutata/core'
+import {Component, type ComponentOptions, DTO, InvalidValueException} from '@lakutata/core'
 import {Configurable, Singleton} from '@lakutata/core/decorator/di'
 import {NodeTurnServer, type NodeTurnServerOptions} from '../lib/turn/node/turnServer.js'
 import type {SignalingIceServer} from '../protocol/SignalingProtocol.js'
+import type {Cluster} from '../cluster/Cluster.js'
 import {createTURNCredentials, type TURNCredentials, turnPasswordIfValid} from './TURNCredentials.js'
+import {iceServersOfTURN} from './TURNIceServers.js'
 
 /**
  * The TLS listener of a {@link TURNServer} (`turns:`), for the networks letting only TLS through (port 443).
@@ -90,7 +92,45 @@ export interface TURNServerOptions {
      * @default no limit
      */
     maxAllocations?: number
+    /**
+     * The name of a {@link Cluster} component: the server tells the other nodes its address and its load, and the
+     * `Signaling` and `WHIP` components of all the nodes give it to their clients. It needs a `secret` shared by the
+     * TURN servers of the cluster.
+     * @default none
+     */
+    cluster?: string
 }
+
+/**
+ * Where the clients reach a TURN server: its address, the port of UDP and TCP, the port of TLS
+ */
+export interface TURNServerLocation {
+    /**
+     * The address the clients reach it at.
+     */
+    readonly address: string
+    /**
+     * The port of STUN and TURN over UDP and TCP.
+     */
+    readonly port: number
+    /**
+     * Whether it listens over UDP.
+     */
+    readonly udp: boolean
+    /**
+     * Whether it listens over TCP.
+     */
+    readonly tcp: boolean
+    /**
+     * The port of TURN over TLS, if it listens over TLS.
+     */
+    readonly tlsPort?: number
+}
+
+/**
+ * How often a server in a cluster tells its load, in milliseconds
+ */
+const ANNOUNCE_INTERVAL: number = 1000
 
 //The first IPv4 address of the host that is not internal
 function defaultPublicAddress(): string {
@@ -109,7 +149,9 @@ function defaultPublicAddress(): string {
  * both use the SHA-1 integrity of RFC 5389, which the browsers require.
  *
  * Register it with {@link buildTURNServerOptions} and list it in `bootstrap` so that it listens when the application
- * starts; the `Signaling` component gives its ICE servers and credentials to the members of the rooms.
+ * starts; the `Signaling` component gives its ICE servers and credentials to the members of the rooms. With a
+ * `cluster`, the server tells the other nodes where it is and how many allocations it has, and the signaling of every
+ * node gives the members the least loaded TURN servers of the cluster.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
@@ -211,7 +253,17 @@ export class TURNServer extends Component {
     @Configurable(DTO.Number().integer().positive().optional())
     protected readonly maxAllocations?: number
 
+    /**
+     * The name of the cluster component.
+     */
+    @Configurable(DTO.String().optional())
+    protected readonly cluster?: string
+
     #server: NodeTurnServer
+
+    #announcer?: NodeJS.Timeout
+
+    #clusterObject?: Cluster
 
     #secret: string
 
@@ -222,6 +274,8 @@ export class TURNServer extends Component {
      * @protected
      */
     protected async init(): Promise<void> {
+        //The servers of a cluster check the credentials made by the other nodes
+        if (this.cluster && !this.secret) throw new InvalidValueException('A TURN server in a cluster needs the secret shared by the TURN servers of the cluster')
         this.#secret = this.secret ?? randomBytes(32).toString('base64url')
         this.#publicAddress = this.publicAddress ?? defaultPublicAddress()
         const options: NodeTurnServerOptions = {
@@ -239,14 +293,36 @@ export class TURNServer extends Component {
         if (this.tls) options.tls = {cert: this.tls.cert, key: this.tls.key, port: this.tls.port}
         this.#server = new NodeTurnServer(options)
         await this.#server.listen()
+        if (this.cluster) {
+            const cluster: Cluster = await this.getObject<Cluster>(this.cluster)
+            this.#clusterObject = cluster
+            this.announce()
+            this.#announcer = setInterval((): void => this.announce(), ANNOUNCE_INTERVAL)
+            this.#announcer.unref()
+        }
     }
 
     /**
-     * Stop listening and close the relays.
+     * Leave the cluster, stop listening and close the relays.
      * @protected
      */
     protected async destroy(): Promise<void> {
+        clearInterval(this.#announcer)
+        this.#clusterObject?.announce('turn', undefined)
         await this.#server?.close()
+    }
+
+    /**
+     * Tell the other nodes of the cluster where the server is and its load (sent with the next heartbeat).
+     * @protected
+     */
+    protected announce(): void {
+        this.#clusterObject?.announce('turn', {
+            ...this.location,
+            allocations: this.allocations,
+            maxAllocations: this.maxAllocations,
+            credentialTtl: this.credentialTtl
+        })
     }
 
     /**
@@ -262,6 +338,15 @@ export class TURNServer extends Component {
     public get tlsAddress(): {address: string, port: number} | undefined {
         const bound: readonly [string, number] | undefined = this.#server?.tlsAddress
         return bound ? {address: this.#publicAddress, port: bound[1]} : undefined
+    }
+
+    /**
+     * Where the clients reach the server: its public address, its ports.
+     */
+    public get location(): TURNServerLocation {
+        const {address, port} = this.address
+        const tls: {address: string, port: number} | undefined = this.tlsAddress
+        return {address: address, port: port, udp: this.udp, tcp: this.tcp, ...tls ? {tlsPort: tls.port} : {}}
     }
 
     /**
@@ -302,18 +387,7 @@ export class TURNServer extends Component {
      * ```
      */
     public iceServers(user: string = 'anonymous'): SignalingIceServer[] {
-        const {address, port} = this.address
-        const host: string = address.includes(':') ? `[${address}]` : address
-        const urls: string[] = []
-        if (this.udp) urls.push(`turn:${host}:${port}?transport=udp`)
-        if (this.tcp) urls.push(`turn:${host}:${port}?transport=tcp`)
-        const tls: {address: string, port: number} | undefined = this.tlsAddress
-        if (tls) urls.push(`turns:${host}:${tls.port}?transport=tcp`)
-        const {username, credential} = this.credentials(user)
-        const servers: SignalingIceServer[] = []
-        if (this.udp) servers.push({urls: `stun:${host}:${port}`})
-        if (urls.length) servers.push({urls: urls, username: username, credential: credential})
-        return servers
+        return iceServersOfTURN(this.location, this.credentials(user))
     }
 }
 

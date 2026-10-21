@@ -9,6 +9,7 @@ import {fastifyHTTPEntrypoint} from '@lakutata/entrypoint/adapter/fastify'
 import {Signaling, type SignalingOptions} from '../../signaling/Signaling.js'
 import {SignalingController} from '../../signaling/SignalingController.js'
 import {TURNServer, type TURNServerOptions} from '../../turn/TURNServer.js'
+import {Cluster, type ClusterOptions} from '../../cluster/Cluster.js'
 import {WHIP, type WHIPOptions} from '../../whip/WHIP.js'
 import {WHIPController} from '../../whip/WHIPController.js'
 
@@ -21,6 +22,7 @@ export type TestServer = {
     signaling: Signaling
     entrypoint: Entrypoint
     turn?: TURNServer
+    cluster?: Cluster
     //http://127.0.0.1:<port> (Socket.IO)
     socketIO: string
     //ws://127.0.0.1:<port>/ (JSON-RPC)
@@ -29,16 +31,18 @@ export type TestServer = {
 }
 
 /**
- * Start a signaling server
+ * Start a signaling server, a node of a cluster when given its options
  * @param options
  */
-export async function startServer(options: {signaling?: SignalingOptions, turn?: TURNServerOptions} = {}): Promise<TestServer> {
+export async function startServer(options: {signaling?: SignalingOptions, turn?: TURNServerOptions, cluster?: ClusterOptions} = {}): Promise<TestServer> {
     const container: Container = new Container()
+    let cluster: Cluster | undefined
+    if (options.cluster) cluster = await container.setNamed<Cluster>('cluster', Cluster, {...options.cluster})
     let turn: TURNServer | undefined
     if (options.turn) {
         turn = await container.setNamed<TURNServer>('turn', TURNServer, {host: '127.0.0.1', port: 0, publicAddress: '127.0.0.1', tcp: false, ...options.turn})
     }
-    const signaling: Signaling = await container.setNamed<Signaling>('signaling', Signaling, {...(turn ? {turn: 'turn'} : {}), ...options.signaling})
+    const signaling: Signaling = await container.setNamed<Signaling>('signaling', Signaling, {...(turn ? {turn: 'turn'} : {}), ...(cluster ? {cluster: 'cluster'} : {}), ...options.signaling})
     let socketIOPort: number = 0
     let jsonRPCPort: number = 0
     const entrypoint: Entrypoint = await container.setNamed<Entrypoint>('entrypoint', Entrypoint, buildEntrypoints({
@@ -66,6 +70,7 @@ export async function startServer(options: {signaling?: SignalingOptions, turn?:
         signaling: signaling,
         entrypoint: entrypoint,
         turn: turn,
+        cluster: cluster,
         socketIO: `http://127.0.0.1:${socketIOPort}`,
         jsonRPC: `ws://127.0.0.1:${jsonRPCPort}/`,
         stop: (): Promise<void> => container.destroy()
@@ -75,13 +80,15 @@ export async function startServer(options: {signaling?: SignalingOptions, turn?:
 const WHIP_TEXT_TYPES: string[] = ['application/sdp', 'application/trickle-ice-sdpfrag']
 
 /**
- * A WHIP server on a random port of 127.0.0.1
+ * A WHIP server on a random port of 127.0.0.1, a node of a cluster when given its options
  * @param adapter
  * @param options
+ * @param cluster
  */
-export async function startWHIP(adapter: 'express' | 'fastify', options: WHIPOptions = {}): Promise<{url: string, whip: WHIP, container: Container}> {
+export async function startWHIP(adapter: 'express' | 'fastify', options: WHIPOptions = {}, cluster?: ClusterOptions): Promise<{url: string, whip: WHIP, container: Container}> {
     const container: Container = new Container()
-    const whip: WHIP = await container.setNamed<WHIP>('whip', WHIP, options)
+    if (cluster) await container.setNamed<Cluster>('cluster', Cluster, {...cluster})
+    const whip: WHIP = await container.setNamed<WHIP>('whip', WHIP, {...cluster ? {cluster: 'cluster'} : {}, ...options})
     let server: Server | undefined
     const capture = (_app: unknown, context: {server: Server}): void => {
         server = context.server

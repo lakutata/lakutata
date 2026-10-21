@@ -80,6 +80,8 @@
   "peerDependencies": {
     "@lakutata/core": "3.1.0",
     "@lakutata/entrypoint": "3.1.0",
+    "ioredis": "^5.0.0",
+    "nats": "^2.29.3",
     "socket.io-client": "^4.0.0"
   },
   "peerDependenciesMeta": {
@@ -87,6 +89,12 @@
       "optional": true
     },
     "@lakutata/entrypoint": {
+      "optional": true
+    },
+    "ioredis": {
+      "optional": true
+    },
+    "nats": {
       "optional": true
     },
     "socket.io-client": {

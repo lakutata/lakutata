@@ -224,9 +224,10 @@ export class WHIPController extends Controller {
     public async unpublish(input: SessionDTO): Promise<void> {
         await this.allowOrigin()
         const whip: WHIP = await this.whip()
-        const session: WHIPSession | undefined = whip.session(input.session)
-        if (!session || session.stream !== input.stream) throw new WHIPSessionNotFoundException('The stream {stream} has no session {session}', {stream: input.stream, session: input.session})
-        await whip.unpublish(session.id)
+        //Ended on the node of the cluster holding it
+        if (!(await whip.unpublish(input.session, input.stream))) {
+            throw new WHIPSessionNotFoundException('The stream {stream} has no session {session}', {stream: input.stream, session: input.session})
+        }
         this.http().response.writeHead(200, {'Content-Length': 0}).end()
     }
 

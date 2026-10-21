@@ -4,6 +4,8 @@ import {Configurable, Singleton} from '@lakutata/core/decorator/di'
 import type {HTTPContext} from '@lakutata/entrypoint'
 import type {SignalingDescription, SignalingIceServer} from '../protocol/SignalingProtocol.js'
 import type {TURNServer} from '../turn/TURNServer.js'
+import type {Cluster} from '../cluster/Cluster.js'
+import {iceServersFor, type TURNSelector} from '../cluster/ClusterTURN.js'
 import type {MediaTrack} from '../peer/MediaTrack.js'
 import {PeerConnection} from '../peer/PeerConnection.js'
 import {WHIPDeniedException} from '../exceptions/WHIPDeniedException.js'
@@ -64,18 +66,36 @@ export interface WHIPOptions {
      */
     authorize?: WHIPAuthorize
     /**
+     * The name of a {@link Cluster} component: a DELETE of a session reaching another node of the cluster (behind a
+     * load balancer) ends the session on the node holding it.
+     * @default none
+     */
+    cluster?: string
+    /**
      * The name of a {@link TURNServer} component: the publishers get its ICE servers, with short-lived credentials, in
      * the `Link` headers of the answers.
      * @default none
      */
     turn?: string
     /**
-     * More ICE servers given to the publishers, after the ones of `turn`.
+     * The secret shared by the TURN servers of the cluster (their `secret`): with it and `cluster`, the publishers get
+     * TURN servers of the cluster, chosen by `selectTURN`, after the ones of `turn`. Without it, the TURN servers of
+     * the cluster are given only when `turn` is set, with its credentials (they share its secret).
+     * @default none
+     */
+    turnSecret?: string
+    /**
+     * Chooses the TURN servers of the cluster given to a publisher.
+     * @default the two least loaded that are not full
+     */
+    selectTURN?: TURNSelector
+    /**
+     * More ICE servers given to the publishers, after the ones of `turn` and of the cluster.
      * @default []
      */
     iceServers?: SignalingIceServer[]
     /**
-     * The sessions at once at most; 0 for no limit.
+     * The sessions at once at most, on this node; 0 for no limit.
      * @default 100
      */
     maxSessions?: number
@@ -109,6 +129,16 @@ export interface WHIPOptions {
 const GATHERING_TIMEOUT: number = 5000
 
 /**
+ * The topic of the requests ending a session on the node holding it
+ */
+const UNPUBLISH_TOPIC: string = 'webrtc.whip.unpublish'
+
+/**
+ * How long a DELETE waits for the nodes of the cluster, in milliseconds
+ */
+const UNPUBLISH_TIMEOUT: number = 2000
+
+/**
  * Wait for the candidates of a connection, all of them or for a time at most
  * @param connection
  * @param timeout
@@ -139,7 +169,8 @@ function gathered(connection: PeerConnection, timeout: number): Promise<void> {
  * Register it as `whip` with {@link buildWHIPOptions}, and add `WHIPController` to the controllers of the entrypoint,
  * with an HTTP adapter reading the bodies of WHIP as text (its option
  * `body: {text: ['application/sdp', 'application/trickle-ice-sdpfrag']}`). The answers carry all the candidates (no
- * trickle ICE); ICE restarts are not supported.
+ * trickle ICE); ICE restarts are not supported. Behind a load balancer, give it a `cluster`: the DELETE of a session
+ * may reach another instance, which ends it on the instance holding it.
  * @example
  * ```typescript
  * import {Application, Component} from 'lakutata'
@@ -195,6 +226,24 @@ export class WHIP extends Component {
     protected readonly turn?: string
 
     /**
+     * The name of the cluster component.
+     */
+    @Configurable(DTO.String().optional())
+    protected readonly cluster?: string
+
+    /**
+     * The secret of the TURN servers of the cluster.
+     */
+    @Configurable(DTO.String().min(1).optional())
+    protected readonly turnSecret?: string
+
+    /**
+     * How the TURN servers of the cluster are chosen.
+     */
+    @Configurable(DTO.Function().optional())
+    protected readonly selectTURN?: TURNSelector
+
+    /**
      * The other ICE servers.
      */
     @Configurable(DTO.Array().items(DTO.Object({
@@ -236,16 +285,31 @@ export class WHIP extends Component {
 
     readonly #sessions: Map<string, WHIPSession> = new Map()
 
+    #clusterObject?: Cluster
+
+    #unhandle?: () => void
+
+    /**
+     * Join the cluster: end the sessions of this node asked by the others.
+     * @protected
+     */
+    protected async init(): Promise<void> {
+        if (!this.cluster) return
+        this.#clusterObject = await this.getObject<Cluster>(this.cluster)
+        this.#unhandle = this.#clusterObject.handle<{id: string, stream?: string}, boolean>(UNPUBLISH_TOPIC, ({id, stream}): boolean => this.end(id, stream))
+    }
+
     /**
      * End the sessions.
      * @protected
      */
     protected async destroy(): Promise<void> {
-        await Promise.all([...this.#sessions.keys()].map((id: string): Promise<boolean> => this.unpublish(id)))
+        this.#unhandle?.()
+        for (const id of [...this.#sessions.keys()]) this.end(id)
     }
 
     /**
-     * The sessions.
+     * The sessions of this node.
      */
     public get sessions(): WHIPSession[] {
         return [...this.#sessions.values()]
@@ -309,7 +373,7 @@ export class WHIP extends Component {
         connection.on('track', (track: MediaTrack): void => void tracks.push(track))
         //The session ends when its connection fails or closes; before the answer, the publication is refused
         connection.on('connectionstatechange', (state: string): void => {
-            if (state === 'failed' || state === 'closed') void this.unpublish(session.id)
+            if (state === 'failed' || state === 'closed') this.end(session.id)
         })
         try {
             await connection.setRemoteDescription(offer)
@@ -329,21 +393,36 @@ export class WHIP extends Component {
     }
 
     /**
-     * End a session: close its connection, and emit `unpublish`. `WHIPController` calls it for the DELETE requests.
+     * End a session: close its connection, and emit `unpublish` (on the node holding it). `WHIPController` calls it for
+     * the DELETE requests. With a cluster, a session of another node is ended there.
      * @param id The id of the session.
-     * @returns Whether there was a session of this id.
+     * @param stream Only if it is a session of this stream.
+     * @returns Whether there was such a session.
      * @example
      * ```typescript
      * import type {WHIP, WHIPSession} from '@lakutata/webrtc'
      *
      * declare const whip: WHIP
-     * //Stop the publications of a stream
+     * //Stop the publications of a stream on this node
      * await Promise.all(whip.sessions.filter((session: WHIPSession): boolean => session.stream === 'studio').map((session: WHIPSession): Promise<boolean> => whip.unpublish(session.id)))
      * ```
      */
-    public async unpublish(id: string): Promise<boolean> {
+    public async unpublish(id: string, stream?: string): Promise<boolean> {
+        if (this.#sessions.has(id) || !this.#clusterObject) return this.end(id, stream)
+        const replies: {result: unknown}[] = await this.#clusterObject.requestAll(UNPUBLISH_TOPIC, {id: id, stream: stream}, {timeout: UNPUBLISH_TIMEOUT})
+        return replies.some((reply: {result: unknown}): boolean => reply.result === true)
+    }
+
+    /**
+     * End a session of this node
+     * @param id The id of the session.
+     * @param stream Only if it is a session of this stream.
+     * @returns Whether there was such a session.
+     * @protected
+     */
+    protected end(id: string, stream?: string): boolean {
         const session: WHIPSession | undefined = this.#sessions.get(id)
-        if (!session) return false
+        if (!session || (stream !== undefined && session.stream !== stream)) return false
         this.#sessions.delete(id)
         session.connection.close()
         this.emit('unpublish', session)
@@ -363,9 +442,13 @@ export class WHIP extends Component {
      * ```
      */
     public async iceServersOf(stream: string): Promise<SignalingIceServer[]> {
-        if (!this.turn) return [...this.iceServers]
-        const turn: TURNServer = await this.getObject<TURNServer>(this.turn)
-        return [...turn.iceServers(stream), ...this.iceServers]
+        return iceServersFor(stream, {
+            turn: this.turn ? await this.getObject<TURNServer>(this.turn) : undefined,
+            cluster: this.#clusterObject,
+            secret: this.turnSecret,
+            select: this.selectTURN,
+            iceServers: this.iceServers
+        }).iceServers
     }
 }
 
