@@ -5,7 +5,7 @@ import {engineConnectionOf} from '../peer/EngineConnection.js'
 import {MediaTrack} from '../peer/MediaTrack.js'
 import {PeerConnection, type PeerConnectionOptions, type PeerTrackEvent} from '../peer/PeerConnection.js'
 import type {RtpPacket} from '../peer/RtpPacket.js'
-import type {RtpSender} from '../peer/RtpTransceiver.js'
+import type {RtpSender, RtpTransceiver} from '../peer/RtpTransceiver.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
 import type {SignalingCandidate} from '../protocol/SignalingProtocol.js'
 import {next, startServer, type TestServer, until} from './support/Server.js'
@@ -287,6 +287,51 @@ describe('Media', (): void => {
             assert.ok(engineConnectionOf(answerer).dtlsTransports[0].receiverTWCC.fbPktCount > 0)
         } finally {
             stop()
+            await container.destroy()
+        }
+    })
+
+    it('sends another track of another stream on a transceiver made inactive, without another media', {timeout: 30000}, async (): Promise<void> => {
+        const container: Container = new Container()
+        const first: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
+        const second: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
+        const stops: (() => void)[] = [feed(first), feed(second, 50000)]
+        try {
+            const sending: PeerConnection = await container.get(PeerConnection)
+            const receiving: PeerConnection = await container.get(PeerConnection)
+            sending.on('icecandidate', (candidate: SignalingCandidate | null): void => void receiving.addIceCandidate(candidate))
+            receiving.on('icecandidate', (candidate: SignalingCandidate | null): void => void sending.addIceCandidate(candidate))
+            //Each change is negotiated by itself, as the negotiationneeded event asks
+            let negotiations: Promise<void> = Promise.resolve()
+            sending.on('negotiationneeded', (): void => {
+                negotiations = negotiations.then(async (): Promise<void> => {
+                    await sending.setLocalDescription()
+                    await receiving.setRemoteDescription(sending.localDescription!)
+                    await receiving.setLocalDescription()
+                    await sending.setRemoteDescription(receiving.localDescription!)
+                })
+            })
+            const events: PeerTrackEvent[] = []
+            receiving.addEventListener('track', (event: PeerTrackEvent): unknown => events.push(event))
+            const transceiver: RtpTransceiver = sending.addTransceiver(first, {direction: 'sendonly', streamIds: ['first']})
+            await until((): boolean => events.length === 1, 10000, 'the first track')
+            assert.deepStrictEqual(events[0].streams.map((stream: {id: string}): string => stream.id), ['first'])
+            assert.ok((await packets(events[0].track, 5)).every((packet: RtpPacket): boolean => packet.payload.readUInt32BE(0) < 50000))
+            //Made inactive: the other side stops receiving
+            transceiver.direction = 'inactive'
+            await until((): boolean => events[0].transceiver.currentDirection === 'inactive', 10000, 'the inactive transceiver')
+            //Another track, of another stream: received again on the same transceiver
+            await transceiver.sender.replaceTrack(second)
+            transceiver.sender.setStreams('second')
+            transceiver.direction = 'sendonly'
+            await until((): boolean => events.length === 2, 10000, 'the second track')
+            assert.deepStrictEqual(events[1].streams.map((stream: {id: string}): string => stream.id), ['second'])
+            assert.strictEqual(events[1].transceiver, events[0].transceiver)
+            assert.ok((await packets(events[1].track, 5)).every((packet: RtpPacket): boolean => packet.payload.readUInt32BE(0) >= 50000))
+            assert.strictEqual(receiving.getTransceivers().length, 1)
+            assert.strictEqual((sending.localDescription!.sdp!.match(/^m=/gm) ?? []).length, 1)
+        } finally {
+            stops.forEach((stop: () => void): void => stop())
             await container.destroy()
         }
     })

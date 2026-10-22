@@ -152,6 +152,7 @@ export class RTCRtpSender {
     readonly onRtcp = new Event<[RtcpPacket]>()
     readonly onPictureLossIndication = new Event<[]>()
     readonly onGenericNack = new Event<[GenericNack]>()
+    readonly onStreamsChanged = new Event<[]>()
 
     private cname?: string
     private mid?: string
@@ -451,7 +452,11 @@ export class RTCRtpSender {
     }
 
     setStreams(streams: MediaStream[] = []) {
-        this.streamIds = [...new Set(streams.map((stream) => stream.id))]
+        const streamIds = [...new Set(streams.map((stream) => stream.id))]
+        const changed = streamIds.join('\n') !== (this.streamIds ?? []).join('\n')
+        this.streamIds = streamIds
+        //The streams are negotiated (W3C: the negotiation-needed flag)
+        if (changed) this.onStreamsChanged.execute()
     }
 
     setSendEncodings(encodings: Array<Record<string, unknown>> = []) {

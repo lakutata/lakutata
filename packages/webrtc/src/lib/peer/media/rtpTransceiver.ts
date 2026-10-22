@@ -83,6 +83,8 @@ export class RTCRtpTransceiver {
     readonly onStopRequested = new Event<[]>()
     /**@private 停止の確定または stop() でメディア資源を解放する際に通知する */
     readonly onRelease = new Event<[]>()
+    /**@private The direction set by the application changed: it is negotiated (W3C: the negotiation-needed flag)*/
+    readonly onDirectionChanged = new Event<[]>()
 
     constructor(
         public readonly kind: Kind,
@@ -107,7 +109,9 @@ export class RTCRtpTransceiver {
     }
 
     set direction(direction: MediaDirection) {
+        const changed = direction !== this._direction
         this.setDirection(direction)
+        if (changed) this.onDirectionChanged.execute()
     }
 
     setDirection(direction: MediaDirection) {

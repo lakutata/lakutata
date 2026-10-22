@@ -124,6 +124,8 @@ export class TransceiverManager {
         this.watched.delete(t)
         t.onRelease.allUnsubscribe()
         t.onStopRequested.allUnsubscribe()
+        t.onDirectionChanged.allUnsubscribe()
+        t.sender.onStreamsChanged.allUnsubscribe()
     }
 
     private watchTransceiver(t: RTCRtpTransceiver) {
@@ -139,6 +141,13 @@ export class TransceiverManager {
             if (!t.stopped) {
                 this.onNegotiationNeeded.execute()
             }
+        })
+        //A new direction or new streams of the application are negotiated
+        t.onDirectionChanged.subscribe(() => {
+            if (!t.stopping && !t.stopped) this.onNegotiationNeeded.execute()
+        })
+        t.sender.onStreamsChanged.subscribe(() => {
+            if (!t.stopping && !t.stopped) this.onNegotiationNeeded.execute()
         })
     }
 

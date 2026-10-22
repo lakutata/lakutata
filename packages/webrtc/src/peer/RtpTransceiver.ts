@@ -1,6 +1,7 @@
 import type {RTCRtpReceiver} from '../lib/peer/media/rtpReceiver.js'
 import type {RTCRtpSender} from '../lib/peer/media/rtpSender.js'
 import type {MediaDirection, RTCRtpTransceiver} from '../lib/peer/media/rtpTransceiver.js'
+import {MediaStream} from '../lib/peer/media/track.js'
 import {type MediaKind, MediaTrack, engineTrackOf, trackOf} from './MediaTrack.js'
 
 /**
@@ -62,6 +63,22 @@ export class RtpSender {
      */
     public async replaceTrack(track: MediaTrack | null): Promise<void> {
         await this.#sender.replaceTrack(track ? engineTrackOf(track) : null)
+    }
+
+    /**
+     * Change the streams the track sent belongs to, as `RTCRtpSender.setStreams()`: the other peer groups the tracks of
+     * a stream. A new negotiation is needed.
+     * @param streamIds The ids of the streams.
+     * @example
+     * ```typescript
+     * import type {RtpSender} from '@lakutata/webrtc'
+     *
+     * declare const sender: RtpSender
+     * sender.setStreams('screen')
+     * ```
+     */
+    public setStreams(...streamIds: string[]): void {
+        this.#sender.setStreams(streamIds.map((id: string): MediaStream => new MediaStream({id: id})))
     }
 }
 
@@ -155,7 +172,7 @@ export class RtpTransceiver {
      * @param direction The direction.
      */
     public set direction(direction: RtpTransceiverDirection) {
-        this.#transceiver.setDirection(direction as MediaDirection)
+        this.#transceiver.direction = direction as MediaDirection
     }
 
     /**

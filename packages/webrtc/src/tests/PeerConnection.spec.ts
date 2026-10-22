@@ -55,6 +55,10 @@ describe('PeerConnection', (): void => {
             const arrayBuffer: Promise<unknown> = next((resolve: (value: unknown) => void): unknown => remote.once('message', resolve), 5000, 'array buffer')
             local.send(Buffer.from([4, 5]))
             assert.ok((await arrayBuffer) instanceof ArrayBuffer)
+            //A label and a protocol of other characters than ASCII
+            const named: Promise<PeerChannel> = next<PeerChannel>((resolve: (channel: PeerChannel) => void): unknown => answerer.once('datachannel', resolve), 10000, 'the named channel')
+            offerer.createDataChannel('会议', {protocol: 'mitglied-ü'})
+            assert.deepStrictEqual([(await named).label, (await named).protocol], ['会议', 'mitglied-ü'])
             //Closing the channel closes the other side
             const closed: Promise<void> = next<void>((resolve: () => void): unknown => remote.once('close', resolve), 10000, 'close')
             local.close()
