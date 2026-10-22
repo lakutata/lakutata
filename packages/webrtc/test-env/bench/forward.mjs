@@ -1,19 +1,23 @@
-//The benchmark of the forwarding of media: publishers send video to a relay, which forwards each track to every
-//subscriber. The relay runs in this process, the publishers and the subscribers in a child process: the CPU measured is
-//the one of the relay only. Each publisher sends about the bit rate of 720p: 200 packets of 1250 bytes a second.
+//The benchmark of the forwarding of media: publishers send video to a server, which forwards each track to every
+//subscriber. The server runs in this process, the publishers and the subscribers in a child process: the CPU measured is
+//the one of the server only. Each publisher sends about the bit rate of 720p: 200 packets of 1250 bytes a second.
 //
-//   npm run compile && node test-env/bench/forward.mjs [--publishers 2] [--subscribers 4] [--seconds 10] [--no-extensions]
+//   npm run compile && node test-env/bench/forward.mjs [--sfu] [--publishers 2] [--subscribers 4] [--seconds 10] [--no-extensions]
 //
-//The relay forwards a track it receives by adding it to the connections of the subscribers.
+//The server is a relay forwarding a track it receives by adding it to the connections of the subscribers, or with --sfu
+//the media server (SFU) of a room of the signaling, the members being SignalingClients (the publishers receive nothing).
 import {fork} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
 import {parseArgs} from 'node:util'
 import {Container} from '@lakutata/core'
-import {MediaTrack, PeerConnection} from '../../dist/esm/exports/WebRTC.js'
+import {buildEntrypoints, Entrypoint} from '@lakutata/entrypoint'
+import {socketIOServiceEntrypoint} from '@lakutata/entrypoint/adapter/socket.io'
+import {MediaTrack, PeerConnection, SFU, Signaling, SignalingClient, SignalingController} from '../../dist/esm/exports/WebRTC.js'
 
 const {values: options, positionals} = parseArgs({
     allowPositionals: true,
     options: {
+        sfu: {type: 'boolean', default: false},
         publishers: {type: 'string', default: '2'},
         subscribers: {type: 'string', default: '4'},
         seconds: {type: 'string', default: '10'},
@@ -46,7 +50,26 @@ async function describe(connection, remote) {
 }
 
 /**
- * The publishers and the subscribers, in the child process: they do what the relay asks
+ * A video track to publish
+ */
+function videoTrack() {
+    return new MediaTrack('video', {codec: 'video/VP8'})
+}
+
+/**
+ * Count the packets of a track received
+ * @param counters
+ * @param track
+ */
+function count(counters, track) {
+    track.on('rtp', (packet) => {
+        counters.received++
+        counters.receivedBytes += packet.payload.length
+    })
+}
+
+/**
+ * The publishers and the subscribers, in the child process: they do what the server asks
  */
 async function clients() {
     const container = new Container()
@@ -56,9 +79,10 @@ async function clients() {
     let timer
     const handle = async (message) => {
         switch (message.type) {
+            //The relay: the publishers offer, the relay offers to the subscribers
             case 'offer': {
                 const connection = await container.get(PeerConnection, connectionOptions)
-                const track = new MediaTrack('video', {codec: 'video/VP8'})
+                const track = videoTrack()
                 connection.addTrack(track, `publisher-${publishing.length}`)
                 publishing.push(connection)
                 tracks.push(track)
@@ -68,11 +92,24 @@ async function clients() {
                 return void await publishing[message.index].setRemoteDescription(message.answer)
             case 'answer': {
                 const connection = await container.get(PeerConnection, connectionOptions)
-                connection.on('track', (track) => track.on('rtp', (packet) => {
-                    counters.received++
-                    counters.receivedBytes += packet.payload.length
-                }))
+                connection.on('track', (track) => count(counters, track))
                 return await describe(connection, message.offer)
+            }
+            //The media server: members of a room
+            case 'join': {
+                for (let index = 0; index < subscribers; index++) {
+                    const client = await container.get(SignalingClient, {url: message.url, id: `subscriber-${index}`})
+                    const room = await client.join('bench')
+                    room.on('peer', (peer) => peer.on('track', (event) => count(counters, event.track)))
+                }
+                for (let index = 0; index < publishers; index++) {
+                    const client = await container.get(SignalingClient, {url: message.url, id: `publisher-${index}`})
+                    const room = await client.join('bench')
+                    const track = videoTrack()
+                    tracks.push(track)
+                    await room.publish(track, `publisher-${index}`)
+                }
+                return
             }
             case 'start': {
                 const payload = Buffer.alloc(PAYLOAD_SIZE, 1)
@@ -106,9 +143,48 @@ async function clients() {
 }
 
 /**
- * The relay: it connects the publishers, then the subscribers, and measures itself while forwarding
+ * The relay: it connects the publishers, then the subscribers
+ * @param container
+ * @param request
  */
-async function relay() {
+async function relay(container, request) {
+    const tracks = []
+    for (let index = 0; index < publishers; index++) {
+        const connection = await container.get(PeerConnection, connectionOptions)
+        const track = new Promise((resolve) => connection.once('track', resolve))
+        const answer = await describe(connection, await request({type: 'offer'}))
+        await request({type: 'answered', index: index, answer: answer})
+        tracks.push(await track)
+    }
+    for (let index = 0; index < subscribers; index++) {
+        const connection = await container.get(PeerConnection, connectionOptions)
+        for (const track of tracks) connection.addTrack(track, track.id)
+        await connection.setRemoteDescription(await request({type: 'answer', offer: await describe(connection)}))
+    }
+}
+
+/**
+ * The media server: the signaling and the SFU over Socket.IO, the members joining a room; the publishers receive nothing
+ * @param container
+ * @param request
+ */
+async function sfu(container, request) {
+    await container.setNamed('signaling', Signaling, {})
+    await container.setNamed('sfu', SFU, {select: (subscriber) => subscriber.peerId.startsWith('subscriber-')})
+    let port = 0
+    await container.setNamed('entrypoint', Entrypoint, buildEntrypoints({
+        controllers: [SignalingController],
+        service: socketIOServiceEntrypoint({port: 0, host: '127.0.0.1', listening: (_io, server) => {
+            port = server.address().port
+        }})
+    }))
+    await request({type: 'join', url: `http://127.0.0.1:${port}`})
+}
+
+/**
+ * The server: it connects the publishers and the subscribers, and measures itself while forwarding
+ */
+async function server() {
     const child = fork(fileURLToPath(import.meta.url), ['clients', ...process.argv.slice(2)], {stdio: 'inherit'})
     const pending = new Map()
     let requests = 0
@@ -122,19 +198,7 @@ async function relay() {
     })
     const container = new Container()
     try {
-        const tracks = []
-        for (let index = 0; index < publishers; index++) {
-            const connection = await container.get(PeerConnection, connectionOptions)
-            const track = new Promise((resolve) => connection.once('track', resolve))
-            const answer = await describe(connection, await request({type: 'offer'}))
-            await request({type: 'answered', index: index, answer: answer})
-            tracks.push(await track)
-        }
-        for (let index = 0; index < subscribers; index++) {
-            const connection = await container.get(PeerConnection, connectionOptions)
-            for (const track of tracks) connection.addTrack(track, track.id)
-            await connection.setRemoteDescription(await request({type: 'answer', offer: await describe(connection)}))
-        }
+        await (options.sfu ? sfu : relay)(container, request)
         await request({type: 'start'})
         await new Promise((resolve) => setTimeout(resolve, WARM_UP))
 
@@ -148,13 +212,13 @@ async function relay() {
         const cpu = (after.cpu.user + after.cpu.system) / 1e6
         const share = cpu / elapsed
         const format = (value, digits = 0) => value.toLocaleString('en-US', {maximumFractionDigits: digits})
-        console.log(`${publishers} publishers, ${subscribers} subscribers, header extensions ${connectionOptions.headerExtensions ? 'on' : 'off'}, ${format(elapsed, 1)} s, Node.js ${process.version}`)
+        console.log(`${options.sfu ? 'SFU' : 'relay'}: ${publishers} publishers, ${subscribers} subscribers, header extensions ${connectionOptions.headerExtensions || options.sfu ? 'on' : 'off'}, ${format(elapsed, 1)} s, Node.js ${process.version}`)
         console.log(`sent by the publishers   ${format(sent)} packets/s`)
         console.log(`forwarded                ${format(forwarded)} packets/s, ${format(bytes * 8 / elapsed / 1e6, 1)} Mbit/s of payload (expected ${format(sent * subscribers)} packets/s)`)
-        console.log(`relay CPU                ${format(share * 100, 1)} % of a core (user ${format(after.cpu.user / 1e6 / elapsed * 100, 1)} %, system ${format(after.cpu.system / 1e6 / elapsed * 100, 1)} %)`)
+        console.log(`server CPU               ${format(share * 100, 1)} % of a core (user ${format(after.cpu.user / 1e6 / elapsed * 100, 1)} %, system ${format(after.cpu.system / 1e6 / elapsed * 100, 1)} %)`)
         console.log(`per core                 ${format(forwarded / share)} packets/s forwarded`)
         console.log(`per GiB of payload       ${format(cpu / (bytes / 2 ** 30), 1)} CPU seconds`)
-        console.log(`relay memory             ${format(process.memoryUsage().rss / 2 ** 20)} MiB resident`)
+        console.log(`server memory            ${format(process.memoryUsage().rss / 2 ** 20)} MiB resident`)
     } finally {
         await request({type: 'stop'})
         await container.destroy()
@@ -162,4 +226,4 @@ async function relay() {
 }
 
 if (positionals[0] === 'clients') await clients()
-else await relay()
+else await server()

@@ -87,11 +87,11 @@ export interface RtpTransceiverInit {
      */
     direction?: RtpTransceiverDirection
     /**
-     * The ids of the streams of the track sent: the other peer groups the tracks of a stream (`event.streams` in the
-     * browsers, to play the audio and the video together).
+     * The streams of the track sent, by their ids (the `MediaStream`s of `streams` in the browsers): the other peer
+     * groups the tracks of a stream (`event.streams` in the browsers, to play the audio and the video together).
      * @default none
      */
-    streamIds?: string[]
+    streams?: string[]
 }
 
 /**
@@ -300,9 +300,10 @@ export class PeerConnection extends Provider {
         if (this.icePortRange) config.icePortRange = this.icePortRange
         if (this.iceAdditionalHostAddresses) config.iceAdditionalHostAddresses = this.iceAdditionalHostAddresses
         if (this.headerExtensions) {
+            //The ids of Chrome and Safari: a browser rolling back an offer of its own keeps its ids, and refuses others
             config.headerExtensions = {
-                audio: [useSdesMid(), useAbsSendTime(), useTransportWideCC(), useAudioLevelIndication()],
-                video: [useSdesMid(), useAbsSendTime(), useTransportWideCC()]
+                audio: [useAudioLevelIndication(), useAbsSendTime(), useTransportWideCC(), useSdesMid()],
+                video: [useAbsSendTime(), useTransportWideCC(), useSdesMid()]
             }
             //The feedback of the transport-wide sequence numbers
             for (const codec of [...config.codecs!.audio!, ...config.codecs!.video!]) codec.rtcpFeedback.push(useTWCC())
@@ -656,7 +657,7 @@ export class PeerConnection extends Provider {
      * ```
      */
     public addTransceiver(trackOrKind: MediaTrack | MediaKind, init: RtpTransceiverInit = {}): RtpTransceiver {
-        const streams: MediaStream[] = (init.streamIds ?? []).map((id: string): MediaStream => new MediaStream({id: id}))
+        const streams: MediaStream[] = (init.streams ?? []).map((id: string): MediaStream => new MediaStream({id: id}))
         return transceiverOf(this.#connection.addTransceiver(typeof trackOrKind === 'string' ? trackOrKind : engineTrackOf(trackOrKind), {
             direction: init.direction ?? 'sendrecv',
             streams: streams

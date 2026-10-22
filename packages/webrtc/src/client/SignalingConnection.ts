@@ -98,7 +98,8 @@ export class SignalingConnection extends SignalingSession<RTCPeerConnection> {
         const create: (configuration: RTCConfiguration) => RTCPeerConnection = options.createPeerConnection ?? ((configuration: RTCConfiguration): RTCPeerConnection => new RTCPeerConnection(configuration))
         super(transportOf(socket, options.timeout), {
             iceTransportPolicy: options.iceTransportPolicy,
-            createPeerConnection: (configuration: PeerConnectionConfiguration): RTCPeerConnection => create({...options.configuration, ...configuration})
+            //The browsers negotiate the header extensions of a media server by themselves
+            createPeerConnection: ({headerExtensions: _headerExtensions, ...configuration}: PeerConnectionConfiguration): RTCPeerConnection => create({...options.configuration, ...configuration})
         })
     }
 }

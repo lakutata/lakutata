@@ -156,6 +156,31 @@ export interface SignalingStream {
 }
 
 /**
+ * The data channel of a member's connection to the media server of its room on which the member controls what it
+ * receives: both sides create it, negotiated, with this label and this id; its messages are
+ * {@link SignalingControlMessage}s in JSON.
+ */
+export const SignalingControlChannel = {
+    label: 'webrtc.control',
+    id: 1023
+} as const
+
+/**
+ * A message of a member to the media server of its room, on {@link SignalingControlChannel}: `pause` stops sending the
+ * member the track of a transceiver (by its `mid` on the connection to the server), `resume` sends it again.
+ */
+export interface SignalingControlMessage {
+    /**
+     * `pause` or `resume`.
+     */
+    type: 'pause' | 'resume'
+    /**
+     * The media id of the transceiver receiving the track.
+     */
+    mid: string
+}
+
+/**
  * The answer to `webrtc.join`.
  */
 export interface SignalingJoinResult {

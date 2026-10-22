@@ -12,10 +12,11 @@ import {TURNServer, type TURNServerOptions} from '../../turn/TURNServer.js'
 import {Cluster, type ClusterOptions} from '../../cluster/Cluster.js'
 import {WHIP, type WHIPOptions} from '../../whip/WHIP.js'
 import {WHIPController} from '../../whip/WHIPController.js'
+import {SFU, type SFUOptions} from '../../sfu/SFU.js'
 
 /**
  * A signaling server for the tests: Socket.IO and JSON-RPC over WebSocket on random ports of 127.0.0.1, with a TURN
- * server when asked
+ * server and a media server when asked
  */
 export type TestServer = {
     container: Container
@@ -23,6 +24,7 @@ export type TestServer = {
     entrypoint: Entrypoint
     turn?: TURNServer
     cluster?: Cluster
+    sfu?: SFU
     //http://127.0.0.1:<port> (Socket.IO)
     socketIO: string
     //ws://127.0.0.1:<port>/ (JSON-RPC)
@@ -34,7 +36,7 @@ export type TestServer = {
  * Start a signaling server, a node of a cluster when given its options
  * @param options
  */
-export async function startServer(options: {signaling?: SignalingOptions, turn?: TURNServerOptions, cluster?: ClusterOptions} = {}): Promise<TestServer> {
+export async function startServer(options: {signaling?: SignalingOptions, turn?: TURNServerOptions, cluster?: ClusterOptions, sfu?: SFUOptions} = {}): Promise<TestServer> {
     const container: Container = new Container()
     let cluster: Cluster | undefined
     if (options.cluster) cluster = await container.setNamed<Cluster>('cluster', Cluster, {...options.cluster})
@@ -43,6 +45,7 @@ export async function startServer(options: {signaling?: SignalingOptions, turn?:
         turn = await container.setNamed<TURNServer>('turn', TURNServer, {host: '127.0.0.1', port: 0, publicAddress: '127.0.0.1', tcp: false, ...options.turn})
     }
     const signaling: Signaling = await container.setNamed<Signaling>('signaling', Signaling, {...(turn ? {turn: 'turn'} : {}), ...(cluster ? {cluster: 'cluster'} : {}), ...options.signaling})
+    const sfu: SFU | undefined = options.sfu ? await container.setNamed<SFU>('sfu', SFU, {...options.sfu}) : undefined
     let socketIOPort: number = 0
     let jsonRPCPort: number = 0
     const entrypoint: Entrypoint = await container.setNamed<Entrypoint>('entrypoint', Entrypoint, buildEntrypoints({
@@ -71,6 +74,7 @@ export async function startServer(options: {signaling?: SignalingOptions, turn?:
         entrypoint: entrypoint,
         turn: turn,
         cluster: cluster,
+        sfu: sfu,
         socketIO: `http://127.0.0.1:${socketIOPort}`,
         jsonRPC: `ws://127.0.0.1:${jsonRPCPort}/`,
         stop: (): Promise<void> => container.destroy()

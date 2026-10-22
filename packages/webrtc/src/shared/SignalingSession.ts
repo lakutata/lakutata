@@ -7,7 +7,7 @@ import {
     type SignalingPeerLeftEvent,
     type SignalingSignalEvent
 } from '../protocol/SignalingProtocol.js'
-import type {PeerConnectionFactory, PeerConnectionLike} from './Connections.js'
+import type {PeerConnectionConfiguration, PeerConnectionFactory, PeerConnectionLike} from './Connections.js'
 import {Emitter} from './Emitter.js'
 import type {PeerSignal} from './Peer.js'
 import {Room, type RoomHost} from './Room.js'
@@ -90,6 +90,9 @@ export class SignalingSession<Connection extends PeerConnectionLike<any> = PeerC
 
     readonly #rooms: Map<string, Room<Connection>> = new Map()
 
+    //The events of the rooms being joined, arrived before the answer (the media server of the room offers at once)
+    readonly #early: Map<string, [string, unknown][]> = new Map()
+
     readonly #unsubscribe: (() => void)[] = []
 
     #id?: string
@@ -165,14 +168,22 @@ export class SignalingSession<Connection extends PeerConnectionLike<any> = PeerC
      */
     public async join(room: string, options: JoinOptions = {}): Promise<Room<Connection>> {
         if (this.#closed) throw new SignalingRequestError('The signaling is closed', 'E_SIGNALING_CLOSED')
-        const result: SignalingJoinResult = await this.#transport.request<SignalingJoinResult>(SignalingMethod.join, {room: room, metadata: options.metadata, session: this.#session})
+        const early: [string, unknown][] = []
+        if (!this.#rooms.has(room)) this.#early.set(room, early)
+        let result: SignalingJoinResult
+        try {
+            result = await this.#transport.request<SignalingJoinResult>(SignalingMethod.join, {room: room, metadata: options.metadata, session: this.#session})
+        } finally {
+            if (this.#early.get(room) === early) this.#early.delete(room)
+        }
         this.#joinedWith(result)
         let joined: Room<Connection> | undefined = this.#rooms.get(room)
         if (!joined) {
             joined = new Room(this.#roomHost(), room, options.metadata)
             this.#rooms.set(room, joined)
         }
-        joined.members(result.peers, options.metadata)
+        joined.members(result.peers, options.metadata, result.sfu)
+        for (const [event, payload] of early) this.#event(event, payload)
         return joined
     }
 
@@ -204,7 +215,8 @@ export class SignalingSession<Connection extends PeerConnectionLike<any> = PeerC
             get signalingUp(): boolean {
                 return session.#transport.connected
             },
-            create: (): Connection | Promise<Connection> => this.#options.createPeerConnection({
+            create: (configuration: PeerConnectionConfiguration = {}): Connection | Promise<Connection> => this.#options.createPeerConnection({
+                ...configuration,
                 iceServers: this.#iceServers,
                 iceTransportPolicy: this.#options.iceTransportPolicy ?? 'all'
             }),
@@ -300,8 +312,9 @@ export class SignalingSession<Connection extends PeerConnectionLike<any> = PeerC
      */
     #event(event: string, payload: unknown): void {
         if (this.#closed || !payload || typeof payload !== 'object') return
-        const room: Room<Connection> | undefined = this.#rooms.get((payload as {room?: string}).room ?? '')
-        if (!room) return
+        const name: string = (payload as {room?: string}).room ?? ''
+        const room: Room<Connection> | undefined = this.#rooms.get(name)
+        if (!room) return void this.#early.get(name)?.push([event, payload])
         switch (event) {
             case SignalingEvent.peerJoined:
                 return room.joined(payload as SignalingPeerEvent)
@@ -337,7 +350,7 @@ export class SignalingSession<Connection extends PeerConnectionLike<any> = PeerC
             try {
                 const result: SignalingJoinResult = await this.#transport.request<SignalingJoinResult>(SignalingMethod.join, {room: room.name, metadata: room.metadata, session: this.#session})
                 this.#joinedWith(result)
-                room.members(result.peers, room.metadata)
+                room.members(result.peers, room.metadata, result.sfu)
             } catch (error) {
                 this.emit('error', error as Error)
             }

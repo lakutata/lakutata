@@ -346,7 +346,7 @@ export class Relay extends Component {
 ```
 
 The methods of `PeerConnection` are those of `RTCPeerConnection`: `addTrack(track, ...streamIds)` (the other member
-groups the tracks of a stream), `addTransceiver(trackOrKind, {direction, streamIds})` (`recvonly` to receive without
+groups the tracks of a stream), `addTransceiver(trackOrKind, {direction, streams})` (`recvonly` to receive without
 sending), `removeTrack(sender)`, `getTransceivers()`, `getSenders()` and `getReceivers()`; `sender.replaceTrack()` sends
 another track of the same codec without negotiating again. The codecs are Opus and PCMU for the audio, VP8, H.264 and
 VP9 for the video; the `codecs` option of `PeerConnection` and of `SignalingClient` chooses them and their order, and a

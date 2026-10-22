@@ -1,7 +1,7 @@
 export * from '../client/SignalingConnection.js'
 export * from '../protocol/SignalingProtocol.js'
 export {SignalingRequestError} from '../shared/SignalingError.js'
-export type {DataChannelOptions, DataChannelLike, PeerConnectionLike, PeerConnectionConfiguration} from '../shared/Connections.js'
+export type {DataChannelOptions, DataChannelLike, PeerConnectionLike, PeerConnectionConfiguration, StreamOf, TrackOf, TransceiverLike} from '../shared/Connections.js'
 export type {EmitterListener} from '../shared/Emitter.js'
 export type {PeerEvents} from '../shared/Peer.js'
 export type {RoomEvents} from '../shared/Room.js'

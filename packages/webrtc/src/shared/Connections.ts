@@ -13,9 +13,52 @@ export interface DataChannelLike {
      */
     readonly readyState: string
     /**
+     * Send a message.
+     * @param data The message.
+     */
+    send(data: string): void
+    /**
+     * Add a listener of an event: `open`, `message`, `close`.
+     * @param type The event.
+     * @param listener The listener.
+     */
+    addEventListener(type: string, listener: (event: any) => void): void
+    /**
      * Close it.
      */
     close(): void
+}
+
+/**
+ * What the rooms need of a transceiver: `RTCRtpTransceiver` of the browsers, `RtpTransceiver` of Node.js.
+ */
+export interface TransceiverLike {
+    /**
+     * The media id of its line in the description; `null` until negotiated.
+     */
+    readonly mid: string | null
+    /**
+     * The direction wanted.
+     */
+    direction: string
+    /**
+     * The direction negotiated.
+     */
+    readonly currentDirection: string | null
+    /**
+     * Its sending side.
+     */
+    readonly sender: {
+        readonly track: {readonly kind: string} | null
+        replaceTrack(track: any): Promise<void>
+        setStreams(...streams: any[]): void
+    }
+    /**
+     * Its receiving side.
+     */
+    readonly receiver: {
+        readonly track: {readonly kind: string}
+    }
 }
 
 /**
@@ -63,6 +106,11 @@ export interface PeerConnectionConfiguration {
      * `all`, or `relay` to use only the TURN relays.
      */
     iceTransportPolicy?: 'all' | 'relay'
+    /**
+     * Whether it is the connection to the media server of a room: it negotiates the RTP header extensions the server
+     * uses (the `headerExtensions` of `PeerConnection`; the browsers always do).
+     */
+    headerExtensions?: boolean
 }
 
 /**
@@ -115,6 +163,25 @@ export interface PeerConnectionLike<Channel extends DataChannelLike = DataChanne
     createDataChannel(label: string, options?: DataChannelOptions): Channel
 
     /**
+     * Add a track to send (the rooms use it for the types of the tracks and the streams).
+     * @param track The track.
+     * @param streams Its streams.
+     */
+    addTrack(track: any, ...streams: any[]): unknown
+
+    /**
+     * Add a transceiver sending a track.
+     * @param track The track.
+     * @param init Its direction and its streams.
+     */
+    addTransceiver(track: any, init: {direction: 'sendonly', streams: any[]}): TransceiverLike
+
+    /**
+     * The transceivers.
+     */
+    getTransceivers(): TransceiverLike[]
+
+    /**
      * Restart ICE: the next offer gathers new candidates.
      */
     restartIce(): void
@@ -142,6 +209,16 @@ export interface PeerConnectionLike<Channel extends DataChannelLike = DataChanne
  * @returns The connection.
  */
 export type PeerConnectionFactory<Connection extends PeerConnectionLike<any>> = (configuration: PeerConnectionConfiguration) => Connection | Promise<Connection>
+
+/**
+ * The track type of a peer connection type: `MediaStreamTrack` in the browsers, `MediaTrack` in Node.js
+ */
+export type TrackOf<Connection extends PeerConnectionLike<any>> = Parameters<Connection['addTrack']>[0]
+
+/**
+ * The stream type of a peer connection type: `MediaStream` in the browsers, a stream id in Node.js
+ */
+export type StreamOf<Connection extends PeerConnectionLike<any>> = Parameters<Connection['addTrack']> extends [any, ...infer Streams] ? Streams[number] : never
 
 /**
  * The data channel type of a peer connection type

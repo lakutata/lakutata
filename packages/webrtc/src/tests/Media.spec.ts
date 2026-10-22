@@ -8,38 +8,8 @@ import type {RtpPacket} from '../peer/RtpPacket.js'
 import type {RtpSender, RtpTransceiver} from '../peer/RtpTransceiver.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
 import type {SignalingCandidate} from '../protocol/SignalingProtocol.js'
+import {feed, packets} from './support/Media.js'
 import {next, startServer, type TestServer, until} from './support/Server.js'
-
-/**
- * The bytes of an RTP packet as an encoder sends them (ffmpeg uses the payload type 96)
- * @param sequenceNumber
- * @param payload
- */
-function datagram(sequenceNumber: number, payload: Buffer): Buffer {
-    const header: Buffer = Buffer.alloc(12)
-    header[0] = 0x80
-    header[1] = 96
-    header.writeUInt16BE(sequenceNumber & 0xffff, 2)
-    header.writeUInt32BE((sequenceNumber * 3000) >>> 0, 4)
-    header.writeUInt32BE(0x1234, 8)
-    return Buffer.concat([header, payload])
-}
-
-/**
- * Write packets to a track until stopped: a packet every 10 ms, its payload its number
- * @param track
- * @param first The first sequence number
- */
-function feed(track: MediaTrack, first: number = 0): () => void {
-    let sequenceNumber: number = first
-    const timer: NodeJS.Timeout = setInterval((): void => {
-        const payload: Buffer = Buffer.alloc(4)
-        payload.writeUInt32BE(sequenceNumber)
-        track.writeRtp(datagram(sequenceNumber, payload))
-        sequenceNumber++
-    }, 10)
-    return (): void => clearInterval(timer)
-}
 
 /**
  * The first track the room receives from a member
@@ -52,24 +22,6 @@ function trackFrom(room: Room, from: string): Promise<PeerTrackEvent> {
             if (peer.id === from) peer.on('track', resolve)
         })
     }, 20000, `the track of ${from}`)
-}
-
-/**
- * The next packets of a track
- * @param track
- * @param count
- */
-function packets(track: MediaTrack, count: number): Promise<RtpPacket[]> {
-    return next<RtpPacket[]>((resolve: (packets: RtpPacket[]) => void): void => {
-        const received: RtpPacket[] = []
-        const listener = (packet: RtpPacket): void => {
-            received.push(packet)
-            if (received.length < count) return
-            track.off('rtp', listener)
-            resolve(received)
-        }
-        track.on('rtp', listener)
-    }, 20000, `${count} packets`)
 }
 
 /**
@@ -250,14 +202,14 @@ describe('Media', (): void => {
             for (const sdp of [both.offer, both.answer]) {
                 //An id for each extension, the same in the audio and the video
                 assert.deepStrictEqual(extensionsOf(sdp), [{
-                    1: 'urn:ietf:params:rtp-hdrext:sdes:mid',
+                    1: 'urn:ietf:params:rtp-hdrext:ssrc-audio-level',
                     2: 'http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time',
                     3: 'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01',
-                    4: 'urn:ietf:params:rtp-hdrext:ssrc-audio-level'
+                    4: 'urn:ietf:params:rtp-hdrext:sdes:mid'
                 }, {
-                    1: 'urn:ietf:params:rtp-hdrext:sdes:mid',
                     2: 'http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time',
-                    3: 'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01'
+                    3: 'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01',
+                    4: 'urn:ietf:params:rtp-hdrext:sdes:mid'
                 }])
                 //The feedback of the transport-wide sequence numbers, for the codecs of the audio and of the video
                 for (const media of sdp.split(/^m=/m).slice(1)) assert.match(media, /^a=rtcp-fb:\d+ transport-cc/m)
@@ -313,7 +265,7 @@ describe('Media', (): void => {
             })
             const events: PeerTrackEvent[] = []
             receiving.addEventListener('track', (event: PeerTrackEvent): unknown => events.push(event))
-            const transceiver: RtpTransceiver = sending.addTransceiver(first, {direction: 'sendonly', streamIds: ['first']})
+            const transceiver: RtpTransceiver = sending.addTransceiver(first, {direction: 'sendonly', streams: ['first']})
             await until((): boolean => events.length === 1, 10000, 'the first track')
             assert.deepStrictEqual(events[0].streams.map((stream: {id: string}): string => stream.id), ['first'])
             assert.ok((await packets(events[0].track, 5)).every((packet: RtpPacket): boolean => packet.payload.readUInt32BE(0) < 50000))

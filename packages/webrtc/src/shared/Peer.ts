@@ -1,5 +1,5 @@
-import type {SignalingCandidate, SignalingDescription} from '../protocol/SignalingProtocol.js'
-import type {ChannelOf, DataChannelOptions, PeerConnectionLike, TrackEventOf} from './Connections.js'
+import type {SignalingCandidate, SignalingControlMessage, SignalingDescription} from '../protocol/SignalingProtocol.js'
+import type {ChannelOf, DataChannelOptions, PeerConnectionLike, TrackEventOf, TrackOf, TransceiverLike} from './Connections.js'
 import {Emitter} from './Emitter.js'
 import {unrefTimer} from './Transports.js'
 
@@ -53,6 +53,12 @@ export interface PeerHost<Connection extends PeerConnectionLike<any>> {
     readonly signalingUp: boolean
     //The peer is closed
     closed(peer: Peer<Connection>): void
+    //Whether this side gives up its offer when both offer at once: by the ids of the members without it
+    readonly polite?: boolean
+    //The peer of the media server of the room, whose connection carries the media of the member
+    readonly relay?: Peer<Connection>
+    //Send a message to the media server of the room
+    control?(message: SignalingControlMessage): void
 }
 
 /**
@@ -83,6 +89,10 @@ const DISCONNECTED_RESTART_DELAY: number = 5000
  * restart when it fails or stays disconnected for 5 seconds, once the signaling is up. The peer stays when its member's
  * signaling is lost while their connection is up, and closes when the member leaves the room, when the connection
  * fails without the member in the room, and when the room is left.
+ *
+ * In a room with a media server, the members are not connected to each other: `connection` is the connection to the
+ * server, the same for all the peers, and the tracks of a member come through it (the ids of their streams are the
+ * ones of that connection: see `Room.streamOf()`).
  */
 export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLike> extends Emitter<PeerEvents<ChannelOf<Connection>, TrackEventOf<Connection>>> {
 
@@ -127,6 +137,16 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
 
     #restartTimer?: ReturnType<typeof setTimeout>
 
+    //The listener of the state of the connection to the media server
+    #relayState?: (state: string) => void
+
+    //Resolves the first exchange of an offer and an answer
+    #negotiatedOnce: () => void
+
+    readonly #negotiated: Promise<void> = new Promise<void>((resolve: () => void): void => {
+        this.#negotiatedOnce = resolve
+    })
+
     /**
      * Create the peer of a member (by its room).
      * @param host The room.
@@ -140,7 +160,7 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
         this.id = id
         this.#metadata = metadata
         this.#session = session
-        this.polite = host.localId < id
+        this.polite = host.polite ?? host.localId < id
         this.#queue = this.#open()
     }
 
@@ -187,13 +207,40 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
     }
 
     /**
+     * Resolves once a first offer and its answer are exchanged.
+     * @internal
+     */
+    public get negotiated(): Promise<void> {
+        return this.#negotiated
+    }
+
+    /**
      * Create a data channel to the member; the connection is set up (or negotiated again) by itself.
      * @param label The label of the channel.
      * @param options Whether it is ordered, reliable, negotiated.
      * @returns The channel: an `RTCDataChannel` in the browsers, a `PeerChannel` in Node.js.
+     * @throws {Error} In a room with a media server: the data channels through the server are not supported yet.
      */
     public createDataChannel(label: string, options?: DataChannelOptions): ChannelOf<Connection> {
+        if (this.#host.relay) throw new Error('The data channels between the members of a room with a media server are not supported yet')
         return this.#connection.createDataChannel(label, options) as ChannelOf<Connection>
+    }
+
+    /**
+     * Stop receiving a track of the member until resumed (a video not shown): with a media server, the server stops
+     * sending it; between two members, its transceiver stops receiving (a new negotiation).
+     * @param track A track of the member (`event.track` of `track`).
+     */
+    public pause(track: TrackOf<Connection>): void {
+        this.#receiving(track, false)
+    }
+
+    /**
+     * Receive again a track paused.
+     * @param track The track.
+     */
+    public resume(track: TrackOf<Connection>): void {
+        this.#receiving(track, true)
     }
 
     /**
@@ -201,6 +248,7 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      */
     public restartIce(): void {
         if (this.#closed) return
+        if (this.#host.relay) return this.#host.relay.restartIce()
         if (!this.#host.signalingUp) {
             this.#restartPending = true
             return
@@ -216,10 +264,15 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
         if (this.#closed) return
         this.#closed = true
         clearTimeout(this.#restartTimer)
-        try {
-            this.#connection?.close()
-        } catch {
-            //Closed already
+        if (this.#host.relay) {
+            //The connection is the one of the media server
+            if (this.#relayState) this.#host.relay.off('connectionstatechange', this.#relayState)
+        } else {
+            try {
+                this.#connection?.close()
+            } catch {
+                //Closed already
+            }
         }
         this.emit('close')
         this.#host.closed(this)
@@ -231,6 +284,7 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      * @internal
      */
     public receive(signal: PeerSignal): void {
+        if (this.#host.relay) return
         this.#queue = this.#queue.then((): Promise<void> => this.#receive(signal)).catch((error: Error): void => this.#fail(error))
     }
 
@@ -250,7 +304,7 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      * @internal
      */
     public left(): void {
-        if (this.#connection?.connectionState === 'connected') {
+        if (!this.#host.relay && this.#connection?.connectionState === 'connected') {
             this.#away = true
         } else {
             this.close()
@@ -261,14 +315,50 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      * The signaling is up again: the ICE restart waiting for it
      * @internal
      */
-    public resume(): void {
+    public signalingUp(): void {
         if (this.#restartPending) this.restartIce()
     }
 
     /**
-     * Create the connection and listen to it
+     * A track of the member, received through the media server
+     * @param event
+     * @internal
+     */
+    public relayed(event: TrackEventOf<Connection>): void {
+        if (!this.#closed) this.emit('track', event)
+    }
+
+    /**
+     * Receive a track or not
+     * @param track
+     * @param receiving
+     */
+    #receiving(track: TrackOf<Connection>, receiving: boolean): void {
+        if (this.#closed || !this.#connection) return
+        const transceiver: TransceiverLike | undefined = this.#connection.getTransceivers().find((each: TransceiverLike): boolean => each.receiver.track === track)
+        if (!transceiver) return
+        if (this.#host.relay) {
+            if (transceiver.mid !== null) this.#host.control?.({type: receiving ? 'resume' : 'pause', mid: transceiver.mid})
+            return
+        }
+        const sending: boolean = transceiver.direction === 'sendrecv' || transceiver.direction === 'sendonly'
+        const direction: string = receiving ? (sending ? 'sendrecv' : 'recvonly') : (sending ? 'sendonly' : 'inactive')
+        if (transceiver.direction !== 'stopped' && transceiver.direction !== direction) transceiver.direction = direction
+    }
+
+    /**
+     * Create the connection and listen to it; a peer through the media server uses its connection
      */
     async #open(): Promise<void> {
+        const relay: Peer<Connection> | undefined = this.#host.relay
+        if (relay) {
+            await relay.ready
+            this.#connection = relay.connection
+            if (this.#closed) return
+            this.#relayState = (state: string): void => void this.emit('connectionstatechange', state)
+            relay.on('connectionstatechange', this.#relayState)
+            return
+        }
         const connection: Connection = await this.#host.create()
         this.#connection = connection
         if (this.#closed) {
@@ -358,6 +448,7 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
                 }
             }
             if (description.type === 'offer') await this.#describe()
+            if (connection.signalingState === 'stable') this.#negotiatedOnce()
         } else if (signal.candidate) {
             const remote: SignalingDescription | null | undefined = (connection as unknown as {remoteDescription?: SignalingDescription | null}).remoteDescription
             const ufrag: string | null | undefined = signal.candidate.usernameFragment

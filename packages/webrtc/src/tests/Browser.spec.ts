@@ -140,6 +140,40 @@ function mediaScript(options: {signaling: string, id: string, room: string, send
 }
 
 /**
+ * The code of a page joining a room with the fake camera and microphone, published once to the room: it resolves once
+ * it decodes the video of each of the other members given
+ * @param options
+ */
+function meetingScript(options: {signaling: string, id: string, room: string, others: string[]}): string {
+    return `(async () => {
+        const {SignalingConnection} = await import('/exports/Client.js')
+        const socket = (await import('/socket.io.js')).io(${JSON.stringify(options.signaling)}, {auth: {id: ${JSON.stringify(options.id)}}, transports: ['websocket']})
+        const signaling = new SignalingConnection(socket)
+        const camera = await navigator.mediaDevices.getUserMedia({audio: true, video: {width: 320, height: 240}})
+        const room = await signaling.join(${JSON.stringify(options.room)})
+        for (const track of camera.getTracks()) await room.publish(track, camera)
+        const others = ${JSON.stringify(options.others)}
+        return await new Promise((resolve, reject) => {
+            setTimeout(() => reject(new Error('timed out')), 40000)
+            const decoded = {}
+            room.on('peer', (peer) => {
+                peer.on('track', (event) => {
+                    if (event.track.kind !== 'video') return
+                    const timer = setInterval(async () => {
+                        for (const report of (await peer.connection.getStats(event.track)).values()) {
+                            if (report.type !== 'inbound-rtp' || !(report.framesDecoded > 0)) continue
+                            clearInterval(timer)
+                            decoded[peer.id] = {width: report.frameWidth, from: room.streamOf(event.streams[0].id)?.peerId}
+                            if (others.every((other) => decoded[other])) resolve({sfu: room.sfu, decoded: decoded, peers: room.peers.length})
+                        }
+                    }, 200)
+                })
+            })
+        })
+    })()`
+}
+
+/**
  * Whether a VP8 payload starts a key frame (RFC 7741: the payload descriptor, then the inverse key frame bit)
  * @param payload
  */
@@ -479,6 +513,38 @@ describe('Browser', (): void => {
             await chrome.close()
             files.server.close()
             await container.destroy()
+        }
+    })
+
+    it('holds a meeting of three pages of Chrome through the media server', {timeout: 90000}, async (t: TestContext): Promise<void> => {
+        const chrome: Browser | undefined = await launchChrome({media: true})
+        if (!chrome) return t.skip('Playwright or Chrome is not available')
+        const files: {url: string, server: Server} = await staticServer()
+        const server: TestServer = await startServer({sfu: {}})
+        try {
+            const ids: string[] = ['ann', 'ben', 'cid']
+            const pages: BrowserPage[] = await Promise.all(ids.map((): Promise<BrowserPage> => chrome.newPage()))
+            await Promise.all(pages.map((page: BrowserPage): Promise<unknown> => page.goto(files.url)))
+            type Meeting = {sfu: string, decoded: Record<string, {width: number, from: string}>, peers: number}
+            const meetings: Meeting[] = await Promise.all(pages.map((page: BrowserPage, index: number): Promise<Meeting> => page.evaluate<Meeting>(meetingScript({
+                signaling: server.socketIO,
+                id: ids[index],
+                room: 'meeting',
+                others: ids.filter((id: string): boolean => id !== ids[index])
+            }))))
+            for (const [index, meeting] of meetings.entries()) {
+                assert.match(meeting.sfu, /^sfu:/)
+                assert.strictEqual(meeting.peers, 2)
+                for (const other of ids.filter((id: string): boolean => id !== ids[index])) {
+                    assert.deepStrictEqual(meeting.decoded[other], {width: 320, from: other}, `${ids[index]} decodes ${other}`)
+                }
+            }
+            //Each page publishes its audio and its video once, to the server
+            assert.strictEqual(server.sfu!.rooms().meeting.tracks.length, 6)
+        } finally {
+            await chrome.close()
+            files.server.close()
+            await server.stop()
         }
     })
 

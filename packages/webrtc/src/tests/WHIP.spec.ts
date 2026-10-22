@@ -16,8 +16,8 @@ async function publisher(container: Container): Promise<{connection: PeerConnect
     const connection: PeerConnection = await container.get(PeerConnection, {iceAdditionalHostAddresses: ['127.0.0.1']})
     const audio: MediaTrack = new MediaTrack('audio', {codec: 'audio/opus'})
     const video: MediaTrack = new MediaTrack('video', {codec: 'video/H264'})
-    connection.addTransceiver(audio, {direction: 'sendonly', streamIds: ['studio']})
-    connection.addTransceiver(video, {direction: 'sendonly', streamIds: ['studio']})
+    connection.addTransceiver(audio, {direction: 'sendonly', streams: ['studio']})
+    connection.addTransceiver(video, {direction: 'sendonly', streams: ['studio']})
     await connection.setLocalDescription()
     await until((): boolean => connection.iceGatheringState === 'complete', 10000, 'the candidates')
     return {connection: connection, audio: audio, video: video, offer: connection.localDescription!.sdp ?? ''}
