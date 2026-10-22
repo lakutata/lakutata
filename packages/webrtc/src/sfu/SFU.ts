@@ -100,10 +100,12 @@ export interface SFUOptions {
  *
  * The server is a member of each room it serves (its id starts with `sfu:`, its role is `sfu`); the clients of this
  * package (`SignalingClient`, `SignalingConnection` of `./client`) connect to it by themselves, and their rooms and
- * peers work as without it: `room.publish()` sends a track to every member, and each peer emits the tracks of its
- * member. Data channels between the members through the server are not supported yet. The key frame
- * requests of the members go to the publisher, at most every 500 ms; the lost packets are sent again by the server; the
- * bandwidth of each connection is estimated from the transport-wide feedback.
+ * peers work as without it: `room.publish()` sends a track to every member, each peer emits the tracks of its member,
+ * and a data channel to a member goes through the server, which relays its messages (unlike between two members, the
+ * server sees them). The key frame requests of the members go to the publisher, at most every 500 ms; the lost packets
+ * are sent again by the server; the bandwidth of each connection is estimated from the transport-wide feedback. A
+ * member receiving the messages of a channel slower than they are sent makes the sender wait, without the server
+ * keeping more than a few megabytes of them.
  *
  * Events: `publish` and `unpublish` (an {@link SFUTrack}) when a member starts and stops publishing a track,
  * `unsupported` (the room, the id of the member, the track) when a member does not support the codec of a track it

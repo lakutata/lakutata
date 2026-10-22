@@ -46,6 +46,20 @@ export interface RoomHost<Connection extends PeerConnectionLike<any>> {
 }
 
 /**
+ * The tracks and the channels kept at most while their member is not known
+ */
+const MAX_UNROUTED: number = 256
+
+/**
+ * A channel received through the media server not given to its peer yet, and the messages it got meanwhile
+ */
+interface UnroutedChannel<Channel> {
+    readonly channel: Channel
+    readonly early: unknown[]
+    readonly keep: (event: {data: unknown}) => number
+}
+
+/**
  * A track published in the room, and its transceiver on each connection
  */
 interface Publication<Connection extends PeerConnectionLike<any>> {
@@ -83,8 +97,11 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
     //With a media server: the streams it sends, by their id on the connection to it
     readonly #streams: Map<string, SignalingStream> = new Map()
 
-    //The tracks received through the media server not given to their peer yet (its member or its stream unknown)
+    //The tracks and the channels received through the media server not given to their peer yet (its member or its
+    //stream unknown yet), MAX_UNROUTED of each at most
     readonly #unrouted: TrackEventOf<Connection>[] = []
+
+    readonly #unroutedChannels: UnroutedChannel<ChannelOf<Connection>>[] = []
 
     //The messages to the media server waiting for its control channel
     readonly #controls: string[] = []
@@ -343,6 +360,16 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
         server.on('error', (error: Error): void => void this.emit('error', error, server))
         server.on('track', (event: TrackEventOf<Connection>): void => {
             this.#unrouted.push(event)
+            if (this.#unrouted.length > MAX_UNROUTED) this.#unrouted.shift()
+            this.#route()
+        })
+        server.on('datachannel', (channel: ChannelOf<Connection>): void => {
+            //Its messages wait with it, given again once its peer has it
+            const early: unknown[] = []
+            const keep = (event: {data: unknown}): number => early.push(event.data)
+            channel.addEventListener('message', keep)
+            this.#unroutedChannels.push({channel: channel, early: early, keep: keep})
+            if (this.#unroutedChannels.length > MAX_UNROUTED) this.#unroutedChannels.shift()!.channel.close()
             this.#route()
         })
         //The server offers first: Chrome cannot answer it after rolling back an offer of its own whose data channel had
@@ -364,7 +391,8 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
     }
 
     /**
-     * Give the tracks received through the media server to the peers of their members
+     * Give the tracks and the channels received through the media server to the peers of their members: a track by its
+     * stream, a channel by its protocol
      */
     #route(): void {
         for (const event of [...this.#unrouted]) {
@@ -373,7 +401,16 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
             const peer: Peer<Connection> | undefined = stream ? this.#peers.get(stream.peerId) : undefined
             if (!peer || !this.#ready.has(peer)) continue
             this.#unrouted.splice(this.#unrouted.indexOf(event), 1)
-            peer.relayed(event)
+            peer.relayedTrack(event)
+        }
+        for (const unrouted of [...this.#unroutedChannels]) {
+            const {channel, early, keep} = unrouted
+            const peer: Peer<Connection> | undefined = this.#peers.get((channel as {protocol?: string}).protocol ?? '')
+            if (!peer || !this.#ready.has(peer)) continue
+            this.#unroutedChannels.splice(this.#unroutedChannels.indexOf(unrouted), 1)
+            channel.removeEventListener('message', keep)
+            peer.relayedChannel(channel)
+            for (const data of early) channel.dispatchEvent(new MessageEvent('message', {data: data}))
         }
     }
 

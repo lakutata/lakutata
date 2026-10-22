@@ -1,4 +1,5 @@
 import type {RTCDataChannel} from '../lib/peer/dataChannel.js'
+import {engineChannels} from './EngineConnection.js'
 import {type DOMEventListener, type ListenerOptions, Events} from './Events.js'
 
 /**
@@ -63,6 +64,7 @@ export class PeerChannel {
      */
     constructor(channel: RTCDataChannel) {
         this.#channel = channel
+        engineChannels.set(this, channel)
         channel.stateChanged.subscribe((state: string): void => {
             this.#events.fire(state === 'closed' ? 'close' : state, {})
         })
@@ -300,6 +302,24 @@ export class PeerChannel {
      */
     public removeEventListener(type: string, listener: DOMEventListener, options?: boolean | ListenerOptions): void {
         this.#events.removeEventListener(type, listener, options)
+    }
+
+    /**
+     * Dispatch an event to the listeners, as `EventTarget.dispatchEvent()`: the ones of the W3C style get it, the ones
+     * of the Node.js style its value (the data of a `MessageEvent`).
+     * @param event The event.
+     * @returns Whether no listener called `preventDefault()`.
+     * @example
+     * ```typescript
+     * import type {PeerChannel} from '@lakutata/webrtc'
+     *
+     * declare const channel: PeerChannel
+     * //A message given again to the listeners
+     * channel.dispatchEvent(new MessageEvent('message', {data: 'again'}))
+     * ```
+     */
+    public dispatchEvent(event: Event): boolean {
+        return this.#events.dispatch(event, ...event instanceof MessageEvent ? [event.data] : [])
     }
 
     /**

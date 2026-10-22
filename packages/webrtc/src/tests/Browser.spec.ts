@@ -140,8 +140,8 @@ function mediaScript(options: {signaling: string, id: string, room: string, send
 }
 
 /**
- * The code of a page joining a room with the fake camera and microphone, published once to the room: it resolves once
- * it decodes the video of each of the other members given
+ * The code of a page joining a room with the fake camera and microphone, published once to the room, sending a message
+ * to each member: it resolves once it decodes the video of each of the other members given and gets their messages
  * @param options
  */
 function meetingScript(options: {signaling: string, id: string, room: string, others: string[]}): string {
@@ -154,9 +154,20 @@ function meetingScript(options: {signaling: string, id: string, room: string, ot
         for (const track of camera.getTracks()) await room.publish(track, camera)
         const others = ${JSON.stringify(options.others)}
         return await new Promise((resolve, reject) => {
-            setTimeout(() => reject(new Error('timed out')), 40000)
             const decoded = {}
+            const messages = {}
+            setTimeout(() => reject(new Error('timed out: ' + JSON.stringify({decoded: decoded, messages: messages}))), 40000)
+            const done = () => {
+                if (others.every((other) => decoded[other] && messages[other])) resolve({sfu: room.sfu, decoded: decoded, messages: messages, peers: room.peers.length})
+            }
             room.on('peer', (peer) => {
+                //A message to each member, through the server; the channel of each member tells who opened it
+                const channel = peer.createDataChannel('chat')
+                channel.addEventListener('open', () => channel.send('hello from ' + ${JSON.stringify(options.id)}))
+                peer.on('datachannel', (received) => received.addEventListener('message', (event) => {
+                    messages[peer.id] = received.protocol + ': ' + event.data
+                    done()
+                }))
                 peer.on('track', (event) => {
                     if (event.track.kind !== 'video') return
                     const timer = setInterval(async () => {
@@ -164,7 +175,7 @@ function meetingScript(options: {signaling: string, id: string, room: string, ot
                             if (report.type !== 'inbound-rtp' || !(report.framesDecoded > 0)) continue
                             clearInterval(timer)
                             decoded[peer.id] = {width: report.frameWidth, from: room.streamOf(event.streams[0].id)?.peerId}
-                            if (others.every((other) => decoded[other])) resolve({sfu: room.sfu, decoded: decoded, peers: room.peers.length})
+                            done()
                         }
                     }, 200)
                 })
@@ -525,7 +536,7 @@ describe('Browser', (): void => {
             const ids: string[] = ['ann', 'ben', 'cid']
             const pages: BrowserPage[] = await Promise.all(ids.map((): Promise<BrowserPage> => chrome.newPage()))
             await Promise.all(pages.map((page: BrowserPage): Promise<unknown> => page.goto(files.url)))
-            type Meeting = {sfu: string, decoded: Record<string, {width: number, from: string}>, peers: number}
+            type Meeting = {sfu: string, decoded: Record<string, {width: number, from: string}>, messages: Record<string, string>, peers: number}
             const meetings: Meeting[] = await Promise.all(pages.map((page: BrowserPage, index: number): Promise<Meeting> => page.evaluate<Meeting>(meetingScript({
                 signaling: server.socketIO,
                 id: ids[index],
@@ -537,6 +548,7 @@ describe('Browser', (): void => {
                 assert.strictEqual(meeting.peers, 2)
                 for (const other of ids.filter((id: string): boolean => id !== ids[index])) {
                     assert.deepStrictEqual(meeting.decoded[other], {width: 320, from: other}, `${ids[index]} decodes ${other}`)
+                    assert.strictEqual(meeting.messages[other], `${other}: hello from ${other}`)
                 }
             }
             //Each page publishes its audio and its video once, to the server

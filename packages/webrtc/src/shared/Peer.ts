@@ -215,15 +215,18 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
     }
 
     /**
-     * Create a data channel to the member; the connection is set up (or negotiated again) by itself.
+     * Create a data channel to the member; the connection is set up (or negotiated again) by itself. In a room with a
+     * media server, the channel goes through the server, which relays its messages (and sees them): its `protocol` is
+     * the id of this member on this side, and the id of the local member on the other side.
      * @param label The label of the channel.
      * @param options Whether it is ordered, reliable, negotiated.
      * @returns The channel: an `RTCDataChannel` in the browsers, a `PeerChannel` in Node.js.
-     * @throws {Error} In a room with a media server: the data channels through the server are not supported yet.
+     * @throws {TypeError} In a room with a media server, for a channel with a `protocol` or a negotiated one.
      */
     public createDataChannel(label: string, options?: DataChannelOptions): ChannelOf<Connection> {
-        if (this.#host.relay) throw new Error('The data channels between the members of a room with a media server are not supported yet')
-        return this.#connection.createDataChannel(label, options) as ChannelOf<Connection>
+        if (!this.#host.relay) return this.#connection.createDataChannel(label, options) as ChannelOf<Connection>
+        if (options?.negotiated || options?.protocol) throw new TypeError('A channel through the media server has no protocol of its own and is not negotiated')
+        return this.#connection.createDataChannel(label, {...options, protocol: this.id}) as ChannelOf<Connection>
     }
 
     /**
@@ -324,8 +327,18 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      * @param event
      * @internal
      */
-    public relayed(event: TrackEventOf<Connection>): void {
+    public relayedTrack(event: TrackEventOf<Connection>): void {
         if (!this.#closed) this.emit('track', event)
+    }
+
+    /**
+     * A channel the member opened, relayed by the media server
+     * @param channel
+     * @internal
+     */
+    public relayedChannel(channel: ChannelOf<Connection>): void {
+        if (this.#closed) return channel.close()
+        this.emit('datachannel', channel)
     }
 
     /**

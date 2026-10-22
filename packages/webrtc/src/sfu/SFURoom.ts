@@ -1,6 +1,7 @@
 import type {RTCRtpTransceiver} from '../lib/peer/media/rtpTransceiver.js'
 import type {RTCPeerConnection} from '../lib/peer/peerConnection.js'
-import {engineConnectionOf} from '../peer/EngineConnection.js'
+import type {RTCSctpTransport} from '../lib/peer/transport/sctp.js'
+import {engineChannelOf, engineConnectionOf} from '../peer/EngineConnection.js'
 import type {MediaKind, MediaTrack} from '../peer/MediaTrack.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
 import type {PeerConnection, PeerTrackEvent} from '../peer/PeerConnection.js'
@@ -74,6 +75,65 @@ interface Member {
     //The transceivers the server created to send to it
     readonly transceivers: Set<RtpTransceiver>
     control?: PeerChannel
+}
+
+/**
+ * The bytes a channel relayed to a member may have waiting to be sent: past them, the messages wait at the server, out
+ * of the receive window of the member sending them (which waits then), until the channel sends half of them
+ */
+const RELAY_HIGH_WATER_MARK: number = 1024 * 1024
+
+/**
+ * Relay the messages of a channel to another one, as fast as the other one sends them: the messages of a reliable
+ * channel wait at the server while the other one is not open or has too much to send, held out of the receive window
+ * of the connection they come from (its sender waits once the window is closed); the ones of an unreliable channel are
+ * dropped then, once the other one is open or past RELAY_HIGH_WATER_MARK waiting
+ * @param source
+ * @param target
+ * @param early The messages the source got before.
+ */
+function relay(source: PeerChannel, target: PeerChannel, early: (string | Buffer | ArrayBuffer)[] = []): void {
+    const transport: RTCSctpTransport = engineChannelOf(source).sctp
+    const reliable: boolean = source.maxRetransmits === null && source.maxPacketLifeTime === null
+    const waiting: {data: string | Buffer, size: number}[] = []
+    let held: number = 0
+    let queued: number = 0
+    target.bufferedAmountLowThreshold = RELAY_HIGH_WATER_MARK / 2
+    const drain = (): void => {
+        while (waiting.length && target.readyState === 'open' && target.bufferedAmount < RELAY_HIGH_WATER_MARK) {
+            const {data, size} = waiting.shift()!
+            queued -= size
+            target.send(data)
+            if (reliable) {
+                held -= size
+                transport.releaseReceived(size)
+            }
+        }
+    }
+    const relayed = (data: string | Buffer | ArrayBuffer): void => {
+        const message: string | Buffer = typeof data === 'string' || Buffer.isBuffer(data) ? data : Buffer.from(data)
+        if (target.readyState === 'closing' || target.readyState === 'closed') return
+        if (!waiting.length && target.readyState === 'open' && target.bufferedAmount < RELAY_HIGH_WATER_MARK) return target.send(message)
+        const size: number = typeof message === 'string' ? Buffer.byteLength(message) : message.length
+        if (!reliable && (target.readyState === 'open' || queued + size > RELAY_HIGH_WATER_MARK)) return
+        waiting.push({data: message, size: size})
+        queued += size
+        if (reliable) {
+            held += size
+            transport.holdReceived(size)
+        }
+    }
+    early.forEach(relayed)
+    source.on('message', relayed)
+    target.on('open', drain)
+    target.on('bufferedamountlow', drain)
+    //The window held is given back when the other side is gone
+    target.on('close', (): void => {
+        waiting.length = 0
+        queued = 0
+        if (held) transport.releaseReceived(held)
+        held = 0
+    })
 }
 
 /**
@@ -255,6 +315,7 @@ export class SFURoom {
         //A failed negotiation is the member's (it left meanwhile, it sent a wrong description)
         member.peer.on('error', (): void => undefined)
         member.peer.on('track', (event: PeerTrackEvent): void => this.#published(member, event))
+        member.peer.on('datachannel', (channel: PeerChannel): void => this.#opened(member, channel))
         member.peer.ready.then((): void => {
             if (member.peer.closed) return
             const connection: PeerConnection = member.peer.connection
@@ -271,6 +332,35 @@ export class SFURoom {
             for (const publication of this.#publications) this.#offer(member, publication)
         }, (): void => this.#remove(member))
         return member
+    }
+
+    /**
+     * A member opened a channel to another one (its protocol): the server opens the same channel to the other one (its
+     * protocol the id of the first one), and relays their messages
+     * @param member
+     * @param channel
+     */
+    #opened(member: Member, channel: PeerChannel): void {
+        const other: Member | undefined = this.#members.get(channel.protocol)
+        if (!other || other === member || other.peer.closed) return channel.close()
+        //Its first messages may come with its opening, before the other side is there
+        const early: (string | Buffer | ArrayBuffer)[] = []
+        const keep = (data: string | Buffer | ArrayBuffer): number => early.push(data)
+        channel.on('message', keep)
+        other.peer.ready.then((): void => {
+            channel.off('message', keep)
+            if (other.peer.closed || channel.readyState === 'closed') return channel.close()
+            const relayed: PeerChannel = other.peer.connection.createDataChannel(channel.label, {
+                protocol: member.id,
+                ordered: channel.ordered,
+                ...channel.maxRetransmits !== null ? {maxRetransmits: channel.maxRetransmits} : {},
+                ...channel.maxPacketLifeTime !== null ? {maxPacketLifeTime: channel.maxPacketLifeTime} : {}
+            })
+            relay(channel, relayed, early)
+            relay(relayed, channel)
+            channel.on('close', (): void => relayed.close())
+            relayed.on('close', (): void => channel.close())
+        }, (): void => channel.close())
     }
 
     /**

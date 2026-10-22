@@ -59,6 +59,18 @@ describe('PeerConnection', (): void => {
             const named: Promise<PeerChannel> = next<PeerChannel>((resolve: (channel: PeerChannel) => void): unknown => answerer.once('datachannel', resolve), 10000, 'the named channel')
             offerer.createDataChannel('会议', {protocol: 'mitglied-ü'})
             assert.deepStrictEqual([(await named).label, (await named).protocol], ['会议', 'mitglied-ü'])
+            //Unordered and partially reliable
+            const partial: Promise<PeerChannel> = next<PeerChannel>((resolve: (channel: PeerChannel) => void): unknown => answerer.once('datachannel', resolve), 10000, 'the unordered channel')
+            offerer.createDataChannel('state', {ordered: false, maxRetransmits: 0})
+            assert.deepStrictEqual([(await partial).ordered, (await partial).maxRetransmits], [false, 0])
+            //An event dispatched reaches the listeners of both styles
+            const dispatched: unknown[] = []
+            const listener = (event: MessageEvent): number => dispatched.push(event.data)
+            remote.addEventListener('message', listener)
+            remote.on('message', (data: unknown): number => dispatched.push(data))
+            assert.strictEqual(remote.dispatchEvent(new MessageEvent('message', {data: 'again'})), true)
+            assert.deepStrictEqual(dispatched, ['again', 'again'])
+            remote.removeEventListener('message', listener)
             //Closing the channel closes the other side
             const closed: Promise<void> = next<void>((resolve: () => void): unknown => remote.once('close', resolve), 10000, 'close')
             local.close()

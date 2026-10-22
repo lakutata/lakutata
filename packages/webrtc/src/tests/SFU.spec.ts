@@ -2,6 +2,8 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {Container} from '@lakutata/core'
 import {MediaTrack} from '../peer/MediaTrack.js'
+import {engineChannelOf} from '../peer/EngineConnection.js'
+import type {PeerChannel} from '../peer/PeerChannel.js'
 import type {PeerConnection, PeerTrackEvent} from '../peer/PeerConnection.js'
 import type {RtpTransceiver} from '../peer/RtpTransceiver.js'
 import type {RtpPacket} from '../peer/RtpPacket.js'
@@ -161,6 +163,70 @@ describe('SFU', (): void => {
             members.push(carol)
             await until((): boolean => unsupported.length === 2, 20000, 'the tracks carol cannot receive')
             assert.deepStrictEqual(unsupported.sort(), ['meeting carol alice video/VP8', 'meeting carol bob video/VP8'])
+        } finally {
+            members.forEach((each: Member): void => each.stop())
+            await clients.destroy()
+            await server.stop()
+        }
+    })
+
+    it('relays the data channels between the members, the sender waiting for a member receiving slowly', {timeout: 90000}, async (): Promise<void> => {
+        const server: TestServer = await startServer({sfu: {}})
+        const clients: Container = new Container()
+        const members: Member[] = []
+        try {
+            const alice: Member = await member(clients, server, 'alice', 0)
+            const bob: Member = await member(clients, server, 'bob', 100000)
+            members.push(alice, bob)
+            //Bob echoes the messages of the channels he gets, and counts the bytes of bulk
+            const opened: Map<string, PeerChannel> = new Map()
+            let bulk: number[] = []
+            bob.room.on('peer', (peer: Peer): void => void peer.on('datachannel', (channel: PeerChannel): void => {
+                opened.set(channel.label, channel)
+                if (channel.label === 'bulk') return void channel.on('message', (data: string | Buffer | ArrayBuffer): number => bulk.push((data as Buffer).readUInt32BE(0)))
+                channel.on('message', (data: string | Buffer | ArrayBuffer): void => channel.send(typeof data === 'string' ? `echo: ${data}` : data as Buffer))
+            }))
+            await until((): boolean => !!alice.room.peer('bob'), 10000, 'the peer of bob')
+            const toBob: PeerChannel = alice.room.peer('bob')!.createDataChannel('chat')
+            assert.strictEqual(toBob.protocol, 'bob')
+            await next<void>((resolve: () => void): unknown => toBob.once('open', resolve), 10000, 'the open channel')
+            const echoed: Promise<unknown> = next<unknown>((resolve: (data: unknown) => void): unknown => toBob.once('message', resolve), 10000, 'the echo')
+            toBob.send('hello')
+            assert.strictEqual(await echoed, 'echo: hello')
+            const binary: Promise<unknown> = next<unknown>((resolve: (data: unknown) => void): unknown => toBob.once('message', resolve), 10000, 'the binary echo')
+            toBob.send(Buffer.from([1, 2, 3]))
+            assert.deepStrictEqual(await binary, Buffer.from([1, 2, 3]))
+            //Bob's side: the label, the id of alice as the protocol, the settings
+            const chat: PeerChannel = opened.get('chat')!
+            assert.deepStrictEqual([chat.protocol, chat.ordered, chat.maxRetransmits], ['alice', true, null])
+            alice.room.peer('bob')!.createDataChannel('state', {ordered: false, maxRetransmits: 0})
+            await until((): boolean => opened.has('state'), 10000, 'the unreliable channel')
+            assert.deepStrictEqual([opened.get('state')!.ordered, opened.get('state')!.maxRetransmits], [false, 0])
+            assert.throws((): unknown => alice.room.peer('bob')!.createDataChannel('other', {protocol: 'mine'}), TypeError)
+            //Bob receives slowly (his receive window held): alice waits, the server keeps a few megabytes
+            const toBulk: PeerChannel = alice.room.peer('bob')!.createDataChannel('bulk')
+            await next<void>((resolve: () => void): unknown => toBulk.once('open', resolve), 10000, 'the bulk channel')
+            await until((): boolean => opened.has('bulk'), 10000, 'the bulk channel of bob')
+            const window = engineChannelOf(opened.get('bulk')!).sctp
+            window.holdReceived(1 << 30)
+            const count: number = 768
+            for (let index: number = 0; index < count; index++) {
+                const message: Buffer = Buffer.alloc(16384)
+                message.writeUInt32BE(index, 0)
+                toBulk.send(message)
+            }
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 2000))
+            assert.ok(bulk.length * 16384 < 2 * 1024 * 1024, `bob got ${bulk.length} messages`)
+            assert.ok(toBulk.bufferedAmount > 8 * 1024 * 1024, `alice has ${toBulk.bufferedAmount} bytes waiting`)
+            //Bob reads again: everything arrives, in order
+            window.releaseReceived(1 << 30)
+            await until((): boolean => bulk.length === count, 30000, 'the bulk messages')
+            assert.ok(bulk.every((index: number, position: number): boolean => index === position))
+            //Closed by alice: closed for bob
+            const closed: Promise<void> = next<void>((resolve: () => void): unknown => chat.once('close', resolve), 10000, 'the closed channel')
+            toBob.close()
+            await closed
+            bulk = []
         } finally {
             members.forEach((each: Member): void => each.stop())
             await clients.destroy()

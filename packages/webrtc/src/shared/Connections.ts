@@ -24,6 +24,17 @@ export interface DataChannelLike {
      */
     addEventListener(type: string, listener: (event: any) => void): void
     /**
+     * Remove a listener.
+     * @param type The event.
+     * @param listener The listener.
+     */
+    removeEventListener(type: string, listener: (event: any) => void): void
+    /**
+     * Dispatch an event to the listeners.
+     * @param event The event.
+     */
+    dispatchEvent(event: Event): boolean
+    /**
      * Close it.
      */
     close(): void

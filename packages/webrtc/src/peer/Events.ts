@@ -68,6 +68,18 @@ export class Events {
         if (type !== 'error' || this.#emitter.listenerCount('error')) this.#emitter.emit(type, ...args)
     }
 
+    /**
+     * Dispatch an event given: the listeners of the W3C style get it, the ones of the Node.js style the arguments
+     * @param event
+     * @param args
+     */
+    public dispatch(event: Event, ...args: unknown[]): boolean {
+        const dispatched: boolean = this.#target.dispatchEvent(event)
+        this.#handlers.get(event.type)?.call(this.#owner, event)
+        if (event.type !== 'error' || this.#emitter.listenerCount('error')) this.#emitter.emit(event.type, ...args)
+        return dispatched && !event.defaultPrevented
+    }
+
     public addEventListener(type: string, listener: DOMEventListener, options?: boolean | ListenerOptions): void {
         this.#target.addEventListener(type, listener, options)
     }
