@@ -494,13 +494,17 @@ export class RTCPeerConnection extends EventTarget {
                 this.config.maxMessageSize
         }
 
-        assignDynamicPayloadTypes(this.config);
+        assignDynamicPayloadTypes(this.config)
 
-        [
+        //One id per extension, the same in all the media (of a bundle)
+        const extensionIds = new Map<string, number>()
+        const extensions = [
             ...(this.config.headerExtensions.audio || []),
             ...(this.config.headerExtensions.video || [])
-        ].forEach((v, i) => {
-            v.id = 1 + i
+        ]
+        extensions.forEach((v) => {
+            if (!extensionIds.has(v.uri)) extensionIds.set(v.uri, extensionIds.size + 1)
+            v.id = extensionIds.get(v.uri)!
         })
 
         // Propagate ICE server changes only to transports still in gathering

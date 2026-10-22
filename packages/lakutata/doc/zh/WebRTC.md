@@ -176,7 +176,7 @@ export class Echo extends Component {
 }
 ```
 
-它的选项：`iceServers`、`iceTransportPolicy`，以及服务器用的 `icePortRange`（候选地址使用的 UDP 端口，用来在防火墙里放开）和 `iceAdditionalHostAddresses`（额外作为候选地址的地址，比如按相同端口号转发了这些端口的 NAT 的公网地址）；`codecs` 决定音视频用哪些编码。`PeerChannel` 可以发送字符串和二进制数据；二进制消息收到时是 `Buffer`，`binaryType` 为 `'arraybuffer'` 时是 `ArrayBuffer`。
+它的选项：`iceServers`、`iceTransportPolicy`，以及服务器用的 `icePortRange`（候选地址使用的 UDP 端口，用来在防火墙里放开）和 `iceAdditionalHostAddresses`（额外作为候选地址的地址，比如按相同端口号转发了这些端口的 NAT 的公网地址）；`codecs` 决定音视频用哪些编码。`headerExtensions: true` 会加上媒体服务器要用的 RTP 头部扩展：两端都根据对方的反馈估计自己发送时的可用带宽（没有这些扩展时，浏览器只能看丢包来估计，从很低的码率开始，涨得很慢）。`PeerChannel` 可以发送字符串和二进制数据；二进制消息收到时是 `Buffer`，`binaryType` 为 `'arraybuffer'` 时是 `ArrayBuffer`。
 
 ## 7. 大消息和文件
 

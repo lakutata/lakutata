@@ -223,9 +223,11 @@ export class Echo extends Component {
 
 Its options: `iceServers`, `iceTransportPolicy`, and those of a server: `icePortRange` (the UDP ports of its
 candidates, to open in a firewall) and `iceAdditionalHostAddresses` (more addresses offered as candidates, such as the
-public address of a NAT forwarding these ports with the same numbers); `codecs` chooses the audio and video codecs. A
-`PeerChannel` sends strings and binary data; a
-binary message arrives as a `Buffer`, or as an `ArrayBuffer` when `binaryType` is `'arraybuffer'`.
+public address of a NAT forwarding these ports with the same numbers); `codecs` chooses the audio and video codecs.
+`headerExtensions: true` adds the RTP header extensions a media server uses: each side then estimates, from the feedback
+of the other one, the bandwidth available for what it sends (without them, a browser goes by the packets lost only,
+starting low and rising slowly). A `PeerChannel` sends strings and binary data; a binary message arrives as a `Buffer`,
+or as an `ArrayBuffer` when `binaryType` is `'arraybuffer'`.
 
 ## 7. Large messages and files
 

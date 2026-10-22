@@ -1,11 +1,14 @@
 import {DTO, Provider} from '@lakutata/core'
 import {Autoload, Configurable, Transient} from '@lakutata/core/decorator/di'
 import type {RTCDataChannel} from '../lib/peer/dataChannel.js'
+import {useTWCC} from '../lib/peer/media/extension/rtcpFeedback.js'
+import {useAbsSendTime, useAudioLevelIndication, useSdesMid, useTransportWideCC} from '../lib/peer/media/extension/rtpExtension.js'
 import type {RTCRtpTransceiver} from '../lib/peer/media/rtpTransceiver.js'
 import {MediaStream} from '../lib/peer/media/track.js'
 import {RTCPeerConnection, type RTCPeerConnectionConfig, type RTCTrackEvent} from '../lib/peer/peerConnection.js'
 import type {SignalingCandidate, SignalingDescription, SignalingIceServer} from '../protocol/SignalingProtocol.js'
 import type {DataChannelOptions} from '../shared/Connections.js'
+import {engineConnections} from './EngineConnection.js'
 import {type DOMEventListener, type ListenerOptions, Events} from './Events.js'
 import {DEFAULT_CODECS, SUPPORTED_CODECS, engineCodecsOf} from './MediaCodecs.js'
 import {type MediaKind, MediaTrack, engineTrackOf, keyFrameRequested, trackOf} from './MediaTrack.js'
@@ -64,6 +67,14 @@ export interface PeerConnectionOptions {
      * @default ['audio/opus', 'audio/PCMU', 'video/VP8', 'video/H264', 'video/VP9']
      */
     codecs?: string[]
+    /**
+     * Whether to negotiate the RTP header extensions a media server uses: the media identification (`mid`), the
+     * transport-wide sequence numbers with their feedback (`transport-cc`, from which each side estimates the bandwidth
+     * available for what it sends), the absolute send time and the audio level. The other peer uses those it supports;
+     * when `false`, the offers and the answers have none.
+     * @default false
+     */
+    headerExtensions?: boolean
 }
 
 /**
@@ -258,6 +269,12 @@ export class PeerConnection extends Provider {
     @Configurable(DTO.Array().items(DTO.String().valid(...SUPPORTED_CODECS).insensitive()).optional().default(DEFAULT_CODECS))
     protected readonly codecs: string[]
 
+    /**
+     * Whether to negotiate the RTP header extensions of a media server.
+     */
+    @Configurable(DTO.Boolean().optional().default(false))
+    protected readonly headerExtensions: boolean
+
     readonly #events: Events = new Events(this)
 
     readonly #channels: WeakMap<RTCDataChannel, PeerChannel> = new WeakMap()
@@ -282,8 +299,17 @@ export class PeerConnection extends Provider {
         }
         if (this.icePortRange) config.icePortRange = this.icePortRange
         if (this.iceAdditionalHostAddresses) config.iceAdditionalHostAddresses = this.iceAdditionalHostAddresses
+        if (this.headerExtensions) {
+            config.headerExtensions = {
+                audio: [useSdesMid(), useAbsSendTime(), useTransportWideCC(), useAudioLevelIndication()],
+                video: [useSdesMid(), useAbsSendTime(), useTransportWideCC()]
+            }
+            //The feedback of the transport-wide sequence numbers
+            for (const codec of [...config.codecs!.audio!, ...config.codecs!.video!]) codec.rtcpFeedback.push(useTWCC())
+        }
         const connection: RTCPeerConnection = new RTCPeerConnection(config)
         this.#connection = connection
+        engineConnections.set(this, connection)
         connection.onIceCandidate.subscribe((candidate: SignalingCandidate | undefined): void => {
             const iceCandidate: IceCandidate | null = candidate ? new IceCandidate(candidate) : null
             this.#fire('icecandidate', {candidate: iceCandidate}, iceCandidate ? iceCandidate.toJSON() : null)

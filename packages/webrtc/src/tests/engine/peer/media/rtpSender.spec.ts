@@ -1301,6 +1301,53 @@ describe('media/rtpSender RTP continuity', () => {
         expect((dtls.senderBWE as any).cumulativeResult.numPackets).toBe(3)
     })
 
+    test('受信 track の転送では、ヘッダ拡張を URI で対応付けて元の接続の id を使わない', async () => {
+        const track = new MediaStreamTrack({kind: 'audio', remote: true})
+        const {sender, sendRtp} = arrangeSender({track, twcc: true})
+        // Arrange: この接続では transport-cc が id 3、audio level が id 5。
+        sender.prepareSend({
+            codecs: [createAudioCodec()],
+            headerExtensions: [
+                new RTCRtpHeaderExtensionParameters({id: 3, uri: RTP_EXTENSION_URI.transportWideCC}),
+                new RTCRtpHeaderExtensionParameters({id: 5, uri: RTP_EXTENSION_URI.audioLevelIndication})
+            ]
+        })
+
+        // Act: 元の接続の id (1: transport-cc, 3: audio level) を持つパケットを受信 track から転送する。
+        const packet = createRtpPacket(7, 960)
+        packet.header.extensions = [
+            {id: 1, payload: Buffer.from([0xff, 0xff])},
+            {id: 3, payload: Buffer.from([0x9e])}
+        ]
+        track.onReceiveRtp.execute(packet, {
+            [RTP_EXTENSION_URI.transportWideCC]: 65535,
+            [RTP_EXTENSION_URI.audioLevelIndication]: {v: true, level: 30}
+        })
+        await setTimeout(10)
+
+        // Assert: transport-cc はこの接続の番号、audio level はこの接続の id で送られる。
+        const [header] = sentRtpHeaders(sendRtp)
+        expect(header.extensions).toEqual([
+            {id: 3, payload: Buffer.from([0x00, 0x01])},
+            {id: 5, payload: Buffer.from([0x9e])}
+        ])
+    })
+
+    test('アプリが書いたパケットのヘッダ拡張はそのまま送る', async () => {
+        const track = new MediaStreamTrack({kind: 'audio'})
+        const {sendRtp} = arrangeSender({track})
+
+        // Act: アプリが id 10 の拡張付きパケットを書く。
+        const packet = createRtpPacket(7, 960)
+        packet.header.extensions = [{id: 10, payload: Buffer.from([0x99])}]
+        track.writeRtp(packet)
+        await setTimeout(10)
+
+        // Assert: そのまま送られる。
+        const [header] = sentRtpHeaders(sendRtp)
+        expect(header.extensions).toEqual([{id: 10, payload: Buffer.from([0x99])}])
+    })
+
     test('replaceRTP の header 引数はオフセット計算に使わず、次の実送出で確定する', async () => {
         const {sender, sendRtp} = arrangeSender()
 

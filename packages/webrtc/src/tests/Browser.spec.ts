@@ -9,13 +9,15 @@ import {createRequire} from 'node:module'
 import path from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {Container} from '@lakutata/core'
+import {engineConnectionOf} from '../peer/EngineConnection.js'
 import {MediaTrack} from '../peer/MediaTrack.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
-import type {PeerTrackEvent} from '../peer/PeerConnection.js'
+import {PeerConnection, type PeerTrackEvent} from '../peer/PeerConnection.js'
 import type {RtpPacket} from '../peer/RtpPacket.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
+import type {SignalingCandidate, SignalingDescription} from '../protocol/SignalingProtocol.js'
 import type {WHIPSession} from '../whip/WHIP.js'
-import {next, startServer, startWHIP, type TestServer} from './support/Server.js'
+import {next, startServer, startWHIP, type TestServer, until} from './support/Server.js'
 
 //The browser tests use Playwright with the Chrome installed on the machine: the package playwright, else the one at
 //LAKUTATA_PLAYWRIGHT (its directory); they are skipped without them
@@ -154,6 +156,50 @@ function startsVP8KeyFrame(payload: Buffer): boolean {
 }
 
 type DecodedVideo = {from: string, framesDecoded: number, width: number, streams: number}
+
+/**
+ * The code of a page waiting for the candidates of a connection of its own (`window[name]`), without trickle ICE
+ * @param name
+ */
+function gatheredScript(name: string): string {
+    return `await new Promise((resolve) => {
+        if (window.${name}.iceGatheringState === 'complete') return resolve()
+        window.${name}.addEventListener('icegatheringstatechange', () => window.${name}.iceGatheringState === 'complete' && resolve())
+    })`
+}
+
+/**
+ * Wait until Chrome estimates more than a bit rate for what a connection of a page (`window[name]`) sends
+ * @param page
+ * @param name
+ * @param bitrate In bit/s
+ */
+async function chromeEstimates(page: BrowserPage, name: string, bitrate: number): Promise<void> {
+    const deadline: number = Date.now() + 20000
+    let estimate: number = 0
+    while (estimate <= bitrate) {
+        if (Date.now() > deadline) throw new Error(`Chrome estimates ${estimate} bit/s`)
+        await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 250))
+        estimate = await page.evaluate<number>(`(async () => {
+            for (const report of (await window.${name}.getStats()).values()) {
+                if (report.type === 'candidate-pair' && report.state === 'succeeded' && report.availableOutgoingBitrate) return report.availableOutgoingBitrate
+            }
+            return 0
+        })()`)
+    }
+}
+
+/**
+ * Wait for the candidates of a connection, without trickle ICE
+ * @param connection
+ */
+function gathered(connection: PeerConnection): Promise<void> {
+    return next<void>((resolve: () => void): void => {
+        connection.on('icecandidate', (candidate: SignalingCandidate | null): void => {
+            if (!candidate) resolve()
+        })
+    }, 10000, 'the candidates')
+}
 
 /**
  * Whether ffmpeg with libx264 is installed
@@ -359,6 +405,80 @@ describe('Browser', (): void => {
             files.server.close()
             await clients.destroy()
             await server.stop()
+        }
+    })
+
+    it('gives Chrome the transport-wide feedback of its camera and gets the one of what it sends, offering and answering', {timeout: 90000}, async (t: TestContext): Promise<void> => {
+        const chrome: Browser | undefined = await launchChrome({media: true})
+        if (!chrome) return t.skip('Playwright or Chrome is not available')
+        const files: {url: string, server: Server} = await staticServer()
+        const container: Container = new Container()
+        //About 1.6 Mbit/s of video sent to Chrome
+        const video: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
+        let sequenceNumber: number = 0
+        const timer: NodeJS.Timeout = setInterval((): void => {
+            for (let index: number = 0; index < 2; index++, sequenceNumber++) {
+                const header: Buffer = Buffer.alloc(12)
+                header[0] = 0x80
+                header[1] = 96
+                header.writeUInt16BE(sequenceNumber & 0xffff, 2)
+                header.writeUInt32BE((sequenceNumber * 1500) >>> 0, 4)
+                video.writeRtp(Buffer.concat([header, Buffer.alloc(1000, 1)]))
+            }
+        }, 10)
+        try {
+            const page: BrowserPage = await chrome.newPage()
+            await page.goto(files.url)
+            //The application offers its video, Chrome answers with its camera on the same transceiver
+            const offering: PeerConnection = await container.get(PeerConnection, {headerExtensions: true})
+            offering.addTrack(video, 'application')
+            const candidates: Promise<void> = gathered(offering)
+            await offering.setLocalDescription()
+            await candidates
+            const answer: SignalingDescription = await page.evaluate<SignalingDescription>(`(async () => {
+                const camera = await navigator.mediaDevices.getUserMedia({video: {width: 640, height: 480}})
+                window.answering = new RTCPeerConnection()
+                await window.answering.setRemoteDescription(${JSON.stringify(offering.localDescription)})
+                const [transceiver] = window.answering.getTransceivers()
+                await transceiver.sender.replaceTrack(camera.getVideoTracks()[0])
+                transceiver.direction = 'sendrecv'
+                await window.answering.setLocalDescription()
+                ${gatheredScript('answering')}
+                return {type: 'answer', sdp: window.answering.localDescription.sdp}
+            })()`)
+            assert.match(answer.sdp!, /^a=extmap:\d+ http:\/\/www\.ietf\.org\/id\/draft-holmer-rmcat-transport-wide-cc-extensions-01$/m)
+            await offering.setRemoteDescription(answer)
+            //The application estimates about the bit rate it sends, from the feedback of Chrome
+            await until((): boolean => engineConnectionOf(offering).dtlsTransports[0].senderBWE.availableBitrate > 1000000, 20000, 'the estimate of the application')
+            //Chrome estimates more than it starts with (300 kbit/s) from the feedback of the application, at once
+            await chromeEstimates(page, 'answering', 1000000)
+
+            //Chrome offers its camera, with all its extensions: the application answers with the ones it has, their ids
+            //the ones of the offer
+            const offer: SignalingDescription = await page.evaluate<SignalingDescription>(`(async () => {
+                const camera = await navigator.mediaDevices.getUserMedia({video: {width: 640, height: 480}})
+                window.offering = new RTCPeerConnection()
+                window.offering.addTrack(camera.getVideoTracks()[0], camera)
+                await window.offering.setLocalDescription()
+                ${gatheredScript('offering')}
+                return {type: 'offer', sdp: window.offering.localDescription.sdp}
+            })()`)
+            const answering: PeerConnection = await container.get(PeerConnection, {headerExtensions: true})
+            await answering.setRemoteDescription(offer)
+            const answered: Promise<void> = gathered(answering)
+            await answering.setLocalDescription()
+            await answered
+            const offered: string[] = [...offer.sdp!.matchAll(/^a=extmap:(\d+) (\S+)$/gm)].map(([, id, uri]: string[]): string => `${id} ${uri}`)
+            const accepted: string[] = [...answering.localDescription!.sdp!.matchAll(/^a=extmap:(\d+) (\S+)$/gm)].map(([, id, uri]: string[]): string => `${id} ${uri}`)
+            assert.strictEqual(accepted.length, 3)
+            for (const extension of accepted) assert.ok(offered.includes(extension), extension)
+            await page.evaluate(`window.offering.setRemoteDescription(${JSON.stringify(answering.localDescription)})`)
+            await chromeEstimates(page, 'offering', 1000000)
+        } finally {
+            clearInterval(timer)
+            await chrome.close()
+            files.server.close()
+            await container.destroy()
         }
     })
 

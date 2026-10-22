@@ -1,11 +1,13 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {Container} from '@lakutata/core'
+import {engineConnectionOf} from '../peer/EngineConnection.js'
 import {MediaTrack} from '../peer/MediaTrack.js'
-import type {PeerTrackEvent} from '../peer/PeerConnection.js'
+import {PeerConnection, type PeerConnectionOptions, type PeerTrackEvent} from '../peer/PeerConnection.js'
 import type {RtpPacket} from '../peer/RtpPacket.js'
 import type {RtpSender} from '../peer/RtpTransceiver.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
+import type {SignalingCandidate} from '../protocol/SignalingProtocol.js'
 import {next, startServer, type TestServer, until} from './support/Server.js'
 
 /**
@@ -68,6 +70,36 @@ function packets(track: MediaTrack, count: number): Promise<RtpPacket[]> {
         }
         track.on('rtp', listener)
     }, 20000, `${count} packets`)
+}
+
+/**
+ * The header extensions of the media of a description: their URIs by id, for each media
+ * @param sdp
+ */
+function extensionsOf(sdp: string): Record<string, string>[] {
+    return sdp.split(/^m=/m).slice(1).map((media: string): Record<string, string> => Object.fromEntries(
+        [...media.matchAll(/^a=extmap:(\d+) (\S+)/gm)].map(([, id, uri]: string[]): [string, string] => [id, uri])
+    ))
+}
+
+/**
+ * Two connections exchanging their descriptions and candidates directly, the offerer sending a track
+ * @param container
+ * @param track
+ * @param options The options of both connections
+ */
+async function directPair(container: Container, track: MediaTrack, options: PeerConnectionOptions): Promise<{offerer: PeerConnection, answerer: PeerConnection, received: PeerTrackEvent}> {
+    const offerer: PeerConnection = await container.get(PeerConnection, options)
+    const answerer: PeerConnection = await container.get(PeerConnection, options)
+    offerer.on('icecandidate', (candidate: SignalingCandidate | null): void => void answerer.addIceCandidate(candidate))
+    answerer.on('icecandidate', (candidate: SignalingCandidate | null): void => void offerer.addIceCandidate(candidate))
+    const received: Promise<PeerTrackEvent> = next<PeerTrackEvent>((resolve: (event: PeerTrackEvent) => void): void => answerer.addEventListener('track', resolve, {once: true}), 15000, 'the track')
+    offerer.addTrack(track)
+    await offerer.setLocalDescription()
+    await answerer.setRemoteDescription(offerer.localDescription!)
+    await answerer.setLocalDescription()
+    await offerer.setRemoteDescription(answerer.localDescription!)
+    return {offerer: offerer, answerer: answerer, received: await received}
 }
 
 describe('Media', (): void => {
@@ -195,6 +227,67 @@ describe('Media', (): void => {
             stop()
             await clients.destroy()
             await server.stop()
+        }
+    })
+
+    it('negotiates the header extensions of a media server when both connections have them', {timeout: 30000}, async (): Promise<void> => {
+        const container: Container = new Container()
+        try {
+            const descriptions = async (offering: boolean, answering: boolean): Promise<{offer: string, answer: string}> => {
+                const offerer: PeerConnection = await container.get(PeerConnection, {headerExtensions: offering})
+                const answerer: PeerConnection = await container.get(PeerConnection, {headerExtensions: answering})
+                offerer.addTransceiver('audio')
+                offerer.addTransceiver('video')
+                await offerer.setLocalDescription()
+                await answerer.setRemoteDescription(offerer.localDescription!)
+                await answerer.setLocalDescription()
+                const negotiated: {offer: string, answer: string} = {offer: offerer.localDescription!.sdp!, answer: answerer.localDescription!.sdp!}
+                offerer.close()
+                answerer.close()
+                return negotiated
+            }
+            const both: {offer: string, answer: string} = await descriptions(true, true)
+            for (const sdp of [both.offer, both.answer]) {
+                //An id for each extension, the same in the audio and the video
+                assert.deepStrictEqual(extensionsOf(sdp), [{
+                    1: 'urn:ietf:params:rtp-hdrext:sdes:mid',
+                    2: 'http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time',
+                    3: 'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01',
+                    4: 'urn:ietf:params:rtp-hdrext:ssrc-audio-level'
+                }, {
+                    1: 'urn:ietf:params:rtp-hdrext:sdes:mid',
+                    2: 'http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time',
+                    3: 'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01'
+                }])
+                //The feedback of the transport-wide sequence numbers, for the codecs of the audio and of the video
+                for (const media of sdp.split(/^m=/m).slice(1)) assert.match(media, /^a=rtcp-fb:\d+ transport-cc/m)
+            }
+            //Only the offer of the connection with them has them (the answer takes the feedback of the codecs of the offer)
+            const offering: {offer: string, answer: string} = await descriptions(true, false)
+            assert.strictEqual(extensionsOf(offering.offer)[1][3], 'http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01')
+            assert.deepStrictEqual(extensionsOf(offering.answer), [{}, {}])
+            for (const sdp of [...Object.values(await descriptions(false, true)), ...Object.values(await descriptions(false, false))]) {
+                assert.deepStrictEqual(extensionsOf(sdp), [{}, {}])
+                assert.doesNotMatch(sdp, /transport-cc/)
+            }
+        } finally {
+            await container.destroy()
+        }
+    })
+
+    it('estimates the bandwidth of what it sends from the transport-wide feedback of the other connection', {timeout: 30000}, async (): Promise<void> => {
+        const container: Container = new Container()
+        const video: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
+        const stop: () => void = feed(video)
+        try {
+            const {offerer, answerer, received} = await directPair(container, video, {headerExtensions: true})
+            await packets(received.track, 10)
+            //The feedback of the receiving side gives the sending side the bit rate the packets arrive at
+            await until((): boolean => (engineConnectionOf(offerer).dtlsTransports[0].senderBWE.availableBitrate) > 0, 10000, 'the estimate')
+            assert.ok(engineConnectionOf(answerer).dtlsTransports[0].receiverTWCC.fbPktCount > 0)
+        } finally {
+            stop()
+            await container.destroy()
         }
     })
 

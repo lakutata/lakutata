@@ -27,7 +27,9 @@ import {Event, detached, random16, uint16Add, uint32Add} from '../imports/common
 import {codecParametersFromString} from '../index.js'
 import {createWebRtcDomException} from '../errors.js'
 import {
+    type AudioLevelIndicationPayload,
     type Extension,
+    type Extensions,
     GenericNack,
     PictureLossIndication,
     RTP_EXTENSION_URI,
@@ -50,6 +52,7 @@ import {
     serializeSdesMid,
     serializeSdesRTPStreamID,
     serializeTransportWideCC,
+    type videoOrientationPayload,
     wrapRtx
 } from '../imports/rtp.js'
 import type {RTCDtlsTransport} from '../transport/dtls.js'
@@ -391,7 +394,11 @@ export class RTCRtpSender {
         track.id = this.trackId
 
         const {unSubscribe: unSubscribeRtp} = track.onReceiveRtp.subscribe(
-            detached((rtp) => this.sendRtp(rtp), (error) => log('send rtp failed', error))
+            detached(
+                (rtp, extensions) =>
+                    this.sendRtp(track.remote ? this.relayedRtp(rtp, extensions) : rtp),
+                (error) => log('send rtp failed', error)
+            )
         )
         const {unSubscribe: unSubscribeSourceChanged} =
             track.onSourceChanged.subscribe((header) => {
@@ -406,6 +413,41 @@ export class RTCRtpSender {
         if (this.codec) {
             track.codec = this.codec
         }
+    }
+
+    /**
+     * A packet received on a connection, to send on this one: its header extensions are the ones of that connection,
+     * by their ids there. The ones about the media (the audio level, the video orientation) go on with their ids here,
+     * if negotiated; the ones of the transport are this connection's own.
+     * @param rtp
+     * @param extensions The extensions of the packet, by URI
+     */
+    private relayedRtp(rtp: RtpPacket, extensions: Extensions = {}) {
+        const packet = rtp.clone()
+        packet.header.extensions = this.headerExtensions.flatMap((extension) => {
+            switch (extension.uri) {
+                case RTP_EXTENSION_URI.audioLevelIndication: {
+                    const level = extensions[extension.uri] as AudioLevelIndicationPayload | undefined
+                    return level
+                        ? [{id: extension.id, payload: Buffer.from([(level.v ? 0x80 : 0) | (level.level & 0x7f)])}]
+                        : []
+                }
+                case RTP_EXTENSION_URI.videoOrientation: {
+                    const orientation = extensions[extension.uri] as videoOrientationPayload | undefined
+                    return orientation
+                        ? [{
+                            id: extension.id,
+                            payload: Buffer.from([
+                                (orientation.c << 3) | (orientation.f << 2) | (orientation.r1 << 1) | orientation.r0
+                            ])
+                        }]
+                        : []
+                }
+                default:
+                    return []
+            }
+        })
+        return packet
     }
 
     setStreams(streams: MediaStream[] = []) {
