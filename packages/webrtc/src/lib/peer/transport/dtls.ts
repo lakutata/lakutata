@@ -519,6 +519,8 @@ export class RTCDtlsTransport implements DtlsTransportStats {
     async stop() {
         this.setState('closed', false)
         // todo impl send alert
+        //A handshake in progress stops sending its flights again
+        this.dtls?.close()
         await this.iceTransport.stop()
     }
 

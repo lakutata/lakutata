@@ -196,6 +196,7 @@ export class DtlsSocket {
     }
 
     close() {
+        this.transport.close()
         runDetached(() => this.transport.socket.close(), (error) => log('close failed', error))
     }
 

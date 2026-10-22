@@ -1,6 +1,7 @@
+import {setTimeout} from 'node:timers/promises'
 import {describe, test, expect} from '../support/vitest.js'
-import {UdpTransport} from '../../../lib/common/index.js'
-import {DtlsSocket} from '../../../lib/dtls/index.js'
+import {type Transport, UdpTransport} from '../../../lib/common/index.js'
+import {DtlsClient, DtlsSocket} from '../../../lib/dtls/index.js'
 import {SessionType} from '../../../lib/dtls/cipher/suites/abstract.js'
 import {DtlsRandom} from '../../../lib/dtls/handshake/random.js'
 import {certPem, keyPem} from './fixture.js'
@@ -42,5 +43,25 @@ describe('socket', () => {
         } finally {
             socket.close()
         }
+    })
+
+    test('a client closed during its handshake stops sending its flight again', async () => {
+        const sent: Buffer[] = []
+        const transport: Transport = {
+            type: 'udp',
+            address: {address: '127.0.0.1', family: 'IPv4', port: 9},
+            closed: false,
+            onData: () => undefined,
+            send: async (data: Buffer) => void sent.push(data),
+            close: async () => undefined
+        }
+        const client = new DtlsClient({transport: transport, cert: certPem, key: keyPem})
+        client.connect().catch(() => undefined)
+        await setTimeout(100)
+        expect(sent.length).toBe(1)
+        client.close()
+        //Without it, sent again 0.5 s, then 1 s later
+        await setTimeout(1700)
+        expect(sent.length).toBe(1)
     })
 })
