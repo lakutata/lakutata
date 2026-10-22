@@ -154,6 +154,8 @@ export class SCTP {
 
     // inbound
     private advertisedRwnd = 1024 * 1024 // Receiver Window
+    //The window told in the last SACK: a window the application opens again is told at once when it was nearly closed
+    private lastAdvertisedRwnd = this.advertisedRwnd
     private peerAdvertisedRwnd = this.advertisedRwnd
     private get peerRwnd() {
     // RFC 9260 §6.2.1(D-ii): available receiver window = a_rwnd - outstanding DATA.
@@ -363,6 +365,7 @@ export class SCTP {
         const sack = new SackChunk(0, undefined)
         sack.cumulativeTsn = this.lastReceivedTsn!
         sack.advertisedRwnd = Math.max(0, this.advertisedRwnd)
+        this.lastAdvertisedRwnd = sack.advertisedRwnd
         sack.duplicates = [...this.sackDuplicates]
         sack.gaps = gaps
 
@@ -943,6 +946,30 @@ export class SCTP {
         return false
     }
 
+    /**
+     * Keep bytes received out of the receive window while the application holds them (it passes them on later): the
+     * sender waits once the window is closed
+     * @param bytes
+     */
+    holdReceived(bytes: number) {
+        this.advertisedRwnd -= bytes
+    }
+
+    /**
+     * Give back to the receive window bytes held; the sender is told at once when the window it knows is less than half
+     * of the window now
+     * @param bytes
+     */
+    releaseReceived(bytes: number) {
+        this.advertisedRwnd += bytes
+        if (this.associationState !== SCTP_STATE.ESTABLISHED || this.lastReceivedTsn === undefined) return
+        if (this.lastAdvertisedRwnd * 2 < this.advertisedRwnd) {
+            this.sackNeeded = true
+            this.sackImmediate = true
+            this.scheduleSack().catch((err: Error) => log('send window update failed', err.message))
+        }
+    }
+
     send = async (
         streamId: number,
         ppId: number,
@@ -1091,11 +1118,12 @@ export class SCTP {
             if (walked) this.retransmitPending = false
         }
 
-        // Drain queued outbound DATA; retransmission pacing is controlled by RTO/T3.
+        // Drain queued outbound DATA; retransmission pacing is controlled by RTO/T3. With a closed window and nothing in
+        // flight, one chunk goes as a probe (RFC 9260 section 6.1, rule A)
         while (
             this.outboundQueue.length > 0 &&
       this.flightSize < cwnd &&
-      this.peerRwnd > 0
+      (this.peerRwnd > 0 || this.flightSize === 0)
         ) {
             const chunk = this.outboundQueue.shift()
             if (!chunk) break

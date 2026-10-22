@@ -39,6 +39,31 @@ describe('RTCSctpTransportTest', () => {
         ])
     }
 
+    test('the DTLS client takes the even stream ids and the server the odd ones, whatever the roles of ICE', async () => {
+        const [clientTransport, serverTransport] = await dtlsTransportPair()
+        // Arrange: DTLS server が ICE では controlled (ICE の役割で選ぶと偶数になる)。
+        clientTransport.iceTransport.connection.iceControlling = true
+        serverTransport.iceTransport.connection.iceControlling = false
+        const client = new RTCSctpTransport()
+        client.setDtlsTransport(clientTransport)
+        const server = new RTCSctpTransport()
+        server.setDtlsTransport(serverTransport)
+        await Promise.all([server.start(client.port), client.start(server.port)])
+        await waitForOutcome(client, server)
+
+        // Act: 両側が id 指定なしの channel を 2 つずつ作る。
+        const opened = (transport: RTCSctpTransport) => {
+            const channels = [1, 2].map((index) => new RTCDataChannel(transport, new RTCDataChannelParameters({label: `c${index}`})))
+            return Promise.all(channels.map((channel) => channel.stateChanged.watch((state) => state === 'open').then(() => channel.id)))
+        }
+        const [clientIds, serverIds] = await Promise.all([opened(client), opened(server)])
+
+        // Assert: RFC 8832 section 6 どおり、client は偶数、server は奇数。
+        expect(clientIds).toEqual([0, 2])
+        expect(serverIds).toEqual([1, 3])
+        await Promise.all([client.stop(), server.stop()])
+    })
+
     test('test_connect_then_client_creates_data_channel', async () =>
         new Promise<void>((done, fail) => {
             (async () => {

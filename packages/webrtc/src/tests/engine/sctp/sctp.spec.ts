@@ -63,6 +63,56 @@ describe('sctp', () => {
     })
 })
 
+describe('sctp receive window held by the application', () => {
+    test('the sender waits while the receiver holds its window, and goes on once released', async () => {
+        const port = 8797
+        const socket = createSocket('udp4')
+        socket.bind(port)
+        const server = SCTP.server(createUdpTransport(socket))
+        const clientSocket = createSocket('udp4')
+        const client = SCTP.client(createUdpTransport(clientSocket, {port, address: '127.0.0.1'}))
+        try {
+            await Promise.all([client.start(5000), server.start(5000)])
+            await Promise.all([client.stateChanged.connected.asPromise(), server.stateChanged.connected.asPromise()])
+            // Arrange: the receiver holds every byte it gets (1 MiB of window)
+            let received = 0
+            let held = 0
+            server.onReceive.subscribe((_streamId, _ppId, data) => {
+                received += data.length
+                held += data.length
+                server.holdReceived(data.length)
+            })
+            // Act: 4 MiB sent
+            const total = 4 * 1024 * 1024
+            for (let sent = 0; sent < total; sent += 16384) {
+                void client.send(1, 53, Buffer.alloc(16384), {ordered: true})
+            }
+            await setTimeout(1000)
+
+            // Assert: the sender stopped at the window
+            expect(received).toBeGreaterThan(0)
+            expect(received).toBeLessThanOrEqual(1024 * 1024)
+
+            // Act: the receiver releases what it holds as it gets it
+            server.onReceive.subscribe((_streamId, _ppId, data) => {
+                held -= data.length
+                server.releaseReceived(data.length)
+            })
+            server.releaseReceived(held)
+            held = 0
+            for (let waited = 0; received < total && waited < 100; waited++) await setTimeout(100)
+
+            // Assert: everything arrives
+            expect(received).toBe(total)
+        } finally {
+            await client.stop()
+            await server.stop()
+            socket.close()
+            clientSocket.close()
+        }
+    })
+})
+
 describe('sctp timers and ack policy', () => {
     const createMockSctp = () => {
         const transport: Transport = {

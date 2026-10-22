@@ -123,6 +123,22 @@ export class RTCSctpTransport {
         }
     }
 
+    /**
+     * Keep bytes received out of the receive window while the application holds them (see SCTP.holdReceived)
+     * @param bytes
+     */
+    holdReceived(bytes: number) {
+        this.sctp.holdReceived(bytes)
+    }
+
+    /**
+     * Give back bytes held to the receive window (see SCTP.releaseReceived)
+     * @param bytes
+     */
+    releaseReceived(bytes: number) {
+        this.sctp.releaseReceived(bytes)
+    }
+
     private get isServer() {
         return this.dtlsTransport.iceTransport.role !== 'controlling'
     }
@@ -265,19 +281,20 @@ export class RTCSctpTransport {
             this.dataChannels[channel.id] = channel
         }
 
+        //The reliability (RFC 8832 section 5.1), and the unordered flag with any of them
         let channelType = DATA_CHANNEL_RELIABLE
         const priority = 0
         let reliability = 0
 
-        if (!channel.ordered) {
-            channelType = 0x80
-        }
         if (channel.maxRetransmits !== null) {
             channelType = 1
             reliability = channel.maxRetransmits
         } else if (channel.maxPacketLifeTime !== null) {
             channelType = 2
             reliability = channel.maxPacketLifeTime
+        }
+        if (!channel.ordered) {
+            channelType |= 0x80
         }
 
         // 5.1.  DATA_CHANNEL_OPEN Message
@@ -403,11 +420,9 @@ export class RTCSctpTransport {
     }
 
     async start(remotePort: number) {
-        if (this.isServer) {
-            this.dataChannelId = 0
-        } else {
-            this.dataChannelId = 1
-        }
+        //The DTLS client takes the even stream ids, the server the odd ones (RFC 8832 section 6): the roles of ICE may
+        //be the same way round or not
+        this.dataChannelId = this.dtlsTransport.role === 'server' ? 1 : 0
         this.sctp.isServer = this.isServer
 
         await this.sctp.start(remotePort)
