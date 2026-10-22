@@ -22,6 +22,7 @@ import {next, startServer, type TestServer, until} from './support/Server.js'
  * A member of a room publishing a video, and the tracks it receives from each other member
  */
 type Member = {
+    client?: SignalingClient
     room: Room
     video: MediaTrack
     received: Map<string, PeerTrackEvent[]>
@@ -36,12 +37,12 @@ type Member = {
  * @param first
  * @param options More options of the client, the room (`meeting` by default).
  */
-async function member(clients: Container, server: TestServer, id: string, first: number, options: {codecs?: string[], room?: string} = {}): Promise<Member> {
-    const {room: name = 'meeting', ...more} = options
+async function member(clients: Container, server: TestServer, id: string, first: number, options: {codecs?: string[], room?: string, metadata?: unknown} = {}): Promise<Member> {
+    const {room: name = 'meeting', metadata, ...more} = options
     const client: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: id, ...more})
     //The first video codec it has
     const codec: string = options.codecs?.find((each: string): boolean => each.startsWith('video/')) ?? 'video/VP8'
-    const room: Room = await client.join(name)
+    const room: Room = await client.join(name, metadata === undefined ? {} : {metadata: metadata})
     const received: Map<string, PeerTrackEvent[]> = new Map()
     room.on('peer', (peer: Peer): void => {
         peer.on('track', (event: PeerTrackEvent): void => void received.set(peer.id, [...received.get(peer.id) ?? [], event]))
@@ -49,7 +50,7 @@ async function member(clients: Container, server: TestServer, id: string, first:
     const video: MediaTrack = new MediaTrack('video', {codec: codec})
     const stop: () => void = feed(video, first)
     await room.publish(video, 'camera')
-    return {room: room, video: video, received: received, stop: stop}
+    return {client: client, room: room, video: video, received: received, stop: stop}
 }
 
 //Forwarding in the main thread, and in worker threads
@@ -428,6 +429,33 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
             }
         } finally {
             stops.forEach((stop: () => void): void => stop())
+            await clients.destroy()
+            await server.stop()
+        }
+    })
+
+    it('asks select again when the metadata of a member changes', {timeout: 60000}, async (): Promise<void> => {
+        //The members receive the videos when their metadata says so
+        const server: TestServer = await startServer({sfu: {workers: workers, select: (subscriber): boolean => (subscriber.metadata as {video?: boolean} | undefined)?.video !== false}})
+        const clients: Container = new Container()
+        const members: Member[] = []
+        try {
+            const alice: Member = await member(clients, server, 'alice', 0)
+            const bob: Member = await member(clients, server, 'bob', 100000, {metadata: {video: false}})
+            members.push(alice, bob)
+            await until((): boolean => alice.received.size === 1, 20000, 'the video of bob at alice')
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
+            assert.strictEqual(bob.received.size, 0)
+            //Bob wants the videos now
+            await bob.client!.join('meeting', {metadata: {video: true}})
+            await until((): boolean => bob.received.size === 1, 20000, 'the video of alice at bob')
+            const event: PeerTrackEvent = bob.received.get('alice')![0]
+            assert.ok(await from(event.track, 0), 'the packets of alice')
+            //And not any more
+            await bob.client!.join('meeting', {metadata: {video: false}})
+            await until((): boolean => event.transceiver.currentDirection === 'inactive', 10000, 'the video of alice stopped at bob')
+        } finally {
+            members.forEach((each: Member): void => each.stop())
             await clients.destroy()
             await server.stop()
         }

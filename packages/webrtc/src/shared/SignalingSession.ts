@@ -67,6 +67,14 @@ export interface JoinOptions {
 const LIMIT_RETRIES: number = 3
 
 /**
+ * How long a room joined again for a new media server waits before it is joined again once more, after a failure (no
+ * media server takes the member), in milliseconds: twice longer after each failure, up to MAX_REJOIN_DELAY
+ */
+const REJOIN_DELAY: number = 1000
+
+const MAX_REJOIN_DELAY: number = 10000
+
+/**
  * A random session id
  */
 function randomSession(): string {
@@ -229,13 +237,23 @@ export class SignalingSession<Connection extends PeerConnectionLike<any> = PeerC
                 if (!this.#transport.connected) return
                 await this.#transport.request(SignalingMethod.leave, {room: room.name}).catch((): void => undefined)
             },
-            //Joined again once the transport is up, if it is not
+            //Joined again once the transport is up, if it is not; again and again while it fails (no media server takes
+            //the member), until the room is left
             rejoin: (room: Room<Connection>): void => {
                 if (this.#closed || !this.#transport.connected || this.#rejoining.has(room.name)) return
                 this.#rejoining.add(room.name)
-                this.#joinAgain(room)
-                    .catch((error: Error): void => void this.emit('error', error))
-                    .finally((): boolean => this.#rejoining.delete(room.name))
+                const attempt = async (): Promise<void> => {
+                    for (let attempts: number = 0; ; attempts++) {
+                        try {
+                            return await this.#joinAgain(room)
+                        } catch (error) {
+                            this.emit('error', error as Error)
+                        }
+                        await new Promise<void>((resolve: () => void): void => void unrefTimer(setTimeout(resolve, Math.min(REJOIN_DELAY * 2 ** attempts, MAX_REJOIN_DELAY))))
+                        if (this.#closed || room.left || this.#rooms.get(room.name) !== room || !this.#transport.connected) return
+                    }
+                }
+                void attempt().finally((): boolean => this.#rejoining.delete(room.name))
             }
         }
     }

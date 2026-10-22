@@ -456,4 +456,92 @@ describe('SFU in a cluster', (): void => {
             await stopAll(servers)
         }
     })
+
+    for (const how of ['stops', 'stops answering']) it(`moves the members of a node of a room on three nodes to another one when the node ${how}, the others going on`, {timeout: 90000}, async (): Promise<void> => {
+        //Each member on the node of its zone while it is there
+        const selectSFU = (placement: SFUPlacement, nodes: SFUNode[]): string | undefined => nodes.find((node: SFUNode): boolean => node.labels.zone === placement.peerId.split('-')[0])?.id
+        const sfu: SFUOptions = {selectSFU: selectSFU}
+        const servers: TestServer[] = await startNodes({n0: {labels: {zone: 'a'}, sfu: sfu}, n1: {labels: {zone: 'b'}, sfu: sfu}, n2: {labels: {zone: 'c'}, sfu: sfu}})
+        const clients: Container = new Container()
+        const members: Member[] = []
+        try {
+            //All through n0, carol on n2
+            members.push(await member(clients, servers[0], 'a-alice', 0))
+            members.push(await member(clients, servers[0], 'b-bob', 100000))
+            members.push(await member(clients, servers[0], 'c-carol', 200000))
+            const [alice, bob, carol] = members
+            assert.deepStrictEqual(members.map((each: Member): string | undefined => each.room.sfu), ['sfu:n0', 'sfu:n1', 'sfu:n2'])
+            await until((): boolean => members.every((each: Member): boolean => each.received.size === 2), 30000, 'the tracks of the others')
+            if (how === 'stops') {
+                await servers[2].stop()
+            } else {
+                //Its heartbeats stop, without a goodbye: taken as gone after three intervals
+                (servers[2].cluster as unknown as {send: () => void}).send = (): void => undefined
+            }
+            //Carol joins again, on another node, and publishes again; alice and bob receive her again
+            await until((): boolean => carol.room.sfu !== 'sfu:n2' && carol.room.sfu !== undefined, 20000, 'the new media server of carol')
+            await until((): boolean => alice.received.get('c-carol')!.length === 2 && bob.received.get('c-carol')!.length === 2, 30000, 'carol again')
+            assert.ok(await from(alice.received.get('c-carol')![1].track, 200000), 'carol at alice again')
+            assert.ok(await from(carol.received.get('b-bob')!.at(-1)!.track, 100000), 'bob at carol again')
+            //Alice and bob kept their tracks of each other
+            assert.strictEqual(alice.received.get('b-bob')!.length, 1)
+            assert.strictEqual(bob.received.get('a-alice')!.length, 1)
+            assert.ok(await from(alice.received.get('b-bob')![0].track, 100000), 'bob at alice all along')
+        } finally {
+            members.forEach((each: Member): void => each.stop())
+            await clients.destroy()
+            await stopAll(servers)
+        }
+    })
+
+    it('joins the room again until a media server takes the member', {timeout: 90000}, async (): Promise<void> => {
+        const selectSFU = (placement: SFUPlacement, nodes: SFUNode[]): string | undefined => nodes.find((node: SFUNode): boolean => node.labels.zone === placement.peerId.split('-')[0])?.id
+        const sfu: SFUOptions = {maxMembers: 1, selectSFU: selectSFU}
+        const servers: TestServer[] = await startNodes({n0: {labels: {zone: 'a'}, sfu: sfu}, n1: {labels: {zone: 'b'}, sfu: sfu}})
+        const clients: Container = new Container()
+        const members: Member[] = []
+        try {
+            members.push(await member(clients, servers[0], 'a-alice', 0))
+            members.push(await member(clients, servers[0], 'b-bob', 100000))
+            const [alice, bob] = members
+            assert.deepStrictEqual([alice.room.sfu, bob.room.sfu], ['sfu:n0', 'sfu:n1'])
+            await until((): boolean => alice.received.size === 1 && bob.received.size === 1, 20000, 'the tracks')
+            //n1 goes down: n0 is full, bob tries again and again
+            await servers[1].stop()
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 2500))
+            assert.notStrictEqual(bob.room.sfu, 'sfu:n0')
+            //Alice leaves: bob gets n0
+            alice.stop()
+            await alice.room.leave()
+            members.shift()
+            await until((): boolean => bob.room.sfu === 'sfu:n0', 20000, 'n0 for bob')
+            assert.deepStrictEqual(servers[0].sfu!.rooms().meeting.members, ['b-bob'])
+        } finally {
+            members.forEach((each: Member): void => each.stop())
+            await clients.destroy()
+            await stopAll(servers)
+        }
+    })
+
+    it('closes a stream of WHIP taken after the node of its session stopped waiting for it', {timeout: 60000}, async (): Promise<void> => {
+        const servers: TestServer[] = await startNodes({n0: {}, n1: {}})
+        const clients: Container = new Container()
+        try {
+            const publisher: PeerConnection = await clients.get(PeerConnection, {iceAdditionalHostAddresses: ['127.0.0.1']})
+            const video: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
+            publisher.addTransceiver(video, {direction: 'sendonly'})
+            await publisher.setLocalDescription()
+            await until((): boolean => publisher.iceGatheringState === 'complete', 10000, 'the candidates')
+            //n1 gave up the stream (its request timed out) before n0 took it
+            const cluster = servers[1].cluster!
+            await cluster.request('n0', 'webrtc.sfu.leg.end', {id: 'whip:late'})
+            const reply = await cluster.request<{refused?: string}>('n0', 'webrtc.sfu.publish', {room: 'show', peerId: 'whip:late', offer: publisher.localDescription}, {timeout: 10000})
+            assert.match(reply.refused ?? '', /given up/)
+            await until((): boolean => !(servers[0].sfu!.rooms().show?.members ?? []).includes('whip:late'), 10000, 'no stream left on n0')
+            publisher.close()
+        } finally {
+            await clients.destroy()
+            await stopAll(servers)
+        }
+    })
 })

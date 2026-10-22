@@ -27,6 +27,11 @@ class Refused extends Error {
 const ANNOUNCE_INTERVAL: number = 1000
 
 /**
+ * How long a node remembers a leg the node of its session stopped waiting for, in milliseconds
+ */
+const GIVEN_UP_TIME: number = 60000
+
+/**
  * How many nodes are tried for a member at most
  */
 const MAX_PLACEMENT_ATTEMPTS: number = 3
@@ -184,7 +189,8 @@ export interface SFUOptions {
      */
     maxMembers?: number
     /**
-     * Decides which member receives which track.
+     * Decides which member receives which track. It is asked again for a member that joins the room again with other
+     * metadata; the tracks the member receives follow the new answers.
      * @default every member receives every track of the others
      */
     select?: SFUSelect
@@ -336,6 +342,9 @@ export class SFU extends Component {
 
     readonly #choosers: Map<string, SFUViewerSelect> = new Map()
 
+    //The legs the node of their session gave up before they were taken (its request timed out), until when
+    readonly #givenUp: Map<string, number> = new Map()
+
     readonly #detach: (() => void)[] = []
 
     /**
@@ -371,7 +380,9 @@ export class SFU extends Component {
                     return answer === null ? {stale: true} : answer === undefined ? {} : {fragment: answer}
                 }),
                 cluster.handle<{id: string}, boolean>(SFU_TOPICS.end, ({id}): boolean => {
-                    this.#servedLegs.get(id)?.leg.close()
+                    const served = this.#servedLegs.get(id)
+                    if (served) served.leg.close()
+                    else this.#giveUp(id)
                     return true
                 }),
                 //The legs of the sessions of this node on other nodes
@@ -403,7 +414,7 @@ export class SFU extends Component {
                 return {
                     peerId: peerId,
                     leg: await this.#placeOn<EndpointLeg>({room: room, peerId: peerId, kind: 'whip'}, cluster, (): Promise<EndpointLeg> => this.#publishLocal(room, peerId, offer), async (node: string): Promise<EndpointLeg | 'full'> => {
-                        const reply: LegReply = await cluster.request<LegReply>(node, SFU_TOPICS.publish, {room: room, peerId: peerId, offer: offer}, {timeout: LEG_TIMEOUT})
+                        const reply: LegReply = await this.#requestLeg(cluster, node, peerId, SFU_TOPICS.publish, {room: room, peerId: peerId, offer: offer})
                         return this.#legOf(node, peerId, reply)
                     })
                 }
@@ -419,7 +430,7 @@ export class SFU extends Component {
                     return {
                         viewerId: viewerId,
                         leg: await this.#placeOn<EndpointLeg & {source(): string | undefined}>({room: room, peerId: viewerId, kind: 'viewer'}, cluster, (): Promise<EndpointLeg & {source(): string | undefined}> => this.#playLocal(room, viewerId, offer, select), async (node: string): Promise<(EndpointLeg & {source(): string | undefined}) | 'full'> => {
-                            const reply: LegReply = await cluster.request<LegReply>(node, SFU_TOPICS.play, {room: room, viewerId: viewerId, offer: offer, select: !!select}, {timeout: LEG_TIMEOUT})
+                            const reply: LegReply = await this.#requestLeg(cluster, node, viewerId, SFU_TOPICS.play, {room: room, viewerId: viewerId, offer: offer, select: !!select})
                             const leg: ClusterLeg | 'full' = this.#legOf(node, viewerId, reply)
                             if (leg !== 'full') leg.ended((): boolean => this.#choosers.delete(viewerId))
                             return leg
@@ -632,6 +643,11 @@ export class SFU extends Component {
             if (error instanceof SignalingLimitException) return {full: true}
             return {refused: (error as Error).message}
         }
+        //The node of its session stopped waiting for it meanwhile
+        if (this.#givenUp.delete(id)) {
+            leg.close()
+            return {refused: 'The session was given up'}
+        }
         this.#servedLegs.set(id, {leg: leg, node: node})
         leg.ended((): void => {
             if (this.#servedLegs.get(id)?.leg !== leg) return
@@ -639,6 +655,24 @@ export class SFU extends Component {
             this.#clusterObject?.request(node, SFU_TOPICS.ended, {id: id}).catch((): void => undefined)
         })
         return {answer: leg.answer, ...leg.source ? {source: leg.source() ?? null} : {}}
+    }
+
+    /**
+     * Ask another node to take a stream of WHIP or a viewer of WHEP; when it does not answer in time, it is told to
+     * close the leg if it takes it later
+     * @param cluster
+     * @param node
+     * @param id The id of the leg.
+     * @param topic
+     * @param message
+     */
+    async #requestLeg(cluster: Cluster, node: string, id: string, topic: string, message: unknown): Promise<LegReply> {
+        try {
+            return await cluster.request<LegReply>(node, topic, message, {timeout: LEG_TIMEOUT})
+        } catch (error) {
+            cluster.request(node, SFU_TOPICS.end, {id: id}).catch((): void => undefined)
+            throw error
+        }
     }
 
     /**
@@ -667,6 +701,17 @@ export class SFU extends Component {
     #sourced(viewerId: string, source: string | undefined): void {
         const served = this.#servedLegs.get(viewerId)
         if (served) this.#clusterObject?.request(served.node, SFU_TOPICS.source, {id: viewerId, source: source ?? null}).catch((): void => undefined)
+    }
+
+    /**
+     * The node of the session of a leg not taken yet stopped waiting for it: the leg is closed once taken (the ones of
+     * the last minute are kept)
+     * @param id
+     */
+    #giveUp(id: string): void {
+        const now: number = Date.now()
+        for (const [each, until] of this.#givenUp) if (until < now) this.#givenUp.delete(each)
+        this.#givenUp.set(id, now + GIVEN_UP_TIME)
     }
 
     /**

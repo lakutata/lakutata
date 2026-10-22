@@ -695,7 +695,9 @@ export class SFURoom implements SFUServedRoom {
                 //A new client behind the same id: its old connection is useless
                 if (member && joined.session !== undefined && member.session !== joined.session) this.#remove(member)
                 if (member && this.#members.get(joined.peerId) === member) {
+                    const changed: boolean = JSON.stringify(member.metadata) !== JSON.stringify(joined.metadata)
                     member.metadata = joined.metadata
+                    if (changed) this.#reselect(member)
                     return
                 }
                 this.#add(joined.peerId, joined.metadata, joined.session)
@@ -1275,6 +1277,31 @@ export class SFURoom implements SFUServedRoom {
             if (cascade.toldWants === told) continue
             cascade.toldWants = told
             member.control.send(told)
+        }
+    }
+
+    /**
+     * The metadata of a member changed: select is asked again for it, the tracks it receives follow the answers (and
+     * the tracks of the other nodes this node wants)
+     * @param member
+     */
+    #reselect(member: Member): void {
+        if (!member.peer || member.cascade) return
+        this.#selected.delete(member.id)
+        this.#evaluate()
+        //Before its connection is up, it gets the tracks as it comes
+        if (!member.control) return
+        const subscriber: SignalingPeer = {peerId: member.id, metadata: member.metadata, session: member.session}
+        for (const publication of [...this.#publications]) {
+            if (publication.publisher === member) continue
+            const apply = (selected: boolean): void => {
+                if (this.#members.get(member.id) !== member || member.leg.closed || !this.#publications.has(publication)) return
+                if (selected) this.#subscribe(member, publication).catch((): void => undefined)
+                else this.#unsubscribe(member, publication)
+            }
+            const answer: boolean | Promise<boolean> = this.#host.select(subscriber, publication.track)
+            if (typeof answer === 'boolean') apply(answer)
+            else answer.then(apply, (): void => undefined)
         }
     }
 
