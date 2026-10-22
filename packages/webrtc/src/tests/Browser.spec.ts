@@ -189,14 +189,18 @@ function meetingScript(options: {signaling: string, id: string, room: string, ot
         const signaling = new SignalingConnection(socket)
         const camera = await navigator.mediaDevices.getUserMedia({audio: true, video: {width: 320, height: 240}})
         const room = await signaling.join(${JSON.stringify(options.room)})
-        for (const track of camera.getTracks()) await room.publish(track, camera)
         const others = ${JSON.stringify(options.others)}
+        //The listeners first, then the tracks published, as a page does: the tracks of the others may come meanwhile
+        const published = (async () => {
+            await new Promise((resolve) => setTimeout(resolve, 0))
+            for (const track of camera.getTracks()) await room.publish(track, camera)
+        })()
         return await new Promise((resolve, reject) => {
             const decoded = {}
             const messages = {}
             setTimeout(() => reject(new Error('timed out: ' + JSON.stringify({decoded: decoded, messages: messages}))), 40000)
             const done = () => {
-                if (others.every((other) => decoded[other] && messages[other])) resolve({sfu: room.sfu, decoded: decoded, messages: messages, peers: room.peers.length})
+                if (others.every((other) => decoded[other] && messages[other])) published.then(() => resolve({sfu: room.sfu, decoded: decoded, messages: messages, peers: room.peers.length}), reject)
             }
             room.on('peer', (peer) => {
                 //A message to each member, through the server; the channel of each member tells who opened it
@@ -591,6 +595,27 @@ describe('Browser', (): void => {
             }
             //Each page publishes its audio and its video once, to the server
             assert.strictEqual(server.sfu!.rooms().meeting.tracks.length, 6)
+        } finally {
+            await chrome.close()
+            files.server.close()
+            await server.stop()
+        }
+    })
+
+    for (const workers of [0, 2]) it(`holds a meeting of two pages of Chrome joining one after the other, the server offering the tracks of the first one as the second one publishes${workers ? `, forwarding in ${workers} worker threads` : ''}`, {timeout: 90000}, async (t: TestContext): Promise<void> => {
+        const chrome: Browser | undefined = await launchChrome({media: true})
+        if (!chrome) return t.skip('Playwright or Chrome is not available')
+        const files: {url: string, server: Server} = await staticServer()
+        const server: TestServer = await startServer({sfu: {workers: workers}})
+        try {
+            const [first, second] = await Promise.all([chrome.newPage(), chrome.newPage()])
+            await Promise.all([first.goto(files.url), second.goto(files.url)])
+            type Meeting = {decoded: Record<string, {width: number, from: string}>}
+            const ann: Promise<Meeting> = first.evaluate<Meeting>(meetingScript({signaling: server.socketIO, id: 'ann', room: 'meeting', others: ['ben']}))
+            await until((): boolean => server.sfu!.rooms().meeting?.tracks.length === 2, 20000, 'the tracks of ann')
+            const ben: Meeting = await second.evaluate<Meeting>(meetingScript({signaling: server.socketIO, id: 'ben', room: 'meeting', others: ['ann']}))
+            assert.deepStrictEqual((await ann).decoded.ben, {width: 320, from: 'ben'}, 'ann decodes ben')
+            assert.deepStrictEqual(ben.decoded.ann, {width: 320, from: 'ann'}, 'ben decodes ann')
         } finally {
             await chrome.close()
             files.server.close()
