@@ -1,6 +1,6 @@
-# The multi-instance deployment of the end-to-end test: NATS, the signaling (two pods on different nodes) and a TURN
-# server on the network of each node (a DaemonSet), all nodes of one cluster on NATS. The code is the repository,
-# mounted read-only at /repo on the nodes of k3s.
+# The multi-instance deployment of the end-to-end test: NATS, the signaling (two pods on different nodes), a TURN
+# server and a media server on the network of each node (DaemonSets), all nodes of one cluster on NATS. The code is the
+# repository, mounted read-only at /repo on the nodes of k3s.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -155,6 +155,57 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: TURN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: turn
+                  key: secret
+          volumeMounts:
+            - name: repo
+              mountPath: /repo
+              readOnly: true
+      volumes:
+        - name: repo
+          hostPath:
+            path: /repo
+            type: Directory
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sfu
+  namespace: webrtc
+spec:
+  selector:
+    matchLabels:
+      app: sfu
+  template:
+    metadata:
+      labels:
+        app: sfu
+    spec:
+      # On the network of the node: the members connect to its address, the media servers of the nodes to each other,
+      # on the ports of its icePortRange
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: sfu
+          image: node:24-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["node", "/repo/packages/webrtc/test-env/k3s/app.mjs"]
+          env:
+            - name: ROLE
+              value: sfu
+            - name: NATS_URL
+              value: nats://nats:4222
             - name: POD_NAME
               valueFrom:
                 fieldRef:
