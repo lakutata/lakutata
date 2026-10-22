@@ -17,7 +17,7 @@ import {
     type MediaStream,
     type MediaStreamTrack,
     type RTCRtpCodecParameters,
-    type RTCRtpHeaderExtensionParameters,
+    RTCRtpHeaderExtensionParameters,
     type RTCRtpReceiver,
     type RTCRtpSender,
     type RTCRtpSenderOptions,
@@ -528,6 +528,31 @@ export class RTCPeerConnection extends EventTarget {
         return clonePeerConfiguration(this.config)
     }
 
+    /**
+     * The header extensions of a media not negotiated yet: the ones configured, with the ids the connection negotiated
+     * for them in its other media (an extension has one id in all the media of a bundle: a browser refuses another one),
+     * else their configured ids when not taken by another extension, else free ones
+     */
+    private headerExtensionsFor(kind: Kind) {
+        const negotiated = new Map<string, number>()
+        for (const transceiver of this.transceiverManager.getTransceivers()) {
+            for (const extension of transceiver.headerExtensions) negotiated.set(extension.uri, extension.id)
+        }
+        const taken = new Set(negotiated.values())
+        return (this.config.headerExtensions[kind] ?? []).flatMap((extension) => {
+            let id = negotiated.get(extension.uri)
+            if (id === undefined) {
+                id = taken.has(extension.id)
+                    ? Array.from({length: 14}, (_, index) => index + 1).find((free) => !taken.has(free))
+                    : extension.id
+                if (id === undefined) return []
+                taken.add(id)
+                negotiated.set(extension.uri, id)
+            }
+            return [new RTCRtpHeaderExtensionParameters({uri: extension.uri, id})]
+        })
+    }
+
     async createOffer({iceRestart}: {iceRestart?: boolean} = {}) {
         if (iceRestart || this.needRestart) {
             this.needRestart = false
@@ -544,8 +569,7 @@ export class RTCPeerConnection extends EventTarget {
                 this.transceiverManager.assignTransceiverCodecs(transceiver)
             }
             if (transceiver.headerExtensions.length === 0) {
-                transceiver.headerExtensions =
-                    this.config.headerExtensions[transceiver.kind] ?? []
+                transceiver.headerExtensions = this.headerExtensionsFor(transceiver.kind)
             }
         }
 
@@ -1192,7 +1216,8 @@ export class RTCPeerConnection extends EventTarget {
                     const transceiver = this.findTransceiverForRemoteMedia(
                         remoteMedia,
                         index,
-                        planned
+                        planned,
+                        sessionDescription.type === 'offer'
                     )
                     if (transceiver) planned.add(transceiver)
                     return transceiver
@@ -1257,7 +1282,8 @@ export class RTCPeerConnection extends EventTarget {
                     let transceiver = this.findTransceiverForRemoteMedia(
                         remoteMedia,
                         index,
-                        associated
+                        associated,
+                        remoteSdp.type === 'offer'
                     )
                     if (!transceiver) {
                         if (remoteMedia.port === 0) {
@@ -1575,7 +1601,8 @@ export class RTCPeerConnection extends EventTarget {
     private findTransceiverForRemoteMedia(
         remoteMedia: MediaDescription,
         index: number,
-        associated: Set<RTCRtpTransceiver>
+        associated: Set<RTCRtpTransceiver>,
+        offer: boolean
     ) {
         const candidates = this.transceiverManager
             .getTransceivers()
@@ -1589,8 +1616,16 @@ export class RTCPeerConnection extends EventTarget {
         if (remoteMedia.port === 0) {
             return
         }
+        //A media of an offer asking to receive takes a transceiver of addTrack, never one of addTransceiver (it sends
+        //something else: RFC 8829 5.10)
         const unassociated = candidates.filter(
-            (t) => t.mid == null && !t.stopping && !t.stopped
+            (t) =>
+                t.mid == null &&
+                !t.stopping &&
+                !t.stopped &&
+                (!offer ||
+                    (t.addedByAddTrack &&
+                        ['sendrecv', 'recvonly'].includes(remoteMedia.direction ?? 'sendrecv')))
         )
         return unassociated.find((t) => t.mLineIndex === index) ?? unassociated[0]
     }
@@ -1684,8 +1719,7 @@ export class RTCPeerConnection extends EventTarget {
                 this.transceiverManager.assignTransceiverCodecs(transceiver)
             }
             if (transceiver.headerExtensions.length === 0) {
-                transceiver.headerExtensions =
-                    this.config.headerExtensions[transceiver.kind] ?? []
+                transceiver.headerExtensions = this.headerExtensionsFor(transceiver.kind)
             }
         }
 

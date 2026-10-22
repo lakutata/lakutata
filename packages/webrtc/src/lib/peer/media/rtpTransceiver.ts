@@ -79,6 +79,8 @@ export class RTCRtpTransceiver {
     pendingRejection = false
     /**@private remote から受信中として track event を通知済みか */
     firedReceiving = false
+    /**@private Created by addTrack: a media of a remote offer not associated yet may take it (RFC 8829 5.10)*/
+    addedByAddTrack = false
     /**@private app の stop() 要求を manager に伝える */
     readonly onStopRequested = new Event<[]>()
     /**@private 停止の確定または stop() でメディア資源を解放する際に通知する */

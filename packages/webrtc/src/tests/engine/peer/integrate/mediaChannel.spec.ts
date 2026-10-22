@@ -76,7 +76,9 @@ describe('media', () => {
                         }),
                         new Promise<void>((r) => {
                             const track = new MediaStreamTrack({kind: 'video'})
-                            const transceiver = pc2.addTransceiver(track)
+                            //addTrack: the media of the offer takes its transceiver (RFC 8829 5.10)
+                            const sender = pc2.addTrack(track)
+                            const transceiver = pc2.getTransceivers().find((t) => t.sender === sender)!
                             transceiver.sender.onReady.subscribe(() => {
                                 const rtpPacket = new RtpPacket(
                                     new RtpHeader(),

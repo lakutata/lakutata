@@ -363,6 +363,7 @@ export class TransceiverManager {
                 direction: 'sendrecv',
                 streams
             })
+            transceiver.addedByAddTrack = true
             return transceiver
         }
     }

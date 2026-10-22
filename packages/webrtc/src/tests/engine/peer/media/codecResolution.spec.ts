@@ -726,9 +726,13 @@ describe('codec resolution', () => {
             const answerer = new RTCPeerConnection({
                 codecs: {[kind]: [answerPrimary, answerRed]}
             })
-            const answererTransceiver = answerer.addTransceiver(
+            //addTrack: a media of a remote offer takes its transceiver (RFC 8829 5.10)
+            const answererSender = answerer.addTrack(
                 new MediaStreamTrack({kind, codec: answerPrimary})
             )
+            const answererTransceiver = answerer
+                .getTransceivers()
+                .find((transceiver) => transceiver.sender === answererSender)!
             answererTransceiver.setCodecPreferences([answerRed, answerPrimary])
 
             // 実行: 両側にfixed sourceを持つRED優先のoffer/answerを完了する。
@@ -1084,7 +1088,9 @@ describe('codec resolution', () => {
         const offer = await offerer.createOffer()
         await offerer.setLocalDescription(offer)
         const answerer = new RTCPeerConnection({codecs: {video: [useVP8()]}})
-        const transceiver = answerer.addTransceiver('video')
+        //addTrack: a media of a remote offer takes its transceiver (RFC 8829 5.10)
+        const sender = answerer.addTrack(videoTrack())
+        const transceiver = answerer.getTransceivers().find((each) => each.sender === sender)!
         transceiver.setCodecPreferences([useVP8()])
 
         // 実行: MIME が一致しない remote offer を適用して answer を作る。

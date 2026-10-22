@@ -260,6 +260,9 @@ describe('issue 705: m-line reuse after a confirmed stop', () => {
         const {caller, callee, video} = await createNegotiatedPair()
         const oldCalleeVideo = transceiverByMid(callee, video.mid!)!
         const pendingCalleeVideo = callee.addTransceiver(createTrack('video'))
+        //As one of addTrack (which would take the video not sending yet): a media of a remote offer may take it (RFC
+        //8829 5.10)
+        pendingCalleeVideo.addedByAddTrack = true
 
         try {
             // Act: caller が stop を交渉し、同じ位置を新 MID で再利用する
@@ -300,6 +303,9 @@ describe('issue 705: m-line reuse after a confirmed stop', () => {
         const oldMid = video.mid!
         const oldCalleeVideo = transceiverByMid(callee, oldMid)!
         const pendingCalleeVideo = callee.addTransceiver(createTrack('video'))
+        //As one of addTrack (which would take the video not sending yet): a media of a remote offer may take it (RFC
+        //8829 5.10)
+        pendingCalleeVideo.addedByAddTrack = true
         video.stop()
         await negotiate(caller, callee)
         const calleeTransceiversBefore = [...callee.getTransceivers()]
