@@ -1,6 +1,7 @@
 import type {Transferable} from 'node:worker_threads'
 import type {SignalingDescription, SignalingPeer, SignalingRole, SignalingStream, SignalingCandidate} from '../protocol/SignalingProtocol.js'
 import type {SFUTrack} from './SFU.js'
+import type {SFUOfferedTrack} from './SFURoom.js'
 
 /**
  * The codec of a track published, as the worker thread gives it (the fields of the codec parameters of the engine)
@@ -55,6 +56,7 @@ export type SFUFromWorker =
     | {type: 'emptied', ref: number}
     | {type: 'rtp', ref: number, peerId: string, trackId: string, packet: Uint8Array, extensions?: Record<string, unknown>}
     | {type: 'log', namespace: string, message: string}
+    | {type: 'known', ref: number, tracks: SFUOfferedTrack[]}
 
 /**
  * The reply to a request

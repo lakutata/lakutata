@@ -147,7 +147,9 @@ export class RTCRtpSender {
     readonly kind: Kind
     readonly ssrc = randomBytes(4).readUInt32BE(0)
     readonly rtxSsrc = randomBytes(4).readUInt32BE(0)
-    readonly trackId = randomUUID().toString()
+    //The track id of the MSID (an application forwarding a track sets the one of the track it forwards, before it is
+    //negotiated)
+    trackId = randomUUID().toString()
     readonly onReady = new Event()
     readonly onRtcp = new Event<[RtcpPacket]>()
     readonly onPictureLossIndication = new Event<[]>()

@@ -3,10 +3,16 @@ import assert from 'node:assert'
 import {randomUUID} from 'node:crypto'
 import {Container} from '@lakutata/core'
 import {MediaTrack} from '../peer/MediaTrack.js'
-import type {PeerTrackEvent} from '../peer/PeerConnection.js'
+import {PeerConnection, type PeerTrackEvent} from '../peer/PeerConnection.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
-import type {SFUNode, SFUOptions, SFUPlacement} from '../sfu/SFU.js'
-import {feed, from} from './support/Media.js'
+import type {RtpPacket} from '../peer/RtpPacket.js'
+import type {SFUNode, SFUOptions, SFUPlacement, SFUTrack} from '../sfu/SFU.js'
+import {sfuRooms} from '../sfu/SFUAccess.js'
+import type {SFURoom} from '../sfu/SFURoom.js'
+import type {SignalingPeer} from '../protocol/SignalingProtocol.js'
+import type {WHEPOptions} from '../whep/WHEP.js'
+import type {WHIPOptions} from '../whip/WHIP.js'
+import {feed, from, packets, whipPublisher} from './support/Media.js'
 import {startServer, type TestServer, until} from './support/Server.js'
 
 /**
@@ -17,6 +23,8 @@ type NodeOptions = {
     signalingOnly?: boolean
     labels?: Record<string, string>
     sfu?: SFUOptions
+    whip?: WHIPOptions
+    whep?: WHEPOptions
 }
 
 /**
@@ -28,7 +36,9 @@ async function startNodes(nodes: Record<string, NodeOptions>): Promise<TestServe
     const prefix: string = `test-${randomUUID()}`
     const servers: TestServer[] = await Promise.all(Object.entries(nodes).map(([id, options]: [string, NodeOptions]): Promise<TestServer> => startServer({
         cluster: {transport: {type: 'memory'}, prefix: prefix, nodeId: id, heartbeatInterval: 100, labels: options.labels ?? {}},
-        ...options.signalingOnly ? {} : {sfu: options.sfu ?? {}}
+        ...options.signalingOnly ? {} : {sfu: options.sfu ?? {}},
+        ...options.whip ? {whip: options.whip} : {},
+        ...options.whep ? {whep: options.whep} : {}
     })))
     await until((): boolean => servers.every((server: TestServer): boolean => server.cluster!.nodes().length === servers.length), 5000, 'the nodes')
     //The media servers announced
@@ -177,6 +187,89 @@ describe('SFU in a cluster', (): void => {
             assert.strictEqual(alice.room.peer('bob')!.connection.connectionState, 'connected')
         } finally {
             members.forEach((each: Member): void => each.stop())
+            await clients.destroy()
+            await stopAll(servers)
+        }
+    })
+
+    for (const workers of [0, 2]) it(`forwards the tracks of a room between its nodes, each one once to each node wanting it${workers ? `, forwarding in ${workers} worker threads` : ''}`, {timeout: 90000}, async (): Promise<void> => {
+        //Each member on the node of its zone (the start of its id); bob does not receive carol
+        const selectSFU = (placement: SFUPlacement, nodes: SFUNode[]): string | undefined => nodes.find((node: SFUNode): boolean => node.labels.zone === placement.peerId.split('-')[0])?.id
+        const select = (subscriber: SignalingPeer, track: SFUTrack): boolean => !(subscriber.peerId === 'b-bob' && track.peerId === 'c-carol')
+        const sfu: SFUOptions = {workers: workers, selectSFU: selectSFU, select: select}
+        const servers: TestServer[] = await startNodes({n0: {labels: {zone: 'a'}, sfu: sfu}, n1: {labels: {zone: 'b'}, sfu: sfu}, n2: {labels: {zone: 'c'}, sfu: sfu}})
+        const clients: Container = new Container()
+        const members: Member[] = []
+        try {
+            //Through other nodes than their own
+            members.push(await member(clients, servers[1], 'a-alice', 0))
+            members.push(await member(clients, servers[2], 'b-bob', 100000))
+            members.push(await member(clients, servers[0], 'c-carol', 200000))
+            members.push(await member(clients, servers[0], 'c-dave', 300000))
+            const [alice, bob, carol, dave] = members
+            assert.deepStrictEqual(members.map((each: Member): string | undefined => each.room.sfu), ['sfu:n0', 'sfu:n1', 'sfu:n2', 'sfu:n2'])
+            await until((): boolean => alice.received.size === 3 && bob.received.size === 2 && carol.received.size === 3 && dave.received.size === 3, 30000, 'the tracks of the others')
+            assert.ok(await from(alice.received.get('c-carol')![0].track, 200000), 'carol at alice')
+            assert.ok(await from(alice.received.get('b-bob')![0].track, 100000), 'bob at alice')
+            assert.ok(await from(carol.received.get('a-alice')![0].track, 0), 'alice at carol')
+            assert.ok(await from(carol.received.get('c-dave')![0].track, 300000), 'dave at carol, on the same node')
+            assert.ok(await from(bob.received.get('c-dave')![0].track, 300000), 'dave at bob')
+            assert.ok(!bob.received.has('c-carol'), 'carol is not sent to bob')
+            //The member, its stream and its track as on the node publishing it
+            const event: PeerTrackEvent = dave.received.get('a-alice')![0]
+            assert.deepStrictEqual(dave.room.streamOf(event.streams[0].id), {id: event.streams[0].id, peerId: 'a-alice', stream: 'camera'})
+            if (!workers) {
+                //Each track once to each node wanting it: alice once to n2 for carol and dave, carol not to n1
+                const cascades = (index: number): Record<string, {sends: number, receives: number}> => (sfuRooms.get(servers[index].sfu!)!.get('meeting') as SFURoom).cascades()
+                await until((): boolean => cascades(2)['sfu:n1']?.sends === 1, 10000, 'the tracks n2 sends to n1')
+                assert.deepStrictEqual(cascades(0), {'sfu:n1': {sends: 1, receives: 1}, 'sfu:n2': {sends: 1, receives: 2}})
+                assert.deepStrictEqual(cascades(1), {'sfu:n0': {sends: 1, receives: 1}, 'sfu:n2': {sends: 1, receives: 1}})
+                assert.deepStrictEqual(cascades(2), {'sfu:n0': {sends: 2, receives: 1}, 'sfu:n1': {sends: 1, receives: 1}})
+            }
+            //Dave leaves: his video stops on the other nodes, n2 sends nothing more to n1
+            const atAlice = alice.received.get('c-dave')![0].transceiver
+            dave.stop()
+            await dave.room.leave()
+            members.pop()
+            await until((): boolean => atAlice.currentDirection === 'inactive', 10000, 'the video of dave stopped at alice')
+            if (!workers) await until((): boolean => (sfuRooms.get(servers[2].sfu!)!.get('meeting') as SFURoom).cascades()['sfu:n1']?.sends === 0, 10000, 'nothing sent to n1')
+        } finally {
+            members.forEach((each: Member): void => each.stop())
+            await clients.destroy()
+            await stopAll(servers)
+        }
+    })
+
+    for (const workers of [0, 2]) it(`plays on a node a stream published with WHIP on another one, and reads it there${workers ? `, forwarding in ${workers} worker threads` : ''}`, {timeout: 90000}, async (): Promise<void> => {
+        const servers: TestServer[] = await startNodes({n0: {sfu: {workers: workers}, whip: {}, whep: {}}, n1: {sfu: {workers: workers}, whip: {}, whep: {}}})
+        const clients: Container = new Container()
+        const stops: (() => void)[] = []
+        try {
+            const publisher = await whipPublisher(clients, `${servers[0].http}/whip/live`, 500000)
+            stops.push(publisher.stop)
+            await until((): boolean => servers[0].sfu!.rooms().live?.tracks.length === 2, 10000, 'the tracks of the stream')
+            const video: SFUTrack = servers[0].sfu!.rooms().live.tracks.find((track: SFUTrack): boolean => track.kind === 'video')!
+            //A viewer of n1: n1 receives the stream from n0
+            const viewer: PeerConnection = await clients.get(PeerConnection, {iceAdditionalHostAddresses: ['127.0.0.1']})
+            const tracks: Map<string, MediaTrack> = new Map()
+            viewer.addEventListener('track', (event: PeerTrackEvent): unknown => tracks.set(event.track.kind, event.track))
+            viewer.addTransceiver('audio', {direction: 'recvonly'})
+            viewer.addTransceiver('video', {direction: 'recvonly'})
+            await viewer.setLocalDescription()
+            await until((): boolean => viewer.iceGatheringState === 'complete', 10000, 'the candidates')
+            const response: Response = await fetch(`${servers[1].http}/whep/live`, {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: viewer.localDescription!.sdp})
+            assert.strictEqual(response.status, 201)
+            await viewer.setRemoteDescription({type: 'answer', sdp: await response.text()})
+            await until((): boolean => tracks.has('video'), 10000, 'the video of the viewer')
+            assert.ok(await from(tracks.get('video')!, 500000), 'the stream at the viewer of n1')
+            assert.strictEqual(servers[1].whep!.sessions[0].source, video.peerId)
+            //Read on n1
+            const read: MediaTrack | undefined = servers[1].sfu!.track('live', video.peerId, video.id)
+            assert.ok(read, 'the track on n1')
+            assert.ok((await packets(read!, 5)).every((packet: RtpPacket): boolean => packet.payload.readUInt32BE(0) >= 500000), 'the packets read on n1')
+            viewer.close()
+        } finally {
+            stops.forEach((stop: () => void): void => stop())
             await clients.destroy()
             await stopAll(servers)
         }

@@ -9,7 +9,7 @@ import {PeerConnection} from '../peer/PeerConnection.js'
 import type {SignalingJoinResult, SignalingPeer, SignalingRole} from '../protocol/SignalingProtocol.js'
 import type {SignalingReceiver} from '../signaling/Signaling.js'
 import type {SFUTrack} from './SFU.js'
-import {type SFUHost, SFURoom} from './SFURoom.js'
+import {type SFUHost, type SFUOfferedTrack, SFURoom} from './SFURoom.js'
 import {type SFUFromWorker, type SFUToWorker, SFUWorkerChannel, type SFUWorkerMedia} from './SFUWorkerChannel.js'
 
 /**
@@ -113,7 +113,8 @@ export function runSFUWorker(): void {
         },
         emptied: (): void => channel.post({type: 'emptied', ref: ref}),
         changed: (room: SFURoom): void => channel.post({type: 'state', ref: ref, members: room.members, viewers: room.viewers}),
-        sourced: (viewerId: string, source: string | undefined): void => channel.post({type: 'source', leg: viewerId, source: source})
+        sourced: (viewerId: string, source: string | undefined): void => channel.post({type: 'source', leg: viewerId, source: source}),
+        known: (_room: SFURoom, tracks: SFUOfferedTrack[]): void => channel.post({type: 'known', ref: ref, tracks: tracks})
     })
 
     const handle = async (message: SFUToWorker): Promise<unknown> => {

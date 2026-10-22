@@ -1,12 +1,14 @@
+import {RTCRtpCodecParameters} from '../lib/peer/media/parameters.js'
 import type {RTCRtpTransceiver} from '../lib/peer/media/rtpTransceiver.js'
 import type {RTCPeerConnection} from '../lib/peer/peerConnection.js'
 import type {RTCSctpTransport} from '../lib/peer/transport/sctp.js'
+import type {Extensions, RtpPacket as EngineRtpPacket} from '../lib/rtp/index.js'
 import {engineChannelOf, engineConnectionOf} from '../peer/EngineConnection.js'
-import type {MediaKind, MediaTrack} from '../peer/MediaTrack.js'
+import {engineTrackOf, type MediaKind, type MediaTrack, relayedTrack} from '../peer/MediaTrack.js'
 import {type EndpointLeg, gathered, patchConnection} from '../peer/Endpoints.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
 import type {PeerConnection, PeerTrackEvent} from '../peer/PeerConnection.js'
-import type {RtpTransceiver} from '../peer/RtpTransceiver.js'
+import {engineSenderOf, type RtpTransceiver} from '../peer/RtpTransceiver.js'
 import {
     type SignalingCandidate,
     SignalingControlChannel,
@@ -24,6 +26,7 @@ import {
 import {Peer, type PeerHost, type PeerSignal} from '../shared/Peer.js'
 import type {SignalingReceiver} from '../signaling/Signaling.js'
 import type {SFUTrack} from './SFU.js'
+import type {SFUWorkerCodec} from './SFUWorkerChannel.js'
 
 /**
  * What a room needs of the signaling (the Signaling component, or its proxy in a worker thread)
@@ -52,6 +55,35 @@ export interface SFUHost {
     changed?(room: SFURoom): void
     //The source of a viewer changed
     sourced?(viewerId: string, source: string | undefined): void
+    //The tracks the media servers of the other nodes offer in the room changed
+    known?(room: SFURoom, tracks: SFUOfferedTrack[]): void
+}
+
+/**
+ * A track a media server offers the ones of the other nodes of its room: a track published by one of its members, and
+ * the codec of its packets
+ */
+export interface SFUOfferedTrack {
+    readonly track: SFUTrack
+    readonly codec?: SFUWorkerCodec
+}
+
+/**
+ * The messages between the media servers of the nodes of a room, on the control channel of their connection: the
+ * tracks of the members of each (all of them each time), and the ones each wants of the other (their keys, all of
+ * them each time)
+ */
+type CascadeMessage =
+    | {type: 'tracks', tracks: SFUOfferedTrack[]}
+    | {type: 'want', keys: string[]}
+
+/**
+ * The key of a track: its member and its id
+ * @param peerId
+ * @param trackId
+ */
+function trackKey(peerId: string, trackId: string): string {
+    return JSON.stringify([peerId, trackId])
 }
 
 /**
@@ -85,6 +117,37 @@ interface Publication {
     //Its transceiver on the connection of the member
     readonly transceiver: RtpTransceiver
     readonly publisher: Member
+    //Received from the media server of another node (a member of that node publishes it): not sent to other nodes
+    readonly remote: boolean
+}
+
+/**
+ * The media server of another node in the room, as a member: what it offers, what it wants of this node
+ */
+interface Cascade {
+    //Its tracks, by key
+    offered: Map<string, SFUOfferedTrack>
+    //The keys of the tracks of this node it wants
+    wanted: Set<string>
+    //The streams it sends, by their id on the connection (its descriptions carry them)
+    readonly received: Map<string, SignalingStream>
+    //What it was told last (as JSON): the tracks of this node, the ones this node wants
+    toldTracks?: string
+    toldWants?: string
+    //Whether a message of it came: told again then, in case it had no channel yet for the first ones
+    heard?: boolean
+}
+
+/**
+ * A track of another node read here (`sfu.track()`): received from that node while it is read
+ */
+interface Read {
+    readonly track: MediaTrack
+    readonly receive: (packet: EngineRtpPacket, extensions?: Extensions) => void
+    wanted: boolean
+    //The publication its packets come from, and the end of their piping
+    source?: Publication
+    unpipe?: () => void
 }
 
 /**
@@ -126,6 +189,8 @@ interface Member {
     //The transceivers the server created to send to it
     readonly transceivers: Set<RtpTransceiver>
     control?: PeerChannel
+    //The media server of another node
+    readonly cascade?: Cascade
 }
 
 /**
@@ -230,6 +295,15 @@ export class SFURoom implements SFUServedRoom {
     //The transports whose bandwidth is watched
     readonly #watched: WeakSet<object> = new WeakSet()
 
+    //The clients connected to the media servers of other nodes, and the id of their server
+    readonly #elsewhere: Map<string, string> = new Map()
+
+    //What select answered for each member (by its id) and each track of the other nodes (by key)
+    readonly #selected: Map<string, Map<string, boolean>> = new Map()
+
+    //The tracks of other nodes read here, by key
+    readonly #reads: Map<string, Read> = new Map()
+
     #closed: boolean = false
 
     /**
@@ -257,7 +331,7 @@ export class SFURoom implements SFUServedRoom {
      * Whether the room has no member and no viewer left.
      */
     public get empty(): boolean {
-        return !this.#members.size && !this.#viewers.size
+        return !this.members.length && !this.#viewers.size
     }
 
     /**
@@ -275,30 +349,58 @@ export class SFURoom implements SFUServedRoom {
     }
 
     /**
-     * The ids of the members.
+     * The ids of the members of this node (the media servers of the other nodes are not counted).
      */
     public get members(): string[] {
-        return [...this.#members.keys()]
+        return [...this.#members.values()].filter((member: Member): boolean => !member.cascade).map((member: Member): string => member.id)
     }
 
     /**
-     * The tracks published.
+     * The tracks the members of this node publish.
      */
     public get tracks(): SFUTrack[] {
-        return [...this.#publications].map((publication: Publication): SFUTrack => publication.track)
+        return [...this.#publications].filter((publication: Publication): boolean => !publication.remote).map((publication: Publication): SFUTrack => publication.track)
     }
 
     /**
-     * A track published, received from its member.
+     * A track published in the room: received from its member, or from the media server of its node while it is read.
      * @param peerId The member.
      * @param trackId The id of the track.
      * @returns The track, or undefined when it is not published.
      */
     public track(peerId: string, trackId: string): MediaTrack | undefined {
         for (const publication of this.#publications) {
-            if (publication.track.peerId === peerId && publication.track.id === trackId) return publication.media
+            if (!publication.remote && publication.track.peerId === peerId && publication.track.id === trackId) return publication.media
         }
-        return undefined
+        const key: string = trackKey(peerId, trackId)
+        const offered: SFUOfferedTrack | undefined = this.#offered(key)
+        if (!offered) return undefined
+        let read: Read | undefined = this.#reads.get(key)
+        if (!read) {
+            const codec: SFUWorkerCodec = offered.codec ?? {mimeType: offered.track.codec, clockRate: offered.track.kind === 'audio' ? 48000 : 90000}
+            const relayed = relayedTrack(offered.track.kind, new RTCRtpCodecParameters(codec), trackId, {
+                requestKeyFrame: (): void => this.#remotePublication(key)?.media.requestKeyFrame(),
+                wanted: (wanted: boolean): void => {
+                    const current: Read | undefined = this.#reads.get(key)
+                    if (!current) return
+                    current.wanted = wanted
+                    this.#pipe(key)
+                    this.#tellWants()
+                }
+            })
+            read = {track: relayed.track, receive: relayed.receive, wanted: false}
+            this.#reads.set(key, read)
+        }
+        return read.track
+    }
+
+    /**
+     * The connections to the media servers of the other nodes: the tracks sent on each, the ones received (for the
+     * tests).
+     * @returns By the id of the member of each server.
+     */
+    public cascades(): Record<string, {sends: number, receives: number}> {
+        return Object.fromEntries([...this.#members.values()].filter((member: Member): boolean => !!member.cascade).map((member: Member): [string, {sends: number, receives: number}] => [member.id, {sends: member.subscriptions.size, receives: member.publications.size}]))
     }
 
     /**
@@ -310,6 +412,7 @@ export class SFURoom implements SFUServedRoom {
         this.#closed = true
         for (const member of [...this.#members.values()]) this.#remove(member)
         for (const viewer of [...this.#viewers.values()]) this.#stop(viewer)
+        for (const key of [...this.#reads.keys()]) this.#endRead(key)
         await this.#host.signaling.leave(this.#host.id, this.name).catch((): void => undefined)
     }
 
@@ -387,20 +490,25 @@ export class SFURoom implements SFUServedRoom {
      */
     async #refeed(viewer: Viewer): Promise<void> {
         if (viewer.leg.closed) return
-        const selected: string | undefined = viewer.select ? await viewer.select(this.tracks) : undefined
+        //The tracks of the members of this node, then the ones of the other nodes
+        const tracks: SFUTrack[] = [...this.tracks, ...[...this.#offeredTracks()].map((offered: SFUOfferedTrack): SFUTrack => offered.track)]
+        const selected: string | undefined = viewer.select ? await viewer.select(tracks) : undefined
         if (viewer.leg.closed) return
-        const publishing: Member[] = [...this.#members.values()].filter((member: Member): boolean => member.publications.size > 0)
+        const publishers: string[] = [...new Set(tracks.map((track: SFUTrack): string => track.peerId))]
         const chosen: string | undefined = selected
-            ?? publishing.filter((member: Member): boolean => !member.peer).at(-1)?.id
-            ?? publishing[0]?.id
-        const source: Member | undefined = chosen === undefined ? undefined : this.#members.get(chosen)
+            ?? publishers.filter((id: string): boolean => id.startsWith('whip:')).at(-1)
+            ?? publishers[0]
         const before: string | undefined = viewer.source
-        viewer.source = source?.publications.size ? source.id : undefined
-        if (viewer.source !== before) this.#host.sourced?.(viewer.id, viewer.source)
+        viewer.source = chosen !== undefined && publishers.includes(chosen) ? chosen : undefined
+        if (viewer.source !== before) {
+            this.#host.sourced?.(viewer.id, viewer.source)
+            //The tracks of a source of another node come from that node
+            this.#tellWants()
+        }
         for (const [kind, transceiver] of viewer.transceivers) {
             const publication: Publication | undefined = viewer.source === undefined
                 ? undefined
-                : [...source!.publications.values()].find((each: Publication): boolean => each.track.kind === kind)
+                : [...this.#publications].find((each: Publication): boolean => each.track.peerId === viewer.source && each.track.kind === kind)
             if (viewer.attached.get(kind) === publication) continue
             viewer.attached.delete(kind)
             try {
@@ -499,7 +607,23 @@ export class SFURoom implements SFUServedRoom {
             role: 'sfu',
             receive: (event: string, payload: unknown): void => this.#receive(event, payload)
         })
-        for (const peer of result.peers) if (this.#serves(peer)) this.#add(peer.peerId, peer.metadata, peer.session)
+        for (const peer of result.peers) {
+            if (this.#serves(peer)) this.#add(peer.peerId, peer.metadata, peer.session)
+            else this.#elsewhereJoined(peer)
+        }
+    }
+
+    /**
+     * A member of the room this server does not serve: the media server of another node (connected to), or a client of
+     * one
+     * @param peer
+     */
+    #elsewhereJoined(peer: SignalingPeer): void {
+        if (peer.role === 'sfu') {
+            if (peer.peerId !== this.#host.id && !this.#members.has(peer.peerId)) this.#cascade(peer.peerId)
+        } else if (!peer.role && peer.sfu) {
+            this.#elsewhere.set(peer.peerId, peer.sfu)
+        }
     }
 
     /**
@@ -521,13 +645,14 @@ export class SFURoom implements SFUServedRoom {
         switch (event) {
             case SignalingEvent.peerJoined: {
                 const joined: SignalingPeerEvent = payload as SignalingPeerEvent
-                if (joined.role) return
                 const member: Member | undefined = this.#members.get(joined.peerId)
-                //Joined again through the media server of another node
                 if (!this.#serves(joined)) {
-                    if (member?.peer) this.#remove(member)
+                    //A client joining again through the media server of another node
+                    if (!joined.role && member?.peer) this.#remove(member)
+                    this.#elsewhereJoined(joined)
                     return
                 }
+                this.#elsewhere.delete(joined.peerId)
                 //A new client behind the same id: its old connection is useless
                 if (member && joined.session !== undefined && member.session !== joined.session) this.#remove(member)
                 if (member && this.#members.get(joined.peerId) === member) {
@@ -538,13 +663,22 @@ export class SFURoom implements SFUServedRoom {
                 return
             }
             case SignalingEvent.peerLeft: {
-                const member: Member | undefined = this.#members.get((payload as SignalingPeerLeftEvent).peerId)
+                const peerId: string = (payload as SignalingPeerLeftEvent).peerId
+                this.#elsewhere.delete(peerId)
+                const member: Member | undefined = this.#members.get(peerId)
                 if (member) this.#remove(member)
                 return
             }
             case SignalingEvent.signal: {
                 const signal: SignalingSignalEvent = payload as SignalingSignalEvent
-                const member: Member = this.#members.get(signal.from) ?? this.#add(signal.from, undefined, signal.session)
+                let member: Member | undefined = this.#members.get(signal.from)
+                if (!member) {
+                    //A client of another media server (a signal still on its way when it moved) is not taken
+                    if (this.#elsewhere.has(signal.from)) return
+                    member = signal.from.startsWith('sfu:') ? this.#cascade(signal.from) : this.#add(signal.from, undefined, signal.session)
+                }
+                //The streams of the media server of another node: the members they come from
+                if (member.cascade) for (const stream of signal.streams ?? []) member.cascade.received.set(stream.id, stream)
                 const received: PeerSignal = {}
                 if (signal.description) received.description = signal.description
                 if (signal.candidate) received.candidate = signal.candidate
@@ -584,6 +718,8 @@ export class SFURoom implements SFUServedRoom {
         }
         this.#members.set(id, member)
         this.#host.changed?.(this)
+        //The tracks of the other nodes it may receive
+        this.#evaluate()
         //A failed negotiation is the member's (it left meanwhile, it sent a wrong description)
         peer.on('error', (): void => undefined)
         peer.on('track', (event: PeerTrackEvent): void => this.#published(member, event))
@@ -647,6 +783,14 @@ export class SFURoom implements SFUServedRoom {
         member.leg.close()
         //A stream published with WHIP leaves the signaling (before the server, when it was the last one)
         if (!member.peer) this.#host.signaling.leave(member.id, this.name).catch((): void => undefined)
+        if (member.cascade) {
+            //Its tracks are not offered any more
+            for (const key of member.cascade.offered.keys()) this.#endRead(key)
+            if (!this.#closed) this.#knownChanged()
+        } else {
+            this.#selected.delete(member.id)
+            if (!this.#closed) this.#tellWants()
+        }
         if (!this.#closed) this.#host.changed?.(this)
         if (!this.#closed && this.empty) this.#host.emptied(this)
     }
@@ -671,6 +815,11 @@ export class SFURoom implements SFUServedRoom {
     #offer(member: Member, publication: Publication): void {
         //A stream published with WHIP receives nothing
         if (member === publication.publisher || !member.peer || member.leg.closed) return
+        //The media server of another node: the tracks of the members of this node it wants
+        if (member.cascade) {
+            if (!publication.remote && member.cascade.wanted.has(trackKey(publication.track.peerId, publication.track.id))) this.#subscribe(member, publication).catch((): void => undefined)
+            return
+        }
         const subscriber: SignalingPeer = {peerId: member.id, metadata: member.metadata, session: member.session}
         const selected: boolean | Promise<boolean> = this.#host.select(subscriber, publication.track)
         if (typeof selected === 'boolean') {
@@ -696,18 +845,32 @@ export class SFURoom implements SFUServedRoom {
         const previous: Publication | undefined = member.publications.get(event.transceiver)
         if (previous) this.#unpublished(previous)
         const engine: RTCRtpTransceiver | undefined = engineTransceiverOf(member.leg.connection, event.transceiver)
+        let peerId: string = member.id
+        let stream: string = event.streams[0]?.id ?? ''
+        if (member.cascade) {
+            //A track of a member of another node: its member and its stream are the ones of the streams of its server
+            const origin: SignalingStream | undefined = member.cascade.received.get(stream)
+            if (!origin) return
+            peerId = origin.peerId
+            stream = origin.stream
+        }
         const track: SFUTrack = {
             room: this.name,
-            peerId: member.id,
+            peerId: peerId,
             id: engine?.receiver.remoteTrackId ?? event.transceiver.mid ?? event.track.id,
             kind: event.track.kind as MediaKind,
             codec: event.track.codec ?? '',
-            stream: event.streams[0]?.id ?? ''
+            stream: stream
         }
-        const publication: Publication = {track: track, media: event.track, transceiver: event.transceiver, publisher: member}
+        const publication: Publication = {track: track, media: event.track, transceiver: event.transceiver, publisher: member, remote: !!member.cascade}
         member.publications.set(event.transceiver, publication)
         this.#publications.add(publication)
-        this.#host.emit('publish', track)
+        if (publication.remote) {
+            this.#pipe(trackKey(track.peerId, track.id))
+        } else {
+            this.#host.emit('publish', track)
+            this.#tellTracks()
+        }
         for (const other of this.#members.values()) this.#offer(other, publication)
         for (const viewer of this.#viewers.values()) void this.#feed(viewer)
     }
@@ -720,7 +883,12 @@ export class SFURoom implements SFUServedRoom {
         if (!this.#publications.delete(publication)) return
         if (publication.publisher.publications.get(publication.transceiver) === publication) publication.publisher.publications.delete(publication.transceiver)
         for (const member of this.#members.values()) this.#unsubscribe(member, publication)
-        this.#host.emit('unpublish', publication.track)
+        if (publication.remote) {
+            this.#pipe(trackKey(publication.track.peerId, publication.track.id))
+        } else {
+            this.#host.emit('unpublish', publication.track)
+            this.#tellTracks()
+        }
         for (const viewer of this.#viewers.values()) void this.#feed(viewer)
     }
 
@@ -743,11 +911,14 @@ export class SFURoom implements SFUServedRoom {
             && engineTransceiverOf(connection, transceiver)?.sender.codec?.mimeType.toLowerCase() === publication.track.codec.toLowerCase())
         if (!reusable) {
             const transceiver: RtpTransceiver = connection.addTransceiver(publication.media, {direction: 'sendonly', streams: [stream]})
+            //The media server of another node takes the id of the track from its MSID, before it is negotiated
+            if (member.cascade) engineSenderOf(transceiver.sender).trackId = publication.track.id
             member.transceivers.add(transceiver)
             member.subscriptions.set(publication, {transceiver: transceiver, started: false, paused: false})
             return
         }
         member.subscriptions.set(publication, {transceiver: reusable, started: false, paused: false})
+        if (member.cascade) engineSenderOf(reusable.sender).trackId = publication.track.id
         await reusable.sender.replaceTrack(publication.media)
         reusable.sender.setStreams(stream)
         reusable.direction = 'sendonly'
@@ -823,6 +994,7 @@ export class SFURoom implements SFUServedRoom {
         } catch {
             return
         }
+        if (member.cascade) return this.#cascaded(member, member.cascade, message as unknown as CascadeMessage)
         if (message?.type !== 'pause' && message?.type !== 'resume') return
         for (const [publication, subscription] of member.subscriptions) {
             if (subscription.transceiver.mid !== message.mid) continue
@@ -833,6 +1005,229 @@ export class SFURoom implements SFUServedRoom {
             if (!paused && publication.track.kind === 'video') publication.media.requestKeyFrame()
             return
         }
+    }
+
+    /**
+     * Connect to the media server of another node in the room: the one of the lower id offers first and does not give
+     * up its offers; their control channel carries the tracks of each node and the ones each wants of the other
+     * @param id The id of the member of that server.
+     */
+    #cascade(id: string): Member {
+        const peerHost: PeerHost<PeerConnection> = {
+            localId: this.#host.id,
+            create: (): Promise<PeerConnection> => this.#host.connect(),
+            send: (_to: string, signal: PeerSignal): Promise<void> => this.#signal(member, signal),
+            signalingUp: true,
+            closed: (): void => undefined,
+            polite: this.#host.id > id
+        }
+        const peer: Peer<PeerConnection> = new Peer<PeerConnection>(peerHost, id, undefined, undefined)
+        const cascade: Cascade = {offered: new Map(), wanted: new Set(), received: new Map()}
+        const member: Member = {
+            id: id,
+            leg: peer,
+            peer: peer,
+            metadata: undefined,
+            publications: new Map(),
+            subscriptions: new Map(),
+            streams: new Map(),
+            streamIds: new Map(),
+            transceivers: new Set(),
+            cascade: cascade
+        }
+        this.#members.set(id, member)
+        peer.on('error', (): void => undefined)
+        peer.on('track', (event: PeerTrackEvent): void => this.#published(member, event))
+        peer.on('datachannel', (channel: PeerChannel): void => this.#opened(member, channel))
+        //The polite side waits for the first offer of the other one
+        peer.ready.then((): Promise<void> | undefined => peer.polite ? peer.negotiated : undefined).then((): void => {
+            if (peer.closed) return
+            const connection: PeerConnection = peer.connection
+            connection.on('signalingstatechange', (state: string): void => {
+                if (state === 'stable') setImmediate((): void => this.#negotiated(member))
+            })
+            const control: PeerChannel = connection.createDataChannel(SignalingControlChannel.label, {negotiated: true, id: SignalingControlChannel.id})
+            control.on('message', (data: string | Buffer | ArrayBuffer): void => this.#controlled(member, data))
+            //What it was told before is lost with a channel not open
+            control.on('open', (): void => {
+                cascade.toldTracks = undefined
+                cascade.toldWants = undefined
+                this.#tellTracks()
+                this.#tellWants()
+            })
+            member.control = control
+        }, (): void => this.#remove(member))
+        return member
+    }
+
+    /**
+     * A message of the media server of another node
+     * @param member
+     * @param cascade
+     * @param message
+     */
+    #cascaded(member: Member, cascade: Cascade, message: CascadeMessage): void {
+        if (!cascade.heard) {
+            cascade.heard = true
+            cascade.toldTracks = undefined
+            cascade.toldWants = undefined
+            this.#tellTracks()
+            this.#tellWants()
+        }
+        if (message?.type === 'tracks' && Array.isArray(message.tracks)) {
+            const before: Map<string, SFUOfferedTrack> = cascade.offered
+            cascade.offered = new Map(message.tracks
+                .filter((offered: SFUOfferedTrack): boolean => typeof offered?.track?.peerId === 'string' && typeof offered.track.id === 'string')
+                .map((offered: SFUOfferedTrack): [string, SFUOfferedTrack] => [trackKey(offered.track.peerId, offered.track.id), {track: {...offered.track, room: this.name}, ...offered.codec ? {codec: offered.codec} : {}}]))
+            for (const key of before.keys()) if (!cascade.offered.has(key)) this.#endRead(key)
+            this.#knownChanged()
+            this.#evaluate()
+            for (const viewer of this.#viewers.values()) void this.#feed(viewer)
+        } else if (message?.type === 'want' && Array.isArray(message.keys)) {
+            cascade.wanted = new Set(message.keys.filter((key: unknown): boolean => typeof key === 'string'))
+            for (const publication of [...this.#publications]) {
+                if (publication.remote) continue
+                if (cascade.wanted.has(trackKey(publication.track.peerId, publication.track.id))) this.#offer(member, publication)
+                else this.#unsubscribe(member, publication)
+            }
+        }
+    }
+
+    /**
+     * The tracks the media servers of the other nodes offer
+     */
+    * #offeredTracks(): Generator<SFUOfferedTrack> {
+        for (const member of this.#members.values()) if (member.cascade) yield* member.cascade.offered.values()
+    }
+
+    /**
+     * A track another node offers
+     * @param key
+     */
+    #offered(key: string): SFUOfferedTrack | undefined {
+        for (const member of this.#members.values()) {
+            const offered: SFUOfferedTrack | undefined = member.cascade?.offered.get(key)
+            if (offered) return offered
+        }
+        return undefined
+    }
+
+    /**
+     * A track of another node received here
+     * @param key
+     */
+    #remotePublication(key: string): Publication | undefined {
+        for (const publication of this.#publications) {
+            if (publication.remote && trackKey(publication.track.peerId, publication.track.id) === key) return publication
+        }
+        return undefined
+    }
+
+    /**
+     * The tracks the other nodes offer changed: the thread forwarding the room tells the main thread
+     */
+    #knownChanged(): void {
+        this.#host.known?.(this, [...this.#offeredTracks()])
+    }
+
+    /**
+     * Tell the media servers of the other nodes the tracks of the members of this node
+     */
+    #tellTracks(): void {
+        const tracks: SFUOfferedTrack[] = [...this.#publications].filter((publication: Publication): boolean => !publication.remote).map((publication: Publication): SFUOfferedTrack => {
+            const codec = engineTrackOf(publication.media).codec
+            return {track: publication.track, ...codec ? {codec: {payloadType: codec.payloadType, mimeType: codec.mimeType, clockRate: codec.clockRate, channels: codec.channels, parameters: codec.parameters}} : {}}
+        })
+        const told: string = JSON.stringify({type: 'tracks', tracks: tracks})
+        for (const member of this.#members.values()) {
+            if (!member.cascade || member.control?.readyState !== 'open' || member.cascade.toldTracks === told) continue
+            member.cascade.toldTracks = told
+            member.control.send(told)
+        }
+    }
+
+    /**
+     * Tell the media servers of the other nodes the tracks of theirs this node wants: the ones a member of this node is
+     * selected for, the ones of the source of a viewer, the ones read here
+     */
+    #tellWants(): void {
+        if (this.#closed) return
+        const sources: Set<string> = new Set([...this.#viewers.values()].map((viewer: Viewer): string | undefined => viewer.source).filter((source: string | undefined): source is string => source !== undefined))
+        for (const member of this.#members.values()) {
+            const cascade: Cascade | undefined = member.cascade
+            if (!cascade || member.control?.readyState !== 'open') continue
+            const keys: string[] = []
+            for (const [key, {track}] of cascade.offered) {
+                const selected: boolean = [...this.#members.values()].some((each: Member): boolean => !!each.peer && !each.cascade && !each.leg.closed && each.id !== track.peerId && this.#selected.get(each.id)?.get(key) === true)
+                if (selected || sources.has(track.peerId) || this.#reads.get(key)?.wanted) keys.push(key)
+            }
+            const told: string = JSON.stringify({type: 'want', keys: keys.sort()})
+            if (cascade.toldWants === told) continue
+            cascade.toldWants = told
+            member.control.send(told)
+        }
+    }
+
+    /**
+     * Ask select for the members of this node and the tracks of the other nodes not asked yet; the tracks wanted follow
+     * the answers
+     */
+    #evaluate(): void {
+        for (const member of this.#members.values()) {
+            if (!member.peer || member.cascade) continue
+            let selected: Map<string, boolean> | undefined = this.#selected.get(member.id)
+            if (!selected) {
+                selected = new Map()
+                this.#selected.set(member.id, selected)
+            }
+            const answers: Map<string, boolean> = selected
+            for (const offered of this.#offeredTracks()) {
+                const key: string = trackKey(offered.track.peerId, offered.track.id)
+                if (answers.has(key) || offered.track.peerId === member.id) continue
+                const answer: boolean | Promise<boolean> = this.#host.select({peerId: member.id, metadata: member.metadata, session: member.session}, offered.track)
+                if (typeof answer === 'boolean') {
+                    answers.set(key, answer)
+                    continue
+                }
+                //Not wanted until it answers
+                answers.set(key, false)
+                answer.then((yes: boolean): void => {
+                    if (!yes || this.#selected.get(member.id) !== answers) return
+                    answers.set(key, true)
+                    this.#tellWants()
+                }, (): void => undefined)
+            }
+        }
+        this.#tellWants()
+    }
+
+    /**
+     * Give a track of another node read here its packets, while it is read and received
+     * @param key
+     */
+    #pipe(key: string): void {
+        const read: Read | undefined = this.#reads.get(key)
+        if (!read) return
+        const source: Publication | undefined = read.wanted ? this.#remotePublication(key) : undefined
+        if (read.source === source) return
+        read.unpipe?.()
+        read.unpipe = undefined
+        read.source = source
+        if (!source) return
+        read.unpipe = engineTrackOf(source.media).onReceiveRtp.subscribe((packet: EngineRtpPacket, extensions?: Extensions): void => read.receive(packet, extensions)).unSubscribe
+        if (source.track.kind === 'video') source.media.requestKeyFrame()
+    }
+
+    /**
+     * A track of another node is not offered any more: the track read here ends
+     * @param key
+     */
+    #endRead(key: string): void {
+        const read: Read | undefined = this.#reads.get(key)
+        if (!read) return
+        this.#reads.delete(key)
+        read.unpipe?.()
+        read.track.stop()
     }
 
     /**

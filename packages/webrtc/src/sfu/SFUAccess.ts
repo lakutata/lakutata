@@ -1,7 +1,7 @@
 import type {EndpointLeg} from '../peer/Endpoints.js'
 import type {SignalingDescription} from '../protocol/SignalingProtocol.js'
 import type {SFU} from './SFU.js'
-import type {SFUViewerSelect} from './SFURoom.js'
+import type {SFUServedRoom, SFUViewerSelect} from './SFURoom.js'
 import type {SFUWorkers} from './SFUWorkers.js'
 
 /**
@@ -38,3 +38,8 @@ export const sfuAccess: WeakMap<SFU, SFUAccess> = new WeakMap()
  * The worker threads of each media server forwarding in some (for the tests)
  */
 export const sfuWorkers: WeakMap<SFU, SFUWorkers> = new WeakMap()
+
+/**
+ * The rooms of each media server (for the tests)
+ */
+export const sfuRooms: WeakMap<SFU, Map<string, SFUServedRoom>> = new WeakMap()

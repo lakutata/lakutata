@@ -10,7 +10,7 @@ import type {SignalingDescription, SignalingPeer} from '../protocol/SignalingPro
 import {MEDIA_SERVER_ASSIGN_TOPIC, MEDIA_SERVER_SERVICE, type MediaServerLoad, type MediaServerReply, mediaServers} from '../signaling/MediaServers.js'
 import type {Signaling} from '../signaling/Signaling.js'
 import type {EndpointLeg} from '../peer/Endpoints.js'
-import {sfuAccess, sfuWorkers} from './SFUAccess.js'
+import {sfuAccess, sfuRooms, sfuWorkers} from './SFUAccess.js'
 import {type SFUHost, SFURoom, type SFUServedRoom, type SFUViewerSelect} from './SFURoom.js'
 import {SFUWorkers} from './SFUWorkers.js'
 
@@ -214,7 +214,8 @@ export interface SFUOptions {
  * member receiving the messages of a channel slower than they are sent makes the sender wait, without the server
  * keeping more than a few megabytes of them.
  *
- * Events: `publish` and `unpublish` (an {@link SFUTrack}) when a member starts and stops publishing a track,
+ * Events: `publish` and `unpublish` (an {@link SFUTrack}) when a member of this node starts and stops publishing a
+ * track (with a cluster, they are emitted on the node of the member only),
  * `unsupported` (the room, the id of the member or of the viewer of WHEP, the track) when a member or a viewer does not
  * support the codec of a track it should receive, `congestion` (the room, the id of the member, whether it is
  * congested, the bit rate estimated) when the bandwidth to a member is too low, and when it is enough again.
@@ -333,6 +334,7 @@ export class SFU extends Component {
      * @protected
      */
     protected async init(): Promise<void> {
+        sfuRooms.set(this, this.#rooms)
         this.#signalingObject = await this.getObject<Signaling>(this.signaling)
         if (this.cluster) {
             const cluster: Cluster = await this.getObject<Cluster>(this.cluster)
@@ -386,9 +388,9 @@ export class SFU extends Component {
     }
 
     /**
-     * The rooms the server is in, with their members, the tracks published and the number of viewers of WHEP. With
-     * `workers`, each thread reports its rooms: a change made in a thread (a session of WHEP ending) shows here a moment
-     * later.
+     * The rooms the server is in, with their members on this node, the tracks these members publish and the number of
+     * viewers of WHEP on this node; with a cluster, each node reports its own. With `workers`, each thread reports its
+     * rooms: a change made in a thread (a session of WHEP ending) shows here a moment later.
      * @returns For each room, the ids of its members, its tracks and its viewers.
      * @example
      * ```typescript
@@ -403,7 +405,8 @@ export class SFU extends Component {
     }
 
     /**
-     * A track published in a room, to read its packets (to record them) or to send it on another connection.
+     * A track published in a room, to read its packets (to record them) or to send it on another connection. With a
+     * cluster, a track of a member of another node is received from that node while it is read here.
      * @param room The room.
      * @param peerId The member publishing it.
      * @param trackId The id of the track ({@link SFUTrack.id}).

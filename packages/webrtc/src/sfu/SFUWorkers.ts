@@ -7,7 +7,7 @@ import {type MediaTrack, relayedTrack} from '../peer/MediaTrack.js'
 import type {SignalingDescription, SignalingPeer} from '../protocol/SignalingProtocol.js'
 import type {Signaling} from '../signaling/Signaling.js'
 import type {SFUTrack} from './SFU.js'
-import type {SFUServedRoom, SFUViewerSelect} from './SFURoom.js'
+import type {SFUOfferedTrack, SFUServedRoom, SFUViewerSelect} from './SFURoom.js'
 import type {SFUWorkerData} from './SFUWorker.js'
 import {type SFUFromWorker, type SFUToWorker, SFUWorkerChannel, type SFUWorkerMedia} from './SFUWorkerChannel.js'
 import {sfuWorkerCode} from './SFUWorkerCode.js'
@@ -191,6 +191,9 @@ export class SFUWorkerRoom implements SFUServedRoom {
 
     readonly #media: Map<string, SFUWorkerMedia> = new Map()
 
+    //The tracks of the other nodes of the room, as the thread knows them
+    #known: Map<string, SFUOfferedTrack> = new Map()
+
     readonly #relayed: Map<string, {track: MediaTrack, receive(packet: EngineRtpPacket, extensions?: Record<string, unknown>): void}> = new Map()
 
     readonly #legs: Set<WorkerLeg> = new Set()
@@ -254,13 +257,13 @@ export class SFUWorkerRoom implements SFUServedRoom {
      */
     public track(peerId: string, trackId: string): MediaTrack | undefined {
         const key: string = keyOf(peerId, trackId)
-        const published: SFUTrack | undefined = this.#tracks.get(key)
+        //A track of a member of this node, else of another node of the room
+        const published: SFUTrack | undefined = this.#tracks.get(key) ?? this.#known.get(key)?.track
         if (!published || this.#closed) return undefined
         let relayed = this.#relayed.get(key)
         if (!relayed) {
-            const media: SFUWorkerMedia | undefined = this.#media.get(key)
-            const codec = media?.codec ?? {mimeType: published.codec, clockRate: published.kind === 'audio' ? 48000 : 90000}
-            relayed = relayedTrack(published.kind, new RTCRtpCodecParameters(codec), media?.id, {
+            const codec = (this.#media.get(key) ?? this.#known.get(key))?.codec ?? {mimeType: published.codec, clockRate: published.kind === 'audio' ? 48000 : 90000}
+            relayed = relayedTrack(published.kind, new RTCRtpCodecParameters(codec), this.#media.get(key)?.id ?? (this.#known.has(key) ? trackId : undefined), {
                 requestKeyFrame: (): void => this.#link.slot.channel?.post({type: 'keyframe', ref: this.#ref, peerId: peerId, trackId: trackId}),
                 wanted: (wanted: boolean): void => this.#link.slot.channel?.post({type: 'stream', ref: this.#ref, peerId: peerId, trackId: trackId, wanted: wanted})
             })
@@ -343,6 +346,19 @@ export class SFUWorkerRoom implements SFUServedRoom {
             this.#tracks.delete(key)
             this.#media.delete(key)
             this.#relayed.get(key)?.track.stop()
+            this.#relayed.delete(key)
+        }
+    }
+
+    /**
+     * The tracks of the other nodes of the room changed: the ones gone end here.
+     * @param tracks
+     */
+    public knew(tracks: SFUOfferedTrack[]): void {
+        this.#known = new Map(tracks.map((offered: SFUOfferedTrack): [string, SFUOfferedTrack] => [keyOf(offered.track.peerId, offered.track.id), offered]))
+        for (const [key, relayed] of [...this.#relayed]) {
+            if (this.#tracks.has(key) || this.#known.has(key)) continue
+            relayed.track.stop()
             this.#relayed.delete(key)
         }
     }
@@ -601,6 +617,8 @@ export class SFUWorkers {
                 return slot.rooms.get(message.ref)?.received(message.peerId, message.trackId, message.packet, message.extensions)
             case 'log':
                 return debug(message.namespace)(message.message)
+            case 'known':
+                return slot.rooms.get(message.ref)?.knew(message.tracks)
         }
     }
 }
