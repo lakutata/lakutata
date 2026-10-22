@@ -22,7 +22,7 @@ import {iceServersFor, type TURNSelector} from '../cluster/ClusterTURN.js'
 import {SignalingDeniedException} from '../exceptions/SignalingDeniedException.js'
 import {SignalingLimitException} from '../exceptions/SignalingLimitException.js'
 import {SignalingNotAMemberException} from '../exceptions/SignalingNotAMemberException.js'
-import {mediaServers} from './MediaServers.js'
+import {MEDIA_SERVER_ASSIGN_TOPIC, MEDIA_SERVER_SERVICE, type MediaServerLoad, type MediaServerReply, mediaServers} from './MediaServers.js'
 
 /**
  * Decides whether a member may join a room (the `authorize` option of {@link Signaling}).
@@ -157,6 +157,8 @@ interface Member {
     role?: SignalingRole
     //The receiver of the events of a member of the application itself
     receive?: SignalingReceiver
+    //The member of the media server it is connected to, in each room with one
+    readonly sfus: Map<string, string>
 }
 
 /**
@@ -168,6 +170,7 @@ interface RemoteMember {
     readonly session?: string
     readonly joinedAt: number
     readonly role?: SignalingRole
+    readonly sfu?: string
 }
 
 /**
@@ -180,6 +183,7 @@ interface MemberRecord {
     session?: string
     joinedAt: number
     role?: SignalingRole
+    sfu?: string
 }
 
 /**
@@ -239,9 +243,10 @@ function later(join: {joinedAt: number, node: string}, other: {joinedAt: number,
  * @param metadata
  * @param session
  * @param role
+ * @param sfu
  */
-function peerOf(peerId: string, metadata: unknown, session: string | undefined, role: SignalingRole | undefined): SignalingPeer {
-    return {peerId: peerId, metadata: metadata, session: session, ...role ? {role: role} : {}}
+function peerOf(peerId: string, metadata: unknown, session: string | undefined, role: SignalingRole | undefined, sfu: string | undefined): SignalingPeer {
+    return {peerId: peerId, metadata: metadata, session: session, ...role ? {role: role} : {}, ...sfu ? {sfu: sfu} : {}}
 }
 
 /**
@@ -250,7 +255,8 @@ function peerOf(peerId: string, metadata: unknown, session: string | undefined, 
  * @param member
  */
 function recordOf(room: string, member: Member): MemberRecord {
-    return {room: room, peerId: member.peerId, metadata: member.rooms.get(room), session: member.session, joinedAt: member.joinedAt.get(room) ?? 0, ...member.role ? {role: member.role} : {}}
+    const sfu: string | undefined = member.sfus.get(room)
+    return {room: room, peerId: member.peerId, metadata: member.rooms.get(room), session: member.session, joinedAt: member.joinedAt.get(room) ?? 0, ...member.role ? {role: member.role} : {}, ...sfu ? {sfu: sfu} : {}}
 }
 
 /**
@@ -500,7 +506,7 @@ export class Signaling extends Component {
             }
         }
         //The media server of the room joins it first
-        const sfu: string | undefined = role ? undefined : await mediaServers.get(this)?.(room, peerId)
+        const sfu: string | undefined = role ? undefined : await this.mediaServerOf(room, peerId)
         let members: Map<string, Member> | undefined = this.#rooms.get(room)
         if (!members) {
             members = new Map()
@@ -517,16 +523,18 @@ export class Signaling extends Component {
         //Joining through this node, it is no longer a member through another one
         const moved: RemoteMember | undefined = this.forgetRemote(room, peerId)
         const peers: SignalingPeer[] = [
-            ...locals.map((other: Member): SignalingPeer => peerOf(other.peerId, other.rooms.get(room), other.session, other.role)),
-            ...[...this.#remote.get(room)?.entries() ?? []].map(([id, other]: [string, RemoteMember]): SignalingPeer => peerOf(id, other.metadata, other.session, other.role))
+            ...locals.map((other: Member): SignalingPeer => peerOf(other.peerId, other.rooms.get(room), other.session, other.role, other.sfus.get(room))),
+            ...[...this.#remote.get(room)?.entries() ?? []].map(([id, other]: [string, RemoteMember]): SignalingPeer => peerOf(id, other.metadata, other.session, other.role, other.sfu))
         ]
         member.rooms.set(room, metadata)
+        if (sfu) member.sfus.set(room, sfu)
+        else member.sfus.delete(room)
         //Later than its join through the other node, whatever the clocks of the nodes
         member.joinedAt.set(room, Math.max(Date.now(), (moved?.joinedAt ?? 0) + 1))
         members.set(peerId, member)
         this.#reservations.get(room)?.delete(peerId)
         this.announceChange({kind: 'join', seq: 0, ...recordOf(room, member)})
-        const event: SignalingPeerEvent = {room: room, ...peerOf(peerId, metadata, member.session, member.role)}
+        const event: SignalingPeerEvent = {room: room, ...peerOf(peerId, metadata, member.session, member.role, sfu)}
         //The other nodes tell their own members
         for (const other of locals) await this.push(other.peerId, SignalingEvent.peerJoined, event)
         const {iceServers, credentialTtl} = await this.iceServersOf(peerId)
@@ -694,6 +702,7 @@ export class Signaling extends Component {
         members.delete(member.peerId)
         member.rooms.delete(room)
         member.joinedAt.delete(room)
+        member.sfus.delete(room)
         if (!members.size) this.#rooms.delete(room)
         if (!member.rooms.size && this.#members.get(member.peerId) === member) this.#members.delete(member.peerId)
     }
@@ -800,7 +809,7 @@ export class Signaling extends Component {
         for (const record of snapshot.members) {
             kept.add(JSON.stringify([record.room, record.peerId]))
             const known: RemoteMember | undefined = this.#remote.get(record.room)?.get(record.peerId)
-            if (known?.node === node && known.joinedAt === record.joinedAt && known.session === record.session) continue
+            if (known?.node === node && known.joinedAt === record.joinedAt && known.session === record.session && known.sfu === record.sfu) continue
             await this.joinedRemote(node, record)
         }
         for (const [room, members] of [...this.#remote]) {
@@ -882,9 +891,9 @@ export class Signaling extends Component {
             this.announceChange({kind: 'yield', seq: 0, room: room, peerId: peerId})
         }
         if (!this.#remote.has(room)) this.#remote.set(room, new Map())
-        this.#remote.get(room)!.set(peerId, {node: node, metadata: record.metadata, session: record.session, joinedAt: record.joinedAt, ...record.role ? {role: record.role} : {}})
+        this.#remote.get(room)!.set(peerId, {node: node, metadata: record.metadata, session: record.session, joinedAt: record.joinedAt, ...record.role ? {role: record.role} : {}, ...record.sfu ? {sfu: record.sfu} : {}})
         this.#reservations.get(room)?.delete(peerId)
-        const event: SignalingPeerEvent = {room: room, ...peerOf(peerId, record.metadata, record.session, record.role)}
+        const event: SignalingPeerEvent = {room: room, ...peerOf(peerId, record.metadata, record.session, record.role, record.sfu)}
         for (const other of [...this.#rooms.get(room)?.keys() ?? []]) await this.push(other, SignalingEvent.peerJoined, event)
     }
 
@@ -982,6 +991,43 @@ export class Signaling extends Component {
     }
 
     /**
+     * The media server a member joining a room connects to: the one of this node, else, in a cluster, one of the media
+     * servers of the other nodes (the least loaded answering), which chooses as it would for a member of its own node
+     * @param room The room.
+     * @param peerId The member's id.
+     * @returns The id of the member of the media server, none for a room without one.
+     * @throws {SignalingLimitException} When no media server takes the member.
+     * @protected
+     */
+    protected async mediaServerOf(room: string, peerId: string): Promise<string | undefined> {
+        const local = mediaServers.get(this)
+        if (local) return await local(room, peerId)
+        const cluster: Cluster | undefined = this.#clusterObject
+        if (!cluster) return undefined
+        const load = (node: ClusterNode): number => {
+            const announced: MediaServerLoad = node.services[MEDIA_SERVER_SERVICE] as MediaServerLoad
+            return announced.members + announced.viewers
+        }
+        const servers: ClusterNode[] = cluster.nodes()
+            .filter((node: ClusterNode): boolean => !node.local && !!node.services[MEDIA_SERVER_SERVICE])
+            .sort((a: ClusterNode, b: ClusterNode): number => load(a) - load(b))
+        if (!servers.length) return undefined
+        for (const server of servers.slice(0, 2)) {
+            let reply: MediaServerReply
+            try {
+                reply = await cluster.request<MediaServerReply>(server.id, MEDIA_SERVER_ASSIGN_TOPIC, {room: room, peerId: peerId})
+            } catch {
+                //Gone or not answering: the next one
+                continue
+            }
+            //Full: it chose among all the media servers
+            if ('full' in reply) break
+            return reply.sfu ?? undefined
+        }
+        throw new SignalingLimitException('No media server takes the member {peerId} in the room {room}', {peerId: peerId, room: room})
+    }
+
+    /**
      * The role of a member of another node, in any room
      * @param peerId The member's id.
      * @protected
@@ -1005,7 +1051,7 @@ export class Signaling extends Component {
     protected member(peerId: string, context?: ServiceContext): Member {
         let member: Member | undefined = this.#members.get(peerId)
         if (!member) {
-            member = {peerId: peerId, rooms: new Map(), joinedAt: new Map(), heartbeats: true, lastSeen: Date.now(), tokens: this.maxMessagesPerSecond * 2, refilledAt: Date.now()}
+            member = {peerId: peerId, rooms: new Map(), joinedAt: new Map(), heartbeats: true, lastSeen: Date.now(), tokens: this.maxMessagesPerSecond * 2, refilledAt: Date.now(), sfus: new Map()}
             this.#members.set(peerId, member)
         }
         member.lastSeen = Date.now()

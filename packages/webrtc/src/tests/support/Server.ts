@@ -53,7 +53,7 @@ export async function startServer(options: {signaling?: SignalingOptions, turn?:
         turn = await container.setNamed<TURNServer>('turn', TURNServer, {host: '127.0.0.1', port: 0, publicAddress: '127.0.0.1', tcp: false, ...options.turn})
     }
     const signaling: Signaling = await container.setNamed<Signaling>('signaling', Signaling, {...(turn ? {turn: 'turn'} : {}), ...(cluster ? {cluster: 'cluster'} : {}), ...options.signaling})
-    const sfu: SFU | undefined = options.sfu ? await container.setNamed<SFU>('sfu', SFU, {...options.sfu}) : undefined
+    const sfu: SFU | undefined = options.sfu ? await container.setNamed<SFU>('sfu', SFU, {...(cluster ? {cluster: 'cluster'} : {}), ...options.sfu}) : undefined
     const whip: WHIP | undefined = options.whip ? await container.setNamed<WHIP>('whip', WHIP, {...sfu ? {sfu: 'sfu'} : {}, ...options.whip}) : undefined
     const whep: WHEP | undefined = options.whep ? await container.setNamed<WHEP>('whep', WHEP, {...options.whep}) : undefined
     let http: Server | undefined

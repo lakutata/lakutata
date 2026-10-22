@@ -93,6 +93,9 @@ export class SignalingSession<Connection extends PeerConnectionLike<any> = PeerC
     //The events of the rooms being joined, arrived before the answer (the media server of the room offers at once)
     readonly #early: Map<string, [string, unknown][]> = new Map()
 
+    //The rooms being joined again for a new media server
+    readonly #rejoining: Set<string> = new Set()
+
     readonly #unsubscribe: (() => void)[] = []
 
     #id?: string
@@ -225,7 +228,32 @@ export class SignalingSession<Connection extends PeerConnectionLike<any> = PeerC
                 if (this.#rooms.get(room.name) === room) this.#rooms.delete(room.name)
                 if (!this.#transport.connected) return
                 await this.#transport.request(SignalingMethod.leave, {room: room.name}).catch((): void => undefined)
+            },
+            //Joined again once the transport is up, if it is not
+            rejoin: (room: Room<Connection>): void => {
+                if (this.#closed || !this.#transport.connected || this.#rejoining.has(room.name)) return
+                this.#rejoining.add(room.name)
+                this.#joinAgain(room)
+                    .catch((error: Error): void => void this.emit('error', error))
+                    .finally((): boolean => this.#rejoining.delete(room.name))
             }
+        }
+    }
+
+    /**
+     * Join a room again, with the same session: its events wait for the answer
+     * @param room
+     */
+    async #joinAgain(room: Room<Connection>): Promise<void> {
+        const early: [string, unknown][] = []
+        this.#early.set(room.name, early)
+        try {
+            const result: SignalingJoinResult = await this.#transport.request<SignalingJoinResult>(SignalingMethod.join, {room: room.name, metadata: room.metadata, session: this.#session})
+            this.#joinedWith(result)
+            if (this.#rooms.get(room.name) === room) room.members(result.peers, room.metadata, result.sfu)
+        } finally {
+            if (this.#early.get(room.name) === early) this.#early.delete(room.name)
+            for (const [event, payload] of early) this.#event(event, payload)
         }
     }
 
@@ -313,8 +341,11 @@ export class SignalingSession<Connection extends PeerConnectionLike<any> = PeerC
     #event(event: string, payload: unknown): void {
         if (this.#closed || !payload || typeof payload !== 'object') return
         const name: string = (payload as {room?: string}).room ?? ''
+        //The events of a room being joined wait for the answer
+        const early: [string, unknown][] | undefined = this.#early.get(name)
+        if (early) return void early.push([event, payload])
         const room: Room<Connection> | undefined = this.#rooms.get(name)
-        if (!room) return void this.#early.get(name)?.push([event, payload])
+        if (!room) return
         switch (event) {
             case SignalingEvent.peerJoined:
                 return room.joined(payload as SignalingPeerEvent)
@@ -348,9 +379,7 @@ export class SignalingSession<Connection extends PeerConnectionLike<any> = PeerC
     async #rejoin(): Promise<void> {
         for (const room of [...this.#rooms.values()]) {
             try {
-                const result: SignalingJoinResult = await this.#transport.request<SignalingJoinResult>(SignalingMethod.join, {room: room.name, metadata: room.metadata, session: this.#session})
-                this.#joinedWith(result)
-                room.members(result.peers, room.metadata, result.sfu)
+                await this.#joinAgain(room)
             } catch (error) {
                 this.emit('error', error as Error)
             }

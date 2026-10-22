@@ -134,6 +134,11 @@ export interface SignalingPeer {
      * The role of a member the server added itself; none for the clients.
      */
     role?: SignalingRole
+    /**
+     * The id of the media server the member is connected to (a member of role `sfu`), in a room with one; set by the
+     * server. With a cluster, the members of a room may be connected to the media servers of different nodes.
+     */
+    sfu?: string
 }
 
 /**

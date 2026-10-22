@@ -499,7 +499,16 @@ export class SFURoom implements SFUServedRoom {
             role: 'sfu',
             receive: (event: string, payload: unknown): void => this.#receive(event, payload)
         })
-        for (const peer of result.peers) if (!peer.role) this.#add(peer.peerId, peer.metadata, peer.session)
+        for (const peer of result.peers) if (this.#serves(peer)) this.#add(peer.peerId, peer.metadata, peer.session)
+    }
+
+    /**
+     * Whether the server serves a member: a client connected to it (the media server of another node serves the
+     * others)
+     * @param peer
+     */
+    #serves(peer: SignalingPeer): boolean {
+        return !peer.role && peer.sfu === this.#host.id
     }
 
     /**
@@ -514,6 +523,11 @@ export class SFURoom implements SFUServedRoom {
                 const joined: SignalingPeerEvent = payload as SignalingPeerEvent
                 if (joined.role) return
                 const member: Member | undefined = this.#members.get(joined.peerId)
+                //Joined again through the media server of another node
+                if (!this.#serves(joined)) {
+                    if (member?.peer) this.#remove(member)
+                    return
+                }
                 //A new client behind the same id: its old connection is useless
                 if (member && joined.session !== undefined && member.session !== joined.session) this.#remove(member)
                 if (member && this.#members.get(joined.peerId) === member) {

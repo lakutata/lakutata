@@ -43,6 +43,8 @@ export interface RoomHost<Connection extends PeerConnectionLike<any>> {
     create(configuration?: PeerConnectionConfiguration): Connection | Promise<Connection>
     send(room: string, to: string, signal: PeerSignal): Promise<void>
     leave(room: Room<Connection>): Promise<void>
+    //Join the room again (its media server went away): the room gets its members and its media server again
+    rejoin(room: Room<Connection>): void
 }
 
 /**
@@ -248,9 +250,11 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      */
     public members(peers: SignalingPeer[], metadata: unknown, sfu?: string): void {
         this.#metadata = metadata
+        //Another media server: the connection to the one before is of no use
+        if (this.#server && this.#server.id !== sfu) this.#serverGone()
         this.#sfu = sfu
         const present: Set<string> = new Set(peers.map((peer: SignalingPeer): string => peer.peerId))
-        if (this.#server && !present.has(this.#server.id)) this.#server.left()
+        if (this.#server && !this.#server.closed && !present.has(this.#server.id)) this.#server.left()
         for (const peer of [...this.#peers.values()]) {
             if (!present.has(peer.id)) peer.left()
         }
@@ -271,8 +275,9 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
         if (event.role === 'sfu') {
             //The media server of the room; the one of another node is not connected to
             if (event.peerId !== this.#sfu) return
-            if (this.#server && !this.#server.closed && (this.#server.session === event.session || event.session === undefined)) return this.#server.rejoined(event.metadata)
-            this.#server?.close()
+            const server: Peer<Connection> | undefined = this.#server
+            if (server && !server.closed && server.id === event.peerId && (server.session === event.session || event.session === undefined)) return server.rejoined(event.metadata)
+            this.#serverGone()
             this.#serverPeer(event.metadata, event.session)
             return
         }
@@ -292,7 +297,14 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      * @internal
      */
     public departed(event: SignalingPeerLeftEvent): void {
-        const peer: Peer<Connection> | undefined = event.peerId === this.#server?.id ? this.#server : this.#peers.get(event.peerId)
+        if (this.#left) return
+        if (this.#server && !this.#server.closed && event.peerId === this.#server.id) {
+            //The media server went away (its node is down): the room is joined again, for another one
+            this.#serverGone()
+            this.#host.rejoin(this)
+            return
+        }
+        const peer: Peer<Connection> | undefined = this.#peers.get(event.peerId)
         if (!peer) return
         if (event.reason === 'left') {
             peer.close()
@@ -357,6 +369,8 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
         }
         const server: Peer<Connection> = new Peer(host, this.#sfu!, metadata, session)
         this.#server = server
+        //The peers of the members take its connection
+        for (const peer of this.#peers.values()) peer.relayChanged()
         server.on('error', (error: Error): void => void this.emit('error', error, server))
         server.on('track', (event: TrackEventOf<Connection>): void => {
             this.#unrouted.push(event)
@@ -388,6 +402,25 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
             server.close()
         })
         return server
+    }
+
+    /**
+     * The media server of the room is gone: its peer is closed, with what came through it; the peers of the members
+     * stay, for the next one
+     */
+    #serverGone(): void {
+        const server: Peer<Connection> | undefined = this.#server
+        if (!server) return
+        server.close()
+        this.#control = undefined
+        this.#controls.length = 0
+        //The next one gives other streams the same ids
+        this.#streams.clear()
+        this.#unrouted.length = 0
+        for (const {channel} of this.#unroutedChannels.splice(0)) channel.close()
+        for (const publication of this.#published.values()) {
+            for (const connection of [...publication.transceivers.keys()]) if (connection === server.connection) publication.transceivers.delete(connection)
+        }
     }
 
     /**
@@ -478,7 +511,11 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      * @param session
      */
     #add(id: string, metadata: unknown, session: string | undefined): Peer<Connection> {
+        const room: Room<Connection> = this
         const roomHost: RoomHost<Connection> = this.#host
+        //With a media server, its connection (the one of the next media server when it changes)
+        const relayed: boolean = !!this.#sfu
+        if (relayed) this.#serverPeer()
         const host: PeerHost<Connection> = {
             localId: this.#host.localId,
             create: (): Connection | Promise<Connection> => this.#host.create(),
@@ -493,7 +530,10 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
                 }
                 if (this.#ready.delete(closed)) this.emit('peer-left', closed)
             },
-            ...this.#sfu ? {relay: this.#serverPeer(), control: (message: SignalingControlMessage): void => this.#controlSend(message)} : {}
+            get relay(): Peer<Connection> | undefined {
+                return relayed ? room.#server : undefined
+            },
+            ...relayed ? {control: (message: SignalingControlMessage): void => this.#controlSend(message)} : {}
         }
         const peer: Peer<Connection> = new Peer(host, id, metadata, session)
         this.#peers.set(id, peer)

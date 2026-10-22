@@ -1,17 +1,34 @@
 import {randomUUID} from 'node:crypto'
 import {Component, type ComponentOptions, DTO} from '@lakutata/core'
 import {Configurable, Singleton} from '@lakutata/core/decorator/di'
+import type {Cluster, ClusterNode} from '../cluster/Cluster.js'
 import {SignalingLimitException} from '../exceptions/SignalingLimitException.js'
 import {SUPPORTED_CODECS} from '../peer/MediaCodecs.js'
 import type {MediaKind, MediaTrack} from '../peer/MediaTrack.js'
 import {PeerConnection} from '../peer/PeerConnection.js'
 import type {SignalingDescription, SignalingPeer} from '../protocol/SignalingProtocol.js'
-import {mediaServers} from '../signaling/MediaServers.js'
+import {MEDIA_SERVER_ASSIGN_TOPIC, MEDIA_SERVER_SERVICE, type MediaServerLoad, type MediaServerReply, mediaServers} from '../signaling/MediaServers.js'
 import type {Signaling} from '../signaling/Signaling.js'
 import type {EndpointLeg} from '../peer/Endpoints.js'
 import {sfuAccess, sfuWorkers} from './SFUAccess.js'
 import {type SFUHost, SFURoom, type SFUServedRoom, type SFUViewerSelect} from './SFURoom.js'
 import {SFUWorkers} from './SFUWorkers.js'
+
+/**
+ * The topic of the requests of the media servers to each other: take a member in a room (answered with the id of the
+ * member of the server, null for a room not served, or full)
+ */
+const SERVE_TOPIC: string = 'webrtc.sfu.serve'
+
+/**
+ * How often a media server announces its load on the cluster, in milliseconds
+ */
+const ANNOUNCE_INTERVAL: number = 1000
+
+/**
+ * How many nodes are tried for a member at most
+ */
+const MAX_PLACEMENT_ATTEMPTS: number = 3
 
 /**
  * A track published in a room of the media server.
@@ -52,6 +69,68 @@ export interface SFUTrack {
 export type SFUSelect = (subscriber: SignalingPeer, track: SFUTrack) => boolean
 
 /**
+ * What joins a room of the media servers of a cluster: a member, a stream published with WHIP, or a viewer of WHEP.
+ */
+export interface SFUPlacement {
+    /**
+     * The room.
+     */
+    room: string
+    /**
+     * The id of the member (`whip:…` for a stream of WHIP, `whep:…` for a viewer).
+     */
+    peerId: string
+    /**
+     * `member`, `whip` or `viewer`.
+     */
+    kind: 'member' | 'whip' | 'viewer'
+}
+
+/**
+ * A node of the cluster with a media server, as it announces itself.
+ */
+export interface SFUNode {
+    /**
+     * The id of the node.
+     */
+    id: string
+    /**
+     * Its labels (a zone, a region: the `labels` of its `Cluster`).
+     */
+    labels: Readonly<Record<string, string>>
+    /**
+     * Whether it is this node.
+     */
+    local: boolean
+    /**
+     * The members it has (the streams of WHIP included).
+     */
+    members: number
+    /**
+     * The viewers of WHEP it has.
+     */
+    viewers: number
+    /**
+     * The members it takes at most; 0 for no limit.
+     */
+    maxMembers: number
+    /**
+     * Whether it has members of the room already.
+     */
+    serving: boolean
+}
+
+/**
+ * Chooses the node whose media server a member, a stream of WHIP or a viewer of WHEP connects to (the `selectSFU`
+ * option of {@link SFU}), the node closest to it for example, by the labels of the nodes.
+ * @param placement The room, and what joins it.
+ * @param nodes The nodes with a media server, this one included.
+ * @returns The id of the node, or undefined for the default choice. When the node chosen is full or does not answer,
+ * the default choice is made.
+ */
+export type SFUSelectNode = (placement: SFUPlacement, nodes: SFUNode[]) => string | undefined | Promise<string | undefined>
+
+/**
  * The options of a {@link SFU} (see {@link buildSFUOptions}).
  */
 export interface SFUOptions {
@@ -60,6 +139,21 @@ export interface SFUOptions {
      * @default 'signaling'
      */
     signaling?: string
+    /**
+     * The name of the `Cluster` component: the media servers of the nodes share the rooms. Each member, stream of WHIP
+     * and viewer of WHEP is given the media server of a node (see `selectSFU`); the nodes of a room forward its tracks to
+     * each other. The signaling of the node must be in the same cluster.
+     * @default none: the media server of this node serves the members joining through it
+     */
+    cluster?: string
+    /**
+     * Chooses the node whose media server a member, a stream of WHIP or a viewer of WHEP connects to, with a cluster. By
+     * default, a room without members on any node goes to this node when it is not full, else to the least loaded node;
+     * a room with members on some nodes goes to the least loaded of those that is not full, else to the least loaded
+     * node of all.
+     * @default the default choice
+     */
+    selectSFU?: SFUSelectNode
     /**
      * Which rooms the server serves; the others stay peer to peer.
      * @default all the rooms
@@ -163,6 +257,18 @@ export class SFU extends Component {
     protected readonly signaling: string
 
     /**
+     * The name of the cluster component.
+     */
+    @Configurable(DTO.String().optional())
+    protected readonly cluster?: string
+
+    /**
+     * Chooses the node of a member.
+     */
+    @Configurable(DTO.Function().optional())
+    protected readonly selectSFU?: SFUSelectNode
+
+    /**
      * Which rooms the server serves.
      */
     @Configurable(DTO.Function().optional())
@@ -211,9 +317,16 @@ export class SFU extends Component {
     //The rooms being left: a room joined again waits for it
     readonly #leaving: Map<string, Promise<void>> = new Map()
 
-    readonly #id: string = `sfu:${randomUUID()}`
+    #id: string = `sfu:${randomUUID()}`
 
     #signalingObject: Signaling
+
+    #clusterObject?: Cluster
+
+    //Announces the load of the server on the cluster
+    #announcer?: NodeJS.Timeout
+
+    readonly #detach: (() => void)[] = []
 
     /**
      * Attach the server to the signaling.
@@ -221,18 +334,38 @@ export class SFU extends Component {
      */
     protected async init(): Promise<void> {
         this.#signalingObject = await this.getObject<Signaling>(this.signaling)
+        if (this.cluster) {
+            const cluster: Cluster = await this.getObject<Cluster>(this.cluster)
+            this.#clusterObject = cluster
+            //One member of the server in each room, the same in all of them: the one of this node
+            this.#id = `sfu:${cluster.nodeId}`
+            this.#detach.push(
+                cluster.handle<{room: string, peerId: string}, MediaServerReply>(MEDIA_SERVER_ASSIGN_TOPIC, ({room, peerId}): Promise<MediaServerReply> => this.#reply((): Promise<string | undefined> => this.assign(room, peerId))),
+                cluster.handle<{room: string, peerId: string, kind: SFUPlacement['kind']}, MediaServerReply>(SERVE_TOPIC, ({room, peerId, kind}): Promise<MediaServerReply> => this.#reply(async (): Promise<string | undefined> => {
+                    if (this.serves && !this.serves(room)) return undefined
+                    await this.#serveLocal(room, peerId, kind)
+                    return this.#id
+                })),
+                (): void => cluster.announce(MEDIA_SERVER_SERVICE, undefined)
+            )
+            this.#announce()
+            this.#announcer = setInterval((): void => this.#announce(), ANNOUNCE_INTERVAL)
+            this.#announcer.unref()
+        }
         if (this.workers) await this.#startWorkers()
         mediaServers.set(this.#signalingObject, (room: string, peerId: string): Promise<string | undefined> => this.assign(room, peerId))
         sfuAccess.set(this, {
             publish: async (room: string, offer: SignalingDescription): Promise<{peerId: string, leg: EndpointLeg}> => {
                 //Its own id: the id of the session is the credential of its publisher
                 const peerId: string = `whip:${randomUUID()}`
-                if (!await this.assign(room, peerId)) throw new Error(`The media server does not serve the room ${room}`)
+                if (this.serves && !this.serves(room)) throw new Error(`The media server does not serve the room ${room}`)
+                await this.#serveLocal(room, peerId, 'whip')
                 return {peerId: peerId, leg: await this.#rooms.get(room)!.publish(peerId, offer)}
             },
             play: async (room: string, offer: SignalingDescription, select?: SFUViewerSelect): Promise<{viewerId: string, leg: EndpointLeg & {source(): string | undefined}}> => {
                 const viewerId: string = `whep:${randomUUID()}`
-                if (!await this.assign(room, viewerId, true)) throw new Error(`The media server does not serve the room ${room}`)
+                if (this.serves && !this.serves(room)) throw new Error(`The media server does not serve the room ${room}`)
+                await this.#serveLocal(room, viewerId, 'viewer')
                 return {viewerId: viewerId, leg: await this.#rooms.get(room)!.play(viewerId, offer, select)}
             }
         })
@@ -244,6 +377,8 @@ export class SFU extends Component {
      */
     protected async destroy(): Promise<void> {
         if (this.#signalingObject && mediaServers.get(this.#signalingObject)) mediaServers.delete(this.#signalingObject)
+        clearInterval(this.#announcer)
+        for (const detach of this.#detach.splice(0)) detach()
         const rooms: SFUServedRoom[] = [...this.#rooms.values()]
         this.#rooms.clear()
         await Promise.all(rooms.map((room: SFUServedRoom): Promise<void> => room.close()))
@@ -289,21 +424,123 @@ export class SFU extends Component {
     }
 
     /**
-     * Give a member joining a room the server, once the server is in the room
+     * Give a member joining a room a media server, once the server is in the room: this one, or with a cluster the one
+     * of the node chosen (`selectSFU`)
      * @param room The room.
      * @param peerId The id of the member.
-     * @param viewer Whether it is a viewer of WHEP (not a member: `maxMembers` does not count it).
-     * @returns The id of the member of the server, or undefined for a room it does not serve.
+     * @param kind A member, a stream of WHIP, or a viewer of WHEP (`maxMembers` does not count the viewers).
+     * @returns The id of the member of the server, or undefined for a room the servers do not serve.
+     * @throws {SignalingLimitException} When no media server takes the member.
      * @protected
      */
-    protected async assign(room: string, peerId: string, viewer: boolean = false): Promise<string | undefined> {
+    protected async assign(room: string, peerId: string, kind: SFUPlacement['kind'] = 'member'): Promise<string | undefined> {
         if (this.serves && !this.serves(room)) return undefined
-        const count: number = [...this.#rooms.values()].reduce((sum: number, each: SFUServedRoom): number => sum + each.members.length, 0)
-        if (!viewer && this.maxMembers && count >= this.maxMembers && !this.#rooms.get(room)?.members.includes(peerId)) {
+        if (!this.#clusterObject) {
+            await this.#serveLocal(room, peerId, kind)
+            return this.#id
+        }
+        return await this.#place({room: room, peerId: peerId, kind: kind}, this.#clusterObject)
+    }
+
+    /**
+     * Give a member the media server of a node of the cluster: the one chosen, else the default choice, the next one
+     * when it is full or does not answer
+     * @param placement
+     * @param cluster
+     */
+    async #place(placement: SFUPlacement, cluster: Cluster): Promise<string | undefined> {
+        //The nodes with members of the room: their members of the server are in it
+        const serving: Set<string> = new Set((this.#signalingObject.rooms()[placement.room] ?? [])
+            .filter((id: string): boolean => id.startsWith('sfu:'))
+            .map((id: string): string => id.slice('sfu:'.length)))
+        const nodes: SFUNode[] = cluster.nodes()
+            .filter((node: ClusterNode): boolean => node.local || !!node.services[MEDIA_SERVER_SERVICE])
+            .map((node: ClusterNode): SFUNode => {
+                const load: MediaServerLoad = node.local ? this.#load() : node.services[MEDIA_SERVER_SERVICE] as MediaServerLoad
+                return {id: node.id, labels: node.labels, local: node.local, members: load.members, viewers: load.viewers, maxMembers: load.maxMembers, serving: serving.has(node.id)}
+            })
+        const full = (node: SFUNode): boolean => placement.kind !== 'viewer' && node.maxMembers > 0 && node.members >= node.maxMembers
+        const byLoad = (a: SFUNode, b: SFUNode): number => a.members + a.viewers - b.members - b.viewers || a.id.localeCompare(b.id)
+        const order: SFUNode[] = []
+        const add = (candidates: SFUNode[]): void => {
+            for (const node of candidates) if (!order.includes(node)) order.push(node)
+        }
+        const chosen: string | undefined = this.selectSFU ? await this.selectSFU({...placement}, nodes.map((node: SFUNode): SFUNode => ({...node}))) : undefined
+        if (chosen !== undefined) add(nodes.filter((node: SFUNode): boolean => node.id === chosen))
+        //A room stays on the fewest nodes: the members of a room are forwarded between its nodes
+        if (serving.size) add(nodes.filter((node: SFUNode): boolean => node.serving && !full(node)).sort(byLoad))
+        else add(nodes.filter((node: SFUNode): boolean => node.local && !full(node)))
+        add(nodes.filter((node: SFUNode): boolean => !full(node)).sort(byLoad))
+        //Full as they announced it a moment ago
+        add(nodes.filter(full).sort(byLoad))
+        for (const node of order.slice(0, MAX_PLACEMENT_ATTEMPTS)) {
+            if (node.local) {
+                try {
+                    await this.#serveLocal(placement.room, placement.peerId, placement.kind)
+                    return this.#id
+                } catch (error) {
+                    if (error instanceof SignalingLimitException) continue
+                    throw error
+                }
+            }
+            let reply: MediaServerReply
+            try {
+                reply = await cluster.request<MediaServerReply>(node.id, SERVE_TOPIC, placement)
+            } catch {
+                //Gone or not answering
+                continue
+            }
+            if ('full' in reply) continue
+            return reply.sfu ?? undefined
+        }
+        throw new SignalingLimitException('No media server takes the member {peerId} in the room {room}', {peerId: placement.peerId, room: placement.room})
+    }
+
+    /**
+     * Take a member in a room of this server
+     * @param room
+     * @param peerId
+     * @param kind
+     */
+    async #serveLocal(room: string, peerId: string, kind: SFUPlacement['kind']): Promise<void> {
+        const count: number = this.#load().members
+        if (kind !== 'viewer' && this.maxMembers && count >= this.maxMembers && !this.#rooms.get(room)?.members.includes(peerId)) {
             throw new SignalingLimitException('The media server has {count} members already', {count: count})
         }
         await this.#serve(room)
-        return this.#id
+    }
+
+    /**
+     * The members and the viewers of the server
+     */
+    #load(): MediaServerLoad {
+        let members: number = 0
+        let viewers: number = 0
+        for (const room of this.#rooms.values()) {
+            members += room.members.length
+            viewers += room.viewers
+        }
+        return {members: members, viewers: viewers, maxMembers: this.maxMembers}
+    }
+
+    /**
+     * Tell the other nodes the load of the server
+     */
+    #announce(): void {
+        this.#clusterObject?.announce(MEDIA_SERVER_SERVICE, this.#load())
+    }
+
+    /**
+     * Answer a request of another node for a member
+     * @param assign Gives the member a media server.
+     */
+    async #reply(assign: () => Promise<string | undefined>): Promise<MediaServerReply> {
+        try {
+            return {sfu: await assign() ?? null}
+        } catch (error) {
+            if (error instanceof SignalingLimitException) return {full: true}
+            throw error
+        }
     }
 
     /**

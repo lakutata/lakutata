@@ -140,6 +140,9 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
     //The listener of the state of the connection to the media server
     #relayState?: (state: string) => void
 
+    //The peer of the media server whose connection this one uses
+    #relaySource?: Peer<Connection>
+
     //Resolves the first exchange of an offer and an answer
     #negotiatedOnce: () => void
 
@@ -269,7 +272,7 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
         clearTimeout(this.#restartTimer)
         if (this.#host.relay) {
             //The connection is the one of the media server
-            if (this.#relayState) this.#host.relay.off('connectionstatechange', this.#relayState)
+            if (this.#relayState) this.#relaySource?.off('connectionstatechange', this.#relayState)
         } else {
             try {
                 this.#connection?.close()
@@ -312,6 +315,30 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
         } else {
             this.close()
         }
+    }
+
+    /**
+     * The media server of the room changed: the peer uses the connection of the new one
+     * @internal
+     */
+    public relayChanged(): void {
+        if (!this.#host.relay || this.#closed) return
+        this.#queue = this.#queue.then((): Promise<void> => this.#bindRelay()).catch((error: Error): void => this.#fail(error))
+    }
+
+    /**
+     * Use the connection of the media server of the room
+     */
+    async #bindRelay(): Promise<void> {
+        const relay: Peer<Connection> | undefined = this.#host.relay
+        if (!relay || relay === this.#relaySource) return
+        if (this.#relayState) this.#relaySource?.off('connectionstatechange', this.#relayState)
+        this.#relaySource = relay
+        await relay.ready
+        if (this.#closed || this.#relaySource !== relay) return
+        this.#connection = relay.connection
+        this.#relayState ??= (state: string): void => void this.emit('connectionstatechange', state)
+        relay.on('connectionstatechange', this.#relayState)
     }
 
     /**
@@ -363,15 +390,7 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      * Create the connection and listen to it; a peer through the media server uses its connection
      */
     async #open(): Promise<void> {
-        const relay: Peer<Connection> | undefined = this.#host.relay
-        if (relay) {
-            await relay.ready
-            this.#connection = relay.connection
-            if (this.#closed) return
-            this.#relayState = (state: string): void => void this.emit('connectionstatechange', state)
-            relay.on('connectionstatechange', this.#relayState)
-            return
-        }
+        if (this.#host.relay) return await this.#bindRelay()
         const connection: Connection = await this.#host.create()
         this.#connection = connection
         if (this.#closed) {
