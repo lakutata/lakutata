@@ -167,6 +167,41 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
         }
     })
 
+    it('relays the channels created as soon as the peers appear, the way a page creates them', {timeout: 60000}, async (): Promise<void> => {
+        const server: TestServer = await startServer({sfu: {workers: workers}})
+        const clients: Container = new Container()
+        const stops: (() => void)[] = []
+        try {
+            const heard: Map<string, string[]> = new Map()
+            //Whether the connection to the server had negotiated when each peer came
+            const negotiated: boolean[] = []
+            //A channel to each peer, created by the listener of peer added as the room is joined, then a video published
+            const join = async (id: string, first: number): Promise<void> => {
+                const client: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: id})
+                const room: Room = await client.join('meeting')
+                heard.set(id, [])
+                room.on('peer', (peer: Peer): void => {
+                    negotiated.push(peer.connection.remoteDescription !== null)
+                    const channel: PeerChannel = peer.createDataChannel('chat')
+                    channel.on('open', (): void => channel.send(`${id} to ${peer.id}`))
+                    peer.on('datachannel', (received: PeerChannel): void => void received.on('message', (data: string | Buffer | ArrayBuffer): number => heard.get(id)!.push(String(data))))
+                })
+                const video: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
+                stops.push(feed(video, first))
+                await room.publish(video, 'camera')
+            }
+            await join('alice', 0)
+            await join('bob', 100000)
+            await until((): boolean => heard.get('alice')!.includes('bob to alice') && heard.get('bob')!.includes('alice to bob'), 20000, 'the messages')
+            //A channel created before, offered by this side too, would not survive the server's offer
+            assert.deepStrictEqual(negotiated, [true, true])
+        } finally {
+            stops.forEach((stop: () => void): void => stop())
+            await clients.destroy()
+            await server.stop()
+        }
+    })
+
     it('relays the data channels between the members, the sender waiting for a member receiving slowly', {timeout: 90000}, async (): Promise<void> => {
         const server: TestServer = await startServer({sfu: {workers: workers}})
         const clients: Container = new Container()

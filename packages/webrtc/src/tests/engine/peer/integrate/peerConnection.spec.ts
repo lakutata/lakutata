@@ -278,6 +278,36 @@ describe('peerConnection', () => {
         }
     })
 
+    test('a data channel offered in an offer rolled back opens with the association of the remote offer', async () => {
+        const pc1 = new RTCPeerConnection()
+        const pc2 = new RTCPeerConnection()
+        try {
+            //pc1 offers a channel (its application section first); pc2 offers a video and a channel at the same time
+            const chat: RTCDataChannel = pc1.createDataChannel('chat')
+            pc2.addTransceiver('video', {direction: 'sendonly'})
+            const control: RTCDataChannel = pc2.createDataChannel('control')
+            pc1.onicecandidate = ({candidate}) => void (candidate && pc2.addIceCandidate(candidate).catch(() => undefined))
+            pc2.onicecandidate = ({candidate}) => void (candidate && pc1.addIceCandidate(candidate).catch(() => undefined))
+            await pc1.setLocalDescription(await pc1.createOffer())
+            await pc2.setLocalDescription(await pc2.createOffer())
+            //pc1 gives its offer up and answers pc2's, whose application section has another media id
+            await pc1.setRemoteDescription(pc2.localDescription!)
+            await pc1.setLocalDescription(await pc1.createAnswer())
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            const opened = (channel: RTCDataChannel): Promise<void> => new Promise<void>((resolve) => {
+                if (channel.readyState === 'open') return resolve()
+                channel.stateChanged.subscribe((state) => {
+                    if (state === 'open') resolve()
+                })
+            })
+            await Promise.race([Promise.all([opened(chat), opened(control)]), setTimeout(5000).then(() => {
+                throw new Error(`The channels are ${chat.readyState} and ${control.readyState}`)
+            })])
+        } finally {
+            await Promise.allSettled([pc1.close(), pc2.close()])
+        }
+    })
+
     test('an offer rolled back gives back the media ids it gave: two sendonly tracks offered at once are both received', async () => {
         const pc1 = new RTCPeerConnection()
         const pc2 = new RTCPeerConnection()

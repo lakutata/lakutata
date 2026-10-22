@@ -209,7 +209,8 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
     }
 
     /**
-     * Resolves once the connection is created (the room emits `peer` then).
+     * Resolves once the connection is created (the room emits `peer` then); in a room with a media server, once the
+     * connection to the server has exchanged its first offer and answer.
      */
     public get ready(): Promise<void> {
         return this.#queue
@@ -332,12 +333,15 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
     }
 
     /**
-     * Use the connection of the media server of the room (when the media server changes, the room replaces its peers)
+     * Use the connection of the media server of the room (when the media server changes, the room replaces its peers),
+     * once the server's first offer is answered: a channel created before would make this side offer at the same time
+     * as the server, and the association of the data channels may then not start (Chrome refuses it)
      * @param relay The peer of the media server.
      */
     async #bindRelay(relay: Peer<Connection>): Promise<void> {
         this.#relaySource = relay
         await relay.ready
+        await relay.negotiated
         if (this.#closed) return
         this.#connection = relay.connection
         this.#relayState = (state: string): void => void this.emit('connectionstatechange', state)
