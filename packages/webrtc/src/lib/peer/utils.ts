@@ -6,8 +6,6 @@ import {performance} from 'node:perf_hooks'
 
 import {
     type Address,
-    bufferReader,
-    bufferWriter,
     debug,
     randomPort
 } from './imports/common.js'
@@ -81,23 +79,27 @@ export const microTime = () => {
 export const timestampSeconds = () => Date.now() / 1000
 
 /**https://datatracker.ietf.org/doc/html/rfc3550#section-4 */
+//The NTP epoch (1900) from the Unix epoch, in milliseconds
+const NTP_EPOCH_MS = Date.UTC(1900, 0, 1)
+
+/**
+ * The time now as an NTP timestamp (RFC 5905): 32 bits of seconds since 1900, then 32 bits of fraction of a second
+ */
 export const ntpTime = () => {
-    const now = performance.timeOrigin + performance.now() - Date.UTC(1900, 0, 1)
-
-    const seconds = now / 1000
-    const [sec, msec] = seconds.toString().split('.').map(Number)
-
-    const buf = bufferWriter([4, 4], [sec, msec])
-
-    return buf.readBigUInt64BE()
+    const ms = performance.timeOrigin + performance.now() - NTP_EPOCH_MS
+    const seconds = Math.floor(ms / 1000)
+    const fraction = Math.floor(((ms - seconds * 1000) / 1000) * 2 ** 32)
+    return (BigInt(seconds) << 32n) | BigInt(fraction)
 }
 
+/**
+ * The time of an NTP timestamp, in milliseconds since the Unix epoch
+ * @param ntp
+ */
 export const ntpTimeToEpochMs = (ntp: bigint) => {
-    const [seconds, milliseconds] = bufferReader(
-        bufferWriter([8], [ntp]),
-        [4, 4]
-    )
-    return seconds * 1000 + milliseconds + Date.UTC(1900, 0, 1)
+    const seconds = Number(ntp >> 32n)
+    const fraction = Number(ntp & 0xffffffffn)
+    return seconds * 1000 + (fraction / 2 ** 32) * 1000 + NTP_EPOCH_MS
 }
 
 /**
@@ -106,9 +108,8 @@ export const ntpTimeToEpochMs = (ntp: bigint) => {
  * @returns 32bit
  */
 export const compactNtp = (ntp: bigint) => {
-    const buf = bufferWriter([8], [ntp])
-    const [, sec, msec] = bufferReader(buf, [2, 2, 2, 2])
-    return bufferWriter([2, 2], [sec, msec]).readUInt32BE()
+    //The middle 32 bits: the low 16 bits of the seconds, the high 16 bits of the fraction
+    return Number((ntp >> 16n) & 0xffffffffn)
 }
 
 export function parseIceServers(iceServers: RTCIceServer[]) {

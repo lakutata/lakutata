@@ -12,7 +12,8 @@ import {parseArgs} from 'node:util'
 import {Container} from '@lakutata/core'
 import {buildEntrypoints, Entrypoint} from '@lakutata/entrypoint'
 import {socketIOServiceEntrypoint} from '@lakutata/entrypoint/adapter/socket.io'
-import {MediaTrack, PeerConnection, SFU, Signaling, SignalingClient, SignalingController} from '../../dist/esm/exports/WebRTC.js'
+//WEBRTC_BENCH_DIST: the exports of another build (dist/esm/exports/WebRTC.js), to compare two builds
+const {MediaTrack, PeerConnection, SFU, Signaling, SignalingClient, SignalingController} = await import(process.env.WEBRTC_BENCH_DIST ?? '../../dist/esm/exports/WebRTC.js')
 
 const {values: options, positionals} = parseArgs({
     allowPositionals: true,
@@ -218,6 +219,7 @@ async function server() {
         console.log(`server CPU               ${format(share * 100, 1)} % of a core (user ${format(after.cpu.user / 1e6 / elapsed * 100, 1)} %, system ${format(after.cpu.system / 1e6 / elapsed * 100, 1)} %)`)
         console.log(`per core                 ${format(forwarded / share)} packets/s forwarded`)
         console.log(`per GiB of payload       ${format(cpu / (bytes / 2 ** 30), 1)} CPU seconds`)
+        console.log(`per packet forwarded     ${format(cpu * 1e6 / (forwarded * elapsed), 2)} CPU microseconds`)
         console.log(`server memory            ${format(process.memoryUsage().rss / 2 ** 20)} MiB resident`)
     } finally {
         await request({type: 'stop'})

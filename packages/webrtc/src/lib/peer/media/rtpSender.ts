@@ -404,7 +404,7 @@ export class RTCRtpSender {
         const {unSubscribe: unSubscribeRtp} = track.onReceiveRtp.subscribe(
             detached(
                 (rtp, extensions) =>
-                    this.sendRtp(track.remote ? this.relayedRtp(rtp, extensions) : rtp),
+                    track.remote ? this.sendRtp(this.relayedRtp(rtp, extensions), true) : this.sendRtp(rtp),
                 (error) => log('send rtp failed', error)
             )
         )
@@ -607,8 +607,10 @@ export class RTCRtpSender {
    *
    * Later `sendRtp()` calls stay pending until their own packet is sent or
    * dropped, even if a drain is already in progress.
+   * @param rtp
+   * @param owned The packet is a copy of the sender's own (a packet relayed), changed in place instead of copied again
    */
-    async sendRtp(rtp: Buffer | RtpPacket) {
+    async sendRtp(rtp: Buffer | RtpPacket, owned = false) {
         if (this.stopped) {
             return
         }
@@ -616,7 +618,7 @@ export class RTCRtpSender {
             if (!this.canSendRtp()) {
                 return
             }
-            await this.dispatchRtp(rtp)
+            await this.dispatchRtp(rtp, owned)
             return
         }
         await new Promise<void>((resolve, reject) => {
@@ -653,7 +655,7 @@ export class RTCRtpSender {
         this.rtpCache = []
     }
 
-    private async dispatchRtp(rtp: Buffer | RtpPacket) {
+    private async dispatchRtp(rtp: Buffer | RtpPacket, owned = false) {
         if (!this.canSendRtp()) {
             return
         }
@@ -663,7 +665,7 @@ export class RTCRtpSender {
             return
         }
 
-        rtp = Buffer.isBuffer(rtp) ? RtpPacket.deSerialize(rtp) : rtp.clone()
+        rtp = Buffer.isBuffer(rtp) ? RtpPacket.deSerialize(rtp) : owned ? rtp : rtp.clone()
 
         const {header, payload} = rtp
         const inputSequenceNumber = header.sequenceNumber

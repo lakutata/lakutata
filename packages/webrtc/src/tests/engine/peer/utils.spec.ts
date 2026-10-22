@@ -1,8 +1,25 @@
 import {describe, test, expect} from '../support/vitest.js'
 import {deepMerge, parseIceServers, resolveTurnTransport} from '../../../lib/peer/index.js'
+import {compactNtp, ntpTime, ntpTimeToEpochMs} from '../../../lib/peer/utils.js'
 import type {RTCIceServer} from '../../../lib/peer/peerConnection.js'
 
 describe('utils', () => {
+    describe('ntpTime', () => {
+        test('seconds since 1900, then the fraction of a second in 1/2^32', () => {
+            // 1970 in NTP: 2208988800 s, then half a second
+            const ntp = (2208988800n << 32n) | 0x80000000n
+            expect(ntpTimeToEpochMs(ntp)).toBe(500)
+            expect(compactNtp(ntp)).toBe(((2208988800 & 0xffff) << 16 | 0x8000) >>> 0)
+        })
+
+        test('the time now, as an NTP timestamp of a binary fraction', () => {
+            const before = Date.now()
+            const ms = ntpTimeToEpochMs(ntpTime())
+            expect(ms).toBeGreaterThanOrEqual(before - 1)
+            expect(ms).toBeLessThanOrEqual(Date.now() + 1)
+        })
+    })
+
     describe('parseIceServers', () => {
         test('stun', () => {
             const iceServers = [{urls: 'stun:stun.l.google.com:19302'}]
