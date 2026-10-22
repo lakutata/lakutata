@@ -2,7 +2,9 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {io as connect, type Socket} from 'socket.io-client'
 import {Container} from '@lakutata/core'
-import {SignalingEvent, SignalingMethod, type SignalingJoinResult} from '../protocol/SignalingProtocol.js'
+import {SignalingEvent, SignalingMethod, type SignalingJoinResult, type SignalingStream} from '../protocol/SignalingProtocol.js'
+import {SignalingLimitException} from '../exceptions/SignalingLimitException.js'
+import {mediaServers} from '../signaling/MediaServers.js'
 import {PeerConnection} from '../peer/PeerConnection.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
@@ -238,6 +240,84 @@ describe('Signaling', (): void => {
         } finally {
             member.close()
             watcher.disconnect()
+            await server.stop()
+        }
+    })
+
+    it('adds members of the application with a role: their events, no limits, their ids kept for them', {timeout: 30000}, async (): Promise<void> => {
+        const server: TestServer = await startServer({signaling: {maxPeers: 1, maxMessageSize: 1000, heartbeatInterval: 100}})
+        const sockets: Socket[] = []
+        try {
+            //A member of the server, its events given to the application: not counted by maxPeers, no heartbeats
+            const events: [string, any][] = []
+            const added: SignalingJoinResult = await server.signaling.join('sfu:test', 'room', {role: 'sfu', receive: (event: string, payload: unknown): unknown => events.push([event, payload])})
+            assert.strictEqual(added.heartbeatInterval, 0)
+            const alice: Socket = await rawClient(server, 'alice')
+            sockets.push(alice)
+            const joined: SignalingJoinResult = (await request(alice, SignalingMethod.join, {room: 'room', session: 's-alice'})).payload
+            assert.deepStrictEqual(joined.peers, [{peerId: 'sfu:test', role: 'sfu'}])
+            assert.deepStrictEqual(events, [[SignalingEvent.peerJoined, {room: 'room', peerId: 'alice', metadata: undefined, session: 's-alice'}]])
+            //Its signals are not limited in size nor rate, and may carry the streams of the media server
+            const signals: any[] = []
+            alice.on(SignalingEvent.signal, (event: unknown): unknown => signals.push(event))
+            const streams: SignalingStream[] = [{id: 's1', peerId: 'bob', stream: 'camera'}]
+            for (let index: number = 0; index < 120; index++) {
+                assert.strictEqual(await server.signaling.signal('sfu:test', 'room', 'alice', {description: {type: 'offer', sdp: 'x'.repeat(2000)}, streams: streams}), true)
+            }
+            await until((): boolean => signals.length === 120, 5000, 'the signals')
+            assert.deepStrictEqual(signals[0], {room: 'room', from: 'sfu:test', description: {type: 'offer', sdp: 'x'.repeat(2000)}, streams: streams})
+            //The signals of a client reach it
+            assert.deepStrictEqual((await request(alice, SignalingMethod.signal, {room: 'room', to: 'sfu:test', description: {type: 'answer', sdp: 'v=0'}})).payload, {delivered: true})
+            assert.deepStrictEqual(events[1], [SignalingEvent.signal, {room: 'room', from: 'alice', session: 's-alice', description: {type: 'answer', sdp: 'v=0'}}])
+            //It stays without heartbeats
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
+            assert.deepStrictEqual(server.signaling.rooms().room.sort(), ['alice', 'sfu:test'])
+            //The ids of the members of the server are kept for them
+            for (const id of ['sfu:test', 'whip:stream']) {
+                const thief: Socket = await rawClient(server, id)
+                sockets.push(thief)
+                assert.strictEqual((await request(thief, SignalingMethod.join, {room: 'other'})).error?.errno, 'E_SIGNALING_DENIED')
+            }
+            await assert.rejects(server.signaling.join('sfu:other', 'other'), {errno: 'E_SIGNALING_DENIED'})
+            //Full for the clients: maxPeers counts them only
+            const bob: Socket = await rawClient(server, 'bob')
+            sockets.push(bob)
+            assert.strictEqual((await request(bob, SignalingMethod.join, {room: 'room'})).error?.errno, 'E_SIGNALING_LIMIT')
+            //Its leaving is told to the clients
+            const left: Promise<unknown> = next((resolve: (value: unknown) => void): unknown => alice.once(SignalingEvent.peerLeft, resolve), 5000, 'peer-left')
+            await server.signaling.leave('sfu:test', 'room')
+            assert.deepStrictEqual(await left, {room: 'room', peerId: 'sfu:test', reason: 'left'})
+        } finally {
+            for (const socket of sockets) socket.disconnect()
+            await server.stop()
+        }
+    })
+
+    it('gives the members joining a room its media server, which joins it first', {timeout: 30000}, async (): Promise<void> => {
+        const server: TestServer = await startServer()
+        const sockets: Socket[] = []
+        try {
+            const assigned: string[] = []
+            mediaServers.set(server.signaling, async (room: string, peerId: string): Promise<string | undefined> => {
+                assigned.push(`${room}/${peerId}`)
+                if (room !== 'meeting') return undefined
+                if (peerId === 'late') throw new SignalingLimitException('The media server is full')
+                await server.signaling.join('sfu:node', room, {role: 'sfu', receive: (): void => undefined})
+                return 'sfu:node'
+            })
+            const alice: Socket = await rawClient(server, 'alice')
+            const late: Socket = await rawClient(server, 'late')
+            sockets.push(alice, late)
+            const meeting: SignalingJoinResult = (await request(alice, SignalingMethod.join, {room: 'meeting'})).payload
+            assert.strictEqual(meeting.sfu, 'sfu:node')
+            assert.deepStrictEqual(meeting.peers, [{peerId: 'sfu:node', role: 'sfu'}])
+            const chat: SignalingJoinResult = (await request(alice, SignalingMethod.join, {room: 'chat'})).payload
+            assert.strictEqual(chat.sfu, undefined)
+            assert.strictEqual((await request(late, SignalingMethod.join, {room: 'meeting'})).error?.errno, 'E_SIGNALING_LIMIT')
+            //Asked for the clients only, not for the member of the media server
+            assert.deepStrictEqual(assigned, ['meeting/alice', 'chat/alice', 'meeting/late'])
+        } finally {
+            for (const socket of sockets) socket.disconnect()
             await server.stop()
         }
     })

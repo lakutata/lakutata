@@ -11,7 +11,9 @@ import {
     type SignalingPeer,
     type SignalingPeerEvent,
     type SignalingPeerLeftEvent,
-    type SignalingSignalEvent
+    type SignalingRole,
+    type SignalingSignalEvent,
+    type SignalingStream
 } from '../protocol/SignalingProtocol.js'
 import type {TURNServer} from '../turn/TURNServer.js'
 import type {Cluster, ClusterNode} from '../cluster/Cluster.js'
@@ -20,6 +22,7 @@ import {iceServersFor, type TURNSelector} from '../cluster/ClusterTURN.js'
 import {SignalingDeniedException} from '../exceptions/SignalingDeniedException.js'
 import {SignalingLimitException} from '../exceptions/SignalingLimitException.js'
 import {SignalingNotAMemberException} from '../exceptions/SignalingNotAMemberException.js'
+import {mediaServers} from './MediaServers.js'
 
 /**
  * Decides whether a member may join a room (the `authorize` option of {@link Signaling}).
@@ -114,7 +117,25 @@ export interface SignalingJoinOptions {
      * disconnection takes the member out of its rooms.
      */
     context?: ServiceContext
+    /**
+     * The role of a member the server adds itself (a media server, a stream published with WHIP): it is not checked by
+     * `authorize`, not counted by `maxPeers`, and its signals are not limited. The ids starting with `sfu:` or `whip:`
+     * are kept for such members.
+     */
+    role?: SignalingRole
+    /**
+     * Receives the events of a member of the application itself (`webrtc:peer-joined`, `webrtc:peer-left`,
+     * `webrtc:signal`), instead of a client of the entrypoint; such a member stays until it leaves.
+     */
+    receive?: SignalingReceiver
 }
+
+/**
+ * Receives the events of a member of the application itself ({@link SignalingJoinOptions.receive}).
+ * @param event The event: `webrtc:peer-joined`, `webrtc:peer-left` or `webrtc:signal`.
+ * @param payload Its payload.
+ */
+export type SignalingReceiver = (event: string, payload: unknown) => void
 
 /**
  * A member of the rooms
@@ -132,6 +153,10 @@ interface Member {
     lastSeen: number
     tokens: number
     refilledAt: number
+    //The role of a member added by the server
+    role?: SignalingRole
+    //The receiver of the events of a member of the application itself
+    receive?: SignalingReceiver
 }
 
 /**
@@ -142,6 +167,7 @@ interface RemoteMember {
     readonly metadata: unknown
     readonly session?: string
     readonly joinedAt: number
+    readonly role?: SignalingRole
 }
 
 /**
@@ -153,6 +179,7 @@ interface MemberRecord {
     metadata?: unknown
     session?: string
     joinedAt: number
+    role?: SignalingRole
 }
 
 /**
@@ -193,12 +220,37 @@ const CLUSTER_REQUEST_TIMEOUT: number = 2000
 const RESERVATION_TIMEOUT: number = 5000
 
 /**
+ * The beginnings of the ids kept for the members the server adds itself
+ */
+const RESERVED_PREFIXES: string[] = ['sfu:', 'whip:']
+
+/**
  * Whether a join is later than another: by time, then by node id when at the same millisecond
  * @param join
  * @param other
  */
 function later(join: {joinedAt: number, node: string}, other: {joinedAt: number, node: string}): boolean {
     return join.joinedAt !== other.joinedAt ? join.joinedAt > other.joinedAt : join.node > other.node
+}
+
+/**
+ * A member as the other members see it, without the fields it does not have
+ * @param peerId
+ * @param metadata
+ * @param session
+ * @param role
+ */
+function peerOf(peerId: string, metadata: unknown, session: string | undefined, role: SignalingRole | undefined): SignalingPeer {
+    return {peerId: peerId, metadata: metadata, session: session, ...role ? {role: role} : {}}
+}
+
+/**
+ * A member of this node in a room, as the node tells the others
+ * @param room
+ * @param member
+ */
+function recordOf(room: string, member: Member): MemberRecord {
+    return {room: room, peerId: member.peerId, metadata: member.rooms.get(room), session: member.session, joinedAt: member.joinedAt.get(room) ?? 0, ...member.role ? {role: member.role} : {}}
 }
 
 /**
@@ -417,7 +469,8 @@ export class Signaling extends Component {
      * @param room The room.
      * @param options Its metadata, its session, the context of its request.
      * @returns The members already in the room, the ICE servers and how to keep the membership alive.
-     * @throws {SignalingDeniedException} When `authorize` refuses the room.
+     * @throws {SignalingDeniedException} When `authorize` refuses the room, or the id is kept for the members of the
+     * server (`sfu:`, `whip:`) and no role is given.
      * @throws {SignalingLimitException} When the room is full, or the metadata is over `maxMessageSize`.
      * @example
      * ```typescript
@@ -429,17 +482,25 @@ export class Signaling extends Component {
      * ```
      */
     public async join(peerId: string, room: string, options: SignalingJoinOptions = {}): Promise<SignalingJoinResult> {
-        const {metadata, session, context} = options
+        const {metadata, session, context, role, receive} = options
         const size: number = metadata === undefined ? 0 : Buffer.byteLength(JSON.stringify(metadata))
         if (size > this.maxMessageSize) {
             throw new SignalingLimitException('Metadata of {size} bytes is over the limit of {limit}', {size: size, limit: this.maxMessageSize})
         }
-        if (this.authorize && !(await this.authorize({peerId: peerId, metadata: metadata, session: session}, room, context))) {
-            throw new SignalingDeniedException('The member {peerId} may not join the room {room}', {peerId: peerId, room: room})
+        if (!role) {
+            //A client may not take the place of a member of the server
+            if (RESERVED_PREFIXES.some((prefix: string): boolean => peerId.startsWith(prefix)) || this.#members.get(peerId)?.role || this.remoteRoleOf(peerId)) {
+                throw new SignalingDeniedException('The id {peerId} is kept for the members of the server', {peerId: peerId})
+            }
+            if (this.authorize && !(await this.authorize({peerId: peerId, metadata: metadata, session: session}, room, context))) {
+                throw new SignalingDeniedException('The member {peerId} may not join the room {room}', {peerId: peerId, room: room})
+            }
+            if (this.maxPeers && !(await this.admit(room, peerId))) {
+                throw new SignalingLimitException('The room {room} is full ({maxPeers} members)', {room: room, maxPeers: this.maxPeers})
+            }
         }
-        if (this.maxPeers && !(await this.admit(room, peerId))) {
-            throw new SignalingLimitException('The room {room} is full ({maxPeers} members)', {room: room, maxPeers: this.maxPeers})
-        }
+        //The media server of the room joins it first
+        const sfu: string | undefined = role ? undefined : await mediaServers.get(this)?.(room, peerId)
         let members: Map<string, Member> | undefined = this.#rooms.get(room)
         if (!members) {
             members = new Map()
@@ -447,20 +508,25 @@ export class Signaling extends Component {
         }
         const member: Member = this.member(peerId, context)
         if (session !== undefined) member.session = session
+        if (role) member.role = role
+        if (receive) {
+            member.receive = receive
+            member.heartbeats = false
+        }
         const locals: Member[] = [...members.values()].filter((other: Member): boolean => other.peerId !== peerId)
         //Joining through this node, it is no longer a member through another one
         const moved: RemoteMember | undefined = this.forgetRemote(room, peerId)
         const peers: SignalingPeer[] = [
-            ...locals.map((other: Member): SignalingPeer => ({peerId: other.peerId, metadata: other.rooms.get(room), session: other.session})),
-            ...[...this.#remote.get(room)?.entries() ?? []].map(([id, other]: [string, RemoteMember]): SignalingPeer => ({peerId: id, metadata: other.metadata, session: other.session}))
+            ...locals.map((other: Member): SignalingPeer => peerOf(other.peerId, other.rooms.get(room), other.session, other.role)),
+            ...[...this.#remote.get(room)?.entries() ?? []].map(([id, other]: [string, RemoteMember]): SignalingPeer => peerOf(id, other.metadata, other.session, other.role))
         ]
         member.rooms.set(room, metadata)
         //Later than its join through the other node, whatever the clocks of the nodes
         member.joinedAt.set(room, Math.max(Date.now(), (moved?.joinedAt ?? 0) + 1))
         members.set(peerId, member)
         this.#reservations.get(room)?.delete(peerId)
-        this.announceChange({kind: 'join', seq: 0, room: room, peerId: peerId, metadata: metadata, session: member.session, joinedAt: member.joinedAt.get(room)!})
-        const event: SignalingPeerEvent = {room: room, peerId: peerId, metadata: metadata, session: member.session}
+        this.announceChange({kind: 'join', seq: 0, ...recordOf(room, member)})
+        const event: SignalingPeerEvent = {room: room, ...peerOf(peerId, metadata, member.session, member.role)}
         //The other nodes tell their own members
         for (const other of locals) await this.push(other.peerId, SignalingEvent.peerJoined, event)
         const {iceServers, credentialTtl} = await this.iceServersOf(peerId)
@@ -470,7 +536,8 @@ export class Signaling extends Component {
             peers: peers,
             iceServers: iceServers,
             credentialTtl: credentialTtl,
-            heartbeatInterval: member.heartbeats ? this.heartbeatInterval : 0
+            heartbeatInterval: member.heartbeats ? this.heartbeatInterval : 0,
+            ...sfu ? {sfu: sfu} : {}
         }
     }
 
@@ -479,10 +546,11 @@ export class Signaling extends Component {
      * @param peerId The sender's id.
      * @param room The room both are in.
      * @param to The receiver's id.
-     * @param signal The description, or the candidate.
+     * @param signal The description (with the streams of the media server of the room, from it), or the candidate.
      * @returns Whether the event reached the receiver.
      * @throws {SignalingNotAMemberException} When the sender or the receiver is not in the room.
-     * @throws {SignalingLimitException} When the signal is too large, or the sender sends too many.
+     * @throws {SignalingLimitException} When the signal is too large, or the sender sends too many (a member of the
+     * server is not limited).
      * @example
      * ```typescript
      * import type {Signaling} from '@lakutata/webrtc'
@@ -492,21 +560,25 @@ export class Signaling extends Component {
      * const delivered: boolean = await signaling.signal('device-7', 'device-7', 'alice', {description: {type: 'offer', sdp: offer}})
      * ```
      */
-    public async signal(peerId: string, room: string, to: string, signal: {description?: SignalingDescription, candidate?: SignalingCandidate | null}): Promise<boolean> {
+    public async signal(peerId: string, room: string, to: string, signal: {description?: SignalingDescription, candidate?: SignalingCandidate | null, streams?: SignalingStream[]}): Promise<boolean> {
         const members: Map<string, Member> | undefined = this.#rooms.get(room)
         const member: Member | undefined = members?.get(peerId)
         if (!members || !member) throw new SignalingNotAMemberException('The member {peerId} is not in the room {room}', {peerId: peerId, room: room})
         const remote: RemoteMember | undefined = members.has(to) ? undefined : this.#remote.get(room)?.get(to)
         if (!members.has(to) && !remote) throw new SignalingNotAMemberException('The member {peerId} is not in the room {room}', {peerId: to, room: room})
-        const size: number = Buffer.byteLength(JSON.stringify(signal))
-        if (size > this.maxMessageSize) {
-            throw new SignalingLimitException('A signal of {size} bytes is over the limit of {limit}', {size: size, limit: this.maxMessageSize})
+        //The members of the server send descriptions of all the media of the room, as often as the members publish
+        if (!member.role) {
+            const size: number = Buffer.byteLength(JSON.stringify(signal))
+            if (size > this.maxMessageSize) {
+                throw new SignalingLimitException('A signal of {size} bytes is over the limit of {limit}', {size: size, limit: this.maxMessageSize})
+            }
+            this.consume(member)
         }
-        this.consume(member)
         member.lastSeen = Date.now()
         const event: SignalingSignalEvent = {room: room, from: peerId, session: member.session}
         if (signal.description) event.description = signal.description
         if (signal.candidate !== undefined) event.candidate = signal.candidate
+        if (signal.streams) event.streams = signal.streams
         if (!remote) return await this.push(to, SignalingEvent.signal, event)
         //Through the node of the receiver, unless it is known to be gone (its members leave with it)
         const cluster: Cluster = this.#clusterObject!
@@ -697,7 +769,7 @@ export class Signaling extends Component {
         const members: MemberRecord[] = []
         for (const [room, locals] of this.#rooms) {
             for (const member of locals.values()) {
-                members.push({room: room, peerId: member.peerId, metadata: member.rooms.get(room), session: member.session, joinedAt: member.joinedAt.get(room) ?? 0})
+                members.push(recordOf(room, member))
             }
         }
         return {seq: this.#seq, members: members}
@@ -810,9 +882,9 @@ export class Signaling extends Component {
             this.announceChange({kind: 'yield', seq: 0, room: room, peerId: peerId})
         }
         if (!this.#remote.has(room)) this.#remote.set(room, new Map())
-        this.#remote.get(room)!.set(peerId, {node: node, metadata: record.metadata, session: record.session, joinedAt: record.joinedAt})
+        this.#remote.get(room)!.set(peerId, {node: node, metadata: record.metadata, session: record.session, joinedAt: record.joinedAt, ...record.role ? {role: record.role} : {}})
         this.#reservations.get(room)?.delete(peerId)
-        const event: SignalingPeerEvent = {room: room, peerId: peerId, metadata: record.metadata, session: record.session}
+        const event: SignalingPeerEvent = {room: room, ...peerOf(peerId, record.metadata, record.session, record.role)}
         for (const other of [...this.#rooms.get(room)?.keys() ?? []]) await this.push(other, SignalingEvent.peerJoined, event)
     }
 
@@ -867,7 +939,7 @@ export class Signaling extends Component {
         const cluster: Cluster | undefined = this.#clusterObject
         if (!cluster) {
             const members: Map<string, Member> | undefined = this.#rooms.get(room)
-            return !members || members.has(peerId) || members.size < this.maxPeers
+            return !members || members.has(peerId) || [...members.values()].filter((member: Member): boolean => !member.role).length < this.maxPeers
         }
         for (let attempt: number = 0; attempt < 2; attempt++) {
             const owner: string = rendezvous(room, cluster.nodes().map((node: ClusterNode): string => node.id))!
@@ -893,7 +965,11 @@ export class Signaling extends Component {
         const now: number = Date.now()
         const reservations: Map<string, number> = this.#reservations.get(room) ?? new Map()
         for (const [id, expiresAt] of reservations) if (expiresAt < now) reservations.delete(id)
-        const present: Set<string> = new Set([...this.#rooms.get(room)?.keys() ?? [], ...this.#remote.get(room)?.keys() ?? []])
+        //The members of the server are not counted
+        const present: Set<string> = new Set([
+            ...[...this.#rooms.get(room)?.values() ?? []].filter((member: Member): boolean => !member.role).map((member: Member): string => member.peerId),
+            ...[...this.#remote.get(room)?.entries() ?? []].filter(([, member]: [string, RemoteMember]): boolean => !member.role).map(([id]: [string, RemoteMember]): string => id)
+        ])
         if (present.has(peerId)) return true
         for (const id of present) reservations.delete(id)
         if (!reservations.has(peerId) && present.size + reservations.size >= this.maxPeers) {
@@ -903,6 +979,19 @@ export class Signaling extends Component {
         reservations.set(peerId, now + RESERVATION_TIMEOUT)
         this.#reservations.set(room, reservations)
         return true
+    }
+
+    /**
+     * The role of a member of another node, in any room
+     * @param peerId The member's id.
+     * @protected
+     */
+    protected remoteRoleOf(peerId: string): SignalingRole | undefined {
+        for (const members of this.#remote.values()) {
+            const role: SignalingRole | undefined = members.get(peerId)?.role
+            if (role) return role
+        }
+        return undefined
     }
 
     /**
@@ -960,6 +1049,15 @@ export class Signaling extends Component {
      * @protected
      */
     protected async push(peerId: string, event: string, payload: unknown): Promise<boolean> {
+        const receive: SignalingReceiver | undefined = this.#members.get(peerId)?.receive
+        if (receive) {
+            try {
+                receive(event, payload)
+            } catch {
+                //The member of the application handles its own errors
+            }
+            return true
+        }
         this.#entrypointObject ??= await this.getObject<Entrypoint>(this.entrypoint)
         const delivered: boolean = this.#entrypointObject.notify(peerId, event, payload)
         if (!delivered) setImmediate((): void => void this.disconnect(peerId).catch((): void => undefined))

@@ -109,6 +109,12 @@ export interface SignalingIceServer {
 }
 
 /**
+ * The role the server gives a member it adds itself: `sfu` for the media server of a room (the other members connect
+ * to it only, and receive the media of each other through it), `whip` for a stream published with WHIP.
+ */
+export type SignalingRole = 'sfu' | 'whip'
+
+/**
  * A member of a room, as the other members see it.
  */
 export interface SignalingPeer {
@@ -124,6 +130,29 @@ export interface SignalingPeer {
      * The session the member gave when it joined: a new one means a new client behind the same id.
      */
     session?: string
+    /**
+     * The role of a member the server added itself; none for the clients.
+     */
+    role?: SignalingRole
+}
+
+/**
+ * A stream the media server of a room sends a member: its id on the connection to the server (the stream id of the
+ * MSID, at most 64 characters), the member it comes from, and its id on the connection of that member.
+ */
+export interface SignalingStream {
+    /**
+     * The id of the stream on the connection to the media server.
+     */
+    id: string
+    /**
+     * The id of the member sending it.
+     */
+    peerId: string
+    /**
+     * The id of the stream on the connection of that member.
+     */
+    stream: string
 }
 
 /**
@@ -154,6 +183,11 @@ export interface SignalingJoinResult {
      * How often to send `webrtc.heartbeat`, in milliseconds; 0 when the server detects the disconnections itself.
      */
     heartbeatInterval: number
+    /**
+     * The id of the media server of the room (a member of role `sfu`), when the room has one: the client connects to it
+     * only, not to the other members.
+     */
+    sfu?: string
 }
 
 /**
@@ -209,4 +243,8 @@ export interface SignalingSignalEvent {
      * A candidate, or none for a description.
      */
     candidate?: SignalingCandidate | null
+    /**
+     * With a description of the media server of the room: the streams it sends, and whose they are.
+     */
+    streams?: SignalingStream[]
 }
