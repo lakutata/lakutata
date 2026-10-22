@@ -11,4 +11,5 @@
 | [服务之间的调用](ServiceCalls.md) | 两个 `service` 项目：`@ServiceAction` 的模式与 `@Prefix`、HTTP 服务传输方式、调用它的代理组件、服务之间的令牌、被调用方的拒绝传回调用方（409）、各服务的测试（替身运行在测试进程中） |
 | [后台任务](BackgroundJobs.md) | `service` 模板、队列（内存驱动）及其 `@QueueAction`、重试和死信队列、借助锁只在一个实例中执行的 cron 定时任务、共用目录的两个实例、替换组件的测试 |
 | [给 AI 助手用的 MCP 服务器](MCPServer.md) | `default` 模板、工具、资源和提示词（通过 stdio 和 HTTP 提供）、用 DTO 校验参数、在 Claude Code 和 Claude Desktop 中注册、用 SDK 的 MCP 客户端编写的测试 |
+| [视频会议](Meeting.md) | `web-react` 模板加上 `@lakutata/webrtc`：信令和媒体服务器与页面共用端口、浏览器客户端、房间里所有人的摄像头画面、经数据通道的聊天、用 Node.js 成员编写的测试 |
 | [设备上的服务](DeviceService.md) | `service` 模板及其 `installer` 功能：定时任务、带选项的组件、监控器、用环境变量配置、由 deb/rpm 软件包安装的系统服务、测试 |

@@ -332,7 +332,7 @@ Application.run(() => ({
 | `select` | 每个成员收到其他人的每条轨道 | `(subscriber, track) => boolean`：一个成员收不收某条轨道 |
 | `maxMembers` | `0` | 所有房间加起来最多多少成员，0 表示不限；达到上限后再加入的成员会被拒绝（`SignalingLimitException`） |
 | `codecs` | Opus、PCMU、VP8、H.264、VP9 | 成员可以用哪些编码发布 |
-| `icePortRange`、`iceAdditionalHostAddresses` | | 连接使用的 UDP 端口，以及服务器的公网地址 |
+| `icePortRange`、`iceAdditionalHostAddresses` | | 连接使用的 UDP 端口（每条连接在本机的每个地址上各占一个端口：端口范围要够所有成员用），以及服务器的公网地址 |
 | `workers` | `0` | 转发房间用的工作线程数，用来利用更多的核 |
 | `cluster`、`selectSFU` | | 多个节点上的媒体服务器（第 13 节） |
 

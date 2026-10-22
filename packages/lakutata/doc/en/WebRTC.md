@@ -418,7 +418,7 @@ The options of `buildSFUOptions`:
 | `select` | every member receives every track | `(subscriber, track) => boolean`: whether a member receives a track |
 | `maxMembers` | `0` | The members of all the rooms at most, 0 for no limit; a member joining once it is reached is refused (`SignalingLimitException`) |
 | `codecs` | Opus, PCMU, VP8, H.264, VP9 | The codecs the members may publish |
-| `icePortRange`, `iceAdditionalHostAddresses` | | The UDP ports of the connections, and the public address of the server |
+| `icePortRange`, `iceAdditionalHostAddresses` | | The UDP ports of the connections (each one takes a port on each address of the machine: give the range enough of them for the members), and the public address of the server |
 | `workers` | `0` | Worker threads forwarding the rooms, to use more cores |
 | `cluster`, `selectSFU` | | The media servers of several nodes (section 13) |
 
