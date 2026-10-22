@@ -2,29 +2,29 @@ import {BaseObject} from '../BaseObject.js'
 import {DI_TARGET_ID} from '../../../constants/DIMetadataKey.js'
 import {constructorSymbol} from '../../ioc/ConstructorSymbol.js'
 import {IBaseObjectConstructor} from '../../../interfaces/IBaseObjectConstructor.js'
+import {type Resolver} from '../../ioc/Resolvers.js'
 import {As} from '@lakutata/utils/As'
 
+//The configurable records of the registrations, by resolver: each container keeps the options of its own registrations
+const registrationRecords: WeakMap<Resolver<any>, Record<string, any>> = new WeakMap()
+
 /**
- * Set configurable records to target constructor with its registration name
- * @param target
- * @param registrationName
+ * Set configurable records to a registration (the options it was declared with)
+ * @param registration
  * @param configurableRecords
  * @constructor
  */
-export function setConfigurableRecords<ClassConstructor extends typeof BaseObject>(target: ClassConstructor, registrationName: string | symbol, configurableRecords: Record<string, any>): void {
-    if (Reflect.hasOwnMetadata(registrationName, target)) Reflect.deleteMetadata(registrationName, target)
-    Reflect.defineMetadata(registrationName, configurableRecords, target)
+export function setConfigurableRecords(registration: Resolver<any>, configurableRecords: Record<string, any>): void {
+    registrationRecords.set(registration, configurableRecords)
 }
 
 /**
- * Get configurable records from target constructor by its registration name
- * @param target
+ * Get configurable records from a registration
+ * @param registration
  * @constructor
  */
-export function getConfigurableRecords<ClassConstructor extends typeof BaseObject>(target: ClassConstructor, registrationName: string | symbol): Record<string, any> {
-    const configurableRecords: Record<string, any> = Reflect.getOwnMetadata(registrationName, target)
-    if (configurableRecords) return configurableRecords
-    return {}
+export function getConfigurableRecords(registration: Resolver<any> | null): Record<string, any> {
+    return (registration && registrationRecords.get(registration)) ?? {}
 }
 
 /**

@@ -271,7 +271,8 @@ export class Container {
             throwWarning(`The configuration passed for the already created object "${As<T>(resolved).className}" is ignored. Use a scoped or transient object to get an instance with its own configuration.`)
         }
         if (isNewSubBaseObject) {
-            const presetConfigurableRecords: Record<string, any> = getConfigurableRecords(As<typeof BaseObject>(resolved.constructor), registrationName)
+            //The options of the registration in effect here (a child container's registration shadows its parent's)
+            const presetConfigurableRecords: Record<string, any> = getConfigurableRecords(this.#dic.getRegistration(registrationName))
             //set id into object instance
             setIdToInstance(As<T>(resolved), registrationName)
             //set configurable records into object instance
@@ -293,8 +294,8 @@ export class Container {
         const configurableRecords: Record<string, any> = {...options, class: void (0)}
         delete configurableRecords.id
         delete configurableRecords.class
-        setConfigurableRecords(options.class, id, configurableRecords)
         pair[id] = this.#createResolver(options.class)
+        setConfigurableRecords(pair[id], configurableRecords)
         return pair
     }
 

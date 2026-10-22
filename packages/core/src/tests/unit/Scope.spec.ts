@@ -89,6 +89,16 @@ class Settings extends Component {
     public readonly mode: string
 }
 
+class Tagged extends Component {
+    @Configurable(DTO.String().optional().default('none'))
+    public readonly tag: string
+}
+
+class TaggedJob extends BaseObject {
+    @Configurable(DTO.String().optional().default('none'))
+    public readonly tag: string
+}
+
 @Autoload()
 class AutoloadedState extends Provider {
 }
@@ -232,5 +242,45 @@ await describe('Scope Test', async function (): Promise<void> {
         assert.equal(warnings.length, 1, 'only the call with an ignored configuration warns')
         assert.match(warnings[0], /Settings/)
         await root.destroy()
+    })
+
+    await it('containers registering the same name and class keep their own options', async (): Promise<void> => {
+        const containers: Container[] = [new Container(), new Container(), new Container()]
+        for (const [index, container] of containers.entries()) {
+            await container.registerNamed('tagged', Tagged, {tag: `tagged-${index}`})
+            await container.registerNamed('job', TaggedJob, {tag: `job-${index}`})
+        }
+        //Created after the last registration, each with the options of its own container
+        assert.deepEqual(await Promise.all(containers.map(async (container: Container): Promise<string> => (await container.get<Tagged>('tagged')).tag)), ['tagged-0', 'tagged-1', 'tagged-2'])
+        assert.deepEqual(await Promise.all(containers.map(async (container: Container): Promise<string> => (await container.get<TaggedJob>('job')).tag)), ['job-0', 'job-1', 'job-2'])
+        //Registered and created at the same time
+        const concurrent: Container[] = [new Container(), new Container(), new Container()]
+        const created: Tagged[] = await Promise.all(concurrent.map((container: Container, index: number): Promise<Tagged> => container.setNamed('tagged', Tagged, {tag: `concurrent-${index}`})))
+        assert.deepEqual(created.map((tagged: Tagged): string => tagged.tag), ['concurrent-0', 'concurrent-1', 'concurrent-2'])
+        for (const container of [...containers, ...concurrent]) await container.destroy()
+    })
+
+    await it('a registration of a child container shadows the one of its parent with its own options', async (): Promise<void> => {
+        const root: Container = new Container()
+        await root.registerNamed('tagged', Tagged, {tag: 'root'})
+        await root.registerNamed('job', TaggedJob, {tag: 'root'})
+        const child: Container = root.createScope()
+        const sibling: Container = root.createScope()
+        await child.registerNamed('job', TaggedJob, {tag: 'child'})
+        assert.equal((await child.get<TaggedJob>('job')).tag, 'child')
+        assert.equal((await sibling.get<TaggedJob>('job')).tag, 'root')
+        assert.equal((await root.get<TaggedJob>('job')).tag, 'root')
+        assert.equal((await child.get<Tagged>('tagged')).tag, 'root', 'the singleton of the parent, with its options')
+        await root.destroy()
+    })
+
+    await it('an object built from a class gets the options of the class registered in its container only', async (): Promise<void> => {
+        const root: Container = new Container()
+        const other: Container = new Container()
+        await root.register(TaggedJob, {tag: 'registered'})
+        assert.equal((await root.createScope().build(TaggedJob)).tag, 'registered')
+        assert.equal((await other.build(TaggedJob)).tag, 'none')
+        await root.destroy()
+        await other.destroy()
     })
 })
