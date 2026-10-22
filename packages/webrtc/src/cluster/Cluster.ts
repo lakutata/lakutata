@@ -251,8 +251,9 @@ function nodeOf(node: RemoteNode): ClusterNode {
  * The instances of an application working together: each instance is a node, and the nodes talk through a bus (NATS or
  * Redis). The other components of the package use it when they are given its name (their `cluster` option): the
  * signaling puts the members of all the nodes in the same rooms, the TURN servers tell the others their address and
- * their load, the WHIP sessions are ended on the node holding them. The application may use it too: messages to all
- * the nodes (`publish`, `subscribe`), requests to one node or to all (`request`, `requestAll`, `handle`).
+ * their load, the media servers of the nodes share the rooms, and a DELETE or a PATCH of a session of WHIP or WHEP is
+ * applied on the node holding the session. The application may use it too: messages to all the nodes (`publish`,
+ * `subscribe`), requests to one node or to all (`request`, `requestAll`, `handle`).
  *
  * Each node tells the others it is there every `heartbeatInterval`, with its labels and what it offers
  * (`announce()`); the others take it as gone after three intervals without news of it, or at once when it stops. The

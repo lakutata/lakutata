@@ -110,33 +110,71 @@ function memberScript(options: {transport: 'socket.io' | 'jsonrpc', signaling: s
  */
 function mediaScript(options: {signaling: string, id: string, room: string, sendTo?: string[] | 'all', receiveFrom?: string[] | 'all'}): string {
     return `(async () => {
-        const {SignalingConnection} = await import('/exports/Client.js')
-        const socket = (await import('/socket.io.js')).io(${JSON.stringify(options.signaling)}, {auth: {id: ${JSON.stringify(options.id)}}, transports: ['websocket']})
-        const signaling = new SignalingConnection(socket)
-        const sendTo = ${JSON.stringify(options.sendTo ?? [])}
-        const receiveFrom = ${JSON.stringify(options.receiveFrom ?? [])}
-        const stream = sendTo.length ? await navigator.mediaDevices.getUserMedia({audio: true, video: {width: 320, height: 240}}) : undefined
-        const room = await signaling.join(${JSON.stringify(options.room)})
-        window.room = room
-        return await new Promise((resolve, reject) => {
-            setTimeout(() => reject(new Error('timed out')), 40000)
-            if (!receiveFrom.length) resolve({sending: true})
-            room.on('peer', (peer) => {
-                if (stream && (sendTo === 'all' || sendTo.includes(peer.id))) for (const track of stream.getTracks()) peer.connection.addTrack(track, stream)
-                if (receiveFrom !== 'all' && !receiveFrom.includes(peer.id)) return
-                peer.on('track', (event) => {
-                    if (event.track.kind !== 'video') return
-                    const timer = setInterval(async () => {
-                        for (const report of (await peer.connection.getStats(event.track)).values()) {
-                            if (report.type !== 'inbound-rtp' || !(report.framesDecoded > 0)) continue
-                            clearInterval(timer)
-                            resolve({from: peer.id, framesDecoded: report.framesDecoded, width: report.frameWidth, streams: event.streams.length})
-                        }
-                    }, 200)
+        //The step it is at and what its peers are at, to diagnose a timeout
+        let step = 'loading'
+        let tracks = 0
+        let room
+        let timer
+        const timedOut = new Promise((resolve, reject) => {
+            timer = setTimeout(() => reject(new Error('timed out at ' + step + ': ' + JSON.stringify({tracks, peers: room ? room.peers.map((peer) => [peer.id, peer.connection.signalingState, peer.connection.connectionState]) : []}))), 40000)
+        })
+        const run = async () => {
+            const {SignalingConnection} = await import('/exports/Client.js')
+            const socket = (await import('/socket.io.js')).io(${JSON.stringify(options.signaling)}, {auth: {id: ${JSON.stringify(options.id)}}, transports: ['websocket']})
+            const signaling = new SignalingConnection(socket)
+            const sendTo = ${JSON.stringify(options.sendTo ?? [])}
+            const receiveFrom = ${JSON.stringify(options.receiveFrom ?? [])}
+            step = 'getUserMedia'
+            const stream = sendTo.length ? await navigator.mediaDevices.getUserMedia({audio: true, video: {width: 320, height: 240}}) : undefined
+            step = 'join'
+            room = await signaling.join(${JSON.stringify(options.room)})
+            window.room = room
+            step = 'peers'
+            return await new Promise((resolve) => {
+                if (!receiveFrom.length) resolve({sending: true})
+                room.on('peer', (peer) => {
+                    if (stream && (sendTo === 'all' || sendTo.includes(peer.id))) for (const track of stream.getTracks()) peer.connection.addTrack(track, stream)
+                    if (receiveFrom !== 'all' && !receiveFrom.includes(peer.id)) return
+                    peer.on('track', (event) => {
+                        tracks++
+                        if (event.track.kind !== 'video') return
+                        const timer = setInterval(async () => {
+                            for (const report of (await peer.connection.getStats(event.track)).values()) {
+                                if (report.type !== 'inbound-rtp' || !(report.framesDecoded > 0)) continue
+                                clearInterval(timer)
+                                resolve({from: peer.id, framesDecoded: report.framesDecoded, width: report.frameWidth, streams: event.streams.length})
+                            }
+                        }, 200)
+                    })
                 })
             })
-        })
+        }
+        try {
+            return await Promise.race([run(), timedOut])
+        } finally {
+            clearTimeout(timer)
+        }
     })()`
+}
+
+/**
+ * The result of a script of a page, failing when the page does not answer in time (a page stuck)
+ * @param page
+ * @param script
+ * @param timeout
+ */
+async function evaluated<T>(page: BrowserPage, script: string, timeout: number = 60000): Promise<T> {
+    let timer: NodeJS.Timeout | undefined
+    try {
+        return await Promise.race([
+            page.evaluate<T>(script),
+            new Promise<never>((_resolve: unknown, reject: (error: Error) => void): void => {
+                timer = setTimeout((): void => reject(new Error(`The page did not answer in ${timeout} ms`)), timeout)
+            })
+        ])
+    } finally {
+        clearTimeout(timer)
+    }
 }
 
 /**
@@ -329,7 +367,7 @@ describe('Browser', (): void => {
             }, 40000, 'the tracks of Chrome')
             const page: BrowserPage = await chrome.newPage()
             await page.goto(files.url)
-            await page.evaluate(mediaScript({signaling: server.socketIO, id: 'camera', room: 'studio', sendTo: 'all'}))
+            await evaluated(page, mediaScript({signaling: server.socketIO, id: 'camera', room: 'studio', sendTo: 'all'}))
             const [audio, video] = (await tracks).sort((a: MediaTrack, b: MediaTrack): number => a.kind.localeCompare(b.kind))
             assert.strictEqual(audio.codec, 'audio/opus')
             assert.strictEqual(video.codec, 'video/VP8')
@@ -376,10 +414,10 @@ describe('Browser', (): void => {
             const camera: BrowserPage = await chrome.newPage()
             const watching: BrowserPage = await chrome.newPage()
             await Promise.all([camera.goto(files.url), watching.goto(files.url)])
-            await camera.evaluate(mediaScript({signaling: server.socketIO, id: 'camera', room: 'stage', sendTo: ['hub']}))
+            await evaluated(camera, mediaScript({signaling: server.socketIO, id: 'camera', room: 'stage', sendTo: ['hub']}))
             await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 1500))
             //The viewer decodes from a key frame the camera makes when the viewer asks, through the application
-            const decoded: DecodedVideo = await watching.evaluate<DecodedVideo>(mediaScript({signaling: server.socketIO, id: 'viewer', room: 'stage', receiveFrom: ['hub']}))
+            const decoded: DecodedVideo = await evaluated<DecodedVideo>(watching, mediaScript({signaling: server.socketIO, id: 'viewer', room: 'stage', receiveFrom: ['hub']}))
             assert.strictEqual(decoded.from, 'hub')
             assert.strictEqual(decoded.width, 320)
             assert.strictEqual(decoded.streams, 1)
@@ -401,8 +439,8 @@ describe('Browser', (): void => {
             const second: BrowserPage = await chrome.newPage()
             await Promise.all([first.goto(files.url), second.goto(files.url)])
             const decoded: DecodedVideo[] = await Promise.all([
-                first.evaluate<DecodedVideo>(mediaScript({signaling: server.socketIO, id: 'first', room: 'call', sendTo: 'all', receiveFrom: 'all'})),
-                second.evaluate<DecodedVideo>(mediaScript({signaling: server.socketIO, id: 'second', room: 'call', sendTo: 'all', receiveFrom: 'all'}))
+                evaluated<DecodedVideo>(first, mediaScript({signaling: server.socketIO, id: 'first', room: 'call', sendTo: 'all', receiveFrom: 'all'})),
+                evaluated<DecodedVideo>(second, mediaScript({signaling: server.socketIO, id: 'second', room: 'call', sendTo: 'all', receiveFrom: 'all'}))
             ])
             assert.deepStrictEqual(decoded.map((video: DecodedVideo): string => video.from), ['second', 'first'])
             for (const video of decoded) {
@@ -440,7 +478,7 @@ describe('Browser', (): void => {
             room.on('peer', (peer: Peer): void => void peer.connection.addTrack(video, 'test-pattern'))
             const page: BrowserPage = await chrome.newPage()
             await page.goto(files.url)
-            const decoded: DecodedVideo = await page.evaluate<DecodedVideo>(mediaScript({signaling: server.socketIO, id: 'viewer', room: 'broadcast', receiveFrom: ['app']}))
+            const decoded: DecodedVideo = await evaluated<DecodedVideo>(page, mediaScript({signaling: server.socketIO, id: 'viewer', room: 'broadcast', receiveFrom: ['app']}))
             assert.strictEqual(decoded.width, 320)
             assert.strictEqual(decoded.streams, 1)
         } finally {

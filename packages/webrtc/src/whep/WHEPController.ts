@@ -226,7 +226,7 @@ export class WHEPController extends Controller {
      * @param input The stream, the session, and the fragment of SDP (the body).
      * @returns Resolves once answered.
      * @throws {WHEPMediaTypeException} When the body is not `application/trickle-ice-sdpfrag`.
-     * @throws {WHEPSessionNotFoundException} When the stream has no such session on this node.
+     * @throws {WHEPSessionNotFoundException} When the stream has no such session on any node.
      * @throws {WHEPOfferException} When the fragment has no ICE, or the connection refuses it.
      */
     @PATCH('/:stream/:session', PatchDTO)
@@ -237,15 +237,10 @@ export class WHEPController extends Controller {
             throw new WHEPMediaTypeException('The fragment is not application/trickle-ice-sdpfrag')
         }
         const whep: WHEP = await this.whep()
-        const tag: string | undefined = whep.entityTagOf(input.session)
-        if (tag === undefined || whep.session(input.session)?.stream !== input.stream) {
-            throw new WHEPSessionNotFoundException('The stream {stream} has no session {session}', {stream: input.stream, session: input.session})
-        }
         //Any ICE session: *, quoted or not
         const ifMatch: string | undefined = request.headers['if-match']?.trim().replace(/^"\*"$/, '*')
-        if (ifMatch !== undefined && ifMatch !== '*' && ifMatch !== `"${tag}"`) return void response.writeHead(412, {'Content-Length': 0}).end()
-        //A restart only with If-Match: * (RFC 9725, section 4.3.2)
-        const patched: {fragment?: string, tag: string, stale?: boolean} = await whep.patch(input.session, input.body, ifMatch === '*')
+        //On the node holding the session
+        const patched: {fragment?: string, tag: string, stale?: boolean} = await whep.patch(input.session, input.body, {stream: input.stream, ...ifMatch === undefined ? {} : {ifMatch: ifMatch}})
         if (patched.stale) return void response.writeHead(412, {'Content-Length': 0}).end()
         if (patched.fragment === undefined) return void response.writeHead(204).end()
         const fragment: Buffer = Buffer.from(patched.fragment)

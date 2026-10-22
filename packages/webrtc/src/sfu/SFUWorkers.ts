@@ -32,6 +32,8 @@ export interface SFUWorkersHost {
     emptied(room: SFUServedRoom): void
     //The worker thread of a room stopped: the room is closed, its connections are gone
     lost(room: SFUServedRoom): void
+    //The source of a viewer of WHEP changed
+    sourced?(viewerId: string, source: string | undefined): void
 }
 
 /**
@@ -604,9 +606,9 @@ export class SFUWorkers {
                 return this.#host.emit(message.event, ...message.args)
             case 'state':
                 return slot.rooms.get(message.ref)?.state(message.members, message.viewers)
-            case 'source': {
-                return this.#legs.get(message.leg)?.sourced(message.source)
-            }
+            case 'source':
+                this.#legs.get(message.leg)?.sourced(message.source)
+                return this.#host.sourced?.(message.leg, message.source)
             case 'ended':
                 return this.#legs.get(message.leg)?.end()
             case 'emptied': {

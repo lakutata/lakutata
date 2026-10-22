@@ -107,8 +107,8 @@ export interface WHEPOptions {
      */
     authorize?: WHEPAuthorize
     /**
-     * The name of a {@link Cluster} component: a DELETE of a session reaching another node of the cluster (behind a
-     * load balancer) ends the session on the node holding it.
+     * The name of a {@link Cluster} component: a DELETE or a PATCH of a session reaching another node of the cluster
+     * (behind a load balancer) is applied on the node holding the session.
      * @default none
      */
     cluster?: string
@@ -155,6 +155,22 @@ const STOP_TOPIC: string = 'webrtc.whep.stop'
  * How long a DELETE waits for the nodes of the cluster, in milliseconds
  */
 const STOP_TIMEOUT: number = 2000
+
+/**
+ * The topic of the requests applying a PATCH of a session on the node holding it
+ */
+const PATCH_TOPIC: string = 'webrtc.whep.patch'
+
+/**
+ * How long a PATCH waits for the nodes of the cluster (an ICE restart gathers candidates), in milliseconds
+ */
+const PATCH_TIMEOUT: number = 12000
+
+/**
+ * What a node holding a session answers to a PATCH of it: the fragment answering an ICE restart, the entity tag, stale;
+ * or the reason the fragment is refused
+ */
+type PatchOutcome = {fragment?: string, tag: string, stale?: boolean} | {refused: string}
 
 /**
  * The playback of WHEP: players (browsers, media players) play a stream with an HTTP POST of their offer, and receive
@@ -285,8 +301,13 @@ export class WHEP extends Component {
      */
     protected async init(): Promise<void> {
         if (!this.cluster) return
-        this.#clusterObject = await this.getObject<Cluster>(this.cluster)
-        this.#unhandle = this.#clusterObject.handle<{id: string, stream?: string}, boolean>(STOP_TOPIC, ({id, stream}): boolean => this.end(id, stream))
+        const cluster: Cluster = await this.getObject<Cluster>(this.cluster)
+        this.#clusterObject = cluster
+        const unhandle: (() => void)[] = [
+            cluster.handle<{id: string, stream?: string}, boolean>(STOP_TOPIC, ({id, stream}): boolean => this.end(id, stream)),
+            cluster.handle<{id: string, fragment: string, stream?: string, ifMatch?: string}, PatchOutcome | null>(PATCH_TOPIC, async ({id, fragment, stream, ifMatch}): Promise<PatchOutcome | null> => await this.#patchHere(id, fragment, stream, ifMatch) ?? null)
+        ]
+        this.#unhandle = (): void => unhandle.forEach((each: () => void): void => each())
     }
 
     /**
@@ -438,15 +459,18 @@ export class WHEP extends Component {
     }
 
     /**
-     * Apply a PATCH of a session of this node (as RFC 9725, section 4.3 does for WHIP): the candidates of its viewer
-     * (trickle ICE), or an ICE restart when its credentials changed. `WHEPController` calls it for the PATCH requests.
+     * Apply a PATCH of a session (as RFC 9725, section 4.3 does for WHIP), on the node holding it: the candidates of
+     * its viewer (trickle ICE), or an ICE restart when its credentials changed, which needs `If-Match: *`.
+     * `WHEPController` calls it for the PATCH requests. With a cluster, a session of another node is patched there.
      * @param id The id of the session.
      * @param fragment The fragment of SDP of the request (`application/trickle-ice-sdpfrag`).
-     * @param restart Whether the request may restart ICE (its `If-Match` is `*`).
+     * @param options The stream the session must be of, and the `If-Match` of the request: `*` for any ICE session, or
+     * the entity tag of one, quoted.
      * @returns The fragment of SDP answering an ICE restart (none for trickle ICE), and the entity tag of the ICE session;
-     * `stale` for a fragment of other credentials when the request may not restart ICE (one sent again after a restart),
-     * not applied.
-     * @throws {WHEPSessionNotFoundException} When this node has no session of this id.
+     * `stale` when the request is not applied: its `If-Match` is not the entity tag of the session, or its credentials
+     * changed without `If-Match: *` (a request sent again after a restart).
+     * @throws {WHEPSessionNotFoundException} When no node has a session of this id, or the session is not of this
+     * stream.
      * @throws {WHEPOfferException} When the fragment has no ICE, or the connection refuses it.
      * @example
      * ```typescript
@@ -454,17 +478,41 @@ export class WHEP extends Component {
      *
      * declare const whep: WHEP
      * declare const fragment: string
-     * const {fragment: answer, tag} = await whep.patch('0b7d…', fragment)
+     * //An ICE restart
+     * const {fragment: answer, tag} = await whep.patch('0b7d…', fragment, {ifMatch: '*'})
      * ```
      */
-    public async patch(id: string, fragment: string, restart: boolean = true): Promise<{fragment?: string, tag: string, stale?: boolean}> {
+    public async patch(id: string, fragment: string, options: {stream?: string, ifMatch?: string} = {}): Promise<{fragment?: string, tag: string, stale?: boolean}> {
+        let outcome: PatchOutcome | undefined = await this.#patchHere(id, fragment, options.stream, options.ifMatch)
+        if (!outcome && this.#clusterObject) {
+            const replies: {result: PatchOutcome | null}[] = await this.#clusterObject.requestAll<PatchOutcome | null>(PATCH_TOPIC, {id: id, fragment: fragment, ...options}, {timeout: PATCH_TIMEOUT})
+            outcome = replies.find((reply: {result: PatchOutcome | null}): boolean => !!reply.result)?.result ?? undefined
+        }
+        if (!outcome) throw new WHEPSessionNotFoundException('There is no session {session}', {session: id})
+        if ('refused' in outcome) throw new WHEPOfferException('The ICE fragment is refused: {reason}', {reason: outcome.refused})
+        return outcome
+    }
+
+    /**
+     * Apply a PATCH of a session of this node
+     * @param id
+     * @param fragment
+     * @param stream
+     * @param ifMatch
+     * @returns What it gives, or undefined when this node has no such session.
+     */
+    async #patchHere(id: string, fragment: string, stream?: string, ifMatch?: string): Promise<PatchOutcome | undefined> {
         const leg: EndpointLeg | undefined = this.#legs.get(id)
-        if (!this.#sessions.has(id) || !leg) throw new WHEPSessionNotFoundException('There is no session {session}', {session: id})
+        const session: WHEPSession | undefined = this.#sessions.get(id)
+        if (!session || !leg || (stream !== undefined && session.stream !== stream)) return undefined
+        const tag: string = this.#tags.get(id) ?? ''
+        if (ifMatch !== undefined && ifMatch !== '*' && ifMatch !== `"${tag}"`) return {tag: tag, stale: true}
         let answer: string | undefined | null
         try {
-            answer = await leg.patch(fragment, restart)
+            //A restart only with If-Match: * (RFC 9725, section 4.3.2)
+            answer = await leg.patch(fragment, ifMatch === '*')
         } catch (error: unknown) {
-            throw new WHEPOfferException('The ICE fragment is refused: {reason}', {reason: (error as Error).message})
+            return {refused: (error as Error).message}
         }
         if (answer === null) return {tag: this.#tags.get(id) ?? '', stale: true}
         if (answer !== undefined && this.#sessions.has(id)) this.#tags.set(id, entityTag())

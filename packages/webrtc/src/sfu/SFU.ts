@@ -11,14 +11,15 @@ import {MEDIA_SERVER_ASSIGN_TOPIC, MEDIA_SERVER_SERVICE, type MediaServerLoad, t
 import type {Signaling} from '../signaling/Signaling.js'
 import type {EndpointLeg} from '../peer/Endpoints.js'
 import {sfuAccess, sfuRooms, sfuWorkers} from './SFUAccess.js'
+import {ClusterLeg, type ClusterLegLink, LEG_TIMEOUT, type LegPatchReply, type LegReply, SFU_TOPICS} from './SFUClusterLeg.js'
 import {type SFUHost, SFURoom, type SFUServedRoom, type SFUViewerSelect} from './SFURoom.js'
 import {SFUWorkers} from './SFUWorkers.js'
 
 /**
- * The topic of the requests of the media servers to each other: take a member in a room (answered with the id of the
- * member of the server, null for a room not served, or full)
+ * A node refused what it was asked to take (its offer, its room): the other nodes are not asked
  */
-const SERVE_TOPIC: string = 'webrtc.sfu.serve'
+class Refused extends Error {
+}
 
 /**
  * How often a media server announces its load on the cluster, in milliseconds
@@ -327,6 +328,14 @@ export class SFU extends Component {
     //Announces the load of the server on the cluster
     #announcer?: NodeJS.Timeout
 
+    //The legs of the sessions of WHIP and WHEP of this node on other nodes, the legs of this node for the sessions of
+    //other nodes, the choices of source of the viewers of this node on other nodes (by the ids of the legs)
+    readonly #clusterLegs: Map<string, ClusterLeg> = new Map()
+
+    readonly #servedLegs: Map<string, {leg: EndpointLeg & {source?(): string | undefined}, node: string}> = new Map()
+
+    readonly #choosers: Map<string, SFUViewerSelect> = new Map()
+
     readonly #detach: (() => void)[] = []
 
     /**
@@ -341,13 +350,41 @@ export class SFU extends Component {
             this.#clusterObject = cluster
             //One member of the server in each room, the same in all of them: the one of this node
             this.#id = `sfu:${cluster.nodeId}`
+            const down = (node: ClusterNode): void => this.#nodeDown(node.id)
+            cluster.on('node-down', down)
             this.#detach.push(
                 cluster.handle<{room: string, peerId: string}, MediaServerReply>(MEDIA_SERVER_ASSIGN_TOPIC, ({room, peerId}): Promise<MediaServerReply> => this.#reply((): Promise<string | undefined> => this.assign(room, peerId))),
-                cluster.handle<{room: string, peerId: string, kind: SFUPlacement['kind']}, MediaServerReply>(SERVE_TOPIC, ({room, peerId, kind}): Promise<MediaServerReply> => this.#reply(async (): Promise<string | undefined> => {
+                cluster.handle<{room: string, peerId: string, kind: SFUPlacement['kind']}, MediaServerReply>(SFU_TOPICS.serve, ({room, peerId, kind}): Promise<MediaServerReply> => this.#reply(async (): Promise<string | undefined> => {
                     if (this.serves && !this.serves(room)) return undefined
                     await this.#serveLocal(room, peerId, kind)
                     return this.#id
                 })),
+                //The legs of the sessions of other nodes
+                cluster.handle<{room: string, peerId: string, offer: SignalingDescription}, LegReply>(SFU_TOPICS.publish, ({room, peerId, offer}, from: string): Promise<LegReply> => this.#takeLeg(from, room, peerId, (): Promise<EndpointLeg> => this.#publishLocal(room, peerId, offer))),
+                cluster.handle<{room: string, viewerId: string, offer: SignalingDescription, select: boolean}, LegReply>(SFU_TOPICS.play, ({room, viewerId, offer, select}, from: string): Promise<LegReply> => this.#takeLeg(from, room, viewerId, (): Promise<EndpointLeg & {source(): string | undefined}> => this.#playLocal(room, viewerId, offer, select
+                    ? async (tracks: SFUTrack[]): Promise<string | undefined> => await cluster.request<string | null>(from, SFU_TOPICS.choose, {id: viewerId, tracks: tracks}) ?? undefined
+                    : undefined))),
+                cluster.handle<{id: string, fragment: string, restart: boolean}, LegPatchReply>(SFU_TOPICS.patch, async ({id, fragment, restart}): Promise<LegPatchReply> => {
+                    const served = this.#servedLegs.get(id)
+                    if (!served) throw new Error('There is no such session')
+                    const answer: string | undefined | null = await served.leg.patch(fragment, restart)
+                    return answer === null ? {stale: true} : answer === undefined ? {} : {fragment: answer}
+                }),
+                cluster.handle<{id: string}, boolean>(SFU_TOPICS.end, ({id}): boolean => {
+                    this.#servedLegs.get(id)?.leg.close()
+                    return true
+                }),
+                //The legs of the sessions of this node on other nodes
+                cluster.handle<{id: string}, boolean>(SFU_TOPICS.ended, ({id}): boolean => {
+                    this.#clusterLegs.get(id)?.end()
+                    return true
+                }),
+                cluster.handle<{id: string, source: string | null}, boolean>(SFU_TOPICS.source, ({id, source}): boolean => {
+                    this.#clusterLegs.get(id)?.sourced(source ?? undefined)
+                    return true
+                }),
+                cluster.handle<{id: string, tracks: SFUTrack[]}, string | null>(SFU_TOPICS.choose, async ({id, tracks}): Promise<string | null> => await this.#choosers.get(id)?.(tracks) ?? null),
+                (): unknown => cluster.off('node-down', down),
                 (): void => cluster.announce(MEDIA_SERVER_SERVICE, undefined)
             )
             this.#announce()
@@ -361,14 +398,38 @@ export class SFU extends Component {
                 //Its own id: the id of the session is the credential of its publisher
                 const peerId: string = `whip:${randomUUID()}`
                 if (this.serves && !this.serves(room)) throw new Error(`The media server does not serve the room ${room}`)
-                await this.#serveLocal(room, peerId, 'whip')
-                return {peerId: peerId, leg: await this.#rooms.get(room)!.publish(peerId, offer)}
+                const cluster: Cluster | undefined = this.#clusterObject
+                if (!cluster) return {peerId: peerId, leg: await this.#publishLocal(room, peerId, offer)}
+                return {
+                    peerId: peerId,
+                    leg: await this.#placeOn<EndpointLeg>({room: room, peerId: peerId, kind: 'whip'}, cluster, (): Promise<EndpointLeg> => this.#publishLocal(room, peerId, offer), async (node: string): Promise<EndpointLeg | 'full'> => {
+                        const reply: LegReply = await cluster.request<LegReply>(node, SFU_TOPICS.publish, {room: room, peerId: peerId, offer: offer}, {timeout: LEG_TIMEOUT})
+                        return this.#legOf(node, peerId, reply)
+                    })
+                }
             },
             play: async (room: string, offer: SignalingDescription, select?: SFUViewerSelect): Promise<{viewerId: string, leg: EndpointLeg & {source(): string | undefined}}> => {
                 const viewerId: string = `whep:${randomUUID()}`
                 if (this.serves && !this.serves(room)) throw new Error(`The media server does not serve the room ${room}`)
-                await this.#serveLocal(room, viewerId, 'viewer')
-                return {viewerId: viewerId, leg: await this.#rooms.get(room)!.play(viewerId, offer, select)}
+                const cluster: Cluster | undefined = this.#clusterObject
+                if (!cluster) return {viewerId: viewerId, leg: await this.#playLocal(room, viewerId, offer, select)}
+                //Its source chosen here, where the session is, wherever its connection is
+                if (select) this.#choosers.set(viewerId, select)
+                try {
+                    return {
+                        viewerId: viewerId,
+                        leg: await this.#placeOn<EndpointLeg & {source(): string | undefined}>({room: room, peerId: viewerId, kind: 'viewer'}, cluster, (): Promise<EndpointLeg & {source(): string | undefined}> => this.#playLocal(room, viewerId, offer, select), async (node: string): Promise<(EndpointLeg & {source(): string | undefined}) | 'full'> => {
+                            const reply: LegReply = await cluster.request<LegReply>(node, SFU_TOPICS.play, {room: room, viewerId: viewerId, offer: offer, select: !!select}, {timeout: LEG_TIMEOUT})
+                            const leg: ClusterLeg | 'full' = this.#legOf(node, viewerId, reply)
+                            if (leg !== 'full') leg.ended((): boolean => this.#choosers.delete(viewerId))
+                            return leg
+                        })
+                    }
+                } finally {
+                    //A choice of a viewer on another node only
+                    const leg: ClusterLeg | undefined = this.#clusterLegs.get(viewerId)
+                    if (!leg) this.#choosers.delete(viewerId)
+                }
             }
         })
     }
@@ -381,6 +442,8 @@ export class SFU extends Component {
         if (this.#signalingObject && mediaServers.get(this.#signalingObject)) mediaServers.delete(this.#signalingObject)
         clearInterval(this.#announcer)
         for (const detach of this.#detach.splice(0)) detach()
+        for (const leg of [...this.#clusterLegs.values()]) leg.close()
+        for (const {leg} of [...this.#servedLegs.values()]) leg.close()
         const rooms: SFUServedRoom[] = [...this.#rooms.values()]
         this.#rooms.clear()
         await Promise.all(rooms.map((room: SFUServedRoom): Promise<void> => room.close()))
@@ -452,6 +515,56 @@ export class SFU extends Component {
      * @param cluster
      */
     async #place(placement: SFUPlacement, cluster: Cluster): Promise<string | undefined> {
+        return await this.#placeOn<string | undefined>(placement, cluster, async (): Promise<string> => {
+            await this.#serveLocal(placement.room, placement.peerId, placement.kind)
+            return this.#id
+        }, async (node: string): Promise<string | undefined | 'full'> => {
+            const reply: MediaServerReply = await cluster.request<MediaServerReply>(node, SFU_TOPICS.serve, placement)
+            return 'full' in reply ? 'full' : reply.sfu ?? undefined
+        })
+    }
+
+    /**
+     * Take something in a room on a node: the nodes are tried in the order of the choice, the next one when one is full
+     * or does not answer
+     * @param placement What joins the room.
+     * @param cluster
+     * @param local Takes it on this node.
+     * @param remote Asks another node to take it.
+     * @throws {SignalingLimitException} When no node takes it.
+     * @throws {Error} When a node refuses it (its room, its offer).
+     */
+    async #placeOn<Result>(placement: SFUPlacement, cluster: Cluster, local: () => Promise<Result>, remote: (node: string) => Promise<Result | 'full'>): Promise<Result> {
+        for (const node of (await this.#candidates(placement, cluster)).slice(0, MAX_PLACEMENT_ATTEMPTS)) {
+            if (node.local) {
+                try {
+                    return await local()
+                } catch (error) {
+                    if (error instanceof SignalingLimitException) continue
+                    throw error
+                }
+            }
+            let result: Result | 'full'
+            try {
+                result = await remote(node.id)
+            } catch (error) {
+                if (error instanceof Refused) throw error
+                //Gone or not answering
+                continue
+            }
+            if (result !== 'full') return result
+        }
+        throw new SignalingLimitException('No media server takes the member {peerId} in the room {room}', {peerId: placement.peerId, room: placement.room})
+    }
+
+    /**
+     * The nodes a member may be given, in the order they are tried: the one selectSFU chooses, then for a room some
+     * nodes have, the least loaded of them that is not full, for a new room this node when it is not full, then the least
+     * loaded of the others, the ones full at last
+     * @param placement
+     * @param cluster
+     */
+    async #candidates(placement: SFUPlacement, cluster: Cluster): Promise<SFUNode[]> {
         //The nodes with members of the room: their members of the server are in it
         const serving: Set<string> = new Set((this.#signalingObject.rooms()[placement.room] ?? [])
             .filter((id: string): boolean => id.startsWith('sfu:'))
@@ -476,27 +589,93 @@ export class SFU extends Component {
         add(nodes.filter((node: SFUNode): boolean => !full(node)).sort(byLoad))
         //Full as they announced it a moment ago
         add(nodes.filter(full).sort(byLoad))
-        for (const node of order.slice(0, MAX_PLACEMENT_ATTEMPTS)) {
-            if (node.local) {
-                try {
-                    await this.#serveLocal(placement.room, placement.peerId, placement.kind)
-                    return this.#id
-                } catch (error) {
-                    if (error instanceof SignalingLimitException) continue
-                    throw error
-                }
-            }
-            let reply: MediaServerReply
-            try {
-                reply = await cluster.request<MediaServerReply>(node.id, SERVE_TOPIC, placement)
-            } catch {
-                //Gone or not answering
-                continue
-            }
-            if ('full' in reply) continue
-            return reply.sfu ?? undefined
+        return order
+    }
+
+    /**
+     * A stream published with WHIP joins a room of this server
+     * @param room
+     * @param peerId
+     * @param offer
+     */
+    async #publishLocal(room: string, peerId: string, offer: SignalingDescription): Promise<EndpointLeg> {
+        await this.#serveLocal(room, peerId, 'whip')
+        return await this.#rooms.get(room)!.publish(peerId, offer)
+    }
+
+    /**
+     * A viewer of WHEP plays a room of this server
+     * @param room
+     * @param viewerId
+     * @param offer
+     * @param select
+     */
+    async #playLocal(room: string, viewerId: string, offer: SignalingDescription, select?: SFUViewerSelect): Promise<EndpointLeg & {source(): string | undefined}> {
+        await this.#serveLocal(room, viewerId, 'viewer')
+        return await this.#rooms.get(room)!.play(viewerId, offer, select)
+    }
+
+    /**
+     * Take a stream of WHIP or a viewer of WHEP of a session of another node: its node is told when its connection
+     * ends, and when the source of a viewer changes
+     * @param node The node of the session.
+     * @param room
+     * @param id The id of the leg.
+     * @param take Takes it in the room.
+     */
+    async #takeLeg(node: string, room: string, id: string, take: () => Promise<EndpointLeg & {source?(): string | undefined}>): Promise<LegReply> {
+        if (this.serves && !this.serves(room)) return {refused: `The media server does not serve the room ${room}`}
+        let leg: EndpointLeg & {source?(): string | undefined}
+        try {
+            leg = await take()
+        } catch (error) {
+            if (error instanceof SignalingLimitException) return {full: true}
+            return {refused: (error as Error).message}
         }
-        throw new SignalingLimitException('No media server takes the member {peerId} in the room {room}', {peerId: placement.peerId, room: placement.room})
+        this.#servedLegs.set(id, {leg: leg, node: node})
+        leg.ended((): void => {
+            if (this.#servedLegs.get(id)?.leg !== leg) return
+            this.#servedLegs.delete(id)
+            this.#clusterObject?.request(node, SFU_TOPICS.ended, {id: id}).catch((): void => undefined)
+        })
+        return {answer: leg.answer, ...leg.source ? {source: leg.source() ?? null} : {}}
+    }
+
+    /**
+     * The leg of a session of this node on another node, from its answer
+     * @param node
+     * @param id
+     * @param reply
+     * @throws {Refused} When the node refused it.
+     */
+    #legOf(node: string, id: string, reply: LegReply): ClusterLeg | 'full' {
+        if ('full' in reply) return 'full'
+        if ('refused' in reply) throw new Refused(reply.refused)
+        const cluster: Cluster = this.#clusterObject!
+        const link: ClusterLegLink = {
+            legs: this.#clusterLegs,
+            request: <Result>(to: string, topic: string, message: unknown): Promise<Result> => cluster.request<Result>(to, topic, message, {timeout: LEG_TIMEOUT})
+        }
+        return new ClusterLeg(link, node, id, reply.answer, reply.source ?? undefined)
+    }
+
+    /**
+     * The source of a viewer of WHEP of this server changed: the node of its session is told, if it is another one
+     * @param viewerId
+     * @param source
+     */
+    #sourced(viewerId: string, source: string | undefined): void {
+        const served = this.#servedLegs.get(viewerId)
+        if (served) this.#clusterObject?.request(served.node, SFU_TOPICS.source, {id: viewerId, source: source ?? null}).catch((): void => undefined)
+    }
+
+    /**
+     * A node went down: the legs of the sessions of this node on it are gone, the legs of its sessions here are closed
+     * @param node
+     */
+    #nodeDown(node: string): void {
+        for (const leg of [...this.#clusterLegs.values()]) if (leg.node === node) leg.end()
+        for (const {leg, node: owner} of [...this.#servedLegs.values()]) if (owner === node) leg.close()
     }
 
     /**
@@ -585,7 +764,8 @@ export class SFU extends Component {
             select: this.select,
             emit: (event: string, ...args: unknown[]): unknown => this.emit(event, ...args),
             emptied: (room: SFUServedRoom): void => this.#leave(room),
-            lost: (room: SFUServedRoom): void => this.#lost(room)
+            lost: (room: SFUServedRoom): void => this.#lost(room),
+            sourced: (viewerId: string, source: string | undefined): void => this.#sourced(viewerId, source)
         }, ranges.map((range: [number, number] | undefined, thread: number) => ({
             thread: thread,
             connection: {
@@ -625,7 +805,8 @@ export class SFU extends Component {
             }),
             select: (subscriber: SignalingPeer, track: SFUTrack): boolean => !this.select || this.select(subscriber, track),
             emit: (event: string, ...args: unknown[]): unknown => this.emit(event, ...args),
-            emptied: (room: SFURoom): void => this.#leave(room)
+            emptied: (room: SFURoom): void => this.#leave(room),
+            sourced: (viewerId: string, source: string | undefined): void => this.#sourced(viewerId, source)
         }
     }
 

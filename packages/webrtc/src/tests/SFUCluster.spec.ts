@@ -12,9 +12,10 @@ import type {SFUNode, SFUOptions, SFUPlacement, SFUTrack} from '../sfu/SFU.js'
 import {sfuRooms} from '../sfu/SFUAccess.js'
 import type {SFURoom} from '../sfu/SFURoom.js'
 import type {SignalingPeer} from '../protocol/SignalingProtocol.js'
-import type {WHEPOptions} from '../whep/WHEP.js'
-import type {WHIPOptions} from '../whip/WHIP.js'
-import {feed, from, packets, whipPublisher} from './support/Media.js'
+import type {WHEPOptions, WHEPSession} from '../whep/WHEP.js'
+import type {WHIPOptions, WHIPSession} from '../whip/WHIP.js'
+import {iceOf} from '../peer/Endpoints.js'
+import {feed, from, packets, restartIce, whipPublisher} from './support/Media.js'
 import {next, startServer, type TestServer, until} from './support/Server.js'
 
 /**
@@ -243,7 +244,10 @@ describe('SFU in a cluster', (): void => {
     })
 
     for (const workers of [0, 2]) it(`plays on a node a stream published with WHIP on another one, and reads it there${workers ? `, forwarding in ${workers} worker threads` : ''}`, {timeout: 90000}, async (): Promise<void> => {
-        const servers: TestServer[] = await startNodes({n0: {sfu: {workers: workers}, whip: {}, whep: {}}, n1: {sfu: {workers: workers}, whip: {}, whep: {}}})
+        //The streams on n0, the viewers on n1
+        const selectSFU = (placement: SFUPlacement): string => placement.kind === 'viewer' ? 'n1' : 'n0'
+        const sfu: SFUOptions = {workers: workers, selectSFU: selectSFU}
+        const servers: TestServer[] = await startNodes({n0: {sfu: sfu, whip: {}, whep: {}}, n1: {sfu: sfu, whip: {}, whep: {}}})
         const clients: Container = new Container()
         const stops: (() => void)[] = []
         try {
@@ -368,6 +372,86 @@ describe('SFU in a cluster', (): void => {
             await next<void>((resolve: () => void): unknown => toNobody.once('close', resolve), 10000, 'the channel to nobody closed')
         } finally {
             members.forEach((each: Member): void => each.stop())
+            await clients.destroy()
+            await stopAll(servers)
+        }
+    })
+
+    for (const workers of [0, 2]) it(`answers on a node the publishers and the viewers of the sessions of another one, which takes their PATCH and DELETE${workers ? `, forwarding in ${workers} worker threads` : ''}`, {timeout: 90000}, async (): Promise<void> => {
+        //The connections on n0, whatever node the requests come to; the source of a viewer chosen on the node of its
+        //session
+        const sfu: SFUOptions = {workers: workers, selectSFU: (): string => 'n0'}
+        let chosen: number = 0
+        const select = (_viewer: unknown, tracks: SFUTrack[]): string | undefined => {
+            chosen++
+            return tracks.find((track: SFUTrack): boolean => track.peerId.startsWith('whip:'))?.peerId
+        }
+        const servers: TestServer[] = await startNodes({
+            n0: {sfu: sfu, whip: {cluster: 'cluster'}, whep: {cluster: 'cluster'}},
+            n1: {sfu: sfu, whip: {cluster: 'cluster'}, whep: {cluster: 'cluster', select: select}}
+        })
+        const clients: Container = new Container()
+        const stops: (() => void)[] = []
+        const unpublished: WHIPSession[] = []
+        const stopped: WHEPSession[] = []
+        servers[1].whip!.on('unpublish', (session: WHIPSession): number => unpublished.push(session))
+        servers[1].whep!.on('stop', (session: WHEPSession): number => stopped.push(session))
+        try {
+            //The sessions on n1, their connections on n0
+            const publisher = await whipPublisher(clients, `${servers[1].http}/whip/show`, 600000)
+            stops.push(publisher.stop)
+            assert.strictEqual(publisher.response.status, 201)
+            assert.strictEqual(servers[1].whip!.sessions.length, 1)
+            assert.strictEqual(servers[0].whip!.sessions.length, 0)
+            await until((): boolean => servers[0].sfu!.rooms().show?.tracks.length === 2, 10000, 'the tracks on n0')
+            assert.deepStrictEqual(Object.keys(servers[1].sfu!.rooms()), [])
+            const viewer: PeerConnection = await clients.get(PeerConnection, {iceAdditionalHostAddresses: ['127.0.0.1']})
+            const tracks: Map<string, MediaTrack> = new Map()
+            viewer.addEventListener('track', (event: PeerTrackEvent): unknown => tracks.set(event.track.kind, event.track))
+            viewer.addTransceiver('audio', {direction: 'recvonly'})
+            viewer.addTransceiver('video', {direction: 'recvonly'})
+            await viewer.setLocalDescription()
+            await until((): boolean => viewer.iceGatheringState === 'complete', 10000, 'the candidates')
+            const response: Response = await fetch(`${servers[1].http}/whep/show`, {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: viewer.localDescription!.sdp})
+            assert.strictEqual(response.status, 201)
+            const location: string = response.headers.get('Location')!
+            await viewer.setRemoteDescription({type: 'answer', sdp: await response.text()})
+            await until((): boolean => tracks.has('video'), 10000, 'the video of the viewer')
+            assert.ok(await from(tracks.get('video')!, 600000), 'the stream at the viewer')
+            assert.strictEqual(servers[0].sfu!.rooms().show.viewers, 1)
+            //The source of the viewer, told to the node of its session
+            const session: WHIPSession = servers[1].whip!.sessions[0]
+            await until((): boolean => servers[1].whep!.sessions[0]?.source === session.peerId, 10000, 'the source of the viewer')
+            assert.ok(chosen > 0, 'the source chosen on n1')
+            //Trickle ICE through the node of the session, and through the other one
+            const ufrag: string = iceOf(viewer.localDescription!.sdp!).ufrag!
+            const trickle = (node: number): Promise<Response> => fetch(`${servers[node].http}${location}`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/trickle-ice-sdpfrag'},
+                body: `a=ice-ufrag:${ufrag}\r\na=ice-pwd:${iceOf(viewer.localDescription!.sdp!).pwd}\r\nm=audio 9 UDP/TLS/RTP/SAVPF 0\r\na=mid:0\r\na=candidate:1 1 udp 2130706431 127.0.0.1 9 typ host\r\n`
+            })
+            assert.strictEqual((await trickle(1)).status, 204)
+            assert.strictEqual((await trickle(0)).status, 204)
+            assert.strictEqual((await fetch(`${servers[0].http}${location}`, {method: 'PATCH', headers: {'Content-Type': 'application/trickle-ice-sdpfrag', 'If-Match': '"other"'}, body: 'a=ice-ufrag:x'})).status, 412)
+            assert.strictEqual((await fetch(`${servers[0].http}/whep/show/0b7d`, {method: 'PATCH', headers: {'Content-Type': 'application/trickle-ice-sdpfrag'}, body: 'a=ice-ufrag:x'})).status, 404)
+            //An ICE restart through the other node: the media go on
+            const restarted = await restartIce(viewer, `${servers[0].http}${location}`)
+            assert.strictEqual(restarted.response.status, 200)
+            await packets(tracks.get('video')!, 5)
+            assert.ok(await from(tracks.get('video')!, 600000), 'the stream after the restart')
+            //The stream deleted through the other node: the session ends on its node, the connection on its own
+            assert.strictEqual((await fetch(`${servers[0].http}${publisher.location}`, {method: 'DELETE'})).status, 200)
+            assert.deepStrictEqual(unpublished.map((each: WHIPSession): string => each.id), [session.id])
+            await until((): boolean => !servers[0].sfu!.rooms().show?.members.includes(session.peerId!), 10000, 'the stream left on n0')
+            //The viewer has no source any more, as n0 tells n1
+            await until((): boolean => servers[1].whep!.sessions[0]?.source === undefined, 10000, 'no source')
+            //The node of the connections goes down: the session of the viewer ends
+            await servers[0].stop()
+            await until((): boolean => stopped.length === 1, 10000, 'the session of the viewer ended')
+            assert.deepStrictEqual(servers[1].whep!.sessions, [])
+            viewer.close()
+        } finally {
+            stops.forEach((stop: () => void): void => stop())
             await clients.destroy()
             await stopAll(servers)
         }
