@@ -278,6 +278,44 @@ describe('peerConnection', () => {
         }
     })
 
+    test('an offer rolled back gives back the media ids it gave: two sendonly tracks offered at once are both received', async () => {
+        const pc1 = new RTCPeerConnection()
+        const pc2 = new RTCPeerConnection()
+        try {
+            //A first negotiation
+            pc1.createDataChannel('chat')
+            await pc1.setLocalDescription(await pc1.createOffer())
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            await pc1.setRemoteDescription(pc2.localDescription!)
+            //Each sends a video, and both offer at once: their new media take the same media id
+            const video1 = new MediaStreamTrack({kind: 'video'})
+            const video2 = new MediaStreamTrack({kind: 'video'})
+            pc1.addTransceiver(video1, {direction: 'sendonly'})
+            pc2.addTransceiver(video2, {direction: 'sendonly'})
+            await pc1.setLocalDescription(await pc1.createOffer())
+            await pc2.setLocalDescription(await pc2.createOffer())
+            const sending2 = pc2.getTransceivers().find((transceiver) => transceiver.sender.track === video2)!
+            expect(sending2.mid).toBe(pc1.getTransceivers().find((transceiver) => transceiver.sender.track === video1)!.mid)
+            //pc2 gives up its offer: its transceiver loses the media id of that offer, the offer of pc1 takes another one
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            expect(sending2.mid).toBeNull()
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            await pc1.setRemoteDescription(pc2.localDescription!)
+            //pc2 offers its video again
+            await pc2.setLocalDescription(await pc2.createOffer())
+            await pc1.setRemoteDescription(pc2.localDescription!)
+            await pc1.setLocalDescription(await pc1.createAnswer())
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            const directions = (pc: RTCPeerConnection) => pc.getTransceivers().map((transceiver) => `${transceiver.sender.track ? 'own' : 'other'} ${transceiver.currentDirection}`).sort()
+            expect(directions(pc1)).toEqual(['other recvonly', 'own sendonly'])
+            expect(directions(pc2)).toEqual(['other recvonly', 'own sendonly'])
+            expect(new Set(pc2.getTransceivers().map((transceiver) => transceiver.mid)).size).toBe(2)
+        } finally {
+            await Promise.allSettled([pc1.close(), pc2.close()])
+        }
+    })
+
     test('removeTrack is a no-op for a stopped transceiver', async () => {
         const pc = new RTCPeerConnection()
         const stream = new MediaStream()

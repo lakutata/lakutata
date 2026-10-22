@@ -860,6 +860,7 @@ export class RTCPeerConnection extends EventTarget {
 
         if (sessionDescription?.type === 'rollback') {
             this.sdpManager.rollbackLocalDescription(this.signalingState)
+            this.rollbackLocalOffer()
             for (const transceiver of this.transceiverManager.getTransceivers()) {
                 transceiver.pendingLocalOfferCodecs = undefined
             }
@@ -1196,6 +1197,23 @@ export class RTCPeerConnection extends EventTarget {
 
         await this.waitForPendingDescriptionTask()
 
+        //An offer of the other side while this side offers: this side's offer is rolled back first, the offer of the
+        //other side then associated with the transceivers as they were before it
+        const needsImplicitLocalRollback =
+            sessionDescription.type === 'offer' &&
+      ['have-local-offer', 'have-local-pranswer'].includes(this.signalingState)
+        if (needsImplicitLocalRollback) {
+            this.sdpManager.rollbackLocalDescription(this.signalingState)
+            this.rollbackLocalOffer()
+            for (const transceiver of this.transceiverManager.getTransceivers()) {
+                transceiver.pendingLocalOfferCodecs = undefined
+            }
+            this.pendingOfferChangeSeq = undefined
+            this.shouldNegotiationneeded = true
+            this.setSignalingState('stable')
+            await Promise.resolve()
+        }
+
         let codecPlan = new Map<number, RTCRtpCodecParameters[]>()
         if (
             sessionDescription.type &&
@@ -1223,20 +1241,6 @@ export class RTCPeerConnection extends EventTarget {
                     return transceiver
                 }
             )
-        }
-
-        const needsImplicitLocalRollback =
-            sessionDescription.type === 'offer' &&
-      ['have-local-offer', 'have-local-pranswer'].includes(this.signalingState)
-        if (needsImplicitLocalRollback) {
-            this.sdpManager.rollbackLocalDescription(this.signalingState)
-            for (const transceiver of this.transceiverManager.getTransceivers()) {
-                transceiver.pendingLocalOfferCodecs = undefined
-            }
-            this.pendingOfferChangeSeq = undefined
-            this.shouldNegotiationneeded = true
-            this.setSignalingState('stable')
-            await Promise.resolve()
         }
 
         // # parse and validate description
@@ -1742,12 +1746,38 @@ export class RTCPeerConnection extends EventTarget {
         }
     }
 
+    //The media id and the m-line index of the data channels when the signaling state was stable last
+    private stableSctp?: {mid?: string, mLineIndex?: number}
+
+    /**
+   * The signaling state is stable: the associations of the transceivers and of the data channels are kept, for a
+   * rollback of the next local offer
+   */
+    private markStable() {
+        this.transceiverManager.markStable()
+        const sctp = this.sctpTransport
+        this.stableSctp = sctp ? {mid: sctp.mid, mLineIndex: sctp.mLineIndex} : undefined
+    }
+
+    /**
+   * A local offer is rolled back: the transceivers and the data channels are associated as before it
+   */
+    private rollbackLocalOffer() {
+        this.transceiverManager.rollbackLocalOffer()
+        const sctp = this.sctpTransport
+        if (sctp) {
+            sctp.mid = this.stableSctp?.mid
+            sctp.mLineIndex = this.stableSctp?.mLineIndex
+        }
+    }
+
     private setSignalingState(state: RTCSignalingState) {
         if (this.signalingState === state) {
             return
         }
         log('signalingStateChange', state)
         this.signalingState = state
+        if (state === 'stable') this.markStable()
         this.signalingStateChange.execute(state)
         if (this.onsignalingstatechange) {
             runDetached(() => this.onsignalingstatechange!(new globalThis.Event('signalingstatechange')), (error) => log('event handler failed', error))

@@ -57,6 +57,8 @@ function simulcastFromSendEncodings(
 export class TransceiverManager {
     private readonly transceivers: RTCRtpTransceiver[] = []
     private readonly watched = new WeakSet<RTCRtpTransceiver>()
+    //The media ids and the m-line indexes of the transceivers when the signaling state was stable last
+    private stableState = new Map<RTCRtpTransceiver, {mid: string | null, mLineIndex?: number}>()
     private remoteOfferSnapshot?: {
         transceivers: RTCRtpTransceiver[]
         /**適用中の remote offer が作成した transceiver (rollback で破棄する対象) */
@@ -850,6 +852,27 @@ export class TransceiverManager {
         }
 
         return true
+    }
+
+    /**
+   * The signaling state is stable: the media ids and the m-line indexes of the transceivers are kept, given back when
+   * the next local offer is rolled back
+   */
+    markStable() {
+        this.stableState = new Map(this.transceivers.map((t) => [t, {mid: t.mid, mLineIndex: t.mLineIndex}]))
+    }
+
+    /**
+   * A local offer is rolled back (JSEP 4.1.8.2): the transceivers it gave a media id and an m-line are associated as
+   * before it, the ones added since not at all (an offer of the other side then associates them by their own rules, not
+   * by the media id the rolled back offer gave them)
+   */
+    rollbackLocalOffer() {
+        for (const transceiver of this.transceivers) {
+            const state = this.stableState.get(transceiver)
+            transceiver.mid = state?.mid ?? null
+            transceiver.mLineIndex = state?.mLineIndex
+        }
     }
 
     /**
