@@ -209,7 +209,7 @@ export interface SFUOptions {
  * package (`SignalingClient`, `SignalingConnection` of `./client`) connect to it by themselves, and their rooms and
  * peers work as without it: `room.publish()` sends a track to every member, each peer emits the tracks of its member,
  * and a data channel to a member goes through the server, which relays its messages (unlike between two members, the
- * server sees them). The key frame requests of the members go to the publisher, at most every 500 ms; the lost packets
+ * server sees them; with a cluster, the servers of both members relay them). The key frame requests of the members go to the publisher, at most every 500 ms; the lost packets
  * are sent again by the server; the bandwidth of each connection is estimated from the transport-wide feedback. A
  * member receiving the messages of a channel slower than they are sent makes the sender wait, without the server
  * keeping more than a few megabytes of them.

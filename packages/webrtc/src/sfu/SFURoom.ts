@@ -194,6 +194,40 @@ interface Member {
 }
 
 /**
+ * How long a channel to a member not known yet waits for it (its joining on its way through the cluster), in
+ * milliseconds
+ */
+const UNKNOWN_MEMBER_TIMEOUT: number = 5000
+
+/**
+ * A channel a member opened to another one, not relayed yet: the members it goes from and to, the messages it got
+ * meanwhile
+ */
+interface Opening {
+    readonly member: Member
+    readonly channel: PeerChannel
+    readonly source: string
+    readonly target: string
+    readonly early: (string | Buffer | ArrayBuffer)[]
+    readonly keep: (data: string | Buffer | ArrayBuffer) => number
+    //While its other member is not known
+    timer?: NodeJS.Timeout
+}
+
+/**
+ * The members a channel from the media server of another node goes from and to: its protocol, `["from","to"]`
+ * @param protocol
+ */
+function routeOf(protocol: string): [string, string] | undefined {
+    try {
+        const route: unknown = JSON.parse(protocol)
+        return Array.isArray(route) && route.length === 2 && route.every((id: unknown): boolean => typeof id === 'string') ? route as [string, string] : undefined
+    } catch {
+        return undefined
+    }
+}
+
+/**
  * The bytes a channel relayed to a member may have waiting to be sent: past them, the messages wait at the server, out
  * of the receive window of the member sending them (which waits then), until the channel sends half of them
  */
@@ -304,6 +338,9 @@ export class SFURoom implements SFUServedRoom {
     //The tracks of other nodes read here, by key
     readonly #reads: Map<string, Read> = new Map()
 
+    //The channels to members not known yet
+    readonly #waiting: Set<Opening> = new Set()
+
     #closed: boolean = false
 
     /**
@@ -413,6 +450,7 @@ export class SFURoom implements SFUServedRoom {
         for (const member of [...this.#members.values()]) this.#remove(member)
         for (const viewer of [...this.#viewers.values()]) this.#stop(viewer)
         for (const key of [...this.#reads.keys()]) this.#endRead(key)
+        for (const opening of [...this.#waiting]) opening.channel.close()
         await this.#host.signaling.leave(this.#host.id, this.name).catch((): void => undefined)
     }
 
@@ -624,6 +662,7 @@ export class SFURoom implements SFUServedRoom {
         } else if (!peer.role && peer.sfu) {
             this.#elsewhere.set(peer.peerId, peer.sfu)
         }
+        this.#unwait()
     }
 
     /**
@@ -720,6 +759,7 @@ export class SFURoom implements SFUServedRoom {
         this.#host.changed?.(this)
         //The tracks of the other nodes it may receive
         this.#evaluate()
+        this.#unwait()
         //A failed negotiation is the member's (it left meanwhile, it sent a wrong description)
         peer.on('error', (): void => undefined)
         peer.on('track', (event: PeerTrackEvent): void => this.#published(member, event))
@@ -749,27 +789,95 @@ export class SFURoom implements SFUServedRoom {
      * @param channel
      */
     #opened(member: Member, channel: PeerChannel): void {
-        const other: Member | undefined = this.#members.get(channel.protocol)
-        //Not to a stream published with WHIP: it has no data channels
-        if (!other || other === member || !other.peer || other.leg.closed) return channel.close()
+        let source: string = member.id
+        let target: string = channel.protocol
+        if (member.cascade) {
+            //From the media server of another node: its protocol has the member it comes from and the one it goes to
+            const route: [string, string] | undefined = routeOf(channel.protocol)
+            if (!route) return channel.close()
+            ;[source, target] = route
+        }
         //Its first messages may come with its opening, before the other side is there
         const early: (string | Buffer | ArrayBuffer)[] = []
         const keep = (data: string | Buffer | ArrayBuffer): number => early.push(data)
         channel.on('message', keep)
-        other.leg.ready.then((): void => {
-            channel.off('message', keep)
-            if (other.leg.closed || channel.readyState === 'closed') return channel.close()
-            const relayed: PeerChannel = other.leg.connection.createDataChannel(channel.label, {
-                protocol: member.id,
-                ordered: channel.ordered,
-                ...channel.maxRetransmits !== null ? {maxRetransmits: channel.maxRetransmits} : {},
-                ...channel.maxPacketLifeTime !== null ? {maxPacketLifeTime: channel.maxPacketLifeTime} : {}
-            })
-            relay(channel, relayed, early)
-            relay(relayed, channel)
-            channel.on('close', (): void => relayed.close())
-            relayed.on('close', (): void => channel.close())
-        }, (): void => channel.close())
+        this.#route({member: member, channel: channel, source: source, target: target, early: early, keep: keep})
+    }
+
+    /**
+     * Relay a channel to its other member: on the connection to it, the protocol the id of the member it comes from;
+     * on the connection to the media server of its node, the protocol both of them (from a member of this node only:
+     * a channel goes through two servers at most). A channel to a member not known yet waits for it.
+     * @param opening
+     */
+    #route(opening: Opening): void {
+        const {member, channel, source, target, early, keep} = opening
+        if (channel.readyState === 'closing' || channel.readyState === 'closed') return
+        const local: Member | undefined = this.#members.get(target)
+        let other: Member | undefined
+        let protocol: string
+        //Not to a media server
+        if (local?.cascade || target.startsWith('sfu:')) return channel.close()
+        if (local) {
+            //Not to a stream published with WHIP: it has no data channels
+            if (local === member || !local.peer || local.leg.closed) return channel.close()
+            other = local
+            protocol = source
+        } else {
+            const server: string | undefined = this.#elsewhere.get(target)
+            if (member.cascade && server !== undefined) return channel.close()
+            other = member.cascade || server === undefined ? undefined : this.#members.get(server)
+            protocol = JSON.stringify([source, target])
+        }
+        if (!other) return this.#wait(opening)
+        const relayTo: Member = other
+        relayTo.leg.ready
+            .then((): Promise<void> | undefined => relayTo.cascade ? relayTo.peer!.negotiated : undefined)
+            .then((): void => {
+                channel.off('message', keep)
+                if (relayTo.leg.closed || channel.readyState === 'closed') return channel.close()
+                const relayed: PeerChannel = relayTo.leg.connection.createDataChannel(channel.label, {
+                    protocol: protocol,
+                    ordered: channel.ordered,
+                    ...channel.maxRetransmits !== null ? {maxRetransmits: channel.maxRetransmits} : {},
+                    ...channel.maxPacketLifeTime !== null ? {maxPacketLifeTime: channel.maxPacketLifeTime} : {}
+                })
+                relay(channel, relayed, early)
+                relay(relayed, channel)
+                channel.on('close', (): void => relayed.close())
+                relayed.on('close', (): void => channel.close())
+            }, (): void => channel.close())
+    }
+
+    /**
+     * A channel to a member not known yet waits for it, UNKNOWN_MEMBER_TIMEOUT at most
+     * @param opening
+     */
+    #wait(opening: Opening): void {
+        if (this.#waiting.has(opening)) return
+        this.#waiting.add(opening)
+        opening.timer = setTimeout((): void => {
+            this.#waiting.delete(opening)
+            opening.channel.close()
+        }, UNKNOWN_MEMBER_TIMEOUT)
+        opening.timer.unref()
+        opening.channel.on('close', (): void => {
+            clearTimeout(opening.timer)
+            this.#waiting.delete(opening)
+        })
+    }
+
+    /**
+     * A member, or the media server of another node, is known: the channels waiting are relayed if they can be
+     */
+    #unwait(): void {
+        for (const opening of [...this.#waiting]) {
+            const known: boolean = this.#members.has(opening.target) || this.#members.has(this.#elsewhere.get(opening.target) ?? '')
+            if (!known) continue
+            this.#waiting.delete(opening)
+            clearTimeout(opening.timer)
+            this.#route(opening)
+        }
     }
 
     /**
@@ -784,8 +892,9 @@ export class SFURoom implements SFUServedRoom {
         //A stream published with WHIP leaves the signaling (before the server, when it was the last one)
         if (!member.peer) this.#host.signaling.leave(member.id, this.name).catch((): void => undefined)
         if (member.cascade) {
-            //Its tracks are not offered any more
+            //Its tracks are not offered any more, its members are not reached any more
             for (const key of member.cascade.offered.keys()) this.#endRead(key)
+            for (const opening of [...this.#waiting]) if (this.#elsewhere.get(opening.target) === member.id) opening.channel.close()
             if (!this.#closed) this.#knownChanged()
         } else {
             this.#selected.delete(member.id)
@@ -1036,6 +1145,7 @@ export class SFURoom implements SFUServedRoom {
             cascade: cascade
         }
         this.#members.set(id, member)
+        this.#unwait()
         peer.on('error', (): void => undefined)
         peer.on('track', (event: PeerTrackEvent): void => this.#published(member, event))
         peer.on('datachannel', (channel: PeerChannel): void => this.#opened(member, channel))

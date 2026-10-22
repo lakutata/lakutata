@@ -3,6 +3,8 @@ import assert from 'node:assert'
 import {randomUUID} from 'node:crypto'
 import {Container} from '@lakutata/core'
 import {MediaTrack} from '../peer/MediaTrack.js'
+import {engineChannelOf} from '../peer/EngineConnection.js'
+import type {PeerChannel} from '../peer/PeerChannel.js'
 import {PeerConnection, type PeerTrackEvent} from '../peer/PeerConnection.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
 import type {RtpPacket} from '../peer/RtpPacket.js'
@@ -13,7 +15,7 @@ import type {SignalingPeer} from '../protocol/SignalingProtocol.js'
 import type {WHEPOptions} from '../whep/WHEP.js'
 import type {WHIPOptions} from '../whip/WHIP.js'
 import {feed, from, packets, whipPublisher} from './support/Media.js'
-import {startServer, type TestServer, until} from './support/Server.js'
+import {next, startServer, type TestServer, until} from './support/Server.js'
 
 /**
  * A node of a cluster in the memory of the process
@@ -270,6 +272,102 @@ describe('SFU in a cluster', (): void => {
             viewer.close()
         } finally {
             stops.forEach((stop: () => void): void => stop())
+            await clients.destroy()
+            await stopAll(servers)
+        }
+    })
+
+    for (const workers of [0, 2]) it(`relays the data channels between members of different nodes, the sender waiting for a member receiving slowly${workers ? `, forwarding in ${workers} worker threads` : ''}`, {timeout: 90000}, async (): Promise<void> => {
+        const selectSFU = (placement: SFUPlacement, nodes: SFUNode[]): string | undefined => nodes.find((node: SFUNode): boolean => node.labels.zone === placement.peerId.split('-')[0])?.id
+        const servers: TestServer[] = await startNodes({n0: {labels: {zone: 'a'}, sfu: {workers: workers, selectSFU: selectSFU}}, n1: {labels: {zone: 'b'}, sfu: {workers: workers, selectSFU: selectSFU}}})
+        const clients: Container = new Container()
+        const members: Member[] = []
+        try {
+            members.push(await member(clients, servers[0], 'a-alice', 0))
+            members.push(await member(clients, servers[0], 'b-bob', 100000))
+            const [alice, bob] = members
+            assert.deepStrictEqual([alice.room.sfu, bob.room.sfu], ['sfu:n0', 'sfu:n1'])
+            //Bob echoes the messages of the channels he gets, and counts the bytes of bulk
+            const opened: Map<string, PeerChannel> = new Map()
+            const bulk: number[] = []
+            bob.room.on('peer', (peer: Peer): void => void peer.on('datachannel', (channel: PeerChannel): void => {
+                opened.set(channel.label, channel)
+                if (channel.label === 'bulk') return void channel.on('message', (data: string | Buffer | ArrayBuffer): number => bulk.push((data as Buffer).readUInt32BE(0)))
+                channel.on('message', (data: string | Buffer | ArrayBuffer): void => channel.send(typeof data === 'string' ? `echo: ${data}` : data as Buffer))
+            }))
+            await until((): boolean => !!alice.room.peer('b-bob'), 10000, 'the peer of bob')
+            const toBob: PeerChannel = alice.room.peer('b-bob')!.createDataChannel('chat')
+            await next<void>((resolve: () => void): unknown => toBob.once('open', resolve), 10000, 'the open channel')
+            const echoed: Promise<unknown> = next<unknown>((resolve: (data: unknown) => void): unknown => toBob.once('message', resolve), 10000, 'the echo')
+            toBob.send('hello')
+            assert.strictEqual(await echoed, 'echo: hello')
+            const binary: Promise<unknown> = next<unknown>((resolve: (data: unknown) => void): unknown => toBob.once('message', resolve), 10000, 'the binary echo')
+            toBob.send(Buffer.from([1, 2, 3]))
+            assert.deepStrictEqual(await binary, Buffer.from([1, 2, 3]))
+            //Bob's side: the label, the id of alice as the protocol, the settings
+            const chat: PeerChannel = opened.get('chat')!
+            assert.deepStrictEqual([chat.protocol, chat.ordered, chat.maxRetransmits], ['a-alice', true, null])
+            alice.room.peer('b-bob')!.createDataChannel('state', {ordered: false, maxRetransmits: 0})
+            await until((): boolean => opened.has('state'), 10000, 'the unreliable channel')
+            assert.deepStrictEqual([opened.get('state')!.ordered, opened.get('state')!.maxRetransmits], [false, 0])
+            //Bob receives slowly (his receive window held): alice waits, the two servers keep a few megabytes
+            const toBulk: PeerChannel = alice.room.peer('b-bob')!.createDataChannel('bulk')
+            await next<void>((resolve: () => void): unknown => toBulk.once('open', resolve), 10000, 'the bulk channel')
+            await until((): boolean => opened.has('bulk'), 10000, 'the bulk channel of bob')
+            const window = engineChannelOf(opened.get('bulk')!).sctp
+            window.holdReceived(1 << 30)
+            const count: number = 768
+            for (let index: number = 0; index < count; index++) {
+                const message: Buffer = Buffer.alloc(16384)
+                message.writeUInt32BE(index, 0)
+                toBulk.send(message)
+            }
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 2000))
+            assert.ok(bulk.length * 16384 < 2 * 1024 * 1024, `bob got ${bulk.length} messages`)
+            assert.ok(toBulk.bufferedAmount > 6 * 1024 * 1024, `alice has ${toBulk.bufferedAmount} bytes waiting`)
+            //Bob reads again: everything arrives, in order
+            window.releaseReceived(1 << 30)
+            await until((): boolean => bulk.length === count, 30000, 'the bulk messages')
+            assert.ok(bulk.every((index: number, position: number): boolean => index === position))
+            //Closed by alice: closed for bob
+            const closed: Promise<void> = next<void>((resolve: () => void): unknown => chat.once('close', resolve), 10000, 'the closed channel')
+            toBob.close()
+            await closed
+        } finally {
+            members.forEach((each: Member): void => each.stop())
+            await clients.destroy()
+            await stopAll(servers)
+        }
+    })
+
+    it('keeps a channel to a member not known yet until it joins, and closes it when it does not', {timeout: 60000}, async (): Promise<void> => {
+        const selectSFU = (placement: SFUPlacement, nodes: SFUNode[]): string | undefined => nodes.find((node: SFUNode): boolean => node.labels.zone === placement.peerId.split('-')[0])?.id
+        const servers: TestServer[] = await startNodes({n0: {labels: {zone: 'a'}, sfu: {selectSFU: selectSFU}}, n1: {labels: {zone: 'b'}, sfu: {selectSFU: selectSFU}}})
+        const clients: Container = new Container()
+        const members: Member[] = []
+        try {
+            members.push(await member(clients, servers[0], 'a-alice', 0))
+            members.push(await member(clients, servers[1], 'b-bob', 100000))
+            const [alice] = members
+            await until((): boolean => !!alice.room.peer('b-bob'), 10000, 'the peer of bob')
+            //Channels opened on the connection to the server, to members not in the room yet: carol, then nobody
+            const connection: PeerConnection = alice.room.peer('b-bob')!.connection
+            const toCarol: PeerChannel = connection.createDataChannel('early', {protocol: 'b-carol'})
+            const toNobody: PeerChannel = connection.createDataChannel('lost', {protocol: 'b-nobody'})
+            await next<void>((resolve: () => void): unknown => toCarol.once('open', resolve), 10000, 'the channel to carol')
+            toCarol.send('before carol joined')
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
+            const carol: SignalingClient = await clients.get(SignalingClient, {url: servers[1].socketIO, id: 'b-carol'})
+            const received: Promise<[PeerChannel, unknown]> = next<[PeerChannel, unknown]>((resolve: (value: [PeerChannel, unknown]) => void): void => {
+                void carol.join('meeting').then((room: Room): void => void room.on('peer', (peer: Peer): void => void peer.on('datachannel', (channel: PeerChannel): void => {
+                    channel.once('message', (data: string | Buffer | ArrayBuffer): void => resolve([channel, data]))
+                })))
+            }, 20000, 'the channel at carol')
+            const [channel, data] = await received
+            assert.deepStrictEqual([channel.label, channel.protocol, data], ['early', 'a-alice', 'before carol joined'])
+            await next<void>((resolve: () => void): unknown => toNobody.once('close', resolve), 10000, 'the channel to nobody closed')
+        } finally {
+            members.forEach((each: Member): void => each.stop())
             await clients.destroy()
             await stopAll(servers)
         }
