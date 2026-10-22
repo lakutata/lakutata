@@ -288,6 +288,43 @@ describe('Media', (): void => {
         }
     })
 
+    it('sends tracks of the different codecs negotiated on a transceiver, each with its payload type', {timeout: 30000}, async (): Promise<void> => {
+        const container: Container = new Container()
+        const h264: MediaTrack = new MediaTrack('video', {codec: 'video/H264'})
+        const vp8: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
+        const stops: (() => void)[] = [feed(h264), feed(vp8, 50000)]
+        try {
+            const sending: PeerConnection = await container.get(PeerConnection)
+            const receiving: PeerConnection = await container.get(PeerConnection)
+            sending.on('icecandidate', (candidate: SignalingCandidate | null): void => void receiving.addIceCandidate(candidate))
+            receiving.on('icecandidate', (candidate: SignalingCandidate | null): void => void sending.addIceCandidate(candidate))
+            //A transceiver without a track: all the video codecs are negotiated
+            const transceiver: RtpTransceiver = sending.addTransceiver('video', {direction: 'sendonly'})
+            const received: Promise<PeerTrackEvent> = next<PeerTrackEvent>((resolve: (event: PeerTrackEvent) => void): void => receiving.addEventListener('track', resolve, {once: true}), 15000, 'the track')
+            await sending.setLocalDescription()
+            await receiving.setRemoteDescription(sending.localDescription!)
+            await receiving.setLocalDescription()
+            await sending.setRemoteDescription(receiving.localDescription!)
+            const track: MediaTrack = (await received).track
+            const payloadTypeOf = (codec: string): number => Number(new RegExp(`^a=rtpmap:(\\d+) ${codec}/90000`, 'mi').exec(receiving.localDescription!.sdp!)![1])
+            //H.264, then VP8 on the same sender: the sequence numbers go on
+            await transceiver.sender.replaceTrack(h264)
+            const first: RtpPacket[] = await packets(track, 5)
+            assert.ok(first.every((packet: RtpPacket): boolean => packet.payloadType === payloadTypeOf('H264') && packet.payload.readUInt32BE(0) < 50000))
+            await transceiver.sender.replaceTrack(vp8)
+            const second: RtpPacket[] = await packets(track, 20)
+            const switched: RtpPacket[] = second.filter((packet: RtpPacket): boolean => packet.payload.readUInt32BE(0) >= 50000)
+            assert.ok(switched.length >= 10)
+            assert.ok(switched.every((packet: RtpPacket): boolean => packet.payloadType === payloadTypeOf('VP8')))
+            for (const [index, packet] of second.entries()) {
+                if (index) assert.strictEqual(packet.sequenceNumber, (second[index - 1].sequenceNumber + 1) & 0xffff)
+            }
+        } finally {
+            stops.forEach((stop: () => void): void => stop())
+            await container.destroy()
+        }
+    })
+
     it('checks the codec of a track', (): void => {
         assert.throws((): MediaTrack => new MediaTrack('video', {codec: 'audio/opus'}), /is not one of video/)
         assert.throws((): MediaTrack => new MediaTrack('video', {codec: 'video/AV2'}), /is not supported/)

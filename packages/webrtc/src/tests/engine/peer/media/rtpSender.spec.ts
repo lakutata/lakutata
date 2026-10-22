@@ -70,7 +70,7 @@ describe('media/rtpSender', () => {
         expect(spy).toBeCalledTimes(2)
     })
 
-    test('replaceTrack rejects a fixed source incompatible with the sending codec', async () => {
+    test('replaceTrack sends a fixed source with another negotiated codec, and rejects one of no negotiated codec', async () => {
         const original = new MediaStreamTrack({
             kind: 'video',
             codec: new RTCRtpCodecParameters({
@@ -91,7 +91,7 @@ describe('media/rtpSender', () => {
             ],
             headerExtensions: []
         })
-        const replacement = new MediaStreamTrack({
+        const h264 = new MediaStreamTrack({
             kind: 'video',
             codec: new RTCRtpCodecParameters({
                 mimeType: 'video/H264',
@@ -99,16 +99,28 @@ describe('media/rtpSender', () => {
                 payloadType: 97
             })
         })
+        const vp9 = new MediaStreamTrack({
+            kind: 'video',
+            codec: new RTCRtpCodecParameters({
+                mimeType: 'video/VP9',
+                clockRate: 90_000,
+                payloadType: 98
+            })
+        })
 
-        // 実行: H264も交渉済みだが、現在VP8送信中のsenderへfixed H264 sourceを指定する。
-        const act = sender.replaceTrack(replacement)
+        // 実行: 交渉済みの H264 の fixed source に差し替える。
+        await sender.replaceTrack(h264)
 
-        // 検証: RTP形式を切り替えずに誤送信しないよう、track変更前に拒否する。
-        await expect(act).rejects.toMatchObject({
+        // 検証: 再交渉なしに H264 で送信する (相手は交渉済みのどの codec も受ける)。
+        expect(sender.track).toBe(h264)
+        expect(sender.codec?.mimeType.toLowerCase()).toBe('video/h264')
+
+        // 実行 / 検証: 交渉していない VP9 は track 変更前に拒否する。
+        await expect(sender.replaceTrack(vp9)).rejects.toMatchObject({
             name: 'InvalidModificationError'
         })
-        expect(sender.track).toBe(original)
-        expect(sender.codec?.mimeType.toLowerCase()).toBe('video/vp8')
+        expect(sender.track).toBe(h264)
+        expect(sender.codec?.mimeType.toLowerCase()).toBe('video/h264')
     })
 
     test('replaceTrack rejects a fixed source absent from negotiated primaries', async () => {

@@ -48,10 +48,11 @@ export class RtpSender {
     }
 
     /**
-     * Send another track, of the same codec, without negotiating again; `null` stops sending.
+     * Send another track, of any codec negotiated (the other peer accepts each of them), without negotiating again;
+     * `null` stops sending.
      * @param track The track, or `null`.
      * @returns Resolves once replaced.
-     * @throws {DOMException} When the codec of the track is not the one negotiated (`InvalidModificationError`).
+     * @throws {DOMException} When the codec of the track is none of the ones negotiated (`InvalidModificationError`).
      * @example
      * ```typescript
      * import type {MediaTrack, RtpSender} from '@lakutata/webrtc'

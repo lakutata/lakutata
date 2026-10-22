@@ -271,28 +271,36 @@ export class RTCRtpSender {
         this.repairedRtpStreamId = params.repairedRtpStreamId
 
         this.negotiatedCodecs = [...params.codecs]
-        this.codec =
-            params.codecs.find((codec) => codec.name.toLowerCase() !== 'rtx') ??
-      params.codecs[0]
-        const redPrimaryPayloadType =
-            this.codec?.name.toLowerCase() === 'red'
-                ? Number((this.codec.parameters ?? '').split('/')[0])
-                : undefined
-        this.sendPrimaryCodec =
-            this.codec?.name.toLowerCase() === 'red'
-                ? params.codecs.find(
-                    (codec) =>
-                        !['red', 'rtx'].includes(codec.name.toLowerCase()) &&
-              codec.payloadType === redPrimaryPayloadType
-                )
-                : this.codec
+        this.selectCodec(this.track ? getTrackSourceCodecs(this.track) : undefined)
         if (this.track) {
             this.track.codec = this.codec
         }
+        void this.drainPendingRtp()
+    }
+
+    /**
+     * The codec sending: the first negotiated one, or the first one compatible with the codecs of the source of the
+     * track (the other side accepts any of the negotiated ones), with its retransmissions and its redundancy
+     * @param sourceCodecs
+     */
+    private selectCodec(sourceCodecs?: readonly RTCRtpCodecParameters[]) {
+        const codecs = this.negotiatedCodecs
+        const primaryOf = (codec: RTCRtpCodecParameters | undefined) => {
+            if (codec?.name.toLowerCase() !== 'red') return codec
+            const payloadType = Number((codec.parameters ?? '').split('/')[0])
+            return codecs.find((each) => !['red', 'rtx'].includes(each.name.toLowerCase()) && each.payloadType === payloadType)
+        }
+        const compatible = (codec: RTCRtpCodecParameters) => {
+            const primary = primaryOf(codec)
+            return !!primary && (!sourceCodecs || sourceCodecs.some((source) => isCodecCompatible(source, primary)))
+        }
+        const first = codecs.find((codec) => codec.name.toLowerCase() !== 'rtx') ?? codecs[0]
+        this.codec = codecs.find((codec) => codec.name.toLowerCase() !== 'rtx' && compatible(codec)) ?? first
+        this.sendPrimaryCodec = primaryOf(this.codec)
 
         this.rtxPayloadType = undefined
         this.redRedundantPayloadType = undefined
-        params.codecs.forEach((codec) => {
+        codecs.forEach((codec) => {
             const codecParams = codecParametersFromString(codec.parameters ?? '')
             if (
                 codec.name.toLowerCase() === 'rtx' &&
@@ -307,7 +315,6 @@ export class RTCRtpSender {
         ) {
             this.redRedundantPayloadType = this.sendPrimaryCodec.payloadType
         }
-        void this.drainPendingRtp()
     }
 
     private canSendRtp() {
@@ -482,11 +489,13 @@ export class RTCRtpSender {
 
         captureTrackSourceCodecs(track)
         const sourceCodecs = getTrackSourceCodecs(track)
+        //Any codec negotiated may send it: the other side accepts each of them
         if (
             this.sendPrimaryCodec != undefined &&
       sourceCodecs != undefined &&
-      !sourceCodecs.some((source) =>
-          isCodecCompatible(source, this.sendPrimaryCodec!)
+      !this.negotiatedCodecs.some((codec) =>
+          !['red', 'rtx'].includes(codec.name.toLowerCase()) &&
+          sourceCodecs.some((source) => isCodecCompatible(source, codec))
       )
         ) {
             throw createWebRtcDomException(
@@ -494,6 +503,7 @@ export class RTCRtpSender {
                 `Track codec ${sourceCodecs.map((codec) => codec.mimeType).join(', ')} is incompatible with negotiated codecs ${this.negotiatedCodecs.map((codec) => codec.mimeType).join(', ')}`
             )
         }
+        if (this.negotiatedCodecs.length) this.selectCodec(sourceCodecs)
 
         if (this.sequenceNumber != undefined) {
             this.scheduleRtpContinuity()
