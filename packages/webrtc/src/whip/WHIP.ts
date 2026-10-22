@@ -7,11 +7,12 @@ import type {TURNServer} from '../turn/TURNServer.js'
 import type {Cluster} from '../cluster/Cluster.js'
 import {iceServersFor, type TURNSelector} from '../cluster/ClusterTURN.js'
 import type {MediaTrack} from '../peer/MediaTrack.js'
-import {type EndpointLeg, gathered} from '../peer/Endpoints.js'
+import {type EndpointLeg, entityTag, gathered, patchConnection} from '../peer/Endpoints.js'
 import {PeerConnection} from '../peer/PeerConnection.js'
 import {WHIPDeniedException} from '../exceptions/WHIPDeniedException.js'
 import {WHIPLimitException} from '../exceptions/WHIPLimitException.js'
 import {WHIPOfferException} from '../exceptions/WHIPOfferException.js'
+import {WHIPSessionNotFoundException} from '../exceptions/WHIPSessionNotFoundException.js'
 import {SignalingLimitException} from '../exceptions/SignalingLimitException.js'
 import type {SFU} from '../sfu/SFU.js'
 import {sfuAccess} from '../sfu/SFUAccess.js'
@@ -177,9 +178,10 @@ const UNPUBLISH_TIMEOUT: number = 2000
  *
  * Register it as `whip` with {@link buildWHIPOptions}, and add `WHIPController` to the controllers of the entrypoint,
  * with an HTTP adapter reading the bodies of WHIP as text (its option
- * `body: {text: ['application/sdp', 'application/trickle-ice-sdpfrag']}`). The answers carry all the candidates (no
- * trickle ICE); ICE restarts are not supported. Behind a load balancer, give it a `cluster`: the DELETE of a session
- * may reach another instance, which ends it on the instance holding it.
+ * `body: {text: ['application/sdp', 'application/trickle-ice-sdpfrag']}`). The answers carry all the candidates; a
+ * PATCH of a session gives it the candidates of its publisher (trickle ICE), or restarts ICE (RFC 9725, section 4.3).
+ * Behind a load balancer, give it a `cluster`: the DELETE of a session may reach another instance, which ends it on the
+ * instance holding it.
  * @example
  * ```typescript
  * import {Application, Component} from 'lakutata'
@@ -309,6 +311,9 @@ export class WHIP extends Component {
     //The connections of the sessions going to the media server
     readonly #legs: Map<string, EndpointLeg> = new Map()
 
+    //The entity tags of the ICE sessions of the sessions
+    readonly #tags: Map<string, string> = new Map()
+
     #clusterObject?: Cluster
 
     #unhandle?: () => void
@@ -413,6 +418,7 @@ export class WHIP extends Component {
             throw new WHIPOfferException('The connection {state} before the answer', {state: connection.connectionState})
         }
         this.#sessions.set(session.id, session)
+        this.#tags.set(session.id, entityTag())
         this.emit('publish', session)
         return {session: session, answer: connection.localDescription!}
     }
@@ -437,6 +443,7 @@ export class WHIP extends Component {
         }
         const session: WHIPSession = {id: randomUUID(), stream: stream, room: room, peerId: published.peerId}
         this.#sessions.set(session.id, session)
+        this.#tags.set(session.id, entityTag())
         this.#legs.set(session.id, published.leg)
         published.leg.ended((): unknown => this.end(session.id))
         this.emit('publish', session)
@@ -475,11 +482,63 @@ export class WHIP extends Component {
         const session: WHIPSession | undefined = this.#sessions.get(id)
         if (!session || (stream !== undefined && session.stream !== stream)) return false
         this.#sessions.delete(id)
+        this.#tags.delete(id)
         session.connection?.close()
         this.#legs.get(id)?.close()
         this.#legs.delete(id)
         this.emit('unpublish', session)
         return true
+    }
+
+    /**
+     * The entity tag of the ICE session of a session of this node (its `ETag`): a new one after each ICE restart.
+     * @param id The id of the session.
+     * @returns The tag, `undefined` when there is no session of this id.
+     * @example
+     * ```typescript
+     * import type {WHIP} from '@lakutata/webrtc'
+     *
+     * declare const whip: WHIP
+     * const tag: string | undefined = whip.entityTagOf('0b7d…')
+     * ```
+     */
+    public entityTagOf(id: string): string | undefined {
+        return this.#tags.get(id)
+    }
+
+    /**
+     * Apply a PATCH of a session of this node (RFC 9725, section 4.3): the candidates of its publisher (trickle ICE),
+     * or an ICE restart when its credentials changed. `WHIPController` calls it for the PATCH requests.
+     * @param id The id of the session.
+     * @param fragment The fragment of SDP of the request (`application/trickle-ice-sdpfrag`).
+     * @param restart Whether the request may restart ICE (its `If-Match` is `*`).
+     * @returns The fragment of SDP answering an ICE restart (none for trickle ICE), and the entity tag of the ICE session;
+     * `stale` for a fragment of other credentials when the request may not restart ICE (one sent again after a restart),
+     * not applied.
+     * @throws {WHIPSessionNotFoundException} When this node has no session of this id.
+     * @throws {WHIPOfferException} When the fragment has no ICE, or the connection refuses it.
+     * @example
+     * ```typescript
+     * import type {WHIP} from '@lakutata/webrtc'
+     *
+     * declare const whip: WHIP
+     * declare const fragment: string
+     * const {fragment: answer, tag} = await whip.patch('0b7d…', fragment)
+     * ```
+     */
+    public async patch(id: string, fragment: string, restart: boolean = true): Promise<{fragment?: string, tag: string, stale?: boolean}> {
+        const session: WHIPSession | undefined = this.#sessions.get(id)
+        const connection: PeerConnection | undefined = session?.connection ?? this.#legs.get(id)?.connection
+        if (!session || !connection) throw new WHIPSessionNotFoundException('There is no session {session}', {session: id})
+        let answer: string | undefined | null
+        try {
+            answer = await patchConnection(connection, fragment, restart)
+        } catch (error: unknown) {
+            throw new WHIPOfferException('The ICE fragment is refused: {reason}', {reason: (error as Error).message})
+        }
+        if (answer === null) return {tag: this.#tags.get(id) ?? '', stale: true}
+        if (answer !== undefined && this.#sessions.has(id)) this.#tags.set(id, entityTag())
+        return {...answer === undefined ? {} : {fragment: answer}, tag: this.#tags.get(id) ?? ''}
     }
 
     /**

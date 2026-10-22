@@ -426,6 +426,10 @@ export class SFURoom {
         connection.on('connectionstatechange', (state: string): void => {
             if (state === 'failed' || state === 'closed') this.#remove(member)
         })
+        //Negotiated again for an ICE restart (a PATCH)
+        connection.on('signalingstatechange', (state: string): void => {
+            if (state === 'stable') setImmediate((): void => this.#negotiated(member))
+        })
         try {
             await connection.setRemoteDescription(offer)
             await connection.setLocalDescription()

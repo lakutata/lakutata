@@ -1,5 +1,6 @@
 import type {Container} from '@lakutata/core'
 import {MediaTrack} from '../../peer/MediaTrack.js'
+import {fragmentOf, iceOf} from '../../peer/Endpoints.js'
 import {PeerConnection} from '../../peer/PeerConnection.js'
 import type {RtpPacket} from '../../peer/RtpPacket.js'
 import {next, until} from './Server.js'
@@ -86,4 +87,32 @@ export async function whipPublisher(container: Container, url: string, first: nu
     const response: Response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: connection.localDescription!.sdp})
     if (response.status === 201) await connection.setRemoteDescription({type: 'answer', sdp: await response.text()})
     return {connection: connection, response: response, location: response.headers.get('Location') ?? undefined, stop: (): void => stops.forEach((stop: () => void): void => stop())}
+}
+
+/**
+ * Restart ICE on the connection of a client of WHIP or WHEP: its new credentials and candidates PATCHed to its
+ * session, the fragment of the answer applied
+ * @param connection
+ * @param url The URL of the session.
+ * @returns The response, and the fragment of its answer.
+ */
+export async function restartIce(connection: PeerConnection, url: string): Promise<{response: Response, fragment?: string}> {
+    connection.restartIce()
+    await connection.setLocalDescription()
+    await until((): boolean => connection.iceGatheringState === 'complete', 10000, 'the new candidates')
+    const response: Response = await fetch(url, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/trickle-ice-sdpfrag', 'If-Match': '*'},
+        body: fragmentOf(connection.localDescription!.sdp!)
+    })
+    if (response.status !== 200) return {response: response}
+    const fragment: string = await response.text()
+    const ice = iceOf(fragment)
+    const answer: string = connection.remoteDescription!.sdp!
+        .replace(/^a=ice-ufrag:.*$/gm, `a=ice-ufrag:${ice.ufrag}`)
+        .replace(/^a=ice-pwd:.*$/gm, `a=ice-pwd:${ice.pwd}`)
+        .replace(/^a=(candidate:.*|end-of-candidates)\r?\n/gm, '')
+    await connection.setRemoteDescription({type: 'answer', sdp: answer})
+    for (const candidate of ice.candidates) await connection.addIceCandidate({candidate: candidate.candidate, sdpMid: candidate.sdpMid ?? null})
+    return {response: response, fragment: fragment}
 }

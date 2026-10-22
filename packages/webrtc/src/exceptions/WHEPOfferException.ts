@@ -2,8 +2,8 @@ import {Exception} from '@lakutata/core'
 
 /**
  * Thrown when the offer of a viewer is not one the `WHEP` component can answer: not an SDP offer, without audio
- * or video, of a room the media server does not serve, or refused by the connection (an HTTP 400). Its `errno` is
- * `'E_WHEP_OFFER'`.
+ * or video, of a room the media server does not serve, or refused by the connection; or when the fragment of a PATCH
+ * has no ICE or is refused (an HTTP 400). Its `errno` is `'E_WHEP_OFFER'`.
  */
 export class WHEPOfferException extends Exception {
     /**

@@ -1,8 +1,8 @@
 import {Exception} from '@lakutata/core'
 
 /**
- * Thrown when the body of a request to `WHIPController` is not `application/sdp` (an HTTP 415). Its `errno` is
- * `'E_WHIP_MEDIA_TYPE'`.
+ * Thrown when the body of a request to `WHIPController` is not `application/sdp` (a POST) or
+ * `application/trickle-ice-sdpfrag` (a PATCH): an HTTP 415. Its `errno` is `'E_WHIP_MEDIA_TYPE'`.
  */
 export class WHIPMediaTypeException extends Exception {
     /**

@@ -6,7 +6,8 @@ import {PeerConnection, type PeerTrackEvent} from '../peer/PeerConnection.js'
 import type {RtpPacket} from '../peer/RtpPacket.js'
 import type {WHEPSession} from '../whep/WHEP.js'
 import type {WHIPSession} from '../whip/WHIP.js'
-import {from, packets, whipPublisher} from './support/Media.js'
+import {iceOf} from '../peer/Endpoints.js'
+import {from, packets, restartIce, whipPublisher} from './support/Media.js'
 import {next, startServer, type TestServer, until} from './support/Server.js'
 
 /**
@@ -78,6 +79,56 @@ describe('WHEP', (): void => {
             assert.deepStrictEqual(stopped.map((session: WHEPSession): string => session.id), [played[0].id])
             assert.strictEqual(server.sfu!.rooms().show.viewers, 0)
             assert.strictEqual((await fetch(`${server.http}${viewer.location}`, {method: 'DELETE'})).status, 404)
+        } finally {
+            stops.forEach((stop: () => void): void => stop())
+            await container.destroy()
+            await server.stop()
+        }
+    })
+
+    it('takes the candidates of a viewer and restarts ICE with PATCH, the media going on', {timeout: 90000}, async (): Promise<void> => {
+        const server: TestServer = await startServer({sfu: {}, whip: {}, whep: {}})
+        const container: Container = new Container()
+        const stops: (() => void)[] = []
+        try {
+            const publisher = await whipPublisher(container, `${server.http}/whip/live`, 400000)
+            stops.push(publisher.stop)
+            const viewer = await whepViewer(container, `${server.http}/whep/live`)
+            const tag: string = viewer.response.headers.get('ETag')!
+            assert.match(tag, /^"[0-9a-f]+"$/)
+            await until((): boolean => viewer.tracks.get('video') !== undefined, 10000, 'the video')
+            assert.ok(await from(viewer.tracks.get('video')!, 400000))
+            const url: string = `${server.http}${viewer.location}`
+            const ufrag: string = iceOf(viewer.connection.localDescription!.sdp!).ufrag!
+            const trickle = (headers: Record<string, string>): Promise<Response> => fetch(url, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/trickle-ice-sdpfrag', ...headers},
+                body: `a=ice-ufrag:${ufrag}\r\na=ice-pwd:${iceOf(viewer.connection.localDescription!.sdp!).pwd}\r\nm=audio 9 UDP/TLS/RTP/SAVPF 0\r\na=mid:0\r\na=candidate:1 1 udp 2130706431 127.0.0.1 9 typ host\r\n`
+            })
+            //Trickle ICE: a candidate of the same credentials
+            assert.strictEqual((await trickle({'If-Match': tag})).status, 204)
+            assert.strictEqual((await trickle({})).status, 204)
+            //The ICE session of another tag, not a fragment of SDP, another session
+            assert.strictEqual((await trickle({'If-Match': '"other"'})).status, 412)
+            assert.strictEqual((await fetch(url, {method: 'PATCH', headers: {'Content-Type': 'application/sdp'}, body: 'v=0'})).status, 415)
+            assert.strictEqual((await fetch(`${server.http}/whep/live/0b7d`, {method: 'PATCH', headers: {'Content-Type': 'application/trickle-ice-sdpfrag'}, body: 'a=ice-ufrag:x'})).status, 404)
+            //An ICE restart: new credentials on both sides, a new tag, the video going on
+            const before: string = iceOf(viewer.connection.remoteDescription!.sdp!).ufrag!
+            const restarted = await restartIce(viewer.connection, url)
+            assert.strictEqual(restarted.response.status, 200)
+            assert.notStrictEqual(restarted.response.headers.get('ETag'), tag)
+            assert.notStrictEqual(iceOf(restarted.fragment!).ufrag, before)
+            assert.ok(iceOf(restarted.fragment!).candidates.length > 0)
+            const video: MediaTrack = viewer.tracks.get('video')!
+            await packets(video, 5)
+            assert.ok(await from(video, 400000), 'the video after the restart')
+            assert.strictEqual(viewer.connection.connectionState, 'connected')
+            //The fragment of the ICE session before the restart, sent again: not applied
+            const stale: string = `a=ice-ufrag:${ufrag}\r\na=ice-pwd:${iceOf(viewer.connection.localDescription!.sdp!).pwd}\r\n`
+            assert.strictEqual((await fetch(url, {method: 'PATCH', headers: {'Content-Type': 'application/trickle-ice-sdpfrag', 'If-Match': tag}, body: stale})).status, 412)
+            assert.strictEqual((await fetch(url, {method: 'PATCH', headers: {'Content-Type': 'application/trickle-ice-sdpfrag'}, body: stale})).status, 412)
+            await packets(video, 5)
+            assert.strictEqual(viewer.connection.connectionState, 'connected')
         } finally {
             stops.forEach((stop: () => void): void => stop())
             await container.destroy()

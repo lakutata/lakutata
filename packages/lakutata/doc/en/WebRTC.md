@@ -401,16 +401,16 @@ of the session give their RTP packets, to record them or to send them on to othe
 
 | Request | Answer |
 |---|---|
-| `POST /whip/:stream` with the offer (`application/sdp`) | `201 Created`: the answer, `Location` (the session), `Link` (the ICE servers) |
+| `POST /whip/:stream` with the offer (`application/sdp`) | `201 Created`: the answer, `Location` (the session), `Link` (the ICE servers), `ETag` (its ICE session) |
 | `DELETE /whip/:stream/:session` | `200`: the session ends |
 | `OPTIONS` | `204`, with the CORS headers and `Accept-Post: application/sdp` |
 | `GET` | `204` |
-| `PATCH` | `405`: neither trickle ICE nor ICE restarts |
+| `PATCH /whip/:stream/:session` with a fragment of SDP (`application/trickle-ice-sdpfrag`) | `204`: the candidates of the publisher (trickle ICE); `200`: an ICE restart, with the fragment of the answer and a new `ETag`; `412` for an `If-Match` other than `*` and the `ETag` |
 
 The refusals: 401 with `WWW-Authenticate: Bearer` when `authorize` refuses, 415 for a body that is not
-`application/sdp`, 400 for an offer without audio or video, 503 once there are `maxSessions` sessions, 404 for an
-unknown session. The URL of a session is the capability to end it: its id is random, and its DELETE is not authorized
-again. A subclass with `@Prefix({route: '/live'})` serves the same interface under another path.
+`application/sdp` (`application/trickle-ice-sdpfrag` for a PATCH), 400 for an offer without audio or video, 503 once
+there are `maxSessions` sessions, 404 for an unknown session. The URL of a session is the capability to end it: its id
+is random, and its DELETE and PATCH are not authorized again. A subclass with `@Prefix({route: '/live'})` serves the same interface under another path.
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -783,6 +783,5 @@ pairs tried.
 
 - Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
   another connection.
-- WHIP supports neither trickle ICE nor ICE restarts.
 - The throughput of one data channel between two Node.js processes on an Apple M4 is about 60 MiB/s for large
   messages, and 440,000 messages of 100 bytes per second.

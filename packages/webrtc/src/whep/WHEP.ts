@@ -6,12 +6,13 @@ import type {SignalingDescription, SignalingIceServer} from '../protocol/Signali
 import type {TURNServer} from '../turn/TURNServer.js'
 import type {Cluster} from '../cluster/Cluster.js'
 import {iceServersFor, type TURNSelector} from '../cluster/ClusterTURN.js'
-import type {EndpointLeg} from '../peer/Endpoints.js'
+import {type EndpointLeg, entityTag, patchConnection} from '../peer/Endpoints.js'
 import type {SFU, SFUTrack} from '../sfu/SFU.js'
 import {sfuAccess} from '../sfu/SFUAccess.js'
 import {WHEPDeniedException} from '../exceptions/WHEPDeniedException.js'
 import {WHEPLimitException} from '../exceptions/WHEPLimitException.js'
 import {WHEPOfferException} from '../exceptions/WHEPOfferException.js'
+import {WHEPSessionNotFoundException} from '../exceptions/WHEPSessionNotFoundException.js'
 
 /**
  * Who plays a stream: the stream of the URL, and the bearer token of the request.
@@ -167,8 +168,8 @@ const STOP_TIMEOUT: number = 2000
  *
  * Register it as `whep` with {@link buildWHEPOptions} next to the media server, and add `WHEPController` to the
  * controllers of the entrypoint, with an HTTP adapter reading the bodies of WHEP as text (its option
- * `body: {text: ['application/sdp', 'application/trickle-ice-sdpfrag']}`). The answers carry all the candidates (no
- * trickle ICE).
+ * `body: {text: ['application/sdp', 'application/trickle-ice-sdpfrag']}`). The answers carry all the candidates; a
+ * PATCH of a session gives it the candidates of its viewer (trickle ICE), or restarts ICE, as for WHIP.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
@@ -271,6 +272,9 @@ export class WHEP extends Component {
 
     readonly #legs: Map<string, EndpointLeg> = new Map()
 
+    //The entity tags of the ICE sessions of the sessions
+    readonly #tags: Map<string, string> = new Map()
+
     #clusterObject?: Cluster
 
     #unhandle?: () => void
@@ -371,6 +375,7 @@ export class WHEP extends Component {
             }
         }
         this.#sessions.set(session.id, session)
+        this.#tags.set(session.id, entityTag())
         this.#legs.set(session.id, leg)
         leg.ended((): unknown => this.end(session.id))
         this.emit('play', session)
@@ -409,10 +414,61 @@ export class WHEP extends Component {
         const session: WHEPSession | undefined = this.#sessions.get(id)
         if (!session || (stream !== undefined && session.stream !== stream)) return false
         this.#sessions.delete(id)
+        this.#tags.delete(id)
         this.#legs.get(id)?.close()
         this.#legs.delete(id)
         this.emit('stop', session)
         return true
+    }
+
+    /**
+     * The entity tag of the ICE session of a session of this node (its `ETag`): a new one after each ICE restart.
+     * @param id The id of the session.
+     * @returns The tag, `undefined` when there is no session of this id.
+     * @example
+     * ```typescript
+     * import type {WHEP} from '@lakutata/webrtc'
+     *
+     * declare const whep: WHEP
+     * const tag: string | undefined = whep.entityTagOf('0b7d…')
+     * ```
+     */
+    public entityTagOf(id: string): string | undefined {
+        return this.#tags.get(id)
+    }
+
+    /**
+     * Apply a PATCH of a session of this node (as RFC 9725, section 4.3 does for WHIP): the candidates of its viewer
+     * (trickle ICE), or an ICE restart when its credentials changed. `WHEPController` calls it for the PATCH requests.
+     * @param id The id of the session.
+     * @param fragment The fragment of SDP of the request (`application/trickle-ice-sdpfrag`).
+     * @param restart Whether the request may restart ICE (its `If-Match` is `*`).
+     * @returns The fragment of SDP answering an ICE restart (none for trickle ICE), and the entity tag of the ICE session;
+     * `stale` for a fragment of other credentials when the request may not restart ICE (one sent again after a restart),
+     * not applied.
+     * @throws {WHEPSessionNotFoundException} When this node has no session of this id.
+     * @throws {WHEPOfferException} When the fragment has no ICE, or the connection refuses it.
+     * @example
+     * ```typescript
+     * import type {WHEP} from '@lakutata/webrtc'
+     *
+     * declare const whep: WHEP
+     * declare const fragment: string
+     * const {fragment: answer, tag} = await whep.patch('0b7d…', fragment)
+     * ```
+     */
+    public async patch(id: string, fragment: string, restart: boolean = true): Promise<{fragment?: string, tag: string, stale?: boolean}> {
+        const leg: EndpointLeg | undefined = this.#legs.get(id)
+        if (!this.#sessions.has(id) || !leg) throw new WHEPSessionNotFoundException('There is no session {session}', {session: id})
+        let answer: string | undefined | null
+        try {
+            answer = await patchConnection(leg.connection, fragment, restart)
+        } catch (error: unknown) {
+            throw new WHEPOfferException('The ICE fragment is refused: {reason}', {reason: (error as Error).message})
+        }
+        if (answer === null) return {tag: this.#tags.get(id) ?? '', stale: true}
+        if (answer !== undefined && this.#sessions.has(id)) this.#tags.set(id, entityTag())
+        return {...answer === undefined ? {} : {fragment: answer}, tag: this.#tags.get(id) ?? ''}
     }
 
     /**

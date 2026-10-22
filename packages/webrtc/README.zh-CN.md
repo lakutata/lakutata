@@ -181,7 +181,7 @@ Application.run(() => ({
 }))
 ```
 
-answer 里带有服务器的全部候选地址：要告诉它自己的公网地址（`iceAdditionalHostAddresses`）和要放开的 UDP 端口（`icePortRange`）。`PATCH` 请求（Trickle ICE、ICE 重启）一律回 405；`body.text` 里也要列上 `application/trickle-ice-sdpfrag`，否则 Fastify 会在请求到达控制器之前以 415 拒绝它。ffmpeg 用 `-f whip -authorization <令牌> <URL>` 推流。
+answer 里带有服务器的全部候选地址：要告诉它自己的公网地址（`iceAdditionalHostAddresses`）和要放开的 UDP 端口（`icePortRange`）。会话的 `PATCH` 请求把推流端的候选地址交给服务器（Trickle ICE），或者重启 ICE；`body.text` 里也要列上 `application/trickle-ice-sdpfrag`，否则 Fastify 会在请求到达控制器之前以 415 拒绝它。ffmpeg 用 `-f whip -authorization <令牌> <URL>` 推流。
 
 应用的多个实例（比如一个部署里的多个 pod）通过 `Cluster` 协同工作：每个实例是一个节点，节点之间通过 NATS 或 Redis 通信。把它的名字告诉其他组件后，信令会把连在各个节点上的成员放进同一批房间，TURN 服务器会把自己的地址和负载告诉其他节点，WHIP 会话的 DELETE 请求不管到了哪个节点，都能结束这个会话。总线上只传这些消息：音视频和数据仍然在客户端和节点之间直接传输。
 
@@ -240,7 +240,6 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 ## 限制
 
 - Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
-- WHIP 不支持 Trickle ICE，也不支持 ICE 重启。
 - 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 44 万条。
 
 ## API

@@ -215,8 +215,9 @@ Application.run(() => ({
 ```
 
 The answers carry all the candidates of the server: give it its public address (`iceAdditionalHostAddresses`) and the
-UDP ports to open (`icePortRange`). A `PATCH` (trickle ICE, ICE restart) is answered with 405; list
-`application/trickle-ice-sdpfrag` in `body.text` too, or Fastify refuses it with 415 before it reaches the controller.
+UDP ports to open (`icePortRange`). A `PATCH` of a session gives the server the candidates of the publisher (trickle
+ICE) or restarts ICE; list `application/trickle-ice-sdpfrag` in `body.text` too, or Fastify refuses it with 415 before
+it reaches the controller.
 ffmpeg publishes with `-f whip -authorization <token> <url>`.
 
 Several instances of an application (the pods of a deployment) work together through a `Cluster`: each instance is a
@@ -297,7 +298,6 @@ string the client chooses once: joining again with the same session keeps the ot
 
 - Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
   another connection.
-- WHIP supports neither trickle ICE nor ICE restarts.
 - Throughput of one data channel between two Node.js processes on an Apple M4: about 60 MiB/s for large messages,
   440,000 messages of 100 bytes per second.
 

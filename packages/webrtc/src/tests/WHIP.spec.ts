@@ -6,6 +6,7 @@ import {MediaTrack} from '../peer/MediaTrack.js'
 import {PeerConnection} from '../peer/PeerConnection.js'
 import type {RtpPacket} from '../peer/RtpPacket.js'
 import type {WHIPSession} from '../whip/WHIP.js'
+import {restartIce} from './support/Media.js'
 import {next, startWHIP, until} from './support/Server.js'
 
 /**
@@ -96,8 +97,9 @@ describe('WHIP', (): void => {
             const response: Response = await fetch(`${url}/whip/studio`, {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: client.offer})
             assert.strictEqual(response.status, 201)
             assert.strictEqual(response.headers.get('content-type'), 'application/sdp')
-            assert.strictEqual(response.headers.get('access-control-expose-headers'), 'Location, Link')
+            assert.strictEqual(response.headers.get('access-control-expose-headers'), 'Location, Link, ETag')
             const location: string = response.headers.get('location') ?? ''
+            assert.strictEqual(response.headers.get('etag'), `"${whip.entityTagOf(location.split('/').at(-1)!)}"`)
             assert.match(location, /^\/whip\/studio\/[0-9a-f-]{36}$/)
             const answer: string = await response.text()
             //All the candidates in the answer, which receives only
@@ -111,10 +113,17 @@ describe('WHIP', (): void => {
             await client.connection.setRemoteDescription({type: 'answer', sdp: answer})
             stops.push(feed(client.audio), feed(client.video))
             await Promise.all(session.tracks!.map((track: MediaTrack): Promise<RtpPacket> => next<RtpPacket>((resolve: (packet: RtpPacket) => void): unknown => track.once('rtp', resolve), 20000, `the ${track.kind}`)))
-            //No trickle ICE, no restart; the session of another stream, an unknown session
-            const patch: Response = await fetch(`${url}${location}`, {method: 'PATCH', headers: {'Content-Type': 'application/trickle-ice-sdpfrag'}, body: 'a=end-of-candidates'})
-            assert.strictEqual(patch.status, 405)
-            assert.strictEqual(patch.headers.get('allow'), 'OPTIONS, GET, DELETE')
+            //The end of the candidates of the publisher, a fragment of no ICE
+            const patch = (body: string): Promise<Response> => fetch(`${url}${location}`, {method: 'PATCH', headers: {'Content-Type': 'application/trickle-ice-sdpfrag'}, body: body})
+            assert.strictEqual((await patch('a=end-of-candidates')).status, 204)
+            assert.strictEqual((await patch('a=group:BUNDLE 0')).status, 400)
+            //An ICE restart: the tracks go on
+            const restarted = await restartIce(client.connection, `${url}${location}`)
+            assert.strictEqual(restarted.response.status, 200)
+            assert.strictEqual(restarted.response.headers.get('content-type'), 'application/trickle-ice-sdpfrag')
+            await Promise.all(session.tracks!.map((track: MediaTrack): Promise<RtpPacket> => next<RtpPacket>((resolve: (packet: RtpPacket) => void): unknown => track.once('rtp', resolve), 20000, `the ${track.kind} after the restart`)))
+            assert.strictEqual(client.connection.connectionState, 'connected')
+            //The session of another stream, an unknown session
             assert.strictEqual((await fetch(`${url}/whip/other/${session.id}`, {method: 'DELETE'})).status, 404)
             assert.strictEqual((await fetch(`${url}/whip/studio/unknown`, {method: 'DELETE'})).status, 404)
             //The end of the session
@@ -122,7 +131,7 @@ describe('WHIP', (): void => {
             assert.strictEqual((await fetch(`${url}${location}`, {method: 'DELETE'})).status, 200)
             assert.strictEqual((await unpublished).id, session.id)
             assert.deepStrictEqual(whip.sessions, [])
-            assert.strictEqual(session.connection!.connectionState, 'closed')
+            await until((): boolean => session.connection!.connectionState === 'closed', 5000, 'the closed connection')
         } finally {
             stops.forEach((stop: () => void): void => stop())
             await container.destroy()

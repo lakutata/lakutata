@@ -325,13 +325,13 @@ Application.run(() => ({
 
 | 请求 | 回答 |
 |---|---|
-| `POST /whip/:stream`，请求体是 offer（`application/sdp`） | `201 Created`：answer、`Location`（会话）、`Link`（ICE 服务器） |
+| `POST /whip/:stream`，请求体是 offer（`application/sdp`） | `201 Created`：answer、`Location`（会话）、`Link`（ICE 服务器）、`ETag`（它的 ICE 会话） |
 | `DELETE /whip/:stream/:session` | `200`：会话结束 |
 | `OPTIONS` | `204`，带 CORS 头和 `Accept-Post: application/sdp` |
 | `GET` | `204` |
-| `PATCH` | `405`：既不支持 Trickle ICE，也不支持 ICE 重启 |
+| `PATCH /whip/:stream/:session`，请求体是 SDP 片段（`application/trickle-ice-sdpfrag`） | `204`：推流端的候选地址（Trickle ICE）；`200`：ICE 重启，带应答的片段和新的 `ETag`；`If-Match` 既不是 `*` 也不是这个 `ETag` 时回 `412` |
 
-拒绝的情况：`authorize` 拒绝时回 401，带 `WWW-Authenticate: Bearer`；请求体不是 `application/sdp` 时回 415；offer 里没有音视频时回 400；已经有 `maxSessions` 个会话时回 503；会话不存在时回 404。会话的 URL 就是结束它的凭证：它的 id 是随机的，DELETE 不再做授权检查。子类加上 `@Prefix({route: '/live'})`，就能在另一个路径下提供同样的接口。
+拒绝的情况：`authorize` 拒绝时回 401，带 `WWW-Authenticate: Bearer`；请求体不是 `application/sdp`（PATCH 的不是 `application/trickle-ice-sdpfrag`）时回 415；offer 里没有音视频时回 400；已经有 `maxSessions` 个会话时回 503；会话不存在时回 404。会话的 URL 就是结束它的凭证：它的 id 是随机的，DELETE 和 PATCH 不再做授权检查。子类加上 `@Prefix({route: '/live'})`，就能在另一个路径下提供同样的接口。
 
 | 选项 | 默认值 | 含义 |
 |---|---|---|
@@ -655,5 +655,4 @@ setDebugHandler((namespace: string, args: unknown[]): void => console.debug(name
 ## 14. 限制
 
 - Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
-- WHIP 不支持 Trickle ICE，也不支持 ICE 重启。
 - 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 44 万条。

@@ -21,6 +21,20 @@ class StreamDTO extends DTO {
 }
 
 /**
+ * The input of a PATCH of a session
+ */
+class PatchDTO extends DTO {
+    @Expect(DTO.String().min(1).max(256).required())
+    public stream: string
+
+    @Expect(DTO.String().min(1).max(64).required())
+    public session: string
+
+    @Expect(DTO.String().optional())
+    public body?: string
+}
+
+/**
  * The input of the requests to a session
  */
 class SessionDTO extends DTO {
@@ -36,8 +50,9 @@ class SessionDTO extends DTO {
  * publishes a stream with `POST /whip/:stream` (its SDP offer as `application/sdp`, its bearer token in the
  * `Authorization` header), gets the answer with the URL of its session (`201 Created`, `Location`), and ends it with
  * `DELETE` on that URL. It answers the CORS preflights (`OPTIONS`) of the browsers, `GET` with no content, and `PATCH`
- * with `405 Method Not Allowed` (no trickle ICE, no ICE restart). The URL of a session is the capability to end it: its
- * id is random, and the DELETE is not authorized again.
+ * of a session (`application/trickle-ice-sdpfrag`): the candidates of the publisher (trickle ICE), or an ICE restart,
+ * whose answer has a new `ETag`. The URL of a session is the capability to end it: its id is random, and the DELETE and
+ * the PATCH are not authorized again.
  *
  * Add it to the controllers of an entrypoint whose HTTP adapter reads the bodies of WHIP as text (its option
  * `body: {text: ['application/sdp', 'application/trickle-ice-sdpfrag']}`, without which Fastify refuses the PATCH
@@ -95,7 +110,7 @@ export class WHIPController extends Controller {
     protected async allowOrigin(): Promise<void> {
         const whip: WHIP = await this.whip()
         this.http().response.setHeader('Access-Control-Allow-Origin', whip.allowedOrigin)
-        this.http().response.setHeader('Access-Control-Expose-Headers', 'Location, Link')
+        this.http().response.setHeader('Access-Control-Expose-Headers', 'Location, Link, ETag')
     }
 
     /**
@@ -179,6 +194,7 @@ export class WHIPController extends Controller {
             'Content-Type': 'application/sdp',
             'Content-Length': answer.length,
             'Location': `${pathOf(request)}/${published.session.id}`,
+            'ETag': `"${whip.entityTagOf(published.session.id)}"`,
             ...links.length ? {Link: links} : {}
         }).end(answer)
     }
@@ -201,12 +217,40 @@ export class WHIPController extends Controller {
     }
 
     /**
-     * Refuse the trickle ICE and the ICE restarts: `405 Method Not Allowed`.
+     * Apply the candidates of the publisher (trickle ICE: `204 No Content`), or restart ICE when its credentials
+     * changed (`200 OK`, the fragment of the answer, and a new `ETag`), as RFC 9725 (section 4.3) does: an ICE restart
+     * needs `If-Match: *`. An `If-Match` other than `*` and the `ETag` of the session, and new credentials without
+     * `If-Match: *`, are answered with `412 Precondition Failed`.
+     * @param input The stream, the session, and the fragment of SDP (the body).
      * @returns Resolves once answered.
+     * @throws {WHIPMediaTypeException} When the body is not `application/trickle-ice-sdpfrag`.
+     * @throws {WHIPSessionNotFoundException} When the stream has no such session on this node.
+     * @throws {WHIPOfferException} When the fragment has no ICE, or the connection refuses it.
      */
-    @PATCH('/:stream/:session', SessionDTO)
-    public async patch(): Promise<void> {
+    @PATCH('/:stream/:session', PatchDTO)
+    public async patch(input: PatchDTO): Promise<void> {
         await this.allowOrigin()
-        this.http().response.writeHead(405, {'Allow': 'OPTIONS, GET, DELETE', 'Content-Length': 0}).end()
+        const {request, response} = this.http()
+        if ((request.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() !== 'application/trickle-ice-sdpfrag' || input.body === undefined) {
+            throw new WHIPMediaTypeException('The fragment is not application/trickle-ice-sdpfrag')
+        }
+        const whip: WHIP = await this.whip()
+        const tag: string | undefined = whip.entityTagOf(input.session)
+        if (tag === undefined || whip.session(input.session)?.stream !== input.stream) {
+            throw new WHIPSessionNotFoundException('The stream {stream} has no session {session}', {stream: input.stream, session: input.session})
+        }
+        //Any ICE session: *, quoted or not
+        const ifMatch: string | undefined = request.headers['if-match']?.trim().replace(/^"\*"$/, '*')
+        if (ifMatch !== undefined && ifMatch !== '*' && ifMatch !== `"${tag}"`) return void response.writeHead(412, {'Content-Length': 0}).end()
+        //A restart only with If-Match: * (RFC 9725, section 4.3.2)
+        const patched: {fragment?: string, tag: string, stale?: boolean} = await whip.patch(input.session, input.body, ifMatch === '*')
+        if (patched.stale) return void response.writeHead(412, {'Content-Length': 0}).end()
+        if (patched.fragment === undefined) return void response.writeHead(204).end()
+        const fragment: Buffer = Buffer.from(patched.fragment)
+        response.writeHead(200, {
+            'Content-Type': 'application/trickle-ice-sdpfrag',
+            'Content-Length': fragment.length,
+            'ETag': `"${patched.tag}"`
+        }).end(fragment)
     }
 }
