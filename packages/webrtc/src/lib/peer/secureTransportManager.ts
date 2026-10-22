@@ -572,7 +572,8 @@ export class SecureTransportManager {
     }
 
     setConnectionState(state: ConnectionState) {
-        if (this.connectionState === state) {
+        //A closed connection stays closed: a connection still being made when it was closed ends later
+        if (this.connectionState === state || this.connectionState === 'closed') {
             return
         }
         log('connectionStateChange', state)

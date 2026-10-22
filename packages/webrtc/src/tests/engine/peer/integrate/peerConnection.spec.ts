@@ -316,6 +316,59 @@ describe('peerConnection', () => {
         }
     })
 
+    test('a connection closed while it connects stops its checks, and stays closed', async () => {
+        const pc1 = new RTCPeerConnection()
+        const pc2 = new RTCPeerConnection()
+        try {
+            pc1.addTransceiver('audio', {direction: 'sendonly'})
+            await pc1.setLocalDescription(await pc1.createOffer())
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            const ice = pc2.iceTransports[0]
+            const start = ice.start.bind(ice)
+            let checking: Promise<void> | undefined
+            vi.spyOn(ice, 'start').mockImplementation(() => checking = start())
+            //pc1 never gets the answer: the checks of pc2 go on until it is closed
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            expect(checking).toBeDefined()
+            await pc2.close()
+            const ended = await Promise.race([checking!.then(() => 'ended', () => 'ended'), setTimeout(2000, 'checking')])
+            expect(ended).toBe('ended')
+            expect(ice.state).toBe('closed')
+            expect(pc2.connectionState).toBe('closed')
+        } finally {
+            await pc1.close()
+        }
+    })
+
+    test('a connection closed while the checks of an ICE restart go on stays closed', async () => {
+        const pc1 = new RTCPeerConnection()
+        const pc2 = new RTCPeerConnection()
+        try {
+            pc1.addTransceiver('audio', {direction: 'sendonly'})
+            await pc1.setLocalDescription(await pc1.createOffer())
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            await pc1.setRemoteDescription(pc2.localDescription!)
+            while (pc1.connectionState !== 'connected' || pc2.connectionState !== 'connected') await setTimeout(20)
+            //An ICE restart answered by pc2, whose checks succeed once it is closed
+            pc1.restartIce()
+            await pc1.setLocalDescription(await pc1.createOffer())
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            let checked: (() => void) | undefined
+            vi.spyOn(pc2.iceTransports[0], 'start').mockImplementation(() => new Promise<void>((resolve) => {
+                checked = resolve
+            }))
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            expect(checked).toBeDefined()
+            await pc2.close()
+            checked!()
+            await setTimeout(100)
+            expect(pc2.connectionState).toBe('closed')
+        } finally {
+            await pc1.close()
+        }
+    })
+
     test('removeTrack is a no-op for a stopped transceiver', async () => {
         const pc = new RTCPeerConnection()
         const stream = new MediaStream()

@@ -243,7 +243,8 @@ export class RTCIceTransport {
         try {
             await this.connection.connect()
         } catch (error) {
-            this.setState('failed')
+            //Closed meanwhile (the state checked at the start may have changed): it stays closed
+            if ((this.state as RTCIceConnectionState) !== 'closed') this.setState('failed')
             throw error
         }
 

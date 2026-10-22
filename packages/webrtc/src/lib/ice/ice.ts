@@ -869,9 +869,9 @@ export class Connection implements IceConnection {
             await timers.setTimeout(20)
         }
 
-        // # wait for completion
+        // # wait for completion (closing the connection ends the wait)
         let res: number = ICE_FAILED
-        while (this.checkList.length > 0 && res === ICE_FAILED) {
+        while (this.checkList.length > 0 && res === ICE_FAILED && this.state !== 'closed') {
             res = await this.checkListState.get()
             log('checkListState', res)
         }
