@@ -9,8 +9,9 @@ import type {SignalingDescription, SignalingPeer} from '../protocol/SignalingPro
 import {mediaServers} from '../signaling/MediaServers.js'
 import type {Signaling} from '../signaling/Signaling.js'
 import type {EndpointLeg} from '../peer/Endpoints.js'
-import {sfuAccess} from './SFUAccess.js'
-import {type SFUHost, SFURoom} from './SFURoom.js'
+import {sfuAccess, sfuWorkers} from './SFUAccess.js'
+import {type SFUHost, SFURoom, type SFUServedRoom, type SFUViewerSelect} from './SFURoom.js'
+import {SFUWorkers} from './SFUWorkers.js'
 
 /**
  * A track published in a room of the media server.
@@ -92,6 +93,16 @@ export interface SFUOptions {
      * @default every member receives every track of the others
      */
     select?: SFUSelect
+    /**
+     * Worker threads that forward the rooms, to use more cores: each room is forwarded in one of them (the one
+     * forwarding the fewest members and viewers when the room opens), with its connections, its UDP ports and its
+     * relaying, while the hooks and the events stay in the main thread. `icePortRange`, when given, is split among the
+     * threads and needs at least one port for each. A thread that stops (only a bug stops one) closes its rooms; the
+     * server joins them again in another thread, and their members connect to it again. With 0, the rooms are forwarded
+     * in the main thread.
+     * @default 0
+     */
+    workers?: number
 }
 
 /**
@@ -187,7 +198,15 @@ export class SFU extends Component {
     @Configurable(DTO.Function().optional())
     protected readonly select?: SFUSelect
 
-    readonly #rooms: Map<string, SFURoom> = new Map()
+    /**
+     * The worker threads forwarding the rooms.
+     */
+    @Configurable(DTO.Number().integer().min(0).optional().default(0))
+    protected readonly workers: number
+
+    readonly #rooms: Map<string, SFUServedRoom> = new Map()
+
+    #workers?: SFUWorkers
 
     //The rooms being left: a room joined again waits for it
     readonly #leaving: Map<string, Promise<void>> = new Map()
@@ -202,6 +221,7 @@ export class SFU extends Component {
      */
     protected async init(): Promise<void> {
         this.#signalingObject = await this.getObject<Signaling>(this.signaling)
+        if (this.workers) await this.#startWorkers()
         mediaServers.set(this.#signalingObject, (room: string, peerId: string): Promise<string | undefined> => this.assign(room, peerId))
         sfuAccess.set(this, {
             publish: async (room: string, offer: SignalingDescription): Promise<{peerId: string, leg: EndpointLeg}> => {
@@ -210,7 +230,7 @@ export class SFU extends Component {
                 if (!await this.assign(room, peerId)) throw new Error(`The media server does not serve the room ${room}`)
                 return {peerId: peerId, leg: await this.#rooms.get(room)!.publish(peerId, offer)}
             },
-            play: async (room: string, offer: SignalingDescription, select?: (tracks: SFUTrack[]) => string | undefined): Promise<{viewerId: string, leg: EndpointLeg & {source(): string | undefined}}> => {
+            play: async (room: string, offer: SignalingDescription, select?: SFUViewerSelect): Promise<{viewerId: string, leg: EndpointLeg & {source(): string | undefined}}> => {
                 const viewerId: string = `whep:${randomUUID()}`
                 if (!await this.assign(room, viewerId, true)) throw new Error(`The media server does not serve the room ${room}`)
                 return {viewerId: viewerId, leg: await this.#rooms.get(room)!.play(viewerId, offer, select)}
@@ -224,13 +244,16 @@ export class SFU extends Component {
      */
     protected async destroy(): Promise<void> {
         if (this.#signalingObject && mediaServers.get(this.#signalingObject)) mediaServers.delete(this.#signalingObject)
-        const rooms: SFURoom[] = [...this.#rooms.values()]
+        const rooms: SFUServedRoom[] = [...this.#rooms.values()]
         this.#rooms.clear()
-        await Promise.all(rooms.map((room: SFURoom): Promise<void> => room.close()))
+        await Promise.all(rooms.map((room: SFUServedRoom): Promise<void> => room.close()))
+        await this.#workers?.stop()
     }
 
     /**
-     * The rooms the server is in, with their members, the tracks published and the number of viewers of WHEP.
+     * The rooms the server is in, with their members, the tracks published and the number of viewers of WHEP. With
+     * `workers`, each thread reports its rooms: a change made in a thread (a session of WHEP ending) shows here a moment
+     * later.
      * @returns For each room, the ids of its members, its tracks and its viewers.
      * @example
      * ```typescript
@@ -241,7 +264,7 @@ export class SFU extends Component {
      * ```
      */
     public rooms(): Record<string, {members: string[], tracks: SFUTrack[], viewers: number}> {
-        return Object.fromEntries([...this.#rooms].map(([name, room]: [string, SFURoom]): [string, {members: string[], tracks: SFUTrack[], viewers: number}] => [name, {members: room.members, tracks: room.tracks, viewers: room.viewers}]))
+        return Object.fromEntries([...this.#rooms].map(([name, room]: [string, SFUServedRoom]): [string, {members: string[], tracks: SFUTrack[], viewers: number}] => [name, {members: [...room.members], tracks: room.tracks, viewers: room.viewers}]))
     }
 
     /**
@@ -275,14 +298,23 @@ export class SFU extends Component {
      */
     protected async assign(room: string, peerId: string, viewer: boolean = false): Promise<string | undefined> {
         if (this.serves && !this.serves(room)) return undefined
-        const count: number = [...this.#rooms.values()].reduce((sum: number, each: SFURoom): number => sum + each.members.length, 0)
+        const count: number = [...this.#rooms.values()].reduce((sum: number, each: SFUServedRoom): number => sum + each.members.length, 0)
         if (!viewer && this.maxMembers && count >= this.maxMembers && !this.#rooms.get(room)?.members.includes(peerId)) {
             throw new SignalingLimitException('The media server has {count} members already', {count: count})
         }
+        await this.#serve(room)
+        return this.#id
+    }
+
+    /**
+     * Join a room; one being left is joined again once it is left
+     * @param room
+     */
+    async #serve(room: string): Promise<void> {
         await this.#leaving.get(room)
-        let served: SFURoom | undefined = this.#rooms.get(room)
+        let served: SFUServedRoom | undefined = this.#rooms.get(room)
         if (!served || served.closed) {
-            served = new SFURoom(this.#host(), room)
+            served = this.#workers ? this.#workers.room(room) : new SFURoom(this.#host(), room)
             this.#rooms.set(room, served)
         }
         try {
@@ -291,7 +323,47 @@ export class SFU extends Component {
             if (this.#rooms.get(room) === served) this.#rooms.delete(room)
             throw error
         }
-        return this.#id
+    }
+
+    /**
+     * Start the worker threads, each with its part of the ports
+     */
+    async #startWorkers(): Promise<void> {
+        const ranges: ([number, number] | undefined)[] = Array.from({length: this.workers}, (_: unknown, index: number): [number, number] | undefined => {
+            if (!this.icePortRange) return undefined
+            const [first, last] = this.icePortRange
+            const size: number = last - first + 1
+            if (size < this.workers) throw new RangeError(`The ICE port range has ${size} ports, fewer than the ${this.workers} worker threads`)
+            return [first + Math.floor(index * size / this.workers), first + Math.floor((index + 1) * size / this.workers) - 1]
+        })
+        const sfu: SFU = this
+        this.#workers = new SFUWorkers({
+            id: this.#id,
+            get signaling(): Signaling {
+                return sfu.#signalingObject
+            },
+            select: this.select,
+            emit: (event: string, ...args: unknown[]): unknown => this.emit(event, ...args),
+            emptied: (room: SFUServedRoom): void => this.#leave(room),
+            lost: (room: SFUServedRoom): void => this.#lost(room)
+        }, ranges.map((range: [number, number] | undefined, thread: number) => ({
+            thread: thread,
+            connection: {
+                headerExtensions: true,
+                ...this.codecs ? {codecs: this.codecs} : {},
+                ...range ? {icePortRange: range} : {},
+                ...this.iceAdditionalHostAddresses ? {iceAdditionalHostAddresses: this.iceAdditionalHostAddresses} : {}
+            },
+            select: !!this.select
+        })))
+        try {
+            await this.#workers.ready
+        } catch (error) {
+            await this.#workers.stop()
+            this.#workers = undefined
+            throw error
+        }
+        sfuWorkers.set(this, this.#workers)
     }
 
     /**
@@ -318,10 +390,28 @@ export class SFU extends Component {
     }
 
     /**
+     * The worker thread of a room stopped: the server and the streams of WHIP leave the room, and the server joins it
+     * again (in another thread) when it has members, which connect to it again
+     * @param room
+     */
+    #lost(room: SFUServedRoom): void {
+        if (this.#rooms.get(room.name) === room) this.#rooms.delete(room.name)
+        const left: string[] = [this.#id, ...room.members.filter((id: string): boolean => id.startsWith('whip:'))]
+        const leaving: Promise<void> = Promise.all(left.map((id: string): Promise<void> => this.#signalingObject.leave(id, room.name).catch((): void => undefined))).then((): void => {
+            if (this.#leaving.get(room.name) === leaving) this.#leaving.delete(room.name)
+        })
+        this.#leaving.set(room.name, leaving)
+        leaving.then((): Promise<void> | undefined => {
+            const members: string[] = this.#signalingObject.rooms()[room.name] ?? []
+            return members.some((id: string): boolean => !id.startsWith('sfu:') && !id.startsWith('whip:')) ? this.#serve(room.name) : undefined
+        }).catch((): void => undefined)
+    }
+
+    /**
      * Leave a room without members
      * @param room
      */
-    #leave(room: SFURoom): void {
+    #leave(room: SFUServedRoom): void {
         if (this.#rooms.get(room.name) !== room) return
         this.#rooms.delete(room.name)
         const leaving: Promise<void> = room.close().finally((): void => {

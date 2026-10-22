@@ -528,11 +528,12 @@ export class WHIP extends Component {
      */
     public async patch(id: string, fragment: string, restart: boolean = true): Promise<{fragment?: string, tag: string, stale?: boolean}> {
         const session: WHIPSession | undefined = this.#sessions.get(id)
-        const connection: PeerConnection | undefined = session?.connection ?? this.#legs.get(id)?.connection
-        if (!session || !connection) throw new WHIPSessionNotFoundException('There is no session {session}', {session: id})
+        const connection: PeerConnection | undefined = session?.connection
+        const leg: EndpointLeg | undefined = this.#legs.get(id)
+        if (!session || (!connection && !leg)) throw new WHIPSessionNotFoundException('There is no session {session}', {session: id})
         let answer: string | undefined | null
         try {
-            answer = await patchConnection(connection, fragment, restart)
+            answer = connection ? await patchConnection(connection, fragment, restart) : await leg!.patch(fragment, restart)
         } catch (error: unknown) {
             throw new WHIPOfferException('The ICE fragment is refused: {reason}', {reason: (error as Error).message})
         }

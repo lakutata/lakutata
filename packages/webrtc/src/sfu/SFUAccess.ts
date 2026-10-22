@@ -1,6 +1,8 @@
 import type {EndpointLeg} from '../peer/Endpoints.js'
 import type {SignalingDescription} from '../protocol/SignalingProtocol.js'
-import type {SFU, SFUTrack} from './SFU.js'
+import type {SFU} from './SFU.js'
+import type {SFUViewerSelect} from './SFURoom.js'
+import type {SFUWorkers} from './SFUWorkers.js'
 
 /**
  * What the HTTP endpoints (WHIP, WHEP) need of a media server
@@ -24,10 +26,15 @@ export interface SFUAccess {
      * @returns The id of the viewer, its connection, and its source now.
      * @throws {Error} When the server does not serve the room, or the offer is refused.
      */
-    play(room: string, offer: SignalingDescription, select?: (tracks: SFUTrack[]) => string | undefined): Promise<{viewerId: string, leg: EndpointLeg & {source(): string | undefined}}>
+    play(room: string, offer: SignalingDescription, select?: SFUViewerSelect): Promise<{viewerId: string, leg: EndpointLeg & {source(): string | undefined}}>
 }
 
 /**
  * What the HTTP endpoints may do with each media server
  */
 export const sfuAccess: WeakMap<SFU, SFUAccess> = new WeakMap()
+
+/**
+ * The worker threads of each media server forwarding in some (for the tests)
+ */
+export const sfuWorkers: WeakMap<SFU, SFUWorkers> = new WeakMap()

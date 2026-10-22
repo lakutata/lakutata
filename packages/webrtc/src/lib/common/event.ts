@@ -28,6 +28,8 @@ export class Event<T extends any[]> {
     ended = false
     onended?: () => void
     onerror = (_error: any) => {}
+    //Called when a subscriber is added or removed (length is their number)
+    onsubscriberschange?: () => void
 
     execute = (...args: T) => {
         if (this.ended) {
@@ -91,6 +93,7 @@ export class Event<T extends any[]> {
             promiseStack: [],
             eventId: 0
         }
+        this.onsubscriberschange?.()
     }
 
     subscribe = (
@@ -101,11 +104,14 @@ export class Event<T extends any[]> {
         const id = this.event.eventId
         this.event.stack.push({execute, id, complete, error})
         this.event.eventId++
+        this.onsubscriberschange?.()
 
         const unSubscribe = () => {
+            const length = this.event.stack.length
             this.event.stack = this.event.stack.filter(
                 (item) => item.id !== id && item
             )
+            if (this.event.stack.length !== length) this.onsubscriberschange?.()
         }
 
         const disposer = (disposer: EventDisposer) => {
@@ -133,8 +139,8 @@ export class Event<T extends any[]> {
         this.event.eventId++
 
         const unSubscribe = () => {
-            this.event.stack = this.event.stack.filter(
-                (item) => item.id !== id && item
+            this.event.promiseStack = this.event.promiseStack.filter(
+                (item) => item.id !== id
             )
         }
 

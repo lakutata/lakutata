@@ -31,13 +31,15 @@ export function gathered(connection: PeerConnection, timeout: number = GATHERING
 }
 
 /**
- * The connection of a session of an HTTP endpoint (WHIP, WHEP) to its client: the answer to the offer of the client,
- * and the end of the session
+ * The connection of a session of an HTTP endpoint (WHIP, WHEP) to its client, wherever it is (in a worker thread for a
+ * media server forwarding in some): the answer to the offer of the client, its PATCH requests, and the end of the
+ * session
  */
 export interface EndpointLeg {
     //The answer, with all the candidates
     readonly answer: SignalingDescription
-    readonly connection: PeerConnection
+    //Apply a PATCH (see patchConnection)
+    patch(fragment: string, restart: boolean): Promise<string | undefined | null>
     //Called once when the connection fails or closes, or the leg is closed
     ended(listener: () => void): void
     close(): void

@@ -6,7 +6,7 @@ import type {SignalingDescription, SignalingIceServer} from '../protocol/Signali
 import type {TURNServer} from '../turn/TURNServer.js'
 import type {Cluster} from '../cluster/Cluster.js'
 import {iceServersFor, type TURNSelector} from '../cluster/ClusterTURN.js'
-import {type EndpointLeg, entityTag, patchConnection} from '../peer/Endpoints.js'
+import {type EndpointLeg, entityTag} from '../peer/Endpoints.js'
 import type {SFU, SFUTrack} from '../sfu/SFU.js'
 import {sfuAccess} from '../sfu/SFUAccess.js'
 import {WHEPDeniedException} from '../exceptions/WHEPDeniedException.js'
@@ -462,7 +462,7 @@ export class WHEP extends Component {
         if (!this.#sessions.has(id) || !leg) throw new WHEPSessionNotFoundException('There is no session {session}', {session: id})
         let answer: string | undefined | null
         try {
-            answer = await patchConnection(leg.connection, fragment, restart)
+            answer = await leg.patch(fragment, restart)
         } catch (error: unknown) {
             throw new WHEPOfferException('The ICE fragment is refused: {reason}', {reason: (error as Error).message})
         }

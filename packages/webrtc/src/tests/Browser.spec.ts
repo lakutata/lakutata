@@ -527,11 +527,11 @@ describe('Browser', (): void => {
         }
     })
 
-    it('holds a meeting of three pages of Chrome through the media server', {timeout: 90000}, async (t: TestContext): Promise<void> => {
+    for (const workers of [0, 2]) it(`holds a meeting of three pages of Chrome through the media server${workers ? `, forwarding in ${workers} worker threads` : ''}`, {timeout: 90000}, async (t: TestContext): Promise<void> => {
         const chrome: Browser | undefined = await launchChrome({media: true})
         if (!chrome) return t.skip('Playwright or Chrome is not available')
         const files: {url: string, server: Server} = await staticServer()
-        const server: TestServer = await startServer({sfu: {}})
+        const server: TestServer = await startServer({sfu: {workers: workers}})
         try {
             const ids: string[] = ['ann', 'ben', 'cid']
             const pages: BrowserPage[] = await Promise.all(ids.map((): Promise<BrowserPage> => chrome.newPage()))
@@ -560,11 +560,11 @@ describe('Browser', (): void => {
         }
     })
 
-    it('publishes the camera of a page of Chrome with WHIP and plays it on another one with WHEP', {timeout: 90000}, async (t: TestContext): Promise<void> => {
+    for (const workers of [0, 2]) it(`publishes the camera of a page of Chrome with WHIP and plays it on another one with WHEP${workers ? `, forwarding in ${workers} worker threads` : ''}`, {timeout: 90000}, async (t: TestContext): Promise<void> => {
         const chrome: Browser | undefined = await launchChrome({media: true})
         if (!chrome) return t.skip('Playwright or Chrome is not available')
         const files: {url: string, server: Server} = await staticServer()
-        const server: TestServer = await startServer({sfu: {}, whip: {}, whep: {}})
+        const server: TestServer = await startServer({sfu: {workers: workers}, whip: {}, whep: {}})
         try {
             const [camera, player] = await Promise.all([chrome.newPage(), chrome.newPage()])
             await Promise.all([camera.goto(files.url), player.goto(files.url)])

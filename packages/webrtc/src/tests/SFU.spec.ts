@@ -1,4 +1,5 @@
 import {describe, it} from 'node:test'
+import {format} from 'node:util'
 import assert from 'node:assert'
 import {Container} from '@lakutata/core'
 import {MediaTrack} from '../peer/MediaTrack.js'
@@ -7,7 +8,12 @@ import type {PeerChannel} from '../peer/PeerChannel.js'
 import {PeerConnection, type PeerTrackEvent} from '../peer/PeerConnection.js'
 import type {RtpTransceiver} from '../peer/RtpTransceiver.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
-import type {SFUTrack} from '../sfu/SFU.js'
+import {gathered} from '../peer/Endpoints.js'
+import {setDebugHandler} from '../lib/common/log.js'
+import {SFU, type SFUTrack} from '../sfu/SFU.js'
+import {Signaling} from '../signaling/Signaling.js'
+import {sfuWorkers} from '../sfu/SFUAccess.js'
+import type {SFUWorkers} from '../sfu/SFUWorkers.js'
 import type {WHIPSession} from '../whip/WHIP.js'
 import {feed, from, packets, whipPublisher} from './support/Media.js'
 import {next, startServer, type TestServer, until} from './support/Server.js'
@@ -28,13 +34,14 @@ type Member = {
  * @param server
  * @param id
  * @param first
- * @param options More options of the client.
+ * @param options More options of the client, the room (`meeting` by default).
  */
-async function member(clients: Container, server: TestServer, id: string, first: number, options: {codecs?: string[]} = {}): Promise<Member> {
-    const client: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: id, ...options})
+async function member(clients: Container, server: TestServer, id: string, first: number, options: {codecs?: string[], room?: string} = {}): Promise<Member> {
+    const {room: name = 'meeting', ...more} = options
+    const client: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: id, ...more})
     //The first video codec it has
     const codec: string = options.codecs?.find((each: string): boolean => each.startsWith('video/')) ?? 'video/VP8'
-    const room: Room = await client.join('meeting')
+    const room: Room = await client.join(name)
     const received: Map<string, PeerTrackEvent[]> = new Map()
     room.on('peer', (peer: Peer): void => {
         peer.on('track', (event: PeerTrackEvent): void => void received.set(peer.id, [...received.get(peer.id) ?? [], event]))
@@ -45,10 +52,11 @@ async function member(clients: Container, server: TestServer, id: string, first:
     return {room: room, video: video, received: received, stop: stop}
 }
 
-describe('SFU', (): void => {
+//Forwarding in the main thread, and in worker threads
+for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} worker threads` : 'SFU', (): void => {
 
     it('forwards the tracks of each member to the others, reusing the transceivers of the members who left', {timeout: 90000}, async (): Promise<void> => {
-        const server: TestServer = await startServer({sfu: {}})
+        const server: TestServer = await startServer({sfu: {workers: workers}})
         const clients: Container = new Container()
         const members: Member[] = []
         const published: SFUTrack[] = []
@@ -122,7 +130,7 @@ describe('SFU', (): void => {
     })
 
     it('pauses a track a member receives, and gives up the ones of a codec it does not have', {timeout: 90000}, async (): Promise<void> => {
-        const server: TestServer = await startServer({sfu: {}})
+        const server: TestServer = await startServer({sfu: {workers: workers}})
         const clients: Container = new Container()
         const members: Member[] = []
         const unsupported: string[] = []
@@ -159,7 +167,7 @@ describe('SFU', (): void => {
     })
 
     it('relays the data channels between the members, the sender waiting for a member receiving slowly', {timeout: 90000}, async (): Promise<void> => {
-        const server: TestServer = await startServer({sfu: {}})
+        const server: TestServer = await startServer({sfu: {workers: workers}})
         const clients: Container = new Container()
         const members: Member[] = []
         try {
@@ -223,7 +231,7 @@ describe('SFU', (): void => {
     })
 
     it('takes a stream published with WHIP into a room, as a member the others receive', {timeout: 90000}, async (): Promise<void> => {
-        const server: TestServer = await startServer({sfu: {serves: (room: string): boolean => room !== 'lobby'}, whip: {}})
+        const server: TestServer = await startServer({sfu: {workers: workers, serves: (room: string): boolean => room !== 'lobby'}, whip: {}})
         const clients: Container = new Container()
         const stops: (() => void)[] = []
         try {
@@ -264,6 +272,7 @@ describe('SFU', (): void => {
     it('serves the rooms chosen, up to its members, with the tracks selected for each', {timeout: 60000}, async (): Promise<void> => {
         const server: TestServer = await startServer({
             sfu: {
+                workers: workers,
                 serves: (room: string): boolean => room === 'meeting',
                 maxMembers: 2,
                 //bob receives nothing
@@ -317,6 +326,108 @@ describe('SFU', (): void => {
             assert.strictEqual(connection.getTransceivers().length, transceivers)
         } finally {
             members.forEach((each: Member): void => each.stop())
+            await clients.destroy()
+            await server.stop()
+        }
+    })
+
+    if (workers) it('spreads the rooms over the threads, gives the packets of a track to the main thread, and serves the rooms of a thread stopping again', {timeout: 120000}, async (): Promise<void> => {
+        //The debug messages of the threads come to the handler of the main thread
+        let fromThreads: number = 0
+        const stopped: string[] = []
+        setDebugHandler((namespace: string, args: unknown[]): void => {
+            if (typeof args[0] === 'string' && args[0].startsWith('[thread ')) fromThreads++
+            if (namespace === 'webrtc/sfu/workers') stopped.push(format(...args))
+        })
+        const server: TestServer = await startServer({sfu: {workers: workers}})
+        const clients: Container = new Container()
+        const members: Member[] = []
+        const published: SFUTrack[] = []
+        const unpublished: SFUTrack[] = []
+        server.sfu!.on('publish', (track: SFUTrack): unknown => published.push(track))
+        server.sfu!.on('unpublish', (track: SFUTrack): unknown => unpublished.push(track))
+        try {
+            const alice: Member = await member(clients, server, 'alice', 0)
+            const bob: Member = await member(clients, server, 'bob', 100000)
+            const carol: Member = await member(clients, server, 'carol', 200000, {room: 'other'})
+            const dave: Member = await member(clients, server, 'dave', 300000, {room: 'other'})
+            members.push(alice, bob, carol, dave)
+            await until((): boolean => alice.received.size === 1 && dave.received.size === 1, 20000, 'the tracks of the rooms')
+            //A room in each thread
+            const pool: SFUWorkers = sfuWorkers.get(server.sfu!)!
+            assert.deepStrictEqual(pool.rooms, [1, 1])
+            assert.notStrictEqual(pool.threadOf('meeting'), pool.threadOf('other'))
+            //The packets of a track, read in the main thread; its key frame request reaches the publisher
+            const video: SFUTrack = server.sfu!.rooms().meeting.tracks.find((track: SFUTrack): boolean => track.peerId === 'bob')!
+            const track: MediaTrack = server.sfu!.track('meeting', 'bob', video.id)!
+            assert.deepStrictEqual([track.kind, track.remote, track.codec], ['video', true, 'video/VP8'])
+            assert.strictEqual(server.sfu!.track('meeting', 'bob', video.id), track)
+            assert.ok(await from(track, 100000), 'the packets of bob in the main thread')
+            const asked: Promise<void> = next<void>((resolve: () => void): unknown => bob.video.once('keyframerequest', resolve), 5000, 'the key frame request')
+            track.requestKeyFrame()
+            await asked
+            //Sent on, on a connection of the main thread, whose key frame requests reach the publisher too
+            const sending: PeerConnection = await clients.get(PeerConnection, {})
+            const receiving: PeerConnection = await clients.get(PeerConnection, {})
+            sending.addTrack(track, 'relayed')
+            const sent: Promise<PeerTrackEvent> = next<PeerTrackEvent>((resolve: (event: PeerTrackEvent) => void): unknown => receiving.addEventListener('track', resolve), 10000, 'the track sent on')
+            await sending.setLocalDescription()
+            await gathered(sending)
+            await receiving.setRemoteDescription(sending.localDescription!)
+            await receiving.setLocalDescription()
+            await gathered(receiving)
+            await sending.setRemoteDescription(receiving.localDescription!)
+            const sentOn: MediaTrack = (await sent).track
+            assert.ok(await from(sentOn, 100000), 'the packets of bob sent on')
+            const askedAgain: Promise<void> = next<void>((resolve: () => void): unknown => bob.video.once('keyframerequest', resolve), 5000, 'the key frame request of the connection')
+            sentOn.requestKeyFrame()
+            await askedAgain
+            sending.close()
+            //The thread of the meeting stops: its tracks end, the server joins it again, the members connect again
+            const before: number = alice.received.get('bob')!.length
+            await pool.crash(pool.threadOf('meeting')!)
+            await until((): boolean => track.readyState === 'ended', 10000, 'the track ended')
+            await until((): boolean => unpublished.filter((each: SFUTrack): boolean => each.room === 'meeting').length === 2, 10000, 'the tracks of the meeting unpublished')
+            await until((): boolean => alice.received.get('bob')!.length > before && bob.received.get('alice')!.length > 1, 30000, 'the tracks of the meeting again')
+            assert.ok(await from(alice.received.get('bob')!.at(-1)!.track, 100000), 'the packets of bob again')
+            assert.ok(await from(bob.received.get('alice')!.at(-1)!.track, 0), 'the packets of alice again')
+            assert.strictEqual(published.filter((each: SFUTrack): boolean => each.room === 'meeting').length, 4)
+            assert.deepStrictEqual(server.sfu!.rooms().meeting.members.sort(), ['alice', 'bob'])
+            //The other room goes on
+            assert.ok(await from(dave.received.get('carol')!.at(-1)!.track, 200000), 'the packets of the other room')
+            assert.strictEqual(dave.received.get('carol')!.length, 1)
+            assert.ok(fromThreads > 0, 'the debug messages of the threads')
+            assert.match(stopped.join('\n'), /^the worker thread \d stopped \(exit code 1\)$/m)
+        } finally {
+            setDebugHandler(undefined)
+            members.forEach((each: Member): void => each.stop())
+            await clients.destroy()
+            await server.stop()
+        }
+    })
+
+    if (workers) it('gives each thread a part of the ports, which must have a port for each', {timeout: 60000}, async (): Promise<void> => {
+        const container: Container = new Container()
+        await container.setNamed('signaling', Signaling, {})
+        await assert.rejects(container.setNamed('sfu', SFU, {workers: 3, icePortRange: [46100, 46101]}), /2 ports, fewer than the 3 worker threads/)
+        await container.destroy()
+        const server: TestServer = await startServer({sfu: {workers: workers, icePortRange: [46100, 46139]}, whip: {}})
+        const clients: Container = new Container()
+        const stops: (() => void)[] = []
+        try {
+            const one = await whipPublisher(clients, `${server.http}/whip/one`, 0)
+            const two = await whipPublisher(clients, `${server.http}/whip/two`, 100000)
+            stops.push(one.stop, two.stop)
+            const pool: SFUWorkers = sfuWorkers.get(server.sfu!)!
+            assert.notStrictEqual(pool.threadOf('one'), pool.threadOf('two'))
+            //The ports of the candidates of each room: in the part of its thread
+            for (const [room, publisher] of [['one', one], ['two', two]] as const) {
+                const [first, last] = pool.threadOf(room) === 0 ? [46100, 46119] : [46120, 46139]
+                const ports: number[] = [...publisher.connection.remoteDescription!.sdp!.matchAll(/^a=candidate:\S+ \d+ udp \d+ \S+ (\d+) typ host/gim)].map((match: RegExpMatchArray): number => Number(match[1]))
+                assert.ok(ports.length > 0 && ports.every((port: number): boolean => port >= first && port <= last), `the ports of ${room}: ${ports.join(', ')}`)
+            }
+        } finally {
+            stops.forEach((stop: () => void): void => stop())
             await clients.destroy()
             await server.stop()
         }

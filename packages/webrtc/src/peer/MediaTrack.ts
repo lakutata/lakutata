@@ -1,4 +1,5 @@
 import {EventEmitter} from 'node:events'
+import type {RTCRtpCodecParameters} from '../lib/peer/media/parameters.js'
 import type {RTCRtpReceiver} from '../lib/peer/media/rtpReceiver.js'
 import {MediaStreamTrack} from '../lib/peer/media/track.js'
 import type {Extensions, RtpPacket as EngineRtpPacket} from '../lib/rtp/index.js'
@@ -65,6 +66,11 @@ const emitters: WeakMap<MediaTrack, EventEmitter> = new WeakMap()
  * The receivers of the received tracks
  */
 const receivers: WeakMap<MediaTrack, RTCRtpReceiver> = new WeakMap()
+
+/**
+ * Where the key frame requests of the received tracks whose packets come from elsewhere go
+ */
+const keyFrameRequesters: WeakMap<MediaTrack, () => void> = new WeakMap()
 
 /**
  * When the key frame requests of a received track were sent on last
@@ -215,6 +221,8 @@ export class MediaTrack {
      * ```
      */
     public requestKeyFrame(): void {
+        const requester: (() => void) | undefined = keyFrameRequesters.get(this)
+        if (requester) return requester()
         const receiver: RTCRtpReceiver | undefined = receivers.get(this)
         const ssrc: number | undefined = this.#track.ssrc
         if (receiver && ssrc !== undefined) void receiver.sendRtcpPLI(ssrc)
@@ -330,4 +338,30 @@ export function keyFrameRequested(track: MediaTrack): void {
     if (now - (keyFrameRequests.get(track) ?? 0) < KEY_FRAME_REQUEST_INTERVAL) return
     keyFrameRequests.set(track, now)
     track.requestKeyFrame()
+}
+
+/**
+ * A received track whose packets come from elsewhere (a track of a room of the media server forwarded in a worker
+ * thread): it is read and sent on like the others, its key frame requests go back where its packets come from, which is
+ * told whether they are wanted (read, or sent on) as this changes
+ * @param kind
+ * @param codec The codec of its packets.
+ * @param id The id of the track where the packets come from (a random one without it).
+ * @param source Asks for a key frame; is told whether the packets are wanted.
+ */
+export function relayedTrack(kind: MediaKind, codec: RTCRtpCodecParameters, id: string | undefined, source: {requestKeyFrame(): void, wanted(wanted: boolean): void}): {track: MediaTrack, receive(packet: EngineRtpPacket, extensions?: Extensions): void} {
+    const engine: MediaStreamTrack = new MediaStreamTrack({kind: kind, codec: codec, remote: true, ...id === undefined ? {} : {id: id}})
+    const track: MediaTrack = trackOf(engine)
+    keyFrameRequesters.set(track, source.requestKeyFrame)
+    //The engine track reads its own packets: the others read them for something
+    const own: number = engine.onReceiveRtp.length
+    let wanted: boolean = false
+    engine.onReceiveRtp.onsubscriberschange = (): void => {
+        const now: boolean = !engine.stopped && engine.onReceiveRtp.length > own
+        if (now !== wanted) source.wanted(wanted = now)
+    }
+    return {
+        track: track,
+        receive: (packet: EngineRtpPacket, extensions?: Extensions): void => engine.onReceiveRtp.execute(packet, extensions)
+    }
 }

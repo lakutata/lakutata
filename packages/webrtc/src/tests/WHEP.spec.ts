@@ -4,7 +4,8 @@ import {Container} from '@lakutata/core'
 import type {MediaTrack} from '../peer/MediaTrack.js'
 import {PeerConnection, type PeerTrackEvent} from '../peer/PeerConnection.js'
 import type {RtpPacket} from '../peer/RtpPacket.js'
-import type {WHEPSession} from '../whep/WHEP.js'
+import type {SFUTrack} from '../sfu/SFU.js'
+import type {WHEPSession, WHEPViewer} from '../whep/WHEP.js'
 import type {WHIPSession} from '../whip/WHIP.js'
 import {iceOf} from '../peer/Endpoints.js'
 import {from, packets, restartIce, whipPublisher} from './support/Media.js'
@@ -39,11 +40,12 @@ function payloadTypeOf(sdp: string, codec: string): number {
     return Number(new RegExp(`^a=rtpmap:(\\d+) ${codec}/90000`, 'mi').exec(sdp)![1])
 }
 
-describe('WHEP', (): void => {
+//Forwarding in the main thread, and in worker threads
+for (const workers of [0, 2]) describe(workers ? `WHEP, forwarding in ${workers} worker threads` : 'WHEP', (): void => {
 
     it('plays the stream published with WHIP into its room, then the next one, of another codec', {timeout: 90000}, async (): Promise<void> => {
         //The viewers are not members: the stream published is the only one
-        const server: TestServer = await startServer({sfu: {maxMembers: 1}, whip: {}, whep: {}})
+        const server: TestServer = await startServer({sfu: {workers: workers, maxMembers: 1}, whip: {}, whep: {}})
         const container: Container = new Container()
         const stops: (() => void)[] = []
         const played: WHEPSession[] = []
@@ -77,7 +79,8 @@ describe('WHEP', (): void => {
             //Its viewer stops it
             assert.strictEqual((await fetch(`${server.http}${viewer.location}`, {method: 'DELETE'})).status, 200)
             assert.deepStrictEqual(stopped.map((session: WHEPSession): string => session.id), [played[0].id])
-            assert.strictEqual(server.sfu!.rooms().show.viewers, 0)
+            //Counted by the thread forwarding the room
+            await until((): boolean => server.sfu!.rooms().show.viewers === 0, 5000, 'no viewer')
             assert.strictEqual((await fetch(`${server.http}${viewer.location}`, {method: 'DELETE'})).status, 404)
         } finally {
             stops.forEach((stop: () => void): void => stop())
@@ -87,7 +90,7 @@ describe('WHEP', (): void => {
     })
 
     it('takes the candidates of a viewer and restarts ICE with PATCH, the media going on', {timeout: 90000}, async (): Promise<void> => {
-        const server: TestServer = await startServer({sfu: {}, whip: {}, whep: {}})
+        const server: TestServer = await startServer({sfu: {workers: workers}, whip: {}, whep: {}})
         const container: Container = new Container()
         const stops: (() => void)[] = []
         try {
@@ -137,7 +140,19 @@ describe('WHEP', (): void => {
     })
 
     it('plays a stream published after it starts, up to its sessions, in the rooms of the server', {timeout: 90000}, async (): Promise<void> => {
-        const server: TestServer = await startServer({sfu: {serves: (room: string): boolean => room !== 'lobby'}, whip: {}, whep: {maxSessions: 1}})
+        //The source chosen by the application: the stream of WHIP
+        let chosen: number = 0
+        const server: TestServer = await startServer({
+            sfu: {workers: workers, serves: (room: string): boolean => room !== 'lobby'},
+            whip: {},
+            whep: {
+                maxSessions: 1,
+                select: (_viewer: WHEPViewer, tracks: SFUTrack[]): string | undefined => {
+                    chosen++
+                    return tracks.find((track: SFUTrack): boolean => track.peerId.startsWith('whip:'))?.peerId
+                }
+            }
+        })
         const container: Container = new Container()
         const stops: (() => void)[] = []
         try {
@@ -159,6 +174,7 @@ describe('WHEP', (): void => {
                 })
             }, 20000, 'the video of the stream')
             assert.ok(received.every((packet: RtpPacket): boolean => packet.payloadType === payloadTypeOf(viewer.connection.localDescription!.sdp!, 'H264')))
+            assert.ok(chosen > 0)
             //One session at most
             const second = await whepViewer(container, `${server.http}/whep/later`)
             assert.strictEqual(second.response.status, 503)

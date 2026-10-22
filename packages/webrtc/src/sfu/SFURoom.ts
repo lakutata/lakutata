@@ -3,11 +3,12 @@ import type {RTCPeerConnection} from '../lib/peer/peerConnection.js'
 import type {RTCSctpTransport} from '../lib/peer/transport/sctp.js'
 import {engineChannelOf, engineConnectionOf} from '../peer/EngineConnection.js'
 import type {MediaKind, MediaTrack} from '../peer/MediaTrack.js'
-import {type EndpointLeg, gathered} from '../peer/Endpoints.js'
+import {type EndpointLeg, gathered, patchConnection} from '../peer/Endpoints.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
 import type {PeerConnection, PeerTrackEvent} from '../peer/PeerConnection.js'
 import type {RtpTransceiver} from '../peer/RtpTransceiver.js'
 import {
+    type SignalingCandidate,
     SignalingControlChannel,
     type SignalingControlMessage,
     type SignalingDescription,
@@ -16,12 +17,22 @@ import {
     type SignalingPeer,
     type SignalingPeerEvent,
     type SignalingPeerLeftEvent,
+    type SignalingRole,
     type SignalingSignalEvent,
     type SignalingStream
 } from '../protocol/SignalingProtocol.js'
 import {Peer, type PeerHost, type PeerSignal} from '../shared/Peer.js'
-import type {Signaling} from '../signaling/Signaling.js'
+import type {SignalingReceiver} from '../signaling/Signaling.js'
 import type {SFUTrack} from './SFU.js'
+
+/**
+ * What a room needs of the signaling (the Signaling component, or its proxy in a worker thread)
+ */
+export interface SFUSignaling {
+    join(peerId: string, room: string, options: {role: SignalingRole, receive: SignalingReceiver}): Promise<SignalingJoinResult>
+    leave(peerId: string, room: string): Promise<void>
+    signal(peerId: string, room: string, to: string, signal: {description?: SignalingDescription, candidate?: SignalingCandidate | null, streams?: SignalingStream[]}): Promise<boolean>
+}
 
 /**
  * What a room needs of its media server
@@ -29,14 +40,39 @@ import type {SFUTrack} from './SFU.js'
 export interface SFUHost {
     //The id of the member of the server
     readonly id: string
-    readonly signaling: Signaling
+    readonly signaling: SFUSignaling
     //A connection to a member
     connect(): Promise<PeerConnection>
     //Whether a member receives a track
-    select(subscriber: SignalingPeer, track: SFUTrack): boolean
+    select(subscriber: SignalingPeer, track: SFUTrack): boolean | Promise<boolean>
     emit(event: string, ...args: unknown[]): unknown
     //The last member left
     emptied(room: SFURoom): void
+    //The members or the number of the viewers changed
+    changed?(room: SFURoom): void
+    //The source of a viewer changed
+    sourced?(viewerId: string, source: string | undefined): void
+}
+
+/**
+ * Chooses the member a viewer of WHEP receives, among the tracks published (see WHEPSelect)
+ */
+export type SFUViewerSelect = (tracks: SFUTrack[]) => string | undefined | Promise<string | undefined>
+
+/**
+ * A room of the media server, wherever it forwards (in the main thread, an SFURoom, or in a worker thread)
+ */
+export interface SFUServedRoom {
+    readonly name: string
+    readonly ready: Promise<void>
+    readonly closed: boolean
+    readonly members: string[]
+    readonly tracks: SFUTrack[]
+    readonly viewers: number
+    track(peerId: string, trackId: string): MediaTrack | undefined
+    publish(id: string, offer: SignalingDescription): Promise<EndpointLeg>
+    play(id: string, offer: SignalingDescription, select?: SFUViewerSelect): Promise<EndpointLeg & {source(): string | undefined}>
+    close(): Promise<void>
 }
 
 /**
@@ -161,7 +197,7 @@ interface Viewer {
     readonly transceivers: Map<MediaKind, RtpTransceiver>
     readonly attached: Map<MediaKind, Publication>
     //Chooses the member it receives: none for the default one
-    readonly select?: (tracks: SFUTrack[]) => string | undefined
+    readonly select?: SFUViewerSelect
     source?: string
     //The changes of its tracks, one after the other
     feeding: Promise<void>
@@ -181,7 +217,7 @@ function engineTransceiverOf(connection: PeerConnection, transceiver: RtpTransce
  * The part of a room on the media server: a connection to each member (the server never gives up its offers), the
  * tracks they publish, forwarded to the others the server selects for them
  */
-export class SFURoom {
+export class SFURoom implements SFUServedRoom {
 
     readonly #host: SFUHost
 
@@ -287,7 +323,7 @@ export class SFURoom {
      * publishing, without it.
      * @returns The connection, its answer with all its candidates, and its source now.
      */
-    public async play(id: string, offer: SignalingDescription, select?: (tracks: SFUTrack[]) => string | undefined): Promise<EndpointLeg & {source(): string | undefined}> {
+    public async play(id: string, offer: SignalingDescription, select?: SFUViewerSelect): Promise<EndpointLeg & {source(): string | undefined}> {
         const connection: PeerConnection = await this.#host.connect()
         const ended: (() => void)[] = []
         let closed: boolean = false
@@ -325,10 +361,11 @@ export class SFURoom {
             throw error
         }
         this.#viewers.set(id, viewer)
+        this.#host.changed?.(this)
         await this.#feed(viewer)
         return {
             answer: connection.localDescription!,
-            connection: connection,
+            patch: (fragment: string, restart: boolean): Promise<string | undefined | null> => patchConnection(connection, fragment, restart),
             ended: (listener: () => void): unknown => closed ? listener() : ended.push(listener),
             close: (): void => this.#stop(viewer),
             source: (): string | undefined => viewer.source
@@ -350,12 +387,16 @@ export class SFURoom {
      */
     async #refeed(viewer: Viewer): Promise<void> {
         if (viewer.leg.closed) return
+        const selected: string | undefined = viewer.select ? await viewer.select(this.tracks) : undefined
+        if (viewer.leg.closed) return
         const publishing: Member[] = [...this.#members.values()].filter((member: Member): boolean => member.publications.size > 0)
-        const chosen: string | undefined = viewer.select?.(this.tracks)
+        const chosen: string | undefined = selected
             ?? publishing.filter((member: Member): boolean => !member.peer).at(-1)?.id
             ?? publishing[0]?.id
         const source: Member | undefined = chosen === undefined ? undefined : this.#members.get(chosen)
+        const before: string | undefined = viewer.source
         viewer.source = source?.publications.size ? source.id : undefined
+        if (viewer.source !== before) this.#host.sourced?.(viewer.id, viewer.source)
         for (const [kind, transceiver] of viewer.transceivers) {
             const publication: Publication | undefined = viewer.source === undefined
                 ? undefined
@@ -384,6 +425,7 @@ export class SFURoom {
         if (this.#viewers.get(viewer.id) !== viewer) return viewer.leg.close()
         this.#viewers.delete(viewer.id)
         viewer.leg.close()
+        if (!this.#closed) this.#host.changed?.(this)
         if (!this.#closed && this.empty) this.#host.emptied(this)
     }
 
@@ -422,6 +464,7 @@ export class SFURoom {
             transceivers: new Set()
         }
         this.#members.set(id, member)
+        this.#host.changed?.(this)
         connection.addEventListener('track', (event: PeerTrackEvent): void => this.#published(member, event))
         connection.on('connectionstatechange', (state: string): void => {
             if (state === 'failed' || state === 'closed') this.#remove(member)
@@ -442,7 +485,7 @@ export class SFURoom {
         }
         return {
             answer: connection.localDescription!,
-            connection: connection,
+            patch: (fragment: string, restart: boolean): Promise<string | undefined | null> => patchConnection(connection, fragment, restart),
             ended: (listener: () => void): unknown => closed ? listener() : ended.push(listener),
             close: (): void => this.#remove(member)
         }
@@ -526,6 +569,7 @@ export class SFURoom {
             transceivers: new Set()
         }
         this.#members.set(id, member)
+        this.#host.changed?.(this)
         //A failed negotiation is the member's (it left meanwhile, it sent a wrong description)
         peer.on('error', (): void => undefined)
         peer.on('track', (event: PeerTrackEvent): void => this.#published(member, event))
@@ -589,6 +633,7 @@ export class SFURoom {
         member.leg.close()
         //A stream published with WHIP leaves the signaling (before the server, when it was the last one)
         if (!member.peer) this.#host.signaling.leave(member.id, this.name).catch((): void => undefined)
+        if (!this.#closed) this.#host.changed?.(this)
         if (!this.#closed && this.empty) this.#host.emptied(this)
     }
 
@@ -613,8 +658,18 @@ export class SFURoom {
         //A stream published with WHIP receives nothing
         if (member === publication.publisher || !member.peer || member.leg.closed) return
         const subscriber: SignalingPeer = {peerId: member.id, metadata: member.metadata, session: member.session}
-        if (!this.#host.select(subscriber, publication.track)) return
-        this.#subscribe(member, publication).catch((): void => undefined)
+        const selected: boolean | Promise<boolean> = this.#host.select(subscriber, publication.track)
+        if (typeof selected === 'boolean') {
+            if (selected) this.#subscribe(member, publication).catch((): void => undefined)
+            return
+        }
+        //Chosen elsewhere: the member and the track may be gone meanwhile
+        selected.then((selected: boolean): Promise<void> | undefined => selected
+            && this.#members.get(member.id) === member
+            && !member.leg.closed
+            && this.#publications.has(publication)
+            ? this.#subscribe(member, publication)
+            : undefined).catch((): void => undefined)
     }
 
     /**

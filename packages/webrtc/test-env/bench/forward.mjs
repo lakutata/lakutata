@@ -2,10 +2,13 @@
 //subscriber. The server runs in this process, the publishers and the subscribers in a child process: the CPU measured is
 //the one of the server only. Each publisher sends about the bit rate of 720p: 200 packets of 1250 bytes a second.
 //
-//   npm run compile && node test-env/bench/forward.mjs [--sfu] [--publishers 2] [--subscribers 4] [--seconds 10] [--no-extensions]
+//   npm run compile && node test-env/bench/forward.mjs [--sfu [--rooms 1] [--workers 0]] [--publishers 2] [--subscribers 4]
+//                                                      [--seconds 10] [--no-extensions]
 //
 //The server is a relay forwarding a track it receives by adding it to the connections of the subscribers, or with --sfu
-//the media server (SFU) of a room of the signaling, the members being SignalingClients (the publishers receive nothing).
+//the media server (SFU) of rooms of the signaling, the members being SignalingClients (the publishers receive nothing):
+//--rooms rooms of --publishers and --subscribers each, the members of each in a child process of its own, forwarded in the
+//main thread or in --workers worker threads.
 import {fork} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
 import {parseArgs} from 'node:util'
@@ -22,12 +25,18 @@ const {values: options, positionals} = parseArgs({
         publishers: {type: 'string', default: '2'},
         subscribers: {type: 'string', default: '4'},
         seconds: {type: 'string', default: '10'},
-        'no-extensions': {type: 'boolean', default: false}
+        rooms: {type: 'string', default: '1'},
+        workers: {type: 'string', default: '0'},
+        'no-extensions': {type: 'boolean', default: false},
+        //The room of a child process
+        room: {type: 'string', default: '0'}
     }
 })
 const publishers = Number(options.publishers)
 const subscribers = Number(options.subscribers)
 const seconds = Number(options.seconds)
+const rooms = options.sfu ? Number(options.rooms) : 1
+const workers = Number(options.workers)
 const connectionOptions = {headerExtensions: !options['no-extensions'], iceUseIpv6: false}
 //A publisher sends 2 packets every 10 ms
 const PAYLOAD_SIZE = 1250
@@ -99,13 +108,13 @@ async function clients() {
             //The media server: members of a room
             case 'join': {
                 for (let index = 0; index < subscribers; index++) {
-                    const client = await container.get(SignalingClient, {url: message.url, id: `subscriber-${index}`})
-                    const room = await client.join('bench')
+                    const client = await container.get(SignalingClient, {url: message.url, id: `${options.room}-subscriber-${index}`})
+                    const room = await client.join(`bench-${options.room}`)
                     room.on('peer', (peer) => peer.on('track', (event) => count(counters, event.track)))
                 }
                 for (let index = 0; index < publishers; index++) {
-                    const client = await container.get(SignalingClient, {url: message.url, id: `publisher-${index}`})
-                    const room = await client.join('bench')
+                    const client = await container.get(SignalingClient, {url: message.url, id: `${options.room}-publisher-${index}`})
+                    const room = await client.join(`bench-${options.room}`)
                     const track = videoTrack()
                     tracks.push(track)
                     await room.publish(track, `publisher-${index}`)
@@ -146,32 +155,33 @@ async function clients() {
 /**
  * The relay: it connects the publishers, then the subscribers
  * @param container
- * @param request
+ * @param request Asks a child process.
  */
 async function relay(container, request) {
     const tracks = []
     for (let index = 0; index < publishers; index++) {
         const connection = await container.get(PeerConnection, connectionOptions)
         const track = new Promise((resolve) => connection.once('track', resolve))
-        const answer = await describe(connection, await request({type: 'offer'}))
-        await request({type: 'answered', index: index, answer: answer})
+        const answer = await describe(connection, await request(0, {type: 'offer'}))
+        await request(0, {type: 'answered', index: index, answer: answer})
         tracks.push(await track)
     }
     for (let index = 0; index < subscribers; index++) {
         const connection = await container.get(PeerConnection, connectionOptions)
         for (const track of tracks) connection.addTrack(track, track.id)
-        await connection.setRemoteDescription(await request({type: 'answer', offer: await describe(connection)}))
+        await connection.setRemoteDescription(await request(0, {type: 'answer', offer: await describe(connection)}))
     }
 }
 
 /**
- * The media server: the signaling and the SFU over Socket.IO, the members joining a room; the publishers receive nothing
+ * The media server: the signaling and the SFU over Socket.IO, the members joining their rooms; the publishers receive
+ * nothing
  * @param container
- * @param request
+ * @param request Asks a child process.
  */
 async function sfu(container, request) {
     await container.setNamed('signaling', Signaling, {})
-    await container.setNamed('sfu', SFU, {select: (subscriber) => subscriber.peerId.startsWith('subscriber-')})
+    await container.setNamed('sfu', SFU, {workers: workers, select: (subscriber) => subscriber.peerId.includes('-subscriber-')})
     let port = 0
     await container.setNamed('entrypoint', Entrypoint, buildEntrypoints({
         controllers: [SignalingController],
@@ -179,33 +189,40 @@ async function sfu(container, request) {
             port = server.address().port
         }})
     }))
-    await request({type: 'join', url: `http://127.0.0.1:${port}`})
+    for (let room = 0; room < rooms; room++) await request(room, {type: 'join', url: `http://127.0.0.1:${port}`})
 }
 
 /**
  * The server: it connects the publishers and the subscribers, and measures itself while forwarding
  */
 async function server() {
-    const child = fork(fileURLToPath(import.meta.url), ['clients', ...process.argv.slice(2)], {stdio: 'inherit'})
+    const children = Array.from({length: rooms}, (_, room) => fork(fileURLToPath(import.meta.url), ['clients', ...process.argv.slice(2), '--room', String(room)], {stdio: 'inherit'}))
     const pending = new Map()
     let requests = 0
-    child.on('message', ({id, result}) => {
-        pending.get(id)(result)
-        pending.delete(id)
-    })
-    const request = (message) => new Promise((resolve) => {
+    for (const child of children) {
+        child.on('message', ({id, result}) => {
+            pending.get(id)(result)
+            pending.delete(id)
+        })
+    }
+    const request = (index, message) => new Promise((resolve) => {
         pending.set(++requests, resolve)
-        child.send({...message, id: requests})
+        children[index].send({...message, id: requests})
     })
+    //Asks every child process; their counters are added
+    const requestAll = async (message) => {
+        const results = await Promise.all(children.map((_, index) => request(index, message)))
+        return results[0] && {sent: 0, received: 0, receivedBytes: 0, ...Object.fromEntries(Object.keys(results[0]).map((key) => [key, results.reduce((sum, result) => sum + result[key], 0)]))}
+    }
     const container = new Container()
     try {
         await (options.sfu ? sfu : relay)(container, request)
-        await request({type: 'start'})
+        await requestAll({type: 'start'})
         await new Promise((resolve) => setTimeout(resolve, WARM_UP))
 
-        const before = {counters: await request({type: 'counters'}), cpu: process.cpuUsage(), time: performance.now()}
+        const before = {counters: await requestAll({type: 'counters'}), cpu: process.cpuUsage(), time: performance.now()}
         await new Promise((resolve) => setTimeout(resolve, seconds * 1000))
-        const after = {counters: await request({type: 'counters'}), cpu: process.cpuUsage(before.cpu), time: performance.now()}
+        const after = {counters: await requestAll({type: 'counters'}), cpu: process.cpuUsage(before.cpu), time: performance.now()}
         const elapsed = (after.time - before.time) / 1000
         const sent = (after.counters.sent - before.counters.sent) / elapsed
         const forwarded = (after.counters.received - before.counters.received) / elapsed
@@ -213,7 +230,9 @@ async function server() {
         const cpu = (after.cpu.user + after.cpu.system) / 1e6
         const share = cpu / elapsed
         const format = (value, digits = 0) => value.toLocaleString('en-US', {maximumFractionDigits: digits})
-        console.log(`${options.sfu ? 'SFU' : 'relay'}: ${publishers} publishers, ${subscribers} subscribers, header extensions ${connectionOptions.headerExtensions || options.sfu ? 'on' : 'off'}, ${format(elapsed, 1)} s, Node.js ${process.version}`)
+        const where = options.sfu ? `${rooms} room${rooms > 1 ? 's' : ''} of ` : ''
+        const threads = options.sfu ? `, ${workers ? `${workers} worker threads` : 'main thread'}` : ''
+        console.log(`${options.sfu ? 'SFU' : 'relay'}: ${where}${publishers} publishers, ${subscribers} subscribers${threads}, header extensions ${connectionOptions.headerExtensions || options.sfu ? 'on' : 'off'}, ${format(elapsed, 1)} s, Node.js ${process.version}`)
         console.log(`sent by the publishers   ${format(sent)} packets/s`)
         console.log(`forwarded                ${format(forwarded)} packets/s, ${format(bytes * 8 / elapsed / 1e6, 1)} Mbit/s of payload (expected ${format(sent * subscribers)} packets/s)`)
         console.log(`server CPU               ${format(share * 100, 1)} % of a core (user ${format(after.cpu.user / 1e6 / elapsed * 100, 1)} %, system ${format(after.cpu.system / 1e6 / elapsed * 100, 1)} %)`)
@@ -222,7 +241,7 @@ async function server() {
         console.log(`per packet forwarded     ${format(cpu * 1e6 / (forwarded * elapsed), 2)} CPU microseconds`)
         console.log(`server memory            ${format(process.memoryUsage().rss / 2 ** 20)} MiB resident`)
     } finally {
-        await request({type: 'stop'})
+        await requestAll({type: 'stop'})
         await container.destroy()
     }
 }

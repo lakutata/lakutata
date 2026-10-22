@@ -61,7 +61,8 @@
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs-pkg": "node ../../scripts/package-build/cjs-package.mjs",
-    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
+    "build:worker": "node scripts/sfu-worker.mjs",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg && npm run build:worker",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test --test-timeout=60000 \"dist/esm/tests/**/*.spec.js\"",
@@ -101,5 +102,8 @@
     "socket.io-client": {
       "optional": true
     }
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }
