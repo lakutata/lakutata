@@ -4,7 +4,7 @@
 
 [lakutata](https://www.npmjs.com/package/lakutata) 框架的 WebRTC，用 TypeScript 编写，没有原生代码：安装时不需要编译器，能在 Node.js、Electron 的主进程和 Bun 中运行。它有两个入口：
 
-- `@lakutata/webrtc`，给应用用：信令（房间里的成员互相交换 offer、answer 和候选地址）、STUN 和 TURN 服务器、WHIP 推流接收，以及 Node.js 端的对等连接（数据通道、音视频轨道），接口和浏览器的 `RTCPeerConnection` 一致。应用的多个实例可以通过 NATS 或 Redis 协同工作。
+- `@lakutata/webrtc`，给应用用：信令（房间里的成员互相交换 offer、answer 和候选地址）、STUN 和 TURN 服务器、给人多的房间用的媒体服务器（SFU）、用 WHIP 推流和用 WHEP 拉流，以及 Node.js 端的对等连接（数据通道、音视频轨道），接口和浏览器的 `RTCPeerConnection` 一致。应用的多个实例可以通过 NATS 或 Redis 协同工作，媒体服务器也是。
 - `@lakutata/webrtc/client`，给浏览器和 Electron 的渲染进程用：把浏览器自带的 `RTCPeerConnection` 接到信令上。它只使用浏览器的接口，前端打包它时不会带上服务端代码。
 
 协议的实现（ICE、DTLS、SCTP 和数据通道、RTP 和 SRTP、STUN 和 TURN 服务器）改编自 [werift](https://github.com/shinyoshiaki/werift-webrtc)，见 `THIRD_PARTY_NOTICES.md`。
@@ -107,7 +107,7 @@ transfer.on('message', (data: string | Uint8Array): void => console.log(`${data.
 await transfer.send(new Uint8Array(50 * 1024 * 1024))
 ```
 
-音视频：浏览器把摄像头和麦克风的轨道加到 `peer.connection` 上，通过 peer 的 `track` 事件拿到对方的轨道。
+音视频：浏览器把摄像头和麦克风的轨道发布到房间里，通过每个 peer 的 `track` 事件拿到其他成员的轨道。
 
 ```typescript
 import {type Peer, type Room} from '@lakutata/webrtc/client'
@@ -115,8 +115,8 @@ import {type Peer, type Room} from '@lakutata/webrtc/client'
 declare const room: Room
 declare const remoteVideo: HTMLVideoElement
 const camera: MediaStream = await navigator.mediaDevices.getUserMedia({audio: true, video: true})
+for (const track of camera.getTracks()) await room.publish(track, camera)
 room.on('peer', (peer: Peer): void => {
-    for (const track of camera.getTracks()) peer.connection.addTrack(track, camera)
     peer.on('track', (event: RTCTrackEvent): void => {
         remoteVideo.srcObject = event.streams[0]
     })
@@ -128,7 +128,7 @@ Node.js 端不采集、不编码也不解码：应用的轨道传的是 RTP 包�
 ```typescript
 import {createSocket, type Socket} from 'node:dgram'
 import {Component} from 'lakutata'
-import {MediaTrack, type Peer, type Room, SignalingClient} from '@lakutata/webrtc'
+import {MediaTrack, type Room, SignalingClient} from '@lakutata/webrtc'
 
 //ffmpeg -f v4l2 -i /dev/video0 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -tune zerolatency -g 30
 //       -bsf:v dump_extra=freq=keyframe -f rtp rtp://127.0.0.1:5004
@@ -140,14 +140,44 @@ export class Camera extends Component {
         socket.bind(5004)
         const signaling: SignalingClient = await this.getObject(SignalingClient, {url: 'https://meet.example.com', id: 'camera-3'})
         const room: Room = await signaling.join('camera-3')
-        room.on('peer', (peer: Peer): void => void peer.connection.addTrack(video, 'camera-3'))
+        await room.publish(video, 'camera-3')
     }
 }
 ```
 
 观看方要从关键帧开始解码：让编码器每一两秒出一个关键帧（ffmpeg 的 `-g`），或者在编码器支持时，收到轨道的 `keyframerequest` 事件就生成一个。支持的编码：音频 Opus 和 PCMU，视频 VP8、H.264 和 VP9（`PeerConnection` 和 `SignalingClient` 的 `codecs` 选项）。
 
-用 WHIP 推流（RFC 9725）：编码器（OBS、GStreamer、ffmpeg）和浏览器用一个 HTTP POST 提交 offer，就能推一路流。`WHIP` 组件回答它们，推流开始时发出 `publish`，带上会话（它的连接和轨道），结束时发出 `unpublish`；`WHIPController` 提供 `/whip/:stream` 接口。
+给人多的房间用的媒体服务器：没有它时，有几个其他成员，每个成员的视频就要发几份。`SFU` 组件加入它服务的房间，客户端只连接它：每个客户端的轨道只发一份，再从服务器那里收到其他人的轨道，服务器转发这些包时不解码。房间和 peer 的用法和没有它时一样（`room.publish()`、peer 的 `track` 事件、`peer.createDataChannel()`，后者的消息由服务器转发，服务器也能看到），所以客户端的代码不用改。
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+import {buildSFUOptions, buildSignalingOptions, SignalingController} from '@lakutata/webrtc'
+
+Application.run(() => ({
+    id: 'meet.app',
+    name: 'Meet',
+    components: {
+        signaling: buildSignalingOptions(),
+        //会议经过媒体服务器，它的连接使用 UDP 的 40000 到 40999 端口
+        sfu: buildSFUOptions({
+            serves: (room: string): boolean => room.startsWith('meeting-'),
+            iceAdditionalHostAddresses: ['203.0.113.10'],
+            icePortRange: [40000, 40999]
+        }),
+        entrypoint: buildEntrypoints({
+            controllers: [SignalingController],
+            service: socketIOServiceEntrypoint({port: 3000})
+        })
+    },
+    bootstrap: ['sfu', 'entrypoint']
+}))
+```
+
+`select` 决定哪个成员收哪条轨道，`peer.pause()` 和 `peer.resume()` 暂停和恢复一条轨道，`sfu.track()` 交出一条轨道的包（用来录制），`workers` 让工作线程转发房间，以利用更多的核。服务器不转码：给浏览器用时，视频请用 VP8 或 H.264 发布。
+
+用 WHIP 推流（RFC 9725）：编码器（OBS、GStreamer、ffmpeg）和浏览器用一个 HTTP POST 提交 offer，就能推一路流。`WHIP` 组件回答它们，推流开始时发出 `publish`，带上会话（它的连接和轨道），结束时发出 `unpublish`；`WHIPController` 提供 `/whip/:stream` 接口。配置了 `sfu` 选项时，推的流改为作为成员进入媒体服务器的一个房间。
 
 ```typescript
 import {Application, Component} from 'lakutata'
@@ -183,7 +213,21 @@ Application.run(() => ({
 
 answer 里带有服务器的全部候选地址：要告诉它自己的公网地址（`iceAdditionalHostAddresses`）和要放开的 UDP 端口（`icePortRange`）。会话的 `PATCH` 请求把推流端的候选地址交给服务器（Trickle ICE），或者重启 ICE；`body.text` 里也要列上 `application/trickle-ice-sdpfrag`，否则 Fastify 会在请求到达控制器之前以 415 拒绝它。ffmpeg 用 `-f whip -authorization <令牌> <URL>` 推流。
 
-应用的多个实例（比如一个部署里的多个 pod）通过 `Cluster` 协同工作：每个实例是一个节点，节点之间通过 NATS 或 Redis 通信。把它的名字告诉其他组件后，信令会把连在各个节点上的成员放进同一批房间，TURN 服务器会把自己的地址和负载告诉其他节点，WHIP 会话的 DELETE 请求不管到了哪个节点，都能结束这个会话。总线上只传这些消息：音视频和数据仍然在客户端和节点之间直接传输。
+用 WHEP 拉流：播放端把一个只收不发的 offer 提交到 `/whep/:stream`（`WHEPController`），`WHEP` 组件把媒体服务器房间里一个成员的音频和视频发给它：默认是用 WHIP 推进这个房间的流，或者 `select` 选中的成员。观众不是房间的成员，一路流可以有很多观众。
+
+```typescript
+import {buildSFUOptions, buildSignalingOptions, buildWHEPOptions, buildWHIPOptions} from '@lakutata/webrtc'
+
+//OBS 推到 /whip/concert，浏览器从 /whep/concert 拉流（WHIPController 和 WHEPController）
+const components = {
+    signaling: buildSignalingOptions(),
+    sfu: buildSFUOptions({icePortRange: [40000, 40999]}),
+    whip: buildWHIPOptions({sfu: 'sfu', authorize: ({token}): boolean => token === process.env.WHIP_TOKEN}),
+    whep: buildWHEPOptions({maxSessions: 500})
+}
+```
+
+应用的多个实例（比如一个部署里的多个 pod）通过 `Cluster` 协同工作：每个实例是一个节点，节点之间通过 NATS 或 Redis 通信。把它的名字告诉其他组件后，信令会把连在各个节点上的成员放进同一批房间，TURN 服务器会把自己的地址和负载告诉其他节点，媒体服务器共同承载房间（每个成员连到某一个节点的媒体服务器上，同一个房间的节点之间互相转发轨道），WHIP 或 WHEP 会话的 DELETE 和 PATCH 请求不管到了哪个节点，都能结束或修改这个会话。总线上只传这些消息：音视频和数据仍然在客户端和节点之间、各媒体服务器之间直接传输。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -208,13 +252,14 @@ Application.run(() => ({
 }))
 ```
 
-TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个节点停止，或者其他节点连续三次收不到它的心跳时，它上面的成员以 `disconnected` 离开房间：它们的连接不会断开，客户端会重新连到别的节点。`maxPeers` 统计的是所有节点上的成员，WHIP 的 `maxSessions` 统计的是每个节点自己的会话。
+TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个节点停止，或者其他节点连续三次收不到它的心跳时，它上面的成员以 `disconnected` 离开房间：它们的连接不会断开，客户端会重新连到别的节点。连在这个节点媒体服务器上的成员会转到另一个节点的媒体服务器，它们在各方的 peer 会重新打开，就像成员刷新了页面一样。`maxPeers` 统计的是所有节点上的成员；媒体服务器的 `maxMembers`，以及 WHIP 和 WHEP 的 `maxSessions`，统计的是每个节点自己的。
 
 ## 部署
 
 - **端口。** TURN 服务器在 3478 端口上监听 UDP 和 TCP（给了证书时还有 TLS）；中转使用 `relayPortRange` 里的 UDP 端口。在防火墙里放开这些端口，或者从容器发布它们。
 - **地址。** `publicAddress` 是客户端访问服务器用的地址：主机的公网地址，或者转发了这些端口的 NAT 的地址。默认取主机第一个非内部的 IPv4 地址，在局域网里够用。
-- **多个实例。** 给它们配置 `Cluster`（见上文），并给它们的 TURN 服务器配置相同的 `secret`。在负载均衡后面，Socket.IO 需要会话保持（sticky session），除非客户端用 `transports: ['websocket']` 连接。在 Kubernetes 里，在每个节点的网络上运行一个 TURN 服务器（使用 `hostNetwork` 的 DaemonSet）；部署清单见指南。
+- **媒体服务器。** 客户端直接连接它：放开它 `icePortRange` 的 UDP 端口；NAT 按相同端口号转发这些端口时，把 NAT 的公网地址写进 `iceAdditionalHostAddresses`。WHIP 和 WHEP 也一样。
+- **多个实例。** 给它们配置 `Cluster`（见上文），并给它们的 TURN 服务器配置相同的 `secret`。在负载均衡后面，Socket.IO 需要会话保持（sticky session），除非客户端用 `transports: ['websocket']` 连接。在 Kubernetes 里，在每个节点的网络上运行一个 TURN 服务器和一个媒体服务器（使用 `hostNetwork` 的 DaemonSet）；部署清单见指南。
 - **其他 TURN 服务器。** 配置了 `use-auth-secret` 和相同密钥的 coturn 也接受这个包生成的凭据：把它写进 `Signaling` 的 `iceServers` 选项。
 
 ## 信令协议
@@ -223,7 +268,7 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 
 | 请求 | 参数 | 返回 |
 |---|---|---|
-| `webrtc.join` | `room`、`metadata`、`session` | `{v, peerId, peers, iceServers, credentialTtl, heartbeatInterval}` |
+| `webrtc.join` | `room`、`metadata`、`session` | `{v, peerId, peers, iceServers, credentialTtl, heartbeatInterval, sfu}` |
 | `webrtc.signal` | `room`、`to`、`description` 或 `candidate` | `{delivered}` |
 | `webrtc.leave` | `room` | `{}` |
 | `webrtc.iceServers` | — | `{iceServers, credentialTtl}` |
@@ -231,16 +276,17 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 
 | 事件 | 内容 |
 |---|---|
-| `webrtc:peer-joined` | `{room, peerId, metadata, session}` |
+| `webrtc:peer-joined` | `{room, peerId, metadata, session, role, sfu}` |
 | `webrtc:peer-left` | `{room, peerId, reason}`：`left` 或 `disconnected` |
-| `webrtc:signal` | `{room, from, session, description}` 或 `{room, from, session, candidate}` |
+| `webrtc:signal` | `{room, from, session, description, streams}` 或 `{room, from, session, candidate}` |
 
-`heartbeatInterval` 不为 0 时，客户端每隔这么多毫秒发送一次 `webrtc.heartbeat`：这发生在服务端察觉不到断开的传输方式上（Socket.IO 和 WebSocket 上的 JSON-RPC 返回 0）。`session` 是客户端自己选的一个随机字符串，只选一次：用同一个会话重新加入时，其他成员会保留到它的连接。
+`heartbeatInterval` 不为 0 时，客户端每隔这么多毫秒发送一次 `webrtc.heartbeat`：这发生在服务端察觉不到断开的传输方式上（Socket.IO 和 WebSocket 上的 JSON-RPC 返回 0）。`session` 是客户端自己选的一个随机字符串，只选一次：用同一个会话重新加入时，其他成员会保留到它的连接。在有媒体服务器的房间里，`sfu` 是客户端要连的媒体服务器的 id（它的 `role` 是 `sfu`），服务器发出的 description 带有 `streams`，说明每个流来自哪个成员；媒体服务器的数据通道见指南。
 
 ## 限制
 
 - Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
 - 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 44 万条。
+- 媒体服务器（Apple M4）：它的主线程每秒约转发 60,000 个包（相当于 300 路 2 Mbit/s 的视频），4 个工作线程用 2.6 个核转发了一次测试里全部的每秒 93,000 个包。它不转码，按发布时的样子发送每路视频（还没有 simulcast）。
 
 ## API
 
@@ -257,6 +303,9 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 | `RtpTransceiver`、`RtpSender`、`RtpReceiver` | 连接里的音视频收发器（transceiver） |
 | `WHIP`、`buildWHIPOptions` | WHIP 推流接收：会话，`publish` 和 `unpublish` 事件 |
 | `WHIPController` | WHIP 的 HTTP 接口：`/whip/:stream` |
+| `SFU`、`buildSFUOptions` | 房间的媒体服务器：`rooms()`、`track()`，`publish`、`unpublish`、`unsupported` 和 `congestion` 事件 |
+| `WHEP`、`buildWHEPOptions` | 用 WHEP 拉媒体服务器房间里的流：会话，`play` 和 `stop` 事件 |
+| `WHEPController` | WHEP 的 HTTP 接口：`/whep/:stream` |
 | `Room`、`Peer` | 加入的房间，以及另一个成员和到它的连接 |
 | `ChunkedChannel` | 在数据通道上传任意大小的消息 |
 | `setDebugHandler` | ICE、DTLS、SCTP 和 TURN 的调试信息 |
@@ -268,7 +317,7 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 | 异常 | 什么时候 |
 |---|---|
 | `SignalingDeniedException` | `authorize` 拒绝了这个房间 |
-| `SignalingLimitException` | 房间已满、信令太大、信令太频繁 |
+| `SignalingLimitException` | 房间已满、没有媒体服务器肯接收这个成员、信令太大、信令太频繁 |
 | `SignalingNotAMemberException` | 发送方或接收方不在这个房间里 |
 | `SignalingClientRequiredException` | 请求所在的连接没法推送事件（HTTP） |
 | `SignalingConnectionException` | `SignalingClient` 缺少 `socket.io-client` 或 `WebSocket` |
@@ -277,6 +326,11 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 | `WHIPOfferException` | offer 里没有音视频，或者连接不接受它（400） |
 | `WHIPMediaTypeException` | offer 不是 `application/sdp`（415） |
 | `WHIPSessionNotFoundException` | 请求的会话不存在（404） |
+| `WHEPDeniedException` | `authorize` 拒绝了这路流（401） |
+| `WHEPLimitException` | 会话已经有 `maxSessions` 个（503） |
+| `WHEPOfferException` | offer 里没有音视频、媒体服务器不服务这个房间，或者连接不接受它（400） |
+| `WHEPMediaTypeException` | offer 不是 `application/sdp`（415） |
+| `WHEPSessionNotFoundException` | 请求的会话不存在（404） |
 | `ClusterRequestException` | `Cluster.request()` 请求的节点不在集群里、没有对应的处理函数，或者处理函数出错 |
 | `ClusterTimeoutException` | `Cluster.request()` 没有按时得到答复 |
 | `ClusterTransportNotFoundException` | 集群用 NATS 或 Redis，但没有安装 `nats` 或 `ioredis` 包 |
@@ -286,7 +340,7 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 
 `npm run test:unit` 运行协议、信令以及 Node.js 进程之间连接的测试。Chrome 的测试使用 Playwright 和本机安装的 Chrome：能引用 `playwright` 包（或者在 `LAKUTATA_PLAYWRIGHT` 指定的目录里找到它）时运行，否则跳过。把编码器的 H.264 发给 Chrome 的那个测试还需要带 `libx264` 的 `ffmpeg`；WHIP 的测试需要带 WHIP 推流功能（FFmpeg 8 及以上）和 `libopus` 的 `ffmpeg`。
 
-`npm run test:servers` 在 Docker 里启动 NATS 和 Redis，运行集群在它们上面的测试（`test-env/cluster.sh`）。`test-env/k3s/run.sh` 在 Docker 里运行有两个节点的 k3s，在每个节点上部署信令和一个 TURN 服务器，然后让两个成员分别通过两个不同的 pod 连接，并且只经 TURN 服务器中转。
+`npm run test:servers` 在 Docker 里启动 NATS 和 Redis，运行集群在它们上面的测试（`test-env/cluster.sh`）。`test-env/k3s/run.sh` 在 Docker 里运行有两个节点的 k3s，部署信令，并在每个节点上部署一个 TURN 服务器和一个媒体服务器。它先让两个成员分别通过两个不同的 pod 连接，并且只经 TURN 服务器中转；再让两个成员分别连到两个节点的媒体服务器，并删掉其中一个媒体服务器的 pod。`test-env/bench/forward.mjs` 测量媒体服务器的转发能力。
 
 ## 另见
 

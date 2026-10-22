@@ -616,8 +616,8 @@ export class WHIP extends Component {
 /**
  * Build the options of a {@link WHIP} component, for the `components` of an application (named `whip`, the name
  * `WHIPController` uses).
- * @param options Who may publish, the ICE servers given to the publishers, the limit of sessions, the candidates and the
- * codecs of the connections (all optional).
+ * @param options Who may publish, the ICE servers given to the publishers, the limit of sessions, the candidates and
+ * the codecs of the connections (all optional).
  * @returns The component options.
  * @example
  * ```typescript

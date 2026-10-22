@@ -51,8 +51,8 @@ class SessionDTO extends DTO {
  * header), gets the answer with the URL of its session (`201 Created`, `Location`), and ends it with `DELETE` on that
  * URL. It answers the CORS preflights (`OPTIONS`) of the browsers, `GET` with no content, and `PATCH` of a session
  * (`application/trickle-ice-sdpfrag`): the candidates of the viewer (trickle ICE), or an ICE restart, whose answer has
- * a new `ETag`. The URL of a session is the capability to end it: its id is random, and the DELETE and the PATCH are not
- * authorized again.
+ * a new `ETag`. The URL of a session is the capability to end it: its id is random, and the DELETE and the PATCH are
+ * not authorized again.
  *
  * Add it to the controllers of an entrypoint whose HTTP adapter reads the bodies of WHEP as text (its option
  * `body: {text: ['application/sdp', 'application/trickle-ice-sdpfrag']}`, without which Fastify refuses the PATCH

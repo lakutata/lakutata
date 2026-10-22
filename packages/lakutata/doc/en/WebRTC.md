@@ -3,8 +3,8 @@
 WebRTC connects two endpoints directly, peer to peer: browsers, Electron applications and Node.js processes exchange
 data, audio and video without a server relaying it, behind NATs and firewalls too. The package `@lakutata/webrtc`
 provides everything around these connections: the signaling that introduces the endpoints to each other, a STUN and TURN
-server for the networks that need one, the peer connections of Node.js, and a client for the browsers. It is written in
-TypeScript without native code, and it is not part of `lakutata`:
+server for the networks that need one, a media server for the rooms of many members, the peer connections of Node.js,
+and a client for the browsers. It is written in TypeScript without native code, and it is not part of `lakutata`:
 
 ```bash
 npm install lakutata @lakutata/webrtc
@@ -12,7 +12,7 @@ npm install lakutata @lakutata/webrtc
 
 | Entry point | Runs in | What it gives |
 |---|---|---|
-| `@lakutata/webrtc` | Node.js, the main process of Electron, Bun | `Signaling`, `SignalingController`, `TURNServer`, `SignalingClient`, `PeerConnection`, `MediaTrack`, `WHIP`, `WHIPController`, `Cluster`, `ChunkedChannel` |
+| `@lakutata/webrtc` | Node.js, the main process of Electron, Bun | `Signaling`, `SignalingController`, `TURNServer`, `SignalingClient`, `PeerConnection`, `MediaTrack`, `SFU`, `WHIP`, `WHIPController`, `WHEP`, `WHEPController`, `Cluster`, `ChunkedChannel` |
 | `@lakutata/webrtc/client` | Browsers, the renderer of Electron | `SignalingConnection`, `ChunkedChannel`, the types of the protocol |
 
 The browser entry uses only the APIs of the browsers; a frontend installs the same package, and the framework is not
@@ -89,7 +89,9 @@ The options of `buildSignalingOptions`:
 | `heartbeatInterval` | `10000` | How often a client sends a heartbeat when the server cannot see its disconnection, in milliseconds |
 
 The component also works without the controller: `join()`, `signal()`, `leave()` and `disconnect()` change the rooms
-from the application's own code, and `rooms()` lists them.
+from the application's own code, and `rooms()` lists them. A member added by the application gets its events through
+the `receive` option of `join()`. The ids starting with `sfu:` and `whip:` are kept for the members the server adds
+itself (the media server, the streams of WHIP): a client joining with one is refused.
 
 ## 3. The STUN and TURN server
 
@@ -151,10 +153,12 @@ Its options: `iceTransportPolicy` (`'relay'` to use only the TURN relays), `conf
 requests, 15 seconds by default).
 
 A room emits `peer` for each other member: the members already in the room, then each newcomer. A listener added later
-is called at once for the peers already there. A `Peer` has the member's `id`, its `metadata`, the `connection` to it
-(an `RTCPeerConnection`: add tracks to it, read its statistics), `createDataChannel()`, `restartIce()` and `close()`,
-and emits `datachannel`, `track`, `connectionstatechange`, `metadata` (the member joined again with new metadata),
-`error` and `close`. A room emits `peer-left` when a peer closes: its member left, or its connection was lost for good.
+is called at once for the peers already there. `room.publish(track, stream)` sends a track to every member (section 8),
+and `room.sfu` is the id of the media server of the room, when it has one (section 9). A `Peer` has the member's `id`,
+its `metadata`, the `connection` to it (an `RTCPeerConnection`: read its statistics), `createDataChannel()`, `pause()`
+and `resume()` (a track of the member), `restartIce()` and `close()`, and emits `datachannel`, `track`,
+`connectionstatechange`, `metadata` (the member joined again with new metadata), `error` and `close`. A room emits
+`peer-left` when a peer closes: its member left, or its connection was lost for good.
 
 Both members may create channels: each side gets the channels of the other one through `datachannel`. For a single
 channel shared by both, create it on both sides with `negotiated: true` and the same `id`.
@@ -253,9 +257,9 @@ is dropped with an `error` event.
 
 ## 8. Audio and video
 
-A track carries the audio or the video of one source. In a browser, add the tracks of the camera and the microphone to
-the connection of each peer; the other member gets them with the `track` event of its peer, `event.streams` grouping
-the audio and the video of a source:
+A track carries the audio or the video of one source. In a browser, publish the tracks of the camera and the microphone
+in the room: `room.publish()` sends a track to every member, the ones joining later too. The other members get it with
+the `track` event of their peer, `event.streams` grouping the audio and the video of a source:
 
 ```typescript
 import {type Peer, type Room} from '@lakutata/webrtc/client'
@@ -263,8 +267,8 @@ import {type Peer, type Room} from '@lakutata/webrtc/client'
 declare const room: Room
 declare const grid: HTMLElement
 const camera: MediaStream = await navigator.mediaDevices.getUserMedia({audio: true, video: true})
+for (const track of camera.getTracks()) await room.publish(track, camera)
 room.on('peer', (peer: Peer): void => {
-    for (const track of camera.getTracks()) peer.connection.addTrack(track, camera)
     const video: HTMLVideoElement = document.createElement('video')
     video.autoplay = true
     grid.append(video)
@@ -275,7 +279,12 @@ room.on('peer', (peer: Peer): void => {
 })
 ```
 
-When every member sends to every other one, each sends its video once per other member: this suits small rooms.
+`room.unpublish(track)` stops sending a track; its transceivers are kept for the next track published.
+`peer.pause(track)` and `peer.resume(track)` stop and start receiving a track of a member, a video not on the screen
+for example. Without a media server, a track added to `peer.connection` goes to that member only.
+
+Without a media server, each member sends its video once per other member: this suits small rooms. With the media
+server of section 9, each member sends it once.
 
 Node.js captures, encodes and decodes nothing: the tracks of an application carry RTP packets, the encoded audio and
 video, from an encoder or from another connection.
@@ -294,7 +303,7 @@ A camera sending what ffmpeg encodes:
 ```typescript
 import {createSocket, type Socket} from 'node:dgram'
 import {Component} from 'lakutata'
-import {MediaTrack, type Peer, type Room, SignalingClient} from '@lakutata/webrtc'
+import {MediaTrack, type Room, SignalingClient} from '@lakutata/webrtc'
 
 //ffmpeg -f v4l2 -i /dev/video0 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -tune zerolatency -g 30
 //       -bsf:v dump_extra=freq=keyframe -f rtp rtp://127.0.0.1:5004
@@ -306,7 +315,7 @@ export class Camera extends Component {
         socket.bind(5004)
         const signaling: SignalingClient = await this.getObject(SignalingClient, {url: 'https://meet.example.com', id: 'camera-3'})
         const room: Room = await signaling.join('camera-3')
-        room.on('peer', (peer: Peer): void => void peer.connection.addTrack(video, 'camera-3'))
+        await room.publish(video, 'camera-3')
     }
 }
 ```
@@ -316,7 +325,7 @@ encoder make one when the track emits `keyframerequest`, if it can. The bitstrea
 parameters of H.264 before each key frame, where the browsers need them.
 
 An application sending the camera of a member on to the viewers who join, each viewer getting the video from the
-application instead of the camera:
+application instead of the camera (the media server of section 9 does it for every member of a room):
 
 ```typescript
 import {Component} from 'lakutata'
@@ -348,11 +357,142 @@ export class Relay extends Component {
 The methods of `PeerConnection` are those of `RTCPeerConnection`: `addTrack(track, ...streamIds)` (the other member
 groups the tracks of a stream), `addTransceiver(trackOrKind, {direction, streams})` (`recvonly` to receive without
 sending), `removeTrack(sender)`, `getTransceivers()`, `getSenders()` and `getReceivers()`; `sender.replaceTrack()` sends
-another track, of any codec negotiated, without negotiating again. The codecs are Opus and PCMU for the audio, VP8, H.264 and
-VP9 for the video; the `codecs` option of `PeerConnection` and of `SignalingClient` chooses them and their order, and a
-track created with a `codec` makes its connections negotiate that one.
+another track, of any codec negotiated, without negotiating again. The codecs are Opus and PCMU for the audio, VP8,
+H.264 and VP9 for the video; the `codecs` option of `PeerConnection` and of `SignalingClient` chooses them and their
+order, and a track created with a `codec` makes its connections negotiate that one.
 
-## 9. Publishing with WHIP
+## 9. The media server
+
+Without a media server, each member of a room sends its tracks to each other member: in a meeting of eight, each one
+uploads its video seven times and keeps seven connections. The `SFU` component is a media server for the rooms of the
+signaling (a selective forwarding unit): each member connects to it only, sends each track once, and receives the
+tracks of the others from it. The server forwards their packets without decoding them, and a member uploads its video
+once, however large the room.
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+import {buildSFUOptions, buildSignalingOptions, buildTURNServerOptions, SignalingController} from '@lakutata/webrtc'
+
+Application.run(() => ({
+    id: 'meet.app',
+    name: 'Meet',
+    components: {
+        turn: buildTURNServerOptions({publicAddress: '203.0.113.10', relayPortRange: [49160, 49200], secret: process.env.TURN_SECRET}),
+        signaling: buildSignalingOptions({turn: 'turn'}),
+        //The meetings go through the media server; the other rooms stay peer to peer
+        sfu: buildSFUOptions({
+            serves: (room: string): boolean => room.startsWith('meeting-'),
+            iceAdditionalHostAddresses: ['203.0.113.10'],
+            icePortRange: [40000, 40999]
+        }),
+        entrypoint: buildEntrypoints({
+            controllers: [SignalingController],
+            service: socketIOServiceEntrypoint({port: 3000})
+        })
+    },
+    bootstrap: ['turn', 'sfu', 'entrypoint']
+}))
+```
+
+The clients need no change. The server joins each room it serves as a member whose id starts with `sfu:`, and the
+clients of this package (`SignalingConnection` in the browsers, `SignalingClient` in Node.js) connect to it instead of
+to each other. The rooms and the peers work as without it:
+
+- `room.publish()` sends a track once, to the server, which forwards it to every member, the ones joining later too.
+- Each peer emits the tracks of its member. Their `event.streams` are the streams of the connection to the server;
+  `room.streamOf(id)` gives the member a stream comes from, and the id of the stream on the connection of that member.
+- `peer.createDataChannel()` opens a channel through the server, which relays its messages both ways. Unlike between
+  two members, the server sees them. Such a channel cannot be given a `protocol`, and cannot be `negotiated`.
+- `peer.pause(track)` asks the server to stop sending a track, `peer.resume(track)` to send it again.
+- `room.sfu` is the id of the server, and `peer.connection` is the connection to it, the same for all the peers:
+  publish the tracks with `room.publish()` rather than add them to it.
+
+The options of `buildSFUOptions`:
+
+| Option | Default | Meaning |
+|---|---|---|
+| `signaling` | `'signaling'` | The `Signaling` component whose rooms the server serves |
+| `serves` | all the rooms | `(room) => boolean`: the rooms served; the others stay peer to peer |
+| `select` | every member receives every track | `(subscriber, track) => boolean`: whether a member receives a track |
+| `maxMembers` | `0` | The members of all the rooms at most, 0 for no limit; a member joining once it is reached is refused (`SignalingLimitException`) |
+| `codecs` | Opus, PCMU, VP8, H.264, VP9 | The codecs the members may publish |
+| `icePortRange`, `iceAdditionalHostAddresses` | | The UDP ports of the connections, and the public address of the server |
+| `workers` | `0` | Worker threads forwarding the rooms, to use more cores |
+| `cluster`, `selectSFU` | | The media servers of several nodes (section 13) |
+
+`select` is asked for each member and each track of the others, and asked again when a member joins the room again
+with other metadata: the tracks the member receives follow the new answers. A `select` that throws counts as `false`,
+and its error goes to the debug messages (section 15). In a webinar, for example, everyone receives the audio of all
+and the video of the speakers only:
+
+```typescript
+import {buildSFUOptions, type SFUTrack, type SignalingPeer} from '@lakutata/webrtc'
+
+const sfu = buildSFUOptions({
+    select: (subscriber: SignalingPeer, track: SFUTrack): boolean => track.kind === 'audio' || track.peerId.startsWith('speaker-')
+})
+```
+
+How the server forwards:
+
+- It does not transcode: a member receives the tracks of the codecs it supports, and the server emits `unsupported`
+  for the others. For the browsers, publish the video in VP8 or H.264.
+- The key frame requests of the members go to the publisher, one every 500 ms at most, and the server asks the
+  publisher for a key frame when a member starts receiving a video. The packets lost on the way to a member are sent
+  again by the server.
+- Each connection estimates its bandwidth from the feedback of the other side: the browsers adapt what they send to
+  the server, and the server emits `congestion` when the bandwidth to a member stays too low for what it receives, and
+  again once it is enough. The server sends each video as it is published (there is no simulcast yet): pause some of
+  the videos the member receives to lower the load.
+- A member reading the messages of a channel slower than they are sent makes their sender wait; the server keeps a few
+  megabytes of them at most.
+
+Its events: `publish` and `unpublish` (an `SFUTrack`: its `room`, `peerId`, `id`, `kind`, `codec` and `stream`) when a
+member starts and stops publishing a track; `unsupported` (the room, the id of the member, the track) when a member
+does not support the codec of a track it should receive; `congestion` (the room, the id of the member, whether the
+bandwidth is too low, the bit rate estimated in bits per second). `rooms()` lists the rooms with their members, their
+tracks and their viewers of WHEP. `track(room, peerId, trackId)` gives a track published as a `MediaTrack`, whose `rtp`
+event gives its packets, to record it or to send it on another connection:
+
+```typescript
+import {Component} from 'lakutata'
+import type {RtpPacket, SFU, SFUTrack} from '@lakutata/webrtc'
+
+export class Recorder extends Component {
+    protected async init(): Promise<void> {
+        const sfu: SFU = await this.getObject<SFU>('sfu')
+        sfu.on('publish', (track: SFUTrack): void => {
+            if (track.kind !== 'audio') return
+            sfu.track(track.room, track.peerId, track.id)?.on('rtp', (packet: RtpPacket): void => console.log(track.peerId, packet.timestamp))
+        })
+    }
+}
+```
+
+### Several cores
+
+The server forwards in the main thread by default. With `workers: 4`, four worker threads forward the rooms: each room
+in one of them (the one forwarding the fewest members and viewers when the room opens), with its connections and its
+UDP ports, while the hooks and the events stay in the main thread. `icePortRange` is shared out among the threads. A
+thread that stops closes its rooms; the server opens them again in another thread, and their members connect to it
+again. `rooms()` shows what each thread reports, so a change made in a thread (a viewer leaving) shows a moment later.
+
+Measured on an Apple M4 with Node.js 24, each publisher sending a video of about 2 Mbit/s (200 packets of 1250 bytes
+a second), the members in other processes:
+
+| Rooms | Packets to forward | Forwarded | CPU |
+|---|---|---|---|
+| 1 room of 4 publishers and 10 subscribers, in the main thread | 7,200 a second | all | 31% of a core |
+| 4 rooms of 12 publishers and 10 subscribers each, in the main thread | about 95,000 a second | 59,300 a second | 133%: the main thread is full, the rest is the garbage collector |
+| The same 4 rooms, in 4 worker threads | about 95,000 a second | all (93,000 a second) | 257% |
+
+A thread takes about 22 MiB and 90 ms to start. Under the load above, the process used 1.4 GiB with the threads and
+0.6 GiB without, each thread growing a heap of its own. A track forwarded from one node to another (section 13) costs
+the two nodes about 11 µs of CPU per packet: 0.2% of a core for such a video.
+
+## 10. Publishing with WHIP
 
 WHIP (RFC 9725) publishes a stream with one HTTP request: the encoder (OBS, GStreamer, ffmpeg) or the browser posts its
 offer to the URL of the stream, and gets the answer and the URL of its session. The `WHIP` component answers the offers
@@ -410,7 +550,8 @@ of the session give their RTP packets, to record them or to send them on to othe
 The refusals: 401 with `WWW-Authenticate: Bearer` when `authorize` refuses, 415 for a body that is not
 `application/sdp` (`application/trickle-ice-sdpfrag` for a PATCH), 400 for an offer without audio or video, 503 once
 there are `maxSessions` sessions, 404 for an unknown session. The URL of a session is the capability to end it: its id
-is random, and its DELETE and PATCH are not authorized again. A subclass with `@Prefix({route: '/live'})` serves the same interface under another path.
+is random, and its DELETE and PATCH are not authorized again. A subclass with `@Prefix({route: '/live'})` serves the
+same interface under another path.
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -421,11 +562,107 @@ is random, and its DELETE and PATCH are not authorized again. A subclass with `@
 | `allowOrigin` | `'*'` | The origins the browsers may publish from |
 | `icePortRange`, `iceAdditionalHostAddresses` | | The candidates of the server: its UDP ports, its public address |
 | `codecs` | Opus, PCMU, VP8, H.264, VP9 | The codecs accepted |
+| `sfu` | none | The name of an `SFU` component: the streams go to its rooms |
+| `roomOf` | the stream | `({stream, token}, context) => string`: the room of the media server a stream goes to |
 
 The answer carries all the candidates of the server, which gathers them before answering: behind a NAT or in a
 container, give it its public address and open its ports.
 
-## 10. Deployment
+With `sfu`, a stream goes to a room of the media server (section 9) instead of the application: the room named after
+the stream, or the one `roomOf` gives. It joins the room as a member whose id starts with `whip:`, the members of the
+room receive its tracks as those of any member, and the viewers of WHEP play it (section 11). Its connection then
+belongs to the media server, so the session has the `room` and the `peerId` of the stream instead of `connection` and
+`tracks`; `sfu.track()` gives its packets.
+
+## 11. Playing with WHEP
+
+WHEP (the WebRTC-HTTP Egress Protocol) plays a stream with one HTTP request: the player posts a receive-only offer, and
+gets the answer and the URL of its session. The `WHEP` component plays the rooms of the media server:
+each viewer receives the audio and the video of one member of a room, by default the stream published into it with
+WHIP. The viewers are not members of the room, so the members do not see them, and a stream may have many of them.
+`WHEPController` is its HTTP interface, under `/whep`.
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {buildSFUOptions, buildSignalingOptions, buildWHEPOptions, buildWHIPOptions, WHEPController, WHIPController} from '@lakutata/webrtc'
+
+//OBS publishes to https://live.example.com/whip/concert, the browsers play https://live.example.com/whep/concert
+Application.run(() => ({
+    id: 'live.app',
+    name: 'Live',
+    components: {
+        signaling: buildSignalingOptions(),
+        sfu: buildSFUOptions({iceAdditionalHostAddresses: ['203.0.113.10'], icePortRange: [40000, 40999]}),
+        whip: buildWHIPOptions({sfu: 'sfu', authorize: ({token}): boolean => token === process.env.WHIP_TOKEN}),
+        whep: buildWHEPOptions({maxSessions: 500}),
+        entrypoint: buildEntrypoints({
+            controllers: [WHIPController, WHEPController],
+            http: expressHTTPEntrypoint({port: 8080, body: {text: ['application/sdp', 'application/trickle-ice-sdpfrag']}})
+        })
+    },
+    bootstrap: ['sfu', 'entrypoint']
+}))
+```
+
+A browser plays it with its own `RTCPeerConnection`, its offer carrying all its candidates:
+
+```typescript
+declare const player: HTMLVideoElement
+const connection: RTCPeerConnection = new RTCPeerConnection()
+const stream: MediaStream = new MediaStream()
+player.srcObject = stream
+connection.addEventListener('track', (event: RTCTrackEvent): void => stream.addTrack(event.track))
+connection.addTransceiver('audio', {direction: 'recvonly'})
+connection.addTransceiver('video', {direction: 'recvonly'})
+await connection.setLocalDescription()
+await new Promise<void>((resolve: () => void): void => {
+    if (connection.iceGatheringState === 'complete') return resolve()
+    connection.addEventListener('icegatheringstatechange', (): void => {
+        if (connection.iceGatheringState === 'complete') resolve()
+    })
+})
+const response: Response = await fetch('https://live.example.com/whep/concert', {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: connection.localDescription!.sdp})
+await connection.setRemoteDescription({type: 'answer', sdp: await response.text()})
+```
+
+| Request | Answer |
+|---|---|
+| `POST /whep/:stream` with the offer (`application/sdp`) | `201 Created`: the answer, `Location` (the session), `Link` (the ICE servers), `ETag` (its ICE session) |
+| `DELETE /whep/:stream/:session` | `200`: the session ends |
+| `PATCH /whep/:stream/:session` with a fragment of SDP (`application/trickle-ice-sdpfrag`) | As for WHIP: `204` for the candidates of the viewer, `200` with the fragment of the answer for an ICE restart, `412` for an `If-Match` other than `*` and the `ETag` |
+| `OPTIONS` | `204`, with the CORS headers and `Accept-Post: application/sdp` |
+| `GET` | `204` |
+
+The refusals: 401 with `WWW-Authenticate: Bearer` when `authorize` refuses, 415 for a body of another type, 400 for an
+offer without audio or video or a room the media server does not serve, 503 once there are `maxSessions` sessions, 404
+for an unknown session.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `sfu` | `'sfu'` | The name of the `SFU` component whose rooms are played |
+| `roomOf` | the stream | `({stream, token}, context) => string`: the room a stream comes from |
+| `select` | the newest stream of WHIP, else the first member publishing | `({stream, token}, tracks) => string \| undefined`: the id of the member a viewer receives |
+| `authorize` | none | `({stream, token}, context) => boolean`: who may play which stream |
+| `maxSessions` | `100` | The sessions at once on this node, `0` for no limit |
+| `allowOrigin` | `'*'` | The origins the browsers may play from |
+| `turn`, `iceServers` | | The ICE servers given to the viewers in the `Link` headers |
+| `cluster`, `turnSecret`, `selectTURN` | | Several nodes (section 13) |
+
+A viewer receives one member: by default the newest stream published into the room with WHIP, else the first member
+publishing audio or video. `select` chooses another one; it is asked again each time the tracks of the room change,
+and when it throws, the viewer receives the default one. When the member stops publishing, the viewer goes on with the
+next one on the same connection: its picture stops for a moment and starts again at a key frame. The offer of a viewer
+fixes what it receives, one audio and one video, and its connection negotiates every codec of the offer that the
+server has: a stream published later in any of them is sent too.
+
+The component emits `play` (the session: its `id`, `stream`, `room`, `viewerId` and `source`, the member it receives)
+once it answers, and `stop` when the session ends: the viewer deleted it, its connection failed or closed, or the
+application stopped. `whep.sessions` lists the sessions of this node, and `sfu.rooms()` counts the viewers of each
+room.
+
+## 12. Deployment
 
 - **Ports.** Open port 3478 over UDP and TCP, the relay ports (`relayPortRange`) over UDP, and the TLS port when TURN
   over TLS is on. In a container, publish them all; the relay range keeps the list short.
@@ -433,14 +670,17 @@ container, give it its public address and open its ports.
   the host, or that of its NAT when the NAT forwards the ports. On a local network the default is enough.
 - **The applications as members.** A server behind a NAT that forwards `icePortRange` with the same port numbers gives
   its public address in `iceAdditionalHostAddresses`; otherwise it relies on the TURN server like any client.
-- **Several instances.** Give them a `Cluster` (section 11), and their TURN servers the same `secret`, so each accepts
+- **The media server, WHIP and WHEP.** The clients connect to them directly: open their `icePortRange` over UDP, and
+  give them in `iceAdditionalHostAddresses` the public address of a NAT forwarding these ports with the same numbers.
+  A client that cannot reach them goes through the TURN server.
+- **Several instances.** Give them a `Cluster` (section 13), and their TURN servers the same `secret`, so each accepts
   the credentials made by the others.
 - **Another TURN server.** coturn (`use-auth-secret`, `static-auth-secret` set to the same secret) accepts the
   credentials of `createTURNCredentials()`; list it in the `iceServers` option of `Signaling`.
 - **HTTPS.** Browsers allow WebRTC on any page, but the camera and the microphone only on secure pages (HTTPS or
   `localhost`).
 
-## 11. Several instances
+## 13. Several instances
 
 Several instances of an application (the pods of a deployment, the processes behind a load balancer) work together
 through a `Cluster`: each instance is a node of the cluster, and the nodes talk through NATS or Redis. The components
@@ -448,10 +688,12 @@ given its name work across the nodes:
 
 - the signaling puts the members connected to all the nodes in the same rooms;
 - the TURN servers tell the other nodes their address and their load, and each member gets the least loaded ones;
-- a WHIP session is ended whichever node its DELETE reaches.
+- the media servers share the rooms: each member, stream of WHIP and viewer of WHEP connects to the media server of one
+  node, and the media servers of a room forward its tracks to each other;
+- a session of WHIP or WHEP is ended or patched whichever node its DELETE or its PATCH reaches.
 
 The bus carries only these messages. The audio, the video and the data go directly between the clients and the nodes,
-or through the TURN servers.
+between the media servers of the nodes, or through the TURN servers.
 
 ```typescript
 import {Application} from 'lakutata'
@@ -527,50 +769,109 @@ const signaling = buildSignalingOptions({
 })
 ```
 
-### WHIP behind a load balancer
+### The media servers of the cluster
 
-A WHIP session lives on the node that answered its POST. Given `cluster`, the `WHIP` component of another node
-receiving its DELETE asks the other nodes, and the one holding the session ends it. `maxSessions` counts the sessions
-of each node.
+Given `cluster`, the media servers of the nodes share the rooms: the id of each one is `sfu:` followed by the id of its
+node, and each member is connected to the media server of one node.
+
+- A room stays on as few nodes as it can. Its first member goes to the node it joins through, or to the least loaded
+  node when that one is full; the next members go to the least loaded node the room already has, and to the least
+  loaded node of all once those are full. A load balancer spreads the clients over the nodes at random: without this
+  rule, a meeting of three could take three nodes.
+- `selectSFU` chooses the node instead, the closest to the member for example; when the node it chooses is full or
+  does not answer, the default choice is made.
+- A node with the signaling but no media server asks the least loaded node that has one, which makes the choice
+  (`selectSFU` runs there).
+- `maxMembers` is the limit of each node: a member joining when no node takes it is refused
+  (`SignalingLimitException`). The streams of WHIP and the viewers of WHEP are given a node the same way (the viewers
+  are not counted by `maxMembers`: `maxSessions` of WHEP limits them).
+- The events of each media server and its `rooms()` cover the members of its own node.
+
+```typescript
+import {buildSFUOptions, type SFUNode, type SFUPlacement} from '@lakutata/webrtc'
+
+//The members whose id starts with eu- go to the least loaded node labeled {region: 'eu'}, and so on
+const sfu = buildSFUOptions({
+    cluster: 'cluster',
+    selectSFU: (placement: SFUPlacement, nodes: SFUNode[]): string | undefined => {
+        const region: string = placement.peerId.split('-')[0]
+        return nodes
+            .filter((node: SFUNode): boolean => node.labels.region === region)
+            .sort((a: SFUNode, b: SFUNode): number => a.members - b.members)[0]?.id
+    }
+})
+```
+
+The media servers of a room forward its tracks to each other. A track goes once to each node where someone receives
+it (a member selected for it, a viewer, `sfu.track()`), however many receive it there, straight from the node of its
+publisher. The nodes connect to each other as the clients do, with WebRTC connections (DTLS-SRTP) over their
+`icePortRange`. A data channel between two members of different nodes goes through both media servers.
+
+When a node goes down (it stops, or the others miss three of its heartbeats, about 6 seconds), its media server leaves
+its rooms. Its members join their rooms again, through the signaling, are given the media server of another node and
+publish their tracks again; the others see their tracks stop for a few seconds. The peers of a member that moved close
+and open again on every side, as when a member reloads its page: the listeners of `peer` create their channels again.
+When every node is full at that moment, the client does not give up as a first `join()` does: it tries again after 1
+second, then twice as long each time (10 seconds at most), its signaling emitting `error` after each failure, until a
+node takes the member or the room is left.
+
+A session of WHIP or WHEP stays on the node that answered its POST, and its connection goes to the node chosen for it.
+Its PATCH and its DELETE may reach any node; a PATCH reaching a node without the session waits for the answers of all
+the nodes, 12 seconds at most. A viewer receives by default the stream of WHIP its node learned of last.
+
+### WHIP and WHEP behind a load balancer
+
+A session of WHIP or WHEP lives on the node that answered its POST. Given `cluster`, the `WHIP` or `WHEP` component of
+another node receiving its DELETE or its PATCH asks the other nodes, and the one holding the session applies it.
+`maxSessions` counts the sessions of each node.
 
 ### Kubernetes and k3s
 
-The manifests below deploy NATS, the signaling (two pods) and a TURN server on each node. The application is one image
-for both roles, chosen by the variable `ROLE`:
+The manifests below deploy NATS, the signaling (two pods), and a TURN server and a media server on each node. The
+application is one image for the three roles, chosen by the variable `ROLE`:
 
 ```typescript
 import {Application, type ApplicationOptions} from 'lakutata'
 import {buildEntrypoints} from 'lakutata/com/entrypoint'
 import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
-import {buildClusterOptions, buildSignalingOptions, buildTURNServerOptions, SignalingController} from '@lakutata/webrtc'
+import {buildClusterOptions, buildSFUOptions, buildSignalingOptions, buildTURNServerOptions, SignalingController} from '@lakutata/webrtc'
 
-const turn: boolean = process.env.ROLE === 'turn'
 const cluster = buildClusterOptions({transport: {type: 'nats', servers: process.env.NATS_URL}})
-const components: ApplicationOptions['components'] = turn
-    ? {
+const signaling = buildSignalingOptions({cluster: 'cluster', turnSecret: process.env.TURN_SECRET})
+const roles: Record<string, ApplicationOptions['components']> = {
+    signaling: {
         cluster: cluster,
-        //On the network of the node: its address, and its ports 3478 and 49160-49200
+        signaling: signaling,
+        entrypoint: buildEntrypoints({
+            controllers: [SignalingController],
+            service: socketIOServiceEntrypoint({port: 3000})
+        })
+    },
+    //On the network of the node: its address, and its ports 3478 and 49160-49200
+    turn: {
+        cluster: cluster,
         turn: buildTURNServerOptions({
             cluster: 'cluster',
             secret: process.env.TURN_SECRET,
             publicAddress: process.env.PUBLIC_ADDRESS,
             relayPortRange: [49160, 49200]
         })
-    }
-    : {
+    },
+    //On the network of the node too, its ports 40000-40999; its signaling has no entrypoint: the members join through
+    //the pods of the signaling, which give each of them the media server of a node
+    sfu: {
         cluster: cluster,
-        signaling: buildSignalingOptions({cluster: 'cluster', turnSecret: process.env.TURN_SECRET}),
-        entrypoint: buildEntrypoints({
-            controllers: [SignalingController],
-            service: socketIOServiceEntrypoint({port: 3000})
-        })
+        signaling: signaling,
+        sfu: buildSFUOptions({cluster: 'cluster', icePortRange: [40000, 40999], workers: 2})
     }
+}
+const components: ApplicationOptions['components'] = roles[process.env.ROLE ?? 'signaling']
 
 Application.run(() => ({
     id: 'meet.app',
     name: 'Meet',
     components: components,
-    bootstrap: turn ? ['turn'] : ['signaling', 'entrypoint']
+    bootstrap: Object.keys(components ?? {})
 }))
 ```
 
@@ -684,20 +985,56 @@ spec:
                 secretKeyRef:
                   name: turn
                   key: secret
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sfu
+spec:
+  selector:
+    matchLabels:
+      app: sfu
+  template:
+    metadata:
+      labels:
+        app: sfu
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: sfu
+          image: registry.example.com/meet:1.0.0
+          env:
+            - name: ROLE
+              value: sfu
+            - name: NATS_URL
+              value: nats://nats:4222
+            - name: TURN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: turn
+                  key: secret
 ```
 
-- The TURN servers run on the network of their node (`hostNetwork`): the clients reach them at the address of the node,
-  on its ports. Open UDP and TCP 3478 and UDP 49160–49200 in the firewall of the nodes.
-- `status.hostIP` is the address of the node inside the cluster; it is the right one when the clients reach the nodes at
-  it (a local network, nodes with public addresses). Behind the NAT of a cloud, give `PUBLIC_ADDRESS` the public address
-  of each node instead, the NAT forwarding the same ports.
+- The TURN servers and the media servers run on the network of their node (`hostNetwork`): the clients reach them at
+  the address of the node, on its ports. Open UDP and TCP 3478, UDP 49160–49200 and UDP 40000–40999 in the firewall of
+  the nodes; the media servers of the nodes also reach each other on 40000–40999.
+- `status.hostIP` is the address of the node inside the cluster; it is the right one when the clients reach the nodes
+  at it (a local network, nodes with public addresses). Behind the NAT of a cloud, give `PUBLIC_ADDRESS` the public
+  address of each node instead, the NAT forwarding the same ports, and give the media server that address in
+  `iceAdditionalHostAddresses`.
 - A pod on the network of its node resolves the names of the services with `dnsPolicy: ClusterFirstWithHostNet`.
 - The browsers reach the signaling through an Ingress or a load balancer in front of the Service `signaling`, connecting
   with `transports: ['websocket']`.
 - A single NATS pod is enough for a test; in production, run a NATS cluster (its Helm chart) or a Redis with a replica.
+- When the whole cluster starts, a pod may start before the DNS of the cluster resolves `nats` (its log then shows
+  `getaddrinfo EAI_AGAIN nats`): the application stops when it cannot reach NATS as it starts, and Kubernetes starts it
+  again until it can. A few restarts of each pod at that moment are expected.
 
 In the repository, `packages/webrtc/test-env/k3s/run.sh` deploys these manifests in k3s in Docker (two nodes, the code
-mounted instead of an image) and connects two members through two pods and the TURN servers only.
+mounted instead of an image). It connects two members through two pods and the TURN servers only, then two members
+through the media servers of the two nodes, and deletes the pod of one of them: that member moves to the pod started
+in its place.
 
 ### The cluster for the application
 
@@ -732,7 +1069,7 @@ export class Viewers extends Component {
 `node-up`, `node-down` and `node-update`. The messages are sent as JSON; a message larger than the server carries (1 MiB
 by default on NATS) is sent in parts.
 
-## 12. The signaling protocol
+## 14. The signaling protocol
 
 Clients in other languages and native applications speak the protocol directly. The requests are service calls whose
 pattern is `{method}`: over Socket.IO, the event `message` with `{method: 'webrtc.join', room: 'room-1'}` and an
@@ -741,7 +1078,7 @@ pushes the events to the members: Socket.IO events, or JSON-RPC notifications wh
 
 | Request | Parameters | Answer |
 |---|---|---|
-| `webrtc.join` | `room`, `metadata`, `session` | `{v, peerId, peers, iceServers, credentialTtl, heartbeatInterval}` |
+| `webrtc.join` | `room`, `metadata`, `session` | `{v, peerId, peers, iceServers, credentialTtl, heartbeatInterval, sfu}` |
 | `webrtc.signal` | `room`, `to`, and `description` (`{type, sdp}`) or `candidate` (`{candidate, sdpMid, sdpMLineIndex, usernameFragment}`) | `{delivered}` |
 | `webrtc.leave` | `room` | `{}` |
 | `webrtc.iceServers` | — | `{iceServers, credentialTtl}`: new credentials |
@@ -749,9 +1086,9 @@ pushes the events to the members: Socket.IO events, or JSON-RPC notifications wh
 
 | Event | Payload |
 |---|---|
-| `webrtc:peer-joined` | `{room, peerId, metadata, session}`: a member joined, or joined again |
+| `webrtc:peer-joined` | `{room, peerId, metadata, session, role, sfu}`: a member joined, or joined again |
 | `webrtc:peer-left` | `{room, peerId, reason}`: `left` when it asked, `disconnected` when its client went away |
-| `webrtc:signal` | `{room, from, session, description}` or `{room, from, session, candidate}` |
+| `webrtc:signal` | `{room, from, session, description, streams}` or `{room, from, session, candidate}` |
 
 - `session` is a random string a client chooses once. A member joining again with the same session (after a
   reconnection of its signaling) keeps the connections of the others; a new session (a reloaded page) replaces them.
@@ -760,11 +1097,21 @@ pushes the events to the members: Socket.IO events, or JSON-RPC notifications wh
   its rooms.
 - The member whose id comes first (by string comparison) is the polite one of a pair: when both send an offer at the
   same time, it gives up its own and answers the other one.
-- The errors carry the `errno` of the server's exception: `E_SIGNALING_DENIED`, `E_SIGNALING_LIMIT`,
-  `E_SIGNALING_NOT_A_MEMBER`, `E_SIGNALING_CLIENT_REQUIRED`, `E_INVALID_VALUE`. JSON-RPC over HTTP cannot carry the
-  signaling: the events need a connection to be pushed through.
+- The fields of the media server, all set by the server: `role` is `sfu` for a media server and `whip` for a stream
+  of WHIP (none for the clients); `sfu` is the id of the media server a member is connected to, and in the answer to
+  `webrtc.join`, the one the client connects to. A client in a room with a media server connects to it only, and is
+  the polite one with it. The descriptions of the media server carry `streams`: for each stream it sends, its `id` on
+  that connection, the `peerId` of the member it comes from, and its id on the connection of that member (`stream`).
+- On the connection to the media server, the data channel 1023 (label `webrtc.control`, created by both sides with
+  `negotiated: true` and this `id`) carries `{type: 'pause' | 'resume', mid}` in JSON: the server stops or starts
+  sending the track of that transceiver. A data channel to a member through the server has the id of that member as
+  its `protocol`; the server opens the channel on the side of that member with the id of the sender. The media servers
+  of the nodes use the channel 1023 between them too, and channels whose `protocol` is `["sender", "member"]` in JSON.
+- The errors carry the `errno` of the server's exception: `E_SIGNALING_DENIED`, `E_SIGNALING_LIMIT` (a full room, or
+  a member no media server takes), `E_SIGNALING_NOT_A_MEMBER`, `E_SIGNALING_CLIENT_REQUIRED`, `E_INVALID_VALUE`.
+  JSON-RPC over HTTP cannot carry the signaling: the events need a connection to be pushed through.
 
-## 13. When a connection fails
+## 15. When a connection fails
 
 `setDebugHandler()` gives the debug messages of ICE, DTLS, SCTP and TURN:
 
@@ -775,13 +1122,22 @@ import {setDebugHandler} from '@lakutata/webrtc'
 setDebugHandler((namespace: string, args: unknown[]): void => console.debug(namespace, format(...args)))
 ```
 
+The worker threads of a media server send theirs to the same handler, each message starting with the number of its
+thread (`[thread 0] …`). A `select` of the media server or of WHEP that throws is reported under `webrtc/sfu` and
+`webrtc/whep`.
+
 To check the TURN server, join a room from two clients with `iceTransportPolicy: 'relay'`: they connect only through
 the relays, and `turn.allocations` counts them. In Chrome, `chrome://webrtc-internals` shows the candidates and the
 pairs tried.
 
-## 14. Limits
+## 16. Limits
 
 - Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
   another connection.
 - The throughput of one data channel between two Node.js processes on an Apple M4 is about 60 MiB/s for large
   messages, and 440,000 messages of 100 bytes per second.
+- The media server does not transcode, and sends each video as it is published: there is no simulcast yet, so a
+  member with little bandwidth gets `congestion` events rather than a lower quality. Its capacity on one machine is in
+  section 9; `packages/webrtc/test-env/bench/forward.mjs` in the repository measures it on another.
+- The media servers of a cluster send a track straight from the node of its publisher to each node wanting it, which
+  suits rooms spread over tens of nodes; beyond that, the nodes would have to forward through each other.

@@ -35,7 +35,7 @@
 | `lakutata/security`、`lakutata/provider/passwordHash` | 哈希、加解密、签名、`PasswordHash` 提供者 |
 | `lakutata/utils` | 辅助函数 |
 
-不在本包中的：`@lakutata/cli`（`lakutata` 命令：创建项目、执行迁移、打包应用，见 [Command](Command.md)）、`@lakutata/grpc`（gRPC 客户端、服务端和服务传输）、`@lakutata/nats`（NATS 组件和服务传输）、`@lakutata/dbus`（D-Bus）、`@lakutata/mcp`（Model Context Protocol）和 `@lakutata/webrtc`（WebRTC：信令、TURN 服务器、对等连接）。
+不在本包中的：`@lakutata/cli`（`lakutata` 命令：创建项目、执行迁移、打包应用，见 [Command](Command.md)）、`@lakutata/grpc`（gRPC 客户端、服务端和服务传输）、`@lakutata/nats`（NATS 组件和服务传输）、`@lakutata/dbus`（D-Bus）、`@lakutata/mcp`（Model Context Protocol）和 `@lakutata/webrtc`（WebRTC：信令、TURN 服务器、媒体服务器、对等连接）。
 
 ## 指南
 
@@ -78,7 +78,7 @@
 | [Security](Security.md) | 哈希、加解密、签名、密码 |
 | [DBus](DBus.md) | D-Bus 服务和客户端（`@lakutata/dbus`）：方法、对象、属性、信号 |
 | [MCP](MCP.md) | 模型上下文协议（`@lakutata/mcp`）的工具、资源和提示词，基于 stdio 和 HTTP |
-| [WebRTC](WebRTC.md) | 点对点连接（`@lakutata/webrtc`）：信令、TURN 服务器、浏览器和应用 |
+| [WebRTC](WebRTC.md) | 点对点连接和媒体服务器（`@lakutata/webrtc`）：信令、TURN 服务器、浏览器和应用、WHIP 和 WHEP |
 | [Command](Command.md) | `lakutata` 命令：创建项目、迁移、翻译、环境变量 |
 | [Workspaces](Workspaces.md) | 由多个包组成的项目：运行各个包的脚本、统一版本号、添加包 |
 | [NativeAddons](NativeAddons.md) | 用 C++ 或 Rust 编写的原生插件：创建、链接库、发布 |

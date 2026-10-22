@@ -1,6 +1,6 @@
 # Lakutata WebRTC
 
-WebRTC 让两端直接点对点连接：浏览器、Electron 应用和 Node.js 进程之间交换数据和音视频不需要服务器转发，在 NAT 和防火墙后面也能连上。`@lakutata/webrtc` 包提供这些连接周边需要的一切：让两端互相认识的信令，给需要的网络用的 STUN 和 TURN 服务器，Node.js 端的对等连接，以及浏览器的客户端。它用 TypeScript 编写，没有原生代码，不属于 `lakutata`：
+WebRTC 让两端直接点对点连接：浏览器、Electron 应用和 Node.js 进程之间交换数据和音视频不需要服务器转发，在 NAT 和防火墙后面也能连上。`@lakutata/webrtc` 包提供这些连接周边需要的一切：让两端互相认识的信令，给需要的网络用的 STUN 和 TURN 服务器，给人多的房间用的媒体服务器，Node.js 端的对等连接，以及浏览器的客户端。它用 TypeScript 编写，没有原生代码，不属于 `lakutata`：
 
 ```bash
 npm install lakutata @lakutata/webrtc
@@ -8,7 +8,7 @@ npm install lakutata @lakutata/webrtc
 
 | 入口 | 运行在 | 提供什么 |
 |---|---|---|
-| `@lakutata/webrtc` | Node.js、Electron 的主进程、Bun | `Signaling`、`SignalingController`、`TURNServer`、`SignalingClient`、`PeerConnection`、`MediaTrack`、`WHIP`、`WHIPController`、`Cluster`、`ChunkedChannel` |
+| `@lakutata/webrtc` | Node.js、Electron 的主进程、Bun | `Signaling`、`SignalingController`、`TURNServer`、`SignalingClient`、`PeerConnection`、`MediaTrack`、`SFU`、`WHIP`、`WHIPController`、`WHEP`、`WHEPController`、`Cluster`、`ChunkedChannel` |
 | `@lakutata/webrtc/client` | 浏览器、Electron 的渲染进程 | `SignalingConnection`、`ChunkedChannel`、协议的类型 |
 
 浏览器入口只使用浏览器的接口；前端安装同一个包，框架不会随之安装。
@@ -68,7 +68,7 @@ Application.run(() => ({
 | `maxMessagesPerSecond` | `50` | 一个成员平均每秒最多发多少条信令（短时间内允许两倍） |
 | `heartbeatInterval` | `10000` | 服务端察觉不到断开时，客户端发送心跳的间隔，单位毫秒 |
 
-不用控制器时组件也能用：`join()`、`signal()`、`leave()` 和 `disconnect()` 让应用自己的代码修改房间，`rooms()` 列出房间。
+不用控制器时组件也能用：`join()`、`signal()`、`leave()` 和 `disconnect()` 让应用自己的代码修改房间，`rooms()` 列出房间。应用自己加入的成员通过 `join()` 的 `receive` 选项接收它的事件。以 `sfu:` 和 `whip:` 开头的 id 留给服务端自己加入的成员（媒体服务器、WHIP 推的流），客户端用这样的 id 加入会被拒绝。
 
 ## 3. STUN 和 TURN 服务器
 
@@ -118,7 +118,7 @@ room.on('peer-left', (peer: Peer): void => console.log(`${peer.id} left`))
 
 它的选项：`iceTransportPolicy`（`'relay'` 表示只用 TURN 中转）、`configuration`（`RTCPeerConnection` 的更多选项）、`createPeerConnection`（`RTCPeerConnection` 的其他实现）、`timeout`（请求的超时，默认 15 秒）。
 
-房间为其他每个成员发出 `peer` 事件：先是已经在房间里的成员，然后是每个新加入的成员。后来添加的监听函数会立即为已有的每个成员调用一次。`Peer` 有成员的 `id`、`metadata`、到它的连接 `connection`（一个 `RTCPeerConnection`：可以往里添加音视频轨道、读取统计信息），以及 `createDataChannel()`、`restartIce()` 和 `close()`，会发出 `datachannel`、`track`、`connectionstatechange`、`metadata`（成员带着新的 metadata 重新加入）、`error` 和 `close` 事件。一个成员连接关闭时，房间发出 `peer-left`：成员离开了，或者连接彻底断了。
+房间为其他每个成员发出 `peer` 事件：先是已经在房间里的成员，然后是每个新加入的成员。后来添加的监听函数会立即为已有的每个成员调用一次。`room.publish(track, stream)` 把一条轨道发给每个成员（第 8 节）；房间有媒体服务器时，`room.sfu` 是它的 id（第 9 节）。`Peer` 有成员的 `id`、`metadata`、到它的连接 `connection`（一个 `RTCPeerConnection`：可以读取统计信息），以及 `createDataChannel()`、`pause()` 和 `resume()`（暂停、恢复接收这个成员的某条轨道）、`restartIce()` 和 `close()`，会发出 `datachannel`、`track`、`connectionstatechange`、`metadata`（成员带着新的 metadata 重新加入）、`error` 和 `close` 事件。一个成员连接关闭时，房间发出 `peer-left`：成员离开了，或者连接彻底断了。
 
 双方都可以创建通道：每一端通过 `datachannel` 拿到对方创建的通道。双方只想共用一个通道时，两边都用 `negotiated: true` 和相同的 `id` 创建它。
 
@@ -198,7 +198,7 @@ transfer.channel.addEventListener('open', async (): Promise<void> => {
 
 ## 8. 音视频
 
-一条轨道传一个来源的音频或视频。在浏览器里，把摄像头和麦克风的轨道加到和每个成员的连接上；对方在自己的 peer 上通过 `track` 事件拿到这些轨道，`event.streams` 把同一个来源的音频和视频归在一起：
+一条轨道传一个来源的音频或视频。在浏览器里，把摄像头和麦克风的轨道发布到房间里：`room.publish()` 把一条轨道发给每个成员，之后加入的成员也会收到。其他成员在各自的 peer 上通过 `track` 事件拿到它，`event.streams` 把同一个来源的音频和视频归在一起：
 
 ```typescript
 import {type Peer, type Room} from '@lakutata/webrtc/client'
@@ -206,8 +206,8 @@ import {type Peer, type Room} from '@lakutata/webrtc/client'
 declare const room: Room
 declare const grid: HTMLElement
 const camera: MediaStream = await navigator.mediaDevices.getUserMedia({audio: true, video: true})
+for (const track of camera.getTracks()) await room.publish(track, camera)
 room.on('peer', (peer: Peer): void => {
-    for (const track of camera.getTracks()) peer.connection.addTrack(track, camera)
     const video: HTMLVideoElement = document.createElement('video')
     video.autoplay = true
     grid.append(video)
@@ -218,7 +218,9 @@ room.on('peer', (peer: Peer): void => {
 })
 ```
 
-每个成员都给其他每个成员发送时，有几个其他成员，它的视频就要发几份：这适合人少的房间。
+`room.unpublish(track)` 停止发送一条轨道，它用过的收发器留给之后发布的轨道。`peer.pause(track)` 和 `peer.resume(track)` 暂停和恢复接收某个成员的一条轨道，比如不在屏幕上的视频。没有媒体服务器时，直接加到 `peer.connection` 上的轨道只发给这一个成员。
+
+没有媒体服务器时，有几个其他成员，每个成员的视频就要发几份：这适合人少的房间。用第 9 节的媒体服务器，每个成员只发一份。
 
 Node.js 端不采集、不编码也不解码：应用的轨道传的是 RTP 包，也就是编码好的音视频，来自编码器或者另一条连接。
 
@@ -232,7 +234,7 @@ Node.js 端不采集、不编码也不解码：应用的轨道传的是 RTP 包�
 ```typescript
 import {createSocket, type Socket} from 'node:dgram'
 import {Component} from 'lakutata'
-import {MediaTrack, type Peer, type Room, SignalingClient} from '@lakutata/webrtc'
+import {MediaTrack, type Room, SignalingClient} from '@lakutata/webrtc'
 
 //ffmpeg -f v4l2 -i /dev/video0 -c:v libx264 -profile:v baseline -pix_fmt yuv420p -tune zerolatency -g 30
 //       -bsf:v dump_extra=freq=keyframe -f rtp rtp://127.0.0.1:5004
@@ -244,14 +246,14 @@ export class Camera extends Component {
         socket.bind(5004)
         const signaling: SignalingClient = await this.getObject(SignalingClient, {url: 'https://meet.example.com', id: 'camera-3'})
         const room: Room = await signaling.join('camera-3')
-        room.on('peer', (peer: Peer): void => void peer.connection.addTrack(video, 'camera-3'))
+        await room.publish(video, 'camera-3')
     }
 }
 ```
 
 观看方要从关键帧开始解码：让编码器每一两秒出一个关键帧（ffmpeg 的 `-g`），或者在编码器支持时，收到 `keyframerequest` 就生成一个。码流过滤器 `dump_extra` 把 H.264 的参数放到每个关键帧前面，浏览器需要从那里读到它们。
 
-一个应用把某个成员的摄像头转发给后来加入的观看方，每个观看方从应用而不是从摄像头那里拿到视频：
+一个应用把某个成员的摄像头转发给后来加入的观看方，每个观看方从应用而不是从摄像头那里拿到视频（第 9 节的媒体服务器会为房间里的每个成员做这件事）：
 
 ```typescript
 import {Component} from 'lakutata'
@@ -282,7 +284,107 @@ export class Relay extends Component {
 
 `PeerConnection` 的方法和 `RTCPeerConnection` 一致：`addTrack(track, ...streamIds)`（对方把同一个流的轨道归在一起）、`addTransceiver(trackOrKind, {direction, streams})`（`recvonly` 表示只收不发）、`removeTrack(sender)`、`getTransceivers()`、`getSenders()` 和 `getReceivers()`；`sender.replaceTrack()` 换发另一条轨道，用协商过的任一编码都可以，不用重新协商。支持的编码：音频 Opus 和 PCMU，视频 VP8、H.264 和 VP9；`PeerConnection` 和 `SignalingClient` 的 `codecs` 选项决定用哪些、按什么顺序，用 `codec` 创建的轨道会让它的连接协商这一种编码。
 
-## 9. 用 WHIP 推流
+## 9. 媒体服务器
+
+没有媒体服务器时，房间里的每个成员都要把自己的轨道发给其他每个成员：八个人开会，每个人的视频要上传七份，还要维持七条连接。`SFU` 组件是这些房间的媒体服务器（SFU，选择性转发单元）：每个成员只连接它，每条轨道只发一份，再从它那里收到其他人的轨道。服务器转发这些包时不解码；不管房间多大，一个成员的视频都只上传一份。
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
+import {buildSFUOptions, buildSignalingOptions, buildTURNServerOptions, SignalingController} from '@lakutata/webrtc'
+
+Application.run(() => ({
+    id: 'meet.app',
+    name: 'Meet',
+    components: {
+        turn: buildTURNServerOptions({publicAddress: '203.0.113.10', relayPortRange: [49160, 49200], secret: process.env.TURN_SECRET}),
+        signaling: buildSignalingOptions({turn: 'turn'}),
+        //会议经过媒体服务器，其他房间仍然点对点
+        sfu: buildSFUOptions({
+            serves: (room: string): boolean => room.startsWith('meeting-'),
+            iceAdditionalHostAddresses: ['203.0.113.10'],
+            icePortRange: [40000, 40999]
+        }),
+        entrypoint: buildEntrypoints({
+            controllers: [SignalingController],
+            service: socketIOServiceEntrypoint({port: 3000})
+        })
+    },
+    bootstrap: ['turn', 'sfu', 'entrypoint']
+}))
+```
+
+客户端不用改。服务器作为一个 id 以 `sfu:` 开头的成员加入它服务的每个房间，这个包的客户端（浏览器里的 `SignalingConnection`，Node.js 里的 `SignalingClient`）会连接它，而不再互相连接。房间和 peer 的用法和没有它时一样：
+
+- `room.publish()` 把一条轨道只发一份给服务器，由服务器转发给每个成员，之后加入的成员也会收到。
+- 每个 peer 发出它那个成员的轨道。这些轨道的 `event.streams` 是和服务器之间那条连接上的流；`room.streamOf(id)` 给出一个流来自哪个成员，以及这个流在那个成员自己的连接上的 id。
+- `peer.createDataChannel()` 打开一条经过服务器的通道，服务器双向转发它的消息。和两个成员直连不同，服务器能看到这些消息。这样的通道不能指定 `protocol`，也不能用 `negotiated`。
+- `peer.pause(track)` 让服务器暂停发送一条轨道，`peer.resume(track)` 让它恢复发送。
+- `room.sfu` 是服务器的 id，`peer.connection` 是和服务器之间的连接，所有 peer 共用这一条：用 `room.publish()` 发布轨道，不要直接加到这条连接上。
+
+`buildSFUOptions` 的选项：
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `signaling` | `'signaling'` | 服务器服务哪个 `Signaling` 组件的房间 |
+| `serves` | 所有房间 | `(room) => boolean`：服务哪些房间；其他房间仍然点对点 |
+| `select` | 每个成员收到其他人的每条轨道 | `(subscriber, track) => boolean`：一个成员收不收某条轨道 |
+| `maxMembers` | `0` | 所有房间加起来最多多少成员，0 表示不限；达到上限后再加入的成员会被拒绝（`SignalingLimitException`） |
+| `codecs` | Opus、PCMU、VP8、H.264、VP9 | 成员可以用哪些编码发布 |
+| `icePortRange`、`iceAdditionalHostAddresses` | | 连接使用的 UDP 端口，以及服务器的公网地址 |
+| `workers` | `0` | 转发房间用的工作线程数，用来利用更多的核 |
+| `cluster`、`selectSFU` | | 多个节点上的媒体服务器（第 13 节） |
+
+对每个成员和其他人的每条轨道，都会问一次 `select`；成员带着新的 metadata 重新加入房间时会再问一次，它收哪些轨道按新的回答来。`select` 抛出错误时按 `false` 处理，错误记到调试信息里（第 15 节）。比如在网络研讨会里，每个人都收所有人的音频，但只收主讲人的视频：
+
+```typescript
+import {buildSFUOptions, type SFUTrack, type SignalingPeer} from '@lakutata/webrtc'
+
+const sfu = buildSFUOptions({
+    select: (subscriber: SignalingPeer, track: SFUTrack): boolean => track.kind === 'audio' || track.peerId.startsWith('speaker-')
+})
+```
+
+服务器怎么转发：
+
+- 它不转码：成员只收到它支持的编码的轨道，对其他轨道，服务器会发出 `unsupported` 事件。给浏览器用时，视频请用 VP8 或 H.264 发布。
+- 成员的关键帧请求会转给发布者，最多每 500 毫秒一次；有成员开始接收某路视频时，服务器会向发布者要一个关键帧。发往成员途中丢失的包由服务器重发。
+- 每条连接都根据对方的反馈估计自己的带宽：浏览器据此调整发给服务器的码率；发往某个成员的带宽一直不够它接收的内容时，服务器发出 `congestion` 事件，带宽恢复后再发一次。服务器按发布时的样子发送每路视频（还没有 simulcast）：要减轻这个成员的负担，可以暂停它接收的部分视频。
+- 成员读取某条通道的消息比对方发送得慢时，发送方要等待；服务器最多替它们缓存几兆字节的消息。
+
+它的事件：成员开始和停止发布一条轨道时发出 `publish` 和 `unpublish`（一个 `SFUTrack`：它的 `room`、`peerId`、`id`、`kind`、`codec` 和 `stream`）；成员不支持它该收的某条轨道的编码时发出 `unsupported`（房间、成员的 id、轨道）；`congestion`（房间、成员的 id、带宽是否不够、估计的码率，单位比特每秒）。`rooms()` 列出各个房间，以及它们的成员、轨道和 WHEP 观众。`track(room, peerId, trackId)` 把一条已发布的轨道作为 `MediaTrack` 交出来，它的 `rtp` 事件给出这条轨道的包，可以用来录制，或者转发到另一条连接：
+
+```typescript
+import {Component} from 'lakutata'
+import type {RtpPacket, SFU, SFUTrack} from '@lakutata/webrtc'
+
+export class Recorder extends Component {
+    protected async init(): Promise<void> {
+        const sfu: SFU = await this.getObject<SFU>('sfu')
+        sfu.on('publish', (track: SFUTrack): void => {
+            if (track.kind !== 'audio') return
+            sfu.track(track.room, track.peerId, track.id)?.on('rtp', (packet: RtpPacket): void => console.log(track.peerId, packet.timestamp))
+        })
+    }
+}
+```
+
+### 多核
+
+服务器默认在主线程里转发。设成 `workers: 4` 时，由四个工作线程转发各个房间：每个房间整个放在其中一个线程里（房间开启时转发的成员和观众最少的那个），连同它的连接和 UDP 端口；钩子和事件仍然在主线程。`icePortRange` 会分给各个线程。某个线程停止时会关闭它上面的房间；服务器在另一个线程里重新开启这些房间，房间里的成员会重新连上它。`rooms()` 显示的是各个线程报上来的情况，所以线程里发生的变化（比如有观众离开）要稍晚一点才看得到。
+
+下面是在 Apple M4 和 Node.js 24 上测得的结果：每个发布者发送约 2 Mbit/s 的视频（每秒 200 个 1250 字节的包），成员在其他进程里。
+
+| 房间 | 要转发的包 | 实际转发 | CPU |
+|---|---|---|---|
+| 1 个房间，4 个发布者、10 个订阅者，在主线程 | 每秒 7,200 个 | 全部 | 一个核的 31% |
+| 4 个房间，每个 12 个发布者、10 个订阅者，在主线程 | 每秒约 95,000 个 | 每秒 59,300 个 | 133%：主线程满了，其余是垃圾回收 |
+| 同样的 4 个房间，4 个工作线程 | 每秒约 95,000 个 | 全部（每秒 93,000 个） | 257% |
+
+一个线程约占 22 MiB，启动约需 90 毫秒。在上面的负载下，有线程时进程用了 1.4 GiB 内存，没有线程时 0.6 GiB，因为每个线程各自的堆都会增长。一条轨道从一个节点转发到另一个节点（第 13 节），两个节点每个包合计约耗 11 微秒 CPU：这样一路视频约占一个核的 0.2%。
+
+## 10. 用 WHIP 推流
 
 WHIP（RFC 9725）用一个 HTTP 请求推一路流：编码器（OBS、GStreamer、ffmpeg）或浏览器把 offer 提交到这路流的 URL，拿回 answer 和它的会话 URL。`WHIP` 组件回答这些 offer，推流开始时发出 `publish`，带上会话（它的 `id`、`stream`、`connection` 和 `tracks`），结束时发出 `unpublish`：推流方删除了它，它的连接失败或关闭了，或者应用停止了。`WHIPController` 是它的 HTTP 接口；HTTP 适配器要把 `application/sdp` 按文本读取（`body.text` 选项）。
 
@@ -342,27 +444,107 @@ Application.run(() => ({
 | `allowOrigin` | `'*'` | 允许哪些来源的浏览器推流 |
 | `icePortRange`、`iceAdditionalHostAddresses` | | 服务器的候选地址：它的 UDP 端口、它的公网地址 |
 | `codecs` | Opus、PCMU、VP8、H.264、VP9 | 接受的编码 |
+| `sfu` | 无 | 一个 `SFU` 组件的名字：推的流进入它的房间 |
+| `roomOf` | 流的名字 | `({stream, token}, context) => string`：一路流进入媒体服务器的哪个房间 |
 
 answer 里带有服务器的全部候选地址，服务器收集完才回答：在 NAT 后面或者容器里，要告诉它自己的公网地址，并放开它的端口。
 
-## 10. 部署
+配置了 `sfu` 时，推的流不再交给应用，而是进入媒体服务器（第 9 节）的一个房间：默认是和流同名的房间，`roomOf` 可以指定别的房间。它作为一个 id 以 `whip:` 开头的成员加入房间，房间里的成员像收其他成员的轨道一样收到它的轨道，WHEP 观众也能拉这路流（第 11 节）。这时它的连接归媒体服务器管，所以会话里没有 `connection` 和 `tracks`，而是这路流的 `room` 和 `peerId`；要拿它的包，用 `sfu.track()`。
+
+## 11. 用 WHEP 拉流
+
+WHEP（WebRTC-HTTP Egress Protocol）用一个 HTTP 请求拉一路流：播放端提交一个只收不发的 offer，拿回 answer 和它的会话 URL。`WHEP` 组件播放媒体服务器的房间：每个观众收到房间里一个成员的音频和视频，默认是用 WHIP 推进这个房间的流。观众不是房间的成员，所以成员看不到他们，一路流可以有很多观众。`WHEPController` 是它的 HTTP 接口，路径在 `/whep` 下面。
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints} from 'lakutata/com/entrypoint'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+import {buildSFUOptions, buildSignalingOptions, buildWHEPOptions, buildWHIPOptions, WHEPController, WHIPController} from '@lakutata/webrtc'
+
+//OBS 推到 https://live.example.com/whip/concert，浏览器从 https://live.example.com/whep/concert 拉流
+Application.run(() => ({
+    id: 'live.app',
+    name: 'Live',
+    components: {
+        signaling: buildSignalingOptions(),
+        sfu: buildSFUOptions({iceAdditionalHostAddresses: ['203.0.113.10'], icePortRange: [40000, 40999]}),
+        whip: buildWHIPOptions({sfu: 'sfu', authorize: ({token}): boolean => token === process.env.WHIP_TOKEN}),
+        whep: buildWHEPOptions({maxSessions: 500}),
+        entrypoint: buildEntrypoints({
+            controllers: [WHIPController, WHEPController],
+            http: expressHTTPEntrypoint({port: 8080, body: {text: ['application/sdp', 'application/trickle-ice-sdpfrag']}})
+        })
+    },
+    bootstrap: ['sfu', 'entrypoint']
+}))
+```
+
+浏览器用自己的 `RTCPeerConnection` 播放，offer 里带上全部候选地址：
+
+```typescript
+declare const player: HTMLVideoElement
+const connection: RTCPeerConnection = new RTCPeerConnection()
+const stream: MediaStream = new MediaStream()
+player.srcObject = stream
+connection.addEventListener('track', (event: RTCTrackEvent): void => stream.addTrack(event.track))
+connection.addTransceiver('audio', {direction: 'recvonly'})
+connection.addTransceiver('video', {direction: 'recvonly'})
+await connection.setLocalDescription()
+await new Promise<void>((resolve: () => void): void => {
+    if (connection.iceGatheringState === 'complete') return resolve()
+    connection.addEventListener('icegatheringstatechange', (): void => {
+        if (connection.iceGatheringState === 'complete') resolve()
+    })
+})
+const response: Response = await fetch('https://live.example.com/whep/concert', {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: connection.localDescription!.sdp})
+await connection.setRemoteDescription({type: 'answer', sdp: await response.text()})
+```
+
+| 请求 | 回答 |
+|---|---|
+| `POST /whep/:stream`，请求体是 offer（`application/sdp`） | `201 Created`：answer、`Location`（会话）、`Link`（ICE 服务器）、`ETag`（它的 ICE 会话） |
+| `DELETE /whep/:stream/:session` | `200`：会话结束 |
+| `PATCH /whep/:stream/:session`，请求体是 SDP 片段（`application/trickle-ice-sdpfrag`） | 和 WHIP 一样：观众的候选地址回 `204`；ICE 重启回 `200`，带应答的片段；`If-Match` 既不是 `*` 也不是这个 `ETag` 时回 `412` |
+| `OPTIONS` | `204`，带 CORS 头和 `Accept-Post: application/sdp` |
+| `GET` | `204` |
+
+拒绝的情况：`authorize` 拒绝时回 401，带 `WWW-Authenticate: Bearer`；请求体类型不对时回 415；offer 里没有音视频，或者媒体服务器不服务这个房间时回 400；已经有 `maxSessions` 个会话时回 503；会话不存在时回 404。
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `sfu` | `'sfu'` | 播放哪个 `SFU` 组件的房间 |
+| `roomOf` | 流的名字 | `({stream, token}, context) => string`：一路流来自哪个房间 |
+| `select` | 最新的 WHIP 推流，没有时是第一个在发布的成员 | `({stream, token}, tracks) => string \| undefined`：观众收哪个成员（它的 id） |
+| `authorize` | 无 | `({stream, token}, context) => boolean`：谁能拉哪路流 |
+| `maxSessions` | `100` | 本节点同时最多多少个会话，`0` 表示不限 |
+| `allowOrigin` | `'*'` | 允许哪些来源的浏览器拉流 |
+| `turn`、`iceServers` | | 在 `Link` 头里给观众的 ICE 服务器 |
+| `cluster`、`turnSecret`、`selectTURN` | | 多个节点（第 13 节） |
+
+一个观众只收一个成员：默认是用 WHIP 推进房间的最新那路流，没有时是第一个发布音视频的成员。`select` 可以另选一个；房间里的轨道每次变化都会重新问它，它抛出错误时观众收默认的那个成员。这个成员停止发布后，观众在同一条连接上接着收下一个：画面会停一下，从下一个关键帧开始恢复。观众的 offer 决定了它收什么，也就是一路音频和一路视频；它的连接会协商 offer 里所有服务器也支持的编码，所以之后用其中任何一种编码推的流也能发给它。
+
+组件在回答之后发出 `play`（会话：它的 `id`、`stream`、`room`、`viewerId` 和 `source`，也就是它正在收的成员），会话结束时发出 `stop`：观众删除了它，它的连接失败或关闭了，或者应用停止了。`whep.sessions` 列出本节点的会话，`sfu.rooms()` 统计每个房间的观众数。
+
+## 12. 部署
 
 - **端口。** 放开 UDP 和 TCP 的 3478 端口、UDP 的中转端口（`relayPortRange`），开启了 TLS 上的 TURN 时还有 TLS 端口。在容器里要把它们全部发布出来；指定中转端口范围可以让需要发布的端口少一些。
 - **公网地址。** `publicAddress` 是客户端访问 TURN 服务器用的地址：主机的公网地址，或者转发了这些端口的 NAT 的地址。在局域网里用默认值就够了。
 - **应用作为成员。** 位于 NAT 后面的服务器，如果 NAT 按相同的端口号转发了 `icePortRange`，就把它的公网地址写进 `iceAdditionalHostAddresses`；否则它和其他客户端一样依靠 TURN 服务器。
-- **多个实例。** 给它们配置 `Cluster`（第 11 节），并给它们的 TURN 服务器配置相同的 `secret`，这样每个实例都认其他实例生成的凭据。
+- **媒体服务器、WHIP 和 WHEP。** 客户端直接连接它们：放开它们 `icePortRange` 的 UDP 端口；NAT 按相同端口号转发这些端口时，把 NAT 的公网地址写进 `iceAdditionalHostAddresses`。连不上它们的客户端经 TURN 服务器中转。
+- **多个实例。** 给它们配置 `Cluster`（第 13 节），并给它们的 TURN 服务器配置相同的 `secret`，这样每个实例都认其他实例生成的凭据。
 - **其他 TURN 服务器。** coturn（`use-auth-secret`，`static-auth-secret` 设为相同的密钥）接受 `createTURNCredentials()` 生成的凭据；把它写进 `Signaling` 的 `iceServers` 选项。
 - **HTTPS。** 浏览器在任何页面上都允许使用 WebRTC，但摄像头和麦克风只能在安全的页面上使用（HTTPS 或 `localhost`）。
 
-## 11. 多个实例
+## 13. 多个实例
 
 应用部署成多个实例时（Kubernetes 部署里的多个 pod、负载均衡后面的多个进程），给它们配置一个 `Cluster`：每个实例是集群里的一个节点，节点之间通过 NATS 或 Redis 通信。把它的名字告诉其他组件后，这些组件就能跨节点工作：
 
 - 信令把连在各个节点上的成员放进同一批房间；
 - TURN 服务器把自己的地址和负载告诉其他节点，每个成员拿到负载最低的几个；
-- WHIP 会话的 DELETE 请求不管到了哪个节点，都能结束这个会话。
+- 媒体服务器共同承载房间：每个成员、每路 WHIP 推流和每个 WHEP 观众都连到某一个节点的媒体服务器上，同一个房间的媒体服务器之间互相转发房间的轨道；
+- WHIP 或 WHEP 会话的 DELETE 和 PATCH 请求不管到了哪个节点，都能结束或修改这个会话。
 
-总线上只传这些消息。音视频和数据仍然在客户端和节点之间直接传输，或者经 TURN 服务器中转。
+总线上只传这些消息。音视频和数据仍然在客户端和节点之间、各节点的媒体服务器之间直接传输，或者经 TURN 服务器中转。
 
 ```typescript
 import {Application} from 'lakutata'
@@ -422,47 +604,86 @@ const signaling = buildSignalingOptions({
 })
 ```
 
-### 负载均衡后面的 WHIP
+### 集群里的媒体服务器
 
-WHIP 会话保存在回答了它的 POST 请求的那个节点上。配置了 `cluster` 后，另一个节点的 `WHIP` 组件收到这个会话的 DELETE 请求时，会去问其他节点，由持有会话的节点结束它。`maxSessions` 统计的是每个节点自己的会话。
+配置了 `cluster` 后，各节点的媒体服务器共同承载房间：每个媒体服务器的 id 是 `sfu:` 加上它所在节点的 id，每个成员连到某一个节点的媒体服务器上。
+
+- 一个房间尽量只放在少数几个节点上。第一个成员分到它加入时所经过的节点，那个节点满了就分到负载最低的节点；之后的成员分到这个房间已经在用的节点里负载最低的那个，这些节点都满了时，分到所有节点里负载最低的那个。负载均衡把客户端随机分到各个节点：没有这条规则，三个人的会议可能会用上三个节点。
+- `selectSFU` 可以改成由应用来挑节点，比如挑离成员最近的；它挑的节点满了或者没有回应时，按默认的规则挑。
+- 只有信令、没有媒体服务器的节点，会去问负载最低的那个有媒体服务器的节点，由那个节点来挑（`selectSFU` 在那里执行）。
+- `maxMembers` 是每个节点的上限：成员加入时没有节点肯接收，加入就会被拒绝（`SignalingLimitException`）。WHIP 推流和 WHEP 观众也按同样的方式分配节点（观众不计入 `maxMembers`，由 WHEP 的 `maxSessions` 限制）。
+- 每个媒体服务器的事件和它的 `rooms()` 只包括本节点上的成员。
+
+```typescript
+import {buildSFUOptions, type SFUNode, type SFUPlacement} from '@lakutata/webrtc'
+
+//id 以 eu- 开头的成员分到标签为 {region: 'eu'} 的节点里负载最低的那个，其他地区以此类推
+const sfu = buildSFUOptions({
+    cluster: 'cluster',
+    selectSFU: (placement: SFUPlacement, nodes: SFUNode[]): string | undefined => {
+        const region: string = placement.peerId.split('-')[0]
+        return nodes
+            .filter((node: SFUNode): boolean => node.labels.region === region)
+            .sort((a: SFUNode, b: SFUNode): number => a.members - b.members)[0]?.id
+    }
+})
+```
+
+同一个房间的媒体服务器之间互相转发房间的轨道。一条轨道只要某个节点上有人接收（被 `select` 选中的成员、观众、`sfu.track()`），就给那个节点发一份，不管那里有多少人接收，而且从发布者所在的节点直接发过去。节点之间和客户端一样用 WebRTC 连接（DTLS-SRTP），走各自的 `icePortRange`。分在不同节点上的两个成员之间的数据通道，会经过两个节点的媒体服务器。
+
+某个节点下线时（它停止了，或者其他节点连续三次没收到它的心跳，约 6 秒），它的媒体服务器离开它的房间。它上面的成员通过信令重新加入房间，分到另一个节点的媒体服务器，重新发布自己的轨道；其他人会看到这些成员的轨道中断几秒。换了节点的成员，它自己的 peer 和别人到它的 peer 都会关闭再重新打开，就像成员刷新了页面一样：`peer` 的监听函数会重新创建它的通道。如果这时所有节点都满了，客户端不会像第一次 `join()` 那样直接失败：它先等 1 秒再试，之后每次等待时间加倍（最多 10 秒），每次失败它的信令都发出一个 `error`，直到有节点接收这个成员，或者它离开了这个房间。
+
+WHIP 或 WHEP 会话保存在回答了它的 POST 请求的节点上，它的连接则在为它挑选的节点上。它的 PATCH 和 DELETE 请求可以到达任何节点；PATCH 到了不持有会话的节点时，要等所有节点回应，最多 12 秒。观众默认收它所在节点最后得知的那路 WHIP 推流。
+
+### 负载均衡后面的 WHIP 和 WHEP
+
+WHIP 或 WHEP 会话保存在回答了它的 POST 请求的那个节点上。配置了 `cluster` 后，另一个节点的 `WHIP` 或 `WHEP` 组件收到这个会话的 DELETE 或 PATCH 请求时，会去问其他节点，由持有会话的节点处理。`maxSessions` 统计的是每个节点自己的会话。
 
 ### Kubernetes 和 k3s
 
-下面的清单部署 NATS、信令（两个 pod），以及每个节点上的一个 TURN 服务器。应用只有一个镜像，两种角色由环境变量 `ROLE` 决定：
+下面的清单部署 NATS、信令（两个 pod），以及每个节点上的一个 TURN 服务器和一个媒体服务器。应用只有一个镜像，三种角色由环境变量 `ROLE` 决定：
 
 ```typescript
 import {Application, type ApplicationOptions} from 'lakutata'
 import {buildEntrypoints} from 'lakutata/com/entrypoint'
 import {socketIOServiceEntrypoint} from 'lakutata/adapter/socket.io'
-import {buildClusterOptions, buildSignalingOptions, buildTURNServerOptions, SignalingController} from '@lakutata/webrtc'
+import {buildClusterOptions, buildSFUOptions, buildSignalingOptions, buildTURNServerOptions, SignalingController} from '@lakutata/webrtc'
 
-const turn: boolean = process.env.ROLE === 'turn'
 const cluster = buildClusterOptions({transport: {type: 'nats', servers: process.env.NATS_URL}})
-const components: ApplicationOptions['components'] = turn
-    ? {
+const signaling = buildSignalingOptions({cluster: 'cluster', turnSecret: process.env.TURN_SECRET})
+const roles: Record<string, ApplicationOptions['components']> = {
+    signaling: {
         cluster: cluster,
-        //在节点的网络上：用节点的地址，以及节点的 3478 端口和 49160-49200 端口
+        signaling: signaling,
+        entrypoint: buildEntrypoints({
+            controllers: [SignalingController],
+            service: socketIOServiceEntrypoint({port: 3000})
+        })
+    },
+    //在节点的网络上：用节点的地址，以及节点的 3478 端口和 49160-49200 端口
+    turn: {
+        cluster: cluster,
         turn: buildTURNServerOptions({
             cluster: 'cluster',
             secret: process.env.TURN_SECRET,
             publicAddress: process.env.PUBLIC_ADDRESS,
             relayPortRange: [49160, 49200]
         })
-    }
-    : {
+    },
+    //同样在节点的网络上，用节点的 40000-40999 端口；它的信令没有 entrypoint：成员通过信令的 pod 加入，由信令给每个成员分配一个节点的媒体服务器
+    sfu: {
         cluster: cluster,
-        signaling: buildSignalingOptions({cluster: 'cluster', turnSecret: process.env.TURN_SECRET}),
-        entrypoint: buildEntrypoints({
-            controllers: [SignalingController],
-            service: socketIOServiceEntrypoint({port: 3000})
-        })
+        signaling: signaling,
+        sfu: buildSFUOptions({cluster: 'cluster', icePortRange: [40000, 40999], workers: 2})
     }
+}
+const components: ApplicationOptions['components'] = roles[process.env.ROLE ?? 'signaling']
 
 Application.run(() => ({
     id: 'meet.app',
     name: 'Meet',
     components: components,
-    bootstrap: turn ? ['turn'] : ['signaling', 'entrypoint']
+    bootstrap: Object.keys(components ?? {})
 }))
 ```
 
@@ -576,15 +797,45 @@ spec:
                 secretKeyRef:
                   name: turn
                   key: secret
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sfu
+spec:
+  selector:
+    matchLabels:
+      app: sfu
+  template:
+    metadata:
+      labels:
+        app: sfu
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: sfu
+          image: registry.example.com/meet:1.0.0
+          env:
+            - name: ROLE
+              value: sfu
+            - name: NATS_URL
+              value: nats://nats:4222
+            - name: TURN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: turn
+                  key: secret
 ```
 
-- TURN 服务器运行在所在节点的网络上（`hostNetwork`）：客户端通过节点的地址和节点的端口访问它。在节点的防火墙里放开 UDP 和 TCP 的 3478 端口，以及 UDP 的 49160–49200 端口。
-- `status.hostIP` 是节点在集群里的地址：客户端能通过这个地址访问节点时（局域网、有公网地址的节点）直接用它就行。在云服务商的 NAT 后面，要把每个节点的公网地址填进 `PUBLIC_ADDRESS`，并让 NAT 转发相同的端口。
+- TURN 服务器和媒体服务器运行在所在节点的网络上（`hostNetwork`）：客户端通过节点的地址和节点的端口访问它们。在节点的防火墙里放开 UDP 和 TCP 的 3478 端口、UDP 的 49160–49200 端口和 UDP 的 40000–40999 端口；各节点的媒体服务器之间也通过 40000–40999 端口互相连接。
+- `status.hostIP` 是节点在集群里的地址：客户端能通过这个地址访问节点时（局域网、有公网地址的节点）直接用它就行。在云服务商的 NAT 后面，要把每个节点的公网地址填进 `PUBLIC_ADDRESS`，让 NAT 转发相同的端口，并把这个地址写进媒体服务器的 `iceAdditionalHostAddresses`。
 - 运行在节点网络上的 pod 要设置 `dnsPolicy: ClusterFirstWithHostNet`，才能解析服务的名字。
 - 浏览器经由 `signaling` 服务前面的 Ingress 或负载均衡访问信令，并用 `transports: ['websocket']` 连接。
 - 测试时一个 NATS pod 就够了；生产环境请运行 NATS 集群（用它的 Helm chart），或者带副本的 Redis。
+- 整个集群同时启动时，pod 可能在集群的 DNS 能解析 `nats` 之前就启动了（日志里是 `getaddrinfo EAI_AGAIN nats`）：应用启动时连不上 NATS 就会停止，Kubernetes 会一直重启它，直到能连上。这时每个 pod 重启几次是正常的。
 
-仓库里的 `packages/webrtc/test-env/k3s/run.sh` 在 Docker 里的 k3s 上部署这些清单（两个节点，挂载代码而不是使用镜像），然后让两个成员分别通过两个 pod 连接，并且只经 TURN 服务器中转。
+仓库里的 `packages/webrtc/test-env/k3s/run.sh` 在 Docker 里的 k3s 上部署这些清单（两个节点，挂载代码而不是使用镜像）。它先让两个成员分别通过两个 pod 连接，并且只经 TURN 服务器中转；再让两个成员分别连到两个节点的媒体服务器，然后删掉其中一个成员所在的 pod：这个成员会转到替代它的那个 pod 上。
 
 ### 应用自己使用集群
 
@@ -616,13 +867,13 @@ export class Viewers extends Component {
 
 `cluster.nodes()` 列出所有节点，以及它们的标签和公布的信息（`announce()`）；组件还会发出 `node-up`、`node-down` 和 `node-update` 事件。消息以 JSON 发送；比服务器单条消息上限还大的消息（NATS 默认 1 MiB）会分成几段发送。
 
-## 12. 信令协议
+## 14. 信令协议
 
 其他语言的客户端和原生应用可以直接使用这个协议。请求是模式为 `{method}` 的服务调用：Socket.IO 上是带确认回调（`{success, error, payload}`）的 `message` 事件，内容如 `{method: 'webrtc.join', room: 'room-1'}`；JSON-RPC 2.0 上是方法名为 `webrtc.join` 的请求。服务端把事件推给成员：Socket.IO 的事件，或者 `params` 里放着内容的 JSON-RPC 通知。
 
 | 请求 | 参数 | 返回 |
 |---|---|---|
-| `webrtc.join` | `room`、`metadata`、`session` | `{v, peerId, peers, iceServers, credentialTtl, heartbeatInterval}` |
+| `webrtc.join` | `room`、`metadata`、`session` | `{v, peerId, peers, iceServers, credentialTtl, heartbeatInterval, sfu}` |
 | `webrtc.signal` | `room`、`to`，以及 `description`（`{type, sdp}`）或 `candidate`（`{candidate, sdpMid, sdpMLineIndex, usernameFragment}`） | `{delivered}` |
 | `webrtc.leave` | `room` | `{}` |
 | `webrtc.iceServers` | — | `{iceServers, credentialTtl}`：新的凭据 |
@@ -630,16 +881,18 @@ export class Viewers extends Component {
 
 | 事件 | 内容 |
 |---|---|
-| `webrtc:peer-joined` | `{room, peerId, metadata, session}`：有成员加入或重新加入 |
+| `webrtc:peer-joined` | `{room, peerId, metadata, session, role, sfu}`：有成员加入或重新加入 |
 | `webrtc:peer-left` | `{room, peerId, reason}`：主动离开时是 `left`，客户端断开时是 `disconnected` |
-| `webrtc:signal` | `{room, from, session, description}` 或 `{room, from, session, candidate}` |
+| `webrtc:signal` | `{room, from, session, description, streams}` 或 `{room, from, session, candidate}` |
 
 - `session` 是客户端自己选的一个随机字符串，只选一次。成员用同一个会话重新加入时（信令重新连上之后），其他成员保留到它的连接；用新的会话加入时（页面刷新了），其他成员会替换到它的连接。
 - Socket.IO 和 WebSocket 上的 JSON-RPC 的 `heartbeatInterval` 是 0：服务端能察觉它们的连接关闭。在其他传输方式上，客户端每隔这么久发送一次 `webrtc.heartbeat`；连续三个间隔没有任何请求时，它会离开它的房间。
 - 一对成员里，id 排在前面（按字符串比较）的一方是“礼让”的一方：双方同时发出 offer 时，它放弃自己的 offer，回答对方的。
-- 错误带有服务端异常的 `errno`：`E_SIGNALING_DENIED`、`E_SIGNALING_LIMIT`、`E_SIGNALING_NOT_A_MEMBER`、`E_SIGNALING_CLIENT_REQUIRED`、`E_INVALID_VALUE`。HTTP 上的 JSON-RPC 不能承载信令：事件需要通过一条连接推送。
+- 媒体服务器相关的字段都由服务端设置：`role` 对媒体服务器是 `sfu`，对 WHIP 推流是 `whip`（客户端没有这个字段）；`sfu` 是一个成员所连的媒体服务器的 id，在 `webrtc.join` 的返回里是客户端要连的那个。在有媒体服务器的房间里，客户端只连接它，并且在和它的连接里做礼让的一方。媒体服务器发出的 description 带有 `streams`：它发出的每个流在这条连接上的 `id`、来自哪个成员（`peerId`），以及这个流在那个成员自己的连接上的 id（`stream`）。
+- 在和媒体服务器的连接上，1023 号数据通道（标签 `webrtc.control`，两边都用 `negotiated: true` 和这个 `id` 创建）传 JSON 格式的 `{type: 'pause' | 'resume', mid}`：服务器暂停或恢复发送这个收发器的轨道。经过服务器发给某个成员的数据通道，`protocol` 是那个成员的 id；服务器在那个成员一侧打开通道时，`protocol` 写的是发送方的 id。各节点的媒体服务器之间也用 1023 号通道，以及 `protocol` 为 JSON 格式 `["发送方", "成员"]` 的通道。
+- 错误带有服务端异常的 `errno`：`E_SIGNALING_DENIED`、`E_SIGNALING_LIMIT`（房间满了，或者没有媒体服务器肯接收这个成员）、`E_SIGNALING_NOT_A_MEMBER`、`E_SIGNALING_CLIENT_REQUIRED`、`E_INVALID_VALUE`。HTTP 上的 JSON-RPC 不能承载信令：事件需要通过一条连接推送。
 
-## 13. 连接失败时
+## 15. 连接失败时
 
 `setDebugHandler()` 给出 ICE、DTLS、SCTP 和 TURN 的调试信息：
 
@@ -650,9 +903,13 @@ import {setDebugHandler} from '@lakutata/webrtc'
 setDebugHandler((namespace: string, args: unknown[]): void => console.debug(namespace, format(...args)))
 ```
 
+媒体服务器的工作线程也把调试信息发到同一个处理函数，每条信息以线程编号开头（`[thread 0] …`）。媒体服务器或 WHEP 的 `select` 抛出的错误记在 `webrtc/sfu` 和 `webrtc/whep` 下面。
+
 要检查 TURN 服务器，可以让两个客户端用 `iceTransportPolicy: 'relay'` 加入同一个房间：它们只能经过中转连接，`turn.allocations` 会统计到它们。在 Chrome 里，`chrome://webrtc-internals` 能看到候选地址和尝试过的地址对。
 
-## 14. 限制
+## 16. 限制
 
 - Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
 - 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 44 万条。
+- 媒体服务器不转码，按发布时的样子发送每路视频：还没有 simulcast，所以带宽不够的成员收到的是 `congestion` 事件，而不是更低的画质。它在一台机器上的转发能力见第 9 节；仓库里的 `packages/webrtc/test-env/bench/forward.mjs` 可以在别的机器上测。
+- 集群里的媒体服务器把一条轨道从发布者所在的节点直接发给每个需要它的节点，一个房间分布在几十个节点上没有问题；再多的话，就需要节点之间逐级转发了。

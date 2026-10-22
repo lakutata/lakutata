@@ -220,16 +220,16 @@ export interface SFUOptions {
  * package (`SignalingClient`, `SignalingConnection` of `./client`) connect to it by themselves, and their rooms and
  * peers work as without it: `room.publish()` sends a track to every member, each peer emits the tracks of its member,
  * and a data channel to a member goes through the server, which relays its messages (unlike between two members, the
- * server sees them; with a cluster, the servers of both members relay them). The key frame requests of the members go to the publisher, at most every 500 ms; the lost packets
- * are sent again by the server; the bandwidth of each connection is estimated from the transport-wide feedback. A
- * member receiving the messages of a channel slower than they are sent makes the sender wait, without the server
- * keeping more than a few megabytes of them.
+ * server sees them; with a cluster, the servers of both members relay them). The key frame requests of the members go
+ * to the publisher, at most every 500 ms; the lost packets are sent again by the server; the bandwidth of each
+ * connection is estimated from the transport-wide feedback. A member receiving the messages of a channel slower than
+ * they are sent makes the sender wait, without the server keeping more than a few megabytes of them.
  *
  * Events: `publish` and `unpublish` (an {@link SFUTrack}) when a member of this node starts and stops publishing a
- * track (with a cluster, they are emitted on the node of the member only),
- * `unsupported` (the room, the id of the member or of the viewer of WHEP, the track) when a member or a viewer does not
- * support the codec of a track it should receive, `congestion` (the room, the id of the member, whether it is
- * congested, the bit rate estimated) when the bandwidth to a member is too low, and when it is enough again.
+ * track (with a cluster, they are emitted on the node of the member only), `unsupported` (the room, the id of the
+ * member or of the viewer of WHEP, the track) when a member or a viewer does not support the codec of a track it should
+ * receive, `congestion` (the room, the id of the member, whether it is congested, the bit rate estimated in bits per
+ * second) when the bandwidth to a member is too low, and when it is enough again.
  *
  * Register it with {@link buildSFUOptions}, and bootstrap it: it attaches itself to the signaling when it starts.
  * @example

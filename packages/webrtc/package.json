@@ -1,7 +1,7 @@
 {
   "name": "@lakutata/webrtc",
   "version": "3.1.0",
-  "description": "WebRTC for the lakutata framework, in TypeScript without native code: the signaling, a STUN/TURN server, WHIP ingestion, peer connections with data channels and audio and video tracks in Node.js, Electron and Bun, and a browser client.",
+  "description": "WebRTC for the lakutata framework, in TypeScript without native code: the signaling, a STUN/TURN server, a media server (SFU) for rooms of many members, WHIP publishing and WHEP playback, peer connections with data channels and audio and video tracks in Node.js, Electron and Bun, and a browser client.",
   "keywords": [
     "lakutata",
     "webrtc",
@@ -15,6 +15,9 @@
     "srtp",
     "rtp",
     "whip",
+    "whep",
+    "sfu",
+    "media-server",
     "peer-to-peer",
     "typescript"
   ],
