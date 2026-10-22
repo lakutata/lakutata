@@ -92,7 +92,9 @@ const DISCONNECTED_RESTART_DELAY: number = 5000
  *
  * In a room with a media server, the members are not connected to each other: `connection` is the connection to the
  * server, the same for all the peers, and the tracks of a member come through it (the ids of their streams are the
- * ones of that connection: see `Room.streamOf()`).
+ * ones of that connection: see `Room.streamOf()`). When the local member or the member is connected to another media
+ * server (its node went down), the peer closes and the room emits a new one, as for a member joining again with a new
+ * session: the listeners of `peer` create its channels again.
  */
 export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLike> extends Emitter<PeerEvents<ChannelOf<Connection>, TrackEventOf<Connection>>> {
 
@@ -142,6 +144,10 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
 
     //The peer of the media server whose connection this one uses
     #relaySource?: Peer<Connection>
+
+    //Through the media server: the channels to the member and from it, closed with the peer (as the ones of a
+    //connection of its own)
+    readonly #relayedChannels: Set<ChannelOf<Connection>> = new Set()
 
     //Resolves the first exchange of an offer and an answer
     #negotiatedOnce: () => void
@@ -229,7 +235,7 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
     public createDataChannel(label: string, options?: DataChannelOptions): ChannelOf<Connection> {
         if (!this.#host.relay) return this.#connection.createDataChannel(label, options) as ChannelOf<Connection>
         if (options?.negotiated || options?.protocol) throw new TypeError('A channel through the media server has no protocol of its own and is not negotiated')
-        return this.#connection.createDataChannel(label, {...options, protocol: this.id}) as ChannelOf<Connection>
+        return this.#keepRelayed(this.#connection.createDataChannel(label, {...options, protocol: this.id}) as ChannelOf<Connection>)
     }
 
     /**
@@ -271,8 +277,16 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
         this.#closed = true
         clearTimeout(this.#restartTimer)
         if (this.#host.relay) {
-            //The connection is the one of the media server
+            //The connection is the one of the media server: only the channels of the member are closed
             if (this.#relayState) this.#relaySource?.off('connectionstatechange', this.#relayState)
+            for (const channel of [...this.#relayedChannels]) {
+                try {
+                    channel.close()
+                } catch {
+                    //Closed already
+                }
+            }
+            this.#relayedChannels.clear()
         } else {
             try {
                 this.#connection?.close()
@@ -318,27 +332,26 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
     }
 
     /**
-     * The media server of the room changed: the peer uses the connection of the new one
-     * @internal
+     * Use the connection of the media server of the room (when the media server changes, the room replaces its peers)
+     * @param relay The peer of the media server.
      */
-    public relayChanged(): void {
-        if (!this.#host.relay || this.#closed) return
-        this.#queue = this.#queue.then((): Promise<void> => this.#bindRelay()).catch((error: Error): void => this.#fail(error))
+    async #bindRelay(relay: Peer<Connection>): Promise<void> {
+        this.#relaySource = relay
+        await relay.ready
+        if (this.#closed) return
+        this.#connection = relay.connection
+        this.#relayState = (state: string): void => void this.emit('connectionstatechange', state)
+        relay.on('connectionstatechange', this.#relayState)
     }
 
     /**
-     * Use the connection of the media server of the room
+     * Keep a channel through the media server, to close it with the peer
+     * @param channel
      */
-    async #bindRelay(): Promise<void> {
-        const relay: Peer<Connection> | undefined = this.#host.relay
-        if (!relay || relay === this.#relaySource) return
-        if (this.#relayState) this.#relaySource?.off('connectionstatechange', this.#relayState)
-        this.#relaySource = relay
-        await relay.ready
-        if (this.#closed || this.#relaySource !== relay) return
-        this.#connection = relay.connection
-        this.#relayState ??= (state: string): void => void this.emit('connectionstatechange', state)
-        relay.on('connectionstatechange', this.#relayState)
+    #keepRelayed(channel: ChannelOf<Connection>): ChannelOf<Connection> {
+        this.#relayedChannels.add(channel)
+        channel.addEventListener('close', (): boolean => this.#relayedChannels.delete(channel))
+        return channel
     }
 
     /**
@@ -365,7 +378,7 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      */
     public relayedChannel(channel: ChannelOf<Connection>): void {
         if (this.#closed) return channel.close()
-        this.emit('datachannel', channel)
+        this.emit('datachannel', this.#keepRelayed(channel))
     }
 
     /**
@@ -390,7 +403,7 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      * Create the connection and listen to it; a peer through the media server uses its connection
      */
     async #open(): Promise<void> {
-        if (this.#host.relay) return await this.#bindRelay()
+        if (this.#host.relay) return await this.#bindRelay(this.#host.relay)
         const connection: Connection = await this.#host.create()
         this.#connection = connection
         if (this.#closed) {

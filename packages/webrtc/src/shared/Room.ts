@@ -21,7 +21,8 @@ export type RoomEvents<Connection extends PeerConnectionLike<any>> = {
      */
     peer: [peer: Peer<Connection>]
     /**
-     * A peer was closed: its member left, or its connection was lost for good.
+     * A peer was closed: its member left, its connection was lost for good, or the local member or the member is
+     * connected to another media server (a new peer of the member follows).
      */
     'peer-left': [peer: Peer<Connection>]
     /**
@@ -118,6 +119,9 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
     #server?: Peer<Connection>
 
     #control?: ChannelOf<Connection>
+
+    //The media server each member is connected to, as the signaling gives it
+    readonly #serversOf: WeakMap<Peer<Connection>, string> = new WeakMap()
 
     /**
      * Create a room (by the signaling session joining it).
@@ -277,18 +281,21 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
             if (event.peerId !== this.#sfu) return
             const server: Peer<Connection> | undefined = this.#server
             if (server && !server.closed && server.id === event.peerId && (server.session === event.session || event.session === undefined)) return server.rejoined(event.metadata)
-            this.#serverGone()
+            //Another one, or the same one joining again with a new session: the peers of the members are replaced
+            server?.close()
             this.#serverPeer(event.metadata, event.session)
             return
         }
         const peer: Peer<Connection> | undefined = this.#peers.get(event.peerId)
-        if (peer && !peer.closed && (peer.session === event.session || event.session === undefined)) {
+        const moved: boolean = !!peer && event.sfu !== undefined && this.#serversOf.has(peer) && this.#serversOf.get(peer) !== event.sfu
+        if (peer && !peer.closed && (peer.session === event.session || event.session === undefined) && !moved) {
             peer.rejoined(event.metadata)
             return
         }
-        //A new client behind the same id (a reloaded page): its old connection is useless
+        //A new client behind the same id (a reloaded page), or the member connected to another media server (its node
+        //went down): its old connection, or the channels through its media server, are of no use
         peer?.close()
-        this.#add(event.peerId, event.metadata, event.session)
+        this.#add(event.peerId, event.metadata, event.session, event.sfu)
     }
 
     /**
@@ -347,12 +354,14 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
     }
 
     /**
-     * The peer of the media server: created once, its connection carrying the media of all the members
+     * The peer of the media server: created once, its connection carrying the media of all the members. When it replaces
+     * another one, the peers of the members, which used the connection to that one, are replaced too
      * @param metadata
      * @param session
      */
     #serverPeer(metadata?: unknown, session?: string): Peer<Connection> {
         if (this.#server && !this.#server.closed) return this.#server
+        const members: SignalingPeer[] = this.#serverGone()
         const roomHost: RoomHost<Connection> = this.#host
         const host: PeerHost<Connection> = {
             localId: this.#host.localId,
@@ -369,8 +378,7 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
         }
         const server: Peer<Connection> = new Peer(host, this.#sfu!, metadata, session)
         this.#server = server
-        //The peers of the members take its connection
-        for (const peer of this.#peers.values()) peer.relayChanged()
+        for (const member of members) this.#add(member.peerId, member.metadata, member.session, member.sfu)
         server.on('error', (error: Error): void => void this.emit('error', error, server))
         server.on('track', (event: TrackEventOf<Connection>): void => {
             this.#unrouted.push(event)
@@ -405,12 +413,18 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
     }
 
     /**
-     * The media server of the room is gone: its peer is closed, with what came through it; the peers of the members
-     * stay, for the next one
+     * The media server of the room is gone: its peer is closed, with what came through it, and the peers of the members,
+     * whose channels went through it (as when the members join again with a new session)
+     * @returns The members whose peer was closed.
      */
-    #serverGone(): void {
+    #serverGone(): SignalingPeer[] {
         const server: Peer<Connection> | undefined = this.#server
-        if (!server) return
+        if (!server) return []
+        const members: SignalingPeer[] = []
+        for (const peer of [...this.#peers.values()]) {
+            members.push({peerId: peer.id, metadata: peer.metadata, session: peer.session, sfu: this.#serversOf.get(peer)})
+            peer.close()
+        }
         server.close()
         this.#control = undefined
         this.#controls.length = 0
@@ -421,6 +435,7 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
         for (const publication of this.#published.values()) {
             for (const connection of [...publication.transceivers.keys()]) if (connection === server.connection) publication.transceivers.delete(connection)
         }
+        return members
     }
 
     /**
@@ -509,13 +524,12 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      * @param id
      * @param metadata
      * @param session
+     * @param sfu The media server the member is connected to.
      */
-    #add(id: string, metadata: unknown, session: string | undefined): Peer<Connection> {
-        const room: Room<Connection> = this
+    #add(id: string, metadata: unknown, session: string | undefined, sfu?: string): Peer<Connection> {
+        //With a media server, its connection
+        const relay: Peer<Connection> | undefined = this.#sfu ? this.#serverPeer() : undefined
         const roomHost: RoomHost<Connection> = this.#host
-        //With a media server, its connection (the one of the next media server when it changes)
-        const relayed: boolean = !!this.#sfu
-        if (relayed) this.#serverPeer()
         const host: PeerHost<Connection> = {
             localId: this.#host.localId,
             create: (): Connection | Promise<Connection> => this.#host.create(),
@@ -530,13 +544,12 @@ export class Room<Connection extends PeerConnectionLike<any> = PeerConnectionLik
                 }
                 if (this.#ready.delete(closed)) this.emit('peer-left', closed)
             },
-            get relay(): Peer<Connection> | undefined {
-                return relayed ? room.#server : undefined
-            },
-            ...relayed ? {control: (message: SignalingControlMessage): void => this.#controlSend(message)} : {}
+            relay: relay,
+            ...relay ? {control: (message: SignalingControlMessage): void => this.#controlSend(message)} : {}
         }
         const peer: Peer<Connection> = new Peer(host, id, metadata, session)
         this.#peers.set(id, peer)
+        if (sfu !== undefined) this.#serversOf.set(peer, sfu)
         peer.on('error', (error: Error): void => void this.emit('error', error, peer))
         peer.ready.then((): void => {
             if (peer.closed) return

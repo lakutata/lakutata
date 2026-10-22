@@ -168,7 +168,7 @@ describe('SFU in a cluster', (): void => {
         }
     })
 
-    it('moves the members of a media server whose node goes down to another one', {timeout: 90000}, async (): Promise<void> => {
+    it('moves the members of a media server whose node goes down to another one, their peers opening again', {timeout: 90000}, async (): Promise<void> => {
         //The members go to n1 while it is there
         const selectSFU = (_placement: SFUPlacement, nodes: SFUNode[]): string | undefined => nodes.find((node: SFUNode): boolean => node.id === 'n1')?.id
         const servers: TestServer[] = await startNodes({n0: {sfu: {selectSFU: selectSFU}}, n1: {sfu: {selectSFU: selectSFU}}})
@@ -178,15 +178,31 @@ describe('SFU in a cluster', (): void => {
             members.push(await member(clients, servers[0], 'alice', 0))
             members.push(await member(clients, servers[0], 'bob', 100000))
             const [alice, bob] = members
+            //A channel to each peer, created by the listener of peer as without a media server
+            const heard: Map<Member, string[]> = new Map([[alice, []], [bob, []]])
+            const left: Map<Member, string[]> = new Map([[alice, []], [bob, []]])
+            for (const [each, name] of [[alice, 'alice'], [bob, 'bob']] as [Member, string][]) {
+                each.room.on('peer', (peer: Peer): void => {
+                    const channel: PeerChannel = peer.createDataChannel('chat')
+                    channel.on('open', (): void => channel.send(`${name} to ${peer.id}`))
+                    peer.on('datachannel', (received: PeerChannel): void => void received.on('message', (data: string | Buffer | ArrayBuffer): number => heard.get(each)!.push(String(data))))
+                })
+                each.room.on('peer-left', (peer: Peer): number => left.get(each)!.push(peer.id))
+            }
+            const messages = (each: Member, message: string): number => heard.get(each)!.filter((received: string): boolean => received === message).length
             assert.deepStrictEqual([alice.room.sfu, bob.room.sfu], ['sfu:n1', 'sfu:n1'])
             await until((): boolean => alice.received.size === 1 && bob.received.size === 1, 20000, 'the tracks')
+            await until((): boolean => messages(alice, 'bob to alice') === 1 && messages(bob, 'alice to bob') === 1, 20000, 'the messages')
             //n1 goes down: its members join the room again, on n0, and publish again
             await servers[1].stop()
             await until((): boolean => alice.room.sfu === 'sfu:n0' && bob.room.sfu === 'sfu:n0', 20000, 'the media server of n0')
-            await until((): boolean => alice.received.get('bob')!.length === 2 && bob.received.get('alice')!.length === 2, 20000, 'the tracks again')
-            assert.ok(await from(alice.received.get('bob')![1].track, 100000), 'bob at alice again')
-            assert.ok(await from(bob.received.get('alice')![1].track, 0), 'alice at bob again')
-            //The same peers, on the connection of the new media server
+            await until((): boolean => alice.received.get('bob')!.length >= 2 && bob.received.get('alice')!.length >= 2, 20000, 'the tracks again')
+            assert.ok(await from(alice.received.get('bob')!.at(-1)!.track, 100000), 'bob at alice again')
+            assert.ok(await from(bob.received.get('alice')!.at(-1)!.track, 0), 'alice at bob again')
+            //New peers, as for a member joining again with a new session: the listeners of peer create their channels again
+            assert.ok(left.get(alice)!.length > 0 && left.get(alice)!.every((id: string): boolean => id === 'bob'), 'the peer of bob left')
+            assert.ok(left.get(bob)!.length > 0 && left.get(bob)!.every((id: string): boolean => id === 'alice'), 'the peer of alice left')
+            await until((): boolean => messages(alice, 'bob to alice') >= 2 && messages(bob, 'alice to bob') >= 2, 20000, 'the messages again')
             assert.strictEqual(alice.room.peer('bob')!.connection.connectionState, 'connected')
         } finally {
             members.forEach((each: Member): void => each.stop())
