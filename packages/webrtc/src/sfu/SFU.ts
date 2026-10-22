@@ -3,6 +3,7 @@ import {Component, type ComponentOptions, DTO} from '@lakutata/core'
 import {Configurable, Singleton} from '@lakutata/core/decorator/di'
 import type {Cluster, ClusterNode} from '../cluster/Cluster.js'
 import {SignalingLimitException} from '../exceptions/SignalingLimitException.js'
+import {debug} from '../lib/common/log.js'
 import {SUPPORTED_CODECS} from '../peer/MediaCodecs.js'
 import type {MediaKind, MediaTrack} from '../peer/MediaTrack.js'
 import {PeerConnection} from '../peer/PeerConnection.js'
@@ -20,6 +21,8 @@ import {SFUWorkers} from './SFUWorkers.js'
  */
 class Refused extends Error {
 }
+
+const log = debug('webrtc/sfu')
 
 /**
  * How often a media server announces its load on the cluster, in milliseconds
@@ -190,7 +193,8 @@ export interface SFUOptions {
     maxMembers?: number
     /**
      * Decides which member receives which track. It is asked again for a member that joins the room again with other
-     * metadata; the tracks the member receives follow the new answers.
+     * metadata; the tracks the member receives follow the new answers. When it throws, the member does not receive the
+     * track, and the error goes to the debug messages (`webrtc/sfu`, see `setDebugHandler`).
      * @default every member receives every track of the others
      */
     select?: SFUSelect
@@ -806,7 +810,7 @@ export class SFU extends Component {
             get signaling(): Signaling {
                 return sfu.#signalingObject
             },
-            select: this.select,
+            select: this.select ? (subscriber: SignalingPeer, track: SFUTrack): boolean => this.#selects(subscriber, track) : undefined,
             emit: (event: string, ...args: unknown[]): unknown => this.emit(event, ...args),
             emptied: (room: SFUServedRoom): void => this.#leave(room),
             lost: (room: SFUServedRoom): void => this.#lost(room),
@@ -832,6 +836,21 @@ export class SFU extends Component {
     }
 
     /**
+     * Whether a member receives a track: the answer of select, no when it throws
+     * @param subscriber
+     * @param track
+     */
+    #selects(subscriber: SignalingPeer, track: SFUTrack): boolean {
+        if (!this.select) return true
+        try {
+            return this.select(subscriber, track)
+        } catch (error) {
+            log('select threw for %s and the track %s of %s, which it does not receive: %s', subscriber.peerId, track.id, track.peerId, error)
+            return false
+        }
+    }
+
+    /**
      * What the rooms need of the server
      * @protected
      */
@@ -848,7 +867,7 @@ export class SFU extends Component {
                 ...this.icePortRange ? {icePortRange: this.icePortRange} : {},
                 ...this.iceAdditionalHostAddresses ? {iceAdditionalHostAddresses: this.iceAdditionalHostAddresses} : {}
             }),
-            select: (subscriber: SignalingPeer, track: SFUTrack): boolean => !this.select || this.select(subscriber, track),
+            select: (subscriber: SignalingPeer, track: SFUTrack): boolean => this.#selects(subscriber, track),
             emit: (event: string, ...args: unknown[]): unknown => this.emit(event, ...args),
             emptied: (room: SFURoom): void => this.#leave(room),
             sourced: (viewerId: string, source: string | undefined): void => this.#sourced(viewerId, source)

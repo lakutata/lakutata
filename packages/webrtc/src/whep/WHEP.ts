@@ -13,6 +13,7 @@ import {WHEPDeniedException} from '../exceptions/WHEPDeniedException.js'
 import {WHEPLimitException} from '../exceptions/WHEPLimitException.js'
 import {WHEPOfferException} from '../exceptions/WHEPOfferException.js'
 import {WHEPSessionNotFoundException} from '../exceptions/WHEPSessionNotFoundException.js'
+import {debug} from '../lib/common/log.js'
 
 /**
  * Who plays a stream: the stream of the URL, and the bearer token of the request.
@@ -97,7 +98,8 @@ export interface WHEPOptions {
      */
     roomOf?: WHEPRoomOf
     /**
-     * Chooses the member of the room a viewer receives.
+     * Chooses the member of the room a viewer receives. When it throws, the viewer receives the default one, and the
+     * error goes to the debug messages (`webrtc/whep`, see `setDebugHandler`).
      * @default the newest stream published with WHIP, else the first member publishing
      */
     select?: WHEPSelect
@@ -145,6 +147,8 @@ export interface WHEPOptions {
      */
     allowOrigin?: string
 }
+
+const log = debug('webrtc/whep')
 
 /**
  * The topic of the requests ending a session on the node holding it
@@ -378,7 +382,14 @@ export class WHEP extends Component {
         if (offer.type !== 'offer' || !/^m=(audio|video) /m.test(offer.sdp ?? '')) throw new WHEPOfferException('The offer has no audio and no video')
         const room: string = this.roomOf ? await this.roomOf(viewer, options.context) : stream
         const sfu: SFU = await this.getObject<SFU>(this.sfu)
-        const select: ((tracks: SFUTrack[]) => string | undefined) | undefined = this.select ? (tracks: SFUTrack[]): string | undefined => this.select!(viewer, tracks) : undefined
+        const select: ((tracks: SFUTrack[]) => string | undefined) | undefined = this.select ? (tracks: SFUTrack[]): string | undefined => {
+            try {
+                return this.select!(viewer, tracks)
+            } catch (error) {
+                log('select threw for a viewer of %s, which receives the default member: %s', stream, error)
+                return undefined
+            }
+        } : undefined
         let played: {viewerId: string, leg: EndpointLeg & {source(): string | undefined}}
         try {
             played = await sfuAccess.get(sfu)!.play(room, offer, select)

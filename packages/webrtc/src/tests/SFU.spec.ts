@@ -271,13 +271,20 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
     })
 
     it('serves the rooms chosen, up to its members, with the tracks selected for each', {timeout: 60000}, async (): Promise<void> => {
+        const logged: string[] = []
+        setDebugHandler((namespace: string, args: unknown[]): void => {
+            if (namespace === 'webrtc/sfu') logged.push(format(...args))
+        })
         const server: TestServer = await startServer({
             sfu: {
                 workers: workers,
                 serves: (room: string): boolean => room === 'meeting',
                 maxMembers: 2,
-                //bob receives nothing
-                select: (subscriber): boolean => subscriber.peerId !== 'bob'
+                //bob receives nothing: select throws for him, which counts as no
+                select: (subscriber): boolean => {
+                    if (subscriber.peerId === 'bob') throw new Error('bob may not receive')
+                    return true
+                }
             }
         })
         const clients: Container = new Container()
@@ -289,6 +296,7 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
             await until((): boolean => alice.received.size === 1, 20000, 'the track of bob')
             await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 1000))
             assert.strictEqual(bob.received.size, 0)
+            assert.ok(logged.some((message: string): boolean => message.includes('bob may not receive')), 'the error of select in the debug messages')
             //Full
             const carol: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'carol'})
             await assert.rejects(carol.join('meeting'), {errno: 'E_SIGNALING_LIMIT'})
@@ -329,6 +337,7 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
             members.forEach((each: Member): void => each.stop())
             await clients.destroy()
             await server.stop()
+            setDebugHandler(undefined)
         }
     })
 

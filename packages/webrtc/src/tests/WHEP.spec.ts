@@ -1,4 +1,5 @@
 import {describe, it} from 'node:test'
+import {format} from 'node:util'
 import assert from 'node:assert'
 import {Container} from '@lakutata/core'
 import type {MediaTrack} from '../peer/MediaTrack.js'
@@ -8,6 +9,7 @@ import type {SFUTrack} from '../sfu/SFU.js'
 import type {WHEPSession, WHEPViewer} from '../whep/WHEP.js'
 import type {WHIPSession} from '../whip/WHIP.js'
 import {iceOf} from '../peer/Endpoints.js'
+import {setDebugHandler} from '../lib/common/log.js'
 import {from, packets, restartIce, whipPublisher} from './support/Media.js'
 import {next, startServer, type TestServer, until} from './support/Server.js'
 
@@ -44,8 +46,20 @@ function payloadTypeOf(sdp: string, codec: string): number {
 for (const workers of [0, 2]) describe(workers ? `WHEP, forwarding in ${workers} worker threads` : 'WHEP', (): void => {
 
     it('plays the stream published with WHIP into its room, then the next one, of another codec', {timeout: 90000}, async (): Promise<void> => {
-        //The viewers are not members: the stream published is the only one
-        const server: TestServer = await startServer({sfu: {workers: workers, maxMembers: 1}, whip: {}, whep: {}})
+        const logged: string[] = []
+        setDebugHandler((namespace: string, args: unknown[]): void => {
+            if (namespace === 'webrtc/whep') logged.push(format(...args))
+        })
+        //The viewers are not members: the stream published is the only one. A select that throws leaves the default one
+        const server: TestServer = await startServer({
+            sfu: {workers: workers, maxMembers: 1},
+            whip: {},
+            whep: {
+                select: (): string => {
+                    throw new Error('no choice')
+                }
+            }
+        })
         const container: Container = new Container()
         const stops: (() => void)[] = []
         const played: WHEPSession[] = []
@@ -65,6 +79,7 @@ for (const workers of [0, 2]) describe(workers ? `WHEP, forwarding in ${workers}
             assert.ok(await from(viewer.tracks.get('audio')!, 0), 'the audio of the first stream')
             const whip: WHIPSession = server.whip!.sessions[0]
             assert.deepStrictEqual([played.length, played[0].room, played[0].source], [1, 'show', whip.peerId])
+            assert.ok(logged.some((message: string): boolean => message.includes('no choice')), 'the error of select in the debug messages')
             assert.match(played[0].viewerId, /^whep:/)
             assert.strictEqual(server.sfu!.rooms().show.viewers, 1)
             //The first stream ends, the next one is of H.264: the viewer goes on receiving, on the same connection
@@ -86,6 +101,7 @@ for (const workers of [0, 2]) describe(workers ? `WHEP, forwarding in ${workers}
             stops.forEach((stop: () => void): void => stop())
             await container.destroy()
             await server.stop()
+            setDebugHandler(undefined)
         }
     })
 
