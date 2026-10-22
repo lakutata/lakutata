@@ -3,12 +3,14 @@ import type {RTCPeerConnection} from '../lib/peer/peerConnection.js'
 import type {RTCSctpTransport} from '../lib/peer/transport/sctp.js'
 import {engineChannelOf, engineConnectionOf} from '../peer/EngineConnection.js'
 import type {MediaKind, MediaTrack} from '../peer/MediaTrack.js'
+import {type EndpointLeg, gathered} from '../peer/Endpoints.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
 import type {PeerConnection, PeerTrackEvent} from '../peer/PeerConnection.js'
 import type {RtpTransceiver} from '../peer/RtpTransceiver.js'
 import {
     SignalingControlChannel,
     type SignalingControlMessage,
+    type SignalingDescription,
     SignalingEvent,
     type SignalingJoinResult,
     type SignalingPeer,
@@ -60,11 +62,24 @@ interface Subscription {
 }
 
 /**
+ * The connection of a member, and its state: a Peer of a client is one
+ */
+interface Leg {
+    readonly connection: PeerConnection
+    readonly ready: Promise<void>
+    readonly closed: boolean
+    close(): void
+}
+
+/**
  * A member of the room: its connection to the server, what it publishes and receives
  */
 interface Member {
     readonly id: string
-    readonly peer: Peer<PeerConnection>
+    //Its connection: the one negotiated by its Peer for a client, the one answering its offer for a stream published
+    //with WHIP (which receives nothing, and is not negotiated again)
+    readonly leg: Leg
+    readonly peer?: Peer<PeerConnection>
     metadata: unknown
     session?: string
     readonly publications: Map<RtpTransceiver, Publication>
@@ -237,6 +252,63 @@ export class SFURoom {
     }
 
     /**
+     * A stream published with WHIP joins the room: a member (of role `whip`) whose connection answers the offer of the
+     * publisher, publishing its tracks and receiving nothing
+     * @param id The id of the member.
+     * @param offer The offer of the publisher.
+     * @returns The connection, its answer with all its candidates.
+     */
+    public async publish(id: string, offer: SignalingDescription): Promise<EndpointLeg> {
+        const connection: PeerConnection = await this.#host.connect()
+        const ended: (() => void)[] = []
+        let closed: boolean = false
+        const leg: Leg = {
+            connection: connection,
+            ready: Promise.resolve(),
+            get closed(): boolean {
+                return closed
+            },
+            close: (): void => {
+                if (closed) return
+                closed = true
+                connection.close()
+                for (const listener of ended.splice(0)) listener()
+            }
+        }
+        const member: Member = {
+            id: id,
+            leg: leg,
+            metadata: undefined,
+            publications: new Map(),
+            subscriptions: new Map(),
+            streams: new Map(),
+            streamIds: new Map(),
+            transceivers: new Set()
+        }
+        this.#members.set(id, member)
+        connection.addEventListener('track', (event: PeerTrackEvent): void => this.#published(member, event))
+        connection.on('connectionstatechange', (state: string): void => {
+            if (state === 'failed' || state === 'closed') this.#remove(member)
+        })
+        try {
+            await connection.setRemoteDescription(offer)
+            await connection.setLocalDescription()
+            await gathered(connection)
+            if (closed) throw new Error(`The connection is ${connection.connectionState}`)
+            await this.#host.signaling.join(id, this.name, {role: 'whip', receive: (): void => undefined})
+        } catch (error) {
+            this.#remove(member)
+            throw error
+        }
+        return {
+            answer: connection.localDescription!,
+            connection: connection,
+            ended: (listener: () => void): unknown => closed ? listener() : ended.push(listener),
+            close: (): void => this.#remove(member)
+        }
+    }
+
+    /**
      * Join the room, with the members already in it
      */
     async #join(): Promise<void> {
@@ -279,7 +351,7 @@ export class SFURoom {
                 const received: PeerSignal = {}
                 if (signal.description) received.description = signal.description
                 if (signal.candidate) received.candidate = signal.candidate
-                member.peer.receive(received)
+                member.peer?.receive(received)
                 return
             }
         }
@@ -300,9 +372,11 @@ export class SFURoom {
             closed: (): void => undefined,
             polite: false
         }
+        const peer: Peer<PeerConnection> = new Peer<PeerConnection>(host, id, metadata, session)
         const member: Member = {
             id: id,
-            peer: new Peer<PeerConnection>(host, id, metadata, session),
+            leg: peer,
+            peer: peer,
             metadata: metadata,
             session: session,
             publications: new Map(),
@@ -313,12 +387,12 @@ export class SFURoom {
         }
         this.#members.set(id, member)
         //A failed negotiation is the member's (it left meanwhile, it sent a wrong description)
-        member.peer.on('error', (): void => undefined)
-        member.peer.on('track', (event: PeerTrackEvent): void => this.#published(member, event))
-        member.peer.on('datachannel', (channel: PeerChannel): void => this.#opened(member, channel))
-        member.peer.ready.then((): void => {
-            if (member.peer.closed) return
-            const connection: PeerConnection = member.peer.connection
+        peer.on('error', (): void => undefined)
+        peer.on('track', (event: PeerTrackEvent): void => this.#published(member, event))
+        peer.on('datachannel', (channel: PeerChannel): void => this.#opened(member, channel))
+        peer.ready.then((): void => {
+            if (peer.closed) return
+            const connection: PeerConnection = peer.connection
             //Once the negotiation applied the directions
             connection.on('signalingstatechange', (state: string): void => {
                 if (state === 'stable') setImmediate((): void => this.#negotiated(member))
@@ -342,15 +416,16 @@ export class SFURoom {
      */
     #opened(member: Member, channel: PeerChannel): void {
         const other: Member | undefined = this.#members.get(channel.protocol)
-        if (!other || other === member || other.peer.closed) return channel.close()
+        //Not to a stream published with WHIP: it has no data channels
+        if (!other || other === member || !other.peer || other.leg.closed) return channel.close()
         //Its first messages may come with its opening, before the other side is there
         const early: (string | Buffer | ArrayBuffer)[] = []
         const keep = (data: string | Buffer | ArrayBuffer): number => early.push(data)
         channel.on('message', keep)
-        other.peer.ready.then((): void => {
+        other.leg.ready.then((): void => {
             channel.off('message', keep)
-            if (other.peer.closed || channel.readyState === 'closed') return channel.close()
-            const relayed: PeerChannel = other.peer.connection.createDataChannel(channel.label, {
+            if (other.leg.closed || channel.readyState === 'closed') return channel.close()
+            const relayed: PeerChannel = other.leg.connection.createDataChannel(channel.label, {
                 protocol: member.id,
                 ordered: channel.ordered,
                 ...channel.maxRetransmits !== null ? {maxRetransmits: channel.maxRetransmits} : {},
@@ -368,9 +443,12 @@ export class SFURoom {
      * @param member
      */
     #remove(member: Member): void {
-        if (this.#members.get(member.id) === member) this.#members.delete(member.id)
+        if (this.#members.get(member.id) !== member) return
+        this.#members.delete(member.id)
         for (const publication of [...member.publications.values()]) this.#unpublished(publication)
-        member.peer.close()
+        member.leg.close()
+        //A stream published with WHIP leaves the signaling (before the server, when it was the last one)
+        if (!member.peer) this.#host.signaling.leave(member.id, this.name).catch((): void => undefined)
         if (!this.#closed && !this.#members.size) this.#host.emptied(this)
     }
 
@@ -392,7 +470,8 @@ export class SFURoom {
      * @param publication
      */
     #offer(member: Member, publication: Publication): void {
-        if (member === publication.publisher || member.peer.closed) return
+        //A stream published with WHIP receives nothing
+        if (member === publication.publisher || !member.peer || member.leg.closed) return
         const subscriber: SignalingPeer = {peerId: member.id, metadata: member.metadata, session: member.session}
         if (!this.#host.select(subscriber, publication.track)) return
         this.#subscribe(member, publication).catch((): void => undefined)
@@ -407,7 +486,7 @@ export class SFURoom {
         //A transceiver of the member receiving again: the track it received before ended
         const previous: Publication | undefined = member.publications.get(event.transceiver)
         if (previous) this.#unpublished(previous)
-        const engine: RTCRtpTransceiver | undefined = engineTransceiverOf(member.peer.connection, event.transceiver)
+        const engine: RTCRtpTransceiver | undefined = engineTransceiverOf(member.leg.connection, event.transceiver)
         const track: SFUTrack = {
             room: this.name,
             peerId: member.id,
@@ -441,7 +520,7 @@ export class SFURoom {
      */
     async #subscribe(member: Member, publication: Publication): Promise<void> {
         if (member.subscriptions.has(publication)) return
-        const connection: PeerConnection = member.peer.connection
+        const connection: PeerConnection = member.leg.connection
         const stream: string = this.#streamOf(member, publication.track)
         const taken: Set<RtpTransceiver> = new Set([...member.subscriptions.values()].map((subscription: Subscription): RtpTransceiver => subscription.transceiver))
         const reusable: RtpTransceiver | undefined = connection.getTransceivers().find((transceiver: RtpTransceiver): boolean => member.transceivers.has(transceiver)
@@ -472,7 +551,7 @@ export class SFURoom {
         const subscription: Subscription | undefined = member.subscriptions.get(publication)
         if (!subscription) return
         member.subscriptions.delete(publication)
-        if (member.peer.closed) return
+        if (member.leg.closed) return
         try {
             subscription.transceiver.direction = 'inactive'
             subscription.transceiver.sender.replaceTrack(null).catch((): void => undefined)
@@ -504,7 +583,7 @@ export class SFURoom {
      * @param member
      */
     #negotiated(member: Member): void {
-        if (member.peer.closed || member.peer.connection.signalingState !== 'stable') return
+        if (member.leg.closed || member.leg.connection.signalingState !== 'stable') return
         for (const publication of [...member.publications.values()]) {
             const direction: string | null = publication.transceiver.currentDirection
             if (direction === 'inactive' || direction === 'sendonly' || direction === 'stopped') this.#unpublished(publication)
@@ -550,11 +629,11 @@ export class SFURoom {
      * @param member
      */
     #watchBandwidth(member: Member): void {
-        const transport = engineConnectionOf(member.peer.connection).dtlsTransports[0]
+        const transport = engineConnectionOf(member.leg.connection).dtlsTransports[0]
         if (!transport || this.#watched.has(transport)) return
         this.#watched.add(transport)
         transport.senderBWE.onCongestion.subscribe((congested: boolean): void => {
-            if (!member.peer.closed) this.#host.emit('congestion', this.name, member.id, congested, transport.senderBWE.availableBitrate)
+            if (!member.leg.closed) this.#host.emit('congestion', this.name, member.id, congested, transport.senderBWE.availableBitrate)
         })
     }
 }

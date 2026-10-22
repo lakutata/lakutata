@@ -4,11 +4,12 @@ import {Container} from '@lakutata/core'
 import {MediaTrack} from '../peer/MediaTrack.js'
 import {engineChannelOf} from '../peer/EngineConnection.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
-import type {PeerConnection, PeerTrackEvent} from '../peer/PeerConnection.js'
+import {PeerConnection, type PeerTrackEvent} from '../peer/PeerConnection.js'
 import type {RtpTransceiver} from '../peer/RtpTransceiver.js'
 import type {RtpPacket} from '../peer/RtpPacket.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
 import type {SFUTrack} from '../sfu/SFU.js'
+import type {WHIPSession} from '../whip/WHIP.js'
 import {feed, packets} from './support/Media.js'
 import {next, startServer, type TestServer, until} from './support/Server.js'
 
@@ -55,6 +56,28 @@ async function from(track: MediaTrack, first: number): Promise<boolean> {
         const number: number = packet.payload.readUInt32BE(0)
         return number >= first && number < first + 100000
     })
+}
+
+/**
+ * A publisher of WHIP from Node.js: an audio and a video track whose packets carry numbers from `first`, their offer
+ * POSTed with all its candidates
+ * @param container
+ * @param url The URL of the endpoint.
+ * @param first
+ * @returns The connection, the response, its URL, and a function stopping the packets.
+ */
+async function whipPublisher(container: Container, url: string, first: number): Promise<{connection: PeerConnection, response: Response, location?: string, stop(): void}> {
+    const connection: PeerConnection = await container.get(PeerConnection, {iceAdditionalHostAddresses: ['127.0.0.1']})
+    const audio: MediaTrack = new MediaTrack('audio', {codec: 'audio/opus'})
+    const video: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
+    const stops: (() => void)[] = [feed(audio, first), feed(video, first)]
+    connection.addTransceiver(audio, {direction: 'sendonly', streams: ['broadcast']})
+    connection.addTransceiver(video, {direction: 'sendonly', streams: ['broadcast']})
+    await connection.setLocalDescription()
+    await until((): boolean => connection.iceGatheringState === 'complete', 10000, 'the candidates')
+    const response: Response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: connection.localDescription!.sdp})
+    if (response.status === 201) await connection.setRemoteDescription({type: 'answer', sdp: await response.text()})
+    return {connection: connection, response: response, location: response.headers.get('Location') ?? undefined, stop: (): void => stops.forEach((stop: () => void): void => stop())}
 }
 
 describe('SFU', (): void => {
@@ -229,6 +252,45 @@ describe('SFU', (): void => {
             bulk = []
         } finally {
             members.forEach((each: Member): void => each.stop())
+            await clients.destroy()
+            await server.stop()
+        }
+    })
+
+    it('takes a stream published with WHIP into a room, as a member the others receive', {timeout: 90000}, async (): Promise<void> => {
+        const server: TestServer = await startServer({sfu: {serves: (room: string): boolean => room !== 'lobby'}, whip: {}})
+        const clients: Container = new Container()
+        const stops: (() => void)[] = []
+        try {
+            const viewer: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'viewer'})
+            const room: Room = await viewer.join('studio')
+            const received: [string, PeerTrackEvent][] = []
+            room.on('peer', (peer: Peer): void => void peer.on('track', (event: PeerTrackEvent): number => received.push([peer.id, event])))
+            const publisher = await whipPublisher(clients, `${server.http}/whip/studio`, 0)
+            stops.push(publisher.stop)
+            assert.strictEqual(publisher.response.status, 201)
+            await until((): boolean => received.length === 2, 20000, 'the tracks of the stream')
+            //A member of its own id: the id of the session ends it, and is not given to the members
+            const session: WHIPSession = server.whip!.sessions[0]
+            assert.deepStrictEqual([session.room, session.connection, session.tracks], ['studio', undefined, undefined])
+            assert.match(session.peerId!, /^whip:/)
+            assert.ok(!session.peerId!.includes(session.id))
+            assert.ok(publisher.location!.endsWith(`/${session.id}`))
+            assert.deepStrictEqual(received.map(([id]: [string, PeerTrackEvent]): string => id), [session.peerId, session.peerId])
+            const [, video] = received.find(([, event]: [string, PeerTrackEvent]): boolean => event.track.kind === 'video')!
+            assert.deepStrictEqual(room.streamOf(video.streams[0].id), {id: video.streams[0].id, peerId: session.peerId, stream: 'broadcast'})
+            assert.ok(await from(video.track, 0), 'the packets of the stream')
+            assert.ok(server.sfu!.rooms().studio.members.includes(session.peerId!))
+            //Its publisher deletes it: the member leaves
+            const left: Promise<Peer> = next<Peer>((resolve: (peer: Peer) => void): unknown => room.on('peer-left', resolve), 10000, 'the stream leaving')
+            assert.strictEqual((await fetch(`${server.http}${publisher.location}`, {method: 'DELETE'})).status, 200)
+            assert.strictEqual((await left).id, session.peerId)
+            //A room the server does not serve
+            const refused = await whipPublisher(clients, `${server.http}/whip/lobby`, 100000)
+            stops.push(refused.stop)
+            assert.strictEqual(refused.response.status, 400)
+        } finally {
+            stops.forEach((stop: () => void): void => stop())
             await clients.destroy()
             await server.stop()
         }

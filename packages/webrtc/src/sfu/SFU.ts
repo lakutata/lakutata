@@ -5,9 +5,11 @@ import {SignalingLimitException} from '../exceptions/SignalingLimitException.js'
 import {SUPPORTED_CODECS} from '../peer/MediaCodecs.js'
 import type {MediaKind, MediaTrack} from '../peer/MediaTrack.js'
 import {PeerConnection} from '../peer/PeerConnection.js'
-import type {SignalingPeer} from '../protocol/SignalingProtocol.js'
+import type {SignalingDescription, SignalingPeer} from '../protocol/SignalingProtocol.js'
 import {mediaServers} from '../signaling/MediaServers.js'
 import type {Signaling} from '../signaling/Signaling.js'
+import type {EndpointLeg} from '../peer/Endpoints.js'
+import {sfuAccess} from './SFUAccess.js'
 import {type SFUHost, SFURoom} from './SFURoom.js'
 
 /**
@@ -201,6 +203,14 @@ export class SFU extends Component {
     protected async init(): Promise<void> {
         this.#signalingObject = await this.getObject<Signaling>(this.signaling)
         mediaServers.set(this.#signalingObject, (room: string, peerId: string): Promise<string | undefined> => this.assign(room, peerId))
+        sfuAccess.set(this, {
+            publish: async (room: string, offer: SignalingDescription): Promise<{peerId: string, leg: EndpointLeg}> => {
+                //Its own id: the id of the session is the credential of its publisher
+                const peerId: string = `whip:${randomUUID()}`
+                if (!await this.assign(room, peerId)) throw new Error(`The media server does not serve the room ${room}`)
+                return {peerId: peerId, leg: await this.#rooms.get(room)!.publish(peerId, offer)}
+            }
+        })
     }
 
     /**

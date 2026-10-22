@@ -106,11 +106,11 @@ describe('WHIP', (): void => {
             assert.match(answer, /^a=recvonly$/m)
             const session: WHIPSession = await published
             assert.strictEqual(session.stream, 'studio')
-            assert.deepStrictEqual(session.tracks.map((track: MediaTrack): string | undefined => track.codec).sort(), ['audio/opus', 'video/H264'])
+            assert.deepStrictEqual(session.tracks!.map((track: MediaTrack): string | undefined => track.codec).sort(), ['audio/opus', 'video/H264'])
             assert.strictEqual(location, `/whip/studio/${session.id}`)
             await client.connection.setRemoteDescription({type: 'answer', sdp: answer})
             stops.push(feed(client.audio), feed(client.video))
-            await Promise.all(session.tracks.map((track: MediaTrack): Promise<RtpPacket> => next<RtpPacket>((resolve: (packet: RtpPacket) => void): unknown => track.once('rtp', resolve), 20000, `the ${track.kind}`)))
+            await Promise.all(session.tracks!.map((track: MediaTrack): Promise<RtpPacket> => next<RtpPacket>((resolve: (packet: RtpPacket) => void): unknown => track.once('rtp', resolve), 20000, `the ${track.kind}`)))
             //No trickle ICE, no restart; the session of another stream, an unknown session
             const patch: Response = await fetch(`${url}${location}`, {method: 'PATCH', headers: {'Content-Type': 'application/trickle-ice-sdpfrag'}, body: 'a=end-of-candidates'})
             assert.strictEqual(patch.status, 405)
@@ -122,7 +122,7 @@ describe('WHIP', (): void => {
             assert.strictEqual((await fetch(`${url}${location}`, {method: 'DELETE'})).status, 200)
             assert.strictEqual((await unpublished).id, session.id)
             assert.deepStrictEqual(whip.sessions, [])
-            assert.strictEqual(session.connection.connectionState, 'closed')
+            assert.strictEqual(session.connection!.connectionState, 'closed')
         } finally {
             stops.forEach((stop: () => void): void => stop())
             await container.destroy()
@@ -169,8 +169,8 @@ describe('WHIP', (): void => {
                 const exited: Promise<number | null> = ffmpegPublish(`${url}/whip/studio`, 'obs-token', 4)
                 const session: WHIPSession = await published
                 const unpublished: Promise<WHIPSession> = next<WHIPSession>((resolve: (session: WHIPSession) => void): unknown => whip.once('unpublish', resolve), 30000, 'unpublish')
-                assert.deepStrictEqual(session.tracks.map((track: MediaTrack): string | undefined => track.codec).sort(), ['audio/opus', 'video/H264'])
-                await Promise.all(session.tracks.map((track: MediaTrack): Promise<RtpPacket> => next<RtpPacket>((resolve: (packet: RtpPacket) => void): unknown => track.once('rtp', resolve), 20000, `the ${track.kind} of ffmpeg`)))
+                assert.deepStrictEqual(session.tracks!.map((track: MediaTrack): string | undefined => track.codec).sort(), ['audio/opus', 'video/H264'])
+                await Promise.all(session.tracks!.map((track: MediaTrack): Promise<RtpPacket> => next<RtpPacket>((resolve: (packet: RtpPacket) => void): unknown => track.once('rtp', resolve), 20000, `the ${track.kind} of ffmpeg`)))
                 //ffmpeg deletes its session when it ends
                 assert.strictEqual((await unpublished).id, session.id)
                 assert.strictEqual(await exited, 0)

@@ -594,8 +594,8 @@ describe('Browser', (): void => {
             })()`)
             const session: WHIPSession = await published
             assert.strictEqual(location, `/whip/studio/${session.id}`)
-            assert.deepStrictEqual(session.tracks.map((track: MediaTrack): string => track.kind).sort(), ['audio', 'video'])
-            await Promise.all(session.tracks.map((track: MediaTrack): Promise<RtpPacket> => next<RtpPacket>((resolve: (packet: RtpPacket) => void): unknown => track.once('rtp', resolve), 20000, `the ${track.kind} of Chrome`)))
+            assert.deepStrictEqual(session.tracks!.map((track: MediaTrack): string => track.kind).sort(), ['audio', 'video'])
+            await Promise.all(session.tracks!.map((track: MediaTrack): Promise<RtpPacket> => next<RtpPacket>((resolve: (packet: RtpPacket) => void): unknown => track.once('rtp', resolve), 20000, `the ${track.kind} of Chrome`)))
             //The page ends its session
             const unpublished: Promise<WHIPSession> = next<WHIPSession>((resolve: (ended: WHIPSession) => void): unknown => whip.once('unpublish', resolve), 10000, 'unpublish')
             assert.strictEqual(await page.evaluate<number>(`fetch(${JSON.stringify(url)} + ${JSON.stringify(location)}, {method: 'DELETE'}).then((response) => response.status)`), 200)

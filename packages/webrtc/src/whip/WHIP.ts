@@ -7,10 +7,14 @@ import type {TURNServer} from '../turn/TURNServer.js'
 import type {Cluster} from '../cluster/Cluster.js'
 import {iceServersFor, type TURNSelector} from '../cluster/ClusterTURN.js'
 import type {MediaTrack} from '../peer/MediaTrack.js'
+import {type EndpointLeg, gathered} from '../peer/Endpoints.js'
 import {PeerConnection} from '../peer/PeerConnection.js'
 import {WHIPDeniedException} from '../exceptions/WHIPDeniedException.js'
 import {WHIPLimitException} from '../exceptions/WHIPLimitException.js'
 import {WHIPOfferException} from '../exceptions/WHIPOfferException.js'
+import {SignalingLimitException} from '../exceptions/SignalingLimitException.js'
+import type {SFU} from '../sfu/SFU.js'
+import {sfuAccess} from '../sfu/SFUAccess.js'
 
 /**
  * Who publishes a stream: the stream of the URL, and the bearer token of the request.
@@ -35,6 +39,14 @@ export interface WHIPPublisher {
 export type WHIPAuthorize = (publisher: WHIPPublisher, context?: HTTPContext) => boolean | Promise<boolean>
 
 /**
+ * Gives the room of the media server a stream published goes to (the `roomOf` option of {@link WHIP}).
+ * @param publisher The stream and the bearer token.
+ * @param context The context of the HTTP request, when it comes through `WHIPController`.
+ * @returns The room.
+ */
+export type WHIPRoomOf = (publisher: WHIPPublisher, context?: HTTPContext) => string | Promise<string>
+
+/**
  * A stream being published: its WHIP session.
  */
 export interface WHIPSession {
@@ -47,13 +59,23 @@ export interface WHIPSession {
      */
     readonly stream: string
     /**
-     * The connection to the publisher.
+     * The connection to the publisher; none when the stream goes to a media server (`sfu`).
      */
-    readonly connection: PeerConnection
+    readonly connection?: PeerConnection
     /**
-     * The tracks received: their packets come with their `rtp` event.
+     * The tracks received: their packets come with their `rtp` event; none when the stream goes to a media server (its
+     * `track()` gives them).
      */
-    readonly tracks: readonly MediaTrack[]
+    readonly tracks?: readonly MediaTrack[]
+    /**
+     * The room of the media server the stream goes to.
+     */
+    readonly room?: string
+    /**
+     * The id of the member publishing the stream in the room of the media server (`whip:` and a random id of its own:
+     * the id of the session is the credential ending it, so the members never see it).
+     */
+    readonly peerId?: string
 }
 
 /**
@@ -65,6 +87,17 @@ export interface WHIPOptions {
      * @default none
      */
     authorize?: WHIPAuthorize
+    /**
+     * The name of a {@link SFU} component: the streams published go to its rooms, each a member of its room (of role
+     * `whip`) sending its tracks to the other members; the application reads those tracks with the server's `track()`.
+     * @default none (the sessions give their tracks)
+     */
+    sfu?: string
+    /**
+     * Gives the room of the media server a stream goes to.
+     * @default the stream
+     */
+    roomOf?: WHIPRoomOf
     /**
      * The name of a {@link Cluster} component: a DELETE of a session reaching another node of the cluster (behind a
      * load balancer) ends the session on the node holding it.
@@ -124,11 +157,6 @@ export interface WHIPOptions {
 }
 
 /**
- * How long an answer waits for the candidates of its connection at most, in milliseconds
- */
-const GATHERING_TIMEOUT: number = 5000
-
-/**
  * The topic of the requests ending a session on the node holding it
  */
 const UNPUBLISH_TOPIC: string = 'webrtc.whip.unpublish'
@@ -139,32 +167,13 @@ const UNPUBLISH_TOPIC: string = 'webrtc.whip.unpublish'
 const UNPUBLISH_TIMEOUT: number = 2000
 
 /**
- * Wait for the candidates of a connection, all of them or for a time at most
- * @param connection
- * @param timeout
- */
-function gathered(connection: PeerConnection, timeout: number): Promise<void> {
-    if (connection.iceGatheringState === 'complete') return Promise.resolve()
-    return new Promise((resolve: () => void): void => {
-        const done = (): void => {
-            clearTimeout(timer)
-            connection.off('icegatheringstatechange', changed)
-            resolve()
-        }
-        const changed = (state: string): void => {
-            if (state === 'complete') done()
-        }
-        const timer: NodeJS.Timeout = setTimeout(done, timeout)
-        connection.on('icegatheringstatechange', changed)
-    })
-}
-
-/**
  * The ingestion of WHIP (RFC 9725): encoders (OBS, GStreamer, ffmpeg) and browsers publish a stream with an HTTP POST
- * of their offer, and the application receives their audio and video. Each publication is a session with a
- * {@link PeerConnection} and its tracks; the component emits `publish` (the session) once it answers, and `unpublish`
- * (the session) when it ends: the publisher deleted it, its connection failed or closed, or the application stopped.
- * The tracks give their RTP packets, to record them or to send them on to other connections.
+ * of their offer, and the application receives their audio and video. Each publication is a session with (without a
+ * media server) a {@link PeerConnection} and its tracks; the component emits `publish` (the session) once it answers,
+ * and `unpublish` (the session) when it ends: the publisher deleted it, its connection failed or closed, or the
+ * application stopped. The tracks give their RTP packets, to record them or to send them on to other connections.
+ * With a media server (`sfu`), a stream goes to a room of the server instead (`roomOf`, the stream by default), as a
+ * member sending its tracks to the other members.
  *
  * Register it as `whip` with {@link buildWHIPOptions}, and add `WHIPController` to the controllers of the entrypoint,
  * with an HTTP adapter reading the bodies of WHIP as text (its option
@@ -183,7 +192,7 @@ function gathered(connection: PeerConnection, timeout: number): Promise<void> {
  *     protected async init(): Promise<void> {
  *         const whip: WHIP = await this.getObject<WHIP>('whip')
  *         whip.on('publish', (session: WHIPSession): void => {
- *             session.tracks.forEach((track: MediaTrack): void => {
+ *             session.tracks?.forEach((track: MediaTrack): void => {
  *                 track.on('rtp', (packet: RtpPacket): void => console.log(session.stream, track.kind, packet.payload.length))
  *             })
  *         })
@@ -224,6 +233,18 @@ export class WHIP extends Component {
      */
     @Configurable(DTO.String().optional())
     protected readonly turn?: string
+
+    /**
+     * The name of the media server component.
+     */
+    @Configurable(DTO.String().optional())
+    protected readonly sfu?: string
+
+    /**
+     * The room of the media server of a stream.
+     */
+    @Configurable(DTO.Function().optional())
+    protected readonly roomOf?: WHIPRoomOf
 
     /**
      * The name of the cluster component.
@@ -284,6 +305,9 @@ export class WHIP extends Component {
     protected readonly codecs?: string[]
 
     readonly #sessions: Map<string, WHIPSession> = new Map()
+
+    //The connections of the sessions going to the media server
+    readonly #legs: Map<string, EndpointLeg> = new Map()
 
     #clusterObject?: Cluster
 
@@ -363,6 +387,7 @@ export class WHIP extends Component {
         }
         if (this.maxSessions && this.#sessions.size >= this.maxSessions) throw new WHIPLimitException('There are {count} sessions already', {count: this.#sessions.size})
         if (offer.type !== 'offer' || !/^m=(audio|video) /m.test(offer.sdp ?? '')) throw new WHIPOfferException('The offer has no audio and no video')
+        if (this.sfu) return await this.publishToSFU(stream, offer, options)
         const connection: PeerConnection = await this.getObject(PeerConnection, {
             ...this.icePortRange ? {icePortRange: this.icePortRange} : {},
             ...this.iceAdditionalHostAddresses ? {iceAdditionalHostAddresses: this.iceAdditionalHostAddresses} : {},
@@ -382,7 +407,7 @@ export class WHIP extends Component {
             connection.close()
             throw new WHIPOfferException('The offer is refused: {reason}', {reason: (error as Error).message})
         }
-        await gathered(connection, GATHERING_TIMEOUT)
+        await gathered(connection)
         if (connection.connectionState === 'failed' || connection.connectionState === 'closed') {
             connection.close()
             throw new WHIPOfferException('The connection {state} before the answer', {state: connection.connectionState})
@@ -390,6 +415,32 @@ export class WHIP extends Component {
         this.#sessions.set(session.id, session)
         this.emit('publish', session)
         return {session: session, answer: connection.localDescription!}
+    }
+
+    /**
+     * Publish a stream to a room of the media server
+     * @param stream The stream.
+     * @param offer The SDP offer of the publisher.
+     * @param options The bearer token of the publisher, and the context of its request (for `roomOf`).
+     * @returns The session, and the answer.
+     * @protected
+     */
+    protected async publishToSFU(stream: string, offer: SignalingDescription, options: {token?: string, context?: HTTPContext}): Promise<{session: WHIPSession, answer: SignalingDescription}> {
+        const sfu: SFU = await this.getObject<SFU>(this.sfu!)
+        const room: string = this.roomOf ? await this.roomOf({stream: stream, token: options.token}, options.context) : stream
+        let published: {peerId: string, leg: EndpointLeg}
+        try {
+            published = await sfuAccess.get(sfu)!.publish(room, offer)
+        } catch (error: unknown) {
+            if (error instanceof SignalingLimitException) throw new WHIPLimitException('The media server takes no more members')
+            throw new WHIPOfferException('The offer is refused: {reason}', {reason: (error as Error).message})
+        }
+        const session: WHIPSession = {id: randomUUID(), stream: stream, room: room, peerId: published.peerId}
+        this.#sessions.set(session.id, session)
+        this.#legs.set(session.id, published.leg)
+        published.leg.ended((): unknown => this.end(session.id))
+        this.emit('publish', session)
+        return {session: session, answer: published.leg.answer}
     }
 
     /**
@@ -424,7 +475,9 @@ export class WHIP extends Component {
         const session: WHIPSession | undefined = this.#sessions.get(id)
         if (!session || (stream !== undefined && session.stream !== stream)) return false
         this.#sessions.delete(id)
-        session.connection.close()
+        session.connection?.close()
+        this.#legs.get(id)?.close()
+        this.#legs.delete(id)
         this.emit('unpublish', session)
         return true
     }

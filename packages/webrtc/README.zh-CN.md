@@ -159,7 +159,7 @@ export class Studio extends Component {
     protected async init(): Promise<void> {
         const whip: WHIP = await this.getObject<WHIP>('whip')
         whip.on('publish', (session: WHIPSession): void => {
-            session.tracks.forEach((track: MediaTrack): void => console.log(`${session.stream}: ${track.kind} ${track.codec}`))
+            session.tracks?.forEach((track: MediaTrack): void => console.log(`${session.stream}: ${track.kind} ${track.codec}`))
         })
     }
 }
