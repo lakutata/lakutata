@@ -75,6 +75,11 @@ for WORKLOAD in deployment/nats deployment/signaling daemonset/turn daemonset/sf
     }
 done
 kubectl -n webrtc get pods -o wide
+# The pods started again before they were ready, and why: the end of the log of their run before
+for POD in $(kubectl -n webrtc get pods -o jsonpath='{range .items[?(@.status.containerStatuses[0].restartCount>0)]}{.metadata.name}{" "}{end}'); do
+    echo "--- $POD, its run before"
+    kubectl -n webrtc logs "$POD" --previous --tail=15 2>&1
+done
 kubectl apply -f - < test-env/k3s/client.yaml || exit 1
 # The client: the pods deleted when it asks, until its result
 DELETED=""
