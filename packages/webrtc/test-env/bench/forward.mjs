@@ -2,13 +2,15 @@
 //subscriber. The server runs in this process, the publishers and the subscribers in a child process: the CPU measured is
 //the one of the server only. Each publisher sends about the bit rate of 720p: 200 packets of 1250 bytes a second.
 //
-//   npm run compile && node test-env/bench/forward.mjs [--sfu [--rooms 1] [--workers 0]] [--publishers 2] [--subscribers 4]
-//                                                      [--seconds 10] [--no-extensions]
+//   npm run compile && node test-env/bench/forward.mjs [--sfu [--rooms 1] [--workers 0] [--nodes 1]] [--publishers 2]
+//                                                      [--subscribers 4] [--seconds 10] [--no-extensions]
 //
 //The server is a relay forwarding a track it receives by adding it to the connections of the subscribers, or with --sfu
 //the media server (SFU) of rooms of the signaling, the members being SignalingClients (the publishers receive nothing):
 //--rooms rooms of --publishers and --subscribers each, the members of each in a child process of its own, forwarded in the
-//main thread or in --workers worker threads.
+//main thread or in --workers worker threads. With --nodes 2, the server is two nodes of a cluster in this process, the
+//publishers on the media server of the first one and the subscribers on the second one: each track goes once from the
+//first node to the second (cascading), and the CPU measured is the one of both nodes.
 import {fork} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
 import {parseArgs} from 'node:util'
@@ -16,7 +18,7 @@ import {Container} from '@lakutata/core'
 import {buildEntrypoints, Entrypoint} from '@lakutata/entrypoint'
 import {socketIOServiceEntrypoint} from '@lakutata/entrypoint/adapter/socket.io'
 //WEBRTC_BENCH_DIST: the exports of another build (dist/esm/exports/WebRTC.js), to compare two builds
-const {MediaTrack, PeerConnection, SFU, Signaling, SignalingClient, SignalingController} = await import(process.env.WEBRTC_BENCH_DIST ?? '../../dist/esm/exports/WebRTC.js')
+const {Cluster, MediaTrack, PeerConnection, SFU, Signaling, SignalingClient, SignalingController} = await import(process.env.WEBRTC_BENCH_DIST ?? '../../dist/esm/exports/WebRTC.js')
 
 const {values: options, positionals} = parseArgs({
     allowPositionals: true,
@@ -27,6 +29,7 @@ const {values: options, positionals} = parseArgs({
         seconds: {type: 'string', default: '10'},
         rooms: {type: 'string', default: '1'},
         workers: {type: 'string', default: '0'},
+        nodes: {type: 'string', default: '1'},
         'no-extensions': {type: 'boolean', default: false},
         //The room of a child process
         room: {type: 'string', default: '0'}
@@ -37,12 +40,15 @@ const subscribers = Number(options.subscribers)
 const seconds = Number(options.seconds)
 const rooms = options.sfu ? Number(options.rooms) : 1
 const workers = Number(options.workers)
+const nodes = options.sfu ? Number(options.nodes) : 1
 const connectionOptions = {headerExtensions: !options['no-extensions'], iceUseIpv6: false}
 //A publisher sends 2 packets every 10 ms
 const PAYLOAD_SIZE = 1250
 const PACKETS_PER_TICK = 2
 //Before measuring
 const WARM_UP = 3000
+//The containers of the nodes of the server, with --nodes 2 (one node is in the container of the server)
+const nodeContainers = []
 
 /**
  * The description of a connection with all its candidates
@@ -175,21 +181,35 @@ async function relay(container, request) {
 
 /**
  * The media server: the signaling and the SFU over Socket.IO, the members joining their rooms; the publishers receive
- * nothing
+ * nothing. With several nodes, each node is a container of its own, the publishers are given the media server of the
+ * first one and the subscribers the one of the second
  * @param container
  * @param request Asks a child process.
  */
 async function sfu(container, request) {
-    await container.setNamed('signaling', Signaling, {})
-    await container.setNamed('sfu', SFU, {workers: workers, select: (subscriber) => subscriber.peerId.includes('-subscriber-')})
-    let port = 0
-    await container.setNamed('entrypoint', Entrypoint, buildEntrypoints({
-        controllers: [SignalingController],
-        service: socketIOServiceEntrypoint({port: 0, host: '127.0.0.1', listening: (_io, server) => {
-            port = server.address().port
-        }})
-    }))
-    for (let room = 0; room < rooms; room++) await request(room, {type: 'join', url: `http://127.0.0.1:${port}`})
+    const ports = []
+    for (let node = 0; node < nodes; node++) {
+        const own = nodes > 1 ? new Container() : container
+        if (own !== container) nodeContainers.push(own)
+        if (nodes > 1) await own.setNamed('cluster', Cluster, {transport: {type: 'memory'}, prefix: 'bench', nodeId: `node-${node}`})
+        const cluster = nodes > 1 ? {cluster: 'cluster'} : {}
+        await own.setNamed('signaling', Signaling, cluster)
+        await own.setNamed('sfu', SFU, {
+            ...cluster,
+            workers: workers,
+            select: (subscriber) => subscriber.peerId.includes('-subscriber-'),
+            ...nodes > 1 ? {selectSFU: (placement) => placement.peerId.includes('-publisher-') ? 'node-0' : 'node-1'} : {}
+        })
+        await own.setNamed('entrypoint', Entrypoint, buildEntrypoints({
+            controllers: [SignalingController],
+            service: socketIOServiceEntrypoint({port: 0, host: '127.0.0.1', listening: (_io, server) => {
+                ports[node] = server.address().port
+            }})
+        }))
+    }
+    //The nodes know each other's media server before the members join
+    if (nodes > 1) await new Promise((resolve) => setTimeout(resolve, 3000))
+    for (let room = 0; room < rooms; room++) await request(room, {type: 'join', url: `http://127.0.0.1:${ports[0]}`})
 }
 
 /**
@@ -231,7 +251,7 @@ async function server() {
         const share = cpu / elapsed
         const format = (value, digits = 0) => value.toLocaleString('en-US', {maximumFractionDigits: digits})
         const where = options.sfu ? `${rooms} room${rooms > 1 ? 's' : ''} of ` : ''
-        const threads = options.sfu ? `, ${workers ? `${workers} worker threads` : 'main thread'}` : ''
+        const threads = options.sfu ? `, ${workers ? `${workers} worker threads` : 'main thread'}${nodes > 1 ? ` on each of ${nodes} nodes` : ''}` : ''
         console.log(`${options.sfu ? 'SFU' : 'relay'}: ${where}${publishers} publishers, ${subscribers} subscribers${threads}, header extensions ${connectionOptions.headerExtensions || options.sfu ? 'on' : 'off'}, ${format(elapsed, 1)} s, Node.js ${process.version}`)
         console.log(`sent by the publishers   ${format(sent)} packets/s`)
         console.log(`forwarded                ${format(forwarded)} packets/s, ${format(bytes * 8 / elapsed / 1e6, 1)} Mbit/s of payload (expected ${format(sent * subscribers)} packets/s)`)
@@ -240,8 +260,14 @@ async function server() {
         console.log(`per GiB of payload       ${format(cpu / (bytes / 2 ** 30), 1)} CPU seconds`)
         console.log(`per packet forwarded     ${format(cpu * 1e6 / (forwarded * elapsed), 2)} CPU microseconds`)
         console.log(`server memory            ${format(process.memoryUsage().rss / 2 ** 20)} MiB resident`)
+        //Where the members are: the publishers on the first node, the subscribers on the second one
+        if (nodes > 1) {
+            const counts = await Promise.all(nodeContainers.map(async (node) => Object.values((await node.get('sfu')).rooms()).reduce((sum, room) => sum + room.members.length, 0)))
+            console.log(`members of each node     ${counts.join(', ')}`)
+        }
     } finally {
         await requestAll({type: 'stop'})
+        for (const node of nodeContainers) await node.destroy()
         await container.destroy()
     }
 }
