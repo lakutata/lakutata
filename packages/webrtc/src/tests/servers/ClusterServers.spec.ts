@@ -80,7 +80,6 @@ for (const {name, transport, container} of SERVERS) {
             const prefix: string = `test-${randomUUID().slice(0, 8)}`
             const containers: Container[] = [new Container(), new Container()]
             try {
-                //One after the other: the options of a registration are kept on its class, shared by the containers
                 const a: Cluster = await containers[0].setNamed<Cluster>('cluster', Cluster, nodeOptions(prefix, 'a'))
                 const b: Cluster = await containers[1].setNamed<Cluster>('cluster', Cluster, nodeOptions(prefix, 'b'))
                 await until((): boolean => a.nodes().length === 2 && b.nodes().length === 2, 10000, 'the nodes')

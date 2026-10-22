@@ -22,15 +22,12 @@ async function startNode(prefix: string, options: Partial<ClusterOptions> = {}):
 }
 
 /**
- * Nodes started one after the other: the options of a registration are kept on its class under its name, shared by the
- * containers of the process, so an object must be created before the next container registers its class
+ * Nodes started at the same time
  * @param prefix
  * @param ids
  */
 async function startNodes(prefix: string, ids: string[]): Promise<{cluster: Cluster, container: Container}[]> {
-    const nodes: {cluster: Cluster, container: Container}[] = []
-    for (const id of ids) nodes.push(await startNode(prefix, {nodeId: id}))
-    return nodes
+    return await Promise.all(ids.map((id: string): Promise<{cluster: Cluster, container: Container}> => startNode(prefix, {nodeId: id})))
 }
 
 /**

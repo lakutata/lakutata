@@ -11,15 +11,13 @@ import type {SignalingOptions} from '../signaling/Signaling.js'
 import {next, startServer, type TestServer, until} from './support/Server.js'
 
 /**
- * The nodes of a cluster in the memory of the process, started one after the other (the options of a registration are
- * kept on its class, shared by the containers), once they all know each other
+ * The nodes of a cluster in the memory of the process, started at the same time, once they all know each other
  * @param ids
  * @param signaling
  */
 async function startNodes(ids: string[], signaling: SignalingOptions = {}): Promise<TestServer[]> {
     const prefix: string = `test-${randomUUID()}`
-    const servers: TestServer[] = []
-    for (const id of ids) servers.push(await startServer({cluster: {transport: {type: 'memory'}, prefix: prefix, nodeId: id, heartbeatInterval: 100}, signaling: signaling}))
+    const servers: TestServer[] = await Promise.all(ids.map((id: string): Promise<TestServer> => startServer({cluster: {transport: {type: 'memory'}, prefix: prefix, nodeId: id, heartbeatInterval: 100}, signaling: signaling})))
     await until((): boolean => servers.every((server: TestServer): boolean => server.cluster!.nodes().length === ids.length), 5000, 'the nodes')
     return servers
 }
