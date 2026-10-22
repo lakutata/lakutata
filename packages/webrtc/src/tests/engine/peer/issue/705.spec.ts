@@ -73,7 +73,7 @@ describe('issue 705: reject unsupported RTP m-lines in the answer', () => {
             expect(video.currentDirection).toBe('stopped')
             expect(video.sender.codec).toBeUndefined()
             expect(video.receiver.tracks).toHaveLength(0)
-            expect(video.receiver.receiverTWCC).toBeUndefined()
+            expect(video.receiver.twccEnabled).toBeUndefined()
             expect(routedSsrcs(pc)).not.toContain(2222)
             expect(onTrack).toHaveBeenCalledTimes(1)
             expect(onTrack.mock.calls[0][0].transceiver.mid).toBe('0')

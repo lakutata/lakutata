@@ -287,8 +287,9 @@ describe('rtcp/rtpfb/twcc', () => {
                     delta: 0
                 })
             ])
+            //On 32 bits without padding: the padding flag of the packet read is not sent again
             const buf = rtpfb.serialize()
-            expect(buf).toEqual(data)
+            expect(buf).toEqual(Buffer.concat([Buffer.from([0x8f]), data.subarray(1)]))
         })
         test('example4', () => {
             const data = Buffer.from([
@@ -493,6 +494,123 @@ describe('rtcp/rtpfb/twcc', () => {
             ])
             const buf = rtpfb.serialize()
             expect(buf).toEqual(data)
+        })
+    })
+
+    describe('TransportWideCC packetResults', () => {
+        test('status vectors: the packets received with their times, the others lost', () => {
+            const data = Buffer.from([
+                0xaf, 0xcd, 0x0, 0x6, 0xfa, 0x17, 0xfa, 0x17, 0x19, 0x3d, 0xd8, 0xbb,
+                0x1, 0x74, 0x0, 0xe, 0x45, 0xb1, 0x5a, 0x40, 0xd8, 0x0, 0xf0, 0xff,
+                0xd0, 0x0, 0x0, 0x1
+            ])
+            const [rtpfb] = RtcpPacketConverter.deSerialize(data) as [
+                RtcpTransportLayerFeedback
+            ]
+            const results = (rtpfb.feedback as TransportWideCC).packetResults
+            expect(results.map((result) => result.sequenceNumber)).toEqual(
+                Array.from({length: 14}, (_, index) => 372 + index)
+            )
+            expect(results.map((result) => result.received)).toEqual([
+                true,
+                true,
+                ...Array(12).fill(false)
+            ])
+            expect(results[0].receivedAtMs).toBe(4567386 * 64 + 52)
+            expect(results[1].receivedAtMs).toBe(4567386 * 64 + 52)
+        })
+
+        test('run lengths, and the sequence numbers going on past the largest one', () => {
+            const twcc = new TransportWideCC({
+                senderSsrc: 1,
+                mediaSourceSsrc: 2,
+                baseSequenceNumber: 65534,
+                packetStatusCount: 4,
+                referenceTime: 100,
+                fbPktCount: 0,
+                packetChunks: [
+                    new RunLengthChunk({
+                        packetStatus: PacketStatus.TypeTCCPacketReceivedSmallDelta,
+                        runLength: 2
+                    }),
+                    new RunLengthChunk({
+                        packetStatus: PacketStatus.TypeTCCPacketNotReceived,
+                        runLength: 1
+                    }),
+                    new RunLengthChunk({
+                        packetStatus: PacketStatus.TypeTCCPacketReceivedLargeDelta,
+                        runLength: 1
+                    })
+                ],
+                recvDeltas: [
+                    new RecvDelta({type: PacketStatus.TypeTCCPacketReceivedSmallDelta, delta: 1000}),
+                    new RecvDelta({type: PacketStatus.TypeTCCPacketReceivedSmallDelta, delta: 250}),
+                    new RecvDelta({type: PacketStatus.TypeTCCPacketReceivedLargeDelta, delta: -500})
+                ]
+            })
+            const [rtpfb] = RtcpPacketConverter.deSerialize(
+                new RtcpTransportLayerFeedback({feedback: twcc}).serialize()
+            ) as [RtcpTransportLayerFeedback]
+            expect(
+                (rtpfb.feedback as TransportWideCC).packetResults.map((result) => [
+                    result.sequenceNumber,
+                    result.received,
+                    result.receivedAtMs
+                ])
+            ).toEqual([
+                [65534, true, 6401],
+                [65535, true, 6401.25],
+                [0, false, 0],
+                [1, true, 6400.75]
+            ])
+        })
+
+        test('padded only when not on 32 bits, within a compound packet', () => {
+            const aligned = new TransportWideCC({
+                senderSsrc: 1,
+                mediaSourceSsrc: 2,
+                baseSequenceNumber: 1,
+                packetStatusCount: 2,
+                referenceTime: 1,
+                fbPktCount: 0,
+                packetChunks: [
+                    new RunLengthChunk({
+                        packetStatus: PacketStatus.TypeTCCPacketReceivedSmallDelta,
+                        runLength: 2
+                    })
+                ],
+                recvDeltas: [
+                    new RecvDelta({type: PacketStatus.TypeTCCPacketReceivedSmallDelta, delta: 250}),
+                    new RecvDelta({type: PacketStatus.TypeTCCPacketReceivedSmallDelta, delta: 250})
+                ]
+            })
+            const padded = new TransportWideCC({
+                senderSsrc: 1,
+                mediaSourceSsrc: 2,
+                baseSequenceNumber: 3,
+                packetStatusCount: 1,
+                referenceTime: 1,
+                fbPktCount: 1,
+                packetChunks: [
+                    new RunLengthChunk({
+                        packetStatus: PacketStatus.TypeTCCPacketReceivedSmallDelta,
+                        runLength: 1
+                    })
+                ],
+                recvDeltas: [
+                    new RecvDelta({type: PacketStatus.TypeTCCPacketReceivedSmallDelta, delta: 250})
+                ]
+            })
+            const compound = Buffer.concat([
+                new RtcpTransportLayerFeedback({feedback: padded}).serialize(),
+                new RtcpTransportLayerFeedback({feedback: aligned}).serialize()
+            ])
+            expect(padded.header.padding).toBe(true)
+            expect(aligned.header.padding).toBe(false)
+            const parsed = RtcpPacketConverter.deSerialize(compound) as RtcpTransportLayerFeedback[]
+            expect(
+                parsed.map((packet) => (packet.feedback as TransportWideCC).packetResults.map((result) => result.sequenceNumber))
+            ).toEqual([[3], [1, 2]])
         })
     })
 

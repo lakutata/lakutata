@@ -7,6 +7,9 @@ import {CumulativeResult} from './cumulativeResult.js'
 
 const COUNTER_MAX = 20
 const SCORE_MAX = 10
+//The packets sent kept for their feedback, by transport-wide sequence number: the feedback comes within a few hundred
+//milliseconds
+const SENT_HISTORY = 8192
 
 export class SenderBandwidthEstimator {
     congestion = false
@@ -18,7 +21,7 @@ export class SenderBandwidthEstimator {
 
     private congestionCounter = 0
     private cumulativeResult = new CumulativeResult()
-    private sentInfos: {[key: number]: SentInfo} = {}
+    private sentInfos = new Map<number, SentInfo>()
     private _congestionScore = 1
     /**1~10 big is worth*/
     get congestionScore() {
@@ -41,7 +44,10 @@ export class SenderBandwidthEstimator {
 
     receiveTWCC(feedback: TransportWideCC) {
         const nowMs = milliTime()
-        const elapsedMs = nowMs - this.cumulativeResult.firstPacketSentAtMs
+        //Since the first packet acknowledged of the window (none yet: just started)
+        const elapsedMs = this.cumulativeResult.numPackets
+            ? nowMs - this.cumulativeResult.firstPacketSentAtMs
+            : 0
         if (elapsedMs > 1000) {
             this.cumulativeResult.reset()
 
@@ -63,7 +69,7 @@ export class SenderBandwidthEstimator {
             if (!result.received) continue
 
             const wideSeq = result.sequenceNumber
-            const info = this.sentInfos[wideSeq]
+            const info = this.sentInfos.get(wideSeq)
             if (!info) continue
             if (!result.receivedAtMs) continue
 
@@ -106,14 +112,8 @@ export class SenderBandwidthEstimator {
     }
 
     rtpPacketSent(sentInfo: SentInfo) {
-        Object.keys(sentInfo)
-            .map((v) => Number(v))
-            .sort()
-            .filter((seq) => seq < sentInfo.wideSeq)
-            .forEach((seq) => {
-                delete this.sentInfos[seq]
-            })
-        this.sentInfos[sentInfo.wideSeq] = sentInfo
+        this.sentInfos.delete((sentInfo.wideSeq - SENT_HISTORY) & 0xffff)
+        this.sentInfos.set(sentInfo.wideSeq, sentInfo)
     }
 }
 

@@ -40,11 +40,10 @@ import {
     RtcpSourceDescriptionPacket,
     RtcpSrPacket,
     RtcpTransportLayerFeedback,
-    type RtpHeader,
+    RtpHeader,
     RtpPacket,
     SourceDescriptionChunk,
     SourceDescriptionItem,
-    TransportWideCC,
     debug,
     serializeAbsSendTime,
     serializeRepairedRtpStreamId,
@@ -62,7 +61,7 @@ import type {
     RTCRtpHeaderExtensionParameters,
     RTCRtpSendParameters
 } from './parameters.js'
-import {SenderBandwidthEstimator, type SentInfo} from './sender/senderBWE.js'
+import type {SentInfo} from './sender/senderBWE.js'
 import {
     type RTCCodecStats,
     type RTCMediaSourceStats,
@@ -150,7 +149,6 @@ export class RTCRtpSender {
     readonly onRtcp = new Event<[RtcpPacket]>()
     readonly onPictureLossIndication = new Event<[]>()
     readonly onGenericNack = new Event<[GenericNack]>()
-    readonly senderBWE = new SenderBandwidthEstimator()
 
     private cname?: string
     private mid?: string
@@ -638,6 +636,7 @@ export class RTCRtpSender {
         this.sequenceNumber = header.sequenceNumber
 
         const ntpTimestamp = ntpTime()
+        let transportSequenceNumber: number | undefined
 
         const originalHeaderExtensions = [...header.extensions]
         header.extensions = this.headerExtensions
@@ -662,13 +661,8 @@ export class RTCRtpSender {
                             }
                             return
                         case RTP_EXTENSION_URI.transportWideCC:
-                            this.dtlsTransport.transportSequenceNumber = uint16Add(
-                                this.dtlsTransport.transportSequenceNumber,
-                                1
-                            )
-                            return serializeTransportWideCC(
-                                this.dtlsTransport.transportSequenceNumber
-                            )
+                            transportSequenceNumber = this.nextTransportSequenceNumber()
+                            return serializeTransportWideCC(transportSequenceNumber)
                         case RTP_EXTENSION_URI.absSendTime:
                             return serializeAbsSendTime(ntpTimestamp)
                     }
@@ -707,17 +701,84 @@ export class RTCRtpSender {
             rtpPayload = red.serialize()
         }
 
+        const sendingAtMs = milliTime()
         const size = await this.dtlsTransport.sendRtp(rtpPayload, header)
 
         this.runRtcp().catch((error) => log('rtcp failed', error))
-        const millitime = milliTime()
-        const sentInfo: SentInfo = {
-            wideSeq: this.dtlsTransport.transportSequenceNumber,
-            size,
-            sendingAtMs: millitime,
-            sentAtMs: millitime
+        if (transportSequenceNumber !== undefined) {
+            this.packetSent(transportSequenceNumber, size, sendingAtMs)
         }
-        this.senderBWE.rtpPacketSent(sentInfo)
+    }
+
+    /**
+     * The next transport-wide sequence number, shared by the senders of the transport
+     */
+    private nextTransportSequenceNumber() {
+        this.dtlsTransport.transportSequenceNumber = uint16Add(
+            this.dtlsTransport.transportSequenceNumber,
+            1
+        )
+        return this.dtlsTransport.transportSequenceNumber
+    }
+
+    /**
+     * A packet sent with a transport-wide sequence number, for the bandwidth estimation of the transport
+     * @param wideSeq
+     * @param size
+     * @param sendingAtMs
+     */
+    private packetSent(wideSeq: number, size: number, sendingAtMs: number) {
+        const sentInfo: SentInfo = {
+            wideSeq,
+            size,
+            sendingAtMs,
+            sentAtMs: milliTime()
+        }
+        this.dtlsTransport.senderBWE.rtpPacketSent(sentInfo)
+    }
+
+    /**
+     * Send a packet again, for a negative acknowledgement: with a new transport-wide sequence number and send time, in
+     * a retransmission packet when RTX is negotiated
+     * @param cached
+     */
+    private async resendRtp(cached: RtpPacket) {
+        let transportSequenceNumber: number | undefined
+        const extensions = cached.header.extensions.map((extension) => {
+            const uri = this.headerExtensions.find(
+                (negotiated) => negotiated.id === extension.id
+            )?.uri
+            switch (uri) {
+                case RTP_EXTENSION_URI.transportWideCC:
+                    transportSequenceNumber = this.nextTransportSequenceNumber()
+                    return {id: extension.id, payload: serializeTransportWideCC(transportSequenceNumber)}
+                case RTP_EXTENSION_URI.absSendTime:
+                    return {id: extension.id, payload: serializeAbsSendTime(ntpTime())}
+                default:
+                    return extension
+            }
+        })
+        let packet = new RtpPacket(
+            new RtpHeader({...cached.header, extensions}),
+            cached.payload
+        )
+        if (this.rtxPayloadType != undefined) {
+            packet = wrapRtx(
+                packet,
+                this.rtxPayloadType,
+                this.rtxSequenceNumber,
+                this.rtxSsrc
+            )
+            this.rtxSequenceNumber = uint16Add(this.rtxSequenceNumber, 1)
+        }
+        this.retransmittedPacketsSent++
+        this.retransmittedBytesSent += packet.payload.length
+        this.headerBytesSent += packet.header.serializeSize
+        const sendingAtMs = milliTime()
+        const size = await this.dtlsTransport.sendRtp(packet.payload, packet.header)
+        if (transportSequenceNumber !== undefined) {
+            this.packetSent(transportSequenceNumber, size, sendingAtMs)
+        }
     }
 
     handleRtcpPacket(rtcpPacket: RtcpPacket) {
@@ -753,42 +814,15 @@ export class RTCRtpSender {
                 {
                     const packet = rtcpPacket as RtcpTransportLayerFeedback
                     switch (packet.feedback.count) {
-                        case TransportWideCC.count:
-                            {
-                                const feedback = packet.feedback as TransportWideCC
-                                this.senderBWE.receiveTWCC(feedback)
-                            }
-                            break
                         case GenericNack.count:
                             {
                                 const feedback = packet.feedback as GenericNack
                                 this.nackCount++
                                 feedback.lost.forEach(detached(async (seqNum: number) => {
-                                    let packet: RtpPacket | undefined =
+                                    const packet: RtpPacket | undefined =
                                         this.rtpCache[seqNum % RTP_HISTORY_SIZE]
-                                    if (packet && packet.header.sequenceNumber !== seqNum) {
-                                        packet = undefined
-                                    }
-                                    if (packet) {
-                                        if (this.rtxPayloadType != undefined) {
-                                            packet = wrapRtx(
-                                                packet,
-                                                this.rtxPayloadType,
-                                                this.rtxSequenceNumber,
-                                                this.rtxSsrc
-                                            )
-                                            this.rtxSequenceNumber = uint16Add(
-                                                this.rtxSequenceNumber,
-                                                1
-                                            )
-                                        }
-                                        this.retransmittedPacketsSent++
-                                        this.retransmittedBytesSent += packet.payload.length
-                                        this.headerBytesSent += packet.header.serializeSize
-                                        await this.dtlsTransport.sendRtp(
-                                            packet.payload,
-                                            packet.header
-                                        )
+                                    if (packet && packet.header.sequenceNumber === seqNum) {
+                                        await this.resendRtp(packet)
                                     }
                                 }, (error) => log('retransmission failed', error)))
                                 this.onGenericNack.execute(feedback)

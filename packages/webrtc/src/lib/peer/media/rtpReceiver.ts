@@ -28,7 +28,6 @@ import type {
     RTCRtpReceiveParameters
 } from './parameters.js'
 import {NackHandler} from './receiver/nack.js'
-import {ReceiverTWCC} from './receiver/receiverTwcc.js'
 import {StreamStatistics} from './receiver/statistics.js'
 
 import {codecParametersFromString} from '../sdp.js'
@@ -79,7 +78,6 @@ export class RTCRtpReceiver {
     latestRid?: string
     latestRepairedRid?: string
 
-    receiverTWCC?: ReceiverTWCC
     stopped = false
     remoteStreamId?: string
     remoteStreamIds: string[] = []
@@ -151,12 +149,11 @@ export class RTCRtpReceiver {
    * negotiated codec と receiver の実処理状態を再同期する。
    * codec map と RTX mapping を置換し、既存 remote track の codec
    * metadata も新しい先頭 codec に更新する。
-   * 既存の receiverTWCC は破棄し、新しい codec が transport-cc を持ち
-   * remote SSRC が分かる場合だけ再生成する。
+   * transport-cc の有無は twccEnabled が新しい codec から判断する。
    * setCodecPreferences() 後の createAnswer() 再解決や remote からの
    * 再交渉では、除外された payload type の RTP を受け付けないようにする。
    */
-    resyncCodecs(params: RTCRtpReceiveParameters, mediaSourceSsrc?: number) {
+    resyncCodecs(params: RTCRtpReceiveParameters) {
         for (const key of Object.keys(this.codecs)) {
             delete this.codecs[Number(key)]
         }
@@ -173,23 +170,6 @@ export class RTCRtpReceiver {
             for (const track of this.tracks) {
                 track.codec = codec
             }
-        }
-        this.receiverTWCC = undefined
-        if (mediaSourceSsrc != undefined) {
-            this.setupTWCC(mediaSourceSsrc)
-        }
-    }
-
-    /**
-   * setup TWCC if supported
-   */
-    setupTWCC(mediaSourceSsrc: number) {
-        if (this.twccEnabled && !this.receiverTWCC) {
-            this.receiverTWCC = new ReceiverTWCC(
-                this.dtlsTransport,
-                this.rtcpSsrc,
-                mediaSourceSsrc
-            )
         }
     }
 
@@ -219,8 +199,6 @@ export class RTCRtpReceiver {
         this.stopped = true
         this.rtcpRunning = false
         this.rtcpCancel.abort()
-
-        if (this.receiverTWCC) this.receiverTWCC.twccRunning = false
         this.nack.close()
     }
 
@@ -497,17 +475,18 @@ export class RTCRtpReceiver {
       new StreamStatistics(codec.clockRate)
         this.remoteStreams[packet.header.ssrc].add(packet)
 
-        if (this.receiverTWCC) {
+        //The transport reports the arrival of the packets of the streams negotiating transport-cc; a packet without the
+        //transport-wide sequence number (the extension not negotiated) is not counted
+        if (this.twccEnabled) {
             const transportSequenceNumber = extensions[
                 RTP_EXTENSION_URI.transportWideCC
-            ] as TransportWideCCPayload
-
-            //A packet without the transport-wide sequence number (the extension not negotiated) is not counted
+            ] as TransportWideCCPayload | undefined
             if (transportSequenceNumber !== undefined) {
-                this.receiverTWCC.handleTWCC(transportSequenceNumber)
+                this.dtlsTransport.receiverTWCC.handleTWCC(
+                    transportSequenceNumber,
+                    packet.header.ssrc
+                )
             }
-        } else if (this.twccEnabled) {
-            this.setupTWCC(packet.header.ssrc)
         }
 
         if (codec.name.toLowerCase() === 'rtx') {

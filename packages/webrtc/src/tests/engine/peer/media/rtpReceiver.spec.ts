@@ -8,6 +8,7 @@ import {
     RTCRtpCodingParameters,
     RTCStatsReport,
     RtcpSenderInfo,
+    RTP_EXTENSION_URI,
     RtcpSrPacket,
     RtpHeader,
     RtpPacket,
@@ -208,16 +209,17 @@ describe('packages/webrtc/src/media/rtpReceiver.ts', () => {
         receiver.stop()
     })
 
-    test('resyncCodecs resets TWCC state for new codec and SSRC', () => {
+    test('resyncCodecs decides from the new codec whether the arrivals are reported to the transport', () => {
         const dtls = createDtlsTransport()
         const receiver = new RTCRtpReceiver(defaultPeerConfig, 'video', 1234)
         receiver.setDtlsTransport(dtls)
+        const arrive = (ssrc: number, payloadType: number, transportSequenceNumber: number) =>
+            receiver.handleRtpBySsrc(
+                new RtpPacket(new RtpHeader({ssrc, payloadType}), Buffer.from([1, 2, 3])),
+                {[RTP_EXTENSION_URI.transportWideCC]: transportSequenceNumber}
+            )
 
-        const track = new MediaStreamTrack({kind: 'video'})
-        track.ssrc = 111
-
-        // Arrange: transport-cc ありの codec で受信準備し TWCC を開始する。
-        receiver.addTrack(track)
+        // Arrange: transport-cc ありの codec で受信準備する。
         receiver.prepareReceive({
             codecs: [
                 new RTCRtpCodecParameters({
@@ -230,49 +232,46 @@ describe('packages/webrtc/src/media/rtpReceiver.ts', () => {
             encodings: [new RTCRtpCodingParameters({ssrc: 111, payloadType: 96})],
             headerExtensions: []
         })
-        receiver.setupTWCC(111)
-        receiver.receiverTWCC!.handleTWCC(1)
+        arrive(111, 96, 1)
+        expect([...dtls.receiverTWCC.arrivals.keys()]).toEqual([1])
 
         // Act: transport-cc なしの codec と新しい SSRC に再同期する。
-        receiver.resyncCodecs(
-            {
-                codecs: [
-                    new RTCRtpCodecParameters({
-                        mimeType: 'video/h264',
-                        clockRate: 90000,
-                        payloadType: 98
-                    })
-                ],
-                encodings: [new RTCRtpCodingParameters({ssrc: 222, payloadType: 98})],
-                headerExtensions: []
-            },
-            222
-        )
+        receiver.resyncCodecs({
+            codecs: [
+                new RTCRtpCodecParameters({
+                    mimeType: 'video/h264',
+                    clockRate: 90000,
+                    payloadType: 98
+                })
+            ],
+            encodings: [new RTCRtpCodingParameters({ssrc: 222, payloadType: 98})],
+            headerExtensions: []
+        })
+        arrive(222, 98, 2)
 
-        // Assert: 古い TWCC 状態は破棄され、transport-cc が無いため再生成されない。
-        expect(receiver.receiverTWCC).toBeUndefined()
+        // Assert: transport-cc が無いので到着は報告されない。
+        expect(receiver.twccEnabled).toBeUndefined()
+        expect([...dtls.receiverTWCC.arrivals.keys()]).toEqual([1])
 
         // Act: transport-cc ありの codec とさらに新しい SSRC に再同期する。
-        receiver.resyncCodecs(
-            {
-                codecs: [
-                    new RTCRtpCodecParameters({
-                        mimeType: 'video/vp8',
-                        clockRate: 90000,
-                        payloadType: 96,
-                        rtcpFeedback: [useTWCC()]
-                    })
-                ],
-                encodings: [new RTCRtpCodingParameters({ssrc: 333, payloadType: 96})],
-                headerExtensions: []
-            },
-            333
-        )
+        receiver.resyncCodecs({
+            codecs: [
+                new RTCRtpCodecParameters({
+                    mimeType: 'video/vp8',
+                    clockRate: 90000,
+                    payloadType: 96,
+                    rtcpFeedback: [useTWCC()]
+                })
+            ],
+            encodings: [new RTCRtpCodingParameters({ssrc: 333, payloadType: 96})],
+            headerExtensions: []
+        })
+        arrive(333, 96, 3)
 
-        // Assert: TWCC が新しい状態で再生成される (古い蓄積は引き継がない)。
-        expect(receiver.receiverTWCC).toBeDefined()
-        expect(Object.keys(receiver.receiverTWCC!.extensionInfo)).toHaveLength(0)
+        // Assert: 再び transport の feedback に報告される。
+        expect([...dtls.receiverTWCC.arrivals.keys()]).toEqual([1, 3])
         receiver.stop()
+        dtls.receiverTWCC.stop()
     })
 
     test('getStats returns report with seconds-based jitter and byte counters', async () => {

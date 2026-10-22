@@ -14,8 +14,9 @@ export class FullIntraRequest {
         Object.assign(this, props)
     }
 
+    //The words after the header, as the length of RTCP counts them
     get length() {
-        return Math.floor(this.serialize().length / 4 - 1)
+        return this.serialize().length / 4
     }
 
     static deSerialize(data: Buffer) {

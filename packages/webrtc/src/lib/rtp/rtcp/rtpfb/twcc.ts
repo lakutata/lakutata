@@ -209,41 +209,57 @@ export class TransportWideCC {
 
         const buf = Buffer.concat([constBuf, chunks, deltas])
 
-        if (this.header.padding && buf.length % 4 !== 0) {
-            const rest = 4 - (buf.length % 4)
-            const padding = Buffer.alloc(rest)
+        //Padded to 32 bits, the padding flag set only then: the receiver takes the last byte for the length of the padding
+        const rest = buf.length % 4
+        this.header.padding = rest !== 0
+        if (rest !== 0) {
+            const padding = Buffer.alloc(4 - rest)
             padding[padding.length - 1] = padding.length
 
-            this.header.length = Math.floor((buf.length + padding.length) / 4)
+            this.header.length = (buf.length + padding.length) / 4
             return Buffer.concat([this.header.serialize(), buf, padding])
         }
 
-        this.header.length = Math.floor(buf.length / 4)
+        this.header.length = buf.length / 4
         return Buffer.concat([this.header.serialize(), buf])
     }
 
+    /**
+     * The packets reported, in the order of their sequence numbers: whether each was received, and when (in
+     * milliseconds, on the clock of the receiver)
+     */
     get packetResults(): PacketResult[] {
-        const currentSequenceNumber = this.baseSequenceNumber - 1
-        const results = this.packetChunks
-            .filter((v) => v instanceof RunLengthChunk)
-            .flatMap((chunk) =>
-                (chunk as RunLengthChunk).results(currentSequenceNumber)
-            )
-
-        let deltaIdx = 0
-        const referenceTime = BigInt(this.referenceTime) * 64n
-        let currentReceivedAtMs = referenceTime
-
-        for (const result of results) {
-            const recvDelta = this.recvDeltas[deltaIdx]
-            if (!result.received || !recvDelta) {
-                continue
+        const statuses: number[] = []
+        for (const chunk of this.packetChunks) {
+            if (chunk instanceof RunLengthChunk) {
+                for (let index = 0; index < chunk.runLength; index++) statuses.push(chunk.packetStatus)
+            } else {
+                statuses.push(...chunk.symbolList)
             }
-            currentReceivedAtMs += BigInt(recvDelta.delta) / 1000n
-            result.delta = recvDelta.delta
-            result.receivedAtMs = Number(currentReceivedAtMs)
-            deltaIdx++
         }
+        //The last status vector may go past the packets reported
+        if (statuses.length > this.packetStatusCount) statuses.length = this.packetStatusCount
+
+        const results: PacketResult[] = []
+        //In microseconds, from the reference time (in multiples of 64 ms)
+        let receivedAt = this.referenceTime * 64000
+        let deltaIndex = 0
+        statuses.forEach((status, index) => {
+            const result = new PacketResult({sequenceNumber: (this.baseSequenceNumber + index) & 0xffff})
+            if (
+                status === PacketStatus.TypeTCCPacketReceivedSmallDelta ||
+                status === PacketStatus.TypeTCCPacketReceivedLargeDelta
+            ) {
+                const recvDelta = this.recvDeltas[deltaIndex++]
+                if (recvDelta) {
+                    receivedAt += recvDelta.delta
+                    result.received = true
+                    result.delta = recvDelta.delta
+                    result.receivedAtMs = receivedAt / 1000
+                }
+            }
+            results.push(result)
+        })
         return results
     }
 }
@@ -277,20 +293,6 @@ export class RunLengthChunk {
             .set(this.runLength, 13).buffer
 
         return buf
-    }
-
-    results(currentSequenceNumber: number) {
-        const received =
-            this.packetStatus === PacketStatus.TypeTCCPacketReceivedSmallDelta ||
-      this.packetStatus === PacketStatus.TypeTCCPacketReceivedLargeDelta
-
-        const results: PacketResult[] = []
-        for (let i = 0; i <= this.runLength; ++i) {
-            results.push(
-                new PacketResult({sequenceNumber: ++currentSequenceNumber, received})
-            )
-        }
-        return results
     }
 }
 

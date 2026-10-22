@@ -519,10 +519,7 @@ export class TransceiverManager {
             for (const param of remoteMedia.simulcastParameters) {
                 this.router.registerRtpReceiverByRid(transceiver, param, remoteParams)
             }
-            transceiver.receiver.resyncCodecs(
-                remoteParams,
-                remoteMedia.ssrc[0]?.ssrc
-            )
+            transceiver.receiver.resyncCodecs(remoteParams)
             this.router.registerRtpReceiverBySsrc(transceiver, remoteParams)
         }
     }
@@ -809,8 +806,8 @@ export class TransceiverManager {
                 this.router.registerRtpReceiverByRid(transceiver, param, remotePrams)
             }
 
-            // codec map / RTX / TWCC を negotiated codec に合わせて再構築する
-            transceiver.receiver.resyncCodecs(remotePrams, remoteMedia.ssrc[0]?.ssrc)
+            // codec map / RTX を negotiated codec に合わせて再構築する
+            transceiver.receiver.resyncCodecs(remotePrams)
             // register ssrc receiver
             this.router.registerRtpReceiverBySsrc(transceiver, remotePrams)
         }

@@ -9,10 +9,18 @@ import {
     RtpPacket,
     unwrapRtx
 } from '../../../../lib/peer/index.js'
-import {RTCRtpCodecParameters} from '../../../../lib/peer/media/parameters.js'
+import {RTCRtpCodecParameters, RTCRtpHeaderExtensionParameters} from '../../../../lib/peer/media/parameters.js'
 import {RTCRtpSender} from '../../../../lib/peer/media/rtpSender.js'
 import {RTCStatsReport} from '../../../../lib/peer/media/stats.js'
 import {
+    PacketStatus,
+    RTP_EXTENSION_URI,
+    RecvDelta,
+    RunLengthChunk,
+    TransportWideCC
+} from '../../../../lib/rtp/index.js'
+import {
+    createAudioCodec,
     createConnectedRtpSender,
     createDtlsTransport,
     createRtpPacket,
@@ -1200,6 +1208,97 @@ describe('media/rtpSender RTP continuity', () => {
         )
         expect(twccSeqs).toEqual([1, 2])
         expect(dtls.transportSequenceNumber).toBe(2)
+    })
+
+    test('NACK の再送は新しい TWCC 番号で送り、transport の帯域推定に記録する', async () => {
+        const {sender, dtls, sendRtp} = arrangeSender({twcc: true})
+
+        // Arrange: 1 パケット送出する。
+        await sender.sendRtp(createRtpPacket(100, 0))
+        const [sent] = sentRtpHeaders(sendRtp)
+
+        // Act: そのパケットの NACK を受ける。
+        sender.handleRtcpPacket(
+            new RtcpTransportLayerFeedback({
+                feedback: new GenericNack({
+                    senderSsrc: 1,
+                    mediaSourceSsrc: sender.ssrc,
+                    lost: [sent.sequenceNumber]
+                })
+            })
+        )
+        await setTimeout(10)
+
+        // Assert: 再送はメディア seq が同じで、TWCC 番号は新しい。元のパケットは書き換えない。
+        const headers = sentRtpHeaders(sendRtp)
+        expect(headers.map((header) => header.sequenceNumber)).toEqual([
+            sent.sequenceNumber,
+            sent.sequenceNumber
+        ])
+        const twccSeqs = headers.map((header) =>
+            header.extensions.find((ext) => ext.id === 3)!.payload.readUInt16BE(0)
+        )
+        expect(twccSeqs).toEqual([1, 2])
+        expect(headers[0]).not.toBe(headers[1])
+
+        // Assert: 両方とも transport の帯域推定に記録されている。
+        const sentInfos = (dtls.senderBWE as any).sentInfos as Map<number, unknown>
+        expect([...sentInfos.keys()]).toEqual([1, 2])
+    })
+
+    test('同じ transport の sender は TWCC 番号と帯域推定を共有する', async () => {
+        const {sender, dtls, sendRtp} = arrangeSender({twcc: true})
+        const other = new RTCRtpSender(new MediaStreamTrack({kind: 'audio', remote: true}))
+        other.setDtlsTransport(dtls)
+        other.prepareSend({
+            codecs: [createAudioCodec()],
+            headerExtensions: [
+                new RTCRtpHeaderExtensionParameters({
+                    id: 3,
+                    uri: RTP_EXTENSION_URI.transportWideCC
+                })
+            ]
+        })
+        started.push(other)
+
+        // Act: 2 つの sender が交互に送出する。
+        await sender.sendRtp(createRtpPacket(1, 0))
+        await other.sendRtp(createRtpPacket(1, 0))
+        await sender.sendRtp(createRtpPacket(2, 960))
+
+        // Assert: TWCC 番号は transport で通しになる。
+        const twccSeqs = sentRtpHeaders(sendRtp).map((header) =>
+            header.extensions.find((ext) => ext.id === 3)!.payload.readUInt16BE(0)
+        )
+        expect(twccSeqs).toEqual([1, 2, 3])
+
+        // Act: 3 パケットとも受信された feedback を受ける。
+        dtls.senderBWE.receiveTWCC(
+            new TransportWideCC({
+                senderSsrc: 1,
+                mediaSourceSsrc: sender.ssrc,
+                baseSequenceNumber: 1,
+                packetStatusCount: 3,
+                referenceTime: 1,
+                fbPktCount: 0,
+                packetChunks: [
+                    new RunLengthChunk({
+                        packetStatus: PacketStatus.TypeTCCPacketReceivedSmallDelta,
+                        runLength: 3
+                    })
+                ],
+                recvDeltas: [1000, 1000, 1000].map(
+                    (delta) =>
+                        new RecvDelta({
+                            type: PacketStatus.TypeTCCPacketReceivedSmallDelta,
+                            delta
+                        })
+                )
+            })
+        )
+
+        // Assert: 両方の sender のパケットが推定に入る。
+        expect((dtls.senderBWE as any).cumulativeResult.numPackets).toBe(3)
     })
 
     test('replaceRTP の header 引数はオフセット計算に使わず、次の実送出で確定する', async () => {

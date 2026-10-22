@@ -26,7 +26,8 @@ export class RtcpPacketConverter {
             )
             pos += RTCP_HEADER_SIZE
 
-            let payload = data.subarray(pos)
+            //The payload of this packet only: the padding is counted by its own last byte
+            let payload = data.subarray(pos, pos + header.length * 4)
             pos += header.length * 4
 
             if (header.padding) {

@@ -19,12 +19,14 @@ import type {IceConnection} from '../imports/ice.js'
 import {
     type RtcpPacket,
     RtcpPacketConverter,
+    RtcpTransportLayerFeedback,
     type RtpHeader,
     RtpPacket,
     SrtcpSession,
     SrtpAuthenticationError,
     type SrtpProfile,
     SrtpSession,
+    TransportWideCC,
     debug,
     isMedia,
     isRtcp,
@@ -38,6 +40,8 @@ import {
     generateStatsId,
     getStatsTimestamp
 } from '../media/stats.js'
+import {ReceiverTWCC} from '../media/receiver/receiverTwcc.js'
+import {SenderBandwidthEstimator} from '../media/sender/senderBWE.js'
 import type {DebugConfig} from '../peerConnection.js'
 import {
     fingerprint,
@@ -89,6 +93,10 @@ export class RTCDtlsTransport implements DtlsTransportStats {
     role: DtlsRole = 'auto'
     srtpStarted = false
     transportSequenceNumber = 0
+    /**The feedback of the packets received with a transport-wide sequence number (of all the streams)*/
+    readonly receiverTWCC: ReceiverTWCC = new ReceiverTWCC(this)
+    /**The bandwidth estimated from the feedback of the packets sent with one*/
+    readonly senderBWE = new SenderBandwidthEstimator()
 
     // Statistics tracking
     public bytesSent = 0
@@ -404,6 +412,11 @@ export class RTCDtlsTransport implements DtlsTransportStats {
                 }
                 for (const rtcp of rtcpPackets) {
                     try {
+                        //The transport-wide feedback is the one of the packets of all the senders
+                        if (rtcp instanceof RtcpTransportLayerFeedback && rtcp.feedback instanceof TransportWideCC) {
+                            this.senderBWE.receiveTWCC(rtcp.feedback)
+                            continue
+                        }
                         this.onRtcp.execute(rtcp)
                     } catch (error) {
                         log('RTCP error', error)
@@ -494,6 +507,7 @@ export class RTCDtlsTransport implements DtlsTransportStats {
     private setState(state: DtlsState, emitEvent = true) {
         if (state != this.state) {
             this.state = state
+            if (state === 'closed' || state === 'failed') this.receiverTWCC.stop()
             this.onStateChange.execute(state)
             if (emitEvent) {
                 this.onstatechange?.()
