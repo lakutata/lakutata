@@ -6,11 +6,10 @@ import {engineChannelOf} from '../peer/EngineConnection.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
 import {PeerConnection, type PeerTrackEvent} from '../peer/PeerConnection.js'
 import type {RtpTransceiver} from '../peer/RtpTransceiver.js'
-import type {RtpPacket} from '../peer/RtpPacket.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
 import type {SFUTrack} from '../sfu/SFU.js'
 import type {WHIPSession} from '../whip/WHIP.js'
-import {feed, packets} from './support/Media.js'
+import {feed, from, packets, whipPublisher} from './support/Media.js'
 import {next, startServer, type TestServer, until} from './support/Server.js'
 
 /**
@@ -44,40 +43,6 @@ async function member(clients: Container, server: TestServer, id: string, first:
     const stop: () => void = feed(video, first)
     await room.publish(video, 'camera')
     return {room: room, video: video, received: received, stop: stop}
-}
-
-/**
- * Whether the packets of a track come from the member whose numbers start at `first` (100000 numbers each)
- * @param track
- * @param first
- */
-async function from(track: MediaTrack, first: number): Promise<boolean> {
-    return (await packets(track, 5)).every((packet: RtpPacket): boolean => {
-        const number: number = packet.payload.readUInt32BE(0)
-        return number >= first && number < first + 100000
-    })
-}
-
-/**
- * A publisher of WHIP from Node.js: an audio and a video track whose packets carry numbers from `first`, their offer
- * POSTed with all its candidates
- * @param container
- * @param url The URL of the endpoint.
- * @param first
- * @returns The connection, the response, its URL, and a function stopping the packets.
- */
-async function whipPublisher(container: Container, url: string, first: number): Promise<{connection: PeerConnection, response: Response, location?: string, stop(): void}> {
-    const connection: PeerConnection = await container.get(PeerConnection, {iceAdditionalHostAddresses: ['127.0.0.1']})
-    const audio: MediaTrack = new MediaTrack('audio', {codec: 'audio/opus'})
-    const video: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
-    const stops: (() => void)[] = [feed(audio, first), feed(video, first)]
-    connection.addTransceiver(audio, {direction: 'sendonly', streams: ['broadcast']})
-    connection.addTransceiver(video, {direction: 'sendonly', streams: ['broadcast']})
-    await connection.setLocalDescription()
-    await until((): boolean => connection.iceGatheringState === 'complete', 10000, 'the candidates')
-    const response: Response = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: connection.localDescription!.sdp})
-    if (response.status === 201) await connection.setRemoteDescription({type: 'answer', sdp: await response.text()})
-    return {connection: connection, response: response, location: response.headers.get('Location') ?? undefined, stop: (): void => stops.forEach((stop: () => void): void => stop())}
 }
 
 describe('SFU', (): void => {

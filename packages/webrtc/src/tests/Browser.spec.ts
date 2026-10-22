@@ -560,6 +560,55 @@ describe('Browser', (): void => {
         }
     })
 
+    it('publishes the camera of a page of Chrome with WHIP and plays it on another one with WHEP', {timeout: 90000}, async (t: TestContext): Promise<void> => {
+        const chrome: Browser | undefined = await launchChrome({media: true})
+        if (!chrome) return t.skip('Playwright or Chrome is not available')
+        const files: {url: string, server: Server} = await staticServer()
+        const server: TestServer = await startServer({sfu: {}, whip: {}, whep: {}})
+        try {
+            const [camera, player] = await Promise.all([chrome.newPage(), chrome.newPage()])
+            await Promise.all([camera.goto(files.url), player.goto(files.url)])
+            //The camera publishes, from another origin
+            await camera.evaluate(`(async () => {
+                const camera = await navigator.mediaDevices.getUserMedia({audio: true, video: {width: 320, height: 240}})
+                window.publisher = new RTCPeerConnection()
+                for (const track of camera.getTracks()) window.publisher.addTransceiver(track, {direction: 'sendonly', streams: [camera]})
+                await window.publisher.setLocalDescription()
+                ${gatheredScript('publisher')}
+                const response = await fetch(${JSON.stringify(`${server.http}/whip/stage`)}, {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: window.publisher.localDescription.sdp})
+                if (response.status !== 201) throw new Error('POST answered ' + response.status)
+                await window.publisher.setRemoteDescription({type: 'answer', sdp: await response.text()})
+            })()`)
+            //The player receives it through the media server, and decodes it
+            const decoded: {framesDecoded: number, width: number} = await player.evaluate(`(async () => {
+                window.player = new RTCPeerConnection()
+                window.player.addTransceiver('audio', {direction: 'recvonly'})
+                window.player.addTransceiver('video', {direction: 'recvonly'})
+                await window.player.setLocalDescription()
+                ${gatheredScript('player')}
+                const response = await fetch(${JSON.stringify(`${server.http}/whep/stage`)}, {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: window.player.localDescription.sdp})
+                if (response.status !== 201) throw new Error('POST answered ' + response.status)
+                await window.player.setRemoteDescription({type: 'answer', sdp: await response.text()})
+                return await new Promise((resolve, reject) => {
+                    setTimeout(() => reject(new Error('timed out')), 30000)
+                    const timer = setInterval(async () => {
+                        for (const report of (await window.player.getStats()).values()) {
+                            if (report.type !== 'inbound-rtp' || report.kind !== 'video' || !(report.framesDecoded > 0)) continue
+                            clearInterval(timer)
+                            resolve({framesDecoded: report.framesDecoded, width: report.frameWidth})
+                        }
+                    }, 200)
+                })
+            })()`)
+            assert.strictEqual(decoded.width, 320)
+            assert.strictEqual(server.sfu!.rooms().stage.viewers, 1)
+        } finally {
+            await chrome.close()
+            files.server.close()
+            await server.stop()
+        }
+    })
+
     it('publishes the camera of Chrome with WHIP, from another origin (CORS)', {timeout: 90000}, async (t: TestContext): Promise<void> => {
         const chrome: Browser | undefined = await launchChrome({media: true})
         if (!chrome) return t.skip('Playwright or Chrome is not available')

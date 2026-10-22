@@ -1,4 +1,5 @@
-import type {SignalingDescription} from '../protocol/SignalingProtocol.js'
+import type {IncomingMessage} from 'node:http'
+import type {SignalingDescription, SignalingIceServer} from '../protocol/SignalingProtocol.js'
 import type {PeerConnection} from './PeerConnection.js'
 
 /**
@@ -39,4 +40,35 @@ export interface EndpointLeg {
     //Called once when the connection fails or closes, or the leg is closed
     ended(listener: () => void): void
     close(): void
+}
+
+/**
+ * The bearer token of a request
+ * @param request
+ */
+export function bearerOf(request: IncomingMessage): string | undefined {
+    return /^Bearer\s+(\S+)\s*$/i.exec(request.headers.authorization ?? '')?.[1]
+}
+
+/**
+ * The path of a request, without its query and its last slash
+ * @param request
+ */
+export function pathOf(request: IncomingMessage): string {
+    const url: string = (request as IncomingMessage & {originalUrl?: string}).originalUrl ?? request.url ?? ''
+    return url.split('?')[0].replace(/\/+$/, '')
+}
+
+/**
+ * A `Link` header of each ICE server (RFC 9725, section 4.6)
+ * @param iceServers
+ */
+export function linksOf(iceServers: SignalingIceServer[]): string[] {
+    const quoted = (value: string): string => `"${value.replace(/["\\]/g, '\\$&')}"`
+    return iceServers.flatMap((server: SignalingIceServer): string[] => (Array.isArray(server.urls) ? server.urls : [server.urls]).map((url: string): string => {
+        const credentials: string = server.username && server.credential
+            ? `; username=${quoted(server.username)}; credential=${quoted(server.credential)}; credential-type="password"`
+            : ''
+        return `<${url}>; rel="ice-server"${credentials}`
+    }))
 }

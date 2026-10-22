@@ -173,7 +173,7 @@ const UNPUBLISH_TIMEOUT: number = 2000
  * and `unpublish` (the session) when it ends: the publisher deleted it, its connection failed or closed, or the
  * application stopped. The tracks give their RTP packets, to record them or to send them on to other connections.
  * With a media server (`sfu`), a stream goes to a room of the server instead (`roomOf`, the stream by default), as a
- * member sending its tracks to the other members.
+ * member sending its tracks to the other members and to the viewers of WHEP.
  *
  * Register it as `whip` with {@link buildWHIPOptions}, and add `WHIPController` to the controllers of the entrypoint,
  * with an HTTP adapter reading the bodies of WHIP as text (its option

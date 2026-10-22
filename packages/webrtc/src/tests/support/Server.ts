@@ -13,12 +13,14 @@ import {Cluster, type ClusterOptions} from '../../cluster/Cluster.js'
 import {WHIP, type WHIPOptions} from '../../whip/WHIP.js'
 import {WHIPController} from '../../whip/WHIPController.js'
 import {SFU, type SFUOptions} from '../../sfu/SFU.js'
+import {WHEP, type WHEPOptions} from '../../whep/WHEP.js'
+import {WHEPController} from '../../whep/WHEPController.js'
 
 const WHIP_TEXT_TYPES: string[] = ['application/sdp', 'application/trickle-ice-sdpfrag']
 
 /**
  * A signaling server for the tests: Socket.IO and JSON-RPC over WebSocket on random ports of 127.0.0.1, with a TURN
- * server, a media server and WHIP (over HTTP) when asked
+ * server, a media server, WHIP and WHEP (over HTTP) when asked
  */
 export type TestServer = {
     container: Container
@@ -28,7 +30,8 @@ export type TestServer = {
     cluster?: Cluster
     sfu?: SFU
     whip?: WHIP
-    //http://127.0.0.1:<port> (WHIP), when started with it
+    whep?: WHEP
+    //http://127.0.0.1:<port> (WHIP, WHEP), when started with them
     http?: string
     //http://127.0.0.1:<port> (Socket.IO)
     socketIO: string
@@ -41,7 +44,7 @@ export type TestServer = {
  * Start a signaling server, a node of a cluster when given its options
  * @param options
  */
-export async function startServer(options: {signaling?: SignalingOptions, turn?: TURNServerOptions, cluster?: ClusterOptions, sfu?: SFUOptions, whip?: WHIPOptions} = {}): Promise<TestServer> {
+export async function startServer(options: {signaling?: SignalingOptions, turn?: TURNServerOptions, cluster?: ClusterOptions, sfu?: SFUOptions, whip?: WHIPOptions, whep?: WHEPOptions} = {}): Promise<TestServer> {
     const container: Container = new Container()
     let cluster: Cluster | undefined
     if (options.cluster) cluster = await container.setNamed<Cluster>('cluster', Cluster, {...options.cluster})
@@ -52,12 +55,13 @@ export async function startServer(options: {signaling?: SignalingOptions, turn?:
     const signaling: Signaling = await container.setNamed<Signaling>('signaling', Signaling, {...(turn ? {turn: 'turn'} : {}), ...(cluster ? {cluster: 'cluster'} : {}), ...options.signaling})
     const sfu: SFU | undefined = options.sfu ? await container.setNamed<SFU>('sfu', SFU, {...options.sfu}) : undefined
     const whip: WHIP | undefined = options.whip ? await container.setNamed<WHIP>('whip', WHIP, {...sfu ? {sfu: 'sfu'} : {}, ...options.whip}) : undefined
+    const whep: WHEP | undefined = options.whep ? await container.setNamed<WHEP>('whep', WHEP, {...options.whep}) : undefined
     let http: Server | undefined
     let socketIOPort: number = 0
     let jsonRPCPort: number = 0
     const entrypoint: Entrypoint = await container.setNamed<Entrypoint>('entrypoint', Entrypoint, buildEntrypoints({
-        controllers: [SignalingController, ...whip ? [WHIPController] : []],
-        ...whip ? {
+        controllers: [SignalingController, ...whip ? [WHIPController] : [], ...whep ? [WHEPController] : []],
+        ...whip || whep ? {
             http: expressHTTPEntrypoint({
                 port: 0,
                 host: '127.0.0.1',
@@ -93,6 +97,7 @@ export async function startServer(options: {signaling?: SignalingOptions, turn?:
         cluster: cluster,
         sfu: sfu,
         whip: whip,
+        whep: whep,
         http: http ? `http://127.0.0.1:${(http.address() as AddressInfo).port}` : undefined,
         socketIO: `http://127.0.0.1:${socketIOPort}`,
         jsonRPC: `ws://127.0.0.1:${jsonRPCPort}/`,

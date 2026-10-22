@@ -1,9 +1,9 @@
-import type {IncomingMessage} from 'node:http'
 import {DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {Controller, type HTTPContext} from '@lakutata/entrypoint'
 import {DELETE, GET, OPTIONS, PATCH, POST, Prefix} from '@lakutata/entrypoint/decorator/ctrl'
-import type {SignalingDescription, SignalingIceServer} from '../protocol/SignalingProtocol.js'
+import {bearerOf, linksOf, pathOf} from '../peer/Endpoints.js'
+import type {SignalingDescription} from '../protocol/SignalingProtocol.js'
 import {WHIPDeniedException} from '../exceptions/WHIPDeniedException.js'
 import {WHIPMediaTypeException} from '../exceptions/WHIPMediaTypeException.js'
 import {WHIPSessionNotFoundException} from '../exceptions/WHIPSessionNotFoundException.js'
@@ -29,37 +29,6 @@ class SessionDTO extends DTO {
 
     @Expect(DTO.String().min(1).max(64).required())
     public session: string
-}
-
-/**
- * The bearer token of a request
- * @param request
- */
-function bearerOf(request: IncomingMessage): string | undefined {
-    return /^Bearer\s+(\S+)\s*$/i.exec(request.headers.authorization ?? '')?.[1]
-}
-
-/**
- * The path of a request, without its query and its last slash
- * @param request
- */
-function pathOf(request: IncomingMessage): string {
-    const url: string = (request as IncomingMessage & {originalUrl?: string}).originalUrl ?? request.url ?? ''
-    return url.split('?')[0].replace(/\/+$/, '')
-}
-
-/**
- * A `Link` header of each ICE server (RFC 9725, section 4.6)
- * @param iceServers
- */
-function linksOf(iceServers: SignalingIceServer[]): string[] {
-    const quoted = (value: string): string => `"${value.replace(/["\\]/g, '\\$&')}"`
-    return iceServers.flatMap((server: SignalingIceServer): string[] => (Array.isArray(server.urls) ? server.urls : [server.urls]).map((url: string): string => {
-        const credentials: string = server.username && server.credential
-            ? `; username=${quoted(server.username)}; credential=${quoted(server.credential)}; credential-type="password"`
-            : ''
-        return `<${url}>; rel="ice-server"${credentials}`
-    }))
 }
 
 /**

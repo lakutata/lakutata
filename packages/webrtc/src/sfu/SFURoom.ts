@@ -152,6 +152,22 @@ function relay(source: PeerChannel, target: PeerChannel, early: (string | Buffer
 }
 
 /**
+ * A viewer of WHEP: its connection sends it the audio and the video of a member of the room, its source
+ */
+interface Viewer {
+    readonly id: string
+    readonly leg: Leg
+    //The transceiver sending each kind, and the track it sends
+    readonly transceivers: Map<MediaKind, RtpTransceiver>
+    readonly attached: Map<MediaKind, Publication>
+    //Chooses the member it receives: none for the default one
+    readonly select?: (tracks: SFUTrack[]) => string | undefined
+    source?: string
+    //The changes of its tracks, one after the other
+    feeding: Promise<void>
+}
+
+/**
  * The transceiver of the engine of a transceiver
  * @param connection
  * @param transceiver
@@ -170,6 +186,8 @@ export class SFURoom {
     readonly #host: SFUHost
 
     readonly #members: Map<string, Member> = new Map()
+
+    readonly #viewers: Map<string, Viewer> = new Map()
 
     readonly #publications: Set<Publication> = new Set()
 
@@ -200,10 +218,17 @@ export class SFURoom {
     }
 
     /**
-     * Whether the room has no member left.
+     * Whether the room has no member and no viewer left.
      */
     public get empty(): boolean {
-        return !this.#members.size
+        return !this.#members.size && !this.#viewers.size
+    }
+
+    /**
+     * The number of the viewers of WHEP.
+     */
+    public get viewers(): number {
+        return this.#viewers.size
     }
 
     /**
@@ -248,7 +273,118 @@ export class SFURoom {
         if (this.#closed) return
         this.#closed = true
         for (const member of [...this.#members.values()]) this.#remove(member)
+        for (const viewer of [...this.#viewers.values()]) this.#stop(viewer)
         await this.#host.signaling.leave(this.#host.id, this.name).catch((): void => undefined)
+    }
+
+    /**
+     * A viewer of WHEP: the connection answering its offer sends it an audio and a video track of a member of the room
+     * (its source), once and as long as there is one, from a key frame. Its media negotiate every codec it offers that
+     * the server has, so a source publishing later with any of them is sent too.
+     * @param id The id of the viewer.
+     * @param offer The offer of the viewer.
+     * @param select Chooses its source among the members publishing; the newest stream of WHIP, else the first member
+     * publishing, without it.
+     * @returns The connection, its answer with all its candidates, and its source now.
+     */
+    public async play(id: string, offer: SignalingDescription, select?: (tracks: SFUTrack[]) => string | undefined): Promise<EndpointLeg & {source(): string | undefined}> {
+        const connection: PeerConnection = await this.#host.connect()
+        const ended: (() => void)[] = []
+        let closed: boolean = false
+        const leg: Leg = {
+            connection: connection,
+            ready: Promise.resolve(),
+            get closed(): boolean {
+                return closed
+            },
+            close: (): void => {
+                if (closed) return
+                closed = true
+                connection.close()
+                for (const listener of ended.splice(0)) listener()
+            }
+        }
+        const viewer: Viewer = {id: id, leg: leg, transceivers: new Map(), attached: new Map(), select: select, feeding: Promise.resolve()}
+        connection.on('connectionstatechange', (state: string): void => {
+            if (state === 'failed' || state === 'closed') this.#stop(viewer)
+        })
+        try {
+            await connection.setRemoteDescription(offer)
+            //The first media of each kind sends; no track before the answer, which keeps all the codecs
+            for (const transceiver of connection.getTransceivers()) {
+                if (viewer.transceivers.has(transceiver.kind)) continue
+                viewer.transceivers.set(transceiver.kind, transceiver)
+                transceiver.direction = 'sendonly'
+            }
+            if (!viewer.transceivers.size) throw new Error('The offer has no audio and no video')
+            await connection.setLocalDescription()
+            await gathered(connection)
+            if (closed) throw new Error(`The connection is ${connection.connectionState}`)
+        } catch (error) {
+            leg.close()
+            throw error
+        }
+        this.#viewers.set(id, viewer)
+        await this.#feed(viewer)
+        return {
+            answer: connection.localDescription!,
+            connection: connection,
+            ended: (listener: () => void): unknown => closed ? listener() : ended.push(listener),
+            close: (): void => this.#stop(viewer),
+            source: (): string | undefined => viewer.source
+        }
+    }
+
+    /**
+     * Send a viewer the tracks of its source, after the changes before
+     * @param viewer
+     */
+    #feed(viewer: Viewer): Promise<void> {
+        viewer.feeding = viewer.feeding.then((): Promise<void> => this.#refeed(viewer)).catch((): void => undefined)
+        return viewer.feeding
+    }
+
+    /**
+     * Send a viewer the tracks of its source: chosen again, as the tracks of the room change
+     * @param viewer
+     */
+    async #refeed(viewer: Viewer): Promise<void> {
+        if (viewer.leg.closed) return
+        const publishing: Member[] = [...this.#members.values()].filter((member: Member): boolean => member.publications.size > 0)
+        const chosen: string | undefined = viewer.select?.(this.tracks)
+            ?? publishing.filter((member: Member): boolean => !member.peer).at(-1)?.id
+            ?? publishing[0]?.id
+        const source: Member | undefined = chosen === undefined ? undefined : this.#members.get(chosen)
+        viewer.source = source?.publications.size ? source.id : undefined
+        for (const [kind, transceiver] of viewer.transceivers) {
+            const publication: Publication | undefined = viewer.source === undefined
+                ? undefined
+                : [...source!.publications.values()].find((each: Publication): boolean => each.track.kind === kind)
+            if (viewer.attached.get(kind) === publication) continue
+            viewer.attached.delete(kind)
+            try {
+                await transceiver.sender.replaceTrack(publication?.media ?? null)
+            } catch {
+                //Of a codec the viewer does not have
+                this.#host.emit('unsupported', this.name, viewer.id, publication!.track)
+                await transceiver.sender.replaceTrack(null).catch((): void => undefined)
+                continue
+            }
+            if (!publication) continue
+            viewer.attached.set(kind, publication)
+            if (kind === 'video') publication.media.requestKeyFrame()
+        }
+    }
+
+    /**
+     * A viewer stopped: its connection is closed
+     * @param viewer
+     */
+    #stop(viewer: Viewer): void {
+        if (this.#viewers.get(viewer.id) !== viewer) return viewer.leg.close()
+        this.#viewers.delete(viewer.id)
+        viewer.leg.close()
+        if (!this.#closed && this.empty) this.#host.emptied(this)
     }
 
     /**
@@ -449,7 +585,7 @@ export class SFURoom {
         member.leg.close()
         //A stream published with WHIP leaves the signaling (before the server, when it was the last one)
         if (!member.peer) this.#host.signaling.leave(member.id, this.name).catch((): void => undefined)
-        if (!this.#closed && !this.#members.size) this.#host.emptied(this)
+        if (!this.#closed && this.empty) this.#host.emptied(this)
     }
 
     /**
@@ -500,6 +636,7 @@ export class SFURoom {
         this.#publications.add(publication)
         this.#host.emit('publish', track)
         for (const other of this.#members.values()) this.#offer(other, publication)
+        for (const viewer of this.#viewers.values()) void this.#feed(viewer)
     }
 
     /**
@@ -511,6 +648,7 @@ export class SFURoom {
         if (publication.publisher.publications.get(publication.transceiver) === publication) publication.publisher.publications.delete(publication.transceiver)
         for (const member of this.#members.values()) this.#unsubscribe(member, publication)
         this.#host.emit('unpublish', publication.track)
+        for (const viewer of this.#viewers.values()) void this.#feed(viewer)
     }
 
     /**

@@ -110,9 +110,9 @@ export interface SFUOptions {
  * keeping more than a few megabytes of them.
  *
  * Events: `publish` and `unpublish` (an {@link SFUTrack}) when a member starts and stops publishing a track,
- * `unsupported` (the room, the id of the member, the track) when a member does not support the codec of a track it
- * should receive, `congestion` (the room, the id of the member, whether it is congested, the bit rate estimated) when
- * the bandwidth to a member is too low, and when it is enough again.
+ * `unsupported` (the room, the id of the member or of the viewer of WHEP, the track) when a member or a viewer does not
+ * support the codec of a track it should receive, `congestion` (the room, the id of the member, whether it is
+ * congested, the bit rate estimated) when the bandwidth to a member is too low, and when it is enough again.
  *
  * Register it with {@link buildSFUOptions}, and bootstrap it: it attaches itself to the signaling when it starts.
  * @example
@@ -209,6 +209,11 @@ export class SFU extends Component {
                 const peerId: string = `whip:${randomUUID()}`
                 if (!await this.assign(room, peerId)) throw new Error(`The media server does not serve the room ${room}`)
                 return {peerId: peerId, leg: await this.#rooms.get(room)!.publish(peerId, offer)}
+            },
+            play: async (room: string, offer: SignalingDescription, select?: (tracks: SFUTrack[]) => string | undefined): Promise<{viewerId: string, leg: EndpointLeg & {source(): string | undefined}}> => {
+                const viewerId: string = `whep:${randomUUID()}`
+                if (!await this.assign(room, viewerId, true)) throw new Error(`The media server does not serve the room ${room}`)
+                return {viewerId: viewerId, leg: await this.#rooms.get(room)!.play(viewerId, offer, select)}
             }
         })
     }
@@ -225,8 +230,8 @@ export class SFU extends Component {
     }
 
     /**
-     * The rooms the server is in, with their members and the tracks published.
-     * @returns For each room, the ids of its members and its tracks.
+     * The rooms the server is in, with their members, the tracks published and the number of viewers of WHEP.
+     * @returns For each room, the ids of its members, its tracks and its viewers.
      * @example
      * ```typescript
      * import type {SFU} from '@lakutata/webrtc'
@@ -235,8 +240,8 @@ export class SFU extends Component {
      * for (const [room, {members, tracks}] of Object.entries(sfu.rooms())) console.log(room, members.length, tracks.length)
      * ```
      */
-    public rooms(): Record<string, {members: string[], tracks: SFUTrack[]}> {
-        return Object.fromEntries([...this.#rooms].map(([name, room]: [string, SFURoom]): [string, {members: string[], tracks: SFUTrack[]}] => [name, {members: room.members, tracks: room.tracks}]))
+    public rooms(): Record<string, {members: string[], tracks: SFUTrack[], viewers: number}> {
+        return Object.fromEntries([...this.#rooms].map(([name, room]: [string, SFURoom]): [string, {members: string[], tracks: SFUTrack[], viewers: number}] => [name, {members: room.members, tracks: room.tracks, viewers: room.viewers}]))
     }
 
     /**
@@ -264,13 +269,14 @@ export class SFU extends Component {
      * Give a member joining a room the server, once the server is in the room
      * @param room The room.
      * @param peerId The id of the member.
+     * @param viewer Whether it is a viewer of WHEP (not a member: `maxMembers` does not count it).
      * @returns The id of the member of the server, or undefined for a room it does not serve.
      * @protected
      */
-    protected async assign(room: string, peerId: string): Promise<string | undefined> {
+    protected async assign(room: string, peerId: string, viewer: boolean = false): Promise<string | undefined> {
         if (this.serves && !this.serves(room)) return undefined
         const count: number = [...this.#rooms.values()].reduce((sum: number, each: SFURoom): number => sum + each.members.length, 0)
-        if (this.maxMembers && count >= this.maxMembers && !this.#rooms.get(room)?.members.includes(peerId)) {
+        if (!viewer && this.maxMembers && count >= this.maxMembers && !this.#rooms.get(room)?.members.includes(peerId)) {
             throw new SignalingLimitException('The media server has {count} members already', {count: count})
         }
         await this.#leaving.get(room)
