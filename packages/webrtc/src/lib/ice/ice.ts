@@ -1285,6 +1285,14 @@ export class Connection implements IceConnection {
             return
         }
 
+        //Known already: each description applied gives its candidates again
+        if (this._remoteCandidates.some((known: Candidate): boolean => known.host === remoteCandidate.host
+            && known.port === remoteCandidate.port
+            && known.component === remoteCandidate.component
+            && known.type === remoteCandidate.type
+            && known.transport.toLowerCase() === remoteCandidate.transport.toLowerCase())) {
+            return
+        }
         log('addRemoteCandidate', remoteCandidate)
         this._remoteCandidates.push(remoteCandidate)
 
@@ -1376,12 +1384,12 @@ export class Connection implements IceConnection {
             // Once the nominated flag is set for a component of a data stream, it
             // concludes the ICE processing for that component.  See Section 8.
             // So disallow overwriting of the pair nominated for that component
+            //A candidate of the current session of the other side: the candidates and the pairs of a session before are gone
+            //(restart), and the generation a candidate gives is the one the other side counts (Chrome gives 0 always),
+            //so only its ufrag, when given, tells
             if (
                 pair.nominated &&
-        // remoteのgenerationをチェックする.localのgenerationは更新が間に合わないかもしれないのでチェックしない
-        (pair.remoteCandidate.generation != undefined
-            ? pair.remoteCandidate.generation === this.generation
-            : true) &&
+        (pair.remoteCandidate.ufrag == undefined || pair.remoteCandidate.ufrag === this.remoteUsername) &&
         this.nominated == undefined
             ) {
                 log('nominated', pair.toJSON())

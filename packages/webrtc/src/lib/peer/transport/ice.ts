@@ -66,7 +66,10 @@ export class RTCIceTransport {
     state: RTCIceConnectionState = 'new'
     readonly component = 'rtp'
     iceRestarts = 0
-    private waitStart?: Event<[]>
+    //The checks of the current ICE session, once started: a start while they go on, or once they are done (a description
+    //applied again before DTLS connects), waits for them instead of running them again, which would wait for a check list
+    //already done; a restart, or a renomination, starts new ones
+    private checking?: Promise<void>
     private renominating = false
     private readonly events = new DomEventTarget()
     onstatechange?: () => void
@@ -205,6 +208,7 @@ export class RTCIceTransport {
             if (this.renominating) {
                 log('renomination', remoteParameters)
                 this.connection.resetNominatedPair()
+                this.checking = undefined
                 this.renominating = false
             } else {
                 log('restart', remoteParameters)
@@ -221,7 +225,7 @@ export class RTCIceTransport {
         // Use setGatheringState so onGatheringStateChange fires and the
         // SecureTransportManager aggregate iceGatheringState stays in sync.
         this.iceGather.setGatheringState('new')
-        this.waitStart = undefined
+        this.checking = undefined
         this.onNegotiationNeeded.execute()
     }
 
@@ -233,13 +237,15 @@ export class RTCIceTransport {
             throw new Error('remoteParams missing')
         }
 
-        if (this.waitStart) {
-            await this.waitStart.asPromise()
-        }
-        this.waitStart = new Event()
+        this.checking ??= this.check()
+        await this.checking
+    }
 
+    /**
+     * Run the checks of the ICE session
+     */
+    private async check(): Promise<void> {
         this.setState('checking')
-
         try {
             await this.connection.connect()
         } catch (error) {
@@ -247,10 +253,6 @@ export class RTCIceTransport {
             if ((this.state as RTCIceConnectionState) !== 'closed') this.setState('failed')
             throw error
         }
-
-        this.waitStart.execute()
-        this.waitStart.complete()
-        this.waitStart = undefined
     }
 
     async stop() {

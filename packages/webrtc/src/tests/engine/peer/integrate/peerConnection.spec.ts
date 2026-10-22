@@ -278,6 +278,117 @@ describe('peerConnection', () => {
         }
     })
 
+    test('the checks of an ICE session run once, and the candidates of a description applied again are not added again', async () => {
+        const pc1 = new RTCPeerConnection()
+        const pc2 = new RTCPeerConnection()
+        try {
+            pc1.addTransceiver('audio', {direction: 'sendonly'})
+            await pc1.setLocalDescription(await pc1.createOffer())
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            await pc1.setRemoteDescription(pc2.localDescription!)
+            while (pc1.connectionState !== 'connected' || pc2.connectionState !== 'connected') await setTimeout(20)
+            const ice = pc2.iceTransports[0]
+            const state: string = ice.state
+            const candidates: number = ice.connection.remoteCandidates.length
+            //Started again (a description applied before DTLS connects does it): the same checks, done already
+            const started = await Promise.race([ice.start().then(() => 'done'), setTimeout(2000, 'waiting')])
+            expect(started).toBe('done')
+            expect(ice.state).toBe(state)
+            //Negotiated again, with the same candidates
+            pc1.addTransceiver('video', {direction: 'sendonly'})
+            await pc1.setLocalDescription(await pc1.createOffer())
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            await pc1.setRemoteDescription(pc2.localDescription!)
+            expect(ice.connection.remoteCandidates.length).toBe(candidates)
+            expect(pc2.connectionState).toBe('connected')
+        } finally {
+            await Promise.allSettled([pc1.close(), pc2.close()])
+        }
+    })
+
+    test('a connection negotiated again before DTLS connects connects once', async () => {
+        const pc1 = new RTCPeerConnection()
+        const pc2 = new RTCPeerConnection()
+        const states: string[] = []
+        pc2.connectionStateChange.subscribe((state) => void states.push(state))
+        try {
+            pc1.addTransceiver('audio', {direction: 'sendonly'})
+            await pc1.setLocalDescription(await pc1.createOffer())
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            await pc1.setRemoteDescription(pc2.localDescription!)
+            //At once, as a media server adding the tracks of the others: pc2 connects for both answers
+            pc1.addTransceiver('video', {direction: 'sendonly'})
+            await pc1.setLocalDescription(await pc1.createOffer())
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            await pc1.setRemoteDescription(pc2.localDescription!)
+            const end: number = Date.now() + 5000
+            while ((pc1.connectionState !== 'connected' || pc2.connectionState !== 'connected') && Date.now() < end) await setTimeout(20)
+            expect([pc1.connectionState, pc2.connectionState]).toEqual(['connected', 'connected'])
+            expect(states).not.toContain('failed')
+        } finally {
+            await Promise.allSettled([pc1.close(), pc2.close()])
+        }
+    })
+
+    test('a transceiver added while an offer waits for its answer does not fail the connection', async () => {
+        const pc1 = new RTCPeerConnection()
+        const pc2 = new RTCPeerConnection()
+        const states: string[] = []
+        pc1.connectionStateChange.subscribe((state) => void states.push(state))
+        try {
+            pc1.addTransceiver('audio', {direction: 'sendonly'})
+            await pc1.setLocalDescription(await pc1.createOffer())
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            //As a media server adding a track for a member meanwhile: it is offered next time, and has a transport of its
+            //own until then
+            pc1.addTransceiver('video', {direction: 'sendonly'})
+            await pc1.setRemoteDescription(pc2.localDescription!)
+            const end: number = Date.now() + 5000
+            while ((pc1.connectionState !== 'connected' || pc2.connectionState !== 'connected') && Date.now() < end) await setTimeout(20)
+            expect(states).not.toContain('failed')
+            expect(pc1.connectionState).toBe('connected')
+        } finally {
+            await Promise.allSettled([pc1.close(), pc2.close()])
+        }
+    })
+
+    test('a connection restarting ICE nominates the candidates of the other side whatever generation they give', async () => {
+        const pc1 = new RTCPeerConnection()
+        const pc2 = new RTCPeerConnection()
+        //As Chrome: the candidates of pc2 say generation 0 after an ICE restart too
+        const asChrome = (answer: {sdp: string}): {type: 'answer', sdp: string} => ({type: 'answer', sdp: answer.sdp.replace(/ generation \d+/g, ' generation 0')})
+        const negotiate = async (): Promise<void> => {
+            await pc1.setLocalDescription(await pc1.createOffer())
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            await pc1.setRemoteDescription(asChrome(pc2.localDescription!))
+        }
+        const connected = async (): Promise<string[]> => {
+            const end: number = Date.now() + 5000
+            while ((pc1.connectionState !== 'connected' || pc2.connectionState !== 'connected') && Date.now() < end) await setTimeout(20)
+            return [pc1.connectionState, pc2.connectionState]
+        }
+        try {
+            pc1.addTransceiver('audio', {direction: 'sendonly'})
+            await negotiate()
+            expect(await connected()).toEqual(['connected', 'connected'])
+            pc1.restartIce()
+            await negotiate()
+            expect(pc1.iceTransports[0].connection.generation).toBeGreaterThan(0)
+            const end: number = Date.now() + 5000
+            while (!pc1.iceTransports[0].connection.nominated && Date.now() < end) await setTimeout(20)
+            expect(pc1.iceTransports[0].connection.nominated).toBeDefined()
+            expect(await connected()).toEqual(['connected', 'connected'])
+        } finally {
+            await Promise.allSettled([pc1.close(), pc2.close()])
+        }
+    })
+
     test('a data channel offered in an offer rolled back opens with the association of the remote offer', async () => {
         const pc1 = new RTCPeerConnection()
         const pc2 = new RTCPeerConnection()

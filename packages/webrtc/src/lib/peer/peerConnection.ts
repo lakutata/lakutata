@@ -1139,6 +1139,11 @@ export class RTCPeerConnection extends EventTarget {
                 if (iceTransport.state === 'connected') {
                     return
                 }
+                //Not negotiated yet (the transport of a transceiver added since, which the next offer bundles): the
+                //negotiation giving it its remote parameters connects it
+                if (!iceTransport.connection.remoteUsername || !iceTransport.connection.remotePassword) {
+                    return
+                }
                 const checkDtlsConnected = () => dtlsTransport.state === 'connected'
 
                 if (checkDtlsConnected()) {

@@ -122,6 +122,9 @@ export class RTCDtlsTransport implements DtlsTransportStats {
     //Takes the DTLS records from ICE from the start, so that none is lost before the handshake begins
     readonly #iceAdapter: IceTransport
 
+    //The handshake, once started
+    #starting?: Promise<void>
+
     constructor(
         readonly config: {debug?: DebugConfig},
         readonly iceTransport: RTCIceTransport,
@@ -195,9 +198,21 @@ export class RTCDtlsTransport implements DtlsTransportStats {
     }
 
     async start() {
+        //Started already (a description applied again before DTLS connects): the same handshake
+        if (this.#starting) {
+            return await this.#starting
+        }
         if (this.state !== 'new') {
             throw new Error('state must be new')
         }
+        this.#starting = this.#start()
+        await this.#starting
+    }
+
+    /**
+     * Run the handshake
+     */
+    async #start(): Promise<void> {
         if (
             !this.remoteParameters ||
       this.remoteParameters.fingerprints.length === 0
@@ -487,6 +502,10 @@ export class RTCDtlsTransport implements DtlsTransportStats {
     }
 
     async sendRtcp(packets: RtcpPacket[]) {
+        //Before SRTP starts (a transport not connected yet, such as the one of a transceiver not bundled yet): as sendRtp
+        if (!this.srtcp) {
+            return
+        }
         const payload = Buffer.concat(packets.map((packet) => packet.serialize()))
         const enc = this.srtcp.encrypt(payload)
 
