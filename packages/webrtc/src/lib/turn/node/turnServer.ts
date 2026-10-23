@@ -19,7 +19,7 @@ import {
     createServer as createTlsServer
 } from 'node:tls'
 
-import {type Address, debug, detached} from '../../common/index.js'
+import {type Address, debug, detached, growReceiveBuffer} from '../../common/index.js'
 
 const log = debug('webrtc/turn/server')
 
@@ -312,6 +312,7 @@ export class NodeTurnServer {
                     return
                 }
                 this.boundPort = address.port
+                growReceiveBuffer(socket)
                 resolve()
             })
         })
@@ -476,6 +477,7 @@ export class NodeTurnServer {
             })
             socket.bind({address: this.relayBindAddress, port}, () => {
                 socket.removeAllListeners('error')
+                growReceiveBuffer(socket)
                 resolve(socket)
             })
         })

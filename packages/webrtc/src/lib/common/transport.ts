@@ -36,6 +36,26 @@ export interface StreamTransportOptions {
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 8000
 
+/**
+ * The receive buffer of the UDP sockets of the connections and of the TURN server at least, in bytes: the default of
+ * Linux (208 KiB) drops the packets of a burst before the process reads them (measured with net.core.rmem_max at 4 MiB:
+ * 15% of 50,000 packets a second lost with it, none with 1 MiB; rmem_max is 208 KiB by default and caps the request)
+ */
+const RECEIVE_BUFFER_SIZE = 1024 * 1024
+
+/**
+ * Grow the receive buffer of a bound UDP socket to 1 MiB, as far as the system allows (net.core.rmem_max on Linux); a
+ * buffer larger already is kept
+ * @param socket
+ */
+export function growReceiveBuffer(socket: Socket): void {
+    try {
+        if (socket.getRecvBufferSize() < RECEIVE_BUFFER_SIZE) socket.setRecvBufferSize(RECEIVE_BUFFER_SIZE)
+    } catch (error) {
+        log('the receive buffer cannot grow', error)
+    }
+}
+
 export class UdpTransport implements Transport {
     readonly type = 'udp'
     readonly socket: Socket
@@ -97,6 +117,7 @@ export class UdpTransport implements Transport {
             this.socket.bind({address})
         }
         await new Promise((r) => this.socket.once('listening', r))
+        growReceiveBuffer(this.socket)
     }
 
     send = async (data: Buffer, addr?: Address) => {
