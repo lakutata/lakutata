@@ -402,10 +402,11 @@ of the media server.
 
 - Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
   another connection.
-- Throughput of one data channel between two Node.js processes on an Apple M4: about 60 MiB/s for large messages,
-  440,000 messages of 100 bytes per second.
-- The media server on an Apple M4: its main thread forwards about 60,000 packets per second (the equivalent of 300
-  videos of 2 Mbit/s), and 4 worker threads forwarded the 93,000 of a test on 2.6 cores. It does not transcode, and
+- Throughput of one data channel between two Node.js processes on an Apple M4: about 75 MiB/s for large messages,
+  580,000 messages of 100 bytes per second (in an arm64 Linux virtual machine on the same Mac: about 43 MiB/s and
+  480,000 messages).
+- The media server on an Apple M4: its main thread forwards about 87,000 packets per second (the equivalent of 435
+  videos of 2 Mbit/s), and 4 worker threads forwarded the 92,000 of a test on 1.7 cores. It does not transcode, and
   sends each video as published (no simulcast yet).
 
 ## API
@@ -475,7 +476,8 @@ The other runtimes and implementations, compiled first (`npm run compile`):
 - `npm run test:bun` runs the tests in Bun (without those of the browsers). Four tests of the TURN refresh fail there:
   the fake clock of the tests reaches the imports of `node:timers/promises` only in Node.js.
 - `npm run test:electron` runs them in the main process of Electron (the repository's Electron).
-- `npm run test:linux` runs them, and the forwarding benchmark, in Linux (`node:24-alpine` in Docker).
+- `npm run test:linux` runs them, the performance targets and the forwarding benchmark, in Linux (`node:24-alpine` in
+  Docker).
 - `npm run test:interop` connects Pion (Go) and aiortc (Python), in Docker, to the signaling, the TURN server and a
   member of this package: a data channel directly and through the relay only, and a call of a service action from
   aiortc.

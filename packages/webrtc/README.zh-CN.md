@@ -321,8 +321,8 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 ## 限制
 
 - Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
-- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 44 万条。
-- 媒体服务器（Apple M4）：它的主线程每秒约转发 60,000 个包（相当于 300 路 2 Mbit/s 的视频），4 个工作线程用 2.6 个核转发了一次测试里全部的每秒 93,000 个包。它不转码，按发布时的样子发送每路视频（还没有 simulcast）。
+- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 75 MiB/s，100 字节的消息每秒约 58 万条（同一台 Mac 上的 arm64 Linux 虚拟机里约 43 MiB/s、48 万条）。
+- 媒体服务器（Apple M4）：它的主线程每秒约转发 87,000 个包（相当于 435 路 2 Mbit/s 的视频），4 个工作线程用 1.7 个核转发了一次测试里全部的每秒 92,000 个包。它不转码，按发布时的样子发送每路视频（还没有 simulcast）。
 
 ## API
 
@@ -383,7 +383,7 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 
 - `npm run test:bun` 在 Bun 里运行测试（浏览器的测试除外）。TURN 刷新的 4 个测试在 Bun 里会失败：测试用的假时钟只能在 Node.js 里替换 `node:timers/promises` 的导入。
 - `npm run test:electron` 在 Electron 的主进程里运行测试（用仓库里的 Electron）。
-- `npm run test:linux` 在 Linux（Docker 里的 `node:24-alpine`）里运行测试和转发基准。
+- `npm run test:linux` 在 Linux（Docker 里的 `node:24-alpine`）里运行测试、性能目标检查和转发基准。
 - `npm run test:interop` 在 Docker 里让 Pion（Go）和 aiortc（Python）连接这个包的信令、TURN 服务器和一个成员：直连和只走中转的数据通道，以及 aiortc 对服务动作的调用。
 - `node test-env/safari.mjs` 在 Safari（macOS）里打开一个页面：数据通道、服务调用、只走中转的连接。测完关掉这个标签页。
 

@@ -453,7 +453,7 @@ export class Recorder extends Component {
 | 4 个房间，每个 12 个发布者、10 个订阅者，在主线程 | 每秒约 92,000 个 | 每秒 86,000～88,000 个 | 145%：主线程满了，其余是垃圾回收 |
 | 同样的 4 个房间，4 个工作线程 | 每秒约 92,000 个 | 全部 | 174% |
 
-在同一台 Mac 上的 Linux 虚拟机里（arm64，10 个核），主线程每秒转发了 4 个房间的 84,900 个包，占 166% 个核；4 个线程则全部转发了（每秒 95,000 个，占 336%）。
+在同一台 Mac 上的 arm64 Linux 虚拟机里（Docker Desktop，10 个核，成员也在里面运行），主线程转发了 4 个房间的全部包（每秒 93,000 个），占 160% 个核。4 个线程用了 380%～390% 个核，每秒约 94,000 个包里，各次测试转发了 69,000 个到全部不等：在那台机器上、那样的负载下，开线程得不偿失。
 
 一个线程约占 22 MiB，启动约需 90 毫秒。在上面的负载下，有线程时进程用了 1.4 GiB 内存，没有线程时 0.6 GiB：每个线程有自己的堆，V8 为了速度会把其中的新生代设得比较大。设置 `workerResourceLimits: {maxYoungGenerationSizeMb: 32}` 后，进程用了 1.0～1.2 GiB，CPU 多用约 4%（一个核的 181%，原来是 174%）。一条轨道从一个节点转发到另一个节点（第 13 节），两个节点每个包合计约耗 11 微秒 CPU：这样一路视频约占一个核的 0.2%。
 
@@ -985,7 +985,7 @@ setDebugHandler((namespace: string, args: unknown[]): void => console.debug(name
 ## 16. 限制
 
 - Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
-- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 55 MiB/s，100 字节的消息每秒约 40 万条；同一台 Mac 上的 Linux 虚拟机里，大消息约 35 MiB/s，小消息每秒 23 万到 46 万条。仓库里的 `packages/webrtc/test-env/bench/engine.mjs` 可以在别的机器上测。
+- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 75 MiB/s，100 字节的消息每秒约 58 万条；同一台 Mac 上的 arm64 Linux 虚拟机（Docker Desktop）里，大消息约 43 MiB/s，小消息每秒约 48 万条。仓库里的 `packages/webrtc/test-env/bench/engine.mjs` 可以在别的机器上测。
 - 媒体服务器不转码，按发布时的样子发送每路视频：还没有 simulcast，所以带宽不够的成员收到的是 `congestion` 事件，而不是更低的画质。它在一台机器上的转发能力见第 9 节；仓库里的 `packages/webrtc/test-env/bench/forward.mjs` 可以在别的机器上测。
 - 集群里的媒体服务器把一条轨道从发布者所在的节点直接发给每个需要它的节点，一个房间分布在几十个节点上没有问题；再多的话，就需要节点之间逐级转发了。
 - 2026 年 10 月验证过的：Chrome 154，Firefox 153 和 WebKit 26.5（Playwright 1.62 的构建），macOS 27 上的 Safari 27.0.1，Pion 4.2.25（Go）和 aiortc 1.15.0（Python）；运行环境是 Node.js 24（macOS，以及 Alpine 上的 Linux）、Bun 1.4.3 和 Electron 44 的主进程。脚本在仓库的 `packages/webrtc/test-env` 里。

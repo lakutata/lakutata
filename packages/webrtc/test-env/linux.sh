@@ -1,5 +1,5 @@
 #!/bin/sh
-# The tests and the forwarding benchmark of the package on Linux, in a node:24-alpine container (Docker): the repository
+# The tests and the benchmarks of the package on Linux, in a node:24-alpine container (Docker): the repository
 # is mounted read-only at the same path, so the links of the workspace resolve. Compile first (npm run compile).
 #   sh test-env/linux.sh [tests|bench|all]
 # The tests with Chrome and ffmpeg are skipped there. On macOS and Windows, Docker runs Linux in a virtual machine: its
@@ -20,6 +20,9 @@ if [ "$what" = tests ] || [ "$what" = all ]; then
     run node --test --test-timeout=120000 "dist/esm/tests/**/*.spec.js"
 fi
 if [ "$what" = bench ] || [ "$what" = all ]; then
+    # The targets were set on the test machine (an Apple M4): a miss here does not fail the script
+    echo "== the performance targets of the engine"
+    run node test-env/bench/targets.mjs || true
     echo "== forwarding: one room of 4 publishers and 10 subscribers, in the main thread"
     run node test-env/bench/forward.mjs --sfu --publishers 4 --subscribers 10 --seconds 10
     echo "== forwarding: 4 rooms of 12 publishers and 10 subscribers, in the main thread, then in 4 worker threads"

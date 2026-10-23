@@ -586,8 +586,10 @@ a second), the members in other processes:
 | 4 rooms of 12 publishers and 10 subscribers each, in the main thread | about 92,000 a second | 86,000 to 88,000 a second | 145%: the main thread is full, the rest is the garbage collector |
 | The same 4 rooms, in 4 worker threads | about 92,000 a second | all | 174% |
 
-In a Linux virtual machine on the same Mac (arm64, 10 cores), the main thread forwarded 84,900 of the packets of the 4
-rooms a second, at 166% of a core; 4 threads forwarded them all (95,000 a second, at 336%).
+In an arm64 Linux virtual machine (Docker Desktop, 10 cores) on the same Mac, with the members running in it too, the
+main thread forwarded all the packets of the 4 rooms (93,000 a second) at 160% of a core. Four threads took 380% to
+390% of a core, and forwarded from 69,000 to all of the 94,000 a second, depending on the run: there, at that load, the
+threads do not pay off.
 
 A thread takes about 22 MiB and 90 ms to start. Under the load above, the process used 1.4 GiB with the threads and
 0.6 GiB without: each thread has a heap of its own, with the large young generation V8 gives it for speed. With
@@ -1247,10 +1249,10 @@ pairs tried.
 
 - Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
   another connection.
-- The throughput of one data channel between two Node.js processes on an Apple M4 is about 55 MiB/s for large
-  messages, and 400,000 messages of 100 bytes per second; in a Linux virtual machine on the same Mac, about 35 MiB/s,
-  and from 230,000 to 460,000 messages a second. `packages/webrtc/test-env/bench/engine.mjs` in the repository
-  measures it on another machine.
+- The throughput of one data channel between two Node.js processes on an Apple M4 is about 75 MiB/s for large
+  messages, and 580,000 messages of 100 bytes per second; in an arm64 Linux virtual machine (Docker Desktop) on the
+  same Mac, about 43 MiB/s, and 480,000 messages a second. `packages/webrtc/test-env/bench/engine.mjs` in the
+  repository measures it on another machine.
 - The media server does not transcode, and sends each video as it is published: there is no simulcast yet, so a
   member with little bandwidth gets `congestion` events rather than a lower quality. Its capacity on one machine is in
   section 9; `packages/webrtc/test-env/bench/forward.mjs` in the repository measures it on another.
