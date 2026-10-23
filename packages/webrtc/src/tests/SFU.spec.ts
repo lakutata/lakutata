@@ -459,6 +459,7 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
             sentOn.requestKeyFrame()
             await askedAgain
             sending.close()
+            receiving.close()
             //The thread of the meeting stops: its tracks end, the server joins it again, the members connect again
             const before: number = alice.received.get('bob')!.length
             await pool.crash(pool.threadOf('meeting')!)

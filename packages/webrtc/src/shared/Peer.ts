@@ -116,7 +116,14 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
 
     #connection: Connection
 
+    //The connection created
+    readonly #opened: Promise<void>
+
+    //The signals of the member and the negotiations, one after the other, as a browser chains them
     #queue: Promise<void>
+
+    //A negotiation needed while a description was pending, done once the connection is stable again
+    #negotiationNeeded: boolean = false
 
     #makingOffer: boolean = false
 
@@ -170,7 +177,7 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
         this.#metadata = metadata
         this.#session = session
         this.polite = host.polite ?? host.localId < id
-        this.#queue = this.#open()
+        this.#queue = this.#opened = this.#open()
     }
 
     /**
@@ -213,7 +220,7 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      * connection to the server has exchanged its first offer and answer.
      */
     public get ready(): Promise<void> {
-        return this.#queue
+        return this.#opened
     }
 
     /**
@@ -306,7 +313,15 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      */
     public receive(signal: PeerSignal): void {
         if (this.#host.relay) return
-        this.#queue = this.#queue.then((): Promise<void> => this.#receive(signal)).catch((error: Error): void => this.#fail(error))
+        this.#enqueue((): Promise<void> => this.#receive(signal))
+    }
+
+    /**
+     * Run a task after the signals and the negotiations before it
+     * @param task
+     */
+    #enqueue(task: () => Promise<void>): void {
+        this.#queue = this.#queue.then(task).catch((error: Error): void => this.#fail(error))
     }
 
     /**
@@ -414,7 +429,9 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
             connection.close()
             return
         }
-        connection.addEventListener('negotiationneeded', (): void => void this.#negotiate())
+        //Chained with the signals: a negotiation needed while a remote offer is applied (a track it brings adds a
+        //transceiver) waits for its answer, instead of offering in between
+        connection.addEventListener('negotiationneeded', (): void => this.#enqueue((): Promise<void> => this.#negotiate()))
         connection.addEventListener('icecandidate', (event: {candidate?: {candidate?: string, toJSON?: () => SignalingCandidate} | null}): void => {
             const candidate: {candidate?: string, toJSON?: () => SignalingCandidate} | null | undefined = event.candidate
             //The end of the candidates is not sent: ICE completes without it
@@ -461,6 +478,12 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
      */
     async #negotiate(): Promise<void> {
         if (this.#closed) return
+        //An offer from a stable state only, as a browser fires negotiationneeded
+        if (this.#connection.signalingState !== 'stable') {
+            this.#negotiationNeeded = true
+            return
+        }
+        this.#negotiationNeeded = false
         try {
             this.#makingOffer = true
             await this.#describe()
@@ -497,7 +520,10 @@ export class Peer<Connection extends PeerConnectionLike<any> = PeerConnectionLik
                 }
             }
             if (description.type === 'offer') await this.#describe()
-            if (connection.signalingState === 'stable') this.#negotiatedOnce()
+            if (connection.signalingState === 'stable') {
+                this.#negotiatedOnce()
+                if (this.#negotiationNeeded) await this.#negotiate()
+            }
         } else if (signal.candidate) {
             const remote: SignalingDescription | null | undefined = (connection as unknown as {remoteDescription?: SignalingDescription | null}).remoteDescription
             const ufrag: string | null | undefined = signal.candidate.usernameFragment
