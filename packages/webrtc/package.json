@@ -70,7 +70,11 @@
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test --test-timeout=60000 \"dist/esm/tests/**/*.spec.js\"",
-    "test:servers": "sh test-env/cluster.sh"
+    "test:servers": "sh test-env/cluster.sh",
+    "test:interop": "sh test-env/interop/run.sh",
+    "test:linux": "sh test-env/linux.sh",
+    "test:bun": "sh test-env/bun.sh",
+    "test:electron": "electron test-env/electron/main.mjs"
   },
   "engines": {
     "node": "^22.13.0 || >=24.11.0"
