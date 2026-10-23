@@ -287,7 +287,8 @@ export class TURNServer extends Component {
             relayBindAddress: this.host,
             relayPortRange: this.relayPortRange,
             realm: this.realm,
-            maxAllocations: this.maxAllocations,
+            //No limit unless given (the engine has one of 256)
+            maxAllocations: this.maxAllocations ?? Infinity,
             getPassword: (username: string): string | undefined => this.users[username] ?? turnPasswordIfValid(this.#secret, username)
         }
         if (this.tls) options.tls = {cert: this.tls.cert, key: this.tls.key, port: this.tls.port}
