@@ -118,10 +118,7 @@ const CLOSE_SEND_TIMEOUT: number = 2000
  * ```
  */
 export function webrtcRequestOfContext(context: ServiceContext): WebRTCRequestInfo | undefined {
-    //Kept behind a function: the context wraps the objects it holds in proxies, through which the private fields of a
-    //peer, a room or a channel cannot be read; a function is called on the context itself and returns them as they are
-    const request: unknown = (context as ServiceContext & {webrtc?: unknown}).webrtc
-    return typeof request === 'function' ? request() : undefined
+    return (context as ServiceContext & {webrtc?: WebRTCRequestInfo}).webrtc
 }
 
 /**
@@ -262,7 +259,7 @@ export function webrtcServiceEntrypoint(options: WebRTCServiceEntrypointOptions)
                 runtime: runtime,
                 transport: 'webrtc',
                 clientId: peer.id,
-                extra: {webrtc: (): WebRTCRequestInfo => info},
+                extra: {webrtc: info},
                 signal: abort.signal,
                 stopping: (): boolean => stopping
             })
