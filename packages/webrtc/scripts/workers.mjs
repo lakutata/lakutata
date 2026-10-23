@@ -1,8 +1,8 @@
-// The code of the worker threads of the media server and of the TURN server: the entry of each
-// (dist/esm/sfu/SFUWorker.js and dist/esm/turn/TURNWorker.js, built by tsc) bundled with what it uses of the engine and
-// of @lakutata/core into one script, written as the string that SFUWorkerCode or TURNWorkerCode exports in the ESM and
-// the CommonJS builds. The threads start from that string (new Worker(code, {eval: true})): no file of the package is
-// looked for, whatever bundles the application.
+// The code of the worker threads of the media server, of the TURN server and of the connections: the entry of each
+// (dist/esm/sfu/SFUWorker.js, dist/esm/turn/TURNWorker.js and dist/esm/peer/PeerWorker.js, built by tsc) bundled with
+// what it uses of the engine and of @lakutata/core into one script, written as the string that SFUWorkerCode,
+// TURNWorkerCode or PeerWorkerCode exports in the ESM and the CommonJS builds. The threads start from that string (new
+// Worker(code, {eval: true})): no file of the package is looked for, whatever bundles the application.
 //
 // Run: node scripts/workers.mjs (after build:esm and build:cjs)
 import {build} from 'esbuild'
@@ -13,7 +13,8 @@ import {fileURLToPath} from 'node:url'
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const entries = [
     {directory: 'sfu', module: 'SFUWorker', run: 'runSFUWorker', name: 'sfuWorkerCode', description: 'the media server'},
-    {directory: 'turn', module: 'TURNWorker', run: 'runTURNWorker', name: 'turnWorkerCode', description: 'the TURN server'}
+    {directory: 'turn', module: 'TURNWorker', run: 'runTURNWorker', name: 'turnWorkerCode', description: 'the TURN server'},
+    {directory: 'peer', module: 'PeerWorker', run: 'runPeerWorker', name: 'peerWorkerCode', description: 'the connections'}
 ]
 for (const entry of entries) {
     const result = await build({

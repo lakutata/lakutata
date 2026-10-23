@@ -71,6 +71,12 @@ export interface SignalingClientOptions {
      * @default ['audio/opus', 'audio/PCMU', 'video/VP8', 'video/H264', 'video/VP9']
      */
     codecs?: string[]
+    /**
+     * The name of a `PeerThreads` component: the connections to the other members run their engine in its worker
+     * threads (see the `threads` option of `PeerConnection`).
+     * @default none: the engines run in the main thread
+     */
+    threads?: string
 }
 
 /**
@@ -161,6 +167,12 @@ export class SignalingClient extends Provider {
     @Configurable(DTO.Array().items(DTO.String()).optional())
     protected readonly codecs?: string[]
 
+    /**
+     * The name of the component of the worker threads of the connections.
+     */
+    @Configurable(DTO.String().optional())
+    protected readonly threads?: string
+
     #clientId: string
 
     #socket?: {disconnect(): unknown}
@@ -182,7 +194,8 @@ export class SignalingClient extends Provider {
                 ...configuration,
                 icePortRange: this.icePortRange,
                 iceAdditionalHostAddresses: this.iceAdditionalHostAddresses,
-                ...this.codecs ? {codecs: this.codecs} : {}
+                ...this.codecs ? {codecs: this.codecs} : {},
+                ...this.threads ? {threads: this.threads} : {}
             })
         })
     }

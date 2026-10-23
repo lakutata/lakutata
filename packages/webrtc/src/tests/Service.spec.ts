@@ -9,6 +9,7 @@ import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {jsonRPCRequestOfContext} from '@lakutata/entrypoint/adapter/jsonrpc'
 import {socketIOServiceEntrypoint} from '@lakutata/entrypoint/adapter/socket.io'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
+import {PeerThreads} from '../peer/PeerThreads.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
 import {PeerServiceError, PeerServiceProxy} from '../shared/PeerServiceProxy.js'
 import {webrtcRequestOfContext, webrtcServiceEntrypoint, type WebRTCRequestInfo, type WebRTCServiceEntrypointOptions} from '../service/WebRTCServiceEntrypoint.js'
@@ -123,13 +124,15 @@ async function failure(call: Promise<unknown>): Promise<PeerServiceError> {
  * Calls of the device by a member, through a room with or without a media server
  * @param server
  * @param room The room's name
+ * @param threads Whether the connections of the member are served in worker threads
  */
-async function callsTheDevice(server: TestServer, room: string): Promise<void> {
+async function callsTheDevice(server: TestServer, room: string, threads: boolean = false): Promise<void> {
     const errors: unknown[] = []
     const {container, entrypoint} = await device({signaling: {url: server.socketIO, id: 'device'}, rooms: [room], metadata: {kind: 'door'}, onError: (error: unknown): void => void errors.push(error)})
     const clients: Container = new Container()
     try {
-        const alice: SignalingClient = await clients.get(SignalingClient, {url: server.jsonRPC, id: 'alice'})
+        if (threads) await clients.setNamed('threads', PeerThreads, {threads: 1})
+        const alice: SignalingClient = await clients.get(SignalingClient, {url: server.jsonRPC, id: 'alice', ...threads ? {threads: 'threads'} : {}})
         const joined: Room = await alice.join(room, {metadata: {name: 'Alice'}})
         const proxy: PeerServiceProxy = await proxyOf(joined)
         assert.strictEqual(await proxy.invoke({method: 'echo', text: 'hello'}), 'hello')
@@ -191,6 +194,15 @@ describe('WebRTC service', (): void => {
         const server: TestServer = await startServer()
         try {
             await callsTheDevice(server, 'device')
+        } finally {
+            await server.stop()
+        }
+    })
+
+    it('serves a member whose connections are served in worker threads', {timeout: 60000}, async (): Promise<void> => {
+        const server: TestServer = await startServer()
+        try {
+            await callsTheDevice(server, 'device', true)
         } finally {
             await server.stop()
         }

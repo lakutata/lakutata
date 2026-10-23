@@ -49,9 +49,9 @@ SOFTWARE.
 
 ## The code of the worker threads
 
-The code run by the worker threads of the TURN server (the `workers` option of `TURNServer`),
-`dist/esm/turn/TURNWorkerCode.js` and `dist/cjs/turn/TURNWorkerCode.js`, contains only code of this package (the TURN
-server, derived from werift as said above).
+The code run by the worker threads of the TURN server (the `workers` option of `TURNServer`) and of the connections
+(the `PeerThreads` component), `dist/esm/turn/TURNWorkerCode.js`, `dist/esm/peer/PeerWorkerCode.js` and their copies in
+`dist/cjs`, contains only code of this package (the TURN server and the engine, derived from werift as said above).
 
 `dist/esm/sfu/SFUWorkerCode.js` and `dist/cjs/sfu/SFUWorkerCode.js`, the code run by the worker threads of the media
 server (the `workers` option of `SFU`), bundle the code of this package with parts of `@lakutata/core` and

@@ -1,18 +1,18 @@
 import {DTO, Provider} from '@lakutata/core'
 import {Autoload, Configurable, Transient} from '@lakutata/core/decorator/di'
 import type {RTCDataChannel} from '../lib/peer/dataChannel.js'
-import {useTWCC} from '../lib/peer/media/extension/rtcpFeedback.js'
-import {useAbsSendTime, useAudioLevelIndication, useSdesMid, useTransportWideCC} from '../lib/peer/media/extension/rtpExtension.js'
 import type {RTCRtpTransceiver} from '../lib/peer/media/rtpTransceiver.js'
 import {MediaStream} from '../lib/peer/media/track.js'
 import {RTCPeerConnection, type RTCPeerConnectionConfig, type RTCTrackEvent} from '../lib/peer/peerConnection.js'
 import type {SignalingCandidate, SignalingDescription, SignalingIceServer} from '../protocol/SignalingProtocol.js'
 import type {DataChannelOptions} from '../shared/Connections.js'
+import {type EngineOptions, engineConfigOf} from './EngineConfig.js'
 import {engineConnections} from './EngineConnection.js'
 import {type DOMEventListener, type ListenerOptions, Events} from './Events.js'
-import {DEFAULT_CODECS, SUPPORTED_CODECS, engineCodecsOf} from './MediaCodecs.js'
+import {DEFAULT_CODECS, SUPPORTED_CODECS} from './MediaCodecs.js'
 import {type MediaKind, MediaTrack, engineTrackOf, keyFrameRequested, trackOf} from './MediaTrack.js'
 import {PeerChannel} from './PeerChannel.js'
+import type {PeerThreads} from './PeerThreads.js'
 import {
     type RtpReceiver,
     type RtpSender,
@@ -75,6 +75,15 @@ export interface PeerConnectionOptions {
      * @default false
      */
     headerExtensions?: boolean
+    /**
+     * The name of a {@link PeerThreads} component: the engine of the connection (ICE, DTLS, SCTP, SRTP) runs in one of
+     * its worker threads, to use more cores. The connection is used the same way: its methods are carried to the
+     * thread and resolve once done there, its states are the ones the thread told last, and its events and the
+     * messages of its channels come back to the main thread. Audio and video tracks are not carried to the threads yet:
+     * `addTrack()` and `addTransceiver()` throw.
+     * @default none: the engine runs in the main thread
+     */
+    threads?: string
 }
 
 /**
@@ -275,6 +284,12 @@ export class PeerConnection extends Provider {
     @Configurable(DTO.Boolean().optional().default(false))
     protected readonly headerExtensions: boolean
 
+    /**
+     * The name of the component of the worker threads serving the connection.
+     */
+    @Configurable(DTO.String().optional())
+    protected readonly threads?: string
+
     readonly #events: Events = new Events(this)
 
     readonly #channels: WeakMap<RTCDataChannel, PeerChannel> = new WeakMap()
@@ -288,29 +303,25 @@ export class PeerConnection extends Provider {
      * @protected
      */
     protected async init(): Promise<void> {
-        const config: RTCPeerConnectionConfig = {
+        const options: EngineOptions = {
             iceServers: this.iceServers,
             iceTransportPolicy: this.iceTransportPolicy,
             iceUseIpv4: this.iceUseIpv4,
             iceUseIpv6: this.iceUseIpv6,
-            codecs: engineCodecsOf(this.codecs),
-            //The largest message the other peer may send, as Chrome accepts (below the SCTP window of 1 MiB)
-            maxMessageSize: 262144
+            codecs: this.codecs,
+            headerExtensions: this.headerExtensions,
+            ...this.icePortRange ? {icePortRange: this.icePortRange} : {},
+            ...this.iceAdditionalHostAddresses ? {iceAdditionalHostAddresses: this.iceAdditionalHostAddresses} : {}
         }
-        if (this.icePortRange) config.icePortRange = this.icePortRange
-        if (this.iceAdditionalHostAddresses) config.iceAdditionalHostAddresses = this.iceAdditionalHostAddresses
-        if (this.headerExtensions) {
-            //The ids of Chrome and Safari: a browser rolling back an offer of its own keeps its ids, and refuses others
-            config.headerExtensions = {
-                audio: [useAudioLevelIndication(), useAbsSendTime(), useTransportWideCC(), useSdesMid()],
-                video: [useAbsSendTime(), useTransportWideCC(), useSdesMid()]
-            }
-            //The feedback of the transport-wide sequence numbers
-            for (const codec of [...config.codecs!.audio!, ...config.codecs!.video!]) codec.rtcpFeedback.push(useTWCC())
+        let connection: RTCPeerConnection
+        if (this.threads) {
+            //Served in a worker thread: its proxy has the members of the engine used here
+            connection = await (await this.getObject<PeerThreads>(this.threads)).open(options) as unknown as RTCPeerConnection
+        } else {
+            connection = new RTCPeerConnection(engineConfigOf(options))
+            engineConnections.set(this, connection)
         }
-        const connection: RTCPeerConnection = new RTCPeerConnection(config)
         this.#connection = connection
-        engineConnections.set(this, connection)
         connection.onIceCandidate.subscribe((candidate: SignalingCandidate | undefined): void => {
             const iceCandidate: IceCandidate | null = candidate ? new IceCandidate(candidate) : null
             this.#fire('icecandidate', {candidate: iceCandidate}, iceCandidate ? iceCandidate.toJSON() : null)

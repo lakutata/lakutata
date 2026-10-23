@@ -6,6 +6,7 @@ import {SignalingEvent, SignalingMethod, type SignalingJoinResult, type Signalin
 import {SignalingLimitException} from '../exceptions/SignalingLimitException.js'
 import {mediaServers} from '../signaling/MediaServers.js'
 import {PeerConnection} from '../peer/PeerConnection.js'
+import {PeerThreads} from '../peer/PeerThreads.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
 import {SignalingSession} from '../shared/SignalingSession.js'
@@ -157,12 +158,13 @@ describe('Signaling', (): void => {
         }
     })
 
-    it('connects a Socket.IO member and a JSON-RPC member, through the TURN relay only', {timeout: 60000}, async (): Promise<void> => {
+    for (const threads of [false, true]) it(`connects a Socket.IO member and a JSON-RPC member, through the TURN relay only${threads ? ', their connections served in worker threads' : ''}`, {timeout: 60000}, async (): Promise<void> => {
         const server: TestServer = await startServer({turn: {secret: 'test-secret'}})
         const clients: Container = new Container()
         try {
-            const alice: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'alice', iceTransportPolicy: 'relay'})
-            const bob: SignalingClient = await clients.get(SignalingClient, {url: server.jsonRPC, id: 'bob', iceTransportPolicy: 'relay'})
+            if (threads) await clients.setNamed('threads', PeerThreads, {threads: 2})
+            const alice: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'alice', iceTransportPolicy: 'relay', ...threads ? {threads: 'threads'} : {}})
+            const bob: SignalingClient = await clients.get(SignalingClient, {url: server.jsonRPC, id: 'bob', iceTransportPolicy: 'relay', ...threads ? {threads: 'threads'} : {}})
             const first: Room = await alice.join('relayed')
             const second: Room = await bob.join('relayed')
             //The ICE servers of the TURN server, with credentials for the member
@@ -173,6 +175,7 @@ describe('Signaling', (): void => {
             assert.strictEqual(server.turn!.allocations, 2)
             const sdp: string = second.peer('alice')!.connection.localDescription!.sdp!
             assert.ok(!/ typ (host|srflx) /.test(sdp) && / typ relay /.test(sdp), sdp)
+            if (threads) assert.deepStrictEqual((await clients.get<PeerThreads>('threads')).load(), [1, 1])
         } finally {
             await clients.destroy()
             await server.stop()
@@ -441,12 +444,13 @@ describe('Signaling', (): void => {
         }
     })
 
-    it('restarts ICE on a connection, which goes on carrying the messages', {timeout: 60000}, async (): Promise<void> => {
+    for (const threads of [false, true]) it(`restarts ICE on a connection, which goes on carrying the messages${threads ? ', the connections served in worker threads' : ''}`, {timeout: 60000}, async (): Promise<void> => {
         const server: TestServer = await startServer()
         const clients: Container = new Container()
         try {
-            const alice: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'alice'})
-            const bob: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'bob'})
+            if (threads) await clients.setNamed('threads', PeerThreads, {threads: 2})
+            const alice: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'alice', ...threads ? {threads: 'threads'} : {}})
+            const bob: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'bob', ...threads ? {threads: 'threads'} : {}})
             const first: Room = await alice.join('restart')
             first.on('peer', (peer: Peer): void => {
                 peer.on('datachannel', (channel: PeerChannel): void => {

@@ -26,6 +26,8 @@ export class RTCDataChannel extends EventTarget implements DataChannelStats {
     // todo impl
     readonly error = new Event<[Error]>()
     readonly bufferedAmountLow = new Event()
+    /**the amount buffered changed (a message queued, or sent): read by a worker thread serving the channel */
+    readonly bufferedAmountChanged = new Event()
     onopen?: Callback
     onclose?: Callback
     onclosing?: Callback
@@ -138,6 +140,7 @@ export class RTCDataChannel extends EventTarget implements DataChannelStats {
             this.bufferedAmount > this.bufferedAmountLowThreshold &&
       this.bufferedAmount + amount <= this.bufferedAmountLowThreshold
         this.bufferedAmount += amount
+        this.bufferedAmountChanged.execute()
         if (crossesThreshold) {
             this.bufferedAmountLow.execute()
             this.emit('bufferedamountlow')

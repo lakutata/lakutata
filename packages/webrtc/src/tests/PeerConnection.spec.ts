@@ -4,17 +4,36 @@ import {randomBytes} from 'node:crypto'
 import {Container} from '@lakutata/core'
 import {PeerConnection} from '../peer/PeerConnection.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
+import {PeerThreads} from '../peer/PeerThreads.js'
 import {ChunkedChannel} from '../shared/ChunkedChannel.js'
 import type {SignalingCandidate} from '../protocol/SignalingProtocol.js'
 import {next} from './support/Server.js'
 
 /**
+ * Where the engines of the two connections of a test run: in the main thread, or in the worker threads of a PeerThreads
+ * component named threads
+ */
+interface Mode {
+    readonly name: string
+    readonly offerer?: string
+    readonly answerer?: string
+}
+
+const MODES: Mode[] = [
+    {name: 'PeerConnection'},
+    {name: 'PeerConnection, both served in worker threads', offerer: 'threads', answerer: 'threads'},
+    {name: 'PeerConnection, the offerer served in a worker thread', offerer: 'threads'}
+]
+
+/**
  * Two connections exchanging their descriptions and candidates directly, the offerer opening a channel
  * @param container
+ * @param mode
  */
-async function connectedPair(container: Container): Promise<{offerer: PeerConnection, answerer: PeerConnection, local: PeerChannel, remote: PeerChannel}> {
-    const offerer: PeerConnection = await container.get(PeerConnection)
-    const answerer: PeerConnection = await container.get(PeerConnection)
+async function connectedPair(container: Container, mode: Mode = MODES[0]): Promise<{offerer: PeerConnection, answerer: PeerConnection, local: PeerChannel, remote: PeerChannel}> {
+    if (mode.offerer || mode.answerer) await container.setNamed('threads', PeerThreads, {threads: 2})
+    const offerer: PeerConnection = await container.get(PeerConnection, mode.offerer ? {threads: mode.offerer} : {})
+    const answerer: PeerConnection = await container.get(PeerConnection, mode.answerer ? {threads: mode.answerer} : {})
     offerer.on('icecandidate', (candidate: SignalingCandidate | null): void => void answerer.addIceCandidate(candidate))
     answerer.on('icecandidate', (candidate: SignalingCandidate | null): void => void offerer.addIceCandidate(candidate))
     const remote: Promise<PeerChannel> = next<PeerChannel>((resolve: (channel: PeerChannel) => void): unknown => answerer.once('datachannel', resolve), 15000, 'the channel')
@@ -27,13 +46,13 @@ async function connectedPair(container: Container): Promise<{offerer: PeerConnec
     return {offerer: offerer, answerer: answerer, local: local, remote: await remote}
 }
 
-describe('PeerConnection', (): void => {
+for (const mode of MODES) describe(mode.name, (): void => {
 
     it('has the interface of RTCPeerConnection: events in both styles, states, descriptions', {timeout: 30000}, async (): Promise<void> => {
         const container: Container = new Container()
         try {
             const states: string[] = []
-            const {offerer, answerer, local, remote} = await connectedPair(container)
+            const {offerer, answerer, local, remote} = await connectedPair(container, mode)
             offerer.addEventListener('connectionstatechange', (): unknown => states.push(offerer.connectionState))
             assert.strictEqual(offerer.connectionState, 'connected')
             assert.strictEqual(offerer.signalingState, 'stable')
@@ -87,7 +106,7 @@ describe('PeerConnection', (): void => {
     it('sends messages of any size with a chunked channel: text, bytes, Blob, empty', {timeout: 60000}, async (): Promise<void> => {
         const container: Container = new Container()
         try {
-            const {local, remote} = await connectedPair(container)
+            const {local, remote} = await connectedPair(container, mode)
             const sender: ChunkedChannel = new ChunkedChannel(local)
             const receiver: ChunkedChannel = new ChunkedChannel(remote, {maxMessageSize: 32 * 1024 * 1024})
             const received: (string | Uint8Array)[] = []
@@ -117,5 +136,71 @@ describe('PeerConnection', (): void => {
         } finally {
             await container.destroy()
         }
+    })
+})
+
+describe('PeerThreads', (): void => {
+
+    it('gives each connection to a thread serving none, then to the one serving the fewest', {timeout: 30000}, async (): Promise<void> => {
+        const container: Container = new Container()
+        try {
+            await container.setNamed('threads', PeerThreads, {threads: 2})
+            const threads: PeerThreads = await container.get<PeerThreads>('threads')
+            assert.deepStrictEqual(threads.load(), [0, 0])
+            const connections: PeerConnection[] = []
+            for (let index: number = 0; index < 3; index++) connections.push(await container.get(PeerConnection, {threads: 'threads'}))
+            assert.deepStrictEqual(threads.load(), [2, 1])
+            connections[0].close()
+            connections[1].close()
+            const deadline: number = Date.now() + 5000
+            while (threads.load()[0] + threads.load()[1] > 1 && Date.now() < deadline) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 20))
+            //The first two were in thread 0 and thread 1, the third in thread 0
+            assert.deepStrictEqual(threads.load(), [1, 0])
+            //Thread 1 serves none again
+            connections.push(await container.get(PeerConnection, {threads: 'threads'}))
+            assert.deepStrictEqual(threads.load(), [1, 1])
+        } finally {
+            await container.destroy()
+        }
+    })
+
+    it('fails the connections of a thread that stops, and starts it again for the next ones', {timeout: 30000}, async (): Promise<void> => {
+        const container: Container = new Container()
+        try {
+            const {offerer, answerer, local} = await connectedPair(container, MODES[1])
+            const threads: PeerThreads = await container.get<PeerThreads>('threads')
+            assert.deepStrictEqual(threads.load(), [1, 1])
+            const states: string[] = []
+            offerer.on('connectionstatechange', (state: string): number => states.push(state))
+            const closed: Promise<void> = next<void>((resolve: () => void): unknown => local.once('close', resolve), 5000, 'the channel closed')
+            //The thread of the offerer
+            await threads.crash(0)
+            await closed
+            assert.deepStrictEqual(states, ['failed', 'closed'])
+            assert.strictEqual(offerer.connectionState, 'closed')
+            assert.strictEqual(local.readyState, 'closed')
+            await assert.rejects(offerer.createOffer(), {name: 'InvalidStateError'})
+            assert.deepStrictEqual(threads.load(), [0, 1])
+            //A new connection, in the thread started again
+            const again: PeerConnection = await container.get(PeerConnection, {threads: 'threads'})
+            assert.deepStrictEqual(threads.load(), [1, 1])
+            again.createDataChannel('again')
+            await again.setLocalDescription()
+            assert.strictEqual(again.localDescription?.type, 'offer')
+            answerer.close()
+        } finally {
+            await container.destroy()
+        }
+    })
+
+    it('closes its connections when the application stops', {timeout: 30000}, async (): Promise<void> => {
+        const container: Container = new Container()
+        const {offerer, local} = await connectedPair(container, MODES[1])
+        const states: string[] = []
+        offerer.on('connectionstatechange', (state: string): number => states.push(state))
+        await container.destroy()
+        assert.strictEqual(offerer.connectionState, 'closed')
+        assert.strictEqual(local.readyState, 'closed')
+        assert.ok(!states.includes('failed'))
     })
 })
