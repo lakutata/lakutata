@@ -167,6 +167,37 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
         }
     })
 
+    it('offers a member joining the tracks already published in its first offer, with a select', {timeout: 60000}, async (): Promise<void> => {
+        //The worker threads get the answers of select later, from the main thread
+        const server: TestServer = await startServer({sfu: {workers: workers, select: (): boolean => true}})
+        const clients: Container = new Container()
+        const members: Member[] = []
+        //The offers of the server to bob: the number of their m= lines
+        const offers: number[] = []
+        const signal = server.signaling.signal.bind(server.signaling)
+        server.signaling.signal = async (...args: Parameters<Signaling['signal']>): Promise<boolean> => {
+            const description: {type: string, sdp?: string} | undefined = args[3].description
+            if (args[2] === 'bob' && description?.type === 'offer') offers.push((description.sdp ?? '').match(/^m=/gm)?.length ?? 0)
+            return await signal(...args)
+        }
+        try {
+            members.push(await member(clients, server, 'alice', 0))
+            await until((): boolean => server.sfu!.rooms().meeting?.tracks.length === 1, 10000, 'the video of alice')
+            const bob: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'bob'})
+            const room: Room = await bob.join('meeting')
+            const video: PeerTrackEvent = await next<PeerTrackEvent>((resolve: (event: PeerTrackEvent) => void): unknown => room.on('peer', (peer: Peer): void => {
+                if (peer.id === 'alice') peer.on('track', resolve)
+            }), 15000, 'the video of alice')
+            assert.ok(await from(video.track, 0), 'the packets of alice')
+            //One offer: the video and the data channels
+            assert.deepStrictEqual(offers, [2])
+        } finally {
+            members.forEach((each: Member): void => each.stop())
+            await clients.destroy()
+            await server.stop()
+        }
+    })
+
     it('relays the channels created as soon as the peers appear, the way a page creates them', {timeout: 60000}, async (): Promise<void> => {
         const server: TestServer = await startServer({sfu: {workers: workers}})
         const clients: Container = new Container()

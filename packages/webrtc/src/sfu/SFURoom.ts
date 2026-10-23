@@ -200,6 +200,13 @@ interface Member {
 const UNKNOWN_MEMBER_TIMEOUT: number = 5000
 
 /**
+ * How long a member joining waits for the answers of select for the tracks already published, in milliseconds, so the
+ * first offer carries them (select asked in the main thread from a worker thread); an answer coming later is applied in
+ * an offer of its own
+ */
+const FIRST_OFFER_SELECT_WAIT: number = 1000
+
+/**
  * A channel a member opened to another one, not relayed yet: the members it goes from and to, the messages it got
  * meanwhile
  */
@@ -766,7 +773,7 @@ export class SFURoom implements SFUServedRoom {
         peer.on('error', (): void => undefined)
         peer.on('track', (event: PeerTrackEvent): void => this.#published(member, event))
         peer.on('datachannel', (channel: PeerChannel): void => this.#opened(member, channel))
-        peer.ready.then((): void => {
+        peer.ready.then(async (): Promise<void> => {
             if (peer.closed) return
             const connection: PeerConnection = peer.connection
             //Once the negotiation applied the directions
@@ -776,10 +783,25 @@ export class SFURoom implements SFUServedRoom {
             connection.on('connectionstatechange', (state: string): void => {
                 if (state === 'connected') this.#watchBandwidth(member)
             })
+            //select asked first for the tracks already published, its answers awaited a moment: the control channel and
+            //the tracks selected are then added at once, and the first offer carries them all
+            const metadata: Member['metadata'] = member.metadata
+            const answers: Map<Publication, boolean | Promise<boolean> | undefined> = new Map([...this.#publications].map((publication: Publication): [Publication, boolean | Promise<boolean> | undefined] => [publication, this.#ask(member, publication)]))
+            //Waiting only for answers to come: otherwise the first offer goes as soon as before
+            const settled: Map<Publication, boolean> = [...answers.values()].some((answer: boolean | Promise<boolean> | undefined): boolean => answer instanceof Promise)
+                ? await this.#settle(answers)
+                : new Map()
+            if (peer.closed || this.#members.get(member.id) !== member) return
             const control: PeerChannel = connection.createDataChannel(SignalingControlChannel.label, {negotiated: true, id: SignalingControlChannel.id})
             control.on('message', (data: string | Buffer | ArrayBuffer): void => this.#controlled(member, data))
             member.control = control
-            for (const publication of this.#publications) this.#offer(member, publication)
+            //The tracks published meanwhile were offered as they came; when the metadata changed meanwhile (a change
+            //before the connection is up is not reselected), select is asked again
+            for (const [publication, answer] of answers) {
+                if (!this.#publications.has(publication)) continue
+                if (member.metadata === metadata) this.#offer(member, publication, settled.get(publication) ?? answer)
+                else this.#offer(member, publication)
+            }
         }, (): void => this.#remove(member))
         return member
     }
@@ -923,7 +945,7 @@ export class SFURoom implements SFUServedRoom {
      * @param member
      * @param publication
      */
-    #offer(member: Member, publication: Publication): void {
+    #offer(member: Member, publication: Publication, answer: boolean | Promise<boolean> | undefined = this.#ask(member, publication)): void {
         //A stream published with WHIP receives nothing
         if (member === publication.publisher || !member.peer || member.leg.closed) return
         //The media server of another node: the tracks of the members of this node it wants
@@ -931,8 +953,8 @@ export class SFURoom implements SFUServedRoom {
             if (!publication.remote && member.cascade.wanted.has(trackKey(publication.track.peerId, publication.track.id))) this.#subscribe(member, publication).catch((): void => undefined)
             return
         }
-        const subscriber: SignalingPeer = {peerId: member.id, metadata: member.metadata, session: member.session}
-        const selected: boolean | Promise<boolean> = this.#host.select(subscriber, publication.track)
+        const selected: boolean | Promise<boolean> | undefined = answer
+        if (selected === undefined) return
         if (typeof selected === 'boolean') {
             if (selected) this.#subscribe(member, publication).catch((): void => undefined)
             return
@@ -944,6 +966,37 @@ export class SFURoom implements SFUServedRoom {
             && this.#publications.has(publication)
             ? this.#subscribe(member, publication)
             : undefined).catch((): void => undefined)
+    }
+
+    /**
+     * Ask select whether a member receives a track published: undefined for the members select is not asked for (the
+     * publisher, the media servers of the other nodes, a member whose connection is closed)
+     * @param member
+     * @param publication
+     */
+    #ask(member: Member, publication: Publication): boolean | Promise<boolean> | undefined {
+        if (member === publication.publisher || !member.peer || member.leg.closed || member.cascade) return undefined
+        return this.#host.select({peerId: member.id, metadata: member.metadata, session: member.session}, publication.track)
+    }
+
+    /**
+     * Wait for the answers of select given as promises, FIRST_OFFER_SELECT_WAIT at most
+     * @param answers
+     * @returns The answers that came, a failed one as false
+     */
+    async #settle(answers: Map<Publication, boolean | Promise<boolean> | undefined>): Promise<Map<Publication, boolean>> {
+        const settled: Map<Publication, boolean> = new Map()
+        const waiting: Promise<void>[] = []
+        for (const [publication, answer] of answers) {
+            if (answer instanceof Promise) waiting.push(answer.then((selected: boolean): void => void settled.set(publication, selected), (): void => void settled.set(publication, false)))
+        }
+        if (!waiting.length) return settled
+        let timer: ReturnType<typeof setTimeout> | undefined
+        await Promise.race([Promise.all(waiting), new Promise<void>((resolve: () => void): void => {
+            timer = setTimeout(resolve, FIRST_OFFER_SELECT_WAIT)
+        })])
+        clearTimeout(timer)
+        return settled
     }
 
     /**
