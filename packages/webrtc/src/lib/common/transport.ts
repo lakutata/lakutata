@@ -15,6 +15,7 @@ import {
     type InterfaceAddresses,
     findPort,
     interfaceAddress,
+    randomPort,
     normalizeFamilyNodeV18
 } from './network.js'
 
@@ -83,9 +84,6 @@ export class UdpTransport implements Transport {
     //What is sent until the callback of a connect comes, with its address: a send given an address meanwhile would be
     //refused by the socket connected before its lookup ends (EISCONN), and lost
     private waiting?: [Buffer, Address | undefined][]
-    //Whether the socket keeps its port once disconnected: Linux frees a port the system chose (a bind to port 0) when
-    //its socket disconnects, macOS keeps it, a port given to bind is kept everywhere
-    private keepsPort = false
 
     private constructor(
         private socketType: SocketType,
@@ -129,7 +127,6 @@ export class UdpTransport implements Transport {
             this.socketType,
             this.options.interfaceAddresses
         )
-        this.keepsPort = !!(this.options.port || this.options.portRange) || process.platform === 'darwin'
         if (this.options.port) {
             this.socket.bind({port: this.options.port, address})
         } else if (this.options.portRange) {
@@ -141,7 +138,9 @@ export class UdpTransport implements Transport {
             )
             this.socket.bind({port, address})
         } else {
-            this.socket.bind({address})
+            //A port the system chooses, given to bind: Linux frees a port it chose for a bind to port 0 when the socket
+            //disconnects (the socket of the pair ICE selected does, before an ICE restart), a port given to bind is kept
+            this.socket.bind({port: await randomPort(this.socketType, this.options.interfaceAddresses), address})
         }
         await new Promise<void>((resolve, reject) => {
             const failed = (error: Error) => reject(error)
@@ -161,12 +160,11 @@ export class UdpTransport implements Transport {
      * Send only to an address from now on (the other side of the pair ICE selected), once application data comes from
      * it: the other side sends its data on the pair then (a reply to a check does not tell it). Connected, the socket
      * sends without the lookup and the routing of the address of each packet, and drops what it is asked to send
-     * elsewhere; the system drops the packets of the other addresses. A socket that would lose its port once
-     * disconnected (a port the system chose, on Linux) is not connected
+     * elsewhere; the system drops the packets of the other addresses
      * @param addr An IP address
      */
     connectTo(addr: Address) {
-        if (this.closed || this.connected || this.waiting || !this.keepsPort || !net.isIP(addr[0])) return
+        if (this.closed || this.connected || this.waiting || !net.isIP(addr[0])) return
         this.connectOnReceive = addr
     }
 

@@ -43,8 +43,7 @@ describe('stream transport connection timeout', () => {
 })
 
 describe('UDP transport connected to the other side of a pair', () => {
-    //A port range: Linux frees a port the system chose when its socket disconnects, so only these sockets connect there
-    const open = (): Promise<UdpTransport> => UdpTransport.init('udp4', {portRange: [42000, 42999]})
+    const open = (): Promise<UdpTransport> => UdpTransport.init('udp4')
 
     /**
      * The packets a transport receives
