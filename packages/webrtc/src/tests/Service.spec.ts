@@ -1,14 +1,19 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
+import {createServer, type Server} from 'node:http'
+import type {AddressInfo} from 'node:net'
 import {Container, DTO} from '@lakutata/core'
 import {Expect} from '@lakutata/core/decorator/dto'
 import {buildEntrypoints, Controller, Entrypoint, type ServiceContext} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {jsonRPCRequestOfContext} from '@lakutata/entrypoint/adapter/jsonrpc'
+import {socketIOServiceEntrypoint} from '@lakutata/entrypoint/adapter/socket.io'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
 import {PeerServiceError, PeerServiceProxy} from '../shared/PeerServiceProxy.js'
 import {webrtcRequestOfContext, webrtcServiceEntrypoint, type WebRTCRequestInfo, type WebRTCServiceEntrypointOptions} from '../service/WebRTCServiceEntrypoint.js'
+import {Signaling} from '../signaling/Signaling.js'
+import {SignalingController} from '../signaling/SignalingController.js'
 import {next, startServer, type TestServer, until} from './support/Server.js'
 
 /**
@@ -224,6 +229,36 @@ describe('WebRTC service', (): void => {
         } finally {
             await clients.destroy()
             await server.stop()
+        }
+    })
+
+    it('serves the members of a signaling server of the same application, started after the adapter', {timeout: 60000}, async (): Promise<void> => {
+        //A free port, for the Socket.IO adapter started after the WebRTC one
+        const probe: Server = createServer()
+        await new Promise<void>((resolve: () => void): unknown => probe.listen(0, '127.0.0.1', resolve))
+        const url: string = `http://127.0.0.1:${(probe.address() as AddressInfo).port}`
+        await new Promise<void>((resolve: () => void): unknown => probe.close((): void => resolve()))
+        const application: Container = new Container()
+        const clients: Container = new Container()
+        const errors: unknown[] = []
+        try {
+            await application.setNamed<Signaling>('signaling', Signaling, {})
+            await application.setNamed<Entrypoint>('entrypoint', Entrypoint, buildEntrypoints({
+                controllers: [SignalingController, DeviceController],
+                service: [
+                    webrtcServiceEntrypoint({signaling: {url: url, id: 'device'}, rooms: ['device'], onError: (error: unknown): void => void errors.push(error)}),
+                    socketIOServiceEntrypoint({port: Number(new URL(url).port), host: '127.0.0.1'})
+                ]
+            }))
+            const alice: SignalingClient = await clients.get(SignalingClient, {url: url, id: 'alice'})
+            const proxy: PeerServiceProxy = await proxyOf(await alice.join('device'))
+            assert.strictEqual(await proxy.invoke({method: 'echo', text: 'same application'}), 'same application')
+            //The actions of the signaling are not served through the channel
+            assert.strictEqual((await failure(proxy.invoke({method: 'webrtc.join', room: 'other'}))).errno, 'E_SIGNALING_CLIENT_REQUIRED')
+            assert.deepStrictEqual(errors, [])
+        } finally {
+            await clients.destroy()
+            await application.destroy()
         }
     })
 

@@ -108,8 +108,10 @@ export class SignalingController extends Controller {
      */
     protected peerId(): string {
         const context: ServiceContext & {jsonrpc?: {transport: string}} = this.context as ServiceContext & {jsonrpc?: {transport: string}}
-        //JSON-RPC over HTTP gives a client id (the id header) but has no connection to push the events through
-        if (!context.clientId || context.jsonrpc?.transport === 'http') {
+        //JSON-RPC over HTTP gives a client id (the id header) but has no connection to push the events through; a data
+        //channel of webrtcServiceEntrypoint is set up by the signaling itself (a member joining through it as itself
+        //would replace its own session)
+        if (!context.clientId || context.jsonrpc?.transport === 'http' || context.jsonrpc?.transport === 'webrtc') {
             throw new SignalingClientRequiredException('The signaling needs a transport with clients (Socket.IO, JSON-RPC over WebSocket)')
         }
         return context.clientId
