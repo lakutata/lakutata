@@ -118,7 +118,7 @@ room.on('peer-left', (peer: Peer): void => console.log(`${peer.id} left`))
 
 它的选项：`iceTransportPolicy`（`'relay'` 表示只用 TURN 中转）、`configuration`（`RTCPeerConnection` 的更多选项）、`createPeerConnection`（`RTCPeerConnection` 的其他实现）、`timeout`（请求的超时，默认 15 秒）。
 
-房间为其他每个成员发出 `peer` 事件：先是已经在房间里的成员，然后是每个新加入的成员。后来添加的监听函数会立即为已有的每个成员调用一次。`room.publish(track, stream)` 把一条轨道发给每个成员（第 8 节）；房间有媒体服务器时，`room.sfu` 是它的 id（第 9 节）。`Peer` 有成员的 `id`、`metadata`、到它的连接 `connection`（一个 `RTCPeerConnection`：可以读取统计信息），以及 `createDataChannel()`、`pause()` 和 `resume()`（暂停、恢复接收这个成员的某条轨道）、`restartIce()` 和 `close()`，会发出 `datachannel`、`track`、`connectionstatechange`、`metadata`（成员带着新的 metadata 重新加入）、`error` 和 `close` 事件。一个成员连接关闭时，房间发出 `peer-left`：成员离开了，或者连接彻底断了。
+房间为其他每个成员发出 `peer` 事件：先是已经在房间里的成员，然后是每个新加入的成员。后来添加的监听函数会立即为已有的每个成员调用一次。在有媒体服务器的房间里，要等和服务器的连接完成第一次 offer 和 answer 的交换，才会发出 `peer` 事件，这样在监听函数里建的通道不会和这个 offer 撞车。`room.publish(track, stream)` 把一条轨道发给每个成员（第 8 节）；房间有媒体服务器时，`room.sfu` 是它的 id（第 9 节）。`Peer` 有成员的 `id`、`metadata`、到它的连接 `connection`（一个 `RTCPeerConnection`：可以读取统计信息），以及 `createDataChannel()`、`pause()` 和 `resume()`（暂停、恢复接收这个成员的某条轨道）、`restartIce()` 和 `close()`，会发出 `datachannel`、`track`、`connectionstatechange`、`metadata`（成员带着新的 metadata 重新加入）、`error` 和 `close` 事件。一个成员连接关闭时，房间发出 `peer-left`：成员离开了，或者连接彻底断了。
 
 双方都可以创建通道：每一端通过 `datachannel` 拿到对方创建的通道。双方只想共用一个通道时，两边都用 `negotiated: true` 和相同的 `id` 创建它。
 
@@ -197,7 +197,7 @@ room.on('peer', (peer: Peer): void => {
 })
 ```
 
-- `invoke(input, timeout)` 把输入的 `method` 作为 JSON-RPC 请求的方法，其余字段作为参数发出（要换成别的字段，两端的 `methodField` 设成同一个），返回动作的结果。失败时抛出 `PeerServiceError`：它的 `errno` 是动作抛出的错误的 `errno`（`E_ACCESS_DENY`、`E_INVALID_VALUE` 等），`code` 是 JSON-RPC 的错误码，`data` 是完整的错误对象；没有收到响应时，`errno` 是 `E_PEER_SERVICE_TIMEOUT`（默认等 10 分钟）或 `E_PEER_SERVICE_CLOSED`。通道打开之前发出的调用会等它打开。
+- `invoke(input, timeout)` 把输入的 `method` 作为 JSON-RPC 请求的方法，其余字段作为参数发出（要换成别的字段，两端的 `methodField` 设成同一个），返回动作的结果。失败时抛出 `PeerServiceError`：它的 `errno` 是动作抛出的错误的 `errno`（`E_ACCESS_DENY`、`E_INVALID_VALUE` 等），`code` 是 JSON-RPC 的错误码，`data` 是完整的错误对象；没有收到响应时，`errno` 是 `E_PEER_SERVICE_TIMEOUT`（默认等 10 分钟）或 `E_PEER_SERVICE_CLOSED`。转成 JSON 后超过 10 MiB 的请求（代理的 `maxRequestSize`，和适配器的 `limit` 一样）不会发出，直接以 `E_PEER_SERVICE_TOO_LARGE` 失败。通道打开之前发出的调用会等它打开。
 - `this.context.clientId` 是调用方的成员 id。`webrtcRequestOfContext(this.context)` 给出调用方的 `peer`（包括它的 metadata）、调用经过的 `room` 和数据通道 `channel`。`entrypoint.notify(memberId, event, ...args)` 把事件推给这个成员的通道，`broadcast()` 推给所有通道；代理的 `on`、`once`、`off` 接收这些事件。
 - 房间在应用启动完成后才加入，所以信令服务器可以和它在同一个应用里。加入不了的房间会报给 `onError`（默认写进应用的日志），1 秒后再试，之后每次间隔翻倍，最长 10 秒；信令拒绝的房间不再重试。
 - 通道关闭时（成员离开了），它上面进行中的请求会被中止：动作的 `this.signal` 会触发。应用停止时，新的请求以错误码 `-32001` 失败，进行中的请求照常应答，然后通道关闭。
@@ -402,7 +402,7 @@ Application.run(() => ({
 | `select` | 每个成员收到其他人的每条轨道 | `(subscriber, track) => boolean`：一个成员收不收某条轨道 |
 | `maxMembers` | `0` | 所有房间加起来最多多少成员，0 表示不限；达到上限后再加入的成员会被拒绝（`SignalingLimitException`） |
 | `codecs` | Opus、PCMU、VP8、H.264、VP9 | 成员可以用哪些编码发布 |
-| `icePortRange`、`iceAdditionalHostAddresses` | | 连接使用的 UDP 端口（每条连接在本机的每个地址上各占一个端口：端口范围要够所有成员用），以及服务器的公网地址 |
+| `icePortRange`、`iceAdditionalHostAddresses` | | 连接使用的 UDP 端口，以及服务器的公网地址。每条连接（成员、WHIP 的推流、WHEP 的观众）在本机的每个地址上各占一个端口：端口范围要够它们所有人用 |
 | `workers` | `0` | 转发房间用的工作线程数，用来利用更多的核 |
 | `cluster`、`selectSFU` | | 多个节点上的媒体服务器（第 13 节） |
 
@@ -452,6 +452,8 @@ export class Recorder extends Component {
 | 4 个房间，每个 12 个发布者、10 个订阅者，在主线程 | 每秒约 95,000 个 | 每秒 59,300 个 | 133%：主线程满了，其余是垃圾回收 |
 | 同样的 4 个房间，4 个工作线程 | 每秒约 95,000 个 | 全部（每秒 93,000 个） | 257% |
 
+在同一台 Mac 上的 Linux 虚拟机里（arm64，10 个核），主线程转发的比 macOS 上多：4 个房间每秒转发 84,900 个包，占 166% 个核；4 个线程则能全部转发（每秒 95,000 个，占 336%）。
+
 一个线程约占 22 MiB，启动约需 90 毫秒。在上面的负载下，有线程时进程用了 1.4 GiB 内存，没有线程时 0.6 GiB，因为每个线程各自的堆都会增长。一条轨道从一个节点转发到另一个节点（第 13 节），两个节点每个包合计约耗 11 微秒 CPU：这样一路视频约占一个核的 0.2%。
 
 ## 10. 用 WHIP 推流
@@ -481,7 +483,7 @@ Application.run(() => ({
         whip: buildWHIPOptions({
             authorize: ({stream, token}): boolean => stream === 'live' && token === process.env.WHIP_TOKEN,
             iceAdditionalHostAddresses: ['203.0.113.10'],
-            icePortRange: [40000, 40100]
+            icePortRange: [40000, 40999]
         }),
         studio: {class: Studio},
         entrypoint: buildEntrypoints({
@@ -512,7 +514,7 @@ Application.run(() => ({
 | `iceServers` | `[]` | 给推流方的更多 ICE 服务器 |
 | `maxSessions` | `100` | 同时最多多少个会话，`0` 表示不限 |
 | `allowOrigin` | `'*'` | 允许哪些来源的浏览器推流 |
-| `icePortRange`、`iceAdditionalHostAddresses` | | 服务器的候选地址：它的 UDP 端口、它的公网地址 |
+| `icePortRange`、`iceAdditionalHostAddresses` | | 服务器的候选地址：它的 UDP 端口（每个会话在本机的每个地址上各占一个端口；给了 `sfu` 时用媒体服务器的端口）、它的公网地址 |
 | `codecs` | Opus、PCMU、VP8、H.264、VP9 | 接受的编码 |
 | `sfu` | 无 | 一个 `SFU` 组件的名字：推的流进入它的房间 |
 | `roomOf` | 流的名字 | `({stream, token}, context) => string`：一路流进入媒体服务器的哪个房间 |
@@ -604,6 +606,7 @@ await connection.setRemoteDescription({type: 'answer', sdp: await response.text(
 - **多个实例。** 给它们配置 `Cluster`（第 13 节），并给它们的 TURN 服务器配置相同的 `secret`，这样每个实例都认其他实例生成的凭据。
 - **其他 TURN 服务器。** coturn（`use-auth-secret`，`static-auth-secret` 设为相同的密钥）接受 `createTURNCredentials()` 生成的凭据；把它写进 `Signaling` 的 `iceServers` 选项。
 - **HTTPS。** 浏览器在任何页面上都允许使用 WebRTC，但摄像头和麦克风只能在安全的页面上使用（HTTPS 或 `localhost`）。
+- **UDP 缓冲区。** 连接和 TURN 服务器会给它们的 UDP 套接字申请 1 MiB 的接收缓冲区：Linux 默认的 208 KiB 遇到突发的包会丢包。Linux 用 `net.core.rmem_max` 限制这个大小，而它在大多数系统上也是 208 KiB，所以在 Linux 服务器上要把它调大（`sysctl -w net.core.rmem_max=4194304`；使用节点网络的 pod，在节点上调）。
 
 ## 13. 多个实例
 
@@ -981,6 +984,7 @@ setDebugHandler((namespace: string, args: unknown[]): void => console.debug(name
 ## 16. 限制
 
 - Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
-- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 60 MiB/s，100 字节的消息每秒约 44 万条。
+- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 55 MiB/s，100 字节的消息每秒约 40 万条；同一台 Mac 上的 Linux 虚拟机里，大消息约 35 MiB/s，小消息每秒 23 万到 46 万条。
 - 媒体服务器不转码，按发布时的样子发送每路视频：还没有 simulcast，所以带宽不够的成员收到的是 `congestion` 事件，而不是更低的画质。它在一台机器上的转发能力见第 9 节；仓库里的 `packages/webrtc/test-env/bench/forward.mjs` 可以在别的机器上测。
 - 集群里的媒体服务器把一条轨道从发布者所在的节点直接发给每个需要它的节点，一个房间分布在几十个节点上没有问题；再多的话，就需要节点之间逐级转发了。
+- 2026 年 10 月验证过的：Chrome 154，Firefox 153 和 WebKit 26.5（Playwright 1.62 的构建），macOS 27 上的 Safari 27.0.1，Pion 4.2.25（Go）和 aiortc 1.15.0（Python）；运行环境是 Node.js 24（macOS，以及 Alpine 上的 Linux）、Bun 1.4.3 和 Electron 44 的主进程。脚本在仓库的 `packages/webrtc/test-env` 里。

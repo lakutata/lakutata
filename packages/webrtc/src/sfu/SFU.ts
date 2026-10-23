@@ -175,7 +175,9 @@ export interface SFUOptions {
      */
     codecs?: string[]
     /**
-     * The UDP ports of the connections to the members, as `[first, last]`: the range opened in the firewall.
+     * The UDP ports of the connections to the members, as `[first, last]`: the range opened in the firewall. Each
+     * connection (a member, a stream of WHIP, a viewer of WHEP, another node's media server) takes a port on each address
+     * of the machine.
      * @default any free port
      */
     icePortRange?: [number, number]

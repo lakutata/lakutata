@@ -457,15 +457,30 @@ of the media server.
 | `ClusterTimeoutException` | `Cluster.request()` not answered in time |
 | `ClusterTransportNotFoundException` | A cluster on NATS or Redis without the package `nats` or `ioredis` |
 | `SignalingRequestError` | On the clients: the error of a request, with the `errno` of the server's exception |
-| `PeerServiceError` | On the members: the error of a call of `PeerServiceProxy`, with the `errno` of the action's error |
+| `PeerServiceError` | On the members: the error of a call of `PeerServiceProxy`, with the `errno` of the action's error, or `E_PEER_SERVICE_TIMEOUT`, `E_PEER_SERVICE_CLOSED`, `E_PEER_SERVICE_TOO_LARGE` |
 
 ## Testing
 
 `npm run test:unit` runs the tests of the protocols, of the signaling and of the connections between Node.js
-processes. The tests with Chrome use Playwright and the Chrome installed on the machine: they run when the package
-`playwright` can be imported (or is found in the directory given by `LAKUTATA_PLAYWRIGHT`), and are skipped otherwise.
-The one sending the H.264 of an encoder to Chrome also needs `ffmpeg` with `libx264`, and the ones of WHIP need an
-`ffmpeg` with its WHIP muxer (FFmpeg 8 and later) and `libopus`.
+processes. The tests with browsers use Playwright: the Chrome installed on the machine, and the Firefox and WebKit of
+Playwright (`npx playwright install firefox webkit`). They run when the package `playwright` can be imported (or is
+found in the directory given by `LAKUTATA_PLAYWRIGHT`); the ones of a browser not installed are skipped. The one
+sending the H.264 of an encoder also needs `ffmpeg` with `libx264` and a browser with H.264 (the Firefox of Playwright
+has none), and the ones of WHIP need an `ffmpeg` with its WHIP muxer (FFmpeg 8 and later) and `libopus`. The WebKit of
+Playwright refuses the URLs of TURN with a transport (`?transport=udp`), which Safari accepts: its test through the
+relay only is skipped.
+
+The other runtimes and implementations, compiled first (`npm run compile`):
+
+- `npm run test:bun` runs the tests in Bun (without those of the browsers). Four tests of the TURN refresh fail there:
+  the fake clock of the tests reaches the imports of `node:timers/promises` only in Node.js.
+- `npm run test:electron` runs them in the main process of Electron (the repository's Electron).
+- `npm run test:linux` runs them, and the forwarding benchmark, in Linux (`node:24-alpine` in Docker).
+- `npm run test:interop` connects Pion (Go) and aiortc (Python), in Docker, to the signaling, the TURN server and a
+  member of this package: a data channel directly and through the relay only, and a call of a service action from
+  aiortc.
+- `node test-env/safari.mjs` opens a page in Safari (macOS): a data channel, a service call, a connection through the
+  relay only. Close its tab afterwards.
 
 `npm run test:servers` runs the tests of the cluster on NATS and Redis, started in Docker (`test-env/cluster.sh`).
 `test-env/k3s/run.sh` runs k3s in Docker with two nodes, deploys the signaling, and a TURN server and a media server on

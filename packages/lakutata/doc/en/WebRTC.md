@@ -153,7 +153,9 @@ Its options: `iceTransportPolicy` (`'relay'` to use only the TURN relays), `conf
 requests, 15 seconds by default).
 
 A room emits `peer` for each other member: the members already in the room, then each newcomer. A listener added later
-is called at once for the peers already there. `room.publish(track, stream)` sends a track to every member (section 8),
+is called at once for the peers already there. In a room with a media server, `peer` is emitted once the connection
+to the server has exchanged its first offer and answer, so a channel created in the listener does not collide with
+that offer. `room.publish(track, stream)` sends a track to every member (section 8),
 and `room.sfu` is the id of the media server of the room, when it has one (section 9). A `Peer` has the member's `id`,
 its `metadata`, the `connection` to it (an `RTCPeerConnection`: read its statistics), `createDataChannel()`, `pause()`
 and `resume()` (a track of the member), `restartIce()` and `close()`, and emits `datachannel`, `track`,
@@ -253,7 +255,9 @@ room.on('peer', (peer: Peer): void => {
   parameters (to use another field, give both sides the same `methodField`), and resolves to the result. It fails with a
   `PeerServiceError`: its `errno` is the one of the action's error (`E_ACCESS_DENY`, `E_INVALID_VALUE`…), its `code`
   the JSON-RPC code, its `data` the whole error object; or its `errno` is `E_PEER_SERVICE_TIMEOUT` (10 minutes by
-  default) or `E_PEER_SERVICE_CLOSED`. The calls made before the channel opens wait for it.
+  default) or `E_PEER_SERVICE_CLOSED`. A request over 10 MiB as JSON (the proxy's `maxRequestSize`, the same as the
+  adapter's `limit`) is not sent and fails at once with `E_PEER_SERVICE_TOO_LARGE`. The calls made before the channel
+  opens wait for it.
 - `this.context.clientId` is the member id of the caller. `webrtcRequestOfContext(this.context)` gives its `peer` (with
   its metadata), the `room` it called through and the `channel`. `entrypoint.notify(memberId, event, ...args)` pushes an
   event to the channels of that member, and `broadcast()` to every channel; `on`, `once` and `off` of the proxy receive
@@ -511,7 +515,7 @@ The options of `buildSFUOptions`:
 | `select` | every member receives every track | `(subscriber, track) => boolean`: whether a member receives a track |
 | `maxMembers` | `0` | The members of all the rooms at most, 0 for no limit; a member joining once it is reached is refused (`SignalingLimitException`) |
 | `codecs` | Opus, PCMU, VP8, H.264, VP9 | The codecs the members may publish |
-| `icePortRange`, `iceAdditionalHostAddresses` | | The UDP ports of the connections (each one takes a port on each address of the machine: give the range enough of them for the members), and the public address of the server |
+| `icePortRange`, `iceAdditionalHostAddresses` | | The UDP ports of the connections, and the public address of the server. Each connection (a member, a stream of WHIP, a viewer of WHEP) takes a port on each address of the machine: make the range large enough for all of them |
 | `workers` | `0` | Worker threads forwarding the rooms, to use more cores |
 | `cluster`, `selectSFU` | | The media servers of several nodes (section 13) |
 
@@ -581,6 +585,9 @@ a second), the members in other processes:
 | 4 rooms of 12 publishers and 10 subscribers each, in the main thread | about 95,000 a second | 59,300 a second | 133%: the main thread is full, the rest is the garbage collector |
 | The same 4 rooms, in 4 worker threads | about 95,000 a second | all (93,000 a second) | 257% |
 
+In a Linux virtual machine on the same Mac (arm64, 10 cores), the main thread forwards more of the packets of the 4
+rooms than on macOS: 84,900 a second, at 166% of a core; 4 threads forward them all (95,000 a second, at 336%).
+
 A thread takes about 22 MiB and 90 ms to start. Under the load above, the process used 1.4 GiB with the threads and
 0.6 GiB without, each thread growing a heap of its own. A track forwarded from one node to another (section 13) costs
 the two nodes about 11 µs of CPU per packet: 0.2% of a core for such a video.
@@ -616,7 +623,7 @@ Application.run(() => ({
         whip: buildWHIPOptions({
             authorize: ({stream, token}): boolean => stream === 'live' && token === process.env.WHIP_TOKEN,
             iceAdditionalHostAddresses: ['203.0.113.10'],
-            icePortRange: [40000, 40100]
+            icePortRange: [40000, 40999]
         }),
         studio: {class: Studio},
         entrypoint: buildEntrypoints({
@@ -653,7 +660,7 @@ same interface under another path.
 | `iceServers` | `[]` | More ICE servers for the publishers |
 | `maxSessions` | `100` | The sessions at once at most, `0` for no limit |
 | `allowOrigin` | `'*'` | The origins the browsers may publish from |
-| `icePortRange`, `iceAdditionalHostAddresses` | | The candidates of the server: its UDP ports, its public address |
+| `icePortRange`, `iceAdditionalHostAddresses` | | The candidates of the server: its UDP ports (each session takes a port on each address of the machine; with `sfu`, the ports of the media server are used), its public address |
 | `codecs` | Opus, PCMU, VP8, H.264, VP9 | The codecs accepted |
 | `sfu` | none | The name of an `SFU` component: the streams go to its rooms |
 | `roomOf` | the stream | `({stream, token}, context) => string`: the room of the media server a stream goes to |
@@ -772,6 +779,10 @@ room.
   credentials of `createTURNCredentials()`; list it in the `iceServers` option of `Signaling`.
 - **HTTPS.** Browsers allow WebRTC on any page, but the camera and the microphone only on secure pages (HTTPS or
   `localhost`).
+- **The UDP buffers.** The connections and the TURN server ask for a receive buffer of 1 MiB for their UDP sockets:
+  the default of Linux (208 KiB) loses the packets of a burst. Linux caps the size at `net.core.rmem_max`, which is
+  208 KiB on most systems too, so raise it on a Linux server (`sysctl -w net.core.rmem_max=4194304`, on the nodes for
+  the pods on the network of their node).
 
 ## 13. Several instances
 
@@ -1233,10 +1244,14 @@ pairs tried.
 
 - Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
   another connection.
-- The throughput of one data channel between two Node.js processes on an Apple M4 is about 60 MiB/s for large
-  messages, and 440,000 messages of 100 bytes per second.
+- The throughput of one data channel between two Node.js processes on an Apple M4 is about 55 MiB/s for large
+  messages, and 400,000 messages of 100 bytes per second; in a Linux virtual machine on the same Mac, about 35 MiB/s,
+  and from 230,000 to 460,000 messages a second.
 - The media server does not transcode, and sends each video as it is published: there is no simulcast yet, so a
   member with little bandwidth gets `congestion` events rather than a lower quality. Its capacity on one machine is in
   section 9; `packages/webrtc/test-env/bench/forward.mjs` in the repository measures it on another.
 - The media servers of a cluster send a track straight from the node of its publisher to each node wanting it, which
   suits rooms spread over tens of nodes; beyond that, the nodes would have to forward through each other.
+- Verified in October 2026 with Chrome 154, Firefox 153 and WebKit 26.5 (the builds of Playwright 1.62), Safari
+  27.0.1 on macOS 27, Pion 4.2.25 (Go) and aiortc 1.15.0 (Python), on Node.js 24 (macOS, and Linux on Alpine), Bun
+  1.4.3 and the main process of Electron 44. The scripts are in `packages/webrtc/test-env` of the repository.

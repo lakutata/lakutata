@@ -373,11 +373,19 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 | `ClusterTimeoutException` | `Cluster.request()` 没有按时得到答复 |
 | `ClusterTransportNotFoundException` | 集群用 NATS 或 Redis，但没有安装 `nats` 或 `ioredis` 包 |
 | `SignalingRequestError` | 客户端上请求的错误，带有服务端异常的 `errno` |
-| `PeerServiceError` | 成员端 `PeerServiceProxy` 调用的错误，带有动作抛出的错误的 `errno` |
+| `PeerServiceError` | 成员端 `PeerServiceProxy` 调用的错误，带有动作抛出的错误的 `errno`，或者是 `E_PEER_SERVICE_TIMEOUT`、`E_PEER_SERVICE_CLOSED`、`E_PEER_SERVICE_TOO_LARGE` |
 
 ## 测试
 
-`npm run test:unit` 运行协议、信令以及 Node.js 进程之间连接的测试。Chrome 的测试使用 Playwright 和本机安装的 Chrome：能引用 `playwright` 包（或者在 `LAKUTATA_PLAYWRIGHT` 指定的目录里找到它）时运行，否则跳过。把编码器的 H.264 发给 Chrome 的那个测试还需要带 `libx264` 的 `ffmpeg`；WHIP 的测试需要带 WHIP 推流功能（FFmpeg 8 及以上）和 `libopus` 的 `ffmpeg`。
+`npm run test:unit` 运行协议、信令以及 Node.js 进程之间连接的测试。浏览器的测试使用 Playwright：本机安装的 Chrome，以及 Playwright 自带的 Firefox 和 WebKit（`npx playwright install firefox webkit`）。能引用 `playwright` 包（或者在 `LAKUTATA_PLAYWRIGHT` 指定的目录里找到它）时运行，没装的浏览器的测试会跳过。把编码器的 H.264 发给浏览器的那个测试还需要带 `libx264` 的 `ffmpeg`，以及支持 H.264 的浏览器（Playwright 的 Firefox 不支持）；WHIP 的测试需要带 WHIP 推流功能（FFmpeg 8 及以上）和 `libopus` 的 `ffmpeg`。Playwright 的 WebKit 不接受带传输方式的 TURN URL（`?transport=udp`），Safari 接受，所以 WebKit 只走中转的那个测试会跳过。
+
+其他运行环境和实现，先编译（`npm run compile`）：
+
+- `npm run test:bun` 在 Bun 里运行测试（浏览器的测试除外）。TURN 刷新的 4 个测试在 Bun 里会失败：测试用的假时钟只能在 Node.js 里替换 `node:timers/promises` 的导入。
+- `npm run test:electron` 在 Electron 的主进程里运行测试（用仓库里的 Electron）。
+- `npm run test:linux` 在 Linux（Docker 里的 `node:24-alpine`）里运行测试和转发基准。
+- `npm run test:interop` 在 Docker 里让 Pion（Go）和 aiortc（Python）连接这个包的信令、TURN 服务器和一个成员：直连和只走中转的数据通道，以及 aiortc 对服务动作的调用。
+- `node test-env/safari.mjs` 在 Safari（macOS）里打开一个页面：数据通道、服务调用、只走中转的连接。测完关掉这个标签页。
 
 `npm run test:servers` 在 Docker 里启动 NATS 和 Redis，运行集群在它们上面的测试（`test-env/cluster.sh`）。`test-env/k3s/run.sh` 在 Docker 里运行有两个节点的 k3s，部署信令，并在每个节点上部署一个 TURN 服务器和一个媒体服务器。它先让两个成员分别通过两个不同的 pod 连接，并且只经 TURN 服务器中转；再让两个成员分别连到两个节点的媒体服务器，并删掉其中一个媒体服务器的 pod。`test-env/bench/forward.mjs` 测量媒体服务器的转发能力。
 

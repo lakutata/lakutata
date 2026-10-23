@@ -140,7 +140,8 @@ export interface WHIPOptions {
     allowOrigin?: string
     /**
      * The UDP ports of the candidates of the connections, as `[first, last]`: the range opened in the firewall or
-     * published by the container.
+     * published by the container. Each session takes a port on each address of the machine; with `sfu`, the
+     * connections are the media server's, on its ports.
      * @default any free port
      */
     icePortRange?: [number, number]
@@ -225,7 +226,7 @@ type PatchOutcome = {fragment?: string, tag: string, stale?: boolean} | {refused
  *         whip: buildWHIPOptions({
  *             authorize: ({stream, token}): boolean => stream === 'studio' && token === process.env.WHIP_TOKEN,
  *             iceAdditionalHostAddresses: ['203.0.113.10'],
- *             icePortRange: [40000, 40100]
+ *             icePortRange: [40000, 40999]
  *         }),
  *         recorder: {class: Recorder},
  *         entrypoint: buildEntrypoints({
