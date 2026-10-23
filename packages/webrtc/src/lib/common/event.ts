@@ -2,29 +2,58 @@ type EventExecute<T extends any[]> = (...args: T) => void
 type PromiseEventExecute<T extends any[]> = (...args: T) => Promise<void>
 type EventComplete = () => void
 type EventError = (e: any) => void
-interface Stack<T extends any[]> {
-    execute: EventExecute<T>
+interface Subscriber<E> {
+    execute: E
     complete?: EventComplete
     error?: EventError
-    id: number
+    //Unsubscribed: skipped, and left out of the list once it is compacted
+    removed?: boolean
 }
-interface IEvent<T extends any[]> {
-    stack: Stack<T>[]
-    promiseStack: {
-        execute: PromiseEventExecute<T>
-        complete?: EventComplete
-        error?: EventError
-        id: number
-    }[]
-    eventId: number
+
+/**
+ * The subscribers of an event in their order. Unsubscribing marks a subscriber removed, in constant time; the list
+ * drops the removed ones once they outnumber the others, a copy left to the iterations going on
+ */
+class Subscribers<E> {
+    list: Subscriber<E>[] = []
+    size: number = 0
+    #removed: number = 0
+
+    add(subscriber: Subscriber<E>): void {
+        this.list.push(subscriber)
+        this.size++
+    }
+
+    /**
+     * Remove a subscriber
+     * @param subscriber
+     * @returns Whether it was there
+     */
+    remove(subscriber: Subscriber<E>): boolean {
+        if (subscriber.removed) return false
+        subscriber.removed = true
+        this.size--
+        if (++this.#removed > 16 && this.#removed > this.size) {
+            this.list = this.list.filter((each: Subscriber<E>): boolean => !each.removed)
+            this.#removed = 0
+        }
+        return true
+    }
+
+    /**
+     * Remove them all: the iterations going on skip the ones they have not reached
+     */
+    clear(): void {
+        for (const subscriber of this.list) subscriber.removed = true
+        this.list = []
+        this.size = 0
+        this.#removed = 0
+    }
 }
 
 export class Event<T extends any[]> {
-    private event: IEvent<T> = {
-        stack: [],
-        promiseStack: [],
-        eventId: 0
-    }
+    private readonly subscribers: Subscribers<EventExecute<T>> = new Subscribers()
+    private readonly queued: Subscribers<PromiseEventExecute<T>> = new Subscribers()
     ended = false
     onended?: () => void
     onerror = (_error: any) => {}
@@ -36,15 +65,15 @@ export class Event<T extends any[]> {
             return
         }
 
-        for (const item of this.event.stack) {
-            item.execute(...args)
+        for (const item of this.subscribers.list) {
+            if (!item.removed) item.execute(...args)
         }
 
         //The queued subscribers run one after the other; without them, no promise is made
-        if (this.event.promiseStack.length === 0) return
+        if (this.queued.size === 0) return
         (async () => {
-            for (const item of this.event.promiseStack) {
-                await item.execute(...args)
+            for (const item of this.queued.list) {
+                if (!item.removed) await item.execute(...args)
             }
         })().catch((e) => {
             this.onerror(e)
@@ -56,8 +85,8 @@ export class Event<T extends any[]> {
             return
         }
 
-        for (const item of this.event.stack) {
-            if (item.complete) {
+        for (const item of this.subscribers.list) {
+            if (item.complete && !item.removed) {
                 item.complete()
             }
         }
@@ -74,8 +103,8 @@ export class Event<T extends any[]> {
             return
         }
 
-        for (const item of this.event.stack) {
-            if (item.error) {
+        for (const item of this.subscribers.list) {
+            if (item.error && !item.removed) {
                 item.error(e)
             }
         }
@@ -88,11 +117,8 @@ export class Event<T extends any[]> {
             return
         }
 
-        this.event = {
-            stack: [],
-            promiseStack: [],
-            eventId: 0
-        }
+        this.subscribers.clear()
+        this.queued.clear()
         this.onsubscriberschange?.()
     }
 
@@ -101,17 +127,13 @@ export class Event<T extends any[]> {
         complete?: EventComplete,
         error?: EventError
     ) => {
-        const id = this.event.eventId
-        this.event.stack.push({execute, id, complete, error})
-        this.event.eventId++
+        const subscriber: Subscriber<EventExecute<T>> = {execute, complete, error}
+        const subscribers = this.subscribers
+        subscribers.add(subscriber)
         this.onsubscriberschange?.()
 
         const unSubscribe = () => {
-            const length = this.event.stack.length
-            this.event.stack = this.event.stack.filter(
-                (item) => item.id !== id && item
-            )
-            if (this.event.stack.length !== length) this.onsubscriberschange?.()
+            if (subscribers.remove(subscriber)) this.onsubscriberschange?.()
         }
 
         const disposer = (disposer: EventDisposer) => {
@@ -134,14 +156,12 @@ export class Event<T extends any[]> {
     ) => {
         if (this.ended) throw new Error('event completed')
 
-        const id = this.event.eventId
-        this.event.promiseStack.push({execute, id, complete, error})
-        this.event.eventId++
+        const subscriber: Subscriber<PromiseEventExecute<T>> = {execute, complete, error}
+        const queued = this.queued
+        queued.add(subscriber)
 
         const unSubscribe = () => {
-            this.event.promiseStack = this.event.promiseStack.filter(
-                (item) => item.id !== id
-            )
+            queued.remove(subscriber)
         }
 
         const disposer = (disposer: EventDisposer) => {
@@ -219,7 +239,7 @@ export class Event<T extends any[]> {
     }
 
     get length() {
-        return this.event.stack.length
+        return this.subscribers.size
     }
 }
 
