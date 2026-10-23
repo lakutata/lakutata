@@ -47,7 +47,6 @@ import {
     SourceDescriptionChunk,
     SourceDescriptionItem,
     debug,
-    serializeAbsSendTime,
     serializeRepairedRtpStreamId,
     serializeSdesMid,
     serializeSdesRTPStreamID,
@@ -57,7 +56,7 @@ import {
 } from '../imports/rtp.js'
 import type {RTCDtlsTransport} from '../transport/dtls.js'
 import type {Kind} from '../types/domain.js'
-import {compactNtp, milliTime, ntpTime, timestampSeconds} from '../utils.js'
+import {absSendTimeOf, compactNtp, milliTime, ntpTime, timestampSeconds} from '../utils.js'
 import {isCodecCompatible} from './codecCompatibility.js'
 import type {
     RTCRtpCodecParameters,
@@ -172,7 +171,9 @@ export class RTCRtpSender {
     // # stats
     private lastSRtimestamp?: number
     private lastSentSRTimestamp?: number
-    private ntpTimestamp = 0n
+    //The time the last packet was sent, in milliseconds since the Unix epoch: its NTP timestamp goes in the sender
+    //reports
+    private sentAtEpochMs?: number
     private rtpTimestamp = 0
     private octetCount = 0
     private packetCount = 0
@@ -554,18 +555,19 @@ export class RTCRtpSender {
                     signal: this.rtcpCancel.signal
                 })
 
+                const ntpTimestamp = this.sentAtEpochMs === undefined ? 0n : ntpTime(this.sentAtEpochMs)
                 const packets: RtcpPacket[] = [
                     new RtcpSrPacket({
                         ssrc: this.ssrc,
                         senderInfo: new RtcpSenderInfo({
-                            ntpTimestamp: this.ntpTimestamp,
+                            ntpTimestamp: ntpTimestamp,
                             rtpTimestamp: this.rtpTimestamp,
                             packetCount: this.packetCount,
                             octetCount: this.octetCount
                         })
                     })
                 ]
-                this.lastSRtimestamp = compactNtp(this.ntpTimestamp)
+                this.lastSRtimestamp = compactNtp(ntpTimestamp)
                 this.lastSentSRTimestamp = timestampSeconds()
 
                 if (this.cname) {
@@ -696,53 +698,59 @@ export class RTCRtpSender {
         this.timestamp = header.timestamp
         this.sequenceNumber = header.sequenceNumber
 
-        const ntpTimestamp = ntpTime()
+        const sentAtEpochMs = performance.timeOrigin + performance.now()
         let transportSequenceNumber: number | undefined
 
-        const originalHeaderExtensions = [...header.extensions]
-        header.extensions = this.headerExtensions
-            .map((extension) => {
-                const payload = (() => {
-                    switch (extension.uri) {
-                        case RTP_EXTENSION_URI.sdesMid:
-                            if (this.mid) {
-                                return serializeSdesMid(this.mid)
-                            }
-                            return
-                            // todo : sender simulcast unsupported now
-                        case RTP_EXTENSION_URI.sdesRTPStreamID:
-                            if (this.rtpStreamId) {
-                                return serializeSdesRTPStreamID(this.rtpStreamId)
-                            }
-                            return
-                            // todo : sender simulcast unsupported now
-                        case RTP_EXTENSION_URI.repairedRtpStreamId:
-                            if (this.repairedRtpStreamId) {
-                                return serializeRepairedRtpStreamId(this.repairedRtpStreamId)
-                            }
-                            return
-                        case RTP_EXTENSION_URI.transportWideCC:
-                            transportSequenceNumber = this.nextTransportSequenceNumber()
-                            return serializeTransportWideCC(transportSequenceNumber)
-                        case RTP_EXTENSION_URI.absSendTime:
-                            return serializeAbsSendTime(ntpTimestamp)
-                    }
-                })()
-
-                if (payload) return {id: extension.id, payload}
-            })
-            .filter((v) => v) as Extension[]
-        for (const ext of originalHeaderExtensions) {
-            const exist = header.extensions.find((v) => v.id === ext.id)
+        //The extensions of this sender, then the ones of the packet (which win over them), in the order of their ids:
+        //plain loops, as it is done for each packet
+        const extensions: Extension[] = []
+        for (const extension of this.headerExtensions) {
+            let payload: Buffer | undefined
+            switch (extension.uri) {
+                case RTP_EXTENSION_URI.sdesMid:
+                    if (this.mid) payload = serializeSdesMid(this.mid)
+                    break
+                    // todo : sender simulcast unsupported now
+                case RTP_EXTENSION_URI.sdesRTPStreamID:
+                    if (this.rtpStreamId) payload = serializeSdesRTPStreamID(this.rtpStreamId)
+                    break
+                    // todo : sender simulcast unsupported now
+                case RTP_EXTENSION_URI.repairedRtpStreamId:
+                    if (this.repairedRtpStreamId) payload = serializeRepairedRtpStreamId(this.repairedRtpStreamId)
+                    break
+                case RTP_EXTENSION_URI.transportWideCC:
+                    transportSequenceNumber = this.nextTransportSequenceNumber()
+                    payload = serializeTransportWideCC(transportSequenceNumber)
+                    break
+                case RTP_EXTENSION_URI.absSendTime:
+                    payload = absSendTimeOf(sentAtEpochMs)
+                    break
+            }
+            if (payload) extensions.push({id: extension.id, payload})
+        }
+        for (const ext of header.extensions) {
+            let exist: Extension | undefined
+            for (const each of extensions) {
+                if (each.id === ext.id) {
+                    exist = each
+                    break
+                }
+            }
             if (exist) {
                 exist.payload = ext.payload
             } else {
-                header.extensions.push(ext)
+                extensions.push(ext)
             }
         }
-        header.extensions = header.extensions.sort((a, b) => a.id - b.id)
+        for (let index = 1; index < extensions.length; index++) {
+            if (extensions[index - 1].id > extensions[index].id) {
+                extensions.sort((a, b) => a.id - b.id)
+                break
+            }
+        }
+        header.extensions = extensions
 
-        this.ntpTimestamp = ntpTimestamp
+        this.sentAtEpochMs = sentAtEpochMs
         this.rtpTimestamp = header.timestamp
         this.octetCount += payload.length
         this.headerBytesSent += header.serializeSize
@@ -765,7 +773,8 @@ export class RTCRtpSender {
         const sendingAtMs = milliTime()
         const size = await this.dtlsTransport.sendRtp(rtpPayload, header)
 
-        this.runRtcp().catch((error) => log('rtcp failed', error))
+        //Started once: the call of each packet would only make a promise
+        if (!this.rtcpRunning && !this.stopped) this.runRtcp().catch((error) => log('rtcp failed', error))
         if (transportSequenceNumber !== undefined) {
             this.packetSent(transportSequenceNumber, size, sendingAtMs)
         }
@@ -814,7 +823,7 @@ export class RTCRtpSender {
                     transportSequenceNumber = this.nextTransportSequenceNumber()
                     return {id: extension.id, payload: serializeTransportWideCC(transportSequenceNumber)}
                 case RTP_EXTENSION_URI.absSendTime:
-                    return {id: extension.id, payload: serializeAbsSendTime(ntpTime())}
+                    return {id: extension.id, payload: absSendTimeOf(performance.timeOrigin + performance.now())}
                 default:
                     return extension
             }

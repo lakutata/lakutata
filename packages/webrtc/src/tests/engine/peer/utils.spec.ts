@@ -1,6 +1,7 @@
 import {describe, test, expect} from '../support/vitest.js'
 import {deepMerge, parseIceServers, resolveTurnTransport} from '../../../lib/peer/index.js'
-import {compactNtp, ntpTime, ntpTimeToEpochMs} from '../../../lib/peer/utils.js'
+import {absSendTimeOf, compactNtp, ntpTime, ntpTimeToEpochMs} from '../../../lib/peer/utils.js'
+import {serializeAbsSendTime} from '../../../lib/rtp/rtp/headerExtension.js'
 import type {RTCIceServer} from '../../../lib/peer/peerConnection.js'
 
 describe('utils', () => {
@@ -10,6 +11,13 @@ describe('utils', () => {
             const ntp = (2208988800n << 32n) | 0x80000000n
             expect(ntpTimeToEpochMs(ntp)).toBe(500)
             expect(compactNtp(ntp)).toBe(((2208988800 & 0xffff) << 16 | 0x8000) >>> 0)
+        })
+
+        test('abs-send-time, without bigints, as from the NTP timestamp', () => {
+            const now = Date.now()
+            for (const ms of [0, 500, 63999.9, now, now + 0.123, now + 64000.5, Date.UTC(2036, 1, 7, 6, 28, 15)]) {
+                expect(absSendTimeOf(ms).equals(serializeAbsSendTime(ntpTime(ms)))).toBeTruthy()
+            }
         })
 
         test('the time now, as an NTP timestamp of a binary fraction', () => {

@@ -1,7 +1,20 @@
 import {describe, test, expect} from '../support/vitest.js'
-import {bufferArrayXor, random16, random32} from '../../../lib/common/index.js'
+import {bufferArrayXor, getBit, random16, random32} from '../../../lib/common/index.js'
 
 describe('binary', () => {
+    test('getBit reads the bits of a byte from its most significant one, as werift did with strings', () => {
+        //The implementation of werift, for each byte, start and length
+        const reference = (bits: number, startIndex: number, length: number): number => {
+            const bin = bits.toString(2).padStart(8, '0')
+            return Number.parseInt(bin.slice(startIndex, startIndex + length), 2)
+        }
+        for (let bits = 0; bits < 256; bits++) {
+            for (let startIndex = 0; startIndex < 8; startIndex++) {
+                for (let length = 1; length <= 8; length++) expect(getBit(bits, startIndex, length)).toBe(reference(bits, startIndex, length))
+            }
+        }
+    })
+
     test('bufferArrayXor', () => {
         const xored = bufferArrayXor([
             Buffer.from([0, 0, 1, 1, 1, 0, 1, 1]),

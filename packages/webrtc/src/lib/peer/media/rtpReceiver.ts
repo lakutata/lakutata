@@ -50,10 +50,13 @@ const log = debug('webrtc/peer/media/rtpReceiver')
 export class RTCRtpReceiver {
     private readonly codecs: {[pt: number]: RTCRtpCodecParameters} = {}
     private readonly defaultTrack: MediaStreamTrack
+    //The codecs by payload type, sorted once they change (read for each packet)
+    private sortedCodecs?: RTCRtpCodecParameters[]
     private get codecArray() {
-        return Object.values(this.codecs).sort(
+        this.sortedCodecs ??= Object.values(this.codecs).sort(
             (a, b) => a.payloadType - b.payloadType
         )
+        return this.sortedCodecs
     }
     private readonly ssrcByRtx: {[rtxSsrc: number]: number} = {}
     private readonly nack = new NackHandler(this)
@@ -138,6 +141,7 @@ export class RTCRtpReceiver {
         params.codecs.forEach((c) => {
             this.codecs[c.payloadType] = c
         })
+        this.sortedCodecs = undefined
         params.encodings.forEach((e) => {
             if (e.rtx) {
                 this.ssrcByRtx[e.rtx.ssrc] = e.ssrc
@@ -157,6 +161,7 @@ export class RTCRtpReceiver {
         for (const key of Object.keys(this.codecs)) {
             delete this.codecs[Number(key)]
         }
+        this.sortedCodecs = undefined
         for (const key of Object.keys(this.ssrcByRtx)) {
             delete this.ssrcByRtx[Number(key)]
         }

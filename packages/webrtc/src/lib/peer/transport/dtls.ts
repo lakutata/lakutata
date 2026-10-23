@@ -53,6 +53,11 @@ import type {RTCIceTransport} from './ice.js'
 
 const log = debug('webrtc/peer/transport/dtls')
 
+/**
+ * A packet not sent: lost as on the network (one function for all the packets)
+ */
+const ignoreSendFailure = (): void => undefined
+
 function formatDtlsVersion(version?: {
     major: number
     minor: number
@@ -493,7 +498,7 @@ export class RTCDtlsTransport implements DtlsTransportStats {
             this.bytesSent += enc.length
             this.packetsSent++
 
-            await this.iceTransport.connection.send(enc).catch(() => {})
+            await this.iceTransport.connection.send(enc).catch(ignoreSendFailure)
             return enc.length
         } catch (error) {
             log('failed to send', error)

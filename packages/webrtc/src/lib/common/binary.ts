@@ -100,11 +100,9 @@ export class BitWriter2 {
 }
 
 export function getBit(bits: number, startIndex: number, length: number = 1) {
-    let bin = bits.toString(2).split('')
-    bin = [...Array(8 - bin.length).fill('0'), ...bin]
-    const s = bin.slice(startIndex, startIndex + length).join('')
-    const v = Number.parseInt(s, 2)
-    return v
+    //The bits of a byte from its most significant one, as many as there are up to its end
+    const end = Math.min(startIndex + length, 8)
+    return (bits >> (8 - end)) & ((1 << (end - startIndex)) - 1)
 }
 
 export function paddingByte(bits: number) {

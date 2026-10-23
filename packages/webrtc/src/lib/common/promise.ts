@@ -56,5 +56,13 @@ export function runDetached(fn: () => unknown, onError: (error: unknown) => void
  * A function for an event or a timer: it runs fn without waiting for it, a failure going to onError
  */
 export function detached<A extends unknown[]>(fn: (...args: A) => unknown, onError: (error: unknown) => void): (...args: A) => void {
-    return (...args: A): void => runDetached(() => fn(...args), onError)
+    //As runDetached, without a closure for each call (an event of each packet)
+    return (...args: A): void => {
+        try {
+            const result: unknown = fn(...args)
+            if (result instanceof Promise) result.catch(onError)
+        } catch (error) {
+            onError(error)
+        }
+    }
 }

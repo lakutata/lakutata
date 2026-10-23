@@ -85,11 +85,25 @@ const NTP_EPOCH_MS = Date.UTC(1900, 0, 1)
 /**
  * The time now as an NTP timestamp (RFC 5905): 32 bits of seconds since 1900, then 32 bits of fraction of a second
  */
-export const ntpTime = () => {
-    const ms = performance.timeOrigin + performance.now() - NTP_EPOCH_MS
+export const ntpTime = (epochMs: number = performance.timeOrigin + performance.now()) => {
+    const ms = epochMs - NTP_EPOCH_MS
     const seconds = Math.floor(ms / 1000)
     const fraction = Math.floor(((ms - seconds * 1000) / 1000) * 2 ** 32)
     return (BigInt(seconds) << 32n) | BigInt(fraction)
+}
+
+/**
+ * The abs-send-time header extension of a time: the 6 low bits of the seconds and the 18 high bits of the fraction of
+ * its NTP timestamp, without the bigints of ntpTime() (it is computed for each packet)
+ * @param epochMs The time, in milliseconds since the Unix epoch.
+ */
+export const absSendTimeOf = (epochMs: number): Buffer => {
+    const ms = epochMs - NTP_EPOCH_MS
+    const seconds = Math.floor(ms / 1000)
+    const fraction = Math.floor(((ms - seconds * 1000) / 1000) * 2 ** 32)
+    const buf = Buffer.allocUnsafe(3)
+    buf.writeUIntBE(((seconds & 0x3f) << 18) | (fraction >>> 14), 0, 3)
+    return buf
 }
 
 /**

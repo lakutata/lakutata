@@ -1,4 +1,4 @@
-import {BitStream, bufferReader, bufferWriter} from '../../common/index.js'
+import {BitStream, bufferReader} from '../../common/index.js'
 import type {Extension} from './rtp.js'
 
 export const RTP_EXTENSION_URI = {
@@ -114,7 +114,9 @@ export function serializeRepairedRtpStreamId(id: string) {
 }
 
 export function serializeTransportWideCC(transportSequenceNumber: number) {
-    return bufferWriter([2], [transportSequenceNumber])
+    const buf = Buffer.allocUnsafe(2)
+    buf.writeUInt16BE(transportSequenceNumber)
+    return buf
 }
 
 export function serializeAbsSendTime(ntpTime: bigint) {
