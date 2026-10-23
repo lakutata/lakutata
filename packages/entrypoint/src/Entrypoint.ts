@@ -979,7 +979,7 @@ export class Entrypoint extends Component {
             actions: channelState.entries.map((entry: ActionEntry): ChannelActionInfo => entry.address),
             ready: this.#ready,
             controllers: [...this.controllers],
-            getObject: <T extends BaseObject>(target: string | symbol | IBaseObjectConstructor<T>): Promise<T> => this.getObject<T>(target as any),
+            getObject: <T extends BaseObject>(target: string | symbol | IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T> => this.getObject<T>(target as any, configurableRecords),
             dispatch: async (context: BaseContext, options: DispatchOptions = {}): Promise<unknown> => {
                 const match: ChannelMatch | undefined = channelState.matcher.match(context)
                 if (!match) throw definition.notFound(context)

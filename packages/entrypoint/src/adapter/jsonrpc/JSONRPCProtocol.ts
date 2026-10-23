@@ -124,9 +124,10 @@ export type JSONRPCRequestInfo = {
      */
     id: string | number | null | undefined
     /**
-     * The transport the request came through.
+     * The transport the request came through: `'http'`, `'websocket'` or `'stdio'` with `jsonRPCServiceEntrypoint`,
+     * `'webrtc'` with the data channels of `webrtcServiceEntrypoint` (package `@lakutata/webrtc`).
      */
-    transport: 'http' | 'websocket' | 'stdio'
+    transport: 'http' | 'websocket' | 'stdio' | 'webrtc'
 }
 
 /**
@@ -177,32 +178,86 @@ function errorCode(error: unknown): number {
 }
 
 /**
- * The context of a dispatch of a request
+ * Where the requests of a message are dispatched, and what their contexts get ({@link JSONRPCProtocol.handle}).
  */
 export type JSONRPCDispatch = {
+    /**
+     * The runtime of the adapter's service channel, dispatching the requests to the actions.
+     */
     runtime: ChannelRuntime<ServiceContext>
+    /**
+     * The transport the message came through, given to the actions by {@link jsonRPCRequestOfContext}.
+     */
     transport: JSONRPCRequestInfo['transport']
+    /**
+     * The id of the client that sent the message, set as the contexts' `clientId`.
+     */
     clientId?: string
     /**
-     * The properties added to the contexts (the request of HTTP, the socket)
+     * The properties added to the contexts (the request of HTTP, the socket), read by the adapter's helpers.
      */
     extra?: Record<string, unknown>
+    /**
+     * Aborts the requests of the message (their client went away).
+     */
     signal?: AbortSignal
+    /**
+     * Whether the adapter is stopping: the requests are then answered with `STOPPING` instead of being dispatched.
+     */
     stopping: () => boolean
 }
 
 /**
- * The requests of JSON-RPC 2.0 dispatched to the service actions: the single ones, the batches, the notifications (no
- * response); their methods given to the patterns of the actions
+ * The messages of JSON-RPC 2.0 dispatched to the service actions, for the adapters carrying JSON-RPC over their own
+ * transport (as `jsonRPCServiceEntrypoint` does over HTTP, WebSocket and stdio): the single requests, the batches and
+ * the notifications (run without a response). A request's method is given to the action's pattern as the options say
+ * (see {@link JSONRPCMappingOptions}); its error is answered with a code of {@link JSONRPCErrorCode} and the whole
+ * error object as `data`.
+ * @example
+ * ```typescript
+ * import {createInterface} from 'node:readline'
+ * import {type EntrypointAdapter, type ServiceContext} from 'lakutata/com/entrypoint'
+ * import {JSONRPCProtocol, ServiceChannel, type ChannelRuntime} from '@lakutata/entrypoint/channel'
+ *
+ * //A service adapter reading one JSON-RPC message per line of a stream, and pushing the events to it
+ * function lineServiceEntrypoint(input: NodeJS.ReadableStream, output: NodeJS.WritableStream): EntrypointAdapter<ServiceContext> {
+ *     const protocol: JSONRPCProtocol = new JSONRPCProtocol({methodField: 'method'})
+ *     let stopping: boolean = false
+ *     return {
+ *         channel: 'service',
+ *         definition: ServiceChannel,
+ *         start: (runtime: ChannelRuntime<ServiceContext>): void => {
+ *             createInterface({input: input}).on('line', async (line: string): Promise<void> => {
+ *                 const response: unknown = await protocol.handle(line, {runtime: runtime, transport: 'stdio', stopping: (): boolean => stopping})
+ *                 if (response) output.write(`${JSON.stringify(response)}\n`)
+ *             })
+ *         },
+ *         stop: (): void => {
+ *             stopping = true
+ *         },
+ *         broadcast: (event: string, args: unknown[]): number => {
+ *             output.write(`${JSONRPCProtocol.notification(event, args)}\n`)
+ *             return 1
+ *         }
+ *     }
+ * }
+ * ```
  */
 export class JSONRPCProtocol {
 
+    /**
+     * Create the protocol of an adapter.
+     * @param options How the requests map to the actions' patterns.
+     */
     constructor(protected readonly options: JSONRPCMappingOptions = {}) {
     }
 
     /**
-     * The pattern and the input of the action of a request
-     * @param request
+     * Build the pattern and the input of a request's action.
+     * @param request The request.
+     * @returns The data of the request's service context.
+     * @throws {Error} When the params are given by position without the `positionalParams` option (answered with
+     * `INVALID_PARAMS`), or the error of the `toPattern` option.
      * @protected
      */
     protected pattern(request: JSONRPCRequest): Record<string, unknown> {
@@ -216,9 +271,10 @@ export class JSONRPCProtocol {
     }
 
     /**
-     * The response of a request (none for a notification)
-     * @param request
-     * @param dispatch
+     * Dispatch a request of a message to its action.
+     * @param request The request, as parsed.
+     * @param dispatch Where it is dispatched.
+     * @returns Its response, `undefined` for a notification.
      * @protected
      */
     protected async one(request: unknown, dispatch: JSONRPCDispatch): Promise<JSONRPCResponse | undefined> {
@@ -255,9 +311,26 @@ export class JSONRPCProtocol {
     }
 
     /**
-     * The response of a message (a request, a batch): undefined when there is none (notifications)
-     * @param message its text
-     * @param dispatch
+     * Dispatch the requests of a message (a request, or a batch of them) and build its response.
+     * @param message The message's text.
+     * @param dispatch Where the requests are dispatched, and what their contexts get.
+     * @returns The response to send (an array for a batch), or `undefined` when there is none (only notifications).
+     * A message that is not JSON, or not a request, is answered with an error response.
+     * @example
+     * ```typescript
+     * import type {ServiceContext} from 'lakutata/com/entrypoint'
+     * import {JSONRPCProtocol, type ChannelRuntime} from '@lakutata/entrypoint/channel'
+     *
+     * declare const runtime: ChannelRuntime<ServiceContext>
+     * const protocol: JSONRPCProtocol = new JSONRPCProtocol()
+     * //{jsonrpc: '2.0', id: 1, result: …}
+     * const response: unknown = await protocol.handle('{"jsonrpc": "2.0", "id": 1, "method": "user.get", "params": {"id": 7}}', {
+     *     runtime: runtime,
+     *     transport: 'websocket',
+     *     clientId: 'client-1',
+     *     stopping: (): boolean => false
+     * })
+     * ```
      */
     public async handle(message: string, dispatch: JSONRPCDispatch): Promise<JSONRPCResponse | JSONRPCResponse[] | undefined> {
         let parsed: unknown
@@ -274,9 +347,17 @@ export class JSONRPCProtocol {
     }
 
     /**
-     * A notification sent to a client (an event pushed)
-     * @param event
-     * @param args
+     * Build the notification pushing an event to a client: `{"jsonrpc": "2.0", "method": <event>, "params": <args>}`.
+     * @param event The event's name.
+     * @param args The event's arguments.
+     * @returns The notification's text.
+     * @example
+     * ```typescript
+     * import {JSONRPCProtocol} from '@lakutata/entrypoint/channel'
+     *
+     * //{"jsonrpc":"2.0","method":"progress","params":[50]}
+     * console.log(JSONRPCProtocol.notification('progress', [50]))
+     * ```
      */
     public static notification(event: string, args: unknown[]): string {
         return JSON.stringify({jsonrpc: '2.0', method: event, params: args})

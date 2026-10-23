@@ -67,12 +67,14 @@ export interface ChannelRuntime<Context extends BaseContext = BaseContext> {
 
     /**
      * Get an object from the entrypoint's container, such as a component the adapter uses (an autoloaded class is
-     * registered on first use).
+     * registered on first use), or a new object of a transient class created with the adapter's options.
      * @param target The object's registration name or symbol, or its class.
+     * @param configurableRecords The values of the object's configurable properties, for an object created by this
+     * call (a transient one).
      * @returns The object, once created and initialized.
      * @throws {Error} When the object is not registered or fails to be created.
      */
-    getObject<T extends BaseObject>(target: string | symbol | IBaseObjectConstructor<T>): Promise<T>
+    getObject<T extends BaseObject>(target: string | symbol | IBaseObjectConstructor<T>, configurableRecords?: Record<string, any>): Promise<T>
     /**
      * Resolves once every adapter of the entrypoint started and the application launched (its objects and its
      * bootstrap are ready), for the adapters acting on their own rather than on requests (running a command,
