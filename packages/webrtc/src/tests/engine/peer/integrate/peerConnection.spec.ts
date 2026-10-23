@@ -1,4 +1,5 @@
 import {describe, it, test, expect, vi} from '../../support/vitest.js'
+import {randomUUID} from 'node:crypto'
 import {setTimeout} from 'node:timers/promises'
 
 import {HashAlgorithm} from '../../../../lib/dtls/cipher/const.js'
@@ -405,6 +406,79 @@ describe('peerConnection', () => {
             await negotiate(pc2, pc1)
             expect(roles()).toEqual(['controlled', 'controlling'])
             expect(await connected()).toEqual(['connected', 'connected'])
+        } finally {
+            await Promise.allSettled([pc1.close(), pc2.close()])
+        }
+    })
+
+    test('connects through the checks of the other side when its candidates are mDNS names nobody answers for, which do not hold the next candidates', async () => {
+        const pc1 = new RTCPeerConnection()
+        const pc2 = new RTCPeerConnection()
+        //As a browser whose mDNS names cannot be resolved here (another network, no responder): pc2 learns the address
+        //of pc1 from its checks only
+        const unresolvable = (description: {type: 'offer', sdp: string}): {type: 'offer', sdp: string} => ({
+            type: description.type,
+            sdp: description.sdp.replace(/^(a=candidate:\S+ \d+ \S+ \d+ )(\S+)/gm, (_line: string, start: string): string => `${start}${randomUUID()}.local`)
+        })
+        try {
+            pc1.createDataChannel('chat')
+            await pc1.setLocalDescription(await pc1.createOffer())
+            const offer: {type: 'offer', sdp: string} = unresolvable(pc1.localDescription! as {type: 'offer', sdp: string})
+            expect(offer.sdp).toMatch(/\.local \d+ typ host/)
+            await pc2.setRemoteDescription(offer)
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            await pc1.setRemoteDescription(pc2.localDescription!)
+            const end: number = Date.now() + 10000
+            while ((pc1.connectionState !== 'connected' || pc2.connectionState !== 'connected') && Date.now() < end) await setTimeout(20)
+            expect([pc1.connectionState, pc2.connectionState]).toEqual(['connected', 'connected'])
+        } finally {
+            await Promise.allSettled([pc1.close(), pc2.close()])
+        }
+    })
+
+    test('a candidate of an mDNS name is added at once, its name resolved meanwhile', async () => {
+        const pc1 = new RTCPeerConnection()
+        const pc2 = new RTCPeerConnection()
+        try {
+            pc1.createDataChannel('chat')
+            await pc1.setLocalDescription(await pc1.createOffer())
+            //The candidates trickled: more may come
+            await pc2.setRemoteDescription({type: 'offer', sdp: pc1.localDescription!.sdp.replace(/^a=(candidate|end-of-candidates).*\r\n/gm, '')})
+            const begun: number = Date.now()
+            await pc2.addIceCandidate({candidate: `candidate:9 1 udp 2122260223 ${randomUUID()}.local 9 typ host`, sdpMid: '0', sdpMLineIndex: 0})
+            //Not the time of a name nobody answers for (10 seconds)
+            expect(Date.now() - begun).toBeLessThan(1000)
+        } finally {
+            await Promise.allSettled([pc1.close(), pc2.close()])
+        }
+    })
+
+    test('a track offered bundle-only, as Firefox offers the ones it adds, is accepted on the transport of the group', async () => {
+        const pc1 = new RTCPeerConnection()
+        const pc2 = new RTCPeerConnection()
+        //As Firefox: the m= sections added once BUNDLE is negotiated have the port zero and a=bundle-only
+        const asFirefox = (offer: {sdp: string}): {type: 'offer', sdp: string} => {
+            const sections: string[] = offer.sdp.split(/\r\n(?=m=)/)
+            const last: number = sections.length - 1
+            sections[last] = sections[last].replace(/^m=video \d+ /, 'm=video 0 ').replace(/\r\n$/, '\r\na=bundle-only\r\n')
+            return {type: 'offer', sdp: sections.join('\r\n')}
+        }
+        try {
+            pc1.addTransceiver('audio', {direction: 'sendonly'})
+            await pc1.setLocalDescription(await pc1.createOffer())
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            await pc1.setRemoteDescription(pc2.localDescription!)
+            pc1.addTransceiver('video', {direction: 'sendonly'})
+            await pc1.setLocalDescription(await pc1.createOffer())
+            const offer: {type: 'offer', sdp: string} = asFirefox(pc1.localDescription!)
+            expect(offer.sdp).toMatch(/^m=video 0 [^\r]*\r\n[\s\S]*a=bundle-only/m)
+            await pc2.setRemoteDescription(offer)
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            const answered: string = pc2.localDescription!.sdp.split(/\r\n(?=m=)/).find((section: string): boolean => section.startsWith('m=video'))!
+            expect(answered).not.toMatch(/^m=video 0 /)
+            expect(answered).toMatch(/a=recvonly/)
+            expect(pc2.getTransceivers().find((transceiver) => transceiver.kind === 'video')?.currentDirection).toBe('recvonly')
         } finally {
             await Promise.allSettled([pc1.close(), pc2.close()])
         }

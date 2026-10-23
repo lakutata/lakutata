@@ -210,6 +210,9 @@ export class SessionDescription {
                         case 'rtcp-mux':
                             currentMedia.rtcpMux = true
                             break
+                        case 'bundle-only':
+                            currentMedia.bundleOnly = true
+                            break
                         case 'setup':
                             currentMedia.dtlsParams!.role = DTLS_SETUP_ROLE[value]
                             break
@@ -335,6 +338,15 @@ export class SessionDescription {
             })
         })
 
+        //An m= section offered bundle-only (port zero and a=bundle-only, RFC 8843 section 6), as Firefox offers the ones it
+        //adds once BUNDLE is negotiated, is not rejected: it goes on the transport of the group, whose port it takes
+        const tagged: MediaDescription | undefined = bundle ? session.media.find((media) => media.rtp.muxId === bundle.items[0]) : undefined
+        if (bundle && tagged?.port) {
+            for (const media of session.media) {
+                if (media.port === 0 && media.bundleOnly && media.rtp.muxId && bundle.items.includes(media.rtp.muxId)) media.port = tagged.port
+            }
+        }
+
         return session
     }
 
@@ -401,6 +413,9 @@ export class MediaDescription {
     rtcpPort?: number
     rtcpHost?: string
     rtcpMux = false
+
+    //Offered bundle-only (a=bundle-only): its port zero does not reject it
+    bundleOnly = false
 
     // ssrc
     ssrc: SsrcDescription[] = []

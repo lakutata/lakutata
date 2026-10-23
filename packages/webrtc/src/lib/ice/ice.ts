@@ -44,6 +44,13 @@ const log = debug('webrtc/ice/ice:log')
 /**How long a transport to a TURN server is given before the next one is tried as well (ms) */
 const RELAY_ATTEMPT_DELAY = 1000
 
+/**
+ * How long the checks wait without any pair, in milliseconds: the candidates of the other side may be names this side
+ * cannot resolve (mDNS), its checks still come once it has this side's description, and give its address as a peer
+ * reflexive candidate
+ */
+const NO_PAIR_TIMEOUT = 30000
+
 /**The local preference of a relay candidate by the transport to its server: UDP first, then TCP, then TLS */
 const RELAY_PREFERENCE = {udp: 65535, tcp: 49151, tls: 32767}
 
@@ -156,6 +163,10 @@ export class Connection implements IceConnection {
     private consentSessionId = 0
     private consentExpiryTimer?: ReturnType<typeof setTimeout>
     private consentRequestAbort?: AbortController
+    //The remote candidates whose mDNS names are being resolved: more pairs may come
+    private resolvingRemoteCandidates = 0
+    //Until when the checks wait for a first pair
+    private noPairDeadline = 0
 
     readonly onData = new Event<[Buffer]>()
     readonly stateChanged = new Event<[IceState]>()
@@ -863,6 +874,7 @@ export class Connection implements IceConnection {
 
         // # perform checks
         // 5.8.  Scheduling Checks
+        this.noPairDeadline = Date.now() + NO_PAIR_TIMEOUT
         for (;;) {
             if (this.state === 'closed') break
             if (!this.schedulingChecks()) break
@@ -945,8 +957,9 @@ export class Connection implements IceConnection {
             }
         }
 
-        // # if we expect more candidates, keep going
-        if (!this.remoteCandidatesEnd) {
+        // # if we expect more candidates, keep going: their end has not come, some are being resolved, or there is no
+        // pair yet (the checks of the other side may give one)
+        if (!this.remoteCandidatesEnd || this.resolvingRemoteCandidates > 0 || (!this.checkList.length && Date.now() < this.noPairDeadline)) {
             return !this.checkListDone
         }
 
@@ -1267,18 +1280,41 @@ export class Connection implements IceConnection {
             return
         }
 
+        //An mDNS name is resolved meanwhile, as the browsers do: a name nobody answers for (up to 10 seconds) does not
+        //hold the descriptions and the candidates applied after it; the checks wait for it
         if (remoteCandidate.host.includes('.local')) {
-            try {
-                if (!this.lookup) {
-                    this.lookup = new MdnsLookup()
-                }
-                const host = await this.lookup.lookup(remoteCandidate.host)
-                remoteCandidate.host = host
-            } catch (error) {
-                return
-            }
+            void this.resolveRemoteCandidate(remoteCandidate)
+            return
         }
+        this.addResolvedRemoteCandidate(remoteCandidate)
+    }
 
+    /**
+     * Resolve the mDNS name of a remote candidate, then add it, unless ICE restarted or closed meanwhile
+     * @param remoteCandidate
+     */
+    private async resolveRemoteCandidate(remoteCandidate: Candidate): Promise<void> {
+        const generation: number = this.generation
+        this.resolvingRemoteCandidates++
+        try {
+            if (!this.lookup) {
+                this.lookup = new MdnsLookup()
+            }
+            remoteCandidate.host = await this.lookup.lookup(remoteCandidate.host)
+        } catch {
+            return
+        } finally {
+            this.resolvingRemoteCandidates--
+        }
+        if (generation !== this.generation || this.state === 'closed') return
+        this.addResolvedRemoteCandidate(remoteCandidate)
+    }
+
+    /**
+     * Add a remote candidate with an address, and pair it
+     * @param remoteCandidate
+     */
+    private addResolvedRemoteCandidate(remoteCandidate: Candidate): void {
         try {
             validateRemoteCandidate(remoteCandidate)
         } catch (error) {
