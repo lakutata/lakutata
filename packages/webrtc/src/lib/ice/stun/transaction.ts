@@ -1,5 +1,5 @@
 import {promises as dns} from 'node:dns'
-import {SocketAddress, isIP} from 'node:net'
+import {isIP} from 'node:net'
 
 import {type Address, Event, debug} from '../imports/common.js'
 
@@ -73,11 +73,11 @@ export function addressEquals(a: Address, b: Address): boolean {
 }
 
 // Only used for comparison; never for the address a packet is sent to,
-// since SocketAddress drops the zone id (`fe80::1%eth0`).
+// since the zone id is dropped (`fe80::1%eth0`). The serialization of the URLs
+// is the same in Node.js and Bun (the SocketAddress of Bun keeps the text given).
 function canonicalHost(host: string): string {
-    return isIP(host) === 6
-        ? new SocketAddress({address: host, family: 'ipv6'}).address
-        : host
+    if (isIP(host) !== 6) return host
+    return new URL(`http://[${host.split('%')[0]}]/`).hostname.slice(1, -1)
 }
 
 export class Transaction {

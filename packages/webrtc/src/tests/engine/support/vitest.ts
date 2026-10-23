@@ -20,6 +20,10 @@ type Awaitable<T> = T | PromiseLike<T>
 
 type Procedure = (...args: any[]) => any
 
+//The performance.now of the process, kept before any test fakes it
+const realPerformanceNow: PropertyDescriptor = Object.getOwnPropertyDescriptor(performance, 'now')
+    ?? {value: performance.now.bind(performance), writable: true, configurable: true, enumerable: true}
+
 //The timers of the process, kept before any test fakes them
 const realTimers = {
     setTimeout: globalThis.setTimeout,
@@ -88,15 +92,17 @@ function testArguments(second: unknown, third: unknown): {options: TestOptions, 
     return {options: (second ?? {}) as TestOptions, fn: third as TestFunction | undefined}
 }
 
-function runnable(fn: TestFunction): (t: TestContext) => Promise<void> {
-    return async (t: TestContext): Promise<void> => {
+function runnable(fn: TestFunction, name: string): (...args: [TestContext?]) => Promise<void> {
+    //Declaring no parameter: the runner of Bun waits for the callback of a test that declares one
+    return async (...args: [TestContext?]): Promise<void> => {
+        const t: TestContext | undefined = args[0]
         const context: VitestContext = {
             skip: (note?: string): never => {
-                t.skip(note)
+                t?.skip(note)
                 throw new SkipSignal(note)
             },
-            signal: t.signal,
-            task: {name: t.name}
+            signal: t?.signal ?? new AbortController().signal,
+            task: {name: t?.name ?? name}
         }
         try {
             await fn(context)
@@ -116,7 +122,7 @@ function defineTest(name: string, second: unknown, third: unknown, extra: TestOp
         void nodeIt(name, {todo: true})
         return
     }
-    void nodeIt(name, nodeOptions(merged), runnable(fn))
+    void nodeIt(name, nodeOptions(merged), runnable(fn, name))
 }
 
 function defineSuite(name: string, second: unknown, third: unknown, extra: TestOptions = {}): void {
@@ -972,7 +978,8 @@ function useRealTimers(): void {
     if (!clock) return
     clock = undefined
     Object.assign(globalThis, realTimers)
-    delete (performance as {now?: unknown}).now
+    //Its own function given back (in Bun, deleting the override deletes the function too)
+    Object.defineProperty(performance, 'now', realPerformanceNow)
     timersPromises.setTimeout = realPromiseTimeout
     syncBuiltinESMExports()
 }

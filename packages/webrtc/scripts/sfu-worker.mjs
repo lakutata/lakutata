@@ -20,7 +20,10 @@ const result = await build({
     platform: 'node',
     format: 'cjs',
     target: 'node22',
-    minify: true,
+    //Not the syntax: Bun (1.4) evaluating it in a worker thread fails in the constructors of derived classes ("super()
+    //must be called in derived constructor before accessing this"), the same code loaded from a file does not
+    minifyWhitespace: true,
+    minifyIdentifiers: true,
     //The names of the classes are the ones of the errors
     keepNames: true,
     legalComments: 'inline',

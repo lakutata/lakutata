@@ -93,6 +93,8 @@ for (const workers of [0, 2]) describe(workers ? `WHEP, forwarding in ${workers}
             assert.ok(received.every((packet: RtpPacket): boolean => packet.payloadType === h264))
             //Its viewer stops it
             assert.strictEqual((await fetch(`${server.http}${viewer.location}`, {method: 'DELETE'})).status, 200)
+            //The listeners of a component get its events a moment later (after the response, in Bun)
+            await until((): boolean => stopped.length > 0, 5000, 'the stop event')
             assert.deepStrictEqual(stopped.map((session: WHEPSession): string => session.id), [played[0].id])
             //Counted by the thread forwarding the room
             await until((): boolean => server.sfu!.rooms().show.viewers === 0, 5000, 'no viewer')
