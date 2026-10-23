@@ -199,6 +199,8 @@ export class SCTP {
     onSent?: (streamId: number, ppId: number, bytes: number) => void
     private transmitting = false
     private transmitRequested = false
+    //A transmission at the end of the current task (the messages sent meanwhile bundled)
+    private transmitScheduled = false
 
     // # reconfiguration
 
@@ -1023,8 +1025,22 @@ export class SCTP {
             this.outboundStreamSeq[streamId] = uint16Add(streamSeqNum, 1)
         }
 
-        //The chunks wait in the queue for the congestion and receive windows; onSent tells when they leave it
-        await this.transmit()
+        //The chunks wait in the queue for the congestion and receive windows; onSent tells when they leave it. They go
+        //at the end of the task: the messages sent together are bundled in the same packets
+        this.transmitSoon()
+    }
+
+    /**
+     * Transmit at the end of the current task, once: a burst of small messages fills packets, rather than going out
+     * one by one while the congestion window has room
+     */
+    private transmitSoon() {
+        if (this.transmitScheduled) return
+        this.transmitScheduled = true
+        queueMicrotask(() => {
+            this.transmitScheduled = false
+            this.transmit().catch((error) => log('transmit failed', error))
+        })
     }
 
     private async transmit() {
