@@ -357,6 +357,59 @@ describe('peerConnection', () => {
         }
     })
 
+    test('the roles of ICE stay as the offer and the answer starting the session set them, through an offer of the other side while the checks go on, until an ICE restart', async () => {
+        const pc1 = new RTCPeerConnection()
+        const pc2 = new RTCPeerConnection()
+        const negotiate = async (offerer: RTCPeerConnection, answerer: RTCPeerConnection): Promise<void> => {
+            await offerer.setLocalDescription(await offerer.createOffer())
+            await answerer.setRemoteDescription(offerer.localDescription!)
+            await answerer.setLocalDescription(await answerer.createAnswer())
+            await offerer.setRemoteDescription(answerer.localDescription!)
+        }
+        const roles = (): string[] => [pc1.iceTransports[0].role, pc2.iceTransports[0].role]
+        const connected = async (): Promise<string[]> => {
+            const end: number = Date.now() + 5000
+            while ((pc1.connectionState !== 'connected' || pc2.connectionState !== 'connected') && Date.now() < end) await setTimeout(20)
+            return [pc1.connectionState, pc2.connectionState]
+        }
+        //The checks wait, as when the candidates come slowly: the other side offers meanwhile
+        let release: () => void = (): void => undefined
+        const gate: Promise<void> = new Promise<void>((resolve: () => void): void => {
+            release = resolve
+        })
+        const hold = (pc: RTCPeerConnection): void => {
+            const connection = pc.iceTransports[0].connection
+            const connect = connection.connect.bind(connection)
+            connection.connect = async (): Promise<void> => {
+                await gate
+                return await connect()
+            }
+        }
+        try {
+            pc1.createDataChannel('chat')
+            await pc1.setLocalDescription(await pc1.createOffer())
+            hold(pc1)
+            await pc2.setRemoteDescription(pc1.localDescription!)
+            hold(pc2)
+            await pc2.setLocalDescription(await pc2.createAnswer())
+            await pc1.setRemoteDescription(pc2.localDescription!)
+            //pc2 offers next (a track added) while the checks of the session go on: the roles stay
+            pc2.addTransceiver('audio', {direction: 'sendonly'})
+            await negotiate(pc2, pc1)
+            expect(roles()).toEqual(['controlling', 'controlled'])
+            release()
+            expect(await connected()).toEqual(['connected', 'connected'])
+            expect(roles()).toEqual(['controlling', 'controlled'])
+            //An ICE restart offered by pc2 starts another session, which pc2 controls
+            pc2.restartIce()
+            await negotiate(pc2, pc1)
+            expect(roles()).toEqual(['controlled', 'controlling'])
+            expect(await connected()).toEqual(['connected', 'connected'])
+        } finally {
+            await Promise.allSettled([pc1.close(), pc2.close()])
+        }
+    })
+
     test('a connection restarting ICE nominates the candidates of the other side whatever generation they give', async () => {
         const pc1 = new RTCPeerConnection()
         const pc2 = new RTCPeerConnection()

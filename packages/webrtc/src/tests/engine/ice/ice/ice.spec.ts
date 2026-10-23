@@ -56,7 +56,9 @@ const testWithIpv6Host = getHostAddresses(false, true, {
 }).length
     ? test
     : test.skip
-const localStunHost = getHostAddresses(true, false)[0]
+//A server reflexive candidate needs a second address: with one (a container), the address the server sees is the host
+//candidate itself, removed as redundant (RFC 8445 section 5.1.3)
+const localStunHost = getHostAddresses(true, false).length > 1 ? getHostAddresses(true, false)[0] : undefined
 const testWithLocalStun = localStunHost ? test : test.skip
 const googleStunServer: Address = ['stun.l.google.com', 19302]
 

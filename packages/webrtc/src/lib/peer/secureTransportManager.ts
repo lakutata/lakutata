@@ -450,15 +450,19 @@ export class SecureTransportManager {
     }) {
         for (const dtlsTransport of this.dtlsTransports) {
             const iceTransport = dtlsTransport.iceTransport
-            if (iceTransport.connection.iceLite) {
-                iceTransport.connection.iceControlling = false
-            } else if (iceTransport.connection.remoteIsLite) {
-                // RFC 8445 S6.1.1
-                iceTransport.connection.iceControlling = true
-            } else if (type === 'offer') {
-                iceTransport.connection.iceControlling = true
-            } else {
-                iceTransport.connection.iceControlling = false
+            //The roles are set by the offer and the answer starting the ICE session (the first ones, or those of an ICE
+            //restart, which makes the transport new again) and kept by the later ones (RFC 8445 section 6.1.1): taken
+            //from each later description, they flipped with each offer of the other side, both sides could end up
+            //controlled, and SCTP, whose INIT the controlling side sends, never started
+            if (iceTransport.state === 'new') {
+                if (iceTransport.connection.iceLite) {
+                    iceTransport.connection.iceControlling = false
+                } else if (iceTransport.connection.remoteIsLite) {
+                    // RFC 8445 S6.1.1
+                    iceTransport.connection.iceControlling = true
+                } else {
+                    iceTransport.connection.iceControlling = type === 'offer'
+                }
             }
 
             // # set DTLS role for mediasoup
