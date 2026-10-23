@@ -43,6 +43,9 @@ describe('stream transport connection timeout', () => {
 })
 
 describe('UDP transport connected to the other side of a pair', () => {
+    //A port range: Linux frees a port the system chose when its socket disconnects, so only these sockets connect there
+    const open = (): Promise<UdpTransport> => UdpTransport.init('udp4', {portRange: [42000, 42999]})
+
     /**
      * The packets a transport receives
      */
@@ -53,7 +56,7 @@ describe('UDP transport connected to the other side of a pair', () => {
     }
 
     test('connects once application data comes from the address, then sends only there', async () => {
-        const [a, b, c] = await Promise.all([UdpTransport.init('udp4'), UdpTransport.init('udp4'), UdpTransport.init('udp4')])
+        const [a, b, c] = await Promise.all([open(), open(), open()])
         const atB = received(b)
         const atC = received(c)
         const atA = received(a)
@@ -73,8 +76,10 @@ describe('UDP transport connected to the other side of a pair', () => {
             await new Promise((resolve) => setTimeout(resolve, 100))
             expect(atC).toEqual([])
             expect(atA.length).toBe(2)
-            //Disconnected, it sends to and receives from any address again
+            //Disconnected, it keeps its port, and sends to and receives from any address again
+            const port = a.port
             a.disconnect()
+            expect(a.port).toBe(port)
             await a.send(Buffer.from('to c'), ['127.0.0.1', c.port])
             await c.send(Buffer.from('from c'), ['127.0.0.1', a.port])
             await vi.waitFor(() => expect(atC.map(String)).toEqual(['to c']))
@@ -85,7 +90,7 @@ describe('UDP transport connected to the other side of a pair', () => {
     })
 
     test('sends what is sent while it connects, as a reply to the packet starting the connection', async () => {
-        const [a, b] = await Promise.all([UdpTransport.init('udp4'), UdpTransport.init('udp4')])
+        const [a, b] = await Promise.all([open(), open()])
         const atB = received(b)
         //The reply of a DTLS server to the first record of its client
         a.onData = (data: Buffer) => void a.send(Buffer.from(`reply to ${data[0]}`), ['127.0.0.1', b.port])
@@ -100,7 +105,7 @@ describe('UDP transport connected to the other side of a pair', () => {
     })
 
     test('does not connect to a host name', async () => {
-        const [a, b] = await Promise.all([UdpTransport.init('udp4'), UdpTransport.init('udp4')])
+        const [a, b] = await Promise.all([open(), open()])
         try {
             a.connectTo(['localhost', b.port])
             await b.send(Buffer.from([23]), ['127.0.0.1', a.port])
