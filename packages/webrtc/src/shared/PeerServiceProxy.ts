@@ -2,8 +2,8 @@ import {ChunkedChannel, type ChunkableChannel} from './ChunkedChannel.js'
 
 /**
  * The error of a call of a {@link PeerServiceProxy}: the error the action threw (its `errno`, the whole error object
- * as `data`), the JSON-RPC error of the request (`code`), or `E_PEER_SERVICE_TIMEOUT` and `E_PEER_SERVICE_CLOSED`
- * for the calls without a response.
+ * as `data`), the JSON-RPC error of the request (`code`), `E_PEER_SERVICE_TIMEOUT` and `E_PEER_SERVICE_CLOSED` for
+ * the calls without a response, or `E_PEER_SERVICE_TOO_LARGE` for a request over the size limit, not sent.
  * @example
  * ```typescript
  * import {PeerServiceError, type PeerServiceProxy} from '@lakutata/webrtc/client'
@@ -20,7 +20,7 @@ export class PeerServiceError extends Error {
 
     /**
      * The `errno` of the action's error (`E_ACCESS_DENY`, `E_INVALID_VALUE`…), the JSON-RPC error code when the error
-     * has none, or `E_PEER_SERVICE_TIMEOUT` and `E_PEER_SERVICE_CLOSED`.
+     * has none, or `E_PEER_SERVICE_TIMEOUT`, `E_PEER_SERVICE_CLOSED` and `E_PEER_SERVICE_TOO_LARGE`.
      */
     public readonly errno: string | number
 
@@ -66,6 +66,13 @@ export interface PeerServiceProxyOptions {
      * @default 67108864 (64 MiB)
      */
     maxMessageSize?: number
+    /**
+     * The size of a request sent at most, in bytes, as JSON: a larger call fails at once with
+     * `E_PEER_SERVICE_TOO_LARGE`, since the application drops the requests over its `limit` without knowing which call
+     * they were. The same as the default `limit` of `webrtcServiceEntrypoint`.
+     * @default 10485760 (10 MiB)
+     */
+    maxRequestSize?: number
 }
 
 /**
@@ -116,6 +123,8 @@ export class PeerServiceProxy {
 
     readonly #methodField: string
 
+    readonly #maxRequestSize: number
+
     readonly #pending: Map<number, PendingCall> = new Map()
 
     readonly #listeners: Map<string, Set<(...args: any[]) => void>> = new Map()
@@ -136,6 +145,7 @@ export class PeerServiceProxy {
     constructor(channel: ChunkableChannel, options: PeerServiceProxyOptions = {}) {
         this.#channel = channel
         this.#methodField = options.methodField ?? 'method'
+        this.#maxRequestSize = options.maxRequestSize ?? 10 * 1024 * 1024
         this.#chunked = new ChunkedChannel(channel, {...options.maxMessageSize === undefined ? {} : {maxMessageSize: options.maxMessageSize}})
         this.#chunked.on('message', (data: string | Uint8Array): void => this.#receive(data))
         this.#opened = new Promise<void>((resolve: () => void): void => {
@@ -167,8 +177,9 @@ export class PeerServiceProxy {
      * method, the rest as its params.
      * @param timeout How long to wait for the response, in milliseconds (the time to open the channel included).
      * @returns The action's result.
-     * @throws {PeerServiceError} The error of the action or of the request, or `E_PEER_SERVICE_TIMEOUT` and
-     * `E_PEER_SERVICE_CLOSED` when no response came.
+     * @throws {PeerServiceError} The error of the action or of the request, `E_PEER_SERVICE_TIMEOUT` and
+     * `E_PEER_SERVICE_CLOSED` when no response came, or `E_PEER_SERVICE_TOO_LARGE` when the request is over
+     * `maxRequestSize` (it is not sent).
      * @throws {TypeError} When the input's `methodField` is not a string.
      * @example
      * ```typescript
@@ -184,6 +195,9 @@ export class PeerServiceProxy {
         if (typeof method !== 'string') throw new TypeError(`The input has no method: its field ${this.#methodField} is not a string`)
         if (this.#closed) return Promise.reject(new PeerServiceError('The channel is closed', 'E_PEER_SERVICE_CLOSED'))
         const id: number = this.#nextId++
+        const request: string = JSON.stringify({jsonrpc: '2.0', id: id, method: method, params: params})
+        const size: number = new TextEncoder().encode(request).byteLength
+        if (size > this.#maxRequestSize) return Promise.reject(new PeerServiceError(`The request of ${method} is ${size} bytes, over ${this.#maxRequestSize}`, 'E_PEER_SERVICE_TOO_LARGE'))
         return new Promise<T>((resolve: (result: T) => void, reject: (error: PeerServiceError) => void): void => {
             const timer: ReturnType<typeof setTimeout> = setTimeout((): void => {
                 this.#pending.delete(id)
@@ -192,7 +206,7 @@ export class PeerServiceProxy {
             this.#pending.set(id, {resolve: resolve as (result: unknown) => void, reject: reject, timer: timer})
             this.#opened.then((): Promise<void> => {
                 if (!this.#pending.has(id)) return Promise.resolve()
-                return this.#chunked.send(JSON.stringify({jsonrpc: '2.0', id: id, method: method, params: params}))
+                return this.#chunked.send(request)
             }).catch((): void => this.#settle(id, undefined, new PeerServiceError('The channel is closed', 'E_PEER_SERVICE_CLOSED')))
         })
     }

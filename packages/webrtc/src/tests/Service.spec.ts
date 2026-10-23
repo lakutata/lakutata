@@ -330,6 +330,10 @@ describe('WebRTC service', (): void => {
             const alice: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'alice'})
             const proxy: PeerServiceProxy = await proxyOf(await alice.join('device'))
             assert.strictEqual((await failure(proxy.invoke({method: 'slow'}, 300))).errno, 'E_PEER_SERVICE_TIMEOUT')
+            //Over the limit of the application: failed at once, not sent
+            const large: PeerServiceError = await failure(proxy.invoke({method: 'large', size: 1, text: 'y'.repeat(11 * 1024 * 1024)}, 60000))
+            assert.strictEqual(large.errno, 'E_PEER_SERVICE_TOO_LARGE')
+            assert.strictEqual(await proxy.invoke({method: 'echo', text: 'still open'}), 'still open')
             assert.throws((): unknown => proxy.invoke({name: 'slow'}), TypeError)
             //Another method field
             const named: PeerServiceProxy = new PeerServiceProxy(alice.rooms[0].peer('device')!.createDataChannel('service'), {methodField: 'cmd'})
