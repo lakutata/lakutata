@@ -51,6 +51,9 @@ export interface NodeTurnServerOptions extends TurnServerProtocolOptions {
     udp?: boolean
     tcp?: boolean
     tls?: NodeTurnServerTlsOptions
+    /**the listeners bound with SO_REUSEPORT, to share their ports with the servers of other threads (Linux): the system
+     * keeps each client on one of them */
+    reusePort?: boolean
 }
 
 export class NodeTurnServer {
@@ -84,6 +87,7 @@ export class NodeTurnServer {
     private readonly relayPortRange?: [number, number]
     private boundPort?: number
     private boundTlsPort?: number
+    private readonly reusePort: boolean
 
     constructor(options: NodeTurnServerOptions = {}) {
         const {
@@ -98,9 +102,11 @@ export class NodeTurnServer {
             tls,
             getPassword,
             software = 'lakutata-webrtc',
+            reusePort = false,
             ...protocolOptions
         } = options
 
+        this.reusePort = reusePort
         this.host = host
         this.port = port
         this.udpEnabled = udp
@@ -293,7 +299,7 @@ export class NodeTurnServer {
     }
 
     private async listenUdp() {
-        const socket = createSocket(this.socketType(this.host))
+        const socket = createSocket({type: this.socketType(this.host), reusePort: this.reusePort})
         this.udpSocket = socket
         socket.on('message', detached(async (data: Buffer, remoteInfo: RemoteInfo) => {
             await this.executeActions(
@@ -334,7 +340,7 @@ export class NodeTurnServer {
 
         await new Promise<void>((resolve, reject) => {
             server.once('error', reject)
-            server.listen(port, this.host, () => {
+            server.listen({port, host: this.host, reusePort: this.reusePort}, () => {
                 server.off('error', reject)
                 const address = server.address()
                 if (!address || typeof address === 'string') {
@@ -355,7 +361,7 @@ export class NodeTurnServer {
 
         await new Promise<void>((resolve, reject) => {
             server.once('error', reject)
-            server.listen(port, this.host, () => {
+            server.listen({port, host: this.host, reusePort: this.reusePort}, () => {
                 server.off('error', reject)
                 const address = server.address()
                 if (!address || typeof address === 'string') {

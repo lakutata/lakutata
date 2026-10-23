@@ -383,13 +383,13 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 
 - `npm run test:bun` 在 Bun 里运行测试（浏览器的测试除外）。TURN 刷新的 4 个测试在 Bun 里会失败：测试用的假时钟只能在 Node.js 里替换 `node:timers/promises` 的导入。
 - `npm run test:electron` 在 Electron 的主进程里运行测试（用仓库里的 Electron）。
-- `npm run test:linux` 在 Linux（Docker 里的 `node:24-alpine`）里运行测试、性能目标检查和转发基准。
+- `npm run test:linux` 在 Linux（Docker 里的 `node:24-alpine`）里运行测试、性能目标检查，以及转发和 TURN 服务器的基准。
 - `npm run test:interop` 在 Docker 里让 Pion（Go）和 aiortc（Python）连接这个包的信令、TURN 服务器和一个成员：直连和只走中转的数据通道，以及 aiortc 对服务动作的调用。
 - `node test-env/safari.mjs` 在 Safari（macOS）里打开一个页面：数据通道、服务调用、只走中转的连接。测完关掉这个标签页。
 
 `npm run test:servers` 在 Docker 里启动 NATS 和 Redis，运行集群在它们上面的测试（`test-env/cluster.sh`）。`test-env/k3s/run.sh` 在 Docker 里运行有两个节点的 k3s，部署信令，并在每个节点上部署一个 TURN 服务器和一个媒体服务器。它先让两个成员分别通过两个不同的 pod 连接，并且只经 TURN 服务器中转；再让两个成员分别连到两个节点的媒体服务器，并删掉其中一个媒体服务器的 pod。
 
-基准测试在 `test-env/bench` 里，先编译这个包再运行。`targets.mjs` 把引擎的实测结果和性能目标对比（大消息 70 MiB/s，每 GiB 最多 40 秒 CPU；100 字节的消息每秒 5 万条；200 个连接 2 秒内建好），有一项没达到，退出码就是 1：发布前运行它。`engine.mjs` 测量数据通道、RTP 发送和连接的建立，两端各在一个进程里；`forward.mjs` 测量媒体服务器的转发能力，`turn.mjs` 测量 TURN 服务器的中转能力（`--idle` 先建立其他客户端的空闲分配）。`floor.mjs` 和 `send-modes.mjs` 不需要编译：前者测一个包在 JavaScript 里至少要花多少 CPU（加密和 UDP 发送），后者测发送 UDP 包的每种方式各花多少 CPU。
+基准测试在 `test-env/bench` 里，先编译这个包再运行。`targets.mjs` 把引擎的实测结果和性能目标对比（大消息 70 MiB/s，每 GiB 最多 40 秒 CPU；100 字节的消息每秒 5 万条；200 个连接 2 秒内建好），有一项没达到，退出码就是 1：发布前运行它。`engine.mjs` 测量数据通道、RTP 发送和连接的建立，两端各在一个进程里；`forward.mjs` 测量媒体服务器的转发能力，`turn.mjs` 测量 TURN 服务器的中转能力（`--idle` 先建立其他客户端的空闲分配，`--workers` 是工作线程数，`--parallel` 是同时中转的连接数）。`floor.mjs` 和 `send-modes.mjs` 不需要编译：前者测一个包在 JavaScript 里至少要花多少 CPU（加密和 UDP 发送），后者测发送 UDP 包的每种方式各花多少 CPU。
 
 ## 另见
 

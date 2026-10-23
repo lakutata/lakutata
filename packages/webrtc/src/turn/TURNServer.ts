@@ -5,8 +5,13 @@ import {Configurable, Singleton} from '@lakutata/core/decorator/di'
 import {NodeTurnServer, type NodeTurnServerOptions} from '../lib/turn/node/turnServer.js'
 import type {SignalingIceServer} from '../protocol/SignalingProtocol.js'
 import type {Cluster} from '../cluster/Cluster.js'
+import {debug} from '../lib/common/log.js'
 import {createTURNCredentials, type TURNCredentials, turnPasswordIfValid} from './TURNCredentials.js'
 import {iceServersOfTURN} from './TURNIceServers.js'
+import type {TURNWorkerData} from './TURNWorker.js'
+import {portsShareable, TURNWorkers, turnWorkers} from './TURNWorkers.js'
+
+const log = debug('webrtc/turn')
 
 /**
  * The TLS listener of a {@link TURNServer} (`turns:`), for the networks letting only TLS through (port 443).
@@ -92,6 +97,19 @@ export interface TURNServerOptions {
      * @default no limit
      */
     maxAllocations?: number
+    /**
+     * Worker threads that serve the clients, to use more cores: the listeners of the threads share the ports of the
+     * server (`SO_REUSEPORT`), the system keeps each client on one of them, and that thread relays its traffic.
+     * `relayPortRange`, when given, is split among the threads and needs at least one port for each; `maxAllocations`
+     * counts the allocations of all the threads. A thread that stops (only a bug stops one) loses its allocations and
+     * is started again; meanwhile the system spreads the clients over UDP among the threads left, then among all of
+     * them, so most of them find their allocation gone, as when a TURN server restarts (the connections over TCP and
+     * TLS of the other threads stay). The ports can be shared on Linux; elsewhere (macOS, Windows), the server relays
+     * in the main thread and says so in the debug messages (`webrtc/turn`, see `setDebugHandler`). With 0, the server
+     * relays in the main thread.
+     * @default 0
+     */
+    workers?: number
     /**
      * The name of a {@link Cluster} component: the server tells the other nodes its address and its load, and the
      * `Signaling` and `WHIP` components of all the nodes give it to their clients. It needs a `secret` shared by the
@@ -254,12 +272,20 @@ export class TURNServer extends Component {
     protected readonly maxAllocations?: number
 
     /**
+     * The worker threads serving the clients.
+     */
+    @Configurable(DTO.Number().integer().min(0).optional().default(0))
+    protected readonly workers: number
+
+    /**
      * The name of the cluster component.
      */
     @Configurable(DTO.String().optional())
     protected readonly cluster?: string
 
-    #server: NodeTurnServer
+    #server?: NodeTurnServer
+
+    #workers?: TURNWorkers
 
     #announcer?: NodeJS.Timeout
 
@@ -292,8 +318,16 @@ export class TURNServer extends Component {
             getPassword: (username: string): string | undefined => this.users[username] ?? turnPasswordIfValid(this.#secret, username)
         }
         if (this.tls) options.tls = {cert: this.tls.cert, key: this.tls.key, port: this.tls.port}
-        this.#server = new NodeTurnServer(options)
-        await this.#server.listen()
+        if (this.workers) {
+            //Checked on every system, the ports shared or not
+            const ranges: ([number, number] | undefined)[] = this.#relayPortRanges()
+            if (await portsShareable(this.host)) await this.#startWorkers(options, ranges)
+            else log('the ports cannot be shared among threads here (SO_REUSEPORT): the server relays in the main thread, not in %d worker threads', this.workers)
+        }
+        if (!this.#workers) {
+            this.#server = new NodeTurnServer(options)
+            await this.#server.listen()
+        }
         if (this.cluster) {
             const cluster: Cluster = await this.getObject<Cluster>(this.cluster)
             this.#clusterObject = cluster
@@ -310,7 +344,49 @@ export class TURNServer extends Component {
     protected async destroy(): Promise<void> {
         clearInterval(this.#announcer)
         this.#clusterObject?.announce('turn', undefined)
+        await this.#workers?.stop()
         await this.#server?.close()
+    }
+
+    /**
+     * The part of the relay ports of each worker thread
+     * @throws {RangeError} When the range has fewer ports than there are threads.
+     */
+    #relayPortRanges(): ([number, number] | undefined)[] {
+        return Array.from({length: this.workers}, (_: unknown, index: number): [number, number] | undefined => {
+            if (!this.relayPortRange) return undefined
+            const [first, last] = this.relayPortRange
+            const size: number = last - first + 1
+            if (size < this.workers) throw new RangeError(`The relay port range has ${size} ports, fewer than the ${this.workers} worker threads`)
+            return [first + Math.floor(index * size / this.workers), first + Math.floor((index + 1) * size / this.workers) - 1]
+        })
+    }
+
+    /**
+     * Start the worker threads, each with its part of the relay ports and the credentials (functions stay in the main
+     * thread)
+     * @param options The options of the server of each thread.
+     * @param ranges The part of the relay ports of each.
+     */
+    async #startWorkers(options: NodeTurnServerOptions, ranges: ([number, number] | undefined)[]): Promise<void> {
+        const {getPassword, ...shared} = options
+        const allocations: SharedArrayBuffer = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * (1 + this.workers))
+        const workers: TURNWorkers = new TURNWorkers(ranges.map((range: [number, number] | undefined, thread: number): TURNWorkerData => ({
+            thread: thread,
+            //A Buffer given to a thread arrives as a Uint8Array: the certificate and its key in PEM, as text
+            options: {...shared, relayPortRange: range, ...this.tls ? {tls: {...shared.tls, cert: this.tls.cert.toString(), key: this.tls.key.toString()}} : {}},
+            users: this.users,
+            secret: this.#secret,
+            allocations: allocations
+        })))
+        try {
+            await workers.start()
+        } catch (error) {
+            await workers.stop()
+            throw error
+        }
+        this.#workers = workers
+        turnWorkers.set(this, workers)
     }
 
     /**
@@ -330,15 +406,15 @@ export class TURNServer extends Component {
      * The address and the port of STUN and TURN over UDP and TCP, as the clients reach them (the public address).
      */
     public get address(): {address: string, port: number} {
-        return {address: this.#publicAddress, port: this.#server?.address?.[1] ?? this.port}
+        return {address: this.#publicAddress, port: (this.#workers ? this.#workers.port : this.#server?.address?.[1]) ?? this.port}
     }
 
     /**
      * The address and the port of TURN over TLS, as the clients reach them; undefined without TLS.
      */
     public get tlsAddress(): {address: string, port: number} | undefined {
-        const bound: readonly [string, number] | undefined = this.#server?.tlsAddress
-        return bound ? {address: this.#publicAddress, port: bound[1]} : undefined
+        const port: number | undefined = this.#workers ? this.#workers.tlsPort : this.#server?.tlsAddress?.[1]
+        return port !== undefined ? {address: this.#publicAddress, port: port} : undefined
     }
 
     /**
@@ -354,7 +430,7 @@ export class TURNServer extends Component {
      * The allocations in use: the clients relaying their traffic through the server.
      */
     public get allocations(): number {
-        return this.#server?.protocol.allocationCount ?? 0
+        return this.#workers ? this.#workers.allocations : this.#server?.protocol.allocationCount ?? 0
     }
 
     /**

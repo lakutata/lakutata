@@ -442,7 +442,7 @@ export class SFUWorkers {
      * @throws {Error} When the code of the threads was not built.
      */
     constructor(host: SFUWorkersHost, data: SFUWorkerData[]) {
-        if (!sfuWorkerCode) throw new Error('The code of the worker threads of the media server is not built (scripts/sfu-worker.mjs)')
+        if (!sfuWorkerCode) throw new Error('The code of the worker threads of the media server is not built (scripts/workers.mjs)')
         this.#host = host
         this.#data = data
         this.#slots = data.map((_: SFUWorkerData, index: number): Slot => ({index: index, rooms: new Map(), ready: Promise.resolve(), ran: false, dead: false}))

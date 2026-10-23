@@ -119,6 +119,9 @@ export interface TurnServerProtocolOptions
     channelLifetime?: number
     nonceLifetime?: number
     maxAllocations?: number
+    /**the allocations counted with the servers of other threads, in place of maxAllocations: reserve one before it
+     * is made (false when refused), release it once deleted */
+    allocationGate?: {reserve(): boolean, release(): void}
     getPassword?: (username: string, realm: string) => string | undefined
     now?: () => number
 }
@@ -193,6 +196,7 @@ export class TurnServerProtocol {
     private readonly channelLifetime: number
     private readonly nonceLifetime: number
     private readonly maxAllocations: number
+    private readonly allocationGate?: {reserve(): boolean, release(): void}
     private readonly getPassword: (
         username: string,
         realm: string
@@ -215,6 +219,7 @@ export class TurnServerProtocol {
         this.channelLifetime = options.channelLifetime ?? DEFAULT_CHANNEL_LIFETIME
         this.nonceLifetime = options.nonceLifetime ?? DEFAULT_NONCE_LIFETIME
         this.maxAllocations = options.maxAllocations ?? DEFAULT_MAX_ALLOCATIONS
+        this.allocationGate = options.allocationGate
         this.getPassword = options.getPassword ?? (() => undefined)
         this.nowProvider = options.now
         this.bindingProtocol = new StunServerProtocol({
@@ -588,7 +593,7 @@ export class TurnServerProtocol {
             ]
         }
 
-        if (this.allocations.size >= this.maxAllocations) {
+        if (this.allocationGate ? !this.allocationGate.reserve() : this.allocations.size >= this.maxAllocations) {
             return [
                 this.sendClient(
                     auth,
@@ -1217,7 +1222,7 @@ export class TurnServerProtocol {
     }
 
     private deleteAllocation(allocation: TurnAllocation): TurnServerAction[] {
-        this.allocations.delete(allocation.id)
+        if (this.allocations.delete(allocation.id)) this.allocationGate?.release()
         this.allocationIdByClientId.delete(allocation.client.clientId)
         this.allocationIdByRelayId.delete(allocation.relayId)
         return [

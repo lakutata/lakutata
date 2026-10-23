@@ -28,4 +28,7 @@ if [ "$what" = bench ] || [ "$what" = all ]; then
     echo "== forwarding: 4 rooms of 12 publishers and 10 subscribers, in the main thread, then in 4 worker threads"
     run node test-env/bench/forward.mjs --sfu --rooms 4 --publishers 12 --subscribers 10 --seconds 10
     run node test-env/bench/forward.mjs --sfu --rooms 4 --publishers 12 --subscribers 10 --workers 4 --seconds 10
+    echo "== the TURN server: 3 connections relaying at once, in the main thread, then in 3 worker threads"
+    run node test-env/bench/turn.mjs --parallel 3
+    run node test-env/bench/turn.mjs --parallel 3 --workers 3
 fi

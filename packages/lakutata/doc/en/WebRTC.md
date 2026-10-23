@@ -112,12 +112,43 @@ connection. `TURNServer` is one, inside the application:
 | `realm` | `'lakutata'` | The realm of the credentials |
 | `credentialTtl` | `86400` | How long the short-lived credentials are valid, in seconds; a relay made with them keeps working once they expire |
 | `maxAllocations` | no limit | The relays at once at most |
+| `workers` | `0` | Worker threads serving the clients, to use more cores (on Linux; see below) |
 
 The short-lived credentials follow the REST API of coturn: the username is `<expiry>:<user>` and the password is
 `base64(HMAC-SHA1(secret, username))`, so any server holding the secret checks them without storing them.
 `turn.iceServers(user)` gives the ICE servers of a client with credentials, `turn.credentials(user)` the credentials
 alone, `createTURNCredentials(secret, user, ttl)` makes them for another TURN server (a coturn configured with
 `use-auth-secret`), and `turn.allocations` counts the relays in use.
+
+### Several cores
+
+The server relays in the main thread by default. Measured on an Apple M4 with Node.js 24, it relayed a data channel
+whose two ends both relayed through it (so it carried each packet twice) at about 38 MiB/s for messages of 16 KiB,
+taking 27 s of CPU per GiB, and 365,000 messages of 100 bytes a second, at 2.8 µs of CPU each. A packet costs the same
+with 500 idle allocations of other clients.
+
+With `workers: 3`, three worker threads serve the clients. Their listeners share the ports of the server
+(`SO_REUSEPORT`), and the system keeps each client on one thread, chosen from its address and its port; that thread
+relays its traffic. The threads count their allocations together against `maxAllocations`, and `relayPortRange` is
+shared out among them. Only Linux lets the threads share the ports: elsewhere, the server relays in the main thread and
+says so in the debug messages (`webrtc/turn`). A thread that stops (only a bug stops one) loses its allocations and is
+started again. Meanwhile the system spreads the clients over UDP among the other threads, then among all of them again,
+so most of them find their allocation gone, as when a TURN server restarts; the connections over TCP and TLS of the
+other threads stay.
+
+In an arm64 Linux virtual machine (Docker Desktop, 10 cores) on the same Mac, with three connections relaying through it
+at once (six clients):
+
+| Server | Messages of 100 bytes relayed | CPU per message |
+|---|---|---|
+| The main thread | 460,000 to 550,000 a second | 1.9 to 2.3 µs |
+| 3 worker threads | 510,000 to 820,000 a second in five runs of six, 220,000 in the other | 2.4 to 3.8 µs, 9 µs in the other run |
+
+The system shares out the clients by their address and port, not by their load: with six clients, a thread often had
+none, or twice its share. Large messages were therefore relayed at 34 to 79 MiB/s depending on the run, against 46 to
+50 MiB/s in the main thread; the more clients, the more evenly the threads share them. Each thread takes about 15 MiB.
+In that virtual machine, a worker thread relayed a quarter to a third fewer messages per core than the main thread; on
+macOS, the two cost the same.
 
 ## 4. Browsers
 

@@ -65,7 +65,7 @@
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs-pkg": "node ../../scripts/package-build/cjs-package.mjs",
-    "build:worker": "node scripts/sfu-worker.mjs",
+    "build:worker": "node scripts/workers.mjs",
     "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg && npm run build:worker",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",

@@ -476,8 +476,8 @@ The other runtimes and implementations, compiled first (`npm run compile`):
 - `npm run test:bun` runs the tests in Bun (without those of the browsers). Four tests of the TURN refresh fail there:
   the fake clock of the tests reaches the imports of `node:timers/promises` only in Node.js.
 - `npm run test:electron` runs them in the main process of Electron (the repository's Electron).
-- `npm run test:linux` runs them, the performance targets and the forwarding benchmark, in Linux (`node:24-alpine` in
-  Docker).
+- `npm run test:linux` runs them, the performance targets and the benchmarks of forwarding and of the TURN server, in
+  Linux (`node:24-alpine` in Docker).
 - `npm run test:interop` connects Pion (Go) and aiortc (Python), in Docker, to the signaling, the TURN server and a
   member of this package: a data channel directly and through the relay only, and a call of a service action from
   aiortc.
@@ -494,8 +494,9 @@ the engine against its performance targets (70 MiB/s for large messages, at 40 s
 of 100 bytes a second; 200 connections set up in 2 seconds) and exits with 1 when one is missed: run it before a
 release. `engine.mjs` measures the data channels, the sending of RTP and the setup of connections, each end in a process
 of its own, `forward.mjs` what the media server forwards, and `turn.mjs` what the TURN server relays (with `--idle`
-allocations of other clients). `floor.mjs` measures the least a packet costs in JavaScript (encrypting it and sending it
-over UDP), and `send-modes.mjs` the cost of each way of sending a UDP packet; neither needs a build.
+allocations of other clients, `--workers` threads, `--parallel` connections at once). `floor.mjs` measures the least a
+packet costs in JavaScript (encrypting it and sending it over UDP), and `send-modes.mjs` the cost of each way of sending
+a UDP packet; neither needs a build.
 
 ## See also
 
