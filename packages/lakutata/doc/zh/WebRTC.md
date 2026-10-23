@@ -606,7 +606,7 @@ await connection.setRemoteDescription({type: 'answer', sdp: await response.text(
 - **多个实例。** 给它们配置 `Cluster`（第 13 节），并给它们的 TURN 服务器配置相同的 `secret`，这样每个实例都认其他实例生成的凭据。
 - **其他 TURN 服务器。** coturn（`use-auth-secret`，`static-auth-secret` 设为相同的密钥）接受 `createTURNCredentials()` 生成的凭据；把它写进 `Signaling` 的 `iceServers` 选项。
 - **HTTPS。** 浏览器在任何页面上都允许使用 WebRTC，但摄像头和麦克风只能在安全的页面上使用（HTTPS 或 `localhost`）。
-- **UDP 缓冲区。** 连接和 TURN 服务器会给它们的 UDP 套接字申请 1 MiB 的接收缓冲区：Linux 默认的 208 KiB 遇到突发的包会丢包。Linux 用 `net.core.rmem_max` 限制这个大小，而它在大多数系统上也是 208 KiB，所以在 Linux 服务器上要把它调大（`sysctl -w net.core.rmem_max=4194304`；使用节点网络的 pod，在节点上调）。
+- **UDP 缓冲区。** 连接和 TURN 服务器会给它们的 UDP 套接字申请 4 MiB 的接收缓冲区：缓冲区小了，遇到突发的包，或者大量数据来得比进程读得快，就会丢包。Linux 用 `net.core.rmem_max` 限制这个大小，它在大多数系统上是 208 KiB，所以在 Linux 服务器上要把它调大（`sysctl -w net.core.rmem_max=4194304`；使用节点网络的 pod，在节点上调）。
 
 ## 13. 多个实例
 

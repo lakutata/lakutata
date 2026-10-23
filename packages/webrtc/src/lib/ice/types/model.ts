@@ -52,6 +52,10 @@ export interface Protocol {
     connectionMade: (...args: any) => Promise<void>
     sendStun: (message: Message, addr: Address) => Promise<void>
     sendData: (data: Buffer, addr: Address) => Promise<void>
+    /** A socket of its own: send only to the address of the pair selected, once a packet comes from it. */
+    connectTo?: (addr: Address) => void
+    /** A socket of its own: send to any address again. */
+    disconnect?: () => void
     localCandidate?: Candidate
     sentMessage?: Message
     responseAddr?: Address

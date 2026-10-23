@@ -110,6 +110,14 @@ export class StunProtocol implements Protocol {
         await this.transport.send(data, addr)
     }
 
+    connectTo(addr: Address) {
+        this.transport?.connectTo(addr)
+    }
+
+    disconnect() {
+        this.transport?.disconnect()
+    }
+
     async request(
         request: Message,
         addr: Address,

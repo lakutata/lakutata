@@ -779,10 +779,10 @@ room.
   credentials of `createTURNCredentials()`; list it in the `iceServers` option of `Signaling`.
 - **HTTPS.** Browsers allow WebRTC on any page, but the camera and the microphone only on secure pages (HTTPS or
   `localhost`).
-- **The UDP buffers.** The connections and the TURN server ask for a receive buffer of 1 MiB for their UDP sockets:
-  the default of Linux (208 KiB) loses the packets of a burst. Linux caps the size at `net.core.rmem_max`, which is
-  208 KiB on most systems too, so raise it on a Linux server (`sysctl -w net.core.rmem_max=4194304`, on the nodes for
-  the pods on the network of their node).
+- **The UDP buffers.** The connections and the TURN server ask for a receive buffer of 4 MiB for their UDP sockets:
+  a smaller one loses packets in a burst, or when a large transfer arrives faster than the process reads it. Linux
+  caps the size at `net.core.rmem_max`, which is 208 KiB on most systems, so raise it on a Linux server
+  (`sysctl -w net.core.rmem_max=4194304`, on the nodes for the pods on the network of their node).
 
 ## 13. Several instances
 

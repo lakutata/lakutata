@@ -293,6 +293,8 @@ export class Connection implements IceConnection {
 
         // protocolsはincomingのearlyCheckに使うかもしれないので残す
         for (const protocol of this.protocols) {
+            //The checks of the new session go to any address
+            protocol.disconnect?.()
             if (protocol.localCandidate) {
                 protocol.localCandidate.refreshId()
                 protocol.localCandidate.generation = this.generation
@@ -306,6 +308,7 @@ export class Connection implements IceConnection {
 
     resetNominatedPair() {
         log('resetNominatedPair')
+        for (const protocol of this.protocols) protocol.disconnect?.()
         this.nominated = undefined
         this.nominating = false
         // Drop old pair's consent timers/transactions; restarted when a new pair is nominated.
@@ -1432,6 +1435,8 @@ export class Connection implements IceConnection {
                 this.nominated = pair
                 this.nominating = false
                 this.pruneTcpConnections(pair)
+                //Its socket sends only to the other side from now on, once the other side is seen using the pair
+                pair.protocol.connectTo?.(pair.remoteAddr)
 
                 // After resetNominatedPair / renomination while already connected,
                 // restart consent freshness on the new selected pair.

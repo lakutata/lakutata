@@ -6,7 +6,8 @@
 //when the targets were set against libdatachannel (node-datachannel) on the same machine, an Apple M4 with Node.js 24.
 //
 //WEBRTC_BENCH_DIST: the exports of another build (the absolute path of its dist/esm/exports/WebRTC.js), to compare two
-//builds. TURN=host:port:username:password: both ends relay only, through that TURN server.
+//builds. TURN=host:port:username:password: both ends relay only, through that TURN server. WEBRTC_BENCH_IPV6=0: IPv4
+//only.
 import path from 'node:path'
 import {pathToFileURL} from 'node:url'
 
@@ -14,6 +15,7 @@ const dist = process.env.WEBRTC_BENCH_DIST ? pathToFileURL(path.resolve(process.
 const {RTCPeerConnection, MediaStreamTrack, RTCRtpCodecParameters} = await import(new URL('../lib/peer/index.js', dist).href)
 const turn = process.env.TURN ? (([host, port, username, password]) => ({host, port, username, password}))(process.env.TURN.split(':')) : undefined
 const codecs = {video: [new RTCRtpCodecParameters({mimeType: 'video/VP8', clockRate: 90000, payloadType: 96})]}
+const iceUseIpv6 = process.env.WEBRTC_BENCH_IPV6 !== '0'
 
 const peers = new Map()
 //The answerer sets its handlers on each peer created for an offer, before it answers
@@ -64,8 +66,8 @@ function channel(dc) {
  */
 function createPeer() {
     const pc = new RTCPeerConnection(turn
-        ? {iceServers: [{urls: `turn:${turn.host}:${turn.port}`, username: turn.username, credential: turn.password}], iceTransportPolicy: 'relay', codecs}
-        : {iceServers: [], codecs})
+        ? {iceServers: [{urls: `turn:${turn.host}:${turn.port}`, username: turn.username, credential: turn.password}], iceTransportPolicy: 'relay', codecs, iceUseIpv6}
+        : {iceServers: [], codecs, iceUseIpv6})
     return {
         createChannel: (label, {reliable = true} = {}) => channel(pc.createDataChannel(label, reliable ? {} : {ordered: false, maxRetransmits: 0})),
         onChannel: (cb) => pc.onDataChannel.subscribe((dc) => cb(channel(dc))),

@@ -37,14 +37,17 @@ export interface StreamTransportOptions {
 const DEFAULT_CONNECT_TIMEOUT_MS = 8000
 
 /**
- * The receive buffer of the UDP sockets of the connections and of the TURN server at least, in bytes: the default of
- * Linux (208 KiB) drops the packets of a burst before the process reads them (measured with net.core.rmem_max at 4 MiB:
- * 15% of 50,000 packets a second lost with it, none with 1 MiB; rmem_max is 208 KiB by default and caps the request)
+ * The receive buffer of the UDP sockets of the connections and of the TURN server at least, in bytes. It holds what
+ * the receive window of SCTP (1 MiB) lets the other side send before the process reads it: about 900 packets, each
+ * taking 2 KiB of buffer or more in the system. With 1 MiB, a sender faster than the receiver overflowed it before the
+ * window stopped it (about 2% of the packets of a bulk transfer lost, and resent); the default of Linux (208 KiB) drops
+ * the packets of a burst too (15% of 50,000 packets a second). A size the system caps: net.core.rmem_max on Linux,
+ * 208 KiB by default, kern.ipc.maxsockbuf on macOS (8 MiB). The memory is taken only while packets wait in it
  */
-const RECEIVE_BUFFER_SIZE = 1024 * 1024
+const RECEIVE_BUFFER_SIZE = 4 * 1024 * 1024
 
 /**
- * Grow the receive buffer of a bound UDP socket to 1 MiB, as far as the system allows (net.core.rmem_max on Linux); a
+ * Grow the receive buffer of a bound UDP socket to 4 MiB, as far as the system allows (net.core.rmem_max on Linux); a
  * buffer larger already is kept
  * @param socket
  */
@@ -56,12 +59,30 @@ export function growReceiveBuffer(socket: Socket): void {
     }
 }
 
+/**
+ * Whether two addresses are the same
+ * @param a
+ * @param b
+ */
+function sameAddress(a: Address, b: Address): boolean {
+    return a === b || (a[1] === b[1] && a[0] === b[0])
+}
+
 export class UdpTransport implements Transport {
     readonly type = 'udp'
     readonly socket: Socket
     rinfo?: Partial<Pick<RemoteInfo, 'address' | 'port'>>
     onData: (data: Buffer, addr: Address) => void = () => {}
     closed: boolean = false
+    //The only address the socket sends to once connected: its sends skip the lookup and the routing of an address, and
+    //the system drops the packets of the other addresses
+    private connected?: Address
+    //The address to connect to once application data comes from it, and the one being connected to
+    private connectOnReceive?: Address
+    private connecting?: Address
+    //What is sent until the callback of a connect comes, with its address: a send given an address meanwhile would be
+    //refused by the socket connected before its lookup ends (EISCONN), and lost
+    private waiting?: [Buffer, Address | undefined][]
 
     private constructor(
         private socketType: SocketType,
@@ -77,6 +98,8 @@ export class UdpTransport implements Transport {
                 [info.address] = info.address.split('%') // example fe80::1d3a:8751:4ffd:eb80%wlp82s0
             }
             this.rinfo = info
+            //Application data (not STUN, whose first byte is 0 to 3) from the address: the other side sends on the pair
+            if (this.connectOnReceive && data[0] > 3 && info.port === this.connectOnReceive[1] && info.address === this.connectOnReceive[0]) this.connectNow(this.connectOnReceive)
             try {
                 this.onData(data, [info.address, info.port])
             } catch (error) {
@@ -116,11 +139,89 @@ export class UdpTransport implements Transport {
         } else {
             this.socket.bind({address})
         }
-        await new Promise((r) => this.socket.once('listening', r))
+        await new Promise<void>((resolve, reject) => {
+            const failed = (error: Error) => reject(error)
+            this.socket.once('error', failed)
+            this.socket.once('listening', () => {
+                this.socket.off('error', failed)
+                resolve()
+            })
+        })
+        //A connected socket is told the errors of its address (ICMP port unreachable on Linux): they only end the
+        //packets sent there, which ICE notices
+        this.socket.on('error', (error) => log('socket error', error))
         growReceiveBuffer(this.socket)
     }
 
+    /**
+     * Send only to an address from now on (the other side of the pair ICE selected), once application data comes from
+     * it: the other side sends its data on the pair then (a reply to a check does not tell it). Connected, the socket
+     * sends without the lookup and the routing of the address of each packet, and drops what it is asked to send
+     * elsewhere; the system drops the packets of the other addresses
+     * @param addr An IP address
+     */
+    connectTo(addr: Address) {
+        if (this.closed || this.connected || this.waiting || !net.isIP(addr[0])) return
+        this.connectOnReceive = addr
+    }
+
+    /**
+     * Send to any address again
+     */
+    disconnect() {
+        this.connectOnReceive = undefined
+        this.connecting = undefined
+        if (!this.connected) return
+        this.connected = undefined
+        try {
+            this.socket.disconnect()
+        } catch (error) {
+            log('disconnect', error)
+        }
+    }
+
+    private connectNow(addr: Address) {
+        this.connectOnReceive = undefined
+        this.connecting = addr
+        const waiting: [Buffer, Address | undefined][] = []
+        this.waiting = waiting
+        const done = (error?: Error) => {
+            if (this.waiting === waiting) this.waiting = undefined
+            //Disconnected meanwhile
+            const wanted = this.connecting === addr
+            if (wanted) this.connecting = undefined
+            if (this.closed) return
+            if (error) {
+                log('connect', addr, error)
+            } else if (wanted) {
+                this.connected = addr
+            } else {
+                this.socket.disconnect()
+            }
+            for (const [data, to] of waiting) this.send(data, to).catch((error) => log('send', error))
+        }
+        try {
+            this.socket.connect(addr[1], addr[0], done)
+        } catch (error) {
+            done(error as Error)
+        }
+    }
+
     send = async (data: Buffer, addr?: Address) => {
+        const connected = this.connected
+        if (connected) {
+            if (!addr || sameAddress(addr, connected)) {
+                this.socket.send(data)
+            } else {
+                //Another pair: a check retransmitted after the selection, which the connected socket cannot send
+                log('not sent to an address other than the connected one', addr)
+            }
+            return
+        }
+        if (this.waiting) {
+            this.waiting.push([data, addr])
+            return
+        }
         if (addr && !net.isIP(addr[0])) {
             // if address is not resolved, need to use send callback to handle dns failure.
             return new Promise<void>((r, f) => {
@@ -161,6 +262,10 @@ export class UdpTransport implements Transport {
     close = () =>
         new Promise<void>((r) => {
             this.closed = true
+            this.connectOnReceive = undefined
+            this.connecting = undefined
+            this.connected = undefined
+            this.waiting = undefined
             this.socket.once('close', r)
             try {
                 this.socket.close()
