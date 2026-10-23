@@ -1,6 +1,6 @@
 # Lakutata 服务调用
 
-服务动作（`@ServiceAction`）通过消息而不是 URL 来调用：消息是一个对象，其中一部分键用来选择动作，称为**模式**，其余的键就是输入。同一组动作可以同时通过多种传输方式提供：本指南介绍的普通 HTTP、Socket.IO、JSON-RPC 2.0（基于 HTTP、WebSocket 或标准输入输出）和 Electron 的 IPC，以及在各自指南中介绍的 gRPC 和 NATS。控制器及其动作见 [Controllers](Controllers.md)，入口及其适配器见 [Entrypoint](Entrypoint.md)。
+服务动作（`@ServiceAction`）通过消息而不是 URL 来调用：消息是一个对象，其中一部分键用来选择动作，称为**模式**，其余的键就是输入。同一组动作可以同时通过多种传输方式提供：本指南介绍的普通 HTTP、Socket.IO、JSON-RPC 2.0（基于 HTTP、WebSocket 或标准输入输出）和 Electron 的 IPC，以及在各自指南中介绍的 gRPC、NATS 和 WebRTC 的数据通道。控制器及其动作见 [Controllers](Controllers.md)，入口及其适配器见 [Entrypoint](Entrypoint.md)。
 
 ## 1. 第一个服务
 
@@ -167,6 +167,7 @@ export async function call<T>(message: Record<string, unknown>): Promise<T> {
 | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | （Electron） | `ipcRenderer.invoke()` | IPC 消息 |
 | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | 见 [GRPC](GRPC.md) | gRPC 流 |
 | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | 见 [NATS](NATS.md) | NATS 消息 |
+| `webrtcServiceEntrypoint()` | `@lakutata/webrtc` | `@lakutata/webrtc` | 数据通道上的 JSON-RPC 2.0 请求，见 [WebRTC](WebRTC.md) | 通知 |
 
 每个适配器还接受 `name`，用来区分多个适配器，以及 `middlewares`，在入口的中间件之后执行（见 [Middlewares](Middlewares.md)）。
 
@@ -418,6 +419,7 @@ contextBridge.exposeInMainWorld('service', {
 | 基于 WebSocket 的 JSON-RPC | 连接的 `id` 请求头或 `id` 查询参数，否则为随机 id |
 | 基于 stdio 的 JSON-RPC | `'stdio'` |
 | Electron | 页面在订阅或调用时给出的 id |
+| WebRTC | 调用方在房间里的成员 id |
 
 动作从 `this.context.clientId` 读取它的客户端 id。`entrypoint` 组件负责推送事件：
 
@@ -451,9 +453,10 @@ class TaskController extends Controller {
 | Socket.IO | `socket.on('progress', (percent, label) => …)` |
 | JSON-RPC（WebSocket、stdio） | `{"jsonrpc": "2.0", "method": "progress", "params": [50, "half"]}` |
 | Electron | 通过上面预加载脚本中的 `subscribe` 收到 `('progress', [50, 'half'])` |
+| WebRTC | `PeerServiceProxy` 的 `proxy.on('progress', (percent, label) => …)` |
 
 ## 6. 停止与离开
 
 - 应用停止时，新的请求以 `EntrypointStoppedException`（`E_ENTRYPOINT_STOPPED`；JSON-RPC 中错误码为 `-32001`）失败，正在处理的请求有入口的 `shutdownTimeout` 来完成（见 [Entrypoint](Entrypoint.md) 第 4 节）。
-- 客户端在收到响应之前离开时（socket 断开、窗口关闭、HTTP 连接关闭），它的请求的 `this.signal` 会被中止。
+- 客户端在收到响应之前离开时（socket 断开、窗口关闭、HTTP 连接关闭、数据通道关闭），它的请求的 `this.signal` 会被中止。
 - 传输方式不限制调用的时间：客户端自己设置超时，比如上文的 `socket.timeout(5000)`。

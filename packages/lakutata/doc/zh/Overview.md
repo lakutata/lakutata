@@ -78,7 +78,7 @@
 | [Security](Security.md) | 哈希、加解密、签名、密码 |
 | [DBus](DBus.md) | D-Bus 服务和客户端（`@lakutata/dbus`）：方法、对象、属性、信号 |
 | [MCP](MCP.md) | 模型上下文协议（`@lakutata/mcp`）的工具、资源和提示词，基于 stdio 和 HTTP |
-| [WebRTC](WebRTC.md) | 点对点连接和媒体服务器（`@lakutata/webrtc`）：信令、TURN 服务器、浏览器和应用、WHIP 和 WHEP |
+| [WebRTC](WebRTC.md) | 点对点连接和媒体服务器（`@lakutata/webrtc`）：信令、TURN 服务器、浏览器和应用、通过数据通道调用应用的动作、WHIP 和 WHEP |
 | [Command](Command.md) | `lakutata` 命令：创建项目、迁移、翻译、环境变量 |
 | [Workspaces](Workspaces.md) | 由多个包组成的项目：运行各个包的脚本、统一版本号、添加包 |
 | [NativeAddons](NativeAddons.md) | 用 C++ 或 Rust 编写的原生插件：创建、链接库、发布 |

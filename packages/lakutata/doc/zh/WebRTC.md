@@ -8,8 +8,8 @@ npm install lakutata @lakutata/webrtc
 
 | 入口 | 运行在 | 提供什么 |
 |---|---|---|
-| `@lakutata/webrtc` | Node.js、Electron 的主进程、Bun | `Signaling`、`SignalingController`、`TURNServer`、`SignalingClient`、`PeerConnection`、`MediaTrack`、`SFU`、`WHIP`、`WHIPController`、`WHEP`、`WHEPController`、`Cluster`、`ChunkedChannel` |
-| `@lakutata/webrtc/client` | 浏览器、Electron 的渲染进程 | `SignalingConnection`、`ChunkedChannel`、协议的类型 |
+| `@lakutata/webrtc` | Node.js、Electron 的主进程、Bun | `Signaling`、`SignalingController`、`TURNServer`、`SignalingClient`、`PeerConnection`、`MediaTrack`、`SFU`、`WHIP`、`WHIPController`、`WHEP`、`WHEPController`、`Cluster`、`webrtcServiceEntrypoint`、`PeerServiceProxy`、`ChunkedChannel` |
+| `@lakutata/webrtc/client` | 浏览器、Electron 的渲染进程 | `SignalingConnection`、`PeerServiceProxy`、`ChunkedChannel`、协议的类型 |
 
 浏览器入口只使用浏览器的接口；前端安装同一个包，框架不会随之安装。
 
@@ -148,6 +148,76 @@ export class Telemetry extends Component {
 ```
 
 `http:` 或 `https:` 的 URL 使用 Socket.IO（需要安装 `socket.io-client`），`ws:` 或 `wss:` 的 URL 使用 Node.js 22 和 Bun 自带的 `WebSocket` 走 JSON-RPC。它的选项：`url`、`id`（默认是随机的 UUID）、`path`（Socket.IO 的路径）、`auth`（Socket.IO 握手的更多字段，比如令牌）、`timeout`，以及它的连接的选项（`iceTransportPolicy`、`icePortRange`、`iceAdditionalHostAddresses`、`codecs`）。它是 `@Transient` 的：每次 `getObject()` 都得到一个新的客户端，`close()` 会离开它的房间并断开连接。
+
+### 调用应用的动作
+
+`webrtcServiceEntrypoint()` 让应用所在房间里的成员通过和应用之间的点对点连接，调用应用的服务动作（`@ServiceAction`）：另一个网络里的浏览器可以直接调用设备上的动作，调用不经过服务器。它是 entrypoint 的 `service` 通道的适配器，和 [Service Calls](ServiceCalls.md) 里的适配器一样：动作的输入校验、访问控制和中间件照常生效，同一组动作也可以同时通过 Socket.IO 或 JSON-RPC 提供。
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {ServiceAction} from 'lakutata/decorator/ctrl'
+import {webrtcServiceEntrypoint} from '@lakutata/webrtc'
+
+class DoorController extends Controller {
+    @ServiceAction({method: 'door.open'})
+    public async open(input: {door: string}): Promise<string> {
+        return `${input.door} is open`
+    }
+}
+
+Application.run({
+    id: 'door.device',
+    name: 'Door',
+    components: {
+        entrypoint: buildEntrypoints({
+            controllers: [DoorController],
+            //设备以成员 door-7 的身份加入房间 door-7
+            service: webrtcServiceEntrypoint({
+                signaling: {url: 'https://meet.example.com', id: 'door-7'},
+                rooms: ['door-7']
+            })
+        })
+    },
+    bootstrap: ['entrypoint']
+})
+```
+
+房间里的成员建一条标签为 `service`、通往设备的数据通道，再用 `PeerServiceProxy` 通过它调用。包的两个入口都导出了 `PeerServiceProxy`：
+
+```typescript
+import {PeerServiceProxy, type Peer, type Room} from '@lakutata/webrtc/client'
+
+declare const room: Room
+room.on('peer', (peer: Peer): void => {
+    if (peer.id !== 'door-7') return
+    const door: PeerServiceProxy = new PeerServiceProxy(peer.createDataChannel('service'))
+    door.on('opened', (by: string): void => console.log(`opened by ${by}`))
+    door.invoke({method: 'door.open', door: 'front'}).then((result: string): void => console.log(result))
+})
+```
+
+- `invoke(input, timeout)` 把输入的 `method` 作为 JSON-RPC 请求的方法，其余字段作为参数发出（要换成别的字段，两端的 `methodField` 设成同一个），返回动作的结果。失败时抛出 `PeerServiceError`：它的 `errno` 是动作抛出的错误的 `errno`（`E_ACCESS_DENY`、`E_INVALID_VALUE` 等），`code` 是 JSON-RPC 的错误码，`data` 是完整的错误对象；没有收到响应时，`errno` 是 `E_PEER_SERVICE_TIMEOUT`（默认等 10 分钟）或 `E_PEER_SERVICE_CLOSED`。通道打开之前发出的调用会等它打开。
+- `this.context.clientId` 是调用方的成员 id。`webrtcRequestOfContext(this.context)` 给出调用方的 `peer`（包括它的 metadata）、调用经过的 `room` 和数据通道 `channel`。`entrypoint.notify(memberId, event, ...args)` 把事件推给这个成员的通道，`broadcast()` 推给所有通道；代理的 `on`、`once`、`off` 接收这些事件。
+- 房间在应用启动完成后才加入，所以信令服务器可以和它在同一个应用里。加入不了的房间会报给 `onError`（默认写进应用的日志），1 秒后再试，之后每次间隔翻倍，最长 10 秒；信令拒绝的房间不再重试。
+- 通道关闭时（成员离开了），它上面进行中的请求会被中止：动作的 `this.signal` 会触发。应用停止时，新的请求以错误码 `-32001` 失败，进行中的请求照常应答，然后通道关闭。
+- 和其他服务适配器一样，这个适配器提供它的 entrypoint 的所有服务动作，只有信令的动作除外：只给成员调用的动作请放在单独的 entrypoint 里，或者用规则、中间件加以限制。其他标签的通道留给应用自己处理。
+- 在有媒体服务器的房间里，通道经过服务器，服务器能看到消息；只想让双方看到的调用，请用没有媒体服务器的房间。
+
+`webrtcServiceEntrypoint()` 的选项：
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `signaling` | — | 适配器自己创建的 `SignalingClient` 的选项，适配器停止时关闭它 |
+| `client` | — | 代替 `signaling`：一个返回应用自己的客户端的函数，用于应用也要用这个客户端的情况（同一个 id 的两个客户端会在房间里互相顶替）；适配器不会离开它的房间，也不会关闭它 |
+| `rooms` | — | 允许其成员调用的房间；客户端已经加入的房间按原样提供服务 |
+| `metadata` | — | 应用在它加入的房间里的 metadata |
+| `label` | `'service'` | 承载调用的通道的标签 |
+| `limit` | 10 MiB | 请求的最大大小；更大的请求以错误码 `-32600` 应答 |
+| `methodField`、`toPattern`、`positionalParams` | `'method'` | 请求怎样对应到动作，和 `jsonRPCServiceEntrypoint()` 一样 |
+| `onError` | 应用的日志 | 加入不了房间时，以错误调用它 |
+
+成员 id 的可信程度取决于信令服务器。服务器用它所知道的 id 转发每个成员的信号，所以一个成员冒充不了另一个成员；但这个 id 是成员连接服务器时的客户端 id，由客户端自己给出，metadata 也是成员自己给的。在动作根据 `clientId` 决定谁能调用之前，要让信令服务器先核实它的客户端：用中间件做认证，用 `authorize` 决定谁能加入哪个房间（第 2 节）。
 
 ## 6. 不用信令的对等连接
 
@@ -890,6 +960,7 @@ export class Viewers extends Component {
 - 一对成员里，id 排在前面（按字符串比较）的一方是“礼让”的一方：双方同时发出 offer 时，它放弃自己的 offer，回答对方的。
 - 媒体服务器相关的字段都由服务端设置：`role` 对媒体服务器是 `sfu`，对 WHIP 推流是 `whip`（客户端没有这个字段）；`sfu` 是一个成员所连的媒体服务器的 id，在 `webrtc.join` 的返回里是客户端要连的那个。在有媒体服务器的房间里，客户端只连接它，并且在和它的连接里做礼让的一方。媒体服务器发出的 description 带有 `streams`：它发出的每个流在这条连接上的 `id`、来自哪个成员（`peerId`），以及这个流在那个成员自己的连接上的 id（`stream`）。
 - 在和媒体服务器的连接上，1023 号数据通道（标签 `webrtc.control`，两边都用 `negotiated: true` 和这个 `id` 创建）传 JSON 格式的 `{type: 'pause' | 'resume', mid}`：服务器暂停或恢复发送这个收发器的轨道。经过服务器发给某个成员的数据通道，`protocol` 是那个成员的 id；服务器在那个成员一侧打开通道时，`protocol` 写的是发送方的 id。各节点的媒体服务器之间也用 1023 号通道，以及 `protocol` 为 JSON 格式 `["发送方", "成员"]` 的通道。
+- `webrtcServiceEntrypoint()` 的调用（第 5 节）是一条标签为 `service`、可靠有序、由调用方建立的数据通道上的 JSON-RPC 2.0 消息。每条消息按 `ChunkedChannel` 的方式切成帧：每帧是一条二进制消息，第一个字节是标志（1 表示一条消息的最后一帧，2 表示文本消息），其余字节是消息的下一段（这个包每段最多 16 KiB）。一次调用是一条文本消息：它的各帧标志是 2，最后一帧是 3。响应和事件（`params` 为事件参数的通知）以同样的方式发回。
 - 错误带有服务端异常的 `errno`：`E_SIGNALING_DENIED`、`E_SIGNALING_LIMIT`（房间满了，或者没有媒体服务器肯接收这个成员）、`E_SIGNALING_NOT_A_MEMBER`、`E_SIGNALING_CLIENT_REQUIRED`、`E_INVALID_VALUE`。HTTP 上的 JSON-RPC 不能承载信令：事件需要通过一条连接推送。
 
 ## 15. 连接失败时

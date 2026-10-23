@@ -8,8 +8,9 @@ it installs without a compiler and runs in Node.js, the main process of Electron
 - `@lakutata/webrtc`, for the applications: the signaling (rooms whose members exchange their offers, answers and
   candidates), a STUN and TURN server, a media server (SFU) for the rooms of many members, publishing with WHIP and
   playing with WHEP, and the peer connections of Node.js (data channels, audio and video tracks), with the same
-  interface as `RTCPeerConnection` in the browsers. The instances of an application work together through NATS or
-  Redis, their media servers included.
+  interface as `RTCPeerConnection` in the browsers. The members of the rooms an application joins can call its service
+  actions through data channels. The instances of an application work together through NATS or Redis, their media
+  servers included.
 - `@lakutata/webrtc/client`, for the browsers and the renderer of Electron: it connects the browser's own
   `RTCPeerConnection` to the signaling. It uses only the browser's APIs, so a frontend bundling it gets no server code.
 
@@ -131,6 +132,45 @@ const transfer: ChunkedChannel = new ChunkedChannel(channel)
 transfer.on('message', (data: string | Uint8Array): void => console.log(`${data.length} received`))
 await transfer.send(new Uint8Array(50 * 1024 * 1024))
 ```
+
+Calling the actions of an application: `webrtcServiceEntrypoint()` serves the service actions (`@ServiceAction`) of
+an application to the members of its rooms, through data channels to it, with their input validation and access
+control. The calls are JSON-RPC 2.0 messages; a member makes them with `PeerServiceProxy`:
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {ServiceAction} from 'lakutata/decorator/ctrl'
+import {PeerServiceProxy, webrtcServiceEntrypoint, type Peer} from '@lakutata/webrtc'
+
+class DoorController extends Controller {
+    @ServiceAction({method: 'door.open'})
+    public async open(input: {door: string}): Promise<string> {
+        return `${input.door} is open`
+    }
+}
+
+//The device: the member door-7 of the room door-7
+Application.run({
+    id: 'door.device',
+    name: 'Door',
+    components: {
+        entrypoint: buildEntrypoints({
+            controllers: [DoorController],
+            service: webrtcServiceEntrypoint({signaling: {url: 'https://meet.example.com', id: 'door-7'}, rooms: ['door-7']})
+        })
+    },
+    bootstrap: ['entrypoint']
+})
+
+//Another member of the room (a browser imports PeerServiceProxy from @lakutata/webrtc/client)
+declare const peer: Peer
+const door: PeerServiceProxy = new PeerServiceProxy(peer.createDataChannel('service'))
+console.log(await door.invoke({method: 'door.open', door: 'front'}))
+```
+
+A call's client id is the member id of the caller: have the signaling server authenticate its clients before the
+actions rely on it.
 
 Audio and video: a browser publishes the tracks of its camera and microphone in the room, and gets the tracks of each
 other member with the `track` event of its peer.
@@ -388,6 +428,8 @@ of the media server.
 | `WHEPController` | The HTTP interface of WHEP: `/whep/:stream` |
 | `Room`, `Peer` | A room joined, and another member with the connection to it |
 | `ChunkedChannel` | Messages of any size over a data channel |
+| `webrtcServiceEntrypoint`, `webrtcRequestOfContext` | The service actions of an application called through the data channels of its rooms, and the member behind a call |
+| `PeerServiceProxy`, `PeerServiceError` (also `/client`) | The calls of these actions: `invoke()`, and `on()` for the events pushed |
 | `setDebugHandler` | The debug messages of ICE, DTLS, SCTP and TURN |
 | `SignalingMethod`, `SignalingEvent` | The names of the requests and of the events of the protocol |
 | `SignalingConnection` (`/client`) | The signaling of a browser: `join()`, `close()` |
@@ -399,7 +441,7 @@ of the media server.
 | `SignalingDeniedException` | `authorize` refuses the room |
 | `SignalingLimitException` | A full room, a member no media server takes, a signal too large, too many signals |
 | `SignalingNotAMemberException` | A signal from or to someone who is not in the room |
-| `SignalingClientRequiredException` | A request without a connection to push the events through (HTTP) |
+| `SignalingClientRequiredException` | A request without a connection to push the events through (HTTP), or through a data channel of `webrtcServiceEntrypoint` |
 | `SignalingConnectionException` | `SignalingClient` without `socket.io-client`, or without `WebSocket` |
 | `WHIPDeniedException` | `authorize` refuses the stream (401) |
 | `WHIPLimitException` | `maxSessions` sessions already (503) |
@@ -415,6 +457,7 @@ of the media server.
 | `ClusterTimeoutException` | `Cluster.request()` not answered in time |
 | `ClusterTransportNotFoundException` | A cluster on NATS or Redis without the package `nats` or `ioredis` |
 | `SignalingRequestError` | On the clients: the error of a request, with the `errno` of the server's exception |
+| `PeerServiceError` | On the members: the error of a call of `PeerServiceProxy`, with the `errno` of the action's error |
 
 ## Testing
 

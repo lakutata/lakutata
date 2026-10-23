@@ -3,8 +3,9 @@
 A service action (`@ServiceAction`) is called with a message rather than a URL: an object whose keys select the action,
 its **pattern**, and whose other keys are the input. The same actions can be served over several transports at once:
 plain HTTP, Socket.IO, JSON-RPC 2.0 (over HTTP, WebSocket or the standard input and output) and the IPC of Electron, as
-this guide describes, and gRPC and NATS, which have their own guides. The controllers and their actions are described
-in [Controllers](Controllers.md), the entrypoint and its adapters in [Entrypoint](Entrypoint.md).
+this guide describes, and gRPC, NATS and the data channels of WebRTC, which have their own guides. The controllers and
+their actions are described in [Controllers](Controllers.md), the entrypoint and its adapters in
+[Entrypoint](Entrypoint.md).
 
 ## 1. A first service
 
@@ -180,6 +181,7 @@ export async function call<T>(message: Record<string, unknown>): Promise<T> {
 | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) | `ipcRenderer.invoke()` | IPC messages |
 | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | See [GRPC](GRPC.md) | gRPC streams |
 | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | See [NATS](NATS.md) | NATS messages |
+| `webrtcServiceEntrypoint()` | `@lakutata/webrtc` | `@lakutata/webrtc` | A JSON-RPC 2.0 request on a data channel, see [WebRTC](WebRTC.md) | Notifications |
 
 Each adapter also takes `name`, to tell several adapters apart, and `middlewares`, run after those of the entrypoint
 (see [Middlewares](Middlewares.md)).
@@ -459,6 +461,7 @@ The transports that keep their clients connected can push events to them. A clie
 | JSON-RPC over WebSocket | The `id` header or `id` query parameter of the connection, else a random id |
 | JSON-RPC over stdio | `'stdio'` |
 | Electron | The id the page gives when it subscribes or invokes |
+| WebRTC | The member id of the caller in its room |
 
 An action reads the id of its client in `this.context.clientId`. The `entrypoint` component pushes the events:
 
@@ -493,12 +496,13 @@ A client receives `notify(clientId, 'progress', 50, 'half')` as:
 | Socket.IO | `socket.on('progress', (percent, label) => …)` |
 | JSON-RPC (WebSocket, stdio) | `{"jsonrpc": "2.0", "method": "progress", "params": [50, "half"]}` |
 | Electron | `('progress', [50, 'half'])`, through the `subscribe` of the preload script above |
+| WebRTC | `proxy.on('progress', (percent, label) => …)` of a `PeerServiceProxy` |
 
 ## 6. Stopping and leaving
 
 - When the application stops, the new requests fail with `EntrypointStoppedException` (`E_ENTRYPOINT_STOPPED`; the
   code `-32001` over JSON-RPC), and the requests in progress get the `shutdownTimeout` of the entrypoint (see
   [Entrypoint](Entrypoint.md), section 4).
-- When a client leaves before its response (a socket disconnected, a window closed, an HTTP connection closed), the
-  `this.signal` of its request is aborted.
+- When a client leaves before its response (a socket disconnected, a window closed, an HTTP connection closed, a data
+  channel closed), the `this.signal` of its request is aborted.
 - The transports set no time limit to the calls: a client sets its own, such as `socket.timeout(5000)` above.

@@ -4,7 +4,7 @@
 
 [lakutata](https://www.npmjs.com/package/lakutata) 框架的 WebRTC，用 TypeScript 编写，没有原生代码：安装时不需要编译器，能在 Node.js、Electron 的主进程和 Bun 中运行。它有两个入口：
 
-- `@lakutata/webrtc`，给应用用：信令（房间里的成员互相交换 offer、answer 和候选地址）、STUN 和 TURN 服务器、给人多的房间用的媒体服务器（SFU）、用 WHIP 推流和用 WHEP 拉流，以及 Node.js 端的对等连接（数据通道、音视频轨道），接口和浏览器的 `RTCPeerConnection` 一致。应用的多个实例可以通过 NATS 或 Redis 协同工作，媒体服务器也是。
+- `@lakutata/webrtc`，给应用用：信令（房间里的成员互相交换 offer、answer 和候选地址）、STUN 和 TURN 服务器、给人多的房间用的媒体服务器（SFU）、用 WHIP 推流和用 WHEP 拉流，以及 Node.js 端的对等连接（数据通道、音视频轨道），接口和浏览器的 `RTCPeerConnection` 一致。应用所在房间里的成员可以通过数据通道调用应用的服务动作。应用的多个实例可以通过 NATS 或 Redis 协同工作，媒体服务器也是。
 - `@lakutata/webrtc/client`，给浏览器和 Electron 的渲染进程用：把浏览器自带的 `RTCPeerConnection` 接到信令上。它只使用浏览器的接口，前端打包它时不会带上服务端代码。
 
 协议的实现（ICE、DTLS、SCTP 和数据通道、RTP 和 SRTP、STUN 和 TURN 服务器）改编自 [werift](https://github.com/shinyoshiaki/werift-webrtc)，见 `THIRD_PARTY_NOTICES.md`。
@@ -106,6 +106,42 @@ const transfer: ChunkedChannel = new ChunkedChannel(channel)
 transfer.on('message', (data: string | Uint8Array): void => console.log(`${data.length} received`))
 await transfer.send(new Uint8Array(50 * 1024 * 1024))
 ```
+
+调用应用的动作：`webrtcServiceEntrypoint()` 通过通往应用的数据通道，把应用的服务动作（`@ServiceAction`）提供给它所在房间的成员，输入校验和访问控制照常生效。调用是 JSON-RPC 2.0 消息，成员用 `PeerServiceProxy` 发起：
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {ServiceAction} from 'lakutata/decorator/ctrl'
+import {PeerServiceProxy, webrtcServiceEntrypoint, type Peer} from '@lakutata/webrtc'
+
+class DoorController extends Controller {
+    @ServiceAction({method: 'door.open'})
+    public async open(input: {door: string}): Promise<string> {
+        return `${input.door} is open`
+    }
+}
+
+//设备：房间 door-7 里的成员 door-7
+Application.run({
+    id: 'door.device',
+    name: 'Door',
+    components: {
+        entrypoint: buildEntrypoints({
+            controllers: [DoorController],
+            service: webrtcServiceEntrypoint({signaling: {url: 'https://meet.example.com', id: 'door-7'}, rooms: ['door-7']})
+        })
+    },
+    bootstrap: ['entrypoint']
+})
+
+//房间里的另一个成员（浏览器从 @lakutata/webrtc/client 导入 PeerServiceProxy）
+declare const peer: Peer
+const door: PeerServiceProxy = new PeerServiceProxy(peer.createDataChannel('service'))
+console.log(await door.invoke({method: 'door.open', door: 'front'}))
+```
+
+调用的客户端 id 是调用方的成员 id：在动作依赖它之前，要让信令服务器先认证它的客户端。
 
 音视频：浏览器把摄像头和麦克风的轨道发布到房间里，通过每个 peer 的 `track` 事件拿到其他成员的轨道。
 
@@ -308,6 +344,8 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 | `WHEPController` | WHEP 的 HTTP 接口：`/whep/:stream` |
 | `Room`、`Peer` | 加入的房间，以及另一个成员和到它的连接 |
 | `ChunkedChannel` | 在数据通道上传任意大小的消息 |
+| `webrtcServiceEntrypoint`、`webrtcRequestOfContext` | 通过房间里的数据通道调用应用的服务动作，以及一次调用背后的成员 |
+| `PeerServiceProxy`、`PeerServiceError`（`/client` 也有） | 调用这些动作：`invoke()`，以及接收推送事件的 `on()` |
 | `setDebugHandler` | ICE、DTLS、SCTP 和 TURN 的调试信息 |
 | `SignalingMethod`、`SignalingEvent` | 协议里请求和事件的名称 |
 | `SignalingConnection`（`/client`） | 浏览器端的信令：`join()`、`close()` |
@@ -319,7 +357,7 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 | `SignalingDeniedException` | `authorize` 拒绝了这个房间 |
 | `SignalingLimitException` | 房间已满、没有媒体服务器肯接收这个成员、信令太大、信令太频繁 |
 | `SignalingNotAMemberException` | 发送方或接收方不在这个房间里 |
-| `SignalingClientRequiredException` | 请求所在的连接没法推送事件（HTTP） |
+| `SignalingClientRequiredException` | 请求所在的连接没法推送事件（HTTP），或者请求经由 `webrtcServiceEntrypoint` 的数据通道发来 |
 | `SignalingConnectionException` | `SignalingClient` 缺少 `socket.io-client` 或 `WebSocket` |
 | `WHIPDeniedException` | `authorize` 拒绝了这路流（401） |
 | `WHIPLimitException` | 会话已经有 `maxSessions` 个（503） |
@@ -335,6 +373,7 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 | `ClusterTimeoutException` | `Cluster.request()` 没有按时得到答复 |
 | `ClusterTransportNotFoundException` | 集群用 NATS 或 Redis，但没有安装 `nats` 或 `ioredis` 包 |
 | `SignalingRequestError` | 客户端上请求的错误，带有服务端异常的 `errno` |
+| `PeerServiceError` | 成员端 `PeerServiceProxy` 调用的错误，带有动作抛出的错误的 `errno` |
 
 ## 测试
 

@@ -90,7 +90,7 @@ Context Protocol) and `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, 
 | [Security](Security.md) | Hashing, ciphers, signatures, passwords |
 | [DBus](DBus.md) | A D-Bus service and client (`@lakutata/dbus`): methods, objects, properties, signals |
 | [MCP](MCP.md) | The tools, resources and prompts of the Model Context Protocol (`@lakutata/mcp`), over stdio and HTTP |
-| [WebRTC](WebRTC.md) | Peer-to-peer connections and a media server (`@lakutata/webrtc`): the signaling, the TURN server, browsers and applications, WHIP and WHEP |
+| [WebRTC](WebRTC.md) | Peer-to-peer connections and a media server (`@lakutata/webrtc`): the signaling, the TURN server, browsers and applications, the actions of an application called through data channels, WHIP and WHEP |
 | [Command](Command.md) | The `lakutata` command: creating projects, migrations, translations, environment variables |
 | [Workspaces](Workspaces.md) | Projects of several packages: running their scripts, giving them a version, adding packages |
 | [NativeAddons](NativeAddons.md) | Native addons in C++ or Rust: creating them, linking libraries, shipping them |

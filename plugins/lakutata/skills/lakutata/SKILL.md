@@ -120,9 +120,10 @@ Import only from these subpaths, never from the files inside a package.
 | `lakutata/security`, `lakutata/provider/passwordHash`, `lakutata/utils` | Security, password hashes, helpers |
 
 Separate packages: `@lakutata/cli` (the `lakutata` command), `@lakutata/nats`, `@lakutata/grpc`, `@lakutata/mcp`,
-`@lakutata/dbus`, `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, a media server, peer connections, a browser
-client). The adapters and drivers need their library installed (`express`, `fastify`, `commander`, `socket.io`, `ws`,
-`pg`, `mysql2`, `better-sqlite3`, `ioredis`…): they are optional peer dependencies.
+`@lakutata/dbus`, `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, a media server, peer connections, the
+service actions of an application called through data channels, a browser client). The adapters and drivers need their
+library installed (`express`, `fastify`, `commander`, `socket.io`, `ws`, `pg`, `mysql2`, `better-sqlite3`, `ioredis`…):
+they are optional peer dependencies.
 
 ## An application
 

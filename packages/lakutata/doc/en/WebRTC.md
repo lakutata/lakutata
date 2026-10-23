@@ -12,8 +12,8 @@ npm install lakutata @lakutata/webrtc
 
 | Entry point | Runs in | What it gives |
 |---|---|---|
-| `@lakutata/webrtc` | Node.js, the main process of Electron, Bun | `Signaling`, `SignalingController`, `TURNServer`, `SignalingClient`, `PeerConnection`, `MediaTrack`, `SFU`, `WHIP`, `WHIPController`, `WHEP`, `WHEPController`, `Cluster`, `ChunkedChannel` |
-| `@lakutata/webrtc/client` | Browsers, the renderer of Electron | `SignalingConnection`, `ChunkedChannel`, the types of the protocol |
+| `@lakutata/webrtc` | Node.js, the main process of Electron, Bun | `Signaling`, `SignalingController`, `TURNServer`, `SignalingClient`, `PeerConnection`, `MediaTrack`, `SFU`, `WHIP`, `WHIPController`, `WHEP`, `WHEPController`, `Cluster`, `webrtcServiceEntrypoint`, `PeerServiceProxy`, `ChunkedChannel` |
+| `@lakutata/webrtc/client` | Browsers, the renderer of Electron | `SignalingConnection`, `PeerServiceProxy`, `ChunkedChannel`, the types of the protocol |
 
 The browser entry uses only the APIs of the browsers; a frontend installs the same package, and the framework is not
 installed with it.
@@ -195,6 +195,99 @@ An `http:` or `https:` URL uses Socket.IO (install `socket.io-client`), a `ws:` 
 (more fields of the Socket.IO handshake, a token), `timeout`, and the options of its connections (`iceTransportPolicy`,
 `icePortRange`, `iceAdditionalHostAddresses`, `codecs`). It is `@Transient`: each `getObject()` gives a new client, and
 `close()` leaves its rooms and disconnects.
+
+### Calling the actions of an application
+
+`webrtcServiceEntrypoint()` lets the members of the rooms an application joins call its service actions
+(`@ServiceAction`) over their peer-to-peer connection to it: a browser on another network calls the actions of a device
+directly, and the calls do not go through a server. It is an adapter of the entrypoint's `service` channel, like those
+of [Service Calls](ServiceCalls.md): the actions keep their input validation, access control and middlewares, and the
+same actions can be served over Socket.IO or JSON-RPC at the same time.
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {ServiceAction} from 'lakutata/decorator/ctrl'
+import {webrtcServiceEntrypoint} from '@lakutata/webrtc'
+
+class DoorController extends Controller {
+    @ServiceAction({method: 'door.open'})
+    public async open(input: {door: string}): Promise<string> {
+        return `${input.door} is open`
+    }
+}
+
+Application.run({
+    id: 'door.device',
+    name: 'Door',
+    components: {
+        entrypoint: buildEntrypoints({
+            controllers: [DoorController],
+            //The device joins the room door-7 as the member door-7
+            service: webrtcServiceEntrypoint({
+                signaling: {url: 'https://meet.example.com', id: 'door-7'},
+                rooms: ['door-7']
+            })
+        })
+    },
+    bootstrap: ['entrypoint']
+})
+```
+
+A member of the room creates a data channel labeled `service` to the device, and calls through it with
+`PeerServiceProxy`, which both entry points of the package export:
+
+```typescript
+import {PeerServiceProxy, type Peer, type Room} from '@lakutata/webrtc/client'
+
+declare const room: Room
+room.on('peer', (peer: Peer): void => {
+    if (peer.id !== 'door-7') return
+    const door: PeerServiceProxy = new PeerServiceProxy(peer.createDataChannel('service'))
+    door.on('opened', (by: string): void => console.log(`opened by ${by}`))
+    door.invoke({method: 'door.open', door: 'front'}).then((result: string): void => console.log(result))
+})
+```
+
+- `invoke(input, timeout)` sends the input's `method` as the method of a JSON-RPC request and the other fields as its
+  parameters (to use another field, give both sides the same `methodField`), and resolves to the result. It fails with a
+  `PeerServiceError`: its `errno` is the one of the action's error (`E_ACCESS_DENY`, `E_INVALID_VALUE`…), its `code`
+  the JSON-RPC code, its `data` the whole error object; or its `errno` is `E_PEER_SERVICE_TIMEOUT` (10 minutes by
+  default) or `E_PEER_SERVICE_CLOSED`. The calls made before the channel opens wait for it.
+- `this.context.clientId` is the member id of the caller. `webrtcRequestOfContext(this.context)` gives its `peer` (with
+  its metadata), the `room` it called through and the `channel`. `entrypoint.notify(memberId, event, ...args)` pushes an
+  event to the channels of that member, and `broadcast()` to every channel; `on`, `once` and `off` of the proxy receive
+  them.
+- The rooms are joined once the application has launched, so the signaling server may run in the same application. A
+  room that cannot be joined is reported to `onError` (the application's log by default) and tried again after 1
+  second, then after twice as long each time, up to 10 seconds; a room the signaling refuses is not tried again.
+- When a channel closes (its member left), its requests in progress are aborted: `this.signal` of the action fires.
+  When the application stops, the new requests fail with the code `-32001`, the requests in progress are answered, and
+  then the channels are closed.
+- The adapter serves every service action of its entrypoint, as the other service adapters do, except those of the
+  signaling: give the actions meant for the members an entrypoint of their own, or limit them with rules or
+  middlewares. The channels with another label are left to the application.
+- In a room with a media server, the channel goes through the server, which sees the messages; for calls that only the
+  two members should see, use a room without one.
+
+The options of `webrtcServiceEntrypoint()`:
+
+| Option | Default | Meaning |
+|---|---|---|
+| `signaling` | — | The options of a `SignalingClient` the adapter creates, and closes when it stops |
+| `client` | — | Instead of `signaling`, a function returning the client of the application, when the application uses it too (two clients with the same id would replace each other in the rooms); the adapter does not leave its rooms or close it |
+| `rooms` | — | The rooms whose members may call; a room the client has already joined is served as it is |
+| `metadata` | — | The metadata of the application in the rooms it joins |
+| `label` | `'service'` | The label of the channels carrying the calls |
+| `limit` | 10 MiB | The largest request; a larger one is answered with the code `-32600` |
+| `methodField`, `toPattern`, `positionalParams` | `'method'` | How a request maps to an action, as with `jsonRPCServiceEntrypoint()` |
+| `onError` | the application's log | Called with the error when a room cannot be joined |
+
+The member id is only as reliable as the signaling server makes it. The server sends the signals of each member under
+the id it knows that member by, so a member cannot pass for another one; but the id is the client id of the member's
+connection to the server, which the client gives, and the metadata is what the member gave. Before an action relies on
+`clientId` to decide who may call it, make the signaling server check its clients: authenticate them with a middleware
+and decide who joins which room with `authorize` (section 2).
 
 ## 6. Peer connections without the signaling
 
@@ -1107,6 +1200,12 @@ pushes the events to the members: Socket.IO events, or JSON-RPC notifications wh
   sending the track of that transceiver. A data channel to a member through the server has the id of that member as
   its `protocol`; the server opens the channel on the side of that member with the id of the sender. The media servers
   of the nodes use the channel 1023 between them too, and channels whose `protocol` is `["sender", "member"]` in JSON.
+- The calls of `webrtcServiceEntrypoint()` (section 5) are JSON-RPC 2.0 messages on a data channel labeled `service`,
+  ordered and reliable, which the caller creates. Each message is cut into frames as `ChunkedChannel` does: a frame is
+  a binary message whose first byte holds flags (1 for the last frame of a message, 2 for a text message) and whose
+  other bytes are the next part of the message (16 KiB at most from this package). A call is a text message: its
+  frames carry the flags 2, and the last one 3. The responses and the events (notifications whose `params` are the
+  arguments) come back the same way.
 - The errors carry the `errno` of the server's exception: `E_SIGNALING_DENIED`, `E_SIGNALING_LIMIT` (a full room, or
   a member no media server takes), `E_SIGNALING_NOT_A_MEMBER`, `E_SIGNALING_CLIENT_REQUIRED`, `E_INVALID_VALUE`.
   JSON-RPC over HTTP cannot carry the signaling: the events need a connection to be pushed through.
