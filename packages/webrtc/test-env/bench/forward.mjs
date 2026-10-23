@@ -1,24 +1,30 @@
 //The benchmark of the forwarding of media: publishers send video to a server, which forwards each track to every
-//subscriber. The server runs in this process, the publishers and the subscribers in a child process: the CPU measured is
-//the one of the server only. Each publisher sends about the bit rate of 720p: 200 packets of 1250 bytes a second.
+//subscriber. The server runs in this process, the publishers and the subscribers in a child process: the CPU measured
+//is the one of the server only. Each publisher sends about the bit rate of 720p: 200 packets of 1250 bytes a second.
 //
-//   npm run compile && node test-env/bench/forward.mjs [--sfu [--rooms 1] [--workers 0] [--nodes 1]] [--publishers 2]
-//                                                      [--subscribers 4] [--seconds 10] [--no-extensions]
+//   npm run compile && node test-env/bench/forward.mjs [--sfu [--rooms 1] [--workers 0 [--young MiB]] [--nodes 1]]
+//       [--publishers 2] [--subscribers 4] [--seconds 10] [--no-extensions]
 //
 //The server is a relay forwarding a track it receives by adding it to the connections of the subscribers, or with --sfu
 //the media server (SFU) of rooms of the signaling, the members being SignalingClients (the publishers receive nothing):
-//--rooms rooms of --publishers and --subscribers each, the members of each in a child process of its own, forwarded in the
-//main thread or in --workers worker threads. With --nodes 2, the server is two nodes of a cluster in this process, the
-//publishers on the media server of the first one and the subscribers on the second one: each track goes once from the
-//first node to the second (cascading), and the CPU measured is the one of both nodes.
+//--rooms rooms of --publishers and --subscribers each, the members of each in a child process of its own, forwarded in
+//the main thread or in --workers worker threads, whose young generation --young caps (workerResourceLimits). With
+//--nodes 2, the server is two nodes of a cluster in this process, the publishers on the media server of the first one
+//and the subscribers on the second one: each track goes once from the first node to the second (cascading), and the CPU
+//measured is the one of both nodes. The memory is the most the process takes while measuring, with the heap of each
+//thread.
 import {fork} from 'node:child_process'
+import {getHeapStatistics} from 'node:v8'
 import {fileURLToPath} from 'node:url'
 import {parseArgs} from 'node:util'
 import {Container} from '@lakutata/core'
 import {buildEntrypoints, Entrypoint} from '@lakutata/entrypoint'
 import {socketIOServiceEntrypoint} from '@lakutata/entrypoint/adapter/socket.io'
 //WEBRTC_BENCH_DIST: the exports of another build (dist/esm/exports/WebRTC.js), to compare two builds
-const {Cluster, MediaTrack, PeerConnection, SFU, Signaling, SignalingClient, SignalingController} = await import(process.env.WEBRTC_BENCH_DIST ?? '../../dist/esm/exports/WebRTC.js')
+const exports = import.meta.resolve(process.env.WEBRTC_BENCH_DIST ?? '../../dist/esm/exports/WebRTC.js')
+const {Cluster, MediaTrack, PeerConnection, SFU, Signaling, SignalingClient, SignalingController} = await import(exports)
+//The worker threads of a media server, to read their heaps (internal)
+const {sfuWorkers} = await import(new URL('../sfu/SFUAccess.js', exports).href)
 
 const {values: options, positionals} = parseArgs({
     allowPositionals: true,
@@ -29,6 +35,7 @@ const {values: options, positionals} = parseArgs({
         seconds: {type: 'string', default: '10'},
         rooms: {type: 'string', default: '1'},
         workers: {type: 'string', default: '0'},
+        young: {type: 'string'},
         nodes: {type: 'string', default: '1'},
         'no-extensions': {type: 'boolean', default: false},
         //The room of a child process
@@ -197,6 +204,7 @@ async function sfu(container, request) {
         await own.setNamed('sfu', SFU, {
             ...cluster,
             workers: workers,
+            ...options.young ? {workerResourceLimits: {maxYoungGenerationSizeMb: Number(options.young)}} : {},
             select: (subscriber) => subscriber.peerId.includes('-subscriber-'),
             ...nodes > 1 ? {selectSFU: (placement) => placement.peerId.includes('-publisher-') ? 'node-0' : 'node-1'} : {}
         })
@@ -241,7 +249,11 @@ async function server() {
         await new Promise((resolve) => setTimeout(resolve, WARM_UP))
 
         const before = {counters: await requestAll({type: 'counters'}), cpu: process.cpuUsage(), time: performance.now()}
+        //The memory at most while measuring
+        let rss = 0
+        const sampling = setInterval(() => void (rss = Math.max(rss, process.memoryUsage().rss)), 200)
         await new Promise((resolve) => setTimeout(resolve, seconds * 1000))
+        clearInterval(sampling)
         const after = {counters: await requestAll({type: 'counters'}), cpu: process.cpuUsage(before.cpu), time: performance.now()}
         const elapsed = (after.time - before.time) / 1000
         const sent = (after.counters.sent - before.counters.sent) / elapsed
@@ -259,7 +271,11 @@ async function server() {
         console.log(`per core                 ${format(forwarded / share)} packets/s forwarded`)
         console.log(`per GiB of payload       ${format(cpu / (bytes / 2 ** 30), 1)} CPU seconds`)
         console.log(`per packet forwarded     ${format(cpu * 1e6 / (forwarded * elapsed), 2)} CPU microseconds`)
-        console.log(`server memory            ${format(process.memoryUsage().rss / 2 ** 20)} MiB resident`)
+        console.log(`server memory            ${format(rss / 2 ** 20)} MiB resident at most`)
+        const mib = (heap) => heap ? `${format(heap.used_heap_size / 2 ** 20)}/${format(heap.total_heap_size / 2 ** 20)}` : '-'
+        const pools = nodes > 1 ? await Promise.all(nodeContainers.map((node) => node.get('sfu'))) : options.sfu ? [await container.get('sfu')] : []
+        const heaps = (await Promise.all(pools.map((each) => sfuWorkers.get(each)?.heaps() ?? []))).flat()
+        console.log(`heaps, used/total        main thread ${mib(getHeapStatistics())} MiB${heaps.length ? `, worker threads ${heaps.map(mib).join(', ')} MiB` : ''}`)
         //Where the members are: the publishers on the first node, the subscribers on the second one
         if (nodes > 1) {
             const counts = await Promise.all(nodeContainers.map(async (node) => Object.values((await node.get('sfu')).rooms()).reduce((sum, room) => sum + room.members.length, 0)))

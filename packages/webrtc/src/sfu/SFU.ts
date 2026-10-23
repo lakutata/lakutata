@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto'
+import {type ResourceLimits} from 'node:worker_threads'
 import {Component, type ComponentOptions, DTO} from '@lakutata/core'
 import {Configurable, Singleton} from '@lakutata/core/decorator/di'
 import type {Cluster, ClusterNode} from '../cluster/Cluster.js'
@@ -210,6 +211,14 @@ export interface SFUOptions {
      * @default 0
      */
     workers?: number
+    /**
+     * The limits of the heap and of the stack of each worker thread (`resourceLimits` of `node:worker_threads`). Each
+     * thread has a heap of its own, with the large young generation V8 gives it for speed: a smaller one
+     * (`maxYoungGenerationSizeMb`) takes less memory for a little more CPU, the garbage being collected more often. A
+     * thread reaching `maxOldGenerationSizeMb` stops, as one stopped by a bug. Bun ignores these limits.
+     * @default the limits of V8
+     */
+    workerResourceLimits?: ResourceLimits
 }
 
 /**
@@ -323,6 +332,17 @@ export class SFU extends Component {
      */
     @Configurable(DTO.Number().integer().min(0).optional().default(0))
     protected readonly workers: number
+
+    /**
+     * The limits of the heap and of the stack of each worker thread.
+     */
+    @Configurable(DTO.Object({
+        maxYoungGenerationSizeMb: DTO.Number().positive().optional(),
+        maxOldGenerationSizeMb: DTO.Number().positive().optional(),
+        codeRangeSizeMb: DTO.Number().positive().optional(),
+        stackSizeMb: DTO.Number().positive().optional()
+    }).optional())
+    protected readonly workerResourceLimits?: ResourceLimits
 
     readonly #rooms: Map<string, SFUServedRoom> = new Map()
 
@@ -816,7 +836,8 @@ export class SFU extends Component {
             emit: (event: string, ...args: unknown[]): unknown => this.emit(event, ...args),
             emptied: (room: SFUServedRoom): void => this.#leave(room),
             lost: (room: SFUServedRoom): void => this.#lost(room),
-            sourced: (viewerId: string, source: string | undefined): void => this.#sourced(viewerId, source)
+            sourced: (viewerId: string, source: string | undefined): void => this.#sourced(viewerId, source),
+            ...this.workerResourceLimits ? {resourceLimits: this.workerResourceLimits} : {}
         }, ranges.map((range: [number, number] | undefined, thread: number) => ({
             thread: thread,
             connection: {

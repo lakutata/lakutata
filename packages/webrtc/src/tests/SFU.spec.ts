@@ -1,4 +1,5 @@
 import {describe, it} from 'node:test'
+import type {ResourceLimits} from 'node:worker_threads'
 import {format} from 'node:util'
 import assert from 'node:assert'
 import {Container} from '@lakutata/core'
@@ -479,6 +480,17 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
             setDebugHandler(undefined)
             members.forEach((each: Member): void => each.stop())
             await clients.destroy()
+            await server.stop()
+        }
+    })
+
+    if (workers) it('runs its threads with the limits of heap given', {timeout: 60000, skip: process.versions.bun ? 'Bun runs worker threads without resource limits' : false}, async (): Promise<void> => {
+        const server: TestServer = await startServer({sfu: {workers: workers, workerResourceLimits: {maxYoungGenerationSizeMb: 16}}})
+        try {
+            const pool: SFUWorkers = sfuWorkers.get(server.sfu!)!
+            await pool.ready
+            assert.deepStrictEqual(pool.limits().map((limits: ResourceLimits | undefined): number | undefined => limits?.maxYoungGenerationSizeMb), Array(workers).fill(16))
+        } finally {
             await server.stop()
         }
     })

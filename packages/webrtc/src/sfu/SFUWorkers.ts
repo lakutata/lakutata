@@ -1,4 +1,5 @@
-import {Worker} from 'node:worker_threads'
+import {type HeapInfo} from 'node:v8'
+import {type ResourceLimits, Worker} from 'node:worker_threads'
 import {debug, debugHandlerWatchers, hasDebugHandler} from '../lib/common/log.js'
 import {RTCRtpCodecParameters} from '../lib/peer/media/parameters.js'
 import {RtpPacket as EngineRtpPacket} from '../lib/rtp/rtp/rtp.js'
@@ -34,6 +35,8 @@ export interface SFUWorkersHost {
     lost(room: SFUServedRoom): void
     //The source of a viewer of WHEP changed
     sourced?(viewerId: string, source: string | undefined): void
+    //The limits of the heap and the stack of each thread
+    readonly resourceLimits?: ResourceLimits
 }
 
 /**
@@ -525,13 +528,32 @@ export class SFUWorkers {
     }
 
     /**
+     * The heap of each thread (to measure the memory of the threads).
+     * @returns The statistics of the heap of each thread running, by its index.
+     * @internal
+     */
+    public async heaps(): Promise<(HeapInfo | undefined)[]> {
+        return await Promise.all(this.#slots.map((slot: Slot): Promise<HeapInfo | undefined> => slot.worker ? slot.worker.getHeapStatistics().catch((): undefined => undefined) : Promise.resolve(undefined)))
+    }
+
+    /**
+     * The limits each thread runs with.
+     * @returns The limits of each thread running, by its index.
+     * @internal
+     */
+    public limits(): (ResourceLimits | undefined)[] {
+        return this.#slots.map((slot: Slot): ResourceLimits | undefined => slot.worker?.resourceLimits)
+    }
+
+    /**
      * Start the thread of a slot
      * @param slot
      */
     #start(slot: Slot): void {
         //Running once it says so: a thread failing to start is not started again
         slot.ran = false
-        const worker: Worker = new Worker(sfuWorkerCode, {eval: true, workerData: this.#data[slot.index]})
+        const resourceLimits: ResourceLimits | undefined = this.#host.resourceLimits
+        const worker: Worker = new Worker(sfuWorkerCode, {eval: true, workerData: this.#data[slot.index], ...resourceLimits ? {resourceLimits: resourceLimits} : {}})
         slot.worker = worker
         slot.channel = new SFUWorkerChannel<SFUFromWorker, SFUToWorker>(worker, (message: SFUFromWorker): unknown => this.#handle(slot, message))
         slot.ready = new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {

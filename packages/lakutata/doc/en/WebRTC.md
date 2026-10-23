@@ -517,6 +517,7 @@ The options of `buildSFUOptions`:
 | `codecs` | Opus, PCMU, VP8, H.264, VP9 | The codecs the members may publish |
 | `icePortRange`, `iceAdditionalHostAddresses` | | The UDP ports of the connections, and the public address of the server. Each connection (a member, a stream of WHIP, a viewer of WHEP) takes a port on each address of the machine: make the range large enough for all of them |
 | `workers` | `0` | Worker threads forwarding the rooms, to use more cores |
+| `workerResourceLimits` | the limits of V8 | The limits of the heap and the stack of each worker thread (`resourceLimits` of `node:worker_threads`), to use less memory for a little more CPU (see Several cores below); Bun ignores them |
 | `cluster`, `selectSFU` | | The media servers of several nodes (section 13) |
 
 `select` is asked for each member and each track of the others, and asked again when a member joins the room again
@@ -581,16 +582,18 @@ a second), the members in other processes:
 
 | Rooms | Packets to forward | Forwarded | CPU |
 |---|---|---|---|
-| 1 room of 4 publishers and 10 subscribers, in the main thread | 7,200 a second | all | 31% of a core |
-| 4 rooms of 12 publishers and 10 subscribers each, in the main thread | about 95,000 a second | 59,300 a second | 133%: the main thread is full, the rest is the garbage collector |
-| The same 4 rooms, in 4 worker threads | about 95,000 a second | all (93,000 a second) | 257% |
+| 1 room of 4 publishers and 10 subscribers, in the main thread | 7,600 a second | all | 45% of a core |
+| 4 rooms of 12 publishers and 10 subscribers each, in the main thread | about 92,000 a second | 86,000 to 88,000 a second | 145%: the main thread is full, the rest is the garbage collector |
+| The same 4 rooms, in 4 worker threads | about 92,000 a second | all | 174% |
 
-In a Linux virtual machine on the same Mac (arm64, 10 cores), the main thread forwards more of the packets of the 4
-rooms than on macOS: 84,900 a second, at 166% of a core; 4 threads forward them all (95,000 a second, at 336%).
+In a Linux virtual machine on the same Mac (arm64, 10 cores), the main thread forwarded 84,900 of the packets of the 4
+rooms a second, at 166% of a core; 4 threads forwarded them all (95,000 a second, at 336%).
 
 A thread takes about 22 MiB and 90 ms to start. Under the load above, the process used 1.4 GiB with the threads and
-0.6 GiB without, each thread growing a heap of its own. A track forwarded from one node to another (section 13) costs
-the two nodes about 11 µs of CPU per packet: 0.2% of a core for such a video.
+0.6 GiB without: each thread has a heap of its own, with the large young generation V8 gives it for speed. With
+`workerResourceLimits: {maxYoungGenerationSizeMb: 32}`, the process used 1.0 to 1.2 GiB, for 4% more CPU (181% of a
+core instead of 174%). A track forwarded from one node to another (section 13) costs the two nodes about 11 µs of CPU
+per packet: 0.2% of a core for such a video.
 
 ## 10. Publishing with WHIP
 
