@@ -9,6 +9,9 @@ import {createRequire} from 'node:module'
 import path from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {Container} from '@lakutata/core'
+import {Inject} from '@lakutata/core/decorator/di'
+import {buildEntrypoints, Controller, Entrypoint, type ServiceContext} from '@lakutata/entrypoint'
+import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {engineConnectionOf} from '../peer/EngineConnection.js'
 import {MediaTrack} from '../peer/MediaTrack.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
@@ -17,6 +20,7 @@ import type {RtpPacket} from '../peer/RtpPacket.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
 import type {SignalingCandidate, SignalingDescription} from '../protocol/SignalingProtocol.js'
 import type {WHIPSession} from '../whip/WHIP.js'
+import {webrtcServiceEntrypoint} from '../service/WebRTCServiceEntrypoint.js'
 import {next, startServer, startWHIP, type TestServer, until} from './support/Server.js'
 
 //The browser tests use Playwright with the Chrome installed on the machine: the package playwright, else the one at
@@ -297,6 +301,55 @@ function ffmpegWithX264(): Promise<boolean> {
     })
 }
 
+/**
+ * The service actions of an application called by the pages
+ */
+class GreeterController extends Controller {
+
+    @Inject('entrypoint')
+    protected readonly entrypoint: Entrypoint
+
+    @ServiceAction({method: 'greet'})
+    public async greet(input: {name: string}): Promise<string> {
+        const clientId: string = (this.context as ServiceContext).clientId!
+        this.entrypoint.notify(clientId, 'greeted', input.name)
+        return `hello ${input.name}, ${clientId}`
+    }
+
+    @ServiceAction({method: 'large'})
+    public async large(input: {size: number}): Promise<string> {
+        return 'x'.repeat(input.size)
+    }
+}
+
+/**
+ * The code of a page calling the service actions of the member device through a data channel: it resolves with the
+ * results, the event pushed to it and the error code of an unknown method
+ * @param signaling
+ */
+function callerScript(signaling: string): string {
+    return `(async () => {
+        const {SignalingConnection, PeerServiceProxy} = await import('/exports/Client.js')
+        const socket = (await import('/socket.io.js')).io(${JSON.stringify(signaling)}, {auth: {id: 'chrome'}, transports: ['websocket']})
+        const room = await new SignalingConnection(socket).join('device')
+        const peer = await new Promise((resolve) => room.on('peer', (each) => {
+            if (each.id === 'device') resolve(each)
+        }))
+        const device = new PeerServiceProxy(peer.createDataChannel('service'))
+        const greeted = new Promise((resolve) => device.once('greeted', resolve))
+        const greeting = await device.invoke({method: 'greet', name: 'page'}, 20000)
+        const event = await greeted
+        const large = await device.invoke({method: 'large', size: 500000}, 20000)
+        let code
+        try {
+            await device.invoke({method: 'nothing'}, 20000)
+        } catch (error) {
+            code = error.code
+        }
+        return {greeting: greeting, event: event, large: large.length, code: code}
+    })()`
+}
+
 describe('Browser', (): void => {
 
     it('connects Chrome (Socket.IO) and an application, a data channel between them', {timeout: 60000}, async (t: TestContext): Promise<void> => {
@@ -325,6 +378,29 @@ describe('Browser', (): void => {
             await chrome.close()
             files.server.close()
             await clients.destroy()
+            await server.stop()
+        }
+    })
+
+    it('calls the service actions of an application from Chrome through a data channel, and gets its events', {timeout: 60000}, async (t: TestContext): Promise<void> => {
+        const chrome: Browser | undefined = await launchChrome()
+        if (!chrome) return t.skip('Playwright or Chrome is not available')
+        const files: {url: string, server: Server} = await staticServer()
+        const server: TestServer = await startServer()
+        const application: Container = new Container()
+        try {
+            await application.setNamed<Entrypoint>('entrypoint', Entrypoint, buildEntrypoints({
+                controllers: [GreeterController],
+                service: webrtcServiceEntrypoint({signaling: {url: server.socketIO, id: 'device'}, rooms: ['device']})
+            }))
+            const page: BrowserPage = await chrome.newPage()
+            await page.goto(files.url)
+            const result: Record<string, unknown> = await evaluated<Record<string, unknown>>(page, callerScript(server.socketIO), 45000)
+            assert.deepStrictEqual(result, {greeting: 'hello page, chrome', event: 'page', large: 500000, code: -32601})
+        } finally {
+            await chrome.close()
+            files.server.close()
+            await application.destroy()
             await server.stop()
         }
     })
