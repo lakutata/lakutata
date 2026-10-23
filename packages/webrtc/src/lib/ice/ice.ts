@@ -930,6 +930,8 @@ export class Connection implements IceConnection {
 
     // 5.8 Scheduling Checks
     private schedulingChecks() {
+        //A pair is being nominated: no other check meanwhile (they resume if the nomination fails)
+        if (this.nominating && !this.nominated) return true
     // Ordinary Check
         {
             // # find the highest-priority pair that is in the waiting state
@@ -1534,9 +1536,10 @@ export class Connection implements IceConnection {
             const {remotePassword, remoteUsername, generation} = this
             const localUsername = pair.localCandidate.ufrag ?? this.localUsername
 
-            // TCP pairs use regular nomination (see nominateTcpPairIfReady).
-            const nominate =
-                this.iceControlling && !this.remoteIsLite && !this.isTcpPair(pair)
+            //Regular nomination (RFC 8445): the checks do not nominate, the controlling side nominates one pair afterwards.
+            //With USE-CANDIDATE on every check, each side selected the first pair succeeding on its side, and the two
+            //could select different pairs
+            const nominate = false
             const request = this.buildRequest({
                 nominate,
                 localUsername,
@@ -1633,8 +1636,8 @@ export class Connection implements IceConnection {
                 pair.nominated = true
             } else if (this.usesTcpRegularNomination(pair)) {
                 // # nominated later by nominateTcpPairIfReady (from checkComplete)
-            } else if (this.iceControlling && !this.nominating) {
-                // # perform regular nomination
+            } else if (this.iceControlling && !this.nominating && !this.nominated) {
+                // # perform regular nomination: one pair, the first succeeding
                 this.nominating = true
                 const request = this.buildRequest({
                     nominate: true,

@@ -260,6 +260,24 @@ describe('ice', () => {
         await b.close()
     })
 
+    test('the two sides select the same pair, which the controlling side alone nominates', async () => {
+        //With USE-CANDIDATE on every check, each side selected the first pair succeeding on its side: on a machine with
+        //several addresses, the two often selected different pairs
+        const a = createTestConnection(true)
+        const b = createTestConnection(false)
+        try {
+            await inviteAccept(a, b)
+            await Promise.all([a.connect(), b.connect()])
+            expect(a.nominated?.protocol.localCandidate?.port).toBe(b.nominated?.remoteAddr[1])
+            expect(b.nominated?.protocol.localCandidate?.port).toBe(a.nominated?.remoteAddr[1])
+            const nominatedByA = (b as unknown as {checkList: CandidatePair[]}).checkList.filter((pair: CandidatePair) => pair.remoteNominated)
+            expect(nominatedByA.length).toBe(1)
+        } finally {
+            await a.close()
+            await b.close()
+        }
+    })
+
     test('test_connect_tcp', async () => {
         const {a, b} = createTcpOnlyConnections()
 
