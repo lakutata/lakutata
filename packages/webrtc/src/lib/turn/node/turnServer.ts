@@ -62,6 +62,12 @@ export class NodeTurnServer {
     private readonly tcpConnections = new Map<string, TcpSocket>()
     private readonly tlsConnections = new Map<string, TLSSocket>()
     private readonly relaySockets = new Map<string, Socket>()
+    //The address of each relay socket by its port, and the port of each relay: a packet of a peer coming from one of
+    //them is known without asking each socket its address (a system call) at each packet
+    private readonly relayBoundByPort = new Map<number, AddressInfo>()
+    private readonly relayPorts = new Map<string, number>()
+    //The addresses of the interfaces of the machine, read again a second after
+    private interfaceAddresses?: {at: number, addresses: Set<string>}
     private timer?: NodeJS.Timeout
     //Set while closed: the clients closing afterwards do not arm the timer again
     private closed = false
@@ -242,6 +248,8 @@ export class NodeTurnServer {
                 })
         )
         this.relaySockets.clear()
+        this.relayBoundByPort.clear()
+        this.relayPorts.clear()
 
         await Promise.all([...relayClosers, this.closeListeners()])
     }
@@ -361,6 +369,7 @@ export class NodeTurnServer {
     }
 
     private async executeActions(actions: TurnServerAction[]) {
+        let scheduleAt: number | undefined
         for (const action of actions) {
             switch (action.type) {
                 case 'send-client':
@@ -378,12 +387,16 @@ export class NodeTurnServer {
                 case 'close-client':
                     this.closeClient(action.clientId)
                     break
+                case 'schedule-timeout':
+                    scheduleAt = action.at
+                    break
                 default:
                     break
             }
         }
 
-        this.updateTimer()
+        //The packets relayed change no expiry: the timer moves only when the protocol schedules it
+        if (scheduleAt !== undefined) this.setTimer(scheduleAt)
     }
 
     private async sendClient(
@@ -423,20 +436,8 @@ export class NodeTurnServer {
             return
         }
 
-        await new Promise<void>((resolve, reject) => {
-            this.udpSocket?.send(
-                padTurnFrame(action.data),
-                action.remoteAddress[1],
-                action.remoteAddress[0],
-                (error) => {
-                    if (error) {
-                        reject(error)
-                        return
-                    }
-                    resolve()
-                }
-            )
-        })
+        //Not waiting for the send: a datagram not sent is lost, as on the network
+        this.udpSocket.send(padTurnFrame(action.data), action.remoteAddress[1], action.remoteAddress[0])
     }
 
     private async sendRelay(
@@ -447,20 +448,8 @@ export class NodeTurnServer {
             return
         }
 
-        await new Promise<void>((resolve, reject) => {
-            relaySocket.send(
-                action.data,
-                action.remoteAddress[1],
-                action.remoteAddress[0],
-                (error) => {
-                    if (error) {
-                        reject(error)
-                        return
-                    }
-                    resolve()
-                }
-            )
-        })
+        //Not waiting for the send: a datagram not sent is lost, as on the network
+        relaySocket.send(action.data, action.remoteAddress[1], action.remoteAddress[0])
     }
 
     //A UDP socket bound to the relay address: on a free port of relayPortRange (from a random one), else on any port
@@ -502,26 +491,22 @@ export class NodeTurnServer {
             const socket = await this.bindRelaySocket()
             this.relaySockets.set(relayId, socket)
             socket.on('error', (error) => log('relay socket error', error))
+            const address = socket.address()
+            if (typeof address === 'string') {
+                throw new Error('Expected relay UDP address info')
+            }
+            this.relayBoundByPort.set(address.port, address)
+            this.relayPorts.set(relayId, address.port)
             socket.on('message', detached(async (data: Buffer, remoteInfo: RemoteInfo) => {
-                const localAddress = socket.address()
-                if (typeof localAddress === 'string') {
-                    return
-                }
-
                 await this.executeActions(
                     this.protocol.handleRelayPacket({
                         relayId,
                         data,
                         remoteAddress: this.normalizeRelayRemoteAddress(remoteInfo),
-                        localAddress: [this.relayAddress, localAddress.port]
+                        localAddress: [this.relayAddress, address.port]
                     })
                 )
             }, (error) => log('relay datagram failed', error)))
-
-            const address = socket.address()
-            if (typeof address === 'string') {
-                throw new Error('Expected relay UDP address info')
-            }
 
             await this.executeActions(
                 this.protocol.handleRelayBound({
@@ -534,6 +519,7 @@ export class NodeTurnServer {
             log('relay bind failed', error)
             const socket = this.relaySockets.get(relayId)
             this.relaySockets.delete(relayId)
+            this.forgetRelayPort(relayId)
             try {
                 socket?.close()
             } catch {
@@ -555,6 +541,7 @@ export class NodeTurnServer {
         }
 
         this.relaySockets.delete(relayId)
+        this.forgetRelayPort(relayId)
         await new Promise<void>((resolve) => {
             relaySocket.once('close', resolve)
             relaySocket.close()
@@ -575,16 +562,25 @@ export class NodeTurnServer {
     }
 
     private updateTimer() {
+        const nextTimeoutAt = this.protocol.nextTimeoutAt
+        if (nextTimeoutAt === undefined) {
+            if (this.timer) clearTimeout(this.timer)
+            this.timer = undefined
+            return
+        }
+        this.setTimer(nextTimeoutAt)
+    }
+
+    /**
+     * Run the timer of the protocol at a time
+     * @param nextTimeoutAt
+     */
+    private setTimer(nextTimeoutAt: number) {
         if (this.timer) {
             clearTimeout(this.timer)
             this.timer = undefined
         }
         if (this.closed) return
-
-        const nextTimeoutAt = this.protocol.nextTimeoutAt
-        if (nextTimeoutAt === undefined) {
-            return
-        }
 
         this.timer = setTimeout(
             detached(async () => {
@@ -599,14 +595,10 @@ export class NodeTurnServer {
         remoteInfo: Pick<RemoteInfo, 'address' | 'port'>
     ): Address {
         const remoteAddress = normalizeAddress(remoteInfo.address)
-        for (const relaySocket of this.relaySockets.values()) {
-            const address = relaySocket.address()
-            if (typeof address === 'string') {
-                continue
-            }
-            if (this.isRelaySocketAddress(address, remoteAddress, remoteInfo.port)) {
-                return [this.relayAddress, remoteInfo.port]
-            }
+        //Only a relay socket of the port of the packet can be its sender
+        const bound = this.relayBoundByPort.get(remoteInfo.port)
+        if (bound && this.isRelaySocketAddress(bound, remoteAddress, remoteInfo.port)) {
+            return [this.relayAddress, remoteInfo.port]
         }
 
         return [remoteAddress, remoteInfo.port]
@@ -635,12 +627,25 @@ export class NodeTurnServer {
             return true
         }
 
-        return Object.values(networkInterfaces())
-            .flat()
-            .some(
-                (candidate) =>
-                    candidate && normalizeAddress(candidate.address) === address
-            )
+        const now = Date.now()
+        if (!this.interfaceAddresses || now - this.interfaceAddresses.at > 1000) {
+            const addresses = new Set<string>()
+            for (const candidate of Object.values(networkInterfaces()).flat()) {
+                if (candidate) addresses.add(normalizeAddress(candidate.address))
+            }
+            this.interfaceAddresses = {at: now, addresses}
+        }
+        return this.interfaceAddresses.addresses.has(address)
+    }
+
+    /**
+     * A relay closed: its port is not one of a relay any more
+     * @param relayId
+     */
+    private forgetRelayPort(relayId: string) {
+        const port = this.relayPorts.get(relayId)
+        this.relayPorts.delete(relayId)
+        if (port !== undefined) this.relayBoundByPort.delete(port)
     }
 
     private socketType(address: string): SocketType {

@@ -404,6 +404,33 @@ describe('TurnServerProtocol', () => {
         expect(channelData.data.toString()).toBe('hello')
     })
 
+    test('relays data on channels without cleaning up or scheduling, and deletes an expired allocation its data reaches', async () => {
+        //The cost of a packet does not grow with the allocations: only the timer goes through them
+        let clock = 1_000_000
+        const protocol = new TurnServerProtocol({
+            realm: TURN_CREDENTIALS.realm,
+            getPassword: (username) => username === TURN_CREDENTIALS.username ? TURN_CREDENTIALS.password : undefined,
+            now: () => clock
+        })
+        const client = {clientId: 'udp:127.0.0.1:5000', remoteAddress: ['127.0.0.1', 5000] as Address, transport: 'udp' as const, localAddress: ['127.0.0.1', 3478] as Address}
+        const allocation = await allocateRelay(protocol, client, ['127.0.0.1', 40000])
+        const bind = authenticateRequest(new Message(methods.CHANNEL_BIND, classes.REQUEST).setAttribute('CHANNEL-NUMBER', 0x4000).setAttribute('XOR-PEER-ADDRESS', ['127.0.0.1', 40001]), allocation.nonce)
+        expect(protocol.handleClientDatagram({...client, data: bind.bytes}).some((action) => action.type === 'schedule-timeout')).toBe(true)
+
+        const relayed = protocol.handleClientDatagram({...client, data: encodeChannelData(0x4000, Buffer.from('hello'))})
+        expect(relayed.map((action) => action.type)).toEqual(['send-relay'])
+        const received = protocol.handleRelayPacket({relayId: allocation.relayId, data: Buffer.from('back'), remoteAddress: ['127.0.0.1', 40001], localAddress: ['127.0.0.1', 40000]})
+        expect(received.map((action) => action.type)).toEqual(['send-client'])
+
+        //Past its lifetime (10 minutes by default), the allocation goes with its first data
+        clock += 601_000
+        const late = protocol.handleClientDatagram({...client, data: encodeChannelData(0x4000, Buffer.from('late'))})
+        expect(late.some((action) => action.type === 'close-relay')).toBe(true)
+        expect(late.at(-1)).toEqual({type: 'ignore', reason: 'unknown-client'})
+        expect(protocol.allocationCount).toBe(0)
+        expect(protocol.handleRelayPacket({relayId: allocation.relayId, data: Buffer.from('late'), remoteAddress: ['127.0.0.1', 40001], localAddress: ['127.0.0.1', 40000]})).toEqual([{type: 'ignore', reason: 'unknown-relay'}])
+    })
+
     test('keeps permissions valid across peer port changes on the same IP', async () => {
         const protocol = new TurnServerProtocol({
             realm: TURN_CREDENTIALS.realm,
@@ -940,15 +967,14 @@ describe('NodeTurnServer', () => {
     test('normalizes relay peer addresses only for matching relay sockets', () => {
         const server = new NodeTurnServer({
             host: '127.0.0.1',
-            relayAddress: '127.0.0.1',
+            relayAddress: '203.0.113.5',
             relayBindAddress: '0.0.0.0'
         });
-        (server as any).relaySockets.set('relay-1', {
-            address: () => ({
-                address: '0.0.0.0',
-                family: 'IPv4',
-                port: 5000
-            })
+        //The address of a relay socket, by its port, as binding it records
+        (server as any).relayBoundByPort.set(5000, {
+            address: '0.0.0.0',
+            family: 'IPv4',
+            port: 5000
         })
 
         // relay socket 自身と一致する address/port だけ advertised address に正規化する。
@@ -960,10 +986,15 @@ describe('NodeTurnServer', () => {
             address: '192.0.2.10',
             port: 5000
         })
+        const otherPort = (server as any).normalizeRelayRemoteAddress({
+            address: '127.0.0.1',
+            port: 5001
+        })
 
         // port だけ一致する外部 peer は書き換えないことを確認する。
-        expect(relayAddress).toEqual(['127.0.0.1', 5000])
+        expect(relayAddress).toEqual(['203.0.113.5', 5000])
         expect(externalPeer).toEqual(['192.0.2.10', 5000])
+        expect(otherPort).toEqual(['127.0.0.1', 5001])
     })
 
     test('closes malformed tcp client connections', async () => {

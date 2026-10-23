@@ -233,12 +233,15 @@ export class TurnServerProtocol {
     }
 
     handleClientDatagram(input: TurnServerClientPacket): TurnServerAction[] {
+        //Data on a channel, most of the packets: checked against its allocation and its binding only, no expiry to
+        //clean up or schedule (the timer does it)
+        if (isChannelData(input.data)) return this.handleChannelData(input, this.now())
         return this.finalizeActions(this.handleClientPacket(input))
     }
 
     handleTcpChunk(input: TurnServerTcpChunk): TurnServerAction[] {
         const now = this.now()
-        const actions = this.cleanupExpired(now)
+        const actions: TurnServerAction[] = []
         const buffer = Buffer.concat([
             this.tcpBuffers.get(input.clientId) ?? Buffer.alloc(0),
             input.data
@@ -254,31 +257,38 @@ export class TurnServerProtocol {
         }
         this.tcpBuffers.set(input.clientId, rest)
 
+        //Only data on channels: no expiry to clean up or schedule, as for a datagram of data
+        let control = false
         for (const frame of frames) {
-            actions.push(
-                ...this.handleClientPacket({
-                    clientId: input.clientId,
-                    data: frame,
-                    remoteAddress: input.remoteAddress,
-                    localAddress: input.localAddress,
-                    transport: input.transport
-                })
-            )
+            const packet: TurnServerClientPacket = {
+                clientId: input.clientId,
+                data: frame,
+                remoteAddress: input.remoteAddress,
+                localAddress: input.localAddress,
+                transport: input.transport
+            }
+            if (isChannelData(frame)) {
+                actions.push(...this.handleChannelData(packet, now))
+                continue
+            }
+            control = true
+            actions.push(...this.handleClientPacket(packet))
         }
 
-        return this.finalizeActions(actions, now)
+        return control ? this.finalizeActions(actions, now) : actions
     }
 
     handleRelayPacket(input: TurnServerRelayPacket): TurnServerAction[] {
+        //Data of a peer, as handleChannelData: no expiry to clean up or schedule but those of what it uses
         const now = this.now()
-        const actions = this.cleanupExpired(now)
-        const allocation = this.getRelayAllocation(input.relayId)
+        const actions: TurnServerAction[] = []
+        const allocation = this.liveAllocation(this.getRelayAllocation(input.relayId), now, actions)
         if (!allocation || !allocation.relayedAddress) {
             actions.push({
                 type: 'ignore',
                 reason: 'unknown-relay'
             })
-            return this.finalizeActions(actions, now)
+            return actions
         }
 
         const channel = this.getChannelBinding(
@@ -292,7 +302,7 @@ export class TurnServerProtocol {
                 type: 'ignore',
                 reason: 'unknown-channel'
             })
-            return this.finalizeActions(actions, now)
+            return actions
         }
 
         const data = channel
@@ -302,7 +312,7 @@ export class TurnServerProtocol {
                 .setAttribute('DATA', input.data).bytes
 
         actions.push(this.sendClient(allocation.client, data))
-        return this.finalizeActions(actions, now)
+        return actions
     }
 
     handleRelayBound(input: TurnServerRelayBound): TurnServerAction[] {
@@ -390,49 +400,8 @@ export class TurnServerProtocol {
         input: TurnServerClientPacket
     ): TurnServerAction[] {
         const now = this.now()
+        if (isChannelData(input.data)) return this.handleChannelData(input, now)
         const actions = this.cleanupExpired(now)
-
-        if (isChannelData(input.data)) {
-            const channelData = decodeChannelData(input.data)
-            if (!channelData) {
-                actions.push({
-                    type: 'ignore',
-                    reason: 'malformed'
-                })
-                return actions
-            }
-
-            const allocation = this.getClientAllocation(input.clientId)
-            if (!allocation) {
-                actions.push({
-                    type: 'ignore',
-                    reason: 'unknown-client'
-                })
-                return actions
-            }
-
-            const binding = allocation.channelsByNumber.get(
-                channelData.channelNumber
-            )
-            if (!binding || binding.expiresAt <= now) {
-                if (binding) {
-                    this.removeChannelBinding(allocation, binding)
-                }
-                actions.push({
-                    type: 'ignore',
-                    reason: 'unknown-channel'
-                })
-                return actions
-            }
-
-            actions.push({
-                type: 'send-relay',
-                relayId: allocation.relayId,
-                remoteAddress: binding.peerAddress,
-                data: channelData.data
-            })
-            return actions
-        }
 
         if (!isStunMessage(input.data)) {
             actions.push({
@@ -1120,6 +1089,68 @@ export class TurnServerProtocol {
             remoteAddress: input.remoteAddress,
             localAddress: input.localAddress
         }
+    }
+
+    /**
+     * Data of a client on a channel: relayed to the peer of the binding while the allocation and the binding last
+     * @param input
+     * @param now
+     */
+    private handleChannelData(input: TurnServerClientPacket, now: number): TurnServerAction[] {
+        const actions: TurnServerAction[] = []
+        const channelData = decodeChannelData(input.data)
+        if (!channelData) {
+            actions.push({
+                type: 'ignore',
+                reason: 'malformed'
+            })
+            return actions
+        }
+
+        const allocation = this.liveAllocation(this.getClientAllocation(input.clientId), now, actions)
+        if (!allocation) {
+            actions.push({
+                type: 'ignore',
+                reason: 'unknown-client'
+            })
+            return actions
+        }
+
+        const binding = allocation.channelsByNumber.get(
+            channelData.channelNumber
+        )
+        if (!binding || binding.expiresAt <= now) {
+            if (binding) {
+                this.removeChannelBinding(allocation, binding)
+            }
+            actions.push({
+                type: 'ignore',
+                reason: 'unknown-channel'
+            })
+            return actions
+        }
+
+        actions.push({
+            type: 'send-relay',
+            relayId: allocation.relayId,
+            remoteAddress: binding.peerAddress,
+            data: channelData.data
+        })
+        return actions
+    }
+
+    /**
+     * An allocation still alive: one expired is deleted now (the timer would delete it later)
+     * @param allocation
+     * @param now
+     * @param actions What deleting it takes.
+     */
+    private liveAllocation(allocation: TurnAllocation | undefined, now: number, actions: TurnServerAction[]) {
+        if (allocation?.expiresAt !== undefined && allocation.expiresAt <= now) {
+            actions.push(...this.deleteAllocation(allocation))
+            return undefined
+        }
+        return allocation
     }
 
     private getClientAllocation(clientId: string) {
