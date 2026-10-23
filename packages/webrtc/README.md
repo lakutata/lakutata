@@ -98,7 +98,9 @@ export class Telemetry extends Component {
 ```
 
 Without the signaling of this package, get a `PeerConnection` (`await this.getObject(PeerConnection, {iceServers})`)
-and exchange the offer, the answer and the candidates yourself, as with `RTCPeerConnection` in a browser.
+and exchange the offer, the answer and the candidates yourself, as with `RTCPeerConnection` in a browser. With many
+connections, a `PeerThreads` component runs their engines in worker threads, to use more cores: give its name as their
+`threads` option (an option of `SignalingClient` too).
 
 How the rooms behave:
 
@@ -402,9 +404,9 @@ of the media server.
 
 - Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
   another connection.
-- Throughput of one data channel between two Node.js processes on an Apple M4: about 75 MiB/s for large messages,
-  580,000 messages of 100 bytes per second (in an arm64 Linux virtual machine on the same Mac: about 43 MiB/s and
-  480,000 messages).
+- Throughput of one data channel between two Node.js processes on an Apple M4: about 80 MiB/s for large messages,
+  626,000 messages of 100 bytes per second (in an arm64 Linux virtual machine on the same Mac: about 43 MiB/s and
+  548,000 messages).
 - The media server on an Apple M4: its main thread forwards about 87,000 packets per second (the equivalent of 435
   videos of 2 Mbit/s), and 4 worker threads forwarded the 92,000 of a test on 1.7 cores. It does not transcode, and
   sends each video as published (no simulcast yet).
@@ -420,6 +422,7 @@ of the media server.
 | `createTURNCredentials` | Short-lived TURN credentials (the REST API of coturn) |
 | `SignalingClient` | An application as a member of the rooms: `join()`, `close()` |
 | `PeerConnection`, `PeerChannel` | The peer connection and the data channel of Node.js |
+| `PeerThreads`, `buildPeerThreadsOptions` | Worker threads running the engines of the connections whose `threads` option names it |
 | `MediaTrack`, `RtpPacket` | An audio or video track of Node.js, and its RTP packets |
 | `RtpTransceiver`, `RtpSender`, `RtpReceiver` | The audio and video lines of a connection |
 | `WHIP`, `buildWHIPOptions` | The ingestion of WHIP: the sessions, the `publish` and `unpublish` events |
@@ -476,8 +479,8 @@ The other runtimes and implementations, compiled first (`npm run compile`):
 - `npm run test:bun` runs the tests in Bun (without those of the browsers). Four tests of the TURN refresh fail there:
   the fake clock of the tests reaches the imports of `node:timers/promises` only in Node.js.
 - `npm run test:electron` runs them in the main process of Electron (the repository's Electron).
-- `npm run test:linux` runs them, the performance targets and the benchmarks of forwarding and of the TURN server, in
-  Linux (`node:24-alpine` in Docker).
+- `npm run test:linux` runs them, the performance targets and the benchmarks of forwarding, of the TURN server and of
+  the worker threads of the connections, in Linux (`node:24-alpine` in Docker).
 - `npm run test:interop` connects Pion (Go) and aiortc (Python), in Docker, to the signaling, the TURN server and a
   member of this package: a data channel directly and through the relay only, and a call of a service action from
   aiortc.
@@ -493,10 +496,12 @@ The benchmarks are in `test-env/bench` and run on the compiled package (`npm run
 the engine against its performance targets (70 MiB/s for large messages, at 40 s of CPU per GiB at most; 50,000 messages
 of 100 bytes a second; 200 connections set up in 2 seconds) and exits with 1 when one is missed: run it before a
 release. `engine.mjs` measures the data channels, the sending of RTP and the setup of connections, each end in a process
-of its own, `forward.mjs` what the media server forwards, and `turn.mjs` what the TURN server relays (with `--idle`
-allocations of other clients, `--workers` threads, `--parallel` connections at once). `floor.mjs` measures the least a
-packet costs in JavaScript (encrypting it and sending it over UDP), and `send-modes.mjs` the cost of each way of sending
-a UDP packet; neither needs a build.
+of its own, `forward.mjs` what the media server forwards, `turn.mjs` what the TURN server relays (with `--idle`
+allocations of other clients, `--workers` threads, `--parallel` connections at once), and `threads.mjs` what pairs of
+connections in one process carry, their engines in the main thread or in worker threads (`--pairs`, `--threads`,
+`--size`).
+`floor.mjs` measures the least a packet costs in JavaScript (encrypting it and sending it over UDP), and
+`send-modes.mjs` the cost of each way of sending a UDP packet; neither needs a build.
 
 ## See also
 

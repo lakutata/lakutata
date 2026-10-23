@@ -12,7 +12,7 @@ npm install lakutata @lakutata/webrtc
 
 | Entry point | Runs in | What it gives |
 |---|---|---|
-| `@lakutata/webrtc` | Node.js, the main process of Electron, Bun | `Signaling`, `SignalingController`, `TURNServer`, `SignalingClient`, `PeerConnection`, `MediaTrack`, `SFU`, `WHIP`, `WHIPController`, `WHEP`, `WHEPController`, `Cluster`, `webrtcServiceEntrypoint`, `PeerServiceProxy`, `ChunkedChannel` |
+| `@lakutata/webrtc` | Node.js, the main process of Electron, Bun | `Signaling`, `SignalingController`, `TURNServer`, `SignalingClient`, `PeerConnection`, `PeerThreads`, `MediaTrack`, `SFU`, `WHIP`, `WHIPController`, `WHEP`, `WHEPController`, `Cluster`, `webrtcServiceEntrypoint`, `PeerServiceProxy`, `ChunkedChannel` |
 | `@lakutata/webrtc/client` | Browsers, the renderer of Electron | `SignalingConnection`, `PeerServiceProxy`, `ChunkedChannel`, the types of the protocol |
 
 The browser entry uses only the APIs of the browsers; a frontend installs the same package, and the framework is not
@@ -226,8 +226,8 @@ export class Telemetry extends Component {
 An `http:` or `https:` URL uses Socket.IO (install `socket.io-client`), a `ws:` or `wss:` URL uses JSON-RPC over the
 `WebSocket` of Node.js 22 and Bun. Its options: `url`, `id` (a random UUID by default), `path` (of Socket.IO), `auth`
 (more fields of the Socket.IO handshake, a token), `timeout`, and the options of its connections (`iceTransportPolicy`,
-`icePortRange`, `iceAdditionalHostAddresses`, `codecs`). It is `@Transient`: each `getObject()` gives a new client, and
-`close()` leaves its rooms and disconnects.
+`icePortRange`, `iceAdditionalHostAddresses`, `codecs`, `threads`). It is `@Transient`: each `getObject()` gives a new
+client, and `close()` leaves its rooms and disconnects.
 
 ### Calling the actions of an application
 
@@ -353,13 +353,76 @@ export class Echo extends Component {
 }
 ```
 
-Its options: `iceServers`, `iceTransportPolicy`, and those of a server: `icePortRange` (the UDP ports of its
-candidates, to open in a firewall) and `iceAdditionalHostAddresses` (more addresses offered as candidates, such as the
-public address of a NAT forwarding these ports with the same numbers); `codecs` chooses the audio and video codecs.
+Its options: `iceServers`, `iceTransportPolicy`, and those of a server: `icePortRange` (the UDP ports of its candidates,
+to open in a firewall) and `iceAdditionalHostAddresses` (more addresses offered as candidates, such as the public
+address of a NAT forwarding these ports with the same numbers); `codecs` chooses the audio and video codecs.
 `headerExtensions: true` adds the RTP header extensions a media server uses: each side then estimates, from the feedback
 of the other one, the bandwidth available for what it sends (without them, a browser goes by the packets lost only,
 starting low and rising slowly). A `PeerChannel` sends strings and binary data; a binary message arrives as a `Buffer`,
-or as an `ArrayBuffer` when `binaryType` is `'arraybuffer'`.
+or as an `ArrayBuffer` when `binaryType` is `'arraybuffer'`. `threads` serves it in a worker thread (see below).
+
+### Several cores
+
+A connection runs its ICE, DTLS, SCTP and SRTP in the main thread by default. Given the name of a `PeerThreads`
+component (its `threads` option, which `SignalingClient` has too, for the connections to the other members), it runs
+them in one of the worker threads of that component, while its object, its events and the messages of its channels stay
+in the main thread: the code using it is the same. Its methods are carried to the thread and resolve once done there;
+its states are the ones the thread last reported, with its events and with the reply to each method. The packets of the
+tracks it receives come to the main thread while they are read or sent on, and the packets of the tracks it sends go to
+the thread.
+
+```typescript
+import {Application} from 'lakutata'
+import {buildPeerThreadsOptions, type PeerChannel, PeerConnection} from '@lakutata/webrtc'
+
+Application
+    .run(() => ({
+        id: 'gateway.app',
+        name: 'Gateway',
+        components: {
+            //Four threads at most, started when needed
+            peerThreads: buildPeerThreadsOptions({threads: 4})
+        }
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        //Its engine runs in one of the threads
+        const connection: PeerConnection = await app.getObject(PeerConnection, {threads: 'peerThreads'})
+        const channel: PeerChannel = connection.createDataChannel('data')
+        channel.on('open', (): void => channel.send('hello'))
+    })
+```
+
+The threads start when needed: a new connection goes to a thread serving none (a new one is started while there are
+fewer than `threads`, by default the number of cores less one), else to the thread serving the fewest. A connection
+stays in its thread; a thread that stops (only a bug stops one) fails its connections (`failed`, then `closed`), and is
+started again for the next ones. `resourceLimits` limits the heap of each thread, as `workerResourceLimits` does for the
+media server (Bun ignores it). The bytes of the messages received on their way to the main thread stay out of the
+receive window: a main thread that reads slowly slows the other peer down, as it would without threads. The RTP packets
+on their way between the threads are 2 MiB at most per connection and direction; beyond that, they are dropped, as a
+full UDP buffer would drop them.
+
+Measured on an Apple M4 with Node.js 24, pairs of connections in one process exchanging messages over a data channel
+(`packages/webrtc/test-env/bench/threads.mjs` in the repository):
+
+| Pairs | Engines | Messages of 100 bytes | CPU per message | Messages of 16 KiB |
+|---|---|---|---|---|
+| 1 | in the main thread | 274,000 a second | 4.2 µs | 45 MiB/s |
+| 1 | in 2 worker threads | 539,000 a second | 4.5 µs | 85 MiB/s |
+| 4 | in the main thread | 267,000 a second | 4.3 µs | 46 MiB/s |
+| 4 | in 4 worker threads | 782,000 a second | 6.2 µs | 138 MiB/s |
+
+The two connections of a pair work at once in two threads: one pair carries twice as much as in the main thread, for
+0.3 µs more of CPU per message. Four pairs in four threads carry three times as much; the CPU per message rises once the
+threads outnumber the four performance cores of the M4. In an arm64 Linux virtual machine (Docker Desktop, Alpine) on
+the same Mac, one pair carried 414,000 messages of 100 bytes a second in two threads, against 212,000 in the main
+thread, at 6.8 µs of CPU each against 5.5; four pairs carried 460,000 against 222,000, at 10.7 µs against 5.4, and
+70 MiB/s of large messages against 47, for 2.5 times the CPU: there, several threads allocating memory at once cost more
+per message. The threads give a process more connections, using more cores, not cheaper messages.
+
+In that virtual machine, each thread took about 100 MiB more with small messages, 55 MiB with large ones. On macOS, with
+large messages through four pairs in four threads (138 MiB/s), the memory of the process (its physical footprint) kept
+growing: 2.4 GB after 20 s, 3.0 GB after 40 s, most of it memory freed and kept by the allocator of macOS; the cause was
+not found. The same run on Linux stays at about 540 MiB.
 
 ## 7. Large messages and files
 
@@ -1280,9 +1343,9 @@ pairs tried.
 
 - Node.js does not capture, encode or decode audio and video: its tracks carry RTP packets, from an encoder or from
   another connection.
-- The throughput of one data channel between two Node.js processes on an Apple M4 is about 75 MiB/s for large
-  messages, and 580,000 messages of 100 bytes per second; in an arm64 Linux virtual machine (Docker Desktop) on the
-  same Mac, about 43 MiB/s, and 480,000 messages a second. `packages/webrtc/test-env/bench/engine.mjs` in the
+- The throughput of one data channel between two Node.js processes on an Apple M4 is about 80 MiB/s for large
+  messages, and 626,000 messages of 100 bytes per second; in an arm64 Linux virtual machine (Docker Desktop) on the
+  same Mac, about 43 MiB/s, and 548,000 messages a second. `packages/webrtc/test-env/bench/engine.mjs` in the
   repository measures it on another machine.
 - The media server does not transcode, and sends each video as it is published: there is no simulcast yet, so a
   member with little bandwidth gets `congestion` events rather than a lower quality. Its capacity on one machine is in

@@ -1,4 +1,4 @@
-import {describe, it} from 'node:test'
+import {before, describe, it} from 'node:test'
 import type {ResourceLimits} from 'node:worker_threads'
 import {format} from 'node:util'
 import assert from 'node:assert'
@@ -7,6 +7,7 @@ import {MediaTrack} from '../peer/MediaTrack.js'
 import {engineChannelOf} from '../peer/EngineConnection.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
 import {PeerConnection, type PeerTrackEvent} from '../peer/PeerConnection.js'
+import {PeerThreads} from '../peer/PeerThreads.js'
 import type {RtpTransceiver} from '../peer/RtpTransceiver.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
 import {gathered} from '../peer/Endpoints.js'
@@ -38,9 +39,30 @@ type Member = {
  * @param first
  * @param options More options of the client, the room (`meeting` by default).
  */
+//Whether the suite running serves the connections of its members in worker threads (the suites run one after the other)
+let threadedMembers: boolean = false
+
+//The containers given their PeerThreads component
+const prepared: WeakSet<Container> = new WeakSet()
+
+/**
+ * A member of the signaling, its connections served in worker threads in the suite of threaded members
+ * @param clients
+ * @param server
+ * @param id
+ * @param options
+ */
+async function signalingClient(clients: Container, server: TestServer, id: string, options: {codecs?: string[]} = {}): Promise<SignalingClient> {
+    if (threadedMembers && !prepared.has(clients)) {
+        prepared.add(clients)
+        await clients.setNamed('threads', PeerThreads, {threads: 2})
+    }
+    return await clients.get(SignalingClient, {url: server.socketIO, id: id, ...options, ...threadedMembers ? {threads: 'threads'} : {}})
+}
+
 async function member(clients: Container, server: TestServer, id: string, first: number, options: {codecs?: string[], room?: string, metadata?: unknown} = {}): Promise<Member> {
     const {room: name = 'meeting', metadata, ...more} = options
-    const client: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: id, ...more})
+    const client: SignalingClient = await signalingClient(clients, server, id, more)
     //The first video codec it has
     const codec: string = options.codecs?.find((each: string): boolean => each.startsWith('video/')) ?? 'video/VP8'
     const room: Room = await client.join(name, metadata === undefined ? {} : {metadata: metadata})
@@ -55,7 +77,11 @@ async function member(clients: Container, server: TestServer, id: string, first:
 }
 
 //Forwarding in the main thread, and in worker threads
-for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} worker threads` : 'SFU', (): void => {
+for (const [workers, threaded] of [[0, false], [2, false], [0, true]] as [number, boolean][]) describe(threaded ? 'SFU, its members served in worker threads' : workers ? `SFU, forwarding in ${workers} worker threads` : 'SFU', (): void => {
+
+    before((): void => {
+        threadedMembers = threaded
+    })
 
     it('forwards the tracks of each member to the others, reusing the transceivers of the members who left', {timeout: 90000}, async (): Promise<void> => {
         const server: TestServer = await startServer({sfu: {workers: workers}})
@@ -184,7 +210,7 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
         try {
             members.push(await member(clients, server, 'alice', 0))
             await until((): boolean => server.sfu!.rooms().meeting?.tracks.length === 1, 10000, 'the video of alice')
-            const bob: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'bob'})
+            const bob: SignalingClient = await signalingClient(clients, server, 'bob')
             const room: Room = await bob.join('meeting')
             const video: PeerTrackEvent = await next<PeerTrackEvent>((resolve: (event: PeerTrackEvent) => void): unknown => room.on('peer', (peer: Peer): void => {
                 if (peer.id === 'alice') peer.on('track', resolve)
@@ -209,7 +235,7 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
             const negotiated: boolean[] = []
             //A channel to each peer, created by the listener of peer added as the room is joined, then a video published
             const join = async (id: string, first: number): Promise<void> => {
-                const client: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: id})
+                const client: SignalingClient = await signalingClient(clients, server, id)
                 const room: Room = await client.join('meeting')
                 heard.set(id, [])
                 room.on('peer', (peer: Peer): void => {
@@ -267,7 +293,13 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
             await until((): boolean => opened.has('state'), 10000, 'the unreliable channel')
             assert.deepStrictEqual([opened.get('state')!.ordered, opened.get('state')!.maxRetransmits], [false, 0])
             assert.throws((): unknown => alice.room.peer('bob')!.createDataChannel('other', {protocol: 'mine'}), TypeError)
-            //Bob receives slowly (his receive window held): alice waits, the server keeps a few megabytes
+            //Closed by alice: closed for bob
+            const closed: Promise<void> = next<void>((resolve: () => void): unknown => chat.once('close', resolve), 10000, 'the closed channel')
+            toBob.close()
+            await closed
+            //Bob receives slowly (his receive window held, in the engine of his connection): alice waits, the server keeps
+            //a few megabytes
+            if (threadedMembers) return
             const toBulk: PeerChannel = alice.room.peer('bob')!.createDataChannel('bulk')
             await next<void>((resolve: () => void): unknown => toBulk.once('open', resolve), 10000, 'the bulk channel')
             await until((): boolean => opened.has('bulk'), 10000, 'the bulk channel of bob')
@@ -286,10 +318,6 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
             window.releaseReceived(1 << 30)
             await until((): boolean => bulk.length === count, 30000, 'the bulk messages')
             assert.ok(bulk.every((index: number, position: number): boolean => index === position))
-            //Closed by alice: closed for bob
-            const closed: Promise<void> = next<void>((resolve: () => void): unknown => chat.once('close', resolve), 10000, 'the closed channel')
-            toBob.close()
-            await closed
             bulk = []
         } finally {
             members.forEach((each: Member): void => each.stop())
@@ -303,7 +331,7 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
         const clients: Container = new Container()
         const stops: (() => void)[] = []
         try {
-            const viewer: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'viewer'})
+            const viewer: SignalingClient = await signalingClient(clients, server, 'viewer')
             const room: Room = await viewer.join('studio')
             const received: [string, PeerTrackEvent][] = []
             room.on('peer', (peer: Peer): void => void peer.on('track', (event: PeerTrackEvent): number => received.push([peer.id, event])))
@@ -365,11 +393,11 @@ for (const workers of [0, 2]) describe(workers ? `SFU, forwarding in ${workers} 
             assert.strictEqual(bob.received.size, 0)
             assert.ok(logged.some((message: string): boolean => message.includes('bob may not receive')), 'the error of select in the debug messages')
             //Full
-            const carol: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'carol'})
+            const carol: SignalingClient = await signalingClient(clients, server, 'carol')
             await assert.rejects(carol.join('meeting'), {errno: 'E_SIGNALING_LIMIT'})
             //Another room stays peer to peer, published the same way
             const chat: Room = await carol.join('chat')
-            const dave: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'dave'})
+            const dave: SignalingClient = await signalingClient(clients, server, 'dave')
             const daveChat: Room = await dave.join('chat')
             assert.strictEqual(chat.sfu, undefined)
             const audio: MediaTrack = new MediaTrack('audio', {codec: 'audio/opus'})

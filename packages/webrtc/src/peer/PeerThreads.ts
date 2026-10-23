@@ -1,4 +1,5 @@
 import {availableParallelism} from 'node:os'
+import type {HeapInfo} from 'node:v8'
 import {type ResourceLimits, Worker} from 'node:worker_threads'
 import {Component, type ComponentOptions, DTO} from '@lakutata/core'
 import {Configurable, Singleton} from '@lakutata/core/decorator/di'
@@ -143,6 +144,8 @@ export class PeerThreads extends Component {
             const link: PeerThreadLink = {
                 request: <Result>(message: PeerToWorker, transfer?: ArrayBuffer[]): Promise<Result> => channel.request<Result>(message, transfer),
                 post: (message: PeerToWorker, transfer?: ArrayBuffer[]): void => channel.post(message, transfer),
+                postOrExtend: (extend: (last: PeerToWorker) => boolean, message: () => PeerToWorker, transfer?: ArrayBuffer[]): void => channel.postOrExtend(extend, message, transfer),
+                pack: (data: Uint8Array): {bytes: Uint8Array, transfer?: ArrayBuffer[]} => channel.pack(data),
                 release: (released: number): unknown => slot.connections.delete(released)
             }
             //Known before it is opened: its first events may come before the reply
@@ -167,6 +170,15 @@ export class PeerThreads extends Component {
      */
     public load(): number[] {
         return this.#slots.map((slot: Slot): number => slot.connections.size)
+    }
+
+    /**
+     * The heap of each thread (to measure the memory of the threads).
+     * @returns The statistics of the heap of each thread running, by its index.
+     * @internal
+     */
+    public async heaps(): Promise<(HeapInfo | undefined)[]> {
+        return await Promise.all(this.#slots.map((slot: Slot): Promise<HeapInfo | undefined> => slot.worker ? slot.worker.getHeapStatistics().catch((): undefined => undefined) : Promise.resolve(undefined)))
     }
 
     /**

@@ -78,9 +78,9 @@ export interface PeerConnectionOptions {
     /**
      * The name of a {@link PeerThreads} component: the engine of the connection (ICE, DTLS, SCTP, SRTP) runs in one of
      * its worker threads, to use more cores. The connection is used the same way: its methods are carried to the
-     * thread and resolve once done there, its states are the ones the thread told last, and its events and the
-     * messages of its channels come back to the main thread. Audio and video tracks are not carried to the threads yet:
-     * `addTrack()` and `addTransceiver()` throw.
+     * thread and resolve once done there, its states are the ones the thread last reported, and its events, the
+     * messages of its channels and the packets of the tracks it receives come back to the main thread, while the
+     * packets of the tracks it sends go to the thread.
      * @default none: the engine runs in the main thread
      */
     threads?: string

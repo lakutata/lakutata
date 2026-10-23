@@ -345,11 +345,11 @@ export function keyFrameRequested(track: MediaTrack): void {
  * thread): it is read and sent on like the others, its key frame requests go back where its packets come from, which is
  * told whether they are wanted (read, or sent on) as this changes
  * @param kind
- * @param codec The codec of its packets.
+ * @param codec The codec of its packets, once known.
  * @param id The id of the track where the packets come from (a random one without it).
  * @param source Asks for a key frame; is told whether the packets are wanted.
  */
-export function relayedTrack(kind: MediaKind, codec: RTCRtpCodecParameters, id: string | undefined, source: {requestKeyFrame(): void, wanted(wanted: boolean): void}): {track: MediaTrack, receive(packet: EngineRtpPacket, extensions?: Extensions): void} {
+export function relayedTrack(kind: MediaKind, codec: RTCRtpCodecParameters | undefined, id: string | undefined, source: {requestKeyFrame(): void, wanted(wanted: boolean): void}): {track: MediaTrack, receive(packet: EngineRtpPacket, extensions?: Extensions): void} {
     const engine: MediaStreamTrack = new MediaStreamTrack({kind: kind, codec: codec, remote: true, ...id === undefined ? {} : {id: id}})
     const track: MediaTrack = trackOf(engine)
     keyFrameRequesters.set(track, source.requestKeyFrame)

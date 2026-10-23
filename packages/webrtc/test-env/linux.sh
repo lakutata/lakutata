@@ -31,4 +31,9 @@ if [ "$what" = bench ] || [ "$what" = all ]; then
     echo "== the TURN server: 3 connections relaying at once, in the main thread, then in 3 worker threads"
     run node test-env/bench/turn.mjs --parallel 3
     run node test-env/bench/turn.mjs --parallel 3 --workers 3
+    echo "== the worker threads of the connections: 4 pairs, in the main thread, then in 4 worker threads"
+    run node test-env/bench/threads.mjs --pairs 4 --threads 0
+    run node test-env/bench/threads.mjs --pairs 4 --threads 4
+    run node test-env/bench/threads.mjs --pairs 4 --threads 0 --size 16384
+    run node test-env/bench/threads.mjs --pairs 4 --threads 4 --size 16384
 fi

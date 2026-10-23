@@ -1676,10 +1676,29 @@ export class RTCPeerConnection extends EventTarget {
 
     // todo fix
     addTrack(track: MediaStreamTrack, ...streams: MediaStream[]): RTCRtpSender {
+        return this.addTrackOn(undefined, track, ...streams)
+    }
+
+    /**
+     * Whether addTrack may give a track of its kind to a transceiver, rather than adding one
+     * @param transceiver
+     */
+    reusableForTrack(transceiver: RTCRtpTransceiver): boolean {
+        return this.transceiverManager.reusableForTrack(transceiver, transceiver.kind)
+    }
+
+    /**
+     * addTrack, on the transceiver chosen already (by the main thread, for a connection served in a worker thread) if
+     * it may still take the track, else on a new one, as for null
+     * @param chosen
+     * @param track
+     * @param streams
+     */
+    addTrackOn(chosen: RTCRtpTransceiver | null | undefined, track: MediaStreamTrack, ...streams: MediaStream[]): RTCRtpSender {
         if (this.isClosed) {
             throw createWebRtcDomException('InvalidStateError', 'is closed')
         }
-        const transceiver = this.transceiverManager.addTrack(track, streams)
+        const transceiver = this.transceiverManager.addTrack(track, streams, chosen)
         if (!transceiver.dtlsTransport) {
             const dtlsTransport = this.findOrCreateTransport()
             transceiver.setDtlsTransport(dtlsTransport)

@@ -4,6 +4,7 @@ import {Container} from '@lakutata/core'
 import {engineConnectionOf} from '../peer/EngineConnection.js'
 import {MediaTrack} from '../peer/MediaTrack.js'
 import {PeerConnection, type PeerConnectionOptions, type PeerTrackEvent} from '../peer/PeerConnection.js'
+import {PeerThreads} from '../peer/PeerThreads.js'
 import type {RtpPacket} from '../peer/RtpPacket.js'
 import type {RtpSender, RtpTransceiver} from '../peer/RtpTransceiver.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
@@ -35,14 +36,48 @@ function extensionsOf(sdp: string): Record<string, string>[] {
 }
 
 /**
+ * Where the engines of the connections of a test run: the ones of the indexes given (the first member or connection, the
+ * second, the third) in the worker threads of a PeerThreads component named threads, the others in the main thread
+ */
+interface Mode {
+    readonly name: string
+    readonly threaded: number[]
+}
+
+const MODES: Mode[] = [
+    {name: 'Media', threaded: []},
+    {name: 'Media, the connections served in worker threads', threaded: [0, 1, 2]},
+    {name: 'Media, the first connection served in a worker thread', threaded: [0]}
+]
+
+//The containers given their PeerThreads component
+const prepared: WeakSet<Container> = new WeakSet()
+
+/**
+ * The options that serve a connection in a worker thread, or none, as the mode says
+ * @param container
+ * @param mode
+ * @param index Which connection: the first, the second, the third
+ */
+async function threadsOf(container: Container, mode: Mode, index: number): Promise<{threads?: string}> {
+    if (!mode.threaded.includes(index)) return {}
+    if (!prepared.has(container)) {
+        prepared.add(container)
+        await container.setNamed('threads', PeerThreads, {threads: 2})
+    }
+    return {threads: 'threads'}
+}
+
+/**
  * Two connections exchanging their descriptions and candidates directly, the offerer sending a track
  * @param container
+ * @param mode
  * @param track
  * @param options The options of both connections
  */
-async function directPair(container: Container, track: MediaTrack, options: PeerConnectionOptions): Promise<{offerer: PeerConnection, answerer: PeerConnection, received: PeerTrackEvent}> {
-    const offerer: PeerConnection = await container.get(PeerConnection, options)
-    const answerer: PeerConnection = await container.get(PeerConnection, options)
+async function directPair(container: Container, mode: Mode, track: MediaTrack, options: PeerConnectionOptions): Promise<{offerer: PeerConnection, answerer: PeerConnection, received: PeerTrackEvent}> {
+    const offerer: PeerConnection = await container.get(PeerConnection, {...options, ...await threadsOf(container, mode, 0)})
+    const answerer: PeerConnection = await container.get(PeerConnection, {...options, ...await threadsOf(container, mode, 1)})
     offerer.on('icecandidate', (candidate: SignalingCandidate | null): void => void answerer.addIceCandidate(candidate))
     answerer.on('icecandidate', (candidate: SignalingCandidate | null): void => void offerer.addIceCandidate(candidate))
     const received: Promise<PeerTrackEvent> = next<PeerTrackEvent>((resolve: (event: PeerTrackEvent) => void): void => answerer.addEventListener('track', resolve, {once: true}), 15000, 'the track')
@@ -54,7 +89,7 @@ async function directPair(container: Container, track: MediaTrack, options: Peer
     return {offerer: offerer, answerer: answerer, received: await received}
 }
 
-describe('Media', (): void => {
+for (const mode of MODES) describe(mode.name, (): void => {
 
     it('sends the packets of a track to the other member', {timeout: 60000}, async (): Promise<void> => {
         const server: TestServer = await startServer()
@@ -62,8 +97,8 @@ describe('Media', (): void => {
         const video: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
         const stop: () => void = feed(video, 65500)
         try {
-            const alice: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'alice'})
-            const bob: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'bob'})
+            const alice: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'alice', ...await threadsOf(clients, mode, 0)})
+            const bob: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'bob', ...await threadsOf(clients, mode, 1)})
             const sending: Room = await alice.join('call')
             sending.on('peer', (peer: Peer): void => void peer.connection.addTrack(video, 'camera'))
             const receiving: Room = await bob.join('call')
@@ -100,8 +135,8 @@ describe('Media', (): void => {
         const video: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
         const stop: () => void = feed(video)
         try {
-            const alice: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'alice'})
-            const bob: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'bob'})
+            const alice: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'alice', ...await threadsOf(clients, mode, 0)})
+            const bob: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'bob', ...await threadsOf(clients, mode, 1)})
             const sending: Room = await alice.join('call')
             sending.on('peer', (peer: Peer): void => void peer.connection.addTrack(video))
             const event: PeerTrackEvent = await trackFrom(await bob.join('call'), 'alice')
@@ -122,9 +157,9 @@ describe('Media', (): void => {
         const video: MediaTrack = new MediaTrack('video', {codec: 'video/H264'})
         const stop: () => void = feed(video)
         try {
-            const alice: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'alice'})
-            const bob: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'bob'})
-            const carol: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'carol'})
+            const alice: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'alice', ...await threadsOf(clients, mode, 0)})
+            const bob: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'bob', ...await threadsOf(clients, mode, 1)})
+            const carol: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'carol', ...await threadsOf(clients, mode, 2)})
             //Alice sends to Bob only; Bob sends on to Carol what he receives
             const sending: Room = await alice.join('relay')
             sending.on('peer', (peer: Peer): void => {
@@ -164,8 +199,8 @@ describe('Media', (): void => {
         const audio: MediaTrack = new MediaTrack('audio', {codec: 'audio/opus'})
         const stop: () => void = feed(audio)
         try {
-            const recorder: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'recorder'})
-            const speaker: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'speaker'})
+            const recorder: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'recorder', ...await threadsOf(clients, mode, 0)})
+            const speaker: SignalingClient = await clients.get(SignalingClient, {url: server.socketIO, id: 'speaker', ...await threadsOf(clients, mode, 1)})
             const recording: Room = await recorder.join('talk')
             recording.on('peer', (peer: Peer): void => void peer.connection.addTransceiver('audio', {direction: 'recvonly'}))
             const speaking: Room = await speaker.join('talk')
@@ -186,8 +221,8 @@ describe('Media', (): void => {
         const container: Container = new Container()
         try {
             const descriptions = async (offering: boolean, answering: boolean): Promise<{offer: string, answer: string}> => {
-                const offerer: PeerConnection = await container.get(PeerConnection, {headerExtensions: offering})
-                const answerer: PeerConnection = await container.get(PeerConnection, {headerExtensions: answering})
+                const offerer: PeerConnection = await container.get(PeerConnection, {headerExtensions: offering, ...await threadsOf(container, mode, 0)})
+                const answerer: PeerConnection = await container.get(PeerConnection, {headerExtensions: answering, ...await threadsOf(container, mode, 1)})
                 offerer.addTransceiver('audio')
                 offerer.addTransceiver('video')
                 await offerer.setLocalDescription()
@@ -227,12 +262,13 @@ describe('Media', (): void => {
         }
     })
 
-    it('estimates the bandwidth of what it sends from the transport-wide feedback of the other connection', {timeout: 30000}, async (): Promise<void> => {
+    //It reads the engines: in the main thread only
+    if (!mode.threaded.length) it('estimates the bandwidth of what it sends from the transport-wide feedback of the other connection', {timeout: 30000}, async (): Promise<void> => {
         const container: Container = new Container()
         const video: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
         const stop: () => void = feed(video)
         try {
-            const {offerer, answerer, received} = await directPair(container, video, {headerExtensions: true})
+            const {offerer, answerer, received} = await directPair(container, mode, video, {headerExtensions: true})
             await packets(received.track, 10)
             //The feedback of the receiving side gives the sending side the bit rate the packets arrive at
             await until((): boolean => (engineConnectionOf(offerer).dtlsTransports[0].senderBWE.availableBitrate) > 0, 10000, 'the estimate')
@@ -249,8 +285,8 @@ describe('Media', (): void => {
         const second: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
         const stops: (() => void)[] = [feed(first), feed(second, 50000)]
         try {
-            const sending: PeerConnection = await container.get(PeerConnection)
-            const receiving: PeerConnection = await container.get(PeerConnection)
+            const sending: PeerConnection = await container.get(PeerConnection, await threadsOf(container, mode, 0))
+            const receiving: PeerConnection = await container.get(PeerConnection, await threadsOf(container, mode, 1))
             sending.on('icecandidate', (candidate: SignalingCandidate | null): void => void receiving.addIceCandidate(candidate))
             receiving.on('icecandidate', (candidate: SignalingCandidate | null): void => void sending.addIceCandidate(candidate))
             //Each change is negotiated by itself, as the negotiationneeded event asks
@@ -294,8 +330,8 @@ describe('Media', (): void => {
         const vp8: MediaTrack = new MediaTrack('video', {codec: 'video/VP8'})
         const stops: (() => void)[] = [feed(h264), feed(vp8, 50000)]
         try {
-            const sending: PeerConnection = await container.get(PeerConnection)
-            const receiving: PeerConnection = await container.get(PeerConnection)
+            const sending: PeerConnection = await container.get(PeerConnection, await threadsOf(container, mode, 0))
+            const receiving: PeerConnection = await container.get(PeerConnection, await threadsOf(container, mode, 1))
             sending.on('icecandidate', (candidate: SignalingCandidate | null): void => void receiving.addIceCandidate(candidate))
             receiving.on('icecandidate', (candidate: SignalingCandidate | null): void => void sending.addIceCandidate(candidate))
             //A transceiver without a track: all the video codecs are negotiated

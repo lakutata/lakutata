@@ -11,6 +11,43 @@ export interface PeerThreadPort {
 }
 
 /**
+ * The size below which the copies of messages and packets sent together share buffers (one allocation for many, rather
+ * than one each); the side reading them copies them into buffers of their own (of the pool of Node.js), so a message
+ * kept does not keep the others
+ */
+export const PACKED_SIZE: number = 4096
+
+/**
+ * The size of the buffers shared by the copies
+ */
+const CHUNK_SIZE: number = 65536
+
+/**
+ * The bytes of a message or a packet read: a buffer of its own, copied from a shared one
+ * @param bytes
+ */
+export function readBytes(bytes: Uint8Array): Buffer {
+    return bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
+        ? Buffer.from(bytes.buffer, 0, bytes.byteLength)
+        : Buffer.from(bytes)
+}
+
+/**
+ * The bytes of RTP packets of a connection on their way to the other side at most, in each direction: beyond, the next
+ * ones are dropped, as a full UDP buffer would (the packets of the channels are not: their receive window waits)
+ */
+export const RTP_IN_FLIGHT: number = 2 * 1024 * 1024
+
+/**
+ * A copy of bytes in a buffer of its own, transferred to the other side (a view of a buffer would send all of it)
+ * @param data
+ */
+function ownCopy(data: Uint8Array): {bytes: Uint8Array, transfer: ArrayBuffer[]} {
+    const bytes: Uint8Array = new Uint8Array(data)
+    return {bytes: bytes, transfer: [bytes.buffer as ArrayBuffer]}
+}
+
+/**
  * An error sent to the other side: its class is lost, its name and message are kept
  */
 export interface PeerThreadError {
@@ -62,6 +99,11 @@ export class PeerThreadChannel<Out extends {type: string}, In extends {type: str
 
     #closed?: Error
 
+    //The buffer the copies of small messages and packets of this sending share, and its bytes used
+    #chunk?: Uint8Array
+
+    #used: number = 0
+
     /**
      * Read the messages of a port.
      * @param port The port.
@@ -91,6 +133,40 @@ export class PeerThreadChannel<Out extends {type: string}, In extends {type: str
     public post(message: Out, transfer?: ArrayBuffer[]): void {
         if (this.#closed) return
         this.#queue.push(message)
+        if (transfer) this.#transfer.push(...transfer)
+        this.#schedule()
+    }
+
+    /**
+     * A copy of bytes to send with this sending: in a buffer shared with the other small ones, transferred once.
+     * @param data The bytes.
+     * @returns The copy, and the buffer to transfer with the message holding it.
+     */
+    public pack(data: Uint8Array): {bytes: Uint8Array, transfer?: ArrayBuffer[]} {
+        if (data.byteLength >= PACKED_SIZE) return ownCopy(data)
+        let transfer: ArrayBuffer[] | undefined
+        if (!this.#chunk || this.#used + data.byteLength > CHUNK_SIZE) {
+            this.#chunk = new Uint8Array(CHUNK_SIZE)
+            this.#used = 0
+            transfer = [this.#chunk.buffer as ArrayBuffer]
+        }
+        const bytes: Uint8Array = this.#chunk.subarray(this.#used, this.#used + data.byteLength)
+        bytes.set(data)
+        this.#used += data.byteLength
+        return {bytes: bytes, transfer: transfer}
+    }
+
+    /**
+     * Add to the last message waiting when it is one of the same kind (the messages of a channel, the packets of a
+     * track, sent together: one message for many is much cheaper to send), else send a new one; the order holds.
+     * @param extend Adds to the last message waiting, when it may: whether it did.
+     * @param message The new message, else.
+     * @param transfer The buffers given to the other side.
+     */
+    public postOrExtend(extend: (last: Out) => boolean, message: () => Out, transfer?: ArrayBuffer[]): void {
+        if (this.#closed) return
+        const last: Out | undefined = this.#queue.at(-1) as Out | undefined
+        if (!last || !extend(last)) this.#queue.push(message())
         if (transfer) this.#transfer.push(...transfer)
         this.#schedule()
     }
@@ -134,6 +210,8 @@ export class PeerThreadChannel<Out extends {type: string}, In extends {type: str
         this.#scheduled = false
         if (this.#closed) return
         for (const callback of this.#flushing) callback()
+        //The shared buffer goes with this sending
+        this.#chunk = undefined
         if (!this.#queue.length) return
         const queue: unknown[] = this.#queue
         const transfer: ArrayBuffer[] = this.#transfer

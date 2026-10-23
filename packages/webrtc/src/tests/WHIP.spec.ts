@@ -4,6 +4,7 @@ import {execFile, spawn} from 'node:child_process'
 import type {Container} from '@lakutata/core'
 import {MediaTrack} from '../peer/MediaTrack.js'
 import {PeerConnection} from '../peer/PeerConnection.js'
+import {PeerThreads} from '../peer/PeerThreads.js'
 import type {RtpPacket} from '../peer/RtpPacket.js'
 import type {WHIPSession} from '../whip/WHIP.js'
 import {restartIce} from './support/Media.js'
@@ -12,9 +13,11 @@ import {next, startWHIP, until} from './support/Server.js'
 /**
  * A publisher: a connection sending an audio and a video track, and its offer with all its candidates
  * @param container
+ * @param threads Whether the connection is served in a worker thread
  */
-async function publisher(container: Container): Promise<{connection: PeerConnection, audio: MediaTrack, video: MediaTrack, offer: string}> {
-    const connection: PeerConnection = await container.get(PeerConnection, {iceAdditionalHostAddresses: ['127.0.0.1']})
+async function publisher(container: Container, threads: boolean = false): Promise<{connection: PeerConnection, audio: MediaTrack, video: MediaTrack, offer: string}> {
+    if (threads) await container.setNamed('publisherThreads', PeerThreads, {threads: 1})
+    const connection: PeerConnection = await container.get(PeerConnection, {iceAdditionalHostAddresses: ['127.0.0.1'], ...threads ? {threads: 'publisherThreads'} : {}})
     const audio: MediaTrack = new MediaTrack('audio', {codec: 'audio/opus'})
     const video: MediaTrack = new MediaTrack('video', {codec: 'video/H264'})
     connection.addTransceiver(audio, {direction: 'sendonly', streams: ['studio']})
@@ -75,7 +78,7 @@ function ffmpegPublish(url: string, token: string, seconds: number): Promise<num
 
 describe('WHIP', (): void => {
 
-    it('answers the requests of WHIP, and publishes the tracks of an offer', {timeout: 60000}, async (): Promise<void> => {
+    for (const threads of [false, true]) it(`answers the requests of WHIP, and publishes the tracks of an offer${threads ? ', the publisher served in a worker thread' : ''}`, {timeout: 60000}, async (): Promise<void> => {
         const {url, whip, container} = await startWHIP('express')
         const stops: (() => void)[] = []
         try {
@@ -93,7 +96,7 @@ describe('WHIP', (): void => {
             assert.strictEqual((await malformed.json() as {errno: string}).errno, 'E_WHIP_OFFER')
             //A publication
             const published: Promise<WHIPSession> = next<WHIPSession>((resolve: (session: WHIPSession) => void): unknown => whip.once('publish', resolve), 20000, 'publish')
-            const client = await publisher(container)
+            const client = await publisher(container, threads)
             const response: Response = await fetch(`${url}/whip/studio`, {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: client.offer})
             assert.strictEqual(response.status, 201)
             assert.strictEqual(response.headers.get('content-type'), 'application/sdp')

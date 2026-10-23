@@ -8,7 +8,7 @@ npm install lakutata @lakutata/webrtc
 
 | 入口 | 运行在 | 提供什么 |
 |---|---|---|
-| `@lakutata/webrtc` | Node.js、Electron 的主进程、Bun | `Signaling`、`SignalingController`、`TURNServer`、`SignalingClient`、`PeerConnection`、`MediaTrack`、`SFU`、`WHIP`、`WHIPController`、`WHEP`、`WHEPController`、`Cluster`、`webrtcServiceEntrypoint`、`PeerServiceProxy`、`ChunkedChannel` |
+| `@lakutata/webrtc` | Node.js、Electron 的主进程、Bun | `Signaling`、`SignalingController`、`TURNServer`、`SignalingClient`、`PeerConnection`、`PeerThreads`、`MediaTrack`、`SFU`、`WHIP`、`WHIPController`、`WHEP`、`WHEPController`、`Cluster`、`webrtcServiceEntrypoint`、`PeerServiceProxy`、`ChunkedChannel` |
 | `@lakutata/webrtc/client` | 浏览器、Electron 的渲染进程 | `SignalingConnection`、`PeerServiceProxy`、`ChunkedChannel`、协议的类型 |
 
 浏览器入口只使用浏览器的接口；前端安装同一个包，框架不会随之安装。
@@ -163,7 +163,7 @@ export class Telemetry extends Component {
 }
 ```
 
-`http:` 或 `https:` 的 URL 使用 Socket.IO（需要安装 `socket.io-client`），`ws:` 或 `wss:` 的 URL 使用 Node.js 22 和 Bun 自带的 `WebSocket` 走 JSON-RPC。它的选项：`url`、`id`（默认是随机的 UUID）、`path`（Socket.IO 的路径）、`auth`（Socket.IO 握手的更多字段，比如令牌）、`timeout`，以及它的连接的选项（`iceTransportPolicy`、`icePortRange`、`iceAdditionalHostAddresses`、`codecs`）。它是 `@Transient` 的：每次 `getObject()` 都得到一个新的客户端，`close()` 会离开它的房间并断开连接。
+`http:` 或 `https:` 的 URL 使用 Socket.IO（需要安装 `socket.io-client`），`ws:` 或 `wss:` 的 URL 使用 Node.js 22 和 Bun 自带的 `WebSocket` 走 JSON-RPC。它的选项：`url`、`id`（默认是随机的 UUID）、`path`（Socket.IO 的路径）、`auth`（Socket.IO 握手的更多字段，比如令牌）、`timeout`，以及它的连接的选项（`iceTransportPolicy`、`icePortRange`、`iceAdditionalHostAddresses`、`codecs`、`threads`）。它是 `@Transient` 的：每次 `getObject()` 都得到一个新的客户端，`close()` 会离开它的房间并断开连接。
 
 ### 调用应用的动作
 
@@ -262,7 +262,47 @@ export class Echo extends Component {
 }
 ```
 
-它的选项：`iceServers`、`iceTransportPolicy`，以及服务器用的 `icePortRange`（候选地址使用的 UDP 端口，用来在防火墙里放开）和 `iceAdditionalHostAddresses`（额外作为候选地址的地址，比如按相同端口号转发了这些端口的 NAT 的公网地址）；`codecs` 决定音视频用哪些编码。`headerExtensions: true` 会加上媒体服务器要用的 RTP 头部扩展：两端都根据对方的反馈估计自己发送时的可用带宽（没有这些扩展时，浏览器只能看丢包来估计，从很低的码率开始，涨得很慢）。`PeerChannel` 可以发送字符串和二进制数据；二进制消息收到时是 `Buffer`，`binaryType` 为 `'arraybuffer'` 时是 `ArrayBuffer`。
+它的选项：`iceServers`、`iceTransportPolicy`，以及服务器用的 `icePortRange`（候选地址使用的 UDP 端口，用来在防火墙里放开）和 `iceAdditionalHostAddresses`（额外作为候选地址的地址，比如按相同端口号转发了这些端口的 NAT 的公网地址）；`codecs` 决定音视频用哪些编码。`headerExtensions: true` 会加上媒体服务器要用的 RTP 头部扩展：两端都根据对方的反馈估计自己发送时的可用带宽（没有这些扩展时，浏览器只能看丢包来估计，从很低的码率开始，涨得很慢）。`PeerChannel` 可以发送字符串和二进制数据；二进制消息收到时是 `Buffer`，`binaryType` 为 `'arraybuffer'` 时是 `ArrayBuffer`。`threads` 让连接在工作线程里运行（见下文）。
+
+### 多核
+
+连接默认在主线程里运行它的 ICE、DTLS、SCTP 和 SRTP。给它一个 `PeerThreads` 组件的名字（它的 `threads` 选项；`SignalingClient` 也有这个选项，用于连向其他成员的连接）后，这些就在该组件的某个工作线程里运行，而连接对象、它的事件和它的通道上的消息仍然在主线程：使用它的代码不用改。它的方法会被转到线程里执行，在那里完成后才返回；它的各个状态是线程最近一次报告的，随它的事件和每个方法的应答一起送来。它接收的轨道的包在被读取或转发时送到主线程，它发送的轨道的包则送到线程里。
+
+```typescript
+import {Application} from 'lakutata'
+import {buildPeerThreadsOptions, type PeerChannel, PeerConnection} from '@lakutata/webrtc'
+
+Application
+    .run(() => ({
+        id: 'gateway.app',
+        name: 'Gateway',
+        components: {
+            //最多四个线程，需要时才启动
+            peerThreads: buildPeerThreadsOptions({threads: 4})
+        }
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        //它的引擎在其中一个线程里运行
+        const connection: PeerConnection = await app.getObject(PeerConnection, {threads: 'peerThreads'})
+        const channel: PeerChannel = connection.createDataChannel('data')
+        channel.on('open', (): void => channel.send('hello'))
+    })
+```
+
+线程在需要时才启动：新的连接交给一个没有连接的线程（线程数少于 `threads` 时会启动一个新的，默认是核数减一），否则交给连接最少的线程。连接一直留在它的线程里；某个线程停止时（只有程序缺陷会让它停止），它的连接会失败（先 `failed`，再 `closed`），线程会为后来的连接重新启动。`resourceLimits` 限制每个线程的堆，和媒体服务器的 `workerResourceLimits` 一样（Bun 会忽略它）。收到的消息在送往主线程的途中不计入接收窗口：主线程读得慢，对方就发得慢，和不用线程时一样。两个线程之间在途的 RTP 包每个连接每个方向最多 2 MiB，超出的会被丢弃，就像 UDP 缓冲区满了一样。
+
+下面是在 Apple M4 和 Node.js 24 上测得的结果：同一个进程里的若干对连接通过数据通道互发消息（仓库里的 `packages/webrtc/test-env/bench/threads.mjs`）：
+
+| 对数 | 引擎 | 100 字节的消息 | 每条消息的 CPU | 16 KiB 的消息 |
+|---|---|---|---|---|
+| 1 | 在主线程 | 每秒 274,000 条 | 4.2 微秒 | 45 MiB/s |
+| 1 | 在 2 个工作线程 | 每秒 539,000 条 | 4.5 微秒 | 85 MiB/s |
+| 4 | 在主线程 | 每秒 267,000 条 | 4.3 微秒 | 46 MiB/s |
+| 4 | 在 4 个工作线程 | 每秒 782,000 条 | 6.2 微秒 | 138 MiB/s |
+
+一对连接的两端在两个线程里同时工作：一对连接的吞吐量是主线程的两倍，每条消息只多 0.3 微秒 CPU。四对连接放在四个线程里，吞吐量是主线程的三倍；线程数超过 M4 的四个性能核后，每条消息的 CPU 会变多。在同一台 Mac 上的 arm64 Linux 虚拟机里（Docker Desktop，Alpine），一对连接用两个线程每秒传 414,000 条 100 字节的消息，主线程是 212,000 条，每条 6.8 微秒 CPU，主线程是 5.5；四对连接是 460,000 条对 222,000 条，每条 10.7 微秒对 5.4，大消息 70 MiB/s 对 47，CPU 是 2.5 倍：在那里，几个线程同时分配内存时，每条消息的开销更大。线程让一个进程能承载更多连接、用上更多的核，而不是降低每条消息的开销。
+
+在这个虚拟机里，每个线程在小消息下多占约 100 MiB，大消息下约 55 MiB。在 macOS 上，四对连接在四个线程里传大消息时（138 MiB/s），进程的内存（它的物理占用）一直在增长：20 秒后 2.4 GB，40 秒后 3.0 GB，其中大部分是被释放后仍由 macOS 的内存分配器留着的内存；原因没有查到。同样的测试在 Linux 上一直在 540 MiB 左右。
 
 ## 7. 大消息和文件
 
@@ -1001,7 +1041,7 @@ setDebugHandler((namespace: string, args: unknown[]): void => console.debug(name
 ## 16. 限制
 
 - Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
-- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 75 MiB/s，100 字节的消息每秒约 58 万条；同一台 Mac 上的 arm64 Linux 虚拟机（Docker Desktop）里，大消息约 43 MiB/s，小消息每秒约 48 万条。仓库里的 `packages/webrtc/test-env/bench/engine.mjs` 可以在别的机器上测。
+- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 80 MiB/s，100 字节的消息每秒约 62.6 万条；同一台 Mac 上的 arm64 Linux 虚拟机（Docker Desktop）里，大消息约 43 MiB/s，小消息每秒约 54.8 万条。仓库里的 `packages/webrtc/test-env/bench/engine.mjs` 可以在别的机器上测。
 - 媒体服务器不转码，按发布时的样子发送每路视频：还没有 simulcast，所以带宽不够的成员收到的是 `congestion` 事件，而不是更低的画质。它在一台机器上的转发能力见第 9 节；仓库里的 `packages/webrtc/test-env/bench/forward.mjs` 可以在别的机器上测。
 - 集群里的媒体服务器把一条轨道从发布者所在的节点直接发给每个需要它的节点，一个房间分布在几十个节点上没有问题；再多的话，就需要节点之间逐级转发了。
 - 2026 年 10 月验证过的：Chrome 154，Firefox 153 和 WebKit 26.5（Playwright 1.62 的构建），macOS 27 上的 Safari 27.0.1，Pion 4.2.25（Go）和 aiortc 1.15.0（Python）；运行环境是 Node.js 24（macOS，以及 Alpine 上的 Linux）、Bun 1.4.3 和 Electron 44 的主进程。脚本在仓库的 `packages/webrtc/test-env` 里。

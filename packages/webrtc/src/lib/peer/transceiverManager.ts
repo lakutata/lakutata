@@ -292,9 +292,32 @@ export class TransceiverManager {
         return newTransceiver
     }
 
+    /**
+     * Whether addTrack may give a track of a kind to a transceiver, rather than adding one
+     * @param transceiver
+     * @param kind
+     */
+    reusableForTrack(transceiver: RTCRtpTransceiver, kind: string): boolean {
+        return transceiver.sender.track == undefined &&
+            transceiver.kind === kind &&
+            !transceiver.usedForSender &&
+            !transceiver.stopping &&
+            !transceiver.stopped &&
+            !transceiver.rejected &&
+            !transceiver.pendingRejection
+    }
+
+    /**
+     * Add a track: to a transceiver that may take it, else to a new one
+     * @param track
+     * @param streams
+     * @param chosen The transceiver chosen already (for a connection served in a worker thread, by the main thread): used
+     * if it may still take the track, else a new one is added, as for null
+     */
     addTrack(
         track: MediaStreamTrack,
-        streams: MediaStream[] = []
+        streams: MediaStream[] = [],
+        chosen?: RTCRtpTransceiver | null
     ): RTCRtpTransceiver {
         if (this.getSenders().find((sender) => sender.track?.uuid === track.uuid)) {
             throw createWebRtcDomException(
@@ -303,16 +326,10 @@ export class TransceiverManager {
             )
         }
 
-        const reusableForTrack = (t: RTCRtpTransceiver) =>
-            t.sender.track == undefined &&
-      t.kind === track.kind &&
-      !t.usedForSender &&
-      !t.stopping &&
-      !t.stopped &&
-      !t.rejected &&
-      !t.pendingRejection
+        const reusableForTrack = (t: RTCRtpTransceiver) => this.reusableForTrack(t, track.kind) &&
+            (chosen === undefined || t === chosen)
 
-        const emptyTrackSenderTransceiver = this.transceivers.find(
+        const emptyTrackSenderTransceiver = chosen === null ? undefined : this.transceivers.find(
             (t) => reusableForTrack(t) && SenderDirections.includes(t.direction)
         )
         if (emptyTrackSenderTransceiver) {
@@ -328,7 +345,7 @@ export class TransceiverManager {
             return emptyTrackSenderTransceiver
         }
 
-        const notSendTransceiver = this.transceivers.find(
+        const notSendTransceiver = chosen === null ? undefined : this.transceivers.find(
             (t) => reusableForTrack(t) && !SenderDirections.includes(t.direction)
         )
         if (notSendTransceiver) {
