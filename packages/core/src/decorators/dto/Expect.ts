@@ -7,7 +7,8 @@ import {Schema} from '../../lib/validation/types/Schema.js'
  * Declare the schema of a property of a DTO class. The DTO validates the property against it when it is constructed
  * (the whole object at once: defaults applied, the keys without schema removed unless the class has an
  * `@IndexSignature`), and each time the property, or a value nested in it, is changed afterwards (the change is undone
- * when invalid). The schema is also part of the class schema (`MyDTO.Schema()`) used by `@Accept`, `@Return` and the
+ * when invalid). With `DTO.Any()`, an object of another class the property holds is given as it is, not watched: no
+ * change of it can be invalid. The schema is also part of the class schema (`MyDTO.Schema()`) used by `@Accept`, `@Return` and the
  * actions' input validation. Subclasses inherit the property schemas, and may declare a property again to replace its
  * schema. Ignored on a symbol property or on a class which is not a DTO.
  * @param schema The schema of the property, built with the static methods of `DTO` (`DTO.String().required()`); a

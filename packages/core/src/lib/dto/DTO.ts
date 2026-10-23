@@ -22,7 +22,7 @@ import {importObject, type ImportedObject} from '../validation/engine/json-schem
 import {SchemaConversionException} from '../validation/exceptions/SchemaConversionException.js'
 import {JSONSchema} from '../../types/JSONSchema.js'
 import {type CachedSchema} from './CachedSchema.js'
-import {type KeysChild} from '../validation/engine/schema/types/keys.js'
+import {type KeysChild, type PatternTerm} from '../validation/engine/schema/types/keys.js'
 
 /**
  * Get DTO's object schema
@@ -97,6 +97,55 @@ function getPropertySchema<U extends DTO>(instance: U, propertyKey: string): Sch
     }
     schemas.set(propertyKey, schema)
     return schema
+}
+
+/**
+ * Whether the properties of a DTO accept any value, per DTO class
+ */
+const anyValuePropertyCache: WeakMap<Function, CachedSchema<Map<string, boolean>>> = new WeakMap()
+
+/**
+ * Whether a schema accepts any value: an any schema without rule, value list, condition or external validation, so no
+ * change of a value it holds can fail validation
+ * @param schema
+ */
+function acceptsAnything(schema: Base | undefined): boolean {
+    if (!schema || schema.type !== 'any' || schema._rules.length || schema._valids || schema._invalids) return false
+    const terms: Record<string, unknown> = schema.$_terms
+    return !['whens', 'externals'].some((term: string): boolean => Array.isArray(terms[term]) && (terms[term] as unknown[]).length > 0)
+}
+
+/**
+ * Whether a property of a DTO accepts any value: declared with `DTO.Any()`, or undeclared and matched by an index
+ * signature `DTO.Any()` (the transport objects of a context)
+ * @param instance
+ * @param propertyKey
+ */
+function acceptsAnyValue<U extends DTO>(instance: U, propertyKey: string | symbol): boolean {
+    if (typeof propertyKey !== 'string') return false
+    const properties: Map<string, boolean> = getCachedDTOSchema(anyValuePropertyCache, objectConstructor(instance), (): Map<string, boolean> => new Map())
+    let accepts: boolean | undefined = properties.get(propertyKey)
+    if (accepts !== undefined) return accepts
+    const objectSchema: Base = As<Base>(getObjectSchema(instance))
+    const child: KeysChild | undefined = ((objectSchema.$_terms.keys || []) as KeysChild[]).find(({key}: { key: string }): boolean => key === propertyKey)
+    //An undeclared property: the first pattern matching its key (the index signature)
+    const pattern: PatternTerm | undefined = child ? undefined : ((objectSchema.$_terms.patterns || []) as PatternTerm[]).find((each: PatternTerm): boolean => each.regex
+        ? each.regex.test(propertyKey)
+        : !(each.schema as Base).validate(propertyKey).error)
+    accepts = acceptsAnything(child ? child.schema : pattern?.rule)
+    properties.set(propertyKey, accepts)
+    return accepts
+}
+
+/**
+ * Whether an object is plain data: an array, an object literal, or an object without prototype (an instance of a
+ * subclass of Array or Object, and the objects of another realm, count as objects of other classes)
+ * @param value
+ */
+function isPlainData(value: object): boolean {
+    const constructor: unknown = (value as {constructor?: unknown}).constructor
+    if (constructor === Object || constructor === Array) return true
+    return constructor === undefined && Object.getPrototypeOf(value) === null
 }
 
 /**
@@ -175,8 +224,10 @@ function propertyState(target: any, prop: string | symbol): PropertyState {
  * @param prop
  * @param receiver
  * @param validateFn
+ * @param acceptsAny Whether a property of the DTO holding the value accepts any value
+ * @param ownerKey The property of the DTO holding the value
  */
-function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any, validateFn: () => void) {
+function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any, validateFn: () => void, acceptsAny?: (key: string | symbol) => boolean, ownerKey?: string | symbol) {
     const propertyValue: any = Reflect.get(target, prop, receiver)
     if (!propertyValue) return propertyValue
     if (typeof propertyValue !== 'object') {
@@ -202,6 +253,10 @@ function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any,
             apply: (method: any, _thisArg: any, args: any[]): any => Reflect.apply(method, target, args)
         })
     }
+    //An object of another class held by a property accepting any value is given as it is: no change of it can be
+    //refused, and a proxy would break the getters reading its private fields, the internal slots of the built-ins (the
+    //size of a Map) and its identity
+    if (acceptsAny?.(ownerKey!) && !isPlainData(propertyValue)) return propertyValue
     return new Proxy(propertyValue, {
         set(target: any, p: string | symbol, value: any, receiver: any): boolean {
             const state: PropertyState = propertyState(target, p)
@@ -215,7 +270,7 @@ function dynamicProxyProperty(target: any, prop: string | symbol, receiver: any,
             }
         },
         get(target: any, p: string | symbol, receiver: any): any {
-            return dynamicProxyProperty(target, p, receiver, validateFn)
+            return dynamicProxyProperty(target, p, receiver, validateFn, acceptsAny, ownerKey)
         },
         deleteProperty: (target: any, prop: string | symbol): boolean => {
             const state: PropertyState = propertyState(target, prop)
@@ -276,12 +331,21 @@ export class DTO extends DataValidator {
      * Create a DTO from its data, validated against the class schema: the defaults applied, the keys without schema
      * removed (unless the class has an `@IndexSignature`). The instance then validates each change of a property, or
      * of a value nested in it (an array, an object): an invalid change throws an `InvalidValueException` and is
-     * undone.
+     * undone. A property accepting any value (`DTO.Any()`, or an index signature `DTO.Any()`) gives the objects of
+     * other classes it holds as they are, since no change of theirs can be invalid: their getters, their private fields
+     * and their identity are those of the object itself.
      * @param props The data of the DTO. Default: no data (`{}`).
      * @throws {InvalidValueException} When the data does not match the class schema.
      */
     constructor(props: Record<string, any> = {}) {
         super()
+        //Whether each property accepts any value, remembered by the instance once known
+        let accepting: Record<string, boolean> | undefined
+        const acceptsAny = (key: string | symbol): boolean => {
+            if (typeof key !== 'string') return false
+            accepting ??= Object.create(null) as Record<string, boolean>
+            return accepting[key] ??= acceptsAnyValue(this, key)
+        }
         //Create DTO proxy object
         const DTOInstanceProxy: this = new Proxy(this, {
             set: (target, prop: string | symbol, value, receiver): boolean => {
@@ -295,7 +359,7 @@ export class DTO extends DataValidator {
                 } else {
                     validatePropertyValue(this, p, Reflect.get(target, p))
                 }
-            }),
+            }, acceptsAny, p),
             deleteProperty: (target: any, prop: string | symbol): boolean => {
                 if (!isSymbol(prop)) validatePropertyValue(this, prop, void (0))
                 return Reflect.deleteProperty(target, prop)

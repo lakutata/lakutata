@@ -46,6 +46,42 @@ class ContextDTO extends DTO {
     public request: any
 }
 
+/**
+ * An object of a class whose getter reads a private field, as a transport object of a context
+ */
+class Member {
+    #name: string = 'alice'
+
+    public get name(): string {
+        return this.#name
+    }
+}
+
+/**
+ * An object of a class with a property a schema checks
+ */
+class Address {
+    constructor(public city: unknown) {
+    }
+}
+
+class CustomerDTO extends DTO {
+    @Expect(DTO.Object({city: DTO.String().required()}).required())
+    public address: Address
+
+    @Expect(DTO.Any().custom((value: Address): Address => {
+        if (value.city !== 'Paris') throw new Error('only Paris')
+        return value
+    }))
+    public place: Address
+
+    @Expect(DTO.Any().when('place', {is: DTO.Any().exist(), then: DTO.Any().invalid(null)}))
+    public conditional: Address
+
+    @Expect(DTO.Any().invalid('none'))
+    public excluded: Address
+}
+
 @IndexSignature(DTO.Number())
 class IndexedDTO extends DTO {
     [key: string]: number
@@ -182,6 +218,53 @@ describe('DTO property validation', (): void => {
         assert.strictEqual(context.request.app(), undefined)
         //The methods are called on their object: the internal slots of a Date
         assert.strictEqual(context.request.born.getTime(), 0)
+    })
+
+    it('gives the objects of other classes held by a property accepting any value as they are', (): void => {
+        const member: Member = new Member()
+        const connections: WeakMap<Member, string> = new WeakMap([[member, 'its connection']])
+        //A property DTO.Any(), and undeclared properties of the index signature DTO.Any(), as the transport objects of
+        //a context
+        const context: ContextDTO & Record<string, any> = new ContextDTO({
+            request: {member: member},
+            member: member,
+            map: new Map([['a', 1]]),
+            set: new Set([1, 2])
+        })
+        assert.strictEqual(context.member.name, 'alice')
+        assert.strictEqual(context.member, member)
+        assert.strictEqual(connections.get(context.member), 'its connection')
+        assert.strictEqual(context.map.size, 1)
+        assert.strictEqual(context.set.size, 2)
+        //In a plain object of such a property too, which is still proxied
+        assert.strictEqual(context.request.member.name, 'alice')
+        assert.strictEqual(context.request.member, member)
+        assert.notStrictEqual(context.request, context.request)
+        //A DTO held there is given as it is too, and still validates its changes itself
+        const address: AddressDTO = new AddressDTO({city: 'Paris'})
+        const holding: ContextDTO = new ContextDTO({request: address})
+        assert.strictEqual(holding.request, address)
+        assert.throws((): void => {
+            holding.request.city = 1
+        })
+        assert.strictEqual(holding.request.city, 'Paris')
+    })
+
+    it('validates the changes nested in an object of another class held by a property whose schema checks it', (): void => {
+        const customer: CustomerDTO = new CustomerDTO({address: new Address('Paris'), place: new Address('Paris')})
+        assert.throws((): void => {
+            customer.address.city = 123
+        }, {message: '"address.city" must be a string'})
+        assert.strictEqual(customer.address.city, 'Paris')
+        //An any schema with a rule may refuse a change
+        assert.throws((): void => {
+            customer.place.city = 'Lyon'
+        })
+        assert.strictEqual(customer.place.city, 'Paris')
+        //An any schema with a condition or a value refused still watches the objects it holds
+        const watched: CustomerDTO = new CustomerDTO({address: new Address('Paris'), conditional: new Address('Paris'), excluded: new Address('Paris')})
+        assert.notStrictEqual(watched.conditional, watched.conditional)
+        assert.notStrictEqual(watched.excluded, watched.excluded)
     })
 
     it('validates the properties constrained together with the whole object', (): void => {
