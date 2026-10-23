@@ -9,11 +9,69 @@ import {PeerConnection} from '../peer/PeerConnection.js'
 import type {PeerChannel} from '../peer/PeerChannel.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
 import {SignalingSession} from '../shared/SignalingSession.js'
-import {SocketIOTransport} from '../shared/Transports.js'
+import {JSONRPCTransport, SocketIOTransport, type SocketIOSocketLike, type WebSocketLike} from '../shared/Transports.js'
 import type {Peer as SharedPeer} from '../shared/Peer.js'
 import type {Room as SharedRoom} from '../shared/Room.js'
 import type {PeerConnectionConfiguration} from '../shared/Connections.js'
 import {next, startServer, type TestServer, until} from './support/Server.js'
+
+/**
+ * The listeners of a stand-in socket
+ */
+class StandInListeners {
+    readonly #listeners: Map<string, Set<(...args: any[]) => void>> = new Map()
+
+    public on(event: string, listener: (...args: any[]) => void): void {
+        if (!this.#listeners.has(event)) this.#listeners.set(event, new Set())
+        this.#listeners.get(event)!.add(listener)
+    }
+
+    public off(event: string, listener?: (...args: any[]) => void): void {
+        if (listener) this.#listeners.get(event)?.delete(listener)
+    }
+
+    public fire(event: string, ...args: any[]): void {
+        for (const listener of [...this.#listeners.get(event) ?? []]) listener(...args)
+    }
+}
+
+/**
+ * A Socket.IO socket standing in for socket.io-client: its emits are kept, its events fired by the test
+ */
+class StandInSocketIO extends StandInListeners implements SocketIOSocketLike {
+    public connected: boolean = true
+
+    public readonly emitted: any[][] = []
+
+    public emit(_event: string, ...args: any[]): void {
+        this.emitted.push(args)
+    }
+}
+
+/**
+ * A WebSocket standing in for a connection to the server: its messages are kept, its events fired by the test
+ */
+class StandInWebSocket extends StandInListeners implements WebSocketLike {
+    public readyState: number = 0
+
+    public readonly sent: string[] = []
+
+    public send(data: string): void {
+        this.sent.push(data)
+    }
+
+    public close(): void {
+        this.readyState = 3
+    }
+
+    public addEventListener(type: string, listener: (event: any) => void): void {
+        this.on(type, listener)
+    }
+
+    public removeEventListener(type: string, listener: (event: any) => void): void {
+        this.off(type, listener)
+    }
+}
 
 /**
  * Two members of a room: the second one opens a channel, the first one echoes its messages
@@ -214,6 +272,49 @@ describe('Signaling', (): void => {
             socket.disconnect()
             await clients.destroy()
             await server.stop()
+        }
+    })
+
+    it('fails the requests sent when the signaling disconnects, and sends the ones made meanwhile once it connects again', {timeout: 30000}, async (): Promise<void> => {
+        //Socket.IO: it keeps the emits made while disconnected, and sends them as it connects
+        const socket: StandInSocketIO = new StandInSocketIO()
+        const overSocketIO: SocketIOTransport = new SocketIOTransport(socket, 60000)
+        const sent: Promise<unknown> = overSocketIO.request(SignalingMethod.leave, {room: 'first'})
+        socket.connected = false
+        socket.fire('disconnect')
+        await assert.rejects(sent, {errno: 'E_SIGNALING_CLOSED'})
+        const meanwhile: Promise<unknown> = overSocketIO.request(SignalingMethod.leave, {room: 'second'})
+        socket.connected = true
+        socket.fire('connect')
+        socket.emitted[1].at(-1)({success: true, payload: {room: 'second'}})
+        assert.deepStrictEqual(await meanwhile, {room: 'second'})
+        //An answer coming after all is ignored
+        socket.emitted[0].at(-1)({success: true, payload: {}})
+        overSocketIO.close()
+        //JSON-RPC over a WebSocket created again after a disconnection
+        const sockets: StandInWebSocket[] = []
+        const overWebSocket: JSONRPCTransport = new JSONRPCTransport((): StandInWebSocket => {
+            sockets.push(new StandInWebSocket())
+            return sockets.at(-1)!
+        }, 60000)
+        try {
+            sockets[0].readyState = 1
+            sockets[0].fire('open', {})
+            const sentOverWebSocket: Promise<unknown> = overWebSocket.request(SignalingMethod.leave, {room: 'first'})
+            assert.strictEqual(sockets[0].sent.length, 1)
+            sockets[0].readyState = 3
+            sockets[0].fire('close', {})
+            await assert.rejects(sentOverWebSocket, {errno: 'E_SIGNALING_CLOSED'})
+            const queued: Promise<unknown> = overWebSocket.request(SignalingMethod.leave, {room: 'second'})
+            await until((): boolean => sockets.length === 2, 5000, 'the socket created again')
+            sockets[1].readyState = 1
+            sockets[1].fire('open', {})
+            const request: {id: number, params: {room: string}} = JSON.parse(sockets[1].sent[0])
+            assert.strictEqual(request.params.room, 'second')
+            sockets[1].fire('message', {data: JSON.stringify({jsonrpc: '2.0', id: request.id, result: {room: 'second'}})})
+            assert.deepStrictEqual(await queued, {room: 'second'})
+        } finally {
+            overWebSocket.close()
         }
     })
 

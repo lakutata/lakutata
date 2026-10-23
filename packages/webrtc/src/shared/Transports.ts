@@ -144,7 +144,9 @@ class Listeners<Args extends unknown[]> {
 
 /**
  * The signaling over a Socket.IO socket: a request is the event `message`, `{method, ...params}`, answered by its
- * acknowledgement `{success, error, payload}`; the events are Socket.IO events.
+ * acknowledgement `{success, error, payload}`; the events are Socket.IO events. A request sent when the socket
+ * disconnects fails at once (its answer cannot come any more); one made while it is disconnected is sent once it
+ * connects again.
  */
 export class SocketIOTransport implements SignalingTransport {
 
@@ -158,6 +160,12 @@ export class SocketIOTransport implements SignalingTransport {
 
     readonly #handlers: [string, (...args: any[]) => void][] = []
 
+    //The requests waiting for their answer, and whether they are sent (Socket.IO keeps the ones made while disconnected,
+    //and sends them as it connects)
+    readonly #pending: Map<number, {reject: (error: Error) => void, timer: ReturnType<typeof setTimeout>, sent: boolean}> = new Map()
+
+    #nextId: number = 1
+
     /**
      * Use a socket.
      * @param socket The socket of the application.
@@ -169,8 +177,19 @@ export class SocketIOTransport implements SignalingTransport {
         for (const event of Object.values(SignalingEvent)) {
             this.#handlers.push([event, (payload: unknown): void => this.#events.call(event, payload)])
         }
-        this.#handlers.push(['connect', (): void => this.#status.call(true)])
-        this.#handlers.push(['disconnect', (): void => this.#status.call(false)])
+        this.#handlers.push(['connect', (): void => {
+            this.#pending.forEach((pending: {sent: boolean}): unknown => pending.sent = true)
+            this.#status.call(true)
+        }])
+        this.#handlers.push(['disconnect', (): void => {
+            for (const [id, pending] of [...this.#pending]) {
+                if (!pending.sent) continue
+                this.#pending.delete(id)
+                clearTimeout(pending.timer)
+                pending.reject(new SignalingRequestError('The signaling is disconnected', 'E_SIGNALING_CLOSED'))
+            }
+            this.#status.call(false)
+        }])
         for (const [event, handler] of this.#handlers) socket.on(event, handler)
     }
 
@@ -180,10 +199,14 @@ export class SocketIOTransport implements SignalingTransport {
 
     public request<Result>(method: string, params: Record<string, unknown>): Promise<Result> {
         return new Promise<Result>((resolve: (result: Result) => void, reject: (error: Error) => void): void => {
+            const id: number = this.#nextId++
             const timer: ReturnType<typeof setTimeout> = unrefTimer(setTimeout((): void => {
+                this.#pending.delete(id)
                 reject(new SignalingRequestError(`The request ${method} was not answered in time`, 'E_SIGNALING_TIMEOUT'))
             }, this.#timeout))
+            this.#pending.set(id, {reject: reject, timer: timer, sent: this.#socket.connected})
             this.#socket.emit('message', {...params, method: method}, (response: {success?: boolean, error?: unknown, payload?: unknown} | undefined): void => {
+                if (!this.#pending.delete(id)) return
                 clearTimeout(timer)
                 if (response?.success) return resolve(response.payload as Result)
                 reject(signalingErrorOf(response?.error, `The request ${method} failed`))
@@ -216,7 +239,8 @@ type PendingRequest = {
 /**
  * The signaling over JSON-RPC 2.0 on a WebSocket: the requests are JSON-RPC requests, the events are notifications whose
  * `params` hold the payload. Given a function creating the WebSocket, it reconnects after a disconnection, waiting 1
- * second, then twice as long each time, 30 seconds at most.
+ * second, then twice as long each time, 30 seconds at most. A request sent on a socket that closes fails at once (its
+ * answer cannot come any more); one made while the socket is not open is sent once it opens.
  */
 export class JSONRPCTransport implements SignalingTransport {
 
@@ -231,7 +255,10 @@ export class JSONRPCTransport implements SignalingTransport {
     readonly #pending: Map<number, PendingRequest> = new Map()
 
     //The requests sent once the socket opens
-    readonly #queue: string[] = []
+    readonly #queue: [number, string][] = []
+
+    //The requests sent on the socket, waiting for their answer
+    readonly #sent: Set<number> = new Set()
 
     #socket: WebSocketLike
 
@@ -274,8 +301,9 @@ export class JSONRPCTransport implements SignalingTransport {
             const message: string = JSON.stringify({jsonrpc: '2.0', id: id, method: method, params: params})
             if (this.connected) {
                 this.#socket.send(message)
+                this.#sent.add(id)
             } else if (this.#factory || this.#socket.readyState === 0) {
-                this.#queue.push(message)
+                this.#queue.push([id, message])
             } else {
                 this.#settle(id, new SignalingRequestError('The signaling is disconnected', 'E_SIGNALING_CLOSED'))
             }
@@ -310,6 +338,7 @@ export class JSONRPCTransport implements SignalingTransport {
         const pending: PendingRequest | undefined = this.#pending.get(id)
         if (!pending) return
         this.#pending.delete(id)
+        this.#sent.delete(id)
         clearTimeout(pending.timer)
         if (error) {
             pending.reject(error)
@@ -326,7 +355,12 @@ export class JSONRPCTransport implements SignalingTransport {
         this.#socket = socket
         const onOpen = (): void => {
             this.#delay = 1000
-            for (const message of this.#queue.splice(0)) socket.send(message)
+            for (const [id, message] of this.#queue.splice(0)) {
+                //Not sent when it failed meanwhile (its time ran out)
+                if (!this.#pending.has(id)) continue
+                socket.send(message)
+                this.#sent.add(id)
+            }
             this.#status.call(true)
         }
         const onMessage = (event: {data: unknown}): void => this.#receive(event.data)
@@ -335,11 +369,10 @@ export class JSONRPCTransport implements SignalingTransport {
             socket.removeEventListener('message', onMessage)
             socket.removeEventListener('close', onClose)
             if (this.#closed) return
+            //The requests sent cannot be answered any more; without a function to reconnect, the queued ones neither
+            for (const id of this.#factory ? [...this.#sent] : [...this.#pending.keys()]) this.#settle(id, new SignalingRequestError('The signaling is disconnected', 'E_SIGNALING_CLOSED'))
             this.#status.call(false)
-            if (!this.#factory) {
-                for (const id of [...this.#pending.keys()]) this.#settle(id, new SignalingRequestError('The signaling is disconnected', 'E_SIGNALING_CLOSED'))
-                return
-            }
+            if (!this.#factory) return
             this.#reconnectTimer = unrefTimer(setTimeout((): void => {
                 if (!this.#closed) this.#attach(this.#factory!())
             }, this.#delay))
