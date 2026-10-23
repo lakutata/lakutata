@@ -984,7 +984,7 @@ setDebugHandler((namespace: string, args: unknown[]): void => console.debug(name
 ## 16. 限制
 
 - Node.js 端不采集、不编码也不解码音视频：它的轨道传的是 RTP 包，来自编码器或者另一条连接。
-- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 55 MiB/s，100 字节的消息每秒约 40 万条；同一台 Mac 上的 Linux 虚拟机里，大消息约 35 MiB/s，小消息每秒 23 万到 46 万条。
+- 两个 Node.js 进程之间单个数据通道的吞吐量（Apple M4）：大消息约 55 MiB/s，100 字节的消息每秒约 40 万条；同一台 Mac 上的 Linux 虚拟机里，大消息约 35 MiB/s，小消息每秒 23 万到 46 万条。仓库里的 `packages/webrtc/test-env/bench/engine.mjs` 可以在别的机器上测。
 - 媒体服务器不转码，按发布时的样子发送每路视频：还没有 simulcast，所以带宽不够的成员收到的是 `congestion` 事件，而不是更低的画质。它在一台机器上的转发能力见第 9 节；仓库里的 `packages/webrtc/test-env/bench/forward.mjs` 可以在别的机器上测。
 - 集群里的媒体服务器把一条轨道从发布者所在的节点直接发给每个需要它的节点，一个房间分布在几十个节点上没有问题；再多的话，就需要节点之间逐级转发了。
 - 2026 年 10 月验证过的：Chrome 154，Firefox 153 和 WebKit 26.5（Playwright 1.62 的构建），macOS 27 上的 Safari 27.0.1，Pion 4.2.25（Go）和 aiortc 1.15.0（Python）；运行环境是 Node.js 24（macOS，以及 Alpine 上的 Linux）、Bun 1.4.3 和 Electron 44 的主进程。脚本在仓库的 `packages/webrtc/test-env` 里。

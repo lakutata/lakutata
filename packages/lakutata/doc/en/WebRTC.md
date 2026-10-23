@@ -1246,7 +1246,8 @@ pairs tried.
   another connection.
 - The throughput of one data channel between two Node.js processes on an Apple M4 is about 55 MiB/s for large
   messages, and 400,000 messages of 100 bytes per second; in a Linux virtual machine on the same Mac, about 35 MiB/s,
-  and from 230,000 to 460,000 messages a second.
+  and from 230,000 to 460,000 messages a second. `packages/webrtc/test-env/bench/engine.mjs` in the repository
+  measures it on another machine.
 - The media server does not transcode, and sends each video as it is published: there is no simulcast yet, so a
   member with little bandwidth gets `congestion` events rather than a lower quality. Its capacity on one machine is in
   section 9; `packages/webrtc/test-env/bench/forward.mjs` in the repository measures it on another.

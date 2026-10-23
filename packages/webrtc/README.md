@@ -485,8 +485,15 @@ The other runtimes and implementations, compiled first (`npm run compile`):
 `npm run test:servers` runs the tests of the cluster on NATS and Redis, started in Docker (`test-env/cluster.sh`).
 `test-env/k3s/run.sh` runs k3s in Docker with two nodes, deploys the signaling, and a TURN server and a media server on
 each node. It connects two members through two different pods and the TURN servers only, then two members through the
-media servers of the two nodes, and deletes the pod of one of these media servers. `test-env/bench/forward.mjs`
-measures what the media server forwards.
+media servers of the two nodes, and deletes the pod of one of these media servers.
+
+The benchmarks are in `test-env/bench` and run on the compiled package (`npm run compile` first). `targets.mjs`
+measures the engine against its performance targets (70 MiB/s for large messages, at 40 s of CPU per GiB at most;
+50,000 messages of 100 bytes a second; 200 connections set up in 2 seconds) and exits with 1 when one is missed: run it
+before a release. `engine.mjs` measures the data channels, the sending of RTP and the setup of connections, each end in
+a process of its own, and `forward.mjs` what the media server forwards. `floor.mjs` measures the least a packet costs
+in JavaScript (encrypting it and sending it over UDP), and `send-modes.mjs` the cost of each way of sending a UDP
+packet; neither needs a build.
 
 ## See also
 
