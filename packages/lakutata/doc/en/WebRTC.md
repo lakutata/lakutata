@@ -420,9 +420,12 @@ thread, at 6.8 µs of CPU each against 5.5; four pairs carried 460,000 against 2
 per message. The threads give a process more connections, using more cores, not cheaper messages.
 
 In that virtual machine, each thread took about 100 MiB more with small messages, 55 MiB with large ones. On macOS, with
-large messages through four pairs in four threads (138 MiB/s), the memory of the process (its physical footprint) kept
-growing: 2.4 GB after 20 s, 3.0 GB after 40 s, most of it memory freed and kept by the allocator of macOS; the cause was
-not found. The same run on Linux stays at about 540 MiB.
+large messages through four pairs in four threads (138 MiB/s), the memory of the process (its physical footprint) in
+most runs rose to between 1.5 and 3.5 GB in the first minute, then fell back: in a three-minute run, it stayed at about
+700 MiB after the first minute. That is memory freed and kept for a while by the allocator of macOS, not a leak.
+Node.js takes a 64 KiB buffer for each UDP datagram it receives; when several threads do so at that rate while other
+small buffers are still in use, the allocator keeps much of the freed memory. The same run stays at about 540 MiB on
+Linux, and at about 200 MiB in Bun on macOS, which has an allocator of its own.
 
 ## 7. Large messages and files
 
