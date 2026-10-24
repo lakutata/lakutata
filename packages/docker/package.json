@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/docker",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "The Docker component of the lakutata framework: images (pull, build with BuildKit, import, export, push), containers, their TTYs and networks, over the Docker Engine API.",
   "keywords": [
     "lakutata",
@@ -55,9 +55,9 @@
     "tar-stream": "3.2.2"
   },
   "peerDependencies": {
-    "@lakutata/core": "3.1.0",
-    "@lakutata/logger": "3.1.0",
-    "@lakutata/utils": "3.1.0",
+    "@lakutata/core": "3.1.1",
+    "@lakutata/logger": "3.1.1",
+    "@lakutata/utils": "3.1.1",
     "ssh2": "^1.15.0"
   },
   "peerDependenciesMeta": {

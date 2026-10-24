@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/webrtc",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "WebRTC for the lakutata framework, in TypeScript without native code: the signaling, a STUN/TURN server, a media server (SFU) for rooms of many members, WHIP publishing and WHEP playback, peer connections with data channels and audio and video tracks in Node.js, Electron and Bun, the service actions of an application called through data channels, and a browser client.",
   "keywords": [
     "lakutata",
@@ -88,8 +88,8 @@
     "THIRD_PARTY_NOTICES.md"
   ],
   "peerDependencies": {
-    "@lakutata/core": "3.1.0",
-    "@lakutata/entrypoint": "3.1.0",
+    "@lakutata/core": "3.1.1",
+    "@lakutata/entrypoint": "3.1.1",
     "ioredis": "^5.0.0",
     "nats": "^2.29.3",
     "socket.io-client": "^4.0.0"

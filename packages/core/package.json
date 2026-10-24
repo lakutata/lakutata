@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/core",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "The core of the lakutata framework: the IoC container and dependency injection, the object model with asynchronous construction, and DTO schema validation with the API of joi.",
   "keywords": [
     "lakutata",
@@ -107,7 +107,7 @@
     "test:engine-types": "node scripts/check-engine-types.mjs"
   },
   "dependencies": {
-    "@lakutata/utils": "3.1.0",
+    "@lakutata/utils": "3.1.1",
     "reflect-metadata": "0.2.2"
   },
   "engines": {

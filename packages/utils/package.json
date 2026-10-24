@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/utils",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "The utilities of the lakutata framework: Time (dates in IANA time zones) and the helpers for strings, objects, hashes, encodings, UUIDs, IP addresses and globs.",
   "keywords": [
     "lakutata",

@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/templates",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "The catalog of the official templates of the lakutata projects, read by @lakutata/cli.",
   "homepage": "https://lakutata.com/guide/ProjectStructure",
   "bugs": {

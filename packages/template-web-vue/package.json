@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/template-web-vue",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "The Vue web template of the lakutata projects: an HTTP API serving a Vue single-page application built with Vite, deployed as a Docker image.",
   "homepage": "https://lakutata.com/guide/ProjectStructure",
   "bugs": {

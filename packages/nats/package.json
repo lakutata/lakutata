@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/nats",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "The NATS component of the lakutata framework: messaging, service proxies, service entrypoint and large payloads.",
   "keywords": [
     "lakutata",
@@ -54,9 +54,9 @@
     "nats": "^2.29.3"
   },
   "peerDependencies": {
-    "@lakutata/core": "3.1.0",
-    "@lakutata/entrypoint": "3.1.0",
-    "@lakutata/utils": "3.1.0"
+    "@lakutata/core": "3.1.1",
+    "@lakutata/entrypoint": "3.1.1",
+    "@lakutata/utils": "3.1.1"
   },
   "engines": {
     "node": "^22.13.0 || >=24.11.0"
