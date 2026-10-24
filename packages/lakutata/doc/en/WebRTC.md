@@ -680,6 +680,9 @@ a second), the members in other processes:
 | 4 rooms of 12 publishers and 10 subscribers each, in the main thread | about 92,000 a second | 86,000 to 88,000 a second | 145%: the main thread is full, the rest is the garbage collector |
 | The same 4 rooms, in 4 worker threads | about 92,000 a second | all | 174% |
 
+At a load as light as the first room's, the share of a core depends on how fast the system runs the cores, and it runs
+them faster when the machine is busy: with two other cores kept busy, the same room took 21%.
+
 In an arm64 Linux virtual machine (Docker Desktop, 10 cores) on the same Mac, with the members running in it too, the
 main thread forwarded all the packets of the 4 rooms (93,000 a second) at 160% of a core. Four threads took 380% to
 390% of a core, and forwarded from 69,000 to all of the 94,000 a second, depending on the run: there, at that load, the
@@ -1354,4 +1357,5 @@ pairs tried.
   suits rooms spread over tens of nodes; beyond that, the nodes would have to forward through each other.
 - Verified in October 2026 with Chrome 154, Firefox 153 and WebKit 26.5 (the builds of Playwright 1.62), Safari
   27.0.1 on macOS 27, Pion 4.2.25 (Go) and aiortc 1.15.0 (Python), on Node.js 24 (macOS, and Linux on Alpine), Bun
-  1.4.3 and the main process of Electron 44. The scripts are in `packages/webrtc/test-env` of the repository.
+  1.4.3 (macOS, and Linux on Debian) and the main process of Electron 44. The scripts are in `packages/webrtc/test-env`
+  of the repository.
