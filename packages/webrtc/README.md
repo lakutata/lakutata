@@ -483,7 +483,7 @@ The other runtimes and implementations, compiled first (`npm run compile`):
   the worker threads of the connections, in Linux (`node:24-alpine` in Docker).
 - `npm run test:interop` connects Pion (Go) and aiortc (Python), in Docker, to the signaling, the TURN server and a
   member of this package: a data channel directly and through the relay only, and a call of a service action from
-  aiortc.
+  aiortc; then the same again, with the engines of the member's connections in worker threads.
 - `node test-env/safari.mjs` opens a page in Safari (macOS): a data channel, a service call, a connection through the
   relay only. Close its tab afterwards.
 

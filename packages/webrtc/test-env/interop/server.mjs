@@ -3,21 +3,23 @@
 //member opens a data channel `echo`, sends `hello <member>`, waits for `echo: hello <member>` and answers `bye`; it
 //also serves its service actions over the channels `service` the members create (webrtcServiceEntrypoint). It prints
 //a line per member, and exits with 0 once every member of --expect echoed (and called the service, for those of
-//--service), 1 after --timeout seconds.
-//   node test-env/interop/server.mjs --expect pion,aiortc --service aiortc [--relay] [--timeout 90]
+//--service), 1 after --timeout seconds. With --threads, the engines of its connections run in worker threads
+//(PeerThreads), one for each member.
+//   node test-env/interop/server.mjs --expect pion,aiortc --service aiortc [--relay] [--threads] [--timeout 90]
 import {networkInterfaces} from 'node:os'
 import {parseArgs} from 'node:util'
 import {Container} from '@lakutata/core'
 import {buildEntrypoints, Controller, Entrypoint} from '@lakutata/entrypoint'
 import {ServiceAction} from '@lakutata/entrypoint/decorator/ctrl'
 import {jsonRPCServiceEntrypoint} from '@lakutata/entrypoint/adapter/jsonrpc'
-const {Signaling, SignalingClient, SignalingController, TURNServer, webrtcRequestOfContext, webrtcServiceEntrypoint} = await import('../../dist/esm/exports/WebRTC.js')
+const {PeerThreads, Signaling, SignalingClient, SignalingController, TURNServer, webrtcRequestOfContext, webrtcServiceEntrypoint} = await import('../../dist/esm/exports/WebRTC.js')
 
 const {values: options} = parseArgs({
     options: {
         expect: {type: 'string', default: ''},
         service: {type: 'string', default: ''},
         relay: {type: 'boolean', default: false},
+        threads: {type: 'boolean', default: false},
         timeout: {type: 'string', default: '90'}
     }
 })
@@ -74,6 +76,7 @@ const address = Object.values(networkInterfaces()).flat().find(info => info.fami
 container = new Container()
 const turn = await container.setNamed('turn', TURNServer, {host: '0.0.0.0', port: 3478, publicAddress: address, tcp: false})
 await container.setNamed('signaling', Signaling, {turn: 'turn'})
+if (options.threads) await container.setNamed('peerThreads', PeerThreads, {threads: Math.max(1, expected.length)})
 await container.setNamed('entrypoint', Entrypoint, buildEntrypoints({
     controllers: [SignalingController, InteropController],
     service: [
@@ -82,9 +85,14 @@ await container.setNamed('entrypoint', Entrypoint, buildEntrypoints({
     ]
 }))
 //The member echoing with the others
-const member = await container.get(SignalingClient, {url: 'ws://127.0.0.1:3001/', id: 'node', iceTransportPolicy: options.relay ? 'relay' : 'all'})
+const member = await container.get(SignalingClient, {
+    url: 'ws://127.0.0.1:3001/',
+    id: 'node',
+    iceTransportPolicy: options.relay ? 'relay' : 'all',
+    ...options.threads ? {threads: 'peerThreads'} : {}
+})
 provideMember(member)
-console.log(JSON.stringify({ready: `ws://${address}:3001/`, turn: `${address}:3478`, relay: options.relay}))
+console.log(JSON.stringify({ready: `ws://${address}:3001/`, turn: `${address}:3478`, relay: options.relay, threads: options.threads}))
 const room = await member.join('interop')
 room.on('peer', peer => {
     const channel = peer.createDataChannel('echo')

@@ -385,7 +385,7 @@ TURN 服务器通过 `cluster` 选项和共用的 `secret` 加入集群。某个
 - `npm run test:bun` 在 Bun 里运行测试（浏览器的测试除外）。TURN 刷新的 4 个测试在 Bun 里会失败：测试用的假时钟只能在 Node.js 里替换 `node:timers/promises` 的导入。
 - `npm run test:electron` 在 Electron 的主进程里运行测试（用仓库里的 Electron）。
 - `npm run test:linux` 在 Linux（Docker 里的 `node:24-alpine`）里运行测试、性能目标检查，以及转发、TURN 服务器和连接的工作线程的基准。
-- `npm run test:interop` 在 Docker 里让 Pion（Go）和 aiortc（Python）连接这个包的信令、TURN 服务器和一个成员：直连和只走中转的数据通道，以及 aiortc 对服务动作的调用。
+- `npm run test:interop` 在 Docker 里让 Pion（Go）和 aiortc（Python）连接这个包的信令、TURN 服务器和一个成员：直连和只走中转的数据通道，以及 aiortc 对服务动作的调用；然后把这个成员的连接引擎放到工作线程里，再测一遍。
 - `node test-env/safari.mjs` 在 Safari（macOS）里打开一个页面：数据通道、服务调用、只走中转的连接。测完关掉这个标签页。
 
 `npm run test:servers` 在 Docker 里启动 NATS 和 Redis，运行集群在它们上面的测试（`test-env/cluster.sh`）。`test-env/k3s/run.sh` 在 Docker 里运行有两个节点的 k3s，部署信令，并在每个节点上部署一个 TURN 服务器和一个媒体服务器。它先让两个成员分别通过两个不同的 pod 连接，并且只经 TURN 服务器中转；再让两个成员分别连到两个节点的媒体服务器，并删掉其中一个媒体服务器的 pod。

@@ -2,8 +2,9 @@
 # The interop tests with Pion (Go) and aiortc (Python), in Docker. The signaling, the TURN server and a member of this
 # package run in a node:24-alpine container (the repository mounted read-only at the same path: compile first), the
 # clients in golang:1-alpine and python:3.12-slim beside it, on a network of their own, so they reach each other
-# directly. Two rounds: the member connecting directly, then through the TURN relay only (Pion through the relay only
-# too). See server.mjs, pion/main.go and aiortc/client.py.
+# directly. Four rounds: the member connecting directly, then through the TURN relay only (Pion through the relay only
+# too); both again with the engines of its connections in worker threads. See server.mjs, pion/main.go and
+# aiortc/client.py.
 #   npm run compile && sh test-env/interop/run.sh
 # The Go modules and the pip packages are kept in $INTEROP_CACHE (default: $TMPDIR/lakutata-webrtc-interop).
 set -e
@@ -24,12 +25,14 @@ trap cleanup EXIT
 cleanup
 docker network create "$network" > /dev/null
 failed=0
-for mode in direct relay; do
+for mode in direct relay direct-threads relay-threads; do
     echo "== $mode"
     relay=""
-    [ "$mode" = relay ] && relay="--relay"
+    threads=""
+    case $mode in relay*) relay="--relay" ;; esac
+    case $mode in *-threads) threads="--threads" ;; esac
     docker run -d --name lakutata-interop-node --network "$network" -v "$repo:$repo:ro" -w "$package" node:24-alpine \
-        node test-env/interop/server.mjs --expect pion,aiortc --service aiortc --timeout 240 $relay > /dev/null
+        node test-env/interop/server.mjs --expect pion,aiortc --service aiortc --timeout 240 $relay $threads > /dev/null
     waited=0
     until docker logs lakutata-interop-node 2>&1 | grep -q '"ready"'; do
         waited=$((waited + 1))
