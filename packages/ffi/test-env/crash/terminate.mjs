@@ -1,5 +1,6 @@
 //Worker threads stopped while they use koffi, over and over. Not a unit test: a check to run again when koffi, Bun or
-//Node.js is upgraded. A process that crashes exits with a signal (or 0xC0000005 on Windows).
+//Node.js is upgraded. A process that crashes exits with a signal; on Windows, with 0xC0000005 (a crash of Bun), 134 (the
+//fatal error of koffi in Node.js) or 3 (the same in Bun).
 //   npm run compile && node test-env/crash/terminate.mjs [rounds] [async | sync | threads | starting | loading]
 //   bun test-env/crash/terminate.mjs [rounds] [async | sync | threads | starting | loading]
 //- async (by default): asynchronous calls in the thread pool, the worker stopped while they run. Bun (1.4.3, 1.4.4)

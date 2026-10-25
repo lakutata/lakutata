@@ -117,6 +117,57 @@ describe('The libraries of Windows', {skip: !WINDOWS && 'Windows only'}, (): voi
         assert.ok(ticks >= 2, `${ticks} ticks`)
     })
 
+    it('runs the asynchronous functions in the threads of a library', async (): Promise<void> => {
+        const threaded: NativeLibraryHandle = loadNativeLibrary('kernel32', DECLARATIONS, {threads: 1})
+        const crt: NativeLibraryHandle = loadNativeLibrary('c', DECLARATIONS, {threads: 1})
+        const msvcrt: NativeLibraryHandle = loadNativeLibrary('msvcrt', '', {threads: 1})
+        try {
+            await Promise.all([threaded.ready, crt.ready, msvcrt.ready])
+            const id = threaded.func<() => number>('DWORD WINAPI GetCurrentThreadId(void)')
+            const idInThread = threaded.func<() => Promise<number>>('DWORD WINAPI GetCurrentThreadId(void)', {async: true})
+            const thread: number = await idInThread()
+            assert.notStrictEqual(thread, id())
+            assert.strictEqual(await idInThread(), thread)
+            //One thread: the calls one after the other, in their order
+            const sleep = threaded.func<(milliseconds: number) => Promise<void>>('void WINAPI Sleep(DWORD milliseconds)', {async: true})
+            const order: number[] = []
+            await Promise.all([40, 20, 1].map((milliseconds: number, index: number): Promise<void> => sleep(milliseconds).then((): void => {
+                order.push(index)
+            })))
+            assert.deepStrictEqual(order, [0, 1, 2])
+            //An _Out_ struct, a wide string, a buffer written by the function
+            const time: Record<string, number> = {}
+            await threaded.func<(time: Record<string, number>) => Promise<void>>('void WINAPI GetSystemTimeAsFileTime(_Out_ FILETIME *time)', {async: true})(time)
+            assert.strictEqual(typeof time.dwHighDateTime, 'number')
+            const buffer: Uint16Array = new Uint16Array(260)
+            const length: number = await threaded.func<(name: string, buffer: Uint16Array, size: number) => Promise<number>>('DWORD WINAPI GetEnvironmentVariableW(LPCWSTR name, WORD *buffer, DWORD size)', {async: true})('USERPROFILE', buffer, buffer.length)
+            assert.strictEqual(Buffer.from(buffer.buffer, 0, length * 2).toString('utf16le'), process.env.USERPROFILE)
+            //GetLastError and the errno of ucrtbase, as the thread had them after the call
+            assert.strictEqual(await threaded.func<(path: string) => Promise<number>>('DWORD WINAPI GetFileAttributesW(LPCWSTR path)', {async: true})('C:\\lakutata\\surely\\missing'), 0xFFFFFFFF)
+            assert.ok([2, 3].includes(threaded.windowsError()!), String(threaded.windowsError()))
+            await crt.func<(text: string, end: null, base: number) => Promise<number>>('long strtol(const char *text, char **end, int base)', {async: true})('99999999999999999999', null, 10)
+            assert.strictEqual(crt.errno(), 34)
+            //A callback called from the thread, a variadic function
+            const qsort = crt.func<(base: Int32Array, count: number, size: number, compare: (a: Pointer, b: Pointer) => number) => Promise<void>>('void qsort(void *base, size_t count, size_t size, compare_t compare)', {async: true})
+            const values: Int32Array = new Int32Array([5, 3, 9, 1])
+            await qsort(values, values.length, 4, (a: Pointer, b: Pointer): number => (crt.read(a, 'int') as number) - (crt.read(b, 'int') as number))
+            assert.deepStrictEqual([...values], [1, 3, 5, 9])
+            const snprintf = msvcrt.func<(buffer: Buffer, size: number, format: string, ...args: unknown[]) => Promise<number>>('int _snprintf(char *buffer, size_t size, const char *format, ...)', {async: true})
+            const text: Buffer = Buffer.alloc(32)
+            await snprintf(text, text.length, 'x=%d', 'int', 42)
+            assert.strictEqual(text.subarray(0, text.indexOf(0)).toString(), 'x=42')
+            //A call still running when the library is closed: rejected
+            const long: Promise<void> = sleep(300)
+            const rejected: Promise<void> = assert.rejects(long, /closed while a call runs/)
+            await threaded.close(20)
+            await rejected
+        } finally {
+            await threaded.close()
+            await crt.close()
+            await msvcrt.close()
+        }
+    })
+
     it('calls SQLite of Windows (winsqlite3.dll) and reads its version', (): void => {
         const sqlite: NativeLibraryHandle = loadNativeLibrary('winsqlite3', `
             typedef struct sqlite3 sqlite3;
