@@ -42,7 +42,7 @@ describe('The command ffi generate', {skip: !compiler() && 'no C compiler'}, ():
         assert.match(first.output, /not checked against the library \(--no-check\)/)
         const code: string = readFileSync(path.join(work, 'Vendor.ts'), 'utf8')
         assert.match(code, /export class Vendor extends NativeLibrary \{/)
-        assert.match(code, /public readonly vendor_send: \(device: Pointer \| Buffer \| ArrayBufferView \| null, frame: Pointer \| Buffer \| ArrayBufferView \| null\) => number/)
+        assert.match(code, /public readonly vendor_send: \(device: Pointer \| Buffer \| ArrayBufferView \| null, frame: vendor_frame \| Pointer \| Buffer \| ArrayBufferView \| null\) => number/)
         const again: { code: number, output: string } = await runIn(process.execPath, [CLI, 'ffi', 'generate', 'vendor.h', '--no-check'], work)
         assert.notStrictEqual(again.code, 0)
         assert.match(again.output, /Vendor\.ts exists: give --force to replace it/)

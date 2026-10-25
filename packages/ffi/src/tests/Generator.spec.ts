@@ -55,6 +55,7 @@ describe('The generator of libraries', (): void => {
             'int vendor_open(const char *name, vendor **out) __attribute__((visibility("default"))) __attribute__((deprecated));',
             'size_t vendor_read(vendor *device, void *buffer, size_t size);',
             'vendor_frame vendor_frame_get(vendor *device);',
+            'int vendor_frame_send(const vendor_frame *frame);',
             'void vendor_logger(vendor *device, vendor_log logger);',
             'void free(void *pointer);',
             'long double vendor_precise(void);',
@@ -62,8 +63,8 @@ describe('The generator of libraries', (): void => {
         ].join('\n')
         const generated: GeneratedLibrary = await generateFromPreprocessed({text: text, header: '/sdk/vendor.h', systemDirectories: ['/usr/include'], command: 'cc -E'}, {check: false}, platformOf('linux', 'x64'))
         const {code, declarations, report} = generated
-        assert.deepStrictEqual({functions: report.functions, variables: report.variables, interfaces: report.interfaces, constants: report.constants, unchecked: report.unchecked}, {functions: 5, variables: 1, interfaces: 1, constants: 4, unchecked: 'not asked'})
-        assert.deepStrictEqual(report.skipped.map((skipped): string => `${skipped.file}:${skipped.line} ${skipped.reason}`), ['/sdk/vendor.h:16 long double is not supported'])
+        assert.deepStrictEqual({functions: report.functions, variables: report.variables, interfaces: report.interfaces, constants: report.constants, unchecked: report.unchecked}, {functions: 6, variables: 1, interfaces: 1, constants: 4, unchecked: 'not asked'})
+        assert.deepStrictEqual(report.skipped.map((skipped): string => `${skipped.file}:${skipped.line} ${skipped.reason}`), ['/sdk/vendor.h:17 long double is not supported'])
         //The declarations: the ones of the library, the types of the system they use, the macros as their values
         assert.match(declarations, /^struct timestamp \{\n {4}long seconds;\n {4}int micros;\n\};/m)
         assert.doesNotMatch(declarations, /unused|size_t;|strtold|visibility|deprecated/)
@@ -71,7 +72,7 @@ describe('The generator of libraries', (): void => {
         assert.match(declarations, /^#define VENDOR_OK 0$/m)
         assert.match(declarations, /^#define VENDOR_FLAGS 6$/m)
         assert.doesNotMatch(declarations, /VENDOR_NAME/)
-        assert.strictEqual(new DeclarationParser(platformOf('linux', 'x64')).parse(declarations).functions.size, 5)
+        assert.strictEqual(new DeclarationParser(platformOf('linux', 'x64')).parse(declarations).functions.size, 6)
         //The class: a property by function, its TypeScript type
         assert.match(code, /export interface vendor_frame \{\n {4}kind: number\n {4}length: number\n {4}at: \{seconds: bigint, micros: number\}\n\}/)
         assert.match(code, /@Library\(\{\n {4}names: 'vendor',\n {4}declarations: `\n {8}struct timestamp \{/)
@@ -79,6 +80,7 @@ describe('The generator of libraries', (): void => {
         assert.match(code, / {4}\/\/int vendor_open\(const char \*name, vendor \*\*out\);\n {4}@Native\(\)\n {4}public readonly vendor_open: \(name: string \| null, out: Pointer \| Buffer \| ArrayBufferView \| null\) => number/)
         assert.match(code, /public readonly vendor_read: \(device: Pointer \| Buffer \| ArrayBufferView \| null, buffer: Pointer \| Buffer \| ArrayBufferView \| null, size: bigint \| number\) => bigint/)
         assert.match(code, /public readonly vendor_frame_get: \(device: Pointer \| Buffer \| ArrayBufferView \| null\) => vendor_frame/)
+        assert.match(code, /public readonly vendor_frame_send: \(frame: vendor_frame \| Pointer \| Buffer \| ArrayBufferView \| null\) => number/)
         assert.match(code, /public readonly vendor_logger: \(device: Pointer \| Buffer \| ArrayBufferView \| null, logger: \(\(level: number, message: string \| null\) => void\) \| Pointer \| null\) => void/)
         //A function named as a member of the component: another property
         assert.match(code, / {4}@Native\('free'\)\n {4}public readonly free_: \(pointer: Pointer \| Buffer \| ArrayBufferView \| null\) => void/)

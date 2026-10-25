@@ -126,7 +126,10 @@ export class TypeScriptTypes {
             return flow === 'given' && !constTarget ? 'string | Buffer | null' : 'string | null'
         }
         if (to.kind === 'function' && flow === 'given') return `(${this.functionType(to, true)}) | Pointer | null`
-        return flow === 'given' && to.kind !== 'function' ? 'Pointer | Buffer | ArrayBufferView | null' : 'Pointer | null'
+        if (flow !== 'given' || to.kind === 'function') return 'Pointer | null'
+        //A struct or a union given to the function: its object too
+        if ((to.kind === 'struct' || to.kind === 'union') && to.members) return `${this.type(to, 'received')} | Pointer | Buffer | ArrayBufferView | null`
+        return 'Pointer | Buffer | ArrayBufferView | null'
     }
 
     #array(of: CType): string {
