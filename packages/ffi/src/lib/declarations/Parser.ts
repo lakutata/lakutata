@@ -545,6 +545,8 @@ export class DeclarationParser {
      * @param convention
      */
     #withConvention(type: FunctionType, convention: CallingConvention | undefined): FunctionType {
+        //A variadic function is called as cdecl whatever it is declared with, as Microsoft compiles it
+        if (type.variadic) return type
         return convention && convention !== type.convention ? {...type, convention: convention} : type
     }
 
@@ -996,7 +998,7 @@ export class DeclarationParser {
                         if (type.kind === 'function') throw this.#error('An array of functions is not allowed', token ?? this.#peek())
                         type = {kind: 'array', of: type, length: suffix.array}
                     } else {
-                        type = {kind: 'function', result: type, parameters: suffix.function.parameters, variadic: suffix.function.variadic, convention: (nested ? functionConvention : undefined) ?? 'cdecl'}
+                        type = {kind: 'function', result: type, parameters: suffix.function.parameters, variadic: suffix.function.variadic, convention: (nested && !suffix.function.variadic ? functionConvention : undefined) ?? 'cdecl'}
                     }
                 }
                 if (nested) return nested.build(type, targetConst && !suffixes.length)

@@ -4,7 +4,7 @@ import {builtinTypes} from '../declarations/Builtins.js'
 import type {Token} from '../declarations/Lexer.js'
 import {DeclarationParser, type MacroOrigin, type SourceDeclaration, type SourceDeclarations} from '../declarations/Parser.js'
 import {CURRENT_PLATFORM, type Platform} from '../declarations/Platform.js'
-import type {CType, FunctionDeclaration, RecordType, VariableDeclaration} from '../declarations/Types.js'
+import type {CType, Declarations, FunctionDeclaration, RecordType, VariableDeclaration} from '../declarations/Types.js'
 import {loadNativeLibrary, type NativeLibraryHandle} from '../library/NativeLibraryHandle.js'
 import {declarationText, prunedTokens} from './CText.js'
 import {preprocessHeader, type PreprocessedHeader, type PreprocessOptions} from './Preprocessor.js'
@@ -338,7 +338,9 @@ export async function generateFromPreprocessed(preprocessed: PreprocessedHeader,
     }
     const constantLines: string[] = macroConstants.map(([name, value]: [string, bigint]): string => `#define ${name} ${value}`)
     const declarations: string = [...chunks.flatMap((chunk): string[] => chunk.lines), ...constantLines].join('\n')
-    //The functions and the variables of the library
+    //The functions and the variables of the library, as the declarations written are read (the types the package knows
+    //replace the ones of the system of the same name: DWORD, LPCWSTR)
+    const emitted: Declarations = checker.declarations
     let functions: FunctionDeclaration[] = []
     let variables: VariableDeclaration[] = []
     const prototypes: Map<string, string> = new Map()
@@ -347,11 +349,11 @@ export async function generateFromPreprocessed(preprocessed: PreprocessedHeader,
         if (!isOwn(item.file)) continue
         for (const name of item.names) {
             if (name.startsWith('function ')) {
-                const fn: FunctionDeclaration | undefined = source.declarations.functions.get(name.slice(9))
+                const fn: FunctionDeclaration | undefined = emitted.functions.get(name.slice(9))
                 if (fn) functions.push(fn)
                 prototypes.set(name.slice(9), declarationText(prunedTokens(item.tokens), '').join(' '))
             } else if (name.startsWith('variable ')) {
-                const variable: VariableDeclaration | undefined = source.declarations.variables.get(name.slice(9))
+                const variable: VariableDeclaration | undefined = emitted.variables.get(name.slice(9))
                 if (variable) variables.push(variable)
             }
         }
@@ -404,7 +406,7 @@ export async function generateFromPreprocessed(preprocessed: PreprocessedHeader,
         const item: SourceDeclaration = items[chunk.index]
         if (!isOwn(item.file)) continue
         for (const name of item.names) {
-            const type: CType | undefined = name.startsWith('type ') ? source.declarations.types.get(name.slice(5)) : name.startsWith('struct ') || name.startsWith('union ') ? source.declarations.tags.get(name) : undefined
+            const type: CType | undefined = name.startsWith('type ') ? emitted.types.get(name.slice(5)) : name.startsWith('struct ') || name.startsWith('union ') ? emitted.tags.get(name) : undefined
             if ((type?.kind === 'struct' || type?.kind === 'union') && type.members) nameRecord(type, name.startsWith('type ') ? name.slice(5) : name.split(' ')[1])
         }
     }

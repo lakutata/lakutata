@@ -88,6 +88,27 @@ describe('The generator of libraries', (): void => {
         assert.match(code, /^import \{Library, Native, NativeLibrary, NativeVariable, type Pointer\} from '@lakutata\/ffi'$/m)
     })
 
+    it('types the declarations as the package reads them, its types of Windows replacing the ones of the system', async (): Promise<void> => {
+        const text: string = [
+            '#line 1 "/sdk/device.h"',
+            '#line 1 "/kits/winnt.h"',
+            'typedef unsigned long DWORD;',
+            'typedef unsigned short WCHAR;',
+            'typedef const WCHAR *LPCWSTR;',
+            '#line 2 "/sdk/device.h"',
+            'typedef void (__stdcall *device_event)(DWORD event, LPCWSTR text);',
+            'DWORD __stdcall DeviceOpen(LPCWSTR name, device_event callback);',
+            'int __stdcall DeviceLog(const char *format, ...);'
+        ].join('\n')
+        const {code, declarations} = await generateFromPreprocessed({text: text, header: '/sdk/device.h', systemDirectories: ['/kits'], command: 'cl /P'}, {check: false}, platformOf('win32', 'x64'))
+        assert.doesNotMatch(declarations, /typedef unsigned long DWORD|typedef unsigned short WCHAR|LPCWSTR;/)
+        assert.match(declarations, /^typedef void \(__stdcall \*device_event\)\(DWORD event, LPCWSTR text\);$/m)
+        assert.match(code, /public readonly DeviceOpen: \(name: string \| null, callback: \(\(event: number, text: string \| null\) => void\) \| Pointer \| null\) => number/)
+        //A variadic function is cdecl, whatever it is declared with
+        assert.strictEqual(new DeclarationParser(platformOf('win32', 'ia32')).parse(declarations).functions.get('DeviceLog')!.type.convention, 'cdecl')
+        assert.strictEqual(new DeclarationParser(platformOf('win32', 'ia32')).parse(declarations).functions.get('DeviceOpen')!.type.convention, 'stdcall')
+    })
+
     describe('with the C compiler of the machine', {skip: !compilerFound() && `no C compiler (${defaultCompiler()})`}, (): void => {
 
         const file: string | undefined = compileFixture()

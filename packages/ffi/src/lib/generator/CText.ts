@@ -9,6 +9,11 @@ const NOISE: ReadonlySet<string> = new Set([
 ])
 
 /**
+ * The words that can follow the parenthesis of a declarator of a pointer to a function: void (*f)(void), void (__stdcall *f)(void)
+ */
+const DECLARATOR_STARTS: ReadonlySet<string> = new Set(['*', '__stdcall', '_stdcall', '__cdecl', '_cdecl', '__fastcall', '_fastcall', '__thiscall', '__vectorcall', '__clrcall'])
+
+/**
  * The end of the balanced brackets opened at an index: the index of the closing one
  * @param tokens
  * @param open
@@ -106,7 +111,7 @@ export function declarationText(tokens: readonly Token[], indent: string = '    
         const glued: boolean = !previous
             || [',', ';', ')', ']', '['].includes(punctuator ?? '')
             || (previous.kind === 'punctuator' && ['(', '[', '*', '~', '!'].includes(previous.text))
-            || (punctuator === '(' && (previous.kind === 'identifier' || previous.text === ')') && tokens[index + 1]?.text !== '*')
+            || (punctuator === '(' && (previous.kind === 'identifier' || previous.text === ')') && !DECLARATOR_STARTS.has(tokens[index + 1]?.text ?? ''))
             || !line.trim()
         line += `${glued ? '' : ' '}${text}`
         previous = token
