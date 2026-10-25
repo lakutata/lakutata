@@ -40,6 +40,16 @@
         "default": "./dist/cjs/exports/FFI.js"
       }
     },
+    "./generator": {
+      "import": {
+        "types": "./dist/types/exports/Generator.d.ts",
+        "default": "./dist/esm/exports/Generator.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Generator.d.ts",
+        "default": "./dist/cjs/exports/Generator.js"
+      }
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
