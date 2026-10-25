@@ -72,7 +72,7 @@ export interface NativeFunctionOptions {
 /**
  * A variable a library exports
  */
-export interface NativeVariable<T = unknown> {
+export interface NativeVariableAccessor<T = unknown> {
     /**
      * Its address.
      */
@@ -87,6 +87,55 @@ export interface NativeVariable<T = unknown> {
      * @throws {NativeDeclarationException} When it is const.
      */
     set(value: T): void
+}
+
+/**
+ * The declarations of a library, shared by the libraries loaded with the same declarations: read once, their C types and
+ * their prototypes made once (koffi never frees a type)
+ */
+class LibraryModel {
+
+    readonly parser: DeclarationParser = new DeclarationParser(CURRENT_PLATFORM)
+
+    readonly names: TypeNames = new TypeNames(this.parser)
+
+    readonly #prototypes: Map<string, FunctionDeclaration> = new Map()
+
+    /**
+     * Read the declarations.
+     * @param declarations The C declarations.
+     */
+    constructor(declarations: string) {
+        if (declarations) this.parser.parse(declarations)
+    }
+
+    /**
+     * A prototype, read once.
+     * @param text The prototype.
+     */
+    public prototype(text: string): FunctionDeclaration {
+        let declaration: FunctionDeclaration | undefined = this.#prototypes.get(text)
+        if (!declaration) {
+            declaration = this.parser.prototype(text)
+            this.#prototypes.set(text, declaration)
+        }
+        return declaration
+    }
+}
+
+const models: Map<string, LibraryModel> = new Map()
+
+/**
+ * The model of declarations, the same for the same text
+ * @param declarations
+ */
+function modelOf(declarations: string): LibraryModel {
+    let model: LibraryModel | undefined = models.get(declarations)
+    if (!model) {
+        model = new LibraryModel(declarations)
+        models.set(declarations, model)
+    }
+    return model
 }
 
 /**
@@ -128,6 +177,8 @@ export class NativeLibraryHandle {
 
     readonly #file: string
 
+    readonly #model: LibraryModel
+
     readonly #parser: DeclarationParser
 
     readonly #names: TypeNames
@@ -158,9 +209,9 @@ export class NativeLibraryHandle {
      */
     constructor(names: LibraryNames, declarations: string = '', options: NativeLibraryOptions = {}) {
         this.#options = options
-        this.#parser = new DeclarationParser(CURRENT_PLATFORM)
-        if (declarations) this.#parser.parse(declarations)
-        this.#names = new TypeNames(this.#parser)
+        this.#model = modelOf(declarations)
+        this.#parser = this.#model.parser
+        this.#names = this.#model.names
         const {library, file} = loadLibrary(names, options)
         this.#library = library
         this.#file = file
@@ -208,7 +259,8 @@ export class NativeLibraryHandle {
     }
 
     /**
-     * Add C declarations to the ones of the library.
+     * Add C declarations to the ones of the library (and of the libraries loaded with the same declarations, which share
+     * them).
      * @param text The declarations.
      */
     public declare(text: string): void {
@@ -227,8 +279,7 @@ export class NativeLibraryHandle {
         const key: string = `${prototype}\u0000${JSON.stringify(options)}`
         let bound: ((...args: any[]) => any) | undefined = this.#functions.get(key)
         if (!bound) {
-            const declaration: FunctionDeclaration = this.#parser.prototype(prototype)
-            bound = this.#bind(declaration, options)
+            bound = this.#bind(this.#model.prototype(prototype), options)
             this.#functions.set(key, bound)
         }
         return bound as T
@@ -259,7 +310,7 @@ export class NativeLibraryHandle {
      * @param declaration Its name, or its declaration.
      * @returns Its address, and the functions reading and writing its value.
      */
-    public variable<T = unknown>(declaration: string): NativeVariable<T> {
+    public variable<T = unknown>(declaration: string): NativeVariableAccessor<T> {
         this.#open()
         let name: string = declaration.trim()
         if (!/^[A-Za-z_]\w*$/.test(name)) {
