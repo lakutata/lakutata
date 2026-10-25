@@ -149,7 +149,7 @@ snprintf(buffer, buffer.length, '%s: %d', 'const char *', 'count', 'int', 42)
 ```
 
 - **需要释放的字符串**：函数返回（或通过输出参数给出）一个要由调用方释放的字符串时，声明时加上 `{free: 'sqlite3_free'}`，写库里负责释放的函数；或者加上 `{free: true}`，用 C 标准库的 `free()`。字符串读出来以后就会被释放。在 Windows 上，如果库是用另一套 C 运行库编译的，必须给出它自己的释放函数。
-- **异步调用**：声明时加上 `{async: true}` 的函数在线程池里执行，返回一个 Promise；调用期间事件循环照常运行。Node.js 用的是 libuv 的线程池：默认只有 4 个线程，而且和文件系统、DNS、加解密共用；调用多或者调用时间长时，请调大 `UV_THREADPOOL_SIZE`。可变参数的函数不能异步调用。
+- **异步调用**：声明时加上 `{async: true}` 的函数在另一个线程里执行，返回一个 Promise；调用期间事件循环照常运行。默认用的是运行时的线程池：Node.js 用的是 libuv 的线程池，默认只有 4 个线程，而且和文件系统、DNS、加解密共用；调用多或者调用时间长时，请调大 `UV_THREADPOOL_SIZE`。在线程池里，可变参数的函数不能异步调用。库也可以改用自己的线程（第 9 节）。
 
 ## 4. 结构体、联合、枚举和常量
 
@@ -213,7 +213,7 @@ export class Vendor extends NativeLibrary {
 
 ## 7. C 函数的错误
 
-`lastErrno()`（或组件的 `errno()`）给出本线程上一次调用之后的 `errno`。在 Windows 上，每个 C 运行库各有一份 `errno`：默认读微软 C 运行库（`ucrtbase.dll`）的，其他运行库在 `@Library` 的 `crt` 里指定（旧的库是 `msvcrt.dll`）。`lastWindowsError()` 给出 Windows API 的错误（`GetLastError`），每次调用之后都会保留下来。
+`lastErrno()`（或组件的 `errno()`）给出本线程上一次调用之后的 `errno`（库有自己的线程时，见第 9 节）。在 Windows 上，每个 C 运行库各有一份 `errno`：默认读微软 C 运行库（`ucrtbase.dll`）的，其他运行库在 `@Library` 的 `crt` 里指定（旧的库是 `msvcrt.dll`）。`lastWindowsError()` 给出 Windows API 的错误（`GetLastError`），每次调用之后都会保留下来。
 
 ```typescript
 import {lastErrno, loadNativeLibrary} from '@lakutata/ffi'
@@ -236,25 +236,57 @@ console.log(div(17, 5))
 await libc.close()
 ```
 
-## 9. 销毁和线程
+## 9. 库的线程
+
+异步函数默认在运行时的线程池里执行。设置了 `threads` 之后，库就有自己的工作线程：每个线程各自加载这个库，异步函数在这些线程里执行。
+
+```typescript
+import {Library, Native, NativeLibrary} from '@lakutata/ffi'
+
+@Library({names: 'vendor', threads: 1})
+export class Vendor extends NativeLibrary {
+    @Native('int vendor_read(int device, unsigned char *buffer, size_t size)', {async: true})
+    public readonly read: (device: number, buffer: Buffer, size: number) => Promise<number>
+
+    @Native('int vendor_version(void)')
+    public readonly version: () => number
+}
+```
+
+- **几个线程**：只有一个线程时，异步调用按发起的先后顺序，一个接一个执行，适合不是线程安全的库，或者一次只能处理一个请求的设备。有多个线程时，每个调用交给最空闲的那个线程。配置里可以改成别的数量（`buildNativeLibraryOptions(Vendor, {threads: 2})`），`loadNativeLibrary` 的选项里也可以设置；`0` 表示仍然用线程池。
+- **哪些函数在线程里执行**：只有异步函数。同步函数仍然在调用它的线程里执行，所以这个库会同时被两个线程使用：如果库不是线程安全的，请把它的函数全部声明为异步。在这里，可变参数的函数也可以异步调用。库的线程不占用线程池：耗时长的调用不会拖慢文件系统，`UV_THREADPOOL_SIZE` 对它们也不起作用。
+- **参数会复制**到线程里。函数会写入的参数，在函数返回后再复制回来：`_Out_` 和 `_Inout_` 参数，以及传给非 `const` 指针的缓冲区和类型化数组。缓冲区每次调用都要复制过去，函数可能写入的还要复制回来：缓冲区很大时，用线程池开销更小。指针原样传过去：`alloc()` 分配的内存所有线程都能用。
+- **回调**：传给函数指针参数的 JS 函数，在发起调用的那个线程里执行，库的线程会等它执行完；它抛出的异常会让 Promise 被拒绝。持久回调和第 5 节说的一样。
+- **开销**：每次调用都等上一次完成时，一次调用约 11 µs，线程池约 7 µs（Node.js，Apple 芯片）。
+- **errno**：库的 `errno()` 和 `windowsError()` 给出最近完成的那次异步调用所在线程的值。只有一个线程，或者每次调用都等上一次完成时，这个值才可靠。从第一次异步调用完成起，它们就不再给出同步调用的值了：同步调用的值用 `lastErrno()` 和 `lastWindowsError()` 读（第 7 节）。
+- **启动和关闭**：线程随库一起启动，加载库要几毫秒。组件要等线程把库加载好才算创建完成；用 `loadNativeLibrary` 加载的库，这时它的 `ready` 才会完成（调用本来也会等它）。关闭库时，先等进行中的调用结束，再让线程卸载库并退出。线程意外退出时，它正在执行的调用会失败，下一次调用会启动一个新线程。
+
+## 10. 销毁和工作线程
 
 应用停止时，库组件会：让它的属性抛出 `NativeLibraryClosedException`（异步函数返回被拒绝的 Promise）；等进行中的异步调用结束（`drainTimeout`，默认 10 秒）；释放它的回调；释放 `alloc()` 分配的内存；卸载库（`keepLoaded` 时保留；musl 从不卸载）。如果把属性上的函数另外存了一份（`const abs = libc.abs`），销毁后就不能再调用它：调用已卸载的库里的函数，进程会退出。
 
-工作线程要自己加载库（在线程里创建组件）。在 Bun 里，工作线程里还有原生异步调用没返回时，不要终止这个线程：Bun 会崩溃（这是 Bun 的 bug，1.4.4 里也有）。请先停止线程里的应用，它会等这些调用结束。
+原生调用没法中途打断。过了 `drainTimeout` 还有调用没结束时，库、它的回调和它的内存都保持原样，让这些调用能安全返回。线程池里的调用继续执行，返回时照常完成；库的线程里的调用会以 `NativeLibraryClosedException` 被拒绝，那些线程在调用返回后退出。即使调用了 `process.exit()`，Node.js 也要等这样的调用返回才退出；Bun 的 `process.exit()` 不等它们。
 
-## 10. 运行环境
+工作线程要自己加载库（在线程里创建组件）。请先停止工作线程里运行的应用，再终止这个线程：应用会等调用结束，并关闭它的库。工作线程正在用 koffi 时被终止，整个进程都可能退出：
+
+- koffi 正在这个线程里加载时，Node.js 和 Bun 都会这样：线程正在 import 这个包，或者线程里创建的库正在启动它的线程（几毫秒）。koffi 3.3.4 在加载过程中被终止就会让进程退出。库的线程启动期间退出进程，也可能这样；
+- 在 Bun 里，线程池里还有异步调用没返回时（这是 Bun 的 bug，1.4.4 里也有），以及库的线程正在绑定函数时，也会这样。
+
+库的线程里有异步调用正在执行时终止工作线程，进程不会崩溃。
+
+## 11. 运行环境
 
 Node.js `^22.13.0 || >=24.11.0`、Electron 的主进程和 Bun；不支持 Electron 的渲染进程和浏览器。
 
 这个包的测试在 macOS（arm64：Node.js 24、Bun 1.4、Electron 44）、Linux（arm64，glibc 和 musl：Node.js 24、Bun 1.4）和 Windows 11（arm64，以及模拟运行的 x64：Node.js 24、Bun 1.4）上都能通过。在 macOS 上，还用 `lakutata package` 把一个使用它的应用分别打成了 bundle、Node.js 和 Bun 的可执行文件以及 Electron 应用：每一个都能运行，也都在自己的资源目录里找到了自带的库。
 
-## 11. 异常
+## 12. 异常
 
 | 异常 | 什么时候 |
 |---|---|
 | `NativeDeclarationException` | 声明或原型读不了（带行号和列号）、库里没有这个函数、某个类型不能传（`va_list`）、类上没有 `@Library` |
 | `NativeLibraryNotFoundException` | 库加载不了：列出试过的每个文件和原因 |
-| `NativeLibraryClosedException` | 库关闭后又使用它的函数、变量或回调 |
+| `NativeLibraryClosedException` | 库关闭后又使用它的函数、变量或回调；库关闭时，它的线程里还没结束的调用 |
 | `NativeMemoryException` | 空指针、负的长度、在 Electron 里用视图 |
 | `TypeError`（来自 koffi） | 参数类型不对 |
 | `RangeError` | 声明了 `{int64: 'number'}` 的函数遇到超出安全整数范围的 64 位整数 |

@@ -184,10 +184,11 @@ snprintf(buffer, buffer.length, '%s: %d', 'const char *', 'count', 'int', 42)
   is declared with `{free: 'sqlite3_free'}`, the function of the library that frees it, or `{free: true}` for `free()`
   of the C library. The string is read, then freed. On Windows, a library built with another C library must be given its
   own function.
-- **Asynchronous calls**: a function declared with `{async: true}` runs in a thread of the pool and returns a promise;
-  the event loop goes on during the call. Node.js runs them in the pool of libuv: 4 threads by default, shared with the
-  file system, DNS and crypto; raise `UV_THREADPOOL_SIZE` for many calls, or long ones. A variadic function cannot be
-  asynchronous.
+- **Asynchronous calls**: a function declared with `{async: true}` runs in another thread and returns a promise; the
+  event loop goes on during the call. By default it runs in the thread pool of the runtime: Node.js runs them in the
+  pool of libuv, 4 threads by default, shared with the file system, DNS and crypto; raise `UV_THREADPOOL_SIZE` for many
+  calls, or long ones. A variadic function cannot be asynchronous there. A library can have threads of its own instead
+  (section 9).
 
 ## 4. Structs, unions, enums and constants
 
@@ -267,10 +268,10 @@ views of native memory: `viewBuffer` throws a `NativeMemoryException` there.
 
 ## 7. The errors of the C functions
 
-`lastErrno()` (or `errno()` of the component) gives the `errno` of the last call of the thread. On Windows, each C
-library has its own `errno`: the one of the C library of Microsoft (`ucrtbase.dll`) is read by default, another one
-given by `crt` of `@Library` (`msvcrt.dll` for the old libraries). `lastWindowsError()` gives the error of the Windows
-API (`GetLastError`), kept after each call.
+`lastErrno()` (or `errno()` of the component) gives the `errno` of the last call of the thread (for a library with
+threads of its own, see section 9). On Windows, each C library has its own `errno`: the one of the C library of
+Microsoft (`ucrtbase.dll`) is read by default, another one given by `crt` of `@Library` (`msvcrt.dll` for the old
+libraries). `lastWindowsError()` gives the error of the Windows API (`GetLastError`), kept after each call.
 
 ```typescript
 import {lastErrno, loadNativeLibrary} from '@lakutata/ffi'
@@ -294,7 +295,51 @@ console.log(div(17, 5))
 await libc.close()
 ```
 
-## 9. Destruction and threads
+## 9. The threads of a library
+
+By default, the asynchronous functions run in the thread pool of the runtime. With `threads`, a library has worker
+threads of its own instead: each one loads the library, and the asynchronous functions run in them.
+
+```typescript
+import {Library, Native, NativeLibrary} from '@lakutata/ffi'
+
+@Library({names: 'vendor', threads: 1})
+export class Vendor extends NativeLibrary {
+    @Native('int vendor_read(int device, unsigned char *buffer, size_t size)', {async: true})
+    public readonly read: (device: number, buffer: Buffer, size: number) => Promise<number>
+
+    @Native('int vendor_version(void)')
+    public readonly version: () => number
+}
+```
+
+- **The number of threads**: with one thread, the asynchronous calls run one after the other, in the order they were made: for a
+  library that is not thread-safe, or a device that serves one request at a time. With several, each call goes to the
+  least busy thread. The configuration can give another number (`buildNativeLibraryOptions(Vendor, {threads: 2})`),
+  `loadNativeLibrary` takes it in its options, and `0` keeps the thread pool.
+- **What runs there**: the asynchronous functions only. The synchronous ones still run in the thread calling them, so
+  the library is used by two threads at once: for a library that is not thread-safe, declare all its functions
+  asynchronous. A variadic function can be asynchronous here. The threads of a library are not taken from the thread
+  pool: long calls do not hold up the file system, and `UV_THREADPOOL_SIZE` does not matter for them.
+- **The arguments are copied** to the thread. The ones the function writes are copied back once it returns: the
+  `_Out_` and `_Inout_` parameters, and the buffers and typed arrays given for a pointer that is not `const`. A
+  buffer is copied to the thread at each call, and back when the function may write it: for large buffers, the thread
+  pool costs less. Pointers are passed as they are: the memory of `alloc()` is shared by all the threads.
+- **Callbacks**: a JS function given for a pointer to a function runs in the thread that made the call, while the
+  thread of the library waits for it; an exception it throws rejects the promise. Persistent callbacks work as in
+  section 5.
+- **Cost**: about 11 µs for a call awaited before the next one, against 7 µs in the thread pool (Node.js on Apple
+  silicon).
+- **errno**: `errno()` and `windowsError()` of the library give the values of the thread of the last asynchronous call
+  completed. They are reliable with one thread, or when each call is awaited before the next. From the first
+  asynchronous call completed on, they no longer give the values of the synchronous calls: `lastErrno()` and
+  `lastWindowsError()` read those (section 7).
+- **Starting and closing**: the threads start with the library and take a few milliseconds to load it. A component is
+  created once they have loaded it; for a library loaded by `loadNativeLibrary`, `ready` settles then (the calls wait
+  for it anyway). When the library is closed, the calls running are awaited, then the threads unload the library and
+  end. A thread that ends unexpectedly fails the calls it was running, and the next call starts a new one.
+
+## 10. Destruction and worker threads
 
 When the application stops, a library component makes its properties throw `NativeLibraryClosedException` (its
 asynchronous functions reject), waits for its asynchronous calls running (`drainTimeout`, 10 seconds by default),
@@ -302,11 +347,25 @@ releases its callbacks, frees the memory of `alloc()` and unloads the library (`
 unloads). A function copied out of its property (`const abs = libc.abs`) must not be called after that: a function of an
 unloaded library ends the process.
 
-A worker thread loads the library for itself (a component created in the worker). In Bun, a worker thread must not be
-stopped while native asynchronous calls run in it: Bun crashes (a bug of Bun, in 1.4.4 as well). Stop the application
-of the worker first, which waits for them.
+A native call cannot be interrupted. When calls are still running after `drainTimeout`, the library, its callbacks and
+its memory are left as they are, so that those calls can return safely. The calls in the thread pool go on, and settle
+when they return. The ones in the threads of the library are rejected with `NativeLibraryClosedException`, and each of
+those threads ends once its call returns. Node.js waits for such calls to return even on `process.exit()`;
+`process.exit()` in Bun does not wait for them.
 
-## 10. Runtimes
+A worker thread loads the library for itself (a component created in the worker). Stop the application running in the
+worker before stopping the worker: the application waits for the calls and closes its libraries. Stopping a worker
+while it uses koffi can end the whole process:
+
+- while koffi loads in the worker, in Node.js and in Bun: when the worker imports the package, or while the threads of
+  a library created in it start (a few milliseconds). koffi 3.3.4 does not survive being stopped while it loads.
+  Exiting the process while the threads of a library start can do the same;
+- in Bun, also while asynchronous calls run in the thread pool (a bug of Bun, in 1.4.4 as well), and while the threads
+  of a library bind its functions.
+
+Stopping a worker while asynchronous calls run in the threads of its libraries does not crash the process.
+
+## 11. Runtimes
 
 Node.js `^22.13.0 || >=24.11.0`, the main process of Electron and Bun; not the renderers of Electron nor the browsers.
 
@@ -315,13 +374,13 @@ Node.js 24, Bun 1.4) and on Windows 11 (arm64, and x64 under emulation: Node.js 
 using it was also packed by `lakutata package` into a bundle, executables of Node.js and of Bun, and an Electron
 application: each one ran and found the library shipped in its resources.
 
-## 11. Exceptions
+## 12. Exceptions
 
 | Exception | When |
 |---|---|
 | `NativeDeclarationException` | Declarations or a prototype cannot be read (with the line and the column), a function is not in the library, a type cannot be passed (`va_list`), a class has no `@Library` |
 | `NativeLibraryNotFoundException` | The library cannot be loaded: each file tried and why |
-| `NativeLibraryClosedException` | A function, a variable or a callback of a library used once it is closed |
+| `NativeLibraryClosedException` | A function, a variable or a callback of a library used once it is closed; a call still running in the threads of a library when the library is closed |
 | `NativeMemoryException` | A null pointer, a negative length, a view in Electron |
 | `TypeError` (from koffi) | An argument of the wrong type |
 | `RangeError` | A 64-bit integer that is not a safe integer, for a function declared with `{int64: 'number'}` |

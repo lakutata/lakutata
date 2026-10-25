@@ -81,8 +81,13 @@ Application
   array of one element for an `_Out_` integer or pointer (`Out<T>`).
 - **Callbacks**: a JS function given for a pointer to a function is valid during the call; `callback(type, fn)` makes
   one the library keeps, whose exceptions are `error` events of the component.
+- **Threads**: the asynchronous functions run in the thread pool of the runtime, or in worker threads of the library
+  when `threads` is given on `@Library` (or in the configuration). With `threads: 1`, they run one after the other,
+  for a library that is not thread-safe; with several, each call goes to the least busy thread. A variadic function can
+  be asynchronous there.
 - **Destroyed** with the application: its properties throw, the asynchronous calls running are awaited, its callbacks
-  released, the library unloaded.
+  released, the library unloaded. Calls still running after `drainTimeout` keep the library loaded, with its callbacks
+  and its memory, since a native call cannot be interrupted.
 
 ### Without the container
 
@@ -110,12 +115,12 @@ executables with Bun (`--runtime bun`).
 
 | Export | What it is |
 |---|---|
-| `NativeLibrary` | The component of a library: its functions and variables on its properties; `func`, `variable`, `callback`, `read`, `write`, `sizeOf`, `offsetOf`, `alloc`, `free`, `errno`, `constants`, `file`, `pending`; the `error` event of its callbacks |
-| `buildNativeLibraryOptions`, `NativeLibraryConfig` | Its declaration in the components, and its options: `path`, `search`, `keepLoaded`, `drainTimeout` |
-| `Library`, `LibraryOptions` | Class decorator: the library of a `NativeLibrary` subclass: `names`, `search`, `declarations`, `crt` |
+| `NativeLibrary` | The component of a library: its functions and variables on its properties; `func`, `variable`, `callback`, `read`, `write`, `sizeOf`, `offsetOf`, `alloc`, `free`, `errno`, `windowsError`, `constants`, `file`, `pending`, `threadCount`; the `error` event of its callbacks |
+| `buildNativeLibraryOptions`, `NativeLibraryConfig` | Its declaration in the components, and its options: `path`, `search`, `keepLoaded`, `drainTimeout`, `threads` |
+| `Library`, `LibraryOptions` | Class decorator: the library of a `NativeLibrary` subclass: `names`, `search`, `declarations`, `crt`, `threads` |
 | `Native` | Property decorator: a function (a prototype, a declared name, or the name of the property) and its options: `async`, `free`, `int64` |
 | `NativeVariable` | Property decorator: a variable the library exports |
-| `loadNativeLibrary`, `NativeLibraryHandle`, `NativeLibraryOptions` | A library without the container: `func`, `function`, `variable`, `callback`, `declare`, `read`, `write`, `sizeOf`, `offsetOf`, `alloc`, `free`, `errno`, `drain`, `close` |
+| `loadNativeLibrary`, `NativeLibraryHandle`, `NativeLibraryOptions` | A library without the container: `func`, `function`, `variable`, `callback`, `declare`, `read`, `write`, `sizeOf`, `offsetOf`, `alloc`, `free`, `errno`, `windowsError`, `threads`, `ready`, `drain`, `close` |
 | `NativeFunctionOptions`, `NativeVariableAccessor`, `NativeCallback`, `LibraryNames`, `Pointer`, `Out` | The options of a function, a variable, a persistent callback (`pointer`, `release()`), the names of a library, a pointer (a bigint), an output parameter |
 | `readCString`, `readWString`, `readBuffer`, `viewBuffer`, `readValue`, `readArray`, `writeValue`, `allocMemory`, `freeMemory`, `sizeOf` | Native memory, with the built-in types (`viewBuffer` does not copy; Electron refuses it) |
 | `lastErrno`, `lastWindowsError` | The errno of the last call (on Windows, the one of the C library given), the error of the Windows API |
@@ -128,7 +133,7 @@ The typings document every declaration, with examples.
 |---|---|
 | `NativeDeclarationException` | Declarations or a prototype cannot be read (with their line and column: a type not declared, `#if`, a macro with arguments, `long double`…), a function is not in the library, a `va_list` is passed, a class has no `@Library` |
 | `NativeLibraryNotFoundException` | The library cannot be loaded: its message lists each file tried and why |
-| `NativeLibraryClosedException` | A function, a variable or a callback of a closed library is used |
+| `NativeLibraryClosedException` | A function, a variable or a callback of a closed library is used; a call still running in the threads of a library when it is closed |
 | `NativeMemoryException` | A null pointer or a negative length is given to the memory functions, `viewBuffer` in Electron |
 | `TypeError` (from koffi) | An argument of the wrong type |
 | `RangeError` | A 64-bit integer that is not a safe integer, for a function declared with `{int64: 'number'}` |

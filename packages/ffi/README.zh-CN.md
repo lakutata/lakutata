@@ -69,7 +69,8 @@ Application
 - **到哪里找库**：配置里的 `path`（给了就只试它），配置和 `@Library` 里 `search` 的目录，打包后应用的资源目录下的 `native` 目录，最后是系统找库的位置。`c` 表示各系统上的 C 标准库（包括 musl），`m` 表示它的数学函数。
 - **值的对应关系**：数字对应 number；`char *` 对应字符串；指针和所有 64 位整数（`size_t`、`long`、`int64_t` 等）对应 bigint，声明时加上 `{int64: 'number'}` 就改为 number；结构体和联合对应对象，位域按名字读写；`_Out_` 的整数或指针用只有一个元素的数组传入（`Out<T>`）。
 - **回调**：给函数指针参数传入的 JS 函数只在这次调用期间有效；`callback(type, fn)` 生成一个库可以保存起来以后再调用的回调，它抛出的异常会成为组件的 `error` 事件。
-- **销毁**：随应用一起销毁时，属性开始抛出异常，会等进行中的异步调用结束，回调全部释放，库被卸载。
+- **线程**：异步函数默认在运行时的线程池里执行；在 `@Library`（或配置）里设置 `threads` 后，改在库自己的线程里执行。`threads: 1` 时，异步调用一个接一个执行，适合不是线程安全的库；有多个线程时，每个调用交给最空闲的线程。在这些线程里，可变参数的函数也可以异步调用。
+- **销毁**：随应用一起销毁时，属性开始抛出异常，会等进行中的异步调用结束，回调全部释放，库被卸载。原生调用没法中途打断：过了 `drainTimeout` 还有调用没结束时，库连同它的回调和内存都保留下来。
 
 ### 不用容器
 
@@ -94,12 +95,12 @@ await libc.close()
 
 | 导出 | 是什么 |
 |---|---|
-| `NativeLibrary` | 库的组件：函数和变量在它的属性上；`func`、`variable`、`callback`、`read`、`write`、`sizeOf`、`offsetOf`、`alloc`、`free`、`errno`、`constants`、`file`、`pending`；回调异常的 `error` 事件 |
-| `buildNativeLibraryOptions`、`NativeLibraryConfig` | 在 `components` 里注册它，以及它的选项：`path`、`search`、`keepLoaded`、`drainTimeout` |
-| `Library`、`LibraryOptions` | 类装饰器：`NativeLibrary` 子类的库：`names`、`search`、`declarations`、`crt` |
+| `NativeLibrary` | 库的组件：函数和变量在它的属性上；`func`、`variable`、`callback`、`read`、`write`、`sizeOf`、`offsetOf`、`alloc`、`free`、`errno`、`windowsError`、`constants`、`file`、`pending`、`threadCount`；回调异常的 `error` 事件 |
+| `buildNativeLibraryOptions`、`NativeLibraryConfig` | 在 `components` 里注册它，以及它的选项：`path`、`search`、`keepLoaded`、`drainTimeout`、`threads` |
+| `Library`、`LibraryOptions` | 类装饰器：`NativeLibrary` 子类的库：`names`、`search`、`declarations`、`crt`、`threads` |
 | `Native` | 属性装饰器：一个函数（原型、声明里的名字，或者属性名）及其选项：`async`、`free`、`int64` |
 | `NativeVariable` | 属性装饰器：库导出的一个变量 |
-| `loadNativeLibrary`、`NativeLibraryHandle`、`NativeLibraryOptions` | 不用容器时的库：`func`、`function`、`variable`、`callback`、`declare`、`read`、`write`、`sizeOf`、`offsetOf`、`alloc`、`free`、`errno`、`drain`、`close` |
+| `loadNativeLibrary`、`NativeLibraryHandle`、`NativeLibraryOptions` | 不用容器时的库：`func`、`function`、`variable`、`callback`、`declare`、`read`、`write`、`sizeOf`、`offsetOf`、`alloc`、`free`、`errno`、`windowsError`、`threads`、`ready`、`drain`、`close` |
 | `NativeFunctionOptions`、`NativeVariableAccessor`、`NativeCallback`、`LibraryNames`、`Pointer`、`Out` | 函数的选项、变量、持久回调（`pointer`、`release()`）、库的文件名、指针（bigint）、输出参数 |
 | `readCString`、`readWString`、`readBuffer`、`viewBuffer`、`readValue`、`readArray`、`writeValue`、`allocMemory`、`freeMemory`、`sizeOf` | 用内置类型读写原生内存（`viewBuffer` 不复制；Electron 里不能用） |
 | `lastErrno`、`lastWindowsError` | 上一次调用后的 errno（Windows 上是指定的 C 运行库的 errno），以及 Windows API 的错误 |
@@ -112,7 +113,7 @@ await libc.close()
 |---|---|
 | `NativeDeclarationException` | 声明或原型读不了（带行号和列号：类型没有声明、`#if`、带参数的宏、`long double` 等）、库里没有这个函数、传了 `va_list`、类上没有 `@Library` |
 | `NativeLibraryNotFoundException` | 库加载不了：消息里列出试过的每个文件和原因 |
-| `NativeLibraryClosedException` | 库关闭后又使用它的函数、变量或回调 |
+| `NativeLibraryClosedException` | 库关闭后又使用它的函数、变量或回调；库关闭时，它的线程里还没结束的调用 |
 | `NativeMemoryException` | 给内存函数传了空指针或负的长度、在 Electron 里用 `viewBuffer` |
 | `TypeError`（来自 koffi） | 参数类型不对 |
 | `RangeError` | 声明了 `{int64: 'number'}` 的函数遇到超出安全整数范围的 64 位整数 |
