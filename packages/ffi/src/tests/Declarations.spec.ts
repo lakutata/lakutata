@@ -8,7 +8,7 @@ import {NativeDeclarationException} from '../exceptions/NativeDeclarationExcepti
 import {layoutOf, sizeOf} from '../lib/declarations/Layout.js'
 import {DeclarationParser} from '../lib/declarations/Parser.js'
 import {type Platform, platformOf} from '../lib/declarations/Platform.js'
-import {type CType, type Declarations, type FunctionType, type PointerType, type RecordType, typeText} from '../lib/declarations/Types.js'
+import {type CType, type Declarations, type FunctionType, type MacroToken, type PointerType, type RecordType, typeText} from '../lib/declarations/Types.js'
 
 const LINUX_X64: Platform = platformOf('linux', 'x64')
 const MACOS: Platform = platformOf('darwin', 'arm64')
@@ -243,6 +243,11 @@ describe('C declarations', (): void => {
         //The macros of the library apply to its prototypes
         assert.strictEqual(new DeclarationParser(LINUX_X64, declarations).prototype('SQLITE_API int sqlite3_close(void *db)').name, 'sqlite3_close')
         assert.match(failure(() => parse('#define MIN(a, b) a\nint x[MIN(1, 2)];')), /The macro MIN takes arguments/)
+        //Comments in macros: not the ones inside their strings; a block comment going on past the line
+        const commented: Declarations = parse('#define URL "file://"  // the scheme\n#define SPACED "a  b"\n#define NOTE \'/\' /* a slash\n   on two lines */\n#define LIMIT 8 /* bytes */ // and more\nint f(void);')
+        assert.deepStrictEqual(['URL', 'SPACED'].map((name: string): string => commented.macros.get(name)!.map((token: MacroToken): string => token.text).join()), ['file://', 'a  b'])
+        assert.deepStrictEqual([commented.constants.get('NOTE'), commented.constants.get('LIMIT')], [47n, 8n])
+        assert.deepStrictEqual([...commented.functions.keys()], ['f'])
         assert.match(failure(() => parse('SQLITE_API int f(void);')), /Unknown type SQLITE_API: a macro\? give its #define with the declarations/)
     })
 

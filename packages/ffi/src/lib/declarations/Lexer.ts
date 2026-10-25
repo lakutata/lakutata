@@ -28,6 +28,68 @@ const ESCAPES: Record<string, number> = {n: 10, t: 9, r: 13, '0': 0, a: 7, b: 8,
 const CONDITIONALS: readonly string[] = ['if', 'ifdef', 'ifndef', 'elif', 'elifdef', 'elifndef', 'else', 'endif']
 
 /**
+ * The end of a directive of the preprocessor: the end of its line, its continued lines and the block comments that go on
+ * past it included (not the ones inside its strings)
+ * @param text
+ * @param start
+ */
+function directiveEnd(text: string, start: number): number {
+    let end: number = start
+    while (end < text.length && text[end] !== '\n') {
+        const char: string = text[end]
+        if (char === '\\' && text[end + 1] === '\n') {
+            end += 2
+        } else if (char === '\\' && text[end + 1] === '\r' && text[end + 2] === '\n') {
+            end += 3
+        } else if (char === '/' && text[end + 1] === '*') {
+            const close: number = text.indexOf('*/', end + 2)
+            end = close < 0 ? text.length : close + 2
+        } else if (char === '/' && text[end + 1] === '/') {
+            while (end < text.length && text[end] !== '\n') end++
+        } else if (char === '"' || char === '\'') {
+            end++
+            while (end < text.length && text[end] !== char && text[end] !== '\n') end += text[end] === '\\' ? 2 : 1
+            if (text[end] === char) end++
+        } else {
+            end++
+        }
+    }
+    return end
+}
+
+/**
+ * The text of a directive without its comments (the ones inside its strings and characters kept), its continued lines
+ * joined
+ * @param text
+ */
+function withoutComments(text: string): string {
+    let result: string = ''
+    let i: number = 0
+    while (i < text.length) {
+        const char: string = text[i]
+        if (char === '/' && text[i + 1] === '*') {
+            const close: number = text.indexOf('*/', i + 2)
+            i = close < 0 ? text.length : close + 2
+            result += ' '
+        } else if (char === '/' && text[i + 1] === '/') {
+            while (i < text.length && text[i] !== '\n') i++
+        } else if (char === '"' || char === '\'') {
+            let end: number = i + 1
+            while (end < text.length && text[end] !== char && text[end] !== '\n') end += text[end] === '\\' ? 2 : 1
+            result += text.slice(i, Math.min(end + 1, text.length))
+            i = end + 1
+        } else if (char === '\\' && (text[i + 1] === '\n' || (text[i + 1] === '\r' && text[i + 2] === '\n'))) {
+            i += text[i + 1] === '\n' ? 2 : 3
+            result += ' '
+        } else {
+            result += char
+            i++
+        }
+    }
+    return result.trim()
+}
+
+/**
  * The offsets the lines of a text start at
  * @param text
  */
@@ -114,15 +176,14 @@ export function tokenize(text: string): Token[] {
         //Directives of the preprocessor, at the start of a line
         if (char === '#' && lineStart) {
             const start: number = i
-            let end: number = i
-            while (end < length && text[end] !== '\n') end += text[end] === '\\' && text[end + 1] === '\n' ? 2 : 1
-            const directive: string = text.slice(start + 1, end).replace(/\\\r?\n/g, ' ').trim()
+            const end: number = directiveEnd(text, i)
+            const directive: string = withoutComments(text.slice(start + 1, end))
             const name: string = directive.match(/^[A-Za-z_]\w*/)?.[0] ?? ''
             if (CONDITIONALS.includes(name)) fail(`The directive #${name} is not supported: run the header through the preprocessor first (cc -E, cl /P)`, start)
             const pack: RegExpMatchArray | null = directive.match(/^pragma\s+pack\s*\(([^)]*)\)/)
             if (pack) push('pragma', start, end, {text: `pack(${pack[1].replace(/\s+/g, '')})`})
             //The text of a macro after its name, its comments removed; the name directly followed by ( takes arguments
-            if (name === 'define' || name === 'undef') push(name, start, end, {text: directive.slice(name.length).replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/.*$/, '').trim()})
+            if (name === 'define' || name === 'undef') push(name, start, end, {text: directive.slice(name.length).trim()})
             i = end
             continue
         }
