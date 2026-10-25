@@ -161,7 +161,8 @@ describe('The generator of libraries', (): void => {
             const {declarations, report} = await generateNativeLibrary({header: path.join(includes!, 'sqlite3.h'), library: process.platform === 'linux' ? 'libsqlite3.so.0' : undefined})
             assert.ok(report.functions > 200, String(report.functions))
             assert.ok(report.constants > 400, String(report.constants))
-            assert.ok(report.skipped.every((skipped): boolean => /va_list/.test(skipped.reason)), JSON.stringify(report.skipped))
+            //The ones left out: va_list, and the functions of the header this build of the library does not have
+            assert.ok(report.skipped.every((skipped): boolean => /va_list|cannot be bound/.test(skipped.reason)), JSON.stringify(report.skipped))
             const library: NativeLibraryHandle = loadNativeLibrary(report.library!, declarations)
             try {
                 const version: string = library.function<() => string>('sqlite3_libversion')()

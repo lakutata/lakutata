@@ -329,7 +329,9 @@ lakutata ffi generate sdk/include/vendor.h --library sdk/lib/vendor.dll --out sr
   of the header, generate the class again and carry those changes over.
 - **For one platform**: the declarations are the ones of the platform the generator ran on; a header whose declarations
   differ by platform (`#ifdef _WIN32`) is generated on each of them. Another build of the library may lack some of the
-  functions: the component then refuses to start, naming the missing function.
+  functions: the component then refuses to start, naming the missing function. On Linux, the library is found through
+  the link its development package installs (`libsqlite3.so`): for the machines without that package, give `names`
+  the file with its version (`libsqlite3.so.0`, section 2).
 
 What the generator wrote for `sqlite3_open` and `sqlite3_exec`, edited:
 
@@ -438,6 +440,11 @@ Electron 44), on Linux (arm64, glibc and musl: Node.js 24, Bun 1.4) and on Windo
 Node.js 24, Bun 1.4). On macOS, an application whose libraries run in threads of their own was also packed by
 `lakutata package` into a bundle, executables of Node.js and of Bun, and an Electron application: each one ran, and the
 threads loaded the library shipped in its resources.
+
+The generator of section 9 was run with clang on macOS, gcc on Linux (glibc and musl) and cl on Windows 11 (arm64 and
+x64). The classes it generated from the headers of sqlite3, zlib, pcap and curl on macOS and Linux, and from
+winsqlite3.h and the header of a library built for the test on Windows, compiled under the strict mode of TypeScript
+and ran in Node.js and Bun.
 
 ## 13. Exceptions
 

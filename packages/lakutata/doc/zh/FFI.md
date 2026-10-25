@@ -251,7 +251,7 @@ lakutata ffi generate sdk/include/vendor.h --library sdk/lib/vendor.dll --out sr
 - **用库检查**：加载和头文件同名的库（`sqlite3.h` 对应 `sqlite3`），或者 `--library` 给出的库（库名或文件），库里没有导出的函数和不能调用的函数（参数是 `va_list`）会被去掉并列出来。库加载不了时，照样生成类，只是不做检查，并给出警告（zlib 要写 `--library z`）；`--no-check` 跳过检查。
 - **生成的类**：每个函数一个属性，属性名就是函数名，上面注释着它的 C 原型；函数名和组件的成员重名时（`free`、`read`），属性换一个名字。TypeScript 类型按第 3 节的规则：64 位整数是 bigint，字符串是 `string | null`，其他指针是 `Pointer | null`（作为参数时也可以传 `Buffer` 或类型化数组）。
 - **哪些要自己改**：头文件看不出哪些指针是输出参数，也看不出哪些函数会阻塞，生成的文件就是供你修改的。输出参数要在声明里它所属函数的原型上标成 `_Out_`，参数类型改成 `Out<T>`（指向结构体的指针改成那个结构体的接口）。会阻塞的函数在 `@Native` 里加上 `{async: true}`，这时 `@Native` 要写出函数名。头文件出了新版本时，重新生成类，再把这些修改搬过去。
-- **只针对一个平台**：声明是运行生成器的那个平台上的；头文件按平台写了不同声明的（`#ifdef _WIN32`），要在每个平台上各生成一份。换一个版本的库可能少一些函数：组件启动时会报错，并指出缺的是哪个函数。
+- **只针对一个平台**：声明是运行生成器的那个平台上的；头文件按平台写了不同声明的（`#ifdef _WIN32`），要在每个平台上各生成一份。换一个版本的库可能少一些函数：组件启动时会报错，并指出缺的是哪个函数。在 Linux 上，库是通过它的开发包装的链接（`libsqlite3.so`）找到的：在没有装开发包的机器上，`names` 要写带版本号的文件名（`libsqlite3.so.0`，见第 2 节）。
 
 下面是生成器为 `sqlite3_open` 和 `sqlite3_exec` 生成的代码改过之后的样子：
 
@@ -322,6 +322,8 @@ export class Vendor extends NativeLibrary {
 Node.js `^22.13.0 || >=24.11.0`、Electron 的主进程和 Bun；不支持 Electron 的渲染进程和浏览器。
 
 这个包的测试（包括库的线程）在 macOS（arm64：Node.js 24、Bun 1.4、Electron 44）、Linux（arm64，glibc 和 musl：Node.js 24、Bun 1.4）和 Windows 11（arm64，以及模拟运行的 x64：Node.js 24、Bun 1.4）上都能通过。在 macOS 上，还用 `lakutata package` 把一个使用它的应用（它的库在自己的线程里执行）分别打成了 bundle、Node.js 和 Bun 的可执行文件以及 Electron 应用：每一个都能运行，库的线程也都从应用自己的资源目录里加载了自带的库。
+
+第 9 节的生成器在 macOS 上用 clang、在 Linux 上用 gcc（glibc 和 musl）、在 Windows 11 上用 cl（arm64 和 x64）运行过：它根据 sqlite3、zlib、pcap 和 curl 的头文件（在 Windows 上是 winsqlite3 和一个为测试编译的库）生成的类，都能通过 TypeScript 严格模式的编译，并在 Node.js 和 Bun 里运行。
 
 ## 13. 异常
 
