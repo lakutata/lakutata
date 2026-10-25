@@ -132,6 +132,26 @@
           "target": "要修改的构建目标（默认是唯一的那个）"
         }
       },
+      "ffi": {
+        "description": "根据 C 头文件生成 @lakutata/ffi 原生库的类",
+        "generate": {
+          "description": "根据 C 头文件生成原生库的类：每个函数一个属性，每个结构体一个接口，加上常量，都带有 TypeScript 类型",
+          "arguments": {
+            "header": "库的 C 头文件"
+          },
+          "options": {
+            "library": "用来检查函数的库：@Library 接受的库名，或一个文件（默认按头文件的名字）",
+            "className": "类的名称（默认是头文件名的 PascalCase 形式）",
+            "out": "要写入的 TypeScript 文件（默认是当前目录下的 <类名>.ts）",
+            "include": "头文件引用的其他头文件所在的目录（-I）",
+            "define": "在头文件之前定义的宏：NAME 或 NAME=value（-D）",
+            "own": "其他属于这个库的头文件的目录（头文件本身算库的；它所在的目录不是系统目录时，目录里的头文件也算）",
+            "compiler": "用来预处理头文件的 C 编译器：cc、gcc、clang、cl（默认取 CC 环境变量，没有时在 Windows 上是 cl，其他系统上是 cc）",
+            "check": "用库检查函数和变量，去掉库里没有的",
+            "force": "文件已存在时覆盖它"
+          }
+        }
+      },
       "i18n": {
         "description": "检查各语言的翻译、声明键名的类型，或添加一种语言",
         "arguments": {

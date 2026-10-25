@@ -132,6 +132,26 @@
           "target": "要修改的建置目標（預設是唯一的那個）"
         }
       },
+      "ffi": {
+        "description": "根據 C 標頭檔產生 @lakutata/ffi 原生程式庫的類別",
+        "generate": {
+          "description": "根據 C 標頭檔產生原生程式庫的類別：每個函式一個屬性，每個結構一個介面，加上常數，都帶有 TypeScript 型別",
+          "arguments": {
+            "header": "程式庫的 C 標頭檔"
+          },
+          "options": {
+            "library": "用來檢查函式的程式庫：@Library 接受的程式庫名稱，或一個檔案（預設依標頭檔的名稱）",
+            "className": "類別的名稱（預設是標頭檔名的 PascalCase 形式）",
+            "out": "要寫入的 TypeScript 檔案（預設是目前目錄下的 <類別名稱>.ts）",
+            "include": "標頭檔引入的其他標頭檔所在的目錄（-I）",
+            "define": "在標頭檔之前定義的巨集：NAME 或 NAME=value（-D）",
+            "own": "其他屬於這個程式庫的標頭檔的目錄（標頭檔本身算程式庫的；它所在的目錄不是系統目錄時，目錄裡的標頭檔也算）",
+            "compiler": "用來前置處理標頭檔的 C 編譯器：cc、gcc、clang、cl（預設取 CC 環境變數，沒有時在 Windows 上是 cl，其他系統上是 cc）",
+            "check": "用程式庫檢查函式和變數，去掉程式庫裡沒有的",
+            "force": "檔案已存在時覆寫它"
+          }
+        }
+      },
       "i18n": {
         "description": "檢查各語言的翻譯、宣告鍵名的型別，或新增一種語言",
         "arguments": {

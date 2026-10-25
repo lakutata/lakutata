@@ -42,15 +42,20 @@
     "lakutata": "3.1.1"
   },
   "peerDependencies": {
-    "@lakutata/builder": "3.1.1"
+    "@lakutata/builder": "3.1.1",
+    "@lakutata/ffi": "3.1.1"
   },
   "peerDependenciesMeta": {
     "@lakutata/builder": {
       "optional": true
+    },
+    "@lakutata/ffi": {
+      "optional": true
     }
   },
   "devDependencies": {
-    "@lakutata/builder": "3.1.1"
+    "@lakutata/builder": "3.1.1",
+    "@lakutata/ffi": "3.1.1"
   },
   "engines": {
     "node": "^22.13.0 || >=24.11.0"

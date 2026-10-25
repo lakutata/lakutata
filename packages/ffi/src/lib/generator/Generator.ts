@@ -16,7 +16,8 @@ import {TypeScriptTypes} from './TypeScriptTypes.js'
 export interface GenerateOptions extends PreprocessOptions {
     /**
      * The library its functions are checked against: a name, as `@Library` takes it, or a file. The name of the header
-     * by default (`sqlite3.h`: `sqlite3`).
+     * by default (`sqlite3.h`: `sqlite3`): give it when that library cannot be loaded (the report tells why the
+     * functions were not checked).
      */
     readonly library?: string
     /**
@@ -104,6 +105,10 @@ export interface GenerationReport {
  * A library generated from its header
  */
 export interface GeneratedLibrary {
+    /**
+     * The name of its class
+     */
+    readonly className: string
     /**
      * The TypeScript code of its class
      */
@@ -226,6 +231,24 @@ function libraryName(library: string): string {
 }
 
 /**
+ * A text as the lines of a comment of TypeScript, wrapped at 120 characters
+ * @param text
+ */
+function commentLines(text: string): string[] {
+    const lines: string[] = []
+    let line: string = '//'
+    for (const word of text.split(' ')) {
+        if (line.length > 2 && line.length + 1 + word.length > 120) {
+            lines.push(line)
+            line = '//'
+        }
+        line += line.length > 2 ? ` ${word}` : word
+    }
+    lines.push(line)
+    return lines
+}
+
+/**
  * Text put in a template literal of TypeScript
  * @param text
  */
@@ -345,7 +368,7 @@ export async function generateFromPreprocessed(preprocessed: PreprocessedHeader,
         try {
             handle = loadNativeLibrary(library, declarations)
         } catch (error) {
-            unchecked = `the library ${library} cannot be loaded (${reasonOf(error)}): give it with the library option`
+            unchecked = reasonOf(error).replace(/:$/, '').replace(/^The /, 'the ')
         }
         if (handle) {
             libraryFile = handle.file
@@ -409,10 +432,8 @@ export async function generateFromPreprocessed(preprocessed: PreprocessedHeader,
     const imports: string[] = ['Library', 'Native', 'NativeLibrary', ...variables.length ? ['NativeVariable'] : [], ...body.includes('Out<') ? ['type Out'] : [], ...body.includes('Pointer') ? ['type Pointer'] : []]
     const platformName: string = `${platform.os}-${platform.arch}`
     const code: string = [
-        `//Generated from ${path.basename(header)} by lakutata ffi generate, for ${platformName}${libraryFile ? `; checked against ${libraryFile}` : ''}: ${functions.length} functions, ${variables.length} variables, ${ownConstants} constants.`,
-        '//The functions are synchronous and their pointers are given to them only: where needed, mark the output parameters _Out_ in the declarations and the',
-        '//functions that block {async: true} (see the guide of @lakutata/ffi). Another build of the library may lack some of these functions: the component then',
-        '//refuses to start, naming the function.',
+        ...commentLines(`Generated from ${path.basename(header)} by the generator of @lakutata/ffi (lakutata ffi generate), for ${platformName}${libraryFile ? `; checked against ${libraryFile}` : ''}: ${functions.length} functions, ${variables.length} variables, ${ownConstants} constants.`),
+        ...commentLines('The functions are synchronous, and their pointer parameters are inputs: where needed, mark the output parameters _Out_ in the declarations and the functions that block {async: true} (see the guide of @lakutata/ffi). Another build of the library may lack some of these functions: the component then refuses to start, naming the function.'),
         `import {${imports.join(', ')}} from '@lakutata/ffi'`,
         '',
         ...interfaces.flatMap((text: string): string[] => [text, '']),
@@ -428,6 +449,7 @@ export async function generateFromPreprocessed(preprocessed: PreprocessedHeader,
         ''
     ].join('\n')
     return {
+        className: className,
         code: code,
         declarations: declarations,
         report: {

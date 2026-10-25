@@ -9,6 +9,7 @@ import {WorkspaceController} from './controllers/WorkspaceController.js'
 import {PackController} from './controllers/PackController.js'
 import {MigrationController} from './controllers/MigrationController.js'
 import {NativeController} from './controllers/NativeController.js'
+import {FFIController} from './controllers/FFIController.js'
 import {I18nController} from './controllers/I18nController.js'
 import {LANGUAGE_VARIABLE, LanguageMiddleware} from './lib/Language.js'
 import {toolPackage} from './lib/Versions.js'
@@ -16,7 +17,7 @@ import {toolPackage} from './lib/Versions.js'
 /**
  * The controllers of the commands of the tool
  */
-export const CONTROLLERS = [CommandLineController, WorkspaceController, PackController, MigrationController, NativeController, I18nController]
+export const CONTROLLERS = [CommandLineController, WorkspaceController, PackController, MigrationController, NativeController, FFIController, I18nController]
 
 /**
  * The messages of the tool in the languages besides English (its texts in the code): its help, its prompts
@@ -25,7 +26,8 @@ export const CONTROLLERS = [CommandLineController, WorkspaceController, PackCont
  * The groups of commands: lakutata package --help lists the commands of the group package
  */
 export const COMMAND_GROUPS: Record<string, string> = {
-    package: 'Package the compiled application: into one JavaScript file, an executable or its installers'
+    package: 'Package the compiled application: into one JavaScript file, an executable or its installers',
+    ffi: 'Generate the classes of the native libraries of @lakutata/ffi from their C headers'
 }
 
 export const MESSAGES = {'zh-CN': zhCN, 'zh-TW': zhTW}
