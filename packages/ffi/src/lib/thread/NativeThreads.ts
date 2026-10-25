@@ -48,6 +48,10 @@ export interface ThreadResult {
 interface PendingCall {
     readonly resolve: (result: ThreadResult) => void
     readonly reject: (error: Error) => void
+    /**
+     * Rejected while its native code still runs: its callbacks stay registered, the native code may still call them
+     */
+    readonly abandon: (error: Error) => void
     readonly settle: (message: Extract<FromNativeWorker, { type: 'result' }>) => void
 }
 
@@ -240,6 +244,7 @@ export class NativeThreads {
                     release()
                     reject(error)
                 },
+                abandon: reject,
                 settle: (message: Extract<FromNativeWorker, { type: 'result' }>): void => {
                     release()
                     //The arguments the function wrote, given back to the caller
@@ -275,13 +280,22 @@ export class NativeThreads {
     }
 
     /**
-     * Close the threads: each unloads the library and ends; the ones still running after a while are stopped.
+     * Close the threads: each unloads the library and ends; the ones still running after a while are stopped. A thread
+     * still running a call (its native code did not return) is stopped at once, the call rejected: the thread ends
+     * once the native code returns.
      */
     public async close(): Promise<void> {
         if (this.#closed) return
         this.#closed = true
         await Promise.all(this.#slots.map(async (slot: Slot | undefined): Promise<void> => {
             if (!slot || slot.exited) return
+            if (slot.calls.size) {
+                const error: NativeLibraryClosedException = new NativeLibraryClosedException(`The library ${this.#data.file} is closed while a call runs in its thread`)
+                for (const call of slot.calls.values()) call.abandon(error)
+                slot.calls.clear()
+                this.#stop(slot)
+                return
+            }
             const exited: Promise<void> = new Promise((resolve: () => void): void => {
                 slot.worker.once('exit', (): void => resolve())
             })
@@ -293,8 +307,16 @@ export class NativeThreads {
             })
             const late: boolean | void = await Promise.race([exited, timeout])
             clearTimeout(timer)
-            if (late) await slot.worker.terminate()
+            if (late) this.#stop(slot)
         }))
+    }
+
+    /**
+     * A thread stopped, not awaited: a thread running native code ends only once it returns
+     * @param slot
+     */
+    #stop(slot: Slot): void {
+        slot.worker.terminate().catch((): void => undefined)
     }
 
     /**

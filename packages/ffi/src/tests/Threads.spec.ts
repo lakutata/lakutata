@@ -122,6 +122,15 @@ describe('The worker threads of a library', {skip: !POSIX && 'tested on Windows 
         await assert.rejects(usleep(1), NativeLibraryClosedException)
         assert.strictEqual(await running, 0)
         await closed
+        //A call still running after the time given: rejected, its thread ending once it returns
+        const late: NativeLibraryHandle = loadNativeLibrary('c', '', {threads: 1})
+        const lateSleep = late.func<(microseconds: number) => Promise<number>>('int usleep(uint32_t microseconds)', {async: true})
+        const longCall: Promise<number> = lateSleep(300000)
+        const rejected: Promise<void> = assert.rejects(longCall, NativeLibraryClosedException)
+        const started: number = Date.now()
+        await late.close(50)
+        assert.ok(Date.now() - started < 250, `${Date.now() - started} ms`)
+        await rejected
     })
 
     it('fail the calls of a thread that ends, and start a thread again for the next ones', async (): Promise<void> => {

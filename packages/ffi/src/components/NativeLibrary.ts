@@ -28,7 +28,8 @@ export interface NativeLibraryConfig {
      */
     keepLoaded?: boolean
     /**
-     * How long the destruction waits for the asynchronous calls running, in milliseconds.
+     * How long the destruction waits for the asynchronous calls running, in milliseconds. Calls still running then
+     * keep the library loaded, with its callbacks and its memory (a native call cannot be interrupted).
      * @default 10000
      */
     drainTimeout?: number
@@ -148,8 +149,8 @@ export class NativeLibrary extends Component {
     }
 
     /**
-     * Close the library: the asynchronous calls running awaited, the callbacks released, the library unloaded; its
-     * properties throw from then on.
+     * Close the library: the asynchronous calls running awaited, the callbacks released, the library unloaded (kept,
+     * with its callbacks and its memory, when calls still run after `drainTimeout`); its properties throw from then on.
      * @protected
      */
     protected async destroy(): Promise<void> {

@@ -203,6 +203,14 @@ describe('A native library', {skip: !POSIX && 'the Windows libraries are tested 
         await running
         await closed
         assert.throws((): unknown => closing.func('int abs(int value)'), NativeLibraryClosedException)
+        //A call still running after the time given: the closing ends, the call goes on (the library stays loaded)
+        const late: NativeLibraryHandle = loadNativeLibrary('c')
+        const lateSleep = late.func<(microseconds: number) => Promise<number>>('int usleep(uint32_t microseconds)', {async: true})
+        const longCall: Promise<number> = lateSleep(300000)
+        const started: number = Date.now()
+        await late.close(50)
+        assert.ok(Date.now() - started < 250, `${Date.now() - started} ms`)
+        assert.strictEqual(await longCall, 0)
     })
 
     it('lays out with koffi every struct as the platform does, packed ones and bitfields included', (): void => {

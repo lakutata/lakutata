@@ -524,18 +524,23 @@ export class NativeLibraryHandle {
      * Close the library: new asynchronous calls are refused, the running ones awaited (a worker thread stopped during
      * one crashes Bun), the callbacks released, the memory of `alloc()` freed, the library unloaded (unless kept
      * loaded; musl never unloads). Its functions must not be called any more: a function of an unloaded library ends
-     * the process.
+     * the process. When calls still run after the timeout, the ones in the thread pool go on, the ones in the threads
+     * of the library are rejected (their threads end once they return), and the library, its callbacks and its memory
+     * are left as they are: a call returning into an unloaded library, or calling a released callback, would end the
+     * process.
      * @param timeout How long to wait for the asynchronous calls, in milliseconds.
      */
     public async close(timeout: number = 10000): Promise<void> {
         if (this.#closed) return
         this.#closed = true
-        await this.drain(timeout)
+        //Decided before the threads close: they reject the calls still running, which then no longer count
+        const drained: boolean = await this.drain(timeout)
         await this.#threads?.close()
+        this.#functions.clear()
+        if (!drained) return
         for (const callback of [...this.#callbacks]) callback.release()
         for (const pointer of this.#allocations) freeNative(pointer)
         this.#allocations.clear()
-        this.#functions.clear()
         if (!this.#options.keepLoaded) this.#library.unload()
     }
 
