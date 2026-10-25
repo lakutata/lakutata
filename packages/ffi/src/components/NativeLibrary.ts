@@ -32,6 +32,11 @@ export interface NativeLibraryConfig {
      * @default 10000
      */
     drainTimeout?: number
+    /**
+     * The worker threads that run the asynchronous functions of the library, replacing the number of `@Library`: 0 for
+     * the thread pool of the runtime; 1 runs them one after the other.
+     */
+    threads?: number
 }
 
 /**
@@ -106,6 +111,12 @@ export class NativeLibrary extends Component {
     @Configurable(DTO.Number().min(0).optional())
     protected readonly drainTimeout?: number
 
+    /**
+     * The worker threads that run the asynchronous functions of the library.
+     */
+    @Configurable(DTO.Number().integer().min(0).optional())
+    protected readonly threads?: number
+
     #handle?: NativeLibraryHandle
 
     /**
@@ -122,8 +133,17 @@ export class NativeLibrary extends Component {
             packaged: resources ? path.join(resources, 'native') : undefined,
             keepLoaded: this.keepLoaded,
             crt: library.crt,
+            threads: this.threads ?? library.threads ?? 0,
             onCallbackError: (error: unknown): void => this.#callbackError(error)
         })
+        //The threads have loaded the library (a thread that could not fails the creation)
+        try {
+            await this.#handle.ready
+        } catch (error) {
+            await this.#handle.close(0)
+            this.#handle = undefined
+            throw error
+        }
         for (const [key, member] of nativeMembersOf(Object.getPrototypeOf(this))) this.#bindMember(key, member)
     }
 
@@ -151,6 +171,13 @@ export class NativeLibrary extends Component {
      */
     public get pending(): number {
         return this.#library().pending
+    }
+
+    /**
+     * The worker threads of the library (0: its asynchronous calls run in the thread pool of the runtime).
+     */
+    public get threadCount(): number {
+        return this.#library().threads
     }
 
     /**
@@ -249,11 +276,19 @@ export class NativeLibrary extends Component {
     }
 
     /**
-     * The errno of the last call of the thread (on Windows, the one of the C library of `@Library`, ucrtbase.dll by
-     * default).
+     * The errno of the last call of this thread (on Windows, the one of the C library of `@Library`, ucrtbase.dll by
+     * default); with threads, the one of the thread of the last asynchronous call completed.
      */
     public errno(): number {
         return this.#library().errno()
+    }
+
+    /**
+     * The last error of the Windows API after the last call of this thread; with threads, the one of the thread of the
+     * last asynchronous call completed; undefined on the other systems.
+     */
+    public windowsError(): number | undefined {
+        return this.#library().windowsError()
     }
 
     /**

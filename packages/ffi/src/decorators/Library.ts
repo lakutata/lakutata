@@ -25,6 +25,12 @@ export interface LibraryOptions {
      * @default 'ucrtbase.dll'
      */
     crt?: string
+    /**
+     * The worker threads that run its asynchronous functions (the configuration can give another number): 0 for the
+     * thread pool of the runtime; 1 runs them one after the other, for a library that is not thread-safe.
+     * @default 0
+     */
+    threads?: number
 }
 
 const libraries: WeakMap<Function, LibraryOptions> = new WeakMap()

@@ -7,7 +7,8 @@ import {layoutOf} from '../declarations/Layout.js'
 import {DeclarationParser} from '../declarations/Parser.js'
 import {CURRENT_PLATFORM} from '../declarations/Platform.js'
 import {type CType, type FunctionDeclaration, type FunctionType, typeText, type VariableDeclaration} from '../declarations/Types.js'
-import {allocateNative, checkedPointer, freeNative, nativeErrno, type Pointer, readNative, TypeNames, TYPES, typeSize, writeNative} from '../Runtime.js'
+import {allocateNative, checkedPointer, freeNative, nativeErrno, nativeWindowsError, type Pointer, readNative, TypeNames, TYPES, typeSize, writeNative} from '../Runtime.js'
+import {NativeThreads, type ThreadFunction, type ThreadResult} from '../thread/NativeThreads.js'
 import {NativeCallback} from './NativeCallback.js'
 import {type LibraryNames, loadLibrary} from './Resolve.js'
 
@@ -42,6 +43,14 @@ export interface NativeLibraryOptions {
      * @default writes them to the console
      */
     onCallbackError?: (error: unknown) => void
+    /**
+     * The worker threads of the library, which run its asynchronous functions: 0 for the thread pool of the runtime
+     * (the one of libuv in Node.js, shared with the file system); with one thread, the asynchronous calls run one after
+     * the other, in their order (a library that is not thread-safe). The synchronous functions run in the thread
+     * calling them.
+     * @default 0
+     */
+    threads?: number
 }
 
 /**
@@ -49,9 +58,10 @@ export interface NativeLibraryOptions {
  */
 export interface NativeFunctionOptions {
     /**
-     * Whether it runs in a thread of the pool, returning a promise: for the functions that block (Node.js runs them in
-     * the pool of libuv, 4 threads by default, shared with the file system: raise UV_THREADPOOL_SIZE for many of them).
-     * A variadic function cannot be asynchronous.
+     * Whether it runs in another thread, returning a promise: for the functions that block. It runs in the threads of
+     * the library when it has some (`threads`), else in the thread pool of the runtime (Node.js runs them in the pool
+     * of libuv, 4 threads by default, shared with the file system: raise UV_THREADPOOL_SIZE for many of them), where a
+     * variadic function cannot be asynchronous.
      * @default false
      */
     async?: boolean
@@ -195,6 +205,13 @@ export class NativeLibraryHandle {
 
     readonly #calls: CallTracker
 
+    readonly #threads?: NativeThreads
+
+    //The errno and the last error of Windows of the thread after the last asynchronous call completed in the threads
+    #threadErrno?: number
+
+    #threadWindowsError?: number
+
     #pending: number = 0
 
     #drained: (() => void)[] = []
@@ -215,6 +232,8 @@ export class NativeLibraryHandle {
         const {library, file} = loadLibrary(names, options)
         this.#library = library
         this.#file = file
+        if (options.threads !== undefined && (!Number.isInteger(options.threads) || options.threads < 0)) throw new NativeDeclarationException(`The threads of a library are a number of threads (${options.threads})`)
+        if (options.threads) this.#threads = new NativeThreads(file, declarations, options.threads, options.crt)
         this.#calls = {
             start: (): void => {
                 if (this.#closed) throw new NativeLibraryClosedException(`The library ${this.#file} is closed`)
@@ -251,6 +270,21 @@ export class NativeLibraryHandle {
     }
 
     /**
+     * The worker threads of the library (0: the asynchronous calls run in the thread pool of the runtime).
+     */
+    public get threads(): number {
+        return this.#threads?.count ?? 0
+    }
+
+    /**
+     * Settled once the threads of the library have loaded it (at once without threads): rejected with the error of a
+     * thread that could not. The asynchronous calls wait for them anyway.
+     */
+    public get ready(): Promise<void> {
+        return this.#threads?.ready ?? Promise.resolve()
+    }
+
+    /**
      * The constants of its declarations: the values of the enumerations, of the static constants and of the macros whose
      * value is an integer.
      */
@@ -265,6 +299,7 @@ export class NativeLibraryHandle {
      */
     public declare(text: string): void {
         this.#parser.parse(text)
+        this.#threads?.declare(text)
     }
 
     /**
@@ -279,7 +314,7 @@ export class NativeLibraryHandle {
         const key: string = `${prototype}\u0000${JSON.stringify(options)}`
         let bound: ((...args: any[]) => any) | undefined = this.#functions.get(key)
         if (!bound) {
-            bound = this.#bind(this.#model.prototype(prototype), options)
+            bound = this.#bind(this.#model.prototype(prototype), options, prototype, false)
             this.#functions.set(key, bound)
         }
         return bound as T
@@ -298,7 +333,7 @@ export class NativeLibraryHandle {
         const key: string = `\u0001${name}\u0000${JSON.stringify(options)}`
         let bound: ((...args: any[]) => any) | undefined = this.#functions.get(key)
         if (!bound) {
-            bound = this.#bind(declaration, options)
+            bound = this.#bind(declaration, options, name, true)
             this.#functions.set(key, bound)
         }
         return bound as T
@@ -453,10 +488,20 @@ export class NativeLibraryHandle {
     }
 
     /**
-     * The errno of the last call of the thread (on Windows, the one of the C library given by the `crt` option).
+     * The errno of the last call of this thread (on Windows, the one of the C library given by the `crt` option); with
+     * threads, the one of the thread of the last asynchronous call completed (reliable with one thread, or when the
+     * asynchronous calls are awaited one at a time).
      */
     public errno(): number {
-        return nativeErrno(this.#options.crt)
+        return this.#threadErrno ?? nativeErrno(this.#options.crt)
+    }
+
+    /**
+     * The last error of the Windows API (GetLastError) after the last call of this thread; with threads, the one of the
+     * thread of the last asynchronous call completed; undefined on the other systems.
+     */
+    public windowsError(): number | undefined {
+        return this.#threadWindowsError ?? nativeWindowsError()
     }
 
     /**
@@ -486,6 +531,7 @@ export class NativeLibraryHandle {
         if (this.#closed) return
         this.#closed = true
         await this.drain(timeout)
+        await this.#threads?.close()
         for (const callback of [...this.#callbacks]) callback.release()
         for (const pointer of this.#allocations) freeNative(pointer)
         this.#allocations.clear()
@@ -501,17 +547,45 @@ export class NativeLibraryHandle {
     }
 
     /**
-     * A function bound, with its options
+     * A function bound, with its options; an asynchronous function of a library with threads, called in them
      * @param declaration
      * @param options
+     * @param text its prototype, or the name of the declared function
+     * @param named
      */
-    #bind(declaration: FunctionDeclaration, options: NativeFunctionOptions): (...args: any[]) => any {
+    #bind(declaration: FunctionDeclaration, options: NativeFunctionOptions, text: string, named: boolean): (...args: any[]) => any {
+        if (options.async && this.#threads) return this.#threaded(this.#threads, {declaration: text, named: named, options: {free: options.free, int64: options.int64}, type: declaration})
         return bindFunction(this.#library, declaration, TYPES, (text: string): KoffiType => this.#names.koffi(text), {
             async: options.async,
             int64: options.int64,
             calls: this.#calls,
             ...options.free ? {free: this.#freeFunction(options.free)} : {}
         })
+    }
+
+    /**
+     * An asynchronous function called in the threads of the library, counted as its other asynchronous calls
+     * @param threads
+     * @param fn
+     */
+    #threaded(threads: NativeThreads, fn: ThreadFunction): (...args: any[]) => Promise<unknown> {
+        threads.bind(fn)
+        return (...args: any[]): Promise<unknown> => {
+            try {
+                this.#calls.start()
+            } catch (error) {
+                return Promise.reject(error)
+            }
+            return threads.call(fn, args).then((result: ThreadResult): unknown => {
+                this.#threadErrno = result.errno
+                this.#threadWindowsError = result.windowsError
+                this.#calls.end()
+                return result.value
+            }, (error: unknown): never => {
+                this.#calls.end()
+                throw error
+            })
+        }
     }
 
     /**
