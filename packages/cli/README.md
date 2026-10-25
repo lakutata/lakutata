@@ -213,6 +213,34 @@ Packages are still published with `npm publish -w <package>` (the packages `laku
 `lerna.json` with `"version": "independent"` cannot be bumped), write changelogs from the commits or cache builds:
 workspaces that need these keep lerna (or nx, turborepo) alongside it.
 
+## Native libraries
+
+### `lakutata ffi generate <header>`
+
+Generate the class of a native library of `@lakutata/ffi` from its C header: its declarations, a property by function
+with its TypeScript type, an interface by struct and union, its integer macros as constants. The header is run through
+the preprocessor of the C compiler (`cc -E`; `cl /P` on Windows, in the Developer Command Prompt of Visual Studio); the
+declarations of the library are kept (the ones of the header, and of the headers of its directory unless it is a
+directory of the system), with the types of the system they use. The functions are then checked against the library:
+the ones it does not export, or that cannot be called (a `va_list` parameter), are left out. The command lists what
+it left out and why. The tool loads `@lakutata/ffi` from the project: install it there.
+
+| Option | |
+|---|---|
+| `--library <name or file>` | the library the functions are checked against: a name, as `@Library` takes it, or a file; the name of the header by default (`sqlite3.h`: `sqlite3`; zlib needs `--library z`). When it cannot be loaded, the class is generated without the check, with a warning |
+| `--class-name <name>` | the name of the class, the name of the header in PascalCase by default |
+| `--out <file>` | the file written, `<class>.ts` in the current directory by default |
+| `--force` | replace the file when it exists |
+| `--include <directories...>` | the directories of the headers it includes (`-I`) |
+| `--define <macros...>` | the macros defined before it: `NAME` or `NAME=value` (`-D`) |
+| `--own <directories...>` | more directories whose headers are the ones of the library |
+| `--compiler <compiler>` | the C compiler whose preprocessor reads the header: `cc`, `gcc`, `clang`, `cl` (the one of `CC` by default, else `cl` on Windows and `cc` elsewhere) |
+| `--no-check` | do not check the functions against the library |
+
+The class is generated for the platform the command runs on. A header does not say which pointers are output
+parameters, nor which functions block: mark them in the file generated (`_Out_`, `{async: true}`). See the guide to
+native libraries ([FFI](https://lakutata.com/guide/FFI), section 9).
+
 ## Bundles and executables
 
 These commands pack the application in the current directory, which must be compiled first (by `tsc`, which emits the

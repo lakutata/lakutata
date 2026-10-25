@@ -55,6 +55,8 @@ lakutata create --name tool --template cli --package-manager none --no-git
 
 `lakutata add <name> --native gyp|cmake|rust` 添加一个用 C++ 或 Rust 编写的原生插件，`lakutata native <link|include|define> <value>` 给它链接库。见 [NativeAddons](NativeAddons.md)。
 
+`lakutata ffi generate <header>` 根据 C 头文件生成 `@lakutata/ffi` 原生库的类。见 [FFI](FFI.md) 第 9 节。
+
 ## 4. 迁移与翻译
 
 `lakutata migration <action>` 生成、创建、执行、回滚和查看应用的数据库迁移。它用应用的 `dev` 脚本构建并启动应用，此时应用只连接数据库。见 [Migrations](Migrations.md) 第 2 节。

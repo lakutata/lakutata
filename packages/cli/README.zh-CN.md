@@ -130,6 +130,26 @@ lakutata create --name my-service --template service --with i18n --yes
 
 包仍然用 `npm publish -w <package>` 发布（`lakutata add` 创建的包是私有的：请先删掉 `"private": true`）。工具只读写 `lerna.json` 中的 `version`：包来自根目录 `package.json` 的 `workspaces`，或者 `pnpm-workspace.yaml`。它不支持给各个包分别设置版本号（`"version": "independent"` 的 `lerna.json` 无法递增版本），不根据提交生成变更日志，也不缓存构建结果：需要这些功能的工作区可以同时保留 lerna（或 nx、turborepo）。
 
+## 原生库
+
+### `lakutata ffi generate <header>`
+
+根据 C 头文件生成 `@lakutata/ffi` 原生库的类：包括它的声明、每个函数一个带 TypeScript 类型的属性、每个结构体和联合一个接口，整数宏作为常量。头文件先经过 C 编译器的预处理器（`cc -E`；在 Windows 上是 `cl /P`，请在 Visual Studio 的开发者命令提示符里运行）；保留库自己的声明（头文件里的，以及它所在目录里其他头文件的，这个目录是系统目录时除外），以及这些声明用到的系统类型。然后用库检查这些函数：库里没有导出的函数和不能调用的函数（参数是 `va_list`）会被去掉。命令会列出去掉了哪些声明，以及原因。工具从项目里加载 `@lakutata/ffi`：请把它装在项目里。
+
+| 选项 | |
+|---|---|
+| `--library <name or file>` | 用来检查函数的库：`@Library` 接受的库名，或一个文件；默认和头文件同名（`sqlite3.h` 对应 `sqlite3`；zlib 要写 `--library z`）。库加载不了时，照样生成类，只是不做检查，并给出警告 |
+| `--class-name <name>` | 类的名称，默认是头文件名的 PascalCase 形式 |
+| `--out <file>` | 要写入的文件，默认是当前目录下的 `<类名>.ts` |
+| `--force` | 文件已存在时覆盖它 |
+| `--include <directories...>` | 头文件引用的其他头文件所在的目录（`-I`） |
+| `--define <macros...>` | 在头文件之前定义的宏：`NAME` 或 `NAME=value`（`-D`） |
+| `--own <directories...>` | 其他属于这个库的头文件的目录 |
+| `--compiler <compiler>` | 用来预处理头文件的 C 编译器：`cc`、`gcc`、`clang`、`cl`（默认取 `CC` 环境变量，没有时在 Windows 上是 `cl`，其他系统上是 `cc`） |
+| `--no-check` | 不用库检查函数 |
+
+类是针对运行命令的平台生成的。头文件看不出哪些指针是输出参数，也看不出哪些函数会阻塞：请在生成的文件里自己标出来（`_Out_`、`{async: true}`）。见原生库的指南（[FFI](https://lakutata.com/zh/guide/FFI) 第 9 节）。
+
 ## 单文件包和可执行文件
 
 这些命令打包当前目录中的应用，应用必须先编译好（用 `tsc`，它会生成装饰器的元数据）。实际的工作由 `@lakutata/builder` 完成：优先用项目中安装的那份（`npm install --save-dev @lakutata/builder`，需要打包应用的模板都是这样做的），否则用随工具一起安装的那份（全局安装工具时不会带上它，因为它只是工具的可选 peer 依赖）。脚本也可以调用它的函数（`bundleProject`、`buildExecutable`）来打包应用。

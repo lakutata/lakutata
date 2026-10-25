@@ -87,6 +87,16 @@ snprintf(buffer, buffer.length, '%s=%d', 'const char *', 'count', 'int', 42)
 await libc.close()
 ```
 
+### 根据头文件生成类
+
+函数很多的库，可以用 lakutata 的命令行工具（`@lakutata/cli`）或 `@lakutata/ffi/generator` 的 `generateNativeLibrary()` 根据头文件生成类：
+
+```shell
+lakutata ffi generate /usr/include/sqlite3.h --class-name SQLite3 --out src/native/SQLite3.ts
+```
+
+头文件先经过 C 编译器的预处理器，保留库自己的声明，库给不了的函数会被去掉并列出来。之后请在生成的文件里把输出参数标成 `_Out_`，把会阻塞的函数声明为 `{async: true}`，做法见指南：头文件看不出是哪些。
+
 ### 打包
 
 `lakutata package` 打出的 bundle、可执行文件和 Electron 安装包都会带上 koffi 和本平台的预编译文件。要和应用一起发布的库放进资源里的 `native` 目录（在 package.json 里写 `"lakutata": {"resources": [{"from": "vendor/lib", "to": "native"}]}`）。在 Alpine 上请用 Bun 打可执行文件（`--runtime bun`）。
@@ -104,6 +114,7 @@ await libc.close()
 | `NativeFunctionOptions`、`NativeVariableAccessor`、`NativeCallback`、`LibraryNames`、`Pointer`、`Out` | 函数的选项、变量、持久回调（`pointer`、`release()`）、库的文件名、指针（bigint）、输出参数 |
 | `readCString`、`readWString`、`readBuffer`、`viewBuffer`、`readValue`、`readArray`、`writeValue`、`allocMemory`、`freeMemory`、`sizeOf` | 用内置类型读写原生内存（`viewBuffer` 不复制；Electron 里不能用） |
 | `lastErrno`、`lastWindowsError` | 上一次调用后的 errno（Windows 上是指定的 C 运行库的 errno），以及 Windows API 的错误 |
+| `generateNativeLibrary`、`defaultCompiler`（`@lakutata/ffi/generator`） | 根据头文件生成库的类（它的代码、声明，以及去掉了哪些），以及默认运行的 C 编译器 |
 
 类型声明里有每个导出的说明和示例。
 

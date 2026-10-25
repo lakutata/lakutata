@@ -80,6 +80,7 @@ Application.run(() => ({
 - **`@Native`** 的参数可以是原型、声明里某个函数的名字，或者省略（用和属性同名的函数）。组件创建时，属性就会得到这个函数。不需要做任何转换时，它就是 koffi 的函数本身，调用的开销和直接用 koffi 一样（约 20 ns）。
 - **`@NativeVariable`** 的参数可以是声明、名字，或者省略：读属性就是读变量，写属性就是写变量（`const` 变量拒绝写入）。长度未知的 `char` 数组按字符串读取。
 - 子类会继承父类的库，也可以再加函数。
+- 函数很多的库，可以根据它的头文件生成类（第 9 节）。
 
 ## 2. 到哪里找库
 
@@ -149,7 +150,7 @@ snprintf(buffer, buffer.length, '%s: %d', 'const char *', 'count', 'int', 42)
 ```
 
 - **需要释放的字符串**：函数返回（或通过输出参数给出）一个要由调用方释放的字符串时，声明时加上 `{free: 'sqlite3_free'}`，写库里负责释放的函数；或者加上 `{free: true}`，用 C 标准库的 `free()`。字符串读出来以后就会被释放。在 Windows 上，如果库是用另一套 C 运行库编译的，必须给出它自己的释放函数。
-- **异步调用**：声明时加上 `{async: true}` 的函数在另一个线程里执行，返回一个 Promise；调用期间事件循环照常运行。默认用的是运行时的线程池：Node.js 用的是 libuv 的线程池，默认只有 4 个线程，而且和文件系统、DNS、加解密共用；调用多或者调用时间长时，请调大 `UV_THREADPOOL_SIZE`。在线程池里，可变参数的函数不能异步调用。库也可以改用自己的线程（第 9 节）。
+- **异步调用**：声明时加上 `{async: true}` 的函数在另一个线程里执行，返回一个 Promise；调用期间事件循环照常运行。默认用的是运行时的线程池：Node.js 用的是 libuv 的线程池，默认只有 4 个线程，而且和文件系统、DNS、加解密共用；调用多或者调用时间长时，请调大 `UV_THREADPOOL_SIZE`。在线程池里，可变参数的函数不能异步调用。库也可以改用自己的线程（第 10 节）。
 
 ## 4. 结构体、联合、枚举和常量
 
@@ -213,7 +214,7 @@ export class Vendor extends NativeLibrary {
 
 ## 7. C 函数的错误
 
-`lastErrno()`（或组件的 `errno()`）给出本线程上一次调用之后的 `errno`（库有自己的线程时，见第 9 节）。在 Windows 上，每个 C 运行库各有一份 `errno`：默认读微软 C 运行库（`ucrtbase.dll`）的，其他运行库在 `@Library` 的 `crt` 里指定（旧的库是 `msvcrt.dll`）。`lastWindowsError()` 给出 Windows API 的错误（`GetLastError`），每次调用之后都会保留下来。
+`lastErrno()`（或组件的 `errno()`）给出本线程上一次调用之后的 `errno`（库有自己的线程时，见第 10 节）。在 Windows 上，每个 C 运行库各有一份 `errno`：默认读微软 C 运行库（`ucrtbase.dll`）的，其他运行库在 `@Library` 的 `crt` 里指定（旧的库是 `msvcrt.dll`）。`lastWindowsError()` 给出 Windows API 的错误（`GetLastError`），每次调用之后都会保留下来。
 
 ```typescript
 import {lastErrno, loadNativeLibrary} from '@lakutata/ffi'
@@ -236,7 +237,49 @@ console.log(div(17, 5))
 await libc.close()
 ```
 
-## 9. 库的线程
+## 9. 根据头文件生成类
+
+函数很多的库，可以用 `lakutata ffi generate` 根据它的头文件生成类：包括它的声明、每个函数一个带 TypeScript 类型的属性、每个结构体和联合一个接口，整数宏作为常量。
+
+```bash
+lakutata ffi generate /usr/include/sqlite3.h --class-name SQLite3 --out src/native/SQLite3.ts
+lakutata ffi generate sdk/include/vendor.h --library sdk/lib/vendor.dll --out src/native/Vendor.ts
+```
+
+- **头文件**先经过 C 编译器的预处理器（`cc -E`、`cl /P`）：`#include`、`#if` 和宏按在当前平台上编译时那样展开（编译时用的头文件目录和宏用 `--include`、`--define` 给出）。在 Windows 上，请在 Visual Studio 的开发者命令提示符里运行，那里有 `cl`；用 `--compiler`（或 `CC` 环境变量）可以换别的编译器。
+- **保留哪些声明**：头文件里的声明；它所在的目录不是系统目录时，还有这个目录里其他头文件的声明（库的其他头文件所在的目录用 `--own` 加上）；以及这些声明用到的系统类型。这个包读不了的声明（`long double`、带参数的宏）会被去掉，并列出它所在的文件和行号。
+- **用库检查**：加载和头文件同名的库（`sqlite3.h` 对应 `sqlite3`），或者 `--library` 给出的库（库名或文件），库里没有导出的函数和不能调用的函数（参数是 `va_list`）会被去掉并列出来。库加载不了时，照样生成类，只是不做检查，并给出警告（zlib 要写 `--library z`）；`--no-check` 跳过检查。
+- **生成的类**：每个函数一个属性，属性名就是函数名，上面注释着它的 C 原型；函数名和组件的成员重名时（`free`、`read`），属性换一个名字。TypeScript 类型按第 3 节的规则：64 位整数是 bigint，字符串是 `string | null`，其他指针是 `Pointer | null`（作为参数时也可以传 `Buffer` 或类型化数组）。
+- **哪些要自己改**：头文件看不出哪些指针是输出参数，也看不出哪些函数会阻塞，生成的文件就是供你修改的。输出参数要在声明里它所属函数的原型上标成 `_Out_`，参数类型改成 `Out<T>`（指向结构体的指针改成那个结构体的接口）。会阻塞的函数在 `@Native` 里加上 `{async: true}`，这时 `@Native` 要写出函数名。头文件出了新版本时，重新生成类，再把这些修改搬过去。
+- **只针对一个平台**：声明是运行生成器的那个平台上的；头文件按平台写了不同声明的（`#ifdef _WIN32`），要在每个平台上各生成一份。换一个版本的库可能少一些函数：组件启动时会报错，并指出缺的是哪个函数。
+
+下面是生成器为 `sqlite3_open` 和 `sqlite3_exec` 生成的代码改过之后的样子：
+
+```typescript
+import {Library, Native, NativeLibrary, type Out, type Pointer} from '@lakutata/ffi'
+
+@Library({
+    names: 'sqlite3',
+    declarations: `
+        typedef struct sqlite3 sqlite3;
+        int sqlite3_open(const char *filename, _Out_ sqlite3 **ppDb);
+        int sqlite3_exec(sqlite3 *, const char *sql, int (*callback)(void *, int, char **, char **), void *, _Out_ char **errmsg);
+    `
+})
+export class SQLite3 extends NativeLibrary {
+    //生成时 ppDb 是 Pointer | Buffer | ArrayBufferView | null；在声明里把 ppDb 标成了 _Out_
+    @Native()
+    public readonly sqlite3_open: (filename: string | null, ppDb: Out<Pointer>) => number
+
+    //它会阻塞：改成异步；errmsg 标成 _Out_，消息由 sqlite3_free 释放
+    @Native('sqlite3_exec', {async: true, free: 'sqlite3_free'})
+    public readonly sqlite3_exec: (db: Pointer | null, sql: string | null, callback: null, context: null, errmsg: Out<string>) => Promise<number>
+}
+```
+
+生成器也可以在脚本里调用：`@lakutata/ffi/generator` 的 `generateNativeLibrary()` 返回类的代码、它的声明和报告。
+
+## 10. 库的线程
 
 异步函数默认在运行时的线程池里执行。设置了 `threads` 之后，库就有自己的工作线程：每个线程各自加载这个库，异步函数在这些线程里执行。
 
@@ -261,7 +304,7 @@ export class Vendor extends NativeLibrary {
 - **errno**：库的 `errno()` 和 `windowsError()` 给出最近完成的那次异步调用所在线程的值。只有一个线程，或者每次调用都等上一次完成时，这个值才可靠。从第一次异步调用完成起，它们就不再给出同步调用的值了：同步调用的值用 `lastErrno()` 和 `lastWindowsError()` 读（第 7 节）。
 - **启动和关闭**：线程随库一起启动，加载库要几毫秒。组件要等线程把库加载好才算创建完成；用 `loadNativeLibrary` 加载的库，这时它的 `ready` 才会完成（调用本来也会等它）。关闭库时，先等进行中的调用结束，再让线程卸载库并退出。线程意外退出时，它正在执行的调用会失败，下一次调用会启动一个新线程。
 
-## 10. 销毁和工作线程
+## 11. 销毁和工作线程
 
 应用停止时，库组件会：让它的属性抛出 `NativeLibraryClosedException`（异步函数返回被拒绝的 Promise）；等进行中的异步调用结束（`drainTimeout`，默认 10 秒）；释放它的回调；释放 `alloc()` 分配的内存；卸载库（`keepLoaded` 时保留；musl 从不卸载）。如果把属性上的函数另外存了一份（`const abs = libc.abs`），销毁后就不能再调用它：调用已卸载的库里的函数，进程会退出。
 
@@ -274,13 +317,13 @@ export class Vendor extends NativeLibrary {
 
 库的线程里有异步调用正在执行时终止工作线程，进程不会崩溃。
 
-## 11. 运行环境
+## 12. 运行环境
 
 Node.js `^22.13.0 || >=24.11.0`、Electron 的主进程和 Bun；不支持 Electron 的渲染进程和浏览器。
 
 这个包的测试（包括库的线程）在 macOS（arm64：Node.js 24、Bun 1.4、Electron 44）、Linux（arm64，glibc 和 musl：Node.js 24、Bun 1.4）和 Windows 11（arm64，以及模拟运行的 x64：Node.js 24、Bun 1.4）上都能通过。在 macOS 上，还用 `lakutata package` 把一个使用它的应用（它的库在自己的线程里执行）分别打成了 bundle、Node.js 和 Bun 的可执行文件以及 Electron 应用：每一个都能运行，库的线程也都从应用自己的资源目录里加载了自带的库。
 
-## 12. 异常
+## 13. 异常
 
 | 异常 | 什么时候 |
 |---|---|

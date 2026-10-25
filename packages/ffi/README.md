@@ -104,6 +104,19 @@ snprintf(buffer, buffer.length, '%s=%d', 'const char *', 'count', 'int', 42)
 await libc.close()
 ```
 
+### Generating the class from the header
+
+For a library with many functions, the class is generated from its header by the command line tool of lakutata
+(`@lakutata/cli`), or by `generateNativeLibrary()` of `@lakutata/ffi/generator`:
+
+```shell
+lakutata ffi generate /usr/include/sqlite3.h --class-name SQLite3 --out src/native/SQLite3.ts
+```
+
+The header is run through the preprocessor of the C compiler, the declarations of the library are kept, and the
+functions the library cannot give are left out and listed. Then mark the output parameters `_Out_` and the functions
+that block `{async: true}` in the file generated, as the guide shows: a header does not say which ones they are.
+
 ### Packaging
 
 The bundles, the executables and the installers of Electron made by `lakutata package` carry koffi and its binary for
@@ -124,6 +137,7 @@ executables with Bun (`--runtime bun`).
 | `NativeFunctionOptions`, `NativeVariableAccessor`, `NativeCallback`, `LibraryNames`, `Pointer`, `Out` | The options of a function, a variable, a persistent callback (`pointer`, `release()`), the names of a library, a pointer (a bigint), an output parameter |
 | `readCString`, `readWString`, `readBuffer`, `viewBuffer`, `readValue`, `readArray`, `writeValue`, `allocMemory`, `freeMemory`, `sizeOf` | Native memory, with the built-in types (`viewBuffer` does not copy; Electron refuses it) |
 | `lastErrno`, `lastWindowsError` | The errno of the last call (on Windows, the one of the C library given), the error of the Windows API |
+| `generateNativeLibrary`, `defaultCompiler` (`@lakutata/ffi/generator`) | The class of a library generated from its header (its code, its declarations, what was left out), the C compiler run by default |
 
 The typings document every declaration, with examples.
 

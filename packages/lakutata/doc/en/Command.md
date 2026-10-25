@@ -81,6 +81,9 @@ packages, run a script in each of them in the order of their dependencies, give 
 `lakutata add <name> --native gyp|cmake|rust` adds a native addon written in C++ or Rust, and
 `lakutata native <link|include|define> <value>` links libraries to it. See [NativeAddons](NativeAddons.md).
 
+`lakutata ffi generate <header>` writes the class of a native library of `@lakutata/ffi` from its C header. See
+[FFI](FFI.md), section 9.
+
 ## 4. Migrations and translations
 
 `lakutata migration <action>` generates, creates, runs, reverts and shows the migrations of the databases of an

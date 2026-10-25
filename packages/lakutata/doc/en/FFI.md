@@ -101,6 +101,7 @@ Application.run(() => ({
 - **`@NativeVariable`** takes a declaration, a name, or nothing: reading the property reads the variable, writing it
   writes the variable (refused for a const one). An array of `char` of unknown length is read as a string.
 - A subclass inherits the library of its parent class and can add functions.
+- For a library with many functions, the class can be generated from its header (section 9).
 
 ## 2. Where the library is found
 
@@ -188,7 +189,7 @@ snprintf(buffer, buffer.length, '%s: %d', 'const char *', 'count', 'int', 42)
   event loop goes on during the call. By default it runs in the thread pool of the runtime: Node.js runs them in the
   pool of libuv, 4 threads by default, shared with the file system, DNS and crypto; raise `UV_THREADPOOL_SIZE` for many
   calls, or long ones. A variadic function cannot be asynchronous there. A library can have threads of its own instead
-  (section 9).
+  (section 10).
 
 ## 4. Structs, unions, enums and constants
 
@@ -269,7 +270,7 @@ views of native memory: `viewBuffer` throws a `NativeMemoryException` there.
 ## 7. The errors of the C functions
 
 `lastErrno()` (or `errno()` of the component) gives the `errno` of the last call of the thread (for a library with
-threads of its own, see section 9). On Windows, each C library has its own `errno`: the one of the C library of
+threads of its own, see section 10). On Windows, each C library has its own `errno`: the one of the C library of
 Microsoft (`ucrtbase.dll`) is read by default, another one given by `crt` of `@Library` (`msvcrt.dll` for the old
 libraries). `lastWindowsError()` gives the error of the Windows API (`GetLastError`), kept after each call.
 
@@ -295,7 +296,69 @@ console.log(div(17, 5))
 await libc.close()
 ```
 
-## 9. The threads of a library
+## 9. Generating the class from the header
+
+For a library with many functions, `lakutata ffi generate` writes its class from its header: its declarations, a
+property by function with its TypeScript type, an interface by struct and union, its integer macros as constants.
+
+```bash
+lakutata ffi generate /usr/include/sqlite3.h --class-name SQLite3 --out src/native/SQLite3.ts
+lakutata ffi generate sdk/include/vendor.h --library sdk/lib/vendor.dll --out src/native/Vendor.ts
+```
+
+- **The header** is run through the preprocessor of the C compiler (`cc -E`, `cl /P`): its `#include`, its `#if` and its
+  macros are resolved as for a build on this platform (`--include` and `--define` give the directories and the macros
+  of a build). On Windows, run it in the Developer Command Prompt of Visual Studio, which has `cl`; `--compiler` (or
+  `CC`) chooses another compiler.
+- **What is kept**: the declarations of the header, and those of the headers of its directory unless it is a directory
+  of the system (`--own` adds the directories of the other headers of the library), with the types of the system they
+  use. A declaration the package cannot read (`long double`, a macro with arguments) is left out, and listed with its
+  file and its line.
+- **Checked against the library**: the library named as the header (`sqlite3.h`: `sqlite3`), or the one given by
+  `--library` (a name or a file), is loaded, and the functions it does not export or that cannot be called (a
+  `va_list` parameter) are left out and listed. When it cannot be loaded, the class is generated without the check, with
+  a warning (zlib needs `--library z`); `--no-check` skips the check.
+- **The class** gets a property by function, named as the function, with its C prototype above it; a function named as
+  a member of the component (`free`, `read`) gets another property name. The TypeScript types follow section 3:
+  64-bit integers are bigints, strings are `string | null`, other pointers `Pointer | null` (a parameter also takes a
+  `Buffer` or a typed array).
+- **What to edit**: a header does not say which pointers are output parameters, nor which functions block, and the
+  generated file is meant to be edited. Mark an output parameter `_Out_` in the prototype of its function, in the
+  declarations, and change the type of its parameter to `Out<T>` (to the interface of the struct, for a pointer to a
+  struct). A function that blocks gets `{async: true}` in `@Native`, which then names the function. For a new version
+  of the header, generate the class again and carry those changes over.
+- **For one platform**: the declarations are the ones of the platform the generator ran on; a header whose declarations
+  differ by platform (`#ifdef _WIN32`) is generated on each of them. Another build of the library may lack some of the
+  functions: the component then refuses to start, naming the missing function.
+
+What the generator wrote for `sqlite3_open` and `sqlite3_exec`, edited:
+
+```typescript
+import {Library, Native, NativeLibrary, type Out, type Pointer} from '@lakutata/ffi'
+
+@Library({
+    names: 'sqlite3',
+    declarations: `
+        typedef struct sqlite3 sqlite3;
+        int sqlite3_open(const char *filename, _Out_ sqlite3 **ppDb);
+        int sqlite3_exec(sqlite3 *, const char *sql, int (*callback)(void *, int, char **, char **), void *, _Out_ char **errmsg);
+    `
+})
+export class SQLite3 extends NativeLibrary {
+    //Generated with ppDb: Pointer | Buffer | ArrayBufferView | null; ppDb marked _Out_ in the declarations
+    @Native()
+    public readonly sqlite3_open: (filename: string | null, ppDb: Out<Pointer>) => number
+
+    //It blocks: asynchronous; errmsg marked _Out_, the message freed by sqlite3_free
+    @Native('sqlite3_exec', {async: true, free: 'sqlite3_free'})
+    public readonly sqlite3_exec: (db: Pointer | null, sql: string | null, callback: null, context: null, errmsg: Out<string>) => Promise<number>
+}
+```
+
+The generator can also be called from a script: `generateNativeLibrary()` of `@lakutata/ffi/generator` returns the
+code of the class, its declarations and the report.
+
+## 10. The threads of a library
 
 By default, the asynchronous functions run in the thread pool of the runtime. With `threads`, a library has worker
 threads of its own instead: each one loads the library, and the asynchronous functions run in them.
@@ -313,10 +376,11 @@ export class Vendor extends NativeLibrary {
 }
 ```
 
-- **The number of threads**: with one thread, the asynchronous calls run one after the other, in the order they were made: for a
-  library that is not thread-safe, or a device that serves one request at a time. With several, each call goes to the
-  least busy thread. The configuration can give another number (`buildNativeLibraryOptions(Vendor, {threads: 2})`),
-  `loadNativeLibrary` takes it in its options, and `0` keeps the thread pool.
+- **The number of threads**: with one thread, the asynchronous calls run one after the other, in the order they were
+  made: for a library that is not thread-safe, or a device that serves one request at a time. With several, each call
+  goes to the least busy thread. The configuration can give another number
+  (`buildNativeLibraryOptions(Vendor, {threads: 2})`), `loadNativeLibrary` takes it in its options, and `0` keeps the
+  thread pool.
 - **What runs there**: the asynchronous functions only. The synchronous ones still run in the thread calling them, so
   the library is used by two threads at once: for a library that is not thread-safe, declare all its functions
   asynchronous. A variadic function can be asynchronous here. The threads of a library are not taken from the thread
@@ -339,7 +403,7 @@ export class Vendor extends NativeLibrary {
   for it anyway). When the library is closed, the calls running are awaited, then the threads unload the library and
   end. A thread that ends unexpectedly fails the calls it was running, and the next call starts a new one.
 
-## 10. Destruction and worker threads
+## 11. Destruction and worker threads
 
 When the application stops, a library component makes its properties throw `NativeLibraryClosedException` (its
 asynchronous functions reject), waits for its asynchronous calls running (`drainTimeout`, 10 seconds by default),
@@ -365,7 +429,7 @@ while it uses koffi can end the whole process:
 
 Stopping a worker while asynchronous calls run in the threads of its libraries does not crash the process.
 
-## 11. Runtimes
+## 12. Runtimes
 
 Node.js `^22.13.0 || >=24.11.0`, the main process of Electron and Bun; not the renderers of Electron nor the browsers.
 
@@ -375,7 +439,7 @@ Node.js 24, Bun 1.4). On macOS, an application whose libraries run in threads of
 `lakutata package` into a bundle, executables of Node.js and of Bun, and an Electron application: each one ran, and the
 threads loaded the library shipped in its resources.
 
-## 12. Exceptions
+## 13. Exceptions
 
 | Exception | When |
 |---|---|
