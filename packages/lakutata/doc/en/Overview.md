@@ -47,7 +47,8 @@ tool, a web and a desktop application, calls between services, background jobs, 
 Not part of this package: `@lakutata/cli` (the `lakutata` command for creating projects, running migrations and packing
 applications, see [Command](Command.md)), `@lakutata/grpc` (a gRPC client, server and service transport),
 `@lakutata/nats` (a NATS component and service transport), `@lakutata/dbus` (D-Bus), `@lakutata/mcp` (the Model
-Context Protocol) and `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, a media server, peer connections).
+Context Protocol), `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, a media server, peer connections) and
+`@lakutata/ffi` (the C functions of native libraries).
 
 ## The guides
 
@@ -91,6 +92,7 @@ Context Protocol) and `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, 
 | [DBus](DBus.md) | A D-Bus service and client (`@lakutata/dbus`): methods, objects, properties, signals |
 | [MCP](MCP.md) | The tools, resources and prompts of the Model Context Protocol (`@lakutata/mcp`), over stdio and HTTP |
 | [WebRTC](WebRTC.md) | Peer-to-peer connections and a media server (`@lakutata/webrtc`): the signaling, the TURN server, browsers and applications, the actions of an application called through data channels, WHIP and WHEP |
+| [FFI](FFI.md) | The C functions of native libraries (`@lakutata/ffi`): declarations copied from headers, structs, callbacks, memory, packaging |
 | [Command](Command.md) | The `lakutata` command: creating projects, migrations, translations, environment variables |
 | [Workspaces](Workspaces.md) | Projects of several packages: running their scripts, giving them a version, adding packages |
 | [NativeAddons](NativeAddons.md) | Native addons in C++ or Rust: creating them, linking libraries, shipping them |

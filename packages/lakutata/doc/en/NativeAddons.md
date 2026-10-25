@@ -3,7 +3,8 @@
 A native addon is a library written in C++ or Rust that Node.js loads as a `.node` file: for drivers and devices,
 codecs, system APIs, or code that must run fast. `lakutata add --native` creates an addon package in a workspace,
 ready to build and test; `lakutata native` links libraries to it; and `lakutata package` ships it with the application.
-The addons use Node-API, so one build runs in all the supported versions of Node.js and in Electron.
+The addons use Node-API, so one build runs in all the supported versions of Node.js and in Electron. To call the C
+functions of a library without writing an addon, see [FFI](FFI.md).
 
 ## 1. Creating an addon
 

@@ -1,6 +1,6 @@
 # Lakutata 原生插件
 
-原生插件是用 C++ 或 Rust 编写、由 Node.js 以 `.node` 文件加载的库：用于驱动和设备、编解码、系统 API，或者必须跑得快的代码。`lakutata add --native` 在工作区中创建一个原生插件包，可以直接构建和测试；`lakutata native` 给它链接库；`lakutata package` 把它和应用一起发布。这些插件使用 Node-API，所以同一份构建能在所有受支持的 Node.js 版本和 Electron 中运行。
+原生插件是用 C++ 或 Rust 编写、由 Node.js 以 `.node` 文件加载的库：用于驱动和设备、编解码、系统 API，或者必须跑得快的代码。`lakutata add --native` 在工作区中创建一个原生插件包，可以直接构建和测试；`lakutata native` 给它链接库；`lakutata package` 把它和应用一起发布。这些插件使用 Node-API，所以同一份构建能在所有受支持的 Node.js 版本和 Electron 中运行。不写插件、直接调用库里的 C 函数，见 [FFI](FFI.md)。
 
 ## 1. 创建原生插件
 

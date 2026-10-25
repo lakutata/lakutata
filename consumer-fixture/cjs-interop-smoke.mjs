@@ -99,6 +99,14 @@ await check('CJS @lakutata/webrtc loads', () => {
     if (typeof requireCJS('../packages/webrtc/dist/cjs/exports/Client.js').SignalingConnection !== 'function') throw new Error('SignalingConnection missing')
 })
 
+// @lakutata/ffi — the native libraries, koffi required from CommonJS
+await check('CJS @lakutata/ffi loads and calls the C library', () => {
+    const ffi = requireCJS('../packages/ffi/dist/cjs/exports/FFI.js')
+    if (typeof ffi.NativeLibrary !== 'function' || typeof ffi.loadNativeLibrary !== 'function' || typeof ffi.Native !== 'function') throw new Error('FFI missing')
+    const libc = ffi.loadNativeLibrary('c')
+    if (libc.func('int abs(int value)')(-3) !== 3) throw new Error('abs of the C library')
+})
+
 // @lakutata/grpc — the gRPC over HTTP/2 of containerd, BuildKit and the service actions
 await check('CJS @lakutata/grpc loads', () => {
     if (typeof requireCJS('../packages/grpc/dist/cjs/exports/GRPC.js').GRPCServer !== 'function') throw new Error('GRPCServer missing')

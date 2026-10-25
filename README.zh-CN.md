@@ -87,6 +87,7 @@ Application.run(() => ({
 | [`@lakutata/dbus`](packages/dbus) | D-Bus 服务和客户端 | 否 |
 | [`@lakutata/mcp`](packages/mcp) | 模型上下文协议（MCP）的工具、资源和提示词 | 否 |
 | [`@lakutata/webrtc`](packages/webrtc) | 用 TypeScript 实现的 WebRTC：信令、TURN 服务器、媒体服务器（SFU）、WHIP 和 WHEP、对等连接、通过数据通道调用的服务动作、浏览器客户端 | 否 |
+| [`@lakutata/ffi`](packages/ffi) | 动态库调用：用头文件里的 C 声明描述，调用 `.so`、`.dylib`、`.dll` 文件中的 C 函数 | 否 |
 | [`@lakutata/cli`](packages/cli) | `lakutata` 命令：项目、工作区、迁移、打包 | 否 |
 | [`@lakutata/builder`](packages/builder) | 单文件包、可执行文件和安装包，由 `lakutata package` 使用 | 否 |
 
