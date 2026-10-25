@@ -74,6 +74,51 @@ interface Integer {
 }
 
 /**
+ * A declaration of a preprocessed header, as readSource reads it (for the generator of libraries)
+ */
+export interface SourceDeclaration {
+    /**
+     * The file it comes from, and its line there (from the line markers of the preprocessor)
+     */
+    readonly file?: string
+    readonly line?: number
+    /**
+     * Its tokens, the macros expanded
+     */
+    readonly tokens: readonly Token[]
+    /**
+     * What it declares: `type name`, `struct tag`, `union tag`, `enum tag` (defined, not only named), `function name`,
+     * `variable name`, `constant name`
+     */
+    readonly names: readonly string[]
+    /**
+     * The packing of #pragma pack it was read with
+     */
+    readonly pack?: number
+    /**
+     * Why it could not be read
+     */
+    readonly error?: string
+}
+
+/**
+ * Where a macro is defined, in a preprocessed header
+ */
+export interface MacroOrigin {
+    readonly file?: string
+    readonly line?: number
+}
+
+/**
+ * A preprocessed header read by readSource: its declarations, each one as it is written, and where its macros are
+ */
+export interface SourceDeclarations {
+    readonly declarations: Declarations
+    readonly items: readonly SourceDeclaration[]
+    readonly macros: ReadonlyMap<string, MacroOrigin>
+}
+
+/**
  * Reads C declarations: typedefs, structs, unions, enums, function prototypes and variables, for one platform. Each
  * library has its own declarations: their names do not meet the ones of another library
  */
@@ -93,6 +138,13 @@ export class DeclarationParser {
     #pack?: number
 
     #packs: (number | undefined)[] = []
+
+    //When a header is read by readSource: its declarations, the names the one being read declares, where the macros are
+    #items?: SourceDeclaration[]
+
+    #recording?: string[]
+
+    #macroOrigins?: Map<string, MacroOrigin>
 
     /**
      * Read declarations for a platform.
@@ -123,6 +175,32 @@ export class DeclarationParser {
         while (!this.#at('end')) this.#declaration()
         this.#macroConstants()
         return this.#declarations
+    }
+
+    /**
+     * Read a preprocessed header for the generator of libraries: each declaration kept with the file it comes from and
+     * what it declares; one that cannot be read is skipped, its error kept, and the next ones are read.
+     * @param text The output of the preprocessor (`cc -E -dD`, `cl /P`): its line markers give the files.
+     * @returns The declarations, each declaration as it is written, and where the macros are defined.
+     */
+    public readSource(text: string): SourceDeclarations {
+        const items: SourceDeclaration[] = []
+        const macros: Map<string, MacroOrigin> = new Map()
+        this.#macroOrigins = macros
+        try {
+            this.#tokens = this.#expand(tokenize(text))
+        } finally {
+            this.#macroOrigins = undefined
+        }
+        this.#index = 0
+        this.#items = items
+        try {
+            while (!this.#at('end')) this.#item()
+        } finally {
+            this.#items = undefined
+        }
+        this.#macroConstants()
+        return {declarations: this.#declarations, items: items, macros: macros}
     }
 
     /**
@@ -180,10 +258,11 @@ export class DeclarationParser {
         const expanded: Token[] = []
         const expandInto = (token: Token, active: ReadonlySet<string>, at: Token): void => {
             const body: MacroToken[] | null | undefined = token.kind === 'identifier' && !active.has(token.text) ? macros.get(token.text) : undefined
-            if (body === null) throw this.#error(`The macro ${token.text} takes arguments: the macros with arguments are not supported (write what it expands to)`, at)
+            //A header read by readSource is preprocessed: a name left there is not a use of the macro
+            if (body === null && !this.#macroOrigins) throw this.#error(`The macro ${token.text} takes arguments: the macros with arguments are not supported (write what it expands to)`, at)
             if (!body) return void expanded.push(token)
             const inner: Set<string> = new Set(active).add(token.text)
-            for (const part of body) expandInto({...part, line: at.line, column: at.column}, inner, at)
+            for (const part of body) expandInto({...part, line: at.line, column: at.column, ...at.file !== undefined ? {file: at.file, fileLine: at.fileLine} : {}}, inner, at)
         }
         for (const token of tokens) {
             if (token.kind === 'define') {
@@ -196,7 +275,34 @@ export class DeclarationParser {
             }
             expandInto(token, new Set(), token)
         }
-        return expanded
+        return this.#pragmaOperators(expanded)
+    }
+
+    /**
+     * The __pragma(…) of Microsoft: __pragma(pack(…)) read as a #pragma pack, the others removed
+     * @param tokens
+     */
+    #pragmaOperators(tokens: Token[]): Token[] {
+        if (!tokens.some((token: Token): boolean => token.kind === 'identifier' && token.text === '__pragma')) return tokens
+        const result: Token[] = []
+        for (let index: number = 0; index < tokens.length; index++) {
+            const token: Token = tokens[index]
+            if (token.kind !== 'identifier' || token.text !== '__pragma' || tokens[index + 1]?.text !== '(') {
+                result.push(token)
+                continue
+            }
+            let depth: number = 0
+            let end: number = index + 1
+            for (; end < tokens.length - 1; end++) {
+                if (tokens[end].kind !== 'punctuator') continue
+                if (tokens[end].text === '(') depth++
+                else if (tokens[end].text === ')' && --depth === 0) break
+            }
+            const inner: Token[] = tokens.slice(index + 2, end)
+            if (inner[0]?.text === 'pack' && inner[1]?.text === '(') result.push({...token, kind: 'pragma', text: `pack(${inner.slice(2, -1).map((part: Token): string => part.text).join('')})`})
+            index = end
+        }
+        return result
     }
 
     /**
@@ -207,12 +313,22 @@ export class DeclarationParser {
         const name: string | undefined = token.text.match(/^[A-Za-z_]\w*/)?.[0]
         if (!name) throw this.#error('#define without a name', token)
         const rest: string = token.text.slice(name.length)
+        this.#macroOrigins?.set(name, {...token.file !== undefined ? {file: token.file} : {}, ...token.fileLine !== undefined ? {line: token.fileLine} : {}})
         if (rest.startsWith('(')) {
             this.#declarations.macros.set(name, null)
             return
         }
         const body: MacroToken[] = []
-        for (const part of tokenize(rest)) {
+        let parts: Token[]
+        try {
+            parts = tokenize(rest)
+        } catch (error) {
+            //A header read by readSource: a macro that cannot be read is not used
+            if (!this.#macroOrigins) throw error
+            this.#declarations.macros.set(name, null)
+            return
+        }
+        for (const part of parts) {
             if (part.kind === 'end') break
             if (part.kind === 'pragma' || part.kind === 'define' || part.kind === 'undef') continue
             body.push({kind: part.kind, text: part.text, ...part.value !== undefined ? {value: part.value} : {}, ...part.float ? {float: true} : {}})
@@ -240,6 +356,75 @@ export class DeclarationParser {
         }
         this.#tokens = tokens
         this.#index = index
+    }
+
+    /**
+     * A declaration of a header read by readSource, kept with what it declares; one that cannot be read is skipped
+     */
+    #item(): void {
+        const start: number = this.#index
+        const first: Token = this.#peek()
+        //extern "C" { … }: its declarations are the items
+        if (first.kind === 'identifier' && first.text === 'extern' && this.#peek(1).kind === 'string' && this.#isPunctuator('{', 2)) {
+            this.#index += 3
+            while (!this.#isPunctuator('}') && !this.#at('end')) this.#item()
+            if (this.#isPunctuator('}')) this.#next()
+            return
+        }
+        const pack: number | undefined = this.#pack
+        const names: string[] = []
+        this.#recording = names
+        let error: string | undefined
+        try {
+            this.#declaration()
+        } catch (thrown) {
+            error = (thrown instanceof Error ? thrown.message : String(thrown)).replace(/ \(line \d+, column \d+\)$/, '')
+            this.#index = this.#recover(start)
+        } finally {
+            this.#recording = undefined
+        }
+        this.#items!.push({
+            ...first.file !== undefined ? {file: first.file} : {},
+            ...first.fileLine !== undefined ? {line: first.fileLine} : {},
+            tokens: this.#tokens.slice(start, this.#index),
+            names: names,
+            ...pack !== undefined ? {pack: pack} : {},
+            ...error !== undefined ? {error: error} : {}
+        })
+    }
+
+    /**
+     * Where the declaration that could not be read ends: after its semicolon, or after the body of a function defined
+     * in the header
+     * @param start
+     */
+    #recover(start: number): number {
+        const tokens: Token[] = this.#tokens
+        let depth: number = 0
+        let body: boolean = false
+        for (let index: number = start; index < tokens.length - 1; index++) {
+            const token: Token = tokens[index]
+            if (token.kind === 'pragma' && depth === 0 && index > start) return index
+            if (token.kind !== 'punctuator') continue
+            if (token.text === '{' && depth === 0) body = index > start && tokens[index - 1].text === ')'
+            if (token.text === '(' || token.text === '[' || token.text === '{') {
+                depth++
+            } else if (token.text === ')' || token.text === ']' || token.text === '}') {
+                depth = Math.max(0, depth - 1)
+                if (token.text === '}' && depth === 0 && body) return tokens[index + 1]?.text === ';' ? index + 2 : index + 1
+            } else if (token.text === ';' && depth === 0) {
+                return index + 1
+            }
+        }
+        return tokens.length - 1
+    }
+
+    /**
+     * A name declared, for readSource
+     * @param name
+     */
+    #defined(name: string): void {
+        this.#recording?.push(name)
     }
 
     /**
@@ -321,20 +506,26 @@ export class DeclarationParser {
             const previous: CType | undefined = this.#declarations.types.get(name)
             if (previous && previous !== type && typeText(previous) !== typeText(type)) throw this.#error(`The type ${name} is declared again as another type (${typeText(previous)}, then ${typeText(type)})`, declarator.token!)
             this.#declarations.types.set(name, type)
+            this.#defined(`type ${name}`)
             return
         }
         if (type.kind === 'function') {
             if (specifiers.storage === 'static') return
             this.#declarations.functions.set(name, {name: name, symbol: this.#symbol(name, asm), type: this.#withConvention(type, declarator.convention ?? specifiers.convention)})
+            this.#defined(`function ${name}`)
             return
         }
         //static const int LIMIT = 10;: a constant
         if (specifiers.storage === 'static') {
-            if (initializer && constant) this.#declarations.constants.set(name, initializer.value)
+            if (initializer && constant) {
+                this.#declarations.constants.set(name, initializer.value)
+                this.#defined(`constant ${name}`)
+            }
             return
         }
         if (specifiers.threadLocal) throw this.#error(`The variable ${name} is thread-local: it cannot be reached through the library`, declarator.token!)
         this.#declarations.variables.set(name, {name: name, symbol: this.#symbol(name, asm), type: type, constant: constant})
+        this.#defined(`variable ${name}`)
     }
 
     /**
@@ -620,6 +811,7 @@ export class DeclarationParser {
         const after: { packed: boolean, align?: number } | undefined = this.#attributes()
         const packed: boolean = !!(attributes?.packed || after?.packed)
         record.members = members
+        if (tag) this.#defined(key)
         if (packed) record.pack = 1
         else if (this.#pack !== undefined) record.pack = this.#pack
         const align: number | undefined = after?.align ?? attributes?.align
@@ -666,6 +858,7 @@ export class DeclarationParser {
             }
             values.set(name.text, next)
             this.#declarations.constants.set(name.text, next)
+            this.#defined(`constant ${name.text}`)
             next++
             if (this.#isPunctuator(',')) this.#next()
             else if (!this.#isPunctuator('}')) throw this.#error(`, or } is expected, not ${this.#describe(this.#peek())}`, this.#peek())
@@ -673,7 +866,10 @@ export class DeclarationParser {
         this.#next()
         this.#attributes()
         const type: EnumType = {kind: 'enum', tag: tag, base: base ?? this.#enumBase([...values.values()]), values: values}
-        if (tag) this.#declarations.tags.set(key, type)
+        if (tag) {
+            this.#declarations.tags.set(key, type)
+            this.#defined(key)
+        }
         return type
     }
 

@@ -15,6 +15,15 @@ export interface Token {
     readonly float?: boolean
     readonly line: number
     readonly column: number
+    /**
+     * In a preprocessed text, the file it comes from and its line there (from the line markers)
+     */
+    readonly file?: string
+    readonly fileLine?: number
+    /**
+     * The text of a string as written, its quotes and escapes included
+     */
+    readonly source?: string
 }
 
 const PUNCTUATORS: readonly string[] = ['...', '<<=', '>>=', '<<', '>>', '<=', '>=', '==', '!=', '&&', '||', '->', '++', '--', '##', '::']
@@ -126,10 +135,21 @@ export function declarationError(message: string, line: number, column: number):
 }
 
 /**
+ * The file and the line a line marker of a preprocessor gives to the line after it: `# 12 "file.h" 2` (GCC, Clang),
+ * `#line 12 "file.h"` (Microsoft); undefined for another directive
+ * @param directive the directive, without its #
+ */
+function lineMarker(directive: string): { line: number, file?: string } | undefined {
+    const marker: RegExpMatchArray | null = directive.match(/^(?:line\s+)?(\d+)(?:\s+"((?:[^"\\]|\\.)*)")?/)
+    if (!marker) return undefined
+    return {line: Number(marker[1]), ...marker[2] !== undefined ? {file: marker[2].replace(/\\(.)/g, '$1')} : {}}
+}
+
+/**
  * The tokens of C declarations. Comments are skipped; of the directives of the preprocessor, #pragma pack, #define and
- * #undef are kept (as tokens holding the rest of their line), the line markers of a preprocessed file, #include and the
- * other #pragma are skipped, and the conditional ones (#if, #ifdef…) are refused: what they select is the work of a
- * preprocessor
+ * #undef are kept (as tokens holding the rest of their line), #include and the other #pragma are skipped, and the
+ * conditional ones (#if, #ifdef…) are refused: what they select is the work of a preprocessor. The line markers of a
+ * preprocessed text give each token the file and the line it comes from
  * @param text
  */
 export function tokenize(text: string): Token[] {
@@ -138,13 +158,26 @@ export function tokenize(text: string): Token[] {
     let i: number = 0
     let lineStart: boolean = true
     const starts: number[] = lineStartsOf(text)
+    //The file of the line markers, and what to add to a line of the text to get its line in that file
+    let file: string | undefined
+    let lineOffset: number = 0
+    let marked: boolean = false
     const fail = (message: string, offset: number): never => {
         const {line, column} = positionOf(starts, offset)
         throw declarationError(message, line, column)
     }
-    const push = (kind: TokenKind, start: number, end: number, extra: { value?: bigint, float?: boolean, text?: string } = {}): void => {
+    const push = (kind: TokenKind, start: number, end: number, extra: { value?: bigint, float?: boolean, text?: string, source?: string } = {}): void => {
         const {line, column} = positionOf(starts, start)
-        tokens.push({kind: kind, text: extra.text ?? text.slice(start, end), value: extra.value, float: extra.float, line: line, column: column})
+        tokens.push({
+            kind: kind,
+            text: extra.text ?? text.slice(start, end),
+            value: extra.value,
+            float: extra.float,
+            line: line,
+            column: column,
+            ...marked ? {file: file, fileLine: line + lineOffset} : {},
+            ...extra.source !== undefined ? {source: extra.source} : {}
+        })
     }
     while (i < length) {
         const char: string = text[i]
@@ -180,6 +213,12 @@ export function tokenize(text: string): Token[] {
             const directive: string = withoutComments(text.slice(start + 1, end))
             const name: string = directive.match(/^[A-Za-z_]\w*/)?.[0] ?? ''
             if (CONDITIONALS.includes(name)) fail(`The directive #${name} is not supported: run the header through the preprocessor first (cc -E, cl /P)`, start)
+            const marker: { line: number, file?: string } | undefined = name === '' || name === 'line' ? lineMarker(directive) : undefined
+            if (marker) {
+                marked = true
+                if (marker.file !== undefined) file = marker.file
+                lineOffset = marker.line - (positionOf(starts, start).line + 1)
+            }
             const pack: RegExpMatchArray | null = directive.match(/^pragma\s+pack\s*\(([^)]*)\)/)
             if (pack) push('pragma', start, end, {text: `pack(${pack[1].replace(/\s+/g, '')})`})
             //The text of a macro after its name, its comments removed; the name directly followed by ( takes arguments
@@ -208,7 +247,8 @@ export function tokenize(text: string): Token[] {
             if (hex) end += 2
             while (end < length && (/[\w.]/.test(text[end]) || (/[eEpP]/.test(text[end - 1]) && /[+-]/.test(text[end]) && (!hex || /[pP]/.test(text[end - 1]))))) end++
             const literal: string = text.slice(i, end)
-            const body: string = literal.replace(/(?:[uU](?:ll|LL|l|L)?|(?:ll|LL|l|L)[uU]?)$/, '')
+            //The suffixes of C, and the ones of Microsoft (i64, ui64, I32…)
+            const body: string = literal.replace(/(?:[uU](?:ll|LL|l|L)?|(?:ll|LL|l|L)[uU]?|[uU]?[iI](?:8|16|32|64))$/, '')
             const float: boolean = hex ? /[.pP]/.test(body) : /[.eE]/.test(body) || /[fF]$/.test(literal)
             if (float) {
                 push('number', i, end, {float: true})
@@ -253,7 +293,7 @@ export function tokenize(text: string): Token[] {
             }
             if (end >= length) fail(char === '"' ? 'A string is not closed' : 'A character is not closed', i)
             if (char === '\'') push('char', i, end + 1, {value: BigInt(codes[0] ?? 0)})
-            else push('string', i, end + 1, {text: String.fromCodePoint(...codes)})
+            else push('string', i, end + 1, {text: String.fromCodePoint(...codes), source: text.slice(i, end + 1)})
             i = end + 1
             continue
         }

@@ -6,7 +6,8 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {NativeDeclarationException} from '../exceptions/NativeDeclarationException.js'
 import {layoutOf, sizeOf} from '../lib/declarations/Layout.js'
-import {DeclarationParser} from '../lib/declarations/Parser.js'
+import {DeclarationParser, type SourceDeclaration, type SourceDeclarations} from '../lib/declarations/Parser.js'
+import type {Token} from '../lib/declarations/Lexer.js'
 import {type Platform, platformOf} from '../lib/declarations/Platform.js'
 import {type CType, type Declarations, type FunctionType, type MacroToken, type PointerType, type RecordType, typeText} from '../lib/declarations/Types.js'
 
@@ -215,6 +216,9 @@ describe('C declarations', (): void => {
         `)
         const size = (tag: string): number => sizeOf(declarations.tags.get(`struct ${tag}`)!, LINUX_X64)
         assert.deepStrictEqual([size('frame'), size('header'), size('inner'), size('normal')], [5, 12, 3, 8])
+        //The __pragma operator of Microsoft
+        const operators: Declarations = parse('__pragma(warning(push)) __pragma(pack(push, 1)) struct tight { char a; int b; }; __pragma(pack(pop)) struct loose { char a; int b; }; __pragma(warning(pop))')
+        assert.deepStrictEqual(['tight', 'loose'].map((tag: string): number => sizeOf(operators.tags.get(`struct ${tag}`)!, LINUX_X64)), [5, 8])
     })
 
     it('expand the macros without arguments: the markers of exported functions, the constants', (): void => {
@@ -247,8 +251,53 @@ describe('C declarations', (): void => {
         const commented: Declarations = parse('#define URL "file://"  // the scheme\n#define SPACED "a  b"\n#define NOTE \'/\' /* a slash\n   on two lines */\n#define LIMIT 8 /* bytes */ // and more\nint f(void);')
         assert.deepStrictEqual(['URL', 'SPACED'].map((name: string): string => commented.macros.get(name)!.map((token: MacroToken): string => token.text).join()), ['file://', 'a  b'])
         assert.deepStrictEqual([commented.constants.get('NOTE'), commented.constants.get('LIMIT')], [47n, 8n])
+        //The suffixes of the integers of Microsoft
+        assert.deepStrictEqual([...parse('#define BIG 0x40000000000UI64\n#define SMALL 7i32\nint f(void);').constants.values()], [0x40000000000n, 7n])
         assert.deepStrictEqual([...commented.functions.keys()], ['f'])
         assert.match(failure(() => parse('SQLITE_API int f(void);')), /Unknown type SQLITE_API: a macro\? give its #define with the declarations/)
+    })
+
+    it('read a preprocessed header declaration by declaration, with the files they come from', (): void => {
+        const source: SourceDeclarations = new DeclarationParser(LINUX_X64).readSource([
+            '# 1 "vendor.h"',
+            '# 1 "/usr/include/stdlib.h" 1 3',
+            'long double strtold(const char *text, char **end);',
+            'typedef unsigned long size_t;',
+            '# 3 "vendor.h" 2',
+            '#define VENDOR_OK 0',
+            '#define VENDOR_NAME "vendor"',
+            'typedef struct vendor vendor;',
+            'enum vendor_mode { VENDOR_FAST = 1, VENDOR_SAFE };',
+            '#pragma pack(push, 1)',
+            'struct vendor_frame { char kind; int length; };',
+            '#pragma pack(pop)',
+            'static inline long double vendor_half(long double value) { return value / 2; }',
+            'extern "C" {',
+            'int vendor_open(const char *name, vendor **out);',
+            '}',
+            '#line 20 "C:\\\\sdk\\\\vendor_extra.h"',
+            'extern const int vendor_version;',
+            'static const int VENDOR_LIMIT = 8;'
+        ].join('\n'))
+        const items = source.items.filter((item: SourceDeclaration): boolean => !item.tokens.every((token: Token): boolean => token.kind === 'pragma'))
+        assert.deepStrictEqual(items.map((item: SourceDeclaration): string => `${item.file}:${item.line} ${item.names.join(',')}${item.error ? ` (${item.error})` : ''}`), [
+            '/usr/include/stdlib.h:1  (long double is not supported)',
+            '/usr/include/stdlib.h:2 type size_t',
+            'vendor.h:5 type vendor',
+            'vendor.h:6 constant VENDOR_FAST,constant VENDOR_SAFE,enum vendor_mode',
+            'vendor.h:8 struct vendor_frame',
+            'vendor.h:10  (long double is not supported)',
+            'vendor.h:12 function vendor_open',
+            'C:\\sdk\\vendor_extra.h:20 variable vendor_version',
+            'C:\\sdk\\vendor_extra.h:21 constant VENDOR_LIMIT'
+        ])
+        assert.strictEqual(items[4].pack, 1)
+        assert.strictEqual(items[3].pack, undefined)
+        assert.deepStrictEqual(source.macros.get('VENDOR_OK'), {file: 'vendor.h', line: 3})
+        assert.strictEqual(source.declarations.constants.get('VENDOR_OK'), 0n)
+        assert.deepStrictEqual(items[1].tokens.map((token: Token): string => token.text), ['typedef', 'unsigned', 'long', 'size_t', ';'])
+        //The parse of a library still refuses what it cannot read
+        assert.throws((): unknown => new DeclarationParser(LINUX_X64).parse('long double strtold(const char *text, char **end);'), /long double is not supported/)
     })
 
     it('read variables, constants, inline functions and the blocks of C++ headers', (): void => {
