@@ -310,6 +310,11 @@ of the worker first, which waits for them.
 
 Node.js `^22.13.0 || >=24.11.0`, the main process of Electron and Bun; not the renderers of Electron nor the browsers.
 
+The tests of the package pass on macOS (arm64: Node.js 24, Bun 1.4, Electron 44), on Linux (arm64, glibc and musl:
+Node.js 24, Bun 1.4) and on Windows 11 (arm64, and x64 under emulation: Node.js 24, Bun 1.4). On macOS, an application
+using it was also packed by `lakutata package` into a bundle, executables of Node.js and of Bun, and an Electron
+application: each one ran and found the library shipped in its resources.
+
 ## 11. Exceptions
 
 | Exception | When |

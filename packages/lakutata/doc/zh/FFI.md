@@ -246,6 +246,8 @@ await libc.close()
 
 Node.js `^22.13.0 || >=24.11.0`、Electron 的主进程和 Bun；不支持 Electron 的渲染进程和浏览器。
 
+这个包的测试在 macOS（arm64：Node.js 24、Bun 1.4、Electron 44）、Linux（arm64，glibc 和 musl：Node.js 24、Bun 1.4）和 Windows 11（arm64，以及模拟运行的 x64：Node.js 24、Bun 1.4）上都能通过。在 macOS 上，还用 `lakutata package` 把一个使用它的应用分别打成了 bundle、Node.js 和 Bun 的可执行文件以及 Electron 应用：每一个都能运行，也都在自己的资源目录里找到了自带的库。
+
 ## 11. 异常
 
 | 异常 | 什么时候 |

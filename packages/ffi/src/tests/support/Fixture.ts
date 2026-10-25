@@ -1,5 +1,5 @@
-import {execFileSync} from 'node:child_process'
-import {mkdtempSync, writeFileSync} from 'node:fs'
+import {execFileSync, execSync} from 'node:child_process'
+import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 
@@ -56,6 +56,13 @@ EXPORT double s16_sum(struct s16 s) { return s.x + s.y; }
 union number { int32_t i; float f; uint8_t bytes[4]; };
 EXPORT int32_t number_int(union number n) { return n.i; }
 
+struct samples { int32_t values[4]; double scale; int64_t totals[2]; };
+EXPORT struct samples samples_make(int32_t start) {
+    struct samples s = {{start, start + 1, start + 2, start + 3}, 0.5, {start * 10LL, 9007199254740993LL}};
+    return s;
+}
+EXPORT int32_t samples_sum(const struct samples *s) { return s->values[0] + s->values[1] + s->values[2] + s->values[3]; }
+
 EXPORT int64_t big_negate(int64_t v) { return -v; }
 EXPORT size_t big_size(void) { return 42; }
 EXPORT void big_out(int64_t *out) { *out = 9007199254740993LL; }
@@ -93,22 +100,43 @@ struct s12 { float x, y, z; };
 struct s16 { double x, y; };
 struct s24 { uint64_t a, b, c; };
 union number { int32_t i; float f; uint8_t bytes[4]; };
+struct samples { int32_t values[4]; double scale; int64_t totals[2]; };
 struct node { int value; struct node *next; };
 extern const char fixture_version[];
 extern int fixture_counter;
 `
 
 /**
- * The fixture compiled by the C compiler of the machine, in a directory of its own; undefined when there is none
+ * Remove the directory of the fixture: on Windows, a DLL just unloaded can stay locked for a while (by the system, by an
+ * antivirus): retried, and left to the temporary directory if it is still locked
+ * @param library
+ */
+export function removeFixture(library: string): void {
+    try {
+        rmSync(path.dirname(library), {recursive: true, force: true, maxRetries: 10, retryDelay: 200})
+    } catch (error) {
+        if (process.platform !== 'win32') throw error
+    }
+}
+
+/**
+ * The fixture compiled by the C compiler of the machine (cc; on Windows, cl of the Visual Studio Build Tools, for the
+ * architecture of the process), in a directory of its own; undefined when there is none
  */
 export function compileFixture(): string | undefined {
-    if (process.platform === 'win32') return undefined
     const directory: string = mkdtempSync(path.join(tmpdir(), 'lakutata-ffi-fixture-'))
     const source: string = path.join(directory, 'fixture.c')
-    const library: string = path.join(directory, process.platform === 'darwin' ? 'libfixture.dylib' : 'libfixture.so')
+    const library: string = path.join(directory, process.platform === 'darwin' ? 'libfixture.dylib' : process.platform === 'win32' ? 'fixture.dll' : 'libfixture.so')
     writeFileSync(source, FIXTURE_SOURCE)
     try {
-        execFileSync('cc', ['-shared', '-fPIC', '-O1', '-o', library, source], {stdio: 'ignore'})
+        if (process.platform === 'win32') {
+            const vswhere: string = path.join(process.env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)', 'Microsoft Visual Studio', 'Installer', 'vswhere.exe')
+            const installation: string = execFileSync(vswhere, ['-latest', '-products', '*', '-property', 'installationPath']).toString().trim()
+            const vcvars: string = path.join(installation, 'VC', 'Auxiliary', 'Build', 'vcvarsall.bat')
+            execSync(`"${vcvars}" ${process.arch === 'arm64' ? 'arm64' : process.arch === 'ia32' ? 'x86' : 'x64'} >nul && cl /nologo /LD /O1 /Fe"${library}" /Fo"${path.join(directory, 'fixture.obj')}" "${source}"`, {stdio: 'ignore', cwd: directory})
+        } else {
+            execFileSync('cc', ['-shared', '-fPIC', '-O1', '-o', library, source], {stdio: 'ignore'})
+        }
         return library
     } catch {
         return undefined

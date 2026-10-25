@@ -1,6 +1,5 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {rmSync} from 'node:fs'
 import path from 'node:path'
 import {
     allocMemory,
@@ -27,7 +26,7 @@ import {TYPES} from '../lib/Runtime.js'
 import {DeclarationParser} from '../lib/declarations/Parser.js'
 import {CURRENT_PLATFORM} from '../lib/declarations/Platform.js'
 import type {RecordType} from '../lib/declarations/Types.js'
-import {compileFixture, FIXTURE_DECLARATIONS} from './support/Fixture.js'
+import {compileFixture, FIXTURE_DECLARATIONS, removeFixture} from './support/Fixture.js'
 
 const POSIX: boolean = process.platform !== 'win32'
 
@@ -89,7 +88,8 @@ describe('A native library', {skip: !POSIX && 'the Windows libraries are tested 
         const time: Record<string, unknown> = {tm_sec: 0, tm_min: 0, tm_hour: 12, tm_mday: 32, tm_mon: 0, tm_year: 124, tm_wday: 0, tm_yday: 0, tm_isdst: -1, tm_gmtoff: 0n, tm_zone: null}
         const seconds: bigint = mktime(time)
         assert.deepStrictEqual([time.tm_mon, time.tm_mday, time.tm_yday], [1, 1, 31])
-        assert.strictEqual(seconds, BigInt(new Date(2024, 1, 1, 12).getTime() / 1000))
+        //The time zone of the C library may not be the one of JS (bun test runs JS in UTC)
+        assert.ok(Math.abs(Number(seconds) - new Date(2024, 1, 1, 12).getTime() / 1000) <= 14 * 3600, String(seconds))
         assert.strictEqual(typeof time.tm_gmtoff, 'bigint')
     })
 
@@ -156,8 +156,13 @@ describe('A native library', {skip: !POSIX && 'the Windows libraries are tested 
         for (let i: number = 0; i < 4; i++) writeValue(pointer + BigInt(i * 4), 'int32_t', i + 1)
         assert.deepStrictEqual(readArray(pointer, 'int32_t', 4), [1, 2, 3, 4])
         assert.deepStrictEqual([...readBuffer(pointer, 8)], [1, 0, 0, 0, 2, 0, 0, 0])
-        new Int32Array(viewBuffer(pointer, 16))[0] = 7
-        assert.strictEqual(readValue(pointer, 'int32_t'), 7)
+        if (process.versions.electron) {
+            //Electron forbids views of native memory: refused before koffi is asked (it would end the process)
+            assert.throws((): ArrayBuffer => viewBuffer(pointer, 16), NativeMemoryException)
+        } else {
+            new Int32Array(viewBuffer(pointer, 16))[0] = 7
+            assert.strictEqual(readValue(pointer, 'int32_t'), 7)
+        }
         freeMemory(pointer)
         const big: Pointer = allocMemory('int64_t')
         writeValue(big, 'int64_t', -5n)
@@ -306,7 +311,7 @@ describe('The C library of the tests', (): void => {
 
     after(async (): Promise<void> => {
         await fixture?.close()
-        if (file) rmSync(path.dirname(file), {recursive: true, force: true})
+        if (file) removeFixture(file)
     })
 
     const skip: string | false = !file && 'no C compiler'
@@ -340,6 +345,18 @@ describe('The C library of the tests', (): void => {
         assert.deepStrictEqual(fixture.func('struct s24 s24_make(uint64_t v)')(9007199254740993n), {a: 9007199254740993n, b: 9007199254740994n, c: 9007199254740995n})
         assert.strictEqual(fixture.func('double s16_sum(struct s16 s)')({x: 1.5, y: 2}), 3.5)
         assert.strictEqual(fixture.func('int32_t number_int(union number n)')({i: 1234}), 1234)
+    })
+
+    it('gives the arrays of structs as typed arrays, the arrays of 64-bit integers as arrays of bigints', {skip: skip}, (): void => {
+        const samples = fixture.func<(start: number) => {values: Int32Array, scale: number, totals: bigint[]}>('struct samples samples_make(int32_t start)')(5)
+        assert.ok(samples.values instanceof Int32Array, String(samples.values?.constructor?.name))
+        assert.deepStrictEqual([...samples.values], [5, 6, 7, 8])
+        assert.strictEqual(samples.scale, 0.5)
+        assert.deepStrictEqual(samples.totals, [50n, 9007199254740993n])
+        //Given as typed arrays or as arrays of numbers
+        const sum = fixture.func<(samples: Record<string, unknown>) => number>('int32_t samples_sum(const struct samples *s)')
+        assert.strictEqual(sum({values: Int32Array.from([1, 2, 3, 4]), scale: 1, totals: [0n, 0n]}), 10)
+        assert.strictEqual(sum({values: [4, 4, 4, 4], scale: 1, totals: [0, 0]}), 16)
     })
 
     it('calls callbacks kept by the library, and converts the 64-bit integers of callbacks', {skip: skip}, (): void => {

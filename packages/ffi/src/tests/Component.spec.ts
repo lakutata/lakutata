@@ -1,6 +1,5 @@
 import {after, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {rmSync} from 'node:fs'
 import path from 'node:path'
 import {Container} from '@lakutata/core'
 import {
@@ -15,7 +14,7 @@ import {
     type Out,
     type Pointer
 } from '../exports/FFI.js'
-import {compileFixture, FIXTURE_DECLARATIONS} from './support/Fixture.js'
+import {compileFixture, FIXTURE_DECLARATIONS, removeFixture} from './support/Fixture.js'
 
 const POSIX: boolean = process.platform !== 'win32'
 
@@ -169,7 +168,7 @@ describe('A library component of the C library of the tests', (): void => {
     }
 
     after((): void => {
-        if (file) rmSync(path.dirname(file), {recursive: true, force: true})
+        if (file) removeFixture(file)
     })
 
     it('reads and writes its variables through its properties, found by its configured directories', {skip: !file && 'no C compiler'}, async (): Promise<void> => {
