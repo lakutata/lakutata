@@ -151,7 +151,7 @@ const device = require('device')
 const probe = require('probe')
 const shadow = require('shadow')
 require('legacy')
-import('capture').then((capture) => console.log(Component === device.Component, Component === capture.Component, device.prebuilt(), '|', capture.binding, '|', probe.binding, probe.names, '|', shadow.given, shadow.declared))
+Promise.all([import('capture'), import('sensor')]).then(([capture, sensor]) => console.log(Component === device.Component, Component === capture.Component, device.prebuilt(), '|', capture.binding, '|', probe.binding, probe.names, '|', shadow.given, shadow.declared, '|', sensor.prebuilt()))
 `,
             'node_modules/@lakutata/core/package.json': JSON.stringify({name: '@lakutata/core', version: '1.0.0', main: 'index.js'}),
             'node_modules/@lakutata/core/index.js': 'exports.Component = class Component {}\n',
@@ -179,6 +179,14 @@ export const binding = createRequire(import.meta.url)('node-gyp-build')(path.res
             'node_modules/probe/package.json': JSON.stringify({name: 'probe', version: '1.0.0', main: 'index.js', dependencies: {'@lakutata/core': '*', 'node-gyp-build': '*'}}),
             'node_modules/probe/index.js': 'const names = {__dirname: \'a property\'}\nexports.binding = require(\'node-gyp-build\')(__dirname)\nexports.names = [names.__dirname, Object.keys({__dirname}).join()].join(\' \')\n',
             'node_modules/probe/build/Release/probe.node': 'probe addon',
+            //An ES module finding its addon by a URL from its module, one by platform
+            'node_modules/sensor/package.json': JSON.stringify({name: 'sensor', version: '1.0.0', type: 'module', main: 'dist/esm/index.js', peerDependencies: {'@lakutata/core': '*'}}),
+            'node_modules/sensor/dist/esm/index.js': `import {readFileSync} from 'node:fs'
+import {fileURLToPath} from 'node:url'
+const target = \`\${process.platform}-\${process.arch}\`
+export const prebuilt = () => readFileSync(fileURLToPath(new URL(\`../../prebuilds/\${target}/sensor.node\`, import.meta.url)), 'utf8')
+`,
+            [`node_modules/sensor/prebuilds/${platform}/sensor.node`]: 'sensor addon',
             //A __dirname of its own (a parameter, a variable): not the directory of the module
             'node_modules/shadow/package.json': JSON.stringify({name: 'shadow', version: '1.0.0', main: 'index.js', dependencies: {'@lakutata/core': '*'}}),
             'node_modules/shadow/index.js': 'exports.given = ((__dirname) => __dirname)(\'a parameter\')\nexports.declared = (() => {\n    const {__dirname} = {__dirname: \'a variable\'}\n    return __dirname\n})()\nexports.built = () => require(\'./build/Release/shadow.node\')\n',
@@ -196,14 +204,14 @@ module.exports = (directory) => fs.readFileSync(path.join(directory, 'build', 'R
         const result = await bundleProject({project: project})
         const files: string[] = result.native!.files.map((file): string => file.path)
         assert.deepStrictEqual(result.native!.modules, [])
-        for (const file of [`node_modules/device/prebuilds/${platform}/addon.node`, 'node_modules/capture/build/Release/capture.node', 'node_modules/capture/package.json']) {
+        for (const file of [`node_modules/device/prebuilds/${platform}/addon.node`, 'node_modules/capture/build/Release/capture.node', 'node_modules/capture/package.json', `node_modules/sensor/prebuilds/${platform}/sensor.node`]) {
             assert.ok(files.includes(`.lakutata/files/${file}`), `${file}: ${files.join(', ')}`)
         }
         assert.ok(files.some((file: string): boolean => /^\.lakutata\/addons\/[0-9a-f]+-addon\.node$/.test(file)), files.join(', '))
         assert.ok(!files.some((file: string): boolean => file.includes('@lakutata/core') || file.endsWith('.js') || file.endsWith('Makefile')), files.join(', '))
         assert.deepStrictEqual(result.warnings.filter((warning: string): boolean => warning.startsWith('legacy: its native addon (build/Release/legacy.node) is not shipped')).length, 1, result.warnings.join('\n'))
-        assert.ok(!result.warnings.some((warning: string): boolean => /^(device|capture):/.test(warning)), result.warnings.join('\n'))
-        assert.strictEqual(runWithoutPackages(project, result.outfile), 'true true prebuilt addon | capture addon | probe addon a property __dirname | a parameter a variable')
+        assert.ok(!result.warnings.some((warning: string): boolean => /^(device|capture|probe|shadow|sensor):/.test(warning)), result.warnings.join('\n'))
+        assert.strictEqual(runWithoutPackages(project, result.outfile), 'true true prebuilt addon | capture addon | probe addon a property __dirname | a parameter a variable | sensor addon')
     })
 
     it('ships the files of the packages of addons, without their sources and what built them (node-gyp, CMake, cargo)', async (): Promise<void> => {
