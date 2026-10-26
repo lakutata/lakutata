@@ -104,8 +104,9 @@ function prices(math: Math): void {
 
 公式给出精确的结果：`0.1 + 0.2` 是 `3/10`，`sin(pi/6)` 是 `1/2`，`sqrt(8)` 是 `2sqrt(2)`。数乘以一个和时会乘进去：`2(x + 1)` 是 `2x + 2`。精确计算最多到约 31.5 万位：更大的幂保持幂的形式（`2^(10^7)`），阶乘最多算到 `20000!`，再大的保持 `gamma(n + 1)` 的形式。需要数字时：
 
-- `toNumber()` 转成 JavaScript 的数字（值是复数时抛出 `MathDomainException`），`toComplex()` 得到 `{re, im}`。两者都能计算实数和复数参数的特殊函数（伽马、zeta、Lambert W、多伽马、误差函数等）。
-- `toDecimal(digits)` 得到指定有效位数、正确舍入的字符串（默认位数是组件的 `precision`）。
+- `toNumber()` 转成 JavaScript 的数字（值是复数时抛出 `MathDomainException`），`toComplex()` 得到 `{re, im}`。凡是 `toDecimal()` 能算的实数值，它们都先算出十进制值再转成数字，所以即使双精度计算已经没有一位有效数字（例如 `cos(10^30)`），得到的数字每一位都是对的；其余部分用双精度计算。两者都能计算实数和复数参数的特殊函数（伽马、zeta、Lambert W、多伽马、误差函数等）。
+- `toDecimal(digits)` 得到指定有效位数、正确舍入的字符串（默认位数是组件的 `precision`）：它会用更多位数重新计算，直到两次结果一致。能算四则运算、乘方和开方、`exp` 和 `ln`、三角函数和双曲函数及它们的反函数、取整函数和常数。多算 640 位仍然和 0 分不开的值，结果是 `0`（例如 `ln(6) - ln(2) - ln(3)`）。
+- `compile()` 为了速度用双精度计算：双精度已经没有有效数字的值，它也算不准。
 - `toRectangular()` 给出表达式的实部和虚部（`{real, imaginary}`），`toPolar()` 给出它的模和辐角（`{modulus, argument}`）：`e^(i*pi/3)` 的实部和虚部是 `1/2` 和 `sqrt(3)/2`，模和辐角是 `1` 和 `pi/3`。变量当作复数，所以 `x` 的实部和虚部是 `re(x)` 和 `im(x)`。
 - `compile(variables)` 把表达式编译成一个以数字为参数的函数，适合反复求值；`batch()` 一次算很多组数据：
 
@@ -212,8 +213,8 @@ async function integers(math: Math): Promise<void> {
 | `MathSyntaxException` | 公式写得不对（带有出错的 `position`），需要表达式的地方给了方程，或者反过来 |
 | `MathUnknownFunctionException` | 公式调用的函数既不是内置函数，也没有定义，或者把常数写成了调用（`g(2)`），带有它的 `position` |
 | `MathDefinitionException` | 定义无效：用了内置的名字、参数重复、定义之间循环引用、定义嵌套太深 |
-| `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零）的值，或者数论函数的参数不在定义域内（`totient(0)`） |
-| `MathDivisionByZeroException` | 计算十进制值时遇到除以零，或者模数是 0 |
+| `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，或者数论函数的参数不在定义域内（`totient(0)`） |
+| `MathDivisionByZeroException` | 计算十进制值时遇到除以零（包括除以一个无法和 0 区分的值，以及 0 的对数），或者模数是 0 |
 | `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数，或者和保留字重名的变量 |
 | `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数 |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |

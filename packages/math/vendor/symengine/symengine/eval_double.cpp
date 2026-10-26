@@ -22,6 +22,12 @@ protected:
 public:
     T apply(const Basic &b)
     {
+        // lakutata: a value given for the node (special_double.h)
+        if (special::given_values != nullptr) {
+            const auto given = special::given_values->find(&b);
+            if (given != special::given_values->end())
+                return T(given->second);
+        }
         b.accept(*down_cast<C *>(this));
         // lakutata: without negative zeros (special_double.h)
         return special::unsigned_zeros(result_);
@@ -141,7 +147,9 @@ public:
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
             tmp, [](double v) { return std::asin(v); },
-            [](const std::complex<double> &v) { return std::asin(v); },
+            [](const std::complex<double> &v) {
+                return std::asin(special::below_beyond_one(v));
+            },
             [](double v) { return v >= -1 and v <= 1; });
     };
 
@@ -150,7 +158,9 @@ public:
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
             tmp, [](double v) { return std::acos(v); },
-            [](const std::complex<double> &v) { return std::acos(v); },
+            [](const std::complex<double> &v) {
+                return std::acos(special::below_beyond_one(v));
+            },
             [](double v) { return v >= -1 and v <= 1; });
     };
 
@@ -159,7 +169,9 @@ public:
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
             1.0 / tmp, [](double v) { return std::acos(v); },
-            [](const std::complex<double> &v) { return std::acos(v); },
+            [](const std::complex<double> &v) {
+                return std::acos(special::below_beyond_one(v));
+            },
             [](double v) { return v >= -1 and v <= 1; });
     };
 
@@ -168,7 +180,9 @@ public:
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
             1.0 / tmp, [](double v) { return std::asin(v); },
-            [](const std::complex<double> &v) { return std::asin(v); },
+            [](const std::complex<double> &v) {
+                return std::asin(special::below_beyond_one(v));
+            },
             [](double v) { return v >= -1 and v <= 1; });
     };
 
@@ -177,7 +191,9 @@ public:
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
             tmp, [](double v) { return std::atan(v); },
-            [](const std::complex<double> &v) { return std::atan(v); },
+            [](const std::complex<double> &v) {
+                return std::atan(special::left_below_minus_i(v));
+            },
             [](double) { return true; });
     };
 
@@ -186,7 +202,9 @@ public:
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
             1.0 / tmp, [](double v) { return std::atan(v); },
-            [](const std::complex<double> &v) { return std::atan(v); },
+            [](const std::complex<double> &v) {
+                return std::atan(special::left_below_minus_i(v));
+            },
             [](double) { return true; });
     };
 
@@ -231,7 +249,9 @@ public:
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
             tmp, [](double v) { return std::asinh(v); },
-            [](const std::complex<double> &v) { return std::asinh(v); },
+            [](const std::complex<double> &v) {
+                return std::asinh(special::left_below_minus_i(v));
+            },
             [](double) { return true; });
     };
 
@@ -240,7 +260,9 @@ public:
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
             1.0 / tmp, [](double v) { return std::asinh(v); },
-            [](const std::complex<double> &v) { return std::asinh(v); },
+            [](const std::complex<double> &v) {
+                return std::asinh(special::left_below_minus_i(v));
+            },
             [](double) { return true; });
     };
 
@@ -258,7 +280,9 @@ public:
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
             tmp, [](double v) { return std::atanh(v); },
-            [](const std::complex<double> &v) { return std::atanh(v); },
+            [](const std::complex<double> &v) {
+                return std::atanh(special::below_before_minus_one(v));
+            },
             [](double v) { return v > -1 and v < 1; });
     };
 
@@ -267,7 +291,9 @@ public:
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
             1.0 / tmp, [](double v) { return std::atanh(v); },
-            [](const std::complex<double> &v) { return std::atanh(v); },
+            [](const std::complex<double> &v) {
+                return std::atanh(special::below_before_minus_one(v));
+            },
             [](double v) { return v > -1 and v < 1; });
     };
 
@@ -500,7 +526,7 @@ public:
 
         for (; p != d.end(); p++) {
             double tmp = apply(*(*p));
-            result = std::max(result, tmp);
+            result = special::max_of(result, tmp);
         }
         result_ = result;
     };
@@ -514,7 +540,7 @@ public:
 
         for (; p != d.end(); p++) {
             double tmp = apply(*(*p));
-            result = std::min(result, tmp);
+            result = special::min_of(result, tmp);
         }
         result_ = result;
     };
@@ -561,6 +587,32 @@ public:
     // Derivative, ATan2, Gamma
 
     using EvalDoubleVisitor::bvisit;
+
+    // lakutata: the maximum and the minimum of real values (of imaginary parts
+    // 0); of complex numbers, none
+    void bvisit(const Max &x)
+    {
+        result_ = extremum(x.get_args(), true);
+    }
+
+    void bvisit(const Min &x)
+    {
+        result_ = extremum(x.get_args(), false);
+    }
+
+    std::complex<double> extremum(const vec_basic &args, bool maximum)
+    {
+        double result = 0;
+        for (size_t i = 0; i < args.size(); i++) {
+            const std::complex<double> value = apply(*args[i]);
+            if (value.imag() != 0)
+                throw NotImplementedError("The maximum of complex numbers");
+            result = i == 0      ? value.real()
+                     : maximum ? special::max_of(result, value.real())
+                               : special::min_of(result, value.real());
+        }
+        return result;
+    }
 
     // lakutata: atan2 of real values
     void bvisit(const ATan2 &x)
@@ -857,7 +909,7 @@ static inline std::vector<fn> init_eval_double()
             *(down_cast<const Max &>(x).get_args()[0]));
         for (const auto &p : down_cast<const Max &>(x).get_args()) {
             double tmp = eval_double_single_dispatch(*p);
-            result = std::max(result, tmp);
+            result = special::max_of(result, tmp);
         }
         return result;
     };
@@ -867,7 +919,7 @@ static inline std::vector<fn> init_eval_double()
             *(down_cast<const Min &>(x).get_args()[0]));
         for (const auto &p : down_cast<const Min &>(x).get_args()) {
             double tmp = eval_double_single_dispatch(*p);
-            result = std::min(result, tmp);
+            result = special::min_of(result, tmp);
         }
         return result;
     };

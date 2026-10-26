@@ -4,8 +4,10 @@
 #include <cmath>
 #include <limits>
 #include <set>
+#include <unordered_map>
 #include <symengine/add.h>
 #include <symengine/eval_double.h>
+#include <symengine/special_double.h>
 #include <symengine/infinity.h>
 #include <symengine/integer.h>
 #include <symengine/matrix.h>
@@ -15,6 +17,7 @@
 #include <symengine/sets.h>
 #include <symengine/simplify.h>
 #include <symengine/solve.h>
+#include <symengine/real_double.h>
 #include <symengine/subs.h>
 #include <symengine/test_visitors.h>
 #include <symengine/symbol.h>
@@ -33,8 +36,9 @@ using namespace SymEngine;
 namespace {
 
 //The expression without the unevaluated parts SymEngine's rewritings keep (cos(x - pi/2) stays so for its printing):
-//replaced by what they hold, evaluated, before the operations that compute with them (the series of one did not end)
-Expr evaluated(const Expr &expression)
+//replaced by what they hold, evaluated, before the operations that compute with them (the series of one did not end).
+//Only the ones without variables, after a substitution: they are numbers then (cos(-pi/2) is 0)
+Expr evaluated(const Expr &expression, bool numbers = false)
 {
     map_basic_basic holds;
     std::vector<const Basic *> pending{expression.get()}, children;
@@ -43,8 +47,9 @@ Expr evaluated(const Expr &expression)
         const Basic *node = pending.back();
         pending.pop_back();
         if (!seen.insert(node).second) continue;
-        if (is_a<UnevaluatedExpr>(*node)) {
-            holds[node->rcp_from_this()] = down_cast<const UnevaluatedExpr &>(*node).get_arg();
+        //Replaced by what it holds, itself without unevaluated parts (they nest: sinc(sinc(x)) rewritten)
+        if (is_a<UnevaluatedExpr>(*node) && (!numbers || free_symbols(*node).empty())) {
+            holds[node->rcp_from_this()] = evaluated(down_cast<const UnevaluatedExpr &>(*node).get_arg(), numbers);
             continue;
         }
         childrenOf(*node, children);
@@ -159,11 +164,59 @@ namespace {
 
 //The value of an expression without variables: in the real numbers first (their functions round better than the
 //complex ones: sqrt(2) is Math.SQRT2), in the complex ones where it is not real
-std::complex<double> numericValue(const Expr &expression)
+//The largest parts of an expression that have real decimal values, replaced by them (as doubles): the evaluation in
+//doubles of the rest (a complex value, a function the decimals have not) has neither their cancellations nor their
+//underflows (ln(e^(-2428)) is -2428, ln(0) in doubles)
+void decimalParts(const Basic &e, std::unordered_map<const void *, double> &values)
 {
-    requireNoVariables(expression);
+    if (is_a_Number(e) || values.count(&e)) return;
+    try {
+        values[&e] = std::strtod(toDecimal(e.rcp_from_this(), 20).c_str(), nullptr);
+        return;
+    } catch (MathError &error) {
+        if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
+    }
+    std::vector<const Basic *> children;
+    childrenOf(e, children);
+    for (const Basic *child : children) decimalParts(*child, values);
+}
+
+//The values of the decimal parts given to the evaluations in doubles of this thread, while it lives (the ones given
+//before restored then: an evaluation may compute another value inside)
+class GivenValues {
+public:
+    explicit GivenValues(const std::unordered_map<const void *, double> &values) : previous_(special::given_values)
+    {
+        special::given_values = &values;
+    }
+
+    ~GivenValues()
+    {
+        special::given_values = previous_;
+    }
+
+private:
+    const std::unordered_map<const void *, double> *previous_;
+};
+
+std::complex<double> numericValue(const Expr &given)
+{
+    requireNoVariables(given);
+    const Expr expression = evaluated(given);
     std::complex<double> value;
     if (specialValue(expression, value)) return value;
+    //A real value by its decimals, correctly rounded (the doubles of 10^30 have no digit of cos(10^30)); the complex
+    //values and the functions the decimals have not by the doubles
+    try {
+        return std::strtod(toDecimal(expression, 20).c_str(), nullptr);
+    } catch (MathError &error) {
+        //Not the values of the divisions by 0 (the doubles of a 0 not shown exactly would make a number of it)
+        if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
+        if (error.code() == ErrorCode::DivisionByZero) throw MathError(ErrorCode::Domain, std::string(error.what()));
+    }
+    std::unordered_map<const void *, double> parts;
+    decimalParts(*expression, parts);
+    const GivenValues values(parts);
     try {
         const double real = eval_double(*expression);
         if (!std::isnan(real)) return real;
@@ -250,7 +303,7 @@ Expr substitute(const Expr &expression, const std::vector<std::pair<std::string,
 {
     map_basic_basic replacements;
     for (const auto &[name, value] : values) replacements[variable(name)] = value;
-    return subs(expression, replacements);
+    return evaluated(subs(expression, replacements), true);
 }
 
 Expr seriesOf(const Expr &given, const std::string &name, const Expr &point, unsigned order)

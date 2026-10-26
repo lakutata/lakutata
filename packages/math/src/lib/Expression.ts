@@ -233,15 +233,18 @@ export class Expression {
     }
 
     /**
-     * The value of an expression without variables as a number of JavaScript (a double). A complex value throws
-     * `MathDomainException`: use `toComplex()`.
+     * The value of an expression without variables as a number of JavaScript (a double). It is computed from the
+     * decimals of the value where `toDecimal()` computes them, so that all its digits are right, also where doubles
+     * have none (`cos(10^30)`); in doubles otherwise. A complex value throws `MathDomainException`: use
+     * `toComplex()`. So does a division by a value not shown to differ from 0 (`1/(ln(6) - ln(2) - ln(3))`).
      */
     public toNumber(): number {
         return nativeCall((native) => native.toNumber(this.handle))
     }
 
     /**
-     * The value of an expression without variables as a complex number.
+     * The value of an expression without variables as a complex number: its real parts computed from their decimals,
+     * as `toNumber()`, the rest in doubles.
      */
     public toComplex(): { re: number, im: number } {
         const [re, im]: [number, number] = nativeCall((native) => native.toComplex(this.handle))
@@ -250,7 +253,11 @@ export class Expression {
 
     /**
      * The value of an expression without variables as a decimal of a number of significant digits, as a string
-     * (`3.14159265358979323846`).
+     * (`3.14159265358979323846`), correctly rounded: it is computed again with more digits until two results agree. A
+     * value that cannot be told from 0, even with 640 more digits, is `0` (`ln(6) - ln(2) - ln(3)`), and a rounding
+     * function at a jump within the error of its argument takes the value of the jump (`floor(ln(8)/ln(2))` is 3).
+     * It computes the arithmetic, powers and roots, `exp` and `ln`, the trigonometric and hyperbolic functions and
+     * their inverses, the rounding functions, `pi`, `e`, `phi`, `EulerGamma` and `Catalan`, of real values.
      * @param digits The significant digits: the `precision` of the component by default.
      */
     public toDecimal(digits?: number): string {

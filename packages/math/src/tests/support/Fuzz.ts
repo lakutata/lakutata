@@ -125,6 +125,16 @@ const noisyMath: Record<string, unknown> = Object.fromEntries(Object.getOwnPrope
     return [name, member]
 }))
 
+//Whether a function keeps its value within 1e-3 when its inputs move by about 1e-6, by different factors (y/z moved
+//too) and to both sides (a point on a jump of floor(a/b) has a side where the value jumps)
+function steady(f: (x: number, y: number, z: number) => number, point: Record<string, number>, value: number): boolean {
+    const tolerance: number = 1e-3 * globalThis.Math.max(1, globalThis.Math.abs(value))
+    return [1, -1].every((side: number): boolean => {
+        const moved: number = f(point.x * (1 + side * 1e-6), point.y * (1 + side * 2e-6), point.z * (1 - side * 1.5e-6))
+        return globalThis.Math.abs(moved - value) <= tolerance
+    })
+}
+
 function near(a: Value, b: Value, tolerance: number): boolean {
     const scale: number = globalThis.Math.max(1, globalThis.Math.hypot(a.re, a.im), globalThis.Math.hypot(b.re, b.im))
     return globalThis.Math.abs(a.re - b.re) <= tolerance * scale && globalThis.Math.abs(a.im - b.im) <= tolerance * scale
@@ -215,9 +225,9 @@ export async function checkFormula(math: Math, random: Random, index: number, te
             const compiled: number = f(point.x, point.y, point.z)
             //Not where the function is ill-conditioned: a change of the inputs by 1e-6 changes its value by more than
             //1e-3 (cos(1e12/y), sin((1e8 - 2z)^3): no double of the result is meaningful there)
-            const moved: number = f(point.x * (1 + 1e-6), point.y * (1 + 1e-6), point.z * (1 + 1e-6))
-            const conditioned: boolean = globalThis.Math.abs(moved - compiled) <= 1e-3 * globalThis.Math.max(1, globalThis.Math.abs(compiled))
-            if (conditioned && Number.isFinite(compiled) && !near({re: compiled, im: 0}, exact, 1e-6)) fail('compile', `${compiled} at ${JSON.stringify(point)}, exactly ${exact.re}`)
+            const conditioned: boolean = steady(f, point, compiled)
+            //Nor where the roundings decide the value of the doubles (sin(cosh(e^4)): no input to move)
+            if (conditioned && !roundingBound && Number.isFinite(compiled) && !near({re: compiled, im: 0}, exact, 1e-6)) fail('compile', `${compiled} at ${JSON.stringify(point)}, exactly ${exact.re}`)
         } catch (error) {
             if (!(error instanceof MathException)) fail('compile', String(error))
         }
@@ -255,9 +265,8 @@ export async function checkFormula(math: Math, random: Random, index: number, te
             const compiled = expression.compile(['x', 'y', 'z'])
             const value: number = f(globalThis.Math, point.x, point.y, point.z)
             const expected: number = compiled(point.x, point.y, point.z)
-            const moved: number = compiled(point.x * (1 + 1e-6), point.y * (1 + 1e-6), point.z * (1 + 1e-6))
             //And not where the roundings decide the value (tan(e^(pi^4)): no input to move)
-            const conditioned: boolean = globalThis.Math.abs(moved - expected) <= 1e-3 * globalThis.Math.max(1, globalThis.Math.abs(expected)) && !roundingBound
+            const conditioned: boolean = steady(compiled, point, expected) && !roundingBound
             if (Number.isNaN(expected) && Number.isFinite(value)) fail('javascript', `${code} is ${value} at ${JSON.stringify(point)}, where the formula has no real value`)
             if (conditioned && Number.isFinite(value) && Number.isFinite(expected) && !near({re: value, im: 0}, {re: expected, im: 0}, 1e-9)) {
                 fail('javascript', `${code} is ${value} at ${JSON.stringify(point)}, compiled ${expected}`)
@@ -319,7 +328,11 @@ export async function checkFormula(math: Math, random: Random, index: number, te
                 const coarse: boolean = globalThis.Math.abs(value.re) * h > 1e-2 * globalThis.Math.max(1, globalThis.Math.abs(after.re), globalThis.Math.abs(before.re))
                 //Nor where the doubles of the function do not see the step (cos(ln(x) - e^100))
                     || after.re === before.re
-                if (!coarse && globalThis.Math.abs(estimate - finer) <= tolerance && globalThis.Math.abs(finer - value.re) > tolerance) fail('diff', `${derivative.toString()} is ${value.re} at ${JSON.stringify(point)}, its finite difference ${finer}`)
+                //The two estimates agree with each other in their own size too (two noises of a function turning 10^11
+                //times by unit agree in absolute value: sinc(sinh((x + 9/4)^pi)))
+                const agree: boolean = globalThis.Math.abs(estimate - finer) <= tolerance
+                    && globalThis.Math.abs(estimate - finer) <= 1e-2 * globalThis.Math.max(globalThis.Math.abs(estimate), globalThis.Math.abs(finer)) + rounding
+                if (!coarse && agree && globalThis.Math.abs(finer - value.re) > tolerance) fail('diff', `${derivative.toString()} is ${value.re} at ${JSON.stringify(point)}, its finite difference ${finer}`)
             }
             if ((await expression.diffAsync('x')).toString() !== derivative.toString()) fail('async', 'diffAsync differs from diff')
             const rewrittenDerivative: Value | undefined = rewritten ? valueAt(rewritten.diff('x'), point) : undefined

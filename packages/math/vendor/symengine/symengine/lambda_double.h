@@ -263,7 +263,9 @@ public:
         result_ = [=](const T *x) {
             return special::real_where(
                 tmp(x), [](double v) { return std::asin(v); },
-                [](const std::complex<double> &v) { return std::asin(v); },
+                [](const std::complex<double> &v) {
+                return std::asin(special::below_beyond_one(v));
+            },
                 [](double v) { return v >= -1 and v <= 1; });
         };
     };
@@ -275,7 +277,9 @@ public:
         result_ = [=](const T *x) {
             return special::real_where(
                 tmp(x), [](double v) { return std::acos(v); },
-                [](const std::complex<double> &v) { return std::acos(v); },
+                [](const std::complex<double> &v) {
+                return std::acos(special::below_beyond_one(v));
+            },
                 [](double v) { return v >= -1 and v <= 1; });
         };
     };
@@ -287,7 +291,9 @@ public:
         result_ = [=](const T *x) {
             return special::real_where(
                 1.0 / tmp(x), [](double v) { return std::acos(v); },
-                [](const std::complex<double> &v) { return std::acos(v); },
+                [](const std::complex<double> &v) {
+                return std::acos(special::below_beyond_one(v));
+            },
                 [](double v) { return v >= -1 and v <= 1; });
         };
     };
@@ -299,7 +305,9 @@ public:
         result_ = [=](const T *x) {
             return special::real_where(
                 1.0 / tmp(x), [](double v) { return std::asin(v); },
-                [](const std::complex<double> &v) { return std::asin(v); },
+                [](const std::complex<double> &v) {
+                return std::asin(special::below_beyond_one(v));
+            },
                 [](double v) { return v >= -1 and v <= 1; });
         };
     };
@@ -311,7 +319,9 @@ public:
         result_ = [=](const T *x) {
             return special::real_where(
                 tmp(x), [](double v) { return std::atan(v); },
-                [](const std::complex<double> &v) { return std::atan(v); },
+                [](const std::complex<double> &v) {
+                return std::atan(special::left_below_minus_i(v));
+            },
                 [](double) { return true; });
         };
     };
@@ -323,7 +333,9 @@ public:
         result_ = [=](const T *x) {
             return special::real_where(
                 1.0 / tmp(x), [](double v) { return std::atan(v); },
-                [](const std::complex<double> &v) { return std::atan(v); },
+                [](const std::complex<double> &v) {
+                return std::atan(special::left_below_minus_i(v));
+            },
                 [](double) { return true; });
         };
     };
@@ -371,7 +383,9 @@ public:
         result_ = [=](const T *x) {
             return special::real_where(
                 tmp(x), [](double v) { return std::asinh(v); },
-                [](const std::complex<double> &v) { return std::asinh(v); },
+                [](const std::complex<double> &v) {
+                return std::asinh(special::left_below_minus_i(v));
+            },
                 [](double) { return true; });
         };
     };
@@ -383,7 +397,9 @@ public:
         result_ = [=](const T *x) {
             return special::real_where(
                 1.0 / tmp(x), [](double v) { return std::asinh(v); },
-                [](const std::complex<double> &v) { return std::asinh(v); },
+                [](const std::complex<double> &v) {
+                return std::asinh(special::left_below_minus_i(v));
+            },
                 [](double) { return true; });
         };
     };
@@ -407,7 +423,9 @@ public:
         result_ = [=](const T *x) {
             return special::real_where(
                 tmp(x), [](double v) { return std::atanh(v); },
-                [](const std::complex<double> &v) { return std::atanh(v); },
+                [](const std::complex<double> &v) {
+                return std::atanh(special::below_before_minus_one(v));
+            },
                 [](double v) { return v > -1 and v < 1; });
         };
     };
@@ -419,7 +437,9 @@ public:
         result_ = [=](const T *x) {
             return special::real_where(
                 1.0 / tmp(x), [](double v) { return std::atanh(v); },
-                [](const std::complex<double> &v) { return std::atanh(v); },
+                [](const std::complex<double> &v) {
+                return std::atanh(special::below_before_minus_one(v));
+            },
                 [](double v) { return v > -1 and v < 1; });
         };
     };
@@ -671,7 +691,7 @@ public:
         result_ = [=](const double *x) {
             double result = applys[0](x);
             for (unsigned int i = 0; i < applys.size(); i++) {
-                result = std::max(result, applys[i](x));
+                result = special::max_of(result, applys[i](x));
             }
             return result;
         };
@@ -687,7 +707,7 @@ public:
         result_ = [=](const double *x) {
             double result = applys[0](x);
             for (unsigned int i = 0; i < applys.size(); i++) {
-                result = std::min(result, applys[i](x));
+                result = special::min_of(result, applys[i](x));
             }
             return result;
         };
@@ -833,6 +853,38 @@ public:
     // Derivative, ATan2, Gamma
 
     using LambdaDoubleVisitor::bvisit;
+
+    // lakutata: the maximum and the minimum of real values (of imaginary parts
+    // 0); NaN for complex numbers
+    void bvisit(const Max &x)
+    {
+        extremum(x.get_args(), true);
+    }
+
+    void bvisit(const Min &x)
+    {
+        extremum(x.get_args(), false);
+    }
+
+    void extremum(const vec_basic &args, bool maximum)
+    {
+        std::vector<fn> applys;
+        for (const auto &p : args)
+            applys.push_back(apply(*p));
+        result_ = [=](const std::complex<double> *x) {
+            double result = 0;
+            for (size_t i = 0; i < applys.size(); i++) {
+                const std::complex<double> value = applys[i](x);
+                if (value.imag() != 0)
+                    return std::complex<double>(
+                        std::numeric_limits<double>::quiet_NaN(), 0);
+                result = i == 0      ? value.real()
+                         : maximum ? special::max_of(result, value.real())
+                                   : special::min_of(result, value.real());
+            }
+            return std::complex<double>(result, 0);
+        };
+    }
 
     void bvisit(const Complex &x)
     {

@@ -243,6 +243,35 @@ describe('The formulas', (): void => {
         assert.strictEqual(math.expression('arg(1/atan(-2/5))').toNumber(), globalThis.Math.PI)
     })
 
+    it('give the values of the decimals, their zeros and jumps, and the sides of the branch cuts of SymPy', (): void => {
+        //Correctly rounded where doubles have no digit; 0 and the jumps decided within the error of the value
+        assert.strictEqual(math.expression('cos(10^30)').toNumber(), -0.9959311944053957)
+        assert.strictEqual(math.expression('ln(6) - ln(2) - ln(3)').toDecimal(30), '0')
+        assert.strictEqual(math.expression('floor(ln(8)/ln(2))').toDecimal(10), '3')
+        assert.strictEqual(math.expression('EulerGamma').toDecimal(30), '0.577215664901532860606512090082')
+        assert.throws((): unknown => math.expression('1/(ln(6) - ln(2) - ln(3))').toNumber(), MathDomainException)
+        assert.throws((): unknown => math.expression('arg(ln(6) - ln(2) - ln(3))').toDecimal(10), MathDomainException)
+        //A part with no real value: min() is NaN, so the compiled function computes in the complex numbers
+        assert.ok(globalThis.Math.abs(math.expression('min(x^x, re(e^sqrt(y)))').compile(['x', 'y'])(0.7, -0.7) - 0.6699461865679736) < 1e-12)
+        //On the branch cuts, the values of SymPy (counter-clockwise continuous), exact and compiled
+        const cuts: [string, number, number, number][] = [
+            ['asin(x)', 2, globalThis.Math.PI / 2, -1.3169578969248166], ['asin(x)', -2, -globalThis.Math.PI / 2, 1.3169578969248166],
+            ['acos(x)', 2, 0, 1.3169578969248166], ['acos(x)', -2, globalThis.Math.PI, -1.3169578969248166],
+            ['atan(i*x)', 2, globalThis.Math.PI / 2, 0.5493061443340548], ['atan(i*x)', -2, -globalThis.Math.PI / 2, -0.5493061443340548],
+            ['asinh(i*x)', 2, 1.3169578969248166, globalThis.Math.PI / 2], ['asinh(i*x)', -2, -1.3169578969248166, -globalThis.Math.PI / 2],
+            ['atanh(x)', 2, 0.5493061443340548, globalThis.Math.PI / 2], ['atanh(x)', -2, -0.5493061443340548, -globalThis.Math.PI / 2],
+            ['acosh(x)', -2, 1.3169578969248166, globalThis.Math.PI]
+        ]
+        for (const [text, x, re, im] of cuts) {
+            const exact = math.expression(text).substitute({x: x}).toComplex()
+            const real: number = math.expression(`re(${text})`).compile(['x'])(x)
+            const imaginary: number = math.expression(`im(${text})`).compile(['x'])(x)
+            for (const [label, a, b] of [['exact', exact.re, exact.im], ['compiled', real, imaginary]] as [string, number, number][]) {
+                assert.ok(globalThis.Math.abs(a - re) < 1e-12 && globalThis.Math.abs(b - im) < 1e-12, `${text} at ${x} ${label}: ${a} + ${b}i`)
+            }
+        }
+    })
+
     it('refuse the expressions nested more than 1000 levels deep, before they fill the stack', async (): Promise<void> => {
         const nested = (depth: number): string => 'sin('.repeat(depth) + 'x' + ')'.repeat(depth)
         const deepest: Expression = math.expression(nested(1000))

@@ -1,5 +1,7 @@
 #include "Functions.h"
 
+#include <cstdlib>
+
 #include <cmath>
 #include <limits>
 
@@ -17,6 +19,8 @@
 #include <symengine/complex.h>
 #include <symengine/nan.h>
 #include <symengine/visitor.h>
+
+#include "../ops/Decimal.h"
 
 namespace math {
 
@@ -123,9 +127,20 @@ namespace {
 bool clearValue(const Expr &x, double &value)
 {
     if (!free_symbols(*x).empty()) return false;
+    //By its decimals, correctly rounded: a cancellation is 0 there, not the noise of the doubles (ln(6) - ln(2) -
+    //ln(3) is -4e-16 in doubles)
+    try {
+        const std::string text = toDecimal(x, 20);
+        if (text == "0") return false;
+        value = std::strtod(text.c_str(), nullptr);
+        return !std::isnan(value);
+    } catch (MathError &error) {
+        if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
+    }
+    //By the doubles, for the functions the decimals have not: clearly away from 0
     try {
         const std::complex<double> number = eval_complex_double(*x);
-        if (number.imag() != 0 || !std::isfinite(number.real())) return false;
+        if (number.imag() != 0 || !std::isfinite(number.real()) || std::abs(number.real()) < 1e-9) return false;
         value = number.real();
         return true;
     } catch (SymEngineException &) {
@@ -413,8 +428,12 @@ Expr argumentOf(const Expr &z)
             double value;
             if (clearValue(real, value)) return value > 0 ? Expr(zero) : Expr(pi);
         }
-        //Right of the imaginary axis: atan(b/a) (arg(3 + 4i) is atan(4/3))
+        //On the imaginary axis: pi/2 or -pi/2
         double value;
+        if (is_a_Number(*real) && down_cast<const Number &>(*real).is_zero() && clearValue(imaginary, value)) {
+            return value > 0 ? div(pi, integer(2)) : div(pi, integer(-2));
+        }
+        //Right of the imaginary axis: atan(b/a) (arg(3 + 4i) is atan(4/3))
         if (clearValue(real, value) && value > 0) return atan(div(imaginary, real));
         return atan2(imaginary, real);
     }

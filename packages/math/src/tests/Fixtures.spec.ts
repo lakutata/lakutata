@@ -79,12 +79,12 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
     })
 
     it('give the numbers and the decimals of SymPy', (): void => {
-        const fixtures = expected<{text: string, value: Complex, decimals?: Record<string, string>}>('numbers')
+        const fixtures = expected<{text: string, value: Complex, decimals?: Record<string, string>, doubles?: string}>('numbers')
         for (const fixture of fixtures.cases) {
             const expression: Expression = math.expression(fixture.text)
             assert.ok(close(expression.toComplex(), fixture.value, 1e-13), `${fixture.text}: ${JSON.stringify(expression.toComplex())}, SymPy ${fixture.value.join(' + i*')}`)
-            //The compiled function of a real value gives it too
-            if (Number(fixture.value[1]) === 0) assert.ok(close({re: expression.compile([])(), im: 0}, fixture.value, 1e-13), `${fixture.text} compiled: ${expression.compile([])()}`)
+            //The compiled function of a real value gives it too, but where the doubles cannot hold it (the case says why)
+            if (Number(fixture.value[1]) === 0 && !fixture.doubles) assert.ok(close({re: expression.compile([])(), im: 0}, fixture.value, 1e-13), `${fixture.text} compiled: ${expression.compile([])()}`)
             for (const [digits, text] of Object.entries(fixture.decimals ?? {})) {
                 assert.strictEqual(decimalParts(expression.toDecimal(Number(digits))), decimalParts(text), `${fixture.text} to ${digits} digits`)
             }

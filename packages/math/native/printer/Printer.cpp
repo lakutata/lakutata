@@ -742,6 +742,8 @@ private:
         static const std::map<std::string, std::string> &ofReciprocal = *new std::map<std::string, std::string>{
             {"asec", "acos"}, {"acsc", "asin"}, {"acot", "atan"}, {"asech", "acosh"}, {"acsch", "asinh"}, {"acoth", "atanh"}
         };
+        //atan2(-0, x) is -pi for a negative x: the value has no negative zero (+ 0 makes it +0)
+        if (name == "atan2") return atom(function("atan2") + "(" + code(arguments[0]).text + " + " + integerText(0) + ", " + code(arguments[1]).text + ")");
         if (direct.count(name)) return call(function(name), arguments);
         if (name == "ln") return call(function("log"), arguments);
         if (name == "abs") return call(c_ ? use("fabs") : function("abs"), arguments);

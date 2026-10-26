@@ -2,6 +2,7 @@
 # syntax of @lakutata/math and its values at the sample points (30 significant digits), written to expected/*.json.
 # Run by generate.sh in a container (python3 and py3-sympy of Alpine), not by the tests.
 
+import decimal
 import functools
 import json
 import math
@@ -115,8 +116,13 @@ def values_at(expr, points=POINTS):
 
 
 def decimal_text(expr, digits):
-    """The decimal of an expression with a number of significant digits, as SymPy writes it"""
-    return str(sympy.N(expr, digits))
+    """The decimal of an expression rounded to a number of significant digits: computed with 30 more, then rounded half
+    to even by Python's decimal (SymPy's N(expr, digits) can be one unit off in its last digit: sin(355))"""
+    value = decimal.Decimal(str(sympy.N(expr, digits + 30)).replace('*^', 'e'))
+    with decimal.localcontext() as context:
+        context.prec = digits
+        context.rounding = decimal.ROUND_HALF_EVEN
+        return str(+value).lower()
 
 
 def load(name):
@@ -149,6 +155,8 @@ def numbers():
     for case in load('numbers'):
         expr = parse(case['text'])
         result = {'text': case['text'], 'value': number(expr), 'exact': text_of(expr)}
+        if 'doubles' in case:
+            result['doubles'] = case['doubles']
         if case.get('decimals'):
             result['decimals'] = {str(digits): decimal_text(expr, digits) for digits in case['decimals']}
         results.append(result)

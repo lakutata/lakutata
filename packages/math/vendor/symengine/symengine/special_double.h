@@ -5,10 +5,12 @@
 #ifndef SYMENGINE_SPECIAL_DOUBLE_H
 #define SYMENGINE_SPECIAL_DOUBLE_H
 
+#include <algorithm>
 #include <cmath>
 #include <complex>
 #include <limits>
 #include <type_traits>
+#include <unordered_map>
 
 namespace SymEngine
 {
@@ -36,6 +38,44 @@ constexpr double BERNOULLI[] = {1.0 / 6, -1.0 / 30, 1.0 / 42, -1.0 / 30, 5.0 / 6
 // lakutata: an inverse function of a real argument computed by its real version where it is real: the complex
 // versions may leave tiny imaginary parts (libc++'s std::atan(-0.4 + 0i) has 5.55e-17), which move arg() and the
 // roots of the results across their cuts
+// lakutata: values given for some nodes of the expression being evaluated, in this thread (the real parts the
+// decimals of the addon computed): the evaluations take them instead of computing the nodes
+inline thread_local const std::unordered_map<const void *, double> *given_values = nullptr;
+
+// lakutata: the maximum and the minimum of real values, NaN when one of them is (a part with no real value: the
+// complex evaluation is tried then); std::max and std::min dropped a NaN after the first value
+inline double max_of(double a, double b)
+{
+    return std::isnan(a) or std::isnan(b) ? std::numeric_limits<double>::quiet_NaN() : std::max(a, b);
+}
+
+inline double min_of(double a, double b)
+{
+    return std::isnan(a) or std::isnan(b) ? std::numeric_limits<double>::quiet_NaN() : std::min(a, b);
+}
+
+// lakutata: a value on a branch cut moved to the side the exact values take (SymPy's, counter-clockwise continuous,
+// on which SymEngine's asinh(-z) = -asinh(z) relies): the complex functions read the side of a cut from the sign of
+// a zero, and the evaluations have no negative zeros (the upper or right side). asin and acos right of 1, atanh left
+// of -1: from below; atan and asinh below -i: from the left.
+inline std::complex<double> below_beyond_one(const std::complex<double> &z)
+{
+    return z.imag() == 0 and z.real() > 1 ? std::complex<double>(z.real(), -0.0)
+                                           : z;
+}
+
+inline std::complex<double> below_before_minus_one(const std::complex<double> &z)
+{
+    return z.imag() == 0 and z.real() < -1 ? std::complex<double>(z.real(), -0.0)
+                                            : z;
+}
+
+inline std::complex<double> left_below_minus_i(const std::complex<double> &z)
+{
+    return z.real() == 0 and z.imag() < -1 ? std::complex<double>(-0.0, z.imag())
+                                            : z;
+}
+
 template <typename F, typename G, typename D>
 inline double real_where(double x, F real, G, D)
 {

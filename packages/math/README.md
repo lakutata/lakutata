@@ -125,11 +125,17 @@ A formula gives exact results: `0.1 + 0.2` is `3/10`, `sin(pi/6)` is `1/2`, `sqr
 a sum is multiplied out: `2(x + 1)` is `2x + 2`. Exact numbers are computed up to about 315,000 digits: a larger power
 stays a power (`2^(10^7)`), and a factorial above `20000!` stays as `gamma(n + 1)`. Then:
 
-- `toNumber()` gives a number of JavaScript (`MathDomainException` for a complex value), `toComplex()` gives
-  `{re, im}`. Both compute the special functions (gamma, zeta, Lambert W, polygamma, erf…) of real and complex
-  arguments.
+- `toNumber()` gives a number of JavaScript (`MathDomainException` for a complex value), `toComplex()` gives `{re, im}`.
+  They compute the real values from their decimals where `toDecimal()` computes them, so that all the digits of a number
+  are right, also where doubles have none (`cos(10^30)`); the rest in doubles. Both compute the special functions
+  (gamma, zeta, Lambert W, polygamma, erf…) of real and complex arguments.
 - `toDecimal(digits)` gives a string with that many significant digits, correctly rounded (the `precision` of the
-  component by default).
+  component by default): the value is computed again with more digits until two results agree. It computes the
+  arithmetic, powers and roots, `exp` and `ln`, the trigonometric and hyperbolic functions and their inverses, the
+  rounding functions and the constants. A value that cannot be told from 0, even with 640 more digits, is `0` (`ln(6) -
+  ln(2) - ln(3)`).
+- `compile()` computes in doubles, for speed: where doubles have no digit of a value, the compiled function has none
+  either.
 - `toRectangular()` gives the real and the imaginary parts of an expression (`{real, imaginary}`), `toPolar()` its
   modulus and its argument (`{modulus, argument}`): for `e^(i*pi/3)`, the parts are `1/2` and `sqrt(3)/2`, the modulus
   `1` and the argument `pi/3`. The variables are complex numbers, so the parts of `x` are `re(x)` and `im(x)`.
@@ -271,8 +277,8 @@ The typings document every declaration, with examples.
 | `MathSyntaxException` | A formula is not written correctly (with the `position` of the error), an equation is given where an expression is expected, or the other way round |
 | `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined, or a constant written as a call (`g(2)`), with its `position` |
 | `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep |
-| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero), an integer outside the domain of a function of the number theory (`totient(0)`) |
-| `MathDivisionByZeroException` | A division by zero met while computing decimals, a modulus of 0 |
+| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`) |
+| `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, and the logarithm of 0), a modulus of 0 |
 | `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` above 2000, `harmonic(n)` above 50000, code with a function the language does not have, a complex number such as `2i`, or a variable named like a reserved word of the language |
 | `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
