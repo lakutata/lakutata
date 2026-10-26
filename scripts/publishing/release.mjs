@@ -290,7 +290,9 @@ let released
 if (resumed) released = new Map(packages.filter(({manifest}) => manifest.version === version).map(({manifest}) => [manifest.name, 'given the version by the commit tagged']))
 else if (partial) released = patchPackages(packages, tags, current, version)
 else released = new Map(packages.map(({manifest}) => [manifest.name, 'all the packages']))
-if (resumed || partial) {
+if (resumed && released.size === packages.length) {
+    console.log(`\nAll the ${packages.length} packages (given the version by the commit tagged)`)
+} else if (resumed || partial) {
     console.log(`\n${released.size} of the ${packages.length} packages:`)
     for (const [name, reason] of released) console.log(`  ${name}: ${reason}`)
 } else {
