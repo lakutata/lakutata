@@ -296,18 +296,71 @@ export class NativeCollector {
 
     /**
      * Whether a package is left out of the bundle: it holds addons, or one of its dependencies does (it loads them,
-     * with computed paths often), and it is not the project
+     * with computed paths often), and it is neither the project nor a package sharing the framework
      * @param root
      */
     protected isNative(root: string | undefined): root is string {
         if (!root || root === this.project) return false
         const info: PackageInfo | undefined = this.package(root)
         if (!info) return false
-        if (info.addons) return true
         //A package of the framework, or built on it, shares it with the application: bundled with it (one copy of its
-        //classes, its container), its native dependencies loaded by their names, which the bundler follows
+        //classes, its container), its native dependencies loaded by their names, which the bundler follows, and its own
+        //addons loaded from the tree (a require of the addon, or a path from its module: the bundler follows both)
         if (sharesFramework(info.manifest)) return false
+        if (info.addons) return true
         return this.dependencies(root).some(({root: dependency}): boolean => !!this.package(dependency)?.addons)
+    }
+
+    /**
+     * The package sharing the framework and holding addons a file belongs to: bundled with the application, the paths
+     * to its own directories ship their native files (its addons, its manifest, its data)
+     * @param file
+     * @returns its directory, undefined for a file of another package
+     */
+    public addonPackageOf(file: string): string | undefined {
+        const root: string | undefined = this.packageRoot(file)
+        if (!root || root === this.project) return undefined
+        const info: PackageInfo | undefined = this.package(root)
+        return info?.addons && sharesFramework(info.manifest) ? root : undefined
+    }
+
+    /**
+     * The native files of a directory of a package holding addons: the files node loads at run time (its addons, its
+     * libraries, its manifest, its data), without its scripts (bundled) and what node never loads
+     * @param root the directory of the package
+     * @param directory
+     */
+    public nativeFilesOf(root: string, directory: string): string[] {
+        const cargo: boolean = existsSync(path.join(root, 'Cargo.toml'))
+        return packageFiles(directory).filter((file: string): boolean => {
+            const relative: string = path.relative(root, file).split(path.sep).join('/')
+            return !SCRIPT.test(file) && !UNUSED.test(file) && !BUILD_FILES.test(relative) && !(cargo && relative.startsWith('target/'))
+        })
+    }
+
+    /**
+     * The addons of the packages sharing the framework bundled with the application which are not shipped: none of
+     * their addons is loaded by a require or a path the bundler follows (they would not be found at run time)
+     * @param inputs the files bundled
+     * @param shipped the files of the tree (the addons loaded by a require, the files read by a path from a module)
+     * @returns the warnings, one by package
+     */
+    public unshippedAddons(inputs: Iterable<string>, shipped: Iterable<string>): string[] {
+        const files: Set<string> = new Set([...shipped, ...this.addons.values()])
+        const roots: Set<string> = new Set()
+        for (const input of inputs) {
+            const root: string | undefined = this.packageRoot(input)
+            if (root && root !== this.project) roots.add(root)
+        }
+        const warnings: string[] = []
+        for (const root of [...roots].sort()) {
+            const info: PackageInfo | undefined = this.package(root)
+            if (!info?.addons || !sharesFramework(info.manifest)) continue
+            const addons: string[] = packageFiles(root).filter((file: string): boolean => ADDON.test(file))
+            if (addons.some((addon: string): boolean => files.has(addon))) continue
+            warnings.push(`${info.name}: its native addon (${addons.map((addon: string): string => path.relative(root, addon).split(path.sep).join('/')).join(', ')}) is not shipped: the bundler does not follow how it is loaded. A package built on the framework is bundled with the application: load its addon by a require (require('./build/Release/addon.node')) or by a path from its module (path.join(__dirname, 'prebuilds', \`\${process.platform}-\${process.arch}\`, 'addon.node'), new URL('./addon.node', import.meta.url))`)
+        }
+        return warnings
     }
 
     /**

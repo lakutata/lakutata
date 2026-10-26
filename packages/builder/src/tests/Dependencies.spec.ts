@@ -141,6 +141,71 @@ exports.load = async (name) => {
         assert.strictEqual(runWithoutPackages(project, result.outfile), 'component addon')
     })
 
+    it('bundles the packages built on the framework holding addons: one copy of the framework, their addons shipped or told', async (): Promise<void> => {
+        const project: string = path.join(work, 'device')
+        const platform: string = `${process.platform}-${process.arch}`
+        writeProject(project, {
+            'package.json': JSON.stringify({name: 'device', version: '1.0.0', main: 'build/index.js'}),
+            'build/index.js': `const {Component} = require('@lakutata/core')
+const device = require('device')
+const probe = require('probe')
+const shadow = require('shadow')
+require('legacy')
+import('capture').then((capture) => console.log(Component === device.Component, Component === capture.Component, device.prebuilt(), '|', capture.binding, '|', probe.binding, probe.names, '|', shadow.given, shadow.declared))
+`,
+            'node_modules/@lakutata/core/package.json': JSON.stringify({name: '@lakutata/core', version: '1.0.0', main: 'index.js'}),
+            'node_modules/@lakutata/core/index.js': 'exports.Component = class Component {}\n',
+            //Its addons loaded by a path from its module (one by platform) and by a require
+            'node_modules/device/package.json': JSON.stringify({name: 'device', version: '1.0.0', main: 'index.js', peerDependencies: {'@lakutata/core': '*'}}),
+            'node_modules/device/index.js': `const path = require('node:path')
+exports.Component = require('@lakutata/core').Component
+exports.prebuilt = () => require('node:fs').readFileSync(path.join(__dirname, 'prebuilds', \`\${process.platform}-\${process.arch}\`, 'addon.node'), 'utf8')
+exports.built = () => require('./build/Release/addon.node')
+`,
+            [`node_modules/device/prebuilds/${platform}/addon.node`]: 'prebuilt addon',
+            'node_modules/device/build/Release/addon.node': 'built addon',
+            //An addon package of lakutata add (its addon found by node-gyp-build from the directory of the package), built on
+            //the framework
+            'node_modules/capture/package.json': JSON.stringify({name: 'capture', version: '1.0.0', type: 'module', main: 'dist/index.js', dependencies: {'@lakutata/core': '*', 'node-gyp-build': '*'}}),
+            'node_modules/capture/dist/index.js': `import {createRequire} from 'node:module'
+import path from 'node:path'
+import {fileURLToPath} from 'node:url'
+export {Component} from '@lakutata/core'
+export const binding = createRequire(import.meta.url)('node-gyp-build')(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'))
+`,
+            'node_modules/capture/build/Release/capture.node': 'capture addon',
+            'node_modules/capture/build/Makefile': 'built by node-gyp',
+            //node-gyp-build given the directory of the module itself, a property of the same name beside
+            'node_modules/probe/package.json': JSON.stringify({name: 'probe', version: '1.0.0', main: 'index.js', dependencies: {'@lakutata/core': '*', 'node-gyp-build': '*'}}),
+            'node_modules/probe/index.js': 'const names = {__dirname: \'a property\'}\nexports.binding = require(\'node-gyp-build\')(__dirname)\nexports.names = [names.__dirname, Object.keys({__dirname}).join()].join(\' \')\n',
+            'node_modules/probe/build/Release/probe.node': 'probe addon',
+            //A __dirname of its own (a parameter, a variable): not the directory of the module
+            'node_modules/shadow/package.json': JSON.stringify({name: 'shadow', version: '1.0.0', main: 'index.js', dependencies: {'@lakutata/core': '*'}}),
+            'node_modules/shadow/index.js': 'exports.given = ((__dirname) => __dirname)(\'a parameter\')\nexports.declared = (() => {\n    const {__dirname} = {__dirname: \'a variable\'}\n    return __dirname\n})()\nexports.built = () => require(\'./build/Release/shadow.node\')\n',
+            'node_modules/shadow/build/Release/shadow.node': 'shadow addon',
+            //Reads the addon instead of loading it (it is not one): the manifest of the directory, then build/Release
+            'node_modules/node-gyp-build/package.json': JSON.stringify({name: 'node-gyp-build', version: '1.0.0', main: 'index.js'}),
+            'node_modules/node-gyp-build/index.js': `const fs = require('node:fs'), path = require('node:path')
+module.exports = (directory) => fs.readFileSync(path.join(directory, 'build', 'Release', JSON.parse(fs.readFileSync(path.join(directory, 'package.json'), 'utf8')).name + '.node'), 'utf8')
+`,
+            //Its addon found from its manifest, resolved by its name: the bundler cannot follow it
+            'node_modules/legacy/package.json': JSON.stringify({name: 'legacy', version: '1.0.0', main: 'index.js', dependencies: {'@lakutata/core': '*'}}),
+            'node_modules/legacy/index.js': 'exports.load = () => require(require.resolve(\'legacy/package.json\').replace(\'package.json\', \'build/Release/legacy.node\'))\n',
+            'node_modules/legacy/build/Release/legacy.node': 'legacy addon'
+        })
+        const result = await bundleProject({project: project})
+        const files: string[] = result.native!.files.map((file): string => file.path)
+        assert.deepStrictEqual(result.native!.modules, [])
+        for (const file of [`node_modules/device/prebuilds/${platform}/addon.node`, 'node_modules/capture/build/Release/capture.node', 'node_modules/capture/package.json']) {
+            assert.ok(files.includes(`.lakutata/files/${file}`), `${file}: ${files.join(', ')}`)
+        }
+        assert.ok(files.some((file: string): boolean => /^\.lakutata\/addons\/[0-9a-f]+-addon\.node$/.test(file)), files.join(', '))
+        assert.ok(!files.some((file: string): boolean => file.includes('@lakutata/core') || file.endsWith('.js') || file.endsWith('Makefile')), files.join(', '))
+        assert.deepStrictEqual(result.warnings.filter((warning: string): boolean => warning.startsWith('legacy: its native addon (build/Release/legacy.node) is not shipped')).length, 1, result.warnings.join('\n'))
+        assert.ok(!result.warnings.some((warning: string): boolean => /^(device|capture):/.test(warning)), result.warnings.join('\n'))
+        assert.strictEqual(runWithoutPackages(project, result.outfile), 'true true prebuilt addon | capture addon | probe addon a property __dirname | a parameter a variable')
+    })
+
     it('ships the files of the packages of addons, without their sources and what built them (node-gyp, CMake, cargo)', async (): Promise<void> => {
         const project: string = path.join(work, 'built')
         const shipped: string[] = ['index.js', 'data/table.json', 'build/Release/addon.node', 'build/Release/libshared.dylib']

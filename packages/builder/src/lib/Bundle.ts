@@ -186,7 +186,7 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
     if (!existsSync(entry)) throw new Error(`The entry ${path.relative(process.cwd(), entry) || entry} does not exist: build the project first`)
     const outfile: string = path.resolve(project, options.outfile ?? path.join('dist', `${name}.cjs`))
     const collector: NativeCollector = new NativeCollector(project, options.runtime)
-    const files: FileCollector = new FileCollector(project)
+    const files: FileCollector = new FileCollector(project, {packageOf: (file: string): string | undefined => collector.addonPackageOf(file), nativeFilesOf: (root: string, directory: string): string[] => collector.nativeFilesOf(root, directory)})
     //esbuild is loaded by the commands which need it
     const {build} = await import('esbuild')
     //The application, and each script of its workers (the bundler does not follow new Worker()): their native packages
@@ -235,8 +235,14 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
     const resourcesDirectory: string = path.resolve(path.dirname(outfile), options.directories?.resources ?? `${base}.resources`)
     //The scripts of the workers, until the ones they start are bundled too
     const scripts: Map<string, string> = new Map()
+    //The files of every bundle, the application's and its workers'
+    const inputs: Set<string> = new Set(application.inputs)
     for (let pending: [string, string][] = [...files.scripts]; pending.length; pending = [...files.scripts].filter(([at]): boolean => !scripts.has(at))) {
-        for (const [at, script] of pending) scripts.set(at, (await bundle(script, path.join(nativeDirectory, ...at.split('/')))).code)
+        for (const [at, script] of pending) {
+            const bundled = await bundle(script, path.join(nativeDirectory, ...at.split('/')))
+            scripts.set(at, bundled.code)
+            for (const input of bundled.inputs) inputs.add(input)
+        }
     }
     files.warnBundled(application.inputs)
     const embedded: boolean = options.native === 'embedded'
@@ -304,6 +310,6 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
         resourcesDirectory: resources.files.length && !embedded ? resourcesDirectory : undefined,
         workers: [...new Set([...scripts.keys()].map((at: string): string => files.nameOf(files.scripts.get(at)!)))].sort(),
         files: [...files.roots].filter((root: string): boolean => !files.scriptPaths().has(root)).map((root: string): string => files.nameOf(root)).sort(),
-        warnings: files.warnings
+        warnings: [...files.warnings, ...collector.unshippedAddons(inputs, files.files.values())]
     }
 }

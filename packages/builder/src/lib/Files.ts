@@ -43,6 +43,15 @@ const SCRIPT: RegExp = /\.c?js$/
 const CODE: RegExp = /\.(c|m)?js$|^package\.json$|^node_modules$/
 
 /**
+ * The packages sharing the framework and holding addons, bundled with the application: the package of a file, the
+ * native files of one of its directories (shipped by the paths to its own directories)
+ */
+export type AddonPackages = {
+    packageOf(file: string): string | undefined
+    nativeFilesOf(root: string, directory: string): string[]
+}
+
+/**
  * What a path from a module gives: the directory of its pattern, the parts from it, the scripts to bundle and the files
  * to copy (the files of its directories of data), or why it cannot be shipped
  */
@@ -335,8 +344,9 @@ export class FileCollector {
     /**
      * @param project The directory of the project: the scripts are named from it (as the modules the bundler gives, its
      * real path)
+     * @param addons The packages sharing the framework and holding addons
      */
-    constructor(project: string) {
+    constructor(project: string, protected readonly addons?: AddonPackages) {
         this.project = realpathSync(project)
     }
 
@@ -388,6 +398,7 @@ export class FileCollector {
         const directory: string = path.resolve(path.join(found.base ?? path.dirname(file), prefix.slice(0, cut + 1)))
         const rest: Part[] = [...prefix.slice(cut + 1) ? [{text: prefix.slice(cut + 1)}] : [], ...found.parts.slice(leading.length)]
         const targets: Targets = {directory: directory, rest: rest, scripts: [], files: [], roots: []}
+        const addons: string | undefined = this.addons?.packageOf(file)
         //A file: bundled when it is a script, copied otherwise; a directory of data: its files copied
         const take = (at: string, strict: boolean): void => {
             const stats = statSync(at)
@@ -395,8 +406,18 @@ export class FileCollector {
                 (SCRIPT.test(at) ? targets.scripts : targets.files).push(at)
                 targets.roots.push(at)
             } else if (stats.isDirectory()) {
-                //A directory holding the module (the application, its packages), or holding code: not shipped
-                if ((file + path.sep).startsWith(at + path.sep)) {
+                //A directory of the package of addons of the module, bundled with the application: its native files
+                //(its addons found from it, as node-gyp-build finds them)
+                if (addons && (at + path.sep).startsWith(addons + path.sep)) {
+                    targets.files.push(...this.addons!.nativeFilesOf(addons, at))
+                    targets.roots.push(at)
+                    //The directory named exactly (the package above the module): the files are named from it
+                    if (strict) {
+                        targets.directory = at
+                        targets.rest = []
+                    }
+                } else if ((file + path.sep).startsWith(at + path.sep)) {
+                    //A directory holding the module (the application, its packages), or holding code: not shipped
                     if (strict) targets.refused = 'ancestor'
                 } else if (holdsCode(at)) {
                     if (strict) targets.refused = 'code'
@@ -474,8 +495,25 @@ export class FileCollector {
         const members: Map<string, any> = new Map()
         const constructors: Set<string> = new Set()
         const namespaces: Set<string> = new Set()
+        //The names of the properties (a.__dirname, {__dirname: a}, {__dirname}), which are not to be rewritten; whether the
+        //module declares a __dirname of its own (a variable, a parameter: the name is not the directory of the module)
+        const properties: Set<any> = new Set()
+        let declaresDirname: boolean = false
+        const names = (pattern: any): boolean => {
+            let found: boolean = false
+            walk(pattern, (node: any): void => {
+                if (node.type === 'Identifier' && node.name === '__dirname') found = true
+            })
+            return found
+        }
         const remember = (values: Map<string, any>, name: string, value: any): unknown => values.set(name, values.has(name) ? null : value)
         walk(program, (node: any): void => {
+            if (node.type === 'MemberExpression' && !node.computed) properties.add(node.property)
+            if (node.type === 'Property' && !node.computed) {
+                properties.add(node.key)
+                if (node.shorthand) properties.add(node.value)
+            }
+            if ((node.type === 'VariableDeclarator' && names(node.id)) || (node.type === 'CatchClause' && node.param && names(node.param)) || (/Function/.test(node.type) && node.params.some(names))) declaresDirname = true
             if (node.type === 'ImportDeclaration' && WORKER_THREADS.has(node.source.value)) {
                 for (const specifier of node.specifiers) {
                     if (specifier.type === 'ImportSpecifier' && (specifier.imported.name ?? specifier.imported.value) === 'Worker') constructors.add(specifier.local.name)
@@ -497,11 +535,15 @@ export class FileCollector {
             if (node.type === 'PropertyDefinition' && !node.computed && node.key && node.value) remember(members, node.key.name, node.value)
             if (node.type === 'AssignmentExpression' && node.operator === '=' && node.left.type === 'MemberExpression' && node.left.object.type === 'ThisExpression' && !node.left.computed) remember(members, node.left.property.name, node.right)
         })
-        //The paths to files, wherever they are written
+        //The paths to files, wherever they are written. In a module of a package of addons bundled with the application,
+        //the directory of the module itself too (given to node-gyp-build): the native files of the package are there, in
+        //the tree (a __dirname the module declares is its own: the value it is given, rewritten when it is the directory)
+        const ownDirectory: boolean = !!this.addons?.packageOf(file)
+        const isOwnDirectory = (node: any): boolean => ownDirectory && isDirname(node) && !properties.has(node) && !(node.type === 'Identifier' && declaresDirname)
         const edits: { start: number, end: number, text: string }[] = []
         const followed: Set<any> = new Set()
         walk(program, (node: any): boolean => {
-            const found: ScriptPath | undefined = scriptPathOf(node, source, file)
+            const found: ScriptPath | undefined = scriptPathOf(node, source, file) ?? (isOwnDirectory(node) ? {kind: 'path', parts: []} : undefined)
             if (!found) return true
             const targets: Targets = this.targetsOf(found, file)
             const written: string = source.slice(node.start, node.end)
