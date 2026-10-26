@@ -8,7 +8,7 @@ import {type PreparedTemplate, TemplateCatalog, type TemplateSource} from './Tem
 import {type PackageManager, runCommand} from './Processes.js'
 import {done, step, warn} from './Output.js'
 import {applyFeatureBlocks, applyFeatureFiles, projectPath} from './TemplateFeatures.js'
-import {frameworkVersion} from './Versions.js'
+import {templateVersion} from './Versions.js'
 import {type ProcessResult} from '../types/ProcessResult.js'
 
 /**
@@ -172,7 +172,7 @@ export class ProjectCreator extends Component {
             $APP_DESC: plan.description,
             $APP_AUTHOR: plan.author,
             $APP_LICENSE: plan.license,
-            $LAKUTATA_VERSION: frameworkVersion()
+            $LAKUTATA_VERSION: templateVersion()
         }, new Set(plan.features))
         done('Project information filled')
         if (plan.packageManager !== 'none') {

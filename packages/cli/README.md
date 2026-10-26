@@ -57,7 +57,8 @@ the command fails.
 A template package keeps its files in its `template/` directory. npm packages cannot hold some files under their real
 names, so `_gitignore`, `_npmrc`… are renamed `.gitignore`, `.npmrc`… when the project is created. The text files are
 filled with the information of the project: `{$APP_NAME}`, `{$APP_ID}`, `{$APP_DESC}`, `{$APP_AUTHOR}`,
-`{$APP_LICENSE}` and `{$LAKUTATA_VERSION}` (the version of the framework).
+`{$APP_LICENSE}` and `{$LAKUTATA_VERSION}` (the minor version of the framework, `3.1.0` for 3.1.2: a patch releases
+only the packages it changes, so `^{$LAKUTATA_VERSION}` finds every package of lakutata).
 
 A template can have optional features, which `lakutata create --with <features>` enables (or which the user chooses in
 a terminal):

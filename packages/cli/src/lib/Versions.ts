@@ -20,6 +20,17 @@ export function frameworkVersion(): string {
 }
 
 /**
+ * The version of the packages of lakutata written in the projects created, after a ^: the minor version of the
+ * framework (3.1.0 for 3.1.2), since a patch releases only the packages it changes; a prerelease as it is, since all
+ * the packages are released with it
+ */
+export function templateVersion(): string {
+    const version: string = frameworkVersion()
+    const release: RegExpExecArray | null = /^(\d+)\.(\d+)\.\d+$/.exec(version)
+    return release ? `${release[1]}.${release[2]}.0` : version
+}
+
+/**
  * The latest version of a package on the registry, undefined when it cannot be fetched
  * @param name
  */

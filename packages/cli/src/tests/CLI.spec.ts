@@ -174,7 +174,7 @@ describe('The command line tool', (): void => {
         assert.ok(requests.includes(`/tarballs/default/${major}.9.0`), requests.join(', '))
         assert.match(result.stdout, new RegExp(`Template @lakutata/template-default@${major}\\.9\\.0 copied \\(4 files\\)`))
         const directory: string = path.join(work, 'Demo')
-        assert.deepStrictEqual(JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8')), {name: 'demo', description: 'A demo app', author: 'Alex', license: 'UNLICENSED', appName: 'Demo', lakutata: `^${frameworkVersion()}`, private: true})
+        assert.deepStrictEqual(JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8')), {name: 'demo', description: 'A demo app', author: 'Alex', license: 'UNLICENSED', appName: 'Demo', lakutata: `^${frameworkVersion().replace(/^(\d+\.\d+)\.\d+$/, '$1.0')}`, private: true})
         assert.strictEqual(readFileSync(path.join(directory, 'src', 'App.ts'), 'utf8'), `console.log('Demo', '${major}.9.0')\n`)
         assert.deepStrictEqual([...readFileSync(path.join(directory, 'logo.bin'))], [0, 1, 2, 123, 36, 65, 80, 80, 125])
         //The npm packages cannot hold .gitignore

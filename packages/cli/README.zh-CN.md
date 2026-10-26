@@ -42,7 +42,7 @@ lakutata create --name my-service --template service --with i18n --yes
 
 官方模板取与工具主版本号相同的最新正式版。下载过的模板会缓存起来：连不上仓库时，使用缓存中这个主版本的最新版本；缓存中也没有时，命令失败。
 
-模板包把文件放在它的 `template/` 目录中。有些文件无法以真实的文件名放进 npm 包，所以 `_gitignore`、`_npmrc` 等文件会在创建项目时改名为 `.gitignore`、`.npmrc` 等。文本文件中会填入项目的信息：`{$APP_NAME}`、`{$APP_ID}`、`{$APP_DESC}`、`{$APP_AUTHOR}`、`{$APP_LICENSE}` 和 `{$LAKUTATA_VERSION}`（框架的版本）。
+模板包把文件放在它的 `template/` 目录中。有些文件无法以真实的文件名放进 npm 包，所以 `_gitignore`、`_npmrc` 等文件会在创建项目时改名为 `.gitignore`、`.npmrc` 等。文本文件中会填入项目的信息：`{$APP_NAME}`、`{$APP_ID}`、`{$APP_DESC}`、`{$APP_AUTHOR}`、`{$APP_LICENSE}` 和 `{$LAKUTATA_VERSION}`（框架的次版本，比如框架是 3.1.2 时为 `3.1.0`：补丁版只发布改动过的包，写成 `^{$LAKUTATA_VERSION}` 才能找到 lakutata 的每个包）。
 
 模板可以有可选功能，由 `lakutata create --with <features>` 启用（或者由用户在终端里选择）：
 
