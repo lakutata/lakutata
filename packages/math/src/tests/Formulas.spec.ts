@@ -1,0 +1,192 @@
+import {after, before, describe, it} from 'node:test'
+import assert from 'node:assert'
+import {Container} from '@lakutata/core'
+import {
+    Equation,
+    Expression,
+    Inequality,
+    Math,
+    MathArgumentException,
+    MathCancelledException,
+    MathDefinitionException,
+    MathDomainException,
+    MathException,
+    MathNotSupportedException,
+    MathSyntaxException,
+    MathTimeoutException,
+    MathUnknownFunctionException,
+    Solutions
+} from '../exports/Math.js'
+
+describe('The formulas', (): void => {
+    let container: Container
+    let math: Math
+
+    before(async (): Promise<void> => {
+        container = new Container()
+        await container.setNamed('math', Math, {definitions: {'f(x)': 'x^2 + 1', 'g': 9.80665, 'h(x, y)': 'f(x) + y'}, precision: 20})
+        math = await container.get<Math>('math')
+    })
+
+    after(async (): Promise<void> => {
+        await container.destroy()
+    })
+
+    it('parse and print as they are written', (): void => {
+        const cases: [string, string, string][] = [
+            ['x^2 - 5x + 6', 'x^2 - 5x + 6', 'x^{2} - 5 x + 6'],
+            ['(x + 1)(x - 1)', '(x - 1)(x + 1)', '\\left(x - 1\\right) \\left(x + 1\\right)'],
+            ['2(x+1)^2', '2(x + 1)^2', '2 \\left(x + 1\\right)^{2}'],
+            ['2^3^2', '512', '512'],
+            ['0.1 + 0.2', '3/10', '\\frac{3}{10}'],
+            ['sin(pi/6)', '1/2', '\\frac{1}{2}'],
+            ['(x+1)/(x-1)', '(x + 1)/(x - 1)', '\\frac{x + 1}{x - 1}'],
+            ['1/(2x)', '1/(2x)', '\\frac{1}{2 x}'],
+            ['x^(1/3)', 'x^(1/3)', '\\sqrt[3]{x}'],
+            ['3i + 2', '2 + 3i', '2 + 3 i'],
+            ['5!', '120', '120'],
+            ['abs(x) + floor(y)', 'abs(x) + floor(y)', '\\left|x\\right| + \\left\\lfloor y \\right\\rfloor'],
+            ['1.5e3 + 2.5e-1', '6001/4', '\\frac{6001}{4}']
+        ]
+        for (const [text, printed, tex] of cases) {
+            const expression: Expression = math.expression(text)
+            assert.strictEqual(expression.toString(), printed, text)
+            assert.strictEqual(expression.toTeX(), tex, text)
+            assert.ok(math.expression(printed).equals(expression), `${printed} parsed again`)
+        }
+    })
+
+    it('tell expressions, equations and inequalities apart', (): void => {
+        assert.ok(math.parse('x + 1') instanceof Expression)
+        const equation = math.parse('x^2 = 4')
+        assert.ok(equation instanceof Equation)
+        assert.strictEqual(equation.toString(), 'x^2 = 4')
+        const inequality = math.parse('x^2 <= 4')
+        assert.ok(inequality instanceof Inequality)
+        assert.strictEqual(inequality.relation, '<=')
+        assert.strictEqual(inequality.toTeX(), 'x^{2} \\leq 4')
+        assert.throws((): unknown => math.expression('x = 1'), MathSyntaxException)
+        assert.throws((): unknown => math.equation('x + 1'), MathSyntaxException)
+    })
+
+    it('throw exceptions with the position of the error', (): void => {
+        const cases: [string, new (...args: never[]) => MathException, number][] = [
+            ['2 3', MathSyntaxException, 2],
+            ['(x +', MathSyntaxException, 4],
+            ['', MathSyntaxException, 0],
+            ['foo(x)', MathUnknownFunctionException, 0],
+            ['x != 2', MathNotSupportedException, 2]
+        ]
+        for (const [text, exception, position] of cases) {
+            assert.throws((): unknown => math.parse(text), (error: unknown): boolean => {
+                assert.ok(error instanceof exception, `${text}: ${String(error)}`)
+                assert.strictEqual((error as MathException).position, position, text)
+                return true
+            })
+        }
+        assert.throws((): unknown => math.parse('sin'), (error: unknown): boolean => error instanceof MathSyntaxException && (error as MathException).errno === 'E_MATH_SYNTAX')
+    })
+
+    it('use the definitions of the component, and the ones of with() for a while', (): void => {
+        assert.strictEqual(math.expression('f(3) + f(y)').toString(), 'y^2 + 11')
+        assert.strictEqual(math.expression('h(2, z)').toString(), 'z + 5')
+        assert.strictEqual(math.expression('f(x)').diff('x').toString(), '2x')
+        assert.strictEqual(math.expression('g').toNumber(), 9.80665)
+        const scope = math.with({'k(x)': 'f(x) + 1', 'g': 10})
+        assert.strictEqual(scope.expression('k(2)').toString(), '6')
+        assert.strictEqual(scope.expression('g*2').toString(), '20')
+        assert.strictEqual(scope.with({'m': 'k(1)'}).expression('m').toString(), '3')
+        assert.throws((): unknown => math.expression('k(2)'), MathUnknownFunctionException)
+        assert.throws((): unknown => math.with({'sin(x)': 'x'}), MathDefinitionException)
+        assert.throws((): unknown => math.with({'a(x)': 'b(x)', 'b(x)': 'a(x)'}), MathDefinitionException)
+    })
+
+    it('expand, derive, substitute, evaluate and give series', (): void => {
+        assert.strictEqual(math.expression('(x + 1)^3').expand().toString(), 'x^3 + 3x^2 + 3x + 1')
+        assert.strictEqual(math.expression('x^2*sin(x)').diff('x').toString(), '2x*sin(x) + x^2*cos(x)')
+        assert.strictEqual(math.expression('x^4').diff('x', 2).toString(), '12x^2')
+        assert.strictEqual(math.expression('x^2 + y').substitute({x: 0.5, y: 't + 1'}).toString(), 't + 5/4')
+        assert.strictEqual(math.expression('x^2 - 5x + 6').evaluate({x: 4}).toNumber(), 2)
+        assert.strictEqual(math.expression('sin(x)').series('x', 0, 6).toString(), 'x^5/120 - x^3/6 + x')
+        assert.strictEqual(math.expression('x').add(1).mul('x - 1').expand().toString(), 'x^2 - 1')
+        assert.strictEqual(math.expression(0.1).toString(), '1/10')
+        assert.deepStrictEqual(math.expression('x*y + sin(z)').variables(), ['x', 'y', 'z'])
+        assert.ok(math.expression('(x + 1)^2').equals('x^2 + 2x + 1'))
+        assert.ok(!math.expression('x').equals('y'))
+    })
+
+    it('give numbers, complex numbers and decimals', (): void => {
+        assert.strictEqual(math.expression('sin(pi/6)').toNumber(), 0.5)
+        assert.deepStrictEqual(math.expression('sqrt(-4)').toComplex(), {re: 0, im: 2})
+        assert.throws((): unknown => math.expression('sqrt(-4)').toNumber(), MathDomainException)
+        assert.throws((): unknown => math.expression('x + 1').toNumber(), MathArgumentException)
+        assert.strictEqual(math.expression('inf').toNumber(), Infinity)
+        assert.ok(Number.isNaN(math.expression('nan').toNumber()))
+        assert.strictEqual(math.expression('1/0').toString(), 'complexInfinity')
+        assert.throws((): unknown => math.expression('1/0').toNumber(), MathDomainException)
+        assert.strictEqual(math.expression('pi').toDecimal(), '3.1415926535897932385')
+        assert.strictEqual(math.expression('sqrt(2)').toDecimal(30), '1.41421356237309504880168872421')
+        assert.strictEqual(math.expression('1/3').toDecimal(10), '0.3333333333')
+    })
+
+    it('solve equations in the complex numbers or the real ones', (): void => {
+        const solutions: Solutions = math.equation('x^2 - 5x + 6 = 0').solve('x')
+        assert.ok(solutions instanceof Solutions)
+        assert.strictEqual(solutions.kind, 'finite')
+        assert.deepStrictEqual(solutions.map(String), ['2', '3'])
+        assert.deepStrictEqual(math.expression('x^4 - 1').solve('x').map(String), ['-1', '1', '-i', 'i'])
+        assert.deepStrictEqual(math.expression('x^4 - 1').solve('x', {domain: 'real'}).map(String), ['-1', '1'])
+        assert.strictEqual(math.expression('x^2 + 1').solve('x', {domain: 'real'}).kind, 'empty')
+        assert.strictEqual(math.equation('x = x').solve('x').kind, 'all')
+    })
+
+    it('solve systems of linear equations', (): void => {
+        const [solution] = math.solve(['x + y = 3', 'x - y = 1'], ['x', 'y'])
+        assert.strictEqual(solution.x.toString(), '2')
+        assert.strictEqual(solution.y.toString(), '1')
+        assert.deepStrictEqual(math.solve(['x + y = 3', 'x + y = 4'], ['x', 'y']), [])
+        assert.strictEqual(math.solve(['x + y = 3', '2x + 2y = 6'], ['x', 'y'])[0].x.toString(), '-y + 3')
+        assert.throws((): unknown => math.solve(['x*y = 1', 'x = y'], ['x', 'y']), MathNotSupportedException)
+        assert.throws((): unknown => math.solve(['sin(x) + y = 0', 'x = y'], ['x', 'y']), MathNotSupportedException)
+    })
+
+    it('compile formulas into functions of numbers', (): void => {
+        const f = math.expression('x^2 + sin(y)').compile(['x', 'y'])
+        assert.strictEqual(f(2, 0), 4)
+        assert.deepStrictEqual(f.variables, ['x', 'y'])
+        assert.deepStrictEqual(Array.from(f.batch(Float64Array.of(1, 0, 2, 0, 3, 0))), [1, 4, 9])
+        assert.throws((): unknown => math.expression('x + y').compile(['x']), MathArgumentException)
+        assert.throws((): unknown => f(1), MathArgumentException)
+    })
+
+    it('refuse the expressions nested more than 1000 levels deep, before they fill the stack', async (): Promise<void> => {
+        const nested = (depth: number): string => 'sin('.repeat(depth) + 'x' + ')'.repeat(depth)
+        const deepest: Expression = math.expression(nested(1000))
+        assert.strictEqual(deepest.substitute({x: 'y'}).variables()[0], 'y')
+        assert.ok((await deepest.expandAsync()).equals(deepest))
+        assert.ok(deepest.toString().startsWith('sin(sin('))
+        assert.throws((): unknown => math.expression(nested(1001)), MathNotSupportedException)
+        assert.throws((): unknown => math.expression('('.repeat(100000) + 'x' + ')'.repeat(100000)), MathNotSupportedException)
+        assert.throws((): unknown => math.expression('-'.repeat(100000) + 'x'), MathNotSupportedException)
+        assert.throws((): unknown => deepest.substitute({x: 'sin(x)'}), MathNotSupportedException)
+        const composed: Record<string, string> = {'f1(x)': 'sin(sin(x))'}
+        for (let index: number = 2; index <= 30; index++) composed[`f${index}(x)`] = `f${index - 1}(f${index - 1}(x))`
+        assert.throws((): unknown => math.with(composed), MathDefinitionException)
+    })
+
+    it('run the asynchronous operations in the threads of the addon, with a time limit and a cancellation', async (): Promise<void> => {
+        assert.strictEqual((await math.expression('(x + 1)^5').expandAsync()).toString(), 'x^5 + 5x^4 + 10x^3 + 10x^2 + 5x + 1')
+        assert.deepStrictEqual((await math.equation('x^2 = 4').solveAsync('x')).map(String), ['-2', '2'])
+        assert.strictEqual((await math.solveAsync(['x + y = 3', 'x - y = 1'], ['x', 'y']))[0].x.toString(), '2')
+        const pi: Expression = math.expression('pi')
+        await assert.rejects(pi.toDecimalAsync(20000, {timeout: 20}), MathTimeoutException)
+        const controller: AbortController = new AbortController()
+        const running: Promise<string> = pi.toDecimalAsync(20000, {signal: controller.signal})
+        setTimeout((): void => controller.abort(), 20)
+        await assert.rejects(running, MathCancelledException)
+        await assert.rejects(pi.toDecimalAsync(10, {signal: AbortSignal.abort()}), MathCancelledException)
+        await assert.rejects(math.expression('x').diffAsync('pi'), MathArgumentException)
+        const results: string[] = await Promise.all(Array.from({length: 32}, (_: unknown, index: number): Promise<string> => math.expression(`(x + ${index})^2`).expandAsync().then(String)))
+        assert.strictEqual(results[3], 'x^2 + 6x + 9')
+    })
+})

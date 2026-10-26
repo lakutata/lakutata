@@ -107,6 +107,17 @@ await check('CJS @lakutata/ffi loads and calls the C library', () => {
     if (libc.func('int abs(int value)')(-3) !== 3) throw new Error('abs of the C library')
 })
 
+// @lakutata/math — its addon (built when the package is installed) required by a path from the CommonJS module
+await check('CJS @lakutata/math loads its addon', () => {
+    const math = requireCJS('../packages/math/dist/cjs/exports/Math.js')
+    if (typeof math.Math !== 'function' || typeof math.buildMathOptions !== 'function' || typeof math.Expression !== 'function') throw new Error('Math missing')
+    if (typeof requireCJS('../packages/math/dist/cjs/lib/Addon.js').addon.versions().symengine !== 'string') throw new Error('the addon of math')
+})
+const mathPackage = await import('../packages/math/dist/esm/exports/Math.js')
+await check('@lakutata/math loads under ESM', () => {
+    if (typeof mathPackage.Math !== 'function') throw new Error('Math missing')
+})
+
 // @lakutata/grpc — the gRPC over HTTP/2 of containerd, BuildKit and the service actions
 await check('CJS @lakutata/grpc loads', () => {
     if (typeof requireCJS('../packages/grpc/dist/cjs/exports/GRPC.js').GRPCServer !== 'function') throw new Error('GRPCServer missing')
