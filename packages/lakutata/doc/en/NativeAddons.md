@@ -206,6 +206,11 @@ The application depends on the addon package, and imports it as any package (`im
   the directory layout ([Packaging](Packaging.md)). The addon is built for the platform of the machine that packs the
   application, so pack the application of each platform on that platform (a CI matrix, or a container of the
   architecture for Linux).
+- **An addon package built on the framework** (it depends on `lakutata` or `@lakutata/core`, to provide a component,
+  for instance) is bundled with the application instead, so that there is one copy of the framework, and only its addon
+  and the files beside it go into the tree. The addon is shipped when it is loaded as the package of `lakutata add`
+  loads it (`node-gyp-build` given the directory of the package), by a `require` of its file, or by a path from the
+  module (`path.join(__dirname, 'prebuilds', ...)`); `lakutata package` warns of an addon loaded in another way.
 - **Electron**: the addons are copied as they are installed. The addons that `lakutata add` creates run in Electron
   without being rebuilt, as do all the addons built on Node-API; an addon built on the V8 API of Node.js must be
   installed in its build for Electron before packing (`electron-rebuild`).

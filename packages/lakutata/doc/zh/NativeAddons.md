@@ -175,6 +175,7 @@ lakutata native link libc --crate                   # 一个 crate（Rust：carg
 应用依赖这个插件包，并像导入其他包一样导入它（`import {greet} from '@acme/capture'`）。
 
 - **单文件包和可执行文件**：`lakutata package bundle` 把插件包排除在单文件包之外，连同它们的文件（JavaScript、插件本身、它的动态库，但不包括源码和构建时产生的文件）写入 `dist/<name>.native/`，这个目录随单文件包一起发布；可执行文件则把它们嵌入其中，或者在目录布局中放在自己旁边（见 [Packaging](Packaging.md)）。插件是为打包所在机器的平台构建的，所以每个平台的应用要在那个平台上打包（用 CI 的矩阵，Linux 也可以用对应架构的容器）。
+- **基于框架的插件包**（它依赖 `lakutata` 或 `@lakutata/core`，比如为了提供一个组件）则和应用一起打进单文件包，这样框架只有一份，只有插件和它旁边的文件放进这个目录。插件要用下面几种方式之一加载，才会被放进去：像 `lakutata add` 生成的插件包那样，把包的目录交给 `node-gyp-build`；直接 `require` 插件文件；或者用从模块位置构造的路径（`path.join(__dirname, 'prebuilds', ...)`）。用其他方式加载的插件，`lakutata package` 会发出警告。
 - **Electron**：插件按安装时的样子复制。`lakutata add` 创建的插件不需要重新构建就能在 Electron 中运行，所有基于 Node-API 的插件都是如此；基于 Node.js V8 API 的插件，打包前要安装它为 Electron 构建的版本（`electron-rebuild`）。
 - **Bun**：Bun 能加载 Node-API 的插件；Bun 可执行文件会对基于 Node.js V8 API 的插件发出警告。
 - **Alpine（musl）**：Node.js 的可执行文件在那里不能加载原生插件，请用 Bun 制作。

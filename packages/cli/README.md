@@ -279,8 +279,11 @@ declarations, source maps, TypeScript sources and documentation of the packages 
 sources and objects of the addons (better-sqlite3 holds the source of SQLite) and what built them: the files of node-gyp
 and of CMake in `build/`, the `target` directory of cargo, the static and import libraries. The addons of the
 application itself (`require('./x.node')`, `createRequire(import.meta.url)('./x.node')`) go into the tree too. The
-packages of the framework, and those built on it, are always bundled with the application, whatever they depend on, so
-that there is one copy of the framework, its classes and its container; their native dependencies go into the tree.
+packages of the framework, and those built on it, are always bundled with the application, whatever they depend on or
+hold, so that there is one copy of the framework, its classes and its container. Their native dependencies go into the
+tree, and so do their own addons when they are loaded by a `require` of the file, by a path from their module
+(`path.join(__dirname, 'prebuilds', ...)`) or from their own directory (`node-gyp-build`); an addon loaded in another
+way is named in the warnings.
 Optional dependencies that are not installed (the drivers of stores the application does not use: `peerDependenciesMeta`
 optional, `optionalDependencies`) are left out: loading one throws at run time, as it would without the bundle.
 
