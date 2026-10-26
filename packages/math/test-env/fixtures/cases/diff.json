@@ -1,0 +1,166 @@
+[
+ {
+  "text": "x^3",
+  "variable": "x"
+ },
+ {
+  "text": "sin(x)cos(x)",
+  "variable": "x"
+ },
+ {
+  "text": "e^(x^2)",
+  "variable": "x"
+ },
+ {
+  "text": "ln(x^2 + 1)",
+  "variable": "x"
+ },
+ {
+  "text": "x^x",
+  "variable": "x"
+ },
+ {
+  "text": "atan(x)",
+  "variable": "x"
+ },
+ {
+  "text": "asin(x)",
+  "variable": "x"
+ },
+ {
+  "text": "tan(x)",
+  "variable": "x",
+  "times": 2
+ },
+ {
+  "text": "x^4",
+  "variable": "x",
+  "times": 3
+ },
+ {
+  "text": "x y^2",
+  "variable": "y"
+ },
+ {
+  "text": "exp(a x)",
+  "variable": "x",
+  "times": 2
+ },
+ {
+  "text": "1/(1 + x^2)",
+  "variable": "x"
+ },
+ {
+  "text": "sinh(x)tanh(x)",
+  "variable": "x"
+ },
+ {
+  "text": "gamma(x)",
+  "variable": "x"
+ },
+ {
+  "text": "erf(x)",
+  "variable": "x"
+ },
+ {
+  "text": "log(x, 2)",
+  "variable": "x"
+ },
+ {
+  "text": "x^(1/3)",
+  "variable": "x"
+ },
+ {
+  "text": "2^x",
+  "variable": "x"
+ },
+ {
+  "text": "sqrt(x)/x",
+  "variable": "x"
+ },
+ {
+  "text": "acosh(x)",
+  "variable": "x"
+ },
+ {
+  "text": "x^2 sin(x)",
+  "variable": "x",
+  "times": 4
+ },
+ {
+  "text": "cos(x)^2 + sin(x)^2",
+  "variable": "x"
+ },
+ {
+  "text": "asec(x)",
+  "variable": "x"
+ },
+ {
+  "text": "acsc(x)",
+  "variable": "x"
+ },
+ {
+  "text": "asech(x)",
+  "variable": "x"
+ },
+ {
+  "text": "acsch(x)",
+  "variable": "x"
+ },
+ {
+  "text": "acoth(x)",
+  "variable": "x"
+ },
+ {
+  "text": "acot(x)",
+  "variable": "x"
+ },
+ {
+  "text": "atanh(x)",
+  "variable": "x"
+ },
+ {
+  "text": "asinh(x)",
+  "variable": "x"
+ },
+ {
+  "text": "acos(x)",
+  "variable": "x"
+ },
+ {
+  "text": "sec(x)",
+  "variable": "x"
+ },
+ {
+  "text": "csc(x)",
+  "variable": "x"
+ },
+ {
+  "text": "cot(x)",
+  "variable": "x"
+ },
+ {
+  "text": "coth(x)",
+  "variable": "x"
+ },
+ {
+  "text": "sech(x)",
+  "variable": "x"
+ },
+ {
+  "text": "csch(x)",
+  "variable": "x"
+ },
+ {
+  "text": "loggamma(x)",
+  "variable": "x"
+ },
+ {
+  "text": "lambertw(x)",
+  "variable": "x"
+ },
+ {
+  "text": "polygamma(1, x)",
+  "variable": "x"
+ }
+]

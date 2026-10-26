@@ -1,0 +1,399 @@
+[
+ {
+  "text": "2x",
+  "meaning": "2*x"
+ },
+ {
+  "text": "2x^2",
+  "meaning": "2*x**2"
+ },
+ {
+  "text": "2(x + 1)",
+  "meaning": "2*(x + 1)"
+ },
+ {
+  "text": "(x + 1)(x - 1)",
+  "meaning": "(x + 1)*(x - 1)"
+ },
+ {
+  "text": "x (y + 1)",
+  "meaning": "x*(y + 1)",
+  "differs": {
+   "mathjs": "mathjs reads a name followed by parentheses as a call, even with a space"
+  }
+ },
+ {
+  "text": "3x y",
+  "meaning": "3*x*y"
+ },
+ {
+  "text": "x y z",
+  "meaning": "x*y*z"
+ },
+ {
+  "text": "(x)(y)(z)",
+  "meaning": "x*y*z"
+ },
+ {
+  "text": "2(3)",
+  "meaning": "6"
+ },
+ {
+  "text": "2 x + 3 y",
+  "meaning": "2*x + 3*y"
+ },
+ {
+  "text": "2sin(x)",
+  "meaning": "2*sin(x)"
+ },
+ {
+  "text": "x sin(x)",
+  "meaning": "x*sin(x)"
+ },
+ {
+  "text": "sin(x)cos(x)",
+  "meaning": "sin(x)*cos(x)"
+ },
+ {
+  "text": "(x + 1)^2(x - 1)",
+  "meaning": "(x + 1)**2*(x - 1)"
+ },
+ {
+  "text": "2^x y",
+  "meaning": "2**x*y"
+ },
+ {
+  "text": "2pi",
+  "meaning": "2*pi"
+ },
+ {
+  "text": "pi x",
+  "meaning": "pi*x"
+ },
+ {
+  "text": "1.5x",
+  "meaning": "3*x/2"
+ },
+ {
+  "text": "2^3^2",
+  "meaning": "2**(3**2)"
+ },
+ {
+  "text": "x^y^z",
+  "meaning": "x**(y**z)",
+  "differs": {
+   "nerdamer": "nerdamer does not take the principal value of a negative number to a non-integer power"
+  }
+ },
+ {
+  "text": "-x^2",
+  "meaning": "-(x**2)"
+ },
+ {
+  "text": "-2^2",
+  "meaning": "-(2**2)"
+ },
+ {
+  "text": "2^-1",
+  "meaning": "2**(-1)"
+ },
+ {
+  "text": "x^-y^2",
+  "meaning": "x**(-(y**2))"
+ },
+ {
+  "text": "x**3",
+  "meaning": "x**3",
+  "differs": {
+   "mathjs": "mathjs has no ** operator"
+  }
+ },
+ {
+  "text": "x^(1/2)",
+  "meaning": "sqrt(x)"
+ },
+ {
+  "text": "4^0.5",
+  "meaning": "2"
+ },
+ {
+  "text": "1/2x",
+  "meaning": "x/2"
+ },
+ {
+  "text": "x / y / z",
+  "meaning": "x/(y*z)"
+ },
+ {
+  "text": "x - y - z",
+  "meaning": "x - y - z"
+ },
+ {
+  "text": "x - -y",
+  "meaning": "x + y"
+ },
+ {
+  "text": "x--y",
+  "meaning": "x + y"
+ },
+ {
+  "text": "+x",
+  "meaning": "x"
+ },
+ {
+  "text": "-(x - 1)",
+  "meaning": "1 - x"
+ },
+ {
+  "text": "2 * -3",
+  "meaning": "-6"
+ },
+ {
+  "text": "(2)(-3)",
+  "meaning": "-6"
+ },
+ {
+  "text": "5!",
+  "meaning": "factorial(5)"
+ },
+ {
+  "text": "3!^2",
+  "meaning": "factorial(3)**2"
+ },
+ {
+  "text": "2^3!",
+  "meaning": "2**factorial(3)"
+ },
+ {
+  "text": "3!!",
+  "meaning": "factorial(factorial(3))",
+  "differs": {
+   "nerdamer": "nerdamer reads !! as the double factorial; @lakutata/math and mathjs read (3!)!"
+  }
+ },
+ {
+  "text": "0.1 + 0.2",
+  "meaning": "Rational(3, 10)"
+ },
+ {
+  "text": "1.5e3",
+  "meaning": "1500"
+ },
+ {
+  "text": "2.5e-1",
+  "meaning": "Rational(1, 4)"
+ },
+ {
+  "text": "2e2",
+  "meaning": "200"
+ },
+ {
+  "text": "1e",
+  "meaning": "e"
+ },
+ {
+  "text": ".5",
+  "meaning": "Rational(1, 2)",
+  "differs": {
+   "nerdamer": "nerdamer does not read a number starting with a point"
+  }
+ },
+ {
+  "text": "e^x",
+  "meaning": "exp(x)"
+ },
+ {
+  "text": "exp(1)",
+  "meaning": "E"
+ },
+ {
+  "text": "ln(x)",
+  "meaning": "log(x)",
+  "differs": {
+   "mathjs": "mathjs has no ln (its log is the natural logarithm)",
+   "nerdamer": "nerdamer 1.x has no ln: it reads ln as a variable"
+  }
+ },
+ {
+  "text": "log(x)",
+  "meaning": "log(x)"
+ },
+ {
+  "text": "log(8, 2)",
+  "meaning": "3"
+ },
+ {
+  "text": "log10(100)",
+  "meaning": "2"
+ },
+ {
+  "text": "log2(8)",
+  "meaning": "3",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "sqrt(4x)",
+  "meaning": "sqrt(4*x)"
+ },
+ {
+  "text": "root(8, 3)",
+  "meaning": "2",
+  "differs": {
+   "mathjs": "mathjs names it nthRoot",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "cbrt(-8)",
+  "meaning": "cbrt(-8)",
+  "differs": {
+   "mathjs": "mathjs gives the real cube root (-2); @lakutata/math gives the principal one, as SymPy (open question, proposal/math-progress.md)",
+   "nerdamer": "nerdamer gives the real cube root (-2)"
+  }
+ },
+ {
+  "text": "abs(-3)",
+  "meaning": "3"
+ },
+ {
+  "text": "i^2",
+  "meaning": "-1"
+ },
+ {
+  "text": "conj(2 + 3i)",
+  "meaning": "2 - 3*I",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "sin(x)^2",
+  "meaning": "sin(x)**2"
+ },
+ {
+  "text": "sin(-x)",
+  "meaning": "-sin(x)"
+ },
+ {
+  "text": "tan(pi/4)",
+  "meaning": "1"
+ },
+ {
+  "text": "asin(1)",
+  "meaning": "pi/2"
+ },
+ {
+  "text": "atan2(1, 1)",
+  "meaning": "pi/4"
+ },
+ {
+  "text": "sinh(0)",
+  "meaning": "0"
+ },
+ {
+  "text": "sign(-2)",
+  "meaning": "-1"
+ },
+ {
+  "text": "floor(2.7) + ceil(2.2) + trunc(-2.7)",
+  "meaning": "3",
+  "differs": {
+   "mathjs": "mathjs names it fix"
+  }
+ },
+ {
+  "text": "min(3, 1, 2) + max(1, 5)",
+  "meaning": "6"
+ },
+ {
+  "text": "binomial(5, 2)",
+  "meaning": "10",
+  "differs": {
+   "mathjs": "mathjs names it combinations",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "gamma(5)",
+  "meaning": "24",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "erf(0)",
+  "meaning": "0",
+  "differs": {
+   "nerdamer": "nerdamer 1.x computes erf(0) as -3e-8"
+  }
+ },
+ {
+  "text": "zeta(2)",
+  "meaning": "pi**2/6",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "lambertw(e)",
+  "meaning": "1",
+  "differs": {
+   "mathjs": "mathjs has no Lambert W function",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "factorial(4)",
+  "meaning": "24"
+ },
+ {
+  "text": "2 3",
+  "error": "E_MATH_SYNTAX",
+  "differs": {
+   "nerdamer": "nerdamer multiplies two numbers written side by side"
+  }
+ },
+ {
+  "text": "sin x",
+  "error": "E_MATH_SYNTAX",
+  "differs": {
+   "nerdamer": "nerdamer accepts a function without parentheses"
+  }
+ },
+ {
+  "text": "x(y + 1)",
+  "error": "E_MATH_UNKNOWN_FUNCTION",
+  "differs": {
+   "nerdamer": "nerdamer multiplies a variable followed by parentheses"
+  }
+ },
+ {
+  "text": "(x + 1",
+  "error": "E_MATH_SYNTAX"
+ },
+ {
+  "text": "x + ",
+  "error": "E_MATH_SYNTAX"
+ },
+ {
+  "text": "",
+  "error": "E_MATH_SYNTAX",
+  "differs": {
+   "nerdamer": "nerdamer reads an empty formula as 0"
+  }
+ },
+ {
+  "text": "x != 1",
+  "error": "E_MATH_NOT_SUPPORTED"
+ },
+ {
+  "text": "foo(2)",
+  "error": "E_MATH_UNKNOWN_FUNCTION"
+ },
+ {
+  "text": "2 $ 3",
+  "error": "E_MATH_SYNTAX"
+ }
+]

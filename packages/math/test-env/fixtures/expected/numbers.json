@@ -1,0 +1,1272 @@
+{
+ "generator": {
+  "sympy": "1.14.0",
+  "mpmath": "1.4.1",
+  "mathjs": "15.2.0",
+  "nerdamer": "1.1.13"
+ },
+ "points": [
+  {
+   "x": "0.7",
+   "y": "1.3",
+   "z": "-0.4",
+   "a": "2.1",
+   "b": "-1.7",
+   "c": "0.3",
+   "d": "1.1",
+   "t": "0.35"
+  },
+  {
+   "x": "-1.9",
+   "y": "0.45",
+   "z": "2.6",
+   "a": "-0.8",
+   "b": "3.2",
+   "c": "-2.3",
+   "d": "0.6",
+   "t": "1.75"
+  }
+ ],
+ "cases": [
+  {
+   "text": "sqrt(2)",
+   "value": [
+    "1.41421356237309504880168872421",
+    "0"
+   ],
+   "exact": "sqrt(2)",
+   "decimals": {
+    "10": "1.414213562",
+    "30": "1.41421356237309504880168872421",
+    "100": "1.414213562373095048801688724209698078569671875376948073176679737990732478462107038850387534327641573"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "pi",
+   "value": [
+    "3.14159265358979323846264338328",
+    "0"
+   ],
+   "exact": "pi",
+   "decimals": {
+    "10": "3.141592654",
+    "30": "3.14159265358979323846264338328",
+    "100": "3.141592653589793238462643383279502884197169399375105820974944592307816406286208998628034825342117068"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "e",
+   "value": [
+    "2.71828182845904523536028747135",
+    "0"
+   ],
+   "exact": "e",
+   "decimals": {
+    "10": "2.718281828",
+    "30": "2.71828182845904523536028747135",
+    "100": "2.718281828459045235360287471352662497757247093699959574966967627724076630353547594571382178525166427"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "pi^2/6",
+   "value": [
+    "1.64493406684822643647241516665",
+    "0"
+   ],
+   "exact": "pi**2/6",
+   "decimals": {
+    "20": "1.6449340668482264365"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "ln(10)",
+   "value": [
+    "2.30258509299404568401799145468",
+    "0"
+   ],
+   "exact": "log(10)",
+   "decimals": {
+    "10": "2.302585093",
+    "50": "2.3025850929940456840179914546843642076011014886288"
+   },
+   "engines": {
+    "mathjs": "error: Undefined function ln",
+    "nerdamer": "error: not a number: 10*ln"
+   }
+  },
+  {
+   "text": "exp(pi)",
+   "value": [
+    "23.1406926327792690057290863679",
+    "0"
+   ],
+   "exact": "exp(pi)",
+   "decimals": {
+    "20": "23.140692632779269006"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "2^(1/3)",
+   "value": [
+    "1.25992104989487316476721060728",
+    "0"
+   ],
+   "exact": "2**(1/3)",
+   "decimals": {
+    "10": "1.259921050",
+    "40": "1.259921049894873164767210607278228350570"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "sqrt(2) + sqrt(3)",
+   "value": [
+    "3.14626436994197234232913506572",
+    "0"
+   ],
+   "exact": "sqrt(2) + sqrt(3)",
+   "decimals": {
+    "25": "3.146264369941972342329135"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "1/7",
+   "value": [
+    "0.142857142857142857142857142857",
+    "0"
+   ],
+   "exact": "1/7",
+   "decimals": {
+    "10": "0.1428571429",
+    "30": "0.142857142857142857142857142857"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "22/7 - pi",
+   "value": [
+    "0.00126448926734961868021375957764",
+    "0"
+   ],
+   "exact": "22/7 - pi",
+   "decimals": {
+    "15": "0.00126448926734962"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "abs(-7/3)",
+   "value": [
+    "2.33333333333333333333333333333",
+    "0"
+   ],
+   "exact": "7/3",
+   "decimals": {
+    "12": "2.33333333333"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "e^2",
+   "value": [
+    "7.38905609893065022723042746058",
+    "0"
+   ],
+   "exact": "exp(2)",
+   "decimals": {
+    "20": "7.3890560989306502272"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "2^100",
+   "value": [
+    "1.26765060022822940149670320538e+30",
+    "0"
+   ],
+   "exact": "1267650600228229401496703205376",
+   "decimals": {
+    "10": "1.267650600e+30",
+    "40": "1267650600228229401496703205376.000000000"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "10^-20",
+   "value": [
+    "1.00000000000000000000000000000e-20",
+    "0"
+   ],
+   "exact": "1/100000000000000000000",
+   "decimals": {
+    "5": "1.0000e-20"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "factorial(20)",
+   "value": [
+    "2432902008176640000.00000000000",
+    "0"
+   ],
+   "exact": "2432902008176640000",
+   "decimals": {
+    "10": "2.432902008e+18"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "binomial(50, 25)",
+   "value": [
+    "126410606437752.000000000000000",
+    "0"
+   ],
+   "exact": "126410606437752",
+   "decimals": {
+    "8": "1.2641061e+14"
+   },
+   "engines": {
+    "mathjs": "error: Undefined function binomial",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "cbrt(27)",
+   "value": [
+    "3.00000000000000000000000000000",
+    "0"
+   ],
+   "exact": "3",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "root(32, 5)",
+   "value": [
+    "2.00000000000000000000000000000",
+    "0"
+   ],
+   "exact": "2",
+   "engines": {
+    "mathjs": "error: Undefined function root",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "ln(2)/ln(3)",
+   "value": [
+    "0.630929753571457437099527114343",
+    "0"
+   ],
+   "exact": "log(2)/log(3)",
+   "decimals": {
+    "20": "0.63092975357145743710"
+   },
+   "engines": {
+    "mathjs": "error: Undefined function ln",
+    "nerdamer": "different value"
+   }
+  },
+  {
+   "text": "sqrt(10^41)",
+   "value": [
+    "316227766016837933199.889354443",
+    "0"
+   ],
+   "exact": "100000000000000000000*sqrt(10)",
+   "decimals": {
+    "12": "3.16227766017e+20"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "sin(1)",
+   "value": [
+    "0.841470984807896506652502321630",
+    "0"
+   ],
+   "exact": "sin(1)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "cos(1)",
+   "value": [
+    "0.540302305868139717400936607443",
+    "0"
+   ],
+   "exact": "cos(1)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "tan(1)",
+   "value": [
+    "1.55740772465490223050697480746",
+    "0"
+   ],
+   "exact": "tan(1)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "asin(1/3)",
+   "value": [
+    "0.339836909454121937096392513392",
+    "0"
+   ],
+   "exact": "asin(1/3)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "acos(1/3)",
+   "value": [
+    "1.23095941734077468213492917825",
+    "0"
+   ],
+   "exact": "acos(1/3)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "atan(2)",
+   "value": [
+    "1.10714871779409050301706546018",
+    "0"
+   ],
+   "exact": "atan(2)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "sinh(1)",
+   "value": [
+    "1.17520119364380145688238185060",
+    "0"
+   ],
+   "exact": "sinh(1)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "cosh(1)",
+   "value": [
+    "1.54308063481524377847790562076",
+    "0"
+   ],
+   "exact": "cosh(1)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "tanh(1/2)",
+   "value": [
+    "0.462117157260009758502318483644",
+    "0"
+   ],
+   "exact": "tanh(1/2)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "asinh(1)",
+   "value": [
+    "0.881373587019543025232609324980",
+    "0"
+   ],
+   "exact": "log(1 + sqrt(2))",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "acosh(2)",
+   "value": [
+    "1.31695789692481670862504634731",
+    "0"
+   ],
+   "exact": "acosh(2)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "atanh(1/2)",
+   "value": [
+    "0.549306144334054845697622618461",
+    "0"
+   ],
+   "exact": "atanh(1/2)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "sec(1)",
+   "value": [
+    "1.85081571768092561791175324140",
+    "0"
+   ],
+   "exact": "sec(1)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "csc(1)",
+   "value": [
+    "1.18839510577812121626159945237",
+    "0"
+   ],
+   "exact": "csc(1)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "cot(1)",
+   "value": [
+    "0.642092615934330703006419986594",
+    "0"
+   ],
+   "exact": "cot(1)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "gamma(1/2)",
+   "value": [
+    "1.77245385090551602729816748334",
+    "0"
+   ],
+   "exact": "sqrt(pi)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: 0.5*gamma"
+   }
+  },
+  {
+   "text": "gamma(7/3)",
+   "value": [
+    "1.19063934875899894829141908488",
+    "0"
+   ],
+   "exact": "gamma(7/3)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: 2.3333333333333335*gamma"
+   }
+  },
+  {
+   "text": "loggamma(10)",
+   "value": [
+    "12.8018274800814696112077178746",
+    "0"
+   ],
+   "exact": "log(362880)",
+   "engines": {
+    "mathjs": "error: Undefined function loggamma",
+    "nerdamer": "error: not a number: 10*loggamma"
+   }
+  },
+  {
+   "text": "erf(1/2)",
+   "value": [
+    "0.520499877813046537682746653892",
+    "0"
+   ],
+   "exact": "erf(1/2)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "different value"
+   }
+  },
+  {
+   "text": "erfc(1)",
+   "value": [
+    "0.157299207050285130658779364917",
+    "0"
+   ],
+   "exact": "erfc(1)",
+   "engines": {
+    "mathjs": "error: Undefined function erfc",
+    "nerdamer": "error: not a number: erfc"
+   }
+  },
+  {
+   "text": "zeta(3)",
+   "value": [
+    "1.20205690315959428539973816151",
+    "0"
+   ],
+   "exact": "zeta(3)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: 3*zeta"
+   }
+  },
+  {
+   "text": "lambertw(1)",
+   "value": [
+    "0.567143290409783872999968662210",
+    "0"
+   ],
+   "exact": "lambertw(1)",
+   "engines": {
+    "mathjs": "error: Undefined function lambertw",
+    "nerdamer": "error: not a number: lambertw"
+   }
+  },
+  {
+   "text": "digamma(1)",
+   "value": [
+    "-0.577215664901532860606512090082",
+    "0"
+   ],
+   "exact": "-EulerGamma",
+   "engines": {
+    "mathjs": "error: Undefined function digamma",
+    "nerdamer": "error: not a number: digamma"
+   }
+  },
+  {
+   "text": "beta(2, 3)",
+   "value": [
+    "0.0833333333333333333333333333333",
+    "0"
+   ],
+   "exact": "1/12",
+   "engines": {
+    "mathjs": "error: Undefined function beta",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "polygamma(1, 1)",
+   "value": [
+    "1.64493406684822643647241516665",
+    "0"
+   ],
+   "exact": "pi**2/6",
+   "engines": {
+    "mathjs": "error: Undefined function polygamma",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "e^(i pi/3)",
+   "value": [
+    "0.500000000000000000000000000000",
+    "0.866025403784438646763723170753"
+   ],
+   "exact": "exp(i*pi/3)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "sqrt(-2)",
+   "value": [
+    "0",
+    "1.41421356237309504880168872421"
+   ],
+   "exact": "sqrt(2)*i",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "(1 + 2i)/(3 - 4i)",
+   "value": [
+    "-0.200000000000000000000000000000",
+    "0.400000000000000000000000000000"
+   ],
+   "exact": "(1 + 2*i)*(3 + 4*i)/25",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "ln(-1)",
+   "value": [
+    "0",
+    "3.14159265358979323846264338328"
+   ],
+   "exact": "i*pi",
+   "engines": {
+    "mathjs": "error: Undefined function ln",
+    "nerdamer": "error: not a number: -ln"
+   }
+  },
+  {
+   "text": "i^i",
+   "value": [
+    "0.207879576350761908546955619835",
+    "0"
+   ],
+   "exact": "i**i",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "different value"
+   }
+  },
+  {
+   "text": "atan2(-1, -1)",
+   "value": [
+    "-2.35619449019234492884698253746",
+    "0"
+   ],
+   "exact": "-3*pi/4",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "floor(-7/2)",
+   "value": [
+    "-4.00000000000000000000000000000",
+    "0"
+   ],
+   "exact": "-4",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "sign(1 - pi)",
+   "value": [
+    "-1.00000000000000000000000000000",
+    "0"
+   ],
+   "exact": "-1",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "gamma(-1/2)",
+   "value": [
+    "-3.54490770181103205459633496668",
+    "0"
+   ],
+   "exact": "-2*sqrt(pi)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: -0.5*gamma"
+   }
+  },
+  {
+   "text": "gamma(1/2 + i)",
+   "value": [
+    "0.300694617260655816217389463835",
+    "-0.424967879433123812609849640257"
+   ],
+   "exact": "gamma(1/2 + i)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: (0.5+i)*gamma"
+   }
+  },
+  {
+   "text": "gamma(-3/2 + 2i)",
+   "value": [
+    "-0.00188439654115209571679001126812",
+    "0.0209327219869218311836700690810"
+   ],
+   "exact": "gamma(-3/2 + 2*i)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: (-1.5+2*i)*gamma"
+   }
+  },
+  {
+   "text": "loggamma(-1/2)",
+   "value": [
+    "1.26551212348464539648894579713",
+    "-3.14159265358979323846264338328"
+   ],
+   "exact": "loggamma(-1/2)",
+   "engines": {
+    "mathjs": "error: Undefined function loggamma",
+    "nerdamer": "error: not a number: -0.5*loggamma"
+   }
+  },
+  {
+   "text": "loggamma(-5/2)",
+   "value": [
+    "-0.0562437164976740506725945300976",
+    "-9.42477796076937971538793014984"
+   ],
+   "exact": "loggamma(-5/2)",
+   "engines": {
+    "mathjs": "error: Undefined function loggamma",
+    "nerdamer": "error: not a number: -2.5*loggamma"
+   }
+  },
+  {
+   "text": "loggamma(1 + i)",
+   "value": [
+    "-0.650923199301856338885216831504",
+    "-0.301640320467533197887531657797"
+   ],
+   "exact": "loggamma(1 + i)",
+   "engines": {
+    "mathjs": "error: Undefined function loggamma",
+    "nerdamer": "error: not a number: (1+i)*loggamma"
+   }
+  },
+  {
+   "text": "loggamma(3 - 2i)",
+   "value": [
+    "-0.0316390593739611898037677296009",
+    "-2.02219319750132712401643376238"
+   ],
+   "exact": "loggamma(3 - 2*i)",
+   "engines": {
+    "mathjs": "error: Undefined function loggamma",
+    "nerdamer": "error: not a number: (-2*i+3)*loggamma"
+   }
+  },
+  {
+   "text": "erf(1 + i)",
+   "value": [
+    "1.31615128169794764488027108024",
+    "0.190453469237834686284108861969"
+   ],
+   "exact": "erf(1 + i)",
+   "engines": {
+    "mathjs": "error: Unexpected type of argument in function name (expected: number or Array or Matrix or bigint or string or boolean, actual",
+    "nerdamer": "error: not a number: erf(1+i)"
+   }
+  },
+  {
+   "text": "erfc(2 + i)",
+   "value": [
+    "-0.00360634272565175091291182820542",
+    "0.0112590060288150250764009156316"
+   ],
+   "exact": "erfc(2 + i)",
+   "engines": {
+    "mathjs": "error: Undefined function erfc",
+    "nerdamer": "error: not a number: (2+i)*erfc"
+   }
+  },
+  {
+   "text": "erf(1/2 - 3i/2)",
+   "value": [
+    "3.38640533372765038891638198447",
+    "-1.62583504724468368905344508152"
+   ],
+   "exact": "erf(1/2 - 3*i/2)",
+   "engines": {
+    "mathjs": "error: Unexpected type of argument in function name (expected: number or Array or Matrix or bigint or string or boolean, actual",
+    "nerdamer": "error: not a number: erf(-1.5*i+0.5)"
+   }
+  },
+  {
+   "text": "erf(-3 + i)",
+   "value": [
+    "-0.999942386132013762395628173740",
+    "0.000000771795638137801357578494377725"
+   ],
+   "exact": "-erf(3 - i)",
+   "engines": {
+    "mathjs": "error: Unexpected type of argument in function name (expected: number or Array or Matrix or bigint or string or boolean, actual",
+    "nerdamer": "error: not a number: erf(-3+i)"
+   }
+  },
+  {
+   "text": "zeta(1/2)",
+   "value": [
+    "-1.46035450880958681288949915252",
+    "0"
+   ],
+   "exact": "zeta(1/2)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: 0.5*zeta"
+   }
+  },
+  {
+   "text": "zeta(-1)",
+   "value": [
+    "-0.0833333333333333333333333333333",
+    "0"
+   ],
+   "exact": "-1/12",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: -zeta"
+   }
+  },
+  {
+   "text": "zeta(-2)",
+   "value": [
+    "0",
+    "0"
+   ],
+   "exact": "0",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: -2*zeta"
+   }
+  },
+  {
+   "text": "zeta(1/2 + 14i)",
+   "value": [
+    "0.0222411426099935892462131992040",
+    "-0.103258123266450057902363095553"
+   ],
+   "exact": "zeta(1/2 + 14*i)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: (0.5+14*i)*zeta"
+   }
+  },
+  {
+   "text": "zeta(3/2, 3)",
+   "value": [
+    "1.25882195809221458114814538687",
+    "0"
+   ],
+   "exact": "zeta(3/2, 3)",
+   "engines": {
+    "mathjs": "error: Too many arguments in function zeta (expected: 1, actual: 2)",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "zeta(2, 1/4)",
+   "value": [
+    "17.1973291545071107392713191193",
+    "0"
+   ],
+   "exact": "zeta(2, 1/4)",
+   "engines": {
+    "mathjs": "error: Too many arguments in function zeta (expected: 1, actual: 2)",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "lambertw(-1)",
+   "value": [
+    "-0.318131505204764135312654251588",
+    "1.33723570143068940890116214319"
+   ],
+   "exact": "lambertw(-1)",
+   "engines": {
+    "mathjs": "error: Undefined function lambertw",
+    "nerdamer": "error: not a number: -lambertw"
+   }
+  },
+  {
+   "text": "lambertw(10)",
+   "value": [
+    "1.74552800274069938307430126488",
+    "0"
+   ],
+   "exact": "lambertw(10)",
+   "engines": {
+    "mathjs": "error: Undefined function lambertw",
+    "nerdamer": "error: not a number: 10*lambertw"
+   }
+  },
+  {
+   "text": "lambertw(1 + i)",
+   "value": [
+    "0.656966069230436405873935189615",
+    "0.325450339413415029989281951389"
+   ],
+   "exact": "lambertw(1 + i)",
+   "engines": {
+    "mathjs": "error: Undefined function lambertw",
+    "nerdamer": "error: not a number: (1+i)*lambertw"
+   }
+  },
+  {
+   "text": "lambertw(-1/e)",
+   "value": [
+    "-1.00000000000000000000000000000",
+    "0"
+   ],
+   "exact": "-1",
+   "engines": {
+    "mathjs": "error: Undefined function lambertw",
+    "nerdamer": "error: not a number: -0.36787944117144233*lambertw"
+   }
+  },
+  {
+   "text": "lambertw(1000)",
+   "value": [
+    "5.24960285240159622712605631970",
+    "0"
+   ],
+   "exact": "lambertw(1000)",
+   "engines": {
+    "mathjs": "error: Undefined function lambertw",
+    "nerdamer": "error: not a number: 1000*lambertw"
+   }
+  },
+  {
+   "text": "polygamma(0, -1/2)",
+   "value": [
+    "0.0364899739785765205590236670012",
+    "0"
+   ],
+   "exact": "-2*log(2) - EulerGamma + 2",
+   "engines": {
+    "mathjs": "error: Undefined function polygamma",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "polygamma(2, 3/2)",
+   "value": [
+    "-0.828796644234319995596334261160",
+    "0"
+   ],
+   "exact": "polygamma(2, 3/2)",
+   "engines": {
+    "mathjs": "error: Undefined function polygamma",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "polygamma(1, 1 + i)",
+   "value": [
+    "0.463000096622763786298326518184",
+    "-0.794233542759318865583013617157"
+   ],
+   "exact": "polygamma(1, 1 + i)",
+   "engines": {
+    "mathjs": "error: Undefined function polygamma",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "digamma(1/3)",
+   "value": [
+    "-3.13203378002080632299641907429",
+    "0"
+   ],
+   "exact": "-log(3) - sqrt(3)*pi/6 - EulerGamma - log(sqrt(3))",
+   "engines": {
+    "mathjs": "error: Undefined function digamma",
+    "nerdamer": "error: not a number: 0.3333333333333333*digamma"
+   }
+  },
+  {
+   "text": "digamma(-5/2)",
+   "value": [
+    "1.10315664064524318722569033367",
+    "0"
+   ],
+   "exact": "-2*log(2) - EulerGamma + 46/15",
+   "engines": {
+    "mathjs": "error: Undefined function digamma",
+    "nerdamer": "error: not a number: -2.5*digamma"
+   }
+  },
+  {
+   "text": "beta(1/2, 1/2)",
+   "value": [
+    "3.14159265358979323846264338328",
+    "0"
+   ],
+   "exact": "beta(1/2, 1/2)",
+   "engines": {
+    "mathjs": "error: Undefined function beta",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "beta(5/2, 3/2)",
+   "value": [
+    "0.196349540849362077403915211455",
+    "0"
+   ],
+   "exact": "beta(5/2, 3/2)",
+   "engines": {
+    "mathjs": "error: Undefined function beta",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "beta(1 + i, 2)",
+   "value": [
+    "0.100000000000000000000000000000",
+    "-0.300000000000000000000000000000"
+   ],
+   "exact": "beta(1 + i, 2)",
+   "engines": {
+    "mathjs": "error: Undefined function beta",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "sign(2 - 3i)",
+   "value": [
+    "0.554700196225229122018341733457",
+    "-0.832050294337843683027512600186"
+   ],
+   "exact": "sign(2 - 3*i)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: sign(-3*i+2)"
+   }
+  },
+  {
+   "text": "floor(sqrt(2))",
+   "value": [
+    "1.00000000000000000000000000000",
+    "0"
+   ],
+   "exact": "1",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "ceil(e)",
+   "value": [
+    "3.00000000000000000000000000000",
+    "0"
+   ],
+   "exact": "3",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "trunc(-pi)",
+   "value": [
+    "-3.00000000000000000000000000000",
+    "0"
+   ],
+   "exact": "-3",
+   "engines": {
+    "mathjs": "error: Undefined function trunc",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "atan2(1, 2)",
+   "value": [
+    "0.463647609000806116214256231461",
+    "0"
+   ],
+   "exact": "atan(1/2)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "gamma(30)",
+   "value": [
+    "8.84176199373970195454361600000e+30",
+    "0"
+   ],
+   "exact": "8841761993739701954543616000000",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: 30*gamma"
+   }
+  },
+  {
+   "text": "loggamma(100)",
+   "value": [
+    "359.134205369575398776044010460",
+    "0"
+   ],
+   "exact": "log(933262154439441526816992388562667004907159682643816214685929638952175999932299156089414639761565182862536979208272237582511852109168640000000000000000000000)",
+   "engines": {
+    "mathjs": "error: Undefined function loggamma",
+    "nerdamer": "error: not a number: 100*loggamma"
+   }
+  },
+  {
+   "text": "gamma(1/3)",
+   "value": [
+    "2.67893853470774763365569294097",
+    "0"
+   ],
+   "exact": "gamma(1/3)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: 0.3333333333333333*gamma"
+   }
+  },
+  {
+   "text": "erf(2)",
+   "value": [
+    "0.995322265018952734162069256367",
+    "0"
+   ],
+   "exact": "erf(2)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "erfc(5)",
+   "value": [
+    "1.53745979442803485018834348538e-12",
+    "0"
+   ],
+   "exact": "erfc(5)",
+   "engines": {
+    "mathjs": "error: Undefined function erfc",
+    "nerdamer": "error: not a number: 5*erfc"
+   }
+  },
+  {
+   "text": "polygamma(0, 5/4)",
+   "value": [
+    "-0.227453533376265408089530146097",
+    "0"
+   ],
+   "exact": "-pi/2 - log(4) - log(2) - EulerGamma + 4",
+   "engines": {
+    "mathjs": "error: Undefined function polygamma",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "polygamma(0, 4/3)",
+   "value": [
+    "-0.132033780020806322996419074287",
+    "0"
+   ],
+   "exact": "-log(3) - sqrt(3)*pi/6 - EulerGamma - log(sqrt(3)) + 3",
+   "engines": {
+    "mathjs": "error: Undefined function polygamma",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "digamma(7/4)",
+   "value": [
+    "0.247472453546861163706446570516",
+    "0"
+   ],
+   "exact": "-log(4) - log(2) - EulerGamma + 4/3 + pi/2",
+   "engines": {
+    "mathjs": "error: Undefined function digamma",
+    "nerdamer": "error: not a number: 1.75*digamma"
+   }
+  },
+  {
+   "text": "polygamma(0, 11/3)",
+   "value": [
+    "1.15676558421341152759765918335",
+    "0"
+   ],
+   "exact": "-log(3) - EulerGamma - log(sqrt(3)) + sqrt(3)*pi/6 + 99/40",
+   "engines": {
+    "mathjs": "error: Undefined function polygamma",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "polygamma(0, 9/2)",
+   "value": [
+    "1.38887092635952890151140461938",
+    "0"
+   ],
+   "exact": "-2*log(2) - EulerGamma + 352/105",
+   "engines": {
+    "mathjs": "error: Undefined function polygamma",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  }
+ ]
+}

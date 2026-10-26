@@ -1,0 +1,572 @@
+[
+ {
+  "text": "sqrt(2)",
+  "decimals": [
+   10,
+   30,
+   100
+  ]
+ },
+ {
+  "text": "pi",
+  "decimals": [
+   10,
+   30,
+   100
+  ]
+ },
+ {
+  "text": "e",
+  "decimals": [
+   10,
+   30,
+   100
+  ]
+ },
+ {
+  "text": "pi^2/6",
+  "decimals": [
+   20
+  ]
+ },
+ {
+  "text": "ln(10)",
+  "decimals": [
+   10,
+   50
+  ],
+  "differs": {
+   "mathjs": "mathjs has no ln (its log is the natural logarithm)",
+   "nerdamer": "nerdamer 1.x has no ln: it reads ln as a variable"
+  }
+ },
+ {
+  "text": "exp(pi)",
+  "decimals": [
+   20
+  ]
+ },
+ {
+  "text": "2^(1/3)",
+  "decimals": [
+   10,
+   40
+  ]
+ },
+ {
+  "text": "sqrt(2) + sqrt(3)",
+  "decimals": [
+   25
+  ]
+ },
+ {
+  "text": "1/7",
+  "decimals": [
+   10,
+   30
+  ]
+ },
+ {
+  "text": "22/7 - pi",
+  "decimals": [
+   15
+  ]
+ },
+ {
+  "text": "abs(-7/3)",
+  "decimals": [
+   12
+  ]
+ },
+ {
+  "text": "e^2",
+  "decimals": [
+   20
+  ]
+ },
+ {
+  "text": "2^100",
+  "decimals": [
+   10,
+   40
+  ]
+ },
+ {
+  "text": "10^-20",
+  "decimals": [
+   5
+  ]
+ },
+ {
+  "text": "factorial(20)",
+  "decimals": [
+   10
+  ]
+ },
+ {
+  "text": "binomial(50, 25)",
+  "decimals": [
+   8
+  ],
+  "differs": {
+   "mathjs": "mathjs names it combinations",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "cbrt(27)"
+ },
+ {
+  "text": "root(32, 5)",
+  "differs": {
+   "mathjs": "mathjs names it nthRoot",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "ln(2)/ln(3)",
+  "decimals": [
+   20
+  ],
+  "differs": {
+   "mathjs": "mathjs has no ln (its log is the natural logarithm)",
+   "nerdamer": "nerdamer 1.x has no ln: it reads ln as a variable"
+  }
+ },
+ {
+  "text": "sqrt(10^41)",
+  "decimals": [
+   12
+  ]
+ },
+ {
+  "text": "sin(1)"
+ },
+ {
+  "text": "cos(1)"
+ },
+ {
+  "text": "tan(1)"
+ },
+ {
+  "text": "asin(1/3)"
+ },
+ {
+  "text": "acos(1/3)"
+ },
+ {
+  "text": "atan(2)"
+ },
+ {
+  "text": "sinh(1)"
+ },
+ {
+  "text": "cosh(1)"
+ },
+ {
+  "text": "tanh(1/2)"
+ },
+ {
+  "text": "asinh(1)"
+ },
+ {
+  "text": "acosh(2)"
+ },
+ {
+  "text": "atanh(1/2)"
+ },
+ {
+  "text": "sec(1)"
+ },
+ {
+  "text": "csc(1)"
+ },
+ {
+  "text": "cot(1)"
+ },
+ {
+  "text": "gamma(1/2)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "gamma(7/3)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "loggamma(10)",
+  "differs": {
+   "mathjs": "mathjs names it lgamma",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "erf(1/2)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x computes erf with an error of about 1e-8"
+  }
+ },
+ {
+  "text": "erfc(1)",
+  "differs": {
+   "mathjs": "mathjs has no erfc",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "zeta(3)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "lambertw(1)",
+  "differs": {
+   "mathjs": "mathjs has no Lambert W function",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "digamma(1)",
+  "differs": {
+   "mathjs": "mathjs has no digamma",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "beta(2, 3)",
+  "differs": {
+   "mathjs": "mathjs has no beta function",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "polygamma(1, 1)",
+  "differs": {
+   "mathjs": "mathjs has no polygamma",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "e^(i pi/3)"
+ },
+ {
+  "text": "sqrt(-2)"
+ },
+ {
+  "text": "(1 + 2i)/(3 - 4i)"
+ },
+ {
+  "text": "ln(-1)",
+  "differs": {
+   "mathjs": "mathjs has no ln (its log is the natural logarithm)",
+   "nerdamer": "nerdamer 1.x has no ln: it reads ln as a variable"
+  }
+ },
+ {
+  "text": "i^i",
+  "differs": {
+   "nerdamer": "nerdamer 1.x gives i"
+  }
+ },
+ {
+  "text": "atan2(-1, -1)"
+ },
+ {
+  "text": "floor(-7/2)"
+ },
+ {
+  "text": "sign(1 - pi)"
+ },
+ {
+  "text": "gamma(-1/2)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "gamma(1/2 + i)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "gamma(-3/2 + 2i)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "loggamma(-1/2)",
+  "differs": {
+   "mathjs": "mathjs names it lgamma",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "loggamma(-5/2)",
+  "differs": {
+   "mathjs": "mathjs names it lgamma",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "loggamma(1 + i)",
+  "differs": {
+   "mathjs": "mathjs names it lgamma",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "loggamma(3 - 2i)",
+  "differs": {
+   "mathjs": "mathjs names it lgamma",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "erf(1 + i)",
+  "differs": {
+   "mathjs": "mathjs computes erf of real numbers only",
+   "nerdamer": "nerdamer 1.x does not compute erf of a complex number"
+  }
+ },
+ {
+  "text": "erfc(2 + i)",
+  "differs": {
+   "mathjs": "mathjs has no erfc",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "erf(1/2 - 3i/2)",
+  "differs": {
+   "mathjs": "mathjs computes erf of real numbers only",
+   "nerdamer": "nerdamer 1.x does not compute erf of a complex number"
+  }
+ },
+ {
+  "text": "erf(-3 + i)",
+  "differs": {
+   "mathjs": "mathjs computes erf of real numbers only",
+   "nerdamer": "nerdamer 1.x does not compute erf of a complex number"
+  }
+ },
+ {
+  "text": "zeta(1/2)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "zeta(-1)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "zeta(-2)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "zeta(1/2 + 14i)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "zeta(3/2, 3)",
+  "differs": {
+   "mathjs": "mathjs has the Riemann zeta function only, not the Hurwitz one",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "zeta(2, 1/4)",
+  "differs": {
+   "mathjs": "mathjs has the Riemann zeta function only, not the Hurwitz one",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "lambertw(-1)",
+  "differs": {
+   "mathjs": "mathjs has no lambertw",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "lambertw(10)",
+  "differs": {
+   "mathjs": "mathjs has no lambertw",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "lambertw(1 + i)",
+  "differs": {
+   "mathjs": "mathjs has no lambertw",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "lambertw(-1/e)",
+  "differs": {
+   "mathjs": "mathjs has no lambertw",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "lambertw(1000)",
+  "differs": {
+   "mathjs": "mathjs has no lambertw",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "polygamma(0, -1/2)",
+  "differs": {
+   "mathjs": "mathjs has no polygamma",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "polygamma(2, 3/2)",
+  "differs": {
+   "mathjs": "mathjs has no polygamma",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "polygamma(1, 1 + i)",
+  "differs": {
+   "mathjs": "mathjs has no polygamma",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "digamma(1/3)",
+  "differs": {
+   "mathjs": "mathjs has no digamma",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "digamma(-5/2)",
+  "differs": {
+   "mathjs": "mathjs has no digamma",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "beta(1/2, 1/2)",
+  "differs": {
+   "mathjs": "mathjs has no beta",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "beta(5/2, 3/2)",
+  "differs": {
+   "mathjs": "mathjs has no beta",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "beta(1 + i, 2)",
+  "differs": {
+   "mathjs": "mathjs has no beta",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "sign(2 - 3i)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not compute sign of a complex number"
+  }
+ },
+ {
+  "text": "floor(sqrt(2))"
+ },
+ {
+  "text": "ceil(e)"
+ },
+ {
+  "text": "trunc(-pi)",
+  "differs": {
+   "mathjs": "mathjs names it fix"
+  }
+ },
+ {
+  "text": "atan2(1, 2)"
+ },
+ {
+  "text": "gamma(30)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "loggamma(100)",
+  "differs": {
+   "mathjs": "mathjs names it lgamma",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "gamma(1/3)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "erf(2)"
+ },
+ {
+  "text": "erfc(5)",
+  "differs": {
+   "mathjs": "mathjs has no erfc",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "polygamma(0, 5/4)",
+  "differs": {
+   "mathjs": "mathjs has no polygamma",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "polygamma(0, 4/3)",
+  "differs": {
+   "mathjs": "mathjs has no polygamma",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "digamma(7/4)",
+  "differs": {
+   "mathjs": "mathjs has no digamma",
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "polygamma(0, 11/3)",
+  "differs": {
+   "mathjs": "mathjs has no polygamma",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "polygamma(0, 9/2)",
+  "differs": {
+   "mathjs": "mathjs has no polygamma",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ }
+]

@@ -1,0 +1,99 @@
+[
+ {
+  "equations": [
+   "x + y = 3",
+   "x - y = 1"
+  ],
+  "variables": [
+   "x",
+   "y"
+  ]
+ },
+ {
+  "equations": [
+   "2x + 3y = 7",
+   "4x - y = 0"
+  ],
+  "variables": [
+   "x",
+   "y"
+  ]
+ },
+ {
+  "equations": [
+   "x + y + z = 6",
+   "x - y = 0",
+   "2z = x"
+  ],
+  "variables": [
+   "x",
+   "y",
+   "z"
+  ]
+ },
+ {
+  "equations": [
+   "x + y = 3",
+   "2x + 2y = 6"
+  ],
+  "variables": [
+   "x",
+   "y"
+  ]
+ },
+ {
+  "equations": [
+   "x + y = 3",
+   "x + y = 4"
+  ],
+  "variables": [
+   "x",
+   "y"
+  ]
+ },
+ {
+  "equations": [
+   "a x + y = 1",
+   "x - y = 0"
+  ],
+  "variables": [
+   "x",
+   "y"
+  ]
+ },
+ {
+  "equations": [
+   "x/2 + y/3 = 1",
+   "0.5x - 0.25y = 2"
+  ],
+  "variables": [
+   "x",
+   "y"
+  ]
+ },
+ {
+  "equations": [
+   "x + 2y - z + t = 1",
+   "2x - y + z = 3",
+   "x + y + z + t = 0",
+   "y - t = 2"
+  ],
+  "variables": [
+   "x",
+   "y",
+   "z",
+   "t"
+  ]
+ },
+ {
+  "equations": [
+   "x + y + z = 1",
+   "x - z = 2"
+  ],
+  "variables": [
+   "x",
+   "y",
+   "z"
+  ]
+ }
+]

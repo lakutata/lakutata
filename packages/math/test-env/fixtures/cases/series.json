@@ -1,0 +1,92 @@
+[
+ {
+  "text": "sin(x)",
+  "variable": "x",
+  "point": "0",
+  "order": 8
+ },
+ {
+  "text": "cos(x)",
+  "variable": "x",
+  "point": "0",
+  "order": 8
+ },
+ {
+  "text": "exp(x)",
+  "variable": "x",
+  "point": "0",
+  "order": 6
+ },
+ {
+  "text": "ln(1 + x)",
+  "variable": "x",
+  "point": "0",
+  "order": 6
+ },
+ {
+  "text": "1/(1 - x)",
+  "variable": "x",
+  "point": "0",
+  "order": 6
+ },
+ {
+  "text": "exp(x)",
+  "variable": "x",
+  "point": "1",
+  "order": 4
+ },
+ {
+  "text": "sqrt(1 + x)",
+  "variable": "x",
+  "point": "0",
+  "order": 5
+ },
+ {
+  "text": "atan(x)",
+  "variable": "x",
+  "point": "0",
+  "order": 8
+ },
+ {
+  "text": "tan(x)",
+  "variable": "x",
+  "point": "0",
+  "order": 8
+ },
+ {
+  "text": "ln(x)",
+  "variable": "x",
+  "point": "1",
+  "order": 5
+ },
+ {
+  "text": "1/x",
+  "variable": "x",
+  "point": "1",
+  "order": 4
+ },
+ {
+  "text": "exp(sin(x))",
+  "variable": "x",
+  "point": "0",
+  "order": 6
+ },
+ {
+  "text": "cos(x)",
+  "variable": "x",
+  "point": "pi",
+  "order": 5
+ },
+ {
+  "text": "sinh(x)",
+  "variable": "x",
+  "point": "0",
+  "order": 7
+ },
+ {
+  "text": "1/(1 + x^2)",
+  "variable": "x",
+  "point": "0",
+  "order": 9
+ }
+]
