@@ -24,8 +24,7 @@
     "verify:release": "node scripts/verify-release/verify.mjs",
     "release:alpha": "node scripts/publishing/release.mjs alpha",
     "release:beta": "node scripts/publishing/release.mjs beta",
-    "release": "node scripts/publishing/release.mjs latest",
-    "version": "node scripts/publishing/sync-versions.mjs"
+    "release": "node scripts/publishing/release.mjs latest"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
