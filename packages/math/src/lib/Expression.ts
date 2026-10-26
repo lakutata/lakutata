@@ -41,6 +41,34 @@ export interface CompiledFunction {
 }
 
 /**
+ * The polar form of an expression: `z = modulus * e^(i*argument)`
+ */
+export interface PolarForm {
+    /**
+     * The modulus: `abs(z)`.
+     */
+    modulus: Expression
+    /**
+     * The argument: `arg(z)`, from -pi (excluded) to pi (included).
+     */
+    argument: Expression
+}
+
+/**
+ * The rectangular form of an expression: `z = real + i*imaginary`
+ */
+export interface RectangularForm {
+    /**
+     * The real part: `re(z)`.
+     */
+    real: Expression
+    /**
+     * The imaginary part: `im(z)`.
+     */
+    imaginary: Expression
+}
+
+/**
  * The handle of a value in a context: an expression's own, a number's exact value, a formula parsed
  * @param context
  * @param value
@@ -153,6 +181,55 @@ export class Expression {
      */
     public toTeX(): string {
         return nativeCall((native) => native.tex(this.handle))
+    }
+
+    /**
+     * The expression as JavaScript code, with the same variable names: `x^2 - 5x + 6` is `Math.pow(x, 2) - 5*x + 6`.
+     * The code computes in double precision, with real numbers only: wherever part of the expression has a complex
+     * value, the result is NaN (`compile()` computes it in the complex numbers), and the variables are real there, so
+     * `re(x)` is `x`. A function JavaScript does not have (such as `gamma`, `erf`, `zeta`), a complex number such as
+     * `2i`, or a variable whose name is a reserved word or a name the code uses (`new`, `Math`) throws
+     * `MathNotSupportedException`.
+     * @example
+     * ```typescript
+     * import type {Math} from '@lakutata/math'
+     *
+     * function code(math: Math): number {
+     *     const f = new Function('x', 'y', `return ${math.expression('x^2 + sin(y)').toJavaScript()}`)
+     *     return f(2, 0)                                           //4
+     * }
+     * ```
+     */
+    public toJavaScript(): string {
+        return this.context.run<string>('code', [this.handle, 'javascript'])
+    }
+
+    /**
+     * The expression as C code (C99 with `<math.h>`), its variables used by name as `double`s: `x^2 - 5x + 6` is
+     * `pow(x, 2.0) - 5.0*x + 6.0`. Like `toJavaScript()`, it computes with real numbers only; C has `gamma`
+     * (`tgamma`), `loggamma` and `erf`, but not `zeta` or `lambertw`.
+     */
+    public toC(): string {
+        return this.context.run<string>('code', [this.handle, 'c'])
+    }
+
+    /**
+     * The polar form of the expression: its modulus and its argument (`5` and `atan(4/3)` for `3 + 4i`, `1` and `pi/3`
+     * for `e^(i*pi/3)`). The variables are complex numbers: the form of `x` is `abs(x)` and `arg(x)`.
+     */
+    public toPolar(): PolarForm {
+        const [modulus, argument]: Handle[] = this.context.run<Handle[]>('polar', [this.handle])
+        return {modulus: this.#expression(modulus), argument: this.#expression(argument)}
+    }
+
+    /**
+     * The rectangular form of the expression: its real part and its imaginary part (`1/2` and `sqrt(3)/2` for
+     * `e^(i*pi/3)`). The variables are complex numbers: the parts of `(1 + i)*x` are `-im(x) + re(x)` and
+     * `im(x) + re(x)`.
+     */
+    public toRectangular(): RectangularForm {
+        const [real, imaginary]: Handle[] = this.context.run<Handle[]>('rectangular', [this.handle])
+        return {real: this.#expression(real), imaginary: this.#expression(imaginary)}
     }
 
     /**
@@ -493,7 +570,8 @@ export class Expression {
     /**
      * The order of the expression and another value, both real: -1 when it is smaller, 0 when they are equal, 1 when it
      * is larger, `undefined` when it is not known (variables, or values too close to tell). `pi` compared with `22/7`
-     * is -1.
+     * is -1. Values too close for doubles are compared by their decimals of 60 digits where `toDecimal()` computes
+     * them: `pi` is larger than `3.14159265358979323846`.
      * @param other The other value: an expression, a number or a formula.
      */
     public compare(other: Value): -1 | 0 | 1 | undefined {

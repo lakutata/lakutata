@@ -2,7 +2,7 @@ import {Component, type ComponentOptions, DTO} from '@lakutata/core'
 import {Autoload, Configurable} from '@lakutata/core/decorator/di'
 import {AsyncTracker, type AsyncOptions, Context, definitionsOf} from '../lib/Context.js'
 import type {Equation, Expression, Inequality, Value} from '../lib/Expression.js'
-import {type MathDefinitions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
+import {type CommonSubexpressions, type CseOptions, type MathDefinitions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
 import {native, nativeCall} from '../lib/Native.js'
 import {NumberTheory} from '../lib/NumberTheory.js'
 
@@ -212,6 +212,25 @@ export class Math extends Component {
      */
     public async solveAsync(equations: SystemEquation[], variables: string[], options?: AsyncOptions): Promise<SystemSolution[]> {
         return await this.#scope.solveAsync(equations, variables, options)
+    }
+
+    /**
+     * The common subexpressions of expressions: the parts met more than once, named (`x0`, `x1`…), and the
+     * expressions rewritten with them.
+     * @param expressions The expressions: expressions, numbers or formulas.
+     * @param options The prefix of the names.
+     */
+    public cse(expressions: Value[], options?: CseOptions): CommonSubexpressions {
+        return this.#scope.cse(expressions, options)
+    }
+
+    /**
+     * `cse()` in the threads of the addon.
+     * @param expressions The expressions: expressions, numbers or formulas.
+     * @param options The prefix of the names, the cancellation, the time limit.
+     */
+    public async cseAsync(expressions: Value[], options?: CseOptions & AsyncOptions): Promise<CommonSubexpressions> {
+        return await this.#scope.cseAsync(expressions, options)
     }
 }
 

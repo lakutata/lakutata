@@ -106,6 +106,7 @@ function prices(math: Math): void {
 
 - `toNumber()` 转成 JavaScript 的数字（值是复数时抛出 `MathDomainException`），`toComplex()` 得到 `{re, im}`。两者都能计算实数和复数参数的特殊函数（伽马、zeta、Lambert W、多伽马、误差函数等）。
 - `toDecimal(digits)` 得到指定有效位数、正确舍入的字符串（默认位数是组件的 `precision`）。
+- `toRectangular()` 给出表达式的实部和虚部（`{real, imaginary}`），`toPolar()` 给出它的模和辐角（`{modulus, argument}`）：`e^(i*pi/3)` 的实部和虚部是 `1/2` 和 `sqrt(3)/2`，模和辐角是 `1` 和 `pi/3`。变量当作复数，所以 `x` 的实部和虚部是 `re(x)` 和 `im(x)`。
 - `compile(variables)` 把表达式编译成一个以数字为参数的函数，适合反复求值；`batch()` 一次算很多组数据：
 
 ```typescript
@@ -115,6 +116,22 @@ function plot(math: Math): Float64Array {
     const f = math.expression('x^2 + sin(y)').compile(['x', 'y'])
     console.log(f(2, 0))                                                   //4
     return f.batch(Float64Array.of(1, 0, 2, 0, 3, 0))                      //[1, 4, 9]
+}
+```
+
+### 生成代码
+
+- `toJavaScript()` 和 `toC()` 把表达式写成 JavaScript 或 C（C99 和 `<math.h>`）的代码，变量直接用原来的名字：`x^2 - 5x + 6` 在 JavaScript 里写成 `Math.pow(x, 2) - 5*x + 6`，在 C 里写成 `pow(x, 2.0) - 5.0*x + 6.0`。生成的代码用双精度浮点数计算，而且只在实数范围内计算：表达式中某一部分的值是复数时，结果是 NaN（`compile()` 会在复数范围内计算这些部分）。用到目标语言没有的函数（例如 JavaScript 没有 `gamma` 和 `erf`，两种语言都没有 `zeta` 和 `lambertw`）、`2i` 这样的复数，或者变量名和目标语言的保留字或生成代码要用到的名字（如 `new`、`Math`、`pow`）相同时，抛出 `MathNotSupportedException`。
+- `math.cse(expressions)` 找出几个表达式里重复出现或者共有的部分（公共子表达式消除）。它返回这些部分（`replacements`），每个部分有一个名字（`x0`、`x1`……，会跳过表达式里已有的变量名）和一个值，值里可以引用排在它前面的名字；还返回用这些名字改写后的表达式（`expressions`）。再配合 `toJavaScript()` 或 `toC()`，就能生成每个部分只算一次的代码。
+
+```typescript
+import type {Math} from '@lakutata/math'
+
+function code(math: Math): string {
+    const {replacements, expressions} = math.cse(['sin(x + y)^2 + x + y', 'cos(x + y)'])
+    const lines: string[] = replacements.map(({name, value}) => `const ${name} = ${value.toJavaScript()}`)   //const x0 = x + y
+    lines.push(`return [${expressions.map((expression) => expression.toJavaScript()).join(', ')}]`)          //return [x0 + Math.pow(Math.sin(x0), 2), Math.cos(x0)]
+    return lines.join('\n')
 }
 ```
 
@@ -158,7 +175,7 @@ async function integers(math: Math): Promise<void> {
 
 ### 异步运算
 
-可能耗时的运算都有异步版本：`expandAsync()`、`simplifyAsync()`、`diffAsync()`、`seriesAsync()`、`solveAsync()`、`toDecimalAsync()`、组件的 `solveAsync()`，以及数论的异步版本。它们在原生插件自己的线程里执行，不占用 libuv 的线程池：线程数默认是 CPU 核数减一，也可以用环境变量 `LAKUTATA_MATH_THREADS` 指定。选项有 `timeout`（毫秒）和 `signal`（`AbortSignal`）：
+可能耗时的运算都有异步版本：`expandAsync()`、`simplifyAsync()`、`diffAsync()`、`seriesAsync()`、`solveAsync()`、`toDecimalAsync()`、组件的 `solveAsync()` 和 `cseAsync()`，以及数论的异步版本。它们在原生插件自己的线程里执行，不占用 libuv 的线程池：线程数默认是 CPU 核数减一，也可以用环境变量 `LAKUTATA_MATH_THREADS` 指定。选项有 `timeout`（毫秒）和 `signal`（`AbortSignal`）：
 
 - 到了时限，Promise 以 `MathTimeoutException` 拒绝；signal 取消时，以 `MathCancelledException` 拒绝。有检查点的运算（展开、十进制计算、线性方程组、数论）会在下一个检查点停下；其他运算会先算完，线程才空出来。
 - 组件限制自己同时执行的运算数（`concurrency`）。组件销毁时会等正在执行的运算结束，最多等 `drainTimeout` 毫秒。
@@ -173,10 +190,12 @@ async function integers(math: Math): Promise<void> {
 
 | 导出 | 说明 |
 |---|---|
-| `Math` | 组件：`parse`、`expression`、`equation`、`with`、`solve`、`solveAsync`、`ntheory` |
+| `Math` | 组件：`parse`、`expression`、`equation`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory` |
 | `buildMathOptions`、`MathConfig` | 在组件配置里声明它，以及它的选项：`definitions`、`precision`、`timeout`、`concurrency`、`drainTimeout` |
 | `MathScope`、`MathDefinitions` | `with()` 得到的范围，方法和组件相同（没有 `ntheory`）；定义（按签名给出的公式） |
-| `Expression` | 表达式：`toString`、`toTeX`、`toNumber`、`toComplex`、`toDecimal`、`variables`、`equals`、`add`、`sub`、`mul`、`div`、`pow`、`neg`、`expand`、`simplify`、`diff`、`series`、`substitute`、`evaluate`、`solve`、`compile`，多项式（`coefficients`、`degree`、`leadingCoefficient`、`divide`），`numerator`、`denominator`、`rewrite`（改写成 `exp`、`sin`、`cos`），判断（`isZero`、`isPositive`、`isNegative`、`isInteger`、`isRational`、`isReal`、`isFinite`：不知道时为 `undefined`），`compare`，以及各个异步版本 |
+| `Expression` | 表达式：`toString`、`toTeX`、`toNumber`、`toComplex`、`toDecimal`、`variables`、`equals`、`add`、`sub`、`mul`、`div`、`pow`、`neg`、`expand`、`simplify`、`diff`、`series`、`substitute`、`evaluate`、`solve`、`compile`，多项式（`coefficients`、`degree`、`leadingCoefficient`、`divide`），`numerator`、`denominator`、`rewrite`（改写成 `exp`、`sin`、`cos`），判断（`isZero`、`isPositive`、`isNegative`、`isInteger`、`isRational`、`isReal`、`isFinite`：不知道时为 `undefined`），`compare`、`toJavaScript`、`toC`、`toPolar`、`toRectangular`，以及各个异步版本 |
+| `CommonSubexpressions`、`CseOptions` | `cse()` 的结果（`replacements`、`expressions`）和它的选项（`prefix`） |
+| `PolarForm`、`RectangularForm` | 复数的极坐标形式（模 `modulus`、辐角 `argument`）和直角坐标形式（实部 `real`、虚部 `imaginary`） |
 | `Equation`、`Inequality`、`InequalityRelation` | 方程（`left`、`right`、`difference`、`substitute`、`solve`、`solveAsync`），不等式（`left`、`right`、`relation`） |
 | `Solutions`、`SolutionsKind`、`SolutionInterval`、`SolveOptions` | 方程的解：表达式的数组，带有 `kind`、`intervals` 和 `text`；解的范围 `domain` |
 | `SystemSolution`、`SystemEquation` | 方程组的一组解（每个变量对应一个表达式），方程组里的一个方程 |
@@ -195,7 +214,7 @@ async function integers(math: Math): Promise<void> {
 | `MathDefinitionException` | 定义无效：用了内置的名字、参数重复、定义之间循环引用、定义嵌套太深 |
 | `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零）的值，或者数论函数的参数不在定义域内（`totient(0)`） |
 | `MathDivisionByZeroException` | 计算十进制值时遇到除以零，或者模数是 0 |
-| `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000 |
+| `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数，或者和保留字重名的变量 |
 | `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数 |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |
 | `MathException` | 以上所有错误的基类；原生插件内部错误时，它的 `errno` 是 `E_MATH_INTERNAL` |

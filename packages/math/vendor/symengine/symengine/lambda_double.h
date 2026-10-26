@@ -259,37 +259,73 @@ public:
     void bvisit(const ASin &x)
     {
         fn tmp = apply(*(x.get_arg()));
-        result_ = [=](const T *x) { return std::asin(tmp(x)); };
+        // lakutata: in the reals where the argument is real (special_double.h)
+        result_ = [=](const T *x) {
+            return special::real_where(
+                tmp(x), [](double v) { return std::asin(v); },
+                [](const std::complex<double> &v) { return std::asin(v); },
+                [](double v) { return v >= -1 and v <= 1; });
+        };
     };
 
     void bvisit(const ACos &x)
     {
         fn tmp = apply(*(x.get_arg()));
-        result_ = [=](const T *x) { return std::acos(tmp(x)); };
+        // lakutata: in the reals where the argument is real (special_double.h)
+        result_ = [=](const T *x) {
+            return special::real_where(
+                tmp(x), [](double v) { return std::acos(v); },
+                [](const std::complex<double> &v) { return std::acos(v); },
+                [](double v) { return v >= -1 and v <= 1; });
+        };
     };
 
     void bvisit(const ASec &x)
     {
         fn tmp = apply(*(x.get_arg()));
-        result_ = [=](const T *x) { return std::acos(1.0 / tmp(x)); };
+        // lakutata: in the reals where the argument is real (special_double.h)
+        result_ = [=](const T *x) {
+            return special::real_where(
+                1.0 / tmp(x), [](double v) { return std::acos(v); },
+                [](const std::complex<double> &v) { return std::acos(v); },
+                [](double v) { return v >= -1 and v <= 1; });
+        };
     };
 
     void bvisit(const ACsc &x)
     {
         fn tmp = apply(*(x.get_arg()));
-        result_ = [=](const T *x) { return std::asin(1.0 / tmp(x)); };
+        // lakutata: in the reals where the argument is real (special_double.h)
+        result_ = [=](const T *x) {
+            return special::real_where(
+                1.0 / tmp(x), [](double v) { return std::asin(v); },
+                [](const std::complex<double> &v) { return std::asin(v); },
+                [](double v) { return v >= -1 and v <= 1; });
+        };
     };
 
     void bvisit(const ATan &x)
     {
         fn tmp = apply(*(x.get_arg()));
-        result_ = [=](const T *x) { return std::atan(tmp(x)); };
+        // lakutata: in the reals where the argument is real (special_double.h)
+        result_ = [=](const T *x) {
+            return special::real_where(
+                tmp(x), [](double v) { return std::atan(v); },
+                [](const std::complex<double> &v) { return std::atan(v); },
+                [](double) { return true; });
+        };
     };
 
     void bvisit(const ACot &x)
     {
         fn tmp = apply(*(x.get_arg()));
-        result_ = [=](const T *x) { return std::atan(1.0 / tmp(x)); };
+        // lakutata: in the reals where the argument is real (special_double.h)
+        result_ = [=](const T *x) {
+            return special::real_where(
+                1.0 / tmp(x), [](double v) { return std::atan(v); },
+                [](const std::complex<double> &v) { return std::atan(v); },
+                [](double) { return true; });
+        };
     };
 
     void bvisit(const Sinh &x)
@@ -331,37 +367,73 @@ public:
     void bvisit(const ASinh &x)
     {
         fn tmp = apply(*(x.get_arg()));
-        result_ = [=](const T *x) { return std::asinh(tmp(x)); };
+        // lakutata: in the reals where the argument is real (special_double.h)
+        result_ = [=](const T *x) {
+            return special::real_where(
+                tmp(x), [](double v) { return std::asinh(v); },
+                [](const std::complex<double> &v) { return std::asinh(v); },
+                [](double) { return true; });
+        };
     };
 
     void bvisit(const ACsch &x)
     {
         fn tmp = apply(*(x.get_arg()));
-        result_ = [=](const T *x) { return std::asinh(1.0 / tmp(x)); };
+        // lakutata: in the reals where the argument is real (special_double.h)
+        result_ = [=](const T *x) {
+            return special::real_where(
+                1.0 / tmp(x), [](double v) { return std::asinh(v); },
+                [](const std::complex<double> &v) { return std::asinh(v); },
+                [](double) { return true; });
+        };
     };
 
     void bvisit(const ACosh &x)
     {
         fn tmp = apply(*(x.get_arg()));
-        result_ = [=](const T *x) { return std::acosh(tmp(x)); };
+        // lakutata: in the reals where the argument is real (special_double.h)
+        result_ = [=](const T *x) {
+            return special::real_where(
+                tmp(x), [](double v) { return std::acosh(v); },
+                [](const std::complex<double> &v) { return std::acosh(v); },
+                [](double v) { return v >= 1; });
+        };
     };
 
     void bvisit(const ATanh &x)
     {
         fn tmp = apply(*(x.get_arg()));
-        result_ = [=](const T *x) { return std::atanh(tmp(x)); };
+        // lakutata: in the reals where the argument is real (special_double.h)
+        result_ = [=](const T *x) {
+            return special::real_where(
+                tmp(x), [](double v) { return std::atanh(v); },
+                [](const std::complex<double> &v) { return std::atanh(v); },
+                [](double v) { return v > -1 and v < 1; });
+        };
     };
 
     void bvisit(const ACoth &x)
     {
         fn tmp = apply(*(x.get_arg()));
-        result_ = [=](const T *x) { return std::atanh(1.0 / tmp(x)); };
+        // lakutata: in the reals where the argument is real (special_double.h)
+        result_ = [=](const T *x) {
+            return special::real_where(
+                1.0 / tmp(x), [](double v) { return std::atanh(v); },
+                [](const std::complex<double> &v) { return std::atanh(v); },
+                [](double v) { return v > -1 and v < 1; });
+        };
     };
 
     void bvisit(const ASech &x)
     {
         fn tmp = apply(*(x.get_arg()));
-        result_ = [=](const T *x) { return std::acosh(1.0 / tmp(x)); };
+        // lakutata: in the reals where the argument is real (special_double.h)
+        result_ = [=](const T *x) {
+            return special::real_where(
+                1.0 / tmp(x), [](double v) { return std::acosh(v); },
+                [](const std::complex<double> &v) { return std::acosh(v); },
+                [](double v) { return v >= 1; });
+        };
     };
 
     void bvisit(const Constant &x)

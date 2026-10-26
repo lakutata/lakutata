@@ -14,6 +14,9 @@ std::string toText(const Expr &expression);
 //The LaTeX of an expression
 std::string toTeX(const Expr &expression);
 
+//The code of an expression in JavaScript (c false) or in C99: its real value computed with doubles
+std::string toCode(const Expr &expression, bool c);
+
 //The text of a double: the shortest that reads back as the same double
 std::string doubleText(double value);
 

@@ -21,6 +21,31 @@ export type SystemEquation = Equation | Expression | string
 export type MathDefinitions = Record<string, string | number>
 
 /**
+ * The common subexpressions of expressions: the replacements, in order, and the expressions written with them
+ */
+export interface CommonSubexpressions {
+    /**
+     * The subexpressions met more than once, each with its name; a value may use the names before it.
+     */
+    replacements: {name: string, value: Expression}[]
+    /**
+     * The expressions, written with the names of the replacements.
+     */
+    expressions: Expression[]
+}
+
+/**
+ * The options of `cse()`
+ */
+export interface CseOptions {
+    /**
+     * The prefix of the names of the replacements: `x` by default (`x0`, `x1`…). Names already used by variables of
+     * the expressions are skipped.
+     */
+    prefix?: string
+}
+
+/**
  * A scope of formulas: the definitions of a component, with the ones of `with()` added. The component is one, and
  * each `with()` gives another one over it, for definitions used for a while (they do not change the component).
  * @example
@@ -101,6 +126,49 @@ export class MathScope {
         return this.#solutions(await this.context.runAsync<LinearResult>('solveLinear', this.#system(equations, variables), options))
     }
 
+    /**
+     * The common subexpressions of expressions (common subexpression elimination): the parts met more than once,
+     * named, and the expressions rewritten with them. Printed with `toJavaScript()` or `toC()`, the result is code that
+     * computes each part only once.
+     * @param expressions The expressions: expressions, numbers or formulas.
+     * @param options The prefix of the names.
+     * @example
+     * ```typescript
+     * import type {Math} from '@lakutata/math'
+     *
+     * function shared(math: Math): string {
+     *     const {replacements, expressions} = math.cse(['sin(x + y)^2 + x + y', 'cos(x + y)'])
+     *     //x0 = x + y; the expressions: x0 + sin(x0)^2, cos(x0)
+     *     const lines: string[] = replacements.map(({name, value}) => `const ${name} = ${value.toJavaScript()}`)
+     *     return [...lines, `return [${expressions.map((expression) => expression.toJavaScript()).join(', ')}]`].join('\n')
+     * }
+     * ```
+     */
+    public cse(expressions: Value[], options?: CseOptions): CommonSubexpressions {
+        return this.#common(this.context.run<NativeCommon>('cse', this.#cseArguments(expressions, options)))
+    }
+
+    /**
+     * `cse()` in the threads of the addon.
+     * @param expressions The expressions: expressions, numbers or formulas.
+     * @param options The prefix of the names, the cancellation, the time limit.
+     */
+    public async cseAsync(expressions: Value[], options?: CseOptions & AsyncOptions): Promise<CommonSubexpressions> {
+        return this.#common(await this.context.runAsync<NativeCommon>('cse', this.#cseArguments(expressions, options), options))
+    }
+
+    #cseArguments(expressions: Value[], options?: CseOptions): [Handle[], string] {
+        if (!Array.isArray(expressions)) throw new MathArgumentException('The expressions are an array')
+        return [expressions.map((expression: Value): Handle => handleOf(this.context, expression)), options?.prefix ?? 'x']
+    }
+
+    #common(result: NativeCommon): CommonSubexpressions {
+        return {
+            replacements: result.replacements.map(({name, value}): {name: string, value: Expression} => ({name: name, value: new Expression(this.context, value)})),
+            expressions: result.expressions.map((handle: Handle): Expression => new Expression(this.context, handle))
+        }
+    }
+
     #system(equations: SystemEquation[], variables: string[]): [Handle[], string[]] {
         if (!Array.isArray(equations) || !Array.isArray(variables)) throw new MathArgumentException('The equations and the variables are arrays')
         return [equations.map((equation: SystemEquation): Handle => {
@@ -118,6 +186,14 @@ export class MathScope {
         for (const [name, value] of Object.entries(result.values)) solution[name] = new Expression(this.context, value)
         return [solution]
     }
+}
+
+/**
+ * The common subexpressions, as the addon gives them
+ */
+interface NativeCommon {
+    replacements: {name: string, value: Handle}[]
+    expressions: Handle[]
 }
 
 /**

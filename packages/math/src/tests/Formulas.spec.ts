@@ -189,6 +189,10 @@ describe('The formulas', (): void => {
         assert.strictEqual(math.expression('pi').compare('22/7'), -1)
         assert.strictEqual(math.expression('(x + 1)^2').compare('x^2 + 2x + 1'), 0)
         assert.strictEqual(math.expression('x').compare('y'), undefined)
+        //Too close for the doubles: by the decimals of 60 digits; equal values not shown equal stay not known
+        assert.strictEqual(math.expression('pi').compare('3.14159265358979323846'), 1)
+        assert.strictEqual(math.expression('pi').compare('3.14159265358979323847'), -1)
+        assert.strictEqual(math.expression('ln(6)').compare('ln(2) + ln(3)'), undefined)
         assert.strictEqual(math.expression('cosh(x)').rewrite('exp').toString(), 'e^(-x)/2 + e^x/2')
         assert.strictEqual(math.expression('sin(x)').rewrite('cos').toString(), 'cos(x - pi/2)')
         //A rewritten expression is differentiated and expanded into a series like any other
@@ -201,6 +205,42 @@ describe('The formulas', (): void => {
         assert.strictEqual(math.expression('sqrt(a/y)').denominator().toString(), '1')
         assert.throws((): unknown => math.expression('1/x').coefficients('x'), MathNotSupportedException)
         assert.throws((): unknown => math.expression('x^2').divide(0, 'x'), MathDivisionByZeroException)
+    })
+
+    it('write the code of an expression in JavaScript and in C, and share its common subexpressions', async (): Promise<void> => {
+        assert.strictEqual(math.expression('x^2 - 5x + 6').toJavaScript(), 'Math.pow(x, 2) - 5*x + 6')
+        assert.strictEqual(math.expression('x^2 - 5x + 6').toC(), 'pow(x, 2.0) - 5.0*x + 6.0')
+        //A rational is a division of doubles in C, not of integers
+        assert.strictEqual(math.expression('x/3 + 1/3').toC(), 'x/3.0 + 1.0/3.0')
+        const f = new Function('x', 'y', `return ${math.expression('round(x) + mod(x, y) + cbrt(x) + root(x, 5) + sign(y)').toJavaScript()}`)
+        //round(-2.5) is -3, mod(-2.5, 2) is 1.5, cbrt and root(x, 5) of a negative number are real
+        assert.ok(globalThis.Math.abs(f(-2.5, 2) - (-3 + 1.5 - globalThis.Math.cbrt(2.5) - globalThis.Math.pow(2.5, 1 / 5) + 1)) < 1e-12)
+        //x^(1/3) is the principal root: NaN for a negative x in the real numbers
+        assert.ok(Number.isNaN(new Function('x', `return ${math.expression('x^(1/3)').toJavaScript()}`)(-8)))
+        assert.strictEqual(math.expression('gamma(x) + erf(x)').toC(), 'erf(x) + tgamma(x)')
+        assert.throws((): unknown => math.expression('gamma(x)').toJavaScript(), MathNotSupportedException)
+        assert.throws((): unknown => math.expression('x + 2i').toC(), MathNotSupportedException)
+        assert.throws((): unknown => math.expression('Math*x').toJavaScript(), MathNotSupportedException)
+        const {replacements, expressions} = math.cse(['sin(x + y)^2 + x + y', 'cos(x + y)'])
+        assert.deepStrictEqual(replacements.map(({name, value}): string => `${name} = ${value.toString()}`), ['x0 = x + y'])
+        assert.deepStrictEqual(expressions.map(String), ['x0 + sin(x0)^2', 'cos(x0)'])
+        //The names skip the variables of the expressions
+        assert.deepStrictEqual((await math.cseAsync(['(x0 + y)^2 + exp(x0 + y)'], {prefix: 'x'})).replacements.map(({name}): string => name), ['x1'])
+        assert.throws((): unknown => math.cse(['x'], {prefix: '1a'}), MathArgumentException)
+    })
+
+    it('give the polar and the rectangular forms of complex numbers', (): void => {
+        const polar = math.expression('3 + 4i').toPolar()
+        assert.deepStrictEqual([polar.modulus.toString(), polar.argument.toString()], ['5', 'atan(4/3)'])
+        const turned = math.expression('-2*e^(i*pi/4)').toPolar()
+        assert.deepStrictEqual([turned.modulus.toString(), turned.argument.toString()], ['2', '-3pi/4'])
+        const rectangular = math.expression('e^(i*pi/3)').toRectangular()
+        assert.deepStrictEqual([rectangular.real.toString(), rectangular.imaginary.toString()], ['1/2', 'sqrt(3)/2'])
+        const variable = math.expression('(1 + i)*x').toRectangular()
+        assert.deepStrictEqual([variable.real.toString(), variable.imaginary.toString()], ['-im(x) + re(x)', 'im(x) + re(x)'])
+        //A negative real number is on the upper side of the cut, also through a function computed in the complex
+        //numbers (atan of a real number there had an imaginary part of 5.55e-17)
+        assert.strictEqual(math.expression('arg(1/atan(-2/5))').toNumber(), globalThis.Math.PI)
     })
 
     it('refuse the expressions nested more than 1000 levels deep, before they fill the stack', async (): Promise<void> => {

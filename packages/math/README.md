@@ -130,6 +130,9 @@ stays a power (`2^(10^7)`), and a factorial above `20000!` stays as `gamma(n + 1
   arguments.
 - `toDecimal(digits)` gives a string with that many significant digits, correctly rounded (the `precision` of the
   component by default).
+- `toRectangular()` gives the real and the imaginary parts of an expression (`{real, imaginary}`), `toPolar()` its
+  modulus and its argument (`{modulus, argument}`): for `e^(i*pi/3)`, the parts are `1/2` and `sqrt(3)/2`, the modulus
+  `1` and the argument `pi/3`. The variables are complex numbers, so the parts of `x` are `re(x)` and `im(x)`.
 - `compile(variables)` turns an expression into a function of numbers, for evaluating it many times, with `batch()`
   for many rows in one call:
 
@@ -140,6 +143,31 @@ function plot(math: Math): Float64Array {
     const f = math.expression('x^2 + sin(y)').compile(['x', 'y'])
     console.log(f(2, 0))                                                   //4
     return f.batch(Float64Array.of(1, 0, 2, 0, 3, 0))                      //[1, 4, 9]
+}
+```
+
+### Code generation
+
+- `toJavaScript()` and `toC()` turn an expression into JavaScript or C code (C99 with `<math.h>`) that keeps the
+  variable names: `x^2 - 5x + 6` becomes `Math.pow(x, 2) - 5*x + 6` in JavaScript and `pow(x, 2.0) - 5.0*x + 6.0` in C.
+  The code computes in double precision, with real numbers only: wherever part of the expression has a complex value,
+  the result is NaN (`compile()` computes such parts in the complex numbers). A function the language does not have
+  (such as `gamma` and `erf` in JavaScript, `zeta` and `lambertw` in both), a complex number such as `2i`, or a variable
+  whose name is a reserved word of the language or a name the code uses (`new`, `Math`, `pow`) throws
+  `MathNotSupportedException`.
+- `math.cse(expressions)` finds the parts that the expressions repeat or share (common subexpression elimination). It
+  returns them as `replacements`, each with a name (`x0`, `x1`…, skipping names the variables already use) and a value
+  that may refer to earlier names, together with the `expressions` rewritten with those names. Printed with
+  `toJavaScript()` or `toC()`, the result is code that computes each part only once.
+
+```typescript
+import type {Math} from '@lakutata/math'
+
+function code(math: Math): string {
+    const {replacements, expressions} = math.cse(['sin(x + y)^2 + x + y', 'cos(x + y)'])
+    const lines: string[] = replacements.map(({name, value}) => `const ${name} = ${value.toJavaScript()}`)   //const x0 = x + y
+    lines.push(`return [${expressions.map((expression) => expression.toJavaScript()).join(', ')}]`)          //return [x0 + Math.pow(Math.sin(x0), 2), Math.cos(x0)]
+    return lines.join('\n')
 }
 ```
 
@@ -198,10 +226,10 @@ async function integers(math: Math): Promise<void> {
 ### Asynchronous operations
 
 The operations that can take long have an asynchronous version: `expandAsync()`, `simplifyAsync()`, `diffAsync()`,
-`seriesAsync()`, `solveAsync()`, `toDecimalAsync()`, `solveAsync()` of the component, and those of the number theory.
-They run in the threads of the addon, not in the thread pool of libuv: as many threads as the processor has cores, minus
-one, or the number in the environment variable `LAKUTATA_MATH_THREADS`. Their options are `timeout` (milliseconds) and
-`signal` (an `AbortSignal`):
+`seriesAsync()`, `solveAsync()`, `toDecimalAsync()`, `solveAsync()` and `cseAsync()` of the component, and those of the
+number theory. They run in the threads of the addon, not in the thread pool of libuv: as many threads as the processor
+has cores, minus one, or the number in the environment variable `LAKUTATA_MATH_THREADS`. Their options are `timeout`
+(milliseconds) and `signal` (an `AbortSignal`):
 
 - At the time limit the promise is rejected with `MathTimeoutException`, and with `MathCancelledException` when the
   signal aborts. Operations with checkpoints (expansions, decimals, linear systems, the number theory) stop at the next
@@ -221,10 +249,12 @@ The bundles, the executables and the installers made by `lakutata package` carry
 
 | Export | What it is |
 |---|---|
-| `Math` | The component: `parse`, `expression`, `equation`, `with`, `solve`, `solveAsync`, `ntheory` |
+| `Math` | The component: `parse`, `expression`, `equation`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory` |
 | `buildMathOptions`, `MathConfig` | Its declaration in the components, and its options: `definitions`, `precision`, `timeout`, `concurrency`, `drainTimeout` |
 | `MathScope`, `MathDefinitions` | The scope given by `with()`, with the methods of the component except `ntheory`; the definitions (a body by signature) |
-| `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, and the asynchronous versions |
+| `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
+| `CommonSubexpressions`, `CseOptions` | The result of `cse()` (`replacements`, `expressions`) and its option (`prefix`) |
+| `PolarForm`, `RectangularForm` | The polar form (`modulus`, `argument`) and the rectangular form (`real`, `imaginary`) of a complex value |
 | `Equation`, `Inequality`, `InequalityRelation` | An equation (`left`, `right`, `difference`, `substitute`, `solve`, `solveAsync`), an inequality (`left`, `right`, `relation`) |
 | `Solutions`, `SolutionsKind`, `SolutionInterval`, `SolveOptions` | The solutions of an equation: an array of expressions with their `kind`, `intervals` and `text`; the `domain` of the solutions |
 | `SystemSolution`, `SystemEquation` | A solution of a system (an expression by variable), an equation of a system |
@@ -243,7 +273,7 @@ The typings document every declaration, with examples.
 | `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep |
 | `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero), an integer outside the domain of a function of the number theory (`totient(0)`) |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals, a modulus of 0 |
-| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` above 2000, `harmonic(n)` above 50000 |
+| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` above 2000, `harmonic(n)` above 50000, code with a function the language does not have, a complex number such as `2i`, or a variable named like a reserved word of the language |
 | `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |

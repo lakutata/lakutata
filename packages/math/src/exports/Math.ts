@@ -16,12 +16,14 @@ export {
     Expression,
     Inequality,
     type InequalityRelation,
+    type PolarForm,
+    type RectangularForm,
     type SolutionInterval,
     Solutions,
     type SolutionsKind,
     type SolveOptions,
     type Value
 } from '../lib/Expression.js'
-export {type MathDefinitions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
+export {type CommonSubexpressions, type CseOptions, type MathDefinitions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
 export {type Congruence, type ExtendedGcd, type IntegerValue, NumberTheory, type PrimeFactor} from '../lib/NumberTheory.js'
 export {buildMathOptions, Math, type MathConfig} from '../components/Math.js'

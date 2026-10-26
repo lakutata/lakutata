@@ -21,6 +21,9 @@
 #include <symengine/rational.h>
 #include <symengine/real_double.h>
 #include <symengine/symbol.h>
+#include <symengine/eval_double.h>
+
+#include "../core/Errors.h"
 
 namespace math {
 
@@ -171,6 +174,67 @@ const std::set<std::string> &greekLetters()
         "Lambda", "Xi", "Pi", "Sigma", "Upsilon", "Phi", "Psi", "Omega"
     };
     return letters;
+}
+
+//The terms of a sum in the order they are written: the monomials by decreasing degree, then the other terms, then the
+//constant
+std::vector<Expr> orderedTerms(const Expr &e)
+{
+    vec_basic terms = e->get_args();
+    std::vector<std::pair<Expr, Monomial>> ordered;
+    for (const Expr &term : terms) ordered.emplace_back(term, monomialOf(term));
+    std::map<const Basic *, std::string> keys;
+    auto key = [&keys](const Expr &term) -> const std::string & {
+        auto found = keys.find(term.get());
+        if (found == keys.end()) found = keys.emplace(term.get(), term->__str__()).first;
+        return found->second;
+    };
+    std::stable_sort(ordered.begin(), ordered.end(), [&key](const auto &a, const auto &b) {
+        const int rankA = termRank(a.second);
+        const int rankB = termRank(b.second);
+        if (rankA != rankB) return rankA < rankB;
+        if (rankA == 0) {
+            if (a.second.degree != b.second.degree) return a.second.degree > b.second.degree;
+            //The same degree: lexicographic, the higher powers of the first variables first (x^2 + xy + y^2)
+            std::set<std::string> variables;
+            for (const auto &[name, power] : a.second.exponents) variables.insert(name);
+            for (const auto &[name, power] : b.second.exponents) variables.insert(name);
+            for (const std::string &name : variables) {
+                const auto foundA = a.second.exponents.find(name);
+                const auto foundB = b.second.exponents.find(name);
+                const long powerA = foundA == a.second.exponents.end() ? 0 : foundA->second;
+                const long powerB = foundB == b.second.exponents.end() ? 0 : foundB->second;
+                if (powerA != powerB) return powerA > powerB;
+            }
+        }
+        return key(a.first) < key(b.first);
+    });
+    std::vector<Expr> result;
+    for (const auto &[term, monomial] : ordered) result.push_back(term);
+    return result;
+}
+
+//The coefficient of a product, its factors above and below (the ones of negative exponents)
+Factors factorsOf(const Mul &product)
+{
+    Factors factors{product.get_coef(), {}, {}};
+    for (const auto &[base, exponent] : product.get_dict()) {
+        if (is_a_Number(*exponent) && down_cast<const Number &>(*exponent).is_negative()) {
+            Expr positive = neg(exponent);
+            factors.denominator.push_back(eq(*positive, *one) ? base : Expr(make_rcp<const Pow>(base, positive)));
+        } else {
+            factors.numerator.push_back(eq(*exponent, *one) ? base : Expr(make_rcp<const Pow>(base, exponent)));
+        }
+    }
+    auto byRank = [](const Expr &a, const Expr &b) {
+        const int rankA = factorRank(a);
+        const int rankB = factorRank(b);
+        if (rankA != rankB) return rankA < rankB;
+        return factorKey(a) < factorKey(b);
+    };
+    std::stable_sort(factors.numerator.begin(), factors.numerator.end(), byRank);
+    std::stable_sort(factors.denominator.begin(), factors.denominator.end(), byRank);
+    return factors;
 }
 
 class Printer {
@@ -339,38 +403,10 @@ private:
 
     Part printAdd(const Expr &e)
     {
-        vec_basic terms = e->get_args();
-        std::vector<std::pair<Expr, Monomial>> ordered;
-        for (const Expr &term : terms) ordered.emplace_back(term, monomialOf(term));
-        std::map<const Basic *, std::string> keys;
-        auto key = [&keys](const Expr &term) -> const std::string & {
-            auto found = keys.find(term.get());
-            if (found == keys.end()) found = keys.emplace(term.get(), term->__str__()).first;
-            return found->second;
-        };
-        std::stable_sort(ordered.begin(), ordered.end(), [&key](const auto &a, const auto &b) {
-            const int rankA = termRank(a.second);
-            const int rankB = termRank(b.second);
-            if (rankA != rankB) return rankA < rankB;
-            if (rankA == 0) {
-                if (a.second.degree != b.second.degree) return a.second.degree > b.second.degree;
-                //The same degree: lexicographic, the higher powers of the first variables first (x^2 + xy + y^2)
-                std::set<std::string> variables;
-                for (const auto &[name, power] : a.second.exponents) variables.insert(name);
-                for (const auto &[name, power] : b.second.exponents) variables.insert(name);
-                for (const std::string &name : variables) {
-                    const auto foundA = a.second.exponents.find(name);
-                    const auto foundB = b.second.exponents.find(name);
-                    const long powerA = foundA == a.second.exponents.end() ? 0 : foundA->second;
-                    const long powerB = foundB == b.second.exponents.end() ? 0 : foundB->second;
-                    if (powerA != powerB) return powerA > powerB;
-                }
-            }
-            return key(a.first) < key(b.first);
-        });
+        const std::vector<Expr> ordered = orderedTerms(e);
         std::string text;
         for (size_t i = 0; i < ordered.size(); i++) {
-            const Expr &term = ordered[i].first;
+            const Expr &term = ordered[i];
             const bool negative = isNegative(term);
             Part part = print(negative && i > 0 ? neg(term) : term);
             if (part.precedence <= ADD) part = parenthesized(part);
@@ -378,28 +414,6 @@ private:
             else text += (negative ? " - " : " + ") + part.text;
         }
         return {text, ADD, Lead::Other, false, false};
-    }
-
-    Factors factorsOf(const Mul &product) const
-    {
-        Factors factors{product.get_coef(), {}, {}};
-        for (const auto &[base, exponent] : product.get_dict()) {
-            if (is_a_Number(*exponent) && down_cast<const Number &>(*exponent).is_negative()) {
-                Expr positive = neg(exponent);
-                factors.denominator.push_back(eq(*positive, *one) ? base : Expr(make_rcp<const Pow>(base, positive)));
-            } else {
-                factors.numerator.push_back(eq(*exponent, *one) ? base : Expr(make_rcp<const Pow>(base, exponent)));
-            }
-        }
-        auto byRank = [](const Expr &a, const Expr &b) {
-            const int rankA = factorRank(a);
-            const int rankB = factorRank(b);
-            if (rankA != rankB) return rankA < rankB;
-            return factorKey(a) < factorKey(b);
-        };
-        std::stable_sort(factors.numerator.begin(), factors.numerator.end(), byRank);
-        std::stable_sort(factors.denominator.begin(), factors.denominator.end(), byRank);
-        return factors;
     }
 
     //The product of parts: implicit after a number before a letter or a parenthesis, and between parentheses (2x,
@@ -490,6 +504,317 @@ private:
     }
 };
 
+//The code of an expression in JavaScript or in C (C99 and <math.h>): its real value computed with doubles, where a
+//complex value is NaN (the parts of the expression are real numbers, re(x) is x). The names it uses (Math, pow, NAN…)
+//are kept, so that a variable of the same name is refused.
+class CodePrinter {
+public:
+    explicit CodePrinter(bool c) : c_(c)
+    {
+    }
+
+    std::string print(const Expr &expression)
+    {
+        std::string text = code(expression).text;
+        for (const std::string &name : variables_) {
+            if (reserved().count(name) || used_.count(name)) {
+                throw MathError(ErrorCode::NotSupported, "The variable " + name + " has the name of a word of " + language() + ": rename it (substitute)");
+            }
+        }
+        return text;
+    }
+
+private:
+    bool c_;
+    std::set<std::string> variables_;
+    std::set<std::string> used_;
+
+    std::string language() const
+    {
+        return c_ ? "C" : "JavaScript";
+    }
+
+    const std::set<std::string> &reserved() const
+    {
+        static const std::set<std::string> &javascript = *new std::set<std::string>{
+            "arguments", "await", "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete", "do",
+            "else", "enum", "eval", "export", "extends", "false", "finally", "for", "function", "if", "implements", "import",
+            "in", "instanceof", "interface", "let", "new", "null", "package", "private", "protected", "public", "return",
+            "static", "super", "switch", "this", "throw", "true", "try", "typeof", "undefined", "var", "void", "while", "with",
+            "yield", "Math", "Number", "NaN", "Infinity"
+        };
+        static const std::set<std::string> &c = *new std::set<std::string>{
+            "auto", "break", "case", "char", "const", "continue", "default", "do", "double", "else", "enum", "extern",
+            "float", "for", "goto", "if", "inline", "int", "long", "register", "restrict", "return", "short", "signed",
+            "sizeof", "static", "struct", "switch", "typedef", "union", "unsigned", "void", "volatile", "while", "_Bool",
+            "_Complex", "_Imaginary", "NAN", "INFINITY", "isnan"
+        };
+        return c_ ? c : javascript;
+    }
+
+    std::string use(const std::string &name)
+    {
+        used_.insert(c_ ? name : "Math");
+        return name;
+    }
+
+    //A function of the language: Math.sin in JavaScript, sin in C
+    std::string function(const std::string &name)
+    {
+        return use(c_ ? name : "Math." + name);
+    }
+
+    static Part atom(const std::string &text)
+    {
+        return {text, ATOM, Lead::Other, false, false};
+    }
+
+    static Part product(const std::string &text)
+    {
+        return {text, MUL, Lead::Other, false, false};
+    }
+
+    static std::string grouped(const Part &part)
+    {
+        return part.precedence == ATOM ? part.text : "(" + part.text + ")";
+    }
+
+    std::string operand(const Expr &e)
+    {
+        return grouped(code(e));
+    }
+
+    Part call(const std::string &name, const vec_basic &arguments)
+    {
+        std::string text;
+        for (const Expr &argument : arguments) text += (text.empty() ? "" : ", ") + code(argument).text;
+        return atom(name + "(" + text + ")");
+    }
+
+    //A double: 2 in JavaScript, 2.0 in C (1/3 is not 0 there)
+    std::string number(double value)
+    {
+        if (std::isnan(value)) return use(c_ ? "NAN" : "NaN");
+        if (std::isinf(value)) return (value < 0 ? "-" : "") + use(c_ ? "INFINITY" : "Infinity");
+        std::string text = doubleText(value);
+        if (c_ && text.find_first_of(".e") == std::string::npos) text += ".0";
+        return text;
+    }
+
+    //An integer: exact up to 2^53, its double above
+    std::string integerText(const integer_class &value)
+    {
+        const integer_class size = value < 0 ? integer_class(-value) : value;
+        if (size > integer_class(9007199254740992ll)) return number(mp_get_d(value));
+        return SymEngine::Integer(value).__str__() + (c_ ? ".0" : "");
+    }
+
+    //A part the code cannot have: a function the language has not, a value that is not a real number
+    Part notWritten(const std::string &what) const
+    {
+        throw MathError(ErrorCode::NotSupported, language() + " has no " + what + ": the expression is not written in it");
+    }
+
+    Part notReal(const Expr &e) const
+    {
+        throw MathError(ErrorCode::NotSupported, toText(e) + " is not a real number: the code computes with real numbers");
+    }
+
+    Part code(const Expr &e)
+    {
+        if (is_a<Add>(*e)) {
+            const std::vector<Expr> terms = orderedTerms(e);
+            std::string text;
+            for (size_t i = 0; i < terms.size(); i++) {
+                const bool negative = i > 0 && isNegative(terms[i]);
+                Part part = code(negative ? neg(terms[i]) : terms[i]);
+                if (part.precedence <= ADD) part = atom("(" + part.text + ")");
+                text += i == 0 ? part.text : (negative ? " - " : " + ") + part.text;
+            }
+            return {text, ADD, Lead::Other, false, false};
+        }
+        if (is_a<Mul>(*e)) return codeMul(down_cast<const Mul &>(*e));
+        if (is_a<Pow>(*e)) return codePow(down_cast<const Pow &>(*e));
+        if (is_a<Symbol>(*e)) {
+            const std::string &name = down_cast<const Symbol &>(*e).get_name();
+            variables_.insert(name);
+            return atom(name);
+        }
+        if (is_a<Integer>(*e)) {
+            const Integer &value = down_cast<const Integer &>(*e);
+            const std::string text = integerText(value.as_integer_class());
+            return value.is_negative() ? product(text) : atom(text);
+        }
+        if (is_a<Rational>(*e)) {
+            const rational_class &value = down_cast<const Rational &>(*e).as_rational_class();
+            const integer_class limit(9007199254740992ll);
+            const integer_class top = get_num(value) < 0 ? integer_class(-get_num(value)) : get_num(value);
+            const std::string sign = get_num(value) < 0 ? "-" : "";
+            if (top > limit || get_den(value) > limit) {
+                const std::string text = number(value.convert_to<double>());
+                return text[0] == '-' ? product(text) : atom(text);
+            }
+            return product(sign + integerText(top) + "/" + integerText(get_den(value)));
+        }
+        if (is_a<RealDouble>(*e)) {
+            const std::string text = number(down_cast<const RealDouble &>(*e).i);
+            return text[0] == '-' ? product(text) : atom(text);
+        }
+        if (is_a<Constant>(*e)) {
+            const std::string &name = down_cast<const Constant &>(*e).get_name();
+            if (!c_ && name == "pi") return atom(use("Math.PI"));
+            if (!c_ && name == "E") return atom(use("Math.E"));
+            return atom(number(eval_double(*e)));
+        }
+        if (is_a<Infty>(*e)) {
+            const Infty &infinity = down_cast<const Infty &>(*e);
+            if (infinity.is_unsigned_infinity()) return notReal(e);
+            return infinity.is_negative_infinity() ? product(number(-HUGE_VAL)) : atom(number(HUGE_VAL));
+        }
+        if (is_a<NaN>(*e)) return atom(number(std::nan("")));
+        if (is_a<Complex>(*e) || is_a<ComplexDouble>(*e)) return notReal(e);
+        if (is_a<UnevaluatedExpr>(*e)) return code(down_cast<const UnevaluatedExpr &>(*e).get_arg());
+        if (is_a<FunctionWrapper>(*e)) return codeWrapper(down_cast<const FunctionWrapper &>(*e));
+        if (is_a_sub<Function>(*e) && !is_a<FunctionSymbol>(*e)) {
+            const std::vector<std::string> &names = functionNames();
+            const TypeID type = e->get_type_code();
+            if (type < names.size() && !names[type].empty()) return codeFunction(names[type], e->get_args());
+        }
+        return notWritten(toText(e));
+    }
+
+    Part codeMul(const Mul &mul)
+    {
+        const Factors factors = factorsOf(mul);
+        RCP<const Number> coefficient = factors.coefficient;
+        std::string sign;
+        if (isNegativeNumber(*coefficient)) {
+            sign = "-";
+            coefficient = coefficient->mul(*minus_one);
+        }
+        std::vector<std::string> top, bottom;
+        if (is_a<Rational>(*coefficient)) {
+            const rational_class &value = down_cast<const Rational &>(*coefficient).as_rational_class();
+            if (get_num(value) != 1 || factors.numerator.empty()) top.push_back(operand(integer(get_num(value))));
+            bottom.push_back(operand(integer(get_den(value))));
+        } else if (!eq(*coefficient, *one)) {
+            top.push_back(operand(coefficient));
+        }
+        for (const Expr &factor : factors.numerator) {
+            const Part part = code(factor);
+            top.push_back(part.precedence < MUL ? "(" + part.text + ")" : part.text);
+        }
+        for (const Expr &factor : factors.denominator) bottom.push_back(operand(factor));
+        std::string text;
+        for (const std::string &factor : top) text += (text.empty() ? "" : "*") + factor;
+        if (text.empty()) text = integerText(1);
+        if (!bottom.empty()) {
+            std::string below;
+            for (const std::string &factor : bottom) below += (below.empty() ? "" : "*") + factor;
+            text += "/" + (bottom.size() == 1 ? below : "(" + below + ")");
+        }
+        return product(sign + text);
+    }
+
+    Part codePow(const Pow &power)
+    {
+        const Expr base = power.get_base();
+        const Expr exponent = power.get_exp();
+        if (is_a_Number(*exponent) && down_cast<const Number &>(*exponent).is_negative()) {
+            const Expr positive = neg(exponent);
+            return product(integerText(1) + "/" + grouped(code(eq(*positive, *one) ? base : Expr(make_rcp<const Pow>(base, positive)))));
+        }
+        if (eq(*base, *E)) return call(function("exp"), {exponent});
+        if (eq(*exponent, *rational(1, 2))) return call(function("sqrt"), {base});
+        return call(function("pow"), {base, exponent});
+    }
+
+    Part codeFunction(const std::string &name, const vec_basic &arguments)
+    {
+        static const std::set<std::string> &direct = *new std::set<std::string>{
+            "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh", "asinh", "acosh", "atanh", "floor", "ceil",
+            "trunc", "atan2"
+        };
+        //sec(x) is 1/cos(x), asec(x) is acos(1/x)
+        static const std::map<std::string, std::string> &reciprocal = *new std::map<std::string, std::string>{
+            {"sec", "cos"}, {"csc", "sin"}, {"cot", "tan"}, {"sech", "cosh"}, {"csch", "sinh"}, {"coth", "tanh"}
+        };
+        static const std::map<std::string, std::string> &ofReciprocal = *new std::map<std::string, std::string>{
+            {"asec", "acos"}, {"acsc", "asin"}, {"acot", "atan"}, {"asech", "acosh"}, {"acsch", "asinh"}, {"acoth", "atanh"}
+        };
+        if (direct.count(name)) return call(function(name), arguments);
+        if (name == "ln") return call(function("log"), arguments);
+        if (name == "abs") return call(c_ ? use("fabs") : function("abs"), arguments);
+        if (name == "conj") return code(arguments[0]);
+        if (reciprocal.count(name)) return product(integerText(1) + "/" + call(function(reciprocal.at(name)), arguments).text);
+        if (ofReciprocal.count(name)) return call(function(ofReciprocal.at(name)), {div(one, arguments[0])});
+        if (name == "sign") {
+            if (!c_) return call(function("sign"), arguments);
+            //0 and NaN as they are
+            const std::string a = operand(arguments[0]);
+            return atom("(" + a + " > 0 ? 1.0 : " + a + " < 0 ? -1.0 : " + a + ")");
+        }
+        if (name == "min" || name == "max") {
+            if (!c_) return call(function(name), arguments);
+            Part result = code(arguments.back());
+            for (size_t i = arguments.size() - 1; i-- > 0;) result = atom(use(name == "min" ? "fmin" : "fmax") + "(" + code(arguments[i]).text + ", " + result.text + ")");
+            return result;
+        }
+        if (c_ && name == "gamma") return call(use("tgamma"), arguments);
+        if (c_ && (name == "erf" || name == "erfc")) return call(use(name), arguments);
+        //log(gamma(x)) for x > 0; complex elsewhere
+        if (c_ && name == "loggamma") {
+            const std::string a = operand(arguments[0]);
+            return atom("(" + a + " > 0 ? " + use("lgamma") + "(" + code(arguments[0]).text + ") : " + number(std::nan("")) + ")");
+        }
+        return notWritten(name + "()");
+    }
+
+    Part codeWrapper(const FunctionWrapper &wrapper)
+    {
+        const std::string &name = wrapper.get_name();
+        const vec_basic arguments = wrapper.get_args();
+        if (name == "root") {
+            if (!is_a<Integer>(*arguments[1])) return notWritten("root(x, n) of a degree n that is not an integer");
+            const integer_class &degree = down_cast<const Integer &>(*arguments[1]).as_integer_class();
+            if (degree == 2) return call(function("sqrt"), {arguments[0]});
+            if (degree == 3) return call(function("cbrt"), {arguments[0]});
+            const std::string inverse = integerText(1) + "/" + integerText(degree);
+            //The real root of a negative number for an odd degree, the principal one (NaN) for an even one
+            if (degree % 2 == 0) return atom(function("pow") + "(" + code(arguments[0]).text + ", " + inverse + ")");
+            const std::string a = code(arguments[0]).text;
+            if (c_) return atom(use("copysign") + "(" + use("pow") + "(" + use("fabs") + "(" + a + "), " + inverse + "), " + a + ")");
+            return atom("(" + function("sign") + "(" + a + ")*" + function("pow") + "(" + function("abs") + "(" + a + "), " + inverse + "))");
+        }
+        if (name == "round") {
+            if (c_) return call(use("round"), arguments);
+            //Math.round takes the halves up: round(-2.5) is -3
+            const std::string a = code(arguments[0]).text;
+            return atom("(" + function("sign") + "(" + a + ")*" + function("round") + "(" + function("abs") + "(" + a + ")))");
+        }
+        if (name == "mod") {
+            const std::string a = operand(arguments[0]), b = operand(arguments[1]);
+            return atom("(" + a + " - " + b + "*" + function("floor") + "(" + a + "/" + b + "))");
+        }
+        if (name == "sinc") {
+            const std::string a = operand(arguments[0]);
+            return atom("(" + a + " == 0 ? " + integerText(1) + " : " + function("sin") + "(" + code(arguments[0]).text + ")/" + a + ")");
+        }
+        if (name == "re") return code(arguments[0]);
+        if (name == "im") {
+            const std::string a = code(arguments[0]).text;
+            if (c_) return atom("(" + use("isnan") + "(" + a + ") ? " + number(std::nan("")) + " : 0.0)");
+            return atom("(" + use("Number") + ".isNaN(" + a + ") ? " + number(std::nan("")) + " : 0)");
+        }
+        if (name == "arg") {
+            const std::string a = operand(arguments[0]);
+            const std::string pi = c_ ? number(3.141592653589793) : use("Math.PI");
+            return atom("(" + a + " > 0 ? " + integerText(0) + " : " + a + " < 0 ? " + pi + " : " + number(std::nan("")) + ")");
+        }
+        return notWritten(name + "()");
+    }
+};
+
 }
 
 std::string toText(const Expr &expression)
@@ -500,6 +825,11 @@ std::string toText(const Expr &expression)
 std::string toTeX(const Expr &expression)
 {
     return Printer(true).print(expression).text;
+}
+
+std::string toCode(const Expr &expression, bool c)
+{
+    return CodePrinter(c).print(expression);
 }
 
 }

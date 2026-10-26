@@ -279,7 +279,77 @@ bool knownParts(const Expr &z, Expr &real, Expr &imaginary)
         imaginary = zero;
         return true;
     }
+    //What SymEngine does not tell real: the logarithm of a positive number (ln(2)), a positive number to a real power
+    double value;
+    if (is_a<Log>(*z) && clearValue(z->get_args()[0], value) && value > 0) {
+        real = z;
+        imaginary = zero;
+        return true;
+    }
+    if (is_a<Pow>(*z) && clearValue(down_cast<const Pow &>(*z).get_base(), value) && value > 0
+        && free_symbols(*down_cast<const Pow &>(*z).get_exp()).empty() && is_true(is_real(*down_cast<const Pow &>(*z).get_exp()))) {
+        real = z;
+        imaginary = zero;
+        return true;
+    }
     return false;
+}
+
+//re(), im(), arg() and abs() are real: re(re(x)) is re(x), im(abs(x)) is 0
+bool realFunction(const Expr &z)
+{
+    return dynamic_cast<const ComplexPart *>(z.get()) != nullptr || is_a<Abs>(*z);
+}
+
+}
+
+bool constantParts(const Expr &z, Expr &real, Expr &imaginary)
+{
+    if (knownParts(z, real, imaginary)) return true;
+    if (!free_symbols(*z).empty()) return false;
+    if (is_a<Add>(*z) || is_a<Mul>(*z)) {
+        const bool sum = is_a<Add>(*z);
+        real = sum ? zero : one;
+        imaginary = zero;
+        for (const Expr &part : z->get_args()) {
+            Expr a, b;
+            if (!constantParts(part, a, b)) return false;
+            if (sum) {
+                real = add(real, a);
+                imaginary = add(imaginary, b);
+            } else {
+                const Expr next = sub(mul(real, a), mul(imaginary, b));
+                imaginary = add(mul(real, b), mul(imaginary, a));
+                real = next;
+            }
+        }
+        return true;
+    }
+    if (is_a<Pow>(*z) && eq(*down_cast<const Pow &>(*z).get_base(), *E)) {
+        Expr a, b;
+        if (!constantParts(down_cast<const Pow &>(*z).get_exp(), a, b)) return false;
+        real = mul(exp(a), cos(b));
+        imaginary = mul(exp(a), sin(b));
+        return true;
+    }
+    return false;
+}
+
+namespace {
+
+//A product c u, c the factors without variables (of known parts c = real + i imaginary), u the others
+bool constantFactor(const Mul &product, Expr &real, Expr &imaginary, Expr &rest)
+{
+    Expr constant = product.get_coef();
+    Expr others = one;
+    for (const auto &[base, exponent] : product.get_dict()) {
+        const Expr factor = pow(base, exponent);
+        if (free_symbols(*factor).empty()) constant = mul(constant, factor);
+        else others = mul(others, factor);
+    }
+    if (eq(*constant, *one) || eq(*others, *one)) return false;
+    rest = others;
+    return constantParts(constant, real, imaginary);
 }
 
 }
@@ -287,20 +357,24 @@ bool knownParts(const Expr &z, Expr &real, Expr &imaginary)
 Expr realPartOf(const Expr &z)
 {
     Expr real, imaginary;
-    if (knownParts(z, real, imaginary)) return real;
+    if (realFunction(z)) return z;
+    if (constantParts(z, real, imaginary)) return real;
     if (is_a<Add>(*z)) {
         Expr sum = zero;
         for (const Expr &term : z->get_args()) sum = add(sum, realPartOf(term));
         return sum;
     }
     if (is_a<Mul>(*z)) {
-        //A numeric coefficient c (a + bi): re(c u) = a re(u) - b im(u)
-        const Mul &product = down_cast<const Mul &>(*z);
-        if (numberParts(product.get_coef(), real, imaginary)) {
-            map_basic_basic factors = product.get_dict();
-            const Expr rest = Mul::from_dict(one, std::move(factors));
-            if (!eq(*rest, *z)) return sub(mul(real, realPartOf(rest)), mul(imaginary, imaginaryPartOf(rest)));
+        //A constant c = a + bi (the factors without variables, of known parts): re(c u) = a re(u) - b im(u)
+        Expr rest;
+        if (constantFactor(down_cast<const Mul &>(*z), real, imaginary, rest)) {
+            return sub(mul(real, realPartOf(rest)), mul(imaginary, imaginaryPartOf(rest)));
         }
+    }
+    //re(e^w) = e^re(w) cos(im(w)), for every complex w
+    if (is_a<Pow>(*z) && eq(*down_cast<const Pow &>(*z).get_base(), *E)) {
+        const Expr w = down_cast<const Pow &>(*z).get_exp();
+        return mul(exp(realPartOf(w)), cos(imaginaryPartOf(w)));
     }
     return make_rcp<const ComplexPart>(ComplexPart::Part::Real, z);
 }
@@ -308,7 +382,8 @@ Expr realPartOf(const Expr &z)
 Expr imaginaryPartOf(const Expr &z)
 {
     Expr real, imaginary;
-    if (knownParts(z, real, imaginary)) return imaginary;
+    if (realFunction(z)) return zero;
+    if (constantParts(z, real, imaginary)) return imaginary;
     if (is_a<Add>(*z)) {
         Expr sum = zero;
         for (const Expr &term : z->get_args()) sum = add(sum, imaginaryPartOf(term));
@@ -316,12 +391,15 @@ Expr imaginaryPartOf(const Expr &z)
     }
     if (is_a<Mul>(*z)) {
         //im(c u) = a im(u) + b re(u)
-        const Mul &product = down_cast<const Mul &>(*z);
-        if (numberParts(product.get_coef(), real, imaginary)) {
-            map_basic_basic factors = product.get_dict();
-            const Expr rest = Mul::from_dict(one, std::move(factors));
-            if (!eq(*rest, *z)) return add(mul(real, imaginaryPartOf(rest)), mul(imaginary, realPartOf(rest)));
+        Expr rest;
+        if (constantFactor(down_cast<const Mul &>(*z), real, imaginary, rest)) {
+            return add(mul(real, imaginaryPartOf(rest)), mul(imaginary, realPartOf(rest)));
         }
+    }
+    //im(e^w) = e^re(w) sin(im(w))
+    if (is_a<Pow>(*z) && eq(*down_cast<const Pow &>(*z).get_base(), *E)) {
+        const Expr w = down_cast<const Pow &>(*z).get_exp();
+        return mul(exp(realPartOf(w)), sin(imaginaryPartOf(w)));
     }
     return make_rcp<const ComplexPart>(ComplexPart::Part::Imaginary, z);
 }
@@ -329,12 +407,15 @@ Expr imaginaryPartOf(const Expr &z)
 Expr argumentOf(const Expr &z)
 {
     Expr real, imaginary;
-    if (knownParts(z, real, imaginary)) {
+    if (constantParts(z, real, imaginary)) {
         if (is_a_Number(*real) && is_a_Number(*imaginary) && down_cast<const Number &>(*real).is_zero() && down_cast<const Number &>(*imaginary).is_zero()) return Nan;
         if (is_a_Number(*imaginary) && down_cast<const Number &>(*imaginary).is_zero()) {
             double value;
             if (clearValue(real, value)) return value > 0 ? Expr(zero) : Expr(pi);
         }
+        //Right of the imaginary axis: atan(b/a) (arg(3 + 4i) is atan(4/3))
+        double value;
+        if (clearValue(real, value) && value > 0) return atan(div(imaginary, real));
         return atan2(imaginary, real);
     }
     return make_rcp<const ComplexPart>(ComplexPart::Part::Argument, z);

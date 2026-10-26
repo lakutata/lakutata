@@ -82,6 +82,22 @@ int predicateOf(const Expr &expression, const std::string &property);
 //The order of two real values: -1, 0, 1, or 2 when it is not known
 int compareOf(const Expr &a, const Expr &b);
 
+//The common subexpressions of expressions: the replacements in their order (a name and its value, which may use the
+//names before it), and the expressions written with them
+struct CommonSubexpressions {
+    std::vector<std::pair<std::string, Expr>> replacements;
+    std::vector<Expr> expressions;
+};
+
+//The common subexpressions, named prefix0, prefix1… (the names of the variables of the expressions skipped)
+CommonSubexpressions cseOf(const std::vector<Expr> &expressions, const std::string &prefix);
+
+//The polar form of an expression: its modulus abs(z) and its argument arg(z)
+std::pair<Expr, Expr> polarOf(const Expr &z);
+
+//The rectangular form of an expression: its real part re(z) and its imaginary part im(z)
+std::pair<Expr, Expr> rectangularOf(const Expr &z);
+
 //The solution of a system of linear equations: none (empty), or the values of the variables it determines (finite),
 //in terms of the other ones when it does not determine them all
 struct LinearSolution {

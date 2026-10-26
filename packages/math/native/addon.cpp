@@ -314,6 +314,57 @@ Job compareJob(const Napi::Array &arguments)
     };
 }
 
+Job codeJob(const Napi::Array &arguments)
+{
+    Expr expression = expressionAt(arguments, 0);
+    std::string language = stringAt(arguments, 1, "The language");
+    if (language != "javascript" && language != "c") throw MathError(ErrorCode::Argument, "The code is written in javascript or c, not " + language);
+    return [expression, language] {
+        const std::string text = toCode(expression, language == "c");
+        return Builder([text](Napi::Env env) { return Napi::String::New(env, text); });
+    };
+}
+
+Job cseJob(const Napi::Array &arguments)
+{
+    std::vector<Expr> expressions = expressionsAt(arguments, 0);
+    std::string prefix = stringAt(arguments, 1, "The prefix");
+    return [expressions, prefix] {
+        const CommonSubexpressions result = cseOf(expressions, prefix);
+        return Builder([result](Napi::Env env) {
+            Napi::Array replacements = Napi::Array::New(env, result.replacements.size());
+            for (size_t i = 0; i < result.replacements.size(); i++) {
+                Napi::Object replacement = Napi::Object::New(env);
+                replacement.Set("name", result.replacements[i].first);
+                replacement.Set("value", wrapExpression(env, result.replacements[i].second));
+                replacements.Set(static_cast<uint32_t>(i), replacement);
+            }
+            Napi::Object value = Napi::Object::New(env);
+            value.Set("replacements", replacements);
+            value.Set("expressions", expressionsValue(env, result.expressions));
+            return Napi::Value(value);
+        });
+    };
+}
+
+Job polarJob(const Napi::Array &arguments)
+{
+    Expr expression = expressionAt(arguments, 0);
+    return [expression] {
+        const std::pair<Expr, Expr> polar = polarOf(expression);
+        return Builder([polar](Napi::Env env) { return expressionsValue(env, {polar.first, polar.second}); });
+    };
+}
+
+Job rectangularJob(const Napi::Array &arguments)
+{
+    Expr expression = expressionAt(arguments, 0);
+    return [expression] {
+        const std::pair<Expr, Expr> parts = rectangularOf(expression);
+        return Builder([parts](Napi::Env env) { return expressionsValue(env, {parts.first, parts.second}); });
+    };
+}
+
 //An operation of the number theory: its name, then its arguments, integers or arrays of integers
 Job numberTheoryJob(const Napi::Array &arguments)
 {
@@ -353,7 +404,7 @@ const std::map<std::string, JobFactory> &jobs()
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
         {"decimal", decimalJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
-        {"ntheory", numberTheoryJob}
+        {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}
     };
     return table;
 }

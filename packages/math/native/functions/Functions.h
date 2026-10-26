@@ -102,6 +102,10 @@ private:
     Part part_;
 };
 
+//The parts of an expression without variables, where they are known: the numbers and the real constants, the sums
+//and the products of expressions of known parts, e^w (e^re(w) cos(im(w)), e^re(w) sin(im(w)))
+bool constantParts(const Expr &z, Expr &real, Expr &imaginary);
+
 Expr realPartOf(const Expr &z);
 
 Expr imaginaryPartOf(const Expr &z);

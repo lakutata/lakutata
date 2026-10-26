@@ -117,6 +117,14 @@ function valueAt(expression: Expression, point: Record<string, number>): Value |
     }
 }
 
+//Math, its functions and its constants off by a relative 1e-12: how much the roundings move a value
+const noisyMath: Record<string, unknown> = Object.fromEntries(Object.getOwnPropertyNames(globalThis.Math).map((name: string): [string, unknown] => {
+    const member: unknown = (globalThis.Math as unknown as Record<string, unknown>)[name]
+    if (typeof member === 'number') return [name, member * (1 + 1e-12)]
+    if (typeof member === 'function') return [name, (...args: number[]): number => (member as (...args: number[]) => number)(...args) * (1 + 1e-12)]
+    return [name, member]
+}))
+
 function near(a: Value, b: Value, tolerance: number): boolean {
     const scale: number = globalThis.Math.max(1, globalThis.Math.hypot(a.re, a.im), globalThis.Math.hypot(b.re, b.im))
     return globalThis.Math.abs(a.re - b.re) <= tolerance * scale && globalThis.Math.abs(a.im - b.im) <= tolerance * scale
@@ -165,11 +173,21 @@ export async function checkFormula(math: Math, random: Random, index: number, te
     //Decimals of one digit: 0.3 + 0.4 would be 0.7000000000000001, an exact number of 16 digits
     const point: Record<string, number> = {x: (3 + random.int(17)) / 10, y: (random.int(13) - 13) / 10, z: (7 + random.int(9)) / 10}
     const exact: Value | undefined = valueAt(expression, point)
+    //Whether the roundings decide the value: the code of JavaScript run again with every result of Math off by 1e-12
+    //moves it by more than 1e-6 (cos(e^144): the doubles of e^144 have no digit of its cosine)
+    let roundingBound: boolean = false
+    try {
+        const code = new Function('Math', 'x', 'y', 'z', `return ${expression.toJavaScript()}`) as (math: unknown, x: number, y: number, z: number) => number
+        const value: number = code(globalThis.Math, point.x, point.y, point.z)
+        roundingBound = globalThis.Math.abs(code(noisyMath, point.x, point.y, point.z) - value) > 1e-6 * globalThis.Math.max(1, globalThis.Math.abs(value))
+    } catch (error) {
+        if (!(error instanceof MathException)) throw error
+    }
     //Real values only: on a branch cut (asinh of a purely imaginary number beyond i), asinh(-u) = -asinh(u) does not
     //hold, in SymEngine as in SymPy. Not through the functions that jump: the rounding of the rewritten form moves them
     //(floor(sinc(i)) is 1, floor(-i*cos(-pi/2 + i)) has an imaginary part of -1e-16, floored to -1). Nor the large
     //numbers: the shift of the rewritten form is lost in their doubles (sin(e^100) as cos(e^100 - pi/2))
-    const unstable: boolean = /sign|floor|ceil|round|mod|arg|1e2/.test(text)
+    const unstable: boolean = /sign|floor|ceil|round|mod|arg|1e2/.test(text) || roundingBound
     if (exact && exact.im === 0 && rewritten && !unstable) {
         const value: Value | undefined = valueAt(rewritten, point)
         if (value && !near(value, exact, 1e-6)) fail('rewrite', `${rewritten.toString()} is ${JSON.stringify(value)} at ${JSON.stringify(point)}, before ${JSON.stringify(exact)}`)
@@ -226,6 +244,59 @@ export async function checkFormula(math: Math, random: Random, index: number, te
         if (asynchronous.toString() !== expanded.toString()) fail('async', `expandAsync gives ${asynchronous.toString()}, expand ${expanded.toString()}`)
     } catch (error) {
         if (!(error instanceof MathException)) fail('expand', String(error))
+    }
+    //The code of JavaScript gives the value of the compiled function, where the function is well conditioned (not
+    //at a jump, nor where a change of 1e-6 of the inputs moves the value by more than 1e-3); NaN only where the
+    //compiled function computes a part in the complex numbers, never a number where it has none
+    if (!/1e2/.test(text)) {
+        try {
+            const code: string = expression.toJavaScript()
+            const f = new Function('Math', 'x', 'y', 'z', `return ${code}`) as (math: unknown, x: number, y: number, z: number) => number
+            const compiled = expression.compile(['x', 'y', 'z'])
+            const value: number = f(globalThis.Math, point.x, point.y, point.z)
+            const expected: number = compiled(point.x, point.y, point.z)
+            const moved: number = compiled(point.x * (1 + 1e-6), point.y * (1 + 1e-6), point.z * (1 + 1e-6))
+            //And not where the roundings decide the value (tan(e^(pi^4)): no input to move)
+            const conditioned: boolean = globalThis.Math.abs(moved - expected) <= 1e-3 * globalThis.Math.max(1, globalThis.Math.abs(expected)) && !roundingBound
+            if (Number.isNaN(expected) && Number.isFinite(value)) fail('javascript', `${code} is ${value} at ${JSON.stringify(point)}, where the formula has no real value`)
+            if (conditioned && Number.isFinite(value) && Number.isFinite(expected) && !near({re: value, im: 0}, {re: expected, im: 0}, 1e-9)) {
+                fail('javascript', `${code} is ${value} at ${JSON.stringify(point)}, compiled ${expected}`)
+            }
+        } catch (error) {
+            if (!(error instanceof MathException)) fail('javascript', String(error))
+        }
+    }
+    //The common subexpressions, substituted back, give the expression; their values print and read back
+    try {
+        const {replacements, expressions: [reduced]} = math.cse([expression])
+        let back: Expression = reduced
+        for (let at: number = replacements.length - 1; at >= 0; at--) back = back.substitute({[replacements[at].name]: replacements[at].value})
+        for (const {value} of replacements) {
+            if (math.expression(value.toString()).toString() !== value.toString()) fail('cse', `${value.toString()} does not read back`)
+        }
+        const value: Value | undefined = exact ? valueAt(back, point) : undefined
+        if (exact && value && !near(value, exact, 1e-9)) fail('cse', `${back.toString()} is ${JSON.stringify(value)} at ${JSON.stringify(point)}, before ${JSON.stringify(exact)}`)
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('cse', String(error))
+    }
+    //The rectangular and the polar forms rebuild the value (not through the jumps, moved by the roundings)
+    if (exact && !unstable) {
+        try {
+            const real = (part: Value | undefined): boolean => part !== undefined && globalThis.Math.abs(part.im) <= 1e-9 * globalThis.Math.max(1, globalThis.Math.abs(part.re))
+            const {real: re, imaginary: im} = expression.toRectangular()
+            const a: Value | undefined = valueAt(re, point), b: Value | undefined = valueAt(im, point)
+            if (a && b && (!real(a) || !real(b) || !near({re: a.re, im: b.re}, exact, 1e-6))) {
+                fail('rectangular', `${re.toString()} | ${im.toString()} is ${JSON.stringify([a, b])} at ${JSON.stringify(point)}, before ${JSON.stringify(exact)}`)
+            }
+            const {modulus, argument} = expression.toPolar()
+            const r: Value | undefined = valueAt(modulus, point), angle: Value | undefined = valueAt(argument, point)
+            if (r && angle) {
+                const rebuilt: Value = {re: r.re * globalThis.Math.cos(angle.re), im: r.re * globalThis.Math.sin(angle.re)}
+                if (!real(r) || !real(angle) || !near(rebuilt, exact, 1e-6)) fail('polar', `${modulus.toString()} | ${argument.toString()} is ${JSON.stringify([r, angle])} at ${JSON.stringify(point)}, before ${JSON.stringify(exact)}`)
+            }
+        } catch (error) {
+            if (!(error instanceof MathException)) fail('rectangular', String(error))
+        }
     }
     //Not the large numbers either (sin(cosh(1e2 + x)) turns faster than any step)
     if (exact && exact.im === 0 && !/abs|sign|floor|ceil|min|max|round|mod|arg|1e2/.test(text)) {

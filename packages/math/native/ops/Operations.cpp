@@ -21,8 +21,10 @@
 #include <symengine/visitor.h>
 
 #include "../async/Pool.h"
+#include "Decimal.h"
 #include "../parser/Parser.h"
 #include "../printer/Printer.h"
+#include "../functions/Functions.h"
 
 namespace math {
 
@@ -538,7 +540,114 @@ int compareOf(const Expr &a, const Expr &b)
     if (positive == 1) return 1;
     const int negative = predicateOf(difference, "negative");
     if (negative == 1) return -1;
+    //Too close for the doubles: their decimals of 60 digits, when they differ beyond 1e-40 of their size (a zero not
+    //shown exactly stays not known)
+    if (free_symbols(*difference).empty()) {
+        try {
+            const DecimalContext context(60);
+            const Decimal x = context.parse(toDecimal(evaluated(a), 60));
+            const Decimal y = context.parse(toDecimal(evaluated(b), 60));
+            const Decimal gap = context.sub(x, y);
+            Decimal size = context.parse("1");
+            if (context.compare(context.abs(x), size) > 0) size = context.abs(x);
+            if (context.compare(context.abs(y), size) > 0) size = context.abs(y);
+            if (context.compare(context.abs(gap), context.mul(size, context.parse("1e-40"))) > 0) return context.isNegative(gap) ? -1 : 1;
+        } catch (MathError &) {
+        }
+    }
     return 2;
+}
+
+CommonSubexpressions cseOf(const std::vector<Expr> &given, const std::string &prefix)
+{
+    if (!isName(prefix)) throw MathError(ErrorCode::Argument, "The prefix of the names is a name: " + prefix + " is not one");
+    vec_basic expressions;
+    std::set<std::string> taken;
+    for (const Expr &expression : given) {
+        expressions.push_back(evaluated(expression));
+        for (const auto &variable : free_symbols(*expressions.back())) taken.insert(down_cast<const Symbol &>(*variable).get_name());
+    }
+    vec_pair replacements;
+    vec_basic reduced;
+    checkpoint();
+    cse(replacements, reduced, expressions);
+    //SymEngine's x0, x1… renamed, all at once (a name of the prefix may be one of SymEngine's)
+    map_basic_basic renames;
+    size_t index = 0;
+    for (const auto &[symbol, value] : replacements) {
+        std::string name;
+        do {
+            name = prefix + std::to_string(index++);
+        } while (taken.count(name) || isReserved(name));
+        renames[symbol] = SymEngine::symbol(name);
+    }
+    CommonSubexpressions result;
+    for (const auto &[symbol, value] : replacements) {
+        result.replacements.emplace_back(down_cast<const Symbol &>(*renames.at(symbol)).get_name(), xreplace(value, renames));
+    }
+    for (const Expr &expression : reduced) result.expressions.push_back(xreplace(expression, renames));
+    return result;
+}
+
+namespace {
+
+//An angle as a principal argument, from -pi (excluded) to pi: a real number moved by a multiple of 2 pi, clearly
+//inside (SymEngine does not tell the sign of 5 - pi); none (null) for another angle
+Expr principalAngle(const Expr &angle)
+{
+    if (!free_symbols(*angle).empty()) return Expr();
+    std::complex<double> value;
+    try {
+        value = numericValue(angle);
+    } catch (MathError &) {
+        return Expr();
+    }
+    if (value.imag() != 0 || !std::isfinite(value.real())) return Expr();
+    const double turns = std::round(value.real() / 6.283185307179586);
+    const double reduced = value.real() - turns * 6.283185307179586;
+    const double margin = 1e-12 * std::max(1.0, std::abs(value.real()));
+    if (reduced <= -3.141592653589793 + margin || reduced >= 3.141592653589793 - margin) return Expr();
+    return turns == 0 ? angle : sub(angle, mul(integer(static_cast<long>(2 * turns)), pi));
+}
+
+}
+
+std::pair<Expr, Expr> polarOf(const Expr &z)
+{
+    //A product: the product of the moduli of its factors, the sum of their arguments when it is a principal one
+    if (is_a<Mul>(*z)) {
+        Expr modulus = one, angle = zero;
+        for (const Expr &factor : z->get_args()) {
+            const std::pair<Expr, Expr> polar = polarOf(factor);
+            modulus = mul(modulus, polar.first);
+            angle = add(angle, polar.second);
+        }
+        const Expr principal = principalAngle(angle);
+        return {modulus, principal.is_null() ? argumentOf(z) : principal};
+    }
+    //e^w: the modulus e^re(w), the argument im(w)
+    if (is_a<Pow>(*z) && eq(*down_cast<const Pow &>(*z).get_base(), *E)) {
+        const Expr w = down_cast<const Pow &>(*z).get_exp();
+        const Expr principal = principalAngle(imaginaryPartOf(w));
+        return {exp(realPartOf(w)), principal.is_null() ? argumentOf(z) : principal};
+    }
+    //A constant of known parts a + bi: |a| for b = 0 (SymEngine keeps abs(sqrt(2))), sqrt(a^2 + b^2) otherwise
+    Expr real, imaginary;
+    if (free_symbols(*z).empty() && constantParts(z, real, imaginary)) {
+        const std::pair<Expr, Expr> parts{real, imaginary};
+        if (is_a_Number(*imaginary) && down_cast<const Number &>(*imaginary).is_zero()) {
+            const int positive = predicateOf(real, "positive");
+            if (positive == 1) return {real, zero};
+            if (positive == 0 && predicateOf(real, "negative") == 1) return {neg(real), pi};
+        }
+        return {pow(add(pow(real, integer(2)), pow(imaginary, integer(2))), rational(1, 2)), argumentOf(z)};
+    }
+    return {abs(z), argumentOf(z)};
+}
+
+std::pair<Expr, Expr> rectangularOf(const Expr &z)
+{
+    return {realPartOf(z), imaginaryPartOf(z)};
 }
 
 }

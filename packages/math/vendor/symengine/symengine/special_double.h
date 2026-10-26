@@ -33,6 +33,24 @@ constexpr double BERNOULLI[] = {1.0 / 6, -1.0 / 30, 1.0 / 42, -1.0 / 30, 5.0 / 6
                                 -3617.0 / 510, 43867.0 / 798, -174611.0 / 330, 854513.0 / 138,
                                 -236364091.0 / 2730};
 
+// lakutata: an inverse function of a real argument computed by its real version where it is real: the complex
+// versions may leave tiny imaginary parts (libc++'s std::atan(-0.4 + 0i) has 5.55e-17), which move arg() and the
+// roots of the results across their cuts
+template <typename F, typename G, typename D>
+inline double real_where(double x, F real, G, D)
+{
+    return real(x);
+}
+
+template <typename F, typename G, typename D>
+inline std::complex<double> real_where(const std::complex<double> &z, F real,
+                                       G complex, D inside)
+{
+    if (z.imag() == 0 and inside(z.real()))
+        return real(z.real());
+    return complex(z);
+}
+
 // A value without its negative zeros: a negative real number stays on the
 // upper side of the branch cuts, as the exact values (the principal ones):
 // (0.9 + 0i)/(-0.4 + 0i) is -2.25 - 0i, its log was -i*pi

@@ -39,7 +39,9 @@ SymEngine's `boostmp` integers come from Boost.Multiprecision, which can be used
   the square roots by `sqrt`, in the powers and in the factors of the compiled products: `pow` goes through `exp` and
   `log`, whose rounding moved real values off the real line. Log gamma has no real value left of zero (its imaginary
   part is a multiple of pi), and the sign of NaN is NaN, so that the complex value is computed instead. `atan2(-0.0, x)`
-  is `atan2(0, x)`, as the exact value.
+  is `atan2(0, x)`, as the exact value. The inverse trigonometric and hyperbolic functions of a real argument inside
+  their real domain are computed with their real versions in the complex evaluations: libc++'s complex `atan` of `-0.4`
+  has an imaginary part of `5.55e-17`, which put `arg(1/atan(-2/5))` at `-pi`.
 - `symengine/functions.cpp`: polygamma has its poles at the nonpositive integers only (SymEngine gave
   `complexInfinity` for every number not positive), a negative rational is moved right by the recurrence, and its
   special values of the thirds and the quarters are chosen by the remainder of the numerator (`polygamma(0, 5/4)` was
