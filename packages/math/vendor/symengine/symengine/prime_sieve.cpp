@@ -16,9 +16,10 @@
 namespace SymEngine
 {
 
+// lakutata: the primes of each thread (the threads of the addon use the sieve at the same time)
 static std::vector<unsigned> &sieve_primes()
 {
-    static std::vector<unsigned> primes = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29};
+    thread_local std::vector<unsigned> primes = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29};
     return primes;
 }
 

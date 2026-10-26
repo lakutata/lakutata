@@ -10,8 +10,8 @@
 
 #if SYMENGINE_INTEGER_CLASS == SYMENGINE_BOOSTMP
 #include <boost/multiprecision/cpp_int.hpp>
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/uniform_int.hpp>
+#include <random>
+#include <boost/multiprecision/detail/uniform_int_distribution.hpp>
 #include <symengine/symengine_rcp.h>
 #include <ios>
 #elif SYMENGINE_INTEGER_CLASS == SYMENGINE_PIRANHA
@@ -824,7 +824,7 @@ inline int mp_cmpabs(const integer_class &a, const integer_class &b)
 
 inline int mp_sign(const integer_class &i)
 {
-    return boost::math::sign(i);
+    return i.sign();
 }
 
 inline double mp_get_d(const integer_class &i)
@@ -1070,7 +1070,7 @@ public:
     // inclusive
     void urandomint(integer_class &res, const integer_class &a)
     {
-        boost::random::uniform_int_distribution<integer_class> ui(0, a);
+        boost::multiprecision::uniform_int_distribution<integer_class> ui(0, a);
         res = ui(_twister);
     }
 
@@ -1080,7 +1080,7 @@ public:
     }
 
 private:
-    boost::random::mt19937 _twister;
+    std::mt19937 _twister;
 };
 
 #endif // SYMENGINE_INTEGER_CLASS == SYMENGINE_BOOSTMP
@@ -1270,7 +1270,7 @@ private:
 } // namespace SymEngine
 
 #if !defined(HAVE_SYMENGINE_GMP) && defined(HAVE_SYMENGINE_BOOST)              \
-    && BOOST_VERSION < 105900
+    && defined(BOOST_VERSION) && BOOST_VERSION < 105900
 namespace boost
 {
 namespace detail

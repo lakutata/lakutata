@@ -120,13 +120,11 @@ ConstantInitializer::ConstantInitializer()
     }
 }
 
+// lakutata: the constants are not destroyed when the process exits, the threads of the addon may still use them
+// (the memory goes with the process)
 ConstantInitializer::~ConstantInitializer()
 {
-    if (--nifty_counter == 0) {
-#define DEFINE_CONSTANT(t, n, d) n.~RCP();
-        DEFINE_CONSTANTS
-#undef DEFINE_CONSTANT
-    }
+    --nifty_counter;
 }
 
 } // namespace SymEngine

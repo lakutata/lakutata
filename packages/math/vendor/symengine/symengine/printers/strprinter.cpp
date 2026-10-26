@@ -872,7 +872,9 @@ std::string StrPrinter::apply(const vec_basic &d)
 
 void StrPrinter::bvisit(const Function &x)
 {
-    static const std::vector<std::string> names_ = init_str_printer_names();
+    // lakutata: never destroyed, the threads of the addon may print when the process exits
+    static const std::vector<std::string> &names_
+        = *new std::vector<std::string>(init_str_printer_names());
     std::ostringstream o;
     o << names_[x.get_type_code()];
     vec_basic vec = x.get_args();

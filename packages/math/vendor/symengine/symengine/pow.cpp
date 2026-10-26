@@ -3,6 +3,7 @@
 #include <symengine/complex.h>
 #include <symengine/symengine_exception.h>
 #include <symengine/test_visitors.h>
+#include <symengine/interruption.h>
 
 namespace SymEngine
 {
@@ -235,6 +236,7 @@ void multinomial_coefficients_mpz(unsigned m, unsigned n, map_vec_mpz &r)
         return;
     j = 0;
     while (j < m - 1) {
+        check_interruption(); // lakutata
         tj = t[j];
         if (j) {
             t[j] = 0;

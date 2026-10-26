@@ -43,15 +43,16 @@ extern RCP<const Basic> &mC6;
 // sin_table()[n] represents the value of sin(pi*n/12) for n = 0..23
 static const RCP<const Basic> *sin_table()
 {
-    static const RCP<const Basic> table[]
-        = {zero, C0,  C1,  C2,  C3,  C4,  one,       C4,  C3,  C2,  C1,  C0,
-           zero, mC0, mC1, mC2, mC3, mC4, minus_one, mC4, mC3, mC2, mC1, mC0};
+    // lakutata: the tables are never destroyed, the threads of the addon may use them when the process exits
+    static const RCP<const Basic> *table = new RCP<const Basic>[24]{
+        zero, C0,  C1,  C2,  C3,  C4,  one,       C4,  C3,  C2,  C1,  C0,
+        zero, mC0, mC1, mC2, mC3, mC4, minus_one, mC4, mC3, mC2, mC1, mC0};
     return table;
 }
 
 static const umap_basic_basic &inverse_cst()
 {
-    static const umap_basic_basic inverse_cst_ = {
+    static const umap_basic_basic &inverse_cst_ = *new umap_basic_basic{
         {C3, i3},
         {mC3, im3},
         {C2, mul(i2, i2)},
@@ -70,7 +71,7 @@ static const umap_basic_basic &inverse_cst()
 
 static const umap_basic_basic &inverse_tct()
 {
-    static const umap_basic_basic inverse_tct_ = {
+    static const umap_basic_basic &inverse_tct_ = *new umap_basic_basic{
         {div(one, sq3), mul(i2, i3)},
         {div(minus_one, sq3), mul(im2, i3)},
         {sq3, i3},

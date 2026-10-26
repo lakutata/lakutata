@@ -1,4 +1,5 @@
 #include <symengine/visitor.h>
+#include <symengine/interruption.h>
 
 namespace SymEngine
 {
@@ -94,6 +95,7 @@ public:
             for (auto &p : (down_cast<const Add &>(*a)).get_dict()) {
                 RCP<const Number> temp = _mulnum(p.second, multiply);
                 for (auto &q : (down_cast<const Add &>(*b)).get_dict()) {
+                    check_interruption(); // lakutata
                     // The main bottleneck here is the mul(p.first, q.first)
                     // command
                     RCP<const Basic> term = mul(p.first, q.first);
@@ -196,6 +198,7 @@ public:
         RCP<const Number> coef, two = integer(2);
         for (auto p = base_dict.begin(); p != base_dict.end(); ++p) {
             for (auto q = p; q != base_dict.end(); ++q) {
+                check_interruption(); // lakutata
                 if (q == p) {
                     _coef_dict_add_term(
                         _mulnum(mulnum((*p).second, (*p).second), multiply),
@@ -221,6 +224,7 @@ public:
         d_.reserve(d_.size() + 2 * r.size());
 #endif
         for (auto &p : r) {
+            check_interruption(); // lakutata
             auto power = p.first.begin();
             auto i2 = base_dict.begin();
             map_basic_basic d;

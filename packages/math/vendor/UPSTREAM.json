@@ -19,11 +19,6 @@
     "archive": "https://www.bytereef.org/software/mpdecimal/releases/mpdecimal-4.0.1.tar.gz",
     "sha256": "96d33abb4bb0070c7be0fed4246cd38416188325f820468214471938545b1ac8"
   },
-  "node-addon-api": {
-    "version": "8.9.2",
-    "archive": "https://registry.npmjs.org/node-addon-api/-/node-addon-api-8.9.2.tgz",
-    "sha256": "4cd65698541b19a33f798f1dc25c02c6ed1c9d7749b8824b1a1ccecdd197c8ea"
-  },
   "symengine": {
     "version": "0.15.0",
     "archive": "https://github.com/symengine/symengine/archive/refs/tags/v0.15.0.tar.gz",

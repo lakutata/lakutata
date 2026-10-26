@@ -1,6 +1,9 @@
 #include <symengine/rational.h>
 #include <symengine/pow.h>
 #include <symengine/symengine_exception.h>
+#include <symengine/prime_sieve.h>
+#include <symengine/mul.h>
+#include <symengine/complex.h>
 
 namespace SymEngine
 {
@@ -192,6 +195,112 @@ RCP<const Basic> Rational::powrat(const Rational &other) const
                           other.neg()->rpowrat(*this->get_den()));
 }
 
+namespace
+{
+
+// lakutata: the factors of |base| below 2**15 by trial division, then the
+// rest when it is a perfect power (its factors are all above 2**15, so its
+// exponent is small)
+std::vector<std::pair<integer_class, unsigned long>>
+root_factors(const integer_class &base)
+{
+    std::vector<std::pair<integer_class, unsigned long>> factors;
+    integer_class rest = base, quotient, remainder, root;
+    Sieve::iterator primes(32768);
+    for (unsigned long prime = primes.next_prime(); prime <= 32768;
+         prime = primes.next_prime()) {
+        const integer_class divisor(prime);
+        if (divisor * divisor > rest)
+            break;
+        unsigned long exponent = 0;
+        while (true) {
+            mp_fdiv_qr(quotient, remainder, rest, divisor);
+            if (remainder != 0)
+                break;
+            rest = quotient;
+            exponent++;
+        }
+        if (exponent > 0)
+            factors.emplace_back(divisor, exponent);
+    }
+    unsigned long power = 1;
+    bool found = rest > 32768;
+    while (found) {
+        found = false;
+        Sieve::iterator roots(4096);
+        for (unsigned long k = roots.next_prime();
+             k <= 4096 and (integer_class(1) << (15 * k)) <= rest;
+             k = roots.next_prime()) {
+            if (mp_root(root, rest, k)) {
+                rest = root;
+                power *= k;
+                found = true;
+                break;
+            }
+        }
+    }
+    if (rest > 1)
+        factors.emplace_back(rest, power);
+    return factors;
+}
+
+}
+
+// lakutata: base**(r/den) (0 < r < den) as coef * the surds, the powers of
+// the factors of the base taken out of the root, as SymPy's
+// Integer._eval_power: false when nothing is taken out (the root is kept)
+static bool extract_root_factors(RCP<const Number> &coef, map_basic_basic &surd,
+                          const integer_class &base, const integer_class &r,
+                          const integer_class &den)
+{
+    const integer_class magnitude = mp_abs(base);
+    if (magnitude <= 1)
+        return false;
+    integer_class taken = 1, left = 1, common = 0, power;
+    std::vector<std::pair<integer_class, integer_class>> remaining;
+    map_basic_basic radicals;
+    for (const auto &factor : root_factors(magnitude)) {
+        const integer_class exponent = factor.second * r;
+        integer_class whole, part, g;
+        mp_fdiv_qr(whole, part, exponent, den);
+        if (whole > 0) {
+            mp_pow_ui(power, factor.first, mp_get_ui(whole));
+            taken *= power;
+        }
+        if (part == 0)
+            continue;
+        mp_gcd(g, part, den);
+        if (g != 1) {
+            insert(radicals, integer(factor.first),
+                   Rational::from_mpq(rational_class(part / g, den / g)));
+        } else {
+            remaining.emplace_back(factor.first, part);
+            mp_gcd(common, common, part);
+        }
+    }
+    for (const auto &factor : remaining) {
+        mp_pow_ui(power, factor.first, mp_get_ui(factor.second / common));
+        left *= power;
+    }
+    if (left == magnitude and taken == 1 and radicals.empty())
+        return false;
+    const bool negative = base < 0;
+    coef = mulnum(coef, integer(std::move(taken)));
+    if (negative and den == 2)
+        imulnum(outArg(coef), I);
+    for (const auto &radical : radicals)
+        insert(surd, radical.first, radical.second);
+    if (left > 1) {
+        // A negative base keeps its sign under an odd root: (-24)**(1/3)
+        // is 2*(-3)**(1/3)
+        insert(surd, integer(negative and den != 2 ? integer_class(-left) : left),
+               Rational::from_mpq(rational_class(common, den)));
+    } else if (negative and den != 2) {
+        insert(surd, minus_one, Rational::from_mpq(rational_class(r, den)));
+    }
+    return true;
+}
+
 RCP<const Basic> Rational::rpowrat(const Integer &other) const
 {
     if (other.is_one()) {
@@ -223,6 +332,11 @@ RCP<const Basic> Rational::rpowrat(const Integer &other) const
     // to achieve this
     RCP<const Number> coef = other.powint(*integer(q));
     map_basic_basic surd;
+
+    // lakutata: the powers in the base taken out of the root, as SymPy
+    // does (sqrt(8) is 2*sqrt(2), 8**(1/4) is 2**(3/4))
+    if (extract_root_factors(coef, surd, other.as_integer_class(), r, den))
+        return Mul::from_dict(coef, std::move(surd));
 
     if ((other.is_negative()) and den == 2) {
         imulnum(outArg(coef), I);

@@ -5,11 +5,11 @@
 // changed in lakutata takes the one of the new release, a file not changed upstream keeps ours, a file changed on both
 // sides is merged by git merge-file: its conflicts are left in it with their markers, and listed. Only the files of
 // each library the addon builds or needs (its licenses) are imported. The changes made in lakutata are described in
-// vendor/PATCHES.md.
+// vendor/PATCHES.md. The header of mpdecimal its configure would write is written in native/config/mpdecimal.
 //
 // Run: node scripts/sync.mjs <library> <version>      merge a newer release into the source of the package
 //      node scripts/sync.mjs <library> <version> --import   replace the source of the package by a release, as it is
-// The libraries: symengine, boost-multiprecision, boost-config, eigen, mpdecimal, node-addon-api
+// The libraries: symengine, boost-multiprecision, boost-config, eigen, mpdecimal
 
 import {execFileSync, spawnSync} from 'node:child_process'
 import {createHash} from 'node:crypto'
@@ -21,6 +21,23 @@ import {fileURLToPath} from 'node:url'
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const VENDOR = path.join(PACKAGE, 'vendor')
 const UPSTREAM = path.join(VENDOR, 'UPSTREAM.json')
+
+/**
+ * The header of mpdecimal its configure writes from mpdecimal.h.in, written here: the configuration chosen by the size of
+ * the pointers of the target when the header is read (64 or 32 bits), the build macros of libmpdec (CONFIG_64, ANSI,
+ * HAVE_UINT128_T) given to its sources only, by binding.gyp
+ * @param template the content of mpdecimal.h.in
+ */
+function mpdecimalHeader(template) {
+    const configuration = `/* ABI: the size of the pointers of the target (written by scripts/sync.mjs of @lakutata/math, not by configure) */
+#if defined(_WIN64) || defined(__LP64__) || (defined(__SIZEOF_POINTER__) && __SIZEOF_POINTER__ == 8)
+  #define MPD_CONFIG_64 1
+#else
+  #define MPD_CONFIG_32 1
+#endif`
+    if (!template.includes('@MPD_HEADER_CONFIG@')) throw new Error('mpdecimal.h.in: @MPD_HEADER_CONFIG@ not found')
+    return template.replace('@MPD_HEADER_CONFIG@', configuration)
+}
 
 /**
  * The libraries: where their releases are, the directory their archive extracts to, the files kept (paths from it,
@@ -37,8 +54,9 @@ const LIBRARIES = {
             /^symengine\/utilities\/(catch|matchpycpp|teuchos)\//,
             /^symengine\/parser\/sbml\//,
             /^symengine\/printers\/sbml\./,
-            /^symengine\/(cwrapper|llvm_double|mp_wrapper|flint_wrapper|eval_arb|eval_mpfr|eval_mpc|real_mpfr|complex_mpc|series_flint|series_piranha)\./,
-            /^symengine\/polys\/uintpoly_(flint|piranha)\./,
+            //The sources of the backends not built (their headers kept: the others include them, guarded inside)
+            /^symengine\/(cwrapper|llvm_double|mp_wrapper|eval_arb|eval_mpfr|eval_mpc|real_mpfr|complex_mpc|series_flint|series_piranha)\.cpp$/,
+            /^symengine\/polys\/uintpoly_(flint|piranha)\.cpp$/,
             /(^|\/)CMakeLists\.txt$/,
             /\.(in|yy|re|cmake)$/,
             /^symengine\/utilities\/(cereal|fast_float)\/.*\/(sandbox|unittests|tests?|doc|benchmarks?)\//
@@ -48,7 +66,7 @@ const LIBRARIES = {
         directory: 'boost/multiprecision',
         archive: (version) => `https://github.com/boostorg/multiprecision/archive/refs/tags/Boost_${version.replaceAll('.', '_')}.tar.gz`,
         root: (version) => `multiprecision-Boost_${version.replaceAll('.', '_')}`,
-        include: ['include/', 'README.md'],
+        include: ['include/', 'README.md', 'LICENSE'],
         exclude: []
     },
     'boost-config': {
@@ -71,13 +89,6 @@ const LIBRARIES = {
         root: (version) => `mpdecimal-${version}`,
         include: ['libmpdec/', 'COPYRIGHT.txt', 'README.txt'],
         exclude: [/^libmpdec\/(bench|bench_full)\.c$/, /^libmpdec\/(examples|literature)\//, /^libmpdec\/(Makefile\.in|Makefile\.vc|vcdiv64\.asm|mpdecimal32vc\.h|mpdecimal64vc\.h)$/]
-    },
-    'node-addon-api': {
-        directory: 'node-addon-api',
-        archive: (version) => `https://registry.npmjs.org/node-addon-api/-/node-addon-api-${version}.tgz`,
-        root: () => 'package',
-        include: ['napi.h', 'napi-inl.h', 'napi-inl.deprecated.h', 'LICENSE.md', 'README.md'],
-        exclude: []
     }
 }
 
@@ -198,6 +209,7 @@ try {
         if (conflicts.length) console.log(`Conflicts to resolve:\n  ${conflicts.join('\n  ')}`)
     }
     pruneEmpty(destination)
+    if (library === 'mpdecimal') write(path.join(PACKAGE, 'native', 'config', 'mpdecimal', 'mpdecimal.h'), mpdecimalHeader(readFileSync(path.join(destination, 'libmpdec', 'mpdecimal.h.in'), 'utf8')))
     upstream[library] = {version: version, archive: LIBRARIES[library].archive(version), sha256: theirs.sha256}
     write(UPSTREAM, `${JSON.stringify(Object.fromEntries(Object.entries(upstream).sort()), null, 2)}\n`)
 } finally {
