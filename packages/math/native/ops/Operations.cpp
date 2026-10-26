@@ -102,18 +102,32 @@ bool specialValue(const Expr &expression, std::complex<double> &value)
     return true;
 }
 
-double toDouble(const Expr &expression)
+namespace {
+
+//The value of an expression without variables: in the real numbers first (their functions round better than the
+//complex ones: sqrt(2) is Math.SQRT2), in the complex ones where it is not real
+std::complex<double> numericValue(const Expr &expression)
 {
     requireNoVariables(expression);
     std::complex<double> value;
-    if (specialValue(expression, value)) return value.real();
-    //In the real numbers first: their functions round better than the complex ones (sqrt(2) is Math.SQRT2)
+    if (specialValue(expression, value)) return value;
     try {
         const double real = eval_double(*expression);
         if (!std::isnan(real)) return real;
     } catch (SymEngineException &) {
     }
-    value = eval_complex_double(*expression);
+    try {
+        return eval_complex_double(*expression);
+    } catch (SymEngineException &) {
+        throw MathError(ErrorCode::NotSupported, "The numeric value of " + toText(expression) + " is not computed");
+    }
+}
+
+}
+
+double toDouble(const Expr &expression)
+{
+    const std::complex<double> value = numericValue(expression);
     if (value.imag() != 0 && std::abs(value.imag()) > 1e-12 * std::max(1.0, std::abs(value.real()))) {
         throw MathError(ErrorCode::Domain, "The value is a complex number (" + toText(expression) + "): use toComplex()");
     }
@@ -122,10 +136,7 @@ double toDouble(const Expr &expression)
 
 std::complex<double> toComplex(const Expr &expression)
 {
-    requireNoVariables(expression);
-    std::complex<double> value;
-    if (specialValue(expression, value)) return value;
-    return eval_complex_double(*expression);
+    return numericValue(expression);
 }
 
 std::vector<std::string> variablesOf(const Expr &expression)
@@ -171,6 +182,8 @@ Expr simplifyOf(const Expr &expression)
 Expr differentiate(const Expr &expression, const std::string &name, unsigned times)
 {
     const RCP<const Symbol> by = variable(name);
+    //Without the variable: 0 at once (the derivative of a number may compute powers too large)
+    if (!free_symbols(*expression).count(by)) return zero;
     Expr result = expression;
     for (unsigned i = 0; i < times; i++) {
         checkpoint();

@@ -10,6 +10,7 @@
 #include <symengine/number.h>
 #include <symengine/symengine_exception.h>
 #include <symengine/symengine_casts.h>
+#include <symengine/limits.h>
 
 namespace SymEngine
 {
@@ -108,6 +109,9 @@ public:
             else
                 return pow_negint(other);
         }
+        // lakutata: not the powers too large to compute
+        if (exact_power_too_large(i, other.i))
+            throw NotImplementedError("The exact value of a power is too large to compute");
         integer_class tmp;
         mp_pow_ui(tmp, i, mp_get_ui(other.i));
         return make_rcp<const Integer>(std::move(tmp));

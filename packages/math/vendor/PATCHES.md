@@ -26,6 +26,51 @@ SymEngine's `boostmp` integers come from Boost.Multiprecision, which can be used
   took out only exact roots (`sqrt(4)` is `2`). The factors are found by trial division up to 2^15, and the rest of
   the number when it is a perfect power.
 
+### The values of the functions
+
+- `symengine/special_double.h` (added): the special functions in double precision, for real and complex arguments,
+  where SymEngine relies on MPFR and Arb: gamma (Lanczos) and log gamma (Stirling's series, the branch of its analytic
+  continuation), zeta and the Hurwitz zeta (Euler-Maclaurin, the reflection formula), the Lambert W function (its
+  principal branch), polygamma, the incomplete gamma functions, beta, erf and erfc of complex numbers.
+- `symengine/eval_double.cpp`, `symengine/lambda_double.h`: these functions, with sign, floor, ceiling, truncation and
+  the conjugate, evaluated numerically and in the compiled functions. Log gamma has no real value left of zero (its
+  imaginary part is a multiple of pi), and the sign of NaN is NaN, so that the complex value is computed instead.
+  `atan2(-0.0, x)` is `atan2(0, x)`, as the exact value.
+- `symengine/functions.cpp`: polygamma has its poles at the nonpositive integers only (SymEngine gave
+  `complexInfinity` for every number not positive), a negative rational is moved right by the recurrence, and its
+  special values of the thirds and the quarters are chosen by the remainder of the numerator (`polygamma(0, 5/4)` was
+  wrong). `beta(x, 1 - x)` is `pi/sin(pi*x)` (it was `complexInfinity`). The sign of a product is the product of the
+  signs of its factors where they are known, the sign of a number written as an expression is computed
+  (`sign(pi - 3)` is 1), and the sign of a power of an unknown sign no longer recurses without end. The floor, the
+  ceiling and the truncation of a number written as an expression are computed (`floor(sqrt(2))` is 1); the
+  truncation no longer takes an integer out of a sum (`trunc(5 - 1/2)` is 4, not `5 + trunc(-1/2)`).
+- `symengine/derivative.cpp`: the derivative of `acosh(x)` is `1/(sqrt(x - 1)*sqrt(x + 1))`, as SymPy;
+  `1/sqrt(x^2 - 1)` has the wrong sign left of -1.
+
+### Canonical forms
+
+- `symengine/mul.cpp`: the coefficient of a product goes into its first sum to the power 1 (`2*(x + 1)` is
+  `2*x + 2`, `2*(x + 1)/y` is `(2*x + 2)/y`), else the denominator of a rational coefficient goes into its first sum
+  to the power -1 (`z/(2*(x + 1))` is `z/(2*x + 2)`), as the formulas are read: a value has one form, the sums stay
+  flat. A factor that is a power, raised to an integer power, is combined (`(a^b)^n` is `a^(b*n)`).
+- `symengine/functions.cpp`: the minus taken out of a sum (`asinh(-x - 1)` is `-asinh(x + 1)`) is added term by
+  term, so that a sum among the terms is flattened. `log(e^r)` is `r` for an exact real number `r`.
+- `symengine/pow.cpp`: `e^log(x)` is `x`, and `e^(c*log(x))` is `x^c` for a number `c`, as SymPy. `(x^-1)^b` stays
+  as written: SymEngine made it `x^(-b)`, which is wrong for a negative `x` when `b` is not an integer
+  (`sqrt(1/(-4))` is `i/2`, `1/sqrt(-4)` is `-i/2`). `1` to any exact power is `1` (`1^(10^20)` failed).
+
+### The size of the exact numbers
+
+- `symengine/limits.h` (added), `symengine/pow.cpp`, `symengine/mul.cpp`, `symengine/rational.cpp`,
+  `symengine/integer.h`, `symengine/rational.h`: a power whose result would have more than 2^20 bits (about 315000
+  digits) stays a power, where SymEngine computed it (hours, and all the memory, for `(3/20)^(10^8)`); the other
+  operations reaching such a power fail instead of hanging. The gamma function of an integer above 20001 (its
+  factorial) stays as written, as the factorials of the parser.
+- `symengine/mp_boost.cpp`: the integer roots start from an upper bound of the root (SymEngine started from 1, and a
+  root of order 10^16 never ended); the factorials and the binomial coefficients are products of a product tree
+  (SymEngine multiplied one factor at a time).
+- `symengine/rational.cpp`: the powers taken out of the roots only for roots up to 2^15 and numbers of a bounded size.
+
 ### Used by several threads, and while the process exits
 
 The addon runs SymEngine in its own threads, which can still be running when the process exits.

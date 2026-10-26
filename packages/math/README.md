@@ -110,10 +110,13 @@ Definitions are expanded when a formula is read, so derivatives and equations se
 
 ### Exact results and numbers
 
-A formula gives exact results: `0.1 + 0.2` is `3/10`, `sin(pi/6)` is `1/2`, `sqrt(8)` is `2sqrt(2)`. Then:
+A formula gives exact results: `0.1 + 0.2` is `3/10`, `sin(pi/6)` is `1/2`, `sqrt(8)` is `2sqrt(2)`. A number times
+a sum is multiplied out: `2(x + 1)` is `2x + 2`. Exact numbers are computed up to about 315,000 digits: a larger power
+stays a power (`2^(10^7)`), and a factorial above `20000!` stays as `gamma(n + 1)`. Then:
 
 - `toNumber()` gives a number of JavaScript (`MathDomainException` for a complex value), `toComplex()` gives
-  `{re, im}`.
+  `{re, im}`. Both compute the special functions (gamma, zeta, Lambert W, polygamma, erf…) of real and complex
+  arguments.
 - `toDecimal(digits)` gives a string with that many significant digits, correctly rounded (the `precision` of the
   component by default).
 - `compile(variables)` turns an expression into a function of numbers, for evaluating it many times, with `batch()`
@@ -196,7 +199,7 @@ The typings document every declaration, with examples.
 | `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep |
 | `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero) |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals |
-| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep |
+| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation |
 | `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |

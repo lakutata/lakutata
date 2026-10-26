@@ -1,6 +1,7 @@
 #include <symengine/visitor.h>
 #include <symengine/eval_double.h>
 #include <symengine/symengine_exception.h>
+#include <symengine/special_double.h>
 
 namespace SymEngine
 {
@@ -256,6 +257,99 @@ public:
         result_ = std::abs(tmp);
     };
 
+    // lakutata: the special functions and the ones of integer parts, for real
+    // and complex values (special_double.h); NaN where a real value has none
+    void bvisit(const Sign &x)
+    {
+        result_ = special::sign(apply(*(x.get_arg())));
+    }
+
+    void bvisit(const Floor &x)
+    {
+        result_ = special::floor(apply(*(x.get_arg())));
+    }
+
+    void bvisit(const Ceiling &x)
+    {
+        result_ = special::ceiling(apply(*(x.get_arg())));
+    }
+
+    void bvisit(const Truncate &x)
+    {
+        result_ = special::truncate(apply(*(x.get_arg())));
+    }
+
+    void bvisit(const Conjugate &x)
+    {
+        result_ = special::conjugate(apply(*(x.get_arg())));
+    }
+
+    void bvisit(const Gamma &x)
+    {
+        T tmp = apply(*(x.get_args()[0]));
+        special::assign(result_, special::gamma(std::complex<double>(tmp)));
+    }
+
+    void bvisit(const LogGamma &x)
+    {
+        T tmp = apply(*(x.get_args()[0]));
+        special::assign(result_, special::loggamma(std::complex<double>(tmp)));
+    }
+
+    void bvisit(const Erf &x)
+    {
+        T tmp = apply(*(x.get_args()[0]));
+        special::assign(result_, special::erf(std::complex<double>(tmp)));
+    }
+
+    void bvisit(const Erfc &x)
+    {
+        T tmp = apply(*(x.get_args()[0]));
+        special::assign(result_, special::erfc(std::complex<double>(tmp)));
+    }
+
+    void bvisit(const Zeta &x)
+    {
+        result_ = special::zeta(apply(*x.get_s()), apply(*x.get_a()));
+    }
+
+    void bvisit(const Dirichlet_eta &x)
+    {
+        result_ = special::dirichlet_eta(apply(*x.get_s()));
+    }
+
+    void bvisit(const LambertW &x)
+    {
+        result_ = special::lambertw(apply(*(x.get_arg())));
+    }
+
+    void bvisit(const PolyGamma &x)
+    {
+        const T order = apply(*(x.get_arg1()));
+        const double n = std::real(order);
+        if (std::imag(order) != 0 or n < 0 or n != std::floor(n))
+            throw NotImplementedError("Not Implemented");
+        result_ = special::polygamma(static_cast<unsigned>(n),
+                                     apply(*(x.get_arg2())));
+    }
+
+    void bvisit(const Beta &x)
+    {
+        result_ = special::beta(apply(*(x.get_arg1())), apply(*(x.get_arg2())));
+    }
+
+    void bvisit(const LowerGamma &x)
+    {
+        result_ = special::lower_gamma(apply(*(x.get_arg1())),
+                                       apply(*(x.get_arg2())));
+    }
+
+    void bvisit(const UpperGamma &x)
+    {
+        result_ = special::upper_gamma(apply(*(x.get_arg1())),
+                                       apply(*(x.get_arg2())));
+    }
+
     void bvisit(const Basic &)
     {
         throw NotImplementedError("Not Implemented");
@@ -294,7 +388,7 @@ public:
     {
         double num = apply(*(x.get_num()));
         double den = apply(*(x.get_den()));
-        result_ = std::atan2(num, den);
+        result_ = std::atan2(num + 0.0, den); // lakutata: -0.0 as 0
     };
 
     void bvisit(const Gamma &x)
@@ -306,7 +400,7 @@ public:
     void bvisit(const LogGamma &x)
     {
         double tmp = apply(*(x.get_args()[0]));
-        result_ = std::lgamma(tmp);
+        result_ = special::loggamma(tmp); // lakutata: NaN left of zero
     }
 
     void bvisit(const Erf &x)
@@ -419,6 +513,16 @@ public:
     // Derivative, ATan2, Gamma
 
     using EvalDoubleVisitor::bvisit;
+
+    // lakutata: atan2 of real values
+    void bvisit(const ATan2 &x)
+    {
+        const std::complex<double> num = apply(*(x.get_num()));
+        const std::complex<double> den = apply(*(x.get_den()));
+        if (num.imag() != 0 or den.imag() != 0)
+            throw NotImplementedError("Not Implemented");
+        result_ = std::atan2(num.real() + 0.0, den.real());
+    }
 
     void bvisit(const Complex &x)
     {

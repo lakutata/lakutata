@@ -4,6 +4,9 @@
 #include <symengine/symengine_exception.h>
 #include <symengine/test_visitors.h>
 #include <symengine/interruption.h>
+#include <symengine/functions.h>
+#include <symengine/mul.h>
+#include <symengine/limits.h>
 
 namespace SymEngine
 {
@@ -99,6 +102,20 @@ RCP<const Basic> pow(const RCP<const Basic> &a, const RCP<const Basic> &b)
     if (eq(*b, *one))
         return a;
 
+    // lakutata: e**log(x) is x, e**(c*log(x)) is x**c for a number c, as SymPy
+    if (eq(*a, *E)) {
+        if (is_a<Log>(*b))
+            return down_cast<const Log &>(*b).get_arg();
+        if (is_a<Mul>(*b)) {
+            const Mul &product = down_cast<const Mul &>(*b);
+            if (product.get_dict().size() == 1
+                and is_a<Log>(*product.get_dict().begin()->first)
+                and eq(*product.get_dict().begin()->second, *one))
+                return pow(product.get_dict().begin()->first->get_args()[0],
+                           product.get_coef());
+        }
+    }
+
     if (eq(*a, *zero)) {
         if (is_a_Number(*b)
             and rcp_static_cast<const Number>(b)->is_positive()) {
@@ -111,7 +128,9 @@ RCP<const Basic> pow(const RCP<const Basic> &a, const RCP<const Basic> &b)
         }
     }
 
-    if (eq(*a, *one) and not is_a_Number(*b))
+    // lakutata: 1 to an exact number too (1**(10**20) failed in powint)
+    if (eq(*a, *one)
+        and (not is_a_Number(*b) or down_cast<const Number &>(*b).is_exact()))
         return one;
     if (eq(*a, *minus_one)) {
         if (is_a<Integer>(*b)) {
@@ -124,6 +143,15 @@ RCP<const Basic> pow(const RCP<const Basic> &a, const RCP<const Basic> &b)
     if (is_a_Number(*b)) {
         if (is_a_Number(*a)) {
             if (is_a<Integer>(*b)) {
+                // lakutata: an exact power too large to compute stays a power
+                const integer_class &n = down_cast<const Integer &>(*b).as_integer_class();
+                if ((is_a<Integer>(*a)
+                     and exact_power_too_large(down_cast<const Integer &>(*a).as_integer_class(), n))
+                    or (is_a<Rational>(*a)
+                        and (exact_power_too_large(get_num(down_cast<const Rational &>(*a).as_rational_class()), n)
+                             or exact_power_too_large(get_den(down_cast<const Rational &>(*a).as_rational_class()), n)))) {
+                    return make_rcp<const Pow>(a, b);
+                }
                 return down_cast<const Number &>(*a).pow(
                     *rcp_static_cast<const Number>(b));
             } else if (is_a<Rational>(*b)) {
@@ -167,12 +195,9 @@ RCP<const Basic> pow(const RCP<const Basic> &a, const RCP<const Basic> &b)
         RCP<const Pow> A = rcp_static_cast<const Pow>(a);
         return pow(A->get_base(), mul(A->get_exp(), b));
     }
-    if (is_a<Pow>(*a)
-        and eq(*down_cast<const Pow &>(*a).get_exp(), *minus_one)) {
-        // Convert (x**-1)**b = x**(-b)
-        RCP<const Pow> A = rcp_static_cast<const Pow>(a);
-        return pow(A->get_base(), neg(b));
-    }
+    // lakutata: (x**-1)**b is not x**(-b) for a negative x and a b not an
+    // integer (sqrt(1/(-4)) is i/2, 1/sqrt(-4) is -i/2): kept as written, as
+    // SymPy; SymEngine converted it
     return make_rcp<const Pow>(a, b);
 }
 

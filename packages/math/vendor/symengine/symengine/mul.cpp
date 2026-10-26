@@ -2,6 +2,7 @@
 #include <symengine/pow.h>
 #include <symengine/complex.h>
 #include <symengine/symengine_exception.h>
+#include <symengine/limits.h>
 #include <symengine/test_visitors.h>
 
 namespace SymEngine
@@ -117,6 +118,42 @@ RCP<const SymEngine::Basic> Mul::from_dict(const RCP<const Number> &coef,
 {
     if (coef->is_zero())
         return coef;
+    // lakutata: the coefficient of a product goes into its first sum to the
+    // power 1 (2*(x + 1) is 2*x + 2, 2*(x + 1)/y is (2*x + 2)/y), as the
+    // formulas read them: the sums stay flat, one value has one form
+    if (not coef->is_one()) {
+        for (auto p = d.begin(); p != d.end(); ++p) {
+            if (is_a<Add>(*p->first) and eq(*p->second, *one)) {
+                const Add &sum = down_cast<const Add &>(*p->first);
+                RCP<const Basic> distributed = mulnum(coef, sum.get_coef());
+                for (const auto &term : sum.get_dict())
+                    distributed = add(distributed,
+                                      mul(mulnum(coef, term.second), term.first));
+                d.erase(p);
+                return mul(Mul::from_dict(one, std::move(d)), distributed);
+            }
+        }
+        // Else the denominator q of a rational coefficient p/q into its first
+        // sum to the power -1, where the printer writes it: z/(2*(x + 1)) is
+        // z/(2*x + 2), as it is read (3/(x + 1) stays)
+        if (is_a<Rational>(*coef)) {
+            for (auto p = d.begin(); p != d.end(); ++p) {
+                if (is_a<Add>(*p->first) and eq(*p->second, *minus_one)) {
+                    const rational_class &value
+                        = down_cast<const Rational &>(*coef).as_rational_class();
+                    const RCP<const Integer> q = integer(get_den(value));
+                    const Add &sum = down_cast<const Add &>(*p->first);
+                    RCP<const Basic> distributed = mulnum(q, sum.get_coef());
+                    for (const auto &term : sum.get_dict())
+                        distributed = add(distributed,
+                                          mul(mulnum(q, term.second), term.first));
+                    d.erase(p);
+                    return mul(Mul::from_dict(integer(get_num(value)), std::move(d)),
+                               pow(distributed, minus_one));
+                }
+            }
+        }
+    }
     if (d.size() == 0) {
         return coef;
     } else if (d.size() == 1) {
@@ -174,15 +211,41 @@ void Mul::dict_add_term(map_basic_basic &d, const RCP<const Basic> &exp,
 }
 
 // Mul (t**exp) to the dict "d"
+// lakutata: an exact number to an integer power too large to compute
+static bool too_large_number_power(const RCP<const Basic> &t,
+                                   const RCP<const Basic> &exp)
+{
+    const integer_class &n = down_cast<const Integer &>(*exp).as_integer_class();
+    if (is_a<Integer>(*t))
+        return exact_power_too_large(down_cast<const Integer &>(*t).as_integer_class(), n);
+    if (is_a<Rational>(*t)) {
+        const rational_class &q = down_cast<const Rational &>(*t).as_rational_class();
+        return exact_power_too_large(get_num(q), n) or exact_power_too_large(get_den(q), n);
+    }
+    return false;
+}
+
 void Mul::dict_add_term_new(const Ptr<RCP<const Number>> &coef,
                             map_basic_basic &d, const RCP<const Basic> &exp,
                             const RCP<const Basic> &t)
 {
+    // lakutata: a power t**n of an integer n with t a power itself ((1/y)**(1/2)
+    // squared) is combined: (a**b)**n is a**(b*n) for every integer n
+    if (is_a<Integer>(*exp) and is_a<Pow>(*t)) {
+        RCP<const Basic> power, base;
+        Mul::as_base_exp(pow(t, exp), outArg(power), outArg(base));
+        if (not eq(*base, *t)) {
+            Mul::dict_add_term_new(coef, d, power, base);
+            return;
+        }
+    }
     auto it = d.find(t);
     if (it == d.end()) {
         // Don't check for `exp = 0` here
         if (is_a<Integer>(*t) or is_a<Rational>(*t) or is_a<Complex>(*t)) {
-            if (is_a<Integer>(*exp)) {
+            if (is_a<Integer>(*exp) and too_large_number_power(t, exp)) {
+                insert(d, t, exp);
+            } else if (is_a<Integer>(*exp)) {
                 imulnum(outArg(*coef),
                         pownum(rcp_static_cast<const Number>(t),
                                rcp_static_cast<const Number>(exp)));
@@ -230,6 +293,17 @@ void Mul::dict_add_term_new(const Ptr<RCP<const Number>> &coef,
         } else
             it->second = add(it->second, exp);
 
+        if (is_a<Integer>(*it->second) and is_a<Pow>(*t)
+            and not down_cast<const Integer &>(*(it->second)).is_zero()) {
+            // lakutata: combined as above, once the exponent is an integer
+            const RCP<const Basic> power = it->second;
+            d.erase(it);
+            Mul::dict_add_term_new(coef, d, power, t);
+            return;
+        }
+        if (is_a<Integer>(*it->second) and too_large_number_power(t, it->second)) {
+            return;
+        }
         if (is_a<Integer>(*it->second)) {
             if (is_a<Integer>(*t) or is_a<Rational>(*t) or is_a<Complex>(*t)) {
                 if (not down_cast<const Integer &>(*(it->second)).is_zero()) {

@@ -1,5 +1,7 @@
 #include <symengine/visitor.h>
 #include <symengine/symengine_exception.h>
+#include <symengine/eval_double.h>
+#include <symengine/limits.h>
 
 namespace SymEngine
 {
@@ -369,11 +371,13 @@ bool handle_minus(const RCP<const Basic> &arg,
     } else if (is_a<Add>(*arg)) {
         if (could_extract_minus(*arg)) {
             const Add &s = down_cast<const Add &>(*arg);
-            umap_basic_num d = s.get_dict();
-            for (auto &p : d) {
-                p.second = p.second->mul(*minus_one);
+            // lakutata: added term by term, so that a sum among the terms is
+            // flattened (its coefficient -1 would become 1 in the dictionary)
+            RCP<const Basic> negated = s.get_coef()->mul(*minus_one);
+            for (const auto &p : s.get_dict()) {
+                negated = add(negated, mul(p.second->mul(*minus_one), p.first));
             }
-            *rarg = Add::from_dict(s.get_coef()->mul(*minus_one), std::move(d));
+            *rarg = negated;
             return true;
         }
     } else if (could_extract_minus(*arg)) {
@@ -561,16 +565,45 @@ RCP<const Basic> sign(const RCP<const Basic> &arg)
         return arg;
     }
     if (is_a<Mul>(*arg)) {
+        // lakutata: the sign of each factor, where it is known (sign(2*sqrt(3))
+        // is 1, sign(-e) is -1); SymEngine kept the factors after the coefficient
         RCP<const Basic> s = sign(down_cast<const Mul &>(*arg).get_coef());
-        map_basic_basic dict = down_cast<const Mul &>(*arg).get_dict();
+        map_basic_basic rest;
+        for (const auto &p : down_cast<const Mul &>(*arg).get_dict()) {
+            map_basic_basic single;
+            insert(single, p.first, p.second);
+            const RCP<const Basic> power = Mul::from_dict(one, std::move(single));
+            const RCP<const Basic> factor = sign(power);
+            // Unknown: sign(factor) itself; a factor that is a sign is its own
+            if (is_a<Sign>(*factor)
+                and eq(*down_cast<const Sign &>(*factor).get_arg(), *power)) {
+                insert(rest, p.first, p.second);
+            } else {
+                s = mul(s, factor);
+            }
+        }
+        if (rest.empty())
+            return s;
         return mul(s,
-                   make_rcp<const Sign>(Mul::from_dict(one, std::move(dict))));
+                   make_rcp<const Sign>(Mul::from_dict(one, std::move(rest))));
     }
     if (is_a<Pow>(*arg)) {
         RCP<const Pow> pow_arg = rcp_static_cast<const Pow>(arg);
         RCP<const Basic> s = sign(pow_arg->get_base());
-        if (not is_a<Sign>(*s) and not eq(*s, *pow_arg->get_base())) {
+        // lakutata: a number only (the sign of a base -x is -sign(x), whose
+        // power came back here without end)
+        if (is_a_Number(*s) and not eq(*s, *pow_arg->get_base())) {
             return sign(pow(s, pow_arg->get_exp()));
+        }
+    }
+    // lakutata: a number written as an expression (pi - 3), its sign from its
+    // value when it is clearly away from zero
+    if (free_symbols(*arg).empty()) {
+        try {
+            const std::complex<double> value = eval_complex_double(*arg);
+            if (value.imag() == 0 and std::abs(value.real()) > 1e-10)
+                return value.real() > 0 ? one : minus_one;
+        } catch (SymEngineException &) {
         }
     }
     return make_rcp<const Sign>(arg);
@@ -614,6 +647,26 @@ bool Floor::is_canonical(const RCP<const Basic> &arg) const
 RCP<const Basic> Floor::create(const RCP<const Basic> &arg) const
 {
     return floor(arg);
+}
+
+// lakutata: the integer part of a real number written as an expression
+// (floor(sqrt(2)) is 1), from its value when it is clearly away from an
+// integer and small enough for a double to tell
+static bool integer_part_of(const RCP<const Basic> &arg, double (*part)(double),
+                            const Ptr<RCP<const Basic>> &value)
+{
+    if (is_a_Number(*arg) or not free_symbols(*arg).empty())
+        return false;
+    try {
+        const double x = eval_double(*arg);
+        if (not std::isfinite(x) or std::abs(x) > 1e15
+            or std::abs(x - std::round(x)) <= 1e-10 * std::max(1.0, std::abs(x)))
+            return false;
+        *value = integer(integer_class(static_cast<long long>(part(x))));
+        return true;
+    } catch (SymEngineException &) {
+        return false;
+    }
 }
 
 RCP<const Basic> floor(const RCP<const Basic> &arg)
@@ -667,6 +720,9 @@ RCP<const Basic> floor(const RCP<const Basic> &arg)
             return add(s, floor(Add::from_dict(zero, std::move(d))));
         }
     }
+    RCP<const Basic> value;
+    if (integer_part_of(arg, std::floor, outArg(value)))
+        return value;
     return make_rcp<const Floor>(arg);
 }
 
@@ -756,11 +812,14 @@ RCP<const Basic> ceiling(const RCP<const Basic> &arg)
     if (is_a<Add>(*arg)) {
         RCP<const Number> s = down_cast<const Add &>(*arg).get_coef();
         umap_basic_num d = down_cast<const Add &>(*arg).get_dict();
-        if (is_a<Integer>(*s)) {
-            return add(
-                s, make_rcp<const Ceiling>(Add::from_dict(zero, std::move(d))));
+        // lakutata: the rest evaluated too (ceiling(5 + pi) is 5 + ceiling(pi), a number)
+        if (is_a<Integer>(*s) and not s->is_zero()) {
+            return add(s, ceiling(Add::from_dict(zero, std::move(d))));
         }
     }
+    RCP<const Basic> value;
+    if (integer_part_of(arg, std::ceil, outArg(value)))
+        return value;
     return make_rcp<const Ceiling>(arg);
 }
 
@@ -850,11 +909,14 @@ RCP<const Basic> truncate(const RCP<const Basic> &arg)
     if (is_a<Add>(*arg)) {
         RCP<const Number> s = down_cast<const Add &>(*arg).get_coef();
         umap_basic_num d = down_cast<const Add &>(*arg).get_dict();
-        if (is_a<Integer>(*s)) {
-            return add(s, make_rcp<const Truncate>(
-                              Add::from_dict(zero, std::move(d))));
-        }
+        // lakutata: no integer taken out, trunc(5 - 1/2) is 4, not
+        // 5 + trunc(-1/2); SymEngine took it out
+        (void)s;
+        (void)d;
     }
+    RCP<const Basic> value;
+    if (integer_part_of(arg, std::trunc, outArg(value)))
+        return value;
     return make_rcp<const Truncate>(arg);
 }
 
@@ -1808,6 +1870,13 @@ RCP<const Basic> log(const RCP<const Basic> &arg)
                 return add(log(arg_img), mul(I, div(pi, integer(2))));
             }
         }
+    }
+
+    // lakutata: log(e**r) is r for an exact real number r, as SymPy
+    if (is_a<Pow>(*arg) and eq(*down_cast<const Pow &>(*arg).get_base(), *E)) {
+        const RCP<const Basic> &exponent = down_cast<const Pow &>(*arg).get_exp();
+        if (is_a<Integer>(*exponent) or is_a<Rational>(*exponent))
+            return exponent;
     }
 
     return make_rcp<const Log>(arg);
@@ -3015,6 +3084,9 @@ RCP<const Basic> gamma(const RCP<const Basic> &arg)
     if (is_a<Integer>(*arg)) {
         RCP<const Integer> arg_ = rcp_static_cast<const Integer>(arg);
         if (arg_->is_positive()) {
+            // lakutata: the factorials above the limit stay as written
+            if (arg_->as_integer_class() > GAMMA_LIMIT)
+                return make_rcp<const Gamma>(arg);
             return gamma_positive_int(arg);
         } else {
             return ComplexInf;
@@ -3022,6 +3094,8 @@ RCP<const Basic> gamma(const RCP<const Basic> &arg)
     } else if (is_a<Rational>(*arg)) {
         RCP<const Rational> arg_ = rcp_static_cast<const Rational>(arg);
         if ((get_den(arg_->as_rational_class())) == 2) {
+            if (mp_abs(get_num(arg_->as_rational_class())) > 2 * GAMMA_LIMIT)
+                return make_rcp<const Gamma>(arg);
             return gamma_multiple_2(arg);
         } else {
             return make_rcp<const Gamma>(arg);
@@ -3282,8 +3356,10 @@ RCP<const Basic> Beta::create(const RCP<const Basic> &a,
 RCP<const Basic> beta(const RCP<const Basic> &x, const RCP<const Basic> &y)
 {
     // Only special values are being evaluated
-    if (eq(*add(x, y), *one)) {
-        return ComplexInf;
+    // lakutata: beta(x, 1 - x) is pi/sin(pi*x); SymEngine gave complexInfinity
+    // (the poles are where x or y is a nonpositive integer, below)
+    if (eq(*add(x, y), *one) and is_a<Rational>(*x)) {
+        return div(pi, sin(mul(pi, x)));
     }
 
     if (is_a<Integer>(*x)) {
@@ -3350,10 +3426,27 @@ RCP<const Basic> beta(const RCP<const Basic> &x, const RCP<const Basic> &y)
     return Beta::from_two_basic(x, y);
 }
 
+// lakutata: whether polygamma(n, x) is moved right by its recurrence: a
+// negative rational x not too far left, an order n nonnegative integer
+static bool polygamma_shifted(const RCP<const Basic> &n,
+                              const RCP<const Basic> &x)
+{
+    if (not is_a<Integer>(*n) or down_cast<const Integer &>(*n).is_negative()
+        or not mp_fits_ulong_p(down_cast<const Integer &>(*n).as_integer_class())
+        or not is_a<Rational>(*x)
+        or not down_cast<const Rational &>(*x).is_negative()) {
+        return false;
+    }
+    return mp_abs(get_num(down_cast<const Rational &>(*x).as_rational_class()))
+           <= 1000 * get_den(down_cast<const Rational &>(*x).as_rational_class());
+}
+
 bool PolyGamma::is_canonical(const RCP<const Basic> &n,
                              const RCP<const Basic> &x)
 {
-    if (is_a_Number(*x) and not(down_cast<const Number &>(*x)).is_positive()) {
+    // lakutata: the nonpositive integers and the negative rationals moved right
+    if ((is_a<Integer>(*x) and not down_cast<const Integer &>(*x).is_positive())
+        or polygamma_shifted(n, x)) {
         return false;
     }
     if (eq(*n, *zero)) {
@@ -3397,9 +3490,29 @@ RCP<const Basic> polygamma(const RCP<const Basic> &n_,
                            const RCP<const Basic> &x_)
 {
     // Only special values are being evaluated
-    if (is_a_Number(*x_)
-        and not(down_cast<const Number &>(*x_)).is_positive()) {
+    // lakutata: the poles are the nonpositive integers only (SymEngine gave
+    // complexInfinity for every number not positive); a negative rational is
+    // moved right by psi^(n)(x) = psi^(n)(x + 1) - (-1)^n n!/x^(n+1), the
+    // other numbers (complex ones) are kept for their numeric value
+    if (is_a<Integer>(*x_)
+        and not down_cast<const Integer &>(*x_).is_positive()) {
         return ComplexInf;
+    }
+    if (polygamma_shifted(n_, x_)) {
+        const unsigned long order
+            = mp_get_ui(down_cast<const Integer &>(*n_).as_integer_class());
+        const RCP<const Basic> coefficient
+            = mul(integer(order % 2 == 0 ? -1 : 1), factorial(order));
+        RCP<const Basic> x = x_, correction = zero;
+        while (down_cast<const Rational &>(*x).is_negative()) {
+            correction = add(correction,
+                             mul(coefficient, pow(x, integer(-long(order) - 1))));
+            x = add(x, one);
+        }
+        return add(polygamma(n_, x), correction);
+    }
+    if (is_a_Number(*x_) and not is_a<Integer>(*x_) and not is_a<Rational>(*x_)) {
+        return make_rcp<const PolyGamma>(n_, x_);
     }
     if (is_a<Integer>(*n_) and is_a<Integer>(*x_)) {
         auto n = down_cast<const Integer &>(*n_).as_int();
@@ -3423,7 +3536,9 @@ RCP<const Basic> polygamma(const RCP<const Basic> &n_,
             if (den == 2) {
                 res = sub(mul(im2, log(i2)), EulerGamma);
             } else if (den == 3) {
-                if (num == 1) {
+                // lakutata: by the remainder (psi(4/3) from psi(1/3)), not the
+                // numerator
+                if (r == 1) {
                     res = add(neg(div(div(pi, i2), sqrt(i3))),
                               sub(div(mul(im3, log(i3)), i2), EulerGamma));
                 } else {
@@ -3431,7 +3546,7 @@ RCP<const Basic> polygamma(const RCP<const Basic> &n_,
                               sub(div(mul(im3, log(i3)), i2), EulerGamma));
                 }
             } else if (den == 4) {
-                if (num == 1) {
+                if (r == 1) {
                     res = add(div(pi, im2), sub(mul(im3, log(i2)), EulerGamma));
                 } else {
                     res = add(div(pi, i2), sub(mul(im3, log(i2)), EulerGamma));

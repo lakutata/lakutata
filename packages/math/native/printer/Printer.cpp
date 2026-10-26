@@ -290,7 +290,8 @@ private:
         const std::string imaginary = imaginaryText(value.imaginary_);
         const bool simple = get_den(value.imaginary_) == 1;
         if (value.real_ == 0) {
-            return {(negative ? "-" : "") + imaginary, negative || !simple ? MUL : ATOM, negative ? Lead::Other : simple && imaginary[0] == 'i' ? Lead::Letter : Lead::Digit, false, simple};
+            //i alone is an atom, 2i a product (the base of a power in parentheses: (2i)^x)
+            return {(negative ? "-" : "") + imaginary, negative || imaginary != "i" ? MUL : ATOM, negative ? Lead::Other : simple && imaginary[0] == 'i' ? Lead::Letter : Lead::Digit, false, simple};
         }
         std::string real = Printer(tex_).print(Rational::from_mpq(value.real_)).text;
         return {real + (negative ? " - " : " + ") + imaginary, ADD, Lead::Other, false, simple};

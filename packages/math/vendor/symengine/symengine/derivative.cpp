@@ -278,7 +278,11 @@ void DiffVisitor::bvisit(const ATanh &self)
 void DiffVisitor::bvisit(const ACosh &self)
 {
     apply(self.get_arg());
-    result_ = mul(div(one, sqrt(sub(pow(self.get_arg(), i2), one))), result_);
+    // lakutata: 1/(sqrt(x - 1)*sqrt(x + 1)), as SymPy: 1/sqrt(x**2 - 1) has the
+    // wrong sign left of -1
+    result_ = mul(div(one, mul(sqrt(sub(self.get_arg(), one)),
+                               sqrt(add(self.get_arg(), one)))),
+                  result_);
 }
 
 void DiffVisitor::bvisit(const ACsch &self)

@@ -4,6 +4,7 @@
 #include <symengine/prime_sieve.h>
 #include <symengine/mul.h>
 #include <symengine/complex.h>
+#include <symengine/limits.h>
 
 namespace SymEngine
 {
@@ -254,7 +255,10 @@ static bool extract_root_factors(RCP<const Number> &coef, map_basic_basic &surd,
                           const integer_class &den)
 {
     const integer_class magnitude = mp_abs(base);
-    if (magnitude <= 1)
+    // Not for the roots above 2**15: the powers left under the root could be
+    // too large to compute (x**(r/den) with r and den of 16 digits)
+    if (magnitude <= 1 or den > 32768
+        or exact_power_too_large(magnitude, den))
         return false;
     integer_class taken = 1, left = 1, common = 0, power;
     std::vector<std::pair<integer_class, integer_class>> remaining;
@@ -327,6 +331,10 @@ RCP<const Basic> Rational::rpowrat(const Integer &other) const
     auto den = SymEngine::get_den(i);
 
     mp_fdiv_qr(q, r, num, den);
+    // lakutata: a whole part of the exponent too large to compute: the power
+    // stays as written
+    if (exact_power_too_large(other.as_integer_class(), q))
+        return make_rcp<const Pow>(other.rcp_from_this(), rcp_from_this());
     // Here we make the exponent postive and a fraction between
     // 0 and 1. We multiply numerator and denominator appropriately
     // to achieve this

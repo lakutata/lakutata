@@ -3,6 +3,7 @@
 //pool of the addon (runAsync), their result turned into JavaScript values back in the thread of JavaScript.
 #include <napi.h>
 
+#include <limits>
 #include <map>
 #include <mutex>
 #include <unordered_map>
@@ -393,10 +394,24 @@ Napi::Value Variables(const Napi::CallbackInfo &info)
     return result;
 }
 
-//A formula compiled into a function of numbers (SymEngine's LambdaRealDoubleVisitor)
+//A formula compiled into a function of numbers: by SymEngine's LambdaRealDoubleVisitor, or by its complex one when
+//the formula has complex numbers in it (i^i is real): its value is then the real part, NaN where it is not real
 struct Compiled {
-    SymEngine::LambdaRealDoubleVisitor visitor;
+    SymEngine::LambdaRealDoubleVisitor real;
+    std::unique_ptr<SymEngine::LambdaComplexDoubleVisitor> complex;
     size_t inputs;
+
+    void call(double *result, const double *values)
+    {
+        if (!complex) {
+            real.call(result, values);
+            return;
+        }
+        std::vector<std::complex<double>> arguments(values, values + inputs);
+        std::complex<double> value;
+        complex->call(&value, arguments.data());
+        *result = std::abs(value.imag()) <= 1e-12 * std::max(1.0, std::abs(value.real())) ? value.real() : std::numeric_limits<double>::quiet_NaN();
+    }
 };
 
 //compile(expression, variables): a compiled function
@@ -416,9 +431,14 @@ Napi::Value Compile(const Napi::CallbackInfo &info)
     auto compiled = std::make_shared<Compiled>();
     compiled->inputs = variables.size();
     try {
-        compiled->visitor.init(variables, *expression);
-    } catch (SymEngine::SymEngineException &error) {
-        throw MathError(ErrorCode::NotSupported, std::string("The expression cannot be compiled: ") + error.what());
+        compiled->real.init(variables, *expression);
+    } catch (SymEngine::SymEngineException &) {
+        try {
+            compiled->complex = std::make_unique<SymEngine::LambdaComplexDoubleVisitor>();
+            compiled->complex->init(variables, *expression);
+        } catch (SymEngine::SymEngineException &) {
+            throw MathError(ErrorCode::NotSupported, "The expression cannot be compiled: " + toText(expression) + " has a function without a compiled form");
+        }
     }
     return wrap(info.Env(), compiled, COMPILED_TAG, 1024);
 }
@@ -437,7 +457,7 @@ Napi::Value Call(const Napi::CallbackInfo &info)
     }
     for (size_t i = 0; i < compiled->inputs; i++) values[i] = info[i + 1].As<Napi::Number>().DoubleValue();
     double result = 0;
-    compiled->visitor.call(&result, values);
+    compiled->call(&result, values);
     return Napi::Number::New(info.Env(), result);
 }
 
@@ -451,7 +471,7 @@ Napi::Value CallBatch(const Napi::CallbackInfo &info)
     if (width == 0 ? inputs.ElementLength() != 0 : inputs.ElementLength() % width != 0) throw MathError(ErrorCode::Argument, "The inputs are rows of " + std::to_string(width) + " values");
     const size_t rows = width == 0 ? 1 : inputs.ElementLength() / width;
     Napi::Float64Array results = Napi::Float64Array::New(info.Env(), rows);
-    for (size_t row = 0; row < rows; row++) compiled->visitor.call(results.Data() + row, inputs.Data() + row * width);
+    for (size_t row = 0; row < rows; row++) compiled->call(results.Data() + row, inputs.Data() + row * width);
     return results;
 }
 

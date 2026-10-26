@@ -8,6 +8,7 @@
 
 #include <symengine/constants.h>
 #include <symengine/symengine_exception.h>
+#include <symengine/limits.h>
 
 namespace SymEngine
 {
@@ -198,6 +199,11 @@ public:
             exp_ = -exp_;
         if (not mp_fits_ulong_p(exp_))
             throw SymEngineException("powrat: 'exp' does not fit ulong.");
+        // lakutata: not the powers too large to compute (pow() keeps them as
+        // powers; the other operations reaching here fail instead of hanging)
+        if (exact_power_too_large(SymEngine::get_num(i), exp_)
+            or exact_power_too_large(SymEngine::get_den(i), exp_))
+            throw NotImplementedError("The exact value of a power is too large to compute");
         unsigned long exp = mp_get_ui(exp_);
 
 #if SYMENGINE_INTEGER_CLASS == SYMENGINE_BOOSTMP

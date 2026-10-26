@@ -183,13 +183,21 @@ integer_class step(const unsigned long &n, const integer_class &i,
 bool positive_root(integer_class &res, const integer_class &i,
                    const unsigned long n)
 {
-    integer_class x
-        = 1; // TODO: make a better starting guess based on (number of bits)/n
+    // lakutata: Newton's method from an upper bound of the root,
+    // 2**ceil(bits/n), and 1 at once below 2**n. SymEngine started from 1: its
+    // first step went to about i/n, raised then to the power n - 1 (a root of
+    // order 1e16 never ended, a large i came down slowly)
+    const unsigned long bits = boost::multiprecision::msb(i) + 1;
+    if (bits <= n) {
+        res = 1;
+        return i == 1;
+    }
+    integer_class x = integer_class(1) << ((bits + n - 1) / n);
     integer_class y = step(n, i, x);
-    do {
+    while (y < x) {
         x = y;
         y = step(n, i, x);
-    } while (y < x);
+    }
     res = x;
     if (pow(x, n) == i) {
         return true;
@@ -384,25 +392,38 @@ void mp_lucnum2_ui(integer_class &a, integer_class &b, unsigned long n)
     b = result_matrix.data[1][0];
 }
 
+// lakutata: the products of consecutive integers by a product tree (binary
+// splitting), where the multiplications of numbers of the same size use
+// Karatsuba; SymEngine multiplied one factor at a time (100000! took 4.5 s)
+static integer_class product_of_range(const integer_class &start,
+                                      unsigned long count)
+{
+    if (count <= 16) {
+        integer_class product = 1;
+        for (unsigned long i = 0; i < count; ++i)
+            product *= start + i;
+        return product;
+    }
+    const unsigned long half = count / 2;
+    return product_of_range(start, half)
+           * product_of_range(start + half, count - half);
+}
+
 void mp_fac_ui(integer_class &res, unsigned long n)
 {
-    // couldn't make boost's template version of factorial work,
-    // so implement slow, naive version for now
-    res = 1;
-    for (unsigned long i = 2; i <= n; ++i) {
-        res *= i;
-    }
+    res = n < 2 ? integer_class(1) : product_of_range(2, n - 1);
 }
 
 void mp_bin_ui(integer_class &res, const integer_class &n, unsigned long r)
 {
-    // slow, naive implementation
-    integer_class x = n - r;
-    res = 1;
-    for (unsigned long i = 1; i <= r; ++i) {
-        res *= x + i;
-        res /= i;
+    // n (n - 1) ... (n - r + 1) / r!
+    if (r == 0) {
+        res = 1;
+        return;
     }
+    integer_class factorial;
+    mp_fac_ui(factorial, r);
+    res = product_of_range(n - r + 1, r) / factorial;
 }
 
 // this is extremely slow!

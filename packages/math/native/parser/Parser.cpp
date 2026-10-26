@@ -27,14 +27,14 @@ struct Builtin {
     std::function<Expr(const vec_basic &)> build;
 };
 
-//n! and factorial(n): exact for a natural number, the gamma function otherwise
+//n! and factorial(n): exact for a natural number up to 20000, the gamma function otherwise (gamma(n + 1) stays as
+//written above the limit of the exact numbers)
 Expr factorialOf(const Expr &n)
 {
     if (is_a<Integer>(*n)) {
         const Integer &value = down_cast<const Integer &>(*n);
         if (value.is_negative()) throw MathError(ErrorCode::Domain, "The factorial of a negative integer is undefined");
-        if (value.as_integer_class() > 100000) throw MathError(ErrorCode::NotSupported, "The factorial of so large an integer is not computed");
-        return factorial(static_cast<unsigned long>(value.as_uint()));
+        if (value.as_integer_class() <= 20000) return factorial(static_cast<unsigned long>(value.as_uint()));
     }
     return gamma(add(n, one));
 }
@@ -44,8 +44,11 @@ Expr binomialOf(const Expr &n, const Expr &k)
     if (is_a<Integer>(*n) && is_a<Integer>(*k)) {
         const Integer &top = down_cast<const Integer &>(*n);
         const Integer &bottom = down_cast<const Integer &>(*k);
-        if (bottom.is_negative() || bottom.as_integer_class() > 100000) return zero;
-        return binomial(top, static_cast<unsigned long>(bottom.as_uint()));
+        if (bottom.is_negative()) return zero;
+        //Not more than 20000 factors, as the factorials: the smaller of k and n - k, else the form of gamma below
+        const integer_class other = top.as_integer_class() - bottom.as_integer_class();
+        if (bottom.as_integer_class() <= 20000) return binomial(top, static_cast<unsigned long>(bottom.as_uint()));
+        if (other >= 0 && other <= 20000) return binomial(top, static_cast<unsigned long>(mp_get_ui(other)));
     }
     return div(gamma(add(n, one)), mul(gamma(add(k, one)), gamma(add(sub(n, k), one))));
 }
@@ -118,7 +121,9 @@ const std::map<std::string, Builtin> &builtins()
 const std::map<std::string, Expr> &constants()
 {
     static const std::map<std::string, Expr> &table = *new std::map<std::string, Expr>{
-        {"pi", pi}, {"e", E}, {"i", I}, {"inf", Inf}, {"oo", Inf}, {"nan", Nan}
+        {"pi", pi}, {"e", E}, {"i", I}, {"inf", Inf}, {"oo", Inf}, {"nan", Nan},
+        //The constants the printer writes, read back
+        {"complexInfinity", ComplexInf}, {"EulerGamma", EulerGamma}, {"Catalan", Catalan}, {"GoldenRatio", GoldenRatio}
     };
     return table;
 }

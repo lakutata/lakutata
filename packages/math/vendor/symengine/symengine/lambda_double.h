@@ -4,6 +4,7 @@
 #include <cmath>
 #include <limits>
 #include <symengine/eval_double.h>
+#include <symengine/special_double.h>
 #include <symengine/symengine_exception.h>
 #include <symengine/visitor.h>
 
@@ -378,7 +379,8 @@ public:
     {
         fn num = apply(*(x.get_num()));
         fn den = apply(*(x.get_den()));
-        result_ = [=](const double *x) { return std::atan2(num(x), den(x)); };
+        // lakutata: + 0.0 makes -0.0 a 0 (atan2(-0.0, -1) is -pi, the exact one pi)
+        result_ = [=](const double *x) { return std::atan2(num(x) + 0.0, den(x)); };
     };
 
     void bvisit(const Gamma &x)
@@ -390,7 +392,61 @@ public:
     void bvisit(const LogGamma &x)
     {
         fn tmp = apply(*(x.get_args()[0]));
-        result_ = [=](const double *x) { return std::lgamma(tmp(x)); };
+        // lakutata: NaN left of zero, where log gamma is not real
+        result_ = [=](const double *x) { return special::loggamma(tmp(x)); };
+    };
+
+    // lakutata: the special functions of special_double.h
+    void bvisit(const Zeta &x)
+    {
+        fn s = apply(*x.get_s()), a = apply(*x.get_a());
+        result_ = [=](const double *x) { return special::zeta(s(x), a(x)); };
+    };
+
+    void bvisit(const Dirichlet_eta &x)
+    {
+        fn s = apply(*x.get_s());
+        result_ = [=](const double *x) { return special::dirichlet_eta(s(x)); };
+    };
+
+    void bvisit(const LambertW &x)
+    {
+        fn tmp = apply(*(x.get_arg()));
+        result_ = [=](const double *x) { return special::lambertw(tmp(x)); };
+    };
+
+    void bvisit(const PolyGamma &x)
+    {
+        fn n = apply(*(x.get_arg1())), tmp = apply(*(x.get_arg2()));
+        result_ = [=](const double *x) {
+            const double order = n(x);
+            if (order < 0 or order != std::floor(order))
+                return std::numeric_limits<double>::quiet_NaN();
+            return special::polygamma(static_cast<unsigned>(order), tmp(x));
+        };
+    };
+
+    void bvisit(const Beta &x)
+    {
+        fn a = apply(*(x.get_arg1())), b = apply(*(x.get_arg2()));
+        result_ = [=](const double *x) { return special::beta(a(x), b(x)); };
+    };
+
+    void bvisit(const LowerGamma &x)
+    {
+        fn s = apply(*(x.get_arg1())), t = apply(*(x.get_arg2()));
+        result_ = [=](const double *x) { return special::lower_gamma(s(x), t(x)); };
+    };
+
+    void bvisit(const UpperGamma &x)
+    {
+        fn s = apply(*(x.get_arg1())), t = apply(*(x.get_arg2()));
+        result_ = [=](const double *x) { return special::upper_gamma(s(x), t(x)); };
+    };
+
+    void bvisit(const Conjugate &x)
+    {
+        result_ = apply(*(x.get_arg()));
     };
 
     void bvisit(const Erf &x)
