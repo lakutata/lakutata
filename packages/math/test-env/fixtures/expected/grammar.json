@@ -1374,6 +1374,174 @@
     "mathjs": "same",
     "nerdamer": "same"
    }
+  },
+  {
+   "text": "re + im",
+   "values": [
+    null,
+    null
+   ],
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "gamma + beta*zeta",
+   "values": [
+    null,
+    null
+   ],
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "gamma(5) + gamma",
+   "values": [
+    null,
+    null
+   ],
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "round(-2.5) + round(2.5) + round(x)",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "-2.00000000000000000000000000000",
+     "0"
+    ]
+   ],
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "different value"
+   }
+  },
+  {
+   "text": "mod(-7, 3) + mod(7, -3) + mod(x, 3)",
+   "values": [
+    [
+     "0.700000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.10000000000000000000000000000",
+     "0"
+    ]
+   ],
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "different value"
+   }
+  },
+  {
+   "text": "sinc(x) + sinc(0)",
+   "values": [
+    [
+     "1.92031098176813007667516335914",
+     "0"
+    ],
+    [
+     "1.49805267773021815183668926928",
+     "0"
+    ]
+   ],
+   "engines": {
+    "mathjs": "error: Undefined function sinc",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "re(x) + im(y) + arg(z)",
+   "values": [
+    [
+     "3.84159265358979323846264338328",
+     "0"
+    ],
+    [
+     "-1.90000000000000000000000000000",
+     "0"
+    ]
+   ],
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: 0.7*re+1.3*im+3.141592653589793160"
+   }
+  },
+  {
+   "text": "hypot(x, y) + expm1(x) + log1p(y)",
+   "values": [
+    [
+     "3.32314413642892058596746314229",
+     "0"
+    ],
+    [
+     "1.47369459463178168492149120926",
+     "0"
+    ]
+   ],
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "gcd(12, 18, 8) + lcm(4, 6)",
+   "values": [
+    [
+     "14.0000000000000000000000000000",
+     "0"
+    ],
+    [
+     "14.0000000000000000000000000000",
+     "0"
+    ]
+   ],
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "phi^2 - phi + tau/2 + EulerGamma + Catalan",
+   "values": [
+    [
+     "5.63477391266854511412375898829",
+     "0"
+    ],
+    [
+     "5.63477391266854511412375898829",
+     "0"
+    ]
+   ],
+   "engines": {
+    "mathjs": "error: Undefined symbol EulerGamma",
+    "nerdamer": "error: not a number: -phi+phi^2+0.5*tau+Catalan+EulerGamma"
+   }
+  },
+  {
+   "text": "gcd(x, 6)",
+   "error": "E_MATH_NOT_SUPPORTED",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "accepted, @lakutata/math refuses it"
+   }
+  },
+  {
+   "text": "g(2)",
+   "error": "E_MATH_UNKNOWN_FUNCTION",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
   }
  ]
 }

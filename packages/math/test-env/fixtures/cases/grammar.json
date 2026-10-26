@@ -399,5 +399,75 @@
  {
   "text": "2 $ 3",
   "error": "E_MATH_SYNTAX"
+ },
+ {
+  "text": "re + im",
+  "meaning": "Symbol('re') + Symbol('im')"
+ },
+ {
+  "text": "gamma + beta*zeta",
+  "meaning": "Symbol('gamma') + Symbol('beta')*Symbol('zeta')"
+ },
+ {
+  "text": "gamma(5) + gamma",
+  "meaning": "24 + Symbol('gamma')"
+ },
+ {
+  "text": "round(-2.5) + round(2.5) + round(x)",
+  "meaning": "-3 + 3 + sign(x)*floor(Abs(x) + Rational(1, 2))",
+  "differs": {
+   "nerdamer": "nerdamer rounds the halves up, as Math.round (round(-2.5) is -2); @lakutata/math and mathjs away from zero"
+  }
+ },
+ {
+  "text": "mod(-7, 3) + mod(7, -3) + mod(x, 3)",
+  "meaning": "2 - 2 + Mod(x, 3)",
+  "differs": {
+   "nerdamer": "nerdamer gives the sign of the dividend, as % (mod(-7, 3) is -1); @lakutata/math, mathjs and SymPy the sign of the divisor"
+  }
+ },
+ {
+  "text": "sinc(x) + sinc(0)",
+  "meaning": "sinc(x) + 1",
+  "differs": {
+   "mathjs": "mathjs has no sinc"
+  }
+ },
+ {
+  "text": "re(x) + im(y) + arg(z)",
+  "meaning": "re(x) + im(y) + arg(z)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not know the function: it reads its name as a variable"
+  }
+ },
+ {
+  "text": "hypot(x, y) + expm1(x) + log1p(y)",
+  "meaning": "sqrt(x**2 + y**2) + exp(x) - 1 + log(1 + y)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "gcd(12, 18, 8) + lcm(4, 6)",
+  "meaning": "14"
+ },
+ {
+  "text": "phi^2 - phi + tau/2 + EulerGamma + Catalan",
+  "meaning": "1 + pi + EulerGamma + Catalan",
+  "differs": {
+   "mathjs": "mathjs has no EulerGamma nor Catalan",
+   "nerdamer": "nerdamer 1.x has none of these constants"
+  }
+ },
+ {
+  "text": "gcd(x, 6)",
+  "error": "E_MATH_NOT_SUPPORTED",
+  "differs": {
+   "nerdamer": "nerdamer computes the gcd of polynomials; @lakutata/math does it for integers only for now"
+  }
+ },
+ {
+  "text": "g(2)",
+  "error": "E_MATH_UNKNOWN_FUNCTION"
  }
 ]

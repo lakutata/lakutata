@@ -33,6 +33,37 @@ constexpr double BERNOULLI[] = {1.0 / 6, -1.0 / 30, 1.0 / 42, -1.0 / 30, 5.0 / 6
                                 -3617.0 / 510, 43867.0 / 798, -174611.0 / 330, 854513.0 / 138,
                                 -236364091.0 / 2730};
 
+// A value without its negative zeros: a negative real number stays on the
+// upper side of the branch cuts, as the exact values (the principal ones):
+// (0.9 + 0i)/(-0.4 + 0i) is -2.25 - 0i, its log was -i*pi
+inline double unsigned_zeros(double x)
+{
+    return x + 0.0;
+}
+
+inline complex unsigned_zeros(const complex &z)
+{
+    return {z.real() + 0.0, z.imag() + 0.0};
+}
+
+// z**n for an integer n, by multiplications (binary exponentiation): pow of
+// complex numbers goes through exp and log, whose rounding moved real values
+// off the real line ((-1.9)**-1 had an imaginary part of -1e-16)
+template <typename T>
+T integer_power(T z, long n)
+{
+    const bool negative = n < 0;
+    unsigned long m = negative ? 0ul - static_cast<unsigned long>(n) : static_cast<unsigned long>(n);
+    T result = 1;
+    while (m > 0) {
+        if (m & 1)
+            result *= z;
+        z *= z;
+        m >>= 1;
+    }
+    return negative ? T(1) / result : result;
+}
+
 // A complex result given as a real one (NaN when it is not real) or as itself
 inline void assign(double &out, const complex &z)
 {

@@ -34,8 +34,8 @@ export class Random {
 const NUMBERS: readonly string[] = ['0', '1', '2', '3', '5', '7', '12', '0.5', '2.25', '1e2', '3/4', '1.5e-1']
 const VARIABLES: readonly string[] = ['x', 'y', 'z']
 const CONSTANTS: readonly string[] = ['pi', 'e', 'i']
-const SMOOTH: readonly string[] = ['sin', 'cos', 'tan', 'atan', 'sinh', 'cosh', 'tanh', 'exp', 'ln', 'sqrt', 'gamma', 'erf', 'asinh', 'cbrt']
-const OTHERS: readonly string[] = ['abs', 'sign', 'floor', 'ceil']
+const SMOOTH: readonly string[] = ['sin', 'cos', 'tan', 'atan', 'sinh', 'cosh', 'tanh', 'exp', 'ln', 'sqrt', 'gamma', 'erf', 'asinh', 'cbrt', 'sinc', 're', 'im']
+const OTHERS: readonly string[] = ['abs', 'sign', 'floor', 'ceil', 'round', 'arg']
 const EXPONENTS: readonly string[] = ['2', '3', '-1', '-2', '1/2', '1/3', '0.5', 'x', '4']
 
 /**
@@ -78,7 +78,7 @@ export function randomFormula(random: Random, depth: number): string {
         case 7:
             return `${random.pick(SMOOTH)}(${child()})`
         default:
-            return random.chance(0.5) ? `${random.pick(OTHERS)}(${child()})` : `${random.pick(['atan2', 'log', 'min', 'max'])}(${child()}, ${child()})`
+            return random.chance(0.5) ? `${random.pick(OTHERS)}(${child()})` : `${random.pick(['atan2', 'log', 'min', 'max', 'mod', 'hypot'])}(${child()}, ${child()})`
     }
 }
 
@@ -161,12 +161,12 @@ export async function checkFormula(math: Math, random: Random, index: number, te
     }
     //Not the functions with jumps: a double just below an integer has another floor
     //Nor the large numbers: sinh(1e2) has an error of 1e27 in doubles, cos(i sinh(1e2)) none of its digits
-    if (exact && exact.im === 0 && !/floor|ceil|sign|trunc|1e2/.test(text)) {
+    if (exact && exact.im === 0 && !/floor|ceil|sign|trunc|round|mod|1e2/.test(text)) {
         try {
             const f = expression.compile(['x', 'y', 'z'])
             const compiled: number = f(point.x, point.y, point.z)
-            //Not where the function is ill-conditioned: a change of the inputs by 1e-6 changes its value by more than 1e-3
-            //(cos(1e12/y), sin((1e8 - 2z)^3): no double of the result is meaningful there)
+            //Not where the function is ill-conditioned: a change of the inputs by 1e-6 changes its value by more than
+            //1e-3 (cos(1e12/y), sin((1e8 - 2z)^3): no double of the result is meaningful there)
             const moved: number = f(point.x * (1 + 1e-6), point.y * (1 + 1e-6), point.z * (1 + 1e-6))
             const conditioned: boolean = globalThis.Math.abs(moved - compiled) <= 1e-3 * globalThis.Math.max(1, globalThis.Math.abs(compiled))
             if (conditioned && Number.isFinite(compiled) && !near({re: compiled, im: 0}, exact, 1e-6)) fail('compile', `${compiled} at ${JSON.stringify(point)}, exactly ${exact.re}`)
@@ -197,7 +197,8 @@ export async function checkFormula(math: Math, random: Random, index: number, te
     } catch (error) {
         if (!(error instanceof MathException)) fail('expand', String(error))
     }
-    if (exact && exact.im === 0 && !/abs|sign|floor|ceil|min|max/.test(text)) {
+    //Not the large numbers either (sin(cosh(1e2 + x)) turns faster than any step)
+    if (exact && exact.im === 0 && !/abs|sign|floor|ceil|min|max|round|mod|arg|1e2/.test(text)) {
         try {
             const derivative: Expression = expression.diff('x')
             const value: Value | undefined = valueAt(derivative, point)
@@ -207,8 +208,8 @@ export async function checkFormula(math: Math, random: Random, index: number, te
             const half: Value | undefined = valueAt(expression, {...point, x: point.x + h / 2})
             const halfBefore: Value | undefined = valueAt(expression, {...point, x: point.x - h / 2})
             if (value && after && before && half && halfBefore && after.im === 0 && before.im === 0 && half.im === 0 && halfBefore.im === 0) {
-                //Two finite differences: compared only where they agree (the function is smooth at that scale), with the
-                //rounding of the values of the function itself (a large f loses its small changes)
+                //Two finite differences: compared only where they agree (the function is smooth at that scale), with
+                //the rounding of the values of the function itself (a large f loses its small changes)
                 const estimate: number = (after.re - before.re) / (2 * h)
                 const finer: number = (half.re - halfBefore.re) / h
                 const rounding: number = 1e-13 * globalThis.Math.max(globalThis.Math.abs(after.re), globalThis.Math.abs(before.re)) / h

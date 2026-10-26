@@ -3,6 +3,7 @@
 #include "../functions/Functions.h"
 
 #include <map>
+#include <set>
 #include <symengine/add.h>
 #include <symengine/constants.h>
 #include <symengine/functions.h>
@@ -53,6 +54,28 @@ Expr binomialOf(const Expr &n, const Expr &k)
         if (other >= 0 && other <= 20000) return binomial(top, static_cast<unsigned long>(mp_get_ui(other)));
     }
     return div(gamma(add(n, one)), mul(gamma(add(k, one)), gamma(add(sub(n, k), one))));
+}
+
+//gcd and lcm of integers (of polynomials later): non-negative
+Expr integerGcdLcm(const vec_basic &arguments, bool gcdWanted)
+{
+    RCP<const Integer> result;
+    for (const Expr &argument : arguments) {
+        if (!is_a<Integer>(*argument)) throw MathError(ErrorCode::NotSupported, std::string(gcdWanted ? "gcd" : "lcm") + " is computed for integers");
+        const RCP<const Integer> value = rcp_static_cast<const Integer>(argument);
+        result = result.is_null() ? rcp_static_cast<const Integer>(abs(value)) : gcdWanted ? gcd(*result, *value) : lcm(*result, *value);
+    }
+    return result;
+}
+
+//The functions whose name without parentheses is an error rather than a variable: the ones written so by mistake
+const std::set<std::string> &strictFunctions()
+{
+    static const std::set<std::string> &names = *new std::set<std::string>{
+        "sin", "cos", "tan", "cot", "sec", "csc", "asin", "acos", "atan", "acot", "asec", "acsc",
+        "sinh", "cosh", "tanh", "coth", "sech", "csch", "asinh", "acosh", "atanh", "acoth", "asech", "acsch",
+        "exp", "ln", "log", "log10", "log2", "sqrt", "cbrt"};
+    return names;
 }
 
 const std::map<std::string, Builtin> &builtins()
@@ -116,6 +139,21 @@ const std::map<std::string, Builtin> &builtins()
         functions["binomial"] = {2, 2, [](const vec_basic &a) { return binomialOf(a[0], a[1]); }};
         functions["min"] = {1, SIZE_MAX, [](const vec_basic &a) { return min(a); }};
         functions["max"] = {1, SIZE_MAX, [](const vec_basic &a) { return max(a); }};
+        //The functions of the addon (functions/Functions.h)
+        unary("round", roundOf);
+        unary("sinc", sincOf);
+        unary("re", realPartOf);
+        unary("im", imaginaryPartOf);
+        unary("arg", argumentOf);
+        functions["mod"] = {2, 2, [](const vec_basic &a) { return modOf(a[0], a[1]); }};
+        //Written with the others, without a function of their own
+        functions["hypot"] = {2, 2, [](const vec_basic &a) { return sqrt(add(pow(a[0], integer(2)), pow(a[1], integer(2)))); }};
+        functions["expm1"] = {1, 1, [](const vec_basic &a) { return sub(exp(a[0]), one); }};
+        functions["log1p"] = {1, 1, [](const vec_basic &a) { return log(add(one, a[0])); }};
+        functions["lowergamma"] = {2, 2, [](const vec_basic &a) { return lowergamma(a[0], a[1]); }};
+        functions["uppergamma"] = {2, 2, [](const vec_basic &a) { return uppergamma(a[0], a[1]); }};
+        functions["gcd"] = {2, SIZE_MAX, [](const vec_basic &a) { return integerGcdLcm(a, true); }};
+        functions["lcm"] = {2, SIZE_MAX, [](const vec_basic &a) { return integerGcdLcm(a, false); }};
         return functions;
     }());
     return table;
@@ -126,7 +164,9 @@ const std::map<std::string, Expr> &constants()
     static const std::map<std::string, Expr> &table = *new std::map<std::string, Expr>{
         {"pi", pi}, {"e", E}, {"i", I}, {"inf", Inf}, {"oo", Inf}, {"nan", Nan},
         //The constants the printer writes, read back
-        {"complexInfinity", ComplexInf}, {"EulerGamma", EulerGamma}, {"Catalan", Catalan}, {"GoldenRatio", GoldenRatio}
+        {"complexInfinity", ComplexInf}, {"EulerGamma", EulerGamma}, {"Catalan", Catalan}, {"GoldenRatio", GoldenRatio},
+        //The golden ratio, 2pi
+        {"phi", GoldenRatio}, {"tau", mul(integer(2), pi)}
     };
     return table;
 }
@@ -379,7 +419,14 @@ private:
         index_++;
         const Token &next = peek();
         const bool call = next.type == TokenType::Operator && next.text == "(";
-        if (const Definition *definition = resolver_(token.text)) {
+        const Definition *definition = resolver_(token.text);
+        //A constant (or a parameter) followed by ( without a space: the function of the formulas of that name (a
+        //parameter gamma, gamma(x)), else an error as for a variable, not a product
+        const bool callsBuiltin = definition && !definition->function && call && !next.spaceBefore && builtins().count(token.text);
+        if (definition && !definition->function && call && !next.spaceBefore && !callsBuiltin) {
+            fail(token, token.text + " is not a function: to multiply, write " + token.text + "*(…)", ErrorCode::UnknownFunction);
+        }
+        if (definition && !callsBuiltin) {
             if (!definition->function) return definition->body;
             if (!call) fail(token, token.text + " is a function: write " + token.text + "(…)");
             const std::vector<Expr> values = arguments();
@@ -400,8 +447,12 @@ private:
         const auto constant = constants().find(token.text);
         if (constant != constants().end()) return constant->second;
         const auto function = builtins().find(token.text);
-        if (function != builtins().end()) {
-            if (!call) fail(token, token.text + " is a function: write " + token.text + "(…)");
+        //Without parentheses, the functions written so by mistake (sin x) are an error, the other names are variables:
+        //gamma, beta, re, arg, mod… are common names of quantities
+        if (function != builtins().end() && !call && strictFunctions().count(token.text)) {
+            fail(token, token.text + " is a function: write " + token.text + "(…)");
+        }
+        if (function != builtins().end() && call) {
             const std::vector<Expr> values = arguments();
             if (values.size() < function->second.minimum || values.size() > function->second.maximum) {
                 const Builtin &builtin = function->second;
@@ -441,6 +492,11 @@ Expr parseNumber(const std::string &text)
 bool isBuiltin(const std::string &name)
 {
     return builtins().count(name) || constants().count(name);
+}
+
+bool isReserved(const std::string &name)
+{
+    return strictFunctions().count(name) || constants().count(name);
 }
 
 bool isName(const std::string &text)

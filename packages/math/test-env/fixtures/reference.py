@@ -2,6 +2,7 @@
 # syntax of @lakutata/math and its values at the sample points (30 significant digits), written to expected/*.json.
 # Run by generate.sh in a container (python3 and py3-sympy of Alpine), not by the tests.
 
+import functools
 import json
 import os
 import sys
@@ -30,7 +31,14 @@ NAMES = {
     'lambertw': LambertW, 'log10': lambda value: log(value, 10), 'log2': lambda value: log(value, 2), 'min': Min,
     'max': Max,
     # The real root of a negative real number for an odd order, the principal one otherwise
-    'cbrt': lambda value: sympy.real_root(value, 3), 'root': lambda value, n: sympy.real_root(value, n)
+    'cbrt': lambda value: sympy.real_root(value, 3), 'root': lambda value, n: sympy.real_root(value, n),
+    # Halves away from zero (not the halves to even of Python's round), the sign of the divisor
+    'round': lambda value: sign(value) * floor(Abs(value) + Rational(1, 2)), 'mod': sympy.Mod, 'sinc': sympy.sinc,
+    're': sympy.re, 'im': sympy.im, 'arg': sympy.arg, 'hypot': lambda a, b: sympy.sqrt(a ** 2 + b ** 2),
+    'expm1': lambda value: sympy.exp(value) - 1, 'log1p': lambda value: log(1 + value),
+    'lowergamma': sympy.lowergamma, 'uppergamma': sympy.uppergamma,
+    'gcd': lambda *values: functools.reduce(sympy.igcd, values), 'lcm': lambda *values: functools.reduce(sympy.ilcm, values),
+    'phi': S.GoldenRatio, 'tau': 2 * sympy.pi, 'EulerGamma': S.EulerGamma, 'Catalan': S.Catalan
 }
 TRANSFORMATIONS = standard_transformations + (implicit_multiplication, convert_xor, rationalize)
 

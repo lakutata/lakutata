@@ -1,10 +1,10 @@
 // The C and C++ libraries of @lakutata/math (packages/math/vendor): imported from their releases at a version, then
 // brought to a newer one by a three-way merge of each of their files, which keeps the changes made to them in lakutata
 // (as the source of TypeORM in @lakutata/orm, scripts/typeorm/sync.mjs). The base of the merge is the release imported
-// before (vendor/UPSTREAM.json), fetched again; ours is the source in the package; theirs is the new release. A file not
-// changed in lakutata takes the one of the new release, a file not changed upstream keeps ours, a file changed on both
-// sides is merged by git merge-file: its conflicts are left in it with their markers, and listed. Only the files of
-// each library the addon builds or needs (its licenses) are imported. The changes made in lakutata are described in
+// before (vendor/UPSTREAM.json), fetched again; ours is the source in the package; theirs is the new release. A file
+// not changed in lakutata takes the one of the new release, a file not changed upstream keeps ours, a file changed on
+// both sides is merged by git merge-file: its conflicts are left in it with their markers, and listed. Only the files
+// of each library the addon builds or needs (its licenses) are imported. The changes made in lakutata are described in
 // vendor/PATCHES.md. The header of mpdecimal its configure would write is written in native/config/mpdecimal.
 //
 // Run: node scripts/sync.mjs <library> <version>      merge a newer release into the source of the package
@@ -23,8 +23,8 @@ const VENDOR = path.join(PACKAGE, 'vendor')
 const UPSTREAM = path.join(VENDOR, 'UPSTREAM.json')
 
 /**
- * The header of mpdecimal its configure writes from mpdecimal.h.in, written here: the configuration chosen by the size of
- * the pointers of the target when the header is read (64 or 32 bits), the build macros of libmpdec (CONFIG_64, ANSI,
+ * The header of mpdecimal its configure writes from mpdecimal.h.in, written here: the configuration chosen by the size
+ * of the pointers of the target when the header is read (64 or 32 bits), the build macros of libmpdec (CONFIG_64, ANSI,
  * HAVE_UINT128_T) given to its sources only, by binding.gyp
  * @param template the content of mpdecimal.h.in
  */

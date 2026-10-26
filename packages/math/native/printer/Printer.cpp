@@ -254,7 +254,7 @@ private:
     {
         static const std::map<std::string, std::pair<std::string, std::string>> &names = *new std::map<std::string, std::pair<std::string, std::string>>{
             {"pi", {"pi", "\\pi"}}, {"E", {"e", "e"}}, {"EulerGamma", {"EulerGamma", "\\gamma"}},
-            {"Catalan", {"Catalan", "G"}}, {"GoldenRatio", {"GoldenRatio", "\\phi"}}
+            {"Catalan", {"Catalan", "G"}}, {"GoldenRatio", {"phi", "\\phi"}}
         };
         const auto found = names.find(name);
         const std::string text = found == names.end() ? name : tex_ ? found->second.second : found->second.first;

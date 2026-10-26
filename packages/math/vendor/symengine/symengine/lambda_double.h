@@ -87,6 +87,14 @@ public:
     fn apply(const Basic &b)
     {
         b.accept(*this);
+        // lakutata: the complex values without negative zeros
+        // (special_double.h), as the numeric evaluation
+        if constexpr (std::is_same<T, std::complex<double>>::value) {
+            const fn value = result_;
+            result_ = [value](const T *x) {
+                return special::unsigned_zeros(value(x));
+            };
+        }
         return result_;
     }
 
@@ -166,29 +174,44 @@ public:
         result_ = tmp;
     }
 
+    // lakutata: base**exponent, the integer powers by multiplications, the
+    // square roots by sqrt (special_double.h), for the powers and the factors
+    // of the products (which used std::pow, by exp and log)
+    fn power_of(const Basic &base, const Basic &exponent)
+    {
+        fn exp_ = apply(exponent);
+        if (eq(base, *E))
+            return [=](const T *x) { return std::exp(exp_(x)); };
+        fn base_ = apply(base);
+        if (is_a<Integer>(exponent)
+            and mp_fits_slong_p(
+                down_cast<const Integer &>(exponent).as_integer_class())) {
+            const long n
+                = mp_get_si(down_cast<const Integer &>(exponent).as_integer_class());
+            if (n == 1)
+                return base_;
+            return [=](const T *x) {
+                return special::integer_power(base_(x), n);
+            };
+        }
+        if (eq(exponent, *rational(1, 2)))
+            return [=](const T *x) { return std::sqrt(base_(x)); };
+        return [=](const T *x) { return std::pow(base_(x), exp_(x)); };
+    }
+
     void bvisit(const Mul &x)
     {
         fn tmp = apply(*x.get_coef());
-        fn tmp1, tmp2;
         for (const auto &p : x.get_dict()) {
-            tmp1 = apply(*(p.first));
-            tmp2 = apply(*(p.second));
-            tmp = [=](const T *x) {
-                return tmp(x) * std::pow(tmp1(x), tmp2(x));
-            };
+            const fn factor = power_of(*(p.first), *(p.second));
+            tmp = [=](const T *x) { return tmp(x) * factor(x); };
         }
         result_ = tmp;
     }
 
     void bvisit(const Pow &x)
     {
-        fn exp_ = apply(*(x.get_exp()));
-        if (eq(*(x.get_base()), *E)) {
-            result_ = [=](const T *x) { return std::exp(exp_(x)); };
-        } else {
-            fn base_ = apply(*(x.get_base()));
-            result_ = [=](const T *x) { return std::pow(base_(x), exp_(x)); };
-        }
+        result_ = power_of(*(x.get_base()), *(x.get_exp()));
     }
 
     void bvisit(const Sin &x)

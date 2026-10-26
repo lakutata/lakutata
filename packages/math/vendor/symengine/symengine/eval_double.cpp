@@ -23,7 +23,8 @@ public:
     T apply(const Basic &b)
     {
         b.accept(*down_cast<C *>(this));
-        return result_;
+        // lakutata: without negative zeros (special_double.h)
+        return special::unsigned_zeros(result_);
     }
 
     void bvisit(const Integer &x)
@@ -73,7 +74,18 @@ public:
             result_ = std::exp(exp_);
         } else {
             T base_ = apply(*(x.get_base()));
-            result_ = std::pow(base_, exp_);
+            // lakutata: the integer powers by multiplications, the square
+            // roots by sqrt (special_double.h)
+            if (is_a<Integer>(*x.get_exp())
+                and mp_fits_slong_p(
+                    down_cast<const Integer &>(*x.get_exp()).as_integer_class()))
+                result_ = special::integer_power(
+                    base_, mp_get_si(down_cast<const Integer &>(*x.get_exp())
+                                         .as_integer_class()));
+            else if (eq(*x.get_exp(), *rational(1, 2)))
+                result_ = std::sqrt(base_);
+            else
+                result_ = std::pow(base_, exp_);
         }
     }
 

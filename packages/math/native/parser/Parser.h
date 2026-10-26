@@ -41,6 +41,9 @@ Expr parseNumber(const std::string &text);
 //Whether a name is one of the functions or constants of the parser (it cannot be defined)
 bool isBuiltin(const std::string &name);
 
+//Whether a name cannot be a variable: a constant, or a function whose name alone is an error (sin)
+bool isReserved(const std::string &name);
+
 //Whether a text is a name: a letter or _, then letters, digits or _ (the letters of every alphabet)
 bool isName(const std::string &text);
 

@@ -3090,11 +3090,13 @@ RCP<const Basic> gamma_multiple_2(const RCP<const Basic> &arg)
             coeff = minus_one;
         }
     }
-    int j = 1;
-    for (int i = 3; i < 2 * k->as_int(); i = i + 2) {
-        j = j * i;
+    // lakutata: the double factorial 3*5*...*(2k - 1) in an integer of any size
+    // (an int overflowed from k = 10: gamma(-25/2) was wrong)
+    integer_class j = 1;
+    for (long i = 3; i < 2 * k->as_int(); i = i + 2) {
+        j *= i;
     }
-    coeff = mulnum(coeff, integer(j));
+    coeff = mulnum(coeff, integer(std::move(j)));
     if (arg_->is_positive()) {
         return div(mul(coeff, sqrt(pi)), pow(i2, n));
     } else {

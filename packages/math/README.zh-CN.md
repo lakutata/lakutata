@@ -72,12 +72,16 @@ await container.destroy()
 | `x^2`、`x**2`、`2^3^2` | 乘方，从右往左算（`2^3^2` 是 `2^9`） |
 | `5!` | 阶乘 |
 | `0.1`、`1.5e3` | 精确的小数：`0.1` 就是 `1/10` |
-| `pi`、`e`、`i`、`inf`（或 `oo`）、`nan` | 常数 |
-| `sin`、`cos`、`tan`、`asin`、`sinh`……、`exp`、`ln`、`log(x)`（自然对数）、`log(x, b)`、`log10`、`log2`、`sqrt`、`cbrt`、`root(x, n)`、`abs`、`sign`、`floor`、`ceil`、`trunc`、`min`、`max`、`gamma`、`beta`、`erf`、`zeta`、`binomial`、`factorial`…… | 函数 |
+| `pi`、`e`、`i`、`inf`（或 `oo`）、`nan`、`phi`（黄金分割）、`tau`（`2pi`）、`EulerGamma`、`Catalan` | 常数 |
+| `sin`、`cos`、`tan`、`asin`、`sinh`……、`exp`、`ln`、`log(x)`（自然对数）、`log(x, b)`、`log10`、`log2`、`expm1`、`log1p`、`sqrt`、`cbrt`、`root(x, n)`、`hypot` | 函数 |
+| `abs`、`sign`、`floor`、`ceil`、`trunc`、`round`、`mod(a, b)`、`min`、`max`、`gcd`、`lcm`、`re`、`im`、`arg`、`conj` | 取整、余数、最值和复数的实部虚部 |
+| `gamma`、`loggamma`、`digamma`、`polygamma`、`lowergamma`、`uppergamma`、`beta`、`erf`、`erfc`、`zeta`、`lambertw`、`sinc`、`binomial`、`factorial` | 特殊函数 |
 | `x^2 = 4` | 方程（`math.equation()` 或 `math.parse()`） |
 | `x < 1`、`x >= 0` | 不等式，由 `math.parse()` 读取 |
 
-`cbrt(x)` 和奇数次的 `root(x, n)` 对负实数取实数根（`cbrt(-8)` 是 `-2`，和 `Math.cbrt` 一样）；乘方取主值（`(-8)^(1/3)` 是 `1 + sqrt(3)i`，和 SymPy 一样）。
+`cbrt(x)` 和奇数次的 `root(x, n)` 对负实数取实数根（`cbrt(-8)` 是 `-2`，和 `Math.cbrt` 一样）；乘方取主值（`(-8)^(1/3)` 是 `1 + sqrt(3)i`，和 SymPy 一样）。`round` 遇到正好一半时向远离零的方向舍入（`round(-2.5)` 是 `-3`），`mod(a, b)` 的符号和 `b` 相同（`mod(-7, 3)` 是 `2`），`gcd` 和 `lcm` 只算整数。变量都当作复数：`re(x)` 保持原样。
+
+函数名不带括号时当作变量（`gamma`、`beta`、`re`、`mod` 都是常见的量的名字），只有容易漏写括号的函数例外（三角和双曲函数、`exp`、`ln`、各种 `log`、`sqrt`、`cbrt`）：`sin x` 是错误，要写成 `sin(x)`。
 
 结果也用同样的写法输出：`toString()` 得到的公式可以再交给 `math.expression()` 读回来，`toTeX()` 得到 LaTeX。语法错误会抛出 `MathSyntaxException`，它的 `position` 是出错字符的位置。
 
@@ -163,11 +167,11 @@ function solve(math: Math): void {
 | 错误 | 什么时候抛出 |
 |---|---|
 | `MathSyntaxException` | 公式写得不对（带有出错的 `position`），需要表达式的地方给了方程，或者反过来 |
-| `MathUnknownFunctionException` | 公式调用的函数既不是内置函数，也没有定义（带有它的 `position`） |
+| `MathUnknownFunctionException` | 公式调用的函数既不是内置函数，也没有定义，或者把常数写成了调用（`g(2)`），带有它的 `position` |
 | `MathDefinitionException` | 定义无效：用了内置的名字、参数重复、定义之间循环引用、定义嵌套太深 |
 | `MathDomainException` | 把复数当成数字取值，或者取无穷大、`complexInfinity`（除以零）的值 |
 | `MathDivisionByZeroException` | 计算十进制值时遇到除以零 |
-| `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数 |
+| `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm` |
 | `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对 |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |
 | `MathException` | 以上所有错误的基类；原生插件内部错误时，它的 `errno` 是 `E_MATH_INTERNAL` |

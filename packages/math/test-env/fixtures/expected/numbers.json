@@ -1321,6 +1321,345 @@
     "mathjs": "same",
     "nerdamer": "error: Unexpected token!: 1"
    }
+  },
+  {
+   "text": "round(7/3)",
+   "value": [
+    "2.00000000000000000000000000000",
+    "0"
+   ],
+   "exact": "2",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "round(-7/2)",
+   "value": [
+    "-4.00000000000000000000000000000",
+    "0"
+   ],
+   "exact": "-4",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "different value"
+   }
+  },
+  {
+   "text": "mod(7.5, 2)",
+   "value": [
+    "1.50000000000000000000000000000",
+    "0"
+   ],
+   "exact": "3/2",
+   "decimals": {
+    "10": "1.500000000"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "mod(pi, 1)",
+   "value": [
+    "0.141592653589793238462643383280",
+    "0"
+   ],
+   "exact": "-3 + pi",
+   "decimals": {
+    "20": "0.14159265358979323846"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "sinc(1)",
+   "value": [
+    "0.841470984807896506652502321630",
+    "0"
+   ],
+   "exact": "sinc(1)",
+   "engines": {
+    "mathjs": "error: Undefined function sinc",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "sinc(1/2 + i)",
+   "value": [
+    "1.12098576518604651778604065994",
+    "-0.179299381862990469423882450622"
+   ],
+   "exact": "sinc(1/2 + i)",
+   "engines": {
+    "mathjs": "error: Undefined function sinc",
+    "nerdamer": "different value"
+   }
+  },
+  {
+   "text": "arg(1 + i)",
+   "value": [
+    "0.785398163397448309615660845820",
+    "0"
+   ],
+   "exact": "pi/4",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "arg(-1 - i)",
+   "value": [
+    "-2.35619449019234492884698253746",
+    "0"
+   ],
+   "exact": "-3*pi/4",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "re(e^i)",
+   "value": [
+    "0.540302305868139717400936607443",
+    "0"
+   ],
+   "exact": "cos(1)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: (0.5403023058681310+0.8414709848078965*i)*re"
+   }
+  },
+  {
+   "text": "im(e^i)",
+   "value": [
+    "0.841470984807896506652502321630",
+    "0"
+   ],
+   "exact": "sin(1)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: (0.5403023058681310+0.8414709848078965*i)*im"
+   }
+  },
+  {
+   "text": "arg(2 - 3i)",
+   "value": [
+    "-0.982793723247329067985710611015",
+    "0"
+   ],
+   "exact": "-atan(3/2)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "lowergamma(2, 1)",
+   "value": [
+    "0.264241117657115356808952459677",
+    "0"
+   ],
+   "exact": "1 - 2*exp(-1)",
+   "engines": {
+    "mathjs": "error: Undefined function lowergamma",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "uppergamma(1/2, 2)",
+   "value": [
+    "0.0806471179603176907886260730213",
+    "0"
+   ],
+   "exact": "sqrt(pi)*erfc(sqrt(2))",
+   "engines": {
+    "mathjs": "error: Undefined function uppergamma",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "lowergamma(5/2, 3)",
+   "value": [
+    "0.922271212307834022039386437778",
+    "0"
+   ],
+   "exact": "3*sqrt(pi)*(-6*sqrt(3)*exp(-3)/sqrt(pi) + erf(sqrt(3)))/4",
+   "engines": {
+    "mathjs": "error: Undefined function lowergamma",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "EulerGamma",
+   "value": [
+    "0.577215664901532860606512090082",
+    "0"
+   ],
+   "exact": "EulerGamma",
+   "engines": {
+    "mathjs": "error: Undefined symbol EulerGamma",
+    "nerdamer": "error: not a number: EulerGamma"
+   }
+  },
+  {
+   "text": "Catalan",
+   "value": [
+    "0.915965594177219015054603514932",
+    "0"
+   ],
+   "exact": "Catalan",
+   "engines": {
+    "mathjs": "error: Undefined symbol Catalan",
+    "nerdamer": "error: not a number: Catalan"
+   }
+  },
+  {
+   "text": "phi",
+   "value": [
+    "1.61803398874989484820458683437",
+    "0"
+   ],
+   "exact": "GoldenRatio",
+   "decimals": {
+    "30": "1.61803398874989484820458683437"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: phi"
+   }
+  },
+  {
+   "text": "tau",
+   "value": [
+    "6.28318530717958647692528676656",
+    "0"
+   ],
+   "exact": "2*pi",
+   "decimals": {
+    "20": "6.2831853071795864769"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: tau"
+   }
+  },
+  {
+   "text": "hypot(1, 2)",
+   "value": [
+    "2.23606797749978969640917366873",
+    "0"
+   ],
+   "exact": "sqrt(5)",
+   "decimals": {
+    "20": "2.2360679774997896964"
+   },
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: this.symbol.text is not a function"
+   }
+  },
+  {
+   "text": "gamma(-25/2)",
+   "value": [
+    "-0.00000000183660648385928091564965935674",
+    "0"
+   ],
+   "exact": "-8192*sqrt(pi)/7905853580625",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: -12.5*gamma"
+   }
+  },
+  {
+   "text": "gamma(41/2)",
+   "value": [
+    "540624298233507504.473687364781",
+    "0"
+   ],
+   "exact": "319830986772877770815625*sqrt(pi)/1048576",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: 20.5*gamma"
+   }
+  },
+  {
+   "text": "gamma(-41/2)",
+   "value": [
+    "-2.83465657439133487140042328026e-19",
+    "0"
+   ],
+   "exact": "-2097152*sqrt(pi)/13113070457687988603440625",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "error: not a number: -20.5*gamma"
+   }
+  },
+  {
+   "text": "(-100)^(3/5)",
+   "value": [
+    "-4.89758930739648371080571710864",
+    "15.0732299832197094389485311112"
+   ],
+   "exact": "10*(-1)**(3/5)*10**(1/5)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "different value"
+   }
+  },
+  {
+   "text": "(-12)^(3/4)",
+   "value": [
+    "-4.55901411390955528398712650393",
+    "4.55901411390955528398712650393"
+   ],
+   "exact": "2*(-3)**(3/4)*sqrt(2)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "(-32)^(2/5)",
+   "value": [
+    "1.23606797749978969640917366873",
+    "3.80422606518061428846575733352"
+   ],
+   "exact": "4*(-1)**(2/5)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "different value"
+   }
+  },
+  {
+   "text": "(-1000)^(5/6)",
+   "value": [
+    "-273.861278752583056728484891400",
+    "158.113883008418966599944677222"
+   ],
+   "exact": "100*(-1)**(5/6)*sqrt(10)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "same"
+   }
+  },
+  {
+   "text": "(-24)^(1/3)",
+   "value": [
+    "1.44224957030740838232163831078",
+    "2.49804953296681295882635908753"
+   ],
+   "exact": "2*(-3)**(1/3)",
+   "engines": {
+    "mathjs": "same",
+    "nerdamer": "different value"
+   }
   }
  ]
 }

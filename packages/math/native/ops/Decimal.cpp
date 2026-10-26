@@ -200,6 +200,7 @@ Decimal evaluate(const Basic &e, const DecimalContext &context)
     if (is_a<Constant>(e)) {
         if (eq(e, *pi)) return context.pi();
         if (eq(e, *E)) return context.exp(context.parse("1"));
+        if (eq(e, *GoldenRatio)) return context.div(context.add(context.parse("1"), context.sqrt(context.parse("5"))), context.parse("2"));
     }
     if (is_a<Log>(e)) {
         const Decimal argument = evaluate(*down_cast<const Log &>(e).get_arg(), context);

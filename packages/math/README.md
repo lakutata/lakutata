@@ -83,13 +83,21 @@ await container.destroy()
 | `x^2`, `x**2`, `2^3^2` | Powers, from the right (`2^3^2` is `2^9`) |
 | `5!` | Factorial |
 | `0.1`, `1.5e3` | Exact decimals: `0.1` is `1/10` |
-| `pi`, `e`, `i`, `inf` (or `oo`), `nan` | Constants |
-| `sin`, `cos`, `tan`, `asin`, `sinh`…, `exp`, `ln`, `log(x)` (natural), `log(x, b)`, `log10`, `log2`, `sqrt`, `cbrt`, `root(x, n)`, `abs`, `sign`, `floor`, `ceil`, `trunc`, `min`, `max`, `gamma`, `beta`, `erf`, `zeta`, `binomial`, `factorial`… | Functions |
+| `pi`, `e`, `i`, `inf` (or `oo`), `nan`, `phi` (golden ratio), `tau` (`2pi`), `EulerGamma`, `Catalan` | Constants |
+| `sin`, `cos`, `tan`, `asin`, `sinh`…, `exp`, `ln`, `log(x)` (natural), `log(x, b)`, `log10`, `log2`, `expm1`, `log1p`, `sqrt`, `cbrt`, `root(x, n)`, `hypot` | Functions |
+| `abs`, `sign`, `floor`, `ceil`, `trunc`, `round`, `mod(a, b)`, `min`, `max`, `gcd`, `lcm`, `re`, `im`, `arg`, `conj` | Rounding, remainders, extrema, the parts of complex numbers |
+| `gamma`, `loggamma`, `digamma`, `polygamma`, `lowergamma`, `uppergamma`, `beta`, `erf`, `erfc`, `zeta`, `lambertw`, `sinc`, `binomial`, `factorial` | Special functions |
 | `x^2 = 4` | An equation (`math.equation()`, or `math.parse()`) |
 | `x < 1`, `x >= 0` | An inequality, read by `math.parse()` |
 
 `cbrt(x)` and `root(x, n)` with an odd `n` give the real root of a negative real number (`cbrt(-8)` is `-2`, as
-`Math.cbrt`); a fractional power gives the principal value (`(-8)^(1/3)` is `1 + sqrt(3)i`, as SymPy).
+`Math.cbrt`); a fractional power gives the principal value (`(-8)^(1/3)` is `1 + sqrt(3)i`, as SymPy). `round` rounds
+the halves away from zero (`round(-2.5)` is `-3`), `mod(a, b)` has the sign of `b` (`mod(-7, 3)` is `2`), `gcd` and
+`lcm` take integers. A variable may be a complex number, so `re(x)` stays as written.
+
+Without parentheses, the name of a function is a variable (`gamma`, `beta`, `re`, `mod` are common names of
+quantities), except the ones often written without parentheses by mistake — the trigonometric and hyperbolic
+functions, `exp`, `ln`, `log` and its variants, `sqrt`, `cbrt`: `sin x` is an error, write `sin(x)`.
 
 The results are written the same way: `toString()` gives a formula that `math.expression()` reads back, and `toTeX()`
 gives its LaTeX. A syntax error is a `MathSyntaxException` with the `position` of the character where it is found.
@@ -198,11 +206,11 @@ The typings document every declaration, with examples.
 | Error | When |
 |---|---|
 | `MathSyntaxException` | A formula is not written correctly (with the `position` of the error), an equation is given where an expression is expected, or the other way round |
-| `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined (with its `position`) |
+| `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined, or a constant written as a call (`g(2)`), with its `position` |
 | `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep |
 | `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero) |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals |
-| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation |
+| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers |
 | `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |

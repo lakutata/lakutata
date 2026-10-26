@@ -36,7 +36,7 @@ Signature signatureOf(const std::string &text)
     while (true) {
         const size_t comma = list.find(',', start);
         const std::string parameter = trim(list.substr(start, comma == std::string::npos ? std::string::npos : comma - start));
-        if (!isName(parameter) || isBuiltin(parameter)) throw MathError(ErrorCode::Definition, "The definition " + signature + ": " + (parameter.empty() ? "a parameter is missing" : parameter + " cannot be a parameter"));
+        if (!isName(parameter) || isReserved(parameter)) throw MathError(ErrorCode::Definition, "The definition " + signature + ": " + (parameter.empty() ? "a parameter is missing" : parameter + " cannot be a parameter"));
         if (!seen.insert(parameter).second) throw MathError(ErrorCode::Definition, "The definition " + signature + ": the parameter " + parameter + " is given twice");
         parsed.parameters.push_back(parameter);
         if (comma == std::string::npos) break;

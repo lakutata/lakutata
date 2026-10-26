@@ -162,5 +162,13 @@
  {
   "text": "polygamma(1, x)",
   "variable": "x"
+ },
+ {
+  "text": "sinc(x)",
+  "variable": "x"
+ },
+ {
+  "text": "hypot(x, 2)",
+  "variable": "x"
  }
 ]

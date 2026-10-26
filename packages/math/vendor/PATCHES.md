@@ -33,9 +33,13 @@ SymEngine's `boostmp` integers come from Boost.Multiprecision, which can be used
   continuation), zeta and the Hurwitz zeta (Euler-Maclaurin, the reflection formula), the Lambert W function (its
   principal branch), polygamma, the incomplete gamma functions, beta, erf and erfc of complex numbers.
 - `symengine/eval_double.cpp`, `symengine/lambda_double.h`: these functions, with sign, floor, ceiling, truncation and
-  the conjugate, evaluated numerically and in the compiled functions. Log gamma has no real value left of zero (its
-  imaginary part is a multiple of pi), and the sign of NaN is NaN, so that the complex value is computed instead.
-  `atan2(-0.0, x)` is `atan2(0, x)`, as the exact value.
+  the conjugate, evaluated numerically and in the compiled functions. The complex values have no negative zeros, so that
+  a negative real number stays on the upper side of the branch cuts, as the exact values: `(0.9 + 0i)/(-0.4 + 0i)` is
+  `-2.25 - 0i` in floating point, and its logarithm was `-i*pi`. The integer powers are computed by multiplications and
+  the square roots by `sqrt`, in the powers and in the factors of the compiled products: `pow` goes through `exp` and
+  `log`, whose rounding moved real values off the real line. Log gamma has no real value left of zero (its imaginary
+  part is a multiple of pi), and the sign of NaN is NaN, so that the complex value is computed instead. `atan2(-0.0, x)`
+  is `atan2(0, x)`, as the exact value.
 - `symengine/functions.cpp`: polygamma has its poles at the nonpositive integers only (SymEngine gave
   `complexInfinity` for every number not positive), a negative rational is moved right by the recurrence, and its
   special values of the thirds and the quarters are chosen by the remainder of the numerator (`polygamma(0, 5/4)` was
@@ -44,6 +48,8 @@ SymEngine's `boostmp` integers come from Boost.Multiprecision, which can be used
   (`sign(pi - 3)` is 1), and the sign of a power of an unknown sign no longer recurses without end. The floor, the
   ceiling and the truncation of a number written as an expression are computed (`floor(sqrt(2))` is 1); the
   truncation no longer takes an integer out of a sum (`trunc(5 - 1/2)` is 4, not `5 + trunc(-1/2)`).
+- `symengine/functions.cpp`: the gamma function of a half-integer computes its double factorial in an integer of any
+  size (an `int` overflowed: `gamma(-25/2)` was wrong).
 - `symengine/solve.cpp`: an equation that is not a polynomial in the variable is left unsolved (a condition set):
   SymEngine failed on `sin(x) + x = 0`, and took a function of the variable as a coefficient, so that `x^x = 2` was
   answered with no solution. A product with a denominator is solved as a fraction, so that the zeros of the denominator

@@ -12,6 +12,11 @@
 #include <symengine/pow.h>
 #include <symengine/real_double.h>
 #include <symengine/test_visitors.h>
+#include <symengine/functions.h>
+#include <symengine/rational.h>
+#include <symengine/complex.h>
+#include <symengine/nan.h>
+#include <symengine/visitor.h>
 
 namespace math {
 
@@ -22,6 +27,7 @@ RCP<const Number> MathFunction::eval(long) const
     //The arguments evaluated first: a variable among them fails as SymEngine's evaluations do
     std::vector<std::complex<double>> arguments;
     for (const Expr &argument : get_args()) arguments.push_back(eval_complex_double(*argument));
+    //(eval_complex_double gives them without negative zeros)
     const std::complex<double> result = value(arguments);
     if (result.imag() == 0) return real_double(result.real());
     return complex_double(result);
@@ -29,6 +35,10 @@ RCP<const Number> MathFunction::eval(long) const
 
 double MathFunction::evaluate_real(const double *arguments) const
 {
+    //An argument without a real value (NaN) gives none: im(sqrt(-2)) is not 0 in the real numbers
+    for (size_t i = 0; i < get_args().size(); i++) {
+        if (std::isnan(arguments[i])) return std::numeric_limits<double>::quiet_NaN();
+    }
     std::vector<std::complex<double>> values(arguments, arguments + get_args().size());
     const std::complex<double> result = value(values);
     return result.imag() == 0 ? result.real() : std::numeric_limits<double>::quiet_NaN();
@@ -101,6 +111,258 @@ std::complex<double> RealRoot::value(const std::vector<std::complex<double>> &ar
     if (x.imag() == 0 && x.real() < 0 && n == std::floor(n) && std::fmod(n, 2.0) != 0) return -std::pow(-x.real(), 1.0 / n);
     if (x.imag() == 0 && x.real() >= 0) return std::pow(x.real(), 1.0 / n);
     return std::pow(x, 1.0 / n);
+}
+
+}
+
+namespace math {
+
+namespace {
+
+//The value of a variable-free real expression, when it is clearly away from the integers (or from 0 for a sign)
+bool clearValue(const Expr &x, double &value)
+{
+    if (!free_symbols(*x).empty()) return false;
+    try {
+        const std::complex<double> number = eval_complex_double(*x);
+        if (number.imag() != 0 || !std::isfinite(number.real())) return false;
+        value = number.real();
+        return true;
+    } catch (SymEngineException &) {
+        return false;
+    }
+}
+
+bool nearInteger(double value)
+{
+    return std::abs(value - std::round(value)) <= 1e-10 * std::max(1.0, std::abs(value));
+}
+
+//The real and imaginary parts of an exact number
+bool numberParts(const Expr &z, Expr &real, Expr &imaginary)
+{
+    if (is_a<Integer>(*z) || is_a<Rational>(*z)) {
+        real = z;
+        imaginary = zero;
+        return true;
+    }
+    if (is_a<Complex>(*z)) {
+        real = down_cast<const Complex &>(*z).real_part();
+        imaginary = down_cast<const Complex &>(*z).imaginary_part();
+        return true;
+    }
+    return false;
+}
+
+}
+
+Round::Round(const Expr &x) : MathFunction("round", x)
+{
+}
+
+Expr roundOf(const Expr &x)
+{
+    Expr real, imaginary;
+    if (numberParts(x, real, imaginary)) {
+        //sign(r) floor(|r| + 1/2) for each part
+        const auto part = [](const Expr &r) { return mul(sign(r), floor(add(abs(r), rational(1, 2)))); };
+        return add(part(real), mul(I, part(imaginary)));
+    }
+    double value;
+    if (clearValue(x, value) && !nearInteger(value - 0.5)) return integer(integer_class(static_cast<long long>(std::round(value))));
+    if (is_a<Integer>(*x)) return x;
+    return make_rcp<const Round>(x);
+}
+
+Expr Round::create(const vec_basic &arguments) const
+{
+    return roundOf(arguments[0]);
+}
+
+Expr Round::diff_impl(const RCP<const Symbol> &) const
+{
+    //Constant between its jumps
+    return zero;
+}
+
+std::complex<double> Round::value(const std::vector<std::complex<double>> &arguments) const
+{
+    return {std::round(arguments[0].real()), std::round(arguments[0].imag())};
+}
+
+Mod::Mod(const Expr &a, const Expr &b) : MathFunction("mod", vec_basic{a, b})
+{
+}
+
+Expr modOf(const Expr &a, const Expr &b)
+{
+    if (is_a_Number(*b) && down_cast<const Number &>(*b).is_zero()) return Nan;
+    //Exact for real numbers: a - b floor(a/b)
+    if ((is_a<Integer>(*a) || is_a<Rational>(*a)) && (is_a<Integer>(*b) || is_a<Rational>(*b))) return sub(a, mul(b, floor(div(a, b))));
+    double numerator, denominator;
+    if (clearValue(a, numerator) && clearValue(b, denominator) && denominator != 0 && !nearInteger(numerator / denominator)) {
+        return sub(a, mul(b, integer(integer_class(static_cast<long long>(std::floor(numerator / denominator))))));
+    }
+    return make_rcp<const Mod>(a, b);
+}
+
+Expr Mod::create(const vec_basic &arguments) const
+{
+    return modOf(arguments[0], arguments[1]);
+}
+
+Expr Mod::diff_impl(const RCP<const Symbol> &variable) const
+{
+    //a' - b' floor(a/b): the floor is constant between its jumps
+    const Expr a = get_args()[0];
+    const Expr b = get_args()[1];
+    return sub(a->diff(variable), mul(b->diff(variable), floor(div(a, b))));
+}
+
+std::complex<double> Mod::value(const std::vector<std::complex<double>> &arguments) const
+{
+    const std::complex<double> a = arguments[0];
+    const std::complex<double> b = arguments[1];
+    if (a.imag() != 0 || b.imag() != 0 || b.real() == 0) return std::numeric_limits<double>::quiet_NaN();
+    return a.real() - b.real() * std::floor(a.real() / b.real());
+}
+
+Sinc::Sinc(const Expr &x) : MathFunction("sinc", x)
+{
+}
+
+Expr sincOf(const Expr &x)
+{
+    if (is_a_Number(*x) && down_cast<const Number &>(*x).is_zero()) return one;
+    if (is_a_Number(*x) || free_symbols(*x).empty()) return div(sin(x), x);
+    return make_rcp<const Sinc>(x);
+}
+
+Expr Sinc::create(const vec_basic &arguments) const
+{
+    return sincOf(arguments[0]);
+}
+
+Expr Sinc::diff_impl(const RCP<const Symbol> &variable) const
+{
+    //(cos(x)/x - sin(x)/x^2) x'
+    const Expr x = get_args()[0];
+    return mul(sub(div(cos(x), x), div(sin(x), pow(x, integer(2)))), x->diff(variable));
+}
+
+std::complex<double> Sinc::value(const std::vector<std::complex<double>> &arguments) const
+{
+    const std::complex<double> x = arguments[0];
+    if (std::abs(x) < 1e-8) return 1.0 - x * x / 6.0;
+    return std::sin(x) / x;
+}
+
+ComplexPart::ComplexPart(Part part, const Expr &z)
+    : MathFunction(part == Part::Real ? "re" : part == Part::Imaginary ? "im" : "arg", z), part_(part)
+{
+}
+
+namespace {
+
+//The real and imaginary parts of an expression where they are known: exact numbers, real constants, sums of them,
+//products by real or imaginary numbers
+bool knownParts(const Expr &z, Expr &real, Expr &imaginary)
+{
+    if (numberParts(z, real, imaginary)) return true;
+    if (is_a<Constant>(*z)) {
+        real = z;
+        imaginary = zero;
+        return true;
+    }
+    if (free_symbols(*z).empty() && is_true(is_real(*z))) {
+        real = z;
+        imaginary = zero;
+        return true;
+    }
+    return false;
+}
+
+}
+
+Expr realPartOf(const Expr &z)
+{
+    Expr real, imaginary;
+    if (knownParts(z, real, imaginary)) return real;
+    if (is_a<Add>(*z)) {
+        Expr sum = zero;
+        for (const Expr &term : z->get_args()) sum = add(sum, realPartOf(term));
+        return sum;
+    }
+    if (is_a<Mul>(*z)) {
+        //A numeric coefficient c (a + bi): re(c u) = a re(u) - b im(u)
+        const Mul &product = down_cast<const Mul &>(*z);
+        if (numberParts(product.get_coef(), real, imaginary)) {
+            map_basic_basic factors = product.get_dict();
+            const Expr rest = Mul::from_dict(one, std::move(factors));
+            if (!eq(*rest, *z)) return sub(mul(real, realPartOf(rest)), mul(imaginary, imaginaryPartOf(rest)));
+        }
+    }
+    return make_rcp<const ComplexPart>(ComplexPart::Part::Real, z);
+}
+
+Expr imaginaryPartOf(const Expr &z)
+{
+    Expr real, imaginary;
+    if (knownParts(z, real, imaginary)) return imaginary;
+    if (is_a<Add>(*z)) {
+        Expr sum = zero;
+        for (const Expr &term : z->get_args()) sum = add(sum, imaginaryPartOf(term));
+        return sum;
+    }
+    if (is_a<Mul>(*z)) {
+        //im(c u) = a im(u) + b re(u)
+        const Mul &product = down_cast<const Mul &>(*z);
+        if (numberParts(product.get_coef(), real, imaginary)) {
+            map_basic_basic factors = product.get_dict();
+            const Expr rest = Mul::from_dict(one, std::move(factors));
+            if (!eq(*rest, *z)) return add(mul(real, imaginaryPartOf(rest)), mul(imaginary, realPartOf(rest)));
+        }
+    }
+    return make_rcp<const ComplexPart>(ComplexPart::Part::Imaginary, z);
+}
+
+Expr argumentOf(const Expr &z)
+{
+    Expr real, imaginary;
+    if (knownParts(z, real, imaginary)) {
+        if (is_a_Number(*real) && is_a_Number(*imaginary) && down_cast<const Number &>(*real).is_zero() && down_cast<const Number &>(*imaginary).is_zero()) return Nan;
+        if (is_a_Number(*imaginary) && down_cast<const Number &>(*imaginary).is_zero()) {
+            double value;
+            if (clearValue(real, value)) return value > 0 ? Expr(zero) : Expr(pi);
+        }
+        return atan2(imaginary, real);
+    }
+    return make_rcp<const ComplexPart>(ComplexPart::Part::Argument, z);
+}
+
+Expr ComplexPart::create(const vec_basic &arguments) const
+{
+    return part_ == Part::Real ? realPartOf(arguments[0]) : part_ == Part::Imaginary ? imaginaryPartOf(arguments[0]) : argumentOf(arguments[0]);
+}
+
+Expr ComplexPart::diff_impl(const RCP<const Symbol> &variable) const
+{
+    //Along the real line: re(u)' = re(u'), im(u)' = im(u'), arg(u)' = im(u'/u)
+    const Expr u = get_args()[0];
+    const Expr derivative = u->diff(variable);
+    if (part_ == Part::Real) return realPartOf(derivative);
+    if (part_ == Part::Imaginary) return imaginaryPartOf(derivative);
+    return imaginaryPartOf(div(derivative, u));
+}
+
+std::complex<double> ComplexPart::value(const std::vector<std::complex<double>> &arguments) const
+{
+    const std::complex<double> z = arguments[0];
+    if (part_ == Part::Real) return z.real();
+    if (part_ == Part::Imaginary) return z.imag();
+    if (z == 0.0) return std::numeric_limits<double>::quiet_NaN();
+    //A negative real number on the upper side of the cut: arg(-2) is pi
+    return std::atan2(z.imag() + 0.0, z.real());
 }
 
 }

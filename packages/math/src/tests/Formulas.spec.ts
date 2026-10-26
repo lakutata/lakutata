@@ -159,6 +159,22 @@ describe('The formulas', (): void => {
         assert.throws((): unknown => f(1), MathArgumentException)
     })
 
+    it('give the real roots, the rounding, the remainders and the parts of complex numbers as documented', (): void => {
+        assert.strictEqual(math.expression('cbrt(-8)').toString(), '-2')
+        assert.strictEqual(math.expression('cbrt(x)').substitute({x: -8}).toString(), '-2')
+        assert.strictEqual(math.expression('(-8)^(1/3)').toString(), '2(-1)^(1/3)')
+        assert.strictEqual(math.expression('round(-2.5) + round(2.5)').toString(), '0')
+        assert.strictEqual(math.expression('mod(-7, 3)').toString(), '2')
+        assert.ok(Number.isNaN(math.expression('arg(0)').toNumber()))
+        assert.strictEqual(math.expression('re(x + 2i*y)').toString(), '-2im(y) + re(x)')
+        assert.strictEqual(math.expression('phi^2 - phi').toNumber(), 1)
+        //Without parentheses, the names of most functions are variables; the ones written so by mistake are an error
+        assert.deepStrictEqual(math.expression('gamma + re + mod').variables(), ['gamma', 'mod', 're'])
+        assert.throws((): unknown => math.expression('sin + 1'), MathSyntaxException)
+        //A complex value on the way to a real one, compiled
+        assert.ok(globalThis.Math.abs(math.expression('im(sqrt(y)*y)').compile(['y'])(-1.3) + 1.4822280526288794) < 1e-12)
+    })
+
     it('refuse the expressions nested more than 1000 levels deep, before they fill the stack', async (): Promise<void> => {
         const nested = (depth: number): string => 'sin('.repeat(depth) + 'x' + ')'.repeat(depth)
         const deepest: Expression = math.expression(nested(1000))

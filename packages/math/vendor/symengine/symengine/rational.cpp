@@ -294,12 +294,15 @@ static bool extract_root_factors(RCP<const Number> &coef, map_basic_basic &surd,
         imulnum(outArg(coef), I);
     for (const auto &radical : radicals)
         insert(surd, radical.first, radical.second);
+    // A negative base: its sign as (-1)**(r/den), in the rest of the base when
+    // it keeps the whole exponent ((-24)**(1/3) is 2*(-3)**(1/3)), apart
+    // otherwise ((-100)**(3/5) is 10*10**(1/5)*(-1)**(3/5), not 10*(-10)**(1/5))
+    const bool sign_in_left = negative and den != 2 and left > 1 and common == r;
     if (left > 1) {
-        // A negative base keeps its sign under an odd root: (-24)**(1/3)
-        // is 2*(-3)**(1/3)
-        insert(surd, integer(negative and den != 2 ? integer_class(-left) : left),
+        insert(surd, integer(sign_in_left ? integer_class(-left) : left),
                Rational::from_mpq(rational_class(common, den)));
-    } else if (negative and den != 2) {
+    }
+    if (negative and den != 2 and not sign_in_left) {
         insert(surd, minus_one, Rational::from_mpq(rational_class(r, den)));
     }
     return true;

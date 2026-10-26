@@ -394,18 +394,20 @@ Napi::Value Variables(const Napi::CallbackInfo &info)
     return result;
 }
 
-//A formula compiled into a function of numbers: by SymEngine's LambdaRealDoubleVisitor, or by its complex one when
-//the formula has complex numbers in it (i^i is real): its value is then the real part, NaN where it is not real
+//A formula compiled into a function of numbers: by SymEngine's LambdaRealDoubleVisitor, and by its complex one when the
+//real one has no value there (a complex value on the way: im(sqrt(y)) for y < 0) or cannot be built (i^i is real):
+//the value is then the real part, NaN where it is not real
 struct Compiled {
     SymEngine::LambdaRealDoubleVisitor real;
+    bool realBuilt = false;
     std::unique_ptr<SymEngine::LambdaComplexDoubleVisitor> complex;
     size_t inputs;
 
     void call(double *result, const double *values)
     {
-        if (!complex) {
+        if (realBuilt) {
             real.call(result, values);
-            return;
+            if (!std::isnan(*result) || !complex) return;
         }
         std::vector<std::complex<double>> arguments(values, values + inputs);
         std::complex<double> value;
@@ -432,13 +434,17 @@ Napi::Value Compile(const Napi::CallbackInfo &info)
     compiled->inputs = variables.size();
     try {
         compiled->real.init(variables, *expression);
+        compiled->realBuilt = true;
     } catch (SymEngine::SymEngineException &) {
-        try {
-            compiled->complex = std::make_unique<SymEngine::LambdaComplexDoubleVisitor>();
-            compiled->complex->init(variables, *expression);
-        } catch (SymEngine::SymEngineException &) {
-            throw MathError(ErrorCode::NotSupported, "The expression cannot be compiled: " + toText(expression) + " has a function without a compiled form");
-        }
+    }
+    try {
+        auto complex = std::make_unique<SymEngine::LambdaComplexDoubleVisitor>();
+        complex->init(variables, *expression);
+        compiled->complex = std::move(complex);
+    } catch (SymEngine::SymEngineException &) {
+    }
+    if (!compiled->realBuilt && !compiled->complex) {
+        throw MathError(ErrorCode::NotSupported, "The expression cannot be compiled: " + toText(expression) + " has a function without a compiled form");
     }
     return wrap(info.Env(), compiled, COMPILED_TAG, 1024);
 }
