@@ -1,0 +1,32 @@
+{
+  "boost-config": {
+    "version": "1.92.0",
+    "archive": "https://github.com/boostorg/config/archive/refs/tags/boost-1.92.0.tar.gz",
+    "sha256": "b4171037f13373203ba79cbc141d612982052283e696a315185ab5bea46102a0"
+  },
+  "boost-multiprecision": {
+    "version": "1.92.0",
+    "archive": "https://github.com/boostorg/multiprecision/archive/refs/tags/Boost_1_92_0.tar.gz",
+    "sha256": "d53a907779b1ba88c80c15953c24106bf92b1b4731678441a8655e527c9d3df1"
+  },
+  "eigen": {
+    "version": "5.0.1",
+    "archive": "https://gitlab.com/libeigen/eigen/-/archive/5.0.1/eigen-5.0.1.tar.gz",
+    "sha256": "e9c326dc8c05cd1e044c71f30f1b2e34a6161a3b6ecf445d56b53ff1669e3dec"
+  },
+  "mpdecimal": {
+    "version": "4.0.1",
+    "archive": "https://www.bytereef.org/software/mpdecimal/releases/mpdecimal-4.0.1.tar.gz",
+    "sha256": "96d33abb4bb0070c7be0fed4246cd38416188325f820468214471938545b1ac8"
+  },
+  "node-addon-api": {
+    "version": "8.9.2",
+    "archive": "https://registry.npmjs.org/node-addon-api/-/node-addon-api-8.9.2.tgz",
+    "sha256": "4cd65698541b19a33f798f1dc25c02c6ed1c9d7749b8824b1a1ccecdd197c8ea"
+  },
+  "symengine": {
+    "version": "0.15.0",
+    "archive": "https://github.com/symengine/symengine/archive/refs/tags/v0.15.0.tar.gz",
+    "sha256": "9f75f0367221abd88b9b60ef7b104b4aa1e34e99d3152c3df2bb2467bad2f04f"
+  }
+}
