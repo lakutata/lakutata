@@ -5,9 +5,12 @@
 // browser. Run again once the version is tagged (a publication interrupted), it publishes the packages not published yet.
 //
 // Run: node scripts/publishing/release.mjs <alpha|beta|latest> [--version <version>] [--registry <url>] [--skip-gates]
+// or:  npm run release -- [--version <version>] (the same for release:beta and release:alpha): without the --, npm
+//      takes --version as its own option and prints its version
 // alpha/beta: the next prerelease of the channel (3.0.0-beta.1 → 3.0.0-beta.2); the first one of a version is given
-//             with --version (--version 3.0.0-beta.0)
-// latest:     the release of the current prerelease (3.0.0-beta.4 → 3.0.0), or the version given
+//             with --version (--version 3.1.2-beta.0)
+// latest:     the release of the current prerelease (3.0.0-beta.4 → 3.0.0), else the next patch (3.1.1 → 3.1.2); a
+//             minor or a major release is given with --version (--version 3.2.0)
 // --registry  the registry published to: https://registry.npmjs.org/ by default (not the registry of the npm
 //             configuration, a mirror maybe), another one to rehearse a release (a local registry, on a branch of its own:
 //             its commit and its tag are deleted with the branch)
@@ -65,11 +68,12 @@ function published(name, version) {
 function nextVersion(current) {
     if (options.version) return options.version
     const prerelease = current.match(/^(\d+\.\d+\.\d+)-([a-z]+)\.(\d+)$/)
-    if (channel === 'latest') {
-        if (!prerelease) throw new Error(`${current} is not a prerelease: give the version to release with --version`)
-        return prerelease[1]
-    }
-    if (!prerelease || prerelease[2] !== channel) throw new Error(`${current} is not a prerelease of the channel ${channel}: give the first one with --version (--version 3.0.0-${channel}.0)`)
+    const release = current.match(/^(\d+)\.(\d+)\.(\d+)$/)
+    //The release that follows: the one of the current prerelease, else the next patch
+    const following = prerelease ? prerelease[1] : release ? `${release[1]}.${release[2]}.${Number(release[3]) + 1}` : undefined
+    if (!following) throw new Error(`${current} is neither a release (3.1.1) nor a prerelease (3.1.2-beta.0): give the version to release with --version`)
+    if (channel === 'latest') return following
+    if (!prerelease || prerelease[2] !== channel) throw new Error(`${current} is not a prerelease of the channel ${channel}: give the first one with --version (--version ${following}-${channel}.0)`)
     return `${prerelease[1]}-${channel}.${Number(prerelease[3]) + 1}`
 }
 
