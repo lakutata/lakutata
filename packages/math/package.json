@@ -1,0 +1,84 @@
+{
+  "name": "@lakutata/math",
+  "version": "3.1.2",
+  "description": "Mathematics for the lakutata framework: symbolic computation (equations, derivatives, integrals, factoring, simplification) and numerical computation (matrices, statistics, units, decimals of any precision) in a native addon built on SymEngine, Eigen and mpdecimal, a component of the application.",
+  "keywords": [
+    "lakutata",
+    "math",
+    "symbolic",
+    "cas",
+    "algebra",
+    "calculus",
+    "equation-solver",
+    "linear-algebra",
+    "statistics",
+    "units",
+    "decimal",
+    "symengine",
+    "native",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/math",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/math"
+  },
+  "author": "alex.ma",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/cjs/exports/Math.js",
+  "types": "./dist/cjs/exports/Math.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/exports/Math.d.ts",
+        "default": "./dist/esm/exports/Math.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Math.d.ts",
+        "default": "./dist/cjs/exports/Math.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "gypfile": true,
+  "scripts": {
+    "install": "node-gyp rebuild -j max",
+    "build:native": "node-gyp rebuild -j max",
+    "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs-pkg": "node ../../scripts/package-build/cjs-package.mjs",
+    "build:addon": "node scripts/addon.mjs",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg && npm run build:addon",
+    "rebuild": "npm run clean && npm run build:js",
+    "compile": "npm run rebuild",
+    "test:unit": "npm run compile && node --test --test-timeout=120000 \"dist/esm/tests/**/*.spec.js\""
+  },
+  "engines": {
+    "node": "^22.13.0 || >=24.11.0"
+  },
+  "files": [
+    "dist",
+    "!dist/*/tests",
+    "binding.gyp",
+    "native",
+    "vendor",
+    "!vendor/UPSTREAM.json",
+    "scripts/sources.mjs",
+    "*.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "peerDependencies": {
+    "@lakutata/core": "~3.1.1"
+  },
+  "dependencies": {
+    "node-addon-api": "^8.9.2"
+  }
+}
