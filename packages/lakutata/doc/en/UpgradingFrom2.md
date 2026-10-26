@@ -28,8 +28,10 @@ that the project declares and the one installed. There is no upgrade command: th
   matrix and the base images of the Dockerfiles.
 - **A TypeScript that knows `"module": "Node20"`** (the templates use TypeScript 6): `lakutata/tsconfig.json` now sets
   it (2.x: `Node16`), and older compilers reject it.
-- **`package.json`**: `"type": "module"`, `lakutata` `^3.0.0`, every `@lakutata/*` package at the same version (they
-  depend on each other's exact version), and `@lakutata/cli` in `devDependencies`.
+- **`package.json`**: `"type": "module"`, `lakutata` `^3.0.0`, the `@lakutata/*` packages at `^3.0.0` too, and
+  `@lakutata/cli` in `devDependencies`. Do not give the other packages the version of `lakutata`: a patch release
+  publishes only the packages it changes, so their latest versions can differ (`lakutata` 3.1.4 with
+  `@lakutata/ffi` 3.1.2).
 - **A clean install**: remove `node_modules` and the lock file, then install. Upgrading in place can leave several
   copies of `@lakutata/core`, whose classes and decorator metadata do not match (`instanceof` and injection fail across
   them). `npm ls @lakutata/core` must print one version.

@@ -22,7 +22,7 @@
 
 - **Node.js** `^22.13.0 || >=24.11.0`（22.13 或更高的 22.x，或者 24.11 及以上；不包括 23）。同时更新 `engines`、CI 的版本矩阵，以及 Dockerfile 的基础镜像。
 - **支持 `"module": "Node20"` 的 TypeScript**（模板使用 TypeScript 6）：`lakutata/tsconfig.json` 现在设置了这个选项（2.x 中是 `Node16`），更旧的编译器不认识它。
-- **`package.json`**：`"type": "module"`，`lakutata` 为 `^3.0.0`，所有 `@lakutata/*` 包使用同一个版本（它们互相依赖对方的确切版本），`@lakutata/cli` 放在 `devDependencies` 中。
+- **`package.json`**：`"type": "module"`，`lakutata` 为 `^3.0.0`，`@lakutata/*` 包也写 `^3.0.0`，`@lakutata/cli` 放在 `devDependencies` 中。不要把 `lakutata` 的版本号照抄给其他包：补丁版只发布改动过的包，各包的最新版本可能不同（比如 `lakutata` 是 3.1.4，`@lakutata/ffi` 是 3.1.2）。
 - **全新安装**：删除 `node_modules` 和锁文件，再重新安装。原地升级可能留下多份 `@lakutata/core`，它们的类和装饰器元数据互不相通（跨副本的 `instanceof` 和注入都会失败）。`npm ls @lakutata/core` 必须只显示一个版本。
 - **`tsconfig.json`** 继承 `lakutata/tsconfig.json`，并设置自己的 `rootDir`、`outDir` 和 `include`。要保留 `include`：发布的选项设置了 `allowJs`，没有它的话，项目根目录下的配置文件（`eslint.config.js`）也会被编译。保留自己选项的项目需要 `experimentalDecorators`、`emitDecoratorMetadata` 和 `useDefineForClassFields: false`。
 
