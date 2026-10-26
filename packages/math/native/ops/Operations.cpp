@@ -3,16 +3,20 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <set>
 #include <symengine/add.h>
 #include <symengine/eval_double.h>
 #include <symengine/infinity.h>
 #include <symengine/integer.h>
 #include <symengine/matrix.h>
+#include <symengine/polys/basic_conversions.h>
+#include <symengine/polys/uexprpoly.h>
 #include <symengine/series.h>
 #include <symengine/sets.h>
 #include <symengine/simplify.h>
 #include <symengine/solve.h>
 #include <symengine/subs.h>
+#include <symengine/test_visitors.h>
 #include <symengine/symbol.h>
 #include <symengine/visitor.h>
 
@@ -25,6 +29,28 @@ namespace math {
 using namespace SymEngine;
 
 namespace {
+
+//The expression without the unevaluated parts SymEngine's rewritings keep (cos(x - pi/2) stays so for its printing):
+//replaced by what they hold, evaluated, before the operations that compute with them (the series of one did not end)
+Expr evaluated(const Expr &expression)
+{
+    map_basic_basic holds;
+    std::vector<const Basic *> pending{expression.get()}, children;
+    std::set<const Basic *> seen;
+    while (!pending.empty()) {
+        const Basic *node = pending.back();
+        pending.pop_back();
+        if (!seen.insert(node).second) continue;
+        if (is_a<UnevaluatedExpr>(*node)) {
+            holds[node->rcp_from_this()] = down_cast<const UnevaluatedExpr &>(*node).get_arg();
+            continue;
+        }
+        childrenOf(*node, children);
+        pending.insert(pending.end(), children.begin(), children.end());
+    }
+    return holds.empty() ? expression : xreplace(expression, holds);
+}
+
 
 //An expression with variables cannot be a number: its variables are named
 void requireNoVariables(const Expr &expression)
@@ -174,8 +200,9 @@ std::vector<std::string> variablesOf(const Expr &expression)
     return names;
 }
 
-bool equalsOf(const Expr &a, const Expr &b)
+bool equalsOf(const Expr &givenA, const Expr &givenB)
 {
+    const Expr a = evaluated(givenA), b = evaluated(givenB);
     if (eq(*a, *b)) return true;
     const Expr difference = expand(sub(a, b));
     if (eq(*difference, *zero)) return true;
@@ -201,7 +228,7 @@ Expr expandOf(const Expr &expression)
 
 Expr simplifyOf(const Expr &expression)
 {
-    return simplify(expression);
+    return simplify(evaluated(expression));
 }
 
 Expr differentiate(const Expr &expression, const std::string &name, unsigned times)
@@ -224,8 +251,9 @@ Expr substitute(const Expr &expression, const std::vector<std::pair<std::string,
     return subs(expression, replacements);
 }
 
-Expr seriesOf(const Expr &expression, const std::string &name, const Expr &point, unsigned order)
+Expr seriesOf(const Expr &given, const std::string &name, const Expr &point, unsigned order)
 {
+    const Expr expression = evaluated(given);
     if (order < 1 || order > 1000) throw MathError(ErrorCode::Argument, "The order of a series is from 1 to 1000");
     const RCP<const Symbol> by = variable(name);
     const bool atZero = eq(*point, *zero);
@@ -236,8 +264,9 @@ Expr seriesOf(const Expr &expression, const std::string &name, const Expr &point
     return result;
 }
 
-Solutions solveOf(const Expr &expression, const std::string &name, bool real)
+Solutions solveOf(const Expr &given, const std::string &name, bool real)
 {
+    const Expr expression = evaluated(given);
     const RCP<const Symbol> by = variable(name);
     //In the real numbers: the complex solutions kept when they are real (SymEngine fails intersecting some of them
     //with the real line); the other sets solved in the real line
@@ -367,4 +396,150 @@ LinearSolution solveLinearOf(const std::vector<Expr> &equations, const std::vect
     return solution;
 }
 
+std::pair<Expr, Expr> fractionOf(const Expr &expression)
+{
+    RCP<const Basic> numerator, denominator;
+    as_numer_denom(expression, outArg(numerator), outArg(denominator));
+    return {numerator, denominator};
 }
+
+std::vector<Expr> coefficientsOf(const Expr &given, const std::string &name)
+{
+    const Expr expression = evaluated(given);
+    const RCP<const Symbol> by = variable(name);
+    const Expr expanded = expand(expression);
+    const std::string message = toText(given) + " is not a polynomial in " + name;
+    RCP<const UExprPoly> polynomial;
+    try {
+        polynomial = from_basic<UExprPoly>(expanded, by);
+    } catch (SymEngineException &) {
+        throw MathError(ErrorCode::NotSupported, message);
+    }
+    std::vector<Expr> coefficients;
+    for (const auto &[power, coefficient] : polynomial->get_poly().get_dict()) {
+        //A function of the variable taken as a coefficient (sin(x)): not a polynomial
+        if (power < 0 || has_symbol(*coefficient.get_basic(), *by)) throw MathError(ErrorCode::NotSupported, message);
+        if (static_cast<size_t>(power) >= coefficients.size()) coefficients.resize(power + 1, zero);
+        coefficients[power] = coefficient.get_basic();
+    }
+    return coefficients;
+}
+
+std::pair<Expr, Expr> divideOf(const Expr &dividend, const Expr &divisor, const std::string &name)
+{
+    const RCP<const Symbol> by = variable(name);
+    std::vector<Expr> remainder = coefficientsOf(dividend, name);
+    std::vector<Expr> bottom = coefficientsOf(divisor, name);
+    while (!bottom.empty() && is_a_Number(*bottom.back()) && down_cast<const Number &>(*bottom.back()).is_zero()) bottom.pop_back();
+    if (bottom.empty()) throw MathError(ErrorCode::DivisionByZero, "The division of a polynomial by 0");
+    //Long division: the leading term of the remainder cancelled by a multiple of the divisor at each step
+    Expr quotient = zero;
+    const size_t degree = bottom.size() - 1;
+    while (remainder.size() > degree) {
+        checkpoint();
+        const Expr leading = remainder.back();
+        remainder.pop_back();
+        if (is_a_Number(*leading) && down_cast<const Number &>(*leading).is_zero()) continue;
+        const size_t shift = remainder.size() - degree;
+        const Expr factor = div(leading, bottom.back());
+        quotient = add(quotient, mul(factor, pow(by, integer(shift))));
+        for (size_t i = 0; i < degree; i++) remainder[shift + i] = expand(sub(remainder[shift + i], mul(factor, bottom[i])));
+    }
+    Expr rest = zero;
+    for (size_t i = 0; i < remainder.size(); i++) rest = add(rest, mul(remainder[i], pow(by, integer(i))));
+    return {expand(quotient), expand(rest)};
+}
+
+Expr rewriteOf(const Expr &expression, const std::string &form)
+{
+    if (form == "exp") return rewrite_as_exp(expression);
+    if (form == "sin") return rewrite_as_sin(expression);
+    if (form == "cos") return rewrite_as_cos(expression);
+    throw MathError(ErrorCode::Argument, "An expression is rewritten as exp, sin or cos, not " + form);
+}
+
+namespace {
+
+//The value of a variable-free expression, if it has one
+bool valueOf(const Expr &expression, std::complex<double> &value)
+{
+    if (!free_symbols(*expression).empty()) return false;
+    try {
+        value = numericValue(expression);
+        return std::isfinite(value.real()) && std::isfinite(value.imag());
+    } catch (MathError &) {
+        return false;
+    } catch (SymEngineException &) {
+        return false;
+    }
+}
+
+int known(tribool value)
+{
+    return is_true(value) ? 1 : is_false(value) ? 0 : -1;
+}
+
+}
+
+int predicateOf(const Expr &given, const std::string &property)
+{
+    const Expr expression = evaluated(given);
+    std::complex<double> value;
+    const bool numeric = valueOf(expression, value);
+    const double tolerance = 1e-10 * std::max(1.0, std::abs(value));
+    //Clearly not real, clearly away from zero, clearly away from the integers: decided by the value
+    const bool clearlyComplex = numeric && std::abs(value.imag()) > tolerance;
+    const bool clearlyReal = numeric && value.imag() == 0;
+    if (property == "zero") {
+        const int answer = known(is_zero(*expression));
+        if (answer != -1) return answer;
+        if (numeric && std::abs(value) > tolerance) return 0;
+        return -1;
+    }
+    if (property == "positive" || property == "negative") {
+        const int answer = known(property == "positive" ? is_positive(*expression) : is_negative(*expression));
+        if (answer != -1) return answer;
+        if (clearlyComplex) return 0;
+        if (clearlyReal && std::abs(value.real()) > tolerance) return (value.real() > 0) == (property == "positive") ? 1 : 0;
+        return -1;
+    }
+    if (property == "integer" || property == "rational") {
+        const int answer = known(property == "integer" ? is_integer(*expression) : is_rational(*expression));
+        if (answer != -1) return answer;
+        if (clearlyComplex) return 0;
+        if (property == "integer" && clearlyReal && std::abs(value.real() - std::round(value.real())) > tolerance) return 0;
+        return -1;
+    }
+    if (property == "real") {
+        const int answer = known(is_real(*expression));
+        if (answer != -1) return answer;
+        if (clearlyComplex) return 0;
+        return -1;
+    }
+    if (property == "finite") {
+        const int answer = known(is_finite(*expression));
+        if (answer != -1) return answer;
+        if (numeric) return 1;
+        return -1;
+    }
+    throw MathError(ErrorCode::Argument, "Unknown property " + property);
+}
+
+int compareOf(const Expr &a, const Expr &b)
+{
+    const Expr difference = expand(evaluated(sub(a, b)));
+    if (is_a_Number(*difference)) {
+        const Number &number = down_cast<const Number &>(*difference);
+        if (number.is_zero()) return 0;
+        if (is_a<Integer>(number) || is_a<Rational>(number)) return number.is_positive() ? 1 : -1;
+    }
+    if (equalsOf(a, b)) return 0;
+    const int positive = predicateOf(difference, "positive");
+    if (positive == 1) return 1;
+    const int negative = predicateOf(difference, "negative");
+    if (negative == 1) return -1;
+    return 2;
+}
+
+}
+

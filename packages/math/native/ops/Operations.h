@@ -62,6 +62,26 @@ struct Solutions {
 //The solutions of expression = 0 for a variable, in the complex numbers or the real ones
 Solutions solveOf(const Expr &expression, const std::string &variable, bool real);
 
+//The numerator and the denominator of an expression (as_numer_denom)
+std::pair<Expr, Expr> fractionOf(const Expr &expression);
+
+//The coefficients of a polynomial in a variable, from the constant term up (the expression expanded); an error for an
+//expression that is not a polynomial in it (a negative power, a function of it)
+std::vector<Expr> coefficientsOf(const Expr &expression, const std::string &variable);
+
+//The quotient and the remainder of the division of two polynomials in a variable
+std::pair<Expr, Expr> divideOf(const Expr &dividend, const Expr &divisor, const std::string &variable);
+
+//The expression written with exp, sin or cos
+Expr rewriteOf(const Expr &expression, const std::string &form);
+
+//A property of an expression: zero, positive, negative, integer, rational, real, finite; -1 when it is not known, else
+//0 or 1 (from SymEngine, or from the value of a variable-free expression clearly away from the boundary)
+int predicateOf(const Expr &expression, const std::string &property);
+
+//The order of two real values: -1, 0, 1, or 2 when it is not known
+int compareOf(const Expr &a, const Expr &b);
+
 //The solution of a system of linear equations: none (empty), or the values of the variables it determines (finite),
 //in terms of the other ones when it does not determine them all
 struct LinearSolution {

@@ -248,7 +248,9 @@ void DiffVisitor::bvisit(const PolyGamma &self)
 }
 void DiffVisitor::bvisit(const UnevaluatedExpr &self)
 {
-    result_ = Derivative::create(self.rcp_from_this(), {x});
+    // lakutata: the derivative of what it holds (the rewritings leave such
+    // expressions, cos(x - pi/2): its derivative was an unevaluated object)
+    apply(self.get_arg());
 }
 void DiffVisitor::bvisit(const TwoArgFunction &self)
 {

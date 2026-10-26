@@ -1,4 +1,5 @@
 #include <symengine/visitor.h>
+#include <symengine/test_visitors.h>
 
 namespace SymEngine
 {
@@ -87,13 +88,20 @@ public:
         exp_ = x.get_exp();
         as_numer_denom(base_, outArg(num), outArg(den));
 
+        // lakutata: a power that is not an integer one is split over the
+        // fraction of its base only when the denominator is positive
+        // (sqrt(a/y) is not sqrt(a)/sqrt(y) for a negative y); else it stays
+        // whole, in the denominator for a negative exponent (b**(-e) is
+        // 1/b**e)
+        const bool split = is_a<Integer>(*exp_) or is_true(is_positive(*den));
+        const RCP<const Basic> exponent = exp_;
         // if the exp is a negative numer, or is intuitively 'negative'
         if (handle_minus(exp_, outArg(exp_))) {
-            *numer_ = pow(den, exp_);
-            *denom_ = pow(num, exp_);
+            *numer_ = split ? pow(den, exp_) : RCP<const Basic>(one);
+            *denom_ = split ? pow(num, exp_) : pow(base_, exp_);
         } else {
-            *numer_ = pow(num, exp_);
-            *denom_ = pow(den, exp_);
+            *numer_ = split ? pow(num, exp_) : pow(base_, exponent);
+            *denom_ = split ? pow(den, exp_) : RCP<const Basic>(one);
         }
     }
 

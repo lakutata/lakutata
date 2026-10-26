@@ -1,0 +1,47 @@
+[
+ {
+  "text": "3x^3 + a*x^2 - 2x + 5",
+  "variable": "x"
+ },
+ {
+  "text": "(x + y)^3",
+  "variable": "x"
+ },
+ {
+  "text": "(2x - 1)^4",
+  "variable": "x"
+ },
+ {
+  "text": "x*y + x^2",
+  "variable": "y"
+ },
+ {
+  "text": "x^5 - 1",
+  "variable": "x",
+  "divisor": "x - 1"
+ },
+ {
+  "text": "x^3 + 2x + 1",
+  "variable": "x",
+  "divisor": "x^2 + a"
+ },
+ {
+  "text": "x^4 + x^2 + 1",
+  "variable": "x",
+  "divisor": "x^2 + x + 1"
+ },
+ {
+  "text": "6x^3 - 5x + 2",
+  "variable": "x",
+  "divisor": "2x + 3"
+ },
+ {
+  "text": "x^2*y + 3x*y^2 - y^3",
+  "variable": "y",
+  "divisor": "y - x"
+ },
+ {
+  "text": "7",
+  "variable": "x"
+ }
+]

@@ -18,6 +18,10 @@ extern const napi_type_tag SCOPE_TAG;
 extern const napi_type_tag COMPILED_TAG;
 extern const napi_type_tag TOKEN_TAG;
 
+//The subexpressions of a node, without building new ones: the terms of a sum, the bases and the exponents of a product
+//(get_args() makes a product of each term of a sum, a power of each factor of a product)
+void childrenOf(const SymEngine::Basic &node, std::vector<const SymEngine::Basic *> &children);
+
 //The approximate native memory of an expression: told to V8 so that it collects the handles of large ones in time
 size_t expressionMemory(const Expr &expression);
 

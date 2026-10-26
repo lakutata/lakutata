@@ -190,6 +190,63 @@ Job decimalJob(const Napi::Array &arguments)
     };
 }
 
+Job fractionJob(const Napi::Array &arguments)
+{
+    Expr expression = expressionAt(arguments, 0);
+    return [expression] {
+        const std::pair<Expr, Expr> fraction = fractionOf(expression);
+        return Builder([fraction](Napi::Env env) { return expressionsValue(env, {fraction.first, fraction.second}); });
+    };
+}
+
+Job coefficientsJob(const Napi::Array &arguments)
+{
+    Expr expression = expressionAt(arguments, 0);
+    std::string variable = stringAt(arguments, 1, "The variable");
+    return [expression, variable] {
+        const std::vector<Expr> coefficients = coefficientsOf(expression, variable);
+        return Builder([coefficients](Napi::Env env) { return expressionsValue(env, coefficients); });
+    };
+}
+
+Job divideJob(const Napi::Array &arguments)
+{
+    Expr dividend = expressionAt(arguments, 0);
+    Expr divisor = expressionAt(arguments, 1);
+    std::string variable = stringAt(arguments, 2, "The variable");
+    return [dividend, divisor, variable] {
+        const std::pair<Expr, Expr> result = divideOf(dividend, divisor, variable);
+        return Builder([result](Napi::Env env) { return expressionsValue(env, {result.first, result.second}); });
+    };
+}
+
+Job rewriteJob(const Napi::Array &arguments)
+{
+    Expr expression = expressionAt(arguments, 0);
+    std::string form = stringAt(arguments, 1, "The form");
+    return [expression, form] { return expressionResult(rewriteOf(expression, form)); };
+}
+
+Job predicateJob(const Napi::Array &arguments)
+{
+    Expr expression = expressionAt(arguments, 0);
+    std::string property = stringAt(arguments, 1, "The property");
+    return [expression, property] {
+        const int answer = predicateOf(expression, property);
+        return Builder([answer](Napi::Env env) -> Napi::Value { return answer == -1 ? env.Undefined() : Napi::Boolean::New(env, answer == 1); });
+    };
+}
+
+Job compareJob(const Napi::Array &arguments)
+{
+    Expr a = expressionAt(arguments, 0);
+    Expr b = expressionAt(arguments, 1);
+    return [a, b] {
+        const int order = compareOf(a, b);
+        return Builder([order](Napi::Env env) -> Napi::Value { return order == 2 ? env.Undefined() : Napi::Number::New(env, order); });
+    };
+}
+
 Job arithmeticJob(const Napi::Array &arguments)
 {
     const std::string operation = stringAt(arguments, 0, "The operation");
@@ -204,7 +261,8 @@ const std::map<std::string, JobFactory> &jobs()
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
-        {"decimal", decimalJob}, {"arithmetic", arithmeticJob}
+        {"decimal", decimalJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
+        {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob}
     };
     return table;
 }

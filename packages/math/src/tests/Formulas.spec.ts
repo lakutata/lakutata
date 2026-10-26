@@ -9,6 +9,7 @@ import {
     MathArgumentException,
     MathCancelledException,
     MathDefinitionException,
+    MathDivisionByZeroException,
     MathDomainException,
     MathException,
     MathNotSupportedException,
@@ -173,6 +174,33 @@ describe('The formulas', (): void => {
         assert.throws((): unknown => math.expression('sin + 1'), MathSyntaxException)
         //A complex value on the way to a real one, compiled
         assert.ok(globalThis.Math.abs(math.expression('im(sqrt(y)*y)').compile(['y'])(-1.3) + 1.4822280526288794) < 1e-12)
+    })
+
+    it('tell what they know of an expression, compare it, rewrite it and split it into a fraction', (): void => {
+        assert.strictEqual(math.expression('pi - 3').isPositive(), true)
+        assert.strictEqual(math.expression('x').isPositive(), undefined)
+        assert.strictEqual(math.expression('sqrt(2)').isInteger(), false)
+        assert.strictEqual(math.expression('2^10').isInteger(), true)
+        assert.strictEqual(math.expression('i').isReal(), false)
+        assert.strictEqual(math.expression('e').isRational(), false)
+        assert.strictEqual(math.expression('1/0').isFinite(), false)
+        //Close to zero without being shown to be zero: not known, never a wrong answer
+        assert.strictEqual(math.expression('sin(pi/7)^2 + cos(pi/7)^2 - 1').isZero(), undefined)
+        assert.strictEqual(math.expression('pi').compare('22/7'), -1)
+        assert.strictEqual(math.expression('(x + 1)^2').compare('x^2 + 2x + 1'), 0)
+        assert.strictEqual(math.expression('x').compare('y'), undefined)
+        assert.strictEqual(math.expression('cosh(x)').rewrite('exp').toString(), 'e^(-x)/2 + e^x/2')
+        assert.strictEqual(math.expression('sin(x)').rewrite('cos').toString(), 'cos(x - pi/2)')
+        //A rewritten expression is differentiated and expanded into a series like any other
+        assert.strictEqual(math.expression('sin(x)').rewrite('cos').diff('x').toString(), '-sin(x - pi/2)')
+        assert.strictEqual(math.expression('sin(x)').rewrite('cos').series('x', 0, 4).toString(), '-x^3/6 + x')
+        const fraction: Expression = math.expression('(x + 1)/(x - 1) + 1/y')
+        const at: Record<string, number> = {x: 2, y: 3}
+        assert.strictEqual(fraction.numerator().div(fraction.denominator()).substitute(at).toString(), fraction.substitute(at).toString())
+        //A power that is not an integer one is not split over a fraction whose denominator may be negative
+        assert.strictEqual(math.expression('sqrt(a/y)').denominator().toString(), '1')
+        assert.throws((): unknown => math.expression('1/x').coefficients('x'), MathNotSupportedException)
+        assert.throws((): unknown => math.expression('x^2').divide(0, 'x'), MathDivisionByZeroException)
     })
 
     it('refuse the expressions nested more than 1000 levels deep, before they fill the stack', async (): Promise<void> => {

@@ -359,6 +359,148 @@ export class Expression {
     }
 
     /**
+     * The numerator of the expression written as one fraction: `numerator()` of `(x + 1)/(x - 1) + 1/y` is
+     * `x + y*(x + 1) - 1`.
+     */
+    public numerator(): Expression {
+        return this.#expression(this.context.run<Handle[]>('fraction', [this.handle])[0])
+    }
+
+    /**
+     * The denominator of the expression written as one fraction: `y*(x - 1)` for `(x + 1)/(x - 1) + 1/y`.
+     */
+    public denominator(): Expression {
+        return this.#expression(this.context.run<Handle[]>('fraction', [this.handle])[1])
+    }
+
+    /**
+     * The coefficients of the expression as a polynomial in a variable, from the constant term up: the coefficient of
+     * `variable^k` is at index `k` (`[5, -2, a, 3]` for `3x^3 + a*x^2 - 2x + 5`). The other variables may appear in
+     * them. An expression that is not a polynomial in the variable (`1/x`, `sin(x)`) throws
+     * `MathNotSupportedException`.
+     * @param variable The variable.
+     */
+    public coefficients(variable: string): Expression[] {
+        return this.context.run<Handle[]>('coefficients', [this.handle, variable]).map((handle: Handle): Expression => this.#expression(handle))
+    }
+
+    /**
+     * The degree of the expression as a polynomial in a variable: `-Infinity` for 0. An expression that is not a
+     * polynomial in the variable throws `MathNotSupportedException`.
+     * @param variable The variable.
+     */
+    public degree(variable: string): number {
+        const coefficients: Expression[] = this.coefficients(variable)
+        for (let index: number = coefficients.length - 1; index >= 0; index--) {
+            if (!coefficients[index].equals(0)) return index
+        }
+        return -Infinity
+    }
+
+    /**
+     * The coefficient of the highest power of a variable in the expression, a polynomial in it. An expression that is
+     * not a polynomial in the variable throws `MathNotSupportedException`.
+     * @param variable The variable.
+     */
+    public leadingCoefficient(variable: string): Expression {
+        const degree: number = this.degree(variable)
+        return degree === -Infinity ? this.#expression(nativeCall((native) => native.number(0))) : this.coefficients(variable)[degree]
+    }
+
+    /**
+     * The quotient and the remainder of the division by another polynomial in a variable: `x^3 + 2x + 1` divided by
+     * `x^2 + a` is `x`, remainder `-a*x + 2x + 1`. The coefficients may hold other variables.
+     * @param divisor The divisor: an expression, a number or a formula.
+     * @param variable The variable of the polynomials.
+     */
+    public divide(divisor: Value, variable: string): { quotient: Expression, remainder: Expression } {
+        const [quotient, remainder]: Handle[] = this.context.run<Handle[]>('divide', [this.handle, handleOf(this.context, divisor), variable])
+        return {quotient: this.#expression(quotient), remainder: this.#expression(remainder)}
+    }
+
+    /**
+     * `divide()` in the threads of the addon.
+     * @param divisor The divisor: an expression, a number or a formula.
+     * @param variable The variable of the polynomials.
+     * @param options Its cancellation, its time limit.
+     */
+    public async divideAsync(divisor: Value, variable: string, options?: AsyncOptions): Promise<{ quotient: Expression, remainder: Expression }> {
+        const [quotient, remainder]: Handle[] = await this.context.runAsync<Handle[]>('divide', [this.handle, handleOf(this.context, divisor), variable], options)
+        return {quotient: this.#expression(quotient), remainder: this.#expression(remainder)}
+    }
+
+    /**
+     * The expression written with another function: `cosh(x)` with `'exp'` is `e^(-x)/2 + e^x/2`, `sin(x)` with
+     * `'cos'` is `cos(x - pi/2)`.
+     * @param form `'exp'`, `'sin'` or `'cos'`.
+     */
+    public rewrite(form: 'exp' | 'sin' | 'cos'): Expression {
+        return this.#expression(this.context.run<Handle>('rewrite', [this.handle, form]))
+    }
+
+    /**
+     * Whether the expression is zero: `undefined` when it is not known (a value close to zero that is not shown to be
+     * zero exactly). Like the other predicates, it is decided by the properties of the expression, or by its value
+     * when it has no variables and the value is clearly away from the boundary.
+     */
+    public isZero(): boolean | undefined {
+        return this.context.run<boolean | undefined>('predicate', [this.handle, 'zero'])
+    }
+
+    /**
+     * Whether the expression is a positive real number (`pi - 3` is), `undefined` when it is not known (`x`).
+     */
+    public isPositive(): boolean | undefined {
+        return this.context.run<boolean | undefined>('predicate', [this.handle, 'positive'])
+    }
+
+    /**
+     * Whether the expression is a negative real number, `undefined` when it is not known.
+     */
+    public isNegative(): boolean | undefined {
+        return this.context.run<boolean | undefined>('predicate', [this.handle, 'negative'])
+    }
+
+    /**
+     * Whether the expression is an integer (`2^10` is, `sqrt(2)` is not), `undefined` when it is not known.
+     */
+    public isInteger(): boolean | undefined {
+        return this.context.run<boolean | undefined>('predicate', [this.handle, 'integer'])
+    }
+
+    /**
+     * Whether the expression is a rational number (`1/3` is, `e` is not), `undefined` when it is not known.
+     */
+    public isRational(): boolean | undefined {
+        return this.context.run<boolean | undefined>('predicate', [this.handle, 'rational'])
+    }
+
+    /**
+     * Whether the expression is a real number (`i` is not), `undefined` when it is not known (`x`: the variables are
+     * complex numbers).
+     */
+    public isReal(): boolean | undefined {
+        return this.context.run<boolean | undefined>('predicate', [this.handle, 'real'])
+    }
+
+    /**
+     * Whether the expression is finite (`1/0` is not), `undefined` when it is not known.
+     */
+    public isFinite(): boolean | undefined {
+        return this.context.run<boolean | undefined>('predicate', [this.handle, 'finite'])
+    }
+
+    /**
+     * The order of the expression and another value, both real: -1 when it is smaller, 0 when they are equal, 1 when it
+     * is larger, `undefined` when it is not known (variables, or values too close to tell). `pi` compared with `22/7`
+     * is -1.
+     * @param other The other value: an expression, a number or a formula.
+     */
+    public compare(other: Value): -1 | 0 | 1 | undefined {
+        return this.context.run<-1 | 0 | 1 | undefined>('compare', [this.handle, handleOf(this.context, other)])
+    }
+
+    /**
      * The expression compiled into a function of numbers, for evaluating it many times (a plot, a numerical integral).
      * @param variables The variables, in the order of the values: the ones of the expression, sorted, by default.
      */

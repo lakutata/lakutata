@@ -213,6 +213,8 @@ public:
         if (is_a<BooleanAtom>(*e)) return atom(down_cast<const BooleanAtom &>(*e).get_val() ? "true" : "false", Lead::Letter);
         if (is_a<FunctionSymbol>(*e)) return printCall(down_cast<const FunctionSymbol &>(*e).get_name(), e->get_args());
         if (is_a<FunctionWrapper>(*e)) return printWrapper(down_cast<const FunctionWrapper &>(*e));
+        //An expression SymEngine keeps from evaluating (the rewritings: cos(x - pi/2)): written as it is
+        if (is_a<UnevaluatedExpr>(*e)) return print(down_cast<const UnevaluatedExpr &>(*e).get_arg());
         if (is_a_sub<Function>(*e)) {
             const std::vector<std::string> &names = functionNames();
             const TypeID code = e->get_type_code();

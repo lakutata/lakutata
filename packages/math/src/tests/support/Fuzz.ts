@@ -141,6 +141,16 @@ export async function checkFormula(math: Math, random: Random, index: number, te
         if (!(error instanceof MathException)) fail('parse', `not a MathException: ${String(error)}`)
         return failures
     }
+    //Rewritten with exp, sin or cos, and written as one fraction, the expression keeps its value and its derivative
+    //(below)
+    let rewritten: Expression | undefined
+    let fraction: [Expression, Expression] | undefined
+    try {
+        rewritten = expression.rewrite((['exp', 'sin', 'cos'] as const)[random.int(3)])
+        fraction = [expression.numerator(), expression.denominator()]
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('rewrite', String(error))
+    }
     let readBack: Expression | undefined
     try {
         //Read back, the formula has the same value (checked below) and prints the same
@@ -155,6 +165,26 @@ export async function checkFormula(math: Math, random: Random, index: number, te
     //Decimals of one digit: 0.3 + 0.4 would be 0.7000000000000001, an exact number of 16 digits
     const point: Record<string, number> = {x: (3 + random.int(17)) / 10, y: (random.int(13) - 13) / 10, z: (7 + random.int(9)) / 10}
     const exact: Value | undefined = valueAt(expression, point)
+    //Real values only: on a branch cut (asinh of a purely imaginary number beyond i), asinh(-u) = -asinh(u) does not
+    //hold, in SymEngine as in SymPy. Not through the functions that jump: the rounding of the rewritten form moves them
+    //(floor(sinc(i)) is 1, floor(-i*cos(-pi/2 + i)) has an imaginary part of -1e-16, floored to -1). Nor the large
+    //numbers: the shift of the rewritten form is lost in their doubles (sin(e^100) as cos(e^100 - pi/2))
+    const unstable: boolean = /sign|floor|ceil|round|mod|arg|1e2/.test(text)
+    if (exact && exact.im === 0 && rewritten && !unstable) {
+        const value: Value | undefined = valueAt(rewritten, point)
+        if (value && !near(value, exact, 1e-6)) fail('rewrite', `${rewritten.toString()} is ${JSON.stringify(value)} at ${JSON.stringify(point)}, before ${JSON.stringify(exact)}`)
+    }
+    if (exact && fraction) {
+        const top: Value | undefined = valueAt(fraction[0], point)
+        const bottom: Value | undefined = valueAt(fraction[1], point)
+        if (top && bottom && globalThis.Math.hypot(bottom.re, bottom.im) > 1e-9) {
+            //Both scaled by the size of the denominator first: its square overflows for a large one (gamma(x + 100))
+            const scale: number = globalThis.Math.max(globalThis.Math.abs(bottom.re), globalThis.Math.abs(bottom.im))
+            const [a, b, c, d]: number[] = [top.re / scale, top.im / scale, bottom.re / scale, bottom.im / scale]
+            const value: Value = {re: (a * c + b * d) / (c * c + d * d), im: (b * c - a * d) / (c * c + d * d)}
+            if (!near(value, exact, 1e-6)) fail('fraction', `${fraction[0].toString()} / ${fraction[1].toString()} is ${JSON.stringify(value)} at ${JSON.stringify(point)}, before ${JSON.stringify(exact)}`)
+        }
+    }
     if (exact && readBack) {
         const again: Value | undefined = valueAt(readBack, point)
         if (!again || !near(again, exact, 1e-9)) fail('print', `${expression.toString()} read back is ${readBack.toString()}: ${JSON.stringify(again)} at ${JSON.stringify(point)}, before ${JSON.stringify(exact)}`)
@@ -221,6 +251,8 @@ export async function checkFormula(math: Math, random: Random, index: number, te
                 if (!coarse && globalThis.Math.abs(estimate - finer) <= tolerance && globalThis.Math.abs(finer - value.re) > tolerance) fail('diff', `${derivative.toString()} is ${value.re} at ${JSON.stringify(point)}, its finite difference ${finer}`)
             }
             if ((await expression.diffAsync('x')).toString() !== derivative.toString()) fail('async', 'diffAsync differs from diff')
+            const rewrittenDerivative: Value | undefined = rewritten ? valueAt(rewritten.diff('x'), point) : undefined
+            if (value && value.im === 0 && rewrittenDerivative && !near(rewrittenDerivative, value, 1e-6)) fail('rewrite', `the derivative of ${rewritten!.toString()} is ${JSON.stringify(rewrittenDerivative)} at ${JSON.stringify(point)}, before ${value.re}`)
         } catch (error) {
             if (!(error instanceof MathException)) fail('diff', String(error))
         }

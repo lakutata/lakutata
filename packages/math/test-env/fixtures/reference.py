@@ -214,6 +214,23 @@ def systems():
     save('systems', results)
 
 
+def polynomials():
+    results = []
+    for case in load('polynomials'):
+        expr = parse(case['text'])
+        variable = Symbol(case['variable'])
+        poly = sympy.Poly(expr, variable)
+        result = dict(case)
+        result['degree'] = poly.degree()
+        result['coefficients'] = [{'text': text_of(c), 'values': values_at(c)} for c in reversed(poly.all_coeffs())]
+        if 'divisor' in case:
+            quotient, remainder = sympy.div(expr, parse(case['divisor']), variable)
+            result['quotient'] = {'text': text_of(quotient), 'values': values_at(quotient)}
+            result['remainder'] = {'text': text_of(remainder), 'values': values_at(remainder)}
+        results.append(result)
+    save('polynomials', results)
+
+
 if __name__ == '__main__':
     grammar()
     numbers()
@@ -223,5 +240,6 @@ if __name__ == '__main__':
     operations('substitute', substitute)
     solve()
     systems()
+    polynomials()
     print('SymPy', sympy.__version__, 'wrote', ', '.join(sorted(os.listdir(os.path.join(HERE, 'expected')))))
     sys.exit(0)

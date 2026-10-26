@@ -58,6 +58,8 @@ SymEngine's `boostmp` integers come from Boost.Multiprecision, which can be used
   `1/sqrt(x^2 - 1)` has the wrong sign left of -1. The derivatives of gamma and log gamma are 0 when their argument
   has no variable, decided before `polygamma(0, a)` is built: its exact value at an integer `a` is a harmonic number of
   `a - 1` terms.
+  The derivative of an unevaluated expression (the rewritings leave them: `sin(x)` rewritten with `cos` is
+  `cos(x - pi/2)`) is the derivative of what it holds; it was an unevaluated derivative object.
 
 ### The functions of the addon
 
@@ -80,6 +82,9 @@ function wrappers (`FunctionWrapper`).
   term, so that a sum among the terms is flattened. `log(e^r)` is `r` for an exact real number `r`. The numeric factor
   of a product is taken out of `abs` (`abs(-2*x)` is `2*abs(x)`), and `abs` is evaluated again once the minus is
   taken out (`abs(-abs(x))` is `abs(x)`).
+- `symengine/numer_denom.cpp`: a power that is not an integer one is split over the fraction of its base only when
+  its denominator is positive: `sqrt(a/y)` is not `sqrt(a)/sqrt(y)`, and `(1/y)^x` is not `1/y^x`, when `y` is
+  negative.
 - `symengine/pow.cpp`: `e^log(x)` is `x`, and `e^(c*log(x))` is `x^c` for a number `c`, as SymPy. `(x^-1)^b` stays
   as written: SymEngine made it `x^(-b)`, which is wrong for a negative `x` when `b` is not an integer
   (`sqrt(1/(-4))` is `i/2`, `1/sqrt(-4)` is `-i/2`). `1` to any exact power is `1` (`1^(10^20)` failed).

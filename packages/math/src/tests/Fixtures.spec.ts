@@ -144,6 +144,22 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
         }
     })
 
+    it('give the coefficients, the degrees and the divisions of polynomials as SymPy', (): void => {
+        type Value = {text: string, values: (Complex | null)[]}
+        const fixtures = expected<{text: string, variable: string, divisor?: string, degree: number, coefficients: Value[], quotient?: Value, remainder?: Value}>('polynomials')
+        for (const fixture of fixtures.cases) {
+            const ours: Expression = math.expression(fixture.text)
+            assert.strictEqual(ours.degree(fixture.variable), fixture.degree, `${fixture.text}: degree`)
+            const coefficients: Expression[] = ours.coefficients(fixture.variable)
+            assert.strictEqual(coefficients.length, fixture.coefficients.length, `${fixture.text}: ${coefficients.map(String).join(', ')}`)
+            coefficients.forEach((coefficient: Expression, index: number): void => assertValues(coefficient, fixtures.points, fixture.coefficients[index].values, `${fixture.text}: coefficient ${index}`))
+            if (!fixture.divisor) continue
+            const {quotient, remainder} = ours.divide(fixture.divisor, fixture.variable)
+            assertValues(quotient, fixtures.points, fixture.quotient!.values, `${fixture.text} / ${fixture.divisor}: quotient`)
+            assertValues(remainder, fixtures.points, fixture.remainder!.values, `${fixture.text} / ${fixture.divisor}: remainder`)
+        }
+    })
+
     it('solve the linear systems as SymPy', (): void => {
         const fixtures = expected<{equations: string[], variables: string[], kind: string, values?: Record<string, {text: string, values: (Complex | null)[]}>}>('systems')
         for (const fixture of fixtures.cases) {

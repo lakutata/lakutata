@@ -18,10 +18,6 @@ const napi_type_tag SCOPE_TAG = {0x6c616b7574617461ULL, 0x6d61746853636f70ULL};
 const napi_type_tag COMPILED_TAG = {0x6c616b7574617461ULL, 0x6d617468436f6d70ULL};
 const napi_type_tag TOKEN_TAG = {0x6c616b7574617461ULL, 0x6d617468546f6b6eULL};
 
-namespace {
-
-//The subexpressions of a node, without building new ones: the terms of a sum, the bases and the exponents of a product
-//(get_args() makes a product of each term of a sum, a power of each factor of a product)
 void childrenOf(const SymEngine::Basic &node, std::vector<const SymEngine::Basic *> &children)
 {
     children.clear();
@@ -39,8 +35,6 @@ void childrenOf(const SymEngine::Basic &node, std::vector<const SymEngine::Basic
     } else {
         for (const Expr &argument : node.get_args()) children.push_back(argument.get());
     }
-}
-
 }
 
 size_t expressionMemory(const Expr &expression)
