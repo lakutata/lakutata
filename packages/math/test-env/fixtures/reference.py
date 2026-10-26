@@ -4,6 +4,7 @@
 
 import functools
 import json
+import math
 import os
 import sys
 
@@ -11,6 +12,12 @@ import mpmath
 import sympy
 from sympy import (Abs, E, I, Integer, LambertW, Max, Min, Rational, S, Symbol, ceiling, conjugate, floor, linsolve,
                    log, loggamma, nan, oo, sign, solveset, zoo)
+from sympy.core.intfunc import igcdex, mod_inverse
+from sympy.functions.combinatorial.factorials import binomial, factorial, factorial2
+from sympy.functions.combinatorial.numbers import (bernoulli, fibonacci, harmonic, jacobi_symbol, legendre_symbol, lucas,
+                                                   mobius, totient)
+from sympy.ntheory import factorint, isprime, nextprime, primitive_root
+from sympy.ntheory.modular import crt
 from sympy.parsing.sympy_parser import (convert_xor, implicit_multiplication, parse_expr, rationalize,
                                         standard_transformations)
 from sympy.printing.str import StrPrinter
@@ -231,6 +238,77 @@ def polynomials():
     save('polynomials', results)
 
 
+def chernick(start):
+    """The first Carmichael number (6k + 1)(12k + 1)(18k + 1) from k = start, its three factors primes"""
+    k = start
+    while not (isprime(6 * k + 1) and isprime(12 * k + 1) and isprime(18 * k + 1)):
+        k += 1
+    return (6 * k + 1) * (12 * k + 1) * (18 * k + 1)
+
+
+def or_none(value):
+    return None if value is None else str(value)
+
+
+def inverse(a, m):
+    try:
+        return str(mod_inverse(a, m))
+    except ValueError:
+        return None
+
+
+# The operations of math.ntheory by SymPy (and Python's integers), their results as the tests compare them: integers
+# as decimal strings, null for no value
+NUMBER_THEORY = {
+    'gcd': lambda values: str(math.gcd(*values)),
+    'lcm': lambda values: str(math.lcm(*values)),
+    'extendedGcd': lambda a, b: (lambda x, y, g: [str(g), str(x), str(y)])(*igcdex(a, b)),
+    'mod': lambda a, m: str(a % m),
+    'modInverse': inverse,
+    'powMod': lambda base, exponent, m: str(pow(base, exponent, m)),
+    'isPrime': lambda n: bool(isprime(n)),
+    'nextPrime': lambda n: str(nextprime(n)),
+    'factor': lambda n: [[str(p), e] for p, e in sorted(factorint(n).items())],
+    'totient': lambda n: str(totient(n)),
+    'mobius': lambda n: int(mobius(n)),
+    'primitiveRoot': lambda n: or_none(primitive_root(n)),
+    'legendre': lambda a, p: int(legendre_symbol(a, p)),
+    'jacobi': lambda a, n: int(jacobi_symbol(a, n)),
+    'crt': lambda remainders, moduli: (lambda found: None if found is None else [str(found[0]), str(found[1])])(
+        crt(moduli, remainders) if moduli else (0, 1)),
+    'fibonacci': lambda n: str(fibonacci(n)),
+    'lucas': lambda n: str(lucas(n)),
+    'binomial': lambda n, k: str(binomial(n, k)),
+    'factorial': lambda n: str(factorial(n)),
+    'doubleFactorial': lambda n: str(factorial2(n)),
+    'bernoulli': lambda n: str(bernoulli(n)),
+    'harmonic': lambda n: str(harmonic(n)),
+}
+
+
+def ntheory():
+    results = []
+    for case in load('ntheory'):
+        result = dict(case)
+        if 'chernick' in case:
+            result['args'] = [str(chernick(case['chernick']))]
+        args = [[int(v) for v in arg] if isinstance(arg, list) else int(arg) for arg in result['args']]
+        operate = NUMBER_THEORY[case['op']]
+        if 'error' in case:
+            # SymPy refuses it too, unless its difference is written down
+            if 'sympy' not in case.get('differs', {}):
+                try:
+                    operate(*args)
+                except (ValueError, ZeroDivisionError):
+                    pass
+                else:
+                    raise AssertionError('SymPy accepts ' + json.dumps(case))
+        else:
+            result['result'] = operate(*args)
+        results.append(result)
+    save('ntheory', results)
+
+
 if __name__ == '__main__':
     grammar()
     numbers()
@@ -241,5 +319,6 @@ if __name__ == '__main__':
     solve()
     systems()
     polynomials()
+    ntheory()
     print('SymPy', sympy.__version__, 'wrote', ', '.join(sorted(os.listdir(os.path.join(HERE, 'expected')))))
     sys.exit(0)

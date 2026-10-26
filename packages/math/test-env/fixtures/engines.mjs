@@ -72,6 +72,59 @@ for (const name of ['grammar', 'numbers']) {
     expected.generator = {...expected.generator, ...versions}
     writeFileSync(path.join(HERE, `expected/${name}.json`), JSON.stringify(expected, null, 1) + '\n')
 }
+//The number theory: the functions the engines have, on integers they hold exactly (their numbers are doubles);
+//undefined where a function does not apply (mathjs's gcd of fewer than two numbers, its combinations of negative ones)
+const numberTheory = {
+    mathjs: {
+        gcd: (values) => values.length >= 2 ? String(math.gcd(...values)) : undefined,
+        lcm: (values) => values.length >= 2 ? String(math.lcm(...values)) : undefined,
+        extendedGcd: (a, b) => math.xgcd(a, b).toArray().map(String),
+        mod: (a, m) => String(math.mod(a, m)),
+        modInverse: (a, m) => {
+            const inverse = math.invmod(a, m)
+            return Number.isNaN(inverse) ? null : String(inverse)
+        },
+        isPrime: (n) => math.isPrime(n),
+        binomial: (n, k) => n >= 0 && k >= 0 && k <= n ? String(math.combinations(n, k)) : undefined,
+        factorial: (n) => n >= 0 ? String(math.factorial(n)) : undefined,
+        //Of a fraction: exact
+        bernoulli: (n) => math.bernoulli(math.fraction(n)).toFraction()
+    },
+    nerdamer: {
+        gcd: (values) => values.length >= 2 ? nerdamer(`gcd(${values.join(', ')})`).toString() : undefined,
+        lcm: (values) => values.length >= 2 ? nerdamer(`lcm(${values.join(', ')})`).toString() : undefined,
+        mod: (a, m) => nerdamer(`mod(${a}, ${m})`).toString()
+    }
+}
+const safe = (value) => Array.isArray(value) ? value.every(safe) : typeof value !== 'string' || /\//.test(value) || Math.abs(Number(value)) <= Number.MAX_SAFE_INTEGER
+{
+    const cases = read('cases/ntheory.json')
+    const expected = read('expected/ntheory.json')
+    expected.cases.forEach((result, index) => {
+        const source = cases[index]
+        result.engines = {}
+        for (const [engine, functions] of Object.entries(numberTheory)) {
+            const operate = functions[result.op]
+            if (!operate || result.error || !safe(result.args) || !safe(result.result ?? null)) continue
+            const args = result.args.map((arg) => Array.isArray(arg) ? arg.map(Number) : Number(arg))
+            let outcome
+            try {
+                const value = operate(...args)
+                if (value === undefined) continue
+                outcome = JSON.stringify(value) === JSON.stringify(result.result) ? 'same' : `different: ${JSON.stringify(value)}`
+            } catch (error) {
+                outcome = `error: ${String(error.message ?? error).split('\n')[0].slice(0, 120)}`
+            }
+            result.engines[engine] = outcome
+            const noted = source.differs?.[engine]
+            const label = `ntheory ${result.op}(${result.args.map((arg) => JSON.stringify(arg)).join(', ')})`
+            if (outcome !== 'same' && !noted) problems.push(`${label}: ${engine} ${outcome}, not noted`)
+            if (outcome === 'same' && noted) problems.push(`${label}: ${engine} agrees, its note is stale`)
+        }
+    })
+    expected.generator = {...expected.generator, ...versions}
+    writeFileSync(path.join(HERE, 'expected/ntheory.json'), JSON.stringify(expected, null, 1) + '\n')
+}
 console.log(`mathjs ${versions.mathjs}, nerdamer ${versions.nerdamer}: ${problems.length} differences not noted`)
 if (problems.length) {
     console.log(problems.join('\n'))

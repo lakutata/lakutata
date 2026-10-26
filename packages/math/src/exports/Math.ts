@@ -23,4 +23,5 @@ export {
     type Value
 } from '../lib/Expression.js'
 export {type MathDefinitions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
+export {type Congruence, type ExtendedGcd, type IntegerValue, NumberTheory, type PrimeFactor} from '../lib/NumberTheory.js'
 export {buildMathOptions, Math, type MathConfig} from '../components/Math.js'

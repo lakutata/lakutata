@@ -163,17 +163,49 @@ function solve(math: Math): void {
 }
 ```
 
+### Number theory
+
+`math.ntheory` works on integers: bigints, or numbers that are safe integers. Its integer results are bigints.
+
+- Divisibility and modular arithmetic: `gcd`, `lcm`, `extendedGcd`, `mod`, `modInverse`, `powMod`, and `crt` (the
+  Chinese remainder theorem; the moduli need not be coprime). A result modulo `m` has the sign of `m`, as
+  `mod(-7, 3)`, which is `2n`.
+- Primes: `isPrime` (deterministic below 2^64; above, the Baillie-PSW test, which no known composite number passes),
+  `nextPrime`, `factor`, `totient`, `mobius`, `primitiveRoot`, `legendre`, `jacobi`.
+- Sequences and combinatorial numbers: `fibonacci`, `lucas`, `binomial`, `factorial`, `doubleFactorial`, with
+  `bernoulli` and `harmonic` as exact fractions (expressions). `bernoulli(1)` is `+1/2`, as in SymPy.
+
+When a value does not exist (`modInverse` of a number with no inverse, `primitiveRoot` of a modulus with none, `crt` of
+congruences with no common solution), the result is `undefined`. An argument outside the domain of a function
+(`totient(0)`, `legendre(a, 9)`) throws `MathDomainException`.
+
+`factor` finds small factors at once and factors numbers of up to about 20 digits quickly, but a number with two large
+prime factors can take days: use `factorAsync` with a time limit. `isPrime`, `nextPrime`, `totient`, `mobius` and
+`primitiveRoot` have asynchronous versions too. `factorial` computes up to about `71000!`, while in a formula
+`factorial(n)` above 20000 stays `gamma(n + 1)`, so that the expression can still be printed.
+
+```typescript
+import type {Math} from '@lakutata/math'
+
+async function integers(math: Math): Promise<void> {
+    console.log(math.ntheory.factor(360))                     //[{prime: 2n, exponent: 3}, {prime: 3n, exponent: 2}, {prime: 5n, exponent: 1}]
+    console.log(math.ntheory.powMod(4, 13, 497))              //445n
+    console.log(math.ntheory.crt([2, 3, 2], [3, 5, 7]))       //{remainder: 23n, modulus: 105n}
+    console.log(await math.ntheory.factorAsync(2n ** 64n + 1n, {timeout: 5000}))
+}
+```
+
 ### Asynchronous operations
 
 The operations that can take long have an asynchronous version: `expandAsync()`, `simplifyAsync()`, `diffAsync()`,
-`seriesAsync()`, `solveAsync()`, `toDecimalAsync()`, and `solveAsync()` of the component. They run in the threads of the
-addon, not in the thread pool of libuv: as many threads as the processor has cores, minus one, or the number in the
-environment variable `LAKUTATA_MATH_THREADS`. Their options are `timeout` (milliseconds) and `signal` (an
-`AbortSignal`):
+`seriesAsync()`, `solveAsync()`, `toDecimalAsync()`, `solveAsync()` of the component, and those of the number theory.
+They run in the threads of the addon, not in the thread pool of libuv: as many threads as the processor has cores, minus
+one, or the number in the environment variable `LAKUTATA_MATH_THREADS`. Their options are `timeout` (milliseconds) and
+`signal` (an `AbortSignal`):
 
 - At the time limit the promise is rejected with `MathTimeoutException`, and with `MathCancelledException` when the
-  signal aborts. Operations with checkpoints (expansions, decimals, linear systems) stop at the next one; the others
-  run to the end before their thread is free again.
+  signal aborts. Operations with checkpoints (expansions, decimals, linear systems, the number theory) stop at the next
+  one; the others run to the end before their thread is free again.
 - The component limits how many of its operations run at the same time (`concurrency`). Its destruction waits for the
   ones running, at most `drainTimeout` milliseconds.
 
@@ -189,14 +221,15 @@ The bundles, the executables and the installers made by `lakutata package` carry
 
 | Export | What it is |
 |---|---|
-| `Math` | The component: `parse`, `expression`, `equation`, `with`, `solve`, `solveAsync` |
+| `Math` | The component: `parse`, `expression`, `equation`, `with`, `solve`, `solveAsync`, `ntheory` |
 | `buildMathOptions`, `MathConfig` | Its declaration in the components, and its options: `definitions`, `precision`, `timeout`, `concurrency`, `drainTimeout` |
-| `MathScope`, `MathDefinitions` | The scope given by `with()`, with the methods of the component; the definitions (a body by signature) |
+| `MathScope`, `MathDefinitions` | The scope given by `with()`, with the methods of the component except `ntheory`; the definitions (a body by signature) |
 | `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, and the asynchronous versions |
 | `Equation`, `Inequality`, `InequalityRelation` | An equation (`left`, `right`, `difference`, `substitute`, `solve`, `solveAsync`), an inequality (`left`, `right`, `relation`) |
 | `Solutions`, `SolutionsKind`, `SolutionInterval`, `SolveOptions` | The solutions of an equation: an array of expressions with their `kind`, `intervals` and `text`; the `domain` of the solutions |
 | `SystemSolution`, `SystemEquation` | A solution of a system (an expression by variable), an equation of a system |
 | `CompiledFunction` | A compiled expression: a function of numbers, its `variables`, `batch` |
+| `NumberTheory`, `IntegerValue`, `PrimeFactor`, `ExtendedGcd`, `Congruence` | The number theory (`math.ntheory`): `gcd`, `lcm`, `extendedGcd`, `mod`, `modInverse`, `powMod`, `isPrime`, `nextPrime`, `factor`, `totient`, `mobius`, `primitiveRoot`, `legendre`, `jacobi`, `crt`, `fibonacci`, `lucas`, `binomial`, `factorial`, `doubleFactorial`, `bernoulli`, `harmonic`, and the asynchronous versions; an integer (a bigint, or a number that is a safe integer); a prime factor and its exponent; the result of `extendedGcd`; the result of `crt` |
 | `AsyncOptions`, `Value` | The options of the asynchronous operations (`timeout`, `signal`); what is given where an expression is expected (an expression, a number, a bigint, a formula) |
 
 The typings document every declaration, with examples.
@@ -208,10 +241,10 @@ The typings document every declaration, with examples.
 | `MathSyntaxException` | A formula is not written correctly (with the `position` of the error), an equation is given where an expression is expected, or the other way round |
 | `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined, or a constant written as a call (`g(2)`), with its `position` |
 | `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep |
-| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero) |
-| `MathDivisionByZeroException` | A division by zero met while computing decimals |
-| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers |
-| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values |
+| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero), an integer outside the domain of a function of the number theory (`totient(0)`) |
+| `MathDivisionByZeroException` | A division by zero met while computing decimals, a modulus of 0 |
+| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` above 2000, `harmonic(n)` above 50000 |
+| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |
 

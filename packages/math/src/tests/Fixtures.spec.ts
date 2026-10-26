@@ -2,7 +2,7 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
 import {Container} from '@lakutata/core'
-import {type Expression, Math, MathException, type Solutions, type SystemSolution} from '../exports/Math.js'
+import {Expression, Math, MathException, type PrimeFactor, type Solutions, type SystemSolution} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -157,6 +157,31 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
             const {quotient, remainder} = ours.divide(fixture.divisor, fixture.variable)
             assertValues(quotient, fixtures.points, fixture.quotient!.values, `${fixture.text} / ${fixture.divisor}: quotient`)
             assertValues(remainder, fixtures.points, fixture.remainder!.values, `${fixture.text} / ${fixture.divisor}: remainder`)
+        }
+    })
+
+    it('give the number theory of SymPy', (): void => {
+        const fixtures = expected<{op: string, args: (string | string[])[], error?: string, result?: unknown}>('ntheory')
+        const ntheory = math.ntheory as unknown as Record<string, (...args: unknown[]) => unknown>
+        //A result as the fixtures write it: integers as decimal strings, null for no value
+        const written = (op: string, value: unknown): unknown => {
+            if (value === undefined) return null
+            if (typeof value === 'bigint') return String(value)
+            if (value instanceof Expression) return value.toString()
+            if (op === 'factor') return (value as PrimeFactor[]).map((factor: PrimeFactor): unknown[] => [String(factor.prime), factor.exponent])
+            if (op === 'extendedGcd') return [(value as {gcd: bigint}).gcd, (value as {x: bigint}).x, (value as {y: bigint}).y].map(String)
+            if (op === 'crt') return [(value as {remainder: bigint}).remainder, (value as {modulus: bigint}).modulus].map(String)
+            return value
+        }
+        for (const fixture of fixtures.cases) {
+            const args: unknown[] = fixture.args.map((arg: string | string[]): unknown => Array.isArray(arg) ? arg.map(BigInt) : BigInt(arg))
+            const label: string = `${fixture.op}(${fixture.args.map((arg: string | string[]): string => JSON.stringify(arg)).join(', ')})`
+            const call = (): unknown => fixture.op === 'gcd' || fixture.op === 'lcm' ? ntheory[fixture.op](...(args[0] as bigint[])) : ntheory[fixture.op](...args)
+            if (fixture.error) {
+                assert.throws(call, (error: unknown): boolean => error instanceof MathException && (error as MathException).errno === fixture.error, label)
+                continue
+            }
+            assert.deepStrictEqual(written(fixture.op, call()), fixture.result, label)
         }
     })
 

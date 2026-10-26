@@ -4,6 +4,7 @@ import {AsyncTracker, type AsyncOptions, Context, definitionsOf} from '../lib/Co
 import type {Equation, Expression, Inequality, Value} from '../lib/Expression.js'
 import {type MathDefinitions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
 import {native, nativeCall} from '../lib/Native.js'
+import {NumberTheory} from '../lib/NumberTheory.js'
 
 /**
  * The options of a `Math` component
@@ -113,6 +114,8 @@ export class Math extends Component {
 
     #tracker: AsyncTracker
 
+    #ntheory: NumberTheory
+
     /**
      * Prepare the definitions.
      * @protected
@@ -121,11 +124,13 @@ export class Math extends Component {
         const concurrency: number = this.concurrency ?? native.versions().threads
         this.#tracker = new AsyncTracker(concurrency)
         const scope = nativeCall((addon) => addon.scope(null, definitionsOf(this.definitions ?? {})))
-        this.#scope = new MathScope(new Context(scope, {
+        const context: Context = new Context(scope, {
             precision: this.precision ?? 32,
             timeout: this.timeout ?? 0,
             concurrency: concurrency
-        }, this.#tracker))
+        }, this.#tracker)
+        this.#scope = new MathScope(context)
+        this.#ntheory = new NumberTheory(context)
     }
 
     /**
@@ -134,6 +139,26 @@ export class Math extends Component {
      */
     protected async destroy(): Promise<void> {
         await this.#tracker?.drain(this.drainTimeout ?? 10000)
+    }
+
+    /**
+     * The number theory of the integers (bigints): primes, factorization, modular arithmetic, integer sequences and
+     * combinatorial numbers. Its asynchronous operations share the threads, the time limit and the concurrency of the
+     * component. Only the component has it: a scope of `with()` does not.
+     * @example
+     * ```typescript
+     * import {Container} from 'lakutata'
+     * import {Math} from '@lakutata/math'
+     *
+     * const container: Container = new Container()
+     * await container.setNamed('math', Math, {timeout: 5000})
+     * const math: Math = await container.get<Math>('math')
+     * const factors = await math.ntheory.factorAsync(2n ** 64n + 1n)   //274177n, 67280421310721n
+     * await container.destroy()
+     * ```
+     */
+    public get ntheory(): NumberTheory {
+        return this.#ntheory
     }
 
     /**

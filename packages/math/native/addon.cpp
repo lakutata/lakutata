@@ -3,6 +3,8 @@
 //pool of the addon (runAsync), their result turned into JavaScript values back in the thread of JavaScript.
 #include <napi.h>
 
+#include <cmath>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <mutex>
@@ -16,6 +18,7 @@
 #include "core/Handle.h"
 #include "core/Scope.h"
 #include "ops/Decimal.h"
+#include "ntheory/NumberTheory.h"
 #include "ops/Operations.h"
 #include "parser/Parser.h"
 #include "printer/Printer.h"
@@ -66,6 +69,70 @@ std::vector<std::string> stringsAt(const Napi::Array &arguments, uint32_t index)
     std::vector<std::string> strings;
     for (uint32_t i = 0; i < array.Length(); i++) strings.push_back(stringAt(array, i, "A name"));
     return strings;
+}
+
+//An integer of JavaScript: a bigint, or a number that is a safe integer (-0 is 0)
+Integer integerOf(const Napi::Value &value, const std::string &what)
+{
+    if (value.IsBigInt()) {
+        Napi::BigInt big = value.As<Napi::BigInt>();
+        int sign = 0;
+        size_t count = big.WordCount();
+        std::vector<uint64_t> words(std::max<size_t>(count, 1));
+        big.ToWords(&sign, &count, words.data());
+        //0n has no words (Boost fails on an empty range)
+        if (count == 0) return 0;
+        //The words of Node-API from the least significant one
+        Integer result = 0;
+        boost::multiprecision::import_bits(result, words.begin(), words.begin() + count, 64, false);
+        return sign ? Integer(-result) : result;
+    }
+    if (value.IsNumber()) {
+        const double number = value.As<Napi::Number>().DoubleValue();
+        if (std::isfinite(number) && std::trunc(number) == number && std::fabs(number) <= 9007199254740991.0) return Integer(static_cast<long long>(number));
+    }
+    throw MathError(ErrorCode::Argument, what + " is not an integer: a bigint, or a number that is a safe integer");
+}
+
+Napi::Value bigintValue(Napi::Env env, const Integer &value)
+{
+    std::vector<uint64_t> words;
+    boost::multiprecision::export_bits(value < 0 ? Integer(-value) : value, std::back_inserter(words), 64, false);
+    if (words.empty()) words.push_back(0);
+    return Napi::BigInt::New(env, value < 0 ? 1 : 0, words.size(), words.data());
+}
+
+Napi::Value numberTheoryValue(Napi::Env env, const NumberTheoryResult &result)
+{
+    using Kind = NumberTheoryResult::Kind;
+    switch (result.kind) {
+    case Kind::Integer:
+        return bigintValue(env, result.integers[0]);
+    case Kind::Boolean:
+        return Napi::Boolean::New(env, result.flag);
+    case Kind::Sign:
+        return Napi::Number::New(env, result.sign);
+    case Kind::Factors: {
+        Napi::Array factors = Napi::Array::New(env, result.integers.size() / 2);
+        for (size_t i = 0; i + 1 < result.integers.size(); i += 2) {
+            Napi::Object factor = Napi::Object::New(env);
+            factor.Set("prime", bigintValue(env, result.integers[i]));
+            factor.Set("exponent", Napi::Number::New(env, result.integers[i + 1].convert_to<double>()));
+            factors.Set(static_cast<uint32_t>(i / 2), factor);
+        }
+        return factors;
+    }
+    case Kind::Rational:
+        return wrapExpression(env, result.expression);
+    case Kind::Integers: {
+        Napi::Array integers = Napi::Array::New(env, result.integers.size());
+        for (size_t i = 0; i < result.integers.size(); i++) integers.Set(static_cast<uint32_t>(i), bigintValue(env, result.integers[i]));
+        return integers;
+    }
+    case Kind::Missing:
+        break;
+    }
+    return env.Undefined();
 }
 
 Builder expressionResult(const Expr &expression)
@@ -247,6 +314,29 @@ Job compareJob(const Napi::Array &arguments)
     };
 }
 
+//An operation of the number theory: its name, then its arguments, integers or arrays of integers
+Job numberTheoryJob(const Napi::Array &arguments)
+{
+    std::string operation = stringAt(arguments, 0, "The operation");
+    std::vector<std::vector<Integer>> values;
+    for (uint32_t i = 1; i < arguments.Length(); i++) {
+        Napi::Value value = arguments.Get(i);
+        const std::string what = "Argument " + std::to_string(i) + " of " + operation;
+        std::vector<Integer> list;
+        if (value.IsArray()) {
+            Napi::Array array = value.As<Napi::Array>();
+            for (uint32_t j = 0; j < array.Length(); j++) list.push_back(integerOf(array.Get(j), what + ", at index " + std::to_string(j) + ","));
+        } else {
+            list.push_back(integerOf(value, what));
+        }
+        values.push_back(std::move(list));
+    }
+    return [operation, values] {
+        NumberTheoryResult result = numberTheoryOf(operation, values);
+        return Builder([result](Napi::Env env) { return numberTheoryValue(env, result); });
+    };
+}
+
 Job arithmeticJob(const Napi::Array &arguments)
 {
     const std::string operation = stringAt(arguments, 0, "The operation");
@@ -262,7 +352,8 @@ const std::map<std::string, JobFactory> &jobs()
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
         {"decimal", decimalJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
-        {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob}
+        {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
+        {"ntheory", numberTheoryJob}
     };
     return table;
 }

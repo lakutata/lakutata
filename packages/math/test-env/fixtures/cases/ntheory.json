@@ -1,0 +1,1227 @@
+[
+ {
+  "op": "gcd",
+  "args": [
+   [
+    "12",
+    "-18",
+    "30"
+   ]
+  ]
+ },
+ {
+  "op": "gcd",
+  "args": [
+   []
+  ]
+ },
+ {
+  "op": "gcd",
+  "args": [
+   [
+    "0",
+    "0"
+   ]
+  ]
+ },
+ {
+  "op": "gcd",
+  "args": [
+   [
+    "1153617588319010271378133306175011326520419737189530113840977835459429144159137562624",
+    "1054799053715970171876024384398394191048129399530202394217591212009327595713850245120"
+   ]
+  ]
+ },
+ {
+  "op": "gcd",
+  "args": [
+   [
+    "170141183460469231731687303715884105727",
+    "618970019642690137449562111"
+   ]
+  ]
+ },
+ {
+  "op": "lcm",
+  "args": [
+   [
+    "4",
+    "6",
+    "-10"
+   ]
+  ],
+  "differs": {
+   "nerdamer": "its lcm of a negative number is negative"
+  }
+ },
+ {
+  "op": "lcm",
+  "args": [
+   []
+  ]
+ },
+ {
+  "op": "lcm",
+  "args": [
+   [
+    "0",
+    "5"
+   ]
+  ]
+ },
+ {
+  "op": "lcm",
+  "args": [
+   [
+    "18446744073709551617",
+    "18446744073709551615"
+   ]
+  ]
+ },
+ {
+  "op": "extendedGcd",
+  "args": [
+   "240",
+   "46"
+  ]
+ },
+ {
+  "op": "extendedGcd",
+  "args": [
+   "-4",
+   "6"
+  ]
+ },
+ {
+  "op": "extendedGcd",
+  "args": [
+   "0",
+   "-3"
+  ]
+ },
+ {
+  "op": "extendedGcd",
+  "args": [
+   "0",
+   "0"
+  ]
+ },
+ {
+  "op": "extendedGcd",
+  "args": [
+   "170141183460469231731687303715884105727",
+   "1856910058928070412348686333"
+  ]
+ },
+ {
+  "op": "mod",
+  "args": [
+   "-7",
+   "3"
+  ],
+  "differs": {
+   "nerdamer": "its mod has the sign of the dividend"
+  }
+ },
+ {
+  "op": "mod",
+  "args": [
+   "7",
+   "-3"
+  ],
+  "differs": {
+   "nerdamer": "its mod has the sign of the dividend"
+  }
+ },
+ {
+  "op": "mod",
+  "args": [
+   "-1361129467683753853853498429727072845824",
+   "97"
+  ]
+ },
+ {
+  "op": "mod",
+  "args": [
+   "1",
+   "0"
+  ],
+  "error": "E_MATH_DIVISION_BY_ZERO"
+ },
+ {
+  "op": "modInverse",
+  "args": [
+   "3",
+   "7"
+  ]
+ },
+ {
+  "op": "modInverse",
+  "args": [
+   "3",
+   "-7"
+  ],
+  "differs": {
+   "mathjs": "invmod(3, -7) is -9, not a remainder modulo -7"
+  }
+ },
+ {
+  "op": "modInverse",
+  "args": [
+   "-3",
+   "7"
+  ]
+ },
+ {
+  "op": "modInverse",
+  "args": [
+   "2",
+   "4"
+  ]
+ },
+ {
+  "op": "modInverse",
+  "args": [
+   "170141183460469231731687303715884105728",
+   "510423550381407695195061911147652317181"
+  ]
+ },
+ {
+  "op": "powMod",
+  "args": [
+   "4",
+   "13",
+   "497"
+  ]
+ },
+ {
+  "op": "powMod",
+  "args": [
+   "3",
+   "-1",
+   "7"
+  ]
+ },
+ {
+  "op": "powMod",
+  "args": [
+   "3",
+   "2",
+   "-7"
+  ]
+ },
+ {
+  "op": "powMod",
+  "args": [
+   "0",
+   "0",
+   "5"
+  ]
+ },
+ {
+  "op": "powMod",
+  "args": [
+   "2",
+   "170141183460469231731687303715884105726",
+   "170141183460469231731687303715884105727"
+  ]
+ },
+ {
+  "op": "powMod",
+  "args": [
+   "7",
+   "1606938044258990275541962092341162602522202993782792835301377",
+   "10000000000000000000000000000000000000003"
+  ]
+ },
+ {
+  "op": "powMod",
+  "args": [
+   "2",
+   "-1",
+   "4"
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "-7"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "0"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "2"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "3"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "4"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "97"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "561"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "1105"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "1729"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "2047"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "3277"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "5459"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "5777"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "1000003"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "3215031751"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "2147483647"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "2305843009213693951"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "3825123056546413051"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "318665857834031151167461"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "3317044064679887385961981"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "618970019642690137449562111"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "170141183460469231731687303715884105727"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "6864797660130609714981900799081393217269435300143305409394463459185543183397656052122559640661454554977296311391480858037121987999716643812574028291115057151"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "105312291668557186697918027513529248857806893649219117400977309697"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "5316911983139663487003542222693990401"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "18446744073709551617"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "10000000000000000000000000000000000000003"
+  ]
+ },
+ {
+  "op": "isPrime",
+  "args": [
+   "0"
+  ],
+  "chernick": 1000000000000
+ },
+ {
+  "op": "nextPrime",
+  "args": [
+   "-5"
+  ]
+ },
+ {
+  "op": "nextPrime",
+  "args": [
+   "0"
+  ]
+ },
+ {
+  "op": "nextPrime",
+  "args": [
+   "2"
+  ]
+ },
+ {
+  "op": "nextPrime",
+  "args": [
+   "1000000"
+  ]
+ },
+ {
+  "op": "nextPrime",
+  "args": [
+   "18446744073709551616"
+  ]
+ },
+ {
+  "op": "nextPrime",
+  "args": [
+   "10000000000000000000000000000000000000000"
+  ]
+ },
+ {
+  "op": "nextPrime",
+  "args": [
+   "170141183460469231731687303715884105727"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "-1"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "-12"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "360"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "-1024"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "18446744073709551617"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "600851475143"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "1208981160691279528460288"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "1000012000054000108000081"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "4951760154835678088235319297"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "1000000000000000021"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "147573952589676412927"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "2305843046107182243687212796462718913"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "176774489611079886545506167509608096536822880046343"
+  ]
+ },
+ {
+  "op": "factor",
+  "args": [
+   "0"
+  ],
+  "error": "E_MATH_DOMAIN",
+  "differs": {
+   "sympy": "factorint(0) is {0: 1}"
+  }
+ },
+ {
+  "op": "totient",
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "totient",
+  "args": [
+   "9"
+  ]
+ },
+ {
+  "op": "totient",
+  "args": [
+   "36"
+  ]
+ },
+ {
+  "op": "totient",
+  "args": [
+   "97"
+  ]
+ },
+ {
+  "op": "totient",
+  "args": [
+   "18446744073709551617"
+  ]
+ },
+ {
+  "op": "totient",
+  "args": [
+   "1000000000000"
+  ]
+ },
+ {
+  "op": "totient",
+  "args": [
+   "0"
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "totient",
+  "args": [
+   "-5"
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "mobius",
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "mobius",
+  "args": [
+   "2"
+  ]
+ },
+ {
+  "op": "mobius",
+  "args": [
+   "6"
+  ]
+ },
+ {
+  "op": "mobius",
+  "args": [
+   "12"
+  ]
+ },
+ {
+  "op": "mobius",
+  "args": [
+   "30"
+  ]
+ },
+ {
+  "op": "mobius",
+  "args": [
+   "97"
+  ]
+ },
+ {
+  "op": "mobius",
+  "args": [
+   "18446744073709551617"
+  ]
+ },
+ {
+  "op": "mobius",
+  "args": [
+   "0"
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "2"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "3"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "4"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "5"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "7"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "8"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "9"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "10"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "12"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "18"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "23"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "41"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "486"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "2305843009213693951"
+  ]
+ },
+ {
+  "op": "primitiveRoot",
+  "args": [
+   "1"
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "legendre",
+  "args": [
+   "2",
+   "7"
+  ]
+ },
+ {
+  "op": "legendre",
+  "args": [
+   "3",
+   "7"
+  ]
+ },
+ {
+  "op": "legendre",
+  "args": [
+   "14",
+   "7"
+  ]
+ },
+ {
+  "op": "legendre",
+  "args": [
+   "-1",
+   "2305843009213693951"
+  ]
+ },
+ {
+  "op": "legendre",
+  "args": [
+   "1267650600228229401496703205376",
+   "170141183460469231731687303715884105727"
+  ]
+ },
+ {
+  "op": "legendre",
+  "args": [
+   "2",
+   "9"
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "jacobi",
+  "args": [
+   "1001",
+   "9907"
+  ]
+ },
+ {
+  "op": "jacobi",
+  "args": [
+   "19",
+   "45"
+  ]
+ },
+ {
+  "op": "jacobi",
+  "args": [
+   "8",
+   "21"
+  ]
+ },
+ {
+  "op": "jacobi",
+  "args": [
+   "-1",
+   "7"
+  ]
+ },
+ {
+  "op": "jacobi",
+  "args": [
+   "1361129467683753853853498429727072845825",
+   "36472996377170786403"
+  ]
+ },
+ {
+  "op": "jacobi",
+  "args": [
+   "5",
+   "10"
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "crt",
+  "args": [
+   [
+    "2",
+    "3",
+    "2"
+   ],
+   [
+    "3",
+    "5",
+    "7"
+   ]
+  ]
+ },
+ {
+  "op": "crt",
+  "args": [
+   [
+    "1",
+    "3"
+   ],
+   [
+    "4",
+    "6"
+   ]
+  ]
+ },
+ {
+  "op": "crt",
+  "args": [
+   [
+    "1",
+    "2"
+   ],
+   [
+    "4",
+    "6"
+   ]
+  ]
+ },
+ {
+  "op": "crt",
+  "args": [
+   [],
+   []
+  ]
+ },
+ {
+  "op": "crt",
+  "args": [
+   [
+    "-1"
+   ],
+   [
+    "5"
+   ]
+  ]
+ },
+ {
+  "op": "crt",
+  "args": [
+   [
+    "5",
+    "7",
+    "1180591620717411303424"
+   ],
+   [
+    "2305843009213693951",
+    "618970019642690137449562111",
+    "170141183460469231731687303715884105727"
+   ]
+  ]
+ },
+ {
+  "op": "fibonacci",
+  "args": [
+   "0"
+  ]
+ },
+ {
+  "op": "fibonacci",
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "fibonacci",
+  "args": [
+   "2"
+  ]
+ },
+ {
+  "op": "fibonacci",
+  "args": [
+   "10"
+  ]
+ },
+ {
+  "op": "fibonacci",
+  "args": [
+   "100"
+  ]
+ },
+ {
+  "op": "fibonacci",
+  "args": [
+   "1000"
+  ]
+ },
+ {
+  "op": "fibonacci",
+  "args": [
+   "-1"
+  ]
+ },
+ {
+  "op": "fibonacci",
+  "args": [
+   "-6"
+  ]
+ },
+ {
+  "op": "lucas",
+  "args": [
+   "0"
+  ]
+ },
+ {
+  "op": "lucas",
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "lucas",
+  "args": [
+   "2"
+  ]
+ },
+ {
+  "op": "lucas",
+  "args": [
+   "10"
+  ]
+ },
+ {
+  "op": "lucas",
+  "args": [
+   "100"
+  ]
+ },
+ {
+  "op": "lucas",
+  "args": [
+   "-3"
+  ]
+ },
+ {
+  "op": "binomial",
+  "args": [
+   "5",
+   "2"
+  ]
+ },
+ {
+  "op": "binomial",
+  "args": [
+   "-3",
+   "2"
+  ]
+ },
+ {
+  "op": "binomial",
+  "args": [
+   "5",
+   "-1"
+  ]
+ },
+ {
+  "op": "binomial",
+  "args": [
+   "3",
+   "5"
+  ]
+ },
+ {
+  "op": "binomial",
+  "args": [
+   "-1",
+   "3"
+  ]
+ },
+ {
+  "op": "binomial",
+  "args": [
+   "10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "2"
+  ]
+ },
+ {
+  "op": "binomial",
+  "args": [
+   "1000",
+   "500"
+  ]
+ },
+ {
+  "op": "binomial",
+  "args": [
+   "-3",
+   "-1"
+  ]
+ },
+ {
+  "op": "factorial",
+  "args": [
+   "0"
+  ]
+ },
+ {
+  "op": "factorial",
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "factorial",
+  "args": [
+   "20"
+  ]
+ },
+ {
+  "op": "factorial",
+  "args": [
+   "100"
+  ]
+ },
+ {
+  "op": "factorial",
+  "args": [
+   "1000"
+  ]
+ },
+ {
+  "op": "factorial",
+  "args": [
+   "-1"
+  ],
+  "error": "E_MATH_DOMAIN",
+  "differs": {
+   "sympy": "factorial(-1) is zoo, the complex infinity"
+  }
+ },
+ {
+  "op": "doubleFactorial",
+  "args": [
+   "-1"
+  ]
+ },
+ {
+  "op": "doubleFactorial",
+  "args": [
+   "0"
+  ]
+ },
+ {
+  "op": "doubleFactorial",
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "doubleFactorial",
+  "args": [
+   "5"
+  ]
+ },
+ {
+  "op": "doubleFactorial",
+  "args": [
+   "6"
+  ]
+ },
+ {
+  "op": "doubleFactorial",
+  "args": [
+   "9"
+  ]
+ },
+ {
+  "op": "doubleFactorial",
+  "args": [
+   "100"
+  ]
+ },
+ {
+  "op": "doubleFactorial",
+  "args": [
+   "-3"
+  ],
+  "error": "E_MATH_DOMAIN",
+  "differs": {
+   "sympy": "factorial2(-3) is -1: the negative odd numbers extended"
+  }
+ },
+ {
+  "op": "bernoulli",
+  "args": [
+   "0"
+  ]
+ },
+ {
+  "op": "bernoulli",
+  "args": [
+   "1"
+  ],
+  "differs": {
+   "mathjs": "B(1) is -1/2 in mathjs, the other convention"
+  }
+ },
+ {
+  "op": "bernoulli",
+  "args": [
+   "2"
+  ]
+ },
+ {
+  "op": "bernoulli",
+  "args": [
+   "3"
+  ]
+ },
+ {
+  "op": "bernoulli",
+  "args": [
+   "4"
+  ]
+ },
+ {
+  "op": "bernoulli",
+  "args": [
+   "12"
+  ]
+ },
+ {
+  "op": "bernoulli",
+  "args": [
+   "30"
+  ]
+ },
+ {
+  "op": "bernoulli",
+  "args": [
+   "100"
+  ]
+ },
+ {
+  "op": "bernoulli",
+  "args": [
+   "500"
+  ]
+ },
+ {
+  "op": "harmonic",
+  "args": [
+   "0"
+  ]
+ },
+ {
+  "op": "harmonic",
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "harmonic",
+  "args": [
+   "2"
+  ]
+ },
+ {
+  "op": "harmonic",
+  "args": [
+   "10"
+  ]
+ },
+ {
+  "op": "harmonic",
+  "args": [
+   "100"
+  ]
+ }
+]
