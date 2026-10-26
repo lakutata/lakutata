@@ -34,7 +34,7 @@ export class Random {
 const NUMBERS: readonly string[] = ['0', '1', '2', '3', '5', '7', '12', '0.5', '2.25', '1e2', '3/4', '1.5e-1']
 const VARIABLES: readonly string[] = ['x', 'y', 'z']
 const CONSTANTS: readonly string[] = ['pi', 'e', 'i']
-const SMOOTH: readonly string[] = ['sin', 'cos', 'tan', 'atan', 'sinh', 'cosh', 'tanh', 'exp', 'ln', 'sqrt', 'gamma', 'erf', 'asinh']
+const SMOOTH: readonly string[] = ['sin', 'cos', 'tan', 'atan', 'sinh', 'cosh', 'tanh', 'exp', 'ln', 'sqrt', 'gamma', 'erf', 'asinh', 'cbrt']
 const OTHERS: readonly string[] = ['abs', 'sign', 'floor', 'ceil']
 const EXPONENTS: readonly string[] = ['2', '3', '-1', '-2', '1/2', '1/3', '0.5', 'x', '4']
 

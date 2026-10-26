@@ -2,6 +2,8 @@
 #include <symengine/symengine_exception.h>
 #include <symengine/eval_double.h>
 #include <symengine/limits.h>
+#include <symengine/real_double.h>
+#include <symengine/complex_double.h>
 
 namespace SymEngine
 {
@@ -1952,7 +1954,10 @@ hash_t FunctionSymbol::__hash__() const
 
 bool FunctionSymbol::__eq__(const Basic &o) const
 {
-    if (is_a<FunctionSymbol>(o)
+    // lakutata: the same type code, so that the function wrappers compare too
+    // (is_a<FunctionSymbol> is false for them: a wrapper was not equal to
+    // itself, and cos(wrapper) recursed without end)
+    if (o.get_type_code() == get_type_code()
         and name_ == down_cast<const FunctionSymbol &>(o).name_
         and unified_eq(get_vec(),
                        down_cast<const FunctionSymbol &>(o).get_vec()))
@@ -1983,6 +1988,24 @@ RCP<const Basic> function_symbol(std::string name, const vec_basic &arg)
 RCP<const Basic> function_symbol(std::string name, const RCP<const Basic> &arg)
 {
     return make_rcp<const FunctionSymbol>(name, arg);
+}
+
+// lakutata: the values of a wrapper for numbers, through create() and eval()
+double FunctionWrapper::evaluate_real(const double *arguments) const
+{
+    vec_basic values;
+    for (size_t i = 0; i < get_args().size(); i++)
+        values.push_back(real_double(arguments[i]));
+    return eval_double(*create(values));
+}
+
+std::complex<double>
+FunctionWrapper::evaluate_complex(const std::complex<double> *arguments) const
+{
+    vec_basic values;
+    for (size_t i = 0; i < get_args().size(); i++)
+        values.push_back(complex_double(arguments[i]));
+    return eval_complex_double(*create(values));
 }
 
 FunctionWrapper::FunctionWrapper(std::string name, const RCP<const Basic> &arg)
@@ -3449,6 +3472,10 @@ bool PolyGamma::is_canonical(const RCP<const Basic> &n,
         or polygamma_shifted(n, x)) {
         return false;
     }
+    if (is_a<Integer>(*x)
+        and down_cast<const Integer &>(*x).as_integer_class() > GAMMA_LIMIT) {
+        return true;
+    }
     if (eq(*n, *zero)) {
         if (eq(*x, *one)) {
             return false;
@@ -3512,6 +3539,12 @@ RCP<const Basic> polygamma(const RCP<const Basic> &n_,
         return add(polygamma(n_, x), correction);
     }
     if (is_a_Number(*x_) and not is_a<Integer>(*x_) and not is_a<Rational>(*x_)) {
+        return make_rcp<const PolyGamma>(n_, x_);
+    }
+    // lakutata: not at the integers above the limit of the exact numbers (the
+    // value of digamma there is a harmonic number of as many terms)
+    if (is_a<Integer>(*x_)
+        and down_cast<const Integer &>(*x_).as_integer_class() > GAMMA_LIMIT) {
         return make_rcp<const PolyGamma>(n_, x_);
     }
     if (is_a<Integer>(*n_) and is_a<Integer>(*x_)) {
@@ -3631,8 +3664,17 @@ RCP<const Basic> abs(const RCP<const Basic> &arg)
         return arg;
     }
 
+    // lakutata: the numeric factor taken out, as SymPy (abs(-2*x) is 2*abs(x))
+    if (is_a<Mul>(*arg)
+        and not down_cast<const Mul &>(*arg).get_coef()->is_one()) {
+        map_basic_basic factors = down_cast<const Mul &>(*arg).get_dict();
+        return mul(abs(down_cast<const Mul &>(*arg).get_coef()),
+                   abs(Mul::from_dict(one, std::move(factors))));
+    }
     RCP<const Basic> d;
-    handle_minus(arg, outArg(d));
+    // lakutata: abs(-u) is abs(u), evaluated again (abs(-abs(x)) is abs(x))
+    if (handle_minus(arg, outArg(d)) and not eq(*d, *arg))
+        return abs(d);
     return make_rcp<const Abs>(d);
 }
 

@@ -449,6 +449,29 @@ public:
         result_ = apply(*(x.get_arg()));
     };
 
+    // lakutata: a function wrapper, by its value for the values of its
+    // arguments (FunctionWrapper::evaluate_real)
+    void bvisit(const FunctionWrapper &x)
+    {
+        std::vector<fn> arguments;
+        for (const auto &argument : x.get_args())
+            arguments.push_back(apply(*argument));
+        const RCP<const FunctionWrapper> function
+            = rcp_static_cast<const FunctionWrapper>(x.rcp_from_this());
+        result_ = [=](const double *x) {
+            double values[8];
+            std::vector<double> many;
+            double *at = values;
+            if (arguments.size() > 8) {
+                many.resize(arguments.size());
+                at = many.data();
+            }
+            for (size_t i = 0; i < arguments.size(); i++)
+                at[i] = arguments[i](x);
+            return function->evaluate_real(at);
+        };
+    };
+
     void bvisit(const Erf &x)
     {
         fn tmp = apply(*(x.get_args()[0]));
@@ -693,6 +716,22 @@ class LambdaComplexDoubleVisitor
                          LambdaDoubleVisitor<std::complex<double>>>
 {
 public:
+    // lakutata: a function wrapper, by FunctionWrapper::evaluate_complex
+    void bvisit(const FunctionWrapper &x)
+    {
+        std::vector<fn> arguments;
+        for (const auto &argument : x.get_args())
+            arguments.push_back(apply(*argument));
+        const RCP<const FunctionWrapper> function
+            = rcp_static_cast<const FunctionWrapper>(x.rcp_from_this());
+        result_ = [=](const std::complex<double> *x) {
+            std::vector<std::complex<double>> values;
+            for (const auto &argument : arguments)
+                values.push_back(argument(x));
+            return function->evaluate_complex(values.data());
+        };
+    };
+
     // Classes not implemented are
     // Subs, UpperGamma, LowerGamma, Dirichlet_eta, Zeta
     // LeviCivita, KroneckerDelta, FunctionSymbol, LambertW

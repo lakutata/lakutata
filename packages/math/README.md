@@ -88,6 +88,9 @@ await container.destroy()
 | `x^2 = 4` | An equation (`math.equation()`, or `math.parse()`) |
 | `x < 1`, `x >= 0` | An inequality, read by `math.parse()` |
 
+`cbrt(x)` and `root(x, n)` with an odd `n` give the real root of a negative real number (`cbrt(-8)` is `-2`, as
+`Math.cbrt`); a fractional power gives the principal value (`(-8)^(1/3)` is `1 + sqrt(3)i`, as SymPy).
+
 The results are written the same way: `toString()` gives a formula that `math.expression()` reads back, and `toTeX()`
 gives its LaTeX. A syntax error is a `MathSyntaxException` with the `position` of the character where it is found.
 

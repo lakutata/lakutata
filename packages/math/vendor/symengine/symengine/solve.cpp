@@ -271,7 +271,21 @@ RCP<const Set> solve_poly(const RCP<const Basic> &f,
     }
 #endif
     RCP<const Basic> gen = rcp_static_cast<const Basic>(sym);
-    auto uexp = from_basic<UExprPoly>(f, gen);
+    // lakutata: not a polynomial in sym (sin(x) + x), or a function of sym
+    // taken as a coefficient (x**x, which gave no solution): the equation is
+    // left unsolved, where SymEngine failed or answered wrongly
+    RCP<const UExprPoly> uexp;
+    try {
+        uexp = from_basic<UExprPoly>(f, gen);
+    } catch (SymEngineException &) {
+        return conditionset(sym,
+                            logical_and({Eq(f, zero), domain->contains(sym)}));
+    }
+    for (const auto &term : uexp->get_poly().get_dict()) {
+        if (has_symbol(*term.second.get_basic(), *sym))
+            return conditionset(
+                sym, logical_and({Eq(f, zero), domain->contains(sym)}));
+    }
     auto degree = uexp->get_degree();
     if (degree <= 4) {
         return solve_poly_heuristics(extract_coeffs(uexp), domain);
@@ -546,6 +560,13 @@ RCP<const Set> solve(const RCP<const Basic> &f, const RCP<const Symbol> &sym,
     }
 
     if (is_a<Mul>(*f)) {
+        // lakutata: a product with a denominator goes to solve_rational, which
+        // removes the zeros of the denominator: (x**2 - 1)/(x - 1) is zero at -1
+        // only, SymEngine solved every factor, the denominators too
+        RCP<const Basic> num, den;
+        as_numer_denom(f, outArg(num), outArg(den));
+        if (has_symbol(*den, *sym))
+            return solve_rational(f, sym, domain);
         auto args = f->get_args();
         set_set solns;
         for (auto &a : args) {

@@ -568,5 +568,33 @@
    "mathjs": "mathjs has no polygamma",
    "nerdamer": "nerdamer 1.x fails on this function of two arguments"
   }
+ },
+ {
+  "text": "cbrt(-2)",
+  "decimals": [
+   20
+  ]
+ },
+ {
+  "text": "cbrt(2 + 3i)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x does not compute cbrt of a complex number"
+  }
+ },
+ {
+  "text": "root(-243, 5)",
+  "decimals": [
+   20
+  ],
+  "differs": {
+   "mathjs": "mathjs names it nthRoot",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
+  }
+ },
+ {
+  "text": "cbrt(sqrt(2) - 2)",
+  "differs": {
+   "nerdamer": "nerdamer 1.x fails to read this formula"
+  }
  }
 ]

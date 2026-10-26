@@ -212,6 +212,7 @@ public:
         if (is_a<NaN>(*e)) return atom(tex_ ? "\\mathrm{NaN}" : "nan", Lead::Letter);
         if (is_a<BooleanAtom>(*e)) return atom(down_cast<const BooleanAtom &>(*e).get_val() ? "true" : "false", Lead::Letter);
         if (is_a<FunctionSymbol>(*e)) return printCall(down_cast<const FunctionSymbol &>(*e).get_name(), e->get_args());
+        if (is_a<FunctionWrapper>(*e)) return printWrapper(down_cast<const FunctionWrapper &>(*e));
         if (is_a_sub<Function>(*e)) {
             const std::vector<std::string> &names = functionNames();
             const TypeID code = e->get_type_code();
@@ -295,6 +296,18 @@ private:
         }
         std::string real = Printer(tex_).print(Rational::from_mpq(value.real_)).text;
         return {real + (negative ? " - " : " + ") + imaginary, ADD, Lead::Other, false, simple};
+    }
+
+    //The functions of the addon (functions/Functions.h): root(x, 3) is cbrt(x), a root \sqrt[n]{x} in LaTeX
+    Part printWrapper(const FunctionWrapper &function)
+    {
+        const vec_basic arguments = function.get_args();
+        if (function.get_name() == "root") {
+            const bool cube = eq(*arguments[1], *integer(3));
+            if (!tex_) return cube ? printCall("cbrt", {arguments[0]}) : printCall("root", arguments);
+            return {"\\sqrt[" + print(arguments[1]).text + "]{" + print(arguments[0]).text + "}", ATOM, Lead::Other, false, false};
+        }
+        return printCall(function.get_name(), arguments);
     }
 
     Part printCall(const std::string &name, const vec_basic &arguments)

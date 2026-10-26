@@ -44,8 +44,25 @@ SymEngine's `boostmp` integers come from Boost.Multiprecision, which can be used
   (`sign(pi - 3)` is 1), and the sign of a power of an unknown sign no longer recurses without end. The floor, the
   ceiling and the truncation of a number written as an expression are computed (`floor(sqrt(2))` is 1); the
   truncation no longer takes an integer out of a sum (`trunc(5 - 1/2)` is 4, not `5 + trunc(-1/2)`).
+- `symengine/solve.cpp`: an equation that is not a polynomial in the variable is left unsolved (a condition set):
+  SymEngine failed on `sin(x) + x = 0`, and took a function of the variable as a coefficient, so that `x^x = 2` was
+  answered with no solution. A product with a denominator is solved as a fraction, so that the zeros of the denominator
+  are not solutions (`(x^2 - 1)/(x - 1) = 0` is `x = -1` only).
 - `symengine/derivative.cpp`: the derivative of `acosh(x)` is `1/(sqrt(x - 1)*sqrt(x + 1))`, as SymPy;
-  `1/sqrt(x^2 - 1)` has the wrong sign left of -1.
+  `1/sqrt(x^2 - 1)` has the wrong sign left of -1. The derivatives of gamma and log gamma are 0 when their argument
+  has no variable, decided before `polygamma(0, a)` is built: its exact value at an integer `a` is a harmonic number of
+  `a - 1` terms.
+
+### The functions of the addon
+
+The functions SymEngine does not have (`cbrt` and `root` as real roots, in `native/functions`) are written as its
+function wrappers (`FunctionWrapper`).
+
+- `symengine/functions.h`, `symengine/functions.cpp`: a wrapper gives its value for numbers (`evaluate_real`,
+  `evaluate_complex`, by `create()` and `eval()` unless it overrides them), and a wrapper is equal to a wrapper of the
+  same type, name and arguments: `FunctionSymbol::__eq__` required the other object to be a plain function symbol,
+  so a wrapper was never equal to anything, not even itself (`cos(cbrt(x))` recursed without end).
+- `symengine/lambda_double.h`: the compiled functions call the wrappers with the values of their arguments.
 
 ### Canonical forms
 
@@ -54,7 +71,9 @@ SymEngine's `boostmp` integers come from Boost.Multiprecision, which can be used
   to the power -1 (`z/(2*(x + 1))` is `z/(2*x + 2)`), as the formulas are read: a value has one form, the sums stay
   flat. A factor that is a power, raised to an integer power, is combined (`(a^b)^n` is `a^(b*n)`).
 - `symengine/functions.cpp`: the minus taken out of a sum (`asinh(-x - 1)` is `-asinh(x + 1)`) is added term by
-  term, so that a sum among the terms is flattened. `log(e^r)` is `r` for an exact real number `r`.
+  term, so that a sum among the terms is flattened. `log(e^r)` is `r` for an exact real number `r`. The numeric factor
+  of a product is taken out of `abs` (`abs(-2*x)` is `2*abs(x)`), and `abs` is evaluated again once the minus is
+  taken out (`abs(-abs(x))` is `abs(x)`).
 - `symengine/pow.cpp`: `e^log(x)` is `x`, and `e^(c*log(x))` is `x^c` for a number `c`, as SymPy. `(x^-1)^b` stays
   as written: SymEngine made it `x^(-b)`, which is wrong for a negative `x` when `b` is not an integer
   (`sqrt(1/(-4))` is `i/2`, `1/sqrt(-4)` is `-i/2`). `1` to any exact power is `1` (`1^(10^20)` failed).
@@ -65,7 +84,7 @@ SymEngine's `boostmp` integers come from Boost.Multiprecision, which can be used
   `symengine/integer.h`, `symengine/rational.h`: a power whose result would have more than 2^20 bits (about 315000
   digits) stays a power, where SymEngine computed it (hours, and all the memory, for `(3/20)^(10^8)`); the other
   operations reaching such a power fail instead of hanging. The gamma function of an integer above 20001 (its
-  factorial) stays as written, as the factorials of the parser.
+  factorial) stays as written, as the factorials of the parser, and so does polygamma at such an integer.
 - `symengine/mp_boost.cpp`: the integer roots start from an upper bound of the root (SymEngine started from 1, and a
   root of order 10^16 never ended); the factorials and the binomial coefficients are products of a product tree
   (SymEngine multiplied one factor at a time).

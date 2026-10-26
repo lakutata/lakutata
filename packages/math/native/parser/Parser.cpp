@@ -1,5 +1,7 @@
 #include "Parser.h"
 
+#include "../functions/Functions.h"
+
 #include <map>
 #include <symengine/add.h>
 #include <symengine/constants.h>
@@ -87,7 +89,6 @@ const std::map<std::string, Builtin> &builtins()
         unary("acsch", acsch);
         unary("exp", exp);
         unary("sqrt", sqrt);
-        unary("cbrt", cbrt);
         unary("abs", abs);
         unary("sign", sign);
         unary("floor", floor);
@@ -105,7 +106,9 @@ const std::map<std::string, Builtin> &builtins()
         functions["log"] = {1, 2, [](const vec_basic &a) { return a.size() == 1 ? log(a[0]) : log(a[0], a[1]); }};
         functions["log10"] = {1, 1, [](const vec_basic &a) { return log(a[0], integer(10)); }};
         functions["log2"] = {1, 1, [](const vec_basic &a) { return log(a[0], integer(2)); }};
-        functions["root"] = {2, 2, [](const vec_basic &a) { return pow(a[0], div(one, a[1])); }};
+        //The real root of a negative real number for an odd order (cbrt(-8) is -2), the principal one otherwise
+        functions["cbrt"] = {1, 1, [](const vec_basic &a) { return realRoot(a[0], integer(3)); }};
+        functions["root"] = {2, 2, [](const vec_basic &a) { return realRoot(a[0], a[1]); }};
         functions["atan2"] = {2, 2, [](const vec_basic &a) { return atan2(a[0], a[1]); }};
         functions["beta"] = {2, 2, [](const vec_basic &a) { return beta(a[0], a[1]); }};
         functions["polygamma"] = {2, 2, [](const vec_basic &a) { return polygamma(a[0], a[1]); }};

@@ -77,6 +77,8 @@ await container.destroy()
 | `x^2 = 4` | 方程（`math.equation()` 或 `math.parse()`） |
 | `x < 1`、`x >= 0` | 不等式，由 `math.parse()` 读取 |
 
+`cbrt(x)` 和奇数次的 `root(x, n)` 对负实数取实数根（`cbrt(-8)` 是 `-2`，和 `Math.cbrt` 一样）；乘方取主值（`(-8)^(1/3)` 是 `1 + sqrt(3)i`，和 SymPy 一样）。
+
 结果也用同样的写法输出：`toString()` 得到的公式可以再交给 `math.expression()` 读回来，`toTeX()` 得到 LaTeX。语法错误会抛出 `MathSyntaxException`，它的 `position` 是出错字符的位置。
 
 ### 定义

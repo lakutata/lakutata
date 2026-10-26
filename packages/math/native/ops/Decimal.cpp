@@ -207,6 +207,14 @@ Decimal evaluate(const Basic &e, const DecimalContext &context)
         throw MathError(ErrorCode::Domain, "The value is not a real number (the logarithm of a number not positive)");
     }
     if (is_a<Abs>(e)) return context.abs(evaluate(*down_cast<const Abs &>(e).get_arg(), context));
+    //The real root of the addon (cbrt, root): the root of |x|, negated for a negative x
+    if (is_a<FunctionWrapper>(e) && down_cast<const FunctionWrapper &>(e).get_name() == "root") {
+        const vec_basic arguments = e.get_args();
+        const Decimal x = evaluate(*arguments[0], context);
+        const Decimal inverse = context.div(context.parse("1"), evaluate(*arguments[1], context));
+        if (!context.isNegative(x)) return context.pow(x, inverse);
+        return context.neg(context.pow(context.abs(x), inverse));
+    }
     if (is_a<Infty>(e) || is_a<NaN>(e)) throw MathError(ErrorCode::Domain, toText(e.rcp_from_this()) + " has no decimal value" + (is_a<Infty>(e) && down_cast<const Infty &>(e).is_unsigned_infinity() ? " (a division by zero)" : ""));
     throw MathError(ErrorCode::NotSupported, "The decimal value of " + toText(e.rcp_from_this()) + " is not computed");
 }

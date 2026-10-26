@@ -685,6 +685,11 @@ public:
     RCP<const Basic> create(const vec_basic &v) const override = 0;
     virtual RCP<const Number> eval(long bits) const = 0;
     virtual RCP<const Basic> diff_impl(const RCP<const Symbol> &s) const = 0;
+    // lakutata: the value for the values of the arguments, for the compiled
+    // functions (lambda_double.h): by create() and eval() unless overridden
+    virtual double evaluate_real(const double *arguments) const;
+    virtual std::complex<double>
+    evaluate_complex(const std::complex<double> *arguments) const;
 };
 
 /*! Derivative operator

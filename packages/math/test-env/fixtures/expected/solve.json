@@ -748,6 +748,81 @@
      ]
     }
    ]
+  },
+  {
+   "text": "(x^2 - 1)/(x - 1)",
+   "variable": "x",
+   "kind": "finite",
+   "solutions": [
+    {
+     "text": "-1",
+     "values": [
+      [
+       "-1.00000000000000000000000000000",
+       "0"
+      ],
+      [
+       "-1.00000000000000000000000000000",
+       "0"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "text": "x/(x - 2)",
+   "variable": "x",
+   "kind": "finite",
+   "solutions": [
+    {
+     "text": "0",
+     "values": [
+      [
+       "0",
+       "0"
+      ],
+      [
+       "0",
+       "0"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "text": "(x^2 - 4)/((x - 2)(x + 5))",
+   "variable": "x",
+   "kind": "finite",
+   "solutions": [
+    {
+     "text": "-2",
+     "values": [
+      [
+       "-2.00000000000000000000000000000",
+       "0"
+      ],
+      [
+       "-2.00000000000000000000000000000",
+       "0"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "text": "x^x - 2",
+   "variable": "x",
+   "kind": "unsolved"
+  },
+  {
+   "text": "sin(x) + x",
+   "variable": "x",
+   "kind": "unsolved"
+  },
+  {
+   "text": "gamma(x) - 2",
+   "variable": "x",
+   "kind": "unsolved"
   }
  ]
 }

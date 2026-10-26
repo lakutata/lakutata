@@ -28,7 +28,9 @@ NAMES = {
     'e': E, 'i': I, 'pi': sympy.pi, 'inf': oo, 'oo': oo, 'nan': nan, 'ln': log, 'abs': Abs, 'ceil': ceiling,
     'trunc': lambda value: sign(value) * floor(Abs(value)), 'conj': conjugate, 'loggamma': loggamma,
     'lambertw': LambertW, 'log10': lambda value: log(value, 10), 'log2': lambda value: log(value, 2), 'min': Min,
-    'max': Max
+    'max': Max,
+    # The real root of a negative real number for an odd order, the principal one otherwise
+    'cbrt': lambda value: sympy.real_root(value, 3), 'root': lambda value, n: sympy.real_root(value, n)
 }
 TRANSFORMATIONS = standard_transformations + (implicit_multiplication, convert_xor, rationalize)
 
@@ -40,7 +42,7 @@ def parse(text):
 
 def meaning(text):
     """An expression written for SymPy (the meaning of a grammar case)"""
-    return sympy.sympify(text, locals={'e': E, 'i': I})
+    return sympy.sympify(text, locals={'e': E, 'i': I, 'real_root': sympy.real_root})
 
 
 class Printer(StrPrinter):
@@ -168,6 +170,8 @@ def solve():
             result['kind'] = 'empty'
         elif found == domain:
             result['kind'] = 'all'
+        elif isinstance(found, sympy.ConditionSet):
+            result['kind'] = 'unsolved'
         elif isinstance(found, sympy.FiniteSet):
             result['kind'] = 'finite'
             result['solutions'] = [{'text': text_of(value), 'values': values_at(value)} for value in found.args]

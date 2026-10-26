@@ -56,6 +56,31 @@ void collect(const RCP<const Set> &set, Solutions &solutions)
     }
 }
 
+//A set of solutions as the formulas write its values: the periodic solutions of SymEngine (its image sets, over the
+//integers n) as {2n*pi + pi | n integer}, the unions joined by "or"
+std::string describeSet(const RCP<const Set> &set)
+{
+    if (is_a<Union>(*set)) {
+        std::string text;
+        for (const RCP<const Set> &part : down_cast<const Union &>(*set).get_container()) text += (text.empty() ? "" : " or ") + describeSet(part);
+        return text;
+    }
+    if (is_a<ImageSet>(*set)) {
+        const vec_basic parts = set->get_args();
+        return "{" + toText(parts[1]) + " | " + toText(parts[0]) + " integer}";
+    }
+    if (is_a<FiniteSet>(*set)) {
+        std::string text;
+        for (const Expr &value : down_cast<const FiniteSet &>(*set).get_container()) text += (text.empty() ? "" : ", ") + toText(value);
+        return "{" + text + "}";
+    }
+    if (is_a<Interval>(*set)) {
+        const Interval &interval = down_cast<const Interval &>(*set);
+        return (interval.get_left_open() ? "(" : "[") + toText(interval.get_start()) + ", " + toText(interval.get_end()) + (interval.get_right_open() ? ")" : "]");
+    }
+    return set->__str__();
+}
+
 //The solutions sorted: the real ones by value, then the complex ones by real and imaginary parts, then the others
 void sortValues(std::vector<Expr> &values)
 {
@@ -242,14 +267,15 @@ Solutions solveOf(const Expr &expression, const std::string &name, bool real)
         || (is_a<Interval>(*found) && eq(*down_cast<const Interval &>(*found).get_start(), *NegInf) && eq(*down_cast<const Interval &>(*found).get_end(), *Inf))) {
         solutions.kind = "all";
     } else if (is_a<ConditionSet>(*found)) {
+        //The equation itself, as the formulas write it
         solutions.kind = "unsolved";
-        solutions.text = found->__str__();
+        solutions.text = toText(expression) + " = 0";
     } else {
         try {
             collect(found, solutions);
             solutions.kind = solutions.intervals.empty() ? "finite" : "intervals";
         } catch (const std::logic_error &) {
-            solutions = Solutions{"other", {}, {}, found->__str__()};
+            solutions = Solutions{"other", {}, {}, describeSet(found)};
         }
     }
     sortValues(solutions.values);

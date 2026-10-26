@@ -247,10 +247,14 @@
  },
  {
   "text": "cbrt(-8)",
-  "meaning": "cbrt(-8)",
+  "meaning": "-2"
+ },
+ {
+  "text": "root(-32, 5) + root(-16, 4)",
+  "meaning": "-2 + root(-16, 4)",
   "differs": {
-   "mathjs": "mathjs gives the real cube root (-2); @lakutata/math gives the principal one, as SymPy (open question, proposal/math-progress.md)",
-   "nerdamer": "nerdamer gives the real cube root (-2)"
+   "mathjs": "mathjs names it nthRoot",
+   "nerdamer": "nerdamer 1.x fails on this function of two arguments"
   }
  },
  {

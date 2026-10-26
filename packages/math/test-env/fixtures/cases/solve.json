@@ -91,5 +91,29 @@
   "text": "x^4 - 5x^2 + 4",
   "variable": "x",
   "domain": "real"
+ },
+ {
+  "text": "(x^2 - 1)/(x - 1)",
+  "variable": "x"
+ },
+ {
+  "text": "x/(x - 2)",
+  "variable": "x"
+ },
+ {
+  "text": "(x^2 - 4)/((x - 2)(x + 5))",
+  "variable": "x"
+ },
+ {
+  "text": "x^x - 2",
+  "variable": "x"
+ },
+ {
+  "text": "sin(x) + x",
+  "variable": "x"
+ },
+ {
+  "text": "gamma(x) - 2",
+  "variable": "x"
  }
 ]

@@ -614,6 +614,10 @@ void DiffVisitor::bvisit(const Erfc &self)
 void DiffVisitor::bvisit(const Gamma &self)
 {
     apply(self.get_arg());
+    // lakutata: 0 without the variable, before polygamma(0, a) is built (its
+    // value at a large integer is a harmonic number of as many terms)
+    if (eq(*result_, *zero))
+        return;
     result_ = mul(mul(self.rcp_from_this(), polygamma(zero, self.get_arg())),
                   result_);
 }
@@ -621,6 +625,8 @@ void DiffVisitor::bvisit(const Gamma &self)
 void DiffVisitor::bvisit(const LogGamma &self)
 {
     apply(self.get_arg());
+    if (eq(*result_, *zero)) // lakutata: as above
+        return;
     result_ = mul(polygamma(zero, self.get_arg()), result_);
 }
 
