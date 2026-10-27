@@ -557,6 +557,25 @@ def decimals():
                       for case in load('decimals')])
 
 
+POLY_OPERATIONS = {
+    'gcd': lambda args, case: sympy.gcd(*args) if len(args) == 2 else sympy.gcd_list(args),
+    'lcm': lambda args, case: sympy.lcm(*args) if len(args) == 2 else sympy.lcm_list(args),
+    'resultant': lambda args, case: sympy.resultant(args[0], args[1], Symbol(case['variable'])),
+    'discriminant': lambda args, case: sympy.discriminant(args[0], Symbol(case['variable'])),
+}
+
+
+def poly():
+    """The gcds, lcms, resultants and discriminants of SymPy (its result also where ours is an error, noted)"""
+    results = []
+    for case in load('poly'):
+        result = dict(case)
+        value = POLY_OPERATIONS[case['op']]([parse(text) for text in case['args']], case)
+        result['result'] = expression_result(value)
+        results.append(result)
+    save('poly', results)
+
+
 if __name__ == '__main__':
     grammar()
     numbers()
@@ -570,6 +589,7 @@ if __name__ == '__main__':
     ntheory()
     continued_fractions()
     matrices()
+    poly()
     decimals()
     special()
     complex_parts()

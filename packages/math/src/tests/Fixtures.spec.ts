@@ -706,6 +706,33 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
         assert.deepStrictEqual(problems, [])
     })
 
+    it('give the gcds, lcms, resultants and discriminants of SymPy, each difference noted', (): void => {
+        type PolyOperation = 'gcd' | 'lcm' | 'resultant' | 'discriminant'
+        const fixtures = expected<{op: PolyOperation, args: string[], variable?: string, error?: string, differs?: Record<string, string>, result: {text: string}}>('poly')
+        const problems: string[] = []
+        for (const fixture of fixtures.cases) {
+            const label: string = `${fixture.op}(${fixture.args.join(', ')}${fixture.variable ? `; ${fixture.variable}` : ''})`
+            const call = (): Expression => {
+                if (fixture.op === 'gcd') return math.poly.gcd(...fixture.args)
+                if (fixture.op === 'lcm') return math.poly.lcm(...fixture.args)
+                if (fixture.op === 'resultant') return math.poly.resultant(fixture.args[0], fixture.args[1], fixture.variable!)
+                return math.poly.discriminant(fixture.args[0], fixture.variable!)
+            }
+            let same: boolean = false, ours: string = ''
+            if (fixture.error) {
+                assert.throws(call, (error: unknown): boolean => error instanceof MathException && error.errno === fixture.error, label)
+            } else {
+                const result: Expression = call()
+                ours = result.toString()
+                same = result.equals(fixture.result.text)
+            }
+            const noted: string | undefined = fixture.differs?.sympy
+            if (!same && !noted) problems.push(`${label}: ${ours || fixture.error}, SymPy ${fixture.result.text}, not noted`)
+            if (same && noted) problems.push(`${label}: SymPy agrees, its note is stale`)
+        }
+        assert.deepStrictEqual(problems, [])
+    })
+
     it('solve the linear systems as SymPy', (): void => {
         const fixtures = expected<{equations: string[], variables: string[], kind: string, values?: Record<string, {text: string, values: (Complex | null)[]}>}>('systems')
         for (const fixture of fixtures.cases) {

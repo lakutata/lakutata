@@ -7,6 +7,7 @@ import type {Matrix, MatrixValue} from './Matrix.js'
 import {type CommonSubexpressions, createMath, type CseOptions, type MathScope, type SystemEquation, type SystemSolution} from './MathScope.js'
 import type {NumberTheory} from './NumberTheory.js'
 import type {Numeric} from './Numeric.js'
+import type {Polynomials} from './Polynomials.js'
 import type {Statistics} from './Statistics.js'
 import type {Unit, UnitValue} from './Unit.js'
 import type {PhysicalConstant} from './UnitTable.js'
@@ -241,6 +242,17 @@ export async function cseAsync(expressions: Value[], options?: CseOptions & Asyn
  * ```
  */
 export const ntheory: NumberTheory = math.ntheory
+
+/**
+ * The polynomials of `math`: their greatest common divisor, least common multiple, resultant and discriminant.
+ * @example
+ * ```typescript
+ * import {poly} from '@lakutata/math'
+ *
+ * console.log(poly.gcd('x^2 - 1', 'x^2 + 2x + 1').toString())        //x + 1
+ * ```
+ */
+export const poly: Polynomials = math.poly
 
 /**
  * The numeric linear algebra of `math` (on Eigen).

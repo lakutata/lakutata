@@ -19,6 +19,7 @@
 #include "core/Errors.h"
 #include "linalg/Linalg.h"
 #include "matrix/Matrices.h"
+#include "poly/Poly.h"
 #include "numeric/Compiled.h"
 #include "numeric/Numeric.h"
 #include "stats/Distributions.h"
@@ -797,6 +798,26 @@ Job matrixJob(const Napi::Array &arguments)
     };
 }
 
+Job polyJob(const Napi::Array &arguments)
+{
+    const std::string operation = stringAt(arguments, 0, "The operation");
+    const std::vector<Expr> expressions = expressionsAt(arguments, 1);
+    const std::vector<std::string> names = stringsAt(arguments, 2);
+    return [operation, expressions, names] {
+        auto result = std::make_shared<PolyResult>(polyOperation(operation, expressions, names));
+        return Builder([result](Napi::Env env) {
+            Napi::Object value = Napi::Object::New(env);
+            if (!result->expression.is_null()) value.Set("expression", wrapExpression(env, result->expression));
+            value.Set("expressions", expressionsValue(env, result->expressions));
+            Napi::Array numbers = Napi::Array::New(env, result->numbers.size());
+            for (uint32_t i = 0; i < result->numbers.size(); i++) numbers.Set(i, result->numbers[i]);
+            value.Set("numbers", numbers);
+            value.Set("text", result->text);
+            return value;
+        });
+    };
+}
+
 Job fractionJob(const Napi::Array &arguments)
 {
     Expr expression = expressionAt(arguments, 0);
@@ -942,7 +963,7 @@ const std::map<std::string, JobFactory> &jobs()
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
-        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"distribution", distributionJob}, {"random", randomJob}, {"polynomialRoots", polynomialRootsJob}, {"findRoot", findRootJob}, {"solveSystem", solveSystemJob}, {"integrate", integrateJob}, {"solveODE", solveODEJob}, {"matrix", matrixJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
+        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"distribution", distributionJob}, {"random", randomJob}, {"polynomialRoots", polynomialRootsJob}, {"findRoot", findRootJob}, {"solveSystem", solveSystemJob}, {"integrate", integrateJob}, {"solveODE", solveODEJob}, {"matrix", matrixJob}, {"poly", polyJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
         {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}
     };

@@ -1112,3 +1112,69 @@ export async function checkUnits(math: MathScope, random: Random, index: number)
     }
     return failures
 }
+
+//A random polynomial in x (and y): a few terms of small integer coefficients, degrees up to 3
+function randomPolynomial(random: Random, variables: readonly string[]): string {
+    const terms: string[] = []
+    const count: number = 1 + random.int(4)
+    for (let k = 0; k < count; k++) {
+        const coefficient: number = random.int(13) - 6 || 1
+        const powers: string = variables.map((variable: string): string => {
+            const degree: number = random.int(4)
+            return degree ? `*${variable}^${degree}` : ''
+        }).join('')
+        terms.push(`(${coefficient})${powers}`)
+    }
+    return terms.join(' + ')
+}
+
+/**
+ * Polynomials: the gcd of a g and b g is divided by g and divides both (by the long division of SymEngine, in x over
+ * the rational functions of y); lcm gcd is a b times a constant; the resultant in x is 0 exactly when the gcd has x in
+ * it; the discriminant of a polynomial with a square factor in x is 0
+ * @param math
+ * @param random
+ * @param index
+ */
+export async function checkPolynomials(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    try {
+        const variables: string[] = random.chance(0.5) ? ['x'] : ['x', 'y']
+        const a: string = randomPolynomial(random, variables), b: string = randomPolynomial(random, variables), g: string = randomPolynomial(random, variables)
+        const A = math.expression(`(${a})*(${g})`).expand(), B = math.expression(`(${b})*(${g})`).expand()
+        text = `a = ${a}; b = ${b}; g = ${g}`
+        if (A.isZero() === true || B.isZero() === true) return failures
+        //Divisibility in x, checked where y is a few integers (it holds there): the long division of polynomials of
+        //rational coefficients is exact
+        const divides = (divisor: Expression, dividend: Expression): boolean => [2, 3, -1].every((y: number): boolean => {
+            const d: Expression = divisor.substitute({y: y}).expand(), n: Expression = dividend.substitute({y: y}).expand()
+            if (d.degree('x') <= 0 || d.degree('x') < divisor.degree('x')) return true
+            return n.divide(d, 'x').remainder.expand().isZero() === true
+        })
+        const h: Expression = math.poly.gcd(A, B)
+        if (!divides(h, A) || !divides(h, B)) fail('gcd', `${h.toString()} does not divide both`)
+        const G = math.expression(g).expand()
+        if (G.degree('x') > 0 && !divides(G, h)) fail('gcd', `${h.toString()} is not divided by g`)
+        //lcm gcd / (A B) is a constant: the same at two points
+        const l: Expression = math.poly.lcm(A, B)
+        const ratio = (point: Record<string, number>): Expression | undefined => {
+            const denominator: Expression = A.mul(B).substitute(point)
+            return denominator.isZero() === true ? undefined : l.mul(h).substitute(point).div(denominator)
+        }
+        const first = ratio({x: 2, y: 3}), second = ratio({x: -3, y: 5})
+        if (first && second && !first.equals(second)) fail('lcm', `lcm gcd / (a b) is ${first.toString()} and ${second.toString()}`)
+        const resultant: Expression = math.poly.resultant(A, B, 'x')
+        const common: boolean = h.degree('x') > 0
+        if ((resultant.isZero() === true) !== common) fail('resultant', `${resultant.toString()} for a gcd of degree ${h.degree('x')} in x`)
+        if (G.degree('x') > 0) {
+            const square = math.expression(`(${a})*(${g})^2`).expand()
+            if (math.poly.discriminant(square, 'x').isZero() !== true) fail('discriminant', `not 0 for a square factor`)
+        }
+        if (!(await math.poly.gcdAsync([A, B])).equals(h)) fail('async', 'gcdAsync differs from gcd')
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('polynomials', String(error))
+    }
+    return failures
+}

@@ -18,7 +18,7 @@ npm install @lakutata/math
 
 ### 快速上手
 
-这个包导出的函数可以直接使用：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`unit`、`constant`、`solve` 和 `cse`，以及命名空间 `ntheory`（数论）、`linalg`（线性代数）、`stats`（统计和概率）和 `numeric`（数值解、数值积分和微分方程）。它们都属于 `math`，也就是用默认选项创建的范围。
+这个包导出的函数可以直接使用：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`unit`、`constant`、`solve` 和 `cse`，以及命名空间 `ntheory`（数论）、`poly`（多项式）、`linalg`（线性代数）、`stats`（统计和概率）和 `numeric`（数值解、数值积分和微分方程）。它们都属于 `math`，也就是用默认选项创建的范围。
 
 ```typescript
 import {decimal, equation, expression, linalg, stats} from '@lakutata/math'
@@ -172,6 +172,24 @@ console.log(ntheory.continuedFraction('pi', {terms: 6}))   //[3n, 7n, 15n, 1n, 2
 console.log(ntheory.convergents([3, 7, 15, 1]).map(String)) //['3', '22/7', '333/106', '355/113']
 console.log(ntheory.crt([2, 3, 2], [3, 5, 7]))   //{remainder: 23n, modulus: 105n}
 console.log(await ntheory.factorAsync(2n ** 64n + 1n, {timeout: 5000}))
+```
+
+### 多项式
+
+`poly`（`MathScope.poly`）对任意个变量的多项式做精确计算：`gcd(...values)` 和 `lcm(...values)`、`resultant(a, b, variable)` 和 `discriminant(p, variable)`，以及它们的异步版本。多项式可以是表达式，也可以是公式。它的生成元是其中的符号，以及本身不是多项式的因子：`sin(x)`、`sqrt(2)`、`exp(x)`（`x^(3/2)` 是 `sqrt(x)` 的立方，`exp(2x)` 是 `exp(x)` 的平方）。生成元之间看作互不相关：`sqrt(2)^2` 不会当作 2。含有负幂，或者系数是复数或不精确的数，都不算多项式（抛出 `MathNotSupportedException`）。
+
+- 系数都是整数时在整数上计算，gcd 带上系数的公约数（`gcd(2x + 2, 4x + 4)` 是 `2x + 2`）；否则在有理数上计算，结果是首一的（`gcd(x/2 + 1/2, x + 1)` 是 `x + 1`）。首项系数都是正的，和 SymPy 一样。只有数时给出数的最大公约数和最小公倍数（`gcd(1/2, 1/3)` 是 `1/6`）。
+- 算法照 SymPy 用 C++ 重写：启发式 gcd（GCDHEU），失败时用子结式 PRS；结式用子结式 PRS。第一个多项式的次数较低时，结式带上 SymPy 漏掉的符号 (-1)^(mn)（`resultant(x, x^3 + 1, x)` 是 1）。
+- 多项式按稠密形式存放：各变量的次数加一的乘积不超过 10^6（`x^2000 y^2000 + 1` 抛出 `MathNotSupportedException`）。
+
+```typescript
+import {poly} from '@lakutata/math'
+
+console.log(poly.gcd('x^4 - 1', 'x^6 - 1').toString())                 //x^2 - 1
+console.log(poly.gcd('(x - 1)*(y - 2)', '(x - 1)*(x + y)').toString())  //x - 1
+console.log(poly.lcm('2x + 2', '4x - 4').toString())                    //4x^2 - 4
+console.log(poly.resultant('x^2 + y', 'x - y', 'x').toString())         //y^2 + y
+console.log(poly.discriminant('a*x^2 + b*x + c', 'x').toString())       //-4a*c + b^2
 ```
 
 ### 矩阵和线性代数
@@ -391,9 +409,9 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 
 | 导出 | 说明 |
 |---|---|
-| `parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`unit`、`constant`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`linalg`、`stats`、`numeric` | `math` 的函数和命名空间，可以直接使用 |
+| `parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`unit`、`constant`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`poly`、`linalg`、`stats`、`numeric` | `math` 的函数和命名空间，可以直接使用 |
 | `math`、`createMath`、`MathOptions` | 默认选项的范围；用别的选项（`definitions`、`precision`、`timeout`、`concurrency`、`units`）创建范围的函数，以及它的选项 |
-| `MathScope`、`MathDefinitions` | 由定义和设置组成的范围（`createMath()`、`with()`）：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`unit`、`constant`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`linalg`、`stats`、`numeric`；定义（按签名给出的公式） |
+| `MathScope`、`MathDefinitions` | 由定义和设置组成的范围（`createMath()`、`with()`）：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`unit`、`constant`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`poly`、`linalg`、`stats`、`numeric`；定义（按签名给出的公式） |
 | `Expression` | 表达式：`toString`、`toTeX`、`toNumber`、`toComplex`、`toDecimal`、`toComplexDecimal`、`variables`、`equals`、`add`、`sub`、`mul`、`div`、`pow`、`neg`、`expand`、`simplify`、`diff`、`series`、`substitute`、`evaluate`、`solve`、`compile`，多项式（`coefficients`、`degree`、`leadingCoefficient`、`divide`），`numerator`、`denominator`、`rewrite`（改写成 `exp`、`sin`、`cos`），判断（`isZero`、`isPositive`、`isNegative`、`isInteger`、`isRational`、`isReal`、`isFinite`：不知道时为 `undefined`），`compare`、`toJavaScript`、`toC`、`toPolar`、`toRectangular`，以及各个异步版本 |
 | `CommonSubexpressions`、`CseOptions` | `cse()` 的结果（`replacements`、`expressions`）和它的选项（`prefix`） |
 | `PolarForm`、`RectangularForm` | 复数的极坐标形式（模 `modulus`、辐角 `argument`）和直角坐标形式（实部 `real`、虚部 `imaginary`） |
@@ -413,6 +431,7 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 | `IterativeOptions`、`IterativeSolution` | 迭代求解器的选项（`tolerance`、`maxIterations`、`guess`）和结果（`solution`、`iterations`、`error`、`converged`） |
 | `LuDecomposition`、`QrDecomposition`、`SingularValueDecomposition`、`EigenDecomposition`、`SymmetricEigenDecomposition`、`SchurDecomposition`、`ComplexVector`、`ComplexMatrix` | 各种分解的结果：`{lower, upper, permutation}`、`{q, r}`、`{u, singularValues, v}`、`{values, vectors}`（复数为 `{re, im}`）、`{values, vectors}`、`{u, t}` |
 | `NumberTheory`、`IntegerValue`、`ContinuedFractionOptions`、`PrimeFactor`、`ExtendedGcd`、`Congruence` | 数论（`ntheory`）：`gcd`、`lcm`、`extendedGcd`、`mod`、`modInverse`、`powMod`、`isPrime`、`nextPrime`、`factor`、`totient`、`mobius`、`primitiveRoot`、`legendre`、`jacobi`、`crt`、`fibonacci`、`lucas`、`binomial`、`factorial`、`doubleFactorial`、`bernoulli`、`harmonic`、`permutations`、`combinationsWithRepetition`、`multinomial`、`bell`、`catalan`、`stirlingSecondKind`、`compositions`、`continuedFraction`、`fromContinuedFraction`、`convergents`，以及各个异步版本；整数（bigint，或安全整数范围内的 number）；质因数和它的指数；`extendedGcd` 的结果；`crt` 的结果；连分数的最多项数 |
+| `Polynomials` | 多项式（`poly`）：`gcd`、`lcm`、`resultant`、`discriminant`，以及异步版本 |
 | `Numeric`、`FindRootOptions`、`IterationOptions`、`RootResult`、`SystemRootResult`、`IntegrateOptions`、`IntegralResult` | 数值解和数值积分（`numeric`）：`polynomialRoots`、`findRoot`、`solveSystem`、`integrate` 和它们的异步版本；它们的选项（`bracket`、`guess`、`tolerance`、`maxIterations`、`points`）和结果（`root` 或 `solution`、`converged`、`iterations`、`residual`；`value`、`error`、`converged`） |
 | `ODEProblem`、`ODEOptions`、`ODEResult` | 微分方程（`numeric.solveODE`、`solveODEAsync`）：导数、状态、时间、区间和初值；方法（`rk45`、`radau`）、容差、`maxStep`、`points`、`maxSteps`；时间 `t`、状态 `y`、`steps`、`rejected`、`evaluations`、`jacobians`、`completed`、`message` |
 | `AsyncOptions`、`Value` | 异步运算的选项（`timeout`、`signal`）；需要表达式的地方可以传入的值（表达式、数字、bigint、十进制数、公式） |
@@ -429,8 +448,8 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 | `MathDefinitionException` | 定义无效：用了内置的名字、参数重复、定义之间循环引用、定义嵌套太深、定义是一个矩阵；`createMath()` 的单位无效：名字已经是单位（单独或者加上前缀），定义里有不认识的单位，单位之间循环定义 |
 | `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂），`findRoot()` 的区间两端符号相同或者函数在区间里不是实数，函数或方程组在 `findRoot()`、`solveSystem()` 的初始值处不是实数，`integrate()` 的函数在区间内不是实数，`solveODE()` 的导数在起点不是实数，对复数求连分数，表达式矩阵是奇异的（`inverse()`、`solve()`、`inv()`） |
 | `MathDivisionByZeroException` | 计算十进制值时遇到除以零（包括除以一个无法和 0 区分的值、0 的对数、0 的负数次幂、以 1 为底的对数、在函数的极点上求值：`gamma()` 的参数是 -2、`zeta()` 的参数是 1），模数是 0，或者连分数的各项导致除以零 |
-| `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 和 `bell(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、`stirlingSecondKind(n, k)` 的 n 超过 50000 或 n k 超过 6250000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`），表达式矩阵的特征值求不出精确值，矩阵的幂不是整数，矩阵的方程或不等式 |
-| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、`integrate()` 的区间、分点或容差无效、`solveODE()` 的问题或选项无效、对含有变量的值求连分数、连分数的项不是整数、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分布的参数无效、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数，只需要单位的地方给了数（`to('2 cm')`），物理常数的名字不对，`createMath()` 的选项无效 |
+| `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 和 `bell(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、`stirlingSecondKind(n, k)` 的 n 超过 50000 或 n k 超过 6250000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`），表达式矩阵的特征值求不出精确值，矩阵的幂不是整数，矩阵的方程或不等式，`poly` 的多项式含负幂、系数是复数或不精确的数，或者各次数合起来对稠密形式太高 |
+| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、`integrate()` 的区间、分点或容差无效、`solveODE()` 的问题或选项无效、对含有变量的值求连分数、连分数的项不是整数、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分布的参数无效、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数，没有给出多项式就求 gcd 或 lcm，`poly` 的变量不是名字，只需要单位的地方给了数（`to('2 cm')`），物理常数的名字不对，`createMath()` 的选项无效 |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |
 | `MathException` | 以上所有错误的基类；原生插件内部错误时，它的 `errno` 是 `E_MATH_INTERNAL` |
 

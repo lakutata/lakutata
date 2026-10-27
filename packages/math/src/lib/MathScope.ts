@@ -9,6 +9,7 @@ import {LinearAlgebra} from './LinearAlgebra.js'
 import {type Handle, native, nativeCall} from './Native.js'
 import {NumberTheory} from './NumberTheory.js'
 import {Numeric} from './Numeric.js'
+import {Polynomials} from './Polynomials.js'
 import {Statistics} from './Statistics.js'
 import {constantOf, type CustomUnits, type Unit, unitOf, UnitSystem, type UnitValue} from './Unit.js'
 import type {PhysicalConstant} from './UnitTable.js'
@@ -109,6 +110,8 @@ export class MathScope {
 
     #ntheory?: NumberTheory
 
+    #poly?: Polynomials
+
     #linalg?: LinearAlgebra
 
     #stats?: Statistics
@@ -129,6 +132,14 @@ export class MathScope {
      */
     public get ntheory(): NumberTheory {
         return this.#ntheory ??= new NumberTheory(this.context)
+    }
+
+    /**
+     * The polynomials: their greatest common divisor, least common multiple, resultant and discriminant, exactly. Its
+     * asynchronous operations share the threads, the time limit and the concurrency of the scope.
+     */
+    public get poly(): Polynomials {
+        return this.#poly ??= new Polynomials(this.context)
     }
 
     /**
