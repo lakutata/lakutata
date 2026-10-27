@@ -115,5 +115,25 @@
  {
   "text": "gamma(x) - 2",
   "variable": "x"
+ },
+ {
+  "text": "2x^3 - 3x^2 - 3x + 2",
+  "variable": "x"
+ },
+ {
+  "text": "x^5 - x",
+  "variable": "x"
+ },
+ {
+  "text": "6x^4 - 5x^3 - 7x^2 + 5x + 1",
+  "variable": "x"
+ },
+ {
+  "text": "x^6 - 1",
+  "variable": "x"
+ },
+ {
+  "text": "x^3/2 - x/2",
+  "variable": "x"
  }
 ]

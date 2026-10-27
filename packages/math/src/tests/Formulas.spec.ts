@@ -123,6 +123,14 @@ describe('The formulas', (): void => {
     })
 
     it('solve equations in the complex numbers or the real ones', (): void => {
+        //The rational roots of a polynomial first: not Cardano's radicals of them
+        assert.deepStrictEqual(math.equation('x^3 - 6x^2 + 11x - 6 = 0').solve('x').map(String), ['1', '2', '3'])
+        assert.deepStrictEqual(math.equation('2x^3 - 3x^2 - 3x + 2 = 0').solve('x').map(String), ['-1', '1/2', '2'])
+        assert.deepStrictEqual(math.equation('x^5 = x').solve('x').map(String), ['-1', '0', '1', '-i', 'i'])
+        //A constant term too large to factor at once (a product of two primes of 61 and 31 bits): the formulas, at once
+        const started: number = Date.now()
+        assert.strictEqual(math.equation('x^3 + x + 4951760154835678088235319297 = 0').solve('x').length, 3)
+        assert.ok(Date.now() - started < 2000)
         const solutions: Solutions = math.equation('x^2 - 5x + 6 = 0').solve('x')
         assert.ok(solutions instanceof Solutions)
         assert.strictEqual(solutions.kind, 'finite')
