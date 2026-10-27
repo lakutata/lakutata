@@ -250,9 +250,23 @@ Job decimalJob(const Napi::Array &arguments)
 {
     Expr expression = expressionAt(arguments, 0);
     const double digits = numberAt(arguments, 1, "The number of digits");
-    if (digits != std::floor(digits)) throw MathError(ErrorCode::Argument, "The number of digits is an integer");
+    if (digits != std::floor(digits) || digits < 1 || digits > 100000) throw MathError(ErrorCode::Argument, "The number of digits is from 1 to 100000");
     return [expression, digits] {
         std::string text = toDecimal(expression, static_cast<long>(digits));
+        return Builder([text](Napi::Env env) { return Napi::String::New(env, text); });
+    };
+}
+
+//decimalOperation(operation, precision, ...values): an operation of the Decimal class, its values as texts
+Job decimalOperationJob(const Napi::Array &arguments)
+{
+    std::string operation = stringAt(arguments, 0, "The operation");
+    const double precision = numberAt(arguments, 1, "The precision");
+    if (precision != std::floor(precision) || precision < 1 || precision > 100000) throw MathError(ErrorCode::Argument, "The precision is an integer from 1 to 100000");
+    std::vector<std::string> values;
+    for (uint32_t i = 2; i < arguments.Length(); i++) values.push_back(stringAt(arguments, i, "A decimal"));
+    return [operation, precision, values] {
+        std::string text = decimalOperation(operation, static_cast<long>(precision), values);
         return Builder([text](Napi::Env env) { return Napi::String::New(env, text); });
     };
 }
@@ -402,7 +416,7 @@ const std::map<std::string, JobFactory> &jobs()
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
-        {"decimal", decimalJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
+        {"decimal", decimalJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
         {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}
     };

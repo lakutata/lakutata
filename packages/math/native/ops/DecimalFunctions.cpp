@@ -21,17 +21,24 @@ Decimal negligible(const DecimalContext &g)
 }
 
 //The digits of a decimal above its point (0 for |a| < 1)
-long integerDigits(const DecimalContext &context, const Decimal &a)
+int64_t integerDigits(const DecimalContext &context, const Decimal &a)
 {
-    const long exponent = context.exponent(a);
-    return exponent == LONG_MIN || exponent < 0 ? 0 : exponent + 1;
+    const int64_t exponent = context.exponent(a);
+    return exponent == DecimalContext::ZERO_EXPONENT || exponent < 0 ? 0 : exponent + 1;
 }
 
 //The digits a small decimal loses to an addition of 1 (asinh(a), atanh(a) of a small a): its exponent below 0
-long smallDigits(const DecimalContext &context, const Decimal &a)
+int64_t smallDigits(const DecimalContext &context, const Decimal &a)
 {
-    const long exponent = context.exponent(a);
-    return exponent == LONG_MIN || exponent >= 0 ? 0 : -exponent;
+    const int64_t exponent = context.exponent(a);
+    return exponent == DecimalContext::ZERO_EXPONENT || exponent >= 0 ? 0 : -exponent;
+}
+
+//Whether e^-|a| is below the last guard digit of a context: e^|a| ± e^-|a| is e^|a| there (and e^-|a| may be beyond
+//the exponents of the decimals)
+bool negligibleInverse(const DecimalContext &g, const Decimal &a)
+{
+    return g.compare(g.abs(a), g.integer(g.digits() * 3 + 10)) > 0;
 }
 
 long long smallInteger(const Decimal &a)
@@ -69,15 +76,19 @@ Decimal sinOrCos(const DecimalContext &context, const Decimal &x, bool cosine)
 {
     if (context.isZero(x)) return context.integer(cosine ? 1 : 0);
     const DecimalContext g(context.digits() + integerDigits(context, x) + 15);
-    const Decimal halfPi = g.div(g.pi(), g.integer(2));
-    const Decimal turns = g.roundToInteger(g.div(x, halfPi));
-    const Decimal r = g.sub(x, g.mul(turns, halfPi));
+    const Decimal turns = g.roundToInteger(g.div(x, g.div(g.pi(), g.integer(2))));
     const Decimal four = g.integer(4);
     const long long quadrant = smallInteger(g.sub(turns, g.mul(four, g.floor(g.div(turns, four)))));
     //sin(r + q pi/2) is sin(r), cos(r), -sin(r), -cos(r); cos(t) is sin(t + pi/2)
     const long long shift = cosine ? (quadrant + 1) % 4 : quadrant;
-    Decimal value = sinCosSeries(g, r, shift % 2 == 1);
-    if (shift >= 2) value = g.neg(value);
+    Decimal r = g.sub(x, g.mul(turns, g.div(g.pi(), g.integer(2))));
+    //sin(r) of a small r (x near a multiple of pi): r again with its digits below the point more, the digits of the
+    //value being below them
+    const int64_t small = smallDigits(g, r);
+    const DecimalContext h(g.digits() + (shift % 2 == 1 ? 0 : small));
+    if (shift % 2 == 0 && small > 0) r = h.sub(x, h.mul(turns, h.div(h.pi(), h.integer(2))));
+    Decimal value = sinCosSeries(h, r, shift % 2 == 1);
+    if (shift >= 2) value = h.neg(value);
     return context.round(value);
 }
 
@@ -183,6 +194,7 @@ Decimal DecimalContext::sinh(const Decimal &a) const
         }
         return round(sum);
     }
+    if (negligibleInverse(g, a)) return round(isNegative(a) ? g.neg(g.div(g.exp(g.abs(a)), g.integer(2))) : g.div(g.exp(a), g.integer(2)));
     const Decimal e = g.exp(a);
     return round(g.div(g.sub(e, g.div(g.integer(1), e)), g.integer(2)));
 }
@@ -190,6 +202,7 @@ Decimal DecimalContext::sinh(const Decimal &a) const
 Decimal DecimalContext::cosh(const Decimal &a) const
 {
     const DecimalContext g(digits() + 15);
+    if (negligibleInverse(g, a)) return round(g.div(g.exp(g.abs(a)), g.integer(2)));
     const Decimal e = g.exp(a);
     return round(g.div(g.add(e, g.div(g.integer(1), e)), g.integer(2)));
 }
@@ -199,6 +212,8 @@ Decimal DecimalContext::tanh(const Decimal &a) const
     if (isZero(a)) return integer(0);
     const DecimalContext g(digits() + 15);
     if (compare(abs(a), integer(1)) < 0) return round(g.div(g.sinh(a), g.cosh(a)));
+    //1 - 2e^-2|a| within the last guard digit of 1
+    if (negligibleInverse(g, a)) return integer(isNegative(a) ? -1 : 1);
     //(1 - e^-2|a|)/(1 + e^-2|a|), of the sign of a
     const Decimal e = g.exp(g.mul(g.integer(-2), abs(a)));
     const Decimal value = g.div(g.sub(g.integer(1), e), g.add(g.integer(1), e));

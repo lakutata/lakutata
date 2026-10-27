@@ -1,5 +1,6 @@
 import {MathArgumentException} from '../exceptions/MathArgumentException.js'
 import type {AsyncOptions, Context} from './Context.js'
+import {Decimal, type DecimalOptions, decimalText, type DecimalValue} from './Decimal.js'
 import {Equation, Expression, expressionOf, formulaOf, handleOf, Inequality, type Value} from './Expression.js'
 import {MathSyntaxException} from '../exceptions/MathSyntaxException.js'
 import {type Handle, nativeCall, type NativeParsed} from './Native.js'
@@ -85,6 +86,20 @@ export class MathScope {
         if (value instanceof Expression) return value
         if (typeof value === 'string') return expressionOf(this.context, value)
         return new Expression(this.context, handleOf(this.context, value))
+    }
+
+    /**
+     * A decimal of a precision: a value rounded to that many significant digits (halves to even). A number is read by
+     * its shortest representation (`0.1` is 0.1), a string as a decimal number (`'19.99'`); an expression is computed,
+     * as `toDecimal()` does.
+     * @param value A decimal number (a number, a bigint, a string, a decimal) or an expression without variables.
+     * @param options The precision: the one of the component by default.
+     */
+    public decimal(value: DecimalValue | Expression, options: DecimalOptions = {}): Decimal {
+        const precision: number = options.precision ?? this.context.settings.precision
+        if (!Number.isInteger(precision) || precision < 1 || precision > 100000) throw new MathArgumentException('The precision is an integer from 1 to 100000')
+        if (value instanceof Expression) return new Decimal(value.toDecimal(precision), precision)
+        return new Decimal(nativeCall((native) => native.run('decimalOperation', ['round', precision, decimalText(value)])) as string, precision)
     }
 
     /**

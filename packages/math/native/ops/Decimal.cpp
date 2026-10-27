@@ -57,7 +57,7 @@ mpd_t *Decimal::get() const
     return value_;
 }
 
-DecimalContext::DecimalContext(long digits)
+DecimalContext::DecimalContext(int64_t digits)
 {
     if (digits < 1) throw MathError(ErrorCode::Argument, "The number of digits is from 1 to 100000");
     //The guard digits of an evaluation (the angle 10^(10^8) would need its digits)
@@ -72,11 +72,24 @@ long DecimalContext::digits() const
     return static_cast<long>(context_.prec);
 }
 
-void DecimalContext::check(uint32_t status) const
+void DecimalContext::check(uint32_t status)
 {
     if (status & MPD_Malloc_error) throw std::bad_alloc();
-    if (status & MPD_Division_by_zero) throw MathError(ErrorCode::DivisionByZero, "Division by zero");
+    if (status & (MPD_Division_by_zero | MPD_Division_undefined)) throw MathError(ErrorCode::DivisionByZero, "Division by zero");
     if (status & (MPD_Invalid_operation | MPD_Conversion_syntax)) throw MathError(ErrorCode::Domain, "The value is not a real number");
+    if (status & (MPD_Overflow | MPD_Underflow)) throw MathError(ErrorCode::NotSupported, "The value is beyond the range of the decimals (exponents from " + std::to_string(MPD_MIN_EMIN) + " to " + std::to_string(MPD_MAX_EMAX) + ")");
+    if (status & (MPD_Division_impossible | MPD_Invalid_context | MPD_Fpu_error | MPD_Not_implemented)) throw MathError(ErrorCode::Internal, "An operation of the decimals failed");
+}
+
+namespace {
+
+//A text read by mpdecimal: a decimal number, not NaN or Infinity
+void requireNumber(const Decimal &value, uint32_t status, const std::string &text)
+{
+    if ((status & MPD_Conversion_syntax) || mpd_isspecial(value.get())) throw MathError(ErrorCode::Argument, "Not a decimal number: " + text);
+    DecimalContext::check(status);
+}
+
 }
 
 Decimal DecimalContext::parse(const std::string &text) const
@@ -84,7 +97,16 @@ Decimal DecimalContext::parse(const std::string &text) const
     Decimal result;
     uint32_t status = 0;
     mpd_qset_string(result.get(), text.c_str(), &context_, &status);
-    check(status);
+    requireNumber(result, status, text);
+    return result;
+}
+
+Decimal DecimalContext::exact(const std::string &text)
+{
+    Decimal result;
+    uint32_t status = 0;
+    mpd_qset_string_exact(result.get(), text.c_str(), &status);
+    requireNumber(result, status, text);
     return result;
 }
 
@@ -123,6 +145,7 @@ MATH_DECIMAL_UNARY(ceil, mpd_qceil)
 MATH_DECIMAL_UNARY(trunc, mpd_qtrunc)
 MATH_DECIMAL_UNARY(log10, mpd_qlog10)
 MATH_DECIMAL_UNARY(round, mpd_qplus)
+MATH_DECIMAL_UNARY(reduce, mpd_qreduce)
 
 Decimal DecimalContext::integer(long long value) const
 {
@@ -144,10 +167,10 @@ Decimal DecimalContext::roundToInteger(const Decimal &a) const
     return result;
 }
 
-long DecimalContext::exponent(const Decimal &a) const
+int64_t DecimalContext::exponent(const Decimal &a) const
 {
-    if (mpd_iszero(a.get())) return LONG_MIN;
-    return static_cast<long>(mpd_adjexp(a.get()));
+    if (mpd_iszero(a.get())) return ZERO_EXPONENT;
+    return static_cast<int64_t>(mpd_adjexp(a.get()));
 }
 
 int DecimalContext::compare(const Decimal &a, const Decimal &b) const
@@ -199,17 +222,39 @@ Decimal DecimalContext::pi() const
 std::string DecimalContext::text(const Decimal &a, long digits) const
 {
     uint32_t status = 0;
-    Decimal rounded(a);
     mpd_context_t context = context_;
     context.prec = digits;
+    Decimal rounded(a);
     mpd_qfinalize(rounded.get(), &context, &status);
+    Decimal reduced;
+    mpd_qreduce(reduced.get(), rounded.get(), &context, &status);
     check(status);
-    char *formatted = mpd_qformat(rounded.get(), ("." + std::to_string(digits) + "g").c_str(), &context, &status);
+    if (mpd_iszero(reduced.get())) return "0";
+    const int64_t first = static_cast<int64_t>(mpd_adjexp(reduced.get()));
+    char *formatted = mpd_qformat(reduced.get(), first >= -6 && first < digits ? "f" : "e", &context, &status);
     check(status);
     if (!formatted) throw std::bad_alloc();
     std::string result(formatted);
     mpd_free(formatted);
     return result;
+}
+
+bool DecimalContext::nearHalf(const Decimal &a, long digits, double error) const
+{
+    if (isZero(a)) return false;
+    const DecimalContext above(digits + 1);
+    const Decimal half = above.reduce(above.round(a));
+    if (static_cast<long>(half.get()->digits) != digits + 1 || mpd_lsd(half.get()->data[0]) != 5) return false;
+    const int64_t distance = exponent(sub(a, half));
+    return distance == ZERO_EXPONENT || static_cast<double>(distance) <= error;
+}
+
+Decimal DecimalContext::roundAtHalf(const Decimal &a, long digits, double error) const
+{
+    const DecimalContext target(digits);
+    if (!nearHalf(a, digits, error)) return target.round(a);
+    const DecimalContext above(digits + 1);
+    return target.round(above.round(a));
 }
 
 namespace {
@@ -265,8 +310,8 @@ private:
 
     double exponent(const Decimal &value) const
     {
-        const long e = context_.exponent(value);
-        return e == LONG_MIN ? EXACT : static_cast<double>(e);
+        const int64_t e = context_.exponent(value);
+        return e == DecimalContext::ZERO_EXPONENT ? EXACT : static_cast<double>(e);
     }
 
     //The rounding of a value to the digits of the context
@@ -562,10 +607,12 @@ std::string toDecimal(const Expr &expression, long digits)
             continue;
         }
         const bool zero = evaluator.zero(value);
-        const std::string text = zero ? "0" : context.text(value.value, digits);
         //An exact 0 (no rounding in it)
         if (context.isZero(value.value) && value.noise <= EXACT / 2) return "0";
-        if (guard >= 640 || (!zero && text == previous)) return text;
+        if (guard >= 640) return zero ? "0" : context.text(context.roundAtHalf(value.value, digits, value.noise + 1), digits);
+        const std::string text = zero ? "0" : context.text(value.value, digits);
+        //Two agreeing roundings, not of a value within its error of a half (they would agree on either side of it)
+        if (!zero && text == previous && !context.nearHalf(value.value, digits, value.noise + 1)) return text;
         previous = zero ? "" : text;
     }
 }

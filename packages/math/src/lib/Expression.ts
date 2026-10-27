@@ -1,12 +1,14 @@
 import {MathArgumentException} from '../exceptions/MathArgumentException.js'
 import {MathSyntaxException} from '../exceptions/MathSyntaxException.js'
 import type {AsyncOptions, Context} from './Context.js'
+import {Decimal} from './Decimal.js'
 import {type Handle, nativeCall, type NativeParsed, type NativeSolutions} from './Native.js'
 
 /**
- * A value given where an expression is expected: an expression, a number (exact: `0.1` is `1/10`), a formula
+ * A value given where an expression is expected: an expression, a number (exact: `0.1` is `1/10`), a decimal (exact),
+ * a formula
  */
-export type Value = Expression | number | bigint | string
+export type Value = Expression | Decimal | number | bigint | string
 
 /**
  * The domain of the solutions of an equation: the complex numbers (the default) or the real ones
@@ -75,10 +77,11 @@ export interface RectangularForm {
  */
 export function handleOf(context: Context, value: Value): Handle {
     if (value instanceof Expression) return value.handle
+    if (value instanceof Decimal) return expressionOf(context, value.toString()).handle
     if (typeof value === 'number') return nativeCall((native) => native.number(value))
     if (typeof value === 'bigint') return expressionOf(context, value.toString()).handle
     if (typeof value === 'string') return expressionOf(context, value).handle
-    throw new MathArgumentException('Not an expression, a number or a formula')
+    throw new MathArgumentException('Not an expression, a number, a decimal or a formula')
 }
 
 /**
@@ -253,9 +256,11 @@ export class Expression {
 
     /**
      * The value of an expression without variables as a decimal of a number of significant digits, as a string
-     * (`3.14159265358979323846`), correctly rounded: it is computed again with more digits until two results agree. A
-     * value that cannot be told from 0, even with 640 more digits, is `0` (`ln(6) - ln(2) - ln(3)`), and a rounding
-     * function at a jump within the error of its argument takes the value of the jump (`floor(ln(8)/ln(2))` is 3).
+     * (`3.14159265358979323846`), correctly rounded: it is computed again with more digits until two results agree. It
+     * is written as `Decimal.toString()` writes its digits, without trailing zeros (`3`, `1e+25`). A value that cannot
+     * be told from 0, even with 640 more digits, is `0` (`ln(6) - ln(2) - ln(3)`); a value exactly halfway between two
+     * decimals of that many digits is rounded to the even one; a rounding function at a jump within the error of its
+     * argument takes the value of the jump (`floor(ln(8)/ln(2))` is 3).
      * It computes the arithmetic, powers and roots, `exp` and `ln`, the trigonometric and hyperbolic functions and
      * their inverses, the rounding functions, `pi`, `e`, `phi`, `EulerGamma` and `Catalan`, of real values.
      * @param digits The significant digits: the `precision` of the component by default.

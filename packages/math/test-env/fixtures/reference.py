@@ -317,6 +317,109 @@ def ntheory():
     save('ntheory', results)
 
 
+def decimal_result(value, digits):
+    """A decimal rounded to a number of significant digits (halves to even), written as Decimal.toString() writes it:
+    its shortest digits, fixed for the exponents from -6 to digits - 1, scientific beyond"""
+    with decimal.localcontext() as context:
+        context.prec = digits
+        context.rounding = decimal.ROUND_HALF_EVEN
+        value = +value
+        if value == 0:
+            return '0'
+        value = value.normalize()
+    return format(value, 'f' if -6 <= value.adjusted() < digits else 'e')
+
+
+def mpmath_result(operate, digits, *values):
+    """The value of a function of mpmath, 30 more digits, then rounded half to even"""
+    with mpmath.workdps(digits + 30):
+        value = operate(*[mpmath.mpf(str(v)) for v in values])
+        return decimal_result(decimal.Decimal(mpmath.nstr(value, digits + 30)), digits)
+
+
+def exact(operate):
+    """An operation of Python's decimal computed exactly (100000 digits), the sign of a remainder fixed"""
+    with decimal.localcontext() as context:
+        context.prec = 100000
+        context.Emax = decimal.MAX_EMAX
+        context.Emin = decimal.MIN_EMIN
+        context.traps[decimal.Inexact] = True
+        return operate()
+
+
+def remainder(a, b):
+    """a - b floor(a/b): the remainder of the sign of b"""
+    r = exact(lambda: a % b)
+    return exact(lambda: r + b) if r != 0 and (r < 0) != (b < 0) else r
+
+
+def quantized(a, places):
+    """a rounded to a number of places, halves away from zero"""
+    with decimal.localcontext() as context:
+        context.prec = 100000
+        return a.quantize(decimal.Decimal(1).scaleb(-places), rounding=decimal.ROUND_HALF_UP)
+
+
+def decimal_operation(op, digits, args):
+    """The result of an operation of Decimal: the first value rounded to the precision, the second one exact"""
+    with decimal.localcontext() as context:
+        context.prec = digits
+        context.rounding = decimal.ROUND_HALF_EVEN
+        a = +decimal.Decimal(args[0])
+    b = decimal.Decimal(args[1]) if len(args) > 1 else None
+    functions = {
+        'exp': mpmath.exp, 'ln': mpmath.ln, 'log10': mpmath.log10, 'sin': mpmath.sin, 'cos': mpmath.cos,
+        'tan': mpmath.tan, 'asin': mpmath.asin, 'acos': mpmath.acos, 'atan': mpmath.atan, 'sinh': mpmath.sinh,
+        'cosh': mpmath.cosh, 'tanh': mpmath.tanh, 'asinh': mpmath.asinh, 'acosh': mpmath.acosh, 'atanh': mpmath.atanh
+    }
+    if op == 'round':
+        return decimal_result(a, digits)
+    if op in ('add', 'sub', 'mul', 'div'):
+        return decimal_result(_arithmetic(op, a, b, digits), digits)
+    if op == 'mod':
+        return decimal_result(remainder(a, b), digits)
+    if op == 'pow':
+        if b == b.to_integral_value():
+            return decimal_result(exact(lambda: a ** b) if b >= 0 else _arithmetic('div', decimal.Decimal(1), exact(lambda: a ** -b), digits), digits)
+        return mpmath_result(mpmath.power, digits, a, b)
+    if op == 'sqrt':
+        with decimal.localcontext() as context:
+            context.prec = digits
+            context.rounding = decimal.ROUND_HALF_EVEN
+            return decimal_result(a.sqrt(), digits)
+    if op == 'root':
+        n = int(b)
+        return mpmath_result(lambda x: mpmath.sign(x) * mpmath.root(abs(x), n), digits, a)
+    if op == 'log':
+        return mpmath_result(mpmath.log, digits, a, b)
+    if op == 'atan2':
+        return mpmath_result(mpmath.atan2, digits, a, b)
+    if op in functions:
+        return mpmath_result(functions[op], digits, a)
+    if op in ('floor', 'ceil', 'trunc'):
+        rounding = {'floor': decimal.ROUND_FLOOR, 'ceil': decimal.ROUND_CEILING, 'trunc': decimal.ROUND_DOWN}[op]
+        return decimal_result(exact(lambda: a.to_integral_value(rounding=rounding)), digits)
+    if op == 'roundTo':
+        return decimal_result(quantized(a, int(b)), digits)
+    if op == 'fixed':
+        value = quantized(a, int(b))
+        return format(abs(value) if value == 0 else value, 'f')
+    raise AssertionError('Unknown operation ' + op)
+
+
+def _arithmetic(op, a, b, digits):
+    """The arithmetic of Python's decimal at a precision: correctly rounded, halves to even"""
+    with decimal.localcontext() as context:
+        context.prec = digits
+        context.rounding = decimal.ROUND_HALF_EVEN
+        return {'add': lambda: a + b, 'sub': lambda: a - b, 'mul': lambda: a * b, 'div': lambda: a / b}[op]()
+
+
+def decimals():
+    save('decimals', [{**case, 'result': decimal_operation(case['op'], case['precision'], case['args'])}
+                      for case in load('decimals')])
+
+
 if __name__ == '__main__':
     grammar()
     numbers()
@@ -328,5 +431,6 @@ if __name__ == '__main__':
     systems()
     polynomials()
     ntheory()
+    decimals()
     print('SymPy', sympy.__version__, 'wrote', ', '.join(sorted(os.listdir(os.path.join(HERE, 'expected')))))
     sys.exit(0)

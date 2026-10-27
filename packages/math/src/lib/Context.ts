@@ -23,7 +23,7 @@ export interface AsyncOptions {
  */
 export interface ContextSettings {
     /**
-     * The significant digits of `toDecimal()` when none are given
+     * The significant digits of `toDecimal()` and of `decimal()` when none are given
      */
     precision: number
     /**

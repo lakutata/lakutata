@@ -2,7 +2,7 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
 import {Container} from '@lakutata/core'
-import {Expression, Math, MathException, type PrimeFactor, type Solutions, type SystemSolution} from '../exports/Math.js'
+import {type Decimal, Expression, Math, MathException, type PrimeFactor, type Solutions, type SystemSolution} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -88,6 +88,22 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
             for (const [digits, text] of Object.entries(fixture.decimals ?? {})) {
                 assert.strictEqual(decimalParts(expression.toDecimal(Number(digits))), decimalParts(text), `${fixture.text} to ${digits} digits`)
             }
+        }
+    })
+
+    it('give the decimals of Python (arithmetic) and mpmath (functions), correctly rounded', (): void => {
+        const fixtures = expected<{op: string, precision: number, args: string[], result: string}>('decimals')
+        for (const fixture of fixtures.cases) {
+            const [first, second] = fixture.args
+            const decimal: Decimal = math.decimal(first, {precision: fixture.precision})
+            const operations: Record<string, () => Decimal | string> = {
+                round: (): Decimal => decimal,
+                root: (): Decimal => decimal.root(Number(second)),
+                roundTo: (): Decimal => decimal.round(Number(second)),
+                fixed: (): string => decimal.toFixed(Number(second))
+            }
+            const operate: () => Decimal | string = operations[fixture.op] ?? ((): Decimal => (decimal[fixture.op as keyof Decimal] as (value?: string) => Decimal).call(decimal, second))
+            assert.strictEqual(String(operate()), fixture.result, `${fixture.op}(${fixture.args.join(', ')}) to ${fixture.precision} digits`)
         }
     })
 

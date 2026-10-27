@@ -1,6 +1,7 @@
 import {Component, type ComponentOptions, DTO} from '@lakutata/core'
 import {Autoload, Configurable} from '@lakutata/core/decorator/di'
 import {AsyncTracker, type AsyncOptions, Context, definitionsOf} from '../lib/Context.js'
+import type {Decimal, DecimalOptions, DecimalValue} from '../lib/Decimal.js'
 import type {Equation, Expression, Inequality, Value} from '../lib/Expression.js'
 import {type CommonSubexpressions, type CseOptions, type MathDefinitions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
 import {native, nativeCall} from '../lib/Native.js'
@@ -16,7 +17,7 @@ export interface MathConfig {
      */
     definitions?: MathDefinitions
     /**
-     * The significant digits of `toDecimal()` when none are given.
+     * The significant digits of `toDecimal()` and of `decimal()` when none are given.
      * @default 32
      */
     precision?: number
@@ -87,7 +88,7 @@ export class Math extends Component {
     protected readonly definitions?: MathDefinitions
 
     /**
-     * The significant digits of `toDecimal()` when none are given.
+     * The significant digits of `toDecimal()` and of `decimal()` when none are given.
      */
     @Configurable(DTO.Number().integer().min(1).max(100000).optional())
     protected readonly precision?: number
@@ -175,6 +176,17 @@ export class Math extends Component {
      */
     public expression(value: Value): Expression {
         return this.#scope.expression(value)
+    }
+
+    /**
+     * A decimal of a precision: a value rounded to that many significant digits (halves to even). A number is read by
+     * its shortest representation (`0.1` is 0.1), a string as a decimal number (`'19.99'`); an expression is computed,
+     * as `toDecimal()` does. The operations of the decimal give results of its precision, correctly rounded.
+     * @param value A decimal number (a number, a bigint, a string, a decimal) or an expression without variables.
+     * @param options The precision: the `precision` of the component by default.
+     */
+    public decimal(value: DecimalValue | Expression, options?: DecimalOptions): Decimal {
+        return this.#scope.decimal(value, options)
     }
 
     /**

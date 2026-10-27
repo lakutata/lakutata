@@ -3,8 +3,9 @@
 English | [中文](README.zh-CN.md)
 
 Symbolic mathematics for the [lakutata](https://github.com/lakutata/lakutata) framework: formulas written the way they
-are on paper (`x^2 - 5x + 6`, `2(x + 1)`), expanded, derived, solved and evaluated with exact numbers. The work is done
-by a native addon built on [SymEngine](https://github.com/symengine/symengine), compiled when the package is installed.
+are on paper (`x^2 - 5x + 6`, `2(x + 1)`), expanded, derived, solved and evaluated with exact numbers or with decimals
+of a chosen precision. The work is done by a native addon built on [SymEngine](https://github.com/symengine/symengine)
+and [mpdecimal](https://www.bytereef.org/mpdecimal/), compiled when the package is installed.
 The long operations can run in the addon's own threads, with a time limit and a cancellation. The `lakutata` package
 does not re-export this package: import it from `@lakutata/math`.
 
@@ -130,10 +131,11 @@ stays a power (`2^(10^7)`), and a factorial above `20000!` stays as `gamma(n + 1
   are right, also where doubles have none (`cos(10^30)`); the rest in doubles. Both compute the special functions
   (gamma, zeta, Lambert W, polygamma, erf…) of real and complex arguments.
 - `toDecimal(digits)` gives a string with that many significant digits, correctly rounded (the `precision` of the
-  component by default): the value is computed again with more digits until two results agree. It computes the
-  arithmetic, powers and roots, `exp` and `ln`, the trigonometric and hyperbolic functions and their inverses, the
-  rounding functions and the constants. A value that cannot be told from 0, even with 640 more digits, is `0` (`ln(6) -
-  ln(2) - ln(3)`).
+  component by default), written as `Decimal` writes its digits (see below): `3`, not `3.000…`. The value is computed
+  again with more digits until two results agree. It computes the arithmetic, powers and roots, `exp` and `ln`, the
+  trigonometric and hyperbolic functions and their inverses, the rounding functions and the constants. A value that
+  cannot be told from 0, even with 640 more digits, is `0` (`ln(6) - ln(2) - ln(3)`); a value exactly halfway between
+  two decimals of that many digits is rounded to the even one (`ln(8)/ln(4)`, which is 1.5, gives `2` to one digit).
 - `compile()` computes in doubles, for speed: where doubles have no digit of a value, the compiled function has none
   either.
 - `toRectangular()` gives the real and the imaginary parts of an expression (`{real, imaginary}`), `toPolar()` its
@@ -149,6 +151,41 @@ function plot(math: Math): Float64Array {
     const f = math.expression('x^2 + sin(y)').compile(['x', 'y'])
     console.log(f(2, 0))                                                   //4
     return f.batch(Float64Array.of(1, 0, 2, 0, 3, 0))                      //[1, 4, 9]
+}
+```
+
+### Decimals
+
+`math.decimal(value, {precision})` gives a `Decimal`: a decimal number with at most `precision` significant digits
+(by default the `precision` of the component, 32), for amounts of money, or for values that need many digits. Each
+operation rounds its result correctly to that precision: to the nearest decimal with that many digits, halves to even.
+A decimal does not change: each operation gives a new one.
+
+- Values are read as they are written: a number by its shortest representation (`0.1` is 0.1, not the binary value of
+  the double), a string as a decimal number (`'19.99'`, `'1.5e-7'`), a bigint exactly. An expression without variables
+  is computed, as `toDecimal()` does: `math.decimal(math.expression('pi'), {precision: 50})`.
+- A result has the precision of the decimal it is computed from: `a.add(b)` has the precision of `a`. The values given
+  to an operation are read with all their digits.
+- The operations: `add`, `sub`, `mul`, `div`, `mod` (with the sign of the divisor, as `mod()` in formulas), `pow`,
+  `neg`, `abs`, `sqrt`, `cbrt`, `root(n)`, `exp`, `ln`, `log10`, `log(base)`, the trigonometric and hyperbolic
+  functions and their inverses, `atan2(x)`, `floor`, `ceil`, `trunc`, `round(places)` (halves away from zero, as
+  `round()` in formulas), `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`.
+- `toString()` writes the digits without trailing zeros, in fixed-point notation when the first digit is between the
+  10^-6 place and the 10^(precision - 1) place, in scientific notation otherwise (`1.5`, `0.000025`, `1.5e+25`, `1e-7`).
+  `toFixed(places)` writes a given number of places after the point (`toFixed(2)` of 1.5 is `1.50`), and `toNumber()`
+  gives the nearest number. A decimal is also an exact value in formulas: `math.expression(decimal)`.
+- The operations run on the JavaScript thread, without a time limit. Arithmetic is fast at any precision, but the
+  functions take seconds at tens of thousands of digits: for those, compute an expression with `toDecimalAsync()`,
+  which has a time limit, and make a decimal of its result.
+
+```typescript
+import type {Math} from '@lakutata/math'
+
+function decimals(math: Math): void {
+    console.log(math.decimal(0.1).add(0.2).toString())                           //0.3
+    console.log(math.decimal('19.99').mul(3).toFixed(2))                         //59.97
+    console.log(math.decimal(1, {precision: 5}).div(3).toString())               //0.33333
+    console.log(math.decimal(2, {precision: 40}).sqrt().toString())              //1.41421356237309504880168872420969807857
 }
 ```
 
@@ -255,10 +292,11 @@ The bundles, the executables and the installers made by `lakutata package` carry
 
 | Export | What it is |
 |---|---|
-| `Math` | The component: `parse`, `expression`, `equation`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory` |
+| `Math` | The component: `parse`, `expression`, `equation`, `decimal`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory` |
 | `buildMathOptions`, `MathConfig` | Its declaration in the components, and its options: `definitions`, `precision`, `timeout`, `concurrency`, `drainTimeout` |
 | `MathScope`, `MathDefinitions` | The scope given by `with()`, with the methods of the component except `ntheory`; the definitions (a body by signature) |
 | `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
+| `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`math.decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
 | `CommonSubexpressions`, `CseOptions` | The result of `cse()` (`replacements`, `expressions`) and its option (`prefix`) |
 | `PolarForm`, `RectangularForm` | The polar form (`modulus`, `argument`) and the rectangular form (`real`, `imaginary`) of a complex value |
 | `Equation`, `Inequality`, `InequalityRelation` | An equation (`left`, `right`, `difference`, `substitute`, `solve`, `solveAsync`), an inequality (`left`, `right`, `relation`) |
@@ -266,7 +304,7 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | `SystemSolution`, `SystemEquation` | A solution of a system (an expression by variable), an equation of a system |
 | `CompiledFunction` | A compiled expression: a function of numbers, its `variables`, `batch` |
 | `NumberTheory`, `IntegerValue`, `PrimeFactor`, `ExtendedGcd`, `Congruence` | The number theory (`math.ntheory`): `gcd`, `lcm`, `extendedGcd`, `mod`, `modInverse`, `powMod`, `isPrime`, `nextPrime`, `factor`, `totient`, `mobius`, `primitiveRoot`, `legendre`, `jacobi`, `crt`, `fibonacci`, `lucas`, `binomial`, `factorial`, `doubleFactorial`, `bernoulli`, `harmonic`, and the asynchronous versions; an integer (a bigint, or a number that is a safe integer); a prime factor and its exponent; the result of `extendedGcd`; the result of `crt` |
-| `AsyncOptions`, `Value` | The options of the asynchronous operations (`timeout`, `signal`); what is given where an expression is expected (an expression, a number, a bigint, a formula) |
+| `AsyncOptions`, `Value` | The options of the asynchronous operations (`timeout`, `signal`); what is given where an expression is expected (an expression, a number, a bigint, a decimal, a formula) |
 
 The typings document every declaration, with examples.
 
@@ -277,10 +315,10 @@ The typings document every declaration, with examples.
 | `MathSyntaxException` | A formula is not written correctly (with the `position` of the error), an equation is given where an expression is expected, or the other way round |
 | `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined, or a constant written as a call (`g(2)`), with its `position` |
 | `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep |
-| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`) |
-| `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, and the logarithm of 0), a modulus of 0 |
-| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` above 2000, `harmonic(n)` above 50000, code with a function the language does not have, a complex number such as `2i`, or a variable named like a reserved word of the language |
-| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked |
+| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power) |
+| `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1), a modulus of 0 |
+| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` above 2000, `harmonic(n)` above 50000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, or a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`) |
+| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000 |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |
 
