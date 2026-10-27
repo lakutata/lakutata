@@ -1241,6 +1241,8 @@ export async function checkSums(math: MathScope, random: Random, index: number):
         if (random.chance(0.7)) kinds.push(Array.from({length: 1 + random.int(4)}, (_: unknown, power: number): string => `(${small()})*k^${power}`).join(' + '))
         if (random.chance(0.5)) kinds.push(`(${small()})*(${['2', '1/2', '-3', '2/3', 'x'][random.int(5)]})^k`)
         if (random.chance(0.2)) kinds.push(`x*k^${random.int(3)}`)
+        //Hypergeometric terms: Gosper's algorithm
+        if (random.chance(0.3)) kinds.push([`k^${1 + random.int(2)}*2^k`, `k*k!`, `1/((k + ${1 + random.int(3)})(k + ${4 + random.int(3)}))`, `k*(1/3)^k`, `(k + 1)/(k + 2)!`][random.int(5)]!)
         if (kinds.length === 0) kinds.push('k')
         const term: string = kinds.join(' + ')
         const low: number = random.int(3)

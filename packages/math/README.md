@@ -119,10 +119,11 @@ from `b + 1` to `a - 1` with the sign changed (the reciprocal of the product). B
 terms are computed one by one, exactly. Otherwise a closed form is looked for: the sum of a polynomial in `k` (`sum(k^2,
 k, 1, n)` is `n^3/3 + n^2/2 + n/6`), of a geometric series (`sum(x^k, k, 0, n)` is `piecewise(n + 1, x = 1, (-x^(n + 1)
 + 1)/(-x + 1))`; to `inf`, its value where `abs(x) < 1`), of a power of `1/(k + q)` (with `zeta` and `polygamma`:
-`sum(1/k^2, k, 1, inf)` is `pi^2/6`), or of a sum of these, term by term; the product of powers, or of a fraction of
-polynomials with linear factors (with `gamma`: `product(1 - 1/k^2, k, 2, n)` is `(n + 1)/(2n)`). The others stay as
-`sum(…)` and `product(…)`: their values are computed term by term between integers, up to 10^4 terms, and they cannot be
-compiled.
+`sum(1/k^2, k, 1, inf)` is `pi^2/6`), of a hypergeometric term, by Gosper's algorithm (`sum(k*2^k, k, 1, n)` is `2(n -
+1)*2^n + 2`, `sum(1/(k*(k + 1)), k, 1, n)` is `n/(n + 1)`, `sum(k*k!, k, 1, n)` is `gamma(n + 2) - 1`), or of a sum of
+such terms, one by one; the product of powers, or of a fraction of polynomials with linear factors (with `gamma`:
+`product(1 - 1/k^2, k, 2, n)` is `(n + 1)/(2n)`). The others stay as `sum(…)` and `product(…)`: their values are
+computed term by term between integers, up to 10^4 terms, and they cannot be compiled.
 
 ```typescript
 import {expression} from '@lakutata/math'

@@ -30,6 +30,21 @@ describe('The sums and the products', (): void => {
         for (const [given, expected] of cases) assert.strictEqual(text(given), expected, given)
     })
 
+    it('find the sums of hypergeometric terms by Gosper\'s algorithm', (): void => {
+        const cases: [string, string][] = [
+            ['sum(k*2^k, k, 1, n)', '2(n - 1)*2^n + 2'],
+            ['sum(k*k!, k, 1, n)', 'gamma(n + 2) - 1'],
+            ['sum(1/(k*(k + 1)), k, 1, n)', 'n/(n + 1)'],
+            ['sum(k/(k + 1)!, k, 1, n)', '-1/gamma(n + 2) + 1'],
+            ['sum(1/(k^2 + 3k + 2), k, 0, n)', '(n + 1)/(n + 2)'],
+            ['sum(k*x^k, k, 0, n)', 'piecewise(n^2/2 + n/2, x = 1, x^(n + 1)*(n*x - n - 1)/(x - 1)^2 + x/(x - 1)^2)']
+        ]
+        for (const [given, expected] of cases) assert.strictEqual(text(given), expected, given)
+        //Not hypergeometric, or without a hypergeometric antidifference
+        assert.strictEqual(text('sum(sin(k), k, 1, n)'), 'sum(sin(k), k, 1, n)')
+        assert.strictEqual(text('sum(binomial(n, k), k, 0, n)'), 'sum(gamma(n + 1)/(gamma(k + 1)*gamma(-k + n + 1)), k, 0, n)')
+    })
+
     it('add and multiply the terms between integers, the limits reversed as in SymPy', (): void => {
         assert.strictEqual(text('sum(1/k^2, k, 1, 10)'), '1968329/1270080')
         assert.strictEqual(text('sum(x^k, k, 0, 3)'), 'x^3 + x^2 + x + 1')

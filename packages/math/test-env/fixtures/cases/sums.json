@@ -32,5 +32,16 @@
  {"text": "product(k/2 + 1/4, k, 0, n)", "sympy": "Product(k/2 + Rational(1, 4), (k, 0, n))"},
  {"text": "product(k, k, 1, 5)", "sympy": "Product(k, (k, 1, 5))"},
  {"text": "product(k, k, 3, 1)", "sympy": "Product(k, (k, 3, 1))"},
- {"text": "product(k^2 + 1, k, 1, n)", "sympy": "Product(k**2 + 1, (k, 1, n))", "differs": {"sympy": "SymPy writes it with the rising factorials of the complex roots of k^2 + 1; here a factor of degree 2 is kept as a product"}}
+ {"text": "product(k^2 + 1, k, 1, n)", "sympy": "Product(k**2 + 1, (k, 1, n))", "differs": {"sympy": "SymPy writes it with the rising factorials of the complex roots of k^2 + 1; here a factor of degree 2 is kept as a product"}},
+ {"text": "sum(k*2^k, k, 1, n)", "sympy": "Sum(k*2**k, (k, 1, n))"},
+ {"text": "sum(k*k!, k, 1, n)", "sympy": "Sum(k*factorial(k), (k, 1, n))"},
+ {"text": "sum(1/(k*(k + 1)), k, 1, n)", "sympy": "Sum(1/(k*(k + 1)), (k, 1, n))"},
+ {"text": "sum(k^2*3^k, k, 0, n)", "sympy": "Sum(k**2*3**k, (k, 0, n))"},
+ {"text": "sum(k/(k + 1)!, k, 1, n)", "sympy": "Sum(k/factorial(k + 1), (k, 1, n))"},
+ {"text": "sum((k + 1)/2^k, k, 0, n)", "sympy": "Sum((k + 1)/2**k, (k, 0, n))"},
+ {"text": "sum(1/((2k - 1)(2k + 1)), k, 1, n)", "sympy": "Sum(1/((2*k - 1)*(2*k + 1)), (k, 1, n))"},
+ {"text": "sum(k*x^k, k, 0, n)", "sympy": "Sum(k*x**k, (k, 0, n))"},
+ {"text": "sum(1/(k^2 + 3k + 2), k, 0, n)", "sympy": "Sum(1/(k**2 + 3*k + 2), (k, 0, n))"},
+ {"text": "sum(binomial(n, k), k, 0, n)", "sympy": "Sum(binomial(n, k), (k, 0, n))"},
+ {"text": "sum(k^3*2^k/((k + 1)(k + 2)), k, 1, n)", "sympy": "Sum(k**3*2**k/((k + 1)*(k + 2)), (k, 1, n))"}
 ]

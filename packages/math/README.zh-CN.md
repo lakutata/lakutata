@@ -80,7 +80,7 @@ console.log(f.substitute({x: -3}).toString()) //9
 console.log(f.toTeX())                        //\begin{cases} x^{2} & \text{for}\: x < 0 \\ x & \text{otherwise} \end{cases}
 ```
 
-`sum(f, k, a, b)` 和 `product(f, k, a, b)` 是 `f` 在 `k` 从 `a` 到 `b` 时的和与积，`a`、`b` 是整数、`-inf`、`inf`，或者其他变量的表达式。`k` 是约束变量：它不算表达式的变量，`substitute()` 和 `diff()` 都不碰它。和 SymPy 一样，`b = a - 1` 时和是 0（积是 1），`b < a - 1` 时是从 `b + 1` 到 `a - 1` 的和取相反数（积取倒数）。上下限是相差不超过 1000 的整数时逐项精确计算。否则寻找闭式：`k` 的多项式（`sum(k^2, k, 1, n)` 是 `n^3/3 + n^2/2 + n/6`）、几何级数（`sum(x^k, k, 0, n)` 是 `piecewise(n + 1, x = 1, (-x^(n + 1) + 1)/(-x + 1))`；到 `inf` 时在 `abs(x) < 1` 处取它的值）、`1/(k + q)` 的幂（用 `zeta` 和 `polygamma` 表示：`sum(1/k^2, k, 1, inf)` 是 `pi^2/6`），和式按项分别求；幂的积，以及因式都是一次的多项式分式的积（用 `gamma` 表示：`product(1 - 1/k^2, k, 2, n)` 是 `(n + 1)/(2n)`）。其余的保持 `sum(…)` 和 `product(…)` 的形式：上下限是整数时逐项求值，最多 10^4 项，不能编译。
+`sum(f, k, a, b)` 和 `product(f, k, a, b)` 是 `f` 在 `k` 从 `a` 到 `b` 时的和与积，`a`、`b` 是整数、`-inf`、`inf`，或者其他变量的表达式。`k` 是约束变量：它不算表达式的变量，`substitute()` 和 `diff()` 都不碰它。和 SymPy 一样，`b = a - 1` 时和是 0（积是 1），`b < a - 1` 时是从 `b + 1` 到 `a - 1` 的和取相反数（积取倒数）。上下限是相差不超过 1000 的整数时逐项精确计算。否则寻找闭式：`k` 的多项式（`sum(k^2, k, 1, n)` 是 `n^3/3 + n^2/2 + n/6`）、几何级数（`sum(x^k, k, 0, n)` 是 `piecewise(n + 1, x = 1, (-x^(n + 1) + 1)/(-x + 1))`；到 `inf` 时在 `abs(x) < 1` 处取它的值）、`1/(k + q)` 的幂（用 `zeta` 和 `polygamma` 表示：`sum(1/k^2, k, 1, inf)` 是 `pi^2/6`）、超几何项（Gosper 算法：`sum(k*2^k, k, 1, n)` 是 `2(n - 1)*2^n + 2`，`sum(1/(k*(k + 1)), k, 1, n)` 是 `n/(n + 1)`，`sum(k*k!, k, 1, n)` 是 `gamma(n + 2) - 1`），和式按项分别求；幂的积，以及因式都是一次的多项式分式的积（用 `gamma` 表示：`product(1 - 1/k^2, k, 2, n)` 是 `(n + 1)/(2n)`）。其余的保持 `sum(…)` 和 `product(…)` 的形式：上下限是整数时逐项求值，最多 10^4 项，不能编译。
 
 ```typescript
 import {expression} from '@lakutata/math'

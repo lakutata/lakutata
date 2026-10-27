@@ -24,6 +24,7 @@
 #include <symengine/visitor.h>
 
 #include "../async/Pool.h"
+#include "Gosper.h"
 #include "../core/Errors.h"
 #include "../ops/Operations.h"
 #include "../ops/Piecewise.h"
@@ -253,6 +254,33 @@ std::optional<Expr> reciprocalPowerSum(const Expr &term, const RCP<const Symbol>
 
 std::optional<Expr> closedSum(const Expr &term, const RCP<const Symbol> &k, const Expr &low, const Expr &high);
 
+//The sum by Gosper's algorithm; where the term has a geometric ratio r of other variables (x^k), the sum where r = 1 in
+//a piecewise expression, as for a geometric series (the formula for k x^k has a pole at x = 1)
+std::optional<Expr> hypergeometricSum(const Expr &term, const RCP<const Symbol> &k, const Expr &low, const Expr &high)
+{
+    const std::optional<Expr> sum = gosperSum(term, k, low, high);
+    if (!sum) return std::nullopt;
+    RCP<const Number> number;
+    std::vector<std::pair<Expr, Expr>> factors;
+    factorsOf(term, number, factors);
+    Expr ratio = one, atOne = number;
+    for (const auto &[base, exponent] : factors) {
+        if (!has(base, k) && has(exponent, k)) {
+            const std::optional<std::vector<Expr>> linear = polynomialIn(exponent, k);
+            if (!linear || linear->size() != 2) return sum;
+            ratio = mul(ratio, pow(base, (*linear)[1]));
+            atOne = mul(atOne, pow(base, (*linear)[0]));
+        } else {
+            atOne = mul(atOne, pow(base, exponent));
+        }
+    }
+    const RCP<const Boolean> unit = relationOf("=", ratio, one);
+    if (eq(*ratio, *one) || decidedOf(unit) == 0) return sum;
+    const std::optional<Expr> whereOne = closedSum(atOne, k, low, high);
+    if (!whereOne) return sum;
+    return SymEngine::piecewise({{*whereOne, unit}, {*sum, boolTrue}});
+}
+
 //The sum of a term times the factors without k: those factors times the sum of the rest
 std::optional<Expr> scaledSum(const Expr &term, const RCP<const Symbol> &k, const Expr &low, const Expr &high)
 {
@@ -288,6 +316,7 @@ std::optional<Expr> closedSum(const Expr &term, const RCP<const Symbol> &k, cons
     }
     if (const std::optional<Expr> geometric = geometricSum(term, k, low, high)) return geometric;
     if (const std::optional<Expr> reciprocal = reciprocalPowerSum(term, k, low, high)) return reciprocal;
+    if (const std::optional<Expr> hypergeometric = hypergeometricSum(term, k, low, high)) return hypergeometric;
     return std::nullopt;
 }
 
