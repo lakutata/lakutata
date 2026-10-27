@@ -81,7 +81,9 @@
       'sources': ['<!@(node scripts/sources.mjs math)'],
       'dependencies': ['cxx', 'mpdecimal', 'symengine'],
       'include_dirs': ['native', "<!(node -p \"require('node-addon-api').include_dir\")", 'vendor/eigen'],
-      'defines': ['NAPI_VERSION=8', 'NAPI_CPP_EXCEPTIONS', 'NODE_ADDON_API_DISABLE_DEPRECATED', 'EIGEN_MPL2_ONLY']
+      # A worker thread terminated while an error is thrown to it: node-addon-api would throw a C++ exception no one
+      # catches (std::terminate) where the environment refuses the JavaScript one; it lets it go instead
+      'defines': ['NAPI_VERSION=8', 'NAPI_CPP_EXCEPTIONS', 'NODE_API_SWALLOW_UNTHROWABLE_EXCEPTIONS', 'NODE_ADDON_API_DISABLE_DEPRECATED', 'EIGEN_MPL2_ONLY']
     }
   ]
 }
