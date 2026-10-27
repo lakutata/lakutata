@@ -152,6 +152,12 @@ private:
 //pi, e, the golden ratio, the constants of Euler and Catalan
 std::string toDecimal(const Expr &expression, long digits);
 
+//The guard digits an evaluation may take beyond the digits asked, its value needing them (sin(10^(10^4)))
+constexpr long MORE_DIGITS = 50000;
+//The guard digits after an evaluation missing some (the error of its value above its target by that many digits):
+//at least twice as many, MathError NotSupported beyond MORE_DIGITS
+long nextGuard(long guard, double missing);
+
 //The value of an expression as a complex number, each part with a number of significant digits, correctly rounded (a
 //part that cannot be told from 0, 640 digits beyond, is 0): the real values, and the complex values of the arithmetic,
 //powers, exp and ln, the trigonometric and hyperbolic functions and their inverses (the principal branches, on their

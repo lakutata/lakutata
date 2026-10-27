@@ -191,6 +191,23 @@ describe('The decimals', (): void => {
         assert.throws((): unknown => math.expression('1 + gamma(1 + i)/10^20').toNumber(), MathDomainException)
     })
 
+    it('take the digits a value needs: an argument too large for the digits, a cancellation of large values', (): void => {
+        //10^1000 sqrt(2) has its first digits after the point 1000 digits down (Python's decimal)
+        assert.strictEqual(math.expression('10^1000*sqrt(2) - floor(10^1000*sqrt(2))').toDecimal(20), '0.089694633862891562883')
+        assert.strictEqual(math.expression('1/sin(10^(10^4))').toDecimal(10), '-1.920145947')
+        assert.strictEqual(math.expression('sin(10^(10^4))').toNumber(), -0.5207937456157552)
+        //0 with 640 digits beyond, the values that cancel large or not
+        assert.strictEqual(math.expression('sinh(200) - cosh(200) + exp(-200)').toDecimal(20), '0')
+        assert.strictEqual(math.expression('ln(6) - ln(2) - ln(3)').toDecimal(20), '0')
+        assert.deepStrictEqual(math.expression('e^(i*10^(10^4))').toComplexDecimal(10), {re: '-0.8536825373', im: '-0.5207937456'})
+        //Up to 50000 digits beyond the ones asked: then MathNotSupportedException, at once
+        assert.ok(globalThis.Math.abs(Number(math.decimal('1e30000', {precision: 10}).sin().toString())) <= 1)
+        assert.throws((): unknown => math.decimal('1e60000', {precision: 10}).sin(), MathNotSupportedException)
+        assert.throws((): unknown => math.expression('sin(10^(10^6))').toDecimal(20), MathNotSupportedException)
+        assert.strictEqual(math.expression('sin(10^(10^6))').compare(0), undefined)
+        assert.strictEqual(math.expression('sin(10^(10^6))').isZero(), undefined)
+    })
+
     it('throw the exceptions of the package', (): void => {
         const cases: [() => unknown, new (...args: never[]) => Error][] = [
             [(): unknown => math.decimal(1).div(0), MathDivisionByZeroException],

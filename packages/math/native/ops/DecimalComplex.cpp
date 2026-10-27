@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 #include <symengine/add.h>
 #include <symengine/complex.h>
@@ -239,7 +240,8 @@ class ComplexEvaluator {
 public:
     //With doubles, the nodes the decimals do not compute (gamma of a complex number) are computed in doubles from the
     //values of their arguments, of an error of 13 digits
-    ComplexEvaluator(const DecimalContext &context, bool last, bool doubles = false) : context_(context), real_(context, last), last_(last), doubles_(doubles)
+    ComplexEvaluator(const DecimalContext &context, bool last, bool doubles = false, double decidable = std::numeric_limits<double>::infinity())
+        : context_(context), real_(context, last, decidable), last_(last), doubles_(doubles), decidable_(decidable)
     {
     }
 
@@ -271,6 +273,7 @@ private:
     Evaluator real_;
     bool last_;
     bool doubles_;
+    double decidable_;
 
     Value applyOrDoubles(const Basic &e, const std::vector<Value> &arguments)
     {
@@ -322,7 +325,7 @@ private:
     {
         Pair pair{a.re, a.im};
         const bool reZero = !context_.isZero(a.re) && zero(a.re, a.reNoise), imZero = !context_.isZero(a.im) && zero(a.im, a.imNoise);
-        if ((reZero || imZero) && !last_) throw Undecided();
+        if ((reZero && (!last_ || a.reNoise > decidable_)) || (imZero && (!last_ || a.imNoise > decidable_))) throw Undecided{noiseOf(a)};
         if (reZero) pair.re = context_.integer(0);
         if (imZero) pair.im = context_.integer(0);
         return pair;
@@ -331,7 +334,7 @@ private:
     //A value that must not be 0: an error at the last evaluation (a division by zero), undecided before
     void notZero(const Value &a, const std::string &error, ErrorCode code = ErrorCode::DivisionByZero) const
     {
-        if (zero(a.re, a.reNoise) && zero(a.im, a.imNoise)) real_.notZero({context_.integer(0), EXACT}, code, error);
+        if (zero(a.re, a.reNoise) && zero(a.im, a.imNoise)) real_.notZero({context_.integer(0), noiseOf(a)}, code, error);
     }
 
     //A value of a function computed in a context of more digits, rounded to this one; the error of both its parts is
@@ -441,7 +444,10 @@ private:
         if (is_a<Sign>(e)) {
             //z/|z|: |d(z/|z|)| <= 2|dz|/|z|
             const Value &z = arguments[0];
-            if (zero(z.re, z.reNoise) && zero(z.im, z.imNoise)) return {context_.integer(0), context_.integer(0), EXACT, EXACT};
+            if (zero(z.re, z.reNoise) && zero(z.im, z.imNoise)) {
+                real_.decide(noiseOf(z));
+                return {context_.integer(0), context_.integer(0), EXACT, EXACT};
+            }
             const DecimalContext g(context_.digits() + 10);
             const ComplexArithmetic arithmetic(g);
             const Decimal modulus = arithmetic.abs({z.re, z.im});
@@ -559,7 +565,10 @@ private:
         }
         //The inverses of the reciprocal functions: of 1/z
         const bool reciprocal = is_a<ACot>(e) || is_a<ASec>(e) || is_a<ACsc>(e) || is_a<ACoth>(e) || is_a<ASech>(e) || is_a<ACsch>(e);
-        if (is_a<ACot>(e) && zero(z.re, z.reNoise) && zero(z.im, z.imNoise)) return fromReal({context_.div(context_.pi(), context_.integer(2)), EXACT});
+        if (is_a<ACot>(e) && zero(z.re, z.reNoise) && zero(z.im, z.imNoise)) {
+            real_.decide(noise);
+            return fromReal({context_.div(context_.pi(), context_.integer(2)), EXACT});
+        }
         if (reciprocal) notZero(z, "The value has no decimal value (a division by zero)");
         const Pair given = ruled(z);
         //More digits for a small argument (its function cancels near 0) and near the branch points (1 - z^2 small)
@@ -603,7 +612,10 @@ private:
             return {context_.round(arithmetic.arg(at)), context_.integer(0), noise <= EXACT / 2 ? EXACT : noise - size(arithmetic, at) + 1, EXACT};
         }
         if (name == "sinc") {
-            if (zero(z.re, z.reNoise) && zero(z.im, z.imNoise)) return {context_.integer(1), context_.integer(0), EXACT, EXACT};
+            if (zero(z.re, z.reNoise) && zero(z.im, z.imNoise)) {
+                real_.decide(noiseOf(z));
+                return {context_.integer(1), context_.integer(0), EXACT, EXACT};
+            }
             const DecimalContext g(context_.digits() + 10);
             const ComplexArithmetic arithmetic(g);
             const Pair at{z.re, z.im};
@@ -626,25 +638,63 @@ std::pair<std::string, std::string> toComplexDecimal(const Expr &expression, lon
 {
     if (digits < 1 || digits > 100000) throw MathError(ErrorCode::Argument, "The number of digits is from 1 to 100000");
     //As toDecimal(), for each part: two agreeing roundings away from a half, a part that cannot be told from 0 with 640
-    //guard digits is 0
+    //guard digits is 0; more digits past them while a part's error is above its digits and they make it smaller
+    const double decidable = -static_cast<double>(digits + 600);
     std::string previousRe, previousIm;
-    for (long guard = 10;; guard *= 4) {
-        const DecimalContext context(digits + guard);
+    double previousNoise = std::numeric_limits<double>::infinity();
+    bool forced = false;
+    for (long guard = 10;;) {
+        const DecimalContext context(static_cast<int64_t>(digits) + guard);
         const bool last = guard >= 640;
-        ComplexEvaluator evaluator(context, last);
+        ComplexEvaluator evaluator(context, last, false, forced ? std::numeric_limits<double>::infinity() : decidable);
+        auto escalate = [&](double noise, double target) {
+            if (noise < previousNoise - static_cast<double>(guard) / 2) {
+                previousNoise = noise;
+                guard = nextGuard(guard, noise - target);
+            } else {
+                forced = true;
+            }
+        };
         Value value{Decimal(), Decimal(), EXACT, EXACT};
         try {
             value = evaluator.evaluate(*expression);
-        } catch (Undecided &) {
+        } catch (Undecided &undecided) {
             previousRe.clear();
             previousIm.clear();
+            if (last) {
+                escalate(undecided.noise, decidable);
+            } else {
+                previousNoise = undecided.noise;
+                guard *= 4;
+            }
             continue;
         }
+        auto exactZero = [&context](const Decimal &decimal, double noise) { return context.isZero(decimal) && noise <= EXACT / 2; };
+        if (last) {
+            auto settled = [&](const Decimal &decimal, double noise) {
+                if (forced || exactZero(decimal, noise)) return true;
+                return evaluator.zero(decimal, noise) ? noise <= decidable : noise <= static_cast<double>(context.exponent(decimal)) - static_cast<double>(digits) - 2;
+            };
+            if (settled(value.re, value.reNoise) && settled(value.im, value.imNoise)) {
+                auto text = [&](const Decimal &decimal, double noise) {
+                    return exactZero(decimal, noise) || evaluator.zero(decimal, noise) ? std::string("0") : context.text(context.roundAtHalf(decimal, digits, noise + 1), digits);
+                };
+                return {text(value.re, value.reNoise), text(value.im, value.imNoise)};
+            }
+            //The part farthest from its target
+            auto missing = [&](const Decimal &decimal, double noise) {
+                if (exactZero(decimal, noise)) return -std::numeric_limits<double>::infinity();
+                return noise - (evaluator.zero(decimal, noise) ? decidable : static_cast<double>(context.exponent(decimal)) - static_cast<double>(digits) - 2);
+            };
+            const double reMissing = missing(value.re, value.reNoise), imMissing = missing(value.im, value.imNoise);
+            const double noise = reMissing >= imMissing ? value.reNoise : value.imNoise;
+            escalate(noise, noise - std::max(reMissing, imMissing));
+            continue;
+        }
+        previousNoise = std::max(value.reNoise, value.imNoise);
         auto part = [&](const Decimal &decimal, double noise, const std::string &previous) -> PartText {
-            if (context.isZero(decimal) && noise <= EXACT / 2) return {"0", true};
-            const bool zero = evaluator.zero(decimal, noise);
-            if (last) return {zero ? "0" : context.text(context.roundAtHalf(decimal, digits, noise + 1), digits), true};
-            if (zero) return {"", false};
+            if (exactZero(decimal, noise)) return {"0", true};
+            if (evaluator.zero(decimal, noise)) return {"", false};
             const std::string text = context.text(decimal, digits);
             return {text, text == previous && !context.nearHalf(decimal, digits, noise + 1)};
         };
@@ -652,6 +702,7 @@ std::pair<std::string, std::string> toComplexDecimal(const Expr &expression, lon
         if (re.decided && im.decided) return {re.text, im.text};
         previousRe = re.text;
         previousIm = im.text;
+        guard *= 4;
     }
 }
 

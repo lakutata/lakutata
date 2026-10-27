@@ -61,7 +61,8 @@ function integerText(value: number, min: number, max: number, what: string): str
  * A division by zero (`div(0)`, `mod(0)`, `ln()` of 0, 0 to a negative power) throws `MathDivisionByZeroException`; a
  * value outside the domain of a function (`sqrt()` of a negative number, `asin()` of 2, a negative number to a
  * non-integer power) throws `MathDomainException`. A result whose exponent is beyond the range of decimals (about
- * ±10^18, ±4.25 × 10^8 on 32-bit systems) throws `MathNotSupportedException`.
+ * ±10^18, ±4.25 × 10^8 on 32-bit systems) throws `MathNotSupportedException`, and so does a function of an argument too
+ * large for the digits (`sin()` of 10^(10^6): its reduction would need 10^6 digits of pi).
  * @example
  * ```typescript
  * import {Container} from 'lakutata'
@@ -308,8 +309,8 @@ export class Decimal {
     }
 
     /**
-     * The gamma function of the decimal (`gamma(n)` is `(n - 1)!`). At 0 and the negative integers, its poles, it throws
-     * `MathDivisionByZeroException`.
+     * The gamma function of the decimal (`gamma(n)` is `(n - 1)!`). At 0 and the negative integers, its poles, it
+     * throws `MathDivisionByZeroException`.
      */
     public gamma(): Decimal {
         return this.#decimal('gamma')

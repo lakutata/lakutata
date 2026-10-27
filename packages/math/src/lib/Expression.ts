@@ -262,7 +262,9 @@ export class Expression {
      * is written as `Decimal.toString()` writes its digits, without trailing zeros (`3`, `1e+25`). A value that cannot
      * be told from 0, even with 640 more digits, is `0` (`ln(6) - ln(2) - ln(3)`); a value exactly halfway between two
      * decimals of that many digits is rounded to the even one; a rounding function at a jump within the error of its
-     * argument takes the value of the jump (`floor(ln(8)/ln(2))` is 3).
+     * argument takes the value of the jump (`floor(ln(8)/ln(2))` is 3). A value whose argument is too large for the
+     * digits is computed with as many more digits as it needs, up to 50000 (`sin(10^(10^4))` needs 10^4): beyond, it
+     * throws `MathNotSupportedException`.
      * It computes the arithmetic, powers and roots, `exp` and `ln`, the trigonometric and hyperbolic functions and
      * their inverses, the rounding functions, `pi`, `e`, `phi`, `EulerGamma` and `Catalan`, and the special functions
      * (`gamma`, `loggamma`, `digamma`, `polygamma`, `beta`, `erf`, `erfc`, `zeta`, `lowergamma`, `uppergamma`,
@@ -284,8 +286,8 @@ export class Expression {
 
     /**
      * The value of an expression without variables as a complex number, each part a decimal of a number of significant
-     * digits, correctly rounded as `toDecimal()` rounds: `e^(i*10^30)` has the digits of `cos(10^30)` and `sin(10^30)`. A
-     * part that cannot be told from 0, even with 640 more digits, is `0`; a real value has the imaginary part `0`. The
+     * digits, correctly rounded as `toDecimal()` rounds: `e^(i*10^30)` has the digits of `cos(10^30)` and `sin(10^30)`.
+     * A part that cannot be told from 0, even with 640 more digits, is `0`; a real value has the imaginary part `0`. The
      * functions of `toDecimal()` take complex arguments too, with their principal branches (on a branch cut, the side
      * SymPy takes), but for the special functions, which take real arguments only.
      * @param digits The significant digits of each part: the `precision` of the component by default.

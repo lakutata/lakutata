@@ -67,7 +67,10 @@ Decimal sinCosSeries(const DecimalContext &g, const Decimal &r, bool cosine)
 Decimal sinOrCos(const DecimalContext &context, const Decimal &x, bool cosine)
 {
     if (context.isZero(x)) return context.integer(cosine ? 1 : 0);
-    const DecimalContext g(context.digits() + integerDigits(context, x) + 15);
+    //The digits of x above its point, needed by the reduction, at most MORE_DIGITS (pi to them)
+    const int64_t above = integerDigits(context, x);
+    if (above > MORE_DIGITS) throw MathError(ErrorCode::NotSupported, "The decimal value needs more than " + std::to_string(MORE_DIGITS) + " digits beyond the ones asked (an argument too large for them)");
+    const DecimalContext g(context.digits() + above + 15);
     const Decimal turns = g.roundToInteger(g.div(x, g.div(g.pi(), g.integer(2))));
     const Decimal four = g.integer(4);
     const long long quadrant = smallInteger(g.sub(turns, g.mul(four, g.floor(g.div(turns, four)))));

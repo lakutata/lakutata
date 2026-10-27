@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <climits>
+#include <limits>
 #include <cmath>
 #include <functional>
 #include <vector>
@@ -270,7 +271,8 @@ Decimal DecimalContext::roundAtHalf(const Decimal &a, long digits, double error)
     return target.round(above.round(a));
 }
 
-Evaluator::Evaluator(const DecimalContext &context, bool last) : context_(context), digits_(static_cast<double>(context.digits())), last_(last)
+Evaluator::Evaluator(const DecimalContext &context, bool last, double decidable)
+    : context_(context), digits_(static_cast<double>(context.digits())), last_(last), decidable_(decidable)
 {
 }
 
@@ -303,8 +305,13 @@ bool Evaluator::last() const
 void Evaluator::notZero(const Approximation &a, ErrorCode code, const std::string &error) const
 {
     if (!zero(a)) return;
-    if (!last_) throw Undecided();
+    if (!last_ || a.noise > decidable_) throw Undecided{a.noise};
     throw MathError(code, error);
+}
+
+void Evaluator::decide(double noise) const
+{
+    if (last_ && noise > decidable_) throw Undecided{noise};
 }
 
 double Evaluator::exponent(const Decimal &value) const
@@ -339,6 +346,7 @@ Approximation Evaluator::jump(const Approximation &x, Decimal (DecimalContext::*
     const Decimal shifted = halves ? context.sub(x.value, half) : x.value;
     const Decimal nearest = context.roundToInteger(shifted);
     if (exponent(context.sub(shifted, nearest)) <= x.noise + 1) {
+        decide(x.noise);
         if (!halves) return {nearest, EXACT};
         //Exactly a half: away from zero
         const Decimal at = context.add(nearest, half);
@@ -350,13 +358,12 @@ Approximation Evaluator::jump(const Approximation &x, Decimal (DecimalContext::*
 Approximation Evaluator::apply(const Basic &e, const std::vector<Approximation> &arguments)
 {
     const DecimalContext &context = context_;
-    if (is_a<Integer>(e)) {
-        const Decimal value = context.parse(e.__str__());
-        return {value, exponent(value) >= digits_ ? rounding(value) : EXACT};
-    }
+    //An integer exactly, with all its digits (sin(10^(10^4)) reduces its argument with them); a fraction of its exact
+    //numerator and denominator
+    if (is_a<Integer>(e)) return {DecimalContext::exact(e.__str__()), EXACT};
     if (is_a<Rational>(e)) {
         const rational_class &value = down_cast<const Rational &>(e).as_rational_class();
-        return {context.div(context.parse(SymEngine::Integer(get_num(value)).__str__()), context.parse(SymEngine::Integer(get_den(value)).__str__())), EXACT};
+        return {context.div(DecimalContext::exact(SymEngine::Integer(get_num(value)).__str__()), DecimalContext::exact(SymEngine::Integer(get_den(value)).__str__())), EXACT};
     }
     if (is_a<RealDouble>(e)) {
         const Decimal value = context.parse(doubleText(down_cast<const RealDouble &>(e).i));
@@ -398,7 +405,10 @@ Approximation Evaluator::apply(const Basic &e, const std::vector<Approximation> 
         const Approximation &exponentPart = arguments[1];
         //A base that cannot be told from 0 is 0 (sqrt(ln(6) - ln(2) - ln(3))), but in a division
         if (context.isNegative(exponentPart.value)) notZero(base, ErrorCode::DivisionByZero, "The value has no decimal value (a division by zero)");
-        if (zero(base) && !context.isZero(exponentPart.value)) return {context.integer(0), base.noise};
+        if (zero(base) && !context.isZero(exponentPart.value)) {
+            decide(base.noise);
+            return {context.integer(0), base.noise};
+        }
         Decimal value;
         if (eq(*power.get_exp(), *rational(1, 2))) {
             if (context.isNegative(base.value)) notReal("the square root of a negative number");
@@ -434,6 +444,7 @@ Approximation Evaluator::apply(const Basic &e, const std::vector<Approximation> 
     if (is_a<Conjugate>(e) || is_a<UnevaluatedExpr>(e)) return arguments[0];
     if (is_a<Sign>(e)) {
         const Approximation &x = arguments[0];
+        if (zero(x)) decide(x.noise);
         return {context.integer(zero(x) ? 0 : context.isNegative(x.value) ? -1 : 1), EXACT};
     }
     if (is_a<Max>(e) || is_a<Min>(e)) {
@@ -446,6 +457,8 @@ Approximation Evaluator::apply(const Basic &e, const std::vector<Approximation> 
     if (is_a<ATan2>(e)) {
         const Approximation &y = arguments[0];
         const Approximation &x = arguments[1];
+        if (zero(y)) decide(y.noise);
+        if (zero(x)) decide(x.noise);
         const Decimal value = context.atan2(zero(y) ? context.integer(0) : y.value, zero(x) ? context.integer(0) : x.value);
         //(|x| err(y) + |y| err(x))/(x^2 + y^2)
         const double size = exponent(context.add(context.mul(x.value, x.value), context.mul(y.value, y.value)));
@@ -492,7 +505,7 @@ double Evaluator::spread(const std::function<Decimal(const std::vector<Decimal> 
             if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
         }
     }
-    if (!last_) throw Undecided();
+    if (!last_ || x.noise > decidable_) throw Undecided{x.noise};
     throw MathError(ErrorCode::Domain, "The value has no decimal value (a function at the edge of its domain within the error of its argument)");
 }
 
@@ -525,7 +538,10 @@ Approximation Evaluator::special(const Basic &e, const std::vector<Approximation
     //W at -1/e within the error of its argument: -1, of an error the square root of it (W = -1 + sqrt(2 e d)…)
     if (is_a<LambertW>(e) && arguments[0].noise > EXACT / 2) {
         const Decimal distance = context.add(values[0], context.exp(context.integer(-1)));
-        if (zero({distance, arguments[0].noise})) return {context.integer(-1), arguments[0].noise / 2 + 1};
+        if (zero({distance, arguments[0].noise})) {
+            decide(arguments[0].noise);
+            return {context.integer(-1), arguments[0].noise / 2 + 1};
+        }
     }
     const std::function<Decimal(const std::vector<Decimal> &)> function = [&e, &context, order](const std::vector<Decimal> &at) {
         if (is_a<Gamma>(e)) return context.gamma(at[0]);
@@ -619,7 +635,10 @@ Approximation Evaluator::wrapper(const Basic &e, const std::vector<Approximation
     if (name == "root") {
         const Approximation &x = arguments[0];
         const Decimal inverse = context.div(one(), arguments[1].value);
-        if (zero(x)) return {context.integer(0), x.noise};
+        if (zero(x)) {
+            decide(x.noise);
+            return {context.integer(0), x.noise};
+        }
         const Decimal value = context.isNegative(x.value) ? context.neg(context.pow(context.abs(x.value), inverse)) : context.pow(x.value, inverse);
         return {value, relative(value, x)};
     }
@@ -632,12 +651,19 @@ Approximation Evaluator::wrapper(const Basic &e, const std::vector<Approximation
         const Decimal quotient = context.div(a.value, b.value);
         const double noise = std::max(a.noise - exponent(b.value), exponent(quotient) + b.noise - exponent(b.value)) + 1;
         Decimal floor = context.roundToInteger(quotient);
-        if (exponent(context.sub(quotient, floor)) > noise + 1) floor = context.floor(quotient);
+        if (exponent(context.sub(quotient, floor)) > noise + 1) {
+            floor = context.floor(quotient);
+        } else {
+            decide(noise);
+        }
         return {context.sub(a.value, context.mul(b.value, floor)), std::max(a.noise, b.noise + exponent(floor))};
     }
     if (name == "sinc") {
         const Approximation &x = arguments[0];
-        if (zero(x)) return {one(), EXACT};
+        if (zero(x)) {
+            decide(x.noise);
+            return {one(), EXACT};
+        }
         return {context.div(context.sin(x.value), x.value), x.noise};
     }
     //The parts of a real value
@@ -651,30 +677,69 @@ Approximation Evaluator::wrapper(const Basic &e, const std::vector<Approximation
     throw MathError(ErrorCode::NotSupported, "The decimal value of " + name + "() is not computed");
 }
 
+long nextGuard(long guard, double missing)
+{
+    const double next = std::max(static_cast<double>(guard) * 2, static_cast<double>(guard) + missing + 30);
+    if (next > static_cast<double>(MORE_DIGITS)) {
+        throw MathError(ErrorCode::NotSupported, "The decimal value needs more than " + std::to_string(MORE_DIGITS) + " digits beyond the ones asked (an argument too large for them)");
+    }
+    return static_cast<long>(std::ceil(next));
+}
+
 std::string toDecimal(const Expr &expression, long digits)
 {
     if (digits < 1 || digits > 100000) throw MathError(ErrorCode::Argument, "The number of digits is from 1 to 100000");
     //Evaluated with more guard digits each time, until two evaluations round to the same digits; a value within its
-    //error of 0, also with 640 guard digits, is 0 (a cancellation: ln(6) - ln(2) - ln(3))
+    //error of 0, also with 640 guard digits, is 0 (a cancellation: ln(6) - ln(2) - ln(3)). From 640 guard digits on, a
+    //value whose error is still above its digits (or above 10^-(digits + 600) for 0, at a jump) takes as many more as
+    //its error tells, up to MORE_DIGITS, as long as they make the error smaller: an argument too large for the digits
+    //(sin(10^(10^4)) needs 10^4 of them)
+    const double decidable = -static_cast<double>(digits + 600);
     std::string previous;
-    for (long guard = 10;; guard *= 4) {
-        const DecimalContext context(digits + guard);
-        Evaluator evaluator(context, guard >= 640);
+    double previousNoise = std::numeric_limits<double>::infinity();
+    bool forced = false;
+    for (long guard = 10;;) {
+        const DecimalContext context(static_cast<int64_t>(digits) + guard);
+        const bool last = guard >= 640;
+        Evaluator evaluator(context, last, forced ? std::numeric_limits<double>::infinity() : decidable);
+        //More digits when they made the error smaller by a part of what they added, the decisions taken where they did not:
+        //as many as the error is above the target
+        auto escalate = [&](double noise, double target) {
+            if (noise < previousNoise - static_cast<double>(guard) / 2) {
+                previousNoise = noise;
+                guard = nextGuard(guard, noise - target);
+            } else {
+                forced = true;
+            }
+        };
         Approximation value{Decimal(), EXACT};
         try {
             value = evaluator.evaluate(*expression);
-        } catch (Undecided &) {
+        } catch (Undecided &undecided) {
             previous.clear();
+            if (last) {
+                escalate(undecided.noise, decidable);
+            } else {
+                previousNoise = undecided.noise;
+                guard *= 4;
+            }
             continue;
         }
         const bool zero = evaluator.zero(value);
         //An exact 0 (no rounding in it)
         if (context.isZero(value.value) && value.noise <= EXACT / 2) return "0";
-        if (guard >= 640) return zero ? "0" : context.text(context.roundAtHalf(value.value, digits, value.noise + 1), digits);
+        if (last) {
+            const bool settled = forced || (zero ? value.noise <= decidable : value.noise <= evaluator.exponent(value.value) - static_cast<double>(digits) - 2);
+            if (settled) return zero ? "0" : context.text(context.roundAtHalf(value.value, digits, value.noise + 1), digits);
+            escalate(value.noise, zero ? decidable : evaluator.exponent(value.value) - static_cast<double>(digits) - 2);
+            continue;
+        }
+        previousNoise = value.noise;
         const std::string text = zero ? "0" : context.text(value.value, digits);
         //Two agreeing roundings, not of a value within its error of a half (they would agree on either side of it)
         if (!zero && text == previous && !context.nearHalf(value.value, digits, value.noise + 1)) return text;
         previous = zero ? "" : text;
+        guard *= 4;
     }
 }
 

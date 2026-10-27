@@ -3,6 +3,7 @@
 #pragma once
 
 #include <functional>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -24,14 +25,18 @@ struct Approximation {
 constexpr double EXACT = -1e18;
 
 //A value that cannot be told from 0 where it must not be 0 (the base of a negative power, the argument of a
-//logarithm): undecided below the last precision, which tries again with more digits
+//logarithm), or from a jump of a function: undecided below the last precision, or at it while its error is above what
+//the evaluation decides (an argument too large for the digits: sin(10^(10^4))), which tries again with more digits;
+//the noise of the value, to tell whether more digits make it smaller
 struct Undecided {
+    double noise = EXACT;
 };
 
 class Evaluator {
 public:
-    //The last evaluation (the most guard digits) decides: a value that cannot be told from 0 is 0 there
-    Evaluator(const DecimalContext &context, bool last);
+    //The last evaluation (the most guard digits) decides: a value that cannot be told from 0 is 0 there, from a jump at
+    //the jump, if its error is not above 10^decidable (undecided otherwise: more digits)
+    Evaluator(const DecimalContext &context, bool last, double decidable = std::numeric_limits<double>::infinity());
 
     //The value of an expression: its arguments evaluated, then its node
     Approximation evaluate(const SymEngine::Basic &e);
@@ -45,6 +50,8 @@ public:
     bool zero(const Approximation &a) const;
     //A value that must not be 0 and cannot be told from it: the error of the last evaluation, undecided before
     void notZero(const Approximation &a, ErrorCode code, const std::string &error) const;
+    //A decision on a value within its error (0, a jump): undecided at the last evaluation for an error above decidable
+    void decide(double noise) const;
     //The exponent of the first digit of a value, EXACT for 0
     double exponent(const Decimal &value) const;
     //The rounding of a value to the digits of the context
@@ -55,6 +62,7 @@ private:
     const DecimalContext &context_;
     double digits_;
     bool last_;
+    double decidable_;
 
     double relative(const Decimal &result, const Approximation &of) const;
     Decimal one() const;
