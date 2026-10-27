@@ -85,6 +85,61 @@ describe('The numeric solutions', (): void => {
         await assert.rejects(math.numeric.integrateAsync('x^2', 'x', [0, 1], {signal: controller.signal}), MathCancelledException)
     })
 
+    it('solve ordinary differential equations at the orders of their methods', (): void => {
+        //Fixed steps (the largest step, tolerances never reached): the error at the end of order 5 for both methods, the
+        //continuous extensions of orders 4 (Dormand and Prince's) and 3 (the collocation cubic of Radau IIA)
+        for (const [method, denseRatio] of [['rk45', 24], ['radau', 12]] as ['rk45' | 'radau', number][]) {
+            let previous: [number, number] | undefined
+            for (const steps of [8, 16, 32]) {
+                const h: number = 1 / steps, middles: number[] = Array.from({length: steps}, (_: unknown, k: number): number => (k + 0.5) * h)
+                const options = {method: method, maxStep: h, relativeTolerance: 0.5, absoluteTolerance: 0.5}
+                const end = math.numeric.solveODE({derivatives: 'y', states: 'y', span: [0, 1], initial: 1}, options)
+                const dense = math.numeric.solveODE({derivatives: 'y', states: 'y', span: [0, 1], initial: 1}, {...options, points: middles})
+                assert.ok(end.completed && end.steps === steps && end.rejected === 0, `${method}: ${end.steps} steps`)
+                const error: number = globalThis.Math.abs(end.y.get(steps, 0) - globalThis.Math.E)
+                const denseError: number = globalThis.Math.max(...middles.map((t: number, k: number): number => globalThis.Math.abs(dense.y.get(k, 0) - globalThis.Math.exp(t))))
+                if (previous) assert.ok(previous[0] / error > 26 && previous[1] / denseError > denseRatio, `${method}, ${steps} steps: ${previous[0] / error}, ${previous[1] / denseError}`)
+                previous = [error, denseError]
+            }
+            //The orders of the error estimates (4 and 3): the steps for 1000 times less error
+            const loose = math.numeric.solveODE({derivatives: 'y', states: 'y', span: [0, 1], initial: 1}, {method: method, relativeTolerance: 1e-6, absoluteTolerance: 1e-6})
+            const tight = math.numeric.solveODE({derivatives: 'y', states: 'y', span: [0, 1], initial: 1}, {method: method, relativeTolerance: 1e-9, absoluteTolerance: 1e-9})
+            const ratio: number = tight.steps / loose.steps
+            assert.ok(method === 'rk45' ? ratio > 2.5 && ratio < 5 : ratio > 3.5 && ratio < 7, `${method}: ${ratio}`)
+        }
+    })
+
+    it('solve systems, backward, stiff ones by Radau IIA, and stop where the solution does', async (): Promise<void> => {
+        const near = (value: number, expected: number, tolerance: number): boolean => globalThis.Math.abs(value - expected) <= tolerance * (1 + globalThis.Math.abs(expected))
+        //x'' = -x: the states at pi, every step given from the start
+        const spring = math.numeric.solveODE({derivatives: ['v', '-x'], states: ['x', 'v'], span: [0, globalThis.Math.PI], initial: [1, 0]}, {relativeTolerance: 1e-10, absoluteTolerance: 1e-12})
+        const last: number = spring.t.length - 1
+        assert.ok(spring.completed && spring.t[0] === 0 && spring.t[last] === globalThis.Math.PI && spring.y.columns === 2)
+        assert.ok(near(spring.y.get(last, 0), -1, 1e-8) && globalThis.Math.abs(spring.y.get(last, 1)) < 1e-8)
+        //Backward, the time named, the points given at the ends and inside
+        const back = math.numeric.solveODE({derivatives: '-2y*s', states: 'y', time: 's', span: [1, 0], initial: globalThis.Math.exp(-1)}, {points: [1, 0.5, 0], relativeTolerance: 1e-10, absoluteTolerance: 1e-12})
+        assert.deepStrictEqual(Array.from(back.t), [1, 0.5, 0])
+        assert.ok(back.y.get(0, 0) === globalThis.Math.exp(-1) && near(back.y.get(1, 0), globalThis.Math.exp(-0.25), 1e-9) && near(back.y.get(2, 0), 1, 1e-9))
+        //Stiff: y' = -1000(y - cos t); Radau needs far fewer steps than Dormand and Prince
+        const explicit = math.numeric.solveODE({derivatives: '-1000(y - cos(t))', states: 'y', span: [0, 2], initial: 0})
+        const implicit = math.numeric.solveODE({derivatives: '-1000(y - cos(t))', states: 'y', span: [0, 2], initial: 0}, {method: 'radau'})
+        assert.ok(explicit.completed && implicit.completed && implicit.steps * 5 < explicit.steps && implicit.jacobians > 0, `${implicit.steps}, ${explicit.steps}`)
+        assert.ok(near(implicit.y.get(implicit.t.length - 1, 0), explicit.y.get(explicit.t.length - 1, 0), 1e-5))
+        //Van der Pol, mu = 1000: hundreds of steps by Radau; Dormand and Prince stops at its largest number of steps
+        const vanDerPol = {derivatives: ['v', '1000(1 - x^2)v - x'], states: ['x', 'v'], span: [0, 3000] as [number, number], initial: [2, 0]}
+        const stiff = math.numeric.solveODE(vanDerPol, {method: 'radau'})
+        assert.ok(stiff.completed && stiff.steps < 5000, `${stiff.steps} steps`)
+        const stopped = math.numeric.solveODE(vanDerPol, {maxSteps: 1000})
+        assert.ok(!stopped.completed && stopped.steps === 1000 && /radau/.test(stopped.message!) && stopped.t.length === 1001)
+        //y' = y^2 from 1: a singularity at 1
+        const blowUp = math.numeric.solveODE({derivatives: 'y^2', states: 'y', span: [0, 2], initial: 1})
+        assert.ok(!blowUp.completed && /too small/.test(blowUp.message!) && globalThis.Math.abs(blowUp.t[blowUp.t.length - 1] - 1) < 1e-3)
+        //From t0 to t0: the initial values
+        assert.deepStrictEqual(Array.from(math.numeric.solveODE({derivatives: 'y', states: 'y', span: [2, 2], initial: 3}).y.data), [3])
+        const async = await math.numeric.solveODEAsync({derivatives: '-2y', states: 'y', span: [0, 1], initial: 1}, {method: 'radau', points: [1]})
+        assert.ok(near(async.y.get(0, 0), globalThis.Math.exp(-2), 1e-5))
+    })
+
     it('throw the exceptions of the package', (): void => {
         for (const [operation, exception] of [
             [(): unknown => math.numeric.polynomialRoots('sin(x)'), MathNotSupportedException],
@@ -106,7 +161,15 @@ describe('The numeric solutions', (): void => {
             [(): unknown => math.numeric.integrate('x', 'x', [0, 1], {tolerance: 1}), MathArgumentException],
             [(): unknown => math.numeric.integrate('x', 'x', [0, 1], {points: [2]}), MathArgumentException],
             [(): unknown => math.numeric.integrate('x', 'x', [0, NaN]), MathArgumentException],
-            [(): unknown => math.numeric.integrate('x = 1', 'x', [0, 1]), MathSyntaxException]
+            [(): unknown => math.numeric.integrate('x = 1', 'x', [0, 1]), MathSyntaxException],
+            [(): unknown => math.numeric.solveODE({derivatives: ['y', 'z'], states: ['y'], span: [0, 1], initial: [1]}), MathArgumentException],
+            [(): unknown => math.numeric.solveODE({derivatives: 'y + z', states: 'y', span: [0, 1], initial: 1}), MathArgumentException],
+            [(): unknown => math.numeric.solveODE({derivatives: 't', states: 't', span: [0, 1], initial: 1}), MathArgumentException],
+            [(): unknown => math.numeric.solveODE({derivatives: 'y', states: 'y', span: [0, 1], initial: 1}, {points: [2]}), MathArgumentException],
+            [(): unknown => math.numeric.solveODE({derivatives: 'y', states: 'y', span: [0, 1], initial: 1}, {points: [0.5, 0.2]}), MathArgumentException],
+            [(): unknown => math.numeric.solveODE({derivatives: 'y', states: 'y', span: [0, 1], initial: 1}, {method: 'euler' as never}), MathArgumentException],
+            [(): unknown => math.numeric.solveODE({derivatives: 'y', states: 'y', span: [0, 1], initial: 1}, {relativeTolerance: 0}), MathArgumentException],
+            [(): unknown => math.numeric.solveODE({derivatives: 'sqrt(y)', states: 'y', span: [0, 1], initial: -1}), MathDomainException]
         ] as [() => unknown, typeof MathArgumentException][]) assert.throws(operation, exception)
     })
 })

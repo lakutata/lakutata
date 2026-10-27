@@ -70,5 +70,15 @@
  {"op": "integrate", "function": "1/x", "interval": [0, 1], "notConverged": true},
  {"op": "integrate", "function": "x^(-0.99)", "interval": [0, 1], "reference": "scipy"},
  {"op": "integrate", "function": "sqrt(x - 0.3)", "interval": [0, 1], "error": "E_MATH_DOMAIN"},
- {"op": "integrate", "function": "log(x - 2)", "interval": [0, 1], "error": "E_MATH_DOMAIN"}
+ {"op": "integrate", "function": "log(x - 2)", "interval": [0, 1], "error": "E_MATH_DOMAIN"},
+ {"op": "solveODE", "derivatives": ["-2y"], "states": ["y"], "span": [0, 1], "initial": [1], "points": [0.25, 0.5, 1], "defaultTolerance": 1e-05},
+ {"op": "solveODE", "derivatives": ["v", "-x"], "states": ["x", "v"], "span": [0, 10], "initial": [1, 0], "points": [1, 2, 5, 10], "defaultTolerance": 0.0001},
+ {"op": "solveODE", "derivatives": ["1.5x - x*y", "-3y + x*y"], "states": ["x", "y"], "span": [0, 15], "initial": [10, 5], "points": [1, 5, 10, 15], "defaultTolerance": 0.001},
+ {"op": "solveODE", "derivatives": ["10(y - x)", "x*(28 - z) - y", "x*y - 8z/3"], "states": ["x", "y", "z"], "span": [0, 5], "initial": [1, 1, 1], "points": [1, 2, 3, 5]},
+ {"op": "solveODE", "derivatives": ["-y + sin(t)"], "states": ["y"], "span": [0, 10], "initial": [0], "points": [2.5, 5, 10], "defaultTolerance": 1e-05},
+ {"op": "solveODE", "derivatives": ["w", "-sin(theta)"], "states": ["theta", "w"], "span": [0, 10], "initial": [2.5, 0], "points": [2, 4, 10], "defaultTolerance": 0.0001},
+ {"op": "solveODE", "derivatives": ["y*cos(s)"], "states": ["y"], "time": "s", "span": [5, 0], "initial": [1], "points": [4, 2, 0], "defaultTolerance": 1e-05},
+ {"op": "solveODE", "derivatives": ["-1000(y - cos(t))"], "states": ["y"], "span": [0, 2], "initial": [0], "points": [0.01, 1, 2], "method": "radau", "defaultTolerance": 1e-05},
+ {"op": "solveODE", "derivatives": ["-0.04a + 1e4*b*c", "0.04a - 1e4*b*c - 3e7*b^2", "3e7*b^2"], "states": ["a", "b", "c"], "span": [0, 100000], "initial": [1, 0, 0], "points": [1, 10, 100, 1000, 10000, 100000], "method": "radau", "defaultTolerance": 0.0001},
+ {"op": "solveODE", "derivatives": ["v", "1000(1 - x^2)v - x"], "states": ["x", "v"], "span": [0, 3000], "initial": [2, 0], "points": [500, 1500, 3000], "method": "radau"}
 ]

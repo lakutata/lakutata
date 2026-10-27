@@ -709,6 +709,46 @@ Job integrateJob(const Napi::Array &arguments)
     };
 }
 
+//solveODE(derivatives, states, time, t0, t1, initial (Float64Array), method, relativeTolerance, absoluteTolerance,
+//maxStep, points (Float64Array), maxSteps): {t, y (rows of states), columns, steps, rejected, evaluations, jacobians,
+//completed, message}
+Job solveODEJob(const Napi::Array &arguments)
+{
+    const std::vector<Expr> derivatives = expressionsAt(arguments, 0);
+    const std::vector<std::string> states = stringsAt(arguments, 1);
+    const std::string time = stringAt(arguments, 2, "The time");
+    const double t0 = numberAt(arguments, 3, "The start of the span"), t1 = numberAt(arguments, 4, "The end of the span");
+    const auto arrayAt = [&arguments](uint32_t index, const char *what) {
+        const Napi::Value given = arguments.Get(index);
+        if (!given.IsTypedArray() || given.As<Napi::TypedArray>().TypedArrayType() != napi_float64_array) throw MathError(ErrorCode::Argument, std::string(what) + " are a Float64Array");
+        const Napi::Float64Array values = given.As<Napi::Float64Array>();
+        return std::vector<double>(values.Data(), values.Data() + values.ElementLength());
+    };
+    const std::vector<double> initial = arrayAt(5, "The initial values");
+    ODEOptions options;
+    options.method = stringAt(arguments, 6, "The method");
+    options.relativeTolerance = numberAt(arguments, 7, "The relative tolerance");
+    options.absoluteTolerance = numberAt(arguments, 8, "The absolute tolerance");
+    options.maxStep = numberAt(arguments, 9, "The largest step");
+    options.points = arrayAt(10, "The points");
+    options.maxSteps = iterationsAt(arguments, 11);
+    return [derivatives, states, time, t0, t1, initial, options] {
+        auto result = std::make_shared<ODEResult>(solveODEOf(derivatives, states, time, t0, t1, initial, options));
+        return Builder([result](Napi::Env env) {
+            Napi::Object value = Napi::Object::New(env);
+            value.Set("t", float64ArrayOf(env, result->t));
+            value.Set("y", float64ArrayOf(env, result->y));
+            value.Set("steps", static_cast<double>(result->steps));
+            value.Set("rejected", static_cast<double>(result->rejected));
+            value.Set("evaluations", static_cast<double>(result->evaluations));
+            value.Set("jacobians", static_cast<double>(result->jacobians));
+            value.Set("completed", result->completed);
+            if (!result->message.empty()) value.Set("message", result->message);
+            return value;
+        });
+    };
+}
+
 Job fractionJob(const Napi::Array &arguments)
 {
     Expr expression = expressionAt(arguments, 0);
@@ -854,7 +894,7 @@ const std::map<std::string, JobFactory> &jobs()
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
-        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"distribution", distributionJob}, {"random", randomJob}, {"polynomialRoots", polynomialRootsJob}, {"findRoot", findRootJob}, {"solveSystem", solveSystemJob}, {"integrate", integrateJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
+        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"distribution", distributionJob}, {"random", randomJob}, {"polynomialRoots", polynomialRootsJob}, {"findRoot", findRootJob}, {"solveSystem", solveSystemJob}, {"integrate", integrateJob}, {"solveODE", solveODEJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
         {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}
     };

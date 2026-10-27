@@ -1,7 +1,8 @@
 # The expected results of the numeric solutions (cases/numeric.json): the roots of polynomials by NumPy's roots, the
 # roots of functions and of systems by mpmath's findroot at 30 digits, the solutions of overdetermined systems by
 # SciPy's least_squares, the integrals by mpmath's quad at 30 digits (SciPy's quad compared with it, its differences
-# noted). Written to expected/numeric.json. Run by generate.sh in a container, not by the tests.
+# noted), the ordinary differential equations by SciPy's solve_ivp at tolerances of 1e-12 (DOP853, or Radau for stiff
+# ones, the other one compared). Written to expected/numeric.json. Run by generate.sh in a container, not by the tests.
 
 import json
 import os
@@ -142,10 +143,39 @@ def integrate(case):
     return result
 
 
+def solve_ode(case):
+    """SciPy's solve_ivp at relative tolerance 1e-12, absolute 1e-14: DOP853, or Radau with the exact Jacobian for a
+    stiff case; Radau at tolerances of 1e-10 compared with it (with itself, at the looser tolerances, for a stiff case),
+    its differences above 1e-7 noted"""
+    time = sympy.Symbol(case.get('time', 't'))
+    states = [sympy.Symbol(name) for name in case['states']]
+    expressions = [parse(text) for text in case['derivatives']]
+    f = sympy.lambdify([time] + states, expressions, 'numpy')
+    jacobian = sympy.lambdify([time] + states, sympy.Matrix(expressions).jacobian(states), 'numpy')
+    fun = lambda t, y: numpy.array(f(t, *y), dtype=float)
+    jac = lambda t, y: numpy.array(jacobian(t, *y), dtype=float)
+
+    def solve(method, rtol, atol):
+        options = {'jac': jac} if method == 'Radau' else {}
+        solution = scipy.integrate.solve_ivp(fun, case['span'], case['initial'], method=method, t_eval=case['points'], rtol=rtol, atol=atol, **options)
+        if not solution.success:
+            raise RuntimeError('%s: %s' % (case['derivatives'], solution.message))
+        return solution.y.T
+
+    stiff = case.get('method') == 'radau'
+    reference = solve('Radau' if stiff else 'DOP853', 1e-12, 1e-14)
+    other = solve('Radau', 1e-10, 1e-12)
+    result = {'y': reference.tolist()}
+    difference = numpy.max(numpy.abs(other - reference) / (1 + numpy.abs(reference)))
+    if difference > 1e-7:
+        result['differs'] = 'the other method of SciPy differs by %.3g' % difference
+    return result
+
+
 def generate():
     with open(os.path.join(HERE, 'cases', 'numeric.json')) as file:
         cases = json.load(file)
-    operations = {'polynomialRoots': polynomial_roots, 'findRoot': find_root, 'solveSystem': solve_system, 'integrate': integrate}
+    operations = {'polynomialRoots': polynomial_roots, 'findRoot': find_root, 'solveSystem': solve_system, 'integrate': integrate, 'solveODE': solve_ode}
     results = []
     for case in cases:
         result = dict(case)

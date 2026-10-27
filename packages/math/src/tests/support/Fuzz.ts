@@ -897,3 +897,46 @@ export async function checkIntegrate(math: MathScope, random: Random, index: num
     return failures
 }
 
+/**
+ * The checks of the ordinary differential equations: random stable linear systems y' = A y solved to t = 1 by both
+ * methods, as e^A y0 (math.linalg.exponential), and solved back from there to y0
+ * @param math
+ * @param random
+ * @param index
+ */
+export async function checkODE(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    const round = (value: number): number => globalThis.Math.round(value * 100) / 100
+    try {
+        const n: number = 1 + random.int(4)
+        const names: string[] = Array.from({length: n}, (_: unknown, i: number): string => `y${i}`)
+        //Diagonally dominant with a negative diagonal: stable, its stiffness from 1 to 100
+        const stiffness: number = random.chance(0.5) ? 1 : 100
+        const matrix: number[][] = Array.from({length: n}, (_: unknown, i: number): number[] => Array.from({length: n}, (__: unknown, j: number): number => i === j ? -round(n + random.next() * 3) * (i === 0 ? stiffness : 1) : round(random.next() * 2 - 1)))
+        const initial: number[] = Array.from({length: n}, (): number => round(random.next() * 4 - 2))
+        const derivatives: string[] = matrix.map((row: number[]): string => row.map((value: number, j: number): string => `${value}*${names[j]}`).join(' + '))
+        text = `${derivatives.join('; ')} from ${initial.join(', ')}`
+        const exact: Float64Array = math.linalg.exponential(matrix).mul(Float64Array.from(initial)) as Float64Array
+        const scale: number = 1 + globalThis.Math.max(...initial.map(globalThis.Math.abs))
+        for (const method of ['rk45', 'radau'] as const) {
+            const forward = math.numeric.solveODE({derivatives, states: names, span: [0, 1], initial}, {method, points: [1], relativeTolerance: 1e-10, absoluteTolerance: 1e-12})
+            const ours: number[] = Array.from({length: n}, (_: unknown, j: number): number => forward.y.get(0, j))
+            if (!forward.completed || ours.some((value: number, j: number): boolean => globalThis.Math.abs(value - exact[j]) > 1e-8 * scale)) fail('solveODE', `${method}: ${ours}, e^A y0 ${Array.from(exact)}`)
+            //Back from t = 1 (only the slow systems: the stiff ones grow by e^100 backward)
+            if (stiffness === 1) {
+                const backward = math.numeric.solveODE({derivatives, states: names, span: [1, 0], initial: Array.from(exact)}, {method, points: [0], relativeTolerance: 1e-10, absoluteTolerance: 1e-12})
+                const back: number[] = Array.from({length: n}, (_: unknown, j: number): number => backward.y.get(0, j))
+                if (!backward.completed || back.some((value: number, j: number): boolean => globalThis.Math.abs(value - initial[j]) > 1e-7 * scale)) fail('backward', `${method}: ${back}, y0 ${initial}`)
+            }
+        }
+        const async = await math.numeric.solveODEAsync({derivatives, states: names, span: [0, 1], initial}, {points: [1], relativeTolerance: 1e-10, absoluteTolerance: 1e-12})
+        const sync = math.numeric.solveODE({derivatives, states: names, span: [0, 1], initial}, {points: [1], relativeTolerance: 1e-10, absoluteTolerance: 1e-12})
+        if (Array.from(async.y.data).some((value: number, j: number): boolean => value !== sync.y.data[j])) fail('async', 'solveODEAsync differs from solveODE')
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('solveODE', String(error))
+    }
+    return failures
+}
+

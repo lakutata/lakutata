@@ -33,7 +33,8 @@ npm install @lakutata/math
 
 The package exports its functions ready to use: `parse`, `expression`, `equation`, `decimal`, `matrix`, `solve` and
 `cse`, with the namespaces `ntheory` (number theory), `linalg` (linear algebra), `stats` (statistics and probability)
-and `numeric` (numeric solutions and integrals). They belong to `math`, the scope made with the default options.
+and `numeric` (numeric solutions, integrals and differential equations). They belong to `math`, the scope made with the
+default options.
 
 ```typescript
 import {decimal, equation, expression, linalg, stats} from '@lakutata/math'
@@ -479,6 +480,40 @@ console.log(numeric.integrate('1/sqrt(abs(x - 1))', 'x', [0, 2], {points: [1]}).
 console.log(numeric.integrate('sin(x)/x', 'x', [0, Infinity]).converged)               //false
 ```
 
+### Differential equations
+
+`numeric.solveODE({derivatives, states, time, span, initial}, options)` solves an ordinary differential equation, or a
+system of them, y' = f(t, y): the derivatives of the states are expressions of the time (`t` by default) and of the
+states; the states are followed from their values at the start of the span to its end (backward when the end is before
+the start). An equation of a higher order is written as a system: x'' = -x is x' = v, v' = -x.
+
+- `method: 'rk45'` (by default) is Dormand and Prince's explicit Runge-Kutta method of order 5, as SciPy's RK45 and
+  MATLAB's ode45. `method: 'radau'` is the implicit method Radau IIA of order 5, as SciPy's Radau, for stiff equations
+  (where components decay at very different rates, such as a chemical reaction or Van der Pol's oscillator with a large
+  mu): it takes the exact Jacobian of the derivatives, and needs far fewer steps on such equations.
+- The step is chosen from the error of the last one, as SciPy's `solve_ivp` chooses it, to keep the error of each step
+  within `relativeTolerance` (1e-6 by default) times the states plus `absoluteTolerance` (1e-9). SciPy and MATLAB
+  default to 1e-3 and 1e-6, which leave about three correct digits; the error at the end of a long span can be larger
+  than the tolerance of a step.
+- The result has the times `t` (every step from the start, or the `points` asked) and the states `y`, a `Matrix` with a
+  row for each time and a column for each state; the solution at the `points` is computed by the continuous extensions
+  of the steps, without shortening them. Where the solution stops before the end of the span (it grows without bound, so
+  the step becomes too small; more than `maxSteps` steps, 100000 by default), `completed` is false, `message` says why,
+  and the solution is given up to there. `solveODEAsync()` runs in the threads of the addon.
+
+```typescript
+import {numeric} from '@lakutata/math'
+
+const decay = numeric.solveODE({derivatives: '-2y', states: 'y', span: [0, 1], initial: 1}, {points: [0.5, 1]})
+console.log(decay.y.data)                                      //Float64Array [0.3678795037443847, 0.13533535227865426]
+const predators = numeric.solveODE({derivatives: ['1.5x - x*y', '-3y + x*y'], states: ['x', 'y'], span: [0, 15], initial: [10, 5]}, {points: [5, 10, 15]})
+console.log(predators.y.toString())                            //[0.26418560018756804, 3.1341398128097984; 0.28720983158008045, 0.4497817486332696; 0.7137350135355639, 0.07540900832629659]
+const stiff = numeric.solveODE({derivatives: ['v', '1000(1 - x^2)v - x'], states: ['x', 'v'], span: [0, 3000], initial: [2, 0]}, {method: 'radau'})
+console.log(stiff.completed, stiff.steps)                      //true 1296
+const blowUp = numeric.solveODE({derivatives: 'y^2', states: 'y', span: [0, 2], initial: 1})
+console.log(blowUp.completed, blowUp.message)                  //false The step became too small at t = 1.0000002858952532
+```
+
 ### Asynchronous operations
 
 The operations that can take long have an asynchronous version: `expandAsync()`, `simplifyAsync()`, `diffAsync()`,
@@ -527,6 +562,7 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | `CompiledFunction` | A compiled expression: a function of numbers, its `variables`, `batch` |
 | `NumberTheory`, `IntegerValue`, `PrimeFactor`, `ExtendedGcd`, `Congruence` | The number theory (`ntheory`): `gcd`, `lcm`, `extendedGcd`, `mod`, `modInverse`, `powMod`, `isPrime`, `nextPrime`, `factor`, `totient`, `mobius`, `primitiveRoot`, `legendre`, `jacobi`, `crt`, `fibonacci`, `lucas`, `binomial`, `factorial`, `doubleFactorial`, `bernoulli`, `harmonic`, `permutations`, `combinationsWithRepetition`, `multinomial`, `bell`, `catalan`, `stirlingSecondKind`, `compositions`, and the asynchronous versions; an integer (a bigint, or a number that is a safe integer); a prime factor and its exponent; the result of `extendedGcd`; the result of `crt` |
 | `Numeric`, `FindRootOptions`, `IterationOptions`, `RootResult`, `SystemRootResult`, `IntegrateOptions`, `IntegralResult` | The numeric solutions and integrals (`numeric`): `polynomialRoots`, `findRoot`, `solveSystem`, `integrate` and their asynchronous versions; their options (`bracket`, `guess`, `tolerance`, `maxIterations`, `points`) and their results (`root` or `solution`, `converged`, `iterations`, `residual`; `value`, `error`, `converged`) |
+| `ODEProblem`, `ODEOptions`, `ODEResult` | The differential equations (`numeric.solveODE`, `solveODEAsync`): the derivatives, the states, the time, the span and the initial values; the method (`rk45`, `radau`), the tolerances, `maxStep`, `points`, `maxSteps`; the times `t`, the states `y`, `steps`, `rejected`, `evaluations`, `jacobians`, `completed`, `message` |
 | `AsyncOptions`, `Value` | The options of the asynchronous operations (`timeout`, `signal`); what is given where an expression is expected (an expression, a number, a bigint, a decimal, a formula) |
 
 The typings document every declaration, with examples.
@@ -538,10 +574,10 @@ The typings document every declaration, with examples.
 | `MathSyntaxException` | A formula is not written correctly (with the `position` of the error), an equation is given where an expression is expected, or the other way round |
 | `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined, or a constant written as a call (`g(2)`), with its `position` |
 | `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep |
-| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power), a bracket of `findRoot()` where the function does not change its sign or is not real, a function or equations that are not real at the guess of `findRoot()` or `solveSystem()`, a function that is not real inside the interval of `integrate()` |
+| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power), a bracket of `findRoot()` where the function does not change its sign or is not real, a function or equations that are not real at the guess of `findRoot()` or `solveSystem()`, a function that is not real inside the interval of `integrate()`, derivatives that are not real at the start of `solveODE()` |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1, a function at one of its poles: `gamma()` of -2, `zeta()` of 1), a modulus of 0 |
 | `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` and `bell(n)` above 2000, `harmonic(n)` above 50000, `stirlingSecondKind(n, k)` with `n` above 50000 or `n k` above 6250000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`) |
-| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, an interval, points or a tolerance of `integrate()` that are not valid, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence`, the options of `createMath()` that are not valid |
+| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, an interval, points or a tolerance of `integrate()` that are not valid, a problem or options of `solveODE()` that are not valid, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence`, the options of `createMath()` that are not valid |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |
 

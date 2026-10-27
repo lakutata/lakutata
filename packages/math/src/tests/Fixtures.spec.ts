@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
-import {type ComplexVector, createMath, type Decimal, type Distribution, type DistributionName, Expression, type IntegralResult, type IterativeSolution, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type PrimeFactor, type RootResult, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution} from '../exports/Math.js'
+import {type ComplexVector, createMath, type Decimal, type Distribution, type DistributionName, Expression, type IntegralResult, type IterativeSolution, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type ODEResult, type PrimeFactor, type RootResult, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -387,8 +387,8 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
         }
     })
 
-    it('give the numeric roots of NumPy, mpmath and SciPy, and the integrals of mpmath', (): void => {
-        type Fixture = {op: string, polynomial?: string, coefficients?: number[], multiple?: boolean, function?: string, bracket?: [number, number], guess?: number | number[], equations?: string[], variables?: string[], interval?: [number | string, number | string], points?: number[], notConverged?: boolean, result?: unknown, error?: string}
+    it('give the numeric roots of NumPy, mpmath and SciPy, the integrals of mpmath and the solutions of SciPy\'s solve_ivp', (): void => {
+        type Fixture = {op: string, polynomial?: string, coefficients?: number[], multiple?: boolean, function?: string, bracket?: [number, number], guess?: number | number[], equations?: string[], variables?: string[], interval?: [number | string, number | string], points?: number[], notConverged?: boolean, derivatives?: string[], states?: string[], time?: string, span?: [number, number], initial?: number[], method?: 'rk45' | 'radau', defaultTolerance?: number, result?: unknown, error?: string}
         //JSON has no infinity: the infinite ends are 'inf' and '-inf'
         const end = (value: number | string): number => value === 'inf' ? Infinity : value === '-inf' ? -Infinity : value as number
         const fixtures = expected<Fixture>('numeric')
@@ -401,6 +401,7 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
                     case 'findRoot': return math.numeric.findRoot(fixture.function!, 'x', fixture.bracket ? {bracket: fixture.bracket} : {guess: fixture.guess as number})
                     case 'solveSystem': return math.numeric.solveSystem(fixture.equations!, fixture.variables!, fixture.guess as number[])
                     case 'integrate': return math.numeric.integrate(fixture.function!, 'x', [end(fixture.interval![0]), end(fixture.interval![1])], {points: fixture.points})
+                    case 'solveODE': return math.numeric.solveODE({derivatives: fixture.derivatives!, states: fixture.states!, time: fixture.time, span: fixture.span!, initial: fixture.initial!}, {method: fixture.method, points: fixture.points, relativeTolerance: 1e-10, absoluteTolerance: 1e-12})
                 }
                 throw new Error(`Unknown operation ${fixture.op}`)
             }
@@ -414,6 +415,15 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
                 const tolerance: number = fixture.multiple ? 1e-4 : 1e-10
                 assert.strictEqual(ours.re.length, theirs.re.length, label)
                 ours.re.forEach((re: number, i: number): void => assert.ok(near(re, theirs.re[i], tolerance) && near(ours.im[i], theirs.im[i], tolerance), `${label}: ${re} + ${ours.im[i]}i, NumPy ${theirs.re[i]} + ${theirs.im[i]}i`))
+            } else if (fixture.op === 'solveODE') {
+                //SciPy's solve_ivp at 1e-12; ours at 1e-10, and at the default tolerances within the case's own bound
+                const theirs = (fixture.result as {y: number[][]}).y
+                const compare = (ours: ODEResult, tolerance: number, kind: string): void => {
+                    assert.ok(ours.completed && ours.y.rows === theirs.length, `${label} ${kind}: ${ours.message}`)
+                    theirs.forEach((row: number[], i: number): void => row.forEach((value: number, j: number): void => assert.ok(near(ours.y.get(i, j), value, tolerance), `${label} ${kind}: at ${fixture.points![i]}, ${ours.y.get(i, j)}, SciPy ${value}`)))
+                }
+                compare(operate() as ODEResult, 1e-6, 'at 1e-10')
+                if (fixture.defaultTolerance) compare(math.numeric.solveODE({derivatives: fixture.derivatives!, states: fixture.states!, time: fixture.time, span: fixture.span!, initial: fixture.initial!}, {method: fixture.method, points: fixture.points}), fixture.defaultTolerance, 'by default')
             } else if (fixture.op === 'integrate') {
                 //mpmath's quad at 30 digits; where doubles cannot converge (x^-0.99 has 0.08 of its integral below
                 //10^-308), only that it does not

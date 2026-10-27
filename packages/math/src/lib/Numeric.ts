@@ -3,7 +3,7 @@ import {type AsyncOptions, type Context} from './Context.js'
 import {equationHandleOf, Expression, handleOf, type Value} from './Expression.js'
 import {type ComplexVector} from './LinearAlgebra.js'
 import {type SystemEquation} from './MathScope.js'
-import {isVector, vectorOf, type VectorValue} from './Matrix.js'
+import {isVector, Matrix, vectorOf, type VectorValue} from './Matrix.js'
 import {type Handle} from './Native.js'
 
 /**
@@ -121,6 +121,109 @@ export interface IntegralResult {
     converged: boolean
 }
 
+/**
+ * An ordinary differential equation, or a system of them, y' = f(t, y), and its initial values
+ */
+export interface ODEProblem {
+    /**
+     * The derivatives of the states, in their order: expressions (or formulas) of the time and of the states. One
+     * derivative for a single state.
+     */
+    derivatives: Value | readonly Value[]
+    /**
+     * The names of the states, or the name of a single state.
+     */
+    states: string | readonly string[]
+    /**
+     * The name of the time: `t` by default.
+     */
+    time?: string
+    /**
+     * The span of the time, from its start to its end: backward where the end is before the start.
+     */
+    span: readonly [number, number]
+    /**
+     * The values of the states at the start of the span, in their order; a number for a single state.
+     */
+    initial: number | VectorValue
+}
+
+/**
+ * The options of an ordinary differential equation
+ */
+export interface ODEOptions {
+    /**
+     * `'rk45'` (Dormand and Prince's explicit method of order 5, by default), or `'radau'` for stiff equations (the
+     * implicit method Radau IIA of order 5, with the exact Jacobian of the derivatives).
+     */
+    method?: 'rk45' | 'radau'
+    /**
+     * The error allowed in a step, relative to the states: 1e-6 by default (SciPy's 1e-3 is looser). A value below 100
+     * times the machine epsilon is raised to it, as SciPy does.
+     */
+    relativeTolerance?: number
+    /**
+     * The error allowed in a step for states near 0: 1e-9 by default (SciPy's 1e-6 is looser).
+     */
+    absoluteTolerance?: number
+    /**
+     * The largest step: none by default.
+     */
+    maxStep?: number
+    /**
+     * The times at which the solution is given, in the span, from its start to its end, by the continuous extensions of
+     * the steps; every step by default.
+     */
+    points?: readonly number[]
+    /**
+     * The largest number of steps: 100000 by default.
+     */
+    maxSteps?: number
+}
+
+/**
+ * The solution of an ordinary differential equation
+ */
+export interface ODEResult {
+    /**
+     * The times: of every step from the start of the span, or the points asked.
+     */
+    t: Float64Array
+    /**
+     * The states: a row for each time, a column for each state.
+     */
+    y: Matrix
+    /**
+     * The steps taken.
+     */
+    steps: number
+    /**
+     * The steps rejected (their errors too large, or their Newton iterations not converging) and taken again shorter.
+     */
+    rejected: number
+    /**
+     * The evaluations of the derivatives.
+     */
+    evaluations: number
+    /**
+     * The evaluations of the Jacobian (by `'radau'`).
+     */
+    jacobians: number
+    /**
+     * Whether the solution reached the end of the span; where it did not, it ends where it stopped.
+     */
+    completed: boolean
+    /**
+     * Why it did not reach the end of the span: the step became too small (a singularity), or more than `maxSteps`
+     * steps.
+     */
+    message?: string
+}
+
+interface NativeODE extends Omit<ODEResult, 'y'> {
+    y: Float64Array
+}
+
 interface NativeIterative {
     solution: Float64Array
     converged: boolean
@@ -135,15 +238,20 @@ function iterationsOf(options: IterationOptions | undefined): [number, number] {
 //The square root of the machine epsilon, the tolerance of SciPy's quad and of Boost's quadratures
 const INTEGRAL_TOLERANCE: number = globalThis.Math.sqrt(Number.EPSILON)
 
+function odeOf(result: NativeODE): ODEResult {
+    const columns: number = result.t.length ? result.y.length / result.t.length : 0
+    return {...result, y: new Matrix(result.t.length, columns, result.y)}
+}
+
 function rootOf(result: NativeIterative): RootResult {
     return {root: result.solution[0], converged: result.converged, iterations: result.iterations, residual: result.residual}
 }
 
 /**
- * The numeric solutions of equations and the integrals, computed by the addon on the expressions compiled to doubles,
- * with their derivatives where a method needs them: the roots of a polynomial, a root of a function, a solution of a
- * system of nonlinear equations, the integral of a function. It is `MathScope.numeric`; the package exports the one of
- * `math` as `numeric`.
+ * The numeric solutions of equations, the integrals and the differential equations, computed by the addon on the
+ * expressions compiled to doubles, with their derivatives where a method needs them: the roots of a polynomial, a root
+ * of a function, a solution of a system of nonlinear equations, the integral of a function, the solution of ordinary
+ * differential equations. It is `MathScope.numeric`; the package exports the one of `math` as `numeric`.
  *
  * Its iterative methods stop when their steps become smaller than a tolerance, relative to the solution (as SciPy's
  * `fsolve`), or after a largest number of iterations, and say which (`converged`) with the residual at the solution: a
@@ -259,6 +367,60 @@ export class Numeric {
      */
     public async solveSystemAsync(equations: SystemEquation[], variables: string[], guess: VectorValue, options?: IterationOptions & AsyncOptions): Promise<SystemRootResult> {
         return await this.context.runAsync<NativeIterative>('solveSystem', this.#system(equations, variables, guess, options), options)
+    }
+
+    #ode(problem: ODEProblem, options?: ODEOptions): unknown[] {
+        if (typeof problem !== 'object' || problem === null) throw new MathArgumentException('The problem is an object of the derivatives, the states, the span and the initial values')
+        const derivatives: readonly Value[] = Array.isArray(problem.derivatives) ? problem.derivatives : [problem.derivatives as Value]
+        const states: readonly string[] = typeof problem.states === 'string' ? [problem.states] : problem.states
+        if (!Array.isArray(states) || states.some((name: unknown): boolean => typeof name !== 'string')) throw new MathArgumentException('The states are names')
+        if (!Array.isArray(problem.span) || problem.span.length !== 2) throw new MathArgumentException('A span is [start, end]')
+        const initial: ArrayLike<number> = typeof problem.initial === 'number' ? [problem.initial] : vectorOf(problem.initial, 'The initial values')
+        if (options?.points !== undefined && !Array.isArray(options.points)) throw new MathArgumentException('The points are an array of numbers')
+        return [
+            derivatives.map((derivative: Value): Handle => handleOf(this.context, derivative)), states, problem.time ?? 't', problem.span[0], problem.span[1], Float64Array.from(initial),
+            options?.method ?? 'rk45', options?.relativeTolerance ?? 1e-6, options?.absoluteTolerance ?? 1e-9, options?.maxStep ?? Infinity, Float64Array.from(options?.points ?? []), options?.maxSteps ?? 100000
+        ]
+    }
+
+    /**
+     * The solution of an ordinary differential equation, or of a system of them, y' = f(t, y), from initial values: by
+     * Dormand and Prince's explicit Runge-Kutta method of order 5, its error estimated by the embedded method of order
+     * 4 (as SciPy's RK45, MATLAB's ode45); or, for stiff equations (`method: 'radau'`), by the implicit Runge-Kutta
+     * method Radau IIA of order 5 (as SciPy's Radau), with the exact Jacobian of the derivatives. The step is chosen
+     * from the error of the last one, as SciPy's `solve_ivp` chooses it. The solution is given at every step, or at the
+     * `points` asked, by the continuous extensions of the steps (of order 4 and 3). Where it stops before the end of the
+     * span (a singularity makes the step too small, more than `maxSteps` steps), it gives the solution up to there with
+     * `completed: false` and a `message`. Derivatives that are not real at the start throw `MathDomainException`.
+     * @param problem The derivatives, the states, the time, the span, the initial values.
+     * @param options The method, the tolerances, the largest step, the times to give, the largest number of steps.
+     * @example
+     * ```typescript
+     * import {numeric} from '@lakutata/math'
+     *
+     * //y' = -2y, y(0) = 1: e^-2t, at the default tolerances
+     * const decay = numeric.solveODE({derivatives: '-2y', states: 'y', span: [0, 1], initial: 1}, {points: [0.5, 1]})
+     * console.log(decay.y.data)                               //Float64Array [0.3678795037443847, 0.13533535227865426]
+     * //The oscillator x'' = -x as a system: x' = v, v' = -x
+     * const spring = numeric.solveODE({derivatives: ['v', '-x'], states: ['x', 'v'], span: [0, Math.PI], initial: [1, 0]}, {relativeTolerance: 1e-10, absoluteTolerance: 1e-12})
+     * console.log(spring.y.row(spring.t.length - 1))          //Float64Array [-0.9999999999620447, 2.277557266047725e-12]
+     * //Stiff: Van der Pol with mu = 1000
+     * const stiff = numeric.solveODE({derivatives: ['v', '1000(1 - x^2)v - x'], states: ['x', 'v'], span: [0, 3000], initial: [2, 0]}, {method: 'radau'})
+     * console.log(stiff.completed, stiff.steps)               //true 1296
+     * ```
+     */
+    public solveODE(problem: ODEProblem, options?: ODEOptions): ODEResult {
+        return odeOf(this.context.run<NativeODE>('solveODE', this.#ode(problem, options)))
+    }
+
+    /**
+     * `solveODE()` in the threads of the addon.
+     * @param problem The derivatives, the states, the time, the span, the initial values.
+     * @param options The method, the tolerances, the largest step, the times to give, the largest number of steps, the
+     * cancellation, the time limit.
+     */
+    public async solveODEAsync(problem: ODEProblem, options?: ODEOptions & AsyncOptions): Promise<ODEResult> {
+        return odeOf(await this.context.runAsync<NativeODE>('solveODE', this.#ode(problem, options), options))
     }
 
     #integral(integrand: Value, variable: string, interval: readonly [number, number], options?: IntegrateOptions): unknown[] {

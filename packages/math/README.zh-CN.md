@@ -18,7 +18,7 @@ npm install @lakutata/math
 
 ### 快速上手
 
-这个包导出的函数可以直接使用：`parse`、`expression`、`equation`、`decimal`、`matrix`、`solve` 和 `cse`，以及命名空间 `ntheory`（数论）、`linalg`（线性代数）、`stats`（统计和概率）和 `numeric`（数值解和数值积分）。它们都属于 `math`，也就是用默认选项创建的范围。
+这个包导出的函数可以直接使用：`parse`、`expression`、`equation`、`decimal`、`matrix`、`solve` 和 `cse`，以及命名空间 `ntheory`（数论）、`linalg`（线性代数）、`stats`（统计和概率）和 `numeric`（数值解、数值积分和微分方程）。它们都属于 `math`，也就是用默认选项创建的范围。
 
 ```typescript
 import {decimal, equation, expression, linalg, stats} from '@lakutata/math'
@@ -307,6 +307,27 @@ console.log(numeric.integrate('1/sqrt(abs(x - 1))', 'x', [0, 2], {points: [1]}).
 console.log(numeric.integrate('sin(x)/x', 'x', [0, Infinity]).converged)               //false
 ```
 
+### 微分方程
+
+`numeric.solveODE({derivatives, states, time, span, initial}, options)` 求常微分方程或方程组 y' = f(t, y) 的数值解：各状态的导数是时间（默认叫 `t`）和各状态的表达式，从区间起点的初值一直解到终点（终点在起点之前时倒着解）。高阶方程写成方程组：x'' = -x 写成 x' = v、v' = -x。
+
+- `method: 'rk45'`（默认）是 Dormand 和 Prince 的 5 阶显式 Runge-Kutta 方法，和 SciPy 的 RK45、MATLAB 的 ode45 相同。`method: 'radau'` 是 5 阶隐式方法 Radau IIA，和 SciPy 的 Radau 相同，用于刚性方程（各分量衰减快慢相差悬殊，例如化学反应、mu 很大的 Van der Pol 振子）：它使用导数的精确雅可比矩阵，在这类方程上需要的步数少得多。
+- 步长根据上一步的误差选取，和 SciPy 的 `solve_ivp` 相同，使每一步的误差不超过 `relativeTolerance`（默认 1e-6）乘以状态的大小，再加上 `absoluteTolerance`（默认 1e-9）。SciPy 和 MATLAB 的默认值是 1e-3 和 1e-6，只能保证大约三位有效数字；区间很长时，终点的误差可能比每一步的容差大。
+- 结果包括时间 `t`（从起点开始的每一步，或者指定的 `points`）和状态 `y`：`y` 是一个 `Matrix`，每个时间一行，每个状态一列。`points` 处的值由每一步的连续扩展算出，不会因此缩短步长。解在终点之前停下时（解无界增长使步长变得太小，或者超过 `maxSteps` 步，默认 100000 步），`completed` 为 `false`，`message` 说明原因，结果给出到停下为止的解。`solveODEAsync()` 在原生插件的线程里执行。
+
+```typescript
+import {numeric} from '@lakutata/math'
+
+const decay = numeric.solveODE({derivatives: '-2y', states: 'y', span: [0, 1], initial: 1}, {points: [0.5, 1]})
+console.log(decay.y.data)                                      //Float64Array [0.3678795037443847, 0.13533535227865426]
+const predators = numeric.solveODE({derivatives: ['1.5x - x*y', '-3y + x*y'], states: ['x', 'y'], span: [0, 15], initial: [10, 5]}, {points: [5, 10, 15]})
+console.log(predators.y.toString())                            //[0.26418560018756804, 3.1341398128097984; 0.28720983158008045, 0.4497817486332696; 0.7137350135355639, 0.07540900832629659]
+const stiff = numeric.solveODE({derivatives: ['v', '1000(1 - x^2)v - x'], states: ['x', 'v'], span: [0, 3000], initial: [2, 0]}, {method: 'radau'})
+console.log(stiff.completed, stiff.steps)                      //true 1296
+const blowUp = numeric.solveODE({derivatives: 'y^2', states: 'y', span: [0, 2], initial: 1})
+console.log(blowUp.completed, blowUp.message)                  //false The step became too small at t = 1.0000002858952532
+```
+
 ### 异步运算
 
 可能耗时的运算都有异步版本：`expandAsync()`、`simplifyAsync()`、`diffAsync()`、`seriesAsync()`、`solveAsync()`、`toDecimalAsync()`、`toComplexDecimalAsync()`、`solveAsync()` 和 `cseAsync()`，以及数论、线性代数和数值解的异步版本。它们在原生插件自己的线程里执行，不占用 libuv 的线程池：线程数默认是 CPU 核数减一，也可以用环境变量 `LAKUTATA_MATH_THREADS` 指定。选项有 `timeout`（毫秒）和 `signal`（`AbortSignal`）：
@@ -345,6 +366,7 @@ console.log(numeric.integrate('sin(x)/x', 'x', [0, Infinity]).converged)        
 | `LuDecomposition`、`QrDecomposition`、`SingularValueDecomposition`、`EigenDecomposition`、`SymmetricEigenDecomposition`、`SchurDecomposition`、`ComplexVector`、`ComplexMatrix` | 各种分解的结果：`{lower, upper, permutation}`、`{q, r}`、`{u, singularValues, v}`、`{values, vectors}`（复数为 `{re, im}`）、`{values, vectors}`、`{u, t}` |
 | `NumberTheory`、`IntegerValue`、`PrimeFactor`、`ExtendedGcd`、`Congruence` | 数论（`ntheory`）：`gcd`、`lcm`、`extendedGcd`、`mod`、`modInverse`、`powMod`、`isPrime`、`nextPrime`、`factor`、`totient`、`mobius`、`primitiveRoot`、`legendre`、`jacobi`、`crt`、`fibonacci`、`lucas`、`binomial`、`factorial`、`doubleFactorial`、`bernoulli`、`harmonic`、`permutations`、`combinationsWithRepetition`、`multinomial`、`bell`、`catalan`、`stirlingSecondKind`、`compositions`，以及各个异步版本；整数（bigint，或安全整数范围内的 number）；质因数和它的指数；`extendedGcd` 的结果；`crt` 的结果 |
 | `Numeric`、`FindRootOptions`、`IterationOptions`、`RootResult`、`SystemRootResult`、`IntegrateOptions`、`IntegralResult` | 数值解和数值积分（`numeric`）：`polynomialRoots`、`findRoot`、`solveSystem`、`integrate` 和它们的异步版本；它们的选项（`bracket`、`guess`、`tolerance`、`maxIterations`、`points`）和结果（`root` 或 `solution`、`converged`、`iterations`、`residual`；`value`、`error`、`converged`） |
+| `ODEProblem`、`ODEOptions`、`ODEResult` | 微分方程（`numeric.solveODE`、`solveODEAsync`）：导数、状态、时间、区间和初值；方法（`rk45`、`radau`）、容差、`maxStep`、`points`、`maxSteps`；时间 `t`、状态 `y`、`steps`、`rejected`、`evaluations`、`jacobians`、`completed`、`message` |
 | `AsyncOptions`、`Value` | 异步运算的选项（`timeout`、`signal`）；需要表达式的地方可以传入的值（表达式、数字、bigint、十进制数、公式） |
 
 类型声明里有每个声明的说明和示例。
@@ -356,10 +378,10 @@ console.log(numeric.integrate('sin(x)/x', 'x', [0, Infinity]).converged)        
 | `MathSyntaxException` | 公式写得不对（带有出错的 `position`），需要表达式的地方给了方程，或者反过来 |
 | `MathUnknownFunctionException` | 公式调用的函数既不是内置函数，也没有定义，或者把常数写成了调用（`g(2)`），带有它的 `position` |
 | `MathDefinitionException` | 定义无效：用了内置的名字、参数重复、定义之间循环引用、定义嵌套太深 |
-| `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂），`findRoot()` 的区间两端符号相同或者函数在区间里不是实数，函数或方程组在 `findRoot()`、`solveSystem()` 的初始值处不是实数，`integrate()` 的函数在区间内不是实数 |
+| `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂），`findRoot()` 的区间两端符号相同或者函数在区间里不是实数，函数或方程组在 `findRoot()`、`solveSystem()` 的初始值处不是实数，`integrate()` 的函数在区间内不是实数，`solveODE()` 的导数在起点不是实数 |
 | `MathDivisionByZeroException` | 计算十进制值时遇到除以零（包括除以一个无法和 0 区分的值、0 的对数、0 的负数次幂、以 1 为底的对数、在函数的极点上求值：`gamma()` 的参数是 -2、`zeta()` 的参数是 1），或者模数是 0 |
 | `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 和 `bell(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、`stirlingSecondKind(n, k)` 的 n 超过 50000 或 n k 超过 6250000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`） |
-| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、`integrate()` 的区间、分点或容差无效、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分布的参数无效、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数，`createMath()` 的选项无效 |
+| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、`integrate()` 的区间、分点或容差无效、`solveODE()` 的问题或选项无效、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分布的参数无效、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数，`createMath()` 的选项无效 |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |
 | `MathException` | 以上所有错误的基类；原生插件内部错误时，它的 `errno` 是 `E_MATH_INTERNAL` |
 
