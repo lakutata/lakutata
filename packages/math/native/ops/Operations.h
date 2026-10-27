@@ -3,6 +3,7 @@
 #pragma once
 
 #include <complex>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -61,6 +62,10 @@ struct Solutions {
 
 //The solutions of expression = 0 for a variable, in the complex numbers or the real ones
 Solutions solveOf(const Expr &expression, const std::string &variable, bool real);
+
+//The terms of the series of an expression in a variable at 0, of the powers below an order (negative ones too): power
+//to coefficient
+std::map<long, Expr> seriesTermsOf(const Expr &expression, const SymEngine::RCP<const SymEngine::Symbol> &variable, long order);
 
 //The expression without the unevaluated parts that SymEngine's rewritings keep (cos(x - pi/2)), as the operations
 //compute with it

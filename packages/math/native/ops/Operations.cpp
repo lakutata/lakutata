@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <map>
 #include <optional>
 #include <set>
 #include <unordered_map>
@@ -318,6 +319,38 @@ Expr substitute(const Expr &expression, const std::vector<std::pair<std::string,
     return evaluated(result, true);
 }
 
+std::map<long, Expr> seriesTermsOf(const Expr &expression, const RCP<const Symbol> &by, long order)
+{
+    //SymEngine's series loses orders where it divides by a power of the variable (sin(x)/x^3 lacked its x^2 term, the
+    //x^3 term of (1 + x)^(1/x) was wrong): computed again at higher orders until the terms below the order agree
+    const auto termsAt = [&expression, &by, order](long precision) {
+        std::map<long, Expr> terms;
+        for (const auto &[power, coefficient] : series(expression, by, static_cast<unsigned>(precision))->as_dict()) {
+            if (power < order) terms[power] = coefficient;
+        }
+        return terms;
+    };
+    const auto same = [](const std::map<long, Expr> &a, const std::map<long, Expr> &b) {
+        if (a.size() != b.size()) return false;
+        for (const auto &[power, coefficient] : a) {
+            const auto found = b.find(power);
+            if (found == b.end() || !eq(*expand(sub(coefficient, found->second)), *zero)) return false;
+        }
+        return true;
+    };
+    long precision = order + 2;
+    std::map<long, Expr> terms = termsAt(precision);
+    for (int attempt = 0; attempt < 6; attempt++) {
+        checkpoint();
+        const long next = precision + std::max(4L, precision / 2);
+        std::map<long, Expr> more = termsAt(next);
+        if (same(terms, more)) return terms;
+        terms = std::move(more);
+        precision = next;
+    }
+    return terms;
+}
+
 Expr seriesOf(const Expr &given, const std::string &name, const Expr &point, unsigned order)
 {
     const Expr expression = evaluated(given);
@@ -356,7 +389,8 @@ Expr seriesOf(const Expr &given, const std::string &name, const Expr &point, uns
         shifted = xreplace(shifted, held);
         for (const auto &[value, placeholder] : held) restored[placeholder] = value;
     }
-    Expr result = series(shifted, by, order)->as_basic();
+    Expr result = zero;
+    for (const auto &[power, coefficient] : seriesTermsOf(shifted, by, static_cast<long>(order))) result = add(result, mul(coefficient, pow(by, integer(power))));
     if (!restored.empty()) result = xreplace(result, restored);
     if (!atZero) result = subs(result, {{by, sub(by, point)}});
     return result;

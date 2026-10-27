@@ -101,6 +101,9 @@ describe('The formulas', (): void => {
         assert.strictEqual(math.expression('log(1 - x) + 2(x - 3)').substitute({x: '1 - u'}).toString(), '-2u + ln(u) - 4')
         assert.strictEqual(math.expression('x^2 - 5x + 6').evaluate({x: 4}).toNumber(), 2)
         assert.strictEqual(math.expression('sin(x)').series('x', 0, 6).toString(), 'x^5/120 - x^3/6 + x')
+        //All the terms below the order, where SymEngine loses orders dividing by powers of the variable
+        assert.strictEqual(math.expression('sin(x)/x^3').series('x', 0, 4).toString(), 'x^2/120 + 1/x^2 - 1/6')
+        assert.strictEqual(math.expression('(1 + x)^(1/x)').series('x', 0, 4).toString(), '-e*x/2 - 7e*x^3/16 + 11e*x^2/24 + e')
         //The functions of the addon: sinc as sin(x)/x, a call without the variable as a constant
         assert.strictEqual(math.expression('exp(x)*sinc(2x)').series('x', 0, 4).toString(), '-x^3/2 - x^2/6 + x + 1')
         assert.strictEqual(math.expression('round(y) + x').series('x', 0, 3).toString(), 'x + round(y)')
