@@ -323,6 +323,71 @@ export class NumberTheory {
     }
 
     /**
+     * The number of arrangements of k of n items, `n! / (n - k)!`; without `k`, of all of them, `n!`. 0 for `k > n`
+     * (mathjs throws).
+     * @param n The number of items, 0 or more.
+     * @param k The number arranged, 0 or more: `n` by default.
+     */
+    public permutations(n: IntegerValue, k?: IntegerValue): bigint {
+        return this.#run<bigint>('permutations', k === undefined ? [n] : [n, k])
+    }
+
+    /**
+     * The number of combinations with repetition of k items of n kinds (the multisets of k items of n kinds),
+     * `C(n + k - 1, k)`: 1 for `n = k = 0`.
+     * @param n The number of kinds, 0 or more.
+     * @param k The number chosen, 0 or more.
+     */
+    public combinationsWithRepetition(n: IntegerValue, k: IntegerValue): bigint {
+        return this.#run<bigint>('combinationsWithRepetition', [n, k])
+    }
+
+    /**
+     * The multinomial coefficient `(k1 + k2 + …)! / (k1! k2! …)`: the ways to split items into groups of these sizes
+     * (a count may be 0; of no counts, 1).
+     * @param counts The sizes of the groups, 0 or more.
+     */
+    public multinomial(counts: IntegerValue[]): bigint {
+        return this.#run<bigint>('multinomial', [counts])
+    }
+
+    /**
+     * The Bell number `B(n)`: the number of partitions of a set of n items, for `n` from 0 to 2000.
+     * @param n The number of items.
+     */
+    public bell(n: IntegerValue): bigint {
+        return this.#run<bigint>('bell', [n])
+    }
+
+    /**
+     * The Catalan number `C(2n, n) / (n + 1)`, for `n >= 0`.
+     * @param n The index.
+     */
+    public catalan(n: IntegerValue): bigint {
+        return this.#run<bigint>('catalan', [n])
+    }
+
+    /**
+     * The Stirling number of the second kind `S(n, k)`: the number of partitions of a set of n items into k nonempty
+     * blocks (0 for `k > n`; mathjs's `stirlingS2`), for `n` up to 50000 and `n k` up to 6250000.
+     * @param n The number of items, 0 or more.
+     * @param k The number of blocks, 0 or more.
+     */
+    public stirlingSecondKind(n: IntegerValue, k: IntegerValue): bigint {
+        return this.#run<bigint>('stirlingSecondKind', [n, k])
+    }
+
+    /**
+     * The number of compositions of n into k parts: the ways to write n as an ordered sum of k positive integers,
+     * `C(n - 1, k - 1)` (mathjs's `composition`); 1 for `n = k = 0`, 0 for `k > n`.
+     * @param n The integer, 0 or more.
+     * @param k The number of parts, 0 or more.
+     */
+    public compositions(n: IntegerValue, k: IntegerValue): bigint {
+        return this.#run<bigint>('compositions', [n, k])
+    }
+
+    /**
      * The factorial `n!`, for `n >= 0`, up to about 71000 (a result of 2^20 bits). A formula's `factorial(n)` (or
      * `n!`) stays `gamma(n + 1)` above 20000, so that an expression holding it stays printable; this one is computed.
      * @param n The integer.

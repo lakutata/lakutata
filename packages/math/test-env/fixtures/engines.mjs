@@ -89,7 +89,14 @@ const numberTheory = {
         binomial: (n, k) => n >= 0 && k >= 0 && k <= n ? String(math.combinations(n, k)) : undefined,
         factorial: (n) => n >= 0 ? String(math.factorial(n)) : undefined,
         //Of a fraction: exact
-        bernoulli: (n) => math.bernoulli(math.fraction(n)).toFraction()
+        bernoulli: (n) => math.bernoulli(math.fraction(n)).toFraction(),
+        permutations: (n, k) => String(k === undefined ? math.permutations(n) : math.permutations(n, k)),
+        combinationsWithRepetition: (n, k) => String(math.combinationsWithRep(n, k)),
+        multinomial: (counts) => String(math.multinomial(counts)),
+        bell: (n) => String(math.bellNumbers(n)),
+        catalan: (n) => String(math.catalan(n)),
+        stirlingSecondKind: (n, k) => String(math.stirlingS2(n, k)),
+        compositions: (n, k) => String(math.composition(n, k))
     },
     nerdamer: {
         gcd: (values) => values.length >= 2 ? nerdamer(`gcd(${values.join(', ')})`).toString() : undefined,

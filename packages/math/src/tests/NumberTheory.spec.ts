@@ -5,6 +5,7 @@ import {
     Math,
     MathArgumentException,
     MathCancelledException,
+    MathDomainException,
     MathNotSupportedException,
     MathTimeoutException,
     type NumberTheory,
@@ -118,6 +119,39 @@ describe('The number theory', (): void => {
             for (let k: number = 1; k <= n; k++) coprime += ntheory.gcd(k, n) === 1n ? 1 : 0
             assert.strictEqual(ntheory.totient(n), BigInt(coprime), `totient(${n})`)
         }
+    })
+
+    it('count the arrangements, the multisets, the partitions and the compositions, by their identities', (): void => {
+        for (let n: number = 0; n <= 40; n++) {
+            assert.strictEqual(ntheory.permutations(n), ntheory.factorial(n))
+            let bell: bigint = 0n, compositions: bigint = 0n
+            for (let k: number = 0; k <= n + 1; k++) {
+                assert.strictEqual(ntheory.permutations(n, k), k > n ? 0n : ntheory.factorial(n) / ntheory.factorial(n - k), `permutations(${n}, ${k})`)
+                assert.strictEqual(ntheory.combinationsWithRepetition(n, k), n === 0 ? (k === 0 ? 1n : 0n) : ntheory.binomial(n + k - 1, k))
+                assert.strictEqual(ntheory.multinomial([n, k]), ntheory.binomial(n + k, k))
+                //S(n + 1, k) = k S(n, k) + S(n, k - 1)
+                if (k > 0) assert.strictEqual(ntheory.stirlingSecondKind(n + 1, k), BigInt(k) * ntheory.stirlingSecondKind(n, k) + ntheory.stirlingSecondKind(n, k - 1), `S(${n + 1}, ${k})`)
+                bell += ntheory.stirlingSecondKind(n, k)
+                compositions += ntheory.compositions(n, k)
+            }
+            assert.strictEqual(ntheory.bell(n), bell, `bell(${n})`)
+            assert.strictEqual(compositions, n === 0 ? 1n : 2n ** BigInt(n - 1), `the compositions of ${n}`)
+            assert.strictEqual(ntheory.catalan(n), ntheory.binomial(2 * n, n) - ntheory.binomial(2 * n, n + 1))
+        }
+        assert.strictEqual(ntheory.multinomial([3, 1, 2]), ntheory.multinomial([1, 2, 3]))
+        assert.strictEqual(ntheory.multinomial([]), 1n)
+        assert.strictEqual(ntheory.permutations(10n ** 30n, 2), 10n ** 30n * (10n ** 30n - 1n))
+        assert.strictEqual(ntheory.stirlingSecondKind(2500, 2499), ntheory.binomial(2500, 2))
+        //Their limits: the results of more than 2^20 bits, and the times of bell and of the Stirling numbers
+        for (const [operation, exception] of [
+            [(): unknown => ntheory.bell(2001), MathNotSupportedException],
+            [(): unknown => ntheory.catalan(1000000), MathNotSupportedException],
+            [(): unknown => ntheory.permutations(10000000), MathNotSupportedException],
+            [(): unknown => ntheory.stirlingSecondKind(5000, 2500), MathNotSupportedException],
+            [(): unknown => ntheory.permutations(-1, 2), MathDomainException],
+            [(): unknown => ntheory.multinomial([2, -1]), MathDomainException],
+            [(): unknown => ntheory.compositions(3, -1), MathDomainException]
+        ] as [() => unknown, typeof MathDomainException][]) assert.throws(operation, exception)
     })
 
     it('give the same results asynchronously, stop a long factorization, and refuse other values than integers', async (): Promise<void> => {

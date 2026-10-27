@@ -14,9 +14,9 @@ import sympy
 from sympy import (Abs, E, I, Integer, LambertW, Max, Min, Rational, S, Symbol, ceiling, conjugate, floor, linsolve,
                    log, loggamma, nan, oo, sign, solveset, zoo)
 from sympy.core.intfunc import igcdex, mod_inverse
-from sympy.functions.combinatorial.factorials import binomial, factorial, factorial2
-from sympy.functions.combinatorial.numbers import (bernoulli, fibonacci, harmonic, jacobi_symbol, legendre_symbol, lucas,
-                                                   mobius, totient)
+from sympy.functions.combinatorial.factorials import binomial, factorial, factorial2, ff
+from sympy.functions.combinatorial.numbers import (bell, bernoulli, catalan, fibonacci, harmonic, jacobi_symbol,
+                                                   legendre_symbol, lucas, mobius, stirling, totient)
 from sympy.ntheory import factorint, isprime, nextprime, primitive_root
 from sympy.ntheory.modular import crt
 from sympy.parsing.sympy_parser import (convert_xor, implicit_multiplication, parse_expr, rationalize,
@@ -271,6 +271,14 @@ def inverse(a, m):
 
 # The operations of math.ntheory by SymPy (and Python's integers), their results as the tests compare them: integers
 # as decimal strings, null for no value
+def natural(*values):
+    """True where every value is 0 or more (for use as an operand of and); a ValueError otherwise, as the combinatorics
+    refuse negative counts"""
+    if any(value < 0 for value in values):
+        raise ValueError('a negative count')
+    return True
+
+
 NUMBER_THEORY = {
     'gcd': lambda values: str(math.gcd(*values)),
     'lcm': lambda values: str(math.lcm(*values)),
@@ -295,6 +303,14 @@ NUMBER_THEORY = {
     'doubleFactorial': lambda n: str(factorial2(n)),
     'bernoulli': lambda n: str(bernoulli(n)),
     'harmonic': lambda n: str(harmonic(n)),
+    'permutations': lambda n, k=None: str(natural(n, n if k is None else k) and (factorial(n) if k is None else ff(n, k))),
+    'combinationsWithRepetition': lambda n, k: str(natural(n, k) and binomial(n + k - 1, k)),
+    'multinomial': lambda counts: str(natural(*counts) and factorial(sum(counts)) // math.prod(factorial(c) for c in counts)),
+    'bell': lambda n: str(natural(n) and bell(n)),
+    'catalan': lambda n: str(natural(n) and catalan(n)),
+    'stirlingSecondKind': lambda n, k: str(natural(n, k) and stirling(n, k)),
+    # The compositions of n into k parts, C(n - 1, k - 1) of positive n and k
+    'compositions': lambda n, k: str(natural(n, k) and (binomial(n - 1, k - 1) if n > 0 and k > 0 else int(n == k))),
 }
 
 

@@ -360,6 +360,25 @@ double factorialBits(double n)
     return n < 2 ? 1 : n * std::log2(n) - n * 1.4426950408889634 + 0.5 * std::log2(6.283185307179586 * n) + 1;
 }
 
+//C(n, k): 0 for a negative k, or k > n >= 0; (-1)^k C(k - n - 1, k) for a negative n (as SymPy)
+Integer binomialOf(const Integer &n, const Integer &k, const std::string &what)
+{
+    if (k < 0 || (n >= 0 && k > n)) return 0;
+    const Integer top = n >= 0 ? n : Integer(k - n - 1);
+    const Integer smaller = std::min(k, Integer(top - k));
+    const unsigned long count = smallOf(smaller, what);
+    if (count > 0) {
+        //log2 C(n, k) <= n H(k/n), H the binary entropy (log1p: k/n may be tiny, n = 10^100)
+        const double total = top.convert_to<double>(), share = static_cast<double>(count) / total;
+        const double entropy = -share * std::log2(share) - (1 - share) * std::log1p(-share) / std::log(2.0);
+        checkBits(total * entropy + 1, what);
+    }
+    Integer result;
+    SymEngine::mp_bin_ui(result, top, count);
+    if (n < 0 && boost::multiprecision::bit_test(k, 0)) result = -result;
+    return result;
+}
+
 //The Bernoulli number B(n) = numerator/denominator, B(1) = +1/2 (as SymPy)
 std::pair<Integer, Integer> bernoulliOf(unsigned long n)
 {
@@ -603,23 +622,93 @@ NumberTheoryResult numberTheoryOf(const std::string &operation, const Arguments 
         if (at(0) < 0 && (n % 2 == 0) == fibonacci) result = -result;
         return integerResult(result);
     }
-    if (operation == "binomial") {
+    if (operation == "binomial") return integerResult(binomialOf(at(0), at(1), "binomial(n, k)"));
+    if (operation == "permutations") {
+        //n! / (n - k)!: the arrangements of k of n items (n! of all of them); 0 for k > n
+        const Integer &n = at(0);
+        const Integer k = arguments.size() > 1 ? at(1) : n;
+        if (n < 0 || k < 0) throw MathError(ErrorCode::Domain, "permutations(n, k) is defined for n, k >= 0");
+        if (k > n) return integerResult(0);
+        const unsigned long count = smallOf(k, "permutations(n, k)");
+        if (count == 0) return integerResult(1);
+        const double top = n.convert_to<double>();
+        checkBits(top <= 4294967296.0 ? factorialBits(top) - factorialBits(top - count) + 2 : count * std::log2(top) + 1, "permutations(n, k)");
+        return integerResult(productOf(Integer(n - k + 1), count, 1));
+    }
+    if (operation == "combinationsWithRepetition") {
+        //The multisets of k of n kinds: C(n + k - 1, k)
         const Integer &n = at(0), &k = at(1);
-        if (k < 0 || (n >= 0 && k > n)) return integerResult(0);
-        //C(n, k) = (-1)^k C(k - n - 1, k) for a negative n
-        const Integer top = n >= 0 ? n : Integer(k - n - 1);
-        const Integer smaller = std::min(k, Integer(top - k));
-        const unsigned long count = smallOf(smaller, "binomial(n, k)");
-        if (count > 0) {
-            //log2 C(n, k) <= n H(k/n), H the binary entropy (log1p: k/n may be tiny, n = 10^100)
-            const double total = top.convert_to<double>(), share = static_cast<double>(count) / total;
-            const double entropy = -share * std::log2(share) - (1 - share) * std::log1p(-share) / std::log(2.0);
-            checkBits(total * entropy + 1, "binomial(n, k)");
+        if (n < 0 || k < 0) throw MathError(ErrorCode::Domain, "combinationsWithRepetition(n, k) is defined for n, k >= 0");
+        if (n == 0) return integerResult(k == 0 ? 1 : 0);
+        return integerResult(binomialOf(Integer(n + k - 1), k, "combinationsWithRepetition(n, k)"));
+    }
+    if (operation == "multinomial") {
+        //(k1 + k2 + …)! / (k1! k2! …), as the product of C(k1 + … + ki, ki)
+        const std::vector<Integer> &counts = arguments.at(0);
+        Integer total = 0;
+        double bits = 2;
+        for (const Integer &count : counts) {
+            if (count < 0) throw MathError(ErrorCode::Domain, "multinomial(counts) is defined for counts >= 0");
+            total += count;
+            bits -= factorialBits(count.convert_to<double>()) - 1;
         }
-        Integer result;
-        SymEngine::mp_bin_ui(result, top, count);
-        if (n < 0 && boost::multiprecision::bit_test(k, 0)) result = -result;
+        checkBits(bits + factorialBits(total.convert_to<double>()), "multinomial(counts)");
+        Integer result = 1, sum = 0;
+        for (const Integer &count : counts) {
+            sum += count;
+            result *= binomialOf(sum, count, "multinomial(counts)");
+        }
         return integerResult(result);
+    }
+    if (operation == "bell") {
+        //The partitions of a set of n items: the first number of the row n of Bell's triangle
+        if (at(0) < 0) throw MathError(ErrorCode::Domain, "bell(n) is defined for n >= 0");
+        const unsigned long n = smallOf(at(0), "bell(n)");
+        //Its time grows as n^3 (0.2 s at 2000)
+        if (n > 2000) throw MathError(ErrorCode::NotSupported, "bell(n) is computed up to n = 2000");
+        std::vector<Integer> row{1}, next;
+        for (unsigned long i = 1; i <= n; i++) {
+            next.assign(1, row.back());
+            for (const Integer &value : row) next.push_back(next.back() + value);
+            std::swap(row, next);
+            checkpoint();
+        }
+        return integerResult(row.front());
+    }
+    if (operation == "catalan") {
+        //C(2n, n) / (n + 1)
+        if (at(0) < 0) throw MathError(ErrorCode::Domain, "catalan(n) is defined for n >= 0");
+        return integerResult(binomialOf(Integer(2 * at(0)), at(0), "catalan(n)") / (at(0) + 1));
+    }
+    if (operation == "stirlingSecondKind") {
+        //The partitions of a set of n items into k blocks: (1/k!) Σ (-1)^j C(k, j) (k - j)^n
+        const Integer &n = at(0), &k = at(1);
+        if (n < 0 || k < 0) throw MathError(ErrorCode::Domain, "stirlingSecondKind(n, k) is defined for n, k >= 0");
+        if (k > n) return integerResult(0);
+        if (k == 0) return integerResult(n == 0 ? 1 : 0);
+        if (k == n || k == 1) return integerResult(1);
+        if (k == n - 1) return integerResult(binomialOf(n, 2, "stirlingSecondKind(n, k)"));
+        const unsigned long size = smallOf(n, "stirlingSecondKind(n, k)"), blocks = static_cast<unsigned long>(k);
+        //Its time grows as k times the time of a power of n log2(k) bits (0.3 s at n k = 6250000)
+        if (size > 50000 || static_cast<double>(blocks) * static_cast<double>(size) > 6.25e6) {
+            throw MathError(ErrorCode::NotSupported, "stirlingSecondKind(n, k) is computed for n up to 50000 and n k up to 6250000");
+        }
+        checkBits(static_cast<double>(size) * std::log2(static_cast<double>(blocks)) - factorialBits(static_cast<double>(blocks)) + 2, "stirlingSecondKind(n, k)");
+        Integer sum = 0, coefficient = 1;
+        for (unsigned long j = 0; j <= blocks; j++) {
+            const Integer term = coefficient * boost::multiprecision::pow(Integer(blocks - j), static_cast<unsigned>(size));
+            sum += j % 2 == 0 ? term : Integer(-term);
+            coefficient = coefficient * (blocks - j) / (j + 1);
+            if (j % 64 == 0) checkpoint();
+        }
+        return integerResult(sum / productOf(1, blocks, 1));
+    }
+    if (operation == "compositions") {
+        //The ways to write n as an ordered sum of k positive integers: C(n - 1, k - 1)
+        const Integer &n = at(0), &k = at(1);
+        if (n < 0 || k < 0) throw MathError(ErrorCode::Domain, "compositions(n, k) is defined for n, k >= 0");
+        if (n == 0 || k == 0) return integerResult(n == 0 && k == 0 ? 1 : 0);
+        return integerResult(binomialOf(Integer(n - 1), Integer(k - 1), "compositions(n, k)"));
     }
     if (operation == "factorial") {
         if (at(0) < 0) throw MathError(ErrorCode::Domain, "factorial(n) is defined for n >= 0");

@@ -1223,5 +1223,401 @@
   "args": [
    "100"
   ]
+ },
+ {
+  "op": "permutations",
+  "args": [
+   "5"
+  ]
+ },
+ {
+  "op": "permutations",
+  "args": [
+   "5",
+   "2"
+  ]
+ },
+ {
+  "op": "permutations",
+  "args": [
+   "5",
+   "0"
+  ]
+ },
+ {
+  "op": "permutations",
+  "args": [
+   "5",
+   "6"
+  ],
+  "differs": {
+   "mathjs": "permutations(n, k) throws for k > n, where there are 0 arrangements"
+  }
+ },
+ {
+  "op": "permutations",
+  "args": [
+   "30",
+   "20"
+  ]
+ },
+ {
+  "op": "permutations",
+  "args": [
+   "1000000000000000000000000000000",
+   "3"
+  ]
+ },
+ {
+  "op": "permutations",
+  "args": [
+   "1000",
+   "500"
+  ]
+ },
+ {
+  "op": "permutations",
+  "args": [
+   "-1",
+   "2"
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "permutations",
+  "args": [
+   "3",
+   "-1"
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "combinationsWithRepetition",
+  "args": [
+   "5",
+   "2"
+  ]
+ },
+ {
+  "op": "combinationsWithRepetition",
+  "args": [
+   "0",
+   "0"
+  ],
+  "differs": {
+   "mathjs": "combinationsWithRep(0, 0) throws; the empty multiset is 1"
+  }
+ },
+ {
+  "op": "combinationsWithRepetition",
+  "args": [
+   "0",
+   "3"
+  ],
+  "differs": {
+   "mathjs": "combinationsWithRep(0, k) throws; of no kinds there is no multiset of k items: 0"
+  }
+ },
+ {
+  "op": "combinationsWithRepetition",
+  "args": [
+   "3",
+   "0"
+  ]
+ },
+ {
+  "op": "combinationsWithRepetition",
+  "args": [
+   "100",
+   "50"
+  ]
+ },
+ {
+  "op": "combinationsWithRepetition",
+  "args": [
+   "-1",
+   "2"
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "multinomial",
+  "args": [
+   [
+    "1",
+    "2",
+    "3"
+   ]
+  ]
+ },
+ {
+  "op": "multinomial",
+  "args": [
+   []
+  ]
+ },
+ {
+  "op": "multinomial",
+  "args": [
+   [
+    "0",
+    "2"
+   ]
+  ],
+  "differs": {
+   "mathjs": "multinomial() throws for a count of 0, where 0! = 1"
+  }
+ },
+ {
+  "op": "multinomial",
+  "args": [
+   [
+    "10",
+    "20",
+    "30",
+    "40"
+   ]
+  ]
+ },
+ {
+  "op": "multinomial",
+  "args": [
+   [
+    "500",
+    "500",
+    "500"
+   ]
+  ]
+ },
+ {
+  "op": "multinomial",
+  "args": [
+   [
+    "-1",
+    "2"
+   ]
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "bell",
+  "args": [
+   "0"
+  ]
+ },
+ {
+  "op": "bell",
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "bell",
+  "args": [
+   "5"
+  ]
+ },
+ {
+  "op": "bell",
+  "args": [
+   "30"
+  ]
+ },
+ {
+  "op": "bell",
+  "args": [
+   "200"
+  ]
+ },
+ {
+  "op": "bell",
+  "args": [
+   "-1"
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "bell",
+  "args": [
+   "2001"
+  ],
+  "error": "E_MATH_NOT_SUPPORTED",
+  "differs": {
+   "sympy": "SymPy computes it; it is refused here above 2000, for its time (n^3)"
+  }
+ },
+ {
+  "op": "catalan",
+  "args": [
+   "0"
+  ]
+ },
+ {
+  "op": "catalan",
+  "args": [
+   "5"
+  ]
+ },
+ {
+  "op": "catalan",
+  "args": [
+   "100"
+  ]
+ },
+ {
+  "op": "catalan",
+  "args": [
+   "1000"
+  ]
+ },
+ {
+  "op": "catalan",
+  "args": [
+   "-1"
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "stirlingSecondKind",
+  "args": [
+   "5",
+   "2"
+  ]
+ },
+ {
+  "op": "stirlingSecondKind",
+  "args": [
+   "0",
+   "0"
+  ]
+ },
+ {
+  "op": "stirlingSecondKind",
+  "args": [
+   "5",
+   "0"
+  ]
+ },
+ {
+  "op": "stirlingSecondKind",
+  "args": [
+   "5",
+   "6"
+  ],
+  "differs": {
+   "mathjs": "stirlingS2(n, k) throws for k > n, where there are 0 partitions"
+  }
+ },
+ {
+  "op": "stirlingSecondKind",
+  "args": [
+   "10",
+   "3"
+  ]
+ },
+ {
+  "op": "stirlingSecondKind",
+  "args": [
+   "100",
+   "50"
+  ]
+ },
+ {
+  "op": "stirlingSecondKind",
+  "args": [
+   "300",
+   "7"
+  ]
+ },
+ {
+  "op": "stirlingSecondKind",
+  "args": [
+   "400",
+   "399"
+  ]
+ },
+ {
+  "op": "stirlingSecondKind",
+  "args": [
+   "2500",
+   "2"
+  ]
+ },
+ {
+  "op": "stirlingSecondKind",
+  "args": [
+   "-1",
+   "2"
+  ],
+  "error": "E_MATH_DOMAIN"
+ },
+ {
+  "op": "compositions",
+  "args": [
+   "5",
+   "2"
+  ]
+ },
+ {
+  "op": "compositions",
+  "args": [
+   "5",
+   "5"
+  ]
+ },
+ {
+  "op": "compositions",
+  "args": [
+   "5",
+   "6"
+  ],
+  "differs": {
+   "mathjs": "composition(n, k) throws for k > n, where there are 0 compositions"
+  }
+ },
+ {
+  "op": "compositions",
+  "args": [
+   "0",
+   "0"
+  ],
+  "differs": {
+   "mathjs": "composition(0, 0) throws; the empty composition is 1"
+  }
+ },
+ {
+  "op": "compositions",
+  "args": [
+   "3",
+   "0"
+  ],
+  "differs": {
+   "mathjs": "composition(n, 0) throws; n > 0 has no composition of 0 parts: 0"
+  }
+ },
+ {
+  "op": "compositions",
+  "args": [
+   "0",
+   "2"
+  ],
+  "differs": {
+   "mathjs": "composition(0, k) throws; 0 has no composition of k > 0 parts: 0"
+  }
+ },
+ {
+  "op": "compositions",
+  "args": [
+   "100",
+   "30"
+  ]
+ },
+ {
+  "op": "compositions",
+  "args": [
+   "-1",
+   "1"
+  ],
+  "error": "E_MATH_DOMAIN"
  }
 ]
