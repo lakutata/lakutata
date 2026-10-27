@@ -285,6 +285,8 @@ public:
             return atom(tex_ ? "\\infty" : "inf", Lead::Letter);
         }
         if (is_a<NaN>(*e)) return atom(tex_ ? "\\mathrm{NaN}" : "nan", Lead::Letter);
+        if (is_a<Piecewise>(*e)) return printPiecewise(down_cast<const Piecewise &>(*e));
+        if (is_a_Boolean(*e)) return {condition(e, 0), ADD, Lead::Other, false, false};
         if (is_a<BooleanAtom>(*e)) return atom(down_cast<const BooleanAtom &>(*e).get_val() ? "true" : "false", Lead::Letter);
         if (is_a<FunctionSymbol>(*e)) return printCall(down_cast<const FunctionSymbol &>(*e).get_name(), e->get_args());
         if (is_a<FunctionWrapper>(*e)) return printWrapper(down_cast<const FunctionWrapper &>(*e));
@@ -385,6 +387,81 @@ private:
             return {"\\sqrt[" + print(arguments[1]).text + "]{" + print(arguments[0]).text + "}", ATOM, Lead::Other, false, false};
         }
         return printCall(function.get_name(), arguments);
+    }
+
+    //piecewise(v1, c1, v2, c2, …, v), the cases of TeX
+    Part printPiecewise(const Piecewise &piecewise)
+    {
+        std::string text;
+        for (const auto &[value, when] : piecewise.get_vec()) {
+            const bool otherwise = eq(*when, *boolTrue);
+            if (tex_) {
+                text += (text.empty() ? "" : " \\\\ ") + print(value).text + " & " + (otherwise ? "\\text{otherwise}" : "\\text{for}\\: " + condition(when, 0));
+            } else {
+                text += (text.empty() ? "" : ", ") + print(value).text + (otherwise ? "" : ", " + condition(when, 0));
+            }
+        }
+        if (tex_) return atom("\\begin{cases} " + text + " \\end{cases}", Lead::Other);
+        return {"piecewise(" + text + ")", ATOM, Lead::Letter, true, false};
+    }
+
+    //A comparison as it is read: x > 0, not 0 < x (SymEngine keeps a < b and a <= b only)
+    std::string comparison(const Relational &relation)
+    {
+        Expr a = relation.get_arg1(), b = relation.get_arg2();
+        std::string op = is_a<StrictLessThan>(relation) ? "<" : is_a<LessThan>(relation) ? "<=" : is_a<Equality>(relation) ? "=" : "!=";
+        if (is_a_Number(*a) && !is_a_Number(*b)) {
+            std::swap(a, b);
+            if (op == "<") op = ">";
+            else if (op == "<=") op = ">=";
+        }
+        if (tex_) {
+            static const std::map<std::string, std::string> &tex = *new std::map<std::string, std::string>{{"<", "<"}, {"<=", "\\leq"}, {">", ">"}, {">=", "\\geq"}, {"=", "="}, {"!=", "\\neq"}};
+            op = tex.at(op);
+        }
+        return print(a).text + " " + op + " " + print(b).text;
+    }
+
+    //A condition: or (1) of and (2) of not (3) of comparisons (4), in parentheses below the level asked; two
+    //comparisons of a value between two others written as one (0 <= x < 1)
+    std::string condition(const Expr &when, int level)
+    {
+        std::string text;
+        int own = 4;
+        if (is_a<Or>(*when) || is_a<And>(*when)) {
+            const bool both = is_a<And>(*when);
+            own = both ? 2 : 1;
+            const set_boolean &parts = both ? down_cast<const And &>(*when).get_container() : down_cast<const Or &>(*when).get_container();
+            if (both && parts.size() == 2 && is_a_Relational(**parts.begin()) && is_a_Relational(**std::next(parts.begin()))) {
+                const Relational &first = down_cast<const Relational &>(**parts.begin()), &second = down_cast<const Relational &>(**std::next(parts.begin()));
+                const bool ordered = (is_a<StrictLessThan>(first) || is_a<LessThan>(first)) && (is_a<StrictLessThan>(second) || is_a<LessThan>(second));
+                const Relational &low = eq(*first.get_arg2(), *second.get_arg1()) ? first : second, &high = &low == &first ? second : first;
+                //A value between two others, not a number between two values (y < 0 <= x reads badly)
+                if (ordered && eq(*low.get_arg2(), *high.get_arg1()) && !is_a_Number(*low.get_arg2())) {
+                    const auto op = [this](const Relational &r) { return std::string(is_a<StrictLessThan>(r) ? "<" : (tex_ ? "\\leq" : "<=")); };
+                    text = print(low.get_arg1()).text + " " + op(low) + " " + print(low.get_arg2()).text + " " + op(high) + " " + print(high.get_arg2()).text;
+                    own = 4;
+                }
+            }
+            if (text.empty()) {
+                //The parts in the order of their texts (the sets of SymEngine are in the order of their hashes)
+                const std::string joint = both ? (tex_ ? " \\wedge " : " and ") : (tex_ ? " \\vee " : " or ");
+                std::vector<std::string> written;
+                for (const RCP<const Boolean> &part : parts) written.push_back(condition(part, own + 1));
+                std::sort(written.begin(), written.end());
+                for (const std::string &part : written) text += (text.empty() ? "" : joint) + part;
+            }
+        } else if (is_a<Not>(*when)) {
+            own = 3;
+            text = (tex_ ? "\\neg " : "not ") + condition(down_cast<const Not &>(*when).get_arg(), 4);
+        } else if (is_a_Relational(*when)) {
+            text = comparison(down_cast<const Relational &>(*when));
+        } else if (is_a<BooleanAtom>(*when)) {
+            text = down_cast<const BooleanAtom &>(*when).get_val() ? "true" : "false";
+        } else {
+            text = when->__str__();
+        }
+        return own < level ? paren(text) : text;
     }
 
     Part printCall(const std::string &name, const vec_basic &arguments)
@@ -631,8 +708,37 @@ private:
         throw MathError(ErrorCode::NotSupported, toText(e) + " is not a real number: the code computes with real numbers");
     }
 
+    //A condition in the language: &&, ||, !, the comparisons (=== and !== in JavaScript)
+    std::string conditionCode(const Expr &when)
+    {
+        if (is_a<And>(*when) || is_a<Or>(*when)) {
+            const bool both = is_a<And>(*when);
+            std::string text;
+            for (const RCP<const Boolean> &part : both ? down_cast<const And &>(*when).get_container() : down_cast<const Or &>(*when).get_container()) {
+                text += (text.empty() ? "" : (both ? " && " : " || ")) + ("(" + conditionCode(part) + ")");
+            }
+            return text;
+        }
+        if (is_a<Not>(*when)) return "!(" + conditionCode(down_cast<const Not &>(*when).get_arg()) + ")";
+        if (is_a<BooleanAtom>(*when)) return down_cast<const BooleanAtom &>(*when).get_val() ? (c_ ? "1" : "true") : (c_ ? "0" : "false");
+        if (!is_a_Relational(*when)) notWritten("condition " + toText(when));
+        const Relational &relation = down_cast<const Relational &>(*when);
+        const std::string op = is_a<StrictLessThan>(relation) ? "<" : is_a<LessThan>(relation) ? "<=" : is_a<Equality>(relation) ? (c_ ? "==" : "===") : (c_ ? "!=" : "!==");
+        return operand(relation.get_arg1()) + " " + op + " " + operand(relation.get_arg2());
+    }
+
     Part code(const Expr &e)
     {
+        //A piecewise expression: conditional expressions, NaN where no case holds
+        if (is_a<Piecewise>(*e)) {
+            const PiecewiseVec &cases = down_cast<const Piecewise &>(*e).get_vec();
+            std::string text = eq(*cases.back().second, *boolTrue) ? code(cases.back().first).text : number(std::nan(""));
+            for (size_t i = cases.size(); i-- > 0;) {
+                if (eq(*cases[i].second, *boolTrue)) continue;
+                text = conditionCode(cases[i].second) + " ? " + code(cases[i].first).text + " : " + text;
+            }
+            return atom("(" + text + ")");
+        }
         if (is_a<Add>(*e)) {
             const std::vector<Expr> terms = orderedTerms(e);
             std::string text;

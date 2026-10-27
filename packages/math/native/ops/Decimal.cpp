@@ -21,6 +21,7 @@
 #include <symengine/real_double.h>
 
 #include "DecimalEvaluator.h"
+#include "Piecewise.h"
 #include "DecimalSupport.h"
 #include "../async/Pool.h"
 #include "../printer/Printer.h"
@@ -285,6 +286,7 @@ std::vector<Expr> Evaluator::argumentsOf(const Basic &e)
 Approximation Evaluator::evaluate(const Basic &e)
 {
     checkpoint();
+    if (is_a<Piecewise>(e)) return evaluate(*caseOf(e));
     std::vector<Approximation> arguments;
     for (const Expr &argument : argumentsOf(e)) arguments.push_back(evaluate(*argument));
     Approximation result = apply(e, arguments);

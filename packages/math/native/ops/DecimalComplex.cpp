@@ -6,6 +6,7 @@
 #include "Decimal.h"
 #include "DecimalEvaluator.h"
 #include "DecimalSupport.h"
+#include "Piecewise.h"
 
 #include <algorithm>
 #include <cmath>
@@ -248,6 +249,7 @@ public:
     Value evaluate(const Basic &e)
     {
         checkpoint();
+        if (is_a<Piecewise>(e)) return evaluate(*caseOf(e));
         std::vector<Value> arguments;
         for (const Expr &argument : Evaluator::argumentsOf(e)) arguments.push_back(evaluate(*argument));
         return node(e, arguments);

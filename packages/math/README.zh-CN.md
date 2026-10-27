@@ -61,11 +61,23 @@ console.log(expanded.variables())                   //['x', 'y']
 | `sin`、`cos`、`tan`、`asin`、`sinh`……、`exp`、`ln`、`log(x)`（自然对数）、`log(x, b)`、`log10`、`log2`、`expm1`、`log1p`、`sqrt`、`cbrt`、`root(x, n)`、`hypot` | 函数 |
 | `abs`、`sign`、`floor`、`ceil`、`trunc`、`round`、`mod(a, b)`、`min`、`max`、`gcd`、`lcm`、`re`、`im`、`arg`、`conj` | 取整、余数、最值和复数的实部虚部 |
 | `gamma`、`loggamma`、`digamma`、`polygamma`、`lowergamma`、`uppergamma`、`beta`、`erf`、`erfc`、`zeta`、`lambertw`、`sinc`、`binomial`、`factorial` | 特殊函数 |
+| `piecewise(x^2, x < 0, x)`、`step`、`rect`、`tri` | 分段函数：各段的值和条件，最后是其他情况的值；`step`、`rect`、`tri` 也用它写成 |
 | `x^2 = 4` | 方程（`equation()` 或 `parse()`） |
 | `x < 1`、`x >= 0` | 不等式，由 `parse()` 读取 |
 | `[1, 2; 3, 4]`、`[x; y]` | 矩阵：行之间用 `;` 分隔，元素之间用 `,` 分隔（`parse()` 得到 `ExpressionMatrix`）。矩阵可以相加、相乘（`[1, 2; 3, 4] * [x; y]`、`2[1, 2]`）、除以一个数、取整数次幂；`det`、`inv`、`transpose` 和 `trace` 的参数是矩阵 |
 
 `cbrt(x)` 和奇数次的 `root(x, n)` 对负实数取实数根（`cbrt(-8)` 是 `-2`，和 `Math.cbrt` 一样）；乘方取主值（`(-8)^(1/3)` 是 `1 + sqrt(3)i`，和 SymPy 一样）。`round` 遇到正好一半时向远离零的方向舍入（`round(-2.5)` 是 `-3`），`mod(a, b)` 的符号和 `b` 相同（`mod(-7, 3)` 是 `2`），`gcd` 和 `lcm` 只算整数。变量都当作复数：`re(x)` 保持原样。
+
+`piecewise(v1, c1, v2, c2, …, v)` 中，每个值在它的条件成立、而前面的条件都不成立时取用；条件之后的最后一个值在所有条件都不成立时取用，没有它时表达式在那里没有定义（`nan`）。条件是值的比较（`<`、`<=`、`>`、`>=`、`=`、`!=`；`0 <= x < 1` 就是 `0 <= x and x < 1`），可以用 `and`、`or`、`not` 和括号组合；这三个词不能用作变量名。常数之间的比较精确判定（`piecewise(1, sqrt(2) < 3/2, 2)` 是 `1`），含变量的比较在给出变量的值（`substitute()`）后判定；比较中出现复数时抛出 `MathDomainException`。`step(x)` 在 0 以下是 0，在 0 处是 1/2，在 0 以上是 1（SymPy 的 `Heaviside`）；`rect(x)` 在 `|x| < 1/2` 时是 1，在 `|x| = 1/2` 处是 1/2，其余是 0；`tri(x)` 在 `|x| < 1` 时是 `1 - |x|`，其余是 0；和 nerdamer 一样。分段函数逐段求导（`step(x)` 的导数是 0：没有狄拉克 δ 函数），可以编译，在 LaTeX 里写成 `cases`，在 JavaScript 和 C 里写成条件表达式；`numeric.integrate()` 在分段改变的地方把区间分开。
+
+```typescript
+import {expression} from '@lakutata/math'
+
+const f = expression('piecewise(x^2, x < 0, x)')
+console.log(f.diff('x').toString())           //piecewise(2x, x < 0, 1)
+console.log(f.substitute({x: -3}).toString()) //9
+console.log(f.toTeX())                        //\begin{cases} x^{2} & \text{for}\: x < 0 \\ x & \text{otherwise} \end{cases}
+```
 
 函数名不带括号时当作变量（`gamma`、`beta`、`re`、`mod` 都是常见的量的名字），只有容易漏写括号的函数例外（三角和双曲函数、`exp`、`ln`、各种 `log`、`sqrt`、`cbrt`）：`sin x` 是错误，要写成 `sin(x)`。
 

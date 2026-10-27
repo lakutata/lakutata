@@ -649,6 +649,19 @@ def inequalities():
     save('inequalities', results)
 
 
+def piecewise():
+    """The values of piecewise expressions at the sample points, and of their derivatives in x: the meaning written for
+    SymPy (Piecewise, Heaviside), where the formulas write piecewise(), step(), rect(), tri()"""
+    results = []
+    for case in load('piecewise'):
+        result = dict(case)
+        expr = meaning(case['sympy'])
+        result['values'] = values_at(expr)
+        result['derivative'] = values_at(sympy.diff(expr, Symbol('x')))
+        results.append(result)
+    save('piecewise', results)
+
+
 if __name__ == '__main__':
     grammar()
     numbers()
@@ -666,6 +679,7 @@ if __name__ == '__main__':
     factorization()
     rational()
     inequalities()
+    piecewise()
     decimals()
     special()
     complex_parts()

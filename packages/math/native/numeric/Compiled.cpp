@@ -7,13 +7,16 @@
 #include <symengine/symbol.h>
 
 #include "../core/Errors.h"
+#include "../ops/Piecewise.h"
 
 namespace math {
 
 CompiledFunction::CompiledFunction(const std::vector<std::string> &inputs, const std::vector<Expr> &outputs)
     : inputCount(inputs.size()), outputCount(outputs.size()), complexInputs(inputs.size()), complexOutputs(outputs.size())
 {
-    SymEngine::vec_basic symbols, formulas(outputs.begin(), outputs.end());
+    //A piecewise part takes nan where no case holds (the evaluations need a last case that is always true)
+    SymEngine::vec_basic symbols, formulas;
+    for (const Expr &output : outputs) formulas.push_back(withOtherwise(output));
     for (const std::string &name : inputs) symbols.push_back(SymEngine::symbol(name));
     for (const Expr &output : outputs) {
         for (const std::string &used : variablesOf(output)) {

@@ -81,6 +81,7 @@ console.log(expanded.variables())                   //['x', 'y']
 | `sin`, `cos`, `tan`, `asin`, `sinh`…, `exp`, `ln`, `log(x)` (natural), `log(x, b)`, `log10`, `log2`, `expm1`, `log1p`, `sqrt`, `cbrt`, `root(x, n)`, `hypot` | Functions |
 | `abs`, `sign`, `floor`, `ceil`, `trunc`, `round`, `mod(a, b)`, `min`, `max`, `gcd`, `lcm`, `re`, `im`, `arg`, `conj` | Rounding, remainders, extrema, the parts of complex numbers |
 | `gamma`, `loggamma`, `digamma`, `polygamma`, `lowergamma`, `uppergamma`, `beta`, `erf`, `erfc`, `zeta`, `lambertw`, `sinc`, `binomial`, `factorial` | Special functions |
+| `piecewise(x^2, x < 0, x)`, `step`, `rect`, `tri` | A piecewise expression: values with their conditions, then the value where none holds; `step`, `rect` and `tri` are written as one |
 | `x^2 = 4` | An equation (`equation()`, or `parse()`) |
 | `x < 1`, `x >= 0` | An inequality, read by `parse()` |
 | `[1, 2; 3, 4]`, `[x; y]` | A matrix: its rows separated by `;`, its elements by `,` (`parse()` gives an `ExpressionMatrix`). Matrices are added, multiplied (`[1, 2; 3, 4] * [x; y]`, `2[1, 2]`), divided by a number and raised to integer powers; `det`, `inv`, `transpose` and `trace` take a matrix |
@@ -89,6 +90,26 @@ console.log(expanded.variables())                   //['x', 'y']
 `Math.cbrt`); a fractional power gives the principal value (`(-8)^(1/3)` is `1 + sqrt(3)i`, as SymPy). `round` rounds
 the halves away from zero (`round(-2.5)` is `-3`), `mod(a, b)` has the sign of `b` (`mod(-7, 3)` is `2`), `gcd` and
 `lcm` take integers. A variable may be a complex number, so `re(x)` stays as written.
+
+In `piecewise(v1, c1, v2, c2, …, v)`, each value applies where its condition holds and no earlier one does; the last
+value, after the conditions, applies where no condition holds, and without it the expression is undefined there (`nan`).
+A condition compares values (`<`, `<=`, `>`, `>=`, `=`, `!=`; `0 <= x < 1` is `0 <= x and x < 1`), with `and`, `or`,
+`not` and parentheses; these three words cannot be variables. The comparisons of constants are decided exactly
+(`piecewise(1, sqrt(2) < 3/2, 2)` is `1`), comparisons with variables are decided once the variables have values
+(`substitute()`); a complex value in a comparison throws `MathDomainException`. `step(x)` is 0 below 0, 1/2 at 0 and 1
+above (SymPy's `Heaviside`), `rect(x)` is 1 for `|x| < 1/2`, 1/2 at `|x| = 1/2` and 0 beyond, and `tri(x)` is `1 - |x|`
+for `|x| < 1` and 0 beyond — nerdamer's definitions. A piecewise expression is derived case by case (the derivative of
+`step(x)` is 0: there is no Dirac delta), compiled, written in LaTeX with `cases` and in JavaScript and C with
+conditional expressions; `numeric.integrate()` splits the interval where the case changes.
+
+```typescript
+import {expression} from '@lakutata/math'
+
+const f = expression('piecewise(x^2, x < 0, x)')
+console.log(f.diff('x').toString())           //piecewise(2x, x < 0, 1)
+console.log(f.substitute({x: -3}).toString()) //9
+console.log(f.toTeX())                        //\begin{cases} x^{2} & \text{for}\: x < 0 \\ x & \text{otherwise} \end{cases}
+```
 
 Without parentheses, the name of a function is a variable (`gamma`, `beta`, `re`, `mod` are common names of
 quantities), except the ones often written without parentheses by mistake — the trigonometric and hyperbolic

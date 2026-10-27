@@ -1,4 +1,5 @@
 #include <symengine/logic.h>
+#include <symengine/constants.h>
 
 namespace SymEngine
 {
@@ -129,7 +130,9 @@ RCP<const Basic> piecewise(const PiecewiseVec &vec)
         }
     }
     if (new_vec.size() == 0) {
-        throw DomainError("piecewise undefined for this domain.");
+        // lakutata: no case holds: nan, as in SymPy (a substitution outside the
+        // cases threw)
+        return Nan;
     } else if (new_vec.size() == 1 and eq(*new_vec[0].second, *boolTrue)) {
         return new_vec[0].first;
     }

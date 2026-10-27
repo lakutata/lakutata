@@ -829,6 +829,25 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
         assert.deepStrictEqual(problems, [])
     })
 
+    it('give the values of the piecewise expressions and of their derivatives as SymPy, none where it has none', (): void => {
+        const fixtures = expected<{text: string, sympy: string, values: (Complex | null)[], derivative: (Complex | null)[]}>('piecewise')
+        for (const fixture of fixtures.cases) {
+            const ours: Expression = math.expression(fixture.text)
+            for (const [label, expression, values] of [[fixture.text, ours, fixture.values], [`the derivative of ${fixture.text}`, ours.diff('x'), fixture.derivative]] as const) {
+                fixtures.points.forEach((point: Point, index: number): void => {
+                    const value: Complex | null = values[index]!
+                    const found = valueAt(expression, point)
+                    //SymPy has no value where no case holds (nan); its derivative of abs(x) of a complex x has none
+                    if (value === null) {
+                        if (label === fixture.text) assert.ok(typeof found === 'string' || Number.isNaN(found.re), `${label} at ${JSON.stringify(point)}: ${JSON.stringify(found)}, SymPy none`)
+                        return
+                    }
+                    assert.ok(close(found, value, 1e-9), `${label} at ${JSON.stringify(point)}: ${JSON.stringify(found)}, SymPy ${value.join(' + i*')} (${expression.toString()})`)
+                })
+            }
+        }
+    })
+
     it('solve the linear systems as SymPy', (): void => {
         const fixtures = expected<{equations: string[], variables: string[], kind: string, values?: Record<string, {text: string, values: (Complex | null)[]}>}>('systems')
         for (const fixture of fixtures.cases) {

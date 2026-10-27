@@ -1,6 +1,7 @@
 #include "Parser.h"
 
 #include "../functions/Functions.h"
+#include "../ops/Piecewise.h"
 
 #include <map>
 #include <set>
@@ -9,6 +10,7 @@
 #include <symengine/functions.h>
 #include <symengine/infinity.h>
 #include <symengine/integer.h>
+#include <symengine/logic.h>
 #include <symengine/mul.h>
 #include <symengine/nan.h>
 #include <symengine/ntheory.h>
@@ -74,8 +76,42 @@ const std::set<std::string> &strictFunctions()
     static const std::set<std::string> &names = *new std::set<std::string>{
         "sin", "cos", "tan", "cot", "sec", "csc", "asin", "acos", "atan", "acot", "asec", "acsc",
         "sinh", "cosh", "tanh", "coth", "sech", "csch", "asinh", "acosh", "atanh", "acoth", "asech", "acsch",
-        "exp", "ln", "log", "log10", "log2", "sqrt", "cbrt"};
+        "exp", "ln", "log", "log10", "log2", "sqrt", "cbrt", "piecewise"};
     return names;
+}
+
+//A piecewise expression of cases (a value and a condition), its conditions of constants decided
+Expr piecewiseOf(const PiecewiseVec &cases)
+{
+    const Expr result = piecewise(cases);
+    return is_a<Piecewise>(*result) ? mergedOf(settledOf(result)) : result;
+}
+
+//Heaviside's step: 0 below 0, 1/2 at 0, 1 above (as SymPy's Heaviside and nerdamer's step)
+Expr stepOf(const Expr &x)
+{
+    return piecewiseOf({{zero, relationOf("<", x, zero)}, {rational(1, 2), relationOf("=", x, zero)}, {one, boolTrue}});
+}
+
+//The rectangular function: 1 for |x| < 1/2, 1/2 at |x| = 1/2, else 0 (nerdamer's rect)
+Expr rectOf(const Expr &x)
+{
+    const Expr size = abs(x), half = rational(1, 2);
+    return piecewiseOf({{one, relationOf("<", size, half)}, {half, relationOf("=", size, half)}, {zero, boolTrue}});
+}
+
+//The triangular function: 1 - |x| for |x| < 1, else 0 (nerdamer's tri)
+Expr triOf(const Expr &x)
+{
+    const Expr size = abs(x);
+    return piecewiseOf({{sub(one, size), relationOf("<", size, one)}, {zero, boolTrue}});
+}
+
+//The words of the conditions of piecewise
+const std::set<std::string> &conditionWords()
+{
+    static const std::set<std::string> &words = *new std::set<std::string>{"and", "or", "not"};
+    return words;
 }
 
 const std::map<std::string, Builtin> &builtins()
@@ -152,6 +188,11 @@ const std::map<std::string, Builtin> &builtins()
         functions["log1p"] = {1, 1, [](const vec_basic &a) { return log(add(one, a[0])); }};
         functions["lowergamma"] = {2, 2, [](const vec_basic &a) { return lowergamma(a[0], a[1]); }};
         functions["uppergamma"] = {2, 2, [](const vec_basic &a) { return uppergamma(a[0], a[1]); }};
+        //The piecewise functions; piecewise() itself is read by the parser (its conditions are not expressions)
+        unary("step", stepOf);
+        unary("rect", rectOf);
+        unary("tri", triOf);
+        functions["piecewise"] = {1, SIZE_MAX, [](const vec_basic &) -> Expr { throw MathError(ErrorCode::Syntax, "piecewise takes conditions"); }};
         functions["gcd"] = {2, SIZE_MAX, [](const vec_basic &a) { return integerGcdLcm(a, true); }};
         functions["lcm"] = {2, SIZE_MAX, [](const vec_basic &a) { return integerGcdLcm(a, false); }};
         return functions;
@@ -236,7 +277,6 @@ std::vector<Token> tokenize(const std::string &text)
             if (std::string("+-*/^!=<>()[],;").find(static_cast<char>(c)) == std::string::npos && symbol.size() == 1) {
                 throw MathError(ErrorCode::Syntax, "Unexpected character " + std::string(1, static_cast<char>(c)), utf16Index(text, start));
             }
-            if (symbol == "!=") throw MathError(ErrorCode::NotSupported, "≠ (!=) is not supported: a formula has = or an inequality", utf16Index(text, start));
             at += symbol.size();
             tokens.push_back({TokenType::Operator, symbol == "**" ? "^" : symbol, start, space});
         }
@@ -312,6 +352,7 @@ public:
         Parsed parsed{Parsed::Kind::Expression, left.scalar, Expr(), "", left.matrix};
         if (left.isMatrix()) parsed.kind = Parsed::Kind::Matrix;
         const Token &next = peek();
+        if (next.type == TokenType::Operator && next.text == "!=") fail(next, "≠ (!=) is not supported: a formula has = or an inequality (!= is a comparison of the conditions of piecewise)", ErrorCode::NotSupported);
         if (next.type == TokenType::Operator && (next.text == "=" || next.text == "<" || next.text == ">" || next.text == "<=" || next.text == ">=")) {
             const Token relationToken = next;
             index_++;
@@ -335,6 +376,109 @@ private:
     const Resolver &resolver_;
     size_t index_ = 0;
     unsigned depth_ = 0;
+    //Inside a condition of piecewise: and, or and not end a product there
+    unsigned conditionDepth_ = 0;
+
+    bool acceptWord(const char *word)
+    {
+        if (peek().type == TokenType::Name && peek().text == word) {
+            index_++;
+            return true;
+        }
+        return false;
+    }
+
+    static bool isComparison(const Token &token)
+    {
+        return token.type == TokenType::Operator && (token.text == "<" || token.text == "<=" || token.text == ">" || token.text == ">=" || token.text == "=" || token.text == "!=");
+    }
+
+    //piecewise(v1, c1, v2, c2, …, v): a value and its condition, and the value where none of them holds last
+    Value piecewiseCall(const Token &token)
+    {
+        expect("(");
+        PiecewiseVec cases;
+        while (true) {
+            const Token at = peek();
+            const Expr value = scalarOf(sum(), at, "piecewise");
+            if (accept(")")) {
+                if (cases.empty()) fail(token, "piecewise takes a value and its condition at least");
+                cases.emplace_back(value, boolTrue);
+                break;
+            }
+            expect(",");
+            cases.emplace_back(value, condition());
+            if (accept(")")) break;
+            expect(",");
+        }
+        return scalarValue(piecewiseOf(cases));
+    }
+
+    //A condition: its parts joined by or, then by and, a part negated by not, a comparison
+    RCP<const Boolean> condition()
+    {
+        conditionDepth_++;
+        struct Leave {
+            unsigned &depth;
+            ~Leave() { depth--; }
+        } leave{conditionDepth_};
+        set_boolean parts{conjunction()};
+        while (acceptWord("or")) parts.insert(conjunction());
+        return parts.size() == 1 ? *parts.begin() : logical_or(parts);
+    }
+
+    RCP<const Boolean> conjunction()
+    {
+        set_boolean parts{negation()};
+        while (acceptWord("and")) parts.insert(negation());
+        return parts.size() == 1 ? *parts.begin() : logical_and(parts);
+    }
+
+    RCP<const Boolean> negation()
+    {
+        if (depth_ > MAX_DEPTH) fail(peek(), "The formula is nested more than " + std::to_string(MAX_DEPTH) + " levels deep", ErrorCode::NotSupported);
+        depth_++;
+        struct Leave {
+            unsigned &depth;
+            ~Leave() { depth--; }
+        } leave{depth_};
+        if (acceptWord("not")) return logical_not(negation());
+        //A condition in parentheses, unless they hold a sum compared after them ((x + 1) < 2)
+        if (peek().type == TokenType::Operator && peek().text == "(") {
+            const size_t start = index_;
+            try {
+                index_++;
+                const RCP<const Boolean> inside = condition();
+                expect(")");
+                if (!isComparison(peek())) return inside;
+            } catch (const MathError &) {
+            }
+            index_ = start;
+        }
+        return comparison();
+    }
+
+    //Comparisons, written one after the other: 0 <= x < 1 is 0 <= x and x < 1
+    RCP<const Boolean> comparison()
+    {
+        const Token start = peek();
+        Expr left = scalarOf(sum(), start, "A condition");
+        if (!isComparison(peek())) fail(peek(), "A condition compares values: <, <=, >, >=, = or !=");
+        set_boolean parts;
+        while (isComparison(peek())) {
+            const Token relation = peek();
+            index_++;
+            const Token at = peek();
+            const Expr right = scalarOf(sum(), at, "A condition");
+            try {
+                parts.insert(relationOf(relation.text, left, right));
+            } catch (const MathError &error) {
+                fail(relation, error.what(), error.code());
+            }
+            left = right;
+        }
+        return parts.size() == 1 ? *parts.begin() : logical_and(parts);
+    }
 
     const Token &peek() const
     {
@@ -429,6 +573,7 @@ private:
             if (accept("*")) value = times(value, unary(), next);
             else if (accept("/")) value = divided(value, unary(), next);
             //The implicit products: 2x, 2(x + 1), (x + 1)(x - 1), 2 sin(x), 2[1, 2]
+            else if (conditionDepth_ > 0 && next.type == TokenType::Name && conditionWords().count(next.text)) return value;
             else if (next.type == TokenType::Name || (next.type == TokenType::Operator && (next.text == "(" || next.text == "["))) value = times(value, power(), next);
             else return value;
         }
@@ -539,6 +684,7 @@ private:
             return matrixLiteral(token);
         }
         if (token.type != TokenType::Name) unexpected(token);
+        if (conditionWords().count(token.text)) fail(token, token.text + " is a word of the conditions of piecewise");
         index_++;
         const Token &next = peek();
         const bool call = next.type == TokenType::Operator && next.text == "(";
@@ -583,6 +729,7 @@ private:
                 fail(token, error.what(), error.code());
             }
         }
+        if (call && token.text == "piecewise") return piecewiseCall(token);
         const auto constant = constants().find(token.text);
         if (constant != constants().end()) return scalarValue(constant->second);
         const auto function = builtins().find(token.text);
@@ -631,12 +778,12 @@ Expr parseNumber(const std::string &text)
 
 bool isBuiltin(const std::string &name)
 {
-    return builtins().count(name) || constants().count(name) || matrixFunctions().count(name);
+    return builtins().count(name) || constants().count(name) || matrixFunctions().count(name) || conditionWords().count(name);
 }
 
 bool isReserved(const std::string &name)
 {
-    return strictFunctions().count(name) || constants().count(name);
+    return strictFunctions().count(name) || constants().count(name) || conditionWords().count(name) || name == "piecewise";
 }
 
 bool isName(const std::string &text)

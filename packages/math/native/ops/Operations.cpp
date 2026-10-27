@@ -1,4 +1,5 @@
 #include "Operations.h"
+#include "Piecewise.h"
 
 #include <algorithm>
 #include <cmath>
@@ -53,6 +54,14 @@ Expr evaluated(const Expr &expression, bool numbers = false)
         if (is_a<UnevaluatedExpr>(*node) && (!numbers || free_symbols(*node).empty())) {
             holds[node->rcp_from_this()] = evaluated(down_cast<const UnevaluatedExpr &>(*node).get_arg(), numbers);
             continue;
+        }
+        //A piecewise expression with the comparisons of constants in its conditions decided
+        if (is_a<Piecewise>(*node)) {
+            const Expr settled = settledOf(node->rcp_from_this());
+            if (!eq(*settled, *node)) {
+                holds[node->rcp_from_this()] = evaluated(settled, numbers);
+                continue;
+            }
         }
         childrenOf(*node, children);
         pending.insert(pending.end(), children.begin(), children.end());
@@ -289,7 +298,7 @@ Expr differentiate(const Expr &expression, const std::string &name, unsigned tim
     Expr result = expression;
     for (unsigned i = 0; i < times; i++) {
         checkpoint();
-        result = result->diff(by);
+        result = mergedOf(result->diff(by));
     }
     return result;
 }
@@ -298,7 +307,15 @@ Expr substitute(const Expr &expression, const std::vector<std::pair<std::string,
 {
     map_basic_basic replacements;
     for (const auto &[name, value] : values) replacements[variable(name)] = value;
-    return evaluated(subs(expression, replacements), true);
+    Expr result;
+    try {
+        result = subs(expression, replacements);
+    } catch (SymEngineException &error) {
+        //A condition of a piecewise expression comparing values that are not real (x < 0 with i for x)
+        if (std::string(error.what()).find("Invalid comparison") == std::string::npos) throw;
+        throw MathError(ErrorCode::Domain, "A condition of " + toText(expression) + " compares a value that is not real at these values");
+    }
+    return evaluated(result, true);
 }
 
 Expr seriesOf(const Expr &given, const std::string &name, const Expr &point, unsigned order)

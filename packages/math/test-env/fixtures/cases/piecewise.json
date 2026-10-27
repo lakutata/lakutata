@@ -1,0 +1,22 @@
+[
+ {"text": "piecewise(x^2, x < 0, x)", "sympy": "Piecewise((x**2, x < 0), (x, True))"},
+ {"text": "piecewise(x^2, x > 0)", "sympy": "Piecewise((x**2, x > 0))"},
+ {"text": "piecewise(1, 0 <= x < 1, 0)", "sympy": "Piecewise((1, (0 <= x) & (x < 1)), (0, True))"},
+ {"text": "piecewise(1, x < 0 or x > 1, 2)", "sympy": "Piecewise((1, (x < 0) | (x > 1)), (2, True))"},
+ {"text": "piecewise(x*y, x < y, x + y)", "sympy": "Piecewise((x*y, x < y), (x + y, True))"},
+ {"text": "piecewise(sin(x), x > 0 and y > 1, cos(x))", "sympy": "Piecewise((sin(x), (x > 0) & (y > 1)), (cos(x), True))"},
+ {"text": "piecewise(1, not x < 0, -1)", "sympy": "Piecewise((1, ~(x < 0)), (-1, True))"},
+ {"text": "piecewise(x, x != 1, 0)", "sympy": "Piecewise((x, Ne(x, 1)), (0, True))"},
+ {"text": "piecewise(x^3, x <= -1, x, x < 1, 1/x)", "sympy": "Piecewise((x**3, x <= -1), (x, x < 1), (1/x, True))"},
+ {"text": "piecewise(exp(x), x < 0, 1 + x)", "sympy": "Piecewise((exp(x), x < 0), (1 + x, True))"},
+ {"text": "2piecewise(x, x > 0, -x) + 1", "sympy": "2*Piecewise((x, x > 0), (-x, True)) + 1"},
+ {"text": "piecewise(x^2, x^2 < 2, 2)", "sympy": "Piecewise((x**2, x**2 < 2), (2, True))"},
+ {"text": "piecewise(y, x < 0, y^2, x = 0, y^3)", "sympy": "Piecewise((y, x < 0), (y**2, Eq(x, 0)), (y**3, True))"},
+ {"text": "step(x)", "sympy": "Heaviside(x)"},
+ {"text": "step(x - 1)", "sympy": "Heaviside(x - 1)"},
+ {"text": "step(x^2 - 1)", "sympy": "Heaviside(x**2 - 1)"},
+ {"text": "rect(x)", "sympy": "Piecewise((1, Abs(x) < S(1)/2), (S(1)/2, Eq(Abs(x), S(1)/2)), (0, True))"},
+ {"text": "rect(x/2)", "sympy": "Piecewise((1, Abs(x/2) < S(1)/2), (S(1)/2, Eq(Abs(x/2), S(1)/2)), (0, True))"},
+ {"text": "tri(x)", "sympy": "Piecewise((1 - Abs(x), Abs(x) < 1), (0, True))"},
+ {"text": "tri(x/2)", "sympy": "Piecewise((1 - Abs(x/2), Abs(x/2) < 1), (0, True))"}
+]

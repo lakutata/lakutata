@@ -30,6 +30,7 @@
 #include "../async/Pool.h"
 #include "../core/Errors.h"
 #include "../ops/Operations.h"
+#include "../ops/Piecewise.h"
 #include "../poly/Rational.h"
 
 namespace math {
@@ -627,6 +628,10 @@ IntegralResult integralOf(const Expr &given, const std::string &variable, double
     }
     const std::vector<double> poles = polesInside(function, variable, low, high);
     inside.insert(inside.end(), poles.begin(), poles.end());
+    //The points where a piecewise part changes its case (step(x - 1) at 1)
+    for (const double point : breakpointsOf(function, variable)) {
+        if (point > low && point < high) inside.push_back(point);
+    }
     std::sort(inside.begin(), inside.end());
     inside.erase(std::unique(inside.begin(), inside.end()), inside.end());
     ends.insert(ends.end(), inside.begin(), inside.end());

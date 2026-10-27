@@ -97,6 +97,8 @@ function wrappers (`FunctionWrapper`).
   `2*x + 2`, `2*(x + 1)/y` is `(2*x + 2)/y`), else the denominator of a rational coefficient goes into its first sum
   to the power -1 (`z/(2*(x + 1))` is `z/(2*x + 2)`), as the formulas are read: a value has one form, the sums stay
   flat. A factor that is a power, raised to an integer power, is combined (`(a^b)^n` is `a^(b*n)`).
+- `symengine/logic.cpp`: `piecewise()` gives nan where no case holds, as SymPy does; it threw ("piecewise undefined for
+  this domain"), so that a substitution outside the cases of a piecewise expression failed.
 - `symengine/mul.cpp`: the positive integers to the same rational power in a product are multiplied together, as in
   SymPy: `sqrt(2)*sqrt(3)` is `sqrt(6)` (SymEngine kept the two, and a value written both ways could not be shown
   equal), `2^(1/3)*4^(1/3)` is 2; powers that differ stay (`2^(1/3)*3^(2/3)`).
@@ -147,7 +149,8 @@ assertions that fail, in `test_functions`, `test_printing`, `test_eval_double` a
 the patches above change on purpose (a coefficient multiplied into a sum, the minus taken out of `acosh`, `truncate` of
 a sum, `zeta` evaluated by Boost.Math, the printing of the C wrapper); they are the same with and without the patch of
 `add.cpp`. The patch of the powers in `mul.cpp` (2026-10-28) adds one, in `test_printing`, which expects
-`23*sqrt(5)*sqrt(7)` where it is now `23*sqrt(35)`.
+`23*sqrt(5)*sqrt(7)` where it is now `23*sqrt(35)`. The patch of `logic.cpp` (2026-10-28) makes `test_logic` fail at its
+one assertion that `piecewise()` throws where no case holds.
 
 ## Boost.Math
 

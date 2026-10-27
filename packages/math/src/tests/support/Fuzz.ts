@@ -1227,6 +1227,95 @@ export async function checkFactor(math: MathScope, random: Random, index: number
 }
 
 /**
+ * Piecewise expressions: printed and read again, the same text; their compiled values and their exact values agree
+ * away from the ends of the cases; at the ends and between them, the value is that of the first case whose condition
+ * holds (nan where none does); the derivative is the derivative of that case.
+ */
+export async function checkPiecewise(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    type Condition = {kind: 'compare', left: string, relation: string, right: string} | {kind: 'and' | 'or', parts: Condition[]} | {kind: 'not', part: Condition}
+    const ends: string[] = []
+    const end = (): string => {
+        const value: string = `${random.int(9) - 4}/${1 + random.int(3)}`
+        ends.push(value)
+        return value
+    }
+    const comparison = (): Condition => {
+        const relation: string = ['<', '<=', '>', '>=', '=', '!='][random.int(6)]!
+        return random.chance(0.8) ? {kind: 'compare', left: 'x', relation, right: end()} : {kind: 'compare', left: 'x^2', relation, right: `${random.int(5)}`}
+    }
+    const condition = (depth: number): Condition => {
+        if (depth > 1 || random.chance(0.6)) return comparison()
+        const choice: number = random.int(3)
+        if (choice === 2) return {kind: 'not', part: condition(depth + 1)}
+        return {kind: choice === 0 ? 'and' : 'or', parts: [condition(depth + 1), condition(depth + 1)]}
+    }
+    const written = (c: Condition): string => c.kind === 'compare' ? `${c.left} ${c.relation} ${c.right}` : c.kind === 'not' ? `not (${written(c.part)})` : c.parts.map((part: Condition): string => `(${written(part)})`).join(` ${c.kind} `)
+    //Whether a condition holds at a point, exactly; undefined where compare() cannot tell
+    const holds = (c: Condition, x: Expression): boolean | undefined => {
+        if (c.kind === 'not') {
+            const inner: boolean | undefined = holds(c.part, x)
+            return inner === undefined ? undefined : !inner
+        }
+        if (c.kind === 'and' || c.kind === 'or') {
+            const parts: (boolean | undefined)[] = c.parts.map((part: Condition): boolean | undefined => holds(part, x))
+            if (c.kind === 'and' && parts.includes(false)) return false
+            if (c.kind === 'or' && parts.includes(true)) return true
+            return parts.includes(undefined) ? undefined : c.kind === 'and'
+        }
+        if (c.kind !== 'compare') return undefined
+        const order: number | undefined = math.expression(c.left).substitute({x}).compare(c.right)
+        if (order === undefined) return undefined
+        return {'<': order < 0, '<=': order <= 0, '>': order > 0, '>=': order >= 0, '=': order === 0, '!=': order !== 0}[c.relation]
+    }
+    try {
+        const values: string[] = Array.from({length: 1 + random.int(3)}, (): string => ['x', 'x^2', '-x', '2x + 1', 'x^3 - x', 'sin(x)', '1/(x - 7)', '3'][random.int(8)]!)
+        const conditions: Condition[] = values.map((): Condition => condition(0))
+        const otherwise: string | undefined = random.chance(0.7) ? ['0', 'x', '-1', 'cos(x)'][random.int(4)] : undefined
+        text = `piecewise(${values.map((value: string, i: number): string => `${value}, ${written(conditions[i]!)}`).join(', ')}${otherwise === undefined ? '' : `, ${otherwise}`})`
+        const expression: Expression = math.expression(text)
+        const printed: string = expression.toString()
+        if (math.expression(printed).toString() !== printed) fail('piecewise', `${printed} is read again as ${math.expression(printed).toString()}`)
+        //The case of a point: its value and its derivative
+        const caseAt = (x: Expression): string | null | undefined => {
+            for (let i = 0; i < values.length; i++) {
+                const found: boolean | undefined = holds(conditions[i]!, x)
+                if (found === undefined) return undefined
+                if (found) return values[i]!
+            }
+            return otherwise ?? null
+        }
+        const points: Expression[] = [...ends, ...ends.map((value: string): string => `${value} + 1/1000`), ...ends.map((value: string): string => `${value} - 1/1000`), '0', '1/3', '-5/2', '9/2'].map((value: string): Expression => math.expression(value))
+        const compiled = expression.compile(['x'])
+        const derivative: Expression = expression.diff('x')
+        for (const x of points) {
+            const chosen: string | null | undefined = caseAt(x)
+            if (chosen === undefined) continue
+            const found: Expression = expression.substitute({x})
+            if (chosen === null) {
+                if (found.toString() !== 'nan') fail('piecewise', `at ${x.toString()} no case holds, yet it is ${found.toString()}`)
+                continue
+            }
+            const expected: Expression = math.expression(chosen).substitute({x})
+            if (found.sub(expected).isZero() !== true && !(found.toString() === expected.toString())) fail('piecewise', `at ${x.toString()} it is ${found.toString()}, not ${expected.toString()} (${chosen})`)
+            //Away from the ends: the compiled value, the derivative of the case
+            if (ends.some((value: string): boolean => Math.abs(x.sub(value).toNumber()) < 1e-6) || x.mul(x).isInteger() === true) continue
+            const exact: number = expected.toNumber()
+            const value: number = compiled(x.toNumber())
+            if (!(Math.abs(value - exact) <= 1e-9 * Math.max(1, Math.abs(exact))) && !(Number.isNaN(value) && Number.isNaN(exact))) fail('compile', `at ${x.toString()} the compiled value is ${value}, not ${exact}`)
+            const slope: Expression = math.expression(chosen).diff('x').substitute({x})
+            const ours: Expression = derivative.substitute({x})
+            if (ours.sub(slope).isZero() !== true && ours.toString() !== slope.toString()) fail('diff', `at ${x.toString()} the derivative is ${ours.toString()}, not ${slope.toString()}`)
+        }
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('piecewise', String(error))
+    }
+    return failures
+}
+
+/**
  * Inequalities of fractions of polynomials: at the ends of the set of the solutions, at its values, at the poles,
  * between and around them, contains() tells whether the inequality holds there (never at a pole); the union, the
  * intersection, the complement and the difference of two such sets contain at those points what the logic says.
