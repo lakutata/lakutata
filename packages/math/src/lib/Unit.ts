@@ -150,6 +150,12 @@ export class UnitSystem {
 
     readonly #functions: Map<string, Expression> = new Map()
 
+    readonly #factors: Map<string, Expression> = new Map()
+
+    readonly #parsed: Map<string, readonly UnitPart[]> = new Map()
+
+    #one?: Expression
+
     #templates?: Context
 
     /**
@@ -243,6 +249,44 @@ export class UnitSystem {
     }
 
     /**
+     * The number 1
+     * @param context
+     */
+    public one(context: Context): Expression {
+        return this.#one ??= expressionOf(context, '1')
+    }
+
+    /**
+     * The value in SI units of a unit with its prefix, to its power
+     * @param context
+     * @param part
+     */
+    public factor(context: Context, part: UnitPart): Expression {
+        const key: string = `${part.prefix} ${part.unit} ${part.power}`
+        let factor: Expression | undefined = this.#factors.get(key)
+        if (!factor) {
+            factor = this.prefixFactor(context, part.unit, part.prefix).mul(this.resolve(context, part.unit).factor).pow(part.power)
+            this.#factors.set(key, factor)
+        }
+        return factor
+    }
+
+    /**
+     * The units of a formula of units, as they were parsed before (at most 1000 formulas are kept)
+     * @param text
+     * @param parse
+     */
+    public parsed(text: string, parse: () => readonly UnitPart[]): readonly UnitPart[] {
+        let parts: readonly UnitPart[] | undefined = this.#parsed.get(text)
+        if (!parts) {
+            parts = Object.freeze(parse().map((part: UnitPart): UnitPart => Object.freeze({...part})))
+            if (this.#parsed.size >= 1000) this.#parsed.clear()
+            this.#parsed.set(text, parts)
+        }
+        return parts
+    }
+
+    /**
      * The prefixes of a unit, powers of 1000 (those `toBest()` chooses)
      * @param unit
      */
@@ -329,7 +373,8 @@ export class Unit {
      * The number, in the units of the value (`5` of `5 cm`)
      */
     public get value(): Expression {
-        return this.magnitude
+        //In the context of the value (its number may come from the numbers the units keep)
+        return new Expression(this.context, this.magnitude.handle)
     }
 
     /**
@@ -361,7 +406,7 @@ export class Unit {
      */
     public to(units: string | Unit): Unit {
         const parts: readonly UnitPart[] = units instanceof Unit ? units.parts : unitPartsOf(this.context, units)
-        const target: Unit = new Unit(this.context, expressionOf(this.context, '1'), parts)
+        const target: Unit = new Unit(this.context, this.context.units.one(this.context), parts)
         if (!sameDimensions(this.#dimensionList(), target.#dimensionList())) {
             throw new MathUnitException(`${this.units || 'A number'} cannot be converted to ${target.units || 'a number'}: their dimensions differ`)
         }
@@ -393,7 +438,7 @@ export class Unit {
             const si: readonly UnitPart[] = zeroDimensions(own) ? [] : unitPartsOf(this.context, named(own) ?? baseUnitsText(own))
             parts = mergeParts(parts, si.map((unit: UnitPart): UnitPart => ({...unit, power: unit.power * part.power})))
         }
-        return this.to(new Unit(this.context, expressionOf(this.context, '1'), parts))
+        return this.to(new Unit(this.context, this.context.units.one(this.context), parts))
     }
 
     /**
@@ -641,12 +686,13 @@ export class Unit {
 
     //The value of the units in SI units
     #factor(): Expression {
-        let factor: Expression = expressionOf(this.context, '1')
+        const units: UnitSystem = this.context.units
+        let factor: Expression | undefined
         for (const part of this.parts) {
-            const value: Expression = this.context.units.prefixFactor(this.context, part.unit, part.prefix).mul(this.#resolved(part).factor)
-            factor = factor.mul(value.pow(part.power))
+            const value: Expression = units.factor(this.context, part)
+            factor = factor ? factor.mul(value) : value
         }
-        return factor
+        return factor ?? units.one(this.context)
     }
 
     //The value in the base units of the SI
@@ -692,7 +738,7 @@ export class Unit {
             //A unit of a quantity of this value: converted to its unit
             const quantity: UnitPart | undefined = parts.find((mine: UnitPart): boolean => sameDimensions(this.#resolved(mine).dimensions, this.#resolved(part).dimensions))
             if (quantity) {
-                const ratio: Expression = new Unit(this.context, expressionOf(this.context, '1'), [{...part, power: 1}]).#factor().div(new Unit(this.context, expressionOf(this.context, '1'), [{...quantity, power: 1}]).#factor())
+                const ratio: Expression = this.context.units.factor(this.context, {...part, power: 1}).div(this.context.units.factor(this.context, {...quantity, power: 1}))
                 magnitude = magnitude.mul(ratio.pow(power))
                 quantity.power += power
                 continue
@@ -908,7 +954,7 @@ class UnitFormula {
                 this.#next()
                 return {value: this.#number(token.text), bare: false}
             }
-            return {value: new Unit(this.context, expressionOf(this.context, '1'), this.#unitParts()), bare: true}
+            return {value: new Unit(this.context, this.context.units.one(this.context), this.#unitParts()), bare: true}
         }
         if (this.#is('(')) return this.#parenthesized()
         return this.#fail(token.kind === 'end' ? 'The formula ends too early' : `Unexpected "${token.text}"`, token)
@@ -1042,9 +1088,11 @@ export function unitFormulaOf(context: Context, text: string): Unit {
  */
 export function unitPartsOf(context: Context, text: string): readonly UnitPart[] {
     if (typeof text !== 'string') throw new MathArgumentException('Units are a formula of units (a string) or a value with units')
-    const {value, bare} = new UnitFormula(context, text).parse()
-    if (!bare && (!internals.parts(value).length || !value.value.equals(1))) throw new MathArgumentException(`Units are expected, without a number: ${text}`)
-    return internals.parts(value)
+    return context.units.parsed(text, (): readonly UnitPart[] => {
+        const {value, bare} = new UnitFormula(context, text).parse()
+        if (!bare && (!internals.parts(value).length || !value.value.equals(1))) throw new MathArgumentException(`Units are expected, without a number: ${text}`)
+        return internals.parts(value)
+    })
 }
 
 /**

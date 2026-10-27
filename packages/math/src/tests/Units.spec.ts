@@ -182,6 +182,8 @@ describe('The units', (): void => {
         assert.ok(scope.unit('1 kknot').equals('1000 knot') && scope.unit('3 dozen').mul(2).toSI().toString() === '72' && scope.unit('1 fortnight').to('day').toString() === '14 day')
         assert.ok(scope.unit('0 degX').to('K').toString() === '200 K' && scope.unit('300 K').to('degX').toString() === '50 degX')
         assert.ok(scope.with({'f(x)': 'x^2'}).unit('1 furlong').equals('201.168 m') && errorOf(() => math.unit('1 furlong')) instanceof MathUnitException)
+        //The numbers of the values are of their scopes, its definitions with them
+        assert.ok(scope.with({'f(x)': 'x^2'}).unit('m/s').value.add('f(3)').toString() === '10' && scope.with({'g': 2}).unit('furlong').mul(3).value.mul('g').toString() === '6')
         const definition = (units: Record<string, unknown>): MathException => errorOf(() => createMath({units: units as never}))
         assert.ok(/The name km is already a unit \(k m\)/.test(definition({km: '1000 m'}).message) && definition({kt: '1 m'}) instanceof MathDefinitionException)
         assert.ok(/defined in terms of itself/.test(definition({a1: '2 b1', b1: '3 a1'}).message) && definition({sqrt: '1 m'}) instanceof MathDefinitionException)
