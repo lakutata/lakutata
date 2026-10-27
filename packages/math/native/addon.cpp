@@ -17,6 +17,7 @@
 #include "async/Pool.h"
 #include "core/Errors.h"
 #include "linalg/Linalg.h"
+#include "stats/Distributions.h"
 #include "stats/Statistics.h"
 #include "core/Handle.h"
 #include "core/Scope.h"
@@ -515,6 +516,84 @@ Job statisticsJob(const Napi::Array &arguments)
     };
 }
 
+//The four words of the state of a random generator: a BigUint64Array, which a synchronous operation advances in
+//place (an asynchronous one would change it from another thread: refused)
+uint64_t *generatorStateAt(const Napi::Array &arguments, uint32_t index)
+{
+    if (copyingArguments) throw MathError(ErrorCode::Argument, "The random numbers are drawn synchronously");
+    const Napi::Value value = arguments.Get(index);
+    if (!value.IsTypedArray() || value.As<Napi::TypedArray>().TypedArrayType() != napi_biguint64_array) throw MathError(ErrorCode::Argument, "The state of a random generator is a BigUint64Array");
+    Napi::TypedArrayOf<uint64_t> state = value.As<Napi::TypedArrayOf<uint64_t>>();
+    if (state.ElementLength() != 4) throw MathError(ErrorCode::Argument, "The state of a random generator has 4 words");
+    return state.Data();
+}
+
+size_t countAt(const Napi::Array &arguments, uint32_t index)
+{
+    const double count = numberAt(arguments, index, "The count");
+    if (count != std::floor(count) || count < 0 || count > 4294967295.0) throw MathError(ErrorCode::Argument, "The count of random numbers is an integer of 0 or more");
+    return static_cast<size_t>(count);
+}
+
+Builder vectorBuilder(std::vector<double> values)
+{
+    auto results = std::make_shared<std::vector<double>>(std::move(values));
+    return Builder([results](Napi::Env env) {
+        Napi::Float64Array data = Napi::Float64Array::New(env, results->size());
+        if (!results->empty()) std::memcpy(data.Data(), results->data(), results->size() * sizeof(double));
+        return data;
+    });
+}
+
+//distribution(function, name, parameters, values | count, state?): describe (its support and moments), pdf, cdf,
+//survival, quantile, survivalQuantile of values, or a sample of a count by the generator of a state
+Job distributionJob(const Napi::Array &arguments)
+{
+    const std::string function = stringAt(arguments, 0, "The function");
+    const std::string name = stringAt(arguments, 1, "The distribution");
+    const Napi::Value list = arguments.Get(2u);
+    if (!list.IsArray()) throw MathError(ErrorCode::Argument, "The parameters of a distribution are an array");
+    std::vector<double> parameters;
+    const Napi::Array given = list.As<Napi::Array>();
+    for (uint32_t i = 0; i < given.Length(); i++) parameters.push_back(numberAt(given, i, "A parameter"));
+    if (function == "describe") {
+        return [name, parameters] { return vectorBuilder(describeDistribution(name, parameters)); };
+    }
+    if (function == "sample") {
+        const size_t count = countAt(arguments, 3);
+        uint64_t *state = generatorStateAt(arguments, 4);
+        return [name, parameters, count, state] { return vectorBuilder(sampleDistribution(name, parameters, count, state)); };
+    }
+    const Napi::Value data = arguments.Get(3u);
+    if (!data.IsTypedArray() || data.As<Napi::TypedArray>().TypedArrayType() != napi_float64_array) throw MathError(ErrorCode::Argument, "The values of a distribution are a Float64Array");
+    const Napi::Float64Array elements = data.As<Napi::Float64Array>();
+    auto values = std::make_shared<const std::vector<double>>(elements.Data(), elements.Data() + elements.ElementLength());
+    return [function, name, parameters, values] { return vectorBuilder(distributionAt(name, parameters, function, values->data(), values->size())); };
+}
+
+//random(operation, state, ...): seed (of a BigUint64Array of one word), uniform (count), integers (count, lower, upper)
+Job randomJob(const Napi::Array &arguments)
+{
+    const std::string operation = stringAt(arguments, 0, "The operation");
+    uint64_t *state = generatorStateAt(arguments, 1);
+    if (operation == "seed") {
+        const Napi::Value value = arguments.Get(2u);
+        if (!value.IsTypedArray() || value.As<Napi::TypedArray>().TypedArrayType() != napi_biguint64_array) throw MathError(ErrorCode::Argument, "The seed is a BigUint64Array");
+        const uint64_t seed = value.As<Napi::TypedArrayOf<uint64_t>>().Data()[0];
+        return [state, seed] {
+            seedGenerator(seed, state);
+            return vectorBuilder({});
+        };
+    }
+    const size_t count = countAt(arguments, 2);
+    if (operation == "uniform") return [count, state] { return vectorBuilder(uniformNumbers(count, state)); };
+    if (operation == "integers") {
+        const double lower = numberAt(arguments, 3, "The lower bound"), upper = numberAt(arguments, 4, "The upper bound");
+        return [count, state, lower, upper] { return vectorBuilder(uniformIntegers(count, lower, upper, state)); };
+    }
+    throw MathError(ErrorCode::Argument, "Unknown operation of a random generator: " + operation);
+}
+
 Job fractionJob(const Napi::Array &arguments)
 {
     Expr expression = expressionAt(arguments, 0);
@@ -660,7 +739,7 @@ const std::map<std::string, JobFactory> &jobs()
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
-        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
+        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"distribution", distributionJob}, {"random", randomJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
         {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}
     };

@@ -371,6 +371,69 @@ function statistics(math: Math): void {
 }
 ```
 
+### Probability distributions
+
+`math.stats` also has 24 probability distributions, computed by Boost.Math, each built from its parameters, given by
+their names: `math.stats.gamma({shape: 2.5, scale: 1.5})`. Libraries parameterize them differently, so the names say
+which parameters are meant; the table gives the equivalents in SciPy. A `Distribution` has `pdf` (the probability mass
+of a discrete distribution), `cdf`, `survival`, `quantile` and `survivalQuantile` (SciPy's `isf`), each taking a value
+or values; `mean`, `variance`, `standardDeviation`, `median`, `mode`, `skewness`, `excessKurtosis` and `support`; and
+`sample`.
+
+| Distribution | Parameters (default) | SciPy |
+| --- | --- | --- |
+| `normal` | `mean` (0), `standardDeviation` (1) | `norm(loc=mean, scale=standardDeviation)` |
+| `lognormal` | `logMean` (0), `logStandardDeviation` (1), of the logarithm | `lognorm(s=logStandardDeviation, scale=exp(logMean))` |
+| `uniform` | `lower` (0), `upper` (1) | `uniform(loc=lower, scale=upper - lower)` |
+| `exponential` | `rate` (1) | `expon(scale=1/rate)` |
+| `gamma` | `shape`, `scale` (1) | `gamma(a=shape, scale=scale)` |
+| `beta` | `alpha`, `beta` | `beta(a=alpha, b=beta)` |
+| `chiSquared` | `degrees` | `chi2(df=degrees)` |
+| `studentT` | `degrees` | `t(df=degrees)` |
+| `fisherF` | `numeratorDegrees`, `denominatorDegrees` | `f(dfn=numeratorDegrees, dfd=denominatorDegrees)` |
+| `cauchy`, `laplace`, `logistic`, `gumbel` | `location` (0), `scale` (1) | `cauchy`, `laplace`, `logistic`, `gumbel_r` (`loc=location, scale=scale`) |
+| `weibull` | `shape`, `scale` (1) | `weibull_min(c=shape, scale=scale)` |
+| `pareto` | `scale`, `shape` | `pareto(b=shape, scale=scale)` |
+| `rayleigh` | `scale` (1) | `rayleigh(scale=scale)` |
+| `triangular` | `lower`, `mode`, `upper` | `triang(c=(mode - lower)/(upper - lower), loc=lower, scale=upper - lower)` |
+| `inverseGamma` | `shape`, `scale` (1) | `invgamma(a=shape, scale=scale)` |
+| `bernoulli` | `probability` | `bernoulli(p=probability)` |
+| `binomial` | `trials`, `probability` | `binom(n=trials, p=probability)` |
+| `poisson` | `mean` | `poisson(mu=mean)` |
+| `geometric` | `probability`: the number of trials up to the first success, from 1 | `geom(p=probability)` |
+| `negativeBinomial` | `successes`, `probability`: the number of failures before the `successes`-th success | `nbinom(n=successes, p=probability)` |
+| `hypergeometric` | `total`, `successes`, `draws` | `hypergeom(M=total, n=successes, N=draws)` |
+
+The distributions follow SciPy: outside its support, a distribution has a density of 0 and a cdf of 0 or 1; a discrete
+one has a mass of 0 between its integers, and there its cdf is that of the integer below; its quantile of p is the
+smallest integer k with `cdf(k) >= p`. A discrete distribution's quantile of 0 and its survival quantile of 1 are the
+lower bound of its support (SciPy gives one below it). A mean or a variance that diverges is `Infinity` (the variance of
+Student's t with 2 degrees of freedom); a skewness or an excess kurtosis that diverges is NaN, as a moment that does not
+exist (the mean of Cauchy's). Parameters that are not valid throw `MathArgumentException`.
+
+`math.stats.random(seed)` gives a `RandomGenerator` (xoshiro256**) with `next()`, `uniform(count)`, `integers(count,
+lower, upper)` (of `[lower, upper)`) and `clone()`; `sample(count, random)` draws by inverting the cdf at its uniform
+numbers. A seed draws the same sequence each time. Its uniform numbers and integers are the same on every platform,
+while the samples of a distribution go through functions of the C library and may differ in their last digits from one
+platform to another. Without a seed, the generator takes one from the random numbers of the system. It is not meant for
+cryptography.
+
+```typescript
+import type {Math} from '@lakutata/math'
+
+function probability(math: Math): void {
+    const normal = math.stats.normal({mean: 1, standardDeviation: 2})
+    console.log(normal.cdf(1))                                     //0.5
+    console.log(normal.quantile(0.975))                            //4.919927969080108
+    const binomial = math.stats.binomial({trials: 10, probability: 0.3})
+    console.log(binomial.pdf([2, 3]))                              //Float64Array [0.23347444050000024, 0.2668279319999998]
+    console.log(binomial.quantile(0.5))                            //3
+    const random = math.stats.random(42)
+    console.log(normal.sample(3, random))                          //the same three samples each time, of the seed 42
+    console.log(random.integers(5, 1, 7))                          //five dice
+}
+```
+
 ### Asynchronous operations
 
 The operations that can take long have an asynchronous version: `expandAsync()`, `simplifyAsync()`, `diffAsync()`,
@@ -404,7 +467,9 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`math.decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
 | `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`math.matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is given where a matrix is expected (a matrix, or its rows); where a vector is (a `Float64Array`, or an array of numbers) |
 | `LinearAlgebra`, `NormKind` | The linear algebra (`math.linalg`): `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, `rotation`, `dot`, `cross`, `outer`, `norm`, `multiply`, `solve`, `solveTriangular`, `leastSquares`, `inverse`, `determinant`, `singularValues`, `rank`, `condition`, `lu`, `qr`, `cholesky`, `svd`, `eigen`, `symmetricEigen`, `schur`, `pseudoInverse`, `exponential`, `squareRoot`, `sylvester`, `lyapunov`, `sparse`, `conjugateGradient`, `biconjugateGradientStabilized`, and the asynchronous versions; the kinds of norms |
-| `Statistics`, `Normalization`, `NormalizationOptions` | The statistics (`math.stats`): `sum`, `product`, `cumulativeSum`, `differences`, `mean`, `median`, `mode`, `min`, `max`, `variance`, `standardDeviation`, `medianAbsoluteDeviation`, `quantile`, `covariance`, `correlation`, `zScores`, `klDivergence`; the divisors of a variance (`'uncorrected'`, `'unbiased'`, `'biased'`) and the option that chooses one |
+| `Statistics`, `Normalization`, `NormalizationOptions` | The statistics (`math.stats`): `sum`, `product`, `cumulativeSum`, `differences`, `mean`, `median`, `mode`, `min`, `max`, `variance`, `standardDeviation`, `medianAbsoluteDeviation`, `quantile`, `covariance`, `correlation`, `zScores`, `klDivergence`, the distributions (`normal` … `hypergeometric`, `distribution`) and `random`; the divisors of a variance (`'uncorrected'`, `'unbiased'`, `'biased'`) and the option that chooses one |
+| `Distribution`, `DistributionName`, `DistributionParameters` | A probability distribution: `pdf`, `cdf`, `survival`, `quantile`, `survivalQuantile`, `sample`, `parameters`, `kind`, `support`, `mean`, `variance`, `standardDeviation`, `median`, `mode`, `skewness`, `excessKurtosis`; the names of the distributions; their parameters by their names |
+| `RandomGenerator` | A generator of random numbers (xoshiro256**) of a seed: `next`, `uniform`, `integers`, `clone` |
 | `SparseMatrix`, `SparseEntry` | A sparse matrix in compressed rows (`math.linalg.sparse()`): `rowPointers`, `columnIndices`, `values`, `nonZeros`, `get`, `transpose`, `add`, `sub`, `neg`, `mul`, `toDense`, `toEntries`; an entry `[row, column, value]` |
 | `IterativeOptions`, `IterativeSolution` | The options of the iterative solvers (`tolerance`, `maxIterations`, `guess`) and their result (`solution`, `iterations`, `error`, `converged`) |
 | `LuDecomposition`, `QrDecomposition`, `SingularValueDecomposition`, `EigenDecomposition`, `SymmetricEigenDecomposition`, `SchurDecomposition`, `ComplexVector`, `ComplexMatrix` | The results of the decompositions: `{lower, upper, permutation}`, `{q, r}`, `{u, singularValues, v}`, `{values, vectors}` (complex: `{re, im}`), `{values, vectors}`, `{u, t}` |
@@ -429,7 +494,7 @@ The typings document every declaration, with examples.
 | `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power) |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1, a function at one of its poles: `gamma()` of -2, `zeta()` of 1), a modulus of 0 |
 | `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` above 2000, `harmonic(n)` above 50000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`) |
-| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence` |
+| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence` |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |
 

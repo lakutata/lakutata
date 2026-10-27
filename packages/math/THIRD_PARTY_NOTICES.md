@@ -306,9 +306,10 @@ Apache License 2.0, the MIT License or the Boost Software License 1.0; it is use
 ## Boost.Multiprecision, Boost.Math and Boost.Config 1.92.0
 
 The integers and rationals of any size used by SymEngine (https://github.com/boostorg/multiprecision), the special
-functions of real arguments in double precision (https://github.com/boostorg/math), the first two used standalone, and
-the configuration headers of Boost (https://github.com/boostorg/config). The three are licensed under the Boost
-Software License 1.0.
+functions of real arguments in double precision and the probability distributions (https://github.com/boostorg/math),
+Boost.Multiprecision and Boost.Math used standalone, and the configuration headers of Boost
+(https://github.com/boostorg/config). The three are licensed under the Boost Software License 1.0; the change made to
+Boost.Math is listed in `vendor/PATCHES.md`.
 
 ```
 Boost Software License - Version 1.0 - August 17th, 2003

@@ -193,7 +193,8 @@ export class Math extends Component {
 
     /**
      * The statistics of values (arrays of numbers, or `Float64Array`s): sums, means, medians, modes, variances,
-     * quantiles, covariances, correlations. Only the component has them: a scope of `with()` does not.
+     * quantiles, covariances, correlations; the probability distributions (`normal()` … `hypergeometric()`) and a
+     * generator of random numbers (`random()`). Only the component has them: a scope of `with()` does not.
      * @example
      * ```typescript
      * import {Container} from 'lakutata'

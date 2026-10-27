@@ -252,6 +252,54 @@ function statistics(math: Math): void {
 }
 ```
 
+### 概率分布
+
+`math.stats` 还提供 24 种概率分布，由 Boost.Math 计算，参数按名字传入：`math.stats.gamma({shape: 2.5, scale: 1.5})`。不同的库对同一个分布的参数化方式各不相同，所以用名字说明每个参数是什么；下表列出了在 SciPy 里的对应写法。`Distribution` 有 `pdf`（离散分布是概率质量）、`cdf`、`survival`、`quantile` 和 `survivalQuantile`（SciPy 的 `isf`），都可以传入一个值或一组值；还有 `mean`、`variance`、`standardDeviation`、`median`、`mode`、`skewness`、`excessKurtosis`、`support`，以及 `sample`。
+
+| 分布 | 参数（默认值） | SciPy |
+| --- | --- | --- |
+| `normal` | `mean`（0）、`standardDeviation`（1） | `norm(loc=mean, scale=standardDeviation)` |
+| `lognormal` | `logMean`（0）、`logStandardDeviation`（1），对数的均值和标准差 | `lognorm(s=logStandardDeviation, scale=exp(logMean))` |
+| `uniform` | `lower`（0）、`upper`（1） | `uniform(loc=lower, scale=upper - lower)` |
+| `exponential` | `rate`（1） | `expon(scale=1/rate)` |
+| `gamma` | `shape`、`scale`（1） | `gamma(a=shape, scale=scale)` |
+| `beta` | `alpha`、`beta` | `beta(a=alpha, b=beta)` |
+| `chiSquared` | `degrees` | `chi2(df=degrees)` |
+| `studentT` | `degrees` | `t(df=degrees)` |
+| `fisherF` | `numeratorDegrees`、`denominatorDegrees` | `f(dfn=numeratorDegrees, dfd=denominatorDegrees)` |
+| `cauchy`、`laplace`、`logistic`、`gumbel` | `location`（0）、`scale`（1） | `cauchy`、`laplace`、`logistic`、`gumbel_r`（`loc=location, scale=scale`） |
+| `weibull` | `shape`、`scale`（1） | `weibull_min(c=shape, scale=scale)` |
+| `pareto` | `scale`、`shape` | `pareto(b=shape, scale=scale)` |
+| `rayleigh` | `scale`（1） | `rayleigh(scale=scale)` |
+| `triangular` | `lower`、`mode`、`upper` | `triang(c=(mode - lower)/(upper - lower), loc=lower, scale=upper - lower)` |
+| `inverseGamma` | `shape`、`scale`（1） | `invgamma(a=shape, scale=scale)` |
+| `bernoulli` | `probability` | `bernoulli(p=probability)` |
+| `binomial` | `trials`、`probability` | `binom(n=trials, p=probability)` |
+| `poisson` | `mean` | `poisson(mu=mean)` |
+| `geometric` | `probability`：到第一次成功为止的试验次数，从 1 开始 | `geom(p=probability)` |
+| `negativeBinomial` | `successes`、`probability`：第 `successes` 次成功之前的失败次数 | `nbinom(n=successes, p=probability)` |
+| `hypergeometric` | `total`、`successes`、`draws` | `hypergeom(M=total, n=successes, N=draws)` |
+
+这些分布的约定和 SciPy 一致：在支撑集以外，密度是 0，cdf 是 0 或 1；离散分布在整数之间的概率质量是 0，cdf 取下面那个整数的值；p 的分位数是满足 `cdf(k) >= p` 的最小整数 k。离散分布 0 的分位数和 1 的生存分位数都是支撑集的下界（SciPy 给的是下界减 1）。发散的均值或方差是 `Infinity`（例如自由度为 2 的 t 分布的方差）；发散的偏度或超额峰度是 NaN，和不存在的矩一样（例如柯西分布的均值）。参数无效时抛出 `MathArgumentException`。
+
+`math.stats.random(seed)` 得到一个 `RandomGenerator`（xoshiro256**），它有 `next()`、`uniform(count)`、`integers(count, lower, upper)`（取值范围是 `[lower, upper)`）和 `clone()`；`sample(count, random)` 用它生成的均匀随机数对 cdf 求逆来抽样。同一个种子每次都得到同样的序列。均匀随机数和整数在各个平台上完全相同，而分布的样本要经过 C 库的函数计算，在不同平台上最后几位可能不同。不给种子时，生成器从系统的随机数取种子。它不适合用于密码学。
+
+```typescript
+import type {Math} from '@lakutata/math'
+
+function probability(math: Math): void {
+    const normal = math.stats.normal({mean: 1, standardDeviation: 2})
+    console.log(normal.cdf(1))                                     //0.5
+    console.log(normal.quantile(0.975))                            //4.919927969080108
+    const binomial = math.stats.binomial({trials: 10, probability: 0.3})
+    console.log(binomial.pdf([2, 3]))                              //Float64Array [0.23347444050000024, 0.2668279319999998]
+    console.log(binomial.quantile(0.5))                            //3
+    const random = math.stats.random(42)
+    console.log(normal.sample(3, random))                          //种子 42 每次都得到同样的三个样本
+    console.log(random.integers(5, 1, 7))                          //掷五次骰子
+}
+```
+
 ### 异步运算
 
 可能耗时的运算都有异步版本：`expandAsync()`、`simplifyAsync()`、`diffAsync()`、`seriesAsync()`、`solveAsync()`、`toDecimalAsync()`、`toComplexDecimalAsync()`、组件的 `solveAsync()` 和 `cseAsync()`，以及数论和线性代数的异步版本。它们在原生插件自己的线程里执行，不占用 libuv 的线程池：线程数默认是 CPU 核数减一，也可以用环境变量 `LAKUTATA_MATH_THREADS` 指定。选项有 `timeout`（毫秒）和 `signal`（`AbortSignal`）：
@@ -282,7 +330,9 @@ function statistics(math: Math): void {
 | `Decimal`、`DecimalValue`、`DecimalOptions` | 指定精度的十进制数（`math.decimal()`）：`precision`、`add`、`sub`、`mul`、`div`、`mod`、`pow`、`neg`、`abs`、`sqrt`、`cbrt`、`root`、`exp`、`ln`、`log10`、`log`、`sin`、`cos`、`tan`、`asin`、`acos`、`atan`、`atan2`、`sinh`、`cosh`、`tanh`、`asinh`、`acosh`、`atanh`、`gamma`、`loggamma`、`digamma`、`erf`、`erfc`、`zeta`、`lambertw`、`floor`、`ceil`、`trunc`、`round`、`compare`、`equals`、`isZero`、`isPositive`、`isNegative`、`isInteger`、`toString`、`toFixed`、`toNumber`、`toJSON`；需要十进制数的地方可以传入的值（十进制数、数字、bigint、写成字符串的十进制数）；`decimal()` 的选项（`precision`） |
 | `Matrix`、`MatrixValue`、`VectorValue` | 数值矩阵（`math.matrix()`）：`rows`、`columns`、`data`、`get`、`set`、`row`、`column`、`diagonal`、`submatrix`、`reshape`、`transpose`、`add`、`sub`、`mul`、`div`、`neg`、`multiplyElements`、`divideElements`、`powElements`、`map`、`trace`、`kron`、`equals`、`clone`、`toArray`、`toJSON`、`toString`；需要矩阵的地方可以传入的值（矩阵，或它的各行）；需要向量的地方可以传入的值（`Float64Array`，或数字数组） |
 | `LinearAlgebra`、`NormKind` | 线性代数（`math.linalg`）：`zeros`、`ones`、`identity`、`diagonal`、`fromRows`、`fromColumns`、`fromFunction`、`concat`、`rotation`、`dot`、`cross`、`outer`、`norm`、`multiply`、`solve`、`solveTriangular`、`leastSquares`、`inverse`、`determinant`、`singularValues`、`rank`、`condition`、`lu`、`qr`、`cholesky`、`svd`、`eigen`、`symmetricEigen`、`schur`、`pseudoInverse`、`exponential`、`squareRoot`、`sylvester`、`lyapunov`、`sparse`、`conjugateGradient`、`biconjugateGradientStabilized`，以及各个异步版本；范数的种类 |
-| `Statistics`、`Normalization`、`NormalizationOptions` | 统计（`math.stats`）：`sum`、`product`、`cumulativeSum`、`differences`、`mean`、`median`、`mode`、`min`、`max`、`variance`、`standardDeviation`、`medianAbsoluteDeviation`、`quantile`、`covariance`、`correlation`、`zScores`、`klDivergence`；方差的除数（`'uncorrected'`、`'unbiased'`、`'biased'`）和选择它的选项 |
+| `Statistics`、`Normalization`、`NormalizationOptions` | 统计（`math.stats`）：`sum`、`product`、`cumulativeSum`、`differences`、`mean`、`median`、`mode`、`min`、`max`、`variance`、`standardDeviation`、`medianAbsoluteDeviation`、`quantile`、`covariance`、`correlation`、`zScores`、`klDivergence`、各个分布（`normal` … `hypergeometric`、`distribution`）和 `random`；方差的除数（`'uncorrected'`、`'unbiased'`、`'biased'`）和选择它的选项 |
+| `Distribution`、`DistributionName`、`DistributionParameters` | 概率分布：`pdf`、`cdf`、`survival`、`quantile`、`survivalQuantile`、`sample`、`parameters`、`kind`、`support`、`mean`、`variance`、`standardDeviation`、`median`、`mode`、`skewness`、`excessKurtosis`；分布的名字；按名字给出的参数 |
+| `RandomGenerator` | 按种子生成随机数的生成器（xoshiro256**）：`next`、`uniform`、`integers`、`clone` |
 | `SparseMatrix`、`SparseEntry` | 按压缩行存储的稀疏矩阵（`math.linalg.sparse()`）：`rowPointers`、`columnIndices`、`values`、`nonZeros`、`get`、`transpose`、`add`、`sub`、`neg`、`mul`、`toDense`、`toEntries`；条目 `[row, column, value]` |
 | `IterativeOptions`、`IterativeSolution` | 迭代求解器的选项（`tolerance`、`maxIterations`、`guess`）和结果（`solution`、`iterations`、`error`、`converged`） |
 | `LuDecomposition`、`QrDecomposition`、`SingularValueDecomposition`、`EigenDecomposition`、`SymmetricEigenDecomposition`、`SchurDecomposition`、`ComplexVector`、`ComplexMatrix` | 各种分解的结果：`{lower, upper, permutation}`、`{q, r}`、`{u, singularValues, v}`、`{values, vectors}`（复数为 `{re, im}`）、`{values, vectors}`、`{u, t}` |
@@ -301,7 +351,7 @@ function statistics(math: Math): void {
 | `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂） |
 | `MathDivisionByZeroException` | 计算十进制值时遇到除以零（包括除以一个无法和 0 区分的值、0 的对数、0 的负数次幂、以 1 为底的对数、在函数的极点上求值：`gamma()` 的参数是 -2、`zeta()` 的参数是 1），或者模数是 0 |
 | `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`） |
-| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数 |
+| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分布的参数无效、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数 |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |
 | `MathException` | 以上所有错误的基类；原生插件内部错误时，它的 `errno` 是 `E_MATH_INTERNAL` |
 

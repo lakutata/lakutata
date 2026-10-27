@@ -2,8 +2,8 @@
 
 The libraries in this directory are copied from their releases (`vendor/UPSTREAM.json` records each version, archive and
 checksum) by `scripts/sync.mjs`, which keeps the changes below through a three-way merge when a library is upgraded.
-Boost.Multiprecision, Boost.Math, Boost.Config, Eigen and mpdecimal are unchanged. The configuration headers the builds
-of CMake would generate are in `native/config`.
+Boost.Multiprecision, Boost.Config, Eigen and mpdecimal are unchanged. The configuration headers the builds of CMake
+would generate are in `native/config`.
 
 ## SymEngine
 
@@ -133,3 +133,9 @@ The addon runs SymEngine in its own threads, which can still be running when the
 - `symengine/interruption.h`, `symengine/interruption.cpp` (added): a function the addon sets, called at each step of
   the long loops of `symengine/expand.cpp` and of the multinomial coefficients of `symengine/pow.cpp`. It throws when
   the operation is cancelled or past its time limit, so that its thread stops there.
+
+## Boost.Math
+
+- `include/boost/math/distributions/hypergeometric.hpp`: `kurtosis_excess()` returned the kurtosis of Wolfram's formula,
+  which is the full one, and `kurtosis()` added 3 to it: the excess is now 3 less (SciPy's: -0.1527 for 12 draws from
+  20 items of which 7 are successes, where Boost gave 2.8473).

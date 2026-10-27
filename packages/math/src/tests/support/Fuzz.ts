@@ -1,4 +1,4 @@
-import {type Expression, Math, MathException, Matrix, SparseMatrix} from '../../exports/Math.js'
+import {type Distribution, type DistributionName, type Expression, Math, MathException, Matrix, SparseMatrix} from '../../exports/Math.js'
 
 /**
  * A seeded generator of random numbers (mulberry32): the same seed gives the same formulas
@@ -670,6 +670,96 @@ export async function checkStatistics(math: Math, random: Random, index: number)
         }
     } catch (error) {
         if (!(error instanceof MathException)) fail('statistics', String(error))
+    }
+    return failures
+}
+
+//A distribution of random parameters, in their domains
+function randomDistribution(math: Math, random: Random): Distribution {
+    const between = (low: number, high: number): number => low + (high - low) * random.next()
+    const integer = (low: number, high: number): number => low + random.int(high - low + 1)
+    const names: DistributionName[] = ['normal', 'lognormal', 'uniform', 'exponential', 'gamma', 'beta', 'chiSquared', 'studentT', 'fisherF', 'cauchy', 'laplace', 'logistic', 'weibull', 'pareto', 'rayleigh', 'triangular', 'gumbel', 'inverseGamma', 'bernoulli', 'binomial', 'poisson', 'geometric', 'negativeBinomial', 'hypergeometric']
+    const name: DistributionName = names[random.int(names.length)]
+    const lower: number = between(-5, 0), upper: number = lower + between(0.1, 10), total: number = integer(1, 200), successes: number = integer(0, total)
+    const parameters: Record<DistributionName, Record<string, number>> = {
+        normal: {mean: between(-10, 10), standardDeviation: between(0.1, 5)},
+        lognormal: {logMean: between(-1, 1), logStandardDeviation: between(0.1, 1)},
+        uniform: {lower, upper},
+        exponential: {rate: between(0.1, 5)},
+        gamma: {shape: between(0.2, 10), scale: between(0.1, 5)},
+        beta: {alpha: between(0.2, 10), beta: between(0.2, 10)},
+        chiSquared: {degrees: between(0.5, 30)},
+        studentT: {degrees: between(0.5, 30)},
+        fisherF: {numeratorDegrees: between(0.5, 30), denominatorDegrees: between(0.5, 30)},
+        cauchy: {location: between(-5, 5), scale: between(0.1, 5)},
+        laplace: {location: between(-5, 5), scale: between(0.1, 5)},
+        logistic: {location: between(-5, 5), scale: between(0.1, 5)},
+        weibull: {shape: between(0.3, 5), scale: between(0.1, 5)},
+        pareto: {scale: between(0.1, 5), shape: between(0.5, 10)},
+        rayleigh: {scale: between(0.1, 5)},
+        triangular: {lower, mode: lower + (upper - lower) * random.next(), upper},
+        gumbel: {location: between(-5, 5), scale: between(0.1, 5)},
+        inverseGamma: {shape: between(0.5, 10), scale: between(0.1, 5)},
+        bernoulli: {probability: random.next()},
+        binomial: {trials: integer(0, 200), probability: random.next()},
+        poisson: {mean: between(0.1, 100)},
+        geometric: {probability: between(0.01, 1)},
+        negativeBinomial: {successes: between(0.5, 20), probability: between(0.05, 1)},
+        hypergeometric: {total, successes, draws: integer(0, total)}
+    }
+    return math.stats.distribution(name, parameters[name])
+}
+
+/**
+ * The checks of the distributions of random parameters: their cdf nondecreasing and complementary to their survival
+ * function, their quantiles inverting their cdf (the smallest integer of a cdf at least p for a discrete one), their
+ * densities not negative, the means of their samples near theirs, the samples of a seed the same each time
+ * @param math
+ * @param random
+ * @param index
+ */
+export async function checkDistributions(math: Math, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    try {
+        const distribution: Distribution = randomDistribution(math, random)
+        text = `${distribution.name}(${JSON.stringify(distribution.parameters)})`
+        const discrete: boolean = distribution.kind === 'discrete'
+        const probabilities: number[] = Array.from({length: 12}, (): number => random.next()).sort((a: number, b: number): number => a - b)
+        const points: Float64Array = Float64Array.from(distribution.quantile(probabilities)).sort()
+        const cdf: Float64Array = distribution.cdf(points), survival: Float64Array = distribution.survival(points), pdf: Float64Array = distribution.pdf(points)
+        cdf.forEach((value: number, i: number): void => {
+            if (!(value >= 0 && value <= 1) || (i > 0 && value < cdf[i - 1])) fail('cdf', `${value} at ${points[i]}, not of [0, 1] or decreasing`)
+            if (globalThis.Math.abs(value + survival[i] - 1) > 1e-12) fail('survival', `cdf ${value} + survival ${survival[i]} at ${points[i]} is not 1`)
+            if (!(pdf[i] >= 0)) fail('pdf', `${pdf[i]} at ${points[i]}`)
+        })
+        if (discrete) {
+            //The quantile of p: cdf(q - 1) < p <= cdf(q)
+            const quantiles: Float64Array = distribution.quantile(probabilities)
+            const at: Float64Array = distribution.cdf(quantiles), below: Float64Array = distribution.cdf(quantiles.map((q: number): number => q - 1))
+            probabilities.forEach((p: number, i: number): void => {
+                if (!(at[i] >= p) || (quantiles[i] > distribution.support[0] && !(below[i] < p))) fail('quantile', `${quantiles[i]} of ${p}: cdf ${at[i]}, below ${below[i]}`)
+            })
+        } else {
+            //quantile(cdf(x)) = x where the cdf is not flat in the doubles
+            const back: Float64Array = distribution.quantile(cdf)
+            points.forEach((x: number, i: number): void => {
+                const flat: boolean = cdf[i] < 1e-8 || cdf[i] > 1 - 1e-8 || pdf[i] * (1 + globalThis.Math.abs(x)) < 1e-6
+                if (!flat && globalThis.Math.abs(back[i] - x) > 1e-7 * (1 + globalThis.Math.abs(x))) fail('quantile', `quantile(cdf(${x})) is ${back[i]}`)
+            })
+        }
+        //Samples: the same of a seed; their mean within 6 standard errors of the mean
+        const seed: number = random.int(1000000)
+        const samples: Float64Array = distribution.sample(4000, math.stats.random(seed))
+        if (distribution.sample(4000, math.stats.random(seed)).some((value: number, i: number): boolean => !Object.is(value, samples[i]))) fail('sample', 'two samples of a seed differ')
+        if (samples.some((value: number): boolean => value < distribution.support[0] || value > distribution.support[1] || (discrete && value !== globalThis.Math.floor(value)))) fail('sample', 'a sample outside the support')
+        if (Number.isFinite(distribution.variance) && distribution.variance > 0) {
+            const error: number = globalThis.Math.abs(math.stats.mean(samples) - distribution.mean) / globalThis.Math.sqrt(distribution.variance / samples.length)
+            if (error > 6) fail('sample', `the mean of the samples ${math.stats.mean(samples)} is ${error} standard errors from ${distribution.mean}`)
+        }
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('distributions', String(error))
     }
     return failures
 }

@@ -2,7 +2,7 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
 import {Container} from '@lakutata/core'
-import {type Decimal, Expression, type IterativeSolution, Math, MathException, Matrix, type Normalization, type NormalizationOptions, type PrimeFactor, type Solutions, SparseMatrix, type SystemSolution} from '../exports/Math.js'
+import {type Decimal, type Distribution, type DistributionName, Expression, type IterativeSolution, Math, MathException, Matrix, type Normalization, type NormalizationOptions, type PrimeFactor, type Solutions, SparseMatrix, type SystemSolution} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -356,6 +356,46 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
                 const same: boolean = exact.has(fixture.op) ? Object.is(element, theirs[i]) : Object.is(element, theirs[i]) || globalThis.Math.abs(element - theirs[i]) <= 1e-14 * scale
                 assert.ok(same, `${label}: ${element}, expected ${theirs[i]}`)
             })
+        }
+    })
+
+    it('give the values of the distributions of SciPy', (): void => {
+        type Value = number | string
+        const fixtures = expected<{distribution: DistributionName, parameters: Record<string, number>, x: number[], p: number[], expected?: Record<string, Value | Value[]>, differs?: Record<string, string>, error?: string}>('distributions')
+        for (const fixture of fixtures.cases) {
+            const label: string = `${fixture.distribution}(${JSON.stringify(fixture.parameters)})`
+            if (fixture.error) {
+                assert.throws((): unknown => math.stats.distribution(fixture.distribution, fixture.parameters), (error: unknown): boolean => error instanceof MathException && (error as MathException).errno === fixture.error, label)
+                continue
+            }
+            const distribution: Distribution = math.stats.distribution(fixture.distribution, fixture.parameters)
+            const ours: Record<string, number | readonly number[] | Float64Array> = {
+                pdf: distribution.pdf(fixture.x),
+                cdf: distribution.cdf(fixture.x),
+                survival: distribution.survival(fixture.x),
+                quantile: distribution.quantile(fixture.p),
+                survivalQuantile: distribution.survivalQuantile(fixture.p),
+                mean: distribution.mean,
+                variance: distribution.variance,
+                skewness: distribution.skewness,
+                excessKurtosis: distribution.excessKurtosis,
+                median: distribution.median,
+                support: distribution.support
+            }
+            for (const [key, value] of Object.entries(fixture.expected!)) {
+                if (fixture.differs?.[key]) continue
+                //The numbers that are not finite are strings in the expected files
+                const theirs: number[] = [value].flat().map(Number), mine: number[] = typeof ours[key] === 'number' ? [ours[key] as number] : Array.from(ours[key] as ArrayLike<number>)
+                mine.forEach((element: number, i: number): void => {
+                    let expectedValue: number = theirs[i]
+                    //SciPy's survival quantile of 1 of a discrete distribution is one below its support (as its
+                    //quantile of 0): the lower bound of the support here
+                    if (key === 'survivalQuantile' && distribution.kind === 'discrete' && fixture.p[i] === 1) expectedValue = distribution.support[0]
+                    const exact: boolean = distribution.kind === 'discrete' && (key === 'quantile' || key === 'survivalQuantile' || key === 'median' || key === 'support')
+                    const same: boolean = Object.is(element, expectedValue) || (!exact && globalThis.Math.abs(element - expectedValue) <= 1e-13 * globalThis.Math.abs(expectedValue))
+                    assert.ok(same, `${label} ${key}[${i}]: ${element}, SciPy ${expectedValue}`)
+                })
+            }
         }
     })
 
