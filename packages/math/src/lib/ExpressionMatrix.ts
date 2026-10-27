@@ -420,8 +420,21 @@ export class ExpressionMatrix {
     }
 
     /**
-     * Whether the matrix equals another one: the same dimensions, each element equal (their difference expanded, or
-     * simplified, is 0).
+     * Each element as a fraction of polynomials with their gcd cancelled (`Expression.cancel()`): the inverse of a
+     * matrix times the matrix, cancelled, is the identity.
+     * @example
+     * import {expressionMatrix} from '@lakutata/math'
+     *
+     * const m = expressionMatrix('[a, b; c, d]')
+     * console.log(m.inverse().mul(m).cancel().toString()) //[1, 0; 0, 1]
+     */
+    public cancel(): ExpressionMatrix {
+        return this.#matrix(this.#run('cancel').matrix!)
+    }
+
+    /**
+     * Whether the matrix equals another one: the same dimensions, each element equal (their difference, expanded, put
+     * over one denominator or simplified, is 0).
      * @param other The other matrix.
      */
     public equals(other: ExpressionMatrixValue): boolean {

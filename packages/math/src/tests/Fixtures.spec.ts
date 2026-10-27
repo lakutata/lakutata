@@ -765,6 +765,38 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
         assert.deepStrictEqual(problems, [])
     })
 
+    it('cancel, put over one denominator and decompose into partial fractions as SymPy, each difference noted', (): void => {
+        const fixtures = expected<{op: 'cancel' | 'together' | 'apart', expression: string, variable?: string, terms?: number, differs?: Record<string, string>, result: {text: string}}>('rational')
+        //The number of terms of a sum as it is written: the signs between them outside parentheses
+        const termsOf = (text: string): number => {
+            let depth: number = 0, count: number = 1
+            for (let i = 0; i < text.length; i++) {
+                if (text[i] === '(') depth++
+                else if (text[i] === ')') depth--
+                else if (depth === 0 && (text.startsWith(' + ', i) || text.startsWith(' - ', i))) count++
+            }
+            return count
+        }
+        const problems: string[] = []
+        for (const fixture of fixtures.cases) {
+            const label: string = `${fixture.op}(${fixture.expression})`
+            const given: Expression = math.expression(fixture.expression)
+            const result: Expression = fixture.op === 'cancel' ? given.cancel() : fixture.op === 'together' ? given.together() : given.apart(fixture.variable!)
+            assert.ok(result.equals(given), `${label}: ${result.toString()} is not equal to it`)
+            const theirs: Expression = math.expression(fixture.result.text)
+            let same: boolean = result.equals(theirs)
+            //The same numerator and denominator once cancelled, the same denominator over one denominator, the same terms of
+            //the partial fractions
+            if (fixture.op === 'cancel') same = same && result.numerator().equals(theirs.numerator()) && result.denominator().equals(theirs.denominator())
+            if (fixture.op === 'together') same = same && result.denominator().equals(theirs.denominator())
+            if (fixture.op === 'apart') same = same && termsOf(result.toString()) === fixture.terms
+            const noted: string | undefined = fixture.differs?.sympy
+            if (!same && !noted) problems.push(`${label}: ${result.toString()}, SymPy ${fixture.result.text}, not noted`)
+            if (same && noted) problems.push(`${label}: SymPy agrees, its note is stale`)
+        }
+        assert.deepStrictEqual(problems, [])
+    })
+
     it('solve the linear systems as SymPy', (): void => {
         const fixtures = expected<{equations: string[], variables: string[], kind: string, values?: Record<string, {text: string, values: (Complex | null)[]}>}>('systems')
         for (const fixture of fixtures.cases) {

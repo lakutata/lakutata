@@ -111,6 +111,17 @@ bool isNegativeNumber(const Number &number)
     return false;
 }
 
+//A term with its sign changed, a product as it is written: its coefficient negated (neg() would write -(x - 2)/(3(x^2 -
+//x + 1)) of factor() and apart() again, as (x/3 - 2/3)/(x^2 - x + 1))
+Expr negated(const Expr &term)
+{
+    if (!is_a<Mul>(*term)) return neg(term);
+    const Mul &product = down_cast<const Mul &>(*term);
+    const RCP<const Number> coefficient = product.get_coef()->mul(*minus_one);
+    if (coefficient->is_one() && product.get_dict().size() == 1) return pow(product.get_dict().begin()->first, product.get_dict().begin()->second);
+    return make_rcp<const Mul>(coefficient, map_basic_basic(product.get_dict()));
+}
+
 bool isNegative(const Expr &term)
 {
     if (is_a<Integer>(*term) || is_a<Rational>(*term)) return down_cast<const Number &>(*term).is_negative();
@@ -408,7 +419,7 @@ private:
         for (size_t i = 0; i < ordered.size(); i++) {
             const Expr &term = ordered[i];
             const bool negative = isNegative(term);
-            Part part = print(negative && i > 0 ? neg(term) : term);
+            Part part = print(negative && i > 0 ? negated(term) : term);
             if (part.precedence <= ADD) part = parenthesized(part);
             if (i == 0) text = part.text;
             else text += (negative ? " - " : " + ") + part.text;
@@ -627,7 +638,7 @@ private:
             std::string text;
             for (size_t i = 0; i < terms.size(); i++) {
                 const bool negative = i > 0 && isNegative(terms[i]);
-                Part part = code(negative ? neg(terms[i]) : terms[i]);
+                Part part = code(negative ? negated(terms[i]) : terms[i]);
                 if (part.precedence <= ADD) part = atom("(" + part.text + ")");
                 text += i == 0 ? part.text : (negative ? " - " : " + ") + part.text;
             }

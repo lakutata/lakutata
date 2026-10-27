@@ -176,7 +176,7 @@ console.log(await ntheory.factorAsync(2n ** 64n + 1n, {timeout: 5000}))
 
 ### 多项式
 
-`poly`（`MathScope.poly`）对任意个变量的多项式做精确计算：`gcd(...values)` 和 `lcm(...values)`、`resultant(a, b, variable)` 和 `discriminant(p, variable)`、`factorList(p)` 和 `sqfList(p)`，以及它们的异步版本；表达式的 `factor()` 和 `sqf()` 给出它的因式分解形式。多项式可以是表达式，也可以是公式。它的生成元是其中的符号，以及本身不是多项式的因子：`sin(x)`、`sqrt(2)`、`exp(x)`（`x^(3/2)` 是 `sqrt(x)` 的立方，`exp(2x)` 是 `exp(x)` 的平方）。生成元之间看作互不相关：`sqrt(2)^2` 不会当作 2。含有负幂，或者系数是复数或不精确的数，都不算多项式（抛出 `MathNotSupportedException`）。
+`poly`（`MathScope.poly`）对任意个变量的多项式做精确计算：`gcd(...values)` 和 `lcm(...values)`、`resultant(a, b, variable)` 和 `discriminant(p, variable)`、`factorList(p)` 和 `sqfList(p)`，以及它们的异步版本；表达式的 `factor()` 和 `sqf()` 给出它的因式分解形式。多项式可以是表达式，也可以是公式。它的生成元是其中的符号，以及本身不是多项式的因子：`sin(x)`、`sqrt(2)`、`exp(x)`（`x^(3/2)` 是 `sqrt(x)` 的立方，`exp(2x)` 是 `exp(x)` 的平方）。生成元之间看作互不相关：`sqrt(2)^2` 不会当作 2。含有负幂，或者系数是复数或不精确的数，都不算多项式（抛出 `MathNotSupportedException`）；多项式的分式另有运算，见下一节。
 
 - 系数都是整数时在整数上计算，gcd 带上系数的公约数（`gcd(2x + 2, 4x + 4)` 是 `2x + 2`）；否则在有理数上计算，结果是首一的（`gcd(x/2 + 1/2, x + 1)` 是 `x + 1`）。首项系数都是正的，和 SymPy 一样。只有数时给出数的最大公约数和最小公倍数（`gcd(1/2, 1/3)` 是 `1/6`）。
 - `factorList` 给出有理系数，以及在有理数上不可约的因子和它们的重数（`factorList('6x^2 - 6')` 是 6、`x - 1` 和 `x + 1`）；`sqfList` 给出无平方分解（Yun 算法）。`factor()` 把因子写成乘积，系数放在前面（`3x*y + 6x + 3y + 6` 是 `3(x + 1)(y + 2)`），分式的分子和分母分别分解。对结果再做运算，会回到公式通常的形式（`2(x + 1)` 加 1 得 `2x + 3`）。
@@ -193,6 +193,25 @@ console.log(poly.resultant('x^2 + y', 'x - y', 'x').toString())         //y^2 + 
 console.log(poly.discriminant('a*x^2 + b*x + c', 'x').toString())       //-4a*c + b^2
 console.log(expression('3x*y + 6x + 3y + 6').factor().toString())       //3(x + 1)(y + 2)
 console.log(expression('x^6 - y^6').factor().toString())                //(x^2 - x*y + y^2)(x + y)(x - y)(x^2 + x*y + y^2)
+```
+
+### 多项式的分式
+
+表达式的 `cancel()`、`together()`、`apart(variable)` 和 `completeSquare(variable)` 处理多项式的分式，生成元和 `poly` 的相同：
+
+- `cancel()` 把分子和分母同除以它们的 gcd。两者都展开，首项系数为正，符号放在前面（`(2x^2 - 2)/(x^2 - 2x + 1)` 是 `(2x + 2)/(x - 1)`，`(-x - 1)/(x - 1)` 是 `-(x + 1)/(x - 1)`）；分母只剩一个数时把它乘进去，和 SymPy 一样（`(x^2 - 1)/2` 是 `x^2/2 - 1/2`）。
+- `together()` 把表达式通分成一个分式：分母里同一个底取最高次幂，数字取最小公倍数（`1/(2x) + 1/(3y)` 是 `(2x + 3y)/(6x*y)`），分子展开。它不找公因式（那是 `cancel()` 的事），也不进入函数的参数。
+- `apart(variable)` 给出关于一个变量的部分分式，和 SymPy 的 `apart()` 一样：先是多项式部分，然后分母的每个不可约因式 `q`（k 次幂）给出分式 `h/q^j`（`j` 从 1 到 `k`），分子 `h` 的次数低于 `q`，每一项都做因式分解（`1/(x^3 + 1)` 是 `-(x - 2)/(3(x^2 - x + 1)) + 1/(3(x + 1))`）。其他变量当作参数（`1/((x + a)(x + b))` 是 `-1/((a + x)(a - b)) + 1/((a - b)(b + x))`）；含有该变量的函数（`sin(x)/x`）抛出 `MathNotSupportedException`。各分子的系数是一个线性方程组的解，用不产生分数的 Bareiss 消元法求出。
+- `completeSquare(variable)` 把 `a x^2 + b x + c` 写成 `a(x + b/(2a))^2 + c - b^2/(4a)`（`2x^2 + 4x + 1` 是 `2(x + 1)^2 - 1`）；不是二次的抛出 `MathNotSupportedException`。
+- `apart()` 和 `completeSquare()` 的结果再加上别的项时，各项保持写出的形式；其他运算（乘以一个数、`expand()`）会回到公式通常的形式。`equals()` 会把差中的分式通分，所以能证明分式之间的恒等式（`(x^2 - 1)/(x - 1)` 等于 `x + 1`）。`cancel()` 和 `apart()` 有异步版本：多变量的 gcd 或因式分解可能很慢。
+
+```typescript
+import {expression} from '@lakutata/math'
+
+console.log(expression('(x^2 - 1)/(x^2 + 2x + 1)').cancel().toString()) //(x - 1)/(x + 1)
+console.log(expression('1/x + 1/(x + 1)').together().toString())         //(2x + 1)/(x*(x + 1))
+console.log(expression('1/(x^3 + 1)').apart('x').toString())             //-(x - 2)/(3(x^2 - x + 1)) + 1/(3(x + 1))
+console.log(expression('x^2 - 6x + 10').completeSquare('x').toString())  //(x - 3)^2 + 1
 ```
 
 ### 矩阵和线性代数
@@ -234,8 +253,8 @@ console.log(linalg.conjugateGradient(sparse, [1, 1, 2]).converged)   //true
 
 `expressionMatrix(value)` 得到一个 `ExpressionMatrix`，即元素是表达式的矩阵：可以由各行给出（`[['a', 'b'], ['c', 'd']]`），由公式给出（`'[1, x; x^2, 2]'`，`parse()` 也能读这种公式），或者由数值矩阵得到。它和表达式一样不会改变：`with(row, column, value)` 得到替换了一个元素的新矩阵，`withRow()` 和 `withColumn()` 得到替换了一行或一列的新矩阵。
 
-- 元素和运算：`get`、`toArray`、`row`、`column`、`submatrix`、`transpose`、`add`、`sub`、`mul`（乘以矩阵或表达式）、`div`（除以表达式）、`multiplyElements`、`pow`（整数次幂，负数是逆矩阵的幂）和 `trace`，以及逐元素的 `diff`、`substitute`、`expand`、`simplify`。`toMatrix()` 得到各元素数值组成的数值矩阵，`toString()` 得到它的公式，`toTeX()` 得到 `bmatrix`。`jacobian(expressions, variables)` 得到几个表达式的雅可比矩阵。
-- 线性代数都是精确的：方阵且非奇异时的 `determinant`、`inverse`、`solve`（奇异时抛出 `MathDomainException`），`rref`（简化行阶梯形和主元所在的列），`rank`、`nullspace`、`characteristicPolynomial`、`eigenvalues`（带重数）和 `eigenvectors`。纯数字矩阵用精确的有理数消元。含变量的矩阵，行列式和特征多项式用 Berkowitz 算法计算，逆矩阵由伴随矩阵得到，所以每个元素都是一个多项式分式，分子分母的公因式不会约去。
+- 元素和运算：`get`、`toArray`、`row`、`column`、`submatrix`、`transpose`、`add`、`sub`、`mul`（乘以矩阵或表达式）、`div`（除以表达式）、`multiplyElements`、`pow`（整数次幂，负数是逆矩阵的幂）和 `trace`，以及逐元素的 `diff`、`substitute`、`expand`、`simplify`、`cancel`。`toMatrix()` 得到各元素数值组成的数值矩阵，`toString()` 得到它的公式，`toTeX()` 得到 `bmatrix`。`jacobian(expressions, variables)` 得到几个表达式的雅可比矩阵。
+- 线性代数都是精确的：方阵且非奇异时的 `determinant`、`inverse`、`solve`（奇异时抛出 `MathDomainException`），`rref`（简化行阶梯形和主元所在的列），`rank`、`nullspace`、`characteristicPolynomial`、`eigenvalues`（带重数）和 `eigenvectors`。纯数字矩阵用精确的有理数消元。含变量的矩阵，行列式和特征多项式用 Berkowitz 算法计算，逆矩阵由伴随矩阵得到，所以每个元素都是一个多项式分式，分子分母的公因式不会约去：`cancel()` 可以约去它们，`equals()` 能比较分式（逆矩阵乘以原矩阵等于单位矩阵）。
 - 判断元素是否为 0：展开后为 0 的是 0；常数用十进制数判断，和 0 分不开的是 0；含变量的元素对变量的所有取值都为 0 才算 0（在两组取值上精确计算）。和 SymPy 一样，只在变量取某些值时为 0 的主元按非 0 处理。特征值是特征多项式的根：先试对角线上的元素，剩下的部分先因式分解（`[a, b; b, a]` 的特征值是 `a + b` 和 `a - b`），在四次以内给出精确值；其他情况抛出 `MathNotSupportedException`，数值可以用 `linalg.eigen()` 求。
 
 ```typescript
@@ -244,6 +263,7 @@ import {expressionMatrix, jacobian, parse} from '@lakutata/math'
 const m = expressionMatrix([['a', 'b'], ['c', 'd']])
 console.log(m.determinant().toString())                     //a*d - b*c
 console.log(m.inverse().toString())                         //[d/(a*d - b*c), -b/(a*d - b*c); -c/(a*d - b*c), a/(a*d - b*c)]
+console.log(m.inverse().mul(m).cancel().toString())         //[1, 0; 0, 1]
 console.log(parse('[1, 2; 3, 4] * [x; y]').toString())      //[x + 2y; 3x + 4y]
 console.log(expressionMatrix('[2, 1; 1, 2]').eigenvectors().map(({value, vectors}) => [value.toString(), vectors.map(String)])) //[['1', ['[-1; 1]']], ['3', ['[1; 1]']]]
 console.log(jacobian(['x^2*y', 'x + sin(y)'], ['x', 'y']).toString()) //[2x*y, x^2; 1, cos(y)]
@@ -361,7 +381,7 @@ console.log(solution, converged)                                               /
 `numeric.integrate(function, variable, [a, b], options)` 求函数在区间上的积分，结果是 `{value, error, converged}`。端点可以是无穷（`-Infinity`、`Infinity`）；从 b 积到 a 时结果取反。
 
 - 用 QUADPACK 的 QAGS 算法计算，和 SciPy 的 `quad` 相同：把误差最大的区间对半分，用 21 点的 Gauss-Kronrod 公式计算，在奇点附近对结果序列做外推；半直线和整条实轴先变换到有限区间。如果这样还没算到舍入误差的程度，就再用双指数积分（tanh-sinh、exp-sinh、sinh-sinh）算一次，取更准确的结果。在不为 0 的端点附近，函数改写成到端点距离的函数（`x = 1 - u` 时 `1 - x^2` 是 `2u - u^2`），所以端点上的奇点（`1/sqrt(1 - x^2)` 在 `[-1, 1]` 上）也能算到舍入误差的程度。
-- `points` 给出区间内函数奇异或跳变的点，区间在这些点分开计算。外推往往能自己找到这样的点，但给出 `points` 算得更快、更准，误差估计也可靠：奇点在区间内部时，外推的误差估计可能偏小，QUADPACK 也是这样。函数在某个求积节点上是无穷大时，区间也会在那里分开。函数分母中关于积分变量的多项式因子在区间内部有实根、而分子在那里不为 0 时，区间也在这个根处分开：跨过极点的积分是发散的，结果标为不收敛，而不会把柯西主值当作积分（`1/x` 在 `[-1, 2]` 上）。
+- `points` 给出区间内函数奇异或跳变的点，区间在这些点分开计算。外推往往能自己找到这样的点，但给出 `points` 算得更快、更准，误差估计也可靠：奇点在区间内部时，外推的误差估计可能偏小，QUADPACK 也是这样。函数在某个求积节点上是无穷大时，区间也会在那里分开。函数分母中关于积分变量的多项式因子在区间内部有实根、而分子在那里不为 0 时，区间也在这个根处分开：跨过极点的积分是发散的，结果标为不收敛，而不会把柯西主值当作积分（`1/x` 在 `[-1, 2]` 上）。关于积分变量的多项式分式先约去公因式：`(x^2 - 1)/(x - 1)` 在 `[0, 2]` 上的积分是 4，否则求积节点会在 1 处遇到 0/0。
 - `tolerance` 限制误差估计的大小（相对于 `|f|` 的积分）：默认约 1.5e-8（机器精度的平方根，和 SciPy 相同），实际结果通常比估计准确得多。发散、无休止振荡，或者双精度分辨不了的积分，给出最好的估计，并且 `converged` 为 `false`；函数在区间内不是实数时抛出 `MathDomainException`。`integrateAsync()` 在原生插件的线程里执行。
 
 ```typescript
@@ -415,7 +435,7 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 | `parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`unit`、`constant`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`poly`、`linalg`、`stats`、`numeric` | `math` 的函数和命名空间，可以直接使用 |
 | `math`、`createMath`、`MathOptions` | 默认选项的范围；用别的选项（`definitions`、`precision`、`timeout`、`concurrency`、`units`）创建范围的函数，以及它的选项 |
 | `MathScope`、`MathDefinitions` | 由定义和设置组成的范围（`createMath()`、`with()`）：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`unit`、`constant`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`poly`、`linalg`、`stats`、`numeric`；定义（按签名给出的公式） |
-| `Expression` | 表达式：`toString`、`toTeX`、`toNumber`、`toComplex`、`toDecimal`、`toComplexDecimal`、`variables`、`equals`、`add`、`sub`、`mul`、`div`、`pow`、`neg`、`expand`、`simplify`、`diff`、`series`、`substitute`、`evaluate`、`solve`、`compile`，多项式（`coefficients`、`degree`、`leadingCoefficient`、`divide`），`factor`、`sqf`，`numerator`、`denominator`、`rewrite`（改写成 `exp`、`sin`、`cos`），判断（`isZero`、`isPositive`、`isNegative`、`isInteger`、`isRational`、`isReal`、`isFinite`：不知道时为 `undefined`），`compare`、`toJavaScript`、`toC`、`toPolar`、`toRectangular`，以及各个异步版本 |
+| `Expression` | 表达式：`toString`、`toTeX`、`toNumber`、`toComplex`、`toDecimal`、`toComplexDecimal`、`variables`、`equals`、`add`、`sub`、`mul`、`div`、`pow`、`neg`、`expand`、`simplify`、`diff`、`series`、`substitute`、`evaluate`、`solve`、`compile`，多项式（`coefficients`、`degree`、`leadingCoefficient`、`divide`），`factor`、`sqf`，分式（`cancel`、`together`、`apart`、`completeSquare`），`numerator`、`denominator`、`rewrite`（改写成 `exp`、`sin`、`cos`），判断（`isZero`、`isPositive`、`isNegative`、`isInteger`、`isRational`、`isReal`、`isFinite`：不知道时为 `undefined`），`compare`、`toJavaScript`、`toC`、`toPolar`、`toRectangular`，以及各个异步版本 |
 | `CommonSubexpressions`、`CseOptions` | `cse()` 的结果（`replacements`、`expressions`）和它的选项（`prefix`） |
 | `PolarForm`、`RectangularForm` | 复数的极坐标形式（模 `modulus`、辐角 `argument`）和直角坐标形式（实部 `real`、虚部 `imaginary`） |
 | `Equation`、`Inequality`、`InequalityRelation` | 方程（`left`、`right`、`difference`、`substitute`、`solve`、`solveAsync`），不等式（`left`、`right`、`relation`） |
@@ -424,7 +444,7 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 | `CompiledFunction` | 编译后的表达式：以数字为参数的函数，它的 `variables` 和 `batch` |
 | `Decimal`、`DecimalValue`、`DecimalOptions` | 指定精度的十进制数（`decimal()`）：`precision`、`add`、`sub`、`mul`、`div`、`mod`、`pow`、`neg`、`abs`、`sqrt`、`cbrt`、`root`、`exp`、`ln`、`log10`、`log`、`sin`、`cos`、`tan`、`asin`、`acos`、`atan`、`atan2`、`sinh`、`cosh`、`tanh`、`asinh`、`acosh`、`atanh`、`gamma`、`loggamma`、`digamma`、`erf`、`erfc`、`zeta`、`lambertw`、`floor`、`ceil`、`trunc`、`round`、`compare`、`equals`、`isZero`、`isPositive`、`isNegative`、`isInteger`、`toString`、`toFixed`、`toNumber`、`toJSON`；需要十进制数的地方可以传入的值（十进制数、数字、bigint、写成字符串的十进制数）；`decimal()` 的选项（`precision`） |
 | `Matrix`、`MatrixValue`、`VectorValue` | 数值矩阵（`matrix()`）：`rows`、`columns`、`data`、`get`、`set`、`row`、`column`、`diagonal`、`submatrix`、`reshape`、`transpose`、`add`、`sub`、`mul`、`div`、`neg`、`multiplyElements`、`divideElements`、`powElements`、`map`、`trace`、`kron`、`equals`、`clone`、`toArray`、`toJSON`、`toString`；需要矩阵的地方可以传入的值（矩阵，或它的各行）；需要向量的地方可以传入的值（`Float64Array`，或数字数组） |
-| `ExpressionMatrix`、`ExpressionMatrixValue`、`RowEchelonForm`、`Eigenvector` | 表达式矩阵（`expressionMatrix()`、`parse()`）：`rows`、`columns`、`get`、`toArray`、`with`、`withRow`、`withColumn`、`row`、`column`、`submatrix`、`transpose`、`neg`、`add`、`sub`、`mul`、`div`、`multiplyElements`、`pow`、`trace`、`determinant`、`inverse`、`solve`、`rref`、`rank`、`nullspace`、`characteristicPolynomial`、`eigenvalues`、`eigenvectors`、`diff`、`substitute`、`expand`、`simplify`、`equals`、`toMatrix`、`toString`、`toTeX`，以及 `determinantAsync`、`inverseAsync`、`solveAsync`、`eigenvectorsAsync`；能当作表达式矩阵的值；简化行阶梯形和它的主元；特征值、它的重数和特征向量 |
+| `ExpressionMatrix`、`ExpressionMatrixValue`、`RowEchelonForm`、`Eigenvector` | 表达式矩阵（`expressionMatrix()`、`parse()`）：`rows`、`columns`、`get`、`toArray`、`with`、`withRow`、`withColumn`、`row`、`column`、`submatrix`、`transpose`、`neg`、`add`、`sub`、`mul`、`div`、`multiplyElements`、`pow`、`trace`、`determinant`、`inverse`、`solve`、`rref`、`rank`、`nullspace`、`characteristicPolynomial`、`eigenvalues`、`eigenvectors`、`diff`、`substitute`、`expand`、`simplify`、`cancel`、`equals`、`toMatrix`、`toString`、`toTeX`，以及 `determinantAsync`、`inverseAsync`、`solveAsync`、`eigenvectorsAsync`；能当作表达式矩阵的值；简化行阶梯形和它的主元；特征值、它的重数和特征向量 |
 | `Unit`、`UnitValue`、`UnitDimensions`、`CustomUnit`、`CustomUnits`、`PhysicalConstant` | 带单位的值（`unit()`、`constant()`）：`value`、`units`、`dimensions`、`hasDimensionsOf`、`to`、`toSI`、`toBest`、`split`、`add`、`sub`、`mul`、`div`、`pow`、`sqrt`、`neg`、`abs`、`equals`、`compare`、`toNumber`、`toDecimal`、`toString`、`toJSON`、`toTeX`；能当作带单位的值给出的参数；各基本量的次数；`createMath()` 的一个单位（`definition`、`prefixes`、`aliases`、`offset`）和这个选项的全部单位；物理常数的名字 |
 | `LinearAlgebra`、`NormKind` | 线性代数（`linalg`）：`zeros`、`ones`、`identity`、`diagonal`、`fromRows`、`fromColumns`、`fromFunction`、`concat`、`rotation`、`dot`、`cross`、`outer`、`norm`、`multiply`、`solve`、`solveTriangular`、`leastSquares`、`inverse`、`determinant`、`singularValues`、`rank`、`condition`、`lu`、`qr`、`cholesky`、`svd`、`eigen`、`symmetricEigen`、`schur`、`pseudoInverse`、`exponential`、`squareRoot`、`sylvester`、`lyapunov`、`sparse`、`conjugateGradient`、`biconjugateGradientStabilized`，以及各个异步版本；范数的种类 |
 | `Statistics`、`Normalization`、`NormalizationOptions` | 统计（`stats`）：`sum`、`product`、`cumulativeSum`、`differences`、`mean`、`median`、`mode`、`min`、`max`、`variance`、`standardDeviation`、`medianAbsoluteDeviation`、`quantile`、`covariance`、`correlation`、`zScores`、`klDivergence`、各个分布（`normal` … `hypergeometric`、`distribution`）和 `random`；方差的除数（`'uncorrected'`、`'unbiased'`、`'biased'`）和选择它的选项 |

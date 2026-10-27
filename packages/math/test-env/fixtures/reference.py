@@ -594,6 +594,25 @@ def factorization():
     save('factor', results)
 
 
+def rational():
+    """The cancelled fractions, the sums over one denominator and the partial fractions of SymPy (the number of terms of
+    the partial fractions too)"""
+    results = []
+    for case in load('rational'):
+        result = dict(case)
+        expr = parse(case['expression'])
+        if case['op'] == 'cancel':
+            value = sympy.cancel(expr)
+        elif case['op'] == 'together':
+            value = sympy.together(expr)
+        else:
+            value = sympy.apart(expr, Symbol(case['variable']))
+            result['terms'] = len(sympy.Add.make_args(value))
+        result['result'] = expression_result(value)
+        results.append(result)
+    save('rational', results)
+
+
 if __name__ == '__main__':
     grammar()
     numbers()
@@ -609,6 +628,7 @@ if __name__ == '__main__':
     matrices()
     poly()
     factorization()
+    rational()
     decimals()
     special()
     complex_parts()

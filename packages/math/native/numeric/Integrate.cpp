@@ -30,6 +30,7 @@
 #include "../async/Pool.h"
 #include "../core/Errors.h"
 #include "../ops/Operations.h"
+#include "../poly/Rational.h"
 
 namespace math {
 
@@ -599,11 +600,18 @@ std::vector<double> polesInside(const Expr &function, const std::string &variabl
 
 }
 
-IntegralResult integralOf(const Expr &function, const std::string &variable, double a, double b, const std::vector<double> &points, double tolerance)
+IntegralResult integralOf(const Expr &given, const std::string &variable, double a, double b, const std::vector<double> &points, double tolerance)
 {
     if (!(tolerance >= 0 && tolerance < 1)) throw MathError(ErrorCode::Argument, "The tolerance is a number from 0 to 1, 1 excluded");
     if (std::isnan(a) || std::isnan(b)) throw MathError(ErrorCode::Argument, "The ends of the interval are numbers");
     IntegralResult result;
+    //A fraction of polynomials with a common factor cancelled ((x^2 - 1)/(x - 1) is x + 1, not 0/0 at 1)
+    Expr function = given;
+    try {
+        if (has_symbol(*fractionOf(given).second, *SymEngine::symbol(variable))) cancelled(given, function);
+    } catch (const MathError &error) {
+        if (error.code() != ErrorCode::NotSupported) throw;
+    }
     Integrand integrand(function, variable);
     if (a == b) {
         result.converged = true;

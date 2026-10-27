@@ -172,6 +172,14 @@ export class Expression {
         return new Expression(this.context, handle)
     }
 
+    #poly(operation: string, names: string[] = []): Expression {
+        return this.#expression(this.context.run<{expression: Handle}>('poly', [operation, [this.handle], names]).expression)
+    }
+
+    async #polyAsync(operation: string, names: string[], options?: AsyncOptions): Promise<Expression> {
+        return this.#expression((await this.context.runAsync<{expression: Handle}>('poly', [operation, [this.handle], names], options)).expression)
+    }
+
     /**
      * The formula of the expression, as the formulas are written: `x^2 - 5x + 6`. Parsed again, it gives the same
      * expression.
@@ -324,8 +332,8 @@ export class Expression {
     }
 
     /**
-     * Whether the expression is equal to another one: their difference expanded, or simplified, is zero. `false` when
-     * that does not show it, even if they are equal.
+     * Whether the expression is equal to another one: their difference, expanded, put over one denominator (`(x^2 -
+     * 1)/(x - 1)` equals `x + 1`) or simplified, is zero. `false` when that does not show it, even if they are equal.
      * @param other The other expression, a number or a formula.
      */
     public equals(other: Value): boolean {
@@ -416,7 +424,7 @@ export class Expression {
      * 1)`). An operation on the result gives the usual form of the formulas again (`2(x + 1)` plus 1 is `2x + 3`).
      */
     public factor(): Expression {
-        return this.#expression(this.context.run<{expression: Handle}>('poly', ['factor', [this.handle], []]).expression)
+        return this.#poly('factor')
     }
 
     /**
@@ -424,7 +432,7 @@ export class Expression {
      * @param options Its cancellation, its time limit.
      */
     public async factorAsync(options?: AsyncOptions): Promise<Expression> {
-        return this.#expression((await this.context.runAsync<{expression: Handle}>('poly', ['factor', [this.handle], []], options)).expression)
+        return this.#polyAsync('factor', [], options)
     }
 
     /**
@@ -432,7 +440,81 @@ export class Expression {
      * 1` is `(x + 1)(x - 1)^2`); of a fraction, of its numerator and its denominator.
      */
     public sqf(): Expression {
-        return this.#expression(this.context.run<{expression: Handle}>('poly', ['sqf', [this.handle], []]).expression)
+        return this.#poly('sqf')
+    }
+
+    /**
+     * The expression as a fraction of polynomials with their gcd cancelled: its numerator and its denominator expanded,
+     * with positive leading coefficients, and the sign in front (`(2x^2 - 2)/(x^2 - 2x + 1)` is `(2x + 2)/(x - 1)`,
+     * `(-x - 1)/(x - 1)` is `-(x + 1)/(x - 1)`). Its generators are those of `math.poly`; a complex coefficient is not
+     * supported (`MathNotSupportedException`).
+     * @example
+     * import {expression} from '@lakutata/math'
+     *
+     * console.log(expression('(x^2 - 1)/(x^2 + 2x + 1)').cancel().toString()) //(x - 1)/(x + 1)
+     */
+    public cancel(): Expression {
+        return this.#poly('cancel')
+    }
+
+    /**
+     * `cancel()` in the threads of the addon: the gcd of large polynomials in several variables can take long.
+     * @param options Its cancellation, its time limit.
+     */
+    public async cancelAsync(options?: AsyncOptions): Promise<Expression> {
+        return this.#polyAsync('cancel', [], options)
+    }
+
+    /**
+     * The expression over one denominator: the bases of the denominators to their greatest powers and the lcm of their
+     * numbers (`1/(2x) + 1/(3y)` is `(2x + 3y)/(6x*y)`), the numerator expanded; no common factor of the numerator and
+     * the denominator is looked for (that is `cancel()`). It goes into sums, products and powers, not into the
+     * arguments of functions.
+     * @example
+     * import {expression} from '@lakutata/math'
+     *
+     * console.log(expression('1/x + 1/(x + 1)').together().toString()) //(2x + 1)/(x*(x + 1))
+     */
+    public together(): Expression {
+        return this.#poly('together')
+    }
+
+    /**
+     * The partial fractions in a variable: the polynomial part, then, for each irreducible factor `q` of the
+     * denominator to the power `k`, the fractions `h/q^j` (`j` from 1 to `k`) with numerators of lower degree than `q`,
+     * each one factored (`1/(x^2 - 1)` is `-1/(2(x + 1)) + 1/(2(x - 1))`). The other variables are parameters; an
+     * expression that is not a fraction of polynomials in the variable (`sin(x)/x`) is not supported
+     * (`MathNotSupportedException`).
+     * @param variable The variable.
+     * @example
+     * import {expression} from '@lakutata/math'
+     *
+     * console.log(expression('(x^3 + 1)/(x^2 - x)').apart('x').toString()) //x - 1/x + 2/(x - 1) + 1
+     */
+    public apart(variable: string): Expression {
+        return this.#poly('apart', [variable])
+    }
+
+    /**
+     * `apart()` in the threads of the addon: it factors the denominator, which can take long.
+     * @param variable The variable.
+     * @param options Its cancellation, its time limit.
+     */
+    public async apartAsync(variable: string, options?: AsyncOptions): Promise<Expression> {
+        return this.#polyAsync('apart', [variable], options)
+    }
+
+    /**
+     * A polynomial of degree 2 in a variable, `a x^2 + b x + c`, as `a(x + b/(2a))^2 + c - b^2/(4a)`
+     * (`2x^2 + 4x + 1` is `2(x + 1)^2 - 1`); another degree is not supported (`MathNotSupportedException`).
+     * @param variable The variable.
+     * @example
+     * import {expression} from '@lakutata/math'
+     *
+     * console.log(expression('x^2 - 6x + 10').completeSquare('x').toString()) //(x - 3)^2 + 1
+     */
+    public completeSquare(variable: string): Expression {
+        return this.#poly('completeSquare', [variable])
     }
 
     /**

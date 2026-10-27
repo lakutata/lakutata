@@ -284,7 +284,8 @@ their asynchronous versions; `factor()` and `sqf()` of an expression give its fa
 expression or a formula. Its generators are its symbols and its factors that are not polynomials themselves: `sin(x)`,
 `sqrt(2)`, `exp(x)` (`x^(3/2)` is the cube of `sqrt(x)`, `exp(2x)` the square of `exp(x)`). They are independent of each
 other: `sqrt(2)^2` is not read as 2. An expression with a negative power, or with a coefficient that is complex or not
-exact, is not a polynomial (`MathNotSupportedException`).
+exact, is not a polynomial (`MathNotSupportedException`); fractions of polynomials have the operations of the next
+section.
 
 - The results are over the integers when every coefficient is an integer, with the gcd of the contents in a gcd (`gcd(2x
   + 2, 4x + 4)` is `2x + 2`), and over the rationals otherwise (monic: `gcd(x/2 + 1/2, x + 1)` is `x + 1`). Their
@@ -314,6 +315,40 @@ console.log(poly.resultant('x^2 + y', 'x - y', 'x').toString())         //y^2 + 
 console.log(poly.discriminant('a*x^2 + b*x + c', 'x').toString())       //-4a*c + b^2
 console.log(expression('3x*y + 6x + 3y + 6').factor().toString())       //3(x + 1)(y + 2)
 console.log(expression('x^6 - y^6').factor().toString())                //(x^2 - x*y + y^2)(x + y)(x - y)(x^2 + x*y + y^2)
+```
+
+### Fractions of polynomials
+
+`cancel()`, `together()`, `apart(variable)` and `completeSquare(variable)` of an expression work on fractions of
+polynomials, with the generators of `poly`:
+
+- `cancel()` divides the numerator and the denominator by their gcd. Both are expanded, with positive leading
+  coefficients, and the sign goes in front (`(2x^2 - 2)/(x^2 - 2x + 1)` is `(2x + 2)/(x - 1)`, `(-x - 1)/(x - 1)` is
+  `-(x + 1)/(x - 1)`); a denominator that is a number is multiplied in, as in SymPy (`(x^2 - 1)/2` is `x^2/2 - 1/2`).
+- `together()` writes the expression over one denominator: each base of the denominators to its greatest power, and the
+  lcm of their numbers (`1/(2x) + 1/(3y)` is `(2x + 3y)/(6x*y)`), with the numerator expanded. It does not look for
+  common factors (that is `cancel()`), and it does not go into the arguments of functions.
+- `apart(variable)` gives the partial fractions in a variable, as SymPy's `apart()`: the polynomial part, then, for each
+  irreducible factor `q` of the denominator to the power `k`, the fractions `h/q^j` (`j` from 1 to `k`) with numerators
+  of lower degree than `q`, each one factored (`1/(x^3 + 1)` is `-(x - 2)/(3(x^2 - x + 1)) + 1/(3(x + 1))`). The other
+  variables are parameters (`1/((x + a)(x + b))` is `-1/((a + x)(a - b)) + 1/((a - b)(b + x))`); a function of the
+  variable (`sin(x)/x`) throws `MathNotSupportedException`. The numerators come from a linear system in their
+  coefficients, solved without fractions (Bareiss' elimination).
+- `completeSquare(variable)` writes `a x^2 + b x + c` as `a(x + b/(2a))^2 + c - b^2/(4a)` (`2x^2 + 4x + 1` is `2(x +
+  1)^2 - 1`); a polynomial of another degree throws `MathNotSupportedException`.
+- The terms of a result of `apart()` or `completeSquare()` keep their written form when terms are added to it; otherwise
+  an operation on a result (a product by a number, `expand()`) gives the usual form of the formulas again. `equals()`
+  puts the fractions of a difference over one denominator, so that it proves identities between fractions (`(x^2 - 1)/(x
+  - 1)` equals `x + 1`). `cancel()` and `apart()` have asynchronous versions: a gcd or a factorization in several
+  variables can take long.
+
+```typescript
+import {expression} from '@lakutata/math'
+
+console.log(expression('(x^2 - 1)/(x^2 + 2x + 1)').cancel().toString()) //(x - 1)/(x + 1)
+console.log(expression('1/x + 1/(x + 1)').together().toString())         //(2x + 1)/(x*(x + 1))
+console.log(expression('1/(x^3 + 1)').apart('x').toString())             //-(x - 2)/(3(x^2 - x + 1)) + 1/(3(x + 1))
+console.log(expression('x^2 - 6x + 10').completeSquare('x').toString())  //(x - 3)^2 + 1
 ```
 
 ### Matrices and linear algebra
@@ -388,15 +423,16 @@ expression, it does not change: `with(row, column, value)` gives a matrix with a
 
 - Its elements and its arithmetic: `get`, `toArray`, `row`, `column`, `submatrix`, `transpose`, `add`, `sub`, `mul` (by
   a matrix or an expression), `div` (by an expression), `multiplyElements`, `pow` (to an integer; a negative one gives a
-  power of the inverse) and `trace`, with `diff`, `substitute`, `expand` and `simplify` element by element. `toMatrix()`
-  gives the matrix of numbers of its values, `toString()` its formula, `toTeX()` a `bmatrix`. `jacobian(expressions,
-  variables)` gives the Jacobian matrix of expressions.
+  power of the inverse) and `trace`, with `diff`, `substitute`, `expand`, `simplify` and `cancel` element by element.
+  `toMatrix()` gives the matrix of numbers of its values, `toString()` its formula, `toTeX()` a `bmatrix`.
+  `jacobian(expressions, variables)` gives the Jacobian matrix of expressions.
 - Its linear algebra is exact: `determinant`, `inverse` and `solve` of a square matrix that is not singular
   (`MathDomainException` otherwise), `rref` (the reduced row echelon form and the columns of its pivots), `rank`,
   `nullspace`, `characteristicPolynomial`, `eigenvalues` (with their multiplicities) and `eigenvectors`. A matrix of
   numbers is eliminated with exact rationals. For a matrix with variables, the determinant and the characteristic
   polynomial come from Berkowitz's algorithm and the inverse from the adjugate, so that each element is a single
-  fraction of polynomials, whose common factors are not cancelled.
+  fraction of polynomials, whose common factors are not cancelled: `cancel()` cancels them, and `equals()` compares
+  fractions (the inverse times the matrix equals the identity).
 - An element counts as 0 when it is 0 once expanded; as a constant, when its decimals cannot tell it from 0; with
   variables, when it is 0 for every value of them (it is computed exactly at two values). As in SymPy, a pivot that is 0
   only for some values of the variables counts as not 0. The eigenvalues are the roots of the characteristic polynomial:
@@ -410,6 +446,7 @@ import {expressionMatrix, jacobian, parse} from '@lakutata/math'
 const m = expressionMatrix([['a', 'b'], ['c', 'd']])
 console.log(m.determinant().toString())                     //a*d - b*c
 console.log(m.inverse().toString())                         //[d/(a*d - b*c), -b/(a*d - b*c); -c/(a*d - b*c), a/(a*d - b*c)]
+console.log(m.inverse().mul(m).cancel().toString())         //[1, 0; 0, 1]
 console.log(parse('[1, 2; 3, 4] * [x; y]').toString())      //[x + 2y; 3x + 4y]
 console.log(expressionMatrix('[2, 1; 1, 2]').eigenvectors().map(({value, vectors}) => [value.toString(), vectors.map(String)])) //[['1', ['[-1; 1]']], ['3', ['[1; 1]']]]
 console.log(jacobian(['x^2*y', 'x + sin(y)'], ['x', 'y']).toString()) //[2x*y, x^2; 1, cos(y)]
@@ -598,7 +635,8 @@ negated.
   small, as in QUADPACK. Where the function is infinite at a point where the rules evaluate it, the interval is split
   there anyway. The interval is also split at each real root, inside it, of a factor of the denominator of the function
   that is a polynomial (where the numerator is not 0): an integral across a pole diverges, and is not converged, instead
-  of being taken as its principal value (`1/x` on `[-1, 2]`).
+  of being taken as its principal value (`1/x` on `[-1, 2]`). A fraction of polynomials in the variable has its common
+  factors cancelled first: `(x^2 - 1)/(x - 1)` on `[0, 2]` is 4, where the rules would meet 0/0 at 1.
 - `tolerance` bounds the estimate of the error, relative to the integral of `|f|`: about 1.5e-8 by default (the square
   root of the machine epsilon, as in SciPy), and the result is usually much more accurate than its estimate. An integral
   that diverges, that oscillates without end, or that doubles cannot resolve gives its best estimate with `converged:
@@ -679,10 +717,10 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `unit`, `constant`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `poly`, `linalg`, `stats`, `numeric` | The functions and the namespaces of `math`, ready to use |
 | `math`, `createMath`, `MathOptions` | The scope of the default options; a scope of other options (`definitions`, `precision`, `timeout`, `concurrency`, `units`), and its options |
 | `MathScope`, `MathDefinitions` | A scope of definitions and settings (`createMath()`, `with()`): `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `unit`, `constant`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `poly`, `linalg`, `stats`, `numeric`; the definitions (a body by signature) |
-| `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `factor`, `sqf`, `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
+| `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `factor`, `sqf`, the fractions (`cancel`, `together`, `apart`, `completeSquare`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
 | `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
 | `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is given where a matrix is expected (a matrix, or its rows); where a vector is (a `Float64Array`, or an array of numbers) |
-| `ExpressionMatrix`, `ExpressionMatrixValue`, `RowEchelonForm`, `Eigenvector` | A matrix of expressions (`expressionMatrix()`, `parse()`): `rows`, `columns`, `get`, `toArray`, `with`, `withRow`, `withColumn`, `row`, `column`, `submatrix`, `transpose`, `neg`, `add`, `sub`, `mul`, `div`, `multiplyElements`, `pow`, `trace`, `determinant`, `inverse`, `solve`, `rref`, `rank`, `nullspace`, `characteristicPolynomial`, `eigenvalues`, `eigenvectors`, `diff`, `substitute`, `expand`, `simplify`, `equals`, `toMatrix`, `toString`, `toTeX`, and `determinantAsync`, `inverseAsync`, `solveAsync`, `eigenvectorsAsync`; what is given for one; a reduced row echelon form and its pivots; an eigenvalue, its multiplicity and its eigenvectors |
+| `ExpressionMatrix`, `ExpressionMatrixValue`, `RowEchelonForm`, `Eigenvector` | A matrix of expressions (`expressionMatrix()`, `parse()`): `rows`, `columns`, `get`, `toArray`, `with`, `withRow`, `withColumn`, `row`, `column`, `submatrix`, `transpose`, `neg`, `add`, `sub`, `mul`, `div`, `multiplyElements`, `pow`, `trace`, `determinant`, `inverse`, `solve`, `rref`, `rank`, `nullspace`, `characteristicPolynomial`, `eigenvalues`, `eigenvectors`, `diff`, `substitute`, `expand`, `simplify`, `cancel`, `equals`, `toMatrix`, `toString`, `toTeX`, and `determinantAsync`, `inverseAsync`, `solveAsync`, `eigenvectorsAsync`; what is given for one; a reduced row echelon form and its pivots; an eigenvalue, its multiplicity and its eigenvectors |
 | `Unit`, `UnitValue`, `UnitDimensions`, `CustomUnit`, `CustomUnits`, `PhysicalConstant` | A value with units (`unit()`, `constant()`): `value`, `units`, `dimensions`, `hasDimensionsOf`, `to`, `toSI`, `toBest`, `split`, `add`, `sub`, `mul`, `div`, `pow`, `sqrt`, `neg`, `abs`, `equals`, `compare`, `toNumber`, `toDecimal`, `toString`, `toJSON`, `toTeX`; what is given for one; the powers of its base quantities; a unit of `createMath()` (`definition`, `prefixes`, `aliases`, `offset`) and the units of its option; the names of the physical constants |
 | `LinearAlgebra`, `NormKind` | The linear algebra (`linalg`): `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, `rotation`, `dot`, `cross`, `outer`, `norm`, `multiply`, `solve`, `solveTriangular`, `leastSquares`, `inverse`, `determinant`, `singularValues`, `rank`, `condition`, `lu`, `qr`, `cholesky`, `svd`, `eigen`, `symmetricEigen`, `schur`, `pseudoInverse`, `exponential`, `squareRoot`, `sylvester`, `lyapunov`, `sparse`, `conjugateGradient`, `biconjugateGradientStabilized`, and the asynchronous versions; the kinds of norms |
 | `Statistics`, `Normalization`, `NormalizationOptions` | The statistics (`stats`): `sum`, `product`, `cumulativeSum`, `differences`, `mean`, `median`, `mode`, `min`, `max`, `variance`, `standardDeviation`, `medianAbsoluteDeviation`, `quantile`, `covariance`, `correlation`, `zScores`, `klDivergence`, the distributions (`normal` … `hypergeometric`, `distribution`) and `random`; the divisors of a variance (`'uncorrected'`, `'unbiased'`, `'biased'`) and the option that chooses one |

@@ -27,6 +27,7 @@
 #include "../ops/Decimal.h"
 #include "../ops/Operations.h"
 #include "../parser/Parser.h"
+#include "../poly/Rational.h"
 #include "../printer/Printer.h"
 
 namespace math {
@@ -730,6 +731,8 @@ ExpressionMatrixResult matrixOperation(const std::string &operation, const std::
         result.matrix = elementwise(first(), [](const Expr &element) { return expandOf(element); });
     } else if (operation == "simplify") {
         result.matrix = elementwise(first(), [](const Expr &element) { return simplifyOf(element); });
+    } else if (operation == "cancel") {
+        result.matrix = elementwise(first(), [](const Expr &element) { return cancelOf(element); });
     } else if (operation == "equals") {
         const ExpressionMatrix &a = first(), &b = second();
         bool equal = a.rows == b.rows && a.columns == b.columns;

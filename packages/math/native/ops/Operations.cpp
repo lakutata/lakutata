@@ -248,6 +248,10 @@ bool equalsOf(const Expr &givenA, const Expr &givenB)
     const Expr difference = expand(sub(a, b));
     if (eq(*difference, *zero)) return true;
     checkpoint();
+    //Fractions: the numerator over one denominator expanded ((x^2 - 1)/(x - 1) is x + 1)
+    const std::pair<Expr, Expr> fraction = fractionOf(difference);
+    if (!eq(*fraction.second, *one) && eq(*expand(fraction.first), *zero)) return true;
+    checkpoint();
     return eq(*expand(simplify(difference)), *zero);
 }
 

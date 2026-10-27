@@ -1225,3 +1225,58 @@ export async function checkFactor(math: MathScope, random: Random, index: number
     }
     return failures
 }
+
+/**
+ * Fractions of polynomials: cancel() of A G/(B G) equals it, its numerator and its denominator coprime; together() of
+ * a sum of fractions and apart() equal what they were given, at an exact point too; completeSquare() of a quadratic,
+ * expanded, is the quadratic.
+ */
+export async function checkRational(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    try {
+        const variables: string[] = random.chance(0.5) ? ['x'] : ['x', 'y']
+        const [a, b, g] = [0, 1, 2].map((): string => randomPolynomial(random, variables))
+        const denominator: Expression = math.expression(`(${b})*(${g})`).expand()
+        if (denominator.isZero() === true) return failures
+        const fraction: Expression = math.expression(`(${a})*(${g})`).expand().div(denominator)
+        text = fraction.toString()
+        //An exact point where the denominators are not 0
+        const point: Record<string, string> = {x: '7/3', y: '-5/11'}
+        const at = (e: Expression): Expression => e.substitute(Object.fromEntries(variables.map((v: string): [string, string] => [v, point[v]!])))
+        const value = (e: Expression): Expression | undefined => {
+            try {
+                const result: Expression = at(e)
+                return result.isFinite() === true ? result : undefined
+            } catch {
+                return undefined
+            }
+        }
+        const cancelled: Expression = fraction.cancel()
+        if (!cancelled.equals(fraction)) fail('cancel', `cancel() is ${cancelled.toString()}`)
+        const top: Expression = cancelled.numerator(), bottom: Expression = cancelled.denominator()
+        if (variables.some((variable: string): boolean => math.poly.gcd(top, bottom).degree(variable) > 0)) fail('cancel', `${top.toString()} and ${bottom.toString()} are not coprime`)
+        const otherDenominator: Expression = math.expression(randomPolynomial(random, variables))
+        const other: Expression = otherDenominator.isZero() === true ? math.expression(1) : math.expression(randomPolynomial(random, variables)).div(otherDenominator)
+        const sum: Expression = fraction.add(other)
+        const together: Expression = sum.together()
+        if (!together.equals(sum)) fail('together', `together() of ${sum.toString()} is ${together.toString()}`)
+        const apart: Expression = fraction.apart('x')
+        if (!apart.equals(fraction)) fail('apart', `apart() is ${apart.toString()}`)
+        const expected: Expression | undefined = value(fraction)
+        if (expected !== undefined) {
+            for (const [property, result] of [['cancel', cancelled], ['apart', apart]] as const) {
+                const found: Expression | undefined = value(result)
+                if (found !== undefined && !found.equals(expected)) fail(property, `${result.toString()} is ${found.toString()} at ${JSON.stringify(point)}, not ${expected.toString()}`)
+            }
+        }
+        if (!(await fraction.apartAsync('x')).equals(apart)) fail('async', 'apartAsync differs from apart')
+        const quadratic: Expression = math.expression(`(${random.int(9) - 4 || 2})*x^2 + (${randomPolynomial(random, variables.slice(1))})*x + ${random.int(9) - 4}`)
+        const square: Expression = quadratic.completeSquare('x')
+        if (!square.expand().equals(quadratic.expand())) fail('completeSquare', `completeSquare() of ${quadratic.toString()} is ${square.toString()}`)
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('rational', String(error))
+    }
+    return failures
+}

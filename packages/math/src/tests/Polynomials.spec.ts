@@ -107,3 +107,94 @@ describe('The polynomials', (): void => {
         await assert.rejects(math.poly.discriminantAsync('(x + y + z + 1)^30', 'x', {timeout: 5}), MathTimeoutException)
     })
 })
+
+describe('The fractions of polynomials', (): void => {
+    const math: MathScope = createMath()
+    const text = (value: Expression): string => value.toString()
+
+    it('cancel their gcd, the signs of the leading coefficients in front', (): void => {
+        const cases: [string, string][] = [
+            ['(2x^2 - 2)/(x^2 - 2x + 1)', '(2x + 2)/(x - 1)'],
+            ['(-x - 1)/(x - 1)', '-(x + 1)/(x - 1)'],
+            ['(x + 1)/(2x)', '(x + 1)/(2x)'],
+            ['(x^2 - 1)/2', 'x^2/2 - 1/2'],
+            ['(x*y + x)/(y^2 - 1)', 'x/(y - 1)'],
+            ['(sin(x)^2 - 1)/(sin(x) - 1)', 'sin(x) + 1'],
+            ['(x + 1)^2/(x + 1)', 'x + 1'],
+            ['1/x + 1/x^2', '(x + 1)/x^2'],
+            ['6/4', '3/2']
+        ]
+        for (const [given, expected] of cases) assert.strictEqual(text(math.expression(given).cancel()), expected, given)
+        assert.throws((): unknown => math.expression('(x^2 + 2i*x - 1)/(x + i)').cancel(), MathNotSupportedException)
+    })
+
+    it('put a sum over one denominator, nothing cancelled', (): void => {
+        const cases: [string, string][] = [
+            ['1/x + 1/y', '(x + y)/(x*y)'],
+            ['1/(2x) + 1/(3y)', '(2x + 3y)/(6x*y)'],
+            ['1/x + 1/x^2', '(x + 1)/x^2'],
+            ['1/(x + 1) + y/(x + 2)', '(x*y + x + y + 2)/((x + 1)(x + 2))'],
+            ['1/(1 + 1/x)', 'x/(x + 1)'],
+            ['sqrt(x) + 1/sqrt(x)', '(x + 1)/sqrt(x)'],
+            ['x/(x^2 - 1) - 1/(x^2 - 1)', '(x - 1)/(x^2 - 1)'],
+            ['2x + 2', '2x + 2']
+        ]
+        for (const [given, expected] of cases) assert.strictEqual(text(math.expression(given).together()), expected, given)
+    })
+
+    it('decompose into partial fractions, the other variables parameters', (): void => {
+        const cases: [string, string][] = [
+            ['1/(x^2 - 1)', '-1/(2(x + 1)) + 1/(2(x - 1))'],
+            ['(x^3 + 1)/(x^2 - x)', 'x - 1/x + 2/(x - 1) + 1'],
+            ['1/(x^3 + 1)', '-(x - 2)/(3(x^2 - x + 1)) + 1/(3(x + 1))'],
+            ['1/(x^4 - 1)', '-1/(2(x^2 + 1)) - 1/(4(x + 1)) + 1/(4(x - 1))'],
+            ['1/(x^2*(x + 1)^2)', '1/(x + 1)^2 - 2/x + 2/(x + 1) + 1/x^2'],
+            ['(a*x)/(x^2 - 1)', 'a/(2(x - 1)) + a/(2(x + 1))'],
+            ['x/(y + 1) + x^2/(2y + 2)', 'x^2/(2(y + 1)) + x/(y + 1)'],
+            ['(x^2 - 1)/(x - 1)', 'x + 1']
+        ]
+        for (const [given, expected] of cases) {
+            const result: Expression = math.expression(given).apart('x')
+            assert.strictEqual(text(result), expected, given)
+            assert.ok(result.equals(given), given)
+        }
+        assert.ok(math.expression('1/((x + a)*(x + b))').apart('x').equals('1/((a - b)(x + b)) - 1/((a - b)(x + a))'))
+        assert.throws((): unknown => math.expression('sin(x)/x').apart('x'), MathNotSupportedException)
+        assert.throws((): unknown => math.expression('1/x').apart('2x'), MathArgumentException)
+    })
+
+    it('complete the square of a quadratic', (): void => {
+        const cases: [string, string][] = [
+            ['x^2 + 2x + 3', '(x + 1)^2 + 2'],
+            ['2x^2 + 4x + 1', '2(x + 1)^2 - 1'],
+            ['x^2 + x', '(x + 1/2)^2 - 1/4'],
+            ['-x^2 + 2x', '-(x - 1)^2 + 1'],
+            ['a*x^2 + b*x + c', '(4a*c - b^2)/(4a) + a*(x + b/(2a))^2']
+        ]
+        for (const [given, expected] of cases) {
+            const result: Expression = math.expression(given).completeSquare('x')
+            assert.strictEqual(text(result), expected, given)
+            assert.ok(result.expand().equals(math.expression(given).expand()), given)
+        }
+        assert.throws((): unknown => math.expression('x^3 + 1').completeSquare('x'), MathNotSupportedException)
+    })
+
+    it('make equals() prove the identities of fractions, and the inverse of a matrix of variables times it the identity', (): void => {
+        assert.ok(math.expression('(x^2 - 1)/(x - 1)').equals('x + 1'))
+        assert.ok(math.expression('1/x + 1/y').equals('(x + y)/(x*y)'))
+        assert.ok(!math.expression('1/x + 1/y').equals('(x + y)/x'))
+        const m = math.expressionMatrix('[a, b; c, d]')
+        assert.ok(m.inverse().mul(m).equals('[1, 0; 0, 1]'))
+        assert.strictEqual(m.inverse().mul(m).cancel().toString(), '[1, 0; 0, 1]')
+        const n = math.expressionMatrix('[1, x, x^2; 0, 1, y; x, 0, 1]')
+        assert.ok(n.mul(n.inverse()).equals('[1, 0, 0; 0, 1, 0; 0, 0, 1]'))
+    })
+
+    it('run in the threads of the addon: apart() factors the denominator, which stops at the time limit', async (): Promise<void> => {
+        assert.strictEqual(text(await math.expression('(x^2 - 1)/(x^2 + 2x + 1)').cancelAsync()), '(x - 1)/(x + 1)')
+        assert.strictEqual(text(await math.expression('1/(x^2 - 1)').apartAsync('x')), '-1/(2(x + 1)) + 1/(2(x - 1))')
+        let s: Expression = math.expression('x^2 - 2')
+        for (const p of [3, 5, 7, 11, 13]) s = math.poly.resultant(s.substitute({x: 'x - y'}), `y^2 - ${p}`, 'y')
+        await assert.rejects(math.expression(1).div(s).apartAsync('x', {timeout: 200}), MathTimeoutException)
+    })
+})

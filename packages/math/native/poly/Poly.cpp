@@ -17,6 +17,7 @@
 #include "Convert.h"
 #include "Euclid.h"
 #include "Factor.h"
+#include "Rational.h"
 
 namespace math {
 
@@ -159,36 +160,16 @@ ExprFactors factorsOf(const Expr &expression, bool squareFree)
     return result;
 }
 
-//A product of factors to their powers, its coefficient outside (3(x + 1)(y + 2), -(x + 1)(x + 2)): the product of
-//SymEngine would put the coefficient into the first sum, as the formulas have it
-Expr productOf(const RCP<const Number> &coefficient, const std::vector<std::pair<Expr, long>> &factors)
+//The factored form of a fraction: the factors of its numerator and of its denominator (a negative multiplicity)
+Expr factoredOf(const Expr &numerator, const Expr &denominator, bool squareFree)
 {
-    Expr product = one;
-    for (const auto &[factor, k] : factors) product = mul(product, pow(factor, integer(k)));
-    if (coefficient->is_one() || coefficient->is_zero() || is_a_Number(*product)) return mul(coefficient, product);
-    map_basic_basic dict;
-    if (is_a<Mul>(*product)) {
-        const Mul &m = down_cast<const Mul &>(*product);
-        if (!m.get_coef()->is_one()) return mul(coefficient, product);
-        dict = m.get_dict();
-    } else if (is_a<Pow>(*product)) {
-        dict[down_cast<const Pow &>(*product).get_base()] = down_cast<const Pow &>(*product).get_exp();
-    } else {
-        dict[product] = one;
-    }
-    return make_rcp<const Mul>(coefficient, std::move(dict));
-}
-
-//The factored form of an expression: of a fraction, its numerator and its denominator factored
-Expr factoredOf(const Expr &expression, bool squareFree)
-{
-    const std::pair<Expr, Expr> fraction = fractionOf(expression);
-    const ExprFactors top = factorsOf(fraction.first, squareFree);
-    if (eq(*fraction.second, *one)) return productOf(rcp_static_cast<const Number>(top.coefficient), top.factors);
-    const ExprFactors bottom = factorsOf(fraction.second, squareFree);
-    std::vector<std::pair<Expr, long>> factors = top.factors;
-    for (const auto &[factor, k] : bottom.factors) factors.push_back({factor, -k});
-    return productOf(divnum(rcp_static_cast<const Number>(top.coefficient), rcp_static_cast<const Number>(bottom.coefficient)), factors);
+    const ExprFactors top = factorsOf(numerator, squareFree);
+    std::vector<std::pair<Expr, Expr>> factors;
+    for (const auto &[factor, k] : top.factors) factors.emplace_back(factor, integer(k));
+    if (eq(*denominator, *one)) return productOf(top.coefficient, factors);
+    const ExprFactors bottom = factorsOf(denominator, squareFree);
+    for (const auto &[factor, k] : bottom.factors) factors.emplace_back(factor, integer(-k));
+    return productOf(div(top.coefficient, bottom.coefficient), factors);
 }
 
 //Python's floor division and modulo and the residue of the least absolute value, for the tests
@@ -209,6 +190,97 @@ FactoredPolynomial factorPolynomial(const Expr &expression)
 {
     const ExprFactors factored = factorsOf(expression, false);
     return FactoredPolynomial{factored.coefficient, factored.factors};
+}
+
+Expr productOf(const Expr &coefficient, const std::vector<std::pair<Expr, Expr>> &factors)
+{
+    RCP<const Number> number = rcp_static_cast<const Number>(coefficient);
+    //The bases and their exponents, in the order of SymEngine's products
+    map_basic_basic powers;
+    const auto put = [&powers](const Expr &base, const Expr &exponent) {
+        const auto found = powers.find(base);
+        if (found == powers.end()) {
+            powers.emplace(base, exponent);
+        } else {
+            found->second = add(found->second, exponent);
+        }
+    };
+    for (const auto &[factor, exponent] : factors) {
+        const bool integral = is_a<Integer>(*exponent);
+        if (is_a_Number(*factor) && integral) {
+            number = mulnum(number, rcp_static_cast<const Number>(pow(factor, exponent)));
+        } else if (is_a<Mul>(*factor) && integral) {
+            const Mul &product = down_cast<const Mul &>(*factor);
+            number = mulnum(number, rcp_static_cast<const Number>(pow(product.get_coef(), exponent)));
+            for (const auto &[base, power] : product.get_dict()) put(base, mul(power, exponent));
+        } else if (is_a<Pow>(*factor) && integral) {
+            put(down_cast<const Pow &>(*factor).get_base(), mul(down_cast<const Pow &>(*factor).get_exp(), exponent));
+        } else {
+            put(factor, exponent);
+        }
+    }
+    map_basic_basic dict;
+    for (const auto &[base, exponent] : powers) {
+        if (is_a_Number(*exponent) && down_cast<const Number &>(*exponent).is_zero()) continue;
+        if (!is_a_Number(*base)) {
+            dict.emplace(base, exponent);
+            continue;
+        }
+        //A power of a number: a number (sqrt(2) sqrt(2) is 2), or its canonical form (2^(3/2) is 2 sqrt(2))
+        const Expr value = pow(base, exponent);
+        if (is_a_Number(*value)) {
+            number = mulnum(number, rcp_static_cast<const Number>(value));
+        } else if (is_a<Mul>(*value)) {
+            number = mulnum(number, down_cast<const Mul &>(*value).get_coef());
+            for (const auto &[b, e] : down_cast<const Mul &>(*value).get_dict()) dict.emplace(b, e);
+        } else if (is_a<Pow>(*value)) {
+            dict.emplace(down_cast<const Pow &>(*value).get_base(), down_cast<const Pow &>(*value).get_exp());
+        } else {
+            dict.emplace(value, one);
+        }
+    }
+    if (dict.empty() || number->is_zero()) return number;
+    if (number->is_one() && dict.size() == 1) return pow(dict.begin()->first, dict.begin()->second);
+    return make_rcp<const Mul>(number, std::move(dict));
+}
+
+Expr sumOf(const std::vector<Expr> &terms)
+{
+    Expr canonical = zero;
+    std::vector<Expr> whole;
+    for (const Expr &term : terms) {
+        if (is_a<Mul>(*term) && !down_cast<const Mul &>(*term).get_coef()->is_one()) {
+            const Mul &product = down_cast<const Mul &>(*term);
+            const Expr rebuilt = mul(product.get_coef(), Mul::from_dict(one, map_basic_basic(product.get_dict())));
+            if (!eq(*rebuilt, *term)) {
+                whole.push_back(term);
+                continue;
+            }
+        }
+        canonical = add(canonical, term);
+    }
+    if (whole.empty()) return canonical;
+    //The terms of the canonical sum, and the whole ones with the coefficient 1
+    RCP<const Number> coefficient = zero;
+    umap_basic_num dict;
+    if (is_a<Add>(*canonical)) {
+        coefficient = down_cast<const Add &>(*canonical).get_coef();
+        dict = down_cast<const Add &>(*canonical).get_dict();
+    } else if (is_a_Number(*canonical)) {
+        coefficient = rcp_static_cast<const Number>(canonical);
+    } else {
+        RCP<const Number> c;
+        RCP<const Basic> t;
+        Add::as_coef_term(canonical, outArg(c), outArg(t));
+        dict[t] = c;
+    }
+    for (const Expr &term : whole) Add::dict_add_term(dict, one, term);
+    return Add::from_dict(coefficient, std::move(dict));
+}
+
+Expr factoredFraction(const Expr &numerator, const Expr &denominator)
+{
+    return factoredOf(numerator, denominator, false);
 }
 
 PolyResult polyOperation(const std::string &operation, const std::vector<Expr> &expressions, const std::vector<std::string> &names)
@@ -241,7 +313,20 @@ PolyResult polyOperation(const std::string &operation, const std::vector<Expr> &
         }
     } else if (operation == "factor" || operation == "sqf") {
         need(1);
-        result.expression = factoredOf(expressions[0], operation == "sqf");
+        const std::pair<Expr, Expr> fraction = fractionOf(expressions[0]);
+        result.expression = factoredOf(fraction.first, fraction.second, operation == "sqf");
+    } else if (operation == "cancel") {
+        need(1);
+        result.expression = cancelOf(expressions[0]);
+    } else if (operation == "together") {
+        need(1);
+        result.expression = togetherOf(expressions[0]);
+    } else if (operation == "apart") {
+        need(1);
+        result.expression = apartOf(expressions[0], name());
+    } else if (operation == "completeSquare") {
+        need(1);
+        result.expression = completeSquareOf(expressions[0], name());
     } else if (operation == "integers") {
         result.text = integersOf(names);
     } else {

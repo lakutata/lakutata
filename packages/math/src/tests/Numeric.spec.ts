@@ -80,8 +80,10 @@ describe('The numeric solutions', (): void => {
         assert.strictEqual(math.numeric.integrate('1/x', 'x', [-1, 2]).converged, false)
         assert.strictEqual(math.numeric.integrate('529/(625pi*x) + 92', 'x', [-0.66, 1.26]).converged, false)
         assert.strictEqual(math.numeric.integrate('1/(x^2 - 2)', 'x', [0, 2]).converged, false)
-        //A removable singularity is not a pole
+        //A removable singularity is not a pole; a common factor of a fraction of polynomials is cancelled (0/0 at 1)
         assert.ok(near(math.numeric.integrate('sin(x)/x', 'x', [-1, 2]).value, 2.551496047169878))
+        const cancelled = math.numeric.integrate('(x^2 - 1)/(x - 1)', 'x', [0, 2])
+        assert.ok(cancelled.converged && near(cancelled.value, 4))
         //A larger tolerance: fewer intervals, a larger error
         const coarse = math.numeric.integrate('1/(1e-4 + x^2)', 'x', [-1, 1], {tolerance: 1e-3})
         assert.ok(coarse.converged && coarse.error <= 1e-3 * 312.2)
