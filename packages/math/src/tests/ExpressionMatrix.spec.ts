@@ -29,6 +29,10 @@ describe('The matrices of expressions', (): void => {
         //with() gives another matrix: this one is the same
         assert.ok(text(m.with(0, 1, 'x^2')) === '[a, x^2; c, 5/2]' && text(m) === '[a, b; c, 5/2]')
         assert.ok(text(m.row(1)) === '[c, 5/2]' && text(m.column(0)) === '[a; c]' && text(m.transpose()) === '[a, c; b, 5/2]')
+        assert.ok(text(m.withRow(0, ['x', 1])) === '[x, 1; c, 5/2]' && text(m.withColumn(1, math.expressionMatrix('[y, 2]'))) === '[a, y; c, 2]' && text(m) === '[a, b; c, 5/2]')
+        assert.throws((): unknown => m.withRow(2, [1, 2]), MathArgumentException)
+        assert.throws((): unknown => m.withColumn(0, [1, 2, 3]), MathArgumentException)
+        assert.throws((): unknown => m.withRow(0, math.expressionMatrix('[1, 2; 3, 4]')), MathArgumentException)
         assert.strictEqual(text(math.expressionMatrix('[1, 2, 3; 4, 5, 6]').submatrix(0, 1, 2, 2)), '[2, 3; 5, 6]')
         assert.strictEqual(m.toTeX(), '\\begin{bmatrix}a & b \\\\ c & \\frac{5}{2}\\end{bmatrix}')
         assert.ok(math.parse(text(m)) instanceof ExpressionMatrix && m.equals(text(m)))

@@ -93,6 +93,21 @@ export class ExpressionMatrix {
         return await this.context.runAsync<NativeMatrixResult>('matrix', [operation, [this.handle, ...matrices.map((matrix: ExpressionMatrix): Handle => matrix.handle)], [], [], []], options)
     }
 
+    //The elements of a row or a column: an array, or a matrix of one row or one column, of a length
+    #line(values: readonly Value[] | ExpressionMatrix, length: number): Value[] {
+        let elements: Value[]
+        if (values instanceof ExpressionMatrix) {
+            if (values.rows !== 1 && values.columns !== 1) throw new MathArgumentException(`A row or a column is a matrix of one row or one column, not ${values.rows}x${values.columns}`)
+            elements = values.toArray().flat()
+        } else if (Array.isArray(values)) {
+            elements = [...values]
+        } else {
+            throw new MathArgumentException('A row or a column is an array of elements, or a matrix of one row or one column')
+        }
+        if (elements.length !== length) throw new MathArgumentException(`${length} elements are expected, not ${elements.length}`)
+        return elements
+    }
+
     #matrix(native: NativeMatrixOfExpressions): ExpressionMatrix {
         return new ExpressionMatrix(this.context, native.matrix, native.rows, native.columns)
     }
@@ -126,6 +141,29 @@ export class ExpressionMatrix {
      */
     public with(row: number, column: number, value: Value): ExpressionMatrix {
         return this.#matrix(this.#run('with', [], [handleOf(this.context, value)], [row, column]).matrix!)
+    }
+
+    /**
+     * A matrix with a row replaced.
+     * @param row The row, from 0.
+     * @param values Its new elements, as many as the columns: an array, or a matrix of one row or one column.
+     */
+    public withRow(row: number, values: readonly Value[] | ExpressionMatrix): ExpressionMatrix {
+        if (!Number.isInteger(row) || row < 0 || row >= this.rows) throw new MathArgumentException(`A row is an integer from 0 to ${this.rows - 1}, not ${row}`)
+        const rows: Value[][] = this.toArray()
+        rows[row] = this.#line(values, this.columns)
+        return expressionMatrixOf(this.context, rows)
+    }
+
+    /**
+     * A matrix with a column replaced.
+     * @param column The column, from 0.
+     * @param values Its new elements, as many as the rows: an array, or a matrix of one row or one column.
+     */
+    public withColumn(column: number, values: readonly Value[] | ExpressionMatrix): ExpressionMatrix {
+        if (!Number.isInteger(column) || column < 0 || column >= this.columns) throw new MathArgumentException(`A column is an integer from 0 to ${this.columns - 1}, not ${column}`)
+        const elements: Value[] = this.#line(values, this.rows)
+        return expressionMatrixOf(this.context, this.toArray().map((row: Value[], i: number): Value[] => row.map((element: Value, j: number): Value => (j === column ? elements[i]! : element))))
     }
 
     /**
