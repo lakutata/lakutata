@@ -336,9 +336,77 @@ DEALINGS IN THE SOFTWARE.
 
 ## Eigen 5.0.1
 
-The linear algebra library (https://eigen.tuxfamily.org), compiled with `EIGEN_MPL2_ONLY`: only its files under the
-Mozilla Public License 2.0 are used. The text of the license is in `vendor/eigen/COPYING.MPL2`, and the source of Eigen
-in `vendor/eigen`.
+The linear algebra library (https://eigen.tuxfamily.org), unchanged, in `vendor/eigen`. Eigen is licensed under the
+Mozilla Public License 2.0, whose text is in `vendor/eigen/COPYING.MPL2`. As `vendor/eigen/COPYING.README` says, some of
+its files contain code under other licenses compatible with it; each of these files keeps its own notice, and the texts
+of the Apache License 2.0 and of the BSD license are in `vendor/eigen/COPYING.APACHE` and `vendor/eigen/COPYING.BSD`.
+Among them, the addon includes: the conversions of half floats (`Eigen/src/Core/arch/Default/Half.h`, BSD), the bfloat16
+numbers (`Eigen/src/Core/arch/Default/BFloat16.h`, Apache License 2.0), the support of Intel MKL
+(`Eigen/src/Core/util/MKL_support.h`, BSD), the axis-aligned boxes (`Eigen/src/Geometry/AlignedBox.h`, BSD), the sparse
+LU decomposition (`Eigen/src/SparseLU`, `Eigen/src/SparseCore/SparseColEtree.h`, modified from SuperLU) and the COLAMD
+ordering (`Eigen/src/OrderingMethods/Eigen_Colamd.h`, modified from COLAMD). The notices of SuperLU and of COLAMD
+follow: their licenses require them to be kept with every copy and made accessible to the end users.
+
+### SuperLU (in the sparse LU decomposition of Eigen)
+
+The notice of `Eigen/src/SparseCore/SparseColEtree.h`; the files of `Eigen/src/SparseLU` carry the same one, of SuperLU
+2.0 (November 15, 1997).
+
+```
+-- SuperLU routine (version 3.1) --
+Univ. of California Berkeley, Xerox Palo Alto Research Center,
+and Lawrence Berkeley National Lab.
+August 1, 2008
+
+Copyright (c) 1994 by Xerox Corporation.  All rights reserved.
+
+THIS MATERIAL IS PROVIDED AS IS, WITH ABSOLUTELY NO WARRANTY
+EXPRESSED OR IMPLIED.  ANY USE IS AT YOUR OWN RISK.
+
+Permission is hereby granted to use or copy this program for any
+purpose, provided the above notices are retained on all copies.
+Permission to modify the code and to distribute modified code is
+granted, provided the above notices are retained, and a notice that
+the code was modified is included with the above copyright notice.
+```
+
+### COLAMD (in the orderings of Eigen)
+
+```
+The authors of the code itself are Stefan I. Larimore and Timothy A.
+Davis (davis@cise.ufl.edu), University of Florida.  The algorithm was
+developed in collaboration with John Gilbert, Xerox PARC, and Esmond
+Ng, Oak Ridge National Laboratory.
+
+  Date:
+
+September 8, 2003.  Version 2.3.
+
+  Acknowledgements:
+
+This work was supported by the National Science Foundation, under
+grants DMS-9504974 and DMS-9803599.
+
+  Notice:
+
+Copyright (c) 1998-2003 by the University of Florida.
+All Rights Reserved.
+
+THIS MATERIAL IS PROVIDED AS IS, WITH ABSOLUTELY NO WARRANTY
+EXPRESSED OR IMPLIED.  ANY USE IS AT YOUR OWN RISK.
+
+Permission is hereby granted to use, copy, modify, and/or distribute
+this program, provided that the Copyright, this License, and the
+Availability of the original version is retained on all copies and made
+accessible to the end-user of any code or package that includes COLAMD
+or any modified version of COLAMD.
+
+  Availability:
+
+The colamd/symamd library is available at
+
+    http://www.suitesparse.com
+```
 
 ## mpdecimal 4.0.1
 

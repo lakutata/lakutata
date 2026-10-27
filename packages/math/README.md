@@ -306,6 +306,17 @@ per column) gives a matrix. For `solve` and `inverse`, a matrix is singular when
 exactly 0, as in NumPy: a nearly singular matrix gives large values instead, and `condition()` shows how close to
 singular it is.
 
+`math.linalg.sparse(rows, columns, entries)` makes a `SparseMatrix` of the entries given, `[row, column, value]` (the
+entries at the same place are added up), and `math.linalg.sparse(matrix)` one from the elements of a dense matrix that
+are not 0. A `SparseMatrix` stores its entries in compressed rows (CSR: `rowPointers`, `columnIndices`, `values`). Its
+methods are `get`, `transpose`, `add`, `sub`, `neg`, `mul` (by a number, a vector, a dense matrix, or a sparse matrix,
+the last computed by Eigen), `toDense` and `toEntries`. `solve` with a sparse matrix uses the sparse LU decomposition of
+Eigen (`SparseLU`, with the COLAMD ordering): a matrix it cannot factorize, such as one with a row of zeros, is
+singular. `conjugateGradient` (for a symmetric positive definite matrix, not checked) and
+`biconjugateGradientStabilized` (BiCGSTAB, for any square matrix) iterate until the relative residual `‖b - A x‖ / ‖b‖`
+falls to `tolerance` (1e-10 by default), within `maxIterations` iterations (10 times the size of the system by default);
+`converged` tells whether they did, and a `guess` lets a call go on from the solution of an earlier one.
+
 The operations that take long on large matrices have asynchronous versions (`solveAsync()`, `inverseAsync()`,
 `multiplyAsync()`…), which copy their arguments when they are called. Eigen's computations cannot be interrupted: past
 the time limit or when the operation is cancelled, the promise is rejected, but its thread finishes the work before it
@@ -324,6 +335,9 @@ async function systems(math: Math): Promise<void> {
     const big = math.linalg.fromFunction(1000, 1000, (i, j) => (i === j ? 1000 : 1 / (1 + i + j)))
     const inverse = await math.linalg.inverseAsync(big, {timeout: 5000})
     console.log(inverse.get(0, 0))
+    const sparse = math.linalg.sparse(3, 3, [[0, 0, 2], [0, 1, -1], [1, 0, -1], [1, 1, 2], [2, 2, 2]])
+    console.log(math.linalg.solve(sparse, [1, 1, 2]))         //Float64Array [1, 1, 1]
+    console.log(math.linalg.conjugateGradient(sparse, [1, 1, 2]).converged)   //true
 }
 ```
 
@@ -359,7 +373,9 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
 | `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`math.decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
 | `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`math.matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is given where a matrix is expected (a matrix, or its rows); where a vector is (a `Float64Array`, or an array of numbers) |
-| `LinearAlgebra`, `NormKind` | The linear algebra (`math.linalg`): `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, `rotation`, `dot`, `cross`, `outer`, `norm`, `multiply`, `solve`, `solveTriangular`, `leastSquares`, `inverse`, `determinant`, `singularValues`, `rank`, `condition`, `lu`, `qr`, `cholesky`, `svd`, `eigen`, `symmetricEigen`, `schur`, `pseudoInverse`, `exponential`, `squareRoot`, `sylvester`, `lyapunov`, and the asynchronous versions; the kinds of norms |
+| `LinearAlgebra`, `NormKind` | The linear algebra (`math.linalg`): `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, `rotation`, `dot`, `cross`, `outer`, `norm`, `multiply`, `solve`, `solveTriangular`, `leastSquares`, `inverse`, `determinant`, `singularValues`, `rank`, `condition`, `lu`, `qr`, `cholesky`, `svd`, `eigen`, `symmetricEigen`, `schur`, `pseudoInverse`, `exponential`, `squareRoot`, `sylvester`, `lyapunov`, `sparse`, `conjugateGradient`, `biconjugateGradientStabilized`, and the asynchronous versions; the kinds of norms |
+| `SparseMatrix`, `SparseEntry` | A sparse matrix in compressed rows (`math.linalg.sparse()`): `rowPointers`, `columnIndices`, `values`, `nonZeros`, `get`, `transpose`, `add`, `sub`, `neg`, `mul`, `toDense`, `toEntries`; an entry `[row, column, value]` |
+| `IterativeOptions`, `IterativeSolution` | The options of the iterative solvers (`tolerance`, `maxIterations`, `guess`) and their result (`solution`, `iterations`, `error`, `converged`) |
 | `LuDecomposition`, `QrDecomposition`, `SingularValueDecomposition`, `EigenDecomposition`, `SymmetricEigenDecomposition`, `SchurDecomposition`, `ComplexVector`, `ComplexMatrix` | The results of the decompositions: `{lower, upper, permutation}`, `{q, r}`, `{u, singularValues, v}`, `{values, vectors}` (complex: `{re, im}`), `{values, vectors}`, `{u, t}` |
 | `CommonSubexpressions`, `CseOptions` | The result of `cse()` (`replacements`, `expressions`) and its option (`prefix`) |
 | `PolarForm`, `RectangularForm` | The polar form (`modulus`, `argument`) and the rectangular form (`real`, `imaginary`) of a complex value |
@@ -382,7 +398,7 @@ The typings document every declaration, with examples.
 | `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power) |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1, a function at one of its poles: `gamma()` of -2, `zeta()` of 1), a modulus of 0 |
 | `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` above 2000, `harmonic(n)` above 50000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`) |
-| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, matrices or vectors of the wrong dimensions |
+| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made) |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |
 

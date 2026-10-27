@@ -2,7 +2,7 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
 import {Container} from '@lakutata/core'
-import {type Decimal, Expression, Math, MathException, Matrix, type PrimeFactor, type Solutions, type SystemSolution} from '../exports/Math.js'
+import {type Decimal, Expression, type IterativeSolution, Math, MathException, Matrix, type PrimeFactor, type Solutions, SparseMatrix, type SystemSolution} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -243,7 +243,10 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
 
     it('give the linear algebra of NumPy and SciPy', (): void => {
         type Nested = number | Nested[]
-        const fixtures = expected<{op: string, args: (number[][] | number[])[], triangle?: 'lower' | 'upper', tolerance?: number, kind?: number | 'fro' | 'inf', result?: Nested, error?: string}>('linalg')
+        //A sparse matrix of a case: its entries
+        type Sparse = {rows: number, columns: number, entries: [number, number, number][]}
+        const fixtures = expected<{op: string, args: (number[][] | number[] | Sparse)[], triangle?: 'lower' | 'upper', tolerance?: number, kind?: number | 'fro' | 'inf', result?: Nested, error?: string}>('linalg')
+        const sparse = (value: unknown): SparseMatrix => math.linalg.sparse((value as Sparse).rows, (value as Sparse).columns, (value as Sparse).entries)
         //The elements of a result, flat
         const flat = (value: unknown): number[] => {
             if (typeof value === 'number') return [value]
@@ -265,7 +268,7 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
                     case 'rank': return math.linalg.rank(a, fixture.tolerance ?? undefined)
                     case 'singularValues': return math.linalg.singularValues(a)
                     case 'condition': return math.linalg.condition(a)
-                    case 'norm': return math.linalg.norm(fixture.args[0], fixture.kind === 'inf' ? Infinity : fixture.kind)
+                    case 'norm': return math.linalg.norm(fixture.args[0] as number[][] | number[], fixture.kind === 'inf' ? Infinity : fixture.kind)
                     case 'lu': return luInvariant(math, matrix(a), label)
                     case 'qr': return qrInvariant(math, matrix(a), label)
                     case 'cholesky': return math.linalg.cholesky(a)
@@ -278,6 +281,10 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
                     case 'squareRoot': return math.linalg.squareRoot(a)
                     case 'sylvester': return math.linalg.sylvester(a, b, fixture.args[2] as number[][])
                     case 'lyapunov': return math.linalg.lyapunov(a, b)
+                    case 'sparseMultiply': return sparse(a).mul(sparse(b)).toDense()
+                    case 'sparseSolve': return math.linalg.solve(sparse(a), b)
+                    case 'conjugateGradient': return math.linalg.conjugateGradient(sparse(a), b)
+                    case 'biconjugateGradientStabilized': return math.linalg.biconjugateGradientStabilized(sparse(a), b)
                 }
                 throw new Error(`Unknown operation ${fixture.op}`)
             }
@@ -285,7 +292,19 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
                 assert.throws(operate, (error: unknown): boolean => error instanceof MathException && (error as MathException).errno === fixture.error, label)
                 continue
             }
-            const ours: number[] = flat(operate()), theirs: number[] = flat(fixture.result)
+            const outcome: unknown = operate()
+            if (fixture.op === 'conjugateGradient' || fixture.op === 'biconjugateGradientStabilized') {
+                //Not its iterates: it converged, its residual is of the tolerance (1e-10 of ‖b‖ by default), and its
+                //solution near SuperLU's (κ times the tolerance)
+                const {solution, converged} = outcome as IterativeSolution
+                const residual: Float64Array = sparse(a).mul(solution).map((value: number, i: number): number => value - b[i])
+                assert.ok(converged, `${label}: not converged`)
+                assert.ok(math.linalg.norm(residual) <= 1e-9 * math.linalg.norm(b), `${label}: residual ${math.linalg.norm(residual)}`)
+                const direct: number[] = flat(fixture.result)
+                assert.ok(solution.every((value: number, i: number): boolean => globalThis.Math.abs(value - direct[i]) <= 1e-6 * globalThis.Math.max(1, ...direct.map(globalThis.Math.abs))), `${label}: far from SuperLU's solution`)
+                continue
+            }
+            const ours: number[] = flat(outcome), theirs: number[] = flat(fixture.result)
             const scale: number = globalThis.Math.max(1, ...theirs.map(globalThis.Math.abs))
             assert.strictEqual(ours.length, theirs.length, label)
             ours.forEach((value: number, i: number): void => {

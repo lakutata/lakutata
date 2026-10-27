@@ -370,6 +370,108 @@ Job linalgJob(const Napi::Array &arguments)
     };
 }
 
+//A sparse matrix given as [rows, columns, Int32Array of the row pointers, Int32Array of the columns, Float64Array of
+//the values]: the lengths are checked here, the structure by sparseOf()
+SparseArgument sparseArgumentOf(const Napi::Value &value)
+{
+    if (!value.IsArray()) throw MathError(ErrorCode::Argument, "A sparse matrix is given as [rows, columns, Int32Array, Int32Array, Float64Array]");
+    const Napi::Array parts = value.As<Napi::Array>();
+    auto dimension = [](const Napi::Value &number) {
+        if (!number.IsNumber()) throw MathError(ErrorCode::Argument, "A dimension of a sparse matrix is not a number");
+        const double size = number.As<Napi::Number>().DoubleValue();
+        if (size != std::floor(size) || size < 0 || size > 2147483647.0) throw MathError(ErrorCode::Argument, "A dimension of a sparse matrix is not an integer from 0 to 2^31 - 1");
+        return static_cast<size_t>(size);
+    };
+    auto integers = [](const Napi::Value &array, const char *what) {
+        if (!array.IsTypedArray() || array.As<Napi::TypedArray>().TypedArrayType() != napi_int32_array) throw MathError(ErrorCode::Argument, std::string(what) + " of a sparse matrix are not an Int32Array");
+        return array.As<Napi::Int32Array>();
+    };
+    SparseArgument matrix;
+    matrix.rows = dimension(parts.Get(0u));
+    matrix.columns = dimension(parts.Get(1u));
+    const Napi::Int32Array pointers = integers(parts.Get(2u), "The row pointers"), indices = integers(parts.Get(3u), "The columns");
+    const Napi::Value data = parts.Get(4u);
+    if (!data.IsTypedArray() || data.As<Napi::TypedArray>().TypedArrayType() != napi_float64_array) throw MathError(ErrorCode::Argument, "The values of a sparse matrix are not a Float64Array");
+    const Napi::Float64Array values = data.As<Napi::Float64Array>();
+    if (pointers.ElementLength() != matrix.rows + 1) throw MathError(ErrorCode::Argument, "A sparse matrix of " + std::to_string(matrix.rows) + " rows has " + std::to_string(pointers.ElementLength()) + " row pointers");
+    if (indices.ElementLength() != values.ElementLength()) throw MathError(ErrorCode::Argument, "A sparse matrix has " + std::to_string(indices.ElementLength()) + " columns of entries and " + std::to_string(values.ElementLength()) + " values");
+    matrix.entries = values.ElementLength();
+    if (copyingArguments) {
+        matrix.ownedPointers = std::make_shared<const std::vector<int32_t>>(pointers.Data(), pointers.Data() + pointers.ElementLength());
+        matrix.ownedIndices = std::make_shared<const std::vector<int32_t>>(indices.Data(), indices.Data() + indices.ElementLength());
+        matrix.ownedValues = std::make_shared<const std::vector<double>>(values.Data(), values.Data() + values.ElementLength());
+        matrix.pointers = matrix.ownedPointers->data();
+        matrix.indices = matrix.ownedIndices->data();
+        matrix.values = matrix.ownedValues->data();
+    } else {
+        matrix.pointers = pointers.Data();
+        matrix.indices = indices.Data();
+        matrix.values = values.Data();
+    }
+    return matrix;
+}
+
+//sparse(operation, sparse matrices, dense matrices, numbers?): an operation on sparse matrices; its results as
+//[[dense matrices as [rows, columns, Float64Array]], [sparse matrices as [rows, columns, Int32Array, Int32Array,
+//Float64Array]]]
+Job sparseJob(const Napi::Array &arguments)
+{
+    std::string operation = stringAt(arguments, 0, "The operation");
+    auto listAt = [&arguments](uint32_t index, const char *what) {
+        const Napi::Value list = arguments.Get(index);
+        if (!list.IsArray()) throw MathError(ErrorCode::Argument, std::string(what) + " of an operation are an array");
+        return list.As<Napi::Array>();
+    };
+    std::vector<SparseArgument> sparse;
+    const Napi::Array sparseList = listAt(1, "The sparse matrices");
+    for (uint32_t i = 0; i < sparseList.Length(); i++) sparse.push_back(sparseArgumentOf(sparseList.Get(i)));
+    std::vector<MatrixArgument> dense;
+    const Napi::Array denseList = listAt(2, "The matrices");
+    for (uint32_t i = 0; i < denseList.Length(); i++) dense.push_back(matrixArgumentOf(denseList.Get(i)));
+    std::vector<double> numbers;
+    if (arguments.Length() > 3 && arguments.Get(3u).IsArray()) {
+        const Napi::Array values = arguments.Get(3u).As<Napi::Array>();
+        for (uint32_t i = 0; i < values.Length(); i++) numbers.push_back(numberAt(values, i, "An option"));
+    }
+    return [operation, sparse, dense, numbers] {
+        auto results = std::make_shared<SparseResults>(sparseOf(operation, sparse, dense, numbers));
+        return Builder([results](Napi::Env env) {
+            Napi::Array denseResults = Napi::Array::New(env, results->dense.size());
+            for (uint32_t i = 0; i < results->dense.size(); i++) {
+                const MatrixResult &result = results->dense[i];
+                Napi::Float64Array data = Napi::Float64Array::New(env, result.values.size());
+                if (!result.values.empty()) std::memcpy(data.Data(), result.values.data(), result.values.size() * sizeof(double));
+                Napi::Array matrix = Napi::Array::New(env, 3);
+                matrix.Set(0u, static_cast<double>(result.rows));
+                matrix.Set(1u, static_cast<double>(result.columns));
+                matrix.Set(2u, data);
+                denseResults.Set(i, matrix);
+            }
+            Napi::Array sparseResults = Napi::Array::New(env, results->sparse.size());
+            for (uint32_t i = 0; i < results->sparse.size(); i++) {
+                const SparseResult &result = results->sparse[i];
+                Napi::Int32Array pointers = Napi::Int32Array::New(env, result.pointers.size());
+                Napi::Int32Array indices = Napi::Int32Array::New(env, result.indices.size());
+                Napi::Float64Array values = Napi::Float64Array::New(env, result.values.size());
+                if (!result.pointers.empty()) std::memcpy(pointers.Data(), result.pointers.data(), result.pointers.size() * sizeof(int32_t));
+                if (!result.indices.empty()) std::memcpy(indices.Data(), result.indices.data(), result.indices.size() * sizeof(int32_t));
+                if (!result.values.empty()) std::memcpy(values.Data(), result.values.data(), result.values.size() * sizeof(double));
+                Napi::Array matrix = Napi::Array::New(env, 5);
+                matrix.Set(0u, static_cast<double>(result.rows));
+                matrix.Set(1u, static_cast<double>(result.columns));
+                matrix.Set(2u, pointers);
+                matrix.Set(3u, indices);
+                matrix.Set(4u, values);
+                sparseResults.Set(i, matrix);
+            }
+            Napi::Array array = Napi::Array::New(env, 2);
+            array.Set(0u, denseResults);
+            array.Set(1u, sparseResults);
+            return array;
+        });
+    };
+}
+
 Job fractionJob(const Napi::Array &arguments)
 {
     Expr expression = expressionAt(arguments, 0);
@@ -515,7 +617,7 @@ const std::map<std::string, JobFactory> &jobs()
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
-        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
+        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
         {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}
     };

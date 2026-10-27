@@ -210,6 +210,8 @@ async function integers(math: Math): Promise<void> {
 
 右端项传入向量就得到向量：`solve(a, [5, 5])` 返回 `Float64Array`；传入矩阵（每一列是一个右端项）就得到矩阵。`solve` 和 `inverse` 判断矩阵奇异的规则和 NumPy 一样：LU 分解中遇到恰好为 0 的主元才算奇异；接近奇异的矩阵会给出很大的值，而不是报错，接近奇异的程度可以用 `condition()` 查看。
 
+`math.linalg.sparse(rows, columns, entries)` 用条目 `[row, column, value]` 构造一个 `SparseMatrix`（同一位置的条目相加），`math.linalg.sparse(matrix)` 则取稠密矩阵中不为 0 的元素。它按压缩行格式存储（CSR：`rowPointers`、`columnIndices`、`values`）。它的方法有 `get`、`transpose`、`add`、`sub`、`neg`、`mul`（乘数字、向量、稠密矩阵或稀疏矩阵，乘稀疏矩阵时由 Eigen 计算）、`toDense` 和 `toEntries`。`solve` 传入稀疏矩阵时使用 Eigen 的稀疏 LU 分解（`SparseLU`，按 COLAMD 排序）：它无法分解的矩阵（例如有一行全是 0）就是奇异的。`conjugateGradient`（用于对称正定矩阵）和 `biconjugateGradientStabilized`（BiCGSTAB，用于任意方阵）反复迭代，直到相对残差 `‖b - A x‖ / ‖b‖` 不超过 `tolerance`（默认 1e-10），最多迭代 `maxIterations` 次（默认是方程组规模的 10 倍）；`converged` 表示是否达到了容差，传入 `guess` 可以从上一次的解继续迭代。
+
 大矩阵上耗时的运算都有异步版本（`solveAsync()`、`inverseAsync()`、`multiplyAsync()` 等），它们在调用时就复制好参数。Eigen 的计算不能中途停下：超过时限或被取消时，Promise 会被拒绝，但线程要把这次计算做完才能空出来。
 
 ```typescript
@@ -225,6 +227,9 @@ async function systems(math: Math): Promise<void> {
     const big = math.linalg.fromFunction(1000, 1000, (i, j) => (i === j ? 1000 : 1 / (1 + i + j)))
     const inverse = await math.linalg.inverseAsync(big, {timeout: 5000})
     console.log(inverse.get(0, 0))
+    const sparse = math.linalg.sparse(3, 3, [[0, 0, 2], [0, 1, -1], [1, 0, -1], [1, 1, 2], [2, 2, 2]])
+    console.log(math.linalg.solve(sparse, [1, 1, 2]))         //Float64Array [1, 1, 1]
+    console.log(math.linalg.conjugateGradient(sparse, [1, 1, 2]).converged)   //true
 }
 ```
 
@@ -257,7 +262,9 @@ async function systems(math: Math): Promise<void> {
 | `CompiledFunction` | 编译后的表达式：以数字为参数的函数，它的 `variables` 和 `batch` |
 | `Decimal`、`DecimalValue`、`DecimalOptions` | 指定精度的十进制数（`math.decimal()`）：`precision`、`add`、`sub`、`mul`、`div`、`mod`、`pow`、`neg`、`abs`、`sqrt`、`cbrt`、`root`、`exp`、`ln`、`log10`、`log`、`sin`、`cos`、`tan`、`asin`、`acos`、`atan`、`atan2`、`sinh`、`cosh`、`tanh`、`asinh`、`acosh`、`atanh`、`gamma`、`loggamma`、`digamma`、`erf`、`erfc`、`zeta`、`lambertw`、`floor`、`ceil`、`trunc`、`round`、`compare`、`equals`、`isZero`、`isPositive`、`isNegative`、`isInteger`、`toString`、`toFixed`、`toNumber`、`toJSON`；需要十进制数的地方可以传入的值（十进制数、数字、bigint、写成字符串的十进制数）；`decimal()` 的选项（`precision`） |
 | `Matrix`、`MatrixValue`、`VectorValue` | 数值矩阵（`math.matrix()`）：`rows`、`columns`、`data`、`get`、`set`、`row`、`column`、`diagonal`、`submatrix`、`reshape`、`transpose`、`add`、`sub`、`mul`、`div`、`neg`、`multiplyElements`、`divideElements`、`powElements`、`map`、`trace`、`kron`、`equals`、`clone`、`toArray`、`toJSON`、`toString`；需要矩阵的地方可以传入的值（矩阵，或它的各行）；需要向量的地方可以传入的值（`Float64Array`，或数字数组） |
-| `LinearAlgebra`、`NormKind` | 线性代数（`math.linalg`）：`zeros`、`ones`、`identity`、`diagonal`、`fromRows`、`fromColumns`、`fromFunction`、`concat`、`rotation`、`dot`、`cross`、`outer`、`norm`、`multiply`、`solve`、`solveTriangular`、`leastSquares`、`inverse`、`determinant`、`singularValues`、`rank`、`condition`、`lu`、`qr`、`cholesky`、`svd`、`eigen`、`symmetricEigen`、`schur`、`pseudoInverse`、`exponential`、`squareRoot`、`sylvester`、`lyapunov`，以及各个异步版本；范数的种类 |
+| `LinearAlgebra`、`NormKind` | 线性代数（`math.linalg`）：`zeros`、`ones`、`identity`、`diagonal`、`fromRows`、`fromColumns`、`fromFunction`、`concat`、`rotation`、`dot`、`cross`、`outer`、`norm`、`multiply`、`solve`、`solveTriangular`、`leastSquares`、`inverse`、`determinant`、`singularValues`、`rank`、`condition`、`lu`、`qr`、`cholesky`、`svd`、`eigen`、`symmetricEigen`、`schur`、`pseudoInverse`、`exponential`、`squareRoot`、`sylvester`、`lyapunov`、`sparse`、`conjugateGradient`、`biconjugateGradientStabilized`，以及各个异步版本；范数的种类 |
+| `SparseMatrix`、`SparseEntry` | 按压缩行存储的稀疏矩阵（`math.linalg.sparse()`）：`rowPointers`、`columnIndices`、`values`、`nonZeros`、`get`、`transpose`、`add`、`sub`、`neg`、`mul`、`toDense`、`toEntries`；条目 `[row, column, value]` |
+| `IterativeOptions`、`IterativeSolution` | 迭代求解器的选项（`tolerance`、`maxIterations`、`guess`）和结果（`solution`、`iterations`、`error`、`converged`） |
 | `LuDecomposition`、`QrDecomposition`、`SingularValueDecomposition`、`EigenDecomposition`、`SymmetricEigenDecomposition`、`SchurDecomposition`、`ComplexVector`、`ComplexMatrix` | 各种分解的结果：`{lower, upper, permutation}`、`{q, r}`、`{u, singularValues, v}`、`{values, vectors}`（复数为 `{re, im}`）、`{values, vectors}`、`{u, t}` |
 | `NumberTheory`、`IntegerValue`、`PrimeFactor`、`ExtendedGcd`、`Congruence` | 数论（`math.ntheory`）：`gcd`、`lcm`、`extendedGcd`、`mod`、`modInverse`、`powMod`、`isPrime`、`nextPrime`、`factor`、`totient`、`mobius`、`primitiveRoot`、`legendre`、`jacobi`、`crt`、`fibonacci`、`lucas`、`binomial`、`factorial`、`doubleFactorial`、`bernoulli`、`harmonic`，以及各个异步版本；整数（bigint，或安全整数范围内的 number）；质因数和它的指数；`extendedGcd` 的结果；`crt` 的结果 |
 | `AsyncOptions`、`Value` | 异步运算的选项（`timeout`、`signal`）；需要表达式的地方可以传入的值（表达式、数字、bigint、十进制数、公式） |
@@ -274,7 +281,7 @@ async function systems(math: Math): Promise<void> {
 | `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂） |
 | `MathDivisionByZeroException` | 计算十进制值时遇到除以零（包括除以一个无法和 0 区分的值、0 的对数、0 的负数次幂、以 1 为底的对数、在函数的极点上求值：`gamma()` 的参数是 -2、`zeta()` 的参数是 1），或者模数是 0 |
 | `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`） |
-| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、矩阵或向量的维数不对 |
+| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况） |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |
 | `MathException` | 以上所有错误的基类；原生插件内部错误时，它的 `errno` 是 `E_MATH_INTERNAL` |
 

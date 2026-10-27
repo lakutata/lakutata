@@ -128,7 +128,15 @@ const safe = (value) => Array.isArray(value) ? value.every(safe) : typeof value 
 }
 //The linear algebra: the functions of matrices mathjs has, against NumPy's and SciPy's results (expected/linalg.json,
 //written by linalg.py first); lup by its permutation, read as the one of @lakutata/math (row i of P A is row p[i] of A)
+//A dense array of a sparse matrix of a case, its entries of the same place added up
+const denseOf = ({rows, columns, entries}) => {
+    const array = Array.from({length: rows}, () => new Array(columns).fill(0))
+    for (const [i, j, value] of entries) array[i][j] += value
+    return array
+}
 const linearAlgebra = {
+    sparseMultiply: ([a, b]) => math.multiply(math.sparse(denseOf(a)), math.sparse(denseOf(b))).toArray(),
+    sparseSolve: ([a, b]) => math.lusolve(math.sparse(denseOf(a)), b).toArray(),
     exponential: ([a]) => math.expm(math.matrix(a)).toArray(),
     squareRoot: ([a]) => math.sqrtm(a),
     sylvester: ([a, b, c]) => math.sylvester(a, b, c),

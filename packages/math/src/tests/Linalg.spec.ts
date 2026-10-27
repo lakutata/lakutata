@@ -6,7 +6,8 @@ import {
     MathArgumentException,
     MathCancelledException,
     MathDomainException,
-    Matrix
+    Matrix,
+    SparseMatrix
 } from '../exports/Math.js'
 
 //Two arrays of numbers within a tolerance of each other
@@ -204,6 +205,87 @@ describe('The matrices and the linear algebra', (): void => {
         await assert.rejects(math.linalg.squareRootAsync([[-1, 0], [0, 4]]), MathDomainException)
     })
 
+    it('store sparse matrices in compressed rows, and compute with them', (): void => {
+        //The entries of the same place added up, sorted by row and by column
+        const a: SparseMatrix = math.linalg.sparse(3, 3, [[2, 2, 2], [0, 1, -1], [0, 0, 2], [1, 1, 2], [1, 0, -1], [1, 1, 0]])
+        assert.deepStrictEqual([a.rowPointers, a.columnIndices, a.values], [Int32Array.of(0, 2, 4, 5), Int32Array.of(0, 1, 0, 1, 2), Float64Array.of(2, -1, -1, 2, 2)])
+        assert.strictEqual(a.nonZeros, 5)
+        assert.deepStrictEqual([a.get(0, 1), a.get(0, 2), a.get(2, 2)], [-1, 0, 2])
+        assert.deepStrictEqual(a.toEntries(), [[0, 0, 2], [0, 1, -1], [1, 0, -1], [1, 1, 2], [2, 2, 2]])
+        assert.strictEqual(a.toDense().toString(), '[2, -1, 0; -1, 2, 0; 0, 0, 2]')
+        //A sum of entries of 0 is an entry; a dense matrix gives the elements other than 0
+        assert.strictEqual(math.linalg.sparse(1, 2, [[0, 1, 3], [0, 1, -3]]).nonZeros, 1)
+        assert.deepStrictEqual(math.linalg.sparse([[0, 5], [6, 0]]).toEntries(), [[0, 1, 5], [1, 0, 6]])
+        const b: SparseMatrix = math.linalg.sparse(2, 3, [[0, 2, 5], [1, 0, 3]])
+        assert.deepStrictEqual(b.transpose().toEntries(), [[0, 1, 3], [2, 0, 5]])
+        assert.strictEqual(a.add(a).sub(a).neg().toDense().toString(), '[-2, 1, 0; 1, -2, 0; 0, 0, -2]')
+        assert.strictEqual(a.add(math.linalg.sparse(3, 3, [[0, 2, 1]])).nonZeros, 6)
+        assert.strictEqual(a.mul(0.5).toDense().toString(), '[1, -0.5, 0; -0.5, 1, 0; 0, 0, 1]')
+        assert.deepStrictEqual(a.mul([1, 1, 1]), Float64Array.of(1, 1, 2))
+        assert.strictEqual(b.mul([[1, 0], [0, 1], [1, 1]]).toString(), '[5, 5; 3, 0]')
+        //Sparse by sparse, by Eigen
+        const product: SparseMatrix = b.mul(a)
+        assert.ok(product instanceof SparseMatrix)
+        assert.strictEqual(product.toDense().toString(), '[0, 0, 10; 6, -3, 0]')
+        //Systems: the sparse LU decomposition, the conjugate gradient, BiCGSTAB
+        assert.deepStrictEqual(math.linalg.solve(a, [1, 1, 2]), Float64Array.of(1, 1, 1))
+        assert.ok(math.linalg.solve(a, [[1, 0], [1, 0], [2, 1]]).equals([[1, 0], [1, 0], [1, 0.5]], 1e-15))
+        assert.throws((): unknown => math.linalg.solve(math.linalg.sparse(3, 3, [[0, 0, 1], [2, 2, 1]]), [1, 1, 1]), MathDomainException)
+        const n: number = 50
+        const poisson: SparseMatrix = math.linalg.sparse(n, n, Array.from({length: 3 * n}, (_: unknown, k: number): [number, number, number] => [globalThis.Math.floor(k / 3), globalThis.Math.floor(k / 3) + k % 3 - 1, k % 3 === 1 ? 2 : -1]).filter(([, j]: [number, number, number]): boolean => j >= 0 && j < n))
+        const ones: Float64Array = new Float64Array(n).fill(1)
+        const cg = math.linalg.conjugateGradient(poisson, ones)
+        assert.ok(cg.converged && cg.iterations <= n && cg.error <= 1e-10)
+        assert.ok(math.linalg.norm(poisson.mul(cg.solution).map((value: number): number => value - 1)) <= 1e-9 * math.linalg.norm(ones))
+        //Stopped early, then gone on from where it stopped
+        const early = math.linalg.conjugateGradient(poisson, ones, {maxIterations: 3})
+        assert.ok(!early.converged && early.iterations === 3)
+        const resumed = math.linalg.conjugateGradient(poisson, ones, {guess: early.solution})
+        assert.ok(resumed.converged && close(resumed.solution, cg.solution, 1e-6))
+        const bicgstab = math.linalg.biconjugateGradientStabilized([[4, 1], [2, 3]], [5, 5])
+        assert.ok(bicgstab.converged && close(bicgstab.solution, [1, 1], 1e-12))
+        const loose = math.linalg.conjugateGradient(poisson, ones, {tolerance: 1e-4})
+        assert.ok(loose.converged && loose.error <= 1e-4 && loose.iterations <= cg.iterations)
+    })
+
+    it('check the structure of a sparse matrix, also once it was changed', (): void => {
+        assert.throws((): unknown => new SparseMatrix(1, 2, Int32Array.of(0, 2), Int32Array.of(1, 0), Float64Array.of(1, 1)), MathArgumentException)
+        assert.throws((): unknown => new SparseMatrix(1, 2, Int32Array.of(0, 1), Int32Array.of(2), Float64Array.of(1)), MathArgumentException)
+        assert.throws((): unknown => new SparseMatrix(2, 2, Int32Array.of(0, 2, 1), Int32Array.of(0, 1), Float64Array.of(1, 1)), MathArgumentException)
+        assert.throws((): unknown => new SparseMatrix(1, 1, Int32Array.of(0, 1), Int32Array.of(0), Float64Array.of()), MathArgumentException)
+        assert.throws((): unknown => math.linalg.sparse(2, 2, [[2, 0, 1]]), MathArgumentException)
+        assert.throws((): unknown => math.linalg.sparse(2, 2, [[0, 0.5, 1]]), MathArgumentException)
+        //Its arrays can be changed after it was made: the addon checks them again, as an argument, never reads them
+        //beyond their ends
+        const changed = (change: (matrix: SparseMatrix) => void): SparseMatrix => {
+            const matrix: SparseMatrix = math.linalg.sparse(3, 3, [[0, 0, 2], [0, 1, 1], [1, 1, 2], [2, 2, 1]])
+            change(matrix)
+            return matrix
+        }
+        for (const matrix of [
+            changed((m: SparseMatrix): void => {
+                m.columnIndices[0] = 1e9
+            }),
+            changed((m: SparseMatrix): void => {
+                m.columnIndices[0] = 1
+                m.columnIndices[1] = 0
+            }),
+            changed((m: SparseMatrix): void => {
+                m.rowPointers[1] = 100
+            }),
+            changed((m: SparseMatrix): void => {
+                m.rowPointers[3] = 3
+            }),
+            changed((m: SparseMatrix): void => {
+                m.columnIndices[2] = -1
+            })
+        ]) {
+            assert.throws((): unknown => math.linalg.solve(matrix, [1, 1, 1]), MathArgumentException)
+            assert.throws((): unknown => matrix.mul(matrix), MathArgumentException)
+            assert.throws((): unknown => math.linalg.conjugateGradient(matrix, [1, 1, 1]), MathArgumentException)
+        }
+    })
+
     it('throw the exceptions of the package', (): void => {
         const cases: [() => unknown, new (...args: never[]) => Error][] = [
             [(): unknown => math.linalg.solve([[1, 2], [2, 4]], [1, 2]), MathDomainException],
@@ -244,7 +326,17 @@ describe('The matrices and the linear algebra', (): void => {
             [(): unknown => math.linalg.sylvester([[1, 2]], [[1]], [[1]]), MathArgumentException],
             [(): unknown => math.linalg.sylvester([[1]], [[-1]], [[1]]), MathDomainException],
             [(): unknown => math.linalg.lyapunov([[1]], [[1, 0], [0, 1]]), MathArgumentException],
-            [(): unknown => math.linalg.lyapunov([[0, 1], [-1, 0]], [[1, 0], [0, 1]]), MathDomainException]
+            [(): unknown => math.linalg.lyapunov([[0, 1], [-1, 0]], [[1, 0], [0, 1]]), MathDomainException],
+            [(): unknown => math.linalg.solve(math.linalg.sparse(2, 3, []), [1, 1]), MathArgumentException],
+            [(): unknown => math.linalg.solve(math.linalg.sparse(2, 2, []), [1, 1, 1]), MathArgumentException],
+            [(): unknown => math.linalg.sparse(2, 3, []).mul(math.linalg.sparse(2, 3, [])), MathArgumentException],
+            [(): unknown => math.linalg.sparse(2, 3, []).mul([1, 2]), MathArgumentException],
+            [(): unknown => math.linalg.sparse(2, 3, []).add(math.linalg.sparse(3, 2, [])), MathArgumentException],
+            [(): unknown => math.linalg.sparse(2, 3, []).get(2, 0), MathArgumentException],
+            [(): unknown => math.linalg.conjugateGradient([[1, 2]], [1]), MathArgumentException],
+            [(): unknown => math.linalg.conjugateGradient([[1]], [1], {tolerance: -1}), MathArgumentException],
+            [(): unknown => math.linalg.biconjugateGradientStabilized([[1]], [1], {maxIterations: 1.5}), MathArgumentException],
+            [(): unknown => math.linalg.biconjugateGradientStabilized([[1]], [1], {guess: [1, 2]}), MathArgumentException]
         ]
         cases.forEach(([operate, exception]: [() => unknown, new (...args: never[]) => Error], index: number): void => {
             assert.throws(operate, exception, `case ${index}`)
@@ -274,5 +366,19 @@ describe('The matrices and the linear algebra', (): void => {
         const controller: AbortController = new AbortController()
         controller.abort()
         await assert.rejects(math.linalg.solveAsync(a, b, {signal: controller.signal}), MathCancelledException)
+        //A sparse matrix too: its structure and its values copied at the call
+        const sparse: SparseMatrix = math.linalg.sparse(math.linalg.fromFunction(n, n, (i: number, j: number): number => i === j ? 4 : globalThis.Math.abs(i - j) === 1 ? -1 : 0))
+        const right: Float64Array = new Float64Array(n).fill(1)
+        const solving: Promise<Float64Array> = math.linalg.solveAsync(sparse, right)
+        const iterating = math.linalg.conjugateGradientAsync(sparse, right)
+        const stabilized = math.linalg.biconjugateGradientStabilizedAsync(sparse, right)
+        const values: Float64Array = sparse.values.slice()
+        sparse.values.fill(0)
+        sparse.columnIndices.fill(0)
+        right.fill(0)
+        const unchanged: SparseMatrix = new SparseMatrix(n, n, sparse.rowPointers, math.linalg.sparse(math.linalg.fromFunction(n, n, (i: number, j: number): number => i === j ? 4 : globalThis.Math.abs(i - j) === 1 ? -1 : 0)).columnIndices, values)
+        const residual = (x: Float64Array): number => math.linalg.norm(unchanged.mul(x).map((value: number): number => value - 1))
+        assert.ok(residual(await solving) < 1e-12)
+        assert.ok(residual((await iterating).solution) < 1e-8 && residual((await stabilized).solution) < 1e-8)
     })
 })

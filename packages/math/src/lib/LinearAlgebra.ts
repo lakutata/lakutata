@@ -13,6 +13,15 @@ import {
     vectorOf,
     type VectorValue
 } from './Matrix.js'
+import {
+    type NativeSparse,
+    nativeSparseOf,
+    type SparseEntry,
+    SparseMatrix,
+    sparseOfEntries,
+    sparseOfMatrix,
+    sparseRun
+} from './SparseMatrix.js'
 
 /**
  * The norm of a vector or of a matrix: a number `p` of 1 or more, or `Infinity`, for a vector (the p-norm); `'fro'`
@@ -143,6 +152,46 @@ export interface SchurDecomposition {
 }
 
 /**
+ * The options of an iterative solver (`conjugateGradient()`, `biconjugateGradientStabilized()`)
+ */
+export interface IterativeOptions {
+    /**
+     * The relative residual to reach, `‖b - A x‖ / ‖b‖`: 1e-10 by default.
+     */
+    tolerance?: number
+    /**
+     * The largest number of iterations: 10 times the size of the system by default.
+     */
+    maxIterations?: number
+    /**
+     * The first guess of the solution (the solution of an earlier call, to go on from it): zeros by default.
+     */
+    guess?: VectorValue
+}
+
+/**
+ * The solution of an iterative solver, and how it was reached
+ */
+export interface IterativeSolution {
+    /**
+     * The solution found: the last iterate.
+     */
+    solution: Float64Array
+    /**
+     * The number of iterations it took.
+     */
+    iterations: number
+    /**
+     * Its relative residual, `‖b - A x‖ / ‖b‖`, as the solver estimates it.
+     */
+    error: number
+    /**
+     * Whether the relative residual reached the tolerance before the largest number of iterations.
+     */
+    converged: boolean
+}
+
+/**
  * The operand of the right side of a system: a vector gives a vector, a matrix (columns of right sides) a matrix
  */
 interface Operand {
@@ -189,6 +238,26 @@ function euclidean(values: Float64Array): number {
     return largest * Math.sqrt(sum)
 }
 
+function sparseMatrixOf(value: SparseMatrix | MatrixValue): SparseMatrix {
+    return value instanceof SparseMatrix ? value : sparseOfMatrix(matrixOf(value))
+}
+
+//The right side and the guess of an iterative solver, its tolerance and its largest number of iterations
+function iterativeOf(a: SparseMatrix, b: VectorValue, iterative: IterativeOptions | undefined): {dense: NativeMatrix[], numbers: number[]} {
+    const tolerance: number = iterative?.tolerance ?? 1e-10
+    const iterations: number = iterative?.maxIterations ?? globalThis.Math.min(10 * a.rows, 2147483647)
+    if (typeof tolerance !== 'number' || !(tolerance >= 0) || !Number.isFinite(tolerance)) throw new MathArgumentException('The tolerance is a number of 0 or more')
+    if (!Number.isInteger(iterations) || iterations < 0 || iterations > 2147483647) throw new MathArgumentException('The largest number of iterations is an integer from 0 to 2^31 - 1')
+    const dense: NativeMatrix[] = [nativeColumnOf(vectorOf(b, 'The right side'))]
+    if (iterative?.guess !== undefined) dense.push(nativeColumnOf(vectorOf(iterative.guess, 'The guess')))
+    return {dense, numbers: [tolerance, iterations]}
+}
+
+function iterativeSolutionOf(results: [NativeMatrix[], NativeSparse[]]): IterativeSolution {
+    const [solution, outcome] = results[0]
+    return {solution: solution[2], iterations: outcome[2][0], error: outcome[2][1], converged: outcome[2][2] === 1}
+}
+
 function luOf(results: NativeMatrix[]): LuDecomposition {
     return {lower: matrixFrom(results[0]), upper: matrixFrom(results[1]), permutation: Array.from(results[2][2])}
 }
@@ -230,7 +299,8 @@ function conditionOf(values: Float64Array): number {
  * zeros, of ones, identities, diagonals, rotations; products, dot and cross products; norms; the solutions of linear
  * systems, least squares, inverses, determinants, ranks, condition numbers and singular values; the decompositions (LU,
  * QR, Cholesky, singular values, eigenvalues, Schur) and the pseudo-inverse; the exponential and the square root of a
- * matrix; the Sylvester and Lyapunov equations. It is `math.linalg` of a `Math` component.
+ * matrix; the Sylvester and Lyapunov equations; sparse matrices (`SparseMatrix`) and their systems, by the sparse LU
+ * decomposition, the conjugate gradient and BiCGSTAB. It is `math.linalg` of a `Math` component.
  *
  * Where a vector is expected, a `Float64Array` or an array of numbers is given; where a matrix is, a `Matrix` or its
  * rows (`[[1, 2], [3, 4]]`). A system with a vector on its right side has a vector for solution, one with a matrix (one
@@ -270,6 +340,13 @@ export class LinearAlgebra {
         //The elements copied at the call, before the operation waits for its turn: the matrices given may change then
         const copies: NativeMatrix[] = matrices.map(([rows, columns, data]: NativeMatrix): NativeMatrix => [rows, columns, data.slice()])
         return await this.context.runAsync<NativeMatrix[]>('linalg', [operation, copies, numbers, option], options)
+    }
+
+    async #sparseAsync(operation: string, sparse: NativeSparse[], dense: NativeMatrix[], options: AsyncOptions | undefined, numbers: number[] = []): Promise<[NativeMatrix[], NativeSparse[]]> {
+        //Copied at the call too, the structures of the sparse matrices as their values
+        const sparseCopies: NativeSparse[] = sparse.map(([rows, columns, pointers, indices, values]: NativeSparse): NativeSparse => [rows, columns, pointers.slice(), indices.slice(), values.slice()])
+        const denseCopies: NativeMatrix[] = dense.map(([rows, columns, data]: NativeMatrix): NativeMatrix => [rows, columns, data.slice()])
+        return await this.context.runAsync<[NativeMatrix[], NativeSparse[]]>('sparse', [operation, sparseCopies, denseCopies, numbers], options)
     }
 
     /**
@@ -494,11 +571,12 @@ export class LinearAlgebra {
      * @param a The matrix of the system, square.
      * @param b The right side: a vector (the solution is a vector), or a matrix of one right side by column.
      */
-    public solve(a: MatrixValue, b: VectorValue): Float64Array
-    public solve(a: MatrixValue, b: MatrixValue): Matrix
-    public solve(a: MatrixValue, b: MatrixValue | VectorValue): Matrix | Float64Array
-    public solve(a: MatrixValue, b: MatrixValue | VectorValue): Matrix | Float64Array {
+    public solve(a: MatrixValue | SparseMatrix, b: VectorValue): Float64Array
+    public solve(a: MatrixValue | SparseMatrix, b: MatrixValue): Matrix
+    public solve(a: MatrixValue | SparseMatrix, b: MatrixValue | VectorValue): Matrix | Float64Array
+    public solve(a: MatrixValue | SparseMatrix, b: MatrixValue | VectorValue): Matrix | Float64Array {
         const right: Operand = operandOf(b, 'The right side')
+        if (a instanceof SparseMatrix) return shapeOf(sparseRun('solve', [nativeSparseOf(a)], [right.native])[0][0], right.vector)
         return shapeOf(linalgRun('solve', [nativeOf(matrixOf(a)), right.native])[0], right.vector)
     }
 
@@ -508,11 +586,12 @@ export class LinearAlgebra {
      * @param b The right side: a vector, or a matrix of one right side by column.
      * @param options Its cancellation, its time limit.
      */
-    public async solveAsync(a: MatrixValue, b: VectorValue, options?: AsyncOptions): Promise<Float64Array>
-    public async solveAsync(a: MatrixValue, b: MatrixValue, options?: AsyncOptions): Promise<Matrix>
-    public async solveAsync(a: MatrixValue, b: MatrixValue | VectorValue, options?: AsyncOptions): Promise<Matrix | Float64Array>
-    public async solveAsync(a: MatrixValue, b: MatrixValue | VectorValue, options?: AsyncOptions): Promise<Matrix | Float64Array> {
+    public async solveAsync(a: MatrixValue | SparseMatrix, b: VectorValue, options?: AsyncOptions): Promise<Float64Array>
+    public async solveAsync(a: MatrixValue | SparseMatrix, b: MatrixValue, options?: AsyncOptions): Promise<Matrix>
+    public async solveAsync(a: MatrixValue | SparseMatrix, b: MatrixValue | VectorValue, options?: AsyncOptions): Promise<Matrix | Float64Array>
+    public async solveAsync(a: MatrixValue | SparseMatrix, b: MatrixValue | VectorValue, options?: AsyncOptions): Promise<Matrix | Float64Array> {
         const right: Operand = operandOf(b, 'The right side')
+        if (a instanceof SparseMatrix) return shapeOf((await this.#sparseAsync('solve', [nativeSparseOf(a)], [right.native], options))[0][0], right.vector)
         return shapeOf((await this.#runAsync('solve', [nativeOf(matrixOf(a)), right.native], options))[0], right.vector)
     }
 
@@ -880,5 +959,78 @@ export class LinearAlgebra {
      */
     public async lyapunovAsync(a: MatrixValue, q: MatrixValue, options?: AsyncOptions): Promise<Matrix> {
         return matrixFrom((await this.#runAsync('lyapunov', [nativeOf(matrixOf(a)), nativeOf(matrixOf(q))], options))[0])
+    }
+
+    /**
+     * A sparse matrix of entries, `[row, column, value]`; the entries of the same row and column are added up (into
+     * one entry, even of 0).
+     * @param rows The rows, an integer from 0 to 2^31 - 1.
+     * @param columns The columns, an integer from 0 to 2^31 - 1.
+     * @param entries Its entries.
+     */
+    public sparse(rows: number, columns: number, entries: Iterable<SparseEntry>): SparseMatrix
+    /**
+     * The sparse matrix of the elements other than 0 of a dense matrix.
+     * @param matrix The dense matrix, or its rows.
+     */
+    public sparse(matrix: MatrixValue): SparseMatrix
+    public sparse(rowsOrMatrix: number | MatrixValue, columns?: number, entries?: Iterable<SparseEntry>): SparseMatrix {
+        if (typeof rowsOrMatrix === 'number') return sparseOfEntries(rowsOrMatrix, columns as number, entries as Iterable<SparseEntry>)
+        return sparseOfMatrix(matrixOf(rowsOrMatrix))
+    }
+
+    /**
+     * The solution of `a x = b` by the conjugate gradient, with the diagonal of `a` as preconditioner (Eigen's
+     * `ConjugateGradient`, which reads the whole matrix). It is for a symmetric positive definite matrix, which is not
+     * checked: on another, it may not converge. It stops when the relative residual reaches the tolerance or after the
+     * largest number of iterations; `converged` tells which.
+     * @param a The matrix, square: sparse, or dense (made sparse).
+     * @param b The right side.
+     * @param iterative Its tolerance, its largest number of iterations, its first guess.
+     */
+    public conjugateGradient(a: SparseMatrix | MatrixValue, b: VectorValue, iterative?: IterativeOptions): IterativeSolution {
+        const matrix: SparseMatrix = sparseMatrixOf(a)
+        const {dense, numbers} = iterativeOf(matrix, b, iterative)
+        return iterativeSolutionOf(sparseRun('conjugateGradient', [nativeSparseOf(matrix)], dense, numbers))
+    }
+
+    /**
+     * `conjugateGradient()` in the threads of the addon.
+     * @param a The matrix, square: sparse, or dense (made sparse).
+     * @param b The right side.
+     * @param iterative Its tolerance, its largest number of iterations, its first guess.
+     * @param options Its cancellation, its time limit.
+     */
+    public async conjugateGradientAsync(a: SparseMatrix | MatrixValue, b: VectorValue, iterative?: IterativeOptions, options?: AsyncOptions): Promise<IterativeSolution> {
+        const matrix: SparseMatrix = sparseMatrixOf(a)
+        const {dense, numbers} = iterativeOf(matrix, b, iterative)
+        return iterativeSolutionOf(await this.#sparseAsync('conjugateGradient', [nativeSparseOf(matrix)], dense, options, numbers))
+    }
+
+    /**
+     * The solution of `a x = b` by the biconjugate gradient stabilized method (BiCGSTAB), with the diagonal of `a` as
+     * preconditioner (Eigen's `BiCGSTAB`): for a square matrix that need not be symmetric. It stops when the relative
+     * residual reaches the tolerance or after the largest number of iterations; `converged` tells which.
+     * @param a The matrix, square: sparse, or dense (made sparse).
+     * @param b The right side.
+     * @param iterative Its tolerance, its largest number of iterations, its first guess.
+     */
+    public biconjugateGradientStabilized(a: SparseMatrix | MatrixValue, b: VectorValue, iterative?: IterativeOptions): IterativeSolution {
+        const matrix: SparseMatrix = sparseMatrixOf(a)
+        const {dense, numbers} = iterativeOf(matrix, b, iterative)
+        return iterativeSolutionOf(sparseRun('biconjugateGradientStabilized', [nativeSparseOf(matrix)], dense, numbers))
+    }
+
+    /**
+     * `biconjugateGradientStabilized()` in the threads of the addon.
+     * @param a The matrix, square: sparse, or dense (made sparse).
+     * @param b The right side.
+     * @param iterative Its tolerance, its largest number of iterations, its first guess.
+     * @param options Its cancellation, its time limit.
+     */
+    public async biconjugateGradientStabilizedAsync(a: SparseMatrix | MatrixValue, b: VectorValue, iterative?: IterativeOptions, options?: AsyncOptions): Promise<IterativeSolution> {
+        const matrix: SparseMatrix = sparseMatrixOf(a)
+        const {dense, numbers} = iterativeOf(matrix, b, iterative)
+        return iterativeSolutionOf(await this.#sparseAsync('biconjugateGradientStabilized', [nativeSparseOf(matrix)], dense, options, numbers))
     }
 }

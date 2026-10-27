@@ -1,4 +1,4 @@
-import {type Expression, Math, MathException, Matrix} from '../../exports/Math.js'
+import {type Expression, Math, MathException, Matrix, SparseMatrix} from '../../exports/Math.js'
 
 /**
  * A seeded generator of random numbers (mulberry32): the same seed gives the same formulas
@@ -496,4 +496,80 @@ export function checkText(math: Math, index: number, text: string): FuzzFailure[
     } catch (error) {
         return error instanceof MathException ? [] : [{index, text, property: 'parse', message: `not a MathException: ${String(error)}`}]
     }
+}
+
+//A random sparse matrix: entries of -10 to 10 at a density of 0.05 to 0.3, given in any order, now and then twice at
+//the same place; dominant, of a large diagonal
+function randomSparse(math: Math, random: Random, rows: number, columns: number, dominant: boolean = false): SparseMatrix {
+    const density: number = 0.05 + 0.25 * random.next()
+    const entries: [number, number, number][] = []
+    for (let i: number = 0; i < rows; i++) {
+        for (let j: number = 0; j < columns; j++) {
+            if (random.next() < density) entries.push([i, j, globalThis.Math.round((random.next() * 20 - 10) * 100) / 100])
+        }
+    }
+    if (entries.length && random.chance(0.3)) entries.push([entries[0][0], entries[0][1], 1])
+    if (dominant) for (let i: number = 0; i < globalThis.Math.min(rows, columns); i++) entries.push([i, i, 20 * (columns + 2)])
+    for (let i: number = entries.length - 1; i > 0; i--) {
+        const j: number = random.int(i + 1)
+        const swapped: [number, number, number] = entries[i]
+        entries[i] = entries[j]
+        entries[j] = swapped
+    }
+    return math.linalg.sparse(rows, columns, entries)
+}
+
+/**
+ * The checks of the sparse matrices: their operations against those of their dense matrices, the solutions of their
+ * systems (the sparse LU decomposition, the conjugate gradient, BiCGSTAB) by their residuals
+ * @param math
+ * @param random
+ * @param index
+ */
+export async function checkSparse(math: Math, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    const size = (): number => random.chance(0.05) ? 0 : 1 + random.int(random.chance(0.1) ? 60 : 8)
+    const n: number = size(), m: number = size(), k: number = size()
+    const a: SparseMatrix = randomSparse(math, random, n, m), b: SparseMatrix = randomSparse(math, random, m, k), other: SparseMatrix = randomSparse(math, random, n, m)
+    const dense: Matrix = a.toDense()
+    const text: string = JSON.stringify(a.toEntries()).slice(0, 400)
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    const near = (x: Matrix, y: Matrix, scale: number): boolean => frobenius(x.sub(y)) <= 1e-12 * (1 + scale) * (1 + x.rows + x.columns)
+    try {
+        //The operations in JavaScript: the same elements as the dense ones, exactly
+        if (!a.transpose().toDense().equals(dense.transpose())) fail('sparse', 'the transpose')
+        if (!a.add(other).toDense().equals(dense.add(other.toDense())) || !a.sub(other).toDense().equals(dense.sub(other.toDense()))) fail('sparse', 'a sum or a difference')
+        if (!a.neg().toDense().equals(dense.neg()) || !a.mul(-2.5).toDense().equals(dense.mul(-2.5))) fail('sparse', 'a product by a number')
+        for (let i: number = 0; i < n; i++) {
+            for (let j: number = 0; j < m; j++) if (a.get(i, j) !== dense.get(i, j)) fail('sparse', `the element ${i}, ${j}`)
+        }
+        if (JSON.stringify(math.linalg.sparse(n, m, a.toEntries()).toEntries()) !== JSON.stringify(a.toEntries())) fail('sparse', 'its entries')
+        if (!math.linalg.sparse(dense).toDense().equals(dense)) fail('sparse', 'the sparse matrix of a dense one')
+        //The products: by a vector and a dense matrix in JavaScript, by a sparse matrix by Eigen
+        const vector: Float64Array = Float64Array.from({length: m}, (): number => random.next() * 20 - 10)
+        if (!near(new Matrix(n, 1, a.mul(vector)), new Matrix(n, 1, dense.mul(vector)), frobenius(dense) * math.linalg.norm(vector))) fail('sparse', 'a product by a vector')
+        const right: Matrix = b.toDense()
+        if (!near(a.mul(right), dense.mul(right), frobenius(dense) * frobenius(right))) fail('sparse', 'a product by a dense matrix')
+        const product: SparseMatrix = a.mul(b)
+        if (!(product instanceof SparseMatrix) || !near(product.toDense(), dense.mul(right), frobenius(dense) * frobenius(right))) fail('sparse', 'a product by a sparse matrix')
+        //A system of a dominant matrix: the sparse LU decomposition as the dense one; the conjugate gradient on its
+        //symmetric part (positive definite), BiCGSTAB on it
+        const square: SparseMatrix = randomSparse(math, random, n, n, true)
+        const side: Float64Array = Float64Array.from({length: n}, (): number => random.next() * 20 - 10)
+        const residual = (matrix: SparseMatrix, x: Float64Array): number => math.linalg.norm(matrix.mul(x).map((value: number, i: number): number => value - side[i]))
+        const solution: Float64Array = math.linalg.solve(square, side)
+        const bound: number = 1e-13 * (1 + n) * (frobenius(square.toDense()) * math.linalg.norm(solution) + math.linalg.norm(side))
+        if (residual(square, solution) > bound) fail('sparse', `the residual of solve() is ${residual(square, solution)}, above ${bound}`)
+        if (!near(new Matrix(n, 1, solution), new Matrix(n, 1, math.linalg.solve(square.toDense(), side)), math.linalg.norm(solution))) fail('sparse', 'solve() differs from the dense one')
+        const symmetric: SparseMatrix = square.add(square.transpose())
+        const gradient = math.linalg.conjugateGradient(symmetric, side)
+        if (!gradient.converged || residual(symmetric, gradient.solution) > 1e-9 * (1 + math.linalg.norm(side))) fail('sparse', `the conjugate gradient: converged ${gradient.converged}, residual ${residual(symmetric, gradient.solution)}`)
+        const stabilized = math.linalg.biconjugateGradientStabilized(square, side)
+        if (!stabilized.converged || residual(square, stabilized.solution) > 1e-9 * (1 + math.linalg.norm(side))) fail('sparse', `BiCGSTAB: converged ${stabilized.converged}, residual ${residual(square, stabilized.solution)}`)
+        if ((await math.linalg.solveAsync(square, side)).some((value: number, i: number): boolean => value !== solution[i])) fail('async', 'solveAsync of a sparse matrix differs from solve')
+        if ((await math.linalg.conjugateGradientAsync(symmetric, side)).solution.some((value: number, i: number): boolean => value !== gradient.solution[i])) fail('async', 'conjugateGradientAsync differs from conjugateGradient')
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('sparse', String(error))
+    }
+    return failures
 }

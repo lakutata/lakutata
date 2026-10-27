@@ -7,11 +7,20 @@ import os
 import numpy
 import scipy
 import scipy.linalg
+import scipy.sparse
+import scipy.sparse.linalg
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def array(value):
+    """A dense array, or a sparse one (CSR) of {rows, columns, entries}: its entries of the same place added up"""
+    if isinstance(value, dict):
+        entries = value['entries']
+        rows = [entry[0] for entry in entries]
+        columns = [entry[1] for entry in entries]
+        data = [float(entry[2]) for entry in entries]
+        return scipy.sparse.csr_array((data, (rows, columns)), shape=(value['rows'], value['columns']))
     return numpy.array(value, dtype=float)
 
 
@@ -67,6 +76,14 @@ def compute(case):
         return numpy.linalg.eigvalsh(a[0])
     if op == 'pseudoInverse':
         return numpy.linalg.pinv(a[0])
+    if op == 'sparseMultiply':
+        if a[0].shape[1] != a[1].shape[0]:
+            raise ValueError('The sparse matrices cannot be multiplied')
+        return (a[0] @ a[1]).toarray()
+    if op in ('sparseSolve', 'conjugateGradient', 'biconjugateGradientStabilized'):
+        # The direct solution of SuperLU; the iterative solvers are compared with it by their residuals, not their
+        # iterates
+        return scipy.sparse.linalg.spsolve(a[0].tocsc(), a[1])
     if op == 'exponential':
         return scipy.linalg.expm(a[0])
     if op == 'squareRoot':
@@ -111,7 +128,7 @@ def linalg():
         if 'error' in case:
             try:
                 value = compute(case)
-            except numpy.linalg.LinAlgError:
+            except (numpy.linalg.LinAlgError, ValueError):
                 pass
             else:
                 if not refused(case, value):
