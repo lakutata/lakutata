@@ -560,7 +560,7 @@ export class Unit {
     public pow(exponent: Value): Unit {
         //An integer: its power at once
         if (typeof exponent === 'number' && Number.isInteger(exponent) && exponent !== 1 && !this.#isOffset() && !zeroDimensions(this.#dimensionList())) {
-            return new Unit(this.context, this.magnitude.pow(exponent), this.parts.map((part: UnitPart): UnitPart => ({...part, power: part.power * exponent})))
+            return new Unit(this.context, this.magnitude.pow(exponent), this.parts.map((part: UnitPart): UnitPart => ({...part, power: part.power * exponent})).filter((part: UnitPart): boolean => part.power !== 0))
         }
         const power: Expression = new Expression(this.context, handleOf(this.context, exponent))
         if (power.equals(1)) return this
@@ -571,7 +571,7 @@ export class Unit {
         if (power.isRational() !== true) throw new MathUnitException(`A value with units is raised to a rational number only, not to ${power.toString()}`)
         const numerator: number = power.numerator().toNumber(), denominator: number = power.denominator().toNumber()
         if (denominator === 1) {
-            return new Unit(this.context, this.magnitude.pow(power), this.parts.map((part: UnitPart): UnitPart => ({...part, power: part.power * numerator})))
+            return new Unit(this.context, this.magnitude.pow(power), this.parts.map((part: UnitPart): UnitPart => ({...part, power: part.power * numerator})).filter((part: UnitPart): boolean => part.power !== 0))
         }
         //A root: in the base units, whose powers must stay integers
         const dimensions: number[] = this.#dimensionList().map((value: number): number => (value * numerator) / denominator)

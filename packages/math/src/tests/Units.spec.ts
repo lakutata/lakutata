@@ -127,6 +127,7 @@ describe('The units', (): void => {
         assert.ok(text('30 deg / 1 rad') === 'pi/6' && text('10 m / 4 s * 2 s') === '5 m')
         assert.ok(math.unit('2 m').mul(3).toString() === '6 m' && math.unit('2 m').div('4 s').toString() === '0.5 m / s' && math.unit('6 m').div(4).toString() === '1.5 m')
         assert.ok(math.unit('2 m').pow(3).toString() === '8 m^3' && math.unit('2 m').pow(-1).toString() === '0.5 m^-1' && math.unit('4 m^2').pow('1/2').toString() === '2 m')
+        assert.ok(math.unit('5 m').pow(0).toString() === '1' && math.unit('5 m').pow('0').toString() === '1' && math.unit('5 m').pow(0).units === '')
         assert.ok(math.unit('1 m cm').sqrt().toString() === '0.1 m' && math.unit('9 m^2').sqrt().toString() === '3 m' && math.unit('4').pow('1/2').toString() === '2')
         //Units whose dimensions cancel: a number
         const root: Unit = math.unit('9 rad/deg').pow('1/2')
