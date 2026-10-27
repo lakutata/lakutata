@@ -97,6 +97,8 @@ function wrappers (`FunctionWrapper`).
   `2*x + 2`, `2*(x + 1)/y` is `(2*x + 2)/y`), else the denominator of a rational coefficient goes into its first sum
   to the power -1 (`z/(2*(x + 1))` is `z/(2*x + 2)`), as the formulas are read: a value has one form, the sums stay
   flat. A factor that is a power, raised to an integer power, is combined (`(a^b)^n` is `a^(b*n)`).
+- `symengine/add.cpp`: a number times a sum met as a term of a sum is multiplied out too, as in a product (a
+  substitution of `x = 1 - u` in `-x + 1` gave `-(-u + 1) + 1`, now `u`).
 - `symengine/functions.cpp`: the minus taken out of a sum (`asinh(-x - 1)` is `-asinh(x + 1)`) is added term by
   term, so that a sum among the terms is flattened. `log(e^r)` is `r` for an exact real number `r`. The numeric factor
   of a product is taken out of `abs` (`abs(-2*x)` is `2*abs(x)`), and `abs` is evaluated again once the minus is

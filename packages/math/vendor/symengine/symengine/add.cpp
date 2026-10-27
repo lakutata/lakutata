@@ -265,13 +265,11 @@ void Add::coef_dict_add_term(const Ptr<RCP<const Number>> &coef,
     if (is_a_Number(*term)) {
         iaddnum(coef, mulnum(c, rcp_static_cast<const Number>(term)));
     } else if (is_a<Add>(*term)) {
-        if (c->is_one()) {
-            for (const auto &q : (down_cast<const Add &>(*term)).dict_)
-                Add::dict_add_term(d, q.second, q.first);
-            iaddnum(coef, down_cast<const Add &>(*term).coef_);
-        } else {
-            Add::dict_add_term(d, c, term);
-        }
+        // lakutata: a number times a sum is multiplied out, as in a product
+        // (mul.cpp): -(-u + 1) + 1 of a substitution is u, the sums flat
+        for (const auto &q : (down_cast<const Add &>(*term)).dict_)
+            Add::dict_add_term(d, mulnum(c, q.second), q.first);
+        iaddnum(coef, mulnum(c, down_cast<const Add &>(*term).coef_));
     } else {
         RCP<const Number> coef2;
         RCP<const Basic> t;

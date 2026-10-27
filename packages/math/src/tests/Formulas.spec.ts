@@ -96,6 +96,9 @@ describe('The formulas', (): void => {
         assert.strictEqual(math.expression('x^2*sin(x)').diff('x').toString(), '2x*sin(x) + x^2*cos(x)')
         assert.strictEqual(math.expression('x^4').diff('x', 2).toString(), '12x^2')
         assert.strictEqual(math.expression('x^2 + y').substitute({x: 0.5, y: 't + 1'}).toString(), 't + 5/4')
+        //A number times a sum met in a sum is multiplied out, as in a product: -(-u + 1) + 1 is u
+        assert.strictEqual(math.expression('abs(x - 1)').substitute({x: '1 - u'}).toString(), 'abs(u)')
+        assert.strictEqual(math.expression('log(1 - x) + 2(x - 3)').substitute({x: '1 - u'}).toString(), '-2u + ln(u) - 4')
         assert.strictEqual(math.expression('x^2 - 5x + 6').evaluate({x: 4}).toNumber(), 2)
         assert.strictEqual(math.expression('sin(x)').series('x', 0, 6).toString(), 'x^5/120 - x^3/6 + x')
         assert.strictEqual(math.expression('x').add(1).mul('x - 1').expand().toString(), 'x^2 - 1')
