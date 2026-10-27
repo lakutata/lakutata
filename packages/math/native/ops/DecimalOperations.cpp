@@ -211,6 +211,13 @@ std::string decimalOperation(const std::string &operation, long precision, const
     if (operation == "asinh") return function(&DecimalContext::asinh);
     if (operation == "acosh") return function(&DecimalContext::acosh);
     if (operation == "atanh") return function(&DecimalContext::atanh);
+    if (operation == "gamma") return function(&DecimalContext::gamma);
+    if (operation == "loggamma") return function(&DecimalContext::loggamma);
+    if (operation == "erf") return function(&DecimalContext::erf);
+    if (operation == "erfc") return function(&DecimalContext::erfc);
+    if (operation == "lambertw") return function(&DecimalContext::lambertw);
+    if (operation == "digamma") return text(correctlyRounded(context.digits(), [&a](const DecimalContext &g) { return g.polygamma(0, a); }));
+    if (operation == "zeta") return text(correctlyRounded(context.digits(), [&a](const DecimalContext &g) { return g.zeta(a, g.integer(1)); }));
     if (operation == "atan2") {
         const Decimal &x = values[1];
         return text(correctlyRounded(context.digits(), [&a, &x](const DecimalContext &g) { return g.atan2(a, x); }));

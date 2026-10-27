@@ -330,8 +330,8 @@ T lambertw(T x)
     return w;
 }
 
-// The incomplete gamma functions of a real s > 0 and x >= 0, regularized: P
-// by its series below s + 1, Q by its continued fraction above (Lentz)
+// The incomplete gamma functions of a real s and x >= 0: P, regularized, by its
+// series below s + 1 (s > 0), Q by its continued fraction above (Lentz)
 inline double lower_series(double s, double x)
 {
     double term = 1 / s, sum = term;
@@ -344,7 +344,8 @@ inline double lower_series(double s, double x)
     return sum * std::exp(-x + s * std::log(x) - std::lgamma(s));
 }
 
-inline double upper_fraction(double s, double x)
+// The continued fraction of Γ(s, x) e^x x^-s (Legendre's, by Lentz), of x > 0 and any real s
+inline double upper_continued(double s, double x)
 {
     const double tiny = 1e-300;
     double b = x + 1 - s, c = 1 / tiny, d = 1 / b, h = d;
@@ -363,13 +364,61 @@ inline double upper_fraction(double s, double x)
         if (std::abs(delta - 1) < 1e-16)
             break;
     }
-    return std::exp(-x + s * std::log(x) - std::lgamma(s)) * h;
+    return h;
+}
+
+inline double upper_fraction(double s, double x)
+{
+    return std::exp(-x + s * std::log(x) - std::lgamma(s)) * upper_continued(s, x);
+}
+
+// E1(x) = Γ(0, x) of x > 0: its continued fraction from 1, its series below
+inline double exponential_integral(double x)
+{
+    if (x >= 1)
+        return std::exp(-x) * upper_continued(0, x);
+    double term = 1, sum = 0;
+    for (int k = 1; k < 100; k++) {
+        term *= -x / k;
+        sum += term / k;
+        if (std::abs(term) < std::abs(sum) * 1e-17)
+            break;
+    }
+    return -0.57721566490153286 - std::log(x) - sum;
+}
+
+inline double upper_gamma(double s, double x);
+
+// Γ(s, x) of s <= 0 and x > 0: the continued fraction from 1 + |s|; below, the recurrence Γ(s, x) = (Γ(s + 1, x) -
+// x^s e^-x)/s down from a positive s + m, or from E1 for an integer s
+inline double upper_gamma_negative(double s, double x)
+{
+    if (x >= 1 - s)
+        return std::exp(-x + s * std::log(x)) * upper_continued(s, x);
+    double value, from;
+    if (s == std::floor(s)) {
+        value = exponential_integral(x);
+        from = -1;
+    } else {
+        const double m = std::floor(-s) + 1;
+        value = upper_gamma(s + m, x);
+        from = s + m - 1;
+    }
+    for (double t = from; t >= s - 0.5; t -= 1)
+        value = (value - std::exp(-x + t * std::log(x))) / t;
+    return value;
 }
 
 inline double lower_gamma(double s, double x)
 {
-    if (s <= 0 || x < 0)
+    if (x < 0)
         return NAN_VALUE;
+    if (s <= 0) {
+        // γ(s, x) = Γ(s) - Γ(s, x), with poles at the integers
+        if (s == std::floor(s) || x == 0)
+            return NAN_VALUE;
+        return std::tgamma(s) - upper_gamma_negative(s, x);
+    }
     if (x == 0)
         return 0;
     return std::tgamma(s) * (x < s + 1 ? lower_series(s, x) : 1 - upper_fraction(s, x));
@@ -377,8 +426,10 @@ inline double lower_gamma(double s, double x)
 
 inline double upper_gamma(double s, double x)
 {
-    if (s <= 0 || x < 0)
+    if (x < 0)
         return NAN_VALUE;
+    if (s <= 0)
+        return x == 0 ? NAN_VALUE : upper_gamma_negative(s, x);
     if (x == 0)
         return std::tgamma(s);
     return std::tgamma(s) * (x < s + 1 ? 1 - lower_series(s, x) : upper_fraction(s, x));

@@ -133,9 +133,11 @@ stays a power (`2^(10^7)`), and a factorial above `20000!` stays as `gamma(n + 1
 - `toDecimal(digits)` gives a string with that many significant digits, correctly rounded (the `precision` of the
   component by default), written as `Decimal` writes its digits (see below): `3`, not `3.000…`. The value is computed
   again with more digits until two results agree. It computes the arithmetic, powers and roots, `exp` and `ln`, the
-  trigonometric and hyperbolic functions and their inverses, the rounding functions and the constants. A value that
-  cannot be told from 0, even with 640 more digits, is `0` (`ln(6) - ln(2) - ln(3)`); a value exactly halfway between
-  two decimals of that many digits is rounded to the even one (`ln(8)/ln(4)`, which is 1.5, gives `2` to one digit).
+  trigonometric and hyperbolic functions and their inverses, the rounding functions, the constants, and the special
+  functions of real arguments: `gamma`, `loggamma`, `digamma`, `polygamma`, `beta`, `erf`, `erfc`, `zeta` (Riemann's
+  and Hurwitz's), `lowergamma`, `uppergamma` and `lambertw`. A value that cannot be told from 0, even with 640 more digits,
+  is `0` (`ln(6) - ln(2) - ln(3)`); a value exactly halfway between two decimals of that many digits is rounded to the
+  even one (`ln(8)/ln(4)`, which is 1.5, gives `2` to one digit).
 - `compile()` computes in doubles, for speed: where doubles have no digit of a value, the compiled function has none
   either.
 - `toRectangular()` gives the real and the imaginary parts of an expression (`{real, imaginary}`), `toPolar()` its
@@ -168,15 +170,16 @@ A decimal does not change: each operation gives a new one.
   to an operation are read with all their digits.
 - The operations: `add`, `sub`, `mul`, `div`, `mod` (with the sign of the divisor, as `mod()` in formulas), `pow`,
   `neg`, `abs`, `sqrt`, `cbrt`, `root(n)`, `exp`, `ln`, `log10`, `log(base)`, the trigonometric and hyperbolic
-  functions and their inverses, `atan2(x)`, `floor`, `ceil`, `trunc`, `round(places)` (halves away from zero, as
-  `round()` in formulas), `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`.
+  functions and their inverses, `atan2(x)`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`,
+  `floor`, `ceil`, `trunc`, `round(places)` (halves away from zero, as `round()` in formulas), `compare`, `equals`,
+  `isZero`, `isPositive`, `isNegative`, `isInteger`.
 - `toString()` writes the digits without trailing zeros, in fixed-point notation when the first digit is between the
   10^-6 place and the 10^(precision - 1) place, in scientific notation otherwise (`1.5`, `0.000025`, `1.5e+25`, `1e-7`).
   `toFixed(places)` writes a given number of places after the point (`toFixed(2)` of 1.5 is `1.50`), and `toNumber()`
   gives the nearest number. A decimal is also an exact value in formulas: `math.expression(decimal)`.
 - The operations run on the JavaScript thread, without a time limit. Arithmetic is fast at any precision, but the
-  functions take seconds at tens of thousands of digits: for those, compute an expression with `toDecimalAsync()`,
-  which has a time limit, and make a decimal of its result.
+  functions take seconds at tens of thousands of digits, and the special functions (`zeta`, `gamma`) at thousands: for
+  those, compute an expression with `toDecimalAsync()`, which has a time limit, and make a decimal of its result.
 
 ```typescript
 import type {Math} from '@lakutata/math'
@@ -296,7 +299,7 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | `buildMathOptions`, `MathConfig` | Its declaration in the components, and its options: `definitions`, `precision`, `timeout`, `concurrency`, `drainTimeout` |
 | `MathScope`, `MathDefinitions` | The scope given by `with()`, with the methods of the component except `ntheory`; the definitions (a body by signature) |
 | `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
-| `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`math.decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
+| `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`math.decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
 | `CommonSubexpressions`, `CseOptions` | The result of `cse()` (`replacements`, `expressions`) and its option (`prefix`) |
 | `PolarForm`, `RectangularForm` | The polar form (`modulus`, `argument`) and the rectangular form (`real`, `imaginary`) of a complex value |
 | `Equation`, `Inequality`, `InequalityRelation` | An equation (`left`, `right`, `difference`, `substitute`, `solve`, `solveAsync`), an inequality (`left`, `right`, `relation`) |
@@ -316,8 +319,8 @@ The typings document every declaration, with examples.
 | `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined, or a constant written as a call (`g(2)`), with its `position` |
 | `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep |
 | `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power) |
-| `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1), a modulus of 0 |
-| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` above 2000, `harmonic(n)` above 50000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, or a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`) |
+| `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1, a function at one of its poles: `gamma()` of -2, `zeta()` of 1), a modulus of 0 |
+| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` above 2000, `harmonic(n)` above 50000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, the decimals of `polygamma(n, x)` when `n` is not an integer, or a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`) |
 | `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000 |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |

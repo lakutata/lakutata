@@ -262,7 +262,9 @@ export class Expression {
      * decimals of that many digits is rounded to the even one; a rounding function at a jump within the error of its
      * argument takes the value of the jump (`floor(ln(8)/ln(2))` is 3).
      * It computes the arithmetic, powers and roots, `exp` and `ln`, the trigonometric and hyperbolic functions and
-     * their inverses, the rounding functions, `pi`, `e`, `phi`, `EulerGamma` and `Catalan`, of real values.
+     * their inverses, the rounding functions, `pi`, `e`, `phi`, `EulerGamma` and `Catalan`, and the special functions
+     * (`gamma`, `loggamma`, `digamma`, `polygamma`, `beta`, `erf`, `erfc`, `zeta`, `lowergamma`, `uppergamma`,
+     * `lambertw`), of real values.
      * @param digits The significant digits: the `precision` of the component by default.
      */
     public toDecimal(digits?: number): string {

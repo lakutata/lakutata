@@ -91,6 +91,16 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
         }
     })
 
+    it('give the decimals of the special functions of SymPy (mpmath)', (): void => {
+        const fixtures = expected<{text: string, decimals: Record<string, string>}>('special')
+        for (const fixture of fixtures.cases) {
+            const expression: Expression = math.expression(fixture.text)
+            for (const [digits, text] of Object.entries(fixture.decimals)) {
+                assert.strictEqual(decimalParts(expression.toDecimal(Number(digits))), decimalParts(text), `${fixture.text} to ${digits} digits`)
+            }
+        }
+    })
+
     it('give the decimals of Python (arithmetic) and mpmath (functions), correctly rounded', (): void => {
         const fixtures = expected<{op: string, precision: number, args: string[], result: string}>('decimals')
         for (const fixture of fixtures.cases) {

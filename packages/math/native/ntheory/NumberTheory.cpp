@@ -360,27 +360,13 @@ double factorialBits(double n)
     return n < 2 ? 1 : n * std::log2(n) - n * 1.4426950408889634 + 0.5 * std::log2(6.283185307179586 * n) + 1;
 }
 
-//The Bernoulli number B(n) = numerator/denominator, B(1) = +1/2 (as SymPy): from the tangent numbers, integers only
-//(Brent and Harvey, "Fast computation of Bernoulli, tangent and secant numbers", 2011)
+//The Bernoulli number B(n) = numerator/denominator, B(1) = +1/2 (as SymPy)
 std::pair<Integer, Integer> bernoulliOf(unsigned long n)
 {
     if (n == 0) return {1, 1};
     if (n == 1) return {1, 2};
     if (n % 2 == 1) return {0, 1};
-    const unsigned long m = n / 2;
-    std::vector<Integer> tangent(m + 1);
-    tangent[1] = 1;
-    for (unsigned long k = 2; k <= m; k++) tangent[k] = (k - 1) * tangent[k - 1];
-    for (unsigned long k = 2; k <= m; k++) {
-        for (unsigned long j = k; j <= m; j++) tangent[j] = (j - k) * tangent[j - 1] + (j - k + 2) * tangent[j];
-        checkpoint();
-    }
-    //B(2m) = (-1)^(m - 1) 2m T(m) / (4^m (4^m - 1))
-    const Integer power = Integer(1) << (2 * m);
-    Integer numerator = 2 * m * tangent[m], denominator = power * (power - 1);
-    if (m % 2 == 0) numerator = -numerator;
-    const Integer common = boost::multiprecision::gcd(magnitude(numerator), denominator);
-    return {numerator / common, denominator / common};
+    return evenBernoulli(n / 2).back();
 }
 
 //The sum of 1/k for k in [low, high), as numerator/denominator, by binary splitting
@@ -444,6 +430,29 @@ void checkPositive(const Integer &n, const std::string &what)
     if (n < 1) throw MathError(ErrorCode::Domain, what + " is defined for the positive integers");
 }
 
+}
+
+std::vector<std::pair<Integer, Integer>> evenBernoulli(unsigned long m)
+{
+    //From the tangent numbers, integers only (Brent and Harvey, "Fast computation of Bernoulli, tangent and secant
+    //numbers", 2011): T(1)… T(m) at once
+    std::vector<Integer> tangent(m + 1);
+    if (m >= 1) tangent[1] = 1;
+    for (unsigned long k = 2; k <= m; k++) tangent[k] = (k - 1) * tangent[k - 1];
+    for (unsigned long k = 2; k <= m; k++) {
+        for (unsigned long j = k; j <= m; j++) tangent[j] = (j - k) * tangent[j - 1] + (j - k + 2) * tangent[j];
+        checkpoint();
+    }
+    //B(2k) = (-1)^(k - 1) 2k T(k) / (4^k (4^k - 1))
+    std::vector<std::pair<Integer, Integer>> numbers;
+    for (unsigned long k = 1; k <= m; k++) {
+        const Integer power = Integer(1) << (2 * k);
+        Integer numerator = 2 * k * tangent[k], denominator = power * (power - 1);
+        if (k % 2 == 0) numerator = -numerator;
+        const Integer common = boost::multiprecision::gcd(magnitude(numerator), denominator);
+        numbers.emplace_back(numerator / common, denominator / common);
+    }
+    return numbers;
 }
 
 bool isPrime(const Integer &n)

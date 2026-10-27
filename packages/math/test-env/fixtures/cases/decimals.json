@@ -4635,5 +4635,852 @@
   "args": [
    "-0.3"
   ]
+ },
+ {
+  "op": "gamma",
+  "precision": 7,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 7,
+  "args": [
+   "3.7"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 7,
+  "args": [
+   "-2.5"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 7,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 7,
+  "args": [
+   "100.25"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 7,
+  "args": [
+   "-0.999"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 34,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 34,
+  "args": [
+   "3.7"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 34,
+  "args": [
+   "-2.5"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 34,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 34,
+  "args": [
+   "100.25"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 34,
+  "args": [
+   "-0.999"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 120,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 120,
+  "args": [
+   "3.7"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 120,
+  "args": [
+   "-2.5"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 120,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 120,
+  "args": [
+   "100.25"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 120,
+  "args": [
+   "-0.999"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 7,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 7,
+  "args": [
+   "3.7"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 7,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 7,
+  "args": [
+   "1000.5"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 7,
+  "args": [
+   "1.000001"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 34,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 34,
+  "args": [
+   "3.7"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 34,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 34,
+  "args": [
+   "1000.5"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 34,
+  "args": [
+   "1.000001"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 120,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 120,
+  "args": [
+   "3.7"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 120,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 120,
+  "args": [
+   "1000.5"
+  ]
+ },
+ {
+  "op": "loggamma",
+  "precision": 120,
+  "args": [
+   "1.000001"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 7,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 7,
+  "args": [
+   "3.7"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 7,
+  "args": [
+   "-2.5"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 7,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 7,
+  "args": [
+   "1.4616321449683623"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 34,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 34,
+  "args": [
+   "3.7"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 34,
+  "args": [
+   "-2.5"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 34,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 34,
+  "args": [
+   "1.4616321449683623"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 120,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 120,
+  "args": [
+   "3.7"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 120,
+  "args": [
+   "-2.5"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 120,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "digamma",
+  "precision": 120,
+  "args": [
+   "1.4616321449683623"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 7,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 7,
+  "args": [
+   "-1.5"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 7,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 7,
+  "args": [
+   "5"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 7,
+  "args": [
+   "9"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 34,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 34,
+  "args": [
+   "-1.5"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 34,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 34,
+  "args": [
+   "5"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 34,
+  "args": [
+   "9"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 120,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 120,
+  "args": [
+   "-1.5"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 120,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 120,
+  "args": [
+   "5"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 120,
+  "args": [
+   "9"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 7,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 7,
+  "args": [
+   "-1.5"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 7,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 7,
+  "args": [
+   "5"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 7,
+  "args": [
+   "9"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 7,
+  "args": [
+   "30"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 34,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 34,
+  "args": [
+   "-1.5"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 34,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 34,
+  "args": [
+   "5"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 34,
+  "args": [
+   "9"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 34,
+  "args": [
+   "30"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 120,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 120,
+  "args": [
+   "-1.5"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 120,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 120,
+  "args": [
+   "5"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 120,
+  "args": [
+   "9"
+  ]
+ },
+ {
+  "op": "erfc",
+  "precision": 120,
+  "args": [
+   "30"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 7,
+  "args": [
+   "3"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 7,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 7,
+  "args": [
+   "-1.5"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 7,
+  "args": [
+   "2.5"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 7,
+  "args": [
+   "1.000001"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 7,
+  "args": [
+   "-9.5"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 7,
+  "args": [
+   "50"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 34,
+  "args": [
+   "3"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 34,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 34,
+  "args": [
+   "-1.5"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 34,
+  "args": [
+   "2.5"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 34,
+  "args": [
+   "1.000001"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 34,
+  "args": [
+   "-9.5"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 34,
+  "args": [
+   "50"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 120,
+  "args": [
+   "3"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 120,
+  "args": [
+   "0.5"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 120,
+  "args": [
+   "-1.5"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 120,
+  "args": [
+   "2.5"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 120,
+  "args": [
+   "1.000001"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 120,
+  "args": [
+   "-9.5"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 120,
+  "args": [
+   "50"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 7,
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 7,
+  "args": [
+   "-0.3"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 7,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 7,
+  "args": [
+   "1e10"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 7,
+  "args": [
+   "-0.36787944"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 34,
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 34,
+  "args": [
+   "-0.3"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 34,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 34,
+  "args": [
+   "1e10"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 34,
+  "args": [
+   "-0.36787944"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 120,
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 120,
+  "args": [
+   "-0.3"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 120,
+  "args": [
+   "1e-10"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 120,
+  "args": [
+   "1e10"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 120,
+  "args": [
+   "-0.36787944"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 400,
+  "args": [
+   "0.3"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 400,
+  "args": [
+   "2.5"
+  ]
+ },
+ {
+  "op": "erf",
+  "precision": 400,
+  "args": [
+   "1.5"
+  ]
+ },
+ {
+  "op": "lambertw",
+  "precision": 400,
+  "args": [
+   "2"
+  ]
  }
 ]

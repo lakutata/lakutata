@@ -91,6 +91,24 @@ public:
     Decimal acosh(const Decimal &a) const;
     Decimal atanh(const Decimal &a) const;
 
+    //The special functions (DecimalSpecial.cpp), within a unit of the last digit of the context: a pole is a division
+    //by zero (MathError DivisionByZero), an argument where the value is not real MathError (Domain)
+    Decimal gamma(const Decimal &x) const;
+    //ln Γ(x) of x > 0 (of a negative x it is not real)
+    Decimal loggamma(const Decimal &x) const;
+    //ψ^(n)(x) of an integer n >= 0: digamma for n = 0
+    Decimal polygamma(long long n, const Decimal &x) const;
+    Decimal beta(const Decimal &a, const Decimal &b) const;
+    Decimal erf(const Decimal &x) const;
+    Decimal erfc(const Decimal &x) const;
+    //The zeta function of Hurwitz, ζ(s, a): Riemann's for a = 1
+    Decimal zeta(const Decimal &s, const Decimal &a) const;
+    //γ(s, x) and Γ(s, x): real for x >= 0, and for x < 0 with an integer s
+    Decimal lowergamma(const Decimal &s, const Decimal &x) const;
+    Decimal uppergamma(const Decimal &s, const Decimal &x) const;
+    //The principal branch of Lambert's W, x >= -1/e
+    Decimal lambertw(const Decimal &x) const;
+
     //The text of a decimal rounded to a number of significant digits, without trailing zeros: fixed for the exponents
     //from -6 to digits - 1 (3.1415926536, 0.000025, 100), scientific beyond (1.5e+25, 1e-7)
     std::string text(const Decimal &a, long digits) const;

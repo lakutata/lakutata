@@ -3262,7 +3262,7 @@ RCP<const Basic> uppergamma(const RCP<const Basic> &s,
                        mul(pow(x, s_int), exp(mul(minus_one, x))));
         } else {
             // TODO: implement unpolarfy to handle this case
-            return make_rcp<const LowerGamma>(s, x);
+            return make_rcp<const UpperGamma>(s, x);
         }
     } else if (is_a<Integer>(*(mul(i2, s)))) {
         RCP<const Number> s_num = rcp_static_cast<const Number>(s);

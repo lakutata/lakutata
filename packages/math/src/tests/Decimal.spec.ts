@@ -138,6 +138,41 @@ describe('The decimals', (): void => {
         assert.strictEqual(math.expression('cos(157079632679489661923132169164/10^29)').toDecimal(20), '-2.4855790141530031245e-31')
     })
 
+    it('compute the special functions, in formulas and of decimals', (): void => {
+        assert.strictEqual(math.decimal(0.5, {precision: 50}).gamma().toString(), '1.7724538509055160272981674833411451827975494561224')
+        assert.strictEqual(math.decimal(1, {precision: 50}).lambertw().toString(), '0.56714329040978387299996866221035554975381578718651')
+        assert.strictEqual(math.decimal(3, {precision: 30}).zeta().toString(), '1.20205690315959428539973816151')
+        assert.strictEqual(math.decimal(1).digamma().toString(), '-0.5772156649015328606065120900824')
+        assert.strictEqual(math.decimal(10).erfc().toString(), '2.0884875837625447570007862949578e-45')
+        assert.strictEqual(math.expression('loggamma(1 + 1/10^20)').toDecimal(20), '-5.772156649015328606e-21')
+        assert.strictEqual(math.expression('uppergamma(0, 1)').toDecimal(20), '0.21938393439552027368')
+        assert.strictEqual(math.expression('lowergamma(1/2, 2) + uppergamma(1/2, 2) - sqrt(pi)').toDecimal(20), '0')
+        assert.strictEqual(math.expression('polygamma(1, 1) - pi^2/6').toDecimal(20), '0')
+        //Arguments within their error of a pole or of the branch point of W
+        assert.throws((): unknown => math.expression('gamma(-2 + ln(6) - ln(2) - ln(3))').toDecimal(20), MathDivisionByZeroException)
+        assert.throws((): unknown => math.expression('zeta(1 + ln(6) - ln(2) - ln(3))').toDecimal(20), MathDivisionByZeroException)
+        assert.strictEqual(math.expression('lambertw(-1/e + ln(6) - ln(2) - ln(3))').toDecimal(20), '-1')
+        assert.strictEqual(math.expression('zeta(0, 1/2 + ln(6) - ln(2) - ln(3))').toDecimal(20), '0')
+        //uppergamma of an integer below 1 stays one (SymEngine made it lowergamma), in decimals and compiled
+        assert.strictEqual(math.expression('uppergamma(0, x)').toString(), 'uppergamma(0, x)')
+        assert.ok(globalThis.Math.abs(math.expression('uppergamma(0, x)').compile(['x'])(1) - 0.2193839343955203) < 1e-15)
+        assert.ok(globalThis.Math.abs(math.expression('uppergamma(-5/2, x)').compile(['x'])(3) - 0.00052943283050101) < 1e-17)
+        assert.ok(globalThis.Math.abs(math.expression('lowergamma(-3/2, x)').compile(['x'])(0.5) - 1.6133808257481452) < 1e-14)
+        //The doubles of the numbers come from the decimals too
+        assert.strictEqual(math.expression('gamma(1/3)').toNumber(), 2.6789385347077475)
+        const cases: [() => unknown, new (...args: never[]) => Error][] = [
+            [(): unknown => math.decimal(-2).gamma(), MathDivisionByZeroException],
+            [(): unknown => math.decimal(0).loggamma(), MathDivisionByZeroException],
+            [(): unknown => math.decimal(-0.5).loggamma(), MathDomainException],
+            [(): unknown => math.decimal(1).zeta(), MathDivisionByZeroException],
+            [(): unknown => math.decimal(-1).lambertw(), MathDomainException],
+            [(): unknown => math.expression('polygamma(1/2, 3)').toDecimal(20), MathNotSupportedException]
+        ]
+        cases.forEach(([operate, exception]: [() => unknown, new (...args: never[]) => Error], index: number): void => {
+            assert.throws(operate, exception, `case ${index}`)
+        })
+    })
+
     it('throw the exceptions of the package', (): void => {
         const cases: [() => unknown, new (...args: never[]) => Error][] = [
             [(): unknown => math.decimal(1).div(0), MathDivisionByZeroException],

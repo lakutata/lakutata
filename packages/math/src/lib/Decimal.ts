@@ -54,9 +54,9 @@ function integerText(value: number, min: number, max: number, what: string): str
  * new one. Decimals are made by `decimal()` of the component or of a scope.
  *
  * The operations run in the thread of JavaScript, as the arithmetic of numbers, without a time limit. The arithmetic
- * is quick at any precision; the functions (`sin()`, `atan()`…) take seconds at tens of thousands of digits. For
- * those, compute the value of an expression with `toDecimalAsync()` (a time limit, a cancellation), then make a decimal
- * of it.
+ * is quick at any precision; the functions (`sin()`, `atan()`…) take seconds at tens of thousands of digits, and the
+ * special functions (`zeta()`, `gamma()`) at thousands. For those, compute the value of an expression with
+ * `toDecimalAsync()` (a time limit, a cancellation), then make a decimal of it.
  *
  * A division by zero (`div(0)`, `mod(0)`, `ln()` of 0, 0 to a negative power) throws `MathDivisionByZeroException`; a
  * value outside the domain of a function (`sqrt()` of a negative number, `asin()` of 2, a negative number to a
@@ -305,6 +305,58 @@ export class Decimal {
      */
     public atanh(): Decimal {
         return this.#decimal('atanh')
+    }
+
+    /**
+     * The gamma function of the decimal (`gamma(n)` is `(n - 1)!`). At 0 and the negative integers, its poles, it throws
+     * `MathDivisionByZeroException`.
+     */
+    public gamma(): Decimal {
+        return this.#decimal('gamma')
+    }
+
+    /**
+     * The logarithm of the gamma function of the decimal, of a positive decimal (of a negative one it is not real).
+     */
+    public loggamma(): Decimal {
+        return this.#decimal('loggamma')
+    }
+
+    /**
+     * The digamma function of the decimal: the derivative of `loggamma`.
+     */
+    public digamma(): Decimal {
+        return this.#decimal('digamma')
+    }
+
+    /**
+     * The error function of the decimal.
+     */
+    public erf(): Decimal {
+        return this.#decimal('erf')
+    }
+
+    /**
+     * The complementary error function of the decimal, `1 - erf`, with all its digits where it is small (`erfc(10)` is
+     * about 2.1e-45).
+     */
+    public erfc(): Decimal {
+        return this.#decimal('erfc')
+    }
+
+    /**
+     * The zeta function of Riemann of the decimal. At 1, its pole, it throws `MathDivisionByZeroException`.
+     */
+    public zeta(): Decimal {
+        return this.#decimal('zeta')
+    }
+
+    /**
+     * The principal branch of Lambert's W function of the decimal: the solution w of `w*e^w = x`, from -1/e on (below,
+     * it is not real).
+     */
+    public lambertw(): Decimal {
+        return this.#decimal('lambertw')
     }
 
     /**

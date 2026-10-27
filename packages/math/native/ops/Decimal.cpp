@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <climits>
+#include <cmath>
+#include <functional>
 #include <vector>
 
 #include <symengine/add.h>
@@ -17,6 +19,7 @@
 #include <symengine/complex_double.h>
 #include <symengine/real_double.h>
 
+#include "DecimalSupport.h"
 #include "../async/Pool.h"
 #include "../printer/Printer.h"
 
@@ -471,6 +474,10 @@ private:
             if (x.noise > EXACT / 2) noise = std::max(noise, std::max(exponent(y.value), EXACT / 4) + x.noise - size + 1);
             return {value, noise};
         }
+        if (is_a<Gamma>(e) || is_a<LogGamma>(e) || is_a<PolyGamma>(e) || is_a<Beta>(e) || is_a<Erf>(e) || is_a<Erfc>(e) || is_a<Zeta>(e) ||
+            is_a<LowerGamma>(e) || is_a<UpperGamma>(e) || is_a<LambertW>(e)) {
+            return special(e);
+        }
         if (is_a<FunctionWrapper>(e)) return wrapper(down_cast<const FunctionWrapper &>(e));
         if (is_a_sub<Function>(e) && e.get_args().size() == 1) {
             const Approximation x = argument(e);
@@ -480,6 +487,89 @@ private:
         if (is_a<Complex>(e) || is_a<ComplexDouble>(e)) throw MathError(ErrorCode::Domain, "The value is not a real number (" + toText(e.rcp_from_this()) + ")");
         if (is_a<Infty>(e) || is_a<NaN>(e)) throw MathError(ErrorCode::Domain, toText(e.rcp_from_this()) + " has no decimal value" + (is_a<Infty>(e) && down_cast<const Infty &>(e).is_unsigned_infinity() ? " (a division by zero)" : ""));
         throw MathError(ErrorCode::NotSupported, "The decimal value of " + toText(e.rcp_from_this()) + " is not computed");
+    }
+
+    //An argument within its error of a pole (0 or a negative integer) is undecided, as a division by a value that
+    //cannot be told from 0
+    void notAtPole(const Approximation &x, const std::string &function) const
+    {
+        if (x.noise <= EXACT / 2) return;
+        const Decimal nearest = context_.roundToInteger(x.value);
+        if (context_.isNegative(context_.sub(nearest, one()))) notZero({context_.sub(x.value, nearest), x.noise}, ErrorCode::DivisionByZero, "The value has no decimal value (" + function + " at a pole)");
+    }
+
+    //The error of a function of an inexact argument: the change of its value at the error of the argument (the other
+    //way when that one is outside its domain)
+    double spread(const std::function<Decimal(const std::vector<Decimal> &)> &apply, std::vector<Decimal> at, size_t index, const Approximation &x, const Decimal &value) const
+    {
+        const Decimal step = context_.parse("1e" + std::to_string(static_cast<long long>(std::ceil(x.noise))));
+        for (int side = 0; side < 2; side++) {
+            at[index] = side == 0 ? context_.add(x.value, step) : context_.sub(x.value, step);
+            try {
+                return exponent(context_.sub(apply(at), value)) + 1;
+            } catch (MathError &error) {
+                if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
+            }
+        }
+        if (!last_) throw Undecided();
+        throw MathError(ErrorCode::Domain, "The value has no decimal value (a function at the edge of its domain within the error of its argument)");
+    }
+
+    //The special functions (DecimalSpecial.cpp): their poles within the errors of their arguments undecided, their
+    //errors the spreads of their values
+    Approximation special(const Basic &e)
+    {
+        const DecimalContext &context = context_;
+        std::vector<Approximation> arguments;
+        for (const Expr &argument : e.get_args()) arguments.push_back(evaluate(*argument));
+        std::vector<Decimal> values;
+        for (const Approximation &argument : arguments) values.push_back(argument.value);
+        long long order = 0;
+        if (is_a<PolyGamma>(e)) {
+            const Expr n = e.get_args()[0];
+            if (!is_a<Integer>(*n) || down_cast<const Integer &>(*n).is_negative() || context.exponent(values[0]) > 9) {
+                throw MathError(ErrorCode::NotSupported, "polygamma(n, x) is computed for the integers n from 0 to 10^9");
+            }
+            order = smallInteger(values[0]);
+        }
+        if (is_a<Gamma>(e) || is_a<LogGamma>(e)) notAtPole(arguments[0], toText(e.rcp_from_this()));
+        if (is_a<PolyGamma>(e)) notAtPole(arguments[1], toText(e.rcp_from_this()));
+        if (is_a<Beta>(e)) {
+            notAtPole(arguments[0], "beta");
+            notAtPole(arguments[1], "beta");
+        }
+        if (is_a<LowerGamma>(e)) notAtPole(arguments[0], "lowergamma");
+        if (is_a<Zeta>(e)) {
+            notZero({context.sub(values[0], one()), arguments[0].noise}, ErrorCode::DivisionByZero, "The value has no decimal value (zeta at its pole)");
+            notAtPole(arguments[1], "zeta");
+        }
+        //W at -1/e within the error of its argument: -1, of an error the square root of it (W = -1 + sqrt(2 e d)…)
+        if (is_a<LambertW>(e) && arguments[0].noise > EXACT / 2) {
+            const Decimal distance = context.add(values[0], context.exp(context.integer(-1)));
+            if (zero({distance, arguments[0].noise})) return {context.integer(-1), arguments[0].noise / 2 + 1};
+        }
+        const std::function<Decimal(const std::vector<Decimal> &)> apply = [&e, &context, order](const std::vector<Decimal> &at) {
+            if (is_a<Gamma>(e)) return context.gamma(at[0]);
+            if (is_a<LogGamma>(e)) return context.loggamma(at[0]);
+            if (is_a<PolyGamma>(e)) return context.polygamma(order, at[1]);
+            if (is_a<Beta>(e)) return context.beta(at[0], at[1]);
+            if (is_a<Erf>(e)) return context.erf(at[0]);
+            if (is_a<Erfc>(e)) return context.erfc(at[0]);
+            if (is_a<Zeta>(e)) return context.zeta(at[0], at[1]);
+            if (is_a<LowerGamma>(e)) return context.lowergamma(at[0], at[1]);
+            if (is_a<UpperGamma>(e)) return context.uppergamma(at[0], at[1]);
+            return context.lambertw(at[0]);
+        };
+        const Decimal value = apply(values);
+        double noise = EXACT;
+        //An integer argument is exact: no spread
+        const vec_basic given = e.get_args();
+        for (size_t i = 0; i < arguments.size(); i++) {
+            if (is_a<PolyGamma>(e) && i == 0) continue;
+            if (is_a<Integer>(*given[i]) && context.exponent(values[i]) < static_cast<int64_t>(digits_)) continue;
+            noise = std::max(noise, spread(apply, values, i, arguments[i], value));
+        }
+        return {value, noise};
     }
 
     //The exponent of |f'(x)| for an elementary function f of value v at x: how much it scales the error of x

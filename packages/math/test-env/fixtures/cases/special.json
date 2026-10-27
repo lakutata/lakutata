@@ -1,0 +1,465 @@
+[
+ {
+  "text": "gamma(1/3)",
+  "decimals": [
+   20,
+   60,
+   300
+  ]
+ },
+ {
+  "text": "gamma(7/3)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "gamma(-5/3)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "gamma(1/10^30)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "gamma(171/2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "gamma(pi)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "gamma(-1000001/1000)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "loggamma(1/3)",
+  "decimals": [
+   20,
+   60,
+   300
+  ]
+ },
+ {
+  "text": "loggamma(10)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "loggamma(1 + 1/10^20)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "loggamma(10^20/3)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "loggamma(2 - 1/10^25)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "digamma(1/3 + 1/10^9)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "digamma(-7/3)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "polygamma(0, -1/2 + 1/10^6)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "polygamma(2, 3/2)",
+  "decimals": [
+   20,
+   60,
+   300
+  ]
+ },
+ {
+  "text": "polygamma(3, -3/2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "polygamma(1, 1/10^10)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "polygamma(5, 7/3)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "beta(1/2, 1/3)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "beta(-1/2, 1/3)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "beta(5/2, 3/2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "beta(10, 1/10)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "erf(1/2)",
+  "decimals": [
+   20,
+   60,
+   300
+  ]
+ },
+ {
+  "text": "erf(7/2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "erf(-1/10^20)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "erf(sqrt(2))",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "erfc(1)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "erfc(10)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "erfc(-2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "erfc(27/2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "erfc(3)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "zeta(3)",
+  "decimals": [
+   20,
+   60,
+   300
+  ]
+ },
+ {
+  "text": "zeta(1/2)",
+  "decimals": [
+   20,
+   60,
+   300
+  ]
+ },
+ {
+  "text": "zeta(5/2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "zeta(-3/2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "zeta(-21/2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "zeta(1 + 1/10^10)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "zeta(e)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "zeta(101/2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "zeta(3/2, 3)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "zeta(2, 1/4)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "zeta(5/2, 2000001/2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "zeta(3, -1/2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "zeta(-1/2, 2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "lowergamma(1/3, 2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "lowergamma(1/2, 2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "lowergamma(-3/2, 1/2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "lowergamma(5/2, 40)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "lowergamma(2, -3)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "uppergamma(1/3, 2)",
+  "decimals": [
+   20,
+   60,
+   300
+  ]
+ },
+ {
+  "text": "uppergamma(0, 1)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "uppergamma(-2, 1)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "uppergamma(1/3, 100)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "uppergamma(-5/2, 3)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "uppergamma(0, 1/10^5)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "uppergamma(7, -2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "lambertw(1)",
+  "decimals": [
+   20,
+   60,
+   300
+  ]
+ },
+ {
+  "text": "lambertw(10)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "lambertw(1000)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "lambertw(-1/3)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "lambertw(10^100)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "lambertw(-1/e + 1/10^30)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "lambertw(1/10^40)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "lambertw(-36/100)",
+  "decimals": [
+   20,
+   60
+  ]
+ }
+]

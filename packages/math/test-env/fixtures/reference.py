@@ -368,6 +368,8 @@ def decimal_operation(op, digits, args):
         a = +decimal.Decimal(args[0])
     b = decimal.Decimal(args[1]) if len(args) > 1 else None
     functions = {
+        'gamma': mpmath.gamma, 'loggamma': mpmath.loggamma, 'digamma': mpmath.digamma, 'erf': mpmath.erf,
+        'erfc': mpmath.erfc, 'zeta': mpmath.zeta, 'lambertw': lambda x: mpmath.lambertw(x).real,
         'exp': mpmath.exp, 'ln': mpmath.ln, 'log10': mpmath.log10, 'sin': mpmath.sin, 'cos': mpmath.cos,
         'tan': mpmath.tan, 'asin': mpmath.asin, 'acos': mpmath.acos, 'atan': mpmath.atan, 'sinh': mpmath.sinh,
         'cosh': mpmath.cosh, 'tanh': mpmath.tanh, 'asinh': mpmath.asinh, 'acosh': mpmath.acosh, 'atanh': mpmath.atanh
@@ -415,6 +417,12 @@ def _arithmetic(op, a, b, digits):
         return {'add': lambda: a + b, 'sub': lambda: a - b, 'mul': lambda: a * b, 'div': lambda: a / b}[op]()
 
 
+def special():
+    """The decimals of the special functions in formulas"""
+    save('special', [{**case, 'decimals': {str(digits): decimal_text(parse(case['text']), digits)
+                                           for digits in case['decimals']}} for case in load('special')])
+
+
 def decimals():
     save('decimals', [{**case, 'result': decimal_operation(case['op'], case['precision'], case['args'])}
                       for case in load('decimals')])
@@ -432,5 +440,6 @@ if __name__ == '__main__':
     polynomials()
     ntheory()
     decimals()
+    special()
     print('SymPy', sympy.__version__, 'wrote', ', '.join(sorted(os.listdir(os.path.join(HERE, 'expected')))))
     sys.exit(0)

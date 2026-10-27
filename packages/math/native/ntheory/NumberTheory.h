@@ -4,6 +4,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <symengine/mp_class.h>
@@ -41,6 +42,9 @@ struct NumberTheoryResult {
 
 //An operation by its name, on its arguments: each argument a list of integers (of one integer for a single one)
 NumberTheoryResult numberTheoryOf(const std::string &operation, const std::vector<std::vector<Integer>> &arguments);
+
+//The Bernoulli numbers B(2), B(4)… B(2m), as numerator and denominator
+std::vector<std::pair<Integer, Integer>> evenBernoulli(unsigned long m);
 
 //Whether an integer is a prime: deterministic below 2^64; above, the Baillie-PSW test, which no known composite number
 //passes

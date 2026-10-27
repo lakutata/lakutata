@@ -2,6 +2,7 @@
 //constants of Euler and Catalan. Each one works with guard digits (more for the digits a reduction loses) and rounds
 //its result to the digits of its context.
 #include "Decimal.h"
+#include "DecimalSupport.h"
 
 #include <climits>
 #include <cmath>
@@ -14,44 +15,11 @@ namespace math {
 
 namespace {
 
-//The size below which a term of a series is neglected: below the last guard digit of a sum of order 1
-Decimal negligible(const DecimalContext &g)
-{
-    return g.parse("1e-" + std::to_string(g.digits() + 2));
-}
-
-//The digits of a decimal above its point (0 for |a| < 1)
-int64_t integerDigits(const DecimalContext &context, const Decimal &a)
-{
-    const int64_t exponent = context.exponent(a);
-    return exponent == DecimalContext::ZERO_EXPONENT || exponent < 0 ? 0 : exponent + 1;
-}
-
-//The digits a small decimal loses to an addition of 1 (asinh(a), atanh(a) of a small a): its exponent below 0
-int64_t smallDigits(const DecimalContext &context, const Decimal &a)
-{
-    const int64_t exponent = context.exponent(a);
-    return exponent == DecimalContext::ZERO_EXPONENT || exponent >= 0 ? 0 : -exponent;
-}
-
 //Whether e^-|a| is below the last guard digit of a context: e^|a| ± e^-|a| is e^|a| there (and e^-|a| may be beyond
 //the exponents of the decimals)
 bool negligibleInverse(const DecimalContext &g, const Decimal &a)
 {
     return g.compare(g.abs(a), g.integer(g.digits() * 3 + 10)) > 0;
-}
-
-long long smallInteger(const Decimal &a)
-{
-    uint32_t status = 0;
-    const int64_t value = mpd_qget_i64(a.get(), &status);
-    if (status) throw MathError(ErrorCode::Internal, "A decimal is not a small integer");
-    return value;
-}
-
-void notReal(const std::string &why)
-{
-    throw MathError(ErrorCode::Domain, "The value is not a real number (" + why + ")");
 }
 
 //The Taylor series of sin (odd) or cos (even) at r, |r| <= pi/4
