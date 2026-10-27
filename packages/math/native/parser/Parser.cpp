@@ -1,6 +1,7 @@
 #include "Parser.h"
 
 #include "../functions/Functions.h"
+#include "../functions/Summation.h"
 #include "../ops/Piecewise.h"
 
 #include <map>
@@ -18,6 +19,7 @@
 #include <symengine/rational.h>
 #include <symengine/subs.h>
 #include <symengine/symbol.h>
+#include <symengine/visitor.h>
 
 namespace math {
 
@@ -193,6 +195,9 @@ const std::map<std::string, Builtin> &builtins()
         unary("rect", rectOf);
         unary("tri", triOf);
         functions["piecewise"] = {1, SIZE_MAX, [](const vec_basic &) -> Expr { throw MathError(ErrorCode::Syntax, "piecewise takes conditions"); }};
+        //The sums and the products, read by the parser too (their variable is bound)
+        functions["sum"] = {4, 4, [](const vec_basic &) -> Expr { throw MathError(ErrorCode::Syntax, "sum takes a variable"); }};
+        functions["product"] = {4, 4, [](const vec_basic &) -> Expr { throw MathError(ErrorCode::Syntax, "product takes a variable"); }};
         functions["gcd"] = {2, SIZE_MAX, [](const vec_basic &a) { return integerGcdLcm(a, true); }};
         functions["lcm"] = {2, SIZE_MAX, [](const vec_basic &a) { return integerGcdLcm(a, false); }};
         return functions;
@@ -378,6 +383,33 @@ private:
     unsigned depth_ = 0;
     //Inside a condition of piecewise: and, or and not end a product there
     unsigned conditionDepth_ = 0;
+    //The sums and the products being read, one inside the other: the index of the Dummy of their variable
+    unsigned seriesDepth_ = 0;
+
+    //sum(f, k, a, b), product(f, k, a, b): k bound, a Dummy of its name in f
+    Value seriesCall(const Token &token)
+    {
+        seriesDepth_++;
+        struct Leave {
+            unsigned &depth;
+            ~Leave() { depth--; }
+        } leave{seriesDepth_};
+        const std::vector<Expr> values = scalarArguments(token);
+        if (values.size() != 4) fail(token, token.text + " takes 4 arguments: the term, its variable, the first and the last value of the variable");
+        if (!is_a<Symbol>(*values[1])) fail(token, "The second argument of " + token.text + " is its variable");
+        const RCP<const Symbol> name = rcp_static_cast<const Symbol>(values[1]);
+        if (has_symbol(*values[2], *name) || has_symbol(*values[3], *name)) fail(token, "The first and the last value of " + token.text + " cannot depend on its variable " + name->get_name());
+        const RCP<const Symbol> bound = make_rcp<const Dummy>(name->get_name(), seriesDepth_);
+        map_basic_basic replacement;
+        replacement[name] = bound;
+        const Expr term = xreplace(values[0], replacement);
+        try {
+            return scalarValue(token.text == "sum" ? summationOf(term, bound, values[2], values[3]) : iteratedProductOf(term, bound, values[2], values[3]));
+        } catch (const MathError &error) {
+            if (error.position() >= 0) throw;
+            fail(token, error.what(), error.code());
+        }
+    }
 
     bool acceptWord(const char *word)
     {
@@ -730,6 +762,7 @@ private:
             }
         }
         if (call && token.text == "piecewise") return piecewiseCall(token);
+        if (call && (token.text == "sum" || token.text == "product")) return seriesCall(token);
         const auto constant = constants().find(token.text);
         if (constant != constants().end()) return scalarValue(constant->second);
         const auto function = builtins().find(token.text);

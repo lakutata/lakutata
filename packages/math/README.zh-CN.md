@@ -62,6 +62,7 @@ console.log(expanded.variables())                   //['x', 'y']
 | `abs`、`sign`、`floor`、`ceil`、`trunc`、`round`、`mod(a, b)`、`min`、`max`、`gcd`、`lcm`、`re`、`im`、`arg`、`conj` | 取整、余数、最值和复数的实部虚部 |
 | `gamma`、`loggamma`、`digamma`、`polygamma`、`lowergamma`、`uppergamma`、`beta`、`erf`、`erfc`、`zeta`、`lambertw`、`sinc`、`binomial`、`factorial` | 特殊函数 |
 | `piecewise(x^2, x < 0, x)`、`step`、`rect`、`tri` | 分段函数：各段的值和条件，最后是其他情况的值；`step`、`rect`、`tri` 也用它写成 |
+| `sum(k^2, k, 1, n)`、`product(k, k, 1, n)` | 求和、求积：通项、它的变量、变量的第一个和最后一个值（整数、`-inf` 或 `inf`） |
 | `x^2 = 4` | 方程（`equation()` 或 `parse()`） |
 | `x < 1`、`x >= 0` | 不等式，由 `parse()` 读取 |
 | `[1, 2; 3, 4]`、`[x; y]` | 矩阵：行之间用 `;` 分隔，元素之间用 `,` 分隔（`parse()` 得到 `ExpressionMatrix`）。矩阵可以相加、相乘（`[1, 2; 3, 4] * [x; y]`、`2[1, 2]`）、除以一个数、取整数次幂；`det`、`inv`、`transpose` 和 `trace` 的参数是矩阵 |
@@ -77,6 +78,17 @@ const f = expression('piecewise(x^2, x < 0, x)')
 console.log(f.diff('x').toString())           //piecewise(2x, x < 0, 1)
 console.log(f.substitute({x: -3}).toString()) //9
 console.log(f.toTeX())                        //\begin{cases} x^{2} & \text{for}\: x < 0 \\ x & \text{otherwise} \end{cases}
+```
+
+`sum(f, k, a, b)` 和 `product(f, k, a, b)` 是 `f` 在 `k` 从 `a` 到 `b` 时的和与积，`a`、`b` 是整数、`-inf`、`inf`，或者其他变量的表达式。`k` 是约束变量：它不算表达式的变量，`substitute()` 和 `diff()` 都不碰它。和 SymPy 一样，`b = a - 1` 时和是 0（积是 1），`b < a - 1` 时是从 `b + 1` 到 `a - 1` 的和取相反数（积取倒数）。上下限是相差不超过 1000 的整数时逐项精确计算。否则寻找闭式：`k` 的多项式（`sum(k^2, k, 1, n)` 是 `n^3/3 + n^2/2 + n/6`）、几何级数（`sum(x^k, k, 0, n)` 是 `piecewise(n + 1, x = 1, (-x^(n + 1) + 1)/(-x + 1))`；到 `inf` 时在 `abs(x) < 1` 处取它的值）、`1/(k + q)` 的幂（用 `zeta` 和 `polygamma` 表示：`sum(1/k^2, k, 1, inf)` 是 `pi^2/6`），和式按项分别求；幂的积，以及因式都是一次的多项式分式的积（用 `gamma` 表示：`product(1 - 1/k^2, k, 2, n)` 是 `(n + 1)/(2n)`）。其余的保持 `sum(…)` 和 `product(…)` 的形式：上下限是整数时逐项求值，最多 10^4 项，不能编译。
+
+```typescript
+import {expression} from '@lakutata/math'
+
+console.log(expression('sum(k^2, k, 1, n)').toString())              //n^3/3 + n^2/2 + n/6
+console.log(expression('sum(1/k^2, k, 1, inf)').toString())          //pi^2/6
+console.log(expression('product(1 - 1/k^2, k, 2, n)').toString())    //(n + 1)/(2n)
+console.log(expression('sum(sin(k*x), k, 1, n)').diff('x').toTeX()) //\sum_{k = 1}^{n} k \cos\left(k x\right)
 ```
 
 函数名不带括号时当作变量（`gamma`、`beta`、`re`、`mod` 都是常见的量的名字），只有容易漏写括号的函数例外（三角和双曲函数、`exp`、`ln`、各种 `log`、`sqrt`、`cbrt`）：`sin x` 是错误，要写成 `sin(x)`。

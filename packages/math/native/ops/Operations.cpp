@@ -325,8 +325,39 @@ Expr seriesOf(const Expr &given, const std::string &name, const Expr &point, uns
     const RCP<const Symbol> by = variable(name);
     const bool atZero = eq(*point, *zero);
     //At a point a: the series of f(x + a) at 0, x then replaced by x - a
-    const Expr shifted = atZero ? expression : subs(expression, {{by, add(by, point)}});
+    Expr shifted = atZero ? expression : subs(expression, {{by, add(by, point)}});
+    //The functions of the addon: those without the variable held as constants (SymEngine's series of such a call in a
+    //sum crashed), sinc(u) as sin(u)/u (its derivatives at 0 are 0/0), a sum or a product kept as a call not expanded
+    map_basic_basic held, sincs;
+    //(get_args() makes new terms of sums and products: the pending nodes are held, not pointed to)
+    std::vector<Expr> pending{shifted};
+    unsigned count = 0;
+    while (!pending.empty()) {
+        const Expr node = pending.back();
+        pending.pop_back();
+        if (is_a<FunctionWrapper>(*node)) {
+            const FunctionWrapper &function = down_cast<const FunctionWrapper &>(*node);
+            if (!has_symbol(*node, *by)) {
+                held[node] = make_rcp<const Dummy>("held", ++count);
+                continue;
+            }
+            if (function.get_name() == "sum" || function.get_name() == "product") throw MathError(ErrorCode::NotSupported, "The series of " + toText(node) + " is not computed: it has no closed form found");
+            if (function.get_name() == "sinc") {
+                const Expr u = function.get_args()[0];
+                sincs[node] = div(sin(u), u);
+            }
+        }
+        if (is_a<Piecewise>(*node) && has_symbol(*node, *by)) throw MathError(ErrorCode::NotSupported, "The series of a piecewise expression of " + name + " is not computed: " + toText(node));
+        for (const Expr &argument : node->get_args()) pending.push_back(argument);
+    }
+    if (!sincs.empty()) shifted = xreplace(shifted, sincs);
+    map_basic_basic restored;
+    if (!held.empty()) {
+        shifted = xreplace(shifted, held);
+        for (const auto &[value, placeholder] : held) restored[placeholder] = value;
+    }
     Expr result = series(shifted, by, order)->as_basic();
+    if (!restored.empty()) result = xreplace(result, restored);
     if (!atZero) result = subs(result, {{by, sub(by, point)}});
     return result;
 }

@@ -848,6 +848,30 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
         }
     })
 
+    it('find the sums and the products of SymPy, their values at integer points, each difference noted', (): void => {
+        const fixtures = expected<{text: string, sympy: string, open: boolean, result: string, values: (Complex | null)[], points: Point[], differs?: Record<string, string>}>('sums')
+        const problems: string[] = []
+        for (const fixture of fixtures.cases) {
+            const ours: Expression = math.expression(fixture.text)
+            //Ours open where SymPy finds a closed form; the values where SymPy has them
+            const open: boolean = /\b(sum|product)\(/.test(ours.toString())
+            let same: boolean = !(open && !fixture.open)
+            fixture.points.forEach((point: Point, index: number): void => {
+                const value: Complex | null = fixture.values[index]!
+                if (value === null) return
+                const found = valueAt(ours, point)
+                if (!close(found, value, 1e-9)) {
+                    if (typeof found === 'string' && open) same = false
+                    else problems.push(`${fixture.text} at ${JSON.stringify(point)}: ${JSON.stringify(found)}, SymPy ${value.join(' + i*')} (${ours.toString()})`)
+                }
+            })
+            const noted: string | undefined = fixture.differs?.sympy
+            if (!same && !noted) problems.push(`${fixture.text}: ${ours.toString()}, SymPy ${fixture.result}, not noted`)
+            if (same && noted) problems.push(`${fixture.text}: SymPy agrees, its note is stale`)
+        }
+        assert.deepStrictEqual(problems, [])
+    })
+
     it('solve the linear systems as SymPy', (): void => {
         const fixtures = expected<{equations: string[], variables: string[], kind: string, values?: Record<string, {text: string, values: (Complex | null)[]}>}>('systems')
         for (const fixture of fixtures.cases) {

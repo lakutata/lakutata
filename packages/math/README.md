@@ -82,6 +82,7 @@ console.log(expanded.variables())                   //['x', 'y']
 | `abs`, `sign`, `floor`, `ceil`, `trunc`, `round`, `mod(a, b)`, `min`, `max`, `gcd`, `lcm`, `re`, `im`, `arg`, `conj` | Rounding, remainders, extrema, the parts of complex numbers |
 | `gamma`, `loggamma`, `digamma`, `polygamma`, `lowergamma`, `uppergamma`, `beta`, `erf`, `erfc`, `zeta`, `lambertw`, `sinc`, `binomial`, `factorial` | Special functions |
 | `piecewise(x^2, x < 0, x)`, `step`, `rect`, `tri` | A piecewise expression: values with their conditions, then the value where none holds; `step`, `rect` and `tri` are written as one |
+| `sum(k^2, k, 1, n)`, `product(k, k, 1, n)` | A sum, a product: the term, its variable, the first and the last value (integers, `-inf` or `inf`) |
 | `x^2 = 4` | An equation (`equation()`, or `parse()`) |
 | `x < 1`, `x >= 0` | An inequality, read by `parse()` |
 | `[1, 2; 3, 4]`, `[x; y]` | A matrix: its rows separated by `;`, its elements by `,` (`parse()` gives an `ExpressionMatrix`). Matrices are added, multiplied (`[1, 2; 3, 4] * [x; y]`, `2[1, 2]`), divided by a number and raised to integer powers; `det`, `inv`, `transpose` and `trace` take a matrix |
@@ -109,6 +110,27 @@ const f = expression('piecewise(x^2, x < 0, x)')
 console.log(f.diff('x').toString())           //piecewise(2x, x < 0, 1)
 console.log(f.substitute({x: -3}).toString()) //9
 console.log(f.toTeX())                        //\begin{cases} x^{2} & \text{for}\: x < 0 \\ x & \text{otherwise} \end{cases}
+```
+
+`sum(f, k, a, b)` and `product(f, k, a, b)` are the sum and the product of `f` for `k` from `a` to `b`; `a` and `b` are
+integers, `-inf` or `inf`, or expressions of other variables. `k` is bound: it is not a variable of the expression, and
+`substitute()` and `diff()` leave it alone. As in SymPy, `b = a - 1` gives 0 (1 for a product), and `b < a - 1` the sum
+from `b + 1` to `a - 1` with the sign changed (the reciprocal of the product). Between integers at most 1000 apart, the
+terms are computed one by one, exactly. Otherwise a closed form is looked for: the sum of a polynomial in `k` (`sum(k^2,
+k, 1, n)` is `n^3/3 + n^2/2 + n/6`), of a geometric series (`sum(x^k, k, 0, n)` is `piecewise(n + 1, x = 1, (-x^(n + 1)
++ 1)/(-x + 1))`; to `inf`, its value where `abs(x) < 1`), of a power of `1/(k + q)` (with `zeta` and `polygamma`:
+`sum(1/k^2, k, 1, inf)` is `pi^2/6`), or of a sum of these, term by term; the product of powers, or of a fraction of
+polynomials with linear factors (with `gamma`: `product(1 - 1/k^2, k, 2, n)` is `(n + 1)/(2n)`). The others stay as
+`sum(…)` and `product(…)`: their values are computed term by term between integers, up to 10^4 terms, and they cannot be
+compiled.
+
+```typescript
+import {expression} from '@lakutata/math'
+
+console.log(expression('sum(k^2, k, 1, n)').toString())              //n^3/3 + n^2/2 + n/6
+console.log(expression('sum(1/k^2, k, 1, inf)').toString())          //pi^2/6
+console.log(expression('product(1 - 1/k^2, k, 2, n)').toString())    //(n + 1)/(2n)
+console.log(expression('sum(sin(k*x), k, 1, n)').diff('x').toTeX()) //\sum_{k = 1}^{n} k \cos\left(k x\right)
 ```
 
 Without parentheses, the name of a function is a variable (`gamma`, `beta`, `re`, `mod` are common names of

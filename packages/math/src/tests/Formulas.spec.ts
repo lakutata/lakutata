@@ -101,6 +101,10 @@ describe('The formulas', (): void => {
         assert.strictEqual(math.expression('log(1 - x) + 2(x - 3)').substitute({x: '1 - u'}).toString(), '-2u + ln(u) - 4')
         assert.strictEqual(math.expression('x^2 - 5x + 6').evaluate({x: 4}).toNumber(), 2)
         assert.strictEqual(math.expression('sin(x)').series('x', 0, 6).toString(), 'x^5/120 - x^3/6 + x')
+        //The functions of the addon: sinc as sin(x)/x, a call without the variable as a constant
+        assert.strictEqual(math.expression('exp(x)*sinc(2x)').series('x', 0, 4).toString(), '-x^3/2 - x^2/6 + x + 1')
+        assert.strictEqual(math.expression('round(y) + x').series('x', 0, 3).toString(), 'x + round(y)')
+        assert.throws((): unknown => math.expression('piecewise(x, x > 0, -x)').series('x', 0, 3), MathNotSupportedException)
         assert.strictEqual(math.expression('x').add(1).mul('x - 1').expand().toString(), 'x^2 - 1')
         assert.strictEqual(math.expression(0.1).toString(), '1/10')
         assert.deepStrictEqual(math.expression('x*y + sin(z)').variables(), ['x', 'y', 'z'])
@@ -217,6 +221,8 @@ describe('The formulas', (): void => {
     it('write the code of an expression in JavaScript and in C, and share its common subexpressions', async (): Promise<void> => {
         assert.strictEqual(math.expression('x^2 - 5x + 6').toJavaScript(), 'Math.pow(x, 2) - 5*x + 6')
         assert.strictEqual(math.expression('x^2 - 5x + 6').toC(), 'pow(x, 2.0) - 5.0*x + 6.0')
+        //A minus before a negative factor: not the decrement --
+        assert.strictEqual(math.expression('asinh(3/20) - re(sinc(ln(3/4)))').toJavaScript(), '-(-Math.sin(-Math.log(3) + Math.log(4))/(-Math.log(4) + Math.log(3))) + Math.asinh(3/20)')
         //A rational is a division of doubles in C, not of integers
         assert.strictEqual(math.expression('x/3 + 1/3').toC(), 'x/3.0 + 1.0/3.0')
         const f = new Function('x', 'y', `return ${math.expression('round(x) + mod(x, y) + cbrt(x) + root(x, 5) + sign(y)').toJavaScript()}`)

@@ -70,11 +70,17 @@ struct Monomial {
     std::map<std::string, long> exponents;
 };
 
+//A variable, or the variable of a sum (a Dummy): written by its name
+bool isNamed(const Basic &e)
+{
+    return is_a<Symbol>(e) || is_a<Dummy>(e);
+}
+
 Monomial monomialOf(const Expr &term)
 {
     Monomial monomial;
     auto addFactor = [&monomial](const Expr &base, const Expr &exponent) {
-        if (is_a<Symbol>(*base) && is_a<Integer>(*exponent) && down_cast<const Integer &>(*exponent).is_positive()
+        if (isNamed(*base) && is_a<Integer>(*exponent) && down_cast<const Integer &>(*exponent).is_positive()
             && down_cast<const Integer &>(*exponent).as_integer_class() < 1000000) {
             const long power = static_cast<long>(down_cast<const Integer &>(*exponent).as_int());
             monomial.exponents[down_cast<const Symbol &>(*base).get_name()] += power;
@@ -84,7 +90,7 @@ Monomial monomialOf(const Expr &term)
         }
     };
     if (is_a_Number(*term)) return monomial;
-    if (is_a<Symbol>(*term)) addFactor(term, one);
+    if (isNamed(*term)) addFactor(term, one);
     else if (is_a<Pow>(*term)) addFactor(down_cast<const Pow &>(*term).get_base(), down_cast<const Pow &>(*term).get_exp());
     else if (is_a<Mul>(*term)) {
         for (const auto &[base, exponent] : down_cast<const Mul &>(*term).get_dict()) addFactor(base, exponent);
@@ -140,7 +146,7 @@ int factorRank(const Expr &factor)
 {
     Expr base = is_a<Pow>(*factor) ? down_cast<const Pow &>(*factor).get_base() : factor;
     if (is_a<Constant>(*base)) return 0;
-    if (is_a<Symbol>(*base)) return 1;
+    if (isNamed(*base)) return 1;
     if (is_a_sub<Function>(*base)) return 2;
     if (is_a<Add>(*base)) return 3;
     return 4;
@@ -149,7 +155,7 @@ int factorRank(const Expr &factor)
 std::string factorKey(const Expr &factor)
 {
     Expr base = is_a<Pow>(*factor) ? down_cast<const Pow &>(*factor).get_base() : factor;
-    if (is_a<Symbol>(*base)) return down_cast<const Symbol &>(*base).get_name();
+    if (isNamed(*base)) return down_cast<const Symbol &>(*base).get_name();
     return base->__str__();
 }
 
@@ -172,7 +178,7 @@ const std::map<std::string, std::string> &texFunctions()
     static const std::map<std::string, std::string> &table = *new std::map<std::string, std::string>{
         {"sin", "\\sin"}, {"cos", "\\cos"}, {"tan", "\\tan"}, {"cot", "\\cot"}, {"sec", "\\sec"}, {"csc", "\\csc"},
         {"asin", "\\arcsin"}, {"acos", "\\arccos"}, {"atan", "\\arctan"}, {"sinh", "\\sinh"}, {"cosh", "\\cosh"},
-        {"tanh", "\\tanh"}, {"coth", "\\coth"}, {"ln", "\\ln"}, {"gamma", "\\Gamma"}, {"max", "\\max"}, {"min", "\\min"}
+        {"tanh", "\\tanh"}, {"coth", "\\coth"}, {"ln", "\\ln"}, {"gamma", "\\Gamma"}, {"zeta", "\\zeta"}, {"max", "\\max"}, {"min", "\\min"}
     };
     return table;
 }
@@ -260,6 +266,8 @@ public:
         if (is_a<Mul>(*e)) return printMul(e);
         if (is_a<Pow>(*e)) return printPow(e);
         if (is_a<Symbol>(*e)) return atom(symbolText(down_cast<const Symbol &>(*e).get_name()), Lead::Letter);
+        //The variable of a sum or a product, by its name
+        if (is_a<Dummy>(*e)) return atom(symbolText(down_cast<const Dummy &>(*e).get_name()), Lead::Letter);
         if (is_a<Integer>(*e)) {
             const Integer &value = down_cast<const Integer &>(*e);
             std::string text = value.__str__();
@@ -381,6 +389,13 @@ private:
     Part printWrapper(const FunctionWrapper &function)
     {
         const vec_basic arguments = function.get_args();
+        //\sum_{k = a}^{b} f, \prod_{k = a}^{b} f
+        if (tex_ && (function.get_name() == "sum" || function.get_name() == "product")) {
+            Part term = print(arguments[0]);
+            if (term.precedence <= ADD) term = parenthesized(term);
+            const std::string head = function.get_name() == "sum" ? "\\sum" : "\\prod";
+            return {head + "_{" + print(arguments[1]).text + " = " + print(arguments[2]).text + "}^{" + print(arguments[3]).text + "} " + term.text, MUL, Lead::Other, term.endsWithParen, false};
+        }
         if (function.get_name() == "root") {
             const bool cube = eq(*arguments[1], *integer(3));
             if (!tex_) return cube ? printCall("cbrt", {arguments[0]}) : printCall("root", arguments);
@@ -474,7 +489,9 @@ private:
 
     Part printFunction(const std::string &name, const Expr &e)
     {
-        const vec_basic arguments = e->get_args();
+        vec_basic arguments = e->get_args();
+        //Riemann's zeta, Hurwitz's at 1: zeta(3), not zeta(3, 1)
+        if (name == "zeta" && arguments.size() == 2 && eq(*arguments[1], *one)) arguments.pop_back();
         if (tex_) {
             if (name == "abs") return atom("\\left|" + print(arguments[0]).text + "\\right|", Lead::Other);
             if (name == "floor") return atom("\\left\\lfloor " + print(arguments[0]).text + " \\right\\rfloor", Lead::Other);
@@ -586,7 +603,7 @@ private:
         if (baseNeedsParen) bottom = parenthesized(bottom);
         Part top = print(exponent);
         if (tex_) return {bottom.text + "^{" + top.text + "}", POW, bottom.lead, false, false};
-        const bool simple = (is_a<Integer>(*exponent) && !down_cast<const Integer &>(*exponent).is_negative()) || is_a<Symbol>(*exponent)
+        const bool simple = (is_a<Integer>(*exponent) && !down_cast<const Integer &>(*exponent).is_negative()) || isNamed(*exponent)
             || is_a<Constant>(*exponent) || (top.precedence == ATOM && top.endsWithParen && top.lead == Lead::Letter);
         return {bottom.text + "^" + (simple ? top.text : paren(top.text)), POW, bottom.lead, simple && top.endsWithParen, false};
     }
@@ -830,6 +847,8 @@ private:
             for (const std::string &factor : bottom) below += (below.empty() ? "" : "*") + factor;
             text += "/" + (bottom.size() == 1 ? below : "(" + below + ")");
         }
+        //-(-x) is not --x, the decrement of JavaScript and C (re(z) is written as z)
+        if (!sign.empty() && text[0] == '-') text = "(" + text + ")";
         return product(sign + text);
     }
 

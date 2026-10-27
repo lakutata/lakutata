@@ -7,6 +7,7 @@
 #include "DecimalEvaluator.h"
 #include "DecimalSupport.h"
 #include "Piecewise.h"
+#include "../functions/Summation.h"
 
 #include <algorithm>
 #include <cmath>
@@ -250,6 +251,7 @@ public:
     {
         checkpoint();
         if (is_a<Piecewise>(e)) return evaluate(*caseOf(e));
+        if (dynamic_cast<const Summation *>(&e)) return evaluate(*writtenOut(e));
         std::vector<Value> arguments;
         for (const Expr &argument : Evaluator::argumentsOf(e)) arguments.push_back(evaluate(*argument));
         return node(e, arguments);

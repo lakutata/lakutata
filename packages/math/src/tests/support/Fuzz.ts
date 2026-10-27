@@ -1227,6 +1227,49 @@ export async function checkFactor(math: MathScope, random: Random, index: number
 }
 
 /**
+ * Sums and products of closed forms: at the integers n from the first limit to 6, the closed form of the sum (the
+ * product) to n is the sum (the product) of its terms one by one; a sum to n and the sum from n + 1 to m make the sum
+ * to m.
+ */
+export async function checkSums(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    const small = (): string => `${random.int(9) - 4}/${1 + random.int(2)}`
+    try {
+        const kinds: string[] = []
+        if (random.chance(0.7)) kinds.push(Array.from({length: 1 + random.int(4)}, (_: unknown, power: number): string => `(${small()})*k^${power}`).join(' + '))
+        if (random.chance(0.5)) kinds.push(`(${small()})*(${['2', '1/2', '-3', '2/3', 'x'][random.int(5)]})^k`)
+        if (random.chance(0.2)) kinds.push(`x*k^${random.int(3)}`)
+        if (kinds.length === 0) kinds.push('k')
+        const term: string = kinds.join(' + ')
+        const low: number = random.int(3)
+        text = `sum(${term}, k, ${low}, n)`
+        const sum: Expression = math.expression(text)
+        for (let n = low - 1; n <= 6; n++) {
+            const closed: Expression = sum.substitute({n, x: '3/7'})
+            const direct: Expression = math.expression(`sum(${term}, k, ${low}, ${n})`).substitute({x: '3/7'})
+            if (!closed.equals(direct)) fail('sum', `at n = ${n}: ${closed.toString()}, term by term ${direct.toString()}`)
+        }
+        const split: Expression = sum.add(math.expression(`sum(${term}, k, n + 1, m)`)).sub(math.expression(`sum(${term}, k, ${low}, m)`))
+        if (!/\bsum\(/.test(sum.toString()) && split.substitute({x: '3/7'}).expand().equals(0) === false && !split.substitute({n: 4, m: 9, x: '3/7'}).equals(0)) fail('sum', `the sums to n and from n + 1 to m are not the sum to m: ${split.toString()}`)
+        //A product of linear factors and powers
+        const factors: string = Array.from({length: 1 + random.int(3)}, (): string => random.chance(0.8) ? `(k + ${random.int(5)})` : `${['2', '3/2'][random.int(2)]}^k`).join('*')
+        const ratio: string = random.chance(0.3) ? `/(k + ${1 + random.int(4)})` : ''
+        const productText: string = `product(${factors}${ratio}, k, 1, n)`
+        const product: Expression = math.expression(productText)
+        for (let n = 0; n <= 6; n++) {
+            const closed: Expression = product.substitute({n})
+            const direct: Expression = math.expression(`product(${factors}${ratio}, k, 1, ${n})`)
+            if (!closed.equals(direct)) fail('product', `${productText} at n = ${n}: ${closed.toString()}, term by term ${direct.toString()}`)
+        }
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('sum', String(error))
+    }
+    return failures
+}
+
+/**
  * Piecewise expressions: printed and read again, the same text; their compiled values and their exact values agree
  * away from the ends of the cases; at the ends and between them, the value is that of the first case whose condition
  * holds (nan where none does); the derivative is the derivative of that case.

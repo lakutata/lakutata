@@ -22,6 +22,7 @@
 
 #include "DecimalEvaluator.h"
 #include "Piecewise.h"
+#include "../functions/Summation.h"
 #include "DecimalSupport.h"
 #include "../async/Pool.h"
 #include "../printer/Printer.h"
@@ -287,6 +288,7 @@ Approximation Evaluator::evaluate(const Basic &e)
 {
     checkpoint();
     if (is_a<Piecewise>(e)) return evaluate(*caseOf(e));
+    if (dynamic_cast<const Summation *>(&e)) return evaluate(*writtenOut(e));
     std::vector<Approximation> arguments;
     for (const Expr &argument : argumentsOf(e)) arguments.push_back(evaluate(*argument));
     Approximation result = apply(e, arguments);

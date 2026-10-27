@@ -662,6 +662,28 @@ def piecewise():
     save('piecewise', results)
 
 
+# The values of the variables of the sums: integers for their limits
+SUM_POINTS = [
+    {'n': '7', 'm': '4', 'x': '3/10', 'a': '2', 'b': '9', 'c': '5/3'},
+    {'n': '12', 'm': '9', 'x': '-3/5', 'a': '-3', 'b': '6', 'c': '-2'}
+]
+
+
+def sums():
+    """The sums and the products of SymPy (summation, product: doit()), whether a Sum or a Product is left, their values
+    at integer points (N() sums what is left)"""
+    results = []
+    for case in load('sums'):
+        result = dict(case)
+        value = meaning(case['sympy']).doit()
+        result['open'] = bool(value.has(sympy.Sum) or value.has(sympy.Product))
+        result['result'] = str(value)
+        result['values'] = values_at(value, SUM_POINTS)
+        result['points'] = SUM_POINTS
+        results.append(result)
+    save('sums', results)
+
+
 if __name__ == '__main__':
     grammar()
     numbers()
@@ -680,6 +702,7 @@ if __name__ == '__main__':
     rational()
     inequalities()
     piecewise()
+    sums()
     decimals()
     special()
     complex_parts()
