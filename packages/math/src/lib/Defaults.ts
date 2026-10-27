@@ -1,6 +1,7 @@
 import type {AsyncOptions} from './Context.js'
 import type {Decimal, DecimalOptions, DecimalValue} from './Decimal.js'
 import type {Equation, Expression, Inequality, Value} from './Expression.js'
+import type {ExpressionMatrix, ExpressionMatrixValue} from './ExpressionMatrix.js'
 import type {LinearAlgebra} from './LinearAlgebra.js'
 import type {Matrix, MatrixValue} from './Matrix.js'
 import {type CommonSubexpressions, createMath, type CseOptions, type MathScope, type SystemEquation, type SystemSolution} from './MathScope.js'
@@ -32,7 +33,7 @@ export const math: MathScope = createMath()
  * console.log(parse('x^2 = 4').toString())                        //x^2 = 4
  * ```
  */
-export function parse(text: string): Expression | Equation | Inequality {
+export function parse(text: string): Expression | Equation | Inequality | ExpressionMatrix {
     return math.parse(text)
 }
 
@@ -95,6 +96,36 @@ export function decimal(value: DecimalValue | Expression, options?: DecimalOptio
  */
 export function matrix(value: MatrixValue): Matrix {
     return math.matrix(value)
+}
+
+/**
+ * A matrix of expressions: of its rows, of a formula of a matrix, or of a matrix of numbers. The one of `math`.
+ * @param value The rows, the formula, or the matrix.
+ * @example
+ * ```typescript
+ * import {expressionMatrix} from '@lakutata/math'
+ *
+ * console.log(expressionMatrix([['a', 'b'], ['c', 'd']]).determinant().toString()) //a*d - b*c
+ * console.log(expressionMatrix('[1, 2; 3, 4]').inverse().toString())       //[-2, 1; 3/2, -1/2]
+ * ```
+ */
+export function expressionMatrix(value: ExpressionMatrixValue): ExpressionMatrix {
+    return math.expressionMatrix(value)
+}
+
+/**
+ * The Jacobian matrix of expressions by variables: a row for each expression. The one of `math`.
+ * @param expressions The expressions (or formulas).
+ * @param variables The variables.
+ * @example
+ * ```typescript
+ * import {jacobian} from '@lakutata/math'
+ *
+ * console.log(jacobian(['x^2*y', 'x + sin(y)'], ['x', 'y']).toString())    //[2x*y, x^2; 1, cos(y)]
+ * ```
+ */
+export function jacobian(expressions: Value[], variables: string[]): ExpressionMatrix {
+    return math.jacobian(expressions, variables)
 }
 
 /**

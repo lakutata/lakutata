@@ -270,6 +270,34 @@ Expr numberOf(const std::string &text)
     return value;
 }
 
+//The functions of the matrices in the formulas: a matrix their argument
+const std::set<std::string> &matrixFunctions()
+{
+    static const std::set<std::string> &names = *new std::set<std::string>{"det", "inv", "transpose", "trace"};
+    return names;
+}
+
+//A value of the formulas: an expression, or a matrix of expressions ([1, 2; 3, 4] and the operations on it)
+struct Value {
+    Expr scalar;
+    MatrixPointer matrix;
+
+    bool isMatrix() const
+    {
+        return matrix != nullptr;
+    }
+};
+
+Value scalarValue(const Expr &expression)
+{
+    return Value{expression, nullptr};
+}
+
+Value matrixValue(const MatrixPointer &matrix)
+{
+    return Value{Expr(), matrix};
+}
+
 class Parser {
 public:
     Parser(const std::string &text, const Resolver &resolver) : text_(text), tokens_(tokenize(text)), resolver_(resolver)
@@ -279,13 +307,19 @@ public:
     Parsed parseAll()
     {
         if (peek().type == TokenType::End) throw MathError(ErrorCode::Syntax, "The formula is empty", 0);
-        Parsed parsed{Parsed::Kind::Expression, sum(), Expr(), ""};
+        const Token &startToken = peek();
+        const Value left = sum();
+        Parsed parsed{Parsed::Kind::Expression, left.scalar, Expr(), "", left.matrix};
+        if (left.isMatrix()) parsed.kind = Parsed::Kind::Matrix;
         const Token &next = peek();
         if (next.type == TokenType::Operator && (next.text == "=" || next.text == "<" || next.text == ">" || next.text == "<=" || next.text == ">=")) {
+            const Token relationToken = next;
             index_++;
-            parsed.kind = next.text == "=" ? Parsed::Kind::Equation : Parsed::Kind::Relation;
-            parsed.relation = next.text;
-            parsed.right = sum();
+            const Value right = sum();
+            if (left.isMatrix() || right.isMatrix()) fail(left.isMatrix() ? startToken : relationToken, "An equation or an inequality of matrices is not solved", ErrorCode::NotSupported);
+            parsed.kind = relationToken.text == "=" ? Parsed::Kind::Equation : Parsed::Kind::Relation;
+            parsed.relation = relationToken.text;
+            parsed.right = right.scalar;
             const Token &after = peek();
             if (after.type == TokenType::Operator && (after.text == "=" || after.text == "<" || after.text == ">" || after.text == "<=" || after.text == ">=")) {
                 fail(after, "A formula has one = or one inequality");
@@ -335,30 +369,72 @@ private:
         }
     }
 
-    Expr sum()
+    //An operation of the matrices, its errors at a token
+    template <typename F>
+    Value matrixOperation(const Token &token, F operation)
     {
-        Expr value = term();
+        try {
+            return matrixValue(operation());
+        } catch (const MathError &error) {
+            if (error.position() >= 0) throw;
+            fail(token, error.what(), error.code());
+        }
+    }
+
+    Value plus(const Value &a, const Value &b, const Token &token, bool subtract)
+    {
+        if (!a.isMatrix() && !b.isMatrix()) return scalarValue(subtract ? sub(a.scalar, b.scalar) : add(a.scalar, b.scalar));
+        if (!a.isMatrix() || !b.isMatrix()) fail(token, std::string("A matrix and a number are not ") + (subtract ? "subtracted" : "added") + ": write the number times the identity");
+        return matrixOperation(token, [&] { return addMatrices(*a.matrix, *b.matrix, subtract); });
+    }
+
+    Value times(const Value &a, const Value &b, const Token &token)
+    {
+        if (!a.isMatrix() && !b.isMatrix()) return scalarValue(mul(a.scalar, b.scalar));
+        if (a.isMatrix() && b.isMatrix()) return matrixOperation(token, [&] { return multiplyMatrices(*a.matrix, *b.matrix); });
+        return matrixOperation(token, [&] { return a.isMatrix() ? scaleMatrix(*a.matrix, b.scalar) : scaleMatrix(*b.matrix, a.scalar); });
+    }
+
+    Value divided(const Value &a, const Value &b, const Token &token)
+    {
+        if (b.isMatrix()) fail(token, "A matrix does not divide: multiply by inv(…)");
+        if (!a.isMatrix()) return scalarValue(div(a.scalar, b.scalar));
+        if (knownZero(b.scalar)) fail(token, "A matrix divided by 0", ErrorCode::DivisionByZero);
+        return matrixOperation(token, [&] { return scaleMatrix(*a.matrix, div(one, b.scalar)); });
+    }
+
+    //A scalar, where a matrix is not taken
+    const Expr &scalarOf(const Value &value, const Token &token, const std::string &what)
+    {
+        if (value.isMatrix()) fail(token, what + " takes numbers, not a matrix");
+        return value.scalar;
+    }
+
+    Value sum()
+    {
+        Value value = term();
         while (true) {
-            if (accept("+")) value = add(value, term());
-            else if (accept("-")) value = sub(value, term());
+            const Token token = peek();
+            if (accept("+")) value = plus(value, term(), token, false);
+            else if (accept("-")) value = plus(value, term(), token, true);
             else return value;
         }
     }
 
-    Expr term()
+    Value term()
     {
-        Expr value = unary();
+        Value value = unary();
         while (true) {
-            const Token &next = peek();
-            if (accept("*")) value = mul(value, unary());
-            else if (accept("/")) value = div(value, unary());
-            //The implicit products: 2x, 2(x + 1), (x + 1)(x - 1), 2 sin(x)
-            else if (next.type == TokenType::Name || (next.type == TokenType::Operator && next.text == "(")) value = mul(value, power());
+            const Token next = peek();
+            if (accept("*")) value = times(value, unary(), next);
+            else if (accept("/")) value = divided(value, unary(), next);
+            //The implicit products: 2x, 2(x + 1), (x + 1)(x - 1), 2 sin(x), 2[1, 2]
+            else if (next.type == TokenType::Name || (next.type == TokenType::Operator && (next.text == "(" || next.text == "["))) value = times(value, power(), next);
             else return value;
         }
     }
 
-    Expr unary()
+    Value unary()
     {
         //A formula nested deeper than the expressions can be, refused before its recursion fills the stack
         if (depth_ > MAX_DEPTH) fail(peek(), "The formula is nested more than " + std::to_string(MAX_DEPTH) + " levels deep", ErrorCode::NotSupported);
@@ -367,29 +443,43 @@ private:
             unsigned &depth;
             ~Leave() { depth--; }
         } leave{depth_};
-        if (accept("-")) return neg(unary());
+        const Token token = peek();
+        if (accept("-")) {
+            const Value value = unary();
+            if (!value.isMatrix()) return scalarValue(neg(value.scalar));
+            return matrixOperation(token, [&] { return scaleMatrix(*value.matrix, minus_one); });
+        }
         if (accept("+")) return unary();
         return power();
     }
 
-    Expr power()
+    Value power()
     {
-        Expr base = postfix();
+        const Value base = postfix();
         //Right-associative: 2^3^2 is 2^(3^2); the exponent can be negative: 2^-3
-        if (accept("^")) return pow(base, unary());
+        const Token token = peek();
+        if (accept("^")) {
+            const Value exponent = unary();
+            if (exponent.isMatrix()) fail(token, "A power has a number for exponent, not a matrix");
+            if (!base.isMatrix()) return scalarValue(pow(base.scalar, exponent.scalar));
+            return matrixOperation(token, [&] { return powerOfMatrix(*base.matrix, exponent.scalar); });
+        }
         return base;
     }
 
-    Expr postfix()
+    Value postfix()
     {
-        Expr value = primary();
-        while (accept("!")) value = factorialOf(value);
-        return value;
+        Value value = primary();
+        while (true) {
+            const Token token = peek();
+            if (!accept("!")) return value;
+            value = scalarValue(factorialOf(scalarOf(value, token, "!")));
+        }
     }
 
-    std::vector<Expr> arguments()
+    std::vector<Value> arguments()
     {
-        std::vector<Expr> values;
+        std::vector<Value> values;
         expect("(");
         if (!accept(")")) {
             do values.push_back(sum());
@@ -399,21 +489,54 @@ private:
         return values;
     }
 
-    Expr primary()
+    //The arguments of a function of numbers: a matrix is an error
+    std::vector<Expr> scalarArguments(const Token &token)
+    {
+        std::vector<Expr> scalars;
+        for (const Value &value : arguments()) scalars.push_back(scalarOf(value, token, token.text));
+        return scalars;
+    }
+
+    //A matrix written [1, 2; 3, 4]: its rows separated by ;, the elements of a row by ,
+    Value matrixLiteral(const Token &open)
+    {
+        std::vector<std::vector<Expr>> rows(1);
+        if (accept("]")) fail(open, "A matrix has at least one element");
+        while (true) {
+            const Token token = peek();
+            const Value element = sum();
+            if (element.isMatrix()) fail(token, "A matrix is not an element of a matrix");
+            rows.back().push_back(element.scalar);
+            if (accept(",")) continue;
+            const Token separator = peek();
+            if (accept(";")) {
+                if (rows.back().size() != rows.front().size()) fail(separator, "The rows of a matrix are of the same length");
+                rows.emplace_back();
+                continue;
+            }
+            const Token close = peek();
+            expect("]");
+            if (rows.back().size() != rows.front().size()) fail(close, "The rows of a matrix are of the same length");
+            return matrixValue(matrixOfRows(rows));
+        }
+    }
+
+    Value primary()
     {
         const Token token = peek();
         if (token.type == TokenType::Number) {
             index_++;
-            return numberOf(token.text);
+            return scalarValue(numberOf(token.text));
         }
         if (token.type == TokenType::Operator && token.text == "(") {
             index_++;
-            Expr value = sum();
+            Value value = sum();
             expect(")");
             return value;
         }
         if (token.type == TokenType::Operator && token.text == "[") {
-            fail(token, "Matrices are not written in formulas yet: give them to matrix()", ErrorCode::NotSupported);
+            index_++;
+            return matrixLiteral(token);
         }
         if (token.type != TokenType::Name) unexpected(token);
         index_++;
@@ -422,14 +545,14 @@ private:
         const Definition *definition = resolver_(token.text);
         //A constant (or a parameter) followed by ( without a space: the function of the formulas of that name (a
         //parameter gamma, gamma(x)), else an error as for a variable, not a product
-        const bool callsBuiltin = definition && !definition->function && call && !next.spaceBefore && builtins().count(token.text);
+        const bool callsBuiltin = definition && !definition->function && call && !next.spaceBefore && (builtins().count(token.text) || matrixFunctions().count(token.text));
         if (definition && !definition->function && call && !next.spaceBefore && !callsBuiltin) {
             fail(token, token.text + " is not a function: to multiply, write " + token.text + "*(…)", ErrorCode::UnknownFunction);
         }
         if (definition && !callsBuiltin) {
-            if (!definition->function) return definition->body;
+            if (!definition->function) return scalarValue(definition->body);
             if (!call) fail(token, token.text + " is a function: write " + token.text + "(…)");
-            const std::vector<Expr> values = arguments();
+            const std::vector<Expr> values = scalarArguments(token);
             if (values.size() != definition->parameters.size()) {
                 fail(token, token.text + " takes " + std::to_string(definition->parameters.size()) + " argument" + (definition->parameters.size() == 1 ? "" : "s"));
             }
@@ -442,10 +565,26 @@ private:
             } catch (const MathError &error) {
                 fail(token, error.what(), ErrorCode::NotSupported);
             }
-            return value;
+            return scalarValue(value);
+        }
+        //The functions of the matrices: det, inv, transpose, trace of a matrix
+        if (call && matrixFunctions().count(token.text)) {
+            const std::vector<Value> values = arguments();
+            if (values.size() != 1) fail(token, token.text + " takes 1 argument");
+            if (!values[0].isMatrix()) fail(token, token.text + " takes a matrix");
+            const ExpressionMatrix &matrix = *values[0].matrix;
+            try {
+                if (token.text == "det") return scalarValue(determinantOf(matrix));
+                if (token.text == "trace") return scalarValue(traceOf(matrix));
+                if (token.text == "inv") return matrixValue(inverseOf(matrix));
+                return matrixValue(transposeOf(matrix));
+            } catch (const MathError &error) {
+                if (error.position() >= 0) throw;
+                fail(token, error.what(), error.code());
+            }
         }
         const auto constant = constants().find(token.text);
-        if (constant != constants().end()) return constant->second;
+        if (constant != constants().end()) return scalarValue(constant->second);
         const auto function = builtins().find(token.text);
         //Without parentheses, the functions written so by mistake (sin x) are an error, the other names are variables:
         //gamma, beta, re, arg, mod… are common names of quantities
@@ -453,20 +592,20 @@ private:
             fail(token, token.text + " is a function: write " + token.text + "(…)");
         }
         if (function != builtins().end() && call) {
-            const std::vector<Expr> values = arguments();
+            const std::vector<Expr> values = scalarArguments(token);
             if (values.size() < function->second.minimum || values.size() > function->second.maximum) {
                 const Builtin &builtin = function->second;
                 const std::string count = builtin.minimum == builtin.maximum ? std::to_string(builtin.minimum)
                     : builtin.maximum == SIZE_MAX ? std::to_string(builtin.minimum) + " or more" : std::to_string(builtin.minimum) + " or " + std::to_string(builtin.maximum);
                 fail(token, token.text + " takes " + count + " argument" + (builtin.maximum == 1 ? "" : "s"));
             }
-            return function->second.build(vec_basic(values.begin(), values.end()));
+            return scalarValue(function->second.build(vec_basic(values.begin(), values.end())));
         }
         //A name followed by ( without a space is a call: an unknown function, not a product
         if (call && !next.spaceBefore) {
             fail(token, "Unknown function " + token.text + ": to multiply, write " + token.text + "*(…)", ErrorCode::UnknownFunction);
         }
-        return symbol(token.text);
+        return scalarValue(symbol(token.text));
     }
 };
 
@@ -480,6 +619,7 @@ Parsed parse(const std::string &text, const Resolver &resolver)
 Expr parseExpression(const std::string &text, const Resolver &resolver)
 {
     Parsed parsed = parse(text, resolver);
+    if (parsed.kind == Parsed::Kind::Matrix) throw MathError(ErrorCode::Syntax, "An expression is expected, not a matrix");
     if (parsed.kind != Parsed::Kind::Expression) throw MathError(ErrorCode::Syntax, "An expression is expected, not an equation or an inequality");
     return parsed.left;
 }
@@ -491,7 +631,7 @@ Expr parseNumber(const std::string &text)
 
 bool isBuiltin(const std::string &name)
 {
-    return builtins().count(name) || constants().count(name);
+    return builtins().count(name) || constants().count(name) || matrixFunctions().count(name);
 }
 
 bool isReserved(const std::string &name)

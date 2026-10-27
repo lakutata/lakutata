@@ -3,7 +3,8 @@ import {MathSyntaxException} from '../exceptions/MathSyntaxException.js'
 import {AsyncTracker, type AsyncOptions, Context, definitionsOf} from './Context.js'
 import {Decimal, type DecimalOptions, decimalText, type DecimalValue} from './Decimal.js'
 import {Matrix, matrixOf, type MatrixValue} from './Matrix.js'
-import {Equation, equationHandleOf, Expression, expressionOf, formulaOf, handleOf, Inequality, type Value} from './Expression.js'
+import {Equation, equationHandleOf, Expression, expressionOf, formulaOf, handleOf, Inequality, parsedOf, type Value} from './Expression.js'
+import {ExpressionMatrix, expressionMatrixOf, type ExpressionMatrixValue} from './ExpressionMatrix.js'
 import {LinearAlgebra} from './LinearAlgebra.js'
 import {type Handle, native, nativeCall} from './Native.js'
 import {NumberTheory} from './NumberTheory.js'
@@ -149,12 +150,35 @@ export class MathScope {
     }
 
     /**
-     * Parse a formula: an expression (`x^2 - 5x + 6`), an equation (`x^2 = 4`) or an inequality (`x^2 < 4`).
+     * Parse a formula: an expression (`x^2 - 5x + 6`), an equation (`x^2 = 4`), an inequality (`x^2 < 4`), or a matrix
+     * (`[1, x; x^2, 2]`, `[1, 2; 3, 4] * [x; y]`, `inv(…)`); `det(…)` and `trace(…)` of a matrix are expressions.
      * @param text The formula.
      */
-    public parse(text: string): Expression | Equation | Inequality {
+    public parse(text: string): Expression | Equation | Inequality | ExpressionMatrix {
         if (typeof text !== 'string') throw new MathArgumentException('The formula is not a string')
-        return formulaOf(this.context, text)
+        const parsed = parsedOf(this.context, text)
+        if (parsed.kind === 'matrix') return new ExpressionMatrix(this.context, parsed.matrix!.matrix, parsed.matrix!.rows, parsed.matrix!.columns)
+        return formulaOf(this.context, parsed)
+    }
+
+    /**
+     * A matrix of expressions: of its rows (expressions, numbers or formulas: `[[1, 'x'], ['x^2', 2]]`), of a formula
+     * of a matrix (`'[1, x; x^2, 2]'`), or of a matrix of numbers (each the decimal it prints as).
+     * @param value The rows, the formula, or the matrix.
+     */
+    public expressionMatrix(value: ExpressionMatrixValue): ExpressionMatrix {
+        return expressionMatrixOf(this.context, value)
+    }
+
+    /**
+     * The Jacobian matrix of expressions by variables: a row for each expression, its derivatives by the variables.
+     * @param expressions The expressions (or formulas).
+     * @param variables The variables.
+     */
+    public jacobian(expressions: Value[], variables: string[]): ExpressionMatrix {
+        if (!Array.isArray(expressions) || !Array.isArray(variables)) throw new MathArgumentException('The expressions and the variables are arrays')
+        const result = this.context.run<{matrix: {matrix: Handle, rows: number, columns: number}}>('matrix', ['jacobian', [], expressions.map((expression: Value): Handle => handleOf(this.context, expression)), [], variables])
+        return new ExpressionMatrix(this.context, result.matrix.matrix, result.matrix.rows, result.matrix.columns)
     }
 
     /**
@@ -194,7 +218,7 @@ export class MathScope {
      * @param text The formula.
      */
     public equation(text: string): Equation {
-        const formula: Expression | Equation | Inequality = this.parse(text)
+        const formula: Expression | Equation | Inequality | ExpressionMatrix = this.parse(text)
         if (!(formula instanceof Equation)) throw new MathSyntaxException(`An equation (with =) is expected: ${text}`)
         return formula
     }

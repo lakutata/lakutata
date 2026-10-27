@@ -18,7 +18,7 @@ npm install @lakutata/math
 
 ### 快速上手
 
-这个包导出的函数可以直接使用：`parse`、`expression`、`equation`、`decimal`、`matrix`、`solve` 和 `cse`，以及命名空间 `ntheory`（数论）、`linalg`（线性代数）、`stats`（统计和概率）和 `numeric`（数值解、数值积分和微分方程）。它们都属于 `math`，也就是用默认选项创建的范围。
+这个包导出的函数可以直接使用：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`solve` 和 `cse`，以及命名空间 `ntheory`（数论）、`linalg`（线性代数）、`stats`（统计和概率）和 `numeric`（数值解、数值积分和微分方程）。它们都属于 `math`，也就是用默认选项创建的范围。
 
 ```typescript
 import {decimal, equation, expression, linalg, stats} from '@lakutata/math'
@@ -63,6 +63,7 @@ console.log(expanded.variables())                   //['x', 'y']
 | `gamma`、`loggamma`、`digamma`、`polygamma`、`lowergamma`、`uppergamma`、`beta`、`erf`、`erfc`、`zeta`、`lambertw`、`sinc`、`binomial`、`factorial` | 特殊函数 |
 | `x^2 = 4` | 方程（`equation()` 或 `parse()`） |
 | `x < 1`、`x >= 0` | 不等式，由 `parse()` 读取 |
+| `[1, 2; 3, 4]`、`[x; y]` | 矩阵：行之间用 `;` 分隔，元素之间用 `,` 分隔（`parse()` 得到 `ExpressionMatrix`）。矩阵可以相加、相乘（`[1, 2; 3, 4] * [x; y]`、`2[1, 2]`）、除以一个数、取整数次幂；`det`、`inv`、`transpose` 和 `trace` 的参数是矩阵 |
 
 `cbrt(x)` 和奇数次的 `root(x, n)` 对负实数取实数根（`cbrt(-8)` 是 `-2`，和 `Math.cbrt` 一样）；乘方取主值（`(-8)^(1/3)` 是 `1 + sqrt(3)i`，和 SymPy 一样）。`round` 遇到正好一半时向远离零的方向舍入（`round(-2.5)` 是 `-3`），`mod(a, b)` 的符号和 `b` 相同（`mod(-7, 3)` 是 `2`），`gcd` 和 `lcm` 只算整数。变量都当作复数：`re(x)` 保持原样。
 
@@ -137,7 +138,7 @@ console.log(lines.join('\n'))
 
 ### 解方程
 
-- 对方程或表达式（表示它等于零）调用 `solve(variable)`，得到解的数组，每个解是一个表达式；它的 `kind` 说明解集的种类：`finite`（有限个）、`empty`（无解）、`all`（任意值）、`intervals`（区间），或者 `unsolved`/`other`（这个包解不出来的集合，用 `text` 描述）。四次及以下的方程给出精确解。`{domain: 'real'}` 只保留实数解。
+- 对方程或表达式（表示它等于零）调用 `solve(variable)`，得到解的数组，每个解是一个表达式；它的 `kind` 说明解集的种类：`finite`（有限个）、`empty`（无解）、`all`（任意值）、`intervals`（区间），或者 `unsolved`/`other`（这个包解不出来的集合，用 `text` 描述）。系数是有理数的多项式方程先找出全部有理根（`x^3 - 6x^2 + 11x - 6 = 0` 得到 1、2、3，而不是卡尔达诺公式的根式），剩下的部分在四次以内给出精确解。`{domain: 'real'}` 只保留实数解。
 - `solve(equations, variables)` 解线性方程组：无解时返回空数组，否则返回一组解，给出它能确定的每个变量的值（有无穷多组解时，用其他变量表示）。
 
 ```typescript
@@ -206,6 +207,25 @@ console.log(inverse.get(0, 0))
 const sparse = linalg.sparse(3, 3, [[0, 0, 2], [0, 1, -1], [1, 0, -1], [1, 1, 2], [2, 2, 2]])
 console.log(linalg.solve(sparse, [1, 1, 2]))                         //Float64Array [1, 1, 1]
 console.log(linalg.conjugateGradient(sparse, [1, 1, 2]).converged)   //true
+```
+
+### 表达式矩阵
+
+`expressionMatrix(value)` 得到一个 `ExpressionMatrix`，即元素是表达式的矩阵：可以由各行给出（`[['a', 'b'], ['c', 'd']]`），由公式给出（`'[1, x; x^2, 2]'`，`parse()` 也能读这种公式），或者由数值矩阵得到。它和表达式一样不会改变：`with(row, column, value)` 得到替换了一个元素的新矩阵。
+
+- 元素和运算：`get`、`toArray`、`row`、`column`、`submatrix`、`transpose`、`add`、`sub`、`mul`（乘以矩阵或表达式）、`div`（除以表达式）、`multiplyElements`、`pow`（整数次幂，负数是逆矩阵的幂）和 `trace`，以及逐元素的 `diff`、`substitute`、`expand`、`simplify`。`toMatrix()` 得到各元素数值组成的数值矩阵，`toString()` 得到它的公式，`toTeX()` 得到 `bmatrix`。`jacobian(expressions, variables)` 得到几个表达式的雅可比矩阵。
+- 线性代数都是精确的：方阵且非奇异时的 `determinant`、`inverse`、`solve`（奇异时抛出 `MathDomainException`），`rref`（简化行阶梯形和主元所在的列），`rank`、`nullspace`、`characteristicPolynomial`、`eigenvalues`（带重数）和 `eigenvectors`。纯数字矩阵用精确的有理数消元。含变量的矩阵，行列式和特征多项式用 Berkowitz 算法计算，逆矩阵由伴随矩阵得到，所以每个元素都是一个多项式分式，分子分母的公因式不会约去。
+- 判断元素是否为 0：展开后为 0 的是 0；常数用十进制数判断，和 0 分不开的是 0；含变量的元素对变量的所有取值都为 0 才算 0（在两组取值上精确计算）。和 SymPy 一样，只在变量取某些值时为 0 的主元按非 0 处理。特征值是特征多项式的根：先试对角线上的元素，再找有理根，剩下的部分在四次以内给出精确值；其他情况抛出 `MathNotSupportedException`，数值可以用 `linalg.eigen()` 求。
+
+```typescript
+import {expressionMatrix, jacobian, parse} from '@lakutata/math'
+
+const m = expressionMatrix([['a', 'b'], ['c', 'd']])
+console.log(m.determinant().toString())                     //a*d - b*c
+console.log(m.inverse().toString())                         //[d/(a*d - b*c), -b/(a*d - b*c); -c/(a*d - b*c), a/(a*d - b*c)]
+console.log(parse('[1, 2; 3, 4] * [x; y]').toString())      //[x + 2y; 3x + 4y]
+console.log(expressionMatrix('[2, 1; 1, 2]').eigenvectors().map(({value, vectors}) => [value.toString(), vectors.map(String)])) //[['1', ['[-1; 1]']], ['3', ['[1; 1]']]]
+console.log(jacobian(['x^2*y', 'x + sin(y)'], ['x', 'y']).toString()) //[2x*y, x^2; 1, cos(y)]
 ```
 
 ### 统计
@@ -348,9 +368,9 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 
 | 导出 | 说明 |
 |---|---|
-| `parse`、`expression`、`equation`、`decimal`、`matrix`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`linalg`、`stats`、`numeric` | `math` 的函数和命名空间，可以直接使用 |
+| `parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`linalg`、`stats`、`numeric` | `math` 的函数和命名空间，可以直接使用 |
 | `math`、`createMath`、`MathOptions` | 默认选项的范围；用别的选项（`definitions`、`precision`、`timeout`、`concurrency`）创建范围的函数，以及它的选项 |
-| `MathScope`、`MathDefinitions` | 由定义和设置组成的范围（`createMath()`、`with()`）：`parse`、`expression`、`equation`、`decimal`、`matrix`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`linalg`、`stats`、`numeric`；定义（按签名给出的公式） |
+| `MathScope`、`MathDefinitions` | 由定义和设置组成的范围（`createMath()`、`with()`）：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`linalg`、`stats`、`numeric`；定义（按签名给出的公式） |
 | `Expression` | 表达式：`toString`、`toTeX`、`toNumber`、`toComplex`、`toDecimal`、`toComplexDecimal`、`variables`、`equals`、`add`、`sub`、`mul`、`div`、`pow`、`neg`、`expand`、`simplify`、`diff`、`series`、`substitute`、`evaluate`、`solve`、`compile`，多项式（`coefficients`、`degree`、`leadingCoefficient`、`divide`），`numerator`、`denominator`、`rewrite`（改写成 `exp`、`sin`、`cos`），判断（`isZero`、`isPositive`、`isNegative`、`isInteger`、`isRational`、`isReal`、`isFinite`：不知道时为 `undefined`），`compare`、`toJavaScript`、`toC`、`toPolar`、`toRectangular`，以及各个异步版本 |
 | `CommonSubexpressions`、`CseOptions` | `cse()` 的结果（`replacements`、`expressions`）和它的选项（`prefix`） |
 | `PolarForm`、`RectangularForm` | 复数的极坐标形式（模 `modulus`、辐角 `argument`）和直角坐标形式（实部 `real`、虚部 `imaginary`） |
@@ -360,6 +380,7 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 | `CompiledFunction` | 编译后的表达式：以数字为参数的函数，它的 `variables` 和 `batch` |
 | `Decimal`、`DecimalValue`、`DecimalOptions` | 指定精度的十进制数（`decimal()`）：`precision`、`add`、`sub`、`mul`、`div`、`mod`、`pow`、`neg`、`abs`、`sqrt`、`cbrt`、`root`、`exp`、`ln`、`log10`、`log`、`sin`、`cos`、`tan`、`asin`、`acos`、`atan`、`atan2`、`sinh`、`cosh`、`tanh`、`asinh`、`acosh`、`atanh`、`gamma`、`loggamma`、`digamma`、`erf`、`erfc`、`zeta`、`lambertw`、`floor`、`ceil`、`trunc`、`round`、`compare`、`equals`、`isZero`、`isPositive`、`isNegative`、`isInteger`、`toString`、`toFixed`、`toNumber`、`toJSON`；需要十进制数的地方可以传入的值（十进制数、数字、bigint、写成字符串的十进制数）；`decimal()` 的选项（`precision`） |
 | `Matrix`、`MatrixValue`、`VectorValue` | 数值矩阵（`matrix()`）：`rows`、`columns`、`data`、`get`、`set`、`row`、`column`、`diagonal`、`submatrix`、`reshape`、`transpose`、`add`、`sub`、`mul`、`div`、`neg`、`multiplyElements`、`divideElements`、`powElements`、`map`、`trace`、`kron`、`equals`、`clone`、`toArray`、`toJSON`、`toString`；需要矩阵的地方可以传入的值（矩阵，或它的各行）；需要向量的地方可以传入的值（`Float64Array`，或数字数组） |
+| `ExpressionMatrix`、`ExpressionMatrixValue`、`RowEchelonForm`、`Eigenvector` | 表达式矩阵（`expressionMatrix()`、`parse()`）：`rows`、`columns`、`get`、`toArray`、`with`、`row`、`column`、`submatrix`、`transpose`、`neg`、`add`、`sub`、`mul`、`div`、`multiplyElements`、`pow`、`trace`、`determinant`、`inverse`、`solve`、`rref`、`rank`、`nullspace`、`characteristicPolynomial`、`eigenvalues`、`eigenvectors`、`diff`、`substitute`、`expand`、`simplify`、`equals`、`toMatrix`、`toString`、`toTeX`，以及 `determinantAsync`、`inverseAsync`、`solveAsync`、`eigenvectorsAsync`；能当作表达式矩阵的值；简化行阶梯形和它的主元；特征值、它的重数和特征向量 |
 | `LinearAlgebra`、`NormKind` | 线性代数（`linalg`）：`zeros`、`ones`、`identity`、`diagonal`、`fromRows`、`fromColumns`、`fromFunction`、`concat`、`rotation`、`dot`、`cross`、`outer`、`norm`、`multiply`、`solve`、`solveTriangular`、`leastSquares`、`inverse`、`determinant`、`singularValues`、`rank`、`condition`、`lu`、`qr`、`cholesky`、`svd`、`eigen`、`symmetricEigen`、`schur`、`pseudoInverse`、`exponential`、`squareRoot`、`sylvester`、`lyapunov`、`sparse`、`conjugateGradient`、`biconjugateGradientStabilized`，以及各个异步版本；范数的种类 |
 | `Statistics`、`Normalization`、`NormalizationOptions` | 统计（`stats`）：`sum`、`product`、`cumulativeSum`、`differences`、`mean`、`median`、`mode`、`min`、`max`、`variance`、`standardDeviation`、`medianAbsoluteDeviation`、`quantile`、`covariance`、`correlation`、`zScores`、`klDivergence`、各个分布（`normal` … `hypergeometric`、`distribution`）和 `random`；方差的除数（`'uncorrected'`、`'unbiased'`、`'biased'`）和选择它的选项 |
 | `Distribution`、`DistributionName`、`DistributionParameters` | 概率分布：`pdf`、`cdf`、`survival`、`quantile`、`survivalQuantile`、`sample`、`parameters`、`kind`、`support`、`mean`、`variance`、`standardDeviation`、`median`、`mode`、`skewness`、`excessKurtosis`；分布的名字；按名字给出的参数 |
@@ -378,12 +399,12 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 
 | 错误 | 什么时候抛出 |
 |---|---|
-| `MathSyntaxException` | 公式写得不对（带有出错的 `position`），需要表达式的地方给了方程，或者反过来 |
+| `MathSyntaxException` | 公式写得不对（带有出错的 `position`），需要表达式的地方给了方程或矩阵，或者反过来，矩阵和数相加，只接受数的函数用在了矩阵上 |
 | `MathUnknownFunctionException` | 公式调用的函数既不是内置函数，也没有定义，或者把常数写成了调用（`g(2)`），带有它的 `position` |
-| `MathDefinitionException` | 定义无效：用了内置的名字、参数重复、定义之间循环引用、定义嵌套太深 |
-| `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂），`findRoot()` 的区间两端符号相同或者函数在区间里不是实数，函数或方程组在 `findRoot()`、`solveSystem()` 的初始值处不是实数，`integrate()` 的函数在区间内不是实数，`solveODE()` 的导数在起点不是实数，对复数求连分数 |
+| `MathDefinitionException` | 定义无效：用了内置的名字、参数重复、定义之间循环引用、定义嵌套太深、定义是一个矩阵 |
+| `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂），`findRoot()` 的区间两端符号相同或者函数在区间里不是实数，函数或方程组在 `findRoot()`、`solveSystem()` 的初始值处不是实数，`integrate()` 的函数在区间内不是实数，`solveODE()` 的导数在起点不是实数，对复数求连分数，表达式矩阵是奇异的（`inverse()`、`solve()`、`inv()`） |
 | `MathDivisionByZeroException` | 计算十进制值时遇到除以零（包括除以一个无法和 0 区分的值、0 的对数、0 的负数次幂、以 1 为底的对数、在函数的极点上求值：`gamma()` 的参数是 -2、`zeta()` 的参数是 1），模数是 0，或者连分数的各项导致除以零 |
-| `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 和 `bell(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、`stirlingSecondKind(n, k)` 的 n 超过 50000 或 n k 超过 6250000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`） |
+| `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 和 `bell(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、`stirlingSecondKind(n, k)` 的 n 超过 50000 或 n k 超过 6250000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`），表达式矩阵的特征值求不出精确值，矩阵的幂不是整数，矩阵的方程或不等式 |
 | `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、`integrate()` 的区间、分点或容差无效、`solveODE()` 的问题或选项无效、对含有变量的值求连分数、连分数的项不是整数、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分布的参数无效、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数，`createMath()` 的选项无效 |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |
 | `MathException` | 以上所有错误的基类；原生插件内部错误时，它的 `errno` 是 `E_MATH_INTERNAL` |

@@ -18,6 +18,7 @@
 #include "async/Pool.h"
 #include "core/Errors.h"
 #include "linalg/Linalg.h"
+#include "matrix/Matrices.h"
 #include "numeric/Compiled.h"
 #include "numeric/Numeric.h"
 #include "stats/Distributions.h"
@@ -749,6 +750,53 @@ Job solveODEJob(const Napi::Array &arguments)
     };
 }
 
+//The value of a matrix of expressions for JavaScript: {matrix, rows, columns}
+Napi::Value matrixValue(Napi::Env env, const MatrixPointer &matrix)
+{
+    Napi::Object value = Napi::Object::New(env);
+    value.Set("matrix", wrapMatrix(env, matrix));
+    value.Set("rows", static_cast<double>(matrix->rows));
+    value.Set("columns", static_cast<double>(matrix->columns));
+    return value;
+}
+
+//matrix(operation, matrices, expressions, numbers, names): an operation of the matrices of expressions; its result as
+//{matrix?, expression?, matrices?, expressions?, numbers?, text?}
+Job matrixJob(const Napi::Array &arguments)
+{
+    const std::string operation = stringAt(arguments, 0, "The operation");
+    const auto arrayAt = [&arguments](uint32_t index, const char *what) {
+        const Napi::Value value = arguments.Get(index);
+        if (!value.IsArray()) throw MathError(ErrorCode::Argument, std::string(what) + " are an array");
+        return value.As<Napi::Array>();
+    };
+    std::vector<MatrixPointer> matrices;
+    const Napi::Array givenMatrices = arrayAt(1, "The matrices");
+    for (uint32_t i = 0; i < givenMatrices.Length(); i++) matrices.push_back(unwrapMatrix(givenMatrices.Get(i)));
+    const std::vector<Expr> expressions = expressionsAt(arguments, 2);
+    std::vector<double> numbers;
+    const Napi::Array givenNumbers = arrayAt(3, "The numbers");
+    for (uint32_t i = 0; i < givenNumbers.Length(); i++) numbers.push_back(numberAt(givenNumbers, i, "A number"));
+    const std::vector<std::string> names = stringsAt(arguments, 4);
+    return [operation, matrices, expressions, numbers, names] {
+        auto result = std::make_shared<ExpressionMatrixResult>(matrixOperation(operation, matrices, expressions, numbers, names));
+        return Builder([result](Napi::Env env) {
+            Napi::Object value = Napi::Object::New(env);
+            if (result->matrix) value.Set("matrix", matrixValue(env, result->matrix));
+            if (!result->expression.is_null()) value.Set("expression", wrapExpression(env, result->expression));
+            Napi::Array matrices = Napi::Array::New(env, result->matrices.size());
+            for (uint32_t i = 0; i < result->matrices.size(); i++) matrices.Set(i, matrixValue(env, result->matrices[i]));
+            value.Set("matrices", matrices);
+            value.Set("expressions", expressionsValue(env, result->expressions));
+            Napi::Array numbers = Napi::Array::New(env, result->numbers.size());
+            for (uint32_t i = 0; i < result->numbers.size(); i++) numbers.Set(i, result->numbers[i]);
+            value.Set("numbers", numbers);
+            value.Set("text", result->text);
+            return value;
+        });
+    };
+}
+
 Job fractionJob(const Napi::Array &arguments)
 {
     Expr expression = expressionAt(arguments, 0);
@@ -894,7 +942,7 @@ const std::map<std::string, JobFactory> &jobs()
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
-        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"distribution", distributionJob}, {"random", randomJob}, {"polynomialRoots", polynomialRootsJob}, {"findRoot", findRootJob}, {"solveSystem", solveSystemJob}, {"integrate", integrateJob}, {"solveODE", solveODEJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
+        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"distribution", distributionJob}, {"random", randomJob}, {"polynomialRoots", polynomialRootsJob}, {"findRoot", findRootJob}, {"solveSystem", solveSystemJob}, {"integrate", integrateJob}, {"solveODE", solveODEJob}, {"matrix", matrixJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
         {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}
     };
@@ -1034,7 +1082,8 @@ Napi::Value MakeScope(const Napi::CallbackInfo &info)
     return wrap(info.Env(), scope, SCOPE_TAG, 256 + 256 * static_cast<int64_t>(definitions.size()));
 }
 
-//parse(scope, text): {kind: 'expression' | 'equation' | 'relation', left, right?, relation?}
+//parse(scope, text): {kind: 'expression' | 'equation' | 'relation', left, right?, relation?}, or {kind: 'matrix',
+//matrix: {matrix, rows, columns}}
 Napi::Value Parse(const Napi::CallbackInfo &info)
 {
     std::shared_ptr<const Scope> scope = unwrap<const Scope>(info[0], SCOPE_TAG, "a scope");
@@ -1042,6 +1091,11 @@ Napi::Value Parse(const Napi::CallbackInfo &info)
     const std::string text = info[1].As<Napi::String>().Utf8Value();
     Parsed parsed = parse(text, scope->resolver());
     Napi::Object result = Napi::Object::New(info.Env());
+    if (parsed.kind == Parsed::Kind::Matrix) {
+        result.Set("kind", "matrix");
+        result.Set("matrix", matrixValue(info.Env(), parsed.matrix));
+        return result;
+    }
     result.Set("kind", parsed.kind == Parsed::Kind::Expression ? "expression" : parsed.kind == Parsed::Kind::Equation ? "equation" : "relation");
     result.Set("left", wrapExpression(info.Env(), parsed.left));
     if (parsed.kind != Parsed::Kind::Expression) {

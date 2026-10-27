@@ -17,6 +17,7 @@ const napi_type_tag EXPRESSION_TAG = {0x6c616b7574617461ULL, 0x6d61746845787072U
 const napi_type_tag SCOPE_TAG = {0x6c616b7574617461ULL, 0x6d61746853636f70ULL};
 const napi_type_tag COMPILED_TAG = {0x6c616b7574617461ULL, 0x6d617468436f6d70ULL};
 const napi_type_tag TOKEN_TAG = {0x6c616b7574617461ULL, 0x6d617468546f6b6eULL};
+const napi_type_tag MATRIX_TAG = {0x6c616b7574617461ULL, 0x6d6174684d617472ULL};
 
 void childrenOf(const SymEngine::Basic &node, std::vector<const SymEngine::Basic *> &children)
 {

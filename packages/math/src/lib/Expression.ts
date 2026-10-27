@@ -85,23 +85,31 @@ export function handleOf(context: Context, value: Value): Handle {
 }
 
 /**
- * The expression of a formula (an equation or an inequality is an error)
+ * The expression of a formula (an equation, an inequality or a matrix is an error)
  * @param context
  * @param text
  */
 export function expressionOf(context: Context, text: string): Expression {
-    const parsed: NativeParsed = nativeCall((native) => native.parse(context.scope, text))
-    if (parsed.kind !== 'expression') throw new MathSyntaxException(`An expression is expected, not an ${parsed.kind === 'equation' ? 'equation' : 'inequality'}: ${text}`)
+    const parsed: NativeParsed = parsedOf(context, text)
+    if (parsed.kind !== 'expression') throw new MathSyntaxException(`An expression is expected, not ${parsed.kind === 'equation' ? 'an equation' : parsed.kind === 'matrix' ? 'a matrix' : 'an inequality'}: ${text}`)
     return new Expression(context, parsed.left)
 }
 
 /**
- * A formula parsed: an expression, an equation, an inequality
+ * A formula parsed by the addon: an expression, an equation, an inequality or a matrix
  * @param context
  * @param text
  */
-export function formulaOf(context: Context, text: string): Expression | Equation | Inequality {
-    const parsed: NativeParsed = nativeCall((native) => native.parse(context.scope, text))
+export function parsedOf(context: Context, text: string): NativeParsed {
+    return nativeCall((native) => native.parse(context.scope, text))
+}
+
+/**
+ * The expression, the equation or the inequality of a formula parsed (not a matrix)
+ * @param context
+ * @param parsed
+ */
+export function formulaOf(context: Context, parsed: NativeParsed): Expression | Equation | Inequality {
     const left: Expression = new Expression(context, parsed.left)
     if (parsed.kind === 'expression') return left
     const right: Expression = new Expression(context, parsed.right!)
@@ -842,7 +850,7 @@ export class Solutions extends Array<Expression> {
 export function equationHandleOf(context: Context, equation: Equation | Expression | string): Handle {
     if (equation instanceof Equation) return equation.difference().handle
     if (typeof equation !== 'string') return handleOf(context, equation)
-    const parsed: NativeParsed = nativeCall((native) => native.parse(context.scope, equation))
-    if (parsed.kind === 'relation') throw new MathSyntaxException(`An equation is expected, not an inequality: ${equation}`)
+    const parsed: NativeParsed = parsedOf(context, equation)
+    if (parsed.kind === 'relation' || parsed.kind === 'matrix') throw new MathSyntaxException(`An equation is expected, not ${parsed.kind === 'matrix' ? 'a matrix' : 'an inequality'}: ${equation}`)
     return parsed.kind === 'equation' ? new Equation(new Expression(context, parsed.left), new Expression(context, parsed.right!)).difference().handle : parsed.left
 }

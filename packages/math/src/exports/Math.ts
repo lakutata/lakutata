@@ -45,5 +45,6 @@ export {type Normalization, type NormalizationOptions, Statistics} from '../lib/
 export {Distribution, type DistributionName, type DistributionParameters, RandomGenerator} from '../lib/Distribution.js'
 export {type FindRootOptions, type IntegralResult, type IntegrateOptions, type IterationOptions, Numeric, type ODEOptions, type ODEProblem, type ODEResult, type RootResult, type SystemRootResult} from '../lib/Numeric.js'
 export {type CommonSubexpressions, createMath, type CseOptions, type MathDefinitions, type MathOptions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
-export {cse, cseAsync, decimal, equation, expression, linalg, math, matrix, ntheory, numeric, parse, solve, solveAsync, stats} from '../lib/Defaults.js'
+export {cse, cseAsync, decimal, equation, expression, expressionMatrix, jacobian, linalg, math, matrix, ntheory, numeric, parse, solve, solveAsync, stats} from '../lib/Defaults.js'
+export {type Eigenvector, ExpressionMatrix, type ExpressionMatrixValue, type RowEchelonForm} from '../lib/ExpressionMatrix.js'
 export {type Congruence, type ContinuedFractionOptions, type ExtendedGcd, type IntegerValue, NumberTheory, type PrimeFactor} from '../lib/NumberTheory.js'

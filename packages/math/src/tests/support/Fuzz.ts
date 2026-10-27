@@ -987,3 +987,63 @@ export async function checkContinued(math: MathScope, random: Random, index: num
     return failures
 }
 
+/**
+ * The checks of the matrices of expressions: random matrices of rationals against math.linalg (the determinant, the
+ * inverse, the solution of a system, the rank) and their inverse times them the identity, exactly; random matrices
+ * with variables at random values against the numbers; the characteristic polynomial at a value as det(x I - A); the
+ * text read back as the same matrix
+ * @param math
+ * @param random
+ * @param index
+ */
+export async function checkExpressionMatrix(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    const near = (a: number, b: number, scale: number): boolean => globalThis.Math.abs(a - b) <= 1e-8 * (1 + scale)
+    try {
+        const n: number = 1 + random.int(4)
+        //Small integers and halves; a row made of others now and then (singular)
+        const rows: number[][] = Array.from({length: n}, (): number[] => Array.from({length: n}, (): number => (random.int(13) - 6) / (random.chance(0.2) ? 2 : 1)))
+        if (n > 1 && random.chance(0.2)) rows[n - 1] = rows[0].map((value: number, j: number): number => value + rows[1][j])
+        const a = math.expressionMatrix(rows)
+        text = a.toString()
+        const numbers = math.matrix(rows)
+        const scale: number = rows.flat().reduce((m: number, v: number): number => globalThis.Math.max(m, globalThis.Math.abs(v)), 1) ** n
+        const determinant: number = a.determinant().toNumber()
+        if (!near(determinant, math.linalg.determinant(numbers), scale)) fail('determinant', `${determinant}, linalg ${math.linalg.determinant(numbers)}`)
+        if (a.rank() !== math.linalg.rank(numbers)) fail('rank', `${a.rank()}, linalg ${math.linalg.rank(numbers)}`)
+        if (!math.parse(text).toString().startsWith('[') || !a.equals(text)) fail('text', 'not read back')
+        if (determinant !== 0) {
+            const inverse = a.inverse()
+            const identity = math.expressionMatrix(math.linalg.identity(n))
+            if (!inverse.mul(a).equals(identity)) fail('inverse', `${inverse.toString()} times the matrix is not the identity`)
+            if (!inverse.toMatrix().equals(math.linalg.inverse(numbers), 1e-9 * scale)) fail('inverse', `${inverse.toString()}, linalg ${math.linalg.inverse(numbers).toString()}`)
+            const b: number[] = Array.from({length: n}, (): number => random.int(11) - 5)
+            const solution = a.solve(b).toMatrix().data, expected = math.linalg.solve(numbers, b)
+            if (Array.from(solution).some((value: number, i: number): boolean => !near(value, expected[i], scale))) fail('solve', `${Array.from(solution)}, linalg ${Array.from(expected)}`)
+        }
+        //det(x I - A) at a value of x
+        const value: number = random.int(9) - 4
+        const shifted = math.expressionMatrix(math.linalg.identity(n)).mul(value).sub(a)
+        if (a.characteristicPolynomial('x').substitute({x: value}).toNumber() !== shifted.determinant().toNumber()) fail('characteristicPolynomial', `at ${value}`)
+        //With variables: at values of them, as the numbers
+        const size: number = 2 + random.int(2)
+        const pick = (): string => random.pick(['x', 'y', 'x*y', 'x^2', '2x - y', '1', '3', '-2', 'x + 1', 'y - 2'])
+        const symbolic = math.expressionMatrix(Array.from({length: size}, (): string[] => Array.from({length: size}, pick)))
+        text = symbolic.toString()
+        const at: Record<string, number> = {x: (random.int(17) - 8) / 4, y: (random.int(17) - 8) / 3}
+        const substituted = symbolic.substitute(at)
+        const symbolicDeterminant: number = symbolic.determinant().substitute(at).toNumber(), numericDeterminant: number = substituted.determinant().toNumber()
+        if (!near(symbolicDeterminant, numericDeterminant, globalThis.Math.abs(numericDeterminant))) fail('determinant', `with variables ${symbolicDeterminant}, at the values ${numericDeterminant}`)
+        if (numericDeterminant !== 0 && symbolic.determinant().toString() !== '0') {
+            const inverse = symbolic.inverse().substitute(at).toMatrix(), expected = substituted.inverse().toMatrix()
+            if (!inverse.equals(expected, 1e-9 * (1 + globalThis.Math.max(...Array.from(expected.data, globalThis.Math.abs))))) fail('inverse', `with variables ${inverse.toString()}, at the values ${expected.toString()}`)
+        }
+        if ((await symbolic.determinantAsync()).toString() !== symbolic.determinant().toString()) fail('async', 'determinantAsync differs from determinant')
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('expressionMatrix', String(error))
+    }
+    return failures
+}
+

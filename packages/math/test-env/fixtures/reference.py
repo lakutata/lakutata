@@ -377,6 +377,59 @@ def continued_fractions():
     save('continued', results)
 
 
+# The matrices of expressions by SymPy's Matrix: each element as its text and its values at the points (the forms of
+# the elements may differ: the tests compare their values); the null spaces and the eigenvectors by their counts (their
+# bases may be scaled differently)
+def matrix_of(rows):
+    return sympy.Matrix([[parse(element) for element in row] for row in rows])
+
+
+def expression_result(expr):
+    return {'text': text_of(expr), 'values': values_at(expr)}
+
+
+def matrix_result(m):
+    return {'rows': m.rows, 'columns': m.cols, 'elements': [expression_result(element) for element in m]}
+
+
+MATRIX_OPERATIONS = {
+    'determinant': lambda m, case: expression_result(m.det()),
+    'inverse': lambda m, case: matrix_result(m.inv()),
+    'solve': lambda m, case: matrix_result(m.LUsolve(matrix_of(case['b']))),
+    'rref': lambda m, case: (lambda form: {'matrix': matrix_result(form[0]), 'pivots': list(form[1])})(m.rref()),
+    'rank': lambda m, case: m.rank(),
+    'nullspace': lambda m, case: len(m.nullspace()),
+    'characteristicPolynomial': lambda m, case: expression_result(m.charpoly(Symbol('lambda')).as_expr()),
+    'eigenvectors': lambda m, case: [{'value': expression_result(value), 'multiplicity': int(multiplicity), 'count': len(vectors)}
+                                     for value, multiplicity, vectors in m.eigenvects()],
+    'pow': lambda m, case: matrix_result(m ** case['exponent']),
+    'mul': lambda m, case: matrix_result(m * matrix_of(case['other'])),
+}
+
+
+def matrices():
+    results = []
+    for case in load('matrices'):
+        result = dict(case)
+        if case['op'] == 'parse':
+            meaning = sympy.sympify(case['meaning'], locals={'Matrix': sympy.Matrix, 'x': Symbol('x'), 'y': Symbol('y'), 'a': Symbol('a'),
+                                                             'b': Symbol('b'), 'c': Symbol('c'), 'd': Symbol('d')})
+            result['result'] = matrix_result(meaning) if isinstance(meaning, sympy.MatrixBase) else expression_result(meaning)
+        elif 'error' in case:
+            try:
+                MATRIX_OPERATIONS[case['op']](matrix_of(case['rows']), case)
+            except (ValueError, ZeroDivisionError):
+                pass
+            else:
+                raise AssertionError('SymPy accepts ' + json.dumps(case))
+        elif 'expected' in case:
+            result['result'] = case['expected']
+        else:
+            result['result'] = MATRIX_OPERATIONS[case['op']](matrix_of(case['rows']), case)
+        results.append(result)
+    save('matrices', results)
+
+
 def decimal_result(value, digits):
     """A decimal rounded to a number of significant digits (halves to even), written as Decimal.toString() writes it:
     its shortest digits, fixed for the exponents from -6 to digits - 1, scientific beyond"""
@@ -516,6 +569,7 @@ if __name__ == '__main__':
     polynomials()
     ntheory()
     continued_fractions()
+    matrices()
     decimals()
     special()
     complex_parts()

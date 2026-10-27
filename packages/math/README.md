@@ -31,10 +31,10 @@ npm install @lakutata/math
 
 ### Getting started
 
-The package exports its functions ready to use: `parse`, `expression`, `equation`, `decimal`, `matrix`, `solve` and
-`cse`, with the namespaces `ntheory` (number theory), `linalg` (linear algebra), `stats` (statistics and probability)
-and `numeric` (numeric solutions, integrals and differential equations). They belong to `math`, the scope made with the
-default options.
+The package exports its functions ready to use: `parse`, `expression`, `equation`, `decimal`, `matrix`,
+`expressionMatrix`, `jacobian`, `solve` and `cse`, with the namespaces `ntheory` (number theory), `linalg` (linear
+algebra), `stats` (statistics and probability) and `numeric` (numeric solutions, integrals and differential equations).
+They belong to `math`, the scope made with the default options.
 
 ```typescript
 import {decimal, equation, expression, linalg, stats} from '@lakutata/math'
@@ -83,6 +83,7 @@ console.log(expanded.variables())                   //['x', 'y']
 | `gamma`, `loggamma`, `digamma`, `polygamma`, `lowergamma`, `uppergamma`, `beta`, `erf`, `erfc`, `zeta`, `lambertw`, `sinc`, `binomial`, `factorial` | Special functions |
 | `x^2 = 4` | An equation (`equation()`, or `parse()`) |
 | `x < 1`, `x >= 0` | An inequality, read by `parse()` |
+| `[1, 2; 3, 4]`, `[x; y]` | A matrix: its rows separated by `;`, its elements by `,` (`parse()` gives an `ExpressionMatrix`). Matrices are added, multiplied (`[1, 2; 3, 4] * [x; y]`, `2[1, 2]`), divided by a number and raised to integer powers; `det`, `inv`, `transpose` and `trace` take a matrix |
 
 `cbrt(x)` and `root(x, n)` with an odd `n` give the real root of a negative real number (`cbrt(-8)` is `-2`, as
 `Math.cbrt`); a fractional power gives the principal value (`(-8)^(1/3)` is `1 + sqrt(3)i`, as SymPy). `round` rounds
@@ -214,10 +215,11 @@ console.log(lines.join('\n'))
 
 ### Solving
 
-- `solve(variable)` on an equation or an expression (equal to zero) gives the solutions as an array of expressions,
-  with their `kind`: `finite`, `empty`, `all`, `intervals`, or `unsolved`/`other` for a set the package does not solve
-  (its `text` describes it). Equations of degree four at most are solved exactly. `{domain: 'real'}` keeps the real
-  solutions.
+- `solve(variable)` on an equation or an expression (equal to zero) gives the solutions as an array of expressions, with
+  their `kind`: `finite`, `empty`, `all`, `intervals`, or `unsolved`/`other` for a set the package does not solve (its
+  `text` describes it). A polynomial whose coefficients are rational numbers has its rational roots found first (`x^3 -
+  6x^2 + 11x - 6 = 0` gives 1, 2 and 3, not the radicals of Cardano's formula), and the polynomial left is solved
+  exactly to degree four. `{domain: 'real'}` keeps the real solutions.
 - `solve(equations, variables)` solves a system of linear equations: an empty array when it has no solution,
   otherwise one solution with the value of each variable it determines (in terms of the others when there are
   infinitely many).
@@ -335,6 +337,40 @@ console.log(inverse.get(0, 0))
 const sparse = linalg.sparse(3, 3, [[0, 0, 2], [0, 1, -1], [1, 0, -1], [1, 1, 2], [2, 2, 2]])
 console.log(linalg.solve(sparse, [1, 1, 2]))                         //Float64Array [1, 1, 1]
 console.log(linalg.conjugateGradient(sparse, [1, 1, 2]).converged)   //true
+```
+
+### Matrices of expressions
+
+`expressionMatrix(value)` gives an `ExpressionMatrix`, a matrix whose elements are expressions: of its rows (`[['a',
+'b'], ['c', 'd']]`), of a formula (`'[1, x; x^2, 2]'`, which `parse()` reads too), or of a matrix of numbers. Like an
+expression, it does not change: `with(row, column, value)` gives a matrix with an element replaced.
+
+- Its elements and its arithmetic: `get`, `toArray`, `row`, `column`, `submatrix`, `transpose`, `add`, `sub`, `mul` (by
+  a matrix or an expression), `div` (by an expression), `multiplyElements`, `pow` (to an integer; a negative one gives a
+  power of the inverse) and `trace`, with `diff`, `substitute`, `expand` and `simplify` element by element. `toMatrix()`
+  gives the matrix of numbers of its values, `toString()` its formula, `toTeX()` a `bmatrix`. `jacobian(expressions,
+  variables)` gives the Jacobian matrix of expressions.
+- Its linear algebra is exact: `determinant`, `inverse` and `solve` of a square matrix that is not singular
+  (`MathDomainException` otherwise), `rref` (the reduced row echelon form and the columns of its pivots), `rank`,
+  `nullspace`, `characteristicPolynomial`, `eigenvalues` (with their multiplicities) and `eigenvectors`. A matrix of
+  numbers is eliminated with exact rationals. For a matrix with variables, the determinant and the characteristic
+  polynomial come from Berkowitz's algorithm and the inverse from the adjugate, so that each element is a single
+  fraction of polynomials, whose common factors are not cancelled.
+- An element counts as 0 when it is 0 once expanded; as a constant, when its decimals cannot tell it from 0; with
+  variables, when it is 0 for every value of them (it is computed exactly at two values). As in SymPy, a pivot that is 0
+  only for some values of the variables counts as not 0. The eigenvalues are the roots of the characteristic polynomial,
+  the elements of the diagonal that are roots and the rational roots first, then the roots of what is left, exact to
+  degree four; other eigenvalues throw `MathNotSupportedException`, and `linalg.eigen()` gives them as numbers.
+
+```typescript
+import {expressionMatrix, jacobian, parse} from '@lakutata/math'
+
+const m = expressionMatrix([['a', 'b'], ['c', 'd']])
+console.log(m.determinant().toString())                     //a*d - b*c
+console.log(m.inverse().toString())                         //[d/(a*d - b*c), -b/(a*d - b*c); -c/(a*d - b*c), a/(a*d - b*c)]
+console.log(parse('[1, 2; 3, 4] * [x; y]').toString())      //[x + 2y; 3x + 4y]
+console.log(expressionMatrix('[2, 1; 1, 2]').eigenvectors().map(({value, vectors}) => [value.toString(), vectors.map(String)])) //[['1', ['[-1; 1]']], ['3', ['[1; 1]']]]
+console.log(jacobian(['x^2*y', 'x + sin(y)'], ['x', 'y']).toString()) //[2x*y, x^2; 1, cos(y)]
 ```
 
 ### Statistics
@@ -553,12 +589,13 @@ The bundles, the executables and the installers made by `lakutata package` carry
 
 | Export | What it is |
 |---|---|
-| `parse`, `expression`, `equation`, `decimal`, `matrix`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg`, `stats`, `numeric` | The functions and the namespaces of `math`, ready to use |
+| `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg`, `stats`, `numeric` | The functions and the namespaces of `math`, ready to use |
 | `math`, `createMath`, `MathOptions` | The scope of the default options; a scope of other options (`definitions`, `precision`, `timeout`, `concurrency`), and its options |
-| `MathScope`, `MathDefinitions` | A scope of definitions and settings (`createMath()`, `with()`): `parse`, `expression`, `equation`, `decimal`, `matrix`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg`, `stats`, `numeric`; the definitions (a body by signature) |
+| `MathScope`, `MathDefinitions` | A scope of definitions and settings (`createMath()`, `with()`): `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg`, `stats`, `numeric`; the definitions (a body by signature) |
 | `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
 | `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
 | `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is given where a matrix is expected (a matrix, or its rows); where a vector is (a `Float64Array`, or an array of numbers) |
+| `ExpressionMatrix`, `ExpressionMatrixValue`, `RowEchelonForm`, `Eigenvector` | A matrix of expressions (`expressionMatrix()`, `parse()`): `rows`, `columns`, `get`, `toArray`, `with`, `row`, `column`, `submatrix`, `transpose`, `neg`, `add`, `sub`, `mul`, `div`, `multiplyElements`, `pow`, `trace`, `determinant`, `inverse`, `solve`, `rref`, `rank`, `nullspace`, `characteristicPolynomial`, `eigenvalues`, `eigenvectors`, `diff`, `substitute`, `expand`, `simplify`, `equals`, `toMatrix`, `toString`, `toTeX`, and `determinantAsync`, `inverseAsync`, `solveAsync`, `eigenvectorsAsync`; what is given for one; a reduced row echelon form and its pivots; an eigenvalue, its multiplicity and its eigenvectors |
 | `LinearAlgebra`, `NormKind` | The linear algebra (`linalg`): `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, `rotation`, `dot`, `cross`, `outer`, `norm`, `multiply`, `solve`, `solveTriangular`, `leastSquares`, `inverse`, `determinant`, `singularValues`, `rank`, `condition`, `lu`, `qr`, `cholesky`, `svd`, `eigen`, `symmetricEigen`, `schur`, `pseudoInverse`, `exponential`, `squareRoot`, `sylvester`, `lyapunov`, `sparse`, `conjugateGradient`, `biconjugateGradientStabilized`, and the asynchronous versions; the kinds of norms |
 | `Statistics`, `Normalization`, `NormalizationOptions` | The statistics (`stats`): `sum`, `product`, `cumulativeSum`, `differences`, `mean`, `median`, `mode`, `min`, `max`, `variance`, `standardDeviation`, `medianAbsoluteDeviation`, `quantile`, `covariance`, `correlation`, `zScores`, `klDivergence`, the distributions (`normal` … `hypergeometric`, `distribution`) and `random`; the divisors of a variance (`'uncorrected'`, `'unbiased'`, `'biased'`) and the option that chooses one |
 | `Distribution`, `DistributionName`, `DistributionParameters` | A probability distribution: `pdf`, `cdf`, `survival`, `quantile`, `survivalQuantile`, `sample`, `parameters`, `kind`, `support`, `mean`, `variance`, `standardDeviation`, `median`, `mode`, `skewness`, `excessKurtosis`; the names of the distributions; their parameters by their names |
@@ -583,12 +620,12 @@ The typings document every declaration, with examples.
 
 | Error | When |
 |---|---|
-| `MathSyntaxException` | A formula is not written correctly (with the `position` of the error), an equation is given where an expression is expected, or the other way round |
+| `MathSyntaxException` | A formula is not written correctly (with the `position` of the error), an equation or a matrix is given where an expression is expected, or the other way round, a matrix and a number added, a matrix where a function takes numbers |
 | `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined, or a constant written as a call (`g(2)`), with its `position` |
-| `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep |
-| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power), a bracket of `findRoot()` where the function does not change its sign or is not real, a function or equations that are not real at the guess of `findRoot()` or `solveSystem()`, a function that is not real inside the interval of `integrate()`, derivatives that are not real at the start of `solveODE()`, the continued fraction of a complex value |
+| `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep, a definition that is a matrix |
+| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power), a bracket of `findRoot()` where the function does not change its sign or is not real, a function or equations that are not real at the guess of `findRoot()` or `solveSystem()`, a function that is not real inside the interval of `integrate()`, derivatives that are not real at the start of `solveODE()`, the continued fraction of a complex value, a matrix of expressions that is singular (`inverse()`, `solve()`, `inv()`) |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1, a function at one of its poles: `gamma()` of -2, `zeta()` of 1), a modulus of 0, terms of a continued fraction that divide by zero |
-| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` and `bell(n)` above 2000, `harmonic(n)` above 50000, `stirlingSecondKind(n, k)` with `n` above 50000 or `n k` above 6250000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`) |
+| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` and `bell(n)` above 2000, `harmonic(n)` above 50000, `stirlingSecondKind(n, k)` with `n` above 50000 or `n k` above 6250000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`), the eigenvalues of a matrix of expressions that are not found exactly, a matrix raised to a power that is not an integer, an equation or an inequality of matrices |
 | `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, an interval, points or a tolerance of `integrate()` that are not valid, a problem or options of `solveODE()` that are not valid, a continued fraction of a value with variables, terms that are not integers, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence`, the options of `createMath()` that are not valid |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |

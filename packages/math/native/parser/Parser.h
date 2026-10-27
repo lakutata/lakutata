@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../core/Handle.h"
+#include "../matrix/Matrices.h"
 
 namespace math {
 
@@ -20,13 +21,15 @@ struct Definition {
 //The definitions the parser sees: the scope, and while a definition is compiled, its parameters
 using Resolver = std::function<const Definition *(const std::string &name)>;
 
-//What a text is: an expression, an equation (left = right), or an inequality (left < right…)
+//What a text is: an expression, an equation (left = right), an inequality (left < right…), or a matrix ([1, 2; 3, 4],
+//and the formulas of matrices)
 struct Parsed {
-    enum class Kind { Expression, Equation, Relation };
+    enum class Kind { Expression, Equation, Relation, Matrix };
     Kind kind;
     Expr left;
     Expr right;
     std::string relation;
+    MatrixPointer matrix;
 };
 
 //Parse a formula, an equation or an inequality

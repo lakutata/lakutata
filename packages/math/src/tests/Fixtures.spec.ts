@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
-import {type ComplexVector, createMath, type Decimal, type Distribution, type DistributionName, Expression, type IntegralResult, type IterativeSolution, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type ODEResult, type PrimeFactor, type RootResult, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution} from '../exports/Math.js'
+import {type ComplexVector, createMath, type Decimal, type Distribution, type DistributionName, type Eigenvector, Expression, ExpressionMatrix, type IntegralResult, type IterativeSolution, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type ODEResult, type PrimeFactor, type RootResult, type RowEchelonForm, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -507,6 +507,75 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
             const {quotient, remainder} = ours.divide(fixture.divisor, fixture.variable)
             assertValues(quotient, fixtures.points, fixture.quotient!.values, `${fixture.text} / ${fixture.divisor}: quotient`)
             assertValues(remainder, fixtures.points, fixture.remainder!.values, `${fixture.text} / ${fixture.divisor}: remainder`)
+        }
+    })
+
+    it('give the matrices of expressions of SymPy', (): void => {
+        type ExpressionResult = {text: string | null, values: (Complex | null)[]}
+        type MatrixResult = {rows: number, columns: number, elements: ExpressionResult[]}
+        type Fixture = {op: string, rows?: string[][], b?: string[][], other?: string[][], exponent?: number, text?: string, error?: string, result?: unknown}
+        const fixtures = expected<Fixture>('matrices')
+        const compareMatrix = (ours: ExpressionMatrix, theirs: MatrixResult, label: string): void => {
+            assert.ok(ours.rows === theirs.rows && ours.columns === theirs.columns, `${label}: ${ours.rows}×${ours.columns}`)
+            const elements: Expression[] = ours.toArray().flat()
+            theirs.elements.forEach((element: ExpressionResult, i: number): void => assertValues(elements[i], fixtures.points, element.values, `${label} [${i}]`))
+        }
+        //A·v, or (A - value I)·v, 0 at the points
+        const assertNull = (a: ExpressionMatrix, v: ExpressionMatrix, label: string): void => a.mul(v).toArray().flat().forEach((element: Expression): void => assertValues(element, fixtures.points, fixtures.points.map((): Complex => ['0', '0']), label))
+        for (const fixture of fixtures.cases) {
+            const label: string = `${fixture.op}(${fixture.text ?? JSON.stringify(fixture.rows)})`
+            if (fixture.op === 'parse') {
+                const ours = math.parse(fixture.text!)
+                if (ours instanceof ExpressionMatrix) compareMatrix(ours, fixture.result as MatrixResult, label)
+                else assertValues(ours as Expression, fixtures.points, (fixture.result as ExpressionResult).values, label)
+                continue
+            }
+            const a: ExpressionMatrix = math.expressionMatrix(fixture.rows!)
+            const operate = (): unknown => {
+                switch (fixture.op) {
+                    case 'determinant': return a.determinant()
+                    case 'inverse': return a.inverse()
+                    case 'solve': return a.solve(fixture.b!)
+                    case 'rref': return a.rref()
+                    case 'rank': return a.rank()
+                    case 'nullspace': return a.nullspace()
+                    case 'characteristicPolynomial': return a.characteristicPolynomial()
+                    case 'eigenvectors': return a.eigenvectors()
+                    case 'pow': return a.pow(fixture.exponent!)
+                    case 'mul': return a.mul(fixture.other!)
+                }
+                throw new Error(`Unknown operation ${fixture.op}`)
+            }
+            if (fixture.error) {
+                assert.throws(operate, (error: unknown): boolean => error instanceof MathException && (error as MathException).errno === fixture.error, label)
+                continue
+            }
+            const ours = operate()
+            if (fixture.op === 'determinant' || fixture.op === 'characteristicPolynomial') {
+                assertValues(ours as Expression, fixtures.points, (fixture.result as ExpressionResult).values, label)
+            } else if (fixture.op === 'rref') {
+                const form = ours as RowEchelonForm, theirs = fixture.result as {matrix: MatrixResult, pivots: number[]}
+                compareMatrix(form.matrix, theirs.matrix, label)
+                assert.deepStrictEqual(form.pivots, theirs.pivots, label)
+            } else if (fixture.op === 'rank') {
+                assert.strictEqual(ours, fixture.result, label)
+            } else if (fixture.op === 'nullspace') {
+                const basis = ours as ExpressionMatrix[]
+                assert.strictEqual(basis.length, fixture.result, label)
+                basis.forEach((v: ExpressionMatrix): void => assertNull(a, v, label))
+            } else if (fixture.op === 'eigenvectors') {
+                //The same eigenvalues (by their values), multiplicities and numbers of eigenvectors, in any order
+                const theirs = fixture.result as {value: ExpressionResult, multiplicity: number, count: number}[], found = ours as Eigenvector[]
+                assert.strictEqual(found.length, theirs.length, label)
+                for (const expected of theirs) {
+                    const match: Eigenvector | undefined = found.find((candidate: Eigenvector): boolean => fixtures.points.every((point: Point, i: number): boolean => expected.value.values[i] === null || close(valueAt(candidate.value, point), expected.value.values[i]!, 1e-9)))
+                    assert.ok(match && match.multiplicity === expected.multiplicity && match.vectors.length === expected.count, `${label}: ${expected.value.text}`)
+                    const identity: ExpressionMatrix = math.expressionMatrix(Array.from({length: a.rows}, (_: unknown, i: number): number[] => Array.from({length: a.rows}, (__: unknown, j: number): number => i === j ? 1 : 0)))
+                    match.vectors.forEach((v: ExpressionMatrix): void => assertNull(a.sub(identity.mul(match.value)), v, `${label}: ${expected.value.text}`))
+                }
+            } else {
+                compareMatrix(ours as ExpressionMatrix, fixture.result as MatrixResult, label)
+            }
         }
     })
 

@@ -21,10 +21,20 @@ export type Handle = object & { readonly __nativeHandle: never }
  * A formula parsed: an expression, an equation, an inequality
  */
 export interface NativeParsed {
-    kind: 'expression' | 'equation' | 'relation'
+    kind: 'expression' | 'equation' | 'relation' | 'matrix'
     left: Handle
     right?: Handle
     relation?: '=' | '<' | '>' | '<=' | '>='
+    matrix?: NativeMatrixOfExpressions
+}
+
+/**
+ * A matrix of expressions, as the addon gives it
+ */
+export interface NativeMatrixOfExpressions {
+    matrix: Handle
+    rows: number
+    columns: number
 }
 
 /**
