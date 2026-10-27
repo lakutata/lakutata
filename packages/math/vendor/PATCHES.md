@@ -98,7 +98,9 @@ function wrappers (`FunctionWrapper`).
   to the power -1 (`z/(2*(x + 1))` is `z/(2*x + 2)`), as the formulas are read: a value has one form, the sums stay
   flat. A factor that is a power, raised to an integer power, is combined (`(a^b)^n` is `a^(b*n)`).
 - `symengine/add.cpp`: a number times a sum met as a term of a sum is multiplied out too, as in a product (a
-  substitution of `x = 1 - u` in `-x + 1` gave `-(-u + 1) + 1`, now `u`).
+  substitution of `x = 1 - u` in `-x + 1` gave `-(-u + 1) + 1`, now `u`); also when it is the term of a product of a
+  number and a sum (the factored form `2*(x + 1)` of `factor()`), and in `add(a, b)`, which now adds its terms through
+  it (`2*(x + 1) + 1` is `2*x + 3`, not a sum inside a sum).
 - `symengine/functions.cpp`: the minus taken out of a sum (`asinh(-x - 1)` is `-asinh(x + 1)`) is added term by
   term, so that a sum among the terms is flattened. `log(e^r)` is `r` for an exact real number `r`. The numeric factor
   of a product is taken out of `abs` (`abs(-2*x)` is `2*abs(x)`), and `abs` is evaluated again once the minus is
@@ -135,6 +137,13 @@ The addon runs SymEngine in its own threads, which can still be running when the
 - `symengine/interruption.h`, `symengine/interruption.cpp` (added): a function the addon sets, called at each step of
   the long loops of `symengine/expand.cpp` and of the multinomial coefficients of `symengine/pow.cpp`. It throws when
   the operation is cancelled or past its time limit, so that its thread stops there.
+
+SymEngine's own tests, built by its CMake (`INTEGER_CLASS=boostmp`, the headers of Boost from `vendor/`) on its 0.15.0
+release with the sources of `vendor/` over it (2026-10-28, for the patch of `add.cpp`): 56 of its 60 tests pass. The 10
+assertions that fail, in `test_functions`, `test_printing`, `test_eval_double` and `test_cwrapper`, check the forms that
+the patches above change on purpose (a coefficient multiplied into a sum, the minus taken out of `acosh`, `truncate` of
+a sum, `zeta` evaluated by Boost.Math, the printing of the C wrapper); they are the same with and without the patch of
+`add.cpp`.
 
 ## Boost.Math
 

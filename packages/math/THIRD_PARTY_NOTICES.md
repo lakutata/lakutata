@@ -479,9 +479,10 @@ limitations under the License.
 ## SymPy 1.14.0
 
 The algorithms of the polynomials in `native/poly/` are written again in C++ after the modules of SymPy
-(https://www.sympy.org) `sympy/polys/densebasic.py`, `densearith.py`, `densetools.py` and `euclidtools.py`; each file
-names the functions it follows. No source of SymPy is compiled or run by the package. SymPy, with the patches it took
-from Diofant, is licensed under the BSD 3-clause license:
+(https://www.sympy.org) `sympy/polys/densebasic.py`, `densearith.py`, `densetools.py`, `euclidtools.py`,
+`galoistools.py`, `sqfreetools.py` and `factortools.py`; each file names the functions it follows. No source of SymPy is
+compiled or run by the package. SymPy, with the patches it took from Diofant, is licensed under the BSD 3-clause
+license:
 
 ```
 Copyright (c) 2006-2023 SymPy Development Team

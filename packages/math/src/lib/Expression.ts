@@ -410,6 +410,32 @@ export class Expression {
     }
 
     /**
+     * The expression factored over the rationals: its irreducible factors to their powers, with its rational
+     * coefficient in front (`6x^2 - 6` is `6(x - 1)(x + 1)`; `x^6 - y^6` has four factors); of a fraction, its
+     * numerator and its denominator. Its generators are those of `math.poly` (`sin(x)^2 - 1` is `(sin(x) - 1)(sin(x) +
+     * 1)`). An operation on the result gives the usual form of the formulas again (`2(x + 1)` plus 1 is `2x + 3`).
+     */
+    public factor(): Expression {
+        return this.#expression(this.context.run<{expression: Handle}>('poly', ['factor', [this.handle], []]).expression)
+    }
+
+    /**
+     * `factor()` in the threads of the addon: a factorization in several variables can take long.
+     * @param options Its cancellation, its time limit.
+     */
+    public async factorAsync(options?: AsyncOptions): Promise<Expression> {
+        return this.#expression((await this.context.runAsync<{expression: Handle}>('poly', ['factor', [this.handle], []], options)).expression)
+    }
+
+    /**
+     * The square-free decomposition: the product of the factors of each multiplicity, to that power (`x^3 - x^2 - x +
+     * 1` is `(x + 1)(x - 1)^2`); of a fraction, of its numerator and its denominator.
+     */
+    public sqf(): Expression {
+        return this.#expression(this.context.run<{expression: Handle}>('poly', ['sqf', [this.handle], []]).expression)
+    }
+
+    /**
      * The derivative of the expression by a variable.
      * @param variable The variable.
      * @param times How many times it is derived: 1 by default.

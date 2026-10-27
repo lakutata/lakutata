@@ -18,6 +18,15 @@ struct PolyResult {
     std::string text;
 };
 
+//The factorization over the rationals of a polynomial: its rational coefficient, its irreducible factors (primitive,
+//their leading coefficients positive) and their multiplicities, by their total degrees then their texts
+struct FactoredPolynomial {
+    Expr coefficient;
+    std::vector<std::pair<Expr, long>> factors;
+};
+
+FactoredPolynomial factorPolynomial(const Expr &expression);
+
 //An operation by its name: its expressions, and names (the variable of a resultant or a discriminant)
 PolyResult polyOperation(const std::string &operation, const std::vector<Expr> &expressions, const std::vector<std::string> &names);
 

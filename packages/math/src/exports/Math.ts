@@ -46,7 +46,7 @@ export {Distribution, type DistributionName, type DistributionParameters, Random
 export {type FindRootOptions, type IntegralResult, type IntegrateOptions, type IterationOptions, Numeric, type ODEOptions, type ODEProblem, type ODEResult, type RootResult, type SystemRootResult} from '../lib/Numeric.js'
 export {type CommonSubexpressions, createMath, type CseOptions, type MathDefinitions, type MathOptions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
 export {constant, cse, cseAsync, decimal, equation, expression, expressionMatrix, jacobian, linalg, math, matrix, ntheory, numeric, parse, poly, solve, solveAsync, stats, unit} from '../lib/Defaults.js'
-export {Polynomials} from '../lib/Polynomials.js'
+export {type FactorList, type PolynomialFactor, Polynomials} from '../lib/Polynomials.js'
 export {type CustomUnit, type CustomUnits, Unit, type UnitDimensions, type UnitValue} from '../lib/Unit.js'
 export {type PhysicalConstant} from '../lib/UnitTable.js'
 export {type Eigenvector, ExpressionMatrix, type ExpressionMatrixValue, type RowEchelonForm} from '../lib/ExpressionMatrix.js'

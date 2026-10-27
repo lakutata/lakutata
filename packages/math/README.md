@@ -217,9 +217,9 @@ console.log(lines.join('\n'))
 
 - `solve(variable)` on an equation or an expression (equal to zero) gives the solutions as an array of expressions, with
   their `kind`: `finite`, `empty`, `all`, `intervals`, or `unsolved`/`other` for a set the package does not solve (its
-  `text` describes it). A polynomial whose coefficients are rational numbers has its rational roots found first (`x^3 -
-  6x^2 + 11x - 6 = 0` gives 1, 2 and 3, not the radicals of Cardano's formula), and the polynomial left is solved
-  exactly to degree four. `{domain: 'real'}` keeps the real solutions.
+  `text` describes it). A polynomial in the variable of degree two or more is factored first: a linear factor gives its
+  root at once and the others are solved exactly to degree four (`x^3 - 6x^2 + 11x - 6 = 0` gives 1, 2 and 3, not the
+  radicals of Cardano's formula; `x^2 - (a + b)x + a*b = 0` gives a and b). `{domain: 'real'}` keeps the real solutions.
 - `solve(equations, variables)` solves a system of linear equations: an empty array when it has no solution,
   otherwise one solution with the value of each variable it determines (in terms of the others when there are
   infinitely many).
@@ -279,29 +279,41 @@ console.log(await ntheory.factorAsync(2n ** 64n + 1n, {timeout: 5000}))
 ### Polynomials
 
 `poly` (`MathScope.poly`) works on polynomials exactly, in any number of variables: `gcd(...values)` and
-`lcm(...values)`, `resultant(a, b, variable)` and `discriminant(p, variable)`, and their asynchronous versions. A
-polynomial is an expression or a formula. Its generators are its symbols and its factors that are not polynomials
-themselves: `sin(x)`, `sqrt(2)`, `exp(x)` (`x^(3/2)` is the cube of `sqrt(x)`, `exp(2x)` the square of `exp(x)`). They
-are independent of each other: `sqrt(2)^2` is not read as 2. An expression with a negative power, or with a coefficient
-that is complex or not exact, is not a polynomial (`MathNotSupportedException`).
+`lcm(...values)`, `resultant(a, b, variable)` and `discriminant(p, variable)`, `factorList(p)` and `sqfList(p)`, and
+their asynchronous versions; `factor()` and `sqf()` of an expression give its factored form. A polynomial is an
+expression or a formula. Its generators are its symbols and its factors that are not polynomials themselves: `sin(x)`,
+`sqrt(2)`, `exp(x)` (`x^(3/2)` is the cube of `sqrt(x)`, `exp(2x)` the square of `exp(x)`). They are independent of each
+other: `sqrt(2)^2` is not read as 2. An expression with a negative power, or with a coefficient that is complex or not
+exact, is not a polynomial (`MathNotSupportedException`).
 
 - The results are over the integers when every coefficient is an integer, with the gcd of the contents in a gcd (`gcd(2x
   + 2, 4x + 4)` is `2x + 2`), and over the rationals otherwise (monic: `gcd(x/2 + 1/2, x + 1)` is `x + 1`). Their
   leading coefficients are positive, as in SymPy. Numbers alone have the gcd and the lcm of numbers (`gcd(1/2, 1/3)` is
-  `1/6`). - The algorithms are SymPy's, written again in C++: the heuristic gcd (GCDHEU), and the subresultant PRS when
-  it fails; the resultant by the subresultant PRS. When the first polynomial has the lower degree, the resultant has the
-  sign (-1)^(mn) that SymPy leaves out (`resultant(x, x^3 + 1, x)` is 1, not SymPy's -1). - A polynomial is held in its
-  dense form: the product over its variables of its degree plus one is at most 10^6 (`x^2000 y^2000 + 1` throws
-  `MathNotSupportedException`).
+  `1/6`).
+- `factorList` gives the rational coefficient and the irreducible factors over the rationals with their multiplicities
+  (`factorList('6x^2 - 6')` is 6, `x - 1` and `x + 1`); `sqfList` gives the square-free decomposition (Yun's algorithm).
+  `factor()` writes them as a product with the coefficient in front (`3x*y + 6x + 3y + 6` is `3(x + 1)(y + 2)`); a
+  fraction has its numerator and its denominator factored. An operation on the result gives the usual form of the
+  formulas again (`2(x + 1)` plus 1 is `2x + 3`).
+- The algorithms are SymPy's, written again in C++: the heuristic gcd (GCDHEU), and the subresultant PRS when it fails;
+  the resultant by the subresultant PRS; the factorization by Zassenhaus' algorithm in one variable (the cyclotomic
+  factors of `x^n - 1` and `x^n + 1` at once) and Wang's in several. A polynomial with many factors modulo every prime
+  (Swinnerton-Dyer's) takes a time exponential in their number: factor it with `factorAsync()` or `factorListAsync()`
+  and a time limit. When the first polynomial has the lower degree, the resultant has the sign (-1)^(mn) that SymPy
+  leaves out (`resultant(x, x^3 + 1, x)` is 1, not SymPy's -1).
+- A polynomial is held in its dense form: the product over its variables of its degree plus one is at most 10^6 (`x^2000
+  y^2000 + 1` throws `MathNotSupportedException`).
 
 ```typescript
-import {poly} from '@lakutata/math'
+import {expression, poly} from '@lakutata/math'
 
 console.log(poly.gcd('x^4 - 1', 'x^6 - 1').toString())                 //x^2 - 1
 console.log(poly.gcd('(x - 1)*(y - 2)', '(x - 1)*(x + y)').toString())  //x - 1
 console.log(poly.lcm('2x + 2', '4x - 4').toString())                    //4x^2 - 4
 console.log(poly.resultant('x^2 + y', 'x - y', 'x').toString())         //y^2 + y
 console.log(poly.discriminant('a*x^2 + b*x + c', 'x').toString())       //-4a*c + b^2
+console.log(expression('3x*y + 6x + 3y + 6').factor().toString())       //3(x + 1)(y + 2)
+console.log(expression('x^6 - y^6').factor().toString())                //(x^2 - x*y + y^2)(x + y)(x - y)(x^2 + x*y + y^2)
 ```
 
 ### Matrices and linear algebra
@@ -387,9 +399,10 @@ expression, it does not change: `with(row, column, value)` gives a matrix with a
   fraction of polynomials, whose common factors are not cancelled.
 - An element counts as 0 when it is 0 once expanded; as a constant, when its decimals cannot tell it from 0; with
   variables, when it is 0 for every value of them (it is computed exactly at two values). As in SymPy, a pivot that is 0
-  only for some values of the variables counts as not 0. The eigenvalues are the roots of the characteristic polynomial,
-  the elements of the diagonal that are roots and the rational roots first, then the roots of what is left, exact to
-  degree four; other eigenvalues throw `MathNotSupportedException`, and `linalg.eigen()` gives them as numbers.
+  only for some values of the variables counts as not 0. The eigenvalues are the roots of the characteristic polynomial:
+  the elements of the diagonal that are roots first, then the roots of what is left, factored (`[a, b; b, a]` has `a +
+  b` and `a - b`) and exact to degree four; other eigenvalues throw `MathNotSupportedException`, and `linalg.eigen()`
+  gives them as numbers.
 
 ```typescript
 import {expressionMatrix, jacobian, parse} from '@lakutata/math'
@@ -666,7 +679,7 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `unit`, `constant`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `poly`, `linalg`, `stats`, `numeric` | The functions and the namespaces of `math`, ready to use |
 | `math`, `createMath`, `MathOptions` | The scope of the default options; a scope of other options (`definitions`, `precision`, `timeout`, `concurrency`, `units`), and its options |
 | `MathScope`, `MathDefinitions` | A scope of definitions and settings (`createMath()`, `with()`): `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `unit`, `constant`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `poly`, `linalg`, `stats`, `numeric`; the definitions (a body by signature) |
-| `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
+| `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `factor`, `sqf`, `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
 | `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
 | `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is given where a matrix is expected (a matrix, or its rows); where a vector is (a `Float64Array`, or an array of numbers) |
 | `ExpressionMatrix`, `ExpressionMatrixValue`, `RowEchelonForm`, `Eigenvector` | A matrix of expressions (`expressionMatrix()`, `parse()`): `rows`, `columns`, `get`, `toArray`, `with`, `withRow`, `withColumn`, `row`, `column`, `submatrix`, `transpose`, `neg`, `add`, `sub`, `mul`, `div`, `multiplyElements`, `pow`, `trace`, `determinant`, `inverse`, `solve`, `rref`, `rank`, `nullspace`, `characteristicPolynomial`, `eigenvalues`, `eigenvectors`, `diff`, `substitute`, `expand`, `simplify`, `equals`, `toMatrix`, `toString`, `toTeX`, and `determinantAsync`, `inverseAsync`, `solveAsync`, `eigenvectorsAsync`; what is given for one; a reduced row echelon form and its pivots; an eigenvalue, its multiplicity and its eigenvectors |
@@ -685,7 +698,7 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | `SystemSolution`, `SystemEquation` | A solution of a system (an expression by variable), an equation of a system |
 | `CompiledFunction` | A compiled expression: a function of numbers, its `variables`, `batch` |
 | `NumberTheory`, `IntegerValue`, `ContinuedFractionOptions`, `PrimeFactor`, `ExtendedGcd`, `Congruence` | The number theory (`ntheory`): `gcd`, `lcm`, `extendedGcd`, `mod`, `modInverse`, `powMod`, `isPrime`, `nextPrime`, `factor`, `totient`, `mobius`, `primitiveRoot`, `legendre`, `jacobi`, `crt`, `fibonacci`, `lucas`, `binomial`, `factorial`, `doubleFactorial`, `bernoulli`, `harmonic`, `permutations`, `combinationsWithRepetition`, `multinomial`, `bell`, `catalan`, `stirlingSecondKind`, `compositions`, `continuedFraction`, `fromContinuedFraction`, `convergents`, and the asynchronous versions; an integer (a bigint, or a number that is a safe integer); a prime factor and its exponent; the result of `extendedGcd`; the result of `crt`; the largest number of terms of a continued fraction |
-| `Polynomials` | The polynomials (`poly`): `gcd`, `lcm`, `resultant`, `discriminant`, and the asynchronous versions |
+| `Polynomials`, `FactorList`, `PolynomialFactor` | The polynomials (`poly`): `gcd`, `lcm`, `resultant`, `discriminant`, `factorList`, `sqfList`, and the asynchronous versions; a polynomial as a coefficient times factors, a factor and its multiplicity |
 | `Numeric`, `FindRootOptions`, `IterationOptions`, `RootResult`, `SystemRootResult`, `IntegrateOptions`, `IntegralResult` | The numeric solutions and integrals (`numeric`): `polynomialRoots`, `findRoot`, `solveSystem`, `integrate` and their asynchronous versions; their options (`bracket`, `guess`, `tolerance`, `maxIterations`, `points`) and their results (`root` or `solution`, `converged`, `iterations`, `residual`; `value`, `error`, `converged`) |
 | `ODEProblem`, `ODEOptions`, `ODEResult` | The differential equations (`numeric.solveODE`, `solveODEAsync`): the derivatives, the states, the time, the span and the initial values; the method (`rk45`, `radau`), the tolerances, `maxStep`, `points`, `maxSteps`; the times `t`, the states `y`, `steps`, `rejected`, `evaluations`, `jacobians`, `completed`, `message` |
 | `AsyncOptions`, `Value` | The options of the asynchronous operations (`timeout`, `signal`); what is given where an expression is expected (an expression, a number, a bigint, a decimal, a formula) |

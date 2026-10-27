@@ -274,7 +274,13 @@ void Add::coef_dict_add_term(const Ptr<RCP<const Number>> &coef,
         RCP<const Number> coef2;
         RCP<const Basic> t;
         Add::as_coef_term(term, outArg(coef2), outArg(t));
-        Add::dict_add_term(d, mulnum(c, coef2), t);
+        // lakutata: the term of a number times a sum (the factored form
+        // 2*(x + 1)) is that sum: multiplied out as well
+        if (is_a<Add>(*t)) {
+            Add::coef_dict_add_term(coef, d, mulnum(c, coef2), t);
+        } else {
+            Add::dict_add_term(d, mulnum(c, coef2), t);
+        }
     }
 }
 
@@ -425,6 +431,9 @@ RCP<const Basic> add(const RCP<const Basic> &a, const RCP<const Basic> &b)
     SymEngine::umap_basic_num d;
     RCP<const Number> coef;
     RCP<const Basic> t;
+    // lakutata: a term that is not a number added through coef_dict_add_term,
+    // which multiplies out a number times a sum (2*(x + 1) + 1 is 2*x + 3,
+    // the sums flat)
     if (is_a<Add>(*a) and is_a<Add>(*b)) {
         coef = (down_cast<const Add &>(*a)).get_coef();
         d = (down_cast<const Add &>(*a)).get_dict();
@@ -439,9 +448,7 @@ RCP<const Basic> add(const RCP<const Basic> &a, const RCP<const Basic> &b)
                 iaddnum(outArg(coef), rcp_static_cast<const Number>(b));
             }
         } else {
-            RCP<const Number> coef2;
-            Add::as_coef_term(b, outArg(coef2), outArg(t));
-            Add::dict_add_term(d, coef2, t);
+            Add::coef_dict_add_term(outArg(coef), d, one, b);
         }
     } else if (is_a<Add>(*b)) {
         coef = (down_cast<const Add &>(*b)).get_coef();
@@ -451,20 +458,23 @@ RCP<const Basic> add(const RCP<const Basic> &a, const RCP<const Basic> &b)
                 iaddnum(outArg(coef), rcp_static_cast<const Number>(a));
             }
         } else {
-            RCP<const Number> coef2;
-            Add::as_coef_term(a, outArg(coef2), outArg(t));
-            Add::dict_add_term(d, coef2, t);
+            Add::coef_dict_add_term(outArg(coef), d, one, a);
         }
     } else {
-        Add::as_coef_term(a, outArg(coef), outArg(t));
-        Add::dict_add_term(d, coef, t);
-        Add::as_coef_term(b, outArg(coef), outArg(t));
-        Add::dict_add_term(d, coef, t);
+        RCP<const Number> constant = zero;
+        for (const RCP<const Basic> &x : {a, b}) {
+            Add::as_coef_term(x, outArg(coef), outArg(t));
+            if (is_a<Add>(*t)) {
+                Add::coef_dict_add_term(outArg(constant), d, coef, t);
+            } else {
+                Add::dict_add_term(d, coef, t);
+            }
+        }
         auto it = d.find(one);
         if (it == d.end()) {
-            coef = zero;
+            coef = constant;
         } else {
-            coef = it->second;
+            coef = addnum(it->second, constant);
             d.erase(it);
         }
         return Add::from_dict(coef, std::move(d));

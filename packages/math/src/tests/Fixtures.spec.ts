@@ -733,6 +733,38 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
         assert.deepStrictEqual(problems, [])
     })
 
+    it('factor and decompose square free as SymPy, each difference noted', (): void => {
+        type FactorOperation = 'factorList' | 'sqfList' | 'factor'
+        const fixtures = expected<{op: FactorOperation, polynomial: string, differs?: Record<string, string>, coefficient?: string, factors?: {factor: string, multiplicity: number}[], result?: {text: string}}>('factor')
+        const problems: string[] = []
+        for (const fixture of fixtures.cases) {
+            const label: string = `${fixture.op}(${fixture.polynomial})`
+            let same: boolean, ours: string
+            if (fixture.op === 'factor') {
+                const result: Expression = math.expression(fixture.polynomial).factor()
+                ours = result.toString()
+                same = result.equals(fixture.result!.text)
+            } else {
+                const list = fixture.op === 'factorList' ? math.poly.factorList(fixture.polynomial) : math.poly.sqfList(fixture.polynomial)
+                ours = `${list.coefficient.toString()}; ${list.factors.map((f): string => `(${f.factor.toString()})^${f.multiplicity}`).join(' ')}`
+                //The same coefficient, and each factor of SymPy once among ours with its multiplicity
+                const unmatched = [...list.factors]
+                same = list.coefficient.equals(fixture.coefficient!) && list.factors.length === fixture.factors!.length && fixture.factors!.every((theirs): boolean => {
+                    const i: number = unmatched.findIndex((f): boolean => f.multiplicity === theirs.multiplicity && f.factor.equals(theirs.factor))
+                    return i >= 0 && unmatched.splice(i, 1).length === 1
+                })
+                //The factors multiplied back are the polynomial
+                const product: Expression = list.factors.reduce((p: Expression, f): Expression => p.mul(f.factor.pow(f.multiplicity)), list.coefficient)
+                assert.ok(product.expand().equals(math.expression(fixture.polynomial).expand()), `${label}: the product of ${ours}`)
+            }
+            const noted: string | undefined = fixture.differs?.sympy
+            const theirs: string = fixture.result?.text ?? `${fixture.coefficient}; ${fixture.factors!.map((f): string => `(${f.factor})^${f.multiplicity}`).join(' ')}`
+            if (!same && !noted) problems.push(`${label}: ${ours}, SymPy ${theirs}, not noted`)
+            if (same && noted) problems.push(`${label}: SymPy agrees, its note is stale`)
+        }
+        assert.deepStrictEqual(problems, [])
+    })
+
     it('solve the linear systems as SymPy', (): void => {
         const fixtures = expected<{equations: string[], variables: string[], kind: string, values?: Record<string, {text: string, values: (Complex | null)[]}>}>('systems')
         for (const fixture of fixtures.cases) {

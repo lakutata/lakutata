@@ -108,6 +108,22 @@ Dmp dmp_inflate(const Dmp &f, const std::vector<long> &m, long u);
 std::vector<long> dmp_multi_deflate(std::vector<Dmp> &polys, long u);
 bool dmp_equal(const Dmp &f, const Dmp &g, long u);
 
+//For the factorization (SymPy's densetools and densebasic): the sum of |coefficients|; the last |A| variables evaluated
+//at A (a polynomial of the level u - |A|; all of them: a constant of the level 0); the m-th derivative in the variable
+//j evaluated at a (of the level u - 1); the product of polynomials; f - g h and f + g h; a polynomial of one variable
+//as one of the level l in its last variable (dmp_nest); the gcd of the monomials taken out (its exponents); the
+//variables that do not appear taken out (their indices) and put back
+Z dup_l1_norm(const Dup &f);
+Dmp dmp_eval_tail(const Dmp &f, const std::vector<Z> &A, long u);
+Dmp dmp_diff_eval_in(const Dmp &f, long m, const Z &a, long j, long u);
+Dmp dmp_expand(const std::vector<Dmp> &polys, long u);
+Dmp dmp_sub_mul(const Dmp &f, const Dmp &g, const Dmp &h, long u);
+Dmp dmp_add_mul(const Dmp &f, const Dmp &g, const Dmp &h, long u);
+Dmp dmp_nest(const Dup &f, long l);
+std::vector<long> dmp_terms_gcd(Dmp &f, long u);
+std::vector<long> dmp_exclude(Dmp &f, long &u);
+Dmp dmp_include(const Dmp &f, const std::vector<long> &J, long u);
+
 //The terms of a polynomial (its monomials and coefficients), and a polynomial of its terms
 struct Term {
     std::vector<long> exponents;

@@ -756,6 +756,12 @@ Dmp dmp_eval_in(const Dmp &f, const Z &a, long j, long u)
 {
     if (j == 0) return dmp_eval(f, a, u);
     Dmp h;
+    //Of the level 1: the values of its coefficients are the integer coefficients of the result
+    if (u == 1) {
+        for (const Dmp &c : f.c) h.g.push_back(dup_eval(c.g, a));
+        dmp_strip(h, 0);
+        return h;
+    }
     h.c.reserve(f.c.size());
     for (const Dmp &c : f.c) h.c.push_back(dmp_eval_in(c, a, j - 1, u - 1));
     dmp_strip(h, u - 1);
@@ -855,6 +861,109 @@ bool dmp_equal(const Dmp &f, const Dmp &g, long u)
     if (f.c.size() != g.c.size()) return false;
     for (std::size_t i = 0; i < f.c.size(); i++) if (!dmp_equal(f.c[i], g.c[i], u - 1)) return false;
     return true;
+}
+
+Z dup_l1_norm(const Dup &f)
+{
+    Z norm = 0;
+    for (const Z &c : f) norm += mp_abs(c);
+    return norm;
+}
+
+Dmp dmp_eval_tail(const Dmp &f, const std::vector<Z> &A, long u)
+{
+    if (A.empty()) return f;
+    const long n = static_cast<long>(A.size()), level = u - n;
+    std::map<std::vector<long>, Z> collected;
+    for (const Term &term : dmp_to_terms(f, u)) {
+        Z value = term.coefficient;
+        for (long i = 0; i < n; i++) {
+            Z power;
+            SymEngine::mp_pow_ui(power, A[static_cast<std::size_t>(i)], static_cast<unsigned long>(term.exponents[static_cast<std::size_t>(u - n + 1 + i)]));
+            value *= power;
+        }
+        std::vector<long> head(term.exponents.begin(), term.exponents.begin() + (level < 0 ? 1 : level + 1));
+        if (level < 0) head.assign(1, 0);
+        collected[head] += value;
+    }
+    std::vector<Term> terms;
+    for (const auto &[exponents, coefficient] : collected) terms.push_back({exponents, coefficient});
+    return dmp_from_terms(terms, level < 0 ? 0 : level);
+}
+
+Dmp dmp_diff_eval_in(const Dmp &f, long m, const Z &a, long j, long u)
+{
+    return dmp_eval_in(dmp_diff_in(f, m, j, u), a, j, u);
+}
+
+Dmp dmp_expand(const std::vector<Dmp> &polys, long u)
+{
+    if (polys.empty()) return dmp_one(u);
+    Dmp f = polys[0];
+    for (std::size_t i = 1; i < polys.size(); i++) f = dmp_mul(f, polys[i], u);
+    return f;
+}
+
+Dmp dmp_sub_mul(const Dmp &f, const Dmp &g, const Dmp &h, long u)
+{
+    return dmp_sub(f, dmp_mul(g, h, u), u);
+}
+
+Dmp dmp_add_mul(const Dmp &f, const Dmp &g, const Dmp &h, long u)
+{
+    return dmp_add(f, dmp_mul(g, h, u), u);
+}
+
+Dmp dmp_nest(const Dup &f, long l)
+{
+    Dmp h = dmp_from_dup(f);
+    for (long i = 0; i < l; i++) {
+        Dmp outer;
+        outer.c.push_back(h);
+        h = std::move(outer);
+    }
+    return h;
+}
+
+std::vector<long> dmp_terms_gcd(Dmp &f, long u)
+{
+    std::vector<long> G(static_cast<std::size_t>(u) + 1, 0);
+    if (dmp_ground_TC(f, u) != 0 || dmp_zero_p(f, u)) return G;
+    std::vector<Term> terms = dmp_to_terms(f, u);
+    for (std::size_t i = 0; i < G.size(); i++) {
+        long least = -1;
+        for (const Term &term : terms) least = least < 0 ? term.exponents[i] : std::min(least, term.exponents[i]);
+        G[i] = std::max(least, 0L);
+    }
+    if (std::all_of(G.begin(), G.end(), [](long g) { return g == 0; })) return G;
+    for (Term &term : terms) for (std::size_t i = 0; i < G.size(); i++) term.exponents[i] -= G[i];
+    f = dmp_from_terms(terms, u);
+    return G;
+}
+
+std::vector<long> dmp_exclude(Dmp &f, long &u)
+{
+    std::vector<long> J;
+    if (u == 0 || dmp_ground_p(f, u)) return J;
+    std::vector<Term> terms = dmp_to_terms(f, u);
+    for (long j = 0; j <= u; j++) {
+        if (std::none_of(terms.begin(), terms.end(), [j](const Term &term) { return term.exponents[static_cast<std::size_t>(j)] != 0; })) J.push_back(j);
+    }
+    if (J.empty()) return J;
+    for (Term &term : terms) {
+        for (auto j = J.rbegin(); j != J.rend(); ++j) term.exponents.erase(term.exponents.begin() + *j);
+    }
+    u -= static_cast<long>(J.size());
+    f = dmp_from_terms(terms, u);
+    return J;
+}
+
+Dmp dmp_include(const Dmp &f, const std::vector<long> &J, long u)
+{
+    if (J.empty()) return f;
+    std::vector<Term> terms = dmp_to_terms(f, u);
+    for (Term &term : terms) for (const long j : J) term.exponents.insert(term.exponents.begin() + j, 0);
+    return dmp_from_terms(terms, u + static_cast<long>(J.size()));
 }
 
 std::vector<Term> dmp_to_terms(const Dmp &f, long u)

@@ -79,6 +79,8 @@ describe('The matrices of expressions', (): void => {
         assert.strictEqual(math.expressionMatrix('[1, 2; 3, 4]').characteristicPolynomial('t').toString(), 't^2 - 5t - 2')
         const eigen = (value: string): [string, number, string[]][] => math.expressionMatrix(value).eigenvectors().map(({value: v, multiplicity, vectors}): [string, number, string[]] => [v.toString(), multiplicity, vectors.map(text)])
         assert.deepStrictEqual(eigen('[2, 1; 1, 2]'), [['1', 1, ['[-1; 1]']], ['3', 1, ['[1; 1]']]])
+        //The characteristic polynomial factored: a + b and a - b, not a + sqrt(b^2)
+        assert.deepStrictEqual(math.expressionMatrix('[a, b; b, a]').eigenvalues().map((e): string => e.value.toString()).sort(), ['a + b', 'a - b'])
         //Defective: multiplicity 2, one eigenvector
         assert.deepStrictEqual(eigen('[1, 1; 0, 1]'), [['1', 2, ['[1; 0]']]])
         //Rational roots of the characteristic polynomial, radicals

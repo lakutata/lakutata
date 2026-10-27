@@ -123,10 +123,12 @@ describe('The formulas', (): void => {
     })
 
     it('solve equations in the complex numbers or the real ones', (): void => {
-        //The rational roots of a polynomial first: not Cardano's radicals of them
+        //A polynomial factored first: not Cardano's radicals of its rational roots, not sqrt((a - b)^2)
         assert.deepStrictEqual(math.equation('x^3 - 6x^2 + 11x - 6 = 0').solve('x').map(String), ['1', '2', '3'])
         assert.deepStrictEqual(math.equation('2x^3 - 3x^2 - 3x + 2 = 0').solve('x').map(String), ['-1', '1/2', '2'])
         assert.deepStrictEqual(math.equation('x^5 = x').solve('x').map(String), ['-1', '0', '1', '-i', 'i'])
+        assert.deepStrictEqual(math.equation('x^2 - (a + b)*x + a*b = 0').solve('x').map(String), ['a', 'b'])
+        assert.deepStrictEqual(math.equation('x^4 - 5x^2 + 6 = 0').solve('x').map(String), ['-sqrt(3)', '-sqrt(2)', 'sqrt(2)', 'sqrt(3)'])
         //A constant term too large to factor at once (a product of two primes of 61 and 31 bits): the formulas, at once
         const started: number = Date.now()
         assert.strictEqual(math.equation('x^3 + x + 4951760154835678088235319297 = 0').solve('x').length, 3)

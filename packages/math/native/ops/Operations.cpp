@@ -29,7 +29,7 @@
 #include "../parser/Parser.h"
 #include "../printer/Printer.h"
 #include "../functions/Functions.h"
-#include "../ntheory/NumberTheory.h"
+#include "../poly/Poly.h"
 
 namespace math {
 
@@ -307,38 +307,11 @@ Expr seriesOf(const Expr &given, const std::string &name, const Expr &point, uns
 
 namespace {
 
-//The positive divisors of an integer from its prime factors, at most a limit of them (an empty list beyond)
-std::vector<integer_class> divisorsOf(const integer_class &n, size_t limit)
-{
-    std::vector<integer_class> divisors{integer_class(1)};
-    if (n == 0) return divisors;
-    const NumberTheoryResult factors = numberTheoryOf("factor", {{n}});
-    for (size_t i = 0; i + 1 < factors.integers.size(); i += 2) {
-        const integer_class prime = factors.integers[i];
-        if (prime < 0) continue;
-        const unsigned long exponent = mp_get_ui(factors.integers[i + 1]);
-        const size_t count = divisors.size();
-        integer_class power(1);
-        for (unsigned long e = 1; e <= exponent; e++) {
-            power *= prime;
-            for (size_t k = 0; k < count; k++) divisors.push_back(divisors[k] * power);
-            if (divisors.size() > limit) return {};
-        }
-    }
-    return divisors;
-}
-
-//The rational roots of a polynomial of degree 3 or more whose coefficients are rational numbers, and the polynomial
-//left once they are divided out: SymEngine's formulas give the roots of x^3 - 6x^2 + 11x - 6 by Cardano's radicals,
-//not 1, 2, 3. A root p/q has p dividing the constant term and q the leading coefficient (the theorem of the rational
-//roots); none is looked for where their integers have more than 64 bits (factoring a product of two large primes takes
-//long) or the candidates are more than 20000.
-struct RationalRoots {
-    std::vector<Expr> roots;
-    Expr rest;
-};
-
-std::optional<RationalRoots> rationalRootsOf(const Expr &expression, const RCP<const Symbol> &by)
+//The roots of a polynomial in the variable of degree 2 or more (its coefficients may have other variables): of its
+//irreducible factors over the rationals, a linear one at once, the others by SymEngine's formulas; nothing where one
+//of them is not solved. SymEngine's formulas alone give the roots of x^3 - 6x^2 + 11x - 6 by Cardano's radicals, not
+//1, 2, 3, those of x^2 - (a + b)x + a*b with sqrt((a - b)^2), and none of x^5 - x.
+std::optional<set_basic> factoredRootsOf(const Expr &expression, const RCP<const Symbol> &by)
 {
     std::vector<Expr> coefficients;
     try {
@@ -346,69 +319,28 @@ std::optional<RationalRoots> rationalRootsOf(const Expr &expression, const RCP<c
     } catch (const MathError &) {
         return std::nullopt;
     }
-    if (coefficients.size() < 4) return std::nullopt;
-    //Integers: the coefficients times the least common multiple of their denominators
-    integer_class common(1);
-    for (const Expr &coefficient : coefficients) {
-        if (is_a<Rational>(*coefficient)) mp_lcm(common, common, get_den(down_cast<const Rational &>(*coefficient).as_rational_class()));
-        else if (!is_a<SymEngine::Integer>(*coefficient)) return std::nullopt;
+    if (coefficients.size() < 3) return std::nullopt;
+    FactoredPolynomial factored;
+    try {
+        factored = factorPolynomial(expression);
+    } catch (const MathError &error) {
+        if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
+        return std::nullopt;
     }
-    std::vector<integer_class> a;
-    for (const Expr &coefficient : coefficients) {
-        if (is_a<SymEngine::Integer>(*coefficient)) {
-            a.push_back(down_cast<const SymEngine::Integer &>(*coefficient).as_integer_class() * common);
-        } else {
-            const rational_class value = down_cast<const Rational &>(*coefficient).as_rational_class();
-            a.push_back(get_num(value) * (common / get_den(value)));
+    set_basic roots;
+    for (const auto &[factor, multiplicity] : factored.factors) {
+        checkpoint();
+        const std::vector<Expr> c = coefficientsOf(factor, by->get_name());
+        if (c.size() < 2) continue;
+        if (c.size() == 2) {
+            roots.insert(div(neg(c[0]), c[1]));
+            continue;
         }
+        const RCP<const Set> solved = solve(factor, by, universalset());
+        if (!is_a<FiniteSet>(*solved)) return std::nullopt;
+        for (const Expr &value : down_cast<const FiniteSet &>(*solved).get_container()) roots.insert(value);
     }
-    RationalRoots result;
-    if (a[0] == 0) {
-        result.roots.push_back(zero);
-        while (!a.empty() && a[0] == 0) a.erase(a.begin());
-    }
-    //The candidates p/q, of integers of at most 64 bits (factored at once), at most 20000 of them
-    std::vector<integer_class> ps, qs;
-    if (a.size() > 1 && SymEngine::bit_length(mp_abs(a.front())) <= 64 && SymEngine::bit_length(mp_abs(a.back())) <= 64) {
-        ps = divisorsOf(mp_abs(a.front()), 20000);
-        qs = divisorsOf(mp_abs(a.back()), 20000);
-        if (ps.size() * qs.size() > 20000) ps.clear();
-    }
-    if (!ps.empty()) {
-        for (const integer_class &q : qs) {
-            for (const integer_class &positive : ps) {
-                integer_class divisor;
-                mp_gcd(divisor, positive, q);
-                if (divisor != 1) continue;
-                for (const integer_class &p : {positive, integer_class(-positive)}) {
-                    bool found = false;
-                    //A root while sum a_i p^i q^(n-i) is 0: divided out by q x - p, exactly (Gauss's lemma)
-                    while (a.size() > 1) {
-                        checkpoint();
-                        integer_class sum(0), pPower(1);
-                        std::vector<integer_class> qPowers(a.size(), integer_class(1));
-                        for (size_t i = 1; i < a.size(); i++) qPowers[i] = qPowers[i - 1] * q;
-                        for (size_t i = 0; i < a.size(); i++) {
-                            sum += a[i] * pPower * qPowers[a.size() - 1 - i];
-                            pPower *= p;
-                        }
-                        if (sum != 0) break;
-                        std::vector<integer_class> quotient(a.size() - 1);
-                        quotient.back() = a.back() / q;
-                        for (size_t k = a.size() - 2; k > 0; k--) quotient[k - 1] = (a[k] + p * quotient[k]) / q;
-                        a = std::move(quotient);
-                        found = true;
-                    }
-                    if (found) result.roots.push_back(Rational::from_mpq(rational_class(p, q)));
-                }
-            }
-        }
-    }
-    if (result.roots.empty()) return std::nullopt;
-    Expr rest = zero;
-    for (size_t i = 0; i < a.size(); i++) rest = add(rest, mul(integer(a[i]), pow(by, integer(static_cast<long>(i)))));
-    result.rest = a.size() > 1 ? rest : Expr();
-    return result;
+    return roots;
 }
 
 }
@@ -417,22 +349,9 @@ Solutions solveOf(const Expr &given, const std::string &name, bool real)
 {
     const Expr expression = evaluated(given);
     const RCP<const Symbol> by = variable(name);
-    //The rational roots of a polynomial first, the polynomial left to SymEngine; all of them by SymEngine where that
-    //does not solve it
+    //A polynomial factored first; all of it by SymEngine where that does not solve it
     RCP<const Set> found;
-    if (const std::optional<RationalRoots> rational = rationalRootsOf(expression, by)) {
-        set_basic values(rational->roots.begin(), rational->roots.end());
-        bool complete = true;
-        if (!rational->rest.is_null()) {
-            const RCP<const Set> rest = solve(rational->rest, by, universalset());
-            if (is_a<FiniteSet>(*rest)) {
-                for (const Expr &value : down_cast<const FiniteSet &>(*rest).get_container()) values.insert(value);
-            } else if (!is_a<EmptySet>(*rest)) {
-                complete = false;
-            }
-        }
-        if (complete) found = finiteset(values);
-    }
+    if (const std::optional<set_basic> roots = factoredRootsOf(expression, by)) found = roots->empty() ? RCP<const Set>(emptyset()) : finiteset(*roots);
     //In the real numbers: the complex solutions kept when they are real (SymEngine fails intersecting some of them
     //with the real line); the other sets solved in the real line
     if (found.is_null()) found = solve(expression, by, universalset());

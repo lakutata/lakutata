@@ -1,13 +1,22 @@
 //The operations of math.poly on expressions (see Poly.h)
 #include "Poly.h"
 
+#include <algorithm>
+#include <tuple>
+
+#include <symengine/add.h>
 #include <symengine/integer.h>
+#include <symengine/mul.h>
+#include <symengine/pow.h>
 #include <symengine/rational.h>
 
 #include "../core/Errors.h"
+#include "../ops/Operations.h"
 #include "../parser/Parser.h"
+#include "../printer/Printer.h"
 #include "Convert.h"
 #include "Euclid.h"
+#include "Factor.h"
 
 namespace math {
 
@@ -112,6 +121,76 @@ Expr discriminantOf(const Expr &f, const std::string &name)
     return fromPolynomial(d, p.u - 1, others(p), scale);
 }
 
+//A factorization as expressions: the coefficient, the factors and their multiplicities, ordered by their total degrees
+//then their texts
+struct ExprFactors {
+    Expr coefficient;
+    std::vector<std::pair<Expr, long>> factors;
+};
+
+long totalDegree(const Dmp &f, long u)
+{
+    long degree = 0;
+    for (const Term &term : dmp_to_terms(f, u)) {
+        long sum = 0;
+        for (const long e : term.exponents) sum += e;
+        degree = std::max(degree, sum);
+    }
+    return degree;
+}
+
+ExprFactors factorsOf(const Expr &expression, bool squareFree)
+{
+    const Polynomials p = toPolynomials({expression});
+    const Factorization factored = squareFree ? dmp_sqf_list(p.polys[0], p.u) : dmp_factor_list(p.polys[0], p.u);
+    ExprFactors result;
+    result.coefficient = numberOf(rational_class(factored.coefficient, p.denominators[0]));
+    std::vector<std::tuple<long, std::string, long, Expr>> ordered;
+    for (const auto &[factor, k] : factored.factors) {
+        const Expr e = fromPolynomial(factor, p.u, p.generators);
+        ordered.emplace_back(totalDegree(factor, p.u), toText(e), k, e);
+    }
+    std::sort(ordered.begin(), ordered.end(), [](const auto &a, const auto &b) {
+        if (std::get<0>(a) != std::get<0>(b)) return std::get<0>(a) < std::get<0>(b);
+        if (std::get<1>(a) != std::get<1>(b)) return std::get<1>(a) < std::get<1>(b);
+        return std::get<2>(a) < std::get<2>(b);
+    });
+    for (const auto &entry : ordered) result.factors.push_back({std::get<3>(entry), std::get<2>(entry)});
+    return result;
+}
+
+//A product of factors to their powers, its coefficient outside (3(x + 1)(y + 2), -(x + 1)(x + 2)): the product of
+//SymEngine would put the coefficient into the first sum, as the formulas have it
+Expr productOf(const RCP<const Number> &coefficient, const std::vector<std::pair<Expr, long>> &factors)
+{
+    Expr product = one;
+    for (const auto &[factor, k] : factors) product = mul(product, pow(factor, integer(k)));
+    if (coefficient->is_one() || coefficient->is_zero() || is_a_Number(*product)) return mul(coefficient, product);
+    map_basic_basic dict;
+    if (is_a<Mul>(*product)) {
+        const Mul &m = down_cast<const Mul &>(*product);
+        if (!m.get_coef()->is_one()) return mul(coefficient, product);
+        dict = m.get_dict();
+    } else if (is_a<Pow>(*product)) {
+        dict[down_cast<const Pow &>(*product).get_base()] = down_cast<const Pow &>(*product).get_exp();
+    } else {
+        dict[product] = one;
+    }
+    return make_rcp<const Mul>(coefficient, std::move(dict));
+}
+
+//The factored form of an expression: of a fraction, its numerator and its denominator factored
+Expr factoredOf(const Expr &expression, bool squareFree)
+{
+    const std::pair<Expr, Expr> fraction = fractionOf(expression);
+    const ExprFactors top = factorsOf(fraction.first, squareFree);
+    if (eq(*fraction.second, *one)) return productOf(rcp_static_cast<const Number>(top.coefficient), top.factors);
+    const ExprFactors bottom = factorsOf(fraction.second, squareFree);
+    std::vector<std::pair<Expr, long>> factors = top.factors;
+    for (const auto &[factor, k] : bottom.factors) factors.push_back({factor, -k});
+    return productOf(divnum(rcp_static_cast<const Number>(top.coefficient), rcp_static_cast<const Number>(bottom.coefficient)), factors);
+}
+
 //Python's floor division and modulo and the residue of the least absolute value, for the tests
 std::string integersOf(const std::vector<std::string> &names)
 {
@@ -124,6 +203,12 @@ std::string integersOf(const std::vector<std::string> &names)
     throw MathError(ErrorCode::Argument, "Not an operation of integers: " + names[0]);
 }
 
+}
+
+FactoredPolynomial factorPolynomial(const Expr &expression)
+{
+    const ExprFactors factored = factorsOf(expression, false);
+    return FactoredPolynomial{factored.coefficient, factored.factors};
 }
 
 PolyResult polyOperation(const std::string &operation, const std::vector<Expr> &expressions, const std::vector<std::string> &names)
@@ -146,6 +231,17 @@ PolyResult polyOperation(const std::string &operation, const std::vector<Expr> &
     } else if (operation == "discriminant") {
         need(1);
         result.expression = discriminantOf(expressions[0], name());
+    } else if (operation == "factorList" || operation == "sqfList") {
+        need(1);
+        const ExprFactors factored = factorsOf(expressions[0], operation == "sqfList");
+        result.expression = factored.coefficient;
+        for (const auto &[factor, k] : factored.factors) {
+            result.expressions.push_back(factor);
+            result.numbers.push_back(static_cast<double>(k));
+        }
+    } else if (operation == "factor" || operation == "sqf") {
+        need(1);
+        result.expression = factoredOf(expressions[0], operation == "sqf");
     } else if (operation == "integers") {
         result.text = integersOf(names);
     } else {

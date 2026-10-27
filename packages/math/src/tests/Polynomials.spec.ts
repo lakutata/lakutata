@@ -53,6 +53,36 @@ describe('The polynomials', (): void => {
         assert.ok(text(math.poly.discriminant('x^2/2 + x', 'x')) === '1' && text(math.poly.discriminant('(x - 1)^2*(x + 2)', 'x')) === '0')
     })
 
+    it('factor over the rationals, in one and several variables', (): void => {
+        assert.ok(text(math.expression('6x^2 - 6').factor()) === '6(x - 1)(x + 1)' && text(math.expression('-x^2 - 3x - 2').factor()) === '-(x + 1)(x + 2)')
+        assert.ok(text(math.expression('3x*y + 6x + 3y + 6').factor()) === '3(x + 1)(y + 2)' && text(math.expression('x^2/2 - 1/2').factor()) === '(x - 1)(x + 1)/2')
+        assert.strictEqual(text(math.expression('x^6 - y^6').factor()), '(x^2 - x*y + y^2)(x + y)(x - y)(x^2 + x*y + y^2)')
+        assert.ok(text(math.expression('(x^2 - 1)/(2x + 4)').factor()) === '(x - 1)(x + 1)/(2(x + 2))' && text(math.expression('6').factor()) === '6')
+        assert.ok(text(math.expression('sin(x)^2 - 1').factor()) === '(sin(x) - 1)(sin(x) + 1)' && text(math.expression('exp(2x) - 1').factor()) === '(e^x - 1)(e^x + 1)')
+        //The factored form in other operations: the usual form of the formulas again
+        const f: Expression = math.expression('2x + 2').factor()
+        assert.ok(text(f) === '2(x + 1)' && text(f.add(1)) === '2x + 3' && f.sub('2x + 2').isZero() === true && f.equals('2x + 2'))
+        assert.ok(text(f.mul(3)) === '6x + 6' && text(f.substitute({x: 3})) === '8' && text(f.diff('x')) === '2' && text(f.expand()) === '2x + 2')
+        assert.ok(text(math.expression('x^3 - x^2 - x + 1').sqf()) === '(x - 1)^2*(x + 1)' && text(math.expression('x^8 - y^8').factor()) === '(x + y)(x - y)(x^2 + y^2)(x^4 + y^4)')
+        const list = math.poly.factorList('2x^3*y + 4x^2*y^2')
+        assert.ok(text(list.coefficient) === '2' && list.factors.map((f): string => `${f.factor.toString()}^${f.multiplicity}`).join(' ') === 'x^2 x + 2y^1 y^1')
+        const sqf = math.poly.sqfList('(x + 1)^2*(y + 2)^2*(x - y)')
+        assert.deepStrictEqual(sqf.factors.map((f): [string, number] => [f.factor.toString(), f.multiplicity]), [['x - y', 1], ['x*y + 2x + y + 2', 2]])
+        assert.ok(text(math.poly.factorList('6').coefficient) === '6' && math.poly.factorList('0').factors.length === 0)
+    })
+
+    it('factor in the threads of the addon: a polynomial of many factors modulo every prime stops at the time limit', async (): Promise<void> => {
+        assert.strictEqual(text(await math.expression('x^4 - 1').factorAsync()), '(x - 1)(x + 1)(x^2 + 1)')
+        assert.strictEqual((await math.poly.factorListAsync('x^12 - 1')).factors.length, 6)
+        assert.strictEqual((await math.poly.sqfListAsync('x^4 - 2x^2 + 1')).factors[0]!.multiplicity, 2)
+        //Swinnerton-Dyer's polynomial of sqrt(2), sqrt(3)... sqrt(13), of degree 64, made by resultants: irreducible, of 32
+        //quadratic factors modulo every prime, 2^31 subsets of them to try
+        let s: Expression = math.expression('x^2 - 2')
+        for (const p of [3, 5, 7, 11, 13]) s = math.poly.resultant(s.substitute({x: 'x - y'}), `y^2 - ${p}`, 'y')
+        assert.strictEqual(s.degree('x'), 64)
+        await assert.rejects(math.poly.factorListAsync(s, {timeout: 200}), MathTimeoutException)
+    })
+
     it('refuse what is not a polynomial, and arguments that are not valid', (): void => {
         assert.throws((): unknown => math.poly.gcd('x', '1/x + 1'), (error: unknown): boolean => error instanceof MathNotSupportedException && /negative power/.test(error.message))
         assert.throws((): unknown => math.poly.gcd('x^2 + 2i*x - 1', 'x + i'), (error: unknown): boolean => error instanceof MathNotSupportedException && /complex/.test(error.message))

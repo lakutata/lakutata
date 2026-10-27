@@ -3,6 +3,34 @@ import {type AsyncOptions, type Context} from './Context.js'
 import {Expression, handleOf, type Value} from './Expression.js'
 import {type Handle} from './Native.js'
 
+/**
+ * A factor of a polynomial and its multiplicity
+ */
+export interface PolynomialFactor {
+    /**
+     * The factor: primitive (its integer coefficients without a common divisor), its leading coefficient positive.
+     */
+    factor: Expression
+    /**
+     * The power of the factor in the polynomial.
+     */
+    multiplicity: number
+}
+
+/**
+ * A polynomial as a rational coefficient times factors to their powers (`factorList()`, `sqfList()`)
+ */
+export interface FactorList {
+    /**
+     * The rational coefficient: the content of the polynomial, with its sign.
+     */
+    coefficient: Expression
+    /**
+     * The factors, by their total degrees then their texts.
+     */
+    factors: PolynomialFactor[]
+}
+
 //The result of an operation of polynomials in the addon
 interface NativePolyResult {
     expression?: Handle
@@ -61,6 +89,13 @@ export class Polynomials {
         return this.#expression(await this.context.runAsync<NativePolyResult>('poly', [operation, this.#handles(values), names], options))
     }
 
+    #factors(result: NativePolyResult): FactorList {
+        return {
+            coefficient: this.#expression(result),
+            factors: result.expressions.map((handle: Handle, i: number): PolynomialFactor => ({factor: new Expression(this.context, handle), multiplicity: result.numbers[i]!}))
+        }
+    }
+
     #variable(variable: string): string[] {
         if (typeof variable !== 'string') throw new MathArgumentException('The variable is a name')
         return [variable]
@@ -99,6 +134,44 @@ export class Polynomials {
      */
     public async lcmAsync(values: Value[], options?: AsyncOptions): Promise<Expression> {
         return await this.#runAsync('lcm', values, [], options)
+    }
+
+    /**
+     * The factorization over the rationals: the coefficient and the irreducible factors with their multiplicities
+     * (`factorList('6x^2 - 6')` is 6 and `x - 1`, `x + 1`). In one variable by Zassenhaus' algorithm (and the
+     * cyclotomic factors of `x^n - 1` and `x^n + 1` at once), in several variables by Wang's, as SymPy's. A polynomial
+     * with many factors modulo every prime (a Swinnerton-Dyer polynomial) takes a time exponential in their number.
+     * @param value The polynomial.
+     */
+    public factorList(value: Value): FactorList {
+        return this.#factors(this.context.run<NativePolyResult>('poly', ['factorList', this.#handles([value]), []]))
+    }
+
+    /**
+     * `factorList()` in the threads of the addon.
+     * @param value The polynomial.
+     * @param options Its cancellation, its time limit.
+     */
+    public async factorListAsync(value: Value, options?: AsyncOptions): Promise<FactorList> {
+        return this.#factors(await this.context.runAsync<NativePolyResult>('poly', ['factorList', this.#handles([value]), []], options))
+    }
+
+    /**
+     * The square-free decomposition: the coefficient and, for each multiplicity, the product of the factors that have
+     * it (`sqfList('x^3 - x^2 - x + 1')` is 1 with `x + 1` once and `x - 1` twice), by Yun's algorithm.
+     * @param value The polynomial.
+     */
+    public sqfList(value: Value): FactorList {
+        return this.#factors(this.context.run<NativePolyResult>('poly', ['sqfList', this.#handles([value]), []]))
+    }
+
+    /**
+     * `sqfList()` in the threads of the addon.
+     * @param value The polynomial.
+     * @param options Its cancellation, its time limit.
+     */
+    public async sqfListAsync(value: Value, options?: AsyncOptions): Promise<FactorList> {
+        return this.#factors(await this.context.runAsync<NativePolyResult>('poly', ['sqfList', this.#handles([value]), []], options))
     }
 
     /**

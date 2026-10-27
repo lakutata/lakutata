@@ -576,6 +576,24 @@ def poly():
     save('poly', results)
 
 
+def factorization():
+    """The factorizations and the square-free decompositions of SymPy: the coefficient and the factors with their
+    multiplicities; the factored form"""
+    results = []
+    for case in load('factor'):
+        result = dict(case)
+        expr = parse(case['polynomial'])
+        if case['op'] == 'factor':
+            result['result'] = expression_result(sympy.factor(expr))
+        else:
+            coefficient, factors = (sympy.factor_list if case['op'] == 'factorList' else sympy.sqf_list)(expr)
+            result['coefficient'] = text_of(coefficient)
+            result['factors'] = [{'factor': text_of(factor), 'multiplicity': int(multiplicity) if multiplicity == int(multiplicity) else str(multiplicity)}
+                                 for factor, multiplicity in factors]
+        results.append(result)
+    save('factor', results)
+
+
 if __name__ == '__main__':
     grammar()
     numbers()
@@ -590,6 +608,7 @@ if __name__ == '__main__':
     continued_fractions()
     matrices()
     poly()
+    factorization()
     decimals()
     special()
     complex_parts()

@@ -1178,3 +1178,50 @@ export async function checkPolynomials(math: MathScope, random: Random, index: n
     }
     return failures
 }
+
+/**
+ * Factorizations: the factors multiplied back are the polynomial; each factor is irreducible again (its factorization
+ * is itself); the square-free factors are square free and coprime; factor() equals the polynomial
+ * @param math
+ * @param random
+ * @param index
+ */
+export async function checkFactor(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    try {
+        const variables: string[] = random.chance(0.5) ? ['x'] : ['x', 'y']
+        const parts: string[] = Array.from({length: 1 + random.int(3)}, (): string => randomPolynomial(random, variables))
+        const power: number = 1 + random.int(2)
+        const p: Expression = math.expression(`${random.int(7) - 3 || 1}*(${parts.join(')*(')})^${power}`).expand()
+        text = p.toString()
+        const list = math.poly.factorList(p)
+        const product: Expression = list.factors.reduce((q: Expression, f): Expression => q.mul(f.factor.pow(f.multiplicity)), list.coefficient)
+        if (!product.expand().equals(p)) fail('factor', `the factors multiplied back are ${product.expand().toString()}`)
+        for (const {factor} of list.factors) {
+            const again = math.poly.factorList(factor)
+            if (again.factors.length !== 1 || again.factors[0]!.multiplicity !== 1 || !again.coefficient.equals(1) || !again.factors[0]!.factor.equals(factor)) {
+                fail('factor', `${factor.toString()} factors again into ${again.factors.map((f): string => f.factor.toString()).join(', ')}`)
+            }
+        }
+        if (!p.factor().equals(p)) fail('factor', `factor() is ${p.factor().toString()}`)
+        const sqf = math.poly.sqfList(p)
+        const sqfProduct: Expression = sqf.factors.reduce((q: Expression, f): Expression => q.mul(f.factor.pow(f.multiplicity)), sqf.coefficient)
+        if (!sqfProduct.expand().equals(p)) fail('sqf', `the factors multiplied back are ${sqfProduct.expand().toString()}`)
+        for (const [i, {factor}] of sqf.factors.entries()) {
+            for (const variable of variables) {
+                const derivative: Expression = factor.diff(variable)
+                if (derivative.isZero() !== true && math.poly.gcd(factor, derivative).degree(variable) > 0) fail('sqf', `${factor.toString()} is not square free`)
+            }
+            for (const other of sqf.factors.slice(i + 1)) {
+                if (variables.some((variable: string): boolean => math.poly.gcd(factor, other.factor).degree(variable) > 0)) fail('sqf', `${factor.toString()} and ${other.factor.toString()} are not coprime`)
+            }
+        }
+        const asynchronous = await math.poly.factorListAsync(p)
+        if (asynchronous.factors.length !== list.factors.length || asynchronous.factors.some((f, i: number): boolean => !f.factor.equals(list.factors[i]!.factor))) fail('async', 'factorListAsync differs from factorList')
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('factor', String(error))
+    }
+    return failures
+}
