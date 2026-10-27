@@ -42,8 +42,10 @@ bool zeroPivot(const Eigen::PartialPivLU<Eigen::MatrixXd> &lu)
 
 }
 
-std::vector<MatrixResult> linalgOf(const std::string &operation, const std::vector<MatrixArgument> &matrices, const std::vector<double> &, const std::string &option)
+std::vector<MatrixResult> linalgOf(const std::string &operation, const std::vector<MatrixArgument> &matrices, const std::vector<double> &numbers, const std::string &option)
 {
+    std::vector<MatrixResult> decomposed;
+    if (decompositionOf(operation, matrices, numbers, decomposed)) return decomposed;
     if (operation == "multiply") {
         requireCount(matrices, 2, operation);
         const MatrixArgument &a = matrices[0], &b = matrices[1];

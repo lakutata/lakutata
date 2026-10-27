@@ -22,6 +22,127 @@ import {
 export type NormKind = number | 'fro'
 
 /**
+ * The LU decomposition of a square matrix with partial pivoting: `P A = L U`
+ */
+export interface LuDecomposition {
+    /**
+     * L: lower triangular, of ones on its diagonal.
+     */
+    lower: Matrix
+    /**
+     * U: upper triangular.
+     */
+    upper: Matrix
+    /**
+     * The permutation P, as the rows of A taken in turn: row i of `P A` is row `permutation[i]` of A.
+     */
+    permutation: number[]
+}
+
+/**
+ * The thin QR decomposition: `A = Q R`, of an m×n matrix A and k = min(m, n)
+ */
+export interface QrDecomposition {
+    /**
+     * Q: m×k, of orthonormal columns.
+     */
+    q: Matrix
+    /**
+     * R: k×n, upper triangular.
+     */
+    r: Matrix
+}
+
+/**
+ * The thin singular value decomposition: `A = U diag(s) Vᵀ`, of an m×n matrix A and k = min(m, n)
+ */
+export interface SingularValueDecomposition {
+    /**
+     * U: m×k, of orthonormal columns (the left singular vectors).
+     */
+    u: Matrix
+    /**
+     * s: the k singular values, from the largest.
+     */
+    singularValues: Float64Array
+    /**
+     * V: n×k, of orthonormal columns (the right singular vectors).
+     */
+    v: Matrix
+}
+
+/**
+ * The real and the imaginary parts of complex numbers
+ */
+export interface ComplexVector {
+    /**
+     * The real parts.
+     */
+    re: Float64Array
+    /**
+     * The imaginary parts.
+     */
+    im: Float64Array
+}
+
+/**
+ * The real and the imaginary parts of a complex matrix
+ */
+export interface ComplexMatrix {
+    /**
+     * The real parts.
+     */
+    re: Matrix
+    /**
+     * The imaginary parts.
+     */
+    im: Matrix
+}
+
+/**
+ * The eigenvalues and the eigenvectors of a square matrix: `A v = λ v` for each eigenvalue λ and the column v of the
+ * same index
+ */
+export interface EigenDecomposition {
+    /**
+     * The eigenvalues, complex, in no particular order (the pairs of conjugates next to each other).
+     */
+    values: ComplexVector
+    /**
+     * The eigenvectors as columns, of norm 1.
+     */
+    vectors: ComplexMatrix
+}
+
+/**
+ * The eigenvalues and the eigenvectors of a symmetric matrix: `A = V diag(λ) Vᵀ`
+ */
+export interface SymmetricEigenDecomposition {
+    /**
+     * The eigenvalues, real, ascending.
+     */
+    values: Float64Array
+    /**
+     * V: the eigenvectors as columns, orthonormal.
+     */
+    vectors: Matrix
+}
+
+/**
+ * The real Schur decomposition of a square matrix: `A = U T Uᵀ`
+ */
+export interface SchurDecomposition {
+    /**
+     * U: orthogonal.
+     */
+    u: Matrix
+    /**
+     * T: upper triangular but for blocks of 2×2 on its diagonal, one for each pair of complex eigenvalues.
+     */
+    t: Matrix
+}
+
+/**
  * The operand of the right side of a system: a vector gives a vector, a matrix (columns of right sides) a matrix
  */
 interface Operand {
@@ -68,6 +189,36 @@ function euclidean(values: Float64Array): number {
     return largest * Math.sqrt(sum)
 }
 
+function luOf(results: NativeMatrix[]): LuDecomposition {
+    return {lower: matrixFrom(results[0]), upper: matrixFrom(results[1]), permutation: Array.from(results[2][2])}
+}
+
+function qrOf(results: NativeMatrix[]): QrDecomposition {
+    return {q: matrixFrom(results[0]), r: matrixFrom(results[1])}
+}
+
+function svdOf(results: NativeMatrix[]): SingularValueDecomposition {
+    return {u: matrixFrom(results[0]), singularValues: results[1][2], v: matrixFrom(results[2])}
+}
+
+function eigenOf(results: NativeMatrix[]): EigenDecomposition {
+    return {values: {re: results[0][2], im: results[1][2]}, vectors: {re: matrixFrom(results[2]), im: matrixFrom(results[3])}}
+}
+
+function symmetricEigenOf(results: NativeMatrix[]): SymmetricEigenDecomposition {
+    return {values: results[0][2], vectors: matrixFrom(results[1])}
+}
+
+function schurOf(results: NativeMatrix[]): SchurDecomposition {
+    return {u: matrixFrom(results[0]), t: matrixFrom(results[1])}
+}
+
+function toleranceOf(tolerance: number | undefined): number[] {
+    if (tolerance === undefined) return []
+    if (typeof tolerance !== 'number' || !(tolerance >= 0)) throw new MathArgumentException('A tolerance is a number of 0 or more')
+    return [tolerance]
+}
+
 function conditionOf(values: Float64Array): number {
     if (!values.length) return 0
     const smallest: number = values[values.length - 1]
@@ -77,8 +228,8 @@ function conditionOf(values: Float64Array): number {
 /**
  * The numeric linear algebra of matrices of doubles (`Matrix`) and vectors (`Float64Array`), on Eigen: matrices of
  * zeros, of ones, identities, diagonals, rotations; products, dot and cross products; norms; the solutions of linear
- * systems, least squares, inverses, determinants, ranks, condition numbers and singular values. It is `math.linalg` of a
- * `Math` component.
+ * systems, least squares, inverses, determinants, ranks, condition numbers and singular values. It is `math.linalg` of
+ * a `Math` component.
  *
  * Where a vector is expected, a `Float64Array` or an array of numbers is given; where a matrix is, a `Matrix` or its
  * rows (`[[1, 2], [3, 4]]`). A system with a vector on its right side has a vector for solution, one with a matrix (one
@@ -381,9 +532,9 @@ export class LinearAlgebra {
     }
 
     /**
-     * The least-squares solution `x` of `a x = b`, of the least norm: the one of NumPy's `lstsq`, by the singular values
-     * of `a` above `max(rows, columns)` times the machine epsilon times the largest one. It solves systems of more
-     * equations than unknowns, of fewer, and singular ones.
+     * The least-squares solution `x` of `a x = b`, of the least norm: the one of NumPy's `lstsq`, by the singular
+     * values of `a` above `max(rows, columns)` times the machine epsilon times the largest one. It solves systems of
+     * more equations than unknowns, of fewer, and singular ones.
      * @param a The matrix of the system, of any size.
      * @param b The right side: a vector, or a matrix of one right side by column.
      */
@@ -499,5 +650,153 @@ export class LinearAlgebra {
      */
     public async conditionAsync(a: MatrixValue, options?: AsyncOptions): Promise<number> {
         return conditionOf(await this.singularValuesAsync(a, options))
+    }
+
+    /**
+     * The LU decomposition of a square matrix with partial pivoting: `P A = L U`. It exists for a singular matrix too
+     * (a 0 on the diagonal of U).
+     * @param a The matrix.
+     */
+    public lu(a: MatrixValue): LuDecomposition {
+        return luOf(linalgRun('lu', [nativeOf(matrixOf(a))]))
+    }
+
+    /**
+     * `lu()` in the threads of the addon.
+     * @param a The matrix.
+     * @param options Its cancellation, its time limit.
+     */
+    public async luAsync(a: MatrixValue, options?: AsyncOptions): Promise<LuDecomposition> {
+        return luOf(await this.#runAsync('lu', [nativeOf(matrixOf(a))], options))
+    }
+
+    /**
+     * The thin QR decomposition, by Householder reflections: `A = Q R`, Q of orthonormal columns, R upper triangular.
+     * Its signs are Eigen's: a column of Q and the row of R of the same index may both be negated in another library.
+     * @param a The matrix, of any size.
+     */
+    public qr(a: MatrixValue): QrDecomposition {
+        return qrOf(linalgRun('qr', [nativeOf(matrixOf(a))]))
+    }
+
+    /**
+     * `qr()` in the threads of the addon.
+     * @param a The matrix, of any size.
+     * @param options Its cancellation, its time limit.
+     */
+    public async qrAsync(a: MatrixValue, options?: AsyncOptions): Promise<QrDecomposition> {
+        return qrOf(await this.#runAsync('qr', [nativeOf(matrixOf(a))], options))
+    }
+
+    /**
+     * The Cholesky decomposition of a symmetric positive definite matrix: `A = L Lᵀ`, L lower triangular. Only the
+     * lower triangle of A is read (as NumPy's `cholesky`). A matrix that is not positive definite throws
+     * `MathDomainException`.
+     * @param a The matrix, square.
+     */
+    public cholesky(a: MatrixValue): Matrix {
+        return matrixFrom(linalgRun('cholesky', [nativeOf(matrixOf(a))])[0])
+    }
+
+    /**
+     * `cholesky()` in the threads of the addon.
+     * @param a The matrix, square.
+     * @param options Its cancellation, its time limit.
+     */
+    public async choleskyAsync(a: MatrixValue, options?: AsyncOptions): Promise<Matrix> {
+        return matrixFrom((await this.#runAsync('cholesky', [nativeOf(matrixOf(a))], options))[0])
+    }
+
+    /**
+     * The thin singular value decomposition: `A = U diag(s) Vᵀ`. The signs of a pair of singular vectors (a column of
+     * U, the column of V of the same index) are Eigen's: both may be negated in another library.
+     * @param a The matrix, of any size.
+     */
+    public svd(a: MatrixValue): SingularValueDecomposition {
+        return svdOf(linalgRun('svd', [nativeOf(matrixOf(a))]))
+    }
+
+    /**
+     * `svd()` in the threads of the addon.
+     * @param a The matrix, of any size.
+     * @param options Its cancellation, its time limit.
+     */
+    public async svdAsync(a: MatrixValue, options?: AsyncOptions): Promise<SingularValueDecomposition> {
+        return svdOf(await this.#runAsync('svd', [nativeOf(matrixOf(a))], options))
+    }
+
+    /**
+     * The eigenvalues and the eigenvectors of a square matrix, complex: their real and their imaginary parts. A matrix
+     * whose eigenvalues do not converge throws `MathNotSupportedException`.
+     * @param a The matrix.
+     */
+    public eigen(a: MatrixValue): EigenDecomposition {
+        return eigenOf(linalgRun('eigen', [nativeOf(matrixOf(a))]))
+    }
+
+    /**
+     * `eigen()` in the threads of the addon.
+     * @param a The matrix.
+     * @param options Its cancellation, its time limit.
+     */
+    public async eigenAsync(a: MatrixValue, options?: AsyncOptions): Promise<EigenDecomposition> {
+        return eigenOf(await this.#runAsync('eigen', [nativeOf(matrixOf(a))], options))
+    }
+
+    /**
+     * The eigenvalues (real, ascending) and the orthonormal eigenvectors of a symmetric matrix. Only its lower
+     * triangle is read, as NumPy's `eigh`: the upper one is taken to be its transpose.
+     * @param a The matrix, square.
+     */
+    public symmetricEigen(a: MatrixValue): SymmetricEigenDecomposition {
+        return symmetricEigenOf(linalgRun('symmetricEigen', [nativeOf(matrixOf(a))]))
+    }
+
+    /**
+     * `symmetricEigen()` in the threads of the addon.
+     * @param a The matrix, square.
+     * @param options Its cancellation, its time limit.
+     */
+    public async symmetricEigenAsync(a: MatrixValue, options?: AsyncOptions): Promise<SymmetricEigenDecomposition> {
+        return symmetricEigenOf(await this.#runAsync('symmetricEigen', [nativeOf(matrixOf(a))], options))
+    }
+
+    /**
+     * The real Schur decomposition of a square matrix: `A = U T Uᵀ`, U orthogonal, T upper triangular but for blocks of
+     * 2×2 on its diagonal (a pair of complex eigenvalues each).
+     * @param a The matrix.
+     */
+    public schur(a: MatrixValue): SchurDecomposition {
+        return schurOf(linalgRun('schur', [nativeOf(matrixOf(a))]))
+    }
+
+    /**
+     * `schur()` in the threads of the addon.
+     * @param a The matrix.
+     * @param options Its cancellation, its time limit.
+     */
+    public async schurAsync(a: MatrixValue, options?: AsyncOptions): Promise<SchurDecomposition> {
+        return schurOf(await this.#runAsync('schur', [nativeOf(matrixOf(a))], options))
+    }
+
+    /**
+     * The pseudo-inverse (Moore-Penrose) of a matrix of any size, by its singular values: those at or below a
+     * tolerance are 0, by default the largest one times `max(rows, columns)` times the machine epsilon (NumPy's `pinv`,
+     * and `rank()`). `pseudoInverse(a).mul(b)` is the least-squares solution of least norm, as `leastSquares(a, b)`.
+     * @param a The matrix.
+     * @param tolerance The singular values at or below it are taken as 0.
+     */
+    public pseudoInverse(a: MatrixValue, tolerance?: number): Matrix {
+        return matrixFrom(linalgRun('pseudoInverse', [nativeOf(matrixOf(a))], toleranceOf(tolerance))[0])
+    }
+
+    /**
+     * `pseudoInverse()` in the threads of the addon.
+     * @param a The matrix.
+     * @param tolerance The singular values at or below it are taken as 0.
+     * @param options Its cancellation, its time limit.
+     */
+    public async pseudoInverseAsync(a: MatrixValue, tolerance?: number, options?: AsyncOptions): Promise<Matrix> {
+        return matrixFrom((await this.#runAsync('pseudoInverse', [nativeOf(matrixOf(a))], options, toleranceOf(tolerance)))[0])
     }
 }

@@ -50,6 +50,23 @@ def compute(case):
         return numpy.linalg.cond(a[0])
     if op == 'norm':
         return numpy.linalg.norm(a[0], norm_kind(case['kind']))
+    # The decompositions are not unique (signs, the order of eigenvalues): their invariants, the tests check the rest
+    # (reconstructions, triangles, orthonormal columns)
+    if op == 'lu':
+        return numpy.linalg.det(a[0])
+    if op == 'qr':
+        return numpy.abs(numpy.diag(numpy.linalg.qr(a[0], mode='reduced')[1]))
+    if op == 'cholesky':
+        return numpy.linalg.cholesky(a[0])
+    if op == 'svd':
+        return numpy.linalg.svd(a[0], compute_uv=False)
+    if op in ('eigen', 'schur'):
+        values = sorted(numpy.linalg.eigvals(a[0]), key=lambda value: (round(value.real, 9), value.imag))
+        return numpy.array([[value.real, value.imag] for value in values])
+    if op == 'symmetricEigen':
+        return numpy.linalg.eigvalsh(a[0])
+    if op == 'pseudoInverse':
+        return numpy.linalg.pinv(a[0])
     raise AssertionError('Unknown operation ' + op)
 
 

@@ -1,4 +1,4 @@
-//The helpers of the linear algebra (Linalg.cpp): the maps and copies of the matrices given, the
+//The helpers of the linear algebra (Linalg.cpp, Decompositions.cpp): the maps and copies of the matrices given, the
 //results, the checks of their dimensions
 #pragma once
 
@@ -58,5 +58,8 @@ inline void requireCount(const std::vector<MatrixArgument> &matrices, size_t cou
 {
     if (matrices.size() != count) throw MathError(ErrorCode::Argument, "The operation " + operation + " takes " + std::to_string(count) + " matrices");
 }
+
+//The decompositions (Decompositions.cpp): the results of an operation that is one of them, false otherwise
+bool decompositionOf(const std::string &operation, const std::vector<MatrixArgument> &matrices, const std::vector<double> &numbers, std::vector<MatrixResult> &results);
 
 }

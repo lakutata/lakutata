@@ -25,7 +25,18 @@ export {
     type Value
 } from '../lib/Expression.js'
 export {Decimal, type DecimalOptions, type DecimalValue} from '../lib/Decimal.js'
-export {LinearAlgebra, type NormKind} from '../lib/LinearAlgebra.js'
+export {
+    type ComplexMatrix,
+    type ComplexVector,
+    type EigenDecomposition,
+    LinearAlgebra,
+    type LuDecomposition,
+    type NormKind,
+    type QrDecomposition,
+    type SchurDecomposition,
+    type SingularValueDecomposition,
+    type SymmetricEigenDecomposition
+} from '../lib/LinearAlgebra.js'
 export {Matrix, type MatrixValue, type VectorValue} from '../lib/Matrix.js'
 export {type CommonSubexpressions, type CseOptions, type MathDefinitions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
 export {type Congruence, type ExtendedGcd, type IntegerValue, NumberTheory, type PrimeFactor} from '../lib/NumberTheory.js'

@@ -43,6 +43,118 @@ function assertValues(expression: Expression, points: Point[], values: (Complex 
     })
 }
 
+//The checks of the decompositions, which are not unique (signs, the order of eigenvalues): reconstructions, triangles,
+//orthonormal columns; each gives the invariant NumPy's reference has
+function matrix(rows: number[][]): Matrix {
+    return new Matrix(rows.length, rows.length ? rows[0].length : 0, Float64Array.from(rows.flat()))
+}
+
+function assertClose(actual: Matrix, expected: Matrix, scale: number, label: string): void {
+    assert.ok(actual.equals(expected, 1e-11 * globalThis.Math.max(1, scale)), `${label}: ${actual.toString()} is not ${expected.toString()}`)
+}
+
+function largest(a: Matrix): number {
+    return a.data.reduce((value: number, element: number): number => globalThis.Math.max(value, globalThis.Math.abs(element)), 0)
+}
+
+function assertOrthonormal(math: Math, q: Matrix, label: string): void {
+    assertClose(q.transpose().mul(q), math.linalg.identity(q.columns), 1, `${label}: columns not orthonormal`)
+}
+
+function assertTriangle(a: Matrix, lower: boolean, label: string): void {
+    for (let i: number = 0; i < a.rows; i++) {
+        for (let j: number = 0; j < a.columns; j++) {
+            if ((lower ? j > i : j < i) && a.get(i, j) !== 0) assert.fail(`${label}: not ${lower ? 'lower' : 'upper'} triangular at ${i}, ${j}`)
+        }
+    }
+}
+
+//P A = L U, L unit lower, U upper: the determinant (the sign of the permutation times the diagonal of U)
+function luInvariant(math: Math, a: Matrix, label: string): number {
+    const {lower, upper, permutation} = math.linalg.lu(a)
+    assertTriangle(lower, true, label)
+    assertTriangle(upper, false, label)
+    assert.ok(lower.diagonal().every((value: number): boolean => value === 1), `${label}: L has not ones on its diagonal`)
+    assertClose(lower.mul(upper), math.linalg.fromRows(permutation.map((row: number): Float64Array => a.row(row))), largest(a), `${label}: P A is not L U`)
+    let sign: number = 1
+    const seen: boolean[] = permutation.map((): boolean => false)
+    permutation.forEach((_: number, start: number): void => {
+        let length: number = 0
+        for (let i: number = start; !seen[i]; i = permutation[i]) {
+            seen[i] = true
+            length++
+        }
+        if (length && length % 2 === 0) sign = -sign
+    })
+    return sign * upper.diagonal().reduce((product: number, value: number): number => product * value, 1)
+}
+
+//A = Q R, Q of orthonormal columns, R upper: the absolute values of the diagonal of R
+function qrInvariant(math: Math, a: Matrix, label: string): Float64Array {
+    const {q, r} = math.linalg.qr(a)
+    assertOrthonormal(math, q, label)
+    assertTriangle(r, false, label)
+    assertClose(q.mul(r), a, largest(a), `${label}: A is not Q R`)
+    return r.diagonal().map(globalThis.Math.abs)
+}
+
+//A = U diag(s) Vᵀ, U and V of orthonormal columns: the singular values
+function svdInvariant(math: Math, a: Matrix, label: string): Float64Array {
+    const {u, singularValues, v} = math.linalg.svd(a)
+    assertOrthonormal(math, u, label)
+    assertOrthonormal(math, v, label)
+    assertClose(u.mul(math.linalg.diagonal(singularValues)).mul(v.transpose()), a, largest(a), `${label}: A is not U S Vᵀ`)
+    return singularValues
+}
+
+//The eigenvalues sorted as NumPy's reference (by their real parts, then their imaginary ones)
+function sorted(values: [number, number][]): number[] {
+    return values.sort((x: [number, number], y: [number, number]): number => (globalThis.Math.round(x[0] * 1e9) - globalThis.Math.round(y[0] * 1e9)) || x[1] - y[1]).flat()
+}
+
+//A v = λ v for each pair: the eigenvalues
+function eigenInvariant(math: Math, a: Matrix, label: string): number[] {
+    const {values, vectors} = math.linalg.eigen(a)
+    for (let k: number = 0; k < a.rows; k++) {
+        const re: Float64Array = vectors.re.column(k), im: Float64Array = vectors.im.column(k)
+        const ar: Float64Array = a.mul(re), ai: Float64Array = a.mul(im)
+        for (let i: number = 0; i < a.rows; i++) {
+            const lr: number = values.re[k] * re[i] - values.im[k] * im[i], li: number = values.re[k] * im[i] + values.im[k] * re[i]
+            assert.ok(globalThis.Math.abs(ar[i] - lr) + globalThis.Math.abs(ai[i] - li) <= 1e-10 * globalThis.Math.max(1, largest(a)), `${label}: A v is not λ v`)
+        }
+    }
+    return sorted(Array.from(values.re, (re: number, k: number): [number, number] => [re, values.im[k]]))
+}
+
+//A = V diag(λ) Vᵀ, V orthonormal: the eigenvalues
+function symmetricEigenInvariant(math: Math, a: Matrix, label: string): Float64Array {
+    const {values, vectors} = math.linalg.symmetricEigen(a)
+    assertOrthonormal(math, vectors, label)
+    assertClose(vectors.mul(math.linalg.diagonal(values)).mul(vectors.transpose()), a, largest(a), `${label}: A is not V Λ Vᵀ`)
+    return values
+}
+
+//A = U T Uᵀ, U orthogonal, T quasi upper triangular: the eigenvalues of its blocks
+function schurInvariant(math: Math, a: Matrix, label: string): number[] {
+    const {u, t} = math.linalg.schur(a)
+    assertOrthonormal(math, u, label)
+    assertClose(u.mul(t).mul(u.transpose()), a, largest(a), `${label}: A is not U T Uᵀ`)
+    const values: [number, number][] = []
+    for (let i: number = 0; i < t.rows; i++) {
+        for (let j: number = 0; j < i - 1; j++) assert.strictEqual(t.get(i, j), 0, `${label}: T is not quasi triangular`)
+        if (i + 1 < t.rows && t.get(i + 1, i) !== 0) {
+            const p: number = t.get(i, i), q: number = t.get(i, i + 1), r: number = t.get(i + 1, i), s: number = t.get(i + 1, i + 1)
+            const discriminant: number = ((p - s) / 2) ** 2 + q * r
+            const root: number = globalThis.Math.sqrt(globalThis.Math.abs(discriminant))
+            values.push(...(discriminant < 0 ? [[(p + s) / 2, -root], [(p + s) / 2, root]] : [[(p + s) / 2 - root, 0], [(p + s) / 2 + root, 0]]) as [number, number][])
+            i++
+        } else {
+            values.push([t.get(i, i), 0])
+        }
+    }
+    return sorted(values)
+}
+
 //A decimal as its significant digits and the exponent of the first one: 1.4142e+3 and 1414.2 are the same
 function decimalParts(text: string): string {
     const match: RegExpMatchArray | null = /^(-?)(\d*)\.?(\d*)(?:e([-+]?\d+))?$/.exec(text.trim())
@@ -154,6 +266,14 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
                     case 'singularValues': return math.linalg.singularValues(a)
                     case 'condition': return math.linalg.condition(a)
                     case 'norm': return math.linalg.norm(fixture.args[0], fixture.kind === 'inf' ? Infinity : fixture.kind)
+                    case 'lu': return luInvariant(math, matrix(a), label)
+                    case 'qr': return qrInvariant(math, matrix(a), label)
+                    case 'cholesky': return math.linalg.cholesky(a)
+                    case 'svd': return svdInvariant(math, matrix(a), label)
+                    case 'eigen': return eigenInvariant(math, matrix(a), label)
+                    case 'symmetricEigen': return symmetricEigenInvariant(math, matrix(a), label)
+                    case 'schur': return schurInvariant(math, matrix(a), label)
+                    case 'pseudoInverse': return math.linalg.pseudoInverse(a)
                 }
                 throw new Error(`Unknown operation ${fixture.op}`)
             }

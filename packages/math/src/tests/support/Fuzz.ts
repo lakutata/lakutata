@@ -423,6 +423,36 @@ export async function checkMatrices(math: Math, random: Random, index: number): 
         if (globalThis.Math.abs(squares - frobenius(a) ** 2) > 1e-12 * frobenius(a) ** 2 + 1e-300) fail('singularValues', `Σσ² ${squares}, ‖a‖² ${frobenius(a) ** 2}`)
         if (singular.some((value: number, i: number): boolean => i > 0 && value > singular[i - 1])) fail('singularValues', 'not descending')
         if (math.linalg.rank(a) !== math.linalg.rank(a.transpose())) fail('rank', `rank ${math.linalg.rank(a)}, of the transpose ${math.linalg.rank(a.transpose())}`)
+        //The decompositions rebuild their matrices, of the order of the roundings
+        const near = (x: Matrix, y: Matrix, scale: number): boolean => frobenius(x.sub(y)) <= 1e-12 * (1 + scale) * (1 + x.rows + x.columns)
+        const {lower, upper, permutation} = math.linalg.lu(square)
+        if (!near(lower.mul(upper), math.linalg.fromRows(permutation.map((row: number): Float64Array => square.row(row))).reshape(n, n), frobenius(square))) fail('lu', 'P A is not L U')
+        const {q, r} = math.linalg.qr(a)
+        if (!near(q.mul(r), a, frobenius(a)) || !near(q.transpose().mul(q), math.linalg.identity(q.columns), 1)) fail('qr', 'A is not Q R, or Q not orthonormal')
+        const {u, singularValues, v} = math.linalg.svd(a)
+        if (!near(u.mul(math.linalg.diagonal(singularValues)).mul(v.transpose()), a, frobenius(a))) fail('svd', 'A is not U S Vᵀ')
+        const symmetric: Matrix = square.add(square.transpose())
+        const eigen = math.linalg.symmetricEigen(symmetric)
+        if (!near(eigen.vectors.mul(math.linalg.diagonal(eigen.values)).mul(eigen.vectors.transpose()), symmetric, frobenius(symmetric))) fail('symmetricEigen', 'A is not V Λ Vᵀ')
+        const schur = math.linalg.schur(square)
+        if (!near(schur.u.mul(schur.t).mul(schur.u.transpose()), square, frobenius(square))) fail('schur', 'A is not U T Uᵀ')
+        const general = math.linalg.eigen(square)
+        if (n > 0 && condition < 1e6) {
+            //A V = V Λ in complex arithmetic, of the conditioning of the eigenvectors
+            const re: Matrix = general.vectors.re, im: Matrix = general.vectors.im
+            const left: Matrix = square.mul(re), right: Matrix = square.mul(im)
+            const lr: Matrix = re.map((x: number, i: number, j: number): number => general.values.re[j] * x - general.values.im[j] * im.get(i, j))
+            const li: Matrix = im.map((x: number, i: number, j: number): number => general.values.re[j] * x + general.values.im[j] * re.get(i, j))
+            const residual: number = frobenius(left.sub(lr)) + frobenius(right.sub(li))
+            if (residual > 1e-9 * (1 + frobenius(square)) * n) fail('eigen', `A v - λ v is ${residual}`)
+        }
+        //Positive definite in doubles too: AᵀA plus a multiple of the identity of its size
+        const positive: Matrix = a.transpose().mul(a).add(math.linalg.identity(m).mul(1 + frobenius(a) ** 2))
+        const cholesky: Matrix = math.linalg.cholesky(positive)
+        if (!near(cholesky.mul(cholesky.transpose()), positive, frobenius(positive))) fail('cholesky', 'A is not L Lᵀ')
+        //The pseudo-inverse: A A⁺ A = A
+        const pseudo: Matrix = math.linalg.pseudoInverse(a)
+        if (math.linalg.condition(a) < 1e8 && !near(a.mul(pseudo).mul(a), a, frobenius(a) * frobenius(a) * frobenius(pseudo))) fail('pseudoInverse', 'A A⁺ A is not A')
     } catch (error) {
         if (!(error instanceof MathException)) fail('matrices', String(error))
     }
