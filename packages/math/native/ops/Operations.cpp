@@ -162,61 +162,42 @@ bool specialValue(const Expr &expression, std::complex<double> &value)
 
 namespace {
 
-//The value of an expression without variables: in the real numbers first (their functions round better than the
-//complex ones: sqrt(2) is Math.SQRT2), in the complex ones where it is not real
-//The largest parts of an expression that have real decimal values, replaced by them (as doubles): the evaluation in
-//doubles of the rest (a complex value, a function the decimals have not) has neither their cancellations nor their
-//underflows (ln(e^(-2428)) is -2428, ln(0) in doubles)
-void decimalParts(const Basic &e, std::unordered_map<const void *, double> &values)
+//The divisions by zero of the decimals are the errors of the values as numbers: the doubles of a 0 not shown exactly
+//would make a number of them
+void rethrowDecimalError(const MathError &error)
 {
-    if (is_a_Number(e) || values.count(&e)) return;
-    try {
-        values[&e] = std::strtod(toDecimal(e.rcp_from_this(), 20).c_str(), nullptr);
-        return;
-    } catch (MathError &error) {
-        if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
-    }
-    std::vector<const Basic *> children;
-    childrenOf(e, children);
-    for (const Basic *child : children) decimalParts(*child, values);
+    if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw error;
+    if (error.code() == ErrorCode::DivisionByZero) throw MathError(ErrorCode::Domain, std::string(error.what()));
 }
 
-//The values of the decimal parts given to the evaluations in doubles of this thread, while it lives (the ones given
-//before restored then: an evaluation may compute another value inside)
-class GivenValues {
-public:
-    explicit GivenValues(const std::unordered_map<const void *, double> &values) : previous_(special::given_values)
-    {
-        special::given_values = &values;
-    }
-
-    ~GivenValues()
-    {
-        special::given_values = previous_;
-    }
-
-private:
-    const std::unordered_map<const void *, double> *previous_;
-};
-
-std::complex<double> numericValue(const Expr &given)
+//The value of an expression without variables: its decimals (20 digits, correctly rounded), real ones first, complex
+//ones where it is not real (the doubles of 10^30 have no digit of cos(10^30), nor those of e^(i 10^30)); where the
+//decimals have no function (gamma of a complex number), that node in doubles from the decimals of its arguments, the
+//rest in decimals; in doubles only when that fails too
+std::complex<double> numericValue(const Expr &given, bool *fromDecimals = nullptr)
 {
+    if (fromDecimals) *fromDecimals = true;
     requireNoVariables(given);
     const Expr expression = evaluated(given);
     std::complex<double> value;
     if (specialValue(expression, value)) return value;
-    //A real value by its decimals, correctly rounded (the doubles of 10^30 have no digit of cos(10^30)); the complex
-    //values and the functions the decimals have not by the doubles
     try {
         return std::strtod(toDecimal(expression, 20).c_str(), nullptr);
     } catch (MathError &error) {
-        //Not the values of the divisions by 0 (the doubles of a 0 not shown exactly would make a number of it)
-        if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
-        if (error.code() == ErrorCode::DivisionByZero) throw MathError(ErrorCode::Domain, std::string(error.what()));
+        rethrowDecimalError(error);
     }
-    std::unordered_map<const void *, double> parts;
-    decimalParts(*expression, parts);
-    const GivenValues values(parts);
+    try {
+        const auto [re, im] = toComplexDecimal(expression, 20);
+        return {std::strtod(re.c_str(), nullptr), std::strtod(im.c_str(), nullptr)};
+    } catch (MathError &error) {
+        rethrowDecimalError(error);
+    }
+    try {
+        return complexDoubleValue(expression);
+    } catch (MathError &error) {
+        rethrowDecimalError(error);
+    }
+    if (fromDecimals) *fromDecimals = false;
     try {
         const double real = eval_double(*expression);
         if (!std::isnan(real)) return real;
@@ -233,8 +214,11 @@ std::complex<double> numericValue(const Expr &given)
 
 double toDouble(const Expr &expression)
 {
-    const std::complex<double> value = numericValue(expression);
-    if (value.imag() != 0 && std::abs(value.imag()) > 1e-12 * std::max(1.0, std::abs(value.real()))) {
+    //An imaginary part of the decimals is one (a part that cannot be told from 0 is 0 there, also where some nodes are
+    //computed in doubles); one of the doubles only below their roundings is not
+    bool fromDecimals = false;
+    const std::complex<double> value = numericValue(expression, &fromDecimals);
+    if (value.imag() != 0 && (fromDecimals || std::abs(value.imag()) > 1e-12 * std::max(1.0, std::abs(value.real())))) {
         throw MathError(ErrorCode::Domain, "The value is a complex number (" + toText(expression) + "): use toComplex()");
     }
     return value.real();

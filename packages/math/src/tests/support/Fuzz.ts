@@ -307,6 +307,18 @@ export async function checkFormula(math: Math, random: Random, index: number, te
             if (!(error instanceof MathException)) fail('rectangular', String(error))
         }
     }
+    //The complex decimals agree with the decimals of the rectangular parts, which the real evaluator computes: two
+    //paths to the same correctly rounded digits
+    if (exact && !unstable) {
+        try {
+            const {real: re, imaginary: im} = expression.toRectangular()
+            const value: {re: string, im: string} = expression.substitute(point).toComplexDecimal(20)
+            const parts: string[] = [re.substitute(point).toDecimal(20), im.substitute(point).toDecimal(20)]
+            if (value.re !== parts[0] || value.im !== parts[1]) fail('decimals', `${JSON.stringify(value)} at ${JSON.stringify(point)}, its parts ${re.toString()} | ${im.toString()} ${JSON.stringify(parts)}`)
+        } catch (error) {
+            if (!(error instanceof MathException)) fail('decimals', String(error))
+        }
+    }
     //Not the large numbers either (sin(cosh(1e2 + x)) turns faster than any step)
     if (exact && exact.im === 0 && !/abs|sign|floor|ceil|min|max|round|mod|arg|1e2/.test(text)) {
         try {

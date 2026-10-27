@@ -1,8 +1,10 @@
 //The decimals of mpdecimal: a value of a precision (significant digits), and the evaluation of an expression to one
 #pragma once
 
+#include <complex>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../core/Handle.h"
@@ -134,6 +136,16 @@ private:
 //the arithmetic, powers and roots, exp and ln, the trigonometric and hyperbolic functions, the rounding functions,
 //pi, e, the golden ratio, the constants of Euler and Catalan
 std::string toDecimal(const Expr &expression, long digits);
+
+//The value of an expression as a complex number, each part with a number of significant digits, correctly rounded (a
+//part that cannot be told from 0, 640 digits beyond, is 0): the real values, and the complex values of the arithmetic,
+//powers, exp and ln, the trigonometric and hyperbolic functions and their inverses (the principal branches, on their
+//cuts the sides of SymPy), abs, arg, re, im and conj
+std::pair<std::string, std::string> toComplexDecimal(const Expr &expression, long digits);
+
+//The value of an expression the complex decimals compute, but for some nodes (gamma of a complex number), computed in
+//doubles from the decimals of their arguments: as a complex double
+std::complex<double> complexDoubleValue(const Expr &expression);
 
 //An operation of the decimals of a precision (the Decimal class of the package), its arguments read exactly, its result
 //correctly rounded to the precision (halves to even) as a text: arithmetic, powers and roots, logarithms, the

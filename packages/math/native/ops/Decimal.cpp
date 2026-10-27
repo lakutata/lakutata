@@ -19,6 +19,7 @@
 #include <symengine/complex_double.h>
 #include <symengine/real_double.h>
 
+#include "DecimalEvaluator.h"
 #include "DecimalSupport.h"
 #include "../async/Pool.h"
 #include "../printer/Printer.h"
@@ -260,424 +261,385 @@ Decimal DecimalContext::roundAtHalf(const Decimal &a, long digits, double error)
     return target.round(above.round(a));
 }
 
-namespace {
+Evaluator::Evaluator(const DecimalContext &context, bool last) : context_(context), digits_(static_cast<double>(context.digits())), last_(last)
+{
+}
 
-//A value and the decimal exponent of its absolute error (the roundings, propagated): a value within its error of 0
-//is 0, an argument within its error of a jump of floor() is at the jump
-struct Approximation {
-    Decimal value;
-    double noise;
-};
+std::vector<Expr> Evaluator::argumentsOf(const Basic &e)
+{
+    if (is_a<Pow>(e) && eq(*down_cast<const Pow &>(e).get_base(), *E)) return {down_cast<const Pow &>(e).get_exp()};
+    return e.get_args();
+}
 
-//No error (an exact integer)
-constexpr double EXACT = -1e18;
+Approximation Evaluator::evaluate(const Basic &e)
+{
+    checkpoint();
+    std::vector<Approximation> arguments;
+    for (const Expr &argument : argumentsOf(e)) arguments.push_back(evaluate(*argument));
+    Approximation result = apply(e, arguments);
+    result.noise = std::max(result.noise, rounding(result.value));
+    return result;
+}
 
-//A value that cannot be told from 0 where it must not be 0 (the base of a negative power, the argument of a
-//logarithm): undecided below the last precision, which tries again with more digits
-struct Undecided {
-};
+bool Evaluator::zero(const Approximation &a) const
+{
+    return context_.isZero(a.value) || exponent(a.value) <= a.noise + 1;
+}
 
-class Evaluator {
-public:
-    //The last evaluation (the most guard digits) decides: a value that cannot be told from 0 is 0 there
-    Evaluator(const DecimalContext &context, bool last) : context_(context), digits_(static_cast<double>(context.digits())), last_(last)
-    {
+bool Evaluator::last() const
+{
+    return last_;
+}
+
+void Evaluator::notZero(const Approximation &a, ErrorCode code, const std::string &error) const
+{
+    if (!zero(a)) return;
+    if (!last_) throw Undecided();
+    throw MathError(code, error);
+}
+
+double Evaluator::exponent(const Decimal &value) const
+{
+    const int64_t e = context_.exponent(value);
+    return e == DecimalContext::ZERO_EXPONENT ? EXACT : static_cast<double>(e);
+}
+
+double Evaluator::rounding(const Decimal &value) const
+{
+    return context_.isZero(value) ? EXACT : exponent(value) - digits_;
+}
+
+//An approximate value, of the relative error of another one: f(x) of the relative error of x
+double Evaluator::relative(const Decimal &result, const Approximation &of) const
+{
+    if (of.noise <= EXACT / 2) return EXACT;
+    return exponent(result) + of.noise - exponent(of.value) + 1;
+}
+
+Decimal Evaluator::one() const
+{
+    return context_.integer(1);
+}
+
+//A function with a jump at the integers (floor) or at the halves (round): an argument within its error of a jump is at
+//it
+Approximation Evaluator::jump(const Approximation &x, Decimal (DecimalContext::*apply)(const Decimal &) const, bool halves) const
+{
+    const DecimalContext &context = context_;
+    const Decimal half = context.div(one(), context.integer(2));
+    const Decimal shifted = halves ? context.sub(x.value, half) : x.value;
+    const Decimal nearest = context.roundToInteger(shifted);
+    if (exponent(context.sub(shifted, nearest)) <= x.noise + 1) {
+        if (!halves) return {nearest, EXACT};
+        //Exactly a half: away from zero
+        const Decimal at = context.add(nearest, half);
+        return {context.roundToInteger(context.isNegative(at) ? context.sub(at, half) : context.add(at, half)), EXACT};
     }
+    return {(context.*apply)(x.value), EXACT};
+}
 
-    Approximation evaluate(const Basic &e)
-    {
-        checkpoint();
-        Approximation result = compute(e);
-        result.noise = std::max(result.noise, rounding(result.value));
-        return result;
+Approximation Evaluator::apply(const Basic &e, const std::vector<Approximation> &arguments)
+{
+    const DecimalContext &context = context_;
+    if (is_a<Integer>(e)) {
+        const Decimal value = context.parse(e.__str__());
+        return {value, exponent(value) >= digits_ ? rounding(value) : EXACT};
     }
-
-    //Whether a value cannot be told from 0 at this precision
-    bool zero(const Approximation &a) const
-    {
-        return context_.isZero(a.value) || exponent(a.value) <= a.noise + 1;
+    if (is_a<Rational>(e)) {
+        const rational_class &value = down_cast<const Rational &>(e).as_rational_class();
+        return {context.div(context.parse(SymEngine::Integer(get_num(value)).__str__()), context.parse(SymEngine::Integer(get_den(value)).__str__())), EXACT};
     }
-
-private:
-    const DecimalContext &context_;
-    double digits_;
-    bool last_;
-
-    //A value that must not be 0 and cannot be told from it: the error of the last evaluation, undecided before
-    void notZero(const Approximation &a, ErrorCode code, const std::string &error) const
-    {
-        if (!zero(a)) return;
-        if (!last_) throw Undecided();
-        throw MathError(code, error);
+    if (is_a<RealDouble>(e)) {
+        const Decimal value = context.parse(doubleText(down_cast<const RealDouble &>(e).i));
+        return {value, exponent(value) - 16};
     }
-
-    double exponent(const Decimal &value) const
-    {
-        const int64_t e = context_.exponent(value);
-        return e == DecimalContext::ZERO_EXPONENT ? EXACT : static_cast<double>(e);
-    }
-
-    //The rounding of a value to the digits of the context
-    double rounding(const Decimal &value) const
-    {
-        return context_.isZero(value) ? EXACT : exponent(value) - digits_;
-    }
-
-    //An approximate value, of the relative error of another one: f(x) of the relative error of x
-    double relative(const Decimal &result, const Approximation &of) const
-    {
-        if (of.noise <= EXACT / 2) return EXACT;
-        return exponent(result) + of.noise - exponent(of.value) + 1;
-    }
-
-    Decimal one() const
-    {
-        return context_.integer(1);
-    }
-
-    Approximation argument(const Basic &e)
-    {
-        return evaluate(*e.get_args()[0]);
-    }
-
-    //A function with a jump at the integers (floor) or at the halves (round): an argument within its error of a jump
-    //is at it
-    Approximation jump(const Basic &e, Decimal (DecimalContext::*apply)(const Decimal &) const, bool halves)
-    {
-        const DecimalContext &context = context_;
-        const Approximation x = argument(e);
-        const Decimal half = context.div(one(), context.integer(2));
-        const Decimal shifted = halves ? context.sub(x.value, half) : x.value;
-        const Decimal nearest = context.roundToInteger(shifted);
-        if (exponent(context.sub(shifted, nearest)) <= x.noise + 1) {
-            if (!halves) return {nearest, EXACT};
-            //Exactly a half: away from zero
-            const Decimal at = context.add(nearest, half);
-            return {context.roundToInteger(context.isNegative(at) ? context.sub(at, half) : context.add(at, half)), EXACT};
-        }
-        return {(context.*apply)(x.value), EXACT};
-    }
-
-    Approximation compute(const Basic &e)
-    {
-        const DecimalContext &context = context_;
-        if (is_a<Integer>(e)) {
-            const Decimal value = context.parse(e.__str__());
-            return {value, exponent(value) >= digits_ ? rounding(value) : EXACT};
-        }
-        if (is_a<Rational>(e)) {
-            const rational_class &value = down_cast<const Rational &>(e).as_rational_class();
-            return {context.div(context.parse(SymEngine::Integer(get_num(value)).__str__()), context.parse(SymEngine::Integer(get_den(value)).__str__())), EXACT};
-        }
-        if (is_a<RealDouble>(e)) {
-            const Decimal value = context.parse(doubleText(down_cast<const RealDouble &>(e).i));
-            return {value, exponent(value) - 16};
-        }
-        if (is_a<Add>(e)) {
-            Decimal sum = context.integer(0);
-            double noise = EXACT;
-            for (const Expr &term : e.get_args()) {
-                const Approximation part = evaluate(*term);
-                sum = context.add(sum, part.value);
-                noise = std::max(noise, part.noise);
-            }
-            return {sum, noise};
-        }
-        if (is_a<Mul>(e)) {
-            //The error of a product: the error of each factor times the others
-            std::vector<Approximation> factors;
-            for (const Expr &factor : e.get_args()) factors.push_back(evaluate(*factor));
-            Decimal product = one();
-            double magnitudes = 0;
-            for (const Approximation &factor : factors) {
-                product = context.mul(product, factor.value);
-                magnitudes += std::max(exponent(factor.value), EXACT / 4) + 1;
-            }
-            double noise = EXACT;
-            for (const Approximation &factor : factors) {
-                if (factor.noise <= EXACT / 2) continue;
-                noise = std::max(noise, factor.noise + magnitudes - std::max(exponent(factor.value), EXACT / 4) - 1);
-            }
-            return {product, noise};
-        }
-        if (is_a<Pow>(e)) {
-            const Pow &power = down_cast<const Pow &>(e);
-            const Approximation exponentPart = evaluate(*power.get_exp());
-            //e^x: the relative error of the result is the absolute one of x
-            if (eq(*power.get_base(), *E)) {
-                const Decimal value = context.exp(exponentPart.value);
-                return {value, exponentPart.noise <= EXACT / 2 ? EXACT : exponent(value) + exponentPart.noise + 1};
-            }
-            const Approximation base = evaluate(*power.get_base());
-            //A base that cannot be told from 0 is 0 (sqrt(ln(6) - ln(2) - ln(3))), but in a division
-            if (context.isNegative(exponentPart.value)) notZero(base, ErrorCode::DivisionByZero, "The value has no decimal value (a division by zero)");
-            if (zero(base) && !context.isZero(exponentPart.value)) return {context.integer(0), base.noise};
-            Decimal value;
-            if (eq(*power.get_exp(), *rational(1, 2))) {
-                if (context.isNegative(base.value)) throw MathError(ErrorCode::Domain, "The value is not a real number (the square root of a negative number)");
-                value = context.sqrt(base.value);
-            } else {
-                if (context.isNegative(base.value) && !is_a<Integer>(*power.get_exp())) throw MathError(ErrorCode::Domain, "The value is not a real number (a negative number to a non-integer power)");
-                value = context.pow(base.value, exponentPart.value);
-            }
-            //b^k: the relative error of b times k, and the error of k times ln(b)
-            double noise = EXACT;
-            if (base.noise > EXACT / 2) noise = exponent(value) + base.noise - exponent(base.value) + std::max(0.0, exponent(exponentPart.value)) + 1;
-            if (exponentPart.noise > EXACT / 2) noise = std::max(noise, exponent(value) + exponentPart.noise + 3);
-            return {value, noise};
-        }
-        if (is_a<Constant>(e)) {
-            if (eq(e, *pi)) return {context.pi(), EXACT};
-            if (eq(e, *E)) return {context.exp(one()), EXACT};
-            if (eq(e, *GoldenRatio)) return {context.div(context.add(one(), context.sqrt(context.integer(5))), context.integer(2)), EXACT};
-            if (eq(e, *EulerGamma)) return {context.eulerGamma(), EXACT};
-            if (eq(e, *Catalan)) return {context.catalan(), EXACT};
-        }
-        if (is_a<Log>(e)) {
-            const Approximation x = argument(e);
-            notZero(x, ErrorCode::DivisionByZero, "The value has no decimal value (the logarithm of 0)");
-            if (context.isNegative(x.value)) throw MathError(ErrorCode::Domain, "The value is not a real number (the logarithm of a negative number)");
-            //The absolute error of ln(x) is the relative one of x
-            return {context.ln(x.value), x.noise <= EXACT / 2 ? EXACT : x.noise - exponent(x.value) + 1};
-        }
-        if (is_a<Abs>(e)) {
-            const Approximation x = argument(e);
-            return {context.abs(x.value), x.noise};
-        }
-        if (is_a<Floor>(e)) return jump(e, &DecimalContext::floor, false);
-        if (is_a<Ceiling>(e)) return jump(e, &DecimalContext::ceil, false);
-        if (is_a<Truncate>(e)) return jump(e, &DecimalContext::trunc, false);
-        if (is_a<Conjugate>(e)) return argument(e);
-        if (is_a<UnevaluatedExpr>(e)) return evaluate(*down_cast<const UnevaluatedExpr &>(e).get_arg());
-        if (is_a<Sign>(e)) {
-            const Approximation x = argument(e);
-            return {context.integer(zero(x) ? 0 : context.isNegative(x.value) ? -1 : 1), EXACT};
-        }
-        if (is_a<Max>(e) || is_a<Min>(e)) {
-            const vec_basic arguments = e.get_args();
-            Approximation best = evaluate(*arguments[0]);
-            for (size_t i = 1; i < arguments.size(); i++) {
-                const Approximation next = evaluate(*arguments[i]);
-                if (context.compare(next.value, best.value) == (is_a<Max>(e) ? 1 : -1)) best = next;
-            }
-            return best;
-        }
-        if (is_a<ATan2>(e)) {
-            const ATan2 &angle = down_cast<const ATan2 &>(e);
-            const Approximation y = evaluate(*angle.get_num());
-            const Approximation x = evaluate(*angle.get_den());
-            const Decimal value = context.atan2(zero(y) ? context.integer(0) : y.value, zero(x) ? context.integer(0) : x.value);
-            //(|x| err(y) + |y| err(x))/(x^2 + y^2)
-            const double size = exponent(context.add(context.mul(x.value, x.value), context.mul(y.value, y.value)));
-            double noise = EXACT;
-            if (y.noise > EXACT / 2) noise = std::max(noise, std::max(exponent(x.value), EXACT / 4) + y.noise - size + 1);
-            if (x.noise > EXACT / 2) noise = std::max(noise, std::max(exponent(y.value), EXACT / 4) + x.noise - size + 1);
-            return {value, noise};
-        }
-        if (is_a<Gamma>(e) || is_a<LogGamma>(e) || is_a<PolyGamma>(e) || is_a<Beta>(e) || is_a<Erf>(e) || is_a<Erfc>(e) || is_a<Zeta>(e) ||
-            is_a<LowerGamma>(e) || is_a<UpperGamma>(e) || is_a<LambertW>(e)) {
-            return special(e);
-        }
-        if (is_a<FunctionWrapper>(e)) return wrapper(down_cast<const FunctionWrapper &>(e));
-        if (is_a_sub<Function>(e) && e.get_args().size() == 1) {
-            const Approximation x = argument(e);
-            const Decimal value = elementary(e, x.value);
-            return {value, x.noise <= EXACT / 2 ? EXACT : x.noise + slope(e, x.value, value) + 1};
-        }
-        if (is_a<Complex>(e) || is_a<ComplexDouble>(e)) throw MathError(ErrorCode::Domain, "The value is not a real number (" + toText(e.rcp_from_this()) + ")");
-        if (is_a<Infty>(e) || is_a<NaN>(e)) throw MathError(ErrorCode::Domain, toText(e.rcp_from_this()) + " has no decimal value" + (is_a<Infty>(e) && down_cast<const Infty &>(e).is_unsigned_infinity() ? " (a division by zero)" : ""));
-        throw MathError(ErrorCode::NotSupported, "The decimal value of " + toText(e.rcp_from_this()) + " is not computed");
-    }
-
-    //An argument within its error of a pole (0 or a negative integer) is undecided, as a division by a value that
-    //cannot be told from 0
-    void notAtPole(const Approximation &x, const std::string &function) const
-    {
-        if (x.noise <= EXACT / 2) return;
-        const Decimal nearest = context_.roundToInteger(x.value);
-        if (context_.isNegative(context_.sub(nearest, one()))) notZero({context_.sub(x.value, nearest), x.noise}, ErrorCode::DivisionByZero, "The value has no decimal value (" + function + " at a pole)");
-    }
-
-    //The error of a function of an inexact argument: the change of its value at the error of the argument (the other
-    //way when that one is outside its domain)
-    double spread(const std::function<Decimal(const std::vector<Decimal> &)> &apply, std::vector<Decimal> at, size_t index, const Approximation &x, const Decimal &value) const
-    {
-        const Decimal step = context_.parse("1e" + std::to_string(static_cast<long long>(std::ceil(x.noise))));
-        for (int side = 0; side < 2; side++) {
-            at[index] = side == 0 ? context_.add(x.value, step) : context_.sub(x.value, step);
-            try {
-                return exponent(context_.sub(apply(at), value)) + 1;
-            } catch (MathError &error) {
-                if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
-            }
-        }
-        if (!last_) throw Undecided();
-        throw MathError(ErrorCode::Domain, "The value has no decimal value (a function at the edge of its domain within the error of its argument)");
-    }
-
-    //The special functions (DecimalSpecial.cpp): their poles within the errors of their arguments undecided, their
-    //errors the spreads of their values
-    Approximation special(const Basic &e)
-    {
-        const DecimalContext &context = context_;
-        std::vector<Approximation> arguments;
-        for (const Expr &argument : e.get_args()) arguments.push_back(evaluate(*argument));
-        std::vector<Decimal> values;
-        for (const Approximation &argument : arguments) values.push_back(argument.value);
-        long long order = 0;
-        if (is_a<PolyGamma>(e)) {
-            const Expr n = e.get_args()[0];
-            if (!is_a<Integer>(*n) || down_cast<const Integer &>(*n).is_negative() || context.exponent(values[0]) > 9) {
-                throw MathError(ErrorCode::NotSupported, "polygamma(n, x) is computed for the integers n from 0 to 10^9");
-            }
-            order = smallInteger(values[0]);
-        }
-        if (is_a<Gamma>(e) || is_a<LogGamma>(e)) notAtPole(arguments[0], toText(e.rcp_from_this()));
-        if (is_a<PolyGamma>(e)) notAtPole(arguments[1], toText(e.rcp_from_this()));
-        if (is_a<Beta>(e)) {
-            notAtPole(arguments[0], "beta");
-            notAtPole(arguments[1], "beta");
-        }
-        if (is_a<LowerGamma>(e)) notAtPole(arguments[0], "lowergamma");
-        if (is_a<Zeta>(e)) {
-            notZero({context.sub(values[0], one()), arguments[0].noise}, ErrorCode::DivisionByZero, "The value has no decimal value (zeta at its pole)");
-            notAtPole(arguments[1], "zeta");
-        }
-        //W at -1/e within the error of its argument: -1, of an error the square root of it (W = -1 + sqrt(2 e d)…)
-        if (is_a<LambertW>(e) && arguments[0].noise > EXACT / 2) {
-            const Decimal distance = context.add(values[0], context.exp(context.integer(-1)));
-            if (zero({distance, arguments[0].noise})) return {context.integer(-1), arguments[0].noise / 2 + 1};
-        }
-        const std::function<Decimal(const std::vector<Decimal> &)> apply = [&e, &context, order](const std::vector<Decimal> &at) {
-            if (is_a<Gamma>(e)) return context.gamma(at[0]);
-            if (is_a<LogGamma>(e)) return context.loggamma(at[0]);
-            if (is_a<PolyGamma>(e)) return context.polygamma(order, at[1]);
-            if (is_a<Beta>(e)) return context.beta(at[0], at[1]);
-            if (is_a<Erf>(e)) return context.erf(at[0]);
-            if (is_a<Erfc>(e)) return context.erfc(at[0]);
-            if (is_a<Zeta>(e)) return context.zeta(at[0], at[1]);
-            if (is_a<LowerGamma>(e)) return context.lowergamma(at[0], at[1]);
-            if (is_a<UpperGamma>(e)) return context.uppergamma(at[0], at[1]);
-            return context.lambertw(at[0]);
-        };
-        const Decimal value = apply(values);
+    if (is_a<Add>(e)) {
+        Decimal sum = context.integer(0);
         double noise = EXACT;
-        //An integer argument is exact: no spread
-        const vec_basic given = e.get_args();
-        for (size_t i = 0; i < arguments.size(); i++) {
-            if (is_a<PolyGamma>(e) && i == 0) continue;
-            if (is_a<Integer>(*given[i]) && context.exponent(values[i]) < static_cast<int64_t>(digits_)) continue;
-            noise = std::max(noise, spread(apply, values, i, arguments[i], value));
+        for (const Approximation &part : arguments) {
+            sum = context.add(sum, part.value);
+            noise = std::max(noise, part.noise);
         }
+        return {sum, noise};
+    }
+    if (is_a<Mul>(e)) {
+        //The error of a product: the error of each factor times the others
+        Decimal product = one();
+        double magnitudes = 0;
+        for (const Approximation &factor : arguments) {
+            product = context.mul(product, factor.value);
+            magnitudes += std::max(exponent(factor.value), EXACT / 4) + 1;
+        }
+        double noise = EXACT;
+        for (const Approximation &factor : arguments) {
+            if (factor.noise <= EXACT / 2) continue;
+            noise = std::max(noise, factor.noise + magnitudes - std::max(exponent(factor.value), EXACT / 4) - 1);
+        }
+        return {product, noise};
+    }
+    if (is_a<Pow>(e)) {
+        const Pow &power = down_cast<const Pow &>(e);
+        //e^x: the relative error of the result is the absolute one of x
+        if (eq(*power.get_base(), *E)) {
+            const Approximation &exponentPart = arguments[0];
+            const Decimal value = context.exp(exponentPart.value);
+            return {value, exponentPart.noise <= EXACT / 2 ? EXACT : exponent(value) + exponentPart.noise + 1};
+        }
+        const Approximation &base = arguments[0];
+        const Approximation &exponentPart = arguments[1];
+        //A base that cannot be told from 0 is 0 (sqrt(ln(6) - ln(2) - ln(3))), but in a division
+        if (context.isNegative(exponentPart.value)) notZero(base, ErrorCode::DivisionByZero, "The value has no decimal value (a division by zero)");
+        if (zero(base) && !context.isZero(exponentPart.value)) return {context.integer(0), base.noise};
+        Decimal value;
+        if (eq(*power.get_exp(), *rational(1, 2))) {
+            if (context.isNegative(base.value)) notReal("the square root of a negative number");
+            value = context.sqrt(base.value);
+        } else {
+            if (context.isNegative(base.value) && !is_a<Integer>(*power.get_exp())) notReal("a negative number to a non-integer power");
+            value = context.pow(base.value, exponentPart.value);
+        }
+        //b^k: the relative error of b times k, and the error of k times ln(b)
+        double noise = EXACT;
+        if (base.noise > EXACT / 2) noise = exponent(value) + base.noise - exponent(base.value) + std::max(0.0, exponent(exponentPart.value)) + 1;
+        if (exponentPart.noise > EXACT / 2) noise = std::max(noise, exponent(value) + exponentPart.noise + 3);
         return {value, noise};
     }
-
-    //The exponent of |f'(x)| for an elementary function f of value v at x: how much it scales the error of x
-    double slope(const Basic &e, const Decimal &x, const Decimal &v) const
-    {
-        const DecimalContext &context = context_;
-        const Decimal square = context.mul(x, x);
-        const Decimal valueSquare = context.mul(v, v);
-        auto of = [this](const Decimal &a) { return context_.isZero(a) ? 0.0 : exponent(context_.abs(a)); };
-        if (is_a<Sin>(e) || is_a<Cos>(e)) return 0;
-        //tan' = 1 + tan^2, cot' = -(1 + cot^2), sec' = sec tan, csc' = -csc cot
-        if (is_a<Tan>(e) || is_a<Cot>(e)) return of(context.add(one(), valueSquare));
-        if (is_a<Sec>(e) || is_a<Csc>(e)) return 2 * std::max(0.0, of(v)) + 1;
-        //asin' = 1/sqrt(1 - x^2), atan' = 1/(1 + x^2)
-        if (is_a<ASin>(e) || is_a<ACos>(e)) return -of(context.sub(one(), square)) / 2;
-        if (is_a<ATan>(e) || is_a<ACot>(e)) return -of(context.add(one(), square));
-        //asec(x)' = 1/(|x| sqrt(x^2 - 1))
-        if (is_a<ASec>(e) || is_a<ACsc>(e)) return -of(x) - of(context.sub(square, one())) / 2;
-        if (is_a<Sinh>(e) || is_a<Cosh>(e) || is_a<Sech>(e)) return std::max(0.0, of(v));
-        if (is_a<Csch>(e)) return 2 * std::max(0.0, -of(x)) + 1;
-        //tanh' = 1 - tanh^2, coth' = 1 - coth^2
-        if (is_a<Tanh>(e) || is_a<Coth>(e)) return of(context.sub(one(), valueSquare));
-        if (is_a<ASinh>(e)) return -of(context.add(square, one())) / 2;
-        if (is_a<ACosh>(e)) return -of(context.sub(square, one())) / 2;
-        if (is_a<ATanh>(e) || is_a<ACoth>(e)) return -of(context.sub(one(), square));
-        if (is_a<ASech>(e)) return -of(x) - of(context.sub(one(), square)) / 2;
-        if (is_a<ACsch>(e)) return -of(x) - of(context.add(one(), square)) / 2;
-        return std::max(0.0, of(v) - of(x));
+    if (is_a<Constant>(e)) {
+        if (eq(e, *pi)) return {context.pi(), EXACT};
+        if (eq(e, *E)) return {context.exp(one()), EXACT};
+        if (eq(e, *GoldenRatio)) return {context.div(context.add(one(), context.sqrt(context.integer(5))), context.integer(2)), EXACT};
+        if (eq(e, *EulerGamma)) return {context.eulerGamma(), EXACT};
+        if (eq(e, *Catalan)) return {context.catalan(), EXACT};
     }
-
-    //The trigonometric and hyperbolic functions and their inverses of a value
-    Decimal elementary(const Basic &e, const Decimal &x) const
-    {
-        const DecimalContext &context = context_;
-        if (is_a<Sin>(e)) return context.sin(x);
-        if (is_a<Cos>(e)) return context.cos(x);
-        if (is_a<Tan>(e)) return context.tan(x);
-        if (is_a<Cot>(e)) return context.div(one(), context.tan(x));
-        if (is_a<Sec>(e)) return context.div(one(), context.cos(x));
-        if (is_a<Csc>(e)) return context.div(one(), context.sin(x));
-        if (is_a<ASin>(e)) return context.asin(x);
-        if (is_a<ACos>(e)) return context.acos(x);
-        if (is_a<ATan>(e)) return context.atan(x);
-        //acot(x) is atan(1/x), pi/2 at 0
-        if (is_a<ACot>(e)) return context.isZero(x) ? context.div(context.pi(), context.integer(2)) : context.atan(context.div(one(), x));
-        if (is_a<ASec>(e)) return context.acos(context.div(one(), x));
-        if (is_a<ACsc>(e)) return context.asin(context.div(one(), x));
-        if (is_a<Sinh>(e)) return context.sinh(x);
-        if (is_a<Cosh>(e)) return context.cosh(x);
-        if (is_a<Tanh>(e)) return context.tanh(x);
-        if (is_a<Coth>(e)) return context.div(one(), context.tanh(x));
-        if (is_a<Sech>(e)) return context.div(one(), context.cosh(x));
-        if (is_a<Csch>(e)) return context.div(one(), context.sinh(x));
-        if (is_a<ASinh>(e)) return context.asinh(x);
-        if (is_a<ACosh>(e)) return context.acosh(x);
-        if (is_a<ATanh>(e)) return context.atanh(x);
-        if (is_a<ACoth>(e)) return context.atanh(context.div(one(), x));
-        if (is_a<ASech>(e)) return context.acosh(context.div(one(), x));
-        if (is_a<ACsch>(e)) return context.asinh(context.div(one(), x));
-        throw MathError(ErrorCode::NotSupported, "The decimal value of " + toText(e.rcp_from_this()) + " is not computed");
+    if (is_a<Log>(e)) {
+        const Approximation &x = arguments[0];
+        notZero(x, ErrorCode::DivisionByZero, "The value has no decimal value (the logarithm of 0)");
+        if (context.isNegative(x.value)) notReal("the logarithm of a negative number");
+        //The absolute error of ln(x) is the relative one of x
+        return {context.ln(x.value), x.noise <= EXACT / 2 ? EXACT : x.noise - exponent(x.value) + 1};
     }
-
-    //The functions of the addon (functions/Functions.h)
-    Approximation wrapper(const FunctionWrapper &function)
-    {
-        const DecimalContext &context = context_;
-        const std::string &name = function.get_name();
-        const vec_basic arguments = function.get_args();
-        //The real root (cbrt, root): the root of |x|, negated for a negative x and an odd degree
-        if (name == "root") {
-            const Approximation x = evaluate(*arguments[0]);
-            const Decimal inverse = context.div(one(), evaluate(*arguments[1]).value);
-            if (zero(x)) return {context.integer(0), x.noise};
-            const Decimal value = context.isNegative(x.value) ? context.neg(context.pow(context.abs(x.value), inverse)) : context.pow(x.value, inverse);
-            return {value, relative(value, x)};
-        }
-        if (name == "round") return jump(function, &DecimalContext::roundToInteger, true);
-        //mod(a, b) = a - b floor(a/b), a/b at a jump within its error
-        if (name == "mod") {
-            const Approximation a = evaluate(*arguments[0]);
-            const Approximation b = evaluate(*arguments[1]);
-            notZero(b, ErrorCode::Domain, "mod(a, 0) has no value");
-            const Decimal quotient = context.div(a.value, b.value);
-            const double noise = std::max(a.noise - exponent(b.value), exponent(quotient) + b.noise - exponent(b.value)) + 1;
-            Decimal floor = context.roundToInteger(quotient);
-            if (exponent(context.sub(quotient, floor)) > noise + 1) floor = context.floor(quotient);
-            return {context.sub(a.value, context.mul(b.value, floor)), std::max(a.noise, b.noise + exponent(floor))};
-        }
-        if (name == "sinc") {
-            const Approximation x = evaluate(*arguments[0]);
-            if (zero(x)) return {one(), EXACT};
-            return {context.div(context.sin(x.value), x.value), x.noise};
-        }
-        //The parts of a real value
-        if (name == "re") return evaluate(*arguments[0]);
-        if (name == "im") {
-            evaluate(*arguments[0]);
-            return {context.integer(0), EXACT};
-        }
-        if (name == "arg") {
-            const Approximation x = evaluate(*arguments[0]);
-            notZero(x, ErrorCode::Domain, "arg(0) has no value");
-            return {context.isNegative(x.value) ? context.pi() : context.integer(0), EXACT};
-        }
-        throw MathError(ErrorCode::NotSupported, "The decimal value of " + name + "() is not computed");
+    if (is_a<Abs>(e)) return {context.abs(arguments[0].value), arguments[0].noise};
+    if (is_a<Floor>(e)) return jump(arguments[0], &DecimalContext::floor, false);
+    if (is_a<Ceiling>(e)) return jump(arguments[0], &DecimalContext::ceil, false);
+    if (is_a<Truncate>(e)) return jump(arguments[0], &DecimalContext::trunc, false);
+    if (is_a<Conjugate>(e) || is_a<UnevaluatedExpr>(e)) return arguments[0];
+    if (is_a<Sign>(e)) {
+        const Approximation &x = arguments[0];
+        return {context.integer(zero(x) ? 0 : context.isNegative(x.value) ? -1 : 1), EXACT};
     }
-};
+    if (is_a<Max>(e) || is_a<Min>(e)) {
+        Approximation best = arguments[0];
+        for (size_t i = 1; i < arguments.size(); i++) {
+            if (context.compare(arguments[i].value, best.value) == (is_a<Max>(e) ? 1 : -1)) best = arguments[i];
+        }
+        return best;
+    }
+    if (is_a<ATan2>(e)) {
+        const Approximation &y = arguments[0];
+        const Approximation &x = arguments[1];
+        const Decimal value = context.atan2(zero(y) ? context.integer(0) : y.value, zero(x) ? context.integer(0) : x.value);
+        //(|x| err(y) + |y| err(x))/(x^2 + y^2)
+        const double size = exponent(context.add(context.mul(x.value, x.value), context.mul(y.value, y.value)));
+        double noise = EXACT;
+        if (y.noise > EXACT / 2) noise = std::max(noise, std::max(exponent(x.value), EXACT / 4) + y.noise - size + 1);
+        if (x.noise > EXACT / 2) noise = std::max(noise, std::max(exponent(y.value), EXACT / 4) + x.noise - size + 1);
+        return {value, noise};
+    }
+    if (is_a<Gamma>(e) || is_a<LogGamma>(e) || is_a<PolyGamma>(e) || is_a<Beta>(e) || is_a<Erf>(e) || is_a<Erfc>(e) || is_a<Zeta>(e) ||
+        is_a<LowerGamma>(e) || is_a<UpperGamma>(e) || is_a<LambertW>(e)) {
+        return special(e, arguments);
+    }
+    if (is_a<FunctionWrapper>(e)) return wrapper(e, arguments);
+    if (is_a_sub<Function>(e) && arguments.size() == 1) {
+        const Approximation &x = arguments[0];
+        const Decimal value = elementary(e, x.value);
+        return {value, x.noise <= EXACT / 2 ? EXACT : x.noise + slope(e, x.value, value) + 1};
+    }
+    if (is_a<Complex>(e) || is_a<ComplexDouble>(e)) notReal(toText(e.rcp_from_this()));
+    if (is_a<Infty>(e) || is_a<NaN>(e)) throw MathError(ErrorCode::Domain, toText(e.rcp_from_this()) + " has no decimal value" + (is_a<Infty>(e) && down_cast<const Infty &>(e).is_unsigned_infinity() ? " (a division by zero)" : ""));
+    throw MathError(ErrorCode::NotSupported, "The decimal value of " + toText(e.rcp_from_this()) + " is not computed");
+}
 
+//An argument within its error of a pole (0 or a negative integer) is undecided, as a division by a value that cannot be
+//told from 0
+void Evaluator::notAtPole(const Approximation &x, const std::string &function) const
+{
+    if (x.noise <= EXACT / 2) return;
+    const Decimal nearest = context_.roundToInteger(x.value);
+    if (context_.isNegative(context_.sub(nearest, one()))) notZero({context_.sub(x.value, nearest), x.noise}, ErrorCode::DivisionByZero, "The value has no decimal value (" + function + " at a pole)");
+}
+
+//The error of a function of an inexact argument: the change of its value at the error of the argument (the other way
+//when that one is outside its domain)
+double Evaluator::spread(const std::function<Decimal(const std::vector<Decimal> &)> &function, std::vector<Decimal> at, size_t index, const Approximation &x,
+    const Decimal &value) const
+{
+    const Decimal step = context_.parse("1e" + std::to_string(static_cast<long long>(std::ceil(x.noise))));
+    for (int side = 0; side < 2; side++) {
+        at[index] = side == 0 ? context_.add(x.value, step) : context_.sub(x.value, step);
+        try {
+            return exponent(context_.sub(function(at), value)) + 1;
+        } catch (MathError &error) {
+            if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
+        }
+    }
+    if (!last_) throw Undecided();
+    throw MathError(ErrorCode::Domain, "The value has no decimal value (a function at the edge of its domain within the error of its argument)");
+}
+
+//The special functions (DecimalSpecial.cpp): their poles within the errors of their arguments undecided, their errors
+//the spreads of their values
+Approximation Evaluator::special(const Basic &e, const std::vector<Approximation> &arguments)
+{
+    const DecimalContext &context = context_;
+    std::vector<Decimal> values;
+    for (const Approximation &argument : arguments) values.push_back(argument.value);
+    const vec_basic given = e.get_args();
+    long long order = 0;
+    if (is_a<PolyGamma>(e)) {
+        if (!is_a<Integer>(*given[0]) || down_cast<const Integer &>(*given[0]).is_negative() || context.exponent(values[0]) > 9) {
+            throw MathError(ErrorCode::NotSupported, "polygamma(n, x) is computed for the integers n from 0 to 10^9");
+        }
+        order = smallInteger(values[0]);
+    }
+    if (is_a<Gamma>(e) || is_a<LogGamma>(e)) notAtPole(arguments[0], toText(e.rcp_from_this()));
+    if (is_a<PolyGamma>(e)) notAtPole(arguments[1], toText(e.rcp_from_this()));
+    if (is_a<Beta>(e)) {
+        notAtPole(arguments[0], "beta");
+        notAtPole(arguments[1], "beta");
+    }
+    if (is_a<LowerGamma>(e)) notAtPole(arguments[0], "lowergamma");
+    if (is_a<Zeta>(e)) {
+        notZero({context.sub(values[0], one()), arguments[0].noise}, ErrorCode::DivisionByZero, "The value has no decimal value (zeta at its pole)");
+        notAtPole(arguments[1], "zeta");
+    }
+    //W at -1/e within the error of its argument: -1, of an error the square root of it (W = -1 + sqrt(2 e d)…)
+    if (is_a<LambertW>(e) && arguments[0].noise > EXACT / 2) {
+        const Decimal distance = context.add(values[0], context.exp(context.integer(-1)));
+        if (zero({distance, arguments[0].noise})) return {context.integer(-1), arguments[0].noise / 2 + 1};
+    }
+    const std::function<Decimal(const std::vector<Decimal> &)> function = [&e, &context, order](const std::vector<Decimal> &at) {
+        if (is_a<Gamma>(e)) return context.gamma(at[0]);
+        if (is_a<LogGamma>(e)) return context.loggamma(at[0]);
+        if (is_a<PolyGamma>(e)) return context.polygamma(order, at[1]);
+        if (is_a<Beta>(e)) return context.beta(at[0], at[1]);
+        if (is_a<Erf>(e)) return context.erf(at[0]);
+        if (is_a<Erfc>(e)) return context.erfc(at[0]);
+        if (is_a<Zeta>(e)) return context.zeta(at[0], at[1]);
+        if (is_a<LowerGamma>(e)) return context.lowergamma(at[0], at[1]);
+        if (is_a<UpperGamma>(e)) return context.uppergamma(at[0], at[1]);
+        return context.lambertw(at[0]);
+    };
+    const Decimal value = function(values);
+    double noise = EXACT;
+    //An integer argument is exact: no spread
+    for (size_t i = 0; i < arguments.size(); i++) {
+        if (is_a<PolyGamma>(e) && i == 0) continue;
+        if (is_a<Integer>(*given[i]) && context.exponent(values[i]) < static_cast<int64_t>(digits_)) continue;
+        noise = std::max(noise, spread(function, values, i, arguments[i], value));
+    }
+    return {value, noise};
+}
+
+//The exponent of |f'(x)| for an elementary function f of value v at x: how much it scales the error of x
+double Evaluator::slope(const Basic &e, const Decimal &x, const Decimal &v) const
+{
+    const DecimalContext &context = context_;
+    const Decimal square = context.mul(x, x);
+    const Decimal valueSquare = context.mul(v, v);
+    auto of = [this](const Decimal &a) { return context_.isZero(a) ? 0.0 : exponent(context_.abs(a)); };
+    if (is_a<Sin>(e) || is_a<Cos>(e)) return 0;
+    //tan' = 1 + tan^2, cot' = -(1 + cot^2), sec' = sec tan, csc' = -csc cot
+    if (is_a<Tan>(e) || is_a<Cot>(e)) return of(context.add(one(), valueSquare));
+    if (is_a<Sec>(e) || is_a<Csc>(e)) return 2 * std::max(0.0, of(v)) + 1;
+    //asin' = 1/sqrt(1 - x^2), atan' = 1/(1 + x^2)
+    if (is_a<ASin>(e) || is_a<ACos>(e)) return -of(context.sub(one(), square)) / 2;
+    if (is_a<ATan>(e) || is_a<ACot>(e)) return -of(context.add(one(), square));
+    //asec(x)' = 1/(|x| sqrt(x^2 - 1))
+    if (is_a<ASec>(e) || is_a<ACsc>(e)) return -of(x) - of(context.sub(square, one())) / 2;
+    if (is_a<Sinh>(e) || is_a<Cosh>(e) || is_a<Sech>(e)) return std::max(0.0, of(v));
+    if (is_a<Csch>(e)) return 2 * std::max(0.0, -of(x)) + 1;
+    //tanh' = 1 - tanh^2, coth' = 1 - coth^2
+    if (is_a<Tanh>(e) || is_a<Coth>(e)) return of(context.sub(one(), valueSquare));
+    if (is_a<ASinh>(e)) return -of(context.add(square, one())) / 2;
+    if (is_a<ACosh>(e)) return -of(context.sub(square, one())) / 2;
+    if (is_a<ATanh>(e) || is_a<ACoth>(e)) return -of(context.sub(one(), square));
+    if (is_a<ASech>(e)) return -of(x) - of(context.sub(one(), square)) / 2;
+    if (is_a<ACsch>(e)) return -of(x) - of(context.add(one(), square)) / 2;
+    return std::max(0.0, of(v) - of(x));
+}
+
+//The trigonometric and hyperbolic functions and their inverses of a value
+Decimal Evaluator::elementary(const Basic &e, const Decimal &x) const
+{
+    const DecimalContext &context = context_;
+    if (is_a<Sin>(e)) return context.sin(x);
+    if (is_a<Cos>(e)) return context.cos(x);
+    if (is_a<Tan>(e)) return context.tan(x);
+    if (is_a<Cot>(e)) return context.div(one(), context.tan(x));
+    if (is_a<Sec>(e)) return context.div(one(), context.cos(x));
+    if (is_a<Csc>(e)) return context.div(one(), context.sin(x));
+    if (is_a<ASin>(e)) return context.asin(x);
+    if (is_a<ACos>(e)) return context.acos(x);
+    if (is_a<ATan>(e)) return context.atan(x);
+    //acot(x) is atan(1/x), pi/2 at 0
+    if (is_a<ACot>(e)) return context.isZero(x) ? context.div(context.pi(), context.integer(2)) : context.atan(context.div(one(), x));
+    if (is_a<ASec>(e)) return context.acos(context.div(one(), x));
+    if (is_a<ACsc>(e)) return context.asin(context.div(one(), x));
+    if (is_a<Sinh>(e)) return context.sinh(x);
+    if (is_a<Cosh>(e)) return context.cosh(x);
+    if (is_a<Tanh>(e)) return context.tanh(x);
+    if (is_a<Coth>(e)) return context.div(one(), context.tanh(x));
+    if (is_a<Sech>(e)) return context.div(one(), context.cosh(x));
+    if (is_a<Csch>(e)) return context.div(one(), context.sinh(x));
+    if (is_a<ASinh>(e)) return context.asinh(x);
+    if (is_a<ACosh>(e)) return context.acosh(x);
+    if (is_a<ATanh>(e)) return context.atanh(x);
+    if (is_a<ACoth>(e)) return context.atanh(context.div(one(), x));
+    if (is_a<ASech>(e)) return context.acosh(context.div(one(), x));
+    if (is_a<ACsch>(e)) return context.asinh(context.div(one(), x));
+    throw MathError(ErrorCode::NotSupported, "The decimal value of " + toText(e.rcp_from_this()) + " is not computed");
+}
+
+//The functions of the addon (functions/Functions.h)
+Approximation Evaluator::wrapper(const Basic &e, const std::vector<Approximation> &arguments)
+{
+    const DecimalContext &context = context_;
+    const std::string &name = down_cast<const FunctionWrapper &>(e).get_name();
+    //The real root (cbrt, root): the root of |x|, negated for a negative x and an odd degree
+    if (name == "root") {
+        const Approximation &x = arguments[0];
+        const Decimal inverse = context.div(one(), arguments[1].value);
+        if (zero(x)) return {context.integer(0), x.noise};
+        const Decimal value = context.isNegative(x.value) ? context.neg(context.pow(context.abs(x.value), inverse)) : context.pow(x.value, inverse);
+        return {value, relative(value, x)};
+    }
+    if (name == "round") return jump(arguments[0], &DecimalContext::roundToInteger, true);
+    //mod(a, b) = a - b floor(a/b), a/b at a jump within its error
+    if (name == "mod") {
+        const Approximation &a = arguments[0];
+        const Approximation &b = arguments[1];
+        notZero(b, ErrorCode::Domain, "mod(a, 0) has no value");
+        const Decimal quotient = context.div(a.value, b.value);
+        const double noise = std::max(a.noise - exponent(b.value), exponent(quotient) + b.noise - exponent(b.value)) + 1;
+        Decimal floor = context.roundToInteger(quotient);
+        if (exponent(context.sub(quotient, floor)) > noise + 1) floor = context.floor(quotient);
+        return {context.sub(a.value, context.mul(b.value, floor)), std::max(a.noise, b.noise + exponent(floor))};
+    }
+    if (name == "sinc") {
+        const Approximation &x = arguments[0];
+        if (zero(x)) return {one(), EXACT};
+        return {context.div(context.sin(x.value), x.value), x.noise};
+    }
+    //The parts of a real value
+    if (name == "re") return arguments[0];
+    if (name == "im") return {context.integer(0), EXACT};
+    if (name == "arg") {
+        const Approximation &x = arguments[0];
+        notZero(x, ErrorCode::Domain, "arg(0) has no value");
+        return {context.isNegative(x.value) ? context.pi() : context.integer(0), EXACT};
+    }
+    throw MathError(ErrorCode::NotSupported, "The decimal value of " + name + "() is not computed");
 }
 
 std::string toDecimal(const Expr &expression, long digits)

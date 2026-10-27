@@ -39,9 +39,17 @@ inline long long smallInteger(const Decimal &a)
     return value;
 }
 
+//A real value that is not real (MathError Domain): the complex evaluator computes the node instead
+class NotRealError : public MathError {
+public:
+    explicit NotRealError(const std::string &why) : MathError(ErrorCode::Domain, "The value is not a real number (" + why + ")")
+    {
+    }
+};
+
 [[noreturn]] inline void notReal(const std::string &why)
 {
-    throw MathError(ErrorCode::Domain, "The value is not a real number (" + why + ")");
+    throw NotRealError(why);
 }
 
 //The nearest double to a decimal (an infinity beyond the doubles)

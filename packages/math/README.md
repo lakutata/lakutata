@@ -127,17 +127,23 @@ a sum is multiplied out: `2(x + 1)` is `2x + 2`. Exact numbers are computed up t
 stays a power (`2^(10^7)`), and a factorial above `20000!` stays as `gamma(n + 1)`. Then:
 
 - `toNumber()` gives a number of JavaScript (`MathDomainException` for a complex value), `toComplex()` gives `{re, im}`.
-  They compute the real values from their decimals where `toDecimal()` computes them, so that all the digits of a number
-  are right, also where doubles have none (`cos(10^30)`); the rest in doubles. Both compute the special functions
-  (gamma, zeta, Lambert W, polygamma, erf…) of real and complex arguments.
+  They compute the values from their decimals where `toDecimal()` or `toComplexDecimal()` computes them, so that all the
+  digits of a number are right, also where doubles have none (`cos(10^30)`, `e^(i*10^30)`). Both compute the special
+  functions (gamma, zeta, Lambert W, polygamma, erf…) of complex arguments too, in doubles, while the rest of the
+  expression stays in decimals.
 - `toDecimal(digits)` gives a string with that many significant digits, correctly rounded (the `precision` of the
   component by default), written as `Decimal` writes its digits (see below): `3`, not `3.000…`. The value is computed
   again with more digits until two results agree. It computes the arithmetic, powers and roots, `exp` and `ln`, the
   trigonometric and hyperbolic functions and their inverses, the rounding functions, the constants, and the special
-  functions of real arguments: `gamma`, `loggamma`, `digamma`, `polygamma`, `beta`, `erf`, `erfc`, `zeta` (Riemann's
-  and Hurwitz's), `lowergamma`, `uppergamma` and `lambertw`. A value that cannot be told from 0, even with 640 more digits,
+  functions of real arguments: `gamma`, `loggamma`, `digamma`, `polygamma`, `beta`, `erf`, `erfc`, `zeta` (Riemann's and
+  Hurwitz's), `lowergamma`, `uppergamma` and `lambertw`. A value that cannot be told from 0, even with 640 more digits,
   is `0` (`ln(6) - ln(2) - ln(3)`); a value exactly halfway between two decimals of that many digits is rounded to the
   even one (`ln(8)/ln(4)`, which is 1.5, gives `2` to one digit).
+- `toComplexDecimal(digits)` gives the two parts of a complex value, `{re, im}`, as strings rounded as `toDecimal()`
+  rounds, each part to that many significant digits of its own: the parts of `(1 + i/10^25)^2 - 1` are `-1e-50` and
+  `2e-25`. It computes the functions `toDecimal()` computes, of complex arguments too, with their principal branches; on
+  a branch cut, a value takes the side SymPy gives it (`asin(2)` is `pi/2 - 1.3169…i`). Its special functions take real
+  arguments only.
 - `compile()` computes in doubles, for speed: where doubles have no digit of a value, the compiled function has none
   either.
 - `toRectangular()` gives the real and the imaginary parts of an expression (`{real, imaginary}`), `toPolar()` its
@@ -272,10 +278,10 @@ async function integers(math: Math): Promise<void> {
 ### Asynchronous operations
 
 The operations that can take long have an asynchronous version: `expandAsync()`, `simplifyAsync()`, `diffAsync()`,
-`seriesAsync()`, `solveAsync()`, `toDecimalAsync()`, `solveAsync()` and `cseAsync()` of the component, and those of the
-number theory. They run in the threads of the addon, not in the thread pool of libuv: as many threads as the processor
-has cores, minus one, or the number in the environment variable `LAKUTATA_MATH_THREADS`. Their options are `timeout`
-(milliseconds) and `signal` (an `AbortSignal`):
+`seriesAsync()`, `solveAsync()`, `toDecimalAsync()`, `toComplexDecimalAsync()`, `solveAsync()` and `cseAsync()` of the
+component, and those of the number theory. They run in the threads of the addon, not in the thread pool of libuv: as
+many threads as the processor has cores, minus one, or the number in the environment variable `LAKUTATA_MATH_THREADS`.
+Their options are `timeout` (milliseconds) and `signal` (an `AbortSignal`):
 
 - At the time limit the promise is rejected with `MathTimeoutException`, and with `MathCancelledException` when the
   signal aborts. Operations with checkpoints (expansions, decimals, linear systems, the number theory) stop at the next
@@ -298,7 +304,7 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | `Math` | The component: `parse`, `expression`, `equation`, `decimal`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory` |
 | `buildMathOptions`, `MathConfig` | Its declaration in the components, and its options: `definitions`, `precision`, `timeout`, `concurrency`, `drainTimeout` |
 | `MathScope`, `MathDefinitions` | The scope given by `with()`, with the methods of the component except `ntheory`; the definitions (a body by signature) |
-| `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
+| `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
 | `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`math.decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
 | `CommonSubexpressions`, `CseOptions` | The result of `cse()` (`replacements`, `expressions`) and its option (`prefix`) |
 | `PolarForm`, `RectangularForm` | The polar form (`modulus`, `argument`) and the rectangular form (`real`, `imaginary`) of a complex value |

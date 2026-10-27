@@ -259,8 +259,11 @@ describe('The formulas', (): void => {
             ['acos(x)', 2, 0, 1.3169578969248166], ['acos(x)', -2, globalThis.Math.PI, -1.3169578969248166],
             ['atan(i*x)', 2, globalThis.Math.PI / 2, 0.5493061443340548], ['atan(i*x)', -2, -globalThis.Math.PI / 2, -0.5493061443340548],
             ['asinh(i*x)', 2, 1.3169578969248166, globalThis.Math.PI / 2], ['asinh(i*x)', -2, -1.3169578969248166, -globalThis.Math.PI / 2],
-            ['atanh(x)', 2, 0.5493061443340548, globalThis.Math.PI / 2], ['atanh(x)', -2, -0.5493061443340548, -globalThis.Math.PI / 2],
-            ['acosh(x)', -2, 1.3169578969248166, globalThis.Math.PI]
+            ['atanh(x)', 2, 0.5493061443340548, -globalThis.Math.PI / 2], ['atanh(x)', -2, -0.5493061443340548, globalThis.Math.PI / 2],
+            ['acosh(x)', -2, 1.3169578969248166, globalThis.Math.PI],
+            //The reciprocal forms of negative numbers (1/x had a negative zero in doubles: the other side)
+            ['asec(x)', -1 / 2, globalThis.Math.PI, -1.3169578969248166], ['acsc(x)', -1 / 2, -globalThis.Math.PI / 2, 1.3169578969248166],
+            ['acoth(x)', -1 / 2, -0.5493061443340548, globalThis.Math.PI / 2], ['asech(x)', -2, 0, 2.0943951023931957]
         ]
         for (const [text, x, re, im] of cuts) {
             const exact = math.expression(text).substitute({x: x}).toComplex()

@@ -237,17 +237,19 @@ export class Expression {
 
     /**
      * The value of an expression without variables as a number of JavaScript (a double). It is computed from the
-     * decimals of the value where `toDecimal()` computes them, so that all its digits are right, also where doubles
-     * have none (`cos(10^30)`); in doubles otherwise. A complex value throws `MathDomainException`: use
-     * `toComplex()`. So does a division by a value not shown to differ from 0 (`1/(ln(6) - ln(2) - ln(3))`).
+     * decimals of the value, as `toComplex()`, so that all its digits are right, also where doubles have none
+     * (`cos(10^30)`). A complex value throws `MathDomainException`, whatever the size of its imaginary part
+     * (`1 + i/10^15`): use `toComplex()`. So does a division by a value not shown to differ from 0
+     * (`1/(ln(6) - ln(2) - ln(3))`).
      */
     public toNumber(): number {
         return nativeCall((native) => native.toNumber(this.handle))
     }
 
     /**
-     * The value of an expression without variables as a complex number: its real parts computed from their decimals,
-     * as `toNumber()`, the rest in doubles.
+     * The value of an expression without variables as a complex number: from its decimals where `toComplexDecimal()`
+     * computes them, so that all its digits are right (`e^(i*10^30)`); in doubles otherwise (the special functions of
+     * complex arguments), the parts the decimals compute given to them.
      */
     public toComplex(): { re: number, im: number } {
         const [re, im]: [number, number] = nativeCall((native) => native.toComplex(this.handle))
@@ -278,6 +280,29 @@ export class Expression {
      */
     public async toDecimalAsync(digits?: number, options?: AsyncOptions): Promise<string> {
         return await this.context.runAsync<string>('decimal', [this.handle, digits ?? this.context.settings.precision], options)
+    }
+
+    /**
+     * The value of an expression without variables as a complex number, each part a decimal of a number of significant
+     * digits, correctly rounded as `toDecimal()` rounds: `e^(i*10^30)` has the digits of `cos(10^30)` and `sin(10^30)`. A
+     * part that cannot be told from 0, even with 640 more digits, is `0`; a real value has the imaginary part `0`. The
+     * functions of `toDecimal()` take complex arguments too, with their principal branches (on a branch cut, the side
+     * SymPy takes), but for the special functions, which take real arguments only.
+     * @param digits The significant digits of each part: the `precision` of the component by default.
+     */
+    public toComplexDecimal(digits?: number): { re: string, im: string } {
+        const [re, im]: [string, string] = this.context.run<[string, string]>('complexDecimal', [this.handle, digits ?? this.context.settings.precision])
+        return {re: re, im: im}
+    }
+
+    /**
+     * `toComplexDecimal()` in the threads of the addon.
+     * @param digits The significant digits of each part: the `precision` of the component by default.
+     * @param options Its cancellation, its time limit.
+     */
+    public async toComplexDecimalAsync(digits?: number, options?: AsyncOptions): Promise<{ re: string, im: string }> {
+        const [re, im]: [string, string] = await this.context.runAsync<[string, string]>('complexDecimal', [this.handle, digits ?? this.context.settings.precision], options)
+        return {re: re, im: im}
     }
 
     /**

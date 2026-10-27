@@ -22,12 +22,6 @@ protected:
 public:
     T apply(const Basic &b)
     {
-        // lakutata: a value given for the node (special_double.h)
-        if (special::given_values != nullptr) {
-            const auto given = special::given_values->find(&b);
-            if (given != special::given_values->end())
-                return T(given->second);
-        }
         b.accept(*down_cast<C *>(this));
         // lakutata: without negative zeros (special_double.h)
         return special::unsigned_zeros(result_);
@@ -168,7 +162,7 @@ public:
     {
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
-            1.0 / tmp, [](double v) { return std::acos(v); },
+            special::unsigned_zeros(1.0 / tmp), [](double v) { return std::acos(v); },
             [](const std::complex<double> &v) {
                 return std::acos(special::below_beyond_one(v));
             },
@@ -179,7 +173,7 @@ public:
     {
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
-            1.0 / tmp, [](double v) { return std::asin(v); },
+            special::unsigned_zeros(1.0 / tmp), [](double v) { return std::asin(v); },
             [](const std::complex<double> &v) {
                 return std::asin(special::below_beyond_one(v));
             },
@@ -201,7 +195,7 @@ public:
     {
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
-            1.0 / tmp, [](double v) { return std::atan(v); },
+            special::unsigned_zeros(1.0 / tmp), [](double v) { return std::atan(v); },
             [](const std::complex<double> &v) {
                 return std::atan(special::left_below_minus_i(v));
             },
@@ -259,7 +253,7 @@ public:
     {
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
-            1.0 / tmp, [](double v) { return std::asinh(v); },
+            special::unsigned_zeros(1.0 / tmp), [](double v) { return std::asinh(v); },
             [](const std::complex<double> &v) {
                 return std::asinh(special::left_below_minus_i(v));
             },
@@ -281,7 +275,7 @@ public:
         result_ = special::real_where(
             tmp, [](double v) { return std::atanh(v); },
             [](const std::complex<double> &v) {
-                return std::atanh(special::below_before_minus_one(v));
+                return std::atanh(special::below_beyond_one(v));
             },
             [](double v) { return v > -1 and v < 1; });
     };
@@ -290,9 +284,9 @@ public:
     {
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
-            1.0 / tmp, [](double v) { return std::atanh(v); },
+            special::unsigned_zeros(1.0 / tmp), [](double v) { return std::atanh(v); },
             [](const std::complex<double> &v) {
-                return std::atanh(special::below_before_minus_one(v));
+                return std::atanh(special::below_beyond_one(v));
             },
             [](double v) { return v > -1 and v < 1; });
     };
@@ -301,7 +295,7 @@ public:
     {
         T tmp = apply(*(x.get_arg()));
         result_ = special::real_where(
-            1.0 / tmp, [](double v) { return std::acosh(v); },
+            special::unsigned_zeros(1.0 / tmp), [](double v) { return std::acosh(v); },
             [](const std::complex<double> &v) { return std::acosh(v); },
             [](double v) { return v >= 1; });
     };

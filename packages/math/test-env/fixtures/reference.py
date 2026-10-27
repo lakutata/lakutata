@@ -423,6 +423,22 @@ def special():
                                            for digits in case['decimals']}} for case in load('special')])
 
 
+def complex_parts():
+    """The decimals of complex values, each part from its own evaluation (SymPy's re() and im() of the expression, 30
+    more digits, rounded half to even): a part much smaller than the other keeps its digits; an exact 0 is '0'"""
+    results = []
+    for case in load('complex'):
+        expr = parse(case['text'])
+        parts = {}
+        for digits in case['decimals']:
+            texts = []
+            for part in (sympy.re(expr), sympy.im(expr)):
+                texts.append('0' if part.is_zero else decimal_text(part, digits))
+            parts[str(digits)] = texts
+        results.append({**case, 'decimals': parts})
+    save('complex', results)
+
+
 def decimals():
     save('decimals', [{**case, 'result': decimal_operation(case['op'], case['precision'], case['args'])}
                       for case in load('decimals')])
@@ -441,5 +457,6 @@ if __name__ == '__main__':
     ntheory()
     decimals()
     special()
+    complex_parts()
     print('SymPy', sympy.__version__, 'wrote', ', '.join(sorted(os.listdir(os.path.join(HERE, 'expected')))))
     sys.exit(0)

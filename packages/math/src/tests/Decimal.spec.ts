@@ -173,6 +173,24 @@ describe('The decimals', (): void => {
         })
     })
 
+    it('compute complex values in decimals, each part to its digits', (): void => {
+        assert.deepStrictEqual(math.expression('e^(i*10^30)').toComplexDecimal(20), {re: '-0.99593119440539570239', im: '-0.09011690191213805803'})
+        assert.deepStrictEqual(math.expression('(1 + i/10^25)^2 - 1').toComplexDecimal(10), {re: '-1e-50', im: '2e-25'})
+        assert.deepStrictEqual(math.expression('i^i').toComplexDecimal(10), {re: '0.2078795764', im: '0'})
+        assert.deepStrictEqual(math.expression('sqrt(-ln(2))').toComplexDecimal(10), {re: '0', im: '0.8325546112'})
+        //An imaginary part that cannot be told from 0 is 0: on the cut, the upper side
+        assert.deepStrictEqual(math.expression('ln(-2 + i*(ln(6) - ln(2) - ln(3)))').toComplexDecimal(10), {re: '0.6931471806', im: '3.141592654'})
+        assert.throws((): unknown => math.expression('1/(i*(ln(6) - ln(2) - ln(3)))').toComplexDecimal(10), MathDivisionByZeroException)
+        assert.throws((): unknown => math.expression('gamma(1 + i)').toComplexDecimal(10), MathNotSupportedException)
+        //The numbers of complex values come from the decimals, and from doubles for the nodes the decimals have not
+        assert.deepStrictEqual(math.expression('e^(i*10^30)').toComplex(), {re: -0.9959311944053957, im: -0.09011690191213806})
+        const product: {re: number, im: number} = math.expression('gamma(1 + i)*e^(i*10^30)').toComplex()
+        assert.ok(globalThis.Math.abs(product.re + 0.5099529376600928) < 1e-13 && globalThis.Math.abs(product.im - 0.10943973845900327) < 1e-13, JSON.stringify(product))
+        assert.strictEqual(math.expression('i^i').toNumber(), 0.2078795763507619)
+        assert.throws((): unknown => math.expression('1 + i/10^15').toNumber(), MathDomainException)
+        assert.throws((): unknown => math.expression('1 + gamma(1 + i)/10^20').toNumber(), MathDomainException)
+    })
+
     it('throw the exceptions of the package', (): void => {
         const cases: [() => unknown, new (...args: never[]) => Error][] = [
             [(): unknown => math.decimal(1).div(0), MathDivisionByZeroException],

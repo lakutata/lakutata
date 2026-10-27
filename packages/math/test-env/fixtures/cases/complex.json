@@ -1,0 +1,758 @@
+[
+ {
+  "text": "e^(i*10^30)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "i^i",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "sqrt(-2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "ln(-2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "(1 + i)^10",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "(1 + 2i)/(3 - 4i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "exp(1 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "exp(-2 - 3i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "ln(1 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "ln(-3 - 4i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "sqrt(3 + 4i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "sqrt(-3 - 4i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "sqrt(-5 + 12i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "sin(1 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "cos(1 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "tan(1 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "cot(2 - 3i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "sec(-1 + 2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "csc(1/2 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "sinh(1 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "cosh(2 - i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "tanh(1 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "coth(-1 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "sech(1/2 - 2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "csch(3 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "sin(10^20 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "cos(3 + 50i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asin(2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asin(-2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acos(2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acos(-2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atanh(2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atanh(-2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asinh(2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asinh(-2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atan(2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atan(-2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acosh(-2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acosh(1/2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acosh(-1/2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asec(1/2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asec(-1/2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acsc(1/2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acsc(-1/2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acoth(1/2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acoth(-1/2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asech(2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asech(-2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acsch(i/2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acsch(-i/2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acot(i/2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acot(-i/2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asin(2 + i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asin(2 - i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asin(-2 + i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asin(-2 - i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acos(2 + i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acos(-2 - i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atanh(2 + i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atanh(2 - i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atanh(-2 + i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atanh(-2 - i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atan(1/10 + 2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atan(-1/10 + 2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atan(1/10 - 2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atan(-1/10 - 2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asinh(1/10 + 2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asinh(-1/10 + 2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asinh(1/10 - 2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asinh(-1/10 - 2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acosh(-2 + i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acosh(-2 - i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acosh(1/2 + i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acosh(1/2 - i/10)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asin(1 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acos(1 - 2i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atan(-1 + 3i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asinh(2 - i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acosh(-1 - i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atanh(1/2 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acot(1 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asec(1 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acsc(-2 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acoth(2 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asech(1/2 + i/3)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "acsch(1 - i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "asin(i/10^30)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "atan(1/10^20 + i/10^20)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "abs(3 + 4i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "arg(-1 - i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "arg(-1)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "re(e^(i*pi/7))",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "im(e^(i*pi/7))",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "conj(2 + 3i)*i",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "sign(3 + 4i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "sinc(i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "sinc(1 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "(-8)^(1/3)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "2^i",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "(1 + i)^(1 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "(-2)^(1/3 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "i^(1/7)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "(1 + i/10^25)^2 - 1",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "exp(i*pi/3)^3",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "exp(1000 + i)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "exp(-1000 + i*10^5)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "gamma(1/3) + i*erf(1/2)",
+  "decimals": [
+   20,
+   50
+  ]
+ },
+ {
+  "text": "sqrt(-ln(2))",
+  "decimals": [
+   20,
+   50
+  ]
+ }
+]

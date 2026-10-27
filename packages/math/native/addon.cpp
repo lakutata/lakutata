@@ -257,6 +257,22 @@ Job decimalJob(const Napi::Array &arguments)
     };
 }
 
+Job complexDecimalJob(const Napi::Array &arguments)
+{
+    Expr expression = expressionAt(arguments, 0);
+    const double digits = numberAt(arguments, 1, "The number of digits");
+    if (digits != std::floor(digits) || digits < 1 || digits > 100000) throw MathError(ErrorCode::Argument, "The number of digits is from 1 to 100000");
+    return [expression, digits] {
+        const std::pair<std::string, std::string> parts = toComplexDecimal(expression, static_cast<long>(digits));
+        return Builder([parts](Napi::Env env) {
+            Napi::Array result = Napi::Array::New(env, 2);
+            result.Set(0u, Napi::String::New(env, parts.first));
+            result.Set(1u, Napi::String::New(env, parts.second));
+            return result;
+        });
+    };
+}
+
 //decimalOperation(operation, precision, ...values): an operation of the Decimal class, its values as texts
 Job decimalOperationJob(const Napi::Array &arguments)
 {
@@ -416,7 +432,7 @@ const std::map<std::string, JobFactory> &jobs()
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
-        {"decimal", decimalJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
+        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
         {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}
     };

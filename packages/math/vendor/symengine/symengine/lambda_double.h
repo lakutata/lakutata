@@ -290,7 +290,7 @@ public:
         // lakutata: in the reals where the argument is real (special_double.h)
         result_ = [=](const T *x) {
             return special::real_where(
-                1.0 / tmp(x), [](double v) { return std::acos(v); },
+                special::unsigned_zeros(1.0 / tmp(x)), [](double v) { return std::acos(v); },
                 [](const std::complex<double> &v) {
                 return std::acos(special::below_beyond_one(v));
             },
@@ -304,7 +304,7 @@ public:
         // lakutata: in the reals where the argument is real (special_double.h)
         result_ = [=](const T *x) {
             return special::real_where(
-                1.0 / tmp(x), [](double v) { return std::asin(v); },
+                special::unsigned_zeros(1.0 / tmp(x)), [](double v) { return std::asin(v); },
                 [](const std::complex<double> &v) {
                 return std::asin(special::below_beyond_one(v));
             },
@@ -332,7 +332,7 @@ public:
         // lakutata: in the reals where the argument is real (special_double.h)
         result_ = [=](const T *x) {
             return special::real_where(
-                1.0 / tmp(x), [](double v) { return std::atan(v); },
+                special::unsigned_zeros(1.0 / tmp(x)), [](double v) { return std::atan(v); },
                 [](const std::complex<double> &v) {
                 return std::atan(special::left_below_minus_i(v));
             },
@@ -396,7 +396,7 @@ public:
         // lakutata: in the reals where the argument is real (special_double.h)
         result_ = [=](const T *x) {
             return special::real_where(
-                1.0 / tmp(x), [](double v) { return std::asinh(v); },
+                special::unsigned_zeros(1.0 / tmp(x)), [](double v) { return std::asinh(v); },
                 [](const std::complex<double> &v) {
                 return std::asinh(special::left_below_minus_i(v));
             },
@@ -424,7 +424,7 @@ public:
             return special::real_where(
                 tmp(x), [](double v) { return std::atanh(v); },
                 [](const std::complex<double> &v) {
-                return std::atanh(special::below_before_minus_one(v));
+                return std::atanh(special::below_beyond_one(v));
             },
                 [](double v) { return v > -1 and v < 1; });
         };
@@ -436,9 +436,9 @@ public:
         // lakutata: in the reals where the argument is real (special_double.h)
         result_ = [=](const T *x) {
             return special::real_where(
-                1.0 / tmp(x), [](double v) { return std::atanh(v); },
+                special::unsigned_zeros(1.0 / tmp(x)), [](double v) { return std::atanh(v); },
                 [](const std::complex<double> &v) {
-                return std::atanh(special::below_before_minus_one(v));
+                return std::atanh(special::below_beyond_one(v));
             },
                 [](double v) { return v > -1 and v < 1; });
         };
@@ -450,7 +450,7 @@ public:
         // lakutata: in the reals where the argument is real (special_double.h)
         result_ = [=](const T *x) {
             return special::real_where(
-                1.0 / tmp(x), [](double v) { return std::acosh(v); },
+                special::unsigned_zeros(1.0 / tmp(x)), [](double v) { return std::acosh(v); },
                 [](const std::complex<double> &v) { return std::acosh(v); },
                 [](double v) { return v >= 1; });
         };

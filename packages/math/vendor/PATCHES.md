@@ -44,11 +44,11 @@ SymEngine's `boostmp` integers come from Boost.Multiprecision, which can be used
   their real domain are computed with their real versions in the complex evaluations: libc++'s complex `atan` of `-0.4`
   has an imaginary part of `5.55e-17`, which put `arg(1/atan(-2/5))` at `-pi`. A value on a branch cut is moved to the
   side the exact values take (SymPy's, counter-clockwise continuous, on which `asinh(-z) = -asinh(z)` relies) before the
-  complex function reads the side from the sign of a zero: `asin` and `acos` right of 1, `atanh` left of -1 from below;
-  `atan` and `asinh` below `-i` from the left. The maximum and the minimum of values one of which is NaN are NaN
-  (`std::max` dropped a NaN after the first value, so the complex evaluation was not tried); the complex evaluations
-  have them too, for values of imaginary parts 0. The evaluations take the values given for some nodes, in their thread
-  (`special::given_values`): the real parts the decimals of the addon computed.
+  complex function reads the side from the sign of a zero: `asin`, `acos` and `atanh` right of 1 from below; `atan` and
+  `asinh` below `-i` from the left. The reciprocal of the argument of `asec`, `acsc`, `acot`, `asech`, `acsch` and
+  `acoth` has no negative zero either (`1/(-0.5 + 0i)` is `-2 - 0i`, which put `asec(-1/2)` on the other side). The
+  maximum and the minimum of values one of which is NaN are NaN (`std::max` dropped a NaN after the first value, so the
+  complex evaluation was not tried); the complex evaluations have them too, for values of imaginary parts 0.
 - `symengine/functions.cpp`: polygamma has its poles at the nonpositive integers only (SymEngine gave
   `complexInfinity` for every number not positive), a negative rational is moved right by the recurrence, and its
   special values of the thirds and the quarters are chosen by the remainder of the numerator (`polygamma(0, 5/4)` was

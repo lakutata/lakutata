@@ -101,6 +101,18 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
         }
     })
 
+    it('give the complex decimals of SymPy, each part to its digits, on and off the branch cuts', (): void => {
+        const fixtures = expected<{text: string, decimals: Record<string, [string, string]>}>('complex')
+        for (const fixture of fixtures.cases) {
+            const expression: Expression = math.expression(fixture.text)
+            for (const [digits, [re, im]] of Object.entries(fixture.decimals)) {
+                const value: {re: string, im: string} = expression.toComplexDecimal(Number(digits))
+                assert.strictEqual(decimalParts(value.re), decimalParts(re), `re(${fixture.text}) to ${digits} digits`)
+                assert.strictEqual(decimalParts(value.im), decimalParts(im), `im(${fixture.text}) to ${digits} digits`)
+            }
+        }
+    })
+
     it('give the decimals of Python (arithmetic) and mpmath (functions), correctly rounded', (): void => {
         const fixtures = expected<{op: string, precision: number, args: string[], result: string}>('decimals')
         for (const fixture of fixtures.cases) {
