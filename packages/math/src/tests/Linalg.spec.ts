@@ -175,6 +175,35 @@ describe('The matrices and the linear algebra', (): void => {
         await assert.rejects(math.linalg.choleskyAsync([[1, 2], [2, 1]]), MathDomainException)
     })
 
+    it('give the exponentials and the square roots of matrices, and solve the Sylvester and Lyapunov equations', async (): Promise<void> => {
+        //e^A of a rotation generator: the rotation by 1 radian
+        const cos: number = globalThis.Math.cos(1), sin: number = globalThis.Math.sin(1)
+        assert.ok(math.linalg.exponential([[0, 1], [-1, 0]]).equals([[cos, sin], [-sin, cos]], 1e-15))
+        assert.ok(math.linalg.exponential([[0, 0], [0, 0]]).equals(math.linalg.identity(2)))
+        assert.ok(math.linalg.exponential([[0, 1], [0, 0]]).equals([[1, 1], [0, 1]], 1e-15))
+        assert.ok(math.linalg.exponential([[2, 0], [0, -3]]).equals([[globalThis.Math.exp(2), 0], [0, globalThis.Math.exp(-3)]], 1e-14))
+        //A norm beyond the degree 13: scaled, then squared
+        assert.ok(close(math.linalg.exponential([[1, 2], [3, 4]]).data, [51.968956198705044, 74.73656456700328, 112.10484685050491, 164.07380304920997], 1e-11))
+        assert.ok(math.linalg.exponential([[NaN, 0], [0, 0]]).data.every(Number.isNaN))
+        assert.strictEqual(math.linalg.squareRoot([[4, 1], [0, 9]]).toString(), '[2, 0.2; 0, 3]')
+        assert.ok(math.linalg.squareRoot([[1, 1], [0, 1]]).equals([[1, 0.5], [0, 1]], 1e-15))
+        //Of complex eigenvalues (i and -i), its root is real
+        const half: number = globalThis.Math.SQRT1_2
+        assert.ok(math.linalg.squareRoot([[0, 1], [-1, 0]]).equals([[half, half], [-half, half]], 1e-15))
+        assert.ok(math.linalg.squareRoot([[0, 0], [0, 0]]).equals([[0, 0], [0, 0]]))
+        const x: Matrix = math.linalg.sylvester([[1, 2], [0, 3]], [[4, 1], [0, 5]], [[1, 0], [2, 1]])
+        assert.ok(x.equals([[3 / 35, -37 / 840], [2 / 7, 5 / 56]], 1e-15))
+        assert.ok(math.linalg.multiply([[1, 2], [0, 3]], x).add(x.mul([[4, 1], [0, 5]])).equals([[1, 0], [2, 1]], 1e-15))
+        //A P + P Aᵀ + Q = 0
+        const p: Matrix = math.linalg.lyapunov([[-1, 2], [0, -3]], [[2, 1], [1, 3]])
+        assert.ok(p.equals([[2, 0.5], [0.5, 0.5]], 1e-15))
+        assert.ok((await math.linalg.exponentialAsync([[0, 0], [0, 0]])).equals(math.linalg.identity(2)))
+        assert.strictEqual((await math.linalg.squareRootAsync([[4, 1], [0, 9]])).toString(), '[2, 0.2; 0, 3]')
+        assert.ok((await math.linalg.sylvesterAsync([[1]], [[1]], [[4]])).equals([[2]]))
+        assert.ok((await math.linalg.lyapunovAsync([[-1]], [[4]])).equals([[2]]))
+        await assert.rejects(math.linalg.squareRootAsync([[-1, 0], [0, 4]]), MathDomainException)
+    })
+
     it('throw the exceptions of the package', (): void => {
         const cases: [() => unknown, new (...args: never[]) => Error][] = [
             [(): unknown => math.linalg.solve([[1, 2], [2, 4]], [1, 2]), MathDomainException],
@@ -206,7 +235,16 @@ describe('The matrices and the linear algebra', (): void => {
             [(): unknown => math.linalg.eigen([[1, 2]]), MathArgumentException],
             [(): unknown => math.linalg.symmetricEigen([[1, 2]]), MathArgumentException],
             [(): unknown => math.linalg.schur([[1, 2]]), MathArgumentException],
-            [(): unknown => math.linalg.pseudoInverse([[1]], -1), MathArgumentException]
+            [(): unknown => math.linalg.pseudoInverse([[1]], -1), MathArgumentException],
+            [(): unknown => math.linalg.exponential([[1, 2]]), MathArgumentException],
+            [(): unknown => math.linalg.squareRoot([[1, 2]]), MathArgumentException],
+            [(): unknown => math.linalg.squareRoot([[-1, 0], [0, 4]]), MathDomainException],
+            [(): unknown => math.linalg.squareRoot([[0, 1], [0, 0]]), MathDomainException],
+            [(): unknown => math.linalg.sylvester([[1]], [[1, 0], [0, 1]], [[1]]), MathArgumentException],
+            [(): unknown => math.linalg.sylvester([[1, 2]], [[1]], [[1]]), MathArgumentException],
+            [(): unknown => math.linalg.sylvester([[1]], [[-1]], [[1]]), MathDomainException],
+            [(): unknown => math.linalg.lyapunov([[1]], [[1, 0], [0, 1]]), MathArgumentException],
+            [(): unknown => math.linalg.lyapunov([[0, 1], [-1, 0]], [[1, 0], [0, 1]]), MathDomainException]
         ]
         cases.forEach(([operate, exception]: [() => unknown, new (...args: never[]) => Error], index: number): void => {
             assert.throws(operate, exception, `case ${index}`)

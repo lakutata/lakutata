@@ -228,8 +228,9 @@ function conditionOf(values: Float64Array): number {
 /**
  * The numeric linear algebra of matrices of doubles (`Matrix`) and vectors (`Float64Array`), on Eigen: matrices of
  * zeros, of ones, identities, diagonals, rotations; products, dot and cross products; norms; the solutions of linear
- * systems, least squares, inverses, determinants, ranks, condition numbers and singular values. It is `math.linalg` of
- * a `Math` component.
+ * systems, least squares, inverses, determinants, ranks, condition numbers and singular values; the decompositions (LU,
+ * QR, Cholesky, singular values, eigenvalues, Schur) and the pseudo-inverse; the exponential and the square root of a
+ * matrix; the Sylvester and Lyapunov equations. It is `math.linalg` of a `Math` component.
  *
  * Where a vector is expected, a `Float64Array` or an array of numbers is given; where a matrix is, a `Matrix` or its
  * rows (`[[1, 2], [3, 4]]`). A system with a vector on its right side has a vector for solution, one with a matrix (one
@@ -237,12 +238,11 @@ function conditionOf(values: Float64Array): number {
  *
  * For `solve()` and `inverse()`, a matrix is singular when its LU decomposition with partial pivoting meets a pivot of
  * exactly 0, as in NumPy: a matrix close to singular gives large values, not an error; `condition()` tells how close it
- * is. A singular matrix throws `MathDomainException`, matrices of the wrong
- * dimensions `MathArgumentException`.
+ * is. A singular matrix throws `MathDomainException`, matrices of the wrong dimensions `MathArgumentException`.
  *
  * The operations that take long on large matrices have an asynchronous version (`solveAsync()`…), in the threads of the
- * addon. Eigen's computations have no point where they stop: at the time limit or the cancellation, the promise is
- * rejected, and its thread finishes the work before it is free again.
+ * addon. A computation of Eigen cannot be stopped halfway: at the time limit or the cancellation, the promise is
+ * rejected, and its thread finishes that computation before it is free again.
  * @example
  * ```typescript
  * import {Container} from 'lakutata'
@@ -798,5 +798,87 @@ export class LinearAlgebra {
      */
     public async pseudoInverseAsync(a: MatrixValue, tolerance?: number, options?: AsyncOptions): Promise<Matrix> {
         return matrixFrom((await this.#runAsync('pseudoInverse', [nativeOf(matrixOf(a))], options, toleranceOf(tolerance)))[0])
+    }
+
+    /**
+     * The exponential of a square matrix, `e^A`: by Padé approximants with scaling and squaring (Higham 2005); it is
+     * mathjs's `expm`. A matrix with an infinite or NaN element gives a matrix of NaN.
+     * @param a The matrix.
+     */
+    public exponential(a: MatrixValue): Matrix {
+        return matrixFrom(linalgRun('exponential', [nativeOf(matrixOf(a))])[0])
+    }
+
+    /**
+     * `exponential()` in the threads of the addon.
+     * @param a The matrix.
+     * @param options Its cancellation, its time limit.
+     */
+    public async exponentialAsync(a: MatrixValue, options?: AsyncOptions): Promise<Matrix> {
+        return matrixFrom((await this.#runAsync('exponential', [nativeOf(matrixOf(a))], options))[0])
+    }
+
+    /**
+     * The principal square root of a square matrix: the X of `X X = A` whose eigenvalues have positive real parts, or
+     * are 0 where those of A are. It is real when A has no negative eigenvalue; otherwise, or when A has no principal
+     * square root at all (as `[[0, 1], [0, 0]]`), it throws `MathDomainException`.
+     * @param a The matrix.
+     */
+    public squareRoot(a: MatrixValue): Matrix {
+        return matrixFrom(linalgRun('squareRoot', [nativeOf(matrixOf(a))])[0])
+    }
+
+    /**
+     * `squareRoot()` in the threads of the addon.
+     * @param a The matrix.
+     * @param options Its cancellation, its time limit.
+     */
+    public async squareRootAsync(a: MatrixValue, options?: AsyncOptions): Promise<Matrix> {
+        return matrixFrom((await this.#runAsync('squareRoot', [nativeOf(matrixOf(a))], options))[0])
+    }
+
+    /**
+     * The solution X of the Sylvester equation `A X + X B = C` (as mathjs's `sylvester` and SciPy's
+     * `solve_sylvester`). It is unique when no eigenvalue of A is the opposite of an eigenvalue of B; otherwise it
+     * throws `MathDomainException`.
+     * @param a A, square (m×m).
+     * @param b B, square (n×n).
+     * @param c C, m×n.
+     */
+    public sylvester(a: MatrixValue, b: MatrixValue, c: MatrixValue): Matrix {
+        return matrixFrom(linalgRun('sylvester', [nativeOf(matrixOf(a)), nativeOf(matrixOf(b)), nativeOf(matrixOf(c))])[0])
+    }
+
+    /**
+     * `sylvester()` in the threads of the addon.
+     * @param a A, square (m×m).
+     * @param b B, square (n×n).
+     * @param c C, m×n.
+     * @param options Its cancellation, its time limit.
+     */
+    public async sylvesterAsync(a: MatrixValue, b: MatrixValue, c: MatrixValue, options?: AsyncOptions): Promise<Matrix> {
+        return matrixFrom((await this.#runAsync('sylvester', [nativeOf(matrixOf(a)), nativeOf(matrixOf(b)), nativeOf(matrixOf(c))], options))[0])
+    }
+
+    /**
+     * The solution P of the continuous Lyapunov equation `A P + P Aᵀ + Q = 0` (as mathjs's `lyap` and MATLAB's; SciPy's
+     * `solve_continuous_lyapunov(A, -Q)`). It is unique when no eigenvalues λ and μ of A, μ possibly λ itself, have
+     * λ + μ = 0, as when A is stable (the real parts of its eigenvalues are negative); otherwise it throws
+     * `MathDomainException`.
+     * @param a A, square.
+     * @param q Q, of the size of A.
+     */
+    public lyapunov(a: MatrixValue, q: MatrixValue): Matrix {
+        return matrixFrom(linalgRun('lyapunov', [nativeOf(matrixOf(a)), nativeOf(matrixOf(q))])[0])
+    }
+
+    /**
+     * `lyapunov()` in the threads of the addon.
+     * @param a A, square.
+     * @param q Q, of the size of A.
+     * @param options Its cancellation, its time limit.
+     */
+    public async lyapunovAsync(a: MatrixValue, q: MatrixValue, options?: AsyncOptions): Promise<Matrix> {
+        return matrixFrom((await this.#runAsync('lyapunov', [nativeOf(matrixOf(a)), nativeOf(matrixOf(q))], options))[0])
     }
 }

@@ -1,8 +1,9 @@
 // The formulas of the grammar and numbers cases evaluated by mathjs and nerdamer (1.x) at the sample points of SymPy's
-// results (expected/*.json, written by reference.py first), and compared with them. Each difference must be noted in
-// the case (`differs: {mathjs: 'why', nerdamer: 'why'}`): the differences of the syntax are written down, not found
-// by surprise. The result of each engine is added to the expected files. Run by generate.sh in a container, where
-// ENGINES is the directory mathjs and nerdamer are installed in; never a dependency of the package.
+// results (expected/*.json, written by reference.py first), and compared with them; the number theory and the functions
+// of matrices too. Each difference must be noted in the case (`differs: {mathjs: 'why', nerdamer: 'why'}`): the
+// differences of the syntax are written down, not found by surprise. The result of each engine is added to the expected
+// files. Run by generate.sh in a container, where ENGINES is the directory mathjs and nerdamer are installed in; never
+// a dependency of the package.
 
 import {readFileSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
@@ -124,6 +125,52 @@ const safe = (value) => Array.isArray(value) ? value.every(safe) : typeof value 
     })
     expected.generator = {...expected.generator, ...versions}
     writeFileSync(path.join(HERE, 'expected/ntheory.json'), JSON.stringify(expected, null, 1) + '\n')
+}
+//The linear algebra: the functions of matrices mathjs has, against NumPy's and SciPy's results (expected/linalg.json,
+//written by linalg.py first); lup by its permutation, read as the one of @lakutata/math (row i of P A is row p[i] of A)
+const linearAlgebra = {
+    exponential: ([a]) => math.expm(math.matrix(a)).toArray(),
+    squareRoot: ([a]) => math.sqrtm(a),
+    sylvester: ([a, b, c]) => math.sylvester(a, b, c),
+    lyapunov: ([a, q]) => math.lyap(a, q),
+    lu: ([a]) => {
+        const {L, U, p} = math.lup(math.matrix(a))
+        const product = math.multiply(L, U).toArray()
+        const scale = Math.max(1, ...a.flat().map(Math.abs))
+        return p.every((row, i) => product[i].every((value, j) => Math.abs(value - a[row][j]) <= 1e-9 * scale)) ? 'same' : 'another permutation'
+    }
+}
+{
+    const cases = read('cases/linalg.json')
+    const expected = read('expected/linalg.json')
+    expected.cases.forEach((result, index) => {
+        const source = cases[index]
+        const operate = linearAlgebra[result.op]
+        if (!operate) return
+        result.engines = {}
+        let outcome
+        try {
+            const value = operate(result.args)
+            if (result.error) {
+                outcome = 'accepted, @lakutata/math refuses it'
+            } else if (result.op === 'lu') {
+                outcome = value
+            } else {
+                const ours = [value].flat(2), theirs = [result.result].flat(2)
+                const scale = Math.max(1, ...theirs.map(Math.abs))
+                outcome = ours.length === theirs.length && ours.every((element, i) => Math.abs(element - theirs[i]) <= 1e-9 * scale) ? 'same' : 'different value'
+            }
+        } catch (error) {
+            outcome = result.error ? 'same' : `error: ${String(error.message ?? error).split('\n')[0].slice(0, 120)}`
+        }
+        result.engines.mathjs = outcome
+        const noted = source.differs?.mathjs
+        const label = `linalg ${result.op}(${JSON.stringify(result.args).slice(0, 60)})`
+        if (outcome !== 'same' && !noted) problems.push(`${label}: mathjs ${outcome}, not noted`)
+        if (outcome === 'same' && noted) problems.push(`${label}: mathjs agrees, its note is stale`)
+    })
+    expected.generator = {...expected.generator, mathjs: versions.mathjs}
+    writeFileSync(path.join(HERE, 'expected/linalg.json'), JSON.stringify(expected, null, 1) + '\n')
 }
 console.log(`mathjs ${versions.mathjs}, nerdamer ${versions.nerdamer}: ${problems.length} differences not noted`)
 if (problems.length) {

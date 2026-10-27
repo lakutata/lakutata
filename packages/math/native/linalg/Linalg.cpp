@@ -46,6 +46,7 @@ std::vector<MatrixResult> linalgOf(const std::string &operation, const std::vect
 {
     std::vector<MatrixResult> decomposed;
     if (decompositionOf(operation, matrices, numbers, decomposed)) return decomposed;
+    if (matrixFunctionOf(operation, matrices, decomposed)) return decomposed;
     if (operation == "multiply") {
         requireCount(matrices, 2, operation);
         const MatrixArgument &a = matrices[0], &b = matrices[1];

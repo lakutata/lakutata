@@ -274,6 +274,10 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
                     case 'symmetricEigen': return symmetricEigenInvariant(math, matrix(a), label)
                     case 'schur': return schurInvariant(math, matrix(a), label)
                     case 'pseudoInverse': return math.linalg.pseudoInverse(a)
+                    case 'exponential': return math.linalg.exponential(a)
+                    case 'squareRoot': return math.linalg.squareRoot(a)
+                    case 'sylvester': return math.linalg.sylvester(a, b, fixture.args[2] as number[][])
+                    case 'lyapunov': return math.linalg.lyapunov(a, b)
                 }
                 throw new Error(`Unknown operation ${fixture.op}`)
             }

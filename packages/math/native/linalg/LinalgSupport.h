@@ -1,5 +1,5 @@
-//The helpers of the linear algebra (Linalg.cpp, Decompositions.cpp): the maps and copies of the matrices given, the
-//results, the checks of their dimensions
+//The helpers of the linear algebra (Linalg.cpp, Decompositions.cpp, Functions.cpp): the maps and copies of the matrices
+//given, the results, the checks of their dimensions
 #pragma once
 
 #include <string>
@@ -51,7 +51,7 @@ inline void requireSquare(const MatrixArgument &matrix, const char *what)
 
 inline void requireRows(const MatrixArgument &matrix, size_t rows, const char *what)
 {
-    if (matrix.rows != rows) throw MathError(ErrorCode::Argument, std::string(what) + " has " + std::to_string(matrix.rows) + " rows, not " + std::to_string(rows));
+    if (matrix.rows != rows) throw MathError(ErrorCode::Argument, std::string(what) + " has " + std::to_string(matrix.rows) + (matrix.rows == 1 ? " row" : " rows") + ", not " + std::to_string(rows));
 }
 
 inline void requireCount(const std::vector<MatrixArgument> &matrices, size_t count, const std::string &operation)
@@ -61,5 +61,9 @@ inline void requireCount(const std::vector<MatrixArgument> &matrices, size_t cou
 
 //The decompositions (Decompositions.cpp): the results of an operation that is one of them, false otherwise
 bool decompositionOf(const std::string &operation, const std::vector<MatrixArgument> &matrices, const std::vector<double> &numbers, std::vector<MatrixResult> &results);
+
+//The functions of matrices and the Sylvester and Lyapunov equations (Functions.cpp): the results of an operation that
+//is one of them, false otherwise
+bool matrixFunctionOf(const std::string &operation, const std::vector<MatrixArgument> &matrices, std::vector<MatrixResult> &results);
 
 }

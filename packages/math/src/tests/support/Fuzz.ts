@@ -453,6 +453,30 @@ export async function checkMatrices(math: Math, random: Random, index: number): 
         //The pseudo-inverse: A A⁺ A = A
         const pseudo: Matrix = math.linalg.pseudoInverse(a)
         if (math.linalg.condition(a) < 1e8 && !near(a.mul(pseudo).mul(a), a, frobenius(a) * frobenius(a) * frobenius(pseudo))) fail('pseudoInverse', 'A A⁺ A is not A')
+        //The exponential of a matrix of a norm up to 3: exp(S) exp(-S) = I, det(exp(S)) = e^tr(S)
+        const scaled: Matrix = square.mul(3 / (1 + frobenius(square)))
+        const exponential: Matrix = math.linalg.exponential(scaled), inverse: Matrix = math.linalg.exponential(scaled.neg())
+        const size: number = frobenius(exponential) * frobenius(inverse)
+        if (!near(exponential.mul(inverse), math.linalg.identity(n), size)) fail('exponential', 'exp(S) exp(-S) is not I')
+        const determinant: number = math.linalg.determinant(exponential), trace: number = globalThis.Math.exp(scaled.trace())
+        if (globalThis.Math.abs(determinant - trace) > 1e-12 * (1 + n) * size * trace) fail('exponential', `det(exp(S)) is ${determinant}, e^tr(S) ${trace}`)
+        if (!(await math.linalg.exponentialAsync(scaled)).equals(exponential)) fail('async', 'exponentialAsync differs from exponential')
+        //The principal square roots of a matrix of eigenvalues of positive real parts and of a positive definite one
+        //(symmetric): X X = M
+        const shifted: Matrix = square.add(math.linalg.identity(n).mul(1 + 2 * frobenius(square)))
+        const root: Matrix = math.linalg.squareRoot(shifted)
+        if (!near(root.mul(root), shifted, frobenius(root) ** 2 + frobenius(shifted))) fail('squareRoot', 'X X is not M')
+        const symmetricRoot: Matrix = math.linalg.squareRoot(positive)
+        if (!near(symmetricRoot.mul(symmetricRoot), positive, frobenius(positive)) || !near(symmetricRoot, symmetricRoot.transpose(), frobenius(symmetricRoot))) fail('squareRoot', 'the root of a positive definite matrix')
+        //The Sylvester equation of A and B whose eigenvalues cannot add up to 0, the Lyapunov equation of a stable A
+        const other: Matrix = randomMatrix(math, random, k, k), side: Matrix = randomMatrix(math, random, n, k), constant: Matrix = randomMatrix(math, random, n, n)
+        const shift: number = 1 + frobenius(square) + frobenius(other)
+        const first: Matrix = square.add(math.linalg.identity(n).mul(shift)), second: Matrix = other.add(math.linalg.identity(k).mul(shift))
+        const x: Matrix = math.linalg.sylvester(first, second, side)
+        if (!near(first.mul(x).add(x.mul(second)), side, (frobenius(first) + frobenius(second)) * frobenius(x) + frobenius(side))) fail('sylvester', 'A X + X B is not C')
+        const stable: Matrix = square.sub(math.linalg.identity(n).mul(1 + 2 * frobenius(square)))
+        const p: Matrix = math.linalg.lyapunov(stable, constant)
+        if (!near(stable.mul(p).add(p.mul(stable.transpose())).neg(), constant, 2 * frobenius(stable) * frobenius(p) + frobenius(constant))) fail('lyapunov', 'A P + P Aᵀ + Q is not 0')
     } catch (error) {
         if (!(error instanceof MathException)) fail('matrices', String(error))
     }

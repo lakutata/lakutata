@@ -67,7 +67,39 @@ def compute(case):
         return numpy.linalg.eigvalsh(a[0])
     if op == 'pseudoInverse':
         return numpy.linalg.pinv(a[0])
+    if op == 'exponential':
+        return scipy.linalg.expm(a[0])
+    if op == 'squareRoot':
+        return real(scipy.linalg.sqrtm(a[0]))
+    if op == 'sylvester':
+        return scipy.linalg.solve_sylvester(a[0], a[1], a[2])
+    if op == 'lyapunov':
+        # mathjs's and MATLAB's A P + P Aᵀ + Q = 0; SciPy's equation is A X + X Aᴴ = Q
+        return scipy.linalg.solve_continuous_lyapunov(a[0], -a[1])
     raise AssertionError('Unknown operation ' + op)
+
+
+def real(value):
+    """A result SciPy gives as complex numbers, real where its imaginary parts are of the roundings"""
+    if numpy.iscomplexobj(value) and numpy.abs(value.imag).max() <= 1e-12 * max(1, numpy.abs(value).max()):
+        return value.real
+    return value
+
+
+def refused(case, value):
+    """Whether a result NumPy or SciPy gives where @lakutata/math throws is no answer either: not finite, a principal
+    square root that is not real, the solution of an equation that does not satisfy it"""
+    value = numpy.asarray(value)
+    if not numpy.all(numpy.isfinite(value)):
+        return True
+    a = [array(argument) for argument in case['args']]
+    if case['op'] == 'squareRoot':
+        return numpy.iscomplexobj(value)
+    if case['op'] == 'sylvester':
+        return numpy.abs(a[0] @ value + value @ a[1] - a[2]).max() > 1e-6 * max(1, numpy.abs(a[2]).max())
+    if case['op'] == 'lyapunov':
+        return numpy.abs(a[0] @ value + value @ a[0].T + a[1]).max() > 1e-6 * max(1, numpy.abs(a[1]).max())
+    return False
 
 
 def linalg():
@@ -78,11 +110,12 @@ def linalg():
         result = dict(case)
         if 'error' in case:
             try:
-                compute(case)
+                value = compute(case)
             except numpy.linalg.LinAlgError:
                 pass
             else:
-                raise AssertionError('NumPy accepts ' + json.dumps(case))
+                if not refused(case, value):
+                    raise AssertionError('NumPy accepts ' + json.dumps(case))
         else:
             result['result'] = plain(compute(case))
         results.append(result)
