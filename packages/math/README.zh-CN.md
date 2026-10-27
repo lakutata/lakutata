@@ -233,6 +233,25 @@ async function systems(math: Math): Promise<void> {
 }
 ```
 
+### 统计
+
+`math.stats` 在原生插件里计算一组数值（数字数组或 `Float64Array`）的统计量：`sum`（会补偿舍入误差：`[1e16, 1, -1e16]` 的和是 1）、`product`、`cumulativeSum`、`differences`、`mean`、`median`、`mode`（出现次数最多的全部值，按升序排列）、`min`、`max`、`variance`、`standardDeviation`、`medianAbsoluteDeviation`、`quantile`、`covariance`、`correlation`（皮尔逊相关系数）、`zScores` 和 `klDivergence`（KL 散度，用自然对数，两个分布会先各自归一化到和为 1）。
+
+方差默认用离差平方和除以 n，也就是把这组值当作总体，和 NumPy 一样。`{normalization: 'unbiased'}` 改为除以 n - 1（把这组值当作样本，这是 mathjs 的默认做法），`'biased'` 则除以 n + 1；`standardDeviation`、`covariance` 和 `zScores` 也接受这个选项。方差和协方差分两遍计算，数值带有很大的偏移量时也不会因相减而失去精度：`[1e9 + 4, 1e9 + 7, 1e9 + 13, 1e9 + 16]` 的方差是 22.5。分位数在相邻的两个值之间做线性插值，和 NumPy 的默认方法、mathjs 的 `quantileSeq` 一样。数值里有 NaN 时结果是 NaN；对空数组求没有定义的统计量（均值、中位数、方差等）会抛出 `MathArgumentException`，而空数组的和是 0，积是 1。
+
+```typescript
+import type {Math} from '@lakutata/math'
+
+function statistics(math: Math): void {
+    const values = [2, 4, 4, 4, 5, 5, 7, 9]
+    console.log(math.stats.mean(values))                                           //5
+    console.log(math.stats.standardDeviation(values))                              //2
+    console.log(math.stats.standardDeviation(values, {normalization: 'unbiased'})) //2.138089935299395
+    console.log(math.stats.quantile(values, [0.25, 0.75]))                         //Float64Array [4, 5.5]
+    console.log(math.stats.correlation(values, [1, 3, 2, 5, 4, 6, 8, 7]))          //0.8455943246644705
+}
+```
+
 ### 异步运算
 
 可能耗时的运算都有异步版本：`expandAsync()`、`simplifyAsync()`、`diffAsync()`、`seriesAsync()`、`solveAsync()`、`toDecimalAsync()`、`toComplexDecimalAsync()`、组件的 `solveAsync()` 和 `cseAsync()`，以及数论和线性代数的异步版本。它们在原生插件自己的线程里执行，不占用 libuv 的线程池：线程数默认是 CPU 核数减一，也可以用环境变量 `LAKUTATA_MATH_THREADS` 指定。选项有 `timeout`（毫秒）和 `signal`（`AbortSignal`）：
@@ -250,9 +269,9 @@ async function systems(math: Math): Promise<void> {
 
 | 导出 | 说明 |
 |---|---|
-| `Math` | 组件：`parse`、`expression`、`equation`、`decimal`、`matrix`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`linalg` |
+| `Math` | 组件：`parse`、`expression`、`equation`、`decimal`、`matrix`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`linalg`、`stats` |
 | `buildMathOptions`、`MathConfig` | 在组件配置里声明它，以及它的选项：`definitions`、`precision`、`timeout`、`concurrency`、`drainTimeout` |
-| `MathScope`、`MathDefinitions` | `with()` 得到的范围，方法和组件相同（没有 `ntheory`）；定义（按签名给出的公式） |
+| `MathScope`、`MathDefinitions` | `with()` 得到的范围，方法和组件相同（没有 `ntheory`、`linalg` 和 `stats`）；定义（按签名给出的公式） |
 | `Expression` | 表达式：`toString`、`toTeX`、`toNumber`、`toComplex`、`toDecimal`、`toComplexDecimal`、`variables`、`equals`、`add`、`sub`、`mul`、`div`、`pow`、`neg`、`expand`、`simplify`、`diff`、`series`、`substitute`、`evaluate`、`solve`、`compile`，多项式（`coefficients`、`degree`、`leadingCoefficient`、`divide`），`numerator`、`denominator`、`rewrite`（改写成 `exp`、`sin`、`cos`），判断（`isZero`、`isPositive`、`isNegative`、`isInteger`、`isRational`、`isReal`、`isFinite`：不知道时为 `undefined`），`compare`、`toJavaScript`、`toC`、`toPolar`、`toRectangular`，以及各个异步版本 |
 | `CommonSubexpressions`、`CseOptions` | `cse()` 的结果（`replacements`、`expressions`）和它的选项（`prefix`） |
 | `PolarForm`、`RectangularForm` | 复数的极坐标形式（模 `modulus`、辐角 `argument`）和直角坐标形式（实部 `real`、虚部 `imaginary`） |
@@ -263,6 +282,7 @@ async function systems(math: Math): Promise<void> {
 | `Decimal`、`DecimalValue`、`DecimalOptions` | 指定精度的十进制数（`math.decimal()`）：`precision`、`add`、`sub`、`mul`、`div`、`mod`、`pow`、`neg`、`abs`、`sqrt`、`cbrt`、`root`、`exp`、`ln`、`log10`、`log`、`sin`、`cos`、`tan`、`asin`、`acos`、`atan`、`atan2`、`sinh`、`cosh`、`tanh`、`asinh`、`acosh`、`atanh`、`gamma`、`loggamma`、`digamma`、`erf`、`erfc`、`zeta`、`lambertw`、`floor`、`ceil`、`trunc`、`round`、`compare`、`equals`、`isZero`、`isPositive`、`isNegative`、`isInteger`、`toString`、`toFixed`、`toNumber`、`toJSON`；需要十进制数的地方可以传入的值（十进制数、数字、bigint、写成字符串的十进制数）；`decimal()` 的选项（`precision`） |
 | `Matrix`、`MatrixValue`、`VectorValue` | 数值矩阵（`math.matrix()`）：`rows`、`columns`、`data`、`get`、`set`、`row`、`column`、`diagonal`、`submatrix`、`reshape`、`transpose`、`add`、`sub`、`mul`、`div`、`neg`、`multiplyElements`、`divideElements`、`powElements`、`map`、`trace`、`kron`、`equals`、`clone`、`toArray`、`toJSON`、`toString`；需要矩阵的地方可以传入的值（矩阵，或它的各行）；需要向量的地方可以传入的值（`Float64Array`，或数字数组） |
 | `LinearAlgebra`、`NormKind` | 线性代数（`math.linalg`）：`zeros`、`ones`、`identity`、`diagonal`、`fromRows`、`fromColumns`、`fromFunction`、`concat`、`rotation`、`dot`、`cross`、`outer`、`norm`、`multiply`、`solve`、`solveTriangular`、`leastSquares`、`inverse`、`determinant`、`singularValues`、`rank`、`condition`、`lu`、`qr`、`cholesky`、`svd`、`eigen`、`symmetricEigen`、`schur`、`pseudoInverse`、`exponential`、`squareRoot`、`sylvester`、`lyapunov`、`sparse`、`conjugateGradient`、`biconjugateGradientStabilized`，以及各个异步版本；范数的种类 |
+| `Statistics`、`Normalization`、`NormalizationOptions` | 统计（`math.stats`）：`sum`、`product`、`cumulativeSum`、`differences`、`mean`、`median`、`mode`、`min`、`max`、`variance`、`standardDeviation`、`medianAbsoluteDeviation`、`quantile`、`covariance`、`correlation`、`zScores`、`klDivergence`；方差的除数（`'uncorrected'`、`'unbiased'`、`'biased'`）和选择它的选项 |
 | `SparseMatrix`、`SparseEntry` | 按压缩行存储的稀疏矩阵（`math.linalg.sparse()`）：`rowPointers`、`columnIndices`、`values`、`nonZeros`、`get`、`transpose`、`add`、`sub`、`neg`、`mul`、`toDense`、`toEntries`；条目 `[row, column, value]` |
 | `IterativeOptions`、`IterativeSolution` | 迭代求解器的选项（`tolerance`、`maxIterations`、`guess`）和结果（`solution`、`iterations`、`error`、`converged`） |
 | `LuDecomposition`、`QrDecomposition`、`SingularValueDecomposition`、`EigenDecomposition`、`SymmetricEigenDecomposition`、`SchurDecomposition`、`ComplexVector`、`ComplexMatrix` | 各种分解的结果：`{lower, upper, permutation}`、`{q, r}`、`{u, singularValues, v}`、`{values, vectors}`（复数为 `{re, im}`）、`{values, vectors}`、`{u, t}` |
@@ -281,7 +301,7 @@ async function systems(math: Math): Promise<void> {
 | `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂） |
 | `MathDivisionByZeroException` | 计算十进制值时遇到除以零（包括除以一个无法和 0 区分的值、0 的对数、0 的负数次幂、以 1 为底的对数、在函数的极点上求值：`gamma()` 的参数是 -2、`zeta()` 的参数是 1），或者模数是 0 |
 | `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`） |
-| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况） |
+| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数 |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |
 | `MathException` | 以上所有错误的基类；原生插件内部错误时，它的 `errno` 是 `E_MATH_INTERNAL` |
 

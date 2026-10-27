@@ -130,7 +130,11 @@ def load(name):
         return json.load(file)
 
 
+WRITTEN = []
+
+
 def save(name, results):
+    WRITTEN.append(name + '.json')
     os.makedirs(os.path.join(HERE, 'expected'), exist_ok=True)
     with open(os.path.join(HERE, 'expected', name + '.json'), 'w') as file:
         json.dump({'generator': {'sympy': sympy.__version__, 'mpmath': mpmath.__version__}, 'points': POINTS,
@@ -458,5 +462,5 @@ if __name__ == '__main__':
     decimals()
     special()
     complex_parts()
-    print('SymPy', sympy.__version__, 'wrote', ', '.join(sorted(os.listdir(os.path.join(HERE, 'expected')))))
+    print('SymPy', sympy.__version__, 'wrote', ', '.join(sorted(WRITTEN)))
     sys.exit(0)

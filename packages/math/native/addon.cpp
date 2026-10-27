@@ -17,6 +17,7 @@
 #include "async/Pool.h"
 #include "core/Errors.h"
 #include "linalg/Linalg.h"
+#include "stats/Statistics.h"
 #include "core/Handle.h"
 #include "core/Scope.h"
 #include "ops/Decimal.h"
@@ -472,6 +473,48 @@ Job sparseJob(const Napi::Array &arguments)
     };
 }
 
+//stats(operation, vectors as Float64Arrays, numbers?): a statistic of vectors; its results as Float64Arrays
+Job statisticsJob(const Napi::Array &arguments)
+{
+    std::string operation = stringAt(arguments, 0, "The operation");
+    const Napi::Value list = arguments.Get(1u);
+    if (!list.IsArray()) throw MathError(ErrorCode::Argument, "The vectors of a statistic are an array");
+    std::vector<VectorArgument> vectors;
+    const Napi::Array given = list.As<Napi::Array>();
+    for (uint32_t i = 0; i < given.Length(); i++) {
+        const Napi::Value value = given.Get(i);
+        if (!value.IsTypedArray() || value.As<Napi::TypedArray>().TypedArrayType() != napi_float64_array) throw MathError(ErrorCode::Argument, "The values of a statistic are a Float64Array");
+        const Napi::Float64Array elements = value.As<Napi::Float64Array>();
+        VectorArgument vector;
+        vector.size = elements.ElementLength();
+        if (copyingArguments) {
+            vector.owned = std::make_shared<const std::vector<double>>(elements.Data(), elements.Data() + elements.ElementLength());
+            vector.values = vector.owned->data();
+        } else {
+            vector.values = elements.Data();
+        }
+        vectors.push_back(vector);
+    }
+    std::vector<double> numbers;
+    if (arguments.Length() > 2 && arguments.Get(2u).IsArray()) {
+        const Napi::Array values = arguments.Get(2u).As<Napi::Array>();
+        for (uint32_t i = 0; i < values.Length(); i++) numbers.push_back(numberAt(values, i, "An option"));
+    }
+    return [operation, vectors, numbers] {
+        auto results = std::make_shared<std::vector<std::vector<double>>>(statisticsOf(operation, vectors, numbers));
+        return Builder([results](Napi::Env env) {
+            Napi::Array array = Napi::Array::New(env, results->size());
+            for (uint32_t i = 0; i < results->size(); i++) {
+                const std::vector<double> &result = (*results)[i];
+                Napi::Float64Array data = Napi::Float64Array::New(env, result.size());
+                if (!result.empty()) std::memcpy(data.Data(), result.data(), result.size() * sizeof(double));
+                array.Set(i, data);
+            }
+            return array;
+        });
+    };
+}
+
 Job fractionJob(const Napi::Array &arguments)
 {
     Expr expression = expressionAt(arguments, 0);
@@ -617,7 +660,7 @@ const std::map<std::string, JobFactory> &jobs()
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
-        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
+        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
         {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}
     };

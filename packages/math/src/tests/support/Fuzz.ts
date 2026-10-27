@@ -573,3 +573,103 @@ export async function checkSparse(math: Math, random: Random, index: number): Pr
     }
     return failures
 }
+
+//Random values: of -100 to 100, now and then integers of few values (modes, ties), under a large offset or of very
+//different sizes
+function randomValues(random: Random, size: number): Float64Array {
+    const kind: number = random.int(4)
+    const offset: number = kind === 2 ? 10 ** (6 + random.int(7)) : 0
+    return Float64Array.from({length: size}, (): number => {
+        if (kind === 1) return random.int(5)
+        if (kind === 3) return (random.next() * 2 - 1) * 10 ** (random.int(30) - 15)
+        return offset + globalThis.Math.round((random.next() * 200 - 100) * 1e6) / 1e6
+    })
+}
+
+/**
+ * The checks of the statistics: the sums against the sums of the values shuffled, the statistics of the order against
+ * the values sorted in JavaScript, the quantiles at 0, 1/2 and 1, the variances against their shifts and their
+ * normalizations, the z-scores, the covariances and the divergences of a vector with itself
+ * @param math
+ * @param random
+ * @param index
+ */
+export async function checkStatistics(math: Math, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    const n: number = 1 + random.int(random.chance(0.1) ? 2000 : 40)
+    const x: Float64Array = randomValues(random, n)
+    const text: string = JSON.stringify(Array.from(x.subarray(0, 12)))
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    const u: number = Number.EPSILON / 2
+    try {
+        const stats = math.stats
+        //The sums, of the values in any order: within the bound of Neumaier's sum
+        const absolute: number = x.reduce((total: number, value: number): number => total + globalThis.Math.abs(value), 0)
+        const shuffled: Float64Array = x.slice()
+        for (let i: number = n - 1; i > 0; i--) {
+            const j: number = random.int(i + 1)
+            const swapped: number = shuffled[i]
+            shuffled[i] = shuffled[j]
+            shuffled[j] = swapped
+        }
+        const sum: number = stats.sum(x)
+        if (globalThis.Math.abs(sum - stats.sum(shuffled)) > 4 * u * globalThis.Math.abs(sum) + 4 * n * n * u * u * absolute) fail('sum', `${sum} and ${stats.sum(shuffled)} shuffled`)
+        const sums: Float64Array = stats.cumulativeSum(x)
+        const prefix: number = random.int(n)
+        if (sums[n - 1] !== sum || sums[prefix] !== stats.sum(x.subarray(0, prefix + 1))) fail('sum', `the cumulative sums ${sums[prefix]} and ${sums[n - 1]} are not the sums of their values`)
+        const differences: Float64Array = stats.differences(x)
+        if (differences.length !== n - 1 || differences.some((value: number, i: number): boolean => value !== x[i + 1] - x[i])) fail('differences', 'not x[i + 1] - x[i]')
+        //The statistics of the order, against the values sorted
+        const sorted: Float64Array = x.slice().sort()
+        const min: number = stats.min(x), max: number = stats.max(x), median: number = stats.median(x)
+        if (min !== sorted[0] || max !== sorted[n - 1]) fail('order', `min ${min}, max ${max}`)
+        const middle: number = n % 2 ? sorted[(n - 1) / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2
+        if (median !== middle) fail('median', `${median}, sorted ${middle}`)
+        //The quantile of 1/2 is the median but for the rounding of its interpolation (b - (b - a) / 2, (a + b) / 2 for
+        //the median, as NumPy's)
+        const quantiles: Float64Array = stats.quantile(x, [0, 0.5, 1])
+        const halfway: number = 4 * u * globalThis.Math.max(globalThis.Math.abs(min), globalThis.Math.abs(max))
+        if (quantiles[0] !== min || globalThis.Math.abs(quantiles[1] - median) > halfway || quantiles[2] !== max) fail('quantile', `${Array.from(quantiles).join(', ')}, median ${median}`)
+        const probabilities: number[] = Array.from({length: 20}, (): number => random.next()).sort((a: number, b: number): number => a - b)
+        const ordered: Float64Array = stats.quantile(x, probabilities)
+        if (ordered.some((value: number, i: number): boolean => i > 0 && value < ordered[i - 1] || value < min || value > max)) fail('quantile', 'not increasing with the probability, or outside the values')
+        const counts: Map<number, number> = new Map()
+        for (const value of x) counts.set(value, (counts.get(value) ?? 0) + 1)
+        const most: number = globalThis.Math.max(...counts.values())
+        const modes: number[] = [...counts.entries()].filter(([, count]: [number, number]): boolean => count === most).map(([value]: [number, number]): number => value).sort((a: number, b: number): number => a - b)
+        if (JSON.stringify(Array.from(stats.mode(x))) !== JSON.stringify(modes)) fail('mode', `${Array.from(stats.mode(x)).slice(0, 5).join(', ')}, counted ${modes.slice(0, 5).join(', ')}`)
+        const deviations: Float64Array = x.map((value: number): number => globalThis.Math.abs(value - median))
+        if (stats.medianAbsoluteDeviation(x) !== stats.median(deviations)) fail('mad', 'not the median of the deviations from the median')
+        //The variances: of their normalizations, under a shift, the covariance and the correlation of a vector with
+        //itself, the z-scores
+        const mean: number = stats.mean(x), variance: number = stats.variance(x)
+        if (!(mean >= min && mean <= max)) fail('mean', `${mean} outside ${min}, ${max}`)
+        const largest: number = globalThis.Math.max(globalThis.Math.abs(min), globalThis.Math.abs(max))
+        const rounding: number = 8 * n * u * largest * largest
+        if (variance < -rounding) fail('variance', `${variance} below 0`)
+        if (n > 1 && globalThis.Math.abs(stats.variance(x, {normalization: 'unbiased'}) * (n - 1) - variance * n) > 4 * u * variance * n + rounding) fail('variance', 'the normalizations disagree')
+        if (stats.standardDeviation(x) !== globalThis.Math.sqrt(variance)) fail('std', 'not the square root of the variance')
+        const shift: number = 1000 * (largest + 1)
+        const shifted: number = stats.variance(x.map((value: number): number => value + shift))
+        if (globalThis.Math.abs(shifted - variance) > 8 * n * u * (largest + shift) ** 2 + rounding) fail('variance', `${variance}, shifted ${shifted}`)
+        if (stats.covariance(x, x) !== variance) fail('covariance', 'cov(x, x) is not var(x)')
+        if (variance > rounding * 1e3) {
+            const correlation: number = stats.correlation(x, x)
+            if (globalThis.Math.abs(correlation - 1) > 4 * u) fail('correlation', `corr(x, x) is ${correlation}`)
+            //Of mean 0 and of deviation 1, but for the roundings of the values, magnified by their mean over their
+            //deviation
+            const scores: Float64Array = stats.zScores(x)
+            const magnified: number = 16 * n * u * (1 + largest / globalThis.Math.sqrt(variance))
+            if (globalThis.Math.abs(stats.mean(scores)) > magnified || globalThis.Math.abs(stats.standardDeviation(scores) - 1) > magnified) fail('zscore', `of mean ${stats.mean(scores)}, of deviation ${stats.standardDeviation(scores)}`)
+        }
+        //The divergence of a distribution from itself is 0, from another not negative
+        const p: Float64Array = x.map(globalThis.Math.abs), q: Float64Array = randomValues(random, n).map(globalThis.Math.abs)
+        if (stats.sum(p) > 0 && stats.sum(q) > 0) {
+            if (globalThis.Math.abs(stats.klDivergence(p, p)) > 4 * n * u) fail('kldivergence', `of p from p ${stats.klDivergence(p, p)}`)
+            if (stats.klDivergence(p, q) < -4 * n * u) fail('kldivergence', `${stats.klDivergence(p, q)} below 0`)
+        }
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('statistics', String(error))
+    }
+    return failures
+}

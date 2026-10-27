@@ -2,7 +2,7 @@ import {openSync, writeSync} from 'node:fs'
 import {parseArgs} from 'node:util'
 import {Container} from '@lakutata/core'
 import {Math} from '../../exports/Math.js'
-import {checkFormula, checkMatrices, checkSparse, checkText, type FuzzFailure, Random, randomFormula, randomText} from './Fuzz.js'
+import {checkFormula, checkMatrices, checkSparse, checkStatistics, checkText, type FuzzFailure, Random, randomFormula, randomText} from './Fuzz.js'
 
 //The random tests of the formulas and of the matrices, in a process of their own: each case is written to the log before it runs, so that
 //a crash of the addon still tells which formula (and the seed) caused it. Prints a JSON summary.
@@ -33,6 +33,7 @@ for (let index: number = 0; index < iterations; index++) {
     //Random matrices, one case in five
     if (index % 5 === 0) found.push(...await checkMatrices(math, random, index))
     if (index % 5 === 0) found.push(...await checkSparse(math, random, index))
+    if (index % 5 === 0) found.push(...await checkStatistics(math, random, index))
     for (const failure of found) properties[failure.property] = (properties[failure.property] ?? 0) + 1
     failures.push(...found)
 }

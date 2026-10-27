@@ -1,9 +1,9 @@
 // The formulas of the grammar and numbers cases evaluated by mathjs and nerdamer (1.x) at the sample points of SymPy's
-// results (expected/*.json, written by reference.py first), and compared with them; the number theory and the functions
-// of matrices too. Each difference must be noted in the case (`differs: {mathjs: 'why', nerdamer: 'why'}`): the
-// differences of the syntax are written down, not found by surprise. The result of each engine is added to the expected
-// files. Run by generate.sh in a container, where ENGINES is the directory mathjs and nerdamer are installed in; never
-// a dependency of the package.
+// results (expected/*.json, written by reference.py first), and compared with them; the number theory, the functions of
+// matrices and the statistics too. Each difference must be noted in the case (`differs: {mathjs: 'why', nerdamer:
+// 'why'}`): the differences of the syntax are written down, not found by surprise. The result of each engine is added
+// to the expected files. Run by generate.sh in a container, where ENGINES is the directory mathjs and nerdamer are
+// installed in; never a dependency of the package.
 
 import {readFileSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
@@ -179,6 +179,57 @@ const linearAlgebra = {
     })
     expected.generator = {...expected.generator, mathjs: versions.mathjs}
     writeFileSync(path.join(HERE, 'expected/linalg.json'), JSON.stringify(expected, null, 1) + '\n')
+}
+//The statistics mathjs has, against the exact and the NumPy/SciPy results (expected/stats.json, written by stats.py
+//first); its variances with the normalization of the case, its default being 'unbiased'
+const statistics = {
+    sum: ([x]) => math.sum(x),
+    product: ([x]) => math.prod(x),
+    cumulativeSum: ([x]) => math.cumsum(x),
+    differences: ([x]) => math.diff(x),
+    mean: ([x]) => math.mean(x),
+    median: ([x]) => math.median(x),
+    mode: ([x]) => math.mode(x),
+    min: ([x]) => math.min(x),
+    max: ([x]) => math.max(x),
+    variance: ([x], normalization) => math.variance(x, normalization),
+    standardDeviation: ([x], normalization) => math.std(x, normalization),
+    medianAbsoluteDeviation: ([x]) => math.mad(x),
+    quantile: ([x, p]) => math.quantileSeq(x, p),
+    correlation: ([x, y]) => math.corr(x, y),
+    klDivergence: ([p, q]) => math.kldivergence(p, q)
+}
+{
+    const cases = read('cases/stats.json')
+    const expected = read('expected/stats.json')
+    expected.cases.forEach((result, index) => {
+        const source = cases[index]
+        const operate = statistics[result.op]
+        if (!operate) return
+        result.engines = {}
+        let outcome
+        try {
+            const value = operate(result.args, result.normalization)
+            if (result.error) {
+                outcome = 'accepted, @lakutata/math refuses it'
+            } else {
+                //The numbers that are not finite are strings in the expected files
+                const ours = [value].flat(), theirs = [result.result].flat().map(Number)
+                const scale = Math.max(1, ...theirs.filter(Number.isFinite).map(Math.abs))
+                const same = (element, i) => Object.is(element, theirs[i]) || element === theirs[i] || Math.abs(element - theirs[i]) <= 1e-12 * scale
+                outcome = ours.length === theirs.length && ours.every(same) ? 'same' : `different: ${JSON.stringify(value).slice(0, 80)}`
+            }
+        } catch (error) {
+            outcome = result.error ? 'same' : `error: ${String(error.message ?? error).split('\n')[0].slice(0, 120)}`
+        }
+        result.engines.mathjs = outcome
+        const noted = source.differs?.mathjs
+        const label = `stats ${result.op}(${JSON.stringify(result.args).slice(0, 60)})`
+        if (outcome !== 'same' && !noted) problems.push(`${label}: mathjs ${outcome}, not noted`)
+        if (outcome === 'same' && noted) problems.push(`${label}: mathjs agrees, its note is stale`)
+    })
+    expected.generator = {...expected.generator, mathjs: versions.mathjs}
+    writeFileSync(path.join(HERE, 'expected/stats.json'), JSON.stringify(expected, null, 1) + '\n')
 }
 console.log(`mathjs ${versions.mathjs}, nerdamer ${versions.nerdamer}: ${problems.length} differences not noted`)
 if (problems.length) {

@@ -342,6 +342,35 @@ async function systems(math: Math): Promise<void> {
 }
 ```
 
+### Statistics
+
+`math.stats` computes statistics of values (arrays of numbers, or `Float64Array`s) in the addon: `sum` (compensated for
+its roundings: the sum of `[1e16, 1, -1e16]` is 1), `product`, `cumulativeSum`, `differences`, `mean`, `median`, `mode`
+(all the values that occur most often, ascending), `min`, `max`, `variance`, `standardDeviation`,
+`medianAbsoluteDeviation`, `quantile`, `covariance`, `correlation` (Pearson's), `zScores` and `klDivergence` (the
+Kullback-Leibler divergence, with the natural logarithm, of distributions that are first scaled to sums of 1).
+
+A variance divides the sum of the squared deviations from the mean by n by default: the values are the whole population,
+as in NumPy. `{normalization: 'unbiased'}` divides it by n - 1 (the values are a sample, the default of mathjs), and
+`'biased'` by n + 1; `standardDeviation`, `covariance` and `zScores` take the same option. Variances and covariances are
+computed in two passes, so they keep their digits under a large offset: the variance of `[1e9 + 4, 1e9 + 7, 1e9 + 13,
+1e9 + 16]` is 22.5. A quantile interpolates linearly between the two values around it, as NumPy's default method and
+mathjs's `quantileSeq` do. A NaN among the values gives NaN. Of no values, the statistics that have none (the mean, the
+median, the variance…) throw `MathArgumentException`, while the sum is 0 and the product 1.
+
+```typescript
+import type {Math} from '@lakutata/math'
+
+function statistics(math: Math): void {
+    const values = [2, 4, 4, 4, 5, 5, 7, 9]
+    console.log(math.stats.mean(values))                                           //5
+    console.log(math.stats.standardDeviation(values))                              //2
+    console.log(math.stats.standardDeviation(values, {normalization: 'unbiased'})) //2.138089935299395
+    console.log(math.stats.quantile(values, [0.25, 0.75]))                         //Float64Array [4, 5.5]
+    console.log(math.stats.correlation(values, [1, 3, 2, 5, 4, 6, 8, 7]))          //0.8455943246644705
+}
+```
+
 ### Asynchronous operations
 
 The operations that can take long have an asynchronous version: `expandAsync()`, `simplifyAsync()`, `diffAsync()`,
@@ -368,13 +397,14 @@ The bundles, the executables and the installers made by `lakutata package` carry
 
 | Export | What it is |
 |---|---|
-| `Math` | The component: `parse`, `expression`, `equation`, `decimal`, `matrix`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg` |
+| `Math` | The component: `parse`, `expression`, `equation`, `decimal`, `matrix`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg`, `stats` |
 | `buildMathOptions`, `MathConfig` | Its declaration in the components, and its options: `definitions`, `precision`, `timeout`, `concurrency`, `drainTimeout` |
-| `MathScope`, `MathDefinitions` | The scope given by `with()`, with the methods of the component except `ntheory`; the definitions (a body by signature) |
+| `MathScope`, `MathDefinitions` | The scope given by `with()`, with the methods of the component except `ntheory`, `linalg` and `stats`; the definitions (a body by signature) |
 | `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
 | `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`math.decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
 | `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`math.matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is given where a matrix is expected (a matrix, or its rows); where a vector is (a `Float64Array`, or an array of numbers) |
 | `LinearAlgebra`, `NormKind` | The linear algebra (`math.linalg`): `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, `rotation`, `dot`, `cross`, `outer`, `norm`, `multiply`, `solve`, `solveTriangular`, `leastSquares`, `inverse`, `determinant`, `singularValues`, `rank`, `condition`, `lu`, `qr`, `cholesky`, `svd`, `eigen`, `symmetricEigen`, `schur`, `pseudoInverse`, `exponential`, `squareRoot`, `sylvester`, `lyapunov`, `sparse`, `conjugateGradient`, `biconjugateGradientStabilized`, and the asynchronous versions; the kinds of norms |
+| `Statistics`, `Normalization`, `NormalizationOptions` | The statistics (`math.stats`): `sum`, `product`, `cumulativeSum`, `differences`, `mean`, `median`, `mode`, `min`, `max`, `variance`, `standardDeviation`, `medianAbsoluteDeviation`, `quantile`, `covariance`, `correlation`, `zScores`, `klDivergence`; the divisors of a variance (`'uncorrected'`, `'unbiased'`, `'biased'`) and the option that chooses one |
 | `SparseMatrix`, `SparseEntry` | A sparse matrix in compressed rows (`math.linalg.sparse()`): `rowPointers`, `columnIndices`, `values`, `nonZeros`, `get`, `transpose`, `add`, `sub`, `neg`, `mul`, `toDense`, `toEntries`; an entry `[row, column, value]` |
 | `IterativeOptions`, `IterativeSolution` | The options of the iterative solvers (`tolerance`, `maxIterations`, `guess`) and their result (`solution`, `iterations`, `error`, `converged`) |
 | `LuDecomposition`, `QrDecomposition`, `SingularValueDecomposition`, `EigenDecomposition`, `SymmetricEigenDecomposition`, `SchurDecomposition`, `ComplexVector`, `ComplexMatrix` | The results of the decompositions: `{lower, upper, permutation}`, `{q, r}`, `{u, singularValues, v}`, `{values, vectors}` (complex: `{re, im}`), `{values, vectors}`, `{u, t}` |
@@ -399,7 +429,7 @@ The typings document every declaration, with examples.
 | `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power) |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1, a function at one of its poles: `gamma()` of -2, `zeta()` of 1), a modulus of 0 |
 | `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` above 2000, `harmonic(n)` above 50000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`) |
-| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made) |
+| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence` |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |
 

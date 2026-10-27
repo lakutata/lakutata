@@ -8,6 +8,7 @@ import type {Matrix, MatrixValue} from '../lib/Matrix.js'
 import {type CommonSubexpressions, type CseOptions, type MathDefinitions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
 import {native, nativeCall} from '../lib/Native.js'
 import {NumberTheory} from '../lib/NumberTheory.js'
+import {Statistics} from '../lib/Statistics.js'
 
 /**
  * The options of a `Math` component
@@ -121,6 +122,8 @@ export class Math extends Component {
 
     #linalg: LinearAlgebra
 
+    #stats: Statistics
+
     /**
      * Prepare the definitions.
      * @protected
@@ -137,6 +140,7 @@ export class Math extends Component {
         this.#scope = new MathScope(context)
         this.#ntheory = new NumberTheory(context)
         this.#linalg = new LinearAlgebra(context)
+        this.#stats = new Statistics(context)
     }
 
     /**
@@ -185,6 +189,25 @@ export class Math extends Component {
      */
     public get linalg(): LinearAlgebra {
         return this.#linalg
+    }
+
+    /**
+     * The statistics of values (arrays of numbers, or `Float64Array`s): sums, means, medians, modes, variances,
+     * quantiles, covariances, correlations. Only the component has them: a scope of `with()` does not.
+     * @example
+     * ```typescript
+     * import {Container} from 'lakutata'
+     * import {Math} from '@lakutata/math'
+     *
+     * const container: Container = new Container()
+     * await container.setNamed('math', Math, {})
+     * const math: Math = await container.get<Math>('math')
+     * math.stats.mean([2, 4, 4, 4, 5, 5, 7, 9])       //5
+     * await container.destroy()
+     * ```
+     */
+    public get stats(): Statistics {
+        return this.#stats
     }
 
     /**

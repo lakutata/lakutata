@@ -1,6 +1,6 @@
 #!/bin/sh
 # The expected results of the fixtures (expected/*.json), generated in a container of node:24-alpine: SymPy, NumPy and
-# SciPy from the packages of Alpine (reference.py, linalg.py), mathjs and nerdamer installed in the container only
+# SciPy from the packages of Alpine (reference.py, linalg.py, stats.py), mathjs and nerdamer installed in the container only
 # (engines.mjs). The results are committed; the tests of the package read them and never run SymPy, NumPy, SciPy,
 # mathjs or nerdamer.
 #
@@ -15,5 +15,6 @@ docker run --rm -v "$PWD:/fixtures" -w /fixtures node:24-alpine sh -c '
     cd /fixtures
     python3 reference.py
     python3 linalg.py
+    python3 stats.py
     ENGINES=/engines node engines.mjs
 '

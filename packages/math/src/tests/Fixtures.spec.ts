@@ -2,7 +2,7 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
 import {Container} from '@lakutata/core'
-import {type Decimal, Expression, type IterativeSolution, Math, MathException, Matrix, type PrimeFactor, type Solutions, SparseMatrix, type SystemSolution} from '../exports/Math.js'
+import {type Decimal, Expression, type IterativeSolution, Math, MathException, Matrix, type Normalization, type NormalizationOptions, type PrimeFactor, type Solutions, SparseMatrix, type SystemSolution} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -309,6 +309,52 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
             assert.strictEqual(ours.length, theirs.length, label)
             ours.forEach((value: number, i: number): void => {
                 assert.ok(globalThis.Math.abs(value - theirs[i]) <= 1e-11 * scale, `${label}: ${value}, NumPy ${theirs[i]}`)
+            })
+        }
+    })
+
+    it('give the statistics of Python (exactly where it can), NumPy and SciPy', (): void => {
+        const fixtures = expected<{op: string, args: number[][], normalization?: Normalization, result?: number | string | (number | string)[], error?: string}>('stats')
+        //The statistics of the order of the values, computed by the same formulas: equal
+        const exact: Set<string> = new Set(['median', 'quantile', 'mode', 'min', 'max', 'differences', 'medianAbsoluteDeviation'])
+        for (const fixture of fixtures.cases) {
+            const [x, y] = fixture.args
+            const options: NormalizationOptions | undefined = fixture.normalization ? {normalization: fixture.normalization} : undefined
+            const label: string = `${fixture.op}(${JSON.stringify(fixture.args).slice(0, 80)})`
+            const operate = (): number | Float64Array => {
+                switch (fixture.op) {
+                    case 'sum': return math.stats.sum(x)
+                    case 'product': return math.stats.product(x)
+                    case 'cumulativeSum': return math.stats.cumulativeSum(x)
+                    case 'differences': return math.stats.differences(x)
+                    case 'mean': return math.stats.mean(x)
+                    case 'median': return math.stats.median(x)
+                    case 'mode': return math.stats.mode(x)
+                    case 'min': return math.stats.min(x)
+                    case 'max': return math.stats.max(x)
+                    case 'variance': return math.stats.variance(x, options)
+                    case 'standardDeviation': return math.stats.standardDeviation(x, options)
+                    case 'medianAbsoluteDeviation': return math.stats.medianAbsoluteDeviation(x)
+                    case 'quantile': return math.stats.quantile(x, y)
+                    case 'covariance': return math.stats.covariance(x, y, options)
+                    case 'correlation': return math.stats.correlation(x, y)
+                    case 'zScores': return math.stats.zScores(x, options)
+                    case 'klDivergence': return math.stats.klDivergence(x, y)
+                }
+                throw new Error(`Unknown operation ${fixture.op}`)
+            }
+            if (fixture.error) {
+                assert.throws(operate, (error: unknown): boolean => error instanceof MathException && (error as MathException).errno === fixture.error, label)
+                continue
+            }
+            const value: number | Float64Array = operate()
+            //The numbers that are not finite are strings in the expected files
+            const ours: number[] = typeof value === 'number' ? [value] : Array.from(value), theirs: number[] = [fixture.result].flat().map(Number)
+            const scale: number = globalThis.Math.max(1, ...theirs.filter(Number.isFinite).map(globalThis.Math.abs))
+            assert.strictEqual(ours.length, theirs.length, label)
+            ours.forEach((element: number, i: number): void => {
+                const same: boolean = exact.has(fixture.op) ? Object.is(element, theirs[i]) : Object.is(element, theirs[i]) || globalThis.Math.abs(element - theirs[i]) <= 1e-14 * scale
+                assert.ok(same, `${label}: ${element}, expected ${theirs[i]}`)
             })
         }
     })
