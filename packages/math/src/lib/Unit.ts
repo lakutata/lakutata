@@ -154,6 +154,8 @@ export class UnitSystem {
 
     readonly #parsed: Map<string, readonly UnitPart[]> = new Map()
 
+    readonly #constants: Map<string, Expression> = new Map()
+
     #one?: Expression
 
     #templates?: Context
@@ -284,6 +286,20 @@ export class UnitSystem {
             this.#parsed.set(text, parts)
         }
         return parts
+    }
+
+    /**
+     * The value of a physical constant, in its units
+     * @param context
+     * @param name
+     */
+    public constant(context: Context, name: PhysicalConstant): Expression {
+        let value: Expression | undefined = this.#constants.get(name)
+        if (!value) {
+            value = expressionOf(context, CONSTANTS[name][0])
+            this.#constants.set(name, value)
+        }
+        return value
     }
 
     /**
@@ -542,6 +558,10 @@ export class Unit {
      * @param exponent A number, an expression or a formula of `expression()`.
      */
     public pow(exponent: Value): Unit {
+        //An integer: its power at once
+        if (typeof exponent === 'number' && Number.isInteger(exponent) && exponent !== 1 && !this.#isOffset() && !zeroDimensions(this.#dimensionList())) {
+            return new Unit(this.context, this.magnitude.pow(exponent), this.parts.map((part: UnitPart): UnitPart => ({...part, power: part.power * exponent})))
+        }
         const power: Expression = new Expression(this.context, handleOf(this.context, exponent))
         if (power.equals(1)) return this
         this.#noOffset('pow')
@@ -1118,6 +1138,6 @@ export function unitOf(context: Context, value: UnitValue, units?: string): Unit
  */
 export function constantOf(context: Context, name: PhysicalConstant): Unit {
     if (typeof name !== 'string' || !Object.hasOwn(CONSTANTS, name)) throw new MathArgumentException(`Not a physical constant: ${String(name)}`)
-    const [value, units] = CONSTANTS[name]
-    return new Unit(context, expressionOf(context, value), units ? unitPartsOf(context, units) : [])
+    const units: string = CONSTANTS[name][1]
+    return new Unit(context, context.units.constant(context, name), units ? unitPartsOf(context, units) : [])
 }
