@@ -1236,8 +1236,9 @@ export async function checkInequality(math: MathScope, random: Random, index: nu
     let text: string = ''
     const fail = (property: string, message: string): number => failures.push({index, text, property, message})
     const relations = ['<', '<=', '>', '>='] as const
-    //A polynomial in x of degree 3 at most, its coefficients small
-    const polynomial = (): string => Array.from({length: 1 + random.int(4)}, (_: unknown, k: number): string => `(${random.int(9) - 4})*x^${k}`).join(' + ')
+    //A polynomial in x of degree 2 at most, of degree 3 once in five (its roots by Cardano's formula take long), its
+    //coefficients small
+    const polynomial = (): string => Array.from({length: 1 + random.int(random.chance(0.2) ? 4 : 3)}, (_: unknown, k: number): string => `(${random.int(9) - 4})*x^${k}`).join(' + ')
     const holds = (sign: number, relation: string): boolean => relation === '<' ? sign < 0 : relation === '<=' ? sign <= 0 : relation === '>' ? sign > 0 : sign >= 0
     try {
         const made = (): {top: Expression, bottom: Expression, relation: typeof relations[number], set: MathSet} | undefined => {

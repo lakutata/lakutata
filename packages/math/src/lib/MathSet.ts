@@ -52,10 +52,17 @@ function order(a: Expression, b: Expression): number {
     return found
 }
 
-//Whether a value can be ordered with the real numbers: real, or without variables and compared with 0 (a real root
+//Whether a value can be ordered with the real numbers: without variables and compared with 0 (also a real root
 //written with complex parts, as Cardano's formula writes it)
+const REAL: WeakMap<Expression, boolean> = new WeakMap()
+
 function real(value: Expression): boolean {
-    return value.isReal() === true || (value.variables().length === 0 && value.compare(0) !== undefined)
+    let found: boolean | undefined = REAL.get(value)
+    if (found === undefined) {
+        found = value.variables().length === 0 && value.compare(0) !== undefined
+        REAL.set(value, found)
+    }
+    return found
 }
 
 //Whether two values are equal: by isZero() of their difference, else by compare() where they are real; undefined

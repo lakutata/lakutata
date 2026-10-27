@@ -654,14 +654,27 @@ int predicateOf(const Expr &given, const std::string &property)
 
 namespace {
 
+//The decimals of 60 digits of a constant, kept for the next comparisons (the ends of a set are compared again and
+//again): each thread its own, emptied when full
+std::string decimalsOf(const Expr &value)
+{
+    thread_local std::unordered_map<Expr, std::string, RCPBasicHash, RCPBasicKeyEq> known;
+    const auto found = known.find(value);
+    if (found != known.end()) return found->second;
+    std::string decimals = toDecimal(evaluated(value), 60);
+    if (known.size() >= 4096) known.clear();
+    known.emplace(value, decimals);
+    return decimals;
+}
+
 //The order of two constants by their decimals of 60 digits, when they differ beyond 1e-40 of their size; else 2 (a
 //zero not shown exactly stays not known)
 int decimalOrder(const Expr &a, const Expr &b)
 {
     try {
         const DecimalContext context(60);
-        const Decimal x = context.parse(toDecimal(evaluated(a), 60));
-        const Decimal y = context.parse(toDecimal(evaluated(b), 60));
+        const Decimal x = context.parse(decimalsOf(a));
+        const Decimal y = context.parse(decimalsOf(b));
         const Decimal gap = context.sub(x, y);
         Decimal size = context.parse("1");
         if (context.compare(context.abs(x), size) > 0) size = context.abs(x);
