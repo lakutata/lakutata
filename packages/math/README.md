@@ -555,7 +555,9 @@ negated.
   The extrapolation often finds such a point by itself, but giving it makes the integral faster and more accurate, and
   its error estimate reliable: for a singularity inside the interval, the extrapolation's error estimate may be too
   small, as in QUADPACK. Where the function is infinite at a point where the rules evaluate it, the interval is split
-  there anyway.
+  there anyway. The interval is also split at each real root, inside it, of a factor of the denominator of the function
+  that is a polynomial (where the numerator is not 0): an integral across a pole diverges, and is not converged, instead
+  of being taken as its principal value (`1/x` on `[-1, 2]`).
 - `tolerance` bounds the estimate of the error, relative to the integral of `|f|`: about 1.5e-8 by default (the square
   root of the machine epsilon, as in SciPy), and the result is usually much more accurate than its estimate. An integral
   that diverges, that oscillates without end, or that doubles cannot resolve gives its best estimate with `converged:

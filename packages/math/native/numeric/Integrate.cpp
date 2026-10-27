@@ -556,6 +556,47 @@ Estimate integratePiece(Integrand &integrand, double a, double b, double toleran
     return best;
 }
 
+//The real poles inside (low, high): the roots of the factors of the denominator that are polynomials in the variable
+//(of degree 100 at most), where the numerator is not 0 (the singularity of sin(x)/x at 0 is removable). The pieces are
+//split there: each one diverges at its end, as 1/x on [0, 1], where the subdivision would otherwise cancel the two sides
+//(the principal value of 1/x on [-1, 2] taken for its integral)
+std::vector<double> polesInside(const Expr &function, const std::string &variable, double low, double high)
+{
+    std::vector<double> poles;
+    const std::pair<Expr, Expr> fraction = fractionOf(function);
+    std::vector<Expr> factors;
+    if (is_a<SymEngine::Mul>(*fraction.second)) {
+        for (const auto &entry : down_cast<const SymEngine::Mul &>(*fraction.second).get_dict()) factors.push_back(entry.first);
+    } else if (is_a<SymEngine::Pow>(*fraction.second)) {
+        factors.push_back(down_cast<const SymEngine::Pow &>(*fraction.second).get_base());
+    } else {
+        factors.push_back(fraction.second);
+    }
+    CompiledFunction numerator({variable}, {fraction.first});
+    const auto at = [&numerator](double x) {
+        double y = 0;
+        numerator.call(&y, &x);
+        return std::abs(y);
+    };
+    for (const Expr &factor : factors) {
+        ComplexRoots roots;
+        try {
+            if (coefficientsOf(factor, variable).size() > 101) continue;
+            roots = polynomialRootsOf(factor, variable);
+        } catch (const MathError &) {
+            continue;
+        }
+        for (size_t i = 0; i < roots.re.size(); i++) {
+            const double root = roots.re[i];
+            if (!(std::abs(roots.im[i]) <= 1e-9 * std::max(1.0, std::abs(root)) && root > low && root < high)) continue;
+            const double near = (std::isfinite(high - low) ? high - low : 1.0) / 1000;
+            const double value = at(root), around = std::max(at(root - near), at(root + near));
+            if (!(value <= 1e-8 * around)) poles.push_back(root);
+        }
+    }
+    return poles;
+}
+
 }
 
 IntegralResult integralOf(const Expr &function, const std::string &variable, double a, double b, const std::vector<double> &points, double tolerance)
@@ -576,6 +617,8 @@ IntegralResult integralOf(const Expr &function, const std::string &variable, dou
         if (!(point >= low && point <= high)) throw MathError(ErrorCode::Argument, "The points are in the interval: " + shortest(point) + " is not");
         if (point > low && point < high) inside.push_back(point);
     }
+    const std::vector<double> poles = polesInside(function, variable, low, high);
+    inside.insert(inside.end(), poles.begin(), poles.end());
     std::sort(inside.begin(), inside.end());
     inside.erase(std::unique(inside.begin(), inside.end()), inside.end());
     ends.insert(ends.end(), inside.begin(), inside.end());

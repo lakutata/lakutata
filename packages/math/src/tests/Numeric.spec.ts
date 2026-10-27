@@ -76,6 +76,12 @@ describe('The numeric solutions', (): void => {
         assert.strictEqual(math.numeric.integrate('1/x', 'x', [0, 1]).converged, false)
         assert.strictEqual(math.numeric.integrate('1/(x - 0.5)^2', 'x', [0, 1]).converged, false)
         assert.strictEqual(math.numeric.integrate('sin(x)/x', 'x', [0, Infinity]).converged, false)
+        //A pole inside: split there, not converged (the two sides do not cancel into the principal value)
+        assert.strictEqual(math.numeric.integrate('1/x', 'x', [-1, 2]).converged, false)
+        assert.strictEqual(math.numeric.integrate('529/(625pi*x) + 92', 'x', [-0.66, 1.26]).converged, false)
+        assert.strictEqual(math.numeric.integrate('1/(x^2 - 2)', 'x', [0, 2]).converged, false)
+        //A removable singularity is not a pole
+        assert.ok(near(math.numeric.integrate('sin(x)/x', 'x', [-1, 2]).value, 2.551496047169878))
         //A larger tolerance: fewer intervals, a larger error
         const coarse = math.numeric.integrate('1/(1e-4 + x^2)', 'x', [-1, 1], {tolerance: 1e-3})
         assert.ok(coarse.converged && coarse.error <= 1e-3 * 312.2)

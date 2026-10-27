@@ -750,12 +750,13 @@ export async function checkDistributions(math: MathScope, random: Random, index:
                 if (!flat && globalThis.Math.abs(back[i] - x) > 1e-7 * (1 + globalThis.Math.abs(x))) fail('quantile', `quantile(cdf(${x})) is ${back[i]}`)
             })
         }
-        //Samples: the same of a seed; their mean within 6 standard errors of the mean
+        //Samples: the same of a seed; their mean within 6 standard errors of the mean, where the fourth moment is
+        //finite (with heavier tails one large sample moves the mean further: Pareto of a shape below 4)
         const seed: number = random.int(1000000)
         const samples: Float64Array = distribution.sample(4000, math.stats.random(seed))
         if (distribution.sample(4000, math.stats.random(seed)).some((value: number, i: number): boolean => !Object.is(value, samples[i]))) fail('sample', 'two samples of a seed differ')
         if (samples.some((value: number): boolean => value < distribution.support[0] || value > distribution.support[1] || (discrete && value !== globalThis.Math.floor(value)))) fail('sample', 'a sample outside the support')
-        if (Number.isFinite(distribution.variance) && distribution.variance > 0) {
+        if (Number.isFinite(distribution.variance) && distribution.variance > 0 && Number.isFinite(distribution.excessKurtosis)) {
             const error: number = globalThis.Math.abs(math.stats.mean(samples) - distribution.mean) / globalThis.Math.sqrt(distribution.variance / samples.length)
             if (error > 6) fail('sample', `the mean of the samples ${math.stats.mean(samples)} is ${error} standard errors from ${distribution.mean}`)
         }
