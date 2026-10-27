@@ -33,7 +33,7 @@ npm install @lakutata/math
 
 The package exports its functions ready to use: `parse`, `expression`, `equation`, `decimal`, `matrix`, `solve` and
 `cse`, with the namespaces `ntheory` (number theory), `linalg` (linear algebra), `stats` (statistics and probability)
-and `numeric` (numeric solutions). They belong to `math`, the scope made with the default options.
+and `numeric` (numeric solutions and integrals). They belong to `math`, the scope made with the default options.
 
 ```typescript
 import {decimal, equation, expression, linalg, stats} from '@lakutata/math'
@@ -448,6 +448,37 @@ const {solution, converged} = numeric.solveSystem(['x^2 + y^2 = 4', 'x*y = 1'], 
 console.log(solution, converged)                                               //Float64Array [1.9318516525781366, 0.5176380902050416] true
 ```
 
+### Numeric integrals
+
+`numeric.integrate(function, variable, [a, b], options)` gives the integral of a function over an interval, as `{value,
+error, converged}`. The ends may be infinite (`-Infinity`, `Infinity`); with its ends reversed (`[3, 0]`), it is
+negated.
+
+- It is computed by QUADPACK's QAGS, as SciPy's `quad` computes it: the Gauss-Kronrod rule of 21 points on intervals
+  halved where the error is largest, the results extrapolated near a singularity, a half line or the real line mapped
+  onto a finite interval. Unless that reaches the roundings, a double-exponential quadrature (tanh-sinh, exp-sinh,
+  sinh-sinh) computes it too, and the more accurate result is kept. Next to an end that is not 0, the function is
+  rewritten in terms of its distance from it (`1 - x^2` at `x = 1 - u` is `2u - u^2`), so that a singularity there
+  (`1/sqrt(1 - x^2)` on `[-1, 1]`) is computed to the roundings.
+- `points` gives the points inside the interval where the function is singular or jumps: the interval is split there.
+  The extrapolation often finds such a point by itself, but the points make the integral faster and more accurate. Where
+  the function is infinite at a point where the rules evaluate it, the interval is split there anyway.
+- `tolerance` bounds the estimate of the error, relative to the integral of `|f|`: about 1.5e-8 by default (the square
+  root of the machine epsilon, as in SciPy), and the result is usually much more accurate than its estimate. An integral
+  that diverges, that oscillates without end, or that doubles cannot resolve gives its best estimate with `converged:
+  false`; a function that is not real inside the interval throws `MathDomainException`. `integrateAsync()` runs in the
+  threads of the addon.
+
+```typescript
+import {numeric} from '@lakutata/math'
+
+console.log(numeric.integrate('x^2', 'x', [0, 3]))                                     //{value: 9, error: 9.992007221626409e-14, converged: true}
+console.log(numeric.integrate('1/sqrt(1 - x^2)', 'x', [-1, 1]).value)                  //3.141592653589794
+console.log(numeric.integrate('exp(-x^2)', 'x', [-Infinity, Infinity]).value)          //1.7724538509055159
+console.log(numeric.integrate('1/sqrt(abs(x - 1))', 'x', [0, 2], {points: [1]}).value) //4
+console.log(numeric.integrate('sin(x)/x', 'x', [0, Infinity]).converged)               //false
+```
+
 ### Asynchronous operations
 
 The operations that can take long have an asynchronous version: `expandAsync()`, `simplifyAsync()`, `diffAsync()`,
@@ -495,7 +526,7 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | `SystemSolution`, `SystemEquation` | A solution of a system (an expression by variable), an equation of a system |
 | `CompiledFunction` | A compiled expression: a function of numbers, its `variables`, `batch` |
 | `NumberTheory`, `IntegerValue`, `PrimeFactor`, `ExtendedGcd`, `Congruence` | The number theory (`ntheory`): `gcd`, `lcm`, `extendedGcd`, `mod`, `modInverse`, `powMod`, `isPrime`, `nextPrime`, `factor`, `totient`, `mobius`, `primitiveRoot`, `legendre`, `jacobi`, `crt`, `fibonacci`, `lucas`, `binomial`, `factorial`, `doubleFactorial`, `bernoulli`, `harmonic`, `permutations`, `combinationsWithRepetition`, `multinomial`, `bell`, `catalan`, `stirlingSecondKind`, `compositions`, and the asynchronous versions; an integer (a bigint, or a number that is a safe integer); a prime factor and its exponent; the result of `extendedGcd`; the result of `crt` |
-| `Numeric`, `FindRootOptions`, `IterationOptions`, `RootResult`, `SystemRootResult` | The numeric solutions (`numeric`): `polynomialRoots`, `findRoot`, `solveSystem` and their asynchronous versions; their options (`bracket`, `guess`, `tolerance`, `maxIterations`) and their results (`root` or `solution`, `converged`, `iterations`, `residual`) |
+| `Numeric`, `FindRootOptions`, `IterationOptions`, `RootResult`, `SystemRootResult`, `IntegrateOptions`, `IntegralResult` | The numeric solutions and integrals (`numeric`): `polynomialRoots`, `findRoot`, `solveSystem`, `integrate` and their asynchronous versions; their options (`bracket`, `guess`, `tolerance`, `maxIterations`, `points`) and their results (`root` or `solution`, `converged`, `iterations`, `residual`; `value`, `error`, `converged`) |
 | `AsyncOptions`, `Value` | The options of the asynchronous operations (`timeout`, `signal`); what is given where an expression is expected (an expression, a number, a bigint, a decimal, a formula) |
 
 The typings document every declaration, with examples.
@@ -507,10 +538,10 @@ The typings document every declaration, with examples.
 | `MathSyntaxException` | A formula is not written correctly (with the `position` of the error), an equation is given where an expression is expected, or the other way round |
 | `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined, or a constant written as a call (`g(2)`), with its `position` |
 | `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep |
-| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power), a bracket of `findRoot()` where the function does not change its sign or is not real, a function or equations that are not real at the guess of `findRoot()` or `solveSystem()` |
+| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power), a bracket of `findRoot()` where the function does not change its sign or is not real, a function or equations that are not real at the guess of `findRoot()` or `solveSystem()`, a function that is not real inside the interval of `integrate()` |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1, a function at one of its poles: `gamma()` of -2, `zeta()` of 1), a modulus of 0 |
 | `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` and `bell(n)` above 2000, `harmonic(n)` above 50000, `stirlingSecondKind(n, k)` with `n` above 50000 or `n k` above 6250000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`) |
-| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence`, the options of `createMath()` that are not valid |
+| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, an interval, points or a tolerance of `integrate()` that are not valid, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence`, the options of `createMath()` that are not valid |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |
 

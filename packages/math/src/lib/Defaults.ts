@@ -201,7 +201,8 @@ export const linalg: LinearAlgebra = math.linalg
 export const stats: Statistics = math.stats
 
 /**
- * The numeric solutions of equations of `math`: the roots of polynomials, of a function, of a system of equations.
+ * The numeric solutions of equations and the integrals of `math`: the roots of polynomials, of a function, of a
+ * system of equations; the integral of a function.
  * @example
  * ```typescript
  * import {numeric} from '@lakutata/math'

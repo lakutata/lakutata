@@ -140,8 +140,8 @@ export class MathScope {
     }
 
     /**
-     * The numeric solutions of equations: the roots of polynomials, a root of a function, a solution of a system of
-     * nonlinear equations.
+     * The numeric solutions of equations and the integrals: the roots of polynomials, a root of a function, a solution
+     * of a system of nonlinear equations, the integral of a function.
      */
     public get numeric(): Numeric {
         return this.#numeric ??= new Numeric(this.context)

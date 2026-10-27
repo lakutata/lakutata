@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
-import {type ComplexVector, createMath, type Decimal, type Distribution, type DistributionName, Expression, type IterativeSolution, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type PrimeFactor, type RootResult, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution} from '../exports/Math.js'
+import {type ComplexVector, createMath, type Decimal, type Distribution, type DistributionName, Expression, type IntegralResult, type IterativeSolution, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type PrimeFactor, type RootResult, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -387,8 +387,10 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
         }
     })
 
-    it('give the numeric roots of NumPy, mpmath and SciPy', (): void => {
-        type Fixture = {op: string, polynomial?: string, coefficients?: number[], multiple?: boolean, function?: string, bracket?: [number, number], guess?: number | number[], equations?: string[], variables?: string[], result?: unknown, error?: string}
+    it('give the numeric roots of NumPy, mpmath and SciPy, and the integrals of mpmath', (): void => {
+        type Fixture = {op: string, polynomial?: string, coefficients?: number[], multiple?: boolean, function?: string, bracket?: [number, number], guess?: number | number[], equations?: string[], variables?: string[], interval?: [number | string, number | string], points?: number[], notConverged?: boolean, result?: unknown, error?: string}
+        //JSON has no infinity: the infinite ends are 'inf' and '-inf'
+        const end = (value: number | string): number => value === 'inf' ? Infinity : value === '-inf' ? -Infinity : value as number
         const fixtures = expected<Fixture>('numeric')
         const near = (ours: number, theirs: number, tolerance: number): boolean => globalThis.Math.abs(ours - theirs) <= tolerance * (1 + globalThis.Math.abs(theirs))
         for (const fixture of fixtures.cases) {
@@ -398,6 +400,7 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
                     case 'polynomialRoots': return math.numeric.polynomialRoots(fixture.polynomial ?? fixture.coefficients!)
                     case 'findRoot': return math.numeric.findRoot(fixture.function!, 'x', fixture.bracket ? {bracket: fixture.bracket} : {guess: fixture.guess as number})
                     case 'solveSystem': return math.numeric.solveSystem(fixture.equations!, fixture.variables!, fixture.guess as number[])
+                    case 'integrate': return math.numeric.integrate(fixture.function!, 'x', [end(fixture.interval![0]), end(fixture.interval![1])], {points: fixture.points})
                 }
                 throw new Error(`Unknown operation ${fixture.op}`)
             }
@@ -411,6 +414,12 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
                 const tolerance: number = fixture.multiple ? 1e-4 : 1e-10
                 assert.strictEqual(ours.re.length, theirs.re.length, label)
                 ours.re.forEach((re: number, i: number): void => assert.ok(near(re, theirs.re[i], tolerance) && near(ours.im[i], theirs.im[i], tolerance), `${label}: ${re} + ${ours.im[i]}i, NumPy ${theirs.re[i]} + ${theirs.im[i]}i`))
+            } else if (fixture.op === 'integrate') {
+                //mpmath's quad at 30 digits; where doubles cannot converge (x^-0.99 has 0.08 of its integral below
+                //10^-308), only that it does not
+                const ours = operate() as IntegralResult, theirs = (fixture.result as {value: number}).value
+                if (fixture.notConverged) assert.ok(!ours.converged, `${label}: ${JSON.stringify(ours)} converged`)
+                else assert.ok(ours.converged && near(ours.value, theirs, 1e-12), `${label}: ${JSON.stringify(ours)}, mpmath ${theirs}`)
             } else if (fixture.op === 'findRoot') {
                 const ours = operate() as RootResult
                 assert.ok(ours.converged && near(ours.root, fixture.result as number, 1e-12), `${label}: ${JSON.stringify(ours)}, mpmath ${fixture.result}`)

@@ -440,3 +440,10 @@ LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 SUCH DAMAGE.
 ```
+
+## QUADPACK
+
+The adaptive integration of `numeric.integrate()` follows QUADPACK's QAGS and QELG (R. Piessens, E. de Doncker-Kapenga,
+C. W. Überhuber, D. K. Kahaner, QUADPACK: A Subroutine Package for Automatic Integration, Springer, 1983), which is in
+the public domain. Its algorithm is written again in C++ in `native/numeric/Integrate.cpp`; no source of QUADPACK is
+compiled.

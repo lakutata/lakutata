@@ -1,6 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {createMath, MathArgumentException, MathDomainException, MathNotSupportedException, type MathScope} from '../exports/Math.js'
+import {createMath, MathArgumentException, MathCancelledException, MathDomainException, MathNotSupportedException, type MathScope, MathSyntaxException} from '../exports/Math.js'
 
 describe('The numeric solutions', (): void => {
     const math: MathScope = createMath()
@@ -50,6 +50,41 @@ describe('The numeric solutions', (): void => {
         assert.ok((await math.numeric.solveSystemAsync(['x + y = 3', 'x - y = 1'], ['x', 'y'], [0, 0])).converged)
     })
 
+    it('integrate on finite intervals, half lines and the real line, singular at an end or at points given', async (): Promise<void> => {
+        const near = (value: number, expected: number): boolean => globalThis.Math.abs(value - expected) <= 1e-14 * (1 + globalThis.Math.abs(expected))
+        assert.strictEqual(math.numeric.integrate('x^2', 'x', [0, 3]).value, 9)
+        //From b to a, negated; from a to a, 0
+        assert.strictEqual(math.numeric.integrate('x^2', 'x', [3, 0]).value, -9)
+        assert.deepStrictEqual(math.numeric.integrate('x', 'x', [2, 2]), {value: 0, error: 0, converged: true})
+        //Singular at an end: the double-exponential quadrature, at the distance from an end that is not 0
+        assert.ok(near(math.numeric.integrate('1/sqrt(x)', 'x', [0, 1]).value, 2))
+        //Inside the interval, extrapolated as QUADPACK's QAGS does
+        const strong = math.numeric.integrate('x^(-0.99)', 'x', [0, 1])
+        assert.ok(strong.converged && globalThis.Math.abs(strong.value - 100) < 1e-11, JSON.stringify(strong))
+        assert.ok(near(math.numeric.integrate('1/sqrt(1 - x^2)', 'x', [-1, 1]).value, globalThis.Math.PI))
+        assert.ok(near(math.numeric.integrate('1/sqrt(abs(x - 1))', 'x', [0, 2], {points: [1]}).value, 4))
+        //Infinite ends: x^3 e^-x is not inf times 0 (its points do not go beyond its decay)
+        assert.ok(near(math.numeric.integrate('x^3*exp(-x)', 'x', [0, Infinity]).value, 6))
+        assert.ok(near(math.numeric.integrate('exp(-x^2)', 'x', [-Infinity, Infinity]).value, globalThis.Math.sqrt(globalThis.Math.PI)))
+        assert.ok(near(math.numeric.integrate('exp(x)', 'x', [-Infinity, 0]).value, 1))
+        //An integral of 0: the tolerance is relative to the integral of |f|
+        const zero = math.numeric.integrate('sin(x)', 'x', [-globalThis.Math.PI, globalThis.Math.PI])
+        assert.ok(zero.converged && globalThis.Math.abs(zero.value) < 1e-15)
+        //Infinite at a point of the rules (the middle of [0, 1/2]): split there, as by the points
+        assert.ok(near(math.numeric.integrate('1/sqrt(abs(x - 0.25))', 'x', [0, 1]).value, globalThis.Math.sqrt(3) + 1))
+        //Not convergent: the estimate, not converged
+        assert.strictEqual(math.numeric.integrate('1/x', 'x', [0, 1]).converged, false)
+        assert.strictEqual(math.numeric.integrate('1/(x - 0.5)^2', 'x', [0, 1]).converged, false)
+        assert.strictEqual(math.numeric.integrate('sin(x)/x', 'x', [0, Infinity]).converged, false)
+        //A larger tolerance: fewer intervals, a larger error
+        const coarse = math.numeric.integrate('1/(1e-4 + x^2)', 'x', [-1, 1], {tolerance: 1e-3})
+        assert.ok(coarse.converged && coarse.error <= 1e-3 * 312.2)
+        assert.ok(near((await math.numeric.integrateAsync('x^2', 'x', [0, 3])).value, 9))
+        const controller: AbortController = new AbortController()
+        controller.abort()
+        await assert.rejects(math.numeric.integrateAsync('x^2', 'x', [0, 1], {signal: controller.signal}), MathCancelledException)
+    })
+
     it('throw the exceptions of the package', (): void => {
         for (const [operation, exception] of [
             [(): unknown => math.numeric.polynomialRoots('sin(x)'), MathNotSupportedException],
@@ -64,7 +99,14 @@ describe('The numeric solutions', (): void => {
             [(): unknown => math.numeric.findRoot('x + y', 'x', {guess: 0}), MathArgumentException],
             [(): unknown => math.numeric.findRoot('sqrt(x)', 'x', {guess: -1}), MathDomainException],
             [(): unknown => math.numeric.solveSystem(['x'], ['x', 'y'], [1]), MathArgumentException],
-            [(): unknown => math.numeric.solveSystem(['log(x)'], ['x'], [-1]), MathDomainException]
+            [(): unknown => math.numeric.solveSystem(['log(x)'], ['x'], [-1]), MathDomainException],
+            //Not real inside the interval (but next to an end, where the roundings give 0/0)
+            [(): unknown => math.numeric.integrate('sqrt(x - 0.3)', 'x', [0, 1]), MathDomainException],
+            [(): unknown => math.numeric.integrate('x*y', 'x', [0, 1]), MathArgumentException],
+            [(): unknown => math.numeric.integrate('x', 'x', [0, 1], {tolerance: 1}), MathArgumentException],
+            [(): unknown => math.numeric.integrate('x', 'x', [0, 1], {points: [2]}), MathArgumentException],
+            [(): unknown => math.numeric.integrate('x', 'x', [0, NaN]), MathArgumentException],
+            [(): unknown => math.numeric.integrate('x = 1', 'x', [0, 1]), MathSyntaxException]
         ] as [() => unknown, typeof MathArgumentException][]) assert.throws(operation, exception)
     })
 })

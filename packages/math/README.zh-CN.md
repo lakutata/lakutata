@@ -18,7 +18,7 @@ npm install @lakutata/math
 
 ### 快速上手
 
-这个包导出的函数可以直接使用：`parse`、`expression`、`equation`、`decimal`、`matrix`、`solve` 和 `cse`，以及命名空间 `ntheory`（数论）、`linalg`（线性代数）、`stats`（统计和概率）和 `numeric`（数值解）。它们都属于 `math`，也就是用默认选项创建的范围。
+这个包导出的函数可以直接使用：`parse`、`expression`、`equation`、`decimal`、`matrix`、`solve` 和 `cse`，以及命名空间 `ntheory`（数论）、`linalg`（线性代数）、`stats`（统计和概率）和 `numeric`（数值解和数值积分）。它们都属于 `math`，也就是用默认选项创建的范围。
 
 ```typescript
 import {decimal, equation, expression, linalg, stats} from '@lakutata/math'
@@ -289,6 +289,24 @@ const {solution, converged} = numeric.solveSystem(['x^2 + y^2 = 4', 'x*y = 1'], 
 console.log(solution, converged)                                               //Float64Array [1.9318516525781366, 0.5176380902050416] true
 ```
 
+### 数值积分
+
+`numeric.integrate(function, variable, [a, b], options)` 求函数在区间上的积分，结果是 `{value, error, converged}`。端点可以是无穷（`-Infinity`、`Infinity`）；从 b 积到 a 时结果取反。
+
+- 用 QUADPACK 的 QAGS 算法计算，和 SciPy 的 `quad` 相同：把误差最大的区间对半分，用 21 点的 Gauss-Kronrod 公式计算，在奇点附近对结果序列做外推；半直线和整条实轴先变换到有限区间。如果这样还没算到舍入误差的程度，就再用双指数积分（tanh-sinh、exp-sinh、sinh-sinh）算一次，取更准确的结果。在不为 0 的端点附近，函数改写成到端点距离的函数（`x = 1 - u` 时 `1 - x^2` 是 `2u - u^2`），所以端点上的奇点（`1/sqrt(1 - x^2)` 在 `[-1, 1]` 上）也能算到舍入误差的程度。
+- `points` 给出区间内函数奇异或跳变的点，区间在这些点分开计算。外推往往能自己找到这样的点，但给出 `points` 算得更快、更准。函数在某个求积节点上是无穷大时，区间也会在那里分开。
+- `tolerance` 限制误差估计的大小（相对于 `|f|` 的积分）：默认约 1.5e-8（机器精度的平方根，和 SciPy 相同），实际结果通常比估计准确得多。发散、无休止振荡，或者双精度分辨不了的积分，给出最好的估计，并且 `converged` 为 `false`；函数在区间内不是实数时抛出 `MathDomainException`。`integrateAsync()` 在原生插件的线程里执行。
+
+```typescript
+import {numeric} from '@lakutata/math'
+
+console.log(numeric.integrate('x^2', 'x', [0, 3]))                                     //{value: 9, error: 9.992007221626409e-14, converged: true}
+console.log(numeric.integrate('1/sqrt(1 - x^2)', 'x', [-1, 1]).value)                  //3.141592653589794
+console.log(numeric.integrate('exp(-x^2)', 'x', [-Infinity, Infinity]).value)          //1.7724538509055159
+console.log(numeric.integrate('1/sqrt(abs(x - 1))', 'x', [0, 2], {points: [1]}).value) //4
+console.log(numeric.integrate('sin(x)/x', 'x', [0, Infinity]).converged)               //false
+```
+
 ### 异步运算
 
 可能耗时的运算都有异步版本：`expandAsync()`、`simplifyAsync()`、`diffAsync()`、`seriesAsync()`、`solveAsync()`、`toDecimalAsync()`、`toComplexDecimalAsync()`、`solveAsync()` 和 `cseAsync()`，以及数论、线性代数和数值解的异步版本。它们在原生插件自己的线程里执行，不占用 libuv 的线程池：线程数默认是 CPU 核数减一，也可以用环境变量 `LAKUTATA_MATH_THREADS` 指定。选项有 `timeout`（毫秒）和 `signal`（`AbortSignal`）：
@@ -326,7 +344,7 @@ console.log(solution, converged)                                               /
 | `IterativeOptions`、`IterativeSolution` | 迭代求解器的选项（`tolerance`、`maxIterations`、`guess`）和结果（`solution`、`iterations`、`error`、`converged`） |
 | `LuDecomposition`、`QrDecomposition`、`SingularValueDecomposition`、`EigenDecomposition`、`SymmetricEigenDecomposition`、`SchurDecomposition`、`ComplexVector`、`ComplexMatrix` | 各种分解的结果：`{lower, upper, permutation}`、`{q, r}`、`{u, singularValues, v}`、`{values, vectors}`（复数为 `{re, im}`）、`{values, vectors}`、`{u, t}` |
 | `NumberTheory`、`IntegerValue`、`PrimeFactor`、`ExtendedGcd`、`Congruence` | 数论（`ntheory`）：`gcd`、`lcm`、`extendedGcd`、`mod`、`modInverse`、`powMod`、`isPrime`、`nextPrime`、`factor`、`totient`、`mobius`、`primitiveRoot`、`legendre`、`jacobi`、`crt`、`fibonacci`、`lucas`、`binomial`、`factorial`、`doubleFactorial`、`bernoulli`、`harmonic`、`permutations`、`combinationsWithRepetition`、`multinomial`、`bell`、`catalan`、`stirlingSecondKind`、`compositions`，以及各个异步版本；整数（bigint，或安全整数范围内的 number）；质因数和它的指数；`extendedGcd` 的结果；`crt` 的结果 |
-| `Numeric`、`FindRootOptions`、`IterationOptions`、`RootResult`、`SystemRootResult` | 数值解（`numeric`）：`polynomialRoots`、`findRoot`、`solveSystem` 和它们的异步版本；它们的选项（`bracket`、`guess`、`tolerance`、`maxIterations`）和结果（`root` 或 `solution`、`converged`、`iterations`、`residual`） |
+| `Numeric`、`FindRootOptions`、`IterationOptions`、`RootResult`、`SystemRootResult`、`IntegrateOptions`、`IntegralResult` | 数值解和数值积分（`numeric`）：`polynomialRoots`、`findRoot`、`solveSystem`、`integrate` 和它们的异步版本；它们的选项（`bracket`、`guess`、`tolerance`、`maxIterations`、`points`）和结果（`root` 或 `solution`、`converged`、`iterations`、`residual`；`value`、`error`、`converged`） |
 | `AsyncOptions`、`Value` | 异步运算的选项（`timeout`、`signal`）；需要表达式的地方可以传入的值（表达式、数字、bigint、十进制数、公式） |
 
 类型声明里有每个声明的说明和示例。
@@ -338,10 +356,10 @@ console.log(solution, converged)                                               /
 | `MathSyntaxException` | 公式写得不对（带有出错的 `position`），需要表达式的地方给了方程，或者反过来 |
 | `MathUnknownFunctionException` | 公式调用的函数既不是内置函数，也没有定义，或者把常数写成了调用（`g(2)`），带有它的 `position` |
 | `MathDefinitionException` | 定义无效：用了内置的名字、参数重复、定义之间循环引用、定义嵌套太深 |
-| `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂），`findRoot()` 的区间两端符号相同或者函数在区间里不是实数，函数或方程组在 `findRoot()`、`solveSystem()` 的初始值处不是实数 |
+| `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂），`findRoot()` 的区间两端符号相同或者函数在区间里不是实数，函数或方程组在 `findRoot()`、`solveSystem()` 的初始值处不是实数，`integrate()` 的函数在区间内不是实数 |
 | `MathDivisionByZeroException` | 计算十进制值时遇到除以零（包括除以一个无法和 0 区分的值、0 的对数、0 的负数次幂、以 1 为底的对数、在函数的极点上求值：`gamma()` 的参数是 -2、`zeta()` 的参数是 1），或者模数是 0 |
 | `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 和 `bell(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、`stirlingSecondKind(n, k)` 的 n 超过 50000 或 n k 超过 6250000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`） |
-| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分布的参数无效、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数，`createMath()` 的选项无效 |
+| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、`integrate()` 的区间、分点或容差无效、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分布的参数无效、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数，`createMath()` 的选项无效 |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |
 | `MathException` | 以上所有错误的基类；原生插件内部错误时，它的 `errno` 是 `E_MATH_INTERNAL` |
 

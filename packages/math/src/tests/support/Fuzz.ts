@@ -832,3 +832,68 @@ export async function checkNumeric(math: MathScope, random: Random, index: numbe
     }
     return failures
 }
+
+/**
+ * The checks of the integrals: the integral of the derivative of a random formula of x is the difference of its values
+ * at the ends of the interval (the formula smooth, real and finite on it, at the points sampled), and the integrals of
+ * the two halves of the interval add up to it
+ * @param math
+ * @param random
+ * @param index
+ */
+export async function checkIntegrate(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    const round = (value: number): number => globalThis.Math.round(value * 100) / 100
+    try {
+        //The first of four random formulas that is usable
+        let f: Expression | undefined, derivative: Expression | undefined, a: number = 0, b: number = 0, absolute: number = 0
+        let values: (x: number) => number = (): number => NaN
+        for (let attempt: number = 0; attempt < 4 && !derivative; attempt++) {
+            const formula: string = randomFormula(random, 3)
+            //Smooth: the rounding functions, the sign, the absolute value, the extrema and the parts jump or have corners
+            if (/abs|sign|floor|ceil|round|arg|min|max|mod|atan2|hypot|re\(|im\(/.test(formula)) continue
+            let candidate: Expression = math.expression(formula)
+            const others: string[] = candidate.variables().filter((name: string): boolean => name !== 'x')
+            candidate = candidate.substitute(Object.fromEntries(others.map((name: string): [string, number] => [name, round(0.5 + random.next() * 2)])))
+            if (!candidate.variables().includes('x')) continue
+            a = round(random.next() * 4 - 2)
+            b = round(a + 0.25 + random.next() * 2)
+            const slope: Expression = candidate.diff('x')
+            const candidateValues = candidate.compile(['x']), slopes = slope.compile(['x'])
+            //Sampled: real and finite, not too steep; the integral of |f'| estimated for the tolerance
+            let sum: number = 0, usable: boolean = true
+            for (let k: number = 0; k <= 400 && usable; k++) {
+                const x: number = a + (b - a) * k / 400, y: number = candidateValues(x), dy: number = slopes(x)
+                usable = Number.isFinite(y) && Number.isFinite(dy) && globalThis.Math.abs(dy) <= 1e6
+                sum += globalThis.Math.abs(dy) * (b - a) / 400
+            }
+            if (!usable) continue
+            f = candidate
+            derivative = slope
+            values = candidateValues
+            absolute = sum
+        }
+        if (!f || !derivative) return failures
+        text = f.toString()
+        const start: number = values(a), end: number = values(b)
+        const scale: number = absolute + globalThis.Math.abs(start) + globalThis.Math.abs(end)
+        const whole = math.numeric.integrate(derivative, 'x', [a, b])
+        if (whole.converged && globalThis.Math.abs(whole.value - (end - start)) > 1e-8 * scale + 10 * whole.error) {
+            fail('integrate', `${JSON.stringify(whole)} on [${a}, ${b}], f(b) - f(a) ${end - start}`)
+        }
+        const middle: number = round((a + b) / 2)
+        if (middle > a && middle < b) {
+            const left = math.numeric.integrate(derivative, 'x', [a, middle]), right = math.numeric.integrate(derivative, 'x', [middle, b])
+            if (whole.converged && left.converged && right.converged && globalThis.Math.abs(left.value + right.value - whole.value) > 1e-8 * scale + 10 * (whole.error + left.error + right.error)) {
+                fail('additivity', `[${a}, ${middle}] ${left.value} + [${middle}, ${b}] ${right.value}, [${a}, ${b}] ${whole.value}`)
+            }
+        }
+        if ((await math.numeric.integrateAsync(derivative, 'x', [a, b])).value !== whole.value) fail('async', 'integrateAsync differs from integrate')
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('integrate', String(error))
+    }
+    return failures
+}
+

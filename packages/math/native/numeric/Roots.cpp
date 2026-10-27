@@ -82,14 +82,13 @@ struct NotReal {
     double at;
 };
 
-//A double by its 17 significant digits, without the zeros that end them
+}
+
 std::string shortest(double value)
 {
     char text[32];
     std::snprintf(text, sizeof(text), "%.17g", value);
     return text;
-}
-
 }
 
 ComplexRoots polynomialRootsOf(const std::vector<Complex> &given)

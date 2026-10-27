@@ -43,4 +43,19 @@ IterativeResult findRootOf(const Expr &function, const std::string &variable, st
 //symbolic Jacobian and a line search, Levenberg-Marquardt's steps where it fails
 IterativeResult solveSystemOf(const std::vector<Expr> &equations, const std::vector<std::string> &variables, const std::vector<double> &guess, double tolerance, size_t maxIterations);
 
+//An integral: its value, the estimate of its error, whether the error is within the tolerance times the integral of
+//the absolute value of the function
+struct IntegralResult {
+    double value = 0;
+    double error = 0;
+    bool converged = false;
+};
+
+//The integral of a function of a variable from a to b (either infinite), the interval split at the points (where the
+//function is singular or jumps): MathError Domain where the function is not real, or infinite with no finite integral
+IntegralResult integralOf(const Expr &function, const std::string &variable, double a, double b, const std::vector<double> &points, double tolerance);
+
+//A double by its 17 significant digits, without the zeros that end them (for the messages)
+std::string shortest(double value);
+
 }

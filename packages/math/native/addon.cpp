@@ -686,6 +686,29 @@ Job solveSystemJob(const Napi::Array &arguments)
     };
 }
 
+//integrate(function, variable, a, b, points (Float64Array), tolerance): {value, error, converged}
+Job integrateJob(const Napi::Array &arguments)
+{
+    const Expr function = expressionAt(arguments, 0);
+    const std::string variable = stringAt(arguments, 1, "The variable");
+    const double a = numberAt(arguments, 2, "The start of the interval"), b = numberAt(arguments, 3, "The end of the interval");
+    const Napi::Value given = arguments.Get(4u);
+    if (!given.IsTypedArray() || given.As<Napi::TypedArray>().TypedArrayType() != napi_float64_array) throw MathError(ErrorCode::Argument, "The points are a Float64Array");
+    const Napi::Float64Array values = given.As<Napi::Float64Array>();
+    const std::vector<double> points(values.Data(), values.Data() + values.ElementLength());
+    const double tolerance = numberAt(arguments, 5, "The tolerance");
+    return [function, variable, a, b, points, tolerance] {
+        const IntegralResult result = integralOf(function, variable, a, b, points, tolerance);
+        return Builder([result](Napi::Env env) {
+            Napi::Object value = Napi::Object::New(env);
+            value.Set("value", result.value);
+            value.Set("error", result.error);
+            value.Set("converged", result.converged);
+            return value;
+        });
+    };
+}
+
 Job fractionJob(const Napi::Array &arguments)
 {
     Expr expression = expressionAt(arguments, 0);
@@ -831,7 +854,7 @@ const std::map<std::string, JobFactory> &jobs()
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
-        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"distribution", distributionJob}, {"random", randomJob}, {"polynomialRoots", polynomialRootsJob}, {"findRoot", findRootJob}, {"solveSystem", solveSystemJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
+        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"distribution", distributionJob}, {"random", randomJob}, {"polynomialRoots", polynomialRootsJob}, {"findRoot", findRootJob}, {"solveSystem", solveSystemJob}, {"integrate", integrateJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
         {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}
     };
