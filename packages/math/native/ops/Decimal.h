@@ -50,10 +50,22 @@ public:
     Decimal sub(const Decimal &a, const Decimal &b) const;
     Decimal mul(const Decimal &a, const Decimal &b) const;
     Decimal div(const Decimal &a, const Decimal &b) const;
+    //a^b: mpdecimal's below FAST_DIGITS and for an integer b, e^(b ln a) above
     Decimal pow(const Decimal &a, const Decimal &b) const;
+    Decimal libraryPow(const Decimal &a, const Decimal &b) const;
+    //The square root: mpdecimal's below FAST_DIGITS (correctly rounded), ours above (within a unit of its last digit;
+    //mpdecimal's took the time of 70 products)
     Decimal sqrt(const Decimal &a) const;
+    Decimal librarySqrt(const Decimal &a) const;
+    //exp and ln: mpdecimal's below FAST_DIGITS, ours above (mpdecimal's take a time of the square of the digits there:
+    //5000 digits of ln in half a second), within a unit of their last digit
     Decimal exp(const Decimal &a) const;
     Decimal ln(const Decimal &a) const;
+    //mpdecimal's exp, ln and log10, correctly rounded
+    Decimal libraryExp(const Decimal &a) const;
+    Decimal libraryLn(const Decimal &a) const;
+    Decimal libraryLog10(const Decimal &a) const;
+    static constexpr long FAST_DIGITS = 400;
     Decimal neg(const Decimal &a) const;
     Decimal abs(const Decimal &a) const;
     Decimal floor(const Decimal &a) const;
@@ -62,6 +74,8 @@ public:
     //The nearest integer, halves away from zero
     Decimal roundToInteger(const Decimal &a) const;
     Decimal log10(const Decimal &a) const;
+    //a times 10^n, exactly
+    Decimal scaleb(const Decimal &a, int64_t n) const;
     //A decimal without its trailing zeros (1.50 is 1.5, 100 is 1E+2)
     Decimal reduce(const Decimal &a) const;
     int compare(const Decimal &a, const Decimal &b) const;
@@ -71,8 +85,9 @@ public:
     int64_t exponent(const Decimal &a) const;
     static constexpr int64_t ZERO_EXPONENT = INT64_MIN;
 
-    //π at this precision
+    //π and ln 10 at this precision
     Decimal pi() const;
+    Decimal ln10() const;
     //The constants of Euler (γ) and Catalan
     Decimal eulerGamma() const;
     Decimal catalan() const;

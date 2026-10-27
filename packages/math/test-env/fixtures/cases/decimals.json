@@ -5482,5 +5482,90 @@
   "args": [
    "2"
   ]
+ },
+ {
+  "op": "exp",
+  "precision": 3000,
+  "args": [
+   "2.7"
+  ]
+ },
+ {
+  "op": "ln",
+  "precision": 3000,
+  "args": [
+   "2.7"
+  ]
+ },
+ {
+  "op": "ln",
+  "precision": 3000,
+  "args": [
+   "1.0001"
+  ]
+ },
+ {
+  "op": "sin",
+  "precision": 3000,
+  "args": [
+   "1"
+  ]
+ },
+ {
+  "op": "cos",
+  "precision": 3000,
+  "args": [
+   "100000.5"
+  ]
+ },
+ {
+  "op": "atan",
+  "precision": 3000,
+  "args": [
+   "0.7"
+  ]
+ },
+ {
+  "op": "sqrt",
+  "precision": 3000,
+  "args": [
+   "2"
+  ]
+ },
+ {
+  "op": "pow",
+  "precision": 3000,
+  "args": [
+   "3.14159",
+   "2.718281828"
+  ]
+ },
+ {
+  "op": "log10",
+  "precision": 3000,
+  "args": [
+   "7"
+  ]
+ },
+ {
+  "op": "asinh",
+  "precision": 3000,
+  "args": [
+   "0.001"
+  ]
+ },
+ {
+  "op": "gamma",
+  "precision": 3000,
+  "args": [
+   "0.3"
+  ]
+ },
+ {
+  "op": "zeta",
+  "precision": 3000,
+  "args": [
+   "2.5"
+  ]
  }
 ]

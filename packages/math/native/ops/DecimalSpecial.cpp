@@ -39,10 +39,10 @@ Decimal bernoulli(const DecimalContext &g, unsigned long k)
 }
 
 //The terms of the asymptotic series are taken up to this many Bernoulli numbers: past them, the argument is taken larger
-constexpr unsigned long MOST_TERMS = 1000;
+constexpr unsigned long MOST_TERMS = 2500;
 
 //The size above which the asymptotic series reach the digits of g before their terms grow: about 0.6 digits (their
-//smallest term is near e^(-2π z)), more for the derivatives of order n; doubled when that is not enough
+//smallest term is near e^(-2π z)), more for the derivatives of order n; a quarter larger each time that is not enough
 double asymptoticSize(const DecimalContext &g, double more)
 {
     return std::max(16.0, 0.6 * static_cast<double>(g.digits()) + more);
@@ -107,7 +107,7 @@ bool stirling(const DecimalContext &g, const Decimal &z, Decimal &result)
 //at x + n, less the logarithm of x (x + 1)… (x + n - 1)
 Decimal logGamma(const DecimalContext &g, const Decimal &x, int64_t &largest)
 {
-    for (double size = asymptoticSize(g, 0);; size *= 2) {
+    for (double size = asymptoticSize(g, 0);; size *= 1.25) {
         const long long shift = shiftTo(g, x, size);
         Decimal product = g.integer(1);
         for (long long k = 0; k < shift; k++) {
@@ -145,6 +145,65 @@ Decimal cotPi(const DecimalContext &g, const Decimal &x)
     const Decimal r = g.sub(x, g.roundToInteger(x));
     const Decimal angle = g.mul(g.pi(), r);
     return g.div(g.cos(angle), g.sin(angle));
+}
+
+//Σ j^-s, j from 1 to n, of a real s: j^-s = p^-s (j/p)^-s of the smallest prime factor p of j, so that only the primes
+//have a power of their own; ln p = ln(p - 1) + 2 atanh(1/(2p - 1)), ln(p - 1) of the smaller primes, the series of
+//atanh short; a half-integer s takes the square root of p instead of an exponential
+Decimal riemannSum(const DecimalContext &g, const Decimal &s, long long n)
+{
+    std::vector<long long> smallest(static_cast<size_t>(n) + 1, 0);
+    for (long long j = 2; j <= n; j++) {
+        if (smallest[j]) continue;
+        for (long long m = j; m <= n; m += j) {
+            if (!smallest[m]) smallest[m] = j;
+        }
+    }
+    const Decimal one = g.integer(1);
+    const Decimal twice = g.mul(s, g.integer(2));
+    const bool halfInteger = isInteger(twice);
+    const Decimal whole = halfInteger ? g.floor(s) : Decimal();
+    const Decimal limit = negligible(g);
+    std::vector<Decimal> logarithms(static_cast<size_t>(n) + 1);
+    std::vector<Decimal> powers(static_cast<size_t>(n) + 1);
+    powers[1] = one;
+    Decimal sum = one;
+    for (long long j = 2; j <= n; j++) {
+        const long long p = smallest[j];
+        if (p == j) {
+            if (halfInteger) {
+                //p^-s = p^-floor(s) / sqrt(p)
+                powers[j] = g.div(g.pow(g.integer(j), g.neg(whole)), g.sqrt(g.integer(j)));
+            } else {
+                Decimal logarithm;
+                if (j == 2) {
+                    logarithm = g.ln(g.integer(2));
+                } else {
+                    //ln(p - 1) from the primes of p - 1
+                    logarithm = g.integer(0);
+                    for (long long m = j - 1; m > 1; m /= smallest[m]) logarithm = g.add(logarithm, logarithms[smallest[m]]);
+                    const long long q = 2 * j - 1;
+                    const Decimal square = g.integer(q * q);
+                    Decimal power = g.div(one, g.integer(q));
+                    Decimal series = power;
+                    for (long long k = 1;; k++) {
+                        power = g.div(power, square);
+                        const Decimal term = g.div(power, g.integer(2 * k + 1));
+                        if (g.compare(term, limit) < 0) break;
+                        series = g.add(series, term);
+                    }
+                    logarithm = g.add(logarithm, g.mul(g.integer(2), series));
+                }
+                logarithms[j] = logarithm;
+                powers[j] = g.exp(g.neg(g.mul(s, logarithm)));
+            }
+        } else {
+            powers[j] = g.mul(powers[p], powers[j / p]);
+        }
+        sum = g.add(sum, powers[j]);
+        if (j % 64 == 0) checkpoint();
+    }
+    return sum;
 }
 
 [[noreturn]] void pole(const std::string &function)
@@ -310,7 +369,7 @@ Decimal DecimalContext::polygamma(long long n, const Decimal &x) const
     }
     //ψ^(n)(x) = ψ^(n)(x + m) + (-1)^(n + 1) n! Σ (x + k)^-(n + 1), k < m
     return cancelling(*this, [n, &x](const DecimalContext &g, int64_t &largest) {
-        for (double size = asymptoticSize(g, static_cast<double>(n));; size *= 2) {
+        for (double size = asymptoticSize(g, static_cast<double>(n));; size *= 1.25) {
             const long long shift = shiftTo(g, x, size);
             Decimal series;
             if (!polygammaSeries(g, n, g.add(x, g.integer(shift)), series)) continue;
@@ -438,7 +497,7 @@ Decimal DecimalContext::zeta(const Decimal &s, const Decimal &a) const
     const bool integral = isInteger(s);
     return cancelling(*this, [&s, &a, integral](const DecimalContext &g, int64_t &largest) {
         const Decimal one = g.integer(1);
-        for (double size = asymptoticSize(g, std::fabs(toDouble(s)));; size *= 2) {
+        for (double size = asymptoticSize(g, std::fabs(toDouble(s)));; size *= 1.25) {
             const long long n = shiftTo(g, a, size);
             const Decimal w = g.add(a, g.integer(n));
             const Decimal base = integral ? g.pow(w, g.neg(s)) : g.exp(g.neg(g.mul(s, g.ln(w))));
@@ -465,10 +524,14 @@ Decimal DecimalContext::zeta(const Decimal &s, const Decimal &a) const
             }
             if (!converged) continue;
             Decimal sum = g.integer(0);
-            for (long long k = 0; k < n; k++) {
-                const Decimal at = g.add(a, g.integer(k));
-                sum = g.add(sum, integral ? g.pow(at, g.neg(s)) : g.exp(g.neg(g.mul(s, g.ln(at)))));
-                if (k % 64 == 63) checkpoint();
+            if (!integral && g.compare(a, one) == 0 && n <= 100000) {
+                sum = riemannSum(g, s, n);
+            } else {
+                for (long long k = 0; k < n; k++) {
+                    const Decimal at = g.add(a, g.integer(k));
+                    sum = g.add(sum, integral ? g.pow(at, g.neg(s)) : g.exp(g.neg(g.mul(s, g.ln(at)))));
+                    if (k % 64 == 63) checkpoint();
+                }
             }
             largest = largestOf(g, {&sum, &tail});
             return g.add(sum, tail);

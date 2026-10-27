@@ -138,18 +138,27 @@ MATH_DECIMAL_BINARY(add, mpd_qadd)
 MATH_DECIMAL_BINARY(sub, mpd_qsub)
 MATH_DECIMAL_BINARY(mul, mpd_qmul)
 MATH_DECIMAL_BINARY(div, mpd_qdiv)
-MATH_DECIMAL_BINARY(pow, mpd_qpow)
-MATH_DECIMAL_UNARY(sqrt, mpd_qsqrt)
-MATH_DECIMAL_UNARY(exp, mpd_qexp)
-MATH_DECIMAL_UNARY(ln, mpd_qln)
+MATH_DECIMAL_BINARY(libraryPow, mpd_qpow)
+MATH_DECIMAL_UNARY(librarySqrt, mpd_qsqrt)
+MATH_DECIMAL_UNARY(libraryExp, mpd_qexp)
+MATH_DECIMAL_UNARY(libraryLn, mpd_qln)
 MATH_DECIMAL_UNARY(neg, mpd_qminus)
 MATH_DECIMAL_UNARY(abs, mpd_qabs)
 MATH_DECIMAL_UNARY(floor, mpd_qfloor)
 MATH_DECIMAL_UNARY(ceil, mpd_qceil)
 MATH_DECIMAL_UNARY(trunc, mpd_qtrunc)
-MATH_DECIMAL_UNARY(log10, mpd_qlog10)
+MATH_DECIMAL_UNARY(libraryLog10, mpd_qlog10)
 MATH_DECIMAL_UNARY(round, mpd_qplus)
 MATH_DECIMAL_UNARY(reduce, mpd_qreduce)
+
+Decimal DecimalContext::scaleb(const Decimal &a, int64_t n) const
+{
+    Decimal result;
+    uint32_t status = 0;
+    mpd_qscaleb(result.get(), a.get(), integer(n).get(), &context_, &status);
+    check(status);
+    return result;
+}
 
 Decimal DecimalContext::integer(long long value) const
 {

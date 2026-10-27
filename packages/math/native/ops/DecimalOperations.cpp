@@ -136,7 +136,7 @@ Decimal root(const DecimalContext &context, const Decimal &a, long long n)
     if (n < 1) throw MathError(ErrorCode::Argument, "The degree of a root is an integer from 1 to 1000000000");
     if (n == 1) return context.round(a);
     if (context.isNegative(a) && n % 2 == 0) throw MathError(ErrorCode::Domain, "The value is not a real number (an even root of a negative number)");
-    if (n == 2) return context.sqrt(a);
+    if (n == 2) return context.digits() <= DecimalContext::FAST_DIGITS ? context.sqrt(a) : correctlyRounded(context.digits(), [&a](const DecimalContext &g) { return g.sqrt(a); });
     if (context.isZero(a)) return context.integer(0);
     const bool negative = context.isNegative(a);
     //e^(ln|a|/n), with the digits of the exponent of a more (ln|a| has them above its point)
@@ -188,15 +188,14 @@ std::string decimalOperation(const std::string &operation, long precision, const
     if (operation == "abs") return text(context.abs(a));
     if (operation == "sqrt") {
         if (context.isNegative(a)) throw MathError(ErrorCode::Domain, "The value is not a real number (the square root of a negative number)");
-        return text(context.sqrt(a));
+        return precision <= DecimalContext::FAST_DIGITS ? text(context.sqrt(a)) : function(&DecimalContext::sqrt);
     }
     if (operation == "root") return text(root(context, a, integerArgument(values[1], "The degree of a root")));
-    //mpdecimal's exp, ln and log10 are correctly rounded
-    if (operation == "exp") return text(context.exp(a));
+    if (operation == "exp") return function(&DecimalContext::exp);
     if (operation == "ln" || operation == "log10") {
         if (context.isZero(a)) throw MathError(ErrorCode::DivisionByZero, "Division by zero (the logarithm of 0)");
         if (context.isNegative(a)) throw MathError(ErrorCode::Domain, "The value is not a real number (the logarithm of a negative number)");
-        return text(operation == "ln" ? context.ln(a) : context.log10(a));
+        return function(operation == "ln" ? &DecimalContext::ln : &DecimalContext::log10);
     }
     if (operation == "log") return text(logarithm(context, a, values[1]));
     if (operation == "sin") return function(&DecimalContext::sin);
