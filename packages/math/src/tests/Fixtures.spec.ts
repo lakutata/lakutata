@@ -2,7 +2,7 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
 import {Container} from '@lakutata/core'
-import {type Decimal, type Distribution, type DistributionName, Expression, type IterativeSolution, Math, MathException, Matrix, type Normalization, type NormalizationOptions, type PrimeFactor, type Solutions, SparseMatrix, type SystemSolution} from '../exports/Math.js'
+import {type ComplexVector, type Decimal, type Distribution, type DistributionName, Expression, type IterativeSolution, Math, MathException, Matrix, type Normalization, type NormalizationOptions, type PrimeFactor, type RootResult, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -395,6 +395,41 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
                     const same: boolean = Object.is(element, expectedValue) || (!exact && globalThis.Math.abs(element - expectedValue) <= 1e-13 * globalThis.Math.abs(expectedValue))
                     assert.ok(same, `${label} ${key}[${i}]: ${element}, SciPy ${expectedValue}`)
                 })
+            }
+        }
+    })
+
+    it('give the numeric roots of NumPy, mpmath and SciPy', (): void => {
+        type Fixture = {op: string, polynomial?: string, coefficients?: number[], multiple?: boolean, function?: string, bracket?: [number, number], guess?: number | number[], equations?: string[], variables?: string[], result?: unknown, error?: string}
+        const fixtures = expected<Fixture>('numeric')
+        const near = (ours: number, theirs: number, tolerance: number): boolean => globalThis.Math.abs(ours - theirs) <= tolerance * (1 + globalThis.Math.abs(theirs))
+        for (const fixture of fixtures.cases) {
+            const label: string = `${fixture.op}(${JSON.stringify(fixture.polynomial ?? fixture.coefficients ?? fixture.function ?? fixture.equations)})`
+            const operate = (): unknown => {
+                switch (fixture.op) {
+                    case 'polynomialRoots': return math.numeric.polynomialRoots(fixture.polynomial ?? fixture.coefficients!)
+                    case 'findRoot': return math.numeric.findRoot(fixture.function!, 'x', fixture.bracket ? {bracket: fixture.bracket} : {guess: fixture.guess as number})
+                    case 'solveSystem': return math.numeric.solveSystem(fixture.equations!, fixture.variables!, fixture.guess as number[])
+                }
+                throw new Error(`Unknown operation ${fixture.op}`)
+            }
+            if (fixture.error) {
+                assert.throws(operate, (error: unknown): boolean => error instanceof MathException && (error as MathException).errno === fixture.error, label)
+                continue
+            }
+            if (fixture.op === 'polynomialRoots') {
+                //Sorted by their real parts then their imaginary ones; a multiple root to about the cube root of epsilon
+                const ours = operate() as ComplexVector, theirs = fixture.result as {re: number[], im: number[]}
+                const tolerance: number = fixture.multiple ? 1e-4 : 1e-10
+                assert.strictEqual(ours.re.length, theirs.re.length, label)
+                ours.re.forEach((re: number, i: number): void => assert.ok(near(re, theirs.re[i], tolerance) && near(ours.im[i], theirs.im[i], tolerance), `${label}: ${re} + ${ours.im[i]}i, NumPy ${theirs.re[i]} + ${theirs.im[i]}i`))
+            } else if (fixture.op === 'findRoot') {
+                const ours = operate() as RootResult
+                assert.ok(ours.converged && near(ours.root, fixture.result as number, 1e-12), `${label}: ${JSON.stringify(ours)}, mpmath ${fixture.result}`)
+            } else {
+                const ours = operate() as SystemRootResult
+                assert.ok(ours.converged, `${label}: not converged`)
+                ours.solution.forEach((value: number, i: number): void => assert.ok(near(value, (fixture.result as number[])[i], 1e-9), `${label}: ${Array.from(ours.solution)}, mpmath ${fixture.result}`))
             }
         }
     })

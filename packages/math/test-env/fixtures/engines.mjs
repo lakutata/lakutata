@@ -1,9 +1,9 @@
 // The formulas of the grammar and numbers cases evaluated by mathjs and nerdamer (1.x) at the sample points of SymPy's
 // results (expected/*.json, written by reference.py first), and compared with them; the number theory, the functions of
-// matrices and the statistics too. Each difference must be noted in the case (`differs: {mathjs: 'why', nerdamer:
-// 'why'}`): the differences of the syntax are written down, not found by surprise. The result of each engine is added
-// to the expected files. Run by generate.sh in a container, where ENGINES is the directory mathjs and nerdamer are
-// installed in; never a dependency of the package.
+// matrices, the statistics and the roots of polynomials too. Each difference must be noted in the case (`differs:
+// {mathjs: 'why', nerdamer: 'why'}`): the differences of the syntax are written down, not found by surprise. The result
+// of each engine is added to the expected files. Run by generate.sh in a container, where ENGINES is the directory
+// mathjs and nerdamer are installed in; never a dependency of the package.
 
 import {readFileSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
@@ -237,6 +237,33 @@ const statistics = {
     })
     expected.generator = {...expected.generator, mathjs: versions.mathjs}
     writeFileSync(path.join(HERE, 'expected/stats.json'), JSON.stringify(expected, null, 1) + '\n')
+}
+//The roots of the polynomials given by at most 4 coefficients, mathjs's polynomialRoot (from the constant term up, as
+//ours), against NumPy's, both sorted by their real parts then their imaginary ones
+{
+    const cases = read('cases/numeric.json')
+    const expected = read('expected/numeric.json')
+    expected.cases.forEach((result, index) => {
+        const source = cases[index]
+        if (result.op !== 'polynomialRoots' || !result.coefficients || result.coefficients.length > 4) return
+        result.engines = {}
+        let outcome
+        try {
+            const roots = math.polynomialRoot(...result.coefficients).map((root) => typeof root === 'number' ? [root, 0] : [root.re, root.im])
+            roots.sort((a, b) => a[0] - b[0] || a[1] - b[1])
+            const theirs = result.result.re.map((re, i) => [re, result.result.im[i]])
+            outcome = roots.length === theirs.length && roots.every(([re, im], i) => Math.abs(re - theirs[i][0]) <= 1e-9 * (1 + Math.abs(re)) && Math.abs(im - theirs[i][1]) <= 1e-9 * (1 + Math.abs(im))) ? 'same' : `different: ${JSON.stringify(roots)}`
+        } catch (error) {
+            outcome = `error: ${String(error.message ?? error).split('\n')[0].slice(0, 120)}`
+        }
+        result.engines.mathjs = outcome
+        const noted = source.differs?.mathjs
+        const label = `numeric polynomialRoots(${JSON.stringify(result.coefficients)})`
+        if (outcome !== 'same' && !noted) problems.push(`${label}: mathjs ${outcome}, not noted`)
+        if (outcome === 'same' && noted) problems.push(`${label}: mathjs agrees, its note is stale`)
+    })
+    expected.generator = {...expected.generator, mathjs: versions.mathjs}
+    writeFileSync(path.join(HERE, 'expected/numeric.json'), JSON.stringify(expected, null, 1) + '\n')
 }
 console.log(`mathjs ${versions.mathjs}, nerdamer ${versions.nerdamer}: ${problems.length} differences not noted`)
 if (problems.length) {

@@ -18,6 +18,19 @@ export type SystemSolution = Record<string, Expression>
 export type SystemEquation = Equation | Expression | string
 
 /**
+ * The expression equal to zero of an equation of a system: its difference, or the expression given
+ * @param context The context of the definitions.
+ * @param equation The equation: an equation, a formula, or an expression equal to zero.
+ */
+export function equationHandleOf(context: Context, equation: SystemEquation): Handle {
+    if (equation instanceof Equation) return equation.difference().handle
+    if (typeof equation !== 'string') return handleOf(context, equation)
+    const parsed: NativeParsed = nativeCall((native) => native.parse(context.scope, equation))
+    if (parsed.kind === 'relation') throw new MathSyntaxException(`An equation is expected, not an inequality: ${equation}`)
+    return parsed.kind === 'equation' ? new Equation(new Expression(context, parsed.left), new Expression(context, parsed.right!)).difference().handle : parsed.left
+}
+
+/**
  * The definitions of formulas: a body by signature (`{'f(x)': 'x^2 + 1', 'g': 9.80665}`)
  */
 export type MathDefinitions = Record<string, string | number>
@@ -195,13 +208,7 @@ export class MathScope {
 
     #system(equations: SystemEquation[], variables: string[]): [Handle[], string[]] {
         if (!Array.isArray(equations) || !Array.isArray(variables)) throw new MathArgumentException('The equations and the variables are arrays')
-        return [equations.map((equation: SystemEquation): Handle => {
-            if (equation instanceof Equation) return equation.difference().handle
-            if (typeof equation !== 'string') return handleOf(this.context, equation)
-            const parsed: NativeParsed = nativeCall((native) => native.parse(this.context.scope, equation))
-            if (parsed.kind === 'relation') throw new MathSyntaxException(`An equation is expected, not an inequality: ${equation}`)
-            return parsed.kind === 'equation' ? new Equation(new Expression(this.context, parsed.left), new Expression(this.context, parsed.right!)).difference().handle : parsed.left
-        }), variables]
+        return [equations.map((equation: SystemEquation): Handle => equationHandleOf(this.context, equation)), variables]
     }
 
     #solutions(result: LinearResult): SystemSolution[] {

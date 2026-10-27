@@ -8,6 +8,7 @@ import type {Matrix, MatrixValue} from '../lib/Matrix.js'
 import {type CommonSubexpressions, type CseOptions, type MathDefinitions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
 import {native, nativeCall} from '../lib/Native.js'
 import {NumberTheory} from '../lib/NumberTheory.js'
+import {Numeric} from '../lib/Numeric.js'
 import {Statistics} from '../lib/Statistics.js'
 
 /**
@@ -124,6 +125,8 @@ export class Math extends Component {
 
     #stats: Statistics
 
+    #numeric: Numeric
+
     /**
      * Prepare the definitions.
      * @protected
@@ -141,6 +144,7 @@ export class Math extends Component {
         this.#ntheory = new NumberTheory(context)
         this.#linalg = new LinearAlgebra(context)
         this.#stats = new Statistics(context)
+        this.#numeric = new Numeric(context)
     }
 
     /**
@@ -209,6 +213,26 @@ export class Math extends Component {
      */
     public get stats(): Statistics {
         return this.#stats
+    }
+
+    /**
+     * The numeric solutions of equations: the roots of polynomials, a root of a function, a solution of a system of
+     * nonlinear equations. Its asynchronous operations share the threads, the time limit and the concurrency of the
+     * component. Only the component has them: a scope of `with()` does not.
+     * @example
+     * ```typescript
+     * import {Container} from 'lakutata'
+     * import {Math} from '@lakutata/math'
+     *
+     * const container: Container = new Container()
+     * await container.setNamed('math', Math, {})
+     * const math: Math = await container.get<Math>('math')
+     * math.numeric.findRoot('x^2 = 2', 'x', {bracket: [0, 2]}).root   //1.4142135623730951
+     * await container.destroy()
+     * ```
+     */
+    public get numeric(): Numeric {
+        return this.#numeric
     }
 
     /**

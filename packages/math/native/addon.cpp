@@ -5,6 +5,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <optional>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -17,6 +18,8 @@
 #include "async/Pool.h"
 #include "core/Errors.h"
 #include "linalg/Linalg.h"
+#include "numeric/Compiled.h"
+#include "numeric/Numeric.h"
 #include "stats/Distributions.h"
 #include "stats/Statistics.h"
 #include "core/Handle.h"
@@ -594,6 +597,95 @@ Job randomJob(const Napi::Array &arguments)
     throw MathError(ErrorCode::Argument, "Unknown operation of a random generator: " + operation);
 }
 
+Napi::Float64Array float64ArrayOf(Napi::Env env, const std::vector<double> &values)
+{
+    Napi::Float64Array array = Napi::Float64Array::New(env, values.size());
+    if (!values.empty()) std::memcpy(array.Data(), values.data(), values.size() * sizeof(double));
+    return array;
+}
+
+Napi::Value iterativeValue(Napi::Env env, const IterativeResult &result)
+{
+    Napi::Object value = Napi::Object::New(env);
+    value.Set("solution", float64ArrayOf(env, result.solution));
+    value.Set("converged", result.converged);
+    value.Set("iterations", static_cast<double>(result.iterations));
+    value.Set("residual", result.residual);
+    return value;
+}
+
+size_t iterationsAt(const Napi::Array &arguments, uint32_t index)
+{
+    const double iterations = numberAt(arguments, index, "The largest number of iterations");
+    if (iterations != std::floor(iterations) || iterations < 0 || iterations > 1e9) throw MathError(ErrorCode::Argument, "The largest number of iterations is an integer from 0 to 10^9");
+    return static_cast<size_t>(iterations);
+}
+
+//polynomialRoots(polynomial, variable) or polynomialRoots(Float64Array of the coefficients from the constant term
+//up): {re, im}
+Job polynomialRootsJob(const Napi::Array &arguments)
+{
+    const Napi::Value first = arguments.Get(0u);
+    std::optional<std::vector<std::complex<double>>> coefficients;
+    Expr polynomial;
+    std::string variable;
+    if (first.IsTypedArray() && first.As<Napi::TypedArray>().TypedArrayType() == napi_float64_array) {
+        const Napi::Float64Array given = first.As<Napi::Float64Array>();
+        coefficients = std::vector<std::complex<double>>(given.Data(), given.Data() + given.ElementLength());
+    } else {
+        polynomial = expressionAt(arguments, 0);
+        variable = stringAt(arguments, 1, "The variable");
+    }
+    return [coefficients, polynomial, variable] {
+        auto roots = std::make_shared<ComplexRoots>(coefficients ? polynomialRootsOf(*coefficients) : polynomialRootsOf(polynomial, variable));
+        return Builder([roots](Napi::Env env) {
+            Napi::Object value = Napi::Object::New(env);
+            value.Set("re", float64ArrayOf(env, roots->re));
+            value.Set("im", float64ArrayOf(env, roots->im));
+            return value;
+        });
+    };
+}
+
+//findRoot(function, variable, bracket [a, b] or null, guess or null, tolerance, maxIterations)
+Job findRootJob(const Napi::Array &arguments)
+{
+    const Expr function = expressionAt(arguments, 0);
+    const std::string variable = stringAt(arguments, 1, "The variable");
+    std::optional<std::pair<double, double>> bracket;
+    std::optional<double> guess;
+    if (arguments.Get(2u).IsArray()) {
+        const Napi::Array ends = arguments.Get(2u).As<Napi::Array>();
+        if (ends.Length() != 2) throw MathError(ErrorCode::Argument, "A bracket is [a, b]");
+        bracket = std::make_pair(numberAt(ends, 0, "An end of the bracket"), numberAt(ends, 1, "An end of the bracket"));
+    }
+    if (arguments.Get(3u).IsNumber()) guess = numberAt(arguments, 3, "The guess");
+    if (!bracket && !guess) throw MathError(ErrorCode::Argument, "A root is found in a bracket or from a guess");
+    const double tolerance = numberAt(arguments, 4, "The tolerance");
+    const size_t iterations = iterationsAt(arguments, 5);
+    return [function, variable, bracket, guess, tolerance, iterations] {
+        auto result = std::make_shared<IterativeResult>(findRootOf(function, variable, bracket, guess, tolerance, iterations));
+        return Builder([result](Napi::Env env) { return iterativeValue(env, *result); });
+    };
+}
+
+//solveSystem(equations, variables, guess (Float64Array), tolerance, maxIterations)
+Job solveSystemJob(const Napi::Array &arguments)
+{
+    const std::vector<Expr> equations = expressionsAt(arguments, 0);
+    const std::vector<std::string> variables = stringsAt(arguments, 1);
+    const Napi::Value given = arguments.Get(2u);
+    if (!given.IsTypedArray() || given.As<Napi::TypedArray>().TypedArrayType() != napi_float64_array) throw MathError(ErrorCode::Argument, "The guess is a Float64Array");
+    const Napi::Float64Array values = given.As<Napi::Float64Array>();
+    const std::vector<double> guess(values.Data(), values.Data() + values.ElementLength());
+    const double tolerance = numberAt(arguments, 3, "The tolerance");
+    const size_t iterations = iterationsAt(arguments, 4);
+    return [equations, variables, guess, tolerance, iterations] {
+        auto result = std::make_shared<IterativeResult>(solveSystemOf(equations, variables, guess, tolerance, iterations));
+        return Builder([result](Napi::Env env) { return iterativeValue(env, *result); });
+    };
+}
+
 Job fractionJob(const Napi::Array &arguments)
 {
     Expr expression = expressionAt(arguments, 0);
@@ -739,7 +831,7 @@ const std::map<std::string, JobFactory> &jobs()
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
-        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"distribution", distributionJob}, {"random", randomJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
+        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"distribution", distributionJob}, {"random", randomJob}, {"polynomialRoots", polynomialRootsJob}, {"findRoot", findRootJob}, {"solveSystem", solveSystemJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
         {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}
     };
@@ -935,25 +1027,14 @@ Napi::Value Variables(const Napi::CallbackInfo &info)
     return result;
 }
 
-//A formula compiled into a function of numbers: by SymEngine's LambdaRealDoubleVisitor, and by its complex one when the
-//real one has no value there (a complex value on the way: im(sqrt(y)) for y < 0) or cannot be built (i^i is real):
-//the value is then the real part, NaN where it is not real
+//A formula compiled into a function of numbers (CompiledFunction, of one output)
 struct Compiled {
-    SymEngine::LambdaRealDoubleVisitor real;
-    bool realBuilt = false;
-    std::unique_ptr<SymEngine::LambdaComplexDoubleVisitor> complex;
+    std::unique_ptr<CompiledFunction> function;
     size_t inputs;
 
     void call(double *result, const double *values)
     {
-        if (realBuilt) {
-            real.call(result, values);
-            if (!std::isnan(*result) || !complex) return;
-        }
-        std::vector<std::complex<double>> arguments(values, values + inputs);
-        std::complex<double> value;
-        complex->call(&value, arguments.data());
-        *result = std::abs(value.imag()) <= 1e-12 * std::max(1.0, std::abs(value.real())) ? value.real() : std::numeric_limits<double>::quiet_NaN();
+        function->call(result, values);
     }
 };
 
@@ -962,30 +1043,16 @@ Napi::Value Compile(const Napi::CallbackInfo &info)
 {
     Expr expression = unwrapExpression(info[0]);
     Napi::Array names = info[1].As<Napi::Array>();
-    SymEngine::vec_basic variables;
     std::vector<std::string> given;
-    for (uint32_t i = 0; i < names.Length(); i++) {
-        given.push_back(stringAt(names, i, "A variable"));
-        variables.push_back(SymEngine::symbol(given.back()));
-    }
-    for (const std::string &used : variablesOf(expression)) {
-        if (std::find(given.begin(), given.end(), used) == given.end()) throw MathError(ErrorCode::Argument, "The variable " + used + " of the expression is not an input of the function");
-    }
+    for (uint32_t i = 0; i < names.Length(); i++) given.push_back(stringAt(names, i, "A variable"));
     auto compiled = std::make_shared<Compiled>();
-    compiled->inputs = variables.size();
+    compiled->inputs = given.size();
     try {
-        compiled->real.init(variables, *expression);
-        compiled->realBuilt = true;
-    } catch (SymEngine::SymEngineException &) {
-    }
-    try {
-        auto complex = std::make_unique<SymEngine::LambdaComplexDoubleVisitor>();
-        complex->init(variables, *expression);
-        compiled->complex = std::move(complex);
-    } catch (SymEngine::SymEngineException &) {
-    }
-    if (!compiled->realBuilt && !compiled->complex) {
-        throw MathError(ErrorCode::NotSupported, "The expression cannot be compiled: " + toText(expression) + " has a function without a compiled form");
+        compiled->function = std::make_unique<CompiledFunction>(given, std::vector<Expr>{expression});
+    } catch (const MathError &error) {
+        //The message of a compilation names its expression
+        if (error.code() == ErrorCode::NotSupported) throw MathError(ErrorCode::NotSupported, "The expression cannot be compiled: " + toText(expression) + " has a function without a compiled form");
+        throw;
     }
     return wrap(info.Env(), compiled, COMPILED_TAG, 1024);
 }

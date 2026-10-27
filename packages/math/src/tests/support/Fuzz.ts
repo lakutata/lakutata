@@ -763,3 +763,72 @@ export async function checkDistributions(math: Math, random: Random, index: numb
     }
     return failures
 }
+
+/**
+ * The checks of the numeric solutions: the roots of polynomials made of random roots found back, a root of a random
+ * monotone function found in a bracket and from a guess, random linear systems solved as math.linalg solves them
+ * @param math
+ * @param random
+ * @param index
+ */
+export async function checkNumeric(math: Math, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    const round = (value: number): number => globalThis.Math.round(value * 100) / 100
+    try {
+        //Roots apart from each other by 0.25 at least: real ones and pairs of conjugates
+        const roots: [number, number][] = []
+        const degree: number = 1 + random.int(8)
+        while (roots.length < degree) {
+            const re: number = round(random.next() * 8 - 4), im: number = roots.length + 1 < degree && random.chance(0.3) ? round(0.25 + random.next() * 3) : 0
+            const candidates: [number, number][] = im ? [[re, -im], [re, im]] : [[re, 0]]
+            if (candidates.every(([a, b]: [number, number]): boolean => roots.every(([c, d]: [number, number]): boolean => globalThis.Math.hypot(a - c, b - d) >= 0.25))) roots.push(...candidates)
+        }
+        const factors: string[] = []
+        for (let i: number = 0; i < roots.length; i++) {
+            const [re, im] = roots[i]
+            if (im < 0) {
+                factors.push(`(x^2 - ${2 * re}*x + ${re * re + im * im})`)
+                i++
+            } else if (im === 0) {
+                factors.push(`(x - ${re})`)
+            }
+        }
+        text = factors.join('*')
+        //Each root near one found, each found once (their order depends on the last digits of equal real parts)
+        const found = math.numeric.polynomialRoots(text, 'x')
+        const unused: number[] = Array.from(found.re, (_: number, i: number): number => i)
+        const matched: boolean = found.re.length === roots.length && roots.every(([re, im]: [number, number]): boolean => {
+            const at: number = unused.findIndex((i: number): boolean => globalThis.Math.hypot(found.re[i] - re, found.im[i] - im) <= 1e-7 * (1 + globalThis.Math.hypot(re, im)))
+            return at >= 0 && unused.splice(at, 1).length === 1
+        })
+        const increasing: boolean = Array.from(found.re).every((re: number, i: number): boolean => i === 0 || re > found.re[i - 1] || (re === found.re[i - 1] && found.im[i] >= found.im[i - 1]))
+        if (!matched || !increasing) fail('polynomialRoots', `${Array.from(found.re).map((re: number, i: number): string => `${re}${found.im[i] ? ` + ${found.im[i]}i` : ''}`).join(', ')}`)
+        //a x^3 + b x + c, a, b > 0: one root, in a bracket and from a guess
+        const a: number = round(0.1 + random.next() * 5), b: number = round(0.1 + random.next() * 5), c: number = round(random.next() * 200 - 100)
+        const cubic: string = `${a}*x^3 + ${b}*x + ${c}`
+        text = cubic
+        const bracket = math.numeric.findRoot(cubic, 'x', {bracket: [-10, 10]})
+        const newton = math.numeric.findRoot(cubic, 'x', {guess: round(random.next() * 20 - 10)})
+        const slope: number = 3 * a * bracket.root ** 2 + b
+        //The bracket narrows to the tolerance times the root and the first bracket (20 wide)
+        const residual: number = globalThis.Math.abs(a * bracket.root ** 3 + b * bracket.root + c)
+        if (!bracket.converged || residual > 2e-12 * slope * (globalThis.Math.abs(bracket.root) + 20) + 1e-13 * (1 + globalThis.Math.abs(c))) fail('findRoot', `in the bracket: ${JSON.stringify(bracket)}, f ${residual}`)
+        if (!newton.converged || globalThis.Math.abs(newton.root - bracket.root) > 1e-10 * (1 + globalThis.Math.abs(bracket.root))) fail('findRoot', `from a guess ${newton.root}, in the bracket ${bracket.root}`)
+        //A linear system, of a dominant matrix, as math.linalg.solve solves it
+        const n: number = 2 + random.int(4)
+        const names: string[] = Array.from({length: n}, (_: unknown, i: number): string => `v${i}`)
+        const matrix: number[][] = Array.from({length: n}, (_: unknown, i: number): number[] => Array.from({length: n}, (__: unknown, j: number): number => round(random.next() * 10 - 5) + (i === j ? 20 : 0)))
+        const right: number[] = Array.from({length: n}, (): number => round(random.next() * 20 - 10))
+        const equations: string[] = matrix.map((row: number[], i: number): string => `${row.map((value: number, j: number): string => `${value}*${names[j]}`).join(' + ')} = ${right[i]}`)
+        text = equations.join('; ')
+        const system = math.numeric.solveSystem(equations, names, new Float64Array(n))
+        const exact: Float64Array = math.linalg.solve(matrix, right)
+        if (!system.converged || system.solution.some((value: number, i: number): boolean => globalThis.Math.abs(value - exact[i]) > 1e-10 * (1 + globalThis.Math.abs(exact[i])))) fail('solveSystem', `${Array.from(system.solution)}, linalg ${Array.from(exact)}`)
+        if ((await math.numeric.findRootAsync(cubic, 'x', {bracket: [-10, 10]})).root !== bracket.root) fail('async', 'findRootAsync differs from findRoot')
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('numeric', String(error))
+    }
+    return failures
+}
