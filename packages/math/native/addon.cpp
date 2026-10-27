@@ -19,6 +19,7 @@
 #include "core/Errors.h"
 #include "linalg/Linalg.h"
 #include "matrix/Matrices.h"
+#include "poly/Inequalities.h"
 #include "poly/Poly.h"
 #include "numeric/Compiled.h"
 #include "numeric/Numeric.h"
@@ -218,30 +219,46 @@ Job seriesJob(const Napi::Array &arguments)
     return [expression, variable, point, order] { return expressionResult(seriesOf(expression, variable, point, static_cast<unsigned>(order))); };
 }
 
+//Solutions as an object: their kind, their values, their intervals, the text of a set not solved
+Builder solutionsBuilder(const Solutions &solutions)
+{
+    return Builder([solutions](Napi::Env env) -> Napi::Value {
+        Napi::Object result = Napi::Object::New(env);
+        result.Set("kind", solutions.kind);
+        result.Set("values", expressionsValue(env, solutions.values));
+        Napi::Array intervals = Napi::Array::New(env, solutions.intervals.size());
+        for (uint32_t i = 0; i < solutions.intervals.size(); i++) {
+            Napi::Object interval = Napi::Object::New(env);
+            interval.Set("start", wrapExpression(env, solutions.intervals[i].start));
+            interval.Set("end", wrapExpression(env, solutions.intervals[i].end));
+            interval.Set("startOpen", solutions.intervals[i].startOpen);
+            interval.Set("endOpen", solutions.intervals[i].endOpen);
+            intervals.Set(i, interval);
+        }
+        result.Set("intervals", intervals);
+        if (!solutions.text.empty()) result.Set("text", solutions.text);
+        return result;
+    });
+}
+
 Job solveJob(const Napi::Array &arguments)
 {
     Expr expression = expressionAt(arguments, 0);
     std::string variable = stringAt(arguments, 1, "The variable");
     const bool real = arguments.Get(2).ToBoolean().Value();
     return [expression, variable, real] {
-        Solutions solutions = solveOf(expression, variable, real);
-        return Builder([solutions](Napi::Env env) -> Napi::Value {
-            Napi::Object result = Napi::Object::New(env);
-            result.Set("kind", solutions.kind);
-            result.Set("values", expressionsValue(env, solutions.values));
-            Napi::Array intervals = Napi::Array::New(env, solutions.intervals.size());
-            for (uint32_t i = 0; i < solutions.intervals.size(); i++) {
-                Napi::Object interval = Napi::Object::New(env);
-                interval.Set("start", wrapExpression(env, solutions.intervals[i].start));
-                interval.Set("end", wrapExpression(env, solutions.intervals[i].end));
-                interval.Set("startOpen", solutions.intervals[i].startOpen);
-                interval.Set("endOpen", solutions.intervals[i].endOpen);
-                intervals.Set(i, interval);
-            }
-            result.Set("intervals", intervals);
-            if (!solutions.text.empty()) result.Set("text", solutions.text);
-            return result;
-        });
+        return solutionsBuilder(solveOf(expression, variable, real));
+    };
+}
+
+//expression < 0 (or <=, >, >=) solved for a variable in the real numbers
+Job inequalityJob(const Napi::Array &arguments)
+{
+    Expr expression = expressionAt(arguments, 0);
+    std::string relation = stringAt(arguments, 1, "The relation");
+    std::string variable = stringAt(arguments, 2, "The variable");
+    return [expression, relation, variable] {
+        return solutionsBuilder(inequalityOf(expression, relation, variable));
     };
 }
 
@@ -962,7 +979,7 @@ const std::map<std::string, JobFactory> &jobs()
     //The tables of the file are never destroyed: the threads of the addon may still use them while the process exits
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
-        {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
+        {"series", seriesJob}, {"solve", solveJob}, {"inequality", inequalityJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
         {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"distribution", distributionJob}, {"random", randomJob}, {"polynomialRoots", polynomialRootsJob}, {"findRoot", findRootJob}, {"solveSystem", solveSystemJob}, {"integrate", integrateJob}, {"solveODE", solveODEJob}, {"matrix", matrixJob}, {"poly", polyJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
         {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}

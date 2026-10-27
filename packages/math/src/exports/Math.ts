@@ -18,7 +18,6 @@ export {
     type InequalityRelation,
     type PolarForm,
     type RectangularForm,
-    type SolutionInterval,
     Solutions,
     type SolutionsKind,
     type SolveOptions,
@@ -45,7 +44,8 @@ export {type Normalization, type NormalizationOptions, Statistics} from '../lib/
 export {Distribution, type DistributionName, type DistributionParameters, RandomGenerator} from '../lib/Distribution.js'
 export {type FindRootOptions, type IntegralResult, type IntegrateOptions, type IterationOptions, Numeric, type ODEOptions, type ODEProblem, type ODEResult, type RootResult, type SystemRootResult} from '../lib/Numeric.js'
 export {type CommonSubexpressions, createMath, type CseOptions, type MathDefinitions, type MathOptions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
-export {constant, cse, cseAsync, decimal, equation, expression, expressionMatrix, jacobian, linalg, math, matrix, ntheory, numeric, parse, poly, solve, solveAsync, stats, unit} from '../lib/Defaults.js'
+export {constant, cse, cseAsync, decimal, equation, expression, expressionMatrix, finiteSet, interval, jacobian, linalg, math, matrix, ntheory, numeric, parse, poly, solve, solveAsync, stats, unit} from '../lib/Defaults.js'
+export {type IntervalOptions, MathSet, type MathSetKind, type SetInterval} from '../lib/MathSet.js'
 export {type FactorList, type PolynomialFactor, Polynomials} from '../lib/Polynomials.js'
 export {type CustomUnit, type CustomUnits, Unit, type UnitDimensions, type UnitValue} from '../lib/Unit.js'
 export {type PhysicalConstant} from '../lib/UnitTable.js'

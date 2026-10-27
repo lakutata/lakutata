@@ -2,6 +2,7 @@ import {MathArgumentException} from '../exceptions/MathArgumentException.js'
 import {MathSyntaxException} from '../exceptions/MathSyntaxException.js'
 import type {AsyncOptions, Context} from './Context.js'
 import {Decimal} from './Decimal.js'
+import {MathSet, type SetInterval} from './MathSet.js'
 import {type Handle, nativeCall, type NativeParsed, type NativeSolutions} from './Native.js'
 
 /**
@@ -132,14 +133,25 @@ function valuesOf(context: Context, values: Record<string, Value>): [string, Han
  * @param found
  */
 function solutionsOf(context: Context, found: NativeSolutions): Solutions {
-    const solutions: Solutions = new Solutions(found.kind, found.intervals.map((interval): SolutionInterval => ({
+    const values: Expression[] = found.values.map((value: Handle): Expression => new Expression(context, value))
+    const intervals: SetInterval[] = found.intervals.map((interval): SetInterval => ({
         start: new Expression(context, interval.start),
         end: new Expression(context, interval.end),
         startOpen: interval.startOpen,
         endOpen: interval.endOpen
-    })), found.text)
-    solutions.push(...found.values.map((value: Handle): Expression => new Expression(context, value)))
+    }))
+    const kind = {finite: 'finite', empty: 'empty', all: 'all', intervals: 'intervals', unsolved: 'other', other: 'other'} as const
+    const solutions: Solutions = new Solutions(found.kind, new MathSet(context, values, intervals, kind[found.kind], found.text), found.text)
+    solutions.push(...values)
     return solutions
+}
+
+/**
+ * The context of an expression, for the formulas made of it
+ * @param expression
+ */
+function contextOf(expression: Expression): Context {
+    return (expression as unknown as {context: Context}).context
 }
 
 /**
@@ -728,8 +740,10 @@ export class Expression {
     /**
      * The order of the expression and another value, both real: -1 when it is smaller, 0 when they are equal, 1 when it
      * is larger, `undefined` when it is not known (variables, or values too close to tell). `pi` compared with `22/7`
-     * is -1. Values too close for doubles are compared by their decimals of 60 digits where `toDecimal()` computes
-     * them: `pi` is larger than `3.14159265358979323846`.
+     * is -1. Two constants are compared by their decimals of 60 digits where `toDecimal()` computes them (`pi` is
+     * larger than `3.14159265358979323846`); too close for those, they are equal when `equals()` shows it and they are
+     * not too large an expression. With variables, the order comes from their difference expanded, then from its sign
+     * where it is known.
      * @param other The other value: an expression, a number or a formula.
      */
     public compare(other: Value): -1 | 0 | 1 | undefined {
@@ -857,6 +871,35 @@ export class Inequality {
     }
 
     /**
+     * The real solutions of the inequality for a variable, as intervals and values (`set`): `x^2 < 4` gives `(-2, 2)`,
+     * `x^2*(x + 1) <= 0` gives `(-inf, -1] ∪ {0}`. Its sides are fractions of polynomials in the variable with rational
+     * coefficients; the zeros of a denominator are never solutions. A root without an exact form (`x^5 - x - 1`),
+     * another variable or another function throws `MathNotSupportedException`.
+     * @param variable The variable.
+     * @example
+     * ```typescript
+     * import {type Inequality, parse} from '@lakutata/math'
+     *
+     * console.log((parse('x^2 < 2') as Inequality).solve('x').toString())          //(-sqrt(2), sqrt(2))
+     * console.log((parse('(x + 1)/(x - 2) >= 0') as Inequality).solve('x').set.toString()) //(-inf, -1] ∪ (2, inf)
+     * ```
+     */
+    public solve(variable: string): Solutions {
+        const context: Context = contextOf(this.left)
+        return solutionsOf(context, context.run<NativeSolutions>('inequality', [this.left.sub(this.right).handle, this.relation, variable]))
+    }
+
+    /**
+     * `solve()` in the threads of the addon.
+     * @param variable The variable.
+     * @param options The cancellation, the time limit.
+     */
+    public async solveAsync(variable: string, options?: AsyncOptions): Promise<Solutions> {
+        const context: Context = contextOf(this.left)
+        return solutionsOf(context, await context.runAsync<NativeSolutions>('inequality', [this.left.sub(this.right).handle, this.relation, variable], options))
+    }
+
+    /**
      * `left < right`…
      */
     public toString(): string {
@@ -880,36 +923,15 @@ export class Inequality {
 }
 
 /**
- * An interval of solutions
- */
-export interface SolutionInterval {
-    /**
-     * Its start (`-inf` without one).
-     */
-    start: Expression
-    /**
-     * Its end (`inf` without one).
-     */
-    end: Expression
-    /**
-     * Whether the start is excluded.
-     */
-    startOpen: boolean
-    /**
-     * Whether the end is excluded.
-     */
-    endOpen: boolean
-}
-
-/**
  * The kind of the solutions of an equation: some values, none, every value, intervals, or a set not solved
  */
 export type SolutionsKind = 'finite' | 'empty' | 'all' | 'intervals' | 'unsolved' | 'other'
 
 /**
- * The solutions of an equation: an array of their values (the real ones by value, then the complex ones), and what
- * they are (`kind`): some values (`finite`), none (`empty`), every value (`all`), intervals, or a set the package does
- * not solve (`unsolved`, `other`: `text` describes it).
+ * The solutions of an equation or of an inequality: an array of their values (the real ones by value, then the
+ * complex ones; the values apart from the intervals of an inequality), what they are (`kind`): some values
+ * (`finite`), none (`empty`), every value (`all`), intervals, or a set the package does not solve (`unsolved`,
+ * `other`: `text` describes it), and all of them as a set (`set`).
  * @example
  * ```typescript
  * import {math, type Solutions} from '@lakutata/math'
@@ -917,6 +939,7 @@ export type SolutionsKind = 'finite' | 'empty' | 'all' | 'intervals' | 'unsolved
  * function example(): void {
  *     const solutions: Solutions = math.expression('x^4 - 1').solve('x')
  *     console.log(solutions.kind, solutions.map(String)) //finite ['-1', '1', '-i', 'i']
+ *     console.log(solutions.set.toString())               //{-1, 1, -i, i}
  * }
  * ```
  */
@@ -932,21 +955,21 @@ export class Solutions extends Array<Expression> {
     /**
      * Solutions of a kind; their values pushed after.
      * @param kind What the solutions are.
-     * @param intervals Their intervals.
+     * @param set All of them as a set.
      * @param text The description of a set not solved.
      */
-    constructor(public readonly kind: SolutionsKind = 'empty', public readonly intervals: SolutionInterval[] = [], public readonly text?: string) {
+    constructor(public readonly kind: SolutionsKind, public readonly set: MathSet, public readonly text?: string) {
         super()
     }
 
     /**
-     * The values, the intervals or the description of the solutions.
+     * The values, the intervals in their notation (`(-inf, -1] ∪ {0}`) or the description of the solutions.
      */
     public toString(): string {
         if (this.kind === 'all') return 'every value'
         if (this.kind === 'unsolved' || this.kind === 'other') return this.text ?? ''
-        const intervals: string[] = this.intervals.map((interval: SolutionInterval): string => `${interval.startOpen ? '(' : '['}${interval.start.toString()}, ${interval.end.toString()}${interval.endOpen ? ')' : ']'}`)
-        return [...this.map(String), ...intervals].join(', ')
+        if (this.kind === 'intervals') return this.set.toString()
+        return this.map(String).join(', ')
     }
 }
 

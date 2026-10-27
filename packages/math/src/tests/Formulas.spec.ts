@@ -189,6 +189,11 @@ describe('The formulas', (): void => {
         //Close to zero without being shown to be zero: not known, never a wrong answer
         assert.strictEqual(math.expression('sin(pi/7)^2 + cos(pi/7)^2 - 1').isZero(), undefined)
         assert.strictEqual(math.expression('pi').compare('22/7'), -1)
+        //Two constants equal only once their fractions are combined, and the infinities
+        assert.strictEqual(math.expression('1/(1 + sqrt(2))').compare('sqrt(2) - 1'), 0)
+        assert.strictEqual(math.expression('sqrt(2)').compare('inf'), -1)
+        assert.strictEqual(math.expression('-inf').compare('sqrt(2)'), -1)
+        assert.strictEqual(math.expression('i').compare('inf'), undefined)
         assert.strictEqual(math.expression('(x + 1)^2').compare('x^2 + 2x + 1'), 0)
         assert.strictEqual(math.expression('x').compare('y'), undefined)
         //Too close for the doubles: by the decimals of 60 digits; equal values not shown equal stay not known

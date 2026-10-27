@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
-import {type ComplexVector, createMath, type Decimal, type Distribution, type DistributionName, type Eigenvector, Expression, ExpressionMatrix, type IntegralResult, type IterativeSolution, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type ODEResult, type PhysicalConstant, type PrimeFactor, type RootResult, type RowEchelonForm, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution, type Unit} from '../exports/Math.js'
+import {type ComplexVector, createMath, type Inequality, type Decimal, type Distribution, type DistributionName, type Eigenvector, Expression, ExpressionMatrix, type IntegralResult, type IterativeSolution, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type ODEResult, type PhysicalConstant, type PrimeFactor, type RootResult, type RowEchelonForm, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution, type Unit} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -793,6 +793,38 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
             const noted: string | undefined = fixture.differs?.sympy
             if (!same && !noted) problems.push(`${label}: ${result.toString()}, SymPy ${fixture.result.text}, not noted`)
             if (same && noted) problems.push(`${label}: SymPy agrees, its note is stale`)
+        }
+        assert.deepStrictEqual(problems, [])
+    })
+
+    it('solve the inequalities as SymPy, each difference noted', (): void => {
+        type End = {text: string | null, value: string | null}
+        const fixtures = expected<{inequality: string, variable: string, differs?: Record<string, string>, error?: string, result?: {intervals: {start: End, end: End, startOpen: boolean, endOpen: boolean}[], points: End[]}}>('inequalities')
+        //An end equal to SymPy's: by its text where the formulas read it, else by its value of 30 digits
+        const same = (ours: Expression, theirs: End): boolean => {
+            if (theirs.text !== null) return ours.compare(theirs.text) === 0
+            return Math.abs(ours.sub(math.expression(theirs.value!)).toNumber()) <= 1e-25 * Math.max(1, Math.abs(Number(theirs.value)))
+        }
+        const problems: string[] = []
+        for (const fixture of fixtures.cases) {
+            let ours: Solutions | undefined, error: string = ''
+            try {
+                ours = (math.parse(fixture.inequality) as Inequality).solve(fixture.variable)
+            } catch (caught) {
+                if (!(caught instanceof MathException)) throw caught
+                error = caught.message
+            }
+            const theirs = fixture.result
+            const agree: boolean = ours !== undefined && theirs !== undefined
+                && ours.set.intervals.length === theirs.intervals.length && ours.set.values.length === theirs.points.length
+                && ours.set.intervals.every((interval, i: number): boolean => {
+                    const other = theirs.intervals[i]!
+                    return same(interval.start, other.start) && same(interval.end, other.end) && interval.startOpen === other.startOpen && interval.endOpen === other.endOpen
+                })
+                && ours.set.values.every((value: Expression): boolean => theirs.points.some((point: End): boolean => same(value, point)))
+            const noted: string | undefined = fixture.differs?.sympy
+            if (!agree && !noted) problems.push(`${fixture.inequality}: ${ours?.set.toString() ?? error}, SymPy ${JSON.stringify(theirs ?? fixture.error)}, not noted`)
+            if (agree && noted) problems.push(`${fixture.inequality}: SymPy agrees, its note is stale`)
         }
         assert.deepStrictEqual(problems, [])
     })

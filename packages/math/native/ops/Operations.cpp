@@ -241,6 +241,11 @@ std::vector<std::string> variablesOf(const Expr &expression)
     return names;
 }
 
+Expr evaluatedOf(const Expr &expression)
+{
+    return evaluated(expression);
+}
+
 bool equalsOf(const Expr &givenA, const Expr &givenB)
 {
     const Expr a = evaluated(givenA), b = evaluated(givenB);
@@ -315,6 +320,36 @@ namespace {
 //irreducible factors over the rationals, a linear one at once, the others by SymEngine's formulas; nothing where one
 //of them is not solved. SymEngine's formulas alone give the roots of x^3 - 6x^2 + 11x - 6 by Cardano's radicals, not
 //1, 2, 3, those of x^2 - (a + b)x + a*b with sqrt((a - b)^2), and none of x^5 - x.
+//The roots of a binomial a x^n + b of degree 5 or more with rational coefficients, which SymEngine does not solve:
+//r = |b/a|^(1/n) times the n-th roots of 1 (of -1 when -b/a < 0); the real ones written as r and -r
+std::optional<std::vector<Expr>> binomialRootsOf(const std::vector<Expr> &c)
+{
+    const size_t n = c.size() - 1;
+    if (n < 5) return std::nullopt;
+    for (size_t i = 1; i < n; i++) {
+        if (!is_a_Number(*c[i]) || !down_cast<const Number &>(*c[i]).is_zero()) return std::nullopt;
+    }
+    const auto isRational = [](const Expr &value) { return is_a<SymEngine::Integer>(*value) || is_a<Rational>(*value); };
+    if (!isRational(c[0]) || !isRational(c[n]) || down_cast<const Number &>(*c[0]).is_zero()) return std::nullopt;
+    const RCP<const Number> ratio = rcp_static_cast<const Number>(div(neg(c[0]), c[n]));
+    const bool negative = ratio->is_negative();
+    const Expr radius = pow(negative ? neg(ratio) : Expr(ratio), rational(1, static_cast<long>(n)));
+    std::vector<Expr> roots;
+    for (size_t k = 0; k < n; k++) {
+        //The angle (2k + 1)pi/n for -1, 2k pi/n for 1, written from -pi to pi
+        long turns = static_cast<long>(2 * k + (negative ? 1 : 0));
+        if (turns > static_cast<long>(n)) turns -= 2 * static_cast<long>(n);
+        if (turns == 0) {
+            roots.push_back(radius);
+        } else if (turns == static_cast<long>(n)) {
+            roots.push_back(neg(radius));
+        } else {
+            roots.push_back(mul(radius, exp(mul(I, mul(pi, rational(turns, static_cast<long>(n)))))));
+        }
+    }
+    return roots;
+}
+
 std::optional<set_basic> factoredRootsOf(const Expr &expression, const RCP<const Symbol> &by)
 {
     std::vector<Expr> coefficients;
@@ -338,6 +373,10 @@ std::optional<set_basic> factoredRootsOf(const Expr &expression, const RCP<const
         if (c.size() < 2) continue;
         if (c.size() == 2) {
             roots.insert(div(neg(c[0]), c[1]));
+            continue;
+        }
+        if (const std::optional<std::vector<Expr>> binomial = binomialRootsOf(c)) {
+            roots.insert(binomial->begin(), binomial->end());
             continue;
         }
         const RCP<const Set> solved = solve(factor, by, universalset());
@@ -613,8 +652,60 @@ int predicateOf(const Expr &given, const std::string &property)
     throw MathError(ErrorCode::Argument, "Unknown property " + property);
 }
 
+namespace {
+
+//The order of two constants by their decimals of 60 digits, when they differ beyond 1e-40 of their size; else 2 (a
+//zero not shown exactly stays not known)
+int decimalOrder(const Expr &a, const Expr &b)
+{
+    try {
+        const DecimalContext context(60);
+        const Decimal x = context.parse(toDecimal(evaluated(a), 60));
+        const Decimal y = context.parse(toDecimal(evaluated(b), 60));
+        const Decimal gap = context.sub(x, y);
+        Decimal size = context.parse("1");
+        if (context.compare(context.abs(x), size) > 0) size = context.abs(x);
+        if (context.compare(context.abs(y), size) > 0) size = context.abs(y);
+        if (context.compare(context.abs(gap), context.mul(size, context.parse("1e-40"))) > 0) return context.isNegative(gap) ? -1 : 1;
+    } catch (MathError &) {
+    }
+    return 2;
+}
+
+}
+
 int compareOf(const Expr &a, const Expr &b)
 {
+    //An infinity: after (before, for -inf) every constant that is not clearly complex; SymEngine keeps sqrt(2) - inf a
+    //sum
+    const auto infinity = [](const Expr &value) {
+        if (!is_a<Infty>(*value)) return 0;
+        const Infty &infinite = down_cast<const Infty &>(*value);
+        return infinite.is_positive_infinity() ? 1 : (infinite.is_negative_infinity() ? -1 : 2);
+    };
+    const int infiniteA = infinity(evaluated(a)), infiniteB = infinity(evaluated(b));
+    if (infiniteA == 2 || infiniteB == 2) return 2;
+    if (infiniteA != 0 || infiniteB != 0) {
+        if (infiniteA == infiniteB) return 0;
+        if (infiniteA != 0 && infiniteB != 0) return infiniteA > infiniteB ? 1 : -1;
+        const Expr &other = infiniteA != 0 ? b : a;
+        if (!free_symbols(*other).empty() || predicateOf(other, "real") == 0) return 2;
+        return infiniteA != 0 ? infiniteA : -infiniteB;
+    }
+    //Two constants: by their decimals of 60 digits first, as below; too close for them, equal when equals() shows it,
+    //if their difference is small (a polynomial at a root of Cardano's formula would expand without end)
+    if (free_symbols(*a).empty() && free_symbols(*b).empty()) {
+        const Expr difference = sub(evaluated(a), evaluated(b));
+        if (is_a_Number(*difference)) {
+            const Number &number = down_cast<const Number &>(*difference);
+            if (number.is_zero()) return 0;
+            if (is_a<SymEngine::Integer>(number) || is_a<Rational>(number)) return number.is_positive() ? 1 : -1;
+        }
+        const int decided = decimalOrder(a, b);
+        if (decided != 2) return decided;
+        if (count_ops({difference}) <= 100 && equalsOf(a, b)) return 0;
+        return 2;
+    }
     const Expr difference = expand(evaluated(sub(a, b)));
     if (is_a_Number(*difference)) {
         const Number &number = down_cast<const Number &>(*difference);
@@ -626,21 +717,8 @@ int compareOf(const Expr &a, const Expr &b)
     if (positive == 1) return 1;
     const int negative = predicateOf(difference, "negative");
     if (negative == 1) return -1;
-    //Too close for the doubles: their decimals of 60 digits, when they differ beyond 1e-40 of their size (a zero not
-    //shown exactly stays not known)
-    if (free_symbols(*difference).empty()) {
-        try {
-            const DecimalContext context(60);
-            const Decimal x = context.parse(toDecimal(evaluated(a), 60));
-            const Decimal y = context.parse(toDecimal(evaluated(b), 60));
-            const Decimal gap = context.sub(x, y);
-            Decimal size = context.parse("1");
-            if (context.compare(context.abs(x), size) > 0) size = context.abs(x);
-            if (context.compare(context.abs(y), size) > 0) size = context.abs(y);
-            if (context.compare(context.abs(gap), context.mul(size, context.parse("1e-40"))) > 0) return context.isNegative(gap) ? -1 : 1;
-        } catch (MathError &) {
-        }
-    }
+    //Too close for the doubles
+    if (free_symbols(*difference).empty()) return decimalOrder(a, b);
     return 2;
 }
 

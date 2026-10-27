@@ -97,6 +97,9 @@ function wrappers (`FunctionWrapper`).
   `2*x + 2`, `2*(x + 1)/y` is `(2*x + 2)/y`), else the denominator of a rational coefficient goes into its first sum
   to the power -1 (`z/(2*(x + 1))` is `z/(2*x + 2)`), as the formulas are read: a value has one form, the sums stay
   flat. A factor that is a power, raised to an integer power, is combined (`(a^b)^n` is `a^(b*n)`).
+- `symengine/mul.cpp`: the positive integers to the same rational power in a product are multiplied together, as in
+  SymPy: `sqrt(2)*sqrt(3)` is `sqrt(6)` (SymEngine kept the two, and a value written both ways could not be shown
+  equal), `2^(1/3)*4^(1/3)` is 2; powers that differ stay (`2^(1/3)*3^(2/3)`).
 - `symengine/add.cpp`: a number times a sum met as a term of a sum is multiplied out too, as in a product (a
   substitution of `x = 1 - u` in `-x + 1` gave `-(-u + 1) + 1`, now `u`); also when it is the term of a product of a
   number and a sum (the factored form `2*(x + 1)` of `factor()`), and in `add(a, b)`, which now adds its terms through
@@ -143,7 +146,8 @@ release with the sources of `vendor/` over it (2026-10-28, for the patch of `add
 assertions that fail, in `test_functions`, `test_printing`, `test_eval_double` and `test_cwrapper`, check the forms that
 the patches above change on purpose (a coefficient multiplied into a sum, the minus taken out of `acosh`, `truncate` of
 a sum, `zeta` evaluated by Boost.Math, the printing of the C wrapper); they are the same with and without the patch of
-`add.cpp`.
+`add.cpp`. The patch of the powers in `mul.cpp` (2026-10-28) adds one, in `test_printing`, which expects
+`23*sqrt(5)*sqrt(7)` where it is now `23*sqrt(35)`.
 
 ## Boost.Math
 

@@ -5,6 +5,7 @@ import type {ExpressionMatrix, ExpressionMatrixValue} from './ExpressionMatrix.j
 import type {LinearAlgebra} from './LinearAlgebra.js'
 import type {Matrix, MatrixValue} from './Matrix.js'
 import {type CommonSubexpressions, createMath, type CseOptions, type MathScope, type SystemEquation, type SystemSolution} from './MathScope.js'
+import type {IntervalOptions, MathSet} from './MathSet.js'
 import type {NumberTheory} from './NumberTheory.js'
 import type {Numeric} from './Numeric.js'
 import type {Polynomials} from './Polynomials.js'
@@ -146,6 +147,38 @@ export function constant(name: PhysicalConstant): Unit {
  */
 export function expressionMatrix(value: ExpressionMatrixValue): ExpressionMatrix {
     return math.expressionMatrix(value)
+}
+
+/**
+ * An interval of real numbers, of exact ends. The one of `math`.
+ * @param start The start (`-inf` for none).
+ * @param end The end (`inf` for none).
+ * @param options Whether the ends are excluded (both included by default).
+ * @example
+ * ```typescript
+ * import {interval} from '@lakutata/math'
+ *
+ * const set = interval('-sqrt(2)', 'sqrt(2)', {startOpen: true})
+ * console.log(set.toString(), set.contains('7/5'))                 //(-sqrt(2), sqrt(2)] true
+ * console.log(set.intersect(interval(0, 'inf')).toString())        //[0, sqrt(2)]
+ * ```
+ */
+export function interval(start: Value, end: Value, options?: IntervalOptions): MathSet {
+    return math.interval(start, end, options)
+}
+
+/**
+ * A finite set of values. The one of `math`.
+ * @param values The values.
+ * @example
+ * ```typescript
+ * import {finiteSet} from '@lakutata/math'
+ *
+ * console.log(finiteSet([3, 1, 'sqrt(2)', 1]).toString())          //{1, sqrt(2), 3}
+ * ```
+ */
+export function finiteSet(values: readonly Value[]): MathSet {
+    return math.finiteSet(values)
 }
 
 /**

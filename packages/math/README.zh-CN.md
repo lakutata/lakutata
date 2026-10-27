@@ -86,7 +86,7 @@ console.log(scope.expression('net(113)').toString())   //100
 
 ### 精确结果和数字
 
-公式给出精确的结果：`0.1 + 0.2` 是 `3/10`，`sin(pi/6)` 是 `1/2`，`sqrt(8)` 是 `2sqrt(2)`。数乘以一个和时会乘进去：`2(x + 1)` 是 `2x + 2`。精确计算最多到约 31.5 万位：更大的幂保持幂的形式（`2^(10^7)`），阶乘最多算到 `20000!`，再大的保持 `gamma(n + 1)` 的形式。需要数字时：
+公式给出精确的结果：`0.1 + 0.2` 是 `3/10`，`sin(pi/6)` 是 `1/2`，`sqrt(8)` 是 `2sqrt(2)`。数乘以一个和时会乘进去（`2(x + 1)` 是 `2x + 2`），同一有理数次幂的整数会乘在一起（`sqrt(2)*sqrt(3)` 是 `sqrt(6)`），和 SymPy 一样。精确计算最多到约 31.5 万位：更大的幂保持幂的形式（`2^(10^7)`），阶乘最多算到 `20000!`，再大的保持 `gamma(n + 1)` 的形式。需要数字时：
 
 - `toNumber()` 转成 JavaScript 的数字（值是复数时抛出 `MathDomainException`），`toComplex()` 得到 `{re, im}`。凡是 `toDecimal()` 或 `toComplexDecimal()` 能算的值，它们都先算出十进制值再转成数字，所以即使双精度计算已经没有一位有效数字（例如 `cos(10^30)`、`e^(i*10^30)`），得到的数字每一位都是对的。两者也能计算复数参数的特殊函数（伽马、zeta、Lambert W、多伽马、误差函数等），这些函数用双精度计算，表达式的其余部分仍用十进制计算。
 - `toDecimal(digits)` 得到指定有效位数、正确舍入的字符串（默认位数是范围的 `precision`），写法和 `Decimal` 相同（见下一节）：算出的 3 写成 `3`，不写成 `3.000…`。它会用更多位数重新计算，直到两次结果一致。能算四则运算、乘方和开方、`exp` 和 `ln`、三角函数和双曲函数及它们的反函数、取整函数、常数，以及实数参数的特殊函数：`gamma`、`loggamma`、`digamma`、`polygamma`、`beta`、`erf`、`erfc`、`zeta`（包括 Hurwitz zeta）、`lowergamma`、`uppergamma` 和 `lambertw`。多算 640 位仍然和 0 分不开的值，结果是 `0`（例如 `ln(6) - ln(2) - ln(3)`）；参数太大、这么多位不够用的值，会按需要再多算一些位数，最多多算 50000 位（`sin(10^(10^4))` 要多算 10^4 位）；恰好在相邻两个这么多位的十进制数正中间的值，取末位是偶数的那个（`ln(8)/ln(4)` 等于 1.5，保留 1 位得 `2`）。计算中有复数、但值是实数的（`e^(i*pi)`、`-i*asinh(i)`），结果是 `toComplexDecimal()` 的实部；值是复数时抛出 `MathDomainException`。
@@ -138,15 +138,20 @@ console.log(lines.join('\n'))
 
 ### 解方程
 
-- 对方程或表达式（表示它等于零）调用 `solve(variable)`，得到解的数组，每个解是一个表达式；它的 `kind` 说明解集的种类：`finite`（有限个）、`empty`（无解）、`all`（任意值）、`intervals`（区间），或者 `unsolved`/`other`（这个包解不出来的集合，用 `text` 描述）。关于未知数的二次及以上的多项式先做因式分解：一次因式直接给出根，其余的在四次以内给出精确解（`x^3 - 6x^2 + 11x - 6 = 0` 得到 1、2、3，而不是卡尔达诺公式的根式；`x^2 - (a + b)x + a*b = 0` 得到 a 和 b）。`{domain: 'real'}` 只保留实数解。
+- 对方程或表达式（表示它等于零）调用 `solve(variable)`，得到解的数组，每个解是一个表达式；它的 `kind` 说明解集的种类：`finite`（有限个）、`empty`（无解）、`all`（任意值）、`intervals`（区间），或者 `unsolved`/`other`（这个包解不出来的集合，用 `text` 描述）；`set` 是全部解组成的集合（见下文）。关于未知数的二次及以上的多项式先做因式分解：一次因式直接给出根，其余的在四次以内给出精确解（`x^3 - 6x^2 + 11x - 6 = 0` 得到 1、2、3，而不是卡尔达诺公式的根式；`x^2 - (a + b)x + a*b = 0` 得到 a 和 b），二项式 `a x^n + b` 不限次数（`x^5 = 2` 的五个根是 `2^(1/5)` 乘以 1 的五次方根）。`{domain: 'real'}` 只保留实数解。
 - `solve(equations, variables)` 解线性方程组：无解时返回空数组，否则返回一组解，给出它能确定的每个变量的值（有无穷多组解时，用其他变量表示）。
+- 对不等式（`parse('x^2 < 4')`）调用 `solve(variable)`，得到它的实数解，是一些区间和孤立的值：`x^2*(x + 1) <= 0` 得到 `(-inf, -1] ∪ {0}`，区间以外的值（`0`）就是数组里的元素。两边必须是该变量的有理系数多项式的分式，分母为零的点一定不是解（`1/(1 + 1/x) > 0` 排除 `-1` 和 `0`）。每个不可约因式的实根先用笛卡儿符号法则隔离，再和求出的精确根一一对应；根没有精确形式（`x^5 - x - 1`）、系数不是有理数（`sqrt(2)*x < 1`）、含有其他变量或其他函数时，抛出 `MathNotSupportedException`（根的数值可以用 `numeric.polynomialRoots()` 求）。
+- 数的集合（`MathSet`）由端点精确的实数区间和一些值组成：用 `interval(start, end, {startOpen, endOpen})` 和 `finiteSet(values)` 创建，解的 `set` 也是这样的集合。它有 `union`、`intersect`、`complement`（在实数范围内取补集）、`difference`、`contains`（不知道时为 `undefined`）、`equals`、`isEmpty`、`toString`（`[0, 2) ∪ {3}`）和 `toTeX`。端点用 `compare()` 精确比较：无法排序的端点（含变量）抛出 `MathNotSupportedException`。这个包解不出来的方程（`sin(x) = 0`），解集的种类是 `other`，集合运算不接受它。
 
 ```typescript
-import {expression, solve} from '@lakutata/math'
+import {expression, finiteSet, type Inequality, interval, parse, solve} from '@lakutata/math'
 
 console.log(expression('x^4 - 1').solve('x').map(String))   //['-1', '1', '-i', 'i']
 const [solution] = solve(['x + y = 3', 'x - y = 1'], ['x', 'y'])
 console.log(solution.x.toString(), solution.y.toString())   //2 1
+console.log((parse('(x + 1)/(x - 2) >= 0') as Inequality).solve('x').toString()) //(-inf, -1] ∪ (2, inf)
+const set = interval(0, 2, {endOpen: true}).union(finiteSet([3]))
+console.log(set.complement().toString(), set.contains('sqrt(2)')) //(-inf, 0) ∪ [2, 3) ∪ (3, inf) true
 ```
 
 ### 数论
@@ -432,14 +437,15 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 
 | 导出 | 说明 |
 |---|---|
-| `parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`unit`、`constant`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`poly`、`linalg`、`stats`、`numeric` | `math` 的函数和命名空间，可以直接使用 |
+| `parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`interval`、`finiteSet`、`unit`、`constant`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`poly`、`linalg`、`stats`、`numeric` | `math` 的函数和命名空间，可以直接使用 |
 | `math`、`createMath`、`MathOptions` | 默认选项的范围；用别的选项（`definitions`、`precision`、`timeout`、`concurrency`、`units`）创建范围的函数，以及它的选项 |
-| `MathScope`、`MathDefinitions` | 由定义和设置组成的范围（`createMath()`、`with()`）：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`unit`、`constant`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`poly`、`linalg`、`stats`、`numeric`；定义（按签名给出的公式） |
+| `MathScope`、`MathDefinitions` | 由定义和设置组成的范围（`createMath()`、`with()`）：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`interval`、`finiteSet`、`unit`、`constant`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`poly`、`linalg`、`stats`、`numeric`；定义（按签名给出的公式） |
 | `Expression` | 表达式：`toString`、`toTeX`、`toNumber`、`toComplex`、`toDecimal`、`toComplexDecimal`、`variables`、`equals`、`add`、`sub`、`mul`、`div`、`pow`、`neg`、`expand`、`simplify`、`diff`、`series`、`substitute`、`evaluate`、`solve`、`compile`，多项式（`coefficients`、`degree`、`leadingCoefficient`、`divide`），`factor`、`sqf`，分式（`cancel`、`together`、`apart`、`completeSquare`），`numerator`、`denominator`、`rewrite`（改写成 `exp`、`sin`、`cos`），判断（`isZero`、`isPositive`、`isNegative`、`isInteger`、`isRational`、`isReal`、`isFinite`：不知道时为 `undefined`），`compare`、`toJavaScript`、`toC`、`toPolar`、`toRectangular`，以及各个异步版本 |
 | `CommonSubexpressions`、`CseOptions` | `cse()` 的结果（`replacements`、`expressions`）和它的选项（`prefix`） |
 | `PolarForm`、`RectangularForm` | 复数的极坐标形式（模 `modulus`、辐角 `argument`）和直角坐标形式（实部 `real`、虚部 `imaginary`） |
-| `Equation`、`Inequality`、`InequalityRelation` | 方程（`left`、`right`、`difference`、`substitute`、`solve`、`solveAsync`），不等式（`left`、`right`、`relation`） |
-| `Solutions`、`SolutionsKind`、`SolutionInterval`、`SolveOptions` | 方程的解：表达式的数组，带有 `kind`、`intervals` 和 `text`；解的范围 `domain` |
+| `Equation`、`Inequality`、`InequalityRelation` | 方程（`left`、`right`、`difference`、`substitute`、`solve`、`solveAsync`），不等式（`left`、`right`、`relation`、`solve`、`solveAsync`） |
+| `Solutions`、`SolutionsKind`、`SolveOptions` | 方程或不等式的解：表达式的数组，带有 `kind`、`set` 和 `text`；解的范围 `domain` |
+| `MathSet`、`MathSetKind`、`SetInterval`、`IntervalOptions` | 数的集合（`interval()`、`finiteSet()`、解的 `set`）：`kind`、`values`、`intervals`、`text`、`union`、`intersect`、`complement`、`difference`、`contains`、`equals`、`isEmpty`、`toString`、`toTeX`；集合的种类；集合中的一个区间；区间的端点是否排除 |
 | `SystemSolution`、`SystemEquation` | 方程组的一组解（每个变量对应一个表达式），方程组里的一个方程 |
 | `CompiledFunction` | 编译后的表达式：以数字为参数的函数，它的 `variables` 和 `batch` |
 | `Decimal`、`DecimalValue`、`DecimalOptions` | 指定精度的十进制数（`decimal()`）：`precision`、`add`、`sub`、`mul`、`div`、`mod`、`pow`、`neg`、`abs`、`sqrt`、`cbrt`、`root`、`exp`、`ln`、`log10`、`log`、`sin`、`cos`、`tan`、`asin`、`acos`、`atan`、`atan2`、`sinh`、`cosh`、`tanh`、`asinh`、`acosh`、`atanh`、`gamma`、`loggamma`、`digamma`、`erf`、`erfc`、`zeta`、`lambertw`、`floor`、`ceil`、`trunc`、`round`、`compare`、`equals`、`isZero`、`isPositive`、`isNegative`、`isInteger`、`toString`、`toFixed`、`toNumber`、`toJSON`；需要十进制数的地方可以传入的值（十进制数、数字、bigint、写成字符串的十进制数）；`decimal()` 的选项（`precision`） |

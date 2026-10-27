@@ -62,6 +62,10 @@ struct Solutions {
 //The solutions of expression = 0 for a variable, in the complex numbers or the real ones
 Solutions solveOf(const Expr &expression, const std::string &variable, bool real);
 
+//The expression without the unevaluated parts that SymEngine's rewritings keep (cos(x - pi/2)), as the operations
+//compute with it
+Expr evaluatedOf(const Expr &expression);
+
 //The numerator and the denominator of an expression (as_numer_denom)
 std::pair<Expr, Expr> fractionOf(const Expr &expression);
 

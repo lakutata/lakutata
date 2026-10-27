@@ -1,4 +1,4 @@
-import {type Distribution, type DistributionName, type Expression, MathException, type MathScope, Matrix, SparseMatrix, type Unit, type UnitDimensions} from '../../exports/Math.js'
+import {type Distribution, type DistributionName, type Expression, Inequality, MathException, type MathScope, type MathSet, Matrix, SparseMatrix, type Unit, type UnitDimensions} from '../../exports/Math.js'
 import {PREFIXES, QUANTITIES, UNITS} from '../../lib/UnitTable.js'
 
 /**
@@ -1222,6 +1222,73 @@ export async function checkFactor(math: MathScope, random: Random, index: number
         if (asynchronous.factors.length !== list.factors.length || asynchronous.factors.some((f, i: number): boolean => !f.factor.equals(list.factors[i]!.factor))) fail('async', 'factorListAsync differs from factorList')
     } catch (error) {
         if (!(error instanceof MathException)) fail('factor', String(error))
+    }
+    return failures
+}
+
+/**
+ * Inequalities of fractions of polynomials: at the ends of the set of the solutions, at its values, at the poles,
+ * between and around them, contains() tells whether the inequality holds there (never at a pole); the union, the
+ * intersection, the complement and the difference of two such sets contain at those points what the logic says.
+ */
+export async function checkInequality(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    const relations = ['<', '<=', '>', '>='] as const
+    //A polynomial in x of degree 3 at most, its coefficients small
+    const polynomial = (): string => Array.from({length: 1 + random.int(4)}, (_: unknown, k: number): string => `(${random.int(9) - 4})*x^${k}`).join(' + ')
+    const holds = (sign: number, relation: string): boolean => relation === '<' ? sign < 0 : relation === '<=' ? sign <= 0 : relation === '>' ? sign > 0 : sign >= 0
+    try {
+        const made = (): {top: Expression, bottom: Expression, relation: typeof relations[number], set: MathSet} | undefined => {
+            const denominator: Expression = random.chance(0.5) ? math.expression(1) : math.expression(polynomial()).expand()
+            if (denominator.isZero() === true) return undefined
+            const relation = relations[random.int(4)]!
+            //The numerator and the denominator of the expression solved (0/(x + 1) is 0 at once)
+            const fraction: Expression = math.expression(`(${polynomial()})*(${polynomial()})`).expand().div(denominator)
+            const inequality: Inequality = new Inequality(fraction, math.expression(0), relation)
+            text = text ? `${text}; ${inequality.toString()}` : inequality.toString()
+            return {top: fraction.numerator(), bottom: fraction.denominator(), relation, set: inequality.solve('x').set}
+        }
+        const first = made()
+        if (first === undefined) return failures
+        //The points: the ends, the values, the poles, between them and around them
+        const ends = (set: MathSet): Expression[] => [...set.values, ...set.intervals.flatMap((interval): Expression[] => [interval.start, interval.end])].filter((end: Expression): boolean => end.isFinite() !== false)
+        const poles: Expression[] = first.bottom.variables().length > 0 ? [...first.bottom.solve('x', {domain: 'real'})] : []
+        const second = made()
+        const points: Expression[] = [...ends(first.set), ...poles, ...(second ? ends(second.set) : [])]
+        const ordered: Expression[] = points.filter((point: Expression): boolean => point.compare(0) !== undefined).sort((a: Expression, b: Expression): number => a.compare(b)!)
+        const tests: Expression[] = [...ordered, math.expression(random.int(21) - 10).div(random.int(5) + 1)]
+        for (let i = 0; i + 1 < ordered.length; i++) tests.push(ordered[i]!.add(ordered[i + 1]!).div(2))
+        if (ordered.length > 0) tests.push(ordered[0]!.sub(1), ordered[ordered.length - 1]!.add(1))
+        const verdict = (problem: NonNullable<ReturnType<typeof made>>, point: Expression): boolean | undefined => {
+            //A pole is never a solution; where the denominator is not shown to be 0 or not, the point is skipped
+            const bottom: Expression = problem.bottom.substitute({x: point})
+            const atPole: number | undefined = bottom.isZero() === true ? 0 : bottom.compare(0)
+            if (atPole === undefined) return undefined
+            if (atPole === 0) return false
+            const sign: number | undefined = problem.top.substitute({x: point}).compare(0)
+            return sign === undefined ? undefined : holds(sign * atPole, problem.relation)
+        }
+        for (const point of tests) {
+            const expected: boolean | undefined = verdict(first, point)
+            if (expected === undefined) continue
+            const found: boolean | undefined = first.set.contains(point)
+            if (found !== expected) fail('inequality', `${first.set.toString()} ${found ? 'contains' : 'does not contain'} ${point.toString()}`)
+        }
+        if (second === undefined) return failures
+        const sets = {union: first.set.union(second.set), intersect: first.set.intersect(second.set), complement: first.set.complement(), difference: first.set.difference(second.set)}
+        for (const point of tests) {
+            const a: boolean | undefined = first.set.contains(point), b: boolean | undefined = second.set.contains(point)
+            if (a === undefined || b === undefined) continue
+            const expected = {union: a || b, intersect: a && b, complement: !a, difference: a && !b}
+            for (const name of Object.keys(sets) as (keyof typeof sets)[]) {
+                const found: boolean | undefined = sets[name].contains(point)
+                if (found !== expected[name]) fail('sets', `${name} of ${first.set.toString()} and ${second.set.toString()} is ${sets[name].toString()}: ${found ? 'contains' : 'does not contain'} ${point.toString()}`)
+            }
+        }
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('inequality', String(error))
     }
     return failures
 }

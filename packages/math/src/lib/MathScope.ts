@@ -6,6 +6,7 @@ import {Matrix, matrixOf, type MatrixValue} from './Matrix.js'
 import {Equation, equationHandleOf, Expression, expressionOf, formulaOf, handleOf, Inequality, parsedOf, type Value} from './Expression.js'
 import {ExpressionMatrix, expressionMatrixOf, type ExpressionMatrixValue} from './ExpressionMatrix.js'
 import {LinearAlgebra} from './LinearAlgebra.js'
+import {finiteSetOf, type IntervalOptions, intervalOf, type MathSet} from './MathSet.js'
 import {type Handle, native, nativeCall} from './Native.js'
 import {NumberTheory} from './NumberTheory.js'
 import {Numeric} from './Numeric.js'
@@ -188,6 +189,25 @@ export class MathScope {
      */
     public expressionMatrix(value: ExpressionMatrixValue): ExpressionMatrix {
         return expressionMatrixOf(this.context, value)
+    }
+
+    /**
+     * An interval of real numbers: empty when the start is after the end, a value when they are equal and included.
+     * @param start The start (`-inf` for none): an exact real number, an expression or a formula.
+     * @param end The end (`inf` for none).
+     * @param options Whether the ends are excluded (both included by default).
+     */
+    public interval(start: Value, end: Value, options?: IntervalOptions): MathSet {
+        return intervalOf(this.context, start, end, options)
+    }
+
+    /**
+     * A finite set of values: each one once, the real ones sorted, then the others as they are given.
+     * @param values The values: expressions, numbers or formulas.
+     */
+    public finiteSet(values: readonly Value[]): MathSet {
+        if (!Array.isArray(values)) throw new MathArgumentException('The values of a set are an array')
+        return finiteSetOf(this.context, values)
     }
 
     /**

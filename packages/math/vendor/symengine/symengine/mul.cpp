@@ -118,6 +118,35 @@ RCP<const SymEngine::Basic> Mul::from_dict(const RCP<const Number> &coef,
 {
     if (coef->is_zero())
         return coef;
+    // lakutata: the positive integers to the same rational power multiplied
+    // together, as in SymPy: sqrt(2)*sqrt(3) is sqrt(6), one value one form
+    // (2**(1/3)*3**(2/3) stays)
+    {
+        std::map<rational_class, std::vector<RCP<const Basic>>> powers;
+        for (const auto &p : d) {
+            if (is_a<Integer>(*p.first) and is_a<Rational>(*p.second)
+                and down_cast<const Integer &>(*p.first).is_positive())
+                powers[down_cast<const Rational &>(*p.second)
+                           .as_rational_class()]
+                    .push_back(p.first);
+        }
+        bool combined = false;
+        RCP<const Number> c = coef;
+        for (const auto &group : powers) {
+            if (group.second.size() < 2)
+                continue;
+            integer_class product(1);
+            for (const RCP<const Basic> &base : group.second) {
+                product *= down_cast<const Integer &>(*base).as_integer_class();
+                d.erase(base);
+            }
+            Mul::dict_add_term_new(outArg(c), d, Rational::from_mpq(group.first),
+                                   integer(std::move(product)));
+            combined = true;
+        }
+        if (combined)
+            return Mul::from_dict(c, std::move(d));
+    }
     // lakutata: the coefficient of a product goes into its first sum to the
     // power 1 (2*(x + 1) is 2*x + 2, 2*(x + 1)/y is (2*x + 2)/y), as the
     // formulas read them: the sums stay flat, one value has one form

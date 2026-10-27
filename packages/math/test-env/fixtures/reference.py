@@ -20,6 +20,7 @@ from sympy.functions.combinatorial.numbers import (bell, bernoulli, catalan, fib
                                                    legendre_symbol, lucas, mobius, stirling, totient)
 from sympy.ntheory import factorint, isprime, nextprime, primitive_root
 from sympy.ntheory.modular import crt
+from sympy.solvers.inequalities import reduce_rational_inequalities
 from sympy.parsing.sympy_parser import (convert_xor, implicit_multiplication, parse_expr, rationalize,
                                         standard_transformations)
 from sympy.printing.str import StrPrinter
@@ -613,6 +614,41 @@ def rational():
     save('rational', results)
 
 
+def inequalities():
+    """The real solutions of SymPy's reduce_rational_inequalities (solve_univariate_inequality where it fails) as a
+    set: its intervals and its points, each end as text (None where the formulas cannot read it: CRootOf) and as a
+    value of 30 digits"""
+    def end_of(value):
+        if value in (oo, -oo):
+            return {'text': 'inf' if value == oo else '-inf', 'value': None}
+        return {'text': None if value.has(sympy.CRootOf) else text_of(value), 'value': str(sympy.N(value, DIGITS))}
+
+    results = []
+    for case in load('inequalities'):
+        result = dict(case)
+        inequality, variable = parse(case['inequality']), Symbol(case['variable'])
+        try:
+            found = reduce_rational_inequalities([[inequality]], variable, relational=False)
+        except (NotImplementedError, sympy.PolynomialError):
+            try:
+                found = sympy.solve_univariate_inequality(inequality, variable, relational=False)
+            except NotImplementedError as error:
+                result['error'] = type(error).__name__
+                results.append(result)
+                continue
+        intervals, points = [], []
+        for part in (found.args if isinstance(found, sympy.Union) else [found]):
+            if isinstance(part, sympy.Interval):
+                intervals.append({'start': end_of(part.start), 'end': end_of(part.end), 'startOpen': bool(part.left_open), 'endOpen': bool(part.right_open)})
+            elif isinstance(part, sympy.FiniteSet):
+                points.extend(end_of(point) for point in part)
+            elif part is not S.EmptySet:
+                raise ValueError(f'{case["inequality"]}: {part}')
+        result['result'] = {'intervals': intervals, 'points': points}
+        results.append(result)
+    save('inequalities', results)
+
+
 if __name__ == '__main__':
     grammar()
     numbers()
@@ -629,6 +665,7 @@ if __name__ == '__main__':
     poly()
     factorization()
     rational()
+    inequalities()
     decimals()
     special()
     complex_parts()

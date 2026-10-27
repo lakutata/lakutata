@@ -114,8 +114,9 @@ Definitions are expanded when a formula is read, so derivatives and equations se
 
 ### Exact results and numbers
 
-A formula gives exact results: `0.1 + 0.2` is `3/10`, `sin(pi/6)` is `1/2`, `sqrt(8)` is `2sqrt(2)`. A number times
-a sum is multiplied out: `2(x + 1)` is `2x + 2`. Exact numbers are computed up to about 315,000 digits: a larger power
+A formula gives exact results: `0.1 + 0.2` is `3/10`, `sin(pi/6)` is `1/2`, `sqrt(8)` is `2sqrt(2)`. A number times a
+sum is multiplied out (`2(x + 1)` is `2x + 2`), and integers to the same rational power are multiplied together
+(`sqrt(2)*sqrt(3)` is `sqrt(6)`), as in SymPy. Exact numbers are computed up to about 315,000 digits: a larger power
 stays a power (`2^(10^7)`), and a factorial above `20000!` stays as `gamma(n + 1)`. Then:
 
 - `toNumber()` gives a number of JavaScript (`MathDomainException` for a complex value), `toComplex()` gives `{re, im}`.
@@ -216,20 +217,38 @@ console.log(lines.join('\n'))
 ### Solving
 
 - `solve(variable)` on an equation or an expression (equal to zero) gives the solutions as an array of expressions, with
-  their `kind`: `finite`, `empty`, `all`, `intervals`, or `unsolved`/`other` for a set the package does not solve (its
-  `text` describes it). A polynomial in the variable of degree two or more is factored first: a linear factor gives its
-  root at once and the others are solved exactly to degree four (`x^3 - 6x^2 + 11x - 6 = 0` gives 1, 2 and 3, not the
-  radicals of Cardano's formula; `x^2 - (a + b)x + a*b = 0` gives a and b). `{domain: 'real'}` keeps the real solutions.
+  their `kind` (`finite`, `empty`, `all`, `intervals`, or `unsolved`/`other` for a set the package does not solve, which
+  its `text` describes) and all of them as a set (`set`, see below). A polynomial in the variable of degree two or more
+  is factored first: a linear factor gives its root at once, and the others are solved exactly to degree four (`x^3 -
+  6x^2 + 11x - 6 = 0` gives 1, 2 and 3, not the radicals of Cardano's formula; `x^2 - (a + b)x + a*b = 0` gives a and
+  b), and a binomial `a x^n + b` of any degree (`x^5 = 2` gives `2^(1/5)` times the fifth roots of 1). `{domain:
+  'real'}` keeps the real solutions.
 - `solve(equations, variables)` solves a system of linear equations: an empty array when it has no solution,
   otherwise one solution with the value of each variable it determines (in terms of the others when there are
   infinitely many).
+- `solve(variable)` on an inequality (`parse('x^2 < 4')`) gives its real solutions as a set of intervals and values
+  (`x^2*(x + 1) <= 0` gives `(-inf, -1] ∪ {0}`); the array holds the values outside the intervals (`0`). Both sides must
+  be fractions of polynomials in the variable with rational coefficients; a zero of a denominator is never a solution
+  (`1/(1 + 1/x) > 0` excludes `-1` and `0`). The real roots of each irreducible factor are isolated by Descartes' rule
+  of signs, then matched with the exact roots found for it; a root without an exact form (`x^5 - x - 1`), a coefficient
+  that is not rational (`sqrt(2)*x < 1`), another variable or another function throws `MathNotSupportedException`
+  (`numeric.polynomialRoots()` gives the values of the roots).
+- A set of numbers (`MathSet`) holds intervals of real numbers with exact ends, and values: `interval(start, end,
+  {startOpen, endOpen})` and `finiteSet(values)` make one, and the `set` of solutions is one. It has `union`,
+  `intersect`, `complement` (in the real numbers), `difference`, `contains` (`undefined` when not known), `equals`,
+  `isEmpty`, `toString` (`[0, 2) ∪ {3}`) and `toTeX`. The ends are compared exactly (`compare()`); ends that cannot be
+  ordered, as those with variables, throw `MathNotSupportedException`. The set of the solutions of an equation the
+  package does not solve (`sin(x) = 0`) has the kind `other`, which the operations do not take.
 
 ```typescript
-import {expression, solve} from '@lakutata/math'
+import {expression, finiteSet, type Inequality, interval, parse, solve} from '@lakutata/math'
 
 console.log(expression('x^4 - 1').solve('x').map(String))   //['-1', '1', '-i', 'i']
 const [solution] = solve(['x + y = 3', 'x - y = 1'], ['x', 'y'])
 console.log(solution.x.toString(), solution.y.toString())   //2 1
+console.log((parse('(x + 1)/(x - 2) >= 0') as Inequality).solve('x').toString()) //(-inf, -1] ∪ (2, inf)
+const set = interval(0, 2, {endOpen: true}).union(finiteSet([3]))
+console.log(set.complement().toString(), set.contains('sqrt(2)')) //(-inf, 0) ∪ [2, 3) ∪ (3, inf) true
 ```
 
 ### Number theory
@@ -714,9 +733,9 @@ The bundles, the executables and the installers made by `lakutata package` carry
 
 | Export | What it is |
 |---|---|
-| `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `unit`, `constant`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `poly`, `linalg`, `stats`, `numeric` | The functions and the namespaces of `math`, ready to use |
+| `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `interval`, `finiteSet`, `unit`, `constant`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `poly`, `linalg`, `stats`, `numeric` | The functions and the namespaces of `math`, ready to use |
 | `math`, `createMath`, `MathOptions` | The scope of the default options; a scope of other options (`definitions`, `precision`, `timeout`, `concurrency`, `units`), and its options |
-| `MathScope`, `MathDefinitions` | A scope of definitions and settings (`createMath()`, `with()`): `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `unit`, `constant`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `poly`, `linalg`, `stats`, `numeric`; the definitions (a body by signature) |
+| `MathScope`, `MathDefinitions` | A scope of definitions and settings (`createMath()`, `with()`): `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `interval`, `finiteSet`, `unit`, `constant`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `poly`, `linalg`, `stats`, `numeric`; the definitions (a body by signature) |
 | `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `factor`, `sqf`, the fractions (`cancel`, `together`, `apart`, `completeSquare`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
 | `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
 | `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is given where a matrix is expected (a matrix, or its rows); where a vector is (a `Float64Array`, or an array of numbers) |
@@ -731,8 +750,9 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | `LuDecomposition`, `QrDecomposition`, `SingularValueDecomposition`, `EigenDecomposition`, `SymmetricEigenDecomposition`, `SchurDecomposition`, `ComplexVector`, `ComplexMatrix` | The results of the decompositions: `{lower, upper, permutation}`, `{q, r}`, `{u, singularValues, v}`, `{values, vectors}` (complex: `{re, im}`), `{values, vectors}`, `{u, t}` |
 | `CommonSubexpressions`, `CseOptions` | The result of `cse()` (`replacements`, `expressions`) and its option (`prefix`) |
 | `PolarForm`, `RectangularForm` | The polar form (`modulus`, `argument`) and the rectangular form (`real`, `imaginary`) of a complex value |
-| `Equation`, `Inequality`, `InequalityRelation` | An equation (`left`, `right`, `difference`, `substitute`, `solve`, `solveAsync`), an inequality (`left`, `right`, `relation`) |
-| `Solutions`, `SolutionsKind`, `SolutionInterval`, `SolveOptions` | The solutions of an equation: an array of expressions with their `kind`, `intervals` and `text`; the `domain` of the solutions |
+| `Equation`, `Inequality`, `InequalityRelation` | An equation (`left`, `right`, `difference`, `substitute`, `solve`, `solveAsync`), an inequality (`left`, `right`, `relation`, `solve`, `solveAsync`) |
+| `Solutions`, `SolutionsKind`, `SolveOptions` | The solutions of an equation or of an inequality: an array of expressions with their `kind`, their `set` and `text`; the `domain` of the solutions |
+| `MathSet`, `MathSetKind`, `SetInterval`, `IntervalOptions` | A set of numbers (`interval()`, `finiteSet()`, the `set` of solutions): `kind`, `values`, `intervals`, `text`, `union`, `intersect`, `complement`, `difference`, `contains`, `equals`, `isEmpty`, `toString`, `toTeX`; what it is; an interval of it; whether the ends of an interval are excluded |
 | `SystemSolution`, `SystemEquation` | A solution of a system (an expression by variable), an equation of a system |
 | `CompiledFunction` | A compiled expression: a function of numbers, its `variables`, `batch` |
 | `NumberTheory`, `IntegerValue`, `ContinuedFractionOptions`, `PrimeFactor`, `ExtendedGcd`, `Congruence` | The number theory (`ntheory`): `gcd`, `lcm`, `extendedGcd`, `mod`, `modInverse`, `powMod`, `isPrime`, `nextPrime`, `factor`, `totient`, `mobius`, `primitiveRoot`, `legendre`, `jacobi`, `crt`, `fibonacci`, `lucas`, `binomial`, `factorial`, `doubleFactorial`, `bernoulli`, `harmonic`, `permutations`, `combinationsWithRepetition`, `multinomial`, `bell`, `catalan`, `stirlingSecondKind`, `compositions`, `continuedFraction`, `fromContinuedFraction`, `convergents`, and the asynchronous versions; an integer (a bigint, or a number that is a safe integer); a prime factor and its exponent; the result of `extendedGcd`; the result of `crt`; the largest number of terms of a continued fraction |
