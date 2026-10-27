@@ -182,7 +182,7 @@ std::complex<double> numericValue(const Expr &given, bool *fromDecimals = nullpt
     std::complex<double> value;
     if (specialValue(expression, value)) return value;
     try {
-        return std::strtod(toDecimal(expression, 20).c_str(), nullptr);
+        return std::strtod(toRealDecimal(expression, 20).c_str(), nullptr);
     } catch (MathError &error) {
         rethrowDecimalError(error);
     }

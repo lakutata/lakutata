@@ -129,7 +129,9 @@ stays a power (`2^(10^7)`), and a factorial above `20000!` stays as `gamma(n + 1
   Hurwitz's), `lowergamma`, `uppergamma` and `lambertw`. A value that cannot be told from 0, even with 640 more digits,
   is `0` (`ln(6) - ln(2) - ln(3)`); a value whose argument is too large for the digits is computed with as many more
   digits as it needs, up to 50000 (`sin(10^(10^4))` needs 10^4); a value exactly halfway between two decimals of that
-  many digits is rounded to the even one (`ln(8)/ln(4)`, which is 1.5, gives `2` to one digit).
+  many digits is rounded to the even one (`ln(8)/ln(4)`, which is 1.5, gives `2` to one digit). A real value with
+  complex parts (`e^(i*pi)`, `-i*asinh(i)`) is the real part of `toComplexDecimal()`; a complex value throws
+  `MathDomainException`.
 - `toComplexDecimal(digits)` gives the two parts of a complex value, `{re, im}`, as strings rounded as `toDecimal()`
   rounds, each part to that many significant digits of its own: the parts of `(1 + i/10^25)^2 - 1` are `-1e-50` and
   `2e-25`. It computes the functions `toDecimal()` computes, of complex arguments too, with their principal branches; on

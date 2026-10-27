@@ -178,6 +178,18 @@ describe('The decimals', (): void => {
         assert.strictEqual(math.expression('i^i').toNumber(), 0.2078795763507619)
         assert.throws((): unknown => math.expression('1 + i/10^15').toNumber(), MathDomainException)
         assert.throws((): unknown => math.expression('1 + gamma(1 + i)/10^20').toNumber(), MathDomainException)
+        //At the branch points of the inverse functions, where their slopes have no bound
+        assert.deepStrictEqual(math.expression('asinh(i)').toComplexDecimal(10), {re: '0', im: '1.570796327'})
+        assert.deepStrictEqual(math.expression('acosh(-1)').toComplexDecimal(10), {re: '0', im: '3.141592654'})
+        assert.deepStrictEqual(math.expression('acsch(i)').toComplexDecimal(10), {re: '0', im: '-1.570796327'})
+        assert.deepStrictEqual(math.expression('asech(-1)').toComplex(), {re: 0, im: globalThis.Math.PI})
+        assert.strictEqual(math.expression('-2i*asinh(i)').toNumber(), globalThis.Math.PI)
+        //The decimals of a real value of complex parts, from the complex decimals; of a complex value, an error
+        assert.strictEqual(math.expression('e^(i*pi)').toDecimal(10), '-1')
+        assert.strictEqual(math.expression('-i*asinh(i)').toDecimal(10), '1.570796327')
+        assert.strictEqual(math.expression('i*acosh(1/2)').toDecimal(10), '-1.047197551')
+        assert.strictEqual(math.decimal(math.expression('abs(asinh(i))'), {precision: 5}).toString(), '1.5708')
+        assert.throws((): unknown => math.expression('-i*asinh(2i)').toDecimal(10), MathDomainException)
     })
 
     it('take the digits a value needs: an argument too large for the digits, a cancellation of large values', (): void => {

@@ -459,6 +459,8 @@ Approximation Evaluator::apply(const Basic &e, const std::vector<Approximation> 
         const Approximation &x = arguments[1];
         if (zero(y)) decide(y.noise);
         if (zero(x)) decide(x.noise);
+        //arg(x) of a real x is atan2(0, x)
+        if (zero(y) && zero(x)) throw MathError(ErrorCode::Domain, "arg(0) has no value");
         const Decimal value = context.atan2(zero(y) ? context.integer(0) : y.value, zero(x) ? context.integer(0) : x.value);
         //(|x| err(y) + |y| err(x))/(x^2 + y^2)
         const double size = exponent(context.add(context.mul(x.value, x.value), context.mul(y.value, y.value)));
@@ -686,7 +688,7 @@ long nextGuard(long guard, double missing)
     return static_cast<long>(std::ceil(next));
 }
 
-std::string toDecimal(const Expr &expression, long digits)
+std::string toRealDecimal(const Expr &expression, long digits)
 {
     if (digits < 1 || digits > 100000) throw MathError(ErrorCode::Argument, "The number of digits is from 1 to 100000");
     //Evaluated with more guard digits each time, until two evaluations round to the same digits; a value within its
@@ -740,6 +742,25 @@ std::string toDecimal(const Expr &expression, long digits)
         if (!zero && text == previous && !context.nearHalf(value.value, digits, value.noise + 1)) return text;
         previous = zero ? "" : text;
         guard *= 4;
+    }
+}
+
+std::string toDecimal(const Expr &expression, long digits)
+{
+    try {
+        return toRealDecimal(expression, digits);
+    } catch (NotRealError &notReal) {
+        //A value with complex parts: the real part of its complex decimals, whose imaginary part is 0 (exp(i pi)); where
+        //they do not compute a node (gamma of a complex number), the part that is not real
+        std::pair<std::string, std::string> parts;
+        try {
+            parts = toComplexDecimal(expression, digits);
+        } catch (MathError &error) {
+            if (error.code() == ErrorCode::NotSupported) throw notReal;
+            throw;
+        }
+        if (parts.second != "0") throw MathError(ErrorCode::Domain, "The value is a complex number (" + toText(expression) + "): use toComplexDecimal()");
+        return parts.first;
     }
 }
 

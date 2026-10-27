@@ -292,7 +292,7 @@ Decimal DecimalContext::atan2(const Decimal &y, const Decimal &x) const
 {
     const DecimalContext g(digits() + 15);
     if (isZero(x)) {
-        if (isZero(y)) notReal("the argument of 0");
+        if (isZero(y)) throw MathError(ErrorCode::Domain, "atan2(0, 0) has no value");
         const Decimal halfPi = g.div(g.pi(), g.integer(2));
         return round(isNegative(y) ? g.neg(halfPi) : halfPi);
     }

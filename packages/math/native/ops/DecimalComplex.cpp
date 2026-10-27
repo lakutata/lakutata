@@ -591,8 +591,14 @@ private:
         //|f'| of the inverse functions: 1/sqrt(1 - z^2) (asin, acos), 1/(1 + z^2) (atan), 1/sqrt(z^2 + 1) (asinh),
         //1/sqrt(z^2 - 1) (acosh), 1/(1 - z^2) (atanh); of 1/z, times 1/|z|^2
         const double innerSize = exponent(estimate.abs(inner));
-        double slope = is_a<ATan>(e) || is_a<ACot>(e) || is_a<ATanh>(e) || is_a<ACoth>(e) ? -innerSize : -innerSize / 2;
+        const bool logarithmic = is_a<ATan>(e) || is_a<ACot>(e) || is_a<ATanh>(e) || is_a<ACoth>(e);
+        double slope = logarithmic ? -innerSize : -innerSize / 2;
         if (reciprocal) slope -= 2 * size(estimate, given);
+        //Near a branch point of asin, acos, asinh, acosh (1 - z^2 or 1 + z^2 within about the error of z, 0 at it),
+        //where |f'| has no bound: their values within an error d of it differ by about sqrt(2d) at most, on either side
+        //of their cuts
+        const double atNoise = reciprocal ? noise - 2 * size(estimate, given) : noise;
+        if (!logarithmic && noise > EXACT / 2 && innerSize <= atNoise + 3) return result(value, noise, atNoise / 2 + 2 - noise);
         return result(value, noise, slope);
     }
 

@@ -42,6 +42,9 @@ describe('The numeric solutions', (): void => {
         assert.deepStrictEqual(Array.from(math.numeric.solveSystem(['10*(y - x^2)', '1 - x'], ['x', 'y'], [-1.2, 1]).solution), [1, 1])
         const squares = math.numeric.solveSystem(['x - 1', 'x - 3'], ['x'], [0])
         assert.ok(squares.converged && globalThis.Math.abs(squares.solution[0] - 2) < 1e-9 && globalThis.Math.abs(squares.residual - globalThis.Math.SQRT2) < 1e-9)
+        //Near the smallest residuals, the steps that leave them the same: the least squares to the last digits
+        const line = math.numeric.solveSystem(['x + y = 2', 'x - y = 0', 'x + 2y = 3.3'], ['x', 'y'], [0, 0])
+        assert.ok(line.converged && globalThis.Math.abs(line.solution[0] - 73 / 70) < 1e-14 && globalThis.Math.abs(line.solution[1] - 76 / 70) < 1e-14, String(line.solution))
         const none = math.numeric.solveSystem(['x^2 + 1'], ['x'], [1])
         assert.ok(!none.converged && none.residual >= 1)
         assert.ok((await math.numeric.solveSystemAsync(['x + y = 3', 'x - y = 1'], ['x', 'y'], [0, 0])).converged)

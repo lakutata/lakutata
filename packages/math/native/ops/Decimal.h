@@ -149,8 +149,10 @@ private:
 //The value of an expression with a number of significant digits, correctly rounded: evaluated at two precisions until
 //they agree (a value that stays below the roundings of its largest part, 640 digits beyond, is 0). Real values only:
 //the arithmetic, powers and roots, exp and ln, the trigonometric and hyperbolic functions, the rounding functions,
-//pi, e, the golden ratio, the constants of Euler and Catalan
+//pi, e, the golden ratio, the constants of Euler and Catalan; of complex parts, by toComplexDecimal() (exp(i pi))
 std::string toDecimal(const Expr &expression, long digits);
+//toDecimal() of real parts only: NotRealError at a part that is not real
+std::string toRealDecimal(const Expr &expression, long digits);
 
 //The guard digits an evaluation may take beyond the digits asked, its value needing them (sin(10^(10^4)))
 constexpr long MORE_DIGITS = 50000;
