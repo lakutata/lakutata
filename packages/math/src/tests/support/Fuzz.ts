@@ -1,4 +1,4 @@
-import {type Expression, Math, MathException} from '../../exports/Math.js'
+import {type Expression, Math, MathException, Matrix} from '../../exports/Math.js'
 
 /**
  * A seeded generator of random numbers (mulberry32): the same seed gives the same formulas
@@ -352,6 +352,79 @@ export async function checkFormula(math: Math, random: Random, index: number, te
         } catch (error) {
             if (!(error instanceof MathException)) fail('diff', String(error))
         }
+    }
+    return failures
+}
+
+//A random matrix of rows and columns: of elements from -10 to 10, now and then of a rank below its size (a product of
+//thinner matrices) or with a large diagonal
+function randomMatrix(math: Math, random: Random, rows: number, columns: number): Matrix {
+    if (rows > 1 && columns > 1 && random.chance(0.2)) {
+        const inner: number = 1 + random.int(globalThis.Math.min(rows, columns) - 1)
+        return randomMatrix(math, random, rows, inner).mul(randomMatrix(math, random, inner, columns))
+    }
+    const diagonal: number = random.chance(0.3) ? 20 * (rows + columns) : 0
+    return math.linalg.fromFunction(rows, columns, (i: number, j: number): number => globalThis.Math.round((random.next() * 20 - 10) * 100) / 100 + (i === j ? diagonal : 0))
+}
+
+function frobenius(matrix: Matrix): number {
+    return matrix.data.reduce((sum: number, value: number): number => sum + value * value, 0) ** 0.5
+}
+
+/**
+ * The properties of random matrices: the products associate and transpose; a solution of a system, an inverse, a
+ * least-squares solution have small residuals (backward errors); determinants multiply; the singular values give the
+ * Frobenius norm and the rank; the asynchronous operations give the synchronous results
+ * @param math
+ * @param random
+ * @param index
+ */
+export async function checkMatrices(math: Math, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    const size = (): number => random.chance(0.05) ? 0 : 1 + random.int(random.chance(0.1) ? 40 : 7)
+    const n: number = size(), m: number = size(), k: number = size()
+    const a: Matrix = randomMatrix(math, random, n, m), b: Matrix = randomMatrix(math, random, m, k), c: Matrix = randomMatrix(math, random, k, n)
+    const square: Matrix = randomMatrix(math, random, n, n)
+    const text: string = `${square.toString()} | ${a.toString()} | ${b.toString()}`.slice(0, 400)
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    try {
+        const left: Matrix = a.mul(b).mul(c), right: Matrix = a.mul(b.mul(c))
+        const scale: number = frobenius(a) * frobenius(b) * frobenius(c)
+        if (frobenius(left.sub(right)) > 1e-12 * scale + 1e-300) fail('multiply', `(ab)c and a(bc) differ by ${frobenius(left.sub(right))}`)
+        if (!a.mul(b).transpose().equals(b.transpose().mul(a.transpose()), 1e-12 * frobenius(a) * frobenius(b))) fail('multiply', '(ab)^T is not b^T a^T')
+        //A system and an inverse of a matrix not singular: backward errors of the order of the roundings
+        const values: Float64Array = math.linalg.singularValues(square)
+        const condition: number = math.linalg.condition(square)
+        const vector: Float64Array = Float64Array.from({length: n}, (): number => random.next() * 20 - 10)
+        if (n > 0 && values[n - 1] > 0 && condition < 1e10) {
+            const x: Float64Array = math.linalg.solve(square, vector)
+            const residual: number = math.linalg.norm(square.mul(x).map((value: number, i: number): number => value - vector[i]))
+            const bound: number = 1e-13 * n * (frobenius(square) * math.linalg.norm(x) + math.linalg.norm(vector))
+            if (residual > bound) fail('solve', `residual ${residual} above ${bound}`)
+            const inverse: Matrix = math.linalg.inverse(square)
+            const error: number = frobenius(square.mul(inverse).sub(math.linalg.identity(n)))
+            if (error > 1e-13 * n * condition) fail('inverse', `a a^-1 - I is ${error}, condition ${condition}`)
+            const product: number = math.linalg.determinant(square.mul(square)), squared: number = math.linalg.determinant(square) ** 2
+            if (globalThis.Math.abs(product - squared) > 1e-11 * condition * globalThis.Math.abs(squared)) fail('determinant', `det(a^2) ${product}, det(a)^2 ${squared}`)
+            if ((await math.linalg.solveAsync(square, vector)).some((value: number, i: number): boolean => value !== x[i])) fail('async', 'solveAsync differs from solve')
+        }
+        //Least squares: the residual is orthogonal to the columns (the normal equations)
+        const rhs: Float64Array = Float64Array.from({length: n}, (): number => random.next() * 20 - 10)
+        if (n > 0 && m > 0) {
+            const x: Float64Array = math.linalg.leastSquares(a, rhs)
+            const residual: Matrix = new Matrix(n, 1, a.mul(x)).sub(new Matrix(n, 1, rhs))
+            const normal: number = frobenius(a.transpose().mul(residual))
+            const bound: number = 1e-11 * frobenius(a) * (frobenius(a) * math.linalg.norm(x) + math.linalg.norm(rhs))
+            if (math.linalg.condition(a) < 1e8 && normal > bound) fail('leastSquares', `a^T (a x - b) is ${normal}, above ${bound}`)
+        }
+        //The singular values: their squares sum to the square of the Frobenius norm; the rank of a and of its transpose
+        const singular: Float64Array = math.linalg.singularValues(a)
+        const squares: number = singular.reduce((sum: number, value: number): number => sum + value * value, 0)
+        if (globalThis.Math.abs(squares - frobenius(a) ** 2) > 1e-12 * frobenius(a) ** 2 + 1e-300) fail('singularValues', `Σσ² ${squares}, ‖a‖² ${frobenius(a) ** 2}`)
+        if (singular.some((value: number, i: number): boolean => i > 0 && value > singular[i - 1])) fail('singularValues', 'not descending')
+        if (math.linalg.rank(a) !== math.linalg.rank(a.transpose())) fail('rank', `rank ${math.linalg.rank(a)}, of the transpose ${math.linalg.rank(a.transpose())}`)
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('matrices', String(error))
     }
     return failures
 }

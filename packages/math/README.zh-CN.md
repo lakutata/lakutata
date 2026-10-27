@@ -196,9 +196,39 @@ async function integers(math: Math): Promise<void> {
 }
 ```
 
+### 矩阵和线性代数
+
+`math.matrix(rows)` 得到一个数值（双精度）`Matrix`。它的元素按行存放在一个 `Float64Array` 里（`data`），原生插件直接读取这块内存。它的方法都返回新的矩阵：`get`、`set`（会修改矩阵本身）、`row`、`column`、`diagonal`、`submatrix`、`reshape`、`transpose`、`add`、`sub`、`mul`、`div`、`neg`、`multiplyElements`、`divideElements`、`powElements`、`map`、`trace`、`kron`、`equals`、`toArray` 和 `toString`（`[1, 2; 3, 4]`）。
+
+`math.linalg` 提供基于 Eigen 的线性代数：
+
+- 构造矩阵：`zeros`、`ones`、`identity`、`diagonal`、`fromRows`、`fromColumns`、`fromFunction`、`concat`，以及 `rotation`（平面上的旋转，或空间里绕某个轴的旋转）。
+- 向量（`Float64Array`，或数字数组）：`dot`、`cross`、`outer`、`norm`。
+- `multiply`、`solve`（用部分选主元的 LU 分解）、`solveTriangular`、`leastSquares`（范数最小的最小二乘解，和 NumPy 的 `lstsq` 一样）、`inverse`、`determinant`、`singularValues`、`rank`（大于 NumPy 默认容差的奇异值的个数）、`condition`，以及矩阵的范数（`'fro'`、1、2、`Infinity`）。
+
+右端项传入向量就得到向量：`solve(a, [5, 5])` 返回 `Float64Array`；传入矩阵（每一列是一个右端项）就得到矩阵。`solve` 和 `inverse` 判断矩阵奇异的规则和 NumPy 一样：LU 分解中遇到恰好为 0 的主元才算奇异；接近奇异的矩阵会给出很大的值，而不是报错，接近奇异的程度可以用 `condition()` 查看。
+
+大矩阵上耗时的运算都有异步版本（`solveAsync()`、`inverseAsync()`、`multiplyAsync()` 等），它们在调用时就复制好参数。Eigen 的计算不能中途停下：超过时限或被取消时，Promise 会被拒绝，但线程要把这次计算做完才能空出来。
+
+```typescript
+import type {Math} from '@lakutata/math'
+
+async function systems(math: Math): Promise<void> {
+    const a = math.matrix([[4, 1], [2, 3]])
+    console.log(math.linalg.solve(a, [5, 5]))                 //Float64Array [1, 1]
+    console.log(math.linalg.inverse(a).toString())            //[0.3, -0.1; -0.2, 0.4]
+    console.log(math.linalg.determinant(a))                   //10
+    console.log(a.mul(a).toString())                          //[18, 7; 14, 11]
+    console.log(math.linalg.leastSquares([[1, 1], [1, 2], [1, 3]], [1, 2, 2]))
+    const big = math.linalg.fromFunction(1000, 1000, (i, j) => (i === j ? 1000 : 1 / (1 + i + j)))
+    const inverse = await math.linalg.inverseAsync(big, {timeout: 5000})
+    console.log(inverse.get(0, 0))
+}
+```
+
 ### 异步运算
 
-可能耗时的运算都有异步版本：`expandAsync()`、`simplifyAsync()`、`diffAsync()`、`seriesAsync()`、`solveAsync()`、`toDecimalAsync()`、`toComplexDecimalAsync()`、组件的 `solveAsync()` 和 `cseAsync()`，以及数论的异步版本。它们在原生插件自己的线程里执行，不占用 libuv 的线程池：线程数默认是 CPU 核数减一，也可以用环境变量 `LAKUTATA_MATH_THREADS` 指定。选项有 `timeout`（毫秒）和 `signal`（`AbortSignal`）：
+可能耗时的运算都有异步版本：`expandAsync()`、`simplifyAsync()`、`diffAsync()`、`seriesAsync()`、`solveAsync()`、`toDecimalAsync()`、`toComplexDecimalAsync()`、组件的 `solveAsync()` 和 `cseAsync()`，以及数论和线性代数的异步版本。它们在原生插件自己的线程里执行，不占用 libuv 的线程池：线程数默认是 CPU 核数减一，也可以用环境变量 `LAKUTATA_MATH_THREADS` 指定。选项有 `timeout`（毫秒）和 `signal`（`AbortSignal`）：
 
 - 到了时限，Promise 以 `MathTimeoutException` 拒绝；signal 取消时，以 `MathCancelledException` 拒绝。有检查点的运算（展开、十进制计算、线性方程组、数论）会在下一个检查点停下；其他运算会先算完，线程才空出来。
 - 组件限制自己同时执行的运算数（`concurrency`）。组件销毁时会等正在执行的运算结束，最多等 `drainTimeout` 毫秒。
@@ -213,7 +243,7 @@ async function integers(math: Math): Promise<void> {
 
 | 导出 | 说明 |
 |---|---|
-| `Math` | 组件：`parse`、`expression`、`equation`、`decimal`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory` |
+| `Math` | 组件：`parse`、`expression`、`equation`、`decimal`、`matrix`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`linalg` |
 | `buildMathOptions`、`MathConfig` | 在组件配置里声明它，以及它的选项：`definitions`、`precision`、`timeout`、`concurrency`、`drainTimeout` |
 | `MathScope`、`MathDefinitions` | `with()` 得到的范围，方法和组件相同（没有 `ntheory`）；定义（按签名给出的公式） |
 | `Expression` | 表达式：`toString`、`toTeX`、`toNumber`、`toComplex`、`toDecimal`、`toComplexDecimal`、`variables`、`equals`、`add`、`sub`、`mul`、`div`、`pow`、`neg`、`expand`、`simplify`、`diff`、`series`、`substitute`、`evaluate`、`solve`、`compile`，多项式（`coefficients`、`degree`、`leadingCoefficient`、`divide`），`numerator`、`denominator`、`rewrite`（改写成 `exp`、`sin`、`cos`），判断（`isZero`、`isPositive`、`isNegative`、`isInteger`、`isRational`、`isReal`、`isFinite`：不知道时为 `undefined`），`compare`、`toJavaScript`、`toC`、`toPolar`、`toRectangular`，以及各个异步版本 |
@@ -224,6 +254,8 @@ async function integers(math: Math): Promise<void> {
 | `SystemSolution`、`SystemEquation` | 方程组的一组解（每个变量对应一个表达式），方程组里的一个方程 |
 | `CompiledFunction` | 编译后的表达式：以数字为参数的函数，它的 `variables` 和 `batch` |
 | `Decimal`、`DecimalValue`、`DecimalOptions` | 指定精度的十进制数（`math.decimal()`）：`precision`、`add`、`sub`、`mul`、`div`、`mod`、`pow`、`neg`、`abs`、`sqrt`、`cbrt`、`root`、`exp`、`ln`、`log10`、`log`、`sin`、`cos`、`tan`、`asin`、`acos`、`atan`、`atan2`、`sinh`、`cosh`、`tanh`、`asinh`、`acosh`、`atanh`、`gamma`、`loggamma`、`digamma`、`erf`、`erfc`、`zeta`、`lambertw`、`floor`、`ceil`、`trunc`、`round`、`compare`、`equals`、`isZero`、`isPositive`、`isNegative`、`isInteger`、`toString`、`toFixed`、`toNumber`、`toJSON`；需要十进制数的地方可以传入的值（十进制数、数字、bigint、写成字符串的十进制数）；`decimal()` 的选项（`precision`） |
+| `Matrix`、`MatrixValue`、`VectorValue` | 数值矩阵（`math.matrix()`）：`rows`、`columns`、`data`、`get`、`set`、`row`、`column`、`diagonal`、`submatrix`、`reshape`、`transpose`、`add`、`sub`、`mul`、`div`、`neg`、`multiplyElements`、`divideElements`、`powElements`、`map`、`trace`、`kron`、`equals`、`clone`、`toArray`、`toJSON`、`toString`；需要矩阵的地方可以传入的值（矩阵，或它的各行）；需要向量的地方可以传入的值（`Float64Array`，或数字数组） |
+| `LinearAlgebra`、`NormKind` | 线性代数（`math.linalg`）：`zeros`、`ones`、`identity`、`diagonal`、`fromRows`、`fromColumns`、`fromFunction`、`concat`、`rotation`、`dot`、`cross`、`outer`、`norm`、`multiply`、`solve`、`solveTriangular`、`leastSquares`、`inverse`、`determinant`、`singularValues`、`rank`、`condition`，以及各个异步版本；范数的种类 |
 | `NumberTheory`、`IntegerValue`、`PrimeFactor`、`ExtendedGcd`、`Congruence` | 数论（`math.ntheory`）：`gcd`、`lcm`、`extendedGcd`、`mod`、`modInverse`、`powMod`、`isPrime`、`nextPrime`、`factor`、`totient`、`mobius`、`primitiveRoot`、`legendre`、`jacobi`、`crt`、`fibonacci`、`lucas`、`binomial`、`factorial`、`doubleFactorial`、`bernoulli`、`harmonic`，以及各个异步版本；整数（bigint，或安全整数范围内的 number）；质因数和它的指数；`extendedGcd` 的结果；`crt` 的结果 |
 | `AsyncOptions`、`Value` | 异步运算的选项（`timeout`、`signal`）；需要表达式的地方可以传入的值（表达式、数字、bigint、十进制数、公式） |
 
@@ -236,10 +268,10 @@ async function integers(math: Math): Promise<void> {
 | `MathSyntaxException` | 公式写得不对（带有出错的 `position`），需要表达式的地方给了方程，或者反过来 |
 | `MathUnknownFunctionException` | 公式调用的函数既不是内置函数，也没有定义，或者把常数写成了调用（`g(2)`），带有它的 `position` |
 | `MathDefinitionException` | 定义无效：用了内置的名字、参数重复、定义之间循环引用、定义嵌套太深 |
-| `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂） |
+| `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂） |
 | `MathDivisionByZeroException` | 计算十进制值时遇到除以零（包括除以一个无法和 0 区分的值、0 的对数、0 的负数次幂、以 1 为底的对数、在函数的极点上求值：`gamma()` 的参数是 -2、`zeta()` 的参数是 1），或者模数是 0 |
 | `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`） |
-| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间 |
+| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、矩阵或向量的维数不对 |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |
 | `MathException` | 以上所有错误的基类；原生插件内部错误时，它的 `errno` 是 `E_MATH_INTERNAL` |
 

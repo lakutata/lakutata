@@ -1,6 +1,7 @@
 import {MathArgumentException} from '../exceptions/MathArgumentException.js'
 import type {AsyncOptions, Context} from './Context.js'
 import {Decimal, type DecimalOptions, decimalText, type DecimalValue} from './Decimal.js'
+import {Matrix, matrixOf, type MatrixValue} from './Matrix.js'
 import {Equation, Expression, expressionOf, formulaOf, handleOf, Inequality, type Value} from './Expression.js'
 import {MathSyntaxException} from '../exceptions/MathSyntaxException.js'
 import {type Handle, nativeCall, type NativeParsed} from './Native.js'
@@ -100,6 +101,14 @@ export class MathScope {
         if (!Number.isInteger(precision) || precision < 1 || precision > 100000) throw new MathArgumentException('The precision is an integer from 1 to 100000')
         if (value instanceof Expression) return new Decimal(value.toDecimal(precision), precision)
         return new Decimal(nativeCall((native) => native.run('decimalOperation', ['round', precision, decimalText(value)])) as string, precision)
+    }
+
+    /**
+     * A matrix of numbers: of its rows (`[[1, 2], [3, 4]]`), or a copy of a matrix.
+     * @param value The rows, or a matrix.
+     */
+    public matrix(value: MatrixValue): Matrix {
+        return value instanceof Matrix ? value.clone() : matrixOf(value)
     }
 
     /**

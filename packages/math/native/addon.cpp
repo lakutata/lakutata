@@ -4,6 +4,7 @@
 #include <napi.h>
 
 #include <cmath>
+#include <cstring>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -15,6 +16,7 @@
 
 #include "async/Pool.h"
 #include "core/Errors.h"
+#include "linalg/Linalg.h"
 #include "core/Handle.h"
 #include "core/Scope.h"
 #include "ops/Decimal.h"
@@ -31,6 +33,23 @@ namespace {
 using Builder = std::function<Napi::Value(Napi::Env)>;
 using Job = std::function<Builder()>;
 using JobFactory = Job (*)(const Napi::Array &arguments);
+
+//Whether the job being made copies the data of its arguments: an asynchronous operation reads them in another thread,
+//after its call has returned (a synchronous one reads them in place). Set by RunAsync around the making of its job
+thread_local bool copyingArguments = false;
+
+class CopyingArguments {
+public:
+    CopyingArguments()
+    {
+        copyingArguments = true;
+    }
+
+    ~CopyingArguments()
+    {
+        copyingArguments = false;
+    }
+};
 
 std::string stringAt(const Napi::Array &arguments, uint32_t index, const char *what)
 {
@@ -287,6 +306,70 @@ Job decimalOperationJob(const Napi::Array &arguments)
     };
 }
 
+//A matrix given as [rows, columns, Float64Array] (its elements row-major)
+MatrixArgument matrixArgumentOf(const Napi::Value &value)
+{
+    if (!value.IsArray()) throw MathError(ErrorCode::Argument, "A matrix is given as [rows, columns, Float64Array]");
+    const Napi::Array parts = value.As<Napi::Array>();
+    const Napi::Value rows = parts.Get(0u), columns = parts.Get(1u), data = parts.Get(2u);
+    auto dimension = [](const Napi::Value &number) {
+        if (!number.IsNumber()) throw MathError(ErrorCode::Argument, "A dimension of a matrix is not a number");
+        const double size = number.As<Napi::Number>().DoubleValue();
+        if (size != std::floor(size) || size < 0 || size > 4294967295.0) throw MathError(ErrorCode::Argument, "A dimension of a matrix is not an integer of 0 or more");
+        return static_cast<size_t>(size);
+    };
+    MatrixArgument matrix;
+    matrix.rows = dimension(rows);
+    matrix.columns = dimension(columns);
+    if (!data.IsTypedArray() || data.As<Napi::TypedArray>().TypedArrayType() != napi_float64_array) throw MathError(ErrorCode::Argument, "The elements of a matrix are not a Float64Array");
+    const Napi::Float64Array elements = data.As<Napi::Float64Array>();
+    if (static_cast<double>(elements.ElementLength()) != static_cast<double>(matrix.rows) * static_cast<double>(matrix.columns)) {
+        throw MathError(ErrorCode::Argument, "A matrix of " + std::to_string(matrix.rows) + "×" + std::to_string(matrix.columns) + " has " + std::to_string(elements.ElementLength()) + " elements");
+    }
+    if (copyingArguments) {
+        matrix.owned = std::make_shared<const std::vector<double>>(elements.Data(), elements.Data() + elements.ElementLength());
+        matrix.values = matrix.owned->data();
+    } else {
+        matrix.values = elements.Data();
+    }
+    return matrix;
+}
+
+//linalg(operation, matrices, numbers?, option?): an operation of the linear algebra; its results as [rows, columns,
+//Float64Array]
+Job linalgJob(const Napi::Array &arguments)
+{
+    std::string operation = stringAt(arguments, 0, "The operation");
+    const Napi::Value list = arguments.Get(1u);
+    if (!list.IsArray()) throw MathError(ErrorCode::Argument, "The matrices of an operation are an array");
+    std::vector<MatrixArgument> matrices;
+    const Napi::Array given = list.As<Napi::Array>();
+    for (uint32_t i = 0; i < given.Length(); i++) matrices.push_back(matrixArgumentOf(given.Get(i)));
+    std::vector<double> numbers;
+    if (arguments.Length() > 2 && arguments.Get(2u).IsArray()) {
+        const Napi::Array values = arguments.Get(2u).As<Napi::Array>();
+        for (uint32_t i = 0; i < values.Length(); i++) numbers.push_back(numberAt(values, i, "An option"));
+    }
+    std::string option = arguments.Length() > 3 && arguments.Get(3u).IsString() ? arguments.Get(3u).As<Napi::String>().Utf8Value() : std::string();
+    return [operation, matrices, numbers, option] {
+        auto results = std::make_shared<std::vector<MatrixResult>>(linalgOf(operation, matrices, numbers, option));
+        return Builder([results](Napi::Env env) {
+            Napi::Array array = Napi::Array::New(env, results->size());
+            for (uint32_t i = 0; i < results->size(); i++) {
+                const MatrixResult &result = (*results)[i];
+                Napi::Float64Array data = Napi::Float64Array::New(env, result.values.size());
+                if (!result.values.empty()) std::memcpy(data.Data(), result.values.data(), result.values.size() * sizeof(double));
+                Napi::Array matrix = Napi::Array::New(env, 3);
+                matrix.Set(0u, static_cast<double>(result.rows));
+                matrix.Set(1u, static_cast<double>(result.columns));
+                matrix.Set(2u, data);
+                array.Set(i, matrix);
+            }
+            return array;
+        });
+    };
+}
+
 Job fractionJob(const Napi::Array &arguments)
 {
     Expr expression = expressionAt(arguments, 0);
@@ -432,7 +515,7 @@ const std::map<std::string, JobFactory> &jobs()
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
         {"series", seriesJob}, {"solve", solveJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
-        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
+        {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
         {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}
     };
@@ -516,7 +599,11 @@ void complete(Napi::Env env, Napi::Function, std::nullptr_t *, Completion *compl
 //runAsync(operation, arguments, token?): an operation in the pool of the addon, a promise of its result
 Napi::Value RunAsync(const Napi::CallbackInfo &info)
 {
-    Job job = jobOf(info);
+    Job job;
+    {
+        const CopyingArguments copying;
+        job = jobOf(info);
+    }
     std::shared_ptr<Token> token = info.Length() > 2 && info[2].IsExternal() ? unwrap<Token>(info[2], TOKEN_TAG, "a token") : std::make_shared<Token>();
     std::shared_ptr<Environment> environment = environmentOf(info.Env());
     auto *completion = new Completion{environment, token, Napi::Promise::Deferred::New(info.Env()), nullptr, {}, false};

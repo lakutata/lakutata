@@ -2,7 +2,7 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
 import {Container} from '@lakutata/core'
-import {type Decimal, Expression, Math, MathException, type PrimeFactor, type Solutions, type SystemSolution} from '../exports/Math.js'
+import {type Decimal, Expression, Math, MathException, Matrix, type PrimeFactor, type Solutions, type SystemSolution} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -126,6 +126,47 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
             }
             const operate: () => Decimal | string = operations[fixture.op] ?? ((): Decimal => (decimal[fixture.op as keyof Decimal] as (value?: string) => Decimal).call(decimal, second))
             assert.strictEqual(String(operate()), fixture.result, `${fixture.op}(${fixture.args.join(', ')}) to ${fixture.precision} digits`)
+        }
+    })
+
+    it('give the linear algebra of NumPy and SciPy', (): void => {
+        type Nested = number | Nested[]
+        const fixtures = expected<{op: string, args: (number[][] | number[])[], triangle?: 'lower' | 'upper', tolerance?: number, kind?: number | 'fro' | 'inf', result?: Nested, error?: string}>('linalg')
+        //The elements of a result, flat
+        const flat = (value: unknown): number[] => {
+            if (typeof value === 'number') return [value]
+            if (value instanceof Matrix) return Array.from(value.data)
+            if (value instanceof Float64Array) return Array.from(value)
+            return (value as Nested[]).flatMap((element: Nested): number[] => flat(element))
+        }
+        for (const fixture of fixtures.cases) {
+            const [a, b] = fixture.args as [number[][], number[][] & number[]]
+            const label: string = `${fixture.op}(${JSON.stringify(fixture.args).slice(0, 80)})`
+            const operate = (): unknown => {
+                switch (fixture.op) {
+                    case 'multiply': return math.linalg.multiply(a, b)
+                    case 'solve': return math.linalg.solve(a, b)
+                    case 'solveTriangular': return math.linalg.solveTriangular(a, b, fixture.triangle!)
+                    case 'leastSquares': return math.linalg.leastSquares(a, b)
+                    case 'inverse': return math.linalg.inverse(a)
+                    case 'determinant': return math.linalg.determinant(a)
+                    case 'rank': return math.linalg.rank(a, fixture.tolerance ?? undefined)
+                    case 'singularValues': return math.linalg.singularValues(a)
+                    case 'condition': return math.linalg.condition(a)
+                    case 'norm': return math.linalg.norm(fixture.args[0], fixture.kind === 'inf' ? Infinity : fixture.kind)
+                }
+                throw new Error(`Unknown operation ${fixture.op}`)
+            }
+            if (fixture.error) {
+                assert.throws(operate, (error: unknown): boolean => error instanceof MathException && (error as MathException).errno === fixture.error, label)
+                continue
+            }
+            const ours: number[] = flat(operate()), theirs: number[] = flat(fixture.result)
+            const scale: number = globalThis.Math.max(1, ...theirs.map(globalThis.Math.abs))
+            assert.strictEqual(ours.length, theirs.length, label)
+            ours.forEach((value: number, i: number): void => {
+                assert.ok(globalThis.Math.abs(value - theirs[i]) <= 1e-11 * scale, `${label}: ${value}, NumPy ${theirs[i]}`)
+            })
         }
     })
 

@@ -3,6 +3,8 @@ import {Autoload, Configurable} from '@lakutata/core/decorator/di'
 import {AsyncTracker, type AsyncOptions, Context, definitionsOf} from '../lib/Context.js'
 import type {Decimal, DecimalOptions, DecimalValue} from '../lib/Decimal.js'
 import type {Equation, Expression, Inequality, Value} from '../lib/Expression.js'
+import {LinearAlgebra} from '../lib/LinearAlgebra.js'
+import type {Matrix, MatrixValue} from '../lib/Matrix.js'
 import {type CommonSubexpressions, type CseOptions, type MathDefinitions, MathScope, type SystemEquation, type SystemSolution} from '../lib/MathScope.js'
 import {native, nativeCall} from '../lib/Native.js'
 import {NumberTheory} from '../lib/NumberTheory.js'
@@ -117,6 +119,8 @@ export class Math extends Component {
 
     #ntheory: NumberTheory
 
+    #linalg: LinearAlgebra
+
     /**
      * Prepare the definitions.
      * @protected
@@ -132,6 +136,7 @@ export class Math extends Component {
         }, this.#tracker)
         this.#scope = new MathScope(context)
         this.#ntheory = new NumberTheory(context)
+        this.#linalg = new LinearAlgebra(context)
     }
 
     /**
@@ -163,6 +168,26 @@ export class Math extends Component {
     }
 
     /**
+     * The numeric linear algebra (on Eigen): matrices of zeros, identities, rotations; products, norms; the solutions
+     * of linear systems, least squares, inverses, determinants, ranks. Its asynchronous operations share the threads,
+     * the time limit and the concurrency of the component. Only the component has it: a scope of `with()` does not.
+     * @example
+     * ```typescript
+     * import {Container} from 'lakutata'
+     * import {Math} from '@lakutata/math'
+     *
+     * const container: Container = new Container()
+     * await container.setNamed('math', Math, {})
+     * const math: Math = await container.get<Math>('math')
+     * math.linalg.solve([[4, 1], [2, 3]], [5, 5])     //Float64Array [1, 1]
+     * await container.destroy()
+     * ```
+     */
+    public get linalg(): LinearAlgebra {
+        return this.#linalg
+    }
+
+    /**
      * Parse a formula: an expression (`x^2 - 5x + 6`), an equation (`x^2 = 4`) or an inequality (`x^2 < 4`).
      * @param text The formula.
      */
@@ -187,6 +212,15 @@ export class Math extends Component {
      */
     public decimal(value: DecimalValue | Expression, options?: DecimalOptions): Decimal {
         return this.#scope.decimal(value, options)
+    }
+
+    /**
+     * A matrix of numbers: of its rows (`[[1, 2], [3, 4]]`), or a copy of a matrix. Its operations are its methods and
+     * those of `linalg`.
+     * @param value The rows, or a matrix.
+     */
+    public matrix(value: MatrixValue): Matrix {
+        return this.#scope.matrix(value)
     }
 
     /**

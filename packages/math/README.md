@@ -276,13 +276,54 @@ async function integers(math: Math): Promise<void> {
 }
 ```
 
+### Matrices and linear algebra
+
+`math.matrix(rows)` gives a `Matrix` of numbers (doubles). Its elements are in a `Float64Array`, row by row (`data`),
+which the addon reads in place. Its methods give new matrices: `get`, `set` (which changes the matrix), `row`, `column`,
+`diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`,
+`divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `toArray` and `toString` (`[1, 2; 3, 4]`).
+
+`math.linalg` holds the linear algebra, computed by Eigen:
+
+- Matrices: `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, and
+  `rotation` (in the plane, or about an axis in space).
+- Vectors (`Float64Array`s, or arrays of numbers): `dot`, `cross`, `outer`, `norm`.
+- `multiply`, `solve` (by LU decomposition with partial pivoting), `solveTriangular`, `leastSquares` (the solution of
+  least norm, as NumPy's `lstsq`), `inverse`, `determinant`, `singularValues`, `rank` (the singular values above
+  NumPy's default tolerance), `condition`, and the norms of matrices (`'fro'`, 1, 2, `Infinity`).
+
+A vector given as the right side gives a vector: `solve(a, [5, 5])` is a `Float64Array`, while a matrix (one right side
+per column) gives a matrix. For `solve` and `inverse`, a matrix is singular when its LU decomposition meets a pivot of exactly 0, as in
+NumPy: a nearly singular matrix gives large values instead, and `condition()` shows how close to singular it is.
+
+The operations that take long on large matrices have asynchronous versions (`solveAsync()`, `inverseAsync()`,
+`multiplyAsync()`…), which copy their arguments when they are called. Eigen's computations cannot be interrupted: past
+the time limit or when the operation is cancelled, the promise is rejected, but its thread finishes the work before it
+is free again.
+
+```typescript
+import type {Math} from '@lakutata/math'
+
+async function systems(math: Math): Promise<void> {
+    const a = math.matrix([[4, 1], [2, 3]])
+    console.log(math.linalg.solve(a, [5, 5]))                 //Float64Array [1, 1]
+    console.log(math.linalg.inverse(a).toString())            //[0.3, -0.1; -0.2, 0.4]
+    console.log(math.linalg.determinant(a))                   //10
+    console.log(a.mul(a).toString())                          //[18, 7; 14, 11]
+    console.log(math.linalg.leastSquares([[1, 1], [1, 2], [1, 3]], [1, 2, 2]))
+    const big = math.linalg.fromFunction(1000, 1000, (i, j) => (i === j ? 1000 : 1 / (1 + i + j)))
+    const inverse = await math.linalg.inverseAsync(big, {timeout: 5000})
+    console.log(inverse.get(0, 0))
+}
+```
+
 ### Asynchronous operations
 
 The operations that can take long have an asynchronous version: `expandAsync()`, `simplifyAsync()`, `diffAsync()`,
 `seriesAsync()`, `solveAsync()`, `toDecimalAsync()`, `toComplexDecimalAsync()`, `solveAsync()` and `cseAsync()` of the
-component, and those of the number theory. They run in the threads of the addon, not in the thread pool of libuv: as
-many threads as the processor has cores, minus one, or the number in the environment variable `LAKUTATA_MATH_THREADS`.
-Their options are `timeout` (milliseconds) and `signal` (an `AbortSignal`):
+component, and those of the number theory and of the linear algebra. They run in the threads of the addon, not in the
+thread pool of libuv: as many threads as the processor has cores, minus one, or the number in the environment variable
+`LAKUTATA_MATH_THREADS`. Their options are `timeout` (milliseconds) and `signal` (an `AbortSignal`):
 
 - At the time limit the promise is rejected with `MathTimeoutException`, and with `MathCancelledException` when the
   signal aborts. Operations with checkpoints (expansions, decimals, linear systems, the number theory) stop at the next
@@ -302,11 +343,13 @@ The bundles, the executables and the installers made by `lakutata package` carry
 
 | Export | What it is |
 |---|---|
-| `Math` | The component: `parse`, `expression`, `equation`, `decimal`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory` |
+| `Math` | The component: `parse`, `expression`, `equation`, `decimal`, `matrix`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg` |
 | `buildMathOptions`, `MathConfig` | Its declaration in the components, and its options: `definitions`, `precision`, `timeout`, `concurrency`, `drainTimeout` |
 | `MathScope`, `MathDefinitions` | The scope given by `with()`, with the methods of the component except `ntheory`; the definitions (a body by signature) |
 | `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
 | `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`math.decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
+| `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`math.matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is given where a matrix is expected (a matrix, or its rows); where a vector is (a `Float64Array`, or an array of numbers) |
+| `LinearAlgebra`, `NormKind` | The linear algebra (`math.linalg`): `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, `rotation`, `dot`, `cross`, `outer`, `norm`, `multiply`, `solve`, `solveTriangular`, `leastSquares`, `inverse`, `determinant`, `singularValues`, `rank`, `condition`, and the asynchronous versions; the kinds of norms |
 | `CommonSubexpressions`, `CseOptions` | The result of `cse()` (`replacements`, `expressions`) and its option (`prefix`) |
 | `PolarForm`, `RectangularForm` | The polar form (`modulus`, `argument`) and the rectangular form (`real`, `imaginary`) of a complex value |
 | `Equation`, `Inequality`, `InequalityRelation` | An equation (`left`, `right`, `difference`, `substitute`, `solve`, `solveAsync`), an inequality (`left`, `right`, `relation`) |
@@ -325,10 +368,10 @@ The typings document every declaration, with examples.
 | `MathSyntaxException` | A formula is not written correctly (with the `position` of the error), an equation is given where an expression is expected, or the other way round |
 | `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined, or a constant written as a call (`g(2)`), with its `position` |
 | `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep |
-| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power) |
+| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power) |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1, a function at one of its poles: `gamma()` of -2, `zeta()` of 1), a modulus of 0 |
 | `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` above 2000, `harmonic(n)` above 50000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`) |
-| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000 |
+| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, matrices or vectors of the wrong dimensions |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |
 

@@ -2,9 +2,9 @@ import {openSync, writeSync} from 'node:fs'
 import {parseArgs} from 'node:util'
 import {Container} from '@lakutata/core'
 import {Math} from '../../exports/Math.js'
-import {checkFormula, checkText, type FuzzFailure, Random, randomFormula, randomText} from './Fuzz.js'
+import {checkFormula, checkMatrices, checkText, type FuzzFailure, Random, randomFormula, randomText} from './Fuzz.js'
 
-//The random tests of the formulas, in a process of their own: each case is written to the log before it runs, so that
+//The random tests of the formulas and of the matrices, in a process of their own: each case is written to the log before it runs, so that
 //a crash of the addon still tells which formula (and the seed) caused it. Prints a JSON summary.
 //Run: node dist/esm/tests/support/FuzzRunner.js [--seed N] [--iterations N] [--log file] [--fail] (--fail: exit with 1
 //when a property does not hold, for npm run test:fuzz)
@@ -30,6 +30,8 @@ for (let index: number = 0; index < iterations; index++) {
     const text: string = garbage ? randomText(random) : randomFormula(random, 1 + random.int(4))
     if (log !== undefined) writeSync(log, `${index}\t${JSON.stringify(text)}\n`)
     const found: FuzzFailure[] = garbage ? checkText(math, index, text) : await checkFormula(math, random, index, text)
+    //Random matrices, one case in five
+    if (index % 5 === 0) found.push(...await checkMatrices(math, random, index))
     for (const failure of found) properties[failure.property] = (properties[failure.property] ?? 0) + 1
     failures.push(...found)
 }
