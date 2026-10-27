@@ -355,8 +355,9 @@ IterativeResult solveSystemOf(const std::vector<Expr> &equations, const std::vec
             }
         }
         //Levenberg-Marquardt's steps: (JᵀJ + λ diag(JᵀJ)) δ = -JᵀF, λ larger until |F| decreases. Of more equations
-        //than variables, until it does not increase: near their smallest residuals, |F| changes less than its roundings,
-        //and a step that leaves it the same still nears the solution (of a square system, such a point is no solution)
+        //than variables, until it does not increase beyond its roundings: near their smallest residuals, |F| changes
+        //less than them (and by the last bit with fused multiply-adds, as gcc compiles), and a step that leaves it the
+        //same still nears the solution (of a square system, such a point is no solution)
         if (!accepted && J.allFinite()) {
             const Eigen::MatrixXd normal = J.transpose() * J;
             const Eigen::VectorXd gradient = J.transpose() * F;
@@ -369,7 +370,7 @@ IterativeResult solveSystemOf(const std::vector<Expr> &equations, const std::vec
                 if (candidate.allFinite()) {
                     trial = x + candidate;
                     trialMerit = evaluate(trial, trialF, nullptr);
-                    if (trialMerit < merit || (n > m && trialMerit == merit)) {
+                    if (trialMerit < merit || (n > m && trialMerit <= merit * (1 + 16 * std::numeric_limits<double>::epsilon()))) {
                         accepted = true;
                         step = candidate;
                         lambda = std::max(lambda / 3, 1e-12);

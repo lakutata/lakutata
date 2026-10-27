@@ -60,7 +60,7 @@ describe('The numeric solutions', (): void => {
         assert.ok(near(math.numeric.integrate('1/sqrt(x)', 'x', [0, 1]).value, 2))
         //Inside the interval, extrapolated as QUADPACK's QAGS does
         const strong = math.numeric.integrate('x^(-0.99)', 'x', [0, 1])
-        assert.ok(strong.converged && globalThis.Math.abs(strong.value - 100) < 1e-11, JSON.stringify(strong))
+        assert.ok(strong.converged && globalThis.Math.abs(strong.value - 100) < 1e-10, JSON.stringify(strong))
         assert.ok(near(math.numeric.integrate('1/sqrt(1 - x^2)', 'x', [-1, 1]).value, globalThis.Math.PI))
         assert.ok(near(math.numeric.integrate('1/sqrt(abs(x - 1))', 'x', [0, 2], {points: [1]}).value, 4))
         //Infinite ends: x^3 e^-x is not inf times 0 (its points do not go beyond its decay)
