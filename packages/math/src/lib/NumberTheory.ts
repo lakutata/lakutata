@@ -1,5 +1,8 @@
+import {MathArgumentException} from '../exceptions/MathArgumentException.js'
+import {MathDivisionByZeroException} from '../exceptions/MathDivisionByZeroException.js'
+import {MathDomainException} from '../exceptions/MathDomainException.js'
 import {type AsyncOptions, type Context} from './Context.js'
-import {Expression} from './Expression.js'
+import {Expression, expressionOf, handleOf, type Value} from './Expression.js'
 import {type Handle} from './Native.js'
 
 /**
@@ -55,10 +58,50 @@ export interface Congruence {
 }
 
 /**
- * The number theory of the integers: divisibility, modular arithmetic, primes, factorization, integer sequences and
- * combinatorial numbers. It is `MathScope.ntheory`; the package exports the one of `math` as `ntheory`. The integers
- * are bigints, or numbers that are safe integers; the integer results are bigints, of any size up to 2^20 bits (about
- * 315000 digits).
+ * The options of a continued fraction
+ */
+export interface ContinuedFractionOptions {
+    /**
+     * The largest number of terms, from 1 to 10000: 20 by default. A rational number has all its terms, up to it.
+     */
+    terms?: number
+}
+
+//A rational number: a numerator, a positive denominator
+type Fraction = [bigint, bigint]
+
+function floorOf([n, d]: Fraction): bigint {
+    return n >= 0n ? n / d : -((-n + d - 1n) / d)
+}
+
+//The exact value of a decimal written by toDecimal() (3.14, -2.5e-7, 1e+25)
+function fractionOf(text: string): Fraction {
+    const [mantissa, exponentText] = text.split('e')
+    const negative: boolean = mantissa.startsWith('-')
+    const [whole, decimals = ''] = (negative ? mantissa.slice(1) : mantissa).split('.')
+    const exponent: number = Number(exponentText ?? 0) - decimals.length
+    let numerator: bigint = BigInt(whole + decimals) * (negative ? -1n : 1n)
+    let denominator: bigint = 1n
+    if (exponent >= 0) numerator *= 10n ** BigInt(exponent)
+    else denominator = 10n ** BigInt(-exponent)
+    return [numerator, denominator]
+}
+
+//The power of 10 of the last digit of a decimal of a number of significant digits
+function lastDigitOf(text: string, digits: number): number {
+    const [signed, exponentText] = text.split('e')
+    const [whole, decimals = ''] = signed.replace(/^-/, '').split('.')
+    const significant: string = (whole + decimals).replace(/^0+/, '')
+    //The power of 10 of the first significant digit
+    const first: number = Number(exponentText ?? 0) + whole.length - 1 - ((whole + decimals).length - significant.length)
+    return first - digits + 1
+}
+
+/**
+ * The number theory of the integers: divisibility, modular arithmetic, primes, factorization, integer sequences,
+ * combinatorial numbers and continued fractions. It is `MathScope.ntheory`; the package exports the one of `math` as
+ * `ntheory`. The integers are bigints, or numbers that are safe integers; the integer results are bigints, of any size
+ * up to 2^20 bits (about 315000 digits).
  *
  * When a result does not exist (`modInverse()` of a number with no inverse, `primitiveRoot()` of a number with none,
  * `crt()` of congruences with no common solution), it is `undefined`. An argument outside the domain of a function
@@ -415,5 +458,165 @@ export class NumberTheory {
      */
     public harmonic(n: IntegerValue): Expression {
         return new Expression(this.context, this.#run<Handle>('harmonic', [n]))
+    }
+
+    //The value of a continued fraction, an exact number or an expression without variables, and its largest number of
+    //terms
+    #continued(value: Value, options?: ContinuedFractionOptions): [Expression, number] {
+        const terms: number = options?.terms ?? 20
+        if (!Number.isInteger(terms) || terms < 1 || terms > 10000) throw new MathArgumentException('The number of terms is an integer from 1 to 10000')
+        let expression: Expression = new Expression(this.context, handleOf(this.context, value))
+        const variables: string[] = expression.variables()
+        if (variables.length) throw new MathArgumentException(`A continued fraction is of a number, not of the variables ${variables.join(', ')}`)
+        if (expression.isRational() !== true) {
+            const expanded: Expression = expression.expand()
+            if (expanded.isRational() === true) expression = expanded
+        }
+        if (expression.isReal() === false) throw new MathDomainException(`A continued fraction is of a real number, not of ${expression.toString()}`)
+        return [expression, terms]
+    }
+
+    //The terms of a rational number, by Euclid's algorithm
+    static #rationalTerms(expression: Expression, terms: number): bigint[] {
+        let n: bigint = BigInt(expression.numerator().toString()), d: bigint = BigInt(expression.denominator().toString())
+        if (d < 0n) [n, d] = [-n, -d]
+        const result: bigint[] = []
+        while (d !== 0n && result.length < terms) {
+            const a: bigint = floorOf([n, d])
+            result.push(a)
+            ;[n, d] = [d, n - a * d]
+        }
+        return result
+    }
+
+    //The terms certain from a decimal of the value: x within its last digit of it, the interval of x mapped by each term,
+    //until a term is not certain or the remainder may be 0. With all the digits there will be, a value that cannot be told
+    //from an integer, or a remainder from 0, ends the continued fraction.
+    static #decimalTerms(text: string, digits: number, terms: number, last: boolean): bigint[] | undefined {
+        const center: Fraction = fractionOf(text)
+        if (center[0] === 0n) return [0n]
+        const power: number = lastDigitOf(text, digits)
+        const ulp: Fraction = power >= 0 ? [10n ** BigInt(power), 1n] : [1n, 10n ** BigInt(-power)]
+        //lo, hi: the center less and plus its last digit, on a common denominator
+        const common: bigint = center[1] * ulp[1]
+        let lo: Fraction = [center[0] * ulp[1] - ulp[0] * center[1], common], hi: Fraction = [center[0] * ulp[1] + ulp[0] * center[1], common]
+        const result: bigint[] = []
+        while (result.length < terms) {
+            const a: bigint = floorOf(lo), b: bigint = floorOf(hi)
+            if (a !== b) {
+                if (!last) return undefined
+                //Not told from the integer b
+                result.push(b)
+                return result
+            }
+            result.push(a)
+            const loRest: Fraction = [lo[0] - a * lo[1], lo[1]], hiRest: Fraction = [hi[0] - a * hi[1], hi[1]]
+            if (loRest[0] <= 0n) return last ? result : undefined
+            lo = [hiRest[1], hiRest[0]]
+            hi = [loRest[1], loRest[0]]
+        }
+        return result
+    }
+
+    static #startDigits(terms: number): number {
+        return globalThis.Math.max(40, 2 * terms + 20)
+    }
+
+    static #lastDigits(terms: number): number {
+        return globalThis.Math.min(100000, globalThis.Math.max(2000, 4 * terms))
+    }
+
+    /**
+     * The continued fraction of a real number, `a0 + 1/(a1 + 1/(a2 + …))`: its terms, `a0` an integer, the others
+     * positive. Of a rational number (a number of JavaScript is the decimal it prints as: `0.1` is 1/10), all its
+     * terms, by Euclid's algorithm, the last one above 1 (as SymPy); of another value (`sqrt(2)`, `pi`), its first
+     * terms, as many as `terms` asks (20 by default), each one certain: computed from decimals of the value, with more
+     * digits until they settle each term. A remainder that cannot be told from 0, or a value that cannot be told from
+     * an integer, even with thousands of digits, ends the continued fraction there.
+     * @param value The number: a number, a bigint, a decimal, an expression without variables or a formula.
+     * @param options The largest number of terms.
+     * @example
+     * ```typescript
+     * import {ntheory} from '@lakutata/math'
+     *
+     * console.log(ntheory.continuedFraction('415/93'))                    //[4n, 2n, 6n, 7n]
+     * console.log(ntheory.continuedFraction('sqrt(2)', {terms: 5}))       //[1n, 2n, 2n, 2n, 2n]
+     * console.log(ntheory.continuedFraction('pi', {terms: 6}))            //[3n, 7n, 15n, 1n, 292n, 1n]
+     * ```
+     */
+    public continuedFraction(value: Value, options?: ContinuedFractionOptions): bigint[] {
+        const [expression, terms] = this.#continued(value, options)
+        if (expression.isRational() === true) return NumberTheory.#rationalTerms(expression, terms)
+        const last: number = NumberTheory.#lastDigits(terms)
+        for (let digits: number = NumberTheory.#startDigits(terms); ; digits = globalThis.Math.min(2 * digits, last)) {
+            const found: bigint[] | undefined = NumberTheory.#decimalTerms(expression.toDecimal(digits), digits, terms, digits === last)
+            if (found) return found
+        }
+    }
+
+    /**
+     * `continuedFraction()` in the threads of the addon (its decimals).
+     * @param value The number: a number, a bigint, a decimal, an expression without variables or a formula.
+     * @param options The largest number of terms, the cancellation, the time limit.
+     */
+    public async continuedFractionAsync(value: Value, options?: ContinuedFractionOptions & AsyncOptions): Promise<bigint[]> {
+        const [expression, terms] = this.#continued(value, options)
+        if (expression.isRational() === true) return NumberTheory.#rationalTerms(expression, terms)
+        const last: number = NumberTheory.#lastDigits(terms)
+        for (let digits: number = NumberTheory.#startDigits(terms); ; digits = globalThis.Math.min(2 * digits, last)) {
+            const found: bigint[] | undefined = NumberTheory.#decimalTerms(await expression.toDecimalAsync(digits, options), digits, terms, digits === last)
+            if (found) return found
+        }
+    }
+
+    //The numerators and the denominators of the convergents of terms
+    static #convergents(terms: readonly IntegerValue[]): Fraction[] {
+        if (!Array.isArray(terms) || terms.length === 0) throw new MathArgumentException('A continued fraction has terms')
+        const convergents: Fraction[] = []
+        let [p0, p1, q0, q1] = [0n, 1n, 1n, 0n]
+        for (const term of terms) {
+            if (typeof term !== 'bigint' && !Number.isSafeInteger(term)) throw new MathArgumentException(`The terms are integers: ${String(term)} is not`)
+            const a: bigint = BigInt(term)
+            ;[p0, p1] = [p1, a * p1 + p0]
+            ;[q0, q1] = [q1, a * q1 + q0]
+            convergents.push([p1, q1])
+        }
+        return convergents
+    }
+
+    #fraction([p, q]: Fraction): Expression {
+        if (q === 0n) throw new MathDivisionByZeroException('The continued fraction has no value: a division by zero')
+        return expressionOf(this.context, `${p}/${q}`)
+    }
+
+    /**
+     * The value of a continued fraction, `a0 + 1/(a1 + 1/(a2 + …))`, an exact fraction. Its terms may be any integers;
+     * where they make a division by zero, it throws `MathDivisionByZeroException`.
+     * @param terms The terms, from `a0`.
+     * @example
+     * ```typescript
+     * import {ntheory} from '@lakutata/math'
+     *
+     * console.log(ntheory.fromContinuedFraction([4, 2, 6, 7]).toString())   //415/93
+     * ```
+     */
+    public fromContinuedFraction(terms: readonly IntegerValue[]): Expression {
+        const convergents: Fraction[] = NumberTheory.#convergents(terms)
+        return this.#fraction(convergents[convergents.length - 1])
+    }
+
+    /**
+     * The convergents of a continued fraction: the values of its first terms, `a0`, `a0 + 1/a1`, …, exact fractions;
+     * they are the best rational approximations of its value (no fraction of a smaller denominator is closer).
+     * @param terms The terms, from `a0`.
+     * @example
+     * ```typescript
+     * import {ntheory} from '@lakutata/math'
+     *
+     * console.log(ntheory.convergents([3, 7, 15, 1]).map(String))           //['3', '22/7', '333/106', '355/113']
+     * ```
+     */
+    public convergents(terms: readonly IntegerValue[]): Expression[] {
+        return NumberTheory.#convergents(terms).map((convergent: Fraction): Expression => this.#fraction(convergent))
     }
 }

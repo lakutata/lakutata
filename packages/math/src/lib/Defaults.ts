@@ -167,7 +167,7 @@ export async function cseAsync(expressions: Value[], options?: CseOptions & Asyn
 
 /**
  * The number theory of the integers (bigints) of `math`: primes, factorization, modular arithmetic, integer sequences,
- * combinatorial numbers and counting.
+ * combinatorial numbers, counting and continued fractions.
  * @example
  * ```typescript
  * import {ntheory} from '@lakutata/math'

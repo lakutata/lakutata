@@ -4,6 +4,7 @@ import {
     createMath,
     MathArgumentException,
     MathCancelledException,
+    MathDivisionByZeroException,
     MathDomainException,
     MathNotSupportedException,
     MathTimeoutException,
@@ -164,5 +165,30 @@ describe('The number theory', (): void => {
         assert.throws((): unknown => ntheory.factorial(80000), MathNotSupportedException)
         assert.throws((): unknown => ntheory.bernoulli(2001), MathNotSupportedException)
         assert.strictEqual(ntheory.factorial(30000).toString().length, 121288)
+    })
+
+    it('give continued fractions, of exact values and of decimals, and the fractions of their terms', async (): Promise<void> => {
+        //Rational: all the terms; their value back
+        assert.deepStrictEqual(ntheory.continuedFraction('415/93'), [4n, 2n, 6n, 7n])
+        assert.deepStrictEqual(ntheory.continuedFraction(-7 / 3, {terms: 3}), [-3n, 1n, 1n])
+        assert.strictEqual(ntheory.fromContinuedFraction(ntheory.continuedFraction('12345678901234567890/987654321')).toString(), '1371742100137174210/109739369')
+        //Decimals with more digits until each term is certain: Ramanujan's constant is 7.5e-13 below an integer
+        assert.deepStrictEqual(ntheory.continuedFraction('exp(pi*sqrt(163))', {terms: 3}), [262537412640768743n, 1n, 1333462407511n])
+        //A value that cannot be told from 0 or from an integer ends the continued fraction
+        assert.deepStrictEqual(ntheory.continuedFraction('ln(6) - ln(2) - ln(3)'), [0n])
+        assert.deepStrictEqual(ntheory.continuedFraction('sin(pi/7)^2 + cos(pi/7)^2 + 1/2'), [1n, 2n])
+        //sqrt(n): periodic, its period ending with twice the first term
+        const terms: bigint[] = ntheory.continuedFraction('sqrt(94)', {terms: 40})
+        assert.deepStrictEqual(terms.slice(0, 18), [9n, 1n, 2n, 3n, 1n, 1n, 5n, 1n, 8n, 1n, 5n, 1n, 1n, 3n, 2n, 1n, 18n, 1n])
+        assert.deepStrictEqual(ntheory.convergents([3, 7, 15, 1, 292]).map(String), ['3', '22/7', '333/106', '355/113', '103993/33102'])
+        assert.deepStrictEqual(await ntheory.continuedFractionAsync('pi', {terms: 5}), [3n, 7n, 15n, 1n, 292n])
+        for (const [operation, exception] of [
+            [(): unknown => ntheory.continuedFraction('x + 1'), MathArgumentException],
+            [(): unknown => ntheory.continuedFraction('sqrt(-2)'), MathDomainException],
+            [(): unknown => ntheory.continuedFraction('pi', {terms: 0}), MathArgumentException],
+            [(): unknown => ntheory.fromContinuedFraction([]), MathArgumentException],
+            [(): unknown => ntheory.fromContinuedFraction([1, 0.5]), MathArgumentException],
+            [(): unknown => ntheory.fromContinuedFraction([1, 0]), MathDivisionByZeroException]
+        ] as [() => unknown, typeof MathArgumentException][]) assert.throws(operation, exception)
     })
 })

@@ -4,6 +4,7 @@
 
 import decimal
 import functools
+import itertools
 import json
 import math
 import os
@@ -337,6 +338,45 @@ def ntheory():
     save('ntheory', results)
 
 
+# The continued fractions by SymPy: of a rational number its terms (continued_fraction), of another value its first
+# terms (continued_fraction_iterator); the values and the convergents of terms (continued_fraction_reduce,
+# continued_fraction_convergents); integers as decimal strings, fractions as SymPy prints them
+def finite(value):
+    """A value of SymPy that is a number: a division by zero is zoo, an error"""
+    if value.has(sympy.zoo, sympy.nan):
+        raise ZeroDivisionError('a division by zero')
+    return value
+
+
+CONTINUED = {
+    'continuedFraction': lambda case: [str(term) for term in (
+        sympy.continued_fraction(parse(case['value'])) if parse(case['value']).is_rational
+        else itertools.islice(sympy.continued_fraction_iterator(parse(case['value'])), case.get('terms', 20)))],
+    'fromContinuedFraction': lambda case: str(finite(sympy.continued_fraction_reduce([int(t) for t in case['terms']]))),
+    'convergents': lambda case: [str(finite(c)) for c in sympy.continued_fraction_convergents([int(t) for t in case['terms']])],
+}
+
+
+def continued_fractions():
+    results = []
+    for case in load('continued'):
+        result = dict(case)
+        if 'error' in case:
+            try:
+                CONTINUED[case['op']](case)
+            except (ValueError, ZeroDivisionError):
+                pass
+            else:
+                raise AssertionError('SymPy accepts ' + json.dumps(case))
+        elif 'expected' in case:
+            # SymPy's differs, noted in the case
+            result['result'] = case['expected']
+        else:
+            result['result'] = CONTINUED[case['op']](case)
+        results.append(result)
+    save('continued', results)
+
+
 def decimal_result(value, digits):
     """A decimal rounded to a number of significant digits (halves to even), written as Decimal.toString() writes it:
     its shortest digits, fixed for the exponents from -6 to digits - 1, scientific beyond"""
@@ -475,6 +515,7 @@ if __name__ == '__main__':
     systems()
     polynomials()
     ntheory()
+    continued_fractions()
     decimals()
     special()
     complex_parts()

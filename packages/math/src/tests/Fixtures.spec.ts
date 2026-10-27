@@ -510,6 +510,23 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
         }
     })
 
+    it('give the continued fractions of SymPy', (): void => {
+        const fixtures = expected<{op: string, value?: string, terms?: string[] | number, error?: string, result?: string | string[]}>('continued')
+        for (const fixture of fixtures.cases) {
+            const label: string = `${fixture.op}(${JSON.stringify(fixture.value ?? fixture.terms)})`
+            const operate = (): unknown => {
+                switch (fixture.op) {
+                    case 'continuedFraction': return math.ntheory.continuedFraction(fixture.value!, typeof fixture.terms === 'number' ? {terms: fixture.terms} : undefined).map(String)
+                    case 'fromContinuedFraction': return math.ntheory.fromContinuedFraction((fixture.terms as string[]).map(BigInt)).toString()
+                    case 'convergents': return math.ntheory.convergents((fixture.terms as string[]).map(BigInt)).map(String)
+                }
+                throw new Error(`Unknown operation ${fixture.op}`)
+            }
+            if (fixture.error) assert.throws(operate, (error: unknown): boolean => error instanceof MathException && (error as MathException).errno === fixture.error, label)
+            else assert.deepStrictEqual(operate(), fixture.result, label)
+        }
+    })
+
     it('give the number theory of SymPy', (): void => {
         const fixtures = expected<{op: string, args: (string | string[])[], error?: string, result?: unknown}>('ntheory')
         const ntheory = math.ntheory as unknown as Record<string, (...args: unknown[]) => unknown>

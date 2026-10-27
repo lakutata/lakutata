@@ -114,8 +114,8 @@ export class MathScope {
 
     /**
      * The number theory of the integers (bigints): primes, factorization, modular arithmetic, integer sequences,
-     * combinatorial numbers and counting. Its asynchronous operations share the threads, the time limit and the
-     * concurrency of the scope.
+     * combinatorial numbers, counting and continued fractions. Its asynchronous operations share the threads, the time
+     * limit and the concurrency of the scope.
      */
     public get ntheory(): NumberTheory {
         return this.#ntheory ??= new NumberTheory(this.context)

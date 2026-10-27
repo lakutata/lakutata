@@ -862,12 +862,16 @@ export async function checkIntegrate(math: MathScope, random: Random, index: num
             b = round(a + 0.25 + random.next() * 2)
             const slope: Expression = candidate.diff('x')
             const candidateValues = candidate.compile(['x']), slopes = slope.compile(['x'])
-            //Sampled: real and finite, not too steep; the integral of |f'| estimated for the tolerance
-            let sum: number = 0, usable: boolean = true
+            //Sampled: real and finite, not too steep, without a jump (tanh(gamma(x)) at a pole of gamma: a change between
+            //two points that their slopes do not explain); the integral of |f'| estimated for the tolerance
+            let sum: number = 0, usable: boolean = true, previous: [number, number] | undefined
+            const h: number = (b - a) / 400
             for (let k: number = 0; k <= 400 && usable; k++) {
-                const x: number = a + (b - a) * k / 400, y: number = candidateValues(x), dy: number = slopes(x)
+                const x: number = a + h * k, y: number = candidateValues(x), dy: number = slopes(x)
                 usable = Number.isFinite(y) && Number.isFinite(dy) && globalThis.Math.abs(dy) <= 1e6
-                sum += globalThis.Math.abs(dy) * (b - a) / 400
+                if (usable && previous) usable = globalThis.Math.abs(y - previous[0]) <= 4 * h * globalThis.Math.max(globalThis.Math.abs(dy), globalThis.Math.abs(previous[1])) + 1e-9 * (1 + globalThis.Math.abs(y))
+                previous = [y, dy]
+                sum += globalThis.Math.abs(dy) * h
             }
             if (!usable) continue
             f = candidate
@@ -880,13 +884,15 @@ export async function checkIntegrate(math: MathScope, random: Random, index: num
         const start: number = values(a), end: number = values(b)
         const scale: number = absolute + globalThis.Math.abs(start) + globalThis.Math.abs(end)
         const whole = math.numeric.integrate(derivative, 'x', [a, b])
-        if (whole.converged && globalThis.Math.abs(whole.value - (end - start)) > 1e-8 * scale + 10 * whole.error) {
+        //1e-7: a singularity inside the interval, not given in the points (the slope of cbrt(x) at 0), is extrapolated
+        //with an error estimate that may be too small, as in QUADPACK
+        if (whole.converged && globalThis.Math.abs(whole.value - (end - start)) > 1e-7 * scale + 10 * whole.error) {
             fail('integrate', `${JSON.stringify(whole)} on [${a}, ${b}], f(b) - f(a) ${end - start}`)
         }
         const middle: number = round((a + b) / 2)
         if (middle > a && middle < b) {
             const left = math.numeric.integrate(derivative, 'x', [a, middle]), right = math.numeric.integrate(derivative, 'x', [middle, b])
-            if (whole.converged && left.converged && right.converged && globalThis.Math.abs(left.value + right.value - whole.value) > 1e-8 * scale + 10 * (whole.error + left.error + right.error)) {
+            if (whole.converged && left.converged && right.converged && globalThis.Math.abs(left.value + right.value - whole.value) > 1e-7 * scale + 10 * (whole.error + left.error + right.error)) {
                 fail('additivity', `[${a}, ${middle}] ${left.value} + [${middle}, ${b}] ${right.value}, [${a}, ${b}] ${whole.value}`)
             }
         }
@@ -936,6 +942,47 @@ export async function checkODE(math: MathScope, random: Random, index: number): 
         if (Array.from(async.y.data).some((value: number, j: number): boolean => value !== sync.y.data[j])) fail('async', 'solveODEAsync differs from solveODE')
     } catch (error) {
         if (!(error instanceof MathException)) fail('solveODE', String(error))
+    }
+    return failures
+}
+
+/**
+ * The checks of the continued fractions: of random rational numbers, their value back from their terms, the terms after
+ * the first positive, the last one above 1; of the square roots of random integers, their terms as the exact
+ * algorithm of quadratic irrationals gives them (m, d and a of integers)
+ * @param math
+ * @param random
+ * @param index
+ */
+export async function checkContinued(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    try {
+        const numerator: bigint = BigInt(globalThis.Math.floor((random.next() - 0.5) * 2e12)), denominator: bigint = BigInt(1 + random.int(1e9))
+        text = `${numerator}/${denominator}`
+        const terms: bigint[] = math.ntheory.continuedFraction(text, {terms: 10000})
+        const back: string = math.ntheory.fromContinuedFraction(terms).toString()
+        if (back !== math.expression(text).toString()) fail('continuedFraction', `${terms}: ${back}`)
+        if (terms.slice(1).some((term: bigint): boolean => term < 1n) || (terms.length > 1 && terms[terms.length - 1] < 2n)) fail('continuedFraction', `not canonical: ${terms}`)
+        //sqrt(n) of an n that is not a square
+        let n: bigint = BigInt(2 + random.int(1e6))
+        const root = (value: bigint): bigint => BigInt(globalThis.Math.floor(globalThis.Math.sqrt(Number(value))))
+        if (root(n) ** 2n === n) n += 1n
+        text = `sqrt(${n})`
+        const count: number = 5 + random.int(40)
+        const a0: bigint = root(n)
+        const exact: bigint[] = [a0]
+        for (let m: bigint = 0n, d: bigint = 1n, a: bigint = a0; exact.length < count;) {
+            m = d * a - m
+            d = (n - m * m) / d
+            a = (a0 + m) / d
+            exact.push(a)
+        }
+        const ours: bigint[] = await math.ntheory.continuedFractionAsync(text, {terms: count})
+        if (ours.length !== exact.length || ours.some((term: bigint, i: number): boolean => term !== exact[i])) fail('quadratic', `${ours}, exactly ${exact}`)
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('continuedFraction', String(error))
     }
     return failures
 }

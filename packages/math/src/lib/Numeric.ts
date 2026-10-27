@@ -94,8 +94,9 @@ export interface IntegrateOptions {
     tolerance?: number
     /**
      * The points inside the interval where the function is singular or jumps: the interval is split there, so that each
-     * one is an end of a piece. Not needed where the extrapolation finds the singularity, but giving them makes the
-     * integral faster and more accurate.
+     * one is an end of a piece. The extrapolation often finds such a point by itself, but giving it makes the integral
+     * faster and more accurate, and its error estimate reliable: for a singularity inside the interval, the
+     * extrapolation's error estimate may be too small, as in QUADPACK.
      */
     points?: readonly number[]
 }
