@@ -56,12 +56,12 @@ double real_beta(double a, double b);
 // complex evaluation is tried then); std::max and std::min dropped a NaN after the first value
 inline double max_of(double a, double b)
 {
-    return std::isnan(a) or std::isnan(b) ? std::numeric_limits<double>::quiet_NaN() : std::max(a, b);
+    return std::isnan(a) || std::isnan(b) ? std::numeric_limits<double>::quiet_NaN() : std::max(a, b);
 }
 
 inline double min_of(double a, double b)
 {
-    return std::isnan(a) or std::isnan(b) ? std::numeric_limits<double>::quiet_NaN() : std::min(a, b);
+    return std::isnan(a) || std::isnan(b) ? std::numeric_limits<double>::quiet_NaN() : std::min(a, b);
 }
 
 // lakutata: a value on a branch cut moved to the side the exact values take (SymPy's, counter-clockwise continuous,
@@ -70,13 +70,13 @@ inline double min_of(double a, double b)
 // below; atan and asinh below -i: from the left.
 inline std::complex<double> below_beyond_one(const std::complex<double> &z)
 {
-    return z.imag() == 0 and z.real() > 1 ? std::complex<double>(z.real(), -0.0)
+    return z.imag() == 0 && z.real() > 1 ? std::complex<double>(z.real(), -0.0)
                                            : z;
 }
 
 inline std::complex<double> left_below_minus_i(const std::complex<double> &z)
 {
-    return z.real() == 0 and z.imag() < -1 ? std::complex<double>(-0.0, z.imag())
+    return z.real() == 0 && z.imag() < -1 ? std::complex<double>(-0.0, z.imag())
                                             : z;
 }
 
@@ -90,7 +90,7 @@ template <typename F, typename G, typename D>
 inline std::complex<double> real_where(const std::complex<double> &z, F real,
                                        G complex, D inside)
 {
-    if (z.imag() == 0 and inside(z.real()))
+    if (z.imag() == 0 && inside(z.real()))
         return real(z.real());
     return complex(z);
 }
