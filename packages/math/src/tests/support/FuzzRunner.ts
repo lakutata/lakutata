@@ -1,7 +1,6 @@
 import {openSync, writeSync} from 'node:fs'
 import {parseArgs} from 'node:util'
-import {Container} from '@lakutata/core'
-import {Math} from '../../exports/Math.js'
+import {createMath, type MathScope} from '../../exports/Math.js'
 import {checkDistributions, checkFormula, checkMatrices, checkNumeric, checkSparse, checkStatistics, checkText, type FuzzFailure, Random, randomFormula, randomText} from './Fuzz.js'
 
 //The random tests of the formulas and of the matrices, in a process of their own: each case is written to the log before it runs, so that
@@ -20,9 +19,7 @@ const seed: number = values.seed === undefined ? globalThis.Math.floor(globalThi
 const iterations: number = Number(values.iterations)
 const log: number | undefined = values.log ? openSync(values.log, 'w') : undefined
 const random: Random = new Random(seed)
-const container: Container = new Container()
-await container.setNamed('math', Math, {})
-const math: Math = await container.get<Math>('math')
+const math: MathScope = createMath()
 const failures: FuzzFailure[] = []
 const properties: Record<string, number> = {}
 for (let index: number = 0; index < iterations; index++) {
@@ -39,6 +36,5 @@ for (let index: number = 0; index < iterations; index++) {
     for (const failure of found) properties[failure.property] = (properties[failure.property] ?? 0) + 1
     failures.push(...found)
 }
-await container.destroy()
 process.stdout.write(JSON.stringify({seed: seed, iterations: iterations, properties: properties, failures: failures.slice(0, 50)}) + '\n')
 if (values.fail && failures.length) process.exitCode = 1

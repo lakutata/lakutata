@@ -54,17 +54,12 @@ function distributionRun(args: unknown[]): Float64Array {
  * functions of its C library). It is not meant for cryptography.
  * @example
  * ```typescript
- * import {Container} from 'lakutata'
- * import {Math, RandomGenerator} from '@lakutata/math'
+ * import {math, RandomGenerator} from '@lakutata/math'
  *
- * const container: Container = new Container()
- * await container.setNamed('math', Math, {})
- * const math: Math = await container.get<Math>('math')
  * const random: RandomGenerator = math.stats.random(42)
  * random.next()                                         //a number of (0, 1)
  * random.integers(3, 1, 7)                              //three dice: Float64Array of integers of 1 to 6
  * math.stats.normal().sample(5, random)                 //Float64Array of 5 samples
- * await container.destroy()
  * ```
  */
 export class RandomGenerator {
@@ -135,17 +130,12 @@ export class RandomGenerator {
  * is NaN, as a moment the distribution does not have (the mean of Cauchy's).
  * @example
  * ```typescript
- * import {Container} from 'lakutata'
- * import {type Distribution, Math} from '@lakutata/math'
+ * import {type Distribution, math} from '@lakutata/math'
  *
- * const container: Container = new Container()
- * await container.setNamed('math', Math, {})
- * const math: Math = await container.get<Math>('math')
  * const normal: Distribution = math.stats.normal({mean: 1, standardDeviation: 2})
  * normal.cdf(1)                                         //0.5
  * normal.quantile(0.975)                                //4.919927969080108
  * math.stats.binomial({trials: 10, probability: 0.3}).pdf([2, 3])   //Float64Array [0.23347444050000024, 0.2668279319999998]
- * await container.destroy()
  * ```
  */
 export class Distribution {

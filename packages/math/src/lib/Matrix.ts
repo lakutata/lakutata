@@ -106,18 +106,13 @@ export function linalgRun(operation: string, matrices: NativeMatrix[], numbers: 
  * decompositions, the inverse and the solutions of linear systems are in `math.linalg`.
  * @example
  * ```typescript
- * import {Container} from 'lakutata'
- * import {Math, Matrix} from '@lakutata/math'
+ * import {math, Matrix} from '@lakutata/math'
  *
- * const container: Container = new Container()
- * await container.setNamed('math', Math, {})
- * const math: Math = await container.get<Math>('math')
  * const a: Matrix = math.matrix([[4, 1], [2, 3]])
  * a.mul(a).toString()                               //[18, 7; 14, 11]
  * a.mul([1, 1])                                     //Float64Array [5, 5]
  * a.transpose().add(1).toArray()                    //[[5, 3], [2, 4]]
  * math.linalg.inverse(a).toString()                 //[0.3, -0.1; -0.2, 0.4]
- * await container.destroy()
  * ```
  */
 export class Matrix {

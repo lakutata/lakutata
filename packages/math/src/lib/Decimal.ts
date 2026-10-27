@@ -13,7 +13,7 @@ export type DecimalValue = Decimal | number | bigint | string
 export interface DecimalOptions {
     /**
      * The significant digits of the decimal and of the results of its operations, from 1 to 100000: the `precision`
-     * of the component by default.
+     * of the scope by default (32 for `math`).
      */
     precision?: number
 }
@@ -51,7 +51,7 @@ function integerText(value: number, min: number, max: number, what: string): str
  * A decimal number of a precision: at most that many significant digits. The results of its operations are rounded to
  * its precision, correctly (the nearest decimal of that many digits, halves to even), and have its precision, whatever
  * the precision of the values given to them; those are read exactly. A decimal does not change: each operation gives a
- * new one. Decimals are made by `decimal()` of the component or of a scope.
+ * new one. Decimals are made by `decimal()`.
  *
  * The operations run in the thread of JavaScript, as the arithmetic of numbers, without a time limit. The arithmetic
  * is quick at any precision; the functions (`sin()`, `atan()`…) take seconds at tens of thousands of digits, and the
@@ -65,18 +65,13 @@ function integerText(value: number, min: number, max: number, what: string): str
  * large for the digits (`sin()` of 10^(10^6): its reduction would need 10^6 digits of pi).
  * @example
  * ```typescript
- * import {Container} from 'lakutata'
- * import {Math} from '@lakutata/math'
+ * import {math} from '@lakutata/math'
  *
- * const container: Container = new Container()
- * await container.setNamed('math', Math, {})
- * const math: Math = await container.get<Math>('math')
  * math.decimal(0.1).add(0.2).toString()                       //0.3
  * math.decimal('19.99').mul(3).toFixed(2)                     //59.97
  * math.decimal(1, {precision: 5}).div(3).toString()           //0.33333
  * math.decimal(2, {precision: 40}).sqrt().toString()          //1.41421356237309504880168872420969807857
  * math.decimal(math.expression('pi'), {precision: 30}).toString()   //3.14159265358979323846264338328
- * await container.destroy()
  * ```
  */
 export class Decimal {

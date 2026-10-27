@@ -41,7 +41,7 @@ function numberOf(operation: string, values: VectorValue, numbers: number[] = []
  * their roundings, means, medians, modes, variances and standard deviations, quantiles, covariances and correlations,
  * z-scores, the Kullback-Leibler divergence; and 24 probability distributions (`normal()` … `hypergeometric()`,
  * `distribution()`) on Boost.Math, with a generator of random numbers for their samples (`random()`). It is
- * `math.stats` of a `Math` component.
+ * `MathScope.stats`; the package exports the one of `math` as `stats`.
  *
  * A variance divides the sum of the squared deviations by n by default (`'uncorrected'`: the values are the whole
  * population, as in NumPy); `{normalization: 'unbiased'}` divides it by n - 1 (a sample, as the default of mathjs). A
@@ -49,26 +49,21 @@ function numberOf(operation: string, values: VectorValue, numbers: number[] = []
  * NaN; no values throw `MathArgumentException` where the statistic has none.
  * @example
  * ```typescript
- * import {Container} from 'lakutata'
- * import {Math} from '@lakutata/math'
+ * import {math} from '@lakutata/math'
  *
- * const container: Container = new Container()
- * await container.setNamed('math', Math, {})
- * const math: Math = await container.get<Math>('math')
  * const values: number[] = [2, 4, 4, 4, 5, 5, 7, 9]
  * math.stats.mean(values)                                          //5
  * math.stats.standardDeviation(values)                             //2
  * math.stats.standardDeviation(values, {normalization: 'unbiased'}) //2.138089935299395
  * math.stats.median(values)                                        //4.5
  * math.stats.quantile(values, [0.25, 0.75])                        //Float64Array [4, 5.5]
- * await container.destroy()
  * ```
  */
 export class Statistics {
 
     /**
-     * The statistics of a component.
-     * @param context The context of the component.
+     * The statistics of a scope.
+     * @param context The context of the scope.
      */
     constructor(protected readonly context: Context) {
     }

@@ -1,28 +1,17 @@
-import {after, before, describe, it} from 'node:test'
+import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Container} from '@lakutata/core'
 import {
+    createMath,
     type Decimal,
-    Math,
     MathArgumentException,
     MathDivisionByZeroException,
     MathDomainException,
-    MathNotSupportedException
+    MathNotSupportedException,
+    type MathScope
 } from '../exports/Math.js'
 
 describe('The decimals', (): void => {
-    let container: Container
-    let math: Math
-
-    before(async (): Promise<void> => {
-        container = new Container()
-        await container.setNamed('math', Math, {})
-        math = await container.get<Math>('math')
-    })
-
-    after(async (): Promise<void> => {
-        await container.destroy()
-    })
+    const math: MathScope = createMath()
 
     it('write their shortest digits, fixed from the exponents -6 to the precision minus 1', (): void => {
         const cases: [Decimal, string][] = [

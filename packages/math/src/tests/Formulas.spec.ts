@@ -1,11 +1,10 @@
-import {after, before, describe, it} from 'node:test'
+import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Container} from '@lakutata/core'
 import {
+    createMath,
     Equation,
     Expression,
     Inequality,
-    Math,
     MathArgumentException,
     MathCancelledException,
     MathDefinitionException,
@@ -13,6 +12,7 @@ import {
     MathDomainException,
     MathException,
     MathNotSupportedException,
+    type MathScope,
     MathSyntaxException,
     MathTimeoutException,
     MathUnknownFunctionException,
@@ -20,18 +20,7 @@ import {
 } from '../exports/Math.js'
 
 describe('The formulas', (): void => {
-    let container: Container
-    let math: Math
-
-    before(async (): Promise<void> => {
-        container = new Container()
-        await container.setNamed('math', Math, {definitions: {'f(x)': 'x^2 + 1', 'g': 9.80665, 'h(x, y)': 'f(x) + y'}, precision: 20})
-        math = await container.get<Math>('math')
-    })
-
-    after(async (): Promise<void> => {
-        await container.destroy()
-    })
+    const math: MathScope = createMath({definitions: {'f(x)': 'x^2 + 1', 'g': 9.80665, 'h(x, y)': 'f(x) + y'}, precision: 20})
 
     it('parse and print as they are written', (): void => {
         const cases: [string, string, string][] = [

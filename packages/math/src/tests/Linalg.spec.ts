@@ -1,11 +1,11 @@
-import {after, before, describe, it} from 'node:test'
+import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Container} from '@lakutata/core'
 import {
-    Math,
+    createMath,
     MathArgumentException,
     MathCancelledException,
     MathDomainException,
+    type MathScope,
     Matrix,
     SparseMatrix
 } from '../exports/Math.js'
@@ -20,18 +20,7 @@ function close(actual: ArrayLike<number>, expected: ArrayLike<number>, tolerance
 }
 
 describe('The matrices and the linear algebra', (): void => {
-    let container: Container
-    let math: Math
-
-    before(async (): Promise<void> => {
-        container = new Container()
-        await container.setNamed('math', Math, {})
-        math = await container.get<Math>('math')
-    })
-
-    after(async (): Promise<void> => {
-        await container.destroy()
-    })
+    const math: MathScope = createMath()
 
     it('hold their elements row by row, read and written in place', (): void => {
         const a: Matrix = math.matrix([[1, 2, 3], [4, 5, 6]])

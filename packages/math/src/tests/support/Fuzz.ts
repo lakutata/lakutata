@@ -1,4 +1,4 @@
-import {type Distribution, type DistributionName, type Expression, Math, MathException, Matrix, SparseMatrix} from '../../exports/Math.js'
+import {type Distribution, type DistributionName, type Expression, MathException, type MathScope, Matrix, SparseMatrix} from '../../exports/Math.js'
 
 /**
  * A seeded generator of random numbers (mulberry32): the same seed gives the same formulas
@@ -149,7 +149,7 @@ function near(a: Value, b: Value, tolerance: number): boolean {
  * @param index
  * @param text
  */
-export async function checkFormula(math: Math, random: Random, index: number, text: string): Promise<FuzzFailure[]> {
+export async function checkFormula(math: MathScope, random: Random, index: number, text: string): Promise<FuzzFailure[]> {
     const failures: FuzzFailure[] = []
     const fail = (property: string, message: string): number => failures.push({index, text, property, message})
     let expression: Expression
@@ -358,7 +358,7 @@ export async function checkFormula(math: Math, random: Random, index: number, te
 
 //A random matrix of rows and columns: of elements from -10 to 10, now and then of a rank below its size (a product of
 //thinner matrices) or with a large diagonal
-function randomMatrix(math: Math, random: Random, rows: number, columns: number): Matrix {
+function randomMatrix(math: MathScope, random: Random, rows: number, columns: number): Matrix {
     if (rows > 1 && columns > 1 && random.chance(0.2)) {
         const inner: number = 1 + random.int(globalThis.Math.min(rows, columns) - 1)
         return randomMatrix(math, random, rows, inner).mul(randomMatrix(math, random, inner, columns))
@@ -379,7 +379,7 @@ function frobenius(matrix: Matrix): number {
  * @param random
  * @param index
  */
-export async function checkMatrices(math: Math, random: Random, index: number): Promise<FuzzFailure[]> {
+export async function checkMatrices(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
     const failures: FuzzFailure[] = []
     const size = (): number => random.chance(0.05) ? 0 : 1 + random.int(random.chance(0.1) ? 40 : 7)
     const n: number = size(), m: number = size(), k: number = size()
@@ -489,7 +489,7 @@ export async function checkMatrices(math: Math, random: Random, index: number): 
  * @param index
  * @param text
  */
-export function checkText(math: Math, index: number, text: string): FuzzFailure[] {
+export function checkText(math: MathScope, index: number, text: string): FuzzFailure[] {
     try {
         math.parse(text)
         return []
@@ -500,7 +500,7 @@ export function checkText(math: Math, index: number, text: string): FuzzFailure[
 
 //A random sparse matrix: entries of -10 to 10 at a density of 0.05 to 0.3, given in any order, now and then twice at
 //the same place; dominant, of a large diagonal
-function randomSparse(math: Math, random: Random, rows: number, columns: number, dominant: boolean = false): SparseMatrix {
+function randomSparse(math: MathScope, random: Random, rows: number, columns: number, dominant: boolean = false): SparseMatrix {
     const density: number = 0.05 + 0.25 * random.next()
     const entries: [number, number, number][] = []
     for (let i: number = 0; i < rows; i++) {
@@ -526,7 +526,7 @@ function randomSparse(math: Math, random: Random, rows: number, columns: number,
  * @param random
  * @param index
  */
-export async function checkSparse(math: Math, random: Random, index: number): Promise<FuzzFailure[]> {
+export async function checkSparse(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
     const failures: FuzzFailure[] = []
     const size = (): number => random.chance(0.05) ? 0 : 1 + random.int(random.chance(0.1) ? 60 : 8)
     const n: number = size(), m: number = size(), k: number = size()
@@ -594,7 +594,7 @@ function randomValues(random: Random, size: number): Float64Array {
  * @param random
  * @param index
  */
-export async function checkStatistics(math: Math, random: Random, index: number): Promise<FuzzFailure[]> {
+export async function checkStatistics(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
     const failures: FuzzFailure[] = []
     const n: number = 1 + random.int(random.chance(0.1) ? 2000 : 40)
     const x: Float64Array = randomValues(random, n)
@@ -675,7 +675,7 @@ export async function checkStatistics(math: Math, random: Random, index: number)
 }
 
 //A distribution of random parameters, in their domains
-function randomDistribution(math: Math, random: Random): Distribution {
+function randomDistribution(math: MathScope, random: Random): Distribution {
     const between = (low: number, high: number): number => low + (high - low) * random.next()
     const integer = (low: number, high: number): number => low + random.int(high - low + 1)
     const names: DistributionName[] = ['normal', 'lognormal', 'uniform', 'exponential', 'gamma', 'beta', 'chiSquared', 'studentT', 'fisherF', 'cauchy', 'laplace', 'logistic', 'weibull', 'pareto', 'rayleigh', 'triangular', 'gumbel', 'inverseGamma', 'bernoulli', 'binomial', 'poisson', 'geometric', 'negativeBinomial', 'hypergeometric']
@@ -718,7 +718,7 @@ function randomDistribution(math: Math, random: Random): Distribution {
  * @param random
  * @param index
  */
-export async function checkDistributions(math: Math, random: Random, index: number): Promise<FuzzFailure[]> {
+export async function checkDistributions(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
     const failures: FuzzFailure[] = []
     let text: string = ''
     const fail = (property: string, message: string): number => failures.push({index, text, property, message})
@@ -771,7 +771,7 @@ export async function checkDistributions(math: Math, random: Random, index: numb
  * @param random
  * @param index
  */
-export async function checkNumeric(math: Math, random: Random, index: number): Promise<FuzzFailure[]> {
+export async function checkNumeric(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
     const failures: FuzzFailure[] = []
     let text: string = ''
     const fail = (property: string, message: string): number => failures.push({index, text, property, message})

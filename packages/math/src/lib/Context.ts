@@ -13,7 +13,7 @@ export interface AsyncOptions {
     signal?: AbortSignal
     /**
      * The time limit of the operation, in milliseconds: past it, it is rejected with `MathTimeoutException`. The
-     * `timeout` of the component by default.
+     * `timeout` of the options of `createMath()` by default.
      */
     timeout?: number
 }
@@ -37,12 +37,11 @@ export interface ContextSettings {
 }
 
 /**
- * The asynchronous operations of a component and of its scopes: how many run at a time in the threads of the addon,
- * the ones running (awaited when the component is destroyed). An operation keeps its place until its thread is done
- * with it, even when its promise is already rejected (a time limit, a cancellation).
+ * The asynchronous operations of a scope of `createMath()` and of the scopes of its `with()`: how many run at a time
+ * in the threads of the addon. An operation keeps its place until its thread is done with it, even when its promise is
+ * already rejected (a time limit, a cancellation).
  */
 export class AsyncTracker {
-    readonly #running: Set<Promise<unknown>> = new Set()
     readonly #waiting: (() => void)[] = []
     #active: number = 0
 
@@ -70,31 +69,13 @@ export class AsyncTracker {
      * @param running
      */
     public hold(running: Promise<unknown>): void {
-        const settled: Promise<unknown> = running.then((): void => undefined, (): void => undefined).finally((): void => {
-            this.#running.delete(settled)
-            this.release()
-        })
-        this.#running.add(settled)
-    }
-
-    /**
-     * Wait for the operations running, at most a number of milliseconds
-     * @param timeout
-     */
-    public async drain(timeout: number): Promise<void> {
-        if (!this.#running.size) return
-        let timer: NodeJS.Timeout | undefined
-        await Promise.race([
-            Promise.allSettled([...this.#running]),
-            new Promise<void>((resolve: () => void): unknown => timer = setTimeout(resolve, timeout))
-        ])
-        clearTimeout(timer)
+        running.then((): void => undefined, (): void => undefined).finally((): void => this.release())
     }
 }
 
 /**
- * A context of the formulas: a scope of definitions, the settings and the tracker of its operations. The component
- * has one; each `with()` makes another over it.
+ * A context of the formulas: a scope of definitions, the settings and the tracker of its operations. `createMath()`
+ * makes one; each `with()` makes another over it.
  */
 export class Context {
 
@@ -147,7 +128,7 @@ export class Context {
                 reject(exception)
             }
             const abort = (): void => stop('cancelled', new MathCancelledException('The operation is cancelled'))
-            if (timeout > 0) timer = setTimeout((): void => stop('timeout', new MathTimeoutException('The operation took more than {timeout} ms', {timeout: timeout})), timeout)
+            if (timeout > 0) timer = setTimeout((): void => stop('timeout', new MathTimeoutException(`The operation took more than ${timeout} ms`)), timeout)
             signal?.addEventListener('abort', abort, {once: true})
             running.then((value: T): void => {
                 finish()

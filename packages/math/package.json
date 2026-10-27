@@ -1,7 +1,7 @@
 {
   "name": "@lakutata/math",
   "version": "3.1.2",
-  "description": "Mathematics for the lakutata framework: symbolic computation (equations, derivatives, integrals, factoring, simplification) and numerical computation (matrices, statistics, units, decimals of any precision) in a native addon built on SymEngine, Eigen and mpdecimal, a component of the application.",
+  "description": "Mathematics for Node.js: symbolic computation (equations, derivatives, integrals, factoring, simplification) and numerical computation (matrices, statistics, probability, numeric solutions, units, decimals of any precision) in a native addon built on SymEngine, Boost, Eigen and mpdecimal, used as functions.",
   "keywords": [
     "lakutata",
     "math",
@@ -76,9 +76,6 @@
     "LICENSE",
     "package.json"
   ],
-  "peerDependencies": {
-    "@lakutata/core": "~3.1.1"
-  },
   "dependencies": {
     "node-addon-api": "^8.9.2"
   }

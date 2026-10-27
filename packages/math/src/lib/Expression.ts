@@ -139,9 +139,9 @@ function solutionsOf(context: Context, found: NativeSolutions): Solutions {
  * `sin(pi/6)` is `1/2`) until they are asked as numbers or decimals.
  * @example
  * ```typescript
- * import {Math} from '@lakutata/math'
+ * import {math} from '@lakutata/math'
  *
- * async function example(math: Math): Promise<void> {
+ * async function example(): Promise<void> {
  *     const expression = math.expression('x^2 - 5x + 6')
  *     console.log(expression.diff('x').toString())               //2x - 5
  *     console.log(expression.substitute({x: 4}).toNumber())       //2
@@ -153,7 +153,7 @@ function solutionsOf(context: Context, found: NativeSolutions): Solutions {
 export class Expression {
 
     /**
-     * An expression of the addon in a context. Made by the component (`expression()`, `parse()`) and by the operations.
+     * An expression of the addon in a context. Made by `expression()`, `parse()` and by the operations.
      * @param context The context of the formulas: its definitions, its settings.
      * @param handle The native expression.
      */
@@ -195,9 +195,9 @@ export class Expression {
      * `MathNotSupportedException`.
      * @example
      * ```typescript
-     * import type {Math} from '@lakutata/math'
+     * import {math} from '@lakutata/math'
      *
-     * function code(math: Math): number {
+     * function code(): number {
      *     const f = new Function('x', 'y', `return ${math.expression('x^2 + sin(y)').toJavaScript()}`)
      *     return f(2, 0)                                           //4
      * }
@@ -269,7 +269,7 @@ export class Expression {
      * their inverses, the rounding functions, `pi`, `e`, `phi`, `EulerGamma` and `Catalan`, and the special functions
      * (`gamma`, `loggamma`, `digamma`, `polygamma`, `beta`, `erf`, `erfc`, `zeta`, `lowergamma`, `uppergamma`,
      * `lambertw`), of real values.
-     * @param digits The significant digits: the `precision` of the component by default.
+     * @param digits The significant digits: the `precision` of the scope by default.
      */
     public toDecimal(digits?: number): string {
         return this.context.run<string>('decimal', [this.handle, digits ?? this.context.settings.precision])
@@ -277,7 +277,7 @@ export class Expression {
 
     /**
      * `toDecimal()` in the threads of the addon.
-     * @param digits The significant digits: the `precision` of the component by default.
+     * @param digits The significant digits: the `precision` of the scope by default.
      * @param options Its cancellation, its time limit.
      */
     public async toDecimalAsync(digits?: number, options?: AsyncOptions): Promise<string> {
@@ -290,7 +290,7 @@ export class Expression {
      * A part that cannot be told from 0, even with 640 more digits, is `0`; a real value has the imaginary part `0`. The
      * functions of `toDecimal()` take complex arguments too, with their principal branches (on a branch cut, the side
      * SymPy takes), but for the special functions, which take real arguments only.
-     * @param digits The significant digits of each part: the `precision` of the component by default.
+     * @param digits The significant digits of each part: the `precision` of the scope by default.
      */
     public toComplexDecimal(digits?: number): { re: string, im: string } {
         const [re, im]: [string, string] = this.context.run<[string, string]>('complexDecimal', [this.handle, digits ?? this.context.settings.precision])
@@ -299,7 +299,7 @@ export class Expression {
 
     /**
      * `toComplexDecimal()` in the threads of the addon.
-     * @param digits The significant digits of each part: the `precision` of the component by default.
+     * @param digits The significant digits of each part: the `precision` of the scope by default.
      * @param options Its cancellation, its time limit.
      */
     public async toComplexDecimalAsync(digits?: number, options?: AsyncOptions): Promise<{ re: string, im: string }> {
@@ -638,9 +638,9 @@ export class Expression {
  * An equation: `left = right`.
  * @example
  * ```typescript
- * import {type Equation, Math} from '@lakutata/math'
+ * import {type Equation, math} from '@lakutata/math'
  *
- * function example(math: Math): void {
+ * function example(): void {
  *     const equation: Equation = math.equation('x^2 = 4')
  *     console.log(equation.solve('x').map(String)) //['-2', '2']
  * }
@@ -720,9 +720,9 @@ export type InequalityRelation = '<' | '>' | '<=' | '>='
  * An inequality: `left < right`, `left <= right`, `left > right`, `left >= right`.
  * @example
  * ```typescript
- * import {type Inequality, Math} from '@lakutata/math'
+ * import {type Inequality, math} from '@lakutata/math'
  *
- * function example(math: Math): void {
+ * function example(): void {
  *     const inequality = math.parse('x^2 < 4') as Inequality
  *     console.log(inequality.relation, inequality.right.toString()) //< 4
  * }
@@ -795,9 +795,9 @@ export type SolutionsKind = 'finite' | 'empty' | 'all' | 'intervals' | 'unsolved
  * not solve (`unsolved`, `other`: `text` describes it).
  * @example
  * ```typescript
- * import {Math, type Solutions} from '@lakutata/math'
+ * import {math, type Solutions} from '@lakutata/math'
  *
- * function example(math: Math): void {
+ * function example(): void {
  *     const solutions: Solutions = math.expression('x^4 - 1').solve('x')
  *     console.log(solutions.kind, solutions.map(String)) //finite ['-1', '1', '-i', 'i']
  * }
@@ -831,4 +831,17 @@ export class Solutions extends Array<Expression> {
         const intervals: string[] = this.intervals.map((interval: SolutionInterval): string => `${interval.startOpen ? '(' : '['}${interval.start.toString()}, ${interval.end.toString()}${interval.endOpen ? ')' : ']'}`)
         return [...this.map(String), ...intervals].join(', ')
     }
+}
+
+/**
+ * The expression equal to zero of an equation of a system: its difference, or the expression given
+ * @param context The context of the definitions.
+ * @param equation The equation: an equation, a formula, or an expression equal to zero.
+ */
+export function equationHandleOf(context: Context, equation: Equation | Expression | string): Handle {
+    if (equation instanceof Equation) return equation.difference().handle
+    if (typeof equation !== 'string') return handleOf(context, equation)
+    const parsed: NativeParsed = nativeCall((native) => native.parse(context.scope, equation))
+    if (parsed.kind === 'relation') throw new MathSyntaxException(`An equation is expected, not an inequality: ${equation}`)
+    return parsed.kind === 'equation' ? new Equation(new Expression(context, parsed.left), new Expression(context, parsed.right!)).difference().handle : parsed.left
 }

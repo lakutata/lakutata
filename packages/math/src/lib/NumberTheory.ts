@@ -56,8 +56,9 @@ export interface Congruence {
 
 /**
  * The number theory of the integers: divisibility, modular arithmetic, primes, factorization, integer sequences and
- * combinatorial numbers. It is `math.ntheory` of a `Math` component. The integers are bigints, or numbers that are safe
- * integers; the integer results are bigints, of any size up to 2^20 bits (about 315000 digits).
+ * combinatorial numbers. It is `MathScope.ntheory`; the package exports the one of `math` as `ntheory`. The integers
+ * are bigints, or numbers that are safe integers; the integer results are bigints, of any size up to 2^20 bits (about
+ * 315000 digits).
  *
  * When a result does not exist (`modInverse()` of a number with no inverse, `primitiveRoot()` of a number with none,
  * `crt()` of congruences with no common solution), it is `undefined`. An argument outside the domain of a function
@@ -70,18 +71,13 @@ export interface Congruence {
  * days: factor it with `factorAsync()` and a time limit.
  * @example
  * ```typescript
- * import {Container} from 'lakutata'
- * import {Math} from '@lakutata/math'
+ * import {math} from '@lakutata/math'
  *
- * const container: Container = new Container()
- * await container.setNamed('math', Math, {})
- * const math: Math = await container.get<Math>('math')
  * math.ntheory.factor(360)                  //[{prime: 2n, exponent: 3}, {prime: 3n, exponent: 2}, {prime: 5n, exponent: 1}]
  * math.ntheory.isPrime(2n ** 127n - 1n)     //true
  * math.ntheory.powMod(4, 13, 497)           //445n
  * math.ntheory.crt([2, 3, 2], [3, 5, 7])    //{remainder: 23n, modulus: 105n}
  * math.ntheory.bernoulli(12).toString()     //'-691/2730'
- * await container.destroy()
  * ```
  */
 export class NumberTheory {

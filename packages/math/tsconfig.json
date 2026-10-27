@@ -33,15 +33,7 @@
     "skipLibCheck": true,
     "allowArbitraryExtensions": true,
     "isolatedModules": true,
-    "declarationMap": true,
-    "paths": {
-      "@lakutata/core": [
-        "../core/dist/types/exports/Core"
-      ],
-      "@lakutata/core/decorator/di": [
-        "../core/dist/types/exports/DIDecorators"
-      ]
-    }
+    "declarationMap": true
   },
   "exclude": [
     "node_modules",

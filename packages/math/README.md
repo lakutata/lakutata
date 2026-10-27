@@ -2,17 +2,19 @@
 
 English | [中文](README.zh-CN.md)
 
-Symbolic mathematics for the [lakutata](https://github.com/lakutata/lakutata) framework: formulas written the way they
-are on paper (`x^2 - 5x + 6`, `2(x + 1)`), expanded, derived, solved and evaluated with exact numbers or with decimals
-of a chosen precision. The work is done by a native addon built on [SymEngine](https://github.com/symengine/symengine)
-and [mpdecimal](https://www.bytereef.org/mpdecimal/), compiled when the package is installed.
-The long operations can run in the addon's own threads, with a time limit and a cancellation. The `lakutata` package
-does not re-export this package: import it from `@lakutata/math`.
+Mathematics for Node.js: formulas written the way they are on paper (`x^2 - 5x + 6`, `2(x + 1)`), expanded,
+differentiated, solved and evaluated with exact numbers or with decimals of a chosen precision; numeric matrices and
+linear algebra, statistics and probability distributions, numeric roots. The work is done by a native addon built on
+[SymEngine](https://github.com/symengine/symengine), [Boost](https://www.boost.org),
+[Eigen](https://eigen.tuxfamily.org) and [mpdecimal](https://www.bytereef.org/mpdecimal/), compiled when the package is
+installed. The long operations can run in the addon's own threads, with a time limit and a cancellation. It belongs to
+the [lakutata](https://github.com/lakutata/lakutata) family but needs no lakutata application. Its functions work on
+their own: import them from `@lakutata/math` and call them.
 
 ## Installation
 
 ```shell
-npm install lakutata @lakutata/math
+npm install @lakutata/math
 ```
 
 - The addon is compiled during the installation (node-gyp), so the machine needs Python 3 and a C++17 compiler: the
@@ -23,57 +25,47 @@ npm install lakutata @lakutata/math
   yet covered by allowScripts": `npm install-scripts approve @lakutata/math` records that you allow it. Bun and pnpm run
   it only for the dependencies they are told to trust (`trustedDependencies` in the package.json for Bun,
   `pnpm approve-builds` for pnpm); without it, loading the package throws an error telling how to build the addon.
-- Node.js `^22.13.0 || >=24.11.0`. Its peer dependency `@lakutata/core` is installed with `lakutata`.
+- Node.js `^22.13.0 || >=24.11.0`.
 
 ## Usage
 
-### The component
+### Getting started
 
-`Math` is a component: register it with `buildMathOptions()` (several times under different names for different
-definitions), or inject it without registering it to get its default options (`@Inject(Math)`).
+The package exports its functions ready to use: `parse`, `expression`, `equation`, `decimal`, `matrix`, `solve` and
+`cse`, with the namespaces `ntheory` (number theory), `linalg` (linear algebra), `stats` (statistics and probability)
+and `numeric` (numeric solutions). They belong to `math`, the scope made with the default options.
 
 ```typescript
-import {Application, Component} from 'lakutata'
-import {Inject} from 'lakutata/decorator/di'
-import {buildMathOptions, type Equation, type Expression, Math} from '@lakutata/math'
+import {decimal, equation, expression, linalg, stats} from '@lakutata/math'
 
-class Physics extends Component {
-    @Inject('math')
-    protected readonly math: Math
-
-    public async demo(): Promise<void> {
-        const height: Expression = this.math.expression('h0 - fall(t)')
-        console.log(height.toString())                                  //-196133t^2/40000 + h0
-        console.log(height.diff('t').toString())                         //-196133t/20000
-        console.log(height.substitute({h0: 100, t: 2}).toNumber())        //80.3867
-        const landing: Equation = this.math.equation('fall(t) = 100')
-        console.log(landing.solve('t', {domain: 'real'}).map((t: Expression): number => t.toNumber())) //[-4.516007557517875, 4.516007557517875]
-        const expanded: Expression = await this.math.expression('(x + y + 1)^30').expandAsync({timeout: 1000})
-        console.log(expanded.variables())                                 //['x', 'y']
-    }
-}
-
-Application.run(() => ({
-    id: 'physics.app',
-    name: 'Physics',
-    components: {
-        math: buildMathOptions({definitions: {'g': 9.80665, 'fall(t)': 'g*t^2/2'}}),
-        physics: {class: Physics}
-    }
-}))
+const height = expression('h0 - 9.80665*t^2/2')
+console.log(height.diff('t').toString())                           //-196133t/20000
+console.log(height.substitute({h0: 100, t: 2}).toNumber())         //80.3867
+console.log(equation('x^2 - 5x + 6 = 0').solve('x').map(String))   //['2', '3']
+console.log(decimal('0.1').add('0.2').toString())                  //0.3
+console.log(linalg.solve([[4, 1], [2, 3]], [5, 5]))                //Float64Array [1, 1]
+console.log(stats.mean([2, 4, 4, 4, 5, 5, 7, 9]))                  //5
 ```
 
-Without an application (a script, a test), get the component from a `Container`:
+### Options
+
+`createMath(options)` makes a `MathScope` with other options and the same functions: its `definitions` (functions and
+constants written as formulas, none by default), the `precision` of its decimals (32 significant digits by default), the
+`timeout` of its asynchronous operations (milliseconds, 0 for none by default) and their `concurrency` (all the threads
+of the addon by default). Every option has a default value, so `createMath()` alone is the same as `math`. A program may
+make several, for several sets of definitions.
 
 ```typescript
-import {Container} from 'lakutata'
-import {Math} from '@lakutata/math'
+import {createMath, type Equation, type Expression, type MathScope} from '@lakutata/math'
 
-const container: Container = new Container()
-await container.setNamed('math', Math, {precision: 50})
-const math: Math = await container.get<Math>('math')
-console.log(math.expression('pi').toDecimal())                           //3.1415926535897932384626433832795028841971693993751
-await container.destroy()
+const physics: MathScope = createMath({definitions: {'g': 9.80665, 'fall(t)': 'g*t^2/2'}, precision: 50})
+const height: Expression = physics.expression('h0 - fall(t)')
+console.log(height.toString())                      //-196133t^2/40000 + h0
+const landing: Equation = physics.equation('fall(t) = 100')
+console.log(landing.solve('t', {domain: 'real'}).map((t: Expression): number => t.toNumber()))   //[-4.516007557517875, 4.516007557517875]
+console.log(physics.expression('pi').toDecimal())   //3.1415926535897932384626433832795028841971693993751
+const expanded: Expression = await physics.expression('(x + y + 1)^30').expandAsync({timeout: 1000})
+console.log(expanded.variables())                   //['x', 'y']
 ```
 
 ### Formulas
@@ -88,8 +80,8 @@ await container.destroy()
 | `sin`, `cos`, `tan`, `asin`, `sinh`…, `exp`, `ln`, `log(x)` (natural), `log(x, b)`, `log10`, `log2`, `expm1`, `log1p`, `sqrt`, `cbrt`, `root(x, n)`, `hypot` | Functions |
 | `abs`, `sign`, `floor`, `ceil`, `trunc`, `round`, `mod(a, b)`, `min`, `max`, `gcd`, `lcm`, `re`, `im`, `arg`, `conj` | Rounding, remainders, extrema, the parts of complex numbers |
 | `gamma`, `loggamma`, `digamma`, `polygamma`, `lowergamma`, `uppergamma`, `beta`, `erf`, `erfc`, `zeta`, `lambertw`, `sinc`, `binomial`, `factorial` | Special functions |
-| `x^2 = 4` | An equation (`math.equation()`, or `math.parse()`) |
-| `x < 1`, `x >= 0` | An inequality, read by `math.parse()` |
+| `x^2 = 4` | An equation (`equation()`, or `parse()`) |
+| `x < 1`, `x >= 0` | An inequality, read by `parse()` |
 
 `cbrt(x)` and `root(x, n)` with an odd `n` give the real root of a negative real number (`cbrt(-8)` is `-2`, as
 `Math.cbrt`); a fractional power gives the principal value (`(-8)^(1/3)` is `1 + sqrt(3)i`, as SymPy). `round` rounds
@@ -100,22 +92,20 @@ Without parentheses, the name of a function is a variable (`gamma`, `beta`, `re`
 quantities), except the ones often written without parentheses by mistake — the trigonometric and hyperbolic
 functions, `exp`, `ln`, `log` and its variants, `sqrt`, `cbrt`: `sin x` is an error, write `sin(x)`.
 
-The results are written the same way: `toString()` gives a formula that `math.expression()` reads back, and `toTeX()`
+The results are written the same way: `toString()` gives a formula that `expression()` reads back, and `toTeX()`
 gives its LaTeX. A syntax error is a `MathSyntaxException` with the `position` of the character where it is found.
 
 ### Definitions
 
-The `definitions` of the component are functions and constants written as formulas. They do not change once the
-component is created, so every class that injects the component sees the same ones. `with()` adds more for a while,
-without changing the component:
+The `definitions` of `createMath()` are functions and constants written as formulas. They do not change once the scope
+is made, so every part of a program that uses it sees the same ones. `with()` adds more for a while, without changing
+it:
 
 ```typescript
-import type {Math} from '@lakutata/math'
+import {math} from '@lakutata/math'
 
-function prices(math: Math): void {
-    const scope = math.with({'net(x)': 'x / (1 + rate)', 'rate': '0.13'})
-    console.log(scope.expression('net(113)').toString())                  //100
-}
+const scope = math.with({'net(x)': 'x / (1 + rate)', 'rate': '0.13'})
+console.log(scope.expression('net(113)').toString())   //100
 ```
 
 Definitions are expanded when a formula is read, so derivatives and equations see through them.
@@ -132,7 +122,7 @@ stays a power (`2^(10^7)`), and a factorial above `20000!` stays as `gamma(n + 1
   functions (gamma, zeta, Lambert W, polygamma, erf…) of complex arguments too, in doubles, while the rest of the
   expression stays in decimals.
 - `toDecimal(digits)` gives a string with that many significant digits, correctly rounded (the `precision` of the
-  component by default), written as `Decimal` writes its digits (see below): `3`, not `3.000…`. The value is computed
+  scope by default), written as `Decimal` writes its digits (see below): `3`, not `3.000…`. The value is computed
   again with more digits until two results agree. It computes the arithmetic, powers and roots, `exp` and `ln`, the
   trigonometric and hyperbolic functions and their inverses, the rounding functions, the constants, and the special
   functions of real arguments: `gamma`, `loggamma`, `digamma`, `polygamma`, `beta`, `erf`, `erfc`, `zeta` (Riemann's and
@@ -155,25 +145,23 @@ stays a power (`2^(10^7)`), and a factorial above `20000!` stays as `gamma(n + 1
   for many rows in one call:
 
 ```typescript
-import type {Math} from '@lakutata/math'
+import {expression} from '@lakutata/math'
 
-function plot(math: Math): Float64Array {
-    const f = math.expression('x^2 + sin(y)').compile(['x', 'y'])
-    console.log(f(2, 0))                                                   //4
-    return f.batch(Float64Array.of(1, 0, 2, 0, 3, 0))                      //[1, 4, 9]
-}
+const f = expression('x^2 + sin(y)').compile(['x', 'y'])
+console.log(f(2, 0))                                      //4
+console.log(f.batch(Float64Array.of(1, 0, 2, 0, 3, 0)))   //Float64Array [1, 4, 9]
 ```
 
 ### Decimals
 
-`math.decimal(value, {precision})` gives a `Decimal`: a decimal number with at most `precision` significant digits
-(by default the `precision` of the component, 32), for amounts of money, or for values that need many digits. Each
+`decimal(value, {precision})` gives a `Decimal`: a decimal number with at most `precision` significant digits
+(by default the `precision` of the scope, 32), for amounts of money, or for values that need many digits. Each
 operation rounds its result correctly to that precision: to the nearest decimal with that many digits, halves to even.
 A decimal does not change: each operation gives a new one.
 
 - Values are read as they are written: a number by its shortest representation (`0.1` is 0.1, not the binary value of
   the double), a string as a decimal number (`'19.99'`, `'1.5e-7'`), a bigint exactly. An expression without variables
-  is computed, as `toDecimal()` does: `math.decimal(math.expression('pi'), {precision: 50})`.
+  is computed, as `toDecimal()` does: `decimal(expression('pi'), {precision: 50})`.
 - A result has the precision of the decimal it is computed from: `a.add(b)` has the precision of `a`. The values given
   to an operation are read with all their digits.
 - The operations: `add`, `sub`, `mul`, `div`, `mod` (with the sign of the divisor, as `mod()` in formulas), `pow`,
@@ -184,20 +172,18 @@ A decimal does not change: each operation gives a new one.
 - `toString()` writes the digits without trailing zeros, in fixed-point notation when the first digit is between the
   10^-6 place and the 10^(precision - 1) place, in scientific notation otherwise (`1.5`, `0.000025`, `1.5e+25`, `1e-7`).
   `toFixed(places)` writes a given number of places after the point (`toFixed(2)` of 1.5 is `1.50`), and `toNumber()`
-  gives the nearest number. A decimal is also an exact value in formulas: `math.expression(decimal)`.
+  gives the nearest number. A decimal is also an exact value in formulas: `expression(decimal)`.
 - The operations run on the JavaScript thread, without a time limit. Arithmetic is fast at any precision, but the
   functions take seconds at tens of thousands of digits, and the special functions (`zeta`, `gamma`) at thousands: for
   those, compute an expression with `toDecimalAsync()`, which has a time limit, and make a decimal of its result.
 
 ```typescript
-import type {Math} from '@lakutata/math'
+import {decimal} from '@lakutata/math'
 
-function decimals(math: Math): void {
-    console.log(math.decimal(0.1).add(0.2).toString())                           //0.3
-    console.log(math.decimal('19.99').mul(3).toFixed(2))                         //59.97
-    console.log(math.decimal(1, {precision: 5}).div(3).toString())               //0.33333
-    console.log(math.decimal(2, {precision: 40}).sqrt().toString())              //1.41421356237309504880168872420969807857
-}
+console.log(decimal(0.1).add(0.2).toString())                //0.3
+console.log(decimal('19.99').mul(3).toFixed(2))              //59.97
+console.log(decimal(1, {precision: 5}).div(3).toString())    //0.33333
+console.log(decimal(2, {precision: 40}).sqrt().toString())   //1.41421356237309504880168872420969807857
 ```
 
 ### Code generation
@@ -209,20 +195,18 @@ function decimals(math: Math): void {
   (such as `gamma` and `erf` in JavaScript, `zeta` and `lambertw` in both), a complex number such as `2i`, or a variable
   whose name is a reserved word of the language or a name the code uses (`new`, `Math`, `pow`) throws
   `MathNotSupportedException`.
-- `math.cse(expressions)` finds the parts that the expressions repeat or share (common subexpression elimination). It
+- `cse(expressions)` finds the parts that the expressions repeat or share (common subexpression elimination). It
   returns them as `replacements`, each with a name (`x0`, `x1`…, skipping names the variables already use) and a value
   that may refer to earlier names, together with the `expressions` rewritten with those names. Printed with
   `toJavaScript()` or `toC()`, the result is code that computes each part only once.
 
 ```typescript
-import type {Math} from '@lakutata/math'
+import {cse} from '@lakutata/math'
 
-function code(math: Math): string {
-    const {replacements, expressions} = math.cse(['sin(x + y)^2 + x + y', 'cos(x + y)'])
-    const lines: string[] = replacements.map(({name, value}) => `const ${name} = ${value.toJavaScript()}`)   //const x0 = x + y
-    lines.push(`return [${expressions.map((expression) => expression.toJavaScript()).join(', ')}]`)          //return [x0 + Math.pow(Math.sin(x0), 2), Math.cos(x0)]
-    return lines.join('\n')
-}
+const {replacements, expressions} = cse(['sin(x + y)^2 + x + y', 'cos(x + y)'])
+const lines: string[] = replacements.map(({name, value}) => `const ${name} = ${value.toJavaScript()}`)   //const x0 = x + y
+lines.push(`return [${expressions.map((expression) => expression.toJavaScript()).join(', ')}]`)   //return [x0 + Math.pow(Math.sin(x0), 2), Math.cos(x0)]
+console.log(lines.join('\n'))
 ```
 
 ### Solving
@@ -231,23 +215,21 @@ function code(math: Math): string {
   with their `kind`: `finite`, `empty`, `all`, `intervals`, or `unsolved`/`other` for a set the package does not solve
   (its `text` describes it). Equations of degree four at most are solved exactly. `{domain: 'real'}` keeps the real
   solutions.
-- `math.solve(equations, variables)` solves a system of linear equations: an empty array when it has no solution,
+- `solve(equations, variables)` solves a system of linear equations: an empty array when it has no solution,
   otherwise one solution with the value of each variable it determines (in terms of the others when there are
   infinitely many).
 
 ```typescript
-import type {Math} from '@lakutata/math'
+import {expression, solve} from '@lakutata/math'
 
-function solve(math: Math): void {
-    console.log(math.expression('x^4 - 1').solve('x').map(String))                    //['-1', '1', '-i', 'i']
-    const [solution] = math.solve(['x + y = 3', 'x - y = 1'], ['x', 'y'])
-    console.log(solution.x.toString(), solution.y.toString())                        //2 1
-}
+console.log(expression('x^4 - 1').solve('x').map(String))   //['-1', '1', '-i', 'i']
+const [solution] = solve(['x + y = 3', 'x - y = 1'], ['x', 'y'])
+console.log(solution.x.toString(), solution.y.toString())   //2 1
 ```
 
 ### Number theory
 
-`math.ntheory` works on integers: bigints, or numbers that are safe integers. Its integer results are bigints.
+`ntheory` works on integers: bigints, or numbers that are safe integers. Its integer results are bigints.
 
 - Divisibility and modular arithmetic: `gcd`, `lcm`, `extendedGcd`, `mod`, `modInverse`, `powMod`, and `crt` (the
   Chinese remainder theorem; the moduli need not be coprime). A result modulo `m` has the sign of `m`, as
@@ -271,24 +253,22 @@ prime factors can take days: use `factorAsync` with a time limit. `isPrime`, `ne
 `factorial(n)` above 20000 stays `gamma(n + 1)`, so that the expression can still be printed.
 
 ```typescript
-import type {Math} from '@lakutata/math'
+import {ntheory} from '@lakutata/math'
 
-async function integers(math: Math): Promise<void> {
-    console.log(math.ntheory.factor(360))                     //[{prime: 2n, exponent: 3}, {prime: 3n, exponent: 2}, {prime: 5n, exponent: 1}]
-    console.log(math.ntheory.powMod(4, 13, 497))              //445n
-    console.log(math.ntheory.crt([2, 3, 2], [3, 5, 7]))       //{remainder: 23n, modulus: 105n}
-    console.log(await math.ntheory.factorAsync(2n ** 64n + 1n, {timeout: 5000}))
-}
+console.log(ntheory.factor(360))                 //[{prime: 2n, exponent: 3}, {prime: 3n, exponent: 2}, {prime: 5n, exponent: 1}]
+console.log(ntheory.powMod(4, 13, 497))          //445n
+console.log(ntheory.crt([2, 3, 2], [3, 5, 7]))   //{remainder: 23n, modulus: 105n}
+console.log(await ntheory.factorAsync(2n ** 64n + 1n, {timeout: 5000}))
 ```
 
 ### Matrices and linear algebra
 
-`math.matrix(rows)` gives a `Matrix` of numbers (doubles). Its elements are in a `Float64Array`, row by row (`data`),
+`matrix(rows)` gives a `Matrix` of numbers (doubles). Its elements are in a `Float64Array`, row by row (`data`),
 which the addon reads in place. Its methods give new matrices: `get`, `set` (which changes the matrix), `row`, `column`,
 `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`,
 `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `toArray` and `toString` (`[1, 2; 3, 4]`).
 
-`math.linalg` holds the linear algebra, computed by Eigen:
+`linalg` holds the linear algebra, computed by Eigen:
 
 - Matrices: `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, and
   `rotation` (in the plane, or about an axis in space).
@@ -311,8 +291,8 @@ per column) gives a matrix. For `solve` and `inverse`, a matrix is singular when
 exactly 0, as in NumPy: a nearly singular matrix gives large values instead, and `condition()` shows how close to
 singular it is.
 
-`math.linalg.sparse(rows, columns, entries)` makes a `SparseMatrix` of the entries given, `[row, column, value]` (the
-entries at the same place are added up), and `math.linalg.sparse(matrix)` one from the elements of a dense matrix that
+`linalg.sparse(rows, columns, entries)` makes a `SparseMatrix` of the entries given, `[row, column, value]` (the
+entries at the same place are added up), and `linalg.sparse(matrix)` one from the elements of a dense matrix that
 are not 0. A `SparseMatrix` stores its entries in compressed rows (CSR: `rowPointers`, `columnIndices`, `values`). Its
 methods are `get`, `transpose`, `add`, `sub`, `neg`, `mul` (by a number, a vector, a dense matrix, or a sparse matrix,
 the last computed by Eigen), `toDense` and `toEntries`. `solve` with a sparse matrix uses the sparse LU decomposition of
@@ -328,27 +308,25 @@ the time limit or when the operation is cancelled, the promise is rejected, but 
 is free again.
 
 ```typescript
-import type {Math} from '@lakutata/math'
+import {linalg, matrix} from '@lakutata/math'
 
-async function systems(math: Math): Promise<void> {
-    const a = math.matrix([[4, 1], [2, 3]])
-    console.log(math.linalg.solve(a, [5, 5]))                 //Float64Array [1, 1]
-    console.log(math.linalg.inverse(a).toString())            //[0.3, -0.1; -0.2, 0.4]
-    console.log(math.linalg.determinant(a))                   //10
-    console.log(a.mul(a).toString())                          //[18, 7; 14, 11]
-    console.log(math.linalg.leastSquares([[1, 1], [1, 2], [1, 3]], [1, 2, 2]))
-    const big = math.linalg.fromFunction(1000, 1000, (i, j) => (i === j ? 1000 : 1 / (1 + i + j)))
-    const inverse = await math.linalg.inverseAsync(big, {timeout: 5000})
-    console.log(inverse.get(0, 0))
-    const sparse = math.linalg.sparse(3, 3, [[0, 0, 2], [0, 1, -1], [1, 0, -1], [1, 1, 2], [2, 2, 2]])
-    console.log(math.linalg.solve(sparse, [1, 1, 2]))         //Float64Array [1, 1, 1]
-    console.log(math.linalg.conjugateGradient(sparse, [1, 1, 2]).converged)   //true
-}
+const a = matrix([[4, 1], [2, 3]])
+console.log(linalg.solve(a, [5, 5]))                                 //Float64Array [1, 1]
+console.log(linalg.inverse(a).toString())                            //[0.3, -0.1; -0.2, 0.4]
+console.log(linalg.determinant(a))                                   //10
+console.log(a.mul(a).toString())                                     //[18, 7; 14, 11]
+console.log(linalg.leastSquares([[1, 1], [1, 2], [1, 3]], [1, 2, 2]))
+const big = linalg.fromFunction(1000, 1000, (i, j) => (i === j ? 1000 : 1 / (1 + i + j)))
+const inverse = await linalg.inverseAsync(big, {timeout: 5000})
+console.log(inverse.get(0, 0))
+const sparse = linalg.sparse(3, 3, [[0, 0, 2], [0, 1, -1], [1, 0, -1], [1, 1, 2], [2, 2, 2]])
+console.log(linalg.solve(sparse, [1, 1, 2]))                         //Float64Array [1, 1, 1]
+console.log(linalg.conjugateGradient(sparse, [1, 1, 2]).converged)   //true
 ```
 
 ### Statistics
 
-`math.stats` computes statistics of values (arrays of numbers, or `Float64Array`s) in the addon: `sum` (compensated for
+`stats` computes statistics of values (arrays of numbers, or `Float64Array`s) in the addon: `sum` (compensated for
 its roundings: the sum of `[1e16, 1, -1e16]` is 1), `product`, `cumulativeSum`, `differences`, `mean`, `median`, `mode`
 (all the values that occur most often, ascending), `min`, `max`, `variance`, `standardDeviation`,
 `medianAbsoluteDeviation`, `quantile`, `covariance`, `correlation` (Pearson's), `zScores` and `klDivergence` (the
@@ -363,22 +341,20 @@ mathjs's `quantileSeq` do. A NaN among the values gives NaN. Of no values, the s
 median, the variance…) throw `MathArgumentException`, while the sum is 0 and the product 1.
 
 ```typescript
-import type {Math} from '@lakutata/math'
+import {stats} from '@lakutata/math'
 
-function statistics(math: Math): void {
-    const values = [2, 4, 4, 4, 5, 5, 7, 9]
-    console.log(math.stats.mean(values))                                           //5
-    console.log(math.stats.standardDeviation(values))                              //2
-    console.log(math.stats.standardDeviation(values, {normalization: 'unbiased'})) //2.138089935299395
-    console.log(math.stats.quantile(values, [0.25, 0.75]))                         //Float64Array [4, 5.5]
-    console.log(math.stats.correlation(values, [1, 3, 2, 5, 4, 6, 8, 7]))          //0.8455943246644705
-}
+const values = [2, 4, 4, 4, 5, 5, 7, 9]
+console.log(stats.mean(values))                                             //5
+console.log(stats.standardDeviation(values))                                //2
+console.log(stats.standardDeviation(values, {normalization: 'unbiased'}))   //2.138089935299395
+console.log(stats.quantile(values, [0.25, 0.75]))                           //Float64Array [4, 5.5]
+console.log(stats.correlation(values, [1, 3, 2, 5, 4, 6, 8, 7]))            //0.8455943246644705
 ```
 
 ### Probability distributions
 
-`math.stats` also has 24 probability distributions, computed by Boost.Math, each built from its parameters, given by
-their names: `math.stats.gamma({shape: 2.5, scale: 1.5})`. Libraries parameterize them differently, so the names say
+`stats` also has 24 probability distributions, computed by Boost.Math, each built from its parameters, given by
+their names: `stats.gamma({shape: 2.5, scale: 1.5})`. Libraries parameterize them differently, so the names say
 which parameters are meant; the table gives the equivalents in SciPy. A `Distribution` has `pdf` (the probability mass
 of a discrete distribution), `cdf`, `survival`, `quantile` and `survivalQuantile` (SciPy's `isf`), each taking a value
 or values; `mean`, `variance`, `standardDeviation`, `median`, `mode`, `skewness`, `excessKurtosis` and `support`; and
@@ -415,7 +391,7 @@ lower bound of its support (SciPy gives one below it). A mean or a variance that
 Student's t with 2 degrees of freedom); a skewness or an excess kurtosis that diverges is NaN, as a moment that does not
 exist (the mean of Cauchy's). Parameters that are not valid throw `MathArgumentException`.
 
-`math.stats.random(seed)` gives a `RandomGenerator` (xoshiro256**) with `next()`, `uniform(count)`, `integers(count,
+`stats.random(seed)` gives a `RandomGenerator` (xoshiro256**) with `next()`, `uniform(count)`, `integers(count,
 lower, upper)` (of `[lower, upper)`) and `clone()`; `sample(count, random)` draws by inverting the cdf at its uniform
 numbers. A seed draws the same sequence each time. Its uniform numbers and integers are the same on every platform,
 while the samples of a distribution go through functions of the C library and may differ in their last digits from one
@@ -423,34 +399,67 @@ platform to another. Without a seed, the generator takes one from the random num
 cryptography.
 
 ```typescript
-import type {Math} from '@lakutata/math'
+import {stats} from '@lakutata/math'
 
-function probability(math: Math): void {
-    const normal = math.stats.normal({mean: 1, standardDeviation: 2})
-    console.log(normal.cdf(1))                                     //0.5
-    console.log(normal.quantile(0.975))                            //4.919927969080108
-    const binomial = math.stats.binomial({trials: 10, probability: 0.3})
-    console.log(binomial.pdf([2, 3]))                              //Float64Array [0.23347444050000024, 0.2668279319999998]
-    console.log(binomial.quantile(0.5))                            //3
-    const random = math.stats.random(42)
-    console.log(normal.sample(3, random))                          //the same three samples each time, of the seed 42
-    console.log(random.integers(5, 1, 7))                          //five dice
-}
+const normal = stats.normal({mean: 1, standardDeviation: 2})
+console.log(normal.cdf(1))              //0.5
+console.log(normal.quantile(0.975))     //4.919927969080108
+const binomial = stats.binomial({trials: 10, probability: 0.3})
+console.log(binomial.pdf([2, 3]))       //Float64Array [0.23347444050000024, 0.2668279319999998]
+console.log(binomial.quantile(0.5))     //3
+const random = stats.random(42)
+console.log(normal.sample(3, random))   //the same three samples each time, of the seed 42
+console.log(random.integers(5, 1, 7))   //five dice
+```
+
+### Numeric solutions
+
+`numeric` finds the solutions of equations as numbers, where `solve()` has no exact solution or where numbers are
+enough. The addon compiles the expressions to doubles, with the derivatives the methods need.
+
+- `polynomialRoots(polynomial, variable)` gives all the roots of a polynomial in the complex numbers, as `{re, im}`,
+  with their multiplicities, sorted by their real parts, then by their imaginary parts: the eigenvalues of its companion
+  matrix, refined by Newton's method (as NumPy's `roots`). The polynomial is an expression, or its coefficients from the
+  constant term up, as mathjs's `polynomialRoot` (NumPy's `roots` takes them from the highest power down). A root of
+  multiplicity m is accurate to about the m-th root of the machine epsilon.
+- `findRoot(equation, variable, options)` finds a root of a function (`x^3 - 2x - 5`, equal to 0) or of an equation
+  (`cos(x) = x`): in a `bracket` `[a, b]` where the function changes its sign, by TOMS 748 (which keeps the root in the
+  bracket), or from a `guess`, by Newton's method. A bracket where the sign does not change, or where the function is
+  not real, throws `MathDomainException`.
+- `solveSystem(equations, variables, guess, options)` solves a system of nonlinear equations from a guess, by Newton's
+  method with a line search, and by the steps of Levenberg and Marquardt where Newton's steps fail. With more equations
+  than variables, it finds the point where the residuals are smallest (least squares).
+
+The iterative methods stop when a step becomes smaller than the `tolerance` (1e-12 by default) relative to the solution,
+as SciPy's `fsolve` does, or after `maxIterations` (100 by default). They do not throw when they do not converge: the
+result says so (`converged`), with the number of `iterations` and the `residual` (the absolute value of the function at
+the root, the norm of the residuals of a system). Each operation has an asynchronous version (`findRootAsync()`…).
+
+```typescript
+import {numeric} from '@lakutata/math'
+
+console.log(numeric.polynomialRoots('x^3 - 6x^2 + 11x - 6'))                   //{re: Float64Array [1, 2, 3], im: Float64Array [0, 0, 0]}
+console.log(numeric.polynomialRoots([1, 0, 1]))                                //{re: Float64Array [0, 0], im: Float64Array [-1, 1]}: 1 + x^2
+console.log(numeric.findRoot('cos(x) = x', 'x', {bracket: [0, 1]}).root)       //0.7390851332151606
+console.log(numeric.findRoot('x^3 - 2x - 5', 'x', {guess: 2}).root)            //2.0945514815423265
+const {solution, converged} = numeric.solveSystem(['x^2 + y^2 = 4', 'x*y = 1'], ['x', 'y'], [2, 0])
+console.log(solution, converged)                                               //Float64Array [1.9318516525781366, 0.5176380902050416] true
 ```
 
 ### Asynchronous operations
 
 The operations that can take long have an asynchronous version: `expandAsync()`, `simplifyAsync()`, `diffAsync()`,
-`seriesAsync()`, `solveAsync()`, `toDecimalAsync()`, `toComplexDecimalAsync()`, `solveAsync()` and `cseAsync()` of the
-component, and those of the number theory and of the linear algebra. They run in the threads of the addon, not in the
-thread pool of libuv: as many threads as the processor has cores, minus one, or the number in the environment variable
-`LAKUTATA_MATH_THREADS`. Their options are `timeout` (milliseconds) and `signal` (an `AbortSignal`):
+`seriesAsync()`, `solveAsync()`, `toDecimalAsync()`, `toComplexDecimalAsync()` of the expressions, `solveAsync()` and
+`cseAsync()`, and those of the number theory, of the linear algebra and of the numeric solutions. They run in the
+threads of the addon, not in the thread pool of libuv: as many threads as the processor has cores, minus one, or the
+number in the environment variable `LAKUTATA_MATH_THREADS`. Their options are `timeout` (milliseconds) and `signal` (an
+`AbortSignal`):
 
 - At the time limit the promise is rejected with `MathTimeoutException`, and with `MathCancelledException` when the
   signal aborts. Operations with checkpoints (expansions, decimals, linear systems, the number theory) stop at the next
   one; the others run to the end before their thread is free again.
-- The component limits how many of its operations run at the same time (`concurrency`). Its destruction waits for the
-  ones running, at most `drainTimeout` milliseconds.
+- A scope of `createMath()` limits how many of its operations run at the same time (`concurrency`): the others wait
+  their turn. If the program exits while some are running, their results are dropped.
 
 The expressions are nested 1000 levels deep at most: a deeper formula is refused with `MathNotSupportedException`
 before its operations could overflow the stack.
@@ -464,17 +473,17 @@ The bundles, the executables and the installers made by `lakutata package` carry
 
 | Export | What it is |
 |---|---|
-| `Math` | The component: `parse`, `expression`, `equation`, `decimal`, `matrix`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg`, `stats` |
-| `buildMathOptions`, `MathConfig` | Its declaration in the components, and its options: `definitions`, `precision`, `timeout`, `concurrency`, `drainTimeout` |
-| `MathScope`, `MathDefinitions` | The scope given by `with()`, with the methods of the component except `ntheory`, `linalg` and `stats`; the definitions (a body by signature) |
+| `parse`, `expression`, `equation`, `decimal`, `matrix`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg`, `stats`, `numeric` | The functions and the namespaces of `math`, ready to use |
+| `math`, `createMath`, `MathOptions` | The scope of the default options; a scope of other options (`definitions`, `precision`, `timeout`, `concurrency`), and its options |
+| `MathScope`, `MathDefinitions` | A scope of definitions and settings (`createMath()`, `with()`): `parse`, `expression`, `equation`, `decimal`, `matrix`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg`, `stats`, `numeric`; the definitions (a body by signature) |
 | `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
-| `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`math.decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
-| `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`math.matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is given where a matrix is expected (a matrix, or its rows); where a vector is (a `Float64Array`, or an array of numbers) |
-| `LinearAlgebra`, `NormKind` | The linear algebra (`math.linalg`): `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, `rotation`, `dot`, `cross`, `outer`, `norm`, `multiply`, `solve`, `solveTriangular`, `leastSquares`, `inverse`, `determinant`, `singularValues`, `rank`, `condition`, `lu`, `qr`, `cholesky`, `svd`, `eigen`, `symmetricEigen`, `schur`, `pseudoInverse`, `exponential`, `squareRoot`, `sylvester`, `lyapunov`, `sparse`, `conjugateGradient`, `biconjugateGradientStabilized`, and the asynchronous versions; the kinds of norms |
-| `Statistics`, `Normalization`, `NormalizationOptions` | The statistics (`math.stats`): `sum`, `product`, `cumulativeSum`, `differences`, `mean`, `median`, `mode`, `min`, `max`, `variance`, `standardDeviation`, `medianAbsoluteDeviation`, `quantile`, `covariance`, `correlation`, `zScores`, `klDivergence`, the distributions (`normal` … `hypergeometric`, `distribution`) and `random`; the divisors of a variance (`'uncorrected'`, `'unbiased'`, `'biased'`) and the option that chooses one |
+| `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
+| `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is given where a matrix is expected (a matrix, or its rows); where a vector is (a `Float64Array`, or an array of numbers) |
+| `LinearAlgebra`, `NormKind` | The linear algebra (`linalg`): `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, `rotation`, `dot`, `cross`, `outer`, `norm`, `multiply`, `solve`, `solveTriangular`, `leastSquares`, `inverse`, `determinant`, `singularValues`, `rank`, `condition`, `lu`, `qr`, `cholesky`, `svd`, `eigen`, `symmetricEigen`, `schur`, `pseudoInverse`, `exponential`, `squareRoot`, `sylvester`, `lyapunov`, `sparse`, `conjugateGradient`, `biconjugateGradientStabilized`, and the asynchronous versions; the kinds of norms |
+| `Statistics`, `Normalization`, `NormalizationOptions` | The statistics (`stats`): `sum`, `product`, `cumulativeSum`, `differences`, `mean`, `median`, `mode`, `min`, `max`, `variance`, `standardDeviation`, `medianAbsoluteDeviation`, `quantile`, `covariance`, `correlation`, `zScores`, `klDivergence`, the distributions (`normal` … `hypergeometric`, `distribution`) and `random`; the divisors of a variance (`'uncorrected'`, `'unbiased'`, `'biased'`) and the option that chooses one |
 | `Distribution`, `DistributionName`, `DistributionParameters` | A probability distribution: `pdf`, `cdf`, `survival`, `quantile`, `survivalQuantile`, `sample`, `parameters`, `kind`, `support`, `mean`, `variance`, `standardDeviation`, `median`, `mode`, `skewness`, `excessKurtosis`; the names of the distributions; their parameters by their names |
 | `RandomGenerator` | A generator of random numbers (xoshiro256**) of a seed: `next`, `uniform`, `integers`, `clone` |
-| `SparseMatrix`, `SparseEntry` | A sparse matrix in compressed rows (`math.linalg.sparse()`): `rowPointers`, `columnIndices`, `values`, `nonZeros`, `get`, `transpose`, `add`, `sub`, `neg`, `mul`, `toDense`, `toEntries`; an entry `[row, column, value]` |
+| `SparseMatrix`, `SparseEntry` | A sparse matrix in compressed rows (`linalg.sparse()`): `rowPointers`, `columnIndices`, `values`, `nonZeros`, `get`, `transpose`, `add`, `sub`, `neg`, `mul`, `toDense`, `toEntries`; an entry `[row, column, value]` |
 | `IterativeOptions`, `IterativeSolution` | The options of the iterative solvers (`tolerance`, `maxIterations`, `guess`) and their result (`solution`, `iterations`, `error`, `converged`) |
 | `LuDecomposition`, `QrDecomposition`, `SingularValueDecomposition`, `EigenDecomposition`, `SymmetricEigenDecomposition`, `SchurDecomposition`, `ComplexVector`, `ComplexMatrix` | The results of the decompositions: `{lower, upper, permutation}`, `{q, r}`, `{u, singularValues, v}`, `{values, vectors}` (complex: `{re, im}`), `{values, vectors}`, `{u, t}` |
 | `CommonSubexpressions`, `CseOptions` | The result of `cse()` (`replacements`, `expressions`) and its option (`prefix`) |
@@ -483,7 +492,8 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | `Solutions`, `SolutionsKind`, `SolutionInterval`, `SolveOptions` | The solutions of an equation: an array of expressions with their `kind`, `intervals` and `text`; the `domain` of the solutions |
 | `SystemSolution`, `SystemEquation` | A solution of a system (an expression by variable), an equation of a system |
 | `CompiledFunction` | A compiled expression: a function of numbers, its `variables`, `batch` |
-| `NumberTheory`, `IntegerValue`, `PrimeFactor`, `ExtendedGcd`, `Congruence` | The number theory (`math.ntheory`): `gcd`, `lcm`, `extendedGcd`, `mod`, `modInverse`, `powMod`, `isPrime`, `nextPrime`, `factor`, `totient`, `mobius`, `primitiveRoot`, `legendre`, `jacobi`, `crt`, `fibonacci`, `lucas`, `binomial`, `factorial`, `doubleFactorial`, `bernoulli`, `harmonic`, `permutations`, `combinationsWithRepetition`, `multinomial`, `bell`, `catalan`, `stirlingSecondKind`, `compositions`, and the asynchronous versions; an integer (a bigint, or a number that is a safe integer); a prime factor and its exponent; the result of `extendedGcd`; the result of `crt` |
+| `NumberTheory`, `IntegerValue`, `PrimeFactor`, `ExtendedGcd`, `Congruence` | The number theory (`ntheory`): `gcd`, `lcm`, `extendedGcd`, `mod`, `modInverse`, `powMod`, `isPrime`, `nextPrime`, `factor`, `totient`, `mobius`, `primitiveRoot`, `legendre`, `jacobi`, `crt`, `fibonacci`, `lucas`, `binomial`, `factorial`, `doubleFactorial`, `bernoulli`, `harmonic`, `permutations`, `combinationsWithRepetition`, `multinomial`, `bell`, `catalan`, `stirlingSecondKind`, `compositions`, and the asynchronous versions; an integer (a bigint, or a number that is a safe integer); a prime factor and its exponent; the result of `extendedGcd`; the result of `crt` |
+| `Numeric`, `FindRootOptions`, `IterationOptions`, `RootResult`, `SystemRootResult` | The numeric solutions (`numeric`): `polynomialRoots`, `findRoot`, `solveSystem` and their asynchronous versions; their options (`bracket`, `guess`, `tolerance`, `maxIterations`) and their results (`root` or `solution`, `converged`, `iterations`, `residual`) |
 | `AsyncOptions`, `Value` | The options of the asynchronous operations (`timeout`, `signal`); what is given where an expression is expected (an expression, a number, a bigint, a decimal, a formula) |
 
 The typings document every declaration, with examples.
@@ -495,10 +505,10 @@ The typings document every declaration, with examples.
 | `MathSyntaxException` | A formula is not written correctly (with the `position` of the error), an equation is given where an expression is expected, or the other way round |
 | `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined, or a constant written as a call (`g(2)`), with its `position` |
 | `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep |
-| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power) |
+| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power), a bracket of `findRoot()` where the function does not change its sign or is not real, a function or equations that are not real at the guess of `findRoot()` or `solveSystem()` |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1, a function at one of its poles: `gamma()` of -2, `zeta()` of 1), a modulus of 0 |
 | `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` and `bell(n)` above 2000, `harmonic(n)` above 50000, `stirlingSecondKind(n, k)` with `n` above 50000 or `n k` above 6250000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`) |
-| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence` |
+| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence`, the options of `createMath()` that are not valid |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |
 
@@ -506,4 +516,3 @@ The typings document every declaration, with examples.
 
 - [SymEngine](https://github.com/symengine/symengine): the symbolic engine the addon is built on.
 - `THIRD_PARTY_NOTICES.md`: the libraries compiled into the addon and their licenses.
-- `@lakutata/core` (`lakutata`): components, `Application` and dependency injection.

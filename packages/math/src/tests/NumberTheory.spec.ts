@@ -1,8 +1,7 @@
-import {after, before, describe, it} from 'node:test'
+import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Container} from '@lakutata/core'
 import {
-    Math,
+    createMath,
     MathArgumentException,
     MathCancelledException,
     MathDomainException,
@@ -59,18 +58,7 @@ function mod(a: bigint, m: bigint): bigint {
 }
 
 describe('The number theory', (): void => {
-    let container: Container
-    let ntheory: NumberTheory
-
-    before(async (): Promise<void> => {
-        container = new Container()
-        await container.setNamed('math', Math, {})
-        ntheory = (await container.get<Math>('math')).ntheory
-    })
-
-    after(async (): Promise<void> => {
-        await container.destroy()
-    })
+    const ntheory: NumberTheory = createMath().ntheory
 
     it('tell the primes as trial division, and the strong pseudoprimes to the base 2 below 10^7 are composite', (): void => {
         for (let n: number = -10; n < 20000; n++) assert.strictEqual(ntheory.isPrime(n), primeByDivision(n), String(n))

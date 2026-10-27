@@ -129,19 +129,14 @@ export function sparseOfMatrix(matrix: Matrix): SparseMatrix {
  * `math.linalg`: `solve()` (the sparse LU decomposition), `conjugateGradient()` and `biconjugateGradientStabilized()`.
  * @example
  * ```typescript
- * import {Container} from 'lakutata'
- * import {Math, SparseMatrix} from '@lakutata/math'
+ * import {math, SparseMatrix} from '@lakutata/math'
  *
- * const container: Container = new Container()
- * await container.setNamed('math', Math, {})
- * const math: Math = await container.get<Math>('math')
  * const a: SparseMatrix = math.linalg.sparse(3, 3, [[0, 0, 2], [1, 1, 2], [2, 2, 2], [0, 1, -1], [1, 0, -1]])
  * a.nonZeros                                        //5
  * a.get(0, 1)                                       //-1
  * a.mul([1, 1, 1])                                  //Float64Array [1, 1, 2]
  * a.toDense().toString()                            //[2, -1, 0; -1, 2, 0; 0, 0, 2]
  * math.linalg.solve(a, [1, 1, 2])                   //Float64Array [1, 1, 1]
- * await container.destroy()
  * ```
  */
 export class SparseMatrix {

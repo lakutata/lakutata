@@ -1,21 +1,9 @@
-import {after, before, describe, it} from 'node:test'
+import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Container} from '@lakutata/core'
-import {Math, MathArgumentException} from '../exports/Math.js'
+import {createMath, MathArgumentException, type MathScope} from '../exports/Math.js'
 
 describe('The statistics', (): void => {
-    let container: Container
-    let math: Math
-
-    before(async (): Promise<void> => {
-        container = new Container()
-        await container.setNamed('math', Math, {})
-        math = await container.get<Math>('math')
-    })
-
-    after(async (): Promise<void> => {
-        await container.destroy()
-    })
+    const math: MathScope = createMath()
 
     const values: number[] = [2, 4, 4, 4, 5, 5, 7, 9]
 

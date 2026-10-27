@@ -1,8 +1,7 @@
-import {after, before, describe, it} from 'node:test'
+import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
-import {Container} from '@lakutata/core'
-import {type ComplexVector, type Decimal, type Distribution, type DistributionName, Expression, type IterativeSolution, Math, MathException, Matrix, type Normalization, type NormalizationOptions, type PrimeFactor, type RootResult, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution} from '../exports/Math.js'
+import {type ComplexVector, createMath, type Decimal, type Distribution, type DistributionName, Expression, type IterativeSolution, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type PrimeFactor, type RootResult, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -57,7 +56,7 @@ function largest(a: Matrix): number {
     return a.data.reduce((value: number, element: number): number => globalThis.Math.max(value, globalThis.Math.abs(element)), 0)
 }
 
-function assertOrthonormal(math: Math, q: Matrix, label: string): void {
+function assertOrthonormal(math: MathScope, q: Matrix, label: string): void {
     assertClose(q.transpose().mul(q), math.linalg.identity(q.columns), 1, `${label}: columns not orthonormal`)
 }
 
@@ -70,7 +69,7 @@ function assertTriangle(a: Matrix, lower: boolean, label: string): void {
 }
 
 //P A = L U, L unit lower, U upper: the determinant (the sign of the permutation times the diagonal of U)
-function luInvariant(math: Math, a: Matrix, label: string): number {
+function luInvariant(math: MathScope, a: Matrix, label: string): number {
     const {lower, upper, permutation} = math.linalg.lu(a)
     assertTriangle(lower, true, label)
     assertTriangle(upper, false, label)
@@ -90,7 +89,7 @@ function luInvariant(math: Math, a: Matrix, label: string): number {
 }
 
 //A = Q R, Q of orthonormal columns, R upper: the absolute values of the diagonal of R
-function qrInvariant(math: Math, a: Matrix, label: string): Float64Array {
+function qrInvariant(math: MathScope, a: Matrix, label: string): Float64Array {
     const {q, r} = math.linalg.qr(a)
     assertOrthonormal(math, q, label)
     assertTriangle(r, false, label)
@@ -99,7 +98,7 @@ function qrInvariant(math: Math, a: Matrix, label: string): Float64Array {
 }
 
 //A = U diag(s) Vᵀ, U and V of orthonormal columns: the singular values
-function svdInvariant(math: Math, a: Matrix, label: string): Float64Array {
+function svdInvariant(math: MathScope, a: Matrix, label: string): Float64Array {
     const {u, singularValues, v} = math.linalg.svd(a)
     assertOrthonormal(math, u, label)
     assertOrthonormal(math, v, label)
@@ -113,7 +112,7 @@ function sorted(values: [number, number][]): number[] {
 }
 
 //A v = λ v for each pair: the eigenvalues
-function eigenInvariant(math: Math, a: Matrix, label: string): number[] {
+function eigenInvariant(math: MathScope, a: Matrix, label: string): number[] {
     const {values, vectors} = math.linalg.eigen(a)
     for (let k: number = 0; k < a.rows; k++) {
         const re: Float64Array = vectors.re.column(k), im: Float64Array = vectors.im.column(k)
@@ -127,7 +126,7 @@ function eigenInvariant(math: Math, a: Matrix, label: string): number[] {
 }
 
 //A = V diag(λ) Vᵀ, V orthonormal: the eigenvalues
-function symmetricEigenInvariant(math: Math, a: Matrix, label: string): Float64Array {
+function symmetricEigenInvariant(math: MathScope, a: Matrix, label: string): Float64Array {
     const {values, vectors} = math.linalg.symmetricEigen(a)
     assertOrthonormal(math, vectors, label)
     assertClose(vectors.mul(math.linalg.diagonal(values)).mul(vectors.transpose()), a, largest(a), `${label}: A is not V Λ Vᵀ`)
@@ -135,7 +134,7 @@ function symmetricEigenInvariant(math: Math, a: Matrix, label: string): Float64A
 }
 
 //A = U T Uᵀ, U orthogonal, T quasi upper triangular: the eigenvalues of its blocks
-function schurInvariant(math: Math, a: Matrix, label: string): number[] {
+function schurInvariant(math: MathScope, a: Matrix, label: string): number[] {
     const {u, t} = math.linalg.schur(a)
     assertOrthonormal(math, u, label)
     assertClose(u.mul(t).mul(u.transpose()), a, largest(a), `${label}: A is not U T Uᵀ`)
@@ -166,18 +165,7 @@ function decimalParts(text: string): string {
 }
 
 describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
-    let container: Container
-    let math: Math
-
-    before(async (): Promise<void> => {
-        container = new Container()
-        await container.setNamed('math', Math, {})
-        math = await container.get<Math>('math')
-    })
-
-    after(async (): Promise<void> => {
-        await container.destroy()
-    })
+    const math: MathScope = createMath()
 
     it('read the formulas as SymPy reads their meaning', (): void => {
         const fixtures = expected<{text: string, values?: (Complex | null)[], error?: string}>('grammar')

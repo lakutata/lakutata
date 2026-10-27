@@ -300,7 +300,8 @@ function conditionOf(values: Float64Array): number {
  * systems, least squares, inverses, determinants, ranks, condition numbers and singular values; the decompositions (LU,
  * QR, Cholesky, singular values, eigenvalues, Schur) and the pseudo-inverse; the exponential and the square root of a
  * matrix; the Sylvester and Lyapunov equations; sparse matrices (`SparseMatrix`) and their systems, by the sparse LU
- * decomposition, the conjugate gradient and BiCGSTAB. It is `math.linalg` of a `Math` component.
+ * decomposition, the conjugate gradient and BiCGSTAB. It is `MathScope.linalg`; the package exports the one of `math`
+ * as `linalg`.
  *
  * Where a vector is expected, a `Float64Array` or an array of numbers is given; where a matrix is, a `Matrix` or its
  * rows (`[[1, 2], [3, 4]]`). A system with a vector on its right side has a vector for solution, one with a matrix (one
@@ -315,12 +316,8 @@ function conditionOf(values: Float64Array): number {
  * rejected, and its thread finishes that computation before it is free again.
  * @example
  * ```typescript
- * import {Container} from 'lakutata'
- * import {Math} from '@lakutata/math'
+ * import {math} from '@lakutata/math'
  *
- * const container: Container = new Container()
- * await container.setNamed('math', Math, {})
- * const math: Math = await container.get<Math>('math')
  * const a = math.matrix([[4, 1], [2, 3]])
  * math.linalg.solve(a, [5, 5])                         //Float64Array [1, 1]
  * math.linalg.determinant(a)                           //10
@@ -328,7 +325,6 @@ function conditionOf(values: Float64Array): number {
  * math.linalg.rank([[1, 2], [2, 4]])                   //1
  * math.linalg.norm([3, 4])                             //5
  * const x = await math.linalg.solveAsync(math.linalg.identity(500), new Float64Array(500).fill(1))
- * await container.destroy()
  * ```
  */
 export class LinearAlgebra {

@@ -1,21 +1,9 @@
-import {after, before, describe, it} from 'node:test'
+import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Container} from '@lakutata/core'
-import {type Distribution, Math, MathArgumentException, RandomGenerator} from '../exports/Math.js'
+import {createMath, type Distribution, MathArgumentException, type MathScope, RandomGenerator} from '../exports/Math.js'
 
 describe('The distributions and the random numbers', (): void => {
-    let container: Container
-    let math: Math
-
-    before(async (): Promise<void> => {
-        container = new Container()
-        await container.setNamed('math', Math, {})
-        math = await container.get<Math>('math')
-    })
-
-    after(async (): Promise<void> => {
-        await container.destroy()
-    })
+    const math: MathScope = createMath()
 
     it('take their parameters by their names, the others of their default values, and check them', (): void => {
         const normal: Distribution = math.stats.normal()

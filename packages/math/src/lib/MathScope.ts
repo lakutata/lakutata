@@ -1,10 +1,14 @@
 import {MathArgumentException} from '../exceptions/MathArgumentException.js'
-import type {AsyncOptions, Context} from './Context.js'
+import {MathSyntaxException} from '../exceptions/MathSyntaxException.js'
+import {AsyncTracker, type AsyncOptions, Context, definitionsOf} from './Context.js'
 import {Decimal, type DecimalOptions, decimalText, type DecimalValue} from './Decimal.js'
 import {Matrix, matrixOf, type MatrixValue} from './Matrix.js'
-import {Equation, Expression, expressionOf, formulaOf, handleOf, Inequality, type Value} from './Expression.js'
-import {MathSyntaxException} from '../exceptions/MathSyntaxException.js'
-import {type Handle, nativeCall, type NativeParsed} from './Native.js'
+import {Equation, equationHandleOf, Expression, expressionOf, formulaOf, handleOf, Inequality, type Value} from './Expression.js'
+import {LinearAlgebra} from './LinearAlgebra.js'
+import {type Handle, native, nativeCall} from './Native.js'
+import {NumberTheory} from './NumberTheory.js'
+import {Numeric} from './Numeric.js'
+import {Statistics} from './Statistics.js'
 
 /**
  * One solution of a system of equations: the values of the variables it determines, by their names. When the system
@@ -16,19 +20,6 @@ export type SystemSolution = Record<string, Expression>
  * An equation of a system: an equation, a formula (`'x + y = 3'`), or an expression equal to zero
  */
 export type SystemEquation = Equation | Expression | string
-
-/**
- * The expression equal to zero of an equation of a system: its difference, or the expression given
- * @param context The context of the definitions.
- * @param equation The equation: an equation, a formula, or an expression equal to zero.
- */
-export function equationHandleOf(context: Context, equation: SystemEquation): Handle {
-    if (equation instanceof Equation) return equation.difference().handle
-    if (typeof equation !== 'string') return handleOf(context, equation)
-    const parsed: NativeParsed = nativeCall((native) => native.parse(context.scope, equation))
-    if (parsed.kind === 'relation') throw new MathSyntaxException(`An equation is expected, not an inequality: ${equation}`)
-    return parsed.kind === 'equation' ? new Equation(new Expression(context, parsed.left), new Expression(context, parsed.right!)).difference().handle : parsed.left
-}
 
 /**
  * The definitions of formulas: a body by signature (`{'f(x)': 'x^2 + 1', 'g': 9.80665}`)
@@ -61,26 +52,99 @@ export interface CseOptions {
 }
 
 /**
- * A scope of formulas: the definitions of a component, with the ones of `with()` added. The component is one, and
- * each `with()` gives another one over it, for definitions used for a while (they do not change the component).
+ * The options of `createMath()`: all of them have a default value
+ */
+export interface MathOptions {
+    /**
+     * The functions and the constants its formulas use: a body by signature (`{'f(x)': 'x^2 + 1', 'g': 9.80665}`).
+     * They do not change once it is created; `with()` adds others for a while. None by default.
+     */
+    definitions?: MathDefinitions
+    /**
+     * The significant digits of `toDecimal()` and of `decimal()` when none are given: an integer from 1 to 100000.
+     * @default 32
+     */
+    precision?: number
+    /**
+     * The time limit of the asynchronous operations when none is given, in milliseconds: 0 for none.
+     * @default 0
+     */
+    timeout?: number
+    /**
+     * How many of its asynchronous operations run at the same time in the threads of the addon (the others wait their
+     * turn): all of its threads by default (the processor's cores minus one, or the environment variable
+     * `LAKUTATA_MATH_THREADS`).
+     */
+    concurrency?: number
+}
+
+/**
+ * A scope of definitions and settings: its formulas are parsed with its definitions (`parse()`, `expression()`,
+ * `equation()`), and its decimals, matrices, systems of equations, number theory, linear algebra, statistics and
+ * numeric solutions use its settings. `createMath()` makes one; `with()` gives another one over it, for definitions
+ * used for a while (they do not change it). The functions exported by the package (`expression()`, `linalg`…) belong to
+ * `math`, the scope made with the default options.
  * @example
  * ```typescript
- * import {Math, type MathScope} from '@lakutata/math'
+ * import {createMath, type MathScope} from '@lakutata/math'
  *
- * function example(math: Math): void {
- *     const scope: MathScope = math.with({'area(r)': 'pi*r^2'})
- *     console.log(scope.expression('area(2)').toString()) //4pi
- *     console.log(scope.expression('area(r)').diff('r').toString()) //2pi*r
- * }
+ * const math: MathScope = createMath({definitions: {'tax(x)': 'x * 0.13'}, precision: 50})
+ * console.log(math.expression('tax(200)').toNumber())                     //26
+ * const scope: MathScope = math.with({'area(r)': 'pi*r^2'})
+ * console.log(scope.expression('area(2)').toString())                     //4pi
+ * console.log(scope.expression('area(r)').diff('r').toString())           //2pi*r
  * ```
  */
 export class MathScope {
 
+    #ntheory?: NumberTheory
+
+    #linalg?: LinearAlgebra
+
+    #stats?: Statistics
+
+    #numeric?: Numeric
+
     /**
-     * A scope over a context. Made by `with()`.
+     * A scope over a context. Made by `createMath()` and by `with()`.
      * @param context The context: its definitions, its settings.
      */
     constructor(protected readonly context: Context) {
+    }
+
+    /**
+     * The number theory of the integers (bigints): primes, factorization, modular arithmetic, integer sequences,
+     * combinatorial numbers and counting. Its asynchronous operations share the threads, the time limit and the
+     * concurrency of the scope.
+     */
+    public get ntheory(): NumberTheory {
+        return this.#ntheory ??= new NumberTheory(this.context)
+    }
+
+    /**
+     * The numeric linear algebra (on Eigen): matrices of zeros, identities, rotations; products, norms; the solutions
+     * of linear systems, least squares, inverses, determinants, ranks, decompositions, functions of matrices, sparse
+     * matrices.
+     */
+    public get linalg(): LinearAlgebra {
+        return this.#linalg ??= new LinearAlgebra(this.context)
+    }
+
+    /**
+     * The statistics of values (arrays of numbers, or `Float64Array`s): sums, means, medians, modes, variances,
+     * quantiles, covariances, correlations; the probability distributions (`normal()` … `hypergeometric()`) and a
+     * generator of random numbers (`random()`).
+     */
+    public get stats(): Statistics {
+        return this.#stats ??= new Statistics(this.context)
+    }
+
+    /**
+     * The numeric solutions of equations: the roots of polynomials, a root of a function, a solution of a system of
+     * nonlinear equations.
+     */
+    public get numeric(): Numeric {
+        return this.#numeric ??= new Numeric(this.context)
     }
 
     /**
@@ -107,7 +171,7 @@ export class MathScope {
      * its shortest representation (`0.1` is 0.1), a string as a decimal number (`'19.99'`); an expression is computed,
      * as `toDecimal()` does.
      * @param value A decimal number (a number, a bigint, a string, a decimal) or an expression without variables.
-     * @param options The precision: the one of the component by default.
+     * @param options The precision: the one of the scope by default.
      */
     public decimal(value: DecimalValue | Expression, options: DecimalOptions = {}): Decimal {
         const precision: number = options.precision ?? this.context.settings.precision
@@ -171,9 +235,9 @@ export class MathScope {
      * @param options The prefix of the names.
      * @example
      * ```typescript
-     * import type {Math} from '@lakutata/math'
+     * import {math} from '@lakutata/math'
      *
-     * function shared(math: Math): string {
+     * function shared(): string {
      *     const {replacements, expressions} = math.cse(['sin(x + y)^2 + x + y', 'cos(x + y)'])
      *     //x0 = x + y; the expressions: x0 + sin(x0)^2, cos(x0)
      *     const lines: string[] = replacements.map(({name, value}) => `const ${name} = ${value.toJavaScript()}`)
@@ -233,4 +297,33 @@ interface NativeCommon {
 interface LinearResult {
     kind: 'finite' | 'empty'
     values: Record<string, Handle>
+}
+
+/**
+ * A scope of definitions and settings (`MathScope`) with these options: the package exports the one made with the
+ * default options, `math`, and its functions (`expression()`, `linalg`…). Its options are checked
+ * (`MathArgumentException`).
+ * @param options Its definitions, the precision of its decimals, the time limit and the concurrency of its
+ * asynchronous operations: all of them have a default value.
+ * @example
+ * ```typescript
+ * import {createMath, type MathScope} from '@lakutata/math'
+ *
+ * const finance: MathScope = createMath({definitions: {'vat(x)': 'x * 0.2'}, precision: 40, timeout: 5000})
+ * console.log(finance.expression('vat(150)').toNumber())                  //30
+ * ```
+ */
+export function createMath(options: MathOptions = {}): MathScope {
+    if (typeof options !== 'object' || options === null) throw new MathArgumentException('The options are an object')
+    const precision: number = options.precision ?? 32, timeout: number = options.timeout ?? 0
+    if (!Number.isInteger(precision) || precision < 1 || precision > 100000) throw new MathArgumentException('The precision is an integer from 1 to 100000')
+    if (typeof timeout !== 'number' || !(timeout >= 0)) throw new MathArgumentException('The time limit is a number of milliseconds, 0 or more')
+    const concurrency: number = options.concurrency ?? native.versions().threads
+    if (!Number.isInteger(concurrency) || concurrency < 1) throw new MathArgumentException('The concurrency is an integer of 1 or more')
+    const definitions: MathDefinitions = options.definitions ?? {}
+    if (typeof definitions !== 'object' || definitions === null || Object.values(definitions).some((body: unknown): boolean => typeof body !== 'string' && typeof body !== 'number')) {
+        throw new MathArgumentException('The definitions are an object of bodies (strings or numbers) by signature')
+    }
+    const scope: Handle = nativeCall((addon) => addon.scope(null, definitionsOf(definitions)))
+    return new MathScope(new Context(scope, {precision: precision, timeout: timeout, concurrency: concurrency}, new AsyncTracker(concurrency)))
 }

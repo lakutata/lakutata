@@ -1,8 +1,8 @@
 import {MathArgumentException} from '../exceptions/MathArgumentException.js'
 import {type AsyncOptions, type Context} from './Context.js'
-import {Expression, handleOf, type Value} from './Expression.js'
+import {equationHandleOf, Expression, handleOf, type Value} from './Expression.js'
 import {type ComplexVector} from './LinearAlgebra.js'
-import {equationHandleOf, type SystemEquation} from './MathScope.js'
+import {type SystemEquation} from './MathScope.js'
 import {isVector, vectorOf, type VectorValue} from './Matrix.js'
 import {type Handle} from './Native.js'
 
@@ -100,7 +100,7 @@ function rootOf(result: NativeIterative): RootResult {
 /**
  * The numeric solutions of equations, computed by the addon on the expressions compiled to doubles, with their
  * derivatives where a method needs them: the roots of a polynomial, a root of a function, a solution of a system of
- * nonlinear equations. It is `math.numeric` of a `Math` component.
+ * nonlinear equations. It is `MathScope.numeric`; the package exports the one of `math` as `numeric`.
  *
  * Its iterative methods stop when their steps become smaller than a tolerance, relative to the solution (as SciPy's
  * `fsolve`), or after a largest number of iterations, and say which (`converged`) with the residual at the solution: a
@@ -108,23 +108,18 @@ function rootOf(result: NativeIterative): RootResult {
  * do not converge.
  * @example
  * ```typescript
- * import {Container} from 'lakutata'
- * import {Math} from '@lakutata/math'
+ * import {math} from '@lakutata/math'
  *
- * const container: Container = new Container()
- * await container.setNamed('math', Math, {})
- * const math: Math = await container.get<Math>('math')
  * math.numeric.polynomialRoots('x^3 - 6x^2 + 11x - 6')               //{re: Float64Array [1, 2, 3], im: Float64Array [0, 0, 0]}
- * math.numeric.findRoot('cos(x) = x', 'x', {bracket: [0, 1]}).root   //0.7390851332151607
+ * math.numeric.findRoot('cos(x) = x', 'x', {bracket: [0, 1]}).root   //0.7390851332151606
  * math.numeric.solveSystem(['x^2 + y^2 = 4', 'x = y'], ['x', 'y'], [1, 1]).solution   //Float64Array [1.4142135623730951, 1.4142135623730951]
- * await container.destroy()
  * ```
  */
 export class Numeric {
 
     /**
-     * The numeric solutions of a component.
-     * @param context The context of the component.
+     * The numeric solutions of a scope.
+     * @param context The context of the scope.
      */
     constructor(protected readonly context: Context) {
     }

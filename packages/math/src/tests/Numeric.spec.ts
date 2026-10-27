@@ -1,21 +1,9 @@
-import {after, before, describe, it} from 'node:test'
+import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {Container} from '@lakutata/core'
-import {Math, MathArgumentException, MathDomainException, MathNotSupportedException} from '../exports/Math.js'
+import {createMath, MathArgumentException, MathDomainException, MathNotSupportedException, type MathScope} from '../exports/Math.js'
 
 describe('The numeric solutions', (): void => {
-    let container: Container
-    let math: Math
-
-    before(async (): Promise<void> => {
-        container = new Container()
-        await container.setNamed('math', Math, {})
-        math = await container.get<Math>('math')
-    })
-
-    after(async (): Promise<void> => {
-        await container.destroy()
-    })
+    const math: MathScope = createMath()
 
     it('give the roots of polynomials, complex and multiple, sorted', async (): Promise<void> => {
         assert.deepStrictEqual(math.numeric.polynomialRoots('x^3 - 6x^2 + 11x - 6'), {re: Float64Array.of(1, 2, 3), im: Float64Array.of(0, 0, 0)})
