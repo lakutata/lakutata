@@ -10,6 +10,8 @@ import {type Handle, native, nativeCall} from './Native.js'
 import {NumberTheory} from './NumberTheory.js'
 import {Numeric} from './Numeric.js'
 import {Statistics} from './Statistics.js'
+import {constantOf, type CustomUnits, type Unit, unitOf, UnitSystem, type UnitValue} from './Unit.js'
+import type {PhysicalConstant} from './UnitTable.js'
 
 /**
  * One solution of a system of equations: the values of the variables it determines, by their names. When the system
@@ -77,6 +79,13 @@ export interface MathOptions {
      * `LAKUTATA_MATH_THREADS`).
      */
     concurrency?: number
+    /**
+     * Units added to those of the table, by their names: a definition (`{furlong: '220 yd'}`), or a definition with
+     * prefixes, other names, an offset (`{knot: {definition: '1852 m/h', aliases: ['knots']}}`). A name that is already
+     * a unit, alone or with a prefix (`kt` is `k t`), throws `MathDefinitionException`. The scopes of `with()` have
+     * them too. None by default.
+     */
+    units?: CustomUnits
 }
 
 /**
@@ -203,6 +212,27 @@ export class MathScope {
         if (!Number.isInteger(precision) || precision < 1 || precision > 100000) throw new MathArgumentException('The precision is an integer from 1 to 100000')
         if (value instanceof Expression) return new Decimal(value.toDecimal(precision), precision)
         return new Decimal(nativeCall((native) => native.run('decimalOperation', ['round', precision, decimalText(value)])) as string, precision)
+    }
+
+    /**
+     * A value with units: of a formula of units (`'5 cm + 2 inch'`, `'9.8 m/s^2'`), or of a number and its units
+     * (`unit(5, 'cm')`); a number alone has no units. The names of a formula of units are units (of the table, with
+     * their prefixes, or of the options), `pi`, `e` and `i`.
+     * @param value The formula of units, or the number (a number, an expression, a formula of `expression()`).
+     * @param units The units of the number: a formula of units without a number (`'m/s^2'`).
+     */
+    public unit(value: UnitValue, units?: string): Unit {
+        return unitOf(this.context, value, units)
+    }
+
+    /**
+     * A physical constant with its units (`constant('speedOfLight')` is `299792458 m / s`): the values of CODATA 2022,
+     * those that the SI defines exactly are their exact formulas (`reducedPlanckConstant` is `6.62607015e-34/(2pi) J
+     * s`).
+     * @param name The name of the constant.
+     */
+    public constant(name: PhysicalConstant): Unit {
+        return constantOf(this.context, name)
     }
 
     /**
@@ -349,6 +379,9 @@ export function createMath(options: MathOptions = {}): MathScope {
     if (typeof definitions !== 'object' || definitions === null || Object.values(definitions).some((body: unknown): boolean => typeof body !== 'string' && typeof body !== 'number')) {
         throw new MathArgumentException('The definitions are an object of bodies (strings or numbers) by signature')
     }
+    const units: UnitSystem = new UnitSystem(options.units ?? {})
     const scope: Handle = nativeCall((addon) => addon.scope(null, definitionsOf(definitions)))
-    return new MathScope(new Context(scope, {precision: precision, timeout: timeout, concurrency: concurrency}, new AsyncTracker(concurrency)))
+    const context: Context = new Context(scope, {precision: precision, timeout: timeout, concurrency: concurrency}, new AsyncTracker(concurrency), units)
+    units.validate(context)
+    return new MathScope(context)
 }

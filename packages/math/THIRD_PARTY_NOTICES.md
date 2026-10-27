@@ -447,3 +447,31 @@ The adaptive integration of `numeric.integrate()` follows QUADPACK's QAGS and QE
 C. W. Überhuber, D. K. Kahaner, QUADPACK: A Subroutine Package for Automatic Integration, Springer, 1983), which is in
 the public domain. Its algorithm is written again in C++ in `native/numeric/Integrate.cpp`; no source of QUADPACK is
 compiled.
+
+## mathjs 15.2.0
+
+The table of units of `src/lib/UnitTable.ts` (its base quantities, prefixes, units and SI units) is generated from
+mathjs (https://github.com/josdejong/mathjs) by `scripts/units/import.sh`, which changes it: the values are written
+exactly (the angles as fractions of pi), and the units whose values mathjs rounds or takes from an earlier definition
+(`eV`, `hp`, `psi`, `torr`, `mmHg`, `acre`, `kip`, `rd` and the square rod and chain) are given the values of their
+definitions; the physical constants have the names of mathjs and the values of CODATA 2022. No source of mathjs is
+compiled or run by the package. mathjs is licensed under the Apache License, Version 2.0; its notice:
+
+```
+math.js
+https://github.com/josdejong/mathjs
+
+Copyright (C) 2013-2026 Jos de Jong <wjosdejong@gmail.com>
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```

@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
-import {type ComplexVector, createMath, type Decimal, type Distribution, type DistributionName, type Eigenvector, Expression, ExpressionMatrix, type IntegralResult, type IterativeSolution, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type ODEResult, type PrimeFactor, type RootResult, type RowEchelonForm, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution} from '../exports/Math.js'
+import {type ComplexVector, createMath, type Decimal, type Distribution, type DistributionName, type Eigenvector, Expression, ExpressionMatrix, type IntegralResult, type IterativeSolution, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type ODEResult, type PhysicalConstant, type PrimeFactor, type RootResult, type RowEchelonForm, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution, type Unit} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -162,6 +162,32 @@ function decimalParts(text: string): string {
     const leadingZeros: number = (match[2] + match[3]).length - (match[2] + match[3]).replace(/^0+/, '').length
     const exponent: number = Number(match[4] ?? 0) + match[2].length - 1 - leadingZeros
     return `${match[1]}${digits.replace(/0+$/, '')}e${exponent}`
+}
+
+//The units: the cases (cases/units.json) and the results of SymPy and mathjs (expected/units.json)
+type UnitNumber = number | {re: number, im: number}
+
+interface UnitCase {
+    op: 'convert' | 'number' | 'si' | 'best' | 'split' | 'error' | 'constant'
+    value?: string
+    to?: string
+    units?: string | string[]
+    name?: string
+    error?: string
+    differs?: Record<string, string>
+}
+
+interface UnitResults {
+    cases: {sympy?: {value: string, exact: boolean}, mathjs?: {value?: UnitNumber, units?: string, values?: {value: UnitNumber, units: string}[], result?: string, error?: string}}[]
+    table: Record<string, {dimensions: number[], names: Record<string, UnitNumber | [UnitNumber, string, string]>}>
+}
+
+//Whether two numbers agree, relatively
+function agree(value: UnitNumber, expected: UnitNumber, tolerance: number): boolean {
+    const [re, im] = typeof value === 'number' ? [value, 0] : [value.re, value.im]
+    const [theirRe, theirIm] = typeof expected === 'number' ? [expected, 0] : [expected.re, expected.im]
+    const scale: number = globalThis.Math.max(globalThis.Math.hypot(theirRe, theirIm), Number.MIN_VALUE)
+    return globalThis.Math.hypot(re - theirRe, im - theirIm) <= tolerance * scale
 }
 
 describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
@@ -619,6 +645,65 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
             }
             assert.deepStrictEqual(written(fixture.op, call()), fixture.result, label)
         }
+    })
+
+    it('give the units of mathjs, and the conversions and constants of SymPy, each difference noted', (): void => {
+        const {table, cases} = JSON.parse(readFileSync(new URL('../../../test-env/fixtures/cases/units.json', import.meta.url), 'utf8')) as {table: {differs: Record<string, string>}, cases: UnitCase[]}
+        const results: UnitResults = expected<never>('units') as unknown as UnitResults
+        const problems: string[] = []
+        //An outcome against an engine: noted when it differs, not noted when it agrees
+        const check = (label: string, engine: string, same: boolean, noted: string | undefined, detail: () => string): void => {
+            if (!same && !noted) problems.push(`${label}: ${engine} differs, not noted (${detail()})`)
+            if (same && noted) problems.push(`${label}: ${engine} agrees, its note is stale`)
+        }
+        const complex = (value: Expression): UnitNumber => value.toComplex()
+        //The table: 1 of each unit with each prefix of its set, in SI units, read as mathjs reads the name
+        const differing: Set<string> = new Set()
+        for (const [name, {names}] of Object.entries(results.table)) {
+            for (const [text, entry] of Object.entries(names)) {
+                const [value, unit] = Array.isArray(entry) ? [entry[0], entry[2]] : [entry, name]
+                const ours: Unit = math.unit(`1 ${text}`)
+                const dimensions: number[] = Object.values(ours.dimensions)
+                assert.deepStrictEqual(dimensions, results.table[unit]!.dimensions, text)
+                const same: boolean = agree(complex(ours.toSI().value), value, 1e-12)
+                if (!same) differing.add(unit)
+                if (!same && !table.differs[unit]) problems.push(`${text}: ${JSON.stringify(complex(ours.toSI().value))} in SI units, mathjs ${JSON.stringify(value)}, not noted`)
+            }
+        }
+        for (const unit of Object.keys(table.differs)) if (!differing.has(unit)) problems.push(`the unit ${unit}: mathjs agrees, its note is stale`)
+        cases.forEach((fixture: UnitCase, index: number): void => {
+            const label: string = `${fixture.op} ${fixture.value ?? fixture.name}${fixture.to ? ` to ${fixture.to}` : ''}`
+            const {sympy, mathjs} = results.cases[index]!
+            const noted = (engine: string): string | undefined => fixture.differs?.[engine]
+            if (fixture.op === 'error') {
+                assert.throws((): Unit => math.unit(fixture.value!), (error: unknown): boolean => error instanceof MathException && error.errno === fixture.error, label)
+                check(label, 'mathjs', mathjs!.error !== undefined, noted('mathjs'), (): string => mathjs!.result!)
+                return
+            }
+            const value: Unit = fixture.op === 'constant' ? math.constant(fixture.name as PhysicalConstant).toSI() : math.unit(fixture.value!)
+            let ours: Unit[]
+            if (fixture.op === 'convert') ours = [value.to(fixture.to!)]
+            else if (fixture.op === 'si') ours = [value.toSI()]
+            else if (fixture.op === 'best') ours = [value.toBest(fixture.units as string[] | undefined)]
+            else if (fixture.op === 'split') ours = value.split(fixture.units as string[])
+            else ours = [value]
+            if (fixture.op === 'number') assert.strictEqual(ours[0]!.units, '', label)
+            if (fixture.op === 'si') assert.strictEqual(ours[0]!.units, fixture.units, label)
+            //SymPy: exactly, to 25 digits, or to 14 digits for its floats
+            if (sympy) {
+                const difference: number = globalThis.Math.abs(ours[0]!.value.sub(sympy.value).toNumber())
+                const same: boolean = difference <= (sympy.exact ? 1e-25 : 1e-14) * globalThis.Math.abs(Number(sympy.value))
+                check(label, 'sympy', same, noted('sympy'), (): string => `${ours[0]!.value.toDecimal(20)}, SymPy ${sympy.value}`)
+            }
+            //mathjs: its doubles, and its units (not of toSI(): mathjs's are base units, ours the SI unit of the quantity
+            //when there is one, J and not kg m^2 / s^2)
+            const theirs: {value: UnitNumber, units?: string}[] | undefined = mathjs!.error !== undefined ? undefined : mathjs!.values ?? [{value: mathjs!.value!, units: fixture.op === 'si' ? undefined : mathjs!.units}]
+            const same: boolean = theirs !== undefined && theirs.length === ours.length && theirs.every((their, part: number): boolean => {
+                return agree(complex(ours[part]!.value), their.value, 1e-12) && (their.units === undefined || their.units === ours[part]!.units)
+            })
+            check(label, 'mathjs', same, noted('mathjs'), (): string => `${ours.map(String).join(', ')}, mathjs ${JSON.stringify(mathjs)}`)
+        })
+        assert.deepStrictEqual(problems, [])
     })
 
     it('solve the linear systems as SymPy', (): void => {

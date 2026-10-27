@@ -18,7 +18,7 @@ npm install @lakutata/math
 
 ### 快速上手
 
-这个包导出的函数可以直接使用：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`solve` 和 `cse`，以及命名空间 `ntheory`（数论）、`linalg`（线性代数）、`stats`（统计和概率）和 `numeric`（数值解、数值积分和微分方程）。它们都属于 `math`，也就是用默认选项创建的范围。
+这个包导出的函数可以直接使用：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`unit`、`constant`、`solve` 和 `cse`，以及命名空间 `ntheory`（数论）、`linalg`（线性代数）、`stats`（统计和概率）和 `numeric`（数值解、数值积分和微分方程）。它们都属于 `math`，也就是用默认选项创建的范围。
 
 ```typescript
 import {decimal, equation, expression, linalg, stats} from '@lakutata/math'
@@ -34,7 +34,7 @@ console.log(stats.mean([2, 4, 4, 4, 5, 5, 7, 9]))                  //5
 
 ### 选项
 
-`createMath(options)` 用别的选项创建一个 `MathScope`，它的函数和上面相同。选项有：`definitions`（用公式写的函数和常数，默认没有）、十进制数的 `precision`（默认 32 位有效数字）、异步运算的 `timeout`（毫秒，默认 0，即不限时）和它们的 `concurrency`（默认用原生插件的全部线程）。每个选项都有默认值，所以单独调用 `createMath()` 得到的范围和 `math` 一样。一个程序可以创建多个范围，分别使用不同的定义。
+`createMath(options)` 用别的选项创建一个 `MathScope`，它的函数和上面相同。选项有：`definitions`（用公式写的函数和常数，默认没有）、十进制数的 `precision`（默认 32 位有效数字）、异步运算的 `timeout`（毫秒，默认 0，即不限时）、它们的 `concurrency`（默认用原生插件的全部线程），以及 `units`（添加到单位表里的单位，默认没有）。每个选项都有默认值，所以单独调用 `createMath()` 得到的范围和 `math` 一样。一个程序可以创建多个范围，分别使用不同的定义。
 
 ```typescript
 import {createMath, type Equation, type Expression, type MathScope} from '@lakutata/math'
@@ -228,6 +228,29 @@ console.log(expressionMatrix('[2, 1; 1, 2]').eigenvectors().map(({value, vectors
 console.log(jacobian(['x^2*y', 'x + sin(y)'], ['x', 'y']).toString()) //[2x*y, x^2; 1, cos(y)]
 ```
 
+### 单位
+
+`unit(value)` 得到一个 `Unit`，即带单位的值：可以由单位公式给出（`'5 cm + 2 inch'`、`'9.8 m/s^2'`），也可以由数和单位给出（`unit(5, 'cm')`）。单位公式里的名字都是单位，可以带前缀（`km`、`mA`、`kilometer`），此外只有 `pi`、`e` 和 `i`；数后面跟着单位表示以这些单位计的值，几个名字连写表示相乘（`kg m^2/s^2`）。单位公式和 `parse()` 的公式是分开的，因为在 `parse()` 里 `m`、`s`、`g` 都是变量。单位表来自 mathjs（251 个单位和它们的前缀），数值都写成精确值；`createMath({units})` 可以添加别的单位。
+
+- 值的数（`value`）是精确的表达式，单位的换算关系也是精确的：`unit('1 inch').to('cm')` 正好是 `2.54 cm`，`unit('90 deg').to('rad')` 是 `(pi/2) rad`。`toNumber(units?)` 给出普通数字，`toDecimal()` 给出十进制数，`toString()` 给出 `unit()` 能读回的文字。
+- `to(units)` 换算成量纲相同的单位；`toSI()` 换算成这个量的 SI 单位（`J`、`Pa`），没有的话把每个单位分别换成 SI 单位；`toBest(units?)` 在给出的单位之间，或者在原单位的各个前缀之间，选最合适的单位（`5000 m` 变成 `5 km`）；`split(units)` 除最后一个单位外，每个单位取整数部分（`1.5 h` 分成 `1 h` 和 `30 min`）。
+- `add` 和 `sub` 的结果用左边的值的单位。`mul` 和 `div` 把单位相乘或相除，右边的单位如果和左边某个单位是同一种量，就先换算成左边的单位（`5 cm * 2 m` 得 `1000 cm^2`）；量纲全部约掉时得到不带单位的数。此外还有 `pow`（指数要使各量纲的次数仍是整数）、`sqrt`、`neg`、`abs`、`equals`、`compare`。单位公式里可以用 `sqrt`、`sin`、`cos`、`tan`（参数是角度或数）以及 `exp`、`log`、`ln`（参数是数）。量纲不同的值不能相加，也不能互相换算，会抛出 `MathUnitException`。
+- 带偏移的温度（`degC`、`degF`）可以换算和比较，但不能相加、相乘或相除，要先换算成 `K`（否则抛出 `MathUnitException`）。在复合单位里（`degC/m`）它表示温差，不带偏移。前缀作用在它的数上：`1 mdegC` 就是 0.001 degC。
+- `constant(name)` 给出带单位的物理常数：mathjs 的 52 个常数，数值取 CODATA 2022。SI 精确定义的常数以及由它们算出的常数都是精确值（`reducedPlanckConstant` 是 `h/(2pi)`）。
+- 和 mathjs 不同的地方：值保持原来的单位，输出时不会自动换前缀（要换用 `toBest()`），单位也不会自动换成导出单位（`N m` 仍是 `N m`，`toSI()` 才给出 `J`）；带偏移的温度不能相加；mathjs 取了近似值或沿用旧定义的单位（`eV`、`hp`、`psi`、`torr`、`mmHg`、`acre`、`kip`）在这里按定义取精确值。
+
+```typescript
+import {constant, createMath, unit} from '@lakutata/math'
+
+console.log(unit('5 cm + 2 inch').toString())                         //10.08 cm
+console.log(unit('100 km/h').to('m/s').toString())                    //(250/9) m / s
+console.log(unit('20 degC').to('degF').toString())                    //68 degF
+console.log(unit('1.5 h').split(['h', 'min']).map(String))            //['1 h', '30 min']
+console.log(constant('boltzmann').mul('300 K').to('eV').toDecimal(6))  //0.025852 eV
+const nautical = createMath({units: {knot: {definition: '1852 m/h', aliases: ['knots']}}})
+console.log(nautical.unit('20 knots').to('km/h').toString())          //37.04 km / h
+```
+
 ### 统计
 
 `stats` 在原生插件里计算一组数值（数字数组或 `Float64Array`）的统计量：`sum`（会补偿舍入误差：`[1e16, 1, -1e16]` 的和是 1）、`product`、`cumulativeSum`、`differences`、`mean`、`median`、`mode`（出现次数最多的全部值，按升序排列）、`min`、`max`、`variance`、`standardDeviation`、`medianAbsoluteDeviation`、`quantile`、`covariance`、`correlation`（皮尔逊相关系数）、`zScores` 和 `klDivergence`（KL 散度，用自然对数，两个分布会先各自归一化到和为 1）。
@@ -368,9 +391,9 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 
 | 导出 | 说明 |
 |---|---|
-| `parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`linalg`、`stats`、`numeric` | `math` 的函数和命名空间，可以直接使用 |
-| `math`、`createMath`、`MathOptions` | 默认选项的范围；用别的选项（`definitions`、`precision`、`timeout`、`concurrency`）创建范围的函数，以及它的选项 |
-| `MathScope`、`MathDefinitions` | 由定义和设置组成的范围（`createMath()`、`with()`）：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`linalg`、`stats`、`numeric`；定义（按签名给出的公式） |
+| `parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`unit`、`constant`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`linalg`、`stats`、`numeric` | `math` 的函数和命名空间，可以直接使用 |
+| `math`、`createMath`、`MathOptions` | 默认选项的范围；用别的选项（`definitions`、`precision`、`timeout`、`concurrency`、`units`）创建范围的函数，以及它的选项 |
+| `MathScope`、`MathDefinitions` | 由定义和设置组成的范围（`createMath()`、`with()`）：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`unit`、`constant`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`linalg`、`stats`、`numeric`；定义（按签名给出的公式） |
 | `Expression` | 表达式：`toString`、`toTeX`、`toNumber`、`toComplex`、`toDecimal`、`toComplexDecimal`、`variables`、`equals`、`add`、`sub`、`mul`、`div`、`pow`、`neg`、`expand`、`simplify`、`diff`、`series`、`substitute`、`evaluate`、`solve`、`compile`，多项式（`coefficients`、`degree`、`leadingCoefficient`、`divide`），`numerator`、`denominator`、`rewrite`（改写成 `exp`、`sin`、`cos`），判断（`isZero`、`isPositive`、`isNegative`、`isInteger`、`isRational`、`isReal`、`isFinite`：不知道时为 `undefined`），`compare`、`toJavaScript`、`toC`、`toPolar`、`toRectangular`，以及各个异步版本 |
 | `CommonSubexpressions`、`CseOptions` | `cse()` 的结果（`replacements`、`expressions`）和它的选项（`prefix`） |
 | `PolarForm`、`RectangularForm` | 复数的极坐标形式（模 `modulus`、辐角 `argument`）和直角坐标形式（实部 `real`、虚部 `imaginary`） |
@@ -381,6 +404,7 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 | `Decimal`、`DecimalValue`、`DecimalOptions` | 指定精度的十进制数（`decimal()`）：`precision`、`add`、`sub`、`mul`、`div`、`mod`、`pow`、`neg`、`abs`、`sqrt`、`cbrt`、`root`、`exp`、`ln`、`log10`、`log`、`sin`、`cos`、`tan`、`asin`、`acos`、`atan`、`atan2`、`sinh`、`cosh`、`tanh`、`asinh`、`acosh`、`atanh`、`gamma`、`loggamma`、`digamma`、`erf`、`erfc`、`zeta`、`lambertw`、`floor`、`ceil`、`trunc`、`round`、`compare`、`equals`、`isZero`、`isPositive`、`isNegative`、`isInteger`、`toString`、`toFixed`、`toNumber`、`toJSON`；需要十进制数的地方可以传入的值（十进制数、数字、bigint、写成字符串的十进制数）；`decimal()` 的选项（`precision`） |
 | `Matrix`、`MatrixValue`、`VectorValue` | 数值矩阵（`matrix()`）：`rows`、`columns`、`data`、`get`、`set`、`row`、`column`、`diagonal`、`submatrix`、`reshape`、`transpose`、`add`、`sub`、`mul`、`div`、`neg`、`multiplyElements`、`divideElements`、`powElements`、`map`、`trace`、`kron`、`equals`、`clone`、`toArray`、`toJSON`、`toString`；需要矩阵的地方可以传入的值（矩阵，或它的各行）；需要向量的地方可以传入的值（`Float64Array`，或数字数组） |
 | `ExpressionMatrix`、`ExpressionMatrixValue`、`RowEchelonForm`、`Eigenvector` | 表达式矩阵（`expressionMatrix()`、`parse()`）：`rows`、`columns`、`get`、`toArray`、`with`、`row`、`column`、`submatrix`、`transpose`、`neg`、`add`、`sub`、`mul`、`div`、`multiplyElements`、`pow`、`trace`、`determinant`、`inverse`、`solve`、`rref`、`rank`、`nullspace`、`characteristicPolynomial`、`eigenvalues`、`eigenvectors`、`diff`、`substitute`、`expand`、`simplify`、`equals`、`toMatrix`、`toString`、`toTeX`，以及 `determinantAsync`、`inverseAsync`、`solveAsync`、`eigenvectorsAsync`；能当作表达式矩阵的值；简化行阶梯形和它的主元；特征值、它的重数和特征向量 |
+| `Unit`、`UnitValue`、`UnitDimensions`、`CustomUnit`、`CustomUnits`、`PhysicalConstant` | 带单位的值（`unit()`、`constant()`）：`value`、`units`、`dimensions`、`hasDimensionsOf`、`to`、`toSI`、`toBest`、`split`、`add`、`sub`、`mul`、`div`、`pow`、`sqrt`、`neg`、`abs`、`equals`、`compare`、`toNumber`、`toDecimal`、`toString`、`toJSON`、`toTeX`；能当作带单位的值给出的参数；各基本量的次数；`createMath()` 的一个单位（`definition`、`prefixes`、`aliases`、`offset`）和这个选项的全部单位；物理常数的名字 |
 | `LinearAlgebra`、`NormKind` | 线性代数（`linalg`）：`zeros`、`ones`、`identity`、`diagonal`、`fromRows`、`fromColumns`、`fromFunction`、`concat`、`rotation`、`dot`、`cross`、`outer`、`norm`、`multiply`、`solve`、`solveTriangular`、`leastSquares`、`inverse`、`determinant`、`singularValues`、`rank`、`condition`、`lu`、`qr`、`cholesky`、`svd`、`eigen`、`symmetricEigen`、`schur`、`pseudoInverse`、`exponential`、`squareRoot`、`sylvester`、`lyapunov`、`sparse`、`conjugateGradient`、`biconjugateGradientStabilized`，以及各个异步版本；范数的种类 |
 | `Statistics`、`Normalization`、`NormalizationOptions` | 统计（`stats`）：`sum`、`product`、`cumulativeSum`、`differences`、`mean`、`median`、`mode`、`min`、`max`、`variance`、`standardDeviation`、`medianAbsoluteDeviation`、`quantile`、`covariance`、`correlation`、`zScores`、`klDivergence`、各个分布（`normal` … `hypergeometric`、`distribution`）和 `random`；方差的除数（`'uncorrected'`、`'unbiased'`、`'biased'`）和选择它的选项 |
 | `Distribution`、`DistributionName`、`DistributionParameters` | 概率分布：`pdf`、`cdf`、`survival`、`quantile`、`survivalQuantile`、`sample`、`parameters`、`kind`、`support`、`mean`、`variance`、`standardDeviation`、`median`、`mode`、`skewness`、`excessKurtosis`；分布的名字；按名字给出的参数 |
@@ -400,12 +424,13 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 | 错误 | 什么时候抛出 |
 |---|---|
 | `MathSyntaxException` | 公式写得不对（带有出错的 `position`），需要表达式的地方给了方程或矩阵，或者反过来，矩阵和数相加，只接受数的函数用在了矩阵上 |
+| `MathUnitException` | 量纲不同的带单位的值相加、比较或换算，不认识的单位（带有它的 `position`），带偏移的温度相加、相乘或相除，乘方后量纲的次数不是整数，`sin()` 的参数既不是角度也不是数 |
 | `MathUnknownFunctionException` | 公式调用的函数既不是内置函数，也没有定义，或者把常数写成了调用（`g(2)`），带有它的 `position` |
-| `MathDefinitionException` | 定义无效：用了内置的名字、参数重复、定义之间循环引用、定义嵌套太深、定义是一个矩阵 |
+| `MathDefinitionException` | 定义无效：用了内置的名字、参数重复、定义之间循环引用、定义嵌套太深、定义是一个矩阵；`createMath()` 的单位无效：名字已经是单位（单独或者加上前缀），定义里有不认识的单位，单位之间循环定义 |
 | `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂），`findRoot()` 的区间两端符号相同或者函数在区间里不是实数，函数或方程组在 `findRoot()`、`solveSystem()` 的初始值处不是实数，`integrate()` 的函数在区间内不是实数，`solveODE()` 的导数在起点不是实数，对复数求连分数，表达式矩阵是奇异的（`inverse()`、`solve()`、`inv()`） |
 | `MathDivisionByZeroException` | 计算十进制值时遇到除以零（包括除以一个无法和 0 区分的值、0 的对数、0 的负数次幂、以 1 为底的对数、在函数的极点上求值：`gamma()` 的参数是 -2、`zeta()` 的参数是 1），模数是 0，或者连分数的各项导致除以零 |
 | `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 和 `bell(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、`stirlingSecondKind(n, k)` 的 n 超过 50000 或 n k 超过 6250000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`），表达式矩阵的特征值求不出精确值，矩阵的幂不是整数，矩阵的方程或不等式 |
-| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、`integrate()` 的区间、分点或容差无效、`solveODE()` 的问题或选项无效、对含有变量的值求连分数、连分数的项不是整数、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分布的参数无效、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数，`createMath()` 的选项无效 |
+| `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、`integrate()` 的区间、分点或容差无效、`solveODE()` 的问题或选项无效、对含有变量的值求连分数、连分数的项不是整数、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分布的参数无效、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数，只需要单位的地方给了数（`to('2 cm')`），物理常数的名字不对，`createMath()` 的选项无效 |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |
 | `MathException` | 以上所有错误的基类；原生插件内部错误时，它的 `errno` 是 `E_MATH_INTERNAL` |
 

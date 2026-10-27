@@ -2,6 +2,7 @@ import {MathArgumentException} from '../exceptions/MathArgumentException.js'
 import {MathCancelledException} from '../exceptions/MathCancelledException.js'
 import {MathTimeoutException} from '../exceptions/MathTimeoutException.js'
 import {type Handle, nativeCall, toException} from './Native.js'
+import type {UnitSystem} from './Unit.js'
 
 /**
  * The options of an asynchronous operation: its cancellation, its time limit
@@ -74,12 +75,12 @@ export class AsyncTracker {
 }
 
 /**
- * A context of the formulas: a scope of definitions, the settings and the tracker of its operations. `createMath()`
- * makes one; each `with()` makes another over it.
+ * A context of the formulas: a scope of definitions, the settings and the tracker of its operations, its units.
+ * `createMath()` makes one; each `with()` makes another over it.
  */
 export class Context {
 
-    constructor(public readonly scope: Handle, public readonly settings: ContextSettings, public readonly tracker: AsyncTracker) {
+    constructor(public readonly scope: Handle, public readonly settings: ContextSettings, public readonly tracker: AsyncTracker, public readonly units: UnitSystem) {
     }
 
     /**
@@ -87,7 +88,7 @@ export class Context {
      * @param definitions
      */
     public derive(definitions: Record<string, string | number>): Context {
-        return new Context(nativeCall((native) => native.scope(this.scope, definitionsOf(definitions))), this.settings, this.tracker)
+        return new Context(nativeCall((native) => native.scope(this.scope, definitionsOf(definitions))), this.settings, this.tracker, this.units)
     }
 
     /**

@@ -1,4 +1,5 @@
-import {type Distribution, type DistributionName, type Expression, MathException, type MathScope, Matrix, SparseMatrix} from '../../exports/Math.js'
+import {type Distribution, type DistributionName, type Expression, MathException, type MathScope, Matrix, SparseMatrix, type Unit, type UnitDimensions} from '../../exports/Math.js'
+import {PREFIXES, QUANTITIES, UNITS} from '../../lib/UnitTable.js'
 
 /**
  * A seeded generator of random numbers (mulberry32): the same seed gives the same formulas
@@ -1047,3 +1048,66 @@ export async function checkExpressionMatrix(math: MathScope, random: Random, ind
     return failures
 }
 
+//The units of the table by their quantities, with their prefixes (VAR, an imaginary unit, left out)
+const UNITS_BY_QUANTITY: Map<string, string[]> = new Map()
+for (const [name, definition] of Object.entries(UNITS)) {
+    if (definition.value === 'i') continue
+    const names: string[] = UNITS_BY_QUANTITY.get(definition.quantity) ?? []
+    names.push(...Object.keys(PREFIXES[definition.prefixes]!).map((prefix: string): string => prefix + name))
+    UNITS_BY_QUANTITY.set(definition.quantity, names)
+}
+const QUANTITY_NAMES: string[] = [...UNITS_BY_QUANTITY.keys()].filter((quantity: string): boolean => quantity !== 'NONE' && QUANTITIES[quantity] !== undefined)
+
+/**
+ * Units: a value converted to another unit of its quantity and back is the same, exactly; its text is read back; the
+ * dimensions add under products, subtract under quotients and scale under powers; the values in SI units of sums and
+ * products are the sums and the products of theirs, exactly; the parts of split() add up to the value
+ * @param math
+ * @param random
+ * @param index
+ */
+export async function checkUnits(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    const number = (): string => `${random.int(2001) - 1000}${random.chance(0.5) ? `/${random.pick([2, 3, 4, 5, 7, 8, 10, 1000])}` : ''}`
+    const value = (quantity: string): Unit => math.unit(number(), random.pick(UNITS_BY_QUANTITY.get(quantity)!))
+    const dimensions = (unit: Unit): number[] => Object.values(unit.dimensions as UnitDimensions)
+    //The temperatures with an offset: degC and degF, with their prefixes
+    const offset = (units: string): boolean => /(degC|degF|celsius|fahrenheit)$/.test(units)
+    try {
+        const quantity: string = random.pick(QUANTITY_NAMES)
+        const a: Unit = value(quantity)
+        text = a.toString()
+        const other: string = random.pick(UNITS_BY_QUANTITY.get(quantity)!)
+        const converted: Unit = a.to(other)
+        if (!converted.to(a.units).value.equals(a.value)) fail('roundtrip', `${text} to ${other} and back: ${converted.to(a.units).toString()}`)
+        if (!converted.equals(a)) fail('roundtrip', `${converted.toString()} is not ${text}`)
+        const read: Unit = math.unit(text)
+        if (!read.equals(a) || read.units !== a.units) fail('text', `read back as ${read.toString()}`)
+        if (offset(a.units) || offset(other)) return failures
+        //The conversion as numbers: by the values of the units in SI units
+        const factor = (name: string): number => math.unit(1, name).toSI().value.toNumber()
+        const expected: number = (a.value.toNumber() * factor(a.units)) / factor(other)
+        if (globalThis.Math.abs(converted.value.toNumber() - expected) > 1e-12 * globalThis.Math.abs(expected)) fail('convert', `${converted.toString()}, by numbers ${expected}`)
+        const b: Unit = value(random.pick(QUANTITY_NAMES)), c: Unit = value(quantity)
+        if (offset(b.units) || offset(c.units)) return failures
+        text = `${a.toString()}; ${b.toString()}; ${c.toString()}`
+        const k: number = random.int(7) - 3
+        if (dimensions(a.mul(b)).some((power: number, i: number): boolean => power !== dimensions(a)[i]! + dimensions(b)[i]!)) fail('dimensions', 'of a product')
+        if (dimensions(a.div(b)).some((power: number, i: number): boolean => power !== dimensions(a)[i]! - dimensions(b)[i]!)) fail('dimensions', 'of a quotient')
+        if (dimensions(a.pow(k)).some((power: number, i: number): boolean => power !== k * dimensions(a)[i]!)) fail('dimensions', `of a power ${k}`)
+        const si = (unit: Unit): Expression => unit.toSI().value
+        if (!si(a.mul(b)).equals(si(a).mul(si(b)))) fail('arithmetic', `the product: ${a.mul(b).toString()}`)
+        if (!b.value.isZero() && !si(a.div(b)).equals(si(a).div(si(b)))) fail('arithmetic', `the quotient: ${a.div(b).toString()}`)
+        if (!si(a.add(c)).equals(si(a).add(si(c)))) fail('arithmetic', `the sum: ${a.add(c).toString()}`)
+        if (!si(a.sub(c)).equals(si(a).sub(si(c)))) fail('arithmetic', `the difference: ${a.sub(c).toString()}`)
+        if (!si(math.unit(`${a.toString()} + ${c.toString()}`)).equals(si(a.add(c)))) fail('formula', `the sum read: ${a.toString()} + ${c.toString()}`)
+        const parts: Unit[] = a.split([other, a.units])
+        if (!parts[0]!.add(parts[1]!).equals(a)) fail('split', `${parts.map(String).join(', ')}`)
+        if (!a.value.isZero() && !a.toBest().equals(a)) fail('toBest', `${a.toBest().toString()}`)
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('units', String(error))
+    }
+    return failures
+}

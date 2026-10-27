@@ -1,0 +1,5169 @@
+{
+ "sympy": "1.14.0",
+ "cases": [
+  {
+   "sympy": {
+    "value": "2.54000000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 2.54
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.60934400000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 1.609344
+   }
+  },
+  {
+   "sympy": {
+    "value": "0.453592370000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 0.45359237
+   }
+  },
+  {
+   "sympy": {
+    "value": "0.304800000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 0.3048
+   }
+  },
+  {
+   "sympy": {
+    "value": "0.914400000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 0.9144
+   }
+  },
+  {
+   "sympy": {
+    "value": "10.0800000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 10.08
+   }
+  },
+  {
+   "sympy": {
+    "value": "27.7777777777777777777777777778",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 27.77777777777778
+   }
+  },
+  {
+   "sympy": {
+    "value": "62.1371192237333969617434184363",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 62.13711922373339
+   }
+  },
+  {
+   "sympy": {
+    "value": "101325.000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 101325
+   }
+  },
+  {
+   "sympy": {
+    "value": "6894.75729316836168436566367745",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 6894.75729276459
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.60217663399999989375623004522e-19",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 1.602176565e-19
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.60217663399999979462020334561e-10",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 1.602176565e-10
+   }
+  },
+  {
+   "sympy": {
+    "value": "3600000.00000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 3600000
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.57079632679489661923132169164",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 1.5707963267948966
+   }
+  },
+  {
+   "sympy": {
+    "value": "57.2957795130823208767981548141",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 57.29577951308232
+   }
+  },
+  {
+   "mathjs": {
+    "value": 360
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.0002777777777777778
+   }
+  },
+  {
+   "sympy": {
+    "value": "86400.0000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 86400
+   }
+  },
+  {
+   "sympy": {
+    "value": "365.250000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 365.25
+   }
+  },
+  {
+   "sympy": {
+    "value": "0.00100000000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 0.001
+   }
+  },
+  {
+   "sympy": {
+    "value": "0.946352946000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 0.946352946
+   }
+  },
+  {
+   "mathjs": {
+    "value": 3.785411784
+   }
+  },
+  {
+   "mathjs": {
+    "value": 236.58823650000002
+   }
+  },
+  {
+   "mathjs": {
+    "value": 28.349523125
+   }
+  },
+  {
+   "sympy": {
+    "value": "133.322387415000008559218258597",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 133.322
+   }
+  },
+  {
+   "sympy": {
+    "value": "133.322387415000008559218258597",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 133.322
+   }
+  },
+  {
+   "sympy": {
+    "value": "100000.000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 100000
+   }
+  },
+  {
+   "mathjs": {
+    "value": 745.6998715386
+   }
+  },
+  {
+   "mathjs": {
+    "value": 4046.86
+   }
+  },
+  {
+   "mathjs": {
+    "value": 999.9999965693032
+   }
+  },
+  {
+   "mathjs": {
+    "value": 5.02921
+   }
+  },
+  {
+   "mathjs": {
+    "value": 4.4482216152605
+   }
+  },
+  {
+   "mathjs": {
+    "value": 1055.05585262
+   }
+  },
+  {
+   "mathjs": {
+    "value": 8000
+   }
+  },
+  {
+   "mathjs": {
+    "value": 1024
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.00000000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 1
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.00000000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 1
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.00000000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 1
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.00000000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 1
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.00000000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 1
+   }
+  },
+  {
+   "sympy": {
+    "value": "50.0000000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "error": "Cannot convert to a unit with a value"
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.00000000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 1
+   }
+  },
+  {
+   "sympy": {
+    "value": "0.100000000000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 0.09999999999999999
+   }
+  },
+  {
+   "mathjs": {
+    "value": 68
+   }
+  },
+  {
+   "mathjs": {
+    "value": -40
+   }
+  },
+  {
+   "mathjs": {
+    "value": 26.850000000000023
+   }
+  },
+  {
+   "mathjs": {
+    "value": 5
+   }
+  },
+  {
+   "mathjs": {
+    "value": 6
+   }
+  },
+  {
+   "mathjs": {
+    "value": 3
+   }
+  },
+  {
+   "mathjs": {
+    "value": 25
+   }
+  },
+  {
+   "mathjs": {
+    "value": 8
+   }
+  },
+  {
+   "mathjs": {
+    "value": 2
+   }
+  },
+  {
+   "mathjs": {
+    "value": 12
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.1
+   }
+  },
+  {
+   "mathjs": {
+    "value": 500
+   }
+  },
+  {
+   "mathjs": {
+    "value": 1.5
+   }
+  },
+  {
+   "mathjs": {
+    "value": 150
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.49999999999999994
+   }
+  },
+  {
+   "mathjs": {
+    "value": -1
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.9999999999999999
+   }
+  },
+  {
+   "mathjs": {
+    "value": 7.38905609893065
+   }
+  },
+  {
+   "mathjs": {
+    "value": 2.302585092994046
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.5235987755982988
+   }
+  },
+  {
+   "mathjs": {
+    "value": 6,
+    "units": "(kg m^2) / s^2"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 6.6743e-11,
+    "units": "m^3 / s^2"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 3600000,
+    "units": "(kg m^2) / s^2"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 293.15,
+    "units": "K"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.44704,
+    "units": "m / s"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.001,
+    "units": "m^3"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.1,
+    "units": "m^2"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 1,
+    "units": "kg / (s^2 A)"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 1,
+    "units": "(kg m^2) / (s^2 K mol)"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 6894.757293168361,
+    "units": "kg / (m s^2)"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 50,
+    "units": "s^-1"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 1,
+    "units": "(kg m) / s^2"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 5,
+    "units": "km"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 1.2,
+    "units": "mm"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 123.456,
+    "units": "kg"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 2,
+    "units": "uF"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 500,
+    "units": "m"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 249.99999999999997,
+    "units": "ns"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 5400,
+    "units": "s"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 1.5,
+    "units": "km"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 50,
+    "units": "cm"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 30,
+    "units": "s"
+   }
+  },
+  {
+   "mathjs": {
+    "values": [
+     {
+      "value": 1,
+      "units": "h"
+     },
+     {
+      "value": 30,
+      "units": "min"
+     }
+    ]
+   }
+  },
+  {
+   "mathjs": {
+    "values": [
+     {
+      "value": 8,
+      "units": "ft"
+     },
+     {
+      "value": 3.999999999999997,
+      "units": "inch"
+     }
+    ]
+   }
+  },
+  {
+   "mathjs": {
+    "values": [
+     {
+      "value": 1,
+      "units": "h"
+     },
+     {
+      "value": 2,
+      "units": "min"
+     },
+     {
+      "value": 5,
+      "units": "s"
+     }
+    ]
+   }
+  },
+  {
+   "mathjs": {
+    "values": [
+     {
+      "value": -1,
+      "units": "h"
+     },
+     {
+      "value": -30,
+      "units": "min"
+     }
+    ]
+   }
+  },
+  {
+   "mathjs": {
+    "values": [
+     {
+      "value": 0,
+      "units": "mi"
+     },
+     {
+      "value": 1093,
+      "units": "yd"
+     },
+     {
+      "value": 1.8398950131232676,
+      "units": "ft"
+     }
+    ]
+   }
+  },
+  {
+   "mathjs": {
+    "error": "Units do not match"
+   }
+  },
+  {
+   "mathjs": {
+    "result": "15 degC"
+   }
+  },
+  {
+   "mathjs": {
+    "result": "40 degC"
+   }
+  },
+  {
+   "mathjs": {
+    "result": "2 m^1.5"
+   }
+  },
+  {
+   "mathjs": {
+    "result": "1 m^0.5"
+   }
+  },
+  {
+   "mathjs": {
+    "error": "Unit in function cot is no angle"
+   }
+  },
+  {
+   "mathjs": {
+    "error": "Unexpected type of argument in function exp (expected: number or Complex or BigNumber or bigint or Fraction or string or"
+   }
+  },
+  {
+   "mathjs": {
+    "error": "Undefined symbol xyz"
+   }
+  },
+  {
+   "mathjs": {
+    "error": "Unexpected end of expression (char 7)"
+   }
+  },
+  {
+   "sympy": {
+    "value": "299792458.000000000000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 299792458
+   }
+  },
+  {
+   "sympy": {
+    "value": "6.67429999999999937900124366926e-11",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 6.6743e-11
+   }
+  },
+  {
+   "sympy": {
+    "value": "6.62607015000000068500961390525e-34",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 6.62607015e-34
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.05457181764615650028509412179e-34",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 1.0545718176461565e-34
+   }
+  },
+  {
+   "sympy": {
+    "value": "0.00000125663706143591729538505735331",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 0.00000125663706212
+   }
+  },
+  {
+   "sympy": {
+    "value": "8.85418781762038985053656303171e-12",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 8.8541878128e-12
+   }
+  },
+  {
+   "sympy": {
+    "value": "376.730313461770655468198400420",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 376.730313667
+   }
+  },
+  {
+   "mathjs": {
+    "value": 8987551792.261171
+   }
+  },
+  {
+   "sympy": {
+    "value": "8987551787.36817640000000000000",
+    "exact": true
+   },
+   "mathjs": {
+    "value": 8987551792.261171
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.60217663399999989375623004522e-19",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 1.602176634e-19
+   }
+  },
+  {
+   "mathjs": {
+    "value": 9.2740100783e-24
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.00007748091729863649
+   }
+  },
+  {
+   "mathjs": {
+    "value": 12906.403729652257
+   }
+  },
+  {
+   "mathjs": {
+    "value": 2.0678338484619295e-15
+   }
+  },
+  {
+   "mathjs": {
+    "value": 5.0507837461e-27
+   }
+  },
+  {
+   "sympy": {
+    "value": "4108.23590222766119976300960010",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 25812.807459304513
+   }
+  },
+  {
+   "sympy": {
+    "value": "0.00000000206783384846192948112587913618",
+    "exact": false
+   },
+   "mathjs": {
+    "error": "Cannot read properties of undefined (reading 'value')"
+   }
+  },
+  {
+   "mathjs": {
+    "value": 5.29177210903e-11
+   }
+  },
+  {
+   "mathjs": {
+    "value": 2.8179403262e-15
+   }
+  },
+  {
+   "sympy": {
+    "value": "9.10938370150000079003439765985e-31",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 9.1093837015e-31
+   }
+  },
+  {
+   "mathjs": {
+    "value": 454379605398214.1
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.0072973525693
+   }
+  },
+  {
+   "mathjs": {
+    "value": 4.3597447222071e-18
+   }
+  },
+  {
+   "mathjs": {
+    "value": 1.67262192369e-27
+   }
+  },
+  {
+   "mathjs": {
+    "value": 3.3435830926e-27
+   }
+  },
+  {
+   "mathjs": {
+    "value": 1.6749271613e-27
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.00036369475516
+   }
+  },
+  {
+   "mathjs": {
+    "value": 10973731.56816
+   }
+  },
+  {
+   "mathjs": {
+    "value": 6.6524587321e-29
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.2229
+   }
+  },
+  {
+   "mathjs": {
+    "value": 22.7
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.66053906659999997116858313087e-27",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 1.6605390666e-27
+   }
+  },
+  {
+   "sympy": {
+    "value": "602214075999999987023872.000000",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 6.02214076e+23
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.38064900000000009215216055820e-23",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 1.380649e-23
+   }
+  },
+  {
+   "sympy": {
+    "value": "96485.3321233100141398608684540",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 96485.33212331001
+   }
+  },
+  {
+   "mathjs": {
+    "value": 3.7417718521927573e-16
+   }
+  },
+  {
+   "mathjs": {
+    "value": 2.686780111798444e+25
+   }
+  },
+  {
+   "sympy": {
+    "value": "8.31446261815324128008342086105",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 8.31446261815324
+   }
+  },
+  {
+   "mathjs": {
+    "value": 3.990312712893431e-10
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.022413969545014137
+   }
+  },
+  {
+   "mathjs": {
+    "value": -1.16487052358
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.014387768775039337
+   }
+  },
+  {
+   "sympy": {
+    "value": "0.0000000567037441918443033223671929567",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 5.67037441918443e-8
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.002897771955
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.00099999999965
+   }
+  },
+  {
+   "mathjs": {
+    "value": 0.0119999999958
+   }
+  },
+  {
+   "sympy": {
+    "value": "9.80664999999999942303929856280",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 9.80665
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.61625502442370521616948244906e-35",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 1.616255e-35
+   }
+  },
+  {
+   "sympy": {
+    "value": "0.0000000217643434271789843896845814908",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 2.176435e-8
+   }
+  },
+  {
+   "sympy": {
+    "value": "5.39124644831360375374571658405e-44",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 5.391245e-44
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.87554603829021128034404376157e-18",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 1.87554603778e-18
+   }
+  },
+  {
+   "sympy": {
+    "value": "1.41678416215734253358983217125e+32",
+    "exact": false
+   },
+   "mathjs": {
+    "value": 1.416785e+32
+   }
+  }
+ ],
+ "mathjs": "15.2.0",
+ "table": {
+  "meter": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "meter": 1,
+    "decameter": 10,
+    "hectometer": 100,
+    "kilometer": 1000,
+    "megameter": 1000000,
+    "gigameter": 1000000000,
+    "terameter": 1000000000000,
+    "petameter": 1000000000000000,
+    "exameter": 1000000000000000000,
+    "zettameter": 1e+21,
+    "yottameter": 1e+24,
+    "ronnameter": 1e+27,
+    "quettameter": 1e+30,
+    "decimeter": 0.1,
+    "centimeter": 0.01,
+    "millimeter": 0.001,
+    "micrometer": 0.000001,
+    "nanometer": 1e-9,
+    "picometer": 1e-12,
+    "femtometer": 1e-15,
+    "attometer": 1e-18,
+    "zeptometer": 1e-21,
+    "yoctometer": 1e-24,
+    "rontometer": 1e-27,
+    "quectometer": 1e-30
+   }
+  },
+  "inch": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "inch": 0.0254
+   }
+  },
+  "foot": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "foot": 0.3048
+   }
+  },
+  "yard": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "yard": 0.9144
+   }
+  },
+  "mile": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "mile": 1609.344
+   }
+  },
+  "link": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "link": 0.201168
+   }
+  },
+  "rod": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "rod": 5.0292
+   }
+  },
+  "chain": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "chain": 20.1168
+   }
+  },
+  "angstrom": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "angstrom": 1e-10
+   }
+  },
+  "m": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "m": 1,
+    "dam": 10,
+    "hm": 100,
+    "km": 1000,
+    "Mm": 1000000,
+    "Gm": 1000000000,
+    "Tm": 1000000000000,
+    "Pm": 1000000000000000,
+    "Em": 1000000000000000000,
+    "Zm": 1e+21,
+    "Ym": 1e+24,
+    "Rm": 1e+27,
+    "Qm": 1e+30,
+    "dm": 0.1,
+    "cm": 0.01,
+    "mm": 0.001,
+    "um": 0.000001,
+    "nm": 1e-9,
+    "pm": 1e-12,
+    "fm": 1e-15,
+    "am": 1e-18,
+    "zm": 1e-21,
+    "ym": 1e-24,
+    "rm": 1e-27,
+    "qm": 1e-30
+   }
+  },
+  "in": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "in": 0.0254
+   }
+  },
+  "ft": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "ft": 0.3048
+   }
+  },
+  "yd": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "yd": 0.9144
+   }
+  },
+  "mi": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "mi": 1609.344
+   }
+  },
+  "li": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "li": 0.201168
+   }
+  },
+  "rd": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "rd": 5.02921
+   }
+  },
+  "ch": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "ch": 20.1168
+   }
+  },
+  "mil": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "mil": 0.0000254
+   }
+  },
+  "m2": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "m2": 1,
+    "dam2": 100,
+    "hm2": 10000,
+    "km2": 1000000,
+    "Mm2": 1000000000000,
+    "Gm2": 1000000000000000000,
+    "Tm2": 1e+24,
+    "Pm2": 1e+30,
+    "Em2": 1e+36,
+    "Zm2": 1e+42,
+    "Ym2": 1e+48,
+    "Rm2": 1e+54,
+    "Qm2": 1e+60,
+    "dm2": 0.01,
+    "cm2": 0.0001,
+    "mm2": 0.000001,
+    "um2": 1e-12,
+    "nm2": 1e-18,
+    "pm2": 1e-24,
+    "fm2": 1e-30,
+    "am2": 1e-36,
+    "zm2": 1e-42,
+    "ym2": 1e-48,
+    "rm2": 1e-54,
+    "qm2": 1e-60
+   }
+  },
+  "sqin": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "sqin": 0.00064516
+   }
+  },
+  "sqft": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "sqft": 0.09290304
+   }
+  },
+  "sqyd": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "sqyd": 0.83612736
+   }
+  },
+  "sqmi": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "sqmi": 2589988.110336
+   }
+  },
+  "sqrd": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "sqrd": 25.29295
+   }
+  },
+  "sqch": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "sqch": 404.6873
+   }
+  },
+  "sqmil": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "sqmil": 6.4516e-10
+   }
+  },
+  "acre": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "acre": 4046.86
+   }
+  },
+  "hectare": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "hectare": 10000
+   }
+  },
+  "m3": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "m3": 1,
+    "dam3": 1000,
+    "hm3": 1000000,
+    "km3": 1000000000,
+    "Mm3": 1000000000000000000,
+    "Gm3": 1e+27,
+    "Tm3": 1e+36,
+    "Pm3": 1e+45,
+    "Em3": 1e+54,
+    "Zm3": 1e+63,
+    "Ym3": 1e+72,
+    "Rm3": 1e+81,
+    "Qm3": 1e+90,
+    "dm3": 0.001,
+    "cm3": 0.000001,
+    "mm3": 1e-9,
+    "um3": 1e-18,
+    "nm3": 1e-27,
+    "pm3": 1e-36,
+    "fm3": 1e-45,
+    "am3": 1e-54,
+    "zm3": 1e-63,
+    "ym3": 1e-72,
+    "rm3": 1e-81,
+    "qm3": 1e-90
+   }
+  },
+  "L": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "L": 0.001,
+    "daL": 0.01,
+    "hL": 0.1,
+    "kL": 1,
+    "ML": 1000,
+    "GL": 1000000,
+    "TL": 1000000000,
+    "PL": 1000000000000,
+    "EL": 1000000000000000,
+    "ZL": 1000000000000000000,
+    "YL": 1e+21,
+    "RL": 1e+24,
+    "QL": 1e+27,
+    "dL": 0.0001,
+    "cL": 0.00001,
+    "mL": 0.000001,
+    "uL": 1e-9,
+    "nL": 1.0000000000000002e-12,
+    "pL": 1e-15,
+    "fL": 1e-18,
+    "aL": 1.0000000000000001e-21,
+    "zL": 1e-24,
+    "yL": 9.999999999999999e-28,
+    "rL": 1e-30,
+    "qL": 1e-33
+   }
+  },
+  "l": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "l": 0.001,
+    "dal": 0.01,
+    "hl": 0.1,
+    "kl": 1,
+    "Ml": 1000,
+    "Gl": 1000000,
+    "Tl": 1000000000,
+    "Pl": 1000000000000,
+    "El": 1000000000000000,
+    "Zl": 1000000000000000000,
+    "Yl": 1e+21,
+    "Rl": 1e+24,
+    "Ql": 1e+27,
+    "dl": 0.0001,
+    "cl": 0.00001,
+    "ml": 0.000001,
+    "ul": 1e-9,
+    "nl": 1.0000000000000002e-12,
+    "pl": 1e-15,
+    "fl": 1e-18,
+    "al": 1.0000000000000001e-21,
+    "zl": 1e-24,
+    "yl": 9.999999999999999e-28,
+    "rl": 1e-30,
+    "ql": 1e-33
+   }
+  },
+  "litre": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "litre": 0.001,
+    "decalitre": 0.01,
+    "hectolitre": 0.1,
+    "kilolitre": 1,
+    "megalitre": 1000,
+    "gigalitre": 1000000,
+    "teralitre": 1000000000,
+    "petalitre": 1000000000000,
+    "exalitre": 1000000000000000,
+    "zettalitre": 1000000000000000000,
+    "yottalitre": 1e+21,
+    "ronnalitre": 1e+24,
+    "quettalitre": 1e+27,
+    "decilitre": 0.0001,
+    "centilitre": 0.00001,
+    "millilitre": 0.000001,
+    "microlitre": 1e-9,
+    "nanolitre": 1.0000000000000002e-12,
+    "picolitre": 1e-15,
+    "femtolitre": 1e-18,
+    "attolitre": 1.0000000000000001e-21,
+    "zeptolitre": 1e-24,
+    "yoctolitre": 9.999999999999999e-28,
+    "rontolitre": 1e-30,
+    "quectolitre": 1e-33
+   }
+  },
+  "cuin": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "cuin": 0.000016387064
+   }
+  },
+  "cuft": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "cuft": 0.028316846592
+   }
+  },
+  "cuyd": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "cuyd": 0.764554857984
+   }
+  },
+  "teaspoon": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "teaspoon": 0.000005
+   }
+  },
+  "tablespoon": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "tablespoon": 0.000015
+   }
+  },
+  "drop": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "drop": 5e-8
+   }
+  },
+  "gtt": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "gtt": 5e-8
+   }
+  },
+  "minim": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "minim": 6.1611519921875e-8
+   }
+  },
+  "fluiddram": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "fluiddram": 0.0000036966911953125
+   }
+  },
+  "fluidounce": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "fluidounce": 0.0000295735295625
+   }
+  },
+  "gill": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "gill": 0.00011829411825
+   }
+  },
+  "cc": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "cc": 0.000001
+   }
+  },
+  "cup": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "cup": 0.0002365882365
+   }
+  },
+  "pint": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "pint": 0.000473176473
+   }
+  },
+  "quart": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "quart": 0.000946352946
+   }
+  },
+  "gallon": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "gallon": 0.003785411784
+   }
+  },
+  "beerbarrel": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "beerbarrel": 0.117347765304
+   }
+  },
+  "oilbarrel": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "oilbarrel": 0.158987294928
+   }
+  },
+  "hogshead": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "hogshead": 0.238480942392
+   }
+  },
+  "g": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "g": 0.001,
+    "dag": 0.01,
+    "hg": 0.1,
+    "kg": 1,
+    "Mg": 1000,
+    "Gg": 1000000,
+    "Tg": 1000000000,
+    "Pg": 1000000000000,
+    "Eg": 1000000000000000,
+    "Zg": 1000000000000000000,
+    "Yg": 1e+21,
+    "Rg": 1e+24,
+    "Qg": 1e+27,
+    "dg": 0.0001,
+    "cg": 0.00001,
+    "mg": 0.000001,
+    "ug": 1e-9,
+    "ng": 1.0000000000000002e-12,
+    "pg": 1e-15,
+    "fg": 1e-18,
+    "ag": 1.0000000000000001e-21,
+    "zg": 1e-24,
+    "yg": 9.999999999999999e-28,
+    "rg": 1e-30,
+    "qg": 1e-33
+   }
+  },
+  "gram": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "gram": 0.001,
+    "decagram": 0.01,
+    "hectogram": 0.1,
+    "kilogram": 1,
+    "megagram": 1000,
+    "gigagram": 1000000,
+    "teragram": 1000000000,
+    "petagram": 1000000000000,
+    "exagram": 1000000000000000,
+    "zettagram": 1000000000000000000,
+    "yottagram": 1e+21,
+    "ronnagram": 1e+24,
+    "quettagram": 1e+27,
+    "decigram": 0.0001,
+    "centigram": 0.00001,
+    "milligram": 0.000001,
+    "microgram": 1e-9,
+    "nanogram": 1.0000000000000002e-12,
+    "picogram": 1e-15,
+    "femtogram": 1e-18,
+    "attogram": 1.0000000000000001e-21,
+    "zeptogram": 1e-24,
+    "yoctogram": 9.999999999999999e-28,
+    "rontogram": 1e-30,
+    "quectogram": 1e-33
+   }
+  },
+  "ton": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "ton": 907.18474,
+    "daton": 9071.8474,
+    "hton": 90718.474,
+    "kton": 907184.74,
+    "Mton": 907184740,
+    "Gton": 907184740000,
+    "Tton": 907184740000000,
+    "Pton": 907184740000000000,
+    "Eton": 907184740000000000000,
+    "Zton": 9.0718474e+23,
+    "Yton": 9.0718474e+26,
+    "Rton": 9.0718474e+29,
+    "Qton": 9.0718474e+32,
+    "dton": 90.71847400000001,
+    "cton": 9.071847400000001,
+    "mton": 0.90718474,
+    "uton": 0.00090718474,
+    "nton": 9.071847400000001e-7,
+    "pton": 9.0718474e-10,
+    "fton": 9.071847400000001e-13,
+    "aton": 9.0718474e-16,
+    "zton": 9.0718474e-19,
+    "yton": 9.0718474e-22,
+    "rton": 9.0718474e-25,
+    "qton": 9.071847400000002e-28
+   }
+  },
+  "t": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "t": 1000,
+    "dat": 10000,
+    "ht": 100000,
+    "kt": 1000000,
+    "Mt": 1000000000,
+    "Gt": 1000000000000,
+    "Tt": 1000000000000000,
+    "Pt": 1000000000000000000,
+    "Et": 1e+21,
+    "Zt": 1e+24,
+    "Yt": 1e+27,
+    "Rt": 1e+30,
+    "Qt": 1.0000000000000001e+33,
+    "dt": 100,
+    "ct": 10,
+    "mt": 1,
+    "ut": 0.001,
+    "nt": 0.0000010000000000000002,
+    "pt": [
+     0.000473176473,
+     "",
+     "pt"
+    ],
+    "ft": [
+     0.3048,
+     "",
+     "ft"
+    ],
+    "at": 1e-15,
+    "zt": 9.999999999999999e-19,
+    "yt": 1e-21,
+    "rt": 1.0000000000000001e-24,
+    "qt": [
+     0.000946352946,
+     "",
+     "qt"
+    ]
+   }
+  },
+  "tonne": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "tonne": 1000,
+    "decatonne": 10000,
+    "hectotonne": 100000,
+    "kilotonne": 1000000,
+    "megatonne": 1000000000,
+    "gigatonne": 1000000000000,
+    "teratonne": 1000000000000000,
+    "petatonne": 1000000000000000000,
+    "exatonne": 1e+21,
+    "zettatonne": 1e+24,
+    "yottatonne": 1e+27,
+    "ronnatonne": 1e+30,
+    "quettatonne": 1.0000000000000001e+33,
+    "decitonne": 100,
+    "centitonne": 10,
+    "millitonne": 1,
+    "microtonne": 0.001,
+    "nanotonne": 0.0000010000000000000002,
+    "picotonne": 1e-9,
+    "femtotonne": 1e-12,
+    "attotonne": 1e-15,
+    "zeptotonne": 9.999999999999999e-19,
+    "yoctotonne": 1e-21,
+    "rontotonne": 1.0000000000000001e-24,
+    "quectotonne": 1e-27
+   }
+  },
+  "grain": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "grain": 0.00006479891
+   }
+  },
+  "dram": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "dram": 0.0017718451953125
+   }
+  },
+  "ounce": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "ounce": 0.028349523125
+   }
+  },
+  "poundmass": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "poundmass": 0.45359237
+   }
+  },
+  "hundredweight": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "hundredweight": 45.359237
+   }
+  },
+  "stick": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "stick": 0.115
+   }
+  },
+  "stone": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "stone": 6.35029318
+   }
+  },
+  "gr": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "gr": 0.00006479891
+   }
+  },
+  "dr": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "dr": 0.0017718451953125
+   }
+  },
+  "oz": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "oz": 0.028349523125
+   }
+  },
+  "lbm": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "lbm": 0.45359237
+   }
+  },
+  "cwt": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "cwt": 45.359237
+   }
+  },
+  "s": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "s": 1,
+    "das": 10,
+    "hs": 100,
+    "ks": 1000,
+    "Ms": 1000000,
+    "Gs": 1000000000,
+    "Ts": 1000000000000,
+    "Ps": 1000000000000000,
+    "Es": 1000000000000000000,
+    "Zs": 1e+21,
+    "Ys": 1e+24,
+    "Rs": 1e+27,
+    "Qs": 1e+30,
+    "ds": 0.1,
+    "cs": 0.01,
+    "ms": 0.001,
+    "us": 0.000001,
+    "ns": 1e-9,
+    "ps": 1e-12,
+    "fs": 1e-15,
+    "as": 1e-18,
+    "zs": 1e-21,
+    "ys": 1e-24,
+    "rs": 1e-27,
+    "qs": 1e-30
+   }
+  },
+  "min": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "min": 60
+   }
+  },
+  "h": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "h": 3600
+   }
+  },
+  "second": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "second": 1,
+    "decasecond": 10,
+    "hectosecond": 100,
+    "kilosecond": 1000,
+    "megasecond": 1000000,
+    "gigasecond": 1000000000,
+    "terasecond": 1000000000000,
+    "petasecond": 1000000000000000,
+    "exasecond": 1000000000000000000,
+    "zettasecond": 1e+21,
+    "yottasecond": 1e+24,
+    "ronnasecond": 1e+27,
+    "quettasecond": 1e+30,
+    "decisecond": 0.1,
+    "centisecond": 0.01,
+    "millisecond": 0.001,
+    "microsecond": 0.000001,
+    "nanosecond": 1e-9,
+    "picosecond": 1e-12,
+    "femtosecond": 1e-15,
+    "attosecond": 1e-18,
+    "zeptosecond": 1e-21,
+    "yoctosecond": 1e-24,
+    "rontosecond": 1e-27,
+    "quectosecond": 1e-30
+   }
+  },
+  "sec": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "sec": 1,
+    "decasec": 10,
+    "hectosec": 100,
+    "kilosec": 1000,
+    "megasec": 1000000,
+    "gigasec": 1000000000,
+    "terasec": 1000000000000,
+    "petasec": 1000000000000000,
+    "exasec": 1000000000000000000,
+    "zettasec": 1e+21,
+    "yottasec": 1e+24,
+    "ronnasec": 1e+27,
+    "quettasec": 1e+30,
+    "decisec": 0.1,
+    "centisec": 0.01,
+    "millisec": 0.001,
+    "microsec": 0.000001,
+    "nanosec": 1e-9,
+    "picosec": 1e-12,
+    "femtosec": 1e-15,
+    "attosec": 1e-18,
+    "zeptosec": 1e-21,
+    "yoctosec": 1e-24,
+    "rontosec": 1e-27,
+    "quectosec": 1e-30
+   }
+  },
+  "minute": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "minute": 60
+   }
+  },
+  "hour": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "hour": 3600
+   }
+  },
+  "day": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "day": 86400
+   }
+  },
+  "week": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "week": 604800
+   }
+  },
+  "month": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "month": 2629800
+   }
+  },
+  "year": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "year": 31557600
+   }
+  },
+  "decade": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "decade": 315576000
+   }
+  },
+  "century": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "century": 3155760000
+   }
+  },
+  "millennium": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "millennium": 31557600000
+   }
+  },
+  "hertz": {
+   "dimensions": [0, 0, -1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "hertz": 1,
+    "decahertz": 10,
+    "hectohertz": 100,
+    "kilohertz": 1000,
+    "megahertz": 1000000,
+    "gigahertz": 1000000000,
+    "terahertz": 1000000000000,
+    "petahertz": 1000000000000000,
+    "exahertz": 1000000000000000000,
+    "zettahertz": 1e+21,
+    "yottahertz": 1e+24,
+    "ronnahertz": 1e+27,
+    "quettahertz": 1e+30,
+    "decihertz": 0.1,
+    "centihertz": 0.01,
+    "millihertz": 0.001,
+    "microhertz": 0.000001,
+    "nanohertz": 1e-9,
+    "picohertz": 1e-12,
+    "femtohertz": 1e-15,
+    "attohertz": 1e-18,
+    "zeptohertz": 1e-21,
+    "yoctohertz": 1e-24,
+    "rontohertz": 1e-27,
+    "quectohertz": 1e-30
+   }
+  },
+  "Hz": {
+   "dimensions": [0, 0, -1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "Hz": 1,
+    "daHz": 10,
+    "hHz": 100,
+    "kHz": 1000,
+    "MHz": 1000000,
+    "GHz": 1000000000,
+    "THz": 1000000000000,
+    "PHz": 1000000000000000,
+    "EHz": 1000000000000000000,
+    "ZHz": 1e+21,
+    "YHz": 1e+24,
+    "RHz": 1e+27,
+    "QHz": 1e+30,
+    "dHz": 0.1,
+    "cHz": 0.01,
+    "mHz": 0.001,
+    "uHz": 0.000001,
+    "nHz": 1e-9,
+    "pHz": 1e-12,
+    "fHz": 1e-15,
+    "aHz": 1e-18,
+    "zHz": 1e-21,
+    "yHz": 1e-24,
+    "rHz": 1e-27,
+    "qHz": 1e-30
+   }
+  },
+  "rad": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "rad": 1,
+    "darad": 10,
+    "hrad": 100,
+    "krad": 1000,
+    "Mrad": 1000000,
+    "Grad": 1000000000,
+    "Trad": 1000000000000,
+    "Prad": 1000000000000000,
+    "Erad": 1000000000000000000,
+    "Zrad": 1e+21,
+    "Yrad": 1e+24,
+    "Rrad": 1e+27,
+    "Qrad": 1e+30,
+    "drad": 0.1,
+    "crad": 0.01,
+    "mrad": 0.001,
+    "urad": 0.000001,
+    "nrad": 1e-9,
+    "prad": 1e-12,
+    "frad": 1e-15,
+    "arad": 1e-18,
+    "zrad": 1e-21,
+    "yrad": 1e-24,
+    "rrad": 1e-27,
+    "qrad": 1e-30
+   }
+  },
+  "radian": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "radian": 1,
+    "decaradian": 10,
+    "hectoradian": 100,
+    "kiloradian": 1000,
+    "megaradian": 1000000,
+    "gigaradian": 1000000000,
+    "teraradian": 1000000000000,
+    "petaradian": 1000000000000000,
+    "exaradian": 1000000000000000000,
+    "zettaradian": 1e+21,
+    "yottaradian": 1e+24,
+    "ronnaradian": 1e+27,
+    "quettaradian": 1e+30,
+    "deciradian": 0.1,
+    "centiradian": 0.01,
+    "milliradian": 0.001,
+    "microradian": 0.000001,
+    "nanoradian": 1e-9,
+    "picoradian": 1e-12,
+    "femtoradian": 1e-15,
+    "attoradian": 1e-18,
+    "zeptoradian": 1e-21,
+    "yoctoradian": 1e-24,
+    "rontoradian": 1e-27,
+    "quectoradian": 1e-30
+   }
+  },
+  "deg": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "deg": 0.017453292519943295,
+    "dadeg": 0.17453292519943295,
+    "hdeg": 1.7453292519943295,
+    "kdeg": 17.453292519943297,
+    "Mdeg": 17453.292519943294,
+    "Gdeg": 17453292.519943297,
+    "Tdeg": 17453292519.943295,
+    "Pdeg": 17453292519943.295,
+    "Edeg": 17453292519943296,
+    "Zdeg": 17453292519943295000,
+    "Ydeg": 1.7453292519943295e+22,
+    "Rdeg": 1.7453292519943297e+25,
+    "Qdeg": 1.7453292519943297e+28,
+    "ddeg": 0.0017453292519943296,
+    "cdeg": 0.00017453292519943296,
+    "mdeg": 0.000017453292519943296,
+    "udeg": 1.7453292519943295e-8,
+    "ndeg": 1.7453292519943298e-11,
+    "pdeg": 1.7453292519943295e-14,
+    "fdeg": 1.7453292519943298e-17,
+    "adeg": 1.7453292519943297e-20,
+    "zdeg": 1.7453292519943295e-23,
+    "ydeg": 1.7453292519943293e-26,
+    "rdeg": 1.7453292519943295e-29,
+    "qdeg": 1.7453292519943296e-32
+   }
+  },
+  "degree": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "degree": 0.017453292519943295,
+    "decadegree": 0.17453292519943295,
+    "hectodegree": 1.7453292519943295,
+    "kilodegree": 17.453292519943297,
+    "megadegree": 17453.292519943294,
+    "gigadegree": 17453292.519943297,
+    "teradegree": 17453292519.943295,
+    "petadegree": 17453292519943.295,
+    "exadegree": 17453292519943296,
+    "zettadegree": 17453292519943295000,
+    "yottadegree": 1.7453292519943295e+22,
+    "ronnadegree": 1.7453292519943297e+25,
+    "quettadegree": 1.7453292519943297e+28,
+    "decidegree": 0.0017453292519943296,
+    "centidegree": 0.00017453292519943296,
+    "millidegree": 0.000017453292519943296,
+    "microdegree": 1.7453292519943295e-8,
+    "nanodegree": 1.7453292519943298e-11,
+    "picodegree": 1.7453292519943295e-14,
+    "femtodegree": 1.7453292519943298e-17,
+    "attodegree": 1.7453292519943297e-20,
+    "zeptodegree": 1.7453292519943295e-23,
+    "yoctodegree": 1.7453292519943293e-26,
+    "rontodegree": 1.7453292519943295e-29,
+    "quectodegree": 1.7453292519943296e-32
+   }
+  },
+  "grad": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "grad": 0.015707963267948967,
+    "dagrad": 0.15707963267948966,
+    "hgrad": 1.5707963267948968,
+    "kgrad": 15.707963267948967,
+    "Mgrad": 15707.963267948968,
+    "Ggrad": 15707963.267948966,
+    "Tgrad": 15707963267.948967,
+    "Pgrad": 15707963267948.967,
+    "Egrad": 15707963267948966,
+    "Zgrad": 15707963267948968000,
+    "Ygrad": 1.5707963267948967e+22,
+    "Rgrad": 1.5707963267948967e+25,
+    "Qgrad": 1.5707963267948968e+28,
+    "dgrad": 0.0015707963267948969,
+    "cgrad": 0.00015707963267948968,
+    "mgrad": 0.000015707963267948967,
+    "ugrad": 1.5707963267948965e-8,
+    "ngrad": 1.5707963267948968e-11,
+    "pgrad": 1.5707963267948967e-14,
+    "fgrad": 1.5707963267948967e-17,
+    "agrad": 1.5707963267948968e-20,
+    "zgrad": 1.5707963267948967e-23,
+    "ygrad": 1.5707963267948967e-26,
+    "rgrad": 1.5707963267948967e-29,
+    "qgrad": 1.5707963267948967e-32
+   }
+  },
+  "gradian": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "gradian": 0.015707963267948967,
+    "decagradian": 0.15707963267948966,
+    "hectogradian": 1.5707963267948968,
+    "kilogradian": 15.707963267948967,
+    "megagradian": 15707.963267948968,
+    "gigagradian": 15707963.267948966,
+    "teragradian": 15707963267.948967,
+    "petagradian": 15707963267948.967,
+    "exagradian": 15707963267948966,
+    "zettagradian": 15707963267948968000,
+    "yottagradian": 1.5707963267948967e+22,
+    "ronnagradian": 1.5707963267948967e+25,
+    "quettagradian": 1.5707963267948968e+28,
+    "decigradian": 0.0015707963267948969,
+    "centigradian": 0.00015707963267948968,
+    "milligradian": 0.000015707963267948967,
+    "microgradian": 1.5707963267948965e-8,
+    "nanogradian": 1.5707963267948968e-11,
+    "picogradian": 1.5707963267948967e-14,
+    "femtogradian": 1.5707963267948967e-17,
+    "attogradian": 1.5707963267948968e-20,
+    "zeptogradian": 1.5707963267948967e-23,
+    "yoctogradian": 1.5707963267948967e-26,
+    "rontogradian": 1.5707963267948967e-29,
+    "quectogradian": 1.5707963267948967e-32
+   }
+  },
+  "cycle": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "cycle": 6.283185307179586
+   }
+  },
+  "arcsec": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "arcsec": 0.00000484813681109536
+   }
+  },
+  "arcmin": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "arcmin": 0.0002908882086657216
+   }
+  },
+  "A": {
+   "dimensions": [0, 0, 0, 1, 0, 0, 0, 0, 0],
+   "names": {
+    "A": 1,
+    "daA": 10,
+    "hA": 100,
+    "kA": 1000,
+    "MA": 1000000,
+    "GA": 1000000000,
+    "TA": 1000000000000,
+    "PA": 1000000000000000,
+    "EA": 1000000000000000000,
+    "ZA": 1e+21,
+    "YA": 1e+24,
+    "RA": 1e+27,
+    "QA": 1e+30,
+    "dA": 0.1,
+    "cA": 0.01,
+    "mA": 0.001,
+    "uA": 0.000001,
+    "nA": 1e-9,
+    "pA": 1e-12,
+    "fA": 1e-15,
+    "aA": 1e-18,
+    "zA": 1e-21,
+    "yA": 1e-24,
+    "rA": 1e-27,
+    "qA": 1e-30
+   }
+  },
+  "ampere": {
+   "dimensions": [0, 0, 0, 1, 0, 0, 0, 0, 0],
+   "names": {
+    "ampere": 1,
+    "decaampere": 10,
+    "hectoampere": 100,
+    "kiloampere": 1000,
+    "megaampere": 1000000,
+    "gigaampere": 1000000000,
+    "teraampere": 1000000000000,
+    "petaampere": 1000000000000000,
+    "exaampere": 1000000000000000000,
+    "zettaampere": 1e+21,
+    "yottaampere": 1e+24,
+    "ronnaampere": 1e+27,
+    "quettaampere": 1e+30,
+    "deciampere": 0.1,
+    "centiampere": 0.01,
+    "milliampere": 0.001,
+    "microampere": 0.000001,
+    "nanoampere": 1e-9,
+    "picoampere": 1e-12,
+    "femtoampere": 1e-15,
+    "attoampere": 1e-18,
+    "zeptoampere": 1e-21,
+    "yoctoampere": 1e-24,
+    "rontoampere": 1e-27,
+    "quectoampere": 1e-30
+   }
+  },
+  "K": {
+   "dimensions": [0, 0, 0, 0, 1, 0, 0, 0, 0],
+   "names": {
+    "K": 1,
+    "daK": 10,
+    "hK": 100,
+    "kK": 1000,
+    "MK": 1000000,
+    "GK": 1000000000,
+    "TK": 1000000000000,
+    "PK": 1000000000000000,
+    "EK": 1000000000000000000,
+    "ZK": 1e+21,
+    "YK": 1e+24,
+    "RK": 1e+27,
+    "QK": 1e+30,
+    "dK": 0.1,
+    "cK": 0.01,
+    "mK": 0.001,
+    "uK": 0.000001,
+    "nK": 1e-9,
+    "pK": 1e-12,
+    "fK": 1e-15,
+    "aK": 1e-18,
+    "zK": 1e-21,
+    "yK": 1e-24,
+    "rK": 1e-27,
+    "qK": 1e-30
+   }
+  },
+  "degC": {
+   "dimensions": [0, 0, 0, 0, 1, 0, 0, 0, 0],
+   "names": {
+    "degC": 274.15,
+    "dadegC": 283.15,
+    "hdegC": 373.15,
+    "kdegC": 1273.15,
+    "MdegC": 1000273.15,
+    "GdegC": 1000000273.15,
+    "TdegC": 1000000000273.15,
+    "PdegC": 1000000000000273.1,
+    "EdegC": 1000000000000000300,
+    "ZdegC": 1e+21,
+    "YdegC": 1e+24,
+    "RdegC": 1e+27,
+    "QdegC": 1e+30,
+    "ddegC": 273.25,
+    "cdegC": 273.15999999999997,
+    "mdegC": 273.15099999999995,
+    "udegC": 273.150001,
+    "ndegC": 273.15000000099997,
+    "pdegC": 273.150000000001,
+    "fdegC": 273.15,
+    "adegC": 273.15,
+    "zdegC": 273.15,
+    "ydegC": 273.15,
+    "rdegC": 273.15,
+    "qdegC": 273.15
+   }
+  },
+  "degF": {
+   "dimensions": [0, 0, 0, 0, 1, 0, 0, 0, 0],
+   "names": {
+    "degF": 255.92777777777778,
+    "dadegF": 260.9277777777778,
+    "hdegF": 310.9277777777778,
+    "kdegF": 810.9277777777778,
+    "MdegF": 555810.9277777779,
+    "GdegF": 555555810.9277778,
+    "TdegF": 555555555810.9277,
+    "PdegF": 555555555555810.94,
+    "EdegF": 555555555555555840,
+    "ZdegF": 555555555555555600000,
+    "YdegF": 5.5555555555555555e+23,
+    "RdegF": 5.555555555555556e+26,
+    "QdegF": 5.555555555555556e+29,
+    "ddegF": 255.42777777777778,
+    "cdegF": 255.3777777777778,
+    "mdegF": 255.3727777777778,
+    "udegF": 255.37222277777778,
+    "ndegF": 255.3722222227778,
+    "pdegF": 255.3722222222228,
+    "fdegF": 255.37222222222223,
+    "adegF": 255.37222222222223,
+    "zdegF": 255.37222222222223,
+    "ydegF": 255.37222222222223,
+    "rdegF": 255.37222222222223,
+    "qdegF": 255.37222222222223
+   }
+  },
+  "degR": {
+   "dimensions": [0, 0, 0, 0, 1, 0, 0, 0, 0],
+   "names": {
+    "degR": 0.5555555555555556,
+    "dadegR": 5.555555555555555,
+    "hdegR": 55.55555555555556,
+    "kdegR": 555.5555555555555,
+    "MdegR": 555555.5555555556,
+    "GdegR": 555555555.5555556,
+    "TdegR": 555555555555.5555,
+    "PdegR": 555555555555555.56,
+    "EdegR": 555555555555555600,
+    "ZdegR": 555555555555555600000,
+    "YdegR": 5.5555555555555555e+23,
+    "RdegR": 5.555555555555556e+26,
+    "QdegR": 5.555555555555556e+29,
+    "ddegR": 0.05555555555555556,
+    "cdegR": 0.005555555555555556,
+    "mdegR": 0.0005555555555555556,
+    "udegR": 5.555555555555555e-7,
+    "ndegR": 5.555555555555556e-10,
+    "pdegR": 5.555555555555556e-13,
+    "fdegR": 5.555555555555556e-16,
+    "adegR": 5.5555555555555565e-19,
+    "zdegR": 5.555555555555555e-22,
+    "ydegR": 5.555555555555556e-25,
+    "rdegR": 5.555555555555556e-28,
+    "qdegR": 5.555555555555556e-31
+   }
+  },
+  "kelvin": {
+   "dimensions": [0, 0, 0, 0, 1, 0, 0, 0, 0],
+   "names": {
+    "kelvin": 1,
+    "decakelvin": 10,
+    "hectokelvin": 100,
+    "kilokelvin": 1000,
+    "megakelvin": 1000000,
+    "gigakelvin": 1000000000,
+    "terakelvin": 1000000000000,
+    "petakelvin": 1000000000000000,
+    "exakelvin": 1000000000000000000,
+    "zettakelvin": 1e+21,
+    "yottakelvin": 1e+24,
+    "ronnakelvin": 1e+27,
+    "quettakelvin": 1e+30,
+    "decikelvin": 0.1,
+    "centikelvin": 0.01,
+    "millikelvin": 0.001,
+    "microkelvin": 0.000001,
+    "nanokelvin": 1e-9,
+    "picokelvin": 1e-12,
+    "femtokelvin": 1e-15,
+    "attokelvin": 1e-18,
+    "zeptokelvin": 1e-21,
+    "yoctokelvin": 1e-24,
+    "rontokelvin": 1e-27,
+    "quectokelvin": 1e-30
+   }
+  },
+  "celsius": {
+   "dimensions": [0, 0, 0, 0, 1, 0, 0, 0, 0],
+   "names": {
+    "celsius": 274.15,
+    "decacelsius": 283.15,
+    "hectocelsius": 373.15,
+    "kilocelsius": 1273.15,
+    "megacelsius": 1000273.15,
+    "gigacelsius": 1000000273.15,
+    "teracelsius": 1000000000273.15,
+    "petacelsius": 1000000000000273.1,
+    "exacelsius": 1000000000000000300,
+    "zettacelsius": 1e+21,
+    "yottacelsius": 1e+24,
+    "ronnacelsius": 1e+27,
+    "quettacelsius": 1e+30,
+    "decicelsius": 273.25,
+    "centicelsius": 273.15999999999997,
+    "millicelsius": 273.15099999999995,
+    "microcelsius": 273.150001,
+    "nanocelsius": 273.15000000099997,
+    "picocelsius": 273.150000000001,
+    "femtocelsius": 273.15,
+    "attocelsius": 273.15,
+    "zeptocelsius": 273.15,
+    "yoctocelsius": 273.15,
+    "rontocelsius": 273.15,
+    "quectocelsius": 273.15
+   }
+  },
+  "fahrenheit": {
+   "dimensions": [0, 0, 0, 0, 1, 0, 0, 0, 0],
+   "names": {
+    "fahrenheit": 255.92777777777778,
+    "decafahrenheit": 260.9277777777778,
+    "hectofahrenheit": 310.9277777777778,
+    "kilofahrenheit": 810.9277777777778,
+    "megafahrenheit": 555810.9277777779,
+    "gigafahrenheit": 555555810.9277778,
+    "terafahrenheit": 555555555810.9277,
+    "petafahrenheit": 555555555555810.94,
+    "exafahrenheit": 555555555555555840,
+    "zettafahrenheit": 555555555555555600000,
+    "yottafahrenheit": 5.5555555555555555e+23,
+    "ronnafahrenheit": 5.555555555555556e+26,
+    "quettafahrenheit": 5.555555555555556e+29,
+    "decifahrenheit": 255.42777777777778,
+    "centifahrenheit": 255.3777777777778,
+    "millifahrenheit": 255.3727777777778,
+    "microfahrenheit": 255.37222277777778,
+    "nanofahrenheit": 255.3722222227778,
+    "picofahrenheit": 255.3722222222228,
+    "femtofahrenheit": 255.37222222222223,
+    "attofahrenheit": 255.37222222222223,
+    "zeptofahrenheit": 255.37222222222223,
+    "yoctofahrenheit": 255.37222222222223,
+    "rontofahrenheit": 255.37222222222223,
+    "quectofahrenheit": 255.37222222222223
+   }
+  },
+  "rankine": {
+   "dimensions": [0, 0, 0, 0, 1, 0, 0, 0, 0],
+   "names": {
+    "rankine": 0.5555555555555556,
+    "decarankine": 5.555555555555555,
+    "hectorankine": 55.55555555555556,
+    "kilorankine": 555.5555555555555,
+    "megarankine": 555555.5555555556,
+    "gigarankine": 555555555.5555556,
+    "terarankine": 555555555555.5555,
+    "petarankine": 555555555555555.56,
+    "exarankine": 555555555555555600,
+    "zettarankine": 555555555555555600000,
+    "yottarankine": 5.5555555555555555e+23,
+    "ronnarankine": 5.555555555555556e+26,
+    "quettarankine": 5.555555555555556e+29,
+    "decirankine": 0.05555555555555556,
+    "centirankine": 0.005555555555555556,
+    "millirankine": 0.0005555555555555556,
+    "microrankine": 5.555555555555555e-7,
+    "nanorankine": 5.555555555555556e-10,
+    "picorankine": 5.555555555555556e-13,
+    "femtorankine": 5.555555555555556e-16,
+    "attorankine": 5.5555555555555565e-19,
+    "zeptorankine": 5.555555555555555e-22,
+    "yoctorankine": 5.555555555555556e-25,
+    "rontorankine": 5.555555555555556e-28,
+    "quectorankine": 5.555555555555556e-31
+   }
+  },
+  "mol": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 1, 0, 0],
+   "names": {
+    "mol": 1,
+    "damol": 10,
+    "hmol": 100,
+    "kmol": 1000,
+    "Mmol": 1000000,
+    "Gmol": 1000000000,
+    "Tmol": 1000000000000,
+    "Pmol": 1000000000000000,
+    "Emol": 1000000000000000000,
+    "Zmol": 1e+21,
+    "Ymol": 1e+24,
+    "Rmol": 1e+27,
+    "Qmol": 1e+30,
+    "dmol": 0.1,
+    "cmol": 0.01,
+    "mmol": 0.001,
+    "umol": 0.000001,
+    "nmol": 1e-9,
+    "pmol": 1e-12,
+    "fmol": 1e-15,
+    "amol": 1e-18,
+    "zmol": 1e-21,
+    "ymol": 1e-24,
+    "rmol": 1e-27,
+    "qmol": 1e-30
+   }
+  },
+  "mole": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 1, 0, 0],
+   "names": {
+    "mole": 1,
+    "decamole": 10,
+    "hectomole": 100,
+    "kilomole": 1000,
+    "megamole": 1000000,
+    "gigamole": 1000000000,
+    "teramole": 1000000000000,
+    "petamole": 1000000000000000,
+    "examole": 1000000000000000000,
+    "zettamole": 1e+21,
+    "yottamole": 1e+24,
+    "ronnamole": 1e+27,
+    "quettamole": 1e+30,
+    "decimole": 0.1,
+    "centimole": 0.01,
+    "millimole": 0.001,
+    "micromole": 0.000001,
+    "nanomole": 1e-9,
+    "picomole": 1e-12,
+    "femtomole": 1e-15,
+    "attomole": 1e-18,
+    "zeptomole": 1e-21,
+    "yoctomole": 1e-24,
+    "rontomole": 1e-27,
+    "quectomole": 1e-30
+   }
+  },
+  "cd": {
+   "dimensions": [0, 0, 0, 0, 0, 1, 0, 0, 0],
+   "names": {
+    "cd": 1,
+    "dacd": 10,
+    "hcd": 100,
+    "kcd": 1000,
+    "Mcd": 1000000,
+    "Gcd": 1000000000,
+    "Tcd": 1000000000000,
+    "Pcd": 1000000000000000,
+    "Ecd": 1000000000000000000,
+    "Zcd": 1e+21,
+    "Ycd": 1e+24,
+    "Rcd": 1e+27,
+    "Qcd": 1e+30,
+    "dcd": 0.1,
+    "ccd": 0.01,
+    "mcd": 0.001,
+    "ucd": 0.000001,
+    "ncd": 1e-9,
+    "pcd": 1e-12,
+    "fcd": 1e-15,
+    "acd": 1e-18,
+    "zcd": 1e-21,
+    "ycd": 1e-24,
+    "rcd": 1e-27,
+    "qcd": 1e-30
+   }
+  },
+  "candela": {
+   "dimensions": [0, 0, 0, 0, 0, 1, 0, 0, 0],
+   "names": {
+    "candela": 1,
+    "decacandela": 10,
+    "hectocandela": 100,
+    "kilocandela": 1000,
+    "megacandela": 1000000,
+    "gigacandela": 1000000000,
+    "teracandela": 1000000000000,
+    "petacandela": 1000000000000000,
+    "exacandela": 1000000000000000000,
+    "zettacandela": 1e+21,
+    "yottacandela": 1e+24,
+    "ronnacandela": 1e+27,
+    "quettacandela": 1e+30,
+    "decicandela": 0.1,
+    "centicandela": 0.01,
+    "millicandela": 0.001,
+    "microcandela": 0.000001,
+    "nanocandela": 1e-9,
+    "picocandela": 1e-12,
+    "femtocandela": 1e-15,
+    "attocandela": 1e-18,
+    "zeptocandela": 1e-21,
+    "yoctocandela": 1e-24,
+    "rontocandela": 1e-27,
+    "quectocandela": 1e-30
+   }
+  },
+  "N": {
+   "dimensions": [1, 1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "N": 1,
+    "daN": 10,
+    "hN": 100,
+    "kN": 1000,
+    "MN": 1000000,
+    "GN": 1000000000,
+    "TN": 1000000000000,
+    "PN": 1000000000000000,
+    "EN": 1000000000000000000,
+    "ZN": 1e+21,
+    "YN": 1e+24,
+    "RN": 1e+27,
+    "QN": 1e+30,
+    "dN": 0.1,
+    "cN": 0.01,
+    "mN": 0.001,
+    "uN": 0.000001,
+    "nN": 1e-9,
+    "pN": 1e-12,
+    "fN": 1e-15,
+    "aN": 1e-18,
+    "zN": 1e-21,
+    "yN": 1e-24,
+    "rN": 1e-27,
+    "qN": 1e-30
+   }
+  },
+  "newton": {
+   "dimensions": [1, 1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "newton": 1,
+    "decanewton": 10,
+    "hectonewton": 100,
+    "kilonewton": 1000,
+    "meganewton": 1000000,
+    "giganewton": 1000000000,
+    "teranewton": 1000000000000,
+    "petanewton": 1000000000000000,
+    "exanewton": 1000000000000000000,
+    "zettanewton": 1e+21,
+    "yottanewton": 1e+24,
+    "ronnanewton": 1e+27,
+    "quettanewton": 1e+30,
+    "decinewton": 0.1,
+    "centinewton": 0.01,
+    "millinewton": 0.001,
+    "micronewton": 0.000001,
+    "nanonewton": 1e-9,
+    "piconewton": 1e-12,
+    "femtonewton": 1e-15,
+    "attonewton": 1e-18,
+    "zeptonewton": 1e-21,
+    "yoctonewton": 1e-24,
+    "rontonewton": 1e-27,
+    "quectonewton": 1e-30
+   }
+  },
+  "dyn": {
+   "dimensions": [1, 1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "dyn": 0.00001,
+    "dadyn": 0.0001,
+    "hdyn": 0.001,
+    "kdyn": 0.01,
+    "Mdyn": 10,
+    "Gdyn": 10000,
+    "Tdyn": 10000000,
+    "Pdyn": 10000000000,
+    "Edyn": 10000000000000,
+    "Zdyn": 10000000000000000,
+    "Ydyn": 10000000000000000000,
+    "Rdyn": 1e+22,
+    "Qdyn": 1e+25,
+    "ddyn": 0.0000010000000000000002,
+    "cdyn": 1.0000000000000001e-7,
+    "mdyn": 1e-8,
+    "udyn": 1.0000000000000001e-11,
+    "ndyn": 1.0000000000000002e-14,
+    "pdyn": 1e-17,
+    "fdyn": 1.0000000000000001e-20,
+    "adyn": 1.0000000000000001e-23,
+    "zdyn": 1e-26,
+    "ydyn": 1e-29,
+    "rdyn": 1e-32,
+    "qdyn": 1.0000000000000001e-35
+   }
+  },
+  "dyne": {
+   "dimensions": [1, 1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "dyne": 0.00001,
+    "decadyne": 0.0001,
+    "hectodyne": 0.001,
+    "kilodyne": 0.01,
+    "megadyne": 10,
+    "gigadyne": 10000,
+    "teradyne": 10000000,
+    "petadyne": 10000000000,
+    "exadyne": 10000000000000,
+    "zettadyne": 10000000000000000,
+    "yottadyne": 10000000000000000000,
+    "ronnadyne": 1e+22,
+    "quettadyne": 1e+25,
+    "decidyne": 0.0000010000000000000002,
+    "centidyne": 1.0000000000000001e-7,
+    "millidyne": 1e-8,
+    "microdyne": 1.0000000000000001e-11,
+    "nanodyne": 1.0000000000000002e-14,
+    "picodyne": 1e-17,
+    "femtodyne": 1.0000000000000001e-20,
+    "attodyne": 1.0000000000000001e-23,
+    "zeptodyne": 1e-26,
+    "yoctodyne": 1e-29,
+    "rontodyne": 1e-32,
+    "quectodyne": 1.0000000000000001e-35
+   }
+  },
+  "lbf": {
+   "dimensions": [1, 1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "lbf": 4.4482216152605
+   }
+  },
+  "poundforce": {
+   "dimensions": [1, 1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "poundforce": 4.4482216152605
+   }
+  },
+  "kip": {
+   "dimensions": [1, 1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "kip": 4448.2216,
+    "decakip": 44482.216,
+    "hectokip": 444822.16,
+    "kilokip": 4448221.6,
+    "megakip": 4448221600,
+    "gigakip": 4448221600000,
+    "terakip": 4448221600000000,
+    "petakip": 4448221600000000000,
+    "exakip": 4.4482216e+21,
+    "zettakip": 4.4482216e+24,
+    "yottakip": 4.4482216e+27,
+    "ronnakip": 4.4482216e+30,
+    "quettakip": 4.4482216e+33,
+    "decikip": 444.82216,
+    "centikip": 44.482216,
+    "millikip": 4.4482216,
+    "microkip": 0.0044482216,
+    "nanokip": 0.0000044482216000000005,
+    "picokip": 4.4482216e-9,
+    "femtokip": 4.4482216e-12,
+    "attokip": 4.4482216e-15,
+    "zeptokip": 4.448221599999999e-18,
+    "yoctokip": 4.4482215999999994e-21,
+    "rontokip": 4.4482216e-24,
+    "quectokip": 4.4482216e-27
+   }
+  },
+  "kilogramforce": {
+   "dimensions": [1, 1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "kilogramforce": 9.80665
+   }
+  },
+  "J": {
+   "dimensions": [1, 2, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "J": 1,
+    "daJ": 10,
+    "hJ": 100,
+    "kJ": 1000,
+    "MJ": 1000000,
+    "GJ": 1000000000,
+    "TJ": 1000000000000,
+    "PJ": 1000000000000000,
+    "EJ": 1000000000000000000,
+    "ZJ": 1e+21,
+    "YJ": 1e+24,
+    "RJ": 1e+27,
+    "QJ": 1e+30,
+    "dJ": 0.1,
+    "cJ": 0.01,
+    "mJ": 0.001,
+    "uJ": 0.000001,
+    "nJ": 1e-9,
+    "pJ": 1e-12,
+    "fJ": 1e-15,
+    "aJ": 1e-18,
+    "zJ": 1e-21,
+    "yJ": 1e-24,
+    "rJ": 1e-27,
+    "qJ": 1e-30
+   }
+  },
+  "joule": {
+   "dimensions": [1, 2, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "joule": 1,
+    "decajoule": 10,
+    "hectojoule": 100,
+    "kilojoule": 1000,
+    "megajoule": 1000000,
+    "gigajoule": 1000000000,
+    "terajoule": 1000000000000,
+    "petajoule": 1000000000000000,
+    "exajoule": 1000000000000000000,
+    "zettajoule": 1e+21,
+    "yottajoule": 1e+24,
+    "ronnajoule": 1e+27,
+    "quettajoule": 1e+30,
+    "decijoule": 0.1,
+    "centijoule": 0.01,
+    "millijoule": 0.001,
+    "microjoule": 0.000001,
+    "nanojoule": 1e-9,
+    "picojoule": 1e-12,
+    "femtojoule": 1e-15,
+    "attojoule": 1e-18,
+    "zeptojoule": 1e-21,
+    "yoctojoule": 1e-24,
+    "rontojoule": 1e-27,
+    "quectojoule": 1e-30
+   }
+  },
+  "erg": {
+   "dimensions": [1, 2, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "erg": 1e-7,
+    "daerg": 0.000001,
+    "herg": 0.000009999999999999999,
+    "kerg": 0.00009999999999999999,
+    "Merg": 0.09999999999999999,
+    "Gerg": 100,
+    "Terg": 100000,
+    "Perg": 100000000,
+    "Eerg": 100000000000,
+    "Zerg": 100000000000000,
+    "Yerg": 100000000000000000,
+    "Rerg": 100000000000000000000,
+    "Qerg": 1e+23,
+    "derg": 1e-8,
+    "cerg": 1e-9,
+    "merg": 1e-10,
+    "uerg": 9.999999999999999e-14,
+    "nerg": 1e-16,
+    "perg": 1e-19,
+    "ferg": 1e-22,
+    "aerg": 1e-25,
+    "zerg": 9.999999999999999e-29,
+    "yerg": 9.999999999999999e-32,
+    "rerg": 1e-34,
+    "qerg": 1e-37,
+    "decaerg": 0.000001,
+    "hectoerg": 0.000009999999999999999,
+    "kiloerg": 0.00009999999999999999,
+    "megaerg": 0.09999999999999999,
+    "gigaerg": 100,
+    "teraerg": 100000,
+    "petaerg": 100000000,
+    "exaerg": 100000000000,
+    "zettaerg": 100000000000000,
+    "yottaerg": 100000000000000000,
+    "ronnaerg": 100000000000000000000,
+    "quettaerg": 1e+23,
+    "decierg": 1e-8,
+    "centierg": 1e-9,
+    "millierg": 1e-10,
+    "microerg": 9.999999999999999e-14,
+    "nanoerg": 1e-16,
+    "picoerg": 1e-19,
+    "femtoerg": 1e-22,
+    "attoerg": 1e-25,
+    "zeptoerg": 9.999999999999999e-29,
+    "yoctoerg": 9.999999999999999e-32,
+    "rontoerg": 1e-34,
+    "quectoerg": 1e-37
+   }
+  },
+  "Wh": {
+   "dimensions": [1, 2, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "Wh": 3600,
+    "daWh": 36000,
+    "hWh": 360000,
+    "kWh": 3600000,
+    "MWh": 3600000000,
+    "GWh": 3600000000000,
+    "TWh": 3600000000000000,
+    "PWh": 3600000000000000000,
+    "EWh": 3.6e+21,
+    "ZWh": 3.6e+24,
+    "YWh": 3.6e+27,
+    "RWh": 3.6e+30,
+    "QWh": 3.6e+33,
+    "dWh": 360,
+    "cWh": 36,
+    "mWh": 3.6,
+    "uWh": 0.0036,
+    "nWh": 0.0000036000000000000003,
+    "pWh": 3.6e-9,
+    "fWh": 3.6000000000000004e-12,
+    "aWh": 3.6e-15,
+    "zWh": 3.599999999999999e-18,
+    "yWh": 3.6e-21,
+    "rWh": 3.6e-24,
+    "qWh": 3.6000000000000006e-27
+   }
+  },
+  "BTU": {
+   "dimensions": [1, 2, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "BTU": 1055.05585262,
+    "MMBTU": 1055055852.62
+   }
+  },
+  "eV": {
+   "dimensions": [1, 2, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "eV": 1.602176565e-19,
+    "daeV": 1.602176565e-18,
+    "heV": 1.602176565e-17,
+    "keV": 1.602176565e-16,
+    "MeV": 1.602176565e-13,
+    "GeV": 1.602176565e-10,
+    "TeV": 1.602176565e-7,
+    "PeV": 0.0001602176565,
+    "EeV": 0.1602176565,
+    "ZeV": 160.2176565,
+    "YeV": 160217.6565,
+    "ReV": 160217656.5,
+    "QeV": 160217656500,
+    "deV": 1.6021765650000002e-20,
+    "ceV": 1.602176565e-21,
+    "meV": 1.602176565e-22,
+    "ueV": 1.602176565e-25,
+    "neV": 1.6021765650000001e-28,
+    "peV": 1.602176565e-31,
+    "feV": 1.6021765650000003e-34,
+    "aeV": 1.602176565e-37,
+    "zeV": 1.602176565e-40,
+    "yeV": 1.6021765649999998e-43,
+    "reV": 1.6021765650000001e-46,
+    "qeV": 1.602176565e-49
+   }
+  },
+  "electronvolt": {
+   "dimensions": [1, 2, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "electronvolt": 1.602176565e-19,
+    "decaelectronvolt": 1.602176565e-18,
+    "hectoelectronvolt": 1.602176565e-17,
+    "kiloelectronvolt": 1.602176565e-16,
+    "megaelectronvolt": 1.602176565e-13,
+    "gigaelectronvolt": 1.602176565e-10,
+    "teraelectronvolt": 1.602176565e-7,
+    "petaelectronvolt": 0.0001602176565,
+    "exaelectronvolt": 0.1602176565,
+    "zettaelectronvolt": 160.2176565,
+    "yottaelectronvolt": 160217.6565,
+    "ronnaelectronvolt": 160217656.5,
+    "quettaelectronvolt": 160217656500,
+    "decielectronvolt": 1.6021765650000002e-20,
+    "centielectronvolt": 1.602176565e-21,
+    "millielectronvolt": 1.602176565e-22,
+    "microelectronvolt": 1.602176565e-25,
+    "nanoelectronvolt": 1.6021765650000001e-28,
+    "picoelectronvolt": 1.602176565e-31,
+    "femtoelectronvolt": 1.6021765650000003e-34,
+    "attoelectronvolt": 1.602176565e-37,
+    "zeptoelectronvolt": 1.602176565e-40,
+    "yoctoelectronvolt": 1.6021765649999998e-43,
+    "rontoelectronvolt": 1.6021765650000001e-46,
+    "quectoelectronvolt": 1.602176565e-49
+   }
+  },
+  "W": {
+   "dimensions": [1, 2, -3, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "W": 1,
+    "daW": 10,
+    "hW": 100,
+    "kW": 1000,
+    "MW": 1000000,
+    "GW": 1000000000,
+    "TW": 1000000000000,
+    "PW": 1000000000000000,
+    "EW": 1000000000000000000,
+    "ZW": 1e+21,
+    "YW": 1e+24,
+    "RW": 1e+27,
+    "QW": 1e+30,
+    "dW": 0.1,
+    "cW": 0.01,
+    "mW": 0.001,
+    "uW": 0.000001,
+    "nW": 1e-9,
+    "pW": 1e-12,
+    "fW": 1e-15,
+    "aW": 1e-18,
+    "zW": 1e-21,
+    "yW": 1e-24,
+    "rW": 1e-27,
+    "qW": 1e-30
+   }
+  },
+  "watt": {
+   "dimensions": [1, 2, -3, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "watt": 1,
+    "decawatt": 10,
+    "hectowatt": 100,
+    "kilowatt": 1000,
+    "megawatt": 1000000,
+    "gigawatt": 1000000000,
+    "terawatt": 1000000000000,
+    "petawatt": 1000000000000000,
+    "exawatt": 1000000000000000000,
+    "zettawatt": 1e+21,
+    "yottawatt": 1e+24,
+    "ronnawatt": 1e+27,
+    "quettawatt": 1e+30,
+    "deciwatt": 0.1,
+    "centiwatt": 0.01,
+    "milliwatt": 0.001,
+    "microwatt": 0.000001,
+    "nanowatt": 1e-9,
+    "picowatt": 1e-12,
+    "femtowatt": 1e-15,
+    "attowatt": 1e-18,
+    "zeptowatt": 1e-21,
+    "yoctowatt": 1e-24,
+    "rontowatt": 1e-27,
+    "quectowatt": 1e-30
+   }
+  },
+  "hp": {
+   "dimensions": [1, 2, -3, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "hp": 745.6998715386
+   }
+  },
+  "VAR": {
+   "dimensions": [1, 2, -3, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "VAR": {
+     "re": 0,
+     "im": 1
+    },
+    "daVAR": {
+     "re": 0,
+     "im": 10
+    },
+    "hVAR": {
+     "re": 0,
+     "im": 100
+    },
+    "kVAR": {
+     "re": 0,
+     "im": 1000
+    },
+    "MVAR": {
+     "re": 0,
+     "im": 1000000
+    },
+    "GVAR": {
+     "re": 0,
+     "im": 1000000000
+    },
+    "TVAR": {
+     "re": 0,
+     "im": 1000000000000
+    },
+    "PVAR": {
+     "re": 0,
+     "im": 1000000000000000
+    },
+    "EVAR": {
+     "re": 0,
+     "im": 1000000000000000000
+    },
+    "ZVAR": {
+     "re": 0,
+     "im": 1e+21
+    },
+    "YVAR": {
+     "re": 0,
+     "im": 1e+24
+    },
+    "RVAR": {
+     "re": 0,
+     "im": 1e+27
+    },
+    "QVAR": {
+     "re": 0,
+     "im": 1e+30
+    },
+    "dVAR": {
+     "re": 0,
+     "im": 0.1
+    },
+    "cVAR": {
+     "re": 0,
+     "im": 0.01
+    },
+    "mVAR": {
+     "re": 0,
+     "im": 0.001
+    },
+    "uVAR": {
+     "re": 0,
+     "im": 0.000001
+    },
+    "nVAR": {
+     "re": 0,
+     "im": 1e-9
+    },
+    "pVAR": {
+     "re": 0,
+     "im": 1e-12
+    },
+    "fVAR": {
+     "re": 0,
+     "im": 1e-15
+    },
+    "aVAR": {
+     "re": 0,
+     "im": 1e-18
+    },
+    "zVAR": {
+     "re": 0,
+     "im": 1e-21
+    },
+    "yVAR": {
+     "re": 0,
+     "im": 1e-24
+    },
+    "rVAR": {
+     "re": 0,
+     "im": 1e-27
+    },
+    "qVAR": {
+     "re": 0,
+     "im": 1e-30
+    }
+   }
+  },
+  "VA": {
+   "dimensions": [1, 2, -3, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "VA": 1,
+    "daVA": 10,
+    "hVA": 100,
+    "kVA": 1000,
+    "MVA": 1000000,
+    "GVA": 1000000000,
+    "TVA": 1000000000000,
+    "PVA": 1000000000000000,
+    "EVA": 1000000000000000000,
+    "ZVA": 1e+21,
+    "YVA": 1e+24,
+    "RVA": 1e+27,
+    "QVA": 1e+30,
+    "dVA": 0.1,
+    "cVA": 0.01,
+    "mVA": 0.001,
+    "uVA": 0.000001,
+    "nVA": 1e-9,
+    "pVA": 1e-12,
+    "fVA": 1e-15,
+    "aVA": 1e-18,
+    "zVA": 1e-21,
+    "yVA": 1e-24,
+    "rVA": 1e-27,
+    "qVA": 1e-30
+   }
+  },
+  "Pa": {
+   "dimensions": [1, -1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "Pa": 1,
+    "daPa": 10,
+    "hPa": 100,
+    "kPa": 1000,
+    "MPa": 1000000,
+    "GPa": 1000000000,
+    "TPa": 1000000000000,
+    "PPa": 1000000000000000,
+    "EPa": 1000000000000000000,
+    "ZPa": 1e+21,
+    "YPa": 1e+24,
+    "RPa": 1e+27,
+    "QPa": 1e+30,
+    "dPa": 0.1,
+    "cPa": 0.01,
+    "mPa": 0.001,
+    "uPa": 0.000001,
+    "nPa": 1e-9,
+    "pPa": 1e-12,
+    "fPa": 1e-15,
+    "aPa": 1e-18,
+    "zPa": 1e-21,
+    "yPa": 1e-24,
+    "rPa": 1e-27,
+    "qPa": 1e-30
+   }
+  },
+  "psi": {
+   "dimensions": [1, -1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "psi": 6894.75729276459
+   }
+  },
+  "atm": {
+   "dimensions": [1, -1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "atm": 101325
+   }
+  },
+  "bar": {
+   "dimensions": [1, -1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "bar": 100000,
+    "dabar": 1000000,
+    "hbar": 10000000,
+    "kbar": 100000000,
+    "Mbar": 100000000000,
+    "Gbar": 100000000000000,
+    "Tbar": 100000000000000000,
+    "Pbar": 100000000000000000000,
+    "Ebar": 1e+23,
+    "Zbar": 1e+26,
+    "Ybar": 1e+29,
+    "Rbar": 1e+32,
+    "Qbar": 1e+35,
+    "dbar": 10000,
+    "cbar": 1000,
+    "mbar": 100,
+    "ubar": 0.09999999999999999,
+    "nbar": 0.0001,
+    "pbar": 1e-7,
+    "fbar": 1e-10,
+    "abar": 1e-13,
+    "zbar": 9.999999999999999e-17,
+    "ybar": 1e-19,
+    "rbar": 1e-22,
+    "qbar": 1e-25,
+    "decabar": 1000000,
+    "hectobar": 10000000,
+    "kilobar": 100000000,
+    "megabar": 100000000000,
+    "gigabar": 100000000000000,
+    "terabar": 100000000000000000,
+    "petabar": 100000000000000000000,
+    "exabar": 1e+23,
+    "zettabar": 1e+26,
+    "yottabar": 1e+29,
+    "ronnabar": 1e+32,
+    "quettabar": 1e+35,
+    "decibar": 10000,
+    "centibar": 1000,
+    "millibar": 100,
+    "microbar": 0.09999999999999999,
+    "nanobar": 0.0001,
+    "picobar": 1e-7,
+    "femtobar": 1e-10,
+    "attobar": 1e-13,
+    "zeptobar": 9.999999999999999e-17,
+    "yoctobar": 1e-19,
+    "rontobar": 1e-22,
+    "quectobar": 1e-25
+   }
+  },
+  "torr": {
+   "dimensions": [1, -1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "torr": 133.322
+   }
+  },
+  "mmHg": {
+   "dimensions": [1, -1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "mmHg": 133.322
+   }
+  },
+  "mmH2O": {
+   "dimensions": [1, -1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "mmH2O": 9.80665
+   }
+  },
+  "cmH2O": {
+   "dimensions": [1, -1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "cmH2O": 98.0665
+   }
+  },
+  "coulomb": {
+   "dimensions": [0, 0, 1, 1, 0, 0, 0, 0, 0],
+   "names": {
+    "coulomb": 1,
+    "decacoulomb": 10,
+    "hectocoulomb": 100,
+    "kilocoulomb": 1000,
+    "megacoulomb": 1000000,
+    "gigacoulomb": 1000000000,
+    "teracoulomb": 1000000000000,
+    "petacoulomb": 1000000000000000,
+    "exacoulomb": 1000000000000000000,
+    "zettacoulomb": 1e+21,
+    "yottacoulomb": 1e+24,
+    "ronnacoulomb": 1e+27,
+    "quettacoulomb": 1e+30,
+    "decicoulomb": 0.1,
+    "centicoulomb": 0.01,
+    "millicoulomb": 0.001,
+    "microcoulomb": 0.000001,
+    "nanocoulomb": 1e-9,
+    "picocoulomb": 1e-12,
+    "femtocoulomb": 1e-15,
+    "attocoulomb": 1e-18,
+    "zeptocoulomb": 1e-21,
+    "yoctocoulomb": 1e-24,
+    "rontocoulomb": 1e-27,
+    "quectocoulomb": 1e-30
+   }
+  },
+  "C": {
+   "dimensions": [0, 0, 1, 1, 0, 0, 0, 0, 0],
+   "names": {
+    "C": 1,
+    "daC": 10,
+    "hC": 100,
+    "kC": 1000,
+    "MC": 1000000,
+    "GC": 1000000000,
+    "TC": 1000000000000,
+    "PC": 1000000000000000,
+    "EC": 1000000000000000000,
+    "ZC": 1e+21,
+    "YC": 1e+24,
+    "RC": 1e+27,
+    "QC": 1e+30,
+    "dC": 0.1,
+    "cC": 0.01,
+    "mC": 0.001,
+    "uC": 0.000001,
+    "nC": 1e-9,
+    "pC": 1e-12,
+    "fC": 1e-15,
+    "aC": 1e-18,
+    "zC": 1e-21,
+    "yC": 1e-24,
+    "rC": 1e-27,
+    "qC": 1e-30
+   }
+  },
+  "Ah": {
+   "dimensions": [0, 0, 1, 1, 0, 0, 0, 0, 0],
+   "names": {
+    "Ah": 3600,
+    "daAh": 36000,
+    "hAh": 360000,
+    "kAh": 3600000,
+    "MAh": 3600000000,
+    "GAh": 3600000000000,
+    "TAh": 3600000000000000,
+    "PAh": 3600000000000000000,
+    "EAh": 3.6e+21,
+    "ZAh": 3.6e+24,
+    "YAh": 3.6e+27,
+    "RAh": 3.6e+30,
+    "QAh": 3.6e+33,
+    "dAh": 360,
+    "cAh": 36,
+    "mAh": 3.6,
+    "uAh": 0.0036,
+    "nAh": 0.0000036000000000000003,
+    "pAh": 3.6e-9,
+    "fAh": 3.6000000000000004e-12,
+    "aAh": 3.6e-15,
+    "zAh": 3.599999999999999e-18,
+    "yAh": 3.6e-21,
+    "rAh": 3.6e-24,
+    "qAh": 3.6000000000000006e-27
+   }
+  },
+  "farad": {
+   "dimensions": [-1, -2, 4, 2, 0, 0, 0, 0, 0],
+   "names": {
+    "farad": 1,
+    "decafarad": 10,
+    "hectofarad": 100,
+    "kilofarad": 1000,
+    "megafarad": 1000000,
+    "gigafarad": 1000000000,
+    "terafarad": 1000000000000,
+    "petafarad": 1000000000000000,
+    "exafarad": 1000000000000000000,
+    "zettafarad": 1e+21,
+    "yottafarad": 1e+24,
+    "ronnafarad": 1e+27,
+    "quettafarad": 1e+30,
+    "decifarad": 0.1,
+    "centifarad": 0.01,
+    "millifarad": 0.001,
+    "microfarad": 0.000001,
+    "nanofarad": 1e-9,
+    "picofarad": 1e-12,
+    "femtofarad": 1e-15,
+    "attofarad": 1e-18,
+    "zeptofarad": 1e-21,
+    "yoctofarad": 1e-24,
+    "rontofarad": 1e-27,
+    "quectofarad": 1e-30
+   }
+  },
+  "F": {
+   "dimensions": [-1, -2, 4, 2, 0, 0, 0, 0, 0],
+   "names": {
+    "F": 1,
+    "daF": 10,
+    "hF": 100,
+    "kF": 1000,
+    "MF": 1000000,
+    "GF": 1000000000,
+    "TF": 1000000000000,
+    "PF": 1000000000000000,
+    "EF": 1000000000000000000,
+    "ZF": 1e+21,
+    "YF": 1e+24,
+    "RF": 1e+27,
+    "QF": 1e+30,
+    "dF": 0.1,
+    "cF": 0.01,
+    "mF": 0.001,
+    "uF": 0.000001,
+    "nF": 1e-9,
+    "pF": 1e-12,
+    "fF": 1e-15,
+    "aF": 1e-18,
+    "zF": 1e-21,
+    "yF": 1e-24,
+    "rF": 1e-27,
+    "qF": 1e-30
+   }
+  },
+  "volt": {
+   "dimensions": [1, 2, -3, -1, 0, 0, 0, 0, 0],
+   "names": {
+    "volt": 1,
+    "decavolt": 10,
+    "hectovolt": 100,
+    "kilovolt": 1000,
+    "megavolt": 1000000,
+    "gigavolt": 1000000000,
+    "teravolt": 1000000000000,
+    "petavolt": 1000000000000000,
+    "exavolt": 1000000000000000000,
+    "zettavolt": 1e+21,
+    "yottavolt": 1e+24,
+    "ronnavolt": 1e+27,
+    "quettavolt": 1e+30,
+    "decivolt": 0.1,
+    "centivolt": 0.01,
+    "millivolt": 0.001,
+    "microvolt": 0.000001,
+    "nanovolt": 1e-9,
+    "picovolt": 1e-12,
+    "femtovolt": 1e-15,
+    "attovolt": 1e-18,
+    "zeptovolt": 1e-21,
+    "yoctovolt": 1e-24,
+    "rontovolt": 1e-27,
+    "quectovolt": 1e-30
+   }
+  },
+  "V": {
+   "dimensions": [1, 2, -3, -1, 0, 0, 0, 0, 0],
+   "names": {
+    "V": 1,
+    "daV": 10,
+    "hV": 100,
+    "kV": 1000,
+    "MV": 1000000,
+    "GV": 1000000000,
+    "TV": 1000000000000,
+    "PV": 1000000000000000,
+    "EV": 1000000000000000000,
+    "ZV": 1e+21,
+    "YV": 1e+24,
+    "RV": 1e+27,
+    "QV": 1e+30,
+    "dV": 0.1,
+    "cV": 0.01,
+    "mV": 0.001,
+    "uV": 0.000001,
+    "nV": 1e-9,
+    "pV": 1e-12,
+    "fV": 1e-15,
+    "aV": 1e-18,
+    "zV": 1e-21,
+    "yV": 1e-24,
+    "rV": 1e-27,
+    "qV": 1e-30
+   }
+  },
+  "ohm": {
+   "dimensions": [1, 2, -3, -2, 0, 0, 0, 0, 0],
+   "names": {
+    "ohm": 1,
+    "daohm": 10,
+    "hohm": 100,
+    "kohm": 1000,
+    "Mohm": 1000000,
+    "Gohm": 1000000000,
+    "Tohm": 1000000000000,
+    "Pohm": 1000000000000000,
+    "Eohm": 1000000000000000000,
+    "Zohm": 1e+21,
+    "Yohm": 1e+24,
+    "Rohm": 1e+27,
+    "Qohm": 1e+30,
+    "dohm": 0.1,
+    "cohm": 0.01,
+    "mohm": 0.001,
+    "uohm": 0.000001,
+    "nohm": 1e-9,
+    "pohm": 1e-12,
+    "fohm": 1e-15,
+    "aohm": 1e-18,
+    "zohm": 1e-21,
+    "yohm": 1e-24,
+    "rohm": 1e-27,
+    "qohm": 1e-30,
+    "decaohm": 10,
+    "hectoohm": 100,
+    "kiloohm": 1000,
+    "megaohm": 1000000,
+    "gigaohm": 1000000000,
+    "teraohm": 1000000000000,
+    "petaohm": 1000000000000000,
+    "exaohm": 1000000000000000000,
+    "zettaohm": 1e+21,
+    "yottaohm": 1e+24,
+    "ronnaohm": 1e+27,
+    "quettaohm": 1e+30,
+    "deciohm": 0.1,
+    "centiohm": 0.01,
+    "milliohm": 0.001,
+    "microohm": 0.000001,
+    "nanoohm": 1e-9,
+    "picoohm": 1e-12,
+    "femtoohm": 1e-15,
+    "attoohm": 1e-18,
+    "zeptoohm": 1e-21,
+    "yoctoohm": 1e-24,
+    "rontoohm": 1e-27,
+    "quectoohm": 1e-30
+   }
+  },
+  "henry": {
+   "dimensions": [1, 2, -2, -2, 0, 0, 0, 0, 0],
+   "names": {
+    "henry": 1,
+    "decahenry": 10,
+    "hectohenry": 100,
+    "kilohenry": 1000,
+    "megahenry": 1000000,
+    "gigahenry": 1000000000,
+    "terahenry": 1000000000000,
+    "petahenry": 1000000000000000,
+    "exahenry": 1000000000000000000,
+    "zettahenry": 1e+21,
+    "yottahenry": 1e+24,
+    "ronnahenry": 1e+27,
+    "quettahenry": 1e+30,
+    "decihenry": 0.1,
+    "centihenry": 0.01,
+    "millihenry": 0.001,
+    "microhenry": 0.000001,
+    "nanohenry": 1e-9,
+    "picohenry": 1e-12,
+    "femtohenry": 1e-15,
+    "attohenry": 1e-18,
+    "zeptohenry": 1e-21,
+    "yoctohenry": 1e-24,
+    "rontohenry": 1e-27,
+    "quectohenry": 1e-30
+   }
+  },
+  "H": {
+   "dimensions": [1, 2, -2, -2, 0, 0, 0, 0, 0],
+   "names": {
+    "H": 1,
+    "daH": 10,
+    "hH": 100,
+    "kH": 1000,
+    "MH": 1000000,
+    "GH": 1000000000,
+    "TH": 1000000000000,
+    "PH": 1000000000000000,
+    "EH": 1000000000000000000,
+    "ZH": 1e+21,
+    "YH": 1e+24,
+    "RH": 1e+27,
+    "QH": 1e+30,
+    "dH": 0.1,
+    "cH": 0.01,
+    "mH": 0.001,
+    "uH": 0.000001,
+    "nH": 1e-9,
+    "pH": 1e-12,
+    "fH": 1e-15,
+    "aH": 1e-18,
+    "zH": 1e-21,
+    "yH": 1e-24,
+    "rH": 1e-27,
+    "qH": 1e-30
+   }
+  },
+  "siemens": {
+   "dimensions": [-1, -2, 3, 2, 0, 0, 0, 0, 0],
+   "names": {
+    "siemens": 1,
+    "decasiemens": 10,
+    "hectosiemens": 100,
+    "kilosiemens": 1000,
+    "megasiemens": 1000000,
+    "gigasiemens": 1000000000,
+    "terasiemens": 1000000000000,
+    "petasiemens": 1000000000000000,
+    "exasiemens": 1000000000000000000,
+    "zettasiemens": 1e+21,
+    "yottasiemens": 1e+24,
+    "ronnasiemens": 1e+27,
+    "quettasiemens": 1e+30,
+    "decisiemens": 0.1,
+    "centisiemens": 0.01,
+    "millisiemens": 0.001,
+    "microsiemens": 0.000001,
+    "nanosiemens": 1e-9,
+    "picosiemens": 1e-12,
+    "femtosiemens": 1e-15,
+    "attosiemens": 1e-18,
+    "zeptosiemens": 1e-21,
+    "yoctosiemens": 1e-24,
+    "rontosiemens": 1e-27,
+    "quectosiemens": 1e-30
+   }
+  },
+  "S": {
+   "dimensions": [-1, -2, 3, 2, 0, 0, 0, 0, 0],
+   "names": {
+    "S": 1,
+    "daS": 10,
+    "hS": 100,
+    "kS": 1000,
+    "MS": 1000000,
+    "GS": 1000000000,
+    "TS": 1000000000000,
+    "PS": 1000000000000000,
+    "ES": 1000000000000000000,
+    "ZS": 1e+21,
+    "YS": 1e+24,
+    "RS": 1e+27,
+    "QS": 1e+30,
+    "dS": 0.1,
+    "cS": 0.01,
+    "mS": 0.001,
+    "uS": 0.000001,
+    "nS": 1e-9,
+    "pS": 1e-12,
+    "fS": 1e-15,
+    "aS": 1e-18,
+    "zS": 1e-21,
+    "yS": 1e-24,
+    "rS": 1e-27,
+    "qS": 1e-30
+   }
+  },
+  "weber": {
+   "dimensions": [1, 2, -2, -1, 0, 0, 0, 0, 0],
+   "names": {
+    "weber": 1,
+    "decaweber": 10,
+    "hectoweber": 100,
+    "kiloweber": 1000,
+    "megaweber": 1000000,
+    "gigaweber": 1000000000,
+    "teraweber": 1000000000000,
+    "petaweber": 1000000000000000,
+    "exaweber": 1000000000000000000,
+    "zettaweber": 1e+21,
+    "yottaweber": 1e+24,
+    "ronnaweber": 1e+27,
+    "quettaweber": 1e+30,
+    "deciweber": 0.1,
+    "centiweber": 0.01,
+    "milliweber": 0.001,
+    "microweber": 0.000001,
+    "nanoweber": 1e-9,
+    "picoweber": 1e-12,
+    "femtoweber": 1e-15,
+    "attoweber": 1e-18,
+    "zeptoweber": 1e-21,
+    "yoctoweber": 1e-24,
+    "rontoweber": 1e-27,
+    "quectoweber": 1e-30
+   }
+  },
+  "Wb": {
+   "dimensions": [1, 2, -2, -1, 0, 0, 0, 0, 0],
+   "names": {
+    "Wb": 1,
+    "daWb": 10,
+    "hWb": 100,
+    "kWb": 1000,
+    "MWb": 1000000,
+    "GWb": 1000000000,
+    "TWb": 1000000000000,
+    "PWb": 1000000000000000,
+    "EWb": 1000000000000000000,
+    "ZWb": 1e+21,
+    "YWb": 1e+24,
+    "RWb": 1e+27,
+    "QWb": 1e+30,
+    "dWb": 0.1,
+    "cWb": 0.01,
+    "mWb": 0.001,
+    "uWb": 0.000001,
+    "nWb": 1e-9,
+    "pWb": 1e-12,
+    "fWb": 1e-15,
+    "aWb": 1e-18,
+    "zWb": 1e-21,
+    "yWb": 1e-24,
+    "rWb": 1e-27,
+    "qWb": 1e-30
+   }
+  },
+  "tesla": {
+   "dimensions": [1, 0, -2, -1, 0, 0, 0, 0, 0],
+   "names": {
+    "tesla": 1,
+    "decatesla": 10,
+    "hectotesla": 100,
+    "kilotesla": 1000,
+    "megatesla": 1000000,
+    "gigatesla": 1000000000,
+    "teratesla": 1000000000000,
+    "petatesla": 1000000000000000,
+    "exatesla": 1000000000000000000,
+    "zettatesla": 1e+21,
+    "yottatesla": 1e+24,
+    "ronnatesla": 1e+27,
+    "quettatesla": 1e+30,
+    "decitesla": 0.1,
+    "centitesla": 0.01,
+    "millitesla": 0.001,
+    "microtesla": 0.000001,
+    "nanotesla": 1e-9,
+    "picotesla": 1e-12,
+    "femtotesla": 1e-15,
+    "attotesla": 1e-18,
+    "zeptotesla": 1e-21,
+    "yoctotesla": 1e-24,
+    "rontotesla": 1e-27,
+    "quectotesla": 1e-30
+   }
+  },
+  "T": {
+   "dimensions": [1, 0, -2, -1, 0, 0, 0, 0, 0],
+   "names": {
+    "T": 1,
+    "daT": 10,
+    "hT": 100,
+    "kT": 1000,
+    "MT": 1000000,
+    "GT": 1000000000,
+    "TT": 1000000000000,
+    "PT": 1000000000000000,
+    "ET": 1000000000000000000,
+    "ZT": 1e+21,
+    "YT": 1e+24,
+    "RT": 1e+27,
+    "QT": 1e+30,
+    "dT": 0.1,
+    "cT": 0.01,
+    "mT": 0.001,
+    "uT": 0.000001,
+    "nT": 1e-9,
+    "pT": 1e-12,
+    "fT": 1e-15,
+    "aT": 1e-18,
+    "zT": 1e-21,
+    "yT": 1e-24,
+    "rT": 1e-27,
+    "qT": 1e-30
+   }
+  },
+  "b": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 0, 1],
+   "names": {
+    "b": 1,
+    "kb": 1000,
+    "Mb": 1000000,
+    "Gb": 1000000000,
+    "Tb": 1000000000000,
+    "Pb": 1000000000000000,
+    "Eb": 1000000000000000000,
+    "Zb": 1e+21,
+    "Yb": 1e+24,
+    "Kib": 1024,
+    "Mib": 1048576,
+    "Gib": 1073741824,
+    "Tib": 1099511627776,
+    "Pib": 1125899906842624,
+    "Eib": 1152921504606847000,
+    "Zib": 1.1805916207174113e+21,
+    "Yib": 1.2089258196146292e+24
+   }
+  },
+  "bits": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 0, 1],
+   "names": {
+    "bits": 1,
+    "kilobits": 1000,
+    "megabits": 1000000,
+    "gigabits": 1000000000,
+    "terabits": 1000000000000,
+    "petabits": 1000000000000000,
+    "exabits": 1000000000000000000,
+    "zettabits": 1e+21,
+    "yottabits": 1e+24,
+    "kibibits": 1024,
+    "mebibits": 1048576,
+    "gibibits": 1073741824,
+    "tebibits": 1099511627776,
+    "pebibits": 1125899906842624,
+    "exibits": 1152921504606847000,
+    "zebibits": 1.1805916207174113e+21,
+    "yobibits": 1.2089258196146292e+24
+   }
+  },
+  "B": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 0, 1],
+   "names": {
+    "B": 8,
+    "kB": 8000,
+    "MB": 8000000,
+    "GB": 8000000000,
+    "TB": 8000000000000,
+    "PB": 8000000000000000,
+    "EB": 8000000000000000000,
+    "ZB": 8e+21,
+    "YB": 8e+24,
+    "KiB": 8192,
+    "MiB": 8388608,
+    "GiB": 8589934592,
+    "TiB": 8796093022208,
+    "PiB": 9007199254740992,
+    "EiB": 9223372036854776000,
+    "ZiB": 9.44473296573929e+21,
+    "YiB": 9.671406556917033e+24
+   }
+  },
+  "bytes": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 0, 1],
+   "names": {
+    "bytes": 8,
+    "kilobytes": 8000,
+    "megabytes": 8000000,
+    "gigabytes": 8000000000,
+    "terabytes": 8000000000000,
+    "petabytes": 8000000000000000,
+    "exabytes": 8000000000000000000,
+    "zettabytes": 8e+21,
+    "yottabytes": 8e+24,
+    "kibibytes": 8192,
+    "mebibytes": 8388608,
+    "gibibytes": 8589934592,
+    "tebibytes": 8796093022208,
+    "pebibytes": 9007199254740992,
+    "exibytes": 9223372036854776000,
+    "zebibytes": 9.44473296573929e+21,
+    "yobibytes": 9.671406556917033e+24
+   }
+  },
+  "meters": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "meters": 1,
+    "decameters": 10,
+    "hectometers": 100,
+    "kilometers": 1000,
+    "megameters": 1000000,
+    "gigameters": 1000000000,
+    "terameters": 1000000000000,
+    "petameters": 1000000000000000,
+    "exameters": 1000000000000000000,
+    "zettameters": 1e+21,
+    "yottameters": 1e+24,
+    "ronnameters": 1e+27,
+    "quettameters": 1e+30,
+    "decimeters": 0.1,
+    "centimeters": 0.01,
+    "millimeters": 0.001,
+    "micrometers": 0.000001,
+    "nanometers": 1e-9,
+    "picometers": 1e-12,
+    "femtometers": 1e-15,
+    "attometers": 1e-18,
+    "zeptometers": 1e-21,
+    "yoctometers": 1e-24,
+    "rontometers": 1e-27,
+    "quectometers": 1e-30
+   }
+  },
+  "inches": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "inches": 0.0254
+   }
+  },
+  "feet": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "feet": 0.3048
+   }
+  },
+  "yards": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "yards": 0.9144
+   }
+  },
+  "miles": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "miles": 1609.344
+   }
+  },
+  "links": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "links": 0.201168
+   }
+  },
+  "rods": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "rods": 5.0292
+   }
+  },
+  "chains": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "chains": 20.1168
+   }
+  },
+  "angstroms": {
+   "dimensions": [0, 1, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "angstroms": 1e-10
+   }
+  },
+  "lt": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "lt": 0.001,
+    "dalt": 0.01,
+    "hlt": 0.1,
+    "klt": 1,
+    "Mlt": 1000,
+    "Glt": 1000000,
+    "Tlt": 1000000000,
+    "Plt": 1000000000000,
+    "Elt": 1000000000000000,
+    "Zlt": 1000000000000000000,
+    "Ylt": 1e+21,
+    "Rlt": 1e+24,
+    "Qlt": 1e+27,
+    "dlt": 0.0001,
+    "clt": 0.00001,
+    "mlt": 0.000001,
+    "ult": 1e-9,
+    "nlt": 1.0000000000000002e-12,
+    "plt": 1e-15,
+    "flt": 1e-18,
+    "alt": 1.0000000000000001e-21,
+    "zlt": 1e-24,
+    "ylt": 9.999999999999999e-28,
+    "rlt": 1e-30,
+    "qlt": 1e-33
+   }
+  },
+  "litres": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "litres": 0.001,
+    "decalitres": 0.01,
+    "hectolitres": 0.1,
+    "kilolitres": 1,
+    "megalitres": 1000,
+    "gigalitres": 1000000,
+    "teralitres": 1000000000,
+    "petalitres": 1000000000000,
+    "exalitres": 1000000000000000,
+    "zettalitres": 1000000000000000000,
+    "yottalitres": 1e+21,
+    "ronnalitres": 1e+24,
+    "quettalitres": 1e+27,
+    "decilitres": 0.0001,
+    "centilitres": 0.00001,
+    "millilitres": 0.000001,
+    "microlitres": 1e-9,
+    "nanolitres": 1.0000000000000002e-12,
+    "picolitres": 1e-15,
+    "femtolitres": 1e-18,
+    "attolitres": 1.0000000000000001e-21,
+    "zeptolitres": 1e-24,
+    "yoctolitres": 9.999999999999999e-28,
+    "rontolitres": 1e-30,
+    "quectolitres": 1e-33
+   }
+  },
+  "liter": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "liter": 0.001,
+    "decaliter": 0.01,
+    "hectoliter": 0.1,
+    "kiloliter": 1,
+    "megaliter": 1000,
+    "gigaliter": 1000000,
+    "teraliter": 1000000000,
+    "petaliter": 1000000000000,
+    "exaliter": 1000000000000000,
+    "zettaliter": 1000000000000000000,
+    "yottaliter": 1e+21,
+    "ronnaliter": 1e+24,
+    "quettaliter": 1e+27,
+    "deciliter": 0.0001,
+    "centiliter": 0.00001,
+    "milliliter": 0.000001,
+    "microliter": 1e-9,
+    "nanoliter": 1.0000000000000002e-12,
+    "picoliter": 1e-15,
+    "femtoliter": 1e-18,
+    "attoliter": 1.0000000000000001e-21,
+    "zeptoliter": 1e-24,
+    "yoctoliter": 9.999999999999999e-28,
+    "rontoliter": 1e-30,
+    "quectoliter": 1e-33
+   }
+  },
+  "liters": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "liters": 0.001,
+    "decaliters": 0.01,
+    "hectoliters": 0.1,
+    "kiloliters": 1,
+    "megaliters": 1000,
+    "gigaliters": 1000000,
+    "teraliters": 1000000000,
+    "petaliters": 1000000000000,
+    "exaliters": 1000000000000000,
+    "zettaliters": 1000000000000000000,
+    "yottaliters": 1e+21,
+    "ronnaliters": 1e+24,
+    "quettaliters": 1e+27,
+    "deciliters": 0.0001,
+    "centiliters": 0.00001,
+    "milliliters": 0.000001,
+    "microliters": 1e-9,
+    "nanoliters": 1.0000000000000002e-12,
+    "picoliters": 1e-15,
+    "femtoliters": 1e-18,
+    "attoliters": 1.0000000000000001e-21,
+    "zeptoliters": 1e-24,
+    "yoctoliters": 9.999999999999999e-28,
+    "rontoliters": 1e-30,
+    "quectoliters": 1e-33
+   }
+  },
+  "teaspoons": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "teaspoons": 0.000005
+   }
+  },
+  "tablespoons": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "tablespoons": 0.000015
+   }
+  },
+  "minims": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "minims": 6.1611519921875e-8
+   }
+  },
+  "fldr": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "fldr": 0.0000036966911953125
+   }
+  },
+  "fluiddrams": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "fluiddrams": 0.0000036966911953125
+   }
+  },
+  "floz": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "floz": 0.0000295735295625
+   }
+  },
+  "fluidounces": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "fluidounces": 0.0000295735295625
+   }
+  },
+  "gi": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "gi": 0.00011829411825
+   }
+  },
+  "gills": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "gills": 0.00011829411825
+   }
+  },
+  "cp": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "cp": 0.0002365882365
+   }
+  },
+  "cups": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "cups": 0.0002365882365
+   }
+  },
+  "pt": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "pt": 0.000473176473
+   }
+  },
+  "pints": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "pints": 0.000473176473
+   }
+  },
+  "qt": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "qt": 0.000946352946
+   }
+  },
+  "quarts": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "quarts": 0.000946352946
+   }
+  },
+  "gal": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "gal": 0.003785411784
+   }
+  },
+  "gallons": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "gallons": 0.003785411784
+   }
+  },
+  "bbl": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "bbl": 0.117347765304
+   }
+  },
+  "beerbarrels": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "beerbarrels": 0.117347765304
+   }
+  },
+  "obl": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "obl": 0.158987294928
+   }
+  },
+  "oilbarrels": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "oilbarrels": 0.158987294928
+   }
+  },
+  "hogsheads": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "hogsheads": 0.238480942392
+   }
+  },
+  "gtts": {
+   "dimensions": [0, 3, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "gtts": 5e-8
+   }
+  },
+  "grams": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "grams": 0.001,
+    "decagrams": 0.01,
+    "hectograms": 0.1,
+    "kilograms": 1,
+    "megagrams": 1000,
+    "gigagrams": 1000000,
+    "teragrams": 1000000000,
+    "petagrams": 1000000000000,
+    "exagrams": 1000000000000000,
+    "zettagrams": 1000000000000000000,
+    "yottagrams": 1e+21,
+    "ronnagrams": 1e+24,
+    "quettagrams": 1e+27,
+    "decigrams": 0.0001,
+    "centigrams": 0.00001,
+    "milligrams": 0.000001,
+    "micrograms": 1e-9,
+    "nanograms": 1.0000000000000002e-12,
+    "picograms": 1e-15,
+    "femtograms": 1e-18,
+    "attograms": 1.0000000000000001e-21,
+    "zeptograms": 1e-24,
+    "yoctograms": 9.999999999999999e-28,
+    "rontograms": 1e-30,
+    "quectograms": 1e-33
+   }
+  },
+  "tons": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "tons": 907.18474,
+    "datons": 9071.8474,
+    "htons": 90718.474,
+    "ktons": 907184.74,
+    "Mtons": 907184740,
+    "Gtons": 907184740000,
+    "Ttons": 907184740000000,
+    "Ptons": 907184740000000000,
+    "Etons": 907184740000000000000,
+    "Ztons": 9.0718474e+23,
+    "Ytons": 9.0718474e+26,
+    "Rtons": 9.0718474e+29,
+    "Qtons": 9.0718474e+32,
+    "dtons": 90.71847400000001,
+    "ctons": 9.071847400000001,
+    "mtons": 0.90718474,
+    "utons": 0.00090718474,
+    "ntons": 9.071847400000001e-7,
+    "ptons": 9.0718474e-10,
+    "ftons": 9.071847400000001e-13,
+    "atons": 9.0718474e-16,
+    "ztons": 9.0718474e-19,
+    "ytons": 9.0718474e-22,
+    "rtons": 9.0718474e-25,
+    "qtons": 9.071847400000002e-28
+   }
+  },
+  "tonnes": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "tonnes": 1000,
+    "decatonnes": 10000,
+    "hectotonnes": 100000,
+    "kilotonnes": 1000000,
+    "megatonnes": 1000000000,
+    "gigatonnes": 1000000000000,
+    "teratonnes": 1000000000000000,
+    "petatonnes": 1000000000000000000,
+    "exatonnes": 1e+21,
+    "zettatonnes": 1e+24,
+    "yottatonnes": 1e+27,
+    "ronnatonnes": 1e+30,
+    "quettatonnes": 1.0000000000000001e+33,
+    "decitonnes": 100,
+    "centitonnes": 10,
+    "millitonnes": 1,
+    "microtonnes": 0.001,
+    "nanotonnes": 0.0000010000000000000002,
+    "picotonnes": 1e-9,
+    "femtotonnes": 1e-12,
+    "attotonnes": 1e-15,
+    "zeptotonnes": 9.999999999999999e-19,
+    "yoctotonnes": 1e-21,
+    "rontotonnes": 1.0000000000000001e-24,
+    "quectotonnes": 1e-27
+   }
+  },
+  "grains": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "grains": 0.00006479891
+   }
+  },
+  "drams": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "drams": 0.0017718451953125
+   }
+  },
+  "ounces": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "ounces": 0.028349523125
+   }
+  },
+  "poundmasses": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "poundmasses": 0.45359237
+   }
+  },
+  "hundredweights": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "hundredweights": 45.359237
+   }
+  },
+  "sticks": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "sticks": 0.115
+   }
+  },
+  "lb": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "lb": 0.45359237
+   }
+  },
+  "lbs": {
+   "dimensions": [1, 0, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "lbs": 0.45359237
+   }
+  },
+  "kips": {
+   "dimensions": [1, 1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "kips": 4448.2216,
+    "decakips": 44482.216,
+    "hectokips": 444822.16,
+    "kilokips": 4448221.6,
+    "megakips": 4448221600,
+    "gigakips": 4448221600000,
+    "terakips": 4448221600000000,
+    "petakips": 4448221600000000000,
+    "exakips": 4.4482216e+21,
+    "zettakips": 4.4482216e+24,
+    "yottakips": 4.4482216e+27,
+    "ronnakips": 4.4482216e+30,
+    "quettakips": 4.4482216e+33,
+    "decikips": 444.82216,
+    "centikips": 44.482216,
+    "millikips": 4.4482216,
+    "microkips": 0.0044482216,
+    "nanokips": 0.0000044482216000000005,
+    "picokips": 4.4482216e-9,
+    "femtokips": 4.4482216e-12,
+    "attokips": 4.4482216e-15,
+    "zeptokips": 4.448221599999999e-18,
+    "yoctokips": 4.4482215999999994e-21,
+    "rontokips": 4.4482216e-24,
+    "quectokips": 4.4482216e-27
+   }
+  },
+  "kgf": {
+   "dimensions": [1, 1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "kgf": 9.80665
+   }
+  },
+  "acres": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "acres": 4046.86
+   }
+  },
+  "hectares": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "hectares": 10000
+   }
+  },
+  "sqfeet": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "sqfeet": 0.09290304
+   }
+  },
+  "sqyard": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "sqyard": 0.83612736
+   }
+  },
+  "sqmile": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "sqmile": 2589988.110336
+   }
+  },
+  "sqmiles": {
+   "dimensions": [0, 2, 0, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "sqmiles": 2589988.110336
+   }
+  },
+  "mmhg": {
+   "dimensions": [1, -1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "mmhg": 133.322
+   }
+  },
+  "mmh2o": {
+   "dimensions": [1, -1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "mmh2o": 9.80665
+   }
+  },
+  "cmh2o": {
+   "dimensions": [1, -1, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "cmh2o": 98.0665
+   }
+  },
+  "seconds": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "seconds": 1,
+    "decaseconds": 10,
+    "hectoseconds": 100,
+    "kiloseconds": 1000,
+    "megaseconds": 1000000,
+    "gigaseconds": 1000000000,
+    "teraseconds": 1000000000000,
+    "petaseconds": 1000000000000000,
+    "exaseconds": 1000000000000000000,
+    "zettaseconds": 1e+21,
+    "yottaseconds": 1e+24,
+    "ronnaseconds": 1e+27,
+    "quettaseconds": 1e+30,
+    "deciseconds": 0.1,
+    "centiseconds": 0.01,
+    "milliseconds": 0.001,
+    "microseconds": 0.000001,
+    "nanoseconds": 1e-9,
+    "picoseconds": 1e-12,
+    "femtoseconds": 1e-15,
+    "attoseconds": 1e-18,
+    "zeptoseconds": 1e-21,
+    "yoctoseconds": 1e-24,
+    "rontoseconds": 1e-27,
+    "quectoseconds": 1e-30
+   }
+  },
+  "secs": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "secs": 1,
+    "decasecs": 10,
+    "hectosecs": 100,
+    "kilosecs": 1000,
+    "megasecs": 1000000,
+    "gigasecs": 1000000000,
+    "terasecs": 1000000000000,
+    "petasecs": 1000000000000000,
+    "exasecs": 1000000000000000000,
+    "zettasecs": 1e+21,
+    "yottasecs": 1e+24,
+    "ronnasecs": 1e+27,
+    "quettasecs": 1e+30,
+    "decisecs": 0.1,
+    "centisecs": 0.01,
+    "millisecs": 0.001,
+    "microsecs": 0.000001,
+    "nanosecs": 1e-9,
+    "picosecs": 1e-12,
+    "femtosecs": 1e-15,
+    "attosecs": 1e-18,
+    "zeptosecs": 1e-21,
+    "yoctosecs": 1e-24,
+    "rontosecs": 1e-27,
+    "quectosecs": 1e-30
+   }
+  },
+  "minutes": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "minutes": 60
+   }
+  },
+  "mins": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "mins": 60
+   }
+  },
+  "hours": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "hours": 3600
+   }
+  },
+  "hr": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "hr": 3600
+   }
+  },
+  "hrs": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "hrs": 3600
+   }
+  },
+  "days": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "days": 86400
+   }
+  },
+  "weeks": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "weeks": 604800
+   }
+  },
+  "months": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "months": 2629800
+   }
+  },
+  "years": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "years": 31557600
+   }
+  },
+  "decades": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "decades": 315576000
+   }
+  },
+  "centuries": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "centuries": 3155760000
+   }
+  },
+  "millennia": {
+   "dimensions": [0, 0, 1, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "millennia": 31557600000
+   }
+  },
+  "radians": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "radians": 1,
+    "decaradians": 10,
+    "hectoradians": 100,
+    "kiloradians": 1000,
+    "megaradians": 1000000,
+    "gigaradians": 1000000000,
+    "teraradians": 1000000000000,
+    "petaradians": 1000000000000000,
+    "exaradians": 1000000000000000000,
+    "zettaradians": 1e+21,
+    "yottaradians": 1e+24,
+    "ronnaradians": 1e+27,
+    "quettaradians": 1e+30,
+    "deciradians": 0.1,
+    "centiradians": 0.01,
+    "milliradians": 0.001,
+    "microradians": 0.000001,
+    "nanoradians": 1e-9,
+    "picoradians": 1e-12,
+    "femtoradians": 1e-15,
+    "attoradians": 1e-18,
+    "zeptoradians": 1e-21,
+    "yoctoradians": 1e-24,
+    "rontoradians": 1e-27,
+    "quectoradians": 1e-30
+   }
+  },
+  "degrees": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "degrees": 0.017453292519943295,
+    "decadegrees": 0.17453292519943295,
+    "hectodegrees": 1.7453292519943295,
+    "kilodegrees": 17.453292519943297,
+    "megadegrees": 17453.292519943294,
+    "gigadegrees": 17453292.519943297,
+    "teradegrees": 17453292519.943295,
+    "petadegrees": 17453292519943.295,
+    "exadegrees": 17453292519943296,
+    "zettadegrees": 17453292519943295000,
+    "yottadegrees": 1.7453292519943295e+22,
+    "ronnadegrees": 1.7453292519943297e+25,
+    "quettadegrees": 1.7453292519943297e+28,
+    "decidegrees": 0.0017453292519943296,
+    "centidegrees": 0.00017453292519943296,
+    "millidegrees": 0.000017453292519943296,
+    "microdegrees": 1.7453292519943295e-8,
+    "nanodegrees": 1.7453292519943298e-11,
+    "picodegrees": 1.7453292519943295e-14,
+    "femtodegrees": 1.7453292519943298e-17,
+    "attodegrees": 1.7453292519943297e-20,
+    "zeptodegrees": 1.7453292519943295e-23,
+    "yoctodegrees": 1.7453292519943293e-26,
+    "rontodegrees": 1.7453292519943295e-29,
+    "quectodegrees": 1.7453292519943296e-32
+   }
+  },
+  "gradians": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "gradians": 0.015707963267948967,
+    "decagradians": 0.15707963267948966,
+    "hectogradians": 1.5707963267948968,
+    "kilogradians": 15.707963267948967,
+    "megagradians": 15707.963267948968,
+    "gigagradians": 15707963.267948966,
+    "teragradians": 15707963267.948967,
+    "petagradians": 15707963267948.967,
+    "exagradians": 15707963267948966,
+    "zettagradians": 15707963267948968000,
+    "yottagradians": 1.5707963267948967e+22,
+    "ronnagradians": 1.5707963267948967e+25,
+    "quettagradians": 1.5707963267948968e+28,
+    "decigradians": 0.0015707963267948969,
+    "centigradians": 0.00015707963267948968,
+    "milligradians": 0.000015707963267948967,
+    "microgradians": 1.5707963267948965e-8,
+    "nanogradians": 1.5707963267948968e-11,
+    "picogradians": 1.5707963267948967e-14,
+    "femtogradians": 1.5707963267948967e-17,
+    "attogradians": 1.5707963267948968e-20,
+    "zeptogradians": 1.5707963267948967e-23,
+    "yoctogradians": 1.5707963267948967e-26,
+    "rontogradians": 1.5707963267948967e-29,
+    "quectogradians": 1.5707963267948967e-32
+   }
+  },
+  "cycles": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "cycles": 6.283185307179586
+   }
+  },
+  "arcsecond": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "arcsecond": 0.00000484813681109536
+   }
+  },
+  "arcseconds": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "arcseconds": 0.00000484813681109536
+   }
+  },
+  "arcminute": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "arcminute": 0.0002908882086657216
+   }
+  },
+  "arcminutes": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 1, 0],
+   "names": {
+    "arcminutes": 0.0002908882086657216
+   }
+  },
+  "BTUs": {
+   "dimensions": [1, 2, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "BTUs": 1055.05585262,
+    "MMBTUs": 1055055852.62
+   }
+  },
+  "watts": {
+   "dimensions": [1, 2, -3, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "watts": 1,
+    "decawatts": 10,
+    "hectowatts": 100,
+    "kilowatts": 1000,
+    "megawatts": 1000000,
+    "gigawatts": 1000000000,
+    "terawatts": 1000000000000,
+    "petawatts": 1000000000000000,
+    "exawatts": 1000000000000000000,
+    "zettawatts": 1e+21,
+    "yottawatts": 1e+24,
+    "ronnawatts": 1e+27,
+    "quettawatts": 1e+30,
+    "deciwatts": 0.1,
+    "centiwatts": 0.01,
+    "milliwatts": 0.001,
+    "microwatts": 0.000001,
+    "nanowatts": 1e-9,
+    "picowatts": 1e-12,
+    "femtowatts": 1e-15,
+    "attowatts": 1e-18,
+    "zeptowatts": 1e-21,
+    "yoctowatts": 1e-24,
+    "rontowatts": 1e-27,
+    "quectowatts": 1e-30
+   }
+  },
+  "joules": {
+   "dimensions": [1, 2, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "joules": 1,
+    "decajoules": 10,
+    "hectojoules": 100,
+    "kilojoules": 1000,
+    "megajoules": 1000000,
+    "gigajoules": 1000000000,
+    "terajoules": 1000000000000,
+    "petajoules": 1000000000000000,
+    "exajoules": 1000000000000000000,
+    "zettajoules": 1e+21,
+    "yottajoules": 1e+24,
+    "ronnajoules": 1e+27,
+    "quettajoules": 1e+30,
+    "decijoules": 0.1,
+    "centijoules": 0.01,
+    "millijoules": 0.001,
+    "microjoules": 0.000001,
+    "nanojoules": 1e-9,
+    "picojoules": 1e-12,
+    "femtojoules": 1e-15,
+    "attojoules": 1e-18,
+    "zeptojoules": 1e-21,
+    "yoctojoules": 1e-24,
+    "rontojoules": 1e-27,
+    "quectojoules": 1e-30
+   }
+  },
+  "amperes": {
+   "dimensions": [0, 0, 0, 1, 0, 0, 0, 0, 0],
+   "names": {
+    "amperes": 1,
+    "decaamperes": 10,
+    "hectoamperes": 100,
+    "kiloamperes": 1000,
+    "megaamperes": 1000000,
+    "gigaamperes": 1000000000,
+    "teraamperes": 1000000000000,
+    "petaamperes": 1000000000000000,
+    "exaamperes": 1000000000000000000,
+    "zettaamperes": 1e+21,
+    "yottaamperes": 1e+24,
+    "ronnaamperes": 1e+27,
+    "quettaamperes": 1e+30,
+    "deciamperes": 0.1,
+    "centiamperes": 0.01,
+    "milliamperes": 0.001,
+    "microamperes": 0.000001,
+    "nanoamperes": 1e-9,
+    "picoamperes": 1e-12,
+    "femtoamperes": 1e-15,
+    "attoamperes": 1e-18,
+    "zeptoamperes": 1e-21,
+    "yoctoamperes": 1e-24,
+    "rontoamperes": 1e-27,
+    "quectoamperes": 1e-30
+   }
+  },
+  "amps": {
+   "dimensions": [0, 0, 0, 1, 0, 0, 0, 0, 0],
+   "names": {
+    "amps": 1,
+    "decaamps": 10,
+    "hectoamps": 100,
+    "kiloamps": 1000,
+    "megaamps": 1000000,
+    "gigaamps": 1000000000,
+    "teraamps": 1000000000000,
+    "petaamps": 1000000000000000,
+    "exaamps": 1000000000000000000,
+    "zettaamps": 1e+21,
+    "yottaamps": 1e+24,
+    "ronnaamps": 1e+27,
+    "quettaamps": 1e+30,
+    "deciamps": 0.1,
+    "centiamps": 0.01,
+    "milliamps": 0.001,
+    "microamps": 0.000001,
+    "nanoamps": 1e-9,
+    "picoamps": 1e-12,
+    "femtoamps": 1e-15,
+    "attoamps": 1e-18,
+    "zeptoamps": 1e-21,
+    "yoctoamps": 1e-24,
+    "rontoamps": 1e-27,
+    "quectoamps": 1e-30
+   }
+  },
+  "amp": {
+   "dimensions": [0, 0, 0, 1, 0, 0, 0, 0, 0],
+   "names": {
+    "amp": 1,
+    "decaamp": 10,
+    "hectoamp": 100,
+    "kiloamp": 1000,
+    "megaamp": 1000000,
+    "gigaamp": 1000000000,
+    "teraamp": 1000000000000,
+    "petaamp": 1000000000000000,
+    "exaamp": 1000000000000000000,
+    "zettaamp": 1e+21,
+    "yottaamp": 1e+24,
+    "ronnaamp": 1e+27,
+    "quettaamp": 1e+30,
+    "deciamp": 0.1,
+    "centiamp": 0.01,
+    "milliamp": 0.001,
+    "microamp": 0.000001,
+    "nanoamp": 1e-9,
+    "picoamp": 1e-12,
+    "femtoamp": 1e-15,
+    "attoamp": 1e-18,
+    "zeptoamp": 1e-21,
+    "yoctoamp": 1e-24,
+    "rontoamp": 1e-27,
+    "quectoamp": 1e-30
+   }
+  },
+  "coulombs": {
+   "dimensions": [0, 0, 1, 1, 0, 0, 0, 0, 0],
+   "names": {
+    "coulombs": 1,
+    "decacoulombs": 10,
+    "hectocoulombs": 100,
+    "kilocoulombs": 1000,
+    "megacoulombs": 1000000,
+    "gigacoulombs": 1000000000,
+    "teracoulombs": 1000000000000,
+    "petacoulombs": 1000000000000000,
+    "exacoulombs": 1000000000000000000,
+    "zettacoulombs": 1e+21,
+    "yottacoulombs": 1e+24,
+    "ronnacoulombs": 1e+27,
+    "quettacoulombs": 1e+30,
+    "decicoulombs": 0.1,
+    "centicoulombs": 0.01,
+    "millicoulombs": 0.001,
+    "microcoulombs": 0.000001,
+    "nanocoulombs": 1e-9,
+    "picocoulombs": 1e-12,
+    "femtocoulombs": 1e-15,
+    "attocoulombs": 1e-18,
+    "zeptocoulombs": 1e-21,
+    "yoctocoulombs": 1e-24,
+    "rontocoulombs": 1e-27,
+    "quectocoulombs": 1e-30
+   }
+  },
+  "volts": {
+   "dimensions": [1, 2, -3, -1, 0, 0, 0, 0, 0],
+   "names": {
+    "volts": 1,
+    "decavolts": 10,
+    "hectovolts": 100,
+    "kilovolts": 1000,
+    "megavolts": 1000000,
+    "gigavolts": 1000000000,
+    "teravolts": 1000000000000,
+    "petavolts": 1000000000000000,
+    "exavolts": 1000000000000000000,
+    "zettavolts": 1e+21,
+    "yottavolts": 1e+24,
+    "ronnavolts": 1e+27,
+    "quettavolts": 1e+30,
+    "decivolts": 0.1,
+    "centivolts": 0.01,
+    "millivolts": 0.001,
+    "microvolts": 0.000001,
+    "nanovolts": 1e-9,
+    "picovolts": 1e-12,
+    "femtovolts": 1e-15,
+    "attovolts": 1e-18,
+    "zeptovolts": 1e-21,
+    "yoctovolts": 1e-24,
+    "rontovolts": 1e-27,
+    "quectovolts": 1e-30
+   }
+  },
+  "ohms": {
+   "dimensions": [1, 2, -3, -2, 0, 0, 0, 0, 0],
+   "names": {
+    "ohms": 1,
+    "daohms": 10,
+    "hohms": 100,
+    "kohms": 1000,
+    "Mohms": 1000000,
+    "Gohms": 1000000000,
+    "Tohms": 1000000000000,
+    "Pohms": 1000000000000000,
+    "Eohms": 1000000000000000000,
+    "Zohms": 1e+21,
+    "Yohms": 1e+24,
+    "Rohms": 1e+27,
+    "Qohms": 1e+30,
+    "dohms": 0.1,
+    "cohms": 0.01,
+    "mohms": 0.001,
+    "uohms": 0.000001,
+    "nohms": 1e-9,
+    "pohms": 1e-12,
+    "fohms": 1e-15,
+    "aohms": 1e-18,
+    "zohms": 1e-21,
+    "yohms": 1e-24,
+    "rohms": 1e-27,
+    "qohms": 1e-30,
+    "decaohms": 10,
+    "hectoohms": 100,
+    "kiloohms": 1000,
+    "megaohms": 1000000,
+    "gigaohms": 1000000000,
+    "teraohms": 1000000000000,
+    "petaohms": 1000000000000000,
+    "exaohms": 1000000000000000000,
+    "zettaohms": 1e+21,
+    "yottaohms": 1e+24,
+    "ronnaohms": 1e+27,
+    "quettaohms": 1e+30,
+    "deciohms": 0.1,
+    "centiohms": 0.01,
+    "milliohms": 0.001,
+    "microohms": 0.000001,
+    "nanoohms": 1e-9,
+    "picoohms": 1e-12,
+    "femtoohms": 1e-15,
+    "attoohms": 1e-18,
+    "zeptoohms": 1e-21,
+    "yoctoohms": 1e-24,
+    "rontoohms": 1e-27,
+    "quectoohms": 1e-30
+   }
+  },
+  "farads": {
+   "dimensions": [-1, -2, 4, 2, 0, 0, 0, 0, 0],
+   "names": {
+    "farads": 1,
+    "decafarads": 10,
+    "hectofarads": 100,
+    "kilofarads": 1000,
+    "megafarads": 1000000,
+    "gigafarads": 1000000000,
+    "terafarads": 1000000000000,
+    "petafarads": 1000000000000000,
+    "exafarads": 1000000000000000000,
+    "zettafarads": 1e+21,
+    "yottafarads": 1e+24,
+    "ronnafarads": 1e+27,
+    "quettafarads": 1e+30,
+    "decifarads": 0.1,
+    "centifarads": 0.01,
+    "millifarads": 0.001,
+    "microfarads": 0.000001,
+    "nanofarads": 1e-9,
+    "picofarads": 1e-12,
+    "femtofarads": 1e-15,
+    "attofarads": 1e-18,
+    "zeptofarads": 1e-21,
+    "yoctofarads": 1e-24,
+    "rontofarads": 1e-27,
+    "quectofarads": 1e-30
+   }
+  },
+  "webers": {
+   "dimensions": [1, 2, -2, -1, 0, 0, 0, 0, 0],
+   "names": {
+    "webers": 1,
+    "decawebers": 10,
+    "hectowebers": 100,
+    "kilowebers": 1000,
+    "megawebers": 1000000,
+    "gigawebers": 1000000000,
+    "terawebers": 1000000000000,
+    "petawebers": 1000000000000000,
+    "exawebers": 1000000000000000000,
+    "zettawebers": 1e+21,
+    "yottawebers": 1e+24,
+    "ronnawebers": 1e+27,
+    "quettawebers": 1e+30,
+    "deciwebers": 0.1,
+    "centiwebers": 0.01,
+    "milliwebers": 0.001,
+    "microwebers": 0.000001,
+    "nanowebers": 1e-9,
+    "picowebers": 1e-12,
+    "femtowebers": 1e-15,
+    "attowebers": 1e-18,
+    "zeptowebers": 1e-21,
+    "yoctowebers": 1e-24,
+    "rontowebers": 1e-27,
+    "quectowebers": 1e-30
+   }
+  },
+  "teslas": {
+   "dimensions": [1, 0, -2, -1, 0, 0, 0, 0, 0],
+   "names": {
+    "teslas": 1,
+    "decateslas": 10,
+    "hectoteslas": 100,
+    "kiloteslas": 1000,
+    "megateslas": 1000000,
+    "gigateslas": 1000000000,
+    "terateslas": 1000000000000,
+    "petateslas": 1000000000000000,
+    "exateslas": 1000000000000000000,
+    "zettateslas": 1e+21,
+    "yottateslas": 1e+24,
+    "ronnateslas": 1e+27,
+    "quettateslas": 1e+30,
+    "deciteslas": 0.1,
+    "centiteslas": 0.01,
+    "milliteslas": 0.001,
+    "microteslas": 0.000001,
+    "nanoteslas": 1e-9,
+    "picoteslas": 1e-12,
+    "femtoteslas": 1e-15,
+    "attoteslas": 1e-18,
+    "zeptoteslas": 1e-21,
+    "yoctoteslas": 1e-24,
+    "rontoteslas": 1e-27,
+    "quectoteslas": 1e-30
+   }
+  },
+  "electronvolts": {
+   "dimensions": [1, 2, -2, 0, 0, 0, 0, 0, 0],
+   "names": {
+    "electronvolts": 1.602176565e-19,
+    "decaelectronvolts": 1.602176565e-18,
+    "hectoelectronvolts": 1.602176565e-17,
+    "kiloelectronvolts": 1.602176565e-16,
+    "megaelectronvolts": 1.602176565e-13,
+    "gigaelectronvolts": 1.602176565e-10,
+    "teraelectronvolts": 1.602176565e-7,
+    "petaelectronvolts": 0.0001602176565,
+    "exaelectronvolts": 0.1602176565,
+    "zettaelectronvolts": 160.2176565,
+    "yottaelectronvolts": 160217.6565,
+    "ronnaelectronvolts": 160217656.5,
+    "quettaelectronvolts": 160217656500,
+    "decielectronvolts": 1.6021765650000002e-20,
+    "centielectronvolts": 1.602176565e-21,
+    "millielectronvolts": 1.602176565e-22,
+    "microelectronvolts": 1.602176565e-25,
+    "nanoelectronvolts": 1.6021765650000001e-28,
+    "picoelectronvolts": 1.602176565e-31,
+    "femtoelectronvolts": 1.6021765650000003e-34,
+    "attoelectronvolts": 1.602176565e-37,
+    "zeptoelectronvolts": 1.602176565e-40,
+    "yoctoelectronvolts": 1.6021765649999998e-43,
+    "rontoelectronvolts": 1.6021765650000001e-46,
+    "quectoelectronvolts": 1.602176565e-49
+   }
+  },
+  "moles": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 1, 0, 0],
+   "names": {
+    "moles": 1,
+    "decamoles": 10,
+    "hectomoles": 100,
+    "kilomoles": 1000,
+    "megamoles": 1000000,
+    "gigamoles": 1000000000,
+    "teramoles": 1000000000000,
+    "petamoles": 1000000000000000,
+    "examoles": 1000000000000000000,
+    "zettamoles": 1e+21,
+    "yottamoles": 1e+24,
+    "ronnamoles": 1e+27,
+    "quettamoles": 1e+30,
+    "decimoles": 0.1,
+    "centimoles": 0.01,
+    "millimoles": 0.001,
+    "micromoles": 0.000001,
+    "nanomoles": 1e-9,
+    "picomoles": 1e-12,
+    "femtomoles": 1e-15,
+    "attomoles": 1e-18,
+    "zeptomoles": 1e-21,
+    "yoctomoles": 1e-24,
+    "rontomoles": 1e-27,
+    "quectomoles": 1e-30
+   }
+  },
+  "bit": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 0, 1],
+   "names": {
+    "bit": 1,
+    "kilobit": 1000,
+    "megabit": 1000000,
+    "gigabit": 1000000000,
+    "terabit": 1000000000000,
+    "petabit": 1000000000000000,
+    "exabit": 1000000000000000000,
+    "zettabit": 1e+21,
+    "yottabit": 1e+24,
+    "kibibit": 1024,
+    "mebibit": 1048576,
+    "gibibit": 1073741824,
+    "tebibit": 1099511627776,
+    "pebibit": 1125899906842624,
+    "exibit": 1152921504606847000,
+    "zebibit": 1.1805916207174113e+21,
+    "yobibit": 1.2089258196146292e+24
+   }
+  },
+  "byte": {
+   "dimensions": [0, 0, 0, 0, 0, 0, 0, 0, 1],
+   "names": {
+    "byte": 8,
+    "kilobyte": 8000,
+    "megabyte": 8000000,
+    "gigabyte": 8000000000,
+    "terabyte": 8000000000000,
+    "petabyte": 8000000000000000,
+    "exabyte": 8000000000000000000,
+    "zettabyte": 8e+21,
+    "yottabyte": 8e+24,
+    "kibibyte": 8192,
+    "mebibyte": 8388608,
+    "gibibyte": 8589934592,
+    "tebibyte": 8796093022208,
+    "pebibyte": 9007199254740992,
+    "exibyte": 9223372036854776000,
+    "zebibyte": 9.44473296573929e+21,
+    "yobibyte": 9.671406556917033e+24
+   }
+  }
+ }
+}

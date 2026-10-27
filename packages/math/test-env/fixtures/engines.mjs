@@ -1,9 +1,9 @@
 // The formulas of the grammar and numbers cases evaluated by mathjs and nerdamer (1.x) at the sample points of SymPy's
 // results (expected/*.json, written by reference.py first), and compared with them; the number theory, the functions of
-// matrices, the statistics and the roots of polynomials too. Each difference must be noted in the case (`differs:
-// {mathjs: 'why', nerdamer: 'why'}`): the differences of the syntax are written down, not found by surprise. The result
-// of each engine is added to the expected files. Run by generate.sh in a container, where ENGINES is the directory
-// mathjs and nerdamer are installed in; never a dependency of the package.
+// matrices, the statistics and the roots of polynomials too; the units are recorded for the tests. Each difference must
+// be noted in the case (`differs: {mathjs: 'why', nerdamer: 'why'}`): the differences of the syntax are written down,
+// not found by surprise. The result of each engine is added to the expected files. Run by generate.sh in a container,
+// where ENGINES is the directory mathjs and nerdamer are installed in; never a dependency of the package.
 
 import {readFileSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
@@ -264,6 +264,47 @@ const statistics = {
     })
     expected.generator = {...expected.generator, mathjs: versions.mathjs}
     writeFileSync(path.join(HERE, 'expected/numeric.json'), JSON.stringify(expected, null, 1) + '\n')
+}
+//The units, recorded for the tests (they compare them with ours, and check the notes of the cases): for each unit of
+//mathjs's table, its dimensions and the value in SI units of 1 of it with each prefix of its set (with the prefix and
+//the unit mathjs reads the name as, when they are others); its results of the cases of units (expected/units.json,
+//written by units.py first)
+{
+    const cases = read('cases/units.json').cases
+    const expected = read('expected/units.json')
+    const numeric = (value) => typeof value === 'number' ? value : {re: value.re, im: value.im}
+    const table = {}
+    for (const [name, definition] of Object.entries(math.Unit.UNITS)) {
+        const names = {}
+        for (const prefix of Object.keys(definition.prefixes)) {
+            const unit = math.unit(1, prefix + name)
+            const parsed = unit.units[0]
+            const value = numeric(unit.toSI().toNumeric())
+            names[prefix + name] = parsed.unit.name === name && parsed.prefix.name === prefix ? value : [value, parsed.prefix.name, parsed.unit.name]
+        }
+        table[name] = {dimensions: definition.base.dimensions, names: names}
+    }
+    const value = (unit) => ({value: numeric(unit.toNumeric()), units: unit.formatUnits()})
+    const outcomes = {
+        convert: (source) => ({value: numeric(math.evaluate(source.value).toNumeric(source.to))}),
+        number: (source) => ({value: numeric(math.evaluate(source.value))}),
+        si: (source) => value(math.evaluate(source.value).toSI()),
+        best: (source) => value(source.units ? math.evaluate(source.value).toBest(source.units) : math.evaluate(source.value).toBest()),
+        split: (source) => ({values: math.evaluate(source.value).splitUnit(source.units).map(value)}),
+        error: (source) => ({result: math.format(math.evaluate(source.value))}),
+        constant: (source) => ({value: numeric(typeof math[source.name] === 'number' ? math[source.name] : math[source.name].value)})
+    }
+    expected.cases.forEach((result, index) => {
+        const source = cases[index]
+        try {
+            result.mathjs = outcomes[source.op](source)
+        } catch (error) {
+            result.mathjs = {error: String(error.message ?? error).split('\n')[0].slice(0, 120)}
+        }
+    })
+    expected.mathjs = versions.mathjs
+    expected.table = table
+    writeFileSync(path.join(HERE, 'expected/units.json'), JSON.stringify(expected, null, 1).replace(/\[\n\s+(-?\d+),\n\s+(-?\d+),\n\s+(-?\d+),\n\s+(-?\d+),\n\s+(-?\d+),\n\s+(-?\d+),\n\s+(-?\d+),\n\s+(-?\d+),\n\s+(-?\d+)\n\s+\]/g, '[$1, $2, $3, $4, $5, $6, $7, $8, $9]') + '\n')
 }
 console.log(`mathjs ${versions.mathjs}, nerdamer ${versions.nerdamer}: ${problems.length} differences not noted`)
 if (problems.length) {

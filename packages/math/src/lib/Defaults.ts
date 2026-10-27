@@ -8,6 +8,8 @@ import {type CommonSubexpressions, createMath, type CseOptions, type MathScope, 
 import type {NumberTheory} from './NumberTheory.js'
 import type {Numeric} from './Numeric.js'
 import type {Statistics} from './Statistics.js'
+import type {Unit, UnitValue} from './Unit.js'
+import type {PhysicalConstant} from './UnitTable.js'
 
 /**
  * The scope made with the default options (no definitions, decimals of 32 digits, no time limit, all the threads of the
@@ -96,6 +98,38 @@ export function decimal(value: DecimalValue | Expression, options?: DecimalOptio
  */
 export function matrix(value: MatrixValue): Matrix {
     return math.matrix(value)
+}
+
+/**
+ * A value with units: of a formula of units, or of a number and its units. The one of `math`.
+ * @param value The formula of units (`'5 cm + 2 inch'`), or the number.
+ * @param units The units of the number (`'m/s^2'`).
+ * @example
+ * ```typescript
+ * import {unit} from '@lakutata/math'
+ *
+ * console.log(unit('5 cm + 2 inch').to('mm').toString())                 //100.8 mm
+ * console.log(unit(60, 'mi/h').toNumber('km/h'))                          //96.56064
+ * console.log(unit('3 m * 4 m').toString())                                //12 m^2
+ * ```
+ */
+export function unit(value: UnitValue, units?: string): Unit {
+    return math.unit(value, units)
+}
+
+/**
+ * A physical constant with its units: of CODATA 2022, the exact ones as their formulas. The one of `math`.
+ * @param name The name of the constant.
+ * @example
+ * ```typescript
+ * import {constant} from '@lakutata/math'
+ *
+ * console.log(constant('speedOfLight').toString())                         //299792458 m / s
+ * console.log(constant('boltzmann').mul('300 K').to('eV').toDecimal(6))  //0.025852 eV
+ * ```
+ */
+export function constant(name: PhysicalConstant): Unit {
+    return math.constant(name)
 }
 
 /**

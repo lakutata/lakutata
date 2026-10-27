@@ -32,9 +32,9 @@ npm install @lakutata/math
 ### Getting started
 
 The package exports its functions ready to use: `parse`, `expression`, `equation`, `decimal`, `matrix`,
-`expressionMatrix`, `jacobian`, `solve` and `cse`, with the namespaces `ntheory` (number theory), `linalg` (linear
-algebra), `stats` (statistics and probability) and `numeric` (numeric solutions, integrals and differential equations).
-They belong to `math`, the scope made with the default options.
+`expressionMatrix`, `jacobian`, `unit`, `constant`, `solve` and `cse`, with the namespaces `ntheory` (number theory),
+`linalg` (linear algebra), `stats` (statistics and probability) and `numeric` (numeric solutions, integrals and
+differential equations). They belong to `math`, the scope made with the default options.
 
 ```typescript
 import {decimal, equation, expression, linalg, stats} from '@lakutata/math'
@@ -52,9 +52,9 @@ console.log(stats.mean([2, 4, 4, 4, 5, 5, 7, 9]))                  //5
 
 `createMath(options)` makes a `MathScope` with other options and the same functions: its `definitions` (functions and
 constants written as formulas, none by default), the `precision` of its decimals (32 significant digits by default), the
-`timeout` of its asynchronous operations (milliseconds, 0 for none by default) and their `concurrency` (all the threads
-of the addon by default). Every option has a default value, so `createMath()` alone is the same as `math`. A program may
-make several, for several sets of definitions.
+`timeout` of its asynchronous operations (milliseconds, 0 for none by default), their `concurrency` (all the threads of
+the addon by default) and its `units` (units added to the table, none by default). Every option has a default value, so
+`createMath()` alone is the same as `math`. A program may make several, for several sets of definitions.
 
 ```typescript
 import {createMath, type Equation, type Expression, type MathScope} from '@lakutata/math'
@@ -373,6 +373,49 @@ console.log(expressionMatrix('[2, 1; 1, 2]').eigenvectors().map(({value, vectors
 console.log(jacobian(['x^2*y', 'x + sin(y)'], ['x', 'y']).toString()) //[2x*y, x^2; 1, cos(y)]
 ```
 
+### Units
+
+`unit(value)` gives a `Unit`, a value with units: of a formula of units (`'5 cm + 2 inch'`, `'9.8 m/s^2'`), or of a
+number and its units (`unit(5, 'cm')`). The names of a formula of units are units, with their prefixes (`km`, `mA`,
+`kilometer`), and `pi`, `e` and `i`; a number followed by units is a quantity in those units, and names one after the
+other are multiplied (`kg m^2/s^2`). These formulas are kept apart from those of `parse()`, where `m`, `s` and `g` are
+variables. The table of units is mathjs's (251 units with their prefixes), with its values written exactly;
+`createMath({units})` adds others.
+
+- The number of a value (`value`) is an exact expression, and so are the values of the units: `unit('1 inch').to('cm')`
+  is exactly `2.54 cm`, `unit('90 deg').to('rad')` is `(pi/2) rad`. `toNumber(units?)` gives it as a number,
+  `toDecimal()` as decimals, `toString()` as `unit()` reads it.
+- `to(units)` converts to units of the same dimensions; `toSI()` gives the SI unit of the quantity (`J`, `Pa`), or else
+  each unit in SI units; `toBest(units?)` the unit that reads best, among the units given or the prefixes of its unit
+  (`5000 m` is `5 km`); `split(units)` the integer part in each unit but the last (`1.5 h` is `1 h` and `30 min`).
+- `add` and `sub` give the result in the units of the left value. `mul` and `div` multiply the units, a unit on the
+  right being converted to the unit of the same quantity on the left (`5 cm * 2 m` is `1000 cm^2`), and give a number
+  without units when the dimensions cancel. There are also `pow` (to a number that keeps the powers of the dimensions
+  integers), `sqrt`, `neg`, `abs`, `equals` and `compare`. The formulas of units know `sqrt`, `sin`, `cos` and `tan` (of
+  angles or numbers), `exp`, `log` and `ln` (of numbers). Values of dimensions that differ cannot be added or converted:
+  `MathUnitException`.
+- A temperature with an offset (`degC`, `degF`) is converted and compared, but not added, multiplied or divided: convert
+  it to `K` first (`MathUnitException` otherwise). In compound units (`degC/m`) it is a difference of temperatures,
+  without the offset. A prefix applies to its number: `1 mdegC` is 0.001 degC.
+- `constant(name)` gives a physical constant with its units: the 52 constants of mathjs, with the values of CODATA 2022.
+  Those that the SI defines exactly, and those computed from them, are exact (`reducedPlanckConstant` is `h/(2pi)`).
+- Unlike mathjs, a value keeps its units: no other prefix is chosen when it is printed (`toBest()` chooses one), and
+  units are not replaced by a derived unit (`N m` stays `N m`; `toSI()` gives `J`). Temperatures with an offset are not
+  added, and the units whose values mathjs rounds or takes from an earlier definition (`eV`, `hp`, `psi`, `torr`,
+  `mmHg`, `acre`, `kip`) have the values of their definitions.
+
+```typescript
+import {constant, createMath, unit} from '@lakutata/math'
+
+console.log(unit('5 cm + 2 inch').toString())                         //10.08 cm
+console.log(unit('100 km/h').to('m/s').toString())                    //(250/9) m / s
+console.log(unit('20 degC').to('degF').toString())                    //68 degF
+console.log(unit('1.5 h').split(['h', 'min']).map(String))            //['1 h', '30 min']
+console.log(constant('boltzmann').mul('300 K').to('eV').toDecimal(6))  //0.025852 eV
+const nautical = createMath({units: {knot: {definition: '1852 m/h', aliases: ['knots']}}})
+console.log(nautical.unit('20 knots').to('km/h').toString())          //37.04 km / h
+```
+
 ### Statistics
 
 `stats` computes statistics of values (arrays of numbers, or `Float64Array`s) in the addon: `sum` (compensated for
@@ -589,13 +632,14 @@ The bundles, the executables and the installers made by `lakutata package` carry
 
 | Export | What it is |
 |---|---|
-| `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg`, `stats`, `numeric` | The functions and the namespaces of `math`, ready to use |
-| `math`, `createMath`, `MathOptions` | The scope of the default options; a scope of other options (`definitions`, `precision`, `timeout`, `concurrency`), and its options |
-| `MathScope`, `MathDefinitions` | A scope of definitions and settings (`createMath()`, `with()`): `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg`, `stats`, `numeric`; the definitions (a body by signature) |
+| `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `unit`, `constant`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg`, `stats`, `numeric` | The functions and the namespaces of `math`, ready to use |
+| `math`, `createMath`, `MathOptions` | The scope of the default options; a scope of other options (`definitions`, `precision`, `timeout`, `concurrency`, `units`), and its options |
+| `MathScope`, `MathDefinitions` | A scope of definitions and settings (`createMath()`, `with()`): `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `unit`, `constant`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `linalg`, `stats`, `numeric`; the definitions (a body by signature) |
 | `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
 | `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
 | `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is given where a matrix is expected (a matrix, or its rows); where a vector is (a `Float64Array`, or an array of numbers) |
 | `ExpressionMatrix`, `ExpressionMatrixValue`, `RowEchelonForm`, `Eigenvector` | A matrix of expressions (`expressionMatrix()`, `parse()`): `rows`, `columns`, `get`, `toArray`, `with`, `row`, `column`, `submatrix`, `transpose`, `neg`, `add`, `sub`, `mul`, `div`, `multiplyElements`, `pow`, `trace`, `determinant`, `inverse`, `solve`, `rref`, `rank`, `nullspace`, `characteristicPolynomial`, `eigenvalues`, `eigenvectors`, `diff`, `substitute`, `expand`, `simplify`, `equals`, `toMatrix`, `toString`, `toTeX`, and `determinantAsync`, `inverseAsync`, `solveAsync`, `eigenvectorsAsync`; what is given for one; a reduced row echelon form and its pivots; an eigenvalue, its multiplicity and its eigenvectors |
+| `Unit`, `UnitValue`, `UnitDimensions`, `CustomUnit`, `CustomUnits`, `PhysicalConstant` | A value with units (`unit()`, `constant()`): `value`, `units`, `dimensions`, `hasDimensionsOf`, `to`, `toSI`, `toBest`, `split`, `add`, `sub`, `mul`, `div`, `pow`, `sqrt`, `neg`, `abs`, `equals`, `compare`, `toNumber`, `toDecimal`, `toString`, `toJSON`, `toTeX`; what is given for one; the powers of its base quantities; a unit of `createMath()` (`definition`, `prefixes`, `aliases`, `offset`) and the units of its option; the names of the physical constants |
 | `LinearAlgebra`, `NormKind` | The linear algebra (`linalg`): `zeros`, `ones`, `identity`, `diagonal`, `fromRows`, `fromColumns`, `fromFunction`, `concat`, `rotation`, `dot`, `cross`, `outer`, `norm`, `multiply`, `solve`, `solveTriangular`, `leastSquares`, `inverse`, `determinant`, `singularValues`, `rank`, `condition`, `lu`, `qr`, `cholesky`, `svd`, `eigen`, `symmetricEigen`, `schur`, `pseudoInverse`, `exponential`, `squareRoot`, `sylvester`, `lyapunov`, `sparse`, `conjugateGradient`, `biconjugateGradientStabilized`, and the asynchronous versions; the kinds of norms |
 | `Statistics`, `Normalization`, `NormalizationOptions` | The statistics (`stats`): `sum`, `product`, `cumulativeSum`, `differences`, `mean`, `median`, `mode`, `min`, `max`, `variance`, `standardDeviation`, `medianAbsoluteDeviation`, `quantile`, `covariance`, `correlation`, `zScores`, `klDivergence`, the distributions (`normal` … `hypergeometric`, `distribution`) and `random`; the divisors of a variance (`'uncorrected'`, `'unbiased'`, `'biased'`) and the option that chooses one |
 | `Distribution`, `DistributionName`, `DistributionParameters` | A probability distribution: `pdf`, `cdf`, `survival`, `quantile`, `survivalQuantile`, `sample`, `parameters`, `kind`, `support`, `mean`, `variance`, `standardDeviation`, `median`, `mode`, `skewness`, `excessKurtosis`; the names of the distributions; their parameters by their names |
@@ -621,12 +665,13 @@ The typings document every declaration, with examples.
 | Error | When |
 |---|---|
 | `MathSyntaxException` | A formula is not written correctly (with the `position` of the error), an equation or a matrix is given where an expression is expected, or the other way round, a matrix and a number added, a matrix where a function takes numbers |
+| `MathUnitException` | Values with units of dimensions that differ added, compared or converted, a unit that is not known (with its `position`), a temperature with an offset added, multiplied or divided, a power that leaves the powers of the dimensions not integers, `sin()` of a value that is neither an angle nor a number |
 | `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined, or a constant written as a call (`g(2)`), with its `position` |
-| `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep, a definition that is a matrix |
+| `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep, a definition that is a matrix; a unit of `createMath()` that is not valid: a name that is already a unit, alone or with a prefix, a definition of unknown units, units defined in terms of each other in a cycle |
 | `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power), a bracket of `findRoot()` where the function does not change its sign or is not real, a function or equations that are not real at the guess of `findRoot()` or `solveSystem()`, a function that is not real inside the interval of `integrate()`, derivatives that are not real at the start of `solveODE()`, the continued fraction of a complex value, a matrix of expressions that is singular (`inverse()`, `solve()`, `inv()`) |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1, a function at one of its poles: `gamma()` of -2, `zeta()` of 1), a modulus of 0, terms of a continued fraction that divide by zero |
 | `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` and `bell(n)` above 2000, `harmonic(n)` above 50000, `stirlingSecondKind(n, k)` with `n` above 50000 or `n k` above 6250000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`), the eigenvalues of a matrix of expressions that are not found exactly, a matrix raised to a power that is not an integer, an equation or an inequality of matrices |
-| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, an interval, points or a tolerance of `integrate()` that are not valid, a problem or options of `solveODE()` that are not valid, a continued fraction of a value with variables, terms that are not integers, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence`, the options of `createMath()` that are not valid |
+| `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, an interval, points or a tolerance of `integrate()` that are not valid, a problem or options of `solveODE()` that are not valid, a continued fraction of a value with variables, terms that are not integers, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence`, a number where units alone are expected (`to('2 cm')`), the name of a physical constant that is not one, the options of `createMath()` that are not valid |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |
 
