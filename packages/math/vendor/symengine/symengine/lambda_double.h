@@ -501,7 +501,8 @@ public:
     void bvisit(const Gamma &x)
     {
         fn tmp = apply(*(x.get_args()[0]));
-        result_ = [=](const double *x) { return std::tgamma(tmp(x)); };
+        // lakutata: Boost.Math's
+        result_ = [=](const double *x) { return special::gamma_of(tmp(x)); };
     };
 
     void bvisit(const LogGamma &x)
@@ -590,13 +591,13 @@ public:
     void bvisit(const Erf &x)
     {
         fn tmp = apply(*(x.get_args()[0]));
-        result_ = [=](const double *x) { return std::erf(tmp(x)); };
+        result_ = [=](const double *x) { return special::real_erf(tmp(x)); }; // lakutata: Boost.Math's
     }
 
     void bvisit(const Erfc &x)
     {
         fn tmp = apply(*(x.get_args()[0]));
-        result_ = [=](const double *x) { return std::erfc(tmp(x)); };
+        result_ = [=](const double *x) { return special::real_erfc(tmp(x)); }; // lakutata: Boost.Math's
     }
 
     void bvisit(const Equality &x)

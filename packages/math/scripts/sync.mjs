@@ -9,7 +9,7 @@
 //
 // Run: node scripts/sync.mjs <library> <version>      merge a newer release into the source of the package
 //      node scripts/sync.mjs <library> <version> --import   replace the source of the package by a release, as it is
-// The libraries: symengine, boost-multiprecision, boost-config, eigen, mpdecimal
+// The libraries: symengine, boost-multiprecision, boost-math, boost-config, eigen, mpdecimal
 
 import {execFileSync, spawnSync} from 'node:child_process'
 import {createHash} from 'node:crypto'
@@ -66,6 +66,13 @@ const LIBRARIES = {
         directory: 'boost/multiprecision',
         archive: (version) => `https://github.com/boostorg/multiprecision/archive/refs/tags/Boost_${version.replaceAll('.', '_')}.tar.gz`,
         root: (version) => `multiprecision-Boost_${version.replaceAll('.', '_')}`,
+        include: ['include/', 'README.md', 'LICENSE'],
+        exclude: []
+    },
+    'boost-math': {
+        directory: 'boost/math',
+        archive: (version) => `https://github.com/boostorg/math/archive/refs/tags/boost-${version}.tar.gz`,
+        root: (version) => `math-boost-${version}`,
         include: ['include/', 'README.md', 'LICENSE'],
         exclude: []
     },

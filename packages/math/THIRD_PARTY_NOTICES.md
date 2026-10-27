@@ -303,10 +303,12 @@ The parsing of floating-point numbers SymEngine includes, in `symengine/utilitie
 Apache License 2.0, the MIT License or the Boost Software License 1.0; it is used here under the Boost Software License
 1.0, reproduced below.
 
-## Boost.Multiprecision 1.92.0 and Boost.Config 1.92.0
+## Boost.Multiprecision, Boost.Math and Boost.Config 1.92.0
 
-The integers and rationals of any size used by SymEngine (https://github.com/boostorg/multiprecision), standalone, with
-the configuration headers of Boost (https://github.com/boostorg/config).
+The integers and rationals of any size used by SymEngine (https://github.com/boostorg/multiprecision), the special
+functions of real arguments in double precision (https://github.com/boostorg/math), the first two used standalone, and
+the configuration headers of Boost (https://github.com/boostorg/config). The three are licensed under the Boost
+Software License 1.0.
 
 ```
 Boost Software License - Version 1.0 - August 17th, 2003

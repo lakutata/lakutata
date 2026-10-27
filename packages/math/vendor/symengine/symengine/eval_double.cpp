@@ -462,7 +462,7 @@ public:
     void bvisit(const Gamma &x)
     {
         double tmp = apply(*(x.get_args()[0]));
-        result_ = std::tgamma(tmp);
+        result_ = special::gamma_of(tmp); // lakutata: Boost.Math's
     };
 
     void bvisit(const LogGamma &x)
@@ -474,13 +474,13 @@ public:
     void bvisit(const Erf &x)
     {
         double tmp = apply(*(x.get_args()[0]));
-        result_ = std::erf(tmp);
+        result_ = special::real_erf(tmp); // lakutata: Boost.Math's
     }
 
     void bvisit(const Erfc &x)
     {
         double tmp = apply(*(x.get_args()[0]));
-        result_ = std::erfc(tmp);
+        result_ = special::real_erfc(tmp); // lakutata: Boost.Math's
     }
 
     void bvisit(const Equality &x)
@@ -829,22 +829,22 @@ static inline std::vector<fn> init_eval_double()
     table[SYMENGINE_GAMMA] = [](const Basic &x) {
         double tmp = eval_double_single_dispatch(
             *(down_cast<const Gamma &>(x)).get_args()[0]);
-        return ::tgamma(tmp);
+        return special::gamma_of(tmp); // lakutata: Boost.Math's
     };
     table[SYMENGINE_LOGGAMMA] = [](const Basic &x) {
         double tmp = eval_double_single_dispatch(
             *(down_cast<const LogGamma &>(x)).get_args()[0]);
-        return ::lgamma(tmp);
+        return special::loggamma(tmp); // lakutata: Boost.Math's, NaN left of zero
     };
     table[SYMENGINE_ERF] = [](const Basic &x) {
         double tmp = eval_double_single_dispatch(
             *(down_cast<const Erf &>(x)).get_args()[0]);
-        return ::erf(tmp);
+        return special::real_erf(tmp); // lakutata: Boost.Math's
     };
     table[SYMENGINE_ERFC] = [](const Basic &x) {
         double tmp = eval_double_single_dispatch(
             *(down_cast<const Erfc &>(x)).get_args()[0]);
-        return ::erfc(tmp);
+        return special::real_erfc(tmp); // lakutata: Boost.Math's
     };
     table[SYMENGINE_EQUALITY] = [](const Basic &x) {
         double lhs = eval_double_single_dispatch(

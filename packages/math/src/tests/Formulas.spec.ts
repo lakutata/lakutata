@@ -275,6 +275,41 @@ describe('The formulas', (): void => {
         }
     })
 
+    it('compile the special functions of real arguments within a few units of the last place (Boost.Math)', (): void => {
+        //Against the correctly rounded decimals, at x = k/16 (exact in both): the same on every platform, where the
+        //functions of the C libraries differ; at most 16 times the machine epsilon (beta near its underflow)
+        const functions: [string, number[]][] = [
+            ['gamma(x)', [-35, -17, -3, 1, 2, 5, 50, 81, 160, 999, 2700]],
+            ['loggamma(x)', [1, 3, 15, 16, 17, 33, 186, 1600, 40000]],
+            ['polygamma(0, x)', [-58, -26, -8, 1, 8, 23, 160, 2000]],
+            ['polygamma(3, x)', [-58, -9, 3, 27, 160, 2000]],
+            ['zeta(x)', [-200, -41, -8, 3, 15, 17, 40, 150, 384]],
+            ['lambertw(x)', [-5, -1, 1, 16, 3500]],
+            ['erf(x)', [-90, -5, 1, 4, 40]],
+            ['erfc(x)', [-90, -5, 1, 61, 255, 400]],
+            ['uppergamma(5/2, x)', [0, 1, 40, 479, 800]],
+            ['lowergamma(7/3, x)', [1, 3, 40, 479, 800]],
+            ['beta(x, 3/2)', [1, 7, 40, 798]]
+        ]
+        for (const [text, points] of functions) {
+            const compiled = math.expression(text).compile(['x'])
+            for (const k of points) {
+                const exact: number = math.expression(text.replaceAll('x', `(${k}/16)`)).toNumber()
+                const error: number = exact === 0 ? globalThis.Math.abs(compiled(k / 16)) : globalThis.Math.abs(compiled(k / 16) - exact) / (globalThis.Math.abs(exact) * Number.EPSILON)
+                assert.ok(error <= 16, `${text} at ${k}/16: ${compiled(k / 16)}, the decimals ${exact} (${error} eps)`)
+            }
+        }
+        //Outside their domains, NaN; at the poles of gamma, NaN, or an infinity of the sign of a zero
+        assert.ok(Number.isNaN(math.expression('gamma(x)').compile(['x'])(-2)))
+        assert.strictEqual(math.expression('gamma(x)').compile(['x'])(-0), -Infinity)
+        assert.ok(Number.isNaN(math.expression('loggamma(x)').compile(['x'])(-0.5)))
+        assert.ok(Number.isNaN(math.expression('lambertw(x)').compile(['x'])(-1)))
+        //Its branch point: the double nearest -1/e is in its domain, the one below is not
+        assert.strictEqual(math.expression('lambertw(x)').compile(['x'])(-1 / globalThis.Math.E), -1)
+        assert.ok(Number.isNaN(math.expression('lambertw(x)').compile(['x'])(-1 / globalThis.Math.E - 5.551115123125783e-17)))
+        assert.strictEqual(math.expression('zeta(x)').compile(['x'])(1), Infinity)
+    })
+
     it('refuse the expressions nested more than 1000 levels deep, before they fill the stack', async (): Promise<void> => {
         const nested = (depth: number): string => 'sin('.repeat(depth) + 'x' + ')'.repeat(depth)
         const deepest: Expression = math.expression(nested(1000))

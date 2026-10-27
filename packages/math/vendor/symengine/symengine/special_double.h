@@ -1,7 +1,8 @@
-// lakutata: the values of the special functions in double precision, for real and complex arguments, where the
-// standard library has none (zeta, Lambert W, polygamma, the incomplete gamma functions, beta) or only real ones
-// (gamma, log gamma, erf, erfc). SymEngine computes them with MPFR and Arb, which the addon does not use. The real
-// functions return NaN where the value is not real, so that the caller evaluates in the complex numbers instead.
+// lakutata: the values of the special functions in double precision, for real and complex arguments. SymEngine
+// computes them with MPFR and Arb, which the addon does not use. Those of real arguments are Boost.Math's
+// (special_boost.cpp) where it defines them, the others are computed here: complex arguments, the incomplete gamma
+// functions of s <= 0, beta of arguments that are not positive, the Hurwitz zeta function. The real functions return
+// NaN where the value is not real, so that the caller evaluates in the complex numbers instead.
 #ifndef SYMENGINE_SPECIAL_DOUBLE_H
 #define SYMENGINE_SPECIAL_DOUBLE_H
 
@@ -33,6 +34,20 @@ constexpr double BERNOULLI_FACTORIAL[] = {
 constexpr double BERNOULLI[] = {1.0 / 6, -1.0 / 30, 1.0 / 42, -1.0 / 30, 5.0 / 66, -691.0 / 2730, 7.0 / 6,
                                 -3617.0 / 510, 43867.0 / 798, -174611.0 / 330, 854513.0 / 138,
                                 -236364091.0 / 2730};
+
+// lakutata: the real functions of Boost.Math (special_boost.cpp), with the policy of the addon: NaN outside their
+// domains and at the poles (but Γ(±0) = ±∞, ζ(1) = ∞), an infinity where they overflow. lower_gamma and upper_gamma
+// are of s > 0 and x >= 0, beta of a > 0 and b > 0.
+double real_tgamma(double x);
+double real_lgamma(double x);
+double real_polygamma(unsigned n, double x);
+double real_zeta(double s);
+double real_lambert_w0(double x);
+double real_erf(double x);
+double real_erfc(double x);
+double real_lower_gamma(double s, double x);
+double real_upper_gamma(double s, double x);
+double real_beta(double a, double b);
 
 // lakutata: an inverse function of a real argument computed by its real version where it is real: the complex
 // versions may leave tiny imaginary parts (libc++'s std::atan(-0.4 + 0i) has 5.55e-17), which move arg() and the
@@ -139,7 +154,7 @@ inline complex gamma(complex z)
                                771.32342877765313, -176.61502916214059, 12.507343278686905,
                                -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7};
     if (z.imag() == 0)
-        return std::tgamma(z.real());
+        return real_tgamma(z.real());
     if (z.real() < 0.5)
         return PI / (std::sin(PI * z) * gamma(1.0 - z));
     z -= 1.0;
@@ -158,7 +173,7 @@ inline complex loggamma(complex z)
     if (is_nonpositive_integer(z))
         return INF;
     if (z.imag() == 0 && z.real() > 0)
-        return std::lgamma(z.real());
+        return real_lgamma(z.real());
     complex shift = 0;
     while (z.real() < 15) {
         shift += std::log(z);
@@ -176,7 +191,7 @@ inline complex loggamma(complex z)
 inline double loggamma(double x)
 {
     // Not real left of zero: the imaginary part is a multiple of pi
-    return x > 0 ? std::lgamma(x) : NAN_VALUE;
+    return x > 0 ? real_lgamma(x) : NAN_VALUE;
 }
 
 // Polygamma of order n (digamma for n = 0): the recurrence to move the
@@ -186,6 +201,11 @@ T polygamma(unsigned n, T z)
 {
     if (is_nonpositive_integer(z))
         return n % 2 == 0 && n > 0 ? T(INF) : T(NAN_VALUE);
+    // lakutata: of a real argument, Boost.Math's
+    if constexpr (std::is_same<T, double>::value)
+        return real_polygamma(n, z);
+    else if (std::imag(z) == 0)
+        return T(real_polygamma(n, std::real(z)));
     double factorial = 1;
     for (unsigned i = 2; i <= n; i++)
         factorial *= i;
@@ -235,7 +255,7 @@ inline complex one_minus_power_of_two(const complex &s)
 
 inline double gamma_of(double x)
 {
-    return std::tgamma(x);
+    return real_tgamma(x);
 }
 
 inline complex gamma_of(const complex &z)
@@ -253,6 +273,9 @@ T zeta(T s, T a = T(1))
     if (is_nonpositive_integer(a))
         return T(NAN_VALUE);
     const bool riemann = a == T(1);
+    // lakutata: the Riemann zeta function of a real s, Boost.Math's
+    if (riemann && std::imag(s) == 0)
+        return T(real_zeta(std::real(s)));
     if (riemann && std::real(s) < 0.5)
         return std::pow(T(2), s) * std::pow(T(PI), s - 1.0) * std::sin(PI * s / 2.0) * gamma_of(1.0 - s)
                * zeta(1.0 - s);
@@ -291,9 +314,13 @@ T lambertw(T x)
 {
     if (x == T(0))
         return T(0);
+    // lakutata: of a real argument right of -1/e, Boost.Math's
     if constexpr (std::is_same<T, double>::value) {
         if (x < -1 / E)
             return NAN_VALUE;
+        return real_lambert_w0(x);
+    } else if (std::imag(x) == 0 && std::real(x) >= -1 / E) {
+        return T(real_lambert_w0(std::real(x)));
     }
     T w;
     const T p2 = 2.0 * (E * x + 1.0);
@@ -319,20 +346,6 @@ T lambertw(T x)
     return w;
 }
 
-// The incomplete gamma functions of a real s and x >= 0: P, regularized, by its
-// series below s + 1 (s > 0), Q by its continued fraction above (Lentz)
-inline double lower_series(double s, double x)
-{
-    double term = 1 / s, sum = term;
-    for (int n = 1; n < 1000; n++) {
-        term *= x / (s + n);
-        sum += term;
-        if (std::abs(term) < std::abs(sum) * 1e-17)
-            break;
-    }
-    return sum * std::exp(-x + s * std::log(x) - std::lgamma(s));
-}
-
 // The continued fraction of Γ(s, x) e^x x^-s (Legendre's, by Lentz), of x > 0 and any real s
 inline double upper_continued(double s, double x)
 {
@@ -354,11 +367,6 @@ inline double upper_continued(double s, double x)
             break;
     }
     return h;
-}
-
-inline double upper_fraction(double s, double x)
-{
-    return std::exp(-x + s * std::log(x) - std::lgamma(s)) * upper_continued(s, x);
 }
 
 // E1(x) = Γ(0, x) of x > 0: its continued fraction from 1, its series below
@@ -406,11 +414,11 @@ inline double lower_gamma(double s, double x)
         // γ(s, x) = Γ(s) - Γ(s, x), with poles at the integers
         if (s == std::floor(s) || x == 0)
             return NAN_VALUE;
-        return std::tgamma(s) - upper_gamma_negative(s, x);
+        return real_tgamma(s) - upper_gamma_negative(s, x);
     }
     if (x == 0)
         return 0;
-    return std::tgamma(s) * (x < s + 1 ? lower_series(s, x) : 1 - upper_fraction(s, x));
+    return real_lower_gamma(s, x);
 }
 
 inline double upper_gamma(double s, double x)
@@ -420,8 +428,8 @@ inline double upper_gamma(double s, double x)
     if (s <= 0)
         return x == 0 ? NAN_VALUE : upper_gamma_negative(s, x);
     if (x == 0)
-        return std::tgamma(s);
-    return std::tgamma(s) * (x < s + 1 ? 1 - lower_series(s, x) : upper_fraction(s, x));
+        return real_tgamma(s);
+    return real_upper_gamma(s, x);
 }
 
 inline complex lower_gamma(const complex &s, const complex &x)
@@ -442,8 +450,8 @@ inline complex upper_gamma(const complex &s, const complex &x)
 inline double beta(double a, double b)
 {
     if (a > 0 && b > 0)
-        return std::exp(std::lgamma(a) + std::lgamma(b) - std::lgamma(a + b));
-    return std::tgamma(a) * std::tgamma(b) / std::tgamma(a + b);
+        return real_beta(a, b);
+    return real_tgamma(a) * real_tgamma(b) / real_tgamma(a + b);
 }
 
 inline complex beta(const complex &a, const complex &b)
@@ -460,7 +468,7 @@ inline complex erfc(complex z);
 inline complex erf(complex z)
 {
     if (z.imag() == 0)
-        return std::erf(z.real());
+        return real_erf(z.real());
     if (std::abs(z) >= 2 && std::abs(z.real()) > 0.5)
         return 1.0 - erfc(z);
     complex term = z, sum = z;
@@ -478,7 +486,7 @@ inline complex erf(complex z)
 inline complex erfc(complex z)
 {
     if (z.imag() == 0)
-        return std::erfc(z.real());
+        return real_erfc(z.real());
     if (z.real() < 0)
         return 2.0 - erfc(-z);
     if (std::abs(z) < 2 || z.real() <= 0.5)

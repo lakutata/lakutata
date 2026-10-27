@@ -1,8 +1,8 @@
 # Changes to the vendored libraries
 
-The libraries in this directory are copied from their releases (`vendor/UPSTREAM.json` records each version, archive
-and checksum) by `scripts/sync.mjs`, which keeps the changes below through a three-way merge when a library is
-upgraded. Boost.Multiprecision, Boost.Config, Eigen and mpdecimal are unchanged. The configuration headers the builds
+The libraries in this directory are copied from their releases (`vendor/UPSTREAM.json` records each version, archive and
+checksum) by `scripts/sync.mjs`, which keeps the changes below through a three-way merge when a library is upgraded.
+Boost.Multiprecision, Boost.Math, Boost.Config, Eigen and mpdecimal are unchanged. The configuration headers the builds
 of CMake would generate are in `native/config`.
 
 ## SymEngine
@@ -33,6 +33,14 @@ SymEngine's `boostmp` integers come from Boost.Multiprecision, which can be used
   continuation), zeta and the Hurwitz zeta (Euler-Maclaurin, the reflection formula), the Lambert W function (its
   principal branch), polygamma, the incomplete gamma functions (of any real `s`: `E1` and the recurrences below 0),
   beta, erf and erfc of complex numbers.
+- `symengine/special_boost.cpp` (added): the special functions of real arguments by Boost.Math (standalone, with the
+  policy of `native/config/boost_math_policy.h`: NaN or infinities instead of exceptions, doubles computed in doubles),
+  declared in `special_double.h` and used there wherever Boost.Math defines them: gamma, log gamma, polygamma, the
+  Riemann zeta function, the principal branch of the Lambert W function, erf, erfc, the incomplete gamma functions of
+  `s > 0` and beta of positive arguments. They are the same code on every platform, where `std::tgamma`, `std::lgamma`
+  and `std::erf` were those of each C library (`eval_double.cpp` and `lambda_double.h` now call them as well). The
+  incomplete gamma functions of `s <= 0`, beta of arguments that are not positive, the Hurwitz zeta function and the
+  complex arguments stay computed in `special_double.h`.
 - `symengine/eval_double.cpp`, `symengine/lambda_double.h`: these functions, with sign, floor, ceiling, truncation and
   the conjugate, evaluated numerically and in the compiled functions. The complex values have no negative zeros, so that
   a negative real number stays on the upper side of the branch cuts, as the exact values: `(0.9 + 0i)/(-0.4 + 0i)` is

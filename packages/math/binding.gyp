@@ -60,19 +60,20 @@
       'direct_dependent_settings': {'include_dirs': ['native/config/mpdecimal']}
     },
     {
-      # SymEngine: the integers of Boost.Multiprecision (no GMP), atomic reference counts (native/config/symengine)
+      # SymEngine: the integers of Boost.Multiprecision (no GMP), atomic reference counts (native/config/symengine), the
+      # real special functions of Boost.Math (special_boost.cpp, native/config/boost_math_policy.h)
       'target_name': 'symengine',
       'type': 'static_library',
       'dependencies': ['cxx'],
       'sources': ['<!@(node scripts/sources.mjs symengine)'],
-      'include_dirs': ['native/config', 'vendor/symengine', 'vendor/symengine/symengine/utilities/cereal/include', 'vendor/symengine/symengine/utilities/fast_float/include', 'vendor/boost/multiprecision/include', 'vendor/boost/config/include'],
-      'defines': ['BOOST_MP_STANDALONE'],
+      'include_dirs': ['native/config', 'vendor/symengine', 'vendor/symengine/symengine/utilities/cereal/include', 'vendor/symengine/symengine/utilities/fast_float/include', 'vendor/boost/multiprecision/include', 'vendor/boost/math/include', 'vendor/boost/config/include'],
+      'defines': ['BOOST_MP_STANDALONE', 'BOOST_MATH_STANDALONE'],
       'cflags_cc': ['-w'],
       'xcode_settings': {'WARNING_CFLAGS': ['-w']},
       'msvs_settings': {'VCCLCompilerTool': {'WarningLevel': 0}},
       'direct_dependent_settings': {
-        'include_dirs': ['native/config', 'vendor/symengine', 'vendor/symengine/symengine/utilities/cereal/include', 'vendor/symengine/symengine/utilities/fast_float/include', 'vendor/boost/multiprecision/include', 'vendor/boost/config/include'],
-        'defines': ['BOOST_MP_STANDALONE']
+        'include_dirs': ['native/config', 'vendor/symengine', 'vendor/symengine/symengine/utilities/cereal/include', 'vendor/symengine/symengine/utilities/fast_float/include', 'vendor/boost/multiprecision/include', 'vendor/boost/math/include', 'vendor/boost/config/include'],
+        'defines': ['BOOST_MP_STANDALONE', 'BOOST_MATH_STANDALONE']
       }
     },
     {
