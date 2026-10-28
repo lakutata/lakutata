@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "3.1.2",
+  "version": "3.1.3",
   "description": "An IoC application framework for Node.js and TypeScript: one programming model for web services, CLI tools, desktop (Electron) and embedded applications.",
   "type": "module",
   "exports": {
@@ -362,7 +362,7 @@
     "@lakutata/i18n": "3.1.1",
     "@lakutata/logger": "3.1.1",
     "@lakutata/monitor": "3.1.1",
-    "@lakutata/mutex": "3.1.1",
+    "@lakutata/mutex": "3.1.3",
     "@lakutata/orm": "3.1.1",
     "@lakutata/queue": "3.1.1",
     "@lakutata/security": "3.1.1",
