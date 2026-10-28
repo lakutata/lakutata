@@ -56,8 +56,30 @@ describe('The integrals', (): void => {
         assert.throws((): string => definite('1/x', '-1', '1'), MathDomainException)
     })
 
+    it('give the special functions of integrals: Si, Ci, Shi, Chi, Ei, li, fresnelS, fresnelC', (): void => {
+        check([
+            ['sin(x)/x', 'Si(x)'],
+            ['e^x/x', 'Ei(x)'],
+            ['1/ln(x)', 'li(x)'],
+            ['sinh(2x)/x', 'Shi(2x)'],
+            ['cos(x)/(2x)', 'Ci(x)/2']
+        ])
+        assert.strictEqual(definite('sin(x)/x', '0', 'inf'), 'pi/2')
+        assert.strictEqual(definite('sin(x^2)', '0', 'inf'), 'sqrt(pi)*sqrt(2)/4')
+        //Their values in doubles (those of mpmath), their derivatives, limits and series
+        const values: [string, number][] = [['Si(10)', 1.658347594218874], ['Ci(1)', 0.337403922900968], ['Chi(2)', 2.452666922646915], ['Ei(-1)', -0.219383934395520], ['li(10)', 6.165599504787298], ['fresnelS(3)', 0.496312998967375], ['fresnelC(1)', 0.779893400376823]]
+        for (const [formula, value] of values) assert.ok(globalThis.Math.abs(math.expression(formula).toNumber() - value) <= 1e-14 * globalThis.Math.abs(value), formula)
+        assert.deepStrictEqual(math.expression('Ci(-1)').toComplex(), {re: 0.33740392290096816, im: globalThis.Math.PI})
+        assert.strictEqual(math.expression('Si(-x)').toString(), '-Si(x)')
+        assert.strictEqual(math.expression('fresnelS(2x)').diff('x').toString(), '2sin(2pi*x^2)')
+        assert.strictEqual(math.expression('Si(x)').limit('x', 'inf').toString(), 'pi/2')
+        assert.strictEqual(math.expression('Si(x)').series('x', 0, 6).toString(), 'x^5/600 - x^3/18 + x')
+        assert.throws((): string => math.expression('Ci(x)').series('x', 0, 4).toString(), MathNotSupportedException)
+        assert.throws((): string => math.expression('Si(1)').toDecimal(), MathNotSupportedException)
+    })
+
     it('refuse what it does not find, and wrong arguments', async (): Promise<void> => {
-        for (const formula of ['sin(x)/x', 'e^x/x', '1/(x^5 - x + 1)']) assert.throws((): string => antiderivative(formula), MathNotSupportedException, formula)
+        for (const formula of ['sin(x)/(x + 1)', 'e^(x^2)', '1/(x^5 - x + 1)']) assert.throws((): string => antiderivative(formula), MathNotSupportedException, formula)
         assert.throws((): string => math.expression('x').integrate('x', 0).toString(), MathArgumentException)
         assert.throws((): string => definite('x', '0', 'x'), MathArgumentException)
         assert.strictEqual((await math.expression('x*e^x').integrateAsync('x')).toString(), 'e^x*(x - 1)')

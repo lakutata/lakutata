@@ -1539,10 +1539,7 @@
      "1.57079632679489661923132169164",
      "0"
     ]
-   ],
-   "differs": {
-    "sympy": "SymPy gives pi/2 by Si(x); Si is not a function of the package yet: not found (MathNotSupportedException)"
-   }
+   ]
   }
  ]
 }

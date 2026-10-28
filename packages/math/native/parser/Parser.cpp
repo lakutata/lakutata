@@ -1,6 +1,7 @@
 #include "Parser.h"
 
 #include "../functions/Functions.h"
+#include "../functions/SpecialIntegrals.h"
 #include "../functions/Summation.h"
 #include "../ops/Piecewise.h"
 
@@ -180,6 +181,15 @@ const std::map<std::string, Builtin> &builtins()
         //The functions of the addon (functions/Functions.h)
         unary("round", roundOf);
         unary("sinc", sincOf);
+        //The integrals of sin(t)/t, cos(t)/t, sinh(t)/t, cosh(t)/t, e^t/t, 1/ln(t), sin(pi t^2/2), cos(pi t^2/2)
+        unary("Si", siOf);
+        unary("Ci", ciOf);
+        unary("Shi", shiOf);
+        unary("Chi", chiOf);
+        unary("Ei", eiOf);
+        unary("li", liOf);
+        unary("fresnelS", fresnelSOf);
+        unary("fresnelC", fresnelCOf);
         unary("re", realPartOf);
         unary("im", imaginaryPartOf);
         unary("arg", argumentOf);

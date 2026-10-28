@@ -86,5 +86,5 @@
  {"text": "1/(1 + cos(x))", "sympy": "1/(1 + cos(x))", "variable": "x", "from": "0", "to": "pi/2"},
  {"text": "1/(2 + cos(x))", "sympy": "1/(2 + cos(x))", "variable": "x", "from": "0", "to": "2pi"},
  {"text": "e^(-x^2)", "sympy": "exp(-x**2)", "variable": "x", "from": "-inf", "to": "inf"},
- {"text": "sin(x)/x", "sympy": "sin(x)/x", "variable": "x", "from": "0", "to": "inf", "differs": {"sympy": "SymPy gives pi/2 by Si(x); Si is not a function of the package yet: not found (MathNotSupportedException)"}}
+ {"text": "sin(x)/x", "sympy": "sin(x)/x", "variable": "x", "from": "0", "to": "inf"}
 ]

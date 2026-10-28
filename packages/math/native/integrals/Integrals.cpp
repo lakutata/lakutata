@@ -28,6 +28,7 @@
 
 #include "../async/Pool.h"
 #include "../core/Errors.h"
+#include "../functions/SpecialIntegrals.h"
 #include "../limits/Gruntz.h"
 #include "../numeric/Numeric.h"
 #include "../ops/Operations.h"
@@ -219,7 +220,7 @@ private:
         if (is_a<Add>(*f)) rules.push_back(&Integrator::termwise);
         if (is_a<Mul>(*f)) rules.push_back(&Integrator::constantFactor);
         if (rationalIn(f, x_)) rules.push_back(&Integrator::rational);
-        for (const Rule rule : {&Integrator::table, &Integrator::substitution, &Integrator::trigonometric, &Integrator::exponentialTrigonometric, &Integrator::parts, &Integrator::rewritten}) rules.push_back(rule);
+        for (const Rule rule : {&Integrator::table, &Integrator::specialFunctions, &Integrator::substitution, &Integrator::trigonometric, &Integrator::exponentialTrigonometric, &Integrator::parts, &Integrator::rewritten}) rules.push_back(rule);
         for (const Rule rule : rules) {
             try {
                 if (auto found = (this->*rule)(f)) return found;
@@ -436,6 +437,50 @@ private:
             return div(*F, a);
         }
         return std::nullopt;
+    }
+
+    //The integrals the special functions are: g(u)/w of a linear u, w = u/k (sin, cos, sinh, cosh, exp: k Si(u)/a, Ci,
+    //Shi, Chi, Ei), 1/ln(u) (li(u)/a), sin(c x^2) and cos(c x^2) of a number c > 0 (sqrt(pi/(2c)) fresnelS(sqrt(2c/pi) x),
+    //fresnelC)
+    std::optional<Expr> specialFunctions(const Expr &f)
+    {
+        if (is_a<Pow>(*f) && eq(*down_cast<const Pow &>(*f).get_exp(), *minus_one) && is_a<Log>(*down_cast<const Pow &>(*f).get_base())) {
+            const Expr u = down_cast<const Pow &>(*f).get_base()->get_args()[0];
+            if (const auto line = linearIn(u, x_)) return div(liOf(u), line->first);
+            return std::nullopt;
+        }
+        if (is_a<Sin>(*f) || is_a<Cos>(*f)) {
+            const auto c = polynomialIn(f->get_args()[0], x_);
+            if (!c || c->size() != 3 || !eq(*(*c)[1], *zero) || !eq(*(*c)[0], *zero) || signOf((*c)[2]) != 1) return std::nullopt;
+            const Expr k = sqrt(div(mul(integer(2), (*c)[2]), pi));
+            return div(is_a<Sin>(*f) ? fresnelSOf(mul(k, x_)) : fresnelCOf(mul(k, x_)), k);
+        }
+        if (!is_a<Mul>(*f)) return std::nullopt;
+        Expr constant = one, function, denominator;
+        for (const Expr &factor : factorsOf(f)) {
+            if (!has(factor, x_)) {
+                constant = mul(constant, factor);
+            } else if (is_a<Pow>(*factor) && eq(*down_cast<const Pow &>(*factor).get_exp(), *minus_one) && denominator.is_null() && linearIn(down_cast<const Pow &>(*factor).get_base(), x_)) {
+                denominator = down_cast<const Pow &>(*factor).get_base();
+            } else if (function.is_null() && (is_a<Sin>(*factor) || is_a<Cos>(*factor) || is_a<Sinh>(*factor) || is_a<Cosh>(*factor) || isExp(factor))) {
+                function = factor;
+            } else {
+                return std::nullopt;
+            }
+        }
+        if (function.is_null() || denominator.is_null()) return std::nullopt;
+        const Expr u = isExp(function) ? down_cast<const Pow &>(*function).get_exp() : function->get_args()[0];
+        const auto line = linearIn(u, x_);
+        if (!line) return std::nullopt;
+        const Expr k = cancelOf(div(u, denominator));
+        if (has(k, x_)) return std::nullopt;
+        Expr F;
+        if (is_a<Sin>(*function)) F = siOf(u);
+        else if (is_a<Cos>(*function)) F = ciOf(u);
+        else if (is_a<Sinh>(*function)) F = shiOf(u);
+        else if (is_a<Cosh>(*function)) F = chiOf(u);
+        else F = eiOf(u);
+        return mul(constant, div(mul(k, F), line->first));
     }
 
     //g(u)^n of a linear u: sec^2, csc^2, sech^2, csch^2, tan^2, cot^2, the reciprocals of cos and sin and their squares

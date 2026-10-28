@@ -28,6 +28,7 @@
 #include "../async/Pool.h"
 #include "../core/Errors.h"
 #include "../functions/Functions.h"
+#include "../functions/SpecialIntegrals.h"
 #include "../functions/Summation.h"
 #include "../ops/Operations.h"
 #include "../parser/Parser.h"
@@ -478,6 +479,16 @@ private:
             if (is_a<Floor>(*e) || is_a<Ceiling>(*e) || is_a<Truncate>(*e)) return {found.value};
             throw notFound("the limit of " + nameOf(e) + " at infinity is not known");
         }
+        //The special functions of integrals: at a value, at inf and -inf (Si(inf) is pi/2)
+        if (const auto *special = dynamic_cast<const SpecialIntegral *>(e.get())) {
+            const Found found = limitFound(e->get_args()[0]);
+            if (found.value.is_null()) throw notFound("of a function of an oscillation");
+            const int infinity = infinitySign(found.value);
+            if (infinity == 0) return {defined(special->create({found.value}))};
+            const Expr value = specialIntegralAtInfinity(special->kind(), infinity);
+            if (value.is_null()) throw notFound("the limit of " + nameOf(e) + " at -inf is not real");
+            return {value};
+        }
         //zeta(s) for s going to inf
         if (is_a<Zeta>(*e) && !has(e->get_args()[1], x_) && eq(*e->get_args()[1], *one)) {
             const Found found = limitFound(e->get_args()[0]);
@@ -639,7 +650,11 @@ private:
                 if (sign(u) >= 0) return pow(u, div(one, n));
                 return neg(pow(neg(u), div(one, n)));
             }
-            throw notFound(nameOf(e) + " is not taken by the algorithm");
+            //(the laws of limits take the others: Si(x) at inf)
+            if (strict) throw notFound(nameOf(e) + " is not taken by the algorithm");
+            vec_basic tractableArguments;
+            for (const Expr &argument : arguments) tractableArguments.push_back(tractable(argument, strict));
+            return function.create(tractableArguments);
         }
         if (is_a<Derivative>(*e) || is_a<Subs>(*e)) throw notFound("an unevaluated derivative is not taken by the algorithm");
         if (is_a<Add>(*e)) {

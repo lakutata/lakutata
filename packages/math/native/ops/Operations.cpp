@@ -2,6 +2,7 @@
 #include "Piecewise.h"
 
 #include <algorithm>
+#include <functional>
 #include <cmath>
 #include <limits>
 #include <map>
@@ -31,6 +32,7 @@
 #include "../parser/Parser.h"
 #include "../printer/Printer.h"
 #include "../functions/Functions.h"
+#include "../functions/SpecialIntegrals.h"
 #include "../poly/Poly.h"
 #include "../simplify/Simplify.h"
 
@@ -380,6 +382,30 @@ Expr seriesOf(const Expr &given, const std::string &name, const Expr &point, uns
                 const Expr u = function.get_args()[0];
                 sincs[node] = div(sin(u), u);
             }
+            //The special functions of integrals of an argument 0 at the point: Si, Shi, fresnelS and fresnelC as their
+            //power series to the order (their derivatives there are 0/0); Ci, Chi, Ei and li have a logarithm there
+            if (const auto *special = dynamic_cast<const SpecialIntegral *>(&function)) {
+                const Expr u = function.get_args()[0];
+                const Expr u0 = expand(subs(u, {{by, zero}}));
+                if (eq(*u0, *zero)) {
+                    const std::optional<Expr> polynomial = specialIntegralSeries(special->kind(), u, order);
+                    if (!polynomial) throw MathError(ErrorCode::NotSupported, "The series of " + toText(node) + " is not computed: it has a logarithm at the point");
+                    sincs[node] = *polynomial;
+                } else {
+                    //Elsewhere (SymEngine's series of a call of the addon crashes): F(u0) and the integral of the series of
+                    //F' at u0, in h = u - u0
+                    const RCP<const Symbol> h = symbol("@h");
+                    const RCP<const Symbol> t = symbol("@t");
+                    const Expr derivative = specialIntegralOf(special->kind(), t)->diff(t);
+                    const Expr value = specialIntegralOf(special->kind(), u0);
+                    if (is_a_sub<FunctionWrapper>(*value) && !held.count(value)) held[value] = make_rcp<const Dummy>("held", ++count);
+                    Expr polynomial = value;
+                    for (const auto &[power, coefficient] : seriesTermsOf(subs(derivative, {{t, add(u0, h)}}), h, static_cast<long>(order))) {
+                        polynomial = add(polynomial, div(mul(coefficient, pow(sub(u, u0), integer(power + 1))), integer(power + 1)));
+                    }
+                    sincs[node] = polynomial;
+                }
+            }
         }
         if (is_a<Piecewise>(*node) && has_symbol(*node, *by)) throw MathError(ErrorCode::NotSupported, "The series of a piecewise expression of " + name + " is not computed: " + toText(node));
         for (const Expr &argument : node->get_args()) pending.push_back(argument);
@@ -391,7 +417,16 @@ Expr seriesOf(const Expr &given, const std::string &name, const Expr &point, uns
         for (const auto &[value, placeholder] : held) restored[placeholder] = value;
     }
     Expr result = zero;
-    for (const auto &[power, coefficient] : seriesTermsOf(shifted, by, static_cast<long>(order))) result = add(result, mul(coefficient, pow(by, integer(power))));
+    for (const auto &[power, coefficient] : seriesTermsOf(shifted, by, static_cast<long>(order))) {
+        //(a coefficient without a value: a derivative of a function at a singular point)
+        std::function<bool(const Expr &)> undefinedIn = [&undefinedIn](const Expr &e) {
+            if (is_a<NaN>(*e) || is_a<Infty>(*e)) return true;
+            const vec_basic arguments = e->get_args();
+            return std::any_of(arguments.begin(), arguments.end(), undefinedIn);
+        };
+        if (undefinedIn(coefficient)) throw MathError(ErrorCode::NotSupported, "The series of " + toText(given) + " is not computed: a coefficient has no value");
+        result = add(result, mul(coefficient, pow(by, integer(power))));
+    }
     if (!restored.empty()) result = xreplace(result, restored);
     if (!atZero) result = subs(result, {{by, sub(by, point)}});
     return result;
