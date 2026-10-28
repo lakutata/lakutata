@@ -306,10 +306,11 @@ export class Expression {
      * throws `MathNotSupportedException`. It computes the arithmetic, powers and roots, `exp` and `ln`, the
      * trigonometric and hyperbolic functions and their inverses, the rounding functions, `pi`, `e`, `phi`, `EulerGamma`
      * and `Catalan`, and the special functions (`gamma`, `loggamma`, `digamma`, `polygamma`, `beta`, `erf`, `erfc`,
-     * `zeta`, `lowergamma`, `uppergamma`, `lambertw`), of real values. A real value with complex parts (`e^(i*pi)`,
-     * `-i*asinh(i)`) is the real part of `toComplexDecimal()`; a complex value throws `MathDomainException`. A function
-     * of a complex argument that `toComplexDecimal()` does not compute (`gamma(1 + i)`) throws
-     * `MathNotSupportedException`, even where the value is real (`re(gamma(1 + i))`).
+     * `zeta`, `lowergamma`, `uppergamma`, `lambertw`, `Si`, `Ci`, `Shi`, `Chi`, `Ei`, `li`, `fresnelS`, `fresnelC`), of
+     * real values. A real value with complex parts (`e^(i*pi)`, `-i*asinh(i)`) is the real part of
+     * `toComplexDecimal()`; a complex value throws `MathDomainException`. A function of a complex argument that
+     * `toComplexDecimal()` does not compute (`gamma(1 + i)`) throws `MathNotSupportedException`, even where the value
+     * is real (`re(gamma(1 + i))`).
      * @param digits The significant digits: the `precision` of the scope by default.
      */
     public toDecimal(digits?: number): string {

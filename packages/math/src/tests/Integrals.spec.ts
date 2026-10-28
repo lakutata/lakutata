@@ -79,7 +79,24 @@ describe('The integrals', (): void => {
         assert.strictEqual(math.expression('Si(x)').limit('x', 'inf').toString(), 'pi/2')
         assert.strictEqual(math.expression('Si(x)').series('x', 0, 6).toString(), 'x^5/600 - x^3/18 + x')
         assert.throws((): string => math.expression('Ci(x)').series('x', 0, 4).toString(), MathNotSupportedException)
-        assert.throws((): string => math.expression('Si(1)').toDecimal(), MathNotSupportedException)
+        //Their decimals: the power series (the digits a sum cancels computed more), the asymptotic series for large
+        //arguments; the values of exact series of rationals at 45 digits (Python's fractions)
+        const decimals: [string, string][] = [
+            ['Si(1)', '0.946083070367183014941353313823179657812337955'],
+            ['Ci(1)', '0.337403922900968134662646203889150769997578033'],
+            ['Shi(1)', '1.05725087537572851457184235489587795902405394'],
+            ['Chi(1)', '0.837866940980208240894678579435756309993006644'],
+            ['li(2)', '1.04516378011749278484458888919461313652261558'],
+            ['fresnelS(1)', '0.438259147390354766076756696625152637493786572']
+        ]
+        for (const [formula, value] of decimals) assert.strictEqual(math.expression(formula).toDecimal(45), value, formula)
+        //Large arguments (the asymptotic series) as in doubles, and their poles and complex values refused
+        for (const formula of ['Si(1000)', 'Ci(100)', 'Ei(-200)', 'fresnelC(10)', 'Chi(100)']) {
+            const value: number = math.expression(formula).toNumber()
+            assert.ok(globalThis.Math.abs(Number(math.expression(formula).toDecimal(20)) - value) <= 1e-14 * globalThis.Math.abs(value), formula)
+        }
+        assert.throws((): string => math.expression('Ei(0)').toDecimal(), MathDomainException)
+        assert.throws((): string => math.expression('Ci(-1)').toDecimal(), MathNotSupportedException)
     })
 
     it('refuse what it does not find, and wrong arguments', async (): Promise<void> => {

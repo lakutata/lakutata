@@ -271,6 +271,165 @@ Decimal sinPi(const DecimalContext &g, const Decimal &x)
     return g.isZero(g.sub(nearest, g.mul(two, g.floor(g.div(nearest, two))))) ? value : g.neg(value);
 }
 
+//The special functions of integrals (SpecialIntegrals.h). The power series at 0, with the digits their sums cancel
+//more (cancelling(): Si(x) of a large x sums terms of e^x/x for a value about pi/2), or for a large argument the
+//asymptotic series (DLMF 6.12, 7.12), where its smallest term (about e^-|x| for Ei, Si and Ci, e^-w for the Fresnel
+//integrals, w = pi x^2/2) is below the digits
+
+//Whether an asymptotic series of a smallest term about e^-size reaches the digits of g
+bool asymptoticReaches(const DecimalContext &g, double size)
+{
+    return size > (static_cast<double>(g.digits()) + 12) * 2.302585092994046 + std::log(std::sqrt(2 * 3.141592653589793 * std::max(size, 1.0)));
+}
+
+//Terms of a power series added until they fall below the digits of g under the largest one, past the index from which
+//they fall (k above a size): the sum, the exponent of its largest term
+struct SeriesSum {
+    Decimal sum;
+    int64_t largest = DecimalContext::ZERO_EXPONENT;
+};
+
+//Ei(x) = γ + ln|x| + Σ x^k/(k k!), k >= 1
+Decimal eiSeries(const DecimalContext &g, const Decimal &x, int64_t &largest)
+{
+    const double size = std::fabs(toDouble(x));
+    Decimal power = x, sum = x;
+    largest = g.exponent(x);
+    for (long long k = 2;; k++) {
+        power = g.div(g.mul(power, x), g.integer(k));
+        const Decimal term = g.div(power, g.integer(k));
+        sum = g.add(sum, term);
+        const int64_t e = g.exponent(term);
+        largest = std::max(largest, e);
+        if (static_cast<double>(k) > size && (g.isZero(term) || e < largest - g.digits() - 2)) break;
+        if (k % 64 == 0) checkpoint();
+    }
+    const Decimal gamma = g.eulerGamma(), logarithm = g.ln(g.abs(x));
+    largest = std::max({largest, g.exponent(gamma), g.exponent(logarithm)});
+    return g.add(g.add(gamma, logarithm), sum);
+}
+
+//Ei(x) of a large |x|: e^x/x Σ k!/x^k
+Decimal eiAsymptotic(const DecimalContext &g, const Decimal &x)
+{
+    const Decimal limit = negligible(g);
+    Decimal term = g.integer(1), sum = term;
+    for (long long k = 1;; k++) {
+        term = g.div(g.mul(term, g.integer(k)), x);
+        if (g.compare(g.abs(term), limit) < 0) break;
+        sum = g.add(sum, term);
+        if (k % 64 == 0) checkpoint();
+    }
+    return g.mul(g.div(g.exp(x), x), sum);
+}
+
+Decimal eiDecimal(const DecimalContext &context, const Decimal &x)
+{
+    if (context.isZero(x)) throw MathError(ErrorCode::DivisionByZero, "Division by zero (Ei at its pole 0)");
+    const DecimalContext g(context.digits() + 15);
+    if (asymptoticReaches(g, std::fabs(toDouble(x)))) return context.round(eiAsymptotic(g, x));
+    return cancelling(context, [&x](const DecimalContext &h, int64_t &largest) { return eiSeries(h, x, largest); });
+}
+
+//The auxiliary functions of Si and Ci at a large x > 0: f(x) = Σ (-1)^k (2k)!/x^(2k+1), g(x) = Σ (-1)^k (2k+1)!/x^(2k+2)
+std::pair<Decimal, Decimal> sineCosineAuxiliary(const DecimalContext &g, const Decimal &x)
+{
+    const Decimal limit = negligible(g), square = g.mul(x, x);
+    Decimal u = g.integer(1), v = g.integer(1), f = u, h = v;
+    for (long long k = 1;; k++) {
+        u = g.neg(g.div(g.mul(u, g.integer((2 * k - 1) * (2 * k))), square));
+        v = g.neg(g.div(g.mul(v, g.integer((2 * k) * (2 * k + 1))), square));
+        if (g.compare(g.abs(u), limit) < 0 && g.compare(g.abs(v), limit) < 0) break;
+        f = g.add(f, u);
+        h = g.add(h, v);
+        if (k % 64 == 0) checkpoint();
+    }
+    return {g.div(f, x), g.div(h, square)};
+}
+
+//Si(x) = Σ (-1)^k x^(2k+1)/((2k+1)(2k+1)!), Shi without the signs
+Decimal sineIntegralSeries(const DecimalContext &g, const Decimal &x, bool hyperbolic, int64_t &largest)
+{
+    const double size = std::fabs(toDouble(x));
+    const Decimal square = g.mul(x, x);
+    Decimal power = x, sum = x;
+    largest = g.exponent(x);
+    for (long long k = 1;; k++) {
+        power = g.div(g.mul(power, square), g.integer((2 * k) * (2 * k + 1)));
+        Decimal term = g.div(power, g.integer(2 * k + 1));
+        if (!hyperbolic && k % 2 == 1) term = g.neg(term);
+        sum = g.add(sum, term);
+        const int64_t e = g.exponent(term);
+        largest = std::max(largest, e);
+        if (static_cast<double>(2 * k) > size && (g.isZero(term) || e < largest - g.digits() - 2)) break;
+        if (k % 64 == 0) checkpoint();
+    }
+    return sum;
+}
+
+//Ci(x) = γ + ln x + Σ (-1)^k x^(2k)/(2k (2k)!), k >= 1, Chi without the signs (x > 0)
+Decimal cosineIntegralSeries(const DecimalContext &g, const Decimal &x, bool hyperbolic, int64_t &largest)
+{
+    const double size = std::fabs(toDouble(x));
+    const Decimal square = g.mul(x, x);
+    Decimal power = g.integer(1), sum = g.integer(0);
+    largest = DecimalContext::ZERO_EXPONENT;
+    for (long long k = 1;; k++) {
+        power = g.div(g.mul(power, square), g.integer((2 * k - 1) * (2 * k)));
+        Decimal term = g.div(power, g.integer(2 * k));
+        if (!hyperbolic && k % 2 == 1) term = g.neg(term);
+        sum = g.add(sum, term);
+        const int64_t e = g.exponent(term);
+        largest = std::max(largest, e);
+        if (static_cast<double>(2 * k) > size && (g.isZero(term) || e < largest - g.digits() - 2)) break;
+        if (k % 64 == 0) checkpoint();
+    }
+    const Decimal gamma = g.eulerGamma(), logarithm = g.ln(x);
+    largest = std::max({largest, g.exponent(gamma), g.exponent(logarithm)});
+    return g.add(g.add(gamma, logarithm), sum);
+}
+
+//fresnelS(x) = x Σ (-1)^k w^(2k+1)/((2k+1)! (4k+3)), fresnelC(x) = x Σ (-1)^k w^(2k)/((2k)! (4k+1)), w = pi x^2/2
+Decimal fresnelSeries(const DecimalContext &g, const Decimal &x, bool sine, int64_t &largest)
+{
+    const Decimal w = g.div(g.mul(g.pi(), g.mul(x, x)), g.integer(2)), square = g.mul(w, w);
+    const double size = std::fabs(toDouble(w));
+    Decimal power = sine ? w : g.integer(1);
+    Decimal sum = sine ? g.div(power, g.integer(3)) : power;
+    largest = g.exponent(sum);
+    for (long long k = 1;; k++) {
+        const long long a = sine ? 2 * k : 2 * k - 1, b = sine ? 2 * k + 1 : 2 * k;
+        power = g.div(g.mul(power, square), g.integer(a * b));
+        Decimal term = g.div(power, g.integer(sine ? 4 * k + 3 : 4 * k + 1));
+        if (k % 2 == 1) term = g.neg(term);
+        sum = g.add(sum, term);
+        const int64_t e = g.exponent(term);
+        largest = std::max(largest, e);
+        if (static_cast<double>(2 * k) > size && (g.isZero(term) || e < largest - g.digits() - 2)) break;
+        if (k % 64 == 0) checkpoint();
+    }
+    largest += g.exponent(x);
+    return g.mul(x, sum);
+}
+
+//The auxiliary functions of the Fresnel integrals at a large x > 0 (DLMF 7.12.2, 7.12.3): f = Σ (-1)^m (1/2)_2m/w^2m,
+//g = Σ (-1)^m (1/2)_(2m+1)/w^(2m+1), both over pi x
+std::pair<Decimal, Decimal> fresnelAuxiliary(const DecimalContext &g, const Decimal &x, const Decimal &w)
+{
+    const Decimal limit = negligible(g), square = g.mul(g.mul(w, w), g.integer(4));
+    Decimal p = g.integer(1), q = g.div(g.integer(1), g.mul(g.integer(2), w)), f = p, h = q;
+    for (long long m = 1;; m++) {
+        p = g.neg(g.div(g.mul(p, g.integer((4 * m - 3) * (4 * m - 1))), square));
+        q = g.neg(g.div(g.mul(q, g.integer((4 * m - 1) * (4 * m + 1))), square));
+        if (g.compare(g.abs(p), limit) < 0 && g.compare(g.abs(q), limit) < 0) break;
+        f = g.add(f, p);
+        h = g.add(h, q);
+        if (m % 64 == 0) checkpoint();
+    }
+    const Decimal scale = g.mul(g.pi(), x);
+    return {g.div(f, scale), g.div(h, scale)};
+}
+
 //cot(π x) of a decimal x: of x less its nearest integer
 Decimal cotPi(const DecimalContext &g, const Decimal &x)
 {
@@ -802,6 +961,68 @@ Decimal DecimalContext::lambertw(const Decimal &x) const
         checkpoint();
     }
     return round(w);
+}
+
+Decimal specialIntegralDecimal(const DecimalContext &context, const std::string &name, const Decimal &x)
+{
+    const DecimalContext g(context.digits() + 15);
+    if (name == "Ei") return eiDecimal(context, x);
+    if (name == "li") {
+        //li(x) = Ei(ln x), x > 0; li(0) = 0, li(1) at its pole
+        if (context.isZero(x)) return context.integer(0);
+        if (context.isNegative(x)) notReal("li of a negative number");
+        if (context.compare(x, context.integer(1)) == 0) throw MathError(ErrorCode::DivisionByZero, "Division by zero (li at its pole 1)");
+        const DecimalContext h(context.digits() + 15 + static_cast<long>(std::max<int64_t>(0, -g.exponent(g.ln(x)))));
+        return context.round(eiDecimal(h, h.ln(x)));
+    }
+    const bool negative = context.isNegative(x);
+    const Decimal a = context.abs(x);
+    if (name == "Si" || name == "Shi") {
+        if (context.isZero(x)) return context.integer(0);
+        const bool hyperbolic = name == "Shi";
+        Decimal value;
+        if (asymptoticReaches(g, toDouble(a))) {
+            if (hyperbolic) {
+                value = g.div(g.sub(eiAsymptotic(g, a), eiAsymptotic(g, g.neg(a))), g.integer(2));
+            } else {
+                const auto [f, h] = sineCosineAuxiliary(g, a);
+                value = g.sub(g.sub(g.div(g.pi(), g.integer(2)), g.mul(f, g.cos(a))), g.mul(h, g.sin(a)));
+            }
+        } else {
+            value = cancelling(context, [&a, hyperbolic](const DecimalContext &h, int64_t &largest) { return sineIntegralSeries(h, a, hyperbolic, largest); });
+        }
+        return context.round(negative ? g.neg(value) : value);
+    }
+    if (name == "Ci" || name == "Chi") {
+        if (context.isZero(x)) throw MathError(ErrorCode::DivisionByZero, "Division by zero (" + name + " at its pole 0)");
+        if (negative) notReal(name + " of a negative number");
+        const bool hyperbolic = name == "Chi";
+        if (asymptoticReaches(g, toDouble(a))) {
+            if (hyperbolic) return context.round(g.div(g.add(eiAsymptotic(g, a), eiAsymptotic(g, g.neg(a))), g.integer(2)));
+            return cancelling(context, [&a](const DecimalContext &h, int64_t &largest) {
+                const auto [f, k] = sineCosineAuxiliary(h, a);
+                const Decimal first = h.mul(f, h.sin(a)), second = h.mul(k, h.cos(a));
+                largest = largestOf(h, {&first, &second});
+                return h.sub(first, second);
+            });
+        }
+        return cancelling(context, [&a, hyperbolic](const DecimalContext &h, int64_t &largest) { return cosineIntegralSeries(h, a, hyperbolic, largest); });
+    }
+    if (name == "fresnelS" || name == "fresnelC") {
+        if (context.isZero(x)) return context.integer(0);
+        const bool sine = name == "fresnelS";
+        const Decimal w = g.div(g.mul(g.pi(), g.mul(a, a)), g.integer(2));
+        Decimal value;
+        if (asymptoticReaches(g, toDouble(w))) {
+            const auto [f, h] = fresnelAuxiliary(g, a, w);
+            const Decimal half = g.div(g.integer(1), g.integer(2)), sine2 = g.sin(w), cosine2 = g.cos(w);
+            value = sine ? g.sub(g.sub(half, g.mul(f, cosine2)), g.mul(h, sine2)) : g.sub(g.add(half, g.mul(f, sine2)), g.mul(h, cosine2));
+        } else {
+            value = cancelling(context, [&a, sine](const DecimalContext &h, int64_t &largest) { return fresnelSeries(h, a, sine, largest); });
+        }
+        return context.round(negative ? g.neg(value) : value);
+    }
+    throw MathError(ErrorCode::NotSupported, "The decimal value of " + name + "() is not computed");
 }
 
 }

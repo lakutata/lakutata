@@ -154,6 +154,10 @@ std::string toDecimal(const Expr &expression, long digits);
 //toDecimal() of real parts only: NotRealError at a part that is not real
 std::string toRealDecimal(const Expr &expression, long digits);
 
+//The decimal value of a special function of integrals (Si, Ci, Shi, Chi, Ei, li, fresnelS, fresnelC) of a real argument,
+//at the digits of a context
+Decimal specialIntegralDecimal(const DecimalContext &context, const std::string &name, const Decimal &x);
+
 //The guard digits an evaluation may take beyond the digits asked, its value needing them (sin(10^(10^4)))
 constexpr long MORE_DIGITS = 50000;
 //The guard digits after an evaluation missing some (the error of its value above its target by that many digits):

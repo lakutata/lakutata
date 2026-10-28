@@ -2,7 +2,7 @@
 //integrals of sin(t)/t, cos(t)/t, sinh(t)/t, cosh(t)/t, e^t/t, 1/ln(t), sin(pi t^2/2) and cos(pi t^2/2) (as SymPy names
 //them). Their values in doubles: power series for small arguments, the continued fractions of E1 and erfc of complex
 //arguments for large ones (DLMF 6.9 and 7.9), Ei by Boost.Math; of real arguments (Ci and Chi of a negative one have
-//an imaginary part of pi, li of one is complex); their decimals are not computed.
+//an imaginary part of pi, li of one is complex); their decimals in DecimalSpecial.cpp (specialIntegralDecimal).
 #pragma once
 
 #include <optional>

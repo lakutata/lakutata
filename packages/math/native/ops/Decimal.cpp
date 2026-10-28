@@ -637,6 +637,16 @@ Approximation Evaluator::wrapper(const Basic &e, const std::vector<Approximation
 {
     const DecimalContext &context = context_;
     const std::string &name = down_cast<const FunctionWrapper &>(e).get_name();
+    //The special functions of integrals: their errors the spreads of their values, their poles (0 of Ci, Chi and Ei, 1
+    //of li) within the errors of their arguments undecided
+    if (name == "Si" || name == "Ci" || name == "Shi" || name == "Chi" || name == "Ei" || name == "li" || name == "fresnelS" || name == "fresnelC") {
+        const Approximation &x = arguments[0];
+        if (name == "Ci" || name == "Chi" || name == "Ei") notZero(x, ErrorCode::DivisionByZero, "The value has no decimal value (" + name + " at its pole 0)");
+        if (name == "li") notZero({context.sub(x.value, one()), x.noise}, ErrorCode::DivisionByZero, "The value has no decimal value (li at its pole 1)");
+        const std::function<Decimal(const std::vector<Decimal> &)> function = [&context, &name](const std::vector<Decimal> &at) { return specialIntegralDecimal(context, name, at[0]); };
+        const Decimal value = function({x.value});
+        return {value, x.noise <= EXACT / 2 ? EXACT : spread(function, {x.value}, 0, x, value)};
+    }
     //The real root (cbrt, root): the root of |x|, negated for a negative x and an odd degree
     if (name == "root") {
         const Approximation &x = arguments[0];
