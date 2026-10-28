@@ -322,14 +322,27 @@ Expr substitute(const Expr &expression, const std::vector<std::pair<std::string,
     return evaluated(result, true);
 }
 
-std::map<long, Expr> seriesTermsOf(const Expr &expression, const RCP<const Symbol> &by, long order)
+std::map<long, Expr> seriesTermsOf(const Expr &given, const RCP<const Symbol> &by, long order)
 {
+    //The calls of the addon without the variable held as constants: SymEngine's series of them crashed (Si(1) in a
+    //limit)
+    map_basic_basic held, restored;
+    std::function<void(const Expr &)> hold = [&](const Expr &node) {
+        if (is_a<FunctionWrapper>(*node) && !has_symbol(*node, *by)) {
+            if (!held.count(node)) held[node] = make_rcp<const Dummy>("held", static_cast<unsigned>(held.size() + 1));
+            return;
+        }
+        for (const Expr &argument : node->get_args()) hold(argument);
+    };
+    hold(given);
+    const Expr expression = held.empty() ? given : xreplace(given, held);
+    for (const auto &[value, placeholder] : held) restored[placeholder] = value;
     //SymEngine's series loses orders where it divides by a power of the variable (sin(x)/x^3 lacked its x^2 term, the
     //x^3 term of (1 + x)^(1/x) was wrong): computed again at higher orders until the terms below the order agree
-    const auto termsAt = [&expression, &by, order](long precision) {
+    const auto termsAt = [&expression, &by, order, &restored](long precision) {
         std::map<long, Expr> terms;
         for (const auto &[power, coefficient] : series(expression, by, static_cast<unsigned>(precision))->as_dict()) {
-            if (power < order) terms[power] = coefficient;
+            if (power < order) terms[power] = restored.empty() ? coefficient : xreplace(coefficient, restored);
         }
         return terms;
     };

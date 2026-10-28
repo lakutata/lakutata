@@ -74,6 +74,24 @@ describe('The limits', (): void => {
         }
     })
 
+    it('take the special functions of integrals by their series at a point and the asymptotic series of Ei', (): void => {
+        assert.strictEqual(limit('Si(x)/x', '0'), '1')
+        assert.strictEqual(limit('(Si(x) - sin(x))/x^3', '0'), '1/9')
+        assert.strictEqual(limit('(fresnelC(x) - x)/x^5', '0'), '-pi^2/40')
+        assert.strictEqual(limit('x*Si(1/x)', 'inf'), '1')
+        assert.strictEqual(limit('Ci(x) - ln(x)', '0', '+'), 'EulerGamma')
+        assert.strictEqual(limit('Ei(x) - ln(-x)', '0', '-'), 'EulerGamma')
+        assert.strictEqual(limit('x^2*(Chi(1/x) + ln(x) - EulerGamma)', 'inf'), '1/4')
+        assert.strictEqual(limit('li(x) - ln(abs(ln(x)))', '1', '+'), 'EulerGamma')
+        assert.strictEqual(limit('(Ci(x) - Ci(2))/(x - 2)', '2'), 'cos(2)/2')
+        assert.strictEqual(limit('(x*e^(-x)*Ei(x) - 1)*x', 'inf'), '1')
+        assert.strictEqual(limit('x*e^(-x)*Shi(x)', 'inf'), '1/2')
+        assert.strictEqual(limit('li(x)*ln(x)/x', 'inf'), '1')
+        assert.strictEqual(limit('li(x)*ln(x)/x', '0', '+'), '1')
+        //A value of one of them in a limit (SymEngine's series of it crashed)
+        assert.strictEqual(limit('x*(e^(Si(1)/x) - 1)', 'inf'), 'Si(1)')
+    })
+
     it('refuse limits it does not find, and wrong arguments', async (): Promise<void> => {
         assert.throws((): string => limit('exp(a*x)', 'inf'), (error: Error): boolean => error instanceof MathNotSupportedException && /sign of a/.test(error.message))
         assert.throws((): string => limit('gamma(x + 1)/x', 'inf'), MathNotSupportedException)

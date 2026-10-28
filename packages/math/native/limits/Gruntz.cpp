@@ -371,8 +371,99 @@ private:
     Variable x_;
     std::vector<Variable> positives_;
     unsigned depth_ = 0;
+    //The order of the polynomials of the special integrals (specialPolynomial), and the remainders written in them
+    unsigned specialOrder_ = 8;
+    std::vector<Variable> remainders_;
 
+    //The limit by the algorithm; computed again with the special integrals to higher orders while a remainder of their
+    //polynomials is in it or its sign is asked
     Expr gruntzLimit(const Expr &given)
+    {
+        const unsigned first = specialOrder_;
+        struct Restore {
+            unsigned &order;
+            unsigned value;
+            ~Restore() { order = value; }
+        } restore{specialOrder_, first};
+        for (unsigned order = first;; order *= 2) {
+            specialOrder_ = order;
+            const size_t start = remainders_.size();
+            try {
+                const Expr result = gruntzOnce(given);
+                bool left = false;
+                for (size_t i = start; i < remainders_.size(); i++) left = left || has(result, remainders_[i]);
+                if (!left) return result;
+                if (order >= 64) throw notFound("a series of a special integral is not computed to enough terms");
+            } catch (const MathError &error) {
+                if (error.code() != ErrorCode::NotSupported || remainders_.size() == start || order >= 64) throw;
+            }
+        }
+    }
+
+    //A special integral F(u) of u going to v, finite: its Taylor polynomial in u - v to the order, plus r (u - v)^(order + 1)
+    //of a fresh constant r for the rest (gruntzLimit computes the limit again to a higher order where r is left in it).
+    //At 0, Ci, Chi and Ei are γ + ln(±u) and their power series; li(u) at 0 and 1 is Ei(ln u). At inf and -inf, Ei(u) is
+    //e^u (Σ k!/u^(k + 1) + r/u^(order + 1)), its asymptotic series, Shi and Chi (Ei(u) ∓ Ei(-u))/2, li(u) Ei(ln u); the
+    //laws of limits take the others (Si(x) at inf)
+    Expr specialPolynomial(SpecialIntegral::Kind kind, const Expr &u)
+    {
+        using Kind = SpecialIntegral::Kind;
+        const Expr v = limitInf(u);
+        if (has(v, x_) || is_a<NaN>(*v)) throw notFound("of a special integral of an argument without a limit");
+        const int infinite = infinitySign(v);
+        if (kind == Kind::Li && (infinite > 0 || eq(*v, *one) || eq(*v, *zero))) return specialPolynomial(Kind::Ei, log(u));
+        if (infinite != 0 && (kind == Kind::Shi || (kind == Kind::Chi && infinite > 0))) {
+            const Expr sum = kind == Kind::Shi ? sub(specialPolynomial(Kind::Ei, u), specialPolynomial(Kind::Ei, neg(u))) : add(specialPolynomial(Kind::Ei, u), specialPolynomial(Kind::Ei, neg(u)));
+            return div(sum, integer(2));
+        }
+        if (infinite != 0 && kind != Kind::Ei) throw notFound("of a special integral of an argument going to infinity");
+        const unsigned order = specialOrder_;
+        if (infinite != 0) {
+            Expr sum = zero, factorial = one;
+            for (unsigned k = 0; k < order; k++) {
+                if (k > 0) factorial = mul(factorial, integer(k));
+                sum = add(sum, div(factorial, pow(u, integer(k + 1))));
+            }
+            const Variable remainder = fresh("remainder");
+            remainders_.push_back(remainder);
+            return mul(exp(u), add(sum, div(remainder, pow(u, integer(order + 1)))));
+        }
+        if (undefinedIn(v)) throw notFound("of a special integral of an argument without a limit");
+        Expr polynomial;
+        Expr distance = sub(u, v);
+        if (eq(*v, *zero)) {
+            distance = u;
+            if (const std::optional<Expr> series = specialIntegralSeries(kind, u, order)) {
+                polynomial = *series;
+            } else {
+                //γ + ln|u| + Σ u^k/(k k!) for Ei, the even powers for Chi, with alternating signs for Ci
+                const int side = sign(u);
+                if (side == 0 || (side < 0 && kind != Kind::Ei)) throw notFound("of a special integral of a complex value");
+                polynomial = add(EulerGamma, log(side > 0 ? u : neg(u)));
+                Expr factorial = one;
+                for (unsigned k = 1; k <= order; k++) {
+                    factorial = mul(factorial, integer(k));
+                    if (kind != Kind::Ei && k % 2 == 1) continue;
+                    const Expr term = div(pow(u, integer(k)), mul(integer(k), factorial));
+                    polynomial = kind == Kind::Ci && k % 4 == 2 ? sub(polynomial, term) : add(polynomial, term);
+                }
+            }
+        } else {
+            //F(v) and the integral of the series of F' at v (Ci, Chi and li are real for v > 0 only)
+            if ((kind == Kind::Ci || kind == Kind::Chi || kind == Kind::Li) && compareOf(v, zero) != 1) throw notFound("of a special integral of a complex value");
+            const Variable t = fresh("t"), h = fresh("h");
+            const Expr derivative = specialIntegralOf(kind, t)->diff(t);
+            polynomial = specialIntegralOf(kind, v);
+            for (const auto &[power, coefficient] : seriesTermsOf(subs(derivative, {{t, add(v, h)}}), h, static_cast<long>(order))) {
+                polynomial = add(polynomial, div(mul(coefficient, pow(distance, integer(power + 1))), integer(power + 1)));
+            }
+        }
+        const Variable remainder = fresh("remainder");
+        remainders_.push_back(remainder);
+        return add(polynomial, mul(remainder, pow(distance, integer(order + 1))));
+    }
+
+    Expr gruntzOnce(const Expr &given)
     {
         const Expr e = tractable(positiveForm(given, positives_));
         if (!has(e, x_)) return e;
@@ -649,6 +740,9 @@ private:
                 const Expr u = tractable(arguments[0], strict), n = arguments[1];
                 if (sign(u) >= 0) return pow(u, div(one, n));
                 return neg(pow(neg(u), div(one, n)));
+            }
+            if (const auto *special = dynamic_cast<const SpecialIntegral *>(&function); special != nullptr && strict) {
+                return specialPolynomial(special->kind(), tractable(arguments[0], strict));
             }
             //(the laws of limits take the others: Si(x) at inf)
             if (strict) throw notFound(nameOf(e) + " is not taken by the algorithm");
