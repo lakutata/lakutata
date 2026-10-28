@@ -684,6 +684,41 @@ def sums():
     save('sums', results)
 
 
+def limits():
+    """The limits of SymPy (limit: from both sides of a finite point unless a side is given, '+-'): a value, its values
+    at the sample points (a parameter left in it); an infinity; none where the sides differ (SymPy's ValueError, or zoo
+    for infinities of opposite signs: the limits of the two sides), where it oscillates (an AccumBounds), or where SymPy
+    finds none (another error, or the Limit left)"""
+    results = []
+    for case in load('limits'):
+        result = dict(case)
+        expr, variable, point = meaning(case['sympy']), Symbol(case['variable']), parse(str(case['point']))
+        infinite = point in (oo, -oo)
+        direction = case.get('direction', 'both')
+        try:
+            value = (sympy.limit(expr, variable, point) if infinite
+                     else sympy.limit(expr, variable, point, '+-' if direction == 'both' else direction))
+        except ValueError as error:
+            value, result['error'] = None, type(error).__name__
+        except (NotImplementedError, TypeError) as error:
+            value, result['error'] = sympy.Limit(expr, variable, point), type(error).__name__
+        if value is None or (value == zoo and not infinite and direction == 'both'):
+            result['kind'] = 'sides'
+            below, above = (sympy.limit(expr, variable, point, side) for side in '-+')
+            result['sides'] = {'below': text_of(below), 'above': text_of(above)}
+        elif isinstance(value, sympy.AccumBounds):
+            result['kind'], result['result'] = 'oscillates', str(value)
+        elif isinstance(value, sympy.Limit):
+            result['kind'] = 'unsolved'
+            result.setdefault('error', 'the Limit left')
+        elif value in (oo, -oo):
+            result['kind'] = result['result'] = text_of(value)
+        else:
+            result['kind'], result['result'], result['values'] = 'value', text_of(value), values_at(value)
+        results.append(result)
+    save('limits', results)
+
+
 if __name__ == '__main__':
     grammar()
     numbers()
@@ -703,6 +738,7 @@ if __name__ == '__main__':
     inequalities()
     piecewise()
     sums()
+    limits()
     decimals()
     special()
     complex_parts()

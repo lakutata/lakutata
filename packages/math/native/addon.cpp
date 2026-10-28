@@ -19,6 +19,7 @@
 #include "core/Errors.h"
 #include "linalg/Linalg.h"
 #include "matrix/Matrices.h"
+#include "limits/Gruntz.h"
 #include "poly/Inequalities.h"
 #include "poly/Poly.h"
 #include "numeric/Compiled.h"
@@ -249,6 +250,16 @@ Job solveJob(const Napi::Array &arguments)
     return [expression, variable, real] {
         return solutionsBuilder(solveOf(expression, variable, real));
     };
+}
+
+//The limit of an expression for a variable going to a point, from a direction
+Job limitJob(const Napi::Array &arguments)
+{
+    Expr expression = expressionAt(arguments, 0);
+    std::string variable = stringAt(arguments, 1, "The variable");
+    Expr point = expressionAt(arguments, 2);
+    std::string direction = stringAt(arguments, 3, "The direction");
+    return [expression, variable, point, direction] { return expressionResult(limitOf(expression, variable, point, direction)); };
 }
 
 //expression < 0 (or <=, >, >=) solved for a variable in the real numbers
@@ -979,7 +990,7 @@ const std::map<std::string, JobFactory> &jobs()
     //The tables of the file are never destroyed: the threads of the addon may still use them while the process exits
     static const std::map<std::string, JobFactory> &table = *new std::map<std::string, JobFactory>{
         {"expand", expandJob}, {"simplify", simplifyJob}, {"diff", diffJob}, {"substitute", substituteJob},
-        {"series", seriesJob}, {"solve", solveJob}, {"inequality", inequalityJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
+        {"series", seriesJob}, {"solve", solveJob}, {"inequality", inequalityJob}, {"limit", limitJob}, {"solveLinear", solveLinearJob}, {"equals", equalsJob},
         {"decimal", decimalJob}, {"complexDecimal", complexDecimalJob}, {"linalg", linalgJob}, {"sparse", sparseJob}, {"stats", statisticsJob}, {"distribution", distributionJob}, {"random", randomJob}, {"polynomialRoots", polynomialRootsJob}, {"findRoot", findRootJob}, {"solveSystem", solveSystemJob}, {"integrate", integrateJob}, {"solveODE", solveODEJob}, {"matrix", matrixJob}, {"poly", polyJob}, {"decimalOperation", decimalOperationJob}, {"arithmetic", arithmeticJob}, {"fraction", fractionJob}, {"coefficients", coefficientsJob},
         {"divide", divideJob}, {"rewrite", rewriteJob}, {"predicate", predicateJob}, {"compare", compareJob},
         {"ntheory", numberTheoryJob}, {"code", codeJob}, {"cse", cseJob}, {"polar", polarJob}, {"rectangular", rectangularJob}

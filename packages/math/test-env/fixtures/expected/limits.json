@@ -1,0 +1,1047 @@
+{
+ "generator": {
+  "sympy": "1.14.0",
+  "mpmath": "1.4.1"
+ },
+ "points": [
+  {
+   "x": "0.7",
+   "y": "1.3",
+   "z": "-0.4",
+   "a": "2.1",
+   "b": "-1.7",
+   "c": "0.3",
+   "d": "1.1",
+   "t": "0.35"
+  },
+  {
+   "x": "-1.9",
+   "y": "0.45",
+   "z": "2.6",
+   "a": "-0.8",
+   "b": "3.2",
+   "c": "-2.3",
+   "d": "0.6",
+   "t": "1.75"
+  }
+ ],
+ "cases": [
+  {
+   "text": "sin(x)/x",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "sin(x)/x",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "(1 - cos(x))/x^2",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "(1 - cos(x))/x**2",
+   "kind": "value",
+   "result": "1/2",
+   "values": [
+    [
+     "0.500000000000000000000000000000",
+     "0"
+    ],
+    [
+     "0.500000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "(exp(x) - 1)/x",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "(exp(x) - 1)/x",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "log(1 + x)/x",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "log(1 + x)/x",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "(sin(x) - x)/x^3",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "(sin(x) - x)/x**3",
+   "kind": "value",
+   "result": "-1/6",
+   "values": [
+    [
+     "-0.166666666666666666666666666667",
+     "0"
+    ],
+    [
+     "-0.166666666666666666666666666667",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "x/(exp(x) - 1)",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "x/(exp(x) - 1)",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "tan(x)/x",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "tan(x)/x",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "atan(x)/x",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "atan(x)/x",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "asin(x)/x",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "asin(x)/x",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "sinh(x)/x",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "sinh(x)/x",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "(3x^2 + 2x)/(x^2 - 5)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "(3*x**2 + 2*x)/(x**2 - 5)",
+   "kind": "value",
+   "result": "3",
+   "values": [
+    [
+     "3.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "3.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "(x + 1)/(x^2 + 1)",
+   "variable": "x",
+   "point": "-inf",
+   "sympy": "(x + 1)/(x**2 + 1)",
+   "kind": "value",
+   "result": "0",
+   "values": [
+    [
+     "0",
+     "0"
+    ],
+    [
+     "0",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "(2x^3 - x)/(5x^2 + 1)",
+   "variable": "x",
+   "point": "-inf",
+   "sympy": "(2*x**3 - x)/(5*x**2 + 1)",
+   "kind": "-inf",
+   "result": "-inf"
+  },
+  {
+   "text": "x^x",
+   "variable": "x",
+   "point": 0,
+   "direction": "+",
+   "sympy": "x**x",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "x*log(x)",
+   "variable": "x",
+   "point": 0,
+   "direction": "+",
+   "sympy": "x*log(x)",
+   "kind": "value",
+   "result": "0",
+   "values": [
+    [
+     "0",
+     "0"
+    ],
+    [
+     "0",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "(1 + 1/x)^x",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "(1 + 1/x)**x",
+   "kind": "value",
+   "result": "e",
+   "values": [
+    [
+     "2.71828182845904523536028747135",
+     "0"
+    ],
+    [
+     "2.71828182845904523536028747135",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "(1 + a/x)^x",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "(1 + a/x)**x",
+   "kind": "value",
+   "result": "exp(a)",
+   "values": [
+    [
+     "8.16616991256765007344972741048",
+     "0"
+    ],
+    [
+     "0.449328964117221591430102385016",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "(1 - x)^(1/x)",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "(1 - x)**(1/x)",
+   "kind": "value",
+   "result": "exp(-1)",
+   "values": [
+    [
+     "0.367879441171442321595523770161",
+     "0"
+    ],
+    [
+     "0.367879441171442321595523770161",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "x^(1/x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "x**(1/x)",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "x^5*exp(-x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "x**5*exp(-x)",
+   "kind": "value",
+   "result": "0",
+   "values": [
+    [
+     "0",
+     "0"
+    ],
+    [
+     "0",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "log(x)/x",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "log(x)/x",
+   "kind": "value",
+   "result": "0",
+   "values": [
+    [
+     "0",
+     "0"
+    ],
+    [
+     "0",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "log(x)/sqrt(x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "log(x)/sqrt(x)",
+   "kind": "value",
+   "result": "0",
+   "values": [
+    [
+     "0",
+     "0"
+    ],
+    [
+     "0",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "log(log(x))/log(x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "log(log(x))/log(x)",
+   "kind": "value",
+   "result": "0",
+   "values": [
+    [
+     "0",
+     "0"
+    ],
+    [
+     "0",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "exp(exp(x))/exp(x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "exp(exp(x))/exp(x)",
+   "kind": "inf",
+   "result": "inf"
+  },
+  {
+   "text": "exp(x)/(exp(x) + 1)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "exp(x)/(exp(x) + 1)",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "exp(-1/x^2)",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "exp(-1/x**2)",
+   "kind": "value",
+   "result": "0",
+   "values": [
+    [
+     "0",
+     "0"
+    ],
+    [
+     "0",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "sqrt(x^2 + 1) - x",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "sqrt(x**2 + 1) - x",
+   "kind": "value",
+   "result": "0",
+   "values": [
+    [
+     "0",
+     "0"
+    ],
+    [
+     "0",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "x*sin(1/x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "x*sin(1/x)",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "x*sin(1/x)",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "x*sin(1/x)",
+   "kind": "value",
+   "result": "0",
+   "values": [
+    [
+     "0",
+     "0"
+    ],
+    [
+     "0",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "x*(exp(1/x) - 1)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "x*(exp(1/x) - 1)",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "1/x",
+   "variable": "x",
+   "point": 0,
+   "direction": "+",
+   "sympy": "1/x",
+   "kind": "inf",
+   "result": "inf"
+  },
+  {
+   "text": "1/x",
+   "variable": "x",
+   "point": 0,
+   "direction": "-",
+   "sympy": "1/x",
+   "kind": "-inf",
+   "result": "-inf"
+  },
+  {
+   "text": "exp(1/x)",
+   "variable": "x",
+   "point": 0,
+   "direction": "+",
+   "sympy": "exp(1/x)",
+   "kind": "inf",
+   "result": "inf"
+  },
+  {
+   "text": "exp(1/x)",
+   "variable": "x",
+   "point": 0,
+   "direction": "-",
+   "sympy": "exp(1/x)",
+   "kind": "value",
+   "result": "0",
+   "values": [
+    [
+     "0",
+     "0"
+    ],
+    [
+     "0",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "tan(x)",
+   "variable": "x",
+   "point": "pi/2",
+   "direction": "-",
+   "sympy": "tan(x)",
+   "kind": "inf",
+   "result": "inf"
+  },
+  {
+   "text": "log(x)",
+   "variable": "x",
+   "point": 0,
+   "direction": "+",
+   "sympy": "log(x)",
+   "kind": "-inf",
+   "result": "-inf"
+  },
+  {
+   "text": "1/x^2",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "1/x**2",
+   "kind": "inf",
+   "result": "inf"
+  },
+  {
+   "text": "1/x",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "1/x",
+   "kind": "sides",
+   "sides": {
+    "below": "-inf",
+    "above": "inf"
+   }
+  },
+  {
+   "text": "abs(x)/x",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "Abs(x)/x",
+   "error": "ValueError",
+   "kind": "sides",
+   "sides": {
+    "below": "-1",
+    "above": "1"
+   }
+  },
+  {
+   "text": "floor(x)",
+   "variable": "x",
+   "point": 2,
+   "direction": "both",
+   "sympy": "floor(x)",
+   "error": "ValueError",
+   "kind": "sides",
+   "sides": {
+    "below": "1",
+    "above": "2"
+   }
+  },
+  {
+   "text": "step(x)",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "Heaviside(x)",
+   "error": "ValueError",
+   "kind": "sides",
+   "sides": {
+    "below": "0",
+    "above": "1"
+   }
+  },
+  {
+   "text": "atan(x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "atan(x)",
+   "kind": "value",
+   "result": "pi/2",
+   "values": [
+    [
+     "1.57079632679489661923132169164",
+     "0"
+    ],
+    [
+     "1.57079632679489661923132169164",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "atan(x)",
+   "variable": "x",
+   "point": "-inf",
+   "sympy": "atan(x)",
+   "kind": "value",
+   "result": "-pi/2",
+   "values": [
+    [
+     "-1.57079632679489661923132169164",
+     "0"
+    ],
+    [
+     "-1.57079632679489661923132169164",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "x*(atan(x) - pi/2)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "x*(atan(x) - pi/2)",
+   "kind": "value",
+   "result": "-1",
+   "values": [
+    [
+     "-1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "-1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "tanh(x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "tanh(x)",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "tanh(x)",
+   "variable": "x",
+   "point": "-inf",
+   "sympy": "tanh(x)",
+   "kind": "value",
+   "result": "-1",
+   "values": [
+    [
+     "-1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "-1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "asinh(x) - log(x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "asinh(x) - log(x)",
+   "kind": "value",
+   "result": "log(2)",
+   "values": [
+    [
+     "0.693147180559945309417232121458",
+     "0"
+    ],
+    [
+     "0.693147180559945309417232121458",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "sinh(x)/exp(x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "sinh(x)/exp(x)",
+   "kind": "value",
+   "result": "1/2",
+   "values": [
+    [
+     "0.500000000000000000000000000000",
+     "0"
+    ],
+    [
+     "0.500000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "max(x, x^2)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "Max(x, x**2)",
+   "error": "NotImplementedError",
+   "kind": "unsolved",
+   "differs": {
+    "sympy": "SymPy does not compute it (NotImplementedError: no mrv set for a function of several arguments); here max is decided by the sign of x^2 - x for x large enough: inf"
+   }
+  },
+  {
+   "text": "min(x, 1)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "Min(x, 1)",
+   "error": "TypeError",
+   "kind": "unsolved",
+   "differs": {
+    "sympy": "SymPy fails with a TypeError in the series of Min; here min is decided by the sign of x - 1 for x large enough: 1"
+   }
+  },
+  {
+   "text": "floor(x)",
+   "variable": "x",
+   "point": 2,
+   "direction": "+",
+   "sympy": "floor(x)",
+   "kind": "value",
+   "result": "2",
+   "values": [
+    [
+     "2.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "2.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "floor(x)",
+   "variable": "x",
+   "point": 2,
+   "direction": "-",
+   "sympy": "floor(x)",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "erf(x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "erf(x)",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "erf(x)/x",
+   "variable": "x",
+   "point": 0,
+   "direction": "both",
+   "sympy": "erf(x)/x",
+   "kind": "value",
+   "result": "2/sqrt(pi)",
+   "values": [
+    [
+     "1.12837916709551257389615890312",
+     "0"
+    ],
+    [
+     "1.12837916709551257389615890312",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "gamma(x)",
+   "variable": "x",
+   "point": 1,
+   "direction": "both",
+   "sympy": "gamma(x)",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "2^x/3^x",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "2**x/3**x",
+   "kind": "value",
+   "result": "0",
+   "values": [
+    [
+     "0",
+     "0"
+    ],
+    [
+     "0",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "(2^x + 3^x)^(1/x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "(2**x + 3**x)**(1/x)",
+   "kind": "value",
+   "result": "3",
+   "values": [
+    [
+     "3.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "3.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "sin(x)/x",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "sin(x)/x",
+   "kind": "value",
+   "result": "0",
+   "values": [
+    [
+     "0",
+     "0"
+    ],
+    [
+     "0",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "sin(x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "sin(x)",
+   "kind": "oscillates",
+   "result": "AccumBounds(-1, 1)"
+  },
+  {
+   "text": "exp(sin(x)/x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "exp(sin(x)/x)",
+   "kind": "value",
+   "result": "1",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "x + sin(x)",
+   "variable": "x",
+   "point": "inf",
+   "sympy": "x + sin(x)",
+   "kind": "inf",
+   "result": "inf"
+  },
+  {
+   "text": "(x^2 - 1)/(x - 1)",
+   "variable": "x",
+   "point": 1,
+   "direction": "both",
+   "sympy": "(x**2 - 1)/(x - 1)",
+   "kind": "value",
+   "result": "2",
+   "values": [
+    [
+     "2.00000000000000000000000000000",
+     "0"
+    ],
+    [
+     "2.00000000000000000000000000000",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "1/(x - a)",
+   "variable": "x",
+   "point": "a",
+   "direction": "+",
+   "sympy": "1/(x - a)",
+   "kind": "inf",
+   "result": "inf"
+  }
+ ]
+}

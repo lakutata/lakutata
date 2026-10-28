@@ -26,6 +26,7 @@
 #include "../async/Pool.h"
 #include "Gosper.h"
 #include "../core/Errors.h"
+#include "../limits/Gruntz.h"
 #include "../ops/Operations.h"
 #include "../ops/Piecewise.h"
 #include "../poly/Poly.h"
@@ -202,7 +203,12 @@ std::optional<Expr> geometricSum(const Expr &term, const RCP<const Symbol> &k, c
         const RCP<const Boolean> converges = relationOf("<", abs(r), one);
         const int known = decidedOf(converges);
         if (known == 1) return limit;
-        if (known == 0) return std::nullopt;
+        //Without end for r > 1: an infinity of the sign of c (for r <= -1 the partial sums oscillate)
+        if (known == 0) {
+            const int growing = compareOf(r, one), s = compareOf(c, zero);
+            if (growing == 1 && (s == 1 || s == -1)) return s > 0 ? Expr(Inf) : Expr(NegInf);
+            return std::nullopt;
+        }
         return SymEngine::piecewise({{limit, converges}, {call("sum", term, k, low, high), boolTrue}});
     }
     const Expr total = div(mul(c, sub(pow(r, low), pow(r, add(high, one)))), sub(one, r));
@@ -258,6 +264,19 @@ std::optional<Expr> closedSum(const Expr &term, const RCP<const Symbol> &k, cons
 //a piecewise expression, as for a geometric series (the formula for k x^k has a pole at x = 1)
 std::optional<Expr> hypergeometricSum(const Expr &term, const RCP<const Symbol> &k, const Expr &low, const Expr &high)
 {
+    //To inf: the limit of the sum to n (where it is found; a ratio of other variables is left to the call)
+    if (positiveInfinity(high)) {
+        if (negativeInfinity(low)) return std::nullopt;
+        const RCP<const Symbol> n = symbol("@high");
+        const std::optional<Expr> partial = gosperSum(term, k, low, n);
+        if (!partial) return std::nullopt;
+        try {
+            return limitOf(*partial, n, Inf, "+");
+        } catch (const MathError &error) {
+            if (error.code() != ErrorCode::NotSupported && error.code() != ErrorCode::Domain) throw;
+            return std::nullopt;
+        }
+    }
     const std::optional<Expr> sum = gosperSum(term, k, low, high);
     if (!sum) return std::nullopt;
     RCP<const Number> number;

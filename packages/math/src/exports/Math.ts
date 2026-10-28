@@ -16,6 +16,7 @@ export {
     Expression,
     Inequality,
     type InequalityRelation,
+    type LimitOptions,
     type PolarForm,
     type RectangularForm,
     Solutions,

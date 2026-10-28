@@ -84,6 +84,10 @@ describe('The numeric solutions', (): void => {
         assert.ok(near(math.numeric.integrate('sin(x)/x', 'x', [-1, 2]).value, 2.551496047169878))
         const cancelled = math.numeric.integrate('(x^2 - 1)/(x - 1)', 'x', [0, 2])
         assert.ok(cancelled.converged && near(cancelled.value, 4))
+        //A root of the denominator where the numerator is 0 too, but the integrand grows (cbrt(u)/u is u^(-2/3)): split
+        //there, the singularity at the ends of the pieces
+        const growing = math.numeric.integrate('cbrt(x - 46/25)/(3x - 138/25)', 'x', [1.73, 2.71])
+        assert.ok(growing.converged && globalThis.Math.abs(growing.value - (globalThis.Math.cbrt(2.71 - 1.84) - globalThis.Math.cbrt(1.73 - 1.84))) < 1e-12, JSON.stringify(growing))
         //A larger tolerance: fewer intervals, a larger error
         const coarse = math.numeric.integrate('1/(1e-4 + x^2)', 'x', [-1, 1], {tolerance: 1e-3})
         assert.ok(coarse.converged && coarse.error <= 1e-3 * 312.2)

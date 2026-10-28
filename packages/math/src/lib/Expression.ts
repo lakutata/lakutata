@@ -12,6 +12,17 @@ import {type Handle, nativeCall, type NativeParsed, type NativeSolutions} from '
 export type Value = Expression | Decimal | number | bigint | string
 
 /**
+ * The side of a finite point a limit is taken from: above (`'+'`), below (`'-'`) or both, the same limit (`'both'`, the
+ * default)
+ */
+export interface LimitOptions {
+    /**
+     * The side: `'both'` by default.
+     */
+    direction?: '+' | '-' | 'both'
+}
+
+/**
  * The domain of the solutions of an equation: the complex numbers (the default) or the real ones
  */
 export interface SolveOptions {
@@ -546,6 +557,37 @@ export class Expression {
      */
     public async diffAsync(variable: string, times: number = 1, options?: AsyncOptions): Promise<Expression> {
         return this.#expression(await this.context.runAsync<Handle>('diff', [this.handle, variable, times], options))
+    }
+
+    /**
+     * The limit of the expression for a variable going to a point, by Gruntz's algorithm: at a finite point from both
+     * sides by default (two different limits throw `MathDomainException`), at `inf` or `-inf`; `inf` or `-inf` where
+     * it diverges (`sin(x)/x` at 0 is 1, `(1 + 1/x)^x` at `inf` is `e`, `x^5 e^(-x)` at `inf` is 0); an oscillation
+     * without a limit (`sin(x)` at `inf`) throws `MathDomainException`. A limit that depends on the sign of a parameter
+     * (`exp(a*x)` at `inf`), or of a function whose behavior at infinity the algorithm does not know (`gamma(x + 1)/x` at
+     * `inf`), or of a sum or a product left as a call, throws `MathNotSupportedException`.
+     * @param variable The variable.
+     * @param point The point: a number, an expression, `inf` or `-inf`.
+     * @param options The side of a finite point the variable comes from.
+     * @example
+     * import {expression} from '@lakutata/math'
+     *
+     * console.log(expression('sin(x)/x').limit('x', 0).toString())         //1
+     * console.log(expression('(1 + 1/x)^x').limit('x', 'inf').toString())  //e
+     * console.log(expression('1/x').limit('x', 0, {direction: '-'}).toString()) //-inf
+     */
+    public limit(variable: string, point: Value, options: LimitOptions = {}): Expression {
+        return this.#expression(this.context.run<Handle>('limit', [this.handle, variable, handleOf(this.context, point), options.direction ?? 'both']))
+    }
+
+    /**
+     * `limit()` in the threads of the addon: Gruntz's algorithm computes series of series, which can take long.
+     * @param variable The variable.
+     * @param point The point.
+     * @param options The side of the point, the cancellation, the time limit.
+     */
+    public async limitAsync(variable: string, point: Value, options: LimitOptions & AsyncOptions = {}): Promise<Expression> {
+        return this.#expression(await this.context.runAsync<Handle>('limit', [this.handle, variable, handleOf(this.context, point), options.direction ?? 'both'], options))
     }
 
     /**

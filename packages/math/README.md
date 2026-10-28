@@ -120,10 +120,12 @@ terms are computed one by one, exactly. Otherwise a closed form is looked for: t
 k, 1, n)` is `n^3/3 + n^2/2 + n/6`), of a geometric series (`sum(x^k, k, 0, n)` is `piecewise(n + 1, x = 1, (-x^(n + 1)
 + 1)/(-x + 1))`; to `inf`, its value where `abs(x) < 1`), of a power of `1/(k + q)` (with `zeta` and `polygamma`:
 `sum(1/k^2, k, 1, inf)` is `pi^2/6`), of a hypergeometric term, by Gosper's algorithm (`sum(k*2^k, k, 1, n)` is `2(n -
-1)*2^n + 2`, `sum(1/(k*(k + 1)), k, 1, n)` is `n/(n + 1)`, `sum(k*k!, k, 1, n)` is `gamma(n + 2) - 1`), or of a sum of
-such terms, one by one; the product of powers, or of a fraction of polynomials with linear factors (with `gamma`:
-`product(1 - 1/k^2, k, 2, n)` is `(n + 1)/(2n)`). The others stay as `sum(…)` and `product(…)`: their values are
-computed term by term between integers, up to 10^4 terms, and they cannot be compiled.
+1)*2^n + 2`, `sum(1/(k*(k + 1)), k, 1, n)` is `n/(n + 1)`, `sum(k*k!, k, 1, n)` is `gamma(n + 2) - 1`; to `inf`, the
+limit of the sum up to `n`, so `sum(1/(k*(k + 1)), k, 1, inf)` is 1), or of a sum of such terms, one by one; the product
+of powers, or of a fraction of polynomials with linear factors (with `gamma`: `product(1 - 1/k^2, k, 2, n)` is `(n +
+1)/(2n)`). A sum to `inf` that grows without bound is `inf` or `-inf` (`sum(2^k, k, 0, inf)`, `sum(k*k!, k, 1, inf)`).
+The others stay as `sum(…)` and `product(…)`: their values are computed term by term between integers, up to 10^4 terms,
+and they cannot be compiled.
 
 ```typescript
 import {expression} from '@lakutata/math'
@@ -293,6 +295,31 @@ console.log(solution.x.toString(), solution.y.toString())   //2 1
 console.log((parse('(x + 1)/(x - 2) >= 0') as Inequality).solve('x').toString()) //(-inf, -1] ∪ (2, inf)
 const set = interval(0, 2, {endOpen: true}).union(finiteSet([3]))
 console.log(set.complement().toString(), set.contains('sqrt(2)')) //(-inf, 0) ∪ [2, 3) ∪ (3, inf) true
+```
+
+### Limits
+
+`limit(variable, point)` gives the limit of an expression by Gruntz's algorithm (after SymPy's `gruntz`). The point is a
+number, an expression, `inf` or `-inf`. At a finite point, the limit is taken from both sides by default, and
+`{direction: '+'}` or `{direction: '-'}` takes it from above or from below. The result can be `inf` or `-inf`. When the
+two sides differ, or the expression keeps oscillating (`sin(x)` at `inf`), there is no limit, and a
+`MathDomainException` says why.
+
+The algorithm handles exponentials, logarithms, powers such as `x^x`, and the trigonometric and hyperbolic functions and
+their inverses, in the indeterminate forms (`0/0`, `inf/inf`, `0*inf`, `1^inf`, `inf - inf`). `abs`, `sign`, `max`,
+`min`, `floor`, `ceil` and `piecewise` are decided on the side the variable comes from. `sin` and `cos` of an argument
+going to infinity stay between -1 and 1, so `sin(x)/x` at `inf` is 0. A `MathNotSupportedException` is thrown when the
+limit is not found: the limit depends on the sign of a parameter (`exp(a*x)` at `inf`), the algorithm does not know how
+a function behaves at infinity (`gamma(x + 1)/x` at `inf`), or a sum or a product is left as a call.
+
+```typescript
+import {expression} from '@lakutata/math'
+
+console.log(expression('sin(x)/x').limit('x', 0).toString())                  //1
+console.log(expression('(1 + a/x)^x').limit('x', 'inf').toString())           //e^a
+console.log(expression('x^x').limit('x', 0, {direction: '+'}).toString())     //1
+console.log(expression('(2^x + 3^x)^(1/x)').limit('x', 'inf').toString())     //3
+expression('1/x').limit('x', 0) //MathDomainException: 1/x has no limit at x = 0: -inf from below, inf from above
 ```
 
 ### Number theory
@@ -753,11 +780,11 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 ### Asynchronous operations
 
 The operations that can take long have an asynchronous version: `expandAsync()`, `simplifyAsync()`, `diffAsync()`,
-`seriesAsync()`, `solveAsync()`, `toDecimalAsync()`, `toComplexDecimalAsync()` of the expressions, `solveAsync()` and
-`cseAsync()`, and those of the number theory, of the linear algebra and of the numeric solutions. They run in the
-threads of the addon, not in the thread pool of libuv: as many threads as the processor has cores, minus one, or the
-number in the environment variable `LAKUTATA_MATH_THREADS`. Their options are `timeout` (milliseconds) and `signal` (an
-`AbortSignal`):
+`seriesAsync()`, `limitAsync()`, `solveAsync()`, `toDecimalAsync()`, `toComplexDecimalAsync()` of the expressions,
+`solveAsync()` and `cseAsync()`, and those of the number theory, of the linear algebra and of the numeric solutions.
+They run in the threads of the addon, not in the thread pool of libuv: as many threads as the processor has cores, minus
+one, or the number in the environment variable `LAKUTATA_MATH_THREADS`. Their options are `timeout` (milliseconds) and
+`signal` (an `AbortSignal`):
 
 - At the time limit the promise is rejected with `MathTimeoutException`, and with `MathCancelledException` when the
   signal aborts. Operations with checkpoints (expansions, decimals, linear systems, the number theory) stop at the next
@@ -780,7 +807,7 @@ The bundles, the executables and the installers made by `lakutata package` carry
 | `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `interval`, `finiteSet`, `unit`, `constant`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `poly`, `linalg`, `stats`, `numeric` | The functions and the namespaces of `math`, ready to use |
 | `math`, `createMath`, `MathOptions` | The scope of the default options; a scope of other options (`definitions`, `precision`, `timeout`, `concurrency`, `units`), and its options |
 | `MathScope`, `MathDefinitions` | A scope of definitions and settings (`createMath()`, `with()`): `parse`, `expression`, `equation`, `decimal`, `matrix`, `expressionMatrix`, `jacobian`, `interval`, `finiteSet`, `unit`, `constant`, `with`, `solve`, `solveAsync`, `cse`, `cseAsync`, `ntheory`, `poly`, `linalg`, `stats`, `numeric`; the definitions (a body by signature) |
-| `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `factor`, `sqf`, the fractions (`cancel`, `together`, `apart`, `completeSquare`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
+| `Expression` | An expression: `toString`, `toTeX`, `toNumber`, `toComplex`, `toDecimal`, `toComplexDecimal`, `variables`, `equals`, `add`, `sub`, `mul`, `div`, `pow`, `neg`, `expand`, `simplify`, `diff`, `series`, `limit`, `substitute`, `evaluate`, `solve`, `compile`, the polynomials (`coefficients`, `degree`, `leadingCoefficient`, `divide`), `factor`, `sqf`, the fractions (`cancel`, `together`, `apart`, `completeSquare`), `numerator`, `denominator`, `rewrite` (`exp`, `sin`, `cos`), the predicates (`isZero`, `isPositive`, `isNegative`, `isInteger`, `isRational`, `isReal`, `isFinite`: `undefined` when not known), `compare`, `toJavaScript`, `toC`, `toPolar`, `toRectangular`, and the asynchronous versions |
 | `Decimal`, `DecimalValue`, `DecimalOptions` | A decimal of a precision (`decimal()`): `precision`, `add`, `sub`, `mul`, `div`, `mod`, `pow`, `neg`, `abs`, `sqrt`, `cbrt`, `root`, `exp`, `ln`, `log10`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`, `gamma`, `loggamma`, `digamma`, `erf`, `erfc`, `zeta`, `lambertw`, `floor`, `ceil`, `trunc`, `round`, `compare`, `equals`, `isZero`, `isPositive`, `isNegative`, `isInteger`, `toString`, `toFixed`, `toNumber`, `toJSON`; what is given where a decimal is expected (a decimal, a number, a bigint, a decimal number written as a string); the option of `decimal()` (`precision`) |
 | `Matrix`, `MatrixValue`, `VectorValue` | A matrix of numbers (`matrix()`): `rows`, `columns`, `data`, `get`, `set`, `row`, `column`, `diagonal`, `submatrix`, `reshape`, `transpose`, `add`, `sub`, `mul`, `div`, `neg`, `multiplyElements`, `divideElements`, `powElements`, `map`, `trace`, `kron`, `equals`, `clone`, `toArray`, `toJSON`, `toString`; what is given where a matrix is expected (a matrix, or its rows); where a vector is (a `Float64Array`, or an array of numbers) |
 | `ExpressionMatrix`, `ExpressionMatrixValue`, `RowEchelonForm`, `Eigenvector` | A matrix of expressions (`expressionMatrix()`, `parse()`): `rows`, `columns`, `get`, `toArray`, `with`, `withRow`, `withColumn`, `row`, `column`, `submatrix`, `transpose`, `neg`, `add`, `sub`, `mul`, `div`, `multiplyElements`, `pow`, `trace`, `determinant`, `inverse`, `solve`, `rref`, `rank`, `nullspace`, `characteristicPolynomial`, `eigenvalues`, `eigenvectors`, `diff`, `substitute`, `expand`, `simplify`, `cancel`, `equals`, `toMatrix`, `toString`, `toTeX`, and `determinantAsync`, `inverseAsync`, `solveAsync`, `eigenvectorsAsync`; what is given for one; a reduced row echelon form and its pivots; an eigenvalue, its multiplicity and its eigenvectors |
@@ -815,9 +842,9 @@ The typings document every declaration, with examples.
 | `MathUnitException` | Values with units of dimensions that differ added, compared or converted, a unit that is not known (with its `position`), a temperature with an offset added, multiplied or divided, a power that leaves the powers of the dimensions not integers, `sin()` of a value that is neither an angle nor a number |
 | `MathUnknownFunctionException` | A formula calls a function that is neither built in nor defined, or a constant written as a call (`g(2)`), with its `position` |
 | `MathDefinitionException` | A definition is not valid: a built-in name, a parameter given twice, definitions referring to each other in a cycle, a definition nested too deep, a definition that is a matrix; a unit of `createMath()` that is not valid: a name that is already a unit, alone or with a prefix, a definition of unknown units, units defined in terms of each other in a cycle |
-| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power), a bracket of `findRoot()` where the function does not change its sign or is not real, a function or equations that are not real at the guess of `findRoot()` or `solveSystem()`, a function that is not real inside the interval of `integrate()`, derivatives that are not real at the start of `solveODE()`, the continued fraction of a complex value, a matrix of expressions that is singular (`inverse()`, `solve()`, `inv()`) |
+| `MathDomainException` | A complex value asked as a number, the value of an infinity or of `complexInfinity` (a division by zero, also by a value not shown to differ from 0 in `toNumber()`), an integer outside the domain of a function of the number theory (`totient(0)`), a singular matrix where an inverse is needed (`solve()`, `inverse()`), a matrix given to `cholesky()` that is not positive definite, a matrix given to `squareRoot()` whose principal square root is not real or does not exist, a Sylvester or Lyapunov equation without a unique solution, a decimal outside the domain of a function (the square root of a negative decimal, `asin()` of 2, a negative decimal to a non-integer power), a bracket of `findRoot()` where the function does not change its sign or is not real, a function or equations that are not real at the guess of `findRoot()` or `solveSystem()`, a function that is not real inside the interval of `integrate()`, derivatives that are not real at the start of `solveODE()`, the continued fraction of a complex value, a matrix of expressions that is singular (`inverse()`, `solve()`, `inv()`), an expression without a limit at a point (two sides that differ, an oscillation) |
 | `MathDivisionByZeroException` | A division by zero met while computing decimals (also by a value not shown to differ from 0, the logarithm of 0, 0 to a negative power, a logarithm in base 1, a function at one of its poles: `gamma()` of -2, `zeta()` of 1), a modulus of 0, terms of a continued fraction that divide by zero |
-| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` and `bell(n)` above 2000, `harmonic(n)` above 50000, `stirlingSecondKind(n, k)` with `n` above 50000 or `n k` above 6250000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`), the eigenvalues of a matrix of expressions that are not found exactly, a matrix raised to a power that is not an integer, an equation or an inequality of matrices, a polynomial of `poly` with a negative power, a complex or inexact coefficient, or degrees too high together for its dense form |
+| `MathNotSupportedException` | An operation the package does not do for this expression: a nonlinear system, an expression that cannot be compiled, an expression nested more than 1000 levels deep, an exact number too large to compute met by an operation, `gcd` or `lcm` of numbers that are not integers, a result of the number theory of more than 2^20 bits, `bernoulli(n)` and `bell(n)` above 2000, `harmonic(n)` above 50000, `stirlingSecondKind(n, k)` with `n` above 50000 or `n k` above 6250000, code with a function the language does not have, a complex number such as `2i`, a variable named like a reserved word of the language, eigenvalues whose computation does not converge, the decimals of `polygamma(n, x)` when `n` is not an integer, a decimal whose exponent is beyond the range of decimals (about ±10^18, ±4.25 × 10^8 on 32-bit systems: `exp()` of 10^19, also in `toDecimal()`), or a decimal value that needs more than 50000 digits beyond the ones asked (`sin(10^(10^6))`), the eigenvalues of a matrix of expressions that are not found exactly, a matrix raised to a power that is not an integer, an equation or an inequality of matrices, a polynomial of `poly` with a negative power, a complex or inexact coefficient, or degrees too high together for its dense form, a limit that is not found |
 | `MathArgumentException` | An argument that is not valid: variables left where a number is asked, a name that is not a variable, the wrong number of values, a value that is not an integer where one is asked, a value that is not a decimal number where one is asked, a precision outside 1 to 100000, an interval, points or a tolerance of `integrate()` that are not valid, a problem or options of `solveODE()` that are not valid, a continued fraction of a value with variables, terms that are not integers, matrices or vectors of the wrong dimensions, a sparse matrix whose structure is not valid (also when its arrays were changed after it was made), no values where a statistic has none, parameters of a distribution that are not valid, a probability of a quantile outside 0 to 1, negative probabilities for `klDivergence`, the gcd or the lcm of no polynomial, a variable of `poly` that is not a name, a number where units alone are expected (`to('2 cm')`), the name of a physical constant that is not one, the options of `createMath()` that are not valid |
 | `MathTimeoutException`, `MathCancelledException` | An asynchronous operation past its time limit, or cancelled |
 | `MathException` | The base of all of them; its `errno` is `E_MATH_INTERNAL` for an internal error of the addon |

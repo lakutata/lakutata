@@ -20,6 +20,7 @@ describe('The sums and the products', (): void => {
             ['sum(1/k, k, 1, n)', 'EulerGamma + polygamma(0, n + 1)'],
             ['sum(k + 2^k, k, 1, n)', 'n^2/2 + n/2 + 2^(n + 1) - 2'],
             ['sum(k, k, 1, inf)', 'inf'],
+            ['sum(-3*2^k, k, 0, inf)', '-inf'],
             ['sum(sum(k*j, j, 1, k), k, 1, n)', 'n^4/8 + 5n^3/12 + 3n^2/8 + n/12'],
             ['product(k, k, 1, n)', 'gamma(n + 1)'],
             ['product(2k, k, 1, n)', 'gamma(n + 1)*2^n'],
@@ -37,7 +38,10 @@ describe('The sums and the products', (): void => {
             ['sum(1/(k*(k + 1)), k, 1, n)', 'n/(n + 1)'],
             ['sum(k/(k + 1)!, k, 1, n)', '-1/gamma(n + 2) + 1'],
             ['sum(1/(k^2 + 3k + 2), k, 0, n)', '(n + 1)/(n + 2)'],
-            ['sum(k*x^k, k, 0, n)', 'piecewise(n^2/2 + n/2, x = 1, x^(n + 1)*(n*x - n - 1)/(x - 1)^2 + x/(x - 1)^2)']
+            ['sum(k*x^k, k, 0, n)', 'piecewise(n^2/2 + n/2, x = 1, x^(n + 1)*(n*x - n - 1)/(x - 1)^2 + x/(x - 1)^2)'],
+            ['sum(1/(k*(k + 1)), k, 1, inf)', '1'],
+            ['sum(k^2/3^k, k, 0, inf)', '3/2'],
+            ['sum(k*k!, k, 1, inf)', 'inf']
         ]
         for (const [given, expected] of cases) assert.strictEqual(text(given), expected, given)
         //Not hypergeometric, or without a hypergeometric antidifference

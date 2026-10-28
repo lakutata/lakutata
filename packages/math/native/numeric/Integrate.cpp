@@ -559,9 +559,10 @@ Estimate integratePiece(Integrand &integrand, double a, double b, double toleran
 }
 
 //The real poles inside (low, high): the roots of the factors of the denominator that are polynomials in the variable
-//(of degree 100 at most), where the numerator is not 0 (the singularity of sin(x)/x at 0 is removable). The pieces are
-//split there: each one diverges at its end, as 1/x on [0, 1], where the subdivision would otherwise cancel the two sides
-//(the principal value of 1/x on [-1, 2] taken for its integral)
+//(of degree 100 at most), where the integrand grows (the singularity of sin(x)/x at 0 is removable; cbrt(x)/x grows at 0
+//though its numerator is 0 there). The pieces are split there: each one diverges at its end, as 1/x on [0, 1], where
+//the subdivision would otherwise cancel the two sides (the principal value of 1/x on [-1, 2] taken for its integral), or
+//has its singularity at an end, where the subdivision extrapolates it well
 std::vector<double> polesInside(const Expr &function, const std::string &variable, double low, double high)
 {
     std::vector<double> poles;
@@ -574,10 +575,10 @@ std::vector<double> polesInside(const Expr &function, const std::string &variabl
     } else {
         factors.push_back(fraction.second);
     }
-    CompiledFunction numerator({variable}, {fraction.first});
-    const auto at = [&numerator](double x) {
+    CompiledFunction compiled({variable}, {function});
+    const auto at = [&compiled](double x) {
         double y = 0;
-        numerator.call(&y, &x);
+        compiled.call(&y, &x);
         return std::abs(y);
     };
     for (const Expr &factor : factors) {
@@ -591,9 +592,10 @@ std::vector<double> polesInside(const Expr &function, const std::string &variabl
         for (size_t i = 0; i < roots.re.size(); i++) {
             const double root = roots.re[i];
             if (!(std::abs(roots.im[i]) <= 1e-9 * std::max(1.0, std::abs(root)) && root > low && root < high)) continue;
-            const double near = (std::isfinite(high - low) ? high - low : 1.0) / 1000;
-            const double value = at(root), around = std::max(at(root - near), at(root + near));
-            if (!(value <= 1e-8 * around)) poles.push_back(root);
+            //Growing 10 times or more from 1/1000 of the interval away to 1/10^7 (x^(-1/4) grows 10 times)
+            const double near = (std::isfinite(high - low) ? high - low : 1.0) / 1000, nearer = near / 10000;
+            const double around = std::max(at(root - near), at(root + near)), closer = std::max(at(root - nearer), at(root + nearer));
+            if (!(closer < 10 * around)) poles.push_back(root);
         }
     }
     return poles;

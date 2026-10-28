@@ -1,4 +1,4 @@
-import {type Distribution, type DistributionName, type Expression, Inequality, MathException, type MathScope, type MathSet, Matrix, SparseMatrix, type Unit, type UnitDimensions} from '../../exports/Math.js'
+import {type Distribution, type DistributionName, type Expression, Inequality, MathDomainException, MathException, MathNotSupportedException, type MathScope, type MathSet, Matrix, SparseMatrix, type Unit, type UnitDimensions} from '../../exports/Math.js'
 import {PREFIXES, QUANTITIES, UNITS} from '../../lib/UnitTable.js'
 
 /**
@@ -1267,6 +1267,78 @@ export async function checkSums(math: MathScope, random: Random, index: number):
         }
     } catch (error) {
         if (!(error instanceof MathException)) fail('sum', String(error))
+    }
+    return failures
+}
+
+/**
+ * Limits: of rational functions at a root of the denominator, by the multiplicities of the root (0, the value of the
+ * rest, an infinity of the sign of the sides, or no limit where they differ); at inf, of sums of x^a e^(bx) log(x)^c, by
+ * the term that grows fastest; of difference quotients (f(x) - f(a))/(x - a) at a, the derivative of f at a.
+ */
+export async function checkLimits(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    const small = (): number => random.int(7) - 3
+    const limitText = (formula: string, point: string, direction: '+' | '-' | 'both'): string => {
+        try {
+            return math.expression(formula).limit('x', point, {direction: direction}).toString()
+        } catch (error) {
+            if (error instanceof MathDomainException) return 'none'
+            throw error
+        }
+    }
+    try {
+        //(x - a)^m R(x)/((x - a)^n S(x)), expanded, R(a) and S(a) not 0
+        const a: number = small()
+        const m: number = random.int(3), n: number = random.int(3)
+        const r: number = a + 1 + random.int(3), q: number = a - 1 - random.int(3)
+        const numerator: string = math.expression(`(x - (${a}))^${m}*(x - (${r}))`).expand().toString()
+        const denominator: string = math.expression(`(x - (${a}))^${n}*(x - (${q}))*${1 + random.int(3)}`).expand().toString()
+        text = `(${numerator})/(${denominator})`
+        const rest: Expression = math.expression(text).cancel()
+        const sides: Record<'+' | '-' | 'both', string> = {'+': '', '-': '', both: ''}
+        if (m > n) {
+            sides['+'] = sides['-'] = sides.both = '0'
+        } else if (m === n) {
+            sides['+'] = sides['-'] = sides.both = rest.substitute({x: a}).toString()
+        } else {
+            //The sign of R/S at a, of (x - a)^(m - n) on each side
+            const sign: number = Math.sign(rest.mul(math.expression(`(x - (${a}))^${n - m}`)).cancel().substitute({x: a}).toNumber())
+            const above: string = sign > 0 ? 'inf' : '-inf', below: string = (n - m) % 2 === 0 ? above : (sign > 0 ? '-inf' : 'inf')
+            sides['+'] = above
+            sides['-'] = below
+            sides.both = above === below ? above : 'none'
+        }
+        for (const direction of ['+', '-', 'both'] as const) {
+            const found: string = limitText(text, String(a), direction)
+            if (found !== sides[direction] && !(found !== 'none' && sides[direction] !== 'none' && !/inf/.test(found + sides[direction]) && math.expression(found).equals(sides[direction]))) {
+                fail('limit', `at x = ${a} (${direction}): ${found}, expected ${sides[direction]}`)
+            }
+        }
+        //At inf: the class (b, a, c) of the fastest term, the sum of the coefficients of that class
+        const terms: [number, number, number, number][] = Array.from({length: 1 + random.int(3)}, (): [number, number, number, number] => [small() || 1, random.int(3) - 1, small(), random.int(5) - 2])
+        text = terms.map(([coefficient, b, power, logPower]: [number, number, number, number]): string => `(${coefficient})*x^(${power})*exp(${b}*x)*log(x)^(${logPower})`).join(' + ')
+        const order = (t: [number, number, number, number]): number => t[1] * 10000 + t[2] * 100 + t[3]
+        const fastest: number = Math.max(...terms.map(order))
+        const total: number = terms.filter((t: [number, number, number, number]): boolean => order(t) === fastest).reduce((sum: number, t: [number, number, number, number]): number => sum + t[0], 0)
+        if (total !== 0) {
+            const expected: string = fastest === 0 ? String(total) : fastest > 0 ? (total > 0 ? 'inf' : '-inf') : '0'
+            const found: string = limitText(text, 'inf', '+')
+            if (found !== expected) fail('limit', `at inf: ${found}, expected ${expected}`)
+        }
+        //(f(x) - f(a))/(x - a) at a: f'(a)
+        const inner: string = `${small() || 1}*x^2 + ${small()}*x + ${small()}`
+        const f: string = [`sin(${inner})`, `exp(${inner})`, `ln(1 + (${inner})^2)`, `sqrt(1 + (${inner})^2)`, `atan(${inner})`, `(${inner})^3`, `cos(${inner})*exp(x)`][random.int(7)]!
+        const at: string = `${small()}/${1 + random.int(3)}`
+        text = `(${f} - (${math.expression(f).substitute({x: at}).toString()}))/(x - (${at}))`
+        const derivative: Expression = math.expression(f).diff('x').substitute({x: at})
+        const found: string = limitText(text, at, 'both')
+        if (found === 'none' || !math.expression(found).equals(derivative)) fail('limit', `at x = ${at}: ${found}, the derivative ${derivative.toString()}`)
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('limit', String(error))
+        else if (error instanceof MathNotSupportedException) fail('limit', `not found: ${error.message}`)
     }
     return failures
 }

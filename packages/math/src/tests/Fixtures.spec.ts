@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
-import {type ComplexVector, createMath, type Inequality, type Decimal, type Distribution, type DistributionName, type Eigenvector, Expression, ExpressionMatrix, type IntegralResult, type IterativeSolution, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type ODEResult, type PhysicalConstant, type PrimeFactor, type RootResult, type RowEchelonForm, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution, type Unit} from '../exports/Math.js'
+import {type ComplexVector, createMath, type Inequality, type Decimal, type Distribution, type DistributionName, type Eigenvector, Expression, ExpressionMatrix, type IntegralResult, type IterativeSolution, MathDomainException, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type ODEResult, type PhysicalConstant, type PrimeFactor, type RootResult, type RowEchelonForm, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution, type Unit} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -868,6 +868,36 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
             const noted: string | undefined = fixture.differs?.sympy
             if (!same && !noted) problems.push(`${fixture.text}: ${ours.toString()}, SymPy ${fixture.result}, not noted`)
             if (same && noted) problems.push(`${fixture.text}: SymPy agrees, its note is stale`)
+        }
+        assert.deepStrictEqual(problems, [])
+    })
+
+    it('find the limits of SymPy, the infinities where it diverges, none where the sides differ or it oscillates, each difference noted', (): void => {
+        type LimitKind = 'value' | 'inf' | '-inf' | 'sides' | 'oscillates' | 'unsolved'
+        const fixtures = expected<{text: string, variable: string, point: number | string, direction?: '+' | '-' | 'both', kind: LimitKind, result?: string, values?: (Complex | null)[], sides?: {below: string | null, above: string | null}, error?: string, differs?: Record<string, string>}>('limits')
+        const problems: string[] = []
+        for (const fixture of fixtures.cases) {
+            const label: string = `${fixture.text} at ${fixture.variable} = ${fixture.point}${fixture.direction === '+' ? ' from above' : fixture.direction === '-' ? ' from below' : ''}`
+            let ours: Expression | undefined, error: MathException | undefined
+            try {
+                ours = math.expression(fixture.text).limit(fixture.variable, fixture.point, fixture.direction === undefined ? {} : {direction: fixture.direction})
+            } catch (caught) {
+                if (!(caught instanceof MathException)) throw caught
+                error = caught
+            }
+            //A value: the same values at the points; an infinity: the same one; none where the sides differ or it
+            //oscillates: MathDomainException; none SymPy finds: a difference to note, whatever ours is
+            let same: boolean
+            if (fixture.kind === 'value') same = ours !== undefined && fixtures.points.every((point: Point, index: number): boolean => fixture.values![index] === null || close(valueAt(ours!, point), fixture.values![index]!, 1e-9))
+            else if (fixture.kind === 'inf' || fixture.kind === '-inf') same = ours?.toString() === fixture.result
+            else if (fixture.kind === 'unsolved') same = false
+            else same = error instanceof MathDomainException
+            const theirs: string = fixture.kind === 'sides' ? `none, ${fixture.sides!.below} from below, ${fixture.sides!.above} from above`
+                : fixture.kind === 'oscillates' ? `none, it oscillates (${fixture.result})`
+                    : fixture.kind === 'unsolved' ? `none found (${fixture.error})` : fixture.result!
+            const noted: string | undefined = fixture.differs?.sympy
+            if (!same && !noted) problems.push(`${label}: ${ours?.toString() ?? `${error!.constructor.name}: ${error!.message}`}, SymPy ${theirs}, not noted`)
+            if (same && noted) problems.push(`${label}: SymPy agrees, its note is stale`)
         }
         assert.deepStrictEqual(problems, [])
     })
