@@ -41,6 +41,10 @@ describe('The sums and the products', (): void => {
             ['sum(k*x^k, k, 0, n)', 'piecewise(n^2/2 + n/2, x = 1, x^(n + 1)*(n*x - n - 1)/(x - 1)^2 + x/(x - 1)^2)'],
             ['sum(1/(k*(k + 1)), k, 1, inf)', '1'],
             ['sum(k^2/3^k, k, 0, inf)', '3/2'],
+            //A ratio of another variable: the sum where its absolute value is below 1
+            ['sum(k*x^k, k, 0, inf)', 'piecewise(x/(x - 1)^2, abs(x) < 1, sum(k*x^k, k, 0, inf))'],
+            ['sum(k*(x/2)^k, k, 0, inf)', 'piecewise(2x/(x - 2)^2, abs(x)/2 < 1, sum(k*(x/2)^k, k, 0, inf))'],
+            ['sum(k*x^(2*k), k, 0, inf)', 'piecewise(x^2/((x - 1)^2*(x + 1)^2), abs(x^2) < 1, sum(k*x^(2k), k, 0, inf))'],
             ['sum(k*k!, k, 1, inf)', 'inf']
         ]
         for (const [given, expected] of cases) assert.strictEqual(text(given), expected, given)

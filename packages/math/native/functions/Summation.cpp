@@ -3,6 +3,7 @@
 
 #include <limits>
 #include <map>
+#include <functional>
 #include <optional>
 #include <vector>
 
@@ -260,11 +261,70 @@ std::optional<Expr> reciprocalPowerSum(const Expr &term, const RCP<const Symbol>
 
 std::optional<Expr> closedSum(const Expr &term, const RCP<const Symbol> &k, const Expr &low, const Expr &high);
 
+//The geometric ratio r of a term (x^k, x^(2k): the bases without k to exponents linear in k, the powers of their
+//coefficients of k) and the term where r = 1; nothing where an exponent with k is not linear
+std::optional<std::pair<Expr, Expr>> ratioOf(const Expr &term, const RCP<const Symbol> &k)
+{
+    RCP<const Number> number;
+    std::vector<std::pair<Expr, Expr>> factors;
+    factorsOf(term, number, factors);
+    Expr ratio = one, atOne = number;
+    for (const auto &[base, exponent] : factors) {
+        if (!has(base, k) && has(exponent, k)) {
+            const std::optional<std::vector<Expr>> linear = polynomialIn(exponent, k);
+            if (!linear || linear->size() != 2) return std::nullopt;
+            ratio = mul(ratio, pow(base, (*linear)[1]));
+            atOne = mul(atOne, pow(base, (*linear)[0]));
+        } else {
+            atOne = mul(atOne, pow(base, exponent));
+        }
+    }
+    return std::make_pair(ratio, atOne);
+}
+
+//Whether an expression has n in an exponent
+bool exponentHas(const Expr &e, const RCP<const Symbol> &n)
+{
+    if (is_a<Pow>(*e) && has(down_cast<const Pow &>(*e).get_exp(), n)) return true;
+    for (const Expr &argument : e->get_args()) {
+        if (exponentHas(argument, n)) return true;
+    }
+    return false;
+}
+
+//b^(n + c) of an integer c as b^c b^n, in a whole expression (SymEngine keeps 2^(n + 1) apart from 2^n)
+Expr splitPowers(const Expr &e, const RCP<const Symbol> &n)
+{
+    if (!has(e, n)) return e;
+    if (is_a<Pow>(*e)) {
+        const Pow &power = down_cast<const Pow &>(*e);
+        const Expr base = splitPowers(power.get_base(), n), exponent = power.get_exp();
+        if (is_a<Add>(*exponent) && is_a<Integer>(*down_cast<const Add &>(*exponent).get_coef())) {
+            const Expr constant = down_cast<const Add &>(*exponent).get_coef();
+            return mul(pow(base, constant), pow(base, sub(exponent, constant)));
+        }
+        return pow(base, exponent);
+    }
+    if (is_a<Add>(*e)) {
+        Expr sum = zero;
+        for (const Expr &term : e->get_args()) sum = add(sum, splitPowers(term, n));
+        return sum;
+    }
+    if (is_a<Mul>(*e)) {
+        Expr product = one;
+        for (const Expr &factor : e->get_args()) product = mul(product, splitPowers(factor, n));
+        return product;
+    }
+    return e;
+}
+
 //The sum by Gosper's algorithm; where the term has a geometric ratio r of other variables (x^k), the sum where r = 1 in
 //a piecewise expression, as for a geometric series (the formula for k x^k has a pole at x = 1)
 std::optional<Expr> hypergeometricSum(const Expr &term, const RCP<const Symbol> &k, const Expr &low, const Expr &high)
 {
-    //To inf: the limit of the sum to n (where it is found; a ratio of other variables is left to the call)
+    //To inf: the limit of the sum to n where it is found. Of a ratio r of other variables (k x^k), where the sum to n
+    //is a part without n and parts that are r^n times rational functions of n, the part without n where |r| < 1 (r^n
+    //goes to 0 faster than they grow), the call otherwise
     if (positiveInfinity(high)) {
         if (negativeInfinity(low)) return std::nullopt;
         const RCP<const Symbol> n = symbol("@high");
@@ -274,25 +334,52 @@ std::optional<Expr> hypergeometricSum(const Expr &term, const RCP<const Symbol> 
             return limitOf(*partial, n, Inf, "+");
         } catch (const MathError &error) {
             if (error.code() != ErrorCode::NotSupported && error.code() != ErrorCode::Domain) throw;
-            return std::nullopt;
         }
+        const std::optional<std::pair<Expr, Expr>> ratio = ratioOf(term, k);
+        if (!ratio || eq(*ratio->first, *one) || free_symbols(*ratio->first).empty()) return std::nullopt;
+        //A part p(n) goes to 0 where p(n + 1)/(p(n) r) is a rational function of n going to 1; a part that is not, its
+        //terms expanded once
+        Expr fixed = zero;
+        std::function<bool(const Expr &, bool)> split = [&](const Expr &e, bool expanded) {
+            for (const Expr &part : is_a<Add>(*e) ? e->get_args() : vec_basic{e}) {
+                if (!has(part, n)) {
+                    fixed = add(fixed, part);
+                    continue;
+                }
+                Expr q = splitPowers(div(subs(part, {{n, add(n, one)}}), mul(part, ratio->first)), n);
+                //(2^(n + 1) over a sum of terms with 2^n: the fraction cancelled)
+                if (exponentHas(q, n)) {
+                    try {
+                        q = cancelOf(q);
+                    } catch (const MathError &error) {
+                        if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
+                    }
+                }
+                bool vanishing = false;
+                if (!exponentHas(q, n)) {
+                    try {
+                        vanishing = eq(*limitOf(q, n, Inf, "+"), *one);
+                    } catch (const MathError &error) {
+                        if (error.code() != ErrorCode::NotSupported && error.code() != ErrorCode::Domain) throw;
+                    }
+                }
+                if (vanishing) continue;
+                if (expanded || !split(expand(part), true)) return false;
+            }
+            return true;
+        };
+        if (!split(*partial, false)) return std::nullopt;
+        const RCP<const Boolean> converges = relationOf("<", abs(ratio->first), one);
+        const int known = decidedOf(converges);
+        if (known == 1) return fixed;
+        if (known == 0) return std::nullopt;
+        return SymEngine::piecewise({{fixed, converges}, {call("sum", term, k, low, high), boolTrue}});
     }
     const std::optional<Expr> sum = gosperSum(term, k, low, high);
     if (!sum) return std::nullopt;
-    RCP<const Number> number;
-    std::vector<std::pair<Expr, Expr>> factors;
-    factorsOf(term, number, factors);
-    Expr ratio = one, atOne = number;
-    for (const auto &[base, exponent] : factors) {
-        if (!has(base, k) && has(exponent, k)) {
-            const std::optional<std::vector<Expr>> linear = polynomialIn(exponent, k);
-            if (!linear || linear->size() != 2) return sum;
-            ratio = mul(ratio, pow(base, (*linear)[1]));
-            atOne = mul(atOne, pow(base, (*linear)[0]));
-        } else {
-            atOne = mul(atOne, pow(base, exponent));
-        }
-    }
+    const std::optional<std::pair<Expr, Expr>> found = ratioOf(term, k);
+    if (!found) return sum;
+    const auto &[ratio, atOne] = *found;
     const RCP<const Boolean> unit = relationOf("=", ratio, one);
     if (eq(*ratio, *one) || decidedOf(unit) == 0) return sum;
     const std::optional<Expr> whereOne = closedSum(atOne, k, low, high);
