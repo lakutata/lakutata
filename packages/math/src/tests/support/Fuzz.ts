@@ -1272,6 +1272,53 @@ export async function checkSums(math: MathScope, random: Random, index: number):
 }
 
 /**
+ * Simplification: of a random formula, the same values at random points where both are finite, and simplified again,
+ * the same text; a polynomial in sin(x), cos(x) and y times sin(x)^2 + cos(x)^2 - 1 (cosh(x)^2 - sinh(x)^2 - 1), plus
+ * a polynomial A, has the value of A simplified and is not clearly longer; a fraction with a common factor is the
+ * fraction without it.
+ */
+export async function checkSimplify(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    const small = (): number => random.int(7) - 3
+    try {
+        text = randomFormula(random, 3)
+        const formula: Expression = math.expression(text)
+        const simplified: Expression = formula.simplify()
+        for (let k: number = 0; k < 3; k++) {
+            const point: Record<string, number> = {x: random.next() * 4 - 2, y: random.next() * 4 - 2, z: random.next() * 4 - 2}
+            const before: Value | undefined = valueAt(formula, point), after: Value | undefined = valueAt(simplified, point)
+            if (before && after && !near(before, after, 1e-8)) fail('simplify', `${simplified.toString()} at ${JSON.stringify(point)}: ${JSON.stringify(after)}, before ${JSON.stringify(before)}`)
+        }
+        if (simplified.simplify().toString() !== simplified.toString()) fail('simplify', `not stable: ${simplified.toString()}, then ${simplified.simplify().toString()}`)
+        //An identity times a polynomial, plus a polynomial
+        const hyperbolic: boolean = random.chance(0.3)
+        const [s, c]: string[] = hyperbolic ? ['sinh(x)', 'cosh(x)'] : ['sin(x)', 'cos(x)']
+        const polynomial = (): string => Array.from({length: 1 + random.int(3)}, (): string => `(${small()})*${s}^${random.int(3)}*${c}^${random.int(3)}*y^${random.int(2)}`).join(' + ')
+        const a: string = polynomial()
+        text = `(${hyperbolic ? `${c}^2 - ${s}^2 - 1` : `${s}^2 + ${c}^2 - 1`})*(${polynomial()}) + ${a}`
+        const reduced: Expression = math.expression(text).simplify(), expected: Expression = math.expression(a).simplify()
+        if (reduced.toString() !== expected.toString()) {
+            const point: Record<string, number> = {x: 0.37, y: -1.3}
+            const got: Value | undefined = valueAt(reduced, point), want: Value | undefined = valueAt(expected, point)
+            if (!got || !want || !near(got, want, 1e-9)) fail('simplify', `${reduced.toString()}, expected ${expected.toString()}`)
+            //(forms with as many operations print with a few more or fewer characters: only a clearly longer one fails)
+            else if (reduced.toString().length > 1.15 * expected.toString().length + 2) fail('simplify', `${reduced.toString()} is longer than ${expected.toString()}`)
+        }
+        //(P R)/(Q R): P/Q
+        const factor = (): string => `(${small() || 1}*x + ${small()}*y + ${small()})`
+        const p: string = `${factor()}*${factor()}`, q: string = factor(), r: string = factor()
+        text = `(${math.expression(`${p}*${r}`).expand().toString()})/(${math.expression(`${q}*${r}`).expand().toString()})`
+        const fraction: Expression = math.expression(text).simplify()
+        if (!fraction.equals(math.expression(`(${p})/(${q})`))) fail('simplify', `${fraction.toString()}, expected ${p}/${q}`)
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('simplify', String(error))
+    }
+    return failures
+}
+
+/**
  * Limits: of rational functions at a root of the denominator, by the multiplicities of the root (0, the value of the
  * rest, an infinity of the sign of the sides, or no limit where they differ); at inf, of sums of x^a e^(bx) log(x)^c, by
  * the term that grows fastest; of difference quotients (f(x) - f(a))/(x - a) at a, the derivative of f at a.

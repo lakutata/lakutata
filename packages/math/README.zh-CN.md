@@ -259,6 +259,28 @@ console.log(expression('1/(x^3 + 1)').apart('x').toString())             //-(x -
 console.log(expression('x^2 - 6x + 10').completeSquare('x').toString())  //(x - 3)^2 + 1
 ```
 
+### 化简
+
+`simplify()` 用对变量的所有取值都成立的恒等式寻找表达式更短的形式，找不到更短的就原样返回。“更短”指运算更少，计数方法和 SymPy 的 `count_ops` 相同（每个加、减、乘、除、负号、乘方和函数各算一次）；运算一样多时取文字更短的。会尝试的形式有：
+
+- 分式约分或因式分解、多项式展开：`(x^2 - 1)/(x - 1)` 是 `x + 1`，`(x + 1)^2 - x^2 - 2x` 是 1；
+- 指数互为整数倍的指数函数，写成同一个指数函数的幂：`(e^(2x) - 1)/(e^x - 1)` 是 `e^x + 1`；
+- 同一个角的倍角的正弦和余弦用 `sin^2 + cos^2 = 1` 化简，再写成倍角、半角或正切：`cos(x)^2 - sin(x)^2` 是 `cos(2x)`，`(1 - cos(2x))/2` 是 `sin(x)^2`，`sin(x)/cos(x)` 是 `tan(x)`；角的和会展开（`sin(x + y) - sin(x)cos(y)` 是 `cos(x)*sin(y)`）；
+- 双曲函数用 `cosh^2 - sinh^2 = 1` 化简，也和指数互相转换：`cosh(x) + sinh(x)` 是 `e^x`，`(e^x + e^(-x))/2` 是 `cosh(x)`；
+- 数的嵌套平方根拆开，分母里数的平方根移到分子：`sqrt(3 + 2sqrt(2))` 是 `sqrt(2) + 1`，`1/(1 + sqrt(2))` 是 `sqrt(2) - 1`；
+- 正有理数的对数合并：`ln(2) + ln(3)` 是 `ln(6)`。
+
+函数的参数和分段函数各段的值先化简（`e^(sin(x)^2 + cos(x)^2)` 是 `e`）；分段函数的条件，以及保持调用形式的和与积，不做改动。表达式里有和式的 16 次以上的整数次幂，或者有指数的分子大于 256 的幂（`e^(6561/256)`）时，不展开，也不尝试分式形式。取决于变量符号的化简一律不做：`sqrt(x^2)` 和 `ln(x*y)` 保持原样（只有 `x` 是实数时 `sqrt(x^2)` 才等于 `abs(x)`）。和 SymPy 一样，约分后的分式可能在原式没有定义的点上有值（`x + 1` 在 1 处）。结果不一定是最短的形式，也可能和 SymPy 的不同；对结果再化简一次不会再变。
+
+```typescript
+import {expression} from '@lakutata/math'
+
+console.log(expression('sin(x)^4 - cos(x)^4').simplify().toString())       //-cos(2x)
+console.log(expression('tan(x/2)*(1 + cos(x))').simplify().toString())     //sin(x)
+console.log(expression('(exp(x) + exp(-x))/2').simplify().toString())      //cosh(x)
+console.log(expression('1/(sqrt(3) - sqrt(2))').simplify().toString())     //sqrt(2) + sqrt(3)
+```
+
 ### 矩阵和线性代数
 
 `matrix(rows)` 得到一个数值（双精度）`Matrix`。它的元素按行存放在一个 `Float64Array` 里（`data`），原生插件直接读取这块内存。它的方法都返回新的矩阵：`get`、`set`（会修改矩阵本身）、`row`、`column`、`diagonal`、`submatrix`、`reshape`、`transpose`、`add`、`sub`、`mul`、`div`、`neg`、`multiplyElements`、`divideElements`、`powElements`、`map`、`trace`、`kron`、`equals`、`toArray` 和 `toString`（`[1, 2; 3, 4]`）。
@@ -426,7 +448,7 @@ console.log(solution, converged)                                               /
 `numeric.integrate(function, variable, [a, b], options)` 求函数在区间上的积分，结果是 `{value, error, converged}`。端点可以是无穷（`-Infinity`、`Infinity`）；从 b 积到 a 时结果取反。
 
 - 用 QUADPACK 的 QAGS 算法计算，和 SciPy 的 `quad` 相同：把误差最大的区间对半分，用 21 点的 Gauss-Kronrod 公式计算，在奇点附近对结果序列做外推；半直线和整条实轴先变换到有限区间。如果这样还没算到舍入误差的程度，就再用双指数积分（tanh-sinh、exp-sinh、sinh-sinh）算一次，取更准确的结果。在不为 0 的端点附近，函数改写成到端点距离的函数（`x = 1 - u` 时 `1 - x^2` 是 `2u - u^2`），所以端点上的奇点（`1/sqrt(1 - x^2)` 在 `[-1, 1]` 上）也能算到舍入误差的程度。
-- `points` 给出区间内函数奇异或跳变的点，区间在这些点分开计算。外推往往能自己找到这样的点，但给出 `points` 算得更快、更准，误差估计也可靠：奇点在区间内部时，外推的误差估计可能偏小，QUADPACK 也是这样。函数在某个求积节点上是无穷大时，区间也会在那里分开。函数分母中关于积分变量的多项式因子在区间内部有实根、而分子在那里不为 0 时，区间也在这个根处分开：跨过极点的积分是发散的，结果标为不收敛，而不会把柯西主值当作积分（`1/x` 在 `[-1, 2]` 上）。关于积分变量的多项式分式先约去公因式：`(x^2 - 1)/(x - 1)` 在 `[0, 2]` 上的积分是 4，否则求积节点会在 1 处遇到 0/0。
+- `points` 给出区间内函数奇异或跳变的点，区间在这些点分开计算。外推往往能自己找到这样的点，但给出 `points` 算得更快、更准，误差估计也可靠：奇点在区间内部时，外推的误差估计可能偏小，QUADPACK 也是这样。函数在某个求积节点上是无穷大时，区间也会在那里分开。函数分母中关于积分变量的多项式因子在区间内部有实根、而函数在趋近这个根时增大时（可去奇点不算，比如 `sin(x)/x` 在 0 处），区间也在这个根处分开：跨过极点的积分是发散的，结果标为不收敛，而不会把柯西主值当作积分（`1/x` 在 `[-1, 2]` 上）。这个根如果来自有理系数的一次或二次因子，不论在区间内部还是端点上，函数都按到这个根的精确距离计算，十进制数做不到这一点（`cbrt(x + 1/14)/(x + 1/14)` 的根 -1/14）。关于积分变量的多项式分式先约去公因式：`(x^2 - 1)/(x - 1)` 在 `[0, 2]` 上的积分是 4，否则求积节点会在 1 处遇到 0/0。
 - `tolerance` 限制误差估计的大小（相对于 `|f|` 的积分）：默认约 1.5e-8（机器精度的平方根，和 SciPy 相同），实际结果通常比估计准确得多。发散、无休止振荡，或者双精度分辨不了的积分，给出最好的估计，并且 `converged` 为 `false`；函数在区间内不是实数时抛出 `MathDomainException`。`integrateAsync()` 在原生插件的线程里执行。
 
 ```typescript

@@ -32,6 +32,7 @@
 #include "../printer/Printer.h"
 #include "../functions/Functions.h"
 #include "../poly/Poly.h"
+#include "../simplify/Simplify.h"
 
 namespace math {
 
@@ -288,7 +289,7 @@ Expr expandOf(const Expr &expression)
 
 Expr simplifyOf(const Expr &expression)
 {
-    return simplify(evaluated(expression));
+    return simplifiedOf(evaluated(expression));
 }
 
 Expr differentiate(const Expr &expression, const std::string &name, unsigned times)

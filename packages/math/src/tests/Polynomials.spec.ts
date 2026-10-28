@@ -69,6 +69,9 @@ describe('The polynomials', (): void => {
         const sqf = math.poly.sqfList('(x + 1)^2*(y + 2)^2*(x - y)')
         assert.deepStrictEqual(sqf.factors.map((f): [string, number] => [f.factor.toString(), f.multiplicity]), [['x - y', 1], ['x*y + 2x + y + 2', 2]])
         assert.ok(text(math.poly.factorList('6').coefficient) === '6' && math.poly.factorList('0').factors.length === 0)
+        //Irreducible, as in SymPy: Wang's lifting evaluates terms that cancel (a term of coefficient 0 above the degree)
+        const irreducible: string = '-c^3*s^2*y - c*s^4*y + c*s^2*y + 2c^3 + 2c*s^2 - 3c^2 - c*s - 3s^2 + 3s*y - 2c + 3'
+        assert.strictEqual(text(math.expression(irreducible).factor()), '-(c^3*s^2*y + c*s^4*y - c*s^2*y - 2c^3 - 2c*s^2 + 3c^2 + c*s + 3s^2 - 3s*y + 2c - 3)')
     })
 
     it('factor in the threads of the addon: a polynomial of many factors modulo every prime stops at the time limit', async (): Promise<void> => {

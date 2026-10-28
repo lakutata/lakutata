@@ -441,6 +441,43 @@ console.log(expression('1/(x^3 + 1)').apart('x').toString())             //-(x -
 console.log(expression('x^2 - 6x + 10').completeSquare('x').toString())  //(x - 3)^2 + 1
 ```
 
+### Simplification
+
+`simplify()` looks for a shorter form of an expression, by identities that hold for all values of the variables, and
+returns the expression itself when no form is shorter. Shorter means fewer operations, counted as SymPy's `count_ops`
+counts them (each addition, subtraction, product, division, sign, power and function), with ties broken by the shorter
+text. The forms it tries:
+
+- the fraction cancelled or factored, the polynomial expanded: `(x^2 - 1)/(x - 1)` is `x + 1`, `(x + 1)^2 - x^2 - 2x` is
+  1;
+- exponentials whose arguments are multiples of one another, written as powers of a single exponential: `(e^(2x) -
+  1)/(e^x - 1)` is `e^x + 1`;
+- sines and cosines of multiples of one angle reduced by `sin^2 + cos^2 = 1`, then written with double angles, half
+  angles or tangents: `cos(x)^2 - sin(x)^2` is `cos(2x)`, `(1 - cos(2x))/2` is `sin(x)^2`, `sin(x)/cos(x)` is
+  `tan(x)`; sums of angles expanded (`sin(x + y) - sin(x)cos(y)` is `cos(x)*sin(y)`);
+- the hyperbolic functions reduced by `cosh^2 - sinh^2 = 1`, and exchanged with exponentials: `cosh(x) + sinh(x)` is
+  `e^x`, `(e^x + e^(-x))/2` is `cosh(x)`;
+- nested square roots of numbers taken apart, and square roots of numbers taken out of denominators: `sqrt(3 +
+  2sqrt(2))` is `sqrt(2) + 1`, `1/(1 + sqrt(2))` is `sqrt(2) - 1`;
+- logarithms of positive rationals combined: `ln(2) + ln(3)` is `ln(6)`.
+
+The arguments of functions and the values of piecewise expressions are simplified first (`e^(sin(x)^2 + cos(x)^2)` is
+`e`); the conditions of piecewise expressions, and sums and products left as calls, stay as they are. An expression with
+an integer power of a sum above 16, or with a power whose exponent has a numerator above 256 (`e^(6561/256)`), is not
+expanded, and the fraction forms are not tried on it. Nothing that depends on the signs of the variables is done:
+`sqrt(x^2)` and `ln(x*y)` stay as they are (`sqrt(x^2)` is `abs(x)` only for real `x`). As in SymPy, a cancelled
+fraction may have a value where the expression had none (`x + 1` at 1). The result is not always the shortest form there
+is, and it can differ from SymPy's; simplified again, it stays the same.
+
+```typescript
+import {expression} from '@lakutata/math'
+
+console.log(expression('sin(x)^4 - cos(x)^4').simplify().toString())       //-cos(2x)
+console.log(expression('tan(x/2)*(1 + cos(x))').simplify().toString())     //sin(x)
+console.log(expression('(exp(x) + exp(-x))/2').simplify().toString())      //cosh(x)
+console.log(expression('1/(sqrt(3) - sqrt(2))').simplify().toString())     //sqrt(2) + sqrt(3)
+```
+
 ### Matrices and linear algebra
 
 `matrix(rows)` gives a `Matrix` of numbers (doubles). Its elements are in a `Float64Array`, row by row (`data`),
@@ -724,9 +761,12 @@ negated.
   its error estimate reliable: for a singularity inside the interval, the extrapolation's error estimate may be too
   small, as in QUADPACK. Where the function is infinite at a point where the rules evaluate it, the interval is split
   there anyway. The interval is also split at each real root, inside it, of a factor of the denominator of the function
-  that is a polynomial (where the numerator is not 0): an integral across a pole diverges, and is not converged, instead
-  of being taken as its principal value (`1/x` on `[-1, 2]`). A fraction of polynomials in the variable has its common
-  factors cancelled first: `(x^2 - 1)/(x - 1)` on `[0, 2]` is 4, where the rules would meet 0/0 at 1.
+  that is a polynomial, where the function grows toward the root (not where the singularity is removable, as for
+  `sin(x)/x` at 0): an integral across a pole diverges, and is not converged, instead of being taken as its principal
+  value (`1/x` on `[-1, 2]`). Next to a root of a factor of degree 1 or 2 with rational coefficients, inside the
+  interval or at one of its ends, the function is computed at its exact distance from the root, which a decimal may not
+  give (the root -1/14 of `cbrt(x + 1/14)/(x + 1/14)`). A fraction of polynomials in the variable has its common factors
+  cancelled first: `(x^2 - 1)/(x - 1)` on `[0, 2]` is 4, where the rules would meet 0/0 at 1.
 - `tolerance` bounds the estimate of the error, relative to the integral of `|f|`: about 1.5e-8 by default (the square
   root of the machine epsilon, as in SciPy), and the result is usually much more accurate than its estimate. An integral
   that diverges, that oscillates without end, or that doubles cannot resolve gives its best estimate with `converged:

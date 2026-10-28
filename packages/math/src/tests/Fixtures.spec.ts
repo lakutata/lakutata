@@ -902,6 +902,24 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
         assert.deepStrictEqual(problems, [])
     })
 
+    it('simplify as SymPy: the same values, no longer than its result, each difference in length noted', (): void => {
+        const fixtures = expected<{text: string, sympy: string, result: string | null, values: (Complex | null)[], measure: number | null, differs?: Record<string, string>}>('simplify')
+        const problems: string[] = []
+        for (const fixture of fixtures.cases) {
+            const ours: Expression = math.expression(fixture.text).simplify()
+            const text: string = ours.toString()
+            //The values of SymPy's result at the points (those of the expression), always; a text no longer than its
+            //result, or a note
+            const values: boolean = fixtures.points.every((point: Point, index: number): boolean => fixture.values[index] === null || close(valueAt(ours, point), fixture.values[index]!, 1e-9))
+            if (!values) problems.push(`${fixture.text}: ${text}, not the values of SymPy's ${fixture.result}`)
+            const same: boolean = fixture.measure !== null && text.length <= fixture.measure
+            const noted: string | undefined = fixture.differs?.sympy
+            if (!same && !noted) problems.push(`${fixture.text}: ${text} (${text.length}), SymPy ${fixture.result} (${fixture.measure}), not noted`)
+            if (same && noted) problems.push(`${fixture.text}: SymPy agrees, its note is stale`)
+        }
+        assert.deepStrictEqual(problems, [])
+    })
+
     it('solve the linear systems as SymPy', (): void => {
         const fixtures = expected<{equations: string[], variables: string[], kind: string, values?: Record<string, {text: string, values: (Complex | null)[]}>}>('systems')
         for (const fixture of fixtures.cases) {

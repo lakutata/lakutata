@@ -88,6 +88,12 @@ describe('The numeric solutions', (): void => {
         //there, the singularity at the ends of the pieces
         const growing = math.numeric.integrate('cbrt(x - 46/25)/(3x - 138/25)', 'x', [1.73, 2.71])
         assert.ok(growing.converged && globalThis.Math.abs(growing.value - (globalThis.Math.cbrt(2.71 - 1.84) - globalThis.Math.cbrt(1.73 - 1.84))) < 1e-12, JSON.stringify(growing))
+        //At a pole that is not a double (-1/14), inside or at an end: the integrand rewritten at its exact value
+        const cube = (x: number): number => globalThis.Math.cbrt(21 * x / 10 + 3 / 20)
+        for (const [a, b] of [[-0.57, 0], [-1 / 14, 0]]) {
+            const exact = math.numeric.integrate('21cbrt(21x/10 + 3/20)/(63x + 9/2)', 'x', [a, b])
+            assert.ok(exact.converged && globalThis.Math.abs(exact.value - (cube(b) - cube(a))) < 1e-13, JSON.stringify(exact))
+        }
         //A larger tolerance: fewer intervals, a larger error
         const coarse = math.numeric.integrate('1/(1e-4 + x^2)', 'x', [-1, 1], {tolerance: 1e-3})
         assert.ok(coarse.converged && coarse.error <= 1e-3 * 312.2)

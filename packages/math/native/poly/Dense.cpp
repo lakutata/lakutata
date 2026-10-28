@@ -982,7 +982,10 @@ Dmp dmp_from_terms(const std::vector<Term> &terms, long u)
         Dmp f;
         if (degree < 0) return f;
         f.g.assign(static_cast<std::size_t>(degree) + 1, Z(0));
-        for (const Term &term : terms) f.g[static_cast<std::size_t>(degree - term.exponents[0])] += term.coefficient;
+        //(a term of coefficient 0 may be above the degree: the sum of terms that cancel in dmp_eval_tail)
+        for (const Term &term : terms) {
+            if (term.coefficient != 0) f.g[static_cast<std::size_t>(degree - term.exponents[0])] += term.coefficient;
+        }
         dmp_strip(f, 0);
         return f;
     }

@@ -151,6 +151,10 @@ public:
         return kept(high - u, u, y);
     }
 
+    //The exact values of ends that are poles (-1/14, not the decimal -0.07142857142857142 it prints as): rewritten
+    //there, the integrand is singular at u = 0 itself, where the double-exponential quadratures look for it
+    std::vector<std::pair<double, Expr>> exactEnds;
+
     //A point inside the piece where the integrand is not real, the first one met
     std::optional<double> notReal;
     //A point where it is infinite, the first one met; inside the piece, the first one met there
@@ -162,7 +166,11 @@ private:
     Expr rewritten(double end, int sign) const
     {
         const Expr u = SymEngine::symbol(variable);
-        const Expr at = substitute(function, {{variable, SymEngine::add(numberFromDouble(end), sign > 0 ? u : SymEngine::neg(u))}});
+        Expr exact = numberFromDouble(end);
+        for (const auto &[value, root] : exactEnds) {
+            if (value == end) exact = root;
+        }
+        const Expr at = substitute(function, {{variable, SymEngine::add(exact, sign > 0 ? u : SymEngine::neg(u))}});
         if (hasLargePower(*at)) return at;
         DeepExpansion expansion;
         return expansion.apply(at);
@@ -558,14 +566,42 @@ Estimate integratePiece(Integrand &integrand, double a, double b, double toleran
     return best;
 }
 
-//The real poles inside (low, high): the roots of the factors of the denominator that are polynomials in the variable
+//The real poles inside (low, high), with their exact values where the factors are of degree 1 or 2 (and those at the
+//ends, in atEnds): the roots of the factors of the denominator that are polynomials in the variable
 //(of degree 100 at most), where the integrand grows (the singularity of sin(x)/x at 0 is removable; cbrt(x)/x grows at 0
 //though its numerator is 0 there). The pieces are split there: each one diverges at its end, as 1/x on [0, 1], where
 //the subdivision would otherwise cancel the two sides (the principal value of 1/x on [-1, 2] taken for its integral), or
 //has its singularity at an end, where the subdivision extrapolates it well
-std::vector<double> polesInside(const Expr &function, const std::string &variable, double low, double high)
+//The exact value of a real root of a factor of degree 1 or 2 with rational coefficients, the one nearest a value
+std::optional<Expr> exactRoot(const Expr &factor, const std::string &variable, double near)
 {
-    std::vector<double> poles;
+    std::vector<Expr> c;
+    try {
+        c = coefficientsOf(factor, variable);
+    } catch (const MathError &) {
+        return std::nullopt;
+    }
+    for (const Expr &k : c) {
+        if (!is_a<SymEngine::Integer>(*k) && !is_a<SymEngine::Rational>(*k)) return std::nullopt;
+    }
+    std::vector<Expr> roots;
+    if (c.size() == 2) roots.push_back(SymEngine::div(SymEngine::neg(c[0]), c[1]));
+    if (c.size() == 3) {
+        const Expr discriminant = SymEngine::sub(SymEngine::mul(c[1], c[1]), SymEngine::mul(SymEngine::integer(4), SymEngine::mul(c[2], c[0])));
+        if (down_cast<const SymEngine::Number &>(*discriminant).is_negative()) return std::nullopt;
+        for (const int sign : {-1, 1}) {
+            roots.push_back(SymEngine::div(SymEngine::add(SymEngine::neg(c[1]), SymEngine::mul(SymEngine::integer(sign), SymEngine::sqrt(discriminant))), SymEngine::mul(SymEngine::integer(2), c[2])));
+        }
+    }
+    for (const Expr &root : roots) {
+        if (std::abs(toDouble(root) - near) <= 1e-9 * std::max(1.0, std::abs(near))) return root;
+    }
+    return std::nullopt;
+}
+
+std::vector<std::pair<double, Expr>> polesInside(const Expr &function, const std::string &variable, double low, double high, std::vector<std::pair<double, Expr>> &atEnds)
+{
+    std::vector<std::pair<double, Expr>> poles;
     const std::pair<Expr, Expr> fraction = fractionOf(function);
     std::vector<Expr> factors;
     if (is_a<SymEngine::Mul>(*fraction.second)) {
@@ -591,11 +627,21 @@ std::vector<double> polesInside(const Expr &function, const std::string &variabl
         }
         for (size_t i = 0; i < roots.re.size(); i++) {
             const double root = roots.re[i];
-            if (!(std::abs(roots.im[i]) <= 1e-9 * std::max(1.0, std::abs(root)) && root > low && root < high)) continue;
+            if (!(std::abs(roots.im[i]) <= 1e-9 * std::max(1.0, std::abs(root)))) continue;
+            //A root at an end (the end -1/14 given as a decimal): its exact value
+            for (const double end : {low, high}) {
+                if (std::isfinite(end) && std::abs(root - end) <= 1e-12 * std::max(1.0, std::abs(end))) {
+                    if (const std::optional<Expr> exact = exactRoot(factor, variable, root)) atEnds.emplace_back(end, *exact);
+                }
+            }
+            if (!(root > low && root < high)) continue;
             //Growing 10 times or more from 1/1000 of the interval away to 1/10^7 (x^(-1/4) grows 10 times)
             const double near = (std::isfinite(high - low) ? high - low : 1.0) / 1000, nearer = near / 10000;
             const double around = std::max(at(root - near), at(root + near)), closer = std::max(at(root - nearer), at(root + nearer));
-            if (!(closer < 10 * around)) poles.push_back(root);
+            if (!(closer < 10 * around)) {
+                const std::optional<Expr> exact = exactRoot(factor, variable, root);
+                poles.emplace_back(exact ? toDouble(*exact) : root, exact ? *exact : Expr());
+            }
         }
     }
     return poles;
@@ -628,8 +674,12 @@ IntegralResult integralOf(const Expr &given, const std::string &variable, double
         if (!(point >= low && point <= high)) throw MathError(ErrorCode::Argument, "The points are in the interval: " + shortest(point) + " is not");
         if (point > low && point < high) inside.push_back(point);
     }
-    const std::vector<double> poles = polesInside(function, variable, low, high);
-    inside.insert(inside.end(), poles.begin(), poles.end());
+    std::vector<std::pair<double, Expr>> atEnds;
+    for (const auto &[pole, exact] : polesInside(function, variable, low, high, atEnds)) {
+        inside.push_back(pole);
+        if (!exact.is_null()) integrand.exactEnds.emplace_back(pole, exact);
+    }
+    integrand.exactEnds.insert(integrand.exactEnds.end(), atEnds.begin(), atEnds.end());
     //The points where a piecewise part changes its case (step(x - 1) at 1)
     for (const double point : breakpointsOf(function, variable)) {
         if (point > low && point < high) inside.push_back(point);

@@ -426,7 +426,23 @@ export class Expression {
     }
 
     /**
-     * The expression simplified.
+     * The expression in a shorter form, by identities that hold for all values of the variables; the expression itself
+     * where no form is shorter. Shorter is fewer operations, as SymPy's `count_ops` counts them (each addition,
+     * subtraction, product, division, sign, power and function), with ties broken by the shorter text. The forms tried:
+     * the fraction cancelled or factored, the polynomial expanded; exponentials whose arguments are multiples of one
+     * another, written as powers of a single exponential; sines and cosines (of multiples of one angle, sums of angles
+     * expanded) reduced by `sin^2 + cos^2 = 1`, with double or half angles and tangents; the hyperbolic functions by
+     * `cosh^2 - sinh^2 = 1`, and exchanged with exponentials; nested square roots of numbers taken apart, square roots of
+     * numbers taken out of denominators; logarithms of positive rationals combined. The arguments of functions and the
+     * values of piecewise expressions are simplified first; an expression with an integer power of a sum above 16, or a
+     * power whose exponent has a numerator above 256, is not expanded. Nothing that depends on the signs of the
+     * variables is done (`sqrt(x^2)` stays as it is).
+     * @example
+     * import {expression} from '@lakutata/math'
+     *
+     * console.log(expression('(x^2 - 1)/(x - 1)').simplify().toString())   //x + 1
+     * console.log(expression('sin(x)^4 - cos(x)^4').simplify().toString())  //-cos(2x)
+     * console.log(expression('sqrt(3 + 2sqrt(2))').simplify().toString())   //sqrt(2) + 1
      */
     public simplify(): Expression {
         return this.#expression(this.context.run<Handle>('simplify', [this.handle]))

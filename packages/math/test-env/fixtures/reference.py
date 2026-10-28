@@ -8,6 +8,7 @@ import itertools
 import json
 import math
 import os
+import re
 import sys
 
 import mpmath
@@ -719,6 +720,28 @@ def limits():
     save('limits', results)
 
 
+def our_length(text):
+    """The length of a result written as the package writes it: ^ for **, ln for log, e^(…) for exp(…), 2x for 2*x"""
+    text = re.sub(r'\blog\(', 'ln(', text.replace('**', '^'))
+    text = re.sub(r'\bexp\(', 'e^(', text)
+    return len(re.sub(r'(\d)\*([A-Za-z(])', r'\1\2', text))
+
+
+def simplification():
+    """The simplified forms of SymPy (simplify, no assumptions on the variables): the result, its values at the sample
+    points (the values of the expression too), and its measure, the length of the result written as the package
+    writes it"""
+    results = []
+    for case in load('simplify'):
+        result = dict(case)
+        value = sympy.simplify(meaning(case['sympy']))
+        result['result'] = text_of(value)
+        result['values'] = values_at(value)
+        result['measure'] = None if result['result'] is None else our_length(result['result'])
+        results.append(result)
+    save('simplify', results)
+
+
 if __name__ == '__main__':
     grammar()
     numbers()
@@ -739,6 +762,7 @@ if __name__ == '__main__':
     piecewise()
     sums()
     limits()
+    simplification()
     decimals()
     special()
     complex_parts()
