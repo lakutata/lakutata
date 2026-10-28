@@ -50,6 +50,8 @@ describe('The sums and the products', (): void => {
         for (const [given, expected] of cases) assert.strictEqual(text(given), expected, given)
         //Not hypergeometric, or without a hypergeometric antidifference
         assert.strictEqual(text('sum(sin(k), k, 1, n)'), 'sum(sin(k), k, 1, n)')
+        //A ratio of 0 (Gosper's algorithm read the leading coefficient of the zero polynomial: a crash)
+        assert.strictEqual(text('sum(k*0^k, k, 0, n)'), 'sum(k*0^k, k, 0, n)')
         assert.strictEqual(text('sum(binomial(n, k), k, 0, n)'), 'sum(gamma(n + 1)/(gamma(k + 1)*gamma(-k + n + 1)), k, 0, n)')
     })
 

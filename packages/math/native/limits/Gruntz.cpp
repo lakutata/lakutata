@@ -402,16 +402,22 @@ private:
 
     //A special integral F(u) of u going to v, finite: its Taylor polynomial in u - v to the order, plus r (u - v)^(order + 1)
     //of a fresh constant r for the rest (gruntzLimit computes the limit again to a higher order where r is left in it).
-    //At 0, Ci, Chi and Ei are γ + ln(±u) and their power series; li(u) at 0 and 1 is Ei(ln u). At inf and -inf, Ei(u) is
-    //e^u (Σ k!/u^(k + 1) + r/u^(order + 1)), its asymptotic series, Shi and Chi (Ei(u) ∓ Ei(-u))/2, li(u) Ei(ln u); the
-    //laws of limits take the others (Si(x) at inf)
-    Expr specialPolynomial(SpecialIntegral::Kind kind, const Expr &u)
+    //At 0, Ci, Chi and Ei are γ + ln(±u) and their power series; li(u) is Ei(ln u). At inf and -inf, Ei(u) is
+    //e^u (Σ k!/u^(k + 1) + r/u^(order + 1)), its asymptotic series, Shi and Chi (Ei(u) ∓ Ei(-u))/2; the laws of limits
+    //take the others (Si(x) at inf)
+    Expr specialPolynomial(SpecialIntegral::Kind kind, const Expr &u, const Expr &value = Expr())
     {
         using Kind = SpecialIntegral::Kind;
         const Expr v = limitInf(u);
         if (has(v, x_) || is_a<NaN>(*v)) throw notFound("of a special integral of an argument without a limit");
         const int infinite = infinitySign(v);
-        if (kind == Kind::Li && (infinite > 0 || eq(*v, *one) || eq(*v, *zero))) return specialPolynomial(Kind::Ei, log(u));
+        //li(u) as Ei(ln u) for u > 0, its value at v as li(v) (the series of li'(u) = 1/ln(u) inverts a whole series: its
+        //coefficients swelled)
+        if (kind == Kind::Li) {
+            if (infinite > 0 || (eq(*v, *zero) && sign(u) == 1)) return specialPolynomial(Kind::Ei, log(u));
+            if (infinite == 0 && !undefinedIn(v) && compareOf(v, zero) == 1) return specialPolynomial(Kind::Ei, log(u), specialIntegralOf(Kind::Li, v));
+            throw notFound("of li of a complex value");
+        }
         if (infinite != 0 && (kind == Kind::Shi || (kind == Kind::Chi && infinite > 0))) {
             const Expr sum = kind == Kind::Shi ? sub(specialPolynomial(Kind::Ei, u), specialPolynomial(Kind::Ei, neg(u))) : add(specialPolynomial(Kind::Ei, u), specialPolynomial(Kind::Ei, neg(u)));
             return div(sum, integer(2));
@@ -449,11 +455,11 @@ private:
                 }
             }
         } else {
-            //F(v) and the integral of the series of F' at v (Ci, Chi and li are real for v > 0 only)
-            if ((kind == Kind::Ci || kind == Kind::Chi || kind == Kind::Li) && compareOf(v, zero) != 1) throw notFound("of a special integral of a complex value");
+            //F(v) and the integral of the series of F' at v (Ci and Chi are real for v > 0 only)
+            if ((kind == Kind::Ci || kind == Kind::Chi) && compareOf(v, zero) != 1) throw notFound("of a special integral of a complex value");
             const Variable t = fresh("t"), h = fresh("h");
             const Expr derivative = specialIntegralOf(kind, t)->diff(t);
-            polynomial = specialIntegralOf(kind, v);
+            polynomial = value.is_null() ? specialIntegralOf(kind, v) : value;
             for (const auto &[power, coefficient] : seriesTermsOf(subs(derivative, {{t, add(v, h)}}), h, static_cast<long>(order))) {
                 polynomial = add(polynomial, div(mul(coefficient, pow(distance, integer(power + 1))), integer(power + 1)));
             }

@@ -1346,6 +1346,68 @@ export async function checkIntegrals(math: MathScope, random: Random, index: num
 }
 
 /**
+ * The special functions of integrals, the transforms and the sums of phase 5: of Si, Ci, Shi, Chi, Ei, li, fresnelS or
+ * fresnelC of a random argument, the compiled value and the value of toComplex(), the derivative and the finite
+ * difference, the limit of (F(x) - F(a))/(x - a) at a and the derivative at a; the Laplace transform of a sum with
+ * random factors and the same sum of the transforms; sum(k^p r^k, k, 0, inf) of a random |r| < 1 and its partial sum.
+ */
+export async function checkSpecialIntegrals(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    const small = (): number => random.int(7) - 3
+    const nonzero = (): number => small() || 2
+    try {
+        //Positive arguments for Ci, Chi and li (li away from 1), any other for the rest
+        const name: string = random.pick(['Si', 'Ci', 'Shi', 'Chi', 'Ei', 'li', 'fresnelS', 'fresnelC'])
+        const positive: boolean = name === 'Ci' || name === 'Chi' || name === 'li'
+        const a: number = name === 'li' ? random.pick([0.3, 0.6, 1.8, 2.5, 4]) : positive ? 0.2 + random.int(25) / 10 : (random.int(51) - 25) / 10 || 0.7
+        const F: Expression = math.expression(`${name}(x)`)
+        text = `${name}(${a})`
+        const value: Value | undefined = valueAt(F, {x: a})
+        if (!value) {
+            fail('special', `no value at ${a}`)
+        } else {
+            const compiled: number = F.compile(['x'])(a) as number
+            if (Number.isFinite(compiled) && !near({re: compiled, im: 0}, value, 1e-9)) fail('special', `compiled ${compiled}, toComplex ${JSON.stringify(value)}`)
+            const h: number = 1e-5 * globalThis.Math.max(1, globalThis.Math.abs(a))
+            const above: Value | undefined = valueAt(F, {x: a + h}), below: Value | undefined = valueAt(F, {x: a - h})
+            const derivative: Value | undefined = valueAt(F.diff('x'), {x: a})
+            if (above && below && derivative) {
+                const difference: number = (above.re - below.re) / (2 * h)
+                if (globalThis.Math.abs(difference - derivative.re) > 1e-5 * globalThis.Math.max(1, globalThis.Math.abs(derivative.re))) fail('special', `derivative ${derivative.re}, finite difference ${difference}`)
+            }
+            //The limit of the difference quotient: the derivative (Gruntz's algorithm with the Taylor polynomial)
+            text = `(${name}(x) - ${name}(${a}))/(x - ${a})`
+            const limit: Value | undefined = valueAt(math.expression(text).limit('x', a), {})
+            if (!limit || !derivative || !near(limit, derivative, 1e-9)) fail('limit', `${JSON.stringify(limit)}, the derivative ${JSON.stringify(derivative)}`)
+        }
+        //Linearity of the Laplace transform
+        const originals: string[] = [`t^${random.int(4)}`, `e^(${nonzero()}*t)`, `sin(${nonzero()}*t)`, `cosh(${nonzero()}*t)`, `t*cos(${nonzero()}*t)`]
+        const f: string = random.pick(originals), g: string = random.pick(originals)
+        const alpha: number = nonzero(), beta: number = nonzero()
+        text = `${alpha}*${f} + ${beta}*(${g})`
+        const together: Expression = math.expression(text).laplace('t', 's')
+        const apart: Expression = math.expression(f).laplace('t', 's').mul(alpha).add(math.expression(g).laplace('t', 's').mul(beta))
+        for (const s of [5.5, 9.25]) {
+            const left: Value | undefined = valueAt(together, {s}), right: Value | undefined = valueAt(apart, {s})
+            if (!left || !right || !near(left, right, 1e-9)) fail('laplace', `${together.toString()} is ${JSON.stringify(left)} at ${s}, the sum of the transforms ${JSON.stringify(right)}`)
+        }
+        //A series of a ratio of another variable, for a ratio below 1
+        const p: number = random.int(4), r: number = (random.int(17) - 8) / 10
+        text = `sum(k^${p}*x^k, k, 0, inf)`
+        const sum: Value | undefined = valueAt(math.expression(text), {x: r})
+        let partial: number = 0
+        for (let k: number = 0; k < 2000; k++) partial += k ** p * r ** k
+        if (!sum || globalThis.Math.abs(sum.re - partial) > 1e-9 * globalThis.Math.max(1, globalThis.Math.abs(partial))) fail('sum', `${JSON.stringify(sum)} at x = ${r}, the partial sum ${partial}`)
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('special', String(error))
+        else fail('special', `${error.constructor.name}: ${error.message}`)
+    }
+    return failures
+}
+
+/**
  * Simplification: of a random formula, the same values at random points where both are finite, and simplified again,
  * the same text; a polynomial in sin(x), cos(x) and y times sin(x)^2 + cos(x)^2 - 1 (cosh(x)^2 - sinh(x)^2 - 1), plus
  * a polynomial A, has the value of A simplified and is not far longer; a fraction with a common factor is the

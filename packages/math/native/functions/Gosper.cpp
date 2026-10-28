@@ -45,9 +45,11 @@ struct Polynomials {
         return static_cast<long>(coefficients(p).size()) - 1;
     }
 
+    //(0 for the zero polynomial, which has no coefficients)
     Expr lead(const Expr &p) const
     {
-        return coefficients(p).back();
+        const std::vector<Expr> c = coefficients(p);
+        return c.empty() ? Expr(zero) : c.back();
     }
 
     //The coefficient of n^i
@@ -328,6 +330,9 @@ std::optional<Expr> gosperTerm(const Expr &f, const Polynomials &p)
             return std::nullopt;
         }
     }
+    //A ratio of 0 (k 0^k: its terms 0 past the first): not a hypergeometric term of this form (its leading coefficients
+    //were read from an empty list, a crash)
+    if (eq(*fraction.first, *zero) || eq(*fraction.second, *zero)) return std::nullopt;
     const Expr Z = cancelOf(div(p.lead(fraction.first), p.lead(fraction.second)));
     Expr A = p.monic(fraction.first), B = p.monic(fraction.second), C = one;
     if (p.degree(A) > 0 && p.degree(B) > 0) {
