@@ -127,6 +127,12 @@ describe('The formulas', (): void => {
         assert.strictEqual(math.expression('pi').toDecimal(), '3.1415926535897932385')
         assert.strictEqual(math.expression('sqrt(2)').toDecimal(30), '1.41421356237309504880168872421')
         assert.strictEqual(math.expression('1/3').toDecimal(10), '0.3333333333')
+        //A product with a factor that is 0 within the error of doubles (re(erf(i)), erf of a complex number in doubles)
+        assert.deepStrictEqual(math.expression('3 - re(erf(i))').toComplex(), {re: 3, im: 0})
+        //Compiled, the parts without variables from their exact decimals: the double of erf(5) = 1 - 1.5e-12 has 4 digits
+        //of ln(erf(5))
+        const compiled: number = math.expression('y/ln(erf(5))').compile(['y'])(1), exact: number = math.expression('1/ln(erf(5))').toNumber()
+        assert.ok(globalThis.Math.abs(compiled - exact) <= 1e-15 * globalThis.Math.abs(exact), `${compiled} ${exact}`)
     })
 
     it('solve equations in the complex numbers or the real ones', (): void => {

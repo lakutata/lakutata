@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-Node.js 的数学包：公式按纸上的写法输入（`x^2 - 5x + 6`、`2(x + 1)`），可以展开、求导、解方程、求值，结果是精确的，也可以用指定精度的十进制数计算；还有数值矩阵和线性代数、统计和概率分布、数值求根。计算由基于 [SymEngine](https://github.com/symengine/symengine)、[Boost](https://www.boost.org)、[Eigen](https://eigen.tuxfamily.org) 和 [mpdecimal](https://www.bytereef.org/mpdecimal/) 的原生插件完成，原生插件在安装这个包时编译。耗时的运算还可以放到原生插件自己的线程里执行，并且可以设置时限、随时取消。它属于 [lakutata](https://github.com/lakutata/lakutata) 系列，但不需要 lakutata 应用：从 `@lakutata/math` 导入它的函数就能直接使用。
+Node.js 的数学包：公式按纸上的写法输入（`x^2 - 5x + 6`、`2(x + 1)`），可以展开、因式分解、化简、求导、解方程、求值，结果是精确的，也可以用指定精度的十进制数计算；可以求极限、求和与求积、解不等式，支持分段函数；还有数值矩阵和线性代数、统计和概率分布、数值求根。计算由基于 [SymEngine](https://github.com/symengine/symengine)、[Boost](https://www.boost.org)、[Eigen](https://eigen.tuxfamily.org) 和 [mpdecimal](https://www.bytereef.org/mpdecimal/) 的原生插件完成，原生插件在安装这个包时编译。耗时的运算还可以放到原生插件自己的线程里执行，并且可以设置时限、随时取消。它属于 [lakutata](https://github.com/lakutata/lakutata) 系列，但不需要 lakutata 应用：从 `@lakutata/math` 导入它的函数就能直接使用。
 
 ## 安装
 
@@ -115,7 +115,7 @@ console.log(scope.expression('net(113)').toString())   //100
 - `toNumber()` 转成 JavaScript 的数字（值是复数时抛出 `MathDomainException`），`toComplex()` 得到 `{re, im}`。凡是 `toDecimal()` 或 `toComplexDecimal()` 能算的值，它们都先算出十进制值再转成数字，所以即使双精度计算已经没有一位有效数字（例如 `cos(10^30)`、`e^(i*10^30)`），得到的数字每一位都是对的。两者也能计算复数参数的特殊函数（伽马、zeta、Lambert W、多伽马、误差函数等），这些函数用双精度计算，表达式的其余部分仍用十进制计算。
 - `toDecimal(digits)` 得到指定有效位数、正确舍入的字符串（默认位数是范围的 `precision`），写法和 `Decimal` 相同（见下一节）：算出的 3 写成 `3`，不写成 `3.000…`。它会用更多位数重新计算，直到两次结果一致。能算四则运算、乘方和开方、`exp` 和 `ln`、三角函数和双曲函数及它们的反函数、取整函数、常数，以及实数参数的特殊函数：`gamma`、`loggamma`、`digamma`、`polygamma`、`beta`、`erf`、`erfc`、`zeta`（包括 Hurwitz zeta）、`lowergamma`、`uppergamma` 和 `lambertw`。多算 640 位仍然和 0 分不开的值，结果是 `0`（例如 `ln(6) - ln(2) - ln(3)`）；参数太大、这么多位不够用的值，会按需要再多算一些位数，最多多算 50000 位（`sin(10^(10^4))` 要多算 10^4 位）；恰好在相邻两个这么多位的十进制数正中间的值，取末位是偶数的那个（`ln(8)/ln(4)` 等于 1.5，保留 1 位得 `2`）。计算中有复数、但值是实数的（`e^(i*pi)`、`-i*asinh(i)`），结果是 `toComplexDecimal()` 的实部；值是复数时抛出 `MathDomainException`。
 - `toComplexDecimal(digits)` 得到复数值的实部和虚部 `{re, im}`，舍入方式和 `toDecimal()` 相同，实部和虚部各自保留指定的有效位数：`(1 + i/10^25)^2 - 1` 的实部和虚部是 `-1e-50` 和 `2e-25`。`toDecimal()` 能算的函数，它对复数参数也能算，取主值分支；落在割线上的值，和 SymPy 取同一侧（`asin(2)` 是 `pi/2 - 1.3169…i`）。其中的特殊函数只接受实数参数。
-- `compile()` 为了速度用双精度计算：双精度已经没有有效数字的值，它也算不准。实数参数的特殊函数由 Boost.Math 计算，误差在最后一位的几个单位以内，各个平台上跑的是同一套代码（C 库的伽马函数在不同系统上各不相同）。
+- `compile()` 为了速度用双精度计算：双精度已经没有有效数字的值，它也算不准。不含变量的部分先按精确的十进制算好：`ln(erf(5))` 的每一位都是对的，如果从 `erf(5)` 的双精度值去算，只剩 4 位有效数字。实数参数的特殊函数由 Boost.Math 计算，误差在最后一位的几个单位以内，各个平台上跑的是同一套代码（C 库的伽马函数在不同系统上各不相同）。
 - `toRectangular()` 给出表达式的实部和虚部（`{real, imaginary}`），`toPolar()` 给出它的模和辐角（`{modulus, argument}`）：`e^(i*pi/3)` 的实部和虚部是 `1/2` 和 `sqrt(3)/2`，模和辐角是 `1` 和 `pi/3`。变量当作复数，所以 `x` 的实部和虚部是 `re(x)` 和 `im(x)`。
 - `compile(variables)` 把表达式编译成一个以数字为参数的函数，适合反复求值；`batch()` 一次算很多组数据：
 

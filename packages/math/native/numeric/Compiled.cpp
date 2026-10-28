@@ -4,19 +4,53 @@
 #include <cmath>
 #include <limits>
 
+#include <symengine/complex_double.h>
+#include <symengine/real_double.h>
 #include <symengine/symbol.h>
+#include <symengine/visitor.h>
 
 #include "../core/Errors.h"
+#include "../ops/Operations.h"
 #include "../ops/Piecewise.h"
 
 namespace math {
+
+namespace {
+
+//The parts without variables computed from their exact decimals, not in doubles: ln(erf(5)) is -1.5374597944280348e-12,
+//of which the doubles of erf(5) = 1 - 1.5e-12 have 4 digits
+class ConstantsComputed : public SymEngine::TransformVisitor {
+public:
+    using TransformVisitor::bvisit;
+
+    SymEngine::RCP<const SymEngine::Basic> apply(const SymEngine::RCP<const SymEngine::Basic> &x) override
+    {
+        if (SymEngine::is_a_Number(*x) || SymEngine::is_a_Boolean(*x) || x->get_args().empty() || !SymEngine::free_symbols(*x).empty()) return TransformVisitor::apply(x);
+        try {
+            const std::complex<double> value = toComplex(x);
+            if (std::isfinite(value.real()) && std::isfinite(value.imag())) {
+                if (value.imag() == 0) return SymEngine::real_double(value.real());
+                return SymEngine::complex_double(value);
+            }
+        } catch (const MathError &error) {
+            if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
+        } catch (SymEngine::SymEngineException &) {
+        }
+        return x;
+    }
+};
+
+}
 
 CompiledFunction::CompiledFunction(const std::vector<std::string> &inputs, const std::vector<Expr> &outputs)
     : inputCount(inputs.size()), outputCount(outputs.size()), complexInputs(inputs.size()), complexOutputs(outputs.size())
 {
     //A piecewise part takes nan where no case holds (the evaluations need a last case that is always true)
     SymEngine::vec_basic symbols, formulas;
-    for (const Expr &output : outputs) formulas.push_back(withOtherwise(output));
+    for (const Expr &output : outputs) {
+        ConstantsComputed constants;
+        formulas.push_back(constants.apply(withOtherwise(output)));
+    }
     for (const std::string &name : inputs) symbols.push_back(SymEngine::symbol(name));
     for (const Expr &output : outputs) {
         for (const std::string &used : variablesOf(output)) {

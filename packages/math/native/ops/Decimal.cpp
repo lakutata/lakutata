@@ -383,17 +383,18 @@ Approximation Evaluator::apply(const Basic &e, const std::vector<Approximation> 
         return {sum, noise};
     }
     if (is_a<Mul>(e)) {
-        //The error of a product: the error of each factor times the others
+        //The error of a product: the error of each factor times the others (their sizes added for each factor: the sum of
+        //all less its own lost the error next to the size of a 0, -2.5e17 in doubles, and 3 - re(erf(i)) was 0)
         Decimal product = one();
-        double magnitudes = 0;
-        for (const Approximation &factor : arguments) {
-            product = context.mul(product, factor.value);
-            magnitudes += std::max(exponent(factor.value), EXACT / 4) + 1;
-        }
+        for (const Approximation &factor : arguments) product = context.mul(product, factor.value);
         double noise = EXACT;
-        for (const Approximation &factor : arguments) {
-            if (factor.noise <= EXACT / 2) continue;
-            noise = std::max(noise, factor.noise + magnitudes - std::max(exponent(factor.value), EXACT / 4) - 1);
+        for (size_t i = 0; i < arguments.size(); i++) {
+            if (arguments[i].noise <= EXACT / 2) continue;
+            double others = 0;
+            for (size_t j = 0; j < arguments.size(); j++) {
+                if (j != i) others += std::max(exponent(arguments[j].value), EXACT / 4) + 1;
+            }
+            noise = std::max(noise, arguments[i].noise + others);
         }
         return {product, noise};
     }

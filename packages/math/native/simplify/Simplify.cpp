@@ -862,8 +862,10 @@ Expr simplifiedOf(const Expr &given)
 {
     checkpoint();
     if (is_a_Number(*given) || is_a_sub<Symbol>(*given) || is_a<Constant>(*given)) return given;
+    //(the parts rebuilt only where that is shorter: SymEngine moves a number into a sum again, and a result simplified
+    //again would change)
     Expr best = partsSimplified(given);
-    if (shorter(given, best)) best = given;
+    if (!shorter(best, given)) best = given;
     const auto consider = [&best](const Expr &candidate) {
         if (!internal(candidate) && shorter(candidate, best)) best = candidate;
     };

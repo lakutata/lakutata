@@ -2,9 +2,10 @@
 
 English | [中文](README.zh-CN.md)
 
-Mathematics for Node.js: formulas written the way they are on paper (`x^2 - 5x + 6`, `2(x + 1)`), expanded,
-differentiated, solved and evaluated with exact numbers or with decimals of a chosen precision; numeric matrices and
-linear algebra, statistics and probability distributions, numeric roots. The work is done by a native addon built on
+Mathematics for Node.js: formulas written the way they are on paper (`x^2 - 5x + 6`, `2(x + 1)`), expanded, factored,
+simplified, differentiated, solved and evaluated with exact numbers or with decimals of a chosen precision; limits, sums
+and products, inequalities and piecewise functions; numeric matrices and linear algebra, statistics and probability
+distributions, numeric roots. The work is done by a native addon built on
 [SymEngine](https://github.com/symengine/symengine), [Boost](https://www.boost.org),
 [Eigen](https://eigen.tuxfamily.org) and [mpdecimal](https://www.bytereef.org/mpdecimal/), compiled when the package is
 installed. The long operations can run in the addon's own threads, with a time limit and a cancellation. It belongs to
@@ -187,8 +188,10 @@ stays a power (`2^(10^7)`), and a factorial above `20000!` stays as `gamma(n + 1
   a branch cut, a value takes the side SymPy gives it (`asin(2)` is `pi/2 - 1.3169…i`). Its special functions take real
   arguments only.
 - `compile()` computes in doubles, for speed: where doubles have no digit of a value, the compiled function has none
-  either. Its special functions of real arguments are computed by Boost.Math, within a few units of the last place,
-  with the same code on every platform (each C library has a gamma function of its own).
+  either. The parts without variables are computed once from their exact decimals: `ln(erf(5))` has all its digits,
+  while computing it from the double of `erf(5)` would leave 4 of them. Its special functions of real arguments are
+  computed by Boost.Math, within a few units of the last place, with the same code on every platform (each C library has
+  a gamma function of its own).
 - `toRectangular()` gives the real and the imaginary parts of an expression (`{real, imaginary}`), `toPolar()` its
   modulus and its argument (`{modulus, argument}`): for `e^(i*pi/3)`, the parts are `1/2` and `sqrt(3)/2`, the modulus
   `1` and the argument `pi/3`. The variables are complex numbers, so the parts of `x` are `re(x)` and `im(x)`.
