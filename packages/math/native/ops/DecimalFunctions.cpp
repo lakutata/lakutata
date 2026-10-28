@@ -8,6 +8,7 @@
 #include <climits>
 #include <cmath>
 #include <string>
+#include <vector>
 
 #include "../async/Pool.h"
 #include "../core/Errors.h"
@@ -24,25 +25,52 @@ bool negligibleInverse(const DecimalContext &g, const Decimal &a)
     return g.compare(g.abs(a), g.integer(g.digits() * 3 + 10)) > 0;
 }
 
+//Σ u^j/(q(1) q(2)… q(j)), j from 0 until the terms are below the digits of g, |u| < 1, of the small integers q(t) (the
+//series of e^y and of 1 - cos t): by blocks of m terms (Smith's rectangular splitting), u, u^2… u^m computed once, each
+//block a sum of them times integers, divided by an integer, and one product by u^m. About 2 √n products of decimals for
+//n terms instead of n: D(b) R(b) = Σ u^i e(b, i) + u^m R(b + 1), i < m, e(b, i) = q(bm + i + 1)… q(bm + m), D(b) = e(b, 0)
+Decimal taylorSeries(const DecimalContext &g, const Decimal &u, long long (*q)(long long))
+{
+    if (g.isZero(u)) return g.integer(1);
+    //The terms: |u| < 10^(exponent + 1)
+    const double size = static_cast<double>(g.exponent(u) + 1);
+    long long n = 0;
+    for (double logarithm = 0; logarithm > -static_cast<double>(g.digits() + 2);) {
+        n++;
+        logarithm += size - std::log10(static_cast<double>(q(n)));
+    }
+    const long long m = std::max<long long>(2, static_cast<long long>(std::ceil(std::sqrt(static_cast<double>(n + 1)))));
+    const long long blocks = (n + m) / m;
+    std::vector<Decimal> powers{g.integer(1), u};
+    for (long long i = 2; i <= m; i++) powers.push_back(g.mul(powers.back(), u));
+    //The integers e(b, i), exact
+    const DecimalContext exact(m * 20 + 20);
+    Decimal sum = g.integer(0);
+    for (long long b = blocks - 1; b >= 0; b--) {
+        Decimal factor = exact.integer(1);
+        Decimal block = g.mul(sum, powers[m]);
+        for (long long i = m - 1; i >= 0; i--) {
+            factor = exact.mul(factor, exact.integer(q(b * m + i + 1)));
+            block = g.add(block, g.mul(powers[i], factor));
+        }
+        sum = g.div(block, factor);
+        checkpoint();
+    }
+    return sum;
+}
+
 //The Taylor series of sin (odd) or cos (even) at r, |r| <= pi/4: of 1 - cos(r/2^k) above FAST_DIGITS, doubled back k
 //times by 1 - cos 2t = 2 (1 - cos t)(1 + cos t), its terms fewer by far (sin(1) to 10000 digits had 2500)
 Decimal sinCosSeries(const DecimalContext &g, const Decimal &r, bool cosine)
 {
     if (g.digits() > DecimalContext::FAST_DIGITS && !g.isZero(r)) {
-        const long halvings = static_cast<long>(std::ceil(std::sqrt(static_cast<double>(g.digits()) * 0.6)));
+        //Fewer halvings than terms: the terms are cheaper (taylorSeries)
+        const long halvings = static_cast<long>(std::ceil(0.3 * std::sqrt(static_cast<double>(g.digits()))));
         const DecimalContext h(g.digits() + static_cast<long>(std::log10(static_cast<double>(halvings))) + 4);
         const Decimal t = h.div(r, h.pow(h.integer(2), h.integer(halvings)));
         const Decimal square = h.mul(t, t);
-        const Decimal limit = h.mul(negligible(h), square);
-        //1 - cos t = t^2/2 - t^4/24 + …
-        Decimal term = h.div(square, h.integer(2));
-        Decimal y = term;
-        for (long long power = 2;; power += 2) {
-            term = h.neg(h.div(h.mul(term, square), h.integer((power + 1) * (power + 2))));
-            if (h.compare(h.abs(term), limit) < 0) break;
-            y = h.add(y, term);
-            if (power % 128 == 0) checkpoint();
-        }
+        //1 - cos t = t^2/2 - t^4/24 + … = (t^2/2) Σ (-t^2)^j 2/(2j + 2)!
+        Decimal y = h.mul(h.div(square, h.integer(2)), taylorSeries(h, h.neg(square), [](long long j) { return (2 * j + 1) * (2 * j + 2); }));
         const Decimal two = h.integer(2);
         for (long i = 0; i < halvings; i++) y = h.mul(h.mul(two, y), h.sub(two, y));
         if (cosine) return g.round(h.sub(h.integer(1), y));
@@ -158,20 +186,13 @@ Decimal DecimalContext::exp(const Decimal &a) const
     if (digits() <= FAST_DIGITS || isZero(a) || !std::isfinite(estimate) || std::fabs(estimate) > 2e18) return libraryExp(a);
     //e^a = 10^k e^r, r = a - k ln 10 in [0, ln 10); e^r = (e^(r/2^m))^(2^m), the series of e^(r/2^m) short
     const long long k = tensBelow(estimate);
-    const long halvings = static_cast<long>(std::ceil(std::sqrt(static_cast<double>(digits()) * 0.8)));
+    //Fewer halvings than terms: the terms are cheaper (taylorSeries)
+    const long halvings = static_cast<long>(std::ceil(0.45 * std::sqrt(static_cast<double>(digits()))));
     const long more = static_cast<long>(std::to_string(k < 0 ? -k : k).size()) + static_cast<long>(halvings * 0.302) + 12;
     const DecimalContext g(digits() + more);
     const Decimal r = g.sub(a, g.mul(g.integer(k), g.ln10()));
     const Decimal y = g.div(r, g.pow(g.integer(2), g.integer(halvings)));
-    const Decimal limit = negligible(g);
-    Decimal term = y;
-    Decimal sum = g.add(g.integer(1), y);
-    for (long long j = 2;; j++) {
-        term = g.div(g.mul(term, y), g.integer(j));
-        if (g.compare(g.abs(term), limit) < 0) break;
-        sum = g.add(sum, term);
-        if (j % 64 == 0) checkpoint();
-    }
+    Decimal sum = taylorSeries(g, y, [](long long j) { return j; });
     for (long i = 0; i < halvings; i++) sum = g.mul(sum, sum);
     return round(g.scaleb(sum, k));
 }
