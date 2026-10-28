@@ -96,6 +96,7 @@ Application.run(() => ({
 | [`@lakutata/mcp`](packages/mcp) | The tools, resources and prompts of the Model Context Protocol | no |
 | [`@lakutata/webrtc`](packages/webrtc) | WebRTC in TypeScript: the signaling, a TURN server, a media server (SFU), WHIP and WHEP, peer connections, service actions called through data channels, a browser client | no |
 | [`@lakutata/ffi`](packages/ffi) | Native libraries: the C functions of `.so`, `.dylib` and `.dll` files, declared with the C declarations of their headers | no |
+| [`@lakutata/math`](packages/math) | Mathematics: symbolic computation (equations, derivatives, integrals, limits, simplification) and numerical computation (matrices, statistics, decimals of any precision) in a native addon | no |
 | [`@lakutata/cli`](packages/cli) | The `lakutata` command: projects, workspaces, migrations, packaging | no |
 | [`@lakutata/builder`](packages/builder) | Bundles, executables and installers, used by `lakutata package` | no |
 

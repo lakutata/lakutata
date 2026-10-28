@@ -47,8 +47,9 @@ tool, a web and a desktop application, calls between services, background jobs, 
 Not part of this package: `@lakutata/cli` (the `lakutata` command for creating projects, running migrations and packing
 applications, see [Command](Command.md)), `@lakutata/grpc` (a gRPC client, server and service transport),
 `@lakutata/nats` (a NATS component and service transport), `@lakutata/dbus` (D-Bus), `@lakutata/mcp` (the Model
-Context Protocol), `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, a media server, peer connections) and
-`@lakutata/ffi` (the C functions of native libraries).
+Context Protocol), `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, a media server, peer connections),
+`@lakutata/ffi` (the C functions of native libraries) and `@lakutata/math` (symbolic and numerical mathematics, as
+functions that need no lakutata application).
 
 ## The guides
 

@@ -35,7 +35,7 @@
 | `lakutata/security`、`lakutata/provider/passwordHash` | 哈希、加解密、签名、`PasswordHash` 提供者 |
 | `lakutata/utils` | 辅助函数 |
 
-不在本包中的：`@lakutata/cli`（`lakutata` 命令：创建项目、执行迁移、打包应用，见 [Command](Command.md)）、`@lakutata/grpc`（gRPC 客户端、服务端和服务传输）、`@lakutata/nats`（NATS 组件和服务传输）、`@lakutata/dbus`（D-Bus）、`@lakutata/mcp`（Model Context Protocol）、`@lakutata/webrtc`（WebRTC：信令、TURN 服务器、媒体服务器、对等连接）和 `@lakutata/ffi`（调用动态库中的 C 函数）。
+不在本包中的：`@lakutata/cli`（`lakutata` 命令：创建项目、执行迁移、打包应用，见 [Command](Command.md)）、`@lakutata/grpc`（gRPC 客户端、服务端和服务传输）、`@lakutata/nats`（NATS 组件和服务传输）、`@lakutata/dbus`（D-Bus）、`@lakutata/mcp`（Model Context Protocol）、`@lakutata/webrtc`（WebRTC：信令、TURN 服务器、媒体服务器、对等连接）、`@lakutata/ffi`（调用动态库中的 C 函数）和 `@lakutata/math`（符号计算和数值计算，直接作为函数使用，不需要 lakutata 应用）。
 
 ## 指南
 
