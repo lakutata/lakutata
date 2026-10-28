@@ -37,7 +37,11 @@ describe('The integrals', (): void => {
             ['1/sqrt(1 - x^2)', 'asin(x)'],
             ['2x*e^(x^2)', 'e^(x^2)'],
             ['e^(-x^2)', 'sqrt(pi)*erf(x)/2'],
-            ['cosh(x)^2', 'x/2 + sinh(2x)/4']
+            ['cosh(x)^2', 'x/2 + sinh(2x)/4'],
+            ['x^2/sqrt(x^2 + 1)', '(-asinh(x) + x*sqrt(x^2 + 1))/2'],
+            ['(x + 1)/sqrt(x^2 + 2x + 5)', 'sqrt(x^2 + 2x + 5)'],
+            ['(x^2 + 1)^(3/2)', '(2x*(x^2 + 1)^(3/2) + 3asinh(x) + 3x*sqrt(x^2 + 1))/8'],
+            ['x*e^x*sin(x)', 'e^x*(-x*cos(x)/2 + cos(x)/2 + x*sin(x)/2)']
         ])
     })
 

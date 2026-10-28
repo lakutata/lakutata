@@ -404,6 +404,17 @@ private:
     //functions whose derivatives they are, the square roots of quadratics and their reciprocals, e^(quadratic) by erf
     std::optional<Expr> table(const Expr &f)
     {
+        //P(x) q^(n/2)
+        if (is_a<Mul>(*f)) {
+            Expr polynomial = one, root;
+            for (const Expr &factor : factorsOf(f)) {
+                if (is_a<Pow>(*factor) && is_a<Rational>(*down_cast<const Pow &>(*factor).get_exp()) && root.is_null() && polynomialIn(down_cast<const Pow &>(*factor).get_base(), x_)) root = factor;
+                else if (polynomialIn(factor, x_)) polynomial = mul(polynomial, factor);
+                else return std::nullopt;
+            }
+            if (root.is_null()) return std::nullopt;
+            return polynomialOverRoot(polynomial, down_cast<const Pow &>(*root).get_base(), down_cast<const Pow &>(*root).get_exp());
+        }
         if (is_a<Pow>(*f)) {
             const Expr base = down_cast<const Pow &>(*f).get_base(), exponent = down_cast<const Pow &>(*f).get_exp();
             if (!has(exponent, x_)) {
@@ -417,6 +428,8 @@ private:
                     return SymEngine::piecewise({{logarithm, relationOf("=", exponent, minus_one)}, {power, boolTrue}});
                 }
                 if (const auto found = quadraticRoot(base, exponent)) return found;
+                //sqrt(q)^n, n odd above 1 or below -1: q^((n - 1)/2) sqrt(q)… by the polynomial rule below
+                if (const auto found = polynomialOverRoot(one, base, exponent)) return found;
                 if (const auto found = functionPower(base, exponent)) return found;
             }
             if (!has(base, x_)) {
@@ -539,6 +552,53 @@ private:
         }
         if (!F) return std::nullopt;
         return div(*F, a);
+    }
+
+    //P(x) q^(n/2) for a polynomial P and a quadratic q, n odd: P divided by q (P = A q + B, B linear) gives A q^((n + 2)/2)
+    //+ B q^(n/2), and B q^(n/2) = b/(2a) q' q^(n/2) + (B - b/(2a) q') q^(n/2): a power of q, and a constant times q^(n/2),
+    //down to sqrt(q) and 1/sqrt(q) of the table (x^2/sqrt(x^2 + 1) is (x sqrt(x^2 + 1) - asinh(x))/2)
+    std::optional<Expr> polynomialOverRoot(const Expr &P, const Expr &q, const Expr &exponent)
+    {
+        if (!is_a<Rational>(*exponent) || get_den(down_cast<const Rational &>(*exponent).as_rational_class()) != 2) return std::nullopt;
+        const auto qc = polynomialIn(q, x_);
+        const auto pc = polynomialIn(P, x_);
+        if (!qc || qc->size() != 3 || !pc) return std::nullopt;
+        if (pc->size() == 1 && (eq(*exponent, *SymEngine::rational(1, 2)) || eq(*exponent, *SymEngine::rational(-1, 2)))) {
+            return quadraticRoot(q, exponent).has_value() ? std::optional<Expr>(mul(P, *quadraticRoot(q, exponent))) : std::nullopt;
+        }
+        if (depth_ > LARGEST_DEPTH - 2) return std::nullopt;
+        const Expr a = (*qc)[2];
+        //A power of q alone, m = n/2 >= 3/2: (2a x + b) q^m/(2a(2m + 1)) + m D/(2a(2m + 1)) times the integral of q^(m - 1),
+        //D = 4ac - b^2
+        if (pc->size() == 1) {
+            const integer_class n = get_num(down_cast<const Rational &>(*exponent).as_rational_class());
+            if (n < 3) return std::nullopt;
+            const auto lower = integral(pow(q, sub(exponent, one)));
+            if (!lower) return std::nullopt;
+            const Expr b = (*qc)[1], D = sub(mul(integer(4), mul(a, (*qc)[0])), mul(b, b));
+            const Expr denominator = mul(mul(integer(2), a), add(mul(integer(2), exponent), one));
+            return mul(P, add(div(mul(add(mul(integer(2), mul(a, x_)), b), pow(q, exponent)), denominator), mul(div(mul(exponent, D), denominator), *lower)));
+        }
+        const auto [A, B] = divideOf(P, q, x_->get_name());
+        Expr result = zero;
+        if (!eq(*A, *zero)) {
+            const auto found = integral(mul(A, pow(q, add(exponent, one))));
+            if (!found) return std::nullopt;
+            result = add(result, *found);
+        }
+        const auto bc = polynomialIn(B, x_);
+        if (!bc) return std::nullopt;
+        const Expr slope = bc->size() > 1 ? (*bc)[1] : Expr(zero);
+        const Expr factor = div(slope, mul(integer(2), a));
+        //b/(2a) q' q^(n/2): q^(n/2 + 1)/(n/2 + 1)
+        if (!eq(*factor, *zero)) result = add(result, mul(factor, div(pow(q, add(exponent, one)), add(exponent, one))));
+        const Expr rest = expand(sub(B, mul(factor, SymEngine::diff(q, x_, true))));
+        if (!eq(*rest, *zero)) {
+            const auto found = integral(mul(rest, pow(q, exponent)));
+            if (!found) return std::nullopt;
+            result = add(result, *found);
+        }
+        return result;
     }
 
     //(a x^2 + b x + c)^(±1/2), its coefficients numbers: with t = x + b/(2a) and k = c - b^2/(4a), a > 0: 1/sqrt(a t^2 + k)
@@ -808,10 +868,17 @@ private:
             if (priority(factors[0]) < 4) return std::nullopt;
             factors.push_back(one);
         }
-        if (factors.size() != 2) return std::nullopt;
-        const int p0 = priority(factors[0]), p1 = priority(factors[1]);
-        if (p0 == 0 && p1 == 0) return std::nullopt;
-        const Expr u = p0 >= p1 ? factors[0] : factors[1], dv = p0 >= p1 ? factors[1] : factors[0];
+        //u the factor first in LIATE, dv the product of the others (x e^x sin(x): u = x)
+        size_t chosen = 0;
+        for (size_t i = 1; i < factors.size(); i++) {
+            if (priority(factors[i]) > priority(factors[chosen])) chosen = i;
+        }
+        if (priority(factors[chosen]) == 0 || (factors.size() > 2 && priority(factors[chosen]) < 3)) return std::nullopt;
+        const Expr u = factors[chosen];
+        Expr dv = one;
+        for (size_t i = 0; i < factors.size(); i++) {
+            if (i != chosen) dv = mul(dv, factors[i]);
+        }
         const auto v = integral(dv);
         if (!v) return std::nullopt;
         const auto rest = integral(expand(mul(*v, SymEngine::diff(u, x_, true))));

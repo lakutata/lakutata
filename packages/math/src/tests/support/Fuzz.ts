@@ -1272,6 +1272,80 @@ export async function checkSums(math: MathScope, random: Random, index: number):
 }
 
 /**
+ * Integrals: of the derivative f of a random antiderivative F (powers, exponentials, sines and cosines, logarithms,
+ * arctangents, square roots, products with x), an antiderivative whose derivative is f and which differs from F by a
+ * constant (where one is found: the rules may not find it); the definite integral on a random interval, the numeric
+ * integral; the inverse of the Laplace transform of a random function of the table, the function.
+ */
+export async function checkIntegrals(math: MathScope, random: Random, index: number): Promise<FuzzFailure[]> {
+    const failures: FuzzFailure[] = []
+    let text: string = ''
+    const fail = (property: string, message: string): number => failures.push({index, text, property, message})
+    const small = (): number => random.int(7) - 3
+    const nonzero = (): number => small() || 2
+    try {
+        const parts: (() => string)[] = [
+            (): string => `${nonzero()}*x^${1 + random.int(4)}`,
+            (): string => `${nonzero()}*e^(${nonzero()}*x)`,
+            (): string => `sin(${nonzero()}*x)`,
+            (): string => `cos(${nonzero()}*x + ${small()})`,
+            (): string => `ln(x^2 + ${1 + random.int(3)})`,
+            (): string => `atan(${nonzero()}*x)`,
+            (): string => `x*e^(${nonzero()}*x)`,
+            (): string => `sqrt(x^2 + ${1 + random.int(3)})`,
+            (): string => `x^2*sin(x)`,
+            (): string => `e^(x^2)`
+        ]
+        const term = (): string => random.chance(0.3) ? `(${random.pick(parts)()})*(${random.pick(parts)()})` : random.pick(parts)()
+        const antiderivative: string = Array.from({length: 1 + random.int(3)}, term).join(' + ')
+        const F: Expression = math.expression(antiderivative)
+        const f: Expression = F.diff('x')
+        text = f.toString()
+        const points: number[] = [0.37, 1.21, -0.83]
+        let found: Expression | undefined
+        try {
+            found = f.integrate('x')
+        } catch (error) {
+            if (!(error instanceof MathNotSupportedException)) throw error
+        }
+        if (found) {
+            const differences: Value[] = []
+            for (const x of points) {
+                const derivative: Value | undefined = valueAt(found.diff('x'), {x}), integrand: Value | undefined = valueAt(f, {x})
+                if (derivative && integrand && !near(derivative, integrand, 1e-8)) fail('integrate', `${found.toString()}: its derivative at ${x} is ${JSON.stringify(derivative)}, not ${JSON.stringify(integrand)}`)
+                const ours: Value | undefined = valueAt(found, {x}), theirs: Value | undefined = valueAt(F, {x})
+                if (ours && theirs) differences.push({re: ours.re - theirs.re, im: ours.im - theirs.im})
+            }
+            if (differences.length > 1 && !differences.every((d: Value): boolean => near(d, differences[0]!, 1e-7))) fail('integrate', `${found.toString()} and ${antiderivative} differ by more than a constant: ${JSON.stringify(differences)}`)
+            //On an interval: the numeric integral
+            const a: number = small() / 2, b: number = a + 0.5 + random.int(4) / 2
+            try {
+                const exact: Value | undefined = valueAt(f.integrate('x', a, b), {})
+                const numeric = math.numeric.integrate(f, 'x', [a, b])
+                if (exact && numeric.converged && globalThis.Math.abs(exact.im) < 1e-9 && globalThis.Math.abs(exact.re - numeric.value) > 1e-6 * globalThis.Math.max(1, globalThis.Math.abs(numeric.value)) + 10 * numeric.error) {
+                    fail('integrate', `from ${a} to ${b}: ${exact.re}, numerically ${numeric.value}`)
+                }
+            } catch (error) {
+                if (!(error instanceof MathException)) throw error
+            }
+        }
+        //The Laplace transform and its inverse of c t^n e^(a t), of sin(b t) or cos(b t) times e^(a t)
+        const exponential: string = random.chance(0.5) ? `*e^(${small()}*t)` : ''
+        const original: string = [`${nonzero()}*t^${random.int(4)}${exponential}`, `sin(${nonzero()}*t)${exponential}`, `cos(${nonzero()}*t)${exponential}`][random.int(3)]!
+        text = original
+        const back: Expression = math.expression(original).laplace('t', 's').inverseLaplace('s', 't')
+        for (const t of [0.7, 1.3]) {
+            const value: Value | undefined = valueAt(back, {t}), expected: Value | undefined = valueAt(math.expression(original), {t})
+            if (!value || !expected || !near(value, expected, 1e-9)) fail('laplace', `the inverse of the transform is ${back.toString()}: ${JSON.stringify(value)} at ${t}, not ${JSON.stringify(expected)}`)
+        }
+    } catch (error) {
+        if (!(error instanceof MathException)) fail('integrate', String(error))
+        else if (error instanceof MathNotSupportedException && /Laplace/.test(error.message)) fail('laplace', `not found: ${error.message}`)
+    }
+    return failures
+}
+
+/**
  * Simplification: of a random formula, the same values at random points where both are finite, and simplified again,
  * the same text; a polynomial in sin(x), cos(x) and y times sin(x)^2 + cos(x)^2 - 1 (cosh(x)^2 - sinh(x)^2 - 1), plus
  * a polynomial A, has the value of A simplified and is not clearly longer; a fraction with a common factor is the
