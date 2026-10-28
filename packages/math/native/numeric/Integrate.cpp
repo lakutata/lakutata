@@ -649,6 +649,16 @@ std::vector<std::pair<double, Expr>> polesInside(const Expr &function, const std
 
 }
 
+std::vector<double> realPolesOf(const Expr &function, const std::string &variable, double low, double high)
+{
+    std::vector<std::pair<double, Expr>> atEnds;
+    std::vector<double> poles;
+    for (const auto &[pole, exact] : polesInside(function, variable, low, high, atEnds)) poles.push_back(pole);
+    std::sort(poles.begin(), poles.end());
+    poles.erase(std::unique(poles.begin(), poles.end()), poles.end());
+    return poles;
+}
+
 IntegralResult integralOf(const Expr &given, const std::string &variable, double a, double b, const std::vector<double> &points, double tolerance)
 {
     if (!(tolerance >= 0 && tolerance < 1)) throw MathError(ErrorCode::Argument, "The tolerance is a number from 0 to 1, 1 excluded");

@@ -742,6 +742,43 @@ def simplification():
     save('simplify', results)
 
 
+# The special functions of SymPy's antiderivatives (of sin(x)/x, e^x/x, 1/ln(x), e^(-x^2), sin(x^2)), which the
+# integrals of the formulas do not give
+SPECIAL = (sympy.Si, sympy.Ci, sympy.Shi, sympy.Chi, sympy.Ei, sympy.li, sympy.fresnels, sympy.fresnelc, sympy.erf,
+           sympy.erfi, sympy.expint)
+
+
+def integrals():
+    """The integrals of SymPy (integrate, no assumptions on the variables): an antiderivative (no constant) and its
+    values at the sample points; a definite integral (its ends formulas, inf or -inf) as a value and its values, an
+    infinity, or undefined where SymPy gives nan or zoo; unsolved where an Integral is left, and the antiderivatives in
+    special functions (special) or in a RootSum (rootsum), their texts and values kept"""
+    results = []
+    for case in load('integrals'):
+        result = dict(case)
+        expr, variable = meaning(case['sympy']), Symbol(case['variable'])
+        definite = 'from' in case
+        value = (sympy.integrate(expr, (variable, parse(case['from']), parse(case['to']))) if definite
+                 else sympy.integrate(expr, variable))
+        result['result'] = text_of(value)
+        if value.has(sympy.Integral):
+            result['kind'] = 'unsolved'
+        elif not definite and (value.has(*SPECIAL) or value.has(sympy.RootSum)):
+            result['kind'], result['values'] = 'unsolved', values_at(value)
+            if value.has(*SPECIAL):
+                result['special'] = True
+            if value.has(sympy.RootSum):
+                result['rootsum'] = True
+        elif definite and value in (oo, -oo):
+            result['kind'] = result['result']
+        elif definite and value in (nan, zoo):
+            result['kind'], result['result'] = 'undefined', str(value)
+        else:
+            result['kind'], result['values'] = 'value', values_at(value)
+        results.append(result)
+    save('integrals', results)
+
+
 if __name__ == '__main__':
     grammar()
     numbers()
@@ -763,6 +800,7 @@ if __name__ == '__main__':
     sums()
     limits()
     simplification()
+    integrals()
     decimals()
     special()
     complex_parts()

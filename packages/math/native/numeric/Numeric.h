@@ -56,6 +56,10 @@ struct IntegralResult {
 //function is singular or jumps): MathError Domain where the function is not real, or infinite with no finite integral
 IntegralResult integralOf(const Expr &function, const std::string &variable, double a, double b, const std::vector<double> &points, double tolerance);
 
+//The real poles of a function inside (low, high), where the interval of integralOf() is split: the roots of the
+//polynomial factors of its denominator where it grows (the definite integrals of math check them)
+std::vector<double> realPolesOf(const Expr &function, const std::string &variable, double low, double high);
+
 //The options of an ordinary differential equation: its method ("rk45", or "radau" for stiff equations), its
 //tolerances, its largest step, the times to give (the steps otherwise), its largest number of steps
 struct ODEOptions {

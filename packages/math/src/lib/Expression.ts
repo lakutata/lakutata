@@ -607,6 +607,44 @@ export class Expression {
     }
 
     /**
+     * The integral of the expression in a variable: an antiderivative without a constant (`1/x` gives `ln(x)`, as in
+     * SymPy), or with `from` and `to` the definite integral, by an antiderivative and the limits at the ends (`inf` and
+     * `-inf` too); `inf` or `-inf` where it grows without end. The antiderivatives come from the partial fractions of
+     * fractions of polynomials, a table of the elementary functions of a linear argument, substitution, integration by
+     * parts and the powers of sines and cosines, each one checked by its derivative. Where none is found (`sin(x)/x`
+     * has none in elementary functions) it throws `MathNotSupportedException`: `numeric.integrate()` computes definite
+     * integrals of any function. A definite integral without a value (`1/x` on `[-1, 1]`) throws `MathDomainException`.
+     * @param variable The variable.
+     * @param from The lower end of a definite integral.
+     * @param to The upper end of a definite integral.
+     * @example
+     * import {expression} from '@lakutata/math'
+     *
+     * console.log(expression('x*e^x').integrate('x').toString())          //(x - 1)e^x
+     * console.log(expression('1/(x^2 + 1)').integrate('x').toString())    //atan(x)
+     * console.log(expression('e^(-x)').integrate('x', 0, 'inf').toString()) //1
+     */
+    public integrate(variable: string, from?: Value, to?: Value): Expression {
+        return this.#expression(this.context.run<Handle>('integral', this.#integralArguments(variable, from, to)))
+    }
+
+    /**
+     * `integrate()` in the threads of the addon.
+     * @param variable The variable.
+     * @param from The lower end of a definite integral.
+     * @param to The upper end of a definite integral.
+     * @param options Its cancellation, its time limit.
+     */
+    public async integrateAsync(variable: string, from?: Value, to?: Value, options?: AsyncOptions): Promise<Expression> {
+        return this.#expression(await this.context.runAsync<Handle>('integral', this.#integralArguments(variable, from, to), options))
+    }
+
+    #integralArguments(variable: string, from?: Value, to?: Value): unknown[] {
+        if ((from === undefined) !== (to === undefined)) throw new MathArgumentException('A definite integral has both its ends')
+        return from === undefined ? [this.handle, variable] : [this.handle, variable, handleOf(this.context, from), handleOf(this.context, to!)]
+    }
+
+    /**
      * The series of the expression at a point: its terms of degree lower than `order` (`series('x', 0, 6)` of
      * `sin(x)` is `x^5/120 - x^3/6 + x`).
      * @param variable The variable.

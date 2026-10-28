@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
-import {type ComplexVector, createMath, type Inequality, type Decimal, type Distribution, type DistributionName, type Eigenvector, Expression, ExpressionMatrix, type IntegralResult, type IterativeSolution, MathDomainException, MathException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type ODEResult, type PhysicalConstant, type PrimeFactor, type RootResult, type RowEchelonForm, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution, type Unit} from '../exports/Math.js'
+import {type ComplexVector, createMath, type Inequality, type Decimal, type Distribution, type DistributionName, type Eigenvector, Expression, ExpressionMatrix, type IntegralResult, type IterativeSolution, MathDomainException, MathException, MathNotSupportedException, type MathScope, Matrix, type Normalization, type NormalizationOptions, type ODEResult, type PhysicalConstant, type PrimeFactor, type RootResult, type RowEchelonForm, type Solutions, SparseMatrix, type SystemRootResult, type SystemSolution, type Unit} from '../exports/Math.js'
 
 //The results of SymPy (test-env/fixtures/generate.sh): the values of each result at the sample points, 30 digits
 type Complex = [string, string]
@@ -916,6 +916,71 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
             const noted: string | undefined = fixture.differs?.sympy
             if (!same && !noted) problems.push(`${fixture.text}: ${text} (${text.length}), SymPy ${fixture.result} (${fixture.measure}), not noted`)
             if (same && noted) problems.push(`${fixture.text}: SymPy agrees, its note is stale`)
+        }
+        assert.deepStrictEqual(problems, [])
+    })
+
+    it('integrate as SymPy: antiderivatives that differ by a constant, the same definite integrals, each difference noted', (): void => {
+        type IntegralKind = 'value' | 'inf' | '-inf' | 'undefined' | 'unsolved'
+        const fixtures = expected<{text: string, sympy: string, variable: string, from?: string, to?: string, kind: IntegralKind, result: string | null, values?: (Complex | null)[], special?: boolean, rootsum?: boolean, differs?: Record<string, string>}>('integrals')
+        //Two complex values within a tolerance, relative to the second one (at least 1)
+        const near = (value: {re: number, im: number}, other: {re: number, im: number}, tolerance: number): boolean => globalThis.Math.hypot(value.re - other.re, value.im - other.im) <= tolerance * globalThis.Math.max(1, globalThis.Math.hypot(other.re, other.im))
+        const problems: string[] = []
+        for (const fixture of fixtures.cases) {
+            const definite: boolean = fixture.from !== undefined
+            const label: string = definite ? `${fixture.text} from ${fixture.variable} = ${fixture.from} to ${fixture.to}` : `${fixture.text} in ${fixture.variable}`
+            const given: Expression = math.expression(fixture.text)
+            let ours: Expression | undefined, error: MathException | undefined
+            try {
+                ours = definite ? given.integrate(fixture.variable, fixture.from!, fixture.to!) : given.integrate(fixture.variable)
+            } catch (caught) {
+                if (!(caught instanceof MathException)) throw caught
+                error = caught
+            }
+            //An antiderivative of ours has the integrand as its derivative at the points, always: a note does not excuse
+            //a wrong one
+            if (!definite && ours !== undefined) {
+                const derivative: Expression = ours.diff(fixture.variable)
+                fixtures.points.forEach((point: Point): void => {
+                    const integrand = valueAt(given, point), found = valueAt(derivative, point)
+                    if (typeof integrand === 'string' || !Number.isFinite(integrand.re) || !Number.isFinite(integrand.im)) return
+                    if (typeof found === 'string' || !near(found, integrand, 1e-9)) problems.push(`${label} at ${JSON.stringify(point)}: the derivative of ${ours!.toString()} is ${JSON.stringify(found)}, not ${JSON.stringify(integrand)}`)
+                })
+            }
+            //An antiderivative: ours minus SymPy's one constant at the points where both have a value. A definite
+            //integral: the same values, the same infinity, none where SymPy's is nan or zoo (MathDomainException). None
+            //SymPy finds (an Integral left, special functions, a RootSum): the same where ours is none either
+            //(MathNotSupportedException)
+            let same: boolean
+            //(special functions or a RootSum in SymPy's antiderivative, with values: ours, where found, compared as a value)
+            const comparable: boolean = fixture.kind === 'value' || (fixture.kind === 'unsolved' && ours !== undefined && fixture.values !== undefined)
+            if (comparable && !definite) {
+                const differences: {re: number, im: number}[] = []
+                if (ours !== undefined) {
+                    fixtures.points.forEach((point: Point, index: number): void => {
+                        const value: Complex | null = fixture.values![index]
+                        const found = valueAt(ours!, point)
+                        if (value === null || typeof found === 'string') return
+                        differences.push({re: found.re - Number(value[0]), im: found.im - Number(value[1])})
+                    })
+                }
+                same = differences.length > 0 && differences.every((difference: {re: number, im: number}): boolean => near(difference, differences[0], 1e-8))
+            } else if (comparable) {
+                same = ours !== undefined && fixtures.points.every((point: Point, index: number): boolean => fixture.values![index] === null || close(valueAt(ours!, point), fixture.values![index]!, 1e-9))
+            } else if (fixture.kind === 'inf' || fixture.kind === '-inf') {
+                same = ours?.toString() === fixture.result
+            } else if (fixture.kind === 'undefined') {
+                same = error instanceof MathDomainException
+            } else {
+                same = error instanceof MathNotSupportedException
+            }
+            const theirs: string = fixture.kind === 'undefined' ? `none (${fixture.result})`
+                : fixture.kind !== 'unsolved' ? fixture.result!
+                    : fixture.special ? `in special functions (${fixture.result})`
+                        : fixture.rootsum ? `a RootSum (${fixture.result})` : `none found (${fixture.result})`
+            const noted: string | undefined = fixture.differs?.sympy
+            if (!same && !noted) problems.push(`${label}: ${ours?.toString() ?? `${error!.constructor.name}: ${error!.message}`}, SymPy ${theirs.length > 200 ? `${theirs.slice(0, 200)}…` : theirs}, not noted`)
+            if (same && noted) problems.push(`${label}: SymPy agrees, its note is stale`)
         }
         assert.deepStrictEqual(problems, [])
     })
