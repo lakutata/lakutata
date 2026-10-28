@@ -13,6 +13,7 @@ npm install @lakutata/math
 - 原生插件在安装时编译（node-gyp），所以机器上需要 Python 3 和支持 C++17 的编译器：macOS 上是 Xcode 的命令行工具，Linux 上是 `build-essential`（Debian、Ubuntu）或 `build-base`（Alpine），Windows 上是 Visual Studio 生成工具（“使用 C++ 的桌面开发”）。编译需要半分钟到几分钟；编译失败时，安装也会失败。
 - 包管理器需要执行这个包的安装脚本。npm 会执行，但可能提示这个脚本“not yet covered by allowScripts”：用 `npm install-scripts approve @lakutata/math` 记下你允许它执行。Bun 和 pnpm 只为信任的依赖执行，需要先允许它（Bun 在 package.json 的 `trustedDependencies` 里加上它，pnpm 用 `pnpm approve-builds`）；没有允许时，加载这个包会抛出错误，说明怎样编译原生插件。
 - Node.js `^22.13.0 || >=24.11.0`。
+- 原生插件用的是 Node-API，所以 Bun 和 Electron 的主进程可以直接加载 node-gyp 为 Node.js 编译的插件，不用重新编译。在 Bun 里，worker 线程里的原生插件运算还没结束就终止这个线程的话，整个进程会因为 Node-API 的致命错误退出（这是 Bun 1.4 的问题）；Node.js 和 Electron 会丢弃这些运算。
 
 ## 用法
 
@@ -43,7 +44,7 @@ const physics: MathScope = createMath({definitions: {'g': 9.80665, 'fall(t)': 'g
 const height: Expression = physics.expression('h0 - fall(t)')
 console.log(height.toString())                      //-196133t^2/40000 + h0
 const landing: Equation = physics.equation('fall(t) = 100')
-console.log(landing.solve('t', {domain: 'real'}).map((t: Expression): number => t.toNumber()))   //[-4.516007557517875, 4.516007557517875]
+console.log(landing.solve('t', {domain: 'real'}).map((t: Expression): number => t.toNumber()))   //[-4.5160075575178755, 4.5160075575178755]
 console.log(physics.expression('pi').toDecimal())   //3.1415926535897932384626433832795028841971693993751
 const expanded: Expression = await physics.expression('(x + y + 1)^30').expandAsync({timeout: 1000})
 console.log(expanded.variables())                   //['x', 'y']
@@ -81,7 +82,7 @@ console.log(f.substitute({x: -3}).toString()) //9
 console.log(f.toTeX())                        //\begin{cases} x^{2} & \text{for}\: x < 0 \\ x & \text{otherwise} \end{cases}
 ```
 
-`sum(f, k, a, b)` 和 `product(f, k, a, b)` 是 `f` 在 `k` 从 `a` 到 `b` 时的和与积，`a`、`b` 是整数、`-inf`、`inf`，或者其他变量的表达式。`k` 是约束变量：它不算表达式的变量，`substitute()` 和 `diff()` 都不碰它。和 SymPy 一样，`b = a - 1` 时和是 0（积是 1），`b < a - 1` 时是从 `b + 1` 到 `a - 1` 的和取相反数（积取倒数）。上下限是相差不超过 1000 的整数时逐项精确计算。否则寻找闭式：`k` 的多项式（`sum(k^2, k, 1, n)` 是 `n^3/3 + n^2/2 + n/6`）、几何级数（`sum(x^k, k, 0, n)` 是 `piecewise(n + 1, x = 1, (-x^(n + 1) + 1)/(-x + 1))`；到 `inf` 时在 `abs(x) < 1` 处取它的值）、`1/(k + q)` 的幂（用 `zeta` 和 `polygamma` 表示：`sum(1/k^2, k, 1, inf)` 是 `pi^2/6`）、超几何项（Gosper 算法：`sum(k*2^k, k, 1, n)` 是 `2(n - 1)*2^n + 2`，`sum(1/(k*(k + 1)), k, 1, n)` 是 `n/(n + 1)`，`sum(k*k!, k, 1, n)` 是 `gamma(n + 2) - 1`；上限是 `inf` 时，取部分和（到 `n` 为止）的极限，`sum(1/(k*(k + 1)), k, 1, inf)` 是 1），和式按项分别求；幂的积，以及因式都是一次的多项式分式的积（用 `gamma` 表示：`product(1 - 1/k^2, k, 2, n)` 是 `(n + 1)/(2n)`）。到 `inf` 的和无限增大时结果是 `inf` 或 `-inf`（`sum(2^k, k, 0, inf)`、`sum(k*k!, k, 1, inf)`）。其余的保持 `sum(…)` 和 `product(…)` 的形式：上下限是整数时逐项求值，最多 10^4 项，不能编译。
+`sum(f, k, a, b)` 和 `product(f, k, a, b)` 是 `f` 在 `k` 从 `a` 到 `b` 时的和与积，`a`、`b` 是整数、`-inf`、`inf`，或者其他变量的表达式。`k` 是约束变量：它不算表达式的变量，`substitute()` 和 `diff()` 都不碰它。和 SymPy 一样，`b = a - 1` 时和是 0（积是 1），`b < a - 1` 时是从 `b + 1` 到 `a - 1` 的和取相反数（积取倒数）。上下限是相差不超过 1000 的整数时逐项精确计算。否则寻找闭式：`k` 的多项式（`sum(k^2, k, 1, n)` 是 `n^3/3 + n^2/2 + n/6`）、几何级数（`sum(x^k, k, 0, n)` 是 `piecewise(n + 1, x = 1, (-x^(n + 1) + 1)/(-x + 1))`；到 `inf` 时在 `abs(x) < 1` 处取它的值）、`1/(k + q)` 的幂（用 `zeta` 和 `polygamma` 表示：`sum(1/k^2, k, 1, inf)` 是 `pi^2/6`）、超几何项（Gosper 算法：`sum(k*2^k, k, 1, n)` 是 `2(n - 1)*2^n + 2`，`sum(1/(k*(k + 1)), k, 1, n)` 是 `n/(n + 1)`，`sum(k*k!, k, 1, n)` 是 `gamma(n + 2) - 1`；上限是 `inf` 时，取部分和（到 `n` 为止）的极限，`sum(1/(k*(k + 1)), k, 1, inf)` 是 1；相邻两项的比含有其他变量时，给出这个比的绝对值小于 1 时的值：`sum(k*x^k, k, 0, inf)` 在 `abs(x) < 1` 时是 `x/(x - 1)^2`），和式按项分别求；幂的积，以及因式都是一次的多项式分式的积（用 `gamma` 表示：`product(1 - 1/k^2, k, 2, n)` 是 `(n + 1)/(2n)`）。到 `inf` 的和无限增大时结果是 `inf` 或 `-inf`（`sum(2^k, k, 0, inf)`、`sum(k*k!, k, 1, inf)`）。其余的保持 `sum(…)` 和 `product(…)` 的形式：上下限是整数时逐项求值，最多 10^4 项，不能编译。
 
 ```typescript
 import {expression} from '@lakutata/math'
@@ -183,7 +184,7 @@ console.log(set.complement().toString(), set.contains('sqrt(2)')) //(-inf, 0) �
 
 `limit(variable, point)` 用 Gruntz 算法（移植自 SymPy 的 `gruntz`）求表达式的极限。点可以是数、表达式、`inf` 或 `-inf`。在有限点处默认取两侧的极限，`{direction: '+'}` 或 `{direction: '-'}` 只取右极限或左极限。结果可以是 `inf` 或 `-inf`。两侧的极限不同，或者表达式一直振荡（`sin(x)` 在 `inf` 处）时没有极限，会抛出 `MathDomainException` 并说明原因。
 
-这个算法能处理指数、对数、`x^x` 这样的幂、三角函数和双曲函数及其反函数，包括各种未定式（`0/0`、`inf/inf`、`0*inf`、`1^inf`、`inf - inf`）。`abs`、`sign`、`max`、`min`、`floor`、`ceil` 和 `piecewise` 按变量趋近的那一侧来定。参数趋于无穷的 `sin` 和 `cos` 始终在 -1 和 1 之间，所以 `sin(x)/x` 在 `inf` 处是 0。求不出极限时抛出 `MathNotSupportedException`：极限取决于参数的符号（`exp(a*x)` 在 `inf` 处），算法不了解某个函数在无穷远处的行为（`gamma(x + 1)/x` 在 `inf` 处），或者表达式里有没算出闭式的和或积。
+这个算法能处理指数、对数、`x^x` 这样的幂、三角函数和双曲函数及其反函数，包括各种未定式（`0/0`、`inf/inf`、`0*inf`、`1^inf`、`inf - inf`）。`abs`、`sign`、`max`、`min`、`floor`、`ceil` 和 `piecewise` 按变量趋近的那一侧来定。参数趋于无穷的 `sin` 和 `cos` 始终在 -1 和 1 之间，所以 `sin(x)/x` 在 `inf` 处是 0。积分产生的特殊函数在参数趋近的那一点展开成级数（`Si(x)/x` 在 0 处是 1；`Ci`、`Chi` 和 `Ei` 在 0 处带着它们的对数项），参数趋于无穷的 `Ei`、`Shi`、`Chi` 和 `li` 用 `Ei` 的渐近级数处理（`x*e^(-x)*Ei(x)` 在 `inf` 处是 1），`Si`、`Ci` 和菲涅耳积分在无穷远处取它们在那里的值。求不出极限时抛出 `MathNotSupportedException`：极限取决于参数的符号（`exp(a*x)` 在 `inf` 处），算法不了解某个函数在无穷远处的行为（`gamma(x + 1)/x` 在 `inf` 处），或者表达式里有没算出闭式的和或积。
 
 ```typescript
 import {expression} from '@lakutata/math'
@@ -462,7 +463,8 @@ console.log(random.integers(5, 1, 7))   //掷五次骰子
 import {numeric} from '@lakutata/math'
 
 console.log(numeric.polynomialRoots('x^3 - 6x^2 + 11x - 6'))                   //{re: Float64Array [1, 2, 3], im: Float64Array [0, 0, 0]}
-console.log(numeric.polynomialRoots([1, 0, 1]))                                //{re: Float64Array [0, 0], im: Float64Array [-1, 1]}: 1 + x^2
+//[1, 0, 1]：1 + x^2 的系数，从常数项开始
+console.log(numeric.polynomialRoots([1, 0, 1]))                                //{re: Float64Array [0, 0], im: Float64Array [-1, 1]}
 console.log(numeric.findRoot('cos(x) = x', 'x', {bracket: [0, 1]}).root)       //0.7390851332151606
 console.log(numeric.findRoot('x^3 - 2x - 5', 'x', {guess: 2}).root)            //2.0945514815423265
 const {solution, converged} = numeric.solveSystem(['x^2 + y^2 = 4', 'x*y = 1'], ['x', 'y'], [2, 0])
@@ -565,7 +567,7 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 | `MathDefinitionException` | 定义无效：用了内置的名字、参数重复、定义之间循环引用、定义嵌套太深、定义是一个矩阵；`createMath()` 的单位无效：名字已经是单位（单独或者加上前缀），定义里有不认识的单位，单位之间循环定义 |
 | `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂），`findRoot()` 的区间两端符号相同或者函数在区间里不是实数，函数或方程组在 `findRoot()`、`solveSystem()` 的初始值处不是实数，`integrate()` 的函数在区间内不是实数，`solveODE()` 的导数在起点不是实数，对复数求连分数，表达式矩阵是奇异的（`inverse()`、`solve()`、`inv()`），表达式在某点没有极限（两侧的极限不同，或者一直振荡），没有值的定积分（`1/x` 在 `[-1, 1]` 上） |
 | `MathDivisionByZeroException` | 计算十进制值时遇到除以零（包括除以一个无法和 0 区分的值、0 的对数、0 的负数次幂、以 1 为底的对数、在函数的极点上求值：`gamma()` 的参数是 -2、`zeta()` 的参数是 1），模数是 0，或者连分数的各项导致除以零 |
-| `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 和 `bell(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、`stirlingSecondKind(n, k)` 的 n 超过 50000 或 n k 超过 6250000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`），表达式矩阵的特征值求不出精确值，矩阵的幂不是整数，矩阵的方程或不等式，`poly` 的多项式含负幂、系数是复数或不精确的数，或者各次数合起来对稠密形式太高，求不出的极限，求不出的积分、拉普拉斯变换和逆变换，积分产生的特殊函数的十进制值 |
+| `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 和 `bell(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、`stirlingSecondKind(n, k)` 的 n 超过 50000 或 n k 超过 6250000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`），表达式矩阵的特征值求不出精确值，矩阵的幂不是整数，矩阵的方程或不等式，`poly` 的多项式含负幂、系数是复数或不精确的数，或者各次数合起来对稠密形式太高，求不出的极限，求不出的积分、拉普拉斯变换和逆变换，积分产生的特殊函数的十进制值，`toComplexDecimal()` 算不了的复数参数的函数的十进制值（`gamma(1 + i)`；`toDecimal()` 里也一样，即使值其实是实数：`re(gamma(1 + i))`） |
 | `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、`integrate()` 的区间、分点或容差无效、`solveODE()` 的问题或选项无效、对含有变量的值求连分数、连分数的项不是整数、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分布的参数无效、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数，没有给出多项式就求 gcd 或 lcm，`poly` 的变量不是名字，只需要单位的地方给了数（`to('2 cm')`），物理常数的名字不对，`createMath()` 的选项无效 |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |
 | `MathException` | 以上所有错误的基类；原生插件内部错误时，它的 `errno` 是 `E_MATH_INTERNAL` |

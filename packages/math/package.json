@@ -1,7 +1,7 @@
 {
   "name": "@lakutata/math",
   "version": "3.1.2",
-  "description": "Mathematics for Node.js: symbolic computation (equations, derivatives, integrals, factoring, simplification) and numerical computation (matrices, statistics, probability, numeric solutions, units, decimals of any precision) in a native addon built on SymEngine, Boost, Eigen and mpdecimal, used as functions.",
+  "description": "Mathematics for Node.js: symbolic computation (equations, derivatives, integrals, limits, Laplace transforms, factoring, simplification) and numerical computation (matrices, statistics, probability, numeric solutions, units, decimals of any precision) in a native addon built on SymEngine, Boost, Eigen and mpdecimal, used as functions.",
   "keywords": [
     "lakutata",
     "math",
@@ -9,6 +9,9 @@
     "cas",
     "algebra",
     "calculus",
+    "integration",
+    "limits",
+    "laplace-transform",
     "equation-solver",
     "linear-algebra",
     "statistics",

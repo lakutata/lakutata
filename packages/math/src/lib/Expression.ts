@@ -303,12 +303,13 @@ export class Expression {
      * decimals of that many digits is rounded to the even one; a rounding function at a jump within the error of its
      * argument takes the value of the jump (`floor(ln(8)/ln(2))` is 3). A value whose argument is too large for the
      * digits is computed with as many more digits as it needs, up to 50000 (`sin(10^(10^4))` needs 10^4): beyond, it
-     * throws `MathNotSupportedException`.
-     * It computes the arithmetic, powers and roots, `exp` and `ln`, the trigonometric and hyperbolic functions and
-     * their inverses, the rounding functions, `pi`, `e`, `phi`, `EulerGamma` and `Catalan`, and the special functions
-     * (`gamma`, `loggamma`, `digamma`, `polygamma`, `beta`, `erf`, `erfc`, `zeta`, `lowergamma`, `uppergamma`,
-     * `lambertw`), of real values. A real value with complex parts (`e^(i*pi)`, `-i*asinh(i)`) is the real part of
-     * `toComplexDecimal()`; a complex value throws `MathDomainException`.
+     * throws `MathNotSupportedException`. It computes the arithmetic, powers and roots, `exp` and `ln`, the
+     * trigonometric and hyperbolic functions and their inverses, the rounding functions, `pi`, `e`, `phi`, `EulerGamma`
+     * and `Catalan`, and the special functions (`gamma`, `loggamma`, `digamma`, `polygamma`, `beta`, `erf`, `erfc`,
+     * `zeta`, `lowergamma`, `uppergamma`, `lambertw`), of real values. A real value with complex parts (`e^(i*pi)`,
+     * `-i*asinh(i)`) is the real part of `toComplexDecimal()`; a complex value throws `MathDomainException`. A function
+     * of a complex argument that `toComplexDecimal()` does not compute (`gamma(1 + i)`) throws
+     * `MathNotSupportedException`, even where the value is real (`re(gamma(1 + i))`).
      * @param digits The significant digits: the `precision` of the scope by default.
      */
     public toDecimal(digits?: number): string {
@@ -577,11 +578,12 @@ export class Expression {
 
     /**
      * The limit of the expression for a variable going to a point, by Gruntz's algorithm: at a finite point from both
-     * sides by default (two different limits throw `MathDomainException`), at `inf` or `-inf`; `inf` or `-inf` where
-     * it diverges (`sin(x)/x` at 0 is 1, `(1 + 1/x)^x` at `inf` is `e`, `x^5 e^(-x)` at `inf` is 0); an oscillation
+     * sides by default (two different limits throw `MathDomainException`), at `inf` or `-inf`; `inf` or `-inf` where it
+     * diverges (`sin(x)/x` at 0 is 1, `(1 + 1/x)^x` at `inf` is `e`, `x^5 e^(-x)` at `inf` is 0); an oscillation
      * without a limit (`sin(x)` at `inf`) throws `MathDomainException`. A limit that depends on the sign of a parameter
-     * (`exp(a*x)` at `inf`), or of a function whose behavior at infinity the algorithm does not know (`gamma(x + 1)/x` at
-     * `inf`), or of a sum or a product left as a call, throws `MathNotSupportedException`.
+     * (`exp(a*x)` at `inf`), or of a function whose behavior at infinity the algorithm does not know (`gamma(x + 1)/x`
+     * at `inf`), or of a sum or a product left as a call, throws `MathNotSupportedException`. The special functions of
+     * integrals are taken by their series (`Si(x)/x` at 0 is 1), and `Ei` going to infinity by its asymptotic series.
      * @param variable The variable.
      * @param point The point: a number, an expression, `inf` or `-inf`.
      * @param options The side of a finite point the variable comes from.
