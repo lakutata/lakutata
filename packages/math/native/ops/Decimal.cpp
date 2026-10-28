@@ -753,16 +753,11 @@ std::string toDecimal(const Expr &expression, long digits)
 {
     try {
         return toRealDecimal(expression, digits);
-    } catch (NotRealError &notReal) {
+    } catch (NotRealError &) {
         //A value with complex parts: the real part of its complex decimals, whose imaginary part is 0 (exp(i pi)); where
-        //they do not compute a node (gamma of a complex number), the part that is not real
-        std::pair<std::string, std::string> parts;
-        try {
-            parts = toComplexDecimal(expression, digits);
-        } catch (MathError &error) {
-            if (error.code() == ErrorCode::NotSupported) throw notReal;
-            throw;
-        }
+        //they do not compute a node (gamma of a complex number), their MathNotSupportedException (the value may be real:
+        //re(erf(1 + i)))
+        const std::pair<std::string, std::string> parts = toComplexDecimal(expression, digits);
         if (parts.second != "0") throw MathError(ErrorCode::Domain, "The value is a complex number (" + toText(expression) + "): use toComplexDecimal()");
         return parts.first;
     }

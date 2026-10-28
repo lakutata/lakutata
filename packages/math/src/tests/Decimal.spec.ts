@@ -190,6 +190,8 @@ describe('The decimals', (): void => {
         assert.strictEqual(math.expression('i*acosh(1/2)').toDecimal(10), '-1.047197551')
         assert.strictEqual(math.decimal(math.expression('abs(asinh(i))'), {precision: 5}).toString(), '1.5708')
         assert.throws((): unknown => math.expression('-i*asinh(2i)').toDecimal(10), MathDomainException)
+        //A function the complex decimals do not compute: not computed (the value may be real), not "not real"
+        assert.throws((): unknown => math.expression('re(gamma(1 + i))').toDecimal(10), (error: Error): boolean => error instanceof MathNotSupportedException && /gamma\(1 \+ i\)/.test(error.message))
     })
 
     it('take the digits a value needs: an argument too large for the digits, a cancellation of large values', (): void => {
