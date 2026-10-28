@@ -291,7 +291,14 @@ Expr expandOf(const Expr &expression)
 
 Expr simplifyOf(const Expr &expression)
 {
-    return simplifiedOf(evaluated(expression));
+    //Simplified again: where that gives another form (cosh(3z/20 - 57/20) and cosh(3(z - 19)/20), of the same measure,
+    //gave each other), the one of the shorter text, or the first by the order of their texts, so that the result
+    //simplifies to itself
+    const Expr first = simplifiedOf(evaluated(expression));
+    const Expr second = simplifiedOf(first);
+    if (eq(*second, *first)) return first;
+    const std::string a = toText(first), b = toText(second);
+    return b.size() < a.size() || (b.size() == a.size() && b < a) ? second : first;
 }
 
 Expr differentiate(const Expr &expression, const std::string &name, unsigned times)

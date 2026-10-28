@@ -370,20 +370,25 @@ Estimate adaptive(F &f, double a, double b, double tolerance)
         const Rule left = kronrod(f, a1, b1), right = kronrod(f, a2, b2);
         const double area12 = left.value + right.value, error12 = left.error + right.error;
         if (!std::isfinite(area12) || !std::isfinite(error12)) return {area12, INFINITE, absoluteSum};
-        errorSum += error12 - errorMax;
-        area += area12 - worst.value;
-        absoluteSum += left.absolute + right.absolute - worst.absolute;
         if (left.deviation != left.error && right.deviation != right.error) {
             if (std::abs(worst.value - area12) <= 1e-5 * std::abs(area12) && error12 >= 0.99 * errorMax) (extrapolating ? roundOff2 : roundOff1)++;
             if (last > 10 && error12 > errorMax) roundOff3++;
         }
-        const double errorBound = bound(area);
         if (roundOff1 + roundOff2 >= 10 || roundOff3 >= 20) failure = 2;
         if (roundOff2 >= 5) roundOffError = 3;
         if (last == MAX_INTERVALS) failure = 1;
         if (std::max(std::abs(a1), std::abs(b2)) <= (1 + 100 * EPSILON) * (std::abs(a2) + 1000 * SMALLEST)) failure = 4;
         pieces[maxError] = {a1, b1, left.value, left.error, left.absolute};
         pieces.push_back({a2, b2, right.value, right.error, right.absolute});
+        //The sums over the intervals again (QUADPACK adds the new halves and takes the old interval away: near a pole, its
+        //huge value taken away left 0 for the integral and its error, a divergent integral converged)
+        area = errorSum = absoluteSum = 0;
+        for (const Piece &piece : pieces) {
+            area += piece.value;
+            errorSum += piece.error;
+            absoluteSum += piece.absolute;
+        }
+        const double errorBound = bound(area);
         sortOrder();
         maxError = order[nrMax];
         errorMax = pieces[maxError].error;

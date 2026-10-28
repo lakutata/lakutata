@@ -94,6 +94,9 @@ describe('The numeric solutions', (): void => {
             const exact = math.numeric.integrate('21cbrt(21x/10 + 3/20)/(63x + 9/2)', 'x', [a, b])
             assert.ok(exact.converged && globalThis.Math.abs(exact.value - (cube(b) - cube(a))) < 1e-13, JSON.stringify(exact))
         }
+        //A pole inside not given: not converged (the subdivision took the huge value of an interval away and was left
+        //with 0 for the integral and its error)
+        assert.strictEqual(math.numeric.integrate(math.expression('gamma(3x)').diff('x'), 'x', [-0.25, 1.35]).converged, false)
         //A larger tolerance: fewer intervals, a larger error
         const coarse = math.numeric.integrate('1/(1e-4 + x^2)', 'x', [-1, 1], {tolerance: 1e-3})
         assert.ok(coarse.converged && coarse.error <= 1e-3 * 312.2)

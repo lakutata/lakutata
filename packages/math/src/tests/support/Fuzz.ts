@@ -268,7 +268,10 @@ export async function checkFormula(math: MathScope, random: Random, index: numbe
             const expected: number = compiled(point.x, point.y, point.z)
             //And not where the roundings decide the value (tan(e^(pi^4)): no input to move)
             const conditioned: boolean = steady(compiled, point, expected) && !roundingBound
-            if (Number.isNaN(expected) && Number.isFinite(value)) fail('javascript', `${code} is ${value} at ${JSON.stringify(point)}, where the formula has no real value`)
+            //(a value of JavaScript the roundings decide is not one: mod(7, y)^x at y = -0.2 is 0^x in JavaScript, where
+            //7/y rounds to -35, (-4e-16)^x by fmod; around it both have no real value)
+            const javascript = (x: number, y: number, z: number): number => f(globalThis.Math, x, y, z)
+            if (Number.isNaN(expected) && Number.isFinite(value) && steady(javascript, point, value)) fail('javascript', `${code} is ${value} at ${JSON.stringify(point)}, where the formula has no real value`)
             if (conditioned && Number.isFinite(value) && Number.isFinite(expected) && !near({re: value, im: 0}, {re: expected, im: 0}, 1e-9)) {
                 fail('javascript', `${code} is ${value} at ${JSON.stringify(point)}, compiled ${expected}`)
             }
@@ -883,7 +886,20 @@ export async function checkIntegrate(math: MathScope, random: Random, index: num
         }
         if (!f || !derivative) return failures
         text = f.toString()
-        const start: number = values(a), end: number = values(b)
+        //The values at the ends correctly rounded where they are known (toComplex()): erf(x + 7) - 1 at 2.71 is 0 in
+        //doubles, the integral of its derivative 1e-33
+        const exactly = (x: number): number => {
+            const value: Value | undefined = valueAt(f!, {x})
+            return value && value.im === 0 ? value.re : values(x)
+        }
+        const start: number = exactly(a), end: number = exactly(b)
+        //Not where the doubles do not compute the integrand: the derivative of ln(erf(12^x)) has a part ln(erf(12^x)),
+        //0 in doubles where it is -4e-38
+        const compiledSlope = derivative.compile(['x'])
+        for (const x of [a, (a + b) / 2, b]) {
+            const exact: Value | undefined = valueAt(derivative, {x})
+            if (exact && exact.im === 0 && globalThis.Math.abs((compiledSlope(x) as number) - exact.re) > 1e-9 * globalThis.Math.abs(exact.re)) return failures
+        }
         const scale: number = absolute + globalThis.Math.abs(start) + globalThis.Math.abs(end)
         const whole = math.numeric.integrate(derivative, 'x', [a, b])
         //1e-7: a singularity inside the interval, not given in the points (the slope of cbrt(x) at 0), is extrapolated

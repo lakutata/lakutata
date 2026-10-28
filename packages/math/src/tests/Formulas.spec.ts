@@ -129,6 +129,8 @@ describe('The formulas', (): void => {
         assert.strictEqual(math.expression('1/3').toDecimal(10), '0.3333333333')
         //A product with a factor that is 0 within the error of doubles (re(erf(i)), erf of a complex number in doubles)
         assert.deepStrictEqual(math.expression('3 - re(erf(i))').toComplex(), {re: 3, im: 0})
+        //A value of a large error, not 0: e^G/(1 + e^G) of G = gamma(14.1) in doubles is 1 within about 1
+        assert.deepStrictEqual(math.expression('e^gamma(14.1 + 10^-30*i)/(1 + e^gamma(14.1 + 10^-30*i))').toComplex(), {re: 1, im: 0})
         //Compiled, the parts without variables from their exact decimals: the double of erf(5) = 1 - 1.5e-12 has 4 digits
         //of ln(erf(5))
         const compiled: number = math.expression('y/ln(erf(5))').compile(['y'])(1), exact: number = math.expression('1/ln(erf(5))').toNumber()

@@ -550,9 +550,13 @@ std::vector<Expr> fractionForms(const Expr &e, bool halved)
         }
         const bool hyperbolic = group.kind == Kind::Hyperbolic;
         auto [sine, cosine] = multipleAngle(k, group.s, group.c, hyperbolic);
+        //Shifted by the constant c: sin(a + c) = sin(a) cos(c) + cos(a) sin(c), cos(a + c) = cos(a) cos(c) - sin(a) sin(c),
+        //sinh and cosh of c for the hyperbolic ones, cosh(a + c) = cosh(a) cosh(c) + sinh(a) sinh(c) (cos(c) and sin(c)
+        //for them made cosh(x + 1) - cos(1) cosh(x) - sin(1) sinh(x) simplify to -2 sin(1) sinh(x))
         if (!eq(*parts.c, *zero)) {
-            const Expr shiftedSine = add(mul(sine, cos(parts.c)), mul(cosine, sin(parts.c)));
-            cosine = sub(mul(cosine, cos(parts.c)), mul(sine, sin(parts.c)));
+            const Expr cosineOfC = hyperbolic ? cosh(parts.c) : cos(parts.c), sineOfC = hyperbolic ? sinh(parts.c) : sin(parts.c);
+            const Expr shiftedSine = add(mul(sine, cosineOfC), mul(cosine, sineOfC));
+            cosine = hyperbolic ? add(mul(cosine, cosineOfC), mul(sine, sineOfC)) : sub(mul(cosine, cosineOfC), mul(sine, sineOfC));
             sine = shiftedSine;
         }
         Expr value;

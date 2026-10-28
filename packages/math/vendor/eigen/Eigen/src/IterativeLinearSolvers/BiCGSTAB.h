@@ -62,7 +62,10 @@ bool bicgstab(const MatrixType& mat, const Rhs& rhs, Dest& x, const Precondition
   Index i = 0;
   Index restarts = 0;
 
-  while (r_norm > tol && i < maxIters) {
+  // lakutata: the residual relative to the right side, as the error it returns (tol_error = r_norm / rhs_norm) and as
+  // the tolerance is meant: compared absolute, a right side of norm below 1 stopped before the tolerance and reported
+  // NoConvergence
+  while (r_norm > tol * rhs_norm && i < maxIters) {
     Scalar rho_old = rho;
     rho = r0.dot(r);
     if (Eigen::numext::abs(rho) / Eigen::numext::maxi(r0_norm, r_norm) < eps * Eigen::numext::mini(r0_norm, r_norm)) {

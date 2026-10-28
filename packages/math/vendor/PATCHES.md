@@ -2,7 +2,7 @@
 
 The libraries in this directory are copied from their releases (`vendor/UPSTREAM.json` records each version, archive and
 checksum) by `scripts/sync.mjs`, which keeps the changes below through a three-way merge when a library is upgraded.
-Boost.Multiprecision, Boost.Config, Eigen and mpdecimal are unchanged. The configuration headers the builds of CMake
+Boost.Multiprecision, Boost.Config and mpdecimal are unchanged. The configuration headers the builds of CMake
 would generate are in `native/config`.
 
 ## SymEngine
@@ -160,3 +160,10 @@ one assertion that `piecewise()` throws where no case holds.
 - `include/boost/math/distributions/hypergeometric.hpp`: `kurtosis_excess()` returned the kurtosis of Wolfram's formula,
   which is the full one, and `kurtosis()` added 3 to it: the excess is now 3 less (SciPy's: -0.1527 for 12 draws from
   20 items of which 7 are successes, where Boost gave 2.8473).
+
+## Eigen
+
+- `Eigen/src/IterativeLinearSolvers/BiCGSTAB.h`: the loop compared the norm of the residual itself with the tolerance,
+  which is relative (the error it returns is the norm of the residual over the norm of the right side): for a right
+  side of norm below 1 it stopped before the tolerance and reported `NoConvergence` (a residual of 9e-11 for a right
+  side of norm 0.38, the fuzz). It compares the residual with the tolerance times the norm of the right side.

@@ -47,7 +47,10 @@ describe('The simplification', (): void => {
             ['sinh(2x)/cosh(x)', '2sinh(x)'],
             ['cosh(x) + sinh(x)', 'e^x'],
             ['(exp(x) + exp(-x))/2', 'cosh(x)'],
-            ['(exp(2x) - 1)/(exp(x) - 1)', 'e^x + 1']
+            ['(exp(2x) - 1)/(exp(x) - 1)', 'e^x + 1'],
+            //The angle shifted by a constant: cosh(c) and sinh(c) (cos(c) and sin(c) gave -2sin(1)sinh(x) for the first)
+            ['cosh(x + 1) - cosh(1)*cosh(x) - sinh(1)*sinh(x)', '0'],
+            ['cosh(x + 1) - cos(1)*cosh(x) - sin(1)*sinh(x)', '-cos(1)*cosh(x) - sin(1)*sinh(x) + cosh(x + 1)']
         ])
     })
 
@@ -77,7 +80,8 @@ describe('The simplification', (): void => {
     })
 
     it('give the same form when simplified again, in the threads of the addon too', async (): Promise<void> => {
-        for (const formula of ['sin(x)^4 - cos(x)^4', '(exp(x) + exp(-x))/2', 'x*sin(x)^2 + x*cos(x)^2 + 1/(1 + sqrt(2))']) {
+        //(cosh(3z/20 - 57/20) and cosh(3(z - 19)/20) were simplified into each other)
+        for (const formula of ['sin(x)^4 - cos(x)^4', '(exp(x) + exp(-x))/2', 'x*sin(x)^2 + x*cos(x)^2 + 1/(1 + sqrt(2))', 'cosh(3z/20 - 57/20)', 'cosh(3(z - 19)/20)']) {
             const once: string = simplified(formula)
             assert.strictEqual(simplified(once), once, formula)
             assert.strictEqual((await math.expression(formula).simplifyAsync()).toString(), once, formula)

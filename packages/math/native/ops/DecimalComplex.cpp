@@ -722,10 +722,17 @@ std::complex<double> complexDoubleValue(const Expr &expression)
     const DecimalContext context(34);
     ComplexEvaluator evaluator(context, true, true);
     const Value value = evaluator.evaluate(*expression);
-    auto part = [&evaluator, &context](const Decimal &decimal, double noise) {
-        return evaluator.zero(decimal, noise) ? 0.0 : std::strtod(context.text(decimal, 17).c_str(), nullptr);
+    //A part within its error of 0 is 0 where that error, or the part itself, is far below the value (the rounding of an
+    //imaginary part), or where the error is tiny itself (a cancellation: sin(pi)); otherwise its estimate: e^G/(1 + e^G)
+    //of a G of 8e9 in doubles is 1 within an error of about 1, not 0
+    const bool reZero = evaluator.zero(value.re, value.reNoise), imZero = evaluator.zero(value.im, value.imNoise);
+    const auto exponentOf = [&context](const Decimal &decimal) { return context.isZero(decimal) ? -1e300 : static_cast<double>(context.exponent(decimal)); };
+    const double largest = std::max(exponentOf(value.re), exponentOf(value.im));
+    auto part = [&](const Decimal &decimal, double noise, bool zero) {
+        const bool negligible = zero && (noise < largest - 2 || exponentOf(decimal) < largest - 17 || ((reZero && imZero) && noise < -12));
+        return negligible || context.isZero(decimal) ? 0.0 : std::strtod(context.text(decimal, 17).c_str(), nullptr);
     };
-    return {part(value.re, value.reNoise), part(value.im, value.imNoise)};
+    return {part(value.re, value.reNoise, reZero), part(value.im, value.imNoise, imZero)};
 }
 
 }
