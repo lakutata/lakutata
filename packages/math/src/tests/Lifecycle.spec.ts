@@ -25,7 +25,9 @@ if (!isMainThread && workerData === 'operations') {
 } else {
     describe('The asynchronous operations', (): void => {
 
-        it('are dropped with a worker thread terminated while they run', async (): Promise<void> => {
+        //(Bun 1.4 ends the process with a fatal error of Node-API there: it calls the thread-safe functions of a worker it
+        //terminates, whose calls of Node-API fail)
+        it('are dropped with a worker thread terminated while they run', {skip: process.versions.bun ? 'Bun ends the process there' : false}, async (): Promise<void> => {
             for (let round: number = 0; round < 10; round++) {
                 const worker: Worker = new Worker(FILE, {workerData: 'operations'})
                 await new Promise((resolve: (value: unknown) => void): unknown => worker.once('message', resolve))

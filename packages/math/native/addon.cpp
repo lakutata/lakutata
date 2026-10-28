@@ -1070,7 +1070,12 @@ void complete(Napi::Env env, Napi::Function, std::nullptr_t *, Completion *compl
 {
     //No environment: it is being torn down, the promise is gone with it. An environment being torn down may also refuse
     //to settle the promise (a worker terminated): nothing is left to tell then
+    bool alive = false;
     if (env != nullptr) {
+        std::lock_guard<std::mutex> lock(completion->environment->mutex);
+        alive = completion->environment->alive;
+    }
+    if (alive) {
         try {
             Environment &environment = *completion->environment;
             environment.running.erase(completion);

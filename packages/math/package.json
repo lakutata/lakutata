@@ -59,7 +59,8 @@
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test --test-timeout=120000 \"dist/esm/tests/**/*.spec.js\"",
-    "test:fuzz": "npm run compile && node dist/esm/tests/support/FuzzRunner.js --iterations 20000 --fail"
+    "test:fuzz": "npm run compile && node dist/esm/tests/support/FuzzRunner.js --iterations 20000 --fail",
+    "test:bun": "sh test-env/bun.sh"
   },
   "engines": {
     "node": "^22.13.0 || >=24.11.0"
