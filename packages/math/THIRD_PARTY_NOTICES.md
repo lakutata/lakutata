@@ -482,9 +482,9 @@ The algorithms of the polynomials in `native/poly/`, Gosper's algorithm in `nati
 algorithm in `native/limits/Gruntz.cpp` and the integrals in `native/integrals/Integrals.cpp` are written again in C++
 after the modules of SymPy (https://www.sympy.org) `sympy/polys/densebasic.py`, `densearith.py`, `densetools.py`,
 `euclidtools.py`, `galoistools.py`, `sqfreetools.py`, `factortools.py`, `polytools.py` (`cancel`), `rationaltools.py`,
-`partfrac.py`, `sympy/concrete/gosper.py`, `sympy/series/gruntz.py` and `sympy/integrals/manualintegrate.py`; each file
-names the functions it follows. No source of SymPy is compiled or run by the package. SymPy, with the patches it took
-from Diofant, is licensed under the BSD 3-clause license:
+`partfrac.py`, `sympy/concrete/gosper.py`, `sympy/series/gruntz.py`, `sympy/integrals/manualintegrate.py` and
+`sympy/integrals/laplace.py`; each file names the functions it follows. No source of SymPy is compiled or run by the
+package. SymPy, with the patches it took from Diofant, is licensed under the BSD 3-clause license:
 
 ```
 Copyright (c) 2006-2023 SymPy Development Team

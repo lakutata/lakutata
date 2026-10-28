@@ -176,6 +176,29 @@ bool verified(const Expr &F, const Expr &f, const Variable &x)
     return agreeing >= 2;
 }
 
+//Whether two expressions of x are equal at several points (where both are finite)
+bool verifiedAt(const Expr &a, const Expr &b, const Variable &x)
+{
+    static const long points[][2] = {{37, 10}, {61, 10}, {29, 10}, {113, 10}};
+    int agreeing = 0;
+    for (const auto &point : points) {
+        map_basic_basic values;
+        values[x] = rational(point[0], point[1]);
+        for (const auto &other : free_symbols(*add(a, b))) {
+            if (!eq(*other, *x)) values[other] = rational(13, 10);
+        }
+        try {
+            const std::complex<double> va = toComplex(subs(a, values)), vb = toComplex(subs(b, values));
+            if (std::abs(va - vb) > 1e-9 * std::max(1.0, std::abs(vb))) return false;
+            agreeing++;
+        } catch (const MathError &error) {
+            if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
+        } catch (SymEngineException &) {
+        }
+    }
+    return agreeing >= 2;
+}
+
 class Integrator {
 public:
     explicit Integrator(const Variable &x, unsigned depth = 0) : x_(x), depth_(depth)
@@ -1053,6 +1076,279 @@ Expr definiteIntegralOf(const Expr &given, const std::string &name, const Expr &
         }
     }
     return is_a<Infty>(*total) ? total : simplifiedOf(total);
+}
+
+namespace {
+
+//The Laplace transform of f(t) at s (see Integrals.h), or nothing
+std::optional<Expr> laplace(const Expr &f, const Variable &t, const Expr &s)
+{
+    checkpoint();
+    if (!has(f, t)) return div(f, s);
+    if (is_a<Add>(*f)) {
+        Expr sum = zero;
+        for (const Expr &term : f->get_args()) {
+            const auto found = laplace(term, t, s);
+            if (!found) return std::nullopt;
+            sum = add(sum, *found);
+        }
+        return sum;
+    }
+    if (eq(*f, *t)) return div(one, mul(s, s));
+    if (is_a<Mul>(*f)) {
+        Expr constant = down_cast<const Mul &>(*f).get_coef(), exponential, power, rest = one;
+        for (const auto &[base, exponent] : down_cast<const Mul &>(*f).get_dict()) {
+            const Expr factor = pow(base, exponent);
+            if (!has(factor, t)) constant = mul(constant, factor);
+            else if (isExp(factor) && exponential.is_null() && linearIn(exponent, t)) exponential = factor;
+            else if (eq(*base, *t) && is_a<Integer>(*exponent) && down_cast<const Integer &>(*exponent).is_positive() && power.is_null()) power = exponent;
+            else rest = mul(rest, factor);
+        }
+        if (!eq(*constant, *one)) {
+            const auto found = laplace(div(f, constant), t, s);
+            if (!found) return std::nullopt;
+            return mul(constant, *found);
+        }
+        //e^(a t + b) g(t): e^b G(s - a)
+        if (!exponential.is_null() && has(rest, t)) {
+            const auto line = linearIn(down_cast<const Pow &>(*exponential).get_exp(), t);
+            const Variable shifted = fresh("s");
+            const auto found = laplace(power.is_null() ? rest : mul(rest, pow(t, power)), t, shifted);
+            if (!found) return std::nullopt;
+            return mul(exp(line->second), replaced(*found, shifted, sub(s, line->first)));
+        }
+        //t^n g(t): (-1)^n the n-th derivative of G(s)
+        if (!power.is_null() && has(rest, t)) {
+            const Variable variable = fresh("s");
+            const auto found = laplace(exponential.is_null() ? rest : mul(rest, exponential), t, variable);
+            if (!found) return std::nullopt;
+            const long n = mp_get_si(down_cast<const Integer &>(*power).as_integer_class());
+            Expr derivative = *found;
+            for (long i = 0; i < n; i++) derivative = SymEngine::diff(derivative, variable, true);
+            return replaced(mul(integer(n % 2 == 0 ? 1 : -1), derivative), variable, s);
+        }
+        if (!exponential.is_null() && !power.is_null() && !has(rest, t)) {
+            const auto line = linearIn(down_cast<const Pow &>(*exponential).get_exp(), t);
+            const auto found = laplace(pow(t, power), t, sub(s, line->first));
+            if (!found) return std::nullopt;
+            return mul(exp(line->second), *found);
+        }
+        //Products of two sines or cosines: their sums of angles
+        const vec_basic factors = f->get_args();
+        if (factors.size() == 2 && std::all_of(factors.begin(), factors.end(), [](const Expr &g) { return is_a<Sin>(*g) || is_a<Cos>(*g); })) {
+            const Expr A = factors[0]->get_args()[0], B = factors[1]->get_args()[0];
+            Expr sum;
+            if (is_a<Sin>(*factors[0]) && is_a<Cos>(*factors[1])) sum = div(add(sin(add(A, B)), sin(sub(A, B))), integer(2));
+            else if (is_a<Cos>(*factors[0]) && is_a<Sin>(*factors[1])) sum = div(add(sin(add(A, B)), sin(sub(B, A))), integer(2));
+            else if (is_a<Sin>(*factors[0])) sum = div(sub(cos(sub(A, B)), cos(add(A, B))), integer(2));
+            else sum = div(add(cos(sub(A, B)), cos(add(A, B))), integer(2));
+            return laplace(expand(sum), t, s);
+        }
+        return std::nullopt;
+    }
+    if (is_a<Pow>(*f)) {
+        const Expr base = down_cast<const Pow &>(*f).get_base(), exponent = down_cast<const Pow &>(*f).get_exp();
+        //t^n, n > -1: gamma(n + 1)/s^(n + 1)
+        if (eq(*base, *t) && !has(exponent, t) && signOf(add(exponent, one)) == 1) return div(gamma(add(exponent, one)), pow(s, add(exponent, one)));
+        if (eq(*base, *E)) {
+            const auto line = linearIn(exponent, t);
+            if (line) return div(exp(line->second), sub(s, line->first));
+        }
+        if (!has(base, t)) {
+            const auto line = linearIn(exponent, t);
+            if (line) return laplace(exp(mul(exponent, log(base))), t, s);
+        }
+        //sin^2, cos^2, sinh^2, cosh^2: by the double angle
+        if (eq(*exponent, *integer(2)) && is_a_sub<OneArgFunction>(*base)) {
+            const Expr u = base->get_args()[0], twice = mul(integer(2), u);
+            if (is_a<Sin>(*base)) return laplace(sub(div(one, integer(2)), div(cos(twice), integer(2))), t, s);
+            if (is_a<Cos>(*base)) return laplace(add(div(one, integer(2)), div(cos(twice), integer(2))), t, s);
+            if (is_a<Sinh>(*base)) return laplace(sub(div(cosh(twice), integer(2)), div(one, integer(2))), t, s);
+            if (is_a<Cosh>(*base)) return laplace(add(div(cosh(twice), integer(2)), div(one, integer(2))), t, s);
+        }
+        return std::nullopt;
+    }
+    if (is_a<Sin>(*f) || is_a<Cos>(*f) || is_a<Sinh>(*f) || is_a<Cosh>(*f)) {
+        const auto line = linearIn(f->get_args()[0], t);
+        if (!line) return std::nullopt;
+        const Expr &b = line->first, &c = line->second;
+        //sin(b t + c) = sin(b t) cos(c) + cos(b t) sin(c)…
+        if (!eq(*c, *zero)) {
+            const Expr u = mul(b, t);
+            if (is_a<Sin>(*f)) return laplace(add(mul(sin(u), cos(c)), mul(cos(u), sin(c))), t, s);
+            if (is_a<Cos>(*f)) return laplace(sub(mul(cos(u), cos(c)), mul(sin(u), sin(c))), t, s);
+            if (is_a<Sinh>(*f)) return laplace(add(mul(sinh(u), cosh(c)), mul(cosh(u), sinh(c))), t, s);
+            return laplace(add(mul(cosh(u), cosh(c)), mul(sinh(u), sinh(c))), t, s);
+        }
+        const Expr b2 = mul(b, b);
+        if (is_a<Sin>(*f)) return div(b, add(mul(s, s), b2));
+        if (is_a<Cos>(*f)) return div(s, add(mul(s, s), b2));
+        if (is_a<Sinh>(*f)) return div(b, sub(mul(s, s), b2));
+        return div(s, sub(mul(s, s), b2));
+    }
+    return std::nullopt;
+}
+
+//The inverse Laplace transform of F(s) at t (see Integrals.h), or nothing
+std::optional<Expr> inverseLaplace(const Expr &F, const Variable &s, const Variable &t)
+{
+    checkpoint();
+    if (!has(F, s)) return std::nullopt;
+    if (is_a<Add>(*F)) {
+        Expr sum = zero;
+        for (const Expr &term : F->get_args()) {
+            const auto found = inverseLaplace(term, s, t);
+            if (!found) return std::nullopt;
+            sum = add(sum, *found);
+        }
+        return sum;
+    }
+    if (is_a<Mul>(*F)) {
+        Expr constant = down_cast<const Mul &>(*F).get_coef(), shift, rest = one;
+        for (const auto &[base, exponent] : down_cast<const Mul &>(*F).get_dict()) {
+            const Expr factor = pow(base, exponent);
+            if (!has(factor, s)) constant = mul(constant, factor);
+            else if (isExp(factor) && shift.is_null() && linearIn(exponent, s)) shift = factor;
+            else rest = mul(rest, factor);
+        }
+        if (!eq(*constant, *one)) {
+            const auto found = inverseLaplace(div(F, constant), s, t);
+            if (!found) return std::nullopt;
+            return mul(constant, *found);
+        }
+        //e^(-c s + d) G(s): e^d g(t - c) from t = c, 0 before
+        if (!shift.is_null()) {
+            const auto line = linearIn(down_cast<const Pow &>(*shift).get_exp(), s);
+            const Expr c = neg(line->first);
+            if (signOf(c) != 1) return std::nullopt;
+            const auto found = inverseLaplace(rest, s, t);
+            if (!found) return std::nullopt;
+            return SymEngine::piecewise({{zero, relationOf("<", t, c)}, {mul(exp(line->second), replaced(*found, t, sub(t, c))), boolTrue}});
+        }
+    }
+    //(s - a)^(-v), v > 0: e^(a t) t^(v - 1)/gamma(v)
+    if (is_a<Pow>(*F) && !has(down_cast<const Pow &>(*F).get_exp(), s) && !is_a<Integer>(*down_cast<const Pow &>(*F).get_exp())) {
+        const Expr base = down_cast<const Pow &>(*F).get_base(), v = neg(down_cast<const Pow &>(*F).get_exp());
+        const auto line = linearIn(base, s);
+        if (!line || signOf(v) != 1) return std::nullopt;
+        //(k s + m)^(-v) = k^(-v) (s + m/k)^(-v)
+        const Expr a = neg(div(line->second, line->first));
+        return mul(pow(line->first, neg(v)), div(mul(exp(mul(a, t)), pow(t, sub(v, one))), gamma(v)));
+    }
+    if (!rationalIn(F, s)) return std::nullopt;
+    //A fraction of polynomials whose numerator has a lower degree: its partial fractions
+    const Expr cancelled = cancelOf(togetherOf(F));
+    const auto [numerator, denominator] = fractionOf(cancelled);
+    const auto pn = polynomialIn(numerator, s), pd = polynomialIn(denominator, s);
+    if (!pn || !pd || pn->size() >= pd->size()) return std::nullopt;
+    const Variable plain = plainName(cancelled);
+    const Expr parts = replaced(apartOf(replaced(cancelled, s, plain), plain->get_name()), plain, s);
+    Expr sum = zero;
+    for (const Expr &term : is_a<Add>(*parts) ? parts->get_args() : vec_basic{parts}) {
+        const auto [n, d] = fractionOf(term);
+        const FactoredPolynomial factored = factorPolynomial(d);
+        Expr q, scale = factored.coefficient;
+        long k = 0;
+        for (const auto &[factor, multiplicity] : factored.factors) {
+            if (!has(factor, s)) {
+                scale = mul(scale, pow(factor, integer(multiplicity)));
+                continue;
+            }
+            if (!q.is_null()) return std::nullopt;
+            q = factor;
+            k = multiplicity;
+        }
+        if (q.is_null()) return std::nullopt;
+        const Expr p = div(n, scale);
+        const auto qc = polynomialIn(q, s), pc = polynomialIn(p, s);
+        if (!qc || !pc) return std::nullopt;
+        if (qc->size() == 2) {
+            //p/(alpha s + beta)^k: p alpha^(-k) t^(k - 1) e^(-beta t/alpha)/(k - 1)!
+            if (pc->size() > 1) return std::nullopt;
+            const Expr alpha = (*qc)[1], beta = (*qc)[0];
+            Expr factorial = one;
+            for (long j = 2; j < k; j++) factorial = mul(factorial, integer(j));
+            sum = add(sum, div(mul(mul(p, pow(alpha, integer(-k))), mul(pow(t, integer(k - 1)), exp(neg(mul(div(beta, alpha), t))))), factorial));
+            continue;
+        }
+        if (qc->size() != 3 || k > 2) return std::nullopt;
+        //(B s + C)/(a s^2 + b s + c)^k, k = 1 or 2: with (s - alpha)^2 + beta^2, alpha = -b/(2a), beta^2 = c/a - alpha^2:
+        //e^(alpha t)(B' cos(beta t) + (C' + B' alpha)/beta sin(beta t)), B' = B/a, C' = C/a (cosh and sinh for beta^2 < 0)
+        const Expr a = (*qc)[2];
+        const Expr B = div(pc->size() > 1 ? (*pc)[1] : Expr(zero), a), C = div((*pc)[0], a);
+        const Expr alpha = neg(div((*qc)[1], mul(integer(2), a)));
+        const Expr beta2 = expand(sub(div((*qc)[0], a), mul(alpha, alpha)));
+        const Expr shiftC = add(C, mul(B, alpha));
+        Expr inner;
+        if (k == 2) {
+            //Squared, of beta^2 > 0 or not decided: (s - alpha)/(…)^2 gives t sin(beta t)/(2 beta), 1/(…)^2 gives
+            //(sin(beta t) - beta t cos(beta t))/(2 beta^3)
+            if (signOf(beta2) == -1 || signOf(beta2) == 0) return std::nullopt;
+            const Expr beta = sqrt(beta2), bt = mul(beta, t);
+            inner = add(div(mul(B, mul(t, sin(bt))), mul(integer(2), beta)), div(mul(shiftC, sub(sin(bt), mul(bt, cos(bt)))), mul(integer(2), pow(beta, integer(3)))));
+        } else if (signOf(beta2) == -1) {
+            const Expr gamma2 = sqrt(neg(beta2));
+            inner = add(mul(B, cosh(mul(gamma2, t))), mul(div(shiftC, gamma2), sinh(mul(gamma2, t))));
+        } else {
+            const Expr beta = sqrt(beta2);
+            inner = add(mul(B, cos(mul(beta, t))), mul(div(shiftC, beta), sin(mul(beta, t))));
+        }
+        sum = add(sum, mul(exp(mul(alpha, t)), inner));
+    }
+    return sum;
+}
+
+}
+
+Expr laplaceOf(const Expr &given, const std::string &tName, const std::string &sName)
+{
+    for (const std::string &name : {tName, sName}) {
+        if (!isName(name) || isBuiltin(name)) throw MathError(ErrorCode::Argument, name + " is not a variable");
+    }
+    if (tName == sName) throw MathError(ErrorCode::Argument, "The variables of a transform differ");
+    const Variable t = symbol(tName), s = symbol(sName);
+    const Expr f = evaluatedOf(given);
+    if (has(f, s)) throw MathError(ErrorCode::Argument, "The expression of a Laplace transform has no " + sName + ": it is its variable");
+    std::optional<Expr> found;
+    try {
+        found = laplace(f, t, s);
+    } catch (SymEngineException &) {
+        found = std::nullopt;
+    }
+    if (!found) throw MathError(ErrorCode::NotSupported, "The Laplace transform of " + toText(given) + " is not found");
+    return simplifiedOf(*found);
+}
+
+Expr inverseLaplaceOf(const Expr &given, const std::string &sName, const std::string &tName)
+{
+    for (const std::string &name : {tName, sName}) {
+        if (!isName(name) || isBuiltin(name)) throw MathError(ErrorCode::Argument, name + " is not a variable");
+    }
+    if (tName == sName) throw MathError(ErrorCode::Argument, "The variables of a transform differ");
+    const Variable t = symbol(tName), s = symbol(sName);
+    const Expr F = evaluatedOf(given);
+    if (has(F, t)) throw MathError(ErrorCode::Argument, "The expression of an inverse Laplace transform has no " + tName + ": it is its variable");
+    std::optional<Expr> found;
+    try {
+        found = inverseLaplace(F, s, t);
+    } catch (SymEngineException &) {
+        found = std::nullopt;
+    } catch (const MathError &error) {
+        if (error.code() == ErrorCode::Cancelled || error.code() == ErrorCode::Timeout) throw;
+        found = std::nullopt;
+    }
+    if (!found) throw MathError(ErrorCode::NotSupported, "The inverse Laplace transform of " + toText(given) + " is not found");
+    const Expr result = simplifiedOf(*found);
+    //Checked by its transform where that is found (not for the shifts, which are piecewise)
+    try {
+        if (const auto back = laplace(result, t, s)) {
+            if (!eq(*cancelOf(togetherOf(sub(*back, F))), *zero) && !verifiedAt(*back, F, s)) {
+                throw MathError(ErrorCode::NotSupported, "The inverse Laplace transform found for " + toText(given) + " is not checked by its transform");
+            }
+        }
+    } catch (SymEngineException &) {
+    }
+    return result;
 }
 
 }

@@ -639,6 +639,59 @@ export class Expression {
         return this.#expression(await this.context.runAsync<Handle>('integral', this.#integralArguments(variable, from, to), options))
     }
 
+    /**
+     * The Laplace transform of the expression of a variable `t`, an expression of `s`: the integral of f(t) e^(-s t)
+     * from 0 to `inf`, by a table (powers of `t`, exponentials, sines and cosines and their hyperbolic ones) and the
+     * rules of linearity, of e^(a t) (a shift in `s`) and of t^n (derivatives in `s`), without the conditions of
+     * convergence (as SymPy's `noconds`). Not found: `MathNotSupportedException`.
+     * @param variable The variable of the expression (`t`).
+     * @param transformVariable The variable of the transform (`s`).
+     * @example
+     * import {expression} from '@lakutata/math'
+     *
+     * console.log(expression('t^2*e^(-3t)').laplace('t', 's').toString()) //2/(s + 3)^3
+     * console.log(expression('sin(2t)').laplace('t', 's').toString())     //2/(s^2 + 4)
+     */
+    public laplace(variable: string, transformVariable: string): Expression {
+        return this.#expression(this.context.run<Handle>('laplace', [this.handle, variable, transformVariable, false]))
+    }
+
+    /**
+     * `laplace()` in the threads of the addon.
+     * @param variable The variable of the expression.
+     * @param transformVariable The variable of the transform.
+     * @param options Its cancellation, its time limit.
+     */
+    public async laplaceAsync(variable: string, transformVariable: string, options?: AsyncOptions): Promise<Expression> {
+        return this.#expression(await this.context.runAsync<Handle>('laplace', [this.handle, variable, transformVariable, false], options))
+    }
+
+    /**
+     * The inverse Laplace transform of the expression of `s`, an expression of `t` for t > 0: of fractions of
+     * polynomials in `s` by their partial fractions, of powers of s - a (`gamma` for those that are not integers), of
+     * e^(-c s) F(s) as the inverse of F from t = c (0 before, a piecewise expression); checked by its transform. Not
+     * found: `MathNotSupportedException`.
+     * @param variable The variable of the expression (`s`).
+     * @param timeVariable The variable of the result (`t`).
+     * @example
+     * import {expression} from '@lakutata/math'
+     *
+     * console.log(expression('1/(s^2 + 2s + 5)').inverseLaplace('s', 't').toString()) //e^(-t)*sin(2t)/2
+     */
+    public inverseLaplace(variable: string, timeVariable: string): Expression {
+        return this.#expression(this.context.run<Handle>('laplace', [this.handle, variable, timeVariable, true]))
+    }
+
+    /**
+     * `inverseLaplace()` in the threads of the addon.
+     * @param variable The variable of the expression.
+     * @param timeVariable The variable of the result.
+     * @param options Its cancellation, its time limit.
+     */
+    public async inverseLaplaceAsync(variable: string, timeVariable: string, options?: AsyncOptions): Promise<Expression> {
+        return this.#expression(await this.context.runAsync<Handle>('laplace', [this.handle, variable, timeVariable, true], options))
+    }
+
     #integralArguments(variable: string, from?: Value, to?: Value): unknown[] {
         if ((from === undefined) !== (to === undefined)) throw new MathArgumentException('A definite integral has both its ends')
         return from === undefined ? [this.handle, variable] : [this.handle, variable, handleOf(this.context, from), handleOf(this.context, to!)]
