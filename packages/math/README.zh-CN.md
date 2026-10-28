@@ -61,6 +61,7 @@ console.log(expanded.variables())                   //['x', 'y']
 | `sin`、`cos`、`tan`、`asin`、`sinh`……、`exp`、`ln`、`log(x)`（自然对数）、`log(x, b)`、`log10`、`log2`、`expm1`、`log1p`、`sqrt`、`cbrt`、`root(x, n)`、`hypot` | 函数 |
 | `abs`、`sign`、`floor`、`ceil`、`trunc`、`round`、`mod(a, b)`、`min`、`max`、`gcd`、`lcm`、`re`、`im`、`arg`、`conj` | 取整、余数、最值和复数的实部虚部 |
 | `gamma`、`loggamma`、`digamma`、`polygamma`、`lowergamma`、`uppergamma`、`beta`、`erf`、`erfc`、`zeta`、`lambertw`、`sinc`、`binomial`、`factorial` | 特殊函数 |
+| `Si`、`Ci`、`Shi`、`Chi`、`Ei`、`li`、`fresnelS`、`fresnelC` | 积分产生的特殊函数：正弦积分、余弦积分、双曲正弦积分、双曲余弦积分、指数积分、对数积分、菲涅耳积分；只用双精度计算 |
 | `piecewise(x^2, x < 0, x)`、`step`、`rect`、`tri` | 分段函数：各段的值和条件，最后是其他情况的值；`step`、`rect`、`tri` 也用它写成 |
 | `sum(k^2, k, 1, n)`、`product(k, k, 1, n)` | 求和、求积：通项、它的变量、变量的第一个和最后一个值（整数、`-inf` 或 `inf`） |
 | `x^2 = 4` | 方程（`equation()` 或 `parse()`） |
@@ -113,7 +114,7 @@ console.log(scope.expression('net(113)').toString())   //100
 公式给出精确的结果：`0.1 + 0.2` 是 `3/10`，`sin(pi/6)` 是 `1/2`，`sqrt(8)` 是 `2sqrt(2)`。数乘以一个和时会乘进去（`2(x + 1)` 是 `2x + 2`），同一有理数次幂的整数会乘在一起（`sqrt(2)*sqrt(3)` 是 `sqrt(6)`），和 SymPy 一样。精确计算最多到约 31.5 万位：更大的幂保持幂的形式（`2^(10^7)`），阶乘最多算到 `20000!`，再大的保持 `gamma(n + 1)` 的形式。需要数字时：
 
 - `toNumber()` 转成 JavaScript 的数字（值是复数时抛出 `MathDomainException`），`toComplex()` 得到 `{re, im}`。凡是 `toDecimal()` 或 `toComplexDecimal()` 能算的值，它们都先算出十进制值再转成数字，所以即使双精度计算已经没有一位有效数字（例如 `cos(10^30)`、`e^(i*10^30)`），得到的数字每一位都是对的。两者也能计算复数参数的特殊函数（伽马、zeta、Lambert W、多伽马、误差函数等），这些函数用双精度计算，表达式的其余部分仍用十进制计算。
-- `toDecimal(digits)` 得到指定有效位数、正确舍入的字符串（默认位数是范围的 `precision`），写法和 `Decimal` 相同（见下一节）：算出的 3 写成 `3`，不写成 `3.000…`。它会用更多位数重新计算，直到两次结果一致。能算四则运算、乘方和开方、`exp` 和 `ln`、三角函数和双曲函数及它们的反函数、取整函数、常数，以及实数参数的特殊函数：`gamma`、`loggamma`、`digamma`、`polygamma`、`beta`、`erf`、`erfc`、`zeta`（包括 Hurwitz zeta）、`lowergamma`、`uppergamma` 和 `lambertw`。多算 640 位仍然和 0 分不开的值，结果是 `0`（例如 `ln(6) - ln(2) - ln(3)`）；参数太大、这么多位不够用的值，会按需要再多算一些位数，最多多算 50000 位（`sin(10^(10^4))` 要多算 10^4 位）；恰好在相邻两个这么多位的十进制数正中间的值，取末位是偶数的那个（`ln(8)/ln(4)` 等于 1.5，保留 1 位得 `2`）。计算中有复数、但值是实数的（`e^(i*pi)`、`-i*asinh(i)`），结果是 `toComplexDecimal()` 的实部；值是复数时抛出 `MathDomainException`。
+- `toDecimal(digits)` 得到指定有效位数、正确舍入的字符串（默认位数是范围的 `precision`），写法和 `Decimal` 相同（见下一节）：算出的 3 写成 `3`，不写成 `3.000…`。它会用更多位数重新计算，直到两次结果一致。能算四则运算、乘方和开方、`exp` 和 `ln`、三角函数和双曲函数及它们的反函数、取整函数、常数，以及实数参数的特殊函数：`gamma`、`loggamma`、`digamma`、`polygamma`、`beta`、`erf`、`erfc`、`zeta`（包括 Hurwitz zeta）、`lowergamma`、`uppergamma` 和 `lambertw`。积分产生的特殊函数（`Si`、`Ci` 等）没有十进制值：`toDecimal()` 遇到它们抛出 `MathNotSupportedException`，`toNumber()` 用双精度计算。多算 640 位仍然和 0 分不开的值，结果是 `0`（例如 `ln(6) - ln(2) - ln(3)`）；参数太大、这么多位不够用的值，会按需要再多算一些位数，最多多算 50000 位（`sin(10^(10^4))` 要多算 10^4 位）；恰好在相邻两个这么多位的十进制数正中间的值，取末位是偶数的那个（`ln(8)/ln(4)` 等于 1.5，保留 1 位得 `2`）。计算中有复数、但值是实数的（`e^(i*pi)`、`-i*asinh(i)`），结果是 `toComplexDecimal()` 的实部；值是复数时抛出 `MathDomainException`。
 - `toComplexDecimal(digits)` 得到复数值的实部和虚部 `{re, im}`，舍入方式和 `toDecimal()` 相同，实部和虚部各自保留指定的有效位数：`(1 + i/10^25)^2 - 1` 的实部和虚部是 `-1e-50` 和 `2e-25`。`toDecimal()` 能算的函数，它对复数参数也能算，取主值分支；落在割线上的值，和 SymPy 取同一侧（`asin(2)` 是 `pi/2 - 1.3169…i`）。其中的特殊函数只接受实数参数。
 - `compile()` 为了速度用双精度计算：双精度已经没有有效数字的值，它也算不准。不含变量的部分先按精确的十进制算好：`ln(erf(5))` 的每一位都是对的，如果从 `erf(5)` 的双精度值去算，只剩 4 位有效数字。实数参数的特殊函数由 Boost.Math 计算，误差在最后一位的几个单位以内，各个平台上跑的是同一套代码（C 库的伽马函数在不同系统上各不相同）。
 - `toRectangular()` 给出表达式的实部和虚部（`{real, imaginary}`），`toPolar()` 给出它的模和辐角（`{modulus, argument}`）：`e^(i*pi/3)` 的实部和虚部是 `1/2` 和 `sqrt(3)/2`，模和辐角是 `1` 和 `pi/3`。变量当作复数，所以 `x` 的实部和虚部是 `re(x)` 和 `im(x)`。
@@ -192,6 +193,31 @@ console.log(expression('(1 + a/x)^x').limit('x', 'inf').toString())           //
 console.log(expression('x^x').limit('x', 0, {direction: '+'}).toString())     //1
 console.log(expression('(2^x + 3^x)^(1/x)').limit('x', 'inf').toString())     //3
 expression('1/x').limit('x', 0) //MathDomainException: 1/x has no limit at x = 0: -inf from below, inf from above
+```
+
+### 积分
+
+`integrate(variable)` 求不定积分，结果不带积分常数；`integrate(variable, from, to)` 求定积分，上下限可以是 `inf` 和 `-inf`。和 SymPy 一样，`1/x` 的积分是 `ln(x)`，不加绝对值。原函数通过以下方法求得：
+
+- 多项式分式先做部分分式（得到对数、`atan`、`atanh`：`1/(x^2 + 2x + 5)` 的积分是 `atan((x + 1)/2)/2`）；
+- 查积分表：一次式为参数的初等函数、多项式除以二次式的平方根（`x^2/sqrt(x^2 + 1)` 的积分是 `(-asinh(x) + x*sqrt(x^2 + 1))/2`），以及 `e^(-x^2)`（用 `erf` 表示）；
+- 换元（`2x*e^(x^2)` 的积分是 `e^(x^2)`）、分部积分（`x*e^x` 的积分是 `e^x*(x - 1)`）、正弦和余弦的幂与乘积，以及正弦余弦的分式用 `t = tan(x/2)` 换元；
+- 积分产生的特殊函数：`sin(x)/x` 的积分是 `Si(x)`，`e^x/x` 的是 `Ei(x)`，`1/ln(x)` 的是 `li(x)`，`sin(x^2)` 的是菲涅耳积分（见公式写法的表）。
+
+每个原函数返回前都会求导验证。定积分用原函数在两端的极限计算；区间内被积函数有极点，或者原函数有跳变（换元产生的 `tan(x/2)`：`1/(2 + cos(x))` 在 `[0, 2pi]` 上的积分是 `2pi*sqrt(3)/3`）时，在这些点分段；结果是数字时还会和 `numeric.integrate()` 的数值结果核对。积分无限增大时结果是 `inf` 或 `-inf`（`1/x` 在 `[0, 1]` 上），没有值时抛出 `MathDomainException`（`1/x` 在 `[-1, 1]` 上）。
+
+求不出原函数时抛出 `MathNotSupportedException`：分母只有用代数数才能分解的分式（`1/(x^4 + 1)`），原函数既不是初等函数、也不能用上面这些特殊函数表示的函数，以及各项单独求不出原函数的某些和式。和 SymPy 不同，求不出的积分不保留成未计算的调用：积分变量是约束变量，和 `sum(…)` 一样。定积分总可以用 `numeric.integrate()` 做数值计算。
+
+`laplace('t', 's')` 求拉普拉斯变换，即 `f(t) e^(-s t)` 从 0 到 `inf` 的积分，不给出收敛所需的 `s` 的条件（和 SymPy 的 `noconds` 一样）。它查变换表（`t` 的幂、指数函数、正弦和余弦、双曲函数），并用这几条规则：和式逐项变换，乘 `e^(a t)` 对应 `s` 的平移，乘 `t^n` 对应对 `s` 求导。`inverseLaplace('s', 't')` 求 `t > 0` 时的逆变换：多项式分式先做部分分式，`s - a` 的幂用 `gamma` 表示，`e^(-c s) F(s)` 得到在 `t = c` 之前为 0 的分段函数。每个逆变换都会再做一次正变换来验证。
+
+```typescript
+import {expression} from '@lakutata/math'
+
+console.log(expression('x*e^x').integrate('x').toString())                      //e^x*(x - 1)
+console.log(expression('1/(x^2 + 1)').integrate('x', '-inf', 'inf').toString()) //pi
+console.log(expression('sin(x)/x').integrate('x', 0, 'inf').toString())         //pi/2
+console.log(expression('t^2*e^(-3t)').laplace('t', 's').toString())             //2/(s + 3)^3
+console.log(expression('1/(s^2 + 2s + 5)').inverseLaplace('s', 't').toString()) //e^(-t)*sin(2t)/2
 ```
 
 ### 数论
@@ -484,7 +510,7 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 
 ### 异步运算
 
-可能耗时的运算都有异步版本：`expandAsync()`、`simplifyAsync()`、`diffAsync()`、`seriesAsync()`、`limitAsync()`、`solveAsync()`、`toDecimalAsync()`、`toComplexDecimalAsync()`、`solveAsync()` 和 `cseAsync()`，以及数论、线性代数和数值解的异步版本。它们在原生插件自己的线程里执行，不占用 libuv 的线程池：线程数默认是 CPU 核数减一，也可以用环境变量 `LAKUTATA_MATH_THREADS` 指定。选项有 `timeout`（毫秒）和 `signal`（`AbortSignal`）：
+可能耗时的运算都有异步版本：`expandAsync()`、`simplifyAsync()`、`diffAsync()`、`seriesAsync()`、`limitAsync()`、`integrateAsync()`、`laplaceAsync()`、`inverseLaplaceAsync()`、`solveAsync()`、`toDecimalAsync()`、`toComplexDecimalAsync()`、`solveAsync()` 和 `cseAsync()`，以及数论、线性代数和数值解的异步版本。它们在原生插件自己的线程里执行，不占用 libuv 的线程池：线程数默认是 CPU 核数减一，也可以用环境变量 `LAKUTATA_MATH_THREADS` 指定。选项有 `timeout`（毫秒）和 `signal`（`AbortSignal`）：
 
 - 到了时限，Promise 以 `MathTimeoutException` 拒绝；signal 取消时，以 `MathCancelledException` 拒绝。有检查点的运算（展开、十进制计算、线性方程组、数论）会在下一个检查点停下；其他运算会先算完，线程才空出来。
 - `createMath()` 创建的范围限制自己同时执行的运算数（`concurrency`），其余的运算排队等待。如果程序在运算还没结束时退出，这些运算的结果会被丢弃。
@@ -502,7 +528,7 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 | `parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`interval`、`finiteSet`、`unit`、`constant`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`poly`、`linalg`、`stats`、`numeric` | `math` 的函数和命名空间，可以直接使用 |
 | `math`、`createMath`、`MathOptions` | 默认选项的范围；用别的选项（`definitions`、`precision`、`timeout`、`concurrency`、`units`）创建范围的函数，以及它的选项 |
 | `MathScope`、`MathDefinitions` | 由定义和设置组成的范围（`createMath()`、`with()`）：`parse`、`expression`、`equation`、`decimal`、`matrix`、`expressionMatrix`、`jacobian`、`interval`、`finiteSet`、`unit`、`constant`、`with`、`solve`、`solveAsync`、`cse`、`cseAsync`、`ntheory`、`poly`、`linalg`、`stats`、`numeric`；定义（按签名给出的公式） |
-| `Expression` | 表达式：`toString`、`toTeX`、`toNumber`、`toComplex`、`toDecimal`、`toComplexDecimal`、`variables`、`equals`、`add`、`sub`、`mul`、`div`、`pow`、`neg`、`expand`、`simplify`、`diff`、`series`、`limit`、`substitute`、`evaluate`、`solve`、`compile`，多项式（`coefficients`、`degree`、`leadingCoefficient`、`divide`），`factor`、`sqf`，分式（`cancel`、`together`、`apart`、`completeSquare`），`numerator`、`denominator`、`rewrite`（改写成 `exp`、`sin`、`cos`），判断（`isZero`、`isPositive`、`isNegative`、`isInteger`、`isRational`、`isReal`、`isFinite`：不知道时为 `undefined`），`compare`、`toJavaScript`、`toC`、`toPolar`、`toRectangular`，以及各个异步版本 |
+| `Expression` | 表达式：`toString`、`toTeX`、`toNumber`、`toComplex`、`toDecimal`、`toComplexDecimal`、`variables`、`equals`、`add`、`sub`、`mul`、`div`、`pow`、`neg`、`expand`、`simplify`、`diff`、`series`、`limit`、`integrate`、`laplace`、`inverseLaplace`、`substitute`、`evaluate`、`solve`、`compile`，多项式（`coefficients`、`degree`、`leadingCoefficient`、`divide`），`factor`、`sqf`，分式（`cancel`、`together`、`apart`、`completeSquare`），`numerator`、`denominator`、`rewrite`（改写成 `exp`、`sin`、`cos`），判断（`isZero`、`isPositive`、`isNegative`、`isInteger`、`isRational`、`isReal`、`isFinite`：不知道时为 `undefined`），`compare`、`toJavaScript`、`toC`、`toPolar`、`toRectangular`，以及各个异步版本 |
 | `CommonSubexpressions`、`CseOptions` | `cse()` 的结果（`replacements`、`expressions`）和它的选项（`prefix`） |
 | `PolarForm`、`RectangularForm` | 复数的极坐标形式（模 `modulus`、辐角 `argument`）和直角坐标形式（实部 `real`、虚部 `imaginary`） |
 | `Equation`、`Inequality`、`InequalityRelation` | 方程（`left`、`right`、`difference`、`substitute`、`solve`、`solveAsync`），不等式（`left`、`right`、`relation`、`solve`、`solveAsync`） |
@@ -537,9 +563,9 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 | `MathUnitException` | 量纲不同的带单位的值相加、比较或换算，不认识的单位（带有它的 `position`），带偏移的温度相加、相乘或相除，乘方后量纲的次数不是整数，`sin()` 的参数既不是角度也不是数 |
 | `MathUnknownFunctionException` | 公式调用的函数既不是内置函数，也没有定义，或者把常数写成了调用（`g(2)`），带有它的 `position` |
 | `MathDefinitionException` | 定义无效：用了内置的名字、参数重复、定义之间循环引用、定义嵌套太深、定义是一个矩阵；`createMath()` 的单位无效：名字已经是单位（单独或者加上前缀），定义里有不认识的单位，单位之间循环定义 |
-| `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂），`findRoot()` 的区间两端符号相同或者函数在区间里不是实数，函数或方程组在 `findRoot()`、`solveSystem()` 的初始值处不是实数，`integrate()` 的函数在区间内不是实数，`solveODE()` 的导数在起点不是实数，对复数求连分数，表达式矩阵是奇异的（`inverse()`、`solve()`、`inv()`），表达式在某点没有极限（两侧的极限不同，或者一直振荡） |
+| `MathDomainException` | 把复数当成数字取值，取无穷大、`complexInfinity`（除以零；`toNumber()` 里也包括除以一个无法和 0 区分的值）的值，数论函数的参数不在定义域内（`totient(0)`），需要求逆的地方矩阵是奇异的（`solve()`、`inverse()`），`cholesky()` 的矩阵不是正定的，`squareRoot()` 的矩阵的主平方根不是实矩阵或者不存在，Sylvester 或 Lyapunov 方程没有唯一解，或者十进制数不在函数的定义域内（负数开平方、`asin()` 的参数是 2、负数的非整数次幂），`findRoot()` 的区间两端符号相同或者函数在区间里不是实数，函数或方程组在 `findRoot()`、`solveSystem()` 的初始值处不是实数，`integrate()` 的函数在区间内不是实数，`solveODE()` 的导数在起点不是实数，对复数求连分数，表达式矩阵是奇异的（`inverse()`、`solve()`、`inv()`），表达式在某点没有极限（两侧的极限不同，或者一直振荡），没有值的定积分（`1/x` 在 `[-1, 1]` 上） |
 | `MathDivisionByZeroException` | 计算十进制值时遇到除以零（包括除以一个无法和 0 区分的值、0 的对数、0 的负数次幂、以 1 为底的对数、在函数的极点上求值：`gamma()` 的参数是 -2、`zeta()` 的参数是 1），模数是 0，或者连分数的各项导致除以零 |
-| `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 和 `bell(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、`stirlingSecondKind(n, k)` 的 n 超过 50000 或 n k 超过 6250000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`），表达式矩阵的特征值求不出精确值，矩阵的幂不是整数，矩阵的方程或不等式，`poly` 的多项式含负幂、系数是复数或不精确的数，或者各次数合起来对稠密形式太高，求不出的极限 |
+| `MathNotSupportedException` | 这个包对这个表达式不做的运算：非线性方程组、无法编译的表达式、嵌套超过 1000 层的表达式、运算中遇到太大而无法精确计算的数、对非整数求 `gcd` 或 `lcm`、数论的结果超过 2^20 位（二进制）、`bernoulli(n)` 和 `bell(n)` 的 n 超过 2000、`harmonic(n)` 的 n 超过 50000、`stirlingSecondKind(n, k)` 的 n 超过 50000 或 n k 超过 6250000、生成代码时遇到目标语言没有的函数、`2i` 这样的复数、和保留字重名的变量、特征值的计算不收敛、求 n 不是整数的 `polygamma(n, x)` 的十进制值、十进制数的指数超出了范围（约 ±10^18，32 位系统上约 ±4.25 × 10^8；例如 `exp()` 的参数是 10^19，`toDecimal()` 里也一样），或者十进制值要比要求的位数多算超过 50000 位（`sin(10^(10^6))`），表达式矩阵的特征值求不出精确值，矩阵的幂不是整数，矩阵的方程或不等式，`poly` 的多项式含负幂、系数是复数或不精确的数，或者各次数合起来对稠密形式太高，求不出的极限，求不出的积分、拉普拉斯变换和逆变换，积分产生的特殊函数的十进制值 |
 | `MathArgumentException` | 参数无效：需要数字的地方还有变量、名字不是变量、给的值个数不对、需要整数的地方给的不是整数、需要十进制数的地方给的不是十进制数、精度不在 1 到 100000 之间、`integrate()` 的区间、分点或容差无效、`solveODE()` 的问题或选项无效、对含有变量的值求连分数、连分数的项不是整数、矩阵或向量的维数不对、稀疏矩阵的结构无效（包括构造之后数组被改动的情况）、对空数组求没有定义的统计量、分布的参数无效、分位数的概率不在 0 到 1 之间、`klDivergence` 的概率是负数，没有给出多项式就求 gcd 或 lcm，`poly` 的变量不是名字，只需要单位的地方给了数（`to('2 cm')`），物理常数的名字不对，`createMath()` 的选项无效 |
 | `MathTimeoutException`、`MathCancelledException` | 异步运算超过时限，或者被取消 |
 | `MathException` | 以上所有错误的基类；原生插件内部错误时，它的 `errno` 是 `E_MATH_INTERNAL` |

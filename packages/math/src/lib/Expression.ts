@@ -611,16 +611,17 @@ export class Expression {
      * SymPy), or with `from` and `to` the definite integral, by an antiderivative and the limits at the ends (`inf` and
      * `-inf` too); `inf` or `-inf` where it grows without end. The antiderivatives come from the partial fractions of
      * fractions of polynomials, a table of the elementary functions of a linear argument, substitution, integration by
-     * parts and the powers of sines and cosines, each one checked by its derivative. Where none is found (`sin(x)/x`
-     * has none in elementary functions) it throws `MathNotSupportedException`: `numeric.integrate()` computes definite
-     * integrals of any function. A definite integral without a value (`1/x` on `[-1, 1]`) throws `MathDomainException`.
+     * parts, the powers of sines and cosines and the special functions of integrals (`Si`, `Ei`, `li`…: `sin(x)/x` gives
+     * `Si(x)`), each one checked by its derivative. Where none is found (`e^(x^2)`) it throws
+     * `MathNotSupportedException`: `numeric.integrate()` computes a definite integral numerically, whatever the
+     * function. A definite integral without a value (`1/x` on `[-1, 1]`) throws `MathDomainException`.
      * @param variable The variable.
      * @param from The lower end of a definite integral.
      * @param to The upper end of a definite integral.
      * @example
      * import {expression} from '@lakutata/math'
      *
-     * console.log(expression('x*e^x').integrate('x').toString())          //(x - 1)e^x
+     * console.log(expression('x*e^x').integrate('x').toString())          //e^x*(x - 1)
      * console.log(expression('1/(x^2 + 1)').integrate('x').toString())    //atan(x)
      * console.log(expression('e^(-x)').integrate('x', 0, 'inf').toString()) //1
      */

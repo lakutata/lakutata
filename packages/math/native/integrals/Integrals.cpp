@@ -5,7 +5,6 @@
 #include <atomic>
 #include <functional>
 #include <cmath>
-#include <math.h>
 #include <complex>
 #include <map>
 #include <optional>
@@ -1035,6 +1034,8 @@ private:
     }
 };
 
+constexpr double PI = 3.14159265358979323846;
+
 //The jumps of an antiderivative inside (low, high), numbers: the poles of tan, cot, sec and csc of linear arguments in it
 //(tan(x/2) of the substitution of the half angle), exactly
 void jumpsOf(const Expr &F, const Variable &x, double low, double high, std::vector<Expr> &points)
@@ -1046,7 +1047,7 @@ void jumpsOf(const Expr &F, const Variable &x, double low, double high, std::vec
             //v = a x + b at the poles: pi/2 + k pi (tan, sec), k pi (cot, csc)
             const Expr offset = is_a<Tan>(*F) || is_a<Sec>(*F) ? div(pi, integer(2)) : Expr(zero);
             const double a = toDouble(line->first), b = toDouble(line->second), o = toDouble(offset);
-            const double first = (std::min(a * low, a * high) + b - o) / M_PI, last = (std::max(a * low, a * high) + b - o) / M_PI;
+            const double first = (std::min(a * low, a * high) + b - o) / PI, last = (std::max(a * low, a * high) + b - o) / PI;
             if (std::isfinite(first) && std::isfinite(last) && last - first < 1000) {
                 for (long k = static_cast<long>(std::floor(first)); k <= static_cast<long>(std::ceil(last)); k++) {
                     const Expr point = div(sub(add(offset, mul(integer(k), pi)), line->second), line->first);

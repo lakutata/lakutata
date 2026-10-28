@@ -3,6 +3,7 @@
 
 #include "../config/boost_math_policy.h"
 
+#include <algorithm>
 #include <cmath>
 #include <complex>
 #include <limits>
