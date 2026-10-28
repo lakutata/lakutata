@@ -31,11 +31,14 @@ describe('The Laplace transforms', (): void => {
             ['1/(s + 1)^3', 'e^(-t)*t^2/2'],
             ['1/sqrt(s)', '1/(sqrt(pi)*sqrt(t))'],
             ['1/(s^2 - 2)', 'sinh(t*sqrt(2))*sqrt(2)/2'],
-            ['e^(-2s)/s', 'piecewise(0, t < 2, 1)']
+            ['e^(-2s)/s', 'piecewise(0, t < 2, 1)'],
+            //Powers of a quadratic above 2 (as SymPy), of a leading coefficient that is not 1
+            ['1/(s^2 + 1)^3', '-t^2*sin(t)/8 - 3t*cos(t)/8 + 3sin(t)/8'],
+            ['1/(4s^2 + 1)^2', '-t*cos(t/2)/8 + sin(t/2)/4']
         ]
         for (const [formula, expected] of cases) assert.strictEqual(inverse(formula), expected, formula)
         //Its transform again
-        for (const formula of ['1/(s^2 + 1)^2', 's/(s^2 + 4)^2', '(2s + 3)/(s^2 + 4s + 13)']) {
+        for (const formula of ['1/(s^2 + 1)^2', 's/(s^2 + 4)^2', '(2s + 3)/(s^2 + 4s + 13)', '(3s + 1)/(2s^2 + s + 3)^3', '1/(s^2 - 2)^2', '1/((s + 1)^2 + 1)^4']) {
             assert.ok(math.expression(inverse(formula)).laplace('t', 's').sub(formula).cancel().isZero(), formula)
         }
     })

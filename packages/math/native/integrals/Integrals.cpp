@@ -1339,28 +1339,34 @@ std::optional<Expr> inverseLaplace(const Expr &F, const Variable &s, const Varia
             sum = add(sum, div(mul(mul(p, pow(alpha, integer(-k))), mul(pow(t, integer(k - 1)), exp(neg(mul(div(beta, alpha), t))))), factorial));
             continue;
         }
-        if (qc->size() != 3 || k > 2) return std::nullopt;
-        //(B s + C)/(a s^2 + b s + c)^k, k = 1 or 2: with (s - alpha)^2 + beta^2, alpha = -b/(2a), beta^2 = c/a - alpha^2:
-        //e^(alpha t)(B' cos(beta t) + (C' + B' alpha)/beta sin(beta t)), B' = B/a, C' = C/a (cosh and sinh for beta^2 < 0)
-        const Expr a = (*qc)[2];
-        const Expr B = div(pc->size() > 1 ? (*pc)[1] : Expr(zero), a), C = div((*pc)[0], a);
+        if (qc->size() != 3 || k > 32) return std::nullopt;
+        //(B s + C)/(a s^2 + b s + c)^k: with u = s - alpha, (s - alpha)^2 + beta^2, alpha = -b/(2a), beta^2 = c/a - alpha^2,
+        //e^(alpha t)(B' J(k) + (C' + B' alpha) I(k)), B' = B/a^k, C' = C/a^k, I(k) and J(k) the transforms of
+        //1/(u^2 + beta^2)^k and u/(u^2 + beta^2)^k: I(1) = sin(beta t)/beta, J(1) = cos(beta t) (sinh and cosh for
+        //beta^2 < 0), J(k + 1) = t I(k)/(2k) (of the derivative in u), I(k + 1) = ((2k - 1) I(k) - t J(k))/(2k beta^2)
+        //(1/(u^2 + beta^2)^(k + 1) = (d/du (u/(u^2 + beta^2)^k) + (2k - 1)/(u^2 + beta^2)^k)/(2k beta^2))
+        const Expr a = (*qc)[2], ak = pow(a, integer(k));
+        const Expr B = div(pc->size() > 1 ? (*pc)[1] : Expr(zero), ak), C = div((*pc)[0], ak);
         const Expr alpha = neg(div((*qc)[1], mul(integer(2), a)));
         const Expr beta2 = expand(sub(div((*qc)[0], a), mul(alpha, alpha)));
-        const Expr shiftC = add(C, mul(B, alpha));
-        Expr inner;
-        if (k == 2) {
-            //Squared, of beta^2 > 0 or not decided: (s - alpha)/(…)^2 gives t sin(beta t)/(2 beta), 1/(…)^2 gives
-            //(sin(beta t) - beta t cos(beta t))/(2 beta^3)
-            if (signOf(beta2) == -1 || signOf(beta2) == 0) return std::nullopt;
-            const Expr beta = sqrt(beta2), bt = mul(beta, t);
-            inner = add(div(mul(B, mul(t, sin(bt))), mul(integer(2), beta)), div(mul(shiftC, sub(sin(bt), mul(bt, cos(bt)))), mul(integer(2), pow(beta, integer(3)))));
-        } else if (signOf(beta2) == -1) {
+        const int betaSign = signOf(beta2);
+        if (betaSign == 0) return std::nullopt;
+        Expr I, J;
+        if (betaSign == -1) {
             const Expr gamma2 = sqrt(neg(beta2));
-            inner = add(mul(B, cosh(mul(gamma2, t))), mul(div(shiftC, gamma2), sinh(mul(gamma2, t))));
+            I = div(sinh(mul(gamma2, t)), gamma2);
+            J = cosh(mul(gamma2, t));
         } else {
             const Expr beta = sqrt(beta2);
-            inner = add(mul(B, cos(mul(beta, t))), mul(div(shiftC, beta), sin(mul(beta, t))));
+            I = div(sin(mul(beta, t)), beta);
+            J = cos(mul(beta, t));
         }
+        for (long j = 1; j < k; j++) {
+            const Expr next = div(sub(mul(integer(2 * j - 1), I), mul(t, J)), mul(integer(2 * j), beta2));
+            J = div(mul(t, I), integer(2 * j));
+            I = expand(next);
+        }
+        const Expr inner = add(mul(B, J), mul(add(C, mul(B, alpha)), I));
         sum = add(sum, mul(exp(mul(alpha, t)), inner));
     }
     return sum;
