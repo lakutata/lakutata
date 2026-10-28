@@ -79,6 +79,7 @@ website.
 | Docker; containerd; D-Bus; MCP servers | `DockerIntegration.md`; `ContainerdIntegration.md`; `DBus.md`; `MCP.md` |
 | Security; time; helper functions | `Security.md`; `Time.md`; `HelperFunctions.md` |
 | Workspaces of several packages; native addons; C functions of native libraries | `Workspaces.md`; `NativeAddons.md`; `FFI.md` |
+| Mathematics: formulas, equations, decimals, matrices, statistics, numeric solutions, units (`@lakutata/math`) | `Math.md` |
 | Bundles, executables, installers | `Packaging.md`, `Installers.md` |
 | A whole application of a kind (REST API, CLI tool, web or desktop application, calls between services, background jobs, MCP server, service on a device) | `examples/README.md` and its pages |
 | A 2.x project to bring to 3.x | `https://lakutata.com/doc/en/UpgradingFrom2.md` (the installed 2.x package does not have it) |
@@ -122,7 +123,7 @@ Import only from these subpaths, never from the files inside a package.
 Separate packages: `@lakutata/cli` (the `lakutata` command), `@lakutata/nats`, `@lakutata/grpc`, `@lakutata/mcp`,
 `@lakutata/dbus`, `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, a media server, peer connections, the
 service actions of an application called through data channels, a browser client), `@lakutata/ffi` (the C functions of
-native libraries, declared with the C declarations of their headers), `@lakutata/math` (symbolic and numerical
+native libraries, declared with the C declarations of their headers), `@lakutata/math` (symbolic and numeric
 mathematics: equations, derivatives, integrals, limits, matrices, statistics, decimals of any precision; plain
 functions, no component). The adapters and drivers need their library installed (`express`, `fastify`, `commander`,
 `socket.io`, `ws`, `pg`, `mysql2`, `better-sqlite3`, `ioredis`…): they are optional peer dependencies.

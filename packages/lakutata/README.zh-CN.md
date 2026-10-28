@@ -121,7 +121,7 @@ Application
 ## 另见
 
 - 网站 <https://lakutata.com/zh/>：指南、示例和 API 参考，中英文都有。
-- 指南在这个包的 `doc/zh`（中文）和 `doc/en`（英文）中：`Overview.md`、`GettingStarted.md`、`ProjectStructure.md`、`UpgradingFrom2.md`、`UpgradingFrom1.md`、`Application.md`、`Objects.md`、`Injection.md`、`DTOValidation.md`、`Exceptions.md`、`Logger.md`、`Decorator.md`、`Time.md`、`HelperFunctions.md`、`Controllers.md`、`Entrypoint.md`、`Middlewares.md`、`HTTP.md`、`CLI.md`、`ServiceCalls.md`、`GRPC.md`、`NATS.md`、`Schedules.md`、`Queue.md`、`Database.md`、`DatabaseDrivers.md`、`MongoEmbedded.md`、`Entities.md`、`Migrations.md`、`Cache.md`、`Mutex.md`、`I18n.md`、`DockerIntegration.md`、`ContainerdIntegration.md`、`Monitor.md`、`Security.md`、`DBus.md`、`MCP.md`、`WebRTC.md`、`FFI.md`、`Command.md`、`Workspaces.md`、`NativeAddons.md`、`Packaging.md`、`Installers.md`；示例在 `doc/zh/examples` 和 `doc/en/examples` 中：从模板构建的完整应用。
+- 指南在这个包的 `doc/zh`（中文）和 `doc/en`（英文）中：`Overview.md`、`GettingStarted.md`、`ProjectStructure.md`、`UpgradingFrom2.md`、`UpgradingFrom1.md`、`Application.md`、`Objects.md`、`Injection.md`、`DTOValidation.md`、`Exceptions.md`、`Logger.md`、`Decorator.md`、`Time.md`、`HelperFunctions.md`、`Controllers.md`、`Entrypoint.md`、`Middlewares.md`、`HTTP.md`、`CLI.md`、`ServiceCalls.md`、`GRPC.md`、`NATS.md`、`Schedules.md`、`Queue.md`、`Database.md`、`DatabaseDrivers.md`、`MongoEmbedded.md`、`Entities.md`、`Migrations.md`、`Cache.md`、`Mutex.md`、`I18n.md`、`DockerIntegration.md`、`ContainerdIntegration.md`、`Monitor.md`、`Security.md`、`DBus.md`、`MCP.md`、`WebRTC.md`、`FFI.md`、`Math.md`、`Command.md`、`Workspaces.md`、`NativeAddons.md`、`Packaging.md`、`Installers.md`；示例在 `doc/zh/examples` 和 `doc/en/examples` 中：从模板构建的完整应用。
 - `@lakutata/cli`：创建、构建和打包应用。
 - 官方 Agent Skill（智能体技能），供 AI 编程助手在 lakutata 项目中使用：<https://lakutata.com/zh/skill/>。
 

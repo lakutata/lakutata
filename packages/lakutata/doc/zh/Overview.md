@@ -80,6 +80,7 @@
 | [MCP](MCP.md) | 模型上下文协议（`@lakutata/mcp`）的工具、资源和提示词，基于 stdio 和 HTTP |
 | [WebRTC](WebRTC.md) | 点对点连接和媒体服务器（`@lakutata/webrtc`）：信令、TURN 服务器、浏览器和应用、通过数据通道调用应用的动作、WHIP 和 WHEP |
 | [FFI](FFI.md) | 调用动态库中的 C 函数（`@lakutata/ffi`）：从头文件复制的声明、结构体、回调、内存、打包 |
+| [Math](Math.md) | 数学计算（`@lakutata/math`）：公式和精确结果、方程、任意精度的十进制数、矩阵、统计、数值解法、单位 |
 | [Command](Command.md) | `lakutata` 命令：创建项目、迁移、翻译、环境变量 |
 | [Workspaces](Workspaces.md) | 由多个包组成的项目：运行各个包的脚本、统一版本号、添加包 |
 | [NativeAddons](NativeAddons.md) | 用 C++ 或 Rust 编写的原生插件：创建、链接库、发布 |
