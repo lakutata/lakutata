@@ -17,6 +17,9 @@ SymEngine's `boostmp` integers come from Boost.Multiprecision, which can be used
   `boost::math::sign()`; the workaround for Boost releases older than 1.59 is compiled only when `BOOST_VERSION`
   is defined (standalone Boost.Multiprecision does not define it).
 - `symengine/ntheory.cpp`: the includes of Boost.Random are removed.
+- `symengine/ntheory.cpp`: `mp_perfect_power_decomposition()` takes the p-th roots by `mp_root()` (Newton's method),
+  not by a binary search from 2 to n with the p-th power of each step, which took minutes for a number of 245 digits
+  (the logarithm of an integer in `refine()`, so in `simplify()`).
 - `symengine/mp_boost.cpp`: the include of `boost/mpl/int.hpp` is removed.
 
 ### The powers taken out of the roots

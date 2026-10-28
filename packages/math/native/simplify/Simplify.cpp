@@ -768,7 +768,7 @@ public:
 };
 
 //The logarithms of positive rationals with integer coefficients in a sum combined (ln(2) + ln(3) is ln(6), 2ln(3) is
-//ln(9))
+//ln(9)), into the logarithm of a number of 20 digits at most
 Expr logarithmsCombined(const Expr &e)
 {
     std::vector<std::pair<Expr, Expr>> terms;
@@ -796,6 +796,10 @@ Expr logarithmsCombined(const Expr &e)
         rest = add(rest, mul(coefficient, term));
     }
     if (count == 0 || (count == 1 && is_a<Add>(*e))) return e;
+    //Not a number of more than 20 digits (243 ln(10) is no simpler as the logarithm of 10^243)
+    const rational_class value = is_a<Integer>(*product) ? rational_class(down_cast<const Integer &>(*product).as_integer_class()) : down_cast<const Rational &>(*product).as_rational_class();
+    const integer_class limit = integer_class(100000) * integer_class(100000) * integer_class(100000) * integer_class(100000);
+    if (abs(get_num(value)) >= limit || get_den(value) >= limit) return e;
     return add(rest, log(product));
 }
 

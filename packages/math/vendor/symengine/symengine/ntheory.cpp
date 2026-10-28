@@ -1676,28 +1676,18 @@ integer_class mp_principal_polygonal_root(const integer_class &s,
 std::pair<integer_class, integer_class>
 mp_perfect_power_decomposition(const integer_class &n, bool lowest_exponent)
 {
-    // From
-    // https://codegolf.stackexchange.com/questions/1935/fastest-algorithm-for-decomposing-a-perfect-power
+    // lakutata: the p-th roots by mp_root (Newton's method), not by a binary
+    // search from 2 to n with the p-th power of each step: ln of a number of
+    // 245 digits took minutes in refine()
     unsigned long p = 2;
-    integer_class intone, i, j, m, res;
+    integer_class intone, root;
     intone = 1;
     std::pair<integer_class, integer_class> respair;
     respair = std::make_pair(n, intone);
 
     while ((intone << p) <= n) {
-        i = 2;
-        j = n;
-        while (j > i + 1) {
-            m = (i + j) / 2;
-            mp_pow_ui(res, m, p);
-            if (res > n)
-                j = m;
-            else
-                i = m;
-        }
-        mp_pow_ui(res, i, p);
-        if (res == n) {
-            respair = std::make_pair(i, p);
+        if (mp_root(root, n, p)) {
+            respair = std::make_pair(root, p);
             if (lowest_exponent) {
                 return respair;
             }
