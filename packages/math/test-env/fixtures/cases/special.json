@@ -481,5 +481,204 @@
   "decimals": [
    20
   ]
+ },
+ {
+  "text": "Si(1)",
+  "decimals": [
+   20,
+   60,
+   300
+  ]
+ },
+ {
+  "text": "Si(-2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Si(70)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Si(80)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Si(1000)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Ci(1)",
+  "decimals": [
+   20,
+   60,
+   300
+  ]
+ },
+ {
+  "text": "Ci(70)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Ci(80)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Ci(100)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Shi(1)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Shi(60)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Chi(2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Chi(100)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Ei(1)",
+  "decimals": [
+   20,
+   60,
+   300
+  ]
+ },
+ {
+  "text": "Ei(-1)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Ei(-30)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Ei(80)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "Ei(-200)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "li(2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "li(1001/1000)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "li(1/2)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "li(10^10)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "fresnelS(1)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "fresnelS(5)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "fresnelS(8)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "fresnelS(10)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "fresnelC(3)",
+  "decimals": [
+   20,
+   60
+  ]
+ },
+ {
+  "text": "fresnelC(10)",
+  "decimals": [
+   20,
+   60
+  ]
  }
 ]

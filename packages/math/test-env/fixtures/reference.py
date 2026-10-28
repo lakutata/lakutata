@@ -49,7 +49,8 @@ NAMES = {
     'expm1': lambda value: sympy.exp(value) - 1, 'log1p': lambda value: log(1 + value),
     'lowergamma': sympy.lowergamma, 'uppergamma': sympy.uppergamma,
     'gcd': lambda *values: functools.reduce(sympy.igcd, values), 'lcm': lambda *values: functools.reduce(sympy.ilcm, values),
-    'phi': S.GoldenRatio, 'tau': 2 * sympy.pi, 'EulerGamma': S.EulerGamma, 'Catalan': S.Catalan
+    'phi': S.GoldenRatio, 'tau': 2 * sympy.pi, 'EulerGamma': S.EulerGamma, 'Catalan': S.Catalan,
+    'fresnelS': sympy.fresnels, 'fresnelC': sympy.fresnelc
 }
 TRANSFORMATIONS = standard_transformations + (implicit_multiplication, convert_xor, rationalize)
 
