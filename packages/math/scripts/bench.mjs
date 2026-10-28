@@ -1,5 +1,6 @@
 //The timings of the operations of @lakutata/math, for its development (not part of the package): the symbolic
-//operations measured first (step 0 of the design), the matrices, the statistics, the decimals, the units and the
+//operations measured first (step 0 of the design; the factorizations, simplifications, limits, integrals, sums,
+//inequalities and transforms since), the matrices, the statistics, the decimals, the units and the
 //numeric solutions; and the same operations of mathjs and nerdamer where they have them, when ENGINES is a directory
 //where they are installed (in a container: the timings are compared on the same machine and the same Node). Each
 //timing is the median of 5 rounds; a round makes as many calls as take at least 50 ms. Run from the directory of the
@@ -11,7 +12,7 @@
 import {createRequire} from 'node:module'
 import path from 'node:path'
 import {parseArgs} from 'node:util'
-import {constant, createMath, decimal, equation, expression, expressionMatrix, linalg, numeric, stats, unit} from '../dist/esm/exports/Math.js'
+import {constant, createMath, decimal, equation, expression, expressionMatrix, linalg, numeric, parse, stats, unit} from '../dist/esm/exports/Math.js'
 
 const {values: options} = parseArgs({options: {filter: {type: 'string'}, json: {type: 'boolean'}}})
 const engines = process.env.ENGINES ? createRequire(path.join(process.env.ENGINES, 'package.json')) : undefined
@@ -78,6 +79,19 @@ const cases = [
             return points.map((x) => compiled.evaluate({x: x}))
         }
     })()},
+    {name: 'symbolic: factor x^6 - y^6', ours: () => expression('x^6 - y^6').factor().toString(), nerdamer: () => nerdamer.factor('x^6-y^6').toString()},
+    {name: 'symbolic: factor a multivariate product', ours: () => expression('(x^2*y + 3x - y^3 + 2)*(x*y^2 - 5y + x^3 - 1)*(x + y + 1)').expand().factor().toString()},
+    {name: 'symbolic: apart 1/(x^3 + 1)', ours: () => expression('1/(x^3 + 1)').apart('x').toString(), nerdamer: () => nerdamer('partfrac(1/(x^3+1), x)').toString()},
+    {name: 'symbolic: simplify sin(x)^4 - cos(x)^4', ours: () => expression('sin(x)^4 - cos(x)^4').simplify().toString(), nerdamer: () => nerdamer('simplify(sin(x)^4 - cos(x)^4)').toString()},
+    {name: 'symbolic: simplify a fraction of trig polynomials', ours: () => expression('(sin(x)^2 + cos(x)^2 - 1)*(y*sin(x)^2*cos(x) - 3cos(x)) + sin(x)^2*cos(x)^2/(1 - cos(x))').simplify().toString()},
+    {name: 'symbolic: limit (1 + 1/x)^x at inf', ours: () => expression('(1 + 1/x)^x').limit('x', 'inf').toString()},
+    {name: 'symbolic: limit (sin(x) - x)/x^3 at 0', ours: () => expression('(sin(x) - x)/x^3').limit('x', 0).toString()},
+    {name: 'symbolic: integrate x^2*e^x*sin(x)', ours: () => expression('x^2*e^x*sin(x)').integrate('x').toString(), nerdamer: () => nerdamer.integrate('x^2*e^x*sin(x)', 'x').toString()},
+    {name: 'symbolic: integrate 1/(x^3 - 1)', ours: () => expression('1/(x^3 - 1)').integrate('x').toString(), nerdamer: () => nerdamer.integrate('1/(x^3-1)', 'x').toString()},
+    {name: 'symbolic: integrate 1/(2 + cos(x)) on [0, 2pi]', ours: () => expression('1/(2 + cos(x))').integrate('x', 0, '2pi').toString()},
+    {name: 'symbolic: sum k^2/3^k to inf (Gosper)', ours: () => expression('sum(k^2/3^k, k, 0, inf)').toString()},
+    {name: 'symbolic: solve (x + 1)/(x - 2) >= 0', ours: () => parse('(x + 1)/(x - 2) >= 0').solve('x').toString()},
+    {name: 'symbolic: inverse Laplace (2s + 3)/(s^2 + 4s + 13)', ours: () => expression('(2s + 3)/(s^2 + 4s + 13)').inverseLaplace('s', 't').toString()},
     {name: 'matrices of expressions: determinant 5x5 symbolic', ours: () => expressionMatrix(symbolic5).determinant().toString(), nerdamer: () => nerdamer(`determinant(${nerdamerMatrix(symbolic5)})`).toString()},
     {name: 'matrices of expressions: inverse [a, b; c, d]', ours: () => expressionMatrix('[a, b; c, d]').inverse().toString(), nerdamer: () => nerdamer('invert(matrix([a,b],[c,d]))').toString()},
     {name: 'linalg: multiply 200x200', ours: () => linalg.multiply(a200, b200), mathjs: () => mathjs.multiply(a200, b200)},
