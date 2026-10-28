@@ -1,8 +1,13 @@
 import {link, mkdir, readFile, rename, stat, unlink, writeFile} from 'node:fs/promises'
 import {hostname} from 'node:os'
 import path from 'node:path'
+import {setTimeout as sleep} from 'node:timers/promises'
 import {MutexDriver, type DriverLock} from './MutexDriver.js'
 import {lockToken, nameDigest} from '../lib/Names.js'
+
+//A rename over a lock file another process has open fails on Windows: tried again every RENAME_DELAY milliseconds
+const RENAME_BUSY: string[] = ['EPERM', 'EACCES', 'EBUSY']
+const RENAME_DELAY: number = 5
 
 /**
  * The content of a lock file: its holder (its token, its process and its host), its expiration
@@ -122,10 +127,10 @@ export class FileMutexDriver extends MutexDriver {
      * Remove a lock file when it is still the one read, by renaming it first so that only one process takes it. A file
      * of another holder taken by mistake is put back when its place is still free.
      * @param file The file path.
-     * @param token The token read in the file, or `undefined` for a file which could not be read.
+     * @param same Whether the content of the file taken (`undefined` when it cannot be read) is the one read.
      * @returns Whether the file was removed.
      */
-    protected async take(file: string, token: string | undefined): Promise<boolean> {
+    protected async take(file: string, same: (content: LockFile | undefined) => boolean): Promise<boolean> {
         const taken: string = `${file}.${lockToken()}`
         try {
             await rename(file, taken)
@@ -133,7 +138,7 @@ export class FileMutexDriver extends MutexDriver {
             return false
         }
         const content: LockFile | undefined = await this.read(taken)
-        if (content?.token === token) {
+        if (same(content)) {
             await unlink(taken).catch((): undefined => undefined)
             return true
         }
@@ -165,7 +170,8 @@ export class FileMutexDriver extends MutexDriver {
             }
             const current: LockFile | undefined = await this.read(file)
             if (current ? !this.stale(current) : !(await this.abandoned(file))) return undefined
-            if (!(await this.take(file, current?.token))) return undefined
+            //The file read as stale, not one renewed meanwhile (the same token, a later expiration)
+            if (!(await this.take(file, (content: LockFile | undefined): boolean => content?.token === current?.token && content?.expires === current?.expires))) return undefined
         }
         return undefined
     }
@@ -179,47 +185,46 @@ export class FileMutexDriver extends MutexDriver {
     public async release(name: string, lock: DriverLock): Promise<boolean> {
         const file: string = this.file(name)
         if ((await this.read(file))?.token !== lock.token) return false
-        return await this.take(file, lock.token)
+        //Its own file, even when a renewal still running changed its expiration
+        return await this.take(file, (content: LockFile | undefined): boolean => content?.token === lock.token)
     }
 
     /**
-     * Renew a lock whose file still holds this holder's token, for `ttl` milliseconds from now: the file is taken away
-     * (renamed), checked, rewritten and given back without replacing a lock another process acquired meanwhile (the
-     * renewal fails then). A lock expired is not renewed (lost), even when no other process took it over yet.
+     * Renew a lock whose file still holds this holder's token, for `ttl` milliseconds from now: the new content is
+     * written to a file of its own, then renamed over the lock file, which is replaced at once and never missing (another
+     * process cannot create it meanwhile). A lock expired is not renewed (lost), even when no other process took it over
+     * yet. On Windows, a rename over a file another process is reading is tried again, for a third of `ttl` at most (the
+     * pace of the component's renewals).
      * @param name The lock name.
      * @param lock The lock acquired.
      * @param ttl How long the lock stays held without another renewal, in milliseconds.
      * @returns Whether it was renewed.
+     * @throws {Error} When the new content cannot be written or renamed over the lock file (the component tries again
+     * until the lock expires).
      */
     public async extend(name: string, lock: DriverLock, ttl: number): Promise<boolean> {
         const file: string = this.file(name)
         const current: LockFile | undefined = await this.read(file)
         //Expired: lost, even when nobody took it yet
         if (current?.token !== lock.token || current.expires <= Date.now()) return false
-        //Taken away (renamed: only one taker has it) and checked, renewed, then given back without replacing a lock
-        //acquired meanwhile (linked: it fails when the file exists)
-        const taken: string = `${file}.${lockToken()}`
+        const renewed: string = `${file}.${lockToken()}`
+        await writeFile(renewed, JSON.stringify({...current, expires: Date.now() + ttl} satisfies LockFile))
+        const deadline: number = Date.now() + ttl / 3
         try {
-            await rename(file, taken)
-        } catch {
-            return false
-        }
-        const content: LockFile | undefined = await this.read(taken)
-        if (content?.token !== lock.token) {
-            //Another holder's lock, taken over meanwhile: given back
-            await link(taken, file).catch((): undefined => undefined)
-            await unlink(taken).catch((): undefined => undefined)
-            return false
-        }
-        await writeFile(taken, JSON.stringify({...content, expires: Date.now() + ttl} satisfies LockFile))
-        try {
-            await link(taken, file)
-            return true
-        } catch {
-            //Acquired by another process while it was taken away: lost
-            return false
+            for (; ;) {
+                //Still its own and not expired just before it is replaced: a lock taken over is not overwritten
+                const content: LockFile | undefined = await this.read(file)
+                if (content?.token !== lock.token || content.expires <= Date.now()) return false
+                try {
+                    await rename(renewed, file)
+                    return true
+                } catch (error: unknown) {
+                    if (Date.now() >= deadline || !RENAME_BUSY.includes((error as NodeJS.ErrnoException).code!)) throw error
+                }
+                await sleep(RENAME_DELAY)
+            }
         } finally {
-            await unlink(taken).catch((): undefined => undefined)
+            await unlink(renewed).catch((): undefined => undefined)
         }
     }
 

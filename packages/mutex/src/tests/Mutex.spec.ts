@@ -210,6 +210,28 @@ describe('The locks', (): void => {
         assert.ok(await files.release('b', taker))
     })
 
+    it('never lets another holder in while a lock file is renewed', async (): Promise<void> => {
+        //A lock of a minute renewed without pause, another holder trying to acquire it without pause: the file is
+        //replaced at each renewal, never missing, so the other holder never gets it
+        const holder: FileMutexDriver = new FileMutexDriver(directory, 'test:renewing:')
+        const other: FileMutexDriver = new FileMutexDriver(directory, 'test:renewing:')
+        const held = (await holder.acquire('c', 60000))!
+        const end: number = Date.now() + 1000
+        let renewals: number = 0
+        let taken: number = 0
+        await Promise.all([
+            (async (): Promise<void> => {
+                while (Date.now() < end) if (await holder.extend('c', held, 60000)) renewals++
+            })(),
+            (async (): Promise<void> => {
+                while (Date.now() < end) if (await other.acquire('c', 60000)) taken++
+            })()
+        ])
+        assert.strictEqual(taken, 0)
+        assert.ok(renewals > 0)
+        assert.ok(await holder.release('c', held))
+    })
+
     it('tries once with a timeout of 0, the round trip of a slow store included', async (): Promise<void> => {
         //A store answering in 20 ms: the attempt is not cut short by the timeout
         const acquire: MemoryMutexDriver['acquire'] = MemoryMutexDriver.prototype.acquire
