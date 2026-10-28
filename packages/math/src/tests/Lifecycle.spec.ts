@@ -40,7 +40,8 @@ if (!isMainThread && workerData === 'operations') {
 
         it('do not crash the process exiting while they run', (): void => {
             for (let round: number = 0; round < 12; round++) {
-                const child = spawnSync(process.execPath, [FILE], {env: {...process.env, LAKUTATA_MATH_EXIT_TEST: String(1 + round % 6)}, encoding: 'utf8'})
+                //(ELECTRON_RUN_AS_NODE: in the main process of Electron, process.execPath is Electron)
+                const child = spawnSync(process.execPath, [FILE], {env: {...process.env, LAKUTATA_MATH_EXIT_TEST: String(1 + round % 6), ELECTRON_RUN_AS_NODE: '1'}, encoding: 'utf8'})
                 assert.strictEqual(child.status, 0, `round ${round}: ${child.signal ?? ''} ${child.stderr}`)
             }
         })

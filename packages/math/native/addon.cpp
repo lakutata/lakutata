@@ -4,6 +4,7 @@
 #include <napi.h>
 
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <optional>
 #include <iterator>
@@ -361,6 +362,24 @@ Job decimalOperationJob(const Napi::Array &arguments)
     };
 }
 
+//Whether the elements of a typed array are aligned for their type: V8 with pointer compression (Electron) may keep the
+//elements of a small typed array in its heap 4-byte aligned, where Eigen's maps assert ("data is not scalar-aligned")
+//and reads of their type are not defined
+template <typename T>
+bool aligned(const T *data)
+{
+    return reinterpret_cast<std::uintptr_t>(data) % alignof(T) == 0;
+}
+
+//The elements of a typed array, copied by their bytes (aligned or not)
+template <typename T>
+std::vector<T> elementsOf(const Napi::TypedArrayOf<T> &array)
+{
+    std::vector<T> elements(array.ElementLength());
+    if (!elements.empty()) std::memcpy(elements.data(), array.Data(), elements.size() * sizeof(T));
+    return elements;
+}
+
 //A matrix given as [rows, columns, Float64Array] (its elements row-major)
 MatrixArgument matrixArgumentOf(const Napi::Value &value)
 {
@@ -381,8 +400,8 @@ MatrixArgument matrixArgumentOf(const Napi::Value &value)
     if (static_cast<double>(elements.ElementLength()) != static_cast<double>(matrix.rows) * static_cast<double>(matrix.columns)) {
         throw MathError(ErrorCode::Argument, "A matrix of " + std::to_string(matrix.rows) + "×" + std::to_string(matrix.columns) + " has " + std::to_string(elements.ElementLength()) + " elements");
     }
-    if (copyingArguments) {
-        matrix.owned = std::make_shared<const std::vector<double>>(elements.Data(), elements.Data() + elements.ElementLength());
+    if (copyingArguments || !aligned(elements.Data())) {
+        matrix.owned = std::make_shared<const std::vector<double>>(elementsOf(elements));
         matrix.values = matrix.owned->data();
     } else {
         matrix.values = elements.Data();
@@ -451,10 +470,10 @@ SparseArgument sparseArgumentOf(const Napi::Value &value)
     if (pointers.ElementLength() != matrix.rows + 1) throw MathError(ErrorCode::Argument, "A sparse matrix of " + std::to_string(matrix.rows) + " rows has " + std::to_string(pointers.ElementLength()) + " row pointers");
     if (indices.ElementLength() != values.ElementLength()) throw MathError(ErrorCode::Argument, "A sparse matrix has " + std::to_string(indices.ElementLength()) + " columns of entries and " + std::to_string(values.ElementLength()) + " values");
     matrix.entries = values.ElementLength();
-    if (copyingArguments) {
-        matrix.ownedPointers = std::make_shared<const std::vector<int32_t>>(pointers.Data(), pointers.Data() + pointers.ElementLength());
-        matrix.ownedIndices = std::make_shared<const std::vector<int32_t>>(indices.Data(), indices.Data() + indices.ElementLength());
-        matrix.ownedValues = std::make_shared<const std::vector<double>>(values.Data(), values.Data() + values.ElementLength());
+    if (copyingArguments || !aligned(pointers.Data()) || !aligned(indices.Data()) || !aligned(values.Data())) {
+        matrix.ownedPointers = std::make_shared<const std::vector<int32_t>>(elementsOf(pointers));
+        matrix.ownedIndices = std::make_shared<const std::vector<int32_t>>(elementsOf(indices));
+        matrix.ownedValues = std::make_shared<const std::vector<double>>(elementsOf(values));
         matrix.pointers = matrix.ownedPointers->data();
         matrix.indices = matrix.ownedIndices->data();
         matrix.values = matrix.ownedValues->data();
@@ -541,8 +560,8 @@ Job statisticsJob(const Napi::Array &arguments)
         const Napi::Float64Array elements = value.As<Napi::Float64Array>();
         VectorArgument vector;
         vector.size = elements.ElementLength();
-        if (copyingArguments) {
-            vector.owned = std::make_shared<const std::vector<double>>(elements.Data(), elements.Data() + elements.ElementLength());
+        if (copyingArguments || !aligned(elements.Data())) {
+            vector.owned = std::make_shared<const std::vector<double>>(elementsOf(elements));
             vector.values = vector.owned->data();
         } else {
             vector.values = elements.Data();
@@ -581,6 +600,17 @@ uint64_t *generatorStateAt(const Napi::Array &arguments, uint32_t index)
     return state.Data();
 }
 
+//An operation on the state of a generator, on an aligned copy written back after (see aligned())
+template <typename F>
+auto withState(uint64_t *state, F &&operation)
+{
+    uint64_t words[4];
+    std::memcpy(words, state, sizeof(words));
+    auto result = operation(words);
+    std::memcpy(state, words, sizeof(words));
+    return result;
+}
+
 size_t countAt(const Napi::Array &arguments, uint32_t index)
 {
     const double count = numberAt(arguments, index, "The count");
@@ -615,7 +645,7 @@ Job distributionJob(const Napi::Array &arguments)
     if (function == "sample") {
         const size_t count = countAt(arguments, 3);
         uint64_t *state = generatorStateAt(arguments, 4);
-        return [name, parameters, count, state] { return vectorBuilder(sampleDistribution(name, parameters, count, state)); };
+        return [name, parameters, count, state] { return withState(state, [&name, &parameters, count](uint64_t *words) { return vectorBuilder(sampleDistribution(name, parameters, count, words)); }); };
     }
     const Napi::Value data = arguments.Get(3u);
     if (!data.IsTypedArray() || data.As<Napi::TypedArray>().TypedArrayType() != napi_float64_array) throw MathError(ErrorCode::Argument, "The values of a distribution are a Float64Array");
@@ -632,17 +662,21 @@ Job randomJob(const Napi::Array &arguments)
     if (operation == "seed") {
         const Napi::Value value = arguments.Get(2u);
         if (!value.IsTypedArray() || value.As<Napi::TypedArray>().TypedArrayType() != napi_biguint64_array) throw MathError(ErrorCode::Argument, "The seed is a BigUint64Array");
-        const uint64_t seed = value.As<Napi::TypedArrayOf<uint64_t>>().Data()[0];
+        const std::vector<uint64_t> words = elementsOf(value.As<Napi::TypedArrayOf<uint64_t>>());
+        if (words.empty()) throw MathError(ErrorCode::Argument, "The seed is a BigUint64Array of one word");
+        const uint64_t seed = words[0];
         return [state, seed] {
-            seedGenerator(seed, state);
-            return vectorBuilder({});
+            return withState(state, [seed](uint64_t *words) {
+                seedGenerator(seed, words);
+                return vectorBuilder({});
+            });
         };
     }
     const size_t count = countAt(arguments, 2);
-    if (operation == "uniform") return [count, state] { return vectorBuilder(uniformNumbers(count, state)); };
+    if (operation == "uniform") return [count, state] { return withState(state, [count](uint64_t *words) { return vectorBuilder(uniformNumbers(count, words)); }); };
     if (operation == "integers") {
         const double lower = numberAt(arguments, 3, "The lower bound"), upper = numberAt(arguments, 4, "The upper bound");
-        return [count, state, lower, upper] { return vectorBuilder(uniformIntegers(count, lower, upper, state)); };
+        return [count, state, lower, upper] { return withState(state, [count, lower, upper](uint64_t *words) { return vectorBuilder(uniformIntegers(count, lower, upper, words)); }); };
     }
     throw MathError(ErrorCode::Argument, "Unknown operation of a random generator: " + operation);
 }
@@ -681,7 +715,8 @@ Job polynomialRootsJob(const Napi::Array &arguments)
     std::string variable;
     if (first.IsTypedArray() && first.As<Napi::TypedArray>().TypedArrayType() == napi_float64_array) {
         const Napi::Float64Array given = first.As<Napi::Float64Array>();
-        coefficients = std::vector<std::complex<double>>(given.Data(), given.Data() + given.ElementLength());
+        const std::vector<double> values = elementsOf(given);
+        coefficients = std::vector<std::complex<double>>(values.begin(), values.end());
     } else {
         polynomial = expressionAt(arguments, 0);
         variable = stringAt(arguments, 1, "The variable");
@@ -727,7 +762,7 @@ Job solveSystemJob(const Napi::Array &arguments)
     const Napi::Value given = arguments.Get(2u);
     if (!given.IsTypedArray() || given.As<Napi::TypedArray>().TypedArrayType() != napi_float64_array) throw MathError(ErrorCode::Argument, "The guess is a Float64Array");
     const Napi::Float64Array values = given.As<Napi::Float64Array>();
-    const std::vector<double> guess(values.Data(), values.Data() + values.ElementLength());
+    const std::vector<double> guess = elementsOf(values);
     const double tolerance = numberAt(arguments, 3, "The tolerance");
     const size_t iterations = iterationsAt(arguments, 4);
     return [equations, variables, guess, tolerance, iterations] {
@@ -745,7 +780,7 @@ Job integrateJob(const Napi::Array &arguments)
     const Napi::Value given = arguments.Get(4u);
     if (!given.IsTypedArray() || given.As<Napi::TypedArray>().TypedArrayType() != napi_float64_array) throw MathError(ErrorCode::Argument, "The points are a Float64Array");
     const Napi::Float64Array values = given.As<Napi::Float64Array>();
-    const std::vector<double> points(values.Data(), values.Data() + values.ElementLength());
+    const std::vector<double> points = elementsOf(values);
     const double tolerance = numberAt(arguments, 5, "The tolerance");
     return [function, variable, a, b, points, tolerance] {
         const IntegralResult result = integralOf(function, variable, a, b, points, tolerance);
@@ -772,7 +807,7 @@ Job solveODEJob(const Napi::Array &arguments)
         const Napi::Value given = arguments.Get(index);
         if (!given.IsTypedArray() || given.As<Napi::TypedArray>().TypedArrayType() != napi_float64_array) throw MathError(ErrorCode::Argument, std::string(what) + " are a Float64Array");
         const Napi::Float64Array values = given.As<Napi::Float64Array>();
-        return std::vector<double>(values.Data(), values.Data() + values.ElementLength());
+        return elementsOf(values);
     };
     const std::vector<double> initial = arrayAt(5, "The initial values");
     ODEOptions options;
@@ -1275,9 +1310,11 @@ Napi::Value CallBatch(const Napi::CallbackInfo &info)
     const size_t width = compiled->inputs;
     if (width == 0 ? inputs.ElementLength() != 0 : inputs.ElementLength() % width != 0) throw MathError(ErrorCode::Argument, "The inputs are rows of " + std::to_string(width) + " values");
     const size_t rows = width == 0 ? 1 : inputs.ElementLength() / width;
-    Napi::Float64Array results = Napi::Float64Array::New(info.Env(), rows);
-    for (size_t row = 0; row < rows; row++) compiled->call(results.Data() + row, inputs.Data() + row * width);
-    return results;
+    //(on aligned copies, see aligned())
+    const std::vector<double> given = elementsOf(inputs);
+    std::vector<double> values(rows);
+    for (size_t row = 0; row < rows; row++) compiled->call(values.data() + row, given.data() + row * width);
+    return float64ArrayOf(info.Env(), values);
 }
 
 //token(): a token of cancellation; cancel(token, reason): cancel the operations given it ('cancelled' or 'timeout')

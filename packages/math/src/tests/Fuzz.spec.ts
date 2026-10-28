@@ -19,7 +19,8 @@ describe('The random formulas', (): void => {
         try {
             const seed: string = process.env.LAKUTATA_MATH_FUZZ_SEED ?? '20261026'
             const iterations: string = process.env.LAKUTATA_MATH_FUZZ_ITERATIONS ?? '600'
-            const child = spawnSync(process.execPath, [RUNNER, '--seed', seed, '--iterations', iterations, '--log', log], {encoding: 'utf8', maxBuffer: 1 << 26})
+            //(ELECTRON_RUN_AS_NODE: in the main process of Electron, process.execPath is Electron, whose apps do not end)
+            const child = spawnSync(process.execPath, [RUNNER, '--seed', seed, '--iterations', iterations, '--log', log], {env: {...process.env, ELECTRON_RUN_AS_NODE: '1'}, encoding: 'utf8', maxBuffer: 1 << 26})
             const lines: string[] = readFileSync(log, 'utf8').trim().split('\n')
             assert.strictEqual(child.status, 0, `the fuzzing process ended (${child.signal ?? child.status}) at the case ${lines[lines.length - 1]} of the seed ${seed}: ${child.stderr}`)
             const summary = JSON.parse(child.stdout)
