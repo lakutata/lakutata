@@ -284,8 +284,8 @@ await scope.expression('(x + y + z + 1)^500').expandAsync({signal: controller.si
   `MathTimeoutException`, and an aborted `signal` with `MathCancelledException`. The time spent waiting for a free
   thread does not count.
 - A cancelled operation stops at the next point where it checks for a cancellation, between the steps of its work. A
-  single step (a decomposition by Eigen, a large product) runs to its end, and the thread is free only then: the
-  promise is rejected at the time limit, while the work may go on for a while.
+  single step (a decomposition of a matrix by Eigen, a derivative by SymEngine) runs to its end, and the thread is free
+  only then: the promise is rejected at the time limit, while the work may go on for a while.
 - `concurrency` (an option of `createMath()`) limits how many operations of a scope run at the same time; the others
   wait their turn.
 

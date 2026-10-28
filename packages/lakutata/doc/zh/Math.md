@@ -225,7 +225,7 @@ await scope.expression('(x + y + z + 1)^500').expandAsync({signal: controller.si
 
 - 原生插件的线程数是处理器核数减一，或者环境变量 `LAKUTATA_MATH_THREADS` 给出的数。它们不是 libuv 的线程池，所以程序的文件读写和 DNS 查询不用等它们。
 - `timeout`（`createMath()` 的选项，也可以在单次调用时给出；默认不限时）到时后，运算以 `MathTimeoutException` 拒绝；`signal` 取消时，以 `MathCancelledException` 拒绝。等待空闲线程的时间不计入时限。
-- 被取消的运算会在下一个检查点停下，检查点在运算的各个步骤之间。单个步骤（Eigen 的一次分解、一次很大的乘法）会执行到底，线程要到那时才空出来：Promise 在时限到时就被拒绝，但计算可能还要继续一会儿。
+- 被取消的运算会在下一个检查点停下，检查点在运算的各个步骤之间。单个步骤（Eigen 对矩阵的一次分解、SymEngine 的一次求导）会执行到底，线程要到那时才空出来：Promise 在时限到时就被拒绝，但计算可能还要继续一会儿。
 - `concurrency`（`createMath()` 的选项）限制一个范围里同时执行的运算数，其余的运算排队等待。
 
 ## 12. 在应用中使用

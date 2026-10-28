@@ -324,7 +324,7 @@ console.log(expression('1/(sqrt(3) - sqrt(2))').simplify().toString())     //sqr
 
 `linalg.sparse(rows, columns, entries)` 用条目 `[row, column, value]` 构造一个 `SparseMatrix`（同一位置的条目相加），`linalg.sparse(matrix)` 则取稠密矩阵中不为 0 的元素。它按压缩行格式存储（CSR：`rowPointers`、`columnIndices`、`values`）。它的方法有 `get`、`transpose`、`add`、`sub`、`neg`、`mul`（乘数字、向量、稠密矩阵或稀疏矩阵，乘稀疏矩阵时由 Eigen 计算）、`toDense` 和 `toEntries`。`solve` 传入稀疏矩阵时使用 Eigen 的稀疏 LU 分解（`SparseLU`，按 COLAMD 排序）：它无法分解的矩阵（例如有一行全是 0）就是奇异的。`conjugateGradient`（用于对称正定矩阵）和 `biconjugateGradientStabilized`（BiCGSTAB，用于任意方阵）反复迭代，直到相对残差 `‖b - A x‖ / ‖b‖` 不超过 `tolerance`（默认 1e-10），最多迭代 `maxIterations` 次（默认是方程组规模的 10 倍）；`converged` 表示是否达到了容差，传入 `guess` 可以从上一次的解继续迭代。
 
-大矩阵上耗时的运算都有异步版本（`solveAsync()`、`inverseAsync()`、`multiplyAsync()` 等），它们在调用时就复制好参数。Eigen 的计算不能中途停下：超过时限或被取消时，Promise 会被拒绝，但线程要把这次计算做完才能空出来。
+大矩阵上耗时的运算都有异步版本（`solveAsync()`、`inverseAsync()`、`multiplyAsync()` 等），它们在调用时就复制好参数。Eigen 的一次计算不能中途停下：超过时限或被取消时，Promise 会被拒绝，但线程要把正在进行的这次计算做完才能空出来。由几次计算组成的运算（`inverse()`、`leastSquares()`、`exponential()`）会在两次计算之间停下。
 
 ```typescript
 import {linalg, matrix} from '@lakutata/math'
@@ -514,7 +514,7 @@ console.log(blowUp.completed, blowUp.message)                  //false The step 
 
 可能耗时的运算都有异步版本：`expandAsync()`、`simplifyAsync()`、`diffAsync()`、`seriesAsync()`、`limitAsync()`、`integrateAsync()`、`laplaceAsync()`、`inverseLaplaceAsync()`、`solveAsync()`、`toDecimalAsync()`、`toComplexDecimalAsync()`、`solveAsync()` 和 `cseAsync()`，以及数论、线性代数和数值解的异步版本。它们在原生插件自己的线程里执行，不占用 libuv 的线程池：线程数默认是 CPU 核数减一，也可以用环境变量 `LAKUTATA_MATH_THREADS` 指定。选项有 `timeout`（毫秒）和 `signal`（`AbortSignal`）：
 
-- 到了时限，Promise 以 `MathTimeoutException` 拒绝；signal 取消时，以 `MathCancelledException` 拒绝。有检查点的运算（展开、十进制计算、线性方程组、数论）会在下一个检查点停下；其他运算会先算完，线程才空出来。
+- 到了时限，Promise 以 `MathTimeoutException` 拒绝；signal 取消时，以 `MathCancelledException` 拒绝。运算会在下一个检查点停下：原生插件的算法在各个步骤之间都会检查是否已被取消（展开的各项、十进制数级数的各项、消元的各列、数值方法和数论的各次迭代、化简、极限和积分的各次尝试等）。单个步骤会执行到底，线程要到那时才空出来：例如 Eigen 的一次计算（一次分解、一次矩阵乘法），以及 SymEngine 里除展开以外的一次运算（求导、级数）。
 - `createMath()` 创建的范围限制自己同时执行的运算数（`concurrency`），其余的运算排队等待。如果程序在运算还没结束时退出，这些运算的结果会被丢弃。
 
 表达式最多嵌套 1000 层：更深的公式会被拒绝（`MathNotSupportedException`），以免运算时栈溢出。

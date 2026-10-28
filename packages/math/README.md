@@ -575,9 +575,10 @@ falls to `tolerance` (1e-10 by default), within `maxIterations` iterations (10 t
 `converged` tells whether they did, and a `guess` lets a call go on from the solution of an earlier one.
 
 The operations that take long on large matrices have asynchronous versions (`solveAsync()`, `inverseAsync()`,
-`multiplyAsync()`…), which copy their arguments when they are called. Eigen's computations cannot be interrupted: past
-the time limit or when the operation is cancelled, the promise is rejected, but its thread finishes the work before it
-is free again.
+`multiplyAsync()`…), which copy their arguments when they are called. A computation of Eigen cannot be interrupted: past
+the time limit or when the operation is cancelled, the promise is rejected, but its thread finishes the computation it
+is in before it is free again. An operation made of several of them (`inverse()`, `leastSquares()`, `exponential()`)
+stops between two of them.
 
 ```typescript
 import {linalg, matrix} from '@lakutata/math'
@@ -883,8 +884,11 @@ thread pool of libuv: as many threads as the processor has cores, minus one, or 
 `LAKUTATA_MATH_THREADS`. Their options are `timeout` (milliseconds) and `signal` (an `AbortSignal`):
 
 - At the time limit the promise is rejected with `MathTimeoutException`, and with `MathCancelledException` when the
-  signal aborts. Operations with checkpoints (expansions, decimals, linear systems, the number theory) stop at the next
-  one; the others run to the end before their thread is free again.
+  signal aborts. The operation stops at its next checkpoint: the algorithms of the addon check for a cancellation
+  between their steps (the terms of an expansion or of the series of a decimal, the columns of an elimination, the
+  iterations of the numeric methods and of the number theory, the attempts of a simplification, of a limit or of an
+  integral…). A single step runs to its end before the thread is free again: a computation of Eigen (a decomposition, a
+  product of matrices), an operation of SymEngine other than an expansion (a derivative, a series).
 - A scope of `createMath()` limits how many of its operations run at the same time (`concurrency`): the others wait
   their turn. If the program exits while some are running, their results are dropped.
 
