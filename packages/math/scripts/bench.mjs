@@ -108,6 +108,10 @@ const cases = [
     })(), mathjs: () => (1 + mathjs.erf((0.5 - 1) / (2 * Math.SQRT2))) / 2},
     {name: 'decimals: sqrt(2), 1000 digits', ours: () => precise.decimal(2).sqrt().toString(), mathjs: () => big1000.sqrt(big1000.bignumber(2)).toString()},
     {name: 'decimals: exp(1), 1000 digits', ours: () => precise.decimal(1).exp().toString(), mathjs: () => big1000.exp(big1000.bignumber(1)).toString()},
+    {name: 'decimals: gamma(1/3), 50 digits', ours: () => expression('gamma(1/3)').toDecimal(50)},
+    {name: 'decimals: gamma(1/3), 1000 digits', ours: () => expression('gamma(1/3)').toDecimal(1000)},
+    {name: 'decimals: zeta(3), 1000 digits', ours: () => expression('zeta(3)').toDecimal(1000)},
+    {name: 'decimals: sin(10^1000), 20 digits', ours: () => expression('sin(10^1000)').toDecimal(20)},
     {name: 'decimals: 0.1 + 0.2, 32 digits', ours: () => decimal('0.1').add('0.2').toString(), mathjs: (() => {
         const big32 = mathjs ? big(32) : undefined
         return () => big32.add(big32.bignumber('0.1'), big32.bignumber('0.2')).toString()

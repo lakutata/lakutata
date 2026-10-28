@@ -82,8 +82,11 @@ Decimal sinOrCos(const DecimalContext &context, const Decimal &x, bool cosine)
     const int64_t small = smallDigits(g, r);
     const DecimalContext h(g.digits() + (shift % 2 == 1 ? 0 : small));
     if (shift % 2 == 0 && small > 0) r = h.sub(x, h.mul(turns, h.div(h.pi(), h.integer(2))));
-    Decimal value = sinCosSeries(h, r, shift % 2 == 1);
-    if (shift >= 2) value = h.neg(value);
+    //The series at the digits of the context only: r has them, the digits of x above its point were for the reduction
+    //(sin(10^10000) to 20 digits took a series of 10000)
+    const DecimalContext series(context.digits() + 15);
+    Decimal value = sinCosSeries(series, series.round(r), shift % 2 == 1);
+    if (shift >= 2) value = series.neg(value);
     return context.round(value);
 }
 
@@ -241,29 +244,26 @@ Decimal DecimalContext::log10(const Decimal &a) const
 
 Decimal DecimalContext::ln10() const
 {
-    //The ln 10 of the most digits computed in this thread: fewer digits are its rounding
-    thread_local Decimal cached;
-    thread_local long cachedDigits = 0;
-    if (cachedDigits >= digits() + 10) return round(cached);
-    //ln 10 = 6 atanh(1/3) + 2 atanh(1/9) (ln 2 = 2 atanh(1/3), ln 5/4 = 2 atanh(1/9)); atanh(1/q) = Σ 1/((2j + 1) q^(2j + 1))
-    const DecimalContext g(digits() + 20);
-    auto atanhInverse = [&g](long long q) {
-        const Decimal square = g.integer(q * q);
-        const Decimal limit = negligible(g);
-        Decimal power = g.div(g.integer(1), g.integer(q));
-        Decimal sum = power;
-        for (long long j = 1;; j++) {
-            power = g.div(power, square);
-            const Decimal term = g.div(power, g.integer(2 * j + 1));
-            if (g.compare(term, limit) < 0) break;
-            sum = g.add(sum, term);
-            if (j % 64 == 0) checkpoint();
-        }
-        return sum;
-    };
-    cached = g.add(g.mul(g.integer(6), atanhInverse(3)), g.mul(g.integer(2), atanhInverse(9)));
-    cachedDigits = g.digits();
-    return round(cached);
+    static SharedConstant constant;
+    return constant.at(*this, 20, [](const DecimalContext &g) {
+        //ln 10 = 6 atanh(1/3) + 2 atanh(1/9) (ln 2 = 2 atanh(1/3), ln 5/4 = 2 atanh(1/9));
+        //atanh(1/q) = Σ 1/((2j + 1) q^(2j + 1))
+        auto atanhInverse = [&g](long long q) {
+            const Decimal square = g.integer(q * q);
+            const Decimal limit = negligible(g);
+            Decimal power = g.div(g.integer(1), g.integer(q));
+            Decimal sum = power;
+            for (long long j = 1;; j++) {
+                power = g.div(power, square);
+                const Decimal term = g.div(power, g.integer(2 * j + 1));
+                if (g.compare(term, limit) < 0) break;
+                sum = g.add(sum, term);
+                if (j % 64 == 0) checkpoint();
+            }
+            return sum;
+        };
+        return g.add(g.mul(g.integer(6), atanhInverse(3)), g.mul(g.integer(2), atanhInverse(9)));
+    });
 }
 
 Decimal DecimalContext::asin(const Decimal &a) const

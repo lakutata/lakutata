@@ -209,30 +209,29 @@ bool DecimalContext::isNegative(const Decimal &a) const
 
 Decimal DecimalContext::pi() const
 {
-    //The π of the most digits computed in this thread: fewer digits are its rounding (the trigonometric functions use
-    //π at each call)
-    thread_local Decimal cached;
-    thread_local long cachedDigits = 0;
-    if (cachedDigits >= digits() + 10) return round(cached);
-    //Machin: π = 16 atan(1/5) - 4 atan(1/239), atan(1/x) = Σ (-1)^k / ((2k + 1) x^(2k + 1)), with guard digits
-    DecimalContext guarded(digits() + 10);
-    auto arctangentOfInverse = [&guarded](long x) {
-        const Decimal square = guarded.parse(std::to_string(x * x));
-        Decimal power = guarded.div(guarded.parse("1"), guarded.parse(std::to_string(x)));
-        Decimal sum = power;
-        const Decimal limit = guarded.pow(guarded.parse("10"), guarded.parse(std::to_string(-guarded.digits() - 2)));
-        for (long k = 1;; k++) {
-            if (k % 64 == 0) checkpoint();
-            power = guarded.div(power, square);
-            const Decimal term = guarded.div(power, guarded.parse(std::to_string(2 * k + 1)));
-            if (guarded.compare(term, limit) < 0) break;
-            sum = k % 2 ? guarded.sub(sum, term) : guarded.add(sum, term);
+    //Shared (the trigonometric functions use π at each call)
+    static SharedConstant constant;
+    return constant.at(*this, 10, [](const DecimalContext &guarded) {
+        //Gauss and Legendre (the arithmetic-geometric mean), the digits doubled at each step: a = 1, b = 1/√2, t = 1/4,
+        //then a' = (a + b)/2, b' = √(ab), t' = t - p (a - a')^2, p' = 2p, and π = (a + b)^2/(4t) (Machin's series took
+        //200 ms for 10000 digits)
+        const DecimalContext g(guarded.digits() + 10);
+        const Decimal two = g.integer(2);
+        Decimal a = g.integer(1), b = g.div(a, g.sqrt(two)), t = g.div(a, g.integer(4)), p = a;
+        const Decimal limit = g.parse("1e-" + std::to_string(g.digits() / 2 + 2));
+        for (;;) {
+            const Decimal next = g.div(g.add(a, b), two);
+            const Decimal difference = g.sub(a, next);
+            b = g.sqrt(g.mul(a, b));
+            t = g.sub(t, g.mul(p, g.mul(difference, difference)));
+            p = g.mul(p, two);
+            a = next;
+            if (g.compare(g.abs(difference), limit) < 0) break;
+            checkpoint();
         }
-        return sum;
-    };
-    cached = guarded.sub(guarded.mul(guarded.parse("16"), arctangentOfInverse(5)), guarded.mul(guarded.parse("4"), arctangentOfInverse(239)));
-    cachedDigits = guarded.digits();
-    return round(cached);
+        const Decimal sum = g.add(a, b);
+        return guarded.round(g.div(g.mul(sum, sum), g.mul(g.integer(4), t)));
+    });
 }
 
 std::string DecimalContext::text(const Decimal &a, long digits) const

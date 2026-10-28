@@ -451,10 +451,10 @@ void checkPositive(const Integer &n, const std::string &what)
 
 }
 
-std::vector<std::pair<Integer, Integer>> evenBernoulli(unsigned long m)
+std::vector<Integer> tangentNumbers(unsigned long m)
 {
-    //From the tangent numbers, integers only (Brent and Harvey, "Fast computation of Bernoulli, tangent and secant
-    //numbers", 2011): T(1)… T(m) at once
+    //Integers only (Brent and Harvey, "Fast computation of Bernoulli, tangent and secant numbers", 2011): T(1)… T(m) at
+    //once
     std::vector<Integer> tangent(m + 1);
     if (m >= 1) tangent[1] = 1;
     for (unsigned long k = 2; k <= m; k++) tangent[k] = (k - 1) * tangent[k - 1];
@@ -462,6 +462,12 @@ std::vector<std::pair<Integer, Integer>> evenBernoulli(unsigned long m)
         for (unsigned long j = k; j <= m; j++) tangent[j] = (j - k) * tangent[j - 1] + (j - k + 2) * tangent[j];
         checkpoint();
     }
+    return tangent;
+}
+
+std::vector<std::pair<Integer, Integer>> evenBernoulli(unsigned long m)
+{
+    const std::vector<Integer> tangent = tangentNumbers(m);
     //B(2k) = (-1)^(k - 1) 2k T(k) / (4^k (4^k - 1))
     std::vector<std::pair<Integer, Integer>> numbers;
     for (unsigned long k = 1; k <= m; k++) {

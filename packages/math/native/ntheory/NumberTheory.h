@@ -43,6 +43,9 @@ struct NumberTheoryResult {
 //An operation by its name, on its arguments: each argument a list of integers (of one integer for a single one)
 NumberTheoryResult numberTheoryOf(const std::string &operation, const std::vector<std::vector<Integer>> &arguments);
 
+//The tangent numbers T(1)… T(m) (index 0 unused): B(2k) = (-1)^(k - 1) 2k T(k) / (4^k (4^k - 1))
+std::vector<Integer> tangentNumbers(unsigned long m);
+
 //The Bernoulli numbers B(2), B(4)… B(2m), as numerator and denominator
 std::vector<std::pair<Integer, Integer>> evenBernoulli(unsigned long m);
 

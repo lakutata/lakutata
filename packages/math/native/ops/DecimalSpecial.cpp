@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <cmath>
 #include <initializer_list>
+#include <iterator>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -19,27 +21,146 @@ namespace math {
 
 namespace {
 
-//The Bernoulli numbers B(2)… B(2m) of this thread, exact: computed again, for twice as many, when more are asked
-const std::vector<std::pair<std::string, std::string>> &bernoulliTexts(unsigned long m)
-{
-    thread_local std::vector<std::pair<std::string, std::string>> texts;
-    if (texts.size() < m) {
-        const unsigned long count = std::max<unsigned long>(m, 2 * texts.size());
-        texts.clear();
-        for (const auto &[numerator, denominator] : evenBernoulli(count)) texts.emplace_back(numerator.str(), denominator.str());
-    }
-    return texts;
-}
-
-//B(2k), k >= 1, at the precision of a context
-Decimal bernoulli(const DecimalContext &g, unsigned long k)
-{
-    const auto &texts = bernoulliTexts(k);
-    return g.div(DecimalContext::exact(texts[k - 1].first), DecimalContext::exact(texts[k - 1].second));
-}
-
 //The terms of the asymptotic series are taken up to this many Bernoulli numbers: past them, the argument is taken larger
 constexpr unsigned long MOST_TERMS = 2500;
+
+//An integer as an exact decimal: its words of 30 bits imported (a text of thousands of digits took far longer)
+Decimal exactDecimal(const Integer &n)
+{
+    std::vector<uint32_t> words;
+    boost::multiprecision::export_bits(n < 0 ? Integer(-n) : n, std::back_inserter(words), 30, false);
+    if (words.empty()) words.push_back(0);
+    mpd_context_t context;
+    mpd_maxcontext(&context);
+    Decimal result;
+    uint32_t status = 0;
+    mpd_qimport_u32(result.get(), words.data(), words.size(), n < 0 ? MPD_NEG : MPD_POS, 1u << 30, &context, &status);
+    DecimalContext::check(status);
+    return result;
+}
+
+//The Bernoulli numbers B(2)… B(2K) of the process, at the most digits asked so far. B(2k) of a small k is exact,
+//2k T(k)/(4^k (4^k - 1)) of the tangent numbers (the fraction not reduced); past them, (-1)^(k + 1) 2 (2k)! ζ(2k)/(2π)^2k,
+//the factor of k from the one of k - 1, the few terms of ζ(2k) divided by n^2 from k - 1 (the tangent numbers of 1500
+//numbers, for 3000 digits, took seconds; as many past Q/5 for Q digits, ζ(2k) has fewer than 320 terms). Computed again
+//for more numbers (as many as the series expects) and more digits when they are asked. The threads of the pool share it
+//(an operation runs on any of them)
+class BernoulliTable {
+public:
+    Decimal at(const DecimalContext &g, unsigned long k, unsigned long expected)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        const unsigned long size = static_cast<unsigned long>(values_.size());
+        if (k > size || g.digits() > digits_) {
+            //As many as the series expects, a quarter more when it expects fewer than it asks
+            unsigned long count = std::max({k, std::min(expected, MOST_TERMS), size});
+            if (k > size && expected < k) count = std::max(count, size + size / 4);
+            build(count, std::max(g.digits(), digits_));
+        }
+        return g.round(values_[k - 1]);
+    }
+
+private:
+    //B(2)… B(2K) to Q digits
+    void build(unsigned long count, long digits)
+    {
+        const DecimalContext h(digits + 12);
+        //The exact ones: at least to (Q + 12)/5, computed for (Q + 12)/4 when there are fewer
+        const unsigned long least = std::min(count, static_cast<unsigned long>(h.digits() / 5 + 1));
+        if (numerators_.size() < least) exact(std::min(count, static_cast<unsigned long>(h.digits() / 4 + 1)));
+        const unsigned long exactCount = std::min(count, static_cast<unsigned long>(numerators_.size()));
+        std::vector<Decimal> values;
+        for (unsigned long k = 1; k <= exactCount; k++) {
+            values.push_back(h.div(numerators_[k - 1], denominators_[k - 1]));
+            if (k % 64 == 0) checkpoint();
+        }
+        if (count > exactCount) {
+            //n^-2k of k = K0, n from 2 while above the digits (of the smallest prime factor p of n: p^-2k (n/p)^-2k)
+            const long long first = static_cast<long long>(exactCount);
+            const long long most = static_cast<long long>(std::ceil(std::pow(10.0, static_cast<double>(h.digits()) / (2.0 * static_cast<double>(first))))) + 1;
+            std::vector<long long> smallest(static_cast<size_t>(most) + 1, 0);
+            std::vector<Decimal> powers(static_cast<size_t>(most) + 1);
+            Decimal zeta = h.integer(1);
+            for (long long n = 2; n <= most; n++) {
+                if (!smallest[n]) {
+                    for (long long m = n; m <= most; m += n) {
+                        if (!smallest[m]) smallest[m] = n;
+                    }
+                    powers[n] = h.pow(h.integer(n), h.integer(-2 * first));
+                } else {
+                    powers[n] = h.mul(powers[smallest[n]], powers[n / smallest[n]]);
+                }
+                zeta = h.add(zeta, powers[n]);
+                if (n % 64 == 0) checkpoint();
+            }
+            //2 (2k)!/(2π)^2k = |B(2k)|/ζ(2k), times (2k + 1)(2k + 2)/(4π^2) for k + 1
+            Decimal factor = h.div(h.abs(values.back()), zeta);
+            const Decimal ratio = h.div(h.integer(1), h.mul(h.integer(4), h.mul(h.pi(), h.pi())));
+            const Decimal limit = h.parse("1e-" + std::to_string(h.digits() + 2));
+            long long terms = most;
+            for (long long k = first + 1; k <= static_cast<long long>(count); k++) {
+                factor = h.mul(h.mul(factor, h.integer((2 * k) * (2 * k - 1))), ratio);
+                zeta = h.integer(1);
+                for (long long n = 2; n <= terms; n++) {
+                    powers[n] = h.div(powers[n], h.integer(n * n));
+                    if (h.compare(powers[n], limit) < 0) {
+                        terms = n - 1;
+                        break;
+                    }
+                    zeta = h.add(zeta, powers[n]);
+                }
+                const Decimal value = h.mul(factor, zeta);
+                values.push_back(k % 2 == 0 ? h.neg(value) : value);
+                if (k % 16 == 0) checkpoint();
+            }
+        }
+        values_ = std::move(values);
+        digits_ = digits;
+    }
+
+    //2k T(k) and 4^k (4^k - 1), k from 1 to K0, as exact decimals
+    void exact(unsigned long m)
+    {
+        const std::vector<Integer> tangent = tangentNumbers(m);
+        std::vector<Decimal> numerators, denominators;
+        for (unsigned long k = 1; k <= m; k++) {
+            const Integer power = Integer(1) << (2 * k);
+            const Integer twice = 2 * static_cast<long long>(k);
+            numerators.push_back(exactDecimal(k % 2 == 0 ? Integer(-twice * tangent[k]) : Integer(twice * tangent[k])));
+            denominators.push_back(exactDecimal(power * (power - 1)));
+            if (k % 64 == 0) checkpoint();
+        }
+        numerators_ = std::move(numerators);
+        denominators_ = std::move(denominators);
+    }
+
+    std::mutex mutex_;
+    std::vector<Decimal> numerators_, denominators_, values_;
+    long digits_ = 0;
+};
+
+//B(2k), k >= 1, at the precision of a context; the series that asks it expects about this many (0: unknown)
+Decimal bernoulli(const DecimalContext &g, unsigned long k, unsigned long expected)
+{
+    static BernoulliTable table;
+    return table.at(g, k, expected);
+}
+
+//The terms of an asymptotic series of the Bernoulli numbers, about Γ(2k + c)/(2π x)^(2k), until they fall 10^-digits
+//below the first one: 0 when they grow before (x too small for the digits)
+unsigned long expectedTerms(double x, double c, long digits)
+{
+    const double scale = 2 * std::log(2 * 3.141592653589793 * x), drop = static_cast<double>(digits) * std::log(10.0);
+    const double first = std::lgamma(2 + c) - scale;
+    double previous = first;
+    for (unsigned long k = 2; k <= MOST_TERMS; k++) {
+        const double size = std::lgamma(2.0 * static_cast<double>(k) + c) - static_cast<double>(k) * scale;
+        if (first - size > drop) return k + 1;
+        if (size > previous) return 0;
+        previous = size;
+    }
+    return 0;
+}
 
 //The size above which the asymptotic series reach the digits of g before their terms grow: about 0.6 digits (their
 //smallest term is near e^(-2π z)), more for the derivatives of order n; a quarter larger each time that is not enough
@@ -82,14 +203,19 @@ long long shiftTo(const DecimalContext &g, const Decimal &x, double size)
 //negligible)
 bool stirling(const DecimalContext &g, const Decimal &z, Decimal &result)
 {
+    //ln √(2π), shared
+    static SharedConstant logRootTwoPi;
     const Decimal one = g.integer(1);
-    Decimal sum = g.add(g.sub(g.mul(g.sub(z, g.div(one, g.integer(2))), g.ln(z)), z), g.div(g.ln(g.mul(g.integer(2), g.pi())), g.integer(2)));
+    const Decimal constant = logRootTwoPi.at(g, 10, [](const DecimalContext &h) { return h.div(h.ln(h.mul(h.integer(2), h.pi())), h.integer(2)); });
+    Decimal sum = g.add(g.sub(g.mul(g.sub(z, g.div(one, g.integer(2))), g.ln(z)), z), constant);
     const Decimal limit = g.mul(negligible(g), g.abs(sum));
-    const Decimal square = g.mul(z, z);
-    Decimal power = z;
+    //z^-(2k - 1): products, the division of the term by a short integer (a division by the power took longer)
+    const Decimal inverseSquare = g.div(one, g.mul(z, z));
+    Decimal inverse = g.div(one, z);
     Decimal previous;
+    const unsigned long expected = expectedTerms(toDouble(z), -1, g.digits());
     for (unsigned long k = 1; k <= MOST_TERMS; k++) {
-        const Decimal term = g.div(bernoulli(g, k), g.mul(g.integer(static_cast<long long>(2 * k * (2 * k - 1))), power));
+        const Decimal term = g.div(g.mul(bernoulli(g, k, expected), inverse), g.integer(static_cast<long long>(2 * k * (2 * k - 1))));
         if (g.compare(g.abs(term), limit) < 0) {
             result = sum;
             return true;
@@ -97,29 +223,35 @@ bool stirling(const DecimalContext &g, const Decimal &z, Decimal &result)
         if (k > 1 && g.compare(g.abs(term), g.abs(previous)) >= 0) return false;
         sum = g.add(sum, term);
         previous = term;
-        power = g.mul(power, square);
+        inverse = g.mul(inverse, inverseSquare);
         if (k % 16 == 0) checkpoint();
     }
     return false;
+}
+
+//Stirling's series at x + n of x > 0, ln Γ(x + n), and the product x (x + 1)… (x + n - 1), at the precision of g
+void shiftedStirling(const DecimalContext &g, const Decimal &x, Decimal &series, Decimal &product)
+{
+    for (double size = asymptoticSize(g, 0);; size *= 1.25) {
+        const long long shift = shiftTo(g, x, size);
+        product = g.integer(1);
+        for (long long k = 0; k < shift; k++) {
+            product = g.mul(product, g.add(x, g.integer(k)));
+            if (k % 256 == 255) checkpoint();
+        }
+        if (stirling(g, g.add(x, g.integer(shift)), series)) return;
+    }
 }
 
 //ln Γ(x) of x > 0 at the precision of g, its largest part (the terms that cancel near 1 and 2) given: Stirling's series
 //at x + n, less the logarithm of x (x + 1)… (x + n - 1)
 Decimal logGamma(const DecimalContext &g, const Decimal &x, int64_t &largest)
 {
-    for (double size = asymptoticSize(g, 0);; size *= 1.25) {
-        const long long shift = shiftTo(g, x, size);
-        Decimal product = g.integer(1);
-        for (long long k = 0; k < shift; k++) {
-            product = g.mul(product, g.add(x, g.integer(k)));
-            if (k % 256 == 255) checkpoint();
-        }
-        Decimal series;
-        if (!stirling(g, g.add(x, g.integer(shift)), series)) continue;
-        const Decimal logarithm = g.ln(product);
-        largest = largestOf(g, {&series, &logarithm});
-        return g.sub(series, logarithm);
-    }
+    Decimal series, product;
+    shiftedStirling(g, x, series, product);
+    const Decimal logarithm = g.ln(product);
+    largest = largestOf(g, {&series, &logarithm});
+    return g.sub(series, logarithm);
 }
 
 //The digits of ln Γ(x) above the point, about: Γ(x) = e^(ln Γ(x)) needs as many more
@@ -206,6 +338,20 @@ Decimal riemannSum(const DecimalContext &g, const Decimal &s, long long n)
     return sum;
 }
 
+//a^-s of an integer s: 1/a^s, a^s exact when a is an integer and a^s has fewer digits than g (one division, by a short
+//number), mpdecimal's power otherwise
+Decimal inversePower(const DecimalContext &g, const Decimal &a, const Decimal &s)
+{
+    if (isInteger(a) && !g.isNegative(s) && !g.isZero(a) && g.compare(s, g.integer(g.digits())) < 0) {
+        const long long exponent = smallInteger(s);
+        if (static_cast<double>(integerDigits(g, a)) * static_cast<double>(exponent) < static_cast<double>(g.digits())) {
+            const DecimalContext exact(g.digits());
+            return g.div(g.integer(1), exact.pow(a, s));
+        }
+    }
+    return g.pow(a, g.neg(s));
+}
+
 [[noreturn]] void pole(const std::string &function)
 {
     throw MathError(ErrorCode::DivisionByZero, "Division by zero (" + function + " at a pole)");
@@ -235,8 +381,9 @@ bool polygammaSeries(const DecimalContext &g, long long n, const Decimal &z, Dec
     }
     const Decimal limit = g.mul(negligible(g), g.abs(sum));
     Decimal previous;
+    const unsigned long expected = expectedTerms(toDouble(z), static_cast<double>(n), g.digits());
     for (unsigned long k = 1; k <= MOST_TERMS; k++) {
-        Decimal term = g.mul(g.mul(bernoulli(g, k), factor), power);
+        Decimal term = g.mul(g.mul(bernoulli(g, k, expected), factor), power);
         if (n == 0) term = g.div(term, g.integer(static_cast<long long>(2 * k)));
         if (g.compare(g.abs(term), limit) < 0) {
             result = n == 0 ? sum : n % 2 == 1 ? sum : g.neg(sum);
@@ -340,9 +487,11 @@ Decimal DecimalContext::gamma(const Decimal &x) const
         const Decimal reflected = g.sub(g.integer(1), x);
         return round(g.div(g.pi(), g.mul(sinPi(g, x), g.gamma(reflected))));
     }
+    //e^(ln Γ(x + n))/(x (x + 1)… (x + n - 1)): no logarithm of the product
     const DecimalContext h(digits() + 15 + logGammaDigits(*this, x));
-    int64_t largest = 0;
-    return round(h.exp(logGamma(h, x, largest)));
+    Decimal series, product;
+    shiftedStirling(h, x, series, product);
+    return round(h.div(h.exp(series), product));
 }
 
 Decimal DecimalContext::loggamma(const Decimal &x) const
@@ -509,8 +658,9 @@ Decimal DecimalContext::zeta(const Decimal &s, const Decimal &a) const
             const Decimal square = g.mul(w, w);
             Decimal previous;
             bool converged = false;
+            const unsigned long expected = expectedTerms(toDouble(w), std::fabs(toDouble(s) - 1), g.digits());
             for (unsigned long j = 1; j <= MOST_TERMS; j++) {
-                const Decimal term = g.mul(g.mul(bernoulli(g, j), ratio), base);
+                const Decimal term = g.mul(g.mul(bernoulli(g, j, expected), ratio), base);
                 if (g.isZero(term) || g.compare(g.abs(term), limit) < 0) {
                     converged = true;
                     break;
@@ -529,7 +679,7 @@ Decimal DecimalContext::zeta(const Decimal &s, const Decimal &a) const
             } else {
                 for (long long k = 0; k < n; k++) {
                     const Decimal at = g.add(a, g.integer(k));
-                    sum = g.add(sum, integral ? g.pow(at, g.neg(s)) : g.exp(g.neg(g.mul(s, g.ln(at)))));
+                    sum = g.add(sum, integral ? inversePower(g, at, s) : g.exp(g.neg(g.mul(s, g.ln(at)))));
                     if (k % 64 == 63) checkpoint();
                 }
             }

@@ -23,10 +23,16 @@ function primeByDivision(n: number): boolean {
 }
 
 //The odd composite numbers below a limit (at most 2^26: the products stay exact doubles) that pass the strong probable
-//prime test to the base 2: the numbers Miller-Rabin alone takes for primes
+//prime test to the base 2: the numbers Miller-Rabin alone takes for primes (the composite numbers by a sieve)
 function strongPseudoprimes(limit: number): number[] {
+    const composite: Uint8Array = new Uint8Array(limit)
+    for (let p: number = 3; p * p < limit; p += 2) {
+        if (composite[p]) continue
+        for (let multiple: number = p * p; multiple < limit; multiple += 2 * p) composite[multiple] = 1
+    }
     const found: number[] = []
-    for (let n: number = 3; n < limit; n += 2) {
+    for (let n: number = 9; n < limit; n += 2) {
+        if (!composite[n]) continue
         let odd: number = n - 1, twos: number = 0
         while (odd % 2 === 0) {
             odd /= 2
@@ -42,7 +48,7 @@ function strongPseudoprimes(limit: number): number[] {
             x = x * x % n
             passes = x === n - 1
         }
-        if (passes && !primeByDivision(n)) found.push(n)
+        if (passes) found.push(n)
     }
     return found
 }
