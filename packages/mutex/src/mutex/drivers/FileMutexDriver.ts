@@ -5,9 +5,14 @@ import {setTimeout as sleep} from 'node:timers/promises'
 import {MutexDriver, type DriverLock} from './MutexDriver.js'
 import {lockToken, nameDigest} from '../lib/Names.js'
 
-//A rename over a lock file another process has open fails on Windows: tried again every RENAME_DELAY milliseconds
+//A rename of a file another process has open fails on Windows: tried again every RENAME_DELAY milliseconds
 const RENAME_BUSY: string[] = ['EPERM', 'EACCES', 'EBUSY']
 const RENAME_DELAY: number = 5
+//How long a removal is tried again on Windows, in milliseconds
+const REMOVE_WAIT: number = 1000
+//A file left unchanged this long (its process ended or stalled while it held it), in milliseconds: a lock file which
+//cannot be read is abandoned, a guard is broken
+const ABANDONED: number = 5000
 
 /**
  * The content of a lock file: its holder (its token, its process and its host), its expiration
@@ -18,6 +23,16 @@ type LockFile = {
     pid: number
     host: string
     expires: number
+}
+
+/**
+ * The content of the guard of a lock file: its holder (its token, its process and its host), when it was entered
+ */
+type GuardFile = {
+    token: string
+    pid: number
+    host: string
+    since: number
 }
 
 /**
@@ -43,6 +58,11 @@ function processRuns(pid: number): boolean {
  *
  * The locks expire after their `ttl` unless renewed; a lock whose process is gone on this host is taken over at once,
  * without waiting for its expiration. The driver gives no fencing token (`fence` is `undefined`).
+ *
+ * The file of a lock is created only where none exists, and it is missing only once its holder released it: a renewal
+ * and a takeover replace it at once (a new file renamed over it). The renewals, the takeovers and the releases of a lock
+ * run one at a time, each in the guard of the lock: a file created exclusively next to it for the few operations they
+ * take.
  * @example
  * ```typescript
  * import {FileMutexDriver, type DriverLock} from 'lakutata/com/mutex'
@@ -87,13 +107,13 @@ export class FileMutexDriver extends MutexDriver {
     }
 
     /**
-     * Read a lock file.
+     * Read a lock file, or a guard file.
      * @param file The file path.
      * @returns Its content, or `undefined` when it does not exist or cannot be parsed (being written).
      */
-    protected async read(file: string): Promise<LockFile | undefined> {
+    protected async read<Content = LockFile>(file: string): Promise<Content | undefined> {
         try {
-            return JSON.parse(await readFile(file, 'utf8')) as LockFile
+            return JSON.parse(await readFile(file, 'utf8')) as Content
         } catch {
             //Not there, or being written
             return undefined
@@ -110,51 +130,147 @@ export class FileMutexDriver extends MutexDriver {
     }
 
     /**
-     * Whether a lock file which cannot be read was abandoned (its process ended while writing it) rather than being
-     * written: unchanged for more than 5 seconds.
+     * Whether a file which cannot be read was abandoned (its process ended while writing it) rather than being written:
+     * unchanged for more than 5 seconds.
      * @param file The file path.
      * @returns Whether it may be taken over.
      */
     protected async abandoned(file: string): Promise<boolean> {
         try {
-            return Date.now() - (await stat(file)).mtimeMs > 5000
+            return Date.now() - (await stat(file)).mtimeMs > ABANDONED
         } catch {
             return false
         }
     }
 
     /**
-     * Remove a lock file when it is still the one read, by renaming it first so that only one process takes it. A file
-     * of another holder taken by mistake is put back when its place is still free.
-     * @param file The file path.
-     * @param same Whether the content of the file taken (`undefined` when it cannot be read) is the one read.
-     * @returns Whether the file was removed.
+     * Replace a file at once, never missing: the file of the new content is renamed over it, when `check` still allows
+     * it just before. On Windows, a rename over a file another process is reading fails: it is tried again until
+     * `deadline`.
+     * @param from The file of the new content, removed in any case.
+     * @param to The file replaced.
+     * @param check Whether the file may still be replaced, called before each attempt.
+     * @param deadline When the attempts end, in milliseconds since the epoch.
+     * @returns Whether the file was replaced.
+     * @throws {Error} When the rename fails otherwise, or still fails at the deadline.
      */
-    protected async take(file: string, same: (content: LockFile | undefined) => boolean): Promise<boolean> {
-        const taken: string = `${file}.${lockToken()}`
+    protected async replace(from: string, to: string, check: () => Promise<boolean>, deadline: number): Promise<boolean> {
         try {
-            await rename(file, taken)
+            for (; ;) {
+                if (!(await check())) return false
+                try {
+                    await rename(from, to)
+                    return true
+                } catch (error: unknown) {
+                    if (Date.now() >= deadline || !RENAME_BUSY.includes((error as NodeJS.ErrnoException).code!)) throw error
+                }
+                await sleep(RENAME_DELAY)
+            }
+        } finally {
+            await unlink(from).catch((): undefined => undefined)
+        }
+    }
+
+    /**
+     * Remove a file, its name free at once: renamed first, then deleted (on Windows, a file deleted while another process
+     * reads it keeps its name until it is closed). The rename is tried again for a second when the file is busy.
+     * @param file The file path.
+     * @returns Whether the file was removed (`false` when it no longer exists).
+     * @throws {Error} When the rename fails otherwise, or is still busy after a second.
+     */
+    protected async remove(file: string): Promise<boolean> {
+        const removed: string = `${file}.${lockToken()}`
+        const deadline: number = Date.now() + REMOVE_WAIT
+        for (; ;) {
+            try {
+                await rename(file, removed)
+                break
+            } catch (error: unknown) {
+                const code: string = (error as NodeJS.ErrnoException).code!
+                if (code === 'ENOENT') return false
+                if (Date.now() >= deadline || !RENAME_BUSY.includes(code)) throw error
+            }
+            await sleep(RENAME_DELAY)
+        }
+        await unlink(removed).catch((): undefined => undefined)
+        return true
+    }
+
+    /**
+     * Enter the guard of a lock file, in which a lock is renewed, taken over or released: a file created exclusively
+     * next to it, so that no other process replaces or removes the lock file meanwhile. A guard whose process of this host is gone,
+     * or held for more than 5 seconds, is broken. Breaking it renames it away and puts it back when it was entered again
+     * meanwhile: a guard broken by two processes at once, while a third one enters it, can still be held twice.
+     * @param file The lock file path.
+     * @param wait Whether to wait for a guard held by another process (until it is left or broken), else give up at once.
+     * @returns The token of the guard entered, or `undefined` when another process holds it and `wait` is `false`.
+     * @throws {Error} When the guard file cannot be written (permissions, disk full).
+     */
+    protected async enter(file: string, wait: boolean): Promise<string | undefined> {
+        const guard: string = `${file}.guard`
+        const token: string = lockToken()
+        for (; ;) {
+            try {
+                await writeFile(guard, JSON.stringify({token: token, pid: process.pid, host: this.#host, since: Date.now()} satisfies GuardFile), {flag: 'wx'})
+                return token
+            } catch (error: unknown) {
+                const code: string = (error as NodeJS.ErrnoException).code!
+                if (code !== 'EEXIST' && !RENAME_BUSY.includes(code)) throw error
+            }
+            const held: GuardFile | undefined = await this.read<GuardFile>(guard)
+            const broken: boolean = held
+                ? Date.now() - held.since > ABANDONED || (held.host === this.#host && held.pid !== process.pid && !processRuns(held.pid))
+                : await this.abandoned(guard)
+            //Broken: entered again at once, unless it could not be renamed away yet (busy on Windows)
+            if (broken && await this.unguard(guard, held?.token)) continue
+            if (!broken && !wait) return undefined
+            await sleep(RENAME_DELAY)
+        }
+    }
+
+    /**
+     * Remove a guard broken, when it is still the one read: renamed away first, so that only one process removes it,
+     * and put back when it is not (entered again meanwhile) and its place is still free.
+     * @param guard The guard file path.
+     * @param token The token read in the guard, `undefined` when it could not be read.
+     * @returns Whether the guard could be renamed away (`false` when it no longer exists, or is busy on Windows).
+     */
+    protected async unguard(guard: string, token: string | undefined): Promise<boolean> {
+        const taken: string = `${guard}.${lockToken()}`
+        try {
+            await rename(guard, taken)
         } catch {
             return false
         }
-        const content: LockFile | undefined = await this.read(taken)
-        if (same(content)) {
-            await unlink(taken).catch((): undefined => undefined)
-            return true
-        }
-        //Another lock was taken: given back when its place is free
-        await link(taken, file).catch((): undefined => undefined)
+        if ((await this.read<GuardFile>(taken))?.token !== token) await link(taken, guard).catch((): undefined => undefined)
         await unlink(taken).catch((): undefined => undefined)
-        return false
+        return true
+    }
+
+    /**
+     * Leave the guard of a lock file, when it is still the one entered. It does not throw: a guard that cannot be
+     * removed (busy on Windows) is broken after 5 seconds.
+     * @param file The lock file path.
+     * @param token The token of the guard entered.
+     */
+    protected async leave(file: string, token: string): Promise<void> {
+        const guard: string = `${file}.guard`
+        try {
+            if ((await this.read<GuardFile>(guard))?.token === token) await this.remove(guard)
+        } catch {
+            //Left behind: broken later
+        }
     }
 
     /**
      * Try to acquire a lock once: create its file exclusively, or take over a file expired, abandoned, or whose process
-     * of this host is gone.
+     * of this host is gone. A takeover happens in the guard of the lock (another process taking it over at the same time
+     * gives up), and replaces the file at once while it is still the one read: another process never finds it missing.
      * @param name The lock name.
      * @param ttl How long the lock stays held without a renewal, in milliseconds.
      * @returns The lock (without fencing token), or `undefined` when another holder has it.
-     * @throws {Error} When the directory cannot be created or the file written (permissions, disk full).
+     * @throws {Error} When the directory cannot be created or the file written (permissions, disk full), or when a file
+     * taken over cannot be replaced (busy on Windows for a third of `ttl`).
      */
     public async acquire(name: string, ttl: number): Promise<DriverLock | undefined> {
         await mkdir(this.directory, {recursive: true})
@@ -170,31 +286,51 @@ export class FileMutexDriver extends MutexDriver {
             }
             const current: LockFile | undefined = await this.read(file)
             if (current ? !this.stale(current) : !(await this.abandoned(file))) return undefined
-            //The file read as stale, not one renewed meanwhile (the same token, a later expiration)
-            if (!(await this.take(file, (content: LockFile | undefined): boolean => content?.token === current?.token && content?.expires === current?.expires))) return undefined
+            const guard: string | undefined = await this.enter(file, false)
+            if (!guard) return undefined
+            try {
+                const replacement: string = `${file}.${lockToken()}`
+                await writeFile(replacement, content)
+                //Still the file read as stale (not renewed, released or taken over meanwhile), or still abandoned
+                const unchanged = async (): Promise<boolean> => {
+                    const now: LockFile | undefined = await this.read(file)
+                    return current ? now?.token === current.token && now.expires === current.expires : !now && await this.abandoned(file)
+                }
+                if (await this.replace(replacement, file, unchanged, Date.now() + ttl / 3)) return lock
+            } finally {
+                await this.leave(file, guard)
+            }
+            //Changed meanwhile: created again when it was released, else held
         }
         return undefined
     }
 
     /**
-     * Release a lock by removing its file, when the file still holds this holder's token.
+     * Release a lock by removing its file, when the file still holds this holder's token. The release waits for the
+     * guard of the lock, so that the file it removes is not replaced meanwhile.
      * @param name The lock name.
      * @param lock The lock acquired.
      * @returns Whether it was released.
      */
     public async release(name: string, lock: DriverLock): Promise<boolean> {
         const file: string = this.file(name)
-        if ((await this.read(file))?.token !== lock.token) return false
-        //Its own file, even when a renewal still running changed its expiration
-        return await this.take(file, (content: LockFile | undefined): boolean => content?.token === lock.token)
+        const guard: string = (await this.enter(file, true))!
+        try {
+            //Its own file, even when a renewal still running changed its expiration
+            if ((await this.read(file))?.token !== lock.token) return false
+            return await this.remove(file)
+        } finally {
+            await this.leave(file, guard)
+        }
     }
 
     /**
      * Renew a lock whose file still holds this holder's token, for `ttl` milliseconds from now: the new content is
      * written to a file of its own, then renamed over the lock file, which is replaced at once and never missing (another
-     * process cannot create it meanwhile). A lock expired is not renewed (lost), even when no other process took it over
-     * yet. On Windows, a rename over a file another process is reading is tried again, for a third of `ttl` at most (the
-     * pace of the component's renewals).
+     * process cannot create it meanwhile). The renewal waits for the guard of the lock: a lock released meanwhile is not
+     * written again, and a lock is not taken over between its check and its replacement. A lock expired is not renewed
+     * (lost), even when no other process took it over yet. On Windows, a rename over a file another process is reading
+     * is tried again, for a third of `ttl` at most (the pace of the component's renewals).
      * @param name The lock name.
      * @param lock The lock acquired.
      * @param ttl How long the lock stays held without another renewal, in milliseconds.
@@ -204,27 +340,21 @@ export class FileMutexDriver extends MutexDriver {
      */
     public async extend(name: string, lock: DriverLock, ttl: number): Promise<boolean> {
         const file: string = this.file(name)
-        const current: LockFile | undefined = await this.read(file)
         //Expired: lost, even when nobody took it yet
-        if (current?.token !== lock.token || current.expires <= Date.now()) return false
-        const renewed: string = `${file}.${lockToken()}`
-        await writeFile(renewed, JSON.stringify({...current, expires: Date.now() + ttl} satisfies LockFile))
-        const deadline: number = Date.now() + ttl / 3
+        const valid = async (): Promise<LockFile | undefined> => {
+            const content: LockFile | undefined = await this.read(file)
+            return content?.token === lock.token && content.expires > Date.now() ? content : undefined
+        }
+        if (!(await valid())) return false
+        const guard: string = (await this.enter(file, true))!
         try {
-            for (; ;) {
-                //Still its own and not expired just before it is replaced: a lock taken over is not overwritten
-                const content: LockFile | undefined = await this.read(file)
-                if (content?.token !== lock.token || content.expires <= Date.now()) return false
-                try {
-                    await rename(renewed, file)
-                    return true
-                } catch (error: unknown) {
-                    if (Date.now() >= deadline || !RENAME_BUSY.includes((error as NodeJS.ErrnoException).code!)) throw error
-                }
-                await sleep(RENAME_DELAY)
-            }
+            const current: LockFile | undefined = await valid()
+            if (!current) return false
+            const renewed: string = `${file}.${lockToken()}`
+            await writeFile(renewed, JSON.stringify({...current, expires: Date.now() + ttl} satisfies LockFile))
+            return await this.replace(renewed, file, async (): Promise<boolean> => !!(await valid()), Date.now() + ttl / 3)
         } finally {
-            await unlink(renewed).catch((): undefined => undefined)
+            await this.leave(file, guard)
         }
     }
 

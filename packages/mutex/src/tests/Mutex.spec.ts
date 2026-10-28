@@ -1,8 +1,9 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {spawn, type ChildProcess} from 'node:child_process'
-import {mkdtemp, readdir, rm, unlink, utimes, writeFile} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
+import {spawn, spawnSync, type ChildProcess} from 'node:child_process'
+import {createHash} from 'node:crypto'
+import {access, mkdtemp, readdir, rm, unlink, utimes, writeFile} from 'node:fs/promises'
+import {hostname, tmpdir} from 'node:os'
 import path from 'node:path'
 import {setTimeout as sleep} from 'node:timers/promises'
 import {Container} from '@lakutata/core'
@@ -230,6 +231,122 @@ describe('The locks', (): void => {
         assert.strictEqual(taken, 0)
         assert.ok(renewals > 0)
         assert.ok(await holder.release('c', held))
+    })
+
+    it('never lets another holder in while a lock file is taken over', async (): Promise<void> => {
+        //The taker paused at its second read, once it found the lock expired and started to take it over: the file is
+        //still there (a takeover replaces it), and its guard keeps a third holder from taking it over too
+        let reads: number = 0
+        let reached: () => void = (): void => undefined
+        let resume: () => void = (): void => undefined
+        const pausing: Promise<void> = new Promise((resolve: () => void): void => {
+            reached = resolve
+        })
+        const paused: Promise<void> = new Promise((resolve: () => void): void => {
+            resume = resolve
+        })
+
+        class PausedDriver extends FileMutexDriver {
+            protected async read<Content>(file: string): Promise<Content | undefined> {
+                if (++reads === 2) {
+                    reached()
+                    await paused
+                }
+                return await super.read(file) as Content | undefined
+            }
+        }
+
+        const file: string = path.join(directory, `${createHash('sha256').update('test:takeover:d').digest('hex')}.lock`)
+        const holder: FileMutexDriver = new FileMutexDriver(directory, 'test:takeover:')
+        const taker: PausedDriver = new PausedDriver(directory, 'test:takeover:')
+        const third: FileMutexDriver = new FileMutexDriver(directory, 'test:takeover:')
+        assert.ok(await holder.acquire('d', 50))
+        await sleep(80)
+        const taking = taker.acquire('d', 10000)
+        await pausing
+        await access(file)
+        assert.strictEqual(await third.acquire('d', 10000), undefined)
+        resume()
+        const taken = (await taking)!
+        assert.ok(taken)
+        assert.strictEqual(await third.acquire('d', 10000), undefined)
+        assert.ok(await taker.release('d', taken))
+    })
+
+    it('does not write again a lock released while it is renewed', async (): Promise<void> => {
+        //The renewal paused once it checked the lock, just before it replaces the file: the release waits for it, then
+        //removes the file, which the renewal does not create again
+        let reached: () => void = (): void => undefined
+        let resume: () => void = (): void => undefined
+        const pausing: Promise<void> = new Promise((resolve: () => void): void => {
+            reached = resolve
+        })
+        const paused: Promise<void> = new Promise((resolve: () => void): void => {
+            resume = resolve
+        })
+
+        class PausedDriver extends FileMutexDriver {
+            protected async replace(from: string, to: string, check: () => Promise<boolean>, deadline: number): Promise<boolean> {
+                return await super.replace(from, to, async (): Promise<boolean> => {
+                    const allowed: boolean = await check()
+                    reached()
+                    await paused
+                    return allowed
+                }, deadline)
+            }
+        }
+
+        const file: string = path.join(directory, `${createHash('sha256').update('test:released:g').digest('hex')}.lock`)
+        const renewer: PausedDriver = new PausedDriver(directory, 'test:released:')
+        const releaser: FileMutexDriver = new FileMutexDriver(directory, 'test:released:')
+        const held = (await renewer.acquire('g', 10000))!
+        const renewing: Promise<boolean> = renewer.extend('g', held, 10000)
+        await pausing
+        const releasing: Promise<boolean> = releaser.release('g', held)
+        await sleep(50)
+        resume()
+        assert.ok(await renewing)
+        assert.ok(await releasing)
+        await assert.rejects(access(file))
+    })
+
+    it('lets only one of the holders racing for an expired lock take it over', async (): Promise<void> => {
+        const drivers: FileMutexDriver[] = Array.from({length: 4}, (): FileMutexDriver => new FileMutexDriver(directory, 'test:race:'))
+        for (let round: number = 0; round < 30; round++) {
+            assert.ok(await drivers[0].acquire(`r${round}`, 20))
+            await sleep(30)
+            const taken = (await Promise.all(drivers.map((driver: FileMutexDriver) => driver.acquire(`r${round}`, 10000)))).filter(Boolean)
+            assert.strictEqual(taken.length, 1, `round ${round}`)
+        }
+    })
+
+    it('breaks the guard of a process gone or held too long, and waits for one held', async (): Promise<void> => {
+        const driver: FileMutexDriver = new FileMutexDriver(directory, 'test:guard:')
+        const guard: string = path.join(directory, `${createHash('sha256').update('test:guard:e').digest('hex')}.lock.guard`)
+        const gone: number = spawnSync(process.execPath, ['-e', '']).pid!
+        //An expired lock whose guard was left by a process gone, then by one which held it longer than 5 seconds: taken
+        //over all the same
+        for (const left of [{pid: gone, since: Date.now()}, {pid: process.pid, since: Date.now() - 6000}]) {
+            assert.ok(await driver.acquire('e', 20))
+            await sleep(30)
+            await writeFile(guard, JSON.stringify({token: 'left', host: hostname(), ...left}))
+            const taken = (await driver.acquire('e', 10000))!
+            assert.ok(taken)
+            assert.ok(await driver.release('e', taken))
+        }
+        //A guard held by a running process: a takeover gives up, a release waits for it
+        assert.ok(await driver.acquire('e', 20))
+        await sleep(30)
+        await writeFile(guard, JSON.stringify({token: 'held', pid: process.pid, host: hostname(), since: Date.now()}))
+        assert.strictEqual(await driver.acquire('e', 10000), undefined)
+        await unlink(guard)
+        const taken = (await driver.acquire('e', 10000))!
+        assert.ok(taken)
+        await writeFile(guard, JSON.stringify({token: 'held', pid: process.pid, host: hostname(), since: Date.now()}))
+        const started: number = Date.now()
+        setTimeout((): unknown => unlink(guard), 150)
+        assert.ok(await driver.release('e', taken))
+        assert.ok(Date.now() - started >= 140)
     })
 
     it('tries once with a timeout of 0, the round trip of a slow store included', async (): Promise<void> => {
