@@ -13,6 +13,10 @@ const REMOVE_WAIT: number = 1000
 //A file left unchanged this long (its process ended or stalled while it held it), in milliseconds: a lock file which
 //cannot be read is abandoned, a guard is broken
 const ABANDONED: number = 5000
+//The longest wait for a guard (any guard is broken after ABANDONED), and the longest retry of a rename inside a guard
+//(ended before the guard could be broken), in milliseconds
+const GUARD_WAIT: number = 2 * ABANDONED
+const GUARD_RENAME: number = ABANDONED / 2
 
 /**
  * The content of a lock file: its holder (its token, its process and its host), its expiration
@@ -198,17 +202,21 @@ export class FileMutexDriver extends MutexDriver {
 
     /**
      * Enter the guard of a lock file, in which a lock is renewed, taken over or released: a file created exclusively
-     * next to it, so that no other process replaces or removes the lock file meanwhile. A guard whose process of this host is gone,
-     * or held for more than 5 seconds, is broken. Breaking it renames it away and puts it back when it was entered again
-     * meanwhile: a guard broken by two processes at once, while a third one enters it, can still be held twice.
+     * next to it, so that no other process replaces or removes the lock file meanwhile. A guard whose process of this
+     * host is gone, or held for more than 5 seconds, is broken. Breaking it renames it away and puts it back when it was
+     * entered again meanwhile: a guard broken by two processes at once, while a third one enters it, can still be held
+     * twice.
      * @param file The lock file path.
-     * @param wait Whether to wait for a guard held by another process (until it is left or broken), else give up at once.
+     * @param wait Whether to wait for a guard held by another process (until it is left or broken, 10 seconds at
+     * most), else give up at once.
      * @returns The token of the guard entered, or `undefined` when another process holds it and `wait` is `false`.
-     * @throws {Error} When the guard file cannot be written (permissions, disk full).
+     * @throws {Error} When the guard file cannot be written (permissions, disk full), or cannot be entered within 10
+     * seconds.
      */
     protected async enter(file: string, wait: boolean): Promise<string | undefined> {
         const guard: string = `${file}.guard`
         const token: string = lockToken()
+        const deadline: number = Date.now() + GUARD_WAIT
         for (; ;) {
             try {
                 await writeFile(guard, JSON.stringify({token: token, pid: process.pid, host: this.#host, since: Date.now()} satisfies GuardFile), {flag: 'wx'})
@@ -224,6 +232,7 @@ export class FileMutexDriver extends MutexDriver {
             //Broken: entered again at once, unless it could not be renamed away yet (busy on Windows)
             if (broken && await this.unguard(guard, held?.token)) continue
             if (!broken && !wait) return undefined
+            if (Date.now() >= deadline) throw new Error(`The guard of the lock file ${file} cannot be entered`)
             await sleep(RENAME_DELAY)
         }
     }
@@ -270,7 +279,7 @@ export class FileMutexDriver extends MutexDriver {
      * @param ttl How long the lock stays held without a renewal, in milliseconds.
      * @returns The lock (without fencing token), or `undefined` when another holder has it.
      * @throws {Error} When the directory cannot be created or the file written (permissions, disk full), or when a file
-     * taken over cannot be replaced (busy on Windows for a third of `ttl`).
+     * taken over cannot be replaced (busy on Windows for a third of `ttl`, 2.5 seconds at most).
      */
     public async acquire(name: string, ttl: number): Promise<DriverLock | undefined> {
         await mkdir(this.directory, {recursive: true})
@@ -296,7 +305,7 @@ export class FileMutexDriver extends MutexDriver {
                     const now: LockFile | undefined = await this.read(file)
                     return current ? now?.token === current.token && now.expires === current.expires : !now && await this.abandoned(file)
                 }
-                if (await this.replace(replacement, file, unchanged, Date.now() + ttl / 3)) return lock
+                if (await this.replace(replacement, file, unchanged, Date.now() + Math.min(ttl / 3, GUARD_RENAME))) return lock
             } finally {
                 await this.leave(file, guard)
             }
@@ -330,7 +339,8 @@ export class FileMutexDriver extends MutexDriver {
      * process cannot create it meanwhile). The renewal waits for the guard of the lock: a lock released meanwhile is not
      * written again, and a lock is not taken over between its check and its replacement. A lock expired is not renewed
      * (lost), even when no other process took it over yet. On Windows, a rename over a file another process is reading
-     * is tried again, for a third of `ttl` at most (the pace of the component's renewals).
+     * is tried again, for a third of `ttl` at most (the pace of the component's renewals) and 2.5 seconds (the guard is
+     * broken after 5).
      * @param name The lock name.
      * @param lock The lock acquired.
      * @param ttl How long the lock stays held without another renewal, in milliseconds.
@@ -352,7 +362,7 @@ export class FileMutexDriver extends MutexDriver {
             if (!current) return false
             const renewed: string = `${file}.${lockToken()}`
             await writeFile(renewed, JSON.stringify({...current, expires: Date.now() + ttl} satisfies LockFile))
-            return await this.replace(renewed, file, async (): Promise<boolean> => !!(await valid()), Date.now() + ttl / 3)
+            return await this.replace(renewed, file, async (): Promise<boolean> => !!(await valid()), Date.now() + Math.min(ttl / 3, GUARD_RENAME))
         } finally {
             await this.leave(file, guard)
         }
