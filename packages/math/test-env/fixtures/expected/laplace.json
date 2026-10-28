@@ -1,0 +1,698 @@
+{
+ "generator": {
+  "sympy": "1.14.0",
+  "mpmath": "1.4.1"
+ },
+ "points": [
+  {
+   "x": "0.7",
+   "y": "1.3",
+   "z": "-0.4",
+   "a": "2.1",
+   "b": "-1.7",
+   "c": "0.3",
+   "d": "1.1",
+   "t": "0.35"
+  },
+  {
+   "x": "-1.9",
+   "y": "0.45",
+   "z": "2.6",
+   "a": "-0.8",
+   "b": "3.2",
+   "c": "-2.3",
+   "d": "0.6",
+   "t": "1.75"
+  }
+ ],
+ "cases": [
+  {
+   "text": "1",
+   "sympy": "1",
+   "direction": "forward",
+   "result": "1/s",
+   "kind": "value",
+   "values": [
+    [
+     "1.42857142857142857142857142857",
+     "0"
+    ],
+    [
+     "-0.526315789473684210526315789474",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "t",
+   "sympy": "t",
+   "direction": "forward",
+   "result": "s**(-2)",
+   "kind": "value",
+   "values": [
+    [
+     "2.04081632653061224489795918367",
+     "0"
+    ],
+    [
+     "0.277008310249307479224376731302",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "t^3",
+   "sympy": "t**3",
+   "direction": "forward",
+   "result": "6/s**4",
+   "kind": "value",
+   "values": [
+    [
+     "24.9895876718034152436484798001",
+     "0"
+    ],
+    [
+     "0.460401623683059522256581824879",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "sqrt(t)",
+   "sympy": "sqrt(t)",
+   "direction": "forward",
+   "result": "sqrt(pi)/(2*s**(3/2))",
+   "kind": "value",
+   "values": [
+    [
+     "1.51320539380513614758274102848",
+     "0"
+    ],
+    [
+     "0",
+     "0.338387677170521969335793137427"
+    ]
+   ]
+  },
+  {
+   "text": "t^(5/2)",
+   "sympy": "t**(5/2)",
+   "direction": "forward",
+   "result": "15*sqrt(pi)/(8*s**(7/2))",
+   "kind": "value",
+   "values": [
+    [
+     "11.5806535240188990886434262384",
+     "0"
+    ],
+    [
+     "0",
+     "0.351510744983229192523330821427"
+    ]
+   ]
+  },
+  {
+   "text": "e^(-3t)",
+   "sympy": "exp(-3*t)",
+   "direction": "forward",
+   "result": "1/(s + 3)",
+   "kind": "value",
+   "values": [
+    [
+     "0.270270270270270270270270270270",
+     "0"
+    ],
+    [
+     "0.909090909090909090909090909091",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "t^2 e^(-3t)",
+   "sympy": "t**2*exp(-3*t)",
+   "direction": "forward",
+   "result": "2/(s + 3)**3",
+   "kind": "value",
+   "values": [
+    [
+     "0.0394843345902513177896669496377",
+     "0"
+    ],
+    [
+     "1.50262960180315552216378662660",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "sin(2t)",
+   "sympy": "sin(2*t)",
+   "direction": "forward",
+   "result": "2/(s**2 + 4)",
+   "kind": "value",
+   "values": [
+    [
+     "0.445434298440979955456570155902",
+     "0"
+    ],
+    [
+     "0.262812089356110381077529566360",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "cos(3t)",
+   "sympy": "cos(3*t)",
+   "direction": "forward",
+   "result": "s/(s**2 + 9)",
+   "kind": "value",
+   "values": [
+    [
+     "0.0737618545837723919915700737618",
+     "0"
+    ],
+    [
+     "-0.150674068199841395717684377478",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "sinh(t)",
+   "sympy": "sinh(t)",
+   "direction": "forward",
+   "result": "1/(s**2 - 1)",
+   "kind": "value",
+   "values": [
+    [
+     "-1.96078431372549019607843137255",
+     "0"
+    ],
+    [
+     "0.383141762452107279693486590038",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "cosh(2t)",
+   "sympy": "cosh(2*t)",
+   "direction": "forward",
+   "result": "s/(s**2 - 4)",
+   "kind": "value",
+   "values": [
+    [
+     "-0.199430199430199430199430199430",
+     "0"
+    ],
+    [
+     "4.87179487179487179487179487179",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "e^(2t)cos(3t)",
+   "sympy": "exp(2*t)*cos(3*t)",
+   "direction": "forward",
+   "result": "(s - 2)/((s - 2)**2 + 9)",
+   "kind": "value",
+   "values": [
+    [
+     "-0.121608980355472404115996258185",
+     "0"
+    ],
+    [
+     "-0.161090458488228004956629491945",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "e^(-t) sin(4t)",
+   "sympy": "exp(-t)*sin(4*t)",
+   "direction": "forward",
+   "result": "4/((s + 1)**2 + 16)",
+   "kind": "value",
+   "values": [
+    [
+     "0.211752249867654843832715722605",
+     "0"
+    ],
+    [
+     "0.237953599048185603807257584771",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "t sin(t)",
+   "sympy": "t*sin(t)",
+   "direction": "forward",
+   "result": "i/(2*(s + i)**2) - i/(2*(s - i)**2)",
+   "kind": "value",
+   "values": [
+    [
+     "0.630602225124994369622989955407",
+     "7.52316384526264005099991383822e-37"
+    ],
+    [
+     "-0.178805859185680473929635188993",
+     "3.76158192263132002549995691911e-37"
+    ]
+   ]
+  },
+  {
+   "text": "t^2 cos(t)",
+   "sympy": "t**2*cos(t)",
+   "direction": "forward",
+   "result": "(s + i)**(-3) + (s - i)**(-3)",
+   "kind": "value",
+   "values": [
+    [
+     "-1.06228965440519185755282200542",
+     "6.01853107621011204079993107058e-36"
+    ],
+    [
+     "-0.0236597774627473078301686475674",
+     "7.52316384526264005099991383822e-37"
+    ]
+   ]
+  },
+  {
+   "text": "sin(t)^2",
+   "sympy": "sin(t)**2",
+   "direction": "forward",
+   "result": "2/(s*(s**2 + 4))",
+   "kind": "value",
+   "values": [
+    [
+     "0.636334712058542793509385937003",
+     "0"
+    ],
+    [
+     "-0.138322152292689674251331350716",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "cos(t)^2",
+   "sympy": "cos(t)**2",
+   "direction": "forward",
+   "result": "(s**2 + 2)/(s*(s**2 + 4))",
+   "kind": "value",
+   "values": [
+    [
+     "0.792236716512885777919185491569",
+     "0"
+    ],
+    [
+     "-0.387993637180994536274984438758",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "sinh(t)^2",
+   "sympy": "sinh(t)**2",
+   "direction": "forward",
+   "result": "2/(s**3 - 4*s)",
+   "kind": "value",
+   "values": [
+    [
+     "-0.814000814000814000814000814001",
+     "0"
+    ],
+    [
+     "2.69905533063427800269905533063",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "sin(t)cos(t)",
+   "sympy": "sin(t)*cos(t)",
+   "direction": "forward",
+   "result": "1/(s**2 + 4)",
+   "kind": "value",
+   "values": [
+    [
+     "0.222717149220489977728285077951",
+     "0"
+    ],
+    [
+     "0.131406044678055190538764783180",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "3 + 2t - e^t",
+   "sympy": "3 + 2*t - exp(t)",
+   "direction": "forward",
+   "result": "-1/(s - 1) + 3/s + 2/s**2",
+   "kind": "value",
+   "values": [
+    [
+     "11.7006802721088435374149659864",
+     "0"
+    ],
+    [
+     "-0.680103161715541121406055974783",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "sin(t + 1)",
+   "sympy": "sin(t + 1)",
+   "direction": "forward",
+   "result": "(s*cos(1 - pi/2) + cos(1))/(s**2 + 1)",
+   "kind": "value",
+   "values": [
+    [
+     "0.757940936398434410776971968177",
+     "0"
+    ],
+    [
+     "-0.229607931728169988121218612506",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "2^t",
+   "sympy": "2**t",
+   "direction": "forward",
+   "result": "LaplaceTransform(2**t, t, s)",
+   "kind": "unsolved",
+   "differs": {
+    "sympy": "SymPy leaves LaplaceTransform(2**t, t, s); here 2^t is e^(t ln(2)), whose transform is 1/(s - ln(2))"
+   }
+  },
+  {
+   "text": "t e^(a t)",
+   "sympy": "t*exp(a*t)",
+   "direction": "forward",
+   "result": "(-a + s)**(-2)",
+   "kind": "value",
+   "values": [
+    [
+     "0.510204081632653061224489795918",
+     "0"
+    ],
+    [
+     "0.826446280991735537190082644628",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "sin(b t)",
+   "sympy": "sin(b*t)",
+   "direction": "forward",
+   "result": "b/(b**2 + s**2)",
+   "kind": "value",
+   "values": [
+    [
+     "-0.502958579881656804733727810651",
+     "0"
+    ],
+    [
+     "0.231046931407942238267148014440",
+     "0"
+    ]
+   ]
+  },
+  {
+   "text": "tan(t)",
+   "sympy": "tan(t)",
+   "direction": "forward",
+   "result": "LaplaceTransform(tan(t), t, s)",
+   "kind": "unsolved"
+  },
+  {
+   "text": "1/s",
+   "sympy": "1/s",
+   "direction": "inverse",
+   "result": "1",
+   "kind": "value",
+   "values": [
+    [
+     "1.00000000000000000000000000000",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "1/s^3",
+   "sympy": "1/s**3",
+   "direction": "inverse",
+   "result": "t**2/2",
+   "kind": "value",
+   "values": [
+    [
+     "0.245000000000000000000000000000",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "1/(s - 2)",
+   "sympy": "1/(s - 2)",
+   "direction": "inverse",
+   "result": "exp(2*t)",
+   "kind": "value",
+   "values": [
+    [
+     "4.05519996684467458722410889523",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "1/(s^2 + 4)",
+   "sympy": "1/(s**2 + 4)",
+   "direction": "inverse",
+   "result": "sin(2*t)/2",
+   "kind": "value",
+   "values": [
+    [
+     "0.492724864994230090329737289403",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "s/(s^2 + 9)",
+   "sympy": "s/(s**2 + 9)",
+   "direction": "inverse",
+   "result": "cos(3*t)",
+   "kind": "value",
+   "values": [
+    [
+     "-0.504846104599857451620938523719",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "1/(s^2 + 2s + 5)",
+   "sympy": "1/(s**2 + 2*s + 5)",
+   "direction": "inverse",
+   "result": "exp(-t)*sin(2*t)/2",
+   "kind": "value",
+   "values": [
+    [
+     "0.244679926768740988946181741228",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "(s + 1)/(s^2 - 1)",
+   "sympy": "(s + 1)/(s**2 - 1)",
+   "direction": "inverse",
+   "result": "exp(t)",
+   "kind": "value",
+   "values": [
+    [
+     "2.01375270747047652162454938858",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "1/(s*(s + 1))",
+   "sympy": "1/(s*(s + 1))",
+   "direction": "inverse",
+   "result": "1 - exp(-t)",
+   "kind": "value",
+   "values": [
+    [
+     "0.503414696208590485295199906602",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "1/(s + 1)^3",
+   "sympy": "1/(s + 1)**3",
+   "direction": "inverse",
+   "result": "t**2*exp(-t)/2",
+   "kind": "value",
+   "values": [
+    [
+     "0.121663399428895331102676022882",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "1/sqrt(s)",
+   "sympy": "1/sqrt(s)",
+   "direction": "inverse",
+   "result": "1/(sqrt(pi)*sqrt(t))",
+   "kind": "value",
+   "values": [
+    [
+     "0.674335531344735440394983174333",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "1/(s^2 - 2)",
+   "sympy": "1/(s**2 - 2)",
+   "direction": "inverse",
+   "result": "sqrt(2)*sinh(sqrt(2)*t)/2",
+   "kind": "value",
+   "values": [
+    [
+     "0.820068182988977779696077197776",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "1/(s^2 + 1)^2",
+   "sympy": "1/(s**2 + 1)**2",
+   "direction": "inverse",
+   "result": "-t*cos(t)/2 + sin(t)/2",
+   "kind": "value",
+   "values": [
+    [
+     "0.0544140780692745776467561791322",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "s/(s^2 + 4)^2",
+   "sympy": "s/(s**2 + 4)**2",
+   "direction": "inverse",
+   "result": "t*sin(2*t)/4",
+   "kind": "value",
+   "values": [
+    [
+     "0.172453702747980531615408051291",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "(2s + 3)/(s^2 + 4s + 13)",
+   "sympy": "(2*s + 3)/(s**2 + 4*s + 13)",
+   "direction": "inverse",
+   "result": "-exp(-2*t)*sin(3*t)/3 + 2*exp(-2*t)*cos(3*t)",
+   "kind": "value",
+   "values": [
+    [
+     "-0.319941969657999509440777527933",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "e^(-2s)/s",
+   "sympy": "exp(-2*s)/s",
+   "direction": "inverse",
+   "result": "Heaviside(t - 2)",
+   "kind": "unsolved",
+   "heaviside": true,
+   "values": [
+    [
+     "0",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "1/(s^3 + s)",
+   "sympy": "1/(s**3 + s)",
+   "direction": "inverse",
+   "result": "1 - cos(t)",
+   "kind": "value",
+   "values": [
+    [
+     "0.235157812715511573744140009808",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "(s^2 + 1)/(s^3 - s)",
+   "sympy": "(s**2 + 1)/(s**3 - s)",
+   "direction": "inverse",
+   "result": "exp(t) - 1 + exp(-t)",
+   "kind": "value",
+   "values": [
+    [
+     "1.51033801126188603632934948198",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "a/(s^2 + a^2)",
+   "sympy": "a/(s**2 + a**2)",
+   "direction": "inverse",
+   "result": "a*sin(t*sqrt(a**2))/sqrt(a**2)",
+   "kind": "value",
+   "values": [
+    [
+     "0.994924349777580897859928462736",
+     "0"
+    ],
+    null
+   ]
+  },
+  {
+   "text": "s^2/(s^2 + 1)",
+   "sympy": "s**2/(s**2 + 1)",
+   "direction": "inverse",
+   "result": "-sin(t) + DiracDelta(t)",
+   "kind": "unsolved"
+  }
+ ]
+}

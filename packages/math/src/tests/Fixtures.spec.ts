@@ -985,6 +985,38 @@ describe('The fixtures (SymPy, mathjs, nerdamer)', (): void => {
         assert.deepStrictEqual(problems, [])
     })
 
+    it('transform as SymPy (Laplace and its inverse): the same values, each difference noted', (): void => {
+        const fixtures = expected<{text: string, sympy: string, direction: 'forward' | 'inverse', kind: 'value' | 'unsolved', result: string | null, values?: (Complex | null)[], heaviside?: boolean, differs?: Record<string, string>}>('laplace')
+        const problems: string[] = []
+        for (const fixture of fixtures.cases) {
+            const forward: boolean = fixture.direction === 'forward'
+            const label: string = forward ? `the Laplace transform of ${fixture.text}` : `the inverse Laplace transform of ${fixture.text}`
+            let ours: Expression | undefined, error: MathException | undefined
+            try {
+                ours = forward ? math.expression(fixture.text).laplace('t', 's') : math.expression(fixture.text).inverseLaplace('s', 't')
+            } catch (caught) {
+                if (!(caught instanceof MathException)) throw caught
+                error = caught
+            }
+            //A value: the same values at the points, its variable (s, or t of an inverse, for t > 0: SymPy's values at
+            //x = 0.7 only) renamed x; a shifted Heaviside of SymPy: ours a piecewise expression, compared as a value.
+            //None SymPy finds (a transform left, a DiracDelta): the same where ours is none either
+            //(MathNotSupportedException)
+            let same: boolean
+            if (fixture.kind === 'value' || fixture.heaviside) {
+                const renamed: Expression | undefined = ours?.substitute(forward ? {s: 'x'} : {t: 'x'})
+                same = renamed !== undefined && fixtures.points.every((point: Point, index: number): boolean => fixture.values![index] === null || close(valueAt(renamed, point), fixture.values![index]!, 1e-9))
+            } else {
+                same = error instanceof MathNotSupportedException
+            }
+            const theirs: string = fixture.heaviside ? `a shifted Heaviside (${fixture.result})` : fixture.kind === 'unsolved' ? `none found (${fixture.result})` : fixture.result!
+            const noted: string | undefined = fixture.differs?.sympy
+            if (!same && !noted) problems.push(`${label}: ${ours?.toString() ?? `${error!.constructor.name}: ${error!.message}`}, SymPy ${theirs}, not noted`)
+            if (same && noted) problems.push(`${label}: SymPy agrees, its note is stale`)
+        }
+        assert.deepStrictEqual(problems, [])
+    })
+
     it('solve the linear systems as SymPy', (): void => {
         const fixtures = expected<{equations: string[], variables: string[], kind: string, values?: Record<string, {text: string, values: (Complex | null)[]}>}>('systems')
         for (const fixture of fixtures.cases) {

@@ -779,6 +779,33 @@ def integrals():
     save('integrals', results)
 
 
+def laplaces():
+    """The Laplace transforms of SymPy (laplace_transform, no conditions) and their inverses (inverse_laplace_transform,
+    for t > 0: its Heaviside(t) replaced by 1): the result and its values at the sample points of x, its variable
+    renamed x (s of a transform at both points; t of an inverse at x = 0.7 only, null at the negative one); unsolved
+    where a LaplaceTransform, an InverseLaplaceTransform or a DiracDelta is left, or a shifted Heaviside (heaviside,
+    its values kept)"""
+    t, s, x = Symbol('t'), Symbol('s'), Symbol('x')
+    results = []
+    for case in load('laplace'):
+        result = dict(case)
+        expr = meaning(case['sympy'])
+        if case['direction'] == 'forward':
+            value, variable, points = sympy.laplace_transform(expr, t, s, noconds=True), s, POINTS
+        else:
+            value, variable, points = sympy.inverse_laplace_transform(expr, s, t).subs(sympy.Heaviside(t), 1), t, POINTS[:1]
+        result['result'] = text_of(value)
+        values = values_at(value.subs(variable, x), points) + [None] * (len(POINTS) - len(points))
+        if value.has(sympy.LaplaceTransform, sympy.InverseLaplaceTransform, sympy.DiracDelta):
+            result['kind'] = 'unsolved'
+        elif value.has(sympy.Heaviside):
+            result['kind'], result['heaviside'], result['values'] = 'unsolved', True, values
+        else:
+            result['kind'], result['values'] = 'value', values
+        results.append(result)
+    save('laplace', results)
+
+
 if __name__ == '__main__':
     grammar()
     numbers()
@@ -801,6 +828,7 @@ if __name__ == '__main__':
     limits()
     simplification()
     integrals()
+    laplaces()
     decimals()
     special()
     complex_parts()
