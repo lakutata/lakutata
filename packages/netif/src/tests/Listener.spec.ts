@@ -10,6 +10,7 @@ import {
     type InterfaceAddress,
     type InterfaceListener,
     listenOn,
+    listenOnAll,
     listInterfaces,
     NetIfException,
     NetIfNotEnforcedException,
@@ -266,4 +267,30 @@ describe('A listener', (): void => {
             assert.strictEqual(exited, mode === 'close', mode)
         }
     })
+
+    it('listens on several interfaces with listenOnAll(), all of them closed when one cannot be', async (): Promise<void> => {
+        const server: HTTPServer = textServer('all')
+        const taken: Server = createNetServer()
+        await new Promise<void>((resolve: () => void): void => {
+            taken.listen(0, '127.0.0.1', resolve)
+        })
+        const port: number = (taken.address() as {port: number}).port
+        taken.close()
+        const listeners: InterfaceListener[] = await listenOnAll([loopback().name, 'netif-absent0'], server, {port: port, family: 'IPv4'})
+        try {
+            assert.strictEqual(listeners.length, 2)
+            assert.strictEqual(listeners[0].listening, true)
+            assert.strictEqual(listeners[1].listening, false)
+            assert.strictEqual(await get('127.0.0.1', port), 'all')
+        } finally {
+            for (const listener of listeners) await listener.close()
+        }
+        await assert.rejects(listenOnAll([loopback().name, 'netif-absent0'], server, {port: 0}), TypeError)
+        await assert.rejects(listenOnAll([], server, {port: 0}), TypeError)
+        //The second one refused (an index no interface has): the first one closed
+        const highest: number = Math.max(...listInterfaces().map((entry: NetworkInterfaceInfo): number => entry.index))
+        await assert.rejects(listenOnAll([loopback().name, {index: highest + 1000}], server, {port: port, family: 'IPv4'}))
+        assert.strictEqual(await get('127.0.0.1', port), 'ECONNREFUSED')
+    })
 })
+

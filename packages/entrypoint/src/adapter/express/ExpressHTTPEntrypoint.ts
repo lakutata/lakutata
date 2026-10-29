@@ -3,6 +3,7 @@ import {createServer, type IncomingMessage, type Server, type ServerOptions} fro
 import path from 'node:path'
 import type {Readable} from 'node:stream'
 import type {Module} from '@lakutata/core'
+import type {InterfaceListener} from '@lakutata/netif'
 import type {ChannelActionInfo, ChannelRuntime, EntrypointAdapter} from '../../channel/EntrypointAdapter.js'
 import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import {HTTPContext} from '../../context/HTTPContext.js'
@@ -10,6 +11,7 @@ import {HTTPChannel} from '../../channel/BuiltinChannels.js'
 import {EventsResult, FileResult, StatusResult} from '../../lib/Result.js'
 import {RouteNotFoundException} from '../../exceptions/RouteNotFoundException.js'
 import {trackConnections} from '../../lib/Connections.js'
+import {closeListeners, type InterfaceListeningOptions, listensOnInterfaces, listenOnInterfaces} from '../../lib/Interfaces.js'
 import {markExplicitStatus} from '../../lib/ExplicitStatus.js'
 import {isTextType} from '../../lib/TextBodies.js'
 import {ExpressResponder, JSONResponder} from './Responders.js'
@@ -45,9 +47,10 @@ export type ExpressHookContext = {
 }
 
 /**
- * The options of {@link expressHTTPEntrypoint}.
+ * The options of {@link expressHTTPEntrypoint}; with `interface`, it listens on network interfaces instead of an
+ * address (see {@link InterfaceListeningOptions}).
  */
-export type ExpressHTTPEntrypointOptions = {
+export type ExpressHTTPEntrypointOptions = InterfaceListeningOptions & {
     /**
      * The adapter name, to tell apart several HTTP adapters of one entrypoint.
      */
@@ -58,7 +61,7 @@ export type ExpressHTTPEntrypointOptions = {
      */
     port?: number
     /**
-     * The host or address the server listens on.
+     * The host or address the server listens on; excludes `interface`.
      * @default all the interfaces
      */
     host?: string
@@ -111,6 +114,12 @@ export type ExpressHTTPEntrypointOptions = {
      */
     stop?: () => void | Promise<void>
     /**
+     * Run once the server listens (on an address), or once the listeners of the interfaces are made (with
+     * `interface`): the server itself does not listen then, its `address()` is `null`; the listeners give the port, the
+     * addresses and whether the other interfaces are refused (`enforced`).
+     */
+    listening?: (server: Server, listeners?: InterfaceListener[]) => void | Promise<void>
+    /**
      * The interval between the comments keeping the event streams (`EventsResult`) alive through the proxies, in
      * milliseconds.
      * @default 15000
@@ -162,6 +171,10 @@ function eventFrame(data: unknown, event?: string, id?: string): string {
  * entrypoint stops, the server stops accepting connections, the event streams end, and the requests in progress are
  * given up to one second after they settle to send their responses before the remaining connections are closed — the
  * connections taken over by an upgrade (the WebSockets of the application) too, which would hold the stop forever.
+ *
+ * With `interface` (and the package `@lakutata/netif`, installed apart), the server listens on network interfaces
+ * instead of an address, whatever their addresses, again when they change and when an interface is unplugged and
+ * plugged back: `expressHTTPEntrypoint({port: 8080, interface: 'eth1'})`.
  * @param options The adapter options; by default it listens on port 80 of all the interfaces with a new express
  * application.
  * @returns The adapter, to give to the `http` option of `buildEntrypoints`.
@@ -209,6 +222,7 @@ function eventFrame(data: unknown, event?: string, id?: string): string {
  * ```
  */
 export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}): EntrypointAdapter<HTTPContext> {
+    const onInterfaces: boolean = listensOnInterfaces('expressHTTPEntrypoint', options)
     const respond: ExpressResponder = options.respond ?? JSONResponder
     const textTypes: string[] = options.body ? options.body.text ?? [] : []
     const input: (request: Request) => Record<string, unknown> = options.input ?? ((request: Request): Record<string, unknown> => ({
@@ -218,6 +232,7 @@ export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}
     }))
     const streams: Set<AbortController> = new Set()
     let server: Server | undefined
+    let listeners: InterfaceListener[] | undefined
     let destroyConnections: (() => void) | undefined
     let closed: Promise<void> | undefined
     let stopping: boolean = false
@@ -374,18 +389,30 @@ export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}
                 if (response.headersSent) return next(error)
                 respond.error(response, error, request, 'request')
             })
-            //The adapter starts once the server listens (an occupied port fails the start)
-            await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
-                server!.once('error', reject).listen(options.port ?? 80, options.host, (): void => {
-                    server!.off('error', reject)
-                    resolve()
+            //The adapter starts once the server listens (an occupied port fails the start), or once the interfaces are
+            //listened on (or waited for)
+            if (onInterfaces) {
+                listeners = await listenOnInterfaces('expressHTTPEntrypoint', runtime, server, options, options.port ?? 80)
+            } else {
+                await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
+                    server!.once('error', reject).listen(options.port ?? 80, options.host, (): void => {
+                        server!.off('error', reject)
+                        resolve()
+                    })
                 })
-            })
+            }
+            await options.listening?.(server, listeners)
         },
         stop: (): void => {
             //The event streams end, the server stops accepting connections and closes the idle ones
             stopping = true
             streams.forEach((stream: AbortController): void => stream.abort())
+            if (listeners) {
+                //The server never listened: its listeners stop accepting the connections of the interfaces
+                closed = closeListeners(listeners)
+                server?.closeIdleConnections()
+                return
+            }
             if (!server?.listening) return
             closed = new Promise((resolve: () => void): void => void server!.close((): void => resolve()))
             server.closeIdleConnections()

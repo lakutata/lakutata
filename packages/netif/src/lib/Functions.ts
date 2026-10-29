@@ -52,3 +52,40 @@ export async function listenOn(selector: InterfaceSelector, server: Server, opti
         throw error
     }
 }
+
+/**
+ * Listens on several interfaces for a server: `listenOn()` for each of them, one listener by interface, the interfaces
+ * followed until their listeners are closed. When one of them cannot be listened on, the ones listened on already are
+ * closed and the error is thrown. Several interfaces need a port: 0 lets the system choose one for the first
+ * interface, which may not exist yet.
+ * @param selectors An interface (its name, `{mac}` or `{index}`), or several.
+ * @param server A `net.Server` or a server built on one (`http`, `https`, `http2`, `tls`), which must not listen itself.
+ * @param options The port, the families, `strict` and the backlog, the same for every interface.
+ * @returns The listeners, in the order of the interfaces.
+ * @throws TypeError No interface, or a port 0 with several of them.
+ * @throws NetIfNotEnforcedException With `strict`, where the system cannot refuse the connections coming through another
+ * interface.
+ * @throws NetIfException The system refused a first listening, its code as `errno`.
+ * @example
+ * ```typescript
+ * import {createServer} from 'node:http'
+ * import {type InterfaceListener, listenOnAll} from '@lakutata/netif'
+ *
+ * const server = createServer((request, response) => response.end('ok'))
+ * const listeners: InterfaceListener[] = await listenOnAll(['eth1', {mac: '52:54:00:12:34:56'}], server, {port: 8080})
+ * for (const listener of listeners) listener.on('error', error => console.error(error))
+ * ```
+ */
+export async function listenOnAll(selectors: InterfaceSelector | InterfaceSelector[], server: Server, options: ListenOptions): Promise<InterfaceListener[]> {
+    const list: InterfaceSelector[] = Array.isArray(selectors) ? selectors : [selectors]
+    if (!list.length) throw new TypeError('listenOnAll() takes an interface at least')
+    if (list.length > 1 && options?.port === 0) throw new TypeError('Several interfaces need a port: 0 lets the system choose one for the first interface, which may not exist yet')
+    const listeners: InterfaceListener[] = []
+    try {
+        for (const selector of list) listeners.push(await listenOn(selector, server, options))
+    } catch (error) {
+        await Promise.all(listeners.map((listener: InterfaceListener): Promise<void> => listener.close()))
+        throw error
+    }
+    return listeners
+}

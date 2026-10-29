@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {createServer, type IncomingMessage, type OutgoingHttpHeaders, type Server, type ServerResponse} from 'node:http'
 import type {Readable, Writable} from 'node:stream'
+import type {InterfaceListener} from '@lakutata/netif'
 import type {ChannelRuntime, EntrypointAdapter} from '../../channel/EntrypointAdapter.js'
 import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import type {ServiceContext} from '../../context/ServiceContext.js'
@@ -8,6 +9,7 @@ import {ServiceChannel} from '../../channel/BuiltinChannels.js'
 import {JSONRPCErrorCode, JSONRPCProtocol, type JSONRPCDispatch, type JSONRPCMappingOptions, type JSONRPCResponse} from './JSONRPCProtocol.js'
 import {applicationOf} from '../../lib/ApplicationOf.js'
 import {trackConnections} from '../../lib/Connections.js'
+import {closeListeners, type InterfaceListeningOptions, listensOnInterfaces, listenOnInterfaces} from '../../lib/Interfaces.js'
 import {readBody} from '../../lib/ReadBody.js'
 import {preflightHeaders} from '../../lib/Preflight.js'
 
@@ -15,7 +17,7 @@ import {preflightHeaders} from '../../lib/Preflight.js'
  * The options of {@link jsonRPCServiceEntrypoint}: its transport, and how the requests map to the service actions (see
  * {@link JSONRPCMappingOptions}).
  */
-export type JSONRPCServiceEntrypointOptions = JSONRPCMappingOptions & {
+export type JSONRPCServiceEntrypointOptions = JSONRPCMappingOptions & InterfaceListeningOptions & {
     /**
      * The adapter name, to tell apart several service adapters of one entrypoint.
      */
@@ -36,7 +38,7 @@ export type JSONRPCServiceEntrypointOptions = JSONRPCMappingOptions & {
      */
     port?: number
     /**
-     * The host or address of the HTTP or WebSocket server.
+     * The host or address of the HTTP or WebSocket server; excludes `interface`.
      * @default all the interfaces
      */
     host?: string
@@ -87,10 +89,12 @@ export type JSONRPCServiceEntrypointOptions = JSONRPCMappingOptions & {
      */
     middlewares?: MiddlewareDefinition[]
     /**
-     * Run once the HTTP or WebSocket server listens, with the server (to read the port picked for port 0). A failure
-     * fails the entrypoint start. Not called with stdio.
+     * Run once the HTTP or WebSocket server listens, with the server (to read the port picked for port 0); with
+     * `interface`, once the listeners of the interfaces are made, with them too (the server itself does not listen
+     * then: its `address()` is `null`, the listeners give the port and the addresses). A failure fails the entrypoint
+     * start. Not called with stdio.
      */
-    listening?: (server: Server) => void | Promise<void>
+    listening?: (server: Server, listeners?: InterfaceListener[]) => void | Promise<void>
 }
 
 /**
@@ -227,6 +231,10 @@ type WebSocketLike = {
  * stdio stops reading, the new requests are answered with `STOPPING`, and once the requests in progress are answered
  * the WebSocket connections are closed (code 1001; the ones not answering within a second are terminated) and the
  * server shuts down, closing its remaining connections (the ones taken over by an upgrade of the application too).
+ *
+ * With `interface` (and the package `@lakutata/netif`, installed apart), the server listens on network interfaces
+ * instead of an address, whatever their addresses, again when they change and when an interface is unplugged and
+ * plugged back: `jsonRPCServiceEntrypoint({port: 3000, interface: 'eth1'})`.
  * @param options The adapter options; by default it serves HTTP on port 3000 of all the interfaces, on the path `/`.
  * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
@@ -277,11 +285,13 @@ type WebSocketLike = {
  */
 export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
     const transport: 'http' | 'websocket' | 'stdio' = options.transport ?? 'http'
+    const onInterfaces: boolean = listensOnInterfaces('jsonRPCServiceEntrypoint', options, transport === 'stdio' ? 'with the stdio transport' : undefined)
     const protocol: JSONRPCProtocol = new JSONRPCProtocol(options)
     const limit: number = options.limit ?? 10 * 1024 * 1024
     const path: string = (options.path ?? '/').replace(/(.)\/+$/, '$1')
     let stopping: boolean = false
     let server: Server | undefined
+    let listeners: InterfaceListener[] | undefined
     let destroyConnections: (() => void) | undefined
     let webSocketServer: { close(callback?: () => void): void, clients: Set<WebSocketLike> } | undefined
     let stopReading: (() => void) | undefined
@@ -317,15 +327,19 @@ export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
         return handled
     }
 
-    const listen = async (target: Server): Promise<void> => {
+    const listen = async (runtime: ChannelRuntime<ServiceContext>, target: Server): Promise<void> => {
         destroyConnections = trackConnections(target)
-        await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
-            target.once('error', reject).listen(options.port ?? 3000, options.host, (): void => {
-                target.off('error', reject)
-                resolve()
+        if (onInterfaces) {
+            listeners = await listenOnInterfaces('jsonRPCServiceEntrypoint', runtime, target, options, options.port ?? 3000, transport === 'websocket' ? 'the websocket transport: use the http transport in Bun' : undefined)
+        } else {
+            await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
+                target.once('error', reject).listen(options.port ?? 3000, options.host, (): void => {
+                    target.off('error', reject)
+                    resolve()
+                })
             })
-        })
-        await options.listening?.(target)
+        }
+        await options.listening?.(target, listeners)
     }
 
     return {
@@ -373,7 +387,7 @@ export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
                         response.writeHead(error.statusCode ?? 400, {...CORS_HEADERS, 'Content-Type': 'application/json'}).end(JSON.stringify({jsonrpc: '2.0', id: null, error: {code: -32600, message: error.message}}))
                     })
                 })
-                return await listen(server)
+                return await listen(runtime, server)
             }
             //WebSocket: the server of ws (an optional dependency)
             let ws: { WebSocketServer: new (options: Record<string, unknown>) => any }
@@ -411,7 +425,7 @@ export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
                 }), interval)
                 heartbeat.unref()
             }
-            await listen(server)
+            await listen(runtime, server)
         },
         stop: (): void => {
             //The new requests are refused, the requests in progress end
@@ -436,6 +450,7 @@ export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
                 sockets.forEach((socket: WebSocketLike): void => socket.terminate())
                 await closedSockets
             }
+            await closeListeners(listeners)
             if (!server) return
             const closing: Promise<void> = new Promise<void>((resolve: () => void): void => void server!.close((): void => resolve()))
             server.closeAllConnections()

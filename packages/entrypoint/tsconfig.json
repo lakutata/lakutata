@@ -55,6 +55,9 @@
       ],
       "@lakutata/core/dtos": [
         "../core/dist/types/exports/DTOs"
+      ],
+      "@lakutata/netif": [
+        "../netif/dist/types/exports/Netif"
       ]
     }
   },

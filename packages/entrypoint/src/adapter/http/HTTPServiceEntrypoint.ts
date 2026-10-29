@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {createServer, type IncomingMessage, type OutgoingHttpHeaders, type Server, type ServerResponse} from 'node:http'
+import type {InterfaceListener} from '@lakutata/netif'
 import type {ChannelRuntime, EntrypointAdapter} from '../../channel/EntrypointAdapter.js'
 import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import {ServiceContext} from '../../context/ServiceContext.js'
@@ -7,13 +8,15 @@ import {ServiceChannel} from '../../channel/BuiltinChannels.js'
 import {ServiceResponseCodec, type ServiceResponse} from '../../lib/ServiceResponseCodec.js'
 import {EntrypointStoppedException} from '../../exceptions/EntrypointStoppedException.js'
 import {trackConnections} from '../../lib/Connections.js'
+import {closeListeners, type InterfaceListeningOptions, listensOnInterfaces, listenOnInterfaces} from '../../lib/Interfaces.js'
 import {readBody} from '../../lib/ReadBody.js'
 import {preflightHeaders} from '../../lib/Preflight.js'
 
 /**
- * The options of {@link httpServiceEntrypoint}.
+ * The options of {@link httpServiceEntrypoint}; with `interface`, it listens on network interfaces instead of an
+ * address (see {@link InterfaceListeningOptions}).
  */
-export type HTTPServiceEntrypointOptions = {
+export type HTTPServiceEntrypointOptions = InterfaceListeningOptions & {
     /**
      * The adapter name, to tell apart several service adapters of one entrypoint.
      */
@@ -24,7 +27,7 @@ export type HTTPServiceEntrypointOptions = {
      */
     port?: number
     /**
-     * The host or address the server listens on.
+     * The host or address the server listens on; excludes `interface`.
      * @default all the interfaces
      */
     host?: string
@@ -43,10 +46,11 @@ export type HTTPServiceEntrypointOptions = {
      */
     middlewares?: MiddlewareDefinition[]
     /**
-     * Run once the server listens, with the server (to read the port picked for port 0). A failure fails the entrypoint
-     * start.
+     * Run once the server listens, with the server (to read the port picked for port 0); with `interface`, once the
+     * listeners of the interfaces are made, with them too (the server itself does not listen then: its `address()` is
+     * `null`, the listeners give the port and the addresses). A failure fails the entrypoint start.
      */
-    listening?: (server: Server) => void | Promise<void>
+    listening?: (server: Server, listeners?: InterfaceListener[]) => void | Promise<void>
 }
 
 /**
@@ -123,6 +127,10 @@ function reply(response: ServerResponse, status: number, body: unknown): void {
  * requests are answered with an `EntrypointStoppedException` error; once the requests in progress end, the event
  * streams are closed and the server shuts down, closing its remaining connections (the ones taken over by an upgrade of
  * the application too).
+ *
+ * With `interface` (and the package `@lakutata/netif`, installed apart), the server listens on network interfaces
+ * instead of an address, whatever their addresses, again when they change and when an interface is unplugged and
+ * plugged back: `httpServiceEntrypoint({port: 3000, interface: 'eth1'})`.
  * @param options The adapter options; by default it listens on port 3000 of all the interfaces, on the path `/`.
  * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
@@ -161,11 +169,13 @@ function reply(response: ServerResponse, status: number, body: unknown): void {
  * ```
  */
 export function httpServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
+    const onInterfaces: boolean = listensOnInterfaces('httpServiceEntrypoint', options)
     const base: string = (options.path ?? '/').replace(/\/+$/, '')
     const requestPath: string = base || '/'
     const eventsPath: string = `${base}/events`
     const limit: number = options.limit ?? 10 * 1024 * 1024
     let server: Server | undefined
+    let listeners: InterfaceListener[] | undefined
     let destroyConnections: (() => void) | undefined
     let stopping: boolean = false
     let keepAlive: NodeJS.Timeout | undefined
@@ -250,13 +260,17 @@ export function httpServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}
             keepAlive = setInterval((): void => clients.forEach((streams: Set<ServerResponse>): void => streams.forEach((stream: ServerResponse): unknown => stream.write(': keep-alive\n\n'))), 15000)
             keepAlive.unref()
             destroyConnections = trackConnections(server)
-            await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
-                server!.once('error', reject).listen(options.port ?? 3000, options.host, (): void => {
-                    server!.off('error', reject)
-                    resolve()
+            if (onInterfaces) {
+                listeners = await listenOnInterfaces('httpServiceEntrypoint', runtime, server, options, options.port ?? 3000)
+            } else {
+                await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
+                    server!.once('error', reject).listen(options.port ?? 3000, options.host, (): void => {
+                        server!.off('error', reject)
+                        resolve()
+                    })
                 })
-            })
-            await options.listening?.(server)
+            }
+            await options.listening?.(server, listeners)
         },
         stop: (): void => {
             //The new requests are refused, the requests in progress end
@@ -266,6 +280,7 @@ export function httpServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}
             clearInterval(keepAlive)
             clients.forEach((streams: Set<ServerResponse>): void => streams.forEach((stream: ServerResponse): unknown => stream.end()))
             clients.clear()
+            await closeListeners(listeners)
             if (!server) return
             const closing: Promise<void> = new Promise<void>((resolve: () => void): void => void server!.close((): void => resolve()))
             server.closeAllConnections()

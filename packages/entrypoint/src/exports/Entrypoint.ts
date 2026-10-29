@@ -25,3 +25,4 @@ export {httpServiceEntrypoint, httpRequestOfContext, type HTTPServiceEntrypointO
 export {buildHTTPServiceProxy, HTTPServiceProxy, type BuildHTTPServiceProxyOptions} from '../adapter/http/HTTPServiceProxy.js'
 export * from '../exceptions/ServiceUnavailableException.js'
 export {Cron, parseDuration} from '../lib/schedule/Cron.js'
+export {type InterfaceListeningOptions} from '../lib/Interfaces.js'

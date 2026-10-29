@@ -1,16 +1,19 @@
 import {Server as SocketIOServer, type Namespace, type ServerOptions, type Socket} from 'socket.io'
 import {createServer, type Server} from 'node:http'
+import type {InterfaceListener} from '@lakutata/netif'
 import type {ChannelRuntime, EntrypointAdapter} from '../../channel/EntrypointAdapter.js'
 import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import {ServiceContext} from '../../context/ServiceContext.js'
 import {ServiceChannel} from '../../channel/BuiltinChannels.js'
 import {ServiceResponseCodec, type ServiceResponse} from '../../lib/ServiceResponseCodec.js'
 import {EntrypointStoppedException} from '../../exceptions/EntrypointStoppedException.js'
+import {closeListeners, type InterfaceListeningOptions, listensOnInterfaces, listenOnInterfaces} from '../../lib/Interfaces.js'
 
 /**
- * The options of {@link socketIOServiceEntrypoint}.
+ * The options of {@link socketIOServiceEntrypoint}; with `interface`, its own server listens on network interfaces
+ * instead of an address (see {@link InterfaceListeningOptions}).
  */
-export type SocketIOServiceEntrypointOptions = {
+export type SocketIOServiceEntrypointOptions = InterfaceListeningOptions & {
     /**
      * The adapter name, to tell apart several service adapters of one entrypoint.
      */
@@ -45,7 +48,7 @@ export type SocketIOServiceEntrypointOptions = {
      */
     port?: number
     /**
-     * The host or address of the adapter's own server.
+     * The host or address of the adapter's own server; excludes `interface`.
      * @default all the interfaces
      */
     host?: string
@@ -59,10 +62,11 @@ export type SocketIOServiceEntrypointOptions = {
     middlewares?: MiddlewareDefinition[]
     /**
      * Run once the adapter is ready, with the socket.io server and its HTTP server (`undefined` when `io` is given
-     * without `server`).
+     * without `server`); with `interface`, the listeners of the interfaces too (the server itself does not listen then:
+     * its `address()` is `null`, the listeners give the port and the addresses).
      * A failure fails the entrypoint start.
      */
-    listening?: (io: SocketIOServer, server: Server | undefined) => void | Promise<void>
+    listening?: (io: SocketIOServer, server: Server | undefined, listeners?: InterfaceListener[]) => void | Promise<void>
 }
 
 /**
@@ -117,6 +121,10 @@ function clientIdOf(socket: Socket): string {
  * When a socket disconnects, its requests in progress are aborted (their abort signal fires). When the entrypoint
  * stops, the new requests are answered with an `EntrypointStoppedException` error; once the requests in progress end,
  * the socket.io server is closed (the sockets disconnected, with the attached HTTP server left open).
+ *
+ * With `interface` (and the package `@lakutata/netif`, installed apart), the server listens on network interfaces
+ * instead of an address, whatever their addresses, again when they change and when an interface is unplugged and
+ * plugged back: `socketIOServiceEntrypoint({port: 3000, interface: 'eth1'})`.
  * @param options The adapter options; by default it listens on port 3000 of all the interfaces with a server of its own.
  * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
@@ -156,10 +164,12 @@ function clientIdOf(socket: Socket): string {
  * ```
  */
 export function socketIOServiceEntrypoint(options: SocketIOServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
+    const onInterfaces: boolean = listensOnInterfaces('socketIOServiceEntrypoint', options, options.io || options.server ? 'with server or io (the server they listen on is not the adapter\'s)' : undefined)
     const event: string = options.event ?? 'message'
     let io: SocketIOServer | undefined
     let namespace: Namespace | undefined
     let ownServer: Server | undefined
+    let listeners: InterfaceListener[] | undefined
     let sharedServer: boolean = false
     let stopping: boolean = false
     let onConnection: ((socket: Socket) => void) | undefined
@@ -222,7 +232,12 @@ export function socketIOServiceEntrypoint(options: SocketIOServiceEntrypointOpti
                 })
             }
             namespace.on('connection', onConnection)
-            if (ownServer) {
+            if (ownServer && onInterfaces) {
+                //The WebSocket transport, unless only polling is allowed
+                const transports: unknown = options.options?.transports
+                const webSockets: boolean = !Array.isArray(transports) || transports.includes('websocket')
+                listeners = await listenOnInterfaces('socketIOServiceEntrypoint', runtime, ownServer, options, options.port ?? 3000, webSockets ? 'the websocket transport of socket.io: give options: {transports: [\'polling\']} in Bun' : undefined)
+            } else if (ownServer) {
                 //The adapter starts once its server listens (an occupied port fails the start)
                 await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
                     ownServer!.once('error', reject).listen(options.port ?? 3000, options.host, (): void => {
@@ -231,7 +246,7 @@ export function socketIOServiceEntrypoint(options: SocketIOServiceEntrypointOpti
                     })
                 })
             }
-            await options.listening?.(io, ownServer ?? attachTo)
+            await options.listening?.(io, ownServer ?? attachTo, listeners)
         },
         stop: (): void => {
             //The new requests are refused, the requests in progress end
@@ -253,6 +268,7 @@ export function socketIOServiceEntrypoint(options: SocketIOServiceEntrypointOpti
             //The sockets connected keep no listener of the adapter (they stay connected to a given io)
             detachers.forEach((detach: () => void): void => detach())
             detachers.clear()
+            await closeListeners(listeners)
             if (!io || options.io) return
             if (sharedServer) {
                 //The server is closed by its owner: the clients are disconnected and the transports closed
