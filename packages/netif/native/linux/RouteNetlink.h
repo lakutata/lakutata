@@ -1,5 +1,6 @@
 //A netlink socket of the routing family (NETLINK_ROUTE): the dumps of the links and the addresses the interfaces are
-//read from, and the socket of the notifications of their changes
+//read from, and the socket of the notifications of their changes. Not named Netlink.h: native is an include directory,
+//and a file system ignoring case would take that file for <linux/netlink.h>
 #pragma once
 
 #include <linux/netlink.h>

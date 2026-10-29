@@ -2,7 +2,7 @@
 //the addresses with their flags (a tentative IPv6 address is in its duplicate address detection). getifaddrs() gives no
 //flags of the addresses.
 #include "../Interfaces.h"
-#include "Netlink.h"
+#include "RouteNetlink.h"
 
 #include <linux/if_addr.h>
 #include <net/if.h>
