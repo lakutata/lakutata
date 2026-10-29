@@ -163,7 +163,7 @@ Access control: an action declared with `{acl: true}` is checked by the rules gi
 | `httpServiceEntrypoint`, `scheduleEntrypoint` | `lakutata/com/entrypoint` | The service over HTTP, the schedules |
 | `HTTPServiceProxy`, `buildHTTPServiceProxy` | `lakutata/com/entrypoint` | The client of a service over HTTP: its actions and its events |
 | `Cron`, `parseDuration` | `lakutata/com/entrypoint` | Cron expressions and durations |
-| `InterfaceListeningOptions` | `lakutata/com/entrypoint` | The options of the adapters that listen on a network interface instead of an address: `interface`, `family`, `strict`, `onError` (with `@lakutata/netif`) |
+| `InterfaceListeningOptions` | `lakutata/com/entrypoint` | The options of the adapters that listen on a network interface instead of an address: `interface`, `family`, `strict`, `onError`, `interfaceListening` (`@lakutata/netif` by default) |
 | `HTTPAction`, `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS` | `lakutata/decorator/ctrl` | HTTP routes |
 | `CLIAction`, `ServiceAction`, `Schedule` | `lakutata/decorator/ctrl` | Commands, service actions, scheduled jobs |
 | `Prefix`, `UseMiddlewares` | `lakutata/decorator/ctrl` | A prefix for the routes, commands and patterns of a controller; its middlewares |

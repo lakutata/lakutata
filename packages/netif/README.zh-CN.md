@@ -13,6 +13,7 @@ npm install @lakutata/netif
 - 原生插件在安装时编译（node-gyp），所以机器上需要 Python 3 和支持 C++17 的编译器：macOS 上是 Xcode 的命令行工具，Debian、Ubuntu 上是 `build-essential`，Windows 上是 Visual Studio 生成工具（“使用 C++ 的桌面开发”）。Alpine Linux 还需要内核的头文件：`apk add python3 make g++ linux-headers`。编译失败时，安装也会失败。
 - 包管理器需要执行这个包的安装脚本。npm 会执行，但可能提示这个脚本“not yet covered by allowScripts”：用 `npm install-scripts approve @lakutata/netif` 记下你允许它执行。Bun 和 pnpm 只为信任的依赖执行，需要先允许它（Bun 在 package.json 的 `trustedDependencies` 里加上它，pnpm 用 `pnpm approve-builds`）；没有允许时，加载这个包会抛出错误，说明怎样编译原生插件。
 - Node.js `^22.13.0 || >=24.11.0`。原生插件用的是 Node-API，所以 Bun 和 Electron 的主进程可以直接加载 node-gyp 为 Node.js 编译的插件，不用重新编译。
+- `@lakutata/core` 是 peer 依赖，包管理器会一起安装：这个包的类型引用了它定义的按网口监听的接口。这个包运行时不会加载它。
 
 ## 用法
 
@@ -33,7 +34,7 @@ console.log(listener.enforced, listener.addresses)    //true [{address: '192.168
 
 网口可以暂时不存在（USB 网卡还没插上），也可以还没有地址（DHCP 还没完成）：`listenOn()` 会立即返回，等网口能监听了就开始监听。等待期间，监听器会让进程保持运行，就像一个正在监听的服务器那样。
 
-lakutata 的入口（Express、Fastify、各个服务适配器、gRPC、MCP）用 `interface` 选项替你做这件事：`expressHTTPEntrypoint({port: 8080, interface: 'eth1'})`。
+lakutata 的入口（Express、Fastify、各个服务适配器、gRPC、MCP）用 `interface` 选项替你做这件事：`expressHTTPEntrypoint({port: 8080, interface: 'eth1'})`。这个包实现了 `@lakutata/core` 的 `IInterfaceListening`，入口就是通过这个接口监听的；它的 `InterfaceListener` 就是一个 `IInterfaceListener`。
 
 ### 指定网口
 

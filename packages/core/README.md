@@ -169,6 +169,7 @@ await container.destroy()
 | `Before`, `After` | `lakutata/decorator/asst` | Functions run before and after a method |
 | `PaginationSearchDTO`, `PaginationResultDTO`, `paginator`, `FlexibleDTO`, `toJsonSchema`, `fromJsonSchema` | `lakutata/dtos` | Pagination, open DTOs and JSON Schema conversion |
 | `ConsoleLogger`, `ILogger` | `@lakutata/core/com/logger` | The logger interface and its console implementation |
+| `IInterfaceListening`, `IInterfaceListener`, `IInterfaceListenOptions`, `IListeningAddress`, `NetworkInterfaceSelector` | `lakutata` | The contract of the listening on network interfaces, which the entrypoints use for their `interface` option and `@lakutata/netif` implements (types only) |
 
 The typings document each declaration with examples.
 

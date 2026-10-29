@@ -152,8 +152,8 @@ send their responses, before the remaining connections are closed, the WebSocket
 
 A device with several network interfaces often serves its pages on one of them only, and the address of that interface
 comes from DHCP and changes. With `interface`, the adapter listens on the interface instead of an address, whatever its
-addresses, and goes on listening when they change and when the interface is unplugged and plugged back. It needs the
-package `@lakutata/netif`, installed apart, which compiles a native addon (see [Netif](Netif.md)).
+addresses, and goes on listening when they change and when the interface is unplugged and plugged back. By default it
+uses the package `@lakutata/netif`, installed apart, which compiles a native addon (see [Netif](Netif.md)).
 
 ```typescript
 import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
@@ -172,12 +172,13 @@ export const http = expressHTTPEntrypoint({
 | `family` | `'both'` | `'IPv4'`, `'IPv6'` or both |
 | `strict` | `false` | Fails the start where the system cannot refuse the connections that reach the addresses of the interface through another interface, and stops listening while it cannot (see [Netif](Netif.md), section 2) |
 | `onError` | the log of the application | Receives the errors of listening again while the application runs, such as a port taken by another program; the adapter retries by itself |
+| `interfaceListening` | `@lakutata/netif` | Another implementation of the listening on interfaces: an `IInterfaceListening`, the contract of lakutata that `@lakutata/netif` implements |
 
 - The interface may not exist yet when the application starts (a USB network adapter not plugged in): the start
   succeeds, and the adapter listens once the interface appears. Until then the `addresses` of the listeners are empty.
 - The server itself does not listen, and its `address()` is `null`: the listeners give the port and the addresses.
-- `family`, `strict` and `onError` without `interface` fail the creation of the adapter, as do `interface` and `host`
-  together.
+- `family`, `strict`, `onError` and `interfaceListening` without `interface` fail the creation of the adapter, as do
+  `interface` and `host` together.
 
 ## 3. Routes
 

@@ -16,7 +16,7 @@ npm install @lakutata/grpc
 npm install lakutata @lakutata/grpc
 ```
 
-按网口监听，而不是按地址监听（`GRPCServer.listen()` 和服务入口的 `interface` 选项），还需要安装 `@lakutata/netif`。
+按网口监听，而不是按地址监听（服务入口的 `interface` 选项，或者 `GRPCServer.listenWith()` 配合 `listenOnAll()`），还需要安装 `@lakutata/netif`。
 
 ## 用法
 
@@ -242,7 +242,7 @@ process.once('SIGTERM', (): void => void server.close(10000))
 - 超过 `maxMessageSize` 的请求以 `RESOURCE_EXHAUSTED` 拒绝，可能在接收之前根据它的长度判断，也可能在解压之后判断。请求可以用 gzip 或 deflate 压缩；响应只对接受压缩的客户端压缩。
 - 调用的截止时间（`grpc-timeout`）一到，调用就会被中止：`call.signal` 被触发，调用以 `DEADLINE_EXCEEDED` 结束；处理函数如果不检查这个信号，会继续运行。
 - `server.serve(socket)` 为承载在另一个字节流（比如 BuildKit 会话）上的 HTTP/2 连接提供服务。
-- `server.listen({interface: 'eth1', port: 50051})` 按网口监听，而不是按地址监听，不管网口现在是什么地址，需要 `@lakutata/netif`。它返回第一个监听的地址（网口还不存在时是 `null`），`server.listeners` 给出监听器，`onError` 接收重新监听时的错误（没有设置时写到控制台）。`family` 和 `strict` 与 `@lakutata/netif` 的相同。
+- `server.listenWith(inner => listenOnAll('eth1', inner, {port: 50051}))` 用 `@lakutata/netif` 的 `listenOnAll()`（或者 `@lakutata/core` 的 `IInterfaceListening` 的其他实现）按网口监听，而不是按地址监听，不管网口现在是什么地址。它返回监听器，监听器随服务器一起关闭；请处理它们的 `error` 事件。
 
 ### protobuf 编解码器
 
@@ -292,7 +292,7 @@ console.log(route.name, route.points, route.labels, route.started, route.data)
 | 导出 | 子路径 | 说明 |
 |---|---|---|
 | `GRPCConnection` | `@lakutata/grpc` | 客户端：`unary`、`serverStream`、`bidi`、`close` |
-| `GRPCServer` | `@lakutata/grpc` | 服务端：`method`、`listen`、`serve`、`close`、`methods`、`listeners` |
+| `GRPCServer` | `@lakutata/grpc` | 服务端：`method`、`listen`、`listenWith`、`serve`、`close`、`methods` |
 | `GRPCServerCall` | `@lakutata/grpc` | 服务端收到的一次调用：`request`、`requests`、`send`、`finish`、`metadata`、`deadline`、`signal` |
 | `BidiStream` | `@lakutata/grpc` | 一次双向流调用：`send`、`end`、`cancel`、`responses` |
 | `CallOptions` | `@lakutata/grpc` | 一次调用的元数据、signal 和超时 |
@@ -316,8 +316,8 @@ console.log(route.name, route.points, route.labels, route.started, route.data)
 | `GRPCError`（`code`：一个 `GRPCStatus`；`path`） | 调用失败：状态是服务端返回的状态，或者是 `UNAVAILABLE`（连接失败或断开，没有收到状态）、`CANCELLED`（signal 被触发、流被取消、调用被关闭）、`DEADLINE_EXCEEDED`（超时）、`RESOURCE_EXHAUSTED`（消息超过 `maxMessageSize`）、`INTERNAL`（消息无法解压或解码）或 `UNKNOWN`（HTTP 状态码不是 200）。服务端的处理函数抛出它，让调用以这个状态结束。 |
 | `ServiceInvokeException`（`E_SERVICE_INVOKE`，来自 `lakutata/com/entrypoint`） | `GRPCServiceProxy.invoke()`：远端动作失败；异常带有远端错误的消息和属性（`errno`……） |
 | `EntrypointStoppedException`（`E_ENTRYPOINT_STOPPED`） | 服务的入口正在停止时收到调用（代理收到的是带有这个 errno 的 `ServiceInvokeException`） |
-| `Error` | `new GRPCConnection()` 的地址不是 unix socket 路径、`tcp://` URL 或 `host:port`，或者在 unix socket 上使用 TLS；`decode()` 遇到不完整或不符合预期的字节；`GRPCServer.listen()` 监听出错（`EADDRINUSE`），或者设置了 `interface` 却没有安装 `@lakutata/netif` |
-| `TypeError` | `GRPCServer.listen()` 同时设置了 `interface` 和 `host` 或 `socketPath`；`grpcServiceEntrypoint()` 同时设置了 `interface` 和 `host` 或 `socketPath`，或者没有设置 `interface` 却设置了 `family`、`strict` 或 `onError` |
+| `Error` | `new GRPCConnection()` 的地址不是 unix socket 路径、`tcp://` URL 或 `host:port`，或者在 unix socket 上使用 TLS；`decode()` 遇到不完整或不符合预期的字节；`GRPCServer.listen()` 监听出错（`EADDRINUSE`）；`grpcServiceEntrypoint()` 设置了 `interface`，却没有安装 `@lakutata/netif`，也没有给出 `interfaceListening` |
+| `TypeError` | `grpcServiceEntrypoint()` 同时设置了 `interface` 和 `host` 或 `socketPath`，或者没有设置 `interface` 却设置了 `family`、`strict`、`onError` 或 `interfaceListening` |
 
 调用的方法不存在，或者使用了不支持的压缩方式时，服务端以 `UNIMPLEMENTED` 结束调用；请求超过 `maxMessageSize` 时，以 `RESOURCE_EXHAUSTED` 结束；调用超过截止时间时，以 `DEADLINE_EXCEEDED` 结束。
 

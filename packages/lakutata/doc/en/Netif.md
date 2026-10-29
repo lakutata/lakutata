@@ -30,7 +30,9 @@ The addon is compiled when the package is installed, so the machine needs Python
 the headers of the kernel too: `apk add python3 make g++ linux-headers`). The package manager has to run the install
 script of the package: npm runs it, and may warn that the script is "not yet covered by allowScripts" (`npm
 install-scripts approve @lakutata/netif` records that you allow it); Bun and pnpm run it only for the packages they are
-told to trust (`trustedDependencies` in the package.json for Bun, `pnpm approve-builds` for pnpm).
+told to trust (`trustedDependencies` in the package.json for Bun, `pnpm approve-builds` for pnpm). Its types refer to
+the ones of `@lakutata/core`, a peer dependency that the package managers install with it; it is not loaded when the
+package runs.
 
 ## 1. Listening on an interface
 
@@ -178,8 +180,9 @@ Application.run(() => ({
   the log of the application. The `listening` callback of the adapter gets the listeners. [HTTP](HTTP.md), section 2,
   describes these options.
 - The application starts while the interface does not exist yet, and its actions can be reached once it appears.
-- The declarations of the adapters refer to the types of `@lakutata/netif`: TypeScript compiles an application that does
-  not install the package only with `skipLibCheck`, which the projects created by lakutata set.
+- The entrypoints listen through `IInterfaceListening`, a contract of `@lakutata/core` that this package implements
+  and that they load by default. Another implementation is given in their `interfaceListening` option; the
+  `InterfaceListener` of the package is an `IInterfaceListener`.
 
 A server that is not an entrypoint belongs to a component: it listens in `startup()` and stops in `destroy()`. The
 interface and the port are the options of the component.

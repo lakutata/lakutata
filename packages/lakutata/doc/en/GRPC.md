@@ -253,5 +253,5 @@ seconds by default) to complete. Then the event streams end and the server close
 
 The package also has the layers the service is built on, usable without lakutata: `GRPCConnection`, a client for any
 gRPC server (unary, server streaming and bidirectional calls, metadata, TLS); `GRPCServer`; and `encode`/`decode`, a
-protobuf codec driven by schemas. The README of `@lakutata/grpc` describes them. `GRPCServer.listen()` with
-`interface` listens on a network interface, as the adapter does.
+protobuf codec driven by schemas. The README of `@lakutata/grpc` describes them. `GRPCServer.listenWith()` listens
+through the listeners of network interfaces (`listenOnAll()` of `@lakutata/netif`), as the adapter does.

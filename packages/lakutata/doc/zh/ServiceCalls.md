@@ -380,7 +380,7 @@ $ echo '{"jsonrpc": "2.0", "id": 1, "method": "sum", "params": {"values": [1, 2,
 
 ### 按网口监听
 
-`httpServiceEntrypoint()`、使用自己服务器的 `socketIOServiceEntrypoint()`，以及走 HTTP 或 WebSocket 的 `jsonRPCServiceEntrypoint()`，都可以按网口监听，而不是按地址监听，不管网口现在是什么地址。这需要另外安装 `@lakutata/netif` 包。它们接受和 HTTP 适配器一样的 `interface`、`family`、`strict` 和 `onError` 选项（见 [HTTP](HTTP.md) 第 2 节），`listening` 回调的最后一个参数是网口的监听器：
+`httpServiceEntrypoint()`、使用自己服务器的 `socketIOServiceEntrypoint()`，以及走 HTTP 或 WebSocket 的 `jsonRPCServiceEntrypoint()`，都可以按网口监听，而不是按地址监听，不管网口现在是什么地址。这需要另外安装 `@lakutata/netif` 包。它们接受和 HTTP 适配器一样的 `interface`、`family`、`strict`、`onError` 和 `interfaceListening` 选项（见 [HTTP](HTTP.md) 第 2 节），`listening` 回调的最后一个参数是网口的监听器：
 
 ```typescript
 import {httpServiceEntrypoint} from 'lakutata/com/entrypoint'

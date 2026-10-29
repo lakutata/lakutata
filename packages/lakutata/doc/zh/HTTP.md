@@ -140,7 +140,7 @@ HTTP/1.1 400 Bad Request
 
 ### 按网口监听
 
-有多个网口的设备，常常只在其中一个网口上提供页面，而这个网口的地址来自 DHCP，会变。设置 `interface` 后，适配器监听的是这个网口，而不是某个地址：不管网口现在是什么地址，地址变化、网口拔掉再插回，都会继续监听。这需要另外安装 `@lakutata/netif` 包，它会编译一个原生插件（见 [Netif](Netif.md)）。
+有多个网口的设备，常常只在其中一个网口上提供页面，而这个网口的地址来自 DHCP，会变。设置 `interface` 后，适配器监听的是这个网口，而不是某个地址：不管网口现在是什么地址，地址变化、网口拔掉再插回，都会继续监听。默认用的是 `@lakutata/netif` 包，需要另外安装，它会编译一个原生插件（见 [Netif](Netif.md)）。
 
 ```typescript
 import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
@@ -159,10 +159,11 @@ export const http = expressHTTPEntrypoint({
 | `family` | `'both'` | `'IPv4'`、`'IPv6'` 或两者都监听 |
 | `strict` | `false` | 如果系统挡不住从别的网口发往这个网口地址的连接，就让启动失败，并在挡不住的期间停止监听（见 [Netif](Netif.md) 第 2 节） |
 | `onError` | 应用的日志 | 接收应用运行期间重新监听时的错误，比如端口被别的程序占用；适配器会自己重试 |
+| `interfaceListening` | `@lakutata/netif` | 换用另一种按网口监听的实现：一个 `IInterfaceListening`，也就是 lakutata 定义、`@lakutata/netif` 实现的接口 |
 
 - 应用启动时网口可能还不存在（比如 USB 网卡还没插上）：启动照样成功，网口出现后适配器就开始监听。在那之前，监听器的 `addresses` 是空的。
 - 服务器自己不监听，它的 `address()` 是 `null`：端口和地址从监听器上读取。
-- 没有设置 `interface` 却设置了 `family`、`strict` 或 `onError`，或者同时设置了 `interface` 和 `host`，创建适配器时就会报错。
+- 没有设置 `interface` 却设置了 `family`、`strict`、`onError` 或 `interfaceListening`，或者同时设置了 `interface` 和 `host`，创建适配器时就会报错。
 
 ## 3. 路由
 

@@ -158,6 +158,7 @@ await container.destroy()
 | `Before`、`After` | `lakutata/decorator/asst` | 在方法之前和之后执行的函数 |
 | `PaginationSearchDTO`、`PaginationResultDTO`、`paginator`、`FlexibleDTO`、`toJsonSchema`、`fromJsonSchema` | `lakutata/dtos` | 分页、接受任意字段的 DTO、JSON Schema 转换 |
 | `ConsoleLogger`、`ILogger` | `@lakutata/core/com/logger` | 日志记录器接口及其控制台实现 |
+| `IInterfaceListening`、`IInterfaceListener`、`IInterfaceListenOptions`、`IListeningAddress`、`NetworkInterfaceSelector` | `lakutata` | 按网口监听的接口：入口的 `interface` 选项通过它监听，`@lakutata/netif` 实现了它（只有类型） |
 
 类型声明中的每一项都附有说明和示例。
 

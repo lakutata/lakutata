@@ -421,9 +421,9 @@ The application exits once its input ends and its requests are answered (`end`).
 
 `httpServiceEntrypoint()`, `socketIOServiceEntrypoint()` with its own server, and `jsonRPCServiceEntrypoint()` over HTTP
 or WebSocket can listen on a network interface instead of an address, whatever its addresses, with the package
-`@lakutata/netif` installed apart. They take the options `interface`, `family`, `strict` and `onError` of the HTTP
-adapters (see [HTTP](HTTP.md), section 2), and their `listening` callback gets the listeners of the interface as its
-last argument:
+`@lakutata/netif` installed apart. They take the options `interface`, `family`, `strict`, `onError` and
+`interfaceListening` of the HTTP adapters (see [HTTP](HTTP.md), section 2), and their `listening` callback gets the
+listeners of the interface as its last argument:
 
 ```typescript
 import {httpServiceEntrypoint} from 'lakutata/com/entrypoint'

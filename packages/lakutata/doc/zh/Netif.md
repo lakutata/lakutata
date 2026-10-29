@@ -14,7 +14,7 @@
 npm install @lakutata/netif
 ```
 
-原生插件在安装这个包时编译，所以机器上要有 Python 3 和支持 C++17 的编译器（Alpine Linux 还要内核的头文件：`apk add python3 make g++ linux-headers`）。包管理器必须运行这个包的安装脚本：npm 会运行它，可能会提示这个脚本“not yet covered by allowScripts”（运行 `npm install-scripts approve @lakutata/netif` 记录你允许它运行）；Bun 和 pnpm 只为被告知可以信任的包运行安装脚本（Bun 在 package.json 的 `trustedDependencies` 里设置，pnpm 用 `pnpm approve-builds`）。
+原生插件在安装这个包时编译，所以机器上要有 Python 3 和支持 C++17 的编译器（Alpine Linux 还要内核的头文件：`apk add python3 make g++ linux-headers`）。包管理器必须运行这个包的安装脚本：npm 会运行它，可能会提示这个脚本“not yet covered by allowScripts”（运行 `npm install-scripts approve @lakutata/netif` 记录你允许它运行）；Bun 和 pnpm 只为被告知可以信任的包运行安装脚本（Bun 在 package.json 的 `trustedDependencies` 里设置，pnpm 用 `pnpm approve-builds`）。它的类型引用了 `@lakutata/core` 的类型，这是一个 peer 依赖，包管理器会一起安装；这个包运行时不会加载它。
 
 ## 1. 在网口上监听
 
@@ -140,7 +140,7 @@ Application.run(() => ({
 
 - `family`、`strict` 和 `onError` 与 `interface` 配合使用。没有设置 `onError` 时，重新监听的错误会写到应用的日志里。适配器的 `listening` 回调会拿到监听器。这些选项的说明见 [HTTP](HTTP.md) 第 2 节。
 - 网口还不存在时应用也能启动，网口出现后就能访问它的动作。
-- 适配器的类型声明引用了 `@lakutata/netif` 的类型：应用没有安装这个包时，TypeScript 要开启 `skipLibCheck` 才能编译；lakutata 创建的项目已经开启了。
+- 入口通过 `IInterfaceListening` 按网口监听。这是 lakutata 定义的接口（来自 `@lakutata/core`），这个包实现了它，入口默认加载这个包。另一种实现可以用入口的 `interfaceListening` 选项给出；这个包的 `InterfaceListener` 就是一个 `IInterfaceListener`。
 
 不属于入口的服务器由一个组件持有：在 `startup()` 里开始监听，在 `destroy()` 里停止。网口和端口作为组件的选项。
 

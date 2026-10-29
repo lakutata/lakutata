@@ -27,6 +27,8 @@ npm install @lakutata/netif
   `pnpm approve-builds` for pnpm); without it, loading the package throws an error telling how to build the addon.
 - Node.js `^22.13.0 || >=24.11.0`. The addon uses Node-API, so Bun and the main process of Electron load the addon
   node-gyp built for Node.js, without a rebuild.
+- `@lakutata/core` is a peer dependency, which the package managers install with it: the types of the package refer to
+  the contract of the listening on network interfaces that core defines. It is not loaded when the package runs.
 
 ## Usage
 
@@ -50,7 +52,8 @@ returns at once and the interface is listened on as soon as it can be. While it 
 alive, as a listening server does.
 
 The entrypoints of lakutata (Express, Fastify, the service adapters, gRPC, MCP) do this through their `interface`
-option: `expressHTTPEntrypoint({port: 8080, interface: 'eth1'})`.
+option: `expressHTTPEntrypoint({port: 8080, interface: 'eth1'})`. The package implements `IInterfaceListening` of
+`@lakutata/core`, the contract they listen through, and its `InterfaceListener` is an `IInterfaceListener`.
 
 ### Choosing the interface
 
