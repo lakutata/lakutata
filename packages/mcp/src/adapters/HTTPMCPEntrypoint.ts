@@ -1,5 +1,6 @@
 import {createServer, type IncomingMessage, type Server, type ServerOptions, type ServerResponse} from 'node:http'
-import type {ChannelRuntime, EntrypointAdapter, MiddlewareDefinition} from '@lakutata/entrypoint'
+import type {ChannelRuntime, EntrypointAdapter, InterfaceListeningOptions, MiddlewareDefinition} from '@lakutata/entrypoint'
+import type {InterfaceListener} from '@lakutata/netif'
 import {
     createMcpHandler,
     hostHeaderValidationResponse,
@@ -14,13 +15,14 @@ import type {MCPAuthInfo, MCPContext} from '../context/MCPContext.js'
 import {buildMCPServer, type MCPServerInfo} from '../lib/MCPServer.js'
 import {ATTACH} from '../lib/Notifications.js'
 import {trackConnections} from '../lib/Connections.js'
+import {closeListeners, listensOnInterfaces, listenOnInterfaces} from '../lib/Interfaces.js'
 import {MCPNotifier} from '../components/MCPNotifier.js'
 
 /**
  * The options of {@link httpMCPEntrypoint}: the server's description (`serverName`, `serverVersion`, `instructions`),
  * where it listens, the checks of the requests (hosts, origins, authentication), and the protocol revisions it serves.
  */
-export type HTTPMCPEntrypointOptions = MCPServerInfo & {
+export type HTTPMCPEntrypointOptions = MCPServerInfo & InterfaceListeningOptions & {
     /**
      * The adapter's name, which tells it apart from the entrypoint's other adapters.
      * @default undefined
@@ -40,7 +42,8 @@ export type HTTPMCPEntrypointOptions = MCPServerInfo & {
     port?: number
     /**
      * The address to listen on. The default is reachable from this machine only; `'0.0.0.0'` accepts the remote
-     * clients (then set `allowedHosts` and `authenticate`).
+     * clients (then set `allowedHosts` and `authenticate`). Excludes `interface` (then set `allowedHosts` and
+     * `authenticate` too, unless the interface is the loopback one).
      * @default '127.0.0.1'
      */
     host?: string
@@ -53,15 +56,15 @@ export type HTTPMCPEntrypointOptions = MCPServerInfo & {
     /**
      * The host names accepted in the `Host` header, against DNS rebinding; a request with another host is refused
      * (`403`). `false` accepts every host.
-     * @default the local host names (`localhost`, `127.0.0.1`, `[::1]`) when the adapter listens on a loopback address;
-     * no check otherwise, and no check for a mounted handler
+     * @default the local host names (`localhost`, `127.0.0.1`, `[::1]`) when the adapter listens on a loopback address
+     * or on the loopback interface; no check otherwise, and no check for a mounted handler
      */
     allowedHosts?: string[] | false
     /**
      * The host names of the origins accepted in the `Origin` header (sent by the browsers); a request from another
      * origin is refused (`403`). `false` accepts every origin.
-     * @default the local host names when the adapter listens on a loopback address; no check otherwise, and no check for
-     * a mounted handler
+     * @default the local host names when the adapter listens on a loopback address or on the loopback interface; no
+     * check otherwise, and no check for a mounted handler
      */
     allowedOrigins?: string[] | false
     /**
@@ -103,12 +106,14 @@ export type HTTPMCPEntrypointOptions = MCPServerInfo & {
      */
     middlewares?: MiddlewareDefinition[]
     /**
-     * Called once the server listens, with the server (read its address when the port is random); the adapter's start
-     * waits for it.
+     * Called once the server listens, with the server (read its address when the port is random); with `interface`,
+     * once the listeners of the interfaces are made, with them too (the server itself does not listen then: its
+     * `address()` is `null`, the listeners give the port and the addresses). The adapter's start waits for it.
      * @param server The adapter's HTTP server.
+     * @param listeners With `interface`, the listeners of the interfaces.
      * @default undefined
      */
-    listening?: (server: Server) => void | Promise<void>
+    listening?: (server: Server, listeners?: InterfaceListener[]) => void | Promise<void>
 }
 
 /**
@@ -220,6 +225,10 @@ async function writeResponse(webResponse: Response, response: ServerResponse): P
  * `MCPNotifier` reports; the clients of 2025 are not. The adapter stops gracefully with the entrypoint: it refuses the
  * new requests (`503`), gives the calls in progress a second to answer, then ends the subscription streams and closes
  * the connections (the ones taken over by an upgrade of the application too).
+ *
+ * With `interface` (and the package `@lakutata/netif`, installed apart), the server listens on network interfaces
+ * instead of an address, whatever their addresses, again when they change and when an interface is unplugged and
+ * plugged back: `httpMCPEntrypoint({port: 3000, interface: 'eth1', allowedHosts: ['device.local'], authenticate: verifyToken})`.
  * @param options Where the server listens, the checks of the requests, the protocol revisions it serves; none by
  * default.
  * @returns The adapter, to give to the `mcp` option of `buildEntrypoints()`, with its `handler`.
@@ -262,13 +271,21 @@ async function writeResponse(webResponse: Response, response: ServerResponse): P
  */
 export function httpMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPMCPEntrypointAdapter {
     const listen: boolean = options.listen !== false
+    const onInterfaces: boolean = listensOnInterfaces('httpMCPEntrypoint', options, listen ? undefined : 'with listen: false (the handler is served by the server it is mounted on)')
     const host: string = options.host ?? '127.0.0.1'
     const path: string = options.path ?? '/mcp'
+    /**
+     * The checks of the hosts and of the origins: the local names by default when the adapter listens on a loopback
+     * address, or on the loopback interface (known once its listener is made)
+     */
+    const checksOf = (loopback: boolean): { hosts: string[] | undefined, origins: string[] | undefined } => ({
+        hosts: options.allowedHosts === false ? undefined : options.allowedHosts ?? (loopback ? localhostAllowedHostnames() : undefined),
+        origins: options.allowedOrigins === false ? undefined : options.allowedOrigins ?? (loopback ? localhostAllowedOrigins() : undefined)
+    })
     //The host of a mounting server is not known: its names are checked when they are given
-    const loopback: boolean = listen && isLoopback(host)
-    const allowedHosts: string[] | undefined = options.allowedHosts === false ? undefined : options.allowedHosts ?? (loopback ? localhostAllowedHostnames() : undefined)
-    const allowedOrigins: string[] | undefined = options.allowedOrigins === false ? undefined : options.allowedOrigins ?? (loopback ? localhostAllowedOrigins() : undefined)
+    let {hosts: allowedHosts, origins: allowedOrigins} = checksOf(listen && !onInterfaces && isLoopback(host))
     let server: Server | undefined
+    let listeners: InterfaceListener[] | undefined
     let destroyConnections: (() => void) | undefined
     let handler: McpHttpHandler | undefined
     let closed: Promise<void> | undefined
@@ -373,18 +390,31 @@ export function httpMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
             if (!listen) return
             server = createServer(options.server ?? {}, handle)
             destroyConnections = trackConnections(server)
-            await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
-                server!.once('error', reject).listen(options.port ?? 3000, host, (): void => {
-                    server!.off('error', reject)
-                    resolve()
+            if (onInterfaces) {
+                listeners = await listenOnInterfaces('httpMCPEntrypoint', runtime, server, options, options.port ?? 3000)
+                const checks: { hosts: string[] | undefined, origins: string[] | undefined } = checksOf(listeners.every((listener: InterfaceListener): boolean => listener.networkInterface.loopback))
+                allowedHosts = checks.hosts
+                allowedOrigins = checks.origins
+            } else {
+                await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
+                    server!.once('error', reject).listen(options.port ?? 3000, host, (): void => {
+                        server!.off('error', reject)
+                        resolve()
+                    })
                 })
-            })
-            await options.listening?.(server)
+            }
+            await options.listening?.(server, listeners)
         },
         stop: (): void => {
             //No new request; the server of the adapter accepts no new connection and closes the idle ones
             stopping = true
             removeSink?.()
+            if (listeners) {
+                //The server never listened: its listeners stop accepting the connections of the interfaces
+                closed = closeListeners(listeners)
+                server?.closeIdleConnections()
+                return
+            }
             if (!server?.listening) return
             closed = new Promise((resolve: () => void): void => void server!.close((): void => resolve()))
             server.closeIdleConnections()

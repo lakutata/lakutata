@@ -47,6 +47,9 @@
       "@lakutata/entrypoint": [
         "../entrypoint/dist/types/exports/Entrypoint"
       ],
+      "@lakutata/netif": [
+        "../netif/dist/types/exports/Netif"
+      ],
       "@lakutata/entrypoint/channel": [
         "../entrypoint/dist/types/exports/Channel"
       ],
