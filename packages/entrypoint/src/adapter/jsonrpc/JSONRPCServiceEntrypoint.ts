@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {createServer, type IncomingMessage, type OutgoingHttpHeaders, type Server, type ServerResponse} from 'node:http'
 import type {Readable, Writable} from 'node:stream'
-import type {InterfaceListener} from '@lakutata/netif'
+import type {IInterfaceListener} from '@lakutata/core'
 import type {ChannelRuntime, EntrypointAdapter} from '../../channel/EntrypointAdapter.js'
 import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import type {ServiceContext} from '../../context/ServiceContext.js'
@@ -94,7 +94,7 @@ export type JSONRPCServiceEntrypointOptions = JSONRPCMappingOptions & InterfaceL
      * then: its `address()` is `null`, the listeners give the port and the addresses). A failure fails the entrypoint
      * start. Not called with stdio.
      */
-    listening?: (server: Server, listeners?: InterfaceListener[]) => void | Promise<void>
+    listening?: (server: Server, listeners?: IInterfaceListener[]) => void | Promise<void>
 }
 
 /**
@@ -232,9 +232,9 @@ type WebSocketLike = {
  * the WebSocket connections are closed (code 1001; the ones not answering within a second are terminated) and the
  * server shuts down, closing its remaining connections (the ones taken over by an upgrade of the application too).
  *
- * With `interface` (and the package `@lakutata/netif`, installed apart), the server listens on network interfaces
- * instead of an address, whatever their addresses, again when they change and when an interface is unplugged and
- * plugged back: `jsonRPCServiceEntrypoint({port: 3000, interface: 'eth1'})`.
+ * With `interface` (through the package `@lakutata/netif` by default, installed apart), the server listens on network
+ * interfaces instead of an address, whatever their addresses, again when they change and when an interface is unplugged
+ * and plugged back: `jsonRPCServiceEntrypoint({port: 3000, interface: 'eth1'})`.
  * @param options The adapter options; by default it serves HTTP on port 3000 of all the interfaces, on the path `/`.
  * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
@@ -291,7 +291,7 @@ export function jsonRPCServiceEntrypoint(options: JSONRPCServiceEntrypointOption
     const path: string = (options.path ?? '/').replace(/(.)\/+$/, '$1')
     let stopping: boolean = false
     let server: Server | undefined
-    let listeners: InterfaceListener[] | undefined
+    let listeners: IInterfaceListener[] | undefined
     let destroyConnections: (() => void) | undefined
     let webSocketServer: { close(callback?: () => void): void, clients: Set<WebSocketLike> } | undefined
     let stopReading: (() => void) | undefined

@@ -1,6 +1,6 @@
 import {Server as SocketIOServer, type Namespace, type ServerOptions, type Socket} from 'socket.io'
 import {createServer, type Server} from 'node:http'
-import type {InterfaceListener} from '@lakutata/netif'
+import type {IInterfaceListener} from '@lakutata/core'
 import type {ChannelRuntime, EntrypointAdapter} from '../../channel/EntrypointAdapter.js'
 import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import {ServiceContext} from '../../context/ServiceContext.js'
@@ -66,7 +66,7 @@ export type SocketIOServiceEntrypointOptions = InterfaceListeningOptions & {
      * its `address()` is `null`, the listeners give the port and the addresses).
      * A failure fails the entrypoint start.
      */
-    listening?: (io: SocketIOServer, server: Server | undefined, listeners?: InterfaceListener[]) => void | Promise<void>
+    listening?: (io: SocketIOServer, server: Server | undefined, listeners?: IInterfaceListener[]) => void | Promise<void>
 }
 
 /**
@@ -122,9 +122,9 @@ function clientIdOf(socket: Socket): string {
  * stops, the new requests are answered with an `EntrypointStoppedException` error; once the requests in progress end,
  * the socket.io server is closed (the sockets disconnected, with the attached HTTP server left open).
  *
- * With `interface` (and the package `@lakutata/netif`, installed apart), the server listens on network interfaces
- * instead of an address, whatever their addresses, again when they change and when an interface is unplugged and
- * plugged back: `socketIOServiceEntrypoint({port: 3000, interface: 'eth1'})`.
+ * With `interface` (through the package `@lakutata/netif` by default, installed apart), the server listens on network
+ * interfaces instead of an address, whatever their addresses, again when they change and when an interface is unplugged
+ * and plugged back: `socketIOServiceEntrypoint({port: 3000, interface: 'eth1'})`.
  * @param options The adapter options; by default it listens on port 3000 of all the interfaces with a server of its own.
  * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
@@ -169,7 +169,7 @@ export function socketIOServiceEntrypoint(options: SocketIOServiceEntrypointOpti
     let io: SocketIOServer | undefined
     let namespace: Namespace | undefined
     let ownServer: Server | undefined
-    let listeners: InterfaceListener[] | undefined
+    let listeners: IInterfaceListener[] | undefined
     let sharedServer: boolean = false
     let stopping: boolean = false
     let onConnection: ((socket: Socket) => void) | undefined

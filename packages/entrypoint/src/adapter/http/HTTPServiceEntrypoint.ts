@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {createServer, type IncomingMessage, type OutgoingHttpHeaders, type Server, type ServerResponse} from 'node:http'
-import type {InterfaceListener} from '@lakutata/netif'
+import type {IInterfaceListener} from '@lakutata/core'
 import type {ChannelRuntime, EntrypointAdapter} from '../../channel/EntrypointAdapter.js'
 import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import {ServiceContext} from '../../context/ServiceContext.js'
@@ -50,7 +50,7 @@ export type HTTPServiceEntrypointOptions = InterfaceListeningOptions & {
      * listeners of the interfaces are made, with them too (the server itself does not listen then: its `address()` is
      * `null`, the listeners give the port and the addresses). A failure fails the entrypoint start.
      */
-    listening?: (server: Server, listeners?: InterfaceListener[]) => void | Promise<void>
+    listening?: (server: Server, listeners?: IInterfaceListener[]) => void | Promise<void>
 }
 
 /**
@@ -128,9 +128,9 @@ function reply(response: ServerResponse, status: number, body: unknown): void {
  * streams are closed and the server shuts down, closing its remaining connections (the ones taken over by an upgrade of
  * the application too).
  *
- * With `interface` (and the package `@lakutata/netif`, installed apart), the server listens on network interfaces
- * instead of an address, whatever their addresses, again when they change and when an interface is unplugged and
- * plugged back: `httpServiceEntrypoint({port: 3000, interface: 'eth1'})`.
+ * With `interface` (through the package `@lakutata/netif` by default, installed apart), the server listens on network
+ * interfaces instead of an address, whatever their addresses, again when they change and when an interface is unplugged
+ * and plugged back: `httpServiceEntrypoint({port: 3000, interface: 'eth1'})`.
  * @param options The adapter options; by default it listens on port 3000 of all the interfaces, on the path `/`.
  * @returns The adapter, to give to the `service` option of `buildEntrypoints`.
  * @example
@@ -175,7 +175,7 @@ export function httpServiceEntrypoint(options: HTTPServiceEntrypointOptions = {}
     const eventsPath: string = `${base}/events`
     const limit: number = options.limit ?? 10 * 1024 * 1024
     let server: Server | undefined
-    let listeners: InterfaceListener[] | undefined
+    let listeners: IInterfaceListener[] | undefined
     let destroyConnections: (() => void) | undefined
     let stopping: boolean = false
     let keepAlive: NodeJS.Timeout | undefined

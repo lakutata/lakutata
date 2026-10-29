@@ -1,6 +1,6 @@
 import {createServer, type IncomingMessage, type Server, type ServerOptions, type ServerResponse} from 'node:http'
 import type {ChannelRuntime, EntrypointAdapter, InterfaceListeningOptions, MiddlewareDefinition} from '@lakutata/entrypoint'
-import type {InterfaceListener} from '@lakutata/netif'
+import type {IInterfaceListener} from '@lakutata/core'
 import {
     createMcpHandler,
     hostHeaderValidationResponse,
@@ -113,7 +113,7 @@ export type HTTPMCPEntrypointOptions = MCPServerInfo & InterfaceListeningOptions
      * @param listeners With `interface`, the listeners of the interfaces.
      * @default undefined
      */
-    listening?: (server: Server, listeners?: InterfaceListener[]) => void | Promise<void>
+    listening?: (server: Server, listeners?: IInterfaceListener[]) => void | Promise<void>
 }
 
 /**
@@ -226,9 +226,10 @@ async function writeResponse(webResponse: Response, response: ServerResponse): P
  * new requests (`503`), gives the calls in progress a second to answer, then ends the subscription streams and closes
  * the connections (the ones taken over by an upgrade of the application too).
  *
- * With `interface` (and the package `@lakutata/netif`, installed apart), the server listens on network interfaces
- * instead of an address, whatever their addresses, again when they change and when an interface is unplugged and
- * plugged back: `httpMCPEntrypoint({port: 3000, interface: 'eth1', allowedHosts: ['device.local'], authenticate: verifyToken})`.
+ * With `interface` (through the package `@lakutata/netif` by default, installed apart), the server listens on network
+ * interfaces instead of an address, whatever their addresses, again when they change and when an interface is unplugged
+ * and plugged back:
+ * `httpMCPEntrypoint({port: 3000, interface: 'eth1', allowedHosts: ['device.local'], authenticate: verifyToken})`.
  * @param options Where the server listens, the checks of the requests, the protocol revisions it serves; none by
  * default.
  * @returns The adapter, to give to the `mcp` option of `buildEntrypoints()`, with its `handler`.
@@ -285,7 +286,7 @@ export function httpMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
     //The host of a mounting server is not known: its names are checked when they are given
     let {hosts: allowedHosts, origins: allowedOrigins} = checksOf(listen && !onInterfaces && isLoopback(host))
     let server: Server | undefined
-    let listeners: InterfaceListener[] | undefined
+    let listeners: IInterfaceListener[] | undefined
     let destroyConnections: (() => void) | undefined
     let handler: McpHttpHandler | undefined
     let closed: Promise<void> | undefined
@@ -392,7 +393,7 @@ export function httpMCPEntrypoint(options: HTTPMCPEntrypointOptions = {}): HTTPM
             destroyConnections = trackConnections(server)
             if (onInterfaces) {
                 listeners = await listenOnInterfaces('httpMCPEntrypoint', runtime, server, options, options.port ?? 3000)
-                const checks: { hosts: string[] | undefined, origins: string[] | undefined } = checksOf(listeners.every((listener: InterfaceListener): boolean => listener.networkInterface.loopback))
+                const checks: { hosts: string[] | undefined, origins: string[] | undefined } = checksOf(listeners.every((listener: IInterfaceListener): boolean => listener.networkInterface.loopback))
                 allowedHosts = checks.hosts
                 allowedOrigins = checks.origins
             } else {

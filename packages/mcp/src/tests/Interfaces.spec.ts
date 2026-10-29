@@ -1,9 +1,9 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {request as httpRequest, type IncomingMessage, type Server} from 'node:http'
-import {Container} from '@lakutata/core'
+import {Container, type IInterfaceListener} from '@lakutata/core'
 import {buildEntrypoints, Entrypoint} from '@lakutata/entrypoint'
-import {type InterfaceAddress, type InterfaceListener, listInterfaces, type NetworkInterfaceInfo} from '@lakutata/netif'
+import {type InterfaceAddress, listInterfaces, type NetworkInterfaceInfo} from '@lakutata/netif'
 import {Client, StreamableHTTPClientTransport} from '@modelcontextprotocol/client'
 import {httpMCPEntrypoint, type HTTPMCPEntrypointOptions} from '../exports/MCP.js'
 import {DeviceController, ToolController} from './support/Tools.js'
@@ -37,7 +37,7 @@ async function start(options: HTTPMCPEntrypointOptions): Promise<{ port: number,
             port: 0,
             family: 'IPv4',
             ...options,
-            listening: (server: Server, listeners?: InterfaceListener[]): void => {
+            listening: (server: Server, listeners?: IInterfaceListener[]): void => {
                 port = listeners![0].port!
             }
         })

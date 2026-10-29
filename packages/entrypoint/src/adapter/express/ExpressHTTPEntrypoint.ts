@@ -2,8 +2,7 @@ import express, {type Express, type NextFunction, type Request, type RequestHand
 import {createServer, type IncomingMessage, type Server, type ServerOptions} from 'node:http'
 import path from 'node:path'
 import type {Readable} from 'node:stream'
-import type {Module} from '@lakutata/core'
-import type {InterfaceListener} from '@lakutata/netif'
+import type {Module, IInterfaceListener} from '@lakutata/core'
 import type {ChannelActionInfo, ChannelRuntime, EntrypointAdapter} from '../../channel/EntrypointAdapter.js'
 import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import {HTTPContext} from '../../context/HTTPContext.js'
@@ -118,7 +117,7 @@ export type ExpressHTTPEntrypointOptions = InterfaceListeningOptions & {
      * `interface`): the server itself does not listen then, its `address()` is `null`; the listeners give the port, the
      * addresses and whether the other interfaces are refused (`enforced`).
      */
-    listening?: (server: Server, listeners?: InterfaceListener[]) => void | Promise<void>
+    listening?: (server: Server, listeners?: IInterfaceListener[]) => void | Promise<void>
     /**
      * The interval between the comments keeping the event streams (`EventsResult`) alive through the proxies, in
      * milliseconds.
@@ -172,9 +171,9 @@ function eventFrame(data: unknown, event?: string, id?: string): string {
  * given up to one second after they settle to send their responses before the remaining connections are closed — the
  * connections taken over by an upgrade (the WebSockets of the application) too, which would hold the stop forever.
  *
- * With `interface` (and the package `@lakutata/netif`, installed apart), the server listens on network interfaces
- * instead of an address, whatever their addresses, again when they change and when an interface is unplugged and
- * plugged back: `expressHTTPEntrypoint({port: 8080, interface: 'eth1'})`.
+ * With `interface` (through the package `@lakutata/netif` by default, installed apart), the server listens on network
+ * interfaces instead of an address, whatever their addresses, again when they change and when an interface is unplugged
+ * and plugged back: `expressHTTPEntrypoint({port: 8080, interface: 'eth1'})`.
  * @param options The adapter options; by default it listens on port 80 of all the interfaces with a new express
  * application.
  * @returns The adapter, to give to the `http` option of `buildEntrypoints`.
@@ -232,7 +231,7 @@ export function expressHTTPEntrypoint(options: ExpressHTTPEntrypointOptions = {}
     }))
     const streams: Set<AbortController> = new Set()
     let server: Server | undefined
-    let listeners: InterfaceListener[] | undefined
+    let listeners: IInterfaceListener[] | undefined
     let destroyConnections: (() => void) | undefined
     let closed: Promise<void> | undefined
     let stopping: boolean = false

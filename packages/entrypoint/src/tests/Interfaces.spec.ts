@@ -3,11 +3,12 @@ import assert from 'node:assert'
 import {execFile} from 'node:child_process'
 import {createServer, type IncomingMessage, request, type Server} from 'node:http'
 import * as nodeModule from 'node:module'
-import type {Socket} from 'node:net'
+import {EventEmitter} from 'node:events'
+import {type AddressInfo, createServer as createNetServer, type Server as NetServer, type Socket} from 'node:net'
 import path from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
-import {Container} from '@lakutata/core'
-import {type InterfaceAddress, type InterfaceListener, listInterfaces, type NetworkInterfaceInfo} from '@lakutata/netif'
+import {Container, type IInterfaceListener, type IInterfaceListening, type IListeningAddress} from '@lakutata/core'
+import {type InterfaceAddress, listInterfaces, type NetworkInterfaceInfo} from '@lakutata/netif'
 import {io as Connect, type Socket as ClientSocket} from 'socket.io-client'
 import {buildEntrypoints, Controller, Entrypoint, httpServiceEntrypoint} from '../exports/Entrypoint.js'
 import {GET, ServiceAction} from '../exports/CTRLDecorators.js'
@@ -66,17 +67,50 @@ function getKeptAlive(port: number, path: string): Promise<{ text: string, socke
     })
 }
 
+/**
+ * A listener of another implementation: a server listening on 127.0.0.1 that gives its connections to the server of the
+ * adapter
+ */
+class AcceptingListener extends EventEmitter implements IInterfaceListener {
+    public readonly networkInterface: { name: string, loopback: boolean } = {name: 'fake0', loopback: true}
+    public readonly enforced: boolean = false
+    public readonly reason: string | undefined = 'a listener of the tests, on 127.0.0.1'
+    public closed: boolean = false
+
+    constructor(protected readonly acceptor: NetServer) {
+        super()
+    }
+
+    public get port(): number | undefined {
+        return (this.acceptor.address() as AddressInfo | null)?.port
+    }
+
+    public get addresses(): IListeningAddress[] {
+        return this.port === undefined ? [] : [{address: '127.0.0.1', family: 'IPv4', port: this.port}]
+    }
+
+    public get listening(): boolean {
+        return this.acceptor.listening
+    }
+
+    public async close(): Promise<void> {
+        //The connections given to the server are left to it
+        this.acceptor.close()
+        this.closed = true
+    }
+}
+
 describe('An adapter listening on an interface', (): void => {
 
     it('serves the actions of express through the interface, the server not listening itself', async (): Promise<void> => {
-        let listeners: InterfaceListener[] | undefined
+        let listeners: IInterfaceListener[] | undefined
         let server: Server | undefined
         const container: Container = await start({
             http: expressHTTPEntrypoint({
                 port: 0,
                 interface: LOOPBACK,
                 family: 'IPv4',
-                listening: (listening: Server, made?: InterfaceListener[]): void => {
+                listening: (listening: Server, made?: IInterfaceListener[]): void => {
                     server = listening
                     listeners = made
                 }
@@ -97,7 +131,7 @@ describe('An adapter listening on an interface', (): void => {
     it('closes the idle kept-alive connections given to the server when it stops', async (): Promise<void> => {
         let port: number = 0
         const container: Container = await start({
-            http: expressHTTPEntrypoint({port: 0, interface: LOOPBACK, family: 'IPv4', listening: (server: Server, listeners?: InterfaceListener[]): void => {
+            http: expressHTTPEntrypoint({port: 0, interface: LOOPBACK, family: 'IPv4', listening: (server: Server, listeners?: IInterfaceListener[]): void => {
                 port = listeners![0].port!
             }})
         })
@@ -114,14 +148,14 @@ describe('An adapter listening on an interface', (): void => {
     })
 
     it('serves the actions of fastify through the interface, and closes its idle kept-alive connections when it stops', async (): Promise<void> => {
-        let listeners: InterfaceListener[] | undefined
+        let listeners: IInterfaceListener[] | undefined
         let server: Server | undefined
         const container: Container = await start({
             http: fastifyHTTPEntrypoint({
                 port: 0,
                 interface: LOOPBACK,
                 family: 'IPv4',
-                listening: (listening: Server, made?: InterfaceListener[]): void => {
+                listening: (listening: Server, made?: IInterfaceListener[]): void => {
                     server = listening
                     listeners = made
                 }
@@ -146,14 +180,14 @@ describe('An adapter listening on an interface', (): void => {
         const ports: Record<string, number> = {}
         const container: Container = await start({
             service: [
-                httpServiceEntrypoint({name: 'http', port: 0, interface: LOOPBACK, family: 'IPv4', listening: (server: Server, listeners?: InterfaceListener[]): void => {
+                httpServiceEntrypoint({name: 'http', port: 0, interface: LOOPBACK, family: 'IPv4', listening: (server: Server, listeners?: IInterfaceListener[]): void => {
                     ports.http = listeners![0].port!
                 }}),
                 //Bun cannot upgrade a connection given to a server: polling only there
-                socketIOServiceEntrypoint({name: 'io', port: 0, interface: LOOPBACK, family: 'IPv4', options: process.versions.bun ? {transports: ['polling']} : {}, listening: (io: unknown, server: unknown, listeners?: InterfaceListener[]): void => {
+                socketIOServiceEntrypoint({name: 'io', port: 0, interface: LOOPBACK, family: 'IPv4', options: process.versions.bun ? {transports: ['polling']} : {}, listening: (io: unknown, server: unknown, listeners?: IInterfaceListener[]): void => {
                     ports.io = listeners![0].port!
                 }}),
-                jsonRPCServiceEntrypoint({name: 'rpc', port: 0, interface: LOOPBACK, family: 'IPv4', listening: (server: Server, listeners?: InterfaceListener[]): void => {
+                jsonRPCServiceEntrypoint({name: 'rpc', port: 0, interface: LOOPBACK, family: 'IPv4', listening: (server: Server, listeners?: IInterfaceListener[]): void => {
                     ports.rpc = listeners![0].port!
                 }})
             ]
@@ -173,9 +207,9 @@ describe('An adapter listening on an interface', (): void => {
     })
 
     it('starts while the interface does not exist, and listens on it once it can', async (): Promise<void> => {
-        let listeners: InterfaceListener[] | undefined
+        let listeners: IInterfaceListener[] | undefined
         const container: Container = await start({
-            http: expressHTTPEntrypoint({port: 0, interface: 'netif-absent0', listening: (server: Server, made?: InterfaceListener[]): void => {
+            http: expressHTTPEntrypoint({port: 0, interface: 'netif-absent0', listening: (server: Server, made?: IInterfaceListener[]): void => {
                 listeners = made
             }})
         })
@@ -187,11 +221,37 @@ describe('An adapter listening on an interface', (): void => {
         }
     })
 
+    it('listens through another implementation given in interfaceListening', async (): Promise<void> => {
+        const calls: unknown[] = []
+        const implementation: IInterfaceListening = {
+            listenOnAll: async (selectors, server, options): Promise<IInterfaceListener[]> => {
+                calls.push({selectors: selectors, options: options})
+                const acceptor: NetServer = createNetServer((socket: Socket): unknown => server.emit('connection', socket))
+                await new Promise<void>((resolve: () => void): unknown => acceptor.listen(0, '127.0.0.1', resolve))
+                return [new AcceptingListener(acceptor)]
+            }
+        }
+        let listeners: IInterfaceListener[] | undefined
+        const container: Container = await start({
+            http: expressHTTPEntrypoint({port: 0, interface: 'fake0', family: 'IPv4', interfaceListening: implementation, listening: (server: Server, made?: IInterfaceListener[]): void => {
+                listeners = made
+            }})
+        })
+        try {
+            assert.deepStrictEqual(calls, [{selectors: 'fake0', options: {port: 0, family: 'IPv4', strict: undefined}}])
+            assert.deepStrictEqual(await (await fetch(`http://127.0.0.1:${listeners![0].port}/ping`)).json(), {pong: 'http'})
+        } finally {
+            await container.destroy()
+        }
+        assert.strictEqual(listeners![0].closed, true)
+    })
+
     it('refuses the options that contradict', async (): Promise<void> => {
         assert.throws((): unknown => expressHTTPEntrypoint({host: '127.0.0.1', interface: LOOPBACK}), TypeError)
         assert.throws((): unknown => fastifyHTTPEntrypoint({host: '127.0.0.1', interface: LOOPBACK}), TypeError)
         assert.throws((): unknown => httpServiceEntrypoint({strict: true}), TypeError)
         assert.throws((): unknown => expressHTTPEntrypoint({onError: (): void => undefined, family: 'IPv4'}), TypeError)
+        assert.throws((): unknown => httpServiceEntrypoint({interfaceListening: {listenOnAll: async (): Promise<IInterfaceListener[]> => []}}), TypeError)
         assert.throws((): unknown => socketIOServiceEntrypoint({server: createServer(), interface: LOOPBACK}), TypeError)
         assert.throws((): unknown => jsonRPCServiceEntrypoint({transport: 'stdio', interface: LOOPBACK}), TypeError)
         //Several interfaces and the port 0: refused when the adapter starts
@@ -199,8 +259,8 @@ describe('An adapter listening on an interface', (): void => {
     })
 
     it('refuses the WebSockets in Bun, which cannot upgrade a connection given to a server', {skip: process.versions.bun ? false : 'Bun only'}, async (): Promise<void> => {
-        await assert.rejects(start({service: jsonRPCServiceEntrypoint({port: 0, transport: 'websocket', interface: LOOPBACK})}), (error: Error): boolean => error.name === 'NetIfNotSupportedException')
-        await assert.rejects(start({service: socketIOServiceEntrypoint({port: 0, interface: LOOPBACK})}), (error: Error): boolean => error.name === 'NetIfNotSupportedException')
+        await assert.rejects(start({service: jsonRPCServiceEntrypoint({port: 0, transport: 'websocket', interface: LOOPBACK})}), /Bun cannot upgrade to a WebSocket/)
+        await assert.rejects(start({service: socketIOServiceEntrypoint({port: 0, interface: LOOPBACK})}), /Bun cannot upgrade to a WebSocket/)
     })
 
     it('tells how to install @lakutata/netif when it is missing', {skip: (process.versions.bun || typeof (nodeModule as { registerHooks?: unknown }).registerHooks !== 'function') && 'the module hooks of Node.js (22.15) make the package missing'}, async (): Promise<void> => {
