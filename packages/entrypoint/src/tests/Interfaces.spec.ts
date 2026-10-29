@@ -1,7 +1,11 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
+import {execFile} from 'node:child_process'
 import {createServer, type IncomingMessage, request, type Server} from 'node:http'
+import * as nodeModule from 'node:module'
 import type {Socket} from 'node:net'
+import path from 'node:path'
+import {fileURLToPath, pathToFileURL} from 'node:url'
 import {Container} from '@lakutata/core'
 import {type InterfaceAddress, type InterfaceListener, listInterfaces, type NetworkInterfaceInfo} from '@lakutata/netif'
 import {io as Connect, type Socket as ClientSocket} from 'socket.io-client'
@@ -197,5 +201,33 @@ describe('An adapter listening on an interface', (): void => {
     it('refuses the WebSockets in Bun, which cannot upgrade a connection given to a server', {skip: process.versions.bun ? false : 'Bun only'}, async (): Promise<void> => {
         await assert.rejects(start({service: jsonRPCServiceEntrypoint({port: 0, transport: 'websocket', interface: LOOPBACK})}), (error: Error): boolean => error.name === 'NetIfNotSupportedException')
         await assert.rejects(start({service: socketIOServiceEntrypoint({port: 0, interface: LOOPBACK})}), (error: Error): boolean => error.name === 'NetIfNotSupportedException')
+    })
+
+    it('tells how to install @lakutata/netif when it is missing', {skip: (process.versions.bun || typeof (nodeModule as { registerHooks?: unknown }).registerHooks !== 'function') && 'the module hooks of Node.js (22.15) make the package missing'}, async (): Promise<void> => {
+        const exports: string = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'exports')
+        //The resolution of @lakutata/netif fails as when it is not installed
+        const hook: string = `import {registerHooks} from 'node:module'
+registerHooks({resolve: (specifier, context, next) => {
+    if (specifier !== '@lakutata/netif') return next(specifier, context)
+    throw Object.assign(new Error("Cannot find package '@lakutata/netif' imported from the test"), {code: 'ERR_MODULE_NOT_FOUND'})
+}})`
+        const script: string = `import {Container} from '@lakutata/core'
+import {buildEntrypoints, Entrypoint} from '${pathToFileURL(path.join(exports, 'Entrypoint.js')).href}'
+import {expressHTTPEntrypoint} from '${pathToFileURL(path.join(exports, 'ExpressAdapter.js')).href}'
+const container = new Container()
+try {
+    await container.set(Entrypoint, buildEntrypoints({controllers: [], http: expressHTTPEntrypoint({port: 0, interface: 'eth1'})}))
+    console.log('started')
+} catch (error) {
+    for (let cause = error; cause; cause = cause.cause) console.log(cause.message)
+}
+await container.destroy()`
+        const output: string = await new Promise((resolve: (output: string) => void, reject: (error: Error) => void): void => {
+            execFile(process.execPath, ['--import', `data:text/javascript,${encodeURIComponent(hook)}`, '--input-type=module', '--eval', script], {cwd: path.join(exports, '..', '..', '..')}, (error: Error | null, stdout: string, stderr: string): void => {
+                if (error) return reject(new Error(`${error.message}\n${stderr}`))
+                resolve(stdout)
+            })
+        })
+        assert.match(output, /The interface option of expressHTTPEntrypoint needs the package @lakutata\/netif \(npm install @lakutata\/netif\)/)
     })
 })
