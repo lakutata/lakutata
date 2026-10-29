@@ -23,8 +23,9 @@ export interface InterfaceAddress {
     cidr: string
 
     /**
-     * IPv6 only: the index of the interface for a link-local address (`fe80::…`, which is written `fe80::…%<scopeid>` to
-     * be connected to), `0` for the other ones.
+     * IPv6 only: the scope of the address, as `os.networkInterfaces()` gives it: the index of the interface for a
+     * link-local address (`fe80::…`, written `fe80::…%<scopeid>` to be connected to), `0` for a global one (Windows gives
+     * a site-local address, `fec0::…`, the number of its site).
      */
     scopeid?: number
 }

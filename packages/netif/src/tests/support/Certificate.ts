@@ -1,17 +1,17 @@
 /**
- * A self-signed certificate of localhost, 127.0.0.1 and ::1 (100 years) and its key, made for the tests of the TLS
- * servers only
+ * A self-signed certificate of localhost, 127.0.0.1 and ::1 (valid from 2020 to 2120: the clock of a virtual machine may
+ * be late) and its key, made for the tests of the TLS servers only
  */
 export const CERTIFICATE: string = `-----BEGIN CERTIFICATE-----
-MIIBjDCCATKgAwIBAgIUWqdTiINsx6jMGAZLXBMDqAMccCkwCgYIKoZIzj0EAwIw
-FDESMBAGA1UEAwwJbG9jYWxob3N0MCAXDTI2MTAyOTA2MTAxOVoYDzIxMjYxMDA1
-MDYxMDE5WjAUMRIwEAYDVQQDDAlsb2NhbGhvc3QwWTATBgcqhkjOPQIBBggqhkjO
-PQMBBwNCAATnJ0ZSpXyYgzWH/PfY57F+fsuqDraLCBYEMzHijrpcHZiqiLwTqi16
-01bubKMacXk1Bb3EXF595DnsJQpuSypgo2AwXjAdBgNVHQ4EFgQUaQO/TXyPedlO
-N5Fyi3jce/v6jNMwDwYDVR0TAQH/BAUwAwEB/zAsBgNVHREEJTAjhwR/AAABhxAA
-AAAAAAAAAAAAAAAAAAABgglsb2NhbGhvc3QwCgYIKoZIzj0EAwIDSAAwRQIhAN3r
-w49toZhZsXm629MnyEHaQDLT1F+L1Sw6OBQwRVEFAiBiifqkyWZ4d8zK60Z3JNxW
-ob61fSH8zRQdrWBDE7qV5A==
+MIIBjDCCATKgAwIBAgIUEHUpvBo9aTqRb9hgRGPCDp6Add4wCgYIKoZIzj0EAwIw
+FDESMBAGA1UEAwwJbG9jYWxob3N0MCAXDTIwMDEwMTAwMDAwMFoYDzIxMjAwMTAx
+MDAwMDAwWjAUMRIwEAYDVQQDDAlsb2NhbGhvc3QwWTATBgcqhkjOPQIBBggqhkjO
+PQMBBwNCAAStRpIBXBHUz53xALhKNWWMCdamGIKrY9iBhmbYuUsxnDye1EWQyrqy
+aeYRtNm9/oEfYzRTcOVPWn7ZHJ1lSo1to2AwXjAdBgNVHQ4EFgQU9vKyrrsmxeWH
+5oUpk9ro1WEMAG4wDwYDVR0TAQH/BAUwAwEB/zAsBgNVHREEJTAjhwR/AAABhxAA
+AAAAAAAAAAAAAAAAAAABgglsb2NhbGhvc3QwCgYIKoZIzj0EAwIDSAAwRQIgDxD8
+sCvMDjsrEowr1jjW9XUXe3YlkAlc6CFOI/J45DgCIQD1lbSLGCHbCeTVYgVwdDEN
+XLhA/4XNojv1NAt+lsvfgA==
 -----END CERTIFICATE-----
 `
 
@@ -19,8 +19,8 @@ ob61fSH8zRQdrWBDE7qV5A==
  * The key of the certificate of the tests
  */
 export const KEY: string = `-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg0WEPRt63eUdqepjV
-9nJoo+UBdnHXPZJvuOxxvM61GemhRANCAATnJ0ZSpXyYgzWH/PfY57F+fsuqDraL
-CBYEMzHijrpcHZiqiLwTqi1601bubKMacXk1Bb3EXF595DnsJQpuSypg
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgs1hod+wVPz+JD/wz
+e7EQqoYFz/SCnTPH4/hH7sjIGzKhRANCAAStRpIBXBHUz53xALhKNWWMCdamGIKr
+Y9iBhmbYuUsxnDye1EWQyrqyaeYRtNm9/oEfYzRTcOVPWn7ZHJ1lSo1t
 -----END PRIVATE KEY-----
 `

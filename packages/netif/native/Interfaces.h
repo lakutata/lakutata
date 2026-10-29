@@ -17,7 +17,8 @@ struct Address {
     unsigned prefixLength = 0;
     //Not usable yet: an IPv6 address in its duplicate address detection, or one that failed it
     bool tentative = false;
-    //An IPv6 link-local address: the index of its interface; 0 otherwise
+    //IPv6: the scope of the address, the index of its interface for a link-local one, 0 for a global one (Windows also
+    //gives the site of a site-local one)
     uint32_t scopeId = 0;
 };
 

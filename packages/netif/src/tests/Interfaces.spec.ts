@@ -39,8 +39,7 @@ describe('The interfaces of the machine', (): void => {
     it('give a link-local IPv6 address the index of its interface as its scope', (): void => {
         for (const entry of listInterfaces()) {
             for (const address of entry.addresses) {
-                if (address.family !== 'IPv6') continue
-                assert.strictEqual(address.scopeid, address.address.startsWith('fe80:') ? entry.index : 0, `${entry.name}: ${address.address}`)
+                if (address.family === 'IPv6' && address.address.startsWith('fe80:')) assert.strictEqual(address.scopeid, entry.index, `${entry.name}: ${address.address}`)
             }
         }
     })

@@ -60,8 +60,9 @@ std::vector<Interface> listInterfaces()
                 auto *in6 = reinterpret_cast<const sockaddr_in6 *>(socketAddress);
                 address.family = 6;
                 address.address = addressText(AF_INET6, &in6->sin6_addr);
-                const unsigned char *octets = in6->sin6_addr.s6_addr;
-                if (octets[0] == 0xfe && (octets[1] & 0xc0) == 0x80) address.scopeId = adapter->Ipv6IfIndex;
+                //The scope the system gives (as os.networkInterfaces() does): the interface of a link-local address, the
+                //site of a site-local one (fec0::/10)
+                address.scopeId = in6->sin6_scope_id;
             } else {
                 continue;
             }
