@@ -205,7 +205,7 @@ describe('An adapter listening on an interface', (): void => {
 
     it('tells how to install @lakutata/netif when it is missing', {skip: (process.versions.bun || typeof (nodeModule as { registerHooks?: unknown }).registerHooks !== 'function') && 'the module hooks of Node.js (22.15) make the package missing'}, async (): Promise<void> => {
         const exports: string = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'exports')
-        //The resolution of @lakutata/netif fails as when it is not installed
+        //The resolution of @lakutata/netif fails as when it is not installed (in Electron, its executable run as Node.js)
         const hook: string = `import {registerHooks} from 'node:module'
 registerHooks({resolve: (specifier, context, next) => {
     if (specifier !== '@lakutata/netif') return next(specifier, context)
@@ -223,7 +223,7 @@ try {
 }
 await container.destroy()`
         const output: string = await new Promise((resolve: (output: string) => void, reject: (error: Error) => void): void => {
-            execFile(process.execPath, ['--import', `data:text/javascript,${encodeURIComponent(hook)}`, '--input-type=module', '--eval', script], {cwd: path.join(exports, '..', '..', '..')}, (error: Error | null, stdout: string, stderr: string): void => {
+            execFile(process.execPath, ['--import', `data:text/javascript,${encodeURIComponent(hook)}`, '--input-type=module', '--eval', script], {cwd: path.join(exports, '..', '..', '..'), env: {...process.env, ELECTRON_RUN_AS_NODE: '1'}}, (error: Error | null, stdout: string, stderr: string): void => {
                 if (error) return reject(new Error(`${error.message}\n${stderr}`))
                 resolve(stdout)
             })
