@@ -10,6 +10,7 @@ import {
     NetworkInterface,
     type NetworkInterfaceInfo
 } from '../exports/Netif.js'
+import {mayBind} from './support/Permission.js'
 
 function loopback(): NetworkInterfaceInfo {
     return listInterfaces().find((entry: NetworkInterfaceInfo): boolean => entry.addresses.some((address: InterfaceAddress): boolean => address.address === '127.0.0.1'))!
@@ -94,7 +95,8 @@ describe('A UDP socket of an interface', (): void => {
         const followed: NetworkInterface = new NetworkInterface(loopback().name)
         const socket: InterfaceUDPSocket = await followed.createUDPSocket({port: 0, family: 'IPv4'})
         try {
-            if (process.platform === 'darwin') {
+            //By address on macOS, and on Linux without the permission to bind: no multicast
+            if (process.platform === 'darwin' || (process.platform === 'linux' && !mayBind())) {
                 assert.throws((): void => socket.addMembership('239.255.0.9'), NetIfNotSupportedException)
             }
             assert.throws((): void => socket.addMembership('not a group'), TypeError)

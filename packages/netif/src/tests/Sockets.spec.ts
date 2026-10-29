@@ -11,8 +11,12 @@ import {
     type NetworkInterfaceInfo
 } from '../exports/Netif.js'
 import {addressEnforcement, type Enforcement} from '../lib/Enforcement.js'
+import {mayBind} from './support/Permission.js'
 
 const LINUX: boolean = process.platform === 'linux'
+//Linux before 5.7 without CAP_NET_RAW: no socket bound to an interface
+const BINDS: boolean = mayBind()
+const BINDING: string | false = LINUX ? (BINDS ? false : 'the process may not bind to an interface') : 'Linux only'
 
 function loopback(): NetworkInterfaceInfo {
     return listInterfaces().find((entry: NetworkInterfaceInfo): boolean => entry.addresses.some((address: InterfaceAddress): boolean => address.address === '127.0.0.1'))!
@@ -47,7 +51,7 @@ describe('A socket bound to an interface', (): void => {
         }
     })
 
-    it('listens for the connections that come through its interface (TCP)', {skip: LINUX ? false : 'Linux only'}, async (): Promise<void> => {
+    it('listens for the connections that come through its interface (TCP)', {skip: BINDING}, async (): Promise<void> => {
         const followed: NetworkInterface = new NetworkInterface(loopback().name)
         const bound: BoundSocket = followed.bindSocket({port: 0})
         followed.close()
@@ -66,7 +70,7 @@ describe('A socket bound to an interface', (): void => {
         }
     })
 
-    it('refuses the connections that come through another interface', {skip: LINUX ? false : 'Linux only'}, async (t): Promise<void> => {
+    it('refuses the connections that come through another interface', {skip: BINDING}, async (t): Promise<void> => {
         const other: NetworkInterfaceInfo | undefined = listInterfaces().find((entry: NetworkInterfaceInfo): boolean => !entry.loopback && entry.running && entry.addresses.length > 0)
         if (!other) return t.skip('no other interface with an address')
         const followed: NetworkInterface = new NetworkInterface(other.name)
@@ -86,7 +90,7 @@ describe('A socket bound to an interface', (): void => {
         }
     })
 
-    it('receives the datagrams that come through its interface (UDP)', {skip: LINUX ? false : 'Linux only'}, async (): Promise<void> => {
+    it('receives the datagrams that come through its interface (UDP)', {skip: BINDING}, async (): Promise<void> => {
         const followed: NetworkInterface = new NetworkInterface(loopback().name)
         const bound: BoundSocket = followed.bindSocket({type: 'udp'})
         followed.close()
@@ -120,5 +124,14 @@ describe('The guarantee of a listening by address', (): void => {
             assert.match(enforcement.reason!, /CAP_NET_RAW/)
         }
         if (process.platform === 'darwin' && !enforcement.enforced) assert.match(enforcement.reason!, /check_interface|forwarding/)
+    })
+
+    it('needs the permission to bind on Linux before 5.7, else a NetIfNotEnforcedException', {skip: LINUX && !BINDS ? false : 'the process may bind'}, (): void => {
+        const followed: NetworkInterface = new NetworkInterface(loopback().name)
+        try {
+            assert.throws((): BoundSocket => followed.bindSocket(), (error: Error): boolean => error.name === 'NetIfNotEnforcedException' && /CAP_NET_RAW/.test(error.message))
+        } finally {
+            followed.close()
+        }
     })
 })

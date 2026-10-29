@@ -18,6 +18,7 @@ import {
     type NetworkInterfaceInfo
 } from '../exports/Netif.js'
 import {CERTIFICATE, KEY} from './support/Certificate.js'
+import {mayBind} from './support/Permission.js'
 
 //A URL: import() takes no path of Windows
 const EXPORTS: string = new URL('../exports/Netif.js', import.meta.url).href
@@ -96,7 +97,8 @@ describe('A listener', (): void => {
     it('tells whether the connections of the other interfaces are refused', async (): Promise<void> => {
         const listener: InterfaceListener = await listenOn(loopback().name, textServer(''), {port: 0, family: 'IPv4'})
         try {
-            if (process.platform === 'linux') assert.strictEqual(listener.enforced, true)
+            //Linux: bound to the interface, unless the process may not (then by address, as elsewhere)
+            if (process.platform === 'linux') assert.strictEqual(listener.enforced, mayBind())
             if (!listener.enforced) assert.match(listener.reason ?? '', /\S/)
             if (listener.enforced) assert.strictEqual(listener.reason, undefined)
         } finally {
