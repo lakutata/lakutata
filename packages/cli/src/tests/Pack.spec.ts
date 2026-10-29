@@ -2,7 +2,7 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {execFile, execFileSync, type ExecFileException, execSync} from 'node:child_process'
 import {cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {networkInterfaces, tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 
@@ -27,6 +27,14 @@ const BUN: boolean = ((): boolean => {
 })()
 
 let project: string
+
+/**
+ * The repository installs @lakutata/netif, which the entrypoint loads when an adapter listens on a network interface:
+ * the bundler would ship it with an application of the repository whatever its options. Left out of the packing of the
+ * applications without interface, as in a project which does not install it (an optional dependency not installed is
+ * left out alike).
+ */
+const WITHOUT_NETIF: string[] = ['--external', '@lakutata/netif']
 
 /**
  * The extension of the executables of the platform
@@ -161,7 +169,7 @@ Application.run({
     after((): void => rmSync(project, {recursive: true, force: true}))
 
     it('bundles the application into one file which runs without its node_modules', async (): Promise<void> => {
-        const bundled = await runCommand(process.execPath, [CLI, 'package', 'bundle'])
+        const bundled = await runCommand(process.execPath, [CLI, 'package', 'bundle', ...WITHOUT_NETIF])
         assert.strictEqual(bundled.code, 0, bundled.output)
         //Named after the bin of the package
         const bundle: string = path.join(project, 'dist', 'greet.cjs')
@@ -184,7 +192,7 @@ Application.run({
     })
 
     it('makes the executable of this platform, which runs without Node.js', async (): Promise<void> => {
-        const made = await runCommand(process.execPath, [CLI, 'package', 'exe', '--outdir', 'bin'])
+        const made = await runCommand(process.execPath, [CLI, 'package', 'exe', '--outdir', 'bin', ...WITHOUT_NETIF])
         assert.strictEqual(made.code, 0, made.output)
         const executable: string = path.join(project, 'bin', process.platform === 'win32' ? 'greet.exe' : 'greet')
         assert.ok(existsSync(executable), made.output)
@@ -201,7 +209,7 @@ Application.run({
     })
 
     it('makes the executable of Bun, its mode the one of its run', {skip: !BUN && 'Bun is not installed'}, async (): Promise<void> => {
-        const made = await runCommand(process.execPath, [CLI, 'package', 'exe', '--runtime', 'bun', '--outdir', 'bun'])
+        const made = await runCommand(process.execPath, [CLI, 'package', 'exe', '--runtime', 'bun', '--outdir', 'bun', ...WITHOUT_NETIF])
         assert.strictEqual(made.code, 0, made.output)
         assert.match(made.output, /Bun \d+\.\d+\.\d+ embedded/)
         const executable: string = path.join(project, 'bun', process.platform === 'win32' ? 'greet.exe' : 'greet')
@@ -222,7 +230,7 @@ Application.run({
     })
 
     it('makes the executable in a directory, its resources next to it', async (): Promise<void> => {
-        const made = await runCommand(process.execPath, [CLI, 'package', 'exe', '--layout', 'directory', '--outdir', 'layouts'])
+        const made = await runCommand(process.execPath, [CLI, 'package', 'exe', '--layout', 'directory', '--outdir', 'layouts', ...WITHOUT_NETIF])
         assert.strictEqual(made.code, 0, made.output)
         assert.match(made.output, /Resources next to the executable: texts/)
         const directory: string = path.join(project, 'layouts', 'greet')
@@ -236,7 +244,7 @@ Application.run({
     })
 
     it('makes the installers of macOS on macOS', {skip: process.platform !== 'darwin' && 'the installers of Linux are tested in containers (the Docker tests of the builder)'}, async (): Promise<void> => {
-        const made = await runCommand(process.execPath, [CLI, 'package', 'installer', '--outdir', 'installers'])
+        const made = await runCommand(process.execPath, [CLI, 'package', 'installer', '--outdir', 'installers', ...WITHOUT_NETIF])
         assert.strictEqual(made.code, 0, made.output)
         assert.deepStrictEqual(readdirSync(path.join(project, 'installers')).sort(), [`greet-1.0.0-${process.arch}.pkg`, `greet-1.0.0-darwin-${process.arch}.tar.gz`])
         assert.match(made.output, /Resources: texts/)
@@ -253,6 +261,118 @@ Application.run({
         assert.ok(!existsSync(path.join(project, 'dist', 'greet.native')))
     })
 
+})
+
+/**
+ * The loopback interface, found by its address
+ */
+const LOOPBACK: string | undefined = Object.entries(networkInterfaces()).find(([, addresses]): boolean => !!addresses?.some((address): boolean => address.address === '127.0.0.1'))?.[0]
+
+describe('The packing of an application listening on a network interface', {skip: (!existsSync(path.join(ROOT, 'packages', 'netif', 'build', 'Release', 'netif.node')) && 'the addon of @lakutata/netif is not built') || (!LOOPBACK && 'no interface has the address 127.0.0.1')}, (): void => {
+
+    let pinger: string
+
+    /**
+     * Run a command in the project of the application
+     * @param command
+     * @param args
+     * @param env
+     * @param cwd
+     */
+    function runPinger(command: string, args: string[], env: Record<string, string> = {}, cwd: string = pinger): Promise<{ code: number, output: string }> {
+        return new Promise((resolve: (result: { code: number, output: string }) => void): void => {
+            execFile(command, args, {cwd: cwd, env: {...process.env, LOOPBACK: LOOPBACK!, LAKUTATA_CACHE_DIR: path.join(pinger, 'cache'), ...env}, maxBuffer: 16 * 1024 * 1024}, (error: ExecFileException | null, stdout: string, stderr: string): void => resolve({code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, output: `${stdout}${stderr}`}))
+        })
+    }
+
+    before(async (): Promise<void> => {
+        pinger = mkdtempSync(path.join(tmpdir(), 'lakutata-pinger-'))
+        const file = (name: string, content: string): void => {
+            mkdirSync(path.dirname(path.join(pinger, name)), {recursive: true})
+            writeFileSync(path.join(pinger, name), content)
+        }
+        //A service listening on the loopback interface (given by LOOPBACK), which calls its action through it and stops
+        file('package.json', JSON.stringify({name: '@acme/pinger', version: '1.0.0', type: 'module', main: 'build/App.js', bin: {ping: 'build/App.js'}}))
+        file('tsconfig.json', JSON.stringify({compilerOptions: {target: 'ES2022', module: 'Node16', moduleResolution: 'Node16', outDir: 'build', rootDir: 'src', strict: true, experimentalDecorators: true, emitDecoratorMetadata: true, skipLibCheck: true, types: ['node']}, include: ['src']}))
+        file('src/App.ts', `#!/usr/bin/env node
+import type {Server} from 'node:http'
+import {Container, type IInterfaceListener} from 'lakutata'
+import {buildEntrypoints, Controller, Entrypoint, httpServiceEntrypoint} from 'lakutata/com/entrypoint'
+import {ServiceAction} from 'lakutata/decorator/ctrl'
+
+class PingController extends Controller {
+    @ServiceAction({cmd: 'ping'})
+    public async ping(): Promise<string> {
+        return 'pong'
+    }
+}
+
+async function main(): Promise<void> {
+    let port: number | undefined
+    const container: Container = new Container()
+    await container.set(Entrypoint, buildEntrypoints({
+        controllers: [PingController],
+        service: httpServiceEntrypoint({
+            port: 0,
+            interface: process.env.LOOPBACK!,
+            family: 'IPv4',
+            listening: (server: Server, listeners?: IInterfaceListener[]): void => {
+                port = listeners![0].port
+            }
+        })
+    }))
+    try {
+        const response: Response = await fetch('http://127.0.0.1:' + port + '/', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({cmd: 'ping'})})
+        console.log((await response.json()).payload)
+    } finally {
+        await container.destroy()
+    }
+}
+
+void main()
+`)
+        mkdirSync(path.join(pinger, 'node_modules', '@types'), {recursive: true})
+        symlinkSync(path.join(ROOT, 'packages', 'lakutata'), path.join(pinger, 'node_modules', 'lakutata'), 'dir')
+        symlinkSync(path.join(ROOT, 'node_modules', '@types', 'node'), path.join(pinger, 'node_modules', '@types', 'node'), 'dir')
+        const built = await runPinger(process.execPath, [path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc'), '-p', pinger])
+        assert.strictEqual(built.code, 0, built.output)
+    })
+
+    after((): void => rmSync(pinger, {recursive: true, force: true}))
+
+    it('runs with node', async (): Promise<void> => {
+        const ran = await runPinger(process.execPath, ['build/App.js'])
+        assert.strictEqual(ran.output.trim(), 'pong')
+    })
+
+    it('bundles the application with @lakutata/netif, its addon next to the bundle', async (): Promise<void> => {
+        const bundled = await runPinger(process.execPath, [CLI, 'package', 'bundle'])
+        assert.strictEqual(bundled.code, 0, bundled.output)
+        assert.ok(listFiles(path.join(pinger, 'dist', 'ping.native')).some((file: string): boolean => path.basename(file) === 'netif.node'), bundled.output)
+        //Moved with its tree, without the node_modules of the project
+        const moved: string = path.join(path.dirname(pinger), `${path.basename(pinger)}-moved`)
+        cpSync(path.join(pinger, 'dist'), moved, {recursive: true})
+        try {
+            const ran = await runPinger(process.execPath, [path.join(moved, 'ping.cjs')], {}, moved)
+            assert.strictEqual(ran.output.trim(), 'pong')
+        } finally {
+            rmSync(moved, {recursive: true, force: true})
+        }
+    })
+
+    it('makes an executable which listens on the interface without Node.js', async (): Promise<void> => {
+        const made = await runPinger(process.execPath, [CLI, 'package', 'exe', '--outdir', 'bin'])
+        assert.strictEqual(made.code, 0, made.output)
+        const ran = await runPinger(path.join(pinger, 'bin', `ping${EXE}`), [], {PATH: '', LAKUTATA_NATIVE_DIR: path.join(pinger, 'extracted')})
+        assert.strictEqual(ran.output.trim(), 'pong')
+    })
+
+    it('makes an executable of Bun which listens on the interface', {skip: !BUN && 'Bun is not installed'}, async (): Promise<void> => {
+        const made = await runPinger(process.execPath, [CLI, 'package', 'exe', '--runtime', 'bun', '--outdir', 'bun'])
+        assert.strictEqual(made.code, 0, made.output)
+        const ran = await runPinger(path.join(pinger, 'bun', `ping${EXE}`), [], {PATH: '', LAKUTATA_NATIVE_DIR: path.join(pinger, 'extracted-bun')})
+        assert.strictEqual(ran.output.trim(), 'pong')
+    })
 })
 
 /**
