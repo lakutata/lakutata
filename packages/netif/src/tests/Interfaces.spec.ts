@@ -20,7 +20,8 @@ describe('The interfaces of the machine', (): void => {
     it('have the addresses os.networkInterfaces() gives', (): void => {
         const listed: Map<string, NetworkInterfaceInfo> = new Map(listInterfaces().map((entry: NetworkInterfaceInfo): [string, NetworkInterfaceInfo] => [entry.name, entry]))
         for (const [name, addresses] of Object.entries(os.networkInterfaces())) {
-            const entry: NetworkInterfaceInfo | undefined = listed.get(name)
+            //Bun 1.4 on Windows writes a name that is not ASCII twice in UTF-8 (以太网 as its bytes read as Latin-1)
+            const entry: NetworkInterfaceInfo | undefined = listed.get(name) ?? listed.get(Buffer.from(name, 'latin1').toString('utf8'))
             assert.ok(entry, `${name} not listed`)
             for (const address of addresses ?? []) {
                 //The IPv6 addresses of Node.js have their scope removed too

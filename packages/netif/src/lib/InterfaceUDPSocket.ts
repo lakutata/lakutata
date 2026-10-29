@@ -98,6 +98,10 @@ export class InterfaceUDPSocket extends Attachment<InterfaceUDPSocketEvents, Soc
 
     readonly #descriptors: WeakMap<Socket, number> = new WeakMap()
 
+    //By address: the socket of each family that joined the groups (on every socket, a datagram of a group would be
+    //received once by each of them)
+    readonly #members: Map<Family, Endpoint<Socket>> = new Map()
+
     /**
      * Internal: made by `NetworkInterface.createUDPSocket()`; `start()` binds it.
      * @param networkInterface The interface.
@@ -154,6 +158,25 @@ export class InterfaceUDPSocket extends Attachment<InterfaceUDPSocketEvents, Soc
      */
     protected prepare(endpoint: Endpoint<Socket>): void {
         if (endpoint.family === 'IPv4' && this.#broadcast) endpoint.handle.setBroadcast(true)
+        this.#join(endpoint)
+    }
+
+    /**
+     * A socket closed: the groups it joined for its family joined by another one
+     */
+    protected released(endpoint: Endpoint<Socket>): void {
+        if (this.#members.get(endpoint.family) !== endpoint) return
+        this.#members.delete(endpoint.family)
+        const next: Endpoint<Socket> | undefined = this.endpoints().find((candidate: Endpoint<Socket>): boolean => candidate.family === endpoint.family)
+        if (next) this.#join(next)
+    }
+
+    /**
+     * The groups of the family of a socket joined on it, unless another socket of the family has them already
+     */
+    #join(endpoint: Endpoint<Socket>): void {
+        if (this.#members.has(endpoint.family)) return
+        this.#members.set(endpoint.family, endpoint)
         for (const group of this.#groups) {
             if ((isIP(group) === 4 ? 'IPv4' : 'IPv6') !== endpoint.family) continue
             try {
@@ -244,11 +267,11 @@ export class InterfaceUDPSocket extends Attachment<InterfaceUDPSocketEvents, Soc
         if (!this.boundToInterface && process.platform !== 'win32') {
             throw new NetIfNotSupportedException(`A UDP socket bound to the addresses of an interface receives no multicast on ${process.platform === 'darwin' ? 'macOS' : process.platform}: only Linux binds a socket to the interface itself`)
         }
+        if (this.#groups.has(group)) return
         this.#groups.add(group)
         const family: Family = isIP(group) === 4 ? 'IPv4' : 'IPv6'
-        for (const endpoint of this.endpoints()) {
-            if (endpoint.family === family) this.#membership(endpoint, group, true)
-        }
+        const member: Endpoint<Socket> | undefined = this.#members.get(family)
+        if (member) this.#membership(member, group, true)
     }
 
     /**
@@ -257,14 +280,12 @@ export class InterfaceUDPSocket extends Attachment<InterfaceUDPSocketEvents, Soc
      */
     public dropMembership(group: string): void {
         if (!this.#groups.delete(group)) return
-        const family: Family = isIP(group) === 4 ? 'IPv4' : 'IPv6'
-        for (const endpoint of this.endpoints()) {
-            if (endpoint.family !== family) continue
-            try {
-                this.#membership(endpoint, group, false)
-            } catch {
-                //Left already (the socket made again since)
-            }
+        const member: Endpoint<Socket> | undefined = this.#members.get(isIP(group) === 4 ? 'IPv4' : 'IPv6')
+        if (!member) return
+        try {
+            this.#membership(member, group, false)
+        } catch {
+            //Left already (the socket made again since)
         }
     }
 }

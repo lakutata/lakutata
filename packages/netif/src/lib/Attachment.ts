@@ -255,6 +255,13 @@ export abstract class Attachment<Events extends Record<keyof Events, unknown[]>,
     }
 
     /**
+     * A socket closed, no longer counted
+     */
+    protected released(_endpoint: Endpoint<Handle>): void {
+        //Nothing by default
+    }
+
+    /**
      * Internal: the first binding, which the method that made it waits for.
      * @returns It.
      */
@@ -311,8 +318,12 @@ export abstract class Attachment<Events extends Record<keyof Events, unknown[]>,
     }
 
     #closeAll(): void {
-        for (const endpoint of this.#endpoints.values()) this.closeHandle(endpoint.handle)
+        const endpoints: Endpoint<Handle>[] = [...this.#endpoints.values()]
         this.#endpoints.clear()
+        for (const endpoint of endpoints) {
+            this.closeHandle(endpoint.handle)
+            this.released(endpoint)
+        }
     }
 
     /**
@@ -414,6 +425,7 @@ export abstract class Attachment<Events extends Record<keyof Events, unknown[]>,
                 if (keys.has(key)) continue
                 this.closeHandle(endpoint.handle)
                 this.#endpoints.delete(key)
+                this.released(endpoint)
             }
             let opened: boolean = false
             let byAddress: boolean = false
