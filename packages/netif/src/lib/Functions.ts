@@ -57,7 +57,8 @@ export async function listenOn(selector: InterfaceSelector, server: Server, opti
  * Listens on several interfaces for a server: `listenOn()` for each of them, one listener by interface, the interfaces
  * followed until their listeners are closed. When one of them cannot be listened on, the ones listened on already are
  * closed and the error is thrown. Several interfaces need a port: 0 lets the system choose one for the first
- * interface, which may not exist yet.
+ * interface, which may not exist yet. With it, the package implements `IInterfaceListening` of `@lakutata/core`: the
+ * entrypoints of lakutata listen on interfaces through it.
  * @param selectors An interface (its name, `{mac}` or `{index}`), or several.
  * @param server A `net.Server` or a server built on one (`http`, `https`, `http2`, `tls`), which must not listen itself.
  * @param options The port, the families, `strict` and the backlog, the same for every interface.

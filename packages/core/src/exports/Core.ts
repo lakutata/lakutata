@@ -100,4 +100,5 @@ export * from '../types/ModuleOptions.js'
  */
 export * from '../interfaces/IBaseObjectConstructor.js'
 export * from '../interfaces/ILogger.js'
+export * from '../interfaces/IInterfaceListening.js'
 export * from '../interfaces/IConstructor.js'

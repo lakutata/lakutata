@@ -76,5 +76,8 @@
   ],
   "dependencies": {
     "node-addon-api": "^8.9.2"
+  },
+  "peerDependencies": {
+    "@lakutata/core": "3.1.1"
   }
 }

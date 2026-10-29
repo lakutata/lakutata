@@ -1,5 +1,6 @@
 import {Server as HTTPServer} from 'node:http'
 import {createServer, type Server, type Socket} from 'node:net'
+import type {IInterfaceListener} from '@lakutata/core'
 import {NetIfNotSupportedException} from '../exceptions/NetIfNotSupportedException.js'
 import {Attachment, type Target} from './Attachment.js'
 import {type Family} from './Enforcement.js'
@@ -76,7 +77,7 @@ function bunTLS(server: Server): boolean | undefined {
  * and gives them to the server (`server.emit('connection', socket)`), which handles them as its own: the server itself
  * does not listen (its `address()` is `null`, its `close()` does not stop the listener; use the ones of the listener).
  * The interface is listened on again when its addresses change and when it is unplugged and plugged back; the
- * connections established are left to the server.
+ * connections established are left to the server. It implements `IInterfaceListener` of `@lakutata/core`.
  * @example
  * ```typescript
  * import {createServer} from 'node:http'
@@ -89,7 +90,7 @@ function bunTLS(server: Server): boolean | undefined {
  * await listener.close()
  * ```
  */
-export class InterfaceListener extends Attachment<InterfaceListenerEvents, Server> {
+export class InterfaceListener extends Attachment<InterfaceListenerEvents, Server> implements IInterfaceListener {
 
     /**
      * The server the connections are given to.

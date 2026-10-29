@@ -18,6 +18,8 @@ import {
     NetworkInterface,
     type NetworkInterfaceInfo
 } from '../exports/Netif.js'
+import type {IInterfaceListening} from '@lakutata/core'
+import * as netif from '../exports/Netif.js'
 import {CERTIFICATE, KEY} from './support/Certificate.js'
 import {mayBind} from './support/Permission.js'
 
@@ -266,6 +268,12 @@ describe('A listener', (): void => {
             assert.deepStrictEqual(JSON.parse(output), {listening: false, addresses: []})
             assert.strictEqual(exited, mode === 'close', mode)
         }
+    })
+
+    it('implements IInterfaceListening of @lakutata/core, the listening of the entrypoints', (): void => {
+        //Checked when the tests are compiled: the module, its listenOnAll() and its listeners
+        const implementation: IInterfaceListening = netif
+        assert.strictEqual(implementation.listenOnAll, listenOnAll)
     })
 
     it('listens on several interfaces with listenOnAll(), all of them closed when one cannot be', async (): Promise<void> => {
