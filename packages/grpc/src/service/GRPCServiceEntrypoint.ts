@@ -1,11 +1,11 @@
 import {randomUUID} from 'node:crypto'
-import type {AddressInfo} from 'node:net'
+import type {AddressInfo, Server} from 'node:net'
 import {EntrypointStoppedException, ServiceContext, type EntrypointAdapter, type InterfaceListeningOptions, type MiddlewareDefinition} from '@lakutata/entrypoint'
-import type {InterfaceListener} from '@lakutata/netif'
+import type {IInterfaceListener} from '@lakutata/core'
 import {ServiceChannel, ServiceResponseCodec, type ChannelRuntime, type ServiceResponse} from '@lakutata/entrypoint/channel'
 import {GRPCError, GRPCServer, GRPCStatus, type GRPCCompression, type GRPCServerCall, type GRPCServerTLSOptions} from '../lib/GRPC.js'
 import type {Message} from '../lib/Protobuf.js'
-import {listensOnInterfaces, report} from './Interfaces.js'
+import {listensOnInterfaces, listenOnInterfaces} from './Interfaces.js'
 import {EventsRequest, fromJSONBytes, InvokeRequest, InvokeResponse, jsonBytes, SERVICE_METHODS, ServiceEvent} from './ServiceProto.js'
 
 /**
@@ -59,7 +59,7 @@ export type GRPCServiceEntrypointOptions = InterfaceListeningOptions & {
      * (`null` while the interface does not exist or has no address) and the listeners. The entrypoint's start awaits
      * it, and fails when it rejects.
      */
-    listening?: (address: AddressInfo | string | null, listeners?: InterfaceListener[]) => void | Promise<void>
+    listening?: (address: AddressInfo | string | null, listeners?: IInterfaceListener[]) => void | Promise<void>
 }
 
 /**
@@ -112,9 +112,9 @@ export function grpcCallOfContext(context: ServiceContext): GRPCServerCall | und
  *   invocations in progress complete); when it closes, the event streams end with `OK` and the server closes, cutting
  *   the calls still running after 5 seconds.
  *
- * With `interface` (and the package `@lakutata/netif`, installed apart), the server listens on network interfaces
- * instead of an address, whatever their addresses, again when they change and when an interface is unplugged and
- * plugged back: `grpcServiceEntrypoint({port: 50051, interface: 'eth1'})`.
+ * With `interface` (through the package `@lakutata/netif` by default, installed apart), the server listens on network
+ * interfaces instead of an address, whatever their addresses, again when they change and when an interface is unplugged
+ * and plugged back: `grpcServiceEntrypoint({port: 50051, interface: 'eth1'})`.
  * @param options The server's address, TLS, size limit, compression and middlewares; port 50051 on all the interfaces
  * by default.
  * @returns The service adapter.
@@ -233,14 +233,10 @@ export function grpcServiceEntrypoint(options: GRPCServiceEntrypointOptions = {}
             server.method(SERVICE_METHODS.INVOKE, (call: GRPCServerCall): Promise<void> => invoke(runtime, call))
             server.method(SERVICE_METHODS.EVENTS, listen)
             if (onInterfaces) {
-                const address: AddressInfo | null = await server.listen({
-                    interface: options.interface!,
-                    port: options.port ?? 50051,
-                    family: options.family,
-                    strict: options.strict,
-                    onError: (error: unknown): void => void report(runtime, options.onError, error, 'The listening of grpcServiceEntrypoint on an interface failed')
-                })
-                await options.listening?.(address, server.listeners)
+                //The listeners give the server its connections; the first address listened on, none while the interface
+                //does not exist or has no address
+                const listeners: IInterfaceListener[] = await server.listenWith((inner: Server): Promise<IInterfaceListener[]> => listenOnInterfaces('grpcServiceEntrypoint', runtime, inner, options, options.port ?? 50051))
+                await options.listening?.(listeners.flatMap((listener: IInterfaceListener): AddressInfo[] => listener.addresses)[0] ?? null, listeners)
             } else {
                 const address: AddressInfo | string = await server.listen({port: options.port ?? 50051, host: options.host, socketPath: options.socketPath})
                 await options.listening?.(address)
