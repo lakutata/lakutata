@@ -1,6 +1,7 @@
 import http2, {type ClientHttp2Session, type ClientHttp2Stream, type Http2SecureServer, type Http2Server, type Http2Session, type IncomingHttpHeaders, type IncomingHttpStatusHeader, type ServerHttp2Stream} from 'node:http2'
 import net, {type AddressInfo} from 'node:net'
 import type {Duplex} from 'node:stream'
+import type {InterfaceListener, InterfaceSelector} from '@lakutata/netif'
 import tls from 'node:tls'
 import {deflateSync, gzipSync, gunzipSync, inflateSync} from 'node:zlib'
 import {decode, encode, type Message, type Schema} from './Protobuf.js'
@@ -1014,6 +1015,8 @@ export class GRPCServer {
 
     readonly #sessions: Set<Http2Session> = new Set()
 
+    readonly #listeners: InterfaceListener[] = []
+
     /**
      * Create a server; it serves once it listens.
      * @param options Its TLS (none by default: plain HTTP/2, h2c), the largest request it receives (4194304 bytes,
@@ -1082,13 +1085,39 @@ export class GRPCServer {
     }
 
     /**
+     * The listeners of the network interfaces the server listens on (see `listen()` with `interface`); none when it
+     * listens on an address or a unix socket.
+     */
+    public get listeners(): InterfaceListener[] {
+        return [...this.#listeners]
+    }
+
+    /**
      * Listen on a TCP port or a unix socket.
      * @param options Where to listen: `port` (50051 by default, 0 for a free one) and `host` (all the interfaces by
      * default), or `socketPath`, a unix socket path used instead of the port.
      * @returns The address listened on: an `AddressInfo` (its `port`) for TCP, the path for a unix socket.
      * @throws {Error} The listen error, such as `EADDRINUSE` when the port or the socket is in use.
      */
-    public async listen(options: { port?: number, host?: string, socketPath?: string }): Promise<AddressInfo | string> {
+    public listen(options: { port?: number, host?: string, socketPath?: string }): Promise<AddressInfo | string>
+    /**
+     * Listen on network interfaces instead of an address, whatever their addresses, again when they change and when an
+     * interface is unplugged and plugged back, with the package `@lakutata/netif` (installed apart); the server itself
+     * does not listen, the listeners give it the connections (see {@link GRPCServer.listeners}). An interface that does
+     * not exist yet is listened on once it can.
+     * @param options `interface`: the name of the interface (`'eth1'`), `{mac: '52:54:00:12:34:56'}` or `{index: 3}`,
+     * several of them in an array (then the port cannot be 0); `port` (50051 by default, 0 for a free one); `family`,
+     * the families listened on (`'IPv4'`, `'IPv6'` or `'both'`, by default); `strict`, refused where the system cannot
+     * refuse the connections reaching the addresses of the interface through another interface (see `enforced` in the
+     * README of `@lakutata/netif`); `onError`, the errors of the listening once started (retried by the listeners),
+     * written to the console without it.
+     * @returns The first address listened on, `null` while the interface does not exist or has no address.
+     * @throws {Error} `@lakutata/netif` is not installed.
+     * @throws NetIfNotEnforcedException With `strict`, where the system cannot refuse the other interfaces.
+     */
+    public listen(options: { interface: InterfaceSelector | InterfaceSelector[], port?: number, family?: 'IPv4' | 'IPv6' | 'both', strict?: boolean, onError?: (error: unknown) => void }): Promise<AddressInfo | null>
+    public async listen(options: { port?: number, host?: string, socketPath?: string, interface?: InterfaceSelector | InterfaceSelector[], family?: 'IPv4' | 'IPv6' | 'both', strict?: boolean, onError?: (error: unknown) => void }): Promise<AddressInfo | string | null> {
+        if (options.interface !== undefined) return await this.#listenOnInterfaces(options as { interface: InterfaceSelector | InterfaceSelector[], port?: number, host?: string, socketPath?: string, family?: 'IPv4' | 'IPv6' | 'both', strict?: boolean, onError?: (error: unknown) => void })
         await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
             this.#server.once('error', reject)
             const listening = (): void => {
@@ -1101,6 +1130,30 @@ export class GRPCServer {
         return this.#server.address() as AddressInfo | string
     }
 
+    async #listenOnInterfaces(options: { interface: InterfaceSelector | InterfaceSelector[], port?: number, host?: string, socketPath?: string, family?: 'IPv4' | 'IPv6' | 'both', strict?: boolean, onError?: (error: unknown) => void }): Promise<AddressInfo | null> {
+        if (options.host !== undefined || options.socketPath !== undefined) throw new TypeError('GRPCServer.listen(): interface cannot be given with host or socketPath')
+        let netif: typeof import('@lakutata/netif')
+        try {
+            netif = await import('@lakutata/netif')
+        } catch (error: unknown) {
+            const code: unknown = (error as NodeJS.ErrnoException)?.code
+            if ((code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND') && String((error as Error).message).includes('@lakutata/netif')) {
+                throw new Error('The interface option of GRPCServer.listen() needs the package @lakutata/netif (npm install @lakutata/netif)', {cause: error})
+            }
+            throw error
+        }
+        const listeners: InterfaceListener[] = await netif.listenOnAll(options.interface, this.#server, {port: options.port ?? 50051, family: options.family, strict: options.strict})
+        for (const listener of listeners) {
+            //An error not handled would be thrown by the listener
+            listener.on('error', (error: Error): void => {
+                if (options.onError) return options.onError(error)
+                console.error('The listening of a gRPC server on an interface failed (retried):', error)
+            })
+            this.#listeners.push(listener)
+        }
+        return (listeners.flatMap((listener: InterfaceListener): AddressInfo[] => listener.addresses)[0]) ?? null
+    }
+
     /**
      * Close the server: it stops accepting connections and calls, the calls in progress complete, and the sessions
      * still open after the grace time are destroyed (their calls cut).
@@ -1108,10 +1161,17 @@ export class GRPCServer {
      * @returns A promise resolved once the server is closed.
      */
     public async close(grace: number = 5000): Promise<void> {
+        await Promise.all(this.#listeners.splice(0).map((listener: InterfaceListener): Promise<void> => listener.close()))
         const closing: Promise<void> = new Promise<void>((resolve: () => void): void => void this.#server.close((): void => resolve()))
+        //The close of a server waits for the connections it accepted, not for the ones given to it (by the listeners of
+        //the interfaces, or serve())
+        const sessionsClosed: Promise<unknown> = Promise.all([...this.#sessions].map((session: Http2Session): Promise<void> => new Promise((resolve: () => void): void => {
+            if (session.closed || session.destroyed) return resolve()
+            session.once('close', resolve)
+        })))
         const timer: NodeJS.Timeout = setTimeout((): void => this.#sessions.forEach((session: Http2Session): unknown => session.destroy()), grace)
         this.#sessions.forEach((session: Http2Session): unknown => session.close())
-        await closing
+        await Promise.all([closing, sessionsClosed])
         clearTimeout(timer)
     }
 }

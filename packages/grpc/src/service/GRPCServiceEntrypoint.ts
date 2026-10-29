@@ -1,16 +1,19 @@
 import {randomUUID} from 'node:crypto'
 import type {AddressInfo} from 'node:net'
-import {EntrypointStoppedException, ServiceContext, type EntrypointAdapter, type MiddlewareDefinition} from '@lakutata/entrypoint'
+import {EntrypointStoppedException, ServiceContext, type EntrypointAdapter, type InterfaceListeningOptions, type MiddlewareDefinition} from '@lakutata/entrypoint'
+import type {InterfaceListener} from '@lakutata/netif'
 import {ServiceChannel, ServiceResponseCodec, type ChannelRuntime, type ServiceResponse} from '@lakutata/entrypoint/channel'
 import {GRPCError, GRPCServer, GRPCStatus, type GRPCCompression, type GRPCServerCall, type GRPCServerTLSOptions} from '../lib/GRPC.js'
 import type {Message} from '../lib/Protobuf.js'
+import {listensOnInterfaces, report} from './Interfaces.js'
 import {EventsRequest, fromJSONBytes, InvokeRequest, InvokeResponse, jsonBytes, SERVICE_METHODS, ServiceEvent} from './ServiceProto.js'
 
 /**
  * The options of {@link grpcServiceEntrypoint}: where its gRPC server listens, its TLS, its message size limit and
- * compression, and its middlewares.
+ * compression, and its middlewares. With `interface`, it listens on network interfaces instead of an address (see
+ * `InterfaceListeningOptions` of `@lakutata/entrypoint`).
  */
-export type GRPCServiceEntrypointOptions = {
+export type GRPCServiceEntrypointOptions = InterfaceListeningOptions & {
     /**
      * The adapter's name, to tell it apart from the other adapters of the service channel.
      */
@@ -21,12 +24,12 @@ export type GRPCServiceEntrypointOptions = {
      */
     port?: number
     /**
-     * The host (interface address) listened on.
+     * The host (interface address) listened on; excludes `interface`.
      * @default all the interfaces
      */
     host?: string
     /**
-     * A unix socket path listened on, instead of `port` and `host`.
+     * A unix socket path listened on, instead of `port` and `host`; excludes `interface`.
      */
     socketPath?: string
     /**
@@ -52,9 +55,11 @@ export type GRPCServiceEntrypointOptions = {
     middlewares?: MiddlewareDefinition[]
     /**
      * Called once the server listens, with its address: an `AddressInfo` (its `port`) for TCP, the path for a unix
-     * socket. The entrypoint's start awaits it, and fails when it rejects.
+     * socket. With `interface`, once the listeners of the interfaces are made, with the first address listened on
+     * (`null` while the interface does not exist or has no address) and the listeners. The entrypoint's start awaits
+     * it, and fails when it rejects.
      */
-    listening?: (address: AddressInfo | string) => void | Promise<void>
+    listening?: (address: AddressInfo | string | null, listeners?: InterfaceListener[]) => void | Promise<void>
 }
 
 /**
@@ -106,6 +111,10 @@ export function grpcCallOfContext(context: ServiceContext): GRPCServerCall | und
  * - Once the entrypoint stops, the new invocations are answered with an `EntrypointStoppedException` failure (the
  *   invocations in progress complete); when it closes, the event streams end with `OK` and the server closes, cutting
  *   the calls still running after 5 seconds.
+ *
+ * With `interface` (and the package `@lakutata/netif`, installed apart), the server listens on network interfaces
+ * instead of an address, whatever their addresses, again when they change and when an interface is unplugged and
+ * plugged back: `grpcServiceEntrypoint({port: 50051, interface: 'eth1'})`.
  * @param options The server's address, TLS, size limit, compression and middlewares; port 50051 on all the interfaces
  * by default.
  * @returns The service adapter.
@@ -153,6 +162,7 @@ export function grpcCallOfContext(context: ServiceContext): GRPCServerCall | und
  * ```
  */
 export function grpcServiceEntrypoint(options: GRPCServiceEntrypointOptions = {}): EntrypointAdapter<ServiceContext> {
+    const onInterfaces: boolean = listensOnInterfaces('grpcServiceEntrypoint', options, options.socketPath !== undefined ? 'with socketPath' : undefined)
     let server: GRPCServer | undefined
     let stopping: boolean = false
     //The event streams of each client (a client may listen several times)
@@ -222,8 +232,19 @@ export function grpcServiceEntrypoint(options: GRPCServiceEntrypointOptions = {}
             server = new GRPCServer({tls: options.tls, maxMessageSize: options.maxMessageSize ?? 4 * 1024 * 1024, compression: options.compression})
             server.method(SERVICE_METHODS.INVOKE, (call: GRPCServerCall): Promise<void> => invoke(runtime, call))
             server.method(SERVICE_METHODS.EVENTS, listen)
-            const address: AddressInfo | string = await server.listen({port: options.port ?? 50051, host: options.host, socketPath: options.socketPath})
-            await options.listening?.(address)
+            if (onInterfaces) {
+                const address: AddressInfo | null = await server.listen({
+                    interface: options.interface!,
+                    port: options.port ?? 50051,
+                    family: options.family,
+                    strict: options.strict,
+                    onError: (error: unknown): void => void report(runtime, options.onError, error, 'The listening of grpcServiceEntrypoint on an interface failed')
+                })
+                await options.listening?.(address, server.listeners)
+            } else {
+                const address: AddressInfo | string = await server.listen({port: options.port ?? 50051, host: options.host, socketPath: options.socketPath})
+                await options.listening?.(address)
+            }
         },
         stop: (): void => {
             //The new requests are refused, the requests in progress end

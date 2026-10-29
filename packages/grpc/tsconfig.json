@@ -56,6 +56,9 @@
       "@lakutata/logger": [
         "../logger/dist/types/exports/Logger"
       ],
+      "@lakutata/netif": [
+        "../netif/dist/types/exports/Netif"
+      ],
       "@lakutata/entrypoint": [
         "../entrypoint/dist/types/exports/Entrypoint"
       ],
