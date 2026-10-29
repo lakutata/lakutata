@@ -5,5 +5,7 @@ export {NetIfNotEnforcedException} from '../exceptions/NetIfNotEnforcedException
 export {NetIfNotSupportedException} from '../exceptions/NetIfNotSupportedException.js'
 export {type InterfaceAddress, type NetworkInterfaceInfo} from '../lib/Types.js'
 export {listenOn, listInterfaces} from '../lib/Functions.js'
-export {InterfaceListener, type InterfaceListenerEvents, type ListeningAddress, type ListenOptions} from '../lib/InterfaceListener.js'
+export {type ListeningAddress} from '../lib/Attachment.js'
+export {InterfaceListener, type InterfaceListenerEvents, type ListenOptions} from '../lib/InterfaceListener.js'
 export {type AddressChange, type BindSocketOptions, type BoundSocket, type InterfaceSelector, NetworkInterface, type NetworkInterfaceEvents, type WaitForAddressOptions} from '../lib/NetworkInterface.js'
+export {InterfaceUDPSocket, type InterfaceUDPSocketEvents, type UDPSocketOptions} from '../lib/InterfaceUDPSocket.js'

@@ -7,6 +7,7 @@ import {NetIfNotSupportedException} from '../exceptions/NetIfNotSupportedExcepti
 import {NetIfTimeoutException} from '../exceptions/NetIfTimeoutException.js'
 import {LINUX_PERMISSION} from './Enforcement.js'
 import {InterfaceListener, type ListenOptions} from './InterfaceListener.js'
+import {InterfaceUDPSocket, type UDPSocketOptions} from './InterfaceUDPSocket.js'
 import {OBSERVE, type Observer} from './Internal.js'
 import {nativeBindSocket} from './Native.js'
 import {registry} from './Registry.js'
@@ -406,6 +407,31 @@ export class NetworkInterface extends EventEmitter<NetworkInterfaceEvents> {
     public async listen(server: Server, options: ListenOptions): Promise<InterfaceListener> {
         if (this.closed) throw new NetIfException('The NetworkInterface is closed')
         return new InterfaceListener(this, server, options).start()
+    }
+
+    /**
+     * A UDP socket of the interface, with the methods and the events of a `dgram` socket. On Linux it is bound to the
+     * interface: it receives what comes through it, broadcasts and the multicast of the groups joined there included,
+     * whatever its addresses. On Windows and macOS a socket is bound to each address of the interface (on macOS it
+     * receives no broadcast nor multicast then). It is bound again when the addresses change and when the interface is
+     * plugged back.
+     * @param options The port, the families and `strict`.
+     * @returns The socket, once it is bound (or the interface waited for).
+     * @throws NetIfNotEnforcedException With `strict`, where the system cannot refuse the datagrams coming through
+     * another interface.
+     * @throws NetIfException The system refused the first binding, its code as `errno`.
+     * @example
+     * ```typescript
+     * import {type InterfaceUDPSocket, NetworkInterface} from '@lakutata/netif'
+     *
+     * const socket: InterfaceUDPSocket = await new NetworkInterface('eth1').createUDPSocket({port: 9999, family: 'IPv4'})
+     * socket.setBroadcast(true)
+     * socket.on('message', (message, remote) => socket.send(message, remote.port, remote.address))
+     * ```
+     */
+    public async createUDPSocket(options: UDPSocketOptions): Promise<InterfaceUDPSocket> {
+        if (this.closed) throw new NetIfException('The NetworkInterface is closed')
+        return new InterfaceUDPSocket(this, options).start()
     }
 
     /**

@@ -1,7 +1,7 @@
 # @lakutata/netif
 
 Listen on a network interface instead of an address. This package is being written: it lists the interfaces of the
-machine, follows one of them and listens on it for a server.
+machine, follows one of them, listens on it for a server and binds UDP sockets to it.
 
 ## Installation
 
@@ -33,5 +33,6 @@ const listener = await management.listen(server, {port: 8080})
 - `listInterfaces()`: the network interfaces of the machine, the ones without an address too, with their name,
   index, hardware address, state and usable addresses.
 - `new NetworkInterface(selector)`: an interface followed by its name, `{mac}` or `{index}`: its state and addresses,
-  the events `change`, `up`, `down`, `added` and `removed`, `waitForAddress()`, `listen()` and `bindSocket()`.
+  the events `change`, `up`, `down`, `added` and `removed`, `waitForAddress()`, `listen()`, `createUDPSocket()` and
+  `bindSocket()`.
 - `listenOn(selector, server, options)`: `listen()` on an interface followed until the listener is closed.
