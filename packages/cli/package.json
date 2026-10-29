@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/cli",
-  "version": "3.1.3",
+  "version": "3.1.4",
   "description": "The command line tool of the lakutata framework: create the projects from the templates, run and version the packages of the workspaces, bundle the applications and make their executables (with @lakutata/builder).",
   "keywords": [
     "lakutata",
@@ -39,7 +39,7 @@
   "dependencies": {
     "@inquirer/prompts": "^8.7.2",
     "commander": "^15.0.0",
-    "lakutata": "3.1.3"
+    "lakutata": "3.1.4"
   },
   "peerDependencies": {
     "@lakutata/builder": "~3.1.3",

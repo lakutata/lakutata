@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/core",
-  "version": "3.1.1",
+  "version": "3.1.4",
   "description": "The core of the lakutata framework: the IoC container and dependency injection, the object model with asynchronous construction, and DTO schema validation with the API of joi.",
   "keywords": [
     "lakutata",

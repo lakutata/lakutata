@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/queue",
-  "version": "3.1.1",
+  "version": "3.1.4",
   "description": "The message queues of the lakutata framework: messages added by the Queue component and processed by controller actions (@QueueAction), acknowledged, retried and dead-lettered alike over memory, Redis, NATS JetStream, Kafka or RabbitMQ.",
   "keywords": [
     "lakutata",
@@ -56,9 +56,9 @@
     "test:servers": "sh test-env/run.sh"
   },
   "peerDependencies": {
-    "@lakutata/core": "3.1.1",
-    "@lakutata/entrypoint": "3.1.1",
-    "@lakutata/utils": "3.1.1",
+    "@lakutata/core": "~3.1.4",
+    "@lakutata/entrypoint": "~3.1.4",
+    "@lakutata/utils": "~3.1.1",
     "@platformatic/kafka": "^2.14.0",
     "amqplib": "^2.2.0",
     "bullmq": "^6.3.15",
