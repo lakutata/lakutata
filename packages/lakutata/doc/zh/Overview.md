@@ -35,7 +35,7 @@
 | `lakutata/security`、`lakutata/provider/passwordHash` | 哈希、加解密、签名、`PasswordHash` 提供者 |
 | `lakutata/utils` | 辅助函数 |
 
-不在本包中的：`@lakutata/cli`（`lakutata` 命令：创建项目、执行迁移、打包应用，见 [Command](Command.md)）、`@lakutata/grpc`（gRPC 客户端、服务端和服务传输）、`@lakutata/nats`（NATS 组件和服务传输）、`@lakutata/dbus`（D-Bus）、`@lakutata/mcp`（Model Context Protocol）、`@lakutata/webrtc`（WebRTC：信令、TURN 服务器、媒体服务器、对等连接）、`@lakutata/ffi`（调用动态库中的 C 函数）和 `@lakutata/math`（符号计算和数值计算，直接作为函数使用，不需要 lakutata 应用）。
+不在本包中的：`@lakutata/cli`（`lakutata` 命令：创建项目、执行迁移、打包应用，见 [Command](Command.md)）、`@lakutata/grpc`（gRPC 客户端、服务端和服务传输）、`@lakutata/nats`（NATS 组件和服务传输）、`@lakutata/dbus`（D-Bus）、`@lakutata/mcp`（Model Context Protocol）、`@lakutata/webrtc`（WebRTC：信令、TURN 服务器、媒体服务器、对等连接）、`@lakutata/ffi`（调用动态库中的 C 函数）、`@lakutata/math`（符号计算和数值计算，直接作为函数使用，不需要 lakutata 应用）和 `@lakutata/netif`（服务器和 UDP 套接字按网口监听，不管网口的地址怎么变；本机的网口和它们的变化）。
 
 ## 指南
 
@@ -81,6 +81,7 @@
 | [WebRTC](WebRTC.md) | 点对点连接和媒体服务器（`@lakutata/webrtc`）：信令、TURN 服务器、浏览器和应用、通过数据通道调用应用的动作、WHIP 和 WHEP |
 | [FFI](FFI.md) | 调用动态库中的 C 函数（`@lakutata/ffi`）：从头文件复制的声明、结构体、回调、内存、打包 |
 | [Math](Math.md) | 数学计算（`@lakutata/math`）：公式和精确结果、方程、任意精度的十进制数、矩阵、统计、数值解法、单位 |
+| [Netif](Netif.md) | 网口（`@lakutata/netif`）：服务器按网口监听，不管网口的地址怎么变；挡住别的网口的连接；网口和它们的变化；单个网口上的 UDP |
 | [Command](Command.md) | `lakutata` 命令：创建项目、迁移、翻译、环境变量 |
 | [Workspaces](Workspaces.md) | 由多个包组成的项目：运行各个包的脚本、统一版本号、添加包 |
 | [NativeAddons](NativeAddons.md) | 用 C++ 或 Rust 编写的原生插件：创建、链接库、发布 |

@@ -89,6 +89,7 @@ Application.run(() => ({
 | [`@lakutata/webrtc`](packages/webrtc) | 用 TypeScript 实现的 WebRTC：信令、TURN 服务器、媒体服务器（SFU）、WHIP 和 WHEP、对等连接、通过数据通道调用的服务动作、浏览器客户端 | 否 |
 | [`@lakutata/ffi`](packages/ffi) | 动态库调用：用头文件里的 C 声明描述，调用 `.so`、`.dylib`、`.dll` 文件中的 C 函数 | 否 |
 | [`@lakutata/math`](packages/math) | 数学计算：符号计算（解方程、求导、积分、极限、化简）和数值计算（矩阵、统计、任意精度的十进制数），由原生插件完成 | 否 |
+| [`@lakutata/netif`](packages/netif) | 网口：服务器和 UDP 套接字按网口监听，不管网口的地址怎么变；列出本机的网口和它们的变化，由原生插件完成 | 否 |
 | [`@lakutata/cli`](packages/cli) | `lakutata` 命令：项目、工作区、迁移、打包 | 否 |
 | [`@lakutata/builder`](packages/builder) | 单文件包、可执行文件和安装包，由 `lakutata package` 使用 | 否 |
 

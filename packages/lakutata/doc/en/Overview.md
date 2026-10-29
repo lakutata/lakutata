@@ -48,8 +48,9 @@ Not part of this package: `@lakutata/cli` (the `lakutata` command for creating p
 applications, see [Command](Command.md)), `@lakutata/grpc` (a gRPC client, server and service transport),
 `@lakutata/nats` (a NATS component and service transport), `@lakutata/dbus` (D-Bus), `@lakutata/mcp` (the Model
 Context Protocol), `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, a media server, peer connections),
-`@lakutata/ffi` (the C functions of native libraries) and `@lakutata/math` (symbolic and numeric mathematics, as
-functions that need no lakutata application).
+`@lakutata/ffi` (the C functions of native libraries), `@lakutata/math` (symbolic and numeric mathematics, as functions
+that need no lakutata application) and `@lakutata/netif` (servers and UDP sockets listening on a network interface
+whatever its addresses, the interfaces of the machine and their changes).
 
 ## The guides
 
@@ -95,6 +96,7 @@ functions that need no lakutata application).
 | [WebRTC](WebRTC.md) | Peer-to-peer connections and a media server (`@lakutata/webrtc`): the signaling, the TURN server, browsers and applications, the actions of an application called through data channels, WHIP and WHEP |
 | [FFI](FFI.md) | The C functions of native libraries (`@lakutata/ffi`): declarations copied from headers, structs, callbacks, memory, packaging |
 | [Math](Math.md) | Mathematics (`@lakutata/math`): formulas and exact results, equations, decimals of any precision, matrices, statistics, numeric solutions, units |
+| [Netif](Netif.md) | Network interfaces (`@lakutata/netif`): a server listening on an interface whatever its addresses, the connections of the other interfaces refused, the interfaces and their changes, UDP on one interface |
 | [Command](Command.md) | The `lakutata` command: creating projects, migrations, translations, environment variables |
 | [Workspaces](Workspaces.md) | Projects of several packages: running their scripts, giving them a version, adding packages |
 | [NativeAddons](NativeAddons.md) | Native addons in C++ or Rust: creating them, linking libraries, shipping them |
