@@ -32,6 +32,10 @@ export interface NativeInterface {
  */
 interface Addon {
     list(): NativeInterface[]
+
+    watch(changed: () => void): void
+
+    unwatch(): void
 }
 
 /**
@@ -72,4 +76,18 @@ function call<Result>(run: (functions: Addon) => Result): Result {
  */
 export function nativeList(): NativeInterface[] {
     return call((functions: Addon): NativeInterface[] => functions.list())
+}
+
+/**
+ * Starts the notifications of the changes of the interfaces: changed() called at each one (once by thread)
+ */
+export function nativeWatch(changed: () => void): void {
+    call((functions: Addon): void => functions.watch(changed))
+}
+
+/**
+ * Stops the notifications
+ */
+export function nativeUnwatch(): void {
+    call((functions: Addon): void => functions.unwatch())
 }

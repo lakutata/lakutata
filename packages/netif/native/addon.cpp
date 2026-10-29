@@ -2,9 +2,12 @@
 //node-addon-api). The errors of the system are thrown as errors with the code of the system (code, errno, syscall).
 #include <napi.h>
 
+#include <atomic>
+#include <memory>
 #include <system_error>
 
 #include "Interfaces.h"
+#include "Watcher.h"
 
 using namespace netif;
 
@@ -60,9 +63,80 @@ Napi::Value List(const Napi::CallbackInfo &info)
     return list;
 }
 
+//The watching of an environment (the main thread, or a worker): the notifications of the system, and the function they
+//call JavaScript by. A notification only signals a change: while one waits to be delivered, the next ones are dropped.
+//The function does not keep the event loop alive.
+struct Watching {
+    std::unique_ptr<Watcher> watcher;
+    Napi::ThreadSafeFunction function;
+    std::shared_ptr<std::atomic<bool>> pending = std::make_shared<std::atomic<bool>>(false);
+
+    //The notifications stopped first (no call once the watcher is gone), then the function released
+    void stop()
+    {
+        if (!watcher) return;
+        watcher.reset();
+        function.Release();
+    }
+};
+
+struct Environment {
+    Watching watching;
+};
+
+Environment &environmentOf(Napi::Env env)
+{
+    return **env.GetInstanceData<std::shared_ptr<Environment>>();
+}
+
+//watch(changed): the notifications of the changes of the interfaces start, changed() called (with no argument) at each
+//one; once only by environment
+Napi::Value Watch(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+    Watching &watching = environmentOf(env).watching;
+    if (watching.watcher) throw Napi::Error::New(env, "The interfaces are watched already");
+    if (!info[0].IsFunction()) throw Napi::TypeError::New(env, "watch() takes a function");
+    Napi::ThreadSafeFunction function = Napi::ThreadSafeFunction::New(env, info[0].As<Napi::Function>(), "lakutata-netif", 0, 1);
+    function.Unref(env);
+    std::shared_ptr<std::atomic<bool>> pending = watching.pending;
+    pending->store(false);
+    try {
+        watching.watcher = std::make_unique<Watcher>([function, pending]() mutable {
+            if (pending->exchange(true)) return;
+            napi_status status = function.NonBlockingCall([pending](Napi::Env, Napi::Function changed) {
+                pending->store(false);
+                changed.Call({});
+            });
+            if (status != napi_ok) pending->store(false);
+        });
+    } catch (const std::system_error &error) {
+        function.Release();
+        throw systemError(env, error);
+    }
+    watching.function = function;
+    return env.Undefined();
+}
+
+//unwatch(): the notifications stopped
+Napi::Value Unwatch(const Napi::CallbackInfo &info)
+{
+    environmentOf(info.Env()).watching.stop();
+    return info.Env().Undefined();
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports)
 {
+    //Shared with the cleanup hook: alive whichever of the hook and the instance data goes first
+    auto environment = std::make_shared<Environment>();
+    env.SetInstanceData(new std::shared_ptr<Environment>(environment));
+    //Before the environment ends (a worker terminated, the process exiting): the notifications stopped
+    env.AddCleanupHook([environment]() {
+        environment->watching.stop();
+    });
     exports.Set("list", Napi::Function::New(env, List));
+    exports.Set("watch", Napi::Function::New(env, Watch));
+    exports.Set("unwatch", Napi::Function::New(env, Unwatch));
     return exports;
 }
 

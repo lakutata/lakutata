@@ -5,3 +5,4 @@ export {NetIfNotEnforcedException} from '../exceptions/NetIfNotEnforcedException
 export {NetIfNotSupportedException} from '../exceptions/NetIfNotSupportedException.js'
 export {type InterfaceAddress, type NetworkInterfaceInfo} from '../lib/Types.js'
 export {listInterfaces} from '../lib/Functions.js'
+export {type AddressChange, type InterfaceSelector, NetworkInterface, type NetworkInterfaceEvents, type WaitForAddressOptions} from '../lib/NetworkInterface.js'
