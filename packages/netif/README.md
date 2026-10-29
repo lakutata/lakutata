@@ -1,7 +1,7 @@
 # @lakutata/netif
 
 Listen on a network interface instead of an address. This package is being written: it lists the interfaces of the
-machine and follows one of them.
+machine, follows one of them and listens on it for a server.
 
 ## Installation
 
@@ -15,6 +15,7 @@ node-gyp), and on Alpine Linux the headers of the kernel (`apk add python3 make 
 ## Usage
 
 ```typescript
+import {createServer} from 'node:http'
 import {listInterfaces, NetworkInterface} from '@lakutata/netif'
 
 for (const entry of listInterfaces()) {
@@ -23,6 +24,8 @@ for (const entry of listInterfaces()) {
 
 const management: NetworkInterface = new NetworkInterface('eth1')
 management.on('change', ({added, removed}) => console.log('added', added, 'removed', removed))
+const server = createServer((request, response) => response.end('ok'))
+const listener = await management.listen(server, {port: 8080})
 ```
 
 ## API
@@ -30,4 +33,5 @@ management.on('change', ({added, removed}) => console.log('added', added, 'remov
 - `listInterfaces()`: the network interfaces of the machine, the ones without an address too, with their name,
   index, hardware address, state and usable addresses.
 - `new NetworkInterface(selector)`: an interface followed by its name, `{mac}` or `{index}`: its state and addresses,
-  the events `change`, `up`, `down`, `added` and `removed`, `waitForAddress()`.
+  the events `change`, `up`, `down`, `added` and `removed`, `waitForAddress()`, `listen()` and `bindSocket()`.
+- `listenOn(selector, server, options)`: `listen()` on an interface followed until the listener is closed.

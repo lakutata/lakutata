@@ -1,9 +1,15 @@
 #!/bin/sh
 # The tests of the package in a Linux container: the package (its sources, dist built by the host) mounted read-only at
-# /package, copied, its addon built, then the unit tests and the scripts given (test-env/linux/*.mjs) run as root.
+# /package, copied, its addon built, then the unit tests (not with --no-tests first) and the scripts given
+# (test-env/linux/*.mjs) run as root.
 #   docker run --rm --cap-add NET_ADMIN -v "$PWD":/package:ro -v "$PWD/../../node_modules/node-addon-api":/node-addon-api:ro \
 #     node:24-alpine sh /package/test-env/linux/run.sh test-env/linux/events.mjs
 set -e
+TESTS=yes
+if [ "$1" = "--no-tests" ]; then
+    TESTS=no
+    shift
+fi
 if command -v apk >/dev/null; then
     apk add -q python3 make g++ linux-headers iproute2 >/dev/null
 else
@@ -15,7 +21,9 @@ cp -r /node-addon-api /work/node_modules/node-addon-api
 cd /work
 npx -y node-gyp@11 rebuild -j max >/tmp/gyp.log 2>&1 || { tail -40 /tmp/gyp.log; exit 1; }
 echo "== $(uname -r), node $(node --version), $(ldd --version 2>&1 | head -1)"
-node --test --test-timeout=60000 "dist/esm/tests/**/*.spec.js" 2>&1 | grep -E '^ℹ (tests|pass|fail)|✖' || true
+if [ "$TESTS" = yes ]; then
+    node --test --test-timeout=60000 "dist/esm/tests/**/*.spec.js" 2>&1 | grep -E '^ℹ (tests|pass|fail)|✖' || true
+fi
 for script in "$@"; do
     echo "== $script"
     node "$script"

@@ -1,10 +1,13 @@
 import {EventEmitter} from 'node:events'
+import {type Server} from 'node:net'
 import {NetIfException} from '../exceptions/NetIfException.js'
 import {NetIfNotEnforcedException} from '../exceptions/NetIfNotEnforcedException.js'
 import {NetIfNotFoundException} from '../exceptions/NetIfNotFoundException.js'
 import {NetIfNotSupportedException} from '../exceptions/NetIfNotSupportedException.js'
 import {NetIfTimeoutException} from '../exceptions/NetIfTimeoutException.js'
 import {LINUX_PERMISSION} from './Enforcement.js'
+import {InterfaceListener, type ListenOptions} from './InterfaceListener.js'
+import {OBSERVE, type Observer} from './Internal.js'
 import {nativeBindSocket} from './Native.js'
 import {registry} from './Registry.js'
 import {readInterfaces} from './Snapshot.js'
@@ -201,6 +204,8 @@ export class NetworkInterface extends EventEmitter<NetworkInterfaceEvents> {
 
     readonly #waits: Set<(error: NetIfException) => void> = new Set()
 
+    readonly #observers: Set<Observer> = new Set()
+
     /**
      * Follows an interface.
      * @param selector Its name, `{mac}` or `{index}`.
@@ -371,6 +376,39 @@ export class NetworkInterface extends EventEmitter<NetworkInterfaceEvents> {
     }
 
     /**
+     * Listens on the interface for the server: its connections are accepted by the listener returned and given to the
+     * server, which handles them as its own. On Linux the sockets are bound to the interface (whatever its addresses, the
+     * system refuses the connections coming through another interface); on Windows and macOS each address of the
+     * interface is listened on, and listened on again when they change (`enforced` tells whether the system refuses the
+     * connections coming through another interface). The interface may not exist yet, nor have an address: it is listened
+     * on once it can be, and again when it is unplugged and plugged back.
+     * @param server A `net.Server` or a server built on one: `http`, `https`, `http2`, `tls`; for Express
+     * `createServer(app)`, for Fastify `fastify.server`. The server itself must not listen.
+     * @param options The port, the families, `strict` and the backlog.
+     * @returns The listener, once the interface is listened on (or waited for).
+     * @throws NetIfNotEnforcedException With `strict`, where the system cannot refuse the connections coming through
+     * another interface.
+     * @throws NetIfException The system refused the first listening, its code as `errno` (`'EADDRINUSE'`, `'EACCES'`…).
+     * Later refusals are `error` events of the listener, and retried.
+     * @example
+     * ```typescript
+     * import {createServer} from 'node:http'
+     * import express from 'express'
+     * import {type InterfaceListener, NetworkInterface} from '@lakutata/netif'
+     *
+     * const app = express()
+     * app.get('/', (request, response) => response.send('ok'))
+     * const management: NetworkInterface = new NetworkInterface({mac: '52:54:00:12:34:56'})
+     * const listener: InterfaceListener = await management.listen(createServer(app), {port: 8080})
+     * listener.on('error', error => console.error(error))
+     * ```
+     */
+    public async listen(server: Server, options: ListenOptions): Promise<InterfaceListener> {
+        if (this.closed) throw new NetIfException('The NetworkInterface is closed')
+        return new InterfaceListener(this, server, options).start()
+    }
+
+    /**
      * A socket bound to the interface (Linux, `SO_BINDTODEVICE`), on the port of every address of its family: it gets the
      * connections and the datagrams that come through the interface, whatever the address they were sent to, and the
      * system refuses the other ones. For the users that need the server itself listening (its `address()` and `close()`
@@ -409,13 +447,26 @@ export class NetworkInterface extends EventEmitter<NetworkInterfaceEvents> {
     }
 
     /**
-     * Stops following the interface: no event any more; the waits of `waitForAddress()` are rejected.
+     * Stops following the interface: no event any more; its listeners are closed, the waits of `waitForAddress()`
+     * rejected.
      */
     public close(): void {
         if (!this.#unsubscribe) return
         this.#unsubscribe()
         this.#unsubscribe = undefined
         for (const closed of [...this.#waits]) closed(new NetIfException('The NetworkInterface was closed while waiting for an address'))
+        for (const observer of [...this.#observers]) observer('close')
+        this.#observers.clear()
+    }
+
+    /**
+     * Internal: follows the readings of the interfaces (the listeners of the interface)
+     */
+    public [OBSERVE](observer: Observer): () => void {
+        this.#observers.add(observer)
+        return (): void => {
+            this.#observers.delete(observer)
+        }
     }
 
     #described(): string {
@@ -450,5 +501,6 @@ export class NetworkInterface extends EventEmitter<NetworkInterfaceEvents> {
         if (changes.down) this.emit('down')
         if (changes.added.length || changes.removed.length) this.emit('change', {addresses: this.addresses, added: changes.added, removed: changes.removed})
         if (changes.disappeared) this.emit('removed')
+        for (const observer of [...this.#observers]) observer('update')
     }
 }
