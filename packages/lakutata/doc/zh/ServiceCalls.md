@@ -181,7 +181,7 @@ export async function call<T>(message: Record<string, unknown>): Promise<T> {
 | `host` | 所有网络接口 | 监听的地址 |
 | `path` | `'/'` | 请求的路径；事件在它下面的 `<path>/events` |
 | `limit` | `10485760`（10 MiB） | 请求体的最大字节数 |
-| `listening` | | `(server) => …`，服务器开始监听后调用 |
+| `listening` | | `(server, listeners) => …`，服务器开始监听后调用（`listeners`：按网口监听时才有，见下文） |
 
 - 请求是发往 `path` 的 `POST`，请求体是 JSON 格式的消息。无论动作的结果如何，都以 200 和封套响应。请求体不是 JSON 时以 400 响应，超过 `limit` 时以 413 响应，其他方法或路径以 404 响应；这些响应也带有封套。
 - CORS 响应头允许任何来源，允许的方法是 `GET`、`POST` 和 `OPTIONS`，并允许任何请求头，例如 `Authorization`。
@@ -255,7 +255,7 @@ Application
 | `options` | | Socket.IO 服务器的选项：`cors`、`path`、`maxHttpBufferSize`…… |
 | `server` | | 共用的 HTTP 服务器，或者返回它的函数（见下文） |
 | `io` | | 一个已有的 Socket.IO 服务器，按原样使用 |
-| `listening` | | `(io, server) => …`，适配器就绪后调用 |
+| `listening` | | `(io, server, listeners) => …`，适配器就绪后调用 |
 
 ```typescript
 import {io, type Socket} from 'socket.io-client'
@@ -307,7 +307,7 @@ export const entrypoint = buildEntrypoints({
 | `input`、`output` | `process.stdin`、`process.stdout` | stdio 使用的流 |
 | `end` | `'application'` | stdio 的输入结束时：`'application'` 在正在处理的请求都得到响应后退出应用，`'none'` 什么都不做，或者一个函数 |
 | `heartbeat` | `30000` | WebSocket 的 ping 间隔，单位毫秒；`0` 表示不发送 |
-| `listening` | | `(server) => …`，HTTP 或 WebSocket 的服务器开始监听后调用 |
+| `listening` | | `(server, listeners) => …`，HTTP 或 WebSocket 的服务器开始监听后调用 |
 
 请求的方法名和参数构成消息：`{"method": "order.get", "params": {"id": 1}}` 就是消息 `{method: 'order.get', id: 1}`，所以动作要在模式中声明方法名：
 
@@ -377,6 +377,19 @@ $ echo '{"jsonrpc": "2.0", "id": 1, "method": "sum", "params": {"values": [1, 2,
 ```
 
 输入结束、请求都得到响应之后，应用就会退出（`end`）。
+
+### 按网口监听
+
+`httpServiceEntrypoint()`、使用自己服务器的 `socketIOServiceEntrypoint()`，以及走 HTTP 或 WebSocket 的 `jsonRPCServiceEntrypoint()`，都可以按网口监听，而不是按地址监听，不管网口现在是什么地址。这需要另外安装 `@lakutata/netif` 包。它们接受和 HTTP 适配器一样的 `interface`、`family`、`strict` 和 `onError` 选项（见 [HTTP](HTTP.md) 第 2 节），`listening` 回调的最后一个参数是网口的监听器：
+
+```typescript
+import {httpServiceEntrypoint} from 'lakutata/com/entrypoint'
+
+//服务只在 eth1 上提供，不管它是什么地址
+export const service = httpServiceEntrypoint({port: 3000, interface: 'eth1'})
+```
+
+在 Bun 上，交给服务器的连接不能升级为 WebSocket（在 Bun 1.4 上观察到）。所以在 Bun 上，走 WebSocket 的 JSON-RPC 会启动失败；Socket.IO 也会启动失败，除非只用轮询（`options: {transports: ['polling']}`，客户端也要这样设置）。
 
 ### Electron
 

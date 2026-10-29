@@ -251,8 +251,9 @@ Application.run(() => ({
 ```
 
 - 默认监听 `127.0.0.1:3000`（`host`、`port`）。监听回环地址时，它会把 `Host` 和 `Origin` 请求头与本机的主机名比对，拒绝不匹配的请求（`403`），以防 DNS 重绑定攻击；`allowedHosts` 和 `allowedOrigins` 可以设置其他名字，`false` 关闭对应的检查。
+- `interface` 让它按网口监听，代替 `host`，不管网口现在是什么地址（可以再配上 `family`、`strict` 和 `onError`），需要另外安装 `@lakutata/netif` 包。在回环网口上，请求头的检查和回环地址上一样；在其他网口上，请设置 `allowedHosts` 和 `authenticate`。
 - `authenticate(request)` 返回客户端的认证信息，动作在 `context.authInfo` 中拿到它；它抛出错误时，适配器以 `401` 响应。返回 `undefined` 时，请求不经认证，照常处理。
-- 超过 `maxRequestBodySize`（默认 4 MiB）的请求体以 `413` 响应；`server` 是 `node:http` 服务器的选项；服务器开始监听后，会调用 `listening(server)`。
+- 超过 `maxRequestBodySize`（默认 4 MiB）的请求体以 `413` 响应；`server` 是 `node:http` 服务器的选项；服务器开始监听后，会调用 `listening(server, listeners)`（设置了 `interface` 时，`listeners` 是网口的监听器）。
 - 它随入口一起优雅停止：不再接受请求，正在处理的调用会得到响应（入口等待它们完成，之后适配器最多再用一秒把响应发出去），然后关闭订阅流和剩下的连接，包括应用通过协议升级（upgrade）接管的连接。
 
 #### 与其他 HTTP 服务器共用端口

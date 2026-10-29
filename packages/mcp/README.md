@@ -293,10 +293,14 @@ Application.run(() => ({
 - By default it listens on `127.0.0.1:3000` (`host`, `port`). On a loopback address, it checks the `Host` and `Origin`
   headers against the local host names to block DNS rebinding (`403`); `allowedHosts` and `allowedOrigins` set other
   names, and `false` disables a check.
+- `interface` listens on a network interface instead of `host`, whatever its addresses (`family`, `strict` and `onError`
+  go with it), with the package `@lakutata/netif` installed apart. On the loopback interface the headers are checked as
+  on a loopback address; on another interface, set `allowedHosts` and `authenticate`.
 - `authenticate(request)` returns the client's authentication, which the actions receive in `context.authInfo`; when
   it throws, the adapter answers `401`. Returning `undefined` serves the request without authentication.
 - Bodies larger than `maxRequestBodySize` (4 MiB by default) get a `413`; `server` holds the `node:http` server options;
-  `listening(server)` is called once the server listens.
+  `listening(server, listeners)` is called once the server listens (`listeners`: those of the interface, with
+  `interface`).
 - It stops gracefully with the entrypoint: it stops accepting requests, the calls in progress are answered (the
   entrypoint waits for them, then the adapter gives their responses up to a second), and then the subscription streams
   and the remaining connections are closed, including connections the application took over with an upgrade.

@@ -119,6 +119,8 @@ HTTP/1.1 400 Bad Request
 | `fallback` | | 响应动作路径之外的请求，比如 Web 界面的页面（第 7 节） |
 | `stop` | | 适配器停止、服务器关闭之后调用 |
 | `heartbeat` | `15000` | 每隔多久发送一条注释，让事件流保持连接，单位毫秒（第 5 节） |
+| `listening` | | `(server, listeners) => …`：服务器开始监听后调用；按网口监听时，在网口的监听器建好后调用（见下文） |
+| `interface` | | 按网口监听，而不是按地址监听，可以再配上 `family`、`strict` 和 `onError`（见下文） |
 
 `fastifyHTTPEntrypoint()` 的选项相同，只是没有 `server` 和 `app`，取而代之的是 `fastify`：一个 Fastify 实例，或者要创建的实例的选项（`bodyLimit`，默认 1 MiB；`trustProxy`；`connectionTimeout`、`keepAliveTimeout`、`requestTimeout`；`logger`……）。它的 `body` 选项只有 `text`，大小上限是实例的 `bodyLimit`。
 
@@ -135,6 +137,32 @@ HTTP/1.1 400 Bad Request
 | 应用停止时，传入的 Express 应用或 Fastify 实例 | 保持不变 | 被关闭 |
 
 应用停止时（见 [Entrypoint](Entrypoint.md) 第 4 节），适配器不再接受新的连接，并结束事件流；Fastify 还会对已打开的连接上仍然到达的请求返回 503。正在处理的请求可以在入口的 `shutdownTimeout` 内完成（超时后以 503 响应），之后最多再有一秒来发送响应，然后剩下的连接被关闭，WebSocket 连接也一样。
+
+### 按网口监听
+
+有多个网口的设备，常常只在其中一个网口上提供页面，而这个网口的地址来自 DHCP，会变。设置 `interface` 后，适配器监听的是这个网口，而不是某个地址：不管网口现在是什么地址，地址变化、网口拔掉再插回，都会继续监听。这需要另外安装 `@lakutata/netif` 包，它会编译一个原生插件（见 [Netif](Netif.md)）。
+
+```typescript
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+
+//页面只在 eth1 上提供，不管它是什么地址
+export const http = expressHTTPEntrypoint({
+    port: 8080,
+    interface: 'eth1',
+    listening: (_server, listeners): void => console.log(listeners?.map(listener => listener.addresses))
+})
+```
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `interface` | | 网口的名字（`'eth1'`；Windows 上是网络连接的名字）、`{mac: '52:54:00:12:34:56'}` 或 `{index: 3}`；多个网口放在数组里，这时 `port` 不能是 `0`。不能和 `host` 一起设置 |
+| `family` | `'both'` | `'IPv4'`、`'IPv6'` 或两者都监听 |
+| `strict` | `false` | 如果系统挡不住从别的网口发往这个网口地址的连接，就让启动失败，并在挡不住的期间停止监听（见 [Netif](Netif.md) 第 2 节） |
+| `onError` | 应用的日志 | 接收应用运行期间重新监听时的错误，比如端口被别的程序占用；适配器会自己重试 |
+
+- 应用启动时网口可能还不存在（比如 USB 网卡还没插上）：启动照样成功，网口出现后适配器就开始监听。在那之前，监听器的 `addresses` 是空的。
+- 服务器自己不监听，它的 `address()` 是 `null`：端口和地址从监听器上读取。
+- 没有设置 `interface` 却设置了 `family`、`strict` 或 `onError`，或者同时设置了 `interface` 和 `host`，创建适配器时就会报错。
 
 ## 3. 路由
 

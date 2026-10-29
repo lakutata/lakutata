@@ -81,7 +81,7 @@ website.
 | Security; time; helper functions | `Security.md`; `Time.md`; `HelperFunctions.md` |
 | Workspaces of several packages; native addons; C functions of native libraries | `Workspaces.md`; `NativeAddons.md`; `FFI.md` |
 | Mathematics: formulas, equations, decimals, matrices, statistics, numeric solutions, units (`@lakutata/math`) | `Math.md` |
-| Listening on a network interface whatever its addresses; the interfaces and their changes (`@lakutata/netif`) | `Netif.md` |
+| Listening on a network interface whatever its addresses (the `interface` option of the entrypoints, or `@lakutata/netif` alone); the interfaces and their changes | `Netif.md` |
 | Bundles, executables, installers | `Packaging.md`, `Installers.md` |
 | A whole application of a kind (REST API, CLI tool, web or desktop application, calls between services, background jobs, MCP server, service on a device) | `examples/README.md` and its pages |
 | A 2.x project to bring to 3.x | `https://lakutata.com/doc/en/UpgradingFrom2.md` (the installed 2.x package does not have it) |
@@ -128,9 +128,10 @@ service actions of an application called through data channels, a browser client
 native libraries, declared with the C declarations of their headers), `@lakutata/math` (symbolic and numeric
 mathematics: equations, derivatives, integrals, limits, matrices, statistics, decimals of any precision; plain
 functions, no component), `@lakutata/netif` (servers and UDP sockets listening on a network interface whatever its
-addresses, the interfaces of the machine and their changes; plain classes, no component). The adapters and drivers need
-their library installed (`express`, `fastify`, `commander`, `socket.io`, `ws`, `pg`, `mysql2`, `better-sqlite3`,
-`ioredis`…): they are optional peer dependencies.
+addresses, the interfaces of the machine and their changes; plain classes, no component; the entrypoints that listen on
+a port use it through their `interface` option). The adapters and drivers need their library installed (`express`,
+`fastify`, `commander`, `socket.io`, `ws`, `pg`, `mysql2`, `better-sqlite3`, `ioredis`…): they are optional peer
+dependencies.
 
 ## An application
 

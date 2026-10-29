@@ -25,6 +25,7 @@ npm install lakutata
 | 基于 HTTP 的服务调用（`POST /`，事件通过 SSE 推送） | `lakutata/com/entrypoint` | 无 |
 | 定时任务（`@Schedule`） | `lakutata/com/entrypoint` | 无 |
 | 基于 gRPC / NATS 的服务调用 | `@lakutata/grpc/service` / `@lakutata/nats` | 它们各自的包 |
+| 按网口监听，而不是按地址监听（HTTP 和服务适配器的 `interface` 选项） | | `@lakutata/netif` |
 
 ## 用法
 
@@ -150,6 +151,7 @@ Application.run(() => ({
 | `httpServiceEntrypoint`、`scheduleEntrypoint` | `lakutata/com/entrypoint` | 基于 HTTP 的服务调用；定时任务 |
 | `HTTPServiceProxy`、`buildHTTPServiceProxy` | `lakutata/com/entrypoint` | 基于 HTTP 的服务的客户端：调用它的动作，接收它推送的事件 |
 | `Cron`、`parseDuration` | `lakutata/com/entrypoint` | cron 表达式和时长 |
+| `InterfaceListeningOptions` | `lakutata/com/entrypoint` | 按网口监听的适配器的选项：`interface`、`family`、`strict`、`onError`（需要 `@lakutata/netif`） |
 | `HTTPAction`、`GET`、`POST`、`PUT`、`PATCH`、`DELETE`、`HEAD`、`OPTIONS` | `lakutata/decorator/ctrl` | HTTP 路由 |
 | `CLIAction`、`ServiceAction`、`Schedule` | `lakutata/decorator/ctrl` | 命令、服务动作、定时任务 |
 | `Prefix`、`UseMiddlewares` | `lakutata/decorator/ctrl` | 为控制器的路由、命令和模式加上前缀；控制器的中间件 |

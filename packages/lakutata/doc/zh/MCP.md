@@ -224,7 +224,8 @@ Application.run(() => ({
 |---|---|---|
 | `port`、`host`、`path` | `3000`、`'127.0.0.1'`、`'/mcp'` | 监听的位置 |
 | `authenticate` | | `(request) => MCPAuthInfo \| undefined`：客户端的身份认证；抛出错误时以 401 响应，返回 `undefined` 时不认证，照常处理请求 |
-| `allowedHosts`、`allowedOrigins` | 在本机地址上时为本机的名字 | 接受的 `Host` 和 `Origin` 请求头（否则为 403）；`false` 表示不检查 |
+| `allowedHosts`、`allowedOrigins` | 在本机地址或回环网口上时为本机的名字 | 接受的 `Host` 和 `Origin` 请求头（否则为 403）；`false` 表示不检查 |
+| `interface`、`family`、`strict`、`onError` | | 按网口监听，代替 `host`，需要安装 `@lakutata/netif` 包（见 [HTTP](HTTP.md) 第 2 节） |
 | `legacy` | `'stateless'` | 2025 年协议版本的客户端：以无会话的方式服务，或者用 `'reject'` 拒绝 |
 | `maxRequestBodySize` | 4 MiB | 更大的请求体以 413 响应 |
 | `bus` | 内存中 | 通知的去向，用于在应用的多个实例之间共享 |
@@ -232,7 +233,7 @@ Application.run(() => ({
 | `serverName`、`serverVersion`、`instructions`、`server`、`listening`、`name`、`middlewares` | | 与 stdio 相同；`server` 是 `node:http` 服务器的选项 |
 
 - 它通过 Streamable HTTP 提供协议：2026-07-28 版本，以及无会话方式的 2025 年版本。
-- 在本机地址上，`Host` 和 `Origin` 请求头会与本机的名字比对，防止 DNS 重绑定攻击：在代理之后时，要列出客户端使用的名字。在其他地址上，除非列出名字，否则不做检查。
+- 在本机地址上，`Host` 和 `Origin` 请求头会与本机的名字比对，防止 DNS 重绑定攻击：在代理之后时，要列出客户端使用的名字。在其他地址上，除非列出名字，否则不做检查。设置 `interface` 时也一样：在回环网口上与本机的名字比对；在其他网口上，网络中的客户端都能访问这个服务器，所以要设置 `allowedHosts` 和 `authenticate`。
 - 应用停止时，正在处理的调用会得到响应，然后端口关闭。
 
 **与 HTTP 适配器共用端口。** 设置 `listen: false`，在 Express 应用的 `before` 钩子中挂载适配器的 `handler`：

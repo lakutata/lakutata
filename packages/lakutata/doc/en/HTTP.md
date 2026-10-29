@@ -123,6 +123,8 @@ The options of `expressHTTPEntrypoint()`:
 | `fallback` | | Answers the requests outside the paths of the actions, such as the pages of a web UI (section 7) |
 | `stop` | | Called when the adapter stops, once its server is closed |
 | `heartbeat` | `15000` | How often a comment keeps the event streams alive, in milliseconds (section 5) |
+| `listening` | | `(server, listeners) => …`: called once the server listens, or once the listeners of the interface are made (see below) |
+| `interface` | | The network interface to listen on instead of an address, with `family`, `strict` and `onError` (see below) |
 
 `fastifyHTTPEntrypoint()` takes the same options, except `server` and `app`, replaced by `fastify`: a Fastify instance,
 or the options of the instance to create (`bodyLimit`, 1 MiB by default; `trustProxy`; `connectionTimeout`,
@@ -145,6 +147,37 @@ When the application stops (see [Entrypoint](Entrypoint.md), section 4), the ada
 the event streams; Fastify also answers 503 to the requests that still arrive on the open connections. The requests in
 progress get the `shutdownTimeout` of the entrypoint (after it, they are answered with 503), then up to one second to
 send their responses, before the remaining connections are closed, the WebSockets included.
+
+### On a network interface
+
+A device with several network interfaces often serves its pages on one of them only, and the address of that interface
+comes from DHCP and changes. With `interface`, the adapter listens on the interface instead of an address, whatever its
+addresses, and goes on listening when they change and when the interface is unplugged and plugged back. It needs the
+package `@lakutata/netif`, installed apart, which compiles a native addon (see [Netif](Netif.md)).
+
+```typescript
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+
+//The pages on eth1 only, whatever its address
+export const http = expressHTTPEntrypoint({
+    port: 8080,
+    interface: 'eth1',
+    listening: (_server, listeners): void => console.log(listeners?.map(listener => listener.addresses))
+})
+```
+
+| Option | Default | Meaning |
+|---|---|---|
+| `interface` | | The name of the interface (`'eth1'`; on Windows the name of the network connection), `{mac: '52:54:00:12:34:56'}` or `{index: 3}`; several in an array, and then `port` cannot be `0`. It cannot be given with `host` |
+| `family` | `'both'` | `'IPv4'`, `'IPv6'` or both |
+| `strict` | `false` | Fails the start where the system cannot refuse the connections that reach the addresses of the interface through another interface, and stops listening while it cannot (see [Netif](Netif.md), section 2) |
+| `onError` | the log of the application | Receives the errors of listening again while the application runs, such as a port taken by another program; the adapter retries by itself |
+
+- The interface may not exist yet when the application starts (a USB network adapter not plugged in): the start
+  succeeds, and the adapter listens once the interface appears. Until then the `addresses` of the listeners are empty.
+- The server itself does not listen, and its `address()` is `null`: the listeners give the port and the addresses.
+- `family`, `strict` and `onError` without `interface` fail the creation of the adapter, as do `interface` and `host`
+  together.
 
 ## 3. Routes
 

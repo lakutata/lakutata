@@ -49,6 +49,9 @@ The interface may not exist yet (a USB adapter not plugged in) or have no addres
 returns at once and the interface is listened on as soon as it can be. While it waits, the listener keeps the process
 alive, as a listening server does.
 
+The entrypoints of lakutata (Express, Fastify, the service adapters, gRPC, MCP) do this through their `interface`
+option: `expressHTTPEntrypoint({port: 8080, interface: 'eth1'})`.
+
 ### Choosing the interface
 
 An interface is given by its name, its hardware address or its index:
@@ -117,6 +120,9 @@ them as its own: requests, keep-alive, upgrades, TLS. The server itself does not
   `server.close()` of Node.js gives its callback `ERR_SERVER_NOT_RUNNING` (a promisified `close()` rejects);
   `fastify.close()` does not.
 - A server listened on several times (two interfaces, two ports) gets the connections of each listener.
+  `listenOnAll(['eth1', 'eth2'], server, {port: 8080})` listens on several interfaces, one listener each; when one of
+  them cannot be listened on, the others are closed and the error is thrown. With several interfaces the port cannot
+  be 0.
 
 For Express, give `createServer(app)`; for Fastify, its `fastify.server` once `await fastify.ready()` has returned:
 
@@ -267,7 +273,7 @@ The bundles, the executables and the installers made by `lakutata package` carry
 |---|---|
 | `listInterfaces()`, `NetworkInterfaceInfo`, `InterfaceAddress` | The interfaces of the machine and their state; an interface (`name`, `index`, `mac`, `up`, `running`, `loopback`, `addresses`); an address (`address`, `family`, `netmask`, `cidr`, `scopeid`) |
 | `NetworkInterface`, `InterfaceSelector`, `NetworkInterfaceEvents`, `AddressChange`, `WaitForAddressOptions` | An interface followed (`list`, `selector`, `present`, `name`, `index`, `mac`, `up`, `running`, `loopback`, `addresses`, `info`, `closed`, `waitForAddress`, `listen`, `createUDPSocket`, `bindSocket`, `close`); how it is given (a name, `{mac}`, `{index}`); its events (`change`, `up`, `down`, `added`, `removed`); a change of its addresses (`addresses`, `added`, `removed`); the options of `waitForAddress()` (`family`, `timeout`) |
-| `listenOn()`, `InterfaceListener`, `ListenOptions`, `InterfaceListenerEvents`, `ListeningAddress` | A server listening on an interface: the listener (`server`, `networkInterface`, `enforced`, `reason`, `port`, `listening`, `addresses`, `closed`, `close`), its options (`port`, `family`, `strict`, `backlog`), its events (`listening`, `error`, `enforced`, `close`), an address it is reached at (`address`, `family`, `port`, `scopeid`) |
+| `listenOn()`, `listenOnAll()`, `InterfaceListener`, `ListenOptions`, `InterfaceListenerEvents`, `ListeningAddress` | A server listening on an interface, or on several: the listener (`server`, `networkInterface`, `enforced`, `reason`, `port`, `listening`, `addresses`, `closed`, `close`), its options (`port`, `family`, `strict`, `backlog`), its events (`listening`, `error`, `enforced`, `close`), an address it is reached at (`address`, `family`, `port`, `scopeid`) |
 | `InterfaceUDPSocket`, `UDPSocketOptions`, `InterfaceUDPSocketEvents` | A UDP socket of an interface (`send`, `setBroadcast`, `addMembership`, `dropMembership`, `enforced`, `reason`, `port`, `listening`, `addresses`, `closed`, `close`), its options (`port`, `family`, `strict`), its events (`message`, `listening`, `error`, `enforced`, `close`) |
 | `BoundSocket`, `BindSocketOptions` | A socket bound to an interface (`fd`, `port`, `family`, `type`) and the options of `bindSocket()` (`port`, `family`, `type`, `backlog`) |
 

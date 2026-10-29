@@ -30,6 +30,7 @@ The transports rely on optional peer dependencies, which you install only when y
 | Service over HTTP (`POST /`, events by SSE) | `lakutata/com/entrypoint` | none |
 | Schedules (`@Schedule`) | `lakutata/com/entrypoint` | none |
 | Service over gRPC / NATS | `@lakutata/grpc/service` / `@lakutata/nats` | their packages |
+| Listening on a network interface instead of an address (the `interface` option of the HTTP and service adapters) | | `@lakutata/netif` |
 
 ## Usage
 
@@ -162,6 +163,7 @@ Access control: an action declared with `{acl: true}` is checked by the rules gi
 | `httpServiceEntrypoint`, `scheduleEntrypoint` | `lakutata/com/entrypoint` | The service over HTTP, the schedules |
 | `HTTPServiceProxy`, `buildHTTPServiceProxy` | `lakutata/com/entrypoint` | The client of a service over HTTP: its actions and its events |
 | `Cron`, `parseDuration` | `lakutata/com/entrypoint` | Cron expressions and durations |
+| `InterfaceListeningOptions` | `lakutata/com/entrypoint` | The options of the adapters that listen on a network interface instead of an address: `interface`, `family`, `strict`, `onError` (with `@lakutata/netif`) |
 | `HTTPAction`, `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS` | `lakutata/decorator/ctrl` | HTTP routes |
 | `CLIAction`, `ServiceAction`, `Schedule` | `lakutata/decorator/ctrl` | Commands, service actions, scheduled jobs |
 | `Prefix`, `UseMiddlewares` | `lakutata/decorator/ctrl` | A prefix for the routes, commands and patterns of a controller; its middlewares |

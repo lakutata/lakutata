@@ -33,6 +33,8 @@ console.log(listener.enforced, listener.addresses)    //true [{address: '192.168
 
 网口可以暂时不存在（USB 网卡还没插上），也可以还没有地址（DHCP 还没完成）：`listenOn()` 会立即返回，等网口能监听了就开始监听。等待期间，监听器会让进程保持运行，就像一个正在监听的服务器那样。
 
+lakutata 的入口（Express、Fastify、各个服务适配器、gRPC、MCP）用 `interface` 选项替你做这件事：`expressHTTPEntrypoint({port: 8080, interface: 'eth1'})`。
+
 ### 指定网口
 
 网口可以按名字、MAC 地址或序号指定：
@@ -82,7 +84,7 @@ listener.on('enforced', enforced => console.log(enforced ? 'guaranteed again' : 
 
 - `server.address()` 是 `null`，`server.listening` 是 `false`：请用 `listener.port` 和 `listener.addresses`。
 - `server.close()` 不能让监听器停下：请用 `listener.close()`。对一个从没监听过的服务器调用 Node.js 的 `server.close()`，会把 `ERR_SERVER_NOT_RUNNING` 交给它的回调（`promisify` 后是 reject）；`fastify.close()` 不会。
-- 同一个服务器可以被监听多次（两个网口、两个端口），每个监听器的连接都交给它。
+- 同一个服务器可以被监听多次（两个网口、两个端口），每个监听器的连接都交给它。`listenOnAll(['eth1', 'eth2'], server, {port: 8080})` 在多个网口上监听，每个网口一个监听器；其中一个无法监听时，已经开始的都会关闭，并抛出错误。多个网口时端口不能是 0。
 
 Express 请传 `createServer(app)`；Fastify 请在 `await fastify.ready()` 之后传 `fastify.server`：
 
@@ -202,7 +204,7 @@ TCP 套接字返回时已经在监听，交给 `net.Server` 的 `server.listen({
 |---|---|
 | `listInterfaces()`、`NetworkInterfaceInfo`、`InterfaceAddress` | 本机的网口和它们的状态；一个网口（`name`、`index`、`mac`、`up`、`running`、`loopback`、`addresses`）；一个地址（`address`、`family`、`netmask`、`cidr`、`scopeid`） |
 | `NetworkInterface`、`InterfaceSelector`、`NetworkInterfaceEvents`、`AddressChange`、`WaitForAddressOptions` | 被跟踪的网口（`list`、`selector`、`present`、`name`、`index`、`mac`、`up`、`running`、`loopback`、`addresses`、`info`、`closed`、`waitForAddress`、`listen`、`createUDPSocket`、`bindSocket`、`close`）；指定网口的方式（名字、`{mac}`、`{index}`）；它的事件（`change`、`up`、`down`、`added`、`removed`）；地址的变化（`addresses`、`added`、`removed`）；`waitForAddress()` 的选项（`family`、`timeout`） |
-| `listenOn()`、`InterfaceListener`、`ListenOptions`、`InterfaceListenerEvents`、`ListeningAddress` | 在网口上监听的服务器：监听器（`server`、`networkInterface`、`enforced`、`reason`、`port`、`listening`、`addresses`、`closed`、`close`），它的选项（`port`、`family`、`strict`、`backlog`），它的事件（`listening`、`error`、`enforced`、`close`），能访问到它的地址（`address`、`family`、`port`、`scopeid`） |
+| `listenOn()`、`listenOnAll()`、`InterfaceListener`、`ListenOptions`、`InterfaceListenerEvents`、`ListeningAddress` | 在一个或多个网口上监听的服务器：监听器（`server`、`networkInterface`、`enforced`、`reason`、`port`、`listening`、`addresses`、`closed`、`close`），它的选项（`port`、`family`、`strict`、`backlog`），它的事件（`listening`、`error`、`enforced`、`close`），能访问到它的地址（`address`、`family`、`port`、`scopeid`） |
 | `InterfaceUDPSocket`、`UDPSocketOptions`、`InterfaceUDPSocketEvents` | 网口的 UDP 套接字（`send`、`setBroadcast`、`addMembership`、`dropMembership`、`enforced`、`reason`、`port`、`listening`、`addresses`、`closed`、`close`），它的选项（`port`、`family`、`strict`），它的事件（`message`、`listening`、`error`、`enforced`、`close`） |
 | `BoundSocket`、`BindSocketOptions` | 绑定网口的套接字（`fd`、`port`、`family`、`type`），以及 `bindSocket()` 的选项（`port`、`family`、`type`、`backlog`） |
 

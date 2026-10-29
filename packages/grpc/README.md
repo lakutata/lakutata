@@ -25,6 +25,9 @@ service proxy run in a lakutata application, so they need `lakutata`, which prov
 npm install lakutata @lakutata/grpc
 ```
 
+Listening on a network interface instead of an address (the `interface` option of `GRPCServer.listen()` and of the
+service entrypoint) needs `@lakutata/netif` too.
+
 ## Usage
 
 ### The service actions over gRPC
@@ -266,6 +269,10 @@ process.once('SIGTERM', (): void => void server.close(10000))
 - A call's deadline (`grpc-timeout`) aborts it: `call.signal` is aborted and the call ends with `DEADLINE_EXCEEDED`;
   the handler keeps running unless it watches the signal.
 - `server.serve(socket)` serves an HTTP/2 connection carried by another byte stream (a BuildKit session, for example).
+- `server.listen({interface: 'eth1', port: 50051})` listens on a network interface instead of an address, whatever its
+  addresses, with `@lakutata/netif`. It returns the first address listened on (`null` while the interface does not
+  exist), `server.listeners` gives the listeners, and `onError` receives the errors of listening again (written to the
+  console without it). `family` and `strict` are those of `@lakutata/netif`.
 
 ### The protobuf codec
 
@@ -318,7 +325,7 @@ console.log(route.name, route.points, route.labels, route.started, route.data)
 | Export | Subpath | What it is |
 |---|---|---|
 | `GRPCConnection` | `@lakutata/grpc` | The client: `unary`, `serverStream`, `bidi`, `close` |
-| `GRPCServer` | `@lakutata/grpc` | The server: `method`, `listen`, `serve`, `close`, `methods` |
+| `GRPCServer` | `@lakutata/grpc` | The server: `method`, `listen`, `serve`, `close`, `methods`, `listeners` |
 | `GRPCServerCall` | `@lakutata/grpc` | A call received by a server: `request`, `requests`, `send`, `finish`, `metadata`, `deadline`, `signal` |
 | `BidiStream` | `@lakutata/grpc` | A bidirectional call: `send`, `end`, `cancel`, `responses` |
 | `CallOptions` | `@lakutata/grpc` | The metadata, signal and timeout of a call |
@@ -342,7 +349,8 @@ The typings document each declaration, with examples.
 | `GRPCError` (`code`: a `GRPCStatus`, `path`) | A call fails: the server's status, or `UNAVAILABLE` (connection failed or lost, no status), `CANCELLED` (signal aborted, stream cancelled, call closed), `DEADLINE_EXCEEDED` (timeout passed), `RESOURCE_EXHAUSTED` (a message over `maxMessageSize`), `INTERNAL` (a message that cannot be decompressed or decoded) or `UNKNOWN` (an HTTP status other than 200). A server handler throws it to end its call with that status. |
 | `ServiceInvokeException` (`E_SERVICE_INVOKE`, from `lakutata/com/entrypoint`) | `GRPCServiceProxy.invoke()`: the remote action failed; the exception carries the remote error's message and properties (`errno`…) |
 | `EntrypointStoppedException` (`E_ENTRYPOINT_STOPPED`) | An invocation arrives while the service's entrypoint is stopping (the proxy receives it as a `ServiceInvokeException` with this errno) |
-| `Error` | `new GRPCConnection()` with an address that is not a unix socket path, a `tcp://` URL or `host:port`, or with TLS over a unix socket; `decode()` with truncated or unexpected bytes; `GRPCServer.listen()` with the listen error (`EADDRINUSE`) |
+| `Error` | `new GRPCConnection()` with an address that is not a unix socket path, a `tcp://` URL or `host:port`, or with TLS over a unix socket; `decode()` with truncated or unexpected bytes; `GRPCServer.listen()` with the listen error (`EADDRINUSE`), or with `interface` when `@lakutata/netif` is not installed |
+| `TypeError` | `GRPCServer.listen()` with `interface` and `host` or `socketPath`; `grpcServiceEntrypoint()` with `interface` and `host` or `socketPath`, or with `family`, `strict` or `onError` without `interface` |
 
 A server ends a call to an unknown method, or one with an unsupported compression, with `UNIMPLEMENTED`; a request
 over its `maxMessageSize` with `RESOURCE_EXHAUSTED`; and a call past its deadline with `DEADLINE_EXCEEDED`.

@@ -52,9 +52,12 @@ Application.run(() => ({
 | `tls` | 无（明文 HTTP/2） | `{cert, key}` 启用 TLS；再加上 `ca` 时，客户端必须出示由它签发的证书（双向 TLS） |
 | `maxMessageSize` | 4 MiB | 请求的最大大小（解压前后都算）；超过时以 `RESOURCE_EXHAUSTED` 失败 |
 | `compression` | `'identity'` | 设为 `'gzip'` 或 `'deflate'` 时，对支持的客户端压缩响应。压缩过的请求总是可以接收 |
-| `listening` | | `(address) => void`，服务开始监听后调用；启动过程会等它完成 |
+| `listening` | | `(address, listeners) => void`，服务开始监听后调用；启动过程会等它完成 |
+| `interface`、`family`、`strict`、`onError` | | 按网口监听，而不是按地址监听，用法和 HTTP 适配器一样（见 [HTTP](HTTP.md) 第 2 节）；不能和 `host` 或 `socketPath` 一起设置 |
 | `middlewares` | | 通过 gRPC 调用的动作专用的中间件，在入口的中间件之后执行 |
 | `name` | | 适配器的名字，用来区分多个适配器 |
+
+设置 `interface` 时需要安装 `@lakutata/netif` 包。这时传给 `listening` 的 `address` 是第一个监听的地址；网口还不存在或还没有地址时是 `null`；`listeners` 是网口的监听器。
 
 服务端不提供反射服务，也不提供健康检查服务。
 
@@ -223,4 +226,4 @@ print(json.loads(response.payload) if response.success else json.loads(response.
 
 ## 8. 底层组件
 
-这个包也提供服务所依赖的底层组件，脱离 lakutata 也能使用：`GRPCConnection` 是可以调用任何 gRPC 服务端的客户端（一元调用、服务端流、双向流、元数据、TLS）；`GRPCServer` 是服务端；`encode`/`decode` 是基于 schema 的 protobuf 编解码器。详见 `@lakutata/grpc` 的 README。
+这个包也提供服务所依赖的底层组件，脱离 lakutata 也能使用：`GRPCConnection` 是可以调用任何 gRPC 服务端的客户端（一元调用、服务端流、双向流、元数据、TLS）；`GRPCServer` 是服务端；`encode`/`decode` 是基于 schema 的 protobuf 编解码器。详见 `@lakutata/grpc` 的 README。`GRPCServer.listen({interface: 'eth1'})` 也能像适配器一样按网口监听。

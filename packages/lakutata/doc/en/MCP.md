@@ -248,7 +248,8 @@ Application.run(() => ({
 |---|---|---|
 | `port`, `host`, `path` | `3000`, `'127.0.0.1'`, `'/mcp'` | Where it listens |
 | `authenticate` | | `(request) => MCPAuthInfo \| undefined`: the authentication of the client; throwing answers 401, returning `undefined` serves the request without one |
-| `allowedHosts`, `allowedOrigins` | the local names, on a local address | The `Host` and `Origin` headers accepted (403 otherwise); `false` checks none |
+| `allowedHosts`, `allowedOrigins` | the local names, on a local address or the loopback interface | The `Host` and `Origin` headers accepted (403 otherwise); `false` checks none |
+| `interface`, `family`, `strict`, `onError` | | Listen on a network interface instead of `host`, with the package `@lakutata/netif` (see [HTTP](HTTP.md), section 2) |
 | `legacy` | `'stateless'` | The clients of the revisions of 2025: served without sessions, or refused with `'reject'` |
 | `maxRequestBodySize` | 4 MiB | A larger body is answered with 413 |
 | `bus` | in memory | Where the notifications go, to share them between the instances of the application |
@@ -258,7 +259,8 @@ Application.run(() => ({
 - It serves the protocol over Streamable HTTP: the revision 2026-07-28, and the revisions of 2025 without sessions.
 - On a local address, the `Host` and `Origin` headers are checked against the local names, which protects the server
   from DNS rebinding: behind a proxy, list the names the clients use. On another address, nothing is checked unless you
-  list names.
+  list names. The same goes for `interface`: the loopback interface is checked against the local names, and on another
+  interface the clients of the network reach the server, so set `allowedHosts` and `authenticate`.
 - When the application stops, the calls in progress are answered, then the port closes.
 
 **Sharing the port of the HTTP adapter.** With `listen: false`, mount the `handler` of the adapter on the Express

@@ -56,9 +56,14 @@ The options of `grpcServiceEntrypoint`:
 | `tls` | None (plain HTTP/2) | `{cert, key}` for TLS; with `ca` too, the clients must present a certificate signed by it (mutual TLS) |
 | `maxMessageSize` | 4 MiB | The largest request, before and after decompression; a larger one fails with `RESOURCE_EXHAUSTED` |
 | `compression` | `'identity'` | `'gzip'` or `'deflate'` to compress the responses for the clients that accept it. Compressed requests are always accepted |
-| `listening` | | `(address) => void`, called once the server listens; the start waits for it |
+| `listening` | | `(address, listeners) => void`, called once the server listens; the start waits for it |
+| `interface`, `family`, `strict`, `onError` | | Listen on a network interface instead of an address, as the HTTP adapters do (see [HTTP](HTTP.md), section 2); not with `host` or `socketPath` |
 | `middlewares` | | The middlewares of the actions called over gRPC, run after the ones of the entrypoint |
 | `name` | | The name of the adapter, to tell several apart |
+
+With `interface`, the package `@lakutata/netif` has to be installed. The `address` given to `listening` is then the
+first one listened on, or `null` while the interface does not exist or has no address yet, and `listeners` are the
+listeners of the interface.
 
 The server has no reflection service and no health service.
 
@@ -248,4 +253,5 @@ seconds by default) to complete. Then the event streams end and the server close
 
 The package also has the layers the service is built on, usable without lakutata: `GRPCConnection`, a client for any
 gRPC server (unary, server streaming and bidirectional calls, metadata, TLS); `GRPCServer`; and `encode`/`decode`, a
-protobuf codec driven by schemas. The README of `@lakutata/grpc` describes them.
+protobuf codec driven by schemas. The README of `@lakutata/grpc` describes them. `GRPCServer.listen()` with
+`interface` listens on a network interface, as the adapter does.

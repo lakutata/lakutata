@@ -197,7 +197,7 @@ pages of a web UI during its development. The Electron templates add it in devel
 | `host` | all the interfaces | The address to listen on |
 | `path` | `'/'` | The path of the requests; the events are under it, at `<path>/events` |
 | `limit` | `10485760` (10 MiB) | The largest body, in bytes |
-| `listening` | | `(server) => …`, called once the server listens |
+| `listening` | | `(server, listeners) => …`, called once the server listens (`listeners`, with `interface`: see below) |
 
 - A request is a `POST` to `path`, its body the message as JSON. It is answered with 200 and the envelope, whatever the
   result of the action. A body that is not JSON is answered with 400, a body over `limit` with 413, another method or
@@ -284,7 +284,7 @@ connected.
 | `options` | | The options of the Socket.IO server: `cors`, `path`, `maxHttpBufferSize`… |
 | `server` | | An HTTP server to share, or a function returning it (below) |
 | `io` | | An existing Socket.IO server, used as it is |
-| `listening` | | `(io, server) => …`, called once the adapter is ready |
+| `listening` | | `(io, server, listeners) => …`, called once the adapter is ready |
 
 ```typescript
 import {io, type Socket} from 'socket.io-client'
@@ -340,7 +340,7 @@ the tools that speak the protocol, and the parent processes over the standard in
 | `input`, `output` | `process.stdin`, `process.stdout` | The streams of stdio |
 | `end` | `'application'` | When the input of stdio ends: `'application'` exits the application once the requests in progress are answered, `'none'` does nothing, or a function |
 | `heartbeat` | `30000` | The interval of the pings of WebSocket, in milliseconds; `0` sends none |
-| `listening` | | `(server) => …`, called once the server of HTTP or WebSocket listens |
+| `listening` | | `(server, listeners) => …`, called once the server of HTTP or WebSocket listens |
 
 The method and the params of a request make the message: `{"method": "order.get", "params": {"id": 1}}` is the message
 `{method: 'order.get', id: 1}`, so the action declares the method in its pattern:
@@ -416,6 +416,25 @@ $ echo '{"jsonrpc": "2.0", "id": 1, "method": "sum", "params": {"values": [1, 2,
 ```
 
 The application exits once its input ends and its requests are answered (`end`).
+
+### On a network interface
+
+`httpServiceEntrypoint()`, `socketIOServiceEntrypoint()` with its own server, and `jsonRPCServiceEntrypoint()` over HTTP
+or WebSocket can listen on a network interface instead of an address, whatever its addresses, with the package
+`@lakutata/netif` installed apart. They take the options `interface`, `family`, `strict` and `onError` of the HTTP
+adapters (see [HTTP](HTTP.md), section 2), and their `listening` callback gets the listeners of the interface as its
+last argument:
+
+```typescript
+import {httpServiceEntrypoint} from 'lakutata/com/entrypoint'
+
+//The service on eth1 only, whatever its address
+export const service = httpServiceEntrypoint({port: 3000, interface: 'eth1'})
+```
+
+In Bun, a connection given to a server cannot be upgraded to a WebSocket (seen with Bun 1.4). There the start fails for
+JSON-RPC over WebSocket, and for Socket.IO unless it uses polling only (`options: {transports: ['polling']}`, and the
+same on the clients).
 
 ### Electron
 

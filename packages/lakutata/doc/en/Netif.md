@@ -9,6 +9,8 @@ application. What it is like:
 
 - **Any server**: `http`, `https`, `http2`, `tls`, Express and Fastify take the connections of the interface as their
   own; UDP sockets too, for the services that work on one interface (DHCP, mDNS, SSDP).
+- **The entrypoints of lakutata** take an `interface` option, which serves the controllers of an application on one
+  interface (section 5).
 - **The system refuses the other interfaces where it can**: on Linux the sockets are bound to the interface, and a
   connection that reaches its address through another interface is refused. On Windows and macOS the addresses of the
   interface are listened on, and `enforced` tells whether the system refuses those connections.
@@ -141,8 +143,46 @@ address of the interface; on macOS such sockets receive no broadcast and no mult
 
 ## 5. In an application
 
-A component owns the server and its listener: it listens in `startup()` and stops in `destroy()`. The interface and the
-port are its options.
+The entrypoints of lakutata that listen on a port take an `interface` option: `expressHTTPEntrypoint()`,
+`fastifyHTTPEntrypoint()`, `httpServiceEntrypoint()`, `socketIOServiceEntrypoint()`, `jsonRPCServiceEntrypoint()`,
+`grpcServiceEntrypoint()` of `@lakutata/grpc` and `httpMCPEntrypoint()` of `@lakutata/mcp`. The actions of the
+controllers are then served on that interface, whatever its addresses:
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {GET} from 'lakutata/decorator/ctrl'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+
+class ManagementController extends Controller {
+    @GET('/status')
+    public async status(): Promise<{ ok: boolean }> {
+        return {ok: true}
+    }
+}
+
+Application.run(() => ({
+    id: 'device.app',
+    name: 'Device',
+    components: {
+        entrypoint: buildEntrypoints({
+            controllers: [ManagementController],
+            http: expressHTTPEntrypoint({port: 8080, interface: 'eth1'})
+        })
+    },
+    bootstrap: ['entrypoint']
+}))
+```
+
+- `family`, `strict` and `onError` go with `interface`. Without `onError`, the errors of listening again are written to
+  the log of the application. The `listening` callback of the adapter gets the listeners. [HTTP](HTTP.md), section 2,
+  describes these options.
+- The application starts while the interface does not exist yet, and its actions can be reached once it appears.
+- The declarations of the adapters refer to the types of `@lakutata/netif`: TypeScript compiles an application that does
+  not install the package only with `skipLibCheck`, which the projects created by lakutata set.
+
+A server that is not an entrypoint belongs to a component: it listens in `startup()` and stops in `destroy()`. The
+interface and the port are the options of the component.
 
 ```typescript
 import {createServer} from 'node:http'
@@ -187,9 +227,6 @@ Application.run(() => ({
 }))
 ```
 
-The HTTP entrypoints of lakutata listen on an address; the controllers of an application stay on them, and a component
-like this one serves what belongs to one interface.
-
 ## 6. Systems, runtimes and packaging
 
 - **Linux** binds the sockets to the interface: the system refuses the other interfaces, an address added is served at
@@ -200,9 +237,11 @@ like this one serves what belongs to one interface.
   some load balancers do) or forwards. `reason` names that interface.
 - **macOS** listens on the addresses of the interface, without the guarantee unless the system is set to it. macOS 27
   hides the hardware addresses from the processes (it gives `02:00:00:00:00:00`): give an interface by its name there.
-- **Bun**: its `https` server answers the connections given to it without TLS, so `listen()` refuses it in Bun; use
-  `http2.createSecureServer({key, cert, allowHTTP1: true})` or `tls.createServer()` there. Its servers do not close the
-  idle keep-alive connections given to them.
+- **Bun**: its `https` server answers the connections given to it without TLS, so `listen()` refuses it in Bun (a
+  Fastify instance created with `https` too); use `http2.createSecureServer({key, cert, allowHTTP1: true})` or
+  `tls.createServer()` there. Its servers do not close the idle keep-alive connections given to them, which the
+  entrypoints close themselves. A connection given to a server cannot be upgraded to a WebSocket (seen with Bun 1.4), so
+  the entrypoints refuse WebSocket on an interface in Bun.
 - **Electron**: in the main process.
 - The bundles, the executables and the installers made by `lakutata package` carry the compiled addon
   (`build/Release/netif.node`): build them on each target platform, after installing the package there (see

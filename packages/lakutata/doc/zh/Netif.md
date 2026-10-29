@@ -3,6 +3,7 @@
 `@lakutata/netif` 包让 Node.js 的服务器按网口监听，而不是按地址监听。有多个网口的设备，常常只在其中一个网口上提供管理页面：这个网口的地址来自 DHCP，会变，设备开机时可能还没有；而监听 `0.0.0.0` 又会让管理页面出现在所有网口上。用这个包，服务器监听的是“eth1 这个网口”，不管它现在是什么地址，地址变化、网口拔掉再插回，都会继续监听。它不属于 `lakutata`，也不需要应用。它的特点是：
 
 - **任何服务器都能用**：`http`、`https`、`http2`、`tls`、Express 和 Fastify 都把这个网口的连接当成自己的连接处理；UDP 套接字也可以，适合只在一个网口上工作的服务（DHCP、mDNS、SSDP）。
+- **lakutata 的入口**有 `interface` 选项，可以让应用的控制器只在一个网口上提供服务（第 5 节）。
 - **系统能挡的，就让系统挡住别的网口**：在 Linux 上，套接字绑定在网口上，从别的网口发往这个网口地址的连接会被拒绝。在 Windows 和 macOS 上，监听的是这个网口的地址，`enforced` 告诉你系统会不会挡住那样的连接。
 - **网口和它们的变化**：本机每个网口的状态，以及地址、连通状态、网口出现和消失时的事件，都来自系统的通知。
 - **原生插件**：在安装这个包时编译，支持 Linux、macOS 和 Windows；也能在 Bun 和 Electron 的主进程里运行。
@@ -109,7 +110,39 @@ socket.on('error', error => console.error(error))
 
 ## 5. 在应用中使用
 
-由一个组件持有服务器和它的监听器：在 `startup()` 里开始监听，在 `destroy()` 里停止。网口和端口作为组件的选项。
+lakutata 里自己监听端口的入口都有 `interface` 选项：`expressHTTPEntrypoint()`、`fastifyHTTPEntrypoint()`、`httpServiceEntrypoint()`、`socketIOServiceEntrypoint()`、`jsonRPCServiceEntrypoint()`、`@lakutata/grpc` 的 `grpcServiceEntrypoint()` 和 `@lakutata/mcp` 的 `httpMCPEntrypoint()`。设置后，控制器的动作就在这个网口上提供，不管它是什么地址：
+
+```typescript
+import {Application} from 'lakutata'
+import {buildEntrypoints, Controller} from 'lakutata/com/entrypoint'
+import {GET} from 'lakutata/decorator/ctrl'
+import {expressHTTPEntrypoint} from 'lakutata/adapter/express'
+
+class ManagementController extends Controller {
+    @GET('/status')
+    public async status(): Promise<{ ok: boolean }> {
+        return {ok: true}
+    }
+}
+
+Application.run(() => ({
+    id: 'device.app',
+    name: 'Device',
+    components: {
+        entrypoint: buildEntrypoints({
+            controllers: [ManagementController],
+            http: expressHTTPEntrypoint({port: 8080, interface: 'eth1'})
+        })
+    },
+    bootstrap: ['entrypoint']
+}))
+```
+
+- `family`、`strict` 和 `onError` 与 `interface` 配合使用。没有设置 `onError` 时，重新监听的错误会写到应用的日志里。适配器的 `listening` 回调会拿到监听器。这些选项的说明见 [HTTP](HTTP.md) 第 2 节。
+- 网口还不存在时应用也能启动，网口出现后就能访问它的动作。
+- 适配器的类型声明引用了 `@lakutata/netif` 的类型：应用没有安装这个包时，TypeScript 要开启 `skipLibCheck` 才能编译；lakutata 创建的项目已经开启了。
+
+不属于入口的服务器由一个组件持有：在 `startup()` 里开始监听，在 `destroy()` 里停止。网口和端口作为组件的选项。
 
 ```typescript
 import {createServer} from 'node:http'
@@ -154,14 +187,12 @@ Application.run(() => ({
 }))
 ```
 
-lakutata 的 HTTP 入口是按地址监听的；应用的控制器仍然放在入口上，只属于某个网口的服务由像这样的组件提供。
-
 ## 6. 系统、运行环境和打包
 
 - **Linux** 把套接字绑定在网口上：系统会挡住别的网口，新加的地址立刻就能访问，UDP 能收到这个网口的广播和组播。Linux 5.7 以前，请给进程 `CAP_NET_RAW` 能力（`setcap cap_net_raw+ep`，或在 systemd 单元里写 `AmbientCapabilities=CAP_NET_RAW`）。
 - **Windows** 监听网口的地址；它的强主机模型会挡住别的网口，除非有网口被设成了弱主机模型（`netsh interface ipv4 set interface "<名字>" weakhostreceive=enabled`，有些负载均衡软件会这样做）或者开了转发。`reason` 会说出是哪个网口。
 - **macOS** 监听网口的地址，除非系统设置了，否则没有保证。macOS 27 对进程隐藏 MAC 地址（给出的都是 `02:00:00:00:00:00`）：在那里请按名字指定网口。
-- **Bun**：它的 `https` 服务器收到交过来的连接时不做 TLS，所以在 Bun 上 `listen()` 会拒绝它；在 Bun 上请改用 `http2.createSecureServer({key, cert, allowHTTP1: true})` 或 `tls.createServer()`。Bun 的服务器不会关闭交给它的空闲长连接。
+- **Bun**：它的 `https` 服务器收到交过来的连接时不做 TLS，所以在 Bun 上 `listen()` 会拒绝它（用 `https` 选项创建的 Fastify 实例也一样）；在 Bun 上请改用 `http2.createSecureServer({key, cert, allowHTTP1: true})` 或 `tls.createServer()`。Bun 的服务器不会关闭交给它的空闲长连接，入口会自己关闭它们。交给服务器的连接不能升级为 WebSocket（在 Bun 1.4 上观察到），所以在 Bun 上，入口按网口监听时不支持 WebSocket。
 - **Electron**：在主进程里使用。
 - `lakutata package` 生成的打包文件、可执行文件和安装包会带上编译好的原生插件（`build/Release/netif.node`）：请在每个目标平台上先安装这个包，再在那里打包（见[打包](Packaging.md)和[原生插件](NativeAddons.md)）。
 
