@@ -2,6 +2,7 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {spawn} from 'node:child_process'
 import {createServer as createHTTPServer, request as httpRequest, type Server as HTTPServer} from 'node:http'
+import {connect as http2Connect, createSecureServer as createHTTP2SecureServer, createServer as createHTTP2Server, type ClientHttp2Session} from 'node:http2'
 import {createServer as createHTTPSServer, request as httpsRequest} from 'node:https'
 import {createServer as createNetServer, type Server} from 'node:net'
 import {connect as tlsConnect, createServer as createTLSServer, type TLSSocket} from 'node:tls'
@@ -12,6 +13,7 @@ import {
     listInterfaces,
     NetIfException,
     NetIfNotEnforcedException,
+    NetIfNotSupportedException,
     NetworkInterface,
     type NetworkInterfaceInfo
 } from '../exports/Netif.js'
@@ -123,10 +125,14 @@ describe('A listener', (): void => {
         const tls = createTLSServer({key: KEY, cert: CERTIFICATE}, (socket: TLSSocket): void => {
             socket.end('tls')
         })
-        const httpsListener: InterfaceListener = await listenOn(loopback().name, https, {port: 0, family: 'IPv4'})
+        //Bun answers in plain HTTP on its https server: refused there
+        if (process.versions.bun) {
+            await assert.rejects(listenOn(loopback().name, https, {port: 0, family: 'IPv4'}), NetIfNotSupportedException)
+        }
+        const httpsListener: InterfaceListener | undefined = process.versions.bun ? undefined : await listenOn(loopback().name, https, {port: 0, family: 'IPv4'})
         const tlsListener: InterfaceListener = await listenOn(loopback().name, tls, {port: 0, family: 'IPv4'})
         try {
-            assert.strictEqual(await get('127.0.0.1', httpsListener.port!, true), 'secure')
+            if (httpsListener) assert.strictEqual(await get('127.0.0.1', httpsListener.port!, true), 'secure')
             const received: string = await new Promise((resolve: (text: string) => void, reject: (error: Error) => void): void => {
                 const socket: TLSSocket = tlsConnect({host: '127.0.0.1', port: tlsListener.port!, ca: CERTIFICATE}, (): void => undefined)
                 let text: string = ''
@@ -139,8 +145,46 @@ describe('A listener', (): void => {
             })
             assert.strictEqual(received, 'tls')
         } finally {
-            await httpsListener.close()
+            await httpsListener?.close()
             await tlsListener.close()
+        }
+    })
+
+    it('gives the connections to a secure http2 server, also for HTTP/1 clients', async (): Promise<void> => {
+        const server = createHTTP2SecureServer({key: KEY, cert: CERTIFICATE, allowHTTP1: true}, (request, response): void => {
+            response.setHeader('connection', 'close')
+            response.end('h2s')
+        })
+        const listener: InterfaceListener = await listenOn(loopback().name, server, {port: 0, family: 'IPv4'})
+        try {
+            assert.strictEqual(await get('127.0.0.1', listener.port!, true), 'h2s')
+        } finally {
+            await listener.close()
+        }
+    })
+
+    it('gives the connections to an http2 server', async (): Promise<void> => {
+        const server = createHTTP2Server((request, response): void => {
+            response.end('h2')
+        })
+        const listener: InterfaceListener = await listenOn(loopback().name, server, {port: 0, family: 'IPv4'})
+        const session: ClientHttp2Session = http2Connect(`http://127.0.0.1:${listener.port}`)
+        try {
+            const text: string = await new Promise((resolve: (text: string) => void, reject: (error: Error) => void): void => {
+                const stream = session.request({':path': '/'})
+                let body: string = ''
+                stream.setEncoding('utf8')
+                stream.on('data', (chunk: string): void => {
+                    body += chunk
+                })
+                stream.on('end', (): void => resolve(body))
+                stream.on('error', reject)
+                stream.end()
+            })
+            assert.strictEqual(text, 'h2')
+        } finally {
+            session.close()
+            await listener.close()
         }
     })
 
@@ -200,7 +244,8 @@ describe('A listener', (): void => {
             if (process.argv[1] === 'close') await listener.close()
         })`
         for (const mode of ['keep', 'close']) {
-            const child = spawn(process.execPath, ['-e', code, mode], {stdio: ['ignore', 'pipe', 'inherit']})
+            //In Electron, its executable runs as Node.js
+            const child = spawn(process.execPath, ['-e', code, mode], {stdio: ['ignore', 'pipe', 'inherit'], env: {...process.env, ELECTRON_RUN_AS_NODE: '1'}})
             let output: string = ''
             child.stdout.on('data', (chunk: Buffer): void => {
                 output += chunk.toString()

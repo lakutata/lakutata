@@ -1,4 +1,6 @@
+import {Server as HTTPServer} from 'node:http'
 import {createServer, type Server, type Socket} from 'node:net'
+import {NetIfNotSupportedException} from '../exceptions/NetIfNotSupportedException.js'
 import {Attachment, type Target} from './Attachment.js'
 import {type Family} from './Enforcement.js'
 import {type NetworkInterface} from './NetworkInterface.js'
@@ -59,6 +61,17 @@ export interface InterfaceListenerEvents {
 }
 
 /**
+ * Bun 1.4: whether its http server is an https one (Bun's https.Server is its http.Server, which answers a connection
+ * given to it in plain HTTP even when it was made with keys: the connections of an https server cannot be given to it).
+ * An internal symbol tells: its TLS options, null for a plain server; undefined when Bun has no such symbol.
+ */
+function bunTLS(server: Server): boolean | undefined {
+    const symbol: symbol | undefined = Object.getOwnPropertySymbols(server).find((candidate: symbol): boolean => candidate.description === 'tls')
+    if (!symbol) return undefined
+    return !!(server as unknown as Record<symbol, unknown>)[symbol]
+}
+
+/**
  * The listening of a server on a network interface: `NetworkInterface.listen()`. The listener accepts the connections
  * and gives them to the server (`server.emit('connection', socket)`), which handles them as its own: the server itself
  * does not listen (its `address()` is `null`, its `close()` does not stop the listener; use the ones of the listener).
@@ -96,6 +109,11 @@ export class InterfaceListener extends Attachment<InterfaceListenerEvents, Serve
      */
     constructor(networkInterface: NetworkInterface, server: Server, options: ListenOptions, ownsInterface: boolean = false) {
         if (!server || typeof server.emit !== 'function') throw new TypeError('listen() takes a net.Server (http, https, http2, tls…)')
+        if (process.versions.bun && server instanceof HTTPServer && bunTLS(server) !== false) {
+            throw new NetIfNotSupportedException(bunTLS(server)
+                ? 'The https server of Bun answers the connections given to it without TLS: in Bun, listen with http2.createSecureServer({key, cert, allowHTTP1: true}) or a tls.Server instead'
+                : 'Whether this server of Bun uses TLS cannot be told, and the https server of Bun answers the connections given to it without TLS: in Bun, listen with an http server of a known version, http2.createSecureServer() or a tls.Server')
+        }
         super(networkInterface, options, ownsInterface)
         this.server = server
         this.#backlog = options.backlog ?? 511

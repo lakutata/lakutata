@@ -107,7 +107,8 @@ describe('A NetworkInterface', (): void => {
 
     it('does not keep the process alive', (): void => {
         const code: string = `import(${JSON.stringify(EXPORTS)}).then(({NetworkInterface}) => { globalThis.followed = new NetworkInterface('lo'); globalThis.other = new NetworkInterface('netif-test0') })`
-        const run = spawnSync(process.execPath, ['-e', code], {timeout: 20000, encoding: 'utf8'})
+        //In Electron, its executable runs as Node.js
+        const run = spawnSync(process.execPath, ['-e', code], {timeout: 20000, encoding: 'utf8', env: {...process.env, ELECTRON_RUN_AS_NODE: '1'}})
         assert.strictEqual(run.signal, null, 'the process was still running')
         assert.strictEqual(run.status, 0, run.stderr)
     })
