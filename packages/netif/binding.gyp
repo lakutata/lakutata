@@ -14,10 +14,10 @@
       'cflags_cc': ['-std=c++17', '-fexceptions'],
       'conditions': [
         ['OS=="linux"', {
-          'sources': ['native/linux/Interfaces.cpp', 'native/linux/Watcher.cpp']
+          'sources': ['native/linux/Interfaces.cpp', 'native/linux/Watcher.cpp', 'native/linux/Sockets.cpp']
         }],
         ['OS=="mac"', {
-          'sources': ['native/darwin/Interfaces.cpp', 'native/darwin/Watcher.cpp'],
+          'sources': ['native/darwin/Interfaces.cpp', 'native/darwin/Watcher.cpp', 'native/darwin/Sockets.cpp'],
           'xcode_settings': {
             'GCC_ENABLE_CPP_EXCEPTIONS': 'YES',
             'CLANG_CXX_LANGUAGE_STANDARD': 'c++17',
@@ -26,7 +26,7 @@
           }
         }],
         ['OS=="win"', {
-          'sources': ['native/windows/Interfaces.cpp', 'native/windows/Watcher.cpp'],
+          'sources': ['native/windows/Interfaces.cpp', 'native/windows/Watcher.cpp', 'native/windows/Sockets.cpp'],
           'defines': ['_HAS_EXCEPTIONS=1', 'WIN32_LEAN_AND_MEAN', 'NOMINMAX', '_WIN32_WINNT=0x0A00'],
           'libraries': ['iphlpapi.lib', 'ws2_32.lib'],
           'msvs_settings': {

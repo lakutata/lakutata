@@ -1,7 +1,11 @@
 import {EventEmitter} from 'node:events'
 import {NetIfException} from '../exceptions/NetIfException.js'
+import {NetIfNotEnforcedException} from '../exceptions/NetIfNotEnforcedException.js'
 import {NetIfNotFoundException} from '../exceptions/NetIfNotFoundException.js'
+import {NetIfNotSupportedException} from '../exceptions/NetIfNotSupportedException.js'
 import {NetIfTimeoutException} from '../exceptions/NetIfTimeoutException.js'
+import {LINUX_PERMISSION} from './Enforcement.js'
+import {nativeBindSocket} from './Native.js'
 import {registry} from './Registry.js'
 import {readInterfaces} from './Snapshot.js'
 import {type InterfaceAddress, type NetworkInterfaceInfo} from './Types.js'
@@ -56,6 +60,57 @@ export interface WaitForAddressOptions {
      * The milliseconds to wait at most, without limit by default: then a `NetIfTimeoutException`.
      */
     timeout?: number
+}
+
+/**
+ * The options of `bindSocket()`.
+ */
+export interface BindSocketOptions {
+    /**
+     * The port, 0 by default: one the system chooses (`port` of the result).
+     */
+    port?: number
+
+    /**
+     * The family of the socket, `'IPv4'` by default. An IPv6 socket is IPv6 only.
+     */
+    family?: 'IPv4' | 'IPv6'
+
+    /**
+     * `'tcp'` (a listening socket, by default) or `'udp'`.
+     */
+    type?: 'tcp' | 'udp'
+
+    /**
+     * The length of the queue of the connections not accepted yet of a TCP socket, 511 by default.
+     */
+    backlog?: number
+}
+
+/**
+ * A socket bound to an interface: `bindSocket()`.
+ */
+export interface BoundSocket {
+    /**
+     * Its file descriptor, to give to `server.listen({fd})` (a `net.Server`) or `socket.bind({fd})` (a `dgram` socket),
+     * which then own it; closed by `fs.closeSync(fd)` when it is not given.
+     */
+    fd: number
+
+    /**
+     * Its port.
+     */
+    port: number
+
+    /**
+     * Its family.
+     */
+    family: 'IPv4' | 'IPv6'
+
+    /**
+     * Its type.
+     */
+    type: 'tcp' | 'udp'
 }
 
 /**
@@ -313,6 +368,44 @@ export class NetworkInterface extends EventEmitter<NetworkInterfaceEvents> {
                 timer = setTimeout((): void => closed(new NetIfTimeoutException(`${this.#described()} got no ${options.family ?? ''} address in ${options.timeout} ms`.replace('  ', ' '))), options.timeout)
             }
         })
+    }
+
+    /**
+     * A socket bound to the interface (Linux, `SO_BINDTODEVICE`), on the port of every address of its family: it gets the
+     * connections and the datagrams that come through the interface, whatever the address they were sent to, and the
+     * system refuses the other ones. For the users that need the server itself listening (its `address()` and `close()`
+     * as usual): the socket is not made again when the interface is unplugged and plugged back, which `listen()` does.
+     * In Bun, give the descriptor to a `net.Server` or a `dgram` socket (Bun's `http.Server` does not listen on one).
+     * @param options The port, the family, the type and the backlog.
+     * @returns The descriptor of the socket and its port.
+     * @throws NetIfNotSupportedException Outside Linux: macOS and Windows have no socket bound to an interface.
+     * @throws NetIfNotFoundException The interface does not exist now.
+     * @throws NetIfNotEnforcedException The process may not bind a socket to an interface (CAP_NET_RAW before Linux 5.7).
+     * @throws NetIfException Another refusal of the system, its code as `errno` (`'EADDRINUSE'`…).
+     * @example
+     * ```typescript
+     * import {createServer} from 'node:http'
+     * import {type BoundSocket, NetworkInterface} from '@lakutata/netif'
+     *
+     * const management: NetworkInterface = new NetworkInterface('eth1')
+     * const socket: BoundSocket = management.bindSocket({port: 8080, family: 'IPv4', type: 'tcp'})
+     * createServer((request, response) => response.end('ok')).listen({fd: socket.fd})
+     * ```
+     */
+    public bindSocket(options: BindSocketOptions = {}): BoundSocket {
+        const family: 'IPv4' | 'IPv6' = options.family ?? 'IPv4'
+        const type: 'tcp' | 'udp' = options.type ?? 'tcp'
+        if (process.platform !== 'linux') throw new NetIfNotSupportedException(`${process.platform === 'darwin' ? 'macOS' : process.platform === 'win32' ? 'Windows' : process.platform} has no socket bound to an interface: bindSocket() is for Linux; listen() and createUDPSocket() work everywhere`)
+        if (!this.#state) throw new NetIfNotFoundException(`${this.#described()} does not exist now`)
+        try {
+            const bound: {fd: number, port: number} = nativeBindSocket(this.#state.name, family === 'IPv4' ? 4 : 6, type === 'tcp', options.port ?? 0, options.backlog ?? 511)
+            return {fd: bound.fd, port: bound.port, family: family, type: type}
+        } catch (error) {
+            if (error instanceof NetIfException && (error.errno === 'EPERM' || error.errno === 'EACCES') && /SO_BINDTODEVICE/.test(error.message)) {
+                throw new NetIfNotEnforcedException(`The process may not bind a socket to ${this.#state.name}. ${LINUX_PERMISSION}`, {cause: error})
+            }
+            throw error
+        }
     }
 
     /**

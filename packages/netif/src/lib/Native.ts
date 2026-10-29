@@ -36,6 +36,12 @@ interface Addon {
     watch(changed: () => void): void
 
     unwatch(): void
+
+    bindSocket(name: string, family: 4 | 6, stream: boolean, port: number, backlog: number): {fd: number, port: number}
+
+    membership(fd: number, group: string, index: number, join: boolean): void
+
+    weakReception(index: number, family: 4 | 6): {interface: string, setting: string} | null
 }
 
 /**
@@ -90,4 +96,26 @@ export function nativeWatch(changed: () => void): void {
  */
 export function nativeUnwatch(): void {
     call((functions: Addon): void => functions.unwatch())
+}
+
+/**
+ * A socket bound to the interface of the name (Linux): its descriptor and port
+ */
+export function nativeBindSocket(name: string, family: 4 | 6, stream: boolean, port: number, backlog: number): {fd: number, port: number} {
+    return call((functions: Addon): {fd: number, port: number} => functions.bindSocket(name, family, stream, port, backlog))
+}
+
+/**
+ * The socket of the descriptor joins or leaves the multicast group on the interface of the index (Linux)
+ */
+export function nativeMembership(fd: number, group: string, index: number, join: boolean): void {
+    call((functions: Addon): void => functions.membership(fd, group, index, join))
+}
+
+/**
+ * The setting that makes the system accept, through another interface, the packets for the addresses of the interface of
+ * the index; null when it refuses them (the strong host model of Windows and macOS)
+ */
+export function nativeWeakReception(index: number, family: 4 | 6): {interface: string, setting: string} | null {
+    return call((functions: Addon): {interface: string, setting: string} | null => functions.weakReception(index, family))
 }

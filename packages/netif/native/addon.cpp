@@ -7,6 +7,7 @@
 #include <system_error>
 
 #include "Interfaces.h"
+#include "Sockets.h"
 #include "Watcher.h"
 
 using namespace netif;
@@ -61,6 +62,52 @@ Napi::Value List(const Napi::CallbackInfo &info)
         list.Set(static_cast<uint32_t>(index), object);
     }
     return list;
+}
+
+//bindSocket(name, family, stream, port, backlog): a socket bound to the interface of the name (Linux), as {fd, port}
+Napi::Value BindSocket(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+    BoundSocket bound;
+    try {
+        bound = bindToInterface(info[0].As<Napi::String>().Utf8Value(), info[1].As<Napi::Number>().Int32Value(), info[2].As<Napi::Boolean>().Value(), static_cast<uint16_t>(info[3].As<Napi::Number>().Uint32Value()), info[4].As<Napi::Number>().Int32Value());
+    } catch (const std::system_error &error) {
+        throw systemError(env, error);
+    }
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("fd", bound.fd);
+    result.Set("port", bound.port);
+    return result;
+}
+
+//membership(fd, group, index, join): the socket joins or leaves the multicast group on the interface of the index (Linux)
+Napi::Value Membership(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+    try {
+        membership(info[0].As<Napi::Number>().Int32Value(), info[1].As<Napi::String>().Utf8Value(), info[2].As<Napi::Number>().Uint32Value(), info[3].As<Napi::Boolean>().Value());
+    } catch (const std::system_error &error) {
+        throw systemError(env, error);
+    }
+    return env.Undefined();
+}
+
+//weakReception(index, family): null when the system refuses, through another interface, the packets for the addresses of
+//the interface of the index; otherwise {interface, setting}, the setting that makes it accept them
+Napi::Value WeakReceptionOf(const Napi::CallbackInfo &info)
+{
+    Napi::Env env = info.Env();
+    std::optional<WeakReception> found;
+    try {
+        found = weakReception(info[0].As<Napi::Number>().Uint32Value(), info[1].As<Napi::Number>().Int32Value());
+    } catch (const std::system_error &error) {
+        throw systemError(env, error);
+    }
+    if (!found) return env.Null();
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("interface", found->interfaceName);
+    result.Set("setting", found->setting);
+    return result;
 }
 
 //The watching of an environment (the main thread, or a worker): the notifications of the system, and the function they
@@ -137,6 +184,9 @@ Napi::Object Init(Napi::Env env, Napi::Object exports)
     exports.Set("list", Napi::Function::New(env, List));
     exports.Set("watch", Napi::Function::New(env, Watch));
     exports.Set("unwatch", Napi::Function::New(env, Unwatch));
+    exports.Set("bindSocket", Napi::Function::New(env, BindSocket));
+    exports.Set("membership", Napi::Function::New(env, Membership));
+    exports.Set("weakReception", Napi::Function::New(env, WeakReceptionOf));
     return exports;
 }
 
