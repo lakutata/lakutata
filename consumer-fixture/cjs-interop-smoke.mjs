@@ -119,6 +119,17 @@ await check('@lakutata/math loads under ESM', () => {
     if (typeof mathPackage.createMath !== 'function' || mathPackage.stats.mean([1, 2, 3]) !== 2) throw new Error('createMath missing')
 })
 
+// @lakutata/netif — its addon (built when the package is installed) required by a path from the CommonJS module
+await check('CJS @lakutata/netif loads its addon', () => {
+    const netif = requireCJS('../packages/netif/dist/cjs/exports/Netif.js')
+    if (typeof netif.listInterfaces !== 'function' || typeof netif.NetIfException !== 'function') throw new Error('listInterfaces missing')
+    if (!netif.listInterfaces().some(entry => entry.addresses.some(address => address.address === '127.0.0.1'))) throw new Error('the loopback of netif')
+})
+const netifPackage = await import('../packages/netif/dist/esm/exports/Netif.js')
+await check('@lakutata/netif loads under ESM', () => {
+    if (typeof netifPackage.listInterfaces !== 'function' || !Array.isArray(netifPackage.listInterfaces())) throw new Error('listInterfaces missing')
+})
+
 // @lakutata/grpc — the gRPC over HTTP/2 of containerd, BuildKit and the service actions
 await check('CJS @lakutata/grpc loads', () => {
     if (typeof requireCJS('../packages/grpc/dist/cjs/exports/GRPC.js').GRPCServer !== 'function') throw new Error('GRPCServer missing')

@@ -1,0 +1,80 @@
+{
+  "name": "@lakutata/netif",
+  "version": "3.1.3",
+  "description": "Listen on a network interface instead of an address: servers of Node.js (http, https, Express, Fastify) and UDP sockets follow an interface whatever its addresses, through their changes and the unplugging of the interface; the interfaces of the machine with their state, and events when they change. A native addon for Linux, macOS and Windows.",
+  "keywords": [
+    "lakutata",
+    "network-interface",
+    "netif",
+    "bind-to-device",
+    "so_bindtodevice",
+    "listen",
+    "interface",
+    "nic",
+    "ip-address",
+    "ipv6",
+    "udp",
+    "multicast",
+    "native",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/netif",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/netif"
+  },
+  "author": "alex.ma",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/cjs/exports/Netif.js",
+  "types": "./dist/cjs/exports/Netif.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/exports/Netif.d.ts",
+        "default": "./dist/esm/exports/Netif.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Netif.d.ts",
+        "default": "./dist/cjs/exports/Netif.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "gypfile": true,
+  "scripts": {
+    "install": "node-gyp rebuild -j max",
+    "build:native": "node-gyp rebuild -j max",
+    "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs-pkg": "node ../../scripts/package-build/cjs-package.mjs",
+    "build:addon": "node scripts/addon.mjs",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg && npm run build:addon",
+    "rebuild": "npm run clean && npm run build:js",
+    "compile": "npm run rebuild",
+    "test:unit": "npm run compile && node --test --test-timeout=60000 \"dist/esm/tests/**/*.spec.js\"",
+    "test:bun": "sh test-env/bun.sh",
+    "test:electron": "electron test-env/electron/main.mjs"
+  },
+  "engines": {
+    "node": "^22.13.0 || >=24.11.0"
+  },
+  "files": [
+    "dist",
+    "!dist/*/tests",
+    "binding.gyp",
+    "native",
+    "*.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "dependencies": {
+    "node-addon-api": "^8.9.2"
+  }
+}

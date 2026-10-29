@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Bundler",
+    "customConditions": [
+      "import"
+    ],
+    "outDir": "dist/cjs",
+    "declaration": true,
+    "declarationMap": false
+  },
+  "exclude": [
+    "node_modules",
+    "test-env",
+    "scripts",
+    "build",
+    "distro",
+    "dist",
+    "publish.mjs",
+    "rollup.mjs",
+    "src/tests",
+    "native"
+  ]
+}
