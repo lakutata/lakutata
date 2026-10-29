@@ -8,6 +8,7 @@ import {io as Connect, type Socket as ClientSocket} from 'socket.io-client'
 import {buildEntrypoints, Controller, Entrypoint, httpServiceEntrypoint} from '../exports/Entrypoint.js'
 import {GET, ServiceAction} from '../exports/CTRLDecorators.js'
 import {expressHTTPEntrypoint} from '../exports/ExpressAdapter.js'
+import {fastifyHTTPEntrypoint} from '../exports/FastifyAdapter.js'
 import {jsonRPCServiceEntrypoint} from '../exports/JSONRPCAdapter.js'
 import {socketIOServiceEntrypoint} from '../exports/SocketIOAdapter.js'
 import {keepAliveAgent} from './support/KeepAlive.js'
@@ -108,6 +109,35 @@ describe('An adapter listening on an interface', (): void => {
         assert.ok(Date.now() - started < 5000, 'the stop waited for the idle connection')
     })
 
+    it('serves the actions of fastify through the interface, and closes its idle kept-alive connections when it stops', async (): Promise<void> => {
+        let listeners: InterfaceListener[] | undefined
+        let server: Server | undefined
+        const container: Container = await start({
+            http: fastifyHTTPEntrypoint({
+                port: 0,
+                interface: LOOPBACK,
+                family: 'IPv4',
+                listening: (listening: Server, made?: InterfaceListener[]): void => {
+                    server = listening
+                    listeners = made
+                }
+            })
+        })
+        const port: number = listeners![0].port!
+        assert.strictEqual(server!.listening, false)
+        const {text, socket} = await getKeptAlive(port, '/ping')
+        assert.strictEqual(text, JSON.stringify({pong: 'http'}))
+        const closed: Promise<void> = new Promise((resolve: () => void): void => {
+            socket.once('close', (): void => resolve())
+        })
+        const started: number = Date.now()
+        await container.destroy()
+        await closed
+        assert.ok(Date.now() - started < 5000, 'the stop waited for the idle connection')
+        assert.strictEqual(listeners![0].closed, true)
+        await assert.rejects(fetch(`http://127.0.0.1:${port}/ping`))
+    })
+
     it('serves the service actions of the http service adapter, socket.io and JSON-RPC', async (): Promise<void> => {
         const ports: Record<string, number> = {}
         const container: Container = await start({
@@ -155,6 +185,7 @@ describe('An adapter listening on an interface', (): void => {
 
     it('refuses the options that contradict', async (): Promise<void> => {
         assert.throws((): unknown => expressHTTPEntrypoint({host: '127.0.0.1', interface: LOOPBACK}), TypeError)
+        assert.throws((): unknown => fastifyHTTPEntrypoint({host: '127.0.0.1', interface: LOOPBACK}), TypeError)
         assert.throws((): unknown => httpServiceEntrypoint({strict: true}), TypeError)
         assert.throws((): unknown => expressHTTPEntrypoint({onError: (): void => undefined, family: 'IPv4'}), TypeError)
         assert.throws((): unknown => socketIOServiceEntrypoint({server: createServer(), interface: LOOPBACK}), TypeError)

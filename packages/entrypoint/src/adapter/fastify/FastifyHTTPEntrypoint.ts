@@ -4,6 +4,7 @@ import type {Server} from 'node:http'
 import path from 'node:path'
 import type {Readable} from 'node:stream'
 import type {Module} from '@lakutata/core'
+import type {InterfaceListener} from '@lakutata/netif'
 import type {ChannelActionInfo, ChannelRuntime, EntrypointAdapter} from '../../channel/EntrypointAdapter.js'
 import type {MiddlewareDefinition} from '../../lib/Middleware.js'
 import {HTTPContext} from '../../context/HTTPContext.js'
@@ -11,6 +12,7 @@ import {HTTPChannel} from '../../channel/BuiltinChannels.js'
 import {EventsResult, FileResult, StatusResult} from '../../lib/Result.js'
 import {RouteNotFoundException} from '../../exceptions/RouteNotFoundException.js'
 import {trackConnections} from '../../lib/Connections.js'
+import {closeListeners, type InterfaceListeningOptions, listensOnInterfaces, listenOnInterfaces} from '../../lib/Interfaces.js'
 import {markExplicitStatus} from '../../lib/ExplicitStatus.js'
 import {isTextType} from '../../lib/TextBodies.js'
 import {FastifyJSONResponder, type FastifyResponder} from './Responders.js'
@@ -46,9 +48,10 @@ export type FastifyHookContext = {
 }
 
 /**
- * The options of {@link fastifyHTTPEntrypoint}.
+ * The options of {@link fastifyHTTPEntrypoint}; with `interface`, the server listens on network interfaces instead of
+ * an address (see {@link InterfaceListeningOptions}).
  */
-export type FastifyHTTPEntrypointOptions = {
+export type FastifyHTTPEntrypointOptions = InterfaceListeningOptions & {
     /**
      * The adapter name, to tell apart several HTTP adapters of one entrypoint.
      */
@@ -59,7 +62,7 @@ export type FastifyHTTPEntrypointOptions = {
      */
     port?: number
     /**
-     * The host or address the server listens on.
+     * The host or address the server listens on; excludes `interface`.
      * @default every interface, as the other HTTP adapters (`::`, or `0.0.0.0` without IPv6)
      */
     host?: string
@@ -106,6 +109,12 @@ export type FastifyHTTPEntrypointOptions = {
      * Run when the adapter stops, after the server is closed.
      */
     stop?: () => void | Promise<void>
+    /**
+     * Run once the server listens (on an address), or once the listeners of the interfaces are made (with
+     * `interface`): the server itself does not listen then, its `address()` is `null`; the listeners give the port, the
+     * addresses and whether the other interfaces are refused (`enforced`). A failure fails the entrypoint start.
+     */
+    listening?: (server: Server, listeners?: InterfaceListener[]) => void | Promise<void>
     /**
      * The interval between the comments keeping the event streams (`EventsResult`) alive through the proxies, in
      * milliseconds.
@@ -189,6 +198,10 @@ function isFastifyInstance(value: unknown): value is FastifyInstance {
  * and the requests in progress are given up to one second after they settle to send their responses before the
  * remaining connections are closed — the connections taken over by an upgrade (the WebSockets of the application) too,
  * which would hold the stop forever.
+ *
+ * With `interface` (and the package `@lakutata/netif`, installed apart), the server listens on network interfaces
+ * instead of an address, whatever their addresses, again when they change and when an interface is unplugged and
+ * plugged back: `fastifyHTTPEntrypoint({port: 8080, interface: 'eth1'})`.
  * @param options The adapter options; by default it listens on port 80 with a new fastify instance.
  * @returns The adapter, to give to the `http` option of `buildEntrypoints`.
  * @example
@@ -234,6 +247,7 @@ function isFastifyInstance(value: unknown): value is FastifyInstance {
  * ```
  */
 export function fastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}): EntrypointAdapter<HTTPContext> {
+    const onInterfaces: boolean = listensOnInterfaces('fastifyHTTPEntrypoint', options)
     const respond: FastifyResponder = options.respond ?? FastifyJSONResponder
     const textTypes: string[] = options.body?.text ?? []
     const input: (request: FastifyRequest) => Record<string, unknown> = options.input ?? ((request: FastifyRequest): Record<string, unknown> => ({
@@ -245,6 +259,7 @@ export function fastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
     let app: FastifyInstance | undefined
     let destroyConnections: (() => void) | undefined
     let closed: Promise<void> | undefined
+    let listeners: InterfaceListener[] | undefined
     let stopping: boolean = false
     //The responses not sent yet
     const responding: Set<Promise<void>> = new Set()
@@ -408,7 +423,11 @@ export function fastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
             fastify.setErrorHandler((error: unknown, request: FastifyRequest, reply: FastifyReply): unknown => respond.error(reply, error, request, 'request'))
             //The adapter starts once the server listens (an occupied port fails the start)
             //Every interface by default, as the other adapters (fastify listens on localhost only)
-            if (options.host !== undefined) {
+            if (onInterfaces) {
+                //The routes and the plugins are loaded, then the listeners give the connections to the server
+                await fastify.ready()
+                listeners = await listenOnInterfaces('fastifyHTTPEntrypoint', runtime, fastify.server, options, options.port ?? 80)
+            } else if (options.host !== undefined) {
                 await fastify.listen({port: options.port ?? 80, host: options.host})
             } else {
                 try {
@@ -418,12 +437,16 @@ export function fastifyHTTPEntrypoint(options: FastifyHTTPEntrypointOptions = {}
                     await fastify.listen({port: options.port ?? 80, host: '0.0.0.0'})
                 }
             }
+            await options.listening?.(fastify.server, listeners)
         },
         stop: (): void => {
             //The event streams end; fastify stops accepting connections, closes the idle ones and answers 503 to the new requests
             stopping = true
             streams.forEach((stream: AbortController): void => stream.abort())
-            closed = app?.close()
+            //On interfaces, the server never listened: the listeners stop accepting the connections, the idle ones are closed
+            const unlistened: Promise<void> = closeListeners(listeners)
+            if (listeners) app?.server.closeIdleConnections()
+            closed = Promise.all([unlistened, app?.close()]).then((): void => undefined)
         },
         close: async (): Promise<void> => {
             //The requests in progress ended or were aborted: their responses are given a second to be sent, then the remaining connections are closed
