@@ -7,9 +7,7 @@ import {AssertionError} from 'node:assert'
 import {createRequire, syncBuiltinESMExports} from 'node:module'
 import {
     after,
-    afterEach as nodeAfterEach,
     before,
-    beforeEach as nodeBeforeEach,
     describe as nodeDescribe,
     it as nodeIt,
     type TestContext
@@ -93,23 +91,31 @@ function testArguments(second: unknown, third: unknown): {options: TestOptions, 
 }
 
 /**
- * The hooks of each test declared at the top of a file (outside of a describe), run around the tests by runnable(): the
- * test runner of Node.js 18.10 does not run the hooks of the top of a file
+ * The hooks of each test of a suite (of the file, at the top of the stack)
  */
-const fileBeforeEach: HookFunction[] = []
-const fileAfterEach: HookFunction[] = []
+interface EachHooks {
+    readonly beforeEach: HookFunction[]
+    readonly afterEach: HookFunction[]
+}
 
-//How deep the suite being defined is: 0 at the top of a file
-let suiteDepth: number = 0
+/**
+ * The hooks of each test of the suites being defined, from the file to the innermost suite. They run around the tests
+ * through runnable(), as vitest runs them, whatever the test runner: the one of Node.js 18.10 runs neither the hooks of
+ * the top of a file nor the ones of a suite for the tests of the suites in it, and the one of 19.3 runs the inherited
+ * ones at other times
+ */
+const hookStack: EachHooks[] = [{beforeEach: [], afterEach: []}]
 
 function runnable(fn: TestFunction, name: string): (...args: [TestContext?]) => Promise<void> {
+    //The hooks of the suites of the test, added to them before or after it
+    const suites: EachHooks[] = [...hookStack]
     //Declaring no parameter: the runner of Bun waits for the callback of a test that declares one
     return async (...args: [TestContext?]): Promise<void> => {
-        for (const hookOfFile of fileBeforeEach) await hookOfFile()
+        for (const suite of suites) for (const hookOfSuite of suite.beforeEach) await hookOfSuite()
         try {
             await runTest(fn, name, args[0])
         } finally {
-            for (const hookOfFile of fileAfterEach) await hookOfFile()
+            for (const suite of [...suites].reverse()) for (const hookOfSuite of suite.afterEach) await hookOfSuite()
         }
     }
 }
@@ -152,11 +158,11 @@ function defineSuite(name: string, second: unknown, third: unknown, extra: TestO
     const skip: boolean | string | undefined = extra.skip ?? options.skip
     void nodeDescribe(name, (): void => {
         if (skip) skippedSuites.push(skip)
-        suiteDepth++
+        hookStack.push({beforeEach: [], afterEach: []})
         try {
             fn?.()
         } finally {
-            suiteDepth--
+            hookStack.pop()
             if (skip) skippedSuites.pop()
         }
     })
@@ -258,14 +264,12 @@ function hook(fn: HookFunction): () => Promise<void> {
     }
 }
 
-export function beforeEach(fn: HookFunction, timeout?: number): void {
-    if (!suiteDepth) fileBeforeEach.push(fn)
-    else if (!skippedSuites.length) nodeBeforeEach(hook(fn), nodeOptions({timeout}))
+export function beforeEach(fn: HookFunction, _timeout?: number): void {
+    hookStack[hookStack.length - 1].beforeEach.push(fn)
 }
 
-export function afterEach(fn: HookFunction, timeout?: number): void {
-    if (!suiteDepth) fileAfterEach.push(fn)
-    else if (!skippedSuites.length) nodeAfterEach(hook(fn), nodeOptions({timeout}))
+export function afterEach(fn: HookFunction, _timeout?: number): void {
+    hookStack[hookStack.length - 1].afterEach.push(fn)
 }
 
 export function beforeAll(fn: HookFunction, timeout?: number): void {

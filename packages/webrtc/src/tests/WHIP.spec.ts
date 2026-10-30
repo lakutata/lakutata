@@ -1,4 +1,4 @@
-import {describe, it, type TestContext} from 'node:test'
+import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {execFile, spawn} from 'node:child_process'
 import type {Container} from '@lakutata/core'
@@ -75,6 +75,11 @@ function ffmpegPublish(url: string, token: string, seconds: number): Promise<num
         ffmpeg.once('exit', (code: number | null): void => resolve(code))
     })
 }
+
+/**
+ * Whether ffmpeg publishes with WHIP here
+ */
+const FFMPEG: boolean = await ffmpegWithWHIP()
 
 describe('WHIP', (): void => {
 
@@ -173,8 +178,8 @@ describe('WHIP', (): void => {
     })
 
     for (const adapter of ['express', 'fastify'] as const) {
-        it(`receives what ffmpeg publishes with WHIP (${adapter})`, {timeout: 60000, skip: adapter === 'fastify' && NO_FASTIFY}, async (t: TestContext): Promise<void> => {
-            if (!await ffmpegWithWHIP()) return t.skip('ffmpeg with WHIP, libx264 and libopus is not available')
+        //Skipped by their options, known before: the older test runners take a test with a parameter for a callback
+        it(`receives what ffmpeg publishes with WHIP (${adapter})`, {timeout: 60000, skip: (adapter === 'fastify' && NO_FASTIFY) || (!FFMPEG && 'ffmpeg with WHIP, libx264 and libopus is not available')}, async (): Promise<void> => {
             const {url, whip, container} = await startWHIP(adapter, {authorize: ({token}): boolean => token === 'obs-token'})
             try {
                 const published: Promise<WHIPSession> = next<WHIPSession>((resolve: (session: WHIPSession) => void): unknown => whip.once('publish', resolve), 20000, 'publish')
