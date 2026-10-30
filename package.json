@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "lint": "eslint . && node scripts/api-docs/check.mjs --skip-examples",
+    "lint": "eslint . && node scripts/api-docs/check.mjs --skip-examples && node scripts/node-compat/check.mjs",
     "check:node-compat": "node scripts/node-compat/check.mjs",
     "test:node-compat": "node scripts/node-compat/test.mjs",
     "clean": "npm run clean --workspaces --if-present",

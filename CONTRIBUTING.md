@@ -128,6 +128,21 @@ packages, then runs it whole:
 The declarations not documented yet are listed in `scripts/api-docs/baseline.json`: the check fails on a new one, and
 on one documented since (its entry removed with `node scripts/api-docs/check.mjs --update`). The baseline only shrinks.
 
+## The versions of Node.js
+
+The published packages run on Node.js 18.10 and later (`>=18.10.0`): the Node.js of NW.js 0.70 (18.10), of NW.js 0.72
+(19.3) and of nodejs-mobile (18.20) are among them. Developing the repository (its build, its lint and its tests) needs
+Node.js 22.13 or later.
+
+- What Node.js 18.10 lacks is used where the runtime has it, else made from what it has. The code checks for the API,
+  not for a version: Bun, Electron and NW.js report versions of Node.js of their own.
+- `npm run lint` finds the APIs Node.js 18.10 or 19.3 lacks in the sources of the published packages
+  (`scripts/node-compat/check.mjs`, its list in `scripts/node-compat/apis.mjs`, from the documentation of Node.js). A
+  use behind a check for the API says so with a `//node-compat: <API>` comment on its line or the line before.
+  `node scripts/node-compat/refresh.mjs` compares the list with a newer documentation.
+- `npm run test:node-compat` runs the built unit tests (`npm run build` first) with another node program:
+  `NODE_COMPAT=$(nvm which 18.10.0) npm run test:node-compat`, and the same with 18.20.4 and 19.3.0.
+
 ## The source of TypeORM
 
 `@lakutata/orm` holds the source of TypeORM in `packages/orm/vendor/typeorm`, built into `dist/vendor/typeorm` and
