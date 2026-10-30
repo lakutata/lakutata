@@ -131,14 +131,16 @@ export function queueConformance(target: ConformanceTarget): void {
      * Run a test on a new backend
      * @param test The test.
      */
-    const on = (test: (backend: ConformanceBackend) => Promise<void>) => async (context: TestContext): Promise<void> => {
+    //The context of the test from its arguments: the older test runners give none, and take a function with a parameter
+    //for a callback
+    const on = (test: (backend: ConformanceBackend) => Promise<void>) => async (...args: [context?: TestContext]): Promise<void> => {
         sequence++
         const backend: ConformanceBackend = await target.backend()
         try {
             await test(backend)
         } catch (error) {
             //Printed at once: the summary of the runner waits for the process to end, which a connection left open prevents
-            console.error(`[${target.name}] ${context.name}:`, error)
+            console.error(`[${target.name}] ${args[0]?.name ?? 'a test'}:`, error)
             throw error
         } finally {
             //The containers of a failed test too: their connections would keep the process running

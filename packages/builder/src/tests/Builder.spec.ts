@@ -7,6 +7,7 @@ import path from 'node:path'
 import {deflateSync} from 'node:zlib'
 import {buildExecutable, buildInstaller, bundleProject, programName} from '../index.js'
 import {applicationIcon, decodePng, encodePng, icnsFile, icoFile, ICO_SIZES, resize, type Image} from '../lib/Icons.js'
+import {NODE_EXECUTABLE, NO_NODE_EXECUTABLE} from './support/NodeProgram.js'
 
 describe('The builder of the applications', (): void => {
 
@@ -65,20 +66,20 @@ console.log(require('./words.js') + ' ' + require('node:fs').readFileSync(requir
         await assert.rejects(buildExecutable({project: project, nodeProgram: path.join(project, 'missing-node')}), /missing-node cannot be run as the node program of the executable/)
     })
 
-    it('makes the executable in a directory, which runs without Node.js', async (): Promise<void> => {
-        const result = await buildExecutable({project: project, layout: 'directory'})
+    it('makes the executable in a directory, which runs without Node.js', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {
+        const result = await buildExecutable({project: project, layout: 'directory', ...NODE_EXECUTABLE})
         assert.match(result.runtime, /^Node\.js v\d+/)
         assert.strictEqual(result.directory, path.join(project, 'dist', 'reader'))
         assert.deepStrictEqual(readdirSync(result.directory!).sort(), [path.basename(result.file), 'resources'].sort())
         assert.strictEqual(execFileSync(result.file, [], {cwd: tmpdir(), env: {PATH: ''}}).toString().trim(), 'read Hello')
     })
 
-    it('makes the installers of macOS: the package of its installer, the archive of the directory', {skip: process.platform !== 'darwin' && 'made on macOS'}, async (): Promise<void> => {
+    it('makes the installers of macOS: the package of its installer, the archive of the directory', {skip: (process.platform !== 'darwin' && 'made on macOS') || NO_NODE_EXECUTABLE}, async (): Promise<void> => {
         write('package.json', JSON.stringify({
             name: '@acme/reader', version: '1.2.3', description: 'Reads', main: 'build/index.js', bin: {read: 'build/index.js'},
             lakutata: {resources: [{from: 'data', to: 'texts'}], installer: {name: 'reader', appId: 'com.acme.reader', service: {env: {PORT: '18080'}, args: ['--serve']}}}
         }))
-        const result = await buildInstaller({project: project})
+        const result = await buildInstaller({project: project, ...NODE_EXECUTABLE})
         const arch: string = process.arch
         assert.deepStrictEqual(result.files.map(({target, file}): string => `${target} ${path.basename(file)}`), [`pkg reader-1.2.3-${arch}.pkg`, `tar.gz reader-1.2.3-darwin-${arch}.tar.gz`])
         //Its payload: the application in /usr/local/lib, its program in the PATH, its service
@@ -108,12 +109,12 @@ console.log(require('./words.js') + ' ' + require('node:fs').readFileSync(requir
         assert.strictEqual(execFileSync(path.join(payload, 'usr', 'local', 'lib', 'reader', 'read'), [], {cwd: tmpdir(), env: {PATH: ''}}).toString().trim(), 'read Hello')
     })
 
-    it('disables at its installation a service of macOS which does not start with the system, restarted by its upgrades when it runs', {skip: process.platform !== 'darwin' && 'made on macOS'}, async (): Promise<void> => {
+    it('disables at its installation a service of macOS which does not start with the system, restarted by its upgrades when it runs', {skip: (process.platform !== 'darwin' && 'made on macOS') || NO_NODE_EXECUTABLE}, async (): Promise<void> => {
         write('package.json', JSON.stringify({
             name: 'reader', version: '1.2.3', main: 'build/index.js',
             lakutata: {installer: {mac: {targets: ['pkg']}, service: {autoStart: false}}}
         }))
-        const result = await buildInstaller({project: project})
+        const result = await buildInstaller({project: project, ...NODE_EXECUTABLE})
         const expanded: string = path.join(project, 'expanded-manual')
         rmSync(expanded, {recursive: true, force: true})
         execFileSync('pkgutil', ['--expand-full', result.files[0].file, expanded])
@@ -155,14 +156,14 @@ console.log(require('./words.js') + ' ' + require('node:fs').readFileSync(requir
         }
     })
 
-    it('runs the scripts of the application from the package of macOS: given what it does, the directory of the application', {skip: process.platform !== 'darwin' && 'made on macOS'}, async (): Promise<void> => {
+    it('runs the scripts of the application from the package of macOS: given what it does, the directory of the application', {skip: (process.platform !== 'darwin' && 'made on macOS') || NO_NODE_EXECUTABLE}, async (): Promise<void> => {
         //Run by their interpreters, their lines as they are written
         for (const hook of ['preinstall', 'postinstall', 'preremove', 'postremove']) write(`scripts/${hook}.sh`, `#!/bin/bash\necho "${hook} $1 $LAKUTATA_INSTALL_DIR \${BASH_VERSION:+bash}" >> "$HOOKS_LOG" # it's 'quoted'\n`)
         write('package.json', JSON.stringify({
             name: 'reader', version: '1.0.0', main: 'build/index.js',
             lakutata: {installer: {mac: {scripts: {preinstall: 'scripts/preinstall.sh', postinstall: 'scripts/preinstall.sh', preremove: 'scripts/preremove.sh', postremove: 'scripts/postremove.sh'}, pkg: {scripts: {postinstall: 'scripts/postinstall.sh'}}}}}
         }))
-        const result = await buildInstaller({project: project})
+        const result = await buildInstaller({project: project, ...NODE_EXECUTABLE})
         assert.ok(result.warnings.includes('Some scripts of the application are not run by their installers: tar.gz (preinstall, postinstall, preremove, postremove)'), result.warnings.join('\n'))
         const expanded: string = path.join(project, 'expanded-scripts')
         rmSync(expanded, {recursive: true, force: true})

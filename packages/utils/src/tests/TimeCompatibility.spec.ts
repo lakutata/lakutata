@@ -104,7 +104,8 @@ describe('Time compatibility with moment', () => {
             //The time zone data of moment-timezone has no daylight saving time far in the future (the runtime data has)
             if (set.year() < 2200) check(`${label} set ${setUnit} ${value}`, set.valueOf(), compatible(mom.clone().set(setUnit, value)))
             const diffUnit = pick([...UNITS.filter((u) => u !== 'isoWeek' && u !== 'date'), undefined])
-            if (!['year', 'quarter', 'month'].includes(diffUnit) || !monthAnchorInGap(mom, moment.tz(other, zone))) {
+            //The data may disagree on the other instant too (Node.js 18.10: Africa/Casablanca)
+            if (agree(other) && (!['year', 'quarter', 'month'].includes(diffUnit) || !monthAnchorInGap(mom, moment.tz(other, zone)))) {
                 check(`${label} diff ${diffUnit}`, time.diff(other, diffUnit), mom.diff(moment.tz(other, zone), diffUnit))
                 check(`${label} diff ${diffUnit} precise`, time.diff(other, diffUnit, true), mom.diff(moment.tz(other, zone), diffUnit, true))
             }

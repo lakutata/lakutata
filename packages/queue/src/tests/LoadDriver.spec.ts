@@ -16,8 +16,11 @@ describe('The client packages of the drivers', (): void => {
         assert.strictEqual(typeof nats.connect, 'function')
         const amqplib: {connect?: unknown} = await loadDriver('connect', 'amqplib')
         assert.strictEqual(typeof amqplib.connect, 'function')
-        const kafka: {Producer?: unknown} = await loadDriver('Producer', '@platformatic/kafka')
-        assert.strictEqual(typeof kafka.Producer, 'function')
+        //@platformatic/kafka loads on Node.js 22.22 and later, as it declares
+        if (versionAtLeast(process.versions.node, '22.22.0')) {
+            const kafka: {Producer?: unknown} = await loadDriver('Producer', '@platformatic/kafka')
+            assert.strictEqual(typeof kafka.Producer, 'function')
+        }
     })
 
     it('report a package missing, told to install it, or to bundle again a bundled application', async (): Promise<void> => {

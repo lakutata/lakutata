@@ -89,13 +89,15 @@ describe('The locks', (): void => {
                     throw new Error('failed')
                 }), /failed/)
                 assert.strictEqual(await mutex.synchronized('counter', (lock: MutexLock): string => lock.name, {timeout: 0}), 'counter')
-                //await using
-                {
-                    await using lock = await mutex.acquire('scoped')
-                    assert.ok(lock.held)
-                    assert.strictEqual(await mutex.tryAcquire('scoped'), undefined)
+                //await using: Symbol.asyncDispose, Node.js 18.18, 20.4 and later
+                if (Symbol.asyncDispose) {
+                    {
+                        await using lock = await mutex.acquire('scoped')
+                        assert.ok(lock.held)
+                        assert.strictEqual(await mutex.tryAcquire('scoped'), undefined)
+                    }
+                    assert.ok(await mutex.tryAcquire('scoped'))
                 }
-                assert.ok(await mutex.tryAcquire('scoped'))
             } finally {
                 await container.destroy()
             }

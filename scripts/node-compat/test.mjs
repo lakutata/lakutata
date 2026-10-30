@@ -8,7 +8,10 @@
 // (node <file>).
 //
 // Run: node scripts/node-compat/test.mjs --node <node program> [--package core]... [--skip-file <file>]... [--log <directory>]
-// --log writes the output of each package to <directory>/<package>.log
+// --log writes the output of each package to <directory>/<package>.log. --redirect <package>=<directory> loads a package
+// from <directory>/node_modules, installed by the node program, instead of the one of the repository (built for its
+// Node.js, as better-sqlite3, or written for a newer one, as @inquirer/prompts 8). The tests making the executables of
+// Node.js take the node program of LAKUTATA_NODE_PROGRAM (Node.js 20.12 or later) on an older one, else are skipped.
 // The node program is also read from NODE_COMPAT (nvm: NODE_COMPAT=$(nvm which 18.10.0))
 
 import {spawnSync, spawn} from 'node:child_process'
@@ -27,7 +30,8 @@ const {values: args} = parseArgs({
         package: {type: 'string', multiple: true},
         'skip-file': {type: 'string', multiple: true, default: []},
         timeout: {type: 'string', default: '900'},
-        log: {type: 'string'}
+        log: {type: 'string'},
+        redirect: {type: 'string', multiple: true, default: []}
     }
 })
 if (!args.node) {
@@ -35,6 +39,18 @@ if (!args.node) {
     process.exit(2)
 }
 const NODE = path.resolve(args.node)
+
+/**
+ * The packages loaded from other directories (--redirect): the preloads of the processes of the tests
+ */
+const REDIRECTS = Object.fromEntries(args.redirect.map(redirect => {
+    const [name, directory] = [redirect.slice(0, redirect.lastIndexOf('=')), redirect.slice(redirect.lastIndexOf('=') + 1)]
+    return [name, path.resolve(directory)]
+}))
+const REDIRECT_ENV = args.redirect.length ? {
+    NODE_COMPAT_REDIRECT: JSON.stringify(REDIRECTS),
+    NODE_OPTIONS: `--require "${fileURLToPath(new URL('redirect.cjs', import.meta.url))}" --experimental-loader "${new URL('redirect-loader.mjs', import.meta.url).href}"`
+} : {}
 const VERSION = spawnSync(NODE, ['-p', 'process.version'], {encoding: 'utf8'}).stdout.trim()
 
 /**
@@ -73,9 +89,9 @@ const OPTIONS = {
  */
 const RUNNER = [
     {
-        name: 'tests declared by an awaited describe whose function awaits its tests',
+        name: 'tests declared by an awaited describe whose function awaits other work and its tests',
         pattern: /\bawait describe\(/,
-        works: passes("import {describe, it} from 'node:test'\nawait describe('suite', async () => {\n    await it('test', () => {})\n})\n")
+        works: passes("import {describe, it} from 'node:test'\nawait describe('suite', async () => {\n    await new Promise(resolve => setTimeout(resolve, 10))\n    await it('test', () => {})\n})\n")
     },
     {
         name: 'tests whose function takes the context of the test (an older runner takes it for a callback)',
@@ -139,7 +155,7 @@ function spawnNode(directory, options) {
     return new Promise(resolve => {
         //The PATH of the scripts of npm: the programs of the packages (bun) found by the tests
         const bins = [path.join(directory, 'node_modules', '.bin'), path.join(ROOT, 'node_modules', '.bin')]
-        const env = {...process.env, PATH: [...bins, process.env.PATH].join(path.delimiter)}
+        const env = {...process.env, PATH: [...bins, process.env.PATH].join(path.delimiter), ...REDIRECT_ENV}
         //A group of its own (POSIX): the processes of the test files are stopped with the runner
         const group = process.platform !== 'win32'
         const child = spawn(NODE, options, {cwd: directory, env: env, stdio: ['ignore', 'pipe', 'pipe'], detached: group})
@@ -232,6 +248,7 @@ async function run(name, directory, tests) {
 const names = args.package ?? readdirSync(PACKAGES).filter(name => !name.startsWith('template') && existsSync(path.join(PACKAGES, name, 'package.json'))).sort()
 console.log(`node-compat: the unit tests on Node.js ${VERSION} (${NODE})`)
 console.log(`  options: ${Object.entries(OPTIONS).map(([option, has]) => `${option} ${has ? 'yes' : 'no'}`).join(', ')}`)
+for (const [name, directory] of Object.entries(REDIRECTS)) console.log(`  ${name} loaded from ${directory}`)
 for (const way of RUNNER.filter(way => !way.works)) console.log(`  the test runner does not run ${way.name}`)
 if (!UNICODE) console.log('  the test runner does not read every text in the output of the files: the files with other characters than ASCII run on their own')
 const failed = []

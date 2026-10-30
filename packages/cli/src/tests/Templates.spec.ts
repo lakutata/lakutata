@@ -7,6 +7,7 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {BUILTIN_TEMPLATES, type TemplateInfo} from '../lib/TemplateCatalog.js'
+import {NO_NODE_EXECUTABLE, NODE_PROGRAM} from './support/NodeProgram.js'
 import {linkCommand, runCommand} from './support/Workspace.js'
 
 /**
@@ -161,13 +162,25 @@ const BUN: boolean = ((): boolean => {
 })()
 
 /**
+ * The files under a directory, outside its node_modules: walked without the recursive option of readdirSync and the
+ * parentPath of its entries (Node.js 18.17, 18.20)
+ * @param directory
+ */
+function filesUnder(directory: string): string[] {
+    return readdirSync(directory, {withFileTypes: true}).flatMap((entry): string[] => {
+        if (entry.isDirectory()) return entry.name === 'node_modules' ? [] : filesUnder(path.join(directory, entry.name))
+        return entry.isFile() ? [path.join(directory, entry.name)] : []
+    })
+}
+
+/**
  * Make the executable of the app package of a web application in a directory, and run it from elsewhere: the page it
  * serves (its ui, a resource of the executable)
  * @param project
  */
 async function serveFromExecutable(project: string, assets: (page: string) => string[] = (): string[] => [], options: string[] = ['--layout', 'directory']): Promise<string> {
     const outdir: string = `dist-${options.join('').replace(/\W+/g, '-')}`
-    const made = await runIn(process.execPath, [CLI, 'package', 'exe', ...options, '--outdir', outdir], path.join(project, 'packages', 'app'))
+    const made = await runIn(process.execPath, [CLI, 'package', 'exe', ...options, ...NODE_PROGRAM, '--outdir', outdir], path.join(project, 'packages', 'app'))
     assert.strictEqual(made.code, 0, made.output)
     const directory: boolean = options.includes('directory')
     assert.match(made.output, directory ? /Resources next to the executable: ui/ : /Resources embedded, extracted at the first run: ui/)
@@ -245,9 +258,8 @@ describe('The templates of the repository', (): void => {
 
     it('keeps the files the Electron templates share identical', (): void => {
         //The Electron templates differ by their renderer only
-        const files = (directory: string): string[] => readdirSync(directory, {recursive: true, withFileTypes: true})
-            .filter((entry): boolean => entry.isFile() && !entry.parentPath.includes('node_modules'))
-            .map((entry): string => path.relative(directory, path.join(entry.parentPath, entry.name)))
+        const files = (directory: string): string[] => filesUnder(directory)
+            .map((file: string): string => path.relative(directory, file))
             .filter((file: string): boolean => !file.startsWith(path.join('packages', 'ui')) && file !== 'README.md')
             .sort()
         const react: string = path.join(ROOT, 'packages', 'template-electron-react', 'template')
@@ -378,7 +390,7 @@ describe('The templates of the repository', (): void => {
         assert.strictEqual(bundled.code, 0, bundled.output)
         const bundle = await runIn(process.execPath, [path.join(project, 'dist', 'greeter.cjs'), 'greet', '--name', 'bundle'], work)
         assert.strictEqual(bundle.output.trim(), 'Hello, bundle!')
-        const made = await runIn('npm', ['run', 'package:exe'], project)
+        const made = await runIn('npm', ['run', 'package:exe', ...NODE_PROGRAM.length ? ['--', ...NODE_PROGRAM] : []], project)
         assert.strictEqual(made.code, 0, made.output)
         const executable: string = path.join(project, 'dist', process.platform === 'win32' ? 'greeter.exe' : 'greeter')
         assert.strictEqual((await runIn(executable, ['greet', '--name', 'executable', '--loud'], work)).output.trim(), 'HELLO, EXECUTABLE!')
@@ -436,7 +448,7 @@ describe('The templates of the repository', (): void => {
         assert.ok(compiled.some((file: string): boolean => /^\d+-seed-orders\.js$/.test(file)))
     })
 
-    it('creates a React web application whose workspace builds the ui then the app, which serves it', async (): Promise<void> => {
+    it('creates a React web application whose workspace builds the ui then the app, which serves it', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {
         const project: string = await create('web-react', 'Portal')
         assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'src', 'App.tsx'), 'utf8'), /\{\$APP_/)
         install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', 'vite', '@vitejs/plugin-react', 'react', 'react-dom', '@types/react', '@types/react-dom'])
@@ -458,7 +470,7 @@ describe('The templates of the repository', (): void => {
         assert.strictEqual(page, readFileSync(path.join(project, 'packages', 'ui', 'dist', 'index.html'), 'utf8'))
     })
 
-    it('creates a Next.js web application whose workspace builds the ui then the app, which renders its pages', async (): Promise<void> => {
+    it('creates a Next.js web application whose workspace builds the ui then the app, which renders its pages', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {
         const project: string = await create('web-next', 'Console')
         assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'app', 'page.tsx'), 'utf8'), /\{\$APP_/)
         install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', '@types/react', '@types/react-dom'], path.join(ROOT, 'node_modules', 'typescript'))
@@ -491,7 +503,7 @@ describe('The templates of the repository', (): void => {
             assert.ok(scripts(page).length, page)
         }
     })
-    it('creates a Vue web application whose workspace builds the ui then the app, which serves it', async (): Promise<void> => {
+    it('creates a Vue web application whose workspace builds the ui then the app, which serves it', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {
         const project: string = await create('web-vue', 'Studio')
         assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'src', 'App.vue'), 'utf8'), /\{\$APP_/)
         install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', 'vite', '@vitejs/plugin-vue', 'vue'])
@@ -512,7 +524,7 @@ describe('The templates of the repository', (): void => {
         assert.strictEqual(page, readFileSync(path.join(project, 'packages', 'ui', 'dist', 'index.html'), 'utf8'))
     })
 
-    it('creates a Nuxt web application whose workspace builds the ui then the app, which renders its pages', async (): Promise<void> => {
+    it('creates a Nuxt web application whose workspace builds the ui then the app, which renders its pages', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {
         const project: string = await create('web-nuxt', 'Board')
         assert.doesNotMatch(readFileSync(path.join(project, 'packages', 'ui', 'app', 'app.vue'), 'utf8'), /\{\$APP_/)
         install(project, ['express', 'compression', '@types/express', '@types/compression', '@types/node', 'nuxt', 'vue'])
@@ -569,9 +581,9 @@ describe('The templates of the repository', (): void => {
             const packaged = await runIn('npm', ['run', 'package:host', '--', '--target', 'dir'], project)
             assert.strictEqual(packaged.code, 0, packaged.output)
             assert.match(packaged.output, /Electron v\d+/)
-            const archive: string | undefined = readdirSync(path.join(project, 'dist', 'installer'), {recursive: true, withFileTypes: true})
-                .find((entry): boolean => entry.name === 'app.asar')?.parentPath
-            assert.ok(archive, 'app.asar')
+            const asar: string | undefined = filesUnder(path.join(project, 'dist', 'installer')).find((file: string): boolean => path.basename(file) === 'app.asar')
+            assert.ok(asar, 'app.asar')
+            const archive: string = path.dirname(asar)
             for (const file of ['preload.cjs', path.join('renderer', 'index.html'), 'logo.png']) assert.ok(existsSync(path.join(archive, 'main.resources', file)), file)
             //The icon of the application, made from the one of its resources package
             if (process.platform === 'darwin') {

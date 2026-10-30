@@ -5,6 +5,7 @@ import {cpSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync} from 
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {buildExecutable, bundleProject} from '../index.js'
+import {NODE_EXECUTABLE, NO_NODE_EXECUTABLE} from './support/NodeProgram.js'
 
 /**
  * Whether Bun is installed
@@ -88,7 +89,7 @@ exports.load = async (name) => {
         assert.strictEqual(runWithoutPackages(project, result.outfile), 'fakepg bundled | missing MODULE_NOT_FOUND')
     })
 
-    it('loads the external modules of an executable from a node_modules next to it, whatever its runtime and its layout', async (): Promise<void> => {
+    it('loads the external modules of an executable from a node_modules next to it, whatever its runtime and its layout', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {
         //Without native tree, and with one (a file the application reads by its path)
         const sources: Record<string, string> = {
             'external': 'console.log(require(\'extdemo\') + \' \' + require(\'node:path\').basename(\'/a/b\'))\n',
@@ -105,7 +106,7 @@ exports.load = async (name) => {
             })
             for (const runtime of hasBun() ? ['node', 'bun'] as const : ['node'] as const) {
                 for (const layout of ['file', 'directory'] as const) {
-                    const result = await buildExecutable({project: project, outdir: path.join(project, `executable-${runtime}-${layout}`), runtime: runtime, layout: layout, external: ['extdemo']})
+                    const result = await buildExecutable({project: project, outdir: path.join(project, `executable-${runtime}-${layout}`), runtime: runtime, layout: layout, external: ['extdemo'], ...runtime === 'node' ? NODE_EXECUTABLE : {}})
                     //The module given next to the executable
                     cpSync(path.join(project, 'node_modules'), path.join(path.dirname(result.file), 'node_modules'), {recursive: true})
                     const printed: string = execFileSync(result.file, [], {cwd: tmpdir(), env: {PATH: '', LAKUTATA_NATIVE_DIR: path.join(work, `${name}-cache`)}, timeout: 60000}).toString().trim()

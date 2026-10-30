@@ -6,6 +6,7 @@ import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {buildExecutable, bundleProject} from '../index.js'
+import {NODE_EXECUTABLE, NO_NODE_EXECUTABLE} from './support/NodeProgram.js'
 
 /**
  * Write the files of a project
@@ -261,9 +262,9 @@ main()
         ].join('\n'))
     })
 
-    it('runs the scripts of an executable started for them (fork()) instead of the application, in the executables of Node.js', async (): Promise<void> => {
+    it('runs the scripts of an executable started for them (fork()) instead of the application, in the executables of Node.js', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {
         const project: string = path.join(work, 'anywhere')
-        const result = await buildExecutable({project: project, outdir: path.join(project, 'executable')})
+        const result = await buildExecutable({project: project, outdir: path.join(project, 'executable'), ...NODE_EXECUTABLE})
         assert.strictEqual(execFileSync(result.file, [], {cwd: tmpdir(), env: {PATH: '', LAKUTATA_NATIVE_DIR: path.join(work, 'anywhere-node')}, timeout: 60000}).toString().trim(), [
             'piscina 4', 'workerpool 6', 'tinypool 6', 'property 50', 'assigned legacy', 'fork child', 'require plugin'
         ].join('\n'))
@@ -278,16 +279,16 @@ main()
     })
 
     for (const runtime of ['node', 'bun'] as const) {
-        it(`runs the scripts of an executable started for them (fork()) instead of the application, in the directory layout of the installers, with ${runtime}`, {skip: runtime === 'bun' && !hasBun() && 'Bun is not installed'}, async (): Promise<void> => {
+        it(`runs the scripts of an executable started for them (fork()) instead of the application, in the directory layout of the installers, with ${runtime}`, {skip: (runtime === 'bun' && !hasBun() && 'Bun is not installed') || (runtime === 'node' && NO_NODE_EXECUTABLE)}, async (): Promise<void> => {
             const project: string = path.join(work, 'anywhere')
-            const result = await buildExecutable({project: project, outdir: path.join(project, `executable-directory-${runtime}`), runtime: runtime, layout: 'directory'})
+            const result = await buildExecutable({project: project, outdir: path.join(project, `executable-directory-${runtime}`), runtime: runtime, layout: 'directory', ...runtime === 'node' ? NODE_EXECUTABLE : {}})
             assert.strictEqual(execFileSync(result.file, [], {cwd: tmpdir(), env: {PATH: ''}, timeout: 60000}).toString().trim(), [
                 'piscina 4', runtime === 'bun' ? 'workerpool skipped' : 'workerpool 6', 'tinypool 6', 'property 50', 'assigned legacy', 'fork child', 'require plugin'
             ].join('\n'))
         })
     }
 
-    it('copies the files and the directories of data the application reads by their paths, warns of the ones it cannot ship', async (): Promise<void> => {
+    it('copies the files and the directories of data the application reads by their paths, warns of the ones it cannot ship', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {
         const project: string = path.join(work, 'resources')
         //The module reading them is deeper than the bundle (build/config, dist): their paths from it are not the same
         writeProject(project, {
@@ -323,7 +324,7 @@ console.log([fs.readdirSync(schemas).sort().join(','), deep, defaults.mode, mess
         assert.match(result.warnings[1], /directory of scripts or of packages/)
         const expected: string = ['core.schema,extra.schema,nested', 'deep', 'default', 'Hello', '你好', 'logs'].join('\n')
         assert.strictEqual(runWithout(project, result.outfile, ['build', 'schema', 'locales', 'plugins']), expected)
-        const executable = await buildExecutable({project: project, outdir: path.join(project, 'executable')})
+        const executable = await buildExecutable({project: project, outdir: path.join(project, 'executable'), ...NODE_EXECUTABLE})
         assert.deepStrictEqual(executable.files, result.files)
         assert.strictEqual(execFileSync(executable.file, [], {cwd: tmpdir(), env: {PATH: '', LAKUTATA_NATIVE_DIR: path.join(work, 'resources-node')}, timeout: 60000}).toString().trim(), expected)
     })
@@ -375,8 +376,8 @@ require('pool').run(file)
         assert.match(result.warnings[2], /is not found/)
     })
 
-    it('embeds the scripts of the workers in the executables of Node.js, extracted at their first run', async (): Promise<void> => {
-        const result = await buildExecutable({project: common, outdir: path.join(common, 'executable')})
+    it('embeds the scripts of the workers in the executables of Node.js, extracted at their first run', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {
+        const result = await buildExecutable({project: common, outdir: path.join(common, 'executable'), ...NODE_EXECUTABLE})
         assert.deepStrictEqual(result.workers.length, 7)
         const cache: string = path.join(work, 'cache-node')
         assert.strictEqual(execFileSync(result.file, [], {cwd: tmpdir(), env: {PATH: '', LAKUTATA_NATIVE_DIR: cache}}).toString().trim(), EXPECTED)

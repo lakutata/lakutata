@@ -148,6 +148,11 @@ const VALUES: Record<string, unknown> = {
     unicode: '中文😀'
 }
 
+/**
+ * The stores tested: all of them with CACHE_TEST_STORES=1, or the ones it names (CACHE_TEST_STORES=sqlite,redis)
+ */
+const SELECTED: string[] | undefined = process.env.CACHE_TEST_STORES && process.env.CACHE_TEST_STORES !== '1' ? process.env.CACHE_TEST_STORES.split(',') : undefined
+
 describe('Cache stores', {skip: !process.env.CACHE_TEST_STORES && 'set CACHE_TEST_STORES=1 with the backends of docker-compose.test.yml'}, (): void => {
 
     before(async (): Promise<void> => {
@@ -158,7 +163,7 @@ describe('Cache stores', {skip: !process.env.CACHE_TEST_STORES && 'set CACHE_TES
         await rm(directory, {recursive: true, force: true})
     })
 
-    for (const [name, store] of Object.entries(CASES)) {
+    for (const [name, store] of Object.entries(CASES).filter(([name]): boolean => !SELECTED || SELECTED.includes(name))) {
         describe(name, (): void => {
 
             it('stores the values', async (): Promise<void> => {

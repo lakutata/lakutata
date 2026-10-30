@@ -5,6 +5,7 @@ import {cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, r
 import {networkInterfaces, tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
+import {NO_NODE_EXECUTABLE, NODE_PROGRAM} from './support/NodeProgram.js'
 
 /**
  * The root of the repository
@@ -191,8 +192,8 @@ Application.run({
         assert.strictEqual((await runCommand(process.execPath, ['build/App.js', 'resource'])).output.trim(), 'unpackaged')
     })
 
-    it('makes the executable of this platform, which runs without Node.js', async (): Promise<void> => {
-        const made = await runCommand(process.execPath, [CLI, 'package', 'exe', '--outdir', 'bin', ...WITHOUT_NETIF])
+    it('makes the executable of this platform, which runs without Node.js', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {
+        const made = await runCommand(process.execPath, [CLI, 'package', 'exe', '--outdir', 'bin', ...NODE_PROGRAM, ...WITHOUT_NETIF])
         assert.strictEqual(made.code, 0, made.output)
         const executable: string = path.join(project, 'bin', process.platform === 'win32' ? 'greet.exe' : 'greet')
         assert.ok(existsSync(executable), made.output)
@@ -229,8 +230,8 @@ Application.run({
         assert.strictEqual((await runCommand(executable, ['mode'], {PATH: '', MODE: undefined, NODE_ENV: undefined}, path.join(project, 'bun'))).output.trim(), 'development development')
     })
 
-    it('makes the executable in a directory, its resources next to it', async (): Promise<void> => {
-        const made = await runCommand(process.execPath, [CLI, 'package', 'exe', '--layout', 'directory', '--outdir', 'layouts', ...WITHOUT_NETIF])
+    it('makes the executable in a directory, its resources next to it', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {
+        const made = await runCommand(process.execPath, [CLI, 'package', 'exe', '--layout', 'directory', '--outdir', 'layouts', ...NODE_PROGRAM, ...WITHOUT_NETIF])
         assert.strictEqual(made.code, 0, made.output)
         assert.match(made.output, /Resources next to the executable: texts/)
         const directory: string = path.join(project, 'layouts', 'greet')
@@ -243,8 +244,8 @@ Application.run({
         assert.ok(!existsSync(cache))
     })
 
-    it('makes the installers of macOS on macOS', {skip: process.platform !== 'darwin' && 'the installers of Linux are tested in containers (the Docker tests of the builder)'}, async (): Promise<void> => {
-        const made = await runCommand(process.execPath, [CLI, 'package', 'installer', '--outdir', 'installers', ...WITHOUT_NETIF])
+    it('makes the installers of macOS on macOS', {skip: (process.platform !== 'darwin' && 'the installers of Linux are tested in containers (the Docker tests of the builder)') || NO_NODE_EXECUTABLE}, async (): Promise<void> => {
+        const made = await runCommand(process.execPath, [CLI, 'package', 'installer', '--outdir', 'installers', ...NODE_PROGRAM, ...WITHOUT_NETIF])
         assert.strictEqual(made.code, 0, made.output)
         assert.deepStrictEqual(readdirSync(path.join(project, 'installers')).sort(), [`greet-1.0.0-${process.arch}.pkg`, `greet-1.0.0-darwin-${process.arch}.tar.gz`])
         assert.match(made.output, /Resources: texts/)
@@ -360,8 +361,8 @@ void main()
         }
     })
 
-    it('makes an executable which listens on the interface without Node.js', async (): Promise<void> => {
-        const made = await runPinger(process.execPath, [CLI, 'package', 'exe', '--outdir', 'bin'])
+    it('makes an executable which listens on the interface without Node.js', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {
+        const made = await runPinger(process.execPath, [CLI, 'package', 'exe', '--outdir', 'bin', ...NODE_PROGRAM])
         assert.strictEqual(made.code, 0, made.output)
         const ran = await runPinger(path.join(pinger, 'bin', `ping${EXE}`), [], {PATH: '', LAKUTATA_NATIVE_DIR: path.join(pinger, 'extracted')})
         assert.strictEqual(ran.output.trim(), 'pong')
@@ -613,8 +614,8 @@ void (async () => {
         assert.match((await runNative(process.execPath, [path.join(moved, 'slim.cjs')], {}, moved)).output.trim(), expected)
     })
 
-    it('makes an executable which extracts its native packages once into its cache directory', async (): Promise<void> => {
-        const made = await runNative(process.execPath, [CLI, 'package', 'exe', '--outdir', 'bin'])
+    it('makes an executable which extracts its native packages once into its cache directory', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {
+        const made = await runNative(process.execPath, [CLI, 'package', 'exe', '--outdir', 'bin', ...NODE_PROGRAM])
         assert.strictEqual(made.code, 0, made.output)
         assert.doesNotMatch(made.output, /V8 API/)
         assert.match(made.output, /Native addons embedded, extracted at the first run: better-sqlite3, cpu-info, native-sub, sharp/)
@@ -651,8 +652,8 @@ void (async () => {
     })
 
     for (const runtime of ['node', 'bun'] as const) {
-        it(`makes the executable of ${runtime} in a directory, which loads its native packages next to it`, {skip: runtime === 'bun' && !BUN && 'Bun is not installed'}, async (): Promise<void> => {
-            const made = await runNative(process.execPath, [CLI, 'package', 'exe', '--runtime', runtime, '--layout', 'directory', '--outdir', `layout-${runtime}`])
+        it(`makes the executable of ${runtime} in a directory, which loads its native packages next to it`, {skip: (runtime === 'bun' && !BUN && 'Bun is not installed') || (runtime === 'node' && NO_NODE_EXECUTABLE)}, async (): Promise<void> => {
+            const made = await runNative(process.execPath, [CLI, 'package', 'exe', '--runtime', runtime, '--layout', 'directory', '--outdir', `layout-${runtime}`, ...runtime === 'node' ? NODE_PROGRAM : []])
             assert.strictEqual(made.code, 0, made.output)
             assert.match(made.output, /Native addons next to the executable: better-sqlite3, cpu-info, native-sub, sharp/)
             const directory: string = path.join(native, `layout-${runtime}`, 'natapp')

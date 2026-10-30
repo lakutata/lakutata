@@ -142,6 +142,17 @@ Node.js 22.13 or later.
   `node scripts/node-compat/refresh.mjs` compares the list with a newer documentation.
 - `npm run test:node-compat` runs the built unit tests (`npm run build` first) with another node program:
   `NODE_COMPAT=$(nvm which 18.10.0) npm run test:node-compat`, and the same with 18.20.4 and 19.3.0.
+- On such a node program, the tests that make the executables of Node.js use the node program `LAKUTATA_NODE_PROGRAM`
+  names (Node.js 20.12 or later), and are skipped without it. A package built for the Node.js of the repository
+  (better-sqlite3) or written for a newer one (@inquirer/prompts 8) is loaded from a directory where the older Node.js
+  installed it, with `--redirect <package>=<directory>`. Node.js 18.10 and 18.20 share one installation of
+  better-sqlite3; 19.3 needs its own. The cli already depends on @inquirer/prompts 7:
+
+  ```bash
+  # better-sqlite3 11 installed by the npm of Node.js 18.20 in a directory of your choice (here ../bs11)
+  LAKUTATA_NODE_PROGRAM=$(nvm which 24) NODE_COMPAT=$(nvm which 18.20.4) npm run test:node-compat -- \
+      --redirect better-sqlite3=../bs11 --redirect @inquirer/prompts=packages/cli
+  ```
 
 ## The source of TypeORM
 

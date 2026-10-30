@@ -97,14 +97,14 @@ for (const suiteEra of ['legacy', 'auto'] as const) describe(`HTTP MCP adapter (
 
     it('answers where the fetch of Node.js has no Headers.getSetCookie (Node.js 18.10)', async (): Promise<void> => {
         const {url, container} = await start()
-        const descriptor: PropertyDescriptor = Object.getOwnPropertyDescriptor(Headers.prototype, 'getSetCookie')!
+        const descriptor: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(Headers.prototype, 'getSetCookie')
         Reflect.deleteProperty(Headers.prototype, 'getSetCookie')
         try {
             const client: Client = await connect(url)
             assert.ok((await client.listTools()).tools.length > 0)
             await client.close()
         } finally {
-            Object.defineProperty(Headers.prototype, 'getSetCookie', descriptor)
+            if (descriptor) Object.defineProperty(Headers.prototype, 'getSetCookie', descriptor)
             await container.destroy()
         }
     })

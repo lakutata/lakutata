@@ -1,20 +1,24 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {Writable} from 'node:stream'
-import {pino, Logger as PinoLogger} from 'pino'
-import {prettyFactory} from 'pino-pretty'
+import {type Logger as PinoLogger, type pino as Pino} from 'pino'
+import {type prettyFactory as PrettyFactory} from 'pino-pretty'
 import {logBindings, buildRecord} from '../lib/Record.js'
 import {pretty} from '../lib/Pretty.js'
 import {COLOR_PALETTE, PLAIN_PALETTE} from '../lib/Colors.js'
 
-//The logger of 2.x (pino + pino-pretty) is the reference of the log format
+//The logger of 2.x (pino + pino-pretty) is the reference of the log format: pino 10 loads on Node.js 18.19, 19.9 and later
+//(diagnostics_channel.tracingChannel), the tests are skipped on the older ones
+const REFERENCE: { pino: typeof Pino, prettyFactory: typeof PrettyFactory } | undefined = await Promise.all([import('pino'), import('pino-pretty')])
+    .then(([pinoModule, prettyModule]) => ({pino: pinoModule.pino, prettyFactory: prettyModule.prettyFactory}), (): undefined => undefined)
+
 const NAME: string = 'Compat'
 
 const LEVELS: [string, number][] = [['trace', 10], ['debug', 20], ['info', 30], ['warn', 40], ['error', 50]]
 
 let written: string = ''
 
-const reference: PinoLogger = pino({level: 'trace', name: NAME}, new Writable({
+const reference: PinoLogger | undefined = REFERENCE?.pino({level: 'trace', name: NAME}, new Writable({
     write(chunk: Buffer, encoding: BufferEncoding, callback: () => void): void {
         written += chunk.toString()
         callback()
@@ -23,9 +27,9 @@ const reference: PinoLogger = pino({level: 'trace', name: NAME}, new Writable({
 
 const FAILURES_OF_2X: string[] = ['serializers[key] is not a function', 'Cannot convert undefined or null to object']
 
-const prettyColored: (line: string) => string = prettyFactory({colorize: true})
+const prettyColored: ((line: string) => string) | undefined = REFERENCE?.prettyFactory({colorize: true})
 
-const prettyPlain: (line: string) => string = prettyFactory({colorize: false})
+const prettyPlain: ((line: string) => string) | undefined = REFERENCE?.prettyFactory({colorize: false})
 
 /**
  * The JSON line of the reference logger
@@ -96,7 +100,7 @@ function compare(args: unknown[], label: string): void {
         const line: string = expected.slice(0, -1)
         let colored: string
         try {
-            colored = prettyColored(line)
+            colored = prettyColored!(line)
         } catch {
             //The reference fails on some logs (a level which is not a number or a string), the logger does not
             assert.strictEqual(typeof pretty(line, COLOR_PALETTE), 'string')
@@ -109,7 +113,7 @@ function compare(args: unknown[], label: string): void {
             parsed.time = JSON.parse(line).time
             assert.strictEqual(pretty(line, COLOR_PALETTE, parsed), colored, `parsed ${label}`)
         }
-        assert.strictEqual(pretty(line, PLAIN_PALETTE), prettyPlain(line), `plain ${label}`)
+        assert.strictEqual(pretty(line, PLAIN_PALETTE), prettyPlain!(line), `plain ${label}`)
     }
 }
 
@@ -123,7 +127,7 @@ function seededRandom(seed: number): () => number {
     }
 }
 
-describe('Logger compatibility with 2.x', (): void => {
+describe('Logger compatibility with 2.x', {skip: !REFERENCE && 'pino 10 loads on Node.js 18.19, 19.9 and later'}, (): void => {
 
     it('formats the messages', (): void => {
         const cases: unknown[][] = [
