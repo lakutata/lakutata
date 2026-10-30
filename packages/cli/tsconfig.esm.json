@@ -8,6 +8,10 @@
     "declarationDir": "dist/types",
     "declarationMap": false
   },
+  "include": [
+    "src/**/*",
+    "src/locales/*.json"
+  ],
   "exclude": [
     "node_modules",
     "scripts",

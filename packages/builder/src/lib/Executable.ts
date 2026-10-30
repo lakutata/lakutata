@@ -142,6 +142,7 @@ async function writeIcon(work: string, icon: Buffer): Promise<string> {
  */
 async function nodeOfExecutable(program?: string): Promise<{ path: string, version: string }> {
     const node: string = program ? path.resolve(program) : process.execPath
+    //node-compat: node:sea (the probe, run by the node program, loads it in a try)
     const probe: { code: number, output: string } = await runCommand(node, ['-e', "let assets=false;try{assets=typeof require('node:sea').getAsset==='function'}catch{}process.stdout.write(process.version+' '+assets)"], process.cwd()).catch((error: Error): { code: number, output: string } => ({code: 1, output: error.message}))
     const [version, assets] = probe.output.trim().split(' ')
     if (probe.code !== 0 || !/^v\d+\.\d+\.\d+$/.test(version)) throw new Error(`${node} cannot be run as the node program of the executable: ${probe.output.trim()}`)

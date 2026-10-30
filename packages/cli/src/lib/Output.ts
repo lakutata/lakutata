@@ -1,6 +1,11 @@
-import {styleText} from 'node:util'
+import util from 'node:util'
 
-type Style = Parameters<typeof styleText>[0]
+/**
+ * The styles of the output, and their codes of the terminals (where util.styleText is missing: before Node.js 20.12)
+ */
+const STYLES = {bold: [1, 22], red: [31, 39], green: [32, 39], yellow: [33, 39], blue: [34, 39], magenta: [35, 39], cyan: [36, 39]} as const
+
+type Style = keyof typeof STYLES
 
 /**
  * A text in a style, when the output is a terminal
@@ -8,7 +13,10 @@ type Style = Parameters<typeof styleText>[0]
  * @param text
  */
 export function styled(style: Style, text: string): string {
-    return process.stdout.isTTY && !process.env.NO_COLOR ? styleText(style, text) : text
+    if (!process.stdout.isTTY || process.env.NO_COLOR) return text
+    //node-compat: util.styleText
+    if (typeof util.styleText === 'function') return util.styleText(style, text)
+    return `\u001b[${STYLES[style][0]}m${text}\u001b[${STYLES[style][1]}m`
 }
 
 /**

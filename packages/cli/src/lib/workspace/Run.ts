@@ -90,7 +90,8 @@ export async function runScript(workspace: Workspace, script: string, options: R
         for (const name of dependencies) if (workspace.transitiveDependencies(workspace.get(name)!).has(pkg.name) && name > pkg.name) dependencies.delete(name)
         return [pkg.name, dependencies]
     }))
-    const concurrency: number = options.parallel ? Math.max(1, selected.length) : Math.max(1, options.concurrency ?? os.availableParallelism())
+    //node-compat: os.availableParallelism
+    const concurrency: number = options.parallel ? Math.max(1, selected.length) : Math.max(1, options.concurrency ?? (typeof os.availableParallelism === 'function' ? os.availableParallelism() : os.cpus().length))
     const width: number = Math.max(0, ...selected.map((pkg: WorkspacePackage): number => pkg.name.length))
     const done: Set<string> = new Set()
     //The packages depending on a failed package, not run

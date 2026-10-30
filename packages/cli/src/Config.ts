@@ -1,9 +1,8 @@
+import {readFileSync} from 'node:fs'
 import type {ApplicationOptions} from 'lakutata'
 import {buildEntrypoints} from 'lakutata/com/entrypoint'
 import {commanderCLIEntrypoint} from 'lakutata/adapter/commander'
-import {buildI18nOptions, commanderTranslator} from 'lakutata/com/i18n'
-import zhCN from './locales/zh-CN.json' with {type: 'json'}
-import zhTW from './locales/zh-TW.json' with {type: 'json'}
+import {buildI18nOptions, commanderTranslator, type NestedMessages} from 'lakutata/com/i18n'
 import {CommandLineController} from './controllers/CommandLineController.js'
 import {WorkspaceController} from './controllers/WorkspaceController.js'
 import {PackController} from './controllers/PackController.js'
@@ -30,7 +29,16 @@ export const COMMAND_GROUPS: Record<string, string> = {
     ffi: 'Generate the classes of the native libraries of @lakutata/ffi from their C headers'
 }
 
-export const MESSAGES = {'zh-CN': zhCN, 'zh-TW': zhTW}
+/**
+ * The messages of a language, read from its file of the locales (an import of JSON needs the import attributes, which
+ * Node.js 18.10 does not read)
+ * @param language
+ */
+function messagesOf(language: string): NestedMessages {
+    return JSON.parse(readFileSync(new URL(`./locales/${language}.json`, import.meta.url), 'utf8'))
+}
+
+export const MESSAGES: Record<string, NestedMessages> = {'zh-CN': messagesOf('zh-CN'), 'zh-TW': messagesOf('zh-TW')}
 
 /**
  * The application of the tool
