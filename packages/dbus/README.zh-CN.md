@@ -11,7 +11,7 @@ npm install lakutata @lakutata/dbus
 ```
 
 - 需要一个 D-Bus 守护进程，Linux 上一般都有：系统总线（`/var/run/dbus/system_bus_socket`）、桌面会话的会话总线（`DBUS_SESSION_BUS_ADDRESS`），或者私有的 `dbus-daemon`。要在系统总线上持有名称，需要总线策略允许（`/etc/dbus-1/system.d/` 中的一个文件）。
-- 需要 Node.js `^22.13.0 || >=24.11.0`。它的 peer 依赖 `@lakutata/core` 和 `@lakutata/entrypoint` 会随 `lakutata` 一起安装。
+- 需要 Node.js `>=18.10.0`。它的 peer 依赖 `@lakutata/core` 和 `@lakutata/entrypoint` 会随 `lakutata` 一起安装。
 
 ## 用法
 

@@ -224,10 +224,10 @@ export class Telemetry extends Component {
 ```
 
 An `http:` or `https:` URL uses Socket.IO (install `socket.io-client`), a `ws:` or `wss:` URL uses JSON-RPC over the
-`WebSocket` of Node.js 22 and Bun. Its options: `url`, `id` (a random UUID by default), `path` (of Socket.IO), `auth`
-(more fields of the Socket.IO handshake, a token), `timeout`, and the options of its connections (`iceTransportPolicy`,
-`icePortRange`, `iceAdditionalHostAddresses`, `codecs`, `threads`). It is `@Transient`: each `getObject()` gives a new
-client, and `close()` leaves its rooms and disconnects.
+global `WebSocket` of Node.js 22 and Bun, else over the `WebSocket` of the package `ws` (install `ws`). Its options: `url`, `id`
+(a random UUID by default), `path` (of Socket.IO), `auth` (more fields of the Socket.IO handshake, a token), `timeout`,
+and the options of its connections (`iceTransportPolicy`, `icePortRange`, `iceAdditionalHostAddresses`, `codecs`,
+`threads`). It is `@Transient`: each `getObject()` gives a new client, and `close()` leaves its rooms and disconnects.
 
 ### Calling the actions of an application
 
@@ -370,6 +370,9 @@ in the main thread: the code using it is the same. Its methods are carried to th
 its states are the ones the thread last reported, with its events and with the reply to each method. The packets of the
 tracks it receives come to the main thread while they are read or sent on, and the packets of the tracks it sends go to
 the thread.
+
+Not on Node.js 18 and 19: on Node.js 18 a worker thread receiving the datagrams of its connections can end the process
+(a fatal error of Node.js), and Node.js 19 is not known to be free of it.
 
 ```typescript
 import {Application} from 'lakutata'

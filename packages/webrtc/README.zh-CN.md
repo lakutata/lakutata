@@ -15,7 +15,7 @@
 npm install @lakutata/webrtc
 ```
 
-应用还需要 `lakutata`（或者 `@lakutata/core` 和 `@lakutata/entrypoint`）。信令通过 entrypoint 的适配器提供，走 Socket.IO（`npm install socket.io`）或 WebSocket 上的 JSON-RPC（`npm install ws`）。应用作为成员通过 Socket.IO 加入房间时需要 `socket.io-client`；通过 JSON-RPC 加入时，使用 Node.js 22 和 Bun 自带的 `WebSocket`。多个实例协同工作时需要 `nats` 或 `ioredis`。
+应用还需要 `lakutata`（或者 `@lakutata/core` 和 `@lakutata/entrypoint`）。信令通过 entrypoint 的适配器提供，走 Socket.IO（`npm install socket.io`）或 WebSocket 上的 JSON-RPC（`npm install ws`）。应用作为成员通过 Socket.IO 加入房间时需要 `socket.io-client`；通过 JSON-RPC 加入时，使用 Node.js 22 和 Bun 自带的 `WebSocket`，没有时使用 `ws` 的 `WebSocket`（Node.js 18 到 21）。多个实例协同工作时需要 `nats` 或 `ioredis`。
 
 前端安装同一个包，引用 `@lakutata/webrtc/client`；框架不会随之安装。
 

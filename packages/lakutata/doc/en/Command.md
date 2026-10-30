@@ -13,8 +13,7 @@ npm install --global @lakutata/cli         # or once for the machine, then: laku
 ```
 
 The templates add `@lakutata/cli` to the `devDependencies` of the project, so its scripts call `lakutata` directly and
-`npx lakutata` works inside it. The tool needs Node.js `^22.13.0 || >=24.11.0`: 22.13 or a later 22.x, or 24.11 and
-later (not 23).
+`npx lakutata` works inside it. The tool needs Node.js 18.10 or later (`>=18.10.0`).
 
 - `lakutata --help` lists the commands, `lakutata help <command>` (or `lakutata <command> --help`) describes one, and
   `lakutata --version` prints the version of the tool. Without a command, the tool prints its help and exits with code

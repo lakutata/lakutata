@@ -29,7 +29,7 @@ npx @lakutata/cli create --name my-app   # 用模板创建新项目（Web、服�
 npm install lakutata                      # 或者在已有项目中安装框架
 ```
 
-框架需要 Node.js `^22.13.0 || >=24.11.0`：22.13 或更高的 22.x 版本，或者 24.11 及以上（不支持 23）。项目使用 ES 模块（`"type": "module"`），模板也是如此；这个包也提供 CommonJS 版本。框架需要的 TypeScript 选项发布为 `lakutata/tsconfig.json`：
+框架需要 Node.js 18.10 或更高版本（`>=18.10.0`），少数功能需要较新的版本（见快速开始）。项目使用 ES 模块（`"type": "module"`），模板也是如此；这个包也提供 CommonJS 版本。框架需要的 TypeScript 选项发布为 `lakutata/tsconfig.json`：
 
 ```json
 {

@@ -10,7 +10,7 @@ lakutata 框架的 gRPC 实现，用 TypeScript 基于 Node.js 的 HTTP/2 模块
 npm install @lakutata/grpc
 ```
 
-客户端、服务端和编解码器不需要其他包（Node.js `^22.13.0 || >=24.11.0`）。服务入口和服务代理运行在 lakutata 应用中，所以需要 `lakutata` 包，它提供了这个包的 peer 依赖 `@lakutata/core` 和 `@lakutata/entrypoint`（其他用法不需要这两个包）。
+客户端、服务端和编解码器不需要其他包（Node.js `>=18.10.0`）。服务入口和服务代理运行在 lakutata 应用中，所以需要 `lakutata` 包，它提供了这个包的 peer 依赖 `@lakutata/core` 和 `@lakutata/entrypoint`（其他用法不需要这两个包）。
 
 ```shell
 npm install lakutata @lakutata/grpc

@@ -17,15 +17,15 @@ It is for the projects that depend on the package `lakutata` at version 2. A pro
 | Exported functions | PascalCase: `BuildEntrypoints`, `BuildDatabaseOptions`, `MD5` | camelCase: `buildEntrypoints`, `buildDatabaseOptions`, `md5` |
 | Transports | Written by hand: `BuildHTTPEntrypoint((module, routeMap, handler, registerDestroy) => …)` | Adapters: `expressHTTPEntrypoint()` from `lakutata/adapter/express`… |
 | Subpaths of 3.x only | | `lakutata/utils`, `lakutata/security`, `lakutata/adapter/*`, `lakutata/com/{containerd,mutex,queue,i18n}` |
-| Node.js | `>=20` | `^22.13.0 \|\| >=24.11.0` |
+| Node.js | `>=20` | `>=18.10.0` |
 
 `npx @lakutata/cli info` prints the versions of the tool, of the framework and of Node.js, and the `lakutata` version
 that the project declares and the one installed. There is no upgrade command: the steps below are done by hand.
 
 ## 2. The steps
 
-- **Node.js** `^22.13.0 || >=24.11.0` (22.13 or a later 22.x, or 24.11 and later; not 23). Update `engines`, the CI
-  matrix and the base images of the Dockerfiles.
+- **Node.js** `>=18.10.0` (3.0 to 3.1 needed `^22.13.0 || >=24.11.0`). The versions 2.x needs (`>=20`) are among them:
+  `engines`, the CI matrix and the Dockerfiles can stay.
 - **A TypeScript that knows `"module": "Node20"`** (the templates use TypeScript 6): `lakutata/tsconfig.json` now sets
   it (2.x: `Node16`), and older compilers reject it.
 - **`package.json`**: `"type": "module"`, `lakutata` `^3.0.0`, the `@lakutata/*` packages at `^3.0.0` too, and
@@ -281,7 +281,7 @@ Application
 ## 6. Checking the upgrade
 
 ```bash
-node --version                      # ^22.13.0 || >=24.11.0
+node --version                      # >=18.10.0
 npm ls lakutata @lakutata/core      # one version of each
 npm run build                       # tsc without errors: no 2.x import left
 grep -rnE "process\.on\('SIG|\|\| ''|(startup|launched|beforeDestroy|acceptsOption)\(|AccessDenyException|=== 500" src

@@ -101,6 +101,7 @@ HTTP/1.1 400 Bad Request
 |---|---|---|
 | 适配器 | `lakutata/adapter/express` 中的 `expressHTTPEntrypoint()` | `lakutata/adapter/fastify` 中的 `fastifyHTTPEntrypoint()` |
 | 需要安装 | `express`（4 或 5） | `fastify`（5） |
+| Node.js | 18.10 起 | 18.19、19.9、20 起（Fastify 5 需要 `diagnostics_channel.tracingChannel`） |
 
 `expressHTTPEntrypoint()` 的选项：
 

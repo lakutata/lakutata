@@ -13,7 +13,7 @@ npm install lakutata          # 框架
 npm install @lakutata/core    # 或者只安装核心
 ```
 
-这个包需要 Node.js `^22.13.0 || >=24.11.0`。项目使用 ES 模块（`"type": "module"`）；包里也带有 CommonJS 构建。装饰器需要以下 TypeScript 选项：
+这个包需要 Node.js 18.10 或更高版本（`>=18.10.0`）。项目使用 ES 模块（`"type": "module"`）；包里也带有 CommonJS 构建。装饰器需要以下 TypeScript 选项：
 
 ```json
 {

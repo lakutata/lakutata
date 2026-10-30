@@ -26,7 +26,7 @@ npm run dev
 curl 'http://localhost:8080/example?name=you'     # {"message":"Hello, you!"}
 ```
 
-Lakutata 需要 Node.js `^22.13.0 || >=24.11.0`。`lakutata create` 的模板可以生成 Web 服务、命令行工具、带 React、Vue、Next.js 或 Nuxt 界面的 HTTP API，或者 Electron 应用。手写的应用是这样的：
+Lakutata 需要 Node.js 18.10 或更高版本（`>=18.10.0`）。`lakutata create` 的模板可以生成 Web 服务、命令行工具、带 React、Vue、Next.js 或 Nuxt 界面的 HTTP API，或者 Electron 应用。手写的应用是这样的：
 
 ```typescript
 import {Application, DTO} from 'lakutata'

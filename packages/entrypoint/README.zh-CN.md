@@ -17,7 +17,7 @@ npm install lakutata
 | 传输方式 | 子路径 | 需要安装 |
 |---|---|---|
 | 基于 Express 4/5 的 HTTP | `lakutata/adapter/express` | `express` |
-| 基于 Fastify 5 的 HTTP | `lakutata/adapter/fastify` | `fastify` |
+| 基于 Fastify 5 的 HTTP（Node.js 18.19、19.9、20 或更高版本） | `lakutata/adapter/fastify` | `fastify` |
 | 基于 Commander 的命令行 | `lakutata/adapter/commander` | `commander`（提示输入还需要 `@inquirer/prompts`） |
 | 基于 Socket.IO 的服务调用 | `lakutata/adapter/socket.io` | `socket.io` |
 | 基于 JSON-RPC 2.0 的服务调用（HTTP、WebSocket、stdio） | `lakutata/adapter/jsonrpc` | 使用 WebSocket 时需要 `ws` |

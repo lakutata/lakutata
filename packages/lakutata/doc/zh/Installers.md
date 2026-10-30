@@ -16,7 +16,7 @@ npx lakutata package installer --target pkg     # 只制作其中几种
 ✔ dist/installer/greet-1.0.0-arm64.pkg (pkg, 36.0 MB)
 ```
 
-安装包里是目录布局的可执行文件（`lakutata package exe --layout directory`）：程序本身、它的原生插件（`native/`）和资源（`resources/`）。程序用 Node.js 制作；`lakutata.installer.runtime` 为 `"bun"` 时用 Bun 制作。
+安装包里是目录布局的可执行文件（`lakutata package exe --layout directory`）：程序本身、它的原生插件（`native/`）和资源（`resources/`）。程序用 Node.js 制作；`lakutata.installer.runtime` 为 `"bun"` 时用 Bun 制作。在低于 20.12 的 Node.js 上，和可执行文件一样，用 `--node-program` 指定一个更新的 Node.js。
 
 | 平台 | 安装包（默认） | 文件名 | 制作工具 |
 |---|---|---|---|

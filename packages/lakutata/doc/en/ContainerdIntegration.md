@@ -15,7 +15,7 @@ The containers it creates are the same as the containers nerdctl creates: they c
 
 | Feature | Needs |
 |---|---|
-| Everything | Linux, containerd 1.6 or later with runc, Node.js `^22.13.0 || >=24.11.0`; the application runs as root or as a member of the group owning the socket of containerd |
+| Everything | Linux, containerd 1.6 or later with runc, Node.js `>=18.10.0`; the application runs as root or as a member of the group owning the socket of containerd |
 | CNI networks (the default `bridge` included), published ports | The CNI plugins (`bridge`, `portmap`, `host-local`… in `/opt/cni/bin`, `/usr/lib/cni` or `/usr/libexec/cni`, the `cniPath` option) and iptables |
 | `exec()` with `stdin`, separate `stdout`/`stderr`, terminals | `mkfifo` on the host (without it, `exec()` puts both outputs in `stdout`) |
 | Builds | A BuildKit daemon (`buildkitd`), local or remote |

@@ -26,7 +26,8 @@ npm install @lakutata/webrtc
 An application also needs `lakutata` (or `@lakutata/core` and `@lakutata/entrypoint`). The signaling is served over
 Socket.IO (`npm install socket.io`) or JSON-RPC over WebSocket (`npm install ws`), through the adapters of the
 entrypoint. An application joining rooms over Socket.IO needs `socket.io-client`; over JSON-RPC, it uses the
-`WebSocket` built into Node.js 22 and Bun. Instances working together need `nats` or `ioredis`.
+`WebSocket` built into Node.js 22 and Bun, else the `WebSocket` of `ws` (Node.js 18 to 21). Instances working together
+need `nats` or `ioredis`.
 
 A frontend installs the same package and imports `@lakutata/webrtc/client`; the framework is not installed with it.
 

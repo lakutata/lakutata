@@ -26,7 +26,7 @@ npm install @lakutata/math
   yet covered by allowScripts": `npm install-scripts approve @lakutata/math` records that you allow it. Bun and pnpm run
   it only for the dependencies they are told to trust (`trustedDependencies` in the package.json for Bun,
   `pnpm approve-builds` for pnpm); without it, loading the package throws an error telling how to build the addon.
-- Node.js `^22.13.0 || >=24.11.0`.
+- Node.js `>=18.10.0`.
 - The addon uses Node-API, so Bun and the main process of Electron load the addon node-gyp built for Node.js, without a
   rebuild. In Bun, terminating a worker thread while operations of the addon are still running in it ends the whole
   process with a fatal error of Node-API (a bug of Bun 1.4); Node.js and Electron drop those operations.

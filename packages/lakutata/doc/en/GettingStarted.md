@@ -5,7 +5,16 @@ and write an application by hand.
 
 ## 1. Requirements
 
-- Node.js `^22.13.0 || >=24.11.0`: 22.13 or a later 22.x, or 24.11 and later (not 23).
+- Node.js 18.10 or later (`>=18.10.0`). A few features need a newer Node.js:
+  - the Fastify adapter: Fastify 5 needs Node.js 18.19, 19.9, 20 or later (the Express adapter needs nothing more);
+  - the worker threads of the WebRTC connections (`PeerThreads`): not on Node.js 18 and 19;
+  - the Kafka transport of `@lakutata/queue`: Node.js 22.22, 24.6 or later, as `@platformatic/kafka` needs;
+  - the executables of Node.js (`lakutata package exe`, the installers): made by a Node.js 20.12, 21.7 or later, or with
+    `--node-program` naming one;
+  - `await using` with the objects of the framework: Node.js 18.18, 20.4 or later.
+
+  The projects made by `lakutata create` declare Node.js `^22.13.0 || >=24.11.0`, which the tools of the web and
+  Electron templates need.
 - TypeScript, with its decorators (`experimentalDecorators`) and their metadata (`emitDecoratorMetadata`). The framework
   publishes the compiler options it needs as `lakutata/tsconfig.json`; the templates use TypeScript 6.
 - ES modules (`"type": "module"`), as in the templates; the package also ships CommonJS builds.

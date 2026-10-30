@@ -16,7 +16,7 @@ npm install lakutata @lakutata/ffi
 
 - koffi comes with a package of prebuilt binaries for each platform, installed with it; npm may warn that its install
   script was not run: it is not needed.
-- Node.js `^22.13.0 || >=24.11.0`, the main process of Electron, or Bun. Its peer dependency `@lakutata/core` is
+- Node.js `>=18.10.0`, the main process of Electron, or Bun. Its peer dependency `@lakutata/core` is
   installed with `lakutata`.
 
 ## Usage

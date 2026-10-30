@@ -22,7 +22,7 @@ The component has no optional npm dependencies. The machine needs:
 
 | Feature | Needs |
 |---|---|
-| Everything | Linux, containerd 1.6 or later with runc (tested with 1.6, 1.7 and 2.4), Node.js `^22.13.0 || >=24.11.0`; the application runs as root or as a member of the group that owns containerd's socket |
+| Everything | Linux, containerd 1.6 or later with runc (tested with 1.6, 1.7 and 2.4), Node.js `>=18.10.0`; the application runs as root or as a member of the group that owns containerd's socket |
 | CNI networks, published ports | The CNI plugins (`bridge`, `portmap`, `host-local`… in `/opt/cni/bin`, `/usr/lib/cni` or `/usr/libexec/cni`) and iptables |
 | `exec()` with `stdin`, separate `stdout`/`stderr`, terminals | `mkfifo` on the host (without it, `exec()` puts both outputs in `stdout`) |
 | Builds | A BuildKit daemon (`buildkitd`): local, on its unix socket, or remote over TCP/TLS |

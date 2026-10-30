@@ -89,9 +89,10 @@ website.
 
 ## A project
 
-- Node.js `^22.13.0 || >=24.11.0`, TypeScript with `experimentalDecorators` and `emitDecoratorMetadata`, ES modules.
-  The `tsconfig.json` extends `lakutata/tsconfig.json` (and keeps an `include`), and the relative imports of the
-  sources end in `.js`: `import {config} from './config/Config.js'`.
+- Node.js `>=18.10.0` (a few features need a newer one: the guide Getting Started lists them), TypeScript with
+  `experimentalDecorators` and `emitDecoratorMetadata`, ES modules. The `tsconfig.json` extends `lakutata/tsconfig.json`
+  (and keeps an `include`), and the relative imports of the sources end in `.js`:
+  `import {config} from './config/Config.js'`.
 - `npx @lakutata/cli create --name my-app` creates a project from a template: `default` (an HTTP application), `cli`,
   `service`, `web-react`, `web-vue`, `web-next`, `web-nuxt`, `electron-react`, `electron-vue`; `--with i18n,installer`
   adds features. All but `default` are workspaces, the application being the package `packages/app`.

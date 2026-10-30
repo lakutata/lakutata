@@ -35,9 +35,9 @@ npx @lakutata/cli create --name my-app   # a new project from a template (web, s
 npm install lakutata                      # or the framework in an existing project
 ```
 
-The framework needs Node.js `^22.13.0 || >=24.11.0`: 22.13 or a later 22.x, or 24.11 and later (not 23). Projects
-use ES modules (`"type": "module"`), as the templates do; the package also ships CommonJS builds. The TypeScript
-options that the framework needs are published as `lakutata/tsconfig.json`:
+The framework needs Node.js 18.10 or later (`>=18.10.0`); a few features need a newer one (see Getting Started).
+Projects use ES modules (`"type": "module"`), as the templates do; the package also ships CommonJS builds. The
+TypeScript options that the framework needs are published as `lakutata/tsconfig.json`:
 
 ```json
 {

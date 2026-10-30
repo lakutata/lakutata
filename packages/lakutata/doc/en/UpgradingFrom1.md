@@ -20,7 +20,7 @@ packages obtained elsewhere may have APIs that this page does not cover.
 | Modules | CommonJS: imports without extensions, `__dirname` | ES modules: relative imports ending in `.js` |
 | Service actions | `@Controller({_ctrl: …})` and `@PATTERN({_act: …})` from `@lakutata-module/service` | `@ServiceAction({…})` from `lakutata/decorator/ctrl` |
 | Validation | `Validator` schemas (yup) given to `@Accept` | DTO classes with `@Expect` |
-| Node.js | `>=14.15.1` (`@lakutata/core` 1.0.60) | `^22.13.0 \|\| >=24.11.0` |
+| Node.js | `>=14.15.1` (`@lakutata/core` 1.0.60) | `>=18.10.0` |
 
 **`@lakutata/core` 3 is not a new version of the 1.x library.** It is the core of Lakutata 3, a different API under the
 same name. `npm install @lakutata/core@latest`, or a range such as `*`, in a 1.x project puts it in place of the 1.x
@@ -392,7 +392,7 @@ are built differently, so the entries that 1.x wrote are not found: start with a
 - **The `lakutata` field of `package.json`** told the 1.x tool the kind of the project (`type`), its directories and
   its configuration file. In 3.x the field has another meaning (the `resources` and the `installer` of a packed
   application, [Packaging](Packaging.md)): remove the 1.x one.
-- **Node.js, TypeScript and modules.** Node.js `^22.13.0 || >=24.11.0`, TypeScript 6 as in the templates, ES modules
+- **Node.js, TypeScript and modules.** Node.js `>=18.10.0`, TypeScript 6 as in the templates, ES modules
   (`"type": "module"`, relative imports ending in `.js`), `tsconfig.json` extending `lakutata/tsconfig.json`.
 - **Ports.** The service module listened on a port of its own (6912 by default) and the registry on another (6911).
   The 3.x adapters listen on the ports of their options, and a service on NATS only connects out to the NATS server:

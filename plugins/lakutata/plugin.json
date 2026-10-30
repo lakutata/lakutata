@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "lakutata",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "The official skill of the lakutata framework: writing, testing and upgrading applications built on lakutata 3.x",
   "author": {
     "name": "lakutata"

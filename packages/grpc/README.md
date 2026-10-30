@@ -17,7 +17,7 @@ and its BuildKit builds use this package. The umbrella package `lakutata` does n
 npm install @lakutata/grpc
 ```
 
-The client, the server and the codec need nothing else (Node.js `^22.13.0 || >=24.11.0`). The service entrypoint and the
+The client, the server and the codec need nothing else (Node.js `>=18.10.0`). The service entrypoint and the
 service proxy run in a lakutata application, so they need `lakutata`, which provides the package's peer dependencies
 `@lakutata/core` and `@lakutata/entrypoint` (optional for the other uses).
 

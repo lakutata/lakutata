@@ -163,7 +163,7 @@ export class Telemetry extends Component {
 }
 ```
 
-`http:` 或 `https:` 的 URL 使用 Socket.IO（需要安装 `socket.io-client`），`ws:` 或 `wss:` 的 URL 使用 Node.js 22 和 Bun 自带的 `WebSocket` 走 JSON-RPC。它的选项：`url`、`id`（默认是随机的 UUID）、`path`（Socket.IO 的路径）、`auth`（Socket.IO 握手的更多字段，比如令牌）、`timeout`，以及它的连接的选项（`iceTransportPolicy`、`icePortRange`、`iceAdditionalHostAddresses`、`codecs`、`threads`）。它是 `@Transient` 的：每次 `getObject()` 都得到一个新的客户端，`close()` 会离开它的房间并断开连接。
+`http:` 或 `https:` 的 URL 使用 Socket.IO（需要安装 `socket.io-client`），`ws:` 或 `wss:` 的 URL 使用 Node.js 22 和 Bun 自带的 `WebSocket` 走 JSON-RPC，没有时使用 `ws` 包的 `WebSocket`（需要安装 `ws`）。它的选项：`url`、`id`（默认是随机的 UUID）、`path`（Socket.IO 的路径）、`auth`（Socket.IO 握手的更多字段，比如令牌）、`timeout`，以及它的连接的选项（`iceTransportPolicy`、`icePortRange`、`iceAdditionalHostAddresses`、`codecs`、`threads`）。它是 `@Transient` 的：每次 `getObject()` 都得到一个新的客户端，`close()` 会离开它的房间并断开连接。
 
 ### 调用应用的动作
 
@@ -267,6 +267,8 @@ export class Echo extends Component {
 ### 多核
 
 连接默认在主线程里运行它的 ICE、DTLS、SCTP 和 SRTP。给它一个 `PeerThreads` 组件的名字（它的 `threads` 选项；`SignalingClient` 也有这个选项，用于连向其他成员的连接）后，这些就在该组件的某个工作线程里运行，而连接对象、它的事件和它的通道上的消息仍然在主线程：使用它的代码不用改。它的方法会被转到线程里执行，在那里完成后才返回；它的各个状态是线程最近一次报告的，随它的事件和每个方法的应答一起送来。它接收的轨道的包在被读取或转发时送到主线程，它发送的轨道的包则送到线程里。
+
+不能在 Node.js 18 和 19 上使用：在 Node.js 18 上，工作线程接收连接的数据报时可能让整个进程崩溃（Node.js 的致命错误），Node.js 19 也不能确定没有这个问题。
 
 ```typescript
 import {Application} from 'lakutata'

@@ -16,7 +16,7 @@
 npm install lakutata @lakutata/mcp
 ```
 
-这个包需要 Node.js `^22.13.0 || >=24.11.0`。它的 peer 依赖 `@lakutata/core` 和 `@lakutata/entrypoint` 随 `lakutata` 一起安装；协议本身由依赖 `@modelcontextprotocol/server` 实现。
+这个包需要 Node.js `>=18.10.0`。它的 peer 依赖 `@lakutata/core` 和 `@lakutata/entrypoint` 随 `lakutata` 一起安装；协议本身由依赖 `@modelcontextprotocol/server` 实现。Node.js 18 没有全局的 `crypto`，而 SDK 要用它，所以这个包会把它设为 `node:crypto` 的 `webcrypto`（Node.js 19 及以后版本设为全局的也是这个）。
 
 ## 用法
 

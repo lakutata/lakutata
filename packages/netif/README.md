@@ -25,7 +25,7 @@ npm install @lakutata/netif
   "not yet covered by allowScripts": `npm install-scripts approve @lakutata/netif` records that you allow it. Bun and
   pnpm run it only for the dependencies they are told to trust (`trustedDependencies` in the package.json for Bun,
   `pnpm approve-builds` for pnpm); without it, loading the package throws an error telling how to build the addon.
-- Node.js `^22.13.0 || >=24.11.0`. The addon uses Node-API, so Bun and the main process of Electron load the addon
+- Node.js `>=18.10.0`. The addon uses Node-API, so Bun and the main process of Electron load the addon
   node-gyp built for Node.js, without a rebuild.
 - `@lakutata/core` is a peer dependency, which the package managers install with it: the types of the package refer to
   the contract of the listening on network interfaces that core defines. It is not loaded when the package runs.

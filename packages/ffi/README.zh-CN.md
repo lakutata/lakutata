@@ -11,7 +11,7 @@ npm install lakutata @lakutata/ffi
 ```
 
 - koffi 会连同各平台的预编译文件一起安装（每个平台一个包）；npm 可能会提示它的安装脚本没有运行：不需要运行它。
-- 需要 Node.js `^22.13.0 || >=24.11.0`、Electron 的主进程或 Bun。它的 peer 依赖 `@lakutata/core` 会随 `lakutata` 一起安装。
+- 需要 Node.js `>=18.10.0`、Electron 的主进程或 Bun。它的 peer 依赖 `@lakutata/core` 会随 `lakutata` 一起安装。
 
 ## 用法
 

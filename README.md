@@ -31,9 +31,9 @@ npm run dev
 curl 'http://localhost:8080/example?name=you'     # {"message":"Hello, you!"}
 ```
 
-Lakutata needs Node.js `^22.13.0 || >=24.11.0`. The templates of `lakutata create` give you a web service, a command
-line tool, an HTTP API with a React, Vue, Next.js or Nuxt interface, or an Electron application. An application written
-by hand looks like this:
+Lakutata needs Node.js 18.10 or later (`>=18.10.0`). The templates of `lakutata create` give you a web service, a
+command line tool, an HTTP API with a React, Vue, Next.js or Nuxt interface, or an Electron application. An application
+written by hand looks like this:
 
 ```typescript
 import {Application, DTO} from 'lakutata'

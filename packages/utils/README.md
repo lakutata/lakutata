@@ -14,7 +14,7 @@ package `lakutata` re-exports them as `lakutata/utils`, and also exports `Time` 
 npm install lakutata
 ```
 
-It has no optional dependencies: everything is built on Node.js (`^22.13.0 || >=24.11.0`) and its `Intl` time zone data.
+It has no optional dependencies: everything is built on Node.js (`>=18.10.0`) and its `Intl` time zone data.
 
 ## Usage
 

@@ -433,7 +433,7 @@ Stopping a worker while asynchronous calls run in the threads of its libraries d
 
 ## 12. Runtimes
 
-Node.js `^22.13.0 || >=24.11.0`, the main process of Electron and Bun; not the renderers of Electron nor the browsers.
+Node.js `>=18.10.0`, the main process of Electron and Bun; not the renderers of Electron nor the browsers.
 
 The tests of the package, including those of the threads of a library, pass on macOS (arm64: Node.js 24, Bun 1.4,
 Electron 44), on Linux (arm64, glibc and musl: Node.js 24, Bun 1.4) and on Windows 11 (arm64, and x64 under emulation:

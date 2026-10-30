@@ -49,6 +49,7 @@ directory, once moved with them.
 | `--outfile <file>` | The bundle, `dist/<name>.cjs` by default |
 | `--no-minify` | Do not minify the bundle (the names of the classes are kept either way) |
 | `--external <modules...>` | Modules left out of the bundle, loaded at run time from a `node_modules` next to it |
+| `--node <version>` | The version of Node.js running the bundle (`18.10` for NW.js 0.70): the bundle is written in the syntax that version reads; the one running the tool by default |
 
 ## 3. Native addons
 
@@ -124,11 +125,12 @@ architecture for Linux (`docker run --platform linux/arm64`); the README of the 
 
 | Option | Meaning |
 |---|---|
-| `--runtime node` (default) | The bundle is embedded in a copy of the Node.js running the tool (a single executable application of Node.js): about 110 MB on macOS arm64 |
+| `--runtime node` (default) | The bundle is embedded in a copy of the Node.js running the tool, or of `--node-program` (a single executable application of Node.js): about 110 MB on macOS arm64 |
 | `--runtime bun` | The bundle is compiled by Bun (the `bun` package of the project, else the `bun` of the system): about 70 MB on macOS arm64, and it starts faster; the runtime is then Bun |
 | `--layout file` (default) | One file: the native addons, the files read by path and the resources are embedded, and extracted when it starts |
 | `--layout directory` | `dist/<name>/` holds the executable, `native/` and `resources/`, loaded from there without extraction (the installers use it) |
 | `--outdir <directory>` | Where the executable is written, `dist` by default |
+| `--node-program <path>` | The node embedded instead of the one running the tool: a Node.js 20.12, 21.7 or later (`$(nvm which 22)`), so that an older Node.js can run the tool; the bundle follows its syntax |
 | `--entry`, `--no-minify`, `--external` | As for a bundle |
 
 - **Extraction**: an executable of the file layout extracts what it embeds at its first run, into its cache directory,

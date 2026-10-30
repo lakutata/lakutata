@@ -21,7 +21,8 @@ npx lakutata package installer --target pkg     # only some of them
 
 An installer holds the executable of the directory layout (`lakutata package exe --layout directory`): the program,
 its native addons (`native/`) and its resources (`resources/`). The program is made with Node.js, or with Bun when
-`lakutata.installer.runtime` is `"bun"`.
+`lakutata.installer.runtime` is `"bun"`. On a Node.js older than 20.12, give a newer one with `--node-program`, as for
+the executables.
 
 | Platform | Installers (default) | Their files | Made with |
 |---|---|---|---|

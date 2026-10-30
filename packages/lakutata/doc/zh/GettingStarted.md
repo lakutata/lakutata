@@ -4,7 +4,14 @@
 
 ## 1. 环境要求
 
-- Node.js `^22.13.0 || >=24.11.0`：22.13 及以后的 22.x，或 24.11 及以后的版本（不支持 23）。
+- Node.js 18.10 或更高版本（`>=18.10.0`）。少数功能需要较新的 Node.js：
+  - Fastify 适配器：Fastify 5 需要 Node.js 18.19、19.9、20 或更高版本（Express 适配器没有这个要求）；
+  - WebRTC 连接的工作线程（`PeerThreads`）：不能在 Node.js 18 和 19 上使用；
+  - `@lakutata/queue` 的 Kafka 传输：需要 Node.js 22.22、24.6 或更高版本，这是 `@platformatic/kafka` 的要求；
+  - Node.js 的可执行文件（`lakutata package exe` 和安装包）：要用 Node.js 20.12、21.7 或更高版本来生成，或者用 `--node-program` 指定这样一个 Node.js；
+  - 对框架的对象使用 `await using`：需要 Node.js 18.18、20.4 或更高版本。
+
+  `lakutata create` 生成的项目声明的是 Node.js `^22.13.0 || >=24.11.0`，Web 模板和 Electron 模板用到的工具需要它。
 - TypeScript，开启它的装饰器（`experimentalDecorators`）及其元数据（`emitDecoratorMetadata`）。框架所需的编译选项以 `lakutata/tsconfig.json` 发布；模板使用 TypeScript 6。
 - ES 模块（`"type": "module"`），和模板一样；包里同时也提供了 CommonJS 构建。
 

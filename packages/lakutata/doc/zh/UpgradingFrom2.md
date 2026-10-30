@@ -14,13 +14,13 @@
 | 导出的函数 | 大驼峰：`BuildEntrypoints`、`BuildDatabaseOptions`、`MD5` | 小驼峰：`buildEntrypoints`、`buildDatabaseOptions`、`md5` |
 | 传输方式 | 手写：`BuildHTTPEntrypoint((module, routeMap, handler, registerDestroy) => …)` | 适配器：`lakutata/adapter/express` 中的 `expressHTTPEntrypoint()` 等 |
 | 只有 3.x 才有的子路径 | | `lakutata/utils`、`lakutata/security`、`lakutata/adapter/*`、`lakutata/com/{containerd,mutex,queue,i18n}` |
-| Node.js | `>=20` | `^22.13.0 \|\| >=24.11.0` |
+| Node.js | `>=20` | `>=18.10.0` |
 
 `npx @lakutata/cli info` 会显示命令行工具、框架和 Node.js 的版本，以及项目声明的和实际安装的 `lakutata` 版本。没有升级命令：下面的步骤需要手动完成。
 
 ## 2. 升级步骤
 
-- **Node.js** `^22.13.0 || >=24.11.0`（22.13 或更高的 22.x，或者 24.11 及以上；不包括 23）。同时更新 `engines`、CI 的版本矩阵，以及 Dockerfile 的基础镜像。
+- **Node.js** `>=18.10.0`（3.0 到 3.1 需要 `^22.13.0 || >=24.11.0`）。2.x 需要的版本（`>=20`）都包括在内：`engines`、CI 的版本矩阵和 Dockerfile 都可以不变。
 - **支持 `"module": "Node20"` 的 TypeScript**（模板使用 TypeScript 6）：`lakutata/tsconfig.json` 现在设置了这个选项（2.x 中是 `Node16`），更旧的编译器不认识它。
 - **`package.json`**：`"type": "module"`，`lakutata` 为 `^3.0.0`，`@lakutata/*` 包也写 `^3.0.0`，`@lakutata/cli` 放在 `devDependencies` 中。不要把 `lakutata` 的版本号照抄给其他包：补丁版只发布改动过的包，各包的最新版本可能不同（比如 `lakutata` 是 3.1.4，`@lakutata/ffi` 是 3.1.2）。
 - **全新安装**：删除 `node_modules` 和锁文件，再重新安装。原地升级可能留下多份 `@lakutata/core`，它们的类和装饰器元数据互不相通（跨副本的 `instanceof` 和注入都会失败）。`npm ls @lakutata/core` 必须只显示一个版本。
@@ -204,7 +204,7 @@ Application
 ## 6. 检查升级结果
 
 ```bash
-node --version                      # ^22.13.0 || >=24.11.0
+node --version                      # >=18.10.0
 npm ls lakutata @lakutata/core      # 每个包只有一个版本
 npm run build                       # tsc 没有错误：没有遗留的 2.x 导入
 grep -rnE "process\.on\('SIG|\|\| ''|(startup|launched|beforeDestroy|acceptsOption)\(|AccessDenyException|=== 500" src

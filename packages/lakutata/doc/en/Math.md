@@ -348,7 +348,7 @@ $ curl -X POST localhost:8080/solve -H 'Content-Type: application/json' -d '{"eq
 - The bundles, the executables and the installers made by `lakutata package` carry the compiled addon
   (`build/Release/math.node`). Build them on each target platform, after installing the package there; the rules of
   the native addons apply (see [Packaging](Packaging.md) and [NativeAddons](NativeAddons.md)).
-- The package runs in Node.js `^22.13.0 || >=24.11.0`, in Bun and in the main process of Electron, which load the
+- The package runs in Node.js `>=18.10.0`, in Bun and in the main process of Electron, which load the
   addon compiled for Node.js; not in the renderers of Electron nor in the browsers. In Bun, terminating a worker thread
   while operations of the addon still run in it ends the whole process with a fatal error of Node-API (a bug of Bun
   1.4).

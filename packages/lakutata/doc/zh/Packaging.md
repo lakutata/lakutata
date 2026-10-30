@@ -38,6 +38,7 @@ node dist/greet.cjs
 | `--outfile <file>` | 单文件包的路径，默认 `dist/<name>.cjs` |
 | `--no-minify` | 不压缩（无论是否压缩，类名都会保留） |
 | `--external <modules...>` | 不打进包里的模块，运行时从单文件包旁边的 `node_modules` 加载 |
+| `--node <version>` | 运行单文件包的 Node.js 版本（NW.js 0.70 是 `18.10`）：单文件包用这个版本支持的语法生成；默认是运行工具的那个版本 |
 
 ## 3. 原生插件
 
@@ -99,11 +100,12 @@ npx lakutata package exe --runtime bun     # 使用 Bun
 
 | 选项 | 含义 |
 |---|---|
-| `--runtime node`（默认） | 把单文件包嵌入运行工具的那个 Node.js 的副本中（Node.js 的单可执行文件应用）：在 macOS arm64 上约 110 MB |
+| `--runtime node`（默认） | 把单文件包嵌入运行工具的 Node.js（或 `--node-program` 指定的 Node.js）的副本中（Node.js 的单可执行文件应用）：在 macOS arm64 上约 110 MB |
 | `--runtime bun` | 由 Bun 编译单文件包（优先用项目中的 `bun` 包，否则用系统的 `bun`）：在 macOS arm64 上约 70 MB，启动更快；运行时也就是 Bun |
 | `--layout file`（默认） | 单个文件：原生插件、按路径读取的文件和资源都嵌入其中，启动时解压 |
 | `--layout directory` | `dist/<name>/` 中包含可执行文件、`native/` 和 `resources/`，直接从那里加载，不解压（安装包用的就是这种布局） |
 | `--outdir <directory>` | 可执行文件的输出目录，默认 `dist` |
+| `--node-program <path>` | 嵌入另一个 Node.js，而不是运行工具的那个：需要 Node.js 20.12、21.7 或更高版本（比如 `$(nvm which 22)`），这样较旧的 Node.js 也能运行这个命令；单文件包用它支持的语法生成 |
 | `--entry`、`--no-minify`、`--external` | 与单文件包相同 |
 
 - **解压**：单文件布局的可执行文件在第一次运行时，把嵌入的内容解压到缓存目录中一个以内容命名的子目录，所以每个版本只解压一次：macOS 上是 `~/Library/Caches/<name>`，Windows 上是 `%LOCALAPPDATA%\<name>\Cache`，Linux 上是 `$XDG_CACHE_HOME/<name>` 或 `~/.cache/<name>`，也可以用 `LAKUTATA_NATIVE_DIR` 指定目录。缓存目录不可写时，改用临时目录中的 `<name>`（指定了 `LAKUTATA_NATIVE_DIR` 时不会这样）。

@@ -22,7 +22,7 @@ The transports rely on optional peer dependencies, which you install only when y
 | Transport | Subpath | Install |
 |---|---|---|
 | HTTP with Express 4/5 | `lakutata/adapter/express` | `express` |
-| HTTP with Fastify 5 | `lakutata/adapter/fastify` | `fastify` |
+| HTTP with Fastify 5 (Node.js 18.19, 19.9, 20 or later) | `lakutata/adapter/fastify` | `fastify` |
 | CLI with Commander | `lakutata/adapter/commander` | `commander` (and `@inquirer/prompts` for the prompts) |
 | Service over Socket.IO | `lakutata/adapter/socket.io` | `socket.io` |
 | Service over JSON-RPC 2.0 (HTTP, WebSocket, stdio) | `lakutata/adapter/jsonrpc` | `ws` for WebSocket |

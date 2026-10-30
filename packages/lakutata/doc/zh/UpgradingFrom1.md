@@ -13,7 +13,7 @@ Lakutata 1.x 是一组包：`@lakutata/core` 1.x、模块 `@lakutata-module/*`�
 | 模块系统 | CommonJS：导入不带扩展名，使用 `__dirname` | ES 模块：相对导入以 `.js` 结尾 |
 | 服务动作 | `@lakutata-module/service` 的 `@Controller({_ctrl: …})` 和 `@PATTERN({_act: …})` | `lakutata/decorator/ctrl` 的 `@ServiceAction({…})` |
 | 校验 | 交给 `@Accept` 的 `Validator` schema（yup） | 带 `@Expect` 的 DTO 类 |
-| Node.js | `>=14.15.1`（`@lakutata/core` 1.0.60） | `^22.13.0 \|\| >=24.11.0` |
+| Node.js | `>=14.15.1`（`@lakutata/core` 1.0.60） | `>=18.10.0` |
 
 **3.x 的 `@lakutata/core` 不是 1.x 那个库的新版本。** 它是 Lakutata 3 的核心，只是用了同一个名字，API 完全不同。在 1.x 项目中执行 `npm install @lakutata/core@latest`，或者使用 `*` 这样的版本范围，都会用它替换 1.x 的核心库，导致构建失败。不要逐个升级 1.x 的包：移植后的应用依赖 `lakutata` 3，它会带来自己的 `@lakutata/core`。
 
@@ -314,7 +314,7 @@ Application.run(() => ({
 
 - **测试。** 1.x 中连接共享开发服务器、直接启动应用的 `npm test`，改为对编译后的测试运行 `node --test`：每个测试文件用 `Application.run(config(port))` 在自己的端口上启动应用，调用它，最后释放它；组件放在 `Container` 中单独测试；其他服务用替身代替（见[示例](examples/README.md)）。
 - **`package.json` 中的 `lakutata` 字段**在 1.x 中告诉命令行工具项目的类型（`type`）、目录和配置文件。在 3.x 中这个字段有别的含义（打包应用的 `resources` 和 `installer`，见 [Packaging](Packaging.md)）：请删除 1.x 的这个字段。
-- **Node.js、TypeScript 和模块系统。** Node.js `^22.13.0 || >=24.11.0`，与模板一样使用 TypeScript 6，ES 模块（`"type": "module"`，相对导入以 `.js` 结尾），`tsconfig.json` 继承 `lakutata/tsconfig.json`。
+- **Node.js、TypeScript 和模块系统。** Node.js `>=18.10.0`，与模板一样使用 TypeScript 6，ES 模块（`"type": "module"`，相对导入以 `.js` 结尾），`tsconfig.json` 继承 `lakutata/tsconfig.json`。
 - **端口。** 1.x 的服务模块监听自己的端口（默认 6912），注册中心监听另一个端口（6911）。3.x 的适配器监听各自选项中的端口，而使用 NATS 的服务只主动连接 NATS 服务器：`Dockerfile` 改为暴露这些端口。
 - **脚本。** 模板的脚本取代了 `shx rm -rf ./build`（改为 `lakutata clean`）、安装时编译的 `prepare`，以及开发入口；`lakutata-deploy` 没有对应项：`service` 模板带有 `Dockerfile` 和 `docker:build` 脚本，镜像由部署环境自己的工具推送。
 

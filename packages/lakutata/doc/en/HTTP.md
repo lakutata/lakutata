@@ -105,6 +105,7 @@ Both adapters serve the same actions, with the same results:
 |---|---|---|
 | Adapter | `expressHTTPEntrypoint()`, from `lakutata/adapter/express` | `fastifyHTTPEntrypoint()`, from `lakutata/adapter/fastify` |
 | Install | `express` (4 or 5) | `fastify` (5) |
+| Node.js | 18.10 and later | 18.19, 19.9, 20 and later (Fastify 5 needs `diagnostics_channel.tracingChannel`) |
 
 The options of `expressHTTPEntrypoint()`:
 

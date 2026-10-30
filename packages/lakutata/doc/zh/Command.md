@@ -9,7 +9,7 @@ npx @lakutata/cli create --name my-app     # 不安装，直接运行
 npm install --global @lakutata/cli         # 或者在本机安装一次，之后：lakutata create --name my-app
 ```
 
-模板会把 `@lakutata/cli` 加入项目的 `devDependencies`，所以项目的脚本可以直接调用 `lakutata`，在项目里也可以用 `npx lakutata`。工具需要 Node.js `^22.13.0 || >=24.11.0`：22.13 及以后的 22.x，或 24.11 及以后的版本（不支持 23）。
+模板会把 `@lakutata/cli` 加入项目的 `devDependencies`，所以项目的脚本可以直接调用 `lakutata`，在项目里也可以用 `npx lakutata`。工具需要 Node.js 18.10 或更高版本（`>=18.10.0`）。
 
 - `lakutata --help` 列出所有命令，`lakutata help <command>`（或 `lakutata <command> --help`）说明某个命令，`lakutata --version` 输出工具的版本。不带命令运行时，工具输出帮助，并以退出码 1 退出。
 - 选项名用短横线连接（`--package-manager`）。默认开启的布尔选项用 `--no-` 关闭（`--no-git`、`--no-bail`）。

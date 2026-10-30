@@ -2,7 +2,7 @@
 
 The package `@lakutata/grpc` serves the service actions of an application over gRPC, and calls them from another
 application. Any language with a gRPC library can call them too. It is written in TypeScript over the HTTP/2 module of
-Node.js (`^22.13.0 || >=24.11.0`): no native addon and no generated code. `lakutata` does not include it, so install it
+Node.js (`>=18.10.0`): no native addon and no generated code. `lakutata` does not include it, so install it
 next to it:
 
 ```bash
