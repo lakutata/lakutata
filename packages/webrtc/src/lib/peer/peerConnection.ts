@@ -117,6 +117,8 @@ export class RTCPeerConnection extends EventTarget {
     private readonly sctpManager: SctpTransportManager
     private readonly secureManager: SecureTransportManager
     private isClosed = false
+    //The close in progress: a second close() waits for it (its transports closed) instead of returning at once
+    private closing?: Promise<void>
     private shouldNegotiationneeded = false
     private lastCreatedAnswer?: RTCSessionDescription
     private lastCreatedOffer?: RTCSessionDescription
@@ -1850,8 +1852,11 @@ export class RTCPeerConnection extends EventTarget {
     }
 
     async close() {
-        if (this.isClosed) return
+        this.closing ??= this.closeOnce()
+        return this.closing
+    }
 
+    private async closeOnce() {
         this.isClosed = true
         this.pendingRemoteCandidates.length = 0
         this.setSignalingState('closed')
