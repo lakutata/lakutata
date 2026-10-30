@@ -15,8 +15,8 @@ and write an application by hand.
   On Node.js 18 and 19, an application uses commander 13, @inquirer/prompts 7 and better-sqlite3 11: their next major
   versions need Node.js 20 or later.
 
-  The projects made by `lakutata create` declare Node.js `^22.13.0 || >=24.11.0`, which the tools of the web and
-  Electron templates need.
+  The projects made by `lakutata create` declare Node.js `>=22.13.0`, which the tools of the web and Electron templates
+  need.
 - TypeScript, with its decorators (`experimentalDecorators`) and their metadata (`emitDecoratorMetadata`). The framework
   publishes the compiler options it needs as `lakutata/tsconfig.json`; the templates use TypeScript 6.
 - ES modules (`"type": "module"`), as in the templates; the package also ships CommonJS builds.
