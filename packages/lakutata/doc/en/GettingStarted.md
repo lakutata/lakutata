@@ -7,7 +7,6 @@ and write an application by hand.
 
 - Node.js 18.10 or later (`>=18.10.0`). A few features need a newer Node.js:
   - the Fastify adapter: Fastify 5 needs Node.js 18.19, 19.9, 20 or later (the Express adapter needs nothing more);
-  - the worker threads of the WebRTC connections (`PeerThreads`): not on Node.js 18 and 19;
   - the Kafka transport of `@lakutata/queue`: Node.js 22.22, 24.6 or later, as `@platformatic/kafka` needs;
   - the executables of Node.js (`lakutata package exe`, the installers): made by a Node.js 20.12, 21.7 or later, or with
     `--node-program` naming one;

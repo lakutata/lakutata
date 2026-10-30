@@ -371,9 +371,6 @@ its states are the ones the thread last reported, with its events and with the r
 tracks it receives come to the main thread while they are read or sent on, and the packets of the tracks it sends go to
 the thread.
 
-Not on Node.js 18 and 19: on Node.js 18 a worker thread receiving the datagrams of its connections can end the process
-(a fatal error of Node.js), and Node.js 19 is not known to be free of it.
-
 ```typescript
 import {Application} from 'lakutata'
 import {buildPeerThreadsOptions, type PeerChannel, PeerConnection} from '@lakutata/webrtc'

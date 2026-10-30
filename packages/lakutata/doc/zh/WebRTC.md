@@ -268,8 +268,6 @@ export class Echo extends Component {
 
 连接默认在主线程里运行它的 ICE、DTLS、SCTP 和 SRTP。给它一个 `PeerThreads` 组件的名字（它的 `threads` 选项；`SignalingClient` 也有这个选项，用于连向其他成员的连接）后，这些就在该组件的某个工作线程里运行，而连接对象、它的事件和它的通道上的消息仍然在主线程：使用它的代码不用改。它的方法会被转到线程里执行，在那里完成后才返回；它的各个状态是线程最近一次报告的，随它的事件和每个方法的应答一起送来。它接收的轨道的包在被读取或转发时送到主线程，它发送的轨道的包则送到线程里。
 
-不能在 Node.js 18 和 19 上使用：在 Node.js 18 上，工作线程接收连接的数据报时可能让整个进程崩溃（Node.js 的致命错误），Node.js 19 也不能确定没有这个问题。
-
 ```typescript
 import {Application} from 'lakutata'
 import {buildPeerThreadsOptions, type PeerChannel, PeerConnection} from '@lakutata/webrtc'

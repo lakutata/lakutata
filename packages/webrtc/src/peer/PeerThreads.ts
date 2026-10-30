@@ -62,10 +62,6 @@ interface Slot {
  * channels stay in the main thread. Each connection is served by one thread for its whole life; a thread that stops
  * (only a bug stops one) fails its connections (`failed`, then `closed`), and is started again for the next ones.
  *
- * Not on Node.js 18 and 19: on Node.js 18 a worker thread receiving the datagrams of its connections can end the process
- * (a fatal error of Node.js), and Node.js 19 is not known to be free of it. The connections served in the main thread
- * (without this component) are not concerned.
- *
  * Register it with {@link buildPeerThreadsOptions}; the threads stop when the application does.
  * @example
  * ```typescript
