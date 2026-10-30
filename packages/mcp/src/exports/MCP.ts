@@ -1,3 +1,5 @@
+//Before the MCP SDK: the global crypto it needs on Node.js 18
+import '../lib/WebCrypto.js'
 export {MCPChannel} from '../channel/MCPChannel.js'
 export {MCPContext, MCP_CONTEXT_TYPE, type MCPAuthInfo, type MCPRequestKind} from '../context/MCPContext.js'
 export {type MCPContextParams} from '../types/MCPContextParams.js'

@@ -188,7 +188,9 @@ async function writeResponse(webResponse: Response, response: ServerResponse): P
     webResponse.headers.forEach((value: string, name: string): void => {
         headers[name] = value
     })
-    const cookies: string[] = webResponse.headers.getSetCookie()
+    //The cookies apart: without Headers.getSetCookie (the fetch of Node.js 18.10), the one header the iteration gave
+    //node-compat: Headers.getSetCookie
+    const cookies: string[] = typeof webResponse.headers.getSetCookie === 'function' ? webResponse.headers.getSetCookie() : []
     if (cookies.length) headers['set-cookie'] = cookies
     response.writeHead(webResponse.status, headers)
     if (!webResponse.body) return void response.end()
