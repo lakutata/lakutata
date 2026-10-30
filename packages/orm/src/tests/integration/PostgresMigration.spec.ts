@@ -10,6 +10,7 @@ import ts from 'typescript'
 import {Container} from '@lakutata/core'
 import {DataSource} from '../../exports/ORM.js'
 import {Database} from '../../exports/DatabaseComponent.js'
+import {resolveImport} from '../support/ResolveImport.js'
 
 /**
  * The server of the tests (see docker-compose.test.yml), the tests skipped without it
@@ -60,7 +61,7 @@ describe('The migrations of a PostgreSQL database', {skip: SERVER ? false : 'POS
      * @param columns
      */
     const generate = (columns: Record<string, unknown>): SpawnSyncReturns<string> => spawnSync(process.execPath, ['--input-type=module', '-e', [
-        `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
+        `import {Application} from '${resolveImport('@lakutata/core')}'`,
         `import {EntitySchema} from '${new URL('../../exports/ORM.js', import.meta.url)}'`,
         `import {buildDatabaseOptions} from '${new URL('../../exports/DatabaseComponent.js', import.meta.url)}'`,
         `const Device = new EntitySchema({name: 'device', columns: ${JSON.stringify(columns)}})`,
@@ -158,7 +159,7 @@ describe('The migrations of a PostgreSQL database', {skip: SERVER ? false : 'POS
          */
         const command = (env: Record<string, string>): SpawnSyncReturns<string> => {
             const result: SpawnSyncReturns<string> = spawnSync(process.execPath, ['--input-type=module', '-e', [
-                `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
+                `import {Application} from '${resolveImport('@lakutata/core')}'`,
                 `import {buildDatabaseOptions} from '${new URL('../../exports/DatabaseComponent.js', import.meta.url)}'`,
                 ...files.map((file: string, index: number): string => `import * as migration${index} from '${pathToFileURL(path.join(project, 'migrations', file)).href}'`),
                 `const migrations = [${files.map((_file: string, index: number): string => `...Object.values(migration${index})`).join(', ')}]`,

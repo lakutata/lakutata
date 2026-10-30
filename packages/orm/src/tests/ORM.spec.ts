@@ -11,6 +11,7 @@ import {BaseEntity, DataSource, DefaultNamingStrategy, EntitySchema, type Migrat
 import {Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn} from '../exports/ORMDecorators.js'
 import {buildDatabaseOptions, Database} from '../exports/DatabaseComponent.js'
 import {buildDatabaseOptions as BuildDatabaseProviderOptions, Database as DatabaseProvider} from '../exports/DatabaseProvider.js'
+import {resolveImport} from './support/ResolveImport.js'
 
 @Entity()
 class Author extends BaseEntity {
@@ -105,12 +106,6 @@ async function inDirectory(fn: (directory: string) => Promise<void>): Promise<vo
         await rm(directory, {recursive: true, force: true})
     }
 }
-
-/**
- * Why a test resolving the modules of the scripts it writes (import.meta.resolve) is skipped: before Node.js 18.19 and
- * 20.6 it is behind a flag
- */
-const NO_RESOLVE: string | false = typeof import.meta.resolve === 'function' ? false : 'import.meta.resolve needs Node.js 18.19, 20.6 or later'
 
 describe('The ORM', (): void => {
 
@@ -255,7 +250,7 @@ describe('The ORM', (): void => {
         })
     })
 
-    describe('The commands of the migrations (MIGRATION_RUN, MIGRATION_REVERT, MIGRATION_SHOW)', {skip: NO_RESOLVE}, (): void => {
+    describe('The commands of the migrations (MIGRATION_RUN, MIGRATION_REVERT, MIGRATION_SHOW)', (): void => {
 
         /**
          * Start an application whose databases (SQLite files of the directory) have the migrations of the notes and the
@@ -267,7 +262,7 @@ describe('The ORM', (): void => {
         function command(directory: string, env: Record<string, string>, options: { databases?: string[], failing?: boolean, transactionMode?: string } = {}): SpawnSyncReturns<string> {
             const databases: string[] = options.databases ?? ['db']
             const script: string = [
-                `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
+                `import {Application} from '${resolveImport('@lakutata/core')}'`,
                 `import {buildDatabaseOptions} from '${new URL('../exports/DatabaseComponent.js', import.meta.url)}'`,
                 'class CreateNote1700000000000 { name = \'CreateNote1700000000000\'; async up(q) { await q.query(\'CREATE TABLE "note" ("id" integer PRIMARY KEY)\') } async down(q) { await q.query(\'DROP TABLE "note"\') } }',
                 `class CreateTag1700000000001 { name = 'CreateTag1700000000001'; async up(q) { ${options.failing ? 'throw new Error(\'the tag fails\')' : 'await q.query(\'CREATE TABLE "tag" ("id" integer PRIMARY KEY)\')'} } async down(q) { await q.query('DROP TABLE "tag"') } }`,
@@ -362,7 +357,7 @@ describe('The ORM', (): void => {
         }))
     })
 
-    describe('The generation of the migrations', {skip: NO_RESOLVE}, (): void => {
+    describe('The generation of the migrations', (): void => {
 
         /**
          * Generate the migrations of an application whose Database component has the entity Note, in a project
@@ -373,7 +368,7 @@ describe('The ORM', (): void => {
         async function generate(directory: string, dependencies: Record<string, string>, title: Record<string, string> = {}, objects: string = 'components: {db: buildDatabaseOptions({type: \'better-sqlite3\', database: \'project.db\', entities: [Note]})}'): Promise<SpawnSyncReturns<string>> {
             await writeFile(path.join(directory, 'package.json'), JSON.stringify({name: 'project', type: 'module', dependencies: dependencies}))
             const script: string = [
-                `import {Application} from '${import.meta.resolve('@lakutata/core')}'`,
+                `import {Application} from '${resolveImport('@lakutata/core')}'`,
                 `import {EntitySchema} from '${new URL('../exports/ORM.js', import.meta.url)}'`,
                 `import {buildDatabaseOptions} from '${new URL('../exports/DatabaseComponent.js', import.meta.url)}'`,
                 `import {Database as DatabaseProvider} from '${new URL('../exports/DatabaseProvider.js', import.meta.url)}'`,
