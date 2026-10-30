@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto'
+import {readableStreamFrom} from './Compat.js'
 import type {ContentDescriptor} from './ContainerdClient.js'
 import type {ImageReference} from './Reference.js'
 
@@ -268,7 +269,7 @@ export class RegistryClient {
         if (!location) throw new RegistryError(`The upload of ${descriptor.digest} has no location`, started.status)
         const url: URL = new URL(location, this.base())
         url.searchParams.set('digest', descriptor.digest)
-        const body: RequestInit['body'] = data instanceof Uint8Array ? data : ReadableStream.from(data() as AsyncIterable<Uint8Array>) as unknown as RequestInit['body']
+        const body: RequestInit['body'] = data instanceof Uint8Array ? data : readableStreamFrom(data() as AsyncIterable<Uint8Array>) as unknown as RequestInit['body']
         const put: Response = await this.check(await this.request(url.toString(), {method: 'PUT', headers: {'Content-Type': 'application/octet-stream', 'Content-Length': String(descriptor.size)}, body: body}, 'push,pull'), `The upload of ${descriptor.digest}`)
         await put.body?.cancel()
     }

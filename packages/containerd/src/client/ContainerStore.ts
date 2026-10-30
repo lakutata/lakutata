@@ -1,5 +1,5 @@
 import {randomBytes} from 'node:crypto'
-import {availableParallelism, constants as osConstants, hostname as osHostname, totalmem} from 'node:os'
+import {constants as osConstants, hostname as osHostname, totalmem} from 'node:os'
 import {copyFile, lstat, mkdir, open, readdir, readFile, readlink, rm, stat, truncate, writeFile} from 'node:fs/promises'
 import {createReadStream, existsSync, readdirSync, type BigIntStats, type Dirent, type Stats} from 'node:fs'
 import {pipeline} from 'node:stream/promises'
@@ -7,6 +7,7 @@ import {pack as tarPack, type Header, type Pack} from 'tar-stream'
 import path from 'node:path'
 import {Readable} from 'node:stream'
 import {setTimeout as sleep} from 'node:timers/promises'
+import {parallelism} from './Compat.js'
 import {ContainerdClient, isGRPCError, PROCESS_TYPE_URL, SPEC_TYPE_URL, timestampDate, type SnapshotMount} from './ContainerdClient.js'
 import {GRPCStatus, decode, encode, type Message} from '@lakutata/grpc'
 import * as M from './Messages.js'
@@ -318,7 +319,7 @@ export function swapLimit(memory: number | undefined, memorySwap: number | undef
  * The CPUs of the machine online, as a cpuset writes them (0-3,6)
  */
 async function onlineCpuSet(): Promise<string> {
-    return (await readFile('/sys/devices/system/cpu/online', 'utf8').catch((): string => '')).trim() || `0-${availableParallelism() - 1}`
+    return (await readFile('/sys/devices/system/cpu/online', 'utf8').catch((): string => '')).trim() || `0-${parallelism() - 1}`
 }
 
 /**
@@ -1127,7 +1128,7 @@ export class ContainerStore {
         const type: string = String(metric?.data?.typeUrl ?? '')
         const data: Uint8Array = metric?.data?.value ?? new Uint8Array()
         const unlimited = (value: number): number => !value || value >= 2 ** 62 ? totalmem() : value
-        const onlineCpus: number = availableParallelism()
+        const onlineCpus: number = parallelism()
         const stats: Omit<ContainerResourceStats, 'cpu'> & { cpu: Omit<ContainerResourceStats['cpu'], 'percent'> } = {
             read: timestampDate(metric?.timestamp) ?? new Date(),
             pids: {current: 0, limit: 0},

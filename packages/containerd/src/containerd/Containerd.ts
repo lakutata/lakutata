@@ -9,6 +9,7 @@ import {parseReference} from '../client/Reference.js'
 import {DEFAULT_NETWORK, NetworkStore, type CNINetwork, type PortMapping} from '../client/Networks.js'
 import {GRPCConnection, type Message} from '@lakutata/grpc'
 import {buildKitBuild, buildKitPlatforms, buildKitVersion} from '../client/BuildKit.js'
+import {anySignal} from '../client/Compat.js'
 import {mkdir, rm} from 'node:fs/promises'
 import path from 'node:path'
 import {randomBytes} from 'node:crypto'
@@ -331,8 +332,12 @@ export class Containerd extends Component {
      * @throws {GRPCError} The connection to containerd fails or is lost (from `@lakutata/grpc`).
      */
     public async* events(signal?: AbortSignal): AsyncGenerator<ContainerdEvent> {
-        const abort: AbortSignal = signal ? AbortSignal.any([signal, this.#abortController.signal]) : this.#abortController.signal
-        yield* this.#client.subscribe([`namespace==${this.namespace}`], abort)
+        const abort: { signal: AbortSignal, dispose: () => void } = anySignal(signal ? [signal, this.#abortController.signal] : [this.#abortController.signal])
+        try {
+            yield* this.#client.subscribe([`namespace==${this.namespace}`], abort.signal)
+        } finally {
+            abort.dispose()
+        }
     }
 
     /** Containerd Image Operations **/

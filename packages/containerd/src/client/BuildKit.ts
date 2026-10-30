@@ -5,6 +5,7 @@ import path from 'node:path'
 import {Duplex, type Writable} from 'node:stream'
 import {finished} from 'node:stream/promises'
 import {GRPCConnection, GRPCError, GRPCServer, GRPCServerCall, GRPCStatus, type BidiStream, type CallOptions, type Message} from '@lakutata/grpc'
+import {anySignal} from './Compat.js'
 import * as B from './BuildKitMessages.js'
 import {DockerIgnore} from './DockerIgnore.js'
 import {formatPlatform, normalizePlatform, type Platform} from './Platforms.js'
@@ -483,7 +484,8 @@ export async function buildKitBuild(connection: GRPCConnection, options: BuildKi
         output: (): Writable => createWriteStream(options.output)
     })
     const abort: AbortController = new AbortController()
-    const signal: AbortSignal = options.signal ? AbortSignal.any([options.signal, abort.signal]) : abort.signal
+    const combined: { signal: AbortSignal, dispose: () => void } = anySignal(options.signal ? [options.signal, abort.signal] : [abort.signal])
+    const signal: AbortSignal = combined.signal
     session.start(connection, signal)
     const ref: string = randomBytes(16).toString('hex')
     const progress: BuildKitProgress = new BuildKitProgress()
@@ -513,6 +515,7 @@ export async function buildKitBuild(connection: GRPCConnection, options: BuildKi
         return response.exporterResponse ?? {}
     } finally {
         abort.abort()
+        combined.dispose()
         session.close()
     }
 }
