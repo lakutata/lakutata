@@ -614,7 +614,7 @@ export class GRPCConnection {
         stream.on('trailers', (trailers: IncomingHttpHeaders): void => {
             status = statusOf(trailers) ?? status
         })
-        stream.on('error', (error: Error): void => queue.finish(new GRPCError(GRPCStatus.UNAVAILABLE, error.message, path)))
+        stream.on('error', (error: Error): void => queue.finish(new GRPCError(GRPCStatus.UNAVAILABLE, stream.rstCode === http2.constants.NGHTTP2_REFUSED_STREAM ? 'The server refused the call: it is closing' : error.message, path)))
         stream.on('close', (): void => {
             if ((stream as ClientHttp2Stream & { deadlineExceeded?: boolean }).deadlineExceeded && !status) return queue.finish(new GRPCError(GRPCStatus.DEADLINE_EXCEEDED, 'The deadline of the call is exceeded', path))
             if (stream.rstCode === http2.constants.NGHTTP2_CANCEL && !status) return queue.finish(new GRPCError(GRPCStatus.CANCELLED, 'The call was cancelled', path))
@@ -1017,6 +1017,13 @@ export class GRPCServer {
     readonly #listeners: { close(): Promise<void> }[] = []
 
     /**
+     * The streams of the calls in progress
+     */
+    readonly #calls: Set<ServerHttp2Stream> = new Set()
+
+    #closing: boolean = false
+
+    /**
      * Create a server; it serves once it listens.
      * @param options Its TLS (none by default: plain HTTP/2, h2c), the largest request it receives (4194304 bytes,
      * 4 MiB, by default) and the compression of its responses (none by default).
@@ -1031,6 +1038,10 @@ export class GRPCServer {
             ALPNProtocols: ['h2']
         }) : http2.createServer()
         this.#server.on('stream', (stream: ServerHttp2Stream, headers: IncomingHttpHeaders): void => {
+            //Closing, the server refuses the new calls (RST_STREAM REFUSED_STREAM): the clients may send them again
+            if (this.#closing) return void stream.on('error', (): undefined => undefined).close(http2.constants.NGHTTP2_REFUSED_STREAM)
+            this.#calls.add(stream)
+            stream.once('close', (): unknown => this.#calls.delete(stream))
             const call: GRPCServerCall = new GRPCServerCall(stream, headers, {maxMessageSize: options.maxMessageSize, compression: options.compression})
             const encoding: string = String(headers['grpc-encoding'] ?? 'identity')
             if (!ACCEPTED_ENCODINGS.includes(encoding)) return call.finish(GRPCStatus.UNIMPLEMENTED, `The compression ${encoding} is not supported (${ACCEPTED_ENCODINGS.join(', ')})`)
@@ -1130,21 +1141,29 @@ export class GRPCServer {
     }
 
     /**
-     * Close the server: it stops accepting connections and calls, the calls in progress complete, and the sessions
-     * still open after the grace time are destroyed (their calls cut).
+     * Close the server: it stops accepting connections, refuses the new calls (`REFUSED_STREAM`, which the clients may
+     * send again elsewhere), lets the calls in progress complete, then closes its sessions; the sessions still open after
+     * the grace time are destroyed (their calls cut).
      * @param grace The grace time, in milliseconds; 5000 by default.
      * @returns A promise resolved once the server is closed.
      */
     public async close(grace: number = 5000): Promise<void> {
+        this.#closing = true
         await Promise.all(this.#listeners.splice(0).map((listener: { close(): Promise<void> }): Promise<void> => listener.close()))
         const closing: Promise<void> = new Promise<void>((resolve: () => void): void => void this.#server.close((): void => resolve()))
+        const timer: NodeJS.Timeout = setTimeout((): void => this.#sessions.forEach((session: Http2Session): unknown => session.destroy()), grace)
+        //The sessions close once their calls ended: on Node.js 18, a session closed (its GOAWAY) while a call is in
+        //progress loses the trailers of the call
+        await Promise.all([...this.#calls].map((stream: ServerHttp2Stream): Promise<void> => new Promise((resolve: () => void): void => {
+            if (stream.closed || stream.destroyed) return resolve()
+            stream.once('close', resolve)
+        })))
         //The close of a server waits for the connections it accepted, not for the ones given to it (by the listeners of
         //listenWith(), or serve())
         const sessionsClosed: Promise<unknown> = Promise.all([...this.#sessions].map((session: Http2Session): Promise<void> => new Promise((resolve: () => void): void => {
             if (session.closed || session.destroyed) return resolve()
             session.once('close', resolve)
         })))
-        const timer: NodeJS.Timeout = setTimeout((): void => this.#sessions.forEach((session: Http2Session): unknown => session.destroy()), grace)
         this.#sessions.forEach((session: Http2Session): unknown => session.close())
         await Promise.all([closing, sessionsClosed])
         clearTimeout(timer)

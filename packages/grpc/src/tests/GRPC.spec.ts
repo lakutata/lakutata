@@ -115,6 +115,28 @@ describe('The gRPC client and server', (): void => {
         }
     })
 
+    it('completes the calls in progress when it closes, refuses the new ones, then closes its sessions', async (): Promise<void> => {
+        const closing: GRPCServer = new GRPCServer().method('/test.Echo/Slow', async (call: GRPCServerCall): Promise<void> => {
+            const request: Message = await call.request(Text)
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 300))
+            await call.send(Text, {text: `${request.text}!`})
+        })
+        const {port: closingPort} = await closing.listen({port: 0, host: '127.0.0.1'}) as AddressInfo
+        const connection: GRPCConnection = new GRPCConnection(`127.0.0.1:${closingPort}`)
+        try {
+            const slow: Promise<Message> = connection.unary('/test.Echo/Slow', Text, {text: 'slow'}, Text)
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 50))
+            const closed: Promise<void> = closing.close()
+            //A call sent on the session of the call in progress: refused (REFUSED_STREAM), the client may send it again
+            await assert.rejects(connection.unary('/test.Echo/Slow', Text, {text: 'late'}, Text), (error: unknown): boolean => error instanceof GRPCError && error.code === GRPCStatus.UNAVAILABLE && error.message === 'The server refused the call: it is closing')
+            //Its response and its status (the trailers a session closed meanwhile loses on Node.js 18)
+            assert.strictEqual((await slow).text, 'slow!')
+            await closed
+        } finally {
+            connection.close()
+        }
+    })
+
     it('serves over TLS, the certificates of the clients required by its authority', {skip: !openSSLAvailable() && 'openssl creates the certificates of the tests'}, async (): Promise<void> => {
         const certificates: TestCertificates = createTestCertificates(directory)
         const handler = async (call: GRPCServerCall): Promise<void> => {
