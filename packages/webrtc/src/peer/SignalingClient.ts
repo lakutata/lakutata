@@ -81,7 +81,7 @@ export interface SignalingClientOptions {
 
 /**
  * The WebSocket of JSON-RPC: the global one (the browsers, Node.js 22 and later, Bun, Electron), else the one of the
- * package ws (Node.js 18 to 21)
+ * package ws (Node.js 18 to 21, which have none)
  */
 async function webSocketClass(): Promise<new (url: string) => WebSocketLike> {
     const global: (new (url: string) => WebSocketLike) | undefined = (globalThis as { WebSocket?: new (url: string) => WebSocketLike }).WebSocket

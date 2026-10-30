@@ -27,7 +27,7 @@ export function tableCrc32(data: Uint8Array, value: number = 0): number {
 }
 
 /**
- * lakutata: zlib.crc32 where Node.js has it, about 15 times faster than the table on large records.
+ * lakutata: zlib.crc32 where Node.js has it, up to about 20 times faster than the table on large inputs.
  */
 const native = (zlib as { crc32?: (data: Uint8Array, value?: number) => number }).crc32
 

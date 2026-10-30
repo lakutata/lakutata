@@ -79,7 +79,7 @@ const MAX_REJOIN_DELAY: number = 10000
  */
 function randomSession(): string {
     const bytes: Uint8Array<ArrayBuffer> = new Uint8Array(12)
-    //node-compat: crypto (global) (the browsers; SignalingClient of Node.js gives its session)
+    //node-compat: crypto (global) (the browsers; on Node.js, SignalingClient gives the session itself)
     globalThis.crypto.getRandomValues(bytes)
     return Array.from(bytes, (byte: number): string => byte.toString(16).padStart(2, '0')).join('')
 }

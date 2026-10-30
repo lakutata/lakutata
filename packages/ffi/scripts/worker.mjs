@@ -27,7 +27,7 @@ const result = await build({
     //koffi, loaded by its path before the bundle runs; a require when the code is evaluated as an ES module (the threads
     //take the type of the inputs of the process: --input-type=module; process.getBuiltinModule since Node.js 20.16 and
     //22.3); the base of the exceptions for @lakutata/core
-    banner: {js: "var require=typeof require==='function'?require:typeof process.getBuiltinModule==='function'?process.getBuiltinModule('node:module').createRequire(process.cwd()+'/'):function(){throw new Error('The worker threads of @lakutata/ffi evaluated as an ES module (--input-type=module) need process.getBuiltinModule: Node.js 20.16, 22.3 or later')};globalThis[Symbol.for('lakutata.ffi.koffi')]=require(require('node:worker_threads').workerData.koffi);"},
+    banner: {js: "var require=typeof require==='function'?require:typeof process.getBuiltinModule==='function'?process.getBuiltinModule('node:module').createRequire(process.cwd()+'/'):function(){throw new Error('The worker threads of @lakutata/ffi evaluated as an ES module (--input-type=module) need process.getBuiltinModule (Node.js 20.16, 22.3 or later)')};globalThis[Symbol.for('lakutata.ffi.koffi')]=require(require('node:worker_threads').workerData.koffi);"},
     alias: {'koffi': path.join(shims, 'koffi.cjs'), '@lakutata/core': path.join(shims, 'core.mjs')},
     //Not the syntax: Bun (1.4) evaluating it in a worker thread fails in the constructors of derived classes
     minifyWhitespace: true,

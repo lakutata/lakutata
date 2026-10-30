@@ -3,7 +3,7 @@ import os from 'node:os'
 /**
  * A signal aborted with the first of the signals given: AbortSignal.any (Node.js 18.17, 20.3), else a controller
  * listening to them. `dispose` removes its listeners once the signal is not needed any more (the signals given may live
- * longer); it does nothing with AbortSignal.any.
+ * longer); with AbortSignal.any it has nothing to remove.
  * @param signals The signals.
  * @internal
  */
@@ -32,7 +32,7 @@ export function anySignal(signals: AbortSignal[]): { signal: AbortSignal, dispos
 }
 
 /**
- * A stream of the chunks of an iterable: ReadableStream.from (Node.js 20.6), else a stream pulling them.
+ * A stream of the chunks of an iterable: ReadableStream.from (Node.js 20.6), else a stream that pulls them.
  * @param source The chunks.
  * @internal
  */

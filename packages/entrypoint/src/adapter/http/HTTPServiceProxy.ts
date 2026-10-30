@@ -267,7 +267,7 @@ export class HTTPServiceProxy extends Component {
             status = response.status
             text = await response.text()
         } catch (error) {
-            //The timeout by the signal: the fetch of Node.js 18.10 fails with an AbortError, not with the TimeoutError of the signal
+            //A timeout is told by the signal: the fetch of Node.js 18.10 fails with an AbortError, not with the signal's TimeoutError
             const timedOut: boolean = (error as Error)?.name === 'TimeoutError' || (signal.aborted && (signal.reason as Error)?.name === 'TimeoutError')
             const exception: ServiceUnavailableException = timedOut
                 ? new ServiceUnavailableException('The service {service} gave no response within {timeout} ms', {service: this.url, timeout: timeout})
