@@ -20,8 +20,8 @@ class ConfiguredProvider extends Provider {
     public readonly context: unknown
 }
 
-await describe('IoC Test', async function (): Promise<void> {
-    await it('isClass() recognizes classes and constructor functions only', async (): Promise<void> => {
+describe('IoC Test', (): void => {
+    it('isClass() recognizes classes and constructor functions only', async (): Promise<void> => {
         class Plain {
         }
 
@@ -44,14 +44,14 @@ await describe('IoC Test', async function (): Promise<void> {
         assert.equal(isClass(As(undefined)), false, 'not a function')
     })
 
-    await it('builds an object without a registration', async (): Promise<void> => {
+    it('builds an object without a registration', async (): Promise<void> => {
         const root: Container = new Container()
         const built: SubObject = await root.build(SubObject)
         assert.ok(built instanceof SubObject)
         await root.destroy()
     })
 
-    await it('isSubclassOf() gives the same result as DTO.Class() validation', async (): Promise<void> => {
+    it('isSubclassOf() gives the same result as DTO.Class() validation', async (): Promise<void> => {
         class Unrelated {
         }
 
@@ -63,7 +63,7 @@ await describe('IoC Test', async function (): Promise<void> {
         assert.equal(isSubclassOf(undefined, BaseObject), false)
     })
 
-    await it('a configured scoped object is owned by its requester, unless the shared instance is requested', async (): Promise<void> => {
+    it('a configured scoped object is owned by its requester, unless the shared instance is requested', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([ConfiguredProvider])
         const scope: Container = root.createScope()
@@ -81,7 +81,7 @@ await describe('IoC Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('listModules() matches files only and resolves absolute paths', async (): Promise<void> => {
+    it('listModules() matches files only and resolves absolute paths', async (): Promise<void> => {
         const dir: string = mkdtempSync(path.join(tmpdir(), 'lakutata-list-modules-'))
         try {
             writeFileSync(path.join(dir, 'First.js'), '')

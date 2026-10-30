@@ -125,8 +125,8 @@ async function createRoot(): Promise<Container> {
     return root
 }
 
-await describe('Scope Test', async function (): Promise<void> {
-    await it('objects in the same request scope share one scoped instance', async (): Promise<void> => {
+describe('Scope Test', (): void => {
+    it('objects in the same request scope share one scoped instance', async (): Promise<void> => {
         const root: Container = await createRoot()
         const request: Container = root.createScope()
         const first: Service = await request.get(Service)
@@ -139,7 +139,7 @@ await describe('Scope Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('different request scopes get different scoped instances', async (): Promise<void> => {
+    it('different request scopes get different scoped instances', async (): Promise<void> => {
         const root: Container = await createRoot()
         const requestA: Container = root.createScope()
         const requestB: Container = root.createScope()
@@ -149,7 +149,7 @@ await describe('Scope Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('outside a request scope, objects share the instance of the outermost scope', async (): Promise<void> => {
+    it('outside a request scope, objects share the instance of the outermost scope', async (): Promise<void> => {
         const root: Container = await createRoot()
         const shared: SharedComponent = await root.get(SharedComponent)
         const another: AnotherComponent = await root.get(AnotherComponent)
@@ -157,7 +157,7 @@ await describe('Scope Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('destroying a request scope destroys its scoped instances', async (): Promise<void> => {
+    it('destroying a request scope destroys its scoped instances', async (): Promise<void> => {
         const root: Container = await createRoot()
         const request: Container = root.createScope()
         await (await request.get(Service)).state()
@@ -167,7 +167,7 @@ await describe('Scope Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('registrations stay invisible to sibling and parent scopes', async (): Promise<void> => {
+    it('registrations stay invisible to sibling and parent scopes', async (): Promise<void> => {
         const root: Container = await createRoot()
         const requestA: Container = root.createScope()
         const requestB: Container = root.createScope()
@@ -178,7 +178,7 @@ await describe('Scope Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('containers of objects built by a long-lived object are released with the objects', async (): Promise<void> => {
+    it('containers of objects built by a long-lived object are released with the objects', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([LongLived, Job])
         const longLived: LongLived = await root.get(LongLived)
@@ -187,7 +187,7 @@ await describe('Scope Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('a request scope that is never destroyed explicitly is destroyed with its parent', async (): Promise<void> => {
+    it('a request scope that is never destroyed explicitly is destroyed with its parent', async (): Promise<void> => {
         const root: Container = await createRoot()
         await (await root.createScope().get(Service)).state()
         RequestState.destroyed = 0
@@ -195,7 +195,7 @@ await describe('Scope Test', async function (): Promise<void> {
         assert.equal(RequestState.destroyed, 1)
     })
 
-    await it('an autoloaded scoped object is shared within the request', async (): Promise<void> => {
+    it('an autoloaded scoped object is shared within the request', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([AutoloadUser])
         const request: Container = root.createScope()
@@ -205,7 +205,7 @@ await describe('Scope Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('a scoped object requested with its own configuration is a new instance for the requester', async (): Promise<void> => {
+    it('a scoped object requested with its own configuration is a new instance for the requester', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([Report, ReportUser])
         const request: Container = root.createScope()
@@ -227,7 +227,7 @@ await describe('Scope Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('configuration passed for an already created object is ignored with a warning', async (): Promise<void> => {
+    it('configuration passed for an already created object is ignored with a warning', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([Settings])
         const warnings: string[] = []
@@ -244,7 +244,7 @@ await describe('Scope Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('containers registering the same name and class keep their own options', async (): Promise<void> => {
+    it('containers registering the same name and class keep their own options', async (): Promise<void> => {
         const containers: Container[] = [new Container(), new Container(), new Container()]
         for (const [index, container] of containers.entries()) {
             await container.registerNamed('tagged', Tagged, {tag: `tagged-${index}`})
@@ -260,7 +260,7 @@ await describe('Scope Test', async function (): Promise<void> {
         for (const container of [...containers, ...concurrent]) await container.destroy()
     })
 
-    await it('a registration of a child container shadows the one of its parent with its own options', async (): Promise<void> => {
+    it('a registration of a child container shadows the one of its parent with its own options', async (): Promise<void> => {
         const root: Container = new Container()
         await root.registerNamed('tagged', Tagged, {tag: 'root'})
         await root.registerNamed('job', TaggedJob, {tag: 'root'})
@@ -274,7 +274,7 @@ await describe('Scope Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('an object built from a class gets the options of the class registered in its container only', async (): Promise<void> => {
+    it('an object built from a class gets the options of the class registered in its container only', async (): Promise<void> => {
         const root: Container = new Container()
         const other: Container = new Container()
         await root.register(TaggedJob, {tag: 'registered'})

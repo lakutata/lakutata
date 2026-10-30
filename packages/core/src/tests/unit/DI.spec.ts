@@ -29,22 +29,23 @@ class RegistrationTestClass extends BaseObject {
     }
 }
 
-await describe('DI Test', async function (): Promise<void> {
+describe('DI Test', (): void => {
 
     const container: Container = new Container()
+    let subContainer: Container
 
-    await it('add named(symbol) registration', async (): Promise<void> => {
+    it('add named(symbol) registration', async (): Promise<void> => {
         const symbol: symbol = Symbol('test')
         await container.load([{[OBJECT_ID]: symbol, class: RegistrationTestClass}])
         const registration: RegistrationTestClass = await container.get<RegistrationTestClass>(symbol)
         assert.equal(registration.foo(), 'bar')
     })
-    await it('add named(string) registration', async (): Promise<void> => {
+    it('add named(string) registration', async (): Promise<void> => {
         await container.load([{[OBJECT_ID]: 'test', class: RegistrationTestClass}])
         const registration: RegistrationTestClass = await container.get<RegistrationTestClass>('test')
         assert.equal(registration.foo(), 'bar')
     })
-    await it('get autoload registration', async (): Promise<void> => {
+    it('get autoload registration', async (): Promise<void> => {
         @Autoload()
         class AutoloadRegistrationTestClass extends RegistrationTestClass {
             public foo(): string {
@@ -55,7 +56,7 @@ await describe('DI Test', async function (): Promise<void> {
         const registration: AutoloadRegistrationTestClass = await container.get<AutoloadRegistrationTestClass>(AutoloadRegistrationTestClass)
         assert.equal(registration.foo(), 'autoload')
     })
-    await it('inject an autoload class', async (): Promise<void> => {
+    it('inject an autoload class', async (): Promise<void> => {
         @Autoload()
         @Singleton()
         class AutoloadNotifier extends BaseObject {
@@ -74,19 +75,19 @@ await describe('DI Test', async function (): Promise<void> {
         assert.strictEqual(first.notifier, second.notifier)
         assert.strictEqual(first.notifier, await container.get(AutoloadNotifier))
     })
-    await it('load module by glob', async (): Promise<void> => {
+    it('load module by glob', async (): Promise<void> => {
         await container.load([`${path.resolve(path.dirname(fileURLToPath(import.meta.url)), './resources/glob-modules')}/**.js`])
         const registration: TestObj = await container.get(TestObj)
         assert.equal(registration.foo(), 'bar')
     })
-    await it('registers every object class exported by a file of a glob, fails on a file which cannot be imported', async (): Promise<void> => {
+    it('registers every object class exported by a file of a glob, fails on a file which cannot be imported', async (): Promise<void> => {
         const resources: string = path.resolve(path.dirname(fileURLToPath(import.meta.url)), './resources')
         await container.load([`${resources}/glob-multiple/**.js`])
         assert.equal((await container.get(FirstObject)).name(), 'first')
         assert.equal((await container.get(SecondObject)).name(), 'second')
         await assert.rejects(container.load([`${resources}/glob-broken/**.js`]), /Broken\.js matched by .* cannot be imported: The module is broken/)
     })
-    await it('builds an instance of a base object class by injecting dependencies, but without registering it in the container', async (): Promise<void> => {
+    it('builds an instance of a base object class by injecting dependencies, but without registering it in the container', async (): Promise<void> => {
         class TmpObject extends BaseObject {
             public foo(): string {
                 return 'tmp'
@@ -96,13 +97,13 @@ await describe('DI Test', async function (): Promise<void> {
         const registration: TmpObject = await container.build(TmpObject)
         assert.equal(registration.foo(), 'tmp')
     })
-    const subContainer: Container = container.createScope()
-    assert.notEqual(subContainer, container)
-    await it('get root container registration in sub container', async (): Promise<void> => {
+    it('get root container registration in sub container', async (): Promise<void> => {
+        subContainer = container.createScope()
+        assert.notEqual(subContainer, container)
         const registration: RegistrationTestClass = await subContainer.get<RegistrationTestClass>('test')
         assert.equal(registration.foo(), 'bar')
     })
-    await it('add registration to sub container', async (): Promise<void> => {
+    it('add registration to sub container', async (): Promise<void> => {
         await subContainer.load([{
             [OBJECT_ID]: 'subTest',
             class: class extends RegistrationTestClass {
@@ -114,11 +115,11 @@ await describe('DI Test', async function (): Promise<void> {
         const registration: RegistrationTestClass = await subContainer.get<RegistrationTestClass>('subTest')
         assert.equal(registration.foo(), 'sub-bar')
     })
-    await it('root container should not allowed access registrations inside sub container', async (): Promise<void> => {
+    it('root container should not allowed access registrations inside sub container', async (): Promise<void> => {
         assert.equal(container.has('subTest'), false)
     })
 
-    await it('all registration instance should be destroyed after root container destroyed', async (): Promise<void> => {
+    it('all registration instance should be destroyed after root container destroyed', async (): Promise<void> => {
         await container.destroy()
         assert.equal(instanceSet.size, 0)
     })

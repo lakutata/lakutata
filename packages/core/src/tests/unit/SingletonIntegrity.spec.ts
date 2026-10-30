@@ -52,10 +52,10 @@ const DI_SYMBOLS: ReadonlyArray<symbol> = [
 ]
 const DTO_SYMBOLS: ReadonlyArray<symbol> = [DTO_CONSTRUCTOR, DTO_INDEX_SIGNATURE_SCHEMA, DTO_PROPERTY_SCHEMAS]
 
-await describe('Singleton Integrity (G4)', async (): Promise<void> => {
+describe('Singleton Integrity (G4)', (): void => {
 
-    await describe('metadata Symbol keys (G4-01 / G4-02)', async (): Promise<void> => {
-        await it('every DI metadata key is a unique Symbol() (not Symbol.for) — duplication is fatal', (): void => {
+    describe('metadata Symbol keys (G4-01 / G4-02)', (): void => {
+        it('every DI metadata key is a unique Symbol() (not Symbol.for) — duplication is fatal', (): void => {
             for (const sym of DI_SYMBOLS) {
                 assert.equal(typeof sym, 'symbol')
                 //keyFor returns undefined for Symbol() (unique per module instance).
@@ -64,7 +64,7 @@ await describe('Singleton Integrity (G4)', async (): Promise<void> => {
             }
             assert.equal(new Set(DI_SYMBOLS).size, DI_SYMBOLS.length, 'DI symbols must be distinct')
         })
-        await it('every DTO metadata key is a unique Symbol() (not Symbol.for)', (): void => {
+        it('every DTO metadata key is a unique Symbol() (not Symbol.for)', (): void => {
             for (const sym of DTO_SYMBOLS) {
                 assert.equal(typeof sym, 'symbol')
                 assert.equal(Symbol.keyFor(sym), undefined)
@@ -73,15 +73,15 @@ await describe('Singleton Integrity (G4)', async (): Promise<void> => {
         })
     })
 
-    await describe('reflect-metadata (G4-03 / G4-04)', async (): Promise<void> => {
-        await it('reflect-metadata resolves to exactly one module path', (): void => {
+    describe('reflect-metadata (G4-03 / G4-04)', (): void => {
+        it('reflect-metadata resolves to exactly one module path', (): void => {
             const p: string = require.resolve('reflect-metadata')
             assert.equal(typeof p, 'string')
             assert.ok(p.length > 0)
             //POST-SPLIT: assert require.resolve('reflect-metadata',{paths:[coreDir]})
             //=== require.resolve('reflect-metadata',{paths:[leafDir]}) for every leaf.
         })
-        await it('Reflect.defineMetadata is readable back via Reflect.getMetadata (functional round-trip)', (): void => {
+        it('Reflect.defineMetadata is readable back via Reflect.getMetadata (functional round-trip)', (): void => {
             const key: symbol = Symbol('G4.reflect.roundtrip')
             class Target {}
             Reflect.defineMetadata(key, {v: 1}, Target)
@@ -92,8 +92,8 @@ await describe('Singleton Integrity (G4)', async (): Promise<void> => {
         })
     })
 
-    await describe('DI injection metadata (G4-05)', async (): Promise<void> => {
-        await it('@Inject writes a readable map under DI_TARGET_CONSTRUCTOR_INJECTS', (): void => {
+    describe('DI injection metadata (G4-05)', (): void => {
+        it('@Inject writes a readable map under DI_TARGET_CONSTRUCTOR_INJECTS', (): void => {
             class InjectProbe extends BaseObject {
                 @Inject('g4ProbeSvc')
                 public svc?: unknown
@@ -108,8 +108,8 @@ await describe('Singleton Integrity (G4)', async (): Promise<void> => {
         })
     })
 
-    await describe('DTO recognition (G4-06)', async (): Promise<void> => {
-        await it('a DTO subclass is recognised as a DTO via the shared DTO_CONSTRUCTOR symbol', (): void => {
+    describe('DTO recognition (G4-06)', (): void => {
+        it('a DTO subclass is recognised as a DTO via the shared DTO_CONSTRUCTOR symbol', (): void => {
             class ProbeDTO extends DTO {
                 @Expect(DTO.String().optional())
                 public field?: string
@@ -120,8 +120,8 @@ await describe('Singleton Integrity (G4)', async (): Promise<void> => {
         })
     })
 
-    await describe('ConstructorSymbol name map (G4-10)', async (): Promise<void> => {
-        await it('ConstructorSymbol + ResolveConstructorNameBySymbol round-trip via the module-level Map', (): void => {
+    describe('ConstructorSymbol name map (G4-10)', (): void => {
+        it('ConstructorSymbol + ResolveConstructorNameBySymbol round-trip via the module-level Map', (): void => {
             class ProbeObject extends BaseObject {}
             const sym: symbol = constructorSymbol(ProbeObject)
             assert.equal(typeof sym, 'symbol')
@@ -130,14 +130,14 @@ await describe('Singleton Integrity (G4)', async (): Promise<void> => {
             //module instance; a duplicated core leaves the symbol absent from
             //core's map -> DI registration names corrupt.
         })
-        await it('ConstructorSymbol is stable across calls for the same class', (): void => {
+        it('ConstructorSymbol is stable across calls for the same class', (): void => {
             class StableObject extends BaseObject {}
             assert.equal(constructorSymbol(StableObject), constructorSymbol(StableObject))
         })
     })
 
-    await describe('Alias singleton (G4-11)', async (): Promise<void> => {
-        await it('Alias.getAliasInstance returns the same Alias instance (Reflect-keyed singleton)', (): void => {
+    describe('Alias singleton (G4-11)', (): void => {
+        it('Alias.getAliasInstance returns the same Alias instance (Reflect-keyed singleton)', (): void => {
             const a1 = Alias.getAliasInstance()
             const a2 = Alias.getAliasInstance()
             assert.equal(Object.is(a1, a2), true)
@@ -148,7 +148,7 @@ await describe('Singleton Integrity (G4)', async (): Promise<void> => {
         })
     })
 
-    await it('G4-13 meta: this spec is GREEN on unmodified source (baseline established)', (): void => {
+    it('G4-13 meta: this spec is GREEN on unmodified source (baseline established)', (): void => {
         //If you see this fail after a change, the process-wide singleton machinery
         //broke. Do not ship the split until every probe above is GREEN again and
         //the post-split cross-package identity assertions (template below) are added.

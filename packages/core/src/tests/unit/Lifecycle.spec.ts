@@ -182,8 +182,8 @@ class DestroyCounter extends BaseObject {
     }
 }
 
-await describe('Lifecycle Test', async function (): Promise<void> {
-    await it('container destroy settles when a transient object throws in destroy()', async (): Promise<void> => {
+describe('Lifecycle Test', (): void => {
+    it('container destroy settles when a transient object throws in destroy()', async (): Promise<void> => {
         const reported: Error[] = []
         setLifecycleErrorReporter((error: Error): void => void reported.push(error))
         const root: Container = new Container()
@@ -199,7 +199,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         setLifecycleErrorReporter()
     })
 
-    await it('dispose() destroys the objects created by the disposed object', async (): Promise<void> => {
+    it('dispose() destroys the objects created by the disposed object', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([Owner, Holder, Leaf])
         const holder: Holder = await (await root.get(Owner)).take(Holder)
@@ -209,7 +209,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('teardown is idempotent: dispose() twice and a later owner teardown destroy once', async (): Promise<void> => {
+    it('teardown is idempotent: dispose() twice and a later owner teardown destroy once', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([Owner, Holder, Leaf])
         const holder: Holder = await (await root.get(Owner)).take(Holder)
@@ -220,7 +220,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         assert.deepEqual(events, ['Leaf.destroy', 'Holder.destroy'])
     })
 
-    await it('a destroyed object can no longer resolve or build objects', async (): Promise<void> => {
+    it('a destroyed object can no longer resolve or build objects', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([Owner, Holder, Leaf])
         const holder: Holder = await (await root.get(Owner)).take(Holder)
@@ -229,7 +229,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('dispose() throws its own destroy() error and reports errors of cascaded children', async (): Promise<void> => {
+    it('dispose() throws its own destroy() error and reports errors of cascaded children', async (): Promise<void> => {
         const reported: Error[] = []
         setLifecycleErrorReporter((error: Error): void => void reported.push(error))
         const root: Container = new Container()
@@ -242,7 +242,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         setLifecycleErrorReporter()
     })
 
-    await it('await using disposes the object when the block exits', async (): Promise<void> => {
+    it('await using disposes the object when the block exits', {skip: !Symbol.asyncDispose && 'await using needs Symbol.asyncDispose (Node.js 18.18, 20.4 or later)'}, async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([Owner, Holder, Leaf])
         const owner: Owner = await root.get(Owner)
@@ -255,7 +255,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('Component.reload() destroys then initializes again', async (): Promise<void> => {
+    it('Component.reload() destroys then initializes again', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([Reloadable])
         const component: Reloadable = await root.get(Reloadable)
@@ -266,7 +266,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('Module.reload() resolves', async (): Promise<void> => {
+    it('Module.reload() resolves', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([TestModule])
         const module: TestModule = await initializedModule(root)
@@ -274,7 +274,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('getModule() walks up through non-module parents', async (): Promise<void> => {
+    it('getModule() walks up through non-module parents', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([TestModule])
         const module: TestModule = await initializedModule(root)
@@ -284,7 +284,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('removeAllListeners() without an event removes every regular listener', async (): Promise<void> => {
+    it('removeAllListeners() without an event removes every regular listener', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([Reloadable])
         const component: Reloadable = await root.get(Reloadable)
@@ -298,7 +298,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('components are always singletons', async (): Promise<void> => {
+    it('components are always singletons', async (): Promise<void> => {
         assert.doesNotThrow((): void => {
             @Singleton()
             class RedeclaredSingletonComponent extends Component {
@@ -315,7 +315,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         }, LifetimeLockedException)
     })
 
-    await it('providers may be singletons, scoped or transient (as in 2.x)', async (): Promise<void> => {
+    it('providers may be singletons, scoped or transient (as in 2.x)', async (): Promise<void> => {
         @Singleton()
         class SingletonProvider extends Provider {
         }
@@ -338,7 +338,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('an object disposed while initializing does not come back to life', async (): Promise<void> => {
+    it('an object disposed while initializing does not come back to life', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([Owner, SlowInit, Leaf])
         const owner: Owner = await root.get(Owner)
@@ -350,7 +350,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('a module is initialized once resolved from outside, and not again once disposed', async (): Promise<void> => {
+    it('a module is initialized once resolved from outside, and not again once disposed', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([DeferredModule])
         events.length = 0
@@ -363,7 +363,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('a concurrent dispose waits for the teardown already in progress', async (): Promise<void> => {
+    it('a concurrent dispose waits for the teardown already in progress', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([Owner, SlowHolder, SlowLeaf])
         const holder: SlowHolder = await (await root.get(Owner)).take(SlowHolder)
@@ -374,7 +374,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         assert.deepEqual(events, ['SlowLeaf.destroy', 'SlowHolder.destroy'], 'children are still destroyed first')
     })
 
-    await it('reload() fails while the parent is being destroyed', async (): Promise<void> => {
+    it('reload() fails while the parent is being destroyed', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([Owner, Leaf])
         const owner: Owner = await root.get(Owner)
@@ -384,7 +384,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await assert.rejects(owner.take(Leaf), ObjectDestroyedException, 'nothing survives the shutdown')
     })
 
-    await it('reload() injects dependencies again', async (): Promise<void> => {
+    it('reload() injects dependencies again', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([InjectingComponent, Holder, Leaf])
         const component: InjectingComponent = await root.get(InjectingComponent)
@@ -395,7 +395,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('dispose() of a cached object lets the container create a new one', async (): Promise<void> => {
+    it('dispose() of a cached object lets the container create a new one', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([Reloadable])
         const first: Reloadable = await root.get(Reloadable)
@@ -404,7 +404,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('a destroy error delivered to dispose() is not reported again', async (): Promise<void> => {
+    it('a destroy error delivered to dispose() is not reported again', async (): Promise<void> => {
         const reported: Error[] = []
         setLifecycleErrorReporter((error: Error): void => void reported.push(error))
         const root: Container = new Container()
@@ -415,7 +415,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         setLifecycleErrorReporter()
     })
 
-    await it('a destroyed container refuses to resolve or build objects', async (): Promise<void> => {
+    it('a destroyed container refuses to resolve or build objects', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([Leaf])
         const scope: Container = root.createScope()
@@ -425,7 +425,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('the teardown hooks of a container run before its scopes are destroyed', async (): Promise<void> => {
+    it('the teardown hooks of a container run before its scopes are destroyed', async (): Promise<void> => {
         class ScopedObject extends BaseObject {
             public destroyed: boolean = false
 
@@ -451,7 +451,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         assert.ok(scoped.destroyed)
     })
 
-    await it('beforeDestroy() runs once, before the objects created by the object are destroyed (dispose)', async (): Promise<void> => {
+    it('beforeDestroy() runs once, before the objects created by the object are destroyed (dispose)', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([GracefulHolder])
         const holder: GracefulHolder = await root.get(GracefulHolder)
@@ -462,7 +462,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('beforeDestroy() runs once, before the objects created by the object are destroyed (teardown of its owner)', async (): Promise<void> => {
+    it('beforeDestroy() runs once, before the objects created by the object are destroyed (teardown of its owner)', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([GracefulHolder])
         await root.get(GracefulHolder)
@@ -471,7 +471,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         assert.deepStrictEqual(events, ['GracefulHolder.beforeDestroy', 'Leaf.destroy', 'GracefulHolder.destroy'])
     })
 
-    await it('a failing beforeDestroy() does not stop the teardown: dispose() throws its error, the teardown of the owner reports it', async (): Promise<void> => {
+    it('a failing beforeDestroy() does not stop the teardown: dispose() throws its error, the teardown of the owner reports it', async (): Promise<void> => {
         GracefulHolder.failing = true
         try {
             const root: Container = new Container()
@@ -496,7 +496,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         }
     })
 
-    await it('beforeDestroy() runs again after a reload', async (): Promise<void> => {
+    it('beforeDestroy() runs again after a reload', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([GracefulHolder])
         const holder: GracefulHolder = await root.get(GracefulHolder)
@@ -510,7 +510,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('launched() runs after the initialization of an object without application, again after a reload', async (): Promise<void> => {
+    it('launched() runs after the initialization of an object without application, again after a reload', async (): Promise<void> => {
         const root: Container = new Container()
         await root.load([LaunchAware])
         events.length = 0
@@ -523,7 +523,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         await root.destroy()
     })
 
-    await it('an error of launched() is reported, with the hook named', async (): Promise<void> => {
+    it('an error of launched() is reported, with the hook named', async (): Promise<void> => {
         const reported: [Error, string][] = []
         setLifecycleErrorReporter((error: Error, message: string): void => void reported.push([error, message]))
         LaunchAware.failing = true
@@ -542,7 +542,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         }
     })
 
-    await it('an object declared with its class replaces the preset object of the same name, its options are added otherwise', async (): Promise<void> => {
+    it('an object declared with its class replaces the preset object of the same name, its options are added otherwise', async (): Promise<void> => {
         class PresetComponent extends Component {
         }
 
@@ -557,7 +557,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         ])
     })
 
-    await it('a component declared as a provider is rejected with the configuration it belongs to', async (): Promise<void> => {
+    it('a component declared as a provider is rejected with the configuration it belongs to', async (): Promise<void> => {
         //The validation does not use the module
         assert.throws((): unknown => new ModuleConfigLoader({} as Module, {providers: {proxy: {class: InnerComponent}}}), (error: Error): boolean => {
             assert.ok(error instanceof InvalidObjectTypeException)
@@ -566,7 +566,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         })
     })
 
-    await it('a module declared as a component is rejected with the configuration of the modules', async (): Promise<void> => {
+    it('a module declared as a component is rejected with the configuration of the modules', async (): Promise<void> => {
         assert.throws((): unknown => new ModuleConfigLoader({} as Module, {components: {accounting: {class: TestModule}}}), (error: Error): boolean => {
             assert.ok(error instanceof InvalidObjectTypeException)
             assert.strictEqual(error.message, 'Component configuration only accepts object declarations of component types: "accounting" (TestModule) is a module, declare it in the objects configuration (objects.named)')
@@ -574,8 +574,8 @@ await describe('Lifecycle Test', async function (): Promise<void> {
         })
     })
 
-    await describe('startup()', async (): Promise<void> => {
-        await it('is waited for by the objects getting the object', async (): Promise<void> => {
+    describe('startup()', (): void => {
+        it('is waited for by the objects getting the object', async (): Promise<void> => {
             const order: string[] = []
 
             class Server extends Component {
@@ -605,7 +605,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
             await root.destroy()
         })
 
-        await it('gives the object at once to the objects got from within it', async (): Promise<void> => {
+        it('gives the object at once to the objects got from within it', async (): Promise<void> => {
             class Server extends Component {
                 public guard: Guard | undefined
 
@@ -634,7 +634,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
             await root.destroy()
         })
 
-        await it('fails the objects getting the object with its error, its launched() not called', async (): Promise<void> => {
+        it('fails the objects getting the object with its error, its launched() not called', async (): Promise<void> => {
             let launched: boolean = false
 
             class Busy extends Component {
@@ -655,7 +655,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
             await root.destroy()
         })
 
-        await it('ends before the object is destroyed', async (): Promise<void> => {
+        it('ends before the object is destroyed', async (): Promise<void> => {
             const order: string[] = []
 
             class Slow extends Component {
@@ -678,7 +678,7 @@ await describe('Lifecycle Test', async function (): Promise<void> {
             assert.deepStrictEqual(order, ['started', 'destroyed'])
         })
 
-        await it('lets the call chain of a startup no longer skip the wait once it ended', async (): Promise<void> => {
+        it('lets the call chain of a startup no longer skip the wait once it ended', async (): Promise<void> => {
             let later: Promise<unknown> | undefined
 
             class Looping extends Component {

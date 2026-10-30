@@ -27,41 +27,41 @@ class LateFieldDTO extends DTO {
 class IndexedDTO extends DTO {
 }
 
-await describe('DTO Test', async function (): Promise<void> {
-    await it('validate string', async (): Promise<void> => {
+describe('DTO Test', (): void => {
+    it('validate string', async (): Promise<void> => {
         assert.equal(DTO.validate('test-string', DTO.String()), 'test-string')
         assert.throws(() => DTO.validate(12345, DTO.String()))
     })
-    await it('validate number', async (): Promise<void> => {
+    it('validate number', async (): Promise<void> => {
         assert.equal(DTO.validate(123456, DTO.Number()), 123456)
         assert.throws(() => DTO.validate('12345', DTO.Number()))
     })
-    await it('validate boolean', async (): Promise<void> => {
+    it('validate boolean', async (): Promise<void> => {
         assert.equal(DTO.validate(true, DTO.Boolean()), true)
         assert.throws(() => DTO.validate('true', DTO.Boolean()))
     })
-    await it('validate object', async (): Promise<void> => {
+    it('validate object', async (): Promise<void> => {
         const obj: object = {}
         assert.equal(DTO.validate(obj, DTO.Object()), obj)
         assert.throws(() => DTO.validate('object', DTO.Object()))
     })
-    await it('validate symbol', async (): Promise<void> => {
+    it('validate symbol', async (): Promise<void> => {
         const symbol: symbol = Symbol('test symbol')
         assert.equal(DTO.validate(symbol, DTO.Symbol()), symbol)
         assert.throws(() => DTO.validate('symbol', DTO.Symbol()))
     })
-    await it('validate function', async (): Promise<void> => {
+    it('validate function', async (): Promise<void> => {
         const func: Function = function (): void {
         }
         assert.equal(DTO.validate(func, DTO.Function()), func)
         assert.throws(() => DTO.validate('func', DTO.Function()))
     })
-    await it('validate array', async (): Promise<void> => {
+    it('validate array', async (): Promise<void> => {
         const arr: any[] = ['a', 'b', 'c']
         assert.equal(DTO.isValid(arr, DTO.Array(DTO.String())), true)
         assert.throws(() => DTO.validate(['str', 1, 2, 3], DTO.Array(DTO.String())))
     })
-    await it('simple DTO object test', async (): Promise<void> => {
+    it('simple DTO object test', async (): Promise<void> => {
         class SimpleDTO extends DTO {
             @Expect(DTO.String().required())
             public test1: string
@@ -88,7 +88,7 @@ await describe('DTO Test', async function (): Promise<void> {
         assert.equal(SimpleDTO.isValid(validInput), true)
         assert.equal(SimpleDTO.isValid(invalidInput), false)
     })
-    await it('embed DTO object test', async (): Promise<void> => {
+    it('embed DTO object test', async (): Promise<void> => {
         class EmbedDTO extends DTO {
             @Expect(DTO.String().not('rab').required())
             public foo: any
@@ -120,7 +120,7 @@ await describe('DTO Test', async function (): Promise<void> {
         assert.equal(TestDTO.isValid(invalidInput), false)
         assert.equal(new TestDTO(validInput).embed.foo, 'bar')
     })
-    await it('extend DTO object test', async (): Promise<void> => {
+    it('extend DTO object test', async (): Promise<void> => {
         class Test1DTO extends DTO {
             @Expect(DTO.String().required())
             public a: string
@@ -160,7 +160,7 @@ await describe('DTO Test', async function (): Promise<void> {
         assert.doesNotThrow(() => new Test2DTO(validInput))
         assert.throws(() => new Test2DTO(invalidInput))
     })
-    await it('validate class method\'s input arguments', async (): Promise<void> => {
+    it('validate class method\'s input arguments', async (): Promise<void> => {
         class TestDTO extends DTO {
             @Expect(DTO.String().required())
             public name: string
@@ -205,7 +205,7 @@ await describe('DTO Test', async function (): Promise<void> {
         assert.equal(new OptionalArguments().run('a'), 'a:1:undefined')
         assert.throws(() => new OptionalArguments().run(<any>undefined, 2), /is required/)
     })
-    await it('validate class method\'s return value', async (): Promise<void> => {
+    it('validate class method\'s return value', async (): Promise<void> => {
         class TestDTO extends DTO {
             @Expect(DTO.String().required())
             public name: string
@@ -239,12 +239,12 @@ await describe('DTO Test', async function (): Promise<void> {
         assert.equal(new TestClass().testReturn(validOutput).gender, 'unknown')
     })
 
-    await it('a DTO class schema is built once and reused', async (): Promise<void> => {
+    it('a DTO class schema is built once and reused', async (): Promise<void> => {
         assert.equal(CachedParentDTO.Schema(), CachedParentDTO.Schema())
         assert.equal(CachedChildDTO.Schema(), CachedChildDTO.Schema())
     })
 
-    await it('cached schemas keep the behavior of subclasses, index signatures and instances', async (): Promise<void> => {
+    it('cached schemas keep the behavior of subclasses, index signatures and instances', async (): Promise<void> => {
         CachedParentDTO.Schema()
         assert.doesNotThrow((): unknown => CachedParentDTO.validate({name: 'a'}), 'the parent does not get the child field')
         assert.throws((): unknown => CachedChildDTO.validate({name: 'a'}), 'the child requires its own field')
@@ -259,18 +259,18 @@ await describe('DTO Test', async function (): Promise<void> {
         assert.equal(instance.age, 2)
     })
 
-    await it('a cached schema follows later schema changes', async (): Promise<void> => {
+    it('a cached schema follows later schema changes', async (): Promise<void> => {
         assert.doesNotThrow((): unknown => LateFieldDTO.validate({}))
         Expect(DTO.String().required())(LateFieldDTO.prototype, 'late')
         assert.throws((): unknown => LateFieldDTO.validate({}), 'a field added after the first use is validated')
         LateFieldDTO.description('described later')
         assert.equal(As<{ description?: string }>(LateFieldDTO.Schema().describe().flags)?.description, 'described later')
     })
-    await it('HttpDocument() accepts the HTML and the XML documents only', async (): Promise<void> => {
+    it('HttpDocument() accepts the HTML and the XML documents only', async (): Promise<void> => {
         for (const document of ['<html><body>x</body></html>', '<?xml version="1.0"?><a/>', '<a><b>x</b></a>']) assert.equal(DTO.isValid(document, DTO.HttpDocument()), true, document)
         for (const value of ['plain text', '{"json": true}', '<note><to></note>']) assert.equal(DTO.isValid(value, DTO.HttpDocument()), false, value)
     })
-    await it('PaginationSearchDTO takes its limit and offset from a query string, with their defaults', async (): Promise<void> => {
+    it('PaginationSearchDTO takes its limit and offset from a query string, with their defaults', async (): Promise<void> => {
         const query: PaginationSearchDTO = await PaginationSearchDTO.validateAsync(As<PaginationSearchDTO>({limit: '20', offset: '40'}))
         assert.equal(query.limit, 20)
         assert.equal(query.offset, 40)
