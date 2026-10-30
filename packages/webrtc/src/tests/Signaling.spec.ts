@@ -158,6 +158,25 @@ describe('Signaling', (): void => {
         }
     })
 
+    it('connects over JSON-RPC with the package ws where there is no global WebSocket (Node.js 18 to 21)', {timeout: 60000}, async (): Promise<void> => {
+        const server: TestServer = await startServer()
+        const clients: Container = new Container()
+        const global: PropertyDescriptor | undefined = Object.getOwnPropertyDescriptor(globalThis, 'WebSocket')
+        Reflect.deleteProperty(globalThis, 'WebSocket')
+        try {
+            assert.strictEqual((globalThis as { WebSocket?: unknown }).WebSocket, undefined)
+            const alice: SignalingClient = await clients.get(SignalingClient, {url: server.jsonRPC, id: 'alice'})
+            const bob: SignalingClient = await clients.get(SignalingClient, {url: server.jsonRPC, id: 'bob'})
+            const first: Room = await alice.join('lobby')
+            const second: Room = await bob.join('lobby')
+            assert.strictEqual(await echoBetween(first, second), 'echo: hello')
+        } finally {
+            if (global) Object.defineProperty(globalThis, 'WebSocket', global)
+            await clients.destroy()
+            await server.stop()
+        }
+    })
+
     for (const threads of [false, true]) it(`connects a Socket.IO member and a JSON-RPC member, through the TURN relay only${threads ? ', their connections served in worker threads' : ''}`, {timeout: 60000}, async (): Promise<void> => {
         const server: TestServer = await startServer({turn: {secret: 'test-secret'}})
         const clients: Container = new Container()

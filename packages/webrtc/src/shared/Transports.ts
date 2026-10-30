@@ -72,7 +72,7 @@ export interface SocketIOSocketLike {
 }
 
 /**
- * What the signaling needs of a WebSocket (`WebSocket` of the browsers, of Node.js 22 and of Bun) speaking JSON-RPC to
+ * What the signaling needs of a WebSocket (`WebSocket` of the browsers, of Node.js 22 and of Bun, of the package `ws`) speaking JSON-RPC to
  * the server; its client id is the `id` query parameter of its URL.
  */
 export interface WebSocketLike {

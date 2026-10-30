@@ -26,7 +26,8 @@ for (const entry of entries) {
         bundle: true,
         platform: 'node',
         format: 'cjs',
-        target: 'node22',
+        //The oldest Node.js the package runs on (NW.js 0.70)
+        target: 'node18.10',
         //Not the syntax: Bun (1.4) evaluating it in a worker thread fails in the constructors of derived classes
         //("super() must be called in derived constructor before accessing this"), the same code loaded from a file does
         //not

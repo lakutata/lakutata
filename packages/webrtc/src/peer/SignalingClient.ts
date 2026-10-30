@@ -7,7 +7,7 @@ import type {EmitterListener} from '../shared/Emitter.js'
 import type {Peer as SharedPeer} from '../shared/Peer.js'
 import type {Room as SharedRoom} from '../shared/Room.js'
 import {type JoinOptions, SignalingSession, type SignalingSessionEvents} from '../shared/SignalingSession.js'
-import {JSONRPCTransport, type SignalingTransport, SocketIOTransport, type SocketIOSocketLike} from '../shared/Transports.js'
+import {JSONRPCTransport, type SignalingTransport, SocketIOTransport, type SocketIOSocketLike, type WebSocketLike} from '../shared/Transports.js'
 import {SignalingConnectionException} from '../exceptions/SignalingConnectionException.js'
 import {PeerConnection} from './PeerConnection.js'
 
@@ -80,10 +80,27 @@ export interface SignalingClientOptions {
 }
 
 /**
+ * The WebSocket of JSON-RPC: the global one (the browsers, Node.js 22 and later, Bun, Electron), else the one of the
+ * package ws (Node.js 18 to 21)
+ */
+async function webSocketClass(): Promise<new (url: string) => WebSocketLike> {
+    const global: (new (url: string) => WebSocketLike) | undefined = (globalThis as { WebSocket?: new (url: string) => WebSocketLike }).WebSocket
+    if (global) return global
+    try {
+        const module: string = 'ws'
+        const loaded: { WebSocket?: new (url: string) => WebSocketLike, default?: new (url: string) => WebSocketLike } = await import(module)
+        return (loaded.WebSocket ?? loaded.default)!
+    } catch {
+        throw new SignalingConnectionException('JSON-RPC over WebSocket needs the global WebSocket (Node.js 22 and later) or the package ws: npm install ws')
+    }
+}
+
+/**
  * A lakutata application as a member of the rooms of a signaling server of this package (`Signaling` and
  * `SignalingController`, on this application or another one): it joins rooms and connects to their other members,
  * browsers or applications, with {@link PeerConnection}s. Over Socket.IO (an `http:` or `https:` URL, with the package
- * `socket.io-client`) or JSON-RPC over WebSocket (a `ws:` or `wss:` URL, with the `WebSocket` of Node.js 22 and of Bun);
+ * `socket.io-client`) or JSON-RPC over WebSocket (a `ws:` or `wss:` URL, with the global `WebSocket` of Node.js 22 and
+ * later and of Bun, else the package `ws`);
  * it reconnects by itself and joins its rooms again, keeping the peer-to-peer connections.
  *
  * Get a new one with `getObject(SignalingClient, options)` (it is `@Transient`, and needs no registration); `close()`
@@ -321,8 +338,7 @@ export class SignalingClient extends Provider {
     protected async transport(): Promise<SignalingTransport> {
         const url: URL = new URL(this.url)
         if (url.protocol === 'ws:' || url.protocol === 'wss:') {
-            const WebSocketClass: (new (url: string) => any) | undefined = (globalThis as {WebSocket?: new (url: string) => any}).WebSocket
-            if (!WebSocketClass) throw new SignalingConnectionException('JSON-RPC over WebSocket needs the global WebSocket (Node.js 22 and later)')
+            const WebSocketClass: new (url: string) => WebSocketLike = await webSocketClass()
             url.searchParams.set('id', this.#clientId)
             const address: string = url.toString()
             return new JSONRPCTransport((): any => new WebSocketClass(address), this.timeout)

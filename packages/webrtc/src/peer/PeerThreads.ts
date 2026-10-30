@@ -1,4 +1,4 @@
-import {availableParallelism} from 'node:os'
+import os from 'node:os'
 import type {HeapInfo} from 'node:v8'
 import {type ResourceLimits, Worker} from 'node:worker_threads'
 import {Component, type ComponentOptions, DTO} from '@lakutata/core'
@@ -16,6 +16,14 @@ const log = debug('webrtc/peer/threads')
  * How long a thread asked to stop has to close its connections, in milliseconds
  */
 const STOP_TIMEOUT: number = 5000
+
+/**
+ * The parallelism the system advises: os.availableParallelism (Node.js 18.14, 19.4), else the cores
+ */
+function parallelism(): number {
+    //node-compat: os.availableParallelism
+    return typeof os.availableParallelism === 'function' ? os.availableParallelism() : Math.max(1, os.cpus().length)
+}
 
 /**
  * The options of {@link PeerThreads} (see {@link buildPeerThreadsOptions}).
@@ -53,6 +61,9 @@ interface Slot {
  * (its `threads` option) runs its ICE, DTLS, SCTP and SRTP there, while its object, its events and the messages of its
  * channels stay in the main thread. Each connection is served by one thread for its whole life; a thread that stops
  * (only a bug stops one) fails its connections (`failed`, then `closed`), and is started again for the next ones.
+ *
+ * Not on Node.js 18 and 19: a worker thread receiving the datagrams of its connections can end the process there (a
+ * fatal error of Node.js). The connections served in the main thread (without this component) are not concerned.
  *
  * Register it with {@link buildPeerThreadsOptions}; the threads stop when the application does.
  * @example
@@ -112,7 +123,7 @@ export class PeerThreads extends Component {
      */
     protected async init(): Promise<void> {
         if (!peerWorkerCode) throw new Error('The code of the worker threads of the connections is not built (scripts/workers.mjs)')
-        const count: number = this.threads ?? Math.max(1, availableParallelism() - 1)
+        const count: number = this.threads ?? Math.max(1, parallelism() - 1)
         this.#slots = Array.from({length: count}, (_: unknown, index: number): Slot => ({index: index, connections: new Map(), opening: 0}))
         debugHandlerWatchers.add(this.#debugging)
     }
