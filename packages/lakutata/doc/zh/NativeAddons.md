@@ -61,14 +61,13 @@ pub fn greet(name: String) -> String {
 ```typescript
 import {createRequire} from 'node:module'
 import path from 'node:path'
-import {fileURLToPath} from 'node:url'
 
 type Binding = {
     greet(name: string): string
 }
 
 /** The addon built into build/Release, loaded from the directory of the package */
-const binding: Binding = createRequire(import.meta.url)('node-gyp-build')(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'))
+const binding: Binding = createRequire(__filename)('node-gyp-build')(path.resolve(__dirname, '..'))
 
 export function greet(name: string): string {
     return binding.greet(name)
@@ -87,6 +86,7 @@ export function greet(name: string): string {
 - **错误**：node-addon-api 的 C++ 异常会以同类错误抛到 JavaScript 中（`Napi::TypeError` 变成 `TypeError`）。在 Rust 中，类型不对的参数由 napi-rs 拒绝，抛出一个 `Error`，它的 `code` 说明原因（`StringExpected`）。
 - **macOS**：C++ 插件在一个文件中同时为 Intel 和 Apple 芯片的 Mac 构建；Rust 插件只为本机的架构构建（用 `rustup target add` 添加其他架构）。
 - **Node-API**：插件针对 Node-API 第 8 版构建，所有受支持的 Node.js 和 Electron 版本都提供这一版，所以不需要为它们分别重新构建。
+- **CommonJS**：这个包是 CommonJS 包（`"type": "commonjs"`）。`lakutata package` 生成的文件是 CommonJS 格式，用 `require` 加载它，而 `require` 要到 Node.js 20.19、22.12 或更高版本才能加载 ES 模块。
 - 和 `lakutata add` 创建的所有包一样，这个包是 `"private": true`：原生插件通常随应用一起发布，而不单独发布。
 
 ## 2. 链接库

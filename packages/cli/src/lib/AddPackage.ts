@@ -446,7 +446,9 @@ function nativeFiles(name: string, version: string, build: NativeBuild, packageM
             name: name,
             version: version,
             private: true,
-            type: 'module',
+            //CommonJS: the bundles of the applications are CommonJS and require it, which loads an ES module only on
+            //Node.js 20.19, 22.12 and later
+            type: 'commonjs',
             main: 'dist/index.js',
             types: 'dist/index.d.ts',
             exports: {'.': {types: './dist/index.d.ts', default: './dist/index.js'}},
@@ -469,7 +471,6 @@ function nativeFiles(name: string, version: string, build: NativeBuild, packageM
         ...chosen.files,
         'src/index.ts': `import {createRequire} from 'node:module'
 import path from 'node:path'
-import {fileURLToPath} from 'node:url'
 
 /**
  * The functions of the addon
@@ -481,7 +482,7 @@ type Binding = {
 /**
  * The addon built into build/Release, loaded from the directory of the package
  */
-const binding: Binding = createRequire(import.meta.url)('node-gyp-build')(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'))
+const binding: Binding = createRequire(__filename)('node-gyp-build')(path.resolve(__dirname, '..'))
 
 /**
  * Greet someone, in ${build === 'rust' ? 'Rust' : 'C++'}

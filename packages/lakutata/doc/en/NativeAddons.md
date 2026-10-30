@@ -66,14 +66,13 @@ And `src/index.ts`, the same for all three:
 ```typescript
 import {createRequire} from 'node:module'
 import path from 'node:path'
-import {fileURLToPath} from 'node:url'
 
 type Binding = {
     greet(name: string): string
 }
 
 /** The addon built into build/Release, loaded from the directory of the package */
-const binding: Binding = createRequire(import.meta.url)('node-gyp-build')(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'))
+const binding: Binding = createRequire(__filename)('node-gyp-build')(path.resolve(__dirname, '..'))
 
 export function greet(name: string): string {
     return binding.greet(name)
@@ -96,6 +95,8 @@ export function greet(name: string): string {
   for the architecture of the machine (`rustup target add` adds the other ones).
 - **Node-API**: the addons are built for Node-API version 8, which every supported version of Node.js and of Electron
   provides, so they are not rebuilt for each of them.
+- **CommonJS**: the package is CommonJS (`"type": "commonjs"`). The bundles of `lakutata package` are CommonJS and
+  load it with `require`, which can load an ES module only on Node.js 20.19, 22.12 or later.
 - The package is `"private": true`, like every package that `lakutata add` creates: an addon is usually shipped with
   its application rather than published.
 
