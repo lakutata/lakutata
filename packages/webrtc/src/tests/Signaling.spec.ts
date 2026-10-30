@@ -15,6 +15,12 @@ import type {Peer as SharedPeer} from '../shared/Peer.js'
 import type {Room as SharedRoom} from '../shared/Room.js'
 import type {PeerConnectionConfiguration} from '../shared/Connections.js'
 import {next, startServer, type TestServer, until} from './support/Server.js'
+import {WebSocket as PackageWebSocket} from 'ws'
+
+/**
+ * The WebSocket of a member over JSON-RPC: the global one, else the one of the package ws (Node.js 18 to 21)
+ */
+const MemberWebSocket: typeof WebSocket = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket ?? PackageWebSocket as unknown as typeof WebSocket
 
 /**
  * The listeners of a stand-in socket
@@ -264,6 +270,8 @@ describe('Signaling', (): void => {
         const clients: Container = new Container()
         const socket: Socket = connect(server.socketIO, {auth: {id: 'alice'}, transports: ['websocket'], reconnectionDelay: 100, reconnectionDelayMax: 200})
         const session: SignalingSession<PeerConnection> = new SignalingSession<PeerConnection>(new SocketIOTransport(socket), {
+            //Its own session, as SignalingClient gives it (the default of the browsers needs the global crypto)
+            session: 'session-of-alice',
             createPeerConnection: (configuration: PeerConnectionConfiguration): Promise<PeerConnection> => clients.get(PeerConnection, configuration)
         })
         try {
@@ -343,7 +351,7 @@ describe('Signaling', (): void => {
     it('takes out the members whose connection closes, and the ones without heartbeats', {timeout: 30000}, async (): Promise<void> => {
         const server: TestServer = await startServer({signaling: {heartbeatInterval: 200}})
         const watcher: Socket = await rawClient(server, 'watcher')
-        const member: WebSocket = new WebSocket(`${server.jsonRPC}?id=member`)
+        const member: WebSocket = new MemberWebSocket(`${server.jsonRPC}?id=member`)
         const left: {peerId: string, reason: string}[] = []
         watcher.on(SignalingEvent.peerLeft, (event: {peerId: string, reason: string}): unknown => left.push(event))
         try {

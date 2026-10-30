@@ -11,7 +11,7 @@ import type {PeerChannel} from '../peer/PeerChannel.js'
 import {type Peer, type Room, SignalingClient} from '../peer/SignalingClient.js'
 import {TURNServer} from '../turn/TURNServer.js'
 import type {WHIPSession} from '../whip/WHIP.js'
-import {next, startServer, startWHIP, type TestServer, until} from './support/Server.js'
+import {next, NO_FASTIFY, startServer, startWHIP, type TestServer, until} from './support/Server.js'
 
 /**
  * The options of a node of a cluster in the memory of the process
@@ -126,7 +126,7 @@ describe('TURN and WHIP in a cluster', (): void => {
         }
     })
 
-    it('ends a WHIP session through any node of the cluster', {timeout: 60000}, async (): Promise<void> => {
+    it('ends a WHIP session through any node of the cluster', {timeout: 60000, skip: NO_FASTIFY}, async (): Promise<void> => {
         const prefix: string = `test-${randomUUID()}`
         const a = await startWHIP('express', {}, nodeOptions(prefix, 'a'))
         const b = await startWHIP('fastify', {}, nodeOptions(prefix, 'b'))

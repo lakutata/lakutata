@@ -92,23 +92,44 @@ function testArguments(second: unknown, third: unknown): {options: TestOptions, 
     return {options: (second ?? {}) as TestOptions, fn: third as TestFunction | undefined}
 }
 
+/**
+ * The hooks of each test declared at the top of a file (outside of a describe), run around the tests by runnable(): the
+ * test runner of Node.js 18.10 does not run the hooks of the top of a file
+ */
+const fileBeforeEach: HookFunction[] = []
+const fileAfterEach: HookFunction[] = []
+
+//How deep the suite being defined is: 0 at the top of a file
+let suiteDepth: number = 0
+
 function runnable(fn: TestFunction, name: string): (...args: [TestContext?]) => Promise<void> {
     //Declaring no parameter: the runner of Bun waits for the callback of a test that declares one
     return async (...args: [TestContext?]): Promise<void> => {
-        const t: TestContext | undefined = args[0]
-        const context: VitestContext = {
-            skip: (note?: string): never => {
-                t?.skip(note)
-                throw new SkipSignal(note)
-            },
-            signal: t?.signal ?? new AbortController().signal,
-            task: {name: t?.name ?? name}
-        }
+        for (const hookOfFile of fileBeforeEach) await hookOfFile()
         try {
-            await fn(context)
-        } catch (error) {
-            if (!(error instanceof SkipSignal)) throw error
+            await runTest(fn, name, args[0])
+        } finally {
+            for (const hookOfFile of fileAfterEach) await hookOfFile()
         }
+    }
+}
+
+/**
+ * Run the function of a test with its vitest context
+ */
+async function runTest(fn: TestFunction, name: string, t: TestContext | undefined): Promise<void> {
+    const context: VitestContext = {
+        skip: (note?: string): never => {
+            t?.skip(note)
+            throw new SkipSignal(note)
+        },
+        signal: t?.signal ?? new AbortController().signal,
+        task: {name: t?.name ?? name}
+    }
+    try {
+        await fn(context)
+    } catch (error) {
+        if (!(error instanceof SkipSignal)) throw error
     }
 }
 
@@ -131,9 +152,11 @@ function defineSuite(name: string, second: unknown, third: unknown, extra: TestO
     const skip: boolean | string | undefined = extra.skip ?? options.skip
     void nodeDescribe(name, (): void => {
         if (skip) skippedSuites.push(skip)
+        suiteDepth++
         try {
             fn?.()
         } finally {
+            suiteDepth--
             if (skip) skippedSuites.pop()
         }
     })
@@ -236,11 +259,13 @@ function hook(fn: HookFunction): () => Promise<void> {
 }
 
 export function beforeEach(fn: HookFunction, timeout?: number): void {
-    if (!skippedSuites.length) nodeBeforeEach(hook(fn), nodeOptions({timeout}))
+    if (!suiteDepth) fileBeforeEach.push(fn)
+    else if (!skippedSuites.length) nodeBeforeEach(hook(fn), nodeOptions({timeout}))
 }
 
 export function afterEach(fn: HookFunction, timeout?: number): void {
-    if (!skippedSuites.length) nodeAfterEach(hook(fn), nodeOptions({timeout}))
+    if (!suiteDepth) fileAfterEach.push(fn)
+    else if (!skippedSuites.length) nodeAfterEach(hook(fn), nodeOptions({timeout}))
 }
 
 export function beforeAll(fn: HookFunction, timeout?: number): void {

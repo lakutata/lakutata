@@ -8,7 +8,7 @@ import {PeerThreads} from '../peer/PeerThreads.js'
 import type {RtpPacket} from '../peer/RtpPacket.js'
 import type {WHIPSession} from '../whip/WHIP.js'
 import {restartIce} from './support/Media.js'
-import {next, startWHIP, until} from './support/Server.js'
+import {next, NO_FASTIFY, startWHIP, until} from './support/Server.js'
 
 /**
  * A publisher: a connection sending an audio and a video track, and its offer with all its candidates
@@ -141,7 +141,7 @@ describe('WHIP', (): void => {
         }
     })
 
-    it('authorizes the publishers by their bearer token, and limits the sessions', {timeout: 60000}, async (): Promise<void> => {
+    it('authorizes the publishers by their bearer token, and limits the sessions', {timeout: 60000, skip: NO_FASTIFY}, async (): Promise<void> => {
         const {url, whip, container} = await startWHIP('fastify', {
             authorize: ({stream, token}): boolean => stream === 'studio' && token === 'secret',
             maxSessions: 1
@@ -173,7 +173,7 @@ describe('WHIP', (): void => {
     })
 
     for (const adapter of ['express', 'fastify'] as const) {
-        it(`receives what ffmpeg publishes with WHIP (${adapter})`, {timeout: 60000}, async (t: TestContext): Promise<void> => {
+        it(`receives what ffmpeg publishes with WHIP (${adapter})`, {timeout: 60000, skip: adapter === 'fastify' && NO_FASTIFY}, async (t: TestContext): Promise<void> => {
             if (!await ffmpegWithWHIP()) return t.skip('ffmpeg with WHIP, libx264 and libopus is not available')
             const {url, whip, container} = await startWHIP(adapter, {authorize: ({token}): boolean => token === 'obs-token'})
             try {

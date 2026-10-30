@@ -1,3 +1,4 @@
+import diagnosticsChannel from 'node:diagnostics_channel'
 import type {AddressInfo} from 'node:net'
 import type {Server} from 'node:http'
 import {Container} from '@lakutata/core'
@@ -5,7 +6,6 @@ import {buildEntrypoints, Entrypoint} from '@lakutata/entrypoint'
 import {socketIOServiceEntrypoint} from '@lakutata/entrypoint/adapter/socket.io'
 import {jsonRPCServiceEntrypoint} from '@lakutata/entrypoint/adapter/jsonrpc'
 import {expressHTTPEntrypoint} from '@lakutata/entrypoint/adapter/express'
-import {fastifyHTTPEntrypoint} from '@lakutata/entrypoint/adapter/fastify'
 import {Signaling, type SignalingOptions} from '../../signaling/Signaling.js'
 import {SignalingController} from '../../signaling/SignalingController.js'
 import {TURNServer, type TURNServerOptions} from '../../turn/TURNServer.js'
@@ -111,6 +111,12 @@ export async function startServer(options: {signaling?: SignalingOptions, turn?:
  * @param options
  * @param cluster
  */
+/**
+ * Why a test serving with Fastify is skipped: Fastify 5 needs diagnostics_channel.tracingChannel (Node.js 18.19, 19.9,
+ * 20 and later), without which it does not load
+ */
+export const NO_FASTIFY: string | false = typeof (diagnosticsChannel as { tracingChannel?: unknown }).tracingChannel === 'function' ? false : 'Fastify 5 needs diagnostics_channel.tracingChannel (Node.js 18.19, 19.9, 20 or later)'
+
 export async function startWHIP(adapter: 'express' | 'fastify', options: WHIPOptions = {}, cluster?: ClusterOptions): Promise<{url: string, whip: WHIP, container: Container}> {
     const container: Container = new Container()
     if (cluster) await container.setNamed<Cluster>('cluster', Cluster, {...cluster})
@@ -121,9 +127,10 @@ export async function startWHIP(adapter: 'express' | 'fastify', options: WHIPOpt
     }
     await container.setNamed<Entrypoint>('entrypoint', Entrypoint, buildEntrypoints({
         controllers: [WHIPController],
+        //Fastify loaded when used: it does not load on every version of Node.js (NO_FASTIFY)
         http: adapter === 'express'
             ? expressHTTPEntrypoint({port: 0, host: '127.0.0.1', body: {text: WHIP_TEXT_TYPES}, before: capture})
-            : fastifyHTTPEntrypoint({port: 0, host: '127.0.0.1', body: {text: WHIP_TEXT_TYPES}, before: capture})
+            : (await import('@lakutata/entrypoint/adapter/fastify')).fastifyHTTPEntrypoint({port: 0, host: '127.0.0.1', body: {text: WHIP_TEXT_TYPES}, before: capture})
     }))
     return {url: `http://127.0.0.1:${(server!.address() as AddressInfo).port}`, whip: whip, container: container}
 }

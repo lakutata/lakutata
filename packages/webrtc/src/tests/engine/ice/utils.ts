@@ -597,10 +597,13 @@ export async function createStreamTurnServer({
     const server = useTls
         ? tls.createServer(getLocalTurnServerTlsOptions(), onConnection)
         : net.createServer(onConnection)
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-    const {port} = server.address() as net.AddressInfo
+    //On the address localhost resolves to first, the one the clients connecting to localhost try first: Node.js 18 and
+    //19 try no other one (no autoSelectFamily by default)
+    await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve))
+    const {address: host, port} = server.address() as net.AddressInfo
 
     return {
+        host,
         port,
         requests,
         close: async () => {

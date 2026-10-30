@@ -65,7 +65,8 @@ describe('TURN over TCP/TLS uses the peer the stream connected to', () => {
 
             // Assert: 接続後に DNS を引き直さず、実際の接続先をサーバ端点としている
             expect(dns.families).toEqual([])
-            expect(turn.serverEndpoint).toEqual(['127.0.0.1', server.port])
+            //The address localhost resolved to, the one the stream connected to
+            expect(turn.serverEndpoint).toEqual([server.host, server.port])
             expect(turn.serverEndpoint).toEqual(turn.transport.remoteAddress)
             // Assert: 接続先からの応答を受理して Allocate が完了している
             expect(turn.relayedAddress).toEqual(['198.51.100.1', 50000])
