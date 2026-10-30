@@ -73,8 +73,10 @@ export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
     const fs: typeof import('node:fs') = nodeRequire('node:fs')
     const os: typeof import('node:os') = nodeRequire('node:os')
     const {createRequire, isBuiltin} = nodeRequire('node:module') as typeof import('node:module')
+    //node-compat: node:sea (a type here; loaded below only where it exists)
     let sea: typeof import('node:sea') | undefined
     try {
+        //node-compat: node:sea
         sea = nodeRequire('node:sea')
     } catch {
         sea = undefined

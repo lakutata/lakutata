@@ -118,6 +118,7 @@ const IMPORT_META_URL: string = '__lakutataImportMetaUrl'
  * arguments of the CommonJS modules: its file is the executable (as in the executables of Node.js), its require loads
  * the modules of node and the ones of a node_modules next to the executable (the ones left out of the bundle)
  */
+//node-compat: process.getBuiltinModule (Bun only)
 const BUN_PRELUDE: string = 'var __filename=process.execPath,__dirname=process.getBuiltinModule(\'node:path\').dirname(__filename),require=typeof require===\'function\'?require:process.getBuiltinModule(\'node:module\').createRequire(__filename);'
 
 /**
