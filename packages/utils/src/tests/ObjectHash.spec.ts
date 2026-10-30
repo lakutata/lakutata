@@ -55,7 +55,8 @@ function randomValue(depth: number = 0): unknown {
         case 6:
             return pick([new Klass(), new Other(), Object.create(null), new Map(), new Set(), new WeakMap(), Promise.resolve(1), new DataView(new ArrayBuffer(1))])
         case 7:
-            return pick([new Blob(['b']), new File(['f'], 'name.txt', {type: 'text/plain', lastModified: 5}), new Klass()])
+            //The global File: Node.js 20 and later
+            return pick([new Blob(['b']), ...typeof File === 'function' ? [new File(['f'], 'name.txt', {type: 'text/plain', lastModified: 5})] : [], new Klass()])
         case 8:
             return pick([[], [1], [3, 1, 2]])
         case 9:

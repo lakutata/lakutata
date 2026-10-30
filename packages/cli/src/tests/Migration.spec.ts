@@ -49,7 +49,13 @@ function createProject(directory: string, options: { database?: boolean, synchro
     return directory
 }
 
-describe('The migrations', (): void => {
+/**
+ * Why a test resolving the modules of the scripts it writes (import.meta.resolve) is skipped: before Node.js 18.19 and
+ * 20.6 it is behind a flag
+ */
+const NO_RESOLVE: string | false = typeof import.meta.resolve === 'function' ? false : 'import.meta.resolve needs Node.js 18.19, 20.6 or later'
+
+describe('The migrations', {skip: NO_RESOLVE}, (): void => {
     before((): void => {
         work = mkdtempSync(path.join(tmpdir(), 'lakutata-migration-'))
     })

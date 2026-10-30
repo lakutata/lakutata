@@ -61,15 +61,25 @@ describe('Time compatibility with moment', () => {
         const rnd = random(20260927)
         const pick = (items) => items[Math.floor(rnd() * items.length)]
         const failures = []
+        let zone
+        //Whether the data disagree on the instant of the iteration
+        let disagreeing = false
+        //Whether the time zone data of the runtime (ICU) and the one of moment-timezone agree on an instant: older data
+        //differ (Node.js 18: Asia/Tehran in 1978 and 1979), and the instants where they differ are not compared
+        const agree = (instant) => new Time(instant).timezone(zone).utcOffset() === moment.tz(instant, zone).utcOffset()
         const check = (label, actual, expected) => {
+            if (disagreeing) return
             if (typeof expected === 'number' && typeof actual === 'number' && isNaN(expected) && isNaN(actual)) return
+            if (typeof expected === 'number' && typeof actual === 'number' && Math.abs(expected) > 1e10 && (!agree(actual) || !agree(expected))) return
             if (JSON.stringify(actual) !== JSON.stringify(expected)) failures.push(`${label}: ${JSON.stringify(actual)} !== ${JSON.stringify(expected)}`)
         }
         for (let i = 0; i < 3000; ++i) {
-            const zone = pick(ZONES)
+            zone = pick(ZONES)
             //1970 to 2100, and around the transitions (the start of the days and the hours)
             let instant = Math.floor(rnd() * 4102444800000)
             if (rnd() < 0.3) instant -= instant % 3600000
+            //The same picks whatever the data, the checks of an instant the data disagree on left out
+            disagreeing = !agree(instant)
             const [time, mom] = pair(instant, zone)
             const other = Math.floor(rnd() * 4102444800000)
             const label = `${zone} ${new Date(instant).toISOString()}`

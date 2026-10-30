@@ -43,6 +43,12 @@ const BUN: boolean = ((): boolean => {
     }
 })()
 
+/**
+ * Why a test resolving the modules of the scripts it writes (import.meta.resolve) is skipped: before Node.js 18.19 and
+ * 20.6 it is behind a flag
+ */
+const NO_RESOLVE: string | false = typeof import.meta.resolve === 'function' ? false : 'import.meta.resolve needs Node.js 18.19, 20.6 or later'
+
 describe('Cacher', (): void => {
 
     it('caches in memory', async (): Promise<void> => {
@@ -212,7 +218,7 @@ describe('Cacher', (): void => {
         assert.deepStrictEqual(content.cache, [['other', {value: '{"value":1}'}], ['ns:new', {value: '{"value":1}'}]])
     }))
 
-    it('caches in SQLite on Bun, with bun:sqlite', {skip: !BUN && 'Bun is not installed'}, async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+    it('caches in SQLite on Bun, with bun:sqlite', {skip: (!BUN && 'Bun is not installed') || NO_RESOLVE}, async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         //Bun does not load better-sqlite3: without it installed, the store runs on bun:sqlite
         const script: string = path.join(directory, 'sqlite.mjs')
         await writeFile(script, `const {Container} = await import(${JSON.stringify(import.meta.resolve('@lakutata/core'))})

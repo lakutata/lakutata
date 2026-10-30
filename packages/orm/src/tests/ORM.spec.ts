@@ -106,6 +106,12 @@ async function inDirectory(fn: (directory: string) => Promise<void>): Promise<vo
     }
 }
 
+/**
+ * Why a test resolving the modules of the scripts it writes (import.meta.resolve) is skipped: before Node.js 18.19 and
+ * 20.6 it is behind a flag
+ */
+const NO_RESOLVE: string | false = typeof import.meta.resolve === 'function' ? false : 'import.meta.resolve needs Node.js 18.19, 20.6 or later'
+
 describe('The ORM', (): void => {
 
     it('builds the options of the database components and providers', (): void => {
@@ -249,7 +255,7 @@ describe('The ORM', (): void => {
         })
     })
 
-    describe('The commands of the migrations (MIGRATION_RUN, MIGRATION_REVERT, MIGRATION_SHOW)', (): void => {
+    describe('The commands of the migrations (MIGRATION_RUN, MIGRATION_REVERT, MIGRATION_SHOW)', {skip: NO_RESOLVE}, (): void => {
 
         /**
          * Start an application whose databases (SQLite files of the directory) have the migrations of the notes and the
@@ -356,7 +362,7 @@ describe('The ORM', (): void => {
         }))
     })
 
-    describe('The generation of the migrations', (): void => {
+    describe('The generation of the migrations', {skip: NO_RESOLVE}, (): void => {
 
         /**
          * Generate the migrations of an application whose Database component has the entity Note, in a project

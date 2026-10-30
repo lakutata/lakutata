@@ -20,6 +20,12 @@ async function instance(driver: MutexDriverOptions, options: Record<string, unkn
     return {mutex: mutex, container: container}
 }
 
+/**
+ * Why a test resolving the modules of the scripts it writes (import.meta.resolve) is skipped: before Node.js 18.19 and
+ * 20.6 it is behind a flag
+ */
+const NO_RESOLVE: string | false = typeof import.meta.resolve === 'function' ? false : 'import.meta.resolve needs Node.js 18.19, 20.6 or later'
+
 describe('The locks', (): void => {
 
     let directory: string
@@ -146,7 +152,7 @@ describe('The locks', (): void => {
         }
     })
 
-    it('excludes the processes of a host, takes over the locks of a process gone', async (): Promise<void> => {
+    it('excludes the processes of a host, takes over the locks of a process gone', {skip: NO_RESOLVE}, async (): Promise<void> => {
         const script: string = path.join(directory, 'holder.mjs')
         const exports: string = new URL('../exports/Mutex.js', import.meta.url).href
         const core: string = import.meta.resolve('@lakutata/core')

@@ -40,6 +40,20 @@ const LIBC_DECLARATIONS: string = `
     typedef void *(*thread_main_t)(void *argument);
 `
 
+/**
+ * Wait for a promise with the event loop held: the promise waits for events of no handle of the test (an idle socket of
+ * an agent, the threads of a native library), and the test runner of Node.js 18 fails a test whose event loop empties
+ * @param promise
+ */
+async function held<T>(promise: Promise<T>): Promise<T> {
+    const timer: NodeJS.Timeout = setInterval((): undefined => undefined, 1000)
+    try {
+        return await promise
+    } finally {
+        clearInterval(timer)
+    }
+}
+
 describe('A native library', {skip: !POSIX && 'the Windows libraries are tested in the virtual machine'}, (): void => {
 
     let libc: NativeLibraryHandle
@@ -123,7 +137,7 @@ describe('A native library', {skip: !POSIX && 'the Windows libraries are tested 
             assert.strictEqual(create(thread, null, callback.pointer, null), 0)
             detach(thread[0]!)
         }
-        await finished
+        await held(finished)
         assert.strictEqual(called, 8)
         assert.match(String(errors[0]), /thrown in a thread/)
         await threads.close()

@@ -185,7 +185,8 @@ describe('The image store', (): void => {
         }
         server = http.createServer((request: IncomingMessage, response: ServerResponse): void => void handle(request, response))
         await new Promise<void>((resolve: () => void): void => void server.listen(0, '127.0.0.1', resolve))
-        host = `localhost:${(server.address() as AddressInfo).port}`
+        //The address the server listens on: the fetch of Node.js 18 tries ::1 alone for localhost
+        host = `127.0.0.1:${(server.address() as AddressInfo).port}`
     })
 
     after(async (): Promise<void> => {

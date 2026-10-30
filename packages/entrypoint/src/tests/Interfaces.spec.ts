@@ -100,6 +100,20 @@ class AcceptingListener extends EventEmitter implements IInterfaceListener {
     }
 }
 
+/**
+ * Wait for a promise with the event loop held: the promise waits for events of no handle of the test (an idle socket of
+ * an agent, the threads of a native library), and the test runner of Node.js 18 fails a test whose event loop empties
+ * @param promise
+ */
+async function held<T>(promise: Promise<T>): Promise<T> {
+    const timer: NodeJS.Timeout = setInterval((): undefined => undefined, 1000)
+    try {
+        return await promise
+    } finally {
+        clearInterval(timer)
+    }
+}
+
 describe('An adapter listening on an interface', (): void => {
 
     it('serves the actions of express through the interface, the server not listening itself', async (): Promise<void> => {
@@ -142,8 +156,10 @@ describe('An adapter listening on an interface', (): void => {
             socket.once('close', (): void => resolve())
         })
         const started: number = Date.now()
-        await container.destroy()
-        await closed
+        await held((async (): Promise<void> => {
+            await container.destroy()
+            await closed
+        })())
         assert.ok(Date.now() - started < 5000, 'the stop waited for the idle connection')
     })
 
@@ -169,8 +185,10 @@ describe('An adapter listening on an interface', (): void => {
             socket.once('close', (): void => resolve())
         })
         const started: number = Date.now()
-        await container.destroy()
-        await closed
+        await held((async (): Promise<void> => {
+            await container.destroy()
+            await closed
+        })())
         assert.ok(Date.now() - started < 5000, 'the stop waited for the idle connection')
         assert.strictEqual(listeners![0].closed, true)
         await assert.rejects(fetch(`http://127.0.0.1:${port}/ping`))

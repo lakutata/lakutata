@@ -2,11 +2,12 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {spawn, spawnSync, type SpawnSyncReturns} from 'node:child_process'
 import path from 'node:path'
+import {fileURLToPath} from 'node:url'
 
 /**
  * The directory of the package
  */
-const PACKAGE_DIRECTORY: string = path.resolve(import.meta.dirname, '../../../..')
+const PACKAGE_DIRECTORY: string = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..')
 
 /**
  * Windows has no signals of POSIX: Node.js ends the processes it sends them (SIGTERM) at once

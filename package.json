@@ -8,6 +8,7 @@
   "scripts": {
     "lint": "eslint . && node scripts/api-docs/check.mjs --skip-examples",
     "check:node-compat": "node scripts/node-compat/check.mjs",
+    "test:node-compat": "node scripts/node-compat/test.mjs",
     "clean": "npm run clean --workspaces --if-present",
     "build": "npm run compile -w @lakutata/utils && npm run compile -w @lakutata/core && npm run compile -w @lakutata/logger && npm run compile -w @lakutata/netif && npm run compile -w @lakutata/entrypoint && npm run compile -w @lakutata/i18n && npm run compile -w @lakutata/nats && npm run compile -w @lakutata/mcp && npm run compile -w @lakutata/dbus && npm run compile -w @lakutata/security && npm run compile -w @lakutata/cache && npm run compile -w @lakutata/mutex && npm run compile -w @lakutata/queue && npm run compile -w @lakutata/webrtc && npm run compile -w @lakutata/ffi && npm run compile -w @lakutata/math && npm run compile -w @lakutata/docker && npm run compile -w @lakutata/grpc && npm run compile -w @lakutata/containerd && npm run compile -w @lakutata/orm && npm run compile -w @lakutata/monitor && npm run compile -w packages/lakutata && npm run compile -w @lakutata/builder && npm run compile -w @lakutata/cli",
     "rebuild": "npm run clean && npm run build",

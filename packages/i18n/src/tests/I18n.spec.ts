@@ -127,8 +127,10 @@ describe('The messages', (): void => {
         assert.deepStrictEqual(await Promise.all([1, 2].map((count: number): Promise<string> => format(items, {count: count}, 'zh-CN'))), ['1 items', '2 items'])
         //Russian: one (1, 21), few (2-4, 22), many (5-20)
         assert.deepStrictEqual(await Promise.all([1, 3, 5, 21, 22].map((count: number): Promise<string> => format(items, {count: count}, 'ru'))), ['1 item', '3 items (few)', '5 items (many)', '21 item', '22 items (few)'])
-        //Arabic: few (3-10), many (11-99); the digits of Egypt
-        assert.deepStrictEqual(await Promise.all([3, 11].map((count: number): Promise<string> => format(items, {count: count}, 'ar'))), ['3 items (few)', '11 items (many)'])
+        //Arabic: few (3-10), many (11-99), in the digits of the data of the runtime (Arabic-Indic before CLDR 44: Node.js 18);
+        //the digits of Egypt
+        const arabic = (count: number): string => new Intl.NumberFormat('ar').format(count)
+        assert.deepStrictEqual(await Promise.all([3, 11].map((count: number): Promise<string> => format(items, {count: count}, 'ar'))), [`${arabic(3)} items (few)`, `${arabic(11)} items (many)`])
         assert.strictEqual(await format(items, {count: 3}, 'ar-EG'), '٣ items (few)')
         const guests: string = '{guests, plural, offset:1 =0 {nobody} =1 {{host}} one {{host} and # other} other {{host} and # others}}'
         assert.strictEqual(await format(guests, {guests: 1, host: 'Ada'}, 'en'), 'Ada')

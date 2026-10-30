@@ -3,11 +3,12 @@ import assert from 'node:assert'
 import {spawnSync, type SpawnSyncReturns} from 'node:child_process'
 import {readFileSync} from 'node:fs'
 import path from 'node:path'
+import {fileURLToPath} from 'node:url'
 
 /**
  * The directory of the package
  */
-const PACKAGE_DIRECTORY: string = path.resolve(import.meta.dirname, '../../../..')
+const PACKAGE_DIRECTORY: string = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..')
 
 /**
  * The entry points of the package: its subpaths of modules (the files exported as they are, package.json and
