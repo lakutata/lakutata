@@ -21,6 +21,13 @@ export type ExecutableOptions = Omit<BundleOptions, 'outfile' | 'native' | 'dire
      * installers, the images)
      */
     layout?: 'file' | 'directory'
+    /**
+     * The node program embedded in the executable, which also makes its single executable application. Another Node.js
+     * than the one running the build (20.12, 21.7 or later, which have the assets of the single executable applications),
+     * so that an older Node.js can run the build; the bundle is written in the syntax of the node program. The one
+     * running the build by default.
+     */
+    nodeProgram?: string
 }
 
 export type ExecutableResult = {
@@ -129,14 +136,29 @@ async function writeIcon(work: string, icon: Buffer): Promise<string> {
 }
 
 /**
- * Embed a bundle in the Node.js binary running the tool (the single executable applications of Node.js)
+ * The node program embedded in an executable and its version: the one given, else the one running the tool. It must
+ * have the assets of the single executable applications (Node.js 20.12, 21.7 or later): node:sea and its getAsset.
+ * @param program
+ */
+async function nodeOfExecutable(program?: string): Promise<{ path: string, version: string }> {
+    const node: string = program ? path.resolve(program) : process.execPath
+    const probe: { code: number, output: string } = await runCommand(node, ['-e', "let assets=false;try{assets=typeof require('node:sea').getAsset==='function'}catch{}process.stdout.write(process.version+' '+assets)"], process.cwd()).catch((error: Error): { code: number, output: string } => ({code: 1, output: error.message}))
+    const [version, assets] = probe.output.trim().split(' ')
+    if (probe.code !== 0 || !/^v\d+\.\d+\.\d+$/.test(version)) throw new Error(`${node} cannot be run as the node program of the executable: ${probe.output.trim()}`)
+    if (assets !== 'true') throw new Error(`The executables of Node.js need the assets of its single executable applications (Node.js 20.12, 21.7 or later): ${node} is Node.js ${version}. Give a newer node program (nodeProgram, --node-program). Or make the executable with Bun (--runtime bun)`)
+    return {path: node, version: version}
+}
+
+/**
+ * Embed a bundle in a Node.js binary (the single executable applications of Node.js)
  * @param bundle
  * @param work
  * @param file
  * @param warnings
+ * @param node the node program embedded
  * @param icon the icon of the application (ico, Windows)
  */
-async function embedInNode(bundle: BundleResult, work: string, file: string, warnings: string[], icon?: Buffer): Promise<string> {
+async function embedInNode(bundle: BundleResult, work: string, file: string, warnings: string[], node: { path: string, version: string }, icon?: Buffer): Promise<string> {
     const assets: Record<string, string> = {}
     if (bundle.native) {
         //The files of the native packages, extracted by the executable at its first run
@@ -157,9 +179,9 @@ async function embedInNode(bundle: BundleResult, work: string, file: string, war
         useSnapshot: false,
         assets: assets
     }))
-    await must(process.execPath, ['--experimental-sea-config', 'sea-config.json'], work)
+    await must(node.path, ['--experimental-sea-config', 'sea-config.json'], work)
     const {inject} = await import('postject')
-    await copyFile(process.execPath, file)
+    await copyFile(node.path, file)
     //The icon of the application replaces the one of node.exe, before the bundle is embedded
     if (icon) await setExecutableIcon(file, icon)
     //The signature of macOS is removed before the binary is changed, then made again (ad hoc)
@@ -168,7 +190,7 @@ async function embedInNode(bundle: BundleResult, work: string, file: string, war
     if (process.platform === 'darwin') await must('codesign', ['--sign', '-', '--force', file], work)
     //The Authenticode signature of node.exe does not match the executable anymore
     if (process.platform === 'win32') warnings.push(`${path.basename(file)} has the signature of Node.js, which is not valid anymore: sign it (signtool) before distributing it`)
-    return `Node.js ${process.version}`
+    return `Node.js ${node.version}`
 }
 
 /**
@@ -239,6 +261,8 @@ export async function buildExecutable(options: ExecutableOptions): Promise<Execu
     const outdir: string = path.resolve(project, options.outdir ?? 'dist')
     //Bun is found before the application is bundled
     const bun: { command: string, version: string } | undefined = options.runtime === 'bun' ? await findBun(project) : undefined
+    //The node program embedded, checked before the application is bundled
+    const node: { path: string, version: string } | undefined = bun ? undefined : await nodeOfExecutable(options.nodeProgram)
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-executable-'))
     try {
         const directory: boolean = options.layout === 'directory'
@@ -249,6 +273,8 @@ export async function buildExecutable(options: ExecutableOptions): Promise<Execu
         if (directory) await rm(target, {recursive: true, force: true})
         await mkdir(target, {recursive: true})
         const bundle: BundleResult = await bundleProject({
+            //The syntax of the node embedded
+            ...node ? {node: node.version} : {},
             ...options,
             outfile: path.join(work, 'main.cjs'),
             native: directory ? 'directory' : 'embedded',
@@ -271,7 +297,7 @@ export async function buildExecutable(options: ExecutableOptions): Promise<Execu
         //The icon of the application: the one of the executables of Windows (the ones of macOS and Linux have none)
         const application = applicationIcon(project, manifest)
         const icon: Buffer | undefined = application && process.platform === 'win32' ? icoFile(application.image) : undefined
-        const runtime: string = bun ? await compileWithBun(bun, embedded, work, made, icon) : await embedInNode(embedded, work, made, warnings, icon)
+        const runtime: string = bun ? await compileWithBun(bun, embedded, work, made, icon) : await embedInNode(embedded, work, made, warnings, node!, icon)
         await copyFile(made, file)
         await chmod(file, 0o755)
         return {

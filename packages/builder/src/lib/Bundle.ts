@@ -39,6 +39,11 @@ export type BundleOptions = {
      */
     runtime?: 'node' | 'bun'
     /**
+     * The version of Node.js running the bundle ("18.10", the one of NW.js 0.70): the bundle is written in the syntax that
+     * version reads; the version running the build by default
+     */
+    node?: string
+    /**
      * Whether the bundle is the one of an executable (buildExecutable): it runs the scripts of its tree it is started
      * for, in both layouts, and on Node.js it loads the modules left out of it from next to the executable
      */
@@ -200,7 +205,7 @@ export async function bundleProject(options: BundleOptions): Promise<BundleResul
             metafile: true,
             bundle: true,
             platform: 'node',
-            target: `node${process.versions.node.split('.')[0]}`,
+            target: `node${options.node?.replace(/^v/, '') ?? process.versions.node.split('.')[0]}`,
             format: 'cjs',
             minify: options.minify ?? true,
             //The names of the classes are the ones of the objects of the container and of the errors

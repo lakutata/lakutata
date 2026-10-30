@@ -78,7 +78,8 @@
             "entry": "应用编译后的入口（默认是 package.json 的 main）",
             "outfile": "打包输出的文件（默认 dist/<名称>.cjs）",
             "minify": "压缩打包结果",
-            "external": "不打进包里的模块，运行时从旁边的 node_modules 加载（原生插件会自动处理）"
+            "external": "不打进包里的模块，运行时从旁边的 node_modules 加载（原生插件会自动处理）",
+            "node": "运行打包结果的 Node.js 版本，打包结果用这个版本支持的语法生成（NW.js 0.70 是 18.10；默认是运行本命令的版本）"
           }
         },
         "exe": {
@@ -89,7 +90,8 @@
             "minify": "压缩嵌入可执行文件的包",
             "external": "不打进包里的模块（它们不在可执行文件中，而是从旁边的 node_modules 加载）",
             "runtime": "嵌入可执行文件的运行时：node（Node.js 的单可执行应用，默认）或 bun（Bun，安装在项目中或系统上）",
-            "layout": "单个文件，原生插件和资源嵌入其中（file，默认）；或一个目录：可执行文件及其旁边的原生插件和资源（directory）"
+            "layout": "单个文件，原生插件和资源嵌入其中（file，默认）；或一个目录：可执行文件及其旁边的原生插件和资源（directory）",
+            "nodeProgram": "嵌入可执行文件的 node 程序（Node.js 20.12、21.7 或更高版本）：用另一个 Node.js 代替运行本命令的那个，这样在较旧的 Node.js 上也能生成可执行文件"
           }
         },
         "installer": {
@@ -99,7 +101,8 @@
             "outdir": "安装包所在的目录（默认 dist/installer）",
             "entry": "应用编译后的入口（默认是 package.json 的 main）",
             "minify": "压缩嵌入可执行文件的包",
-            "external": "不打进包里的模块"
+            "external": "不打进包里的模块",
+            "nodeProgram": "嵌入可执行文件的 node 程序（Node.js 20.12、21.7 或更高版本）：用另一个 Node.js 代替运行本命令的那个，这样在较旧的 Node.js 上也能生成可执行文件"
           }
         }
       },

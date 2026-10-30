@@ -25,7 +25,7 @@ export class PackController extends Controller {
     @CLIAction('package bundle', BundleDTO, {description: 'Bundle the compiled application and its dependencies into one file run by node'})
     public async bundle(input: BundleDTO): Promise<undefined> {
         const {bundleProject} = await loadBuilder(process.cwd())
-        const result: BundleResult = await bundleProject({project: process.cwd(), entry: input.entry, outfile: input.outfile, minify: input.minify, external: input.external})
+        const result: BundleResult = await bundleProject({project: process.cwd(), entry: input.entry, outfile: input.outfile, minify: input.minify, external: input.external, node: input.node})
         done(`${path.relative(process.cwd(), result.outfile)} (${megabytes(result.size)}): node ${path.relative(process.cwd(), result.outfile)}`)
         //The native addons and the scripts of the workers are next to the bundle, which is distributed with them
         if (result.nativeDirectory) {
@@ -45,7 +45,7 @@ export class PackController extends Controller {
     @CLIAction('package exe', ExecutableDTO, {description: 'Make the executable of the compiled application for this platform, which runs without Node.js installed'})
     public async executable(input: ExecutableDTO): Promise<undefined> {
         const {buildExecutable} = await loadBuilder(process.cwd())
-        const result: ExecutableResult = await buildExecutable({project: process.cwd(), entry: input.entry, outdir: input.outdir, minify: input.minify, external: input.external, runtime: input.runtime, layout: input.layout})
+        const result: ExecutableResult = await buildExecutable({project: process.cwd(), entry: input.entry, outdir: input.outdir, minify: input.minify, external: input.external, runtime: input.runtime, layout: input.layout, nodeProgram: input.nodeProgram})
         step(`${result.runtime} embedded`)
         if (result.native.length) step(result.directory ? `Native addons next to the executable: ${result.native.join(', ')}` : `Native addons embedded, extracted at the first run: ${result.native.join(', ')}`)
         if (result.resources.length) step(result.directory ? `Resources next to the executable: ${result.resources.join(', ')}` : `Resources embedded, extracted at the first run: ${result.resources.join(', ')}`)
@@ -60,7 +60,7 @@ export class PackController extends Controller {
     @CLIAction('package installer', InstallerDTO, {description: 'Make the installers of the compiled application for this platform: its executable, its native addons and its resources installed, its program in the PATH, its service registered'})
     public async installer(input: InstallerDTO): Promise<undefined> {
         const {buildInstaller} = await loadBuilder(process.cwd())
-        const result: InstallerResult = await buildInstaller({project: process.cwd(), targets: input.target, outdir: input.outdir, entry: input.entry, minify: input.minify, external: input.external})
+        const result: InstallerResult = await buildInstaller({project: process.cwd(), targets: input.target, outdir: input.outdir, entry: input.entry, minify: input.minify, external: input.external, nodeProgram: input.nodeProgram})
         step(`${result.executable.runtime} embedded`)
         if (result.executable.native.length) step(`Native addons: ${result.executable.native.join(', ')}`)
         if (result.executable.resources.length) step(`Resources: ${result.executable.resources.join(', ')}`)

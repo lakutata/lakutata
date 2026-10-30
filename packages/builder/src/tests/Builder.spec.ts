@@ -47,6 +47,24 @@ console.log(require('./words.js') + ' ' + require('node:fs').readFileSync(requir
         assert.strictEqual(execFileSync(process.execPath, [result.outfile], {cwd: tmpdir()}).toString().trim(), 'read Hello')
     })
 
+    it('bundles in the syntax of the version of Node.js given, else in the one of the Node.js running the build', async (): Promise<void> => {
+        write('build/static.js', `class Counter { static { console.log('static') } }\nnew Counter()\n`)
+        const current = await bundleProject({project: project, entry: 'build/static.js', outfile: path.join(project, 'dist', 'current.cjs'), minify: false})
+        //A static block (Node.js 16.11) written for Node.js 14
+        const older = await bundleProject({project: project, entry: 'build/static.js', outfile: path.join(project, 'dist', 'older.cjs'), minify: false, node: '14'})
+        assert.match(readFileSync(current.outfile, 'utf8'), /static \{/)
+        assert.doesNotMatch(readFileSync(older.outfile, 'utf8'), /static \{/)
+        assert.strictEqual(execFileSync(process.execPath, [older.outfile], {cwd: tmpdir()}).toString().trim(), 'static')
+    })
+
+    it('tells the node program of an executable without the assets of the single executable applications (before Node.js 20.12)', {skip: process.platform === 'win32' && 'a script as the node program'}, async (): Promise<void> => {
+        //A node program answering as Node.js 18.10 does to the probe of the builder
+        write('old-node', '#!/bin/sh\nprintf "v18.10.0 false"\n')
+        execFileSync('chmod', ['+x', path.join(project, 'old-node')])
+        await assert.rejects(buildExecutable({project: project, nodeProgram: path.join(project, 'old-node')}), /\(Node\.js 20\.12, 21\.7 or later\): .*old-node is Node\.js v18\.10\.0\. Give a newer node program/)
+        await assert.rejects(buildExecutable({project: project, nodeProgram: path.join(project, 'missing-node')}), /missing-node cannot be run as the node program of the executable/)
+    })
+
     it('makes the executable in a directory, which runs without Node.js', async (): Promise<void> => {
         const result = await buildExecutable({project: project, layout: 'directory'})
         assert.match(result.runtime, /^Node\.js v\d+/)

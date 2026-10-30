@@ -16,4 +16,7 @@ export class InstallerDTO extends DTO {
 
     @Expect(DTO.Array(DTO.String()).optional().description('The modules left out of the bundle'))
     public external?: string[]
+
+    @Expect(DTO.String().optional().description('The node program embedded in the executable (Node.js 20.12, 21.7 or later): another Node.js than the one running the command, to make the executable from an older Node.js (the bundle is written in the syntax of the node program)'))
+    public nodeProgram?: string
 }

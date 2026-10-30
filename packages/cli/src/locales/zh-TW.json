@@ -78,7 +78,8 @@
             "entry": "應用程式編譯後的入口（預設是 package.json 的 main）",
             "outfile": "打包輸出的檔案（預設 dist/<名稱>.cjs）",
             "minify": "壓縮打包結果",
-            "external": "不打包進去的模組，執行時從旁邊的 node_modules 載入（原生外掛會自動處理）"
+            "external": "不打包進去的模組，執行時從旁邊的 node_modules 載入（原生外掛會自動處理）",
+            "node": "執行打包結果的 Node.js 版本，打包結果用這個版本支援的語法產生（NW.js 0.70 是 18.10；預設是執行本命令的版本）"
           }
         },
         "exe": {
@@ -89,7 +90,8 @@
             "minify": "壓縮嵌入可執行檔的打包結果",
             "external": "不打包進去的模組（它們不在可執行檔中，而是從旁邊的 node_modules 載入）",
             "runtime": "嵌入可執行檔的執行環境：node（Node.js 的單一可執行應用程式，預設）或 bun（Bun，安裝在專案中或系統上）",
-            "layout": "單一檔案，原生外掛程式和資源嵌入其中（file，預設）；或一個目錄：可執行檔及其旁邊的原生外掛程式和資源（directory）"
+            "layout": "單一檔案，原生外掛程式和資源嵌入其中（file，預設）；或一個目錄：可執行檔及其旁邊的原生外掛程式和資源（directory）",
+            "nodeProgram": "嵌入可執行檔的 node 程式（Node.js 20.12、21.7 或更新版本）：用另一個 Node.js 代替執行本命令的那個，這樣在較舊的 Node.js 上也能產生可執行檔"
           }
         },
         "installer": {
@@ -99,7 +101,8 @@
             "outdir": "安裝套件所在的目錄（預設 dist/installer）",
             "entry": "應用程式編譯後的入口（預設是 package.json 的 main）",
             "minify": "壓縮嵌入可執行檔的打包結果",
-            "external": "不打包進去的模組"
+            "external": "不打包進去的模組",
+            "nodeProgram": "嵌入可執行檔的 node 程式（Node.js 20.12、21.7 或更新版本）：用另一個 Node.js 代替執行本命令的那個，這樣在較舊的 Node.js 上也能產生可執行檔"
           }
         }
       },

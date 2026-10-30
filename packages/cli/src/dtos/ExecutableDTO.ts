@@ -19,4 +19,7 @@ export class ExecutableDTO extends DTO {
 
     @Expect(DTO.String().valid('file', 'directory').optional().default('file').description('One file, its native addons and its resources embedded (file, by default), or a directory: the executable and its native addons and resources next to it (directory)'))
     public layout: 'file' | 'directory'
+
+    @Expect(DTO.String().optional().description('The node program embedded in the executable (Node.js 20.12, 21.7 or later): another Node.js than the one running the command, to make the executable from an older Node.js (the bundle is written in the syntax of the node program)'))
+    public nodeProgram?: string
 }

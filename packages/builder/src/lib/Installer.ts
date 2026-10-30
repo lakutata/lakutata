@@ -159,6 +159,10 @@ export type InstallerOptions = {
      * The directory of the packages, dist/installer by default
      */
     outdir?: string
+    /**
+     * The node program embedded in the executable (nodeProgram of buildExecutable), the one running the build by default
+     */
+    nodeProgram?: string
 }
 
 export type InstallerResult = {
@@ -313,6 +317,7 @@ export async function buildInstaller(options: InstallerOptions): Promise<Install
             minify: options.minify,
             external: options.external,
             runtime: config.runtime as 'node' | 'bun' | undefined,
+            nodeProgram: options.nodeProgram,
             layout: 'directory',
             outdir: path.join(work, 'stage')
         })
