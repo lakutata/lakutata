@@ -1,5 +1,6 @@
 import {isPackaged} from '@lakutata/core'
 import {CacheDriverNotFoundException} from '../exceptions/CacheDriverNotFoundException.js'
+import {provideWebCrypto} from './WebCrypto.js'
 
 /**
  * The driver packages of the stores (optional dependencies), imported by their names written out: the bundlers follow
@@ -11,7 +12,10 @@ const DRIVERS: Record<string, () => Promise<any>> = {
     '@redis/client': () => import('@redis/client'),
     'mysql2': () => import('mysql2'),
     'better-sqlite3': () => import('better-sqlite3'),
-    'mongodb': () => import('mongodb'),
+    'mongodb': (): Promise<any> => {
+        provideWebCrypto()
+        return import('mongodb')
+    },
     'memjs': () => import('memjs')
 }
 

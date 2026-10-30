@@ -26,6 +26,8 @@ import type { IsolationLevel } from "../types/IsolationLevel"
 import type { UpsertType } from "../types/UpsertType"
 import type { MongoDataSourceOptions } from "./MongoDataSourceOptions"
 import { MongoQueryRunner } from "./MongoQueryRunner"
+// lakutata: the global crypto of the driver on Node.js 18
+import { provideWebCrypto } from "./MongoWebCrypto"
 
 /**
  * Organizes communication with MongoDB.
@@ -549,6 +551,8 @@ export class MongoDriver implements Driver {
      */
     protected loadDependencies(): any {
         try {
+            // lakutata: the global crypto the driver uses, on Node.js 18
+            provideWebCrypto()
             const mongodb = this.options.driver ?? PlatformTools.load("mongodb")
             this.mongodb = mongodb
         } catch (e) {
