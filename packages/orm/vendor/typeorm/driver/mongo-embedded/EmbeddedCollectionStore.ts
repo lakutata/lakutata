@@ -1,11 +1,11 @@
 import { randomBytes } from "crypto"
 import * as fs from "fs"
-import * as zlib from "zlib"
 import { TypeORMError } from "../../error/TypeORMError"
 import type { EmbeddedBound } from "./EmbeddedBTree"
 import { EmbeddedBTree } from "./EmbeddedBTree"
 import type { EmbeddedCollectionCache } from "./EmbeddedCache"
 import { cachedSizeOf } from "./EmbeddedCache"
+import { crc32 } from "./EmbeddedCrc32"
 import type { EmbeddedFile } from "./EmbeddedFile"
 import { EmbeddedKeyEncoding } from "./EmbeddedKeyEncoding"
 import { EmbeddedKeydir } from "./EmbeddedKeydir"
@@ -435,7 +435,7 @@ export class EmbeddedCollectionStore {
             pad()
         }
         let checksum = 0
-        for (const part of parts) checksum = zlib.crc32(part, checksum)
+        for (const part of parts) checksum = crc32(part, checksum)
         const crc = Buffer.allocUnsafe(4)
         crc.writeUInt32LE(checksum)
         const temporary = `${path}.tmp`
@@ -491,7 +491,7 @@ export class EmbeddedCollectionStore {
                     done += count
                 }
                 position += size
-                if (checked) checksum = zlib.crc32(bytes, checksum)
+                if (checked) checksum = crc32(bytes, checksum)
                 return bytes
             }
             const skipPadding = () => {
@@ -607,7 +607,7 @@ export class EmbeddedCollectionStore {
         this.fileOf(this.keydir.fileAt(slot)).readInto(record, 0, length, offset)
         const payload = record.subarray(RECORD_HEADER)
         if (
-            zlib.crc32(payload, zlib.crc32(record.subarray(8, 9))) !==
+            crc32(payload, crc32(record.subarray(8, 9))) !==
             record.readUInt32LE(4)
         )
             throw this.corrupted(offset)

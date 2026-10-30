@@ -105,7 +105,7 @@
     "@lakutata/core": "~3.1.4",
     "@lakutata/utils": "~3.1.1",
     "@sap/hana-client": "^2.14.22",
-    "better-sqlite3": "^12.0.0",
+    "better-sqlite3": "^11.0.0 || ^12.0.0",
     "bson": "^7.0.0",
     "ioredis": "^5.0.4",
     "mingo": "^7.2.0",

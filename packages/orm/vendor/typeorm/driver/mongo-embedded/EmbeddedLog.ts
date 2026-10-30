@@ -1,4 +1,4 @@
-import * as zlib from "zlib"
+import { crc32 } from "./EmbeddedCrc32"
 import type { EmbeddedFile } from "./EmbeddedFile"
 
 /**
@@ -54,7 +54,7 @@ export type EmbeddedRecordEnd = "end" | "torn" | "checksum"
  * @param payload
  */
 function checksumOf(type: number, payload: Uint8Array): number {
-    return zlib.crc32(payload, zlib.crc32(Buffer.of(type)))
+    return crc32(payload, crc32(Buffer.of(type)))
 }
 
 /**

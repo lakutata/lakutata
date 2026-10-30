@@ -12,7 +12,8 @@ const result = await build({
     bundle: true,
     platform: 'node',
     format: 'cjs',
-    target: 'node20',
+    //The oldest Node.js the packages run on (NW.js 0.70)
+    target: 'node18.10',
     minify: true,
     //The names of the classes are the ones of the errors
     keepNames: true,

@@ -1,10 +1,11 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {spawn, type ChildProcess} from 'node:child_process'
+import {randomBytes} from 'node:crypto'
 import {cpSync, existsSync} from 'node:fs'
 import {appendFile, cp, mkdtemp, readdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
-import {crc32} from 'node:zlib'
+import zlib from 'node:zlib'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -12,6 +13,7 @@ import {Container} from '@lakutata/core'
 import * as BSON from 'bson'
 import {DataSource, type MongoRepository, ObjectId} from '../exports/ORM.js'
 import type {MongoQueryRunner} from '#typeorm/driver/mongodb/MongoQueryRunner.js'
+import {crc32, tableCrc32} from '#typeorm/driver/mongo-embedded/EmbeddedCrc32.js'
 import {EmbeddedDiskFile} from '#typeorm/driver/mongo-embedded/EmbeddedFile.js'
 import {Column, CreateDateColumn, DeleteDateColumn, Entity, Index, ObjectIdColumn, UpdateDateColumn} from '../exports/ORMDecorators.js'
 import {Database} from '../exports/DatabaseComponent.js'
@@ -244,6 +246,20 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await rm(file.replace(/\.log$/, '.snapshot'))
         await assert.rejects(open(database), /The file .* of mongo-embedded is corrupted at its offset \d+/)
     }))
+
+    it('checks its records with the CRC-32 of zlib, computed with a table where Node.js has no zlib.crc32', (): void => {
+        const native: ((data: Uint8Array, value?: number) => number) | undefined = (zlib as { crc32?: (data: Uint8Array, value?: number) => number }).crc32
+        for (const size of [0, 1, 7, 64, 4096, 65537]) {
+            const data: Buffer = randomBytes(size)
+            const value: number = tableCrc32(data)
+            if (native) assert.strictEqual(value, native(data))
+            //Continued from the CRC-32 of the bytes before
+            assert.strictEqual(tableCrc32(data.subarray(size >> 1), tableCrc32(data.subarray(0, size >> 1))), value)
+        }
+        //The check value of the CRC-32 of zlib
+        assert.strictEqual(tableCrc32(Buffer.from('123456789')), 0xcbf43926)
+        assert.strictEqual(crc32(Buffer.from('123456789')), 0xcbf43926)
+    })
 
     it('finds by its indexes the documents a scan finds', async (): Promise<void> => {
         const dataSource: DataSource = await new DataSource({type: 'mongo-embedded'}).initialize()
