@@ -12,6 +12,9 @@ and write an application by hand.
     `--node-program` naming one;
   - `await using` with the objects of the framework: Node.js 18.18, 20.4 or later.
 
+  On Node.js 18 and 19, an application uses commander 13, @inquirer/prompts 7 and better-sqlite3 11: their next major
+  versions need Node.js 20 or later.
+
   The projects made by `lakutata create` declare Node.js `^22.13.0 || >=24.11.0`, which the tools of the web and
   Electron templates need.
 - TypeScript, with its decorators (`experimentalDecorators`) and their metadata (`emitDecoratorMetadata`). The framework

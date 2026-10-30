@@ -10,6 +10,8 @@
   - Node.js 的可执行文件（`lakutata package exe` 和安装包）：要用 Node.js 20.12、21.7 或更高版本来生成，或者用 `--node-program` 指定这样一个 Node.js；
   - 对框架的对象使用 `await using`：需要 Node.js 18.18、20.4 或更高版本。
 
+  在 Node.js 18 和 19 上，应用要用 commander 13、@inquirer/prompts 7 和 better-sqlite3 11：它们再往后的大版本需要 Node.js 20 或更高版本。
+
   `lakutata create` 生成的项目声明的是 Node.js `^22.13.0 || >=24.11.0`，Web 模板和 Electron 模板用到的工具需要它。
 - TypeScript，开启它的装饰器（`experimentalDecorators`）及其元数据（`emitDecoratorMetadata`）。框架所需的编译选项以 `lakutata/tsconfig.json` 发布；模板使用 TypeScript 6。
 - ES 模块（`"type": "module"`），和模板一样；包里同时也提供了 CommonJS 构建。
