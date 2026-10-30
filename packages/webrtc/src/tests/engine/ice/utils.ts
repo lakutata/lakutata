@@ -597,9 +597,12 @@ export async function createStreamTurnServer({
     const server = useTls
         ? tls.createServer(getLocalTurnServerTlsOptions(), onConnection)
         : net.createServer(onConnection)
-    //On the address localhost resolves to first, the one the clients connecting to localhost try first: Node.js 18 and
-    //19 try no other one (no autoSelectFamily by default)
-    await new Promise<void>((resolve) => server.listen(0, 'localhost', resolve))
+    //On the address a client connecting to localhost tries first (Node.js 18 and 19 try no other one: no autoSelectFamily
+    //by default). Its lookup asks for the families the machine has addresses of (ADDRCONFIG, not on Windows), the one of
+    //listen() does not: on a machine without IPv6 outside the loopback, the client gets 127.0.0.1 and listen() ::1.
+    //dns.lookup, as the tests stub dns.promises.lookup
+    const localhost: string = await new Promise<string>((resolve, reject) => dns.lookup('localhost', {hints: process.platform === 'win32' ? 0 : dns.ADDRCONFIG}, (error, address) => error ? reject(error) : resolve(address)))
+    await new Promise<void>((resolve) => server.listen(0, localhost, resolve))
     const {address: host, port} = server.address() as net.AddressInfo
 
     return {
