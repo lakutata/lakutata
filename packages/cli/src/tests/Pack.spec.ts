@@ -2,6 +2,7 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {execFile, execFileSync, type ExecFileException, execSync} from 'node:child_process'
 import {cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync} from 'node:fs'
+import {createRequire} from 'node:module'
 import {networkInterfaces, tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -282,7 +283,8 @@ describe('The packing of an application listening on a network interface', {skip
      */
     function runPinger(command: string, args: string[], env: Record<string, string> = {}, cwd: string = pinger): Promise<{ code: number, output: string }> {
         return new Promise((resolve: (result: { code: number, output: string }) => void): void => {
-            execFile(command, args, {cwd: cwd, env: {...process.env, LOOPBACK: LOOPBACK!, LAKUTATA_CACHE_DIR: path.join(pinger, 'cache'), ...env}, maxBuffer: 16 * 1024 * 1024}, (error: ExecFileException | null, stdout: string, stderr: string): void => resolve({code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, output: `${stdout}${stderr}`}))
+            //Without the warnings of the experimental APIs (the fetch of Node.js 18.10)
+            execFile(command, args, {cwd: cwd, env: {...process.env, NODE_NO_WARNINGS: '1', LOOPBACK: LOOPBACK!, LAKUTATA_CACHE_DIR: path.join(pinger, 'cache'), ...env}, maxBuffer: 16 * 1024 * 1024}, (error: ExecFileException | null, stdout: string, stderr: string): void => resolve({code: error ? (typeof error.code === 'number' ? error.code : 1) : 0, output: `${stdout}${stderr}`}))
         })
     }
 
@@ -383,6 +385,20 @@ const NATIVE_PACKAGES: string[] = ['better-sqlite3', 'sharp']
 const missing: string | undefined = NATIVE_PACKAGES.find((name: string): boolean => !existsSync(path.join(ROOT, 'node_modules', name)))
 
 /**
+ * Whether the better-sqlite3 of the repository loads in the node program running the tests: it is built for the Node.js
+ * of the repository (an older one, running the tests of node-compat, has another ABI)
+ */
+const SQLITE_LOADS: boolean = ((): boolean => {
+    try {
+        const Database = createRequire(import.meta.url)(path.join(ROOT, 'node_modules', 'better-sqlite3'))
+        new Database(':memory:').close()
+        return true
+    } catch {
+        return false
+    }
+})()
+
+/**
  * Build the addon of the tests (Node-API, in C): its getCPUInfo() gives the architecture of the machine. Undefined
  * without the toolchain of node-gyp
  */
@@ -420,7 +436,7 @@ NAPI_MODULE_INIT() {
 
 const ADDON: string | undefined = missing ? undefined : buildAddon()
 
-describe('The packing of an application with native addons', {skip: missing ? `${missing} is not installed in the repository` : !ADDON && 'the addon of the tests cannot be built (node-gyp, a C toolchain)'}, (): void => {
+describe('The packing of an application with native addons', {skip: missing ? `${missing} is not installed in the repository` : (!ADDON && 'the addon of the tests cannot be built (node-gyp, a C toolchain)') || (!SQLITE_LOADS && 'the better-sqlite3 of the repository is built for another Node.js')}, (): void => {
 
     let native: string
 

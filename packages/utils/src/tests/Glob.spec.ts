@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import {mkdir, mkdtemp, rm, symlink, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {glob as UpstreamGlob, globSync as UpstreamGlobSync} from 'glob'
+import {type glob as UpstreamGlob, type globSync as UpstreamGlobSync} from 'glob'
 import {Glob, GlobSync, type GlobOptions} from '../exports/Utils.js'
 
 /**
@@ -41,6 +41,12 @@ function sorted(results: string[]): string[] {
     return [...results].sort()
 }
 
+//glob 13, the reference, loads on Node.js 18.19, 19.9 and later (its lru-cache imports diagnostics_channel.tracingChannel):
+//the comparisons with it are skipped on the older ones
+const UPSTREAM: { glob: typeof UpstreamGlob, globSync: typeof UpstreamGlobSync } | undefined = await import('glob').catch((): undefined => undefined)
+
+const NO_UPSTREAM: string | false = !UPSTREAM && 'glob 13 loads on Node.js 18.19, 19.9 and later'
+
 describe('Glob', (): void => {
 
     let root: string
@@ -55,27 +61,27 @@ describe('Glob', (): void => {
 
     after(async (): Promise<void> => rm(root, {recursive: true, force: true}))
 
-    it('matches as the upstream glob', (): void => {
+    it('matches as the upstream glob', {skip: NO_UPSTREAM}, (): void => {
         for (const options of OPTIONS) {
             for (const pattern of PATTERNS) {
                 const settings: GlobOptions = {...options, cwd: root}
-                assert.deepStrictEqual(GlobSync(pattern, settings), sorted(UpstreamGlobSync(pattern, settings) as string[]), `${pattern} ${JSON.stringify(options)}`)
+                assert.deepStrictEqual(GlobSync(pattern, settings), sorted(UPSTREAM!.globSync(pattern, settings) as string[]), `${pattern} ${JSON.stringify(options)}`)
             }
         }
     })
 
-    it('matches the absolute patterns and the patterns of a sub directory as the upstream glob', (): void => {
+    it('matches the absolute patterns and the patterns of a sub directory as the upstream glob', {skip: NO_UPSTREAM}, (): void => {
         for (const pattern of ['a/*', '**/*.js', 'src/**']) {
             const absolute: string = path.join(root, pattern)
-            assert.deepStrictEqual(GlobSync(absolute), sorted(UpstreamGlobSync(absolute)), absolute)
-            assert.deepStrictEqual(GlobSync(pattern, {cwd: path.join(root, 'a')}), sorted(UpstreamGlobSync(pattern, {cwd: path.join(root, 'a')})), `${pattern} in a`)
+            assert.deepStrictEqual(GlobSync(absolute), sorted(UPSTREAM!.globSync(absolute)), absolute)
+            assert.deepStrictEqual(GlobSync(pattern, {cwd: path.join(root, 'a')}), sorted(UPSTREAM!.globSync(pattern, {cwd: path.join(root, 'a')})), `${pattern} in a`)
         }
-        assert.deepStrictEqual(GlobSync(['a/*.js', 'src/*.ts', 'a/*.js'], {cwd: root}), sorted(UpstreamGlobSync(['a/*.js', 'src/*.ts', 'a/*.js'], {cwd: root})))
+        assert.deepStrictEqual(GlobSync(['a/*.js', 'src/*.ts', 'a/*.js'], {cwd: root}), sorted(UPSTREAM!.globSync(['a/*.js', 'src/*.ts', 'a/*.js'], {cwd: root})))
     })
 
-    it('gives the same results asynchronously', async (): Promise<void> => {
+    it('gives the same results asynchronously', {skip: NO_UPSTREAM}, async (): Promise<void> => {
         for (const pattern of PATTERNS) assert.deepStrictEqual(await Glob(pattern, {cwd: root}), GlobSync(pattern, {cwd: root}), pattern)
-        assert.deepStrictEqual(await Glob('**/*.ts', {cwd: root}), sorted(await UpstreamGlob('**/*.ts', {cwd: root})))
+        assert.deepStrictEqual(await Glob('**/*.ts', {cwd: root}), sorted(await UPSTREAM!.glob('**/*.ts', {cwd: root})))
     })
 
     it('follows the links of directories when asked, without looping on their cycles', async (): Promise<void> => {

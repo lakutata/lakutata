@@ -18,7 +18,10 @@ import {
     Result
 } from '../exports/Entrypoint.js'
 import {GET, HEAD, POST} from '../exports/CTRLDecorators.js'
-import {fastifyHTTPEntrypoint, FastifyHTTPEntrypointOptions, fastifyJSONEnvelope} from '../exports/FastifyAdapter.js'
+import {type FastifyHTTPEntrypointOptions} from '../exports/FastifyAdapter.js'
+import {FASTIFY, NO_FASTIFY} from './support/Fastify.js'
+
+const {fastifyHTTPEntrypoint, fastifyJSONEnvelope} = FASTIFY
 
 class DeviceDTO extends DTO {
     @Expect(DTO.String().required())
@@ -136,7 +139,7 @@ async function start(options: FastifyHTTPEntrypointOptions = {}, entrypointOptio
     return {url: `http://127.0.0.1:${(server!.address() as AddressInfo).port}`, container: container}
 }
 
-describe('Fastify adapter', (): void => {
+describe('Fastify adapter', {skip: NO_FASTIFY}, (): void => {
 
     it('dispatches the requests to the actions', async (): Promise<void> => {
         const {url, container} = await start()

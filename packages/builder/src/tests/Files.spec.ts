@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import {execFileSync} from 'node:child_process'
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
-import {tmpdir} from 'node:os'
+import os, {tmpdir} from 'node:os'
 import path from 'node:path'
 import {buildExecutable, bundleProject} from '../index.js'
 import {NODE_EXECUTABLE, NO_NODE_EXECUTABLE} from './support/NodeProgram.js'
@@ -257,9 +257,12 @@ main()
         //The packages linked from outside of the project are named from their node_modules in the tree
         const workers: string = path.join(result.nativeDirectory!, '.lakutata', 'files')
         assert.ok(existsSync(path.join(workers, 'node_modules', 'piscina', 'dist', 'worker.js')))
-        assert.strictEqual(runWithout(project, result.outfile, ['build', 'workers', 'node_modules']), [
-            'piscina 4', 'workerpool 6', 'tinypool 6', 'property 50', 'assigned legacy', 'fork child', 'require plugin'
-        ].join('\n'))
+        //piscina 5 and tinypool 2 run where os.availableParallelism is (Node.js 18.14, 19.4 and later)
+        if (typeof os.availableParallelism === 'function') {
+            assert.strictEqual(runWithout(project, result.outfile, ['build', 'workers', 'node_modules']), [
+                'piscina 4', 'workerpool 6', 'tinypool 6', 'property 50', 'assigned legacy', 'fork child', 'require plugin'
+            ].join('\n'))
+        }
     })
 
     it('runs the scripts of an executable started for them (fork()) instead of the application, in the executables of Node.js', {skip: NO_NODE_EXECUTABLE}, async (): Promise<void> => {

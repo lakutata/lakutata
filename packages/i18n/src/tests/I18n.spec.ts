@@ -115,7 +115,8 @@ describe('The messages', (): void => {
         })
         assert.deepStrictEqual(warnings, ['en: total: the currency is missing (currency/XXX, the "currency" argument, or the currency of the configuration)'])
         const at: Date = new Date(Date.UTC(2026, 9, 3, 14, 5))
-        assert.strictEqual(await format('{at, date, long} {at, time, short}', {at: at}, 'en', {timeZone: 'UTC'}), 'October 3, 2026 2:05 PM')
+        //The ICU of Node.js 19.3 (72) writes a narrow no-break space before PM
+        assert.strictEqual((await format('{at, date, long} {at, time, short}', {at: at}, 'en', {timeZone: 'UTC'})).replace(/\u202f/g, ' '), 'October 3, 2026 2:05 PM')
         assert.strictEqual(await format('{at, date, long}', {at: at.getTime()}, 'zh-CN', {timeZone: 'UTC'}), '2026年10月3日')
         assert.strictEqual(await format('{at, date, short}', {at: {toDate: (): Date => at}}, 'en', {timeZone: 'Asia/Shanghai'}), '10/3/26')
     })

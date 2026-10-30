@@ -129,7 +129,7 @@ async function electronPage(project: string, args: string[], executable?: string
                 const page = pages.find(({type}): boolean => type === 'page')
                 if (!page) continue
                 text = await new Promise((resolve: (text: string) => void, reject: (error: unknown) => void): void => {
-                    const socket: WebSocket = new WebSocket(page.webSocketDebuggerUrl)
+                    const socket: WebSocket = new WEBSOCKET(page.webSocketDebuggerUrl)
                     socket.onopen = (): void => socket.send(JSON.stringify({id: 1, method: 'Runtime.evaluate', params: {expression: `document.body.innerText + ' | isolated: ' + (typeof require === 'undefined' && typeof process === 'undefined')`, returnByValue: true}}))
                     socket.onmessage = (message: MessageEvent): void => {
                         const response = JSON.parse(String(message.data))
@@ -148,6 +148,11 @@ async function electronPage(project: string, args: string[], executable?: string
     }
     return text
 }
+
+/**
+ * The WebSocket of the runtime (Node.js 22 and later), else the one of ws
+ */
+const WEBSOCKET: typeof WebSocket = globalThis.WebSocket ?? (await import('ws')).WebSocket as unknown as typeof WebSocket
 
 /**
  * Whether Bun is installed, which makes the executables of --runtime bun
