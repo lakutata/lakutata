@@ -72,7 +72,7 @@
     "test:unit": "npm run compile && node --test \"dist/esm/tests/*.spec.js\""
   },
   "engines": {
-    "node": "^22.13.0 || >=24.11.0"
+    "node": ">=18.10.0"
   },
   "files": [
     "dist",

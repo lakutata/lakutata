@@ -61,7 +61,7 @@
     "@lakutata/utils": "~3.1.1"
   },
   "engines": {
-    "node": "^22.13.0 || >=24.11.0"
+    "node": ">=18.10.0"
   },
   "files": [
     "dist",
