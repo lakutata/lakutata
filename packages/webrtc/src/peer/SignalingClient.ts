@@ -1,4 +1,4 @@
-import {randomUUID} from 'node:crypto'
+import {randomBytes, randomUUID} from 'node:crypto'
 import {DTO, Provider} from '@lakutata/core'
 import {Autoload, Configurable, Transient} from '@lakutata/core/decorator/di'
 import type {SignalingIceServer} from '../protocol/SignalingProtocol.js'
@@ -189,6 +189,8 @@ export class SignalingClient extends Provider {
         this.#clientId = this.id ?? randomUUID()
         const transport: SignalingTransport = await this.transport()
         this.#session = new SignalingSession<PeerConnection>(transport, {
+            //The random session of node:crypto: the global crypto of the session's default comes in Node.js 19
+            session: randomBytes(12).toString('hex'),
             iceTransportPolicy: this.iceTransportPolicy,
             createPeerConnection: (configuration: PeerConnectionConfiguration): Promise<PeerConnection> => this.getObject(PeerConnection, {
                 ...configuration,

@@ -74,7 +74,7 @@ for (const file of sources()) {
             if (!entry.missing.length || !entry.pattern.test(line)) continue
             if (entry.allow?.some(allowed => allowed.file === relative)) continue
             if (entry.binding && declares(text, entry.binding) && !/globalThis\./.test(line)) continue
-            if (markers.some(marker => marker.split(/\s*,\s*/).map(name => name.replace(/\s*\(.*\)$/, '')).includes(entry.api))) {
+            if (markers.some(marker => marker.split(/\s*,\s*/).some(name => name === entry.api || name.startsWith(`${entry.api} (`)))) {
                 marked.add(`${relative}:${index + 1}`)
                 continue
             }

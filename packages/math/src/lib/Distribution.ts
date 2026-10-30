@@ -1,3 +1,4 @@
+import {randomFillSync} from 'node:crypto'
 import {MathArgumentException} from '../exceptions/MathArgumentException.js'
 import {vectorOf, type VectorValue} from './Matrix.js'
 import {nativeCall} from './Native.js'
@@ -73,7 +74,7 @@ export class RandomGenerator {
     constructor(seed?: number | bigint) {
         const word: BigUint64Array = new BigUint64Array(1)
         if (seed === undefined) {
-            globalThis.crypto.getRandomValues(word)
+            randomFillSync(word)
         } else {
             if (!(typeof seed === 'bigint' || Number.isSafeInteger(seed))) throw new MathArgumentException('A seed is a bigint or a safe integer')
             word[0] = BigInt.asUintN(64, BigInt(seed))
