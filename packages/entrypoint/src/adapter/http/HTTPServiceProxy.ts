@@ -256,21 +256,24 @@ export class HTTPServiceProxy extends Component {
     public async invoke<T extends Record<string, any>>(input: ActionPattern<T>, timeout: number = 10 * 60 * 1000): Promise<any> {
         let status: number
         let text: string
+        const signal: AbortSignal = AbortSignal.timeout(timeout)
         try {
             const response: Response = await fetch(this.url, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', ...this.headers, 'id': this.#id},
                 body: JSON.stringify(input),
-                signal: AbortSignal.timeout(timeout)
+                signal: signal
             })
             status = response.status
             text = await response.text()
         } catch (error) {
-            const exception: ServiceUnavailableException = (error as Error)?.name === 'TimeoutError'
+            //The timeout by the signal: the fetch of Node.js 18.10 fails with an AbortError, not with the TimeoutError of the signal
+            const timedOut: boolean = (error as Error)?.name === 'TimeoutError' || (signal.aborted && (signal.reason as Error)?.name === 'TimeoutError')
+            const exception: ServiceUnavailableException = timedOut
                 ? new ServiceUnavailableException('The service {service} gave no response within {timeout} ms', {service: this.url, timeout: timeout})
                 : new ServiceUnavailableException('The service {service} cannot be reached: {reason}', {service: this.url, reason: reasonOf(error)})
             exception.service = this.url
-            exception.cause = error
+            exception.cause = timedOut && signal.reason ? signal.reason : error
             throw exception
         }
         let body: unknown

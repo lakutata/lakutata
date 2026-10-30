@@ -295,6 +295,22 @@ describe('HTTP service proxy', (): void => {
         }
     })
 
+    it('tells a timeout by its signal, the fetch of Node.js 18.10 failing with an AbortError', async (): Promise<void> => {
+        const {url, container} = await start()
+        const fetchOfNode: typeof fetch = globalThis.fetch
+        try {
+            const slow: HTTPServiceProxy = await container.setNamed('slow', HTTPServiceProxy, {url: url})
+            //The fetch of undici 5: aborted by its signal, it fails with an AbortError whatever the reason of the signal
+            globalThis.fetch = ((input: unknown, init?: RequestInit): Promise<Response> => new Promise((resolve: (response: Response) => void, reject: (error: Error) => void): void => {
+                init!.signal!.addEventListener('abort', (): void => reject(new DOMException('This operation was aborted', 'AbortError')))
+            })) as typeof fetch
+            await assert.rejects(slow.invoke({cmd: 'slow'}, 50), (error: unknown): boolean => error instanceof ServiceUnavailableException && error.message === `The service ${url} gave no response within 50 ms` && (error.cause as Error).name === 'TimeoutError')
+        } finally {
+            globalThis.fetch = fetchOfNode
+            await container.destroy()
+        }
+    })
+
     it('receives the events pushed to its client, and listens again once the service restarts', async (): Promise<void> => {
         const first = await start()
         const container: Container = new Container()

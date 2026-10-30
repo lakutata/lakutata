@@ -201,6 +201,9 @@ function isFastifyInstance(value: unknown): value is FastifyInstance {
  * With `interface` (through the package `@lakutata/netif` by default, installed apart), the server listens on network
  * interfaces instead of an address, whatever their addresses, again when they change and when an interface is unplugged
  * and plugged back: `fastifyHTTPEntrypoint({port: 8080, interface: 'eth1'})`.
+ *
+ * fastify 5 needs `diagnostics_channel.tracingChannel` of Node.js 18.19, 19.9, 20 or later: not the Node.js 18.10 of
+ * NW.js 0.70 nor the 19.3 of NW.js 0.72, where the express adapter serves instead.
  * @param options The adapter options; by default it listens on port 80 with a new fastify instance.
  * @returns The adapter, to give to the `http` option of `buildEntrypoints`.
  * @example
