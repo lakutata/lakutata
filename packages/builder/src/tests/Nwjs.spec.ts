@@ -7,6 +7,8 @@ import {createServer, type IncomingMessage, type Server, type ServerResponse} fr
 import type {AddressInfo} from 'node:net'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
+import timers from 'node:timers'
+import vm from 'node:vm'
 import {downloadNwjs, nwjsPlatform, nwjsRelease, nwjsReleases, stageNwjsApp, type NwjsRelease, type NwjsStage} from '../index.js'
 import {binaryArchitectures, nameNwjsNode, prepareNwjsAddons, usesV8Api} from '../lib/nwjs/Addons.js'
 import {nsisScript, wixSource} from '../lib/win/Windows.js'
@@ -136,7 +138,13 @@ describe('The runtimes of NW.js', (): void => {
             webview: {partitions: [{name: 'trusted', accessible_resources: ['<all_urls>']}]},
             'chromium-args': '--disable-gpu'
         })
-        assert.strictEqual(readFileSync(path.join(stage.directory, 'main.js'), 'utf8').split('\n')[1], "require('./app.cjs')")
+        //The background script gives the application the timers of Node.js (the ones of the browser in NW.js 0.72), then loads it
+        const required: string[] = []
+        const page: Record<string, unknown> = {setTimeout: (): number => 1, require: (name: string): unknown => required.push(name) && (name === 'timers' ? timers : {})}
+        vm.runInNewContext(readFileSync(path.join(stage.directory, 'main.js'), 'utf8'), page)
+        assert.deepStrictEqual(required, ['timers', './app.cjs'])
+        assert.strictEqual(page.setTimeout, timers.setTimeout)
+        assert.strictEqual(page.clearInterval, timers.clearInterval)
         assert.ok(existsSync(path.join(stage.directory, 'resources', 'host', 'host.html')))
         //What the user interface is built for, written when it is not the release of the application
         assert.deepStrictEqual(JSON.parse(readFileSync(path.join(project, 'nwjs.json'), 'utf8')), {version: '0.72.0', node: '19.3.0', chromium: '109.0.5414.87'})

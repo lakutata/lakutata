@@ -92,9 +92,13 @@ export type NwjsStage = {
 }
 
 /**
- * The background script of the application in NW.js: its Node.js context, where the application runs
+ * The background script of the application in NW.js: its Node.js context, where the application runs. Its timers are
+ * the ones of Node.js: the older releases (0.72) give the background page the timers of the browser, whose ids are
+ * numbers (without unref and refresh)
  */
-const BACKGROUND_SCRIPT: string = `//The background script of the application in NW.js (its Node.js context): the application, bundled
+const BACKGROUND_SCRIPT: string = `//The background script of the application in NW.js (its Node.js context): the timers of Node.js, then the application, bundled
+const timers = require('timers')
+for (const name of ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate']) globalThis[name] = timers[name]
 require('./app.cjs')
 `
 
