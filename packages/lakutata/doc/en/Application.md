@@ -12,7 +12,7 @@ options:
 
 | Option | Meaning |
 |---|---|
-| `id`, `name` | Required. The ID (also the `process.title`) and the name of the application (`app.appId`, `app.appName`) |
+| `id`, `name` | Required. The ID (also the `process.title`, except in NW.js) and the name of the application (`app.appId`, `app.appName`) |
 | `timezone` | An IANA time zone, or `'auto'` (default) for the system's; written to `TZ` |
 | `mode` | `'development'` or `'production'`, when the environment gives none (see section 4) |
 | `shutdownSignals` | The signals that end the application gracefully (default `['SIGTERM', 'SIGINT']`), or `false` |

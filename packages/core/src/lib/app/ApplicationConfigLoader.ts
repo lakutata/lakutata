@@ -18,13 +18,16 @@ export class ApplicationConfigLoader extends ModuleConfigLoader {
      */
     constructor(app: Application, applicationOptions: ApplicationOptions, presetLoadOptions: (LoadObjectOptions | typeof BaseObject | string)[] = []) {
         if (ApplicationOptions.isValid(applicationOptions)) {
-            process.title = setBasicInfo({
+            const appId: string = setBasicInfo({
                 appId: applicationOptions.id,
                 appName: applicationOptions.name,
                 timezone: applicationOptions.timezone ? applicationOptions.timezone : 'auto',
                 //MODE, NODE_ENV, the options, development
                 mode: resolveMode(applicationOptions.mode)
             }).appId
+            //The process is named after the application, except in NW.js: its Node.js runs in a renderer process of
+            //Chromium, whose title would make it an application of its own (an icon in the Dock of macOS)
+            if (!process.versions.nw) process.title = appId
         }
         super(app, applicationOptions, presetLoadOptions)
     }

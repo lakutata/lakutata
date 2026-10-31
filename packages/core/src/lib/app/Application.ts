@@ -59,7 +59,7 @@ export enum ApplicationState {
  * and `run()` have no effect then):
  * 1. the environment variables are set, the aliases registered (`@runtime` being the working directory);
  * 2. the options are read (from the getter given to `run()`, which may be async) and validated, the identity applied
- *    (`process.title` is the application ID, the time zone and the mode set);
+ *    (`process.title` is the application ID, except in NW.js; the time zone and the mode set);
  * 3. the application is created in a new root container: its objects are registered and its bootstrap runs in order;
  * 4. the `onLaunched()` handlers and the objects' `launched()` hooks run.
  *

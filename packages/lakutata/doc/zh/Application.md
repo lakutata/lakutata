@@ -8,7 +8,7 @@
 
 | 选项 | 含义 |
 |---|---|
-| `id`、`name` | 必填。应用的 ID（同时作为 `process.title`）和名称（`app.appId`、`app.appName`） |
+| `id`、`name` | 必填。应用的 ID（同时作为 `process.title`，NW.js 中除外）和名称（`app.appId`、`app.appName`） |
 | `timezone` | IANA 时区名，或 `'auto'`（默认）表示使用系统时区；写入 `TZ` |
 | `mode` | `'development'` 或 `'production'`，在环境变量未指定时生效（见第 4 节） |
 | `shutdownSignals` | 使应用优雅退出的信号（默认 `['SIGTERM', 'SIGINT']`），或 `false` |

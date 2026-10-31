@@ -37,8 +37,8 @@ const CATCHABLE_SIGNALS: string[] = Object.keys(constants.signals).filter((signa
 export class ApplicationOptions extends ModuleOptions {
 
     /**
-     * The ID of the application (`'shop.app'`): the `process.title`, read by `Application.appId` and stamped on the
-     * exceptions. Required.
+     * The ID of the application (`'shop.app'`), read by `Application.appId` and stamped on the exceptions; the
+     * `process.title` too, except in NW.js. Required.
      */
     @Expect(DTO.String().required())
     public readonly id: string
