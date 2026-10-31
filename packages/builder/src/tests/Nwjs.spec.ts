@@ -7,7 +7,7 @@ import {createServer, type IncomingMessage, type Server, type ServerResponse} fr
 import type {AddressInfo} from 'node:net'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {downloadNwjs, nwjsPlatform, nwjsRelease, nwjsReleases, type NwjsRelease} from '../index.js'
+import {downloadNwjs, nwjsPlatform, nwjsRelease, nwjsReleases, stageNwjsApp, type NwjsRelease, type NwjsStage} from '../index.js'
 
 /**
  * The list of nwjs.io, three releases: the latest, the last one of Windows 7, and one embedding Node.js 18.5
@@ -114,6 +114,37 @@ describe('The runtimes of NW.js', (): void => {
         const downloads: number = requests.filter((url: string): boolean => url.startsWith('/v0.72.0/nwjs-')).length
         assert.strictEqual((await downloadNwjs({version: '0.72.0', flavor: 'sdk'})).executable, runtime.executable)
         assert.strictEqual(requests.filter((url: string): boolean => url.startsWith('/v0.72.0/nwjs-')).length, downloads)
+    })
+
+    it('makes the application of NW.js of a project: its bundle for the Node.js of the release, its resources, its manifest', async (): Promise<void> => {
+        const project: string = path.join(work, 'desk')
+        mkdirSync(path.join(project, 'build'), {recursive: true})
+        mkdirSync(path.join(project, 'host'), {recursive: true})
+        writeFileSync(path.join(project, 'package.json'), JSON.stringify({
+            name: '@acme/Desk', productName: 'Desk', version: '1.2.3', type: 'module', main: 'build/App.js',
+            lakutata: {nwjs: {version: 'win7', chromiumArgs: '--disable-gpu'}, installer: {appId: 'com.acme.Desk'}, resources: [{from: 'host', to: 'host'}]}
+        }))
+        writeFileSync(path.join(project, 'build', 'App.js'), 'export const ready = [1, 2].at(-1) === 2\nconsole.log(`ready ${ready}`)\n')
+        writeFileSync(path.join(project, 'host', 'host.html'), '<!doctype html>')
+        const stage: NwjsStage = await stageNwjsApp({project: project, outdir: '.nwjs/app'})
+        assert.strictEqual(stage.directory, path.join(project, '.nwjs', 'app'))
+        assert.deepStrictEqual([stage.release.version, stage.name], ['0.72.0', 'com.acme.desk'])
+        assert.deepStrictEqual(JSON.parse(readFileSync(path.join(stage.directory, 'package.json'), 'utf8')), {
+            name: 'com.acme.desk', productName: 'Desk', version: '1.2.3', main: 'main.js',
+            webview: {partitions: [{name: 'trusted', accessible_resources: ['<all_urls>']}]},
+            'chromium-args': '--disable-gpu'
+        })
+        assert.strictEqual(readFileSync(path.join(stage.directory, 'main.js'), 'utf8').split('\n')[1], "require('./app.cjs')")
+        assert.ok(existsSync(path.join(stage.directory, 'resources', 'host', 'host.html')))
+        //What the user interface is built for, written when it is not the release of the application
+        assert.deepStrictEqual(JSON.parse(readFileSync(path.join(project, 'nwjs.json'), 'utf8')), {version: '0.72.0', node: '19.3.0', chromium: '109.0.5414.87'})
+        //The background script runs the bundle (CommonJS) by require, as NW.js does
+        assert.strictEqual(execFileSync(process.execPath, ['main.js'], {cwd: stage.directory}).toString().trim(), 'ready true')
+        //Without a version of NW.js, or in the project itself
+        writeFileSync(path.join(project, 'package.json'), JSON.stringify({name: 'desk', version: '1.0.0', main: 'build/App.js'}))
+        await assert.rejects(stageNwjsApp({project: project, outdir: 'out'}), /has no version of NW\.js: give it with lakutata nwjs use <version>/)
+        await assert.rejects(stageNwjsApp({project: project, outdir: '.', version: 'win7'}), /made in a directory of its own/)
+        await assert.rejects(stageNwjsApp({project: project, outdir: '..', version: 'win7'}), /made in a directory of its own/)
     })
 
     it('refuses an archive whose checksum is not the one of its release, and keeps nothing of it', async (): Promise<void> => {
