@@ -15,6 +15,16 @@ import {frameworkVersion, latestVersion, projectFrameworkVersion, toolPackage} f
 import {localize} from '../lib/Language.js'
 
 /**
+ * The id of an application on the mobile systems by default: com.example.<its name>, in lower case, of letters and
+ * digits only (a segment of an applicationId of Android starts with a letter)
+ * @param name
+ */
+function defaultBundleId(name: string): string {
+    const segment: string = name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'app'
+    return `com.example.${/^[a-z]/.test(segment) ? segment : `a${segment}`}`
+}
+
+/**
  * Whether the tool runs in a terminal, where it asks the questions
  */
 function interactive(): boolean {
@@ -81,6 +91,7 @@ export class CommandLineController extends Controller {
         const plan: ProjectPlan = {
             name: input.name,
             id: input.id ?? input.name.toLowerCase(),
+            bundleId: input.bundleId ?? defaultBundleId(input.name),
             description: input.description,
             author: input.author,
             license: input.license,
@@ -95,6 +106,7 @@ export class CommandLineController extends Controller {
         process.stdout.write(table([
             [say('plan.name', 'Name'), plan.name],
             [say('plan.id', 'ID'), plan.id],
+            ...(await this.creator.uses(prepared, '{$APP_BUNDLE_ID}') ? [[say('plan.bundleId', 'Bundle ID'), plan.bundleId] as [string, string]] : []),
             [say('plan.description', 'Description'), plan.description || '-'],
             [say('plan.author', 'Author'), plan.author || '-'],
             [say('plan.license', 'License'), plan.license],

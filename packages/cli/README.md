@@ -22,6 +22,7 @@ both the features and the confirmation).
 |---|---|
 | `--name <name>` | the name of the application (required) |
 | `--id <id>` | the ID of the application (a package name), by default its name in lower case |
+| `--bundle-id <id>` | the id of the application on the mobile systems (reverse domain name: `com.acme.shop`), for the mobile templates: `com.example.<name>` by default, which the stores refuse |
 | `--template <template>` | the template (`default` when it is not given): an official template (listed by `lakutata templates`), `npm:<package>[@<version>]`, `github:<owner>/<repo>[#<ref>]` or a directory |
 | `--path <directory>` | the directory in which the project directory is created, by default the current one |
 | `--init` | create the project in the `--path` directory itself, which must exist and may hold files: the files it already has are kept (a warning lists those that the template also has, to merge by hand), and only the files the tool writes are filled with the information of the project |

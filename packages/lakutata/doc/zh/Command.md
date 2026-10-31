@@ -30,6 +30,7 @@ lakutata create --name tool --template cli --package-manager none --no-git
 |---|---|---|
 | `--name` | 在终端里会询问 | 应用的名称，也是项目目录的名称 |
 | `--id` | 名称的小写形式 | 应用的 ID，也是包名 |
+| `--bundle-id` | `com.example.<名称>` | 应用在手机系统上的标识（反向域名），用于手机模板；应用商店不接受 `com.example` |
 | `--template` | `default` | 官方模板（见 `lakutata templates`）、`npm:<package>[@<version>]`、`github:<owner>/<repo>[#<ref>]`，或一个目录 |
 | `--path` | `.` | 在哪里创建项目目录（`<path>/<name>`） |
 | `--init` | | 直接在 `--path` 这个已有目录中创建项目 |

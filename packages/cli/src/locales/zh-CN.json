@@ -7,6 +7,7 @@
         "options": {
           "name": "应用的名称",
           "id": "应用的 ID（包名），默认是名称的小写形式",
+          "bundleId": "应用在手机系统上的标识（反向域名：com.acme.shop），用于手机模板：默认是 com.example.<名称>，应用商店不接受",
           "template": "模板：官方模板的名称（lakutata templates 会列出）、npm:<包名>、github:<所有者>/<仓库> 或一个目录",
           "path": "在哪个目录下创建项目目录",
           "init": "直接在该目录中创建项目，目录可以已存在且非空",
@@ -250,6 +251,7 @@
       "title": "项目",
       "name": "名称",
       "id": "ID",
+      "bundleId": "应用标识（Bundle ID）",
       "description": "描述",
       "author": "作者",
       "license": "许可证",

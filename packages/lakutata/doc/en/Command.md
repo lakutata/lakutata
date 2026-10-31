@@ -41,6 +41,7 @@ lakutata create --name tool --template cli --package-manager none --no-git
 |---|---|---|
 | `--name` | asked in a terminal | The name of the application, and of its directory |
 | `--id` | the name in lower case | The ID of the application and the name of its package |
+| `--bundle-id` | `com.example.<name>` | The id of the application on the mobile systems (reverse domain name), for the mobile templates; the stores refuse `com.example` |
 | `--template` | `default` | An official template (`lakutata templates`), `npm:<package>[@<version>]`, `github:<owner>/<repo>[#<ref>]`, or a directory |
 | `--path` | `.` | Where the project directory is created (`<path>/<name>`) |
 | `--init` | | Create the project in `--path` itself, a directory that already exists |

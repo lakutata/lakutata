@@ -17,6 +17,11 @@ import {type ProcessResult} from '../types/ProcessResult.js'
 export type ProjectPlan = {
     name: string
     id: string
+    /**
+     * The id of the application on the mobile systems (reverse domain name: com.acme.shop): the applicationId of Android,
+     * the bundle identifier of iOS
+     */
+    bundleId: string
     description: string
     author: string
     license: string
@@ -141,6 +146,22 @@ export class ProjectCreator extends Component {
     }
 
     /**
+     * Whether a template (its files, those of its features) holds a field ({$APP_BUNDLE_ID}…)
+     * @param template
+     * @param field
+     */
+    public async uses(template: PreparedTemplate, field: string): Promise<boolean> {
+        for (const root of [template.root, template.featuresDirectory]) {
+            if (!root || !existsSync(root)) continue
+            for (const file of await listFiles(root)) {
+                const content: Buffer = await readFile(path.join(root, file))
+                if (isText(content) && content.toString('utf8').includes(field)) return true
+            }
+        }
+        return false
+    }
+
+    /**
      * Get the files of a template
      * @param source
      */
@@ -169,6 +190,7 @@ export class ProjectCreator extends Component {
         await this.fill(plan.directory, files, {
             $APP_NAME: plan.name,
             $APP_ID: plan.id,
+            $APP_BUNDLE_ID: plan.bundleId,
             $APP_DESC: plan.description,
             $APP_AUTHOR: plan.author,
             $APP_LICENSE: plan.license,

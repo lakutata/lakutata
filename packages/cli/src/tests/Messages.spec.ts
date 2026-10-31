@@ -14,7 +14,7 @@ import {CLI, runIn} from './support/Workspace.js'
 const COMMAND_KEYS: string[] = [
     'prompt.json',
     'prompts.features', 'prompts.create', 'prompts.notCreated', 'prompts.version', 'prompts.notVersioned',
-    'plan.title', 'plan.name', 'plan.id', 'plan.description', 'plan.author', 'plan.license', 'plan.template', 'plan.features',
+    'plan.title', 'plan.name', 'plan.id', 'plan.bundleId', 'plan.description', 'plan.author', 'plan.license', 'plan.template', 'plan.features',
     'plan.none', 'plan.directory', 'plan.dependencies', 'plan.notInstalled', 'plan.installed', 'plan.git', 'plan.initialized',
     'plan.notInitialized', 'plan.version'
 ]

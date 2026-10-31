@@ -234,6 +234,31 @@ describe('The command line tool', (): void => {
         assert.ok(existsSync(path.join(directory, '.gitignore')))
     })
 
+    it('gives the mobile templates the id of the application on the mobile systems', async (): Promise<void> => {
+        //A template of a mobile application: its native projects hold the id
+        const template: string = path.join(work, 'packs', 'mobile')
+        mkdirSync(template, {recursive: true})
+        writeFileSync(path.join(template, 'package.json'), JSON.stringify({name: '{$APP_ID}', private: true}))
+        writeFileSync(path.join(template, 'build.gradle'), 'applicationId "{$APP_BUNDLE_ID}"\n')
+        const named = await runCommand(['create', '--name', 'Shop-App', '--template', template, '--package-manager', 'none', '--no-git'])
+        assert.strictEqual(named.code, 0, named.stderr)
+        assert.match(named.stdout, /Bundle ID\s+.*com\.example\.shopapp/)
+        assert.strictEqual(readFileSync(path.join(work, 'Shop-App', 'build.gradle'), 'utf8'), 'applicationId "com.example.shopapp"\n')
+        //A segment starts with a letter
+        assert.strictEqual((await runCommand(['create', '--name', '2048', '--template', template, '--package-manager', 'none', '--no-git'])).code, 0)
+        assert.strictEqual(readFileSync(path.join(work, '2048', 'build.gradle'), 'utf8'), 'applicationId "com.example.a2048"\n')
+        const given = await runCommand(['create', '--name', 'given', '--bundle-id', 'com.acme.shop', '--template', template, '--package-manager', 'none', '--no-git'])
+        assert.strictEqual(given.code, 0, given.stderr)
+        assert.strictEqual(readFileSync(path.join(work, 'given', 'build.gradle'), 'utf8'), 'applicationId "com.acme.shop"\n')
+        const invalid = await runCommand(['create', '--name', 'invalid', '--bundle-id', 'com.acme.2shop', '--template', template, '--package-manager', 'none', '--no-git'])
+        assert.strictEqual(invalid.code, 1)
+        //The other templates do not show it
+        const local: string = path.join(work, 'packs', `${major}.0.1`, 'package')
+        const other = await runCommand(['create', '--name', 'plain', '--template', local, '--package-manager', 'none', '--no-git'])
+        assert.strictEqual(other.code, 0, other.stderr)
+        assert.doesNotMatch(other.stdout, /Bundle ID/)
+    })
+
     it('fails with the errors of the arguments', async (): Promise<void> => {
         const notEmpty = await runCommand(['create', '--name', 'Demo', '--package-manager', 'none'])
         assert.strictEqual(notEmpty.code, 1)

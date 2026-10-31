@@ -7,6 +7,7 @@
         "options": {
           "name": "應用程式的名稱",
           "id": "應用程式的 ID（套件名稱），預設為名稱的小寫形式",
+          "bundleId": "應用程式在手機系統上的識別碼（反向網域名稱：com.acme.shop），用於手機範本：預設是 com.example.<名稱>，應用程式商店不接受",
           "template": "範本：官方範本的名稱（lakutata templates 會列出）、npm:<套件名稱>、github:<擁有者>/<儲存庫> 或一個目錄",
           "path": "在哪個目錄下建立專案目錄",
           "init": "直接在該目錄中建立專案，目錄可以已存在且非空",
@@ -250,6 +251,7 @@
       "title": "專案",
       "name": "名稱",
       "id": "ID",
+      "bundleId": "應用程式識別碼（Bundle ID）",
       "description": "描述",
       "author": "作者",
       "license": "授權條款",

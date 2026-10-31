@@ -20,6 +20,7 @@ lakutata create --name my-app
 |---|---|
 | `--name <name>` | 应用的名称（必填） |
 | `--id <id>` | 应用的 ID（一个包名），默认是名称的小写形式 |
+| `--bundle-id <id>` | 应用在手机系统上的标识（反向域名：`com.acme.shop`），用于手机模板：默认是 `com.example.<名称>`，应用商店不接受 |
 | `--template <template>` | 模板（不指定时为 `default`）：官方模板（`lakutata templates` 会列出）、`npm:<package>[@<version>]`、`github:<owner>/<repo>[#<ref>]`，或者一个目录 |
 | `--path <directory>` | 在哪个目录中创建项目目录，默认是当前目录 |
 | `--init` | 直接在 `--path` 目录中创建项目。这个目录必须已经存在，里面可以有文件：已有的文件会保留（模板中也有的那些会在警告中列出，需要手动合并），只有新写入的文件会填入项目的信息 |
