@@ -1,4 +1,6 @@
 import {randomUUID} from 'node:crypto'
+import {type IncomingMessage, request as httpRequest} from 'node:http'
+import {request as httpsRequest} from 'node:https'
 import {type ActionPattern, Component, type ComponentOptionsBuilder, DTO} from '@lakutata/core'
 import {Configurable} from '@lakutata/core/decorator/di'
 import {ServiceResponseCodec, type ServiceResponse} from '../../lib/ServiceResponseCodec.js'
@@ -91,39 +93,37 @@ function reasonOf(error: unknown): string {
 }
 
 /**
- * The events of a stream of Server-Sent Events: their names and their data, the comments skipped
+ * The response of a request: its status and its body, read once
+ */
+type HTTPResponse = {
+    status: number
+    body: AsyncIterable<Uint8Array>
+    /**
+     * Give up the body unread
+     */
+    cancel: () => Promise<void>
+}
+
+/**
+ * Whether fetch() can be used: the fetch of Node.js (undici) compiles its parser to WebAssembly once called. On a
+ * runtime without WebAssembly (V8 run --jitless: Node.js on iOS and on HarmonyOS), it ends Node.js 18 at its first call
+ * (an error no catch receives), and Node.js 24 fails the call. The requests go through node:http then
+ */
+function fetchUsable(): boolean {
+    return typeof fetch === 'function' && (globalThis as Record<string, unknown>).WebAssembly !== undefined
+}
+
+/**
+ * The chunks of a body of fetch()
  * @param stream
  */
-async function* serverSentEvents(stream: ReadableStream<Uint8Array>): AsyncGenerator<{ event: string, data: string }> {
+async function* chunksOf(stream: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
     const reader: ReadableStreamDefaultReader<Uint8Array> = stream.getReader()
-    const decoder = new TextDecoder()
-    let buffer: string = ''
-    let event: string = 'message'
-    let data: string[] = []
     try {
         for (; ;) {
             const {value, done} = await reader.read()
             if (done) return
-            buffer += decoder.decode(value, {stream: true})
-            //The complete lines; the last one may be cut by the chunk
-            const lines: string[] = buffer.split('\n')
-            buffer = lines.pop()!
-            for (const read of lines) {
-                const line: string = read.endsWith('\r') ? read.slice(0, -1) : read
-                //A blank line ends the event
-                if (!line) {
-                    if (data.length) yield {event: event, data: data.join('\n')}
-                    event = 'message'
-                    data = []
-                    continue
-                }
-                if (line.startsWith(':')) continue
-                const colon: number = line.indexOf(':')
-                const field: string = colon < 0 ? line : line.slice(0, colon)
-                const value: string = colon < 0 ? '' : line.slice(colon + 1).replace(/^ /, '')
-                if (field === 'event') event = value
-                else if (field === 'data') data.push(value)
-            }
+            yield value
         }
     } finally {
         reader.releaseLock()
@@ -131,10 +131,82 @@ async function* serverSentEvents(stream: ReadableStream<Uint8Array>): AsyncGener
 }
 
 /**
+ * Send a request: with fetch(), else with node:http or node:https (a runtime without WebAssembly)
+ * @param url
+ * @param init its method, its headers, its body and the signal aborting it
+ */
+async function send(url: string, init: { method?: string, headers: Record<string, string>, body?: string, signal: AbortSignal }): Promise<HTTPResponse> {
+    if (fetchUsable()) {
+        const response: Response = await fetch(url, init)
+        return {
+            status: response.status,
+            body: response.body ? chunksOf(response.body) : (async function* (): AsyncGenerator<Uint8Array> {})(),
+            cancel: async (): Promise<void> => void await response.body?.cancel()
+        }
+    }
+    const headers: Record<string, string | number> = init.body === undefined ? init.headers : {...init.headers, 'Content-Length': Buffer.byteLength(init.body)}
+    const response: IncomingMessage = await new Promise((resolve: (response: IncomingMessage) => void, reject: (error: Error) => void): void => {
+        (url.startsWith('https:') ? httpsRequest : httpRequest)(url, {method: init.method ?? 'GET', headers: headers, signal: init.signal}, resolve)
+            .once('error', reject)
+            .end(init.body)
+    })
+    return {
+        status: response.statusCode ?? 0,
+        body: response,
+        cancel: async (): Promise<void> => void response.destroy()
+    }
+}
+
+/**
+ * The text of a body
+ * @param body
+ */
+async function textOf(body: AsyncIterable<Uint8Array>): Promise<string> {
+    const decoder = new TextDecoder()
+    let text: string = ''
+    for await (const chunk of body) text += decoder.decode(chunk, {stream: true})
+    return text + decoder.decode()
+}
+
+/**
+ * The events of a stream of Server-Sent Events: their names and their data, the comments skipped
+ * @param stream
+ */
+async function* serverSentEvents(stream: AsyncIterable<Uint8Array>): AsyncGenerator<{ event: string, data: string }> {
+    const decoder = new TextDecoder()
+    let buffer: string = ''
+    let event: string = 'message'
+    let data: string[] = []
+    for await (const chunk of stream) {
+        buffer += decoder.decode(chunk, {stream: true})
+        //The complete lines; the last one may be cut by the chunk
+        const lines: string[] = buffer.split('\n')
+        buffer = lines.pop()!
+        for (const read of lines) {
+            const line: string = read.endsWith('\r') ? read.slice(0, -1) : read
+            //A blank line ends the event
+            if (!line) {
+                if (data.length) yield {event: event, data: data.join('\n')}
+                event = 'message'
+                data = []
+                continue
+            }
+            if (line.startsWith(':')) continue
+            const colon: number = line.indexOf(':')
+            const field: string = colon < 0 ? line : line.slice(0, colon)
+            const value: string = colon < 0 ? '' : line.slice(colon + 1).replace(/^ /, '')
+            if (field === 'event') event = value
+            else if (field === 'data') data.push(value)
+        }
+    }
+}
+
+/**
  * The client of a lakutata service served over HTTP by `httpServiceEntrypoint`: it invokes the service's actions by
  * their patterns and listens to the events the service pushes to it. It is a component (a singleton), registered with
- * {@link buildHTTPServiceProxy}; it needs no package (it uses the `fetch()` of Node.js), and its event stream is opened
- * when the first listener is added.
+ * {@link buildHTTPServiceProxy}; it needs no package (it uses the `fetch()` of Node.js, and `node:http` on a runtime
+ * without WebAssembly, where calling `fetch()` ends Node.js: Node.js on iOS and on HarmonyOS), and its event stream is
+ * opened when the first listener is added.
  *
  * The failures of the remote actions are thrown as `ServiceInvokeException`, with the remote error's message and
  * properties (`errno`, `statusCode`…) and the address as its `service`; a service that gives no response (unreachable,
@@ -258,14 +330,14 @@ export class HTTPServiceProxy extends Component {
         let text: string
         const signal: AbortSignal = AbortSignal.timeout(timeout)
         try {
-            const response: Response = await fetch(this.url, {
+            const response: HTTPResponse = await send(this.url, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json', ...this.headers, 'id': this.#id},
                 body: JSON.stringify(input),
                 signal: signal
             })
             status = response.status
-            text = await response.text()
+            text = await textOf(response.body)
         } catch (error) {
             //A timeout is told by the signal: the fetch of Node.js 18.10 fails with an AbortError, not with the signal's TimeoutError
             const timedOut: boolean = (error as Error)?.name === 'TimeoutError' || (signal.aborted && (signal.reason as Error)?.name === 'TimeoutError')
@@ -356,8 +428,8 @@ export class HTTPServiceProxy extends Component {
         this.#events = abort
         while (!abort.signal.aborted && !this.#destroyed && this.#listeners.size) {
             try {
-                const response: Response = await fetch(this.#eventsURL, {headers: {...this.headers, 'Accept': 'text/event-stream'}, signal: abort.signal})
-                if (response.ok && response.body) {
+                const response: HTTPResponse = await send(this.#eventsURL, {headers: {...this.headers, 'Accept': 'text/event-stream'}, signal: abort.signal})
+                if (response.status >= 200 && response.status < 300) {
                     for await (const {event, data} of serverSentEvents(response.body)) {
                         const listeners = this.#listeners.get(event)
                         if (!listeners) continue
@@ -380,7 +452,7 @@ export class HTTPServiceProxy extends Component {
                         if (!this.#listeners.size) abort.abort()
                     }
                 } else {
-                    await response.body?.cancel()
+                    await response.cancel()
                 }
             } catch {
                 //The service is gone: listened again after the delay

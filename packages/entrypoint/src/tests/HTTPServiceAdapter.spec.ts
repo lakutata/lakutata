@@ -1,6 +1,9 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import type {AddressInfo} from 'node:net'
+import {spawnSync} from 'node:child_process'
+import path from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {durationOf, takeOverUpgrades, upgrade} from './support/Upgrade.js'
 import {keepAliveAgent, postThrough} from './support/KeepAlive.js'
 import {type Agent, createServer, type Server} from 'node:http'
@@ -309,6 +312,70 @@ describe('HTTP service proxy', (): void => {
             globalThis.fetch = fetchOfNode
             await container.destroy()
         }
+    })
+
+    it('goes through node:http on a runtime without WebAssembly: its calls, their errors, a timeout, its events', async (): Promise<void> => {
+        const {url, container, entrypoint} = await start()
+        const fetchOfNode: typeof fetch = globalThis.fetch
+        const webAssembly: PropertyDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'WebAssembly')!
+        //fetch() is not called: it ends the runtimes without WebAssembly (Node.js on iOS)
+        let fetched: number = 0
+        globalThis.fetch = ((...args: Parameters<typeof fetch>): Promise<Response> => {
+            fetched++
+            return fetchOfNode(...args)
+        }) as typeof fetch
+        Reflect.deleteProperty(globalThis, 'WebAssembly')
+        try {
+            const proxy: HTTPServiceProxy = await container.set(HTTPServiceProxy, {url: url, clientId: 'mobile', headers: {Authorization: 'Bearer secret'}, reconnectDelay: 50})
+            assert.deepStrictEqual(await proxy.invoke({cmd: 'echo', value: 3}), {value: 3, method: 'POST'})
+            assert.strictEqual(await proxy.invoke({cmd: 'authorization'}), 'Bearer secret')
+            await assert.rejects(proxy.invoke({cmd: 'echo', value: 'x'}), (error: unknown): boolean => error instanceof ServiceInvokeException && error.errno === 'E_INVALID_VALUE' && error.statusCode === 400)
+            await assert.rejects(proxy.invoke({cmd: 'slow'}, 50), (error: unknown): boolean => error instanceof ServiceUnavailableException && error.message === `The service ${url} gave no response within 50 ms` && (error.cause as Error).name === 'TimeoutError')
+            const unreachable: HTTPServiceProxy = await container.setNamed('unreachable', HTTPServiceProxy, {url: 'http://127.0.0.1:1'})
+            await assert.rejects(unreachable.invoke({cmd: 'echo', value: 1}), (error: unknown): boolean => error instanceof ServiceUnavailableException && /cannot be reached: connect ECONNREFUSED 127\.0\.0\.1:1$/.test(error.message))
+            const opened: string[] = []
+            const received: unknown[][] = []
+            proxy.on('client', (id: string): void => void opened.push(id))
+            proxy.on('progress', (...args: unknown[]): void => void received.push(args))
+            await until((): boolean => opened.length === 1)
+            entrypoint.notify('mobile', 'progress', 1, {step: 'a'})
+            await until((): boolean => received.length === 1)
+            assert.deepStrictEqual(received, [[1, {step: 'a'}]])
+            assert.strictEqual(fetched, 0)
+        } finally {
+            Object.defineProperty(globalThis, 'WebAssembly', webAssembly)
+            globalThis.fetch = fetchOfNode
+            await container.destroy()
+        }
+    })
+
+    it('works in a process without WebAssembly from its start, whose fetch() fails (Node.js 24) or ends it (Node.js 18)', (): void => {
+        //As Node.js on iOS: the fetch of the process has not compiled its parser yet
+        const entrypoint: string = new URL('../exports/Entrypoint.js', import.meta.url).href
+        const script: string = `
+delete globalThis.WebAssembly
+const {createServer} = await import('node:http')
+const {Container} = await import('@lakutata/core')
+const {HTTPServiceProxy} = await import(${JSON.stringify(entrypoint)})
+//A service: the response of its action, then an event pushed to the client
+const server = createServer((request, response) => {
+    if (request.method === 'POST') return void response.writeHead(200, {'Content-Type': 'application/json'}).end(JSON.stringify({success: true, error: null, payload: 42}))
+    response.writeHead(200, {'Content-Type': 'text/event-stream'})
+    response.write('event: ready\\ndata: [1]\\n\\n')
+})
+await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+const container = new Container()
+const proxy = await container.set(HTTPServiceProxy, {url: 'http://127.0.0.1:' + server.address().port})
+const payload = await proxy.invoke({cmd: 'answer'})
+const event = await new Promise((resolve) => proxy.once('ready', resolve))
+console.log('RESULT ' + JSON.stringify([payload, event]))
+await container.destroy()
+server.closeAllConnections()
+server.close()
+`
+        const run = spawnSync(process.execPath, ['--input-type=module', '-e', script], {cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..'), encoding: 'utf8', timeout: 30000})
+        assert.strictEqual(run.status, 0, run.stdout + run.stderr)
+        assert.match(run.stdout, /RESULT \[42,1\]/)
     })
 
     it('receives the events pushed to its client, and listens again once the service restarts', async (): Promise<void> => {
