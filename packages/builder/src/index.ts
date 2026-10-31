@@ -11,3 +11,4 @@ export {INSTALLER_HOOKS, NATIVE_HOOKS, type InstallerHook, type InstallerScripts
 export {detectLibc} from './lib/Platform.js'
 export {WINDOWS_TARGETS, type WindowsTarget} from './lib/win/Windows.js'
 export {MAC_TARGETS, type MacTarget} from './lib/mac/Mac.js'
+export {downloadNwjs, nwjsPlatform, nwjsRelease, nwjsReleases, type NwjsFlavor, type NwjsRelease, type NwjsRuntime, type NwjsRuntimeOptions} from './lib/nwjs/Runtime.js'
