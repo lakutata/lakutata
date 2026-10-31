@@ -358,7 +358,8 @@ export async function buildInstaller(options: InstallerOptions): Promise<Install
             productName: config.productName ?? (typeof manifest.productName === 'string' ? manifest.productName : name),
             program: program,
             version: version,
-            description: config.description ?? manifest.description ?? name,
+            //An empty description is none (the one of a project created without it): Windows Installer refuses it
+            description: config.description || manifest.description || name,
             maintainer: maintainer,
             homepage: config.homepage ?? (typeof manifest.homepage === 'string' ? manifest.homepage : undefined),
             license: config.license ?? (typeof manifest.license === 'string' ? manifest.license : undefined),
@@ -370,7 +371,7 @@ export async function buildInstaller(options: InstallerOptions): Promise<Install
             priority: config.linux?.priority,
             service: service && {
                 name: service.name ?? name,
-                description: service.description ?? config.description ?? manifest.description ?? name,
+                description: service.description || config.description || manifest.description || name,
                 args: service.args ?? [],
                 env: {MODE: 'production', ...service.env},
                 //The users of the services of macOS are hidden by their names (_www), the ones of Windows are virtual
