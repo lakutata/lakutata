@@ -20,8 +20,8 @@ type Service = NonNullable<InstallerPlan['service']>
 /**
  * The architecture of the packages (the one of the executable)
  */
-function packageArch(): string {
-    return process.arch === 'arm64' ? 'arm64' : 'x64'
+function packageArch(plan: InstallerPlan): string {
+    return ({arm64: 'arm64', ia32: 'x86'} as Record<string, string>)[plan.arch] ?? 'x64'
 }
 
 /**
@@ -179,8 +179,9 @@ function numericVersion(version: string): string {
  * @param stage the files it installs
  * @param file
  * @param scripts the scripts of the application (written with the mark of UTF-8, which Windows PowerShell reads them by)
+ * @internal
  */
-function nsisScript(plan: InstallerPlan, stage: string, file: string, scripts: { hooks: Partial<Record<InstallerHook, string>>, include?: string }): string {
+export function nsisScript(plan: InstallerPlan, stage: string, file: string, scripts: { hooks: Partial<Record<InstallerHook, string>>, include?: string }): string {
     const uninstallKey: string = `Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${plan.appId}`
     //A text given (its $ are not variables of NSIS), a path of NSIS (its variables: $INSTDIR)
     const string = (value: string): string => `"${value.replace(/\$/g, '$$$$').replace(/"/g, '$\\"')}"`
@@ -202,15 +203,20 @@ function nsisScript(plan: InstallerPlan, stage: string, file: string, scripts: {
     const macro = (name: string): string[] => scripts.include ? [`  !ifmacrodef ${name}`, `    !insertmacro ${name}`, '  !endif'] : []
     //The directory of the application, given to its scripts
     const environment: string = '  System::Call \'Kernel32::SetEnvironmentVariable(t "LAKUTATA_INSTALL_DIR", t "$INSTDIR")i\''
+    //A desktop application: shortcuts to its executable, no installation script (PowerShell) of the service and of the PATH
+    const desktop: { executable: string } | undefined = plan.desktop
+    const shortcuts: string[] = desktop ? [`$SMPROGRAMS\\${plan.productName}.lnk`, `$DESKTOP\\${plan.productName}.lnk`] : []
+    //A 32-bit program (Windows 7 32-bit) in the programs of 32 bits, with the 32-bit registry
+    const wide: boolean = plan.arch !== 'ia32'
     return [
         'Unicode true',
         'ManifestDPIAware true',
-        '!include "x64.nsh"',
+        ...wide ? ['!include "x64.nsh"'] : [],
         `Name ${string(plan.productName)}`,
         `OutFile ${string(file)}`,
         //The icon of the application
         ...plan.icon ? [`Icon ${string(plan.icon)}`, `UninstallIcon ${string(plan.icon)}`] : [],
-        `InstallDir ${variables(`$PROGRAMFILES64\\${plan.name}`)}`,
+        `InstallDir ${variables(`${wide ? '$PROGRAMFILES64' : '$PROGRAMFILES'}\\${plan.name}`)}`,
         'RequestExecutionLevel admin',
         'SetCompressor /SOLID lzma',
         'ShowInstDetails show',
@@ -225,13 +231,11 @@ function nsisScript(plan: InstallerPlan, stage: string, file: string, scripts: {
         '',
         '; The 64-bit registry and system (the installer is a 32-bit program)',
         'Function .onInit',
-        '  SetRegView 64',
-        '  ${DisableX64FSRedirection}',
+        ...wide ? ['  SetRegView 64', '  ${DisableX64FSRedirection}'] : [],
         ...macro('customInit'),
         'FunctionEnd',
         'Function un.onInit',
-        '  SetRegView 64',
-        '  ${DisableX64FSRedirection}',
+        ...wide ? ['  SetRegView 64', '  ${DisableX64FSRedirection}'] : [],
         ...macro('customUnInit'),
         'FunctionEnd',
         '',
@@ -240,32 +244,36 @@ function nsisScript(plan: InstallerPlan, stage: string, file: string, scripts: {
         environment,
         '  ; An upgrade replaces the application installed',
         '  StrCpy $R9 "install"',
-        '  IfFileExists "$INSTDIR\\installer.ps1" 0 +2',
+        `  IfFileExists ${variables(`$INSTDIR\\${desktop ? desktop.executable : 'installer.ps1'}`)} 0 +2`,
         '  StrCpy $R9 "upgrade"',
         ...hook('preinstall'),
-        '  ; The service of the version replaced is stopped: its files are replaced',
-        '  IfFileExists "$INSTDIR\\installer.ps1" 0 +3',
-        `  ${script('stop')}`,
-        '  Pop $0',
+        ...desktop ? [] : [
+            '  ; The service of the version replaced is stopped: its files are replaced',
+            '  IfFileExists "$INSTDIR\\installer.ps1" 0 +3',
+            `  ${script('stop')}`,
+            '  Pop $0'
+        ],
         '  SetOutPath "$INSTDIR"',
         `  File /r ${string(`${stage}\\*.*`)}`,
+        ...shortcuts.map((shortcut: string): string => `  CreateShortCut ${variables(shortcut)} ${variables(`$INSTDIR\\${desktop!.executable}`)}`),
         '  WriteUninstaller "$INSTDIR\\uninstall.exe"',
         `  WriteRegStr HKLM ${string(uninstallKey)} "DisplayName" ${string(plan.productName)}`,
         `  WriteRegStr HKLM ${string(uninstallKey)} "DisplayVersion" ${string(plan.version)}`,
         `  WriteRegStr HKLM ${string(uninstallKey)} "Publisher" ${string(plan.vendor ?? plan.maintainer)}`,
         `  WriteRegStr HKLM ${string(uninstallKey)} "InstallLocation" "$INSTDIR"`,
-        `  WriteRegStr HKLM ${string(uninstallKey)} "DisplayIcon" ${variables(`$INSTDIR\\${plan.program}.exe`)}`,
+        `  WriteRegStr HKLM ${string(uninstallKey)} "DisplayIcon" ${variables(`$INSTDIR\\${desktop ? desktop.executable : `${plan.program}.exe`}`)}`,
         `  WriteRegStr HKLM ${string(uninstallKey)} "UninstallString" '"$INSTDIR\\uninstall.exe"'`,
         `  WriteRegStr HKLM ${string(uninstallKey)} "QuietUninstallString" '"$INSTDIR\\uninstall.exe" /S'`,
         `  WriteRegDWORD HKLM ${string(uninstallKey)} "NoModify" 1`,
         `  WriteRegDWORD HKLM ${string(uninstallKey)} "NoRepair" 1`,
-        `  ${script('install')}`,
-        '  Pop $0',
-        '  StrCmp $0 "0" +2',
-        '  Abort "The installation failed ($0)"',
+        ...desktop ? [] : [
+            `  ${script('install')}`,
+            '  Pop $0',
+            '  StrCmp $0 "0" +2',
+            '  Abort "The installation failed ($0)"'
+        ],
         ...hook('postinstall'),
-        `  ${script('start')}`,
-        '  Pop $0',
+        ...desktop ? [] : [`  ${script('start')}`, '  Pop $0'],
         ...macro('customInstall'),
         'SectionEnd',
         '',
@@ -274,8 +282,7 @@ function nsisScript(plan: InstallerPlan, stage: string, file: string, scripts: {
         environment,
         '  StrCpy $R9 "remove"',
         ...macro('customUnInstall'),
-        `  ${script('uninstall')}`,
-        '  Pop $0',
+        ...desktop ? shortcuts.map((shortcut: string): string => `  Delete ${variables(shortcut)}`) : [`  ${script('uninstall')}`, '  Pop $0'],
         ...hook('preremove'),
         '  RMDir /r "$INSTDIR"',
         `  DeleteRegKey HKLM ${string(uninstallKey)}`,
@@ -360,9 +367,11 @@ function msiScripts(hooks: Partial<Record<InstallerHook, ScriptFile>>): { action
  * @param stage the files it installs
  * @param serviceDirectory the files of its service (WinSW and its configuration)
  * @param environment the environment file
+ * @internal
  */
-function wixSource(plan: InstallerPlan, stage: string, serviceDirectory: string, environment: string | undefined): string {
+export function wixSource(plan: InstallerPlan, stage: string, serviceDirectory: string, environment: string | undefined): string {
     const scripts = msiScripts(plan.scripts.msi?.hooks ?? {})
+    const desktop: { executable: string } | undefined = plan.desktop
     const id = (prefix: string, value: string): string => `${prefix}${createHash('sha1').update(value).digest('hex').slice(0, 30)}`
     const components: string[] = []
     const directory = (absolute: string, relative: string, depth: number): string[] => {
@@ -397,20 +406,32 @@ function wixSource(plan: InstallerPlan, stage: string, serviceDirectory: string,
         ...plan.icon ? [`    <Icon Id="ProductIcon.ico" SourceFile="${xml(plan.icon)}"/>`, '    <Property Id="ARPPRODUCTICON" Value="ProductIcon.ico"/>'] : [],
         `    <Property Id="ARPINSTALLLOCATION" Value="[INSTALLDIR]"/>`,
         '    <Directory Id="TARGETDIR" Name="SourceDir">',
-        '      <Directory Id="ProgramFiles64Folder">',
+        `      <Directory Id="${plan.arch === 'ia32' ? 'ProgramFilesFolder' : 'ProgramFiles64Folder'}">`,
         `        <Directory Id="INSTALLDIR" Name="${xml(plan.name)}">`,
         ...files,
         '        </Directory>',
         '      </Directory>',
-        '      <Directory Id="CommonAppDataFolder">',
-        `        <Directory Id="DATADIR" Name="${xml(plan.name)}">`,
-        '          <Directory Id="LOGSDIR" Name="logs"/>',
-        '        </Directory>',
-        '      </Directory>',
+        ...desktop ? ['      <Directory Id="ProgramMenuFolder"/>', '      <Directory Id="DesktopFolder"/>'] : [
+            '      <Directory Id="CommonAppDataFolder">',
+            `        <Directory Id="DATADIR" Name="${xml(plan.name)}">`,
+            '          <Directory Id="LOGSDIR" Name="logs"/>',
+            '        </Directory>',
+            '      </Directory>'
+        ],
         '    </Directory>',
-        //The data, the logs and the environment file are kept by the removals
-        `    <Component Id="Data" Directory="DATADIR" Guid="${namedUuid(`${plan.appId}:data`)}" Permanent="yes" KeyPath="yes"><CreateFolder/></Component>`,
-        `    <Component Id="Logs" Directory="LOGSDIR" Guid="${namedUuid(`${plan.appId}:logs`)}" Permanent="yes" KeyPath="yes"><CreateFolder/></Component>`,
+        //The data, the logs and the environment file are kept by the removals (a service, a program of the command line)
+        ...desktop ? [] : [
+            `    <Component Id="Data" Directory="DATADIR" Guid="${namedUuid(`${plan.appId}:data`)}" Permanent="yes" KeyPath="yes"><CreateFolder/></Component>`,
+            `    <Component Id="Logs" Directory="LOGSDIR" Guid="${namedUuid(`${plan.appId}:logs`)}" Permanent="yes" KeyPath="yes"><CreateFolder/></Component>`
+        ],
+        //The shortcuts of a desktop application, their key a value of the registry of the machine
+        ...desktop ? [
+            `    <Component Id="Shortcuts" Directory="INSTALLDIR" Guid="${namedUuid(`${plan.appId}:shortcuts`)}">`,
+            `      <Shortcut Id="ProgramMenuShortcut" Directory="ProgramMenuFolder" Name="${xml(plan.productName)}" Target="[INSTALLDIR]${xml(desktop.executable)}" WorkingDirectory="INSTALLDIR"/>`,
+            `      <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="${xml(plan.productName)}" Target="[INSTALLDIR]${xml(desktop.executable)}" WorkingDirectory="INSTALLDIR"/>`,
+            `      <RegistryValue Root="HKLM" Key="Software\\${xml(plan.appId)}" Name="Shortcuts" Type="integer" Value="1" KeyPath="yes"/>`,
+            '    </Component>'
+        ] : [],
         ...environment ? [`    <Component Id="Environment" Directory="DATADIR" Guid="${namedUuid(`${plan.appId}:environment`)}" Permanent="yes" NeverOverwrite="yes"><File Id="EnvironmentFile" Name="${xml(`${plan.name}.env`)}" Source="${xml(environment)}" KeyPath="yes"/></Component>`] : [],
         ...plan.addToPath ? [`    <Component Id="Path" Directory="INSTALLDIR" Guid="${namedUuid(`${plan.appId}:path`)}" KeyPath="yes"><Environment Id="Path" Name="PATH" Value="[INSTALLDIR]" Permanent="no" Part="last" Action="set" System="yes"/></Component>`] : [],
         ...service ? [
@@ -437,8 +458,7 @@ function wixSource(plan: InstallerPlan, stage: string, serviceDirectory: string,
         ] : [],
         '    <Feature Id="Application" Level="1">',
         ...components.map((component: string): string => `      <ComponentRef Id="${component}"/>`),
-        '      <ComponentRef Id="Data"/>',
-        '      <ComponentRef Id="Logs"/>',
+        ...desktop ? ['      <ComponentRef Id="Shortcuts"/>'] : ['      <ComponentRef Id="Data"/>', '      <ComponentRef Id="Logs"/>'],
         ...environment ? ['      <ComponentRef Id="Environment"/>'] : [],
         ...plan.addToPath ? ['      <ComponentRef Id="Path"/>'] : [],
         ...service ? ['      <ComponentRef Id="Service"/>'] : [],
@@ -486,7 +506,7 @@ export async function buildWindowsPackages(plan: InstallerPlan, targets: Windows
     }
     for (const target of targets) {
         if (target === 'zip') {
-            const base: string = `${plan.name}-${plan.version}-win-${packageArch()}`
+            const base: string = `${plan.name}-${plan.version}-win-${packageArch(plan)}`
             await rm(path.join(work, base), {recursive: true, force: true})
             await cp(plan.directory, path.join(work, base), {recursive: true})
             const file: string = path.join(outdir, `${base}.zip`)
@@ -502,8 +522,8 @@ export async function buildWindowsPackages(plan: InstallerPlan, targets: Windows
             await rm(stage, {recursive: true, force: true})
             await cp(plan.directory, stage, {recursive: true})
             if (service) for (const name of readdirSync(serviceDirectory).filter((name: string): boolean => !name.endsWith('.env'))) await copyFile(path.join(serviceDirectory, name), path.join(stage, name))
-            //Windows PowerShell reads the scripts of UTF-8 by their mark
-            await writeFile(path.join(stage, 'installer.ps1'), `\ufeff${installerScript(plan)}`)
+            //Windows PowerShell reads the scripts of UTF-8 by their mark (a desktop application has none)
+            if (!plan.desktop) await writeFile(path.join(stage, 'installer.ps1'), `\ufeff${installerScript(plan)}`)
             //The scripts of the application, extracted by the installer when it runs them
             const own: TargetScripts | undefined = plan.scripts.nsis
             const hooks: Partial<Record<InstallerHook, string>> = {}
@@ -519,7 +539,7 @@ export async function buildWindowsPackages(plan: InstallerPlan, targets: Windows
                 include = path.join(directory, 'include.nsh')
                 await writeFile(include, own.include.content)
             }
-            const file: string = path.join(outdir, `${plan.name}-${plan.version}-${packageArch()}-setup.exe`)
+            const file: string = path.join(outdir, `${plan.name}-${plan.version}-${packageArch(plan)}-setup.exe`)
             await rm(file, {force: true})
             const script: string = path.join(work, 'installer.nsi')
             await writeFile(script, `\ufeff${nsisScript(plan, stage, file, {hooks: hooks, include: include})}`)
@@ -532,9 +552,9 @@ export async function buildWindowsPackages(plan: InstallerPlan, targets: Windows
         await writeFile(source, wixSource(plan, plan.directory, serviceDirectory, environment))
         const candle: string = await ensureTool('wix')
         const light: string = path.join(path.dirname(candle), 'light.exe')
-        const file: string = path.join(outdir, `${plan.name}-${plan.version}-${packageArch()}.msi`)
+        const file: string = path.join(outdir, `${plan.name}-${plan.version}-${packageArch(plan)}.msi`)
         await rm(file, {force: true})
-        await must(candle, ['-nologo', '-arch', packageArch(), '-ext', 'WixUtilExtension', '-out', path.join(work, 'package.wixobj'), source], work, 'The package of Windows Installer')
+        await must(candle, ['-nologo', '-arch', packageArch(plan), '-ext', 'WixUtilExtension', '-out', path.join(work, 'package.wixobj'), source], work, 'The package of Windows Installer')
         await must(light, ['-nologo', '-ext', 'WixUtilExtension', '-spdb', '-out', file, path.join(work, 'package.wixobj')], work, 'The package of Windows Installer')
         files.push({target: target, file: file, size: (await stat(file)).size})
     }

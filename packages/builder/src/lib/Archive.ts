@@ -1,5 +1,6 @@
-import {cp, rm, stat} from 'node:fs/promises'
+import {rm, stat} from 'node:fs/promises'
 import path from 'node:path'
+import {copyDirectory} from './Directories.js'
 import {runCommand} from './Processes.js'
 import type {InstallerPlan} from './Installer.js'
 
@@ -14,7 +15,7 @@ import type {InstallerPlan} from './Installer.js'
 export async function archiveDirectory(plan: InstallerPlan, arch: string, work: string, outdir: string): Promise<{ target: string, file: string, size: number }> {
     const base: string = `${plan.name}-${plan.version}-${process.platform}-${arch}`
     await rm(path.join(work, base), {recursive: true, force: true})
-    await cp(plan.directory, path.join(work, base), {recursive: true, verbatimSymlinks: true})
+    await copyDirectory(plan.directory, path.join(work, base))
     const file: string = path.join(outdir, `${base}.tar.gz`)
     const archived = await runCommand('tar', ['-czf', file, base], work)
     if (archived.code !== 0) throw new Error(`The tar.gz archive cannot be made: ${archived.output.trim()}`)

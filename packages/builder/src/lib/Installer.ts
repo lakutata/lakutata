@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import {programName} from './Bundle.js'
 import {buildElectronInstaller} from './electron/Electron.js'
+import {buildNwjsApp, type NwjsApp} from './nwjs/Package.js'
 import {buildExecutable, type ExecutableResult} from './Executable.js'
 import {applicationIcon, icoFile} from './Icons.js'
 import {detectLibc} from './Platform.js'
@@ -72,9 +73,10 @@ export type InstallerConfig = {
     vendor?: string
     /**
      * The runtime of the executable: node (by default) or bun; electron for the Electron applications, whose installers
-     * are made by electron-builder
+     * are made by electron-builder; nwjs for the applications of NW.js (lakutata.nwjs: its version), installed as desktop
+     * applications (shortcuts, /Applications, desktop entries)
      */
-    runtime?: 'node' | 'bun' | 'electron'
+    runtime?: 'node' | 'bun' | 'electron' | 'nwjs'
     /**
      * The configuration of electron-builder of an Electron application, merged over the one made from lakutata.installer
      */
@@ -163,6 +165,11 @@ export type InstallerOptions = {
      * The node program embedded in the executable (nodeProgram of buildExecutable), the one running the build by default
      */
     nodeProgram?: string
+    /**
+     * The architecture of an application of NW.js (process.arch), the one of the machine by default: ia32 for the 32-bit
+     * systems of Windows (Windows 7)
+     */
+    arch?: string
 }
 
 export type InstallerResult = {
@@ -173,9 +180,13 @@ export type InstallerResult = {
      */
     files: { target: string, file: string, size: number }[]
     /**
-     * The executable they install
+     * The executable they install, undefined for the applications of NW.js
      */
-    executable: ExecutableResult
+    executable?: ExecutableResult
+    /**
+     * The application of NW.js they install (runtime nwjs)
+     */
+    nwjs?: NwjsApp
     warnings: string[]
 }
 
@@ -222,6 +233,17 @@ export type InstallerPlan = {
      * (lakutata.icon), none without it
      */
     icon?: string
+    /**
+     * The architecture of the program (process.arch: x64, ia32, arm64), which names the packages and, on Windows, the
+     * directory of the programs it is installed into
+     */
+    arch: string
+    /**
+     * A desktop application (NW.js): its executable in the directory (<product>.exe, <product>.app, <program>), given
+     * shortcuts (Windows), a desktop entry and icons (Linux), installed into /Applications (macOS); without service and
+     * outside the PATH by default; its icon (a PNG image: lakutata.icon), which the icons of Linux are made of
+     */
+    desktop?: { executable: string, icon?: string }
 }
 
 /**
@@ -263,10 +285,12 @@ export async function buildInstaller(options: InstallerOptions): Promise<Install
     const windows: boolean = process.platform === 'win32'
     if (process.platform !== 'linux' && !mac && !windows) throw new Error(`The installers of ${process.platform} are not supported: the ones of Linux are made on Linux, the ones of macOS on macOS, the ones of Windows on Windows`)
     const libc: 'glibc' | 'musl' | undefined = detectLibc()
+    //A desktop application (NW.js): its installers by default the ones of the desktop applications (as electron-builder)
+    const desktop: boolean = config.runtime === 'nwjs'
     const targets: string[] = options.targets?.length ? options.targets
-        : mac ? config.mac?.targets ?? ['pkg', 'tar.gz']
-            : windows ? config.win?.targets ?? ['nsis', 'msi', 'zip']
-                : config.linux?.targets ?? (libc === 'glibc' ? ['deb', 'rpm', 'tar.gz'] : ['apk', 'tar.gz'])
+        : mac ? config.mac?.targets ?? (desktop ? ['dmg'] : ['pkg', 'tar.gz'])
+            : windows ? config.win?.targets ?? (desktop ? ['nsis'] : ['nsis', 'msi', 'zip'])
+                : config.linux?.targets ?? (libc === 'glibc' ? (desktop ? ['deb'] : ['deb', 'rpm', 'tar.gz']) : desktop ? ['tar.gz'] : ['apk', 'tar.gz'])
     for (const target of targets) {
         if (mac) {
             if (!MAC_TARGETS.includes(target as MacTarget)) throw new Error(`The installer ${target} is not one of macOS (${MAC_TARGETS.join(', ')})`)
@@ -295,6 +319,7 @@ export async function buildInstaller(options: InstallerOptions): Promise<Install
     const appId: string = config.appId ?? name
     if (!/^[A-Za-z0-9][A-Za-z0-9.-]*$/.test(appId)) throw new Error(`The identifier of the application "${appId}" must be letters, digits, "." and "-" (lakutata.installer.appId)`)
     const service: ServiceOptions | undefined = config.service === true ? {} : config.service || undefined
+    if (desktop && service) throw new Error('A desktop application (lakutata.installer.runtime nwjs) has no service (lakutata.installer.service)')
     if (service?.name !== undefined && !/^[A-Za-z0-9_.@-]+$/.test(service.name)) throw new Error(`The name of the service "${service.name}" must be letters, digits, "_", ".", "@" and "-"`)
     //A user of the system (Linux, macOS), an account of Windows (DOMAIN\user, NT SERVICE\name, a managed account ending in $)
     if (service?.user !== undefined && !(windows ? /^[A-Za-z0-9_][A-Za-z0-9_. @-]*(\\[A-Za-z0-9_][A-Za-z0-9_. @-]*)?\$?$/ : /^[A-Za-z_][A-Za-z0-9_.-]*$/).test(service.user)) {
@@ -311,7 +336,9 @@ export async function buildInstaller(options: InstallerOptions): Promise<Install
             icon = path.join(work, 'icon.ico')
             await writeFile(icon, icoFile(application.image))
         }
-        const executable: ExecutableResult = await buildExecutable({
+        //The executable and what it loads; or the application of NW.js (its runtime, its executable named after it)
+        const nwjs: NwjsApp | undefined = desktop ? await buildNwjsApp({project: project, entry: options.entry, minify: options.minify, external: options.external, arch: options.arch, outdir: path.join(work, 'stage')}) : undefined
+        const executable: ExecutableResult | undefined = nwjs ? undefined : await buildExecutable({
             project: project,
             entry: options.entry,
             minify: options.minify,
@@ -321,7 +348,10 @@ export async function buildInstaller(options: InstallerOptions): Promise<Install
             layout: 'directory',
             outdir: path.join(work, 'stage')
         })
-        warnings.push(...executable.warnings)
+        warnings.push(...executable?.warnings ?? nwjs!.stage.bundle.warnings)
+        //The directory installed: the one of the bundle of macOS (/Applications/<product>.app), the one of the runtime of NW.js
+        const installed: string = nwjs ? (mac ? path.dirname(nwjs.directory) : nwjs.directory) : executable!.directory!
+        const launcher: string | undefined = nwjs && path.basename(mac ? nwjs.directory : nwjs.executable)
         const plan: InstallerPlan = {
             name: name,
             appId: appId,
@@ -333,7 +363,7 @@ export async function buildInstaller(options: InstallerOptions): Promise<Install
             homepage: config.homepage ?? (typeof manifest.homepage === 'string' ? manifest.homepage : undefined),
             license: config.license ?? (typeof manifest.license === 'string' ? manifest.license : undefined),
             vendor: config.vendor,
-            addToPath: config.addToPath ?? true,
+            addToPath: config.addToPath ?? !desktop,
             depends: config.linux?.depends ?? [],
             recommends: config.linux?.recommends ?? [],
             section: config.linux?.section,
@@ -348,17 +378,19 @@ export async function buildInstaller(options: InstallerOptions): Promise<Install
                 restart: service.restart ?? 'on-failure',
                 autoStart: service.autoStart ?? true
             },
-            directory: executable.directory!,
-            prefix: mac ? `/usr/local/lib/${name}` : windows ? `C:\\Program Files\\${name}` : `/opt/${name}`,
+            directory: installed,
+            prefix: mac ? (launcher ? `/Applications/${launcher}` : `/usr/local/lib/${name}`) : windows ? `C:\\Program Files\\${name}` : `/opt/${name}`,
             scripts: scripts,
-            icon: icon
+            icon: icon,
+            arch: nwjs ? nwjs.runtime.platform.slice(nwjs.runtime.platform.indexOf('-') + 1) : process.arch,
+            ...launcher ? {desktop: {executable: launcher, icon: application?.file}} : {}
         }
         const outdir: string = path.resolve(project, options.outdir ?? path.join('dist', 'installer'))
         await mkdir(outdir, {recursive: true})
         const files = mac ? await buildMacPackages(plan, targets as MacTarget[], path.join(work, 'mac'), outdir)
             : windows ? await buildWindowsPackages(plan, targets as WindowsTarget[], path.join(work, 'win'), outdir)
                 : await buildLinuxPackages(plan, targets as LinuxTarget[], path.join(work, 'linux'), outdir)
-        return {name: name, version: version, files: files, executable: executable, warnings: warnings}
+        return {name: name, version: version, files: files, ...executable ? {executable: executable} : {}, ...nwjs ? {nwjs: nwjs} : {}, warnings: warnings}
     } finally {
         await rm(work, {recursive: true, force: true})
     }

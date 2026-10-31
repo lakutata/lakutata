@@ -9,6 +9,7 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {downloadNwjs, nwjsPlatform, nwjsRelease, nwjsReleases, stageNwjsApp, type NwjsRelease, type NwjsStage} from '../index.js'
 import {binaryArchitectures, nameNwjsNode, prepareNwjsAddons, usesV8Api} from '../lib/nwjs/Addons.js'
+import {nsisScript, wixSource} from '../lib/win/Windows.js'
 
 /**
  * The list of nwjs.io, three releases: the latest, the last one of Windows 7, and one embedding Node.js 18.5
@@ -269,6 +270,48 @@ describe('The native addons of the applications of NW.js', (): void => {
             await assert.rejects(prepareNwjsAddons(work, path.join(work, 'tree'), files, {version: '0.72.0', date: '', node: '19.3.0', chromium: '', platforms: []}, 'linux-x64'), /uses the API of V8 \(not Node-API\): it runs in NW\.js 0\.111\.3 or later, built with its headers; NW\.js 0\.72\.0 needs a package of Node-API instead/)
         } finally {
             rmSync(work, {recursive: true, force: true})
+        }
+    })
+})
+
+describe('The installers of the desktop applications', (): void => {
+
+    /**
+     * The plan of a desktop application of the tests
+     * @param arch
+     * @param stage
+     */
+    const plan = (arch: string, stage: string): Parameters<typeof nsisScript>[0] => ({
+        name: 'desk', appId: 'com.acme.desk', productName: 'Desk', program: 'desk', version: '1.2.3', description: 'The desk', maintainer: 'Acme <dev@acme.test>',
+        addToPath: false, depends: [], recommends: [], directory: stage, prefix: 'C:\\Program Files\\desk', scripts: {}, arch: arch, desktop: {executable: 'desk.exe'}
+    })
+
+    it('installs a desktop application of Windows with its shortcuts, without the script of the service and of the PATH', (): void => {
+        const stage: string = mkdtempSync(path.join(tmpdir(), 'lakutata-desktop-'))
+        try {
+            writeFileSync(path.join(stage, 'desk.exe'), '')
+            const wide: string = nsisScript(plan('x64', stage), stage, 'desk-setup.exe', {hooks: {}})
+            assert.match(wide, /InstallDir "\$PROGRAMFILES64\\desk"/)
+            assert.match(wide, /!include "x64\.nsh"/)
+            assert.match(wide, /IfFileExists "\$INSTDIR\\desk\.exe" 0 \+2/)
+            assert.match(wide, /CreateShortCut "\$SMPROGRAMS\\Desk\.lnk" "\$INSTDIR\\desk\.exe"/)
+            assert.match(wide, /CreateShortCut "\$DESKTOP\\Desk\.lnk" "\$INSTDIR\\desk\.exe"/)
+            assert.match(wide, /Delete "\$DESKTOP\\Desk\.lnk"/)
+            assert.match(wide, /"DisplayIcon" "\$INSTDIR\\desk\.exe"/)
+            assert.doesNotMatch(wide, /installer\.ps1/)
+            //The 32-bit application of Windows 7: the programs and the registry of 32 bits
+            const narrow: string = nsisScript(plan('ia32', stage), stage, 'desk-setup.exe', {hooks: {}})
+            assert.match(narrow, /InstallDir "\$PROGRAMFILES\\desk"/)
+            assert.doesNotMatch(narrow, /x64\.nsh|SetRegView 64/)
+            const msi: string = wixSource(plan('ia32', stage), stage, stage, undefined)
+            assert.match(msi, /<Directory Id="ProgramFilesFolder">/)
+            assert.match(msi, /<Shortcut Id="ProgramMenuShortcut" Directory="ProgramMenuFolder" Name="Desk" Target="\[INSTALLDIR\]desk\.exe"/)
+            assert.match(msi, /<RegistryValue Root="HKLM" Key="Software\\com\.acme\.desk" Name="Shortcuts" Type="integer" Value="1" KeyPath="yes"\/>/)
+            assert.match(msi, /<ComponentRef Id="Shortcuts"\/>/)
+            assert.doesNotMatch(msi, /CommonAppDataFolder|ComponentRef Id="Data"/)
+            assert.match(wixSource(plan('x64', stage), stage, stage, undefined), /<Directory Id="ProgramFiles64Folder">/)
+        } finally {
+            rmSync(stage, {recursive: true, force: true})
         }
     })
 })

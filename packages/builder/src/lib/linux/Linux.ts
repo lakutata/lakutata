@@ -1,7 +1,8 @@
 import {copyFileSync, lstatSync, mkdirSync, readdirSync, readlinkSync} from 'node:fs'
-import {stat, mkdir, writeFile, rm} from 'node:fs/promises'
+import {stat, mkdir, readFile, writeFile, rm} from 'node:fs/promises'
 import path from 'node:path'
 import {archiveDirectory} from '../Archive.js'
+import {decodePng, writeLinuxIcons} from '../Icons.js'
 import {runCommand} from '../Processes.js'
 import {ensureTool} from '../Tools.js'
 import type {InstallerPlan} from '../Installer.js'
@@ -27,10 +28,48 @@ const RUNTIME_DEPENDS: Record<Exclude<LinuxTarget, 'tar.gz'>, string[]> = {
 }
 
 /**
+ * The libraries of the system a desktop application of Chromium (NW.js) loads, by package (the deb ones of Electron)
+ */
+const DESKTOP_DEPENDS: Record<Exclude<LinuxTarget, 'tar.gz'>, string[]> = {
+    deb: ['libgtk-3-0', 'libnotify4', 'libnss3', 'libxss1', 'libxtst6', 'xdg-utils', 'libatspi2.0-0', 'libuuid1', 'libsecret-1-0', 'libasound2', 'libgbm1'],
+    rpm: ['gtk3', 'libnotify', 'nss', 'libXScrnSaver', 'libXtst', 'xdg-utils', 'at-spi2-core', 'libuuid', 'libsecret', 'alsa-lib', 'mesa-libgbm'],
+    apk: [],
+    archlinux: []
+}
+
+/**
+ * The desktop entry of a desktop application, which the menus of the desktops list
+ * @param plan
+ * @param executable
+ */
+function desktopEntry(plan: InstallerPlan, executable: string): string {
+    return [
+        '[Desktop Entry]',
+        'Type=Application',
+        `Name=${plan.productName}`,
+        `Comment=${plan.description.replace(/\s+/g, ' ')}`,
+        `Exec="${plan.prefix}/${executable}" %U`,
+        `Icon=${plan.name}`,
+        'Terminal=false',
+        'Categories=Utility;',
+        ''
+    ].join('\n')
+}
+
+/**
+ * The lines refreshing the menus and the icons of the desktops after the installation and the removal of a desktop
+ * application, where their tools are installed
+ */
+const DESKTOP_REFRESH: string[] = [
+    'command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database -q /usr/share/applications || true',
+    'command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true'
+]
+
+/**
  * The architecture of the packages (the one of Go, which nFPM translates for each package)
  */
-function packageArch(): string {
-    return ({x64: 'amd64', arm64: 'arm64', ia32: '386', arm: 'arm7'} as Record<string, string>)[process.arch] ?? process.arch
+function packageArch(plan: InstallerPlan): string {
+    return ({x64: 'amd64', arm64: 'arm64', ia32: '386', arm: 'arm7'} as Record<string, string>)[plan.arch] ?? plan.arch
 }
 
 /**
@@ -86,7 +125,7 @@ function packageFile(plan: InstallerPlan, target: Exclude<LinuxTarget, 'tar.gz'>
     const arch: string = ({x64: 'x86_64', arm64: 'aarch64'} as Record<string, string>)[process.arch] ?? process.arch
     switch (target) {
         case 'deb':
-            return `${plan.name}_${plan.version}_${packageArch()}.deb`
+            return `${plan.name}_${plan.version}_${packageArch(plan)}.deb`
         case 'rpm':
             return `${plan.name}-${plan.version}-1.${arch}.rpm`
         case 'apk':
@@ -290,7 +329,8 @@ function packageScripts(plan: InstallerPlan, target: Exclude<LinuxTarget, 'tar.g
             //Not indented: the lines of the script are the ones of its file
             ...application ? [scriptAction(target, hook), 'if [ -n "$lakutata_action" ]; then', ...embeddedShell(application, plan.prefix, '"$lakutata_action"'), 'fi'] : [],
             ...native ? embeddedShell(native, plan.prefix, '"$@"') : [],
-            ...service.after[hook] ?? []
+            ...service.after[hook] ?? [],
+            ...plan.desktop && (hook === 'postinstall' || hook === 'postremove' || hook === 'postupgrade') ? DESKTOP_REFRESH : []
         ]
         if (lines.length) scripts[hook] = ['#!/bin/sh', 'set -e', ...lines, ''].join('\n')
     }
@@ -311,13 +351,27 @@ export async function buildLinuxPackages(plan: InstallerPlan, targets: LinuxTarg
     const service: Service | undefined = plan.service
     for (const target of targets) {
         if (target === 'tar.gz') {
-            files.push(await archiveDirectory(plan, packageArch(), work, outdir))
+            files.push(await archiveDirectory(plan, packageArch(plan), work, outdir))
             continue
         }
         const directory: string = path.join(work, target)
         await mkdir(directory, {recursive: true})
         const contents: Record<string, unknown>[] = packageContents(plan.directory, plan.prefix, directory)
         if (plan.addToPath) contents.push({src: `${plan.prefix}/${plan.program}`, dst: `/usr/bin/${plan.program}`, type: 'symlink'})
+        if (plan.desktop) {
+            //Its entry in the menus of the desktops, its icons in the theme hicolor
+            await writeFile(path.join(directory, 'desktop'), desktopEntry(plan, plan.desktop.executable))
+            contents.push({src: path.join(directory, 'desktop'), dst: `/usr/share/applications/${plan.name}.desktop`, file_info: {mode: 0o644}})
+            if (plan.desktop.icon) {
+                for (const icon of await writeLinuxIcons(decodePng(await readFile(plan.desktop.icon), plan.desktop.icon), path.join(directory, 'icons'))) {
+                    const size: string = path.basename(icon, '.png')
+                    contents.push({src: icon, dst: `/usr/share/icons/hicolor/${size}/apps/${plan.name}.png`, file_info: {mode: 0o644}})
+                }
+            }
+            //The sandbox of Chromium, setuid root, where the kernel does not give it the namespaces of the users
+            const sandbox: Record<string, any> | undefined = contents.find((entry: Record<string, any>): boolean => entry.dst === `${plan.prefix}/chrome-sandbox`)
+            if (sandbox) sandbox.file_info = {mode: 0o4755, owner: 'root', group: 'root'}
+        }
         if (service) {
             await writeFile(path.join(directory, 'environment'), environmentFile(service))
             contents.push({src: path.join(directory, 'environment'), dst: `/etc/${plan.name}/${plan.name}.env`, type: 'config|noreplace', file_info: {mode: 0o640}})
@@ -341,7 +395,7 @@ export async function buildLinuxPackages(plan: InstallerPlan, targets: LinuxTarg
         }
         const config: Record<string, unknown> = {
             name: plan.name,
-            arch: packageArch(),
+            arch: packageArch(plan),
             platform: 'linux',
             version: plan.version,
             maintainer: plan.maintainer,
@@ -351,7 +405,7 @@ export async function buildLinuxPackages(plan: InstallerPlan, targets: LinuxTarg
             ...plan.license ? {license: plan.license} : {},
             ...plan.section ? {section: plan.section} : {},
             ...plan.priority ? {priority: plan.priority} : {},
-            depends: [...new Set([...RUNTIME_DEPENDS[target], ...plan.depends])],
+            depends: [...new Set([...RUNTIME_DEPENDS[target], ...plan.desktop ? DESKTOP_DEPENDS[target] : [], ...plan.depends])],
             ...plan.recommends.length ? {recommends: plan.recommends} : {},
             contents: contents,
             scripts: common,

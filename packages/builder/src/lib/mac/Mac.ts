@@ -1,6 +1,7 @@
-import {chmod, cp, mkdir, readFile, rm, stat, symlink, writeFile} from 'node:fs/promises'
+import {chmod, mkdir, readFile, rm, stat, symlink, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {archiveDirectory} from '../Archive.js'
+import {copyDirectory} from '../Directories.js'
 import {runCommand} from '../Processes.js'
 import type {InstallerPlan} from '../Installer.js'
 import {embeddedShell, type InstallerHook, type ScriptFile} from '../Scripts.js'
@@ -8,7 +9,7 @@ import {embeddedShell, type InstallerHook, type ScriptFile} from '../Scripts.js'
 /**
  * The installers of macOS: the package of its installer, and the archive of the directory of the executable
  */
-export const MAC_TARGETS = ['pkg', 'tar.gz'] as const
+export const MAC_TARGETS = ['pkg', 'dmg', 'tar.gz'] as const
 
 export type MacTarget = typeof MAC_TARGETS[number]
 
@@ -17,8 +18,8 @@ type Service = NonNullable<InstallerPlan['service']>
 /**
  * The architecture of the packages
  */
-function packageArch(): string {
-    return process.arch
+function packageArch(plan: InstallerPlan): string {
+    return plan.arch
 }
 
 /**
@@ -117,7 +118,7 @@ function preInstall(plan: InstallerPlan): string {
     return [
         '#!/bin/sh',
         'set -e',
-        `if [ -e ${doubleQuoted(`${plan.prefix}/${plan.program}`)} ]; then lakutata_action=upgrade; else lakutata_action=install; fi`,
+        `if [ -e ${doubleQuoted(plan.desktop ? plan.prefix : `${plan.prefix}/${plan.program}`)} ]; then lakutata_action=upgrade; else lakutata_action=install; fi`,
         `if [ -n "$INSTALLER_TEMP" ]; then echo "$lakutata_action" > ${ACTION_FILE}; fi`,
         ...hooks.preinstall ? embeddedShell(hooks.preinstall, plan.prefix, '"$lakutata_action"') : [],
         ''
@@ -242,6 +243,25 @@ function uninstall(plan: InstallerPlan): string {
 }
 
 /**
+ * The disk image of a desktop application (dmg): its bundle and a link to /Applications, where its user drags it
+ * @param plan
+ * @param work
+ * @param outdir
+ */
+async function diskImage(plan: InstallerPlan, work: string, outdir: string): Promise<{ target: string, file: string, size: number }> {
+    if (!plan.desktop) throw new Error('The disk images (dmg) are made for the desktop applications (NW.js): the other applications are installed by pkg')
+    const volume: string = path.join(work, 'dmg')
+    await rm(volume, {recursive: true, force: true})
+    await copyDirectory(path.join(plan.directory, plan.desktop.executable), path.join(volume, plan.desktop.executable))
+    await symlink('/Applications', path.join(volume, 'Applications'))
+    const file: string = path.join(outdir, `${plan.name}-${plan.version}-${packageArch(plan)}.dmg`)
+    await rm(file, {force: true})
+    const created = await runCommand('hdiutil', ['create', '-volname', plan.productName, '-srcfolder', volume, '-ov', '-format', 'UDZO', file], work)
+    if (created.code !== 0) throw new Error(`The disk image cannot be made: ${created.output.trim()}`)
+    return {target: 'dmg', file: file, size: (await stat(file)).size}
+}
+
+/**
  * Make the installers of macOS of an application: the package installed by its installer (pkgbuild, productbuild), the
  * tar.gz archive of the directory of the executable
  * @param plan
@@ -254,7 +274,11 @@ export async function buildMacPackages(plan: InstallerPlan, targets: MacTarget[]
     const files: { target: string, file: string, size: number }[] = []
     for (const target of targets) {
         if (target === 'tar.gz') {
-            files.push(await archiveDirectory(plan, packageArch(), work, outdir))
+            files.push(await archiveDirectory(plan, packageArch(plan), work, outdir))
+            continue
+        }
+        if (target === 'dmg') {
+            files.push(await diskImage(plan, work, outdir))
             continue
         }
         //The files installed, from the root of the system
@@ -264,9 +288,10 @@ export async function buildMacPackages(plan: InstallerPlan, targets: MacTarget[]
         await rm(scripts, {recursive: true, force: true})
         const prefix: string = path.join(root, ...plan.prefix.split('/'))
         await mkdir(path.dirname(prefix), {recursive: true})
-        await cp(plan.directory, prefix, {recursive: true, verbatimSymlinks: true})
-        await writeFile(path.join(prefix, 'uninstall'), uninstall(plan), {mode: 0o755})
-        if (plan.addToPath) {
+        //A desktop application: its bundle into /Applications (removed by its user, as the other applications)
+        await copyDirectory(plan.desktop ? path.join(plan.directory, plan.desktop.executable) : plan.directory, prefix)
+        if (!plan.desktop) await writeFile(path.join(prefix, 'uninstall'), uninstall(plan), {mode: 0o755})
+        if (plan.addToPath && !plan.desktop) {
             await mkdir(path.join(root, 'usr', 'local', 'bin'), {recursive: true})
             await symlink(path.posix.relative('/usr/local/bin', `${plan.prefix}/${plan.program}`), path.join(root, 'usr', 'local', 'bin', plan.program))
         }
@@ -287,13 +312,14 @@ export async function buildMacPackages(plan: InstallerPlan, targets: MacTarget[]
         const component: string = path.join(work, `${plan.name}-component.pkg`)
         const built = await runCommand('pkgbuild', ['--root', root, '--identifier', plan.appId, '--version', plan.version, '--install-location', '/', '--scripts', scripts, '--ownership', 'recommended', component], work)
         if (built.code !== 0) throw new Error(`The pkg package cannot be made: ${built.output.trim()}`)
-        const file: string = path.join(outdir, `${plan.name}-${plan.version}-${packageArch()}.pkg`)
+        const file: string = path.join(outdir, `${plan.name}-${plan.version}-${packageArch(plan)}.pkg`)
         await rm(file, {force: true})
         //Installed on the Macs of the architecture of the program only (productbuild gives both)
         const distribution: string = path.join(work, 'distribution.xml')
         const synthesized = await runCommand('productbuild', ['--synthesize', '--package', component, distribution], work)
         if (synthesized.code !== 0) throw new Error(`The pkg package cannot be made: ${synthesized.output.trim()}`)
-        const architectures: string = `hostArchitectures="${packageArch() === 'arm64' ? 'arm64' : 'x86_64'}"`
+        //A desktop application of Intel runs on the Macs of Apple silicon too (Rosetta)
+        const architectures: string = `hostArchitectures="${packageArch(plan) === 'arm64' ? 'arm64' : plan.desktop ? 'x86_64,arm64' : 'x86_64'}"`
         const options: string = await readFile(distribution, 'utf8')
         await writeFile(distribution, /hostArchitectures="[^"]*"/.test(options) ? options.replace(/hostArchitectures="[^"]*"/, architectures) : options.replace('<options ', `<options ${architectures} `))
         const product = await runCommand('productbuild', ['--distribution', distribution, '--package-path', work, '--identifier', plan.appId, '--version', plan.version, file], work)
