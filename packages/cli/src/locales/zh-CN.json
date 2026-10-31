@@ -205,6 +205,7 @@
             "outdir": "生成的 Node.js 项目所在的目录：Capacitor 网页目录下的 nodejs（../ui/dist/nodejs）",
             "device": "Android 的模拟器或设备（序列号，见 adb devices）、iOS 的模拟器（UDID 或名称，见 xcrun simctl list）；默认是正在运行的那个",
             "watch": "监视应用的文件：有变化就执行它的 build 脚本（npm run build）并重新部署，直到按 Ctrl+C",
+            "liveReload": "界面开发服务器的端口（vite --host）：以实时刷新的方式运行应用（npx cap run <平台> --live-reload），页面从开发服务器加载，同时监视应用的文件，直到按 Ctrl+C",
             "nodeDir": "Node.js 项目在应用网页目录里的目录名（插件的 nodeDir）"
           }
         }

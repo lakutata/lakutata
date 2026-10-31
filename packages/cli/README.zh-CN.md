@@ -369,6 +369,7 @@ Capacitor 手机应用（iOS、Android）在 `@capawesome/capacitor-nodejs` 内�
 | `--device <id>` | 模拟器或设备（序列号，见 `adb devices`）、iOS 模拟器（UDID 或名称），默认是正在运行的那个 |
 | `--node-dir <目录>` | 项目在网页目录里的目录名（插件的 `nodeDir`），默认是 `nodejs` |
 | `--watch` | 监视应用的文件（不包括依赖、编译产物和生成的项目）：有变化就执行它的 `build` 脚本并重新部署，直到按 Ctrl+C |
+| `--live-reload <端口>` | 界面开发服务器的端口（`vite --host`）：以实时刷新的方式运行应用（`npx cap run <平台> --live-reload`，页面从开发服务器加载），并监视应用的文件，直到按 Ctrl+C，届时应用的配置会恢复原样 |
 
 ## 迁移
 

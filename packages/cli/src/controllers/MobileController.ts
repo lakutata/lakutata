@@ -1,5 +1,5 @@
 import {spawn} from 'node:child_process'
-import {readFileSync, watch} from 'node:fs'
+import {existsSync, readFileSync, watch} from 'node:fs'
 import {cp, mkdir, readdir, rm} from 'node:fs/promises'
 import path from 'node:path'
 import {Controller} from 'lakutata/com/entrypoint'
@@ -9,7 +9,7 @@ import {MobileDeployDTO} from '../dtos/MobileDeployDTO.js'
 import {MobileStageDTO} from '../dtos/MobileStageDTO.js'
 import {loadBuilder} from '../lib/Builder.js'
 import {done, step, warn} from '../lib/Output.js'
-import {runCommand} from '../lib/Processes.js'
+import {runCommand, spawnCommand} from '../lib/Processes.js'
 
 /**
  * Where @capawesome/capacitor-nodejs copies the Node.js project on Android, in the files of the application
@@ -124,6 +124,33 @@ async function deployIos(directory: string, appId: string, nodeDir: string, devi
 }
 
 /**
+ * The directory of the project of Capacitor holding a directory: the one of its capacitor.config
+ * @param directory
+ */
+function capacitorRoot(directory: string): string {
+    for (let current: string = directory; ; current = path.dirname(current)) {
+        if (['capacitor.config.json', 'capacitor.config.ts', 'capacitor.config.js'].some((name: string): boolean => existsSync(path.join(current, name)))) return current
+        if (current === path.dirname(current)) throw new Error(`${directory} is in no project of Capacitor (capacitor.config.json)`)
+    }
+}
+
+/**
+ * The device the application runs on: the emulator or the device of Android running (adb devices), the simulator of iOS
+ * running (xcrun simctl list devices booted)
+ * @param platform
+ */
+async function runningDevice(platform: 'android' | 'ios'): Promise<string> {
+    if (platform === 'android') {
+        const serial: string | undefined = (await must('The devices of Android cannot be listed', adbProgram(), ['devices'])).split('\n').map((line: string): string[] => line.trim().split(/\s+/)).find((parts: string[]): boolean => parts[1] === 'device')?.[0]
+        if (!serial) throw new Error('No emulator or device of Android is running')
+        return serial
+    }
+    const udid: string | undefined = /\(([0-9A-Fa-f-]{36})\) \(Booted\)/.exec(await must('The simulators cannot be listed', 'xcrun', ['simctl', 'list', 'devices', 'booted']))?.[1]
+    if (!udid) throw new Error('No simulator of iOS is running (npx cap run ios)')
+    return udid
+}
+
+/**
  * The commands of the mobile applications (Capacitor, @capawesome/capacitor-nodejs): the Node.js project of the
  * application, deployed into the application installed during the development
  */
@@ -139,8 +166,10 @@ export class MobileController extends Controller {
 
     @CLIAction('mobile deploy <platform>', MobileDeployDTO, {description: 'Make the Node.js project of the mobile application of the current directory, put it into the application installed in the emulator of Android or the simulator of iOS, and start the application again (the development, without installing it again)'})
     public async deploy(input: MobileDeployDTO): Promise<undefined> {
-        await this.deployOnce(input)
-        if (!input.watch) return undefined
+        //Run with live reload, the application holds the project of its last sync: deployed when its files change
+        const live = input.liveReload === undefined ? undefined : await this.runLiveReload(input)
+        if (!live) await this.deployOnce(input)
+        if (!input.watch && !live) return undefined
         //The files of the application, without its dependencies, its compiled files and the project made: built and
         //deployed again once they stop changing
         const project: string = process.cwd()
@@ -174,12 +203,44 @@ export class MobileController extends Controller {
             const stop = (): void => {
                 clearTimeout(timer)
                 watcher.close()
-                resolve()
+                //Capacitor gives the application its configuration back once stopped
+                if (live && live.exitCode === null) {
+                    live.once('exit', (): void => resolve())
+                    live.kill('SIGINT')
+                } else {
+                    resolve()
+                }
             }
             process.once('SIGINT', stop)
             process.once('SIGTERM', stop)
         })
         return undefined
+    }
+
+    /**
+     * Run the application with live reload (npx cap run <platform> --live-reload, in the project of Capacitor): its
+     * pages loaded from the dev server of the user interface; resolved once it runs
+     * @param input
+     * @protected
+     */
+    protected async runLiveReload(input: MobileDeployDTO): Promise<ReturnType<typeof spawnCommand>> {
+        const target: string = input.device ?? await runningDevice(input.platform)
+        const args: string[] = ['cap', 'run', input.platform, '--live-reload', '--port', String(input.liveReload), '--no-sync', '--target', target]
+        step(`npx ${args.join(' ')}`)
+        const child = spawnCommand('npx', args, {cwd: capacitorRoot(process.cwd()), stdio: ['ignore', 'pipe', 'pipe']})
+        await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
+            let output: string = ''
+            const read = (chunk: Buffer): void => {
+                process.stdout.write(chunk)
+                output += chunk.toString()
+                if (/App running with live reload/.test(output)) resolve()
+            }
+            child.stdout!.on('data', read)
+            child.stderr!.on('data', read)
+            child.once('error', reject)
+            child.once('exit', (code: number | null): void => reject(new Error(`npx cap run ${input.platform} --live-reload ended (${code}): ${output.trim().split('\n').slice(-5).join(' ')}`)))
+        })
+        return child
     }
 
     /**

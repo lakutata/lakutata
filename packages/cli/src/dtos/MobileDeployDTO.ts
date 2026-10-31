@@ -17,6 +17,9 @@ export class MobileDeployDTO extends DTO {
     @Expect(DTO.Boolean().optional().default(false).description('Watch the files of the application: when they change, run its build script (npm run build) and deploy it again, until Ctrl+C'))
     public watch: boolean
 
+    @Expect(DTO.Number().integer().min(1).max(65535).optional().description('The port of the dev server of the user interface (vite --host): the application is run with live reload (npx cap run <platform> --live-reload), its pages loaded from the dev server, and its files watched, until Ctrl+C'))
+    public liveReload?: number
+
     @Expect(DTO.String().optional().default('nodejs').description('The directory of the Node.js project in the web directory of the application (the nodeDir of the plugin)'))
     public nodeDir: string
 }

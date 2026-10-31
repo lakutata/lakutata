@@ -618,6 +618,7 @@ on iOS it writes into the application in the simulator. adb is found in the Andr
 | `--device <id>` | the emulator or the device (its serial, `adb devices`), the simulator (its UDID or name), the one running by default |
 | `--node-dir <directory>` | the directory of the project in the web directory (the `nodeDir` of the plugin), `nodejs` by default |
 | `--watch` | watch the files of the application (not its dependencies, its compiled files or the project made): when they change, run its `build` script and deploy it again, until Ctrl+C |
+| `--live-reload <port>` | the port of the dev server of the user interface (`vite --host`): run the application with live reload (`npx cap run <platform> --live-reload`, its pages loaded from the dev server) and watch its files, until Ctrl+C, which gives the application its configuration back |
 
 ## Migrations
 

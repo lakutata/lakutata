@@ -145,5 +145,28 @@ esac
         assert.match(readFileSync(path.join(application, 'public', 'nodejs', 'app.cjs'), 'utf8'), /changed/)
         watching.kill('SIGINT')
         assert.strictEqual(await new Promise((resolve: (code: number | null) => void): unknown => watching.once('exit', resolve)), 0)
+        //With live reload: the application run by Capacitor on the simulator running, given its configuration back once
+        //stopped; the project deployed when the files change
+        writeFileSync(path.join(work, 'capacitor.config.json'), JSON.stringify({appId: APP_ID, webDir: 'packages/ui/dist'}))
+        const npxLog: string = path.join(work, 'npx.log')
+        writeFileSync(path.join(bin, 'npx'), `#!/bin/sh
+echo "$PWD $*" >> "${npxLog}"
+trap 'echo "given back" >> "${npxLog}"; exit 0' INT
+echo "App running with live reload listing for: http://192.168.1.2:5173. Press Ctrl+C to quit."
+while true; do sleep 0.1; done
+`, {mode: 0o755})
+        writeFileSync(log, '')
+        const live = spawn(process.execPath, [CLI, 'mobile', 'deploy', 'ios', '--app-id', APP_ID, '--outdir', '../ui/dist/nodejs', '--live-reload', '5173'], {cwd: project, env: {...process.env, ...env}})
+        output = ''
+        live.stdout.on('data', (chunk: Buffer): unknown => output += chunk.toString())
+        live.stderr.on('data', (chunk: Buffer): unknown => output += chunk.toString())
+        await until((): boolean => /Watching the files of the application/.test(output))
+        assert.deepStrictEqual(readFileSync(npxLog, 'utf8').trim().split('\n'), [`${work} cap run ios --live-reload --port 5173 --no-sync --target B33CBA54-DFCC-4509-9CA4-4AB94C8E248E`])
+        assert.strictEqual(launches(), 0)
+        writeFileSync(path.join(project, 'src', 'App.js'), 'console.log("live")\n')
+        await until((): boolean => launches() === 1)
+        live.kill('SIGINT')
+        assert.strictEqual(await new Promise((resolve: (code: number | null) => void): unknown => live.once('exit', resolve)), 0)
+        assert.match(readFileSync(npxLog, 'utf8'), /given back/)
     })
 })
