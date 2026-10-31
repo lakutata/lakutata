@@ -119,10 +119,11 @@ async function create(template: string, name: string, features: string[] = []): 
  * @param port
  * @param type the type of the target of the page (page, webview)
  * @param isolated the expression telling the page is isolated from the runtime
+ * @param seconds how long the page is waited for
  */
-async function readPage(port: number, type: string, isolated: string): Promise<string> {
+async function readPage(port: number, type: string, isolated: string, seconds: number = 30): Promise<string> {
     let text: string = ''
-    for (let attempt: number = 0; attempt < 60 && !/Pushed by the (main process|application): /.test(text); attempt++) {
+    for (let attempt: number = 0; attempt < seconds * 2 && !/Pushed by the (main process|application): /.test(text); attempt++) {
         await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
         try {
             const pages = await (await fetch(`http://127.0.0.1:${port}/json`)).json() as { type: string, webSocketDebuggerUrl: string }[]
@@ -727,9 +728,34 @@ describe('The templates of the repository', (): void => {
         assert.doesNotMatch(readme, /@if|@end/)
         //Its user interface built for Chromium 109
         install(project, ['@types/node', 'vite', '@vitejs/plugin-vue', 'vue'])
-        const built = await runIn(process.execPath, [path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), 'build'], path.join(project, 'packages', 'ui'))
+        linkWorkspace(project, ['ui', 'app'])
+        linkCommand(path.join(project, 'node_modules', '.bin'), 'vite', path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'))
+        const built = await runIn(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
         assert.strictEqual(built.code, 0, built.output)
         assert.ok(existsSync(path.join(project, 'packages', 'ui', 'dist', 'index.html')))
+        //Run in NW.js 0.72 (its sdk flavor, the build of Intel on the Macs of Apple silicon), where it shows the result of its
+        //action and the event pushed to it
+        if (process.platform === 'darwin') {
+            //Its runtime downloaded first: the run bundles the application and builds its native addons for 0.72
+            const {downloadNwjs} = await import('@lakutata/builder')
+            const cache: string | undefined = process.env.LAKUTATA_CACHE_DIR
+            process.env.LAKUTATA_CACHE_DIR = NWJS_CACHE
+            await downloadNwjs({version: '0.72.0', flavor: 'sdk'}).finally((): void => {
+                if (cache === undefined) delete process.env.LAKUTATA_CACHE_DIR
+                else process.env.LAKUTATA_CACHE_DIR = cache
+            })
+            const port: number = 9800 + Math.floor(Math.random() * 500)
+            const {NODE_TEST_CONTEXT, ...env} = process.env
+            void NODE_TEST_CONTEXT
+            const child = spawn(process.execPath, [CLI, 'nwjs', 'run', '--', `--remote-debugging-port=${port}`], {cwd: path.join(project, 'packages', 'app'), env: {...env, LAKUTATA_CACHE_DIR: NWJS_CACHE}, stdio: 'ignore'})
+            const exited: Promise<unknown> = new Promise((resolve: (value: unknown) => void): unknown => child.once('exit', resolve))
+            try {
+                assert.match(await readPage(port, 'webview', `typeof require === 'undefined' && typeof process === 'undefined' && typeof nw === 'undefined'`, 180), /Hello, Legacy!\s+Pushed by the application: Legacy \| isolated: true/)
+            } finally {
+                child.kill()
+                await exited
+            }
+        }
         //Without the feature, the latest release
         const latest: string = await create('nwjs-react', 'Modern')
         assert.notStrictEqual(JSON.parse(readFileSync(path.join(latest, 'packages', 'app', 'nwjs.json'), 'utf8')).version, '0.72.0')
