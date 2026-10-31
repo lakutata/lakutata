@@ -97,12 +97,13 @@
         "installer": {
           "description": "為目前平台產生編譯後應用程式的安裝套件：安裝可執行檔、原生外掛程式和資源，把程式加入 PATH，並註冊系統服務",
           "options": {
-            "target": "要產生的安裝套件：Linux 上為 deb、rpm、apk、archlinux、tar.gz，macOS 上為 pkg、tar.gz，Windows 上為 nsis、msi、zip（預設取 package.json 的 lakutata.installer）",
+            "target": "要產生的安裝套件：Linux 上為 deb、rpm、apk、archlinux、tar.gz，macOS 上為 pkg、dmg（NW.js 應用程式）、tar.gz，Windows 上為 nsis、msi、zip（預設取 package.json 的 lakutata.installer）",
             "outdir": "安裝套件所在的目錄（預設 dist/installer）",
             "entry": "應用程式編譯後的入口（預設是 package.json 的 main）",
             "minify": "壓縮嵌入可執行檔的打包結果",
             "external": "不打包進去的模組",
-            "nodeProgram": "嵌入可執行檔的 node 程式（Node.js 20.12、21.7 或更新版本）：用另一個 Node.js 代替執行本命令的那個，這樣在較舊的 Node.js 上也能產生可執行檔"
+            "nodeProgram": "嵌入可執行檔的 node 程式（Node.js 20.12、21.7 或更新版本）：用另一個 Node.js 代替執行本命令的那個，這樣在較舊的 Node.js 上也能產生可執行檔",
+            "arch": "NW.js 應用程式的架構（預設是本機的架構）：32 位元 Windows（Windows 7）用 ia32"
           }
         }
       },

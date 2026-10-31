@@ -60,10 +60,17 @@ export class PackController extends Controller {
     @CLIAction('package installer', InstallerDTO, {description: 'Make the installers of the compiled application for this platform: its executable, its native addons and its resources installed, its program in the PATH, its service registered'})
     public async installer(input: InstallerDTO): Promise<undefined> {
         const {buildInstaller} = await loadBuilder(process.cwd())
-        const result: InstallerResult = await buildInstaller({project: process.cwd(), targets: input.target, outdir: input.outdir, entry: input.entry, minify: input.minify, external: input.external, nodeProgram: input.nodeProgram})
-        step(`${result.executable.runtime} embedded`)
-        if (result.executable.native.length) step(`Native addons: ${result.executable.native.join(', ')}`)
-        if (result.executable.resources.length) step(`Resources: ${result.executable.resources.join(', ')}`)
+        const result: InstallerResult = await buildInstaller({project: process.cwd(), targets: input.target, outdir: input.outdir, entry: input.entry, minify: input.minify, external: input.external, nodeProgram: input.nodeProgram, arch: input.arch})
+        if (result.nwjs) {
+            step(`NW.js ${result.nwjs.runtime.version} (${result.nwjs.runtime.platform}): ${path.basename(result.nwjs.directory)}`)
+            if (result.nwjs.stage.addons.rebuilt.length) step(`Native addons built for NW.js: ${result.nwjs.stage.addons.rebuilt.join(', ')}`)
+            if (result.nwjs.stage.addons.renamed.length) step(`Native addons loading the Node.js of NW.js (node.dll): ${result.nwjs.stage.addons.renamed.join(', ')}`)
+        }
+        if (result.executable) {
+            step(`${result.executable.runtime} embedded`)
+            if (result.executable.native.length) step(`Native addons: ${result.executable.native.join(', ')}`)
+            if (result.executable.resources.length) step(`Resources: ${result.executable.resources.join(', ')}`)
+        }
         for (const warning of result.warnings) warn(warning)
         for (const file of result.files) done(`${path.relative(process.cwd(), file.file)} (${file.target}, ${megabytes(file.size)})`)
         return undefined
