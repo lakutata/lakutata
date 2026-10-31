@@ -155,6 +155,34 @@
           }
         }
       },
+      "nwjs": {
+        "description": "為應用程式指定 NW.js 版本、在 NW.js 裡執行應用程式、列出 NW.js 的版本",
+        "versions": {
+          "description": "列出 lakutata 能執行的 NW.js 版本：各自的 Node.js、Chromium 和支援的系統",
+          "options": {
+            "all": "列出所有能執行 lakutata 的版本（預設只列最新的十個和支援 Windows 7 的那個）"
+          }
+        },
+        "use": {
+          "description": "為目前目錄的應用程式指定 NW.js 版本（lakutata.nwjs），並把它的 Node.js 和 Chromium 版本寫入 nwjs.json",
+          "arguments": {
+            "version": "NW.js 版本：具體的版本號（0.119.2）、latest，或 win7（0.72.0，最後一個能在 Windows 7、8、8.1 上執行的版本）"
+          },
+          "options": {
+            "download": "現在就為本機下載開發用的 NW.js（帶開發者工具）"
+          }
+        },
+        "run": {
+          "description": "在 NW.js 裡執行目前目錄下編譯好的應用程式（預設帶開發者工具）",
+          "arguments": {
+            "args": "傳給應用程式的參數，寫在 -- 之後（lakutata nwjs run -- --renderer=http://localhost:5173）"
+          },
+          "options": {
+            "version": "執行的 NW.js 版本（預設是 lakutata.nwjs 裡的版本）",
+            "flavor": "NW.js 的類型：sdk（帶開發者工具，預設）或 normal（發佈給使用者的）"
+          }
+        }
+      },
       "i18n": {
         "description": "檢查各語言的翻譯、宣告鍵名的型別，或新增一種語言",
         "arguments": {
