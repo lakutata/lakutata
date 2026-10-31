@@ -98,8 +98,9 @@ async function windowsIdentity(file: string, identity: { productName: string, pr
 /**
  * Make the application of NW.js of a project for this system: the runtime of NW.js (normal) with the application
  * (stageNwjsApp: its bundle, its native addons made to load in NW.js, its resources, its manifest), named after it.
- * On Windows and Linux, the files of the application are next to its executable (nw.exe, nw renamed after its program;
- * on Windows, its icon and its version information are the ones of the application); on macOS, they are in the bundle
+ * On Windows and Linux, the files of the application are next to its executable (nw.exe, nw renamed after its program:
+ * the name of its installers, lakutata.installer.name, else the program of its package; on Windows, its icon and its
+ * version information are the ones of the application); on macOS, they are in the bundle
  * (<product>.app/Contents/Resources/app.nw), whose Info.plist gives its name, its identifier (the appId of the
  * installer), its version and its icon, signed again (ad hoc). The icon is lakutata.icon
  * @param options
@@ -113,7 +114,9 @@ async function windowsIdentity(file: string, identity: { productName: string, pr
 export async function buildNwjsApp(options: NwjsAppOptions): Promise<NwjsApp> {
     const project: string = path.resolve(options.project ?? process.cwd())
     const manifest: Record<string, any> = JSON.parse(await readFile(path.join(project, 'package.json'), 'utf8'))
-    const program: string = programName(manifest)
+    //The program is named after the package of its installers, else after the program of the package (the package of an
+    //application of a workspace is often named app)
+    const program: string = String(manifest.lakutata?.installer?.name ?? programName(manifest))
     const productName: string = String(manifest.productName ?? manifest.lakutata?.installer?.productName ?? program)
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-nwjs-app-'))
     try {

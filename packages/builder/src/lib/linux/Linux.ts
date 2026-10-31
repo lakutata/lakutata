@@ -28,11 +28,12 @@ const RUNTIME_DEPENDS: Record<Exclude<LinuxTarget, 'tar.gz'>, string[]> = {
 }
 
 /**
- * The libraries of the system a desktop application of Chromium (NW.js) loads, by package (the deb ones of Electron)
+ * The libraries of the system a desktop application of Chromium (NW.js) loads, by package: the deb ones of Electron, and
+ * the atomic operations the Node.js of NW.js loads (libnode.so needs libatomic.so.1, which only the compilers install)
  */
 const DESKTOP_DEPENDS: Record<Exclude<LinuxTarget, 'tar.gz'>, string[]> = {
-    deb: ['libgtk-3-0', 'libnotify4', 'libnss3', 'libxss1', 'libxtst6', 'xdg-utils', 'libatspi2.0-0', 'libuuid1', 'libsecret-1-0', 'libasound2', 'libgbm1'],
-    rpm: ['gtk3', 'libnotify', 'nss', 'libXScrnSaver', 'libXtst', 'xdg-utils', 'at-spi2-core', 'libuuid', 'libsecret', 'alsa-lib', 'mesa-libgbm'],
+    deb: ['libgtk-3-0', 'libnotify4', 'libnss3', 'libxss1', 'libxtst6', 'xdg-utils', 'libatspi2.0-0', 'libuuid1', 'libsecret-1-0', 'libasound2', 'libgbm1', 'libatomic1'],
+    rpm: ['gtk3', 'libnotify', 'nss', 'libXScrnSaver', 'libXtst', 'xdg-utils', 'at-spi2-core', 'libuuid', 'libsecret', 'alsa-lib', 'mesa-libgbm', 'libatomic'],
     apk: [],
     archlinux: []
 }
