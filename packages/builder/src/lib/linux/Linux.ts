@@ -368,9 +368,6 @@ export async function buildLinuxPackages(plan: InstallerPlan, targets: LinuxTarg
                     contents.push({src: icon, dst: `/usr/share/icons/hicolor/${size}/apps/${plan.name}.png`, file_info: {mode: 0o644}})
                 }
             }
-            //The sandbox of Chromium, setuid root, where the kernel does not give it the namespaces of the users
-            const sandbox: Record<string, any> | undefined = contents.find((entry: Record<string, any>): boolean => entry.dst === `${plan.prefix}/chrome-sandbox`)
-            if (sandbox) sandbox.file_info = {mode: 0o4755, owner: 'root', group: 'root'}
         }
         if (service) {
             await writeFile(path.join(directory, 'environment'), environmentFile(service))
