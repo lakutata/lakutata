@@ -100,7 +100,8 @@ function prereleaseRange(range) {
  */
 async function startRegistry() {
     step(`The registry: verdaccio on ${LOCAL} (lakutata from it, the other packages from npmjs)`)
-    spawnSync('docker', ['rm', '-f', CONTAINER], {stdio: 'ignore'})
+    //The storage of the registry (a volume of its image) removed with it: each one holds all the packages published
+    spawnSync('docker', ['rm', '-f', '-v', CONTAINER], {stdio: 'ignore'})
     runCommand('docker', ['run', '-d', '--name', CONTAINER, '-p', `${PORT}:4873`, '-v', `${path.join(HERE, 'verdaccio.yaml')}:/verdaccio/conf/config.yaml:ro`, 'verdaccio/verdaccio:6'], {stdio: ['ignore', 'ignore', 'inherit']})
     await until(async () => (await fetch(`${LOCAL}/-/ping`)).ok)
     const response = await fetch(`${LOCAL}/-/user/org.couchdb.user:verify`, {
@@ -300,7 +301,7 @@ async function images() {
                 if (!served) console.log(response?.status, page.slice(0, 500))
             }
         } finally {
-            spawnSync('docker', ['rm', '-f', container], {stdio: 'ignore'})
+            spawnSync('docker', ['rm', '-f', '-v', container], {stdio: 'ignore'})
             spawnSync('docker', ['rmi', image], {stdio: 'ignore'})
         }
     }
@@ -329,7 +330,7 @@ try {
 } catch (error) {
     console.error(error)
 } finally {
-    if (!options.keep) spawnSync('docker', ['rm', '-f', CONTAINER], {stdio: 'ignore'})
-    else console.log(`The registry is kept: ${LOCAL} (docker rm -f ${CONTAINER})`)
+    if (!options.keep) spawnSync('docker', ['rm', '-f', '-v', CONTAINER], {stdio: 'ignore'})
+    else console.log(`The registry is kept: ${LOCAL} (docker rm -f -v ${CONTAINER})`)
 }
 process.exit(failed ? 1 : 0)
