@@ -8,6 +8,7 @@ import type {AddressInfo} from 'node:net'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {downloadNwjs, nwjsPlatform, nwjsRelease, nwjsReleases, stageNwjsApp, type NwjsRelease, type NwjsStage} from '../index.js'
+import {binaryArchitectures, nameNwjsNode, prepareNwjsAddons, usesV8Api} from '../lib/nwjs/Addons.js'
 
 /**
  * The list of nwjs.io, three releases: the latest, the last one of Windows 7, and one embedding Node.js 18.5
@@ -152,5 +153,122 @@ describe('The runtimes of NW.js', (): void => {
         await assert.rejects(downloadNwjs({version: 'latest'}), /NW\.js 0\.119\.2 has no nwjs-v0\.119\.2-[a-z]+-[a-z0-9]+\.(zip|tar\.gz) in its checksums/)
         const kept: string[] = readdirSync(path.join(work, 'cache', 'nwjs')).filter((name: string): boolean => name.includes('0.119.2'))
         assert.deepStrictEqual(kept, [])
+    })
+})
+
+/**
+ * A portable executable of the tests (PE32+): one section holding an import descriptor and a delay-load descriptor of
+ * the libraries named
+ * @param imported
+ * @param delayed
+ */
+function portableExecutable(imported: string, delayed: string): Buffer {
+    const file: Buffer = Buffer.alloc(0x400)
+    file.writeUInt16LE(0x5a4d, 0)
+    file.writeUInt32LE(0x80, 0x3c)
+    file.writeUInt32LE(0x4550, 0x80)
+    const coff: number = 0x84
+    file.writeUInt16LE(0x8664, coff)
+    file.writeUInt16LE(1, coff + 2)
+    file.writeUInt16LE(240, coff + 16)
+    const optional: number = coff + 20
+    file.writeUInt16LE(0x20b, optional)
+    file.writeBigUInt64LE(0x180000000n, optional + 24)
+    const directories: number = optional + 112
+    //The section .rdata: at 0x1000 in memory, 0x200 in the file
+    const section: number = optional + 240
+    file.write('.rdata', section, 'latin1')
+    file.writeUInt32LE(0x200, section + 8)
+    file.writeUInt32LE(0x1000, section + 12)
+    file.writeUInt32LE(0x200, section + 16)
+    file.writeUInt32LE(0x200, section + 20)
+    const rva = (offset: number): number => offset - 0x200 + 0x1000
+    //The imports at 0x200 (a descriptor, then an empty one), the delay-loaded ones at 0x240, the names at 0x300
+    file.writeUInt32LE(rva(0x200), directories + 8)
+    file.writeUInt32LE(40, directories + 12)
+    file.writeUInt32LE(rva(0x300), 0x200 + 12)
+    file.writeUInt32LE(rva(0x240), directories + 13 * 8)
+    file.writeUInt32LE(64, directories + 13 * 8 + 4)
+    file.writeUInt32LE(1, 0x240)
+    file.writeUInt32LE(rva(0x320), 0x240 + 4)
+    file.write(`${imported}\0`, 0x300, 'latin1')
+    file.write(`${delayed}\0`, 0x320, 'latin1')
+    return file
+}
+
+describe('The native addons of the applications of NW.js', (): void => {
+
+    it('names node.dll the node.exe an addon of Windows imports, imported or delay-loaded, once', (): void => {
+        const addon: Buffer = portableExecutable('KERNEL32.dll', 'NODE.EXE')
+        assert.strictEqual(nameNwjsNode(addon), 1)
+        assert.strictEqual(addon.toString('latin1', 0x320, 0x328), 'node.dll')
+        assert.strictEqual(addon.toString('latin1', 0x300, 0x30c), 'KERNEL32.dll')
+        assert.strictEqual(nameNwjsNode(addon), 0)
+        const both: Buffer = portableExecutable('node.exe', 'node.exe')
+        assert.strictEqual(nameNwjsNode(both), 2)
+        assert.throws((): number => nameNwjsNode(Buffer.alloc(100)), /no MZ header/)
+    })
+
+    it('tells the architectures of a binary and whether it uses the API of V8', (): void => {
+        const machO = (cpu: number): Buffer => Buffer.from([0xcf, 0xfa, 0xed, 0xfe, cpu & 0xff, 0, 0, 1])
+        assert.deepStrictEqual(binaryArchitectures(machO(0x0c)), ['arm64'])
+        const fat: Buffer = Buffer.alloc(48)
+        fat.writeUInt32BE(0xcafebabe, 0)
+        fat.writeUInt32BE(2, 4)
+        fat.writeUInt32BE(0x01000007, 8)
+        fat.writeUInt32BE(0x0100000c, 28)
+        assert.deepStrictEqual(binaryArchitectures(fat), ['x64', 'arm64'])
+        const elf: Buffer = Buffer.alloc(20)
+        elf.writeUInt32BE(0x7f454c46, 0)
+        elf.writeUInt16LE(62, 18)
+        assert.deepStrictEqual(binaryArchitectures(elf), ['x64'])
+        assert.deepStrictEqual(binaryArchitectures(portableExecutable('a.dll', 'b.dll')), ['x64'])
+        assert.deepStrictEqual(binaryArchitectures(Buffer.from('text')), ['unknown'])
+        assert.strictEqual(usesV8Api(Buffer.from('xx_ZN2v86String3NewEyy')), true)
+        assert.strictEqual(usesV8Api(Buffer.from('?New@String@v8@@SA')), true)
+        assert.strictEqual(usesV8Api(Buffer.from('napi_create_string_utf8')), false)
+    })
+
+    it('builds again from its sources a package whose addon is not for the architecture of the runtime', {skip: process.platform === 'win32' && 'built by MSVC on Windows (checked on the machine of Windows)'}, async (): Promise<void> => {
+        const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-nwjs-addons-'))
+        try {
+            const source: string = path.join(work, 'project', 'node_modules', 'hello-addon')
+            mkdirSync(path.join(source, 'build', 'Release'), {recursive: true})
+            writeFileSync(path.join(source, 'package.json'), JSON.stringify({name: 'hello-addon', version: '1.0.0', main: 'index.js'}))
+            writeFileSync(path.join(source, 'binding.gyp'), "{'targets': [{'target_name': 'hello', 'sources': ['hello.c']}]}")
+            writeFileSync(path.join(source, 'hello.c'), '#include <node_api.h>\nNAPI_MODULE_INIT() { return exports; }\n')
+            //Built for another architecture: an ELF of arm (x64 on arm)
+            const foreign: Buffer = Buffer.alloc(64)
+            foreign.writeUInt32BE(0x7f454c46, 0)
+            foreign.writeUInt16LE(process.arch === 'arm' ? 62 : 40, 18)
+            writeFileSync(path.join(source, 'build', 'Release', 'hello.node'), foreign)
+            const tree: string = path.join(work, 'tree')
+            mkdirSync(path.join(tree, 'node_modules', 'hello-addon', 'build', 'Release'), {recursive: true})
+            writeFileSync(path.join(tree, 'node_modules', 'hello-addon', 'build', 'Release', 'hello.node'), foreign)
+            const release: NwjsRelease = {version: '0.72.0', date: '', node: '19.3.0', chromium: '109.0.5414.87', platforms: []}
+            const platform: string = `${process.platform === 'darwin' ? 'osx' : 'linux'}-${process.arch}`
+            const files = [{path: 'node_modules/hello-addon/build/Release/hello.node', source: path.join(source, 'build', 'Release', 'hello.node'), mode: 0o644}]
+            const result = await prepareNwjsAddons(path.join(work, 'project'), tree, files, release, platform)
+            assert.deepStrictEqual(result, {renamed: [], rebuilt: ['hello-addon']})
+            assert.deepStrictEqual(binaryArchitectures(readFileSync(path.join(tree, 'node_modules', 'hello-addon', 'build', 'Release', 'hello.node'))), [process.arch])
+            //Without its sources, it cannot be built again
+            rmSync(path.join(source, 'binding.gyp'))
+            writeFileSync(path.join(tree, 'node_modules', 'hello-addon', 'build', 'Release', 'hello.node'), foreign)
+            await assert.rejects(prepareNwjsAddons(path.join(work, 'project'), tree, files, release, platform), /hello-addon has no sources to build its addons for NW\.js \(binding\.gyp\)/)
+        } finally {
+            rmSync(work, {recursive: true, force: true})
+        }
+    })
+
+    it('refuses an addon using the API of V8 for a release of NW.js before 0.111.3', async (): Promise<void> => {
+        const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-nwjs-v8-'))
+        try {
+            mkdirSync(path.join(work, 'tree', 'node_modules', 'sqlite', 'build', 'Release'), {recursive: true})
+            writeFileSync(path.join(work, 'tree', 'node_modules', 'sqlite', 'build', 'Release', 'sqlite.node'), Buffer.from('\x7fELF..._ZN2v86Object3New'))
+            const files = [{path: 'node_modules/sqlite/build/Release/sqlite.node', source: path.join(work, 'sqlite.node'), mode: 0o644}]
+            await assert.rejects(prepareNwjsAddons(work, path.join(work, 'tree'), files, {version: '0.72.0', date: '', node: '19.3.0', chromium: '', platforms: []}, 'linux-x64'), /uses the API of V8 \(not Node-API\): it runs in NW\.js 0\.111\.3 or later, built with its headers; NW\.js 0\.72\.0 needs a package of Node-API instead/)
+        } finally {
+            rmSync(work, {recursive: true, force: true})
+        }
     })
 })

@@ -2,7 +2,8 @@ import {existsSync} from 'node:fs'
 import {mkdir, readFile, rm, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {bundleProject, type BundleResult} from '../Bundle.js'
-import {nwjsRelease, type NwjsRelease} from './Runtime.js'
+import {nwjsPlatform, nwjsRelease, type NwjsRelease} from './Runtime.js'
+import {prepareNwjsAddons, type NwjsAddons} from './Addons.js'
 
 /**
  * The NW.js of an application: the "lakutata.nwjs" of its package.json
@@ -51,6 +52,15 @@ export type NwjsStageOptions = {
      * The modules left out of the bundle
      */
     external?: string[]
+    /**
+     * The system of the runtime (process.platform), the one of the machine by default
+     */
+    platform?: NodeJS.Platform
+    /**
+     * The architecture of the runtime (process.arch), the one of the machine by default (x64 on a Mac with Apple silicon
+     * for the releases without osx-arm64)
+     */
+    arch?: string
 }
 
 /**
@@ -70,7 +80,15 @@ export type NwjsStage = {
      * Its name in NW.js (the directory of its data)
      */
     name: string
+    /**
+     * The build of NW.js it is made for (win-x64, osx-arm64…)
+     */
+    platform: string
     bundle: BundleResult
+    /**
+     * What was done to its native addons to load them in NW.js
+     */
+    addons: NwjsAddons
 }
 
 /**
@@ -137,6 +155,9 @@ export async function stageNwjsApp(options: NwjsStageOptions): Promise<NwjsStage
         external: options.external,
         directories: {native: 'app.native', resources: 'resources'}
     })
+    //Its addons loaded by the runtime: its architecture, its headers, its library of Node.js on Windows
+    const platform: string = nwjsPlatform(release, options.platform, options.arch)
+    const addons: NwjsAddons = bundle.native && bundle.nativeDirectory ? await prepareNwjsAddons(project, bundle.nativeDirectory, bundle.native.files, release, platform) : {renamed: [], rebuilt: []}
     const name: string = nwjsName(manifest, config)
     const nwManifest: Record<string, unknown> = {
         name: name,
@@ -149,5 +170,5 @@ export async function stageNwjsApp(options: NwjsStageOptions): Promise<NwjsStage
     }
     await writeFile(path.join(directory, 'package.json'), `${JSON.stringify(nwManifest, null, 2)}\n`)
     await writeFile(path.join(directory, 'main.js'), BACKGROUND_SCRIPT)
-    return {directory: directory, release: release, name: name, bundle: bundle}
+    return {directory: directory, release: release, name: name, platform: platform, bundle: bundle, addons: addons}
 }
