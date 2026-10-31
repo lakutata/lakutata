@@ -130,16 +130,16 @@ export class MobileController extends Controller {
     @CLIAction('mobile stage', MobileStageDTO, {description: 'Make the Node.js project of the mobile application of the current directory (@capawesome/capacitor-nodejs): its bundle for the Node.js of iOS and Android, its resources and its entry; after the build of its user interface'})
     public async stage(input: MobileStageDTO): Promise<undefined> {
         const {stageMobileApp} = await loadBuilder(process.cwd())
-        const stage: MobileStage = await stageMobileApp({project: process.cwd(), outdir: input.outdir, minify: input.minify})
-        done(`The Node.js project (Node.js ${stage.node}): ${path.relative(process.cwd(), stage.directory) || '.'}`)
+        const stage: MobileStage = await stageMobileApp({platform: input.platform, project: process.cwd(), outdir: input.outdir, minify: input.minify})
+        done(`The Node.js project for ${stage.platform} (Node.js ${stage.node}): ${path.relative(process.cwd(), stage.directory) || '.'}`)
         return undefined
     }
 
     @CLIAction('mobile deploy <platform>', MobileDeployDTO, {description: 'Make the Node.js project of the mobile application of the current directory, put it into the application installed in the emulator of Android or the simulator of iOS, and start the application again (the development, without installing it again)'})
     public async deploy(input: MobileDeployDTO): Promise<undefined> {
         const {stageMobileApp} = await loadBuilder(process.cwd())
-        const stage: MobileStage = await stageMobileApp({project: process.cwd(), outdir: input.outdir, minify: false})
-        step(`The Node.js project (Node.js ${stage.node}): ${path.relative(process.cwd(), stage.directory) || '.'}`)
+        const stage: MobileStage = await stageMobileApp({platform: input.platform, project: process.cwd(), outdir: input.outdir, minify: false})
+        step(`The Node.js project for ${stage.platform} (Node.js ${stage.node}): ${path.relative(process.cwd(), stage.directory) || '.'}`)
         if (input.platform === 'android') await deployAndroid(stage.directory, input.appId, input.device)
         else await deployIos(stage.directory, input.appId, input.nodeDir, input.device)
         done(`Deployed to ${input.appId} (${input.platform}${input.device ? `, ${input.device}` : ''}) and started`)

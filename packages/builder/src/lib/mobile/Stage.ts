@@ -11,9 +11,19 @@ import type {NativeFile} from '../Native.js'
 export const MOBILE_NODE_VERSION: string = '18.20.4'
 
 /**
+ * The systems of the mobile applications of Capacitor
+ */
+export type MobilePlatform = 'android' | 'ios'
+
+/**
  * The options of {@link stageMobileApp}
  */
 export type MobileStageOptions = {
+    /**
+     * The system the project is made for: Capacitor copies the web directory, the project with it, to the system synced
+     * (npx cap sync <platform>), so the project is made for each system before it is synced
+     */
+    platform: MobilePlatform
     /**
      * The directory of the application (its package.json), the current one by default
      */
@@ -47,6 +57,10 @@ export type MobileStage = {
      * resources (resources)
      */
     directory: string
+    /**
+     * The system it is made for
+     */
+    platform: MobilePlatform
     /**
      * The version of Node.js it is made for
      */
@@ -97,8 +111,8 @@ require('./app.cjs')
  * @example
  * import {stageMobileApp} from '@lakutata/builder'
  *
- * //After the build of the user interface (vite build), before npx cap sync
- * const stage = await stageMobileApp({outdir: '../ui/dist/nodejs'})
+ * //After the build of the user interface (vite build), before npx cap sync android
+ * const stage = await stageMobileApp({platform: 'android', outdir: '../ui/dist/nodejs'})
  * console.log(stage.directory, stage.node)
  */
 export async function stageMobileApp(options: MobileStageOptions): Promise<MobileStage> {
@@ -128,5 +142,5 @@ export async function stageMobileApp(options: MobileStageOptions): Promise<Mobil
     }
     await writeFile(path.join(directory, 'package.json'), `${JSON.stringify({name: manifest.name ?? 'app', version: manifest.version ?? '0.0.0', private: true, main: 'main.js'}, null, 2)}\n`)
     await writeFile(path.join(directory, 'main.js'), ENTRY_SCRIPT)
-    return {directory: directory, node: MOBILE_NODE_VERSION, bundle: bundle}
+    return {directory: directory, platform: options.platform, node: MOBILE_NODE_VERSION, bundle: bundle}
 }

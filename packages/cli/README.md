@@ -597,6 +597,7 @@ addons are refused for now.
 
 | Option | |
 |---|---|
+| `--platform <android\|ios>` | the system the project is made for: `npx cap sync` copies the web directory to the system synced, so the project is made for that system right before syncing it |
 | `--outdir <directory>` | the directory of the project: `nodejs` in the web directory (`../ui/dist/nodejs`) |
 | `--no-minify` | keep the bundle readable |
 

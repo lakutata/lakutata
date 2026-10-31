@@ -5,6 +5,7 @@ import {chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wri
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {MOBILE_NODE_VERSION, stageMobileApp, type MobileStage} from '../index.js'
+import {nativeBanner} from '../lib/NativeRuntime.js'
 
 describe('The Node.js projects of the mobile applications', (): void => {
 
@@ -22,9 +23,9 @@ const {app} = createRequire(import.meta.url)('bridge')
 console.log('RESULT ' + JSON.stringify({fetch: typeof fetch, tmpdir: tmpdir(), datadir: app.datadir()}))
 `)
             writeFileSync(path.join(project, 'assets', 'logo.txt'), 'logo')
-            const stage: MobileStage = await stageMobileApp({project: project, outdir: path.join(work, 'ui', 'dist', 'nodejs')})
+            const stage: MobileStage = await stageMobileApp({platform: 'android', project: project, outdir: path.join(work, 'ui', 'dist', 'nodejs')})
             assert.strictEqual(stage.directory, path.join(work, 'ui', 'dist', 'nodejs'))
-            assert.strictEqual(stage.node, MOBILE_NODE_VERSION)
+            assert.deepStrictEqual([stage.platform, stage.node], ['android', MOBILE_NODE_VERSION])
             assert.deepStrictEqual(JSON.parse(readFileSync(path.join(stage.directory, 'package.json'), 'utf8')), {name: '@acme/mobile', version: '1.2.3', private: true, main: 'main.js'})
             assert.ok(existsSync(path.join(stage.directory, 'app.cjs')))
             assert.strictEqual(readFileSync(path.join(stage.directory, 'resources', 'assets', 'logo.txt'), 'utf8'), 'logo')
@@ -46,7 +47,25 @@ console.log('RESULT ' + JSON.stringify({fetch: typeof fetch, tmpdir: tmpdir(), d
             assert.deepStrictEqual(result, {fetch: 'undefined', tmpdir: path.join(work, 'data', 'cache'), datadir: path.join(work, 'data', 'files')})
             assert.ok(existsSync(path.join(work, 'data', 'cache')))
             //Made again in a directory of its own only
-            await assert.rejects(stageMobileApp({project: project, outdir: '.'}), /made in a directory of its own/)
+            await assert.rejects(stageMobileApp({platform: 'ios', project: project, outdir: '.'}), /made in a directory of its own/)
+        } finally {
+            rmSync(work, {recursive: true, force: true})
+        }
+    })
+
+    it('load the native tree of the architecture first, the tree next to the bundle else', (): void => {
+        const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-mobile-'))
+        try {
+            //A package of the tree, in the tree of every architecture and in the one of the architecture of the machine
+            for (const [directory, built] of [['app.native', 'every architecture'], [`app.native-${process.arch}`, process.arch]]) {
+                mkdirSync(path.join(work, directory, 'node_modules', 'addon'), {recursive: true})
+                writeFileSync(path.join(work, directory, 'node_modules', 'addon', 'index.js'), `module.exports = ${JSON.stringify(built)}`)
+            }
+            writeFileSync(path.join(work, 'app.cjs'), `${nativeBanner({name: 'app', hash: '', directory: 'app.native', modules: ['addon'], embedded: false})}console.log(require('addon'))\n`)
+            const loaded = (): string => spawnSync(process.execPath, [path.join(work, 'app.cjs')], {encoding: 'utf8'}).stdout.trim()
+            assert.strictEqual(loaded(), process.arch)
+            rmSync(path.join(work, `app.native-${process.arch}`), {recursive: true})
+            assert.strictEqual(loaded(), 'every architecture')
         } finally {
             rmSync(work, {recursive: true, force: true})
         }
@@ -65,7 +84,7 @@ console.log('RESULT ' + JSON.stringify({fetch: typeof fetch, tmpdir: tmpdir(), d
             writeFileSync(path.join(project, 'package.json'), JSON.stringify({name: 'mobile', version: '1.0.0', main: 'build/App.js', dependencies: {'hello-addon': '1.0.0'}}))
             writeFileSync(path.join(project, 'build', 'App.js'), `console.log(require('hello-addon'))`)
             const outdir: string = path.join(work, 'nodejs')
-            await assert.rejects(stageMobileApp({project: project, outdir: outdir}), /The native addons of the application are not built for iOS and Android yet: hello-addon$/)
+            await assert.rejects(stageMobileApp({platform: 'ios', project: project, outdir: outdir}), /The native addons of the application are not built for iOS and Android yet: hello-addon$/)
             assert.ok(!existsSync(outdir))
         } finally {
             rmSync(work, {recursive: true, force: true})

@@ -161,10 +161,12 @@ export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
                 root = extract(path.join(os.tmpdir(), config.name))
             }
         } else {
-            //Next to the bundle, or in the resources of a packaged Electron application (outside of its archive)
+            //Next to the bundle, the tree of the architecture first (<directory>-arm64: a mobile application of Android holds
+            //one tree per architecture), or in the resources of a packaged Electron application (outside of its archive)
             const resources: string | undefined = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath
             const local: string = path.join(__dirname, config.directory)
-            root = fs.existsSync(local) || !resources ? local : path.join(resources, config.directory)
+            const own: string = `${local}-${process.arch}`
+            root = fs.existsSync(own) ? own : fs.existsSync(local) || !resources ? local : path.join(resources, config.directory)
         }
         return root
     }

@@ -189,6 +189,7 @@
         "stage": {
           "description": "產生目前目錄的手機應用程式的 Node.js 專案（@capawesome/capacitor-nodejs）：給 iOS 和 Android 的 Node.js 用的單一檔案包、資源和入口；在建置介面之後執行",
           "options": {
+            "platform": "專案針對的系統（android 或 ios），在這個系統的 npx cap sync 之前執行",
             "outdir": "產生的 Node.js 專案所在的目錄：Capacitor 網頁目錄下的 nodejs，在建置介面之後產生（../ui/dist/nodejs）",
             "minify": "壓縮單一檔案包（預設為 true）"
           }

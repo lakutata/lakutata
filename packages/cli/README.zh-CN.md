@@ -353,6 +353,7 @@ Capacitor 手机应用（iOS、Android）在 `@capawesome/capacitor-nodejs` 内�
 
 | 选项 | |
 |---|---|
+| `--platform <android\|ios>` | 项目面向的系统：`npx cap sync` 会把网页目录复制给同步的那个系统，所以紧接着它之前为这个系统生成 |
 | `--outdir <目录>` | 项目所在的目录：网页目录下的 `nodejs`（`../ui/dist/nodejs`） |
 | `--no-minify` | 不压缩单文件包 |
 

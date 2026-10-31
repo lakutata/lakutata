@@ -42,9 +42,9 @@ describe('lakutata mobile', {skip: process.platform === 'win32' && 'the fake adb
     })
 
     it('makes the Node.js project of the application in the web directory', async (): Promise<void> => {
-        const staged = await run(['mobile', 'stage', '--outdir', '../ui/dist/nodejs'])
+        const staged = await run(['mobile', 'stage', '--platform', 'android', '--outdir', '../ui/dist/nodejs'])
         assert.strictEqual(staged.code, 0, staged.output)
-        assert.match(staged.output, /The Node\.js project \(Node\.js 18\.20\.4\): \.\.\/ui\/dist\/nodejs/)
+        assert.match(staged.output, /The Node\.js project for android \(Node\.js 18\.20\.4\): \.\.\/ui\/dist\/nodejs/)
         for (const file of ['package.json', 'main.js', 'app.cjs']) assert.ok(existsSync(path.join(work, 'packages', 'ui', 'dist', 'nodejs', file)), file)
     })
 

@@ -189,6 +189,7 @@
         "stage": {
           "description": "生成当前目录的手机应用的 Node.js 项目（@capawesome/capacitor-nodejs）：面向 iOS 和 Android 的 Node.js 的单文件包、资源和入口；在构建界面之后执行",
           "options": {
+            "platform": "项目面向的系统（android 或 ios），在这个系统的 npx cap sync 之前执行",
             "outdir": "生成的 Node.js 项目所在的目录：Capacitor 网页目录下的 nodejs，在构建界面之后生成（../ui/dist/nodejs）",
             "minify": "压缩单文件包（默认为 true）"
           }
