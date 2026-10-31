@@ -117,6 +117,16 @@
         "default": "./dist/cjs/exports/ElectronAdapter.js"
       }
     },
+    "./adapter/capacitor": {
+      "import": {
+        "types": "./dist/types/exports/CapacitorAdapter.d.ts",
+        "default": "./dist/esm/exports/CapacitorAdapter.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/CapacitorAdapter.d.ts",
+        "default": "./dist/cjs/exports/CapacitorAdapter.js"
+      }
+    },
     "./adapter/nwjs": {
       "import": {
         "types": "./dist/types/exports/NwjsAdapter.d.ts",

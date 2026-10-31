@@ -2,10 +2,10 @@
 
 A service action (`@ServiceAction`) is called with a message rather than a URL: an object whose keys select the action,
 its **pattern**, and whose other keys are the input. The same actions can be served over several transports at once:
-plain HTTP, Socket.IO, JSON-RPC 2.0 (over HTTP, WebSocket or the standard input and output), the IPC of Electron and the
-windows of NW.js, as this guide describes, and gRPC, NATS and the data channels of WebRTC, which have their own guides. The controllers and
-their actions are described in [Controllers](Controllers.md), the entrypoint and its adapters in
-[Entrypoint](Entrypoint.md).
+plain HTTP, Socket.IO, JSON-RPC 2.0 (over HTTP, WebSocket or the standard input and output), the IPC of Electron, the
+windows of NW.js and the web view of Capacitor, as this guide describes, and gRPC, NATS and the data channels of WebRTC,
+which have their own guides. The controllers and their actions are described in [Controllers](Controllers.md), the
+entrypoint and its adapters in [Entrypoint](Entrypoint.md).
 
 ## 1. A first service
 
@@ -136,7 +136,8 @@ class OrderController extends Controller {
 
 ## 3. The response
 
-The HTTP service, Socket.IO, Electron and NW.js answer with an envelope; JSON-RPC answers with its own responses (section 4).
+The HTTP service, Socket.IO, Electron, NW.js and Capacitor answer with an envelope; JSON-RPC answers with its own
+responses (section 4).
 
 ```text
 {"success": true, "error": null, "payload": <the result>}
@@ -180,6 +181,7 @@ export async function call<T>(message: Record<string, unknown>): Promise<T> {
 | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | `ws`, for WebSocket | A JSON-RPC 2.0 request | Notifications (WebSocket, stdio) |
 | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) | `ipcRenderer.invoke()` | IPC messages |
 | `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | (NW.js) | A call of its bridge, by the host page of a window | Calls of the function the host page gives |
+| `capacitorServiceEntrypoint()` | `lakutata/adapter/capacitor` | (`@capawesome/capacitor-nodejs`) | A message of the page through the plugin | Messages of the plugin |
 | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | See [GRPC](GRPC.md) | gRPC streams |
 | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | See [NATS](NATS.md) | NATS messages |
 | `webrtcServiceEntrypoint()` | `@lakutata/webrtc` | `@lakutata/webrtc` | A JSON-RPC 2.0 request on a data channel, see [WebRTC](WebRTC.md) | Notifications |
@@ -510,6 +512,49 @@ window.addEventListener('message', async (event) => {
 - The NW.js templates of `lakutata create` contain such a host page (`packages/app/host`), and a `window.ipc` for the
   interface like the one of the Electron templates.
 
+### Capacitor
+
+`capacitorServiceEntrypoint()` serves the actions to the web view of a mobile application of Capacitor (iOS, Android),
+in the Node.js that `@capawesome/capacitor-nodejs` embeds in the application. It receives the messages of the page on
+the bridge of the plugin (`require('bridge')`, which the plugin gives to the main thread of Node.js only) and posts its
+responses and events there. The plugin sends JSON only: a `Date` arrives as its string, a `Buffer` as `{type, data}`,
+`undefined` is left out, and a result that JSON cannot hold (a `bigint`, a cycle) is answered with an error.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `bridge` | `require('bridge')` | The bridge of the plugin, or a stand-in in the tests |
+| `event` | `'lakutata:service'` (`CAPACITOR_SERVICE_EVENT`) | The name of the events of the bridge |
+| `pause` | | Called when the application goes to the background, before the plugin is told that the Node.js side is ready (iOS waits for it, within the time the system gives; Android does not) |
+| `resume` | | Called when the application comes back from the background |
+
+The page sends and receives the messages through the plugin:
+
+```typescript
+import {Nodejs} from '@capawesome/capacitor-nodejs'
+
+const pending: Map<number, (response: unknown) => void> = new Map()
+let next: number = 0
+Nodejs.addListener('message', ({eventName, args: [message]}): void => {
+    if (eventName !== 'lakutata:service') return
+    if (message.type === 'response') pending.get(message.id)?.(message.response)
+    if (message.type === 'event') console.log(message.event, ...message.args)
+})
+const clientId: string = crypto.randomUUID()
+await Nodejs.send({eventName: 'lakutata:service', args: [{type: 'subscribe', clientId: clientId}]})
+const invoke = (data: Record<string, unknown>): Promise<unknown> => new Promise((resolve: (response: unknown) => void): void => {
+    const id: number = ++next
+    pending.set(id, resolve)
+    void Nodejs.send({eventName: 'lakutata:service', args: [{type: 'invoke', id: id, clientId: clientId, data: data}]})
+})
+//{success: true, error: null, payload: …}
+console.log(await invoke({cmd: 'greet', name: 'you'}))
+```
+
+- The page sends `{type: 'unsubscribe', clientId}` when it leaves: its requests in progress are aborted.
+- `Nodejs.send()` fails until the Node.js side has required the bridge (the `ready` event of the plugin).
+- The Node.js of the plugin runs once per launch of the mobile application, and exiting it quits the whole application:
+  give the application `exitProcess: false` (see [Application](Application.md)).
+
 ## 5. Clients and events
 
 The transports that keep their clients connected can push events to them. A client is identified by the id it gives:
@@ -523,6 +568,7 @@ The transports that keep their clients connected can push events to them. A clie
 | JSON-RPC over stdio | `'stdio'` |
 | Electron | The id the page gives when it subscribes or invokes |
 | NW.js | The id the host page gives to the bridge for its page |
+| Capacitor | The id the page gives when it subscribes or invokes |
 | WebRTC | The member id of the caller in its room |
 
 An action reads the id of its client in `this.context.clientId`. The `entrypoint` component pushes the events:
@@ -559,6 +605,7 @@ A client receives `notify(clientId, 'progress', 50, 'half')` as:
 | JSON-RPC (WebSocket, stdio) | `{"jsonrpc": "2.0", "method": "progress", "params": [50, "half"]}` |
 | Electron | `('progress', [50, 'half'])`, through the `subscribe` of the preload script above |
 | NW.js | `('progress', [50, 'half'])`, given to the function of the `subscribe` of the bridge |
+| Capacitor | `{type: 'event', clientId, event: 'progress', args: [50, 'half']}` in the `message` listener of the plugin |
 | WebRTC | `proxy.on('progress', (percent, label) => …)` of a `PeerServiceProxy` |
 
 ## 6. Stopping and leaving

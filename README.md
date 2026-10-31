@@ -19,7 +19,8 @@ Lakutata gives web services, command line tools, desktop (Electron, NW.js) appli
 programming model. An application is a tree of objects (components, providers, controllers) that a container creates;
 DTOs validate the options of the objects and the input of the actions; and transports expose the controllers over HTTP
 (Express, Fastify), the command line (Commander), service calls (HTTP, Socket.IO, JSON-RPC 2.0, gRPC, NATS, Electron
-IPC, NW.js), MCP, D-Bus, schedules and message queues. One controller method can serve several of them at once.
+IPC, NW.js, Capacitor), MCP, D-Bus, schedules and message queues. One controller method can serve several of them at
+once.
 
 ## Quick start
 

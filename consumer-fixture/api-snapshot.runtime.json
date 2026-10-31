@@ -542,6 +542,10 @@
     "NWJS_SERVICE_BRIDGE",
     "nwjsServiceEntrypoint"
   ],
+  "lakutata/adapter/capacitor": [
+    "CAPACITOR_SERVICE_EVENT",
+    "capacitorServiceEntrypoint"
+  ],
   "lakutata/com/logger": [
     "Logger"
   ],

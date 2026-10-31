@@ -1,0 +1,1 @@
+export {CAPACITOR_SERVICE_EVENT, capacitorServiceEntrypoint, type CapacitorBridge, type CapacitorServiceEntrypointOptions, type CapacitorServiceMessage, type CapacitorServiceRequest} from '../adapter/capacitor/CapacitorServiceEntrypoint.js'

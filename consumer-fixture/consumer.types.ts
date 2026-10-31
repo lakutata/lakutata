@@ -154,6 +154,13 @@ declare const nwjsBridge: NwjsServiceBridge
 export const _nwjsOptions: EntrypointOptions = {controllers: [], service: nwjsEntrypoint({key: 'app:service', global: {}})}
 export const _nwjsInvocation: Promise<{ success: boolean }> = nwjsBridge.invoke({cmd: 'echo'}, 'page-1')
 
+// The Capacitor adapter of the service channel: the bridge of @capawesome/capacitor-nodejs in the Node.js of a mobile application
+import type {capacitorServiceEntrypoint, CapacitorBridge, CapacitorServiceMessage} from 'lakutata/adapter/capacitor'
+declare const capacitorEntrypoint: typeof capacitorServiceEntrypoint
+declare const capacitorBridge: CapacitorBridge
+export const _capacitorOptions: EntrypointOptions = {controllers: [], service: capacitorEntrypoint({bridge: capacitorBridge, event: 'app:service', pause: (): void => undefined})}
+export const _capacitorMessage: CapacitorServiceMessage = {type: 'event', clientId: 'page-1', event: 'progress', args: [50]}
+
 // The JSON-RPC 2.0 adapter of the service channel: HTTP, WebSocket, stdio
 import type {jsonRPCServiceEntrypoint} from 'lakutata/adapter/jsonrpc'
 declare const jsonrpcEntrypoint: typeof jsonRPCServiceEntrypoint
