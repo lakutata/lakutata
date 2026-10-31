@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/ffi",
-  "version": "3.1.2",
+  "version": "3.1.5",
   "description": "Native libraries for the lakutata framework: C functions of .so, .dylib and .dll files called from Node.js, Electron and Bun, declared with the C declarations of their headers, a library being a component of the application.",
   "keywords": [
     "lakutata",
@@ -76,7 +76,7 @@
     "package.json"
   ],
   "peerDependencies": {
-    "@lakutata/core": "~3.1.1"
+    "@lakutata/core": "~3.1.5"
   },
   "dependencies": {
     "koffi": "3.3.4"

@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/netif",
-  "version": "3.1.4",
+  "version": "3.1.5",
   "description": "Listen on a network interface instead of an address: servers of Node.js (http, https, Express, Fastify) and UDP sockets follow an interface whatever its addresses, through their changes and the unplugging of the interface; the interfaces of the machine with their state, and events when they change. A native addon for Linux, macOS and Windows.",
   "keywords": [
     "lakutata",
@@ -78,6 +78,6 @@
     "node-addon-api": "^8.9.2"
   },
   "peerDependencies": {
-    "@lakutata/core": "~3.1.4"
+    "@lakutata/core": "~3.1.5"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/template-nwjs-vue",
-  "version": "3.1.4",
+  "version": "3.1.5",
   "description": "The NW.js template of the lakutata projects with Vue: the background script of NW.js is a lakutata application serving the actions of its controllers to the user interface (Vue, Vite, isolated in a webview), packaged into installers by lakutata package installer.",
   "homepage": "https://lakutata.com/guide/ProjectStructure",
   "bugs": {

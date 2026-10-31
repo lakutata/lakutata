@@ -1,6 +1,6 @@
 {
   "name": "lakutata",
-  "version": "3.1.4",
+  "version": "3.1.5",
   "description": "An IoC application framework for Node.js and TypeScript: one programming model for web services, CLI tools, desktop (Electron) and embedded applications.",
   "type": "module",
   "exports": {
@@ -364,19 +364,19 @@
     "mcp"
   ],
   "dependencies": {
-    "@lakutata/cache": "3.1.4",
-    "@lakutata/containerd": "3.1.4",
-    "@lakutata/core": "3.1.4",
-    "@lakutata/docker": "3.1.4",
-    "@lakutata/entrypoint": "3.1.4",
-    "@lakutata/i18n": "3.1.4",
-    "@lakutata/logger": "3.1.4",
-    "@lakutata/monitor": "3.1.4",
-    "@lakutata/mutex": "3.1.3",
-    "@lakutata/orm": "3.1.4",
-    "@lakutata/queue": "3.1.4",
-    "@lakutata/security": "3.1.4",
-    "@lakutata/utils": "3.1.1"
+    "@lakutata/cache": "3.1.5",
+    "@lakutata/containerd": "3.1.5",
+    "@lakutata/core": "3.1.5",
+    "@lakutata/docker": "3.1.5",
+    "@lakutata/entrypoint": "3.1.5",
+    "@lakutata/i18n": "3.1.5",
+    "@lakutata/logger": "3.1.5",
+    "@lakutata/monitor": "3.1.5",
+    "@lakutata/mutex": "3.1.5",
+    "@lakutata/orm": "3.1.5",
+    "@lakutata/queue": "3.1.5",
+    "@lakutata/security": "3.1.5",
+    "@lakutata/utils": "3.1.5"
   },
   "files": [
     "dist",
@@ -389,7 +389,7 @@
   ],
   "peerDependencies": {
     "@inquirer/prompts": "^7.0.0 || ^8.0.0",
-    "@lakutata/netif": "~3.1.4",
+    "@lakutata/netif": "~3.1.5",
     "commander": "^12.0.0 || ^13.0.0 || ^14.0.0 || ^15.0.0",
     "express": "^4.21.0 || ^5.0.0",
     "fastify": "^5.0.0",
