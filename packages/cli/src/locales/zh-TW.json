@@ -184,6 +184,28 @@
           }
         }
       },
+      "mobile": {
+        "description": "手機應用程式（Capacitor、@capawesome/capacitor-nodejs）：產生它的 Node.js 專案，開發時部署到已安裝的應用程式裡",
+        "stage": {
+          "description": "產生目前目錄的手機應用程式的 Node.js 專案（@capawesome/capacitor-nodejs）：給 iOS 和 Android 的 Node.js 用的單一檔案包、資源和入口；在建置介面之後執行",
+          "options": {
+            "outdir": "產生的 Node.js 專案所在的目錄：Capacitor 網頁目錄下的 nodejs，在建置介面之後產生（../ui/dist/nodejs）",
+            "minify": "壓縮單一檔案包（預設為 true）"
+          }
+        },
+        "deploy": {
+          "description": "產生目前目錄的手機應用程式的 Node.js 專案，放進 Android 模擬器或 iOS 模擬器裡已安裝的應用程式，再重新啟動應用程式（開發時不用重新安裝）",
+          "arguments": {
+            "platform": "系統：android（模擬器或裝置，應用程式的偵錯版）或 ios（模擬器）"
+          },
+          "options": {
+            "appId": "應用程式的 ID（capacitor.config 裡的 appId）",
+            "outdir": "產生的 Node.js 專案所在的目錄：Capacitor 網頁目錄下的 nodejs（../ui/dist/nodejs）",
+            "device": "Android 的模擬器或裝置（序號，見 adb devices）、iOS 的模擬器（UDID 或名稱，見 xcrun simctl list）；預設是正在執行的那個",
+            "nodeDir": "Node.js 專案在應用程式網頁目錄裡的目錄名稱（外掛的 nodeDir）"
+          }
+        }
+      },
       "i18n": {
         "description": "檢查各語言的翻譯、宣告鍵名的型別，或新增一種語言",
         "arguments": {

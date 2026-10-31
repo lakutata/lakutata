@@ -15,3 +15,4 @@ export {downloadNwjs, nwjsPlatform, nwjsRelease, nwjsReleases, type NwjsFlavor, 
 export {stageNwjsApp, type NwjsConfig, type NwjsStage, type NwjsStageOptions} from './lib/nwjs/Stage.js'
 export type {NwjsAddons} from './lib/nwjs/Addons.js'
 export {buildNwjsApp, type NwjsApp, type NwjsAppOptions} from './lib/nwjs/Package.js'
+export {MOBILE_NODE_VERSION, stageMobileApp, type MobileStage, type MobileStageOptions} from './lib/mobile/Stage.js'

@@ -184,6 +184,28 @@
           }
         }
       },
+      "mobile": {
+        "description": "手机应用（Capacitor、@capawesome/capacitor-nodejs）：生成它的 Node.js 项目，开发时部署到已安装的应用里",
+        "stage": {
+          "description": "生成当前目录的手机应用的 Node.js 项目（@capawesome/capacitor-nodejs）：面向 iOS 和 Android 的 Node.js 的单文件包、资源和入口；在构建界面之后执行",
+          "options": {
+            "outdir": "生成的 Node.js 项目所在的目录：Capacitor 网页目录下的 nodejs，在构建界面之后生成（../ui/dist/nodejs）",
+            "minify": "压缩单文件包（默认为 true）"
+          }
+        },
+        "deploy": {
+          "description": "生成当前目录的手机应用的 Node.js 项目，放进 Android 模拟器或 iOS 模拟器里已安装的应用，再重新启动应用（开发时不用重新安装）",
+          "arguments": {
+            "platform": "系统：android（模拟器或设备，应用的调试版）或 ios（模拟器）"
+          },
+          "options": {
+            "appId": "应用的 ID（capacitor.config 里的 appId）",
+            "outdir": "生成的 Node.js 项目所在的目录：Capacitor 网页目录下的 nodejs（../ui/dist/nodejs）",
+            "device": "Android 的模拟器或设备（序列号，见 adb devices）、iOS 的模拟器（UDID 或名称，见 xcrun simctl list）；默认是正在运行的那个",
+            "nodeDir": "Node.js 项目在应用网页目录里的目录名（插件的 nodeDir）"
+          }
+        }
+      },
       "i18n": {
         "description": "检查各语言的翻译、声明键名的类型，或添加一种语言",
         "arguments": {

@@ -39,6 +39,11 @@ Node.js of NW.js), its resources and the manifest of NW.js. `buildNwjsApp()` put
 named after the application, and `buildInstaller()` makes its installers with `"runtime": "nwjs"` (the installers of a
 desktop application: dmg on macOS, nsis on Windows, deb on Linux by default).
 
+The mobile applications of Capacitor run in the Node.js that `@capawesome/capacitor-nodejs` embeds in them (Node.js
+18.20.4, `MOBILE_NODE_VERSION`). `stageMobileApp()` makes their Node.js project: the bundle for that Node.js, the
+resources, the manifest and an entry that puts away `fetch()` without WebAssembly (iOS) and gives `os.tmpdir()` a
+directory that can be written (Android).
+
 The Linux installers are tested in containers (Docker): `npm run test:installer` builds them on Debian and Alpine, then
 installs, upgrades and removes them on Debian and Fedora (systemd) and on Alpine (OpenRC). The macOS installers are
 installed in a macOS virtual machine (`npm run test:installer:mac`, with tart), and the Windows installers on Windows,

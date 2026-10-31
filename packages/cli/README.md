@@ -580,6 +580,42 @@ NW.js, with its resources and its native addons made to load in it, then run wit
 | `--release <version>` | the release of NW.js run (a version, `latest`, `win7`), the one of `lakutata.nwjs` by default |
 | `--flavor <sdk\|normal>` | `sdk` (the default: with the DevTools) or `normal` (the one the installers hold) |
 
+## Mobile applications
+
+A mobile application of Capacitor (iOS, Android) runs the application in the Node.js that `@capawesome/capacitor-nodejs`
+embeds in it: Node.js 18.20.4, which runs the project in the `nodejs` directory of the web directory of Capacitor. These
+commands make that project and deploy it during the development.
+
+### `lakutata mobile stage`
+
+Make the Node.js project of the application of the current directory into `--outdir`: its bundle for that Node.js (the
+plugin runs the project as it is: its dependencies are in the bundle), its resources, its `package.json` and its entry.
+Run it after the build of the user interface, which empties the web directory, and before `npx cap sync`. The entry puts
+away the `fetch()` of Node.js where there is no WebAssembly (iOS: its first call would end Node.js), and gives
+`os.tmpdir()` the cache directory of the application where the one of the system cannot be written (Android). Native
+addons are refused for now.
+
+| Option | |
+|---|---|
+| `--outdir <directory>` | the directory of the project: `nodejs` in the web directory (`../ui/dist/nodejs`) |
+| `--no-minify` | keep the bundle readable |
+
+### `lakutata mobile deploy <platform>`
+
+Make the project, put it into the application installed in the emulator of Android or the simulator of iOS (`android` or
+`ios`), and start the application again: the Node.js side changes without installing the application again. On Android
+it writes into the files of a debug build (`adb shell run-as`), where the plugin copied the project at the first start
+and copies it again only when the package is updated (the application is started once first when it has not copied it);
+on iOS it writes into the application in the simulator. adb is found in the Android SDK (`ANDROID_HOME`), else in the
+`PATH`.
+
+| Option | |
+|---|---|
+| `--app-id <id>` | the id of the application (the `appId` of `capacitor.config`) |
+| `--outdir <directory>` | as for `lakutata mobile stage` |
+| `--device <id>` | the emulator or the device (its serial, `adb devices`), the simulator (its UDID or name), the one running by default |
+| `--node-dir <directory>` | the directory of the project in the web directory (the `nodeDir` of the plugin), `nodejs` by default |
+
 ## Migrations
 
 ### `lakutata migration <action>`

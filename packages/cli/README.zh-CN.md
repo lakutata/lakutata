@@ -343,6 +343,30 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 | `--release <version>` | 运行的 NW.js 版本（某个版本、`latest`、`win7`），默认是 `lakutata.nwjs` 中的版本 |
 | `--flavor <sdk\|normal>` | `sdk`（默认：带 DevTools）或 `normal`（安装包中的版本） |
 
+## 手机应用
+
+Capacitor 手机应用（iOS、Android）在 `@capawesome/capacitor-nodejs` 内嵌的 Node.js 中运行应用：Node.js 18.20.4，它运行 Capacitor 网页目录下 `nodejs` 目录里的项目。下面的命令生成这个项目，并在开发时部署它。
+
+### `lakutata mobile stage`
+
+把当前目录的应用生成为 `--outdir` 下的 Node.js 项目：面向这个 Node.js 的单文件包（插件按原样运行这个项目，依赖都打进了单文件包）、资源、`package.json` 和入口。请在构建界面之后（构建会清空网页目录）、`npx cap sync` 之前执行。入口在没有 WebAssembly 的地方（iOS：第一次调用 `fetch()` 就会结束 Node.js）收起 Node.js 的 `fetch()`；在系统的临时目录不可写的地方（Android），让 `os.tmpdir()` 返回应用的 cache 目录。目前会拒绝原生插件。
+
+| 选项 | |
+|---|---|
+| `--outdir <目录>` | 项目所在的目录：网页目录下的 `nodejs`（`../ui/dist/nodejs`） |
+| `--no-minify` | 不压缩单文件包 |
+
+### `lakutata mobile deploy <platform>`
+
+生成项目，放进 Android 模拟器或 iOS 模拟器里已安装的应用（`android` 或 `ios`），再重新启动应用：Node.js 一侧的改动不用重新安装应用。在 Android 上写进调试版应用的文件目录（`adb shell run-as`），插件在第一次启动时把项目复制到了那里，之后只在应用的安装包更新时才重新复制（还没复制时会先启动一次应用）；在 iOS 上写进模拟器里的应用。adb 从 Android SDK（`ANDROID_HOME`）中查找，找不到时用 `PATH` 中的。
+
+| 选项 | |
+|---|---|
+| `--app-id <id>` | 应用的 ID（`capacitor.config` 里的 `appId`） |
+| `--outdir <目录>` | 同 `lakutata mobile stage` |
+| `--device <id>` | 模拟器或设备（序列号，见 `adb devices`）、iOS 模拟器（UDID 或名称），默认是正在运行的那个 |
+| `--node-dir <目录>` | 项目在网页目录里的目录名（插件的 `nodeDir`），默认是 `nodejs` |
+
 ## 迁移
 
 ### `lakutata migration <action>`

@@ -103,6 +103,11 @@ An NW.js application gets its version of NW.js from `lakutata nwjs use <version>
 application in the sdk flavor of that NW.js (with the DevTools), its native addons made to load in it, and gives it the
 arguments. Its installers hold the normal flavor ([Installers](Installers.md), section 9).
 
+A mobile application of Capacitor runs in the Node.js that `@capawesome/capacitor-nodejs` embeds in it. `lakutata mobile
+stage --outdir <directory>` makes its Node.js project in the web directory of Capacitor, after the build of the user
+interface; `lakutata mobile deploy <android|ios> --app-id <id> --outdir <directory>` puts it into the application
+installed in the emulator or the simulator and starts the application again.
+
 ## 6. Environment variables
 
 | Variable | Meaning |

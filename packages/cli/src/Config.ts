@@ -10,6 +10,7 @@ import {MigrationController} from './controllers/MigrationController.js'
 import {NativeController} from './controllers/NativeController.js'
 import {FFIController} from './controllers/FFIController.js'
 import {NwjsController} from './controllers/NwjsController.js'
+import {MobileController} from './controllers/MobileController.js'
 import {I18nController} from './controllers/I18nController.js'
 import {LANGUAGE_VARIABLE, LanguageMiddleware} from './lib/Language.js'
 import {toolPackage} from './lib/Versions.js'
@@ -17,7 +18,7 @@ import {toolPackage} from './lib/Versions.js'
 /**
  * The controllers of the commands of the tool
  */
-export const CONTROLLERS = [CommandLineController, WorkspaceController, PackController, MigrationController, NativeController, FFIController, NwjsController, I18nController]
+export const CONTROLLERS = [CommandLineController, WorkspaceController, PackController, MigrationController, NativeController, FFIController, NwjsController, MobileController, I18nController]
 
 /**
  * The messages of the tool in the languages besides English (its texts in the code): its help, its prompts
@@ -28,7 +29,8 @@ export const CONTROLLERS = [CommandLineController, WorkspaceController, PackCont
 export const COMMAND_GROUPS: Record<string, string> = {
     package: 'Package the compiled application: into one JavaScript file, an executable or its installers',
     ffi: 'Generate the classes of the native libraries of @lakutata/ffi from their C headers',
-    nwjs: 'Give the application its version of NW.js, run it in NW.js, list the releases of NW.js'
+    nwjs: 'Give the application its version of NW.js, run it in NW.js, list the releases of NW.js',
+    mobile: 'Make the Node.js project of the mobile application (Capacitor, @capawesome/capacitor-nodejs), deploy it into the application installed during the development'
 }
 
 /**
