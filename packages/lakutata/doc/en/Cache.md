@@ -290,7 +290,8 @@ The values are kept as they are, not copied (section 7). Each process has its ow
 - The statements run synchronously: a statement that waits for a locked database blocks the event loop, up to
   `busyTimeout`.
 - `better-sqlite3` is a native addon built for one runtime: an Electron application needs its build for its version of
-  Electron. On Bun, the store uses `bun:sqlite` instead.
+  Electron; an NW.js application has it built again with the headers of NW.js (0.111.3 or later: the earlier releases
+  cannot load it). On Bun, the store uses `bun:sqlite` instead.
 
 ### PostgreSQL
 

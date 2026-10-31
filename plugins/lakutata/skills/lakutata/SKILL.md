@@ -2,8 +2,8 @@
 name: lakutata
 description: >-
   Writes, changes and tests applications built on lakutata 3.x, the IoC application framework for Node.js and
-  TypeScript (web services and APIs, command line tools, Electron desktop applications, services on devices, MCP
-  servers). Use it when a project depends on "lakutata" or "@lakutata/*", imports from 'lakutata' or 'lakutata/...',
+  TypeScript (web services and APIs, command line tools, Electron and NW.js desktop applications, services on devices,
+  MCP servers). Use it when a project depends on "lakutata" or "@lakutata/*", imports from 'lakutata' or 'lakutata/...',
   calls Application.run(), has classes extending Component, Provider, Controller or DTO, uses decorators such as
   @Inject, @Configurable, @Expect, @GET, @POST, @CLIAction, @ServiceAction, @Schedule or @QueueAction, calls
   buildEntrypoints() or an adapter such as expressHTTPEntrypoint(), extends "lakutata/tsconfig.json", or runs the
@@ -94,8 +94,8 @@ website.
   (and keeps an `include`), and the relative imports of the sources end in `.js`:
   `import {config} from './config/Config.js'`.
 - `npx @lakutata/cli create --name my-app` creates a project from a template: `default` (an HTTP application), `cli`,
-  `service`, `web-react`, `web-vue`, `web-next`, `web-nuxt`, `electron-react`, `electron-vue`; `--with i18n,installer`
-  adds features. All but `default` are workspaces, the application being the package `packages/app`.
+  `service`, `web-react`, `web-vue`, `web-next`, `web-nuxt`, `electron-react`, `electron-vue`, `nwjs-react`, `nwjs-vue`;
+  `--with i18n,installer` adds features (`win7` gives the `nwjs-*` templates NW.js 0.72, which runs on Windows 7). All but `default` are workspaces, the application being the package `packages/app`.
 - `src/App.ts` starts the application with the options returned by `config()` in `src/config/Config.ts`; controllers,
   components, DTOs and tests have their own directories (`controllers/`, `components/`, `dtos/`, `tests/`).
 - `npm run build` compiles to `build/`, `npm test` builds then runs `node --test` on the compiled tests, `npm run dev`
@@ -115,7 +115,7 @@ Import only from these subpaths, never from the files inside a package.
 | `lakutata/decorator/ctrl` | `@GET`…`@OPTIONS`, `@HTTPAction`, `@CLIAction`, `@ServiceAction`, `@Schedule`, `@Prefix`, `@UseMiddlewares` |
 | `lakutata/adapter/express`, `lakutata/adapter/fastify` | The HTTP adapters (`expressHTTPEntrypoint`, `jsonEnvelope`…) |
 | `lakutata/adapter/commander` | The command line adapter (`commanderCLIEntrypoint`) |
-| `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron` | Service transports |
+| `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron`, `lakutata/adapter/nwjs` | Service transports |
 | `lakutata/com/logger` | The `Logger`, preset as the component `log` |
 | `lakutata/orm`, `lakutata/decorator/orm` | TypeORM and its decorators |
 | `lakutata/com/database`, `lakutata/provider/database` | `buildDatabaseOptions`, the `Database` component and provider |

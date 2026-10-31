@@ -173,6 +173,7 @@ of the project (it may be outside the package, such as `../ui/dist`), `to` its p
 | An executable, file layout | `true` | The directory the resources were extracted to |
 | An executable, directory layout, or an installed application | `true` | `resources` next to the executable |
 | A packaged Electron application | `true` | `main.resources` in the resources of Electron |
+| An NW.js application (run by `lakutata nwjs run`, or packaged) | `true` | `resources` in the directory of the application |
 
 `resourcesPath()` returns the path even when the application declares no resources, so the directory may not exist.
 The application chooses where to read its files from:

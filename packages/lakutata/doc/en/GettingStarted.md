@@ -15,7 +15,7 @@ and write an application by hand.
   On Node.js 18 and 19, an application uses commander 13, @inquirer/prompts 7 and better-sqlite3 11: their next major
   versions need Node.js 20 or later.
 
-  The projects made by `lakutata create` declare Node.js `>=22.13.0`, which the tools of the web and Electron templates
+  The projects made by `lakutata create` declare Node.js `>=22.13.0`, which the tools of the web and desktop templates
   need.
 - TypeScript, with its decorators (`experimentalDecorators`) and their metadata (`emitDecoratorMetadata`). The framework
   publishes the compiler options it needs as `lakutata/tsconfig.json`; the templates use TypeScript 6.
@@ -47,13 +47,15 @@ The `default` template is a small HTTP application. Other templates start from a
 | `web-react`, `web-vue` | An HTTP API serving a React or Vue single-page application (Vite) |
 | `web-next`, `web-nuxt` | An HTTP API serving a Next.js or Nuxt application from the same process |
 | `electron-react`, `electron-vue` | A desktop application: Electron, its main process serving a React or Vue renderer over IPC |
+| `nwjs-react`, `nwjs-vue` | A desktop application: NW.js, its background script serving a React or Vue user interface isolated in a webview |
 
 ```bash
 npx @lakutata/cli create --name shop --template service --with i18n,installer
 ```
 
 `--with` adds optional features: `i18n` (messages in several languages) to every template, `installer` (installers
-and a system service) to `cli`, `service` and the `web-*` templates. In a terminal, the tool offers them when `--with`
+and a system service) to `cli`, `service` and the `web-*` templates, `win7` (NW.js 0.72, which runs on Windows 7) to
+the `nwjs-*` templates. In a terminal, the tool offers them when `--with`
 is not given. [ProjectStructure](ProjectStructure.md) describes the files of the templates, and
 [Command](Command.md) the options of `lakutata create`.
 

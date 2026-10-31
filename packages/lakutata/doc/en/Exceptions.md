@@ -121,7 +121,7 @@ When an action fails, its transport reports the exception:
 | Transport | The client receives |
 |---|---|
 | HTTP | The status `statusCode` and `{errno, errMsg}` (see [HTTP](HTTP.md), section 6) |
-| Socket.IO, Electron, the HTTP service, NATS, gRPC | The whole error: all its own properties (see [ServiceCalls](ServiceCalls.md), section 3) |
+| Socket.IO, Electron, NW.js, the HTTP service, NATS, gRPC | The whole error: all its own properties (see [ServiceCalls](ServiceCalls.md), section 3) |
 | JSON-RPC | An error with the code `-32602` for an invalid input, `-32601` when no action matches, `-32001` while the application stops, `-32000` otherwise, and the whole error as its `data` |
 | The command line | `error: <message>` on the standard error, and the exit code 1 (see [CLI](CLI.md)) |
 | Schedules | No client: the exception is given to `onError`, or logged (see [Schedules](Schedules.md)) |

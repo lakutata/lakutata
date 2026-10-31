@@ -45,7 +45,7 @@ Application
 
 ## 2. 工作区模板
 
-其他模板都是 npm 工作区：应用是 `packages/app` 这个包，带界面或安装包的模板还会加上 `packages/ui`（网页，或 Electron 的渲染进程）和 `packages/resources`（图标）。`service` 模板：
+其他模板都是 npm 工作区：应用是 `packages/app` 这个包，带界面或安装包的模板还会加上 `packages/ui`（网页、Electron 的渲染进程，或 NW.js 的用户界面）和 `packages/resources`（图标）。`service` 模板：
 
 ```
 shop/
@@ -79,6 +79,7 @@ shop/
 - `web-next` 和 `web-nuxt`：`packages/ui`，一个 Next.js 或 Nuxt 应用，由应用在同一个进程中渲染。
 - `cli`：一个命令行工具（`commanderCLIEntrypoint`），带有 `package:bundle` 和 `package:exe` 脚本，把它打包到 `dist/`（[Packaging](Packaging.md)）。
 - `electron-react` 和 `electron-vue`：`packages/app` 中是 Electron 的主进程（它的窗口，以及通过 IPC 提供的服务动作），`packages/ui` 中是渲染进程，还有制作安装包的脚本。
+- `nwjs-react` 和 `nwjs-vue`：`packages/app` 中是 NW.js 的后台脚本（它的窗口：窗口的宿主页面在 `packages/app/host`，用 webview 承载用户界面；以及它的服务动作），`packages/ui` 中是用户界面，NW.js 的版本在 `packages/app/nwjs.json`（由 `npm run nwjs:use -- <版本>` 写入），还有制作安装包的脚本。
 
 打包产物写到工作区根目录的 `dist/` 中；`.gitignore` 忽略 `build`、`dist` 以及界面的构建输出。
 
@@ -90,8 +91,9 @@ shop/
 |---|---|---|
 | `i18n` | 全部 | `src/locales` 中各语言的消息（`en`、`zh-CN`）、`i18n` 组件、语言中间件，以及 `i18n:check` 和 `i18n:types` 脚本（[I18n](I18n.md)） |
 | `installer` | `cli`、`service`、`web-*` | 应用的 `lakutata.installer`、制作安装包的脚本（在本机制作，以及在 Docker 中制作 Linux 的安装包），服务类模板还会注册系统服务（[Installers](Installers.md)） |
+| `win7` | `nwjs-*` | 用 NW.js 0.72.0 代替模板发布时的版本：它是最后一个能在 Windows 7、8 和 8.1 上运行的版本；还有制作 32 位 Windows 安装包的 `package:ia32` 脚本 |
 
-Electron 模板不需要这个功能也能制作安装包。
+Electron 和 NW.js 模板不需要 `installer` 功能也能制作安装包。
 
 ## 4. 自己的模板
 

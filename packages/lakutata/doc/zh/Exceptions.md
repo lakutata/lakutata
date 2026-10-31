@@ -113,7 +113,7 @@ export async function pay(orderId: number, charge: () => Promise<void>): Promise
 | 传输方式 | 客户端收到 |
 |---|---|
 | HTTP | 状态码 `statusCode` 和 `{errno, errMsg}`（见 [HTTP](HTTP.md) 第 6 节） |
-| Socket.IO、Electron、HTTP 服务、NATS、gRPC | 完整的错误：它所有的自身属性（见 [ServiceCalls](ServiceCalls.md) 第 3 节） |
+| Socket.IO、Electron、NW.js、HTTP 服务、NATS、gRPC | 完整的错误：它所有的自身属性（见 [ServiceCalls](ServiceCalls.md) 第 3 节） |
 | JSON-RPC | 一个错误：输入不合法时错误码为 `-32602`，没有匹配的动作时为 `-32601`，应用正在停止时为 `-32001`，其他情况为 `-32000`；完整的错误放在 `data` 中 |
 | 命令行 | 标准错误中的 `error: <消息>`，退出码为 1（见 [CLI](CLI.md)） |
 | 定时任务 | 没有客户端：异常交给 `onError`，或者写入日志（见 [Schedules](Schedules.md)） |

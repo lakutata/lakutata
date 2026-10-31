@@ -250,7 +250,7 @@ Application.run(() => ({
 
 - `table` 中字母、数字和 `_` 以外的字符会被去掉。
 - 语句同步执行：等待被锁住的数据库时，语句会阻塞事件循环，最长 `busyTimeout`。
-- `better-sqlite3` 是原生插件，针对一种运行时构建：Electron 应用需要使用针对其 Electron 版本构建的 `better-sqlite3`。在 Bun 上，存储改用 `bun:sqlite`。
+- `better-sqlite3` 是原生插件，针对一种运行时构建：Electron 应用需要使用针对其 Electron 版本构建的 `better-sqlite3`；NW.js 应用会用 NW.js 的头文件重新构建它（需要 0.111.3 及以后的版本：更早的版本无法加载它）。在 Bun 上，存储改用 `bun:sqlite`。
 
 ### PostgreSQL
 

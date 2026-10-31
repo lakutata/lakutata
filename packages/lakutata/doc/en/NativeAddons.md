@@ -215,5 +215,11 @@ The application depends on the addon package, and imports it as any package (`im
 - **Electron**: the addons are copied as they are installed. The addons that `lakutata add` creates run in Electron
   without being rebuilt, as do all the addons built on Node-API; an addon built on the V8 API of Node.js must be
   installed in its build for Electron before packing (`electron-rebuild`).
+- **NW.js**: the addons are made to load in NW.js when the application runs in it (`lakutata nwjs run`, and once
+  packaged). The ones built for another architecture than the one of the runtime are built again from their sources,
+  with the headers of the Node.js of NW.js; so are the ones built on the V8 API of Node.js, with the headers of NW.js
+  (NW.js 0.111.3 or later: the earlier releases, such as 0.72 for Windows 7, run the addons of Node-API only). On
+  Windows, the addons load the Node.js of NW.js (`node.dll`). The addons of the project are left as they are, for its
+  tests with Node.js.
 - **Bun**: Bun loads the addons of Node-API; an executable of Bun warns of the addons built on the V8 API of Node.js.
 - **Alpine (musl)**: the executables of Node.js do not load native addons there: make them with Bun.

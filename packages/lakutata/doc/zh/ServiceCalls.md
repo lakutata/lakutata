@@ -1,6 +1,6 @@
 # Lakutata 服务调用
 
-服务动作（`@ServiceAction`）通过消息而不是 URL 来调用：消息是一个对象，其中一部分键用来选择动作，称为**模式**，其余的键就是输入。同一组动作可以同时通过多种传输方式提供：本指南介绍的普通 HTTP、Socket.IO、JSON-RPC 2.0（基于 HTTP、WebSocket 或标准输入输出）和 Electron 的 IPC，以及在各自指南中介绍的 gRPC、NATS 和 WebRTC 的数据通道。控制器及其动作见 [Controllers](Controllers.md)，入口及其适配器见 [Entrypoint](Entrypoint.md)。
+服务动作（`@ServiceAction`）通过消息而不是 URL 来调用：消息是一个对象，其中一部分键用来选择动作，称为**模式**，其余的键就是输入。同一组动作可以同时通过多种传输方式提供：本指南介绍的普通 HTTP、Socket.IO、JSON-RPC 2.0（基于 HTTP、WebSocket 或标准输入输出）、Electron 的 IPC 和 NW.js 的窗口，以及在各自指南中介绍的 gRPC、NATS 和 WebRTC 的数据通道。控制器及其动作见 [Controllers](Controllers.md)，入口及其适配器见 [Entrypoint](Entrypoint.md)。
 
 ## 1. 第一个服务
 
@@ -128,7 +128,7 @@ class OrderController extends Controller {
 
 ## 3. 响应
 
-HTTP 服务、Socket.IO 和 Electron 以封套响应；JSON-RPC 使用它自己的响应格式（第 4 节）。
+HTTP 服务、Socket.IO、Electron 和 NW.js 以封套响应；JSON-RPC 使用它自己的响应格式（第 4 节）。
 
 ```text
 {"success": true, "error": null, "payload": <结果>}
@@ -165,6 +165,7 @@ export async function call<T>(message: Record<string, unknown>): Promise<T> {
 | `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io`（客户端需要 `socket.io-client`） | 带确认回调的 emit | Socket.IO 事件 |
 | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | WebSocket 需要 `ws` | JSON-RPC 2.0 请求 | 通知（WebSocket、stdio） |
 | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | （Electron） | `ipcRenderer.invoke()` | IPC 消息 |
+| `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | （NW.js） | 窗口的宿主页面对桥接对象的一次调用 | 调用宿主页面交给它的函数 |
 | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | 见 [GRPC](GRPC.md) | gRPC 流 |
 | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | 见 [NATS](NATS.md) | NATS 消息 |
 | `webrtcServiceEntrypoint()` | `@lakutata/webrtc` | `@lakutata/webrtc` | 数据通道上的 JSON-RPC 2.0 请求，见 [WebRTC](WebRTC.md) | 通知 |
@@ -420,6 +421,40 @@ contextBridge.exposeInMainWorld('service', {
 - `lakutata/adapter/electron` 中的 `ipcEventOfContext(this.context)` 返回请求的 IPC 事件，用来找到发出请求的窗口。
 - `lakutata create` 的 Electron 模板包含同样形式的预加载脚本，并为页面提供了 `window.ipc`，它的 `invoke()` 返回结果，或者抛出错误。
 
+### NW.js
+
+`nwjsServiceEntrypoint()` 在 NW.js 应用的后台脚本（它的 Node.js 上下文）中，向它的窗口提供动作。NW.js 让窗口里的页面都能使用 Node.js，页面里的 iframe 也挡不住 iframe 中的内容使用它（iframe 的 sandbox 会被忽略）：所以用户界面运行在没有 Node.js 的 `<webview>` 中，由窗口里一个受信任的页面（宿主页面）承载。适配器在 NW.js 与窗口共享的全局对象上放一个桥接对象 `global[Symbol.for(key)]`；宿主页面把界面的请求转发给它，并把向界面推送事件的函数交给它。
+
+| 选项 | 默认值 | 含义 |
+|---|---|---|
+| `key` | `'lakutata:service'`（`NWJS_SERVICE_BRIDGE`） | 桥接对象在全局对象上的键 |
+| `global` | NW.js 的全局对象 | 放置桥接对象的对象，测试时可以传入替身 |
+
+| 桥接对象的方法 | 含义 |
+|---|---|
+| `invoke(message, clientId)` | 调用一个动作：解析为封套，从不拒绝 |
+| `subscribe(clientId, push)` | 把一个页面登记为客户端：推送给它的事件交给 `push(event, args)` |
+| `unsubscribe(clientId)` | 页面重新加载或窗口关闭时移除这个客户端：它进行中的请求会被中止 |
+
+宿主页面只转发自己的 `<webview>` 里加载的页面发来的消息：
+
+```javascript
+const view = document.querySelector('webview')
+const origin = new URL(view.src).origin
+const bridge = global[Symbol.for('lakutata:service')]
+const send = (message) => view.contentWindow.postMessage(message, origin)
+window.addEventListener('message', async (event) => {
+    if (event.source !== view.contentWindow || event.origin !== origin) return
+    const {type, id, message, clientId} = event.data
+    if (type === 'invoke') send({type: 'response', id: id, response: await bridge.invoke(message, clientId)})
+    if (type === 'subscribe') bridge.subscribe(clientId, (name, args) => send({type: 'event', name: name, args: args}))
+})
+```
+
+- `<webview>` 的分区在 NW.js 的清单中声明过，它才能加载应用的文件：`"webview": {"partitions": [{"name": "trusted", "accessible_resources": ["<all_urls>"]}]}`（由构建器写入）。
+- `<webview>` 里重新加载的页面是一个新的客户端：宿主页面会取消前一个客户端的订阅。
+- `lakutata create` 的 NW.js 模板包含这样的宿主页面（`packages/app/host`），并为界面提供了和 Electron 模板一样的 `window.ipc`。
+
 ## 5. 客户端与事件
 
 保持连接的传输方式可以向客户端推送事件。客户端通过它给出的 id 来识别：
@@ -432,6 +467,7 @@ contextBridge.exposeInMainWorld('service', {
 | 基于 WebSocket 的 JSON-RPC | 连接的 `id` 请求头或 `id` 查询参数，否则为随机 id |
 | 基于 stdio 的 JSON-RPC | `'stdio'` |
 | Electron | 页面在订阅或调用时给出的 id |
+| NW.js | 宿主页面为它的页面交给桥接对象的 id |
 | WebRTC | 调用方在房间里的成员 id |
 
 动作从 `this.context.clientId` 读取它的客户端 id。`entrypoint` 组件负责推送事件：
@@ -466,6 +502,7 @@ class TaskController extends Controller {
 | Socket.IO | `socket.on('progress', (percent, label) => …)` |
 | JSON-RPC（WebSocket、stdio） | `{"jsonrpc": "2.0", "method": "progress", "params": [50, "half"]}` |
 | Electron | 通过上面预加载脚本中的 `subscribe` 收到 `('progress', [50, 'half'])` |
+| NW.js | 交给桥接对象 `subscribe` 的函数收到 `('progress', [50, 'half'])` |
 | WebRTC | `PeerServiceProxy` 的 `proxy.on('progress', (percent, label) => …)` |
 
 ## 6. 停止与离开

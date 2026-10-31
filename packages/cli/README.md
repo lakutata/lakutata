@@ -26,7 +26,7 @@ both the features and the confirmation).
 | `--path <directory>` | the directory in which the project directory is created, by default the current one |
 | `--init` | create the project in the `--path` directory itself, which must exist and may hold files: the files it already has are kept (a warning lists those that the template also has, to merge by hand), and only the files the tool writes are filled with the information of the project |
 | `--description`, `--author`, `--license` | information about the application |
-| `--with <features>` | the optional features of the template to enable, separated by commas (listed by `lakutata templates`): `i18n`, `installer`. In a terminal, without `--with` or `--yes`, you choose them from a list |
+| `--with <features>` | the optional features of the template to enable, separated by commas (listed by `lakutata templates`): `i18n`, `installer`, `win7`. In a terminal, without `--with` or `--yes`, you choose them from a list |
 | `--package-manager <npm\|pnpm\|yarn\|none>` | the package manager that installs the dependencies (`none` installs nothing): npm by default, or pnpm or yarn when one of them started the tool |
 | `--no-git` | do not initialize a git repository |
 | `--yes` | create the project without asking for the features or for a confirmation |
@@ -38,11 +38,13 @@ lakutata create --name my-service --template service --with i18n --yes
 
 Every official template has the `i18n` feature: the messages of the application in several languages
 (`lakutata/com/i18n`), in `src/locales` (`en.json`, `zh-CN.json`) and bundled with the code. Each request is answered in
-its own language, including its validation errors (command line tools and Electron applications use the language of the
+its own language, including its validation errors (command line tools and desktop applications use the language of the
 environment). The feature also adds the `i18n:check` and `i18n:types` scripts. The `cli`, `service` and `web-*`
 templates also have the `installer` feature: the `lakutata.installer` configuration of the application and the scripts
 that make its installers (on the machine, and for Linux in Docker), and, in the `service` and `web-*` templates, a
-system service.
+system service. The `nwjs-*` templates have the `win7` feature: NW.js 0.72.0, the last release running on Windows 7, 8
+and 8.1, instead of the release the template was published with, and the script that makes the installers of 32-bit
+Windows.
 
 ### `lakutata templates`
 
@@ -408,12 +410,12 @@ platforms (the Linux ones can be made in a container). They are configured by th
 | `productName` | the name shown to users (in the installers, and in the list of programs on Windows), by default the `productName` of the `package.json`, else the name |
 | `description`, `maintainer`, `homepage`, `license` | by default those of the `package.json` (the maintainer is its author) |
 | `vendor` | its vendor, none by default (on Windows, the publisher is the vendor, else the maintainer) |
-| `runtime` | the runtime of the executable: `node` (the default) or `bun`; `electron` for an Electron application (below) |
-| `addToPath` | put the program in the PATH (`/usr/bin/<program>`, `/usr/local/bin/<program>` on macOS; on Windows, the PATH of the machine), `true` by default |
+| `runtime` | the runtime of the executable: `node` (the default) or `bun`; `electron` for an Electron application, `nwjs` for an NW.js application (below) |
+| `addToPath` | put the program in the PATH (`/usr/bin/<program>`, `/usr/local/bin/<program>` on macOS; on Windows, the PATH of the machine), `true` by default (`false` for an NW.js application) |
 | `service` | `true` or the options of the service (below), none by default |
 | `linux.targets` | `deb`, `rpm`, `archlinux`, `tar.gz` on glibc systems (`deb`, `rpm`, `tar.gz` by default); `apk`, `tar.gz` on Alpine (musl) |
 | `linux.depends`, `linux.recommends`, `linux.section`, `linux.priority` | the system packages it needs and recommends, its section and its priority (deb) |
-| `mac.targets` | `pkg`, `tar.gz` (both by default) |
+| `mac.targets` | `pkg`, `tar.gz` (both by default); `dmg` for an NW.js application |
 | `win.targets` | `nsis`, `msi`, `zip` (all by default) |
 | `electron` | the electron-builder configuration of an Electron application, merged over the one made from these options |
 
@@ -527,11 +529,56 @@ one electron-builder downloads is built for x64. On Windows arm64, the NSIS inst
 the BCJ filter (`ELECTRON_BUILDER_7Z_FILTER`), because they cannot extract files compressed with the ARM64 filter,
 which 7-Zip would choose.
 
+The installers of an NW.js application (`"runtime": "nwjs"`) hold the normal flavor of its NW.js (`lakutata nwjs use`,
+below), named after the application, with the application in it: its bundle for the Node.js of that NW.js, its native
+addons made to load in it, its resources and the manifest of NW.js. On Windows, the executable is `<name>.exe`, with
+the icon and the version information of the application; on macOS, the bundle is `<productName>.app`, whose
+`Info.plist` gives its name, its `appId`, its version and its icon (signed again ad hoc). Its installers are those of a
+desktop application, by default `deb` on Linux, `dmg` on macOS and `nsis` on Windows: the Windows installers (`nsis`,
+`msi`) add it to the start menu and to the desktop, the `dmg` disk image holds it beside a link to /Applications and
+the `pkg` package installs it there, and the Linux packages (`deb`, `rpm`) add its desktop entry and its icons and
+depend on the libraries of Chromium. `--arch` makes them for another architecture than the one of the machine (`ia32`:
+32-bit Windows). An NW.js application is not a service; its scripts run as for the other applications (on macOS, it is
+removed by deleting it, without a removal script).
+
 | Command option | |
 |---|---|
 | `--target <targets...>` | the installers to make, by default those of the configuration |
 | `--outdir <directory>` | the directory of the installers, `dist/installer` by default |
 | `--entry`, `--no-minify`, `--external` | as for `lakutata package exe` |
+| `--arch <arch>` | the architecture of an NW.js application (`x64`, `ia32`, `arm64`), the one of the machine by default |
+
+## NW.js
+
+An NW.js application (the `nwjs-react` and `nwjs-vue` templates) runs in the version of NW.js of its `package.json`,
+`"lakutata": {"nwjs": {"version": "0.119.2"}}`. The runtimes of NW.js are downloaded once into the cache of lakutata
+(from `https://dl.nwjs.io`, or the mirror of `LAKUTATA_NWJS_MIRROR`) and checked against the checksums of their release.
+lakutata runs on the releases whose Node.js is 18.10 or later.
+
+### `lakutata nwjs versions`
+
+List the releases of NW.js lakutata runs on, newest first: their date, their Node.js, their Chromium and their builds,
+the latest and the last one running on Windows 7 (`win7`, 0.72.0) marked. It lists the ten latest and the one of
+Windows 7, every release with `--all`. The list of the releases (`https://nwjs.io/versions.json`, or the one of
+`LAKUTATA_NWJS_VERSIONS`) is cached for a day.
+
+### `lakutata nwjs use <version>`
+
+Give the application of the current directory its version of NW.js: a version (`0.119.2`), `latest` or `win7`, written
+as a version into the `lakutata.nwjs` of its `package.json`. It writes `nwjs.json` too, the version with its Node.js and
+its Chromium, which the templates' build of the user interface reads to target that Chromium, and tells the systems the
+release runs on. `--download` downloads its sdk flavor for the machine at once.
+
+### `lakutata nwjs run [args...]`
+
+Run the compiled application of the current directory in NW.js: it is bundled into `.nwjs/app` for the Node.js of its
+NW.js, with its resources and its native addons made to load in it, then run with the arguments given after `--`
+(`lakutata nwjs run -- --ui=http://localhost:5173`). The command ends with NW.js, and stops it when it is stopped.
+
+| Option | |
+|---|---|
+| `--release <version>` | the release of NW.js run (a version, `latest`, `win7`), the one of `lakutata.nwjs` by default |
+| `--flavor <sdk\|normal>` | `sdk` (the default: with the DevTools) or `normal` (the one the installers hold) |
 
 ## Migrations
 
@@ -604,6 +651,8 @@ matches. The names of the commands and options, and the other results and errors
 | `LAKUTATA_NPM_REGISTRY` | the npm registry of the templates (by default `npm_config_registry`, else `https://registry.npmjs.org`) |
 | `LAKUTATA_GITHUB_DOWNLOAD` | a GitHub mirror for the `github:` templates (`https://github.com` by default) |
 | `LAKUTATA_CACHE_DIR` | the cache directory (by default `$XDG_CACHE_HOME/lakutata`, else `~/.cache/lakutata`) |
+| `LAKUTATA_NWJS_MIRROR` | where the runtimes of NW.js are downloaded from (`https://dl.nwjs.io` by default) |
+| `LAKUTATA_NWJS_VERSIONS` | the list of the releases of NW.js (`https://nwjs.io/versions.json` by default) |
 | `LAKUTATA_LANG` | the language of the tool (`zh-CN`, `zh-TW`, `en`), by default that of the environment |
 
 The tool is itself a lakutata application: its commands are the CLI actions of its controllers, served by the

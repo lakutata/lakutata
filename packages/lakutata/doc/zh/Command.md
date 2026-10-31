@@ -34,7 +34,7 @@ lakutata create --name tool --template cli --package-manager none --no-git
 | `--path` | `.` | 在哪里创建项目目录（`<path>/<name>`） |
 | `--init` | | 直接在 `--path` 这个已有目录中创建项目 |
 | `--description`、`--author`、`--license` | 许可证为 `UNLICENSED` | 包的信息 |
-| `--with` | | 模板的可选功能，用逗号分隔（`i18n`、`installer`） |
+| `--with` | | 模板的可选功能，用逗号分隔（`i18n`、`installer`、`win7`） |
 | `--package-manager` | `npm`；由 pnpm 或 yarn 启动工具时为对应的包管理器 | `npm`、`pnpm`、`yarn`，或 `none` 表示不安装依赖 |
 | `--no-git` | | 不创建 git 仓库 |
 | `--yes` | | 不询问可选功能，也不要求确认 |
@@ -67,6 +67,8 @@ lakutata create --name tool --template cli --package-manager none --no-git
 
 `lakutata package bundle` 和 `package exe` 把编译好的应用打包成单个 JavaScript 文件，或者不需要安装 Node.js 就能运行的可执行文件，见 [Packaging](Packaging.md)。`lakutata package installer` 制作应用的安装包，安装包还可以把应用注册为服务，见 [Installers](Installers.md)。
 
+NW.js 应用所用的 NW.js 版本由 `lakutata nwjs use <版本>` 设置（`latest`、`win7` 或某个版本，`lakutata nwjs versions` 会列出这些版本），版本会写进应用的 `package.json`。`lakutata nwjs run [args...]` 在这个 NW.js 的 sdk 版本（带 DevTools）中运行编译好的应用，原生插件会被处理成能在其中加载，并把参数传给应用。应用的安装包里是 normal 版本（见 [Installers](Installers.md) 第 9 节）。
+
 ## 6. 环境变量
 
 | 变量 | 含义 |
@@ -74,7 +76,9 @@ lakutata create --name tool --template cli --package-manager none --no-git
 | `LAKUTATA_LANG` | 工具的语言（`en`、`zh-CN`、`zh-TW`） |
 | `LAKUTATA_NPM_REGISTRY` | 下载模板的仓库（否则取 `npm_config_registry`，再否则为 `https://registry.npmjs.org`） |
 | `LAKUTATA_GITHUB_DOWNLOAD` | 下载 `github:` 模板的地址（默认 `https://github.com`） |
-| `LAKUTATA_CACHE_DIR` | 工具的缓存目录：模板，以及制作安装包所用的工具（默认 `$XDG_CACHE_HOME/lakutata`，否则 `~/.cache/lakutata`） |
+| `LAKUTATA_CACHE_DIR` | 工具的缓存目录：模板、制作安装包所用的工具，以及 NW.js 的运行时（默认 `$XDG_CACHE_HOME/lakutata`，否则 `~/.cache/lakutata`） |
+| `LAKUTATA_NWJS_MIRROR` | NW.js 运行时的下载地址（默认 `https://dl.nwjs.io`） |
+| `LAKUTATA_NWJS_VERSIONS` | NW.js 的发布版本列表（默认 `https://nwjs.io/versions.json`） |
 | `NO_COLOR` | 关闭颜色 |
 
 工具运行的脚本和应用，拿到的是工具启动时的环境变量。打包后的应用所用的环境变量见 [Packaging](Packaging.md) 第 6 节。

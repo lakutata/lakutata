@@ -136,8 +136,9 @@ export const db = buildDatabaseOptions({
 - The foreign keys are enforced (`PRAGMA foreign_keys = ON`). There is one connection: `poolSize` is not supported.
 - **`bigint` columns come back as numbers**: values beyond 2^53 lose precision. Keep such values in a text column.
 - `better-sqlite3` is a native module, compiled for one version of Node.js. An Electron application needs the build of
-  its Electron (`electron-rebuild`, or the prebuilt binaries of better-sqlite3 for Electron); Bun cannot load it (use
-  `sqljs` there).
+  its Electron (`electron-rebuild`, or the prebuilt binaries of better-sqlite3 for Electron); an NW.js application has
+  it built again with the headers of NW.js (0.111.3 or later: use `sqljs` with the earlier releases); Bun cannot load it
+  (use `sqljs` there).
 
 ## SQLite: sql.js
 

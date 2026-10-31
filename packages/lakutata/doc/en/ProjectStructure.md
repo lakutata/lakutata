@@ -53,8 +53,8 @@ templates other than `cli` do.
 ## 2. The workspace templates
 
 The other templates are npm workspaces: the application is the package `packages/app`, and the templates with an
-interface or with installers add `packages/ui` (the web pages, or the renderer of Electron) and `packages/resources`
-(the icon). The `service` template:
+interface or with installers add `packages/ui` (the web pages, the renderer of Electron, or the user interface of
+NW.js) and `packages/resources` (the icon). The `service` template:
 
 ```
 shop/
@@ -93,6 +93,10 @@ The other templates add to this layout:
   it into `dist/` ([Packaging](Packaging.md)).
 - `electron-react` and `electron-vue`: the main process of Electron in `packages/app` (its window and its service
   actions over IPC), the renderer in `packages/ui`, and the scripts that make the installers.
+- `nwjs-react` and `nwjs-vue`: the background script of NW.js in `packages/app` (its window, whose host page in
+  `packages/app/host` holds the user interface in a webview, and its service actions), the user interface in
+  `packages/ui`, the version of NW.js in `packages/app/nwjs.json` (written by `npm run nwjs:use -- <version>`), and the
+  scripts that make the installers.
 
 The packed forms are written to `dist/` at the root of the workspace; `.gitignore` leaves out `build`, `dist` and the
 outputs of the interfaces.
@@ -105,8 +109,9 @@ outputs of the interfaces.
 |---|---|---|
 | `i18n` | all | The messages of the languages in `src/locales` (`en`, `zh-CN`), the `i18n` component, the language middleware, and the scripts `i18n:check` and `i18n:types` ([I18n](I18n.md)) |
 | `installer` | `cli`, `service`, `web-*` | The `lakutata.installer` of the application, the scripts that make the installers (on the machine, and for Linux in Docker), and for the services a system service ([Installers](Installers.md)) |
+| `win7` | `nwjs-*` | NW.js 0.72.0 instead of the release the template was published with: the last release running on Windows 7, 8 and 8.1, and the script `package:ia32` that makes the installers of 32-bit Windows |
 
-The Electron templates make installers without this feature.
+The Electron and NW.js templates make installers without the `installer` feature.
 
 ## 4. Templates of your own
 

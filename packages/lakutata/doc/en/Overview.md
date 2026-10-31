@@ -1,10 +1,10 @@
 # Lakutata Overview
 
 **Lakutata** is an IoC application framework for Node.js and TypeScript. It gives web services, CLI tools, desktop
-(Electron) applications and embedded devices one programming model: an application is a tree of objects (components,
-providers, controllers) that a container creates. DTOs validate their options and inputs, and transports expose
-the controllers: HTTP (Express, Fastify), CLI (Commander), service RPC (HTTP, Socket.IO, JSON-RPC 2.0, gRPC, NATS,
-Electron IPC), schedules and message queues. One controller method can serve all of them at once.
+(Electron, NW.js) applications and embedded devices one programming model: an application is a tree of objects
+(components, providers, controllers) that a container creates. DTOs validate their options and inputs, and transports
+expose the controllers: HTTP (Express, Fastify), CLI (Commander), service RPC (HTTP, Socket.IO, JSON-RPC 2.0, gRPC,
+NATS, Electron IPC, NW.js), schedules and message queues. One controller method can serve all of them at once.
 
 The package `lakutata` re-exports the `@lakutata/*` packages under its subpaths (see the table below) and presets two
 components in every application: `log` (the `Logger`, which writes pino-compatible JSON lines) and `entrypoint` (the
@@ -30,7 +30,7 @@ tool, a web and a desktop application, calls between services, background jobs, 
 | `lakutata/decorator/ctrl` | `@HTTPAction`, `@GET`…`@OPTIONS`, `@CLIAction`, `@ServiceAction`, `@Schedule`, `@Prefix`, `@UseMiddlewares` |
 | `lakutata/adapter/express`, `lakutata/adapter/fastify` | The HTTP transports |
 | `lakutata/adapter/commander` | The CLI transport |
-| `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron` | The service transports |
+| `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron`, `lakutata/adapter/nwjs` | The service transports |
 | `lakutata/com/logger` | The `Logger` component, preset as `log` (pino-compatible JSON lines) |
 | `lakutata/orm`, `lakutata/decorator/orm` | TypeORM and its decorators |
 | `lakutata/com/database`, `lakutata/provider/database` | The `Database` component and provider |
@@ -74,7 +74,7 @@ whatever its addresses, the interfaces of the machine and their changes).
 | [Middlewares](Middlewares.md) | The middlewares and the access control of the actions |
 | [HTTP](HTTP.md) | The HTTP adapters: routes, input, responses, errors, the features of Express and Fastify |
 | [CLI](CLI.md) | Command line tools: commands, options, prompts, output and exit codes |
-| [ServiceCalls](ServiceCalls.md) | The service actions over HTTP, Socket.IO, JSON-RPC 2.0 and Electron: patterns, responses, clients and their events |
+| [ServiceCalls](ServiceCalls.md) | The service actions over HTTP, Socket.IO, JSON-RPC 2.0, Electron and NW.js: patterns, responses, clients and their events |
 | [GRPC](GRPC.md) | The service actions over gRPC (`@lakutata/grpc`), and calling them from other applications and languages |
 | [NATS](NATS.md) | The NATS component, the service actions over NATS (`@lakutata/nats`), the service proxies and their events |
 | [Schedules](Schedules.md) | Scheduled jobs: intervals, cron expressions, jobs run by one instance |

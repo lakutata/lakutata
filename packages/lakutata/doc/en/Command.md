@@ -45,7 +45,7 @@ lakutata create --name tool --template cli --package-manager none --no-git
 | `--path` | `.` | Where the project directory is created (`<path>/<name>`) |
 | `--init` | | Create the project in `--path` itself, a directory that already exists |
 | `--description`, `--author`, `--license` | license `UNLICENSED` | The information of the package |
-| `--with` | | The optional features of the template, separated by commas (`i18n`, `installer`) |
+| `--with` | | The optional features of the template, separated by commas (`i18n`, `installer`, `win7`) |
 | `--package-manager` | `npm`, or pnpm or yarn when one of them started the tool | `npm`, `pnpm`, `yarn`, or `none` to skip the installation |
 | `--no-git` | | Do not create a git repository |
 | `--yes` | | Do not ask for the features or for a confirmation |
@@ -98,6 +98,11 @@ adds a language. See [I18n](I18n.md#command-line-tools).
 that runs without Node.js: see [Packaging](Packaging.md). `lakutata package installer` makes its installers, which can
 register it as a service: see [Installers](Installers.md).
 
+An NW.js application gets its version of NW.js from `lakutata nwjs use <version>` (`latest`, `win7` or a version, which
+`lakutata nwjs versions` lists), which writes it into its `package.json`. `lakutata nwjs run [args...]` runs the compiled
+application in the sdk flavor of that NW.js (with the DevTools), its native addons made to load in it, and gives it the
+arguments. Its installers hold the normal flavor ([Installers](Installers.md), section 9).
+
 ## 6. Environment variables
 
 | Variable | Meaning |
@@ -105,7 +110,9 @@ register it as a service: see [Installers](Installers.md).
 | `LAKUTATA_LANG` | The language of the tool (`en`, `zh-CN`, `zh-TW`) |
 | `LAKUTATA_NPM_REGISTRY` | The registry the templates come from (else `npm_config_registry`, else `https://registry.npmjs.org`) |
 | `LAKUTATA_GITHUB_DOWNLOAD` | Where the `github:` templates are downloaded from (`https://github.com` by default) |
-| `LAKUTATA_CACHE_DIR` | The cache of the tool: the templates, and the tools that make installers (`$XDG_CACHE_HOME/lakutata`, else `~/.cache/lakutata`) |
+| `LAKUTATA_CACHE_DIR` | The cache of the tool: the templates, the tools that make installers and the runtimes of NW.js (`$XDG_CACHE_HOME/lakutata`, else `~/.cache/lakutata`) |
+| `LAKUTATA_NWJS_MIRROR` | Where the runtimes of NW.js are downloaded from (`https://dl.nwjs.io` by default) |
+| `LAKUTATA_NWJS_VERSIONS` | The list of the releases of NW.js (`https://nwjs.io/versions.json` by default) |
 | `NO_COLOR` | Turns the colors off |
 
 The scripts and the applications the tool runs get the environment the tool was started with. The variables of the

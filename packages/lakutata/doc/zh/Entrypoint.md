@@ -56,6 +56,7 @@ Application.run(() => ({
 | `service` | `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io` | [ServiceCalls](ServiceCalls.md) |
 | `service` | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | `ws`（WebSocket 时） | [ServiceCalls](ServiceCalls.md) |
 | `service` | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | （Electron） | [ServiceCalls](ServiceCalls.md) |
+| `service` | `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | （NW.js） | [ServiceCalls](ServiceCalls.md) |
 | `service` | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | [GRPC](GRPC.md) |
 | `service` | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | [NATS](NATS.md) |
 | `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | | [Schedules](Schedules.md) |
@@ -165,7 +166,7 @@ Application.run(() => ({
 
 ## 6. 向客户端推送事件
 
-保持客户端连接的服务传输方式（Socket.IO、Electron、HTTP 服务的事件流、WebSocket 或 stdio 上的 JSON-RPC、gRPC）可以接收应用推送的事件。`entrypoint.notify(clientId, event, ...args)` 把事件发给一个客户端，即某个动作从 `this.context.clientId` 读到的那个客户端，返回客户端是否收到；`entrypoint.broadcast(event, ...args)` 发给所有已连接的客户端，返回客户端的数量。见 [GRPC](GRPC.md) 和 [ServiceCalls](ServiceCalls.md)。
+保持客户端连接的服务传输方式（Socket.IO、Electron、NW.js、HTTP 服务的事件流、WebSocket 或 stdio 上的 JSON-RPC、gRPC）可以接收应用推送的事件。`entrypoint.notify(clientId, event, ...args)` 把事件发给一个客户端，即某个动作从 `this.context.clientId` 读到的那个客户端，返回客户端是否收到；`entrypoint.broadcast(event, ...args)` 发给所有已连接的客户端，返回客户端的数量。见 [GRPC](GRPC.md) 和 [ServiceCalls](ServiceCalls.md)。
 
 ## 7. 定制入口
 

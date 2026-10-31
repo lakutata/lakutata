@@ -124,7 +124,7 @@ export const db = buildDatabaseOptions({
 
 - 外键约束是生效的（`PRAGMA foreign_keys = ON`）。只有一个连接：不支持 `poolSize`。
 - **`bigint` 列以数字返回**：超过 2^53 的值会丢失精度。这类值请存在文本列中。
-- `better-sqlite3` 是原生模块，针对某个 Node.js 版本编译。Electron 应用需要针对它的 Electron 版本的构建（`electron-rebuild`，或 better-sqlite3 为 Electron 提供的预编译文件）；Bun 无法加载它（在 Bun 上使用 `sqljs`）。
+- `better-sqlite3` 是原生模块，针对某个 Node.js 版本编译。Electron 应用需要针对它的 Electron 版本的构建（`electron-rebuild`，或 better-sqlite3 为 Electron 提供的预编译文件）；NW.js 应用会用 NW.js 的头文件重新构建它（需要 0.111.3 及以后的版本：更早的版本请使用 `sqljs`）；Bun 无法加载它（在 Bun 上使用 `sqljs`）。
 
 ## SQLite：sql.js
 

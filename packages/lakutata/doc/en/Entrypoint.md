@@ -60,6 +60,7 @@ The adapters:
 | `service` | `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io` | [ServiceCalls](ServiceCalls.md) |
 | `service` | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | `ws`, for WebSocket | [ServiceCalls](ServiceCalls.md) |
 | `service` | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) | [ServiceCalls](ServiceCalls.md) |
+| `service` | `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | (NW.js) | [ServiceCalls](ServiceCalls.md) |
 | `service` | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | [GRPC](GRPC.md) |
 | `service` | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | [NATS](NATS.md) |
 | `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | | [Schedules](Schedules.md) |
@@ -181,8 +182,8 @@ actions of any other transport (`getActions('schedule')`). Each action is descri
 
 ## 6. Pushing events to the clients
 
-The service transports that keep their clients connected (Socket.IO, Electron, the event stream of the HTTP service,
-JSON-RPC over WebSocket or stdio, gRPC) can receive events from the application.
+The service transports that keep their clients connected (Socket.IO, Electron, NW.js, the event stream of the HTTP
+service, JSON-RPC over WebSocket or stdio, gRPC) can receive events from the application.
 `entrypoint.notify(clientId, event, ...args)` sends an event to the client whose id an action found in
 `this.context.clientId`, and returns whether that client received it. `entrypoint.broadcast(event, ...args)` sends it to
 every connected client, and returns their number. See [GRPC](GRPC.md) and [ServiceCalls](ServiceCalls.md).

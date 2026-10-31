@@ -12,7 +12,7 @@
 
   在 Node.js 18 和 19 上，应用要用 commander 13、@inquirer/prompts 7 和 better-sqlite3 11：它们再往后的大版本需要 Node.js 20 或更高版本。
 
-  `lakutata create` 生成的项目声明的是 Node.js `>=22.13.0`，Web 模板和 Electron 模板用到的工具需要它。
+  `lakutata create` 生成的项目声明的是 Node.js `>=22.13.0`，Web 模板和桌面应用模板用到的工具需要它。
 - TypeScript，开启它的装饰器（`experimentalDecorators`）及其元数据（`emitDecoratorMetadata`）。框架所需的编译选项以 `lakutata/tsconfig.json` 发布；模板使用 TypeScript 6。
 - ES 模块（`"type": "module"`），和模板一样；包里同时也提供了 CommonJS 构建。
 
@@ -41,12 +41,13 @@ curl 'http://localhost:8080/example?name=you'
 | `web-react`、`web-vue` | 提供 React 或 Vue 单页应用（Vite）的 HTTP API |
 | `web-next`、`web-nuxt` | 在同一个进程中提供 Next.js 或 Nuxt 应用的 HTTP API |
 | `electron-react`、`electron-vue` | 桌面应用：Electron，主进程通过 IPC 为 React 或 Vue 渲染进程提供服务 |
+| `nwjs-react`、`nwjs-vue` | 桌面应用：NW.js，后台脚本为隔离在 webview 中的 React 或 Vue 用户界面提供服务 |
 
 ```bash
 npx @lakutata/cli create --name shop --template service --with i18n,installer
 ```
 
-`--with` 加入可选功能：所有模板都有 `i18n`（多语言消息），`cli`、`service` 和 `web-*` 模板还有 `installer`（安装包和系统服务）。在终端里没有给出 `--with` 时，工具会列出这些功能供选择。模板中的文件见 [ProjectStructure](ProjectStructure.md)，`lakutata create` 的选项见 [Command](Command.md)。
+`--with` 加入可选功能：所有模板都有 `i18n`（多语言消息），`cli`、`service` 和 `web-*` 模板还有 `installer`（安装包和系统服务），`nwjs-*` 模板还有 `win7`（能在 Windows 7 上运行的 NW.js 0.72）。在终端里没有给出 `--with` 时，工具会列出这些功能供选择。模板中的文件见 [ProjectStructure](ProjectStructure.md)，`lakutata create` 的选项见 [Command](Command.md)。
 
 `default` 模板的脚本：
 

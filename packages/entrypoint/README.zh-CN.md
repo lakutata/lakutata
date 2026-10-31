@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-lakutata 框架的入口：控制器及其动作，通过各种传输方式对外提供。一个控制器方法可以同时是 HTTP 路由、命令行命令、服务动作（通过 HTTP、Socket.IO、JSON-RPC、gRPC、NATS 或 Electron IPC 调用）和定时任务。无论通过哪种传输方式，请求都经过相同的中间件，输入由相同的 DTO 校验，适用的访问控制也相同。
+lakutata 框架的入口：控制器及其动作，通过各种传输方式对外提供。一个控制器方法可以同时是 HTTP 路由、命令行命令、服务动作（通过 HTTP、Socket.IO、JSON-RPC、gRPC、NATS、Electron IPC 或 NW.js 调用）和定时任务。无论通过哪种传输方式，请求都经过相同的中间件，输入由相同的 DTO 校验，适用的访问控制也相同。
 
 `lakutata` 包把它重新导出为 `lakutata/com/entrypoint`（组件、控制器、上下文和结果）、`lakutata/decorator/ctrl`（动作装饰器）和 `lakutata/adapter/*`（各种传输方式），并在每个应用中预置 `entrypoint` 组件。
 
@@ -22,6 +22,7 @@ npm install lakutata
 | 基于 Socket.IO 的服务调用 | `lakutata/adapter/socket.io` | `socket.io` |
 | 基于 JSON-RPC 2.0 的服务调用（HTTP、WebSocket、stdio） | `lakutata/adapter/jsonrpc` | 使用 WebSocket 时需要 `ws` |
 | 基于 Electron IPC 的服务调用 | `lakutata/adapter/electron` | （Electron） |
+| 向 NW.js 窗口提供的服务调用 | `lakutata/adapter/nwjs` | （NW.js） |
 | 基于 HTTP 的服务调用（`POST /`，事件通过 SSE 推送） | `lakutata/com/entrypoint` | 无 |
 | 定时任务（`@Schedule`） | `lakutata/com/entrypoint` | 无 |
 | 基于 gRPC / NATS 的服务调用 | `@lakutata/grpc/service` / `@lakutata/nats` | 它们各自的包 |

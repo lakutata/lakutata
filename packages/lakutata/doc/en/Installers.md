@@ -69,19 +69,19 @@ The installers are configured by `lakutata.installer` in the `package.json` of t
 | `description`, `homepage`, `license` | Those of the `package.json` | The information of the packages |
 | `maintainer` | The `author` of the `package.json` | Its maintainer (`Name <email>`); without one, the tool warns |
 | `vendor` | None | Its vendor; on Windows, the publisher is the vendor, else the maintainer |
-| `runtime` | `node` | `node` or `bun` for the executable; `electron` for an Electron application (section 8) |
+| `runtime` | `node` | `node` or `bun` for the executable; `electron` for an Electron application (section 8), `nwjs` for an NW.js application (section 9) |
 | `addToPath` | `true` | Put the program in the PATH: `/usr/bin/<program>` on Linux, `/usr/local/bin/<program>` on macOS, the PATH of the machine on Windows |
 | `service` | None | `true`, or the options of the service (section 4) |
 | `linux.targets` | `deb`, `rpm`, `tar.gz`; on Alpine `apk`, `tar.gz` | The Linux installers (`deb`, `rpm`, `archlinux`, `tar.gz`; `apk`, `tar.gz` on Alpine) |
 | `linux.depends`, `linux.recommends` | None | The system packages it needs and recommends (the C++ runtime library is always added) |
 | `linux.section`, `linux.priority` | None | Its section and its priority (deb) |
-| `mac.targets` | `pkg`, `tar.gz` | The macOS installers |
+| `mac.targets` | `pkg`, `tar.gz` | The macOS installers (`dmg` too, for an NW.js application) |
 | `win.targets` | `nsis`, `msi`, `zip` | The Windows installers |
 | `linux.scripts`, `mac.scripts`, `win.scripts`… | None | The scripts of the installers (section 5) |
 | `electron` | None | The configuration of electron-builder (section 8) |
 
 `lakutata.icon` (beside `lakutata.installer`) is a square PNG image of 256 pixels or more: the icon of the Windows
-executable and installers, and of the Electron applications.
+executable and installers, and of the Electron and NW.js applications.
 
 The configuration is checked before anything is built, the options of the installers that are not made included, and an
 error names the field:
@@ -203,8 +203,9 @@ fi
 
 ## 6. Signing
 
-- **macOS**: the `pkg` installers are not signed, and the program they install is signed ad hoc only. The Developer ID
-  signature and the notarization, which distribution outside the machines of the organization needs, are not made yet.
+- **macOS**: the `pkg` installers and the `dmg` images are not signed, and the program or the application they install
+  is signed ad hoc only. The Developer ID signature and the notarization, which distribution outside the machines of the
+  organization needs, are not made yet.
 - **Windows**: the NSIS and MSI installers are not signed: sign them with signtool before distributing them. The program
   made with Node.js keeps the signature of `node.exe`, which no longer matches, and the tool warns of it.
 - **Linux**: the packages are not signed.
@@ -279,3 +280,29 @@ and `electron-vue` templates are configured this way.
   ([NativeAddons](NativeAddons.md), section 4).
 - On Linux arm64, the deb and rpm packages need the fpm of the system (`gem install fpm`, `USE_SYSTEM_FPM=true`), as the
   `Dockerfile.installer` of the Electron templates installs it.
+
+## 9. NW.js applications
+
+With `"runtime": "nwjs"`, the installers hold an NW.js application made by the builder: the normal flavor of the NW.js
+of the application (its `lakutata.nwjs`, given by `lakutata nwjs use`), downloaded once into the cache of lakutata and
+checked against the checksums of its release, with the application in it: its bundle for the Node.js of that NW.js, its
+native addons, its resources (`lakutata.resources`, read through `resourcesPath()`) and the manifest of NW.js. The
+`nwjs-react` and `nwjs-vue` templates are configured this way.
+
+- **The runtime** is named after the application: on Windows, `<name>.exe`, whose icon and version information are
+  those of the application; on Linux, `<name>`; on macOS, `<productName>.app`, whose `Info.plist` gives its name, its
+  identifier (`appId`), its version and its icon, and which is signed again ad hoc.
+- **The installers** are those of a desktop application: `dmg` on macOS, `nsis` on Windows and `deb` on Linux by
+  default (also `pkg` and `tar.gz` on macOS, `msi` and `zip` on Windows, `rpm` and `tar.gz` on Linux). The Windows
+  installers add the application to the start menu and to the desktop; the `dmg` disk image holds it beside a link to
+  /Applications, where its user drags it, and the `pkg` package installs it there (an Intel application, on the Macs
+  of Apple silicon too); the Linux packages add its desktop entry and its icons, and depend on the libraries of
+  Chromium.
+- **The architecture** is the one of the machine, or the one of `--arch` (`x64`, `ia32`, `arm64`): `ia32` makes the
+  installers of 32-bit Windows, which install the application among the programs of 32 bits. A release of NW.js
+  without a build for the Macs of Apple silicon (0.72) is packaged for Intel.
+- **An NW.js application is not a service**, and is not put in the PATH (`addToPath` is `false` by default).
+- **The scripts** run as for the other applications, but a macOS application is removed by deleting it: no removal
+  script runs there.
+- **Native addons** are made to load in NW.js: built again for its architecture, or with its headers when they use the
+  V8 API, and, on Windows, given the Node.js of NW.js ([NativeAddons](NativeAddons.md), section 4).

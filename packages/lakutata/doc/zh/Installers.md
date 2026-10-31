@@ -56,18 +56,18 @@ npx lakutata package installer --target pkg     # 只制作其中几种
 | `description`、`homepage`、`license` | 取自 `package.json` | 软件包的信息 |
 | `maintainer` | `package.json` 的 `author` | 维护者（`Name <email>`）；没有时工具会发出警告 |
 | `vendor` | 无 | 供应商；在 Windows 上，发布者是供应商，没有时是维护者 |
-| `runtime` | `node` | 可执行文件用 `node` 或 `bun`；Electron 应用用 `electron`（第 8 节） |
+| `runtime` | `node` | 可执行文件用 `node` 或 `bun`；Electron 应用用 `electron`（第 8 节），NW.js 应用用 `nwjs`（第 9 节） |
 | `addToPath` | `true` | 把程序加入 PATH：Linux 上是 `/usr/bin/<program>`，macOS 上是 `/usr/local/bin/<program>`，Windows 上是机器的 PATH |
 | `service` | 无 | `true`，或服务的选项（第 4 节） |
 | `linux.targets` | `deb`、`rpm`、`tar.gz`；Alpine 上是 `apk`、`tar.gz` | Linux 的安装包（`deb`、`rpm`、`archlinux`、`tar.gz`；Alpine 上是 `apk`、`tar.gz`） |
 | `linux.depends`、`linux.recommends` | 无 | 依赖和推荐的系统软件包（总会加上 C++ 运行库） |
 | `linux.section`、`linux.priority` | 无 | 分类和优先级（deb） |
-| `mac.targets` | `pkg`、`tar.gz` | macOS 的安装包 |
+| `mac.targets` | `pkg`、`tar.gz` | macOS 的安装包（NW.js 应用还可以用 `dmg`） |
 | `win.targets` | `nsis`、`msi`、`zip` | Windows 的安装包 |
 | `linux.scripts`、`mac.scripts`、`win.scripts` 等 | 无 | 安装包执行的脚本（第 5 节） |
 | `electron` | 无 | electron-builder 的配置（第 8 节） |
 
-`lakutata.icon`（与 `lakutata.installer` 并列）是一张 256 像素或更大的正方形 PNG 图片：它是 Windows 可执行文件和安装程序的图标，也是 Electron 应用的图标。
+`lakutata.icon`（与 `lakutata.installer` 并列）是一张 256 像素或更大的正方形 PNG 图片：它是 Windows 可执行文件和安装程序的图标，也是 Electron 和 NW.js 应用的图标。
 
 配置在构建任何东西之前就会检查，不制作的那些安装包的选项也会检查，出错时会指出是哪个字段：
 
@@ -169,7 +169,7 @@ fi
 
 ## 6. 签名
 
-- **macOS**：`pkg` 安装包没有签名，它安装的程序也只有临时签名（ad hoc）。在组织以外的机器上分发所需要的 Developer ID 签名和公证，目前还不会制作。
+- **macOS**：`pkg` 安装包和 `dmg` 磁盘映像没有签名，它们安装的程序或应用也只有临时签名（ad hoc）。在组织以外的机器上分发所需要的 Developer ID 签名和公证，目前还不会制作。
 - **Windows**：NSIS 和 MSI 安装包没有签名，分发前请用 signtool 签名。用 Node.js 制作的程序保留着 `node.exe` 的签名，而这个签名已经不再匹配，工具会对此发出警告。
 - **Linux**：软件包没有签名。
 
@@ -230,3 +230,14 @@ jobs:
 - **脚本**在 `deb` 和 `rpm` 软件包（全部四种）、`pkg`（`preinstall`、`postinstall`）和 `nsis` 安装程序（`preinstall`、`postinstall`、`preremove`）中执行；其他目标都不执行。
 - **原生插件**按安装时的样子复制：electron-builder 不会重新构建它们。基于 Node-API 的插件可以直接运行；其他插件请在打包前安装它们为 Electron 构建的版本（`electron-rebuild`）（见 [NativeAddons](NativeAddons.md) 第 4 节）。
 - 在 Linux arm64 上，deb 和 rpm 软件包需要系统中的 fpm（`gem install fpm`、`USE_SYSTEM_FPM=true`），Electron 模板的 `Dockerfile.installer` 就是这样安装它的。
+
+## 9. NW.js 应用
+
+使用 `"runtime": "nwjs"` 时，安装包里是由构建器制作的 NW.js 应用：应用所用 NW.js 版本（它的 `lakutata.nwjs`，由 `lakutata nwjs use` 设置）的 normal 版本，只下载一次到 lakutata 的缓存目录，并按其发布版本的校验和核对；应用放在其中，包括为这个 NW.js 的 Node.js 打包的代码、原生插件、资源（`lakutata.resources`，通过 `resourcesPath()` 读取）和 NW.js 的清单。`nwjs-react` 和 `nwjs-vue` 模板就是这样配置的。
+
+- **运行时**以应用的名字命名：Windows 上是 `<name>.exe`，图标和版本信息都是应用的；Linux 上是 `<name>`；macOS 上是 `<productName>.app`，它的 `Info.plist` 给出应用的名称、标识（`appId`）、版本和图标，并重新做临时签名。
+- **安装包**是桌面应用的安装包：默认 macOS 上是 `dmg`，Windows 上是 `nsis`，Linux 上是 `deb`（macOS 上还可以用 `pkg` 和 `tar.gz`，Windows 上可以用 `msi` 和 `zip`，Linux 上可以用 `rpm` 和 `tar.gz`）。Windows 的安装程序把应用加到开始菜单和桌面；`dmg` 磁盘映像里是应用和一个指向 /Applications 的链接，用户把应用拖过去即可，`pkg` 安装包则直接把它装到那里（Intel 版的应用也可以装到 Apple 芯片的 Mac 上）；Linux 的软件包会添加应用的桌面入口和图标，并依赖 Chromium 所需的库。
+- **架构**默认是本机的架构，也可以用 `--arch` 指定（`x64`、`ia32`、`arm64`）：`ia32` 制作 32 位 Windows 的安装包，应用安装在 32 位程序的目录中。没有 Apple 芯片 Mac 构建的 NW.js 版本（如 0.72），会打包成 Intel 版。
+- **NW.js 应用不是服务**，也不会加入 PATH（`addToPath` 默认为 `false`）。
+- **脚本**和其他应用一样执行，只是 macOS 上的应用是直接删除的：那里不会执行卸载脚本。
+- **原生插件**会被处理成能在 NW.js 中加载：为它的架构重新构建，使用 V8 API 的插件用它的头文件重新构建；在 Windows 上，插件加载的是 NW.js 的 Node.js（见 [NativeAddons](NativeAddons.md) 第 4 节）。

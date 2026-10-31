@@ -176,7 +176,7 @@
         "run": {
           "description": "在 NW.js 里运行当前目录下编译好的应用（默认带开发者工具）",
           "arguments": {
-            "args": "传给应用的参数，写在 -- 之后（lakutata nwjs run -- --renderer=http://localhost:5173）"
+            "args": "传给应用的参数，写在 -- 之后（lakutata nwjs run -- --ui=http://localhost:5173）"
           },
           "options": {
             "release": "运行的 NW.js 版本：具体的版本号、latest 或 win7（默认是 lakutata.nwjs 里的版本）",

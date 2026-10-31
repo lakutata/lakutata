@@ -6,7 +6,7 @@ The builder for lakutata applications. The `package bundle`, `package exe` and `
 `@lakutata/cli` use it, and a project's scripts can call it directly:
 
 ```js
-import {buildExecutable, buildInstaller, bundleProject} from '@lakutata/builder'
+import {buildExecutable, buildInstaller, buildNwjsApp, bundleProject} from '@lakutata/builder'
 
 //dist/<name>.cjs, run by node, with its native addons and its resources next to it
 await bundleProject({project: process.cwd()})
@@ -16,6 +16,8 @@ await buildExecutable({project: process.cwd(), runtime: 'node', layout: 'directo
 //dist/installer: the installers for the current platform (deb, rpm, apk, archlinux, tar.gz on Linux; pkg, tar.gz on
 //macOS; nsis, msi, zip on Windows), which also register the application's service when it declares one
 await buildInstaller({project: process.cwd()})
+//An NW.js application (its version in lakutata.nwjs): dist/nwjs/<name>-<build>, the runtime of NW.js named after it
+await buildNwjsApp({project: process.cwd()})
 ```
 
 The builder works on the compiled application: build the project with `tsc` first, since `tsc` emits the decorator
@@ -28,6 +30,14 @@ result. At run time, `resourcesPath()` from lakutata locates the application's r
 `lakutata.resources` in its `package.json`. The installers are configured by `lakutata.installer` in the same file. See
 `lakutata package bundle`, `lakutata package exe` and `lakutata package installer` in the `@lakutata/cli`
 documentation.
+
+The NW.js applications run in the version of NW.js of their `lakutata.nwjs`. `nwjsReleases()` lists the releases of
+NW.js, `downloadNwjs()` downloads a runtime into the cache (checked against the checksums of its release), and
+`stageNwjsApp()` makes the application for NW.js: its bundle for the Node.js of that NW.js, its native addons made to
+load in it (built again for its architecture, or with its headers when they use the V8 API; on Windows, given the
+Node.js of NW.js), its resources and the manifest of NW.js. `buildNwjsApp()` puts it into the normal flavor of NW.js
+named after the application, and `buildInstaller()` makes its installers with `"runtime": "nwjs"` (the installers of a
+desktop application: dmg on macOS, nsis on Windows, deb on Linux by default).
 
 The Linux installers are tested in containers (Docker): `npm run test:installer` builds them on Debian and Alpine, then
 installs, upgrades and removes them on Debian and Fedora (systemd) and on Alpine (OpenRC). The macOS installers are

@@ -3,8 +3,8 @@
 English | [中文](README.zh-CN.md)
 
 The entrypoint of the lakutata framework: controllers and their actions, served by transports. One controller method
-can be an HTTP route, a CLI command, a service action (called over HTTP, Socket.IO, JSON-RPC, gRPC, NATS or Electron
-IPC) and a scheduled job at the same time. Whatever the transport, a request goes through the same middlewares, its
+can be an HTTP route, a CLI command, a service action (called over HTTP, Socket.IO, JSON-RPC, gRPC, NATS, Electron IPC
+or NW.js) and a scheduled job at the same time. Whatever the transport, a request goes through the same middlewares, its
 input is validated by the same DTO, and the same access control applies.
 
 The umbrella package `lakutata` re-exports it as `lakutata/com/entrypoint` (the component, controllers, contexts and
@@ -27,6 +27,7 @@ The transports rely on optional peer dependencies, which you install only when y
 | Service over Socket.IO | `lakutata/adapter/socket.io` | `socket.io` |
 | Service over JSON-RPC 2.0 (HTTP, WebSocket, stdio) | `lakutata/adapter/jsonrpc` | `ws` for WebSocket |
 | Service over Electron IPC | `lakutata/adapter/electron` | (Electron) |
+| Service to the windows of NW.js | `lakutata/adapter/nwjs` | (NW.js) |
 | Service over HTTP (`POST /`, events by SSE) | `lakutata/com/entrypoint` | none |
 | Schedules (`@Schedule`) | `lakutata/com/entrypoint` | none |
 | Service over gRPC / NATS | `@lakutata/grpc/service` / `@lakutata/nats` | their packages |

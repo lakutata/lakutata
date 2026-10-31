@@ -136,6 +136,7 @@ npx lakutata package exe --runtime bun     # 使用 Bun
 | 可执行文件，单文件布局 | `true` | 资源解压到的目录 |
 | 可执行文件，目录布局，或已安装的应用 | `true` | 可执行文件旁边的 `resources` |
 | 打包后的 Electron 应用 | `true` | Electron 资源目录中的 `main.resources` |
+| NW.js 应用（由 `lakutata nwjs run` 运行，或已打包） | `true` | 应用目录中的 `resources` |
 
 即使应用没有声明资源，`resourcesPath()` 也会返回路径，所以这个目录可能不存在。应用自己决定从哪里读取文件：
 

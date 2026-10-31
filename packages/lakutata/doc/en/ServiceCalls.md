@@ -2,8 +2,8 @@
 
 A service action (`@ServiceAction`) is called with a message rather than a URL: an object whose keys select the action,
 its **pattern**, and whose other keys are the input. The same actions can be served over several transports at once:
-plain HTTP, Socket.IO, JSON-RPC 2.0 (over HTTP, WebSocket or the standard input and output) and the IPC of Electron, as
-this guide describes, and gRPC, NATS and the data channels of WebRTC, which have their own guides. The controllers and
+plain HTTP, Socket.IO, JSON-RPC 2.0 (over HTTP, WebSocket or the standard input and output), the IPC of Electron and the
+windows of NW.js, as this guide describes, and gRPC, NATS and the data channels of WebRTC, which have their own guides. The controllers and
 their actions are described in [Controllers](Controllers.md), the entrypoint and its adapters in
 [Entrypoint](Entrypoint.md).
 
@@ -136,7 +136,7 @@ class OrderController extends Controller {
 
 ## 3. The response
 
-The HTTP service, Socket.IO and Electron answer with an envelope; JSON-RPC answers with its own responses (section 4).
+The HTTP service, Socket.IO, Electron and NW.js answer with an envelope; JSON-RPC answers with its own responses (section 4).
 
 ```text
 {"success": true, "error": null, "payload": <the result>}
@@ -179,6 +179,7 @@ export async function call<T>(message: Record<string, unknown>): Promise<T> {
 | `socketIOServiceEntrypoint()` | `lakutata/adapter/socket.io` | `socket.io` (`socket.io-client` on the clients) | An emit with an acknowledgement | Socket.IO events |
 | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | `ws`, for WebSocket | A JSON-RPC 2.0 request | Notifications (WebSocket, stdio) |
 | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | (Electron) | `ipcRenderer.invoke()` | IPC messages |
+| `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | (NW.js) | A call of its bridge, by the host page of a window | Calls of the function the host page gives |
 | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | See [GRPC](GRPC.md) | gRPC streams |
 | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | See [NATS](NATS.md) | NATS messages |
 | `webrtcServiceEntrypoint()` | `@lakutata/webrtc` | `@lakutata/webrtc` | A JSON-RPC 2.0 request on a data channel, see [WebRTC](WebRTC.md) | Notifications |
@@ -468,6 +469,47 @@ contextBridge.exposeInMainWorld('service', {
 - The Electron templates of `lakutata create` contain a preload script of this shape, and a `window.ipc` for the pages,
   whose `invoke()` returns the payload or throws the error.
 
+### NW.js
+
+`nwjsServiceEntrypoint()` serves the actions to the windows of an NW.js application, in its background script (its
+Node.js context). NW.js gives Node.js to the pages of its windows, and an iframe of such a page does not keep Node.js
+from its content (its sandbox is ignored): the user interface runs in a `<webview>`, without Node.js, held by a trusted
+page of the window (its host page). The adapter puts a bridge on the global object that NW.js shares with its windows,
+`global[Symbol.for(key)]`; the host page forwards the requests of the interface to it, and gives it the function that
+pushes the events to the interface.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `key` | `'lakutata:service'` (`NWJS_SERVICE_BRIDGE`) | The key of the bridge on the global object |
+| `global` | the global object of NW.js | The object the bridge is put on, or a stand-in in the tests |
+
+| Method of the bridge | Meaning |
+|---|---|
+| `invoke(message, clientId)` | Invokes an action: resolves to the envelope, never rejects |
+| `subscribe(clientId, push)` | Makes a page a client: the events pushed to it are given to `push(event, args)` |
+| `unsubscribe(clientId)` | Removes a client, when its page is loaded again or its window closed: its requests in progress are aborted |
+
+The host page forwards the messages of the interface, from the page loaded in its `<webview>` only:
+
+```javascript
+const view = document.querySelector('webview')
+const origin = new URL(view.src).origin
+const bridge = global[Symbol.for('lakutata:service')]
+const send = (message) => view.contentWindow.postMessage(message, origin)
+window.addEventListener('message', async (event) => {
+    if (event.source !== view.contentWindow || event.origin !== origin) return
+    const {type, id, message, clientId} = event.data
+    if (type === 'invoke') send({type: 'response', id: id, response: await bridge.invoke(message, clientId)})
+    if (type === 'subscribe') bridge.subscribe(clientId, (name, args) => send({type: 'event', name: name, args: args}))
+})
+```
+
+- The `<webview>` loads the files of the application when its partition is declared in the manifest of NW.js:
+  `"webview": {"partitions": [{"name": "trusted", "accessible_resources": ["<all_urls>"]}]}` (the builder writes it).
+- A page loaded again in the `<webview>` is a new client: the host page unsubscribes the previous one.
+- The NW.js templates of `lakutata create` contain such a host page (`packages/app/host`), and a `window.ipc` for the
+  interface like the one of the Electron templates.
+
 ## 5. Clients and events
 
 The transports that keep their clients connected can push events to them. A client is identified by the id it gives:
@@ -480,6 +522,7 @@ The transports that keep their clients connected can push events to them. A clie
 | JSON-RPC over WebSocket | The `id` header or `id` query parameter of the connection, else a random id |
 | JSON-RPC over stdio | `'stdio'` |
 | Electron | The id the page gives when it subscribes or invokes |
+| NW.js | The id the host page gives to the bridge for its page |
 | WebRTC | The member id of the caller in its room |
 
 An action reads the id of its client in `this.context.clientId`. The `entrypoint` component pushes the events:
@@ -515,6 +558,7 @@ A client receives `notify(clientId, 'progress', 50, 'half')` as:
 | Socket.IO | `socket.on('progress', (percent, label) => …)` |
 | JSON-RPC (WebSocket, stdio) | `{"jsonrpc": "2.0", "method": "progress", "params": [50, "half"]}` |
 | Electron | `('progress', [50, 'half'])`, through the `subscribe` of the preload script above |
+| NW.js | `('progress', [50, 'half'])`, given to the function of the `subscribe` of the bridge |
 | WebRTC | `proxy.on('progress', (percent, label) => …)` of a `PeerServiceProxy` |
 
 ## 6. Stopping and leaving

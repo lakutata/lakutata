@@ -24,7 +24,7 @@ lakutata create --name my-app
 | `--path <directory>` | 在哪个目录中创建项目目录，默认是当前目录 |
 | `--init` | 直接在 `--path` 目录中创建项目。这个目录必须已经存在，里面可以有文件：已有的文件会保留（模板中也有的那些会在警告中列出，需要手动合并），只有新写入的文件会填入项目的信息 |
 | `--description`、`--author`、`--license` | 应用的信息 |
-| `--with <features>` | 要启用的模板可选功能，用逗号分隔（`lakutata templates` 会列出）：`i18n`、`installer`。在终端里，如果没有给出 `--with` 或 `--yes`，会让你从列表中选择 |
+| `--with <features>` | 要启用的模板可选功能，用逗号分隔（`lakutata templates` 会列出）：`i18n`、`installer`、`win7`。在终端里，如果没有给出 `--with` 或 `--yes`，会让你从列表中选择 |
 | `--package-manager <npm\|pnpm\|yarn\|none>` | 安装依赖所用的包管理器（`none` 表示不安装）：默认是 npm，由 pnpm 或 yarn 启动工具时用对应的那个 |
 | `--no-git` | 不初始化 git 仓库 |
 | `--yes` | 直接创建项目，不询问可选功能，也不要求确认 |
@@ -34,7 +34,7 @@ lakutata create --name my-service --template service --package-manager pnpm --ye
 lakutata create --name my-service --template service --with i18n --yes
 ```
 
-每个官方模板都有 `i18n` 功能：应用的多语言消息（`lakutata/com/i18n`），放在 `src/locales` 中（`en.json`、`zh-CN.json`），并随代码一起打包。应用按每个请求的语言回复，校验错误也一样（命令行工具和 Electron 应用使用运行环境的语言）。这个功能还会加上 `i18n:check` 和 `i18n:types` 脚本。`cli`、`service` 和 `web-*` 模板还有 `installer` 功能：应用的 `lakutata.installer` 配置，以及制作安装包的脚本（在本机制作，以及在 Docker 中制作 Linux 的安装包）；在 `service` 和 `web-*` 模板中，这个功能还包括一个系统服务。
+每个官方模板都有 `i18n` 功能：应用的多语言消息（`lakutata/com/i18n`），放在 `src/locales` 中（`en.json`、`zh-CN.json`），并随代码一起打包。应用按每个请求的语言回复，校验错误也一样（命令行工具和桌面应用使用运行环境的语言）。这个功能还会加上 `i18n:check` 和 `i18n:types` 脚本。`cli`、`service` 和 `web-*` 模板还有 `installer` 功能：应用的 `lakutata.installer` 配置，以及制作安装包的脚本（在本机制作，以及在 Docker 中制作 Linux 的安装包）；在 `service` 和 `web-*` 模板中，这个功能还包括一个系统服务。`nwjs-*` 模板有 `win7` 功能：用 NW.js 0.72.0（最后一个能在 Windows 7、8 和 8.1 上运行的版本）代替模板发布时的版本，并加上制作 32 位 Windows 安装包的脚本。
 
 ### `lakutata templates`
 
@@ -242,12 +242,12 @@ macOS 的可执行文件使用临时签名（ad hoc）。用 Node.js 制作的 W
 | `productName` | 显示给用户的名称（在安装程序中，以及 Windows 的程序列表中），默认取 `package.json` 的 `productName`，没有时取名称 |
 | `description`、`maintainer`、`homepage`、`license` | 默认取自 `package.json`（维护者是它的作者） |
 | `vendor` | 供应商，默认没有（在 Windows 上，发布者是供应商，没有时是维护者） |
-| `runtime` | 可执行文件的运行时：`node`（默认）或 `bun`；Electron 应用用 `electron`（见下文） |
-| `addToPath` | 把程序加入 PATH（`/usr/bin/<program>`，macOS 上是 `/usr/local/bin/<program>`；Windows 上是机器的 PATH），默认 `true` |
+| `runtime` | 可执行文件的运行时：`node`（默认）或 `bun`；Electron 应用用 `electron`，NW.js 应用用 `nwjs`（见下文） |
+| `addToPath` | 把程序加入 PATH（`/usr/bin/<program>`，macOS 上是 `/usr/local/bin/<program>`；Windows 上是机器的 PATH），默认 `true`（NW.js 应用默认 `false`） |
 | `service` | `true` 或服务的选项（见下文），默认没有 |
 | `linux.targets` | glibc 系统上可以是 `deb`、`rpm`、`archlinux`、`tar.gz`（默认 `deb`、`rpm`、`tar.gz`）；Alpine（musl）上是 `apk`、`tar.gz` |
 | `linux.depends`、`linux.recommends`、`linux.section`、`linux.priority` | 依赖和推荐的系统软件包、分类和优先级（deb） |
-| `mac.targets` | `pkg`、`tar.gz`（默认两种都制作） |
+| `mac.targets` | `pkg`、`tar.gz`（默认两种都制作）；NW.js 应用还可以用 `dmg` |
 | `win.targets` | `nsis`、`msi`、`zip`（默认全部制作） |
 | `electron` | Electron 应用的 electron-builder 配置，合并到由这些选项生成的配置之上 |
 
@@ -313,11 +313,35 @@ Electron 应用（`"runtime": "electron"`）的安装包由 electron-builder 制
 
 在 Linux arm64 上，fpm 软件包需要系统中的 fpm（`gem install fpm`、`USE_SYSTEM_FPM=true`），因为 electron-builder 下载的那个是为 x64 构建的。在 Windows arm64 上，NSIS 安装程序用 BCJ 过滤器压缩可执行文件（`ELECTRON_BUILDER_7Z_FILTER`），因为 7-Zip 默认会选用 ARM64 过滤器，而 NSIS 安装程序无法解压用它压缩的文件。
 
+NW.js 应用（`"runtime": "nwjs"`）的安装包里是它所用 NW.js（`lakutata nwjs use`，见下文）的 normal 版本，以应用的名字命名，应用放在其中：为这个 NW.js 的 Node.js 打包的代码、处理成能在其中加载的原生插件、资源和 NW.js 的清单。Windows 上的可执行文件是 `<name>.exe`，带有应用的图标和版本信息；macOS 上的应用包是 `<productName>.app`，它的 `Info.plist` 给出应用的名称、`appId`、版本和图标（并重新做临时签名）。它的安装包是桌面应用的安装包，默认 Linux 上是 `deb`，macOS 上是 `dmg`，Windows 上是 `nsis`：Windows 的安装程序（`nsis`、`msi`）把应用加到开始菜单和桌面，`dmg` 磁盘映像里是应用和一个指向 /Applications 的链接，`pkg` 安装包把应用装到那里，Linux 的软件包（`deb`、`rpm`）添加应用的桌面入口和图标，并依赖 Chromium 所需的库。`--arch` 为本机以外的架构制作安装包（`ia32`：32 位 Windows）。NW.js 应用不是服务；它的脚本和其他应用一样执行（macOS 上的应用是直接删除的，没有卸载脚本）。
+
 | 命令选项 | |
 |---|---|
 | `--target <targets...>` | 要制作的安装包，默认是配置中的那些 |
 | `--outdir <directory>` | 安装包的输出目录，默认 `dist/installer` |
 | `--entry`、`--no-minify`、`--external` | 与 `lakutata package exe` 相同 |
+| `--arch <arch>` | NW.js 应用的架构（`x64`、`ia32`、`arm64`），默认是本机的架构 |
+
+## NW.js
+
+NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 中指定的 NW.js 版本里：`"lakutata": {"nwjs": {"version": "0.119.2"}}`。NW.js 的运行时只下载一次到 lakutata 的缓存目录（从 `https://dl.nwjs.io` 下载，或者从 `LAKUTATA_NWJS_MIRROR` 指定的镜像下载），并按其发布版本的校验和核对。lakutata 支持内置 Node.js 为 18.10 或更高版本的 NW.js。
+
+### `lakutata nwjs versions`
+
+列出 lakutata 支持的 NW.js 版本，从新到旧：发布日期、内置的 Node.js 和 Chromium、提供的构建，并标出最新版本和最后一个能在 Windows 7 上运行的版本（`win7`，0.72.0）。默认列出最新的十个版本和 Windows 7 的那个版本，`--all` 列出全部。版本列表（`https://nwjs.io/versions.json`，或者 `LAKUTATA_NWJS_VERSIONS` 指定的列表）缓存一天。
+
+### `lakutata nwjs use <version>`
+
+为当前目录的应用设置 NW.js 版本：某个版本（`0.119.2`）、`latest` 或 `win7`，以具体的版本号写进 `package.json` 的 `lakutata.nwjs`。它同时写入 `nwjs.json`，即这个版本及其内置的 Node.js 和 Chromium，模板里用户界面的构建会读取它，以这个 Chromium 为目标；命令还会给出这个版本能运行的系统。`--download` 立即为本机下载它的 sdk 版本。
+
+### `lakutata nwjs run [args...]`
+
+在 NW.js 中运行当前目录下编译好的应用：应用先被打包到 `.nwjs/app`，以这个 NW.js 的 Node.js 为目标，带上资源和处理成能在其中加载的原生插件，然后带着 `--` 之后的参数运行（`lakutata nwjs run -- --ui=http://localhost:5173`）。NW.js 退出时命令结束；命令被终止时，NW.js 也会随之结束。
+
+| 选项 | |
+|---|---|
+| `--release <version>` | 运行的 NW.js 版本（某个版本、`latest`、`win7`），默认是 `lakutata.nwjs` 中的版本 |
+| `--flavor <sdk\|normal>` | `sdk`（默认：带 DevTools）或 `normal`（安装包中的版本） |
 
 ## 迁移
 
@@ -367,6 +391,8 @@ Electron 应用（`"runtime": "electron"`）的安装包由 electron-builder 制
 | `LAKUTATA_NPM_REGISTRY` | 下载模板的 npm 仓库（默认取 `npm_config_registry`，否则为 `https://registry.npmjs.org`） |
 | `LAKUTATA_GITHUB_DOWNLOAD` | 下载 `github:` 模板所用的 GitHub 镜像（默认 `https://github.com`） |
 | `LAKUTATA_CACHE_DIR` | 缓存目录（默认 `$XDG_CACHE_HOME/lakutata`，否则为 `~/.cache/lakutata`） |
+| `LAKUTATA_NWJS_MIRROR` | NW.js 运行时的下载地址（默认 `https://dl.nwjs.io`） |
+| `LAKUTATA_NWJS_VERSIONS` | NW.js 的发布版本列表（默认 `https://nwjs.io/versions.json`） |
 | `LAKUTATA_LANG` | 工具的语言（`zh-CN`、`zh-TW`、`en`），默认取环境的语言 |
 
 这个工具本身也是一个 lakutata 应用：它的命令就是其控制器的命令行动作，由入口的 commander 适配器提供。
