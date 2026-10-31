@@ -14,7 +14,7 @@
 
 </div>
 
-Lakutata 让 Web 服务、命令行工具、桌面（Electron）应用和嵌入式设备共用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、控制器）；DTO 校验对象的选项和动作的输入；各种传输方式把控制器暴露出去：HTTP（Express、Fastify）、命令行（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC）、MCP、D-Bus、定时任务和消息队列。同一个控制器方法可以同时通过其中几种方式调用。
+Lakutata 让 Web 服务、命令行工具、桌面（Electron、NW.js）应用和嵌入式设备共用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、控制器）；DTO 校验对象的选项和动作的输入；各种传输方式把控制器暴露出去：HTTP（Express、Fastify）、命令行（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC、NW.js）、MCP、D-Bus、定时任务和消息队列。同一个控制器方法可以同时通过其中几种方式调用。
 
 ## 快速开始
 
@@ -26,7 +26,7 @@ npm run dev
 curl 'http://localhost:8080/example?name=you'     # {"message":"Hello, you!"}
 ```
 
-Lakutata 需要 Node.js 18.10 或更高版本（`>=18.10.0`）。`lakutata create` 的模板可以生成 Web 服务、命令行工具、带 React、Vue、Next.js 或 Nuxt 界面的 HTTP API，或者 Electron 应用。手写的应用是这样的：
+Lakutata 需要 Node.js 18.10 或更高版本（`>=18.10.0`）。`lakutata create` 的模板可以生成 Web 服务、命令行工具、带 React、Vue、Next.js 或 Nuxt 界面的 HTTP API，或者基于 Electron 或 NW.js 的桌面应用。手写的应用是这样的：
 
 ```typescript
 import {Application, DTO} from 'lakutata'

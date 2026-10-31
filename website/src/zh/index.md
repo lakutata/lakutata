@@ -24,7 +24,7 @@ features:
   - title: 依赖注入
     details: 容器负责创建组件、提供者、模块和控制器，管理它们的生命周期并校验选项。对象可以异步构造，在被使用之前先完成连接或加载。
   - title: 一个控制器，所有传输方式
-    details: 同一个方法可以同时暴露为 HTTP 路由、CLI 命令、服务调用（Socket.IO、JSON-RPC、gRPC、NATS、Electron IPC）、定时任务和队列消费者。无论走哪种方式，输入校验、访问控制和中间件都一样。
+    details: 同一个方法可以同时暴露为 HTTP 路由、CLI 命令、服务调用（Socket.IO、JSON-RPC、gRPC、NATS、Electron IPC、NW.js）、定时任务和队列消费者。无论走哪种方式，输入校验、访问控制和中间件都一样。
   - title: 处处校验
     details: DTO 校验选项、输入和返回值，可以转换为 JSON Schema，并给出带类型的错误。
   - title: 开箱即用

@@ -19,9 +19,9 @@ English | [中文](README.zh-CN.md)
 # lakutata
 
 An IoC-based application framework for Node.js and TypeScript, with one programming model for web services, CLI tools,
-desktop (Electron) applications and embedded devices. An application is a tree of objects (components, providers,
+desktop (Electron, NW.js) applications and embedded devices. An application is a tree of objects (components, providers,
 controllers) that a container creates. DTOs validate their options and inputs, and transports expose the controllers:
-HTTP (Express, Fastify), CLI (Commander), service RPC (HTTP, Socket.IO, JSON-RPC 2.0, gRPC, NATS, Electron IPC),
+HTTP (Express, Fastify), CLI (Commander), service RPC (HTTP, Socket.IO, JSON-RPC 2.0, gRPC, NATS, Electron IPC, NW.js),
 schedules and message queues. One controller method can serve all of them at once.
 
 This package is the framework itself: it re-exports the `@lakutata/*` packages under the subpaths listed below and
@@ -31,7 +31,7 @@ declaration with examples, and each `@lakutata/*` package has its own README.
 ## Installation
 
 ```shell
-npx @lakutata/cli create --name my-app   # a new project from a template (web, service, CLI, Electron…)
+npx @lakutata/cli create --name my-app   # a new project from a template (web, service, CLI, Electron, NW.js…)
 npm install lakutata                      # or the framework in an existing project
 ```
 
@@ -108,7 +108,7 @@ Application
 | `lakutata/decorator/ctrl` | `@lakutata/entrypoint` | `@HTTPAction`, `@GET`…`@OPTIONS`, `@CLIAction`, `@ServiceAction`, `@Schedule`, `@Prefix`, `@UseMiddlewares` |
 | `lakutata/adapter/express`, `lakutata/adapter/fastify` | `@lakutata/entrypoint` | The HTTP transports, `staticUI` (Express only) |
 | `lakutata/adapter/commander` | `@lakutata/entrypoint` | The CLI transport |
-| `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron` | `@lakutata/entrypoint` | The service transports |
+| `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron`, `lakutata/adapter/nwjs` | `@lakutata/entrypoint` | The service transports |
 | `lakutata/com/logger` | `@lakutata/logger` | The `Logger` component preset as `log` (pino-compatible JSON lines) |
 | `lakutata/orm`, `lakutata/decorator/orm` | `@lakutata/orm` | TypeORM, its decorators |
 | `lakutata/com/database`, `lakutata/provider/database` | `@lakutata/orm` | The `Database` component and provider, the migration commands |

@@ -159,7 +159,7 @@ The middleware reads the languages a request asks for, preferred first, negotiat
 | HTTP (Express, Fastify) | The query parameter `?lang=`, the cookie `lang`, then `Accept-Language` (by quality) |
 | Socket.IO | The query parameter `lang`, the cookie `lang` and `Accept-Language` of the connection handshake |
 | HTTP service adapter, JSON-RPC adapter (HTTP, WebSocket) | The query parameter `lang`, the cookie `lang` and `Accept-Language` of the HTTP request (for WebSocket, of the request that opened the connection) |
-| Command line, Electron IPC, JSON-RPC over stdio | The variable named by `environmentVariable` (none by default), `LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG`, then the process's language |
+| Command line, Electron IPC, NW.js, JSON-RPC over stdio | The variable named by `environmentVariable` (none by default), `LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, `LANG`, then the process's language |
 | Schedules | None: the default language |
 
 A query or cookie value that is not a language tag is skipped. Negotiation tries each requested language in turn: the

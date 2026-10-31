@@ -134,7 +134,7 @@ Application.run(() => ({
 | HTTP（Express、Fastify） | Query 参数 `?lang=`、Cookie `lang`，然后是 `Accept-Language`（按权重） |
 | Socket.IO | 连接握手时的 Query 参数 `lang`、Cookie `lang` 和 `Accept-Language` |
 | HTTP 服务适配器、JSON-RPC 适配器（HTTP、WebSocket） | HTTP 请求（WebSocket 为建立连接的请求）的 Query 参数 `lang`、Cookie `lang` 和 `Accept-Language` |
-| 命令行、Electron IPC、stdio 上的 JSON-RPC | `environmentVariable` 指定的环境变量（默认没有）、`LANGUAGE`、`LC_ALL`、`LC_MESSAGES`、`LANG`，最后是进程的语言 |
+| 命令行、Electron IPC、NW.js、stdio 上的 JSON-RPC | `environmentVariable` 指定的环境变量（默认没有）、`LANGUAGE`、`LC_ALL`、`LC_MESSAGES`、`LANG`，最后是进程的语言 |
 | 定时任务 | 无：使用默认语言 |
 
 不是语言标签的 Query 参数或 Cookie 值会被跳过。协商时依次尝试请求的每一种语言：先找完全相同的标签，再找只有语言部分的标签（`en-GB` 得到 `en`），再找同一语言的其他标签（`pt-PT` 得到 `pt-BR`，按支持的语言的顺序）。

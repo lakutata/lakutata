@@ -15,11 +15,11 @@ An IoC application framework for Node.js and TypeScript
 
 </div>
 
-Lakutata gives web services, command line tools, desktop (Electron) applications and embedded devices one programming
-model. An application is a tree of objects (components, providers, controllers) that a container creates; DTOs validate
-the options of the objects and the input of the actions; and transports expose the controllers over HTTP (Express,
-Fastify), the command line (Commander), service calls (HTTP, Socket.IO, JSON-RPC 2.0, gRPC, NATS, Electron IPC), MCP,
-D-Bus, schedules and message queues. One controller method can serve several of them at once.
+Lakutata gives web services, command line tools, desktop (Electron, NW.js) applications and embedded devices one
+programming model. An application is a tree of objects (components, providers, controllers) that a container creates;
+DTOs validate the options of the objects and the input of the actions; and transports expose the controllers over HTTP
+(Express, Fastify), the command line (Commander), service calls (HTTP, Socket.IO, JSON-RPC 2.0, gRPC, NATS, Electron
+IPC, NW.js), MCP, D-Bus, schedules and message queues. One controller method can serve several of them at once.
 
 ## Quick start
 
@@ -32,8 +32,8 @@ curl 'http://localhost:8080/example?name=you'     # {"message":"Hello, you!"}
 ```
 
 Lakutata needs Node.js 18.10 or later (`>=18.10.0`). The templates of `lakutata create` give you a web service, a
-command line tool, an HTTP API with a React, Vue, Next.js or Nuxt interface, or an Electron application. An application
-written by hand looks like this:
+command line tool, an HTTP API with a React, Vue, Next.js or Nuxt interface, or an Electron or NW.js desktop
+application. An application written by hand looks like this:
 
 ```typescript
 import {Application, DTO} from 'lakutata'

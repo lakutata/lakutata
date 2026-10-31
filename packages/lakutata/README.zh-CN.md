@@ -18,14 +18,14 @@
 
 # lakutata
 
-一个基于 IoC 的 Node.js 和 TypeScript 应用框架，让 Web 服务、命令行工具、桌面（Electron）应用和嵌入式设备共用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、控制器）。DTO 校验对象的选项和输入，各种传输方式把控制器暴露出去：HTTP（Express、Fastify）、CLI（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC）、定时任务和消息队列。同一个控制器方法可以同时通过所有这些方式调用。
+一个基于 IoC 的 Node.js 和 TypeScript 应用框架，让 Web 服务、命令行工具、桌面（Electron、NW.js）应用和嵌入式设备共用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、控制器）。DTO 校验对象的选项和输入，各种传输方式把控制器暴露出去：HTTP（Express、Fastify）、CLI（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC、NW.js）、定时任务和消息队列。同一个控制器方法可以同时通过所有这些方式调用。
 
 这个包就是框架本身：它通过下面列出的子路径重新导出各个 `@lakutata/*` 包，并为每个应用预置两个组件：`log` 和 `entrypoint`。各子路径的类型声明中，每一项都附有说明和示例，每个 `@lakutata/*` 包也都有自己的 README。
 
 ## 安装
 
 ```shell
-npx @lakutata/cli create --name my-app   # 用模板创建新项目（Web、服务、CLI、Electron……）
+npx @lakutata/cli create --name my-app   # 用模板创建新项目（Web、服务、CLI、Electron、NW.js……）
 npm install lakutata                      # 或者在已有项目中安装框架
 ```
 
@@ -97,7 +97,7 @@ Application
 | `lakutata/decorator/ctrl` | `@lakutata/entrypoint` | `@HTTPAction`、`@GET`…`@OPTIONS`、`@CLIAction`、`@ServiceAction`、`@Schedule`、`@Prefix`、`@UseMiddlewares` |
 | `lakutata/adapter/express`、`lakutata/adapter/fastify` | `@lakutata/entrypoint` | HTTP 传输、`staticUI`（仅 Express） |
 | `lakutata/adapter/commander` | `@lakutata/entrypoint` | CLI 传输 |
-| `lakutata/adapter/socket.io`、`lakutata/adapter/jsonrpc`、`lakutata/adapter/electron` | `@lakutata/entrypoint` | 服务传输 |
+| `lakutata/adapter/socket.io`、`lakutata/adapter/jsonrpc`、`lakutata/adapter/electron`、`lakutata/adapter/nwjs` | `@lakutata/entrypoint` | 服务传输 |
 | `lakutata/com/logger` | `@lakutata/logger` | `Logger` 组件，预置为 `log`（输出与 pino 兼容的 JSON 行） |
 | `lakutata/orm`、`lakutata/decorator/orm` | `@lakutata/orm` | TypeORM 及其装饰器 |
 | `lakutata/com/database`、`lakutata/provider/database` | `@lakutata/orm` | `Database` 组件和提供者、迁移命令 |

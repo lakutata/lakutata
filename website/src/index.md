@@ -24,7 +24,7 @@ features:
   - title: Dependency injection
     details: A container creates your components, providers, modules and controllers, manages their lifetimes and validates their options. Construction is asynchronous, so an object can connect or load before it is used.
   - title: One controller, every transport
-    details: Expose one method as an HTTP route, a CLI command, a service call (Socket.IO, JSON-RPC, gRPC, NATS, Electron IPC), a scheduled job and a queue consumer at the same time. Input validation, access control and middleware work the same way on every transport.
+    details: Expose one method as an HTTP route, a CLI command, a service call (Socket.IO, JSON-RPC, gRPC, NATS, Electron IPC, NW.js), a scheduled job and a queue consumer at the same time. Input validation, access control and middleware work the same way on every transport.
   - title: Validation everywhere
     details: DTOs validate options, inputs and results, convert to JSON Schema and produce typed errors.
   - title: Batteries included
