@@ -1,0 +1,10 @@
+{
+  "extends": "lakutata/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "build",
+    "types": ["node"],
+    "sourceMap": true
+  },
+  "include": ["src"]
+}

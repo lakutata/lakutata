@@ -1,0 +1,31 @@
+{
+  "name": "{$APP_ID}",
+  "productName": "{$APP_NAME}",
+  "version": "0.0.1",
+  "description": "{$APP_DESC}",
+  "author": "{$APP_AUTHOR}",
+  "license": "{$APP_LICENSE}",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "lakutata run rebuild",
+    "test": "npm run build && lakutata run test",
+    "dev": "npm run build && lakutata run dev --parallel",
+    "start": "npm start -w app",
+    "package:host": "npm run build && npm run package -w app -- --outdir ../../dist/installer",
+    "package:linux": "docker buildx build --file Dockerfile.installer --output type=local,dest=dist/installer .",
+    "nwjs:use": "npm exec -w app -- lakutata nwjs use",
+    "version:patch": "lakutata version patch --yes"
+  },
+  "devDependencies": {
+    "@lakutata/builder": "^{$LAKUTATA_VERSION}",
+    "@lakutata/cli": "^{$LAKUTATA_VERSION}",
+    "@types/node": "^22.0.0",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  }
+}

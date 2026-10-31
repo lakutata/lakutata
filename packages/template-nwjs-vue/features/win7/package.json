@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "package:ia32": "npm run build && npm run package -w app -- --outdir ../../dist/installer --arch ia32"
+  }
+}

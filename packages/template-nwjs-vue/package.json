@@ -1,0 +1,40 @@
+{
+  "name": "@lakutata/template-nwjs-vue",
+  "version": "3.1.4",
+  "description": "The NW.js template of the lakutata projects with Vue: the background script of NW.js is a lakutata application serving the actions of its controllers to the user interface (Vue, Vite, isolated in a webview), packaged into installers by lakutata package installer.",
+  "homepage": "https://lakutata.com/guide/ProjectStructure",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/template-nwjs-vue"
+  },
+  "author": "alex.ma",
+  "keywords": [
+    "lakutata",
+    "lakutata-template",
+    "template",
+    "nwjs",
+    "nw.js",
+    "desktop",
+    "vue",
+    "vite"
+  ],
+  "license": "MIT",
+  "files": [
+    "template",
+    "features",
+    "README.md",
+    "LICENSE"
+  ],
+  "lakutata": {
+    "template": "nwjs-vue",
+    "features": {
+      "i18n": "The messages in several languages (lakutata/com/i18n): src/locales, the language of each request",
+      "win7": "NW.js 0.72.0, the last release running on Windows 7, 8 and 8.1 (Node.js 19.3, Chromium 109), instead of the release the template was published with"
+    }
+  }
+}

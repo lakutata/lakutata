@@ -20,16 +20,22 @@ const CLI: string = fileURLToPath(new URL('../CLIApp.js', import.meta.url))
 const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-templates-'))
 
 /**
+ * The cache of the runtimes of NW.js (150 to 400 MB each), kept between the runs of the tests
+ */
+const NWJS_CACHE: string = path.join(tmpdir(), 'lakutata-tests-nwjs')
+
+/**
  * Run a command
  * @param command
  * @param args
  * @param cwd
+ * @param extra its environment variables
  */
-function runIn(command: string, args: string[], cwd: string): Promise<{ code: number, output: string }> {
+function runIn(command: string, args: string[], cwd: string, extra: NodeJS.ProcessEnv = {}): Promise<{ code: number, output: string }> {
     //The tests of the project run on their own, not as tests nested in the running ones
     const {NODE_TEST_CONTEXT, ...env} = process.env
     void NODE_TEST_CONTEXT
-    return runCommand(command, args, cwd, {...env, LAKUTATA_CACHE_DIR: path.join(work, 'cache'), NEXT_TELEMETRY_DISABLED: '1'}, 1800000)
+    return runCommand(command, args, cwd, {...env, LAKUTATA_CACHE_DIR: path.join(work, 'cache'), NEXT_TELEMETRY_DISABLED: '1', ...extra}, 1800000)
 }
 
 /**
@@ -108,6 +114,39 @@ async function create(template: string, name: string, features: string[] = []): 
 }
 
 /**
+ * The text of a page of an application started with its DevTools on a port, read with the DevTools protocol once it
+ * shows the result of its action and the event pushed to it
+ * @param port
+ * @param type the type of the target of the page (page, webview)
+ * @param isolated the expression telling the page is isolated from the runtime
+ */
+async function readPage(port: number, type: string, isolated: string): Promise<string> {
+    let text: string = ''
+    for (let attempt: number = 0; attempt < 60 && !/Pushed by the (main process|application): /.test(text); attempt++) {
+        await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
+        try {
+            const pages = await (await fetch(`http://127.0.0.1:${port}/json`)).json() as { type: string, webSocketDebuggerUrl: string }[]
+            const page = pages.find((target): boolean => target.type === type)
+            if (!page) continue
+            text = await new Promise((resolve: (text: string) => void, reject: (error: unknown) => void): void => {
+                const socket: WebSocket = new WEBSOCKET(page.webSocketDebuggerUrl)
+                socket.onopen = (): void => socket.send(JSON.stringify({id: 1, method: 'Runtime.evaluate', params: {expression: `document.body.innerText + ' | isolated: ' + (${isolated})`, returnByValue: true}}))
+                socket.onmessage = (message: MessageEvent): void => {
+                    const response = JSON.parse(String(message.data))
+                    if (response.id !== 1) return
+                    socket.close()
+                    resolve(response.result?.result?.value ?? '')
+                }
+                socket.onerror = reject
+            })
+        } catch {
+            //Not started yet
+        }
+    }
+    return text
+}
+
+/**
  * The text of the page of an Electron application, read with the DevTools protocol once it shows the result of its action;
  * the application is ended then
  * @param project
@@ -119,34 +158,30 @@ async function electronPage(project: string, args: string[], executable?: string
     const {NODE_TEST_CONTEXT, ...env} = process.env
     void NODE_TEST_CONTEXT
     const child = spawn(electron, [`--remote-debugging-port=${port}`, ...args], {cwd: project, env: env, stdio: 'ignore'})
-    let text: string = ''
     try {
-        //Once the page shows the result of the action and the event the main process pushed
-        for (let attempt: number = 0; attempt < 60 && !/Pushed by the main process: /.test(text); attempt++) {
-            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
-            try {
-                const pages = await (await fetch(`http://127.0.0.1:${port}/json`)).json() as { type: string, webSocketDebuggerUrl: string }[]
-                const page = pages.find(({type}): boolean => type === 'page')
-                if (!page) continue
-                text = await new Promise((resolve: (text: string) => void, reject: (error: unknown) => void): void => {
-                    const socket: WebSocket = new WEBSOCKET(page.webSocketDebuggerUrl)
-                    socket.onopen = (): void => socket.send(JSON.stringify({id: 1, method: 'Runtime.evaluate', params: {expression: `document.body.innerText + ' | isolated: ' + (typeof require === 'undefined' && typeof process === 'undefined')`, returnByValue: true}}))
-                    socket.onmessage = (message: MessageEvent): void => {
-                        const response = JSON.parse(String(message.data))
-                        if (response.id !== 1) return
-                        socket.close()
-                        resolve(response.result?.result?.value ?? '')
-                    }
-                    socket.onerror = reject
-                })
-            } catch {
-                //Not started yet
-            }
-        }
+        return await readPage(port, 'page', `typeof require === 'undefined' && typeof process === 'undefined'`)
     } finally {
         child.kill()
     }
-    return text
+}
+
+/**
+ * The text of the user interface of an application of NW.js (in the webview of its window), read with the DevTools
+ * protocol of the sdk flavor of NW.js running its files; the application is ended then
+ * @param executable the sdk flavor of NW.js
+ * @param directory the files of the application
+ */
+async function nwjsPage(executable: string, directory: string): Promise<string> {
+    const port: number = 9800 + Math.floor(Math.random() * 500)
+    const {NODE_TEST_CONTEXT, ...env} = process.env
+    void NODE_TEST_CONTEXT
+    const child = spawn(executable, [directory, `--remote-debugging-port=${port}`], {env: env, stdio: 'ignore'})
+    try {
+        return await readPage(port, 'webview', `typeof require === 'undefined' && typeof process === 'undefined' && typeof nw === 'undefined'`)
+    } finally {
+        child.kill()
+        await new Promise((resolve: (value: unknown) => void): unknown => child.exitCode === null && child.signalCode === null ? child.once('exit', resolve) : resolve(undefined))
+    }
 }
 
 /**
@@ -167,14 +202,14 @@ const BUN: boolean = ((): boolean => {
 })()
 
 /**
- * The files under a directory, outside its node_modules: walked without the recursive option of readdirSync and the
- * parentPath of its entries (Node.js 18.17, 18.20)
+ * The files under a directory, outside its node_modules and without the .DS_Store of the Finder of macOS (ignored by git
+ * and by npm): walked without the recursive option of readdirSync and the parentPath of its entries (Node.js 18.17, 18.20)
  * @param directory
  */
 function filesUnder(directory: string): string[] {
     return readdirSync(directory, {withFileTypes: true}).flatMap((entry): string[] => {
         if (entry.isDirectory()) return entry.name === 'node_modules' ? [] : filesUnder(path.join(directory, entry.name))
-        return entry.isFile() ? [path.join(directory, entry.name)] : []
+        return entry.isFile() && entry.name !== '.DS_Store' ? [path.join(directory, entry.name)] : []
     })
 }
 
@@ -261,20 +296,32 @@ describe('The templates of the repository', (): void => {
         }
     })
 
-    it('keeps the files the Electron templates share identical', (): void => {
-        //The Electron templates differ by their renderer only
-        const files = (directory: string): string[] => filesUnder(directory)
-            .map((file: string): string => path.relative(directory, file))
-            .filter((file: string): boolean => !file.startsWith(path.join('packages', 'ui')) && file !== 'README.md')
-            .sort()
-        const react: string = path.join(ROOT, 'packages', 'template-electron-react', 'template')
-        const vue: string = path.join(ROOT, 'packages', 'template-electron-vue', 'template')
-        assert.deepStrictEqual(files(vue), files(react))
-        for (const file of files(react)) assert.strictEqual(readFileSync(path.join(vue, file), 'utf8'), readFileSync(path.join(react, file), 'utf8'), `${file} of electron-vue differs from the one of electron-react`)
-        assert.strictEqual(readFileSync(path.join(vue, 'packages', 'ui', 'src', 'ipc.ts'), 'utf8'), readFileSync(path.join(react, 'packages', 'ui', 'src', 'ipc.ts'), 'utf8'))
-        const [reactFeatures, vueFeatures] = [react, vue].map((directory: string): string => path.join(directory, '..', 'features'))
-        assert.deepStrictEqual(files(vueFeatures), files(reactFeatures))
-        for (const file of files(reactFeatures)) assert.strictEqual(readFileSync(path.join(vueFeatures, file), 'utf8'), readFileSync(path.join(reactFeatures, file), 'utf8'), `features/${file} of electron-vue differs`)
+    for (const [kind, label] of [['electron', 'Electron'], ['nwjs', 'NW.js']] as const) {
+        it(`keeps the files the ${label} templates share identical`, (): void => {
+            //The ${label} templates differ by their user interface only
+            const files = (directory: string): string[] => filesUnder(directory)
+                .map((file: string): string => path.relative(directory, file))
+                .filter((file: string): boolean => !file.startsWith(path.join('packages', 'ui')) && file !== 'README.md')
+                .sort()
+            const react: string = path.join(ROOT, 'packages', `template-${kind}-react`, 'template')
+            const vue: string = path.join(ROOT, 'packages', `template-${kind}-vue`, 'template')
+            assert.deepStrictEqual(files(vue), files(react))
+            for (const file of files(react)) assert.strictEqual(readFileSync(path.join(vue, file), 'utf8'), readFileSync(path.join(react, file), 'utf8'), `${file} of ${kind}-vue differs from the one of ${kind}-react`)
+            for (const file of ['ipc.ts']) assert.strictEqual(readFileSync(path.join(vue, 'packages', 'ui', 'src', file), 'utf8'), readFileSync(path.join(react, 'packages', 'ui', 'src', file), 'utf8'))
+            const [reactFeatures, vueFeatures] = [react, vue].map((directory: string): string => path.join(directory, '..', 'features'))
+            assert.deepStrictEqual(files(vueFeatures), files(reactFeatures))
+            for (const file of files(reactFeatures)) assert.strictEqual(readFileSync(path.join(vueFeatures, file), 'utf8'), readFileSync(path.join(reactFeatures, file), 'utf8'), `features/${file} of ${kind}-vue differs`)
+        })
+    }
+
+    it('keeps the files the NW.js templates share with the Electron ones identical', (): void => {
+        //Their actions, their resources and their messages are the same
+        const electron: string = path.join(ROOT, 'packages', 'template-electron-react')
+        const nwjs: string = path.join(ROOT, 'packages', 'template-nwjs-react')
+        const shared: string[] = ['template/packages/app/src/dtos/GreetDTO.ts', 'template/packages/resources/logo.png', 'template/packages/resources/package.json', 'template/_dockerignore']
+        const messages: string = path.join(electron, 'features', 'i18n')
+        shared.push(...filesUnder(messages).map((file: string): string => path.relative(electron, file)))
+        for (const file of shared) assert.ok(readFileSync(path.join(nwjs, file)).equals(readFileSync(path.join(electron, file))), `${file} of nwjs-react differs from the one of electron-react`)
     })
 
     it('creates the projects with the installer feature: their installers configured, their scripts and their Dockerfile written', async (): Promise<void> => {
@@ -605,4 +652,88 @@ describe('The templates of the repository', (): void => {
             }
         })
     }
+
+    for (const [template, name, ui, names] of [
+        ['nwjs-react', 'Desk', 'App.tsx', ['vite', '@vitejs/plugin-react', 'react', 'react-dom', '@types/react', '@types/react-dom']],
+        ['nwjs-vue', 'Pad', 'App.vue', ['vite', '@vitejs/plugin-vue', 'vue']]
+    ] as [string, string, string, string[]][]) {
+        it(`creates an NW.js application (${template}) whose background script serves its user interface, and packages it`, async (): Promise<void> => {
+            const project: string = await create(template, name)
+            for (const file of [path.join('ui', 'src', ui), path.join('app', 'host', 'index.html')]) assert.doesNotMatch(readFileSync(path.join(project, 'packages', file), 'utf8'), /\{\$APP_/)
+            assert.match(readFileSync(path.join(project, '.gitignore'), 'utf8'), /^\.nwjs$/m)
+            install(project, ['@types/node', ...names], path.join(ROOT, 'node_modules', 'typescript'))
+            linkWorkspace(project, ['ui', 'app'])
+            linkCommand(path.join(project, 'node_modules', '.bin'), 'vite', path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'))
+            const built = await runIn(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
+            assert.strictEqual(built.code, 0, built.output)
+            //The version of NW.js of the application, its Node.js and its Chromium (the user interface is built for it)
+            const {version} = JSON.parse(readFileSync(path.join(project, 'packages', 'app', 'nwjs.json'), 'utf8')) as { version: string }
+            assert.strictEqual(JSON.parse(readFileSync(path.join(project, 'packages', 'app', 'package.json'), 'utf8')).lakutata.nwjs.version, version)
+            //The actions of the application, served through the bridge of the host page (without NW.js)
+            const tested = await runIn(process.execPath, [CLI, 'run', 'test'], project)
+            assert.strictEqual(tested.code, 0, tested.output)
+            assert.match(tested.output, /pass 5/)
+            //The user interface is type checked with the TypeScript of the template
+            const typescript: string = path.join(ROOT, 'node_modules', 'typescript')
+            const checked = template === 'nwjs-vue'
+                ? await runIn(process.execPath, ['-e', `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(typescript, 'lib', 'tsc.js'))})`, 'vue-tsc', '--noEmit', '-p', path.join(project, 'packages', 'ui')], project)
+                : await runIn(process.execPath, [path.join(typescript, 'bin', 'tsc'), '-p', path.join(project, 'packages', 'ui')], project)
+            assert.strictEqual(checked.code, 0, checked.output)
+            //Packaged by lakutata package installer, in an archive: the runtime of NW.js named after the application
+            const packaged = await runIn('npm', ['run', 'package:host', '--', '--target', process.platform === 'win32' ? 'zip' : 'tar.gz'], project, {LAKUTATA_CACHE_DIR: NWJS_CACHE})
+            assert.strictEqual(packaged.code, 0, packaged.output)
+            assert.match(packaged.output, new RegExp(`NW\\.js ${version.replaceAll('.', '\\.')} \\((osx|win|linux)-[a-z0-9]+\\)`))
+            //Started where NW.js can open its window
+            if (process.platform !== 'darwin') return
+            const archive: string = filesUnder(path.join(project, 'dist', 'installer')).find((file: string): boolean => file.endsWith('.tar.gz'))!
+            const extracted: string = path.join(project, 'dist', 'extracted')
+            mkdirSync(extracted, {recursive: true})
+            execFileSync('tar', ['-xzf', archive, '-C', extracted])
+            const bundle: string = path.join(extracted, readdirSync(extracted)[0], `${name}.app`)
+            assert.strictEqual(execFileSync('plutil', ['-extract', 'CFBundleName', 'raw', path.join(bundle, 'Contents', 'Info.plist')]).toString().trim(), name)
+            const files: string = path.join(bundle, 'Contents', 'Resources', 'app.nw')
+            for (const file of ['app.cjs', 'main.js', path.join('resources', 'host', 'index.html'), path.join('resources', 'ui', 'index.html'), path.join('resources', 'logo.png')]) assert.ok(existsSync(path.join(files, file)), file)
+            //Its files run by the sdk flavor of NW.js (the normal one has no DevTools): the user interface shows the result of
+            //the action and the event pushed to it, isolated from Node.js and from NW.js
+            const {downloadNwjs} = await import('@lakutata/builder')
+            const cache: string | undefined = process.env.LAKUTATA_CACHE_DIR
+            process.env.LAKUTATA_CACHE_DIR = NWJS_CACHE
+            const sdk = await downloadNwjs({version: version, flavor: 'sdk'}).finally((): void => {
+                if (cache === undefined) delete process.env.LAKUTATA_CACHE_DIR
+                else process.env.LAKUTATA_CACHE_DIR = cache
+            })
+            assert.match(await nwjsPage(sdk.executable, files), new RegExp(`Hello, ${name}!\\s+Pushed by the application: ${name} \\| isolated: true`))
+            //The application itself starts, and runs until it is ended
+            const child = spawn(path.join(bundle, 'Contents', 'MacOS', 'nwjs'), [], {stdio: 'ignore'})
+            const exited: Promise<unknown> = new Promise((resolve: (value: unknown) => void): unknown => child.once('exit', resolve))
+            try {
+                await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 5000))
+                assert.strictEqual(child.exitCode, null)
+            } finally {
+                child.kill()
+                await exited
+            }
+        })
+    }
+
+    it('creates an NW.js application for Windows 7 (win7): NW.js 0.72, its installers of 32-bit Windows', async (): Promise<void> => {
+        const project: string = await create('nwjs-vue', 'Legacy', ['win7'])
+        assert.deepStrictEqual(JSON.parse(readFileSync(path.join(project, 'packages', 'app', 'package.json'), 'utf8')).lakutata.nwjs, {version: '0.72.0'})
+        assert.deepStrictEqual(JSON.parse(readFileSync(path.join(project, 'packages', 'app', 'nwjs.json'), 'utf8')), {version: '0.72.0', node: '19.3.0', chromium: '109.0.5414.87'})
+        assert.strictEqual(JSON.parse(readFileSync(path.join(project, 'package.json'), 'utf8')).scripts['package:ia32'], 'npm run build && npm run package -w app -- --outdir ../../dist/installer --arch ia32')
+        const readme: string = readFileSync(path.join(project, 'README.md'), 'utf8')
+        assert.match(readme, /npm run package:ia32/)
+        assert.match(readme, /The application runs in NW\.js 0\.72\.0 \(Node\.js 19\.3, Chromium 109\)/)
+        assert.doesNotMatch(readme, /@if|@end/)
+        //Its user interface built for Chromium 109
+        install(project, ['@types/node', 'vite', '@vitejs/plugin-vue', 'vue'])
+        const built = await runIn(process.execPath, [path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'), 'build'], path.join(project, 'packages', 'ui'))
+        assert.strictEqual(built.code, 0, built.output)
+        assert.ok(existsSync(path.join(project, 'packages', 'ui', 'dist', 'index.html')))
+        //Without the feature, the latest release
+        const latest: string = await create('nwjs-react', 'Modern')
+        assert.notStrictEqual(JSON.parse(readFileSync(path.join(latest, 'packages', 'app', 'nwjs.json'), 'utf8')).version, '0.72.0')
+        assert.strictEqual(JSON.parse(readFileSync(path.join(latest, 'package.json'), 'utf8')).scripts['package:ia32'], undefined)
+        assert.doesNotMatch(readFileSync(path.join(latest, 'README.md'), 'utf8'), /package:ia32|@if|@end/)
+    })
 })

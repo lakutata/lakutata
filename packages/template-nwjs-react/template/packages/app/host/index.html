@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>{$APP_NAME}</title>
+    <style>
+      html, body {margin: 0; height: 100%; overflow: hidden}
+      webview {display: flex; width: 100%; height: 100%; border: 0}
+    </style>
+  </head>
+  <body>
+    <!-- The user interface, isolated from Node.js and from NW.js: the partition "trusted" of the manifest of NW.js lets it load the files of the application -->
+    <webview id="ui" partition="trusted"></webview>
+    <script src="host.js"></script>
+  </body>
+</html>

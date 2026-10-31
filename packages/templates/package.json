@@ -102,6 +102,24 @@
         "features": [
           "i18n"
         ]
+      },
+      {
+        "name": "nwjs-react",
+        "description": "A desktop application: NW.js, its background script serving a React user interface isolated in a webview",
+        "package": "@lakutata/template-nwjs-react",
+        "features": [
+          "i18n",
+          "win7"
+        ]
+      },
+      {
+        "name": "nwjs-vue",
+        "description": "A desktop application: NW.js, its background script serving a Vue user interface isolated in a webview",
+        "package": "@lakutata/template-nwjs-vue",
+        "features": [
+          "i18n",
+          "win7"
+        ]
       }
     ]
   }

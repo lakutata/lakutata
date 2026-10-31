@@ -1,0 +1,5 @@
+{
+  "greeting": {
+    "hello": "你好，{name}！"
+  }
+}
