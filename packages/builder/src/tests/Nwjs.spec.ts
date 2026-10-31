@@ -272,6 +272,33 @@ describe('The native addons of the applications of NW.js', (): void => {
             rmSync(work, {recursive: true, force: true})
         }
     })
+
+    it('refuses an addon using the API of V8 for the 32-bit Windows of a release publishing no library of it', async (): Promise<void> => {
+        const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-nwjs-v8-'))
+        //A mirror without the library of 32-bit Windows
+        const requests: string[] = []
+        const server: Server = createServer((request: IncomingMessage, response: ServerResponse): unknown => requests.push(request.url!) && response.writeHead(404).end())
+        await new Promise<void>((resolve: () => void): unknown => server.listen(0, '127.0.0.1', resolve))
+        const mirror: string | undefined = process.env.LAKUTATA_NWJS_MIRROR
+        process.env.LAKUTATA_NWJS_MIRROR = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+        try {
+            const source: string = path.join(work, 'node_modules', 'sqlite')
+            mkdirSync(path.join(source, 'build', 'Release'), {recursive: true})
+            writeFileSync(path.join(source, 'package.json'), JSON.stringify({name: 'sqlite', version: '1.0.0'}))
+            writeFileSync(path.join(source, 'binding.gyp'), '{}')
+            writeFileSync(path.join(source, 'build', 'Release', 'sqlite.node'), Buffer.from('MZ...?New@Object@v8@@'))
+            mkdirSync(path.join(work, 'tree', 'node_modules', 'sqlite', 'build', 'Release'), {recursive: true})
+            writeFileSync(path.join(work, 'tree', 'node_modules', 'sqlite', 'build', 'Release', 'sqlite.node'), Buffer.from('MZ...?New@Object@v8@@'))
+            const files = [{path: 'node_modules/sqlite/build/Release/sqlite.node', source: path.join(source, 'build', 'Release', 'sqlite.node'), mode: 0o644}]
+            await assert.rejects(prepareNwjsAddons(work, path.join(work, 'tree'), files, {version: '0.119.2', date: '', node: '26.12.1', chromium: '', platforms: []}, 'win-ia32'), /NW\.js 0\.119\.2 publishes no library of 32-bit Windows \(node\.lib\) to build the addons using V8 with/)
+            assert.deepStrictEqual(requests, ['/v0.119.2/node.lib'])
+        } finally {
+            if (mirror === undefined) delete process.env.LAKUTATA_NWJS_MIRROR
+            else process.env.LAKUTATA_NWJS_MIRROR = mirror
+            await new Promise<void>((resolve: () => void): unknown => server.close((): void => resolve()))
+            rmSync(work, {recursive: true, force: true})
+        }
+    })
 })
 
 describe('The installers of the desktop applications', (): void => {
@@ -306,7 +333,7 @@ describe('The installers of the desktop applications', (): void => {
             const msi: string = wixSource(plan('ia32', stage), stage, stage, undefined)
             assert.match(msi, /<Directory Id="ProgramFilesFolder">/)
             assert.match(msi, /<Shortcut Id="ProgramMenuShortcut" Directory="ProgramMenuFolder" Name="Desk" Target="\[INSTALLDIR\]desk\.exe"/)
-            assert.match(msi, /<RegistryValue Root="HKLM" Key="Software\\com\.acme\.desk" Name="Shortcuts" Type="integer" Value="1" KeyPath="yes"\/>/)
+            assert.match(msi, /<RegistryValue Root="HKCU" Key="Software\\com\.acme\.desk" Name="Shortcuts" Type="integer" Value="1" KeyPath="yes"\/>/)
             assert.match(msi, /<ComponentRef Id="Shortcuts"\/>/)
             assert.doesNotMatch(msi, /CommonAppDataFolder|ComponentRef Id="Data"/)
             assert.match(wixSource(plan('x64', stage), stage, stage, undefined), /<Directory Id="ProgramFiles64Folder">/)

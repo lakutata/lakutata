@@ -424,12 +424,13 @@ export function wixSource(plan: InstallerPlan, stage: string, serviceDirectory: 
             `    <Component Id="Data" Directory="DATADIR" Guid="${namedUuid(`${plan.appId}:data`)}" Permanent="yes" KeyPath="yes"><CreateFolder/></Component>`,
             `    <Component Id="Logs" Directory="LOGSDIR" Guid="${namedUuid(`${plan.appId}:logs`)}" Permanent="yes" KeyPath="yes"><CreateFolder/></Component>`
         ],
-        //The shortcuts of a desktop application, their key a value of the registry of the machine
+        //The shortcuts of a desktop application, their key a value of the registry of the user installing (the ones of
+        //the menus and of the desktop must be of HKCU: ICE43, ICE57)
         ...desktop ? [
             `    <Component Id="Shortcuts" Directory="INSTALLDIR" Guid="${namedUuid(`${plan.appId}:shortcuts`)}">`,
             `      <Shortcut Id="ProgramMenuShortcut" Directory="ProgramMenuFolder" Name="${xml(plan.productName)}" Target="[INSTALLDIR]${xml(desktop.executable)}" WorkingDirectory="INSTALLDIR"/>`,
             `      <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="${xml(plan.productName)}" Target="[INSTALLDIR]${xml(desktop.executable)}" WorkingDirectory="INSTALLDIR"/>`,
-            `      <RegistryValue Root="HKLM" Key="Software\\${xml(plan.appId)}" Name="Shortcuts" Type="integer" Value="1" KeyPath="yes"/>`,
+            `      <RegistryValue Root="HKCU" Key="Software\\${xml(plan.appId)}" Name="Shortcuts" Type="integer" Value="1" KeyPath="yes"/>`,
             '    </Component>'
         ] : [],
         ...environment ? [`    <Component Id="Environment" Directory="DATADIR" Guid="${namedUuid(`${plan.appId}:environment`)}" Permanent="yes" NeverOverwrite="yes"><File Id="EnvironmentFile" Name="${xml(`${plan.name}.env`)}" Source="${xml(environment)}" KeyPath="yes"/></Component>`] : [],

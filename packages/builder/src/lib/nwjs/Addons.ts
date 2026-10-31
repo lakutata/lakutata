@@ -130,6 +130,13 @@ export function usesV8Api(file: Buffer): boolean {
 const NODE_GYP_HEADERS: string = '0.111.3'
 
 /**
+ * The Node.js whose headers the addons of Node-API of 32-bit Windows are built with when the one of NW.js is later:
+ * Node.js 23 and later publish no library of 32-bit Windows (node.lib), and Node-API runs the addons built for an older
+ * Node.js
+ */
+const WINDOWS_32_NODE: string = '22.22.0'
+
+/**
  * What {@link prepareNwjsAddons} did to the addons of the native tree
  */
 export type NwjsAddons = {
@@ -217,23 +224,41 @@ async function nodeFiles(directory: string): Promise<string[]> {
 }
 
 /**
+ * The headers node-gyp builds the addons of a release of NW.js with: the ones of NW.js for the addons using V8, else the
+ * ones of its Node.js (the Node-API it has; a Node.js 22 on 32-bit Windows when its own one is later)
+ * @param project
+ * @param release
+ * @param platform
+ * @param v8
+ */
+async function headersOf(project: string, release: NwjsRelease, platform: string, v8: boolean): Promise<string[]> {
+    if (!v8) return [`--target=${platform === 'win-ia32' && compareVersions(release.node, '23.0.0') >= 0 ? WINDOWS_32_NODE : release.node}`]
+    if (platform === 'win-ia32') {
+        //The library of 32-bit Windows (at the root of the release, as node-gyp looks for it): the releases since 0.111.3 have none
+        const library: Response = await fetch(`${mirror()}/v${release.version}/node.lib`, {method: 'HEAD'})
+        if (!library.ok) throw new Error(`NW.js ${release.version} publishes no library of 32-bit Windows (node.lib) to build the addons using V8 with: they run in its x64 build, or use a package of Node-API`)
+    }
+    return [`--target=${release.version}`, `--dist-url=${mirror()}`, `--devdir=${await nwjsHeaders(project, release)}`]
+}
+
+/**
  * Build a package of addons again from its sources (a copy of it), its addons written into build/Release of its copy
  * in the native tree
  * @param project
  * @param source the directory of the package, in the node_modules of the project
  * @param target the directory of the package in the native tree
  * @param arch
- * @param headers the release of NW.js whose headers the addons are built with (the ones using V8)
+ * @param headers the arguments giving node-gyp its headers (headersOf)
  */
-async function rebuild(project: string, source: string, target: string, arch: string, headers?: NwjsRelease): Promise<void> {
-    if (!existsSync(path.join(source, 'binding.gyp'))) throw new Error(`${path.basename(source)} has no sources to build its addons for NW.js (binding.gyp): its addons are not for ${arch}${headers ? ` or use V8` : ''}`)
+async function rebuild(project: string, source: string, target: string, arch: string, headers: string[]): Promise<void> {
+    if (!existsSync(path.join(source, 'binding.gyp'))) throw new Error(`${path.basename(source)} has no sources to build its addons for NW.js (binding.gyp): its addons are not for ${arch}${headers.length > 1 ? ' or use V8' : ''}`)
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-nwjs-addon-'))
     try {
         const copy: string = path.join(work, path.basename(source))
         await cp(source, copy, {recursive: true, filter: (file: string): boolean => path.relative(source, file) !== 'build'})
         //The modules of its build (node-addon-api) found where the package is
         const modules: string[] = (createRequire(path.join(source, 'package.json')).resolve.paths('x') ?? [])
-        const args: string[] = [nodeGyp(project), 'rebuild', `--arch=${arch}`, ...headers ? [`--target=${headers.version}`, `--dist-url=${mirror()}`, `--devdir=${await nwjsHeaders(project, headers)}`] : []]
+        const args: string[] = [nodeGyp(project), 'rebuild', `--arch=${arch}`, ...headers]
         const previous: string | undefined = process.env.NODE_PATH
         process.env.NODE_PATH = [...modules, previous].filter(Boolean).join(path.delimiter)
         try {
@@ -252,8 +277,8 @@ async function rebuild(project: string, source: string, target: string, arch: st
 
 /**
  * Make the addons of the native tree of an application of NW.js load in its runtime: the packages whose addons are not
- * for the architecture of the runtime, or use V8 (NW.js 0.111.3 and later: the headers of NW.js), built again from their
- * sources; on Windows, the node.exe they import named node.dll
+ * for the architecture of the runtime (built with the headers of its Node.js), or use V8 (NW.js 0.111.3 and later: the
+ * headers of NW.js), built again from their sources; on Windows, the node.exe they import named node.dll
  * @param project
  * @param directory the native tree
  * @param files the files of the tree (their sources)
@@ -277,7 +302,7 @@ export async function prepareNwjsAddons(project: string, directory: string, file
         const packageTarget: string = path.join(directory, ...file.path.slice(0, file.path.length - relative.length).split('/'))
         if (done.has(packageTarget)) continue
         done.add(packageTarget)
-        await rebuild(project, source, packageTarget, arch, v8 ? release : undefined)
+        await rebuild(project, source, packageTarget, arch, await headersOf(project, release, platform, v8))
         result.rebuilt.push(path.basename(source))
     }
     if (platform.startsWith('win-')) {
