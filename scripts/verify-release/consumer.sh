@@ -5,7 +5,7 @@
 set -u
 
 TAG="${VERIFY_TAG:-verify}"
-TEMPLATES="${VERIFY_TEMPLATES:-default cli service web-react web-vue web-next web-nuxt electron-react electron-vue}"
+TEMPLATES="${VERIFY_TEMPLATES:-default cli service web-react web-vue web-next web-nuxt electron-react electron-vue nwjs-react nwjs-vue}"
 # The templates created with their installer feature (their Dockerfile.installer, made into packages by verify.mjs)
 INSTALLERS="${VERIFY_INSTALLERS:-cli service web-react web-vue web-next web-nuxt}"
 RESULTS=/work/results.txt

@@ -23,7 +23,7 @@ const {values: options} = parseArgs({
     options: {
         'version': {type: 'string', default: '3.0.0-verify.1'},
         'tag': {type: 'string', default: 'verify'},
-        'templates': {type: 'string', default: 'default cli service web-react web-vue web-next web-nuxt electron-react electron-vue'},
+        'templates': {type: 'string', default: 'default cli service web-react web-vue web-next web-nuxt electron-react electron-vue nwjs-react nwjs-vue'},
         'node': {type: 'string', default: '22'},
         'skip-build': {type: 'boolean', default: false},
         'skip-images': {type: 'boolean', default: false},
@@ -205,6 +205,29 @@ function cross(template, project) {
 }
 
 /**
+ * The deb of an NW.js template made by its Dockerfile.installer, from the registry: installed in a clean Debian and started
+ * in a virtual display (the normal flavor of NW.js has no DevTools to read its page: its log tells that it runs)
+ * @param template
+ * @param project
+ */
+function nwjsDeb(template, project) {
+    step(`The deb of ${template}: Dockerfile.installer`)
+    writeFileSync(path.join(project, '.npmrc'), `registry=${REGISTRY}\n`)
+    const output = path.join(project, 'dist', 'installer', 'linux')
+    let started = Date.now()
+    const built = spawnSync('docker', ['buildx', 'build', '--add-host=host.docker.internal:host-gateway', '--file', 'Dockerfile.installer', '--output', `type=local,dest=${output}`, '.'], {cwd: project, stdio: 'inherit'}).status === 0
+    const debs = built && existsSync(output) ? readdirSync(output).filter(file => file.endsWith('.deb')) : []
+    results.push(`${debs.length === 1 ? 'PASS' : 'FAIL'} ${template}: the deb (${Math.round((Date.now() - started) / 1000)}s)`)
+    if (debs.length !== 1) return
+    started = Date.now()
+    const run = spawnSync('docker', ['run', '--rm', '-v', `${output}:/deb:ro`, '-v', `${HERE}:/verify:ro`, 'debian:12', 'sh', '/verify/nwjs-deb.sh', `/deb/${debs[0]}`], {encoding: 'utf8'})
+    console.log(run.stdout.trim().split('\n').slice(-12).map(line => line.slice(0, 300)).join('\n'))
+    if (run.status !== 0) console.log(run.stderr.trim().split('\n').slice(-15).join('\n'))
+    const ran = /STARTED: .*started in production mode/.test(run.stdout) && /RUNNING: yes/.test(run.stdout)
+    results.push(`${ran ? 'PASS' : 'FAIL'} ${template}: the deb installed, the application started (${Math.round((Date.now() - started) / 1000)}s)`)
+}
+
+/**
  * The packages of Linux of a project created with the installer feature, made by its Dockerfile.installer from the
  * registry: the deb installed in a clean Debian, its program run (the command of the cli template, the service of the
  * others: its /health, its page)
@@ -235,13 +258,17 @@ function installers(template, project) {
 
 /**
  * The Docker images of the templates having a Dockerfile: built from the registry, then run; the packages of Linux of
- * the templates created with their installer feature, the ones of the Electron templates
+ * the templates created with their installer feature, the ones of the Electron and NW.js templates
  */
 async function images() {
     for (const template of options.templates.split(/\s+/)) {
         const project = path.join(work, 'projects', `verify-${template}`)
         if (template.startsWith('electron-') && existsSync(path.join(project, 'Dockerfile.installer'))) {
             cross(template, project)
+            continue
+        }
+        if (template.startsWith('nwjs-') && existsSync(path.join(project, 'Dockerfile.installer'))) {
+            nwjsDeb(template, project)
             continue
         }
         if (existsSync(path.join(project, 'Dockerfile.installer'))) installers(template, project)
