@@ -2,14 +2,14 @@ import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {execFileSync} from 'node:child_process'
 import {createHash} from 'node:crypto'
-import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync} from 'node:fs'
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import timers from 'node:timers'
 import vm from 'node:vm'
-import {downloadNwjs, nwjsPlatform, nwjsRelease, nwjsReleases, stageNwjsApp, type NwjsRelease, type NwjsStage} from '../index.js'
+import {buildNwjsApp, downloadNwjs, nwjsPlatform, nwjsRelease, nwjsReleases, stageNwjsApp, type NwjsApp, type NwjsRelease, type NwjsStage} from '../index.js'
 import {binaryArchitectures, nameNwjsNode, prepareNwjsAddons, usesV8Api} from '../lib/nwjs/Addons.js'
 import {nsisScript, wixSource} from '../lib/win/Windows.js'
 
@@ -53,15 +53,34 @@ describe('The runtimes of NW.js', (): void => {
         return {archive: archive, content: readFileSync(path.join(source, archive))}
     }
 
+    /**
+     * The archive of the runtime of NW.js 0.72 of Linux (x64, normal) as the older releases make them: its files given to
+     * their owner only
+     */
+    function ownedRuntime(): { archive: string, content: Buffer } {
+        const name: string = 'nwjs-v0.72.0-linux-x64'
+        const source: string = mkdtempSync(path.join(work, 'archive-'))
+        mkdirSync(path.join(source, name, 'lib'), {recursive: true, mode: 0o700})
+        writeFileSync(path.join(source, name, 'nw'), '#!/bin/sh\necho nw\n', {mode: 0o700})
+        writeFileSync(path.join(source, name, 'lib', 'libnode.so'), 'library', {mode: 0o700})
+        writeFileSync(path.join(source, name, 'credits.html'), 'credits', {mode: 0o600})
+        execFileSync('tar', ['-czf', `${name}.tar.gz`, name], {cwd: source})
+        return {archive: `${name}.tar.gz`, content: readFileSync(path.join(source, `${name}.tar.gz`))}
+    }
+
     before(async (): Promise<void> => {
         work = mkdtempSync(path.join(tmpdir(), 'lakutata-nwjs-'))
         files.set('/versions.json', Buffer.from(JSON.stringify(VERSIONS)))
+        const owned: { archive: string, content: Buffer } = ownedRuntime()
+        files.set(`/v0.72.0/${owned.archive}`, owned.content)
         for (const version of ['0.72.0', '0.119.2']) {
             const {archive, content} = fakeRuntime(version)
             files.set(`/v${version}/${archive}`, content)
             //The checksum of 0.119.2 is wrong: its archive is refused
             const sum: string = version === '0.119.2' ? '0'.repeat(64) : createHash('sha256').update(content).digest('hex')
-            files.set(`/v${version}/SHASUMS256.txt`, Buffer.from(`${'1'.repeat(64)}  nwjs-other.zip\n${sum}  ${archive}\n`))
+            const sums: string[] = [`${'1'.repeat(64)}  nwjs-other.zip`, `${sum}  ${archive}`]
+            if (version === '0.72.0') sums.push(`${createHash('sha256').update(owned.content).digest('hex')}  ${owned.archive}`)
+            files.set(`/v${version}/SHASUMS256.txt`, Buffer.from(`${sums.join('\n')}\n`))
         }
         server = createServer((request: IncomingMessage, response: ServerResponse): void => {
             requests.push(request.url!)
@@ -155,6 +174,18 @@ describe('The runtimes of NW.js', (): void => {
         await assert.rejects(stageNwjsApp({project: project, outdir: 'out'}), /has no version of NW\.js: give it with lakutata nwjs use <version>/)
         await assert.rejects(stageNwjsApp({project: project, outdir: '.', version: 'win7'}), /made in a directory of its own/)
         await assert.rejects(stageNwjsApp({project: project, outdir: '..', version: 'win7'}), /made in a directory of its own/)
+    })
+
+    it('gives the files of the application to every user, the ones of the runtime given to their owner only too', {skip: process.platform === 'win32' && 'the files of Windows have no modes'}, async (): Promise<void> => {
+        const project: string = path.join(work, 'pad')
+        mkdirSync(path.join(project, 'build'), {recursive: true})
+        writeFileSync(path.join(project, 'package.json'), JSON.stringify({name: 'pad', version: '1.0.0', type: 'module', main: 'build/App.js', lakutata: {nwjs: {version: 'win7'}}}))
+        writeFileSync(path.join(project, 'build', 'App.js'), 'console.log(1)\n')
+        const app: NwjsApp = await buildNwjsApp({project: project, platform: 'linux', arch: 'x64'})
+        assert.strictEqual(app.executable, path.join(project, 'dist', 'nwjs', 'pad-linux-x64', 'pad'))
+        //Installed by root, the application runs for the users: its directories and its programs runnable, its files readable
+        const modes: string[] = ['.', 'pad', 'lib', 'lib/libnode.so', 'credits.html', 'main.js'].map((file: string): string => (statSync(path.join(app.directory, file)).mode & 0o777).toString(8))
+        assert.deepStrictEqual(modes, ['755', '755', '755', '755', '644', '644'])
     })
 
     it('refuses an archive whose checksum is not the one of its release, and keeps nothing of it', async (): Promise<void> => {

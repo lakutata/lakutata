@@ -55,6 +55,16 @@ async function must(command: string, args: string[], cwd: string, what: string):
 }
 
 /**
+ * Give the files of an application to every user: readable, its directories and its programs runnable. The archives of
+ * the older releases of NW.js (0.72) give their files to their owner only: installed by root (/opt, /Applications), the
+ * application would run for root only. The files of Windows have no modes
+ * @param directory
+ */
+async function shareFiles(directory: string): Promise<void> {
+    if (process.platform !== 'win32') await must('chmod', ['-R', 'a+rX', directory], directory, 'The files of the application cannot be given to every user')
+}
+
+/**
  * The four numbers of a version of Windows (1.2.3 → 1.2.3.0)
  * @param version
  */
@@ -102,7 +112,8 @@ async function windowsIdentity(file: string, identity: { productName: string, pr
  * the name of its installers, lakutata.installer.name, else the program of its package; on Windows, its icon and its
  * version information are the ones of the application); on macOS, they are in the bundle
  * (<product>.app/Contents/Resources/app.nw), whose Info.plist gives its name, its identifier (the appId of the
- * installer), its version and its icon, signed again (ad hoc). The icon is lakutata.icon
+ * installer), its version and its icon, signed again (ad hoc). The icon is lakutata.icon. Its files are readable by
+ * every user, its programs runnable (once installed by root, the application runs for the users)
  * @param options
  * @example
  * import {buildNwjsApp} from '@lakutata/builder'
@@ -138,6 +149,7 @@ export async function buildNwjsApp(options: NwjsAppOptions): Promise<NwjsApp> {
                 await must('plutil', ['-replace', key, '-string', value, plist], directory, `${key} cannot be written into the Info.plist`)
             }
             if (icon) await writeFile(path.join(bundle, 'Contents', 'Resources', 'app.icns'), icnsFile(icon.image))
+            await shareFiles(bundle)
             //Its files changed, the bundle is signed again (ad hoc: the signature of a developer is given by its installer)
             await must('codesign', ['--force', '--deep', '--sign', '-', bundle], directory, 'The bundle cannot be signed')
             return {directory: bundle, executable: path.join(bundle, 'Contents', 'MacOS', 'nwjs'), program: program, productName: productName, runtime: runtime, stage: stage}
@@ -160,6 +172,7 @@ export async function buildNwjsApp(options: NwjsAppOptions): Promise<NwjsApp> {
             })
         }
         if (!existsSync(executable)) throw new Error(`The executable of NW.js ${runtime.version} (${runtime.platform}) is missing`)
+        await shareFiles(directory)
         return {directory: directory, executable: executable, program: program, productName: productName, runtime: runtime, stage: stage}
     } finally {
         await rm(work, {recursive: true, force: true})
