@@ -147,6 +147,13 @@ declare const ipcMain: IPCMain
 export const _socketIOOptions: EntrypointOptions = {controllers: [], service: socketIOEntrypoint({port: 3001, options: {cors: {origin: '*'}}})}
 export const _electronOptions: EntrypointOptions = {controllers: [], service: [electronEntrypoint({ipcMain: ipcMain}), socketIOEntrypoint()]}
 
+// The NW.js adapter of the service channel: its bridge on the global object of NW.js
+import type {nwjsServiceEntrypoint, NwjsServiceBridge} from 'lakutata/adapter/nwjs'
+declare const nwjsEntrypoint: typeof nwjsServiceEntrypoint
+declare const nwjsBridge: NwjsServiceBridge
+export const _nwjsOptions: EntrypointOptions = {controllers: [], service: nwjsEntrypoint({key: 'app:service', global: {}})}
+export const _nwjsInvocation: Promise<{ success: boolean }> = nwjsBridge.invoke({cmd: 'echo'}, 'page-1')
+
 // The JSON-RPC 2.0 adapter of the service channel: HTTP, WebSocket, stdio
 import type {jsonRPCServiceEntrypoint} from 'lakutata/adapter/jsonrpc'
 declare const jsonrpcEntrypoint: typeof jsonRPCServiceEntrypoint

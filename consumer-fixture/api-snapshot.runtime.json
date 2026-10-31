@@ -538,6 +538,10 @@
     "electronIPCServiceEntrypoint",
     "ipcEventOfContext"
   ],
+  "lakutata/adapter/nwjs": [
+    "NWJS_SERVICE_BRIDGE",
+    "nwjsServiceEntrypoint"
+  ],
   "lakutata/com/logger": [
     "Logger"
   ],

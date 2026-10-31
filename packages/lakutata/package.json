@@ -194,6 +194,16 @@
         "default": "./dist/cjs/exports/ElectronAdapter.js"
       }
     },
+    "./adapter/nwjs": {
+      "import": {
+        "types": "./dist/types/exports/NwjsAdapter.d.ts",
+        "default": "./dist/esm/exports/NwjsAdapter.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/NwjsAdapter.d.ts",
+        "default": "./dist/cjs/exports/NwjsAdapter.js"
+      }
+    },
     "./com/logger": {
       "import": {
         "types": "./dist/types/exports/LoggerComponent.d.ts",
