@@ -655,8 +655,8 @@ describe('The templates of the repository', (): void => {
     }
 
     for (const [template, name, ui, names] of [
-        ['nwjs-react', 'Desk', 'App.tsx', ['vite', '@vitejs/plugin-react', 'react', 'react-dom', '@types/react', '@types/react-dom']],
-        ['nwjs-vue', 'Pad', 'App.vue', ['vite', '@vitejs/plugin-vue', 'vue']]
+        ['nwjs-react', 'Slate', 'App.tsx', ['vite', '@vitejs/plugin-react', 'react', 'react-dom', '@types/react', '@types/react-dom']],
+        ['nwjs-vue', 'Ledger', 'App.vue', ['vite', '@vitejs/plugin-vue', 'vue']]
     ] as [string, string, string, string[]][]) {
         it(`creates an NW.js application (${template}) whose background script serves its user interface, and packages it`, async (): Promise<void> => {
             const project: string = await create(template, name)
