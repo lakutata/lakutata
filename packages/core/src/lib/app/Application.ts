@@ -20,7 +20,7 @@ import {type MigrationCommand, readMigrationCommand} from './MigrationCommand.js
 import {type ApplicationExitReason} from '../../types/ApplicationExitReason.js'
 import {BootstrapOption, ModuleOptions} from '../../options/ModuleOptions.js'
 import {declareApplicationClass, markApplicationLaunched} from '../base/internal/ApplicationLaunch.js'
-import {endProcess, isEnding} from '../foundation/EndProcess.js'
+import {endProcess, isEnding, processExits, setProcessExit} from '../foundation/EndProcess.js'
 
 //The handlers are method signatures, so a handler may declare the logger implementation it expects (such as Logger)
 /**
@@ -172,6 +172,12 @@ export class Application extends Module {
     static #naturalEnd: (() => void) | undefined
 
     /**
+     * The root container of the application launched: destroyed after a fatal exception in the process of a host,
+     * which keeps running (exitProcess: false)
+     */
+    static #rootContainer: Container | undefined
+
+    /**
      * Preset the options of the applications, before they run: the packages assembling the framework preset their
      * components (the `lakutata` package presets its Logger as `log` and its Entrypoint as `entrypoint`). An object
      * given to `run()` under a preset name replaces the preset one when it gives its class, or completes its options
@@ -309,8 +315,9 @@ export class Application extends Module {
     /**
      * Set the handler of a fatal exception: an error stopping the launch (invalid options or aliases, an object failing
      * to initialize, a bootstrap step failing). The process exits after it, with the code it returns (1 when it returns
-     * none). Without handler, the error is logged and the process exits with the code 1. Only the first handler added
-     * is called.
+     * none). Without handler, the error is logged and the process exits with the code 1. In the process of a host
+     * (`exitProcess: false`), the objects created are destroyed instead and the process keeps running, the code given
+     * to it (`process.exitCode`). Only the first handler added is called.
      * @param handler The function called with the error and the logger, returning the exit code.
      * @returns The application class, to chain the other calls.
      */
@@ -319,7 +326,7 @@ export class Application extends Module {
             const logger: ILogger = await this.getLogger()
             let exitCode: number | undefined | void = await handler(error, logger)
             if (typeof exitCode !== 'number') exitCode = 1
-            return endProcess(exitCode)
+            return this.endAfterFatalException(exitCode)
         })
         return this.launch()
     }
@@ -404,10 +411,21 @@ export class Application extends Module {
                 } catch (e) {
                     console.error(exception, e)
                 }
-                return endProcess(1)
+                return this.endAfterFatalException(1)
             })
         }
         this.eventEmitter.emit(ApplicationState.FatalException, error)
+    }
+
+    /**
+     * End the process after a fatal exception; in the process of a host, which keeps running, the objects created are
+     * destroyed first (a server listening, a timer)
+     * @param exitCode The exit code.
+     * @protected
+     */
+    protected static async endAfterFatalException(exitCode: number): Promise<void> {
+        if (!processExits()) await Application.#rootContainer?.destroy().catch((): void => undefined)
+        return endProcess(exitCode)
     }
 
     /**
@@ -422,7 +440,7 @@ export class Application extends Module {
         for (const signal of signals) {
             process.on(signal, (): void => {
                 const code: number = 128 + (constants.signals[signal] ?? 0)
-                if (ending || !this.appInstance) return process.exit(code)
+                if (ending || !this.appInstance) return processExits() ? process.exit(code) : endProcess(code)
                 ending = true
                 //The exit of the application, ended by the signal
                 this.eventEmitter.emit('exit', this.appInstance, 0, signal)
@@ -467,12 +485,12 @@ export class Application extends Module {
      * @protected
      */
     protected static async launchApplication(): Promise<Application> {
-        this.eventEmitter.once('exit', async (app: Application, exitCode: number, signal?: NodeJS.Signals) => {
+        this.eventEmitter.once('exit', async (app: Application, exitCode: number, signal?: NodeJS.Signals, force?: boolean) => {
             this.#exiting = true
             try {
-                //The done handler, told why the application exits
+                //The done handler, told why the application exits (none when it is forced to)
                 const reason: ApplicationExitReason = signal ? {code: exitCode ? exitCode : 0, signal: signal} : {code: exitCode ? exitCode : 0}
-                await this.eventEmitter.emitRequest(ApplicationState.Done, app, reason)
+                if (!force) await this.eventEmitter.emitRequest(ApplicationState.Done, app, reason)
                 await rootContainer.destroy()
                 endProcess(exitCode ? exitCode : 0)
             } catch (e) {
@@ -495,6 +513,8 @@ export class Application extends Module {
             })
         })
         const options: ApplicationOptions = typeof this.launchOptions === 'object' ? this.launchOptions : await this.launchOptions()
+        //Read before the validation of the options: their fatal exception follows it
+        setProcessExit(options.exitProcess !== false)
         //The commands of the migrations of the databases: the application connects its databases, does the command and exits
         let migrationCommand: MigrationCommand | undefined
         try {
@@ -576,6 +596,7 @@ export class Application extends Module {
             }
         }
         const rootContainer: Container = new Container()
+        Application.#rootContainer = rootContainer
         return new Promise((resolve, reject): void => {
             ApplicationOptions
                 .validateAsync(options)
@@ -712,18 +733,22 @@ export class Application extends Module {
 
     /**
      * Exit the application gracefully: the `onDone()` handlers run, the entrypoints stop (the requests running
-     * complete), the objects are destroyed, then the process exits with the code. Returns at once.
+     * complete), the objects are destroyed, then the process exits with the code. In the process of a host
+     * (`exitProcess: false`), the process keeps running, the code given to it (`process.exitCode`). Returns at once.
      * @param exitCode The exit code of the process (0 for success).
      */
     public exit(exitCode: number): void
     /**
-     * Exit the process at once with the code 2, without the done handlers nor the teardown of the objects.
+     * Exit the process at once with the code 2, without the done handlers nor the teardown of the objects. In the
+     * process of a host (`exitProcess: false`), the objects are destroyed, without the done handlers, and the process
+     * keeps running, the code 2 given to it.
      * @param force true.
      */
     public exit(force: true): void
     public exit(forceOrExitCode?: boolean | number): void {
         if (typeof forceOrExitCode === 'boolean' && forceOrExitCode) {
-            return process.exit(2)
+            if (processExits()) return process.exit(2)
+            Application.eventEmitter.emit('exit', this, 2, undefined, true)
         } else {
             Application.eventEmitter.emit('exit', this, forceOrExitCode ? forceOrExitCode : 0)
         }

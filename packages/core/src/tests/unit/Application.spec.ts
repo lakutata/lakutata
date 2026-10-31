@@ -158,6 +158,72 @@ const application = Application.run({
         })
     })
 
+    describe('running in the process of a host (exitProcess: false)', (): void => {
+        /**
+         * The host: keeps the process running, then tells that it still runs and its exit code, and ends it
+         */
+        const HOST: string = `
+const host = setInterval(() => undefined, 1000)
+setTimeout(() => {
+    console.log('HOST running ' + process.exitCode)
+    clearInterval(host)
+    process.exit(0)
+}, 2500)
+class Worker extends Component {
+    async destroy() { console.log('DESTROYED worker') }
+}
+`
+
+        it('leave the process running once the application exits: done, the objects destroyed, the exit code given to it', (): void => {
+            const run = runApplication(`${HOST}
+Application.run({id: 'hosted.app', name: 'HostedApp', exitProcess: false, components: {worker: {class: Worker}}, bootstrap: ['worker']})
+    .onLaunched((app) => app.exit(3))
+    .onDone((app, logger, reason) => console.log('DONE ' + JSON.stringify(reason)))`)
+            assert.strictEqual(run.status, 0, run.output)
+            assert.match(run.output, /DONE \{"code":3\}/)
+            assert.match(run.output, /DESTROYED worker/)
+            assert.match(run.output, /HOST running 3/)
+        })
+
+        it('destroy the objects without the done handlers on a forced exit, the process running, the code 2 given to it', (): void => {
+            const run = runApplication(`${HOST}
+Application.run({id: 'hosted.app', name: 'HostedApp', exitProcess: false, components: {worker: {class: Worker}}, bootstrap: ['worker']})
+    .onLaunched((app) => app.exit(true))
+    .onDone(() => console.log('DONE'))`)
+            assert.strictEqual(run.status, 0, run.output)
+            assert.doesNotMatch(run.output, /DONE/)
+            assert.match(run.output, /DESTROYED worker/)
+            assert.match(run.output, /HOST running 2/)
+        })
+
+        it('destroy the objects created after a fatal exception, the process running, the code given to it', (): void => {
+            const FAILING: string = `${HOST}
+class Keeper extends Component {
+    async init() { this.timer = setInterval(() => undefined, 1000) }
+    async destroy() { clearInterval(this.timer); console.log('DESTROYED keeper') }
+}
+class Failing extends Component {
+    async init() { throw new Error('the database is down') }
+}
+const application = Application.run({
+    id: 'failing.app',
+    name: 'FailingApp',
+    exitProcess: false,
+    components: {keeper: {class: Keeper}, failing: {class: Failing}},
+    bootstrap: ['keeper', 'failing']
+})`
+            const logged = runApplication(FAILING)
+            assert.strictEqual(logged.status, 0, logged.output)
+            assert.match(logged.output, /FatalException/)
+            assert.match(logged.output, /DESTROYED keeper/)
+            assert.match(logged.output, /HOST running 1/)
+            const handled = runApplication(`${FAILING}.onFatalException(() => 3)`)
+            assert.strictEqual(handled.status, 0, handled.output)
+            assert.match(handled.output, /DESTROYED keeper/)
+            assert.match(handled.output, /HOST running 3/)
+        })
+    })
+
     describe('ending on the signals', (): void => {
         /**
          * Start an application in a new process; once it printed READY (or once it started when its launch is
