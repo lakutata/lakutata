@@ -106,6 +106,13 @@ export default defineConfig([
         }
     },
     {
+        //The host pages of the windows of the NW.js templates: pages of the browser running with Node.js
+        files: ['packages/template-nwjs-*/template/packages/app/host/**/*.js'],
+        languageOptions: {
+            globals: {...globals.browser, ...globals.node}
+        }
+    },
+    {
         //The browser entry of the WebRTC package, and the code it shares with the main entry: the APIs of the browsers
         //only, nothing of Node.js or of the framework, so a frontend bundling it gets no server code
         files: ['packages/webrtc/src/client/**/*.ts', 'packages/webrtc/src/shared/**/*.ts', 'packages/webrtc/src/protocol/**/*.ts'],
