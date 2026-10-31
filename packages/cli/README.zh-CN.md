@@ -368,6 +368,7 @@ Capacitor 手机应用（iOS、Android）在 `@capawesome/capacitor-nodejs` 内�
 | `--outdir <目录>` | 同 `lakutata mobile stage` |
 | `--device <id>` | 模拟器或设备（序列号，见 `adb devices`）、iOS 模拟器（UDID 或名称），默认是正在运行的那个 |
 | `--node-dir <目录>` | 项目在网页目录里的目录名（插件的 `nodeDir`），默认是 `nodejs` |
+| `--watch` | 监视应用的文件（不包括依赖、编译产物和生成的项目）：有变化就执行它的 `build` 脚本并重新部署，直到按 Ctrl+C |
 
 ## 迁移
 

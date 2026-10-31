@@ -204,6 +204,7 @@
             "appId": "應用程式的 ID（capacitor.config 裡的 appId）",
             "outdir": "產生的 Node.js 專案所在的目錄：Capacitor 網頁目錄下的 nodejs（../ui/dist/nodejs）",
             "device": "Android 的模擬器或裝置（序號，見 adb devices）、iOS 的模擬器（UDID 或名稱，見 xcrun simctl list）；預設是正在執行的那個",
+            "watch": "監視應用程式的檔案：有變化就執行它的 build 腳本（npm run build）並重新部署，直到按 Ctrl+C",
             "nodeDir": "Node.js 專案在應用程式網頁目錄裡的目錄名稱（外掛的 nodeDir）"
           }
         }

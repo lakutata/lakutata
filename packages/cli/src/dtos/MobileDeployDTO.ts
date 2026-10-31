@@ -14,6 +14,9 @@ export class MobileDeployDTO extends DTO {
     @Expect(DTO.String().optional().description('The emulator or the device of Android (its serial, adb devices), the simulator of iOS (its UDID or its name, xcrun simctl list); the one running by default'))
     public device?: string
 
+    @Expect(DTO.Boolean().optional().default(false).description('Watch the files of the application: when they change, run its build script (npm run build) and deploy it again, until Ctrl+C'))
+    public watch: boolean
+
     @Expect(DTO.String().optional().default('nodejs').description('The directory of the Node.js project in the web directory of the application (the nodeDir of the plugin)'))
     public nodeDir: string
 }

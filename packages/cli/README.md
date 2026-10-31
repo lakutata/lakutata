@@ -617,6 +617,7 @@ on iOS it writes into the application in the simulator. adb is found in the Andr
 | `--outdir <directory>` | as for `lakutata mobile stage` |
 | `--device <id>` | the emulator or the device (its serial, `adb devices`), the simulator (its UDID or name), the one running by default |
 | `--node-dir <directory>` | the directory of the project in the web directory (the `nodeDir` of the plugin), `nodejs` by default |
+| `--watch` | watch the files of the application (not its dependencies, its compiled files or the project made): when they change, run its `build` script and deploy it again, until Ctrl+C |
 
 ## Migrations
 

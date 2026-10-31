@@ -1,5 +1,6 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
+import {spawn} from 'node:child_process'
 import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
@@ -122,5 +123,27 @@ esac
         assert.ok(!existsSync(path.join(application, 'public', 'nodejs', 'old.js')))
         assert.strictEqual(JSON.parse(readFileSync(path.join(application, 'public', 'nodejs', 'package.json'), 'utf8')).main, 'main.js')
         assert.ok(existsSync(path.join(application, 'public', 'nodejs', 'app.cjs')))
+        //Watching the files of the application: built (its build script copies its sources) and deployed again when
+        //they change, until stopped
+        mkdirSync(path.join(project, 'src'))
+        writeFileSync(path.join(project, 'src', 'App.js'), 'console.log("mobile")\n')
+        writeFileSync(path.join(project, 'package.json'), JSON.stringify({name: 'app', version: '1.0.0', type: 'module', main: 'build/App.js', scripts: {build: 'node -e "require(\'fs\').cpSync(\'src\', \'build\', {recursive: true})"'}}))
+        writeFileSync(log, '')
+        const watching = spawn(process.execPath, [CLI, 'mobile', 'deploy', 'ios', '--app-id', APP_ID, '--outdir', '../ui/dist/nodejs', '--watch'], {cwd: project, env: {...process.env, ...env}})
+        let output: string = ''
+        watching.stdout.on('data', (chunk: Buffer): unknown => output += chunk.toString())
+        watching.stderr.on('data', (chunk: Buffer): unknown => output += chunk.toString())
+        const until = async (condition: () => boolean): Promise<void> => {
+            for (let attempt: number = 0; attempt < 300 && !condition(); attempt++) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 100))
+            assert.ok(condition(), output)
+        }
+        const launches = (): number => readFileSync(log, 'utf8').split('\n').filter((line: string): boolean => line.startsWith('simctl launch')).length
+        await until((): boolean => /Watching the files of the application: built and deployed again when they change/.test(output))
+        assert.strictEqual(launches(), 1)
+        writeFileSync(path.join(project, 'src', 'App.js'), 'console.log("changed")\n')
+        await until((): boolean => launches() === 2)
+        assert.match(readFileSync(path.join(application, 'public', 'nodejs', 'app.cjs'), 'utf8'), /changed/)
+        watching.kill('SIGINT')
+        assert.strictEqual(await new Promise((resolve: (code: number | null) => void): unknown => watching.once('exit', resolve)), 0)
     })
 })
