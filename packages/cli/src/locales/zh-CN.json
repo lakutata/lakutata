@@ -178,7 +178,7 @@
             "args": "传给应用的参数，写在 -- 之后（lakutata nwjs run -- --renderer=http://localhost:5173）"
           },
           "options": {
-            "version": "运行的 NW.js 版本（默认是 lakutata.nwjs 里的版本）",
+            "release": "运行的 NW.js 版本：具体的版本号、latest 或 win7（默认是 lakutata.nwjs 里的版本）",
             "flavor": "NW.js 的类型：sdk（带开发者工具，默认）或 normal（发布给用户的）"
           }
         }

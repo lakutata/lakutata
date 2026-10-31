@@ -77,7 +77,9 @@ export class NwjsController extends Controller {
     @CLIAction('nwjs run [args...]', NwjsRunDTO, {description: 'Run the compiled application of the current directory in NW.js (the build with its developer tools, by default)'})
     public async run(input: NwjsRunDTO): Promise<undefined> {
         const {stageNwjsApp, downloadNwjs} = await loadBuilder(process.cwd())
-        const stage: NwjsStage = await stageNwjsApp({project: process.cwd(), outdir: path.join('.nwjs', 'app'), version: input.version})
+        const stage: NwjsStage = await stageNwjsApp({project: process.cwd(), outdir: path.join('.nwjs', 'app'), version: input.release})
+        if (stage.addons.rebuilt.length) step(`Native addons built for NW.js ${stage.release.version} (${stage.platform}): ${stage.addons.rebuilt.join(', ')}`)
+        if (stage.addons.renamed.length) step(`Native addons loading the Node.js of NW.js (node.dll): ${stage.addons.renamed.join(', ')}`)
         const runtime: NwjsRuntime = await downloadNwjs({version: stage.release.version, flavor: input.flavor})
         step(`NW.js ${runtime.version} (${runtime.flavor}, ${runtime.platform}): Node.js ${runtime.node}, Chromium ${runtime.chromium.split('.')[0]}`)
         const code: number = await new Promise((resolve: (code: number) => void, reject: (error: Error) => void): void => {
