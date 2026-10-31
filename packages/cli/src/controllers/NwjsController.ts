@@ -84,9 +84,19 @@ export class NwjsController extends Controller {
         step(`NW.js ${runtime.version} (${runtime.flavor}, ${runtime.platform}): Node.js ${runtime.node}, Chromium ${runtime.chromium.split('.')[0]}`)
         const code: number = await new Promise((resolve: (code: number) => void, reject: (error: Error) => void): void => {
             const child = spawn(runtime.executable, [stage.directory, ...input.args ?? []], {stdio: 'inherit'})
+            //NW.js ends with the command: at once when the command is stopped by a signal sent to it only (a runner of the
+            //scripts), the run then done
+            const stop = (): void => {
+                if (child.exitCode === null && child.signalCode === null) child.kill()
+            }
+            const events: string[] = ['exit', 'SIGINT', 'SIGTERM', 'SIGHUP']
+            for (const event of events) process.once(event, stop)
             child.once('error', reject)
             //Stopped by a signal (Ctrl-C in the terminal): a normal end of the run
-            child.once('exit', (exitCode: number | null, signal: NodeJS.Signals | null): void => resolve(signal ? 0 : exitCode ?? 1))
+            child.once('exit', (exitCode: number | null, signal: NodeJS.Signals | null): void => {
+                for (const event of events) process.off(event, stop)
+                resolve(signal ? 0 : exitCode ?? 1)
+            })
         })
         if (code !== 0) throw new Error(`NW.js exited with ${code}`)
         return undefined
