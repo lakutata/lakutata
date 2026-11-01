@@ -277,14 +277,17 @@ async function showSimulator(udid: string): Promise<void> {
 }
 
 /**
- * Whether the pods of the project of iOS are those of its Podfile: installed, after the last change of the Podfile
+ * Whether the pods of the project of iOS are those of its Podfile and of the libnode exported: installed after the last
+ * change of the Podfile and the last export of the libnode (whose framework the pod of the native module vendors)
  * @param ios
+ * @param node the export of the libnode of iOS
  */
-function podsInstalled(ios: string): boolean {
+function podsInstalled(ios: string, node: string): boolean {
     const lock: string = path.join(ios, 'Podfile.lock')
     const manifest: string = path.join(ios, 'Pods', 'Manifest.lock')
     if (!existsSync(path.join(ios, 'App.xcworkspace')) || !existsSync(lock) || !existsSync(manifest) || !existsSync(path.join(ios, 'Podfile'))) return false
-    return readFileSync(lock, 'utf8') === readFileSync(manifest, 'utf8') && statSync(lock).mtimeMs >= statSync(path.join(ios, 'Podfile')).mtimeMs
+    const installed: number = statSync(manifest).mtimeMs
+    return readFileSync(lock, 'utf8') === readFileSync(manifest, 'utf8') && installed >= statSync(path.join(ios, 'Podfile')).mtimeMs && (!existsSync(node) || installed >= statSync(node).mtimeMs)
 }
 
 /**
@@ -296,7 +299,7 @@ function podsInstalled(ios: string): boolean {
  */
 async function runIos(project: MobileProject, udid: string): Promise<string> {
     const ios: string = path.join(project.root, 'ios')
-    if (!podsInstalled(ios)) await shown('pod', ['install'], ios)
+    if (!podsInstalled(ios, nodeOf(project, 'ios'))) await shown('pod', ['install'], ios)
     const derived: string = path.join(ios, 'build')
     await shown('xcrun', ['xcodebuild', '-workspace', 'App.xcworkspace', '-scheme', 'App', '-configuration', 'Debug', '-destination', `id=${udid}`, '-derivedDataPath', derived, 'build'], ios)
     const application: string = path.join(derived, 'Build', 'Products', 'Debug-iphonesimulator', 'App.app')
@@ -443,7 +446,8 @@ export class MobileController extends Controller {
         const out: string = nodeOf(project, input.platform)
         await rm(out, {recursive: true, force: true})
         await mkdir(path.dirname(out), {recursive: true})
-        await cp(built, out, {recursive: true, filter: (file: string): boolean => path.basename(file) !== '.complete'})
+        //The files themselves, not the links of an export given (LAKUTATA_MOBILE_NODE_DIR): CocoaPods does not follow them
+        await cp(built, out, {recursive: true, dereference: true, filter: (file: string): boolean => path.basename(file) !== '.complete'})
         //The libraries of the HAP hold libnode.so, which the addons and the runtime of the native module load by its name
         if (input.platform === 'harmony') {
             await mkdir(harmonyLibraries(project), {recursive: true})
