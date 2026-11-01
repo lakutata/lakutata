@@ -178,6 +178,6 @@ lakutata native link libc --crate                   # 一个 crate（Rust：carg
 - **基于框架的插件包**（它依赖 `lakutata` 或 `@lakutata/core`，比如为了提供一个组件）则和应用一起打进单文件包，这样框架只有一份，只有插件和它旁边的文件放进这个目录。插件要用下面几种方式之一加载，才会被放进去：像 `lakutata add` 生成的插件包那样，把包的目录交给 `node-gyp-build`；直接 `require` 插件文件；或者用从模块位置构造的路径（`path.join(__dirname, 'prebuilds', ...)`）。用其他方式加载的插件，`lakutata package` 会发出警告。
 - **Electron**：插件按安装时的样子复制。`lakutata add` 创建的插件不需要重新构建就能在 Electron 中运行，所有基于 Node-API 的插件都是如此；基于 Node.js V8 API 的插件，打包前要安装它为 Electron 构建的版本（`electron-rebuild`）。
 - **NW.js**：应用在 NW.js 中运行时（`lakutata nwjs run`，以及打包之后），插件会被处理成能在 NW.js 中加载。为运行时以外的架构构建的插件会从源码重新构建，使用 NW.js 内置 Node.js 的头文件；基于 Node.js V8 API 的插件也会重新构建，使用 NW.js 的头文件（需要 NW.js 0.111.3 及以后的版本：更早的版本，例如用于 Windows 7 的 0.72，只能运行基于 Node-API 的插件）。在 Windows 上，插件加载的是 NW.js 的 Node.js（`node.dll`）。项目里的插件保持原样，项目的测试仍然用 Node.js 运行。
-- **手机应用**（Capacitor）：`lakutata mobile stage` 会从源码为 Android 和 iOS 编译插件，使用应用内嵌的 Node.js（见 `@lakutata/cli` README 中的 `lakutata mobile` 命令）。
+- **手机应用**（React Native）：`lakutata mobile stage` 会从源码为 Android、iOS 和鸿蒙编译插件，使用应用内嵌的 libnode（见 `@lakutata/cli` README 中的 `lakutata mobile` 命令）。
 - **Bun**：Bun 能加载 Node-API 的插件；Bun 可执行文件会对基于 Node.js V8 API 的插件发出警告。
 - **Alpine（musl）**：Node.js 的可执行文件在那里不能加载原生插件，请用 Bun 制作。

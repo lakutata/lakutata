@@ -70,7 +70,7 @@ lakutata create --name tool --template cli --package-manager none --no-git
 
 NW.js 应用所用的 NW.js 版本由 `lakutata nwjs use <版本>` 设置（`latest`、`win7` 或某个版本，`lakutata nwjs versions` 会列出这些版本），版本会写进应用的 `package.json`。`lakutata nwjs run [args...]` 在这个 NW.js 的 sdk 版本（带 DevTools）中运行编译好的应用，原生插件会被处理成能在其中加载，并把参数传给应用。应用的安装包里是 normal 版本（见 [Installers](Installers.md) 第 9 节）。
 
-Capacitor 手机应用运行在 `@capawesome/capacitor-nodejs` 内嵌的 Node.js 中。`lakutata mobile stage --platform <android|ios> --outdir <目录>` 在构建界面之后，把它的 Node.js 项目生成到 Capacitor 的网页目录里；`lakutata mobile run <android|ios>` 构建应用并在模拟器上运行；`lakutata mobile deploy <android|ios> --app-id <id> --outdir <目录>` 把 Node.js 项目放进模拟器里已安装的应用，再重新启动应用。
+按 `mobile-react` 模板布局的 React Native 手机应用运行在它的原生模块内嵌的 libnode 中。`lakutata mobile node <android|ios|harmony>` 用项目里的 Dockerfile 为一个系统编译 libnode；`lakutata mobile stage <platform>` 把应用的 Node.js 项目生成到系统的原生工程读取它的位置；`lakutata mobile run <platform>` 构建应用并在模拟器或设备上运行；`lakutata mobile deploy <platform>` 把 Node.js 项目放进那里已安装的应用，再重新启动应用。
 
 ## 6. 环境变量
 

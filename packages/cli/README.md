@@ -583,63 +583,80 @@ NW.js, with its resources and its native addons made to load in it, then run wit
 
 ## Mobile applications
 
-A mobile application of Capacitor (iOS, Android) runs the application in the Node.js that `@capawesome/capacitor-nodejs`
-embeds in it: Node.js 18.20.4, which runs the project in the `nodejs` directory of the web directory of Capacitor. These
-commands make that project, run the application, and deploy the project during the development.
+A mobile application of React Native laid out as the `mobile-react` template (Android, iOS, HarmonyOS) runs the
+application of `packages/app` in a libnode, the library of Node.js that its native module embeds. These commands, run in
+any directory of the project, build that libnode, make the Node.js project of the application, run the application, and
+deploy the project during the development.
 
-### `lakutata mobile stage`
+### `lakutata mobile node <platform>`
 
-Make the Node.js project of the application of the current directory into `--outdir`: its bundle for that Node.js (the
-plugin runs the project as it is: its dependencies are in the bundle), its resources, its `package.json` and its entry.
-Run it after the build of the user interface, which empties the web directory, and before `npx cap sync`. The entry puts
-away the `fetch()` of Node.js where there is no WebAssembly (iOS: its first call would end Node.js), and gives
-`os.tmpdir()` the cache directory of the application where the one of the system cannot be written (Android).
-
-The native addons of the dependencies are built for the system from the sources of their packages (`binding.gyp`),
-against the headers and the libraries of nodejs-mobile, which is downloaded once (or taken from the download of the
-plugin). For Android, each architecture (arm64-v8a, armeabi-v7a, x86_64) gets a native tree of its own, built by
-node-gyp with the NDK (the latest one of the Android SDK, or `ANDROID_NDK_HOME`); a package that ships prebuilt addons
-of Android (`prebuilds/android-<arch>`) keeps them. For iOS, on macOS, each addon becomes a framework for the devices
-and one for the simulators, built with Xcode into `App/App/NodeAddons` of the project of iOS (the `ios.path` of
-`capacitor.config.json`), which the project of iOS of the templates embeds in the application. The builds are kept in
-the cache of lakutata (`~/.cache/lakutata/mobile`).
+Build the libnode of a system (`android`, `ios` or `harmony`) with the Dockerfile of the project (`native/node`) and
+export it into `native/node/out/<platform>`, which the native projects build against; for HarmonyOS, `libnode.so` is put
+into the libraries of the HAP too (`harmony/entry/libs/arm64-v8a`). The build runs in Docker and takes from one to three
+hours, so it is kept in the cache of lakutata (`~/.cache/lakutata/mobile/node`), keyed by the files of the Dockerfile,
+the architectures of Android and, for iOS, the versions of the SDKs of Xcode, which are given to the build (iOS is built
+on macOS). Android and HarmonyOS are built in containers of Linux x86_64, emulated on the Macs of Apple silicon.
+`LAKUTATA_MOBILE_NODE_DIR` gives exports made before instead, a directory per system.
 
 | Option | |
 |---|---|
-| `--platform <android\|ios>` | the system the project is made for: `npx cap sync` copies the web directory to the system synced, so the project is made for that system right before syncing it |
-| `--outdir <directory>` | the directory of the project: `nodejs` in the web directory (`../ui/dist/nodejs`) |
+| `--abis <list>` | the architectures of Android, separated by commas (`arm64-v8a,armeabi-v7a,x86_64`), `arm64-v8a,x86_64` by default |
+| `--jobs <n>` | the jobs of make; by default, as many as the memory of Docker allows (about 2 GB each) |
+
+### `lakutata mobile stage <platform>`
+
+Make the Node.js project of the application where the native project of the system takes it:
+`android/app/src/main/assets/nodejs` (copied into the files of the application at its first launch), `ios/nodejs` (put
+into the bundle of the application by its build) or `harmony/entry/src/main/resources/resfile/nodejs` (run from the
+resources of the HAP). The project holds the bundle of the application for the version of Node.js of the libnode, its
+resources, its `package.json` and its entry, which puts away `fetch()` where there is no WebAssembly (HarmonyOS).
+
+The native addons of the dependencies are built for the system from the sources of their packages (`binding.gyp`),
+against the headers and the libraries of the libnode. For Android, each architecture of the libnode gets a native tree
+of its own, built by node-gyp with the NDK (the latest one of the Android SDK, or `ANDROID_NDK_HOME`); a package that
+ships prebuilt addons of Android (`prebuilds/android-<arch>`) keeps them. For iOS, on macOS, each addon becomes a
+framework for the devices and one for the simulators, built with Xcode into `ios/NodeAddons`, which the build of the
+application embeds. For HarmonyOS, each addon becomes a library of the HAP (`libaddon-<package>-<file>.so` in
+`harmony/entry/libs/arm64-v8a`), built with the native SDK of DevEco Studio (or `OHOS_NDK_HOME`). The builds are kept
+in the cache of lakutata.
+
+| Option | |
+|---|---|
+| `--abis <list>` | the architectures of Android the addons are built for, those of the libnode by default |
 | `--no-minify` | keep the bundle readable |
 
 ### `lakutata mobile run <platform>`
 
-Build the mobile application of the project and run it, after `npx cap sync`: on an emulator or a device of Android
-(`android`) through `npx cap run android`; on a simulator of iOS (`ios`), built with `xcodebuild` the way
-`npx cap run ios` builds it, then installed and started with `xcrun simctl`. The simulator is the one given, else the
-one running, else the newest iPhone; a simulator that is not running is booted. The simulator is shown in the app of
-Xcode for that: Simulator, or Device Hub since Xcode 27 (which `npx cap run ios` cannot open).
+Build the debug application of the system and run it, its user interface loaded from Metro (`npm start`). The Node.js
+project of the application installed replaces a copy deployed before.
+
+- Android: on the emulator or the device running (or given), built by Gradle for its architecture, installed, Metro made
+  reachable from it (`adb reverse`), and started. adb is found in the Android SDK (`ANDROID_HOME`), else in the `PATH`.
+- iOS: on a simulator (the one given, else the one running, else the newest iPhone, booted when needed), its pods
+  installed first when the `Podfile` changed, built with `xcodebuild`, installed and started with `xcrun simctl`, and
+  shown in Simulator or in Device Hub.
+- HarmonyOS: on the emulator or the device connected (or given), its user interface bundled into the HAP (`react-native
+  bundle-harmony`), built by the hvigor of DevEco Studio (`DEVECO_STUDIO_HOME`, its SDK `DEVECO_SDK_HOME`), installed
+  with hdc, Metro made reachable from it (`hdc rport`), and started.
 
 | Option | |
 |---|---|
-| `--device <id>` | the emulator or the device of Android (its serial or the name of its AVD, `npx cap run android --list`), the simulator of iOS (its UDID or its name, `xcrun simctl list devices`) |
+| `--device <id>` | the emulator or the device of Android (its serial, `adb devices`) or of HarmonyOS (`hdc list targets`), the simulator of iOS (its UDID or its name, `xcrun simctl list devices`) |
 
 ### `lakutata mobile deploy <platform>`
 
-Make the project, put it into the application installed in the emulator of Android or the simulator of iOS (`android` or
-`ios`), and start the application again: the Node.js side changes without installing the application again. On Android
-it writes into the files of a debug build (`adb shell run-as`), where the plugin copied the project at the first start
-and copies it again only when the package is updated (the application is started once first when it has not copied it);
-on iOS it writes into the application in the simulator. adb is found in the Android SDK (`ANDROID_HOME`), else in the
-`PATH`. The native addons are built for the device only: for the architecture of the emulator or the device of Android,
-for the simulators of iOS (their frameworks are put into the application of the simulator).
+Make the project, put it into the debug application installed on the device, and start the application again: the
+Node.js side changes without installing the application again. On Android it writes into the files of the application
+(`adb shell run-as`), marked so that the application keeps it until it is installed again; on iOS into the application
+in the simulator, with the frameworks of the addons; on HarmonyOS into the files of the application (`hdc file send`),
+which the native module runs instead of the project of the resources. The native addons are built for the device only
+(its architecture of Android, the simulators of iOS); those of HarmonyOS are libraries of the HAP, which
+`lakutata mobile run harmony` installs.
 
 | Option | |
 |---|---|
-| `--app-id <id>` | the id of the application (the `appId` of `capacitor.config`) |
-| `--outdir <directory>` | as for `lakutata mobile stage` |
-| `--device <id>` | the emulator or the device (its serial, `adb devices`), the simulator (its UDID or name), the one running by default |
-| `--node-dir <directory>` | the directory of the project in the web directory (the `nodeDir` of the plugin), `nodejs` by default |
-| `--watch` | watch the files of the application (not its dependencies, its compiled files or the project made): when they change, run its `build` script and deploy it again, until Ctrl+C |
-| `--live-reload <port>` | the port of the dev server of the user interface (`vite --host`): run the application with its pages loaded from the dev server at `localhost`, and watch its files, until Ctrl+C. On Android through `npx cap run android --live-reload`, which forwards the port to the device (`adb reverse`) and puts the configuration of the project back once stopped; on iOS, the application is built with the address of the dev server and installed in the simulator, the configuration of the project left as it was. The installed application keeps loading its pages from the dev server until it is installed again |
+| `--device <id>` | as for `lakutata mobile run` |
+| `--watch` | watch the files of the application (not its dependencies or its compiled files): when they change, run its `build` script and deploy it again, until Ctrl+C |
 
 ## Migrations
 

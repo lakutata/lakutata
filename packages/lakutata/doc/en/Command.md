@@ -104,11 +104,12 @@ An NW.js application gets its version of NW.js from `lakutata nwjs use <version>
 application in the sdk flavor of that NW.js (with the DevTools), its native addons made to load in it, and gives it the
 arguments. Its installers hold the normal flavor ([Installers](Installers.md), section 9).
 
-A mobile application of Capacitor runs in the Node.js that `@capawesome/capacitor-nodejs` embeds in it. `lakutata mobile
-stage --platform <android|ios> --outdir <directory>` makes its Node.js project in the web directory of Capacitor, after
-the build of the user interface; `lakutata mobile run <android|ios>` builds the application and runs it on an emulator
-or a simulator; `lakutata mobile deploy <android|ios> --app-id <id> --outdir <directory>` puts the Node.js project into
-the application installed in the emulator or the simulator and starts the application again.
+A mobile application of React Native laid out as the `mobile-react` template runs in a libnode that its native module
+embeds. `lakutata mobile node <android|ios|harmony>` builds the libnode of a system with the Dockerfile of the project;
+`lakutata mobile stage <platform>` makes the Node.js project of the application where the native project of the system
+takes it; `lakutata mobile run <platform>` builds the application and runs it on an emulator, a device or a simulator;
+`lakutata mobile deploy <platform>` puts the Node.js project into the application installed there and starts the
+application again.
 
 ## 6. Environment variables
 

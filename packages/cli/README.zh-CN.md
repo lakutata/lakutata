@@ -346,40 +346,48 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 
 ## 手机应用
 
-Capacitor 手机应用（iOS、Android）在 `@capawesome/capacitor-nodejs` 内嵌的 Node.js 中运行应用：Node.js 18.20.4，它运行 Capacitor 网页目录下 `nodejs` 目录里的项目。下面的命令生成这个项目、运行应用，并在开发时部署这个项目。
+按 `mobile-react` 模板布局的 React Native 手机应用（Android、iOS、鸿蒙）在一个 libnode 中运行 `packages/app` 里的应用，libnode 是应用的原生模块内嵌的 Node.js 库。下面的命令可以在项目的任何目录中执行，用来编译 libnode、生成应用的 Node.js 项目、运行应用，并在开发时部署这个项目。
 
-### `lakutata mobile stage`
+### `lakutata mobile node <platform>`
 
-把当前目录的应用生成为 `--outdir` 下的 Node.js 项目：面向这个 Node.js 的单文件包（插件按原样运行这个项目，依赖都打进了单文件包）、资源、`package.json` 和入口。请在构建界面之后（构建会清空网页目录）、`npx cap sync` 之前执行。入口在没有 WebAssembly 的地方（iOS：第一次调用 `fetch()` 就会结束 Node.js）收起 Node.js 的 `fetch()`；在系统的临时目录不可写的地方（Android），让 `os.tmpdir()` 返回应用的 cache 目录。
-
-依赖里的原生插件会从各自包的源码（`binding.gyp`）为目标系统编译，用的是 nodejs-mobile 的头文件和库（只下载一次，插件已经下载过的话直接用）。Android 上每种架构（arm64-v8a、armeabi-v7a、x86_64）各有一棵原生树，用 node-gyp 和 NDK 编译（Android SDK 里最新的 NDK，或 `ANDROID_NDK_HOME`）；自带 Android 预编译插件（`prebuilds/android-<arch>`）的包直接用它们。iOS 上（在 macOS 中）每个插件分别为真机和模拟器编成一个 framework，用 Xcode 编译到 iOS 工程的 `App/App/NodeAddons` 中（iOS 工程的位置是 `capacitor.config.json` 里的 `ios.path`），模板的 iOS 工程会把它们嵌进应用。编译结果保存在 lakutata 的缓存目录中（`~/.cache/lakutata/mobile`）。
+用项目里的 Dockerfile（`native/node`）为一个系统（`android`、`ios` 或 `harmony`）编译 libnode，导出到 `native/node/out/<platform>`，原生工程对它编译；鸿蒙的 `libnode.so` 还会放进 HAP 的库目录（`harmony/entry/libs/arm64-v8a`）。编译在 Docker 中进行，需要一到三个小时，所以结果保存在 lakutata 的缓存目录中（`~/.cache/lakutata/mobile/node`），缓存的键由 Dockerfile 目录里的文件、Android 的架构以及 iOS 编译所用的 Xcode SDK 版本算出（iOS 在 macOS 上编译）。Android 和鸿蒙在 Linux x86_64 的容器中编译，在 Apple 芯片的 Mac 上通过模拟运行。设置 `LAKUTATA_MOBILE_NODE_DIR` 时直接使用其中事先导出的结果，每个系统一个目录。
 
 | 选项 | |
 |---|---|
-| `--platform <android\|ios>` | 项目面向的系统：`npx cap sync` 会把网页目录复制给同步的那个系统，所以紧接着它之前为这个系统生成 |
-| `--outdir <目录>` | 项目所在的目录：网页目录下的 `nodejs`（`../ui/dist/nodejs`） |
+| `--abis <列表>` | Android 的架构，用逗号分隔（`arm64-v8a,armeabi-v7a,x86_64`），默认是 `arm64-v8a,x86_64` |
+| `--jobs <n>` | make 的并行任务数，默认按 Docker 的内存决定（每个任务约 2 GB） |
+
+### `lakutata mobile stage <platform>`
+
+把应用的 Node.js 项目生成到系统的原生工程读取它的位置：`android/app/src/main/assets/nodejs`（应用第一次启动时复制到应用的文件目录）、`ios/nodejs`（构建应用时放进应用包）或 `harmony/entry/src/main/resources/resfile/nodejs`（直接从 HAP 的资源中运行）。项目包含面向 libnode 中 Node.js 版本的应用单文件包、资源、`package.json` 和入口；在没有 WebAssembly 的地方（鸿蒙），入口会收起 `fetch()`。
+
+依赖里的原生插件会从各自包的源码（`binding.gyp`）为目标系统编译，用的是 libnode 的头文件和库。Android 上 libnode 的每种架构各有一棵原生树，用 node-gyp 和 NDK 编译（Android SDK 里最新的 NDK，或 `ANDROID_NDK_HOME`）；自带 Android 预编译插件（`prebuilds/android-<arch>`）的包直接用它们。iOS 上（在 macOS 中）每个插件分别为真机和模拟器编成一个 framework，用 Xcode 编译到 `ios/NodeAddons` 中，构建应用时嵌进应用。鸿蒙上每个插件编成 HAP 里的一个库（`harmony/entry/libs/arm64-v8a` 中的 `libaddon-<包>-<文件>.so`），用 DevEco Studio 的原生 SDK 编译（或 `OHOS_NDK_HOME`）。编译结果保存在 lakutata 的缓存目录中。
+
+| 选项 | |
+|---|---|
+| `--abis <列表>` | 为哪些 Android 架构编译插件，默认是 libnode 的那些架构 |
 | `--no-minify` | 不压缩单文件包 |
 
 ### `lakutata mobile run <platform>`
 
-在 `npx cap sync` 之后构建并运行项目的手机应用：在 Android 模拟器或设备上（`android`）通过 `npx cap run android` 运行；在 iOS 模拟器上（`ios`）按 `npx cap run ios` 的方式用 `xcodebuild` 构建，再用 `xcrun simctl` 安装、启动。模拟器用指定的那个，没有指定时用正在运行的那个，都没有时启动最新的 iPhone。同时会打开 Xcode 中显示模拟器的应用：Simulator，Xcode 27 起是 Device Hub（`npx cap run ios` 打不开它）。
+构建并运行系统的调试版应用，界面从 Metro（`npm start`）加载。已安装应用里的 Node.js 项目会替换之前部署进去的副本。
+
+- Android：在正在运行（或指定）的模拟器或设备上，用 Gradle 按它的架构构建、安装，让它能访问 Metro（`adb reverse`），然后启动。adb 从 Android SDK（`ANDROID_HOME`）中查找，找不到时用 `PATH` 中的。
+- iOS：在模拟器上（指定的那个，没有指定时用正在运行的那个，都没有时用最新的 iPhone，需要时先启动它），`Podfile` 有变化时先安装 pods，再用 `xcodebuild` 构建，用 `xcrun simctl` 安装、启动，并在 Simulator 或 Device Hub 中显示。
+- 鸿蒙：在已连接（或指定）的模拟器或设备上，先把界面打包进 HAP（`react-native bundle-harmony`），用 DevEco Studio 的 hvigor 构建（`DEVECO_STUDIO_HOME`，SDK 为 `DEVECO_SDK_HOME`），用 hdc 安装，让它能访问 Metro（`hdc rport`），然后启动。
 
 | 选项 | |
 |---|---|
-| `--device <id>` | Android 的模拟器或设备（序列号或 AVD 名称，见 `npx cap run android --list`）、iOS 的模拟器（UDID 或名称，见 `xcrun simctl list devices`） |
+| `--device <id>` | Android 的模拟器或设备（序列号，见 `adb devices`）、鸿蒙的模拟器或设备（见 `hdc list targets`）、iOS 的模拟器（UDID 或名称，见 `xcrun simctl list devices`） |
 
 ### `lakutata mobile deploy <platform>`
 
-生成项目，放进 Android 模拟器或 iOS 模拟器里已安装的应用（`android` 或 `ios`），再重新启动应用：Node.js 一侧的改动不用重新安装应用。在 Android 上写进调试版应用的文件目录（`adb shell run-as`），插件在第一次启动时把项目复制到了那里，之后只在应用的安装包更新时才重新复制（还没复制时会先启动一次应用）；在 iOS 上写进模拟器里的应用。adb 从 Android SDK（`ANDROID_HOME`）中查找，找不到时用 `PATH` 中的。原生插件只为当前设备编译：Android 只编模拟器或设备的那种架构，iOS 只编模拟器版（它们的 framework 会放进模拟器里的应用）。
+生成项目，放进设备上已安装的调试版应用，再重新启动应用：Node.js 一侧的改动不用重新安装应用。在 Android 上写进应用的文件目录（`adb shell run-as`），并加上标记，让应用在重新安装之前一直使用它；在 iOS 上写进模拟器里的应用，连同插件的 framework；在鸿蒙上写进应用的文件目录（`hdc file send`），原生模块会优先运行它，而不是资源里的项目。原生插件只为当前设备编译（Android 只编设备的那种架构，iOS 只编模拟器版）；鸿蒙的插件是 HAP 里的库，由 `lakutata mobile run harmony` 安装。
 
 | 选项 | |
 |---|---|
-| `--app-id <id>` | 应用的 ID（`capacitor.config` 里的 `appId`） |
-| `--outdir <目录>` | 同 `lakutata mobile stage` |
-| `--device <id>` | 模拟器或设备（序列号，见 `adb devices`）、iOS 模拟器（UDID 或名称），默认是正在运行的那个 |
-| `--node-dir <目录>` | 项目在网页目录里的目录名（插件的 `nodeDir`），默认是 `nodejs` |
-| `--watch` | 监视应用的文件（不包括依赖、编译产物和生成的项目）：有变化就执行它的 `build` 脚本并重新部署，直到按 Ctrl+C |
-| `--live-reload <端口>` | 界面开发服务器的端口（`vite --host`）：运行应用，页面从 `localhost` 上的开发服务器加载，并监视应用的文件，直到按 Ctrl+C。Android 上通过 `npx cap run android --live-reload` 运行，它把端口转发到设备（`adb reverse`），停止后把项目的配置恢复原样；iOS 上用开发服务器的地址构建应用并安装到模拟器，项目的配置保持不变。已安装的应用会一直从开发服务器加载页面，直到重新安装 |
+| `--device <id>` | 同 `lakutata mobile run` |
+| `--watch` | 监视应用的文件（不包括依赖和编译产物）：有变化就执行它的 `build` 脚本并重新部署，直到按 Ctrl+C |
 
 ## 迁移
 
