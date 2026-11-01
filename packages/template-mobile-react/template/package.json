@@ -1,0 +1,54 @@
+{
+  "name": "{$APP_ID}",
+  "productName": "{$APP_NAME}",
+  "version": "0.0.1",
+  "description": "{$APP_DESC}",
+  "author": "{$APP_AUTHOR}",
+  "license": "{$APP_LICENSE}",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "lakutata run rebuild",
+    "test": "npm run build && lakutata run test",
+    "start": "react-native start",
+    "node:android": "lakutata mobile node android",
+    "node:ios": "lakutata mobile node ios",
+    "node:harmony": "lakutata mobile node harmony",
+    "stage:android": "npm run build && lakutata mobile stage android",
+    "stage:ios": "npm run build && lakutata mobile stage ios",
+    "stage:harmony": "npm run build && lakutata mobile stage harmony",
+    "android": "npm run stage:android && lakutata mobile run android",
+    "ios": "npm run stage:ios && lakutata mobile run ios",
+    "harmony": "npm run stage:harmony && lakutata mobile run harmony",
+    "deploy:android": "npm run build && lakutata mobile deploy android",
+    "deploy:ios": "npm run build && lakutata mobile deploy ios",
+    "deploy:harmony": "npm run build && lakutata mobile deploy harmony",
+    "version:patch": "lakutata version patch --yes"
+  },
+  "dependencies": {
+    "@react-native-oh/react-native-harmony": "0.86.1",
+    "react": "19.2.3",
+    "react-native": "0.86.3"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.25.3",
+    "@babel/runtime": "^7.25.0",
+    "@lakutata/builder": "^{$LAKUTATA_VERSION}",
+    "@lakutata/cli": "^{$LAKUTATA_VERSION}",
+    "@react-native-community/cli": "20.1.0",
+    "@react-native-community/cli-platform-android": "20.1.0",
+    "@react-native-community/cli-platform-ios": "20.1.0",
+    "@react-native-oh/react-native-harmony-cli": "0.86.1",
+    "@react-native/babel-preset": "0.86.3",
+    "@react-native/metro-config": "0.86.3",
+    "@react-native/typescript-config": "0.86.3",
+    "@types/react": "^19.2.0",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  }
+}

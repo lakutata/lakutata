@@ -80,6 +80,7 @@ shop/
 - `cli`：一个命令行工具（`commanderCLIEntrypoint`），带有 `package:bundle` 和 `package:exe` 脚本，把它打包到 `dist/`（[Packaging](Packaging.md)）。
 - `electron-react` 和 `electron-vue`：`packages/app` 中是 Electron 的主进程（它的窗口，以及通过 IPC 提供的服务动作），`packages/ui` 中是渲染进程，还有制作安装包的脚本。
 - `nwjs-react` 和 `nwjs-vue`：`packages/app` 中是 NW.js 的后台脚本（它的窗口：窗口的宿主页面在 `packages/app/host`，用 webview 承载用户界面；以及它的服务动作），`packages/ui` 中是用户界面，NW.js 的版本在 `packages/app/nwjs.json`（由 `npm run nwjs:use -- <版本>` 写入），还有制作安装包的脚本。
+- `mobile-react`：`packages/app` 中是应用，它运行在手机应用内嵌的 Node.js 里，为根目录下的 React Native 界面（`App.tsx`、`src/ipc.ts`）提供服务动作；`android`、`ios` 和 `harmony` 中是原生工程，`native` 中是内嵌 Node.js 的原生模块和编译 libnode 的 Dockerfile，应用的 ID（`lakutata create --bundle-id`）写在这些原生工程里；还有编译 libnode、在模拟器或设备上运行应用、部署 Node.js 一侧的脚本（`npm run node:android`、`npm run android`、`npm run deploy:android`，`ios` 和 `harmony` 也一样）。
 
 打包产物写到工作区根目录的 `dist/` 中；`.gitignore` 忽略 `build`、`dist` 以及界面的构建输出。
 

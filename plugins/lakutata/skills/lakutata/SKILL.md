@@ -95,7 +95,8 @@ website.
   (and keeps an `include`), and the relative imports of the sources end in `.js`:
   `import {config} from './config/Config.js'`.
 - `npx @lakutata/cli create --name my-app` creates a project from a template: `default` (an HTTP application), `cli`,
-  `service`, `web-react`, `web-vue`, `web-next`, `web-nuxt`, `electron-react`, `electron-vue`, `nwjs-react`, `nwjs-vue`;
+  `service`, `web-react`, `web-vue`, `web-next`, `web-nuxt`, `electron-react`, `electron-vue`, `nwjs-react`, `nwjs-vue`,
+  `mobile-react` (Android, iOS and HarmonyOS with React Native; give it `--bundle-id com.acme.app`);
   `--with i18n,installer` adds features (`win7` gives the `nwjs-*` templates NW.js 0.72, which runs on Windows 7). All but `default` are workspaces, the application being the package `packages/app`.
 - `src/App.ts` starts the application with the options returned by `config()` in `src/config/Config.ts`; controllers,
   components, DTOs and tests have their own directories (`controllers/`, `components/`, `dtos/`, `tests/`).

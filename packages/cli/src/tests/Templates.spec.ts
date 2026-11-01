@@ -325,6 +325,14 @@ describe('The templates of the repository', (): void => {
         for (const file of shared) assert.ok(readFileSync(path.join(nwjs, file)).equals(readFileSync(path.join(electron, file))), `${file} of nwjs-react differs from the one of electron-react`)
     })
 
+    it('keeps the files the mobile template shares with the Electron ones identical', (): void => {
+        //Their actions and their messages are the same
+        const electron: string = path.join(ROOT, 'packages', 'template-electron-react')
+        const mobile: string = path.join(ROOT, 'packages', 'template-mobile-react')
+        const shared: string[] = ['template/packages/app/src/dtos/GreetDTO.ts', ...filesUnder(path.join(electron, 'features', 'i18n')).map((file: string): string => path.relative(electron, file))]
+        for (const file of shared) assert.ok(readFileSync(path.join(mobile, file)).equals(readFileSync(path.join(electron, file))), `${file} of mobile-react differs from the one of electron-react`)
+    })
+
     it('creates the projects with the installer feature: their installers configured, their scripts and their Dockerfile written', async (): Promise<void> => {
         //A command line tool: its program in the PATH, without service
         const tool: string = await create('cli', 'Shipper', ['installer'])
@@ -761,5 +769,56 @@ describe('The templates of the repository', (): void => {
         assert.notStrictEqual(JSON.parse(readFileSync(path.join(latest, 'packages', 'app', 'nwjs.json'), 'utf8')).version, '0.72.0')
         assert.strictEqual(JSON.parse(readFileSync(path.join(latest, 'package.json'), 'utf8')).scripts['package:ia32'], undefined)
         assert.doesNotMatch(readFileSync(path.join(latest, 'README.md'), 'utf8'), /package:ia32|@if|@end/)
+    })
+
+    it('creates a mobile application of React Native (mobile-react) whose Node.js serves its user interface, its native projects given the id of the application', async (): Promise<void> => {
+        const project: string = await create('mobile-react', 'Pocket')
+        const read = (file: string): string => readFileSync(path.join(project, ...file.split('/')), 'utf8')
+        for (const file of ['app.json', 'App.tsx', 'android/app/build.gradle', 'android/app/src/main/res/values/strings.xml', 'ios/App.xcodeproj/project.pbxproj', 'ios/App/Info.plist', 'harmony/AppScope/app.json5', 'harmony/AppScope/resources/base/element/string.json', 'packages/app/package.json']) {
+            assert.doesNotMatch(read(file), /\{\$APP_/, file)
+        }
+        //The id of the application on the three systems
+        const bundleId: string = 'com\\.example\\.pocket'
+        assert.match(read('android/app/build.gradle'), new RegExp(`applicationId "${bundleId}"`))
+        assert.match(read('ios/App.xcodeproj/project.pbxproj'), new RegExp(`PRODUCT_BUNDLE_IDENTIFIER = "${bundleId}";`))
+        assert.match(read('harmony/AppScope/app.json5'), new RegExp(`"bundleName": "${bundleId}"`))
+        //The files starting with a dot are kept in the assets of Android: the native tree of the Node.js project has some
+        assert.match(read('android/app/build.gradle'), /ignoreAssetsPattern = '!\.svn:[^']*'/)
+        assert.doesNotMatch(read('android/app/build.gradle'), /ignoreAssetsPattern = '[^']*:\.\*:/)
+        for (const file of ['harmony/.gitignore', 'harmony/entry/src/main/cpp/.gitignore', 'ios/.xcode.env']) assert.ok(existsSync(path.join(project, ...file.split('/'))), file)
+        //What lakutata mobile makes is left out of git
+        for (const directory of ['native/node/out/', 'android/app/src/main/assets/nodejs/', 'ios/nodejs/', 'ios/NodeAddons/', 'harmony/entry/libs/']) assert.ok(read('.gitignore').split('\n').includes(directory), directory)
+        //The Node.js side, built and tested: its actions served through a socket standing for the native module
+        install(project, ['@types/node'], path.join(ROOT, 'node_modules', 'typescript'))
+        linkWorkspace(project, ['app'])
+        const built = await runIn(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
+        assert.strictEqual(built.code, 0, built.output)
+        const tested = await runIn(process.execPath, [CLI, 'run', 'test'], project)
+        assert.strictEqual(tested.code, 0, tested.output)
+        assert.match(tested.output, /pass 5/)
+        //The Node.js project of each system made where its native project takes it, against the libnode exported before
+        const exports: string = path.join(work, 'mobile-node')
+        for (const platform of ['android', 'ios', 'harmony']) {
+            const include: string = path.join(exports, platform, 'include', 'node')
+            mkdirSync(include, {recursive: true})
+            writeFileSync(path.join(include, 'node_version.h'), '#define NODE_MAJOR_VERSION 24\n#define NODE_MINOR_VERSION 20\n#define NODE_PATCH_VERSION 0\n')
+            writeFileSync(path.join(include, 'node_api.h'), '')
+            if (platform === 'ios') {
+                mkdirSync(path.join(exports, platform, 'NodeMobile.xcframework'))
+                writeFileSync(path.join(exports, platform, 'NodeMobile.xcframework', 'Info.plist'), '')
+            } else {
+                mkdirSync(path.join(exports, platform, 'libs', 'arm64-v8a'), {recursive: true})
+                writeFileSync(path.join(exports, platform, 'libs', 'arm64-v8a', 'libnode.so'), '')
+            }
+        }
+        for (const [platform, directory] of [['android', 'android/app/src/main/assets/nodejs'], ['ios', 'ios/nodejs'], ['harmony', 'harmony/entry/src/main/resources/resfile/nodejs']]) {
+            const exported = await runIn(process.execPath, [CLI, 'mobile', 'node', platform], project, {LAKUTATA_MOBILE_NODE_DIR: exports})
+            assert.strictEqual(exported.code, 0, exported.output)
+            const staged = await runIn(process.execPath, [CLI, 'mobile', 'stage', platform], path.join(project, 'packages', 'app'))
+            assert.strictEqual(staged.code, 0, staged.output)
+            assert.match(staged.output, /\(Node\.js 24\.20\.0\)/)
+            for (const file of ['package.json', 'main.js', 'app.cjs']) assert.ok(existsSync(path.join(project, ...directory.split('/'), file)), `${directory}/${file}`)
+        }
+        assert.ok(existsSync(path.join(project, 'harmony', 'entry', 'libs', 'arm64-v8a', 'libnode.so')))
     })
 })

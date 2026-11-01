@@ -1,0 +1,42 @@
+{
+  "name": "@lakutata/template-mobile-react",
+  "version": "3.1.5",
+  "description": "The mobile template of the lakutata projects with React Native: a lakutata application in a Node.js embedded in the mobile application, serving the actions of its controllers to the user interface of React Native, on Android, iOS and HarmonyOS (RNOH).",
+  "homepage": "https://lakutata.com/guide/ProjectStructure",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/template-mobile-react"
+  },
+  "author": "alex.ma",
+  "keywords": [
+    "lakutata",
+    "lakutata-template",
+    "template",
+    "mobile",
+    "react-native",
+    "android",
+    "ios",
+    "harmonyos",
+    "openharmony",
+    "nodejs-mobile",
+    "react"
+  ],
+  "license": "MIT",
+  "files": [
+    "template",
+    "features",
+    "README.md",
+    "LICENSE"
+  ],
+  "lakutata": {
+    "template": "mobile-react",
+    "features": {
+      "i18n": "The messages in several languages (lakutata/com/i18n): src/locales, the languages of the device"
+    }
+  }
+}

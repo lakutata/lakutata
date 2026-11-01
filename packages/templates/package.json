@@ -120,6 +120,14 @@
           "i18n",
           "win7"
         ]
+      },
+      {
+        "name": "mobile-react",
+        "description": "A mobile application (Android, iOS, HarmonyOS): React Native, the Node.js of the application serving its user interface",
+        "package": "@lakutata/template-mobile-react",
+        "features": [
+          "i18n"
+        ]
       }
     ]
   }

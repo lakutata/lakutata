@@ -83,7 +83,8 @@ export const BUILTIN_TEMPLATES: TemplateInfo[] = [
     {name: 'electron-react', description: 'A desktop application: Electron, its main process serving a React renderer over IPC', package: '@lakutata/template-electron-react', features: ['i18n']},
     {name: 'electron-vue', description: 'A desktop application: Electron, its main process serving a Vue renderer over IPC', package: '@lakutata/template-electron-vue', features: ['i18n']},
     {name: 'nwjs-react', description: 'A desktop application: NW.js, its background script serving a React user interface isolated in a webview', package: '@lakutata/template-nwjs-react', features: ['i18n', 'win7']},
-    {name: 'nwjs-vue', description: 'A desktop application: NW.js, its background script serving a Vue user interface isolated in a webview', package: '@lakutata/template-nwjs-vue', features: ['i18n', 'win7']}
+    {name: 'nwjs-vue', description: 'A desktop application: NW.js, its background script serving a Vue user interface isolated in a webview', package: '@lakutata/template-nwjs-vue', features: ['i18n', 'win7']},
+    {name: 'mobile-react', description: 'A mobile application (Android, iOS, HarmonyOS): React Native, the Node.js of the application serving its user interface', package: '@lakutata/template-mobile-react', features: ['i18n']}
 ]
 
 /**

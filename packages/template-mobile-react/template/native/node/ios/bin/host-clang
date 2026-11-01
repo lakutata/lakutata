@@ -1,0 +1,2 @@
+#!/bin/sh
+HOST_TOOL=clang-20 exec /build/ios/bin/host-cc "$@"
