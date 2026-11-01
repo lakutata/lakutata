@@ -635,9 +635,10 @@ project of the application installed replaces a copy deployed before.
 - iOS: on a simulator (the one given, else the one running, else the newest iPhone, booted when needed), its pods
   installed first when the `Podfile` changed, built with `xcodebuild`, installed and started with `xcrun simctl`, and
   shown in Simulator or in Device Hub.
-- HarmonyOS: on the emulator or the device connected (or given), its user interface bundled into the HAP (`react-native
-  bundle-harmony`), built by the hvigor of DevEco Studio (`DEVECO_STUDIO_HOME`, its SDK `DEVECO_SDK_HOME`), installed
-  with hdc, Metro made reachable from it (`hdc rport`), and started.
+- HarmonyOS: on the emulator or the device connected (or given), its user interface bundled into the HAP
+  (`react-native bundle-harmony`), its ohpm dependencies installed (`ohpm install --all`), built by the hvigor of DevEco
+  Studio (`DEVECO_STUDIO_HOME`, its SDK `DEVECO_SDK_HOME`), installed with hdc, Metro made reachable from it
+  (`hdc rport`), and started.
 
 | Option | |
 |---|---|

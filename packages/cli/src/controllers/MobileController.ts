@@ -1,6 +1,6 @@
 import {spawn} from 'node:child_process'
 import {existsSync, readdirSync, readFileSync, statSync, watch} from 'node:fs'
-import {cp, mkdir, readdir, rm} from 'node:fs/promises'
+import {cp, mkdir, mkdtemp, readdir, rm, writeFile} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import {Controller} from 'lakutata/com/entrypoint'
@@ -337,17 +337,23 @@ async function deployIos(directory: string, appId: string, udid: string, framewo
 }
 
 /**
- * The tools of DevEco Studio building and installing the applications of HarmonyOS: hvigor (run by the Node.js of
- * DevEco Studio), its SDK and hdc. DEVECO_STUDIO_HOME gives the directory of DevEco Studio (its Contents on macOS) or
+ * The tools of DevEco Studio building and installing the applications of HarmonyOS: ohpm and hvigor (run by the Node.js
+ * of DevEco Studio), its SDK and hdc. DEVECO_STUDIO_HOME gives the directory of DevEco Studio (its Contents on macOS) or
  * of its command line tools, DEVECO_SDK_HOME its SDK
  */
-function devEcoTools(): { hvigor: string, node: string, sdk: string, hdc: string } {
+function devEcoTools(): { ohpm: string, hvigor: string, node: string, sdk: string, hdc: string } {
     const home: string = process.env.DEVECO_STUDIO_HOME ?? (process.platform === 'darwin' ? '/Applications/DevEco-Studio.app/Contents' : path.join(os.homedir(), 'command-line-tools'))
     const sdk: string = process.env.DEVECO_SDK_HOME ?? path.join(home, 'sdk')
     const hvigor: string = path.join(home, 'tools', 'hvigor', 'bin', 'hvigorw.js')
     const node: string = path.join(home, 'tools', 'node', 'bin', process.platform === 'win32' ? 'node.exe' : 'node')
     if (!existsSync(hvigor)) throw new Error(`DevEco Studio builds the application of HarmonyOS: install it, or give its directory (DEVECO_STUDIO_HOME; ${hvigor} missing)`)
-    return {hvigor: hvigor, node: existsSync(node) ? node : process.execPath, sdk: sdk, hdc: path.join(sdk, 'default', 'openharmony', 'toolchains', process.platform === 'win32' ? 'hdc.exe' : 'hdc')}
+    return {
+        ohpm: path.join(home, 'tools', 'ohpm', 'bin', process.platform === 'win32' ? 'ohpm.bat' : 'ohpm'),
+        hvigor: hvigor,
+        node: existsSync(node) ? node : process.execPath,
+        sdk: sdk,
+        hdc: path.join(sdk, 'default', 'openharmony', 'toolchains', process.platform === 'win32' ? 'hdc.exe' : 'hdc')
+    }
 }
 
 /**
@@ -363,12 +369,37 @@ async function harmonyTarget(hdc: string, device?: string): Promise<string> {
 }
 
 /**
- * Where the native module of HarmonyOS runs the copy of the Node.js project written while developing, on the device
- * (files/nodejs-dev of the application: the resources of the HAP cannot be written)
- * @param bundle
+ * The files of the application of HarmonyOS, as it sees them (hdc file send -b writes there into a debug build), where
+ * the native module runs the copy of the Node.js project written while developing (nodejs-dev: the resources of the HAP
+ * cannot be written) while its .development says on. The files cannot be removed from the computer, only written: the
+ * copy is turned off instead
  */
-function harmonyDevelopment(bundle: string): string {
-    return `/data/app/el2/100/base/${bundle}/files/nodejs-dev`
+const HARMONY_FILES: string = '/data/storage/el2/base/files'
+
+/**
+ * Write the state of the copy of the Node.js project written while developing on HarmonyOS (on: deployed, off: the
+ * project of the HAP runs), along with the files of a project to deploy
+ * @param hdc
+ * @param target
+ * @param bundle
+ * @param state
+ * @param project the Node.js project deployed with the state on
+ * @returns the output of hdc
+ */
+async function writeHarmonyDevelopment(hdc: string, target: string, bundle: string, state: 'on' | 'off', project?: string): Promise<Run> {
+    const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-harmony-'))
+    try {
+        //Sent into the files as nodejs-dev, merged into the copy there (hdc copies a directory into the one of its name)
+        const development: string = path.join(work, 'nodejs-dev')
+        if (project) await cp(project, development, {recursive: true})
+        else await mkdir(development)
+        await writeFile(path.join(development, '.development'), `${state}\n`)
+        return project
+            ? await run(hdc, ['-t', target, 'file', 'send', '-b', bundle, development, HARMONY_FILES])
+            : await run(hdc, ['-t', target, 'file', 'send', '-b', bundle, path.join(development, '.development'), `${HARMONY_FILES}/nodejs-dev/.development`])
+    } finally {
+        await rm(work, {recursive: true, force: true})
+    }
 }
 
 /**
@@ -398,21 +429,26 @@ async function runHarmony(project: MobileProject, device?: string): Promise<{ bu
     const reactNative: string = path.join(project.root, 'node_modules', '.bin', process.platform === 'win32' ? 'react-native.cmd' : 'react-native')
     await shown(reactNative, ['bundle-harmony', '--dev', 'false', '--bundle-output', path.join('harmony', 'entry', 'src', 'main', 'resources', 'rawfile', 'bundle.harmony.js')], project.root)
     const harmony: string = path.join(project.root, 'harmony')
-    await shown(tools.node, [tools.hvigor, '--mode', 'module', '-p', 'product=default', '-p', 'module=entry@default', 'assembleHap', '--no-daemon'], harmony, {...process.env, DEVECO_SDK_HOME: tools.sdk, PATH: `${path.dirname(tools.node)}${path.delimiter}${process.env.PATH ?? ''}`})
+    const env: NodeJS.ProcessEnv = {...process.env, DEVECO_SDK_HOME: tools.sdk, PATH: `${path.dirname(tools.node)}${path.delimiter}${process.env.PATH ?? ''}`}
+    //The packages of the HAP (RNOH, from node_modules) in harmony/oh_modules, which its native build reads
+    await shown(tools.ohpm, ['install', '--all'], harmony, env)
+    await shown(tools.node, [tools.hvigor, '--mode', 'module', '-p', 'product=default', '-p', 'module=entry@default', 'assembleHap', '--no-daemon'], harmony, env)
     const outputs: string = path.join(harmony, 'entry', 'build', 'default', 'outputs', 'default')
     const haps: string[] = existsSync(outputs) ? readdirSync(outputs).filter((name: string): boolean => name.endsWith('.hap')) : []
     const hap: string | undefined = haps.find((name: string): boolean => name.includes('-signed')) ?? haps[0]
     if (!hap) throw new Error(`The build made no HAP (${path.relative(project.root, outputs)})`)
     await must('The application cannot be installed', tools.hdc, ['-t', target, 'install', '-r', path.join(outputs, hap)])
     await must('Metro cannot be made reachable from the device (hdc rport)', tools.hdc, ['-t', target, 'rport', `tcp:${METRO_PORT}`, `tcp:${METRO_PORT}`])
-    await run(tools.hdc, ['-t', target, 'shell', 'rm', '-rf', harmonyDevelopment(bundle)])
+    //A copy deployed before turned off (none deployed: nothing to write)
+    await writeHarmonyDevelopment(tools.hdc, target, bundle, 'off')
     await restartHarmony(tools.hdc, target, bundle)
     return {bundle: bundle, target: target}
 }
 
 /**
- * Put the Node.js project into the application installed on an emulator or a device of HarmonyOS (files/nodejs-dev of
- * the application, which the native module runs instead of the one of its resources), and start the application again
+ * Put the Node.js project into the debug application installed on an emulator or a device of HarmonyOS (files/nodejs-dev
+ * of the application, turned on: the native module runs it instead of the one of its resources), and start the
+ * application again
  * @param directory
  * @param bundle
  * @param device
@@ -420,11 +456,9 @@ async function runHarmony(project: MobileProject, device?: string): Promise<{ bu
 async function deployHarmony(directory: string, bundle: string, device?: string): Promise<string> {
     const tools = devEcoTools()
     const target: string = await harmonyTarget(tools.hdc, device)
-    const development: string = harmonyDevelopment(bundle)
     await run(tools.hdc, ['-t', target, 'shell', 'aa', 'force-stop', bundle])
-    await must('The Node.js project cannot be removed from the application', tools.hdc, ['-t', target, 'shell', 'rm', '-rf', development])
-    const sent: string = await must('The Node.js project cannot be written into the application', tools.hdc, ['-t', target, 'file', 'send', directory, development])
-    if (/fail|error/i.test(sent)) throw new Error(`The Node.js project cannot be written into the application: ${sent.trim()}`)
+    const sent: Run = await writeHarmonyDevelopment(tools.hdc, target, bundle, 'on', directory)
+    if (sent.code !== 0 || /fail|error/i.test(sent.stdout)) throw new Error(`The Node.js project cannot be written into the application ${bundle} (a debug build, hdc file send -b): ${(sent.stdout || sent.stderr).trim()}`)
     await restartHarmony(tools.hdc, target, bundle)
     return target
 }

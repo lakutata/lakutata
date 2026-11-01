@@ -374,7 +374,7 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 
 - Android：在正在运行（或指定）的模拟器或设备上，用 Gradle 按它的架构构建、安装，让它能访问 Metro（`adb reverse`），然后启动。adb 从 Android SDK（`ANDROID_HOME`）中查找，找不到时用 `PATH` 中的。
 - iOS：在模拟器上（指定的那个，没有指定时用正在运行的那个，都没有时用最新的 iPhone，需要时先启动它），`Podfile` 有变化时先安装 pods，再用 `xcodebuild` 构建，用 `xcrun simctl` 安装、启动，并在 Simulator 或 Device Hub 中显示。
-- 鸿蒙：在已连接（或指定）的模拟器或设备上，先把界面打包进 HAP（`react-native bundle-harmony`），用 DevEco Studio 的 hvigor 构建（`DEVECO_STUDIO_HOME`，SDK 为 `DEVECO_SDK_HOME`），用 hdc 安装，让它能访问 Metro（`hdc rport`），然后启动。
+- 鸿蒙：在已连接（或指定）的模拟器或设备上，先把界面打包进 HAP（`react-native bundle-harmony`），用 ohpm 安装依赖（`ohpm install --all`），再用 DevEco Studio 的 hvigor 构建（`DEVECO_STUDIO_HOME`，SDK 为 `DEVECO_SDK_HOME`），用 hdc 安装，让它能访问 Metro（`hdc rport`），然后启动。
 
 | 选项 | |
 |---|---|

@@ -142,13 +142,17 @@ fs.appendFileSync(process.env.TOOLS_LOG, 'hvigor ' + process.argv.slice(2).join(
 fs.mkdirSync('entry/build/default/outputs/default', {recursive: true})
 fs.writeFileSync('entry/build/default/outputs/default/entry-default-unsigned.hap', 'hap')
 `)
+        script(path.join(deveco, 'tools', 'ohpm', 'bin', 'ohpm'), '#!/bin/sh\necho "ohpm $*" >> "$TOOLS_LOG"\n')
         mkdirSync(path.join(deveco, 'tools', 'node', 'bin'), {recursive: true})
         symlinkSync(process.execPath, path.join(deveco, 'tools', 'node', 'bin', 'node'))
         script(path.join(deveco, 'sdk', 'default', 'openharmony', 'toolchains', 'hdc'), `#!/bin/sh
 echo "hdc $*" >> "$TOOLS_LOG"
 case "$*" in
     "list targets") echo "127.0.0.1:5555" ;;
-    *" file send "*) echo "FileTransfer finish" ;;
+    *" file send -b "*)
+        #The files of the application ($HARMONY_FILES): a directory copied into the one of its name, a file written
+        if [ -d "$7" ]; then cp -R "$7" "$HARMONY_FILES/"; elif [ -d "$(dirname "$HARMONY_FILES\${8#/data/storage/el2/base/files}")" ]; then cp "$7" "$HARMONY_FILES\${8#/data/storage/el2/base/files}"; else echo "[Fail]Error opening file"; exit 0; fi
+        echo "FileTransfer finish" ;;
     *" aa start "*) echo "start ability successfully." ;;
 esac
 `)
@@ -160,9 +164,11 @@ esac
             DEVICE: path.join(work, 'device'),
             IOS_APP: path.join(work, 'simulator', 'App.app'),
             DEVECO_STUDIO_HOME: deveco,
+            HARMONY_FILES: path.join(work, 'harmony-files'),
             LAKUTATA_MOBILE_NODE_DIR: path.join(work, 'exports')
         }
         mkdirSync(path.join(work, 'device', 'files'), {recursive: true})
+        mkdirSync(path.join(work, 'harmony-files'), {recursive: true})
         mkdirSync(path.join(work, 'simulator', 'App.app', 'nodejs'), {recursive: true})
         writeFileSync(path.join(work, 'simulator', 'App.app', 'nodejs', 'old.js'), '')
     })
@@ -245,27 +251,35 @@ esac
         assert.match(started.output, /com\.example\.mobile runs on 127\.0\.0\.1:5555/)
         const sdk: string = path.join(work, 'deveco', 'sdk')
         const hap: string = path.join(work, 'harmony', 'entry', 'build', 'default', 'outputs', 'default', 'entry-default-unsigned.hap')
-        assert.deepStrictEqual(commands(), [
+        //The temporary directories of the files sent written <tmp>
+        const sent = (): string[] => commands().map((command: string): string => command.replace(/\S*lakutata-harmony-[^/ ]+/g, '<tmp>'))
+        assert.deepStrictEqual(sent(), [
             'hdc list targets',
             'react-native bundle-harmony --dev false --bundle-output harmony/entry/src/main/resources/rawfile/bundle.harmony.js',
+            'ohpm install --all',
             `hvigor --mode module -p product=default -p module=entry@default assembleHap --no-daemon (${sdk})`,
             `hdc -t 127.0.0.1:5555 install -r ${hap}`,
             'hdc -t 127.0.0.1:5555 rport tcp:8081 tcp:8081',
-            `hdc -t 127.0.0.1:5555 shell rm -rf /data/app/el2/100/base/${APP_ID}/files/nodejs-dev`,
+            `hdc -t 127.0.0.1:5555 file send -b ${APP_ID} <tmp>/nodejs-dev/.development /data/storage/el2/base/files/nodejs-dev/.development`,
             `hdc -t 127.0.0.1:5555 shell aa force-stop ${APP_ID}`,
             `hdc -t 127.0.0.1:5555 shell aa start -a EntryAbility -b ${APP_ID}`
         ])
+        //Deployed: the copy of the files turned on
         const deployed = await run(['mobile', 'deploy', 'harmony'])
         assert.strictEqual(deployed.code, 0, deployed.output)
         assert.match(deployed.output, /Deployed to com\.example\.mobile \(127\.0\.0\.1:5555\) and started/)
-        const project: string = path.join(work, 'harmony', 'entry', 'src', 'main', 'resources', 'resfile', 'nodejs')
-        assert.deepStrictEqual(commands(), [
+        assert.deepStrictEqual(sent(), [
             'hdc list targets',
             `hdc -t 127.0.0.1:5555 shell aa force-stop ${APP_ID}`,
-            `hdc -t 127.0.0.1:5555 shell rm -rf /data/app/el2/100/base/${APP_ID}/files/nodejs-dev`,
-            `hdc -t 127.0.0.1:5555 file send ${project} /data/app/el2/100/base/${APP_ID}/files/nodejs-dev`,
+            `hdc -t 127.0.0.1:5555 file send -b ${APP_ID} <tmp>/nodejs-dev /data/storage/el2/base/files`,
             `hdc -t 127.0.0.1:5555 shell aa force-stop ${APP_ID}`,
             `hdc -t 127.0.0.1:5555 shell aa start -a EntryAbility -b ${APP_ID}`
         ])
+        const development: string = path.join(work, 'harmony-files', 'nodejs-dev')
+        assert.strictEqual(readFileSync(path.join(development, '.development'), 'utf8'), 'on\n')
+        assert.ok(existsSync(path.join(development, 'app.cjs')))
+        //Run again: the copy turned off, the project of the HAP runs
+        assert.strictEqual((await run(['mobile', 'run', 'harmony'])).code, 0)
+        assert.strictEqual(readFileSync(path.join(development, '.development'), 'utf8'), 'off\n')
     })
 })
