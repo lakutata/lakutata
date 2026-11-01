@@ -44,6 +44,7 @@ export type MobileStageOptions = {
     minify?: boolean
     /**
      * The modules left out of the bundle, besides `bridge` (the module the plugin gives the Node.js of the application)
+     * and `@lakutata/netif` (the listening on network interfaces, which the mobile systems do not have)
      */
     external?: string[]
 }
@@ -131,7 +132,7 @@ export async function stageMobileApp(options: MobileStageOptions): Promise<Mobil
         outfile: path.join(directory, 'app.cjs'),
         node: MOBILE_NODE_VERSION,
         minify: options.minify ?? true,
-        external: ['bridge', ...options.external ?? []],
+        external: ['bridge', '@lakutata/netif', ...options.external ?? []],
         directories: {native: 'app.native', resources: 'resources'}
     })
     //The native tree holds the scripts of the workers too: its addons only are refused
