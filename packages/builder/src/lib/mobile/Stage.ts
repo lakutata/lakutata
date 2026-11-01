@@ -1,8 +1,9 @@
 import {existsSync} from 'node:fs'
-import {mkdir, readdir, readFile, rm, writeFile} from 'node:fs/promises'
+import {lstat, mkdir, readdir, readFile, rm, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {bundleProject, type BundleResult} from '../Bundle.js'
-import type {NativeFile} from '../Native.js'
+import {type NativeFile, type NativeLink, packNativeTree, writeNativeTree} from '../Native.js'
+import {BUN_NATIVE_ASSETS} from '../NativeRuntime.js'
 import {type IosSdk, MOBILE_ADDONS_FILE, type MobileAddons, prepareAndroidAddons, prepareHarmonyAddons, prepareIosAddons} from './Addons.js'
 import {type AndroidAbi, checkMobileNode, MOBILE_NODE_VERSION, type MobilePlatform, mobileNodeVersion} from './Node.js'
 
@@ -107,34 +108,62 @@ function packageOf(file: string): string {
 }
 
 /**
- * The entry of the Node.js project: the fetch() of Node.js put away without WebAssembly (V8 runs --jitless on
- * HarmonyOS: its first call would throw an uncaught exception). The addons of iOS and HarmonyOS are loaded from where
- * the system keeps them (MOBILE_ADDONS_FILE: the frameworks of the application, the libraries of the HAP), in place of
- * their placeholders. Then the application, bundled
+ * The files of the embedded native tree of HarmonyOS, next to the entry (names without a leading dot: the resources of
+ * the HAP leave those out)
  */
-const ENTRY_SCRIPT: string = `//The entry of the application in the Node.js of the mobile application: fetch() put away without WebAssembly, the native addons of iOS and HarmonyOS loaded from where the system keeps them, then the application, bundled
+const NATIVE_DATA: string = 'native.gz'
+const NATIVE_INDEX: string = 'native.json'
+
+/**
+ * The entry of the Node.js project: the fetch() of Node.js put away without WebAssembly (V8 runs --jitless on
+ * HarmonyOS: its first call would throw an uncaught exception). The native tree embedded in the project (HarmonyOS) is
+ * given to the bundle, which extracts it at its first run into the directory LAKUTATA_NATIVE_DIR gives (the native
+ * module sets it). The addons of iOS and HarmonyOS are loaded from where the system keeps them (MOBILE_ADDONS_FILE: the
+ * frameworks of the application, the libraries of the HAP), in place of their placeholders in the tree. Then the
+ * application, bundled
+ */
+const ENTRY_SCRIPT: string = `//The entry of the application in the Node.js of the mobile application: fetch() put away without WebAssembly, the native tree embedded (HarmonyOS) given to the bundle, the native addons of iOS and HarmonyOS loaded from where the system keeps them, then the application, bundled
 const fs = require('fs')
 const path = require('path')
 if (typeof WebAssembly === 'undefined') delete globalThis.fetch
+const tree = path.join(__dirname, '${NATIVE_INDEX}')
+if (fs.existsSync(tree)) globalThis[Symbol.for('${BUN_NATIVE_ASSETS}')] = {data: path.join(__dirname, '${NATIVE_DATA}'), index: tree}
 const addons = path.join(__dirname, '${MOBILE_ADDONS_FILE}')
 if (fs.existsSync(addons)) {
+    //The placeholders are keyed by their paths in the tree, wherever the tree is (next to the bundle, extracted)
     const {directory, files} = JSON.parse(fs.readFileSync(addons, 'utf8'))
-    const root = fs.realpathSync(__dirname)
-    const base = path.resolve(root, directory)
+    const base = path.resolve(fs.realpathSync(__dirname), directory)
+    const keys = Object.keys(files)
     const dlopen = process.dlopen
     process.dlopen = function (module, filename, ...rest) {
-        let key
+        let real
         try {
-            key = path.relative(root, fs.realpathSync(filename)).split(path.sep).join('/')
+            real = fs.realpathSync(filename).split(path.sep).join('/')
         } catch {
-            key = undefined
+            real = undefined
         }
-        const library = key && files[key]
-        return dlopen.call(this, module, library ? path.join(base, library) : filename, ...rest)
+        const key = real && keys.find((key) => real.endsWith('/' + key))
+        return dlopen.call(this, module, key ? path.join(base, files[key]) : filename, ...rest)
     }
 }
 require('./app.cjs')
 `
+
+/**
+ * The files of a native tree written in a directory, its links left out (they stay the links of the tree)
+ * @param directory
+ * @param base
+ */
+async function treeFiles(directory: string, base: string = directory): Promise<NativeFile[]> {
+    const files: NativeFile[] = []
+    for (const entry of (await readdir(directory, {withFileTypes: true})).sort((a, b): number => a.name.localeCompare(b.name))) {
+        const file: string = path.join(directory, entry.name)
+        if (entry.isSymbolicLink()) continue
+        if (entry.isDirectory()) files.push(...await treeFiles(file, base))
+        else if (entry.isFile()) files.push({path: path.relative(base, file).split(path.sep).join('/'), source: file, mode: (await lstat(file)).mode & 0o777})
+    }
+    return files
+}
 
 /**
  * Make the Node.js project of a mobile application of React Native (Android, iOS, HarmonyOS), which the native module
@@ -174,6 +203,9 @@ export async function stageMobileApp(options: MobileStageOptions): Promise<Mobil
     if (libraries && existsSync(libraries)) {
         for (const name of await readdir(libraries)) if (/^libaddon-.*\.so$/.test(name)) await rm(path.join(libraries, name), {force: true})
     }
+    //The resources of the HAP of HarmonyOS leave out the files whose names start with a dot (the .lakutata of the native
+    //tree): there the tree is embedded, packed into the project, extracted at run time
+    const harmony: boolean = options.platform === 'harmony'
     const bundle: BundleResult = await bundleProject({
         project: project,
         entry: options.entry,
@@ -181,8 +213,12 @@ export async function stageMobileApp(options: MobileStageOptions): Promise<Mobil
         node: version,
         minify: options.minify ?? true,
         external: ['@lakutata/netif', ...options.external ?? []],
+        native: harmony ? 'embedded' : 'directory',
         directories: {native: 'app.native', resources: 'resources'}
     })
+    //The tree its addons are built in: next to the bundle, or written there to be packed (HarmonyOS)
+    const tree: string | undefined = harmony && bundle.native ? path.join(directory, 'app.native') : bundle.nativeDirectory
+    if (harmony && bundle.native) await writeNativeTree(bundle.native, tree!)
     //The native tree holds the scripts of the workers too: its addons only are built
     const files: NativeFile[] = bundle.native?.files ?? []
     const addonFiles: string[] = files.map((file: NativeFile): string => file.path).filter((file: string): boolean => file.endsWith('.node'))
@@ -193,13 +229,21 @@ export async function stageMobileApp(options: MobileStageOptions): Promise<Mobil
             if (!node) throw new Error(`The native addons of the application are built against the libnode of ${options.platform}: give the directory of its export to the stage (node; ${packages})`)
             if (options.platform === 'ios' && !frameworks) throw new Error(`The native addons of the application are built for iOS into the frameworks the project of iOS embeds: give their directory (frameworks) to the stage (${packages})`)
             if (options.platform === 'harmony' && !libraries) throw new Error(`The native addons of the application are built for HarmonyOS into the libraries of the HAP: give their directory (libraries) to the stage (${packages})`)
-            if (options.platform === 'ios') addons = await prepareIosAddons(project, directory, bundle.nativeDirectory!, files, frameworks!, node, {sdks: options.sdks, progress: options.progress})
-            else if (options.platform === 'harmony') addons = await prepareHarmonyAddons(project, directory, bundle.nativeDirectory!, files, libraries!, node, {progress: options.progress})
-            else addons = await prepareAndroidAddons(project, bundle.nativeDirectory!, files, node, {abis: options.abis, progress: options.progress})
+            if (options.platform === 'ios') addons = await prepareIosAddons(project, directory, tree!, files, frameworks!, node, {sdks: options.sdks, progress: options.progress})
+            else if (options.platform === 'harmony') addons = await prepareHarmonyAddons(project, directory, tree!, files, libraries!, node, {progress: options.progress})
+            else addons = await prepareAndroidAddons(project, tree!, files, node, {abis: options.abis, progress: options.progress})
         } catch (error) {
             await rm(directory, {recursive: true, force: true})
             throw error
         }
+    }
+    if (harmony && bundle.native) {
+        //Packed as the tree of an executable of Bun: the bundle extracts it as it is (its hash names the directory)
+        const links: NativeLink[] = bundle.native.links
+        const packed = packNativeTree({...bundle.native, files: await treeFiles(tree!), links: links})
+        await writeFile(path.join(directory, NATIVE_DATA), packed.data)
+        await writeFile(path.join(directory, NATIVE_INDEX), JSON.stringify(packed.index))
+        await rm(tree!, {recursive: true, force: true})
     }
     await writeFile(path.join(directory, 'package.json'), `${JSON.stringify({name: manifest.name ?? 'app', version: manifest.version ?? '0.0.0', private: true, main: 'main.js'}, null, 2)}\n`)
     await writeFile(path.join(directory, 'main.js'), ENTRY_SCRIPT)

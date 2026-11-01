@@ -41,9 +41,9 @@ const IOS_DEPLOYMENT_TARGET: string = '15.1'
 const HARMONY_LIBRARIES: string = '/data/storage/el1/bundle/libs/arm64'
 
 /**
- * The file of a Node.js project mapping the placeholders of its addons to the libraries the system loads instead (the
- * frameworks of the application on iOS, the libraries of the HAP on HarmonyOS): {directory, files}, the directory
- * relative to the project or absolute
+ * The file of a Node.js project mapping the placeholders of its addons (their paths in the native tree) to the libraries
+ * the system loads instead (the frameworks of the application on iOS, the libraries of the HAP on HarmonyOS):
+ * {directory, files}, the directory relative to the project or absolute
  */
 export const MOBILE_ADDONS_FILE: string = 'addons.json'
 
@@ -526,7 +526,7 @@ export async function prepareIosAddons(project: string, stage: string, directory
                 await mkdir(path.dirname(target), {recursive: true})
                 await writeFile(target, '')
                 const name: string = frameworkName(item.name, file)
-                mapping[path.relative(stage, target).split(path.sep).join('/')] = `${name}.framework/${name}`
+                mapping[path.relative(directory, target).split(path.sep).join('/')] = `${name}.framework/${name}`
             }
         }
         await writeFile(path.join(stage, MOBILE_ADDONS_FILE), `${JSON.stringify({directory: '../Frameworks', files: mapping}, null, 2)}\n`)
@@ -664,7 +664,7 @@ export async function prepareHarmonyAddons(project: string, stage: string, direc
                 const target: string = path.join(directory, ...file.split('/'))
                 await mkdir(path.dirname(target), {recursive: true})
                 await writeFile(target, '')
-                mapping[path.relative(stage, target).split(path.sep).join('/')] = harmonyLibraryName(item.name, file)
+                mapping[path.relative(directory, target).split(path.sep).join('/')] = harmonyLibraryName(item.name, file)
             }
         }
         await writeFile(path.join(stage, MOBILE_ADDONS_FILE), `${JSON.stringify({directory: HARMONY_LIBRARIES, files: mapping}, null, 2)}\n`)

@@ -261,7 +261,8 @@ describe('The Node.js projects of the mobile applications', (): void => {
         const placeholder: string = path.join(stage, 'app.native', 'node_modules', 'hello-addon', 'build', 'Release', 'hello.node')
         mkdirSync(path.dirname(placeholder), {recursive: true})
         writeFileSync(placeholder, '')
-        writeFileSync(path.join(stage, 'addons.json'), JSON.stringify({directory: directory, files: {'app.native/node_modules/hello-addon/build/Release/hello.node': library}}))
+        //Keyed by its path in the native tree
+        writeFileSync(path.join(stage, 'addons.json'), JSON.stringify({directory: directory, files: {'node_modules/hello-addon/build/Release/hello.node': library}}))
         writeFileSync(path.join(stage, 'app.cjs'), "console.log('RESULT', require('./app.native/node_modules/hello-addon/build/Release/hello.node').hello())\n")
         const run = spawnSync(process.execPath, ['main.js'], {cwd: stage, encoding: 'utf8'})
         assert.strictEqual(run.status, 0, run.stderr)
@@ -322,7 +323,7 @@ describe('The Node.js projects of the mobile applications', (): void => {
             assert.match(libraries, /@rpath\/NodeMobile\.framework\/NodeMobile/)
             //The file of the addon in the tree, a placeholder of the framework, next to which the project is in the application
             assert.strictEqual(readFileSync(path.join(outdir, 'app.native', 'node_modules', 'hello-addon', 'build', 'Release', 'hello.node')).length, 0)
-            assert.deepStrictEqual(JSON.parse(readFileSync(path.join(outdir, 'addons.json'), 'utf8')), {directory: '../Frameworks', files: {'app.native/node_modules/hello-addon/build/Release/hello.node': 'hello-addon-hello.framework/hello-addon-hello'}})
+            assert.deepStrictEqual(JSON.parse(readFileSync(path.join(outdir, 'addons.json'), 'utf8')), {directory: '../Frameworks', files: {'node_modules/hello-addon/build/Release/hello.node': 'hello-addon-hello.framework/hello-addon-hello'}})
             //Staged again: the addon built before taken from the cache, its framework made again
             messages.length = 0
             await stageMobileApp({platform: 'ios', project: project, outdir: outdir, node: node, frameworks: frameworks, sdks: ['iphonesimulator'], progress: (message: string): unknown => messages.push(message)})
@@ -355,13 +356,47 @@ describe('The Node.js projects of the mobile applications', (): void => {
             assert.deepStrictEqual(binaryArchitectures(library), ['arm64'])
             //It loads the Node.js of the application (libnode.so), found by its name among the libraries of the HAP
             assert.ok(library.includes('libnode.so'))
-            assert.strictEqual(readFileSync(path.join(outdir, 'app.native', 'node_modules', 'hello-addon', 'build', 'Release', 'hello.node')).length, 0)
-            assert.deepStrictEqual(JSON.parse(readFileSync(path.join(outdir, 'addons.json'), 'utf8')), {directory: '/data/storage/el1/bundle/libs/arm64', files: {'app.native/node_modules/hello-addon/build/Release/hello.node': 'libaddon-hello-addon-hello.so'}})
+            //The native tree packed into the project (the resources of the HAP leave out the files starting with a dot), the
+            //file of the addon in it a placeholder of the library
+            assert.ok(!existsSync(path.join(outdir, 'app.native')))
+            const index: { files: { path: string, size: number }[] } = JSON.parse(readFileSync(path.join(outdir, 'native.json'), 'utf8'))
+            assert.strictEqual(index.files.find((file: { path: string }): boolean => file.path === 'node_modules/hello-addon/build/Release/hello.node')?.size, 0)
+            assert.deepStrictEqual(JSON.parse(readFileSync(path.join(outdir, 'addons.json'), 'utf8')), {directory: '/data/storage/el1/bundle/libs/arm64', files: {'node_modules/hello-addon/build/Release/hello.node': 'libaddon-hello-addon-hello.so'}})
             //Staged again: the addon built before taken from the cache
             messages.length = 0
             await stageMobileApp({platform: 'harmony', project: project, outdir: outdir, node: node, libraries: libraries, progress: (message: string): unknown => messages.push(message)})
             assert.deepStrictEqual(messages, [])
             assert.ok(existsSync(path.join(libraries, 'libaddon-hello-addon-hello.so')))
+        } finally {
+            rmSync(work, {recursive: true, force: true})
+        }
+    })
+
+    it('embed the native tree of HarmonyOS in the project, extracted into the cache directory at the first run', async (): Promise<void> => {
+        const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-mobile-'))
+        try {
+            //An application starting a worker (its script in the .lakutata of the native tree) and reading a resource whose
+            //name starts with a dot
+            const project: string = path.join(work, 'app')
+            mkdirSync(path.join(project, 'build'), {recursive: true})
+            mkdirSync(path.join(project, 'assets'), {recursive: true})
+            writeFileSync(path.join(project, 'package.json'), JSON.stringify({name: 'embedded-app', version: '1.0.0', main: 'build/App.js', lakutata: {resources: [{from: 'assets', to: 'assets'}]}}))
+            writeFileSync(path.join(project, 'assets', '.settings'), 'dotted')
+            writeFileSync(path.join(project, 'build', 'App.js'), "const fs = require('fs')\nconst path = require('path')\nconst {Worker} = require('worker_threads')\nconsole.log('RESOURCE ' + fs.readFileSync(path.join(globalThis[Symbol.for('lakutata.packaged')].resources(), 'assets', '.settings'), 'utf8'))\nnew Worker(path.join(__dirname, 'worker.js')).on('message', (message) => console.log('RESULT ' + message))\n")
+            writeFileSync(path.join(project, 'build', 'worker.js'), "require('worker_threads').parentPort.postMessage('from the worker')\n")
+            const outdir: string = path.join(work, 'resfile', 'nodejs')
+            const stage: MobileStage = await stageMobileApp({platform: 'harmony', project: project, outdir: outdir})
+            //No file of the project starts with a dot: the tree, with the resources, is packed next to the entry
+            assert.ok(!existsSync(path.join(outdir, 'app.native')) && !existsSync(path.join(outdir, 'resources')))
+            assert.ok(existsSync(path.join(outdir, 'native.gz')) && existsSync(path.join(outdir, 'native.json')))
+            assert.ok(!readdirSync(outdir).some((name: string): boolean => name.startsWith('.')))
+            const cache: string = path.join(work, 'cache')
+            const run = spawnSync(process.execPath, [path.join(outdir, 'main.js')], {cwd: tmpdir(), encoding: 'utf8', timeout: 30000, env: {...process.env, LAKUTATA_NATIVE_DIR: cache}})
+            assert.strictEqual(run.status, 0, run.stdout + run.stderr)
+            assert.match(run.stdout, /^RESULT from the worker$/m)
+            assert.match(run.stdout, /^RESOURCE dotted$/m)
+            //Extracted once, named after the hash of the tree
+            assert.ok(existsSync(path.join(cache, 'native', stage.bundle.native!.hash, '.lakutata', 'files', 'build', 'worker.js')))
         } finally {
             rmSync(work, {recursive: true, force: true})
         }
