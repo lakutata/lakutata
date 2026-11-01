@@ -1,0 +1,1 @@
+export {REACT_NATIVE_NODE_FD, reactNativeServiceEntrypoint, type ReactNativeServiceEntrypointOptions, type ReactNativeServiceMessage, type ReactNativeServiceRequest} from '../adapter/react-native/ReactNativeServiceEntrypoint.js'

@@ -57,7 +57,7 @@ Application.run(() => ({
 | `service` | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | `ws`（WebSocket 时） | [ServiceCalls](ServiceCalls.md) |
 | `service` | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | （Electron） | [ServiceCalls](ServiceCalls.md) |
 | `service` | `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | （NW.js） | [ServiceCalls](ServiceCalls.md) |
-| `service` | `capacitorServiceEntrypoint()` | `lakutata/adapter/capacitor` | （`@capawesome/capacitor-nodejs`） | [ServiceCalls](ServiceCalls.md) |
+| `service` | `reactNativeServiceEntrypoint()` | `lakutata/adapter/react-native` | | [ServiceCalls](ServiceCalls.md) |
 | `service` | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | [GRPC](GRPC.md) |
 | `service` | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | [NATS](NATS.md) |
 | `schedule` | `scheduleEntrypoint()` | `lakutata/com/entrypoint` | | [Schedules](Schedules.md) |

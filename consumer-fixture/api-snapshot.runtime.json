@@ -542,9 +542,9 @@
     "NWJS_SERVICE_BRIDGE",
     "nwjsServiceEntrypoint"
   ],
-  "lakutata/adapter/capacitor": [
-    "CAPACITOR_SERVICE_EVENT",
-    "capacitorServiceEntrypoint"
+  "lakutata/adapter/react-native": [
+    "REACT_NATIVE_NODE_FD",
+    "reactNativeServiceEntrypoint"
   ],
   "lakutata/com/logger": [
     "Logger"

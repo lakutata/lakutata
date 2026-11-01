@@ -1,6 +1,6 @@
 # Lakutata 服务调用
 
-服务动作（`@ServiceAction`）通过消息而不是 URL 来调用：消息是一个对象，其中一部分键用来选择动作，称为**模式**，其余的键就是输入。同一组动作可以同时通过多种传输方式提供：本指南介绍的普通 HTTP、Socket.IO、JSON-RPC 2.0（基于 HTTP、WebSocket 或标准输入输出）、Electron 的 IPC、NW.js 的窗口和 Capacitor 的 WebView，以及在各自指南中介绍的 gRPC、NATS 和 WebRTC 的数据通道。控制器及其动作见 [Controllers](Controllers.md)，入口及其适配器见 [Entrypoint](Entrypoint.md)。
+服务动作（`@ServiceAction`）通过消息而不是 URL 来调用：消息是一个对象，其中一部分键用来选择动作，称为**模式**，其余的键就是输入。同一组动作可以同时通过多种传输方式提供：本指南介绍的普通 HTTP、Socket.IO、JSON-RPC 2.0（基于 HTTP、WebSocket 或标准输入输出）、Electron 的 IPC、NW.js 的窗口和 React Native 手机应用的界面，以及在各自指南中介绍的 gRPC、NATS 和 WebRTC 的数据通道。控制器及其动作见 [Controllers](Controllers.md)，入口及其适配器见 [Entrypoint](Entrypoint.md)。
 
 ## 1. 第一个服务
 
@@ -128,7 +128,7 @@ class OrderController extends Controller {
 
 ## 3. 响应
 
-HTTP 服务、Socket.IO、Electron、NW.js 和 Capacitor 以封套响应；JSON-RPC 使用它自己的响应格式（第 4 节）。
+HTTP 服务、Socket.IO、Electron、NW.js 和 React Native 以封套响应；JSON-RPC 使用它自己的响应格式（第 4 节）。
 
 ```text
 {"success": true, "error": null, "payload": <结果>}
@@ -166,7 +166,7 @@ export async function call<T>(message: Record<string, unknown>): Promise<T> {
 | `jsonRPCServiceEntrypoint()` | `lakutata/adapter/jsonrpc` | WebSocket 需要 `ws` | JSON-RPC 2.0 请求 | 通知（WebSocket、stdio） |
 | `electronIPCServiceEntrypoint()` | `lakutata/adapter/electron` | （Electron） | `ipcRenderer.invoke()` | IPC 消息 |
 | `nwjsServiceEntrypoint()` | `lakutata/adapter/nwjs` | （NW.js） | 窗口的宿主页面对桥接对象的一次调用 | 调用宿主页面交给它的函数 |
-| `capacitorServiceEntrypoint()` | `lakutata/adapter/capacitor` | （`@capawesome/capacitor-nodejs`） | 页面通过插件发来的一条消息 | 插件的消息 |
+| `reactNativeServiceEntrypoint()` | `lakutata/adapter/react-native` | | 宿主发来的一行 JSON | 一行行 JSON |
 | `grpcServiceEntrypoint()` | `@lakutata/grpc/service` | `@lakutata/grpc` | 见 [GRPC](GRPC.md) | gRPC 流 |
 | `natsServiceEntrypoint()` | `@lakutata/nats` | `@lakutata/nats` | 见 [NATS](NATS.md) | NATS 消息 |
 | `webrtcServiceEntrypoint()` | `@lakutata/webrtc` | `@lakutata/webrtc` | 数据通道上的 JSON-RPC 2.0 请求，见 [WebRTC](WebRTC.md) | 通知 |
@@ -456,53 +456,27 @@ window.addEventListener('message', async (event) => {
 - `<webview>` 里重新加载的页面是一个新的客户端：宿主页面会取消前一个客户端的订阅。
 - `lakutata create` 的 NW.js 模板包含这样的宿主页面（`packages/app/host`），并为界面提供了和 Electron 模板一样的 `window.ipc`。
 
-### Capacitor
+### React Native
 
-`capacitorServiceEntrypoint()` 在 `@capawesome/capacitor-nodejs` 运行的 Node.js 中，向 Capacitor 手机应用（iOS、Android）的 WebView 提供动作。它在插件的桥接对象（`require('bridge')`，插件只把它交给 Node.js 的主线程）上接收页面的消息，并把响应和事件发到那里。插件只传 JSON：`Date` 到达时是字符串，`Buffer` 变成 `{type, data}`，`undefined` 被丢掉；JSON 无法表示的结果（`bigint`、循环引用）会以错误作答。
+`reactNativeServiceEntrypoint()` 在 React Native 手机应用（Android、iOS、鸿蒙）内嵌的 Node.js 中，向应用的界面提供动作。应用的原生模块启动 Node.js，并把一个 socket 的一端交给它，文件描述符放在环境变量 `LAKUTATA_NODE_FD` 里。适配器在这个 socket 上读取宿主发来的消息，并把响应和事件写回去，每行一个 JSON 对象。值按 JSON 的规则传递：`Date` 到达时是字符串，`Buffer` 变成 `{type, data}`，`undefined` 被丢掉；JSON 无法表示的结果（`bigint`、循环引用）会以错误作答。
 
 | 选项 | 默认值 | 含义 |
 |---|---|---|
-| `bridge` | `require('bridge')` | 插件的桥接对象，测试中可以换成替身 |
-| `event` | `'lakutata:service'`（`CAPACITOR_SERVICE_EVENT`） | 桥接对象上事件的名称 |
-| `pause` | | 应用切到后台时调用，之后才告诉插件 Node.js 一侧已经准备好（iOS 会在系统允许的时间内等它，Android 不等） |
+| `socket` | `LAKUTATA_NODE_FD` 中的文件描述符上的 socket | 与宿主的连接，测试中可以换成替身 |
+| `pause` | | 应用切到后台时调用，之后才告诉宿主应用已经准备好 |
 | `resume` | | 应用从后台回来时调用 |
 
-页面通过插件收发消息：
+| 宿主写入 | 适配器的回应 |
+|---|---|
+| `{"type":"invoke","id":1,"clientId":"ui","data":{"cmd":"greet","name":"you"}}` | `{"type":"response","id":1,"response":{"success":true,"error":null,"payload":…}}` |
+| `{"type":"subscribe","clientId":"ui"}` | `{"type":"subscribed","clientId":"ui"}`，之后是推送给这个客户端的事件 |
+| `{"type":"unsubscribe","clientId":"ui"}` | 没有回应；这个客户端正在处理的请求会被中止 |
+| `{"type":"pause"}` | `pause` 选项执行完后回应 `{"type":"paused"}` |
+| `{"type":"resume"}` | 没有回应；执行 `resume` 选项 |
 
-```typescript
-import {Nodejs} from '@capawesome/capacitor-nodejs'
-
-const pending: Map<number, (response: unknown) => void> = new Map()
-let next: number = 0
-let subscribed: () => void = (): void => undefined
-Nodejs.addListener('message', ({eventName, args: [message]}): void => {
-    if (eventName !== 'lakutata:service') return
-    if (message.type === 'subscribed') subscribed()
-    if (message.type === 'response') pending.get(message.id)?.(message.response)
-    if (message.type === 'event') console.log(message.event, ...message.args)
-})
-const clientId: string = crypto.randomUUID()
-//反复发送订阅，直到应用应答
-await new Promise<void>((resolve: () => void): void => {
-    const subscribe = (): unknown => Nodejs.send({eventName: 'lakutata:service', args: [{type: 'subscribe', clientId: clientId}]}).catch((): void => undefined)
-    const timer = setInterval(subscribe, 250)
-    subscribed = (): void => {
-        clearInterval(timer)
-        resolve()
-    }
-    subscribe()
-})
-const invoke = (data: Record<string, unknown>): Promise<unknown> => new Promise((resolve: (response: unknown) => void): void => {
-    const id: number = ++next
-    pending.set(id, resolve)
-    void Nodejs.send({eventName: 'lakutata:service', args: [{type: 'invoke', id: id, clientId: clientId, data: data}]})
-})
-//{success: true, error: null, payload: …}
-console.log(await invoke({cmd: 'greet', name: 'you'}))
-```
-
-- 页面离开时发送 `{type: 'unsubscribe', clientId}`：它正在处理的请求会被中止。
-- 插件在 Node.js 第一次引入桥接对象时就告诉页面 Node.js 已就绪（插件的 `ready` 事件；在此之前 `Nodejs.send()` 会失败），这可能早于应用开始监听，在那之前发出的消息会丢失。所以页面要反复发送订阅，直到收到 `{type: 'subscribed', clientId}` 应答，之后再调用动作。
+- 宿主在应用开始监听之前写入的行会留在 socket 里，不会丢失。界面收到订阅的回应，就知道应用已经就绪。
+- 在 iOS 上，宿主先向系统申请应用挂起前收尾的时间，再发送 `pause`，收到 `paused`（或时间用完）后才让应用挂起。
+- Node.js 结束时（`process.exit()`、未捕获的异常），手机应用照常运行：原生模块报告退出码，并且可以重新启动 Node.js。
 
 ## 5. 客户端与事件
 
@@ -517,7 +491,7 @@ console.log(await invoke({cmd: 'greet', name: 'you'}))
 | 基于 stdio 的 JSON-RPC | `'stdio'` |
 | Electron | 页面在订阅或调用时给出的 id |
 | NW.js | 宿主页面为它的页面交给桥接对象的 id |
-| Capacitor | 页面在订阅或调用时给出的 id |
+| React Native | 界面在订阅或调用时给出的 id |
 | WebRTC | 调用方在房间里的成员 id |
 
 动作从 `this.context.clientId` 读取它的客户端 id。`entrypoint` 组件负责推送事件：
@@ -553,7 +527,7 @@ class TaskController extends Controller {
 | JSON-RPC（WebSocket、stdio） | `{"jsonrpc": "2.0", "method": "progress", "params": [50, "half"]}` |
 | Electron | 通过上面预加载脚本中的 `subscribe` 收到 `('progress', [50, 'half'])` |
 | NW.js | 交给桥接对象 `subscribe` 的函数收到 `('progress', [50, 'half'])` |
-| Capacitor | 插件的 `message` 监听函数收到 `{type: 'event', clientId, event: 'progress', args: [50, 'half']}` |
+| React Native | 一行 `{"type":"event","clientId":…,"event":"progress","args":[50,"half"]}`，由宿主转交给界面 |
 | WebRTC | `PeerServiceProxy` 的 `proxy.on('progress', (percent, label) => …)` |
 
 ## 6. 停止与离开

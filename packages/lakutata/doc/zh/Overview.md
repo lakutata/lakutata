@@ -1,6 +1,6 @@
 # Lakutata 概述
 
-**Lakutata** 是一个基于 IoC 的 Node.js / TypeScript 应用框架，让 Web 服务、命令行工具、桌面（Electron、NW.js）应用和嵌入式设备共用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、控制器）：DTO 校验对象的选项和输入，各种传输方式把控制器暴露出去——HTTP（Express、Fastify）、CLI（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC、NW.js、Capacitor）、定时任务和消息队列。同一个控制器方法可以同时通过所有这些方式调用。
+**Lakutata** 是一个基于 IoC 的 Node.js / TypeScript 应用框架，让 Web 服务、命令行工具、桌面（Electron、NW.js）应用和嵌入式设备共用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、控制器）：DTO 校验对象的选项和输入，各种传输方式把控制器暴露出去——HTTP（Express、Fastify）、CLI（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC、NW.js、React Native）、定时任务和消息队列。同一个控制器方法可以同时通过所有这些方式调用。
 
 `lakutata` 包通过各个子路径重新导出 `@lakutata/*` 系列包（见下表），并为每个应用预置两个组件：`log`（`Logger`，输出与 pino 兼容的 JSON 日志行）和 `entrypoint`（对外提供控制器的 `Entrypoint`）。
 
@@ -21,7 +21,7 @@
 | `lakutata/decorator/ctrl` | `@HTTPAction`、`@GET`…`@OPTIONS`、`@CLIAction`、`@ServiceAction`、`@Schedule`、`@Prefix`、`@UseMiddlewares` |
 | `lakutata/adapter/express`、`lakutata/adapter/fastify` | HTTP 传输 |
 | `lakutata/adapter/commander` | CLI 传输 |
-| `lakutata/adapter/socket.io`、`lakutata/adapter/jsonrpc`、`lakutata/adapter/electron`、`lakutata/adapter/nwjs`、`lakutata/adapter/capacitor` | 服务传输 |
+| `lakutata/adapter/socket.io`、`lakutata/adapter/jsonrpc`、`lakutata/adapter/electron`、`lakutata/adapter/nwjs`、`lakutata/adapter/react-native` | 服务传输 |
 | `lakutata/com/logger` | `Logger` 组件，预置为 `log`（输出与 pino 兼容的 JSON 行） |
 | `lakutata/orm`、`lakutata/decorator/orm` | TypeORM 及其装饰器 |
 | `lakutata/com/database`、`lakutata/provider/database` | `Database` 组件和提供者 |

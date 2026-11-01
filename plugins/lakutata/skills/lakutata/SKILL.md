@@ -116,7 +116,7 @@ Import only from these subpaths, never from the files inside a package.
 | `lakutata/decorator/ctrl` | `@GET`…`@OPTIONS`, `@HTTPAction`, `@CLIAction`, `@ServiceAction`, `@Schedule`, `@Prefix`, `@UseMiddlewares` |
 | `lakutata/adapter/express`, `lakutata/adapter/fastify` | The HTTP adapters (`expressHTTPEntrypoint`, `jsonEnvelope`…) |
 | `lakutata/adapter/commander` | The command line adapter (`commanderCLIEntrypoint`) |
-| `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron`, `lakutata/adapter/nwjs`, `lakutata/adapter/capacitor` | Service transports |
+| `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron`, `lakutata/adapter/nwjs`, `lakutata/adapter/react-native` | Service transports |
 | `lakutata/com/logger` | The `Logger`, preset as the component `log` |
 | `lakutata/orm`, `lakutata/decorator/orm` | TypeORM and its decorators |
 | `lakutata/com/database`, `lakutata/provider/database` | `buildDatabaseOptions`, the `Database` component and provider |

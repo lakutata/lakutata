@@ -4,7 +4,7 @@
 (Electron, NW.js) applications and embedded devices one programming model: an application is a tree of objects
 (components, providers, controllers) that a container creates. DTOs validate their options and inputs, and transports
 expose the controllers: HTTP (Express, Fastify), CLI (Commander), service RPC (HTTP, Socket.IO, JSON-RPC 2.0, gRPC,
-NATS, Electron IPC, NW.js, Capacitor), schedules and message queues. One controller method can serve all of them at
+NATS, Electron IPC, NW.js, React Native), schedules and message queues. One controller method can serve all of them at
 once.
 
 The package `lakutata` re-exports the `@lakutata/*` packages under its subpaths (see the table below) and presets two
@@ -31,7 +31,7 @@ tool, a web and a desktop application, calls between services, background jobs, 
 | `lakutata/decorator/ctrl` | `@HTTPAction`, `@GET`…`@OPTIONS`, `@CLIAction`, `@ServiceAction`, `@Schedule`, `@Prefix`, `@UseMiddlewares` |
 | `lakutata/adapter/express`, `lakutata/adapter/fastify` | The HTTP transports |
 | `lakutata/adapter/commander` | The CLI transport |
-| `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron`, `lakutata/adapter/nwjs`, `lakutata/adapter/capacitor` | The service transports |
+| `lakutata/adapter/socket.io`, `lakutata/adapter/jsonrpc`, `lakutata/adapter/electron`, `lakutata/adapter/nwjs`, `lakutata/adapter/react-native` | The service transports |
 | `lakutata/com/logger` | The `Logger` component, preset as `log` (pino-compatible JSON lines) |
 | `lakutata/orm`, `lakutata/decorator/orm` | TypeORM and its decorators |
 | `lakutata/com/database`, `lakutata/provider/database` | The `Database` component and provider |

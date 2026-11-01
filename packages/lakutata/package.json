@@ -194,14 +194,14 @@
         "default": "./dist/cjs/exports/ElectronAdapter.js"
       }
     },
-    "./adapter/capacitor": {
+    "./adapter/react-native": {
       "import": {
-        "types": "./dist/types/exports/CapacitorAdapter.d.ts",
-        "default": "./dist/esm/exports/CapacitorAdapter.js"
+        "types": "./dist/types/exports/ReactNativeAdapter.d.ts",
+        "default": "./dist/esm/exports/ReactNativeAdapter.js"
       },
       "require": {
-        "types": "./dist/cjs/exports/CapacitorAdapter.d.ts",
-        "default": "./dist/cjs/exports/CapacitorAdapter.js"
+        "types": "./dist/cjs/exports/ReactNativeAdapter.d.ts",
+        "default": "./dist/cjs/exports/ReactNativeAdapter.js"
       }
     },
     "./adapter/nwjs": {

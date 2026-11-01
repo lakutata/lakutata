@@ -14,7 +14,7 @@
 
 </div>
 
-Lakutata 让 Web 服务、命令行工具、桌面（Electron、NW.js）应用和嵌入式设备共用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、控制器）；DTO 校验对象的选项和动作的输入；各种传输方式把控制器暴露出去：HTTP（Express、Fastify）、命令行（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC、NW.js、Capacitor）、MCP、D-Bus、定时任务和消息队列。同一个控制器方法可以同时通过其中几种方式调用。
+Lakutata 让 Web 服务、命令行工具、桌面（Electron、NW.js）应用和嵌入式设备共用同一套编程模型。应用是一棵由容器创建的对象树（组件、提供者、控制器）；DTO 校验对象的选项和动作的输入；各种传输方式把控制器暴露出去：HTTP（Express、Fastify）、命令行（Commander）、服务调用（HTTP、Socket.IO、JSON-RPC 2.0、gRPC、NATS、Electron IPC、NW.js、React Native）、MCP、D-Bus、定时任务和消息队列。同一个控制器方法可以同时通过其中几种方式调用。
 
 ## 快速开始
 
