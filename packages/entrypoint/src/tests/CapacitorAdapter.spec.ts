@@ -132,7 +132,10 @@ describe('Capacitor service adapter', (): void => {
             }]
         })
         try {
+            //Each subscription answered, the ones sent again too
             bridge.send({type: 'subscribe', clientId: 'page'})
+            bridge.send({type: 'subscribe', clientId: 'page'})
+            assert.deepStrictEqual(bridge.posted.filter((message: CapacitorServiceMessage): boolean => message.type === 'subscribed'), [{type: 'subscribed', clientId: 'page'}, {type: 'subscribed', clientId: 'page'}])
             bridge.send({type: 'invoke', id: 1, clientId: 'other', data: {cmd: 'notify', to: 'page'}})
             assert.strictEqual((await bridge.response(1)).response.payload, true)
             assert.deepStrictEqual(bridge.posted.filter((message: CapacitorServiceMessage): boolean => message.type === 'event'), [{type: 'event', clientId: 'page', event: 'progress', args: [50]}])

@@ -474,13 +474,24 @@ import {Nodejs} from '@capawesome/capacitor-nodejs'
 
 const pending: Map<number, (response: unknown) => void> = new Map()
 let next: number = 0
+let subscribed: () => void = (): void => undefined
 Nodejs.addListener('message', ({eventName, args: [message]}): void => {
     if (eventName !== 'lakutata:service') return
+    if (message.type === 'subscribed') subscribed()
     if (message.type === 'response') pending.get(message.id)?.(message.response)
     if (message.type === 'event') console.log(message.event, ...message.args)
 })
 const clientId: string = crypto.randomUUID()
-await Nodejs.send({eventName: 'lakutata:service', args: [{type: 'subscribe', clientId: clientId}]})
+//反复发送订阅，直到应用应答
+await new Promise<void>((resolve: () => void): void => {
+    const subscribe = (): unknown => Nodejs.send({eventName: 'lakutata:service', args: [{type: 'subscribe', clientId: clientId}]}).catch((): void => undefined)
+    const timer = setInterval(subscribe, 250)
+    subscribed = (): void => {
+        clearInterval(timer)
+        resolve()
+    }
+    subscribe()
+})
 const invoke = (data: Record<string, unknown>): Promise<unknown> => new Promise((resolve: (response: unknown) => void): void => {
     const id: number = ++next
     pending.set(id, resolve)
@@ -491,7 +502,7 @@ console.log(await invoke({cmd: 'greet', name: 'you'}))
 ```
 
 - 页面离开时发送 `{type: 'unsubscribe', clientId}`：它正在处理的请求会被中止。
-- Node.js 一侧引入桥接对象之前（插件的 `ready` 事件之前），`Nodejs.send()` 会失败。
+- 插件在 Node.js 第一次引入桥接对象时就告诉页面 Node.js 已就绪（插件的 `ready` 事件；在此之前 `Nodejs.send()` 会失败），这可能早于应用开始监听，在那之前发出的消息会丢失。所以页面要反复发送订阅，直到收到 `{type: 'subscribed', clientId}` 应答，之后再调用动作。
 - 插件的 Node.js 每次启动手机应用只运行一次，结束它就会关掉整个应用：请给应用设置 `exitProcess: false`（见 [Application](Application.md)）。
 
 ## 5. 客户端与事件

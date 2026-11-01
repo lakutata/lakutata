@@ -63,14 +63,16 @@ export type CapacitorServiceRequest = {
 }
 
 /**
- * A message the adapter posts to the page: `{type: 'response', id, response}`, the response of an invocation, or
- * `{type: 'event', clientId, event, args}`, an event pushed to a client
+ * A message the adapter posts to the page: `{type: 'response', id, response}`, the response of an invocation,
+ * `{type: 'event', clientId, event, args}`, an event pushed to a client, or `{type: 'subscribed', clientId}`, the
+ * answer to a subscription
  */
 export type CapacitorServiceMessage = {
     /**
-     * What the adapter posts: the response of an invocation, or an event pushed to a client
+     * What the adapter posts: the response of an invocation, an event pushed to a client, or the answer to a
+     * subscription
      */
-    type: 'response' | 'event'
+    type: 'response' | 'event' | 'subscribed'
     /**
      * The id of the invocation answered (response)
      */
@@ -81,7 +83,7 @@ export type CapacitorServiceMessage = {
      */
     response?: ServiceResponse
     /**
-     * The client the event is pushed to (event)
+     * The client the event is pushed to (event), or the one subscribed (subscribed)
      */
     clientId?: string
     /**
@@ -168,7 +170,10 @@ function loadBridge(): CapacitorBridge {
  * `{type: 'unsubscribe', clientId}`; its `message` listener receives `{eventName: 'lakutata:service', args: [message]}`,
  * the message being `{type: 'response', id, response}` (`{success, error, payload}`, see `ServiceResponseCodec`:
  * `payload` is the result, or `error` the whole error object when the action failed) or
- * `{type: 'event', clientId, event, args}` (an event pushed by `Entrypoint.notify` or `Entrypoint.broadcast`). A
+ * `{type: 'event', clientId, event, args}` (an event pushed by `Entrypoint.notify` or `Entrypoint.broadcast`) or
+ * `{type: 'subscribed', clientId}` (the answer to a subscription). The plugin tells the page the Node.js side is ready
+ * once `require('bridge')` first runs, which may come before the application listens (the messages sent until then
+ * are lost): the page sends its subscription again until it is answered, and invokes the actions after. A
  * result JSON cannot hold (a bigint, a cycle) is answered with an error; the values JSON changes arrive changed (a
  * `Date` as its string, a `Buffer` as `{type, data}`, `undefined` left out). Each page is a client, identified by the
  * id it gives (a non-empty string of at most 200 characters), which its requests carry as `ServiceContext.clientId`;
@@ -211,6 +216,8 @@ function loadBridge(): CapacitorBridge {
  *
  * //In the page: import {Nodejs} from '@capawesome/capacitor-nodejs'
  * //Nodejs.addListener('message', ({eventName, args}) => eventName === 'lakutata:service' && console.log(args[0]))
+ * //Nodejs.send({eventName: 'lakutata:service', args: [{type: 'subscribe', clientId: 'page'}]})
+ * //→ {type: 'subscribed', clientId: 'page'} (the subscription sent again until it comes)
  * //Nodejs.send({eventName: 'lakutata:service', args: [{type: 'invoke', id: 1, clientId: 'page', data: {cmd: 'echo', text: 'hi'}}]})
  * //→ {type: 'response', id: 1, response: {success: true, error: null, payload: 'hi'}}
  * ```
@@ -286,8 +293,11 @@ export function capacitorServiceEntrypoint(options: CapacitorServiceEntrypointOp
                         if (typeof request.id === 'string' || typeof request.id === 'number') void invoke(runtime, request as CapacitorServiceRequest & { id: string | number })
                         return
                     case 'subscribe':
-                        //Subscribed again (its page loaded again): its requests in progress are kept
-                        if (isClientId(request.clientId)) clients.set(request.clientId, {requests: clients.get(request.clientId)?.requests ?? new Set()})
+                        //Subscribed again (its page loaded again, or its subscription sent again): its requests in
+                        //progress are kept; answered each time
+                        if (!isClientId(request.clientId)) return
+                        clients.set(request.clientId, {requests: clients.get(request.clientId)?.requests ?? new Set()})
+                        post({type: 'subscribed', clientId: request.clientId})
                         return
                     case 'unsubscribe': {
                         const client: CapacitorClient | undefined = isClientId(request.clientId) ? clients.get(request.clientId) : undefined

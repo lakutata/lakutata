@@ -534,13 +534,24 @@ import {Nodejs} from '@capawesome/capacitor-nodejs'
 
 const pending: Map<number, (response: unknown) => void> = new Map()
 let next: number = 0
+let subscribed: () => void = (): void => undefined
 Nodejs.addListener('message', ({eventName, args: [message]}): void => {
     if (eventName !== 'lakutata:service') return
+    if (message.type === 'subscribed') subscribed()
     if (message.type === 'response') pending.get(message.id)?.(message.response)
     if (message.type === 'event') console.log(message.event, ...message.args)
 })
 const clientId: string = crypto.randomUUID()
-await Nodejs.send({eventName: 'lakutata:service', args: [{type: 'subscribe', clientId: clientId}]})
+//The subscription is sent again until the application answers it
+await new Promise<void>((resolve: () => void): void => {
+    const subscribe = (): unknown => Nodejs.send({eventName: 'lakutata:service', args: [{type: 'subscribe', clientId: clientId}]}).catch((): void => undefined)
+    const timer = setInterval(subscribe, 250)
+    subscribed = (): void => {
+        clearInterval(timer)
+        resolve()
+    }
+    subscribe()
+})
 const invoke = (data: Record<string, unknown>): Promise<unknown> => new Promise((resolve: (response: unknown) => void): void => {
     const id: number = ++next
     pending.set(id, resolve)
@@ -551,7 +562,10 @@ console.log(await invoke({cmd: 'greet', name: 'you'}))
 ```
 
 - The page sends `{type: 'unsubscribe', clientId}` when it leaves: its requests in progress are aborted.
-- `Nodejs.send()` fails until the Node.js side has required the bridge (the `ready` event of the plugin).
+- The plugin tells the page that Node.js is ready (its `ready` event; `Nodejs.send()` fails until then) as soon as the
+  bridge is first required, which may happen before the application listens: the messages sent before that are lost.
+  This is why the page sends its subscription until `{type: 'subscribed', clientId}` answers it, and invokes the actions
+  only after that.
 - The Node.js of the plugin runs once per launch of the mobile application, and exiting it quits the whole application:
   give the application `exitProcess: false` (see [Application](Application.md)).
 
