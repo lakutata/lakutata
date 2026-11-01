@@ -1,5 +1,6 @@
+import {createHash, type Hash} from 'node:crypto'
 import {constants, existsSync, readdirSync, readFileSync} from 'node:fs'
-import {cp, mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
+import {cp, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
@@ -7,7 +8,8 @@ import type {NativeFile} from '../Native.js'
 import {runCommand} from '../Processes.js'
 import {binaryArchitectures, nodeFiles, nodeGyp, packageOf} from '../nwjs/Addons.js'
 import {compareVersions} from '../nwjs/Runtime.js'
-import {nodejsMobile} from './Runtime.js'
+import {cacheDirectory} from '../Tools.js'
+import {NODEJS_MOBILE_RELEASE, nodejsMobile} from './Runtime.js'
 
 /**
  * The architectures of Android the native addons are built for, the ones of the libraries of nodejs-mobile: the name
@@ -155,6 +157,66 @@ function androidNdk(): { bin: string, revision: string } {
 }
 
 /**
+ * The format of the builds kept in the cache: changed when what a build makes changes
+ */
+const CACHE_FORMAT: number = 1
+
+/**
+ * The files of a package, by their paths, their sizes and their times (not their contents: a package of sources has
+ * thousands of files), its build, its modules and the files of git left out
+ * @param directory
+ * @param base
+ */
+async function fingerprint(directory: string, base: string = directory): Promise<string[]> {
+    const lines: string[] = []
+    for (const entry of await readdir(directory, {withFileTypes: true})) {
+        const file: string = path.join(directory, entry.name)
+        const relative: string = path.relative(base, file).split(path.sep).join('/')
+        if (['build', 'node_modules', '.git'].includes(relative)) continue
+        if (entry.isDirectory()) {
+            lines.push(...await fingerprint(file, base))
+        } else if (entry.isFile()) {
+            const stats = await stat(file)
+            lines.push(`${relative}\0${stats.size}\0${stats.mtimeMs}`)
+        }
+    }
+    return lines
+}
+
+/**
+ * The addons of a package built for a target, kept in the cache (~/.cache/lakutata/mobile/addons, LAKUTATA_CACHE_DIR)
+ * by the files of the package, the target, the toolchain and the release of nodejs-mobile: built once, then taken
+ * from the cache (the development stages the application at each change)
+ * @param item
+ * @param target the ABI, or the SDK of iOS
+ * @param toolchain the version of the NDK, or of Xcode
+ * @param build
+ * @returns the addons
+ */
+async function cachedBuild(item: AddonPackage, target: string, toolchain: string, build: () => Promise<string[]>): Promise<string[]> {
+    const hash: Hash = createHash('sha256').update(JSON.stringify({format: CACHE_FORMAT, release: NODEJS_MOBILE_RELEASE, name: item.name, target: target, toolchain: toolchain}))
+    for (const line of (await fingerprint(item.source)).sort()) hash.update(`${line}\n`)
+    const directory: string = path.join(cacheDirectory(), 'mobile', 'addons', hash.digest('hex').slice(0, 32))
+    const addons = async (): Promise<string[]> => (await readdir(directory)).filter((name: string): boolean => name.endsWith('.node')).sort().map((name: string): string => path.join(directory, name))
+    if (existsSync(path.join(directory, '.complete'))) return addons()
+    const built: string[] = await build()
+    //Written aside, then renamed: the builds running together do not see it partly written
+    await mkdir(path.dirname(directory), {recursive: true})
+    const temporary: string = await mkdtemp(`${directory}.`)
+    try {
+        for (const addon of built) await cp(addon, path.join(temporary, path.basename(addon)))
+        await writeFile(path.join(temporary, '.complete'), '')
+        await rename(temporary, directory).catch((error: Error): void => {
+            //Built by another build
+            if (!existsSync(path.join(directory, '.complete'))) throw error
+        })
+    } finally {
+        await rm(temporary, {recursive: true, force: true})
+    }
+    return addons()
+}
+
+/**
  * The modules the build of a package loads (node-addon-api), found where the package is
  * @param source
  */
@@ -253,8 +315,9 @@ export async function prepareAndroidAddons(project: string, directory: string, f
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-mobile-addons-'))
     const trees: string[] = []
     try {
-        //The release of nodejs-mobile and the NDK, once a package is built
-        let toolchain: { runtime: string, bin: string, revision: string } | undefined
+        //The NDK, once a package is built; the release of nodejs-mobile, once one is not in the cache
+        let ndk: { bin: string, revision: string } | undefined
+        let runtime: string | undefined
         for (const abi of abis) {
             const arch: string = ANDROID_ABIS[abi].arch
             const tree: string = `${directory}-${arch}`
@@ -270,11 +333,16 @@ export async function prepareAndroidAddons(project: string, directory: string, f
                     continue
                 }
                 if (!existsSync(path.join(item.source, 'binding.gyp'))) throw new Error(`${item.name} has no sources to build its addons for Android (binding.gyp), and no prebuilt addons of Android (prebuilds/android-${arch})`)
-                options.progress?.(`The addons of ${item.name} built for Android (${abi})`)
-                toolchain ??= {...androidNdk(), runtime: await nodejsMobile('android')}
-                const build: string = path.join(work, `${result.built.length}`)
-                await mkdir(build, {recursive: true})
-                await giveAddons(tree, item, await buildAndroid(project, item, abi, toolchain.runtime, toolchain.bin, build), (): boolean => false)
+                ndk ??= androidNdk()
+                const toolchain: { bin: string, revision: string } = ndk
+                const addons: string[] = await cachedBuild(item, abi, `ndk ${toolchain.revision}`, async (): Promise<string[]> => {
+                    options.progress?.(`The addons of ${item.name} built for Android (${abi})`)
+                    runtime ??= await nodejsMobile('android')
+                    const build: string = path.join(work, `${result.built.length}`)
+                    await mkdir(build, {recursive: true})
+                    return buildAndroid(project, item, abi, runtime, toolchain.bin, build)
+                })
+                await giveAddons(tree, item, addons, (): boolean => false)
                 result.built.push(`${item.name} (${abi})`)
             }
         }
@@ -416,16 +484,23 @@ export async function prepareIosAddons(project: string, stage: string, directory
         for (const item of packages) {
             if (!existsSync(path.join(item.source, 'binding.gyp'))) throw new Error(`${item.name} has no sources to build its addons for iOS (binding.gyp)`)
         }
-        const runtime: string = await nodejsMobile('ios')
+        //The release of nodejs-mobile, once an addon is not in the cache; the version of Xcode, which builds them
+        let runtime: string | undefined
+        const xcode = await runCommand('xcodebuild', ['-version'], work)
+        if (xcode.code !== 0) throw new Error(`Xcode builds the native addons for iOS: ${xcode.output.trim()}`)
         const mapping: Record<string, string> = {}
         for (const item of packages) {
             const version: string = JSON.parse(await readFile(path.join(item.source, 'package.json'), 'utf8')).version ?? '1.0.0'
             const names: Set<string> = new Set()
             for (const sdk of sdks) {
-                options.progress?.(`The addons of ${item.name} built for iOS (${sdk})`)
-                const build: string = path.join(work, `${result.built.length}`)
-                await mkdir(build, {recursive: true})
-                for (const addon of await buildIos(project, item, sdk, runtime, build)) {
+                const addons: string[] = await cachedBuild(item, sdk, xcode.output.trim(), async (): Promise<string[]> => {
+                    options.progress?.(`The addons of ${item.name} built for iOS (${sdk})`)
+                    runtime ??= await nodejsMobile('ios')
+                    const build: string = path.join(work, `${result.built.length}`)
+                    await mkdir(build, {recursive: true})
+                    return buildIos(project, item, sdk, runtime, build)
+                })
+                for (const addon of addons) {
                     const name: string = frameworkName(item.name, addon)
                     await makeFramework(addon, path.join(frameworks, sdk), name, version, sdk)
                     result.frameworks.push(`${sdk}/${name}.framework`)

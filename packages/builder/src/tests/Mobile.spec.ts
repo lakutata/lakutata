@@ -151,6 +151,11 @@ console.log('RESULT ' + JSON.stringify({fetch: typeof fetch, tmpdir: tmpdir(), d
             assert.ok(existsSync(path.join(tree, 'node_modules', 'prebuilt-addon', 'prebuilds', 'android-arm64', 'prebuilt.node')))
             assert.ok(!existsSync(path.join(tree, 'node_modules', 'prebuilt-addon', 'prebuilds', 'darwin-arm64', 'prebuilt.node')))
             assert.ok(!existsSync(path.join(tree, 'node_modules', 'prebuilt-addon', 'build', 'Release', 'prebuilt.node')))
+            //Staged again: the addons built before taken from the cache
+            messages.length = 0
+            await stageMobileApp({platform: 'android', project: project, outdir: outdir, abis: ['arm64-v8a'], progress: (message: string): unknown => messages.push(message)})
+            assert.deepStrictEqual(messages, [])
+            assert.deepStrictEqual(binaryArchitectures(readFileSync(path.join(tree, 'node_modules', 'hello-addon', 'build', 'Release', 'hello.node'))), ['arm64'])
         } finally {
             rmSync(work, {recursive: true, force: true})
         }
@@ -209,7 +214,9 @@ console.log('RESULT ' + JSON.stringify({fetch: typeof fetch, tmpdir: tmpdir(), d
             const frameworks: string = path.join(work, 'ios', 'App', 'App', 'NodeAddons')
             mkdirSync(path.join(frameworks, 'iphoneos', 'old.framework'), {recursive: true})
             const outdir: string = path.join(work, 'nodejs')
-            const stage: MobileStage = await stageMobileApp({platform: 'ios', project: project, outdir: outdir, frameworks: frameworks, sdks: ['iphonesimulator']})
+            const messages: string[] = []
+            const stage: MobileStage = await stageMobileApp({platform: 'ios', project: project, outdir: outdir, frameworks: frameworks, sdks: ['iphonesimulator'], progress: (message: string): unknown => messages.push(message)})
+            assert.deepStrictEqual(messages, ['The addons of hello-addon built for iOS (iphonesimulator)'])
             assert.deepStrictEqual(stage.addons, {built: ['hello-addon (iphonesimulator)'], prebuilt: [], frameworks: ['iphonesimulator/hello-addon-hello.framework']})
             assert.ok(!existsSync(path.join(frameworks, 'iphoneos')))
             const framework: string = path.join(frameworks, 'iphonesimulator', 'hello-addon-hello.framework')
@@ -222,6 +229,11 @@ console.log('RESULT ' + JSON.stringify({fetch: typeof fetch, tmpdir: tmpdir(), d
             //The file of the addon in the tree, a placeholder of the framework
             assert.strictEqual(readFileSync(path.join(outdir, 'app.native', 'node_modules', 'hello-addon', 'build', 'Release', 'hello.node')).length, 0)
             assert.deepStrictEqual(JSON.parse(readFileSync(path.join(outdir, 'addons.json'), 'utf8')), {'app.native/node_modules/hello-addon/build/Release/hello.node': 'hello-addon-hello.framework/hello-addon-hello'})
+            //Staged again: the addon built before taken from the cache, its framework made again
+            messages.length = 0
+            await stageMobileApp({platform: 'ios', project: project, outdir: outdir, frameworks: frameworks, sdks: ['iphonesimulator'], progress: (message: string): unknown => messages.push(message)})
+            assert.deepStrictEqual(messages, [])
+            assert.ok(existsSync(path.join(framework, 'hello-addon-hello')))
         } finally {
             rmSync(work, {recursive: true, force: true})
         }
