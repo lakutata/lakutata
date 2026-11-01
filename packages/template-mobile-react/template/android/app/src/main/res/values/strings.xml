@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">{$APP_NAME}</string>
+    <string name="title_activity_main">{$APP_NAME}</string>
+    <string name="package_name">{$APP_BUNDLE_ID}</string>
+    <string name="custom_url_scheme">{$APP_BUNDLE_ID}</string>
+</resources>

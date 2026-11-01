@@ -1,0 +1,27 @@
+{
+  "name": "app",
+  "productName": "{$APP_NAME}",
+  "version": "0.0.1",
+  "description": "{$APP_DESC}",
+  "author": "{$APP_AUTHOR}",
+  "license": "{$APP_LICENSE}",
+  "private": true,
+  "type": "module",
+  "main": "build/App.js",
+  "scripts": {
+    "clean": "lakutata clean",
+    "build": "tsc",
+    "rebuild": "npm run clean && npm run build",
+    "dev": "npm run rebuild && node build/App.js",
+    "dev:android": "lakutata mobile deploy android --app-id {$APP_BUNDLE_ID} --outdir ../ui/dist/nodejs --live-reload 5173",
+    "dev:ios": "lakutata mobile deploy ios --app-id {$APP_BUNDLE_ID} --outdir ../ui/dist/nodejs --live-reload 5173",
+    "stage": "lakutata mobile stage --outdir ../ui/dist/nodejs",
+    "test": "node --test \"build/tests/**/*.spec.js\""
+  },
+  "dependencies": {
+    "lakutata": "^{$LAKUTATA_VERSION}"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0"
+  }
+}

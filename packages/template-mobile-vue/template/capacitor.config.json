@@ -1,0 +1,10 @@
+{
+  "appId": "{$APP_BUNDLE_ID}",
+  "appName": "{$APP_NAME}",
+  "webDir": "packages/ui/dist",
+  "plugins": {
+    "Nodejs": {
+      "nodeDir": "nodejs"
+    }
+  }
+}

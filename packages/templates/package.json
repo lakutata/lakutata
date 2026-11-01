@@ -120,6 +120,22 @@
           "i18n",
           "win7"
         ]
+      },
+      {
+        "name": "mobile-react",
+        "description": "A mobile application (Android, iOS): Capacitor, the Node.js of the application serving a React user interface",
+        "package": "@lakutata/template-mobile-react",
+        "features": [
+          "i18n"
+        ]
+      },
+      {
+        "name": "mobile-vue",
+        "description": "A mobile application (Android, iOS): Capacitor, the Node.js of the application serving a Vue user interface",
+        "package": "@lakutata/template-mobile-vue",
+        "features": [
+          "i18n"
+        ]
       }
     ]
   }

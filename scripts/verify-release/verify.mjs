@@ -23,7 +23,7 @@ const {values: options} = parseArgs({
     options: {
         'version': {type: 'string', default: '3.0.0-verify.1'},
         'tag': {type: 'string', default: 'verify'},
-        'templates': {type: 'string', default: 'default cli service web-react web-vue web-next web-nuxt electron-react electron-vue nwjs-react nwjs-vue'},
+        'templates': {type: 'string', default: 'default cli service web-react web-vue web-next web-nuxt electron-react electron-vue nwjs-react nwjs-vue mobile-react mobile-vue'},
         'node': {type: 'string', default: '22'},
         'skip-build': {type: 'boolean', default: false},
         'skip-images': {type: 'boolean', default: false},

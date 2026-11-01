@@ -92,8 +92,8 @@ export default defineConfig([
         }
     },
     {
-        //The templates of the projects are not in the TypeScript projects of the packages
-        files: ['packages/template-*/template/**'],
+        //The templates of the projects and the files of their features are not in the TypeScript projects of the packages
+        files: ['packages/template-*/template/**', 'packages/template-*/features/**'],
         ...tseslint.configs.disableTypeChecked
     },
     {

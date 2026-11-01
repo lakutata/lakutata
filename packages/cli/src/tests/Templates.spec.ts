@@ -1,7 +1,7 @@
 import {after, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {execFile, type ExecFileException, execFileSync, execSync, spawn} from 'node:child_process'
-import {constants, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
+import {constants, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
@@ -297,7 +297,7 @@ describe('The templates of the repository', (): void => {
         }
     })
 
-    for (const [kind, label] of [['electron', 'Electron'], ['nwjs', 'NW.js']] as const) {
+    for (const [kind, label] of [['electron', 'Electron'], ['nwjs', 'NW.js'], ['mobile', 'mobile']] as const) {
         it(`keeps the files the ${label} templates share identical`, (): void => {
             //The ${label} templates differ by their user interface only
             const files = (directory: string): string[] => filesUnder(directory)
@@ -323,6 +323,14 @@ describe('The templates of the repository', (): void => {
         const messages: string = path.join(electron, 'features', 'i18n')
         shared.push(...filesUnder(messages).map((file: string): string => path.relative(electron, file)))
         for (const file of shared) assert.ok(readFileSync(path.join(nwjs, file)).equals(readFileSync(path.join(electron, file))), `${file} of nwjs-react differs from the one of electron-react`)
+    })
+
+    it('keeps the files the mobile templates share with the Electron ones identical', (): void => {
+        //Their actions and their messages are the same
+        const electron: string = path.join(ROOT, 'packages', 'template-electron-react')
+        const mobile: string = path.join(ROOT, 'packages', 'template-mobile-react')
+        const shared: string[] = ['template/packages/app/src/dtos/GreetDTO.ts', ...filesUnder(path.join(electron, 'features', 'i18n')).map((file: string): string => path.relative(electron, file))]
+        for (const file of shared) assert.ok(readFileSync(path.join(mobile, file)).equals(readFileSync(path.join(electron, file))), `${file} of mobile-react differs from the one of electron-react`)
     })
 
     it('creates the projects with the installer feature: their installers configured, their scripts and their Dockerfile written', async (): Promise<void> => {
@@ -762,4 +770,84 @@ describe('The templates of the repository', (): void => {
         assert.strictEqual(JSON.parse(readFileSync(path.join(latest, 'package.json'), 'utf8')).scripts['package:ia32'], undefined)
         assert.doesNotMatch(readFileSync(path.join(latest, 'README.md'), 'utf8'), /package:ia32|@if|@end/)
     })
+
+    for (const [template, name, ui, names] of [
+        ['mobile-react', 'Pocket', 'App.tsx', ['vite', '@vitejs/plugin-react', 'react', 'react-dom', '@types/react', '@types/react-dom']],
+        ['mobile-vue', 'Compass', 'App.vue', ['vite', '@vitejs/plugin-vue', 'vue']]
+    ] as [string, string, string, string[]][]) {
+        it(`creates a mobile application (${template}) whose Node.js serves its user interface, its projects of Android and iOS made`, async (): Promise<void> => {
+            const project: string = await create(template, name)
+            //The id of the application on the mobile systems, in the projects of Android and iOS
+            const bundleId: string = `com.example.${name.toLowerCase()}`
+            for (const file of ['capacitor.config.json', 'android/app/build.gradle', 'android/app/src/main/res/values/strings.xml', 'ios/App/App.xcodeproj/project.pbxproj', 'ios/App/App/Info.plist', 'packages/app/package.json', `packages/ui/src/${ui}`]) {
+                assert.doesNotMatch(readFileSync(path.join(project, ...file.split('/')), 'utf8'), /\{\$APP_/, file)
+            }
+            assert.strictEqual(JSON.parse(readFileSync(path.join(project, 'capacitor.config.json'), 'utf8')).appId, bundleId)
+            assert.match(readFileSync(path.join(project, 'android', 'app', 'build.gradle'), 'utf8'), new RegExp(`applicationId "${bundleId.replaceAll('.', '\\.')}"`))
+            assert.match(readFileSync(path.join(project, 'ios', 'App', 'App.xcodeproj', 'project.pbxproj'), 'utf8'), new RegExp(`PRODUCT_BUNDLE_IDENTIFIER = "${bundleId.replaceAll('.', '\\.')}";`))
+            //The files starting with a dot are kept in the assets of Android: the native tree of the Node.js project has some
+            assert.doesNotMatch(readFileSync(path.join(project, 'android', 'app', 'build.gradle'), 'utf8'), /ignoreAssetsPattern = '[^']*:\.\*:/)
+            for (const file of ['android/.gitignore', 'ios/.gitignore']) assert.ok(existsSync(path.join(project, ...file.split('/'))), file)
+            install(project, ['@types/node', '@capacitor/core', '@capawesome/capacitor-nodejs', ...names], path.join(ROOT, 'node_modules', 'typescript'))
+            linkWorkspace(project, ['ui', 'app'])
+            linkCommand(path.join(project, 'node_modules', '.bin'), 'vite', path.join(ROOT, 'node_modules', 'vite', 'bin', 'vite.js'))
+            const built = await runIn(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
+            assert.strictEqual(built.code, 0, built.output)
+            //The actions of the application, served through a stand-in of the bridge of the plugin
+            const tested = await runIn(process.execPath, [CLI, 'run', 'test'], project)
+            assert.strictEqual(tested.code, 0, tested.output)
+            assert.match(tested.output, /pass 5/)
+            //The user interface is type checked with the TypeScript of the template
+            const typescript: string = path.join(ROOT, 'node_modules', 'typescript')
+            const checked = template === 'mobile-vue'
+                ? await runIn(process.execPath, ['-e', `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(typescript, 'lib', 'tsc.js'))})`, 'vue-tsc', '--noEmit', '-p', path.join(project, 'packages', 'ui')], project)
+                : await runIn(process.execPath, [path.join(typescript, 'bin', 'tsc'), '-p', path.join(project, 'packages', 'ui')], project)
+            assert.strictEqual(checked.code, 0, checked.output)
+            //The Node.js project the plugin runs, made in the web directory for each system
+            for (const platform of ['android', 'ios']) {
+                const staged = await runIn(process.execPath, [CLI, 'mobile', 'stage', '--platform', platform, '--outdir', '../ui/dist/nodejs'], path.join(project, 'packages', 'app'))
+                assert.strictEqual(staged.code, 0, staged.output)
+                for (const file of ['package.json', 'main.js', 'app.cjs']) assert.ok(existsSync(path.join(project, 'packages', 'ui', 'dist', 'nodejs', file)), file)
+            }
+            //Run on an emulator of Android when the tests are given one (LAKUTATA_TEST_ANDROID_AVD: its name; macOS, the SDK
+            //of ANDROID_HOME, the JDK of JAVA_HOME): the user interface shows the result of its action and the event pushed to it
+            const avd: string | undefined = process.env.LAKUTATA_TEST_ANDROID_AVD
+            if (!avd || process.platform !== 'darwin' || !process.env.ANDROID_HOME) return
+            //The native packages copied: Gradle builds their projects of Android where they are
+            unlinkSync(path.join(project, 'node_modules', '@capawesome', 'capacitor-nodejs'))
+            copyPackages(project, ['@capacitor/android', '@capawesome/capacitor-nodejs'])
+            linkPackage(project, '@capacitor/cli', path.join(ROOT, 'node_modules', '@capacitor', 'cli'))
+            linkCommand(path.join(project, 'node_modules', '.bin'), 'cap', path.join(ROOT, 'node_modules', '@capacitor', 'cli', 'bin', 'capacitor'))
+            const synced = await runIn('npx', ['cap', 'sync', 'android'], project)
+            assert.strictEqual(synced.code, 0, synced.output)
+            assert.match(synced.output, /Found 1 Capacitor plugin for android/)
+            const gradle = await runIn(path.join(project, 'android', 'gradlew'), ['assembleDebug', '--console=plain'], path.join(project, 'android'))
+            assert.strictEqual(gradle.code, 0, gradle.output.split('\n').slice(-30).join('\n'))
+            const adb: string = path.join(process.env.ANDROID_HOME, 'platform-tools', 'adb')
+            const emulator = spawn(path.join(process.env.ANDROID_HOME, 'emulator', 'emulator'), ['-avd', avd, '-no-window', '-no-audio', '-no-boot-anim', '-no-snapshot'], {stdio: 'ignore'})
+            const stopped: Promise<unknown> = new Promise((resolve: (value: unknown) => void): unknown => emulator.once('exit', resolve))
+            try {
+                for (let attempt: number = 0; attempt < 120; attempt++) {
+                    if ((await runIn(adb, ['shell', 'getprop', 'sys.boot_completed'], project)).output.trim() === '1') break
+                    await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 2000))
+                }
+                const installed = await runIn(adb, ['install', '-r', path.join(project, 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk')], project)
+                assert.strictEqual(installed.code, 0, installed.output)
+                const activity: string = (await runIn(adb, ['shell', 'cmd', 'package', 'resolve-activity', '--brief', '-c', 'android.intent.category.LAUNCHER', bundleId], project)).output.trim().split('\n').at(-1)!.trim()
+                assert.strictEqual((await runIn(adb, ['shell', 'am', 'start', '-n', activity], project)).code, 0)
+                //The DevTools of its web view (a debug build), forwarded to a port of the computer
+                let pid: string = ''
+                for (let attempt: number = 0; attempt < 30 && !pid; attempt++) {
+                    pid = (await runIn(adb, ['shell', 'pidof', bundleId], project)).output.trim()
+                    if (!pid) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 1000))
+                }
+                const port: number = 9500 + Math.floor(Math.random() * 400)
+                assert.strictEqual((await runIn(adb, ['forward', `tcp:${port}`, `localabstract:webview_devtools_remote_${pid}`], project)).code, 0)
+                assert.match(await readPage(port, 'page', `typeof require === 'undefined' && typeof process === 'undefined'`, 60), new RegExp(`Hello, ${name}!\\s+Pushed by the application: ${name} \\| isolated: true`))
+            } finally {
+                await runIn(adb, ['emu', 'kill'], project)
+                await stopped
+            }
+        })
+    }
 })

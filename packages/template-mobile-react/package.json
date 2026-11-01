@@ -1,0 +1,40 @@
+{
+  "name": "@lakutata/template-mobile-react",
+  "version": "3.1.5",
+  "description": "The mobile template of the lakutata projects with React: a lakutata application in the Node.js of the mobile application (Capacitor, @capawesome/capacitor-nodejs) serving the actions of its controllers to the user interface (React, Vite), on Android and iOS.",
+  "homepage": "https://lakutata.com/guide/ProjectStructure",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/template-mobile-react"
+  },
+  "author": "alex.ma",
+  "keywords": [
+    "lakutata",
+    "lakutata-template",
+    "template",
+    "mobile",
+    "capacitor",
+    "android",
+    "ios",
+    "react",
+    "vite"
+  ],
+  "license": "MIT",
+  "files": [
+    "template",
+    "features",
+    "README.md",
+    "LICENSE"
+  ],
+  "lakutata": {
+    "template": "mobile-react",
+    "features": {
+      "i18n": "The messages in several languages (lakutata/com/i18n): src/locales, the languages of the device"
+    }
+  }
+}
