@@ -3,7 +3,7 @@ import {mkdir, readFile, rm, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {bundleProject, type BundleResult} from '../Bundle.js'
 import type {NativeFile} from '../Native.js'
-import {type AndroidAbi, type MobileAddons, prepareAndroidAddons} from './Addons.js'
+import {type AndroidAbi, IOS_ADDONS_FILE, type IosSdk, type MobileAddons, prepareAndroidAddons, prepareIosAddons} from './Addons.js'
 
 /**
  * The Node.js of the mobile applications of Capacitor: the one of nodejs-mobile, which @capawesome/capacitor-nodejs runs
@@ -54,6 +54,16 @@ export type MobileStageOptions = {
      */
     abis?: AndroidAbi[]
     /**
+     * The SDKs of iOS the native addons are built for: iphoneos and iphonesimulator by default
+     */
+    sdks?: IosSdk[]
+    /**
+     * The directory of the frameworks of the native addons of iOS, a directory per SDK, which the project of iOS embeds
+     * in the application (`ios/App/App/NodeAddons` in the projects of the templates); required by the native addons of
+     * iOS, its frameworks made again at each stage
+     */
+    frameworks?: string
+    /**
      * Called with what is done (the native addons built, which takes a while)
      */
     progress?: (message: string) => void
@@ -99,9 +109,10 @@ function packageOf(file: string): string {
  * first call ends Node.js 18), a temporary directory that can be written (the one of the system cannot be on Android:
  * the cache directory of the application is; tried by making a directory, access() does not tell what SELinux
  * refuses). Node.js reads TMPDIR only in a process not marked secure (AT_SECURE), which an application of Android is:
- * os.tmpdir() gives the directory (the bundle reads it from the module at each call). Then the application, bundled
+ * os.tmpdir() gives the directory (the bundle reads it from the module at each call). On iOS, the addons are loaded from
+ * their frameworks, in place of their placeholders (IOS_ADDONS_FILE). Then the application, bundled
  */
-const ENTRY_SCRIPT: string = `//The entry of the application in the Node.js of the mobile application: fetch() put away without WebAssembly, a temporary directory that can be written, then the application, bundled
+const ENTRY_SCRIPT: string = `//The entry of the application in the Node.js of the mobile application: fetch() put away without WebAssembly, a temporary directory that can be written, the addons of iOS loaded from their frameworks, then the application, bundled
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -114,6 +125,23 @@ try {
     process.env.TMPDIR = cache
     os.tmpdir = () => cache
 }
+//The native addons of iOS are frameworks of the application (App.app/Frameworks), their files in the project placeholders
+const addons = path.join(__dirname, '${IOS_ADDONS_FILE}')
+if (fs.existsSync(addons)) {
+    const frameworks = JSON.parse(fs.readFileSync(addons, 'utf8'))
+    const root = fs.realpathSync(__dirname)
+    const dlopen = process.dlopen
+    process.dlopen = function (module, filename, ...rest) {
+        let key
+        try {
+            key = path.relative(root, fs.realpathSync(filename)).split(path.sep).join('/')
+        } catch {
+            key = undefined
+        }
+        const framework = key && frameworks[key]
+        return dlopen.call(this, module, framework ? path.join(root, '..', '..', 'Frameworks', framework) : filename, ...rest)
+    }
+}
 require('./app.cjs')
 `
 
@@ -122,8 +150,9 @@ require('./app.cjs')
  * Android: the bundle of the application (CommonJS, for the Node.js of nodejs-mobile) and its resources
  * (lakutata.resources), its manifest and its entry. The bundle holds the dependencies: the plugin runs the project as it
  * is (its node_modules would be dropped from the assets of Android). The native addons are built for the system from
- * the sources of their packages: on Android, a native tree per architecture (node-gyp and the NDK of Android, against
- * the headers and the library of nodejs-mobile, which is downloaded once)
+ * the sources of their packages, against the headers and the libraries of nodejs-mobile (downloaded once): on Android, a
+ * native tree per architecture (node-gyp and the NDK of Android); on iOS, a framework per addon for each SDK (node-gyp
+ * and Xcode), in the directory of the frameworks the project of iOS embeds
  * @param options
  * @example
  * import {stageMobileApp} from '@lakutata/builder'
@@ -142,6 +171,9 @@ export async function stageMobileApp(options: MobileStageOptions): Promise<Mobil
     if (!path.relative(directory, project).startsWith('..')) throw new Error(`The Node.js project of the mobile application is made in a directory of its own, not ${directory}`)
     await rm(directory, {recursive: true, force: true})
     await mkdir(directory, {recursive: true})
+    //The frameworks of the addons of iOS made before: made again, or none
+    const frameworks: string | undefined = options.platform === 'ios' && options.frameworks ? path.resolve(project, options.frameworks) : undefined
+    if (frameworks) for (const sdk of ['iphoneos', 'iphonesimulator']) await rm(path.join(frameworks, sdk), {recursive: true, force: true})
     const bundle: BundleResult = await bundleProject({
         project: project,
         entry: options.entry,
@@ -157,8 +189,10 @@ export async function stageMobileApp(options: MobileStageOptions): Promise<Mobil
     let addons: MobileAddons | undefined
     if (addonFiles.length) {
         try {
-            if (options.platform === 'ios') throw new Error(`The native addons of the application are not built for iOS yet: ${[...new Set(addonFiles.map(packageOf))].join(', ')}`)
-            addons = await prepareAndroidAddons(project, bundle.nativeDirectory!, files, {abis: options.abis, progress: options.progress})
+            if (options.platform === 'ios' && !frameworks) throw new Error(`The native addons of the application are built for iOS into the frameworks the project of iOS embeds: give their directory (frameworks) to the stage (${[...new Set(addonFiles.map(packageOf))].join(', ')})`)
+            addons = options.platform === 'ios'
+                ? await prepareIosAddons(project, directory, bundle.nativeDirectory!, files, frameworks!, {sdks: options.sdks, progress: options.progress})
+                : await prepareAndroidAddons(project, bundle.nativeDirectory!, files, {abis: options.abis, progress: options.progress})
         } catch (error) {
             await rm(directory, {recursive: true, force: true})
             throw error

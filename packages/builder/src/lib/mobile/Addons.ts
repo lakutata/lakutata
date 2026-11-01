@@ -1,5 +1,5 @@
 import {constants, existsSync, readdirSync, readFileSync} from 'node:fs'
-import {cp, mkdir, mkdtemp, readFile, rm} from 'node:fs/promises'
+import {cp, mkdir, mkdtemp, readFile, rm, writeFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
@@ -31,6 +31,30 @@ export type AndroidAbi = keyof typeof ANDROID_ABIS
 const ANDROID_API: number = 24
 
 /**
+ * The SDKs of iOS the native addons are built for: the architectures built and the slice of the framework of
+ * nodejs-mobile (NodeMobile.xcframework) they link
+ */
+const IOS_SDKS = {
+    iphoneos: {archs: 'arm64', slice: 'ios-arm64', platform: 'iPhoneOS'},
+    iphonesimulator: {archs: 'arm64 x86_64', slice: 'ios-arm64_x86_64-simulator', platform: 'iPhoneSimulator'}
+} as const
+
+/**
+ * A SDK of iOS: iphoneos (the devices) or iphonesimulator (the simulators of the Macs of Apple silicon and Intel)
+ */
+export type IosSdk = keyof typeof IOS_SDKS
+
+/**
+ * The version of iOS the addons are built for: the deployment target of the projects of Capacitor 8
+ */
+const IOS_DEPLOYMENT_TARGET: string = '15.0'
+
+/**
+ * The file of a Node.js project of iOS mapping the placeholders of its addons to their frameworks
+ */
+export const IOS_ADDONS_FILE: string = 'addons.json'
+
+/**
  * What was done to the native addons of a mobile application
  */
 export type MobileAddons = {
@@ -42,6 +66,10 @@ export type MobileAddons = {
      * The packages whose prebuilt addons of the system were kept (prebuilds/android-<arch>)
      */
     prebuilt: string[]
+    /**
+     * The frameworks made of the addons (iOS), for each SDK: `iphonesimulator/lakutata-math-math.framework`
+     */
+    frameworks: string[]
 }
 
 /**
@@ -52,6 +80,10 @@ export type MobileAddonOptions = {
      * The architectures of Android built for, the ones of nodejs-mobile by default (arm64-v8a, armeabi-v7a, x86_64)
      */
     abis?: AndroidAbi[]
+    /**
+     * The SDKs of iOS built for, both by default (iphoneos, iphonesimulator)
+     */
+    sdks?: IosSdk[]
     /**
      * Called with what is done, the builds taking a while
      */
@@ -215,9 +247,9 @@ async function giveAddons(tree: string, item: AddonPackage, built: string[], kep
  */
 export async function prepareAndroidAddons(project: string, directory: string, files: NativeFile[], options: MobileAddonOptions = {}): Promise<MobileAddons> {
     if (process.platform === 'win32') throw new Error('The native addons are built for Android on macOS and on Linux (node-gyp, make and the NDK)')
-    const abis: AndroidAbi[] = options.abis ?? Object.keys(ANDROID_ABIS) as AndroidAbi[]
+    const abis: AndroidAbi[] = options.abis?.length ? options.abis : Object.keys(ANDROID_ABIS) as AndroidAbi[]
     const packages: AddonPackage[] = addonPackages(files)
-    const result: MobileAddons = {built: [], prebuilt: []}
+    const result: MobileAddons = {built: [], prebuilt: [], frameworks: []}
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-mobile-addons-'))
     const trees: string[] = []
     try {
@@ -251,6 +283,169 @@ export async function prepareAndroidAddons(project: string, directory: string, f
         //Nothing half made
         for (const tree of trees) await rm(tree, {recursive: true, force: true})
         throw error
+    } finally {
+        await rm(work, {recursive: true, force: true})
+    }
+    return result
+}
+
+/**
+ * The name of the framework of an addon: its package and its file, in the characters of the names and of the
+ * identifiers of the bundles (letters, digits and hyphens)
+ * @param name the name of its package
+ * @param file its file
+ * @internal
+ */
+export function frameworkName(name: string, file: string): string {
+    return `${name}-${path.basename(file, '.node')}`.replace(/^@/, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
+/**
+ * The Info.plist of the framework of an addon: the keys the frameworks embedded in an application of the App Store
+ * have
+ * @param name
+ * @param version the version of its package
+ * @param sdk
+ * @internal
+ */
+export function frameworkInfo(name: string, version: string, sdk: IosSdk): string {
+    const short: string = /^\d+(\.\d+){0,2}/.exec(version)?.[0] ?? '1.0.0'
+    const entries: [string, string][] = [
+        ['CFBundleDevelopmentRegion', 'en'],
+        ['CFBundleExecutable', name],
+        ['CFBundleIdentifier', `dev.lakutata.addon.${name}`],
+        ['CFBundleInfoDictionaryVersion', '6.0'],
+        ['CFBundleName', name],
+        ['CFBundlePackageType', 'FMWK'],
+        ['CFBundleShortVersionString', short],
+        ['CFBundleVersion', short],
+        ['MinimumOSVersion', IOS_DEPLOYMENT_TARGET]
+    ]
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+${entries.map(([key, value]: [string, string]): string => `\t<key>${key}</key>\n\t<string>${value}</string>`).join('\n')}
+\t<key>CFBundleSupportedPlatforms</key>
+\t<array>
+\t\t<string>${IOS_SDKS[sdk].platform}</string>
+\t</array>
+</dict>
+</plist>
+`
+}
+
+/**
+ * Build the addons of a package for a SDK of iOS (a copy of the package): node-gyp makes its project of Xcode, built by
+ * xcodebuild into dynamic libraries linking the framework of nodejs-mobile (NodeMobile)
+ * @param project
+ * @param item
+ * @param sdk
+ * @param runtime the release of nodejs-mobile of iOS
+ * @param work a directory of the build
+ * @returns the addons built
+ */
+async function buildIos(project: string, item: AddonPackage, sdk: IosSdk, runtime: string, work: string): Promise<string[]> {
+    const copy: string = path.join(work, path.basename(item.source))
+    await cp(item.source, copy, {recursive: true, filter: (file: string): boolean => path.relative(item.source, file) !== 'build'})
+    const env: NodeJS.ProcessEnv = {...process.env, NODE_PATH: buildModules(item.source)}
+    const configured = await runCommand(process.execPath, [nodeGyp(project), 'configure', `--nodedir=${runtime}`, '--', '-f', 'xcode'], copy, env)
+    if (configured.code !== 0) throw new Error(`The addons of ${item.name} cannot be built for iOS (node-gyp configure): ${configured.output.trim().split('\n').slice(-8).join('\n')}`)
+    //The addons made dynamic libraries (in frameworks) rather than bundles: their targets only, not the static libraries
+    //they link (a setting of xcodebuild applies to every target)
+    const pbxproj: string = path.join(copy, 'build', 'binding.xcodeproj', 'project.pbxproj')
+    await writeFile(pbxproj, (await readFile(pbxproj, 'utf8')).replaceAll('MACH_O_TYPE = mh_bundle;', 'MACH_O_TYPE = mh_dylib;'))
+    const output: string = path.join(work, 'products')
+    const framework: string = path.join(runtime, 'NodeMobile.xcframework', IOS_SDKS[sdk].slice)
+    const settings: string[] = [
+        `ARCHS=${IOS_SDKS[sdk].archs}`, 'ONLY_ACTIVE_ARCH=NO', `SDKROOT=${sdk}`, `SUPPORTED_PLATFORMS=${sdk}`,
+        `IPHONEOS_DEPLOYMENT_TARGET=${IOS_DEPLOYMENT_TARGET}`, 'MACOSX_DEPLOYMENT_TARGET=',
+        //Linking the Node.js of the application, not left to look it up (-undefined dynamic_lookup)
+        `OTHER_LDFLAGS=-F${framework} -framework NodeMobile`,
+        'CODE_SIGNING_ALLOWED=NO', `CONFIGURATION_BUILD_DIR=${output}`
+    ]
+    const built = await runCommand('xcodebuild', ['-project', 'binding.xcodeproj', '-configuration', 'Release', '-alltargets', '-sdk', sdk, ...settings, 'build'], path.join(copy, 'build'), env)
+    if (built.code !== 0) throw new Error(`The addons of ${item.name} cannot be built for iOS (${sdk}): ${built.output.trim().split('\n').filter((line: string): boolean => /error/i.test(line)).slice(-8).join('\n') || built.output.trim().split('\n').slice(-8).join('\n')}`)
+    const addons: string[] = (await nodeFiles(output)).filter((file: string): boolean => path.dirname(file) === output)
+    if (!addons.length) throw new Error(`The build of ${item.name} for iOS (${sdk}) made no addon`)
+    return addons
+}
+
+/**
+ * Make an addon built for iOS a framework: its library named after it (its install name in the frameworks of the
+ * application), its Info.plist, signed ad hoc (the build of the application signs it with its identity)
+ * @param addon
+ * @param directory where the framework is made
+ * @param name
+ * @param version the version of its package
+ * @param sdk
+ */
+async function makeFramework(addon: string, directory: string, name: string, version: string, sdk: IosSdk): Promise<void> {
+    const framework: string = path.join(directory, `${name}.framework`)
+    await rm(framework, {recursive: true, force: true})
+    await mkdir(framework, {recursive: true})
+    await cp(addon, path.join(framework, name))
+    await writeFile(path.join(framework, 'Info.plist'), frameworkInfo(name, version, sdk))
+    for (const [command, args] of [['install_name_tool', ['-id', `@rpath/${name}.framework/${name}`, path.join(framework, name)]], ['codesign', ['--force', '--sign', '-', framework]]] as [string, string[]][]) {
+        const result = await runCommand(command, args, directory)
+        if (result.code !== 0) throw new Error(`The framework ${name} cannot be made (${command}): ${result.output.trim()}`)
+    }
+}
+
+/**
+ * Build the native addons of a mobile application of iOS: each package of addons built for the SDKs from its sources
+ * (node-gyp, xcodebuild, linking the framework of nodejs-mobile), each addon made a framework, which the project of
+ * Capacitor embeds in the application; its files in the native tree replaced by placeholders (no library of the App
+ * Store outside of its frameworks), which the entry of the project loads from the frameworks of the application
+ * (IOS_ADDONS_FILE). The frameworks of the SDKs made before are removed
+ * @param project
+ * @param stage the Node.js project
+ * @param directory its native tree
+ * @param files the files of the tree
+ * @param frameworks the directory of the frameworks, a directory per SDK (the NodeAddons of the project of iOS)
+ * @param options
+ * @internal
+ */
+export async function prepareIosAddons(project: string, stage: string, directory: string, files: NativeFile[], frameworks: string, options: MobileAddonOptions = {}): Promise<MobileAddons> {
+    if (process.platform !== 'darwin') throw new Error('The native addons are built for iOS on macOS (Xcode)')
+    const sdks: IosSdk[] = options.sdks?.length ? options.sdks : Object.keys(IOS_SDKS) as IosSdk[]
+    const packages: AddonPackage[] = addonPackages(files)
+    const result: MobileAddons = {built: [], prebuilt: [], frameworks: []}
+    const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-mobile-addons-'))
+    try {
+        for (const item of packages) {
+            if (!existsSync(path.join(item.source, 'binding.gyp'))) throw new Error(`${item.name} has no sources to build its addons for iOS (binding.gyp)`)
+        }
+        const runtime: string = await nodejsMobile('ios')
+        const mapping: Record<string, string> = {}
+        for (const item of packages) {
+            const version: string = JSON.parse(await readFile(path.join(item.source, 'package.json'), 'utf8')).version ?? '1.0.0'
+            const names: Set<string> = new Set()
+            for (const sdk of sdks) {
+                options.progress?.(`The addons of ${item.name} built for iOS (${sdk})`)
+                const build: string = path.join(work, `${result.built.length}`)
+                await mkdir(build, {recursive: true})
+                for (const addon of await buildIos(project, item, sdk, runtime, build)) {
+                    const name: string = frameworkName(item.name, addon)
+                    await makeFramework(addon, path.join(frameworks, sdk), name, version, sdk)
+                    result.frameworks.push(`${sdk}/${name}.framework`)
+                    names.add(path.basename(addon))
+                }
+                result.built.push(`${item.name} (${sdk})`)
+            }
+            //The files of the addons in the tree: placeholders of the frameworks, the others (of other systems) removed
+            const placeholders: string[] = item.files.filter((file: string): boolean => names.has(path.basename(file)))
+            if (item.target) for (const name of names) placeholders.push(`${item.target}/build/Release/${name}`)
+            for (const file of item.files) if (!names.has(path.basename(file))) await rm(path.join(directory, ...file.split('/')), {force: true})
+            for (const file of new Set(placeholders)) {
+                const target: string = path.join(directory, ...file.split('/'))
+                await mkdir(path.dirname(target), {recursive: true})
+                await writeFile(target, '')
+                const name: string = frameworkName(item.name, file)
+                mapping[path.relative(stage, target).split(path.sep).join('/')] = `${name}.framework/${name}`
+            }
+        }
+        await writeFile(path.join(stage, IOS_ADDONS_FILE), `${JSON.stringify(mapping, null, 2)}\n`)
     } finally {
         await rm(work, {recursive: true, force: true})
     }

@@ -6,7 +6,8 @@ import {homedir, tmpdir} from 'node:os'
 import path from 'node:path'
 import {MOBILE_NODE_VERSION, stageMobileApp, type MobileStage} from '../index.js'
 import {nativeBanner} from '../lib/NativeRuntime.js'
-import {binaryArchitectures} from '../lib/nwjs/Addons.js'
+import {frameworkInfo, frameworkName} from '../lib/mobile/Addons.js'
+import {binaryArchitectures, nodeGyp} from '../lib/nwjs/Addons.js'
 
 /**
  * The NDK of Android of the machine, which the builds of the addons for Android need
@@ -116,7 +117,7 @@ console.log('RESULT ' + JSON.stringify({fetch: typeof fetch, tmpdir: tmpdir(), d
         return project
     }
 
-    it('refuse the addons of a package without sources nor prebuilt addons of Android, and the ones of iOS for now', async (): Promise<void> => {
+    it('refuse the addons of a package without sources (nor prebuilt addons of Android), and the ones of iOS without the directory of the frameworks', async (): Promise<void> => {
         const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-mobile-'))
         try {
             const project: string = addonProject(work)
@@ -124,7 +125,9 @@ console.log('RESULT ' + JSON.stringify({fetch: typeof fetch, tmpdir: tmpdir(), d
             const outdir: string = path.join(work, 'nodejs')
             await assert.rejects(stageMobileApp({platform: 'android', project: project, outdir: outdir, abis: ['arm64-v8a']}), /hello-addon has no sources to build its addons for Android \(binding\.gyp\), and no prebuilt addons of Android \(prebuilds\/android-arm64\)/)
             assert.ok(!existsSync(outdir))
-            await assert.rejects(stageMobileApp({platform: 'ios', project: project, outdir: outdir}), /The native addons of the application are not built for iOS yet: hello-addon, prebuilt-addon$/)
+            await assert.rejects(stageMobileApp({platform: 'ios', project: project, outdir: outdir}), /The native addons of the application are built for iOS into the frameworks the project of iOS embeds: give their directory \(frameworks\) to the stage \(hello-addon, prebuilt-addon\)$/)
+            assert.ok(!existsSync(outdir))
+            await assert.rejects(stageMobileApp({platform: 'ios', project: project, outdir: outdir, frameworks: path.join(work, 'NodeAddons')}), process.platform === 'darwin' ? /hello-addon has no sources to build its addons for iOS \(binding\.gyp\)/ : /The native addons are built for iOS on macOS \(Xcode\)/)
             assert.ok(!existsSync(outdir))
         } finally {
             rmSync(work, {recursive: true, force: true})
@@ -138,7 +141,7 @@ console.log('RESULT ' + JSON.stringify({fetch: typeof fetch, tmpdir: tmpdir(), d
             const outdir: string = path.join(work, 'nodejs')
             const messages: string[] = []
             const stage: MobileStage = await stageMobileApp({platform: 'android', project: project, outdir: outdir, abis: ['arm64-v8a'], progress: (message: string): unknown => messages.push(message)})
-            assert.deepStrictEqual(stage.addons, {built: ['hello-addon (arm64-v8a)'], prebuilt: ['prebuilt-addon (arm64-v8a)']})
+            assert.deepStrictEqual(stage.addons, {built: ['hello-addon (arm64-v8a)'], prebuilt: ['prebuilt-addon (arm64-v8a)'], frameworks: []})
             assert.deepStrictEqual(messages, ['The addons of hello-addon built for Android (arm64-v8a)'])
             //The tree of the architecture, loaded by the bundle (process.arch), in place of the one of the build
             assert.ok(!existsSync(path.join(outdir, 'app.native')))
@@ -148,6 +151,77 @@ console.log('RESULT ' + JSON.stringify({fetch: typeof fetch, tmpdir: tmpdir(), d
             assert.ok(existsSync(path.join(tree, 'node_modules', 'prebuilt-addon', 'prebuilds', 'android-arm64', 'prebuilt.node')))
             assert.ok(!existsSync(path.join(tree, 'node_modules', 'prebuilt-addon', 'prebuilds', 'darwin-arm64', 'prebuilt.node')))
             assert.ok(!existsSync(path.join(tree, 'node_modules', 'prebuilt-addon', 'build', 'Release', 'prebuilt.node')))
+        } finally {
+            rmSync(work, {recursive: true, force: true})
+        }
+    })
+
+    it('name the frameworks of the addons of iOS and give them the Info.plist of the App Store', (): void => {
+        assert.strictEqual(frameworkName('@lakutata/math', '/project/node_modules/@lakutata/math/build/Release/math.node'), 'lakutata-math-math')
+        assert.strictEqual(frameworkName('hello_addon', 'binding.node'), 'hello-addon-binding')
+        const info: string = frameworkInfo('lakutata-math-math', '3.2.0-beta.1', 'iphoneos')
+        for (const [key, value] of [['CFBundleExecutable', 'lakutata-math-math'], ['CFBundleIdentifier', 'dev.lakutata.addon.lakutata-math-math'], ['CFBundlePackageType', 'FMWK'], ['CFBundleShortVersionString', '3.2.0'], ['CFBundleVersion', '3.2.0'], ['MinimumOSVersion', '15.0']]) {
+            assert.match(info, new RegExp(`<key>${key}</key>\\s*<string>${value.replaceAll('.', '\\.')}</string>`), key)
+        }
+        assert.match(frameworkInfo('x', 'next', 'iphonesimulator'), /<key>CFBundleVersion<\/key>\s*<string>1\.0\.0<\/string>[\s\S]*<string>iPhoneSimulator<\/string>/)
+    })
+
+    it('load the addons of iOS from the frameworks of the application, in place of their placeholders', {skip: process.platform === 'win32' && 'built by MSVC on Windows'}, async (): Promise<void> => {
+        const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-mobile-'))
+        try {
+            //The entry of a project, in the application as iOS lays it out (App.app/public/nodejs, App.app/Frameworks)
+            const project: string = path.join(work, 'app')
+            mkdirSync(path.join(project, 'build'), {recursive: true})
+            writeFileSync(path.join(project, 'package.json'), JSON.stringify({name: 'mobile', version: '1.0.0', main: 'build/App.js'}))
+            writeFileSync(path.join(project, 'build', 'App.js'), 'console.log("mobile")\n')
+            const stage: string = path.join(work, 'App.app', 'public', 'nodejs')
+            await stageMobileApp({platform: 'ios', project: project, outdir: stage})
+            //An addon of the machine in a framework, its placeholder in the native tree
+            const addon: string = path.join(work, 'addon')
+            mkdirSync(addon)
+            writeFileSync(path.join(addon, 'binding.gyp'), "{'targets': [{'target_name': 'hello', 'sources': ['hello.c']}]}")
+            writeFileSync(path.join(addon, 'hello.c'), '#include <node_api.h>\nstatic napi_value Hello(napi_env env, napi_callback_info info) { napi_value result; napi_create_string_utf8(env, "hello", NAPI_AUTO_LENGTH, &result); return result; }\nNAPI_MODULE_INIT() { napi_value fn; napi_create_function(env, "hello", NAPI_AUTO_LENGTH, Hello, NULL, &fn); napi_set_named_property(env, exports, "hello", fn); return exports; }\n')
+            const built = spawnSync(process.execPath, [nodeGyp(work), 'rebuild'], {cwd: addon, encoding: 'utf8'})
+            assert.strictEqual(built.status, 0, built.stdout + built.stderr)
+            const framework: string = path.join(work, 'App.app', 'Frameworks', 'hello-addon-hello.framework')
+            mkdirSync(framework, {recursive: true})
+            writeFileSync(path.join(framework, 'hello-addon-hello'), readFileSync(path.join(addon, 'build', 'Release', 'hello.node')))
+            const placeholder: string = path.join(stage, 'app.native', 'node_modules', 'hello-addon', 'build', 'Release', 'hello.node')
+            mkdirSync(path.dirname(placeholder), {recursive: true})
+            writeFileSync(placeholder, '')
+            writeFileSync(path.join(stage, 'addons.json'), JSON.stringify({'app.native/node_modules/hello-addon/build/Release/hello.node': 'hello-addon-hello.framework/hello-addon-hello'}))
+            writeFileSync(path.join(stage, 'app.cjs'), "console.log('RESULT', require('./app.native/node_modules/hello-addon/build/Release/hello.node').hello())\n")
+            const run = spawnSync(process.execPath, ['main.js'], {cwd: stage, encoding: 'utf8'})
+            assert.strictEqual(run.status, 0, run.stderr)
+            assert.match(run.stdout, /^RESULT hello$/m)
+        } finally {
+            rmSync(work, {recursive: true, force: true})
+        }
+    })
+
+    it('build the addons for iOS from their sources, a framework per addon for each SDK, their files placeholders', {skip: (process.platform !== 'darwin' || spawnSync('xcodebuild', ['-version']).status !== 0) && 'no Xcode'}, async (): Promise<void> => {
+        const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-mobile-'))
+        try {
+            const project: string = addonProject(work)
+            rmSync(path.join(project, 'node_modules', 'prebuilt-addon'), {recursive: true})
+            writeFileSync(path.join(project, 'build', 'App.js'), `console.log(require('hello-addon'))`)
+            //The frameworks made before (a SDK not built now included) are removed
+            const frameworks: string = path.join(work, 'ios', 'App', 'App', 'NodeAddons')
+            mkdirSync(path.join(frameworks, 'iphoneos', 'old.framework'), {recursive: true})
+            const outdir: string = path.join(work, 'nodejs')
+            const stage: MobileStage = await stageMobileApp({platform: 'ios', project: project, outdir: outdir, frameworks: frameworks, sdks: ['iphonesimulator']})
+            assert.deepStrictEqual(stage.addons, {built: ['hello-addon (iphonesimulator)'], prebuilt: [], frameworks: ['iphonesimulator/hello-addon-hello.framework']})
+            assert.ok(!existsSync(path.join(frameworks, 'iphoneos')))
+            const framework: string = path.join(frameworks, 'iphonesimulator', 'hello-addon-hello.framework')
+            assert.deepStrictEqual(binaryArchitectures(readFileSync(path.join(framework, 'hello-addon-hello'))).sort(), ['arm64', 'x64'])
+            assert.match(readFileSync(path.join(framework, 'Info.plist'), 'utf8'), /<string>dev\.lakutata\.addon\.hello-addon-hello<\/string>/)
+            //Its library loads the Node.js of the application (NodeMobile), by its name in the frameworks
+            const libraries: string = spawnSync('otool', ['-L', path.join(framework, 'hello-addon-hello')], {encoding: 'utf8'}).stdout
+            assert.match(libraries, /@rpath\/hello-addon-hello\.framework\/hello-addon-hello/)
+            assert.match(libraries, /@rpath\/NodeMobile\.framework\/NodeMobile/)
+            //The file of the addon in the tree, a placeholder of the framework
+            assert.strictEqual(readFileSync(path.join(outdir, 'app.native', 'node_modules', 'hello-addon', 'build', 'Release', 'hello.node')).length, 0)
+            assert.deepStrictEqual(JSON.parse(readFileSync(path.join(outdir, 'addons.json'), 'utf8')), {'app.native/node_modules/hello-addon/build/Release/hello.node': 'hello-addon-hello.framework/hello-addon-hello'})
         } finally {
             rmSync(work, {recursive: true, force: true})
         }
