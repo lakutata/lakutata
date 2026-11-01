@@ -3,6 +3,7 @@ import {mkdir, readFile, rm, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {bundleProject, type BundleResult} from '../Bundle.js'
 import type {NativeFile} from '../Native.js'
+import {type AndroidAbi, type MobileAddons, prepareAndroidAddons} from './Addons.js'
 
 /**
  * The Node.js of the mobile applications of Capacitor: the one of nodejs-mobile, which @capawesome/capacitor-nodejs runs
@@ -47,6 +48,15 @@ export type MobileStageOptions = {
      * and `@lakutata/netif` (the listening on network interfaces, which the mobile systems do not have)
      */
     external?: string[]
+    /**
+     * The architectures of Android the native addons are built for: arm64-v8a, armeabi-v7a and x86_64 (the ones of
+     * nodejs-mobile) by default
+     */
+    abis?: AndroidAbi[]
+    /**
+     * Called with what is done (the native addons built, which takes a while)
+     */
+    progress?: (message: string) => void
 }
 
 /**
@@ -67,6 +77,10 @@ export type MobileStage = {
      */
     node: string
     bundle: BundleResult
+    /**
+     * What was done to the native addons of the application, undefined without addon
+     */
+    addons?: MobileAddons
 }
 
 /**
@@ -107,7 +121,9 @@ require('./app.cjs')
  * Make the Node.js project of a mobile application of Capacitor, which @capawesome/capacitor-nodejs runs on iOS and on
  * Android: the bundle of the application (CommonJS, for the Node.js of nodejs-mobile) and its resources
  * (lakutata.resources), its manifest and its entry. The bundle holds the dependencies: the plugin runs the project as it
- * is (its node_modules would be dropped from the assets of Android). The native addons are refused for now
+ * is (its node_modules would be dropped from the assets of Android). The native addons are built for the system from
+ * the sources of their packages: on Android, a native tree per architecture (node-gyp and the NDK of Android, against
+ * the headers and the library of nodejs-mobile, which is downloaded once)
  * @param options
  * @example
  * import {stageMobileApp} from '@lakutata/builder'
@@ -135,13 +151,20 @@ export async function stageMobileApp(options: MobileStageOptions): Promise<Mobil
         external: ['bridge', '@lakutata/netif', ...options.external ?? []],
         directories: {native: 'app.native', resources: 'resources'}
     })
-    //The native tree holds the scripts of the workers too: its addons only are refused
-    const addons: string[] = (bundle.native?.files ?? []).map((file: NativeFile): string => file.path).filter((file: string): boolean => file.endsWith('.node'))
-    if (addons.length) {
-        await rm(directory, {recursive: true, force: true})
-        throw new Error(`The native addons of the application are not built for iOS and Android yet: ${[...new Set(addons.map(packageOf))].join(', ')}`)
+    //The native tree holds the scripts of the workers too: its addons only are built
+    const files: NativeFile[] = bundle.native?.files ?? []
+    const addonFiles: string[] = files.map((file: NativeFile): string => file.path).filter((file: string): boolean => file.endsWith('.node'))
+    let addons: MobileAddons | undefined
+    if (addonFiles.length) {
+        try {
+            if (options.platform === 'ios') throw new Error(`The native addons of the application are not built for iOS yet: ${[...new Set(addonFiles.map(packageOf))].join(', ')}`)
+            addons = await prepareAndroidAddons(project, bundle.nativeDirectory!, files, {abis: options.abis, progress: options.progress})
+        } catch (error) {
+            await rm(directory, {recursive: true, force: true})
+            throw error
+        }
     }
     await writeFile(path.join(directory, 'package.json'), `${JSON.stringify({name: manifest.name ?? 'app', version: manifest.version ?? '0.0.0', private: true, main: 'main.js'}, null, 2)}\n`)
     await writeFile(path.join(directory, 'main.js'), ENTRY_SCRIPT)
-    return {directory: directory, platform: options.platform, node: MOBILE_NODE_VERSION, bundle: bundle}
+    return {directory: directory, platform: options.platform, node: MOBILE_NODE_VERSION, bundle: bundle, addons: addons}
 }

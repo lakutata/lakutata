@@ -1,11 +1,22 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {spawnSync} from 'node:child_process'
-import {chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
+import {chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {homedir, tmpdir} from 'node:os'
 import path from 'node:path'
 import {MOBILE_NODE_VERSION, stageMobileApp, type MobileStage} from '../index.js'
 import {nativeBanner} from '../lib/NativeRuntime.js'
+import {binaryArchitectures} from '../lib/nwjs/Addons.js'
+
+/**
+ * The NDK of Android of the machine, which the builds of the addons for Android need
+ */
+function androidNdk(): boolean {
+    if (process.platform === 'win32') return false
+    if (process.env.ANDROID_NDK_HOME ?? process.env.ANDROID_NDK_ROOT) return true
+    const sdk: string = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? path.join(homedir(), ...process.platform === 'darwin' ? ['Library', 'Android', 'sdk'] : ['Android', 'Sdk'])
+    return existsSync(path.join(sdk, 'ndk')) && readdirSync(path.join(sdk, 'ndk')).length > 0
+}
 
 describe('The Node.js projects of the mobile applications', (): void => {
 
@@ -71,21 +82,72 @@ console.log('RESULT ' + JSON.stringify({fetch: typeof fetch, tmpdir: tmpdir(), d
         }
     })
 
-    it('refuse the native addons for now, the directory made removed', async (): Promise<void> => {
+    /**
+     * A project of the tests whose application loads native addons: hello-addon (its sources, binding.gyp; an addon of
+     * the machine standing for the one its installation built) and prebuilt-addon (its prebuilt addons of Android and of
+     * macOS, node-gyp-build)
+     * @param work
+     */
+    const addonProject = (work: string): string => {
+        const project: string = path.join(work, 'app')
+        const file = (name: string, content: string | Buffer): void => {
+            mkdirSync(path.dirname(path.join(project, name)), {recursive: true})
+            writeFileSync(path.join(project, name), content)
+        }
+        //An ELF of an architecture (e_machine at 18)
+        const elf = (machine: number): Buffer => {
+            const content: Buffer = Buffer.alloc(64)
+            content.writeUInt32BE(0x7f454c46, 0)
+            content.writeUInt16LE(machine, 18)
+            return content
+        }
+        file('node_modules/hello-addon/package.json', JSON.stringify({name: 'hello-addon', version: '1.0.0', main: 'index.js'}))
+        file('node_modules/hello-addon/index.js', `module.exports = require('./build/Release/hello.node')`)
+        file('node_modules/hello-addon/binding.gyp', "{'targets': [{'target_name': 'hello', 'sources': ['hello.c']}]}")
+        file('node_modules/hello-addon/hello.c', '#include <node_api.h>\nNAPI_MODULE_INIT() { return exports; }\n')
+        file('node_modules/hello-addon/build/Release/hello.node', elf(62))
+        file('node_modules/prebuilt-addon/package.json', JSON.stringify({name: 'prebuilt-addon', version: '1.0.0', main: 'index.js'}))
+        file('node_modules/prebuilt-addon/index.js', `module.exports = require('./build/Release/prebuilt.node')`)
+        file('node_modules/prebuilt-addon/build/Release/prebuilt.node', elf(62))
+        file('node_modules/prebuilt-addon/prebuilds/android-arm64/prebuilt.node', elf(183))
+        file('node_modules/prebuilt-addon/prebuilds/darwin-arm64/prebuilt.node', Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0x00, 0x00, 0x01]))
+        file('package.json', JSON.stringify({name: 'mobile', version: '1.0.0', main: 'build/App.js', dependencies: {'hello-addon': '1.0.0', 'prebuilt-addon': '1.0.0'}}))
+        file('build/App.js', `console.log(require('hello-addon'), require('prebuilt-addon'))`)
+        return project
+    }
+
+    it('refuse the addons of a package without sources nor prebuilt addons of Android, and the ones of iOS for now', async (): Promise<void> => {
         const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-mobile-'))
         try {
-            const project: string = path.join(work, 'app')
-            const addon: string = path.join(project, 'node_modules', 'hello-addon')
-            mkdirSync(path.join(addon, 'build', 'Release'), {recursive: true})
-            mkdirSync(path.join(project, 'build'), {recursive: true})
-            writeFileSync(path.join(addon, 'package.json'), JSON.stringify({name: 'hello-addon', version: '1.0.0', main: 'index.js'}))
-            writeFileSync(path.join(addon, 'index.js'), `module.exports = require('./build/Release/hello.node')`)
-            writeFileSync(path.join(addon, 'build', 'Release', 'hello.node'), Buffer.from('\x7fELF'))
-            writeFileSync(path.join(project, 'package.json'), JSON.stringify({name: 'mobile', version: '1.0.0', main: 'build/App.js', dependencies: {'hello-addon': '1.0.0'}}))
-            writeFileSync(path.join(project, 'build', 'App.js'), `console.log(require('hello-addon'))`)
+            const project: string = addonProject(work)
+            rmSync(path.join(project, 'node_modules', 'hello-addon', 'binding.gyp'))
             const outdir: string = path.join(work, 'nodejs')
-            await assert.rejects(stageMobileApp({platform: 'ios', project: project, outdir: outdir}), /The native addons of the application are not built for iOS and Android yet: hello-addon$/)
+            await assert.rejects(stageMobileApp({platform: 'android', project: project, outdir: outdir, abis: ['arm64-v8a']}), /hello-addon has no sources to build its addons for Android \(binding\.gyp\), and no prebuilt addons of Android \(prebuilds\/android-arm64\)/)
             assert.ok(!existsSync(outdir))
+            await assert.rejects(stageMobileApp({platform: 'ios', project: project, outdir: outdir}), /The native addons of the application are not built for iOS yet: hello-addon, prebuilt-addon$/)
+            assert.ok(!existsSync(outdir))
+        } finally {
+            rmSync(work, {recursive: true, force: true})
+        }
+    })
+
+    it('build the addons for Android from their sources, a native tree per architecture, the prebuilt ones of Android kept', {skip: !androidNdk() && 'no NDK of Android (ANDROID_NDK_HOME, the ndk of ANDROID_HOME)'}, async (): Promise<void> => {
+        const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-mobile-'))
+        try {
+            const project: string = addonProject(work)
+            const outdir: string = path.join(work, 'nodejs')
+            const messages: string[] = []
+            const stage: MobileStage = await stageMobileApp({platform: 'android', project: project, outdir: outdir, abis: ['arm64-v8a'], progress: (message: string): unknown => messages.push(message)})
+            assert.deepStrictEqual(stage.addons, {built: ['hello-addon (arm64-v8a)'], prebuilt: ['prebuilt-addon (arm64-v8a)']})
+            assert.deepStrictEqual(messages, ['The addons of hello-addon built for Android (arm64-v8a)'])
+            //The tree of the architecture, loaded by the bundle (process.arch), in place of the one of the build
+            assert.ok(!existsSync(path.join(outdir, 'app.native')))
+            const tree: string = path.join(outdir, 'app.native-arm64')
+            assert.deepStrictEqual(binaryArchitectures(readFileSync(path.join(tree, 'node_modules', 'hello-addon', 'build', 'Release', 'hello.node'))), ['arm64'])
+            //The prebuilt addon of the architecture kept, the others removed (node-gyp-build loads build/Release first)
+            assert.ok(existsSync(path.join(tree, 'node_modules', 'prebuilt-addon', 'prebuilds', 'android-arm64', 'prebuilt.node')))
+            assert.ok(!existsSync(path.join(tree, 'node_modules', 'prebuilt-addon', 'prebuilds', 'darwin-arm64', 'prebuilt.node')))
+            assert.ok(!existsSync(path.join(tree, 'node_modules', 'prebuilt-addon', 'build', 'Release', 'prebuilt.node')))
         } finally {
             rmSync(work, {recursive: true, force: true})
         }

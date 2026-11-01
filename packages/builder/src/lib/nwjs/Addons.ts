@@ -153,8 +153,9 @@ export type NwjsAddons = {
 /**
  * node-gyp: the one of the project, of the builder, else the one of npm
  * @param project
+ * @internal
  */
-function nodeGyp(project: string): string {
+export function nodeGyp(project: string): string {
     for (const base of [path.join(project, 'package.json'), import.meta.url]) {
         try {
             return createRequire(base).resolve('node-gyp/bin/node-gyp.js')
@@ -166,7 +167,7 @@ function nodeGyp(project: string): string {
     const prefix: string = process.platform === 'win32' ? path.dirname(process.execPath) : path.join(path.dirname(process.execPath), '..', 'lib')
     const bundled: string = path.join(prefix, 'node_modules', 'npm', 'node_modules', 'node-gyp', 'bin', 'node-gyp.js')
     if (existsSync(bundled)) return bundled
-    throw new Error('node-gyp builds the addons for NW.js: install it in the project (npm install --save-dev node-gyp)')
+    throw new Error('node-gyp builds the native addons again: install it in the project (npm install --save-dev node-gyp)')
 }
 
 /**
@@ -200,8 +201,9 @@ function mirror(): string {
 /**
  * The directory of the package of a file (the one holding its package.json)
  * @param file
+ * @internal
  */
-function packageOf(file: string): string | undefined {
+export function packageOf(file: string): string | undefined {
     for (let directory: string = path.dirname(file); directory !== path.dirname(directory); directory = path.dirname(directory)) {
         if (existsSync(path.join(directory, 'package.json'))) return directory
     }
@@ -211,8 +213,9 @@ function packageOf(file: string): string | undefined {
 /**
  * The .node files under a directory
  * @param directory
+ * @internal
  */
-async function nodeFiles(directory: string): Promise<string[]> {
+export async function nodeFiles(directory: string): Promise<string[]> {
     if (!existsSync(directory)) return []
     const found: string[] = []
     for (const entry of await readdir(directory, {withFileTypes: true})) {

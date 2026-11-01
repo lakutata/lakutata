@@ -28,11 +28,12 @@ export function spawnCommand(command: string, args: string[], options: SpawnOpti
  * @param command
  * @param args
  * @param cwd
+ * @param env its environment, the one of the process by default
  * @return the exit code and the output
  */
-export function runCommand(command: string, args: string[], cwd: string): Promise<{ code: number, output: string }> {
+export function runCommand(command: string, args: string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<{ code: number, output: string }> {
     return new Promise((resolve: (result: { code: number, output: string }) => void, reject: (error: Error) => void): void => {
-        const child = spawnCommand(command, args, {cwd: cwd})
+        const child = spawnCommand(command, args, {cwd: cwd, env: env})
         let output: string = ''
         //Piped (the default stdio)
         child.stdout!.on('data', (chunk: Buffer): unknown => output += chunk.toString())

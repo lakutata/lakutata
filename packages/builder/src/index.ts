@@ -16,3 +16,4 @@ export {stageNwjsApp, type NwjsConfig, type NwjsStage, type NwjsStageOptions} fr
 export type {NwjsAddons} from './lib/nwjs/Addons.js'
 export {buildNwjsApp, type NwjsApp, type NwjsAppOptions} from './lib/nwjs/Package.js'
 export {MOBILE_NODE_VERSION, stageMobileApp, type MobilePlatform, type MobileStage, type MobileStageOptions} from './lib/mobile/Stage.js'
+export type {AndroidAbi, MobileAddons} from './lib/mobile/Addons.js'
