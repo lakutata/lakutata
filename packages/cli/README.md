@@ -594,8 +594,16 @@ Make the Node.js project of the application of the current directory into `--out
 plugin runs the project as it is: its dependencies are in the bundle), its resources, its `package.json` and its entry.
 Run it after the build of the user interface, which empties the web directory, and before `npx cap sync`. The entry puts
 away the `fetch()` of Node.js where there is no WebAssembly (iOS: its first call would end Node.js), and gives
-`os.tmpdir()` the cache directory of the application where the one of the system cannot be written (Android). Native
-addons are refused for now.
+`os.tmpdir()` the cache directory of the application where the one of the system cannot be written (Android).
+
+The native addons of the dependencies are built for the system from the sources of their packages (`binding.gyp`),
+against the headers and the libraries of nodejs-mobile, which is downloaded once (or taken from the download of the
+plugin). For Android, each architecture (arm64-v8a, armeabi-v7a, x86_64) gets a native tree of its own, built by
+node-gyp with the NDK (the latest one of the Android SDK, or `ANDROID_NDK_HOME`); a package that ships prebuilt addons
+of Android (`prebuilds/android-<arch>`) keeps them. For iOS, on macOS, each addon becomes a framework for the devices
+and one for the simulators, built with Xcode into `App/App/NodeAddons` of the project of iOS (the `ios.path` of
+`capacitor.config.json`), which the project of iOS of the templates embeds in the application. The builds are kept in
+the cache of lakutata (`~/.cache/lakutata/mobile`).
 
 | Option | |
 |---|---|
@@ -622,7 +630,8 @@ Make the project, put it into the application installed in the emulator of Andro
 it writes into the files of a debug build (`adb shell run-as`), where the plugin copied the project at the first start
 and copies it again only when the package is updated (the application is started once first when it has not copied it);
 on iOS it writes into the application in the simulator. adb is found in the Android SDK (`ANDROID_HOME`), else in the
-`PATH`.
+`PATH`. The native addons are built for the device only: for the architecture of the emulator or the device of Android,
+for the simulators of iOS (their frameworks are put into the application of the simulator).
 
 | Option | |
 |---|---|

@@ -68,11 +68,21 @@ The plugin embeds Node.js 18.20.4: `lakutata mobile stage` bundles the applicati
 `packages/ui/dist/nodejs`, which `npx cap sync` copies into the native projects. There, `process.platform` is `android`
 or `ios`, which `packages/app/src/App.ts` uses to serve the actions through the bridge of the plugin, and the process
 keeps running for as long as the application does. iOS allows no JIT, so Node.js has no WebAssembly there: `fetch()` is
-removed (`node:http` and `node:https` work). On Android, `os.tmpdir()` is the cache directory of the application. Native
-addons are not supported yet: `lakutata mobile stage` refuses them.
+removed (`node:http` and `node:https` work). On Android, `os.tmpdir()` is the cache directory of the application.
 
 The files whose names start with a dot stay in the assets of Android: `android/app/build.gradle` keeps them
 (`ignoreAssetsPattern`), since the Node.js project holds some.
+
+## Native addons
+
+`lakutata mobile stage` builds the native addons of the dependencies for Android and iOS from their sources (their
+`binding.gyp`, which node-gyp builds when they are installed), against the Node.js of the plugin. For Android it builds
+them for arm64-v8a, armeabi-v7a and x86_64 with the NDK (Android Studio installs it from the SDK Manager, under
+SDK Tools; or set `ANDROID_NDK_HOME`); packages that ship prebuilt addons of Android (`prebuilds/android-arm64`) keep
+them. For iOS it builds them on macOS with Xcode, as frameworks in `ios/App/App/NodeAddons`, which the project of iOS
+embeds in the application and signs with it. The first build of a package takes a while (minutes for a large one); the
+builds are kept in the cache of lakutata, and `npm run dev:android` and `npm run dev:ios` build for the emulator or the
+simulator only.
 
 ## The icons
 

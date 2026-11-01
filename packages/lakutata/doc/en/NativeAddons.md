@@ -221,5 +221,8 @@ The application depends on the addon package, and imports it as any package (`im
   (NW.js 0.111.3 or later: the earlier releases, such as 0.72 for Windows 7, run the addons of Node-API only). On
   Windows, the addons load the Node.js of NW.js (`node.dll`). The addons of the project are left as they are, for its
   tests with Node.js.
+- **Mobile applications** (Capacitor): `lakutata mobile stage` builds the addons from their sources for Android and
+  iOS, against the Node.js the application embeds (see the `lakutata mobile` commands in the README of
+  `@lakutata/cli`).
 - **Bun**: Bun loads the addons of Node-API; an executable of Bun warns of the addons built on the V8 API of Node.js.
 - **Alpine (musl)**: the executables of Node.js do not load native addons there: make them with Bun.

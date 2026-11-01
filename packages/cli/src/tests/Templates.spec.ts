@@ -810,9 +810,26 @@ describe('The templates of the repository', (): void => {
                 for (const file of ['package.json', 'main.js', 'app.cjs']) assert.ok(existsSync(path.join(project, 'packages', 'ui', 'dist', 'nodejs', file)), file)
             }
             //Run on an emulator of Android when the tests are given one (LAKUTATA_TEST_ANDROID_AVD: its name; macOS, the SDK
-            //of ANDROID_HOME, the JDK of JAVA_HOME): the user interface shows the result of its action and the event pushed to it
+            //of ANDROID_HOME with its NDK, the JDK of JAVA_HOME): the user interface shows the result of its action (with the
+            //one of a native addon, built for Android by the stage) and the event pushed to it
             const avd: string | undefined = process.env.LAKUTATA_TEST_ANDROID_AVD
             if (!avd || process.platform !== 'darwin' || !process.env.ANDROID_HOME) return
+            const addon: string = path.join(project, 'node_modules', 'hello-addon')
+            mkdirSync(addon, {recursive: true})
+            writeFileSync(path.join(addon, 'package.json'), JSON.stringify({name: 'hello-addon', version: '1.0.0', main: 'index.js', types: 'index.d.ts'}))
+            writeFileSync(path.join(addon, 'index.js'), "module.exports = require('./build/Release/hello.node')\n")
+            writeFileSync(path.join(addon, 'index.d.ts'), 'declare const addon: { hello(): string }\nexport = addon\n')
+            writeFileSync(path.join(addon, 'binding.gyp'), "{'targets': [{'target_name': 'hello', 'sources': ['hello.c']}]}")
+            writeFileSync(path.join(addon, 'hello.c'), '#include <node_api.h>\nstatic napi_value Hello(napi_env env, napi_callback_info info) { napi_value result; napi_create_string_utf8(env, "native", NAPI_AUTO_LENGTH, &result); return result; }\nNAPI_MODULE_INIT() { napi_value fn; napi_create_function(env, "hello", NAPI_AUTO_LENGTH, Hello, NULL, &fn); napi_set_named_property(env, exports, "hello", fn); return exports; }\n')
+            const compiled = await runIn(process.execPath, [path.join(ROOT, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js'), 'rebuild'], addon)
+            assert.strictEqual(compiled.code, 0, compiled.output)
+            const controller: string = path.join(project, 'packages', 'app', 'src', 'controllers', 'ExampleController.ts')
+            writeFileSync(controller, `import addon from 'hello-addon'\n${readFileSync(controller, 'utf8').replace('`Hello, ${input.name}!`', '`Hello, ${input.name}! ${addon.hello()}`')}`)
+            const rebuilt = await runIn(process.execPath, [CLI, 'run', 'rebuild', '--concurrency', '1'], project)
+            assert.strictEqual(rebuilt.code, 0, rebuilt.output)
+            const staged = await runIn(process.execPath, [CLI, 'mobile', 'stage', '--platform', 'android', '--outdir', '../ui/dist/nodejs'], path.join(project, 'packages', 'app'))
+            assert.strictEqual(staged.code, 0, staged.output)
+            for (const arch of ['arm64', 'arm', 'x64']) assert.ok(existsSync(path.join(project, 'packages', 'ui', 'dist', 'nodejs', `app.native-${arch}`)), arch)
             //The native packages copied: Gradle builds their projects of Android where they are
             unlinkSync(path.join(project, 'node_modules', '@capawesome', 'capacitor-nodejs'))
             copyPackages(project, ['@capacitor/android', '@capawesome/capacitor-nodejs'])
@@ -843,7 +860,7 @@ describe('The templates of the repository', (): void => {
                 }
                 const port: number = 9500 + Math.floor(Math.random() * 400)
                 assert.strictEqual((await runIn(adb, ['forward', `tcp:${port}`, `localabstract:webview_devtools_remote_${pid}`], project)).code, 0)
-                assert.match(await readPage(port, 'page', `typeof require === 'undefined' && typeof process === 'undefined'`, 60), new RegExp(`Hello, ${name}!\\s+Pushed by the application: ${name} \\| isolated: true`))
+                assert.match(await readPage(port, 'page', `typeof require === 'undefined' && typeof process === 'undefined'`, 60), new RegExp(`Hello, ${name}! native\\s+Pushed by the application: ${name} \\| isolated: true`))
             } finally {
                 await runIn(adb, ['emu', 'kill'], project)
                 await stopped

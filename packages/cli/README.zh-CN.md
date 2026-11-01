@@ -350,7 +350,9 @@ Capacitor 手机应用（iOS、Android）在 `@capawesome/capacitor-nodejs` 内�
 
 ### `lakutata mobile stage`
 
-把当前目录的应用生成为 `--outdir` 下的 Node.js 项目：面向这个 Node.js 的单文件包（插件按原样运行这个项目，依赖都打进了单文件包）、资源、`package.json` 和入口。请在构建界面之后（构建会清空网页目录）、`npx cap sync` 之前执行。入口在没有 WebAssembly 的地方（iOS：第一次调用 `fetch()` 就会结束 Node.js）收起 Node.js 的 `fetch()`；在系统的临时目录不可写的地方（Android），让 `os.tmpdir()` 返回应用的 cache 目录。目前会拒绝原生插件。
+把当前目录的应用生成为 `--outdir` 下的 Node.js 项目：面向这个 Node.js 的单文件包（插件按原样运行这个项目，依赖都打进了单文件包）、资源、`package.json` 和入口。请在构建界面之后（构建会清空网页目录）、`npx cap sync` 之前执行。入口在没有 WebAssembly 的地方（iOS：第一次调用 `fetch()` 就会结束 Node.js）收起 Node.js 的 `fetch()`；在系统的临时目录不可写的地方（Android），让 `os.tmpdir()` 返回应用的 cache 目录。
+
+依赖里的原生插件会从各自包的源码（`binding.gyp`）为目标系统编译，用的是 nodejs-mobile 的头文件和库（只下载一次，插件已经下载过的话直接用）。Android 上每种架构（arm64-v8a、armeabi-v7a、x86_64）各有一棵原生树，用 node-gyp 和 NDK 编译（Android SDK 里最新的 NDK，或 `ANDROID_NDK_HOME`）；自带 Android 预编译插件（`prebuilds/android-<arch>`）的包直接用它们。iOS 上（在 macOS 中）每个插件分别为真机和模拟器编成一个 framework，用 Xcode 编译到 iOS 工程的 `App/App/NodeAddons` 中（iOS 工程的位置是 `capacitor.config.json` 里的 `ios.path`），模板的 iOS 工程会把它们嵌进应用。编译结果保存在 lakutata 的缓存目录中（`~/.cache/lakutata/mobile`）。
 
 | 选项 | |
 |---|---|
@@ -368,7 +370,7 @@ Capacitor 手机应用（iOS、Android）在 `@capawesome/capacitor-nodejs` 内�
 
 ### `lakutata mobile deploy <platform>`
 
-生成项目，放进 Android 模拟器或 iOS 模拟器里已安装的应用（`android` 或 `ios`），再重新启动应用：Node.js 一侧的改动不用重新安装应用。在 Android 上写进调试版应用的文件目录（`adb shell run-as`），插件在第一次启动时把项目复制到了那里，之后只在应用的安装包更新时才重新复制（还没复制时会先启动一次应用）；在 iOS 上写进模拟器里的应用。adb 从 Android SDK（`ANDROID_HOME`）中查找，找不到时用 `PATH` 中的。
+生成项目，放进 Android 模拟器或 iOS 模拟器里已安装的应用（`android` 或 `ios`），再重新启动应用：Node.js 一侧的改动不用重新安装应用。在 Android 上写进调试版应用的文件目录（`adb shell run-as`），插件在第一次启动时把项目复制到了那里，之后只在应用的安装包更新时才重新复制（还没复制时会先启动一次应用）；在 iOS 上写进模拟器里的应用。adb 从 Android SDK（`ANDROID_HOME`）中查找，找不到时用 `PATH` 中的。原生插件只为当前设备编译：Android 只编模拟器或设备的那种架构，iOS 只编模拟器版（它们的 framework 会放进模拟器里的应用）。
 
 | 选项 | |
 |---|---|

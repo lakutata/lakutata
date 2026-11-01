@@ -42,7 +42,9 @@ desktop application: dmg on macOS, nsis on Windows, deb on Linux by default).
 The mobile applications of Capacitor run in the Node.js that `@capawesome/capacitor-nodejs` embeds in them (Node.js
 18.20.4, `MOBILE_NODE_VERSION`). `stageMobileApp()` makes their Node.js project: the bundle for that Node.js, the
 resources, the manifest and an entry that puts away `fetch()` without WebAssembly (iOS) and gives `os.tmpdir()` a
-directory that can be written (Android).
+directory that can be written (Android). It builds the native addons for the system from their sources, against the
+headers and the libraries of nodejs-mobile: a native tree per architecture of Android (node-gyp and the NDK), and for
+iOS a framework per addon for each SDK (Xcode), in the directory the `frameworks` option gives.
 
 The Linux installers are tested in containers (Docker): `npm run test:installer` builds them on Debian and Alpine, then
 installs, upgrades and removes them on Debian and Fedora (systemd) and on Alpine (OpenRC). The macOS installers are

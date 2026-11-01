@@ -2,6 +2,8 @@ App/build
 App/Pods
 App/output
 App/App/public
+# The frameworks of the native addons of Node.js, made by lakutata mobile stage
+App/App/NodeAddons
 DerivedData
 xcuserdata
 
