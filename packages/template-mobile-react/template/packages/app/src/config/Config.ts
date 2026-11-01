@@ -34,8 +34,6 @@ export function config(options: ConfigOptions = {}): ApplicationOptions {
         id: '{$APP_ID}',
         name: '{$APP_NAME}',
         mode: options.mode ?? 'development',
-        //The process of the Node.js of the mobile application is the whole application: the application leaves it running
-        exitProcess: options.bridge === undefined,
         components: {
             //@if i18n
             //The messages of the languages (src/locales), bundled with the code; created by the first request

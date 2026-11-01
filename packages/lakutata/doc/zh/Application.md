@@ -12,7 +12,6 @@
 | `timezone` | IANA 时区名，或 `'auto'`（默认）表示使用系统时区；写入 `TZ` |
 | `mode` | `'development'` 或 `'production'`，在环境变量未指定时生效（见第 4 节） |
 | `shutdownSignals` | 使应用优雅退出的信号（默认 `['SIGTERM', 'SIGINT']`），或 `false` |
-| `exitProcess` | 应用结束时是否结束进程（默认 `true`）；运行在宿主的进程里时设为 `false`（见下文） |
 | `components`、`providers` | 按名称声明的组件和提供者：`{class, ...options}` |
 | `objects` | 其他对象：`{named: {...}, anonymous: [...]}` |
 | `bootstrap` | 启动时依次执行的步骤：名称、symbol 或类（创建该对象），或以应用为参数调用的异步函数 |
@@ -62,7 +61,6 @@ Application
 - **启动失败**：应用无法启动时（选项不合法、对象初始化失败、bootstrap 步骤失败），由 `onFatalException` 的处理函数决定退出码（没有返回时为 1）。没有注册处理函数时，框架记录错误后以退出码 1 退出，和 Node.js 处理未捕获异常的方式一致，这样运行它的工具（Docker 的重启策略、Kubernetes、systemd、CI）都能知道启动失败了；已经创建的对象（正在监听的服务、数据库连接等）也不会让进程继续挂着。
 - **退出信号**：收到 `SIGTERM`（`docker stop`、Kubernetes 滚动更新、systemd 停止服务）或 `SIGINT`（Ctrl+C）时，应用会优雅退出：先执行 `onDone` 处理函数，此时应用仍然完全可用（第三个参数说明退出原因：收到信号时是 `{code: 0, signal: 'SIGTERM'}`，调用 `app.exit(code)` 时是 `{code}`）；然后各入口停止接收新请求并等待正在处理的请求完成，各对象被销毁，最后以退出码 0 退出。如果再次收到信号（比如退出过程卡住了），或者信号是在应用启动期间收到的，进程会立即以 128 + 信号编号退出（`SIGTERM` 为 143，`SIGINT` 为 130）。选项 `shutdownSignals` 可以指定其他信号（如 `['SIGTERM', 'SIGINT', 'SIGHUP']`），设为 `false` 则交由 Node.js 处理。
 - **没有事情可做时**：当没有任何东西让进程继续运行时（没有服务、连接或定时器），应用会像调用 `app.exit(0)` 一样优雅退出：执行 `onDone` 处理函数，销毁对象，然后以进程当前的退出码（`process.exitCode`，默认 0）退出。所以脚本做完工作直接结束即可。已经被销毁的应用（例如测试中调用了 `app.dispose()`）则把进程何时结束交给运行它的程序。
-- **运行在宿主的进程里**（`exitProcess: false`）：手机应用里内嵌的 Node.js 和手机应用在同一个进程里，结束这个进程就会关掉整个应用。设置 `exitProcess: false` 后，应用结束时不会结束进程：`app.exit(code)` 执行 `onDone` 处理函数并销毁对象，`app.exit(true)` 不执行处理函数直接销毁对象，启动失败时销毁已经创建的对象；退出码只交给进程（`process.exitCode`），进程继续运行。一个进程里应用只能运行一次。
 
 ## 4. 运行模式
 

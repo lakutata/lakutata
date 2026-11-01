@@ -566,8 +566,6 @@ console.log(await invoke({cmd: 'greet', name: 'you'}))
   bridge is first required, which may happen before the application listens: the messages sent before that are lost.
   This is why the page sends its subscription until `{type: 'subscribed', clientId}` answers it, and invokes the actions
   only after that.
-- The Node.js of the plugin runs once per launch of the mobile application, and exiting it quits the whole application:
-  give the application `exitProcess: false` (see [Application](Application.md)).
 
 ## 5. Clients and events
 

@@ -16,7 +16,6 @@ options:
 | `timezone` | An IANA time zone, or `'auto'` (default) for the system's; written to `TZ` |
 | `mode` | `'development'` or `'production'`, when the environment gives none (see section 4) |
 | `shutdownSignals` | The signals that end the application gracefully (default `['SIGTERM', 'SIGINT']`), or `false` |
-| `exitProcess` | Whether the end of the application exits the process (default `true`); `false` in the process of a host (see below) |
 | `components`, `providers` | The components and providers by name: `{class, ...options}` |
 | `objects` | Other objects: `{named: {...}, anonymous: [...]}` |
 | `bootstrap` | The steps run in order at launch: a name, a symbol or a class (the object is created), or an async function that receives the application |
@@ -83,12 +82,6 @@ exit code 2, skipping the done handlers and the teardown.
   ends gracefully, as with `app.exit(0)`: the `onDone` handlers run, the objects are destroyed, and the process exits
   with the code it has (`process.exitCode`, 0 by default). A script can therefore just finish its work. An application
   that has been disposed (`app.dispose()`, as in tests) leaves the end of the process to whatever runs it.
-- **In the process of a host** (`exitProcess: false`): the Node.js embedded in a mobile application runs in the mobile
-  application's process, and exiting that process would quit the whole application. With `exitProcess: false`, the end
-  of the application never exits the process: `app.exit(code)` runs the `onDone` handlers and destroys the objects,
-  `app.exit(true)` destroys them without the handlers, and a fatal exception destroys the objects already created; the
-  exit code is only given to the process (`process.exitCode`), and the process keeps running. The application runs once
-  per process.
 
 ## 4. The mode
 

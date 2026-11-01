@@ -203,8 +203,6 @@ function loadBridge(): CapacitorBridge {
  * Application.run({
  *     id: 'mobile.app',
  *     name: 'Mobile',
- *     //Its process is the whole application: the application leaves it running
- *     exitProcess: false,
  *     components: {
  *         entrypoint: buildEntrypoints({
  *             controllers: [EchoController],

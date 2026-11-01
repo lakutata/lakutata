@@ -86,18 +86,4 @@ export class ApplicationOptions extends ModuleOptions {
         .default((): NodeJS.Signals[] => ['SIGTERM', 'SIGINT']))
     public readonly shutdownSignals?: false | NodeJS.Signals[]
 
-    /**
-     * Whether the end of the application exits the process: its exit (`exit()`, a shutdown signal), a fatal exception.
-     * false when it runs in the process of a host, which ends with the host, not with the application (the Node.js
-     * embedded in a mobile application, where exiting the process quits the whole application): the objects are
-     * destroyed, the exit code given to the process (`process.exitCode`), and the process keeps running. Read once the
-     * options are given: a failure before (the options getter failing) exits the process. The application runs once
-     * per process.
-     * @default true
-     */
-    @Expect(DTO.Boolean()
-        .optional()
-        .default(true))
-    public readonly exitProcess?: boolean
-
 }
