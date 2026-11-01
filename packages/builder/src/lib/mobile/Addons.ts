@@ -61,7 +61,8 @@ export const IOS_ADDONS_FILE: string = 'addons.json'
  */
 export type MobileAddons = {
     /**
-     * The packages built from their sources, with the target built for: `@lakutata/math (arm64-v8a)`
+     * The packages built from their sources (now, or before: the cache), with the target built for:
+     * `@lakutata/math (arm64-v8a)`
      */
     built: string[]
     /**

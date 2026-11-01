@@ -210,15 +210,17 @@ console.log('RESULT ' + JSON.stringify({fetch: typeof fetch, tmpdir: tmpdir(), d
             const project: string = addonProject(work)
             rmSync(path.join(project, 'node_modules', 'prebuilt-addon'), {recursive: true})
             writeFileSync(path.join(project, 'build', 'App.js'), `console.log(require('hello-addon'))`)
-            //The frameworks made before (a SDK not built now included) are removed
+            //The frameworks made before for the SDK built are removed, the ones of the other SDK kept
             const frameworks: string = path.join(work, 'ios', 'App', 'App', 'NodeAddons')
             mkdirSync(path.join(frameworks, 'iphoneos', 'old.framework'), {recursive: true})
+            mkdirSync(path.join(frameworks, 'iphonesimulator', 'old.framework'), {recursive: true})
             const outdir: string = path.join(work, 'nodejs')
             const messages: string[] = []
             const stage: MobileStage = await stageMobileApp({platform: 'ios', project: project, outdir: outdir, frameworks: frameworks, sdks: ['iphonesimulator'], progress: (message: string): unknown => messages.push(message)})
             assert.deepStrictEqual(messages, ['The addons of hello-addon built for iOS (iphonesimulator)'])
             assert.deepStrictEqual(stage.addons, {built: ['hello-addon (iphonesimulator)'], prebuilt: [], frameworks: ['iphonesimulator/hello-addon-hello.framework']})
-            assert.ok(!existsSync(path.join(frameworks, 'iphoneos')))
+            assert.ok(existsSync(path.join(frameworks, 'iphoneos', 'old.framework')))
+            assert.ok(!existsSync(path.join(frameworks, 'iphonesimulator', 'old.framework')))
             const framework: string = path.join(frameworks, 'iphonesimulator', 'hello-addon-hello.framework')
             assert.deepStrictEqual(binaryArchitectures(readFileSync(path.join(framework, 'hello-addon-hello'))).sort(), ['arm64', 'x64'])
             assert.match(readFileSync(path.join(framework, 'Info.plist'), 'utf8'), /<string>dev\.lakutata\.addon\.hello-addon-hello<\/string>/)

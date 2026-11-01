@@ -60,7 +60,7 @@ export type MobileStageOptions = {
     /**
      * The directory of the frameworks of the native addons of iOS, a directory per SDK, which the project of iOS embeds
      * in the application (`ios/App/App/NodeAddons` in the projects of the templates); required by the native addons of
-     * iOS, its frameworks made again at each stage
+     * iOS, the frameworks of the SDKs built made again at each stage
      */
     frameworks?: string
     /**
@@ -171,9 +171,10 @@ export async function stageMobileApp(options: MobileStageOptions): Promise<Mobil
     if (!path.relative(directory, project).startsWith('..')) throw new Error(`The Node.js project of the mobile application is made in a directory of its own, not ${directory}`)
     await rm(directory, {recursive: true, force: true})
     await mkdir(directory, {recursive: true})
-    //The frameworks of the addons of iOS made before: made again, or none
+    //The frameworks of the addons of iOS made before for the SDKs built: made again, or none (the ones of the other SDK
+    //kept: the development builds for the simulators only)
     const frameworks: string | undefined = options.platform === 'ios' && options.frameworks ? path.resolve(project, options.frameworks) : undefined
-    if (frameworks) for (const sdk of ['iphoneos', 'iphonesimulator']) await rm(path.join(frameworks, sdk), {recursive: true, force: true})
+    if (frameworks) for (const sdk of options.sdks?.length ? options.sdks : ['iphoneos', 'iphonesimulator']) await rm(path.join(frameworks, sdk), {recursive: true, force: true})
     const bundle: BundleResult = await bundleProject({
         project: project,
         entry: options.entry,
