@@ -186,13 +186,22 @@
         }
       },
       "mobile": {
-        "description": "手机应用（Capacitor、@capawesome/capacitor-nodejs）：生成它的 Node.js 项目，开发时部署到已安装的应用里",
+        "description": "手机应用（Capacitor、@capawesome/capacitor-nodejs）：生成它的 Node.js 项目，在模拟器上运行应用，开发时部署到已安装的应用里",
         "stage": {
           "description": "生成当前目录的手机应用的 Node.js 项目（@capawesome/capacitor-nodejs）：面向 iOS 和 Android 的 Node.js 的单文件包、资源和入口；在构建界面之后执行",
           "options": {
             "platform": "项目面向的系统（android 或 ios），在这个系统的 npx cap sync 之前执行",
             "outdir": "生成的 Node.js 项目所在的目录：Capacitor 网页目录下的 nodejs，在构建界面之后生成（../ui/dist/nodejs）",
             "minify": "压缩单文件包（默认为 true）"
+          }
+        },
+        "run": {
+          "description": "在 Android 模拟器或设备上（npx cap run android），或在 iOS 模拟器上（用 xcodebuild 构建，再安装、启动）运行项目的手机应用；在 npx cap sync 之后执行",
+          "arguments": {
+            "platform": "系统：android（模拟器或设备，通过 npx cap run android）或 ios（模拟器，用 xcodebuild 构建）"
+          },
+          "options": {
+            "device": "Android 的模拟器或设备（序列号或 AVD 名称，见 npx cap run android --list）、iOS 的模拟器（UDID 或名称，见 xcrun simctl list devices）；iOS 默认用正在运行的模拟器，没有时用最新的 iPhone"
           }
         },
         "deploy": {
@@ -205,7 +214,7 @@
             "outdir": "生成的 Node.js 项目所在的目录：Capacitor 网页目录下的 nodejs（../ui/dist/nodejs）",
             "device": "Android 的模拟器或设备（序列号，见 adb devices）、iOS 的模拟器（UDID 或名称，见 xcrun simctl list）；默认是正在运行的那个",
             "watch": "监视应用的文件：有变化就执行它的 build 脚本（npm run build）并重新部署，直到按 Ctrl+C",
-            "liveReload": "界面开发服务器的端口（vite --host）：以实时刷新的方式运行应用（npx cap run <平台> --live-reload），页面从开发服务器加载，同时监视应用的文件，直到按 Ctrl+C",
+            "liveReload": "界面开发服务器的端口（vite --host）：以实时刷新的方式运行应用，页面从 localhost 上的开发服务器加载（Android 用 npx cap run android --live-reload，iOS 由本命令构建并安装），同时监视应用的文件，直到按 Ctrl+C",
             "nodeDir": "Node.js 项目在应用网页目录里的目录名（插件的 nodeDir）"
           }
         }

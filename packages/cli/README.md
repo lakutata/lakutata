@@ -585,7 +585,8 @@ NW.js, with its resources and its native addons made to load in it, then run wit
 
 A mobile application of Capacitor (iOS, Android) runs the application in the Node.js that `@capawesome/capacitor-nodejs`
 embeds in it: Node.js 18.20.4, which runs the project in the `nodejs` directory of the web directory of Capacitor. These
-commands make that project and deploy it during the development.
+commands make that project, run the application, and deploy the project during the development; the `mobile-react` and
+`mobile-vue` templates use them in their scripts.
 
 ### `lakutata mobile stage`
 
@@ -601,6 +602,18 @@ addons are refused for now.
 | `--platform <android\|ios>` | the system the project is made for: `npx cap sync` copies the web directory to the system synced, so the project is made for that system right before syncing it |
 | `--outdir <directory>` | the directory of the project: `nodejs` in the web directory (`../ui/dist/nodejs`) |
 | `--no-minify` | keep the bundle readable |
+
+### `lakutata mobile run <platform>`
+
+Build the mobile application of the project and run it, after `npx cap sync`: on an emulator or a device of Android
+(`android`) through `npx cap run android`; on a simulator of iOS (`ios`), built with `xcodebuild` the way
+`npx cap run ios` builds it, then installed and started with `xcrun simctl`. The simulator is the one given, else the
+one running, else the newest iPhone; a simulator that is not running is booted. The simulator is shown in the app of
+Xcode for that: Simulator, or Device Hub since Xcode 27 (which `npx cap run ios` cannot open).
+
+| Option | |
+|---|---|
+| `--device <id>` | the emulator or the device of Android (its serial or the name of its AVD, `npx cap run android --list`), the simulator of iOS (its UDID or its name, `xcrun simctl list devices`) |
 
 ### `lakutata mobile deploy <platform>`
 
@@ -618,7 +631,7 @@ on iOS it writes into the application in the simulator. adb is found in the Andr
 | `--device <id>` | the emulator or the device (its serial, `adb devices`), the simulator (its UDID or name), the one running by default |
 | `--node-dir <directory>` | the directory of the project in the web directory (the `nodeDir` of the plugin), `nodejs` by default |
 | `--watch` | watch the files of the application (not its dependencies, its compiled files or the project made): when they change, run its `build` script and deploy it again, until Ctrl+C |
-| `--live-reload <port>` | the port of the dev server of the user interface (`vite --host`): run the application with live reload (`npx cap run <platform> --live-reload`, its pages loaded from the dev server) and watch its files, until Ctrl+C, which gives the application its configuration back |
+| `--live-reload <port>` | the port of the dev server of the user interface (`vite --host`): run the application with its pages loaded from the dev server at `localhost`, and watch its files, until Ctrl+C. On Android through `npx cap run android --live-reload`, which forwards the port to the device (`adb reverse`) and puts the configuration of the project back once stopped; on iOS, the application is built with the address of the dev server and installed in the simulator, the configuration of the project left as it was. The installed application keeps loading its pages from the dev server until it is installed again |
 
 ## Migrations
 

@@ -346,7 +346,7 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 
 ## 手机应用
 
-Capacitor 手机应用（iOS、Android）在 `@capawesome/capacitor-nodejs` 内嵌的 Node.js 中运行应用：Node.js 18.20.4，它运行 Capacitor 网页目录下 `nodejs` 目录里的项目。下面的命令生成这个项目，并在开发时部署它。
+Capacitor 手机应用（iOS、Android）在 `@capawesome/capacitor-nodejs` 内嵌的 Node.js 中运行应用：Node.js 18.20.4，它运行 Capacitor 网页目录下 `nodejs` 目录里的项目。下面的命令生成这个项目、运行应用，并在开发时部署这个项目；`mobile-react` 和 `mobile-vue` 模板的脚本就是用它们写的。
 
 ### `lakutata mobile stage`
 
@@ -357,6 +357,14 @@ Capacitor 手机应用（iOS、Android）在 `@capawesome/capacitor-nodejs` 内�
 | `--platform <android\|ios>` | 项目面向的系统：`npx cap sync` 会把网页目录复制给同步的那个系统，所以紧接着它之前为这个系统生成 |
 | `--outdir <目录>` | 项目所在的目录：网页目录下的 `nodejs`（`../ui/dist/nodejs`） |
 | `--no-minify` | 不压缩单文件包 |
+
+### `lakutata mobile run <platform>`
+
+在 `npx cap sync` 之后构建并运行项目的手机应用：在 Android 模拟器或设备上（`android`）通过 `npx cap run android` 运行；在 iOS 模拟器上（`ios`）按 `npx cap run ios` 的方式用 `xcodebuild` 构建，再用 `xcrun simctl` 安装、启动。模拟器用指定的那个，没有指定时用正在运行的那个，都没有时启动最新的 iPhone。同时会打开 Xcode 中显示模拟器的应用：Simulator，Xcode 27 起是 Device Hub（`npx cap run ios` 打不开它）。
+
+| 选项 | |
+|---|---|
+| `--device <id>` | Android 的模拟器或设备（序列号或 AVD 名称，见 `npx cap run android --list`）、iOS 的模拟器（UDID 或名称，见 `xcrun simctl list devices`） |
 
 ### `lakutata mobile deploy <platform>`
 
@@ -369,7 +377,7 @@ Capacitor 手机应用（iOS、Android）在 `@capawesome/capacitor-nodejs` 内�
 | `--device <id>` | 模拟器或设备（序列号，见 `adb devices`）、iOS 模拟器（UDID 或名称），默认是正在运行的那个 |
 | `--node-dir <目录>` | 项目在网页目录里的目录名（插件的 `nodeDir`），默认是 `nodejs` |
 | `--watch` | 监视应用的文件（不包括依赖、编译产物和生成的项目）：有变化就执行它的 `build` 脚本并重新部署，直到按 Ctrl+C |
-| `--live-reload <端口>` | 界面开发服务器的端口（`vite --host`）：以实时刷新的方式运行应用（`npx cap run <平台> --live-reload`，页面从开发服务器加载），并监视应用的文件，直到按 Ctrl+C，届时应用的配置会恢复原样 |
+| `--live-reload <端口>` | 界面开发服务器的端口（`vite --host`）：运行应用，页面从 `localhost` 上的开发服务器加载，并监视应用的文件，直到按 Ctrl+C。Android 上通过 `npx cap run android --live-reload` 运行，它把端口转发到设备（`adb reverse`），停止后把项目的配置恢复原样；iOS 上用开发服务器的地址构建应用并安装到模拟器，项目的配置保持不变。已安装的应用会一直从开发服务器加载页面，直到重新安装 |
 
 ## 迁移
 

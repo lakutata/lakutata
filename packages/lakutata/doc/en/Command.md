@@ -106,7 +106,8 @@ arguments. Its installers hold the normal flavor ([Installers](Installers.md), s
 
 A mobile application of Capacitor runs in the Node.js that `@capawesome/capacitor-nodejs` embeds in it. `lakutata mobile
 stage --platform <android|ios> --outdir <directory>` makes its Node.js project in the web directory of Capacitor, after
-the build of the user interface; `lakutata mobile deploy <android|ios> --app-id <id> --outdir <directory>` puts it into
+the build of the user interface; `lakutata mobile run <android|ios>` builds the application and runs it on an emulator
+or a simulator; `lakutata mobile deploy <android|ios> --app-id <id> --outdir <directory>` puts the Node.js project into
 the application installed in the emulator or the simulator and starts the application again.
 
 ## 6. Environment variables

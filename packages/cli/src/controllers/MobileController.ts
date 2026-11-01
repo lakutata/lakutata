@@ -1,11 +1,12 @@
 import {spawn} from 'node:child_process'
-import {existsSync, readFileSync, watch} from 'node:fs'
+import {existsSync, readFileSync, watch, writeFileSync} from 'node:fs'
 import {cp, mkdir, readdir, rm} from 'node:fs/promises'
 import path from 'node:path'
 import {Controller} from 'lakutata/com/entrypoint'
 import {CLIAction} from 'lakutata/decorator/ctrl'
 import type {MobileStage} from '@lakutata/builder'
 import {MobileDeployDTO} from '../dtos/MobileDeployDTO.js'
+import {MobileRunDTO} from '../dtos/MobileRunDTO.js'
 import {MobileStageDTO} from '../dtos/MobileStageDTO.js'
 import {loadBuilder} from '../lib/Builder.js'
 import {done, step, warn} from '../lib/Output.js'
@@ -135,19 +136,90 @@ function capacitorRoot(directory: string): string {
 }
 
 /**
- * The device the application runs on: the emulator or the device of Android running (adb devices), the simulator of iOS
- * running (xcrun simctl list devices booted)
- * @param platform
+ * The emulator or the device of Android running (adb devices)
  */
-async function runningDevice(platform: 'android' | 'ios'): Promise<string> {
-    if (platform === 'android') {
-        const serial: string | undefined = (await must('The devices of Android cannot be listed', adbProgram(), ['devices'])).split('\n').map((line: string): string[] => line.trim().split(/\s+/)).find((parts: string[]): boolean => parts[1] === 'device')?.[0]
-        if (!serial) throw new Error('No emulator or device of Android is running')
-        return serial
+async function androidDevice(): Promise<string> {
+    const serial: string | undefined = (await must('The devices of Android cannot be listed', adbProgram(), ['devices'])).split('\n').map((line: string): string[] => line.trim().split(/\s+/)).find((parts: string[]): boolean => parts[1] === 'device')?.[0]
+    if (!serial) throw new Error('No emulator or device of Android is running')
+    return serial
+}
+
+/**
+ * The simulator of iOS the application runs on, booted (its UDID): the one given (its UDID or its name), else the one
+ * running, else the newest iPhone
+ * @param device
+ */
+async function iosSimulator(device?: string): Promise<string> {
+    type Simulator = { udid: string, name: string, state: string }
+    const listed = JSON.parse(await must('The simulators cannot be listed', 'xcrun', ['simctl', 'list', 'devices', 'available', '--json'])) as { devices: Record<string, Simulator[]> }
+    //The ones of the runtimes of iOS, the newest first
+    const simulators: Simulator[] = Object.entries(listed.devices)
+        .filter(([runtime]: [string, Simulator[]]): boolean => runtime.includes('SimRuntime.iOS-'))
+        .sort(([a]: [string, Simulator[]], [b]: [string, Simulator[]]): number => b.localeCompare(a, undefined, {numeric: true}))
+        .flatMap(([, devices]: [string, Simulator[]]): Simulator[] => devices)
+    const simulator: Simulator | undefined = device
+        ? simulators.find((candidate: Simulator): boolean => candidate.udid === device || candidate.name === device)
+        : simulators.find((candidate: Simulator): boolean => candidate.state === 'Booted') ?? simulators.find((candidate: Simulator): boolean => candidate.name.startsWith('iPhone'))
+    if (!simulator) throw new Error(device ? `No simulator of iOS is ${device} (xcrun simctl list devices)` : 'No simulator of iOS is available (the platform of iOS of Xcode)')
+    if (simulator.state !== 'Booted') {
+        step(`The simulator ${simulator.name} booted`)
+        await must(`The simulator ${simulator.name} cannot be booted`, 'xcrun', ['simctl', 'bootstatus', simulator.udid, '-b'])
     }
-    const udid: string | undefined = /\(([0-9A-Fa-f-]{36})\) \(Booted\)/.exec(await must('The simulators cannot be listed', 'xcrun', ['simctl', 'list', 'devices', 'booted']))?.[1]
-    if (!udid) throw new Error('No simulator of iOS is running (npx cap run ios)')
-    return udid
+    return simulator.udid
+}
+
+/**
+ * Show a simulator of iOS in the app of Xcode showing them: Simulator, Device Hub since Xcode 27 (which native-run, the
+ * runner of npx cap run ios, does not know). Not shown without it: the application runs all the same
+ * @param udid
+ */
+async function showSimulator(udid: string): Promise<void> {
+    const developer: string = (await run('xcode-select', ['-p'])).stdout.trim()
+    if (!developer) return
+    const simulator: string = path.join(developer, 'Applications', 'Simulator.app')
+    const hub: string = path.join(developer, '..', 'Applications', 'DeviceHub.app')
+    if (existsSync(simulator)) await run('open', [simulator, '--args', '-CurrentDeviceUDID', udid])
+    else if (existsSync(hub)) await run('open', [hub])
+}
+
+/**
+ * Build the application of iOS for a simulator as npx cap run ios does (xcodebuild, in the project of iOS of Capacitor),
+ * install it and start it
+ * @param root the project of Capacitor
+ * @param udid the simulator, booted
+ * @param server the address its pages are loaded from (live reload): written into the configuration of Capacitor of
+ * the application built, which the project keeps as it was
+ * @return the id of the application
+ */
+async function runIos(root: string, udid: string, server?: string): Promise<string> {
+    const file: string = path.join(root, 'capacitor.config.json')
+    const config: { ios?: { path?: string, scheme?: string } } = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {}
+    const platform: string = path.resolve(root, config.ios?.path ?? 'ios')
+    const native: string = path.join(platform, 'App')
+    const scheme: string = config.ios?.scheme ?? 'App'
+    const derived: string = path.join(platform, 'DerivedData', udid)
+    const configuration: string = path.join(native, 'App', 'capacitor.config.json')
+    const original: string | undefined = server ? readFileSync(configuration, 'utf8') : undefined
+    if (original !== undefined) {
+        const json: Record<string, any> = JSON.parse(original)
+        writeFileSync(configuration, JSON.stringify({...json, server: {...json.server, url: server}}, null, '\t'))
+    }
+    try {
+        //CocoaPods give the project a workspace, the Swift Package Manager does not
+        const project: string[] = existsSync(path.join(native, 'App.xcworkspace')) ? ['-workspace', 'App.xcworkspace'] : ['-project', 'App.xcodeproj']
+        step(`xcodebuild ${[...project, '-scheme', scheme, '-configuration', 'Debug', '-destination', `id=${udid}`].join(' ')}`)
+        const built = await runCommand('xcrun', ['xcodebuild', ...project, '-scheme', scheme, '-configuration', 'Debug', '-destination', `id=${udid}`, '-derivedDataPath', derived], native)
+        if (built.code !== 0) throw new Error(`The application cannot be built:\n${built.output.trim().split('\n').filter((line: string): boolean => /error|failed/i.test(line)).slice(-15).join('\n') || built.output.trim().split('\n').slice(-15).join('\n')}`)
+    } finally {
+        if (original !== undefined) writeFileSync(configuration, original)
+    }
+    const application: string = path.join(derived, 'Build', 'Products', 'Debug-iphonesimulator', `${scheme}.app`)
+    const id: string = (await must('The id of the application cannot be read', 'plutil', ['-extract', 'CFBundleIdentifier', 'raw', path.join(application, 'Info.plist')])).trim()
+    await must('The application cannot be installed', 'xcrun', ['simctl', 'install', udid, application])
+    await showSimulator(udid)
+    await run('xcrun', ['simctl', 'terminate', udid, id])
+    await must('The application cannot be started', 'xcrun', ['simctl', 'launch', udid, id])
+    return id
 }
 
 /**
@@ -161,6 +233,26 @@ export class MobileController extends Controller {
         const {stageMobileApp} = await loadBuilder(process.cwd())
         const stage: MobileStage = await stageMobileApp({platform: input.platform, project: process.cwd(), outdir: input.outdir, minify: input.minify})
         done(`The Node.js project for ${stage.platform} (Node.js ${stage.node}): ${path.relative(process.cwd(), stage.directory) || '.'}`)
+        return undefined
+    }
+
+    @CLIAction('mobile run <platform>', MobileRunDTO, {description: 'Run the mobile application of the project on an emulator or a device of Android (npx cap run android) or a simulator of iOS (built with xcodebuild, installed and started), after npx cap sync'})
+    public async run(input: MobileRunDTO): Promise<undefined> {
+        const root: string = capacitorRoot(process.cwd())
+        if (input.platform === 'android') {
+            const args: string[] = ['cap', 'run', 'android', '--no-sync', ...input.device ? ['--target', input.device] : []]
+            step(`npx ${args.join(' ')}`)
+            const code: number | null = await new Promise((resolve: (code: number | null) => void, reject: (error: Error) => void): void => {
+                const child = spawnCommand('npx', args, {cwd: root, stdio: 'inherit'})
+                child.once('error', reject)
+                child.once('exit', resolve)
+            })
+            if (code !== 0) throw new Error(`npx ${args.join(' ')} failed (${code})`)
+            return undefined
+        }
+        const udid: string = await iosSimulator(input.device)
+        const id: string = await runIos(root, udid)
+        done(`${id} runs on the simulator ${udid}`)
         return undefined
     }
 
@@ -203,13 +295,7 @@ export class MobileController extends Controller {
             const stop = (): void => {
                 clearTimeout(timer)
                 watcher.close()
-                //Capacitor gives the application its configuration back once stopped
-                if (live && live.exitCode === null) {
-                    live.once('exit', (): void => resolve())
-                    live.kill('SIGINT')
-                } else {
-                    resolve()
-                }
+                void (live ? live.stop() : Promise.resolve()).finally(resolve)
             }
             process.once('SIGINT', stop)
             process.once('SIGTERM', stop)
@@ -218,14 +304,25 @@ export class MobileController extends Controller {
     }
 
     /**
-     * Run the application with live reload (npx cap run <platform> --live-reload, in the project of Capacitor): its
-     * pages loaded from the dev server of the user interface; resolved once it runs
+     * Run the application with live reload: its pages loaded from the dev server of the user interface at localhost (a
+     * secure context of the browsers: an address of the network is not). On Android, by npx cap run android --live-reload
+     * (in the project of Capacitor), which reaches the computer through adb reverse (--forwardPorts) and gives the
+     * application its configuration back once stopped; on iOS, built with the address and installed in the simulator,
+     * which shares localhost with the computer. Resolved once it runs, with the function stopping it
      * @param input
      * @protected
      */
-    protected async runLiveReload(input: MobileDeployDTO): Promise<ReturnType<typeof spawnCommand>> {
-        const target: string = input.device ?? await runningDevice(input.platform)
-        const args: string[] = ['cap', 'run', input.platform, '--live-reload', '--port', String(input.liveReload), '--no-sync', '--target', target]
+    protected async runLiveReload(input: MobileDeployDTO): Promise<{ stop: () => Promise<void> }> {
+        const port: string = String(input.liveReload)
+        if (input.platform === 'ios') {
+            const udid: string = await iosSimulator(input.device)
+            await runIos(capacitorRoot(process.cwd()), udid, `http://localhost:${port}`)
+            //The simulator given the UDID of the one it runs on: the Node.js project deployed there
+            input.device = udid
+            return {stop: async (): Promise<void> => undefined}
+        }
+        const target: string = input.device ?? await androidDevice()
+        const args: string[] = ['cap', 'run', 'android', '--live-reload', '--host', 'localhost', '--port', port, '--forwardPorts', `${port}:${port}`, '--no-sync', '--target', target]
         step(`npx ${args.join(' ')}`)
         const child = spawnCommand('npx', args, {cwd: capacitorRoot(process.cwd()), stdio: ['ignore', 'pipe', 'pipe']})
         await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
@@ -238,9 +335,19 @@ export class MobileController extends Controller {
             child.stdout!.on('data', read)
             child.stderr!.on('data', read)
             child.once('error', reject)
-            child.once('exit', (code: number | null): void => reject(new Error(`npx cap run ${input.platform} --live-reload ended (${code}): ${output.trim().split('\n').slice(-5).join(' ')}`)))
+            child.once('exit', (code: number | null): void => reject(new Error(`npx cap run android --live-reload ended (${code}): ${output.trim().split('\n').slice(-5).join(' ')}`)))
         })
-        return child
+        return {
+            stop: async (): Promise<void> => {
+                if (child.exitCode === null) {
+                    const exited: Promise<unknown> = new Promise((resolve: (value: unknown) => void): unknown => child.once('exit', resolve))
+                    child.kill('SIGINT')
+                    await exited
+                }
+                //The port forwarded to Android removed
+                await run(adbProgram(), ['-s', target, 'reverse', '--remove', `tcp:${port}`])
+            }
+        }
     }
 
     /**
@@ -253,7 +360,8 @@ export class MobileController extends Controller {
         const stage: MobileStage = await stageMobileApp({platform: input.platform, project: process.cwd(), outdir: input.outdir, minify: false})
         step(`The Node.js project for ${stage.platform} (Node.js ${stage.node}): ${path.relative(process.cwd(), stage.directory) || '.'}`)
         if (input.platform === 'android') await deployAndroid(stage.directory, input.appId, input.device)
-        else await deployIos(stage.directory, input.appId, input.nodeDir, input.device)
+        //The simulator given by its name or its UDID (simctl takes UDIDs)
+        else await deployIos(stage.directory, input.appId, input.nodeDir, input.device ? await iosSimulator(input.device) : undefined)
         done(`Deployed to ${input.appId} (${input.platform}${input.device ? `, ${input.device}` : ''}) and started`)
     }
 }
