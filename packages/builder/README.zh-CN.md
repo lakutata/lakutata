@@ -23,7 +23,7 @@ await buildNwjsApp({project: process.cwd()})
 
 NW.js 应用运行在它 `lakutata.nwjs` 中指定的 NW.js 版本里。`nwjsReleases()` 列出 NW.js 的发布版本，`downloadNwjs()` 把一个运行时下载到缓存目录（按其发布版本的校验和核对），`stageNwjsApp()` 为 NW.js 准备应用：为这个 NW.js 的 Node.js 打包的代码、处理成能在其中加载的原生插件（为它的架构重新构建，使用 V8 API 的插件用它的头文件重新构建；在 Windows 上让插件加载 NW.js 的 Node.js）、资源和 NW.js 的清单。`buildNwjsApp()` 把应用放进以应用命名的 NW.js normal 版本中，`buildInstaller()` 在 `"runtime": "nwjs"` 时制作它的安装包（桌面应用的安装包：默认 macOS 上是 dmg，Windows 上是 nsis，Linux 上是 deb）。
 
-Capacitor 手机应用运行在 `@capawesome/capacitor-nodejs` 内嵌的 Node.js 中（Node.js 18.20.4，`MOBILE_NODE_VERSION`）。`stageMobileApp()` 生成它们的 Node.js 项目：面向这个 Node.js 的单文件包、资源、清单，以及一个入口：没有 WebAssembly 时（iOS）收起 `fetch()`，并让 `os.tmpdir()` 返回可写的目录（Android）。它还会用 nodejs-mobile 的头文件和库，从源码为目标系统编译原生插件：Android 每种架构一棵原生树（node-gyp 和 NDK），iOS 每个插件为每个 SDK 编成一个 framework（Xcode），放在 `frameworks` 指定的目录中。
+React Native 手机应用（Android、iOS、鸿蒙）运行在一个 libnode 中，它由项目里的 Dockerfile 从 Node.js 源码编译而成。`buildMobileNode()` 为一个系统运行这个 Dockerfile，只编译一次，按输入算出的键保存在缓存中。`stageMobileApp()` 生成应用的 Node.js 项目：面向 libnode 中的 Node.js 的单文件包（没有 libnode 时面向 Node.js 24.20.0，`MOBILE_NODE_VERSION`）、资源、清单，以及一个入口：没有 WebAssembly 时（鸿蒙）收起 `fetch()`。它还会用 libnode 的头文件和库，从源码为目标系统编译原生插件：Android 每种架构一棵原生树（node-gyp 和 NDK）；iOS 每个插件为每个 SDK 编成一个 framework（Xcode），放在 `frameworks` 指定的目录中；鸿蒙每个插件编成一个库（DevEco Studio 的原生 SDK），放在 `libraries` 指定的 HAP 库目录中。
 
 Linux 安装包在容器（Docker）中测试：`npm run test:installer` 先在 Debian 和 Alpine 上制作安装包，再在 Debian、Fedora（systemd）和 Alpine（OpenRC）上安装、升级和卸载它们。macOS 安装包在 macOS 虚拟机中测试安装（`npm run test:installer:mac`，使用 tart），Windows 安装包则在 Windows 上以管理员身份测试安装（`LAKUTATA_WINDOWS_INSTALL=1 npm run test:installer:windows`）。
 

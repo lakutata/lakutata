@@ -39,12 +39,15 @@ Node.js of NW.js), its resources and the manifest of NW.js. `buildNwjsApp()` put
 named after the application, and `buildInstaller()` makes its installers with `"runtime": "nwjs"` (the installers of a
 desktop application: dmg on macOS, nsis on Windows, deb on Linux by default).
 
-The mobile applications of Capacitor run in the Node.js that `@capawesome/capacitor-nodejs` embeds in them (Node.js
-18.20.4, `MOBILE_NODE_VERSION`). `stageMobileApp()` makes their Node.js project: the bundle for that Node.js, the
-resources, the manifest and an entry that puts away `fetch()` without WebAssembly (iOS) and gives `os.tmpdir()` a
-directory that can be written (Android). It builds the native addons for the system from their sources, against the
-headers and the libraries of nodejs-mobile: a native tree per architecture of Android (node-gyp and the NDK), and for
-iOS a framework per addon for each SDK (Xcode), in the directory the `frameworks` option gives.
+The mobile applications of React Native (Android, iOS, HarmonyOS) run in a libnode built from the sources of Node.js
+by a Dockerfile of the project. `buildMobileNode()` runs that Dockerfile for a system once and keeps the libnode in the
+cache, keyed by its inputs. `stageMobileApp()` makes the Node.js project of the application: the bundle for the Node.js
+of the libnode (Node.js 24.20.0, `MOBILE_NODE_VERSION`, without a libnode), the resources, the manifest and an entry
+that puts away `fetch()` without WebAssembly (HarmonyOS). It builds the native addons for the system from their
+sources, against the headers and the libraries of the libnode: a native tree per architecture of Android (node-gyp and
+the NDK), for iOS a framework per addon for each SDK (Xcode) in the directory the `frameworks` option gives, and for
+HarmonyOS a library per addon (the native SDK of DevEco Studio) in the libraries of the HAP the `libraries` option
+gives.
 
 The Linux installers are tested in containers (Docker): `npm run test:installer` builds them on Debian and Alpine, then
 installs, upgrades and removes them on Debian and Fedora (systemd) and on Alpine (OpenRC). The macOS installers are

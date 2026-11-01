@@ -9,52 +9,43 @@ import {runCommand} from '../Processes.js'
 import {binaryArchitectures, nodeFiles, nodeGyp, packageOf} from '../nwjs/Addons.js'
 import {compareVersions} from '../nwjs/Runtime.js'
 import {cacheDirectory} from '../Tools.js'
-import {NODEJS_MOBILE_RELEASE, nodejsMobile} from './Runtime.js'
+import {ANDROID_ABIS, type AndroidAbi, mobileNodeAbis, mobileNodeVersion} from './Node.js'
 
 /**
- * The architectures of Android the native addons are built for, the ones of the libraries of nodejs-mobile: the name
- * of the architecture in Node.js (process.arch, which names the native tree of the architecture) and the target of
- * the compilers of the NDK
- */
-export const ANDROID_ABIS = {
-    'arm64-v8a': {arch: 'arm64', target: 'aarch64-linux-android'},
-    'armeabi-v7a': {arch: 'arm', target: 'armv7a-linux-androideabi'},
-    'x86_64': {arch: 'x64', target: 'x86_64-linux-android'}
-} as const
-
-/**
- * An architecture of Android (an ABI): arm64-v8a, armeabi-v7a or x86_64
- */
-export type AndroidAbi = keyof typeof ANDROID_ABIS
-
-/**
- * The version of Android the addons are built for: the minSdkVersion of the projects of Capacitor 8
+ * The version of Android the addons are built for: the minSdkVersion of the projects of React Native 0.86
  */
 const ANDROID_API: number = 24
 
 /**
- * The SDKs of iOS the native addons are built for: the architectures built and the slice of the framework of
- * nodejs-mobile (NodeMobile.xcframework) they link
+ * The SDKs of iOS the native addons are built for: the architectures built and the slice of the framework of the
+ * Node.js of the application (NodeMobile.xcframework) they link
  */
 const IOS_SDKS = {
     iphoneos: {archs: 'arm64', slice: 'ios-arm64', platform: 'iPhoneOS'},
-    iphonesimulator: {archs: 'arm64 x86_64', slice: 'ios-arm64_x86_64-simulator', platform: 'iPhoneSimulator'}
+    iphonesimulator: {archs: 'arm64', slice: 'ios-arm64-simulator', platform: 'iPhoneSimulator'}
 } as const
 
 /**
- * A SDK of iOS: iphoneos (the devices) or iphonesimulator (the simulators of the Macs of Apple silicon and Intel)
+ * A SDK of iOS: iphoneos (the devices) or iphonesimulator (the simulators of the Macs of Apple silicon)
  */
 export type IosSdk = keyof typeof IOS_SDKS
 
 /**
- * The version of iOS the addons are built for: the deployment target of the projects of Capacitor 8
+ * The version of iOS the addons are built for: the minimum of React Native 0.86, the deployment target of libnode
  */
-const IOS_DEPLOYMENT_TARGET: string = '15.0'
+const IOS_DEPLOYMENT_TARGET: string = '15.1'
 
 /**
- * The file of a Node.js project of iOS mapping the placeholders of its addons to their frameworks
+ * Where the libraries of the HAP are on HarmonyOS (the libs/arm64-v8a of its module), which the addons are loaded from
  */
-export const IOS_ADDONS_FILE: string = 'addons.json'
+const HARMONY_LIBRARIES: string = '/data/storage/el1/bundle/libs/arm64'
+
+/**
+ * The file of a Node.js project mapping the placeholders of its addons to the libraries the system loads instead (the
+ * frameworks of the application on iOS, the libraries of the HAP on HarmonyOS): {directory, files}, the directory
+ * relative to the project or absolute
+ */
+export const MOBILE_ADDONS_FILE: string = 'addons.json'
 
 /**
  * What was done to the native addons of a mobile application
@@ -73,6 +64,10 @@ export type MobileAddons = {
      * The frameworks made of the addons (iOS), for each SDK: `iphonesimulator/lakutata-math-math.framework`
      */
     frameworks: string[]
+    /**
+     * The libraries made of the addons (HarmonyOS), in the libraries of the HAP: `liblakutata-math-math.so`
+     */
+    libraries: string[]
 }
 
 /**
@@ -80,7 +75,7 @@ export type MobileAddons = {
  */
 export type MobileAddonOptions = {
     /**
-     * The architectures of Android built for, the ones of nodejs-mobile by default (arm64-v8a, armeabi-v7a, x86_64)
+     * The architectures of Android built for, the ones of libnode by default
      */
     abis?: AndroidAbi[]
     /**
@@ -140,9 +135,9 @@ function addonPackages(files: NativeFile[]): AddonPackage[] {
 /**
  * The NDK of Android: ANDROID_NDK_HOME, ANDROID_NDK_ROOT, else the latest one of the SDK (ANDROID_HOME, ANDROID_SDK_ROOT,
  * else the directory Android Studio installs it into)
- * @returns the directory of its compilers and its revision
+ * @returns its directory, the directory of its compilers and its revision
  */
-function androidNdk(): { bin: string, revision: string } {
+function androidNdk(): { root: string, bin: string, revision: string } {
     let ndk: string | undefined = [process.env.ANDROID_NDK_HOME, process.env.ANDROID_NDK_ROOT].find((directory: string | undefined): boolean => !!directory && existsSync(path.join(directory, 'source.properties')))
     if (!ndk) {
         const sdk: string = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? path.join(os.homedir(), ...process.platform === 'darwin' ? ['Library', 'Android', 'sdk'] : ['Android', 'Sdk'])
@@ -154,13 +149,13 @@ function androidNdk(): { bin: string, revision: string } {
     const bin: string = path.join(ndk, 'toolchains', 'llvm', 'prebuilt', `${process.platform === 'darwin' ? 'darwin' : 'linux'}-x86_64`, 'bin')
     if (!existsSync(bin)) throw new Error(`The NDK ${ndk} has no compilers for this system (${bin})`)
     const revision: string = /Pkg\.Revision\s*=\s*(\S+)/.exec(readFileSync(path.join(ndk, 'source.properties'), 'utf8'))?.[1] ?? 'unknown'
-    return {bin: bin, revision: revision}
+    return {root: ndk, bin: bin, revision: revision}
 }
 
 /**
  * The format of the builds kept in the cache: changed when what a build makes changes
  */
-const CACHE_FORMAT: number = 1
+const CACHE_FORMAT: number = 2
 
 /**
  * The files of a package, by their paths, their sizes and their times (not their contents: a package of sources has
@@ -185,17 +180,27 @@ async function fingerprint(directory: string, base: string = directory): Promise
 }
 
 /**
+ * What a libnode is to the addons built against it: its version and its configuration
+ * @param node the export of the libnode
+ */
+function nodeIdentity(node: string): string {
+    const config: string = path.join(node, 'include', 'node', 'config.gypi')
+    return `${mobileNodeVersion(node)} ${existsSync(config) ? createHash('sha256').update(readFileSync(config)).digest('hex').slice(0, 16) : ''}`
+}
+
+/**
  * The addons of a package built for a target, kept in the cache (~/.cache/lakutata/mobile/addons, LAKUTATA_CACHE_DIR)
- * by the files of the package, the target, the toolchain and the release of nodejs-mobile: built once, then taken
- * from the cache (the development stages the application at each change)
+ * by the files of the package, the target, the toolchain and the libnode: built once, then taken from the cache (the
+ * development stages the application at each change)
  * @param item
- * @param target the ABI, or the SDK of iOS
- * @param toolchain the version of the NDK, or of Xcode
+ * @param target the ABI, the SDK of iOS, or harmony
+ * @param toolchain the version of the NDK, of Xcode, or of the native SDK of HarmonyOS
+ * @param node the export of the libnode built against
  * @param build
  * @returns the addons
  */
-async function cachedBuild(item: AddonPackage, target: string, toolchain: string, build: () => Promise<string[]>): Promise<string[]> {
-    const hash: Hash = createHash('sha256').update(JSON.stringify({format: CACHE_FORMAT, release: NODEJS_MOBILE_RELEASE, name: item.name, target: target, toolchain: toolchain}))
+async function cachedBuild(item: AddonPackage, target: string, toolchain: string, node: string, build: () => Promise<string[]>): Promise<string[]> {
+    const hash: Hash = createHash('sha256').update(JSON.stringify({format: CACHE_FORMAT, node: nodeIdentity(node), name: item.name, target: target, toolchain: toolchain}))
     for (const line of (await fingerprint(item.source)).sort()) hash.update(`${line}\n`)
     const directory: string = path.join(cacheDirectory(), 'mobile', 'addons', hash.digest('hex').slice(0, 32))
     const addons = async (): Promise<string[]> => (await readdir(directory)).filter((name: string): boolean => name.endsWith('.node')).sort().map((name: string): string => path.join(directory, name))
@@ -227,16 +232,17 @@ function buildModules(source: string): string {
 
 /**
  * Build the addons of a package for an architecture of Android with node-gyp (a copy of the package), cross-compiled
- * by the NDK against the headers and the library of nodejs-mobile
+ * by the NDK against the headers and the library of libnode
  * @param project
  * @param item
  * @param abi
- * @param runtime the release of nodejs-mobile of Android
- * @param bin the compilers of the NDK
+ * @param node the export of the libnode of Android
+ * @param ndk the NDK
  * @param work a directory of the build
  * @returns the addons built (in build/Release of the copy)
  */
-async function buildAndroid(project: string, item: AddonPackage, abi: AndroidAbi, runtime: string, bin: string, work: string): Promise<string[]> {
+async function buildAndroid(project: string, item: AddonPackage, abi: AndroidAbi, node: string, ndk: { root: string, bin: string }, work: string): Promise<string[]> {
+    const bin: string = ndk.bin
     const copy: string = path.join(work, path.basename(item.source))
     await cp(item.source, copy, {recursive: true, filter: (file: string): boolean => path.relative(item.source, file) !== 'build'})
     const compiler: string = path.join(bin, `${ANDROID_ABIS[abi].target}${ANDROID_API}-clang`)
@@ -257,9 +263,10 @@ async function buildAndroid(project: string, item: AddonPackage, abi: AndroidAbi
         LINK_host: process.env.LINK_host ?? 'c++',
         AR_host: process.env.AR_host ?? 'ar',
         //The addons load the Node.js of the application (libnode.so); the pages of 16 KB of Android 15
-        LDFLAGS: `-L${path.join(runtime, 'bin', abi)} -lnode -Wl,-z,max-page-size=16384`
+        LDFLAGS: `-L${path.join(node, 'libs', abi)} -lnode -Wl,-z,max-page-size=16384`
     }
-    const args: string[] = [nodeGyp(project), 'rebuild', `--arch=${ANDROID_ABIS[abi].arch}`, `--nodedir=${runtime}`, '--jobs=max', '--', '-f', 'make-android', '-DOS=android']
+    //The common.gypi of Node.js 24 reads the NDK (its cpufeatures) when OS is android
+    const args: string[] = [nodeGyp(project), 'rebuild', `--arch=${ANDROID_ABIS[abi].arch}`, `--nodedir=${node}`, '--jobs=max', '--', '-f', 'make-android', '-DOS=android', `-Dandroid_ndk_path=${ndk.root}`]
     const built = await runCommand(process.execPath, args, copy, env)
     if (built.code !== 0) throw new Error(`The addons of ${item.name} cannot be built for Android (${abi}): ${built.output.trim().split('\n').slice(-8).join('\n')}`)
     const addons: string[] = await nodeFiles(path.join(copy, 'build', 'Release'))
@@ -300,26 +307,27 @@ async function giveAddons(tree: string, item: AddonPackage, built: string[], kep
 /**
  * Build the native addons of a mobile application of Android: a native tree per architecture (<directory>-<arch>, the
  * one of process.arch loaded by the bundle), each package of addons built for it from its sources (node-gyp, the NDK,
- * the headers and the library of nodejs-mobile), or keeping its prebuilt addons of the architecture
+ * the headers and the library of libnode), or keeping its prebuilt addons of the architecture
  * (prebuilds/android-<arch>, node-gyp-build). The tree of the build is removed once they are made
  * @param project
  * @param directory the native tree
  * @param files the files of the tree
+ * @param node the export of the libnode of Android
  * @param options
  * @internal
  */
-export async function prepareAndroidAddons(project: string, directory: string, files: NativeFile[], options: MobileAddonOptions = {}): Promise<MobileAddons> {
+export async function prepareAndroidAddons(project: string, directory: string, files: NativeFile[], node: string, options: MobileAddonOptions = {}): Promise<MobileAddons> {
     if (process.platform === 'win32') throw new Error('The native addons are built for Android on macOS and on Linux (node-gyp, make and the NDK)')
-    const abis: AndroidAbi[] = options.abis?.length ? options.abis : Object.keys(ANDROID_ABIS) as AndroidAbi[]
-    for (const abi of abis) if (!Object.hasOwn(ANDROID_ABIS, abi)) throw new Error(`nodejs-mobile has no Node.js of the architecture ${abi} of Android: ${Object.keys(ANDROID_ABIS).join(', ')}`)
+    const built: AndroidAbi[] = mobileNodeAbis(node)
+    const abis: AndroidAbi[] = options.abis?.length ? options.abis : built
+    for (const abi of abis) if (!built.includes(abi)) throw new Error(`The libnode of ${node} is not built for the architecture ${abi} of Android (${built.join(', ') || 'none'})`)
     const packages: AddonPackage[] = addonPackages(files)
-    const result: MobileAddons = {built: [], prebuilt: [], frameworks: []}
+    const result: MobileAddons = {built: [], prebuilt: [], frameworks: [], libraries: []}
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-mobile-addons-'))
     const trees: string[] = []
     try {
-        //The NDK, once a package is built; the release of nodejs-mobile, once one is not in the cache
-        let ndk: { bin: string, revision: string } | undefined
-        let runtime: string | undefined
+        //The NDK, once a package is built
+        let ndk: { root: string, bin: string, revision: string } | undefined
         for (const abi of abis) {
             const arch: string = ANDROID_ABIS[abi].arch
             const tree: string = `${directory}-${arch}`
@@ -336,13 +344,12 @@ export async function prepareAndroidAddons(project: string, directory: string, f
                 }
                 if (!existsSync(path.join(item.source, 'binding.gyp'))) throw new Error(`${item.name} has no sources to build its addons for Android (binding.gyp), and no prebuilt addons of Android (prebuilds/android-${arch})`)
                 ndk ??= androidNdk()
-                const toolchain: { bin: string, revision: string } = ndk
-                const addons: string[] = await cachedBuild(item, abi, `ndk ${toolchain.revision}`, async (): Promise<string[]> => {
+                const toolchain: { root: string, bin: string, revision: string } = ndk
+                const addons: string[] = await cachedBuild(item, abi, `ndk ${toolchain.revision}`, node, async (): Promise<string[]> => {
                     options.progress?.(`The addons of ${item.name} built for Android (${abi})`)
-                    runtime ??= await nodejsMobile('android')
                     const build: string = path.join(work, `${result.built.length}`)
                     await mkdir(build, {recursive: true})
-                    return buildAndroid(project, item, abi, runtime, toolchain.bin, build)
+                    return buildAndroid(project, item, abi, node, toolchain, build)
                 })
                 await giveAddons(tree, item, addons, (): boolean => false)
                 result.built.push(`${item.name} (${abi})`)
@@ -407,26 +414,26 @@ ${entries.map(([key, value]: [string, string]): string => `\t<key>${key}</key>\n
 
 /**
  * Build the addons of a package for a SDK of iOS (a copy of the package): node-gyp makes its project of Xcode, built by
- * xcodebuild into dynamic libraries linking the framework of nodejs-mobile (NodeMobile)
+ * xcodebuild into dynamic libraries linking the framework of the Node.js of the application (NodeMobile)
  * @param project
  * @param item
  * @param sdk
- * @param runtime the release of nodejs-mobile of iOS
+ * @param node the export of the libnode of iOS
  * @param work a directory of the build
  * @returns the addons built
  */
-async function buildIos(project: string, item: AddonPackage, sdk: IosSdk, runtime: string, work: string): Promise<string[]> {
+async function buildIos(project: string, item: AddonPackage, sdk: IosSdk, node: string, work: string): Promise<string[]> {
     const copy: string = path.join(work, path.basename(item.source))
     await cp(item.source, copy, {recursive: true, filter: (file: string): boolean => path.relative(item.source, file) !== 'build'})
     const env: NodeJS.ProcessEnv = {...process.env, NODE_PATH: buildModules(item.source)}
-    const configured = await runCommand(process.execPath, [nodeGyp(project), 'configure', `--nodedir=${runtime}`, '--', '-f', 'xcode'], copy, env)
+    const configured = await runCommand(process.execPath, [nodeGyp(project), 'configure', `--nodedir=${node}`, '--', '-f', 'xcode'], copy, env)
     if (configured.code !== 0) throw new Error(`The addons of ${item.name} cannot be built for iOS (node-gyp configure): ${configured.output.trim().split('\n').slice(-8).join('\n')}`)
     //The addons made dynamic libraries (in frameworks) rather than bundles: their targets only, not the static libraries
     //they link (a setting of xcodebuild applies to every target)
     const pbxproj: string = path.join(copy, 'build', 'binding.xcodeproj', 'project.pbxproj')
     await writeFile(pbxproj, (await readFile(pbxproj, 'utf8')).replaceAll('MACH_O_TYPE = mh_bundle;', 'MACH_O_TYPE = mh_dylib;'))
     const output: string = path.join(work, 'products')
-    const framework: string = path.join(runtime, 'NodeMobile.xcframework', IOS_SDKS[sdk].slice)
+    const framework: string = path.join(node, 'NodeMobile.xcframework', IOS_SDKS[sdk].slice)
     const settings: string[] = [
         `ARCHS=${IOS_SDKS[sdk].archs}`, 'ONLY_ACTIVE_ARCH=NO', `SDKROOT=${sdk}`, `SUPPORTED_PLATFORMS=${sdk}`,
         `IPHONEOS_DEPLOYMENT_TARGET=${IOS_DEPLOYMENT_TARGET}`, 'MACOSX_DEPLOYMENT_TARGET=',
@@ -464,30 +471,31 @@ async function makeFramework(addon: string, directory: string, name: string, ver
 
 /**
  * Build the native addons of a mobile application of iOS: each package of addons built for the SDKs from its sources
- * (node-gyp, xcodebuild, linking the framework of nodejs-mobile), each addon made a framework, which the project of
- * Capacitor embeds in the application; its files in the native tree replaced by placeholders (no library of the App
- * Store outside of its frameworks), which the entry of the project loads from the frameworks of the application
- * (IOS_ADDONS_FILE). The frameworks of the SDKs made before are removed
+ * (node-gyp, xcodebuild, linking the framework of the Node.js of the application), each addon made a framework, which
+ * the project of iOS embeds in the application; its files in the native tree replaced by placeholders (no library of
+ * the App Store outside of its frameworks), which the entry of the project loads from the frameworks of the application
+ * (MOBILE_ADDONS_FILE: the project is in the application, next to its frameworks). The frameworks of the SDKs made
+ * before are removed
  * @param project
  * @param stage the Node.js project
  * @param directory its native tree
  * @param files the files of the tree
  * @param frameworks the directory of the frameworks, a directory per SDK (the NodeAddons of the project of iOS)
+ * @param node the export of the libnode of iOS
  * @param options
  * @internal
  */
-export async function prepareIosAddons(project: string, stage: string, directory: string, files: NativeFile[], frameworks: string, options: MobileAddonOptions = {}): Promise<MobileAddons> {
+export async function prepareIosAddons(project: string, stage: string, directory: string, files: NativeFile[], frameworks: string, node: string, options: MobileAddonOptions = {}): Promise<MobileAddons> {
     if (process.platform !== 'darwin') throw new Error('The native addons are built for iOS on macOS (Xcode)')
     const sdks: IosSdk[] = options.sdks?.length ? options.sdks : Object.keys(IOS_SDKS) as IosSdk[]
     const packages: AddonPackage[] = addonPackages(files)
-    const result: MobileAddons = {built: [], prebuilt: [], frameworks: []}
+    const result: MobileAddons = {built: [], prebuilt: [], frameworks: [], libraries: []}
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-mobile-addons-'))
     try {
         for (const item of packages) {
             if (!existsSync(path.join(item.source, 'binding.gyp'))) throw new Error(`${item.name} has no sources to build its addons for iOS (binding.gyp)`)
         }
-        //The release of nodejs-mobile, once an addon is not in the cache; the version of Xcode, which builds them
-        let runtime: string | undefined
+        //The version of Xcode, which builds them
         const xcode = await runCommand('xcodebuild', ['-version'], work)
         if (xcode.code !== 0) throw new Error(`Xcode builds the native addons for iOS: ${xcode.output.trim()}`)
         const mapping: Record<string, string> = {}
@@ -495,12 +503,11 @@ export async function prepareIosAddons(project: string, stage: string, directory
             const version: string = JSON.parse(await readFile(path.join(item.source, 'package.json'), 'utf8')).version ?? '1.0.0'
             const names: Set<string> = new Set()
             for (const sdk of sdks) {
-                const addons: string[] = await cachedBuild(item, sdk, xcode.output.trim(), async (): Promise<string[]> => {
+                const addons: string[] = await cachedBuild(item, sdk, xcode.output.trim(), node, async (): Promise<string[]> => {
                     options.progress?.(`The addons of ${item.name} built for iOS (${sdk})`)
-                    runtime ??= await nodejsMobile('ios')
                     const build: string = path.join(work, `${result.built.length}`)
                     await mkdir(build, {recursive: true})
-                    return buildIos(project, item, sdk, runtime, build)
+                    return buildIos(project, item, sdk, node, build)
                 })
                 for (const addon of addons) {
                     const name: string = frameworkName(item.name, addon)
@@ -522,7 +529,145 @@ export async function prepareIosAddons(project: string, stage: string, directory
                 mapping[path.relative(stage, target).split(path.sep).join('/')] = `${name}.framework/${name}`
             }
         }
-        await writeFile(path.join(stage, IOS_ADDONS_FILE), `${JSON.stringify(mapping, null, 2)}\n`)
+        await writeFile(path.join(stage, MOBILE_ADDONS_FILE), `${JSON.stringify({directory: '../Frameworks', files: mapping}, null, 2)}\n`)
+    } finally {
+        await rm(work, {recursive: true, force: true})
+    }
+    return result
+}
+
+/**
+ * The native SDK of HarmonyOS (its LLVM and its sysroot): OHOS_NDK_HOME, the native SDK of DEVECO_SDK_HOME, else the
+ * one of DevEco Studio (macOS) or of its command line tools (~/command-line-tools)
+ * @returns the directory of its compilers and its version
+ */
+function harmonyNdk(): { bin: string, version: string } {
+    const candidates: (string | undefined)[] = [
+        process.env.OHOS_NDK_HOME,
+        process.env.DEVECO_SDK_HOME ? path.join(process.env.DEVECO_SDK_HOME, 'default', 'openharmony', 'native') : undefined,
+        '/Applications/DevEco-Studio.app/Contents/sdk/default/openharmony/native',
+        path.join(os.homedir(), 'command-line-tools', 'sdk', 'default', 'openharmony', 'native')
+    ]
+    const native: string | undefined = candidates.find((directory: string | undefined): boolean => !!directory && existsSync(path.join(directory, 'llvm', 'bin', 'aarch64-unknown-linux-ohos-clang')))
+    if (!native) throw new Error('The native SDK of HarmonyOS builds the native addons for HarmonyOS: install DevEco Studio (or its command line tools), or give the directory of the native SDK (OHOS_NDK_HOME)')
+    let version: string = 'unknown'
+    try {
+        version = JSON.parse(readFileSync(path.join(native, 'oh-uni-package.json'), 'utf8')).version ?? version
+    } catch {
+        //A native SDK without its manifest: its builds are cached as unknown
+    }
+    return {bin: path.join(native, 'llvm', 'bin'), version: version}
+}
+
+/**
+ * The name of the library of an addon in the HAP: libaddon-<package>-<file>.so, in letters, digits, hyphens and
+ * underscores (the libraries made before are the libaddon-*.so of the directory)
+ * @param name the name of its package
+ * @param file its file
+ * @internal
+ */
+export function harmonyLibraryName(name: string, file: string): string {
+    return `libaddon-${`${name}-${path.basename(file, '.node')}`.replace(/^@/, '').replace(/[^A-Za-z0-9_]+/g, '-').replace(/^-+|-+$/g, '')}.so`
+}
+
+/**
+ * Build the addons of a package for HarmonyOS with node-gyp (a copy of the package), cross-compiled by the LLVM of the
+ * native SDK of HarmonyOS against the headers and the library of libnode (the addons link libnode.so, which binds them
+ * to the Node-API of the Node.js of the application)
+ * @param project
+ * @param item
+ * @param node the export of the libnode of HarmonyOS
+ * @param bin the compilers of the native SDK
+ * @param work a directory of the build
+ * @returns the addons built (in build/Release of the copy)
+ */
+async function buildHarmony(project: string, item: AddonPackage, node: string, bin: string, work: string): Promise<string[]> {
+    const copy: string = path.join(work, path.basename(item.source))
+    await cp(item.source, copy, {recursive: true, filter: (file: string): boolean => path.relative(item.source, file) !== 'build'})
+    const compiler: string = path.join(bin, 'aarch64-unknown-linux-ohos-clang')
+    const env: NodeJS.ProcessEnv = {
+        ...process.env,
+        NODE_PATH: buildModules(item.source),
+        GYP_CROSSCOMPILE: '1',
+        CC: compiler,
+        CXX: `${compiler}++`,
+        LINK: `${compiler}++`,
+        AR: path.join(bin, 'llvm-ar'),
+        CC_target: compiler,
+        CXX_target: `${compiler}++`,
+        LINK_target: `${compiler}++`,
+        AR_target: path.join(bin, 'llvm-ar'),
+        CC_host: process.env.CC_host ?? 'cc',
+        CXX_host: process.env.CXX_host ?? 'c++',
+        LINK_host: process.env.LINK_host ?? 'c++',
+        AR_host: process.env.AR_host ?? 'ar',
+        LDFLAGS: `-L${path.join(node, 'libs', 'arm64-v8a')} -lnode`
+    }
+    const args: string[] = [nodeGyp(project), 'rebuild', '--arch=arm64', `--nodedir=${node}`, '--jobs=max', '--', '-f', 'make-linux', '-DOS=openharmony']
+    const built = await runCommand(process.execPath, args, copy, env)
+    if (built.code !== 0) throw new Error(`The addons of ${item.name} cannot be built for HarmonyOS: ${built.output.trim().split('\n').slice(-8).join('\n')}`)
+    const addons: string[] = await nodeFiles(path.join(copy, 'build', 'Release'))
+    if (!addons.length) throw new Error(`The build of ${item.name} for HarmonyOS made no addon (build/Release)`)
+    for (const addon of addons) {
+        if (!binaryArchitectures(await readFile(addon)).includes('arm64')) throw new Error(`${path.basename(addon)} of ${item.name} is not built for HarmonyOS (arm64)`)
+    }
+    return addons
+}
+
+/**
+ * Build the native addons of a mobile application of HarmonyOS: each package of addons built from its sources (node-gyp,
+ * the LLVM of the native SDK, linking libnode.so), each addon made a library of the HAP (libaddon-<package>-<file>.so in
+ * its libs/arm64-v8a: the addons cannot be loaded from the resources of the HAP); its files in the native tree replaced
+ * by placeholders, which the entry of the project loads from the libraries of the HAP (MOBILE_ADDONS_FILE)
+ * @param project
+ * @param stage the Node.js project
+ * @param directory its native tree
+ * @param files the files of the tree
+ * @param libraries the directory of the libraries of the HAP (the libs/arm64-v8a of its module)
+ * @param node the export of the libnode of HarmonyOS
+ * @param options
+ * @internal
+ */
+export async function prepareHarmonyAddons(project: string, stage: string, directory: string, files: NativeFile[], libraries: string, node: string, options: MobileAddonOptions = {}): Promise<MobileAddons> {
+    if (process.platform === 'win32') throw new Error('The native addons are built for HarmonyOS on macOS and on Linux (node-gyp, make and the native SDK)')
+    const packages: AddonPackage[] = addonPackages(files)
+    const result: MobileAddons = {built: [], prebuilt: [], frameworks: [], libraries: []}
+    for (const item of packages) {
+        if (!existsSync(path.join(item.source, 'binding.gyp'))) throw new Error(`${item.name} has no sources to build its addons for HarmonyOS (binding.gyp)`)
+    }
+    const ndk: { bin: string, version: string } = harmonyNdk()
+    const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-mobile-addons-'))
+    try {
+        await mkdir(libraries, {recursive: true})
+        const mapping: Record<string, string> = {}
+        for (const item of packages) {
+            const addons: string[] = await cachedBuild(item, 'harmony', `ohos ${ndk.version}`, node, async (): Promise<string[]> => {
+                options.progress?.(`The addons of ${item.name} built for HarmonyOS`)
+                const build: string = path.join(work, `${result.built.length}`)
+                await mkdir(build, {recursive: true})
+                return buildHarmony(project, item, node, ndk.bin, build)
+            })
+            const names: Set<string> = new Set()
+            for (const addon of addons) {
+                const library: string = harmonyLibraryName(item.name, addon)
+                if (result.libraries.includes(library)) throw new Error(`Two addons are made the library ${library} of HarmonyOS: rename one of their files`)
+                await cp(addon, path.join(libraries, library))
+                result.libraries.push(library)
+                names.add(path.basename(addon))
+            }
+            result.built.push(`${item.name} (harmony)`)
+            //The files of the addons in the tree: placeholders of the libraries, the others (of other systems) removed
+            const placeholders: string[] = item.files.filter((file: string): boolean => names.has(path.basename(file)))
+            if (item.target) for (const name of names) placeholders.push(`${item.target}/build/Release/${name}`)
+            for (const file of item.files) if (!names.has(path.basename(file))) await rm(path.join(directory, ...file.split('/')), {force: true})
+            for (const file of new Set(placeholders)) {
+                const target: string = path.join(directory, ...file.split('/'))
+                await mkdir(path.dirname(target), {recursive: true})
+                await writeFile(target, '')
+                mapping[path.relative(stage, target).split(path.sep).join('/')] = harmonyLibraryName(item.name, file)
+            }
+        }
+        await writeFile(path.join(stage, MOBILE_ADDONS_FILE), `${JSON.stringify({directory: HARMONY_LIBRARIES, files: mapping}, null, 2)}\n`)
     } finally {
         await rm(work, {recursive: true, force: true})
     }
