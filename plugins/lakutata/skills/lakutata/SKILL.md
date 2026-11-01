@@ -96,7 +96,7 @@ website.
   `import {config} from './config/Config.js'`.
 - `npx @lakutata/cli create --name my-app` creates a project from a template: `default` (an HTTP application), `cli`,
   `service`, `web-react`, `web-vue`, `web-next`, `web-nuxt`, `electron-react`, `electron-vue`, `nwjs-react`, `nwjs-vue`,
-  `mobile-react`, `mobile-vue` (Android and iOS with Capacitor; give them `--bundle-id com.acme.app`);
+  `mobile-react` (Android and iOS with Capacitor; give it `--bundle-id com.acme.app`);
   `--with i18n,installer` adds features (`win7` gives the `nwjs-*` templates NW.js 0.72, which runs on Windows 7). All but `default` are workspaces, the application being the package `packages/app`.
 - `src/App.ts` starts the application with the options returned by `config()` in `src/config/Config.ts`; controllers,
   components, DTOs and tests have their own directories (`controllers/`, `components/`, `dtos/`, `tests/`).

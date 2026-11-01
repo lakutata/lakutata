@@ -128,14 +128,6 @@
         "features": [
           "i18n"
         ]
-      },
-      {
-        "name": "mobile-vue",
-        "description": "A mobile application (Android, iOS): Capacitor, the Node.js of the application serving a Vue user interface",
-        "package": "@lakutata/template-mobile-vue",
-        "features": [
-          "i18n"
-        ]
       }
     ]
   }

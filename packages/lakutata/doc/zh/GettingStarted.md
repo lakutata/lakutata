@@ -42,7 +42,7 @@ curl 'http://localhost:8080/example?name=you'
 | `web-next`、`web-nuxt` | 在同一个进程中提供 Next.js 或 Nuxt 应用的 HTTP API |
 | `electron-react`、`electron-vue` | 桌面应用：Electron，主进程通过 IPC 为 React 或 Vue 渲染进程提供服务 |
 | `nwjs-react`、`nwjs-vue` | 桌面应用：NW.js，后台脚本为隔离在 webview 中的 React 或 Vue 用户界面提供服务 |
-| `mobile-react`、`mobile-vue` | Android 和 iOS 手机应用：Capacitor，应用内的 Node.js 为 React 或 Vue 用户界面提供服务 |
+| `mobile-react` | Android 和 iOS 手机应用：Capacitor，应用内的 Node.js 为 React 用户界面提供服务 |
 
 ```bash
 npx @lakutata/cli create --name shop --template service --with i18n,installer

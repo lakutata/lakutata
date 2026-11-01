@@ -80,7 +80,7 @@ shop/
 - `cli`：一个命令行工具（`commanderCLIEntrypoint`），带有 `package:bundle` 和 `package:exe` 脚本，把它打包到 `dist/`（[Packaging](Packaging.md)）。
 - `electron-react` 和 `electron-vue`：`packages/app` 中是 Electron 的主进程（它的窗口，以及通过 IPC 提供的服务动作），`packages/ui` 中是渲染进程，还有制作安装包的脚本。
 - `nwjs-react` 和 `nwjs-vue`：`packages/app` 中是 NW.js 的后台脚本（它的窗口：窗口的宿主页面在 `packages/app/host`，用 webview 承载用户界面；以及它的服务动作），`packages/ui` 中是用户界面，NW.js 的版本在 `packages/app/nwjs.json`（由 `npm run nwjs:use -- <版本>` 写入），还有制作安装包的脚本。
-- `mobile-react` 和 `mobile-vue`：`packages/app` 中是应用，它运行在手机应用内的 Node.js 里（`@capawesome/capacitor-nodejs`），为 `packages/ui` 中的用户界面提供服务动作；`android` 和 `ios` 中是 Capacitor 的原生项目，应用的 ID（`lakutata create --bundle-id`）写在 `capacitor.config.json` 和这两个项目里；还有在模拟器上运行应用的脚本（`npm run android`、`npm run ios`，以及实时刷新的 `npm run dev:android`、`npm run dev:ios`）。
+- `mobile-react`：`packages/app` 中是应用，它运行在手机应用内的 Node.js 里（`@capawesome/capacitor-nodejs`），为 `packages/ui` 中的用户界面提供服务动作；`android` 和 `ios` 中是 Capacitor 的原生项目，应用的 ID（`lakutata create --bundle-id`）写在 `capacitor.config.json` 和这两个项目里；还有在模拟器上运行应用的脚本（`npm run android`、`npm run ios`，以及实时刷新的 `npm run dev:android`、`npm run dev:ios`）。
 
 打包产物写到工作区根目录的 `dist/` 中；`.gitignore` 忽略 `build`、`dist` 以及界面的构建输出。
 

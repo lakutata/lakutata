@@ -297,7 +297,7 @@ describe('The templates of the repository', (): void => {
         }
     })
 
-    for (const [kind, label] of [['electron', 'Electron'], ['nwjs', 'NW.js'], ['mobile', 'mobile']] as const) {
+    for (const [kind, label] of [['electron', 'Electron'], ['nwjs', 'NW.js']] as const) {
         it(`keeps the files the ${label} templates share identical`, (): void => {
             //The ${label} templates differ by their user interface only
             const files = (directory: string): string[] => filesUnder(directory)
@@ -772,8 +772,7 @@ describe('The templates of the repository', (): void => {
     })
 
     for (const [template, name, ui, names] of [
-        ['mobile-react', 'Pocket', 'App.tsx', ['vite', '@vitejs/plugin-react', 'react', 'react-dom', '@types/react', '@types/react-dom']],
-        ['mobile-vue', 'Compass', 'App.vue', ['vite', '@vitejs/plugin-vue', 'vue']]
+        ['mobile-react', 'Pocket', 'App.tsx', ['vite', '@vitejs/plugin-react', 'react', 'react-dom', '@types/react', '@types/react-dom']]
     ] as [string, string, string, string[]][]) {
         it(`creates a mobile application (${template}) whose Node.js serves its user interface, its projects of Android and iOS made`, async (): Promise<void> => {
             const project: string = await create(template, name)
@@ -799,9 +798,7 @@ describe('The templates of the repository', (): void => {
             assert.match(tested.output, /pass 5/)
             //The user interface is type checked with the TypeScript of the template
             const typescript: string = path.join(ROOT, 'node_modules', 'typescript')
-            const checked = template === 'mobile-vue'
-                ? await runIn(process.execPath, ['-e', `require(${JSON.stringify(path.join(ROOT, 'node_modules', 'vue-tsc'))}).run(${JSON.stringify(path.join(typescript, 'lib', 'tsc.js'))})`, 'vue-tsc', '--noEmit', '-p', path.join(project, 'packages', 'ui')], project)
-                : await runIn(process.execPath, [path.join(typescript, 'bin', 'tsc'), '-p', path.join(project, 'packages', 'ui')], project)
+            const checked = await runIn(process.execPath, [path.join(typescript, 'bin', 'tsc'), '-p', path.join(project, 'packages', 'ui')], project)
             assert.strictEqual(checked.code, 0, checked.output)
             //The Node.js project the plugin runs, made in the web directory for each system
             for (const platform of ['android', 'ios']) {
