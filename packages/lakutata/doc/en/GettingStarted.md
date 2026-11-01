@@ -48,7 +48,6 @@ The `default` template is a small HTTP application. Other templates start from a
 | `web-next`, `web-nuxt` | An HTTP API serving a Next.js or Nuxt application from the same process |
 | `electron-react`, `electron-vue` | A desktop application: Electron, its main process serving a React or Vue renderer over IPC |
 | `nwjs-react`, `nwjs-vue` | A desktop application: NW.js, its background script serving a React or Vue user interface isolated in a webview |
-| `mobile-react` | A mobile application for Android and iOS: Capacitor, the Node.js inside it serving a React user interface |
 
 ```bash
 npx @lakutata/cli create --name shop --template service --with i18n,installer

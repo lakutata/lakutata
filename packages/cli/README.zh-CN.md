@@ -346,7 +346,7 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 
 ## 手机应用
 
-Capacitor 手机应用（iOS、Android）在 `@capawesome/capacitor-nodejs` 内嵌的 Node.js 中运行应用：Node.js 18.20.4，它运行 Capacitor 网页目录下 `nodejs` 目录里的项目。下面的命令生成这个项目、运行应用，并在开发时部署这个项目；`mobile-react` 模板的脚本就是用它们写的。
+Capacitor 手机应用（iOS、Android）在 `@capawesome/capacitor-nodejs` 内嵌的 Node.js 中运行应用：Node.js 18.20.4，它运行 Capacitor 网页目录下 `nodejs` 目录里的项目。下面的命令生成这个项目、运行应用，并在开发时部署这个项目。
 
 ### `lakutata mobile stage`
 

@@ -97,11 +97,6 @@ The other templates add to this layout:
   `packages/app/host` holds the user interface in a webview, and its service actions), the user interface in
   `packages/ui`, the version of NW.js in `packages/app/nwjs.json` (written by `npm run nwjs:use -- <version>`), and the
   scripts that make the installers.
-- `mobile-react`: the application in `packages/app`, which runs in the Node.js of the mobile application
-  (`@capawesome/capacitor-nodejs`) and serves its actions to the user interface in `packages/ui`; the native projects
-  of Capacitor in `android` and `ios`, the id of the application (`lakutata create --bundle-id`) in
-  `capacitor.config.json` and in those projects, and the scripts that run the application on an emulator or a
-  simulator (`npm run android`, `npm run ios`; `npm run dev:android` and `npm run dev:ios` with live reload).
 
 The packed forms are written to `dist/` at the root of the workspace; `.gitignore` leaves out `build`, `dist` and the
 outputs of the interfaces.

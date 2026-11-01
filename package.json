@@ -29,11 +29,6 @@
     "release": "node scripts/publishing/release.mjs latest"
   },
   "devDependencies": {
-    "@capacitor/android": "^8.6.0",
-    "@capacitor/cli": "^8.6.0",
-    "@capacitor/core": "^8.6.0",
-    "@capacitor/ios": "^8.6.0",
-    "@capawesome/capacitor-nodejs": "^0.2.0",
     "@eslint/js": "10.0.1",
     "@inquirer/prompts": "^8.7.2",
     "@modelcontextprotocol/client": "^2.1.0",

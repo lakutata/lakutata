@@ -585,8 +585,7 @@ NW.js, with its resources and its native addons made to load in it, then run wit
 
 A mobile application of Capacitor (iOS, Android) runs the application in the Node.js that `@capawesome/capacitor-nodejs`
 embeds in it: Node.js 18.20.4, which runs the project in the `nodejs` directory of the web directory of Capacitor. These
-commands make that project, run the application, and deploy the project during the development; the `mobile-react`
-template uses them in its scripts.
+commands make that project, run the application, and deploy the project during the development.
 
 ### `lakutata mobile stage`
 
