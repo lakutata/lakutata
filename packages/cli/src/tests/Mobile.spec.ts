@@ -115,6 +115,7 @@ echo "$*" >> "$ADB_LOG"
 shift
 case "$*" in
     "pm path ${APP_ID}") echo "package:/data/app/base.apk" ;;
+    "getprop ro.product.cpu.abi") echo "arm64-v8a" ;;
     "cmd package resolve-activity --brief -c android.intent.category.LAUNCHER ${APP_ID}") printf 'priority=0 preferredOrder=0\\n${APP_ID}/.MainActivity\\n' ;;
     "run-as ${APP_ID} ls ${ANDROID_PROJECT}/package.json") [ -f "$DEVICE/${ANDROID_PROJECT}/package.json" ] ;;
     "run-as ${APP_ID} ls") ;;

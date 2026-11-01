@@ -310,6 +310,7 @@ async function giveAddons(tree: string, item: AddonPackage, built: string[], kep
 export async function prepareAndroidAddons(project: string, directory: string, files: NativeFile[], options: MobileAddonOptions = {}): Promise<MobileAddons> {
     if (process.platform === 'win32') throw new Error('The native addons are built for Android on macOS and on Linux (node-gyp, make and the NDK)')
     const abis: AndroidAbi[] = options.abis?.length ? options.abis : Object.keys(ANDROID_ABIS) as AndroidAbi[]
+    for (const abi of abis) if (!Object.hasOwn(ANDROID_ABIS, abi)) throw new Error(`nodejs-mobile has no Node.js of the architecture ${abi} of Android: ${Object.keys(ANDROID_ABIS).join(', ')}`)
     const packages: AddonPackage[] = addonPackages(files)
     const result: MobileAddons = {built: [], prebuilt: [], frameworks: []}
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-mobile-addons-'))

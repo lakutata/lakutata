@@ -4,7 +4,7 @@ import {cp, mkdir, readdir, rm} from 'node:fs/promises'
 import path from 'node:path'
 import {Controller} from 'lakutata/com/entrypoint'
 import {CLIAction} from 'lakutata/decorator/ctrl'
-import type {MobileStage} from '@lakutata/builder'
+import type {AndroidAbi, MobileStage, MobileStageOptions} from '@lakutata/builder'
 import {MobileDeployDTO} from '../dtos/MobileDeployDTO.js'
 import {MobileRunDTO} from '../dtos/MobileRunDTO.js'
 import {MobileStageDTO} from '../dtos/MobileStageDTO.js'
@@ -111,8 +111,9 @@ async function deployAndroid(directory: string, appId: string, device?: string):
  * @param appId
  * @param nodeDir the directory of the Node.js project in the web directory of the application
  * @param device
+ * @param frameworks the frameworks of the native addons of the project for the simulators, put into the application
  */
-async function deployIos(directory: string, appId: string, nodeDir: string, device?: string): Promise<void> {
+async function deployIos(directory: string, appId: string, nodeDir: string, device?: string, frameworks?: string): Promise<void> {
     if (!device && !/\(Booted\)/.test(await must('The simulators cannot be listed', 'xcrun', ['simctl', 'list', 'devices', 'booted']))) throw new Error('No simulator of iOS is running (npx cap run ios)')
     const simulator: string = device ?? 'booted'
     const container: string = (await must(`The application ${appId} is not installed on the simulator ${simulator}, or the simulator is not running (npx cap run ios)`, 'xcrun', ['simctl', 'get_app_container', simulator, appId, 'app'])).trim()
@@ -121,7 +122,22 @@ async function deployIos(directory: string, appId: string, nodeDir: string, devi
     await rm(project, {recursive: true, force: true})
     await mkdir(project, {recursive: true})
     for (const entry of await readdir(directory)) await cp(path.join(directory, entry), path.join(project, entry), {recursive: true})
+    //The frameworks of its native addons (signed ad hoc, which the simulators take) in place of the ones of the application
+    for (const entry of frameworks && existsSync(frameworks) ? await readdir(frameworks) : []) {
+        if (!entry.endsWith('.framework')) continue
+        const target: string = path.join(container, 'Frameworks', entry)
+        await rm(target, {recursive: true, force: true})
+        await cp(path.join(frameworks!, entry), target, {recursive: true})
+    }
     await must('The application cannot be started', 'xcrun', ['simctl', 'launch', simulator, appId])
+}
+
+/**
+ * The architecture of an emulator or a device of Android (its ABI: arm64-v8a, x86_64…)
+ * @param device the one running by default
+ */
+async function androidAbi(device?: string): Promise<string> {
+    return (await must('The architecture of the device of Android cannot be read', adbProgram(), [...device ? ['-s', device] : [], 'shell', 'getprop', 'ro.product.cpu.abi'])).trim()
 }
 
 /**
@@ -183,6 +199,31 @@ async function showSimulator(udid: string): Promise<void> {
 }
 
 /**
+ * The project of iOS of a project of Capacitor: its directory (the ios.path of capacitor.config.json, ios by default),
+ * the one of its project of Xcode (App) and its scheme (the ios.scheme, App by default)
+ * @param root the project of Capacitor
+ */
+function iosProject(root: string): { platform: string, native: string, scheme: string } {
+    const file: string = path.join(root, 'capacitor.config.json')
+    const config: { ios?: { path?: string, scheme?: string } } = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {}
+    const platform: string = path.resolve(root, config.ios?.path ?? 'ios')
+    return {platform: platform, native: path.join(platform, 'App'), scheme: config.ios?.scheme ?? 'App'}
+}
+
+/**
+ * The directory of the frameworks of the native addons of iOS, which the project of iOS of the templates embeds in the
+ * application (App/NodeAddons): in the project of Capacitor holding a directory, undefined outside of one
+ * @param directory
+ */
+function nodeAddons(directory: string): string | undefined {
+    try {
+        return path.join(iosProject(capacitorRoot(directory)).native, 'App', 'NodeAddons')
+    } catch {
+        return undefined
+    }
+}
+
+/**
  * Build the application of iOS for a simulator as npx cap run ios does (xcodebuild, in the project of iOS of Capacitor),
  * install it and start it
  * @param root the project of Capacitor
@@ -192,11 +233,7 @@ async function showSimulator(udid: string): Promise<void> {
  * @return the id of the application
  */
 async function runIos(root: string, udid: string, server?: string): Promise<string> {
-    const file: string = path.join(root, 'capacitor.config.json')
-    const config: { ios?: { path?: string, scheme?: string } } = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {}
-    const platform: string = path.resolve(root, config.ios?.path ?? 'ios')
-    const native: string = path.join(platform, 'App')
-    const scheme: string = config.ios?.scheme ?? 'App'
+    const {platform, native, scheme} = iosProject(root)
     const derived: string = path.join(platform, 'DerivedData', udid)
     const configuration: string = path.join(native, 'App', 'capacitor.config.json')
     const original: string | undefined = server ? readFileSync(configuration, 'utf8') : undefined
@@ -231,7 +268,8 @@ export class MobileController extends Controller {
     @CLIAction('mobile stage', MobileStageDTO, {description: 'Make the Node.js project of the mobile application of the current directory (@capawesome/capacitor-nodejs): its bundle for the Node.js of iOS and Android, its resources and its entry; after the build of its user interface'})
     public async stage(input: MobileStageDTO): Promise<undefined> {
         const {stageMobileApp} = await loadBuilder(process.cwd())
-        const stage: MobileStage = await stageMobileApp({platform: input.platform, project: process.cwd(), outdir: input.outdir, minify: input.minify})
+        //The native addons of iOS made frameworks of the project of iOS, for the devices and the simulators
+        const stage: MobileStage = await stageMobileApp({platform: input.platform, project: process.cwd(), outdir: input.outdir, minify: input.minify, frameworks: input.platform === 'ios' ? nodeAddons(process.cwd()) : undefined, progress: step})
         done(`The Node.js project for ${stage.platform} (Node.js ${stage.node}): ${path.relative(process.cwd(), stage.directory) || '.'}`)
         return undefined
     }
@@ -357,11 +395,13 @@ export class MobileController extends Controller {
      */
     protected async deployOnce(input: MobileDeployDTO): Promise<void> {
         const {stageMobileApp} = await loadBuilder(process.cwd())
-        const stage: MobileStage = await stageMobileApp({platform: input.platform, project: process.cwd(), outdir: input.outdir, minify: false})
+        //The native addons built for the device only: its architecture of Android, the simulators of iOS
+        const targets: Partial<MobileStageOptions> = input.platform === 'android' ? {abis: [await androidAbi(input.device) as AndroidAbi]} : {sdks: ['iphonesimulator'], frameworks: nodeAddons(process.cwd())}
+        const stage: MobileStage = await stageMobileApp({platform: input.platform, project: process.cwd(), outdir: input.outdir, minify: false, ...targets, progress: step})
         step(`The Node.js project for ${stage.platform} (Node.js ${stage.node}): ${path.relative(process.cwd(), stage.directory) || '.'}`)
         if (input.platform === 'android') await deployAndroid(stage.directory, input.appId, input.device)
         //The simulator given by its name or its UDID (simctl takes UDIDs)
-        else await deployIos(stage.directory, input.appId, input.nodeDir, input.device ? await iosSimulator(input.device) : undefined)
+        else await deployIos(stage.directory, input.appId, input.nodeDir, input.device ? await iosSimulator(input.device) : undefined, targets.frameworks && path.join(targets.frameworks, 'iphonesimulator'))
         done(`Deployed to ${input.appId} (${input.platform}${input.device ? `, ${input.device}` : ''}) and started`)
     }
 }
