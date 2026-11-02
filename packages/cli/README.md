@@ -616,9 +616,10 @@ against the headers and the libraries of the libnode. For Android, each architec
 of its own, built by node-gyp with the NDK (the latest one of the Android SDK, or `ANDROID_NDK_HOME`); a package that
 ships prebuilt addons of Android (`prebuilds/android-<arch>`) keeps them. For iOS, on macOS, each addon becomes a
 framework for the devices and one for the simulators, built with Xcode into `ios/NodeAddons`, which the build of the
-application embeds. For HarmonyOS, each addon becomes a library of the HAP (`libaddon-<package>-<file>.so` in
-`harmony/entry/libs/arm64-v8a`), built with the native SDK of DevEco Studio (or `OHOS_NDK_HOME`). The builds are kept
-in the cache of lakutata.
+application embeds. An addon is built with the settings its package gives to macOS (`OS=="mac"` in its `binding.gyp` and
+in the gyp files of node-addon-api), while the SDK, the architecture and the deployment target are those of iOS. For
+HarmonyOS, each addon becomes a library of the HAP (`libaddon-<package>-<file>.so` in `harmony/entry/libs/arm64-v8a`),
+built with the native SDK of DevEco Studio (or `OHOS_NDK_HOME`). The builds are kept in the cache of lakutata.
 
 | Option | |
 |---|---|

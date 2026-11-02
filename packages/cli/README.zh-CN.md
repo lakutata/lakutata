@@ -361,7 +361,7 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 
 把应用的 Node.js 项目生成到系统的原生工程读取它的位置：`android/app/src/main/assets/nodejs`（应用第一次启动时复制到应用的文件目录）、`ios/nodejs`（构建应用时放进应用包）或 `harmony/entry/src/main/resources/resfile/nodejs`（直接从 HAP 的资源中运行）。项目包含面向 libnode 中 Node.js 版本的应用单文件包、资源、`package.json` 和入口；在没有 WebAssembly 的地方（鸿蒙），入口会收起 `fetch()`。
 
-依赖里的原生插件会从各自包的源码（`binding.gyp`）为目标系统编译，用的是 libnode 的头文件和库。Android 上 libnode 的每种架构各有一棵原生树，用 node-gyp 和 NDK 编译（Android SDK 里最新的 NDK，或 `ANDROID_NDK_HOME`）；自带 Android 预编译插件（`prebuilds/android-<arch>`）的包直接用它们。iOS 上（在 macOS 中）每个插件分别为真机和模拟器编成一个 framework，用 Xcode 编译到 `ios/NodeAddons` 中，构建应用时嵌进应用。鸿蒙上每个插件编成 HAP 里的一个库（`harmony/entry/libs/arm64-v8a` 中的 `libaddon-<包>-<文件>.so`），用 DevEco Studio 的原生 SDK 编译（或 `OHOS_NDK_HOME`）。编译结果保存在 lakutata 的缓存目录中。
+依赖里的原生插件会从各自包的源码（`binding.gyp`）为目标系统编译，用的是 libnode 的头文件和库。Android 上 libnode 的每种架构各有一棵原生树，用 node-gyp 和 NDK 编译（Android SDK 里最新的 NDK，或 `ANDROID_NDK_HOME`）；自带 Android 预编译插件（`prebuilds/android-<arch>`）的包直接用它们。iOS 上（在 macOS 中）每个插件分别为真机和模拟器编成一个 framework，用 Xcode 编译到 `ios/NodeAddons` 中，构建应用时嵌进应用。编译时用的是插件的包写给 macOS 的设置（它的 `binding.gyp` 以及 node-addon-api 的 gyp 文件里 `OS=="mac"` 的部分），SDK、架构和部署版本则是 iOS 的。鸿蒙上每个插件编成 HAP 里的一个库（`harmony/entry/libs/arm64-v8a` 中的 `libaddon-<包>-<文件>.so`），用 DevEco Studio 的原生 SDK 编译（或 `OHOS_NDK_HOME`）。编译结果保存在 lakutata 的缓存目录中。
 
 | 选项 | |
 |---|---|
