@@ -1,6 +1,6 @@
 import {createHash, type Hash} from 'node:crypto'
 import {constants, existsSync, readdirSync, readFileSync} from 'node:fs'
-import {cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
+import {cp, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
@@ -155,7 +155,7 @@ function androidNdk(): { root: string, bin: string, revision: string } {
 /**
  * The format of the builds kept in the cache: changed when what a build makes changes
  */
-const CACHE_FORMAT: number = 2
+const CACHE_FORMAT: number = 3
 
 /**
  * The files of a package, by their paths, their sizes and their times (not their contents: a package of sources has
@@ -410,6 +410,32 @@ ${entries.map(([key, value]: [string, string]): string => `\t<key>${key}</key>\n
 }
 
 /**
+ * The headers of the libnode of iOS as node-gyp builds the addons against them, their OS "mac": the libnode of iOS is
+ * configured with OS "ios", for which the common.gypi of Node.js turns the exceptions and the RTTI of C++ off in the
+ * projects of Xcode as it does for macOS, while the addons (and node-addon-api) give their settings of Xcode (the
+ * exceptions, the RTTI, the standard of C++) to OS "mac" only. Built as for macOS, an addon keeps them; the SDK, the
+ * architectures and the deployment target of iOS are given to xcodebuild. The headers are linked, config.gypi written
+ * @param node the export of the libnode of iOS
+ * @param work a directory of the build
+ * @returns the directory of the headers (the nodedir of node-gyp)
+ */
+async function iosNodeHeaders(node: string, work: string): Promise<string> {
+    const source: string = path.join(node, 'include', 'node')
+    const directory: string = path.join(work, 'node-headers')
+    const include: string = path.join(directory, 'include', 'node')
+    await mkdir(include, {recursive: true})
+    for (const entry of await readdir(source)) {
+        if (entry === 'config.gypi') {
+            const config: string = await readFile(path.join(source, entry), 'utf8')
+            await writeFile(path.join(include, entry), config.replace(/(["']OS["']\s*:\s*)(["'])ios\2/, '$1$2mac$2'))
+        } else if (!existsSync(path.join(include, entry))) {
+            await symlink(path.join(source, entry), path.join(include, entry))
+        }
+    }
+    return directory
+}
+
+/**
  * Build the addons of a package for a SDK of iOS (a copy of the package): node-gyp makes its project of Xcode, built by
  * xcodebuild into dynamic libraries linking the framework of the Node.js of the application (NodeMobile)
  * @param project
@@ -423,7 +449,7 @@ async function buildIos(project: string, item: AddonPackage, sdk: IosSdk, node: 
     const copy: string = path.join(work, path.basename(item.source))
     await cp(item.source, copy, {recursive: true, filter: (file: string): boolean => path.relative(item.source, file) !== 'build'})
     const env: NodeJS.ProcessEnv = {...process.env, NODE_PATH: buildModules(item.source)}
-    const configured = await runCommand(process.execPath, [nodeGyp(project), 'configure', `--nodedir=${node}`, '--', '-f', 'xcode'], copy, env)
+    const configured = await runCommand(process.execPath, [nodeGyp(project), 'configure', `--nodedir=${await iosNodeHeaders(node, work)}`, '--', '-f', 'xcode'], copy, env)
     if (configured.code !== 0) throw new Error(`The addons of ${item.name} cannot be built for iOS (node-gyp configure): ${configured.output.trim().split('\n').slice(-8).join('\n')}`)
     //The addons made dynamic libraries (in frameworks) rather than bundles: their targets only, not the static libraries
     //they link (a setting of xcodebuild applies to every target)
