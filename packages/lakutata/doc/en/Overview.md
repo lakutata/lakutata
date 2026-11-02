@@ -46,11 +46,12 @@ tool, a web and a desktop application, calls between services, background jobs, 
 
 Not part of this package: `@lakutata/cli` (the `lakutata` command for creating projects, running migrations and packing
 applications, see [Command](Command.md)), `@lakutata/grpc` (a gRPC client, server and service transport),
-`@lakutata/nats` (a NATS component and service transport), `@lakutata/dbus` (D-Bus), `@lakutata/mcp` (the Model
-Context Protocol), `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, a media server, peer connections),
-`@lakutata/ffi` (the C functions of native libraries), `@lakutata/math` (symbolic and numeric mathematics, as functions
-that need no lakutata application) and `@lakutata/netif` (servers and UDP sockets listening on a network interface
-whatever its addresses, the interfaces of the machine and their changes).
+`@lakutata/nats` (a NATS component and service transport), `@lakutata/dbus` (D-Bus), `@lakutata/mcp` (the Model Context
+Protocol), `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, a media server, peer connections), `@lakutata/ffi`
+(the C functions of native libraries), `@lakutata/math` (symbolic and numeric mathematics, as functions that need no
+lakutata application), `@lakutata/barcode` (barcodes and QR codes, generated and read in a native addon) and
+`@lakutata/netif` (servers and UDP sockets listening on a network interface whatever its addresses, the interfaces of
+the machine and their changes).
 
 ## The guides
 
@@ -95,6 +96,7 @@ whatever its addresses, the interfaces of the machine and their changes).
 | [MCP](MCP.md) | The tools, resources and prompts of the Model Context Protocol (`@lakutata/mcp`), over stdio and HTTP |
 | [WebRTC](WebRTC.md) | Peer-to-peer connections and a media server (`@lakutata/webrtc`): the signaling, the TURN server, browsers and applications, the actions of an application called through data channels, WHIP and WHEP |
 | [FFI](FFI.md) | The C functions of native libraries (`@lakutata/ffi`): declarations copied from headers, structs, callbacks, memory, packaging |
+| [Barcode](Barcode.md) | Barcodes and QR codes (`@lakutata/barcode`): generating them as PNG, SVG or pixels, sizes for print, EAN, UPC and GS1, reading them from images |
 | [Math](Math.md) | Mathematics (`@lakutata/math`): formulas and exact results, equations, decimals of any precision, matrices, statistics, numeric solutions, units |
 | [Netif](Netif.md) | Network interfaces (`@lakutata/netif`): a server listening on an interface whatever its addresses, the connections of the other interfaces refused, the interfaces and their changes, UDP on one interface |
 | [Command](Command.md) | The `lakutata` command: creating projects, migrations, translations, environment variables |
