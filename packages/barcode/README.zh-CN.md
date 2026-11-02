@@ -14,6 +14,7 @@ npm install @lakutata/barcode
 - 包管理器需要执行这个包的安装脚本。npm 会执行，但可能提示这个脚本“not yet covered by allowScripts”：用 `npm install-scripts approve @lakutata/barcode` 记下你允许它执行。Bun 和 pnpm 只为信任的依赖执行，需要先允许它（Bun 在 package.json 的 `trustedDependencies` 里加上它，pnpm 用 `pnpm approve-builds`）；没有允许时，加载这个包会抛出错误，说明怎样编译原生插件。
 - Node.js `>=18.10.0`。
 - 原生插件用的是 Node-API，所以 Bun 和 Electron 的主进程可以直接加载 node-gyp 为 Node.js 编译的插件，不用重新编译。
+- 在 React Native 的手机应用（lakutata 的手机模板）里，`lakutata mobile stage` 会用 NDK、Xcode 和 DevEco Studio 的工具链，为 Android、iOS 和鸿蒙编译原生插件。
 
 ## 用法
 

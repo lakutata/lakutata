@@ -26,6 +26,8 @@ npm install @lakutata/barcode
 - Node.js `>=18.10.0`.
 - The addon uses Node-API, so Bun and the main process of Electron load the addon node-gyp built for Node.js, without a
   rebuild.
+- In a mobile application of React Native (the mobile template of lakutata), `lakutata mobile stage` compiles the addon
+  for Android, iOS and HarmonyOS, with the NDK, Xcode and the toolchain of DevEco Studio.
 
 ## Usage
 

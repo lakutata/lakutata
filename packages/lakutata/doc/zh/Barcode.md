@@ -6,7 +6,7 @@
 - **生成**为 PNG、SVG 或像素，尺寸、颜色、旋转方向和纠错等级都可以指定。
 - **识别** PNG、JPEG、GIF、BMP、WebP、TGA 图片或像素；图片里的每个条码都会识别出来，并给出位置。
 - **一个组件** `Barcode`，不用注册就能注入；可以设置默认选项、时限、取消和并发数。
-- **原生插件**：基于 [zint](https://zint.org.uk) 和 [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp)，在安装这个包时编译，支持 Linux、macOS 和 Windows；也能在 Bun 和 Electron 的主进程里运行。生成和识别都在原生插件自己的线程里执行，不占用 JavaScript 线程。
+- **原生插件**：基于 [zint](https://zint.org.uk) 和 [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp)，在 Linux、macOS 和 Windows 上安装这个包时编译，在 Android、iOS 和鸿蒙的手机应用里由 `lakutata mobile stage` 编译；也能在 Bun 和 Electron 的主进程里运行。生成和识别都在原生插件自己的线程里执行，不占用 JavaScript 线程。
 
 `@lakutata/barcode` 的 README 介绍了每个选项；这篇指南按用途逐一说明这个包能做什么，每种用途都给出一个例子。
 
@@ -193,6 +193,7 @@ $ curl -s --data-binary @label.png -H 'Content-Type: image/png' localhost:8080/s
 - 调用时传入的选项覆盖组件的默认选项：`this.labels.generate('QRCode', url, {scale: 6})` 的其他选项仍用默认值。
 - 参数会先经过校验：未知的码制、不是 `#RRGGBB` 格式的颜色，在调用原生插件之前就会被拒绝，抛出 `InvalidMethodAcceptException`。
 - 一个组件可以同时为所有控制器服务：各次调用互不影响，只受 `concurrency` 的限制。
+- 在 React Native 的手机应用（手机模板）里，组件同样在应用的 Node.js 中运行：`lakutata mobile stage` 会从源码为 Android（用 NDK）、iOS（用 Xcode）和鸿蒙（用 DevEco Studio）编译原生插件。
 
 ## 6. 时限、取消和并发
 
@@ -242,7 +243,7 @@ await container.destroy()
 
 ## 8. 验证方式，以及不支持的情况
 
-测试为每种码制生成条码，再从它的 PNG 和像素识别回来，内容有随机的（多种文字的文本，以及字节）；测试检查每个选项的效果，识别 7 种文件格式的图片，并识别 240 张损坏的图片，结果只能是识别出条码或者抛出 `BarcodeImageException`。测试在 macOS（arm64：Node.js 24 和 18.10、Bun 1.4）、Linux（arm64：Debian 12 上的 Node.js 22，Alpine 上的 Node.js 24）和 Windows 11（arm64：Node.js 24）上运行；这个包也能在 Electron 44 的主进程里运行。
+测试为每种码制生成条码，再从它的 PNG 和像素识别回来，内容有随机的（多种文字的文本，以及字节）；测试检查每个选项的效果，识别 7 种文件格式的图片，并识别 240 张损坏的图片，结果只能是识别出条码或者抛出 `BarcodeImageException`。测试在 macOS（arm64：Node.js 24 和 18.10、Bun 1.4）、Linux（arm64：Debian 12 上的 Node.js 22，Alpine 上的 Node.js 24）和 Windows 11（arm64：Node.js 24）上运行；这个包也能在 Electron 44 的主进程里运行，也能在 Android、iOS 和鸿蒙的手机应用里运行：在三个模拟器上，每种码制和 7 种文件格式都能识别回来。
 
 它不支持的情况，有的是有意为之，有的是还没做：
 
@@ -250,7 +251,6 @@ await container.destroy()
 - 分成多个码的内容（结构化追加）逐个识别：`structuredAppend` 给出每个码的位置，内容的拼接由应用完成。
 - 像素只支持灰度、RGB 和 RGBA；BGR 和 BGRA（某些摄像头接口）需要应用自己转换。GIF 只识别第一帧。
 - 输出只有 PNG、SVG 和像素，不提供 EPS、EMF 和 PDF。
-- 还不支持 Android、iOS 和鸿蒙。
 
 ## 9. 异常
 

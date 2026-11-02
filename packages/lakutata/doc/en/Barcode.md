@@ -13,8 +13,9 @@ part of `lakutata`: install it on its own. What it is like:
 - **A component**, `Barcode`, injected without being registered, with defaults, time limits, cancellation and a
   concurrency.
 - **A native addon** built on [zint](https://zint.org.uk) and [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp),
-  compiled when the package is installed, for Linux, macOS and Windows; it also runs in Bun and in the main process of
-  Electron. Its work runs in its own threads, never in the thread of JavaScript.
+  compiled when the package is installed on Linux, macOS and Windows, and by `lakutata mobile stage` for the mobile
+  applications of Android, iOS and HarmonyOS; it also runs in Bun and in the main process of Electron. Its work runs in
+  its own threads, never in the thread of JavaScript.
 
 The README of `@lakutata/barcode` describes every option; this guide goes through what the package is for, with an
 example of each use.
@@ -240,6 +241,9 @@ $ curl -s --data-binary @label.png -H 'Content-Type: image/png' localhost:8080/s
   `InvalidMethodAcceptException` before the addon is called.
 - One component serves every controller at once: its calls do not depend on one another, except for its
   `concurrency`.
+- In a mobile application of React Native (the mobile template), the component runs in the Node.js of the application in
+  the same way: `lakutata mobile stage` compiles the addon from its sources for Android (with the NDK), iOS (Xcode) and
+  HarmonyOS (DevEco Studio).
 
 ## 6. Time limits, cancellation and concurrency
 
@@ -298,11 +302,12 @@ blurred, and the `try…` options work harder on it.
 
 ## 8. How it is checked, and what it does not do
 
-The tests generate every format and read it back from its PNG and from its pixels, with random contents (text in
-several scripts, and bytes), check the effect of each option, read images in the seven file formats, and read 240
-damaged images, which must give codes or `BarcodeImageException` and nothing else. They run on macOS (arm64: Node.js 24
-and 18.10, Bun 1.4), on Linux (arm64: Node.js 22 on Debian 12, Node.js 24 on Alpine) and on Windows 11 (arm64: Node.js
-24); the package also runs in the main process of Electron 44.
+The tests generate every format and read it back from its PNG and from its pixels, with random contents (text in several
+scripts, and bytes), check the effect of each option, read images in the seven file formats, and read 240 damaged
+images, which must give codes or `BarcodeImageException` and nothing else. They run on macOS (arm64: Node.js 24 and
+18.10, Bun 1.4), on Linux (arm64: Node.js 22 on Debian 12, Node.js 24 on Alpine) and on Windows 11 (arm64: Node.js 24);
+the package also runs in the main process of Electron 44, and in the mobile applications of Android, iOS and HarmonyOS,
+where every format and the seven file formats are read back on their emulators.
 
 What it does not do, whether by design or not yet:
 
@@ -314,7 +319,6 @@ What it does not do, whether by design or not yet:
 - The pixels are gray, RGB or RGBA; BGR and BGRA (some camera APIs) are converted by the application. A GIF is read
   from its first frame.
 - The output is PNG, SVG or pixels: EPS, EMF and PDF are not offered.
-- Android, iOS and HarmonyOS are not supported yet.
 
 ## 9. Exceptions
 
