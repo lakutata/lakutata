@@ -119,6 +119,18 @@ await check('@lakutata/math loads under ESM', () => {
     if (typeof mathPackage.createMath !== 'function' || mathPackage.stats.mean([1, 2, 3]) !== 2) throw new Error('createMath missing')
 })
 
+// @lakutata/barcode — its addon (built when the package is installed) required by a path from the CommonJS module
+await check('CJS @lakutata/barcode loads its addon', () => {
+    const barcode = requireCJS('../packages/barcode/dist/cjs/exports/Barcode.js')
+    if (typeof barcode.Barcode !== 'function' || typeof barcode.buildBarcodeOptions !== 'function' || typeof barcode.BarcodeException !== 'function') throw new Error('Barcode missing')
+    if (barcode.barcodeFormats.find(format => format.name === 'UPCA')?.reads !== 'EAN13') throw new Error('the formats of barcode')
+    if (typeof requireCJS('../packages/barcode/dist/cjs/lib/Addon.js').addon.versions().zint !== 'string') throw new Error('the addon of barcode')
+})
+const barcodePackage = await import('../packages/barcode/dist/esm/exports/Barcode.js')
+await check('@lakutata/barcode loads under ESM', () => {
+    if (typeof barcodePackage.Barcode !== 'function' || barcodePackage.BARCODE_FORMATS.length !== barcodePackage.barcodeFormats.length) throw new Error('Barcode missing')
+})
+
 // @lakutata/netif — its addon (built when the package is installed) required by a path from the CommonJS module
 await check('CJS @lakutata/netif loads its addon', () => {
     const netif = requireCJS('../packages/netif/dist/cjs/exports/Netif.js')
