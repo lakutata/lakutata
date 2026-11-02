@@ -59,10 +59,10 @@ class Labels extends Component {
         return await this.barcode.generate('Code128', 'LKT-1001', {output: 'raw', foreground: '#1E3A8A'})
     }
 
-    public async scan(photo: Buffer): Promise<string[]> {
-        //A PNG, JPEG, GIF, BMP, WebP or TGA, or pixels
-        const results: BarcodeResult[] = await this.barcode.read(photo, {formats: ['QRCode', 'EAN13']})
-        return results.map((result: BarcodeResult): string => `${result.format}: ${result.text}`)
+    public async scan(photo: Buffer): Promise<BarcodeResult[]> {
+        //An image file (PNG, JPEG, GIF, BMP, WebP or TGA): every code found in it, each with its format, its text, its
+        //bytes and its position in the image (an empty array when there is none)
+        return await this.barcode.read(photo, {formats: ['QRCode', 'EAN13']})
     }
 }
 ```

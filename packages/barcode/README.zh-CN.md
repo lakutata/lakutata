@@ -46,10 +46,10 @@ class Labels extends Component {
         return await this.barcode.generate('Code128', 'LKT-1001', {output: 'raw', foreground: '#1E3A8A'})
     }
 
-    public async scan(photo: Buffer): Promise<string[]> {
-        //PNG、JPEG、GIF、BMP、WebP、TGA 图片，或者像素
-        const results: BarcodeResult[] = await this.barcode.read(photo, {formats: ['QRCode', 'EAN13']})
-        return results.map((result: BarcodeResult): string => `${result.format}: ${result.text}`)
+    public async scan(photo: Buffer): Promise<BarcodeResult[]> {
+        //PNG、JPEG、GIF、BMP、WebP、TGA 图片：返回图片里找到的所有条码，每个都带有码制、文本、字节和在图片中的位置；
+        //一个都没有时返回空数组
+        return await this.barcode.read(photo, {formats: ['QRCode', 'EAN13']})
     }
 }
 ```
