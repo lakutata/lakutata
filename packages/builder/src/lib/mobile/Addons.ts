@@ -1,6 +1,6 @@
 import {createHash, type Hash} from 'node:crypto'
 import {constants, existsSync, readdirSync, readFileSync} from 'node:fs'
-import {cp, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile} from 'node:fs/promises'
+import {cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
 import {createRequire} from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
@@ -8,7 +8,7 @@ import type {NativeFile} from '../Native.js'
 import {runCommand} from '../Processes.js'
 import {binaryArchitectures, nodeFiles, nodeGyp, packageOf} from '../nwjs/Addons.js'
 import {compareVersions} from '../nwjs/Runtime.js'
-import {cacheDirectory} from '../Tools.js'
+import {cacheDirectory, moveIntoCache} from '../Tools.js'
 import {ANDROID_ABIS, type AndroidAbi, mobileNodeAbis, mobileNodeVersion} from './Node.js'
 
 /**
@@ -212,10 +212,7 @@ async function cachedBuild(item: AddonPackage, target: string, toolchain: string
     try {
         for (const addon of built) await cp(addon, path.join(temporary, path.basename(addon)))
         await writeFile(path.join(temporary, '.complete'), '')
-        await rename(temporary, directory).catch((error: Error): void => {
-            //Built by another build
-            if (!existsSync(path.join(directory, '.complete'))) throw error
-        })
+        await moveIntoCache(temporary, directory, (): boolean => existsSync(path.join(directory, '.complete')))
     } finally {
         await rm(temporary, {recursive: true, force: true})
     }

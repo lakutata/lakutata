@@ -1,9 +1,9 @@
 import {createHash, type Hash} from 'node:crypto'
 import {existsSync, readFileSync, realpathSync} from 'node:fs'
-import {mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile} from 'node:fs/promises'
+import {mkdir, mkdtemp, readdir, readFile, rm, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {runCommand, spawnCommand} from '../Processes.js'
-import {cacheDirectory} from '../Tools.js'
+import {cacheDirectory, moveIntoCache} from '../Tools.js'
 
 /**
  * The version of Node.js of the mobile applications when their libnode does not tell it: the one the Dockerfile of the
@@ -235,10 +235,7 @@ export async function buildMobileNode(options: MobileNodeBuildOptions): Promise<
         })
         checkMobileNode(options.platform, temporary)
         await writeFile(path.join(temporary, '.complete'), '')
-        await rename(temporary, target).catch((error: Error): void => {
-            //Built by another build
-            if (!existsSync(path.join(target, '.complete'))) throw error
-        })
+        await moveIntoCache(temporary, target, (): boolean => existsSync(path.join(target, '.complete')))
     } finally {
         await rm(temporary, {recursive: true, force: true})
     }
