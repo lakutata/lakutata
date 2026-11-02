@@ -14,14 +14,18 @@
         'cflags_cc!': ['-fno-exceptions', '-fno-rtti', '-std=gnu++20', '-std=gnu++17'],
         'cflags_cc': ['-std=c++20', '-fexceptions', '-frtti'],
         'conditions': [
-          ['OS=="mac"', {
+          # iOS: its libnode is configured with OS "ios", whose settings of Xcode (in the common.gypi of Node.js) turn the
+          # exceptions and RTTI off as the ones of macOS do
+          ['OS=="mac" or OS=="ios"', {
             'xcode_settings': {
               'GCC_ENABLE_CPP_EXCEPTIONS': 'YES',
               'GCC_ENABLE_CPP_RTTI': 'YES',
               'CLANG_CXX_LANGUAGE_STANDARD': 'c++20',
-              'CLANG_CXX_LIBRARY': 'libc++',
-              'MACOSX_DEPLOYMENT_TARGET': '11.0'
+              'CLANG_CXX_LIBRARY': 'libc++'
             }
+          }],
+          ['OS=="mac"', {
+            'xcode_settings': {'MACOSX_DEPLOYMENT_TARGET': '11.0'}
           }],
           ['OS=="win"', {
             'defines': ['_HAS_EXCEPTIONS=1', 'NOMINMAX', '_CRT_SECURE_NO_WARNINGS', '_SCL_SECURE_NO_WARNINGS', '_CRT_NONSTDC_NO_WARNINGS'],
@@ -56,7 +60,7 @@
       'msvs_settings': {'VCCLCompilerTool': {'WarningLevel': 0}},
       'conditions': [
         ['OS=="win"', {'defines': ['_CRT_SECURE_NO_WARNINGS']}],
-        ['OS!="win" and OS!="mac"', {'link_settings': {'libraries': ['-lm']}}]
+        ['OS!="win" and OS!="mac" and OS!="ios"', {'link_settings': {'libraries': ['-lm']}}]
       ],
       'direct_dependent_settings': {'include_dirs': ['vendor/zint/backend']}
     },
