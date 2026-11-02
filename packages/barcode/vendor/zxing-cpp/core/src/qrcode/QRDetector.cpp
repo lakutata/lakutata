@@ -145,8 +145,10 @@ FinderPatternSets GenerateFinderPatternSets(FinderPatterns& patterns)
 	// can occupy.  We search from inside out and stop after we found a limited number of candidates which reduces the complexity from
 	// O(n^3) to O(n). E.g. a sample with 140 small QRCodes has 420 finder patterns, which results in 12 million candidates to process
 	// while with the binning, we only compare 20k candidates -> total runtime goes from 190ms to 9ms.
-	auto [mX, MX] = std::ranges::minmax_element(patterns, {}, &PointF::x);
-	auto [mY, MY] = std::ranges::minmax_element(patterns, {}, &PointF::y);
+	auto rangeX = std::ranges::minmax_element(patterns, {}, &PointF::x);
+	auto rangeY = std::ranges::minmax_element(patterns, {}, &PointF::y);
+	auto mX = rangeX.min, MX = rangeX.max;
+	auto mY = rangeY.min, MY = rangeY.max;
 	int medianSize = patterns[Size(patterns) / 2].size;
 	int binSize = std::max(32, medianSize * 3); // 3 for minimum symbol size of 21 modules
 	Matrix<std::vector<int>> bins(std::ceil((MX->x - mX->x + 1) / binSize), std::ceil((MY->y - mY->y + 1) / binSize));

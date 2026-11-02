@@ -74,16 +74,16 @@ void LocalGrid::adjustOriginAndStep(PointF& step, int radius, const std::span<co
 			if (stepsPos && stepsNeg) {
 				int blockSize = stepsPos + stepsNeg - 1;
 				auto localModSize = blockSize / std::max(1.0, std::round(blockSize / modSize));
-				distMod.emplace_back(distPos, blockSize / modSize < 5 ? localModSize : 0.0);
+				distMod.push_back({distPos, blockSize / modSize < 5 ? localModSize : 0.0});
 				// if (r == 0 && (std::min(distNeg, distPos) < modSize / 4)) {
 				// 	origin += (distNeg < distPos ? 1 : -1) * modSize / 4 * dir;
 				// 	continue;
 				// }
 			}
 			else if (stepsPos)
-				distMod.emplace_back(distPos, 0.0);
+				distMod.push_back({distPos, 0.0});
 			else if (stepsNeg)
-				distMod.emplace_back(-distNeg, 0.0);
+				distMod.push_back({-distNeg, 0.0});
 
 			printf("+%.2f -%.2f (%.1f) | ", distPos, distNeg, distMod.empty() ? 0.0 : distMod.back().modSize);
 

@@ -562,7 +562,7 @@ constexpr auto GenerateCodewordPatternTable()
 		auto codeword = (CODEWORD_TABLE[i] - 1) % 929;
 		auto pattern = GetPdf417PatternFromBits(SYMBOL_TABLE[i] | 0x10000);
 		auto np = NormalizedE2EPattern<8, 17>(pattern);
-		res[i] = CodewordPattern(codeword, PackedPattern<3>(np, 2));
+		res[i] = CodewordPattern{static_cast<int>(codeword), static_cast<unsigned>(PackedPattern<3>(np, 2))};
 		assert(res[i].cluster() == ((CODEWORD_TABLE[i] - 1) / 929) * 3);
 	}
 	return res;
