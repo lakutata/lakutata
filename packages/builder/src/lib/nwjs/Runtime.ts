@@ -1,9 +1,9 @@
 import {createHash, type Hash} from 'node:crypto'
 import {existsSync} from 'node:fs'
-import {mkdir, mkdtemp, open, readFile, rename, rm, stat, writeFile, type FileHandle} from 'node:fs/promises'
+import {mkdir, mkdtemp, open, readFile, rm, stat, writeFile, type FileHandle} from 'node:fs/promises'
 import path from 'node:path'
 import {runCommand} from '../Processes.js'
-import {cacheDirectory} from '../Tools.js'
+import {cacheDirectory, moveIntoCache} from '../Tools.js'
 
 /**
  * A release of NW.js: its version and the ones of the Node.js and the Chromium it embeds, the systems it is built for
@@ -267,10 +267,7 @@ export async function downloadNwjs(options: NwjsRuntimeOptions): Promise<NwjsRun
             : await runCommand('tar', ['-xf', archive], temporary)
         if (extracted.code !== 0) throw new Error(`${archive} cannot be extracted: ${extracted.output.trim()}`)
         if (!existsSync(path.join(temporary, name, executableOf(platform)))) throw new Error(`${archive} has no ${name}/${executableOf(platform).split(path.sep).join('/')}`)
-        await rename(path.join(temporary, name), target).catch((error: Error): void => {
-            //Extracted by another build
-            if (!existsSync(runtime.executable)) throw error
-        })
+        await moveIntoCache(path.join(temporary, name), target, (): boolean => existsSync(runtime.executable))
     } finally {
         await rm(temporary, {recursive: true, force: true})
     }

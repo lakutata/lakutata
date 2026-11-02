@@ -73,6 +73,32 @@ export function cacheDirectory(): string {
 }
 
 /**
+ * Move a directory written aside into its place in the cache. The one already there is kept when it is complete (put
+ * there by another build running at the same time), and replaced when it is not: left by a build that was stopped, or
+ * emptied by a cleaning of the temporary files that removes the files and keeps the directories (macOS cleans its
+ * temporary directory so)
+ * @param temporary The directory written, removed by the caller.
+ * @param target Its place in the cache.
+ * @param complete Whether the directory in its place is complete.
+ */
+export async function moveIntoCache(temporary: string, target: string, complete: () => boolean): Promise<void> {
+    try {
+        await rename(temporary, target)
+    } catch (error) {
+        if (complete()) return
+        if (!existsSync(target)) throw error
+        //Moved aside before being removed: its place is free at once for this build and the others
+        const stale: string = `${target}.stale-${process.pid}-${Date.now()}`
+        await rename(target, stale).catch((): void => undefined)
+        await rm(stale, {recursive: true, force: true})
+        await rename(temporary, target).catch((retry: Error): void => {
+            //Put there by another build meanwhile
+            if (!complete()) throw retry
+        })
+    }
+}
+
+/**
  * A tool of the builder: the one given by its environment variable (LAKUTATA_NFPM, LAKUTATA_WINSW, LAKUTATA_NSIS:
  * makensis.exe, LAKUTATA_WIX: candle.exe, next to light.exe), else the version of the builder, downloaded once into the
  * cache and checked with its sha256
@@ -108,10 +134,7 @@ export async function ensureTool(name: keyof typeof TOOLS): Promise<string> {
             await rm(path.join(temporary, release.archive))
         }
         await chmod(path.join(temporary, ...tool.executable.split('/')), 0o755)
-        await rename(temporary, directory).catch((error: Error): void => {
-            //Extracted by another build
-            if (!existsSync(executable)) throw error
-        })
+        await moveIntoCache(temporary, directory, (): boolean => existsSync(executable))
     } finally {
         await rm(temporary, {recursive: true, force: true})
     }

@@ -1,7 +1,7 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
 import {execFileSync} from 'node:child_process'
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import os, {tmpdir} from 'node:os'
 import path from 'node:path'
@@ -384,6 +384,17 @@ require('pool').run(file)
         assert.deepStrictEqual(result.workers.length, 7)
         const cache: string = path.join(work, 'cache-node')
         assert.strictEqual(execFileSync(result.file, [], {cwd: tmpdir(), env: {PATH: '', LAKUTATA_NATIVE_DIR: cache}}).toString().trim(), EXPECTED)
+        //Its tree left incomplete (the cleaning of the temporary files of macOS removes the files and keeps the
+        //directories): extracted again
+        const empty = (directory: string): void => {
+            for (const entry of readdirSync(directory, {withFileTypes: true})) {
+                if (entry.isDirectory()) empty(path.join(directory, entry.name))
+                else rmSync(path.join(directory, entry.name))
+            }
+        }
+        empty(path.join(cache, 'native'))
+        assert.strictEqual(execFileSync(result.file, [], {cwd: tmpdir(), env: {PATH: '', LAKUTATA_NATIVE_DIR: cache}}).toString().trim(), EXPECTED)
+        assert.deepStrictEqual(readdirSync(path.join(cache, 'native')).filter((name: string): boolean => name.includes('.')), [])
     })
 
     it('embeds the scripts of the workers in the executables of Bun', {skip: !hasBun() && 'Bun is not installed'}, async (): Promise<void> => {

@@ -139,6 +139,23 @@ describe('The runtimes of NW.js', (): void => {
         assert.strictEqual(requests.filter((url: string): boolean => url.startsWith('/v0.72.0/nwjs-')).length, downloads)
     })
 
+    it('downloads again a runtime left incomplete in the cache, its files removed and its directories kept', async (): Promise<void> => {
+        const runtime = await downloadNwjs({version: 'win7', flavor: 'sdk'})
+        //What the cleaning of the temporary files of macOS leaves
+        const empty = (directory: string): void => {
+            for (const entry of readdirSync(directory, {withFileTypes: true})) {
+                if (entry.isDirectory()) empty(path.join(directory, entry.name))
+                else rmSync(path.join(directory, entry.name))
+            }
+        }
+        empty(runtime.directory)
+        assert.ok(!existsSync(runtime.executable))
+        assert.strictEqual((await downloadNwjs({version: 'win7', flavor: 'sdk'})).executable, runtime.executable)
+        assert.ok(existsSync(runtime.executable))
+        assert.ok(existsSync(path.join(runtime.directory, 'credits.html')))
+        assert.deepStrictEqual(readdirSync(path.dirname(runtime.directory)).filter((name: string): boolean => name.startsWith(`${path.basename(runtime.directory)}.`)), [])
+    })
+
     it('makes the application of NW.js of a project: its bundle for the Node.js of the release, its resources, its manifest', async (): Promise<void> => {
         const project: string = path.join(work, 'desk')
         mkdirSync(path.join(project, 'build'), {recursive: true})

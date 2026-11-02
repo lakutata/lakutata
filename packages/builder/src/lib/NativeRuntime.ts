@@ -120,11 +120,27 @@ export function lakutataNativeRequire(nodeRequire: NodeJS.Require, config: Nativ
                 else fs.symlinkSync(path.relative(path.dirname(at), local(temporary, link.target)), at, 'dir')
             }
             fs.writeFileSync(path.join(temporary, '.complete'), '')
+            const complete = (): boolean => fs.existsSync(path.join(directory, '.complete'))
             try {
                 fs.renameSync(temporary, directory)
             } catch (error) {
                 //Another process extracted it
-                if (!fs.existsSync(path.join(directory, '.complete'))) throw error
+                if (complete()) return directory
+                if (!fs.existsSync(directory)) throw error
+                //A tree left incomplete (a process stopped, a cleaning of the temporary files that keeps the directories):
+                //moved aside, removed, replaced
+                const stale: string = `${directory}.stale.${process.pid}.${Date.now()}`
+                try {
+                    fs.renameSync(directory, stale)
+                } catch {
+                    //Moved by another process
+                }
+                fs.rmSync(stale, {recursive: true, force: true})
+                try {
+                    fs.renameSync(temporary, directory)
+                } catch (retry) {
+                    if (!complete()) throw retry
+                }
             }
         } finally {
             fs.rmSync(temporary, {recursive: true, force: true})
