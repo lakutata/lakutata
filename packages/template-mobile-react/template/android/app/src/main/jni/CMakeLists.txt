@@ -4,7 +4,7 @@ project(appmodules)
 include(${REACT_ANDROID_DIR}/cmake-utils/ReactNative-application.cmake)
 
 # The Node.js of the application: its host and its TurboModule (native/, shared with iOS and HarmonyOS), linking the
-# libnode of Android built by native/node/Dockerfile (npm run node:android)
+# libnode of Android downloaded into native/node/out/android (npm run node:android)
 set(LAKUTATA_NATIVE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../native)
 set(LAKUTATA_NODE ${LAKUTATA_NATIVE}/node/out/android)
 if(NOT EXISTS ${LAKUTATA_NODE}/libs/${ANDROID_ABI}/libnode.so)

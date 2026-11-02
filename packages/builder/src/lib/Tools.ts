@@ -1,6 +1,6 @@
-import {createHash} from 'node:crypto'
+import {createHash, type Hash} from 'node:crypto'
 import {existsSync} from 'node:fs'
-import {chmod, mkdir, mkdtemp, rename, rm, writeFile} from 'node:fs/promises'
+import {chmod, mkdir, mkdtemp, open, rename, rm, writeFile, type FileHandle} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import {runCommand} from './Processes.js'
@@ -70,6 +70,27 @@ const TOOLS: Record<'nfpm' | 'winsw' | 'nsis' | 'wix', Tool> = {
  */
 export function cacheDirectory(): string {
     return process.env.LAKUTATA_CACHE_DIR ?? path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'lakutata')
+}
+
+/**
+ * Download a file, its sha256 computed while it is written
+ * @param url
+ * @param file
+ */
+export async function downloadFile(url: string, file: string): Promise<string> {
+    const response: Response = await fetch(url)
+    if (!response.ok || !response.body) throw new Error(`${url} cannot be downloaded (${response.status})`)
+    const hash: Hash = createHash('sha256')
+    const handle: FileHandle = await open(file, 'w')
+    try {
+        for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+            hash.update(chunk)
+            await handle.write(chunk)
+        }
+    } finally {
+        await handle.close()
+    }
+    return hash.digest('hex')
 }
 
 /**

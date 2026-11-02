@@ -590,18 +590,21 @@ deploy the project during the development.
 
 ### `lakutata mobile node <platform>`
 
-Build the libnode of a system (`android`, `ios` or `harmony`) with the Dockerfile of the project (`native/node`) and
-export it into `native/node/out/<platform>`, which the native projects build against; for HarmonyOS, `libnode.so` is put
-into the libraries of the HAP too (`harmony/entry/libs/arm64-v8a`). The build runs in Docker and takes from one to three
-hours, so it is kept in the cache of lakutata (`~/.cache/lakutata/mobile/node`), keyed by the files of the Dockerfile,
-the architectures of Android and, for iOS, the versions of the SDKs of Xcode, which are given to the build (iOS is built
-on macOS). Android and HarmonyOS are built in containers of Linux x86_64, emulated on the Macs of Apple silicon.
-`LAKUTATA_MOBILE_NODE_DIR` gives exports made before instead, a directory per system.
+Download the libnode of a system (`android`, `ios` or `harmony`) from the releases of
+[lakutata/libnode](https://github.com/lakutata/libnode) and put it into `native/node/out/<platform>`, which the native
+projects build against; for HarmonyOS, `libnode.so` is put into the libraries of the HAP too
+(`harmony/entry/libs/arm64-v8a`). Its archives (`libnode_<platform>_<arch>.tar.gz`, one per architecture) are checked
+with the `SHA256SUMS` of the release and kept in the cache of lakutata (`~/.cache/lakutata/mobile`): they are downloaded
+once. `lakutata mobile stage` downloads the libnode of a system when the project has none yet.
+
+- `LAKUTATA_LIBNODE_MIRROR` gives a mirror of the releases, its files laid out as on GitHub
+  (`<mirror>/v<version>/libnode_android_arm64.tar.gz`, `<mirror>/v<version>/SHA256SUMS`).
+- `LAKUTATA_MOBILE_NODE_DIR` gives a libnode of your own instead, built with the repository of lakutata/libnode: a
+  directory per system (`android`, `ios`, `harmony`), as its builds export them.
 
 | Option | |
 |---|---|
 | `--abis <list>` | the architectures of Android, separated by commas (`arm64-v8a,armeabi-v7a,x86_64`), `arm64-v8a,x86_64` by default |
-| `--jobs <n>` | the jobs of make; by default, as many as the memory of Docker allows (about 2 GB each) |
 
 ### `lakutata mobile stage <platform>`
 

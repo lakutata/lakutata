@@ -105,11 +105,11 @@ application in the sdk flavor of that NW.js (with the DevTools), its native addo
 arguments. Its installers hold the normal flavor ([Installers](Installers.md), section 9).
 
 A mobile application of React Native laid out as the `mobile-react` template runs in a libnode that its native module
-embeds. `lakutata mobile node <android|ios|harmony>` builds the libnode of a system with the Dockerfile of the project;
-`lakutata mobile stage <platform>` makes the Node.js project of the application where the native project of the system
-takes it; `lakutata mobile run <platform>` builds the application and runs it on an emulator, a device or a simulator;
-`lakutata mobile deploy <platform>` puts the Node.js project into the application installed there and starts the
-application again.
+embeds. `lakutata mobile node <android|ios|harmony>` downloads the libnode of a system from the releases of
+lakutata/libnode; `lakutata mobile stage <platform>` makes the Node.js project of the application where the native
+project of the system takes it; `lakutata mobile run <platform>` builds the application and runs it on an emulator, a
+device or a simulator; `lakutata mobile deploy <platform>` puts the Node.js project into the application installed there
+and starts the application again.
 
 ## 6. Environment variables
 

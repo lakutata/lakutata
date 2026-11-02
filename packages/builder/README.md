@@ -40,16 +40,17 @@ named after the application, and `buildInstaller()` makes its installers with `"
 desktop application: dmg on macOS, nsis on Windows, deb on Linux by default).
 
 The mobile applications of React Native (Android, iOS, HarmonyOS) run in a libnode built from the sources of Node.js by
-a Dockerfile of the project. `buildMobileNode()` runs that Dockerfile for a system once and keeps the libnode in the
-cache, keyed by its inputs. `stageMobileApp()` makes the Node.js project of the application: the bundle for the Node.js
-of the libnode (Node.js 24.20.0, `MOBILE_NODE_VERSION`, without a libnode), the resources, the manifest and an entry
-that puts away `fetch()` without WebAssembly (HarmonyOS). It builds the native addons for the system from their sources,
-against the headers and the libraries of the libnode: a native tree per architecture of Android (node-gyp and the NDK),
-for iOS a framework per addon for each SDK (Xcode) in the directory the `frameworks` option gives, and for HarmonyOS a
-library per addon (the native SDK of DevEco Studio) in the libraries of the HAP the `libraries` option gives. The HAP of
-HarmonyOS leaves out of its resources the files whose names start with a dot: on HarmonyOS the native tree is packed
-into the project (`native.gz`, `native.json`) and extracted at its first run into the directory `LAKUTATA_NATIVE_DIR`
-gives.
+lakutata/libnode. `downloadMobileNode()` downloads the libnode of a system from its releases once
+(`LAKUTATA_LIBNODE_MIRROR`: a mirror of them), checks it with their checksums and keeps it in the cache
+(`LAKUTATA_MOBILE_NODE_DIR`: a libnode of your own instead). `stageMobileApp()` makes the Node.js project of the
+application: the bundle for the Node.js of the libnode (Node.js 24.20.0, `MOBILE_NODE_VERSION`, without a libnode), the
+resources, the manifest and an entry that puts away `fetch()` without WebAssembly (HarmonyOS). It builds the native
+addons for the system from their sources, against the headers and the libraries of the libnode: a native tree per
+architecture of Android (node-gyp and the NDK), for iOS a framework per addon for each SDK (Xcode) in the directory the
+`frameworks` option gives, and for HarmonyOS a library per addon (the native SDK of DevEco Studio) in the libraries of
+the HAP the `libraries` option gives. The HAP of HarmonyOS leaves out of its resources the files whose names start with
+a dot: on HarmonyOS the native tree is packed into the project (`native.gz`, `native.json`) and extracted at its first
+run into the directory `LAKUTATA_NATIVE_DIR` gives.
 
 The Linux installers are tested in containers (Docker): `npm run test:installer` builds them on Debian and Alpine, then
 installs, upgrades and removes them on Debian and Fedora (systemd) and on Alpine (OpenRC). The macOS installers are

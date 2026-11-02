@@ -36,8 +36,9 @@ target_link_libraries(rnoh_app PUBLIC rnoh)
 
 autolink_libraries(rnoh_app)
 
-# The runtime of Node.js (its embedding API) linking the libnode of HarmonyOS built by native/node/Dockerfile (npm run
-# node:harmony, which puts libnode.so into the libraries of the HAP too); loaded by the host with dlopen (RTLD_LOCAL)
+# The runtime of Node.js (its embedding API) linking the libnode of HarmonyOS downloaded into native/node/out/harmony
+# (npm run node:harmony, which puts libnode.so into the libraries of the HAP too); loaded by the host with dlopen
+# (RTLD_LOCAL)
 add_library(lakutata_node SHARED "${LAKUTATA_NATIVE}/NodeRuntime.cpp")
 target_include_directories(lakutata_node PRIVATE "${LAKUTATA_NODE}/include/node")
 set_target_properties(lakutata_node PROPERTIES CXX_STANDARD 20)

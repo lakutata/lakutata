@@ -1,4 +1,0 @@
-libabseil libada libbrotli libcares libhistogram libllhttp libmerve libnbytes libncrypto libncrypto_engine libnghttp2
-libnode libnode_base libopenssl libsimdjson libsimdutf libuv libuvwasi libv8_base_without_compiler libv8_compiler
-libv8_libbase libv8_libplatform libv8_snapshot libv8_zlib libhighway libzlib libzstd libcrdtp libsqlite libicudata
-libicui18n libicustubdata libicuucx libzlib_data_chunk_simd

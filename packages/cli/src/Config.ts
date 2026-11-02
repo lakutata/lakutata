@@ -30,7 +30,7 @@ export const COMMAND_GROUPS: Record<string, string> = {
     package: 'Package the compiled application: into one JavaScript file, an executable or its installers',
     ffi: 'Generate the classes of the native libraries of @lakutata/ffi from their C headers',
     nwjs: 'Give the application its version of NW.js, run it in NW.js, list the releases of NW.js',
-    mobile: 'Build the libnode of the mobile application of React Native (Android, iOS, HarmonyOS), make its Node.js project, run the application on an emulator or a simulator, deploy the project into the application installed during the development'
+    mobile: 'Download the libnode of the mobile application of React Native (Android, iOS, HarmonyOS), make its Node.js project, run the application on an emulator or a simulator, deploy the project into the application installed during the development'
 }
 
 /**

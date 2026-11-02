@@ -350,12 +350,14 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 
 ### `lakutata mobile node <platform>`
 
-用项目里的 Dockerfile（`native/node`）为一个系统（`android`、`ios` 或 `harmony`）编译 libnode，导出到 `native/node/out/<platform>`，原生工程对它编译；鸿蒙的 `libnode.so` 还会放进 HAP 的库目录（`harmony/entry/libs/arm64-v8a`）。编译在 Docker 中进行，需要一到三个小时，所以结果保存在 lakutata 的缓存目录中（`~/.cache/lakutata/mobile/node`），缓存的键由 Dockerfile 目录里的文件、Android 的架构以及 iOS 编译所用的 Xcode SDK 版本算出（iOS 在 macOS 上编译）。Android 和鸿蒙在 Linux x86_64 的容器中编译，在 Apple 芯片的 Mac 上通过模拟运行。设置 `LAKUTATA_MOBILE_NODE_DIR` 时直接使用其中事先导出的结果，每个系统一个目录。
+从 [lakutata/libnode](https://github.com/lakutata/libnode) 的 Release 下载一个系统（`android`、`ios` 或 `harmony`）的 libnode，放到 `native/node/out/<platform>`，原生工程对它编译；鸿蒙的 `libnode.so` 还会放进 HAP 的库目录（`harmony/entry/libs/arm64-v8a`）。它的压缩包（`libnode_<platform>_<arch>.tar.gz`，每种架构一个）会用 Release 的 `SHA256SUMS` 校验，保存在 lakutata 的缓存目录中（`~/.cache/lakutata/mobile`），所以只下载一次。项目里还没有某个系统的 libnode 时，`lakutata mobile stage` 会先下载它。
+
+- `LAKUTATA_LIBNODE_MIRROR` 指定 Release 的镜像，文件的布局和 GitHub 上一样（`<镜像>/v<版本>/libnode_android_arm64.tar.gz`、`<镜像>/v<版本>/SHA256SUMS`）。
+- `LAKUTATA_MOBILE_NODE_DIR` 指定自己编译的 libnode（用 lakutata/libnode 仓库编译），每个系统一个目录（`android`、`ios`、`harmony`），和它导出的结构一样。
 
 | 选项 | |
 |---|---|
 | `--abis <列表>` | Android 的架构，用逗号分隔（`arm64-v8a,armeabi-v7a,x86_64`），默认是 `arm64-v8a,x86_64` |
-| `--jobs <n>` | make 的并行任务数，默认按 Docker 的内存决定（每个任务约 2 GB） |
 
 ### `lakutata mobile stage <platform>`
 

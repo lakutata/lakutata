@@ -1,5 +1,5 @@
 # The Node.js of the application on iOS: its host and its TurboModule (the C++ shared with Android and HarmonyOS), the
-# lifecycle helper of the scene delegate, and the libnode of iOS built by node/Dockerfile (npm run node:ios)
+# lifecycle helper of the scene delegate, and the libnode of iOS downloaded into node/out/ios (npm run node:ios)
 Pod::Spec.new do |s|
   s.name = 'LakutataNodeHost'
   s.version = '1.0.0'

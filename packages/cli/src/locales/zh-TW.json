@@ -186,15 +186,14 @@
         }
       },
       "mobile": {
-        "description": "React Native 手機應用程式（Android、iOS、鴻蒙）：編譯它的 libnode，產生它的 Node.js 專案，在模擬器上執行應用程式，開發時部署到已安裝的應用程式裡",
+        "description": "React Native 手機應用程式（Android、iOS、鴻蒙）：下載它的 libnode，產生它的 Node.js 專案，在模擬器上執行應用程式，開發時部署到已安裝的應用程式裡",
         "node": {
-          "description": "用專案裡的 Dockerfile（native/node）為一個系統（android、ios、harmony）編譯 libnode，只編譯一次：保存在 lakutata 的快取中，匯出到 native/node/out/<platform>",
+          "description": "從 lakutata/libnode 的 Release 下載一個系統（android、ios、harmony）的 libnode（LAKUTATA_LIBNODE_MIRROR 指定鏡像），只下載一次：保存在 lakutata 的快取中，放到 native/node/out/<platform>",
           "arguments": {
             "platform": "libnode 對應的系統：android、ios 或 harmony"
           },
           "options": {
-            "abis": "Android 的架構，以逗號分隔（arm64-v8a,armeabi-v7a,x86_64）；預設是 arm64-v8a,x86_64",
-            "jobs": "make 的平行工作數；預設依 Docker 的記憶體決定"
+            "abis": "Android 的架構，以逗號分隔（arm64-v8a,armeabi-v7a,x86_64）；預設是 arm64-v8a,x86_64"
           }
         },
         "stage": {

@@ -1,9 +1,8 @@
-import {createHash, type Hash} from 'node:crypto'
 import {existsSync} from 'node:fs'
-import {mkdir, mkdtemp, open, readFile, rm, stat, writeFile, type FileHandle} from 'node:fs/promises'
+import {mkdir, mkdtemp, readFile, rm, stat, writeFile} from 'node:fs/promises'
 import path from 'node:path'
 import {runCommand} from '../Processes.js'
-import {cacheDirectory, moveIntoCache} from '../Tools.js'
+import {cacheDirectory, downloadFile, moveIntoCache} from '../Tools.js'
 
 /**
  * A release of NW.js: its version and the ones of the Node.js and the Chromium it embeds, the systems it is built for
@@ -202,27 +201,6 @@ async function checksums(version: string): Promise<Map<string, string>> {
 }
 
 /**
- * Download a file, its sha256 computed while it is written
- * @param url
- * @param file
- */
-async function download(url: string, file: string): Promise<string> {
-    const response: Response = await fetch(url)
-    if (!response.ok || !response.body) throw new Error(`${url} cannot be downloaded (${response.status})`)
-    const hash: Hash = createHash('sha256')
-    const handle: FileHandle = await open(file, 'w')
-    try {
-        for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-            hash.update(chunk)
-            await handle.write(chunk)
-        }
-    } finally {
-        await handle.close()
-    }
-    return hash.digest('hex')
-}
-
-/**
  * The executable of a runtime in its directory
  * @param platform
  */
@@ -259,7 +237,7 @@ export async function downloadNwjs(options: NwjsRuntimeOptions): Promise<NwjsRun
     const temporary: string = await mkdtemp(`${target}.`)
     try {
         const file: string = path.join(temporary, archive)
-        const downloaded: string = await download(`${mirror()}/v${release.version}/${archive}`, file)
+        const downloaded: string = await downloadFile(`${mirror()}/v${release.version}/${archive}`, file)
         if (downloaded !== sum) throw new Error(`The ${archive} downloaded is not the one of NW.js ${release.version} (sha256 ${downloaded}, ${sum} expected)`)
         //ditto keeps the links of the frameworks of macOS; the tar of Windows reads the zip archives
         const extracted = process.platform === 'darwin' && archive.endsWith('.zip')

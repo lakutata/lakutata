@@ -84,8 +84,8 @@ android {
         // the workers and the files the application reads
         ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
-    // The libnode of Android built by native/node/Dockerfile (npm run node:android), packed with the libraries of the
-    // application; the Node.js project (npm run stage:android) is in src/main/assets/nodejs
+    // The libnode of Android downloaded into native/node/out/android (npm run node:android), packed with the libraries
+    // of the application; the Node.js project (npm run stage:android) is in src/main/assets/nodejs
     sourceSets {
         main {
             jniLibs.srcDirs += ["../../native/node/out/android/libs"]

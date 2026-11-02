@@ -1,8 +1,0 @@
-#!/bin/sh
-# The iOS compiler without debug information (the mac flavor of gyp adds -gdwarf-2: gigabytes of objects, never kept
-# in the stripped framework)
-for arg do
-  shift
-  case "$arg" in -g|-g[a-z0-9]*) ;; *) set -- "$@" "$arg" ;; esac
-done
-exec clang-20 "$@"

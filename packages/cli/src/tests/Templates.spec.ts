@@ -788,6 +788,8 @@ describe('The templates of the repository', (): void => {
         for (const file of ['harmony/.gitignore', 'harmony/entry/src/main/cpp/.gitignore', 'ios/.xcode.env']) assert.ok(existsSync(path.join(project, ...file.split('/'))), file)
         //What lakutata mobile makes is left out of git
         for (const directory of ['native/node/out/', 'android/app/src/main/assets/nodejs/', 'ios/nodejs/', 'ios/NodeAddons/', 'harmony/entry/libs/']) assert.ok(read('.gitignore').split('\n').includes(directory), directory)
+        //libnode is downloaded (lakutata mobile node), not built: the project holds no Dockerfile of it
+        assert.ok(!existsSync(path.join(project, 'native', 'node')))
         //The Node.js side, built and tested: its actions served through a socket standing for the native module
         install(project, ['@types/node'], path.join(ROOT, 'node_modules', 'typescript'))
         linkWorkspace(project, ['app'])

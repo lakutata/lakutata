@@ -82,7 +82,7 @@ async function shown(command: string, args: string[], cwd: string, env?: NodeJS.
 
 /**
  * A project of a mobile application laid out as the mobile-react template: the user interface of React Native at its
- * root, the application in packages/app, the native module and the Dockerfile of libnode in native/
+ * root, the application in packages/app, the native module and the libnode of each system in native/
  */
 type MobileProject = {
     /**
@@ -94,32 +94,56 @@ type MobileProject = {
      */
     app: string
     /**
-     * The directory of the Dockerfile building libnode
+     * The directory of the native module (native/), which holds the libnode of each system (native/node/out/<platform>)
      */
-    dockerfile: string
+    native: string
 }
 
 /**
- * The project of a mobile application holding a directory: the first one up holding native/node/Dockerfile and
+ * The project of a mobile application holding a directory: the first one up holding native/NodeHost.cpp and
  * packages/app
  * @param directory
  */
 function mobileProject(directory: string): MobileProject {
     for (let current: string = directory; ; current = path.dirname(current)) {
-        if (existsSync(path.join(current, 'native', 'node', 'Dockerfile')) && existsSync(path.join(current, 'packages', 'app', 'package.json'))) {
-            return {root: current, app: path.join(current, 'packages', 'app'), dockerfile: path.join(current, 'native', 'node')}
+        if (existsSync(path.join(current, 'native', 'NodeHost.cpp')) && existsSync(path.join(current, 'packages', 'app', 'package.json'))) {
+            return {root: current, app: path.join(current, 'packages', 'app'), native: path.join(current, 'native')}
         }
-        if (current === path.dirname(current)) throw new Error(`${directory} is in no project of a mobile application (native/node/Dockerfile and packages/app, as the mobile-react template lays them out)`)
+        if (current === path.dirname(current)) throw new Error(`${directory} is in no project of a mobile application (native/NodeHost.cpp and packages/app, as the mobile-react template lays them out)`)
     }
 }
 
 /**
- * The libnode of a system exported into the project (native/node/out/<platform>)
+ * The libnode of a system put into the project (native/node/out/<platform>)
  * @param project
  * @param platform
  */
 function nodeOf(project: MobileProject, platform: MobilePlatform): string {
-    return path.join(project.dockerfile, 'out', platform)
+    return path.join(project.native, 'node', 'out', platform)
+}
+
+/**
+ * Download the libnode of a system from the releases of lakutata/libnode (once: kept in the cache of lakutata) and put
+ * it into the project, where its native project takes it
+ * @param project
+ * @param platform
+ * @param abis the architectures of Android
+ * @returns where it is put
+ */
+async function putNode(project: MobileProject, platform: MobilePlatform, abis?: AndroidAbi[]): Promise<string> {
+    const {downloadMobileNode} = await loadBuilder(project.app)
+    const downloaded: string = await downloadMobileNode({platform: platform, abis: abis, progress: (line: string): void => step(`Downloading ${line}`)})
+    const out: string = nodeOf(project, platform)
+    await rm(out, {recursive: true, force: true})
+    await mkdir(path.dirname(out), {recursive: true})
+    //The files themselves, not the links of an export given (LAKUTATA_MOBILE_NODE_DIR): CocoaPods does not follow them
+    await cp(downloaded, out, {recursive: true, dereference: true, filter: (file: string): boolean => path.basename(file) !== '.complete'})
+    //The libraries of the HAP hold libnode.so, which the addons and the runtime of the native module load by its name
+    if (platform === 'harmony') {
+        await mkdir(harmonyLibraries(project), {recursive: true})
+        await cp(path.join(out, 'libs', 'arm64-v8a', 'libnode.so'), path.join(harmonyLibraries(project), 'libnode.so'))
+    }
+    return out
 }
 
 /**
@@ -470,23 +494,11 @@ async function deployHarmony(directory: string, bundle: string, device?: string)
  */
 export class MobileController extends Controller {
 
-    @CLIAction('mobile node <platform>', MobileNodeDTO, {description: 'Build the libnode of a system (android, ios, harmony) with the Dockerfile of the project (native/node), once: kept in the cache of lakutata, exported into native/node/out/<platform>'})
+    @CLIAction('mobile node <platform>', MobileNodeDTO, {description: 'Download the libnode of a system (android, ios, harmony) from the releases of lakutata/libnode (LAKUTATA_LIBNODE_MIRROR: a mirror of them), once: kept in the cache of lakutata, put into native/node/out/<platform>'})
     public async node(input: MobileNodeDTO): Promise<undefined> {
         const project: MobileProject = mobileProject(process.cwd())
-        const {buildMobileNode} = await loadBuilder(project.app)
         const abis: AndroidAbi[] | undefined = input.abis ? input.abis.split(',').map((abi: string): string => abi.trim()).filter(Boolean) as AndroidAbi[] : undefined
-        step(`The libnode of ${input.platform} built with ${path.relative(project.root, path.join(project.dockerfile, 'Dockerfile'))} (Docker; the first build takes from one to three hours)`)
-        const built: string = await buildMobileNode({dockerfile: project.dockerfile, platform: input.platform, abis: abis, jobs: input.jobs, progress: step})
-        const out: string = nodeOf(project, input.platform)
-        await rm(out, {recursive: true, force: true})
-        await mkdir(path.dirname(out), {recursive: true})
-        //The files themselves, not the links of an export given (LAKUTATA_MOBILE_NODE_DIR): CocoaPods does not follow them
-        await cp(built, out, {recursive: true, dereference: true, filter: (file: string): boolean => path.basename(file) !== '.complete'})
-        //The libraries of the HAP hold libnode.so, which the addons and the runtime of the native module load by its name
-        if (input.platform === 'harmony') {
-            await mkdir(harmonyLibraries(project), {recursive: true})
-            await cp(path.join(out, 'libs', 'arm64-v8a', 'libnode.so'), path.join(harmonyLibraries(project), 'libnode.so'))
-        }
+        const out: string = await putNode(project, input.platform, abis)
         done(`The libnode of ${input.platform}: ${path.relative(process.cwd(), out)}`)
         return undefined
     }
@@ -567,6 +579,8 @@ export class MobileController extends Controller {
      */
     protected async stageProject(project: MobileProject, platform: MobilePlatform, options: { minify?: boolean, abis?: AndroidAbi[], sdks?: ('iphoneos' | 'iphonesimulator')[] }): Promise<MobileStage> {
         const {stageMobileApp} = await loadBuilder(project.app)
+        //The libnode of the system downloaded first when the project has none yet
+        if (!existsSync(path.join(nodeOf(project, platform), 'include', 'node', 'node_api.h'))) await putNode(project, platform)
         return stageMobileApp({
             platform: platform,
             project: project.app,

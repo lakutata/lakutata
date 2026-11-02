@@ -81,7 +81,7 @@ dist
 *.log
 .env
 .env.*
-# The libnode built by native/node/Dockerfile (npm run node:<platform>)
+# The libnode downloaded by npm run node:<platform>
 native/node/out/
 # The Node.js project of the application made by the stage (npm run stage:<platform>), its native addons
 android/app/src/main/assets/nodejs/

@@ -1,13 +1,16 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {spawnSync} from 'node:child_process'
+import {createHash} from 'node:crypto'
 import {cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
+import type {AddressInfo} from 'node:net'
 import {homedir, tmpdir} from 'node:os'
 import path from 'node:path'
-import {buildMobileNode, MOBILE_NODE_VERSION, stageMobileApp, type MobileStage} from '../index.js'
+import {type AndroidAbi, downloadMobileNode, MOBILE_NODE_RELEASE, MOBILE_NODE_VERSION, stageMobileApp, type MobileStage} from '../index.js'
 import {nativeBanner} from '../lib/NativeRuntime.js'
 import {frameworkInfo, frameworkName, harmonyLibraryName} from '../lib/mobile/Addons.js'
-import {mobileNodeBuildArgs, mobileNodeKey, mobileNodeVersion} from '../lib/mobile/Node.js'
+import {mobileNodeVersion} from '../lib/mobile/Node.js'
 import {binaryArchitectures, nodeGyp} from '../lib/nwjs/Addons.js'
 
 /**
@@ -104,7 +107,7 @@ describe('The Node.js projects of the mobile applications', (): void => {
             const harmony: MobileStage = await stageMobileApp({platform: 'harmony', project: project, outdir: path.join(work, 'harmony', 'nodejs'), node: node})
             assert.strictEqual(harmony.node, mobileNodeVersion(node))
             //A libnode of another system refused
-            await assert.rejects(stageMobileApp({platform: 'ios', project: project, outdir: path.join(work, 'ios', 'nodejs'), node: node}), /is not the libnode of ios \(NodeMobile\.xcframework missing\): build it with the Dockerfile of the project \(lakutata mobile node ios\)/)
+            await assert.rejects(stageMobileApp({platform: 'ios', project: project, outdir: path.join(work, 'ios', 'nodejs'), node: node}), /is not the libnode of ios \(NodeMobile\.xcframework missing\): download it \(lakutata mobile node ios\)/)
             //Made again in a directory of its own only
             await assert.rejects(stageMobileApp({platform: 'ios', project: project, outdir: '.'}), /made in a directory of its own/)
         } finally {
@@ -422,38 +425,79 @@ describe('The Node.js projects of the mobile applications', (): void => {
         }
     })
 
-    it('key the libnode built by the Dockerfile by its inputs, and give the arguments of its docker build', async (): Promise<void> => {
+    it('download the libnode of a system from the releases of lakutata/libnode once, its archives checked with their SHA256SUMS', async (): Promise<void> => {
         const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-mobile-'))
-        const given: string | undefined = process.env.LAKUTATA_MOBILE_NODE_DIR
+        const environment: Record<string, string | undefined> = {}
+        const files: Map<string, Buffer> = new Map()
+        const requests: string[] = []
+        const server: Server = createServer((request: IncomingMessage, response: ServerResponse): void => {
+            requests.push(request.url!)
+            const content: Buffer | undefined = files.get(request.url!)
+            response.writeHead(content ? 200 : 404).end(content)
+        })
         try {
-            const dockerfile: string = path.join(work, 'node')
-            mkdirSync(path.join(dockerfile, 'ios'), {recursive: true})
-            writeFileSync(path.join(dockerfile, 'Dockerfile'), 'FROM scratch AS android\n')
-            writeFileSync(path.join(dockerfile, 'ios', 'build-slice.sh'), 'echo slice\n')
-            const android: string = await mobileNodeKey({dockerfile: dockerfile, platform: 'android', abis: ['arm64-v8a']})
-            assert.match(android, /^android-[0-9a-f]{24}$/)
-            //The exports and the hidden files are no inputs; the files, the architectures and the SDKs are
-            mkdirSync(path.join(dockerfile, 'out', 'android'), {recursive: true})
-            writeFileSync(path.join(dockerfile, 'out', 'android', 'libnode.so'), 'built')
-            writeFileSync(path.join(dockerfile, '.DS_Store'), 'finder')
-            assert.strictEqual(await mobileNodeKey({dockerfile: dockerfile, platform: 'android', abis: ['arm64-v8a']}), android)
-            assert.notStrictEqual(await mobileNodeKey({dockerfile: dockerfile, platform: 'android', abis: ['arm64-v8a', 'x86_64']}), android)
-            assert.strictEqual(await mobileNodeKey({dockerfile: dockerfile, platform: 'android', abis: ['x86_64', 'arm64-v8a']}), await mobileNodeKey({dockerfile: dockerfile, platform: 'android', abis: ['arm64-v8a', 'x86_64']}))
-            const ios: string = await mobileNodeKey({dockerfile: dockerfile, platform: 'ios'}, '27B52 27B52')
-            assert.notStrictEqual(await mobileNodeKey({dockerfile: dockerfile, platform: 'ios'}, '28A10 28A10'), ios)
-            writeFileSync(path.join(dockerfile, 'ios', 'build-slice.sh'), 'echo slice again\n')
-            assert.notStrictEqual(await mobileNodeKey({dockerfile: dockerfile, platform: 'ios'}, '27B52 27B52'), ios)
-            assert.deepStrictEqual(mobileNodeBuildArgs({dockerfile: dockerfile, platform: 'android', abis: ['arm64-v8a', 'x86_64']}, '/out', 6), ['build', '--progress=plain', '--target', 'android', '--build-arg', 'JOBS=6', '--platform', 'linux/amd64', '--build-arg', 'ABIS=arm64-v8a x86_64', '--output', 'type=local,dest=/out', dockerfile])
-            assert.deepStrictEqual(mobileNodeBuildArgs({dockerfile: dockerfile, platform: 'harmony'}, '/out', 4), ['build', '--progress=plain', '--target', 'harmony', '--build-arg', 'JOBS=4', '--platform', 'linux/amd64', '--output', 'type=local,dest=/out', dockerfile])
-            assert.deepStrictEqual(mobileNodeBuildArgs({dockerfile: dockerfile, platform: 'ios'}, '/out', 4, {iphoneos: '/sdk/os', iphonesimulator: '/sdk/simulator'}), ['build', '--progress=plain', '--target', 'ios', '--build-arg', 'JOBS=4', '--build-context', 'ios-sdk=/sdk/os', '--build-context', 'ios-simulator-sdk=/sdk/simulator', '--output', 'type=local,dest=/out', dockerfile])
-            //The exports made before given instead of a build, checked
+            //The archives of the release as lakutata/libnode packs them: libnode_<platform>_<arch>/ holding lib/libnode.so
+            //(or NodeMobile.xcframework), include/node, LICENSE and libnode.json
+            const release: string = path.join(work, 'release')
+            for (const [platform, arch] of [['android', 'arm64'], ['android', 'x64'], ['android', 'arm'], ['ios', 'arm64'], ['harmony', 'arm64']]) {
+                const name: string = `libnode_${platform}_${arch}`
+                const root: string = path.join(release, name)
+                mkdirSync(path.join(root, 'include', 'node'), {recursive: true})
+                writeFileSync(path.join(root, 'include', 'node', 'node_api.h'), '')
+                writeFileSync(path.join(root, 'include', 'node', 'node_version.h'), '#define NODE_MAJOR_VERSION 24\n#define NODE_MINOR_VERSION 20\n#define NODE_PATCH_VERSION 0\n')
+                writeFileSync(path.join(root, 'LICENSE'), 'license')
+                writeFileSync(path.join(root, 'libnode.json'), JSON.stringify({name: name, platform: platform, arch: arch}))
+                if (platform === 'ios') {
+                    mkdirSync(path.join(root, 'NodeMobile.xcframework'))
+                    writeFileSync(path.join(root, 'NodeMobile.xcframework', 'Info.plist'), '')
+                } else {
+                    mkdirSync(path.join(root, 'lib'))
+                    writeFileSync(path.join(root, 'lib', 'libnode.so'), `${platform} ${arch}`)
+                }
+                assert.strictEqual(spawnSync('tar', ['-czf', `${name}.tar.gz`, name], {cwd: release}).status, 0)
+                files.set(`/v${MOBILE_NODE_RELEASE}/${name}.tar.gz`, readFileSync(path.join(release, `${name}.tar.gz`)))
+            }
+            //The checksum of the archive of armeabi-v7a is wrong: it is refused
+            const sums: string = [...files].map(([url, content]: [string, Buffer]): string => `${url.endsWith('_arm.tar.gz') ? '0'.repeat(64) : createHash('sha256').update(content).digest('hex')}  ${path.basename(url)}\n`).join('')
+            files.set(`/v${MOBILE_NODE_RELEASE}/SHA256SUMS`, Buffer.from(sums))
+            await new Promise<void>((resolve: () => void): unknown => server.listen(0, '127.0.0.1', resolve))
+            for (const [name, value] of Object.entries({LAKUTATA_CACHE_DIR: path.join(work, 'cache'), LAKUTATA_LIBNODE_MIRROR: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`, LAKUTATA_MOBILE_NODE_DIR: undefined})) {
+                environment[name] = process.env[name]
+                if (value === undefined) delete process.env[name]
+                else process.env[name] = value
+            }
+            //Android: an archive by architecture, its library in libs/<abi>; arm64-v8a and x86_64 by default
+            const messages: string[] = []
+            const android: string = await downloadMobileNode({platform: 'android', progress: (line: string): unknown => messages.push(line)})
+            assert.deepStrictEqual(messages, [`libnode_android_arm64.tar.gz (libnode ${MOBILE_NODE_RELEASE})`, `libnode_android_x64.tar.gz (libnode ${MOBILE_NODE_RELEASE})`])
+            assert.strictEqual(readFileSync(path.join(android, 'libs', 'arm64-v8a', 'libnode.so'), 'utf8'), 'android arm64')
+            assert.strictEqual(readFileSync(path.join(android, 'libs', 'x86_64', 'libnode.so'), 'utf8'), 'android x64')
+            assert.strictEqual(mobileNodeVersion(android), '24.20.0')
+            assert.ok(existsSync(path.join(android, 'LICENSE')))
+            //Downloaded once: the same libnode, or another set of the architectures downloaded, makes no request
+            const made: number = requests.length
+            assert.strictEqual(await downloadMobileNode({platform: 'android'}), android)
+            const arm64: string = await downloadMobileNode({platform: 'android', abis: ['arm64-v8a']})
+            assert.deepStrictEqual(readdirSync(path.join(arm64, 'libs')), ['arm64-v8a'])
+            assert.strictEqual(requests.length, made)
+            //iOS: its framework; HarmonyOS: libs/arm64-v8a
+            assert.ok(existsSync(path.join(await downloadMobileNode({platform: 'ios'}), 'NodeMobile.xcframework', 'Info.plist')))
+            assert.strictEqual(readFileSync(path.join(await downloadMobileNode({platform: 'harmony'}), 'libs', 'arm64-v8a', 'libnode.so'), 'utf8'), 'harmony arm64')
+            //An archive whose checksum is not the one of the release: refused, nothing of it kept
+            await assert.rejects(downloadMobileNode({platform: 'android', abis: ['armeabi-v7a']}), new RegExp(`The libnode_android_arm\\.tar\\.gz downloaded is not the one of the release ${MOBILE_NODE_RELEASE.replaceAll('.', '\\.')} of libnode \\(sha256 [0-9a-f]{64}, 0{64} expected\\)`))
+            assert.deepStrictEqual(readdirSync(path.join(work, 'cache', 'mobile', 'libnode', MOBILE_NODE_RELEASE)).sort(), ['libnode_android_arm64', 'libnode_android_x64', 'libnode_harmony_arm64', 'libnode_ios_arm64'])
+            await assert.rejects(downloadMobileNode({platform: 'android', abis: ['mips' as AndroidAbi]}), /mips is not an architecture of Android/)
+            //The exports of a libnode of one's own given instead, checked
             fakeNode(path.join(work, 'exports', 'harmony'), {'arm64-v8a': ''})
             process.env.LAKUTATA_MOBILE_NODE_DIR = path.join(work, 'exports')
-            assert.strictEqual(await buildMobileNode({dockerfile: dockerfile, platform: 'harmony'}), path.join(work, 'exports', 'harmony'))
-            await assert.rejects(buildMobileNode({dockerfile: dockerfile, platform: 'android'}), /is not the libnode of android \(include\/node\/node_api\.h missing\)/)
+            assert.strictEqual(await downloadMobileNode({platform: 'harmony'}), path.join(work, 'exports', 'harmony'))
+            await assert.rejects(downloadMobileNode({platform: 'android'}), /is not the libnode of android \(include\/node\/node_api\.h missing\): download it/)
         } finally {
-            if (given === undefined) delete process.env.LAKUTATA_MOBILE_NODE_DIR
-            else process.env.LAKUTATA_MOBILE_NODE_DIR = given
+            for (const [name, value] of Object.entries(environment)) {
+                if (value === undefined) delete process.env[name]
+                else process.env[name] = value
+            }
+            await new Promise<void>((resolve: () => void): unknown => server.close((): void => resolve()))
             rmSync(work, {recursive: true, force: true})
         }
     })

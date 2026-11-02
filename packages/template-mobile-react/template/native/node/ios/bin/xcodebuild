@@ -1,6 +1,0 @@
-#!/bin/sh
-# xcodebuild on Linux: a version only (gyp reads it, any recent one does)
-case "$*" in
-  *-version*) printf 'Xcode 27.2\nBuild version 27B52\n' ;;
-  *) echo "xcodebuild is not available on Linux: $*" >&2; exit 1 ;;
-esac

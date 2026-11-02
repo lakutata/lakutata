@@ -36,7 +36,7 @@ function script(file: string, content: string): void {
 }
 
 /**
- * A libnode of the tests, as the Dockerfile exports it (Node.js 24.20.0)
+ * A libnode of the tests, laid out as the one downloaded from lakutata/libnode (Node.js 24.20.0)
  * @param directory
  * @param platform
  */
@@ -85,14 +85,14 @@ describe('lakutata mobile', {skip: process.platform === 'win32' && 'the fake too
         symlinkSync(path.join(ROOT, 'node_modules'), path.join(app, 'node_modules'), 'dir')
         writeFileSync(path.join(app, 'package.json'), JSON.stringify({name: 'app', version: '1.0.0', type: 'module', main: 'build/App.js'}))
         writeFileSync(path.join(app, 'build', 'App.js'), 'console.log("mobile")\n')
-        mkdirSync(path.join(work, 'native', 'node'), {recursive: true})
-        writeFileSync(path.join(work, 'native', 'node', 'Dockerfile'), 'FROM scratch AS android\n')
+        mkdirSync(path.join(work, 'native'), {recursive: true})
+        writeFileSync(path.join(work, 'native', 'NodeHost.cpp'), '')
         script(path.join(work, 'android', 'app', 'build.gradle'), `android {\n    defaultConfig {\n        applicationId "${APP_ID}"\n    }\n}\n`)
         mkdirSync(path.join(work, 'ios', 'App.xcodeproj'), {recursive: true})
         writeFileSync(path.join(work, 'ios', 'App.xcodeproj', 'project.pbxproj'), `PRODUCT_BUNDLE_IDENTIFIER = "${APP_ID}";\n`)
         mkdirSync(path.join(work, 'harmony', 'AppScope'), {recursive: true})
         writeFileSync(path.join(work, 'harmony', 'AppScope', 'app.json5'), `{\n  "app": {\n    "bundleName": "${APP_ID}"\n  }\n}\n`)
-        //The libnode of the three systems, exported before (no Docker in the tests)
+        //The libnode of the three systems, given instead of downloaded (no network in the tests)
         for (const platform of ['android', 'ios', 'harmony'] as const) fakeNode(path.join(work, 'exports', platform), platform)
         //The tools of the systems: they write their commands into the log, and run them on directories standing for the
         //devices (DEVICE: the files of the application of Android, IOS_APP: the application in the simulator)
@@ -189,12 +189,15 @@ esac
         //Outside of a project
         const outside = await run(['mobile', 'node', 'android'], tmpdir())
         assert.notStrictEqual(outside.code, 0)
-        assert.match(outside.output, /is in no project of a mobile application \(native\/node\/Dockerfile and packages\/app/)
+        assert.match(outside.output, /is in no project of a mobile application \(native\/NodeHost\.cpp and packages\/app/)
     })
 
     it('makes the Node.js project of the application where the native project of the system takes it', async (): Promise<void> => {
+        //The libnode of the system put into the project first when it has none
+        rmSync(path.join(work, 'native', 'node', 'out', 'android'), {recursive: true})
         const staged = await run(['mobile', 'stage', 'android'])
         assert.strictEqual(staged.code, 0, staged.output)
+        assert.ok(existsSync(path.join(work, 'native', 'node', 'out', 'android', 'libs', 'arm64-v8a', 'libnode.so')))
         assert.match(staged.output, /The Node\.js project for android \(Node\.js 24\.20\.0\): android\/app\/src\/main\/assets\/nodejs/)
         for (const file of ['package.json', 'main.js', 'app.cjs']) assert.ok(existsSync(path.join(work, 'android', 'app', 'src', 'main', 'assets', 'nodejs', file)), file)
         for (const [platform, directory] of [['ios', 'ios/nodejs'], ['harmony', 'harmony/entry/src/main/resources/resfile/nodejs']]) {

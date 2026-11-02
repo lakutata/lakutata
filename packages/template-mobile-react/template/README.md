@@ -2,11 +2,11 @@
 
 {$APP_DESC}
 
-A [lakutata](https://github.com/lakutata/lakutata) mobile application for Android, iOS and HarmonyOS, made with
-[React Native](https://reactnative.dev) and, on HarmonyOS, [RNOH](https://gitcode.com/openharmony-sig/ohos_react_native)
-(React Native for OpenHarmony, `@react-native-oh/react-native-harmony`). The application runs in a Node.js embedded in
-the mobile application: a libnode built from the sources of Node.js by the Dockerfile of the project. The project is a
-workspace:
+A [lakutata](https://github.com/lakutata/lakutata) mobile application for Android, iOS and HarmonyOS, made with [React
+Native](https://reactnative.dev) and, on HarmonyOS, [RNOH](https://gitcode.com/openharmony-sig/ohos_react_native) (React
+Native for OpenHarmony, `@react-native-oh/react-native-harmony`). The application runs in a Node.js embedded in the
+mobile application: a libnode built from the sources of Node.js by
+[lakutata/libnode](https://github.com/lakutata/libnode) and downloaded from its releases. The project is a workspace:
 
 - `packages/app`: the Node.js side, a lakutata application. Its controllers serve their `@ServiceAction` actions to the
   user interface through the native module (`reactNativeServiceEntrypoint`);
@@ -14,14 +14,14 @@ workspace:
   application, `ipc.invoke({cmd: 'greet', name: 'you'})`, and listens to the events it pushes,
   `ipc.on('greeted', listener)` (which returns the function removing the listener);
 - `native`: the native module, in C++ shared by the three systems (it starts Node.js in a thread of its own and talks to
-  it over a socket), and `native/node`, the Dockerfile building libnode;
+  it over a socket), and `native/node/out`, the libnode of each system once downloaded;
 - `android`, `ios` and `harmony`: the native projects, opened in Android Studio, Xcode (`ios/App.xcworkspace`, once the
   pods are installed) and DevEco Studio.
 
 ```bash
-npm run node:android      # build the libnode of Android once (Docker, about an hour and a half per architecture)
-npm run node:ios          # the one of iOS (Docker on macOS, against the SDKs of Xcode)
-npm run node:harmony      # the one of HarmonyOS (Docker)
+npm run node:android      # download the libnode of Android (npm run android does it the first time)
+npm run node:ios          # the one of iOS
+npm run node:harmony      # the one of HarmonyOS
 npm start                 # Metro, which gives the debug builds their user interface (Fast Refresh)
 npm run android           # build the application and run it on the emulator or the device of Android running
 npm run ios               # build it and run it on a simulator of iOS (macOS, Xcode)
@@ -55,12 +55,14 @@ and the names of the projects (`App`) are not the id and can stay as they are.
 ## The development
 
 Android needs Android Studio (its SDK in `ANDROID_HOME`, its NDK, an emulator, and a JDK such as the one it ships with);
-iOS needs Xcode and CocoaPods on macOS; HarmonyOS needs DevEco Studio (its emulator, or a device). libnode is built with
-Docker.
+iOS needs Xcode and CocoaPods on macOS; HarmonyOS needs DevEco Studio (its emulator, or a device).
 
-1. Build the libnode of the system once: `npm run node:android` (or `node:ios`, `node:harmony`). It is kept in the
-   cache of lakutata and exported into `native/node/out/<platform>`, which the native projects build against; it is
-   built again only when the Dockerfile changes.
+1. The libnode of the system is downloaded the first time `npm run android` (or `ios`, `harmony`) runs, or beforehand by
+   `npm run node:android` (or `node:ios`, `node:harmony`): from the releases of lakutata/libnode, checked with their
+   checksums, kept in the cache of lakutata and put into `native/node/out/<platform>`, which the native projects build
+   against. `LAKUTATA_LIBNODE_MIRROR` gives a mirror of the releases
+   (`<mirror>/v<version>/libnode_<platform>_<arch>.tar.gz`), and `LAKUTATA_MOBILE_NODE_DIR` a libnode of your own, built
+   with the repository of lakutata/libnode (a directory per system: `android`, `ios`, `harmony`).
 2. Start Metro: `npm start`.
 3. Run the application: `npm run android` (or `ios`, `harmony`) builds the packages, makes the Node.js project of the
    application (`lakutata mobile stage`), builds the debug application, installs it and starts it
@@ -75,9 +77,9 @@ button for it).
 
 ## The Node.js of the application
 
-The libnode of the three systems is Node.js 24.20.0 (`ARG NODE_VERSION` of `native/node/Dockerfile`): Android and iOS
-from the patches of [nodejs-mobile](https://github.com/digidem/nodejs-mobile) (`RECIPE_COMMIT`), HarmonyOS from Node.js.
-`lakutata mobile stage` bundles the application for it into the place where the native project takes it:
+The libnode of the three systems is Node.js 24.20.0, the release `v24.20.0` of lakutata/libnode: Android and iOS from
+the patches of [nodejs-mobile](https://github.com/digidem/nodejs-mobile), HarmonyOS from Node.js. `lakutata mobile
+stage` bundles the application for it into the place where the native project takes it:
 `android/app/src/main/assets/nodejs` (copied into the files of the application at its first launch and after each
 update), `ios/nodejs` (put into the bundle of the application by its build) or
 `harmony/entry/src/main/resources/resfile/nodejs` (run from the resources of the HAP). These are left out of git, with

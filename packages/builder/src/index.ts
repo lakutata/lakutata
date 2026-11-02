@@ -16,5 +16,5 @@ export {stageNwjsApp, type NwjsConfig, type NwjsStage, type NwjsStageOptions} fr
 export type {NwjsAddons} from './lib/nwjs/Addons.js'
 export {buildNwjsApp, type NwjsApp, type NwjsAppOptions} from './lib/nwjs/Package.js'
 export {stageMobileApp, type MobileStage, type MobileStageOptions} from './lib/mobile/Stage.js'
-export {buildMobileNode, MOBILE_NODE_VERSION, type AndroidAbi, type MobileNodeBuildOptions, type MobilePlatform} from './lib/mobile/Node.js'
+export {downloadMobileNode, MOBILE_NODE_RELEASE, MOBILE_NODE_VERSION, type AndroidAbi, type MobileNodeDownloadOptions, type MobilePlatform} from './lib/mobile/Node.js'
 export type {IosSdk, MobileAddons} from './lib/mobile/Addons.js'
