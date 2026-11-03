@@ -10,8 +10,9 @@ part of `lakutata`: install it on its own. What it is like:
 - **Generated** as a PNG, an SVG or pixels, at the size, in the colors and the rotation, with the error correction asked
   for.
 - **Read** from PNG, JPEG, GIF, BMP, WebP and TGA images, or from pixels; every code of an image, with its position.
-- **A component**, `Barcode`, injected without being registered, with defaults, time limits, cancellation and a
-  concurrency.
+- **A component**, `Barcode`, injected without being registered, with the default options; the components registered
+  under names in the configuration have defaults, a time limit and a concurrency of their own. Every call can take a
+  time limit, and can be cancelled.
 - **A native addon** built on [zint](https://zint.org.uk) and [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp),
   compiled when the package is installed on Linux, macOS and Windows, and by `lakutata mobile stage` for the mobile
   applications of Android, iOS and HarmonyOS; it also runs in Bun and in the main process of Electron. Its work runs in
@@ -59,7 +60,8 @@ await container.destroy()
 - A content the format cannot encode (letters in an EAN-13, too long for the version asked) throws
   `BarcodeContentException`, with the reason given by zint.
 
-In an application, the component is injected instead of taken from a container (section 5).
+In an application, the component is injected instead of taken from a container; for options of your own, register a
+component under a name in the configuration and inject it by that name (section 5).
 
 ## 2. Size, colors and printing
 
@@ -165,10 +167,60 @@ await container.destroy()
 
 ## 5. In an application
 
-The component is injected without being registered, with its default options. Registered with
-`buildBarcodeOptions()`, it gets defaults of its own for `generate()` and `read()`, a time limit and a concurrency; an
-application may register several, under different names. A controller that serves the label of a product as a PNG and
-reads the codes of an uploaded image:
+The component is injected without being registered (`@Inject(Barcode)`), with the default options. For options of your
+own, register a component in the `components` of the configuration: `buildBarcodeOptions()` declares it under a name,
+with defaults for `generate()` and `read()`, a time limit and a concurrency; an application may register several, under
+different names, each with its own options. The application below registers two, `labels` to print labels and
+`scanner` to read photos:
+
+```typescript
+import {Application, Component} from 'lakutata'
+import {Inject} from 'lakutata/decorator/di'
+import {type Barcode, type BarcodeResult, buildBarcodeOptions} from '@lakutata/barcode'
+
+class Warehouse extends Component {
+    @Inject('labels')
+    protected readonly labels: Barcode
+
+    @Inject('scanner')
+    protected readonly scanner: Barcode
+
+    //The label of an item: a Code 128 with its number printed under the bars
+    public async label(sku: string): Promise<Buffer> {
+        return await this.labels.generate('Code128', sku)
+    }
+
+    //The codes of a photo: Code 128 and QR codes only
+    public async scan(photo: Buffer): Promise<BarcodeResult[]> {
+        return await this.scanner.read(photo)
+    }
+}
+
+Application
+    .run(() => ({
+        id: 'warehouse.app',
+        name: 'Warehouse',
+        components: {
+            //A label printer of 203 dpi: modules of 3 pixels, the content under the bars
+            labels: buildBarcodeOptions({defaults: {generate: {scale: 3, showText: true}}}),
+            //At most 2 seconds a photo
+            scanner: buildBarcodeOptions({defaults: {read: {formats: ['Code128', 'QRCode']}}, timeout: 2000}),
+            warehouse: {class: Warehouse}
+        }
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        const warehouse: Warehouse = await app.getObject<Warehouse>('warehouse')
+        const [code]: BarcodeResult[] = await warehouse.scan(await warehouse.label('LKT-1001'))
+        console.log(code.format, code.text)     //Code128 LKT-1001
+    })
+```
+
+- `buildBarcodeOptions()` declares the component under the name of your choice; the other objects inject it by that name
+  (`@Inject('labels')`) or get it with `getObject('labels')`.
+- A registered component is injected by its name only: `@Inject(Barcode)` gives another component, autoloaded with the
+  default options; the options of the configuration do not apply to it.
+
+A controller that serves the label of a product as a PNG and reads the codes of an uploaded image:
 
 ```typescript
 import express, {type Express, type Request} from 'express'

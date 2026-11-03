@@ -20,7 +20,7 @@ npm install @lakutata/barcode
 
 ### 生成和识别
 
-直接注入组件即可，不需要注册。
+直接注入组件即可，不需要注册，组件使用默认选项；要设置默认选项、时限或并发数，就在配置里注册组件（见[组件选项](#组件选项)）。
 
 ```typescript
 import {Component} from 'lakutata'
@@ -104,25 +104,39 @@ class Labels extends Component {
 
 ### 组件选项
 
-用 `buildBarcodeOptions()` 注册组件，可以给它设置默认选项、时限和并发数，也可以注册多个组件，各用各的选项：
+给组件起一个名字，用 `buildBarcodeOptions()` 注册它，可以设置默认选项、时限和并发数；也可以用不同的名字注册多个组件，各用各的选项。其他对象按这个名字注入组件（`@Inject('labels')`），或者用 `getObject('labels')` 获取：
 
 ```typescript
-import {Application} from 'lakutata'
-import {Barcode, buildBarcodeOptions} from '@lakutata/barcode'
+import {Application, Component} from 'lakutata'
+import {Inject} from 'lakutata/decorator/di'
+import {type Barcode, buildBarcodeOptions} from '@lakutata/barcode'
+
+class Tickets extends Component {
+    @Inject('labels')
+    protected readonly labels: Barcode
+
+    public async ticket(id: string): Promise<Buffer> {
+        return await this.labels.generate('QRCode', `https://example.com/tickets/${id}`)
+    }
+}
 
 Application
     .run(() => ({
         id: 'shop.app',
         name: 'Shop',
         components: {
-            labels: buildBarcodeOptions({defaults: {generate: {scale: 6}, read: {formats: ['QRCode']}}, timeout: 5000})
+            labels: buildBarcodeOptions({defaults: {generate: {scale: 6}, read: {formats: ['QRCode']}}, timeout: 5000}),
+            tickets: {class: Tickets}
         }
     }))
     .onLaunched(async (app: Application): Promise<void> => {
-        const labels: Barcode = await app.getObject('labels')
-        console.log((await labels.read(await labels.generate('QRCode', 'shop.app')))[0].text)
+        const tickets: Tickets = await app.getObject<Tickets>('tickets')
+        const labels: Barcode = await app.getObject<Barcode>('labels')
+        console.log((await labels.read(await tickets.ticket('1001')))[0].text)    //https://example.com/tickets/1001
     })
 ```
+
+注册的组件只能按名字注入。`@Inject(Barcode)` 得到的是另一个组件：它是自动加载的，使用默认选项，配置里的选项对它不起作用。
 
 | 选项 | |
 |---|---|

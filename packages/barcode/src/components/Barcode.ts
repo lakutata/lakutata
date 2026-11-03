@@ -82,8 +82,9 @@ const RAW_IMAGE = DTO.Object({
 /**
  * Barcodes and QR codes: generates them (PNG, SVG or pixels) and reads them from images, in the threads of the addon
  * (zint generates, zxing-cpp reads). Every format it generates, it reads back. Inject it (`@Inject(Barcode)`): it needs
- * no registration; register it with {@link buildBarcodeOptions} to give its options, or several of them under other
- * names, each with its own options. Its destruction waits for its operations running (`drainTimeout`).
+ * no registration, and has the default options. {@link buildBarcodeOptions} declares components under names in the
+ * configuration, each with its own options, injected by their names (`@Inject('labels')`): `@Inject(Barcode)` gives the
+ * unregistered one, with the default options. Its destruction waits for its operations running (`drainTimeout`).
  * @example
  * ```typescript
  * import {Component} from 'lakutata'
@@ -296,18 +297,24 @@ export class Barcode extends Component {
 
 /**
  * The options of a barcode component in the configuration of the application: its defaults, its time limit, its
- * concurrency.
+ * concurrency. The component is injected by the name it is registered under.
  * @param options Its defaults, its time limit, its concurrency, the wait of its destruction.
  * @returns The options of the component.
  * @example
  * ```typescript
- * import {Application} from 'lakutata'
- * import {buildBarcodeOptions} from '@lakutata/barcode'
+ * import {Application, Component} from 'lakutata'
+ * import {Inject} from 'lakutata/decorator/di'
+ * import {type Barcode, buildBarcodeOptions} from '@lakutata/barcode'
+ * class Tickets extends Component {
+ *     @Inject('labels')
+ *     protected readonly labels: Barcode
+ * }
  * Application.run(() => ({
  *     id: 'shop',
  *     name: 'Shop',
  *     components: {
- *         labels: buildBarcodeOptions({defaults: {generate: {scale: 6, showText: true}}, timeout: 5000})
+ *         labels: buildBarcodeOptions({defaults: {generate: {scale: 6, showText: true}}, timeout: 5000}),
+ *         tickets: {class: Tickets}
  *     }
  * }))
  * ```

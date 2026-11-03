@@ -33,7 +33,9 @@ npm install @lakutata/barcode
 
 ### Generating and reading
 
-Inject the component: it needs no registration.
+Inject the component: it needs no registration, and has the default options. For defaults, a time limit or a
+concurrency of your own, register a component in the configuration (see
+[Options of the component](#options-of-the-component)).
 
 ```typescript
 import {Component} from 'lakutata'
@@ -125,26 +127,42 @@ each one. Their contents are read back as they were generated.
 
 ### Options of the component
 
-Register the component with `buildBarcodeOptions()` to give it defaults, a time limit and a concurrency, or to have
-several of them, each with its own options:
+`buildBarcodeOptions()` declares a component under a name, with defaults, a time limit and a concurrency; the
+configuration may register several under different names, each with its own options. The other objects inject it by its
+name (`@Inject('labels')`) or get it with `getObject('labels')`:
 
 ```typescript
-import {Application} from 'lakutata'
-import {Barcode, buildBarcodeOptions} from '@lakutata/barcode'
+import {Application, Component} from 'lakutata'
+import {Inject} from 'lakutata/decorator/di'
+import {type Barcode, buildBarcodeOptions} from '@lakutata/barcode'
+
+class Tickets extends Component {
+    @Inject('labels')
+    protected readonly labels: Barcode
+
+    public async ticket(id: string): Promise<Buffer> {
+        return await this.labels.generate('QRCode', `https://example.com/tickets/${id}`)
+    }
+}
 
 Application
     .run(() => ({
         id: 'shop.app',
         name: 'Shop',
         components: {
-            labels: buildBarcodeOptions({defaults: {generate: {scale: 6}, read: {formats: ['QRCode']}}, timeout: 5000})
+            labels: buildBarcodeOptions({defaults: {generate: {scale: 6}, read: {formats: ['QRCode']}}, timeout: 5000}),
+            tickets: {class: Tickets}
         }
     }))
     .onLaunched(async (app: Application): Promise<void> => {
-        const labels: Barcode = await app.getObject('labels')
-        console.log((await labels.read(await labels.generate('QRCode', 'shop.app')))[0].text)
+        const tickets: Tickets = await app.getObject<Tickets>('tickets')
+        const labels: Barcode = await app.getObject<Barcode>('labels')
+        console.log((await labels.read(await tickets.ticket('1001')))[0].text)    //https://example.com/tickets/1001
     })
 ```
+
+A registered component is injected by its name only: `@Inject(Barcode)` gives another component, autoloaded with the
+default options; the options of the configuration do not apply to it.
 
 | Option | |
 |---|---|

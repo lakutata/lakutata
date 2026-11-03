@@ -5,7 +5,7 @@
 - **能生成的都能识别回来**：32 种一维码和二维码，从 EAN-13、UPC、Code 128、GS1 DataBar 到 QR 码、Data Matrix、PDF417、Aztec 和 MaxiCode。只有一边支持的码制（邮政码、汉信码、DotCode 等）没有提供。
 - **生成**为 PNG、SVG 或像素，尺寸、颜色、旋转方向和纠错等级都可以指定。
 - **识别** PNG、JPEG、GIF、BMP、WebP、TGA 图片或像素；图片里的每个条码都会识别出来，并给出位置。
-- **一个组件** `Barcode`，不用注册就能注入；可以设置默认选项、时限、取消和并发数。
+- **一个组件** `Barcode`，不用注册就能注入，使用默认选项；在配置里用名字注册的组件，可以有自己的默认选项、时限和并发数。每次调用都可以设置时限，也可以取消。
 - **原生插件**：基于 [zint](https://zint.org.uk) 和 [zxing-cpp](https://github.com/zxing-cpp/zxing-cpp)，在 Linux、macOS 和 Windows 上安装这个包时编译，在 Android、iOS 和鸿蒙的手机应用里由 `lakutata mobile stage` 编译；也能在 Bun 和 Electron 的主进程里运行。生成和识别都在原生插件自己的线程里执行，不占用 JavaScript 线程。
 
 `@lakutata/barcode` 的 README 介绍了每个选项；这篇指南按用途逐一说明这个包能做什么，每种用途都给出一个例子。
@@ -40,7 +40,7 @@ await container.destroy()
 - 像素在黑白时是灰度（每像素 1 字节），有颜色时是 RGB（3 字节），有透明时是 RGBA（4 字节），可以直接交给 canvas、图像库或打印机驱动。
 - 内容无法用这种码制编码时（比如 EAN-13 里有字母，或者超出指定版本的容量），会抛出 `BarcodeContentException`，附带 zint 给出的原因。
 
-在应用里，组件是注入的，不用从容器里取（第 5 节）。
+在应用里，组件是注入的，不用从容器里取；要用自己的选项，就在配置里用一个名字注册组件，再按这个名字注入（第 5 节）。
 
 ## 2. 尺寸、颜色和打印
 
@@ -123,7 +123,54 @@ await container.destroy()
 
 ## 5. 在应用中使用
 
-组件不用注册就能注入，使用默认选项。用 `buildBarcodeOptions()` 注册时，可以为它设置 `generate()` 和 `read()` 的默认选项、时限和并发数；一个应用也可以用不同的名字注册多个。下面的控制器把商品标签作为 PNG 返回，并识别上传图片里的条码：
+组件不用注册就能注入（`@Inject(Barcode)`），使用默认选项。要用自己的选项时，在配置的 `components` 里给组件起一个名字，用 `buildBarcodeOptions()` 注册它，设置 `generate()` 和 `read()` 的默认选项、时限和并发数；一个应用可以用不同的名字注册多个，各用各的选项。下面的仓库应用注册了两个：`labels` 打印标签，`scanner` 识别照片：
+
+```typescript
+import {Application, Component} from 'lakutata'
+import {Inject} from 'lakutata/decorator/di'
+import {type Barcode, type BarcodeResult, buildBarcodeOptions} from '@lakutata/barcode'
+
+class Warehouse extends Component {
+    @Inject('labels')
+    protected readonly labels: Barcode
+
+    @Inject('scanner')
+    protected readonly scanner: Barcode
+
+    //货品标签：Code 128，编号印在条的下方
+    public async label(sku: string): Promise<Buffer> {
+        return await this.labels.generate('Code128', sku)
+    }
+
+    //照片里的条码：只查找 Code 128 和 QR 码
+    public async scan(photo: Buffer): Promise<BarcodeResult[]> {
+        return await this.scanner.read(photo)
+    }
+}
+
+Application
+    .run(() => ({
+        id: 'warehouse.app',
+        name: 'Warehouse',
+        components: {
+            //203 dpi 的标签打印机：模块 3 个像素，条下方显示内容
+            labels: buildBarcodeOptions({defaults: {generate: {scale: 3, showText: true}}}),
+            //每张照片最多识别 2 秒
+            scanner: buildBarcodeOptions({defaults: {read: {formats: ['Code128', 'QRCode']}}, timeout: 2000}),
+            warehouse: {class: Warehouse}
+        }
+    }))
+    .onLaunched(async (app: Application): Promise<void> => {
+        const warehouse: Warehouse = await app.getObject<Warehouse>('warehouse')
+        const [code]: BarcodeResult[] = await warehouse.scan(await warehouse.label('LKT-1001'))
+        console.log(code.format, code.text)     //Code128 LKT-1001
+    })
+```
+
+- `buildBarcodeOptions()` 用你选定的名字声明组件；其他对象按这个名字注入它（`@Inject('labels')`），或者用 `getObject('labels')` 获取。
+- 注册的组件只能按名字注入。`@Inject(Barcode)` 得到的是另一个组件：它是自动加载的，使用默认选项，配置里的选项对它不起作用。
+
+下面的控制器把商品标签作为 PNG 返回，并识别上传图片里的条码：
 
 ```typescript
 import express, {type Express, type Request} from 'express'
