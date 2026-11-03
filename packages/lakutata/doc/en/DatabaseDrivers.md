@@ -312,22 +312,40 @@ SQL Server and Oracle have not been checked there.
 
 - `lakutata mobile stage` builds `better-sqlite3` from its sources for each system, with the NDK, Xcode or DevEco Studio
   (see the `lakutata mobile` commands in the README of `@lakutata/cli`).
+- The file of a database has to last, and `os.tmpdir()` is the cache of the application, which the system may empty. The
+  `App.ts` of the template declares the data directory of the application as the alias `@data`: the `files` directory of
+  the application on Android, `Library/Application Support` on iOS, `/data/storage/el2/base/files` on HarmonyOS, and
+  `packages/app/data` on the computer of the development. `path.resolve('@data/app.sqlite')` gives the path of a file
+  there, in the options function of the application ([Application](Application.md), section 2).
 - The asm.js build of sql.js is SQLite compiled to JavaScript: no WebAssembly and no other file, so it runs the same on
   the three systems. The Node.js of HarmonyOS has no WebAssembly, and the one of iOS has only the polyfill of
   nodejs-mobile, which is much slower:
 
 ```typescript
-import {createRequire} from 'node:module'
+import type {ApplicationOptions} from 'lakutata'
 import {buildDatabaseOptions} from 'lakutata/com/database'
+import {createRequire} from 'node:module'
+import path from 'node:path'
 
-export const db = buildDatabaseOptions({
-    type: 'sqljs',
-    location: 'data/app.sqlite',
-    autoSave: true,
-    //The asm.js build of sql.js, instead of its WebAssembly
-    driver: createRequire(import.meta.url)('sql.js/dist/sql-asm.js'),
-    entities: []
-})
+/**
+ * The options of the application: App.ts gives them to run() in a function, so @data is declared when they are made
+ */
+export function config(): ApplicationOptions {
+    return {
+        id: 'app',
+        name: 'app',
+        components: {
+            db: buildDatabaseOptions({
+                type: 'sqljs',
+                location: path.resolve('@data/app.sqlite'),
+                autoSave: true,
+                //The asm.js build of sql.js, instead of its WebAssembly
+                driver: createRequire(import.meta.url)('sql.js/dist/sql-asm.js'),
+                entities: []
+            })
+        }
+    }
+}
 ```
 
 - The WebAssembly of sql.js is read from `sql-wasm.wasm`, next to its module, which the bundle of the application does
@@ -335,4 +353,3 @@ export const db = buildDatabaseOptions({
   workspace), and give its path among the resources to `sqlJsConfig.locateFile` ([Packaging](Packaging.md), section 6).
 - A database server is reached over the network of the device; from an emulator, the computer is reached through
   `adb reverse` (Android) or `hdc rport` (HarmonyOS).
-- The file of a database has to last: `os.tmpdir()` is the cache of the application, which the system may empty.

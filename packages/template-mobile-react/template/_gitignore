@@ -81,6 +81,8 @@ dist
 *.log
 .env
 .env.*
+# The data of the application on the computer of the development (@data)
+packages/app/data/
 # The libnode downloaded by npm run node:<platform>
 packages/ipc/native/node/out/
 # The Node.js project of the application made by the stage (npm run stage:<platform>), its native addons

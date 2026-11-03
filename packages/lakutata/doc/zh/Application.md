@@ -49,6 +49,8 @@ Application
     })
 ```
 
+环境变量和别名在应用启动时、读取选项之前设置。所以用到别名的选项，比如 `path.resolve('@data/app.sqlite')`，要像上面那样写在传给 `run()` 的选项函数中：直接传给 `run()` 的对象在启动之前就已生成，那时 `@data` 还没有声明，`path.resolve()` 得到的是工作目录下名为 `@data` 的目录中的 `app.sqlite`。
+
 `app.exit(code)` 以指定退出码优雅地结束应用；`app.exit(true)` 立即以退出码 2 结束进程，不执行 `onDone` 处理函数，也不销毁对象。
 
 ## 3. 生命周期

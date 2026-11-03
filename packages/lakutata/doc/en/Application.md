@@ -55,6 +55,11 @@ Application
     })
 ```
 
+The environment variables and the aliases are set when the application launches, before its options are read. An option
+that uses an alias, such as `path.resolve('@data/app.sqlite')`, is therefore written in an options function given to
+`run()`, as above: an object given to `run()` is made before the launch, when `@data` is not declared yet, and
+`path.resolve()` gives `app.sqlite` in a directory named `@data` of the working directory.
+
 `app.exit(code)` ends the application gracefully with that exit code; `app.exit(true)` ends the process immediately with
 exit code 2, skipping the done handlers and the teardown.
 

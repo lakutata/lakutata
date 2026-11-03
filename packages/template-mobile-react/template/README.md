@@ -93,7 +93,11 @@ update), `ios/nodejs` (put into the bundle of the application by its build) or
 
 V8 runs without JIT on iOS and HarmonyOS. On iOS, WebAssembly comes from the polyfill that nodejs-mobile bundles, so
 `fetch()` works as on Android; HarmonyOS has none, and `fetch()` is removed there (`node:http` and `node:https` work).
-The temporary directory of the application is `os.tmpdir()` on the three systems.
+The temporary directory of the application is `os.tmpdir()` on the three systems: its cache, which the system may empty.
+The files that have to last go into its data directory, which `packages/app/src/App.ts` declares as the alias `@data`
+for each system: the `files` directory of the application on Android, `Library/Application Support` on iOS,
+`/data/storage/el2/base/files` on HarmonyOS and `packages/app/data` on the computer. `path.resolve('@data/app.sqlite')`
+gives the path of a file there in the options function that `App.ts` gives to `run()`, once the alias is declared.
 
 ## Native addons
 

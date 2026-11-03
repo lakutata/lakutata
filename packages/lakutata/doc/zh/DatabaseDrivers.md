@@ -277,22 +277,35 @@ export const db = buildDatabaseOptions({
 SQL Server 和 Oracle 还没有在手机上验证过。
 
 - `lakutata mobile stage` 用 NDK、Xcode 或 DevEco Studio 为每个系统从源码编译 `better-sqlite3`（见 `@lakutata/cli` README 中的 `lakutata mobile` 命令）。
+- 数据库文件需要长期保存，而 `os.tmpdir()` 是应用的缓存目录，系统可能清空它。模板的 `App.ts` 把应用的数据目录声明为别名 `@data`：Android 上是应用的 files 目录，iOS 上是 `Library/Application Support`，鸿蒙上是 `/data/storage/el2/base/files`，在开发用的电脑上是 `packages/app/data`。`path.resolve('@data/app.sqlite')` 在应用的选项函数中得到那里一个文件的路径（见 [Application](Application.md) 第 2 节）。
 - sql.js 的 asm.js 版本是编译成 JavaScript 的 SQLite：不需要 WebAssembly，也没有其他文件，所以在三个系统上都一样能运行。鸿蒙的 Node.js 没有 WebAssembly，iOS 的 Node.js 只有 nodejs-mobile 的 polyfill，慢得多：
 
 ```typescript
-import {createRequire} from 'node:module'
+import type {ApplicationOptions} from 'lakutata'
 import {buildDatabaseOptions} from 'lakutata/com/database'
+import {createRequire} from 'node:module'
+import path from 'node:path'
 
-export const db = buildDatabaseOptions({
-    type: 'sqljs',
-    location: 'data/app.sqlite',
-    autoSave: true,
-    //用 sql.js 的 asm.js 版本代替它的 WebAssembly 版本
-    driver: createRequire(import.meta.url)('sql.js/dist/sql-asm.js'),
-    entities: []
-})
+/**
+ * 应用的选项：App.ts 通过函数把它交给 run()，所以生成选项时 @data 已经声明
+ */
+export function config(): ApplicationOptions {
+    return {
+        id: 'app',
+        name: 'app',
+        components: {
+            db: buildDatabaseOptions({
+                type: 'sqljs',
+                location: path.resolve('@data/app.sqlite'),
+                autoSave: true,
+                //用 sql.js 的 asm.js 版本代替它的 WebAssembly 版本
+                driver: createRequire(import.meta.url)('sql.js/dist/sql-asm.js'),
+                entities: []
+            })
+        }
+    }
+}
 ```
 
 - sql.js 的 WebAssembly 版本从它的模块旁边的 `sql-wasm.wasm` 读取，而应用的单文件包里没有这个文件：在 `lakutata.resources` 中把它声明为资源（`from` 是 npm 把 `sql.js` 装在工作区里的位置），再把它在资源中的路径交给 `sqlJsConfig.locateFile`（见 [Packaging](Packaging.md) 第 6 节）。
 - 数据库服务器通过设备的网络连接；在模拟器上，用 `adb reverse`（Android）或 `hdc rport`（鸿蒙）连到电脑。
-- 数据库文件需要长期保存：`os.tmpdir()` 是应用的缓存目录，系统可能清空它。
