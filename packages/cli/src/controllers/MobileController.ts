@@ -475,6 +475,9 @@ async function runHarmony(project: MobileProject, device?: string): Promise<{ bu
     const hap: string | undefined = haps.find((name: string): boolean => name.includes('-signed')) ?? haps[0]
     if (!hap) throw new Error(`The build made no HAP (${path.relative(project.root, outputs)})`)
     await mustHdc('The application cannot be installed', tools.hdc, ['-t', target, 'install', '-r', path.join(outputs, hap)])
+    //The forward of a run before removed first: the server of hdc keeps it, setting it up again on an emulator started
+    //again, and rport fails on the port it takes (none to remove: hdc tells it, which is no failure)
+    await run(tools.hdc, ['-t', target, 'fport', 'rm', `tcp:${METRO_PORT}`, `tcp:${METRO_PORT}`])
     await mustHdc('Metro cannot be made reachable from the device (hdc rport)', tools.hdc, ['-t', target, 'rport', `tcp:${METRO_PORT}`, `tcp:${METRO_PORT}`])
     //A copy deployed before turned off (none deployed: nothing to write)
     await writeHarmonyDevelopment(tools.hdc, target, bundle, 'off')

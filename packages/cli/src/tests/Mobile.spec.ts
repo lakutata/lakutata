@@ -151,6 +151,9 @@ echo "hdc $*" >> "$TOOLS_LOG"
 if [ -n "$HDC_FAIL" ]; then case "$*" in *" $HDC_FAIL "*) echo "$HDC_FAIL_OUTPUT"; exit 0 ;; esac; fi
 case "$*" in
     "list targets") echo "127.0.0.1:5555" ;;
+    #The forward of Metro, kept by the server of hdc from a run to the next: rport fails while it is set up
+    *" rport tcp:8081 tcp:8081") if [ -f "$HDC_FORWARD" ]; then echo "[Fail]TCP Port listen failed at 8081"; else touch "$HDC_FORWARD"; echo "Forwardport result:OK"; fi ;;
+    *" fport rm tcp:8081 tcp:8081") if [ -f "$HDC_FORWARD" ]; then rm "$HDC_FORWARD"; echo "Remove forward ruler success, ruler:tcp:8081 tcp:8081"; else echo "[Fail]Remove forward ruler failed, ruler is not exist tcp:8081 tcp:8081"; fi ;;
     *" file send -b "*)
         #The files of the application ($HARMONY_FILES): a directory copied into the one of its name, a file written
         if [ -d "$7" ]; then cp -R "$7" "$HARMONY_FILES/"; elif [ -d "$(dirname "$HARMONY_FILES\${8#/data/storage/el2/base/files}")" ]; then cp "$7" "$HARMONY_FILES\${8#/data/storage/el2/base/files}"; else echo "[Fail]Error opening file"; exit 0; fi
@@ -167,6 +170,7 @@ esac
             IOS_APP: path.join(work, 'simulator', 'App.app'),
             DEVECO_STUDIO_HOME: deveco,
             HARMONY_FILES: path.join(work, 'harmony-files'),
+            HDC_FORWARD: path.join(work, 'hdc-forward'),
             LAKUTATA_MOBILE_NODE_DIR: path.join(work, 'exports')
         }
         mkdirSync(path.join(work, 'device', 'files'), {recursive: true})
@@ -264,6 +268,7 @@ esac
             'ohpm install --all',
             `hvigor --mode module -p product=default -p module=entry@default assembleHap --no-daemon (${sdk})`,
             `hdc -t 127.0.0.1:5555 install -r ${hap}`,
+            'hdc -t 127.0.0.1:5555 fport rm tcp:8081 tcp:8081',
             'hdc -t 127.0.0.1:5555 rport tcp:8081 tcp:8081',
             `hdc -t 127.0.0.1:5555 file send -b ${APP_ID} <tmp>/nodejs-dev/.development /data/storage/el2/base/files/nodejs-dev/.development`,
             `hdc -t 127.0.0.1:5555 shell aa force-stop ${APP_ID}`,
@@ -283,8 +288,9 @@ esac
         const development: string = path.join(work, 'harmony-files', 'nodejs-dev')
         assert.strictEqual(readFileSync(path.join(development, '.development'), 'utf8'), 'on\n')
         assert.ok(existsSync(path.join(development, 'app.cjs')))
-        //Run again: the copy turned off, the project of the HAP runs
-        assert.strictEqual((await run(['mobile', 'run', 'harmony'])).code, 0)
+        //Run again: the forward of Metro set up again, the copy turned off, the project of the HAP runs
+        const again = await run(['mobile', 'run', 'harmony'])
+        assert.strictEqual(again.code, 0, again.output)
         assert.strictEqual(readFileSync(path.join(development, '.development'), 'utf8'), 'off\n')
     })
 
