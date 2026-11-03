@@ -16,8 +16,8 @@ end
 
 target 'App' do
   config = use_native_modules!
-  # The Node.js of the application: its host, its TurboModule and its libnode (native/)
-  pod 'LakutataNodeHost', :path => '../native'
+  # The Node.js of the application: its host, its TurboModule and its libnode (packages/ipc/native)
+  pod 'LakutataNodeHost', :path => '../packages/ipc/native'
 
   use_react_native!(
     :path => config[:reactNativePath],

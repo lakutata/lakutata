@@ -85,8 +85,8 @@ describe('lakutata mobile', {skip: process.platform === 'win32' && 'the fake too
         symlinkSync(path.join(ROOT, 'node_modules'), path.join(app, 'node_modules'), 'dir')
         writeFileSync(path.join(app, 'package.json'), JSON.stringify({name: 'app', version: '1.0.0', type: 'module', main: 'build/App.js'}))
         writeFileSync(path.join(app, 'build', 'App.js'), 'console.log("mobile")\n')
-        mkdirSync(path.join(work, 'native'), {recursive: true})
-        writeFileSync(path.join(work, 'native', 'NodeHost.cpp'), '')
+        mkdirSync(path.join(work, 'packages', 'ipc', 'native'), {recursive: true})
+        writeFileSync(path.join(work, 'packages', 'ipc', 'native', 'NodeHost.cpp'), '')
         script(path.join(work, 'android', 'app', 'build.gradle'), `android {\n    defaultConfig {\n        applicationId "${APP_ID}"\n    }\n}\n`)
         mkdirSync(path.join(work, 'ios', 'App.xcodeproj'), {recursive: true})
         writeFileSync(path.join(work, 'ios', 'App.xcodeproj', 'project.pbxproj'), `PRODUCT_BUNDLE_IDENTIFIER = "${APP_ID}";\n`)
@@ -187,23 +187,23 @@ esac
         //The project found from a directory of it
         const exported = await run(['mobile', 'node', 'harmony'], path.join(work, 'packages', 'app'))
         assert.strictEqual(exported.code, 0, exported.output)
-        assert.match(exported.output, /The libnode of harmony: \.\.\/\.\.\/native\/node\/out\/harmony/)
-        assert.strictEqual(readFileSync(path.join(work, 'native', 'node', 'out', 'harmony', 'libs', 'arm64-v8a', 'libnode.so'), 'utf8'), 'libnode of harmony')
+        assert.match(exported.output, /The libnode of harmony: \.\.\/ipc\/native\/node\/out\/harmony/)
+        assert.strictEqual(readFileSync(path.join(work, 'packages', 'ipc', 'native', 'node', 'out', 'harmony', 'libs', 'arm64-v8a', 'libnode.so'), 'utf8'), 'libnode of harmony')
         assert.strictEqual(readFileSync(path.join(work, 'harmony', 'entry', 'libs', 'arm64-v8a', 'libnode.so'), 'utf8'), 'libnode of harmony')
         for (const platform of ['android', 'ios']) assert.strictEqual((await run(['mobile', 'node', platform])).code, 0)
-        assert.ok(existsSync(path.join(work, 'native', 'node', 'out', 'ios', 'NodeMobile.xcframework', 'Info.plist')))
+        assert.ok(existsSync(path.join(work, 'packages', 'ipc', 'native', 'node', 'out', 'ios', 'NodeMobile.xcframework', 'Info.plist')))
         //Outside of a project
         const outside = await run(['mobile', 'node', 'android'], tmpdir())
         assert.notStrictEqual(outside.code, 0)
-        assert.match(outside.output, /is in no project of a mobile application \(native\/NodeHost\.cpp and packages\/app/)
+        assert.match(outside.output, /is in no project of a mobile application \(packages\/app and packages\/ipc\/native\/NodeHost\.cpp/)
     })
 
     it('makes the Node.js project of the application where the native project of the system takes it', async (): Promise<void> => {
         //The libnode of the system put into the project first when it has none
-        rmSync(path.join(work, 'native', 'node', 'out', 'android'), {recursive: true})
+        rmSync(path.join(work, 'packages', 'ipc', 'native', 'node', 'out', 'android'), {recursive: true})
         const staged = await run(['mobile', 'stage', 'android'])
         assert.strictEqual(staged.code, 0, staged.output)
-        assert.ok(existsSync(path.join(work, 'native', 'node', 'out', 'android', 'libs', 'arm64-v8a', 'libnode.so')))
+        assert.ok(existsSync(path.join(work, 'packages', 'ipc', 'native', 'node', 'out', 'android', 'libs', 'arm64-v8a', 'libnode.so')))
         assert.match(staged.output, /The Node\.js project for android \(Node\.js 24\.20\.0\): android\/app\/src\/main\/assets\/nodejs/)
         for (const file of ['package.json', 'main.js', 'app.cjs']) assert.ok(existsSync(path.join(work, 'android', 'app', 'src', 'main', 'assets', 'nodejs', file)), file)
         for (const [platform, directory] of [['ios', 'ios/nodejs'], ['harmony', 'harmony/entry/src/main/resources/resfile/nodejs']]) {

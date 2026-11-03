@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react'
 import {Button, ScrollView, StyleSheet, Text} from 'react-native'
-import {ipc} from './src/ipc'
+import {ipc} from 'ipc'
 
 export default function App() {
     const [message, setMessage] = useState<string>('…')

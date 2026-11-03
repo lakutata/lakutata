@@ -10,8 +10,9 @@ const outside = (directory) => new RegExp(`^${path.resolve(__dirname, directory)
 
 /**
  * The configuration of Metro: React Native, and the platform harmony of RNOH (the user interface of HarmonyOS). The
- * user interface does not import the code of packages/app, which runs in the Node.js of the application
+ * user interface (packages/ui, with packages/ipc) does not import the code of packages/app, which runs in the Node.js of
+ * the application, nor the Node.js projects made for the native projects
  */
 module.exports = mergeConfig(getDefaultConfig(__dirname), createHarmonyMetroConfig({reactNativeHarmonyPackageName: '@react-native-oh/react-native-harmony'}), {
-    resolver: {blockList: [outside('packages'), outside('native/node/out'), outside('android/app/src/main/assets'), outside('ios/nodejs')]}
+    resolver: {blockList: [outside('packages/app'), outside('packages/ipc/native/node/out'), outside('android/app/src/main/assets'), outside('ios/nodejs')]}
 })

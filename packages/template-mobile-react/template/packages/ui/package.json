@@ -1,0 +1,23 @@
+{
+  "name": "ui",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The user interface of React Native, the same on Android, iOS and HarmonyOS: its component App, which the application registers (index.js)",
+  "main": "src/App.tsx",
+  "types": "src/App.tsx",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ipc": "^0.0.1"
+  },
+  "peerDependencies": {
+    "react": "19.2.3",
+    "react-native": "0.86.3"
+  },
+  "devDependencies": {
+    "@react-native/typescript-config": "0.86.3",
+    "@types/react": "^19.2.0",
+    "typescript": "^5.8.3"
+  }
+}

@@ -774,9 +774,14 @@ describe('The templates of the repository', (): void => {
     it('creates a mobile application of React Native (mobile-react) whose Node.js serves its user interface, its native projects given the id of the application', async (): Promise<void> => {
         const project: string = await create('mobile-react', 'Pocket')
         const read = (file: string): string => readFileSync(path.join(project, ...file.split('/')), 'utf8')
-        for (const file of ['app.json', 'App.tsx', 'android/app/build.gradle', 'android/app/src/main/res/values/strings.xml', 'ios/App.xcodeproj/project.pbxproj', 'ios/App/Info.plist', 'harmony/AppScope/app.json5', 'harmony/AppScope/resources/base/element/string.json', 'packages/app/package.json']) {
+        for (const file of ['app.json', 'packages/ui/src/App.tsx', 'android/app/build.gradle', 'android/app/src/main/res/values/strings.xml', 'ios/App.xcodeproj/project.pbxproj', 'ios/App/Info.plist', 'harmony/AppScope/app.json5', 'harmony/AppScope/resources/base/element/string.json', 'packages/app/package.json']) {
             assert.doesNotMatch(read(file), /\{\$APP_/, file)
         }
+        //The application of React Native at the root (its entry, its configurations, its native projects), its parts in the
+        //packages of the workspace, as in the other templates: the application, the user interface, ipc
+        assert.deepStrictEqual(readdirSync(project).filter((name: string): boolean => name !== 'node_modules').sort(), ['.gitignore', 'README.md', 'android', 'app.json', 'babel.config.js', 'harmony', 'index.js', 'ios', 'metro.config.js', 'package.json', 'packages'])
+        assert.deepStrictEqual(readdirSync(path.join(project, 'packages')).sort(), ['app', 'ipc', 'ui'])
+        assert.match(read('index.js'), /import App from 'ui'/)
         //The id of the application on the three systems
         const bundleId: string = 'com\\.example\\.pocket'
         assert.match(read('android/app/build.gradle'), new RegExp(`applicationId "${bundleId}"`))
@@ -787,9 +792,9 @@ describe('The templates of the repository', (): void => {
         assert.doesNotMatch(read('android/app/build.gradle'), /ignoreAssetsPattern = '[^']*:\.\*:/)
         for (const file of ['harmony/.gitignore', 'harmony/entry/src/main/cpp/.gitignore', 'ios/.xcode.env']) assert.ok(existsSync(path.join(project, ...file.split('/'))), file)
         //What lakutata mobile makes is left out of git
-        for (const directory of ['native/node/out/', 'android/app/src/main/assets/nodejs/', 'ios/nodejs/', 'ios/NodeAddons/', 'harmony/entry/libs/']) assert.ok(read('.gitignore').split('\n').includes(directory), directory)
+        for (const directory of ['packages/ipc/native/node/out/', 'android/app/src/main/assets/nodejs/', 'ios/nodejs/', 'ios/NodeAddons/', 'harmony/entry/libs/']) assert.ok(read('.gitignore').split('\n').includes(directory), directory)
         //libnode is downloaded (lakutata mobile node), not built: the project holds no Dockerfile of it
-        assert.ok(!existsSync(path.join(project, 'native', 'node')))
+        assert.ok(!existsSync(path.join(project, 'packages', 'ipc', 'native', 'node')))
         //The Node.js side, built and tested: its actions served through a socket standing for the native module
         install(project, ['@types/node'], path.join(ROOT, 'node_modules', 'typescript'))
         linkWorkspace(project, ['app'])

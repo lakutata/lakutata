@@ -18,8 +18,8 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/autolinking.cmake")
 
 file(GLOB GENERATED_CPP_FILES "${CMAKE_CURRENT_SOURCE_DIR}/generated/*.cpp") # this line is needed by codegen v1
 
-# The Node.js of the application: its host and its TurboModule (native/, shared with Android and iOS)
-set(LAKUTATA_NATIVE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../native")
+# The Node.js of the application: its host and its TurboModule (packages/ipc/native, shared with Android and iOS)
+set(LAKUTATA_NATIVE "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../packages/ipc/native")
 set(LAKUTATA_NODE "${LAKUTATA_NATIVE}/node/out/harmony")
 if(NOT EXISTS "${LAKUTATA_NODE}/libs/arm64-v8a/libnode.so")
   message(FATAL_ERROR "The libnode of HarmonyOS is missing: npm run node:harmony")
@@ -36,9 +36,9 @@ target_link_libraries(rnoh_app PUBLIC rnoh)
 
 autolink_libraries(rnoh_app)
 
-# The runtime of Node.js (its embedding API) linking the libnode of HarmonyOS downloaded into native/node/out/harmony
-# (npm run node:harmony, which puts libnode.so into the libraries of the HAP too); loaded by the host with dlopen
-# (RTLD_LOCAL)
+# The runtime of Node.js (its embedding API) linking the libnode of HarmonyOS downloaded into
+# packages/ipc/native/node/out/harmony (npm run node:harmony, which puts libnode.so into the libraries of the HAP too);
+# loaded by the host with dlopen (RTLD_LOCAL)
 add_library(lakutata_node SHARED "${LAKUTATA_NATIVE}/NodeRuntime.cpp")
 target_include_directories(lakutata_node PRIVATE "${LAKUTATA_NODE}/include/node")
 set_target_properties(lakutata_node PROPERTIES CXX_STANDARD 20)

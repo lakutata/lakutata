@@ -81,12 +81,14 @@ async function shown(command: string, args: string[], cwd: string, env?: NodeJS.
 }
 
 /**
- * A project of a mobile application laid out as the mobile-react template: the user interface of React Native at its
- * root, the application in packages/app, the native module and the libnode of each system in native/
+ * A project of a mobile application laid out as the mobile-react template: the application of React Native at its root
+ * (its entry and the native projects of the systems), a workspace whose packages are the application in packages/app,
+ * the user interface in packages/ui, and the native module embedding Node.js with the libnode of each system in
+ * packages/ipc/native
  */
 type MobileProject = {
     /**
-     * Its root
+     * Its root, which holds the native projects (android, ios, harmony)
      */
     root: string
     /**
@@ -94,27 +96,29 @@ type MobileProject = {
      */
     app: string
     /**
-     * The directory of the native module (native/), which holds the libnode of each system (native/node/out/<platform>)
+     * The directory of the native module (packages/ipc/native), which holds the libnode of each system
+     * (node/out/<platform>)
      */
     native: string
 }
 
 /**
- * The project of a mobile application holding a directory: the first one up holding native/NodeHost.cpp and
- * packages/app
+ * The project of a mobile application holding a directory: the first one up holding packages/ipc/native/NodeHost.cpp
+ * and packages/app
  * @param directory
  */
 function mobileProject(directory: string): MobileProject {
     for (let current: string = directory; ; current = path.dirname(current)) {
-        if (existsSync(path.join(current, 'native', 'NodeHost.cpp')) && existsSync(path.join(current, 'packages', 'app', 'package.json'))) {
-            return {root: current, app: path.join(current, 'packages', 'app'), native: path.join(current, 'native')}
+        const packages: string = path.join(current, 'packages')
+        if (existsSync(path.join(packages, 'ipc', 'native', 'NodeHost.cpp')) && existsSync(path.join(packages, 'app', 'package.json'))) {
+            return {root: current, app: path.join(packages, 'app'), native: path.join(packages, 'ipc', 'native')}
         }
-        if (current === path.dirname(current)) throw new Error(`${directory} is in no project of a mobile application (native/NodeHost.cpp and packages/app, as the mobile-react template lays them out)`)
+        if (current === path.dirname(current)) throw new Error(`${directory} is in no project of a mobile application (packages/app and packages/ipc/native/NodeHost.cpp, as the mobile-react template lays them out)`)
     }
 }
 
 /**
- * The libnode of a system put into the project (native/node/out/<platform>)
+ * The libnode of a system put into the project (packages/ipc/native/node/out/<platform>)
  * @param project
  * @param platform
  */
@@ -510,7 +514,7 @@ async function deployHarmony(directory: string, bundle: string, device?: string)
  */
 export class MobileController extends Controller {
 
-    @CLIAction('mobile node <platform>', MobileNodeDTO, {description: 'Download the libnode of a system (android, ios, harmony) from the releases of lakutata/libnode (LAKUTATA_LIBNODE_MIRROR: a mirror of them), once: kept in the cache of lakutata, put into native/node/out/<platform>'})
+    @CLIAction('mobile node <platform>', MobileNodeDTO, {description: 'Download the libnode of a system (android, ios, harmony) from the releases of lakutata/libnode (LAKUTATA_LIBNODE_MIRROR: a mirror of them), once: kept in the cache of lakutata, put into packages/ipc/native/node/out/<platform>'})
     public async node(input: MobileNodeDTO): Promise<undefined> {
         const project: MobileProject = mobileProject(process.cwd())
         const abis: AndroidAbi[] | undefined = input.abis ? input.abis.split(',').map((abi: string): string => abi.trim()).filter(Boolean) as AndroidAbi[] : undefined

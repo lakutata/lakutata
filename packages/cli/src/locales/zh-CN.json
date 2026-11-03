@@ -188,7 +188,7 @@
       "mobile": {
         "description": "React Native 手机应用（Android、iOS、鸿蒙）：下载它的 libnode，生成它的 Node.js 项目，在模拟器上运行应用，开发时部署到已安装的应用里",
         "node": {
-          "description": "从 lakutata/libnode 的 Release 下载一个系统（android、ios、harmony）的 libnode（LAKUTATA_LIBNODE_MIRROR 指定镜像），只下载一次：保存在 lakutata 的缓存中，放到 native/node/out/<platform>",
+          "description": "从 lakutata/libnode 的 Release 下载一个系统（android、ios、harmony）的 libnode（LAKUTATA_LIBNODE_MIRROR 指定镜像），只下载一次：保存在 lakutata 的缓存中，放到 packages/ipc/native/node/out/<platform>",
           "arguments": {
             "platform": "libnode 面向的系统：android、ios 或 harmony"
           },

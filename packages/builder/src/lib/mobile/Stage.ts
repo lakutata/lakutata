@@ -40,10 +40,9 @@ export type MobileStageOptions = {
      */
     external?: string[]
     /**
-     * The libnode of the system: the directory of its export by the Dockerfile of the project
-     * (native/node/out/<platform> in the projects of the mobile-react template), its headers (include/node) and its
-     * libraries. The bundle targets its version of Node.js (24.20.0 without it); the native addons are built against
-     * it, and need it
+     * The libnode of the system: the directory it is put into (packages/ipc/native/node/out/<platform> in the projects
+     * of the mobile-react template), its headers (include/node) and its libraries. The bundle targets its version of
+     * Node.js (24.20.0 without it); the native addons are built against it, and need it
      */
     node?: string
     /**
@@ -178,9 +177,13 @@ async function treeFiles(directory: string, base: string = directory): Promise<N
  * @example
  * import {stageMobileApp} from '@lakutata/builder'
  *
- * //In packages/app of a project of the mobile-react template, before the application of Android is built const stage =
- * await stageMobileApp({platform: 'android', outdir: '../../android/app/src/main/assets/nodejs', node:
- * '../../native/node/out/android'}) console.log(stage.directory, stage.node)
+ * //In packages/app of a project of the mobile-react template, before the application of Android is built
+ * const stage = await stageMobileApp({
+ *     platform: 'android',
+ *     outdir: '../../android/app/src/main/assets/nodejs',
+ *     node: '../ipc/native/node/out/android'
+ * })
+ * console.log(stage.directory, stage.node)
  */
 export async function stageMobileApp(options: MobileStageOptions): Promise<MobileStage> {
     const project: string = path.resolve(options.project ?? process.cwd())

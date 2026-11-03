@@ -3,9 +3,9 @@ project(appmodules)
 
 include(${REACT_ANDROID_DIR}/cmake-utils/ReactNative-application.cmake)
 
-# The Node.js of the application: its host and its TurboModule (native/, shared with iOS and HarmonyOS), linking the
-# libnode of Android downloaded into native/node/out/android (npm run node:android)
-set(LAKUTATA_NATIVE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../native)
+# The Node.js of the application: its host and its TurboModule (packages/ipc/native, shared with iOS and HarmonyOS),
+# linking the libnode of Android downloaded into packages/ipc/native/node/out/android (npm run node:android)
+set(LAKUTATA_NATIVE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../packages/ipc/native)
 set(LAKUTATA_NODE ${LAKUTATA_NATIVE}/node/out/android)
 if(NOT EXISTS ${LAKUTATA_NODE}/libs/${ANDROID_ABI}/libnode.so)
   message(FATAL_ERROR "The libnode of Android for ${ANDROID_ABI} is missing: npm run node:android")

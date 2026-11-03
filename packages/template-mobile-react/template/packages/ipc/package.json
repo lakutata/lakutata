@@ -1,0 +1,19 @@
+{
+  "name": "ipc",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The Node.js of the application for the user interface: the native module embedding it (native/) and ipc, which invokes the actions of the application and listens to its events",
+  "main": "src/ipc.ts",
+  "types": "src/ipc.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "19.2.3",
+    "react-native": "0.86.3"
+  },
+  "devDependencies": {
+    "@react-native/typescript-config": "0.86.3",
+    "typescript": "^5.8.3"
+  }
+}

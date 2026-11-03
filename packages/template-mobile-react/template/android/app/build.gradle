@@ -84,11 +84,11 @@ android {
         // the workers and the files the application reads
         ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
-    // The libnode of Android downloaded into native/node/out/android (npm run node:android), packed with the libraries
-    // of the application; the Node.js project (npm run stage:android) is in src/main/assets/nodejs
+    // The libnode of Android downloaded into packages/ipc/native/node/out/android (npm run node:android), packed with
+    // the libraries of the application; the Node.js project (npm run stage:android) is in src/main/assets/nodejs
     sourceSets {
         main {
-            jniLibs.srcDirs += ["../../native/node/out/android/libs"]
+            jniLibs.srcDirs += ["../../packages/ipc/native/node/out/android/libs"]
         }
     }
     ndkVersion rootProject.ext.ndkVersion

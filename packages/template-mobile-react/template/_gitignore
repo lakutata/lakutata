@@ -82,7 +82,7 @@ dist
 .env
 .env.*
 # The libnode downloaded by npm run node:<platform>
-native/node/out/
+packages/ipc/native/node/out/
 # The Node.js project of the application made by the stage (npm run stage:<platform>), its native addons
 android/app/src/main/assets/nodejs/
 ios/nodejs/
