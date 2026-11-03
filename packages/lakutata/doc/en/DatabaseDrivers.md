@@ -23,8 +23,9 @@ npm install lakutata pg
 ```
 
 There is no `sqlite` type: SQLite files use `better-sqlite3`, or `sqljs` where a native module cannot run. TypeORM also
-has drivers for the mobile platforms (`capacitor`, `cordova`, `expo`, `nativescript`, `react-native`); lakutata does
-not target them.
+has drivers for the JavaScript of the mobile platforms (`capacitor`, `cordova`, `expo`, `nativescript`, `react-native`);
+lakutata does not use them. A mobile application of the `mobile-react` template runs the lakutata application in a
+Node.js instead; the Node.js of HarmonyOS has no WebAssembly, so `sqljs` does not run there.
 
 ## What applies to every driver
 

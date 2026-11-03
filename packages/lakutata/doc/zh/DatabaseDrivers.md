@@ -21,7 +21,7 @@
 npm install lakutata pg
 ```
 
-没有 `sqlite` 这个类型：SQLite 文件使用 `better-sqlite3`；在无法运行原生模块的环境中使用 `sqljs`。TypeORM 还有面向移动平台的驱动（`capacitor`、`cordova`、`expo`、`nativescript`、`react-native`），lakutata 不以这些平台为目标。
+没有 `sqlite` 这个类型：SQLite 文件使用 `better-sqlite3`；在无法运行原生模块的环境中使用 `sqljs`。TypeORM 还有面向移动平台 JavaScript 环境的驱动（`capacitor`、`cordova`、`expo`、`nativescript`、`react-native`），lakutata 不使用它们。`mobile-react` 模板的手机应用把 lakutata 应用运行在 Node.js 中；鸿蒙上的 Node.js 没有 WebAssembly，所以 `sqljs` 不能在那里运行。
 
 ## 所有驱动通用的规则
 

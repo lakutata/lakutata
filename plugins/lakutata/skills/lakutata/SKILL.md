@@ -1,14 +1,15 @@
 ---
 name: lakutata
 description: >-
-  Writes, changes and tests applications built on lakutata 3.x, the IoC application framework for Node.js and
-  TypeScript (web services and APIs, command line tools, Electron and NW.js desktop applications, services on devices,
-  MCP servers). Use it when a project depends on "lakutata" or "@lakutata/*", imports from 'lakutata' or 'lakutata/...',
-  calls Application.run(), has classes extending Component, Provider, Controller or DTO, uses decorators such as
-  @Inject, @Configurable, @Expect, @GET, @POST, @CLIAction, @ServiceAction, @Schedule or @QueueAction, calls
-  buildEntrypoints() or an adapter such as expressHTTPEntrypoint(), extends "lakutata/tsconfig.json", or runs the
-  lakutata command (@lakutata/cli). Also for creating a project from a lakutata template, and for upgrading to 3.x a
-  lakutata 2.x project or a 1.x one (packages @lakutata/core 1.x, @lakutata-component/*, @lakutata-module/*).
+  Writes, changes and tests applications built on lakutata 3.x, the IoC application framework for Node.js and TypeScript
+  (web services and APIs, command line tools, Electron and NW.js desktop applications, React Native mobile applications
+  for Android, iOS and HarmonyOS, services on devices, MCP servers). Use it when a project depends on "lakutata" or
+  "@lakutata/*", imports from 'lakutata' or 'lakutata/...', calls Application.run(), has classes extending Component,
+  Provider, Controller or DTO, uses decorators such as @Inject, @Configurable, @Expect, @GET, @POST, @CLIAction,
+  @ServiceAction, @Schedule or @QueueAction, calls buildEntrypoints() or an adapter such as expressHTTPEntrypoint(),
+  extends "lakutata/tsconfig.json", or runs the lakutata command (@lakutata/cli). Also for creating a project from a
+  lakutata template, and for upgrading to 3.x a lakutata 2.x project or a 1.x one (packages @lakutata/core 1.x,
+  @lakutata-component/*, @lakutata-module/*).
 license: MIT
 metadata:
   framework: lakutata

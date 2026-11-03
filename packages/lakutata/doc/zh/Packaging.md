@@ -8,6 +8,8 @@
 
 `lakutata package bundle`、`package exe` 和 `package installer` 借助 `@lakutata/builder` 生成它们，项目需要安装它（`npm install --save-dev @lakutata/builder`；需要打包的模板已经带上了）。
 
+`mobile-react` 模板的手机应用用另一种方式发布：`lakutata mobile stage` 把应用打包成面向手机应用内嵌的 Node.js 的单文件包，应用商店需要的发布版本由它的原生工程构建（见模板为项目生成的 README 中的 The packaging 一节）。
+
 ## 1. 打包的内容
 
 - **编译后的应用**：打包的是 `tsc` 的输出（`tsc` 会生成装饰器的元数据），而不是 TypeScript 源码，所以要先构建。入口依次是 `--entry`、`package.json` 的 `main`、`build/App.js`。

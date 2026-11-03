@@ -542,7 +542,7 @@ is left out, and a result that JSON cannot hold (a `bigint`, a cycle) is answere
 - When Node.js ends (`process.exit()`, an uncaught exception), the mobile application keeps running: the native module
   reports the exit code and can start Node.js again.
 - The `mobile-react` template of `lakutata create` contains such a native module, and an `ipc` for the interface like
-  the one of the Electron templates.
+  the one of the Electron templates, both in its package `packages/ipc`.
 
 ## 5. Clients and events
 

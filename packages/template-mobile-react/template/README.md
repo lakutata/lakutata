@@ -6,17 +6,22 @@ A [lakutata](https://github.com/lakutata/lakutata) mobile application for Androi
 Native](https://reactnative.dev) and, on HarmonyOS, [RNOH](https://gitcode.com/openharmony-sig/ohos_react_native) (React
 Native for OpenHarmony, `@react-native-oh/react-native-harmony`). The application runs in a Node.js embedded in the
 mobile application: a libnode built from the sources of Node.js by
-[lakutata/libnode](https://github.com/lakutata/libnode) and downloaded from its releases. The project is a workspace:
+[lakutata/libnode](https://github.com/lakutata/libnode) and downloaded from its releases.
+
+The root of the project is the application of React Native: its entry `index.js`, which registers the component `App`
+of the user interface, `app.json`, the configurations of Metro and Babel, and the native projects `android`, `ios` and
+`harmony`, opened in Android Studio, Xcode (`ios/App.xcworkspace`, once the pods are installed) and DevEco Studio. Its
+parts are the packages of a workspace:
 
 - `packages/app`: the Node.js side, a lakutata application. Its controllers serve their `@ServiceAction` actions to the
   user interface through the native module (`reactNativeServiceEntrypoint`);
-- the root: the user interface of React Native (`App.tsx`). `ipc` (`src/ipc.ts`) invokes the actions of the
-  application, `ipc.invoke({cmd: 'greet', name: 'you'})`, and listens to the events it pushes,
-  `ipc.on('greeted', listener)` (which returns the function removing the listener);
-- `native`: the native module, in C++ shared by the three systems (it starts Node.js in a thread of its own and talks to
-  it over a socket), and `native/node/out`, the libnode of each system once downloaded;
-- `android`, `ios` and `harmony`: the native projects, opened in Android Studio, Xcode (`ios/App.xcworkspace`, once the
-  pods are installed) and DevEco Studio.
+- `packages/ui`: the user interface of React Native, the same on the three systems (`src/App.tsx`, its component
+  `App`);
+- `packages/ipc`: what connects the user interface to the Node.js side. `ipc` (`src/ipc.ts`, imported from the package
+  `ipc`) invokes the actions of the application, `ipc.invoke({cmd: 'greet', name: 'you'})`, and listens to the events
+  it pushes, `ipc.on('greeted', listener)` (which returns the function removing the listener); `native` is the native
+  module, in C++ shared by the three systems (it starts Node.js in a thread of its own and talks to it over a socket),
+  and `native/node/out` the libnode of each system once downloaded.
 
 ```bash
 npm run node:android      # download the libnode of Android (npm run android does it the first time)
@@ -54,13 +59,14 @@ and the names of the projects (`App`) are not the id and can stay as they are.
 
 ## The development
 
-Android needs Android Studio (its SDK in `ANDROID_HOME`, its NDK, an emulator, and a JDK such as the one it ships with);
-iOS needs Xcode and CocoaPods on macOS; HarmonyOS needs DevEco Studio (its emulator, or a device).
+Android needs the Android SDK (`ANDROID_HOME`, with its NDK and an emulator, as Android Studio installs them) and a JDK
+that Gradle runs on (`JAVA_HOME`, see [Problems](#problems)); iOS needs Xcode and CocoaPods on macOS; HarmonyOS needs
+DevEco Studio (its emulator, or a device).
 
 1. The libnode of the system is downloaded the first time `npm run android` (or `ios`, `harmony`) runs, or beforehand by
    `npm run node:android` (or `node:ios`, `node:harmony`): from the releases of lakutata/libnode, checked with their
-   checksums, kept in the cache of lakutata and put into `native/node/out/<platform>`, which the native projects build
-   against. `LAKUTATA_LIBNODE_MIRROR` gives a mirror of the releases
+   checksums, kept in the cache of lakutata and put into `packages/ipc/native/node/out/<platform>`, which the native
+   projects build against. `LAKUTATA_LIBNODE_MIRROR` gives a mirror of the releases
    (`<mirror>/v<version>/libnode_<platform>_<arch>.tar.gz`), and `LAKUTATA_MOBILE_NODE_DIR` a libnode of your own, built
    with the repository of lakutata/libnode (a directory per system: `android`, `ios`, `harmony`).
 2. Start Metro: `npm start`.
@@ -83,7 +89,7 @@ stage` bundles the application for it into the place where the native project ta
 `android/app/src/main/assets/nodejs` (copied into the files of the application at its first launch and after each
 update), `ios/nodejs` (put into the bundle of the application by its build) or
 `harmony/entry/src/main/resources/resfile/nodejs` (run from the resources of the HAP). These are left out of git, with
-`native/node/out`.
+`packages/ipc/native/node/out`.
 
 V8 runs without JIT on iOS and HarmonyOS. On iOS, WebAssembly comes from the polyfill that nodejs-mobile bundles, so
 `fetch()` works as on Android; HarmonyOS has none, and `fetch()` is removed there (`node:http` and `node:https` work).
@@ -103,6 +109,15 @@ The release builds come from the native projects: `cd android && ./gradlew bundl
 Android, signed with the keystore `android/app/build.gradle` names: the debug keystore in the template, so give it your
 release keystore first), an archive of `ios/App.xcworkspace` in Xcode (Product, Archive, with your team in Signing &
 Capabilities), and `assembleApp` of DevEco Studio for HarmonyOS (signed with the profile of the application). Make the
-Node.js project first (`npm run stage:<platform>`); for HarmonyOS, bundle the user interface too
-(`npx react-native bundle-harmony --dev false --bundle-output harmony/entry/src/main/resources/rawfile/bundle.harmony.js`,
-which `npm run harmony` does).
+Node.js project first (`npm run stage:<platform>`); the release builds bundle the user interface themselves, compiled by
+Hermes on Android and iOS.
+
+## Problems
+
+- **Gradle refuses the JDK**: the JDK of `JAVA_HOME` (or of the `PATH`) is newer than the Gradle of the project (9.3)
+  runs on, as Java 27 is. Give `JAVA_HOME` an older one, such as JDK 21.
+- **The application of HarmonyOS shows a blank screen, or `npm run harmony` stops with
+  `[Fail]TCP Port listen failed at 8081`**: the emulator started from its snapshot, which keeps on the port the listener
+  an earlier forward of Metro left there. Start the emulator again with a cold boot (Cold Boot in the Device Manager of
+  DevEco Studio).
+- **The emulator of HarmonyOS does not start (ErrorCode 00801002)**: it needs 12 GB free on the disk.

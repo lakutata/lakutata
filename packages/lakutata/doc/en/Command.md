@@ -118,9 +118,11 @@ and starts the application again.
 | `LAKUTATA_LANG` | The language of the tool (`en`, `zh-CN`, `zh-TW`) |
 | `LAKUTATA_NPM_REGISTRY` | The registry the templates come from (else `npm_config_registry`, else `https://registry.npmjs.org`) |
 | `LAKUTATA_GITHUB_DOWNLOAD` | Where the `github:` templates are downloaded from (`https://github.com` by default) |
-| `LAKUTATA_CACHE_DIR` | The cache of the tool: the templates, the tools that make installers and the runtimes of NW.js (`$XDG_CACHE_HOME/lakutata`, else `~/.cache/lakutata`) |
+| `LAKUTATA_CACHE_DIR` | The cache of the tool: the templates, the tools that make installers, the runtimes of NW.js, and the libnode of the mobile applications with their native addons (`$XDG_CACHE_HOME/lakutata`, else `~/.cache/lakutata`) |
 | `LAKUTATA_NWJS_MIRROR` | Where the runtimes of NW.js are downloaded from (`https://dl.nwjs.io` by default) |
 | `LAKUTATA_NWJS_VERSIONS` | The list of the releases of NW.js (`https://nwjs.io/versions.json` by default) |
+| `LAKUTATA_LIBNODE_MIRROR` | A mirror of the releases of lakutata/libnode, which the libnode of the mobile applications is downloaded from (`<mirror>/v<version>/libnode_<platform>_<arch>.tar.gz`) |
+| `LAKUTATA_MOBILE_NODE_DIR` | A libnode of your own for the mobile applications, built with the repository of lakutata/libnode (a directory per system: `android`, `ios`, `harmony`), used instead of the releases |
 | `NO_COLOR` | Turns the colors off |
 
 The scripts and the applications the tool runs get the environment the tool was started with. The variables of the

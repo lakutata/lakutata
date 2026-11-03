@@ -10,6 +10,10 @@ A compiled application can be shipped without its `node_modules`, in three forms
 `lakutata package bundle`, `package exe` and `package installer` make them with `@lakutata/builder`, which the project
 installs (`npm install --save-dev @lakutata/builder`; the templates that pack their application already have it).
 
+A mobile application of the `mobile-react` template is shipped another way: `lakutata mobile stage` bundles its
+application for the Node.js the mobile application embeds, and its native projects make the release builds for the
+stores (see the section The packaging of the README the template gives the project).
+
 ## 1. What is packed
 
 - **The compiled application**: the output of `tsc` (which emits the metadata of the decorators), not the TypeScript

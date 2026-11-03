@@ -346,11 +346,11 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 
 ## 手机应用
 
-按 `mobile-react` 模板布局的 React Native 手机应用（Android、iOS、鸿蒙）在一个 libnode 中运行 `packages/app` 里的应用，libnode 是应用的原生模块内嵌的 Node.js 库。下面的命令可以在项目的任何目录中执行，用来编译 libnode、生成应用的 Node.js 项目、运行应用，并在开发时部署这个项目。
+按 `mobile-react` 模板布局的 React Native 手机应用（Android、iOS、鸿蒙）在一个 libnode 中运行 `packages/app` 里的应用，libnode 是应用的原生模块（`packages/ipc/native`）内嵌的 Node.js 库；各系统的原生工程在项目根目录，界面在 `packages/ui` 中。下面的命令可以在项目的任何目录中执行，用来下载 libnode、生成应用的 Node.js 项目、运行应用，并在开发时部署这个项目。
 
 ### `lakutata mobile node <platform>`
 
-从 [lakutata/libnode](https://github.com/lakutata/libnode) 的 Release 下载一个系统（`android`、`ios` 或 `harmony`）的 libnode，放到 `native/node/out/<platform>`，原生工程对它编译；鸿蒙的 `libnode.so` 还会放进 HAP 的库目录（`harmony/entry/libs/arm64-v8a`）。它的压缩包（`libnode_<platform>_<arch>.tar.gz`，每种架构一个）会用 Release 的 `SHA256SUMS` 校验，保存在 lakutata 的缓存目录中（`~/.cache/lakutata/mobile`），所以只下载一次。项目里还没有某个系统的 libnode 时，`lakutata mobile stage` 会先下载它。
+从 [lakutata/libnode](https://github.com/lakutata/libnode) 的 Release 下载一个系统（`android`、`ios` 或 `harmony`）的 libnode，放到 `packages/ipc/native/node/out/<platform>`，原生工程对它编译；鸿蒙的 `libnode.so` 还会放进 HAP 的库目录（`harmony/entry/libs/arm64-v8a`）。它的压缩包（`libnode_<platform>_<arch>.tar.gz`，每种架构一个）会用 Release 的 `SHA256SUMS` 校验，保存在 lakutata 的缓存目录中（`~/.cache/lakutata/mobile`），所以只下载一次。项目里还没有某个系统的 libnode 时，`lakutata mobile stage` 会先下载它。
 
 - `LAKUTATA_LIBNODE_MIRROR` 指定 Release 的镜像，文件的布局和 GitHub 上一样（`<镜像>/v<版本>/libnode_android_arm64.tar.gz`、`<镜像>/v<版本>/SHA256SUMS`）。
 - `LAKUTATA_MOBILE_NODE_DIR` 指定自己编译的 libnode（用 lakutata/libnode 仓库编译），每个系统一个目录（`android`、`ios`、`harmony`），和它导出的结构一样。

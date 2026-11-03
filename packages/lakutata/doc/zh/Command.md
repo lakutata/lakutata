@@ -79,9 +79,11 @@ NW.js 应用所用的 NW.js 版本由 `lakutata nwjs use <版本>` 设置（`lat
 | `LAKUTATA_LANG` | 工具的语言（`en`、`zh-CN`、`zh-TW`） |
 | `LAKUTATA_NPM_REGISTRY` | 下载模板的仓库（否则取 `npm_config_registry`，再否则为 `https://registry.npmjs.org`） |
 | `LAKUTATA_GITHUB_DOWNLOAD` | 下载 `github:` 模板的地址（默认 `https://github.com`） |
-| `LAKUTATA_CACHE_DIR` | 工具的缓存目录：模板、制作安装包所用的工具，以及 NW.js 的运行时（默认 `$XDG_CACHE_HOME/lakutata`，否则 `~/.cache/lakutata`） |
+| `LAKUTATA_CACHE_DIR` | 工具的缓存目录：模板、制作安装包所用的工具、NW.js 的运行时，以及手机应用的 libnode 和它们的原生插件（默认 `$XDG_CACHE_HOME/lakutata`，否则 `~/.cache/lakutata`） |
 | `LAKUTATA_NWJS_MIRROR` | NW.js 运行时的下载地址（默认 `https://dl.nwjs.io`） |
 | `LAKUTATA_NWJS_VERSIONS` | NW.js 的发布版本列表（默认 `https://nwjs.io/versions.json`） |
+| `LAKUTATA_LIBNODE_MIRROR` | lakutata/libnode 的 Release 的镜像，手机应用的 libnode 从这里下载（`<镜像>/v<版本>/libnode_<platform>_<arch>.tar.gz`） |
+| `LAKUTATA_MOBILE_NODE_DIR` | 手机应用使用自己的 libnode，用 lakutata/libnode 仓库编译（每个系统一个目录：`android`、`ios`、`harmony`），代替 Release 中的 libnode |
 | `NO_COLOR` | 关闭颜色 |
 
 工具运行的脚本和应用，拿到的是工具启动时的环境变量。打包后的应用所用的环境变量见 [Packaging](Packaging.md) 第 6 节。

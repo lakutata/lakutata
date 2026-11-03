@@ -584,15 +584,16 @@ NW.js, with its resources and its native addons made to load in it, then run wit
 ## Mobile applications
 
 A mobile application of React Native laid out as the `mobile-react` template (Android, iOS, HarmonyOS) runs the
-application of `packages/app` in a libnode, the library of Node.js that its native module embeds. These commands, run in
-any directory of the project, build that libnode, make the Node.js project of the application, run the application, and
-deploy the project during the development.
+application of `packages/app` in a libnode, the library of Node.js that its native module (`packages/ipc/native`)
+embeds; its native projects are at the root of the project, its user interface in `packages/ui`. These commands, run in
+any directory of the project, download that libnode, make the Node.js project of the application, run the application,
+and deploy the project during the development.
 
 ### `lakutata mobile node <platform>`
 
 Download the libnode of a system (`android`, `ios` or `harmony`) from the releases of
-[lakutata/libnode](https://github.com/lakutata/libnode) and put it into `native/node/out/<platform>`, which the native
-projects build against; for HarmonyOS, `libnode.so` is put into the libraries of the HAP too
+[lakutata/libnode](https://github.com/lakutata/libnode) and put it into `packages/ipc/native/node/out/<platform>`, which
+the native projects build against; for HarmonyOS, `libnode.so` is put into the libraries of the HAP too
 (`harmony/entry/libs/arm64-v8a`). Its archives (`libnode_<platform>_<arch>.tar.gz`, one per architecture) are checked
 with the `SHA256SUMS` of the release and kept in the cache of lakutata (`~/.cache/lakutata/mobile`): they are downloaded
 once. `lakutata mobile stage` downloads the libnode of a system when the project has none yet.

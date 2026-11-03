@@ -98,10 +98,14 @@ The other templates add to this layout:
   `packages/ui`, the version of NW.js in `packages/app/nwjs.json` (written by `npm run nwjs:use -- <version>`), and the
   scripts that make the installers.
 - `mobile-react`: the application in `packages/app`, which runs in a Node.js embedded in the mobile application and
-  serves its actions to the user interface of React Native at the root (`App.tsx`, `src/ipc.ts`); the native projects in
-  `android`, `ios` and `harmony`, the native module embedding Node.js in `native`, the id of the application (`lakutata
-  create --bundle-id`) in those projects, and the scripts that download the libnode, run the application on an emulator,
-  a device or a simulator, and deploy its Node.js side (`npm run node:android`, `npm run android`, `npm run
+  serves its actions to the user interface of React Native; the user interface in `packages/ui` (`src/App.tsx`), the
+  same on the three systems; `packages/ipc`, which connects the user interface to the Node.js side: the native module
+  embedding Node.js (`native`) and the `ipc` the user interface imports (Electron and NW.js have such a channel of their
+  own, React Native has none, so the template brings it as a package); at the root, the application of React Native
+  itself: its entry (`index.js`, which registers the component of `packages/ui`), `app.json`, the configurations of
+  Metro and Babel, and the native projects (`android`, `ios`, `harmony`), which carry the id of the application
+  (`lakutata create --bundle-id`); and the scripts that download the libnode, run the application on an emulator, a
+  device or a simulator, and deploy its Node.js side (`npm run node:android`, `npm run android`, `npm run
   deploy:android`, and the same for `ios` and `harmony`).
 
 The packed forms are written to `dist/` at the root of the workspace; `.gitignore` leaves out `build`, `dist` and the
