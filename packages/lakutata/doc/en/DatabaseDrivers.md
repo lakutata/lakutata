@@ -348,6 +348,10 @@ export function config(): ApplicationOptions {
 }
 ```
 
+- sql.js 1.15 marks its asm.js build as deprecated: the build prints a warning each time it is loaded, and the authors
+  ask the users who cannot leave it to say so ([sql-js/sql.js#635](https://github.com/sql-js/sql.js/issues/635)). The
+  build they recommend instead, `sql-wasm-inline.js`, needs WebAssembly, which the Node.js of HarmonyOS does not have.
+  For a database that the application keeps, `better-sqlite3`, which works on the three systems, is the better choice.
 - The WebAssembly of sql.js is read from `sql-wasm.wasm`, next to its module, which the bundle of the application does
   not keep: declare the file as a resource in `lakutata.resources` (its `from` is where npm installed `sql.js` in the
   workspace), and give its path among the resources to `sqlJsConfig.locateFile` ([Packaging](Packaging.md), section 6).

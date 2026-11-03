@@ -307,5 +307,6 @@ export function config(): ApplicationOptions {
 }
 ```
 
+- sql.js 1.15 把它的 asm.js 版本标为已弃用：每次加载都会打印一条警告，作者请无法放弃它的用户到 [sql-js/sql.js#635](https://github.com/sql-js/sql.js/issues/635) 说明情况。他们推荐的替代版本 `sql-wasm-inline.js` 需要 WebAssembly，而鸿蒙的 Node.js 没有。应用要长期保存的数据库，最好用 `better-sqlite3`，它在三个系统上都可用。
 - sql.js 的 WebAssembly 版本从它的模块旁边的 `sql-wasm.wasm` 读取，而应用的单文件包里没有这个文件：在 `lakutata.resources` 中把它声明为资源（`from` 是 npm 把 `sql.js` 装在工作区里的位置），再把它在资源中的路径交给 `sqlJsConfig.locateFile`（见 [Packaging](Packaging.md) 第 6 节）。
 - 数据库服务器通过设备的网络连接；在模拟器上，用 `adb reverse`（Android）或 `hdc rport`（鸿蒙）连到电脑。
