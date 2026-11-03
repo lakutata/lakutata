@@ -25,7 +25,7 @@ npm install lakutata pg
 There is no `sqlite` type: SQLite files use `better-sqlite3`, or `sqljs` where a native module cannot run. TypeORM also
 has drivers for the JavaScript of the mobile platforms (`capacitor`, `cordova`, `expo`, `nativescript`, `react-native`);
 lakutata does not use them. A mobile application of the `mobile-react` template runs the lakutata application in a
-Node.js instead; the Node.js of HarmonyOS has no WebAssembly, so `sqljs` does not run there.
+Node.js instead, with the drivers of this page (see [The mobile applications](#the-mobile-applications)).
 
 ## What applies to every driver
 
@@ -140,6 +140,11 @@ export const db = buildDatabaseOptions({
   its Electron (`electron-rebuild`, or the prebuilt binaries of better-sqlite3 for Electron); an NW.js application has
   it built again with the headers of NW.js (0.111.3 or later: use `sqljs` with the earlier releases); Bun cannot load it
   (use `sqljs` there).
+- Built from its sources against the headers of Node.js 24.19 or later, it aborts the process when the garbage collector
+  frees one of its objects (`Assertion failed: (env) != nullptr`, in `RemoveEnvironmentCleanupHook`:
+  [nodejs/node#65446](https://github.com/nodejs/node/issues/65446)), as every addon built on `node::ObjectWrap` does.
+  Its prebuilt binaries are built against earlier headers; `lakutata mobile stage` builds the addons for the mobile
+  systems without the cleanup hooks of `node::ObjectWrap` that cause it.
 
 ## SQLite: sql.js
 
@@ -166,6 +171,7 @@ export const db = buildDatabaseOptions({
 | `database` | | The content of a database to load (a `Uint8Array`), instead of `location` |
 | `useLocalForage` | `false` | In a browser, save to IndexedDB (through `localforage`) instead of `localStorage` |
 | `sqlJsConfig` | | The options of the initialization of sql.js (`locateFile` of its `.wasm` file) |
+| `driver` | | A build of sql.js to use instead of the package's: its asm.js build (`sql.js/dist/sql-asm.js`) needs no WebAssembly |
 
 - Without `autoSave`, nothing is written to disk until `saveDatabase()` of the entity manager (`SqljsEntityManager`)
   is called. With `autoSave`, the changes of a transaction are saved once it is committed.
@@ -287,3 +293,46 @@ These drivers come from TypeORM as they are:
   MySQL, are not read.
 - **Amazon Aurora through the Data API** (`aurora-mysql`, `aurora-postgres`): `region`, `secretArn`, `resourceArn` and
   `database` are required; the queries go through the HTTP API of AWS, not through a connection.
+
+## The mobile applications
+
+A mobile application of the `mobile-react` template runs its lakutata application in the Node.js it embeds (Node.js
+24.20), where the drivers of this page work as on a computer. The table gives what was verified on the emulators of
+Android (API 36), iOS (27.2) and HarmonyOS: a database written, closed, then opened again.
+
+| Driver | Android | iOS | HarmonyOS |
+|---|---|---|---|
+| `better-sqlite3` | Yes | Yes | Yes |
+| `sqljs`, its asm.js build | Yes | Yes | Yes |
+| `sqljs`, its WebAssembly | Yes | Yes, much slower (the polyfill: 1.5 s where the asm.js build took 0.09 s) | No: `ReferenceError: WebAssembly is not defined` |
+| `mongo-embedded` | Yes | Yes | Yes |
+| `postgres`, `mysql`, `mongodb` (a server on the network) | Yes | Yes | Yes |
+
+SQL Server and Oracle have not been checked there.
+
+- `lakutata mobile stage` builds `better-sqlite3` from its sources for each system, with the NDK, Xcode or DevEco Studio
+  (see the `lakutata mobile` commands in the README of `@lakutata/cli`).
+- The asm.js build of sql.js is SQLite compiled to JavaScript: no WebAssembly and no other file, so it runs the same on
+  the three systems. The Node.js of HarmonyOS has no WebAssembly, and the one of iOS has only the polyfill of
+  nodejs-mobile, which is much slower:
+
+```typescript
+import {createRequire} from 'node:module'
+import {buildDatabaseOptions} from 'lakutata/com/database'
+
+export const db = buildDatabaseOptions({
+    type: 'sqljs',
+    location: 'data/app.sqlite',
+    autoSave: true,
+    //The asm.js build of sql.js, instead of its WebAssembly
+    driver: createRequire(import.meta.url)('sql.js/dist/sql-asm.js'),
+    entities: []
+})
+```
+
+- The WebAssembly of sql.js is read from `sql-wasm.wasm`, next to its module, which the bundle of the application does
+  not keep: declare the file as a resource in `lakutata.resources` (its `from` is where npm installed `sql.js` in the
+  workspace), and give its path among the resources to `sqlJsConfig.locateFile` ([Packaging](Packaging.md), section 6).
+- A database server is reached over the network of the device; from an emulator, the computer is reached through
+  `adb reverse` (Android) or `hdc rport` (HarmonyOS).
+- The file of a database has to last: `os.tmpdir()` is the cache of the application, which the system may empty.
