@@ -444,6 +444,33 @@ async function writeHarmonyDevelopment(hdc: string, target: string, bundle: stri
 }
 
 /**
+ * Write the state of the copy of the Node.js project written while developing on HarmonyOS (writeHarmonyDevelopment),
+ * with the application stopped. Once the device has started, the files of an application are there after it has run:
+ * before, hdc refuses its name (E005101), and the application is started once, then stopped, and the files written
+ * again
+ * @param hdc
+ * @param target
+ * @param bundle
+ * @param state
+ * @param project the Node.js project deployed with the state on
+ * @returns the output of hdc
+ */
+async function sendHarmonyDevelopment(hdc: string, target: string, bundle: string, state: 'on' | 'off', project?: string): Promise<Run> {
+    const refused = (sent: Run): boolean => /E005101|Invalid bundle name/i.test(sent.stdout)
+    await run(hdc, ['-t', target, 'shell', 'aa', 'force-stop', bundle])
+    let sent: Run = await writeHarmonyDevelopment(hdc, target, bundle, state, project)
+    if (refused(sent)) {
+        await restartHarmony(hdc, target, bundle)
+        for (let attempt: number = 0; attempt < 10 && refused(sent); attempt++) {
+            await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, attempt ? 500 : 0))
+            await run(hdc, ['-t', target, 'shell', 'aa', 'force-stop', bundle])
+            sent = await writeHarmonyDevelopment(hdc, target, bundle, state, project)
+        }
+    }
+    return sent
+}
+
+/**
  * Start the application installed on an emulator or a device of HarmonyOS again
  * @param hdc
  * @param target
@@ -483,8 +510,9 @@ async function runHarmony(project: MobileProject, device?: string): Promise<{ bu
     //again, and rport fails on the port it takes (none to remove: hdc tells it, which is no failure)
     await run(tools.hdc, ['-t', target, 'fport', 'rm', `tcp:${METRO_PORT}`, `tcp:${METRO_PORT}`])
     await mustHdc('Metro cannot be made reachable from the device (hdc rport)', tools.hdc, ['-t', target, 'rport', `tcp:${METRO_PORT}`, `tcp:${METRO_PORT}`])
-    //A copy deployed before turned off (none deployed: nothing to write)
-    await writeHarmonyDevelopment(tools.hdc, target, bundle, 'off')
+    //A copy deployed before turned off (none deployed: nothing to write); after the device started again too, or the
+    //copy would run instead of the project installed
+    await sendHarmonyDevelopment(tools.hdc, target, bundle, 'off')
     await restartHarmony(tools.hdc, target, bundle)
     return {bundle: bundle, target: target}
 }
@@ -500,8 +528,7 @@ async function runHarmony(project: MobileProject, device?: string): Promise<{ bu
 async function deployHarmony(directory: string, bundle: string, device?: string): Promise<string> {
     const tools = devEcoTools()
     const target: string = await harmonyTarget(tools.hdc, device)
-    await run(tools.hdc, ['-t', target, 'shell', 'aa', 'force-stop', bundle])
-    const sent: Run = await writeHarmonyDevelopment(tools.hdc, target, bundle, 'on', directory)
+    const sent: Run = await sendHarmonyDevelopment(tools.hdc, target, bundle, 'on', directory)
     if (sent.code !== 0 || /fail|error/i.test(sent.stdout)) throw new Error(`The Node.js project cannot be written into the application ${bundle} (a debug build, hdc file send -b): ${(sent.stdout || sent.stderr).trim()}`)
     await restartHarmony(tools.hdc, target, bundle)
     return target

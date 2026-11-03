@@ -155,10 +155,12 @@ case "$*" in
     *" rport tcp:8081 tcp:8081") if [ -f "$HDC_FORWARD" ]; then echo "[Fail]TCP Port listen failed at 8081"; else touch "$HDC_FORWARD"; echo "Forwardport result:OK"; fi ;;
     *" fport rm tcp:8081 tcp:8081") if [ -f "$HDC_FORWARD" ]; then rm "$HDC_FORWARD"; echo "Remove forward ruler success, ruler:tcp:8081 tcp:8081"; else echo "[Fail]Remove forward ruler failed, ruler is not exist tcp:8081 tcp:8081"; fi ;;
     *" file send -b "*)
+        #The files of the application once it has run after the device started (HDC_SANDBOX, when given)
+        if [ -n "$HDC_SANDBOX" ] && [ ! -f "$HDC_SANDBOX" ]; then echo "[Fail][E005101] Invalid bundle name: $6"; exit 0; fi
         #The files of the application ($HARMONY_FILES): a directory copied into the one of its name, a file written
         if [ -d "$7" ]; then cp -R "$7" "$HARMONY_FILES/"; elif [ -d "$(dirname "$HARMONY_FILES\${8#/data/storage/el2/base/files}")" ]; then cp "$7" "$HARMONY_FILES\${8#/data/storage/el2/base/files}"; else echo "[Fail]Error opening file"; exit 0; fi
         echo "FileTransfer finish" ;;
-    *" aa start "*) echo "start ability successfully." ;;
+    *" aa start "*) [ -n "$HDC_SANDBOX" ] && touch "$HDC_SANDBOX"; echo "start ability successfully." ;;
 esac
 `)
         script(path.join(work, 'node_modules', '.bin', 'react-native'), '#!/bin/sh\necho "react-native $*" >> "$TOOLS_LOG"\n')
@@ -270,6 +272,7 @@ esac
             `hdc -t 127.0.0.1:5555 install -r ${hap}`,
             'hdc -t 127.0.0.1:5555 fport rm tcp:8081 tcp:8081',
             'hdc -t 127.0.0.1:5555 rport tcp:8081 tcp:8081',
+            `hdc -t 127.0.0.1:5555 shell aa force-stop ${APP_ID}`,
             `hdc -t 127.0.0.1:5555 file send -b ${APP_ID} <tmp>/nodejs-dev/.development /data/storage/el2/base/files/nodejs-dev/.development`,
             `hdc -t 127.0.0.1:5555 shell aa force-stop ${APP_ID}`,
             `hdc -t 127.0.0.1:5555 shell aa start -a EntryAbility -b ${APP_ID}`
@@ -292,6 +295,34 @@ esac
         const again = await run(['mobile', 'run', 'harmony'])
         assert.strictEqual(again.code, 0, again.output)
         assert.strictEqual(readFileSync(path.join(development, '.development'), 'utf8'), 'off\n')
+    })
+
+    it('deploys into the application of HarmonyOS after the device started again, and runs it, the application started once first', async (): Promise<void> => {
+        //The device started again: the files of the application are not there until it runs
+        const sandbox: string = path.join(work, 'hdc-sandbox')
+        rmSync(sandbox, {force: true})
+        commands()
+        const deployed = await runCommand(process.execPath, [CLI, 'mobile', 'deploy', 'harmony'], work, {...process.env, ...env, HDC_SANDBOX: sandbox})
+        assert.strictEqual(deployed.code, 0, deployed.output)
+        assert.match(deployed.output, /Deployed to com\.example\.mobile \(127\.0\.0\.1:5555\) and started/)
+        const ran: string[] = commands().filter((command: string): boolean => / aa | file send /.test(command)).map((command: string): string => command.replace(/\S*lakutata-harmony-[^/ ]+/g, '<tmp>'))
+        assert.deepStrictEqual(ran, [
+            `hdc -t 127.0.0.1:5555 shell aa force-stop ${APP_ID}`,
+            `hdc -t 127.0.0.1:5555 file send -b ${APP_ID} <tmp>/nodejs-dev /data/storage/el2/base/files`,
+            `hdc -t 127.0.0.1:5555 shell aa force-stop ${APP_ID}`,
+            `hdc -t 127.0.0.1:5555 shell aa start -a EntryAbility -b ${APP_ID}`,
+            `hdc -t 127.0.0.1:5555 shell aa force-stop ${APP_ID}`,
+            `hdc -t 127.0.0.1:5555 file send -b ${APP_ID} <tmp>/nodejs-dev /data/storage/el2/base/files`,
+            `hdc -t 127.0.0.1:5555 shell aa force-stop ${APP_ID}`,
+            `hdc -t 127.0.0.1:5555 shell aa start -a EntryAbility -b ${APP_ID}`
+        ])
+        assert.strictEqual(readFileSync(path.join(work, 'harmony-files', 'nodejs-dev', '.development'), 'utf8'), 'on\n')
+        //Run after the device started again: the copy deployed turned off, not left to run instead of the project
+        //installed
+        rmSync(sandbox, {force: true})
+        const again = await runCommand(process.execPath, [CLI, 'mobile', 'run', 'harmony'], work, {...process.env, ...env, HDC_SANDBOX: sandbox})
+        assert.strictEqual(again.code, 0, again.output)
+        assert.strictEqual(readFileSync(path.join(work, 'harmony-files', 'nodejs-dev', '.development'), 'utf8'), 'off\n')
     })
 
     it('stops when hdc tells a failure, which it exits with 0', async (): Promise<void> => {
