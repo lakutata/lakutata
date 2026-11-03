@@ -462,7 +462,11 @@ async function buildIos(project: string, item: AddonPackage, sdk: IosSdk, node: 
         `IPHONEOS_DEPLOYMENT_TARGET=${IOS_DEPLOYMENT_TARGET}`, 'MACOSX_DEPLOYMENT_TARGET=',
         //Linking the Node.js of the application, not left to look it up (-undefined dynamic_lookup)
         `OTHER_LDFLAGS=-F${framework} -framework NodeMobile`,
-        'CODE_SIGNING_ALLOWED=NO', `CONFIGURATION_BUILD_DIR=${output}`
+        'CODE_SIGNING_ALLOWED=NO', `CONFIGURATION_BUILD_DIR=${output}`,
+        //One root for the projects of the package: gyp makes a project of each of its gyp files, whose
+        //SHARED_INTERMEDIATE_DIR is in the root of that project, so the files an action of one writes there (the SQLite
+        //that better-sqlite3 copies) are looked for in the root of another, and the headers of the SDK are found instead
+        `SYMROOT=${path.join(work, 'symroot')}`
     ]
     const built = await runCommand('xcodebuild', ['-project', 'binding.xcodeproj', '-configuration', 'Release', '-alltargets', '-sdk', sdk, ...settings, 'build'], path.join(copy, 'build'), env)
     if (built.code !== 0) throw new Error(`The addons of ${item.name} cannot be built for iOS (${sdk}): ${built.output.trim().split('\n').filter((line: string): boolean => /error/i.test(line)).slice(-8).join('\n') || built.output.trim().split('\n').slice(-8).join('\n')}`)

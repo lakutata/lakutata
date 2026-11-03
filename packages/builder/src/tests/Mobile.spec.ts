@@ -307,8 +307,21 @@ describe('The Node.js projects of the mobile applications', (): void => {
             writeFileSync(path.join(thrower, 'build', 'Release', 'thrower.node'), Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0x00, 0x00, 0x01]))
             writeFileSync(path.join(thrower, 'binding.gyp'), "{'targets': [{'target_name': 'thrower', 'sources': ['thrower.cc'], 'conditions': [['OS==\\'mac\\'', {'xcode_settings': {'GCC_ENABLE_CPP_EXCEPTIONS': 'YES'}}]]}]}")
             writeFileSync(path.join(thrower, 'thrower.cc'), '#include <node_api.h>\n#include <stdexcept>\nstatic int positive(int value) { if (value < 0) throw std::range_error("negative"); return value; }\nNAPI_MODULE_INIT() { try { positive(-1); } catch (const std::exception &) {} return exports; }\n')
-            writeFileSync(path.join(project, 'package.json'), JSON.stringify({name: 'mobile', version: '1.0.0', main: 'build/App.js', dependencies: {'hello-addon': '1.0.0', 'thrower-addon': '1.0.0'}}))
-            writeFileSync(path.join(project, 'build', 'App.js'), `console.log(require('hello-addon'), require('thrower-addon'))`)
+            //An addon whose header an action of another gyp file writes into SHARED_INTERMEDIATE_DIR, as the SQLite of
+            //better-sqlite3 is: a project of Xcode of its own, whose root the build of the addon has to share
+            const derived: string = path.join(project, 'node_modules', 'derived-addon')
+            mkdirSync(path.join(derived, 'deps'), {recursive: true})
+            writeFileSync(path.join(derived, 'package.json'), JSON.stringify({name: 'derived-addon', version: '1.0.0', main: 'index.js'}))
+            writeFileSync(path.join(derived, 'index.js'), `module.exports = require('./build/Release/derived.node')`)
+            writeFileSync(path.join(derived, 'binding.gyp'), "{'targets': [{'target_name': 'derived', 'sources': ['derived.c'], 'dependencies': ['deps/gen.gyp:gen']}]}")
+            writeFileSync(path.join(derived, 'deps', 'gen.gyp'), `{'targets': [{'target_name': 'gen', 'type': 'none', 'hard_dependency': 1, 'actions': [{'action_name': 'copy_header', 'inputs': ['derived.h'], 'outputs': ['<(SHARED_INTERMEDIATE_DIR)/derived/derived.h'], 'action': ['${process.execPath}', 'copy.js', '<(SHARED_INTERMEDIATE_DIR)/derived']}], 'direct_dependent_settings': {'include_dirs': ['<(SHARED_INTERMEDIATE_DIR)/derived']}}]}`)
+            writeFileSync(path.join(derived, 'deps', 'copy.js'), "const fs = require('fs')\nfs.mkdirSync(process.argv[2], {recursive: true})\nfs.copyFileSync('derived.h', require('path').join(process.argv[2], 'derived.h'))\n")
+            writeFileSync(path.join(derived, 'deps', 'derived.h'), '#define DERIVED_VALUE 42\n')
+            mkdirSync(path.join(derived, 'build', 'Release'), {recursive: true})
+            writeFileSync(path.join(derived, 'build', 'Release', 'derived.node'), Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0x00, 0x00, 0x01]))
+            writeFileSync(path.join(derived, 'derived.c'), '#include <node_api.h>\n#include <derived.h>\nstatic const int derived = DERIVED_VALUE;\nNAPI_MODULE_INIT() { (void) derived; return exports; }\n')
+            writeFileSync(path.join(project, 'package.json'), JSON.stringify({name: 'mobile', version: '1.0.0', main: 'build/App.js', dependencies: {'hello-addon': '1.0.0', 'thrower-addon': '1.0.0', 'derived-addon': '1.0.0'}}))
+            writeFileSync(path.join(project, 'build', 'App.js'), `console.log(require('hello-addon'), require('thrower-addon'), require('derived-addon'))`)
             //The libnode of iOS: its framework for the simulators, a stand-in; configured with OS "ios", as the export of the
             //Dockerfile is, whose common.gypi then turns the exceptions of C++ off in the projects of Xcode (the rule written
             //into the configuration here: the headers of the machine have no settings of iOS)
@@ -333,8 +346,8 @@ describe('The Node.js projects of the mobile applications', (): void => {
             const outdir: string = path.join(work, 'nodejs')
             const messages: string[] = []
             const stage: MobileStage = await stageMobileApp({platform: 'ios', project: project, outdir: outdir, node: node, frameworks: frameworks, sdks: ['iphonesimulator'], progress: (message: string): unknown => messages.push(message)})
-            assert.deepStrictEqual(messages, ['The addons of hello-addon built for iOS (iphonesimulator)', 'The addons of thrower-addon built for iOS (iphonesimulator)'])
-            assert.deepStrictEqual(stage.addons, {built: ['hello-addon (iphonesimulator)', 'thrower-addon (iphonesimulator)'], prebuilt: [], frameworks: ['iphonesimulator/hello-addon-hello.framework', 'iphonesimulator/thrower-addon-thrower.framework'], libraries: []})
+            assert.deepStrictEqual(messages, ['The addons of derived-addon built for iOS (iphonesimulator)', 'The addons of hello-addon built for iOS (iphonesimulator)', 'The addons of thrower-addon built for iOS (iphonesimulator)'])
+            assert.deepStrictEqual(stage.addons, {built: ['derived-addon (iphonesimulator)', 'hello-addon (iphonesimulator)', 'thrower-addon (iphonesimulator)'], prebuilt: [], frameworks: ['iphonesimulator/derived-addon-derived.framework', 'iphonesimulator/hello-addon-hello.framework', 'iphonesimulator/thrower-addon-thrower.framework'], libraries: []})
             assert.ok(existsSync(path.join(frameworks, 'iphoneos', 'old.framework')))
             assert.ok(!existsSync(path.join(frameworks, 'iphonesimulator', 'old.framework')))
             const framework: string = path.join(frameworks, 'iphonesimulator', 'hello-addon-hello.framework')
@@ -346,7 +359,7 @@ describe('The Node.js projects of the mobile applications', (): void => {
             assert.match(libraries, /@rpath\/NodeMobile\.framework\/NodeMobile/)
             //The file of the addon in the tree, a placeholder of the framework, next to which the project is in the application
             assert.strictEqual(readFileSync(path.join(outdir, 'app.native', 'node_modules', 'hello-addon', 'build', 'Release', 'hello.node')).length, 0)
-            assert.deepStrictEqual(JSON.parse(readFileSync(path.join(outdir, 'addons.json'), 'utf8')), {directory: '../Frameworks', files: {'node_modules/hello-addon/build/Release/hello.node': 'hello-addon-hello.framework/hello-addon-hello', 'node_modules/thrower-addon/build/Release/thrower.node': 'thrower-addon-thrower.framework/thrower-addon-thrower'}})
+            assert.deepStrictEqual(JSON.parse(readFileSync(path.join(outdir, 'addons.json'), 'utf8')), {directory: '../Frameworks', files: {'node_modules/derived-addon/build/Release/derived.node': 'derived-addon-derived.framework/derived-addon-derived', 'node_modules/hello-addon/build/Release/hello.node': 'hello-addon-hello.framework/hello-addon-hello', 'node_modules/thrower-addon/build/Release/thrower.node': 'thrower-addon-thrower.framework/thrower-addon-thrower'}})
             //Staged again: the addon built before taken from the cache, its framework made again
             messages.length = 0
             await stageMobileApp({platform: 'ios', project: project, outdir: outdir, node: node, frameworks: frameworks, sdks: ['iphonesimulator'], progress: (message: string): unknown => messages.push(message)})
