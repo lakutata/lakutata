@@ -155,7 +155,7 @@ function androidNdk(): { root: string, bin: string, revision: string } {
 /**
  * The format of the builds kept in the cache: changed when what a build makes changes
  */
-const CACHE_FORMAT: number = 3
+const CACHE_FORMAT: number = 4
 
 /**
  * The files of a package, by their paths, their sizes and their times (not their contents: a package of sources has
@@ -263,7 +263,7 @@ async function buildAndroid(project: string, item: AddonPackage, abi: AndroidAbi
         LDFLAGS: `-L${path.join(node, 'libs', abi)} -lnode -Wl,-z,max-page-size=16384`
     }
     //The common.gypi of Node.js 24 reads the NDK (its cpufeatures) when OS is android
-    const args: string[] = [nodeGyp(project), 'rebuild', `--arch=${ANDROID_ABIS[abi].arch}`, `--nodedir=${node}`, '--jobs=max', '--', '-f', 'make-android', '-DOS=android', `-Dandroid_ndk_path=${ndk.root}`]
+    const args: string[] = [nodeGyp(project), 'rebuild', `--arch=${ANDROID_ABIS[abi].arch}`, `--nodedir=${await addonNodeHeaders(node, work)}`, '--jobs=max', '--', '-f', 'make-android', '-DOS=android', `-Dandroid_ndk_path=${ndk.root}`]
     const built = await runCommand(process.execPath, args, copy, env)
     if (built.code !== 0) throw new Error(`The addons of ${item.name} cannot be built for Android (${abi}): ${built.output.trim().split('\n').slice(-8).join('\n')}`)
     const addons: string[] = await nodeFiles(path.join(copy, 'build', 'Release'))
@@ -410,26 +410,42 @@ ${entries.map(([key, value]: [string, string]): string => `\t<key>${key}</key>\n
 }
 
 /**
- * The headers of the libnode of iOS as node-gyp builds the addons against them, their OS "mac": the libnode of iOS is
- * configured with OS "ios", for which the common.gypi of Node.js turns the exceptions and the RTTI of C++ off in the
- * projects of Xcode as it does for macOS, while the addons (and node-addon-api) give their settings of Xcode (the
- * exceptions, the RTTI, the standard of C++) to OS "mac" only. Built as for macOS, an addon keeps them; the SDK, the
- * architectures and the deployment target of iOS are given to xcodebuild. The headers are linked, config.gypi written
- * @param node the export of the libnode of iOS
+ * The calls of the cleanup hooks of node::ObjectWrap in its header, in its constructor and its destructor. Node.js 24.19
+ * backported them without what lets the destructor remove its hook when no Environment is current, which is how the
+ * garbage collector calls it: the destructor of an object it frees aborts the process (Assertion failed: (env) !=
+ * nullptr, in RemoveEnvironmentCleanupHook; https://github.com/nodejs/node/issues/65446)
+ */
+const OBJECT_WRAP_HOOKS: RegExp = /^[ \t]*(?:Add|Remove)CleanupHook\(\);[ \t]*\r?\n/gm
+
+/**
+ * The headers of a libnode as node-gyp builds the addons against them, linked but for these:
+ * - node_object_wrap.h without the calls of the cleanup hooks of node::ObjectWrap (OBJECT_WRAP_HOOKS), as in the headers
+ *   of Node.js 24.18: an addon built on node::ObjectWrap (better-sqlite3, the addons of NAN) would abort the application
+ *   whenever the garbage collector frees one of its objects. A header without them is copied as it is;
+ * - for iOS, config.gypi with OS "mac": the libnode of iOS is configured with OS "ios", for which the common.gypi of
+ *   Node.js turns the exceptions and the RTTI of C++ off in the projects of Xcode as it does for macOS, while the addons
+ *   (and node-addon-api) give their settings of Xcode (the exceptions, the RTTI, the standard of C++) to OS "mac" only.
+ *   Built as for macOS, an addon keeps them; the SDK, the architectures and the deployment target of iOS are given to
+ *   xcodebuild
+ * @param node the export of the libnode
  * @param work a directory of the build
+ * @param os "mac" for iOS: the OS given to config.gypi
  * @returns the directory of the headers (the nodedir of node-gyp)
  */
-async function iosNodeHeaders(node: string, work: string): Promise<string> {
+export async function addonNodeHeaders(node: string, work: string, os?: 'mac'): Promise<string> {
     const source: string = path.join(node, 'include', 'node')
     const directory: string = path.join(work, 'node-headers')
     const include: string = path.join(directory, 'include', 'node')
     await mkdir(include, {recursive: true})
     for (const entry of await readdir(source)) {
-        if (entry === 'config.gypi') {
-            const config: string = await readFile(path.join(source, entry), 'utf8')
-            await writeFile(path.join(include, entry), config.replace(/(["']OS["']\s*:\s*)(["'])ios\2/, '$1$2mac$2'))
-        } else if (!existsSync(path.join(include, entry))) {
-            await symlink(path.join(source, entry), path.join(include, entry))
+        const target: string = path.join(include, entry)
+        if (existsSync(target)) continue
+        if (entry === 'node_object_wrap.h') {
+            await writeFile(target, (await readFile(path.join(source, entry), 'utf8')).replace(OBJECT_WRAP_HOOKS, ''))
+        } else if (entry === 'config.gypi' && os) {
+            await writeFile(target, (await readFile(path.join(source, entry), 'utf8')).replace(/(["']OS["']\s*:\s*)(["'])ios\2/, `$1$2${os}$2`))
+        } else {
+            await symlink(path.join(source, entry), target)
         }
     }
     return directory
@@ -449,7 +465,7 @@ async function buildIos(project: string, item: AddonPackage, sdk: IosSdk, node: 
     const copy: string = path.join(work, path.basename(item.source))
     await cp(item.source, copy, {recursive: true, filter: (file: string): boolean => path.relative(item.source, file) !== 'build'})
     const env: NodeJS.ProcessEnv = {...process.env, NODE_PATH: buildModules(item.source)}
-    const configured = await runCommand(process.execPath, [nodeGyp(project), 'configure', `--nodedir=${await iosNodeHeaders(node, work)}`, '--', '-f', 'xcode'], copy, env)
+    const configured = await runCommand(process.execPath, [nodeGyp(project), 'configure', `--nodedir=${await addonNodeHeaders(node, work, 'mac')}`, '--', '-f', 'xcode'], copy, env)
     if (configured.code !== 0) throw new Error(`The addons of ${item.name} cannot be built for iOS (node-gyp configure): ${configured.output.trim().split('\n').slice(-8).join('\n')}`)
     //The addons made dynamic libraries (in frameworks) rather than bundles: their targets only, not the static libraries
     //they link (a setting of xcodebuild applies to every target)
@@ -630,7 +646,7 @@ async function buildHarmony(project: string, item: AddonPackage, node: string, b
         AR_host: process.env.AR_host ?? 'ar',
         LDFLAGS: `-L${path.join(node, 'libs', 'arm64-v8a')} -lnode`
     }
-    const args: string[] = [nodeGyp(project), 'rebuild', '--arch=arm64', `--nodedir=${node}`, '--jobs=max', '--', '-f', 'make-linux', '-DOS=openharmony']
+    const args: string[] = [nodeGyp(project), 'rebuild', '--arch=arm64', `--nodedir=${await addonNodeHeaders(node, work)}`, '--jobs=max', '--', '-f', 'make-linux', '-DOS=openharmony']
     const built = await runCommand(process.execPath, args, copy, env)
     if (built.code !== 0) throw new Error(`The addons of ${item.name} cannot be built for HarmonyOS: ${built.output.trim().split('\n').slice(-8).join('\n')}`)
     const addons: string[] = await nodeFiles(path.join(copy, 'build', 'Release'))

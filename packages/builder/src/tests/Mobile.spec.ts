@@ -2,14 +2,14 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {spawnSync} from 'node:child_process'
 import {createHash} from 'node:crypto'
-import {cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {homedir, tmpdir} from 'node:os'
 import path from 'node:path'
 import {type AndroidAbi, downloadMobileNode, MOBILE_NODE_RELEASE, MOBILE_NODE_VERSION, stageMobileApp, type MobileStage} from '../index.js'
 import {nativeBanner} from '../lib/NativeRuntime.js'
-import {frameworkInfo, frameworkName, harmonyLibraryName} from '../lib/mobile/Addons.js'
+import {addonNodeHeaders, frameworkInfo, frameworkName, harmonyLibraryName} from '../lib/mobile/Addons.js'
 import {mobileNodeVersion} from '../lib/mobile/Node.js'
 import {binaryArchitectures, nodeGyp} from '../lib/nwjs/Addons.js'
 
@@ -287,6 +287,37 @@ describe('The Node.js projects of the mobile applications', (): void => {
         try {
             //The libraries of the HAP at an absolute path, the project in its resources
             await loadMapped(work, path.join(work, 'resfile', 'nodejs'), path.join(work, 'bundle', 'libs', 'arm64'), 'libaddon-hello-addon-hello.so', 'harmony')
+        } finally {
+            rmSync(work, {recursive: true, force: true})
+        }
+    })
+
+    it('build the addons against the headers of the libnode, node::ObjectWrap without the cleanup hooks of Node.js 24.19 (nodejs/node#65446)', async (): Promise<void> => {
+        const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-mobile-'))
+        try {
+            //The header of node::ObjectWrap of Node.js 24.19 and later: a hook added by the constructor, removed by the
+            //destructor, which aborts when the garbage collector calls it
+            const include: string = path.join(work, 'node', 'include', 'node')
+            mkdirSync(include, {recursive: true})
+            const hooked: string = 'class ObjectWrap {\n public:\n  ObjectWrap() {\n    refs_ = 0;\n    AddCleanupHook();\n  }\n\n  virtual ~ObjectWrap() {\n    RemoveCleanupHook();\n    if (persistent().IsEmpty())\n      return;\n  }\n\n  void AddCleanupHook() {\n    AddEnvironmentCleanupHook(v8::Isolate::GetCurrent(), CleanupHook, this);\n  }\n\n  void RemoveCleanupHook() {\n    RemoveEnvironmentCleanupHook(v8::Isolate::GetCurrent(), CleanupHook, this);\n  }\n};\n'
+            writeFileSync(path.join(include, 'node_object_wrap.h'), hooked)
+            writeFileSync(path.join(include, 'config.gypi'), "{'variables': {'OS': 'ios', 'napi_build_version': '10'}}\n")
+            writeFileSync(path.join(include, 'node.h'), '#define NODE_H 1\n')
+            const headers: string = path.join(await addonNodeHeaders(path.join(work, 'node'), path.join(work, 'android')), 'include', 'node')
+            //The calls removed, the rest of the header as it is (the methods the calls named are left, unused)
+            assert.strictEqual(readFileSync(path.join(headers, 'node_object_wrap.h'), 'utf8'), hooked.replace('    AddCleanupHook();\n', '').replace('    RemoveCleanupHook();\n', ''))
+            assert.doesNotMatch(readFileSync(path.join(headers, 'node_object_wrap.h'), 'utf8'), /^\s*(Add|Remove)CleanupHook\(\);/m)
+            //The other headers linked, the configuration as it is
+            assert.ok(lstatSync(path.join(headers, 'node.h')).isSymbolicLink())
+            assert.ok(lstatSync(path.join(headers, 'config.gypi')).isSymbolicLink())
+            //For iOS, the configuration of OS "mac"
+            const ios: string = path.join(await addonNodeHeaders(path.join(work, 'node'), path.join(work, 'ios'), 'mac'), 'include', 'node')
+            assert.strictEqual(readFileSync(path.join(ios, 'config.gypi'), 'utf8'), "{'variables': {'OS': 'mac', 'napi_build_version': '10'}}\n")
+            //A header without the hooks (Node.js 24.18 and before, or once they are fixed) copied as it is
+            const plain: string = 'class ObjectWrap {\n public:\n  ObjectWrap() {\n    refs_ = 0;\n  }\n};\n'
+            writeFileSync(path.join(include, 'node_object_wrap.h'), plain)
+            const older: string = path.join(await addonNodeHeaders(path.join(work, 'node'), path.join(work, 'older')), 'include', 'node')
+            assert.strictEqual(readFileSync(path.join(older, 'node_object_wrap.h'), 'utf8'), plain)
         } finally {
             rmSync(work, {recursive: true, force: true})
         }
