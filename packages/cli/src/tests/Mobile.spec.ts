@@ -147,6 +147,8 @@ fs.writeFileSync('entry/build/default/outputs/default/entry-default-unsigned.hap
         symlinkSync(process.execPath, path.join(deveco, 'tools', 'node', 'bin', 'node'))
         script(path.join(deveco, 'sdk', 'default', 'openharmony', 'toolchains', 'hdc'), `#!/bin/sh
 echo "hdc $*" >> "$TOOLS_LOG"
+#A command failing as hdc fails: its exit code 0, its output telling the failure
+if [ -n "$HDC_FAIL" ]; then case "$*" in *" $HDC_FAIL "*) echo "$HDC_FAIL_OUTPUT"; exit 0 ;; esac; fi
 case "$*" in
     "list targets") echo "127.0.0.1:5555" ;;
     *" file send -b "*)
@@ -284,5 +286,20 @@ esac
         //Run again: the copy turned off, the project of the HAP runs
         assert.strictEqual((await run(['mobile', 'run', 'harmony'])).code, 0)
         assert.strictEqual(readFileSync(path.join(development, '.development'), 'utf8'), 'off\n')
+    })
+
+    it('stops when hdc tells a failure, which it exits with 0', async (): Promise<void> => {
+        const fail = (command: string, output: string): Promise<{ code: number, output: string }> => runCommand(process.execPath, [CLI, 'mobile', 'run', 'harmony'], work, {...process.env, ...env, HDC_FAIL: command, HDC_FAIL_OUTPUT: output})
+        //The port of Metro taken on the device
+        const forwarded = await fail('rport', '[Fail]TCP Port listen failed at 8081')
+        assert.notStrictEqual(forwarded.code, 0)
+        assert.match(forwarded.output, /Metro cannot be made reachable from the device \(hdc rport\): \[Fail\]TCP Port listen failed at 8081/)
+        assert.doesNotMatch(forwarded.output, /runs on/)
+        //The HAP refused by the device: nothing run after it
+        commands()
+        const installed = await fail('install', '[Info]App install path:/hap msg:error: failed to install bundle.\ncode:9568322\nAppMod finish')
+        assert.notStrictEqual(installed.code, 0)
+        assert.match(installed.output, /The application cannot be installed: .*msg:error: failed to install bundle\./)
+        assert.ok(!commands().some((command: string): boolean => / rport /.test(command)))
     })
 })

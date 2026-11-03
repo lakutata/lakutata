@@ -381,6 +381,19 @@ function devEcoTools(): { ohpm: string, hvigor: string, node: string, sdk: strin
 }
 
 /**
+ * Run a command of hdc, which must succeed: hdc exits with 0 when it fails too, telling the failure in its output (a
+ * line [Fail]…, or error: … from the device)
+ * @param what
+ * @param hdc
+ * @param args
+ */
+async function mustHdc(what: string, hdc: string, args: string[]): Promise<string> {
+    const output: string = await must(what, hdc, args)
+    if (/^\[Fail\]|error:/im.test(output)) throw new Error(`${what}: ${output.trim()}`)
+    return output
+}
+
+/**
  * The emulator or the device of HarmonyOS the command runs on: the one given, else the one connected (hdc list targets)
  * @param hdc
  * @param device
@@ -461,8 +474,8 @@ async function runHarmony(project: MobileProject, device?: string): Promise<{ bu
     const haps: string[] = existsSync(outputs) ? readdirSync(outputs).filter((name: string): boolean => name.endsWith('.hap')) : []
     const hap: string | undefined = haps.find((name: string): boolean => name.includes('-signed')) ?? haps[0]
     if (!hap) throw new Error(`The build made no HAP (${path.relative(project.root, outputs)})`)
-    await must('The application cannot be installed', tools.hdc, ['-t', target, 'install', '-r', path.join(outputs, hap)])
-    await must('Metro cannot be made reachable from the device (hdc rport)', tools.hdc, ['-t', target, 'rport', `tcp:${METRO_PORT}`, `tcp:${METRO_PORT}`])
+    await mustHdc('The application cannot be installed', tools.hdc, ['-t', target, 'install', '-r', path.join(outputs, hap)])
+    await mustHdc('Metro cannot be made reachable from the device (hdc rport)', tools.hdc, ['-t', target, 'rport', `tcp:${METRO_PORT}`, `tcp:${METRO_PORT}`])
     //A copy deployed before turned off (none deployed: nothing to write)
     await writeHarmonyDevelopment(tools.hdc, target, bundle, 'off')
     await restartHarmony(tools.hdc, target, bundle)
