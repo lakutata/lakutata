@@ -129,14 +129,17 @@ describe('The runtimes of NW.js', (): void => {
     })
 
     it('downloads a runtime once into the cache, checked with the checksums of its release', async (): Promise<void> => {
-        const runtime = await downloadNwjs({version: 'win7', flavor: 'sdk'})
+        const messages: string[] = []
+        const runtime = await downloadNwjs({version: 'win7', flavor: 'sdk', progress: (line: string): unknown => messages.push(line)})
         assert.ok(existsSync(runtime.executable), runtime.executable)
         assert.ok(runtime.directory.startsWith(path.join(work, 'cache', 'nwjs')))
         assert.deepStrictEqual([runtime.version, runtime.flavor, runtime.node], ['0.72.0', 'sdk', '19.3.0'])
         assert.ok(existsSync(path.join(runtime.directory, 'credits.html')))
         const downloads: number = requests.filter((url: string): boolean => url.startsWith('/v0.72.0/nwjs-')).length
-        assert.strictEqual((await downloadNwjs({version: '0.72.0', flavor: 'sdk'})).executable, runtime.executable)
+        assert.strictEqual((await downloadNwjs({version: '0.72.0', flavor: 'sdk', progress: (line: string): unknown => messages.push(line)})).executable, runtime.executable)
         assert.strictEqual(requests.filter((url: string): boolean => url.startsWith('/v0.72.0/nwjs-')).length, downloads)
+        //Told the archive downloaded, nothing for the runtime in the cache
+        assert.deepStrictEqual(messages, [`nwjs-sdk-v0.72.0-${runtime.platform}.${runtime.platform.startsWith('linux-') ? 'tar.gz' : 'zip'} (NW.js 0.72.0)`])
     })
 
     it('downloads again a runtime left incomplete in the cache, its files removed and its directories kept', async (): Promise<void> => {

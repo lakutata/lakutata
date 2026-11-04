@@ -68,7 +68,7 @@ export class NwjsController extends Controller {
         done(`NW.js ${release.version}: Node.js ${release.node}, Chromium ${release.chromium}`)
         step(`Runs on ${systemsOf(release)}`)
         if (input.download) {
-            const runtime: NwjsRuntime = await downloadNwjs({version: release.version, flavor: 'sdk'})
+            const runtime: NwjsRuntime = await downloadNwjs({version: release.version, flavor: 'sdk', progress: (line: string): void => step(`Downloading ${line}`)})
             done(`Downloaded NW.js ${runtime.version} (sdk, ${runtime.platform})`)
         }
         return undefined
@@ -80,7 +80,7 @@ export class NwjsController extends Controller {
         const stage: NwjsStage = await stageNwjsApp({project: process.cwd(), outdir: path.join('.nwjs', 'app'), version: input.release})
         if (stage.addons.rebuilt.length) step(`Native addons built for NW.js ${stage.release.version} (${stage.platform}): ${stage.addons.rebuilt.join(', ')}`)
         if (stage.addons.renamed.length) step(`Native addons loading the Node.js of NW.js (node.dll): ${stage.addons.renamed.join(', ')}`)
-        const runtime: NwjsRuntime = await downloadNwjs({version: stage.release.version, flavor: input.flavor})
+        const runtime: NwjsRuntime = await downloadNwjs({version: stage.release.version, flavor: input.flavor, progress: (line: string): void => step(`Downloading ${line}`)})
         step(`NW.js ${runtime.version} (${runtime.flavor}, ${runtime.platform}): Node.js ${runtime.node}, Chromium ${runtime.chromium.split('.')[0]}`)
         const code: number = await new Promise((resolve: (code: number) => void, reject: (error: Error) => void): void => {
             const child = spawn(runtime.executable, [stage.directory, ...input.args ?? []], {stdio: 'inherit'})

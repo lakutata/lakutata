@@ -57,6 +57,10 @@ export type NwjsRuntimeOptions = {
      * a release without osx-arm64 (before 0.77) is the x64 one, run by Rosetta
      */
     arch?: string
+    /**
+     * Called with what is being downloaded
+     */
+    progress?: (line: string) => void
 }
 
 /**
@@ -232,12 +236,13 @@ export async function downloadNwjs(options: NwjsRuntimeOptions): Promise<NwjsRun
     if (existsSync(runtime.executable)) return runtime
     const sum: string | undefined = (await checksums(release.version)).get(archive)
     if (!sum) throw new Error(`NW.js ${release.version} has no ${archive} in its checksums`)
+    options.progress?.(`${archive} (NW.js ${release.version})`)
     //Extracted aside, then renamed: the builds running together do not see it partly written
     await mkdir(path.dirname(target), {recursive: true})
     const temporary: string = await mkdtemp(`${target}.`)
     try {
         const file: string = path.join(temporary, archive)
-        const downloaded: string = await downloadFile(`${mirror()}/v${release.version}/${archive}`, file)
+        const downloaded: string = await downloadFile(`${mirror()}/v${release.version}/${archive}`, file, {progress: options.progress})
         if (downloaded !== sum) throw new Error(`The ${archive} downloaded is not the one of NW.js ${release.version} (sha256 ${downloaded}, ${sum} expected)`)
         //ditto keeps the links of the frameworks of macOS; the tar of Windows reads the zip archives
         const extracted = process.platform === 'darwin' && archive.endsWith('.zip')
