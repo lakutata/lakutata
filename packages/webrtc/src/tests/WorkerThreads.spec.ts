@@ -2,6 +2,12 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {spawnSync} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
+import {DnsLookup} from '../lib/ice/dns/lookup.js'
+
+/**
+ * Why a test of the options of the command line of Node.js is skipped
+ */
+const BUN: string | false = typeof (globalThis as {Bun?: unknown}).Bun !== 'undefined' && 'the options of the command line of Node.js'
 
 /**
  * A compiled module of the package, as the specifier of an import
@@ -13,7 +19,11 @@ function compiled(file: string): string {
 
 describe('The worker threads of the package', (): void => {
 
-    it('start in a process whose code is an ES module given on the command line (--input-type=module)', {timeout: 90000}, (): void => {
+    it('look up a name in the worker thread of DnsLookup, in Node.js and in Bun', async (): Promise<void> => {
+        assert.match(await new DnsLookup().lookup('localhost'), /^(127\.0\.0\.1|::1)$/)
+    })
+
+    it('start in a process whose code is an ES module given on the command line (--input-type=module)', {timeout: 90000, skip: BUN}, (): void => {
         //Started from such a process: the threads do not inherit its options of the command line, which would run their
         //code (CommonJS) as an ES module. The TURN server runs its threads on Linux only
         const result = spawnSync(process.execPath, ['--max-old-space-size=512', '--input-type=module', '-e', `
