@@ -28,10 +28,14 @@ struct Outcome {
   std::vector<uint8_t> key;
   double number = 0;
   bool done = false;
+  // The index of the change failing a write, given to the error (-1: none)
+  int64_t index = -1;
 };
 
 // The work of a task on the thread of the database, then the value of its result made on the thread of JavaScript by
-// the raw functions of Node-API: nullptr when one of them fails (the environment ending), the promise left unsettled
+// the raw functions of Node-API: nullptr when one of them fails (the environment ending), the promise left unsettled.
+// The second one is called on a failure too (outcome.code not 0), before the promise is rejected, to release what the
+// task holds
 using Work = std::function<void(Outcome&)>;
 using Finish = std::function<napi_value(napi_env, Outcome&)>;
 
@@ -55,8 +59,9 @@ struct Task {
 
 class Database {
  public:
-  // A database whose store is closed by the function given, on its thread or once it stopped
-  Database(Napi::Env env, std::function<void()> closeStore);
+  // A database whose store is closed by the function given, on its thread or once it stopped; idle runs on its thread
+  // each time its queue is empty after a task
+  Database(Napi::Env env, std::function<void()> closeStore, std::function<void()> idle = nullptr);
   ~Database();
 
   // A task queued: the promise of its result (rejected at once when the database is closed)
@@ -80,6 +85,7 @@ class Database {
 
   napi_env env_;
   std::function<void()> closeStore_;
+  std::function<void()> idle_;
   Settling* settling_;
   Callback settle_;
   std::thread thread_;

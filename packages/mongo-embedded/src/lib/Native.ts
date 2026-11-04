@@ -7,23 +7,141 @@ export interface NativeDatabase {
 }
 
 /**
+ * The options of a database of the addon: when its writes are written to the disk (sync, syncInterval in ms), the
+ * memory of its page cache and of its memory map (bytes)
+ * @internal
+ */
+export interface NativeOptions {
+    sync?: 'interval' | 'always' | 'never'
+    syncInterval?: number
+    cacheSize?: number
+    mmapSize?: number
+}
+
+/**
+ * The kinds of the changes of a write (native/store.h)
+ * @internal
+ */
+export enum ChangeKind {
+    Insert = 0,
+    Replace = 1,
+    Delete = 2
+}
+
+/**
+ * A change of a write: its kind, the key of the document, its BSON (not for a deletion)
+ * @internal
+ */
+export type NativeChange = [ChangeKind, Buffer, Buffer?]
+
+/**
+ * The comparisons of the predicates of a scan (native/prefilter.h)
+ * @internal
+ */
+export enum Comparison {
+    Greater = 1,
+    GreaterOrEqual = 2,
+    Less = 3,
+    LessOrEqual = 4,
+    Equal = 5,
+    NotEqual = 6
+}
+
+/**
+ * A predicate of a scan: a top-level field, its comparison and the number it is compared with
+ * @internal
+ */
+export type NativePredicate = [string, Comparison, number]
+
+/**
+ * The codes of the errors of the addon besides the ones of SQLite (native/store.h)
+ * @internal
+ */
+export enum NativeError {
+    DuplicateKey = 11000,
+    Missing = 100001,
+    NoCollection = 100002
+}
+
+/**
+ * The options of a scan: the key it reads after (from the first document without it), the most documents it gives,
+ * bytes of them and documents it reads, the predicates leaving out the documents
+ * @internal
+ */
+export interface NativeScanOptions {
+    after?: Buffer
+    limit?: number
+    maxBytes?: number
+    maxScanned?: number
+    predicates?: NativePredicate[]
+}
+
+/**
  * The functions of the addon (native/addon.cc): each call of a database queues a task on its thread and gives the
  * promise of its result
  * @internal
  */
 export interface NativeAddon {
     /**
-     * A database: its thread started
+     * A database opened: the one of a directory (its file data.db, its file LOCK held), or in memory for an empty one
      */
-    open(): NativeDatabase
-
-    /**
-     * A round trip through the thread of a database: the bytes given back, after a delay in milliseconds
-     */
-    ping(database: NativeDatabase, bytes: Uint8Array, delay?: number): Promise<Buffer>
+    open(directory: string, options?: NativeOptions): Promise<NativeDatabase>
 
     /**
      * The closing of a database: the tasks queued run, then its thread ends; its calls after it are refused
      */
     close(database: NativeDatabase): Promise<void>
+
+    /**
+     * The collections: for each one [u32 size of its name][its name][i64 id][i64 count of its documents]
+     */
+    collections(database: NativeDatabase): Promise<Buffer>
+
+    /**
+     * A collection created: false when it was there
+     */
+    createCollection(database: NativeDatabase, name: string): Promise<boolean>
+
+    /**
+     * A collection dropped: false when it was not there
+     */
+    dropCollection(database: NativeDatabase, name: string): Promise<boolean>
+
+    /**
+     * Every collection dropped
+     */
+    dropDatabase(database: NativeDatabase): Promise<void>
+
+    /**
+     * The documents of a collection, 0 when it is not there
+     */
+    count(database: NativeDatabase, name: string): Promise<number>
+
+    /**
+     * Changes of a collection as one transaction (all of them, or none): rejected with the code and the index of the
+     * change failing; the collection created when it is missing and create is true
+     */
+    write(database: NativeDatabase, name: string, changes: NativeChange[], create?: boolean): Promise<void>
+
+    /**
+     * The documents of keys: their BSON one after the other, and for each key the offset of its document (i32, little
+     * endian), -1 when it is not there
+     */
+    get(database: NativeDatabase, name: string, keys: Buffer[]): Promise<{ bytes: Buffer, offsets: Buffer }>
+
+    /**
+     * The documents after a key, in the order of their keys: their BSON one after the other, the key of the last one
+     * read (null when none was), and whether the collection was read to its end
+     */
+    scan(database: NativeDatabase, name: string, options?: NativeScanOptions): Promise<{ bytes: Buffer, last: Buffer | null, done: boolean }>
+
+    /**
+     * The result of PRAGMA integrity_check: "ok" when the file is sound
+     */
+    integrity(database: NativeDatabase): Promise<string>
+
+    /**
+     * A round trip through the thread of a database: the bytes given back, after a delay in milliseconds
+     */
+    ping(database: NativeDatabase, bytes: Uint8Array, delay?: number): Promise<Buffer>
 }

@@ -21,18 +21,18 @@ function collectGarbage(): void {
 const CASES: Record<string, () => unknown> = {
     //Opened, called once, never closed: the process exits by itself
     async idle(): Promise<void> {
-        const database: NativeDatabase = addon.open()
+        const database: NativeDatabase = await addon.open('')
         await addon.ping(database, Buffer.from('x'))
         console.log('idle')
     },
     //A call pending, not awaited, nothing else holding the process: it waits for the result
-    pending(): void {
-        const database: NativeDatabase = addon.open()
+    async pending(): Promise<void> {
+        const database: NativeDatabase = await addon.open('')
         addon.ping(database, Buffer.from('late'), 300).then((bytes: Buffer): void => console.log(`pending ${bytes.toString()}`), (error: Error): void => console.log(error.message))
     },
     //Databases left to the garbage collector
     async collected(): Promise<void> {
-        for (let index: number = 0; index < 200; index++) await addon.ping(addon.open(), Buffer.from('g'))
+        for (let index: number = 0; index < 200; index++) await addon.ping(await addon.open(''), Buffer.from('g'))
         for (let index: number = 0; index < 5; index++) {
             collectGarbage()
             await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 20))
@@ -44,7 +44,7 @@ const CASES: Record<string, () => unknown> = {
 //A worker thread calling without pause until it is terminated (workerData 'storm'), or calling once then a slow call
 //left pending (workerData 'slow')
 async function runWorker(): Promise<void> {
-    const database: NativeDatabase = addon.open()
+    const database: NativeDatabase = await addon.open('')
     await addon.ping(database, Buffer.from('w'))
     parentPort!.postMessage('ready')
     if (workerData === 'slow') {
@@ -85,7 +85,7 @@ if (!isMainThread) {
         })
 
         it('gives the results of the calls in their order, and refuses the calls once it is closed', async (): Promise<void> => {
-            const database: NativeDatabase = addon.open()
+            const database: NativeDatabase = await addon.open('')
             const results: Buffer[] = await Promise.all(Array.from({length: 100}, (_: unknown, index: number): Promise<Buffer> => addon.ping(database, Buffer.from(`call ${index}`), index % 10 === 0 ? 1 : 0)))
             assert.deepStrictEqual(results.map((bytes: Buffer): string => bytes.toString()), Array.from({length: 100}, (_: unknown, index: number): string => `call ${index}`))
             await addon.close(database)
@@ -103,7 +103,7 @@ if (!isMainThread) {
                 await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, round % 10))
                 await worker.terminate()
             }
-            const database: NativeDatabase = addon.open()
+            const database: NativeDatabase = await addon.open('')
             assert.strictEqual((await addon.ping(database, Buffer.from('after'))).toString(), 'after')
             await addon.close(database)
         })

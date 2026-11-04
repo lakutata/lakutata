@@ -5,8 +5,8 @@
 
 namespace mongo_embedded {
 
-Database::Database(Napi::Env env, std::function<void()> closeStore)
-    : env_(env), closeStore_(std::move(closeStore)), settling_(new Settling()) {
+Database::Database(Napi::Env env, std::function<void()> closeStore, std::function<void()> idle)
+    : env_(env), closeStore_(std::move(closeStore)), idle_(std::move(idle)), settling_(new Settling()) {
   settle_ = Callback::New(env, "mongo-embedded", 0, 1, settling_, &Database::Finalize, static_cast<void*>(nullptr));
   settling_->function = settle_;
   // Idle: the event loop is not held until a task is queued
@@ -101,6 +101,12 @@ void Database::Run() {
     }
     // The environment ending: the result cannot be given
     if (settle_.NonBlockingCall(task) != napi_ok) delete task;
+    bool empty;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      empty = queue_.empty() && !ending_;
+    }
+    if (empty && idle_) idle_();
   }
 }
 
@@ -116,6 +122,8 @@ static napi_value ErrorOf(napi_env env, const Outcome& outcome) {
   if (napi_create_string_utf8(env, outcome.message.data(), outcome.message.size(), &message) != napi_ok) return nullptr;
   if (napi_create_error(env, nullptr, message, &error) != napi_ok) return nullptr;
   if (napi_create_int32(env, outcome.code, &code) == napi_ok) napi_set_named_property(env, error, "code", code);
+  napi_value index;
+  if (outcome.index >= 0 && napi_create_int64(env, outcome.index, &index) == napi_ok) napi_set_named_property(env, error, "index", index);
   return error;
 }
 
@@ -123,8 +131,7 @@ void Database::Settle(Napi::Env env, Napi::Function, Settling* settling, Task* t
   if (env != nullptr) {
     if (--settling->pending == 0) napi_unref_threadsafe_function(env, settling->function);
     Outcome& outcome = task->outcome;
-    napi_value result = nullptr;
-    if (outcome.code == 0) result = task->finish(env, outcome);
+    napi_value result = task->finish(env, outcome);
     if (outcome.code != 0) {
       result = ErrorOf(env, outcome);
       if (result != nullptr) napi_reject_deferred(env, task->deferred, result);

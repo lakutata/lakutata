@@ -1,0 +1,11 @@
+{
+  "sqlite": {
+    "version": "3.53.2",
+    "archive": "https://sqlite.org/2026/sqlite-amalgamation-3530200.zip",
+    "sha256": "8a310d0a16c7a90cacd4c884e70faa51c902afed2a89f63aaa0126ab83558a32",
+    "files": {
+      "sqlite/sqlite3.c": "0a409f1633283fa31a9126b11fbfd64a1991c5d30defad07e5745d4667f5e23d",
+      "sqlite/sqlite3.h": "9e69a1353a4288450b0d5239ede11fc7f1f4c8e5eb07491fc8317eacb5b7de7e"
+    }
+  }
+}
