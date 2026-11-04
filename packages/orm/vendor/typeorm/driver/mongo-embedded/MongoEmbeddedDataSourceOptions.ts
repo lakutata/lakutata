@@ -35,7 +35,7 @@ export interface MongoEmbeddedDataSourceOptions extends BaseDataSourceOptions {
     /**
      * The memory of the page cache of the database, in bytes: the pages of its file read again without reading the
      * file.
-     * @default 67108864 (64 MiB)
+     * @default 16777216 (16 MiB)
      */
     readonly cacheSize?: number
 

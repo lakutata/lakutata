@@ -27,7 +27,7 @@ export interface EmbeddedStoreOptions {
 
     /**
      * The memory of the page cache of the database, in bytes
-     * @default 67108864 (64 MiB)
+     * @default 16777216 (16 MiB)
      */
     cacheSize?: number
 

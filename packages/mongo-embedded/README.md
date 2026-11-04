@@ -61,7 +61,7 @@ locked by its file `LOCK`.
 ## API
 
 - `EmbeddedClient.connect(directory?, options?)`: opens a database (`":memory:"` by default). Its options: `sync`,
-  `syncInterval`, `cacheSize` (the page cache, 64 MiB by default) and `mmapSize` (the bytes read through a memory map,
+  `syncInterval`, `cacheSize` (the page cache, 16 MiB by default) and `mmapSize` (the bytes read through a memory map,
   0 by default).
 - `client.db().collection(name)`: a collection, with `find`, `findOne`, `countDocuments`, `estimatedDocumentCount`,
   `distinct`, `aggregate`, `insertOne`, `insertMany`, `updateOne`, `updateMany`, `replaceOne`, `deleteOne`,

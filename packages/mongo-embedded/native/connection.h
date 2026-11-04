@@ -21,7 +21,9 @@ struct Settings {
   int sync = MDE_SYNC_INTERVAL;
   // The interval of the checkpoints of the sync "interval" (ms)
   int64_t syncInterval = 100;
-  int64_t cacheBytes = 64 * 1024 * 1024;
+  // The page cache: 16 MiB, as fast as 64 MiB at 1,000,000 and 10,000,000 documents (the pages it misses are in the
+  // cache of the files of the system)
+  int64_t cacheBytes = 16 * 1024 * 1024;
   int64_t mmapBytes = 0;
 };
 
