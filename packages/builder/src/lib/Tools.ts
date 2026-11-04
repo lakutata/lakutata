@@ -181,8 +181,9 @@ export async function moveIntoCache(temporary: string, target: string, complete:
  * makensis.exe, LAKUTATA_WIX: candle.exe, next to light.exe), else the version of the builder, downloaded once into the
  * cache and checked with its sha256
  * @param name
+ * @param progress Called with what is being downloaded
  */
-export async function ensureTool(name: keyof typeof TOOLS): Promise<string> {
+export async function ensureTool(name: keyof typeof TOOLS, progress?: (line: string) => void): Promise<string> {
     const given: string | undefined = process.env[`LAKUTATA_${name.toUpperCase()}`]
     if (given) return given
     const tool: Tool = TOOLS[name]
@@ -192,12 +193,13 @@ export async function ensureTool(name: keyof typeof TOOLS): Promise<string> {
     const directory: string = path.join(cacheDirectory(), 'tools', `${name}-${tool.version}-${platform}`)
     const executable: string = path.join(directory, ...tool.executable.split('/'))
     if (existsSync(executable)) return executable
+    progress?.(`${release.archive} (${name} ${tool.version})`)
     //Downloaded and extracted aside, then renamed: the builds running together do not see it partly written
     await mkdir(path.dirname(directory), {recursive: true})
     const temporary: string = await mkdtemp(`${directory}.`)
     try {
         //SourceForge answers the browsers with its page, the tools with the file
-        const sha256: string = await downloadFile(tool.url(release.archive), path.join(temporary, release.archive), {headers: {'user-agent': 'Wget'}}).catch((error: Error): never => {
+        const sha256: string = await downloadFile(tool.url(release.archive), path.join(temporary, release.archive), {headers: {'user-agent': 'Wget'}, progress: progress}).catch((error: Error): never => {
             throw new Error(`${error.message}: give the executable of ${name} (LAKUTATA_${name.toUpperCase()})`)
         })
         if (sha256 !== release.sha256) throw new Error(`The archive of ${name} ${tool.version} downloaded is not the one of its release (sha256 ${sha256})`)

@@ -170,6 +170,10 @@ export type InstallerOptions = {
      * systems of Windows (Windows 7)
      */
     arch?: string
+    /**
+     * Called with what is being downloaded: the runtime of NW.js, the tools making the installers
+     */
+    progress?: (line: string) => void
 }
 
 export type InstallerResult = {
@@ -337,7 +341,7 @@ export async function buildInstaller(options: InstallerOptions): Promise<Install
             await writeFile(icon, icoFile(application.image))
         }
         //The executable and what it loads; or the application of NW.js (its runtime, its executable named after it)
-        const nwjs: NwjsApp | undefined = desktop ? await buildNwjsApp({project: project, entry: options.entry, minify: options.minify, external: options.external, arch: options.arch, outdir: path.join(work, 'stage')}) : undefined
+        const nwjs: NwjsApp | undefined = desktop ? await buildNwjsApp({project: project, entry: options.entry, minify: options.minify, external: options.external, arch: options.arch, outdir: path.join(work, 'stage'), progress: options.progress}) : undefined
         const executable: ExecutableResult | undefined = nwjs ? undefined : await buildExecutable({
             project: project,
             entry: options.entry,
@@ -389,8 +393,8 @@ export async function buildInstaller(options: InstallerOptions): Promise<Install
         const outdir: string = path.resolve(project, options.outdir ?? path.join('dist', 'installer'))
         await mkdir(outdir, {recursive: true})
         const files = mac ? await buildMacPackages(plan, targets as MacTarget[], path.join(work, 'mac'), outdir)
-            : windows ? await buildWindowsPackages(plan, targets as WindowsTarget[], path.join(work, 'win'), outdir)
-                : await buildLinuxPackages(plan, targets as LinuxTarget[], path.join(work, 'linux'), outdir)
+            : windows ? await buildWindowsPackages(plan, targets as WindowsTarget[], path.join(work, 'win'), outdir, options.progress)
+                : await buildLinuxPackages(plan, targets as LinuxTarget[], path.join(work, 'linux'), outdir, options.progress)
         return {name: name, version: version, files: files, ...executable ? {executable: executable} : {}, ...nwjs ? {nwjs: nwjs} : {}, warnings: warnings}
     } finally {
         await rm(work, {recursive: true, force: true})

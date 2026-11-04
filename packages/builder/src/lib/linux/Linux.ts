@@ -345,8 +345,9 @@ function packageScripts(plan: InstallerPlan, target: Exclude<LinuxTarget, 'tar.g
  * @param targets
  * @param work
  * @param outdir
+ * @param progress Called with what is being downloaded (nFPM)
  */
-export async function buildLinuxPackages(plan: InstallerPlan, targets: LinuxTarget[], work: string, outdir: string): Promise<{ target: string, file: string, size: number }[]> {
+export async function buildLinuxPackages(plan: InstallerPlan, targets: LinuxTarget[], work: string, outdir: string, progress?: (line: string) => void): Promise<{ target: string, file: string, size: number }[]> {
     await mkdir(work, {recursive: true})
     const files: { target: string, file: string, size: number }[] = []
     const service: Service | undefined = plan.service
@@ -411,7 +412,7 @@ export async function buildLinuxPackages(plan: InstallerPlan, targets: LinuxTarg
         }
         //JSON is YAML
         await writeFile(path.join(directory, 'nfpm.yaml'), JSON.stringify(config, null, 2))
-        const nfpm: string = await ensureTool('nfpm')
+        const nfpm: string = await ensureTool('nfpm', progress)
         const file: string = path.join(outdir, packageFile(plan, target))
         await rm(file, {force: true})
         const packaged = await runCommand(nfpm, ['package', '--config', path.join(directory, 'nfpm.yaml'), '--packager', target, '--target', file], directory)

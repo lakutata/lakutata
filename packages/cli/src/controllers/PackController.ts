@@ -60,7 +60,7 @@ export class PackController extends Controller {
     @CLIAction('package installer', InstallerDTO, {description: 'Make the installers of the compiled application for this platform: its executable, its native addons and its resources installed, its program in the PATH, its service registered'})
     public async installer(input: InstallerDTO): Promise<undefined> {
         const {buildInstaller} = await loadBuilder(process.cwd())
-        const result: InstallerResult = await buildInstaller({project: process.cwd(), targets: input.target, outdir: input.outdir, entry: input.entry, minify: input.minify, external: input.external, nodeProgram: input.nodeProgram, arch: input.arch})
+        const result: InstallerResult = await buildInstaller({project: process.cwd(), targets: input.target, outdir: input.outdir, entry: input.entry, minify: input.minify, external: input.external, nodeProgram: input.nodeProgram, arch: input.arch, progress: (line: string): void => step(`Downloading ${line}`)})
         if (result.nwjs) {
             step(`NW.js ${result.nwjs.runtime.version} (${result.nwjs.runtime.platform}): ${path.basename(result.nwjs.directory)}`)
             if (result.nwjs.stage.addons.rebuilt.length) step(`Native addons built for NW.js: ${result.nwjs.stage.addons.rebuilt.join(', ')}`)

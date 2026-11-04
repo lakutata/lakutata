@@ -16,6 +16,10 @@ export type NwjsAppOptions = Omit<NwjsStageOptions, 'outdir'> & {
      * The directory of the application made (dist/nwjs by default): <program>-<build of NW.js> in it
      */
     outdir?: string
+    /**
+     * Called with what is being downloaded (the runtime of NW.js)
+     */
+    progress?: (line: string) => void
 }
 
 /**
@@ -132,7 +136,7 @@ export async function buildNwjsApp(options: NwjsAppOptions): Promise<NwjsApp> {
     const work: string = await mkdtemp(path.join(os.tmpdir(), 'lakutata-nwjs-app-'))
     try {
         const stage: NwjsStage = await stageNwjsApp({...options, project: project, outdir: path.join(work, 'app'), minify: options.minify ?? true})
-        const runtime: NwjsRuntime = await downloadNwjs({version: stage.release.version, flavor: 'normal', platform: options.platform, arch: options.arch})
+        const runtime: NwjsRuntime = await downloadNwjs({version: stage.release.version, flavor: 'normal', platform: options.platform, arch: options.arch, progress: options.progress})
         const directory: string = path.join(path.resolve(project, options.outdir ?? path.join('dist', 'nwjs')), `${program}-${runtime.platform}`)
         await rm(directory, {recursive: true, force: true})
         await mkdir(directory, {recursive: true})

@@ -489,8 +489,9 @@ async function must(command: string, args: string[], cwd: string, what: string):
  * @param targets
  * @param work
  * @param outdir
+ * @param progress Called with what is being downloaded (WinSW, NSIS, WiX)
  */
-export async function buildWindowsPackages(plan: InstallerPlan, targets: WindowsTarget[], work: string, outdir: string): Promise<{ target: string, file: string, size: number }[]> {
+export async function buildWindowsPackages(plan: InstallerPlan, targets: WindowsTarget[], work: string, outdir: string, progress?: (line: string) => void): Promise<{ target: string, file: string, size: number }[]> {
     await mkdir(work, {recursive: true})
     const files: { target: string, file: string, size: number }[] = []
     const service: Service | undefined = plan.service
@@ -500,7 +501,7 @@ export async function buildWindowsPackages(plan: InstallerPlan, targets: Windows
     await mkdir(serviceDirectory, {recursive: true})
     let environment: string | undefined
     if (service) {
-        await copyFile(await ensureTool('winsw'), path.join(serviceDirectory, `${installPaths(plan).wrapper}.exe`))
+        await copyFile(await ensureTool('winsw', progress), path.join(serviceDirectory, `${installPaths(plan).wrapper}.exe`))
         await writeFile(path.join(serviceDirectory, `${installPaths(plan).wrapper}.xml`), serviceConfiguration(plan, service))
         environment = path.join(serviceDirectory, `${plan.name}.env`)
         await writeFile(environment, environmentFile(service))
@@ -544,14 +545,14 @@ export async function buildWindowsPackages(plan: InstallerPlan, targets: Windows
             await rm(file, {force: true})
             const script: string = path.join(work, 'installer.nsi')
             await writeFile(script, `\ufeff${nsisScript(plan, stage, file, {hooks: hooks, include: include})}`)
-            await must(await ensureTool('nsis'), ['/V2', '/INPUTCHARSET', 'UTF8', script], work, 'The installer of NSIS')
+            await must(await ensureTool('nsis', progress), ['/V2', '/INPUTCHARSET', 'UTF8', script], work, 'The installer of NSIS')
             files.push({target: target, file: file, size: (await stat(file)).size})
             continue
         }
         //msi: compiled by candle, linked by light
         const source: string = path.join(work, 'package.wxs')
         await writeFile(source, wixSource(plan, plan.directory, serviceDirectory, environment))
-        const candle: string = await ensureTool('wix')
+        const candle: string = await ensureTool('wix', progress)
         const light: string = path.join(path.dirname(candle), 'light.exe')
         const file: string = path.join(outdir, `${plan.name}-${plan.version}-${packageArch(plan)}.msi`)
         await rm(file, {force: true})
