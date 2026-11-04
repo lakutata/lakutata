@@ -1,0 +1,80 @@
+{
+  "name": "@lakutata/mongo-embedded",
+  "version": "3.1.6",
+  "description": "An embedded MongoDB for Node.js: the collections of a database kept in a directory (or in memory) by SQLite in a native addon, queried and updated with the semantics of MongoDB (mingo), through the API of the client of MongoDB; the storage of the mongo-embedded databases of lakutata/orm.",
+  "keywords": [
+    "lakutata",
+    "mongodb",
+    "embedded",
+    "database",
+    "document",
+    "nosql",
+    "mingo",
+    "bson",
+    "sqlite",
+    "native",
+    "typeorm",
+    "typescript"
+  ],
+  "homepage": "https://lakutata.com/packages/mongo-embedded",
+  "bugs": {
+    "url": "https://github.com/lakutata/lakutata/issues",
+    "email": "admin@lakutata.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lakutata/lakutata.git",
+    "directory": "packages/mongo-embedded"
+  },
+  "author": "alex.ma",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/cjs/exports/MongoEmbedded.js",
+  "types": "./dist/cjs/exports/MongoEmbedded.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/exports/MongoEmbedded.d.ts",
+        "default": "./dist/esm/exports/MongoEmbedded.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/MongoEmbedded.d.ts",
+        "default": "./dist/cjs/exports/MongoEmbedded.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "gypfile": true,
+  "scripts": {
+    "install": "node-gyp rebuild -j max",
+    "build:native": "node-gyp rebuild -j max",
+    "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs-pkg": "node ../../scripts/package-build/cjs-package.mjs",
+    "build:addon": "node scripts/addon.mjs",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg && npm run build:addon",
+    "rebuild": "npm run clean && npm run build:js",
+    "compile": "npm run rebuild",
+    "test:unit": "npm run compile && node --test --test-timeout=300000 \"dist/esm/tests/**/*.spec.js\"",
+    "test:bun": "sh test-env/bun.sh"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "files": [
+    "dist",
+    "!dist/*/tests",
+    "binding.gyp",
+    "native",
+    "vendor",
+    "*.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "dependencies": {
+    "bson": "^7.0.0",
+    "mingo": "^7.2.0",
+    "node-addon-api": "^8.9.2"
+  }
+}
