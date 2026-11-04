@@ -342,7 +342,7 @@ export function config(options: ConfigOptions = {}): ApplicationOptions {
 
 ```tsx
 import {useCallback, useEffect, useState} from 'react'
-import {Button, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native'
+import {Button, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View} from 'react-native'
 import {SafeAreaProvider, useSafeAreaInsets, type EdgeInsets} from 'react-native-safe-area-context'
 import {ipc} from 'ipc'
 
@@ -386,8 +386,10 @@ function money(cents: number): string {
  * The application: its screen in the safe area of the device, as in the template
  */
 export default function App() {
+    //The icons of the status bar dark on the light screen, as in the template
     return (
         <SafeAreaProvider>
+            <StatusBar barStyle="dark-content"/>
             <Expenses/>
         </SafeAreaProvider>
     )

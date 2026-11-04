@@ -303,7 +303,7 @@ export function config(options: ConfigOptions = {}): ApplicationOptions {
 
 ```tsx
 import {useCallback, useEffect, useState} from 'react'
-import {Button, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native'
+import {Button, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View} from 'react-native'
 import {SafeAreaProvider, useSafeAreaInsets, type EdgeInsets} from 'react-native-safe-area-context'
 import {ipc} from 'ipc'
 
@@ -347,8 +347,10 @@ function money(cents: number): string {
  * 应用：和模板一样，界面在设备的安全区域内
  */
 export default function App() {
+    //和模板一样，浅色界面上的状态栏用深色图标
     return (
         <SafeAreaProvider>
+            <StatusBar barStyle="dark-content"/>
             <Expenses/>
         </SafeAreaProvider>
     )

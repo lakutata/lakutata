@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import {Button, ScrollView, StyleSheet, Text} from 'react-native'
+import {Button, ScrollView, StatusBar, StyleSheet, Text} from 'react-native'
 import {SafeAreaProvider, useSafeAreaInsets, type EdgeInsets} from 'react-native-safe-area-context'
 import {ipc} from 'ipc'
 
@@ -7,8 +7,10 @@ import {ipc} from 'ipc'
  * The application: its screen in the safe area of the device, given by the provider
  */
 export default function App() {
+    //The icons of the status bar dark on the light screen: Android draws them light by default
     return (
         <SafeAreaProvider>
+            <StatusBar barStyle="dark-content"/>
             <Home/>
         </SafeAreaProvider>
     )
