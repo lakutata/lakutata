@@ -1,10 +1,10 @@
 import type { BaseDataSourceOptions } from "../../data-source/BaseDataSourceOptions"
 
 /**
- * lakutata: the options of an embedded MongoDB, a database of the process: its documents in the files of a directory
- * (the records of their versions appended), found by their _id from an index held in memory (outside the heap of V8),
- * queried and updated with the semantics of MongoDB (by mingo), in a worker thread by default. It needs the packages
- * mingo and bson. One process opens a directory: it is locked.
+ * lakutata: the options of an embedded MongoDB, a database of the process: its documents in the file of a directory,
+ * stored by SQLite in the native addon of the package @lakutata/mongo-embedded on a thread of its own, queried and
+ * updated with the semantics of MongoDB (by mingo). It needs the package @lakutata/mongo-embedded. One process opens a
+ * directory: it is locked.
  */
 export interface MongoEmbeddedDataSourceOptions extends BaseDataSourceOptions {
     /**
@@ -18,86 +18,31 @@ export interface MongoEmbeddedDataSourceOptions extends BaseDataSourceOptions {
     readonly database?: string
 
     /**
-     * When the writes are written to the disk (fsync): "always", before each write resolves (the writes made together
-     * share one); "interval" (the default), every syncInterval, so that a write resolved survives a crash of the process
-     * but up to an interval of writes may be lost on a crash of the system or a power loss; "never", when the system
-     * writes them.
+     * When the writes are written to the disk: "interval" (the default), the WAL of the database synced every
+     * syncInterval, so that a write resolved survives a crash of the process and a crash of the system or a power loss
+     * loses the writes of the last interval at most; "always", before each write resolves; "never", when the WAL is
+     * written back to the database (every 1000 of its pages, and at the closing). None of them lets a crash or a power
+     * loss corrupt the database.
      */
     readonly sync?: "always" | "interval" | "never"
 
     /**
      * The interval of the writes to the disk of the sync "interval", in milliseconds.
-     *
      * @default 100
      */
     readonly syncInterval?: number
 
     /**
-     * The memory of the documents cached (read without reading their file again), in bytes, estimated from their size
-     * (about 4 times their BSON); 0 caches none. A scan reads the documents cached when they are all the ones of the
-     * collection.
-     *
+     * The memory of the page cache of the database, in bytes: the pages of its file read again without reading the
+     * file.
      * @default 67108864 (64 MiB)
      */
     readonly cacheSize?: number
 
     /**
-     * When the file of a collection is compacted (its live documents copied to a new file, the writes going on): from
-     * a size (16 MiB by default) when it is a ratio of the bytes of its live documents (2 by default); false compacts
-     * none.
+     * The bytes of the file of the database read through a memory map instead of the page cache: faster reads, the
+     * pages mapped counted in the resident memory of the process (the system reclaims them); 0 maps none.
+     * @default 0
      */
-    readonly compaction?: false | { minimumSize?: number; ratio?: number }
-
-    /**
-     * When the snapshot of a collection (its index of the _id and its indexes, the state of an offset of its file) is
-     * written while it is open, besides its closing: when the bytes written to its file since its snapshot are a size
-     * (64 MiB by default) and a ratio of its file (0.25 by default). The opening after a crash reads its snapshot,
-     * then the records written after it only (else all the records of its file, the indexes built again: 60 s for
-     * 10,000,000 documents of two indexes). A snapshot is written at once, about 1 s for 10,000,000 documents (the
-     * thread of the application waits for it with the option worker false); its size is about the one of the index of
-     * the _id and of the indexes. false writes the snapshots at the closing only.
-     */
-    readonly snapshot?: false | { minimumSize?: number; ratio?: number }
-
-    /**
-     * Whether the database runs in a worker thread (the default): its queries, its writes and its files out of the
-     * event loop of the application, which they do not block; their arguments and their results sent between the
-     * threads in BSON (about 20 µs a call, the documents of the results decoded in the thread of the application, a
-     * batch at a time). false runs it in the thread of the application: its calls are faster, and the functions of
-     * JavaScript of its queries ($where, $function, $accumulator), which are not sent to a worker thread, run.
-     *
-     * @default true
-     */
-    readonly worker?: boolean
-
-    /**
-     * The limits of the worker thread (the resourceLimits of the workers of Node.js), unset by default: it has then the
-     * ones of the thread of the application (its heap the size of the option --max-old-space-size, or the default of
-     * V8). A worker thread exceeding them is ended, not the process: its calls fail, and its directory is unlocked, to
-     * be opened again. A maxOldGenerationSizeMb of 256 MB or less may end the whole process instead (Node.js 24 runs out
-     * of memory before it ends the worker thread); Bun does not apply them. Not used by the option worker false.
-     */
-    readonly workerResourceLimits?: {
-        /**
-         * The heap of the objects of the worker thread (its old generation), in MB.
-         */
-        readonly maxOldGenerationSizeMb?: number
-
-        /**
-         * The heap of the objects created recently (its young generation), in MB.
-         */
-        readonly maxYoungGenerationSizeMb?: number
-
-        /**
-         * The memory of the code compiled, in MB.
-         */
-        readonly codeRangeSizeMb?: number
-
-        /**
-         * The stack of the worker thread, in MB.
-         *
-         * @default 4
-         */
-        readonly stackSizeMb?: number
-    }
+    readonly mmapSize?: number
 }

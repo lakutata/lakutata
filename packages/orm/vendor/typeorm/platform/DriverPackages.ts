@@ -21,6 +21,8 @@ export function requireDriverPackage(name: string): any {
             return require("mssql")
         case "mongodb":
             return require("mongodb")
+        case "@lakutata/mongo-embedded": // lakutata: the client of an embedded MongoDB
+            return require("@lakutata/mongo-embedded")
         case "mingo":
             return require("mingo")
         case "bson":

@@ -3,26 +3,33 @@ import { requireDriverPackage } from "../../platform/DriverPackages"
 import type { ObjectId as BSONObjectId } from "../mongodb/bson.typings"
 
 /**
- * lakutata: the class ObjectId of the package bson the drivers load (its CommonJS module, the module TypeORM requires),
- * or, without the package, a class whose construction tells it is not installed.
+ * lakutata: the class ObjectId of the embedded MongoDB, the one of the bson of the package @lakutata/mongo-embedded
+ * (its CommonJS module, the module TypeORM requires); without it, the one of the package bson; without either, a class
+ * whose construction tells the package is not installed.
  */
 function loadObjectId(): typeof BSONObjectId {
-    try {
-        return requireDriverPackage("bson").ObjectId
-    } catch {
-        return class ObjectId {
-            constructor() {
-                throw new DriverPackageNotInstalledError("bson", "bson")
-            }
-        } as unknown as typeof BSONObjectId
+    for (const name of ["@lakutata/mongo-embedded", "bson"]) {
+        try {
+            return requireDriverPackage(name).ObjectId
+        } catch {
+            // The next one
+        }
     }
+    return class ObjectId {
+        constructor() {
+            throw new DriverPackageNotInstalledError(
+                "MongoDB (embedded)",
+                "@lakutata/mongo-embedded",
+            )
+        }
+    } as unknown as typeof BSONObjectId
 }
 
 /**
  * lakutata: the class ObjectId of the entities of the embedded MongoDB (`mongo-embedded`): the one of the CommonJS
- * module of the package bson, which its driver loads. The ObjectId of an `import {ObjectId} from 'bson'` in an ES module
- * is another class, of which the ids of the entities are not instances (`instanceof` is false); both are taken by the
- * queries. Without the package bson, constructing it throws.
+ * module of the bson of the package @lakutata/mongo-embedded, which its driver loads. The ObjectId of an
+ * `import {ObjectId} from 'bson'` in an ES module is another class, of which the ids of the entities are not instances
+ * (`instanceof` is false); both are taken by the queries. Without the package, constructing it throws.
  *
  * @example
  * import {ObjectId} from 'lakutata/orm'
