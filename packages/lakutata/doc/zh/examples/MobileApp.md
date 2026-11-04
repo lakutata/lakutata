@@ -304,6 +304,7 @@ export function config(options: ConfigOptions = {}): ApplicationOptions {
 ```tsx
 import {useCallback, useEffect, useState} from 'react'
 import {Button, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native'
+import {SafeAreaProvider, useSafeAreaInsets, type EdgeInsets} from 'react-native-safe-area-context'
 import {ipc} from 'ipc'
 
 /**
@@ -342,7 +343,20 @@ function money(cents: number): string {
     return (cents / 100).toFixed(2)
 }
 
+/**
+ * 应用：和模板一样，界面在设备的安全区域内
+ */
 export default function App() {
+    return (
+        <SafeAreaProvider>
+            <Expenses/>
+        </SafeAreaProvider>
+    )
+}
+
+function Expenses() {
+    //避开状态栏、摄像头和底部手势条
+    const insets: EdgeInsets = useSafeAreaInsets()
     const [month, setMonth] = useState<string>(day(new Date()).slice(0, 7))
     const [summary, setSummary] = useState<MonthSummary | null>(null)
     const [amount, setAmount] = useState<string>('')
@@ -392,7 +406,7 @@ export default function App() {
 
     return (
         //键盘显示时，点按钮也能点到（默认情况下，这一下只会收起键盘）
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24, paddingLeft: insets.left + 24, paddingRight: insets.right + 24}} keyboardShouldPersistTaps="handled">
             <View style={styles.row}>
                 <Button title="‹" onPress={(): void => setMonth(shift(month, -1))}/>
                 <Text style={styles.title}>{month}</Text>
@@ -425,8 +439,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-    container: {padding: 24, paddingTop: 72},
-    //居中：在有些设备上，屏幕顶部的两个角被状态栏占用
     row: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24},
     title: {fontSize: 20, fontWeight: 'bold'},
     total: {fontSize: 32, fontWeight: 'bold', marginVertical: 16, textAlign: 'center'},
@@ -438,6 +450,7 @@ const styles = StyleSheet.create({
 })
 ```
 
+- 和模板一样，界面在设备的安全区域内：`useSafeAreaInsets()` 给出状态栏、摄像头和底部手势条占用的空间。
 - `ipc` 来自模板的 `ipc` 包：`ipc.invoke()` 调用动作，返回它的 `payload`，或者以它的错误拒绝；`ipc.on()` 监听事件，并返回移除监听器的函数。
 - 收到 `expenses.changed` 时，如果变化的正是当前显示的月份，就重新加载这个月。
 - `keyboardShouldPersistTaps="handled"` 让键盘显示时也能点到按钮：默认情况下，这一下只会收起键盘，输入的支出不会被添加。

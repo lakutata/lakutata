@@ -13,7 +13,8 @@
   },
   "peerDependencies": {
     "react": "19.2.3",
-    "react-native": "0.86.3"
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "^5.5.2"
   },
   "devDependencies": {
     "@react-native/typescript-config": "0.86.3",

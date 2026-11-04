@@ -343,6 +343,7 @@ export function config(options: ConfigOptions = {}): ApplicationOptions {
 ```tsx
 import {useCallback, useEffect, useState} from 'react'
 import {Button, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native'
+import {SafeAreaProvider, useSafeAreaInsets, type EdgeInsets} from 'react-native-safe-area-context'
 import {ipc} from 'ipc'
 
 /**
@@ -381,7 +382,20 @@ function money(cents: number): string {
     return (cents / 100).toFixed(2)
 }
 
+/**
+ * The application: its screen in the safe area of the device, as in the template
+ */
 export default function App() {
+    return (
+        <SafeAreaProvider>
+            <Expenses/>
+        </SafeAreaProvider>
+    )
+}
+
+function Expenses() {
+    //Clear of the status bar, the camera and the home indicator
+    const insets: EdgeInsets = useSafeAreaInsets()
     const [month, setMonth] = useState<string>(day(new Date()).slice(0, 7))
     const [summary, setSummary] = useState<MonthSummary | null>(null)
     const [amount, setAmount] = useState<string>('')
@@ -431,7 +445,7 @@ export default function App() {
 
     return (
         //A tap on a button reaches it while the keyboard is shown (by default, the tap only hides the keyboard)
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24, paddingLeft: insets.left + 24, paddingRight: insets.right + 24}} keyboardShouldPersistTaps="handled">
             <View style={styles.row}>
                 <Button title="‹" onPress={(): void => setMonth(shift(month, -1))}/>
                 <Text style={styles.title}>{month}</Text>
@@ -464,8 +478,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-    container: {padding: 24, paddingTop: 72},
-    //Centered: the corners of the top of the screen are the status bar's on some devices
     row: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 24},
     title: {fontSize: 20, fontWeight: 'bold'},
     total: {fontSize: 32, fontWeight: 'bold', marginVertical: 16, textAlign: 'center'},
@@ -477,6 +489,8 @@ const styles = StyleSheet.create({
 })
 ```
 
+- The screen is in the safe area of the device, as in the template: `useSafeAreaInsets()` gives the room that the status
+  bar, the camera and the home indicator take.
 - `ipc` comes from the `ipc` package of the template: `ipc.invoke()` calls an action and gives its `payload`, or rejects
   with its error; `ipc.on()` listens to an event and returns the function that removes the listener.
 - The month shown is loaded again on `expenses.changed` when it is the month that changed.

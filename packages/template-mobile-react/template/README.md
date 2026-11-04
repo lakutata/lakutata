@@ -16,7 +16,8 @@ parts are the packages of a workspace:
 - `packages/app`: the Node.js side, a lakutata application. Its controllers serve their `@ServiceAction` actions to the
   user interface through the native module (`reactNativeServiceEntrypoint`);
 - `packages/ui`: the user interface of React Native, the same on the three systems (`src/App.tsx`, its component
-  `App`);
+  `App`), its screen in the safe area of the device (`react-native-safe-area-context`, its port
+  `@react-native-ohos/react-native-safe-area-context` on HarmonyOS);
 - `packages/ipc`: what connects the user interface to the Node.js side. `ipc` (`src/ipc.ts`, imported from the package
   `ipc`) invokes the actions of the application, `ipc.invoke({cmd: 'greet', name: 'you'})`, and listens to the events
   it pushes, `ipc.on('greeted', listener)` (which returns the function removing the listener); `native` is the native

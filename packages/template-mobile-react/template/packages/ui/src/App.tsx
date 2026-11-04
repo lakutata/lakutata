@@ -1,8 +1,22 @@
 import {useEffect, useState} from 'react'
 import {Button, ScrollView, StyleSheet, Text} from 'react-native'
+import {SafeAreaProvider, useSafeAreaInsets, type EdgeInsets} from 'react-native-safe-area-context'
 import {ipc} from 'ipc'
 
+/**
+ * The application: its screen in the safe area of the device, given by the provider
+ */
 export default function App() {
+    return (
+        <SafeAreaProvider>
+            <Home/>
+        </SafeAreaProvider>
+    )
+}
+
+function Home() {
+    //Clear of the status bar, the camera and the home indicator, wherever the device has them
+    const insets: EdgeInsets = useSafeAreaInsets()
     const [message, setMessage] = useState<string>('…')
     const [pushed, setPushed] = useState<string>('')
     const [ended, setEnded] = useState<number | null>(null)
@@ -36,7 +50,7 @@ export default function App() {
     }
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={{paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24, paddingLeft: insets.left + 24, paddingRight: insets.right + 24}}>
             <Text style={styles.title}>{$APP_NAME}</Text>
             <Text style={styles.text}>{message}</Text>
             <Text style={styles.text}>{pushed}</Text>
@@ -51,7 +65,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-    container: {padding: 24, paddingTop: 72},
     title: {fontSize: 24, fontWeight: 'bold', marginBottom: 16},
     text: {fontSize: 16, marginBottom: 8}
 })
