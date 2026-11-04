@@ -99,14 +99,14 @@ describe('The migrations', {skip: NO_RESOLVE}, (): void => {
         assert.match(unknown.stderr + unknown.stdout, /has no package api \(app\)/)
     })
 
-    it('fails without change of the schema, and tells an application without database', async (): Promise<void> => {
+    it('generates nothing without change of the schema or without database, and tells why', async (): Promise<void> => {
         const unchanged = await runCommand(['migration', 'generate'], createProject(path.join(work, 'unchanged'), {synchronize: false}))
-        assert.notStrictEqual(unchanged.code, 0)
-        assert.match(unchanged.stdout + unchanged.stderr, /No changes in database schema were found/)
-        assert.match(unchanged.stdout + unchanged.stderr, /No migration generated \(the application exited with the code 1\)/)
+        assert.strictEqual(unchanged.code, 0, unchanged.stderr + unchanged.stdout)
+        assert.match(unchanged.stdout, /No changes in database schema were found[\s\S]*No migration generated/)
+        assert.doesNotMatch(unchanged.stdout + unchanged.stderr, /npm error/)
         const none = await runCommand(['migration', 'generate'], createProject(path.join(work, 'none'), {database: false}))
         assert.strictEqual(none.code, 0, none.stderr + none.stdout)
-        assert.match(none.stdout, /No migration generated: the application has no Database component or provider/)
+        assert.match(none.stdout, /The application has no Database component or provider[\s\S]*No migration generated/)
     })
 
     it('creates an empty migration, importing the types of the framework the package depends on', async (): Promise<void> => {

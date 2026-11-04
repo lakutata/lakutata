@@ -38,7 +38,7 @@ export type GenerateMigrationsOptions = MigrationApplication & {
  */
 export type GenerateMigrationsResult = {
     /**
-     * The exit code of the application (not 0: no change of the schema, or a failure)
+     * The exit code of the application (not 0: a failure; 0 without migrations: no change of the schemas, or no database)
      */
     code: number
     /**

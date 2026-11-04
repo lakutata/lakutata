@@ -128,7 +128,7 @@ export class Migrations1792161460658 implements MigrationInterface {
 - 数据库必须能连上，并且已经执行了已有的迁移：差异是根据它当前的表计算的。
 - 文件是 `<目录>/<时间戳>-<数据库名>.ts`，类名取自目录（`src/migrations` 得到 `Migrations<时间戳>`），是 TypeScript 文件。随应用一起编译：`migrations` 选项列出的是编译后的文件。
 - 执行迁移之前先读一遍：重命名的属性会变成删除一列再新增一列，旧列的数据会丢失。必要时修改其中的 SQL。
-- 没有任何变化时，命令什么都不写，并以退出码 1 退出（`No changes in database schema were found`）。
+- 没有任何变化时，命令什么都不写，只提示一句（`No changes in database schema were found`），退出码为 0。
 - 有多个数据库时，每个表结构有差异的数据库各自生成一个文件。给每个数据库的 `migrations` 选项只列出它自己的文件（`'build/migrations/*-db.js'`），否则各个数据库会执行彼此的迁移。
 
 ## 5. 启动时执行迁移

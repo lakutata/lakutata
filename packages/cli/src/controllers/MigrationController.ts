@@ -34,9 +34,9 @@ export class MigrationController extends Controller {
                     done(`Migrations generated: ${result.files.map(relative).join(', ')}`)
                     return undefined
                 }
-                //The application tells why (no change of the schema, the failure)
+                //The application tells why: the failure, no change of the schemas, no database
                 if (result.code !== 0) throw new Error(`No migration generated (the application exited with the code ${result.code})`)
-                done('No migration generated: the application has no Database component or provider')
+                done('No migration generated')
                 return undefined
             }
             default: {

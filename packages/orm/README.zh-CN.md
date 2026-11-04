@@ -410,7 +410,7 @@ MIGRATION_RUN=1 node build/App.js
 MIGRATION_REVERT=1 MIGRATION_DATABASE=db node build/App.js
 ```
 
-生成的文件遵循 TypeORM 的代码风格（双引号、分号）：请格式化它，或者让 linter 跳过迁移文件。命令完成后，进程以退出码 0 退出；失败时以退出码 1 退出，失败的情况包括：无效的 `MIGRATION_TRANSACTION`、未知的 `MIGRATION_DATABASE`、没有数据库（`MIGRATION_GENERATE` 除外，这时以 0 退出）、有多个数据库时使用 `MIGRATION_REVERT` 却没有指定 `MIGRATION_DATABASE`、数据库连接不上、迁移失败（之后的数据库会被跳过），或者 `MIGRATION_GENERATE` 在所有数据库中都没有发现变化。
+生成的文件遵循 TypeORM 的代码风格（双引号、分号）：请格式化它，或者让 linter 跳过迁移文件。命令完成后，进程以退出码 0 退出；失败时以退出码 1 退出，失败的情况包括：无效的 `MIGRATION_TRANSACTION`、未知的 `MIGRATION_DATABASE`、没有数据库（`MIGRATION_GENERATE` 除外，这时以 0 退出）、有多个数据库时使用 `MIGRATION_REVERT` 却没有指定 `MIGRATION_DATABASE`、数据库连接不上，或者迁移失败（之后的数据库会被跳过）。`MIGRATION_GENERATE` 在所有数据库中都没有发现变化时，以 0 退出。
 
 数据库的实体就是它连接选项中的实体；对于 `Database` 提供者，还要加上它 `entities` 选项中的实体。
 

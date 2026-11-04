@@ -414,7 +414,7 @@ NW.js 应用（`nwjs-react` 和 `nwjs-vue` 模板）运行在它 `package.json` 
 | `--transaction <mode>` | 执行或撤销迁移时使用的事务：`all`（所有迁移共用一个）、`each` 或 `none`；默认取数据库的 `migrationsTransactionMode`，没有时为 `all`（`MIGRATION_TRANSACTION`） |
 | `--fake` | 只把迁移标记为已执行或已撤销，不真正执行（`MIGRATION_FAKE`） |
 
-迁移随应用一起编译，并列在所属数据库的选项中（`migrations: [...]`；设置了 `migrationsRun: true` 时，数据库连接时就会执行它们）。应用没有数据库时（`generate` 除外，这时它什么都不生成）、指定的数据库不属于应用时，以及迁移失败时，命令都会失败（退出码 1）。
+迁移随应用一起编译，并列在所属数据库的选项中（`migrations: [...]`；设置了 `migrationsRun: true` 时，数据库连接时就会执行它们）。应用没有数据库时（`generate` 除外，这时它什么都不生成，以退出码 0 结束，表结构没有变化时也一样）、指定的数据库不属于应用时，以及迁移失败时，命令都会失败（退出码 1）。
 
 ## 多语言
 

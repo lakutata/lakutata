@@ -500,7 +500,8 @@ The generated file follows TypeORM's style (double quotes, semicolons): format i
 linter. The process exits with code 0 once the command is done, and with code 1 when it fails: an invalid
 `MIGRATION_TRANSACTION`, an unknown `MIGRATION_DATABASE`, no database (except with `MIGRATION_GENERATE`, which then
 exits with 0), `MIGRATION_REVERT` with several databases and no `MIGRATION_DATABASE`, a database that does not connect,
-a migration that fails (the databases after it are skipped), or `MIGRATION_GENERATE` finding no change in any database.
+or a migration that fails (the databases after it are skipped). When `MIGRATION_GENERATE` finds no change in any
+database, the process exits with 0.
 
 The entities of a database are those of its connection options, plus, for a `Database` provider, those of its
 `entities` option.

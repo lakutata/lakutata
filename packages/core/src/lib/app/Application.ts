@@ -550,7 +550,10 @@ export class Application extends Module {
             }
             if (!migrationTargets.length) {
                 //Nothing to generate; the other commands need a database
-                if (migrationCommand.action === 'generate') process.exit(0)
+                if (migrationCommand.action === 'generate') {
+                    console.log('The application has no Database component or provider')
+                    process.exit(0)
+                }
                 console.error('The application has no Database component or provider')
                 process.exit(1)
             }

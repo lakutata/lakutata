@@ -143,8 +143,8 @@ export class Migrations1792161460658 implements MigrationInterface {
   compiled files.
 - Read the migration before running it: a renamed property becomes a column dropped and a column added, with the data
   of the old one lost. Edit the SQL when needed.
-- When nothing changed, the command writes nothing and exits with the code 1 (`No changes in database schema were
-  found`).
+- When nothing changed, the command writes nothing, says so (`No changes in database schema were found`) and exits with
+  the code 0.
 - With several databases, each database whose tables differ gets its own file. Give each database a `migrations` option
   that lists only its own files (`'build/migrations/*-db.js'`), or the databases would run each other's migrations.
 

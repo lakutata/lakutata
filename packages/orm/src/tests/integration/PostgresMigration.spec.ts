@@ -133,7 +133,7 @@ describe('The migrations of a PostgreSQL database', {skip: SERVER ? false : 'POS
 
     it('generates nothing when the schema has no changes', async (): Promise<void> => {
         const generated: SpawnSyncReturns<string> = generate(DEVICE_V2)
-        assert.notStrictEqual(generated.status, 0)
+        assert.strictEqual(generated.status, 0, generated.stdout + generated.stderr)
         assert.strictEqual((await readdir(path.join(project, 'migrations'))).filter((file: string): boolean => file.endsWith('.ts')).length, 2)
     })
 

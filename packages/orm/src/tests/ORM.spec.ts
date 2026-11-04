@@ -459,12 +459,12 @@ describe('The ORM', (): void => {
             assert.deepStrictEqual((await readdir(path.join(directory, 'migrations'))).map((file: string): string => file.replace(/^\d+/, '')), ['-first.ts'])
         }))
 
-        it('fails when the schema has no changes', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        it('generates nothing and exits with 0 when the schema has no changes', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
             const dataSource: DataSource = await new DataSource({type: 'better-sqlite3', database: path.join(directory, 'project.db'), entities: [Note], synchronize: true}).initialize()
             await dataSource.destroy()
             await mkdir(path.join(directory, 'migrations'))
             const result: SpawnSyncReturns<string> = await generate(directory, {'@lakutata/orm': '2.0.126'})
-            assert.strictEqual(result.status, 1, result.stdout + result.stderr)
+            assert.strictEqual(result.status, 0, result.stdout + result.stderr)
             assert.match(result.stdout, /No changes in database schema were found/)
             assert.deepStrictEqual(await readdir(path.join(directory, 'migrations')), [])
         }))

@@ -694,8 +694,8 @@ its entrypoints. `create` only writes a file.
 
 The migrations are compiled with the application and listed in the options of their database (`migrations: [...]`;
 they run when it connects with `migrationsRun: true`). The commands fail (exit code 1) when the application has no
-database (except `generate`, which then generates nothing), when the given database is not one of the application,
-and when a migration fails.
+database (except `generate`, which then generates nothing and exits with 0, as it does when the schema has no changes),
+when the given database is not one of the application, and when a migration fails.
 
 ## Languages
 
