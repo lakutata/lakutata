@@ -1,5 +1,6 @@
 import {after, before, describe, it} from 'node:test'
 import assert from 'node:assert'
+import {spawnSync} from 'node:child_process'
 import path from 'node:path'
 import {Container} from '@lakutata/core'
 import {Library, loadNativeLibrary, Native, NativeLibrary, NativeLibraryClosedException, type NativeLibraryHandle, type Out, type Pointer} from '../exports/FFI.js'
@@ -147,6 +148,20 @@ describe('The worker threads of a library', {skip: !POSIX && 'tested on Windows 
         } finally {
             await threads.close()
         }
+    })
+
+    it('start in a process whose code is an ES module given on the command line (--input-type=module)', (): void => {
+        //Started from such a process: the threads do not inherit its options of the command line
+        const result = spawnSync(process.execPath, ['--max-old-space-size=512', '--input-type=module', '-e', `
+            import {loadNativeLibrary} from ${JSON.stringify(new URL('../exports/FFI.js', import.meta.url).href)}
+            const libc = loadNativeLibrary('c', '', {threads: 1})
+            await libc.ready
+            const self = libc.func('void *pthread_self(void)', {async: true})
+            console.log(typeof await self())
+            await libc.close()
+        `], {encoding: 'utf8', timeout: 30000})
+        assert.strictEqual(result.status, 0, result.stderr)
+        assert.match(result.stdout.trim(), /^(bigint|number|object)$/)
     })
 
     it('are given to a component by @Library, or by its configuration', async (): Promise<void> => {

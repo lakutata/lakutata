@@ -372,7 +372,9 @@ export class NativeThreads {
      * A thread started: it loads the library, then serves its calls
      */
     #start(): Slot {
-        const worker: Worker = new Worker(nativeWorkerCode, {eval: true, workerData: {...this.#data, declarations: [this.#data.declarations, ...this.#declarations].join('\n')}})
+        //Without the options of the command line of the process, which a worker inherits: with --input-type=module, its code
+        //(CommonJS) would run as an ES module
+        const worker: Worker = new Worker(nativeWorkerCode, {eval: true, execArgv: [], workerData: {...this.#data, declarations: [this.#data.declarations, ...this.#declarations].join('\n')}})
         let readied: () => void = (): void => undefined
         let failed: (error: Error) => void = (): void => undefined
         const ready: Promise<void> = new Promise((resolve: () => void, reject: (error: Error) => void): void => {
