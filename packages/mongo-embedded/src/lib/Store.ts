@@ -138,7 +138,8 @@ export class EmbeddedStore {
 
     /**
      * A function run once the exclusive ones before it ended, the next ones waiting for it: the reads of a write and
-     * its write, which no other write changes between them
+     * its write, which no other write changes between them. The function must not call an exclusive operation itself:
+     * the chain would wait for itself
      * @param fn
      */
     exclusive<T>(fn: () => Promise<T>): Promise<T> {
