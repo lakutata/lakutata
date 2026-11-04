@@ -67,6 +67,7 @@ export class DnsLookup {
             //The modules of Node.js: process.getBuiltinModule where there is one (Bun has no global.require), else the
             //require of the script (Node.js before 20.16). No require is named in the function, whose text runs in the
             //worker: a bundler would rewrite it
+            //node-compat: process.getBuiltinModule (checked first, global.require where it is missing)
             const load = (id: string): any => typeof process.getBuiltinModule === 'function' ? process.getBuiltinModule(id) : global.require(id)
             const worker_thread = load('worker_threads')
             const {lookup} = load('dns')
