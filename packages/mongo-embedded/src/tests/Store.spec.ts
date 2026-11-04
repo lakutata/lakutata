@@ -1,8 +1,10 @@
 import {after, describe, it} from 'node:test'
 import assert from 'node:assert'
+import {spawn, type ChildProcess} from 'node:child_process'
 import {mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync} from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {BSON} from 'bson'
 import {addon} from '../lib/Addon.js'
 import {ChangeKind, Comparison, type NativeChange, type NativeDatabase, NativeError} from '../lib/Native.js'
@@ -173,6 +175,41 @@ describe('The storage of a database', (): void => {
         await addon.close(database)
     })
 
+    it('counts the documents again when the connection before it was killed (the counts are written at the closing)', async (): Promise<void> => {
+        const where: string = directory()
+        const database: NativeDatabase = await addon.open(where)
+        await addon.write(database, 'items', inserts([1, 2, 3]), true)
+        await addon.close(database)
+        //A process writing a document at a time, killed while it writes
+        const module: string = fileURLToPath(new URL('../lib/Addon.js', import.meta.url))
+        const child: ChildProcess = spawn(process.execPath, ['--input-type=module', '-e', `
+            import {addon} from ${JSON.stringify(module)}
+            const database = await addon.open(${JSON.stringify(where)})
+            for (let n = 10; ; n++) {
+                const key = Buffer.alloc(9)
+                key[0] = 1
+                key.writeDoubleBE(n, 1)
+                await addon.write(database, 'items', [[0, key, Buffer.from([5, 0, 0, 0, 0])]])
+                if (n === 500) process.stdout.write('written\\n')
+            }
+        `], {stdio: ['ignore', 'pipe', 'inherit']})
+        await new Promise((resolve: (value: unknown) => void): void => {
+            child.stdout!.on('data', (data: Buffer): void => {
+                if (data.toString().includes('written')) resolve(child.kill('SIGKILL'))
+            })
+        })
+        await new Promise((resolve: (value: unknown) => void): unknown => child.once('exit', resolve))
+        const reopened: NativeDatabase = await addon.open(where)
+        const scanned: number = (await scanAll(reopened, 'items')).length
+        assert.ok(scanned > 3 + 490, `${scanned} documents`)
+        assert.strictEqual(await addon.count(reopened, 'items'), scanned)
+        assert.strictEqual(await addon.integrity(reopened), 'ok')
+        await addon.close(reopened)
+        const closed: NativeDatabase = await addon.open(where)
+        assert.strictEqual(await addon.count(closed, 'items'), scanned)
+        await addon.close(closed)
+    })
+
     it('locks its directory: a second opening fails, also in this process, until it is closed', async (): Promise<void> => {
         const where: string = directory()
         const database: NativeDatabase = await addon.open(where)
@@ -183,7 +220,7 @@ describe('The storage of a database', (): void => {
         await addon.close(await addon.open(where))
     })
 
-    it('checkpoints its WAL: every interval with the sync interval, at 1000 frames with the others', async (): Promise<void> => {
+    it('checkpoints its WAL once it is idle, which the next write restarts from its beginning', async (): Promise<void> => {
         for (const sync of ['interval', 'never', 'always'] as const) {
             const where: string = directory()
             const database: NativeDatabase = await addon.open(where, {sync: sync, syncInterval: 50})
@@ -191,11 +228,12 @@ describe('The storage of a database', (): void => {
             for (let commit: number = 0; commit < 300; commit++) {
                 await addon.write(database, 'items', Array.from({length: 10}, (_: unknown, index: number): NativeChange => [ChangeKind.Insert, keyOf(commit * 10 + index), documentOf(commit * 10 + index, {text: 'z'.repeat(3000)})]), true)
             }
+            //Idle (25 ms without a task): the WAL checkpointed, restarted by the next write and cut to 4 MiB
             await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 200))
-            //A WAL checkpointed restarts from its beginning: it does not grow with the writes
+            await addon.write(database, 'items', inserts([-1]))
             const wal: number = statSync(path.join(where, 'data.db-wal')).size
-            assert.ok(wal < 3000 * 4096 / 2, `${sync}: the WAL holds ${wal} bytes`)
-            assert.strictEqual(await addon.count(database, 'items'), 3000)
+            assert.ok(wal <= 4 * 1048576 + 65536, `${sync}: the WAL holds ${wal} bytes`)
+            assert.strictEqual(await addon.count(database, 'items'), 3001)
             await addon.close(database)
         }
     })

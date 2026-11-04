@@ -84,10 +84,19 @@ void Database::Shutdown() {
 }
 
 void Database::Run() {
+  // A task ran since the idle work: it runs once no task came for kIdleDelay
+  bool idle = false;
   for (;;) {
     Task* task;
     {
       std::unique_lock<std::mutex> lock(mutex_);
+      if (idle && idle_ && queue_.empty() && !ending_ &&
+          !ready_.wait_for(lock, kIdleDelay, [this] { return !queue_.empty() || ending_; })) {
+        idle = false;
+        lock.unlock();
+        idle_();
+        continue;
+      }
       ready_.wait(lock, [this] { return !queue_.empty() || ending_; });
       if (queue_.empty()) return;
       task = queue_.front();
@@ -101,12 +110,7 @@ void Database::Run() {
     }
     // The environment ending: the result cannot be given
     if (settle_.NonBlockingCall(task) != napi_ok) delete task;
-    bool empty;
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      empty = queue_.empty() && !ending_;
-    }
-    if (empty && idle_) idle_();
+    idle = true;
   }
 }
 

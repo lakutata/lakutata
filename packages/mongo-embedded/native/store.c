@@ -8,11 +8,15 @@
 **
 ** The rows of the catalog: 'f' the format (u32), 'n' the id of the next collection, 'c' + its name the id of a
 ** collection, 'k' + its id the count of its documents, 'x' + its id the definitions of its indexes (BSON, as the client
-** writes them; the ids and the counts as 8 bytes, big endian). The table of the documents of a collection is "c<id>": k
+** writes them; the ids and the counts as 8 bytes, big endian), 'd' while the counts are not written. The counts are
+** kept in memory and written at the closing: a write would write the page of the catalog too otherwise (a commit of
+** one document costs 17 us, of two pages 29 us); the first write of a connection writes 'd', and an opening finding
+** it (the connection before it did not close) counts the documents again (sqlite3BtreeCount, about 30 ms for
+** 1,000,000 documents). The table of the documents of a collection is "c<id>": k
 ** is the key of the _id of a document (EmbeddedValues.idKey), v its BSON.
 **
 ** The internal functions used: sqlite3BtreeBeginTrans, Commit, Rollback, Cursor, CursorSize, CursorZero, CloseCursor,
-** IndexMoveto, Insert, Delete, First, Next, Eof, PayloadSize, Payload, PayloadFetch, Pager; sqlite3KeyInfoAlloc,
+** IndexMoveto, Insert, Delete, First, Next, Eof, PayloadSize, Payload, PayloadFetch, Pager, Count; sqlite3KeyInfoAlloc,
 ** sqlite3KeyInfoUnref, sqlite3VdbeAllocUnpackedRecord, sqlite3VdbeRecordUnpack, sqlite3PutVarint,
 ** sqlite3PagerWalCallback, and the macro getVarint32. Their preconditions found, each one checked by the tests:
 **  1. a varint of one byte is read by the macro getVarint32: the function sqlite3GetVarint32 takes it of two at least;
@@ -56,6 +60,9 @@ struct MdeStore {
   uint8_t *payload;
   size_t payloadCapacity;
   int frames;
+  /* The counts not written (the row 'd' written): written at the closing; the counts to count again at the opening */
+  int countsDirty;
+  int recount;
   char message[512];
 };
 
@@ -252,6 +259,7 @@ static int LoadCatalog(MdeStore *store) {
     int valueSize = sqlite3_column_bytes(statement, 1);
     if (keySize < 1) continue;
     if (key[0] == 'f' && valueSize == 4) format = (int)(((u32)value[0] << 24) | ((u32)value[1] << 16) | ((u32)value[2] << 8) | value[3]);
+    if (key[0] == 'd' && keySize == 1) store->recount = 1;
     if (key[0] == 'c' && valueSize == 8 && AddCollection(store, BigEndian(value), (const char *)key + 1, keySize - 1) != SQLITE_OK) {
       sqlite3_finalize(statement);
       return Fail(store, SQLITE_NOMEM, "out of memory");
@@ -292,6 +300,48 @@ static int Exec(MdeStore *store, const char *sql, const char *what) {
   return rc == SQLITE_OK ? rc : FailSql(store, rc, what);
 }
 
+/* The documents of each collection counted (the connection before did not close): the counts stay to be written */
+static int Recount(MdeStore *store) {
+  int rc = sqlite3BtreeBeginTrans(store->bt, 0, 0);
+  if (rc != SQLITE_OK) return FailSql(store, rc, "the counts");
+  for (int i = 0; i < store->collectionCount && rc == SQLITE_OK; i++) {
+    i64 count = 0;
+    OpenCursor(store, store->cursor, store->collections[i].root, 0);
+    rc = sqlite3BtreeCount(store->db, store->cursor, &count);
+    sqlite3BtreeCloseCursor(store->cursor);
+    store->collections[i].count = count;
+  }
+  sqlite3BtreeCommit(store->bt);
+  if (rc != SQLITE_OK) return FailSql(store, rc, "the counts");
+  store->countsDirty = 1;
+  return SQLITE_OK;
+}
+
+/* The counts written, the row 'd' deleted */
+static int WriteCounts(MdeStore *store) {
+  int rc = sqlite3BtreeBeginTrans(store->bt, 1, 0);
+  if (rc != SQLITE_OK) return rc;
+  OpenCursor(store, store->metaCursor, store->meta, 1);
+  for (int i = 0; i < store->collectionCount && rc == SQLITE_OK; i++) {
+    uint8_t key[9], value[8];
+    key[0] = 'k';
+    PutBigEndian(key + 1, store->collections[i].id);
+    PutBigEndian(value, store->collections[i].count);
+    rc = Put(store, store->metaCursor, key, 9, value, 8);
+  }
+  if (rc == SQLITE_OK) {
+    const uint8_t key[1] = {'d'};
+    int res = 0;
+    rc = Seek(store, store->metaCursor, key, 1, &res);
+    if (rc == SQLITE_OK && res == 0) rc = sqlite3BtreeDelete(store->metaCursor, 0);
+  }
+  sqlite3BtreeCloseCursor(store->metaCursor);
+  if (rc == SQLITE_OK) rc = sqlite3BtreeCommit(store->bt);
+  else sqlite3BtreeRollback(store->bt, SQLITE_OK, 0);
+  if (rc == SQLITE_OK) store->countsDirty = 0;
+  return rc;
+}
+
 int mde_open(const char *file, const MdeOptions *options, MdeStore **out, char *message, size_t size) {
   *out = NULL;
   MdeStore *store = calloc(1, sizeof(MdeStore));
@@ -330,6 +380,7 @@ int mde_open(const char *file, const MdeOptions *options, MdeStore **out, char *
       store->metaCursor = sqlite3MallocZero(sqlite3BtreeCursorSize());
       if (!store->probe || !store->cursor || !store->metaCursor) rc = Fail(store, SQLITE_NOMEM, "out of memory");
     }
+    if (rc == SQLITE_OK && store->recount) rc = Recount(store);
   }
   if (rc != SQLITE_OK) {
     snprintf(message, size, "%s", store->message);
@@ -342,6 +393,7 @@ int mde_open(const char *file, const MdeOptions *options, MdeStore **out, char *
 
 void mde_close(MdeStore *store) {
   if (!store) return;
+  if (store->bt && store->countsDirty) WriteCounts(store);
   sqlite3_free(store->cursor);
   sqlite3_free(store->metaCursor);
   if (store->probe) sqlite3DbFree(store->db, store->probe);
@@ -550,13 +602,11 @@ int mde_write(MdeStore *store, int64_t id, const MdeChange *changes, int count, 
     }
   }
   sqlite3BtreeCloseCursor(store->cursor);
-  if (rc == SQLITE_OK && delta != 0) {
-    uint8_t key[9], value[8];
-    key[0] = 'k';
-    PutBigEndian(key + 1, id);
-    PutBigEndian(value, collection->count + delta);
+  /* The first write of the connection: the counts not written from now on */
+  if (rc == SQLITE_OK && delta != 0 && !store->countsDirty) {
+    const uint8_t key[1] = {'d'}, value[1] = {1};
     OpenCursor(store, store->metaCursor, store->meta, 1);
-    rc = Put(store, store->metaCursor, key, 9, value, 8);
+    rc = Put(store, store->metaCursor, key, 1, value, 1);
     sqlite3BtreeCloseCursor(store->metaCursor);
   }
   if (rc == SQLITE_OK) rc = sqlite3BtreeCommit(store->bt);
@@ -568,6 +618,7 @@ int mde_write(MdeStore *store, int64_t id, const MdeChange *changes, int count, 
     return rc;
   }
   collection->count += delta;
+  if (delta != 0) store->countsDirty = 1;
   /* Precondition 4: the frames of the WAL for the checkpoints */
   store->frames = sqlite3PagerWalCallback(sqlite3BtreePager(store->bt));
   return SQLITE_OK;

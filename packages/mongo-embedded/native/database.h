@@ -7,6 +7,7 @@
 
 #include <napi.h>
 
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -60,8 +61,10 @@ struct Task {
 class Database {
  public:
   // A database whose store is closed by the function given, on its thread or once it stopped; idle runs on its thread
-  // each time its queue is empty after a task
+  // once no task came for kIdleDelay after one (a burst of writes is not held by it)
   Database(Napi::Env env, std::function<void()> closeStore, std::function<void()> idle = nullptr);
+
+  static constexpr std::chrono::milliseconds kIdleDelay{25};
   ~Database();
 
   // A task queued: the promise of its result (rejected at once when the database is closed)
