@@ -7,8 +7,9 @@
 ** after each change of the schema).
 **
 ** The rows of the catalog: 'f' the format (u32), 'n' the id of the next collection, 'c' + its name the id of a
-** collection, 'k' + its id the count of its documents (the ids and the counts as 8 bytes, big endian). The table of the
-** documents of a collection is "c<id>": k is the key of the _id of a document (EmbeddedValues.idKey), v its BSON.
+** collection, 'k' + its id the count of its documents, 'x' + its id the definitions of its indexes (BSON, as the client
+** writes them; the ids and the counts as 8 bytes, big endian). The table of the documents of a collection is "c<id>": k
+** is the key of the _id of a document (EmbeddedValues.idKey), v its BSON.
 **
 ** The internal functions used: sqlite3BtreeBeginTrans, Commit, Rollback, Cursor, CursorSize, CursorZero, CloseCursor,
 ** IndexMoveto, Insert, Delete, First, Next, Eof, PayloadSize, Payload, PayloadFetch, Pager; sqlite3KeyInfoAlloc,
@@ -34,6 +35,8 @@ typedef struct Collection {
   Pgno root;
   int64_t count;
   char *name;
+  uint8_t *indexes;
+  int indexesSize;
 } Collection;
 
 struct MdeStore {
@@ -231,6 +234,8 @@ static int AddCollection(MdeStore *store, int64_t id, const char *name, int leng
   collection->id = id;
   collection->root = 0;
   collection->count = 0;
+  collection->indexes = NULL;
+  collection->indexesSize = 0;
   store->collectionCount++;
   return SQLITE_OK;
 }
@@ -255,15 +260,27 @@ static int LoadCatalog(MdeStore *store) {
   sqlite3_finalize(statement);
   if (rc != SQLITE_DONE) return FailSql(store, rc, "the catalog");
   if (format != MDE_FORMAT) return Fail(store, SQLITE_CORRUPT, "the file is not a database of mongo-embedded (its format is not 1)");
-  /* The counts, now the collections are known */
-  rc = sqlite3_prepare_v2(store->db, "SELECT k, v FROM meta WHERE k >= x'6b' AND k < x'6c'", -1, &statement, 0);
+  /* The counts and the definitions of the indexes, now the collections are known */
+  rc = sqlite3_prepare_v2(store->db, "SELECT k, v FROM meta WHERE k >= x'6b' AND k < x'6c' OR k >= x'78' AND k < x'79'", -1, &statement, 0);
   if (rc != SQLITE_OK) return FailSql(store, rc, "the catalog");
   while ((rc = sqlite3_step(statement)) == SQLITE_ROW) {
     const uint8_t *key = sqlite3_column_blob(statement, 0);
     const uint8_t *value = sqlite3_column_blob(statement, 1);
-    if (sqlite3_column_bytes(statement, 0) != 9 || sqlite3_column_bytes(statement, 1) != 8) continue;
+    const int valueSize = sqlite3_column_bytes(statement, 1);
+    if (sqlite3_column_bytes(statement, 0) != 9) continue;
     Collection *collection = Find(store, BigEndian(key + 1));
-    if (collection) collection->count = BigEndian(value);
+    if (!collection) continue;
+    if (key[0] == 'k' && valueSize == 8) {
+      collection->count = BigEndian(value);
+    } else if (key[0] == 'x' && valueSize > 0) {
+      collection->indexes = malloc((size_t)valueSize);
+      if (!collection->indexes) {
+        sqlite3_finalize(statement);
+        return Fail(store, SQLITE_NOMEM, "out of memory");
+      }
+      memcpy(collection->indexes, value, valueSize);
+      collection->indexesSize = valueSize;
+    }
   }
   sqlite3_finalize(statement);
   if (rc != SQLITE_DONE) return FailSql(store, rc, "the catalog");
@@ -330,7 +347,10 @@ void mde_close(MdeStore *store) {
   if (store->probe) sqlite3DbFree(store->db, store->probe);
   if (store->info) sqlite3KeyInfoUnref(store->info);
   sqlite3_close(store->db);
-  for (int i = 0; i < store->collectionCount; i++) free(store->collections[i].name);
+  for (int i = 0; i < store->collectionCount; i++) {
+    free(store->collections[i].name);
+    free(store->collections[i].indexes);
+  }
   free(store->collections);
   free(store->record);
   free(store->payload);
@@ -341,8 +361,9 @@ int mde_collections(MdeStore *store, MdeBuffer *out) {
   for (int i = 0; i < store->collectionCount; i++) {
     const Collection *collection = &store->collections[i];
     uint32_t length = (uint32_t)strlen(collection->name);
+    uint32_t indexesSize = (uint32_t)collection->indexesSize;
     if (!Append(out, &length, 4) || !Append(out, collection->name, length) || !Append(out, &collection->id, 8) ||
-        !Append(out, &collection->count, 8))
+        !Append(out, &collection->count, 8) || !Append(out, &indexesSize, 4) || !Append(out, collection->indexes, indexesSize))
       return Fail(store, SQLITE_NOMEM, "out of memory");
   }
   return SQLITE_OK;
@@ -411,20 +432,22 @@ int mde_drop_collection(MdeStore *store, int64_t id) {
   if (!collection) return Fail(store, MDE_NO_COLLECTION, "no collection of this id");
   int length = (int)strlen(collection->name);
   uint8_t *nameKey = malloc((size_t)length + 1);
-  uint8_t countKey[9];
+  uint8_t countKey[9], indexesKey[9];
   if (!nameKey) return Fail(store, SQLITE_NOMEM, "out of memory");
   nameKey[0] = 'c';
   memcpy(nameKey + 1, collection->name, length);
   countKey[0] = 'k';
   PutBigEndian(countKey + 1, id);
+  indexesKey[0] = 'x';
+  PutBigEndian(indexesKey + 1, id);
   char sql[64];
   snprintf(sql, sizeof(sql), "DROP TABLE c%lld", (long long)id);
   int rc = Exec(store, "BEGIN IMMEDIATE", "the catalog");
   if (rc == SQLITE_OK) rc = Exec(store, sql, "the table of a collection");
   if (rc == SQLITE_OK) {
-    const uint8_t *blobs[] = {nameKey, countKey};
-    const int sizes[] = {length + 1, 9};
-    rc = RunBlobs(store, "DELETE FROM meta WHERE k = ?1 OR k = ?2", blobs, sizes, 2);
+    const uint8_t *blobs[] = {nameKey, countKey, indexesKey};
+    const int sizes[] = {length + 1, 9, 9};
+    rc = RunBlobs(store, "DELETE FROM meta WHERE k = ?1 OR k = ?2 OR k = ?3", blobs, sizes, 3);
   }
   free(nameKey);
   if (rc == SQLITE_OK) rc = Exec(store, "COMMIT", "the catalog");
@@ -433,6 +456,7 @@ int mde_drop_collection(MdeStore *store, int64_t id) {
     return rc;
   }
   free(collection->name);
+  free(collection->indexes);
   *collection = store->collections[--store->collectionCount];
   return LoadRoots(store);
 }
@@ -441,6 +465,43 @@ int mde_count(MdeStore *store, int64_t id, int64_t *count) {
   Collection *collection = Find(store, id);
   if (!collection) return Fail(store, MDE_NO_COLLECTION, "no collection of this id");
   *count = collection->count;
+  return SQLITE_OK;
+}
+
+int mde_set_indexes(MdeStore *store, int64_t id, const uint8_t *data, int size) {
+  Collection *collection = Find(store, id);
+  if (!collection) return Fail(store, MDE_NO_COLLECTION, "no collection of this id");
+  uint8_t *copy = NULL;
+  if (size > 0) {
+    copy = malloc((size_t)size);
+    if (!copy) return Fail(store, SQLITE_NOMEM, "out of memory");
+    memcpy(copy, data, size);
+  }
+  uint8_t key[9];
+  key[0] = 'x';
+  PutBigEndian(key + 1, id);
+  int rc = sqlite3BtreeBeginTrans(store->bt, 1, 0);
+  if (rc == SQLITE_OK) {
+    OpenCursor(store, store->metaCursor, store->meta, 1);
+    if (size > 0) {
+      rc = Put(store, store->metaCursor, key, 9, data, size);
+    } else {
+      int res = 0;
+      rc = Seek(store, store->metaCursor, key, 9, &res);
+      if (rc == SQLITE_OK && res == 0) rc = sqlite3BtreeDelete(store->metaCursor, 0);
+    }
+    sqlite3BtreeCloseCursor(store->metaCursor);
+    if (rc == SQLITE_OK) rc = sqlite3BtreeCommit(store->bt);
+    else sqlite3BtreeRollback(store->bt, SQLITE_OK, 0);
+  }
+  if (rc != SQLITE_OK) {
+    free(copy);
+    return FailSql(store, rc, "the indexes of a collection");
+  }
+  free(collection->indexes);
+  collection->indexes = copy;
+  collection->indexesSize = size;
+  store->frames = sqlite3PagerWalCallback(sqlite3BtreePager(store->bt));
   return SQLITE_OK;
 }
 

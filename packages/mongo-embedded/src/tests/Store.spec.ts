@@ -161,7 +161,7 @@ describe('The storage of a database', (): void => {
         database = await addon.open(where)
         const listed: Buffer = await addon.collections(database)
         const names: string[] = []
-        for (let at: number = 0; at < listed.length; at += 4 + listed.readUInt32LE(at) + 16) names.push(listed.toString('utf8', at + 4, at + 4 + listed.readUInt32LE(at)))
+        for (let at: number = 0; at < listed.length; at += 4 + listed.readUInt32LE(at) + 20 + listed.readUInt32LE(at + 4 + listed.readUInt32LE(at) + 16)) names.push(listed.toString('utf8', at + 4, at + 4 + listed.readUInt32LE(at)))
         assert.strictEqual(names.length, 30)
         assert.ok(names.includes('a') && !names.includes('c3') && names.includes('c29'))
         assert.strictEqual(await addon.count(database, 'a'), 2)

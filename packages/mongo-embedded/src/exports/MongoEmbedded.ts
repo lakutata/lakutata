@@ -1,5 +1,5 @@
-/**
- * @lakutata/mongo-embedded: an embedded MongoDB, its collections kept by SQLite in a native addon. Its client is
- * exported here as it is built (the storage first).
- */
-export {}
+export {EmbeddedClient, type EmbeddedDb, type EmbeddedCollection, type EmbeddedFindCursor, type EmbeddedArrayCursor} from '../lib/Client.js'
+export {MongoEmbeddedError, EmbeddedDuplicateKeyError, EmbeddedBulkWriteError, type EmbeddedWriteError} from '../lib/Errors.js'
+export {type EmbeddedStoreOptions} from '../lib/Store.js'
+export {type EmbeddedDocument} from '../lib/Values.js'
+export {ObjectId} from 'bson'

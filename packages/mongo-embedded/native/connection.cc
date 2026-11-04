@@ -103,7 +103,9 @@ std::string Connection::Open(const Settings& settings) {
     std::string name(reinterpret_cast<const char*>(collections.data + at + 4), length);
     std::memcpy(&id, collections.data + at + 4 + length, 8);
     names_[name] = id;
-    at += 4 + length + 16;
+    uint32_t indexes;
+    std::memcpy(&indexes, collections.data + at + 4 + length + 16, 4);
+    at += 4 + length + 20 + indexes;
   }
   mde_buffer_free(&collections);
   if (!settings.directory.empty() && settings.sync == MDE_SYNC_INTERVAL) {

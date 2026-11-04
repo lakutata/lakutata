@@ -93,9 +93,16 @@ export interface NativeAddon {
     close(database: NativeDatabase): Promise<void>
 
     /**
-     * The collections: for each one [u32 size of its name][its name][i64 id][i64 count of its documents]
+     * The collections: for each one [u32 size of its name][its name][i64 id][i64 count of its documents][u32 size of
+     * the definitions of its indexes][their BSON]
      */
     collections(database: NativeDatabase): Promise<Buffer>
+
+    /**
+     * The definitions of the indexes of a collection written (an empty Buffer: none), the collection created when it
+     * is missing
+     */
+    setIndexes(database: NativeDatabase, name: string, definitions: Buffer): Promise<void>
 
     /**
      * A collection created: false when it was there

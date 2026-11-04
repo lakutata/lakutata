@@ -66,11 +66,15 @@ int mde_open(const char *file, const MdeOptions *options, MdeStore **store, char
 void mde_close(MdeStore *store);
 const char *mde_message(MdeStore *store);
 
-/* The collections: for each one [u32 size of its name][its name][i64 id][i64 count of its documents] (little endian) */
+/* The collections: for each one [u32 size of its name][its name][i64 id][i64 count of its documents][u32 size of the
+** definitions of its indexes][their BSON] (little endian) */
 int mde_collections(MdeStore *store, MdeBuffer *out);
 int mde_create_collection(MdeStore *store, const char *name, int64_t *id);
 int mde_drop_collection(MdeStore *store, int64_t id);
 int mde_count(MdeStore *store, int64_t id, int64_t *count);
+
+/* The definitions of the indexes of a collection written (none: size 0) */
+int mde_set_indexes(MdeStore *store, int64_t id, const uint8_t *data, int size);
 
 /* The changes of a collection as one transaction: all of them, or none (*failed the index of the change failing) */
 int mde_write(MdeStore *store, int64_t id, const MdeChange *changes, int count, int *failed);

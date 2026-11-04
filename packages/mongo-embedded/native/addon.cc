@@ -110,7 +110,8 @@ Napi::Value Open(const Napi::CallbackInfo& info) {
 
 Napi::Value Close(const Napi::CallbackInfo& info) { return HandleOf(info)->database->Close(info.Env()); }
 
-// collections(handle): the collections, each [u32 size of its name][its name][i64 id][i64 count] (little endian)
+// collections(handle): the collections, each [u32 size of its name][its name][i64 id][i64 count][u32 size of the
+// definitions of its indexes][their BSON] (little endian)
 Napi::Value Collections(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   return HandleOf(info)->database->Submit(
@@ -137,6 +138,25 @@ Napi::Value CreateCollection(const Napi::CallbackInfo& info) {
         else outcome.done = true;
       },
       [](napi_env env, Outcome& outcome) { return BooleanOf(env, outcome.done); });
+}
+
+// setIndexes(handle, name, bson): the definitions of the indexes of a collection written (an empty Buffer: none), the
+// collection created when it is missing
+Napi::Value SetIndexes(const Napi::CallbackInfo& info) {
+  Connection* connection = HandleOf(info)->connection.get();
+  const std::string name = info[1].As<Napi::String>().Utf8Value();
+  auto bytes = std::make_shared<std::vector<uint8_t>>(BytesOf(info[2]));
+  return HandleOf(info)->database->Submit(
+      info.Env(),
+      [connection, name, bytes](Outcome& outcome) {
+        std::string message;
+        const int64_t id = connection->Create(name, &message);
+        if (!id) return Fail(outcome, -1, message);
+        if (mde_set_indexes(connection->store(), id, bytes->data(), static_cast<int>(bytes->size())) != 0)
+          return Fail(outcome, -1, mde_message(connection->store()));
+        connection->Written();
+      },
+      Undefined);
 }
 
 // dropCollection(handle, name): whether it was there
@@ -372,6 +392,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("close", Napi::Function::New(env, Close, "close"));
   exports.Set("collections", Napi::Function::New(env, Collections, "collections"));
   exports.Set("createCollection", Napi::Function::New(env, CreateCollection, "createCollection"));
+  exports.Set("setIndexes", Napi::Function::New(env, SetIndexes, "setIndexes"));
   exports.Set("dropCollection", Napi::Function::New(env, DropCollection, "dropCollection"));
   exports.Set("dropDatabase", Napi::Function::New(env, DropDatabase, "dropDatabase"));
   exports.Set("count", Napi::Function::New(env, Count, "count"));
