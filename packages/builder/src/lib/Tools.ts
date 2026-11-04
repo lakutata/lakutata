@@ -1,6 +1,6 @@
 import {createHash, type Hash} from 'node:crypto'
 import {existsSync} from 'node:fs'
-import {chmod, mkdir, mkdtemp, open, rename, rm, writeFile, type FileHandle} from 'node:fs/promises'
+import {chmod, mkdir, mkdtemp, open, rename, rm, type FileHandle} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import {runCommand} from './Processes.js'
@@ -81,6 +81,10 @@ type DownloadOptions = {
      */
     progress?: (line: string) => void
     /**
+     * The headers of the requests
+     */
+    headers?: Record<string, string>
+    /**
      * The while (milliseconds) a connection has to receive the minimum in, else it is left for another one: 30 s by
      * default
      */
@@ -118,7 +122,7 @@ export async function downloadFile(url: string, file: string, options: DownloadO
             checked = received
         }, interval)
         try {
-            const response: Response = await fetch(url, {signal: controller.signal})
+            const response: Response = await fetch(url, {headers: options.headers, signal: controller.signal})
             if (!response.ok || !response.body) throw new Error(`${url} cannot be downloaded (${response.status})`)
             const hash: Hash = createHash('sha256')
             const handle: FileHandle = await open(file, 'w')
@@ -188,19 +192,15 @@ export async function ensureTool(name: keyof typeof TOOLS): Promise<string> {
     const directory: string = path.join(cacheDirectory(), 'tools', `${name}-${tool.version}-${platform}`)
     const executable: string = path.join(directory, ...tool.executable.split('/'))
     if (existsSync(executable)) return executable
-    //SourceForge answers the browsers with its page, the tools with the file
-    const response: Response = await fetch(tool.url(release.archive), {headers: {'user-agent': 'Wget'}}).catch((error: Error): never => {
-        throw new Error(`${name} cannot be downloaded (${error.message}): give its executable (LAKUTATA_${name.toUpperCase()})`)
-    })
-    if (!response.ok) throw new Error(`${name} cannot be downloaded (${tool.url(release.archive)}: ${response.status}): give its executable (LAKUTATA_${name.toUpperCase()})`)
-    const archive: Buffer = Buffer.from(await response.arrayBuffer())
-    const sha256: string = createHash('sha256').update(archive).digest('hex')
-    if (sha256 !== release.sha256) throw new Error(`The archive of ${name} ${tool.version} downloaded is not the one of its release (sha256 ${sha256})`)
-    //Extracted aside, then renamed: the builds running together do not see it partly written
+    //Downloaded and extracted aside, then renamed: the builds running together do not see it partly written
     await mkdir(path.dirname(directory), {recursive: true})
     const temporary: string = await mkdtemp(`${directory}.`)
     try {
-        await writeFile(path.join(temporary, release.archive), archive)
+        //SourceForge answers the browsers with its page, the tools with the file
+        const sha256: string = await downloadFile(tool.url(release.archive), path.join(temporary, release.archive), {headers: {'user-agent': 'Wget'}}).catch((error: Error): never => {
+            throw new Error(`${error.message}: give the executable of ${name} (LAKUTATA_${name.toUpperCase()})`)
+        })
+        if (sha256 !== release.sha256) throw new Error(`The archive of ${name} ${tool.version} downloaded is not the one of its release (sha256 ${sha256})`)
         //An archive (tar.gz, zip: the tar of Windows reads them), or the executable itself
         if (/\.(tar\.gz|zip)$/.test(release.archive)) {
             const extracted = await runCommand('tar', ['-xf', release.archive], temporary)

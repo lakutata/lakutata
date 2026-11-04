@@ -551,10 +551,12 @@ describe('The Node.js projects of the mobile applications', (): void => {
         const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-mobile-'))
         const content: Buffer = Buffer.alloc(64 * 1024, 'libnode')
         const requests: string[] = []
+        const agents: (string | undefined)[] = []
         //The first connection of /slow sends a part of the file then nothing, the first one of /broken a part then it
         //is closed; the connections of /stalled send a part then nothing
         const server: Server = createServer((request: IncomingMessage, response: ServerResponse): void => {
             requests.push(request.url!)
+            agents.push(request.headers['user-agent'])
             const first: boolean = requests.filter((url: string): boolean => url === request.url).length === 1
             if (request.url === '/missing') {
                 response.writeHead(404).end()
@@ -586,7 +588,10 @@ describe('The Node.js projects of the mobile applications', (): void => {
             await assert.rejects(downloadFile(`${base}/stalled`, file, options), /\/stalled cannot be downloaded, 2 connections tried: under 1000 bytes received in 0\.1 s$/)
             //Refused by the server: no other connection
             await assert.rejects(downloadFile(`${base}/missing`, file, options), /\/missing cannot be downloaded \(404\)$/)
-            assert.deepStrictEqual(requests, ['/slow', '/slow', '/broken', '/broken', '/stalled', '/stalled', '/missing'])
+            //The headers given sent: SourceForge answers the tools (user-agent Wget) with the file
+            assert.strictEqual(await downloadFile(`${base}/file`, file, {headers: {'user-agent': 'Wget'}}), sha256)
+            assert.strictEqual(agents.at(-1), 'Wget')
+            assert.deepStrictEqual(requests, ['/slow', '/slow', '/broken', '/broken', '/stalled', '/stalled', '/missing', '/file'])
         } finally {
             server.closeAllConnections()
             await new Promise<void>((resolve: () => void): unknown => server.close((): void => resolve()))
