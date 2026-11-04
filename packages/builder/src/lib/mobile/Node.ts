@@ -126,7 +126,7 @@ async function libnodeArchive(name: string, sums: () => Promise<Map<string, stri
     const temporary: string = await mkdtemp(`${directory}.`)
     try {
         const file: string = path.join(temporary, archive)
-        const downloaded: string = await downloadFile(url, file).catch((error: Error): never => {
+        const downloaded: string = await downloadFile(url, file, {progress: progress}).catch((error: Error): never => {
             throw new Error(`${error.message}: a mirror of the releases of lakutata/libnode is given by LAKUTATA_LIBNODE_MIRROR, a libnode of your own by LAKUTATA_MOBILE_NODE_DIR`)
         })
         if (downloaded !== sum) throw new Error(`The ${archive} downloaded is not the one of the release ${MOBILE_NODE_RELEASE} of libnode (sha256 ${downloaded}, ${sum} expected)`)

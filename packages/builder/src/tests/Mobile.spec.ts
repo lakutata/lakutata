@@ -9,6 +9,7 @@ import {homedir, tmpdir} from 'node:os'
 import path from 'node:path'
 import {type AndroidAbi, downloadMobileNode, MOBILE_NODE_RELEASE, MOBILE_NODE_VERSION, stageMobileApp, type MobileStage} from '../index.js'
 import {nativeBanner} from '../lib/NativeRuntime.js'
+import {downloadFile} from '../lib/Tools.js'
 import {addonNodeHeaders, frameworkInfo, frameworkName, harmonyLibraryName} from '../lib/mobile/Addons.js'
 import {mobileNodeVersion} from '../lib/mobile/Node.js'
 import {binaryArchitectures, nodeGyp} from '../lib/nwjs/Addons.js'
@@ -541,6 +542,53 @@ describe('The Node.js projects of the mobile applications', (): void => {
                 if (value === undefined) delete process.env[name]
                 else process.env[name] = value
             }
+            await new Promise<void>((resolve: () => void): unknown => server.close((): void => resolve()))
+            rmSync(work, {recursive: true, force: true})
+        }
+    })
+
+    it('download a file again by another connection when one receives too little or breaks, not when the server refuses it', async (): Promise<void> => {
+        const work: string = mkdtempSync(path.join(tmpdir(), 'lakutata-mobile-'))
+        const content: Buffer = Buffer.alloc(64 * 1024, 'libnode')
+        const requests: string[] = []
+        //The first connection of /slow sends a part of the file then nothing, the first one of /broken a part then it
+        //is closed; the connections of /stalled send a part then nothing
+        const server: Server = createServer((request: IncomingMessage, response: ServerResponse): void => {
+            requests.push(request.url!)
+            const first: boolean = requests.filter((url: string): boolean => url === request.url).length === 1
+            if (request.url === '/missing') {
+                response.writeHead(404).end()
+            } else if (request.url === '/stalled' || (request.url === '/slow' && first)) {
+                response.writeHead(200, {'content-length': content.length}).write(content.subarray(0, 100))
+            } else if (request.url === '/broken' && first) {
+                response.writeHead(200, {'content-length': content.length}).write(content.subarray(0, 100), (): unknown => response.socket?.destroy())
+            } else {
+                response.writeHead(200, {'content-length': content.length}).end(content)
+            }
+        })
+        try {
+            await new Promise<void>((resolve: () => void): unknown => server.listen(0, '127.0.0.1', resolve))
+            const base: string = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+            const file: string = path.join(work, 'libnode.tar.gz')
+            const sha256: string = createHash('sha256').update(content).digest('hex')
+            const lines: string[] = []
+            const options = {interval: 100, minimum: 1000, attempts: 2, progress: (line: string): unknown => lines.push(line)}
+            //Under the minimum in an interval, or broken: the file downloaded again, whole
+            assert.strictEqual(await downloadFile(`${base}/slow`, file, options), sha256)
+            assert.deepStrictEqual(readFileSync(file), content)
+            assert.strictEqual(await downloadFile(`${base}/broken`, file, options), sha256)
+            assert.deepStrictEqual(readFileSync(file), content)
+            //The second line holds the error of fetch
+            assert.strictEqual(lines.length, 2)
+            assert.strictEqual(lines[0], 'libnode.tar.gz again (2/2): under 1000 bytes received in 0.1 s')
+            assert.match(lines[1], /^libnode\.tar\.gz again \(2\/2\): terminated/)
+            //Every connection too slow: refused after the last one
+            await assert.rejects(downloadFile(`${base}/stalled`, file, options), /\/stalled cannot be downloaded, 2 connections tried: under 1000 bytes received in 0\.1 s$/)
+            //Refused by the server: no other connection
+            await assert.rejects(downloadFile(`${base}/missing`, file, options), /\/missing cannot be downloaded \(404\)$/)
+            assert.deepStrictEqual(requests, ['/slow', '/slow', '/broken', '/broken', '/stalled', '/stalled', '/missing'])
+        } finally {
+            server.closeAllConnections()
             await new Promise<void>((resolve: () => void): unknown => server.close((): void => resolve()))
             rmSync(work, {recursive: true, force: true})
         }

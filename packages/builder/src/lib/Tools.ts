@@ -73,24 +73,77 @@ export function cacheDirectory(): string {
 }
 
 /**
- * Download a file, its sha256 computed while it is written
+ * The options of a download
+ */
+type DownloadOptions = {
+    /**
+     * Told when the file is downloaded again: a line naming it, read after "Downloading "
+     */
+    progress?: (line: string) => void
+    /**
+     * The while (milliseconds) a connection has to receive the minimum in, else it is left for another one: 30 s by
+     * default
+     */
+    interval?: number
+    /**
+     * The bytes a connection has to receive in each interval: 100 KB by default
+     */
+    minimum?: number
+    /**
+     * The connections tried: 3 by default
+     */
+    attempts?: number
+}
+
+/**
+ * Download a file, its sha256 computed while it is written. A connection receiving too little (one of the releases of
+ * GitHub can stay at some kilobytes a second while another one downloads the file at once) or broken is left for
+ * another one, which downloads the file again from its start
  * @param url
  * @param file
+ * @param options
  */
-export async function downloadFile(url: string, file: string): Promise<string> {
-    const response: Response = await fetch(url)
-    if (!response.ok || !response.body) throw new Error(`${url} cannot be downloaded (${response.status})`)
-    const hash: Hash = createHash('sha256')
-    const handle: FileHandle = await open(file, 'w')
-    try {
-        for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-            hash.update(chunk)
-            await handle.write(chunk)
+export async function downloadFile(url: string, file: string, options: DownloadOptions = {}): Promise<string> {
+    const interval: number = options.interval ?? 30000
+    const minimum: number = options.minimum ?? 100 * 1024
+    const attempts: number = options.attempts ?? 3
+    const slow: string = `under ${minimum % 1024 === 0 ? `${minimum / 1024} KB` : `${minimum} bytes`} received in ${interval / 1000} s`
+    for (let attempt: number = 1; ; attempt++) {
+        const controller: AbortController = new AbortController()
+        let received: number = 0
+        let checked: number = 0
+        //From the request: a connection waiting for its response receives nothing too
+        const timer: NodeJS.Timeout = setInterval((): void => {
+            if (received - checked < minimum) controller.abort()
+            checked = received
+        }, interval)
+        try {
+            const response: Response = await fetch(url, {signal: controller.signal})
+            if (!response.ok || !response.body) throw new Error(`${url} cannot be downloaded (${response.status})`)
+            const hash: Hash = createHash('sha256')
+            const handle: FileHandle = await open(file, 'w')
+            try {
+                for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+                    received += chunk.length
+                    hash.update(chunk)
+                    await handle.write(chunk)
+                }
+            } finally {
+                await handle.close()
+            }
+            return hash.digest('hex')
+        } catch (error) {
+            //The connections broken fail with a TypeError (fetch failed, terminated); a file refused by the server, or
+            //which cannot be written, is not downloaded again
+            const cause: string | undefined = ((error as Error).cause as { code?: string } | undefined)?.code
+            const reason: string | undefined = controller.signal.aborted ? slow : error instanceof TypeError ? `${error.message}${cause ? ` (${cause})` : ''}` : undefined
+            if (reason === undefined) throw error
+            if (attempt === attempts) throw new Error(`${url} cannot be downloaded, ${attempts} connections tried: ${reason}`, {cause: error})
+            options.progress?.(`${path.basename(file)} again (${attempt + 1}/${attempts}): ${reason}`)
+        } finally {
+            clearInterval(timer)
         }
-    } finally {
-        await handle.close()
     }
-    return hash.digest('hex')
 }
 
 /**
