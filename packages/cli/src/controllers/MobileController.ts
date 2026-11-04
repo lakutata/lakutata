@@ -498,7 +498,10 @@ async function runHarmony(project: MobileProject, device?: string): Promise<{ bu
     await shown(reactNative, ['bundle-harmony', '--dev', 'false', '--bundle-output', path.join('harmony', 'entry', 'src', 'main', 'resources', 'rawfile', 'bundle.harmony.js')], project.root)
     const harmony: string = path.join(project.root, 'harmony')
     const env: NodeJS.ProcessEnv = {...process.env, DEVECO_SDK_HOME: tools.sdk, PATH: `${path.dirname(tools.node)}${path.delimiter}${process.env.PATH ?? ''}`}
-    //The packages of the HAP (RNOH, from node_modules) in harmony/oh_modules, which its native build reads
+    //The libraries of React Native ported to HarmonyOS (RNOH autolinking): their HARs added to oh-package.json5 before
+    //ohpm installs them, as hvigor adds them only once ohpm ran
+    await shown(reactNative, ['link-harmony'], project.root)
+    //The packages of the HAP (RNOH and the libraries, from node_modules) in harmony/oh_modules, which its native build reads
     await shown(tools.ohpm, ['install', '--all'], harmony, env)
     await shown(tools.node, [tools.hvigor, '--mode', 'module', '-p', 'product=default', '-p', 'module=entry@default', 'assembleHap', '--no-daemon'], harmony, env)
     const outputs: string = path.join(harmony, 'entry', 'build', 'default', 'outputs', 'default')

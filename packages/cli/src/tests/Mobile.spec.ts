@@ -267,6 +267,7 @@ esac
         assert.deepStrictEqual(sent(), [
             'hdc list targets',
             'react-native bundle-harmony --dev false --bundle-output harmony/entry/src/main/resources/rawfile/bundle.harmony.js',
+            'react-native link-harmony',
             'ohpm install --all',
             `hvigor --mode module -p product=default -p module=entry@default assembleHap --no-daemon (${sdk})`,
             `hdc -t 127.0.0.1:5555 install -r ${hap}`,
