@@ -485,6 +485,10 @@ export class EmbeddedWorkerClient {
         }
         const worker = new Worker(embeddedWorkerCode, {
             eval: true,
+            // lakutata: none of the options of the command line of the process, which the worker would inherit: with
+            // --input-type=module, its code (CommonJS) would run as an ES module; a list of its own refuses the
+            // options of V8 (--max-old-space-size) that the process may have
+            execArgv: [],
             workerData: { [WORKER_DATA_KEY]: data },
             ...(resourceLimits ? { resourceLimits: resourceLimits } : {}),
         })

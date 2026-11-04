@@ -1,6 +1,6 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
-import {spawn, type ChildProcess} from 'node:child_process'
+import {spawn, spawnSync, type ChildProcess} from 'node:child_process'
 import {randomBytes} from 'node:crypto'
 import {cpSync, existsSync} from 'node:fs'
 import {appendFile, cp, mkdtemp, readdir, readFile, rm, stat, writeFile} from 'node:fs/promises'
@@ -769,6 +769,21 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
             })
         })
         assert.strictEqual(output, 'written 1')
+    }))
+
+    it('runs its worker thread in a process whose code is an ES module given on the command line (--input-type=module)', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        //The worker thread does not inherit the options of the command line, which would run its code as an ES module
+        const typeorm: string = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../vendor/typeorm/index.js')
+        const result = spawnSync(process.execPath, ['--max-old-space-size=512', '--input-type=module', '-e', `
+            import {createRequire} from 'node:module'
+            const {DataSource} = createRequire(import.meta.url)(${JSON.stringify(typeorm)})
+            const dataSource = await new DataSource({type: 'mongo-embedded', database: ${JSON.stringify(directory)}}).initialize()
+            await dataSource.mongoManager.mongoQueryRunner.insertOne('items', {n: 1}, {})
+            console.log('found ' + await dataSource.mongoManager.mongoQueryRunner.countDocuments('items', {}))
+            await dataSource.destroy()
+        `], {encoding: 'utf8', timeout: 30000})
+        assert.strictEqual(result.status, 0, result.stderr)
+        assert.strictEqual(result.stdout.trim(), 'found 1')
     }))
 
     it('unlocks its directory when its worker thread exits while it opens the database', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
