@@ -267,7 +267,6 @@ export class ExpenseController extends Controller {
 
 ```typescript
 import type {Duplex} from 'node:stream'
-import path from 'node:path'
 import type {ApplicationOptions} from 'lakutata'
 import {buildDatabaseOptions} from 'lakutata/com/database'
 import {buildEntrypoints, httpServiceEntrypoint} from 'lakutata/com/entrypoint'
@@ -292,7 +291,7 @@ export type ConfigOptions = {
 }
 
 /**
- * The options of the application, made once the aliases are declared: App.ts gives run() a function that calls it
+ * The options of the application: App.ts gives run() a function that calls it
  * @param options
  */
 export function config(options: ConfigOptions = {}): ApplicationOptions {
@@ -304,7 +303,7 @@ export function config(options: ConfigOptions = {}): ApplicationOptions {
             //The expenses, in the data directory of the application (@data)
             database: buildDatabaseOptions({
                 type: 'better-sqlite3',
-                database: path.resolve('@data/expenses.sqlite'),
+                database: '@data/expenses.sqlite',
                 entities: [Expense],
                 //The migrations go into the bundle of the application; those the database has not run yet run when it
                 //connects, so an update of the application brings the database of the device up to date
@@ -326,13 +325,11 @@ export function config(options: ConfigOptions = {}): ApplicationOptions {
 }
 ```
 
-- The database is a file of the data directory of the application: `path.resolve('@data/expenses.sqlite')`. The `App.ts`
-  of the template declares the alias `@data` for each system: the `files` directory of the application on Android,
-  `Library/Application Support` on iOS, `/data/storage/el2/base/files` on HarmonyOS, and `packages/app/data` on the
-  computer. The system keeps it until the application is uninstalled, unlike `os.tmpdir()`, its cache.
-- `App.ts` gives `run()` a function that calls `config()`: the aliases are declared when the application launches, and
-  the options made in that function see `@data` ([Application](../Application.md), section 2). `App.ts` stays as the
-  template made it.
+- The database is a file of the data directory of the application, `@data/expenses.sqlite`; the alias is resolved when
+  the database connects. The `App.ts` of the template declares the alias `@data` for each system: the `files` directory
+  of the application on Android, `Library/Application Support` on iOS, `/data/storage/el2/base/files` on HarmonyOS, and
+  `packages/app/data` on the computer. The system keeps it until the application is uninstalled, unlike `os.tmpdir()`,
+  its cache.
 - The migrations are listed as classes. The Node.js side is a bundle on the device (`lakutata mobile stage`), without
   the compiled files that a glob such as `build/migrations/*.js` would find. `migrationsRun: true` runs the migrations
   that the database of the device has not run yet when it connects, so an update of the application brings its database
@@ -622,7 +619,7 @@ describe('expenses', (): void => {
             }
         })
         app = await new Promise<Application>((resolve: (app: Application) => void): void => {
-            //@data declared as App.ts does, before the options are made: they are given by a function
+            //@data declared as App.ts declares it
             Application
                 .alias({'@data': data}, true)
                 .run(() => config({host: socket}))
@@ -681,8 +678,7 @@ describe('expenses', (): void => {
 
 The tests run the Node.js side on the computer, the way the native module runs it on a device: a socket stands for the
 one of the native module, and the tests write its messages, a line of JSON each (`invoke`, `subscribe`), and read the
-responses and the events. `@data` is a temporary directory, declared as `App.ts` declares it, before the options are
-made by the function given to `run()`.
+responses and the events. `@data` is a temporary directory, declared as `App.ts` declares it.
 
 ```bash
 npm test

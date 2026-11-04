@@ -95,6 +95,8 @@ Application
 
 **条件中的 `null` 和 `undefined`。** 默认情况下，where 条件中值为 `null` 或 `undefined` 的属性会被忽略，这与 TypeORM 0.3 相同；TypeORM 1 的默认行为则是抛出错误。所以 `findOneBy({id: undefined})` 会查到表里的第一行：用请求中的值查询之前要先检查它们，或者设置 `invalidWhereValuesBehavior: {undefined: 'throw'}`，让这类值抛出错误（给出的每个键会替换它的默认值）。
 
+**带别名的路径。** 用应用的别名写的路径（`@data/app.sqlite`、`@app/migrations/*.js`）会在数据库连接时解析：数据库文件（`database`，sql.js 的 `location`），以及实体、迁移和订阅者的 glob。别名由 `.alias()` 声明（见 [Application](Application.md) 第 2 节）。
+
 **用 TypeORM 0.3 创建的数据库。** 如果表名或列名中有非 ASCII 字符，TypeORM 1 给它们的索引和约束起的名字会不同，生成的迁移就会重命名它们。`namingStrategy: new NamingStrategyV03()`（来自 `lakutata/orm`）可以保持 TypeORM 0.3 的命名。
 
 **存在 Redis 中的查询缓存**（`cache: {type: 'redis'}` 或 `'ioredis'`）需要安装 `redis` 或 `ioredis` 包。

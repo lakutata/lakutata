@@ -103,6 +103,10 @@ The options are the ones of TypeORM, given to it as they are. The options of eac
 finds the first row of the table: check the values taken from a request before querying with them, or set
 `invalidWhereValuesBehavior: {undefined: 'throw'}` to throw on them (each key given replaces its default).
 
+**Paths with aliases.** A path given with an alias of the application (`@data/app.sqlite`, `@app/migrations/*.js`) is
+resolved when the database connects: the file of the database (`database`, the `location` of sql.js) and the globs of
+the entities, the migrations and the subscribers. The aliases are declared by `.alias()` ([Application](Application.md), section 2).
+
 **Databases created with TypeORM 0.3.** If a table or column name has characters outside ASCII, TypeORM 1 names its
 indices and constraints differently, and generated migrations would rename them.
 `namingStrategy: new NamingStrategyV03()` (from `lakutata/orm`) keeps the names of TypeORM 0.3.

@@ -176,6 +176,33 @@ describe('The ORM', (): void => {
         }
     })
 
+    it('resolves the aliases of the application in the paths of the databases, their entities and their migrations', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        //A migration of the directory of the data, found by its glob
+        await mkdir(path.join(directory, 'data', 'migrations'), {recursive: true})
+        await writeFile(path.join(directory, 'data', 'migrations', '1700000000000-tag.js'), 'exports.Tag1700000000000 = class { name = \'Tag1700000000000\'; async up(q) { await q.query(\'CREATE TABLE "tag" ("id" integer PRIMARY KEY)\') } async down(q) { await q.query(\'DROP TABLE "tag"\') } }\n')
+        const script: string = [
+            `import {existsSync} from 'node:fs'`,
+            `import {Application} from '${resolveImport('@lakutata/core')}'`,
+            `import {buildDatabaseOptions} from '${new URL('../exports/DatabaseComponent.js', import.meta.url)}'`,
+            `import {EntitySchema} from '${new URL('../exports/ORM.js', import.meta.url)}'`,
+            'const note = () => new EntitySchema({name: \'note\', columns: {id: {type: Number, primary: true, generated: true}}})',
+            'Application.alias({\'@data\': \'./data\'}, true).run(() => ({id: \'alias.test\', name: \'AliasTest\', components: {',
+            '    notes: buildDatabaseOptions({type: \'better-sqlite3\', database: \'@data/notes.sqlite\', entities: [note()], synchronize: true, migrations: [\'@data/migrations/*.js\'], migrationsRun: true}),',
+            '    saved: buildDatabaseOptions({type: \'sqljs\', location: \'@data/saved.sqlite\', autoSave: true, entities: [note()], synchronize: true}),',
+            '    documents: buildDatabaseOptions({type: \'mongo-embedded\', database: \'@data/documents\'})',
+            '}, bootstrap: [\'notes\', \'saved\', \'documents\']})).onLaunched(async (app) => {',
+            '    const tables = await (await app.getObject(\'notes\')).query(\'SELECT name FROM sqlite_master WHERE type = \\\'table\\\' ORDER BY name\')',
+            '    console.log(JSON.stringify({tables: tables.map((row) => row.name), files: [\'notes.sqlite\', \'saved.sqlite\', \'documents\'].filter((file) => existsSync(`data/${file}`)), aliasDirectory: existsSync(\'@data\')}))',
+            '    await app.exit(0)',
+            '})'
+        ].join('\n')
+        //A file: the worker of the embedded MongoDB would inherit --input-type=module
+        await writeFile(path.join(directory, 'app.mjs'), script)
+        const result: SpawnSyncReturns<string> = spawnSync(process.execPath, ['app.mjs'], {cwd: directory, encoding: 'utf8', timeout: 60000})
+        assert.strictEqual(result.status, 0, result.stdout + result.stderr)
+        assert.deepStrictEqual(JSON.parse(result.stdout.trim().split('\n').at(-1)!), {tables: ['migrations', 'note', 'sqlite_sequence', 'tag'], files: ['notes.sqlite', 'saved.sqlite', 'documents'], aliasDirectory: false})
+    }))
+
     it('names the indices of the names outside ASCII as TypeORM 0.3 with NamingStrategyV03', (): void => {
         //The names of TypeORM 0.3.31 and 1.1.2 for the index of the column name of the table author_ä_profile
         assert.strictEqual(new NamingStrategyV03().indexName('author_ä_profile', ['name']), 'IDX_7c80da203eeefc6a00b847e985')

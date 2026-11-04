@@ -277,17 +277,16 @@ export const db = buildDatabaseOptions({
 SQL Server 和 Oracle 还没有在手机上验证过。
 
 - `lakutata mobile stage` 用 NDK、Xcode 或 DevEco Studio 为每个系统从源码编译 `better-sqlite3`（见 `@lakutata/cli` README 中的 `lakutata mobile` 命令）。
-- 数据库文件需要长期保存，而 `os.tmpdir()` 是应用的缓存目录，系统可能清空它。模板的 `App.ts` 把应用的数据目录声明为别名 `@data`：Android 上是应用的 files 目录，iOS 上是 `Library/Application Support`，鸿蒙上是 `/data/storage/el2/base/files`，在开发用的电脑上是 `packages/app/data`。`path.resolve('@data/app.sqlite')` 在应用的选项函数中得到那里一个文件的路径（见 [Application](Application.md) 第 2 节）。
+- 数据库文件需要长期保存，而 `os.tmpdir()` 是应用的缓存目录，系统可能清空它。模板的 `App.ts` 把应用的数据目录声明为别名 `@data`：Android 上是应用的 files 目录，iOS 上是 `Library/Application Support`，鸿蒙上是 `/data/storage/el2/base/files`，在开发用的电脑上是 `packages/app/data`。数据库的选项可以直接写那里的文件 `@data/app.sqlite`，数据库连接时会解析这个别名。
 - sql.js 的 asm.js 版本是编译成 JavaScript 的 SQLite：不需要 WebAssembly，也没有其他文件，所以在三个系统上都一样能运行。鸿蒙的 Node.js 没有 WebAssembly，iOS 的 Node.js 只有 nodejs-mobile 的 polyfill，慢得多：
 
 ```typescript
 import type {ApplicationOptions} from 'lakutata'
 import {buildDatabaseOptions} from 'lakutata/com/database'
 import {createRequire} from 'node:module'
-import path from 'node:path'
 
 /**
- * 应用的选项：App.ts 通过函数把它交给 run()，所以生成选项时 @data 已经声明
+ * 应用的选项
  */
 export function config(): ApplicationOptions {
     return {
@@ -296,7 +295,7 @@ export function config(): ApplicationOptions {
         components: {
             db: buildDatabaseOptions({
                 type: 'sqljs',
-                location: path.resolve('@data/app.sqlite'),
+                location: '@data/app.sqlite',
                 autoSave: true,
                 //用 sql.js 的 asm.js 版本代替它的 WebAssembly 版本
                 driver: createRequire(import.meta.url)('sql.js/dist/sql-asm.js'),

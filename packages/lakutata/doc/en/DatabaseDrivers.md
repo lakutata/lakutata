@@ -315,8 +315,8 @@ SQL Server and Oracle have not been checked there.
 - The file of a database has to last, and `os.tmpdir()` is the cache of the application, which the system may empty. The
   `App.ts` of the template declares the data directory of the application as the alias `@data`: the `files` directory of
   the application on Android, `Library/Application Support` on iOS, `/data/storage/el2/base/files` on HarmonyOS, and
-  `packages/app/data` on the computer of the development. `path.resolve('@data/app.sqlite')` gives the path of a file
-  there, in the options function of the application ([Application](Application.md), section 2).
+  `packages/app/data` on the computer of the development. The options of the database name a file there as
+  `@data/app.sqlite`: the alias is resolved when the database connects.
 - The asm.js build of sql.js is SQLite compiled to JavaScript: no WebAssembly and no other file, so it runs the same on
   the three systems. The Node.js of HarmonyOS has no WebAssembly, and the one of iOS has only the polyfill of
   nodejs-mobile, which is much slower:
@@ -325,10 +325,9 @@ SQL Server and Oracle have not been checked there.
 import type {ApplicationOptions} from 'lakutata'
 import {buildDatabaseOptions} from 'lakutata/com/database'
 import {createRequire} from 'node:module'
-import path from 'node:path'
 
 /**
- * The options of the application: App.ts gives them to run() in a function, so @data is declared when they are made
+ * The options of the application
  */
 export function config(): ApplicationOptions {
     return {
@@ -337,7 +336,7 @@ export function config(): ApplicationOptions {
         components: {
             db: buildDatabaseOptions({
                 type: 'sqljs',
-                location: path.resolve('@data/app.sqlite'),
+                location: '@data/app.sqlite',
                 autoSave: true,
                 //The asm.js build of sql.js, instead of its WebAssembly
                 driver: createRequire(import.meta.url)('sql.js/dist/sql-asm.js'),

@@ -237,7 +237,6 @@ export class ExpenseController extends Controller {
 
 ```typescript
 import type {Duplex} from 'node:stream'
-import path from 'node:path'
 import type {ApplicationOptions} from 'lakutata'
 import {buildDatabaseOptions} from 'lakutata/com/database'
 import {buildEntrypoints, httpServiceEntrypoint} from 'lakutata/com/entrypoint'
@@ -261,7 +260,7 @@ export type ConfigOptions = {
 }
 
 /**
- * 应用的选项，在别名声明之后生成：App.ts 交给 run() 的函数会调用它
+ * 应用的选项：App.ts 交给 run() 的函数会调用它
  * @param options
  */
 export function config(options: ConfigOptions = {}): ApplicationOptions {
@@ -273,7 +272,7 @@ export function config(options: ConfigOptions = {}): ApplicationOptions {
             //支出数据，放在应用的数据目录（@data）中
             database: buildDatabaseOptions({
                 type: 'better-sqlite3',
-                database: path.resolve('@data/expenses.sqlite'),
+                database: '@data/expenses.sqlite',
                 entities: [Expense],
                 //迁移随应用的单文件包一起发布；数据库还没执行过的迁移会在连接时执行，所以应用更新后，设备上的数据库也随之更新
                 migrations: [Migrations1793722916138],
@@ -294,8 +293,7 @@ export function config(options: ConfigOptions = {}): ApplicationOptions {
 }
 ```
 
-- 数据库是应用数据目录中的一个文件：`path.resolve('@data/expenses.sqlite')`。模板的 `App.ts` 为每个系统声明别名 `@data`：Android 上是应用的 `files` 目录，iOS 上是 `Library/Application Support`，鸿蒙上是 `/data/storage/el2/base/files`，在电脑上是 `packages/app/data`。系统会一直保留这个目录，直到应用被卸载；`os.tmpdir()` 则是应用的缓存目录，系统可能清空它。
-- `App.ts` 交给 `run()` 的是一个调用 `config()` 的函数：别名在应用启动时声明，这时生成的选项才能用到 `@data`（见 [Application](../Application.md) 第 2 节）。`App.ts` 保持模板生成时的样子。
+- 数据库是应用数据目录中的一个文件 `@data/expenses.sqlite`，数据库连接时会解析这个别名。模板的 `App.ts` 为每个系统声明别名 `@data`：Android 上是应用的 `files` 目录，iOS 上是 `Library/Application Support`，鸿蒙上是 `/data/storage/el2/base/files`，在电脑上是 `packages/app/data`。系统会一直保留这个目录，直到应用被卸载；`os.tmpdir()` 则是应用的缓存目录，系统可能清空它。
 - 迁移以类的形式列出。在设备上，Node.js 端是一个单文件包（由 `lakutata mobile stage` 生成），里面没有 `build/migrations/*.js` 这类通配路径能找到的编译文件。`migrationsRun: true` 会在连接时执行设备上的数据库还没执行过的迁移，所以应用更新后第一次启动时，数据库就会更新到最新。
 - `bootstrap` 先连接数据库并执行迁移，再提供动作。
 
@@ -571,7 +569,7 @@ describe('expenses', (): void => {
             }
         })
         app = await new Promise<Application>((resolve: (app: Application) => void): void => {
-            //像 App.ts 那样在生成选项之前声明 @data：选项由函数提供
+            //像 App.ts 那样声明 @data
             Application
                 .alias({'@data': data}, true)
                 .run(() => config({host: socket}))
@@ -628,7 +626,7 @@ describe('expenses', (): void => {
 })
 ```
 
-测试用 Node.js 运行 Node.js 端，方式和原生模块在设备上运行它一样：一个套接字代替原生模块的套接字，测试往里写消息（每条一行 JSON：`invoke`、`subscribe`），并读取响应和事件。`@data` 是一个临时目录，像 `App.ts` 那样，在传给 `run()` 的函数生成选项之前声明。
+测试用 Node.js 运行 Node.js 端，方式和原生模块在设备上运行它一样：一个套接字代替原生模块的套接字，测试往里写消息（每条一行 JSON：`invoke`、`subscribe`），并读取响应和事件。`@data` 是一个临时目录，像 `App.ts` 那样声明。
 
 ```bash
 npm test
