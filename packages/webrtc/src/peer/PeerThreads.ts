@@ -220,6 +220,9 @@ export class PeerThreads extends Component {
         if (slot.ready) return slot.ready
         const worker: Worker = new Worker(peerWorkerCode, {
             eval: true,
+            //Without the options of the command line of the process, which a worker inherits: with --input-type=module, its code
+            //(CommonJS) would run as an ES module
+            execArgv: [],
             workerData: {thread: slot.index} satisfies PeerWorkerData,
             ...this.resourceLimits ? {resourceLimits: this.resourceLimits} : {}
         })

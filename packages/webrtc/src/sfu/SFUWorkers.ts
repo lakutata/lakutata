@@ -553,7 +553,9 @@ export class SFUWorkers {
         //Running once it says so: a thread failing to start is not started again
         slot.ran = false
         const resourceLimits: ResourceLimits | undefined = this.#host.resourceLimits
-        const worker: Worker = new Worker(sfuWorkerCode, {eval: true, workerData: this.#data[slot.index], ...resourceLimits ? {resourceLimits: resourceLimits} : {}})
+        //Without the options of the command line of the process, which a worker inherits: with --input-type=module, its code
+        //(CommonJS) would run as an ES module
+        const worker: Worker = new Worker(sfuWorkerCode, {eval: true, execArgv: [], workerData: this.#data[slot.index], ...resourceLimits ? {resourceLimits: resourceLimits} : {}})
         slot.worker = worker
         slot.channel = new SFUWorkerChannel<SFUFromWorker, SFUToWorker>(worker, (message: SFUFromWorker): unknown => this.#handle(slot, message))
         slot.ready = new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {

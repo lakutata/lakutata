@@ -88,7 +88,10 @@ export class DnsLookup {
         const lookupEval = `(${lookupWorkerFunction})()`
 
         this.thread = new worker_thread.Worker(lookupEval, {
-            eval: true
+            eval: true,
+            //Without the options of the command line of the process, which a worker inherits: with --input-type=module, its code
+            //(CommonJS) would run as an ES module
+            execArgv: []
         })
 
         this.thread.setMaxListeners(100)

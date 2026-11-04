@@ -180,7 +180,9 @@ export class TURNWorkers {
             port: this.#port,
             ...data.options.tls && this.#tlsPort !== undefined ? {tls: {...data.options.tls, port: this.#tlsPort}} : {}
         }
-        const worker: Worker = new Worker(turnWorkerCode, {eval: true, workerData: {...data, options: options}})
+        //Without the options of the command line of the process, which a worker inherits: with --input-type=module, its code
+        //(CommonJS) would run as an ES module
+        const worker: Worker = new Worker(turnWorkerCode, {eval: true, execArgv: [], workerData: {...data, options: options}})
         slot.worker = worker
         if (hasDebugHandler()) worker.postMessage({type: 'debug', enabled: true} satisfies TURNToWorker)
         const ready: Promise<{port?: number, tlsPort?: number}> = new Promise((resolve: (ports: {port?: number, tlsPort?: number}) => void, reject: (error: Error) => void): void => {
