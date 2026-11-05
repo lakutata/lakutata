@@ -154,6 +154,30 @@ describe('The aggregations', (): void => {
                 assert.deepStrictEqual(actual, expected, `${indexed} ${JSON.stringify(lookup)}`)
             }
         }
+        //Values an index orders (numbers, strings, null and missing fields, arrays of them): the documents of the other
+        //collection read by its index, never scanned
+        const scalar = (): unknown => {
+            const kind: number = Math.floor(random() * 5)
+            return [() => Math.floor(random() * 30), () => `s${Math.floor(random() * 30)}`, () => null, () => undefined, () => [Math.floor(random() * 30), null]][kind]()
+        }
+        const scalarLocals: Record<string, unknown>[] = clean(Array.from({length: 2500}, (_: unknown, n: number): Record<string, unknown> => ({_id: n, ref: scalar()})))
+        const scalarForeigns: Record<string, unknown>[] = clean(Array.from({length: 800}, (_: unknown, n: number): Record<string, unknown> => ({_id: n, key: scalar()})))
+        await db.collection('scalarLocals').insertMany(clean(scalarLocals))
+        await db.collection('scalarForeigns').insertMany(clean(scalarForeigns))
+        await db.collection('scalarForeigns').createIndex({key: 1})
+        const scan = client.store.scan.bind(client.store)
+        let scans: number = 0
+        ;(client.store as any).scan = (name: string, ...rest: any[]): unknown => {
+            if (name === 'scalarForeigns') scans++
+            return (scan as any)(name, ...rest)
+        }
+        for (const foreignField of ['key', '_id']) {
+            const lookup: Record<string, unknown> = {from: 'scalarForeigns', localField: 'ref', foreignField: foreignField, as: 'joined'}
+            const expected: Record<string, unknown>[] = mingo.aggregate(clean(scalarLocals), [{$lookup: lookup}, {$sort: {_id: 1}}], {collectionResolver: (): Record<string, unknown>[] => clean(scalarForeigns)})
+            assert.deepStrictEqual(await db.collection('scalarLocals').aggregate([{$lookup: lookup}, {$sort: {_id: 1}}]).toArray(), expected, foreignField)
+        }
+        assert.strictEqual(scans, 0)
+        ;(client.store as any).scan = scan
         //After a $group, and with the variables of let
         const grouped: Record<string, any>[] = await db.collection('locals').aggregate([{$match: {ref: {$type: 'number'}}}, {$group: {_id: '$ref', count: {$sum: 1}}}, {$lookup: {from: 'foreigns', localField: '_id', foreignField: '_id', as: 'joined'}}, {$sort: {_id: 1}}, {$limit: 2}]).toArray()
         assert.deepStrictEqual(grouped.map((group: Record<string, any>): unknown => [group._id, group.joined.map((document: Record<string, any>): number => document._id)]), [[0, [0]], [1, [1]]])

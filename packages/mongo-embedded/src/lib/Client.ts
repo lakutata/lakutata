@@ -1001,9 +1001,10 @@ export class EmbeddedCollection {
 
     /**
      * Runs a $lookup joining by a field on documents, a batch at a time: the documents of the other collection read are
-     * the ones the values of the field of the batch match ($in of the values, of the items of the arrays too, null for
-     * a missing field: the ones the $lookup may join, in the order of their _id), by an index of the other collection;
-     * when it has none, all of them, read once.
+     * the ones the values of the field of the batch match ($in of the values, of the items of the arrays, null for a
+     * missing field: the ones the $lookup may join, in the order of their _id), by an index of the other collection;
+     * when it has none, or a value is of a type an index does not order (a document, an array in an array, a regular
+     * expression), all of them, read once.
      *
      * @param documents
      * @param lookup
@@ -1023,19 +1024,19 @@ export class EmbeddedCollection {
             const batch = documents.slice(start, start + YIELD_EVERY)
             let read = all
             if (!read) {
+                // The values $lookup joins by: the field, each item of an array (as mingo joins them), null for a missing
+                // field; an index orders the values of the types it orders, and null
                 const values: any[] = []
-                let regular = true
+                let ordered = true
                 for (const document of batch) {
                     const value = resolve(document, lookup.localField) ?? null
-                    for (const item of Array.isArray(value) ? [value, ...value] : [value]) {
-                        // A regular expression of $in matches strings: not the values $lookup tells equal
-                        if (item instanceof RegExp || item instanceof this.values.bson.BSONRegExp)
-                            regular = false
-                        values.push(item)
+                    for (const item of Array.isArray(value) ? value : [value]) {
+                        if (item !== null && !this.values.keys.isOrdered(item)) ordered = false
+                        values.push(item ?? null)
                     }
                 }
                 const filter = { [lookup.foreignField]: { $in: values } }
-                if (regular && new EmbeddedPlanner(state!).plan(filter).kind !== 'scan') {
+                if (ordered && values.length && new EmbeddedPlanner(state!).plan(filter).kind !== 'scan') {
                     read = await foreign.matching(filter)
                     read.sort((a, b) =>
                         Buffer.compare(this.values.idKey(a._id), this.values.idKey(b._id))

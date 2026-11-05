@@ -327,6 +327,8 @@ export class EmbeddedPlanner {
         const prefix = isWildcardField(first) ? encoding.encode(path) : Buffer.alloc(0)
         const hashed = direction === 'hashed'
         if (condition.kind === 'equal') {
+            // A sparse or a wildcard index does not hold the documents missing the field
+            if ((index.sparse || wildcard) && condition.values.includes(null)) return undefined
             const ranges: EmbeddedRange[] = []
             for (const value of condition.values) {
                 const key = hashed
@@ -428,29 +430,32 @@ export class EmbeddedPlanner {
         const encoding = this.collection.encoding
         const usable = (item: any) =>
             item !== null && item !== undefined && encoding.isOrdered(item)
+        // null also matches a missing field: the key null of the index (not sparse) holds both, the filter telling
+        // them apart (an equality of null is not complete)
+        const equal = (item: any) => item === null || usable(item)
         if (!this.isPlainObject(value))
-            return usable(value)
-                ? { kind: 'equal', values: [value], complete: true }
+            return equal(value)
+                ? { kind: 'equal', values: [value], complete: value !== null }
                 : undefined
         const operators = Object.keys(value)
         // An object compared as it is, not by operators
         if (!operators.length || operators.some((key) => !key.startsWith('$')))
             return undefined
-        if ('$eq' in value && usable(value.$eq))
+        if ('$eq' in value && equal(value.$eq))
             return {
                 kind: 'equal',
                 values: [value.$eq],
-                complete: operators.length === 1
+                complete: operators.length === 1 && value.$eq !== null
             }
         if (
             Array.isArray(value.$in) &&
             value.$in.length &&
-            value.$in.every(usable)
+            value.$in.every(equal)
         )
             return {
                 kind: 'equal',
                 values: value.$in,
-                complete: operators.length === 1
+                complete: operators.length === 1 && !value.$in.includes(null)
             }
         const range: Extract<Condition, { kind: 'range' }> = {
             kind: 'range',

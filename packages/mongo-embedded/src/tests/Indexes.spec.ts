@@ -286,6 +286,32 @@ describe('The indexes', (): void => {
         await client.close()
     })
 
+    it('find by their indexes the documents of null, which a missing field matches too, as a scan finds them', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const items: EmbeddedCollection = client.db().collection('items')
+        await items.insertMany([{_id: 1}, {_id: 2, a: null}, {_id: 3, a: []}, {_id: 4, a: [null]}, {_id: 5, a: [1, null]}, {_id: 6, a: 1}, {_id: 7, a: {b: null}}, {_id: 8, a: [{b: 1}, {c: 1}]}, {_id: 9, a: 'x'}])
+        const filters: Record<string, unknown>[] = [{a: null}, {a: {$eq: null}}, {a: {$in: [null, 1]}}, {'a.b': null}, {'a.b': {$in: [null, 1]}}, {_id: {$in: [null, 1]}}]
+        const scanned: unknown[] = []
+        for (const filter of filters) scanned.push((await items.find(filter).hint({$natural: 1}).toArray()).map((item: Record<string, any>): number => item._id).sort())
+        for (const keys of [{a: 1}, {'a.b': 1}, {a: 1, x: 1}]) {
+            await items.createIndex(keys)
+            for (const [position, filter] of filters.entries()) {
+                assert.deepStrictEqual((await items.find(filter).toArray()).map((item: Record<string, any>): number => item._id).sort(), scanned[position], `${JSON.stringify(keys)} ${JSON.stringify(filter)}`)
+                assert.strictEqual(await items.countDocuments(filter), (scanned[position] as number[]).length)
+            }
+            await items.dropIndexes()
+        }
+        //A hashed index (no arrays): the hash of null for the missing field
+        const hashed: EmbeddedCollection = client.db().collection('hashed')
+        await hashed.insertMany([{_id: 1}, {_id: 2, a: null}, {_id: 3, a: 1}, {_id: 4, a: 'x'}])
+        await hashed.createIndex({a: 'hashed'})
+        assert.deepStrictEqual((await hashed.find({a: {$in: [null, 'x']}}).toArray()).map((item: Record<string, any>): number => item._id).sort(), [1, 2, 4])
+        //A sparse index does not hold the documents missing the field: not used for null
+        await items.createIndex({a: 1}, {sparse: true})
+        assert.deepStrictEqual((await items.find({a: null}).toArray()).map((item: Record<string, any>): number => item._id).sort(), scanned[0])
+        await client.close()
+    })
+
     it('create, list and drop the indexes as MongoDB does, refusing the kinds and the options it does not support', async (): Promise<void> => {
         const where: string = directory()
         let client: EmbeddedClient = await EmbeddedClient.connect(where)
