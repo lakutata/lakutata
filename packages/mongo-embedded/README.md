@@ -65,7 +65,12 @@ locked by its file `LOCK`.
   0 by default).
 - `client.db().collection(name)`: a collection, with `find`, `findOne`, `countDocuments`, `estimatedDocumentCount`,
   `distinct`, `aggregate`, `insertOne`, `insertMany`, `updateOne`, `updateMany`, `replaceOne`, `deleteOne`,
-  `deleteMany` and the definitions of its indexes (`createIndex`, `indexes`, `dropIndex`).
-- `EmbeddedDuplicateKeyError` (code 11000) and `EmbeddedBulkWriteError` (an `insertMany` of which documents were not
-  inserted), both `MongoEmbeddedError`.
+  `deleteMany`, and its indexes (`createIndex`, `createIndexes`, `indexes`, `dropIndex`, `dropIndexes`).
+- Indexes: ascending, descending and compound, unique, sparse, partial (`partialFilterExpression`), hashed, wildcard
+  and compound wildcard (`$**`, `wildcardProjection`), and hidden. The queries use them, and the index of the `_id`
+  for its ranges and its sorts; a query can name the index it uses (`hint`). Text and geospatial indexes and the
+  indexes with a collation are not supported: creating one fails.
+- `EmbeddedDuplicateKeyError` (code 11000), `EmbeddedBulkWriteError` (an `insertMany` of which documents were not
+  inserted) and `EmbeddedOperationError` (the other errors that MongoDB gives with a code, such as `IndexNotFound`),
+  all of them `MongoEmbeddedError`.
 - `ObjectId`: the class of the ids the client adds.
