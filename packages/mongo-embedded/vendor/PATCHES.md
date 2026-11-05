@@ -1,7 +1,8 @@
 # The vendored SQLite
 
-`vendor/sqlite/sqlite3.c` and `sqlite3.h` are the amalgamation of SQLite 3.53.2, unchanged: `vendor/UPSTREAM.json` records
-its archive and the checksums of the archive and of the two files, which the tests check. The version is not upgraded.
+`native/engine/engine.c` and `engine.h` are the amalgamation of SQLite 3.53.2 (its `sqlite3.c` and `sqlite3.h`),
+unchanged but for their names: `vendor/UPSTREAM.json` records its archive, which file of the archive each one is, and
+the checksums of the archive and of the two files, which the tests check. The version is not upgraded.
 
 What the addon changes is outside these files:
 

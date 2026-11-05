@@ -1,0 +1,2 @@
+# The amalgamation of SQLite, third-party code (vendor/UPSTREAM.json): left out of the languages of the repository
+native/engine/** linguist-vendored

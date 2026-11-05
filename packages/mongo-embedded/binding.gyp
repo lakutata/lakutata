@@ -1,7 +1,7 @@
 # The build of the addon of @lakutata/mongo-embedded by node-gyp, when the package is installed: the storage
-# (native/store.c, which includes the amalgamation of SQLite in vendor/sqlite, its functions kept inside it), then the
-# thread of each database and the functions of the addon (native/), in C++17 through node-addon-api (the C functions of
-# Node-API).
+# (native/store.c, which includes the amalgamation of SQLite, native/engine/engine.c, its functions kept inside it),
+# then the thread of each database and the functions of the addon (native/), in C++17 through node-addon-api (the C
+# functions of Node-API).
 {
   'targets': [
     {
@@ -12,7 +12,7 @@
       'target_name': 'store',
       'type': 'static_library',
       'sources': ['native/store.c'],
-      'include_dirs': ['vendor/sqlite', 'native'],
+      'include_dirs': ['native/engine', 'native'],
       'defines': [
         'SQLITE_API=static',
         'SQLITE_THREADSAFE=2',

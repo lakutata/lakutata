@@ -1,10 +1,11 @@
 /*
-** The storage of the databases of mongo-embedded (store.h): SQLite 3.53.2, its amalgamation included in this file with
-** its functions kept inside it (SQLITE_API static, binding.gyp). A database is one file: its catalog (the table meta)
-** and a table for each collection, all of them WITHOUT ROWID tables of two columns (k BLOB PRIMARY KEY, v BLOB), each
-** one an index b-tree ordered by k. The tables are made and dropped by SQL; the documents are read and written by the
-** b-tree layer directly, without the statements of SQL, the root page of each table read from sqlite_schema (again
-** after each change of the schema).
+** The storage of the databases of mongo-embedded (store.h): SQLite 3.53.2, its amalgamation (native/engine/engine.c,
+** the sqlite3.c of its release, unchanged: vendor/UPSTREAM.json) included in this file with its functions kept inside
+** it (SQLITE_API static, binding.gyp). A database is one file: its catalog (the table meta) and a table for each
+** collection, all of them WITHOUT ROWID tables of two columns (k BLOB PRIMARY KEY, v BLOB), each one an index b-tree
+** ordered by k. The tables are made and dropped by SQL; the documents are read and written by the b-tree layer
+** directly, without the statements of SQL, the root page of each table read from sqlite_schema (again after each
+** change of the schema).
 **
 ** The rows of the catalog: 'f' the format (u32), 'n' the id of the next collection, 'c' + its name the id of a
 ** collection, 'k' + its id the count of its documents, 'x' + its id the definitions of its indexes (BSON, as the client
@@ -28,7 +29,7 @@
 **  5. the root pages move with auto_vacuum or VACUUM: auto_vacuum is NONE, the roots read again after the schema
 **     changes.
 */
-#include "sqlite3.c"
+#include "engine.c"
 
 #include "store.h"
 

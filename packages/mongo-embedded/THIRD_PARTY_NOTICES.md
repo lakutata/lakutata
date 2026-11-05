@@ -1,7 +1,8 @@
 # Third-party notices
 
 The addon of `@lakutata/mongo-embedded` is compiled, when the package is installed, from the source of SQLite in
-`vendor/sqlite`. Its version, archive and checksums are in `vendor/UPSTREAM.json`; it is not changed (`vendor/PATCHES.md`).
+`native/engine` (`engine.c` and `engine.h`, its `sqlite3.c` and `sqlite3.h` renamed). Its version, archive and checksums
+are in `vendor/UPSTREAM.json`; it is not changed (`vendor/PATCHES.md`).
 
 ## SQLite 3.53.2
 
