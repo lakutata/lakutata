@@ -24,16 +24,22 @@ a legal notice, here is a blessing:
 The query, update and aggregation engine in `src/lib/mingo` is derived from the source of mingo
 (https://github.com/kofrasa/mingo, tag `7.2.4`; its archive and checksum are in `vendor/UPSTREAM.json`).
 
-Modifications: the repository's code style; `.js` extensions on import specifiers (the package's modules are ES
-modules resolved by Node.js); a type annotation where the package's stricter compiler settings needed one. Values are
-compared as MongoDB compares them (`util/_bson.ts`): BSON types in MongoDB's order; numbers of every type (number,
-bigint, Long, Int32, Double, Decimal128) by their exact values, in comparisons, equality tests, hashes and group keys;
-strings by code point; documents field by field in field order; arrays item by item. The comparison operators match
-only values of the same type bracket (null also matches a missing field); `$type` recognizes every BSON type; `$mod`
-matches numbers only; a sort orders an array by its smallest item (ascending) or its largest (descending), with empty
-arrays first. An update that changes a document's `_id` fails with `ImmutableFieldError` (code 66) and leaves the
-document unchanged; setting `_id` to its current value, or setting it on a document that has none, is allowed. A
-pipeline update whose result omits `_id` keeps the document's `_id`.
+Modifications: the repository's code style; `.js` extensions on import specifiers (the package's modules are ES modules
+resolved by Node.js); a type annotation where the package's stricter compiler settings needed one. Values are compared
+as MongoDB compares them (`util/_bson.ts`): BSON types in MongoDB's order; numbers of every type (number, bigint, Long,
+Int32, Double, Decimal128) by their exact values, in comparisons, equality tests, hashes and group keys; strings by code
+point; documents field by field in field order; arrays item by item. The comparison operators match only values of the
+same type bracket (null also matches a missing field); `$type` recognizes every BSON type; `$mod` matches numbers only;
+a sort orders an array by its smallest item (ascending) or its largest (descending), with empty arrays first. An update
+that changes a document's `_id` fails with `ImmutableFieldError` (code 66) and leaves the document unchanged; setting
+`_id` to its current value, or setting it on a document that has none, is allowed. A pipeline update whose result omits
+`_id` keeps the document's `_id`. Arithmetic follows MongoDB's numeric types (`util/_numeric.ts`): a result takes the
+widest type of its operands (int, long, double, decimal); an int that overflows becomes a long, and a long that
+overflows a double; a double combined with a decimal is first converted to a decimal of 15 significant digits; decimals
+are rounded to 34 significant digits, half to even. `$round` and `$trunc` round a double through its 15-digit decimal,
+`$toDecimal` returns a Decimal128, and `$inc` or `$mul` on a non-numeric field fails with `MongoCodeError` (code 14).
+Strings are compared, hashed and grouped by the collation the client sets for the running operation (`withCollation`);
+the `collation` option is ignored, and `$sort` no longer uses `Intl.Collator`.
 
 ```
 The MIT License (MIT)
