@@ -3,17 +3,52 @@ import * as mingo from 'mingo'
 import {
     EmbeddedBulkWriteError,
     EmbeddedDuplicateKeyError,
+    EmbeddedOperationError,
     type EmbeddedWriteError,
     MongoEmbeddedError
 } from './Errors.js'
-import { type EmbeddedIndex, EmbeddedPlanner } from './Planner.js'
+import { UNORDERED_TAGS } from './KeyEncoding.js'
+import type { NativeRange } from './Native.js'
+import {
+    type EmbeddedIndex,
+    type EmbeddedPlan,
+    EmbeddedPlanner,
+    type EmbeddedRange,
+    ID_INDEX,
+    wildcardOf
+} from './Planner.js'
 import { predicatesOf } from './Prefilter.js'
 import {
     type EmbeddedChange,
+    type EmbeddedCollectionState,
     EmbeddedStore,
     type EmbeddedStoreOptions
 } from './Store.js'
 import { type EmbeddedDocument, EmbeddedValues } from './Values.js'
+
+/**
+ * an index hinted to a query: its name, its fields, or $natural (a scan in the order of the _id, 1, or reversed, -1).
+ */
+export type EmbeddedHint = string | EmbeddedDocument
+
+/**
+ * the options of an index MongoDB accepts (createIndex): the ones of the kinds of indexes not supported fail as their
+ * kinds do; the others fail as MongoDB fails them (InvalidIndexSpecificationOption).
+ */
+const INDEX_OPTIONS = new Set([
+    'name',
+    'unique',
+    'sparse',
+    'background',
+    'expireAfterSeconds',
+    'partialFilterExpression',
+    'hidden',
+    'wildcardProjection',
+    'collation',
+    'v',
+    'storageEngine',
+    'comment'
+])
 
 /**
  * the documents of a batch: read between two yields of the event loop (a scan, the ids of an index), written
@@ -359,6 +394,8 @@ export class EmbeddedFindCursor extends EmbeddedResults {
 
     private limited = 0
 
+    private hinted?: EmbeddedHint
+
     /**
      * @param collection the collection found in
      * @param query the filter of the find
@@ -415,13 +452,34 @@ export class EmbeddedFindCursor extends EmbeddedResults {
         return this
     }
 
+    /**
+     * The index the documents are found by: its name, its fields, or {$natural: 1} for a scan of the collection
+     * ({$natural: -1} reversed); it fails when there is none
+     * @param index the index
+     */
+    hint(index: EmbeddedHint): this {
+        this.hinted = index
+        return this
+    }
+
     protected async documents(): Promise<EmbeddedDocument[]> {
+        // Sorted by an index: the documents read in its order, up to the limit
+        const ordered =
+            this.order && this.limited && this.hinted === undefined
+                ? await this.collection.ordered(
+                      this.query,
+                      this.order,
+                      this.skipped + this.limited
+                  )
+                : undefined
+        if (ordered) return this.projected(ordered.slice(this.skipped))
         // Without an order, the documents after the limit are not read
         const matches = await this.collection.matching(
             this.query,
             !this.order && this.limited
                 ? this.skipped + this.limited
-                : Infinity
+                : Infinity,
+            this.hinted
         )
         // Without an order, a skip and a limit of counts (integers, not negative) cut the documents found, in their
         // order: mingo is not needed
@@ -465,7 +523,7 @@ export class EmbeddedFindCursor extends EmbeddedResults {
     private async *streamed(): AsyncGenerator<EmbeddedDocument[]> {
         let skip = this.skipped
         let left = this.limited || Infinity
-        for await (const batch of this.collection.matchingBatches(this.query)) {
+        for await (const batch of this.collection.matchingBatches(this.query, this.hinted)) {
             let documents = batch
             if (skip) {
                 const skipped = Math.min(skip, documents.length)
@@ -538,7 +596,8 @@ function lookedUp(pipeline: unknown, names: Set<string> = new Set()): Set<string
  * find their documents a batch at a time (by their _id or a scan, the event loop yielded between the batches), then,
  * one write after the other (the exclusive operations of the store), read each document of a batch again, test it and
  * write the batch at once, as the other operations change them meanwhile: a write of many documents is several
- * operations. Its indexes are defined (createIndex, indexes, dropIndex), not read by its queries.
+ * operations. Its indexes (createIndex, indexes, dropIndex) are written with its documents and read by its queries:
+ * the ones of their fields and of the _id, ranges of them, the sorts with a limit, and the ones hinted.
  *
  * @example
  * import {EmbeddedClient} from '@lakutata/mongo-embedded'
@@ -571,15 +630,17 @@ export class EmbeddedCollection {
      *
      * @param query the filter
      * @param limit the most documents given
+     * @param hint the index they are found by
      */
     async matching(
         query?: EmbeddedDocument,
-        limit = Infinity
+        limit = Infinity,
+        hint?: EmbeddedHint
     ): Promise<EmbeddedDocument[]> {
         const filter = this.values.copy(query ?? {})
         if (limit <= 0) return []
         // A filter of the _id alone: the document of its key, not tested by mingo when its _id is the value itself
-        const id = this.idOf(filter)
+        const id = hint === undefined ? this.idOf(filter) : undefined
         if (id !== undefined) {
             const [document] = await this.store.get(this.collectionName, [
                 this.values.idKey(id)
@@ -589,7 +650,7 @@ export class EmbeddedCollection {
         }
         const matcher = new this.values.mingo.Query(filter)
         const documents: EmbeddedDocument[] = []
-        for await (const batch of this.candidates(filter))
+        for await (const batch of this.candidates(filter, hint))
             for (const document of batch) {
                 if (!matcher.test(document)) continue
                 documents.push(document)
@@ -601,7 +662,7 @@ export class EmbeddedCollection {
     /**
      * A cursor of the documents matching a filter
      * @param query the filter
-     * @param options its projection, sort, skip and limit
+     * @param options its projection, sort, skip, limit and hint
      */
     find(query?: EmbeddedDocument, options?: EmbeddedDocument) {
         const cursor = new EmbeddedFindCursor(this, query ?? {})
@@ -609,13 +670,14 @@ export class EmbeddedCollection {
         if (options?.sort) cursor.sort(options.sort)
         if (options?.skip) cursor.skip(options.skip)
         if (options?.limit) cursor.limit(options.limit)
+        if (options?.hint !== undefined) cursor.hint(options.hint)
         return cursor
     }
 
     /**
      * The first document matching a filter, null when none does
      * @param query the filter
-     * @param options its projection, sort and skip
+     * @param options its projection, sort, skip and hint
      */
     async findOne(query?: EmbeddedDocument, options?: EmbeddedDocument) {
         return this.find(query, options).limit(1).next()
@@ -624,7 +686,7 @@ export class EmbeddedCollection {
     /**
      * The number of the documents matching a filter
      * @param query the filter
-     * @param options its skip and limit
+     * @param options its skip, limit and hint
      */
     async countDocuments(
         query?: EmbeddedDocument,
@@ -633,12 +695,12 @@ export class EmbeddedCollection {
         const skip = options?.skip ?? 0
         const limit = options?.limit ? skip + options.limit : Infinity
         const filter = this.values.copy(query ?? {})
-        const exact = await this.exactCount(filter)
+        const exact = await this.exactCount(filter, options?.hint)
         if (exact !== undefined)
             return Math.max(Math.min(exact, limit) - skip, 0)
         const matcher = new this.values.mingo.Query(filter)
         let count = 0
-        for await (const batch of this.candidates(filter))
+        for await (const batch of this.candidates(filter, options?.hint))
             for (const document of batch)
                 if (matcher.test(document) && ++count >= limit)
                     return Math.max(count - skip, 0)
@@ -668,10 +730,15 @@ export class EmbeddedCollection {
      * The values of a field (the items of an array too) of the documents matching a filter, each once
      * @param key the path of the field
      * @param query the filter
+     * @param options its hint
      */
-    async distinct(key: string, query?: EmbeddedDocument): Promise<any[]> {
+    async distinct(
+        key: string,
+        query?: EmbeddedDocument,
+        options?: EmbeddedDocument
+    ): Promise<any[]> {
         const values = new Map<string, any>()
-        for (const document of await this.matching(query)) {
+        for (const document of await this.matching(query, Infinity, options?.hint)) {
             const value = this.values.valueAt(document, key)
             for (const item of Array.isArray(value) ? value : [value])
                 if (item !== undefined)
@@ -689,9 +756,11 @@ export class EmbeddedCollection {
     /**
      * The results of an aggregation pipeline, run by mingo
      * @param pipeline its stages
-     * @param options its collation and variables (let)
+     * @param options its collation, variables (let) and hint (the index of its leading $match stages)
      */
     aggregate(pipeline: EmbeddedDocument[], options?: EmbeddedDocument) {
+        const { hint, ...rest } = options ?? {}
+        options = rest
         return new EmbeddedArrayCursor(async () => {
             // The leading $match stages: the filter of the documents read, unless a collation or variables of the
             // options change it
@@ -725,9 +794,9 @@ export class EmbeddedCollection {
                     ? undefined
                     : batchedGroupOf(stages)
             if (batched)
-                return this.groupedInBatches(filter, batched, aggregation)
+                return this.groupedInBatches(filter, batched, aggregation, hint)
             return this.values.mingo.aggregate(
-                await this.matching(filter),
+                await this.matching(filter, Infinity, hint),
                 stages,
                 aggregation
             )
@@ -741,16 +810,18 @@ export class EmbeddedCollection {
      * @param filter
      * @param batched
      * @param options
+     * @param hint
      */
     private async groupedInBatches(
         filter: EmbeddedDocument | undefined,
         batched: BatchedGroup,
-        options: EmbeddedDocument
+        options: EmbeddedDocument,
+        hint?: EmbeddedHint
     ): Promise<EmbeddedDocument[]> {
         const mingo = this.values.mingo
         let groups: EmbeddedDocument[] = []
         let merged = 0
-        for await (const batch of this.matchingBatches(filter))
+        for await (const batch of this.matchingBatches(filter, hint))
             for (const group of mingo.aggregate(batch, batched.batch, options)) {
                 groups.push(group)
                 // The groups merged stay before the ones of the batches after them, and a $group keeps the order of
@@ -776,15 +847,17 @@ export class EmbeddedCollection {
      * The documents matching a filter, in batches (candidates: the event loop yielded between them), the caller's own.
      *
      * @param query the filter
+     * @param hint the index they are found by
      */
     async *matchingBatches(
-        query?: EmbeddedDocument
+        query?: EmbeddedDocument,
+        hint?: EmbeddedHint
     ): AsyncGenerator<EmbeddedDocument[]> {
         const filter = this.values.copy(query ?? {})
         const matches = Object.keys(filter).length
             ? this.matcherOf(filter)
             : undefined
-        for await (const batch of this.candidates(filter)) {
+        for await (const batch of this.candidates(filter, hint)) {
             const matched = matches ? batch.filter(matches) : batch
             if (matched.length) yield matched
         }
@@ -852,7 +925,7 @@ export class EmbeddedCollection {
      * Updates the first document matching a filter by the operators of an update ($set, $inc...)
      * @param query the filter
      * @param update the operators
-     * @param options upsert, arrayFilters
+     * @param options upsert, arrayFilters, hint
      */
     async updateOne(
         query: EmbeddedDocument,
@@ -866,7 +939,7 @@ export class EmbeddedCollection {
      * Updates the documents matching a filter by the operators of an update ($set, $inc...)
      * @param query the filter
      * @param update the operators
-     * @param options upsert, arrayFilters
+     * @param options upsert, arrayFilters, hint
      */
     async updateMany(
         query: EmbeddedDocument,
@@ -880,7 +953,7 @@ export class EmbeddedCollection {
      * Replaces the first document matching a filter, its _id kept
      * @param query the filter
      * @param replacement the document replacing it
-     * @param options upsert
+     * @param options upsert, hint
      */
     async replaceOne(
         query: EmbeddedDocument,
@@ -893,7 +966,7 @@ export class EmbeddedCollection {
             )
         const filter = this.values.copy(query ?? {})
         const matches = this.matcherOf(filter)
-        const [found] = await this.matching(filter, 1)
+        const [found] = await this.matching(filter, 1, options?.hint)
         const replaced = found
             ? await this.store.exclusive(async () => {
                   const [current] = await this.currents(matches, [found])
@@ -922,47 +995,42 @@ export class EmbeddedCollection {
     /**
      * Deletes the first document matching a filter
      * @param query the filter
+     * @param options its hint
      */
-    async deleteOne(query?: EmbeddedDocument) {
-        return this.delete(query, false)
+    async deleteOne(query?: EmbeddedDocument, options?: EmbeddedDocument) {
+        return this.delete(query, false, options?.hint)
     }
 
     /**
      * Deletes the documents matching a filter
      * @param query the filter
+     * @param options its hint
      */
-    async deleteMany(query?: EmbeddedDocument) {
-        return this.delete(query, true)
+    async deleteMany(query?: EmbeddedDocument, options?: EmbeddedDocument) {
+        return this.delete(query, true, options?.hint)
     }
 
     /**
-     * Defines an index, unless one of its name is there: its name (the collection is created when it is missing)
-     * @param keys its fields and their directions, or the name of one field
-     * @param options its name, unique, sparse, expireAfterSeconds
+     * Creates an index, built from the documents there (in batches, the reads going on, the writes waiting for it), and
+     * gives its name; nothing when the same index is there. It fails as MongoDB fails: an index of the same name or of
+     * the same fields and another definition, a unique index on duplicate keys, the options and the kinds of indexes not
+     * supported (text, 2d, 2dsphere, a collation, a compound wildcard index)
+     * @param keys its fields and their directions (1, -1, "hashed"; "$**" or "<path>.$**" for a wildcard index), or the
+     * name of one field
+     * @param options its name, unique, sparse, partialFilterExpression, hidden, wildcardProjection, expireAfterSeconds
      */
     async createIndex(keys: any, options?: EmbeddedDocument): Promise<string> {
-        const key: { [field: string]: any } =
-            typeof keys === 'string' ? { [keys]: 1 } : keys
-        const name =
-            options?.name ??
-            Object.keys(key)
-                .map((field) => `${field}_${key[field]}`)
-                .join('_')
-        const index: EmbeddedIndex = { name: name, key: key }
-        if (options?.unique) index.unique = true
-        if (options?.sparse) index.sparse = true
-        if (options?.expireAfterSeconds !== undefined)
-            index.expireAfterSeconds = options.expireAfterSeconds
-        await this.store.exclusive(async () => {
-            const indexes = this.store.collection(this.collectionName)?.indexes ?? []
-            if (indexes.some((existing) => existing.name === name)) return
-            await this.store.setIndexes(this.collectionName, [...indexes, index])
+        const index = this.indexOf(keys, options ?? {})
+        return this.store.exclusive(async () => {
+            const existing = this.existingIndex(index)
+            if (existing) return existing.name
+            await this.buildIndex(index)
+            return index.name
         })
-        return name
     }
 
     /**
-     * Defines indexes (createIndex): their names
+     * Creates indexes (createIndex): their names
      * @param specs their keys (key) and options
      */
     async createIndexes(specs: EmbeddedDocument[]): Promise<string[]> {
@@ -977,7 +1045,7 @@ export class EmbeddedCollection {
      */
     async indexes(): Promise<EmbeddedDocument[]> {
         return [
-            { v: 2, key: { _id: 1 }, name: '_id_' },
+            { v: 2, key: { _id: 1 }, name: ID_INDEX },
             ...(this.store.collection(this.collectionName)?.indexes ?? []).map((index) => ({
                 v: 2,
                 ...index
@@ -1017,30 +1085,54 @@ export class EmbeddedCollection {
     }
 
     /**
-     * Drops an index: it fails when it is not there
-     * @param name the name of the index
+     * Drops an index, by its name or its fields ("*": every index but the one of the _id): it fails when it is not there
+     * (IndexNotFound) and for the index of the _id
+     * @param index the name of the index, or its fields
      */
-    async dropIndex(name: string): Promise<EmbeddedDocument> {
-        await this.store.exclusive(async () => {
+    async dropIndex(index: string | EmbeddedDocument): Promise<EmbeddedDocument> {
+        return this.store.exclusive(async () => {
             const indexes = this.store.collection(this.collectionName)?.indexes ?? []
-            if (!indexes.some((index) => index.name === name))
-                throw new MongoEmbeddedError(`index not found with name [${name}]`)
-            await this.store.setIndexes(
-                this.collectionName,
-                indexes.filter((index) => index.name !== name)
+            const count = indexes.length + 1
+            if (index === '*') {
+                await this.store.removeIndexes(
+                    this.collectionName,
+                    indexes.map((item) => item.name)
+                )
+                return { nIndexesWas: count, ok: 1 }
+            }
+            const found =
+                typeof index === 'string'
+                    ? indexes.filter((item) => item.name === index)
+                    : indexes.filter((item) => this.sameKeys(item.key, index))
+            if (
+                index === ID_INDEX ||
+                (typeof index !== 'string' && this.sameKeys(index, { _id: 1 }))
             )
+                throw new EmbeddedOperationError(72, 'InvalidOptions', 'cannot drop _id index')
+            if (!found.length)
+                throw new EmbeddedOperationError(
+                    27,
+                    'IndexNotFound',
+                    typeof index === 'string'
+                        ? `index not found with name [${index}]`
+                        : `can't find index with key: ${this.values.bson.EJSON.stringify(index)}`
+                )
+            if (found.length > 1)
+                throw new EmbeddedOperationError(
+                    238,
+                    'AmbiguousIndexKeyPattern',
+                    `${found.length} indexes found for key: ${this.values.bson.EJSON.stringify(index)}, identify by name instead. Conflicting indexes: ${found.map((item) => item.name).join(', ')}`
+                )
+            await this.store.removeIndexes(this.collectionName, [found[0].name])
+            return { nIndexesWas: count, ok: 1 }
         })
-        return { ok: 1 }
     }
 
     /**
      * Drops the indexes but the one of the _id
      */
     async dropIndexes(): Promise<boolean> {
-        await this.store.exclusive(async () => {
-            if (this.store.collection(this.collectionName)?.indexes.length)
-                await this.store.setIndexes(this.collectionName, [])
-        })
+        await this.dropIndex('*')
         return true
     }
 
@@ -1108,46 +1200,401 @@ export class EmbeddedCollection {
     }
 
     /**
-     * The documents a filter may match, in batches, the event loop yielded between them: the ones of its _id when the
-     * planner gives them, else all of them by a scan of the collection (leaving out the ones failing the comparisons of
-     * its top-level fields with numbers, predicatesOf).
+     * The documents matching a filter in the order of a sort of one field, up to a number, read in the order of an
+     * index of the field (from its range in the filter, if any; all of it when the filter gives several ranges);
+     * undefined when no index gives that order, when the filter is planned on the _id or on another index, or when the
+     * walk meets a value it does not order as MongoDB sorts it (the documents then sorted in memory).
+     *
+     * @param query the filter
+     * @param sort the sort
+     * @param count the most documents given
+     */
+    async ordered(
+        query: EmbeddedDocument,
+        sort: EmbeddedDocument,
+        count: number
+    ): Promise<EmbeddedDocument[] | undefined> {
+        const collection = this.store.collection(this.collectionName)
+        if (!collection) return []
+        const planner = new EmbeddedPlanner(collection)
+        const walk = planner.sortIndex(sort)
+        if (!walk) return undefined
+        const filter = this.values.copy(query ?? {})
+        const plan = planner.plan(filter)
+        if (plan.kind === 'id' || (plan.kind === 'index' && plan.index !== walk.index))
+            return undefined
+        const ranges = plan.kind === 'index' && plan.ranges.length === 1 ? plan.ranges : []
+        const [path] = Object.keys(sort)
+        const matcher = new this.values.mingo.Query(filter)
+        const documents: EmbeddedDocument[] = []
+        for await (const { documents: batch } of this.store.scanRange(
+            this.collectionName,
+            this.tableOf(collection, walk.index),
+            this.rangesOf(ranges),
+            { reverse: walk.reverse, predicates: predicatesOf(filter) }
+        ))
+            for (const document of batch) {
+                if (UNORDERED_TAGS.has(this.values.keys.encode(this.values.valueAt(document, path))[0]))
+                    return undefined
+                if (!matcher.test(document)) continue
+                documents.push(document)
+                if (documents.length >= count) return documents
+            }
+        return documents
+    }
+
+    /**
+     * The documents a filter may match, in batches, the event loop yielded between them: the ones of its _id, of the
+     * ranges of an index (each document once), or all of them by a scan of the collection, as the planner (or the hint)
+     * gives them (leaving out the ones failing the comparisons of its top-level fields with numbers, predicatesOf).
      *
      * @param filter
+     * @param hint
      */
     private async *candidates(
-        filter: EmbeddedDocument
+        filter: EmbeddedDocument,
+        hint?: EmbeddedHint
     ): AsyncGenerator<EmbeddedDocument[]> {
         const collection = this.store.collection(this.collectionName)
         if (!collection) return
-        // The indexes are not read by the queries: the plan of the collection has none
-        const plan = new EmbeddedPlanner({
-            indexes: [],
-            multikey: collection.multikey,
-            encoding: collection.encoding
-        }).plan(filter)
-        if (plan.kind !== 'id') {
-            yield* this.store.scan(this.collectionName, predicatesOf(filter))
+        const planner = new EmbeddedPlanner(collection)
+        const plan = planner.plan(filter, this.hintOf(collection, planner, hint))
+        const predicates = predicatesOf(filter)
+        if (plan.kind === 'scan') {
+            if (!plan.reverse) {
+                yield* this.store.scan(this.collectionName, predicates)
+                return
+            }
+            for await (const { documents } of this.store.scanRange(this.collectionName, 0, [], { reverse: true, predicates: predicates }))
+                yield documents
             return
         }
-        // Each document once: the values of a $in may repeat
-        const seen = new Set<string>()
-        const keys: Buffer[] = []
-        for (const id of plan.ids) {
-            const key = this.values.idKey(id)
-            const text = key.toString('latin1')
-            if (seen.has(text)) continue
-            seen.add(text)
-            keys.push(key)
+        if (plan.kind === 'id') {
+            // Each document once: the values of a $in may repeat
+            const seen = new Set<string>()
+            const keys: Buffer[] = []
+            for (const id of plan.ids) {
+                const key = this.values.idKey(id)
+                const text = key.toString('latin1')
+                if (seen.has(text)) continue
+                seen.add(text)
+                keys.push(key)
+            }
+            for (let start = 0; start < keys.length; start += YIELD_EVERY) {
+                if (start) await yieldLoop()
+                const documents = (
+                    await this.store.get(
+                        this.collectionName,
+                        keys.slice(start, start + YIELD_EVERY)
+                    )
+                ).filter((document) => document !== undefined)
+                if (documents.length) yield documents
+            }
+            return
         }
-        for (let start = 0; start < keys.length; start += YIELD_EVERY) {
-            if (start) await yieldLoop()
-            const documents = (
-                await this.store.get(
-                    this.collectionName,
-                    keys.slice(start, start + YIELD_EVERY)
+        // Each document once: an index of which a document has several keys holds it for each of them
+        const seen = plan.multikey ? new Set<string>() : undefined
+        for await (const { documents, data } of this.store.scanRange(
+            this.collectionName,
+            this.tableOf(collection, plan.index),
+            this.rangesOf(plan.ranges),
+            { predicates: predicates }
+        )) {
+            const unique = seen
+                ? documents.filter((_, position) => {
+                      const key = this.values.idKeyOf(data[position]).toString('latin1')
+                      if (seen.has(key)) return false
+                      seen.add(key)
+                      return true
+                  })
+                : documents
+            if (unique.length) yield unique
+        }
+    }
+
+    /**
+     * The table of an index of a collection: 0 for the index of the _id (the table of the collection).
+     *
+     * @param collection
+     * @param index the name of the index
+     */
+    private tableOf(collection: EmbeddedCollectionState, index: string): number {
+        return index === ID_INDEX ? 0 : collection.tables.get(index)!
+    }
+
+    /**
+     * The ranges of a plan, for the native scans: none for all the entries.
+     *
+     * @param ranges
+     */
+    private rangesOf(ranges: EmbeddedRange[]): NativeRange[] {
+        return ranges
+            .filter((range) => range.lower || range.upper)
+            .map((range) => ({
+                lower: range.lower ? Buffer.from(range.lower.key) : undefined,
+                lowerInclusive: range.lower?.inclusive ?? true,
+                upper: range.upper ? Buffer.from(range.upper.key) : undefined,
+                upperInclusive: range.upper?.inclusive ?? true
+            }))
+    }
+
+    /**
+     * The index of a hint (its name, or its fields; {$natural: 1 or -1} for a scan), for the planner: it fails as
+     * MongoDB fails when there is none (or it is hidden).
+     *
+     * @param collection
+     * @param planner
+     * @param hint
+     */
+    private hintOf(
+        collection: EmbeddedCollectionState,
+        planner: EmbeddedPlanner,
+        hint: EmbeddedHint | undefined
+    ): EmbeddedIndex | { $natural: number } | undefined {
+        if (hint === undefined || hint === null) return undefined
+        if (this.isPlainObject(hint) && '$natural' in (hint as EmbeddedDocument))
+            return { $natural: Number((hint as EmbeddedDocument).$natural) }
+        const indexes = [planner.idIndex(), ...collection.indexes]
+        const found =
+            typeof hint === 'string'
+                ? indexes.find((index) => index.name === hint)
+                : indexes.find((index) => this.sameKeys(index.key, hint))
+        if (!found || found.hidden)
+            throw new EmbeddedOperationError(
+                2,
+                'BadValue',
+                'error processing query: planner returned error :: caused by :: hint provided does not correspond to an existing index'
+            )
+        return found
+    }
+
+    /**
+     * Whether the fields of two indexes are the same, in the same order, with the same directions.
+     *
+     * @param a
+     * @param b
+     */
+    private sameKeys(a: EmbeddedDocument, b: EmbeddedDocument): boolean {
+        const entries = (key: EmbeddedDocument) =>
+            JSON.stringify(
+                Object.keys(key).map((field) => [
+                    field,
+                    typeof key[field] === 'object' && key[field] !== null ? Number(key[field]) : key[field]
+                ])
+            )
+        return this.isPlainObject(b) && entries(a) === entries(b)
+    }
+
+    /**
+     * The definition of an index from the arguments of createIndex, checked as MongoDB checks it; the kinds and the
+     * options it does not support fail.
+     *
+     * @param keys
+     * @param options
+     */
+    private indexOf(keys: any, options: EmbeddedDocument): EmbeddedIndex {
+        const cannot = (message: string) =>
+            new EmbeddedOperationError(67, 'CannotCreateIndex', message)
+        const key: EmbeddedDocument =
+            typeof keys === 'string'
+                ? { [keys]: 1 }
+                : Array.isArray(keys)
+                  ? Object.fromEntries(keys.map((item) => (Array.isArray(item) ? item : [item, 1])))
+                  : keys
+        if (!this.isPlainObject(key) || !Object.keys(key).length)
+            throw cannot('Index keys cannot be empty.')
+        const fields = Object.keys(key)
+        for (const field of fields) {
+            const direction = key[field]
+            if (typeof direction === 'number') {
+                if (!direction || Number.isNaN(direction))
+                    throw cannot(`Values in the index key pattern can't be all zero. Bad key pattern: ${JSON.stringify(key)}`)
+                continue
+            }
+            if (typeof direction !== 'string')
+                throw cannot(
+                    `Values in v:2 index key pattern cannot be of type ${direction === null ? 'null' : typeof direction}. Only numbers > 0, numbers < 0, and strings are allowed.`
                 )
-            ).filter((document) => document !== undefined)
-            if (documents.length) yield documents
+            if (direction === 'hashed') continue
+            if (['text', '2d', '2dsphere'].includes(direction))
+                throw cannot(`${direction} indexes are not supported by mongo-embedded`)
+            throw cannot(`Unknown index plugin '${direction}'`)
+        }
+        const wildcards = fields.filter((field) => field === '$**' || field.endsWith('.$**'))
+        if (wildcards.length && fields.length > 1)
+            throw cannot('compound wildcard indexes are not supported by mongo-embedded')
+        if (fields.filter((field) => key[field] === 'hashed').length > 1)
+            throw cannot('A maximum of one index field is allowed to be hashed')
+        for (const option of Object.keys(options))
+            if (options[option] !== undefined && !INDEX_OPTIONS.has(option))
+                throw new EmbeddedOperationError(
+                    197,
+                    'InvalidIndexSpecificationOption',
+                    `The field '${option}' is not valid for an index specification. Specification: ${this.values.bson.EJSON.stringify({ key: key, ...options })}`
+                )
+        const collation = options.collation
+        if (
+            collation !== undefined &&
+            !(this.isPlainObject(collation) && collation.locale === 'simple')
+        )
+            throw cannot('indexes with a collation are not supported by mongo-embedded')
+        const name: string =
+            options.name ??
+            fields.map((field) => `${field}_${key[field]}`).join('_')
+        if (this.sameKeys(key, { _id: 1 })) {
+            const invalid = Object.keys(options).find(
+                (option) =>
+                    options[option] !== undefined &&
+                    !['name', 'v', 'background', 'comment', 'collation'].includes(option)
+            )
+            if (invalid)
+                throw new EmbeddedOperationError(
+                    197,
+                    'InvalidIndexSpecificationOption',
+                    `The field '${invalid}' is not valid for an _id index specification. Specification: ${this.values.bson.EJSON.stringify({ key: key, ...options })}`
+                )
+            return { name: ID_INDEX, key: { _id: 1 } }
+        }
+        const index: EmbeddedIndex = { name: name, key: this.values.copy(key) }
+        if (options.unique) index.unique = true
+        if (options.sparse) index.sparse = true
+        if (options.hidden) index.hidden = true
+        if (options.partialFilterExpression !== undefined) {
+            if (!this.isPlainObject(options.partialFilterExpression))
+                throw cannot("'partialFilterExpression' for an index must be a document")
+            if (options.sparse)
+                throw cannot('cannot mix "partialFilterExpression" and "sparse" options')
+            index.partialFilterExpression = this.values.copy(options.partialFilterExpression)
+        }
+        if (options.wildcardProjection !== undefined) {
+            if (wildcards[0] !== '$**')
+                throw cannot("The field 'wildcardProjection' is only allowed in an 'wildcard' index with the key '$**'")
+            const projection = options.wildcardProjection
+            const shown = Object.keys(projection ?? {})
+                .filter((field) => field !== '_id')
+                .map((field) => !!projection[field] && projection[field] !== '0')
+            if (!this.isPlainObject(projection) || new Set(shown).size > 1)
+                throw cannot('The wildcardProjection of an index cannot mix the fields included and excluded')
+            index.wildcardProjection = this.values.copy(projection)
+        }
+        if (options.expireAfterSeconds !== undefined)
+            index.expireAfterSeconds = options.expireAfterSeconds
+        if (wildcards.length && (index.unique || index.sparse))
+            throw cannot(`Index type 'wildcard' does not support the '${index.unique ? 'unique' : 'sparse'}' option`)
+        if (index.unique && fields.some((field) => key[field] === 'hashed'))
+            throw cannot('Currently hashed indexes cannot guarantee uniqueness. Use a regular index.')
+        return index
+    }
+
+    /**
+     * The index there of the name or of the fields of an index (the same index: nothing to create), undefined when
+     * there is none; it fails as MongoDB fails when the one of the name has other fields (IndexKeySpecsConflict) or
+     * other options, or when one of the same signature (its fields, unique, sparse, its filter) has another name
+     * (IndexOptionsConflict).
+     *
+     * @param index
+     */
+    private existingIndex(index: EmbeddedIndex): EmbeddedIndex | undefined {
+        const indexes = this.store.collection(this.collectionName)?.indexes ?? []
+        const id: EmbeddedIndex = { name: ID_INDEX, key: { _id: 1 } }
+        const show = (item: EmbeddedIndex) => this.values.bson.EJSON.stringify({ v: 2, ...item })
+        const named =
+            index.name === ID_INDEX ? id : indexes.find((item) => item.name === index.name)
+        if (named) {
+            if (!this.sameKeys(named.key, index.key))
+                throw new EmbeddedOperationError(
+                    86,
+                    'IndexKeySpecsConflict',
+                    `An existing index has the same name as the requested index but a different key pattern. Requested index: ${show(index)}, existing index: ${show(named)}`
+                )
+            const options = (item: EmbeddedIndex) =>
+                this.values.bson.EJSON.stringify([
+                    !!item.unique,
+                    !!item.sparse,
+                    !!item.hidden,
+                    item.partialFilterExpression ?? null,
+                    item.wildcardProjection ?? null,
+                    item.expireAfterSeconds ?? null
+                ])
+            if (options(named) !== options(index))
+                throw new EmbeddedOperationError(
+                    85,
+                    'IndexOptionsConflict',
+                    `An existing index has the same name as the requested index but different options. Requested index: ${show(index)}, existing index: ${show(named)}`
+                )
+            return named
+        }
+        // The signature of an index (MongoDB 5.0 and later): the indexes of the same fields but unique, sparse, the filter
+        // or the projection of a wildcard index may be there together
+        const signature = (item: EmbeddedIndex) =>
+            this.values.bson.EJSON.stringify([
+                !!item.unique,
+                !!item.sparse,
+                item.partialFilterExpression ?? null,
+                item.wildcardProjection ?? null
+            ])
+        const keyed = indexes.find(
+            (item) => this.sameKeys(item.key, index.key) && signature(item) === signature(index)
+        )
+        if (keyed)
+            throw new EmbeddedOperationError(
+                85,
+                'IndexOptionsConflict',
+                `Index already exists with a different name: ${keyed.name}`
+            )
+        return undefined
+    }
+
+    /**
+     * Builds an index in a table of its own from the documents there, in batches (the reads going on), then adds it to
+     * the collection; its table dropped when it fails (a duplicate key of a unique index, a key it does not take).
+     * Run in an exclusive operation of the store: the writes wait for it.
+     *
+     * @param index
+     */
+    private async buildIndex(index: EmbeddedIndex): Promise<void> {
+        const table = await this.store.createIndexTable(this.collectionName)
+        const collection = this.store.collection(this.collectionName)!
+        collection.partials.delete(index.name)
+        try {
+            let multikey = false
+            for await (const { documents, data } of this.store.scanRange(this.collectionName, 0, [])) {
+                const keys: Buffer[] = []
+                const ids: Buffer[] = []
+                const owners: number[] = []
+                documents.forEach((document, position) => {
+                    const found = collection.keysOf(index, document)
+                    if (found.length > 1) multikey = true
+                    const id = this.values.idKeyOf(data[position])
+                    for (const key of found) {
+                        keys.push(key)
+                        ids.push(id)
+                        owners.push(position)
+                    }
+                })
+                try {
+                    await this.store.writeIndex(this.collectionName, table, !!index.unique, keys, ids)
+                } catch (error) {
+                    const failed = (error as { index?: number }).index
+                    if ((error as { code?: number }).code === 11000 && failed !== undefined && failed >= 0)
+                        throw new EmbeddedDuplicateKeyError(
+                            this.collectionName,
+                            index.name,
+                            collection.keyValue(index, documents[owners[failed]])
+                        )
+                    throw error
+                }
+            }
+            await this.store.addIndex(
+                this.collectionName,
+                index,
+                table,
+                multikey || wildcardOf(index) !== undefined
+            )
+        } catch (error) {
+            collection.partials.delete(index.name)
+            await this.store.dropIndexTable(this.collectionName, table)
+            throw error
         }
     }
 
@@ -1247,20 +1694,20 @@ export class EmbeddedCollection {
     }
 
     /**
-     * The number of the documents a filter matches, counted without reading them when its plan is exact.
+     * The number of the documents a filter matches, counted without reading them when its plan is exact (the entries of
+     * the ranges of an index, the keys of their _id told apart when a document may have several of them).
      *
      * @param filter
+     * @param hint
      */
     private async exactCount(
-        filter: EmbeddedDocument
+        filter: EmbeddedDocument,
+        hint?: EmbeddedHint
     ): Promise<number | undefined> {
         const collection = this.store.collection(this.collectionName)
         if (!collection) return 0
-        const plan = new EmbeddedPlanner({
-            indexes: [],
-            multikey: collection.multikey,
-            encoding: collection.encoding
-        }).plan(filter)
+        const planner = new EmbeddedPlanner(collection)
+        const plan: EmbeddedPlan = planner.plan(filter, this.hintOf(collection, planner, hint))
         if (!plan.exact) return undefined
         if (plan.kind === 'scan') return this.store.count(this.collectionName)
         if (plan.kind === 'id') {
@@ -1276,7 +1723,14 @@ export class EmbeddedCollection {
                 (document) => document !== undefined
             ).length
         }
-        return undefined
+        const table = this.tableOf(collection, plan.index)
+        const ranges = this.rangesOf(plan.ranges)
+        if (!plan.multikey)
+            return this.store.countRange(this.collectionName, table, ranges)
+        const ids = new Set<string>()
+        for await (const keys of this.store.keysInRange(this.collectionName, table, ranges))
+            for (const key of keys) ids.add(key.toString('latin1'))
+        return ids.size
     }
 
     private isPlainObject(value: any): boolean {
@@ -1343,7 +1797,7 @@ export class EmbeddedCollection {
         const updated = new Set<string>()
         let matched = 0
         let modified = 0
-        for await (const batch of this.candidates(filter)) {
+        for await (const batch of this.candidates(filter, options?.hint)) {
             const found = batch.filter(
                 (document) =>
                     !updated.has(this.values.idKey(document._id).toString('latin1'))
@@ -1497,15 +1951,20 @@ export class EmbeddedCollection {
      *
      * @param query
      * @param many
+     * @param hint
      */
-    private async delete(query: EmbeddedDocument | undefined, many: boolean) {
+    private async delete(
+        query: EmbeddedDocument | undefined,
+        many: boolean,
+        hint?: EmbeddedHint
+    ) {
         const filter = this.values.copy(query ?? {})
         const matches = this.matcherOf(filter)
         if (!this.store.collection(this.collectionName))
             return { acknowledged: true, deletedCount: 0 }
         let deleted = 0
         // A document deleted leaves the collection: unlike an update, a scan does not meet it again
-        for await (const batch of this.candidates(filter)) {
+        for await (const batch of this.candidates(filter, hint)) {
             deleted += await this.store.exclusive(async () => {
                 let currents = await this.currents(matches, batch)
                 if (!many) currents = currents.slice(0, 1)

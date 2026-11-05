@@ -128,6 +128,8 @@ static napi_value ErrorOf(napi_env env, const Outcome& outcome) {
   if (napi_create_int32(env, outcome.code, &code) == napi_ok) napi_set_named_property(env, error, "code", code);
   napi_value index;
   if (outcome.index >= 0 && napi_create_int64(env, outcome.index, &index) == napi_ok) napi_set_named_property(env, error, "index", index);
+  napi_value table;
+  if (outcome.table >= 0 && napi_create_int64(env, outcome.table, &table) == napi_ok) napi_set_named_property(env, error, "table", table);
   return error;
 }
 

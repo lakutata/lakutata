@@ -23,6 +23,32 @@ export class MongoEmbeddedError extends Error {
 }
 
 /**
+ * The error of an operation that MongoDB refuses as well, with its code and the name of its code (IndexNotFound 27,
+ * CannotCreateIndex 67...)
+ *
+ * @example
+ * import {EmbeddedClient, EmbeddedOperationError} from '@lakutata/mongo-embedded'
+ *
+ * const client = await EmbeddedClient.connect()
+ * const items = client.db().collection('items')
+ * try {
+ *     await items.dropIndex('missing')
+ * } catch (error) {
+ *     if (error instanceof EmbeddedOperationError) console.log(error.code, error.codeName) // 27 IndexNotFound
+ * }
+ */
+export class EmbeddedOperationError extends MongoEmbeddedError {
+    /**
+     * @param code the code of the error in MongoDB
+     * @param codeName the name of the code
+     * @param message the message of the error
+     */
+    constructor(readonly code: number, readonly codeName: string, message: string) {
+        super(message)
+    }
+}
+
+/**
  * The error of a duplicate key, with the code and the message of the one of MongoDB (E11000)
  *
  * @example

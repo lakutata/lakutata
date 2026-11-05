@@ -31,6 +31,8 @@ struct Outcome {
   bool done = false;
   // The index of the change failing a write, given to the error (-1: none)
   int64_t index = -1;
+  // The table of the index of a duplicate key failing a write, given to the error (0: the _id; -1: none)
+  int64_t table = -1;
 };
 
 // The work of a task on the thread of the database, then the value of its result made on the thread of JavaScript by

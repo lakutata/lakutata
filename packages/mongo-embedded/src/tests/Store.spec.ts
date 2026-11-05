@@ -64,6 +64,24 @@ function inserts(values: number[]): NativeChange[] {
     return values.map((value: number): NativeChange => [ChangeKind.Insert, keyOf(value), documentOf(value)])
 }
 
+/**
+ * The collections listed by the addon: their names, and the ids of the tables of their indexes
+ * @param listed
+ */
+function collectionsOf(listed: Buffer): { name: string, tables: number[] }[] {
+    const collections: { name: string, tables: number[] }[] = []
+    for (let at: number = 0; at < listed.length;) {
+        const length: number = listed.readUInt32LE(at)
+        const name: string = listed.toString('utf8', at + 4, at + 4 + length)
+        at += 4 + length + 16
+        at += 4 + listed.readUInt32LE(at)
+        const count: number = listed.readUInt32LE(at)
+        collections.push({name: name, tables: Array.from({length: count}, (_: unknown, index: number): number => Number(listed.readBigInt64LE(at + 4 + index * 8)))})
+        at += 4 + count * 8
+    }
+    return collections
+}
+
 describe('The storage of a database', (): void => {
 
     it('writes, reads and scans the documents of its collections in the order of their keys, and reads them again once reopened', async (): Promise<void> => {
@@ -162,8 +180,7 @@ describe('The storage of a database', (): void => {
         await addon.close(database)
         database = await addon.open(where)
         const listed: Buffer = await addon.collections(database)
-        const names: string[] = []
-        for (let at: number = 0; at < listed.length; at += 4 + listed.readUInt32LE(at) + 20 + listed.readUInt32LE(at + 4 + listed.readUInt32LE(at) + 16)) names.push(listed.toString('utf8', at + 4, at + 4 + listed.readUInt32LE(at)))
+        const names: string[] = collectionsOf(listed).map((collection: { name: string }): string => collection.name)
         assert.strictEqual(names.length, 30)
         assert.ok(names.includes('a') && !names.includes('c3') && names.includes('c29'))
         assert.strictEqual(await addon.count(database, 'a'), 2)

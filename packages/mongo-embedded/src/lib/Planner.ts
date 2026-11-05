@@ -2,14 +2,19 @@ import type { EmbeddedKeyEncoding } from './KeyEncoding.js'
 import type { EmbeddedDocument } from './Values.js'
 
 /**
- * An index of a collection, as MongoDB lists it: its fields and their directions, whether its keys are unique, whether
- * the documents without its fields are left out of it. Its expiration is kept, not applied.
+ * An index of a collection, as MongoDB lists it: its fields and their directions (1, -1, "hashed"; a wildcard field
+ * "$**" or "<path>.$**"), whether its keys are unique, whether the documents without its fields are left out of it,
+ * the filter of the documents it holds (a partial index), whether the queries leave it out (hidden), the fields of a
+ * wildcard index. Its expiration is kept, not applied.
  */
 export interface EmbeddedIndex {
     name: string
     key: { [field: string]: any }
     unique?: boolean
     sparse?: boolean
+    partialFilterExpression?: EmbeddedDocument
+    hidden?: boolean
+    wildcardProjection?: EmbeddedDocument
     expireAfterSeconds?: number
 }
 
@@ -40,9 +45,16 @@ export interface EmbeddedRange {
 }
 
 /**
- * how the documents a filter may match are found: by their _id, by the ranges of an index, or by a scan of
- * the collection. Every document the filter matches is among them (the filter tests them then). An exact plan gives
- * the documents the filter matches and no other, once each (a count needs no document).
+ * the name of the index of the _id: the table of the collection, ordered by the keys of the _id.
+ */
+export const ID_INDEX = '_id_'
+
+/**
+ * how the documents a filter may match are found: by their _id, by the ranges of an index (the one of the _id: the
+ * table of the collection), or by a scan of the collection (reversed: in the reverse order of the _id). Every document
+ * the filter matches is among them (the filter tests them then), but with an index hinted that does not hold them all
+ * (sparse, partial), as in MongoDB. An exact plan gives the documents the filter matches and no other, once each (a
+ * count needs no document).
  */
 export type EmbeddedPlan =
     | { kind: 'id', ids: any[], exact: boolean }
@@ -53,7 +65,7 @@ export type EmbeddedPlan =
           exact: boolean
           multikey: boolean
       }
-    | { kind: 'scan', exact: boolean }
+    | { kind: 'scan', exact: boolean, reverse?: boolean }
 
 /**
  * a condition of a field on which an index may be used: an equality, a list of values, or a range; complete
@@ -89,41 +101,106 @@ function after(bytes: Buffer): Buffer | undefined {
 }
 
 /**
+ * The path of the field of a wildcard index ("" for all the fields), undefined when it is not one.
+ *
+ * @param index
+ */
+export function wildcardOf(index: EmbeddedIndex): string | undefined {
+    const [field] = Object.keys(index.key)
+    if (field === '$**') return ''
+    return field.endsWith('.$**') ? field.slice(0, -4) : undefined
+}
+
+/**
+ * Whether a wildcard index holds the values of a path: the ones under its path ("<path>.$**"), or the ones of its
+ * projection ("$**", the _id left out unless it includes it).
+ *
+ * @param index
+ * @param path
+ */
+export function wildcardHolds(index: EmbeddedIndex, path: string): boolean {
+    const wildcard = wildcardOf(index)
+    if (wildcard === undefined) return false
+    if (wildcard) return path === wildcard || path.startsWith(`${wildcard}.`)
+    const projection = index.wildcardProjection
+    const shown = (value: any) => !!value && value !== '0'
+    if (path === '_id' || path.startsWith('_id.')) return !!projection && shown(projection._id)
+    if (!projection) return true
+    const fields = Object.keys(projection).filter((field) => field !== '_id')
+    if (!fields.length) return true
+    const under = (field: string) => path === field || path.startsWith(`${field}.`)
+    return fields.some((field) => shown(projection[field]))
+        ? fields.some((field) => shown(projection[field]) && under(field))
+        : !fields.some((field) => under(field))
+}
+
+/**
  * plans the queries of a collection: the conditions of the fields of a filter (its fields and the ones of its
  * $and) on which its indexes may be used, without dropping a document the filter matches. An index is used for the
  * equalities and the lists of values ($eq, $in) of the values of a type it orders, other than null (which matches the
  * documents missing the field), and for the ranges of an ascending index ($gt, $gte, $lt, $lte); the other operators
  * ($ne, $nin, $not, $exists, $regex...) are left to the filter. An index of which a document has several keys keeps
  * one bound of a range (its two bounds may be met by different items of an array), the filter testing the documents.
+ * A hidden index is left out; a partial index is used when it is hinted only (the filter may match documents it does
+ * not hold); a hashed index for the equalities of its first field; a wildcard index for the fields it holds (but the
+ * paths of the items of arrays), its documents tested by the filter.
  */
 export class EmbeddedPlanner {
     constructor(protected readonly collection: EmbeddedPlannedCollection) {}
 
     /**
-     * The plan of a filter.
+     * The plan of a filter, by an index when one is hinted (its name, its fields, or $natural for a scan).
      *
      * @param filter
+     * @param hint
      */
-    plan(filter: EmbeddedDocument): EmbeddedPlan {
+    plan(filter: EmbeddedDocument, hint?: EmbeddedIndex | { $natural: number }): EmbeddedPlan {
         const conditions = this.conditionsOf(filter)
         const fields = Object.keys(filter).filter((key) => !key.startsWith('$'))
         const alone = fields.length === 1 && Object.keys(filter).length === 1
+        if (hint && '$natural' in hint)
+            return {
+                kind: 'scan',
+                exact: Object.keys(filter).length === 0,
+                reverse: Number(hint.$natural) < 0
+            }
+        if (hint) {
+            const [path] = Object.keys(hint.key)
+            const [conditionPath, condition] = this.conditionOf(hint, conditions) ?? []
+            const plan = (condition && this.indexPlan(hint, conditionPath!, condition)) || {
+                kind: 'index' as const,
+                index: hint.name,
+                ranges: [{}],
+                exact: false,
+                multikey: this.isMultikey(hint)
+            }
+            plan.exact =
+                plan.exact &&
+                alone &&
+                !!condition?.complete &&
+                Object.keys(hint.key).length === 1 &&
+                fields[0] === path &&
+                !hint.partialFilterExpression &&
+                !hint.sparse
+            return plan
+        }
         const ids = conditions.get('_id')
         if (ids && ids.kind === 'equal')
             return { kind: 'id', ids: ids.values, exact: alone && ids.complete }
         let best: { plan: EmbeddedPlan, score: number } | undefined
-        for (const index of this.collection.indexes) {
+        for (const index of [this.idIndex(), ...this.collection.indexes]) {
+            if (index.hidden || index.partialFilterExpression) continue
             const [path] = Object.keys(index.key)
-            const condition = conditions.get(path)
+            const [conditionPath, condition] = this.conditionOf(index, conditions) ?? []
             if (!condition) continue
-            const plan = this.indexPlan(index, condition)
+            const plan = this.indexPlan(index, conditionPath!, condition)
             if (!plan) continue
             plan.exact =
+                plan.exact &&
                 alone &&
                 condition.complete &&
                 Object.keys(index.key).length === 1 &&
-                fields[0] === path &&
-                plan.exact
+                fields[0] === path
             const score =
                 condition.kind === 'equal' ? (index.unique ? 3 : 2) : 1
             if (!best || score > best.score) best = { plan: plan, score: score }
@@ -138,8 +215,9 @@ export class EmbeddedPlanner {
 
     /**
      * The index giving the documents in the order of a sort of one field, if any: an ascending or descending index of
-     * that field first, of which no document has several keys, not sparse (the documents missing the field are
-     * sorted too). Its walk is reversed when the sort is in the other direction.
+     * that field first, of which no document has several keys, not sparse nor partial nor hidden (the documents missing
+     * the field are sorted too), not hashed nor wildcard; the index of the _id for a sort of the _id. Its walk is
+     * reversed when the sort is in the other direction.
      *
      * @param sort
      */
@@ -150,45 +228,106 @@ export class EmbeddedPlanner {
         const fields = Object.keys(sort)
         if (fields.length !== 1) return undefined
         const direction = sort[fields[0]] === -1 || sort[fields[0]] === '-1' ? -1 : 1
+        if (fields[0] === '_id') return { index: ID_INDEX, reverse: direction !== 1 }
         for (const index of this.collection.indexes) {
             const [path] = Object.keys(index.key)
+            const indexDirection = this.directionOf(index.key[path])
             if (
                 path !== fields[0] ||
+                !indexDirection ||
                 index.sparse ||
+                index.partialFilterExpression ||
+                index.hidden ||
                 this.collection.multikey.has(index.name)
             )
                 continue
-            const indexDirection =
-                index.key[path] === -1 || index.key[path] === '-1' ? -1 : 1
             return { index: index.name, reverse: direction !== indexDirection }
         }
         return undefined
     }
 
     /**
-     * The plan of a condition on the first field of an index, if it may be used.
+     * The index of the _id, as the planner sees it: its table is the one of the collection.
+     */
+    idIndex(): EmbeddedIndex {
+        return { name: ID_INDEX, key: { _id: 1 }, unique: true }
+    }
+
+    /**
+     * Whether a document may have several keys in an index (a wildcard index: always).
      *
      * @param index
+     */
+    isMultikey(index: EmbeddedIndex): boolean {
+        return wildcardOf(index) !== undefined || this.collection.multikey.has(index.name)
+    }
+
+    /**
+     * The direction of a field of an index: 1, -1, or 0 for a field of another kind ("hashed").
+     *
+     * @param direction
+     */
+    protected directionOf(direction: any): number {
+        if (direction === -1 || direction === '-1') return -1
+        if (typeof direction === 'number' && direction > 0) return 1
+        return 0
+    }
+
+    /**
+     * The condition of a filter on which an index may be used, and its path: the one of its first field; for a wildcard
+     * index, the first one of a field it holds whose path is not the one of an item of an array.
+     *
+     * @param index
+     * @param conditions
+     */
+    protected conditionOf(
+        index: EmbeddedIndex,
+        conditions: Map<string, Condition>
+    ): [string, Condition] | undefined {
+        const wildcard = wildcardOf(index)
+        if (wildcard === undefined) {
+            const [path] = Object.keys(index.key)
+            const condition = conditions.get(path)
+            return condition ? [path, condition] : undefined
+        }
+        for (const [path, condition] of conditions)
+            if (!path.split('.').some((name) => /^\d+$/.test(name)) && wildcardHolds(index, path))
+                return [path, condition]
+        return undefined
+    }
+
+    /**
+     * The plan of a condition on the first field of an index (on a field of a wildcard index: its path), if it may be
+     * used.
+     *
+     * @param index
+     * @param path
      * @param condition
      */
     protected indexPlan(
         index: EmbeddedIndex,
+        path: string,
         condition: Condition
     ): EmbeddedPlan | undefined {
         const encoding = this.collection.encoding
-        const [path] = Object.keys(index.key)
-        const descending = index.key[path] === -1 || index.key[path] === '-1'
-        const multikey = this.collection.multikey.has(index.name)
+        const direction = index.key[Object.keys(index.key)[0]]
+        const multikey = this.isMultikey(index)
+        const wildcard = wildcardOf(index) !== undefined
+        // The entries of a wildcard index start with the path of their value
+        const prefix = wildcard ? encoding.encode(path) : Buffer.alloc(0)
+        const hashed = direction === 'hashed'
         if (condition.kind === 'equal') {
             const ranges: EmbeddedRange[] = []
             for (const value of condition.values) {
-                const prefix = encoding.direct(
-                    encoding.encode(value),
-                    index.key[path]
-                )
-                const end = after(prefix)
+                const key = Buffer.concat([
+                    prefix,
+                    hashed
+                        ? encoding.hash(value)
+                        : encoding.direct(encoding.encode(value), direction)
+                ])
+                const end = after(key)
                 ranges.push({
-                    lower: { key: prefix, inclusive: true },
+                    lower: { key: key, inclusive: true },
                     upper: end ? { key: end, inclusive: false } : undefined
                 })
             }
@@ -206,13 +345,13 @@ export class EmbeddedPlanner {
                             ranges[position - 1].lower!.key
                         ) !== 0
                 ),
-                exact: true,
+                exact: !hashed && !wildcard,
                 multikey: multikey
             }
         }
-        if (descending) return undefined
+        if (this.directionOf(direction) !== 1) return undefined
         let { lower, upper } = condition
-        let exact = true
+        let exact = !wildcard
         // The items of an array may meet the two bounds apart: one of them is kept
         if (multikey && lower && upper) {
             upper = undefined
@@ -222,13 +361,13 @@ export class EmbeddedPlanner {
         const tag = encoding.encode(bound)[0]
         const range: EmbeddedRange = {}
         if (lower) {
-            const key = encoding.encode(lower.value)
+            const key = Buffer.concat([prefix, encoding.encode(lower.value)])
             range.lower = lower.inclusive
                 ? { key: key, inclusive: true }
                 : { key: after(key)!, inclusive: true }
-        } else range.lower = { key: Buffer.of(tag), inclusive: true }
+        } else range.lower = { key: Buffer.concat([prefix, Buffer.of(tag)]), inclusive: true }
         if (upper && encoding.encode(upper.value)[0] === tag) {
-            const key = encoding.encode(upper.value)
+            const key = Buffer.concat([prefix, encoding.encode(upper.value)])
             const end = after(key)
             range.upper = upper.inclusive
                 ? end
@@ -237,7 +376,7 @@ export class EmbeddedPlanner {
                 : { key: key, inclusive: false }
         } else {
             // The values of the type of the bound only, as MongoDB compares them
-            range.upper = { key: Buffer.of(tag + 1), inclusive: false }
+            range.upper = { key: Buffer.concat([prefix, Buffer.of(tag + 1)]), inclusive: false }
             if (upper) exact = false
         }
         return {
@@ -265,7 +404,7 @@ export class EmbeddedPlanner {
                     continue
                 }
                 if (path.startsWith('$') || conditions.has(path)) continue
-                const condition = this.conditionOf(query[path])
+                const condition = this.conditionOfValue(query[path])
                 if (condition) conditions.set(path, condition)
             }
         }
@@ -278,7 +417,7 @@ export class EmbeddedPlanner {
      *
      * @param value
      */
-    protected conditionOf(value: any): Condition | undefined {
+    protected conditionOfValue(value: any): Condition | undefined {
         const encoding = this.collection.encoding
         const usable = (item: any) =>
             item !== null && item !== undefined && encoding.isOrdered(item)

@@ -2,7 +2,7 @@ import {mkdirSync, readdirSync} from 'node:fs'
 import {addon} from './Addon.js'
 import {EmbeddedDuplicateKeyError, MongoEmbeddedError} from './Errors.js'
 import {type EmbeddedKeyEncoding} from './KeyEncoding.js'
-import {ChangeKind, type NativeChange, type NativeDatabase, NativeError, type NativePredicate} from './Native.js'
+import {ChangeKind, type NativeChange, type NativeDatabase, type NativeEntry, NativeError, type NativePredicate, type NativeRange} from './Native.js'
 import {type EmbeddedIndex, type EmbeddedPlannedCollection} from './Planner.js'
 import {type EmbeddedDocument, type EmbeddedValues} from './Values.js'
 
@@ -51,18 +51,75 @@ export interface EmbeddedChange {
 }
 
 /**
- * A collection of the catalog of a connection: its indexes (their definitions; the ones of which a document has
- * several keys), the encoding of their keys
+ * The definitions of the indexes of a collection as the catalog keeps them: the indexes as MongoDB lists them, the
+ * table of each one, the ones of which a document has several keys
+ */
+interface EmbeddedDefinitions {
+    indexes: EmbeddedIndex[]
+    tables?: { [name: string]: number }
+    multikey?: string[]
+}
+
+/**
+ * A collection of the catalog of a connection: its indexes (their definitions, their tables, the ones of which a
+ * document has several keys), the encoding of their keys
  */
 export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
     indexes: EmbeddedIndex[] = []
 
+    /**
+     * The tables of the indexes, by their names
+     */
+    readonly tables: Map<string, number> = new Map<string, number>()
+
     readonly multikey: Set<string> = new Set<string>()
+
+    /**
+     * The tests of the filters of the partial indexes, by their names, compiled once
+     */
+    readonly partials: Map<string, (document: EmbeddedDocument) => boolean> = new Map<string, (document: EmbeddedDocument) => boolean>()
 
     readonly encoding: EmbeddedKeyEncoding
 
-    constructor(readonly name: string, values: EmbeddedValues) {
+    constructor(readonly name: string, readonly values: EmbeddedValues) {
         this.encoding = values.keys
+    }
+
+    /**
+     * The definitions of the indexes, as the catalog keeps them
+     */
+    definitions(): EmbeddedDefinitions {
+        return {indexes: this.indexes, tables: Object.fromEntries(this.tables), multikey: [...this.multikey]}
+    }
+
+    /**
+     * The keys of a document in an index (EmbeddedKeyEncoding.indexKeysOf): none when the index is partial and the
+     * document does not match its filter
+     * @param index
+     * @param document
+     */
+    keysOf(index: EmbeddedIndex, document: EmbeddedDocument): Buffer[] {
+        if (index.partialFilterExpression) {
+            let matches: ((document: EmbeddedDocument) => boolean) | undefined = this.partials.get(index.name)
+            if (!matches) {
+                const query: any = new this.values.mingo.Query(index.partialFilterExpression)
+                matches = (document: EmbeddedDocument): boolean => query.test(document)
+                this.partials.set(index.name, matches)
+            }
+            if (!matches(document)) return []
+        }
+        return this.encoding.indexKeysOf(index, document)
+    }
+
+    /**
+     * The fields of a document in an index, for the message of a duplicate key
+     * @param index
+     * @param document
+     */
+    keyValue(index: EmbeddedIndex, document: EmbeddedDocument): Record<string, any> {
+        const value: Record<string, any> = {}
+        for (const path of Object.keys(index.key)) value[path] = this.values.valueAt(document, path) ?? null
+        return value
     }
 }
 
@@ -94,7 +151,8 @@ export class EmbeddedStore {
     }
 
     /**
-     * Opens a database: its directory created and locked, its catalog read
+     * Opens a database: its directory created and locked, its catalog read, the tables of the indexes whose build did not
+     * end dropped
      * @param directory the directory of the database, or undefined for a database in memory
      * @param values
      * @param options
@@ -149,8 +207,11 @@ export class EmbeddedStore {
     }
 
     /**
-     * Writes changes of documents of a collection as one operation (all of them, or none): an insertion of a key there
-     * fails with EmbeddedDuplicateKeyError, whose changeIndex tells the change failing
+     * Writes changes of documents of a collection and the entries of its indexes as one operation (all of them, or
+     * none): a key of an insertion there, or a key of a unique index that another document holds, fails it with
+     * EmbeddedDuplicateKeyError, whose changeIndex tells the change failing. The entries of a change are removed before
+     * it and inserted after it, the changes written in their order (as MongoDB writes the documents one after the
+     * other)
      * @param name
      * @param changes
      * @param create whether the collection is created when it is missing (an insertion)
@@ -160,15 +221,44 @@ export class EmbeddedStore {
         const natives: NativeChange[] = changes.map((change: EmbeddedChange): NativeChange => change.next
             ? [change.previous ? ChangeKind.Replace : ChangeKind.Insert, change.key, change.data ?? this.values.serialize(change.next)]
             : [ChangeKind.Delete, change.key])
+        const collection: EmbeddedCollectionState | undefined = this.collections.get(name)
+        const entries: NativeEntry[] = []
+        const multikey: Set<string> = new Set<string>()
+        if (collection) changes.forEach((change: EmbeddedChange, position: number): void => {
+            for (const index of collection.indexes) {
+                const before: Buffer[] = change.previous ? collection.keysOf(index, change.previous) : []
+                const after: Buffer[] = change.next ? collection.keysOf(index, change.next) : []
+                if (after.length > 1 && !collection.multikey.has(index.name)) multikey.add(index.name)
+                const kept: Set<string> = new Set<string>(before.map((key: Buffer): string => key.toString('latin1')))
+                const now: Set<string> = new Set<string>(after.map((key: Buffer): string => key.toString('latin1')))
+                const table: number = collection.tables.get(index.name)!
+                const unique: boolean = !!index.unique
+                for (const key of before)
+                    if (!now.has(key.toString('latin1'))) entries.push([position, table, unique, true, this.entryKey(key, change.key, unique), change.key])
+                for (const key of after)
+                    if (!kept.has(key.toString('latin1'))) entries.push([position, table, unique, false, this.entryKey(key, change.key, unique), change.key])
+            }
+        })
+        const definitions: Buffer | undefined = collection && multikey.size
+            ? this.values.serialize({...collection.definitions(), multikey: [...collection.multikey, ...multikey]})
+            : undefined
         try {
-            await addon.write(this.database, name, natives, create)
+            await addon.write(this.database, name, natives, create, entries, definitions)
         } catch (error) {
             const failed: EmbeddedChange | undefined = changes[(error as { index?: number }).index ?? -1]
-            if ((error as { code?: number }).code === NativeError.DuplicateKey && failed) {
-                throw Object.assign(new EmbeddedDuplicateKeyError(name, '_id_', {_id: failed.next!._id}), {changeIndex: (error as { index: number }).index})
+            if ((error as { code?: number }).code === NativeError.DuplicateKey && failed?.next) {
+                const table: number = (error as { table?: number }).table ?? 0
+                const index: EmbeddedIndex | undefined = collection?.indexes.find((index: EmbeddedIndex): boolean => collection.tables.get(index.name) === table)
+                throw Object.assign(
+                    index
+                        ? new EmbeddedDuplicateKeyError(name, index.name, collection!.keyValue(index, failed.next))
+                        : new EmbeddedDuplicateKeyError(name, '_id_', {_id: failed.next._id}),
+                    {changeIndex: (error as { index: number }).index}
+                )
             }
             throw error
         }
+        if (collection) for (const index of multikey) collection.multikey.add(index)
         if (create && !this.collections.has(name)) this.collections.set(name, new EmbeddedCollectionState(name, this.values))
     }
 
@@ -212,6 +302,83 @@ export class EmbeddedStore {
     }
 
     /**
+     * The documents of the entries of ranges of a table of a collection (an index, or the collection itself: 0), in
+     * batches (the caller's own, each one serialized too), in the order of the ranges and of their keys or reversed, the
+     * ones failing the predicates left out; a document is given for each of its entries in them. The entries written
+     * while it reads are met when their keys are after the ones read
+     * @param name
+     * @param table
+     * @param ranges none: all the entries
+     * @param options
+     */
+    async* scanRange(name: string, table: number, ranges: NativeRange[], options: { reverse?: boolean, predicates?: NativePredicate[] } = {}): AsyncGenerator<{ documents: EmbeddedDocument[], data: Buffer[] }> {
+        if (!this.collections.has(name)) return
+        let after: Buffer | undefined
+        let range: number = 0
+        for (; ;) {
+            const batch: { bytes: Buffer, last: Buffer | null, range: number, done: boolean } = await addon.scanRange(this.database, name, table, {
+                ranges: ranges,
+                reverse: options.reverse,
+                range: range,
+                after: after,
+                limit: SCAN_BATCH,
+                predicates: options.predicates?.length ? options.predicates : undefined
+            })
+            const documents: EmbeddedDocument[] = []
+            const data: Buffer[] = []
+            for (let at: number = 0; at < batch.bytes.length; at += batch.bytes.readInt32LE(at)) {
+                const bytes: Buffer = batch.bytes.subarray(at, at + batch.bytes.readInt32LE(at))
+                data.push(bytes)
+                documents.push(this.values.deserialize(bytes))
+            }
+            if (documents.length) yield {documents: documents, data: data}
+            if (batch.done || !batch.last) return
+            after = batch.last
+            range = batch.range
+        }
+    }
+
+    /**
+     * The keys of the _id of the entries of ranges of a table of a collection (an index, or the collection itself: 0),
+     * in batches, in the order of the ranges and of their keys: a document is given for each of its entries in them
+     * @param name
+     * @param table
+     * @param ranges none: all the entries
+     */
+    async* keysInRange(name: string, table: number, ranges: NativeRange[]): AsyncGenerator<Buffer[]> {
+        if (!this.collections.has(name)) return
+        let after: Buffer | undefined
+        let range: number = 0
+        for (; ;) {
+            const batch: { bytes: Buffer, last: Buffer | null, range: number, done: boolean } = await addon.scanRange(this.database, name, table, {
+                ranges: ranges,
+                range: range,
+                after: after,
+                keysOnly: true,
+                limit: SCAN_BATCH * 10
+            })
+            const keys: Buffer[] = []
+            for (let at: number = 0; at < batch.bytes.length; at += 4 + batch.bytes.readUInt32LE(at)) {
+                keys.push(batch.bytes.subarray(at + 4, at + 4 + batch.bytes.readUInt32LE(at)))
+            }
+            if (keys.length) yield keys
+            if (batch.done || !batch.last) return
+            after = batch.last
+            range = batch.range
+        }
+    }
+
+    /**
+     * The entries of ranges of a table of a collection (an index, or the collection itself: 0)
+     * @param name
+     * @param table
+     * @param ranges none: all the entries
+     */
+    async countRange(name: string, table: number, ranges: NativeRange[]): Promise<number> {
+        return this.collections.has(name) ? addon.countRange(this.database, name, table, ranges) : 0
+    }
+
+    /**
      * The documents of a collection, 0 when it is not there
      * @param name
      */
@@ -230,15 +397,77 @@ export class EmbeddedStore {
     }
 
     /**
-     * Writes the definitions of the indexes of a collection, created when it is missing
+     * The table of a new index of a collection, created when it is missing: its id. The index is added once it is built
+     * (addIndex)
      * @param name
-     * @param indexes
      */
-    async setIndexes(name: string, indexes: EmbeddedIndex[]): Promise<void> {
-        await addon.setIndexes(this.database, name, indexes.length ? this.values.serialize({indexes: indexes}) : Buffer.alloc(0))
-        let collection: EmbeddedCollectionState | undefined = this.collections.get(name)
-        if (!collection) this.collections.set(name, collection = new EmbeddedCollectionState(name, this.values))
-        collection.indexes = indexes.map((index: EmbeddedIndex): EmbeddedIndex => ({...index}))
+    async createIndexTable(name: string): Promise<number> {
+        const table: number = await addon.createIndex(this.database, name)
+        if (!this.collections.has(name)) this.collections.set(name, new EmbeddedCollectionState(name, this.values))
+        return table
+    }
+
+    /**
+     * Drops the table of an index of a collection
+     * @param name
+     * @param table
+     */
+    async dropIndexTable(name: string, table: number): Promise<void> {
+        await addon.dropIndex(this.database, name, table)
+    }
+
+    /**
+     * Inserts entries in the table of an index (a build) as one operation: a key of a unique index that another document
+     * holds fails it (the code 11000, the index of the entry)
+     * @param name
+     * @param table
+     * @param unique
+     * @param keys the keys of the index
+     * @param ids the keys of the _id of their documents
+     */
+    async writeIndex(name: string, table: number, unique: boolean, keys: Buffer[], ids: Buffer[]): Promise<void> {
+        if (!keys.length) return
+        await addon.writeIndex(this.database, name, table, unique, keys.map((key: Buffer, position: number): Buffer => this.entryKey(key, ids[position], unique)), ids)
+    }
+
+    /**
+     * Adds an index built in its table to the definitions of a collection
+     * @param name
+     * @param index
+     * @param table
+     * @param multikey whether a document has several keys in it
+     */
+    async addIndex(name: string, index: EmbeddedIndex, table: number, multikey: boolean): Promise<void> {
+        const collection: EmbeddedCollectionState = this.collections.get(name)!
+        const definitions: EmbeddedDefinitions = collection.definitions()
+        await addon.setIndexes(this.database, name, this.values.serialize({
+            indexes: [...definitions.indexes, index],
+            tables: {...definitions.tables, [index.name]: table},
+            multikey: multikey ? [...definitions.multikey!, index.name] : definitions.multikey
+        }))
+        collection.indexes = [...collection.indexes, {...index}]
+        collection.tables.set(index.name, table)
+        if (multikey) collection.multikey.add(index.name)
+    }
+
+    /**
+     * Removes indexes from the definitions of a collection, then drops their tables
+     * @param name
+     * @param names the names of the indexes
+     */
+    async removeIndexes(name: string, names: string[]): Promise<void> {
+        const collection: EmbeddedCollectionState | undefined = this.collections.get(name)
+        if (!collection) return
+        const removed: Set<string> = new Set<string>(names)
+        const tables: number[] = names.map((index: string): number | undefined => collection.tables.get(index)).filter((table: number | undefined): table is number => table !== undefined)
+        collection.indexes = collection.indexes.filter((index: EmbeddedIndex): boolean => !removed.has(index.name))
+        for (const index of names) {
+            collection.tables.delete(index)
+            collection.multikey.delete(index)
+            collection.partials.delete(index)
+        }
+        await addon.setIndexes(this.database, name, collection.indexes.length ? this.values.serialize(collection.definitions()) : Buffer.alloc(0))
+        for (const table of tables) await addon.dropIndex(this.database, name, table)
     }
 
     /**
@@ -278,21 +507,44 @@ export class EmbeddedStore {
     }
 
     /**
-     * The collections of the catalog and the definitions of their indexes
+     * The key of an entry of an index: its key, then the key of the _id of its document unless it is unique
+     * @param key
+     * @param id
+     * @param unique
+     */
+    protected entryKey(key: Buffer, id: Buffer, unique: boolean): Buffer {
+        return unique ? key : Buffer.concat([key, id])
+    }
+
+    /**
+     * The collections of the catalog and the definitions of their indexes; the tables of the indexes not in them (their
+     * build did not end) dropped
      */
     protected async readCatalog(): Promise<void> {
         const listed: Buffer = await addon.collections(this.database)
+        const orphans: [string, number][] = []
         for (let at: number = 0; at < listed.length;) {
             const length: number = listed.readUInt32LE(at)
             const name: string = listed.toString('utf8', at + 4, at + 4 + length)
-            const indexesSize: number = listed.readUInt32LE(at + 4 + length + 16)
+            at += 4 + length + 16
+            const indexesSize: number = listed.readUInt32LE(at)
             const collection: EmbeddedCollectionState = new EmbeddedCollectionState(name, this.values)
             if (indexesSize) {
-                const start: number = at + 4 + length + 20
-                collection.indexes = this.values.deserialize(listed.subarray(start, start + indexesSize)).indexes
+                const definitions: EmbeddedDefinitions = this.values.deserialize(listed.subarray(at + 4, at + 4 + indexesSize)) as EmbeddedDefinitions
+                collection.indexes = definitions.indexes
+                for (const [index, table] of Object.entries(definitions.tables ?? {})) collection.tables.set(index, Number(table))
+                for (const index of definitions.multikey ?? []) collection.multikey.add(index)
             }
+            at += 4 + indexesSize
+            const tableCount: number = listed.readUInt32LE(at)
+            const kept: Set<number> = new Set<number>(collection.tables.values())
+            for (let position: number = 0; position < tableCount; position++) {
+                const table: number = Number(listed.readBigInt64LE(at + 4 + position * 8))
+                if (!kept.has(table)) orphans.push([name, table])
+            }
+            at += 4 + tableCount * 8
             this.collections.set(name, collection)
-            at += 4 + length + 20 + indexesSize
         }
+        for (const [name, table] of orphans) await addon.dropIndex(this.database, name, table)
     }
 }

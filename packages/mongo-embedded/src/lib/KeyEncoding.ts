@@ -1,4 +1,6 @@
-import { MongoEmbeddedError } from './Errors.js'
+import { createHash } from 'node:crypto'
+import { EmbeddedOperationError } from './Errors.js'
+import { type EmbeddedIndex, wildcardHolds, wildcardOf } from './Planner.js'
 import type { EmbeddedDocument, EmbeddedValues } from './Values.js'
 
 /**
@@ -225,9 +227,55 @@ export class EmbeddedKeyEncoding {
     }
 
     /**
-     * The keys of a document in an index of fields (1 ascending, -1 descending): one per value of the field that is an
-     * array (MongoDB indexes each of its items), none when the index is sparse and the document has none of its
-     * fields. The values missing are null.
+     * The key of a value in a hashed field of an index: its tag of a number, then 8 bytes of the MD5 of its encoding
+     * (the values MongoDB tells equal, equal; their order lost).
+     *
+     * @param value
+     */
+    hash(value: any): Buffer {
+        const key = Buffer.allocUnsafe(9)
+        key[0] = Tag.Number
+        createHash('md5').update(this.encode(value)).digest().copy(key, 1, 0, 8)
+        return key
+    }
+
+    /**
+     * The keys of a document in an index: the ones of its fields (keysOf), or of a wildcard index (each path it holds,
+     * then a value there).
+     *
+     * @param index
+     * @param document
+     */
+    indexKeysOf(index: EmbeddedIndex, document: EmbeddedDocument): Buffer[] {
+        const wildcard = wildcardOf(index)
+        if (wildcard === undefined)
+            return this.keysOf(index.key, index.sparse, document)
+        const keys: Buffer[] = []
+        const visit = (value: any, path: string) => {
+            if (Array.isArray(value)) {
+                if (!value.length) keys.push(this.wildcardKey(path, value))
+                // The documents of an array are followed, their paths without the index of their item
+                for (const item of value)
+                    if (this.isDocument(item)) visit(item, path)
+                    else keys.push(this.wildcardKey(path, item))
+            } else if (this.isDocument(value) && Object.keys(value).length)
+                for (const name of Object.keys(value))
+                    visit(value[name], path ? `${path}.${name}` : name)
+            else keys.push(this.wildcardKey(path, value))
+        }
+        if (wildcard) for (const value of this.valuesAt(document, wildcard, false) ?? []) visit(value, wildcard)
+        else visit(document, '')
+        return this.unique(
+            keys.filter(
+                (key) => key.length && wildcardHolds(index, this.pathOfWildcardKey(key))
+            )
+        )
+    }
+
+    /**
+     * The keys of a document in an index of fields (1 ascending, -1 descending, "hashed"): one per value of the field
+     * that is an array (MongoDB indexes each of its items), none when the index is sparse and the document has none of
+     * its fields. The values missing are null. A hashed field takes no array.
      *
      * @param fields the fields of the index and their directions
      * @param sparse
@@ -245,14 +293,24 @@ export class EmbeddedKeyEncoding {
             (items) => items !== undefined && items.length > 1
         )
         if (multiple.length > 1)
-            throw Object.assign(
-                new MongoEmbeddedError(
-                    `cannot index parallel arrays [${paths.join('] [')}]`
-                ),
-                { code: 171 }
+            throw new EmbeddedOperationError(
+                171,
+                'CannotIndexParallelArrays',
+                `cannot index parallel arrays [${paths.join('] [')}]`
             )
         let keys: Buffer[] = [Buffer.alloc(0)]
         paths.forEach((path, index) => {
+            if (fields[path] === 'hashed') {
+                if (this.hasArrayAt(document, path))
+                    throw new EmbeddedOperationError(
+                        16766,
+                        'Location16766',
+                        `hashed indexes do not currently support array values. Found array at path: ${path}`
+                    )
+                const hashed = this.hash(values[index]?.[0] ?? null)
+                keys = keys.map((key) => Buffer.concat([key, hashed]))
+                return
+            }
             const items = values[index] ?? [null]
             const encoded = this.unique(
                 items.map((item) =>
@@ -281,15 +339,77 @@ export class EmbeddedKeyEncoding {
     }
 
     /**
-     * The values at a path of a document, as MongoDB indexes them: the items of the arrays it meets (the arrays of
-     * objects followed by the path), an empty array as null; undefined when it has none.
+     * The key of a value at a path in a wildcard index: the path (a string), then the value; none (empty) for the value
+     * undefined.
+     *
+     * @param path
+     * @param value
+     */
+    protected wildcardKey(path: string, value: any): Buffer {
+        return value === undefined || !path
+            ? Buffer.alloc(0)
+            : Buffer.concat([this.string(Tag.String, path), this.encode(value)])
+    }
+
+    /**
+     * The path of a key of a wildcard index.
+     *
+     * @param key
+     */
+    protected pathOfWildcardKey(key: Buffer): string {
+        let end = 1
+        const bytes: number[] = []
+        for (; end < key.length; end++) {
+            if (key[end] === 0) {
+                if (key[end + 1] === 0) break
+                bytes.push(0)
+                end++
+            } else bytes.push(key[end])
+        }
+        return Buffer.from(bytes).toString('utf8')
+    }
+
+    /**
+     * Whether an array is met along a path of a document (at its end too).
      *
      * @param document
      * @param path
      */
+    protected hasArrayAt(document: EmbeddedDocument, path: string): boolean {
+        let current: any[] = [document]
+        for (const name of path.split('.')) {
+            const next: any[] = []
+            for (const value of current) {
+                if (Array.isArray(value)) return true
+                if (value !== null && typeof value === 'object' && value[name] !== undefined) next.push(value[name])
+            }
+            current = next
+        }
+        return current.some((value) => Array.isArray(value))
+    }
+
+    /**
+     * Whether a value is a document (an object of its own, not a value of BSON).
+     *
+     * @param value
+     */
+    protected isDocument(value: any): boolean {
+        return value !== null && typeof value === 'object' && !Array.isArray(value) && this.isPlainObject(value)
+    }
+
+    /**
+     * The values at a path of a document, as MongoDB indexes them: the items of the arrays it meets (the arrays of
+     * objects followed by the path), an empty array as null; undefined when it has none. The arrays at its end are
+     * kept whole when told not to spread them.
+     *
+     * @param document
+     * @param path
+     * @param spread
+     */
     protected valuesAt(
         document: EmbeddedDocument,
-        path: string
+        path: string,
+        spread = true
     ): any[] | undefined {
         let current: any[] = [document]
         for (const name of path.split('.')) {
@@ -311,6 +431,7 @@ export class EmbeddedKeyEncoding {
             if (!next.length) return undefined
             current = next
         }
+        if (!spread) return current
         const values = current.flatMap((value) =>
             Array.isArray(value) ? (value.length ? value : [null]) : [value]
         )
