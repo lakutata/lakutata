@@ -93,6 +93,22 @@ async function savePosts(posts: MongoRepository<Post>): Promise<Post[]> {
     ])
 }
 
+/**
+ * The value MongoDB sorts a document by, for a field holding the values of the tests (null, numbers, strings, booleans,
+ * dates, documents, arrays of numbers and strings): the smallest item of an array in an ascending sort, its largest one
+ * in a descending sort, an empty array before null
+ * @param value
+ * @param direction
+ */
+function sortValueOf(value: unknown, direction: number): unknown {
+    if (!Array.isArray(value)) return value ?? null
+    if (!value.length) return '<empty array>'
+    //The order of the types of MongoDB, then the values
+    const rank = (item: unknown): number => item === null ? 2 : typeof item === 'number' ? 3 : typeof item === 'string' ? 4 : 5
+    const compare = (a: unknown, b: unknown): number => rank(a) - rank(b) || (a as number) - (b as number) || (String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0)
+    return value.reduce((found: unknown, item: unknown): unknown => (direction === -1 ? compare(item, found) > 0 : compare(item, found) < 0) ? item : found, value[0])
+}
+
 describe('The embedded MongoDB (mongo-embedded)', (): void => {
 
     it('queries the entities with the semantics of MongoDB', async (): Promise<void> => {
@@ -225,10 +241,11 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
                 const options = (cursor: ReturnType<MongoQueryRunner['cursor']>): ReturnType<MongoQueryRunner['cursor']> => cursor.sort({...sort, n: 1}).skip(3).limit(10)
                 const single = (cursor: ReturnType<MongoQueryRunner['cursor']>): ReturnType<MongoQueryRunner['cursor']> => cursor.sort(sort).skip(3).limit(10)
                 assert.deepStrictEqual((await options(runner.cursor('indexed', filter)).toArray()).map((document: Record<string, unknown>): unknown => document.n), (await options(runner.cursor('plain', filter)).toArray()).map((document: Record<string, unknown>): unknown => document.n), `${label} ${JSON.stringify(sort)}`)
-                //Sorted by one field (by its index): the same values in the same order (the order of the ties is free, null
-                //and missing are equal)
+                //Sorted by one field (by its index): the same values sorted by, in the same order (the order of the ties is
+                //free, null and missing are equal, an array sorted by its smallest or largest item)
                 const field: string = Object.keys(sort)[0]
-                assert.deepStrictEqual((await single(runner.cursor('indexed', filter)).toArray()).map((document: Record<string, unknown>): string => JSON.stringify(document[field] ?? null)), (await single(runner.cursor('plain', filter)).toArray()).map((document: Record<string, unknown>): string => JSON.stringify(document[field] ?? null)), `${label} ${JSON.stringify(sort)}`)
+                const sortValues = async (name: string): Promise<string[]> => (await single(runner.cursor(name, filter)).toArray()).map((document: Record<string, unknown>): string => JSON.stringify(sortValueOf(document[field], sort[field])))
+                assert.deepStrictEqual(await sortValues('indexed'), await sortValues('plain'), `${label} ${JSON.stringify(sort)}`)
             }
         }
         //A value twice in a $in, on indexes of one key per document (the counts read the index only): counted once

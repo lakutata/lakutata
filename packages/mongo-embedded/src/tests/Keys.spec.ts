@@ -2,6 +2,7 @@ import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import * as bson from 'bson'
 import * as mingo from '../lib/mingo/index.js'
+import {compare} from '../lib/mingo/util/index.js'
 import {EmbeddedKeyEncoding, UNORDERED_TAGS} from '../lib/KeyEncoding.js'
 import {EmbeddedValues} from '../lib/Values.js'
 
@@ -224,6 +225,16 @@ describe('The keys', (): void => {
         for (let i: number = 0; i < items.length; i++) {
             for (let j: number = 0; j < items.length; j++) {
                 assert.strictEqual(Math.sign(Buffer.compare(keys[i], keys[j])), compareValues(items[i], items[j]), `${show(items[i])} ${show(items[j])}`)
+            }
+        }
+    })
+
+    it('compares the values in the queries (mingo) as MongoDB does, in the order of their keys', (): void => {
+        const random: () => number = seededRandom(13)
+        const items: unknown[] = Array.from({length: 250}, (): unknown => randomValue(random))
+        for (let i: number = 0; i < items.length; i++) {
+            for (let j: number = 0; j < items.length; j++) {
+                assert.strictEqual(Math.sign(compare(items[i], items[j])), compareValues(items[i], items[j]), `${show(items[i])} ${show(items[j])}`)
             }
         }
     })

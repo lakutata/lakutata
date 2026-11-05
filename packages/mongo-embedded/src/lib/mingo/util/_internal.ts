@@ -2,6 +2,7 @@
  * Utility constants and functions
  */
 import { Any, AnyObject, ArrayOrObject, Callback, Comparator } from '../types.js'
+import { bsonClassOf, canonicalNumber, compareBSON, isNumeric } from './_bson.js'
 import { hashCode } from './_hash.js'
 
 export { hashCode } from './_hash.js'
@@ -21,137 +22,26 @@ export const isPrimitive = (v: Any): boolean =>
 /** Scalar types provided by the JS runtime. Includes primitives, RegExp, and Date */
 const isScalar = (v: Any) => isPrimitive(v) || isDate(v) || isRegExp(v)
 
-/** MongoDB sort comparison order. https://www.mongodb.com/docs/manual/reference/bson-type-comparison-order */
-const SORT_ORDER: Record<string, number> = {
-  undefined: 1,
-  null: 2,
-  number: 3,
-  string: 4,
-  symbol: 5,
-  object: 6,
-  array: 7,
-  arraybuffer: 8,
-  boolean: 9,
-  date: 10,
-  regexp: 11,
-  function: 12
-}
-
 type Cmp = string | number | boolean
 export const simpleCmp = <T = Cmp>(a: T, b: T) => (a < b ? -1 : a > b ? 1 : 0)
-const typedArraysCmp = (a: ArrayBufferView, b: ArrayBufferView): number => {
-  const bytesA = new Uint8Array(a.buffer, a.byteOffset, a.byteLength)
-  const bytesB = new Uint8Array(b.buffer, b.byteOffset, b.byteLength)
-  const size = Math.min(bytesA.length, bytesB.length)
-  // Compare byte by byte
-  for (let i = 0; i < size; i++) {
-    const order = simpleCmp(bytesA[i], bytesB[i])
-    if (order !== 0) return order
-  }
-  return simpleCmp(bytesA.length, bytesB.length)
-}
-
-function mingoCmp(a: Any, b: Any, descendArray: boolean = false): number {
-  if (a === MISSING) a = undefined
-  if (b === MISSING) b = undefined
-  // null, undefined, same object ref, same primitive value
-  if (a === b || Object.is(a, b)) return 0
-
-  const typeA = typeOf(a)
-  const typeB = typeOf(b)
-  // capture "not equal" result to use in if-expressions when order evaluates to 1 or -1.
-  let neq: number
-
-  if (typeA === typeB) {
-    switch (typeA) {
-      case 'number':
-      case 'string':
-      case 'boolean':
-        return simpleCmp(a as Cmp, b as Cmp)
-      case 'date':
-        return simpleCmp(+(a as Date), +(b as Date))
-      case 'regexp':
-        if ((neq = simpleCmp((a as RegExp).source, (b as RegExp).source)))
-          return neq
-        return simpleCmp((a as RegExp).flags, (b as RegExp).flags)
-      case 'arraybuffer':
-        return typedArraysCmp(a as ArrayBufferView, b as ArrayBufferView)
-      case 'array': {
-        const xs = (a as Any[]).slice().sort(mingoCmp)
-        const ys = (b as Any[]).slice().sort(mingoCmp)
-        const size = Math.min(xs.length, ys.length)
-        for (let i = 0; i < size; i++)
-          if ((neq = mingoCmp(xs[i], ys[i]))) return neq
-        return simpleCmp(xs.length, ys.length)
-      }
-      default: {
-        if (typeA !== 'object') {
-          // short-cut when objects are the same type and have toString().
-          if (a?.constructor === b?.constructor && hasCustomString(a))
-            return simpleCmp((a as Str).toString(), (b as Str).toString())
-        }
-        // plain objects
-        const keysA = Object.keys(a as object).sort()
-        const keysB = Object.keys(b as object).sort()
-        if ((neq = mingoCmp(keysA, keysB))) return neq
-        for (const k of keysA)
-          if ((neq = mingoCmp((a as AnyObject)[k], (b as AnyObject)[k])))
-            return neq
-        return 0
-      }
-    }
-  }
-
-  // undefined is smallest, empty array is next smallest.
-  if (typeA == 'undefined') return -1
-  if (typeB == 'undefined') return 1
-  if (descendArray) {
-    if (typeA == 'array') {
-      const xs = a as Any[]
-      if (!xs.length) return -1
-      const sorted = xs.slice().sort(mingoCmp)
-      neq = 1
-      for (const v of sorted)
-        if ((neq = Math.min(neq, mingoCmp(v, b))) < 0) return neq
-      return neq
-    }
-    if (typeB == 'array') {
-      const ys = b as Any[]
-      if (!ys.length) return 1
-      const sorted = ys.slice().sort(mingoCmp)
-      neq = -1
-      for (const v of sorted)
-        if ((neq = Math.max(neq, mingoCmp(a, v))) > 0) return neq
-      return neq
-    }
-  }
-
-  const orderA = SORT_ORDER[typeA] ?? Number.MAX_VALUE
-  const orderB = SORT_ORDER[typeB] ?? Number.MAX_VALUE
-  return orderA !== orderB
-    ? simpleCmp(orderA, orderB)
-    : simpleCmp(typeA, typeB)
-}
 
 /**
- * Compare function which adheres to MongoDB comparison order.
+ * Compare function which adheres to MongoDB comparison order: the brackets of the types, then the values (the numbers
+ * of every type by their exact values, the strings by their code points, the documents field by field, the arrays
+ * item by item). A missing value is null.
  *
  * @param a The first value
  * @param b The second value
  * @returns {Number}
  */
-export const compare = (a: Any, b: Any): number => mingoCmp(a, b, true)
+export const compare = (a: Any, b: Any): number =>
+  compareBSON(a === MISSING ? undefined : a, b === MISSING ? undefined : b)
 
-type Stringer = { toString(): string }
-const hasCustomString = (o: Any): o is Stringer =>
-  o !== null && o !== undefined && o['toString'] !== Object.prototype.toString
-
-type Str = { toString: () => string }
 
 /**
- * Determine whether two values are the same or strictly equivalent.
- * Checking whether values are the same only applies to built in objects.
- * For custom objects, they are equal only of their toString() representation are equal if defined.
+ * Determine whether two values are equal as MongoDB tells them: the numbers of every type by their values, the documents
+ * field by field (in their order), the arrays item by item, the values of bson by their values; null and undefined are
+ * not equal (the queries match them together themselves). Functions are equal to themselves only.
  *
  * @param a The first value
  * @param b The second value
@@ -160,26 +50,12 @@ type Str = { toString: () => string }
 export function isEqual(a: Any, b: Any): boolean {
   // strictly equal must be equal. matches referentially equal values.
   if (a === b || Object.is(a, b)) return true
-  if (a === null || b === null) return false
-  if (typeof a !== typeof b) return false
-  if (typeof a !== 'object') return false
-  if (a.constructor !== b?.constructor) return false
-  if (isDate(a)) return isDate(b) && +a === +b
-  if (isRegExp(a))
-    return isRegExp(b) && a.source === b.source && a.flags === b.flags
-  if (isArray(a) && isArray(b)) {
-    return a.length === b.length && a.every((v, i) => isEqual(v, b[i]))
-  }
-  if (a?.constructor !== Object && hasCustomString(a)) {
-    return (a as Str)?.toString() === (b as Str)?.toString()
-  }
-
-  const objA = a as AnyObject
-  const objB = b as AnyObject
-  const keysA = Object.keys(objA)
-  const keysB = Object.keys(objB)
-  if (keysA.length !== keysB.length) return false
-  return keysA.every(k => has(objB, k) && isEqual(objA[k], objB[k]))
+  if (isNil(a) || isNil(b)) return false
+  const typeA = typeof a
+  const typeB = typeof b
+  if ((typeA === 'number' && typeB === 'number') || (typeA === 'string' && typeB === 'string')) return false
+  if (typeA === 'function' || typeB === 'function' || typeA === 'symbol' || typeB === 'symbol') return false
+  return compareBSON(a, b) === 0
 }
 
 /**
@@ -191,6 +67,9 @@ export function isEqual(a: Any, b: Any): boolean {
 export class HashMap<K, V> extends Map<K, V> {
   // maps the hashcode to key set
   #keyMap = new Map<number, K[]>()
+  // maps the canonical value of a primitive key (a number of any type by its value: 1, 1.0, Long(1) and Decimal128("1")
+  // one key, as MongoDB tells them equal) to its master key, the first one met
+  #primitives = new Map<Any, K>()
   // returns a tuple of [<masterKey>, <hash>]. Expects an object key.
   #unpack = (key: K): [K, number] => {
     const hash = hashCode(key)
@@ -213,10 +92,17 @@ export class HashMap<K, V> extends Map<K, V> {
   clear(): void {
     super.clear()
     this.#keyMap.clear()
+    this.#primitives.clear()
   }
 
   delete(key: K): boolean {
-    if (isPrimitive(key)) return super.delete(key)
+    const primitive = canonicalKey(key)
+    if (primitive !== NOT_PRIMITIVE) {
+      const masterKey = this.#primitives.get(primitive)
+      if (masterKey === undefined && !this.#primitives.has(primitive)) return false
+      this.#primitives.delete(primitive)
+      return super.delete(masterKey as K)
+    }
 
     const [masterKey, hash] = this.#unpack(key)
     // nothing deleted
@@ -230,21 +116,29 @@ export class HashMap<K, V> extends Map<K, V> {
   }
 
   get(key: K): V | undefined {
-    if (isPrimitive(key)) return super.get(key)
+    const primitive = canonicalKey(key)
+    if (primitive !== NOT_PRIMITIVE)
+      return this.#primitives.has(primitive) ? super.get(this.#primitives.get(primitive) as K) : undefined
 
     const [masterKey, _] = this.#unpack(key)
     return super.get(masterKey)
   }
 
   has(key: K): boolean {
-    if (isPrimitive(key)) return super.has(key)
+    const primitive = canonicalKey(key)
+    if (primitive !== NOT_PRIMITIVE) return this.#primitives.has(primitive)
 
     const [masterKey, _] = this.#unpack(key)
     return super.has(masterKey)
   }
 
   set(key: K, value: V): this {
-    if (isPrimitive(key)) return super.set(key, value)
+    const primitive = canonicalKey(key)
+    if (primitive !== NOT_PRIMITIVE) {
+      const masterKey = this.#primitives.has(primitive) ? (this.#primitives.get(primitive) as K) : key
+      this.#primitives.set(primitive, masterKey)
+      return super.set(masterKey, value)
+    }
 
     const [masterKey, hash] = this.#unpack(key)
     if (super.has(masterKey)) {
@@ -268,6 +162,27 @@ export class HashMap<K, V> extends Map<K, V> {
   get size(): number {
     return super.size
   }
+}
+
+/**
+ * The key of a HashMap of a key it does not hash (an object).
+ */
+const NOT_PRIMITIVE = Symbol('not primitive')
+
+/**
+ * The canonical value of a key a HashMap keeps by value: a primitive, a number of any type (by its value; the numbers
+ * beyond the doubles by their text, apart from the strings), a symbol of bson (its string); NOT_PRIMITIVE for the
+ * other objects.
+ *
+ * @param key
+ */
+function canonicalKey(key: Any): Any {
+  if (isNumeric(key)) {
+    const value = canonicalNumber(key)
+    return typeof value === 'number' ? value : `\u0000number:${value}`
+  }
+  if (bsonClassOf(key) === 'BSONSymbol') return String((key as object).valueOf())
+  return isPrimitive(key) ? key : NOT_PRIMITIVE
 }
 
 export function assert(condition: Any, msg: string): void {

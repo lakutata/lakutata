@@ -21,15 +21,14 @@ import {
   isEqual,
   isInteger,
   isNil,
-  isNumber,
   isObject,
   isOperator,
   isRegExp,
   isString,
   resolve,
-  truthy,
-  typeOf
+  truthy
 } from '../util/_internal.js'
+import { Bracket, bracketOf, bsonClassOf, isNumeric } from '../util/_bson.js'
 
 type ConversionType = number | Exclude<JsType, 'function'> | BsonType
 
@@ -179,8 +178,11 @@ export function $gte(a: Any, b: Any, _options?: Options): boolean {
  * Performs a modulo operation on the value of a field and selects documents with a specified result.
  */
 export function $mod(a: Any, b: number[], _options: Options): boolean {
+  // The numbers of every type (a Long, a Decimal128...) by their values
+  const value = (x: Any) =>
+    typeof x !== 'number' && isNumeric(x) ? Number(String((x as object).valueOf())) : x
   return ensureArray(a).some(
-    ((x: number) => b.length === 2 && x % b[0] === b[1]) as Callback
+    ((x: Any) => isNumeric(x) && b.length === 2 && (value(x) as number) % b[0] === b[1]) as Callback
   )
 }
 
@@ -247,38 +249,70 @@ export function $elemMatch(
 
 // helper functions
 const isNull = (a: Any) => a === null
+// The types of BSON a number of JavaScript is written as: an integer of 32 bits as an int, the other numbers as doubles
+const isInt32 = (a: Any) =>
+  typeof a === 'number' && isInteger(a) && a >= -2147483648 && a <= 2147483647
+const isDouble = (a: Any) =>
+  (typeof a === 'number' && !isInt32(a)) || bsonClassOf(a) === 'Double'
+const isInt = (a: Any) => isInt32(a) || bsonClassOf(a) === 'Int32'
+const isLong = (a: Any) => typeof a === 'bigint' || bsonClassOf(a) === 'Long'
+const isDecimal = (a: Any) => bsonClassOf(a) === 'Decimal128'
+const isBsonObject = (a: Any) => isObject(a) || bsonClassOf(a) === 'DBRef'
+const isBinData = (a: Any) =>
+  bsonClassOf(a) === 'Binary' || (ArrayBuffer.isView(a) && !(a instanceof DataView))
+const isObjectId = (a: Any) => bsonClassOf(a) === 'ObjectId'
+const isRegex = (a: Any) => isRegExp(a) || bsonClassOf(a) === 'BSONRegExp'
+const isJavascript = (a: Any) => bsonClassOf(a) === 'Code'
+const isBsonSymbol = (a: Any) => bsonClassOf(a) === 'BSONSymbol'
+const isTimestamp = (a: Any) => bsonClassOf(a) === 'Timestamp'
+const isMinKey = (a: Any) => bsonClassOf(a) === 'MinKey'
+const isMaxKey = (a: Any) => bsonClassOf(a) === 'MaxKey'
 
-/** Mapping of type to predicate */
+/** Mapping of type to predicate (the types of BSON as MongoDB names them, and their numbers) */
 const compareFuncs: Record<ConversionType, Predicate> = {
   array: isArray,
   boolean: isBoolean,
   bool: isBoolean,
   date: isDate,
-  number: isNumber,
-  int: isInteger,
-  long: isInteger,
-  double: isNumber,
-  decimal: isNumber,
+  number: isNumeric,
+  int: isInt,
+  long: isLong,
+  double: isDouble,
+  decimal: isDecimal,
   null: isNull,
-  object: isObject,
-  regexp: isRegExp,
-  regex: isRegExp,
+  object: isBsonObject,
+  regexp: isRegex,
+  regex: isRegex,
   string: isString,
+  binData: isBinData,
+  objectId: isObjectId,
+  javascript: isJavascript,
+  symbol: isBsonSymbol,
+  timestamp: isTimestamp,
+  minKey: isMinKey,
+  maxKey: isMaxKey,
   // added for completeness
   undefined: isNil, // deprecated
   // Mongo identifiers
-  1: isNumber, //double
+  1: isDouble,
   2: isString,
-  3: isObject,
+  3: isBsonObject,
   4: isArray as Predicate,
+  5: isBinData,
   6: isNil, // deprecated
+  7: isObjectId,
   8: isBoolean,
   9: isDate,
   10: isNull,
-  11: isRegExp,
-  16: isInteger, //int
-  18: isInteger, //long
-  19: isNumber //decimal
+  11: isRegex,
+  13: isJavascript,
+  14: isBsonSymbol,
+  16: isInt,
+  17: isTimestamp,
+  18: isLong,
+  19: isDecimal,
+  [-1]: isMinKey,
+  127: isMaxKey
 }
 
 /**
@@ -302,9 +336,17 @@ export function $type(
     : compareType(a, b, options)
 }
 
+/**
+ * Compares a value (or one of its items) with the value of a comparison operator of the same bracket of comparison, as
+ * MongoDB does (the numbers of every type together, null with a missing value); an array also as a whole with an
+ * array; MinKey and MaxKey with the values of every bracket.
+ */
 function compare(a: Any, b: Any, f: Predicate): boolean {
+  const bracket = bracketOf(b)
+  const any = bracket === Bracket.MinKey || bracket === Bracket.MaxKey
+  if (isArray(a) && bracket === Bracket.Array && f(a, b)) return true
   for (const v of ensureArray(a)) {
-    if (typeOf(v) === typeOf(b) && f(v, b)) return true
+    if ((any || bracketOf(v) === bracket) && f(v, b)) return true
   }
   return false
 }

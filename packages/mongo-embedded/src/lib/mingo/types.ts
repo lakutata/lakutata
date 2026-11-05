@@ -57,6 +57,13 @@ export type BsonType =
   | 'double'
   | 'decimal'
   | 'regex'
+  | 'binData'
+  | 'objectId'
+  | 'javascript'
+  | 'symbol'
+  | 'timestamp'
+  | 'minKey'
+  | 'maxKey'
 
 /**
  * Resolves the given string to a Collection.

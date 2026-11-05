@@ -5,6 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import * as bson from 'bson'
 import {EmbeddedClient, type EmbeddedCollection, EmbeddedDuplicateKeyError, EmbeddedOperationError} from '../exports/MongoEmbedded.js'
+import {compare} from '../lib/mingo/util/index.js'
 
 const ROOT: string = mkdtempSync(path.join(os.tmpdir(), 'mongo-embedded-indexes-'))
 after((): void => rmSync(ROOT, {recursive: true, force: true}))
@@ -35,6 +36,18 @@ function ns(documents: Record<string, any>[]): number[] {
 }
 
 /**
+ * The value MongoDB sorts a document by, for a field: the smallest item of an array in an ascending sort, its largest
+ * one in a descending sort (an empty array before null)
+ * @param value
+ * @param direction
+ */
+function sortValueOf(value: unknown, direction: 1 | -1): unknown {
+    if (!Array.isArray(value)) return value ?? null
+    if (!value.length) return '<empty array>'
+    return value.reduce((found: unknown, item: unknown): unknown => (direction === -1 ? compare(item, found) > 0 : compare(item, found) < 0) ? item : found, value[0])
+}
+
+/**
  * The code of an error of MongoDB
  * @param code
  * @param codeName
@@ -56,7 +69,7 @@ describe('The indexes', (): void => {
         const indexed: EmbeddedCollection = client.db().collection('indexed')
         const random: () => number = seededRandom(17)
         const pick = <T>(items: T[]): T => items[Math.floor(random() * items.length)]
-        const values: unknown[] = [null, 0, 1, 2, 2.5, -3, 7, 'a', 'b', 'ab', '', true, false, new Date(0), new Date(1000), [1, 2], ['a', 7], [], {x: 1}, {x: [1, 2]}]
+        const values: unknown[] = [null, 0, 1, 2, 2.5, -3, 7, 'a', 'b', 'ab', '', true, false, new Date(0), new Date(1000), [1, 2], ['a', 7], [], {x: 1}, {x: [1, 2]}, bson.Long.fromString('9007199254740993'), bson.Decimal128.fromString('2.5'), bson.Decimal128.fromString('0.1'), 0.1, NaN]
         const documents: Record<string, unknown>[] = Array.from({length: 600}, (_: unknown, index: number): Record<string, unknown> => {
             const document: Record<string, unknown> = {_id: pick([index, -index, `${index}`, index + 0.5]), n: index}
             if (random() < 0.9) document.v = pick(values)
@@ -84,6 +97,7 @@ describe('The indexes', (): void => {
             {_id: {$gt: 10}}, {_id: {$gte: -50, $lt: 50}}, {_id: {$lt: '3'}}, {_id: {$in: [1, '2', 3.5]}},
             {h: 1}, {h: 'x'}, {h: {$in: [2, null]}}, {h: new Date(0)}, {h: {$gt: 1}},
             {'deep.a': 2}, {'deep.a': {$gte: 'a'}}, {'deep.b.c': 'z'}, {'deep.a.x': 1}, {'deep.a': [1, 2]}, {'deep.a.0': 1}, {'deep.a.x.1': 2},
+            {v: bson.Decimal128.fromString('2.50')}, {v: {$gt: bson.Decimal128.fromString('0.1')}}, {v: {$lte: bson.Long.fromNumber(2)}}, {v: {$in: [bson.Long.fromString('9007199254740993'), 0.1]}}, {v: NaN}, {v: {$gte: 7}},
             {n: {$gte: 400}}, {n: {$lt: 100}}, {}
         ]
         const sorts: Record<string, 1 | -1>[] = [{v: 1}, {v: -1}, {w: 1}, {n: -1}, {_id: 1}, {_id: -1}]
@@ -99,8 +113,8 @@ describe('The indexes', (): void => {
                 const field: string = Object.keys(sort)[0]
                 const read = async (collection: EmbeddedCollection): Promise<unknown[]> => (await collection.find(filter).sort({...sort, n: 1}).skip(3).limit(10).toArray()).map((document: Record<string, unknown>): unknown => document.n)
                 assert.deepStrictEqual(await read(indexed), await read(plain), `${label} ${JSON.stringify(sort)}`)
-                //Sorted by one field (by its index): the same values in the same order (the order of the ties is free)
-                const values = async (collection: EmbeddedCollection): Promise<string[]> => (await collection.find(filter).sort(sort).skip(3).limit(10).toArray()).map((document: Record<string, unknown>): string => bson.EJSON.stringify({value: document[field] ?? null}))
+                //Sorted by one field (by its index): the same values sorted by in the same order (the order of the ties is free)
+                const values = async (collection: EmbeddedCollection): Promise<string[]> => (await collection.find(filter).sort(sort).skip(3).limit(10).toArray()).map((document: Record<string, unknown>): string => bson.EJSON.stringify({value: sortValueOf(document[field], sort[field])}))
                 assert.deepStrictEqual(await values(indexed), await values(plain), `${label} ${JSON.stringify(sort)}`)
             }
             //Hinted: the indexes of the fields of the filter, and every index but the partial one (which holds a part of
@@ -187,10 +201,13 @@ describe('The indexes', (): void => {
         await items.insertMany([...ids].reverse().map((id: unknown, n: number): Record<string, unknown> => ({_id: id, n: n})))
         assert.deepStrictEqual(show((await items.find({}).toArray()).map((document: Record<string, unknown>): unknown => document._id)), show(ids))
         assert.deepStrictEqual(show((await items.find({}).sort({_id: -1}).limit(4).toArray()).map((document: Record<string, unknown>): unknown => document._id)), show([...ids].reverse().slice(0, 4)))
-        //A page after the last _id of the one before it, by the order of the _id (of the types the filters of mingo compare)
+        //A page after the last _id of the one before it, by the order of the _id: the numbers of every type compared by their values
         const page = async (after: unknown): Promise<string[]> => show((await items.find({_id: {$gt: after}}).sort({_id: 1}).limit(3).toArray()).map((document: Record<string, unknown>): unknown => document._id))
-        assert.deepStrictEqual(await page(-5), show([-1.5, 0, 0.1]))
-        assert.deepStrictEqual(await page(0.1), show([1, 2.5, 1e300]))
+        assert.deepStrictEqual(await page(-5), show([-1.5, 0, bson.Decimal128.fromString('0.1')]))
+        assert.deepStrictEqual(await page(bson.Decimal128.fromString('0.1')), show([0.1, 1, 2.5]))
+        assert.deepStrictEqual(await page(2.5), show([bson.Long.fromString('9007199254740993'), 1e300]))
+        assert.strictEqual(await items.countDocuments({_id: {$lt: 0}}), 4)
+        assert.strictEqual((await items.find({_id: {$lt: 0}}).toArray()).length, 4)
         assert.deepStrictEqual(await page('a'), show(['b']))
         assert.deepStrictEqual(show((await items.find({_id: {$gte: 'a', $lt: 'c'}}).toArray()).map((document: Record<string, unknown>): unknown => document._id)), show(['a', 'b']))
         assert.strictEqual(await items.countDocuments({_id: {$lt: 'b'}}), 1)

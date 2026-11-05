@@ -34,6 +34,11 @@ const END = 0x00
 const EXACT = 0x80
 
 /**
+ * the classes of bson of the values whose ranges an index reads (their order in it is the one of the queries).
+ */
+const ORDERED_CLASSES = new Set(['ObjectId', 'Binary', 'Long', 'Int32', 'Double', 'Decimal128', 'Timestamp'])
+
+/**
  * the tags of the values whose order in an index is not the one of MongoDB (encoded by their Extended JSON).
  */
 export const UNORDERED_TAGS = new Set<number>([Tag.RegExp, Tag.Other])
@@ -197,21 +202,21 @@ export class EmbeddedKeyEncoding {
     }
 
     /**
-     * Whether an index keeps the order of a value as the queries compare it (mingo): a range of it may be read in the
-     * index.
+     * Whether an index keeps the order of a value as the queries compare it (mingo, comparing as MongoDB does): a range
+     * of it may be read in the index.
      *
      * @param value
      */
     isOrdered(value: any): boolean {
         return (
             typeof value === 'number' ||
+            typeof value === 'bigint' ||
             typeof value === 'string' ||
             typeof value === 'boolean' ||
             value instanceof Date ||
             (value !== null &&
                 typeof value === 'object' &&
-                (value._bsontype === 'ObjectId' ||
-                    value._bsontype === 'Binary'))
+                ORDERED_CLASSES.has(value._bsontype))
         )
     }
 

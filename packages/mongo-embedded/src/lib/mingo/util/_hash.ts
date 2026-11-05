@@ -1,4 +1,5 @@
 // optimized-effective-hashcode.ts
+import { bsonClassOf, canonicalNumber } from './_bson.js'
 
 // FNV-1a 32-bit prime
 const MULTIPLIER = 0x01000193
@@ -58,27 +59,6 @@ function hashString(str: string): number {
   return h >>> 0
 }
 
-function hashBigInt(b: bigint): number {
-  let h = 0
-  // Preserve sign
-  const isNegative = b < 0n
-  let x = isNegative ? -b : b
-
-  // Special case: zero
-  if (x === 0n) {
-    h = mix(h, 0)
-  } else {
-    // Stream bytes from least significant to most significant
-    while (x > 0n) {
-      const byte = Number(x & 0xffn)
-      h = mix(h, byte)
-      x >>= 8n
-    }
-  }
-  // Mix in sign bit
-  return mix(h, +isNegative) >>> 0
-}
-
 type Fn = (...v: unknown[]) => unknown
 function hashFunction(fn: Fn): number {
   let h = hashString((fn.name || '') + fn.toString())
@@ -99,12 +79,59 @@ function hashBytes(bytes: Uint8Array): number {
 }
 
 function hashTypedArray(view: ArrayBufferView): number {
-  let h = hashString(view.constructor.name)
+  // The binary values are equal by their bytes (MongoDB): not by their class
+  return hashBytes(new Uint8Array(view.buffer, view.byteOffset, view.byteLength))
+}
 
-  const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength)
-  h = mix(h, hashBytes(bytes))
+/**
+ * The hash of a number of MongoDB by its canonical value: the numbers it tells equal have the same hash.
+ *
+ * @param value
+ */
+function hashCanonical(value: number | string): number {
+  return mix(
+    Tag.Number,
+    typeof value === 'number' ? hashNumber(value) : hashString(value)
+  )
+}
 
-  return h >>> 0
+/**
+ * The hash of a value of a class of bson, by its value; undefined for an unknown class.
+ *
+ * @param value
+ * @param seen
+ */
+function hashBson(value: unknown, seen: WeakSet<object>): number | undefined {
+  const v = value as Record<string, any>
+  switch (bsonClassOf(value)) {
+    case 'Long':
+    case 'Int32':
+    case 'Double':
+    case 'Decimal128':
+      return hashCanonical(canonicalNumber(value))
+    case 'BSONSymbol':
+      return mix(Tag.String, hashString(String(v.valueOf())))
+    case 'ObjectId':
+      return mix(Tag.Object, hashString(v.toHexString()))
+    case 'Binary':
+      return mix(
+        Tag.TypedArray,
+        hashBytes(v.buffer.subarray(0, v.position ?? v.buffer.length))
+      )
+    case 'Timestamp':
+      return mix(Tag.Date, hashString(String(value)))
+    case 'BSONRegExp':
+      return mix(Tag.RegExp, mix(hashString(v.pattern), hashString(v.options)))
+    case 'Code':
+      return mix(Tag.Function, hashString(String(v.code)))
+    case 'MinKey':
+      return mix(Tag.Null, 1)
+    case 'MaxKey':
+      return mix(Tag.Null, 2)
+    case 'DBRef':
+      return mix(Tag.Object, hashObject(v.toJSON(), seen))
+  }
+  return undefined
 }
 
 // ------------------------------------------------------------
@@ -160,14 +187,17 @@ function internalHash(value: unknown, seen: WeakSet<object>): number {
     case 'boolean':
       return BOOLEAN_HASH[+(value as number)]
     case 'number':
-      return mix(Tag.Number, hashNumber(value as number))
+      return hashCanonical(value as number)
     case 'string':
       return mix(Tag.String, hashString(value as string))
     case 'bigint':
-      return mix(Tag.BigInt, hashBigInt(value as bigint))
+      return hashCanonical(canonicalNumber(value))
     case 'function':
       return mix(Tag.Function, hashFunction(value as Fn))
     default: {
+      const bson = hashBson(value, seen)
+      if (bson !== undefined) return bson
+
       if (ArrayBuffer.isView(value) && !(value instanceof DataView))
         return mix(Tag.TypedArray, hashTypedArray(value))
 

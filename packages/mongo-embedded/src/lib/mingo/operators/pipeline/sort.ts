@@ -11,12 +11,35 @@ import {
   assert,
   compare,
   groupBy,
+  isArray,
   isNumber,
   isObject,
   isString,
   resolve
 } from '../../util/index.js'
+import { compareStrings } from '../../util/_bson.js'
 
+/**
+ * The key of an empty array in a sort: before every value (null too), as MongoDB sorts it.
+ */
+const EMPTY_ARRAY = Object.freeze({})
+
+/**
+ * The value a document is sorted by, as MongoDB sorts by a field: the smallest item of an array in an ascending sort,
+ * its largest one in a descending sort.
+ *
+ * @param value
+ * @param direction
+ * @param cmp
+ */
+function sortValue(value: Any, direction: number, cmp: Comparator<Any>): Any {
+  if (!isArray(value)) return value
+  if (!value.length) return EMPTY_ARRAY
+  let found = value[0]
+  for (const item of value)
+    if (direction === -1 ? cmp(item, found) > 0 : cmp(item, found) < 0) found = item
+  return found
+}
 /**
  * Sorts all input documents and returns them to the pipeline in sorted order.
  *
@@ -41,15 +64,23 @@ export function $sort(
     cmp = collationComparator(collationSpec)
   }
 
+  // The empty arrays before every value
+  const valueCmp = cmp
+  const keyCmp = (a: Any, b: Any) =>
+    a === EMPTY_ARRAY ? (b === EMPTY_ARRAY ? 0 : -1) : b === EMPTY_ARRAY ? 1 : valueCmp(a, b)
+
   return coll.transform((coll: AnyObject[]) => {
     const modifiers = Object.keys(sortKeys)
     for (const key of modifiers.reverse()) {
-      const groups = groupBy(coll, (obj: AnyObject) => resolve(obj, key))
+      const direction = sortKeys[key]
+      const groups = groupBy(coll, (obj: AnyObject) =>
+        sortValue(resolve(obj, key), direction, valueCmp)
+      )
       const sortedKeys = Array.from(groups.keys())
 
       // mark if sorted in the optimization branch
       let nativeSorted = false
-      // minor optimization to use native sorting for strings or numbers.
+      // minor optimization for strings (their code points) or numbers (but NaN, first in MongoDB).
       if (cmp === compare) {
         let t_str = true
         let t_num = true
@@ -60,8 +91,7 @@ export function $sort(
         }
         nativeSorted = t_str || t_num
 
-        // ~6x faster than Array.sort(cmp).
-        if (t_str) sortedKeys.sort()
+        if (t_str) sortedKeys.sort(compareStrings as Comparator<Any>)
         // ~4x faster than Array.sort(cmp) even with the extra copy.
         else if (t_num) {
           const numbers = new Float64Array(sortedKeys as number[]).sort()
@@ -71,7 +101,7 @@ export function $sort(
         }
       }
 
-      if (!nativeSorted) sortedKeys.sort(cmp)
+      if (!nativeSorted) sortedKeys.sort(keyCmp)
       if (sortKeys[key] === -1) sortedKeys.reverse()
 
       // modify collection in place.

@@ -752,15 +752,12 @@ export class EmbeddedCollection {
         const values = new Map<string, any>()
         for (const document of await this.matching(query, Infinity, options?.hint)) {
             const value = this.values.valueAt(document, key)
+            // Each value once, as MongoDB tells them equal (1, 1.0, Long(1) and Decimal128("1") one value): by its key
             for (const item of Array.isArray(value) ? value : [value])
-                if (item !== undefined)
-                    values.set(
-                        this.values.bson.EJSON.stringify(
-                            { value: item },
-                            { relaxed: false }
-                        ),
-                        item
-                    )
+                if (item !== undefined) {
+                    const key = this.values.keys.encode(item).toString('latin1')
+                    if (!values.has(key)) values.set(key, item)
+                }
         }
         return [...values.values()]
     }
