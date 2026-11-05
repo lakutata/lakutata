@@ -11,8 +11,9 @@ API of the client of MongoDB that TypeORM uses, and it can be used without the O
 npm install @lakutata/mongo-embedded
 ```
 
-- The addon is compiled from its C and C++ sources when the package is installed (node-gyp), so the machine needs
-  Python 3 and a C++17 compiler: the Command Line Tools of Xcode on macOS, `build-essential` (Debian, Ubuntu) or
+- The addon is compiled from its C and C++ sources (SQLite and part of ICU) when the package is installed (node-gyp),
+  which takes about 15 seconds on a recent machine and a few minutes on a slow one. The machine needs Python 3 and a
+  C++17 compiler: the Command Line Tools of Xcode on macOS, `build-essential` (Debian, Ubuntu) or
   `build-base` (Alpine) on Linux, the Build Tools of Visual Studio ("Desktop development with C++") on Windows. npm
   warns that the package has an install script. Bun runs the scripts of trusted packages only: allow it with
   `bun pm trust @lakutata/mongo-embedded`.
@@ -62,15 +63,26 @@ locked by its file `LOCK`.
 
 - `EmbeddedClient.connect(directory?, options?)`: opens a database (`":memory:"` by default). Its options: `sync`,
   `syncInterval`, `cacheSize` (the page cache, 16 MiB by default) and `mmapSize` (the bytes read through a memory map,
-  0 by default).
+  0 by default). While it is open, the client deletes documents expired by TTL indexes every 60 seconds;
+  `client.expire()` does it at once.
+- `client.db()`: the database, with `collection(name)`, `createCollection`, `listCollections`, `collections`,
+  `renameCollection`, `dropCollection` and `dropDatabase`.
 - `client.db().collection(name)`: a collection, with `find`, `findOne`, `countDocuments`, `estimatedDocumentCount`,
-  `distinct`, `aggregate`, `insertOne`, `insertMany`, `updateOne`, `updateMany`, `replaceOne`, `deleteOne`,
-  `deleteMany`, and its indexes (`createIndex`, `createIndexes`, `indexes`, `dropIndex`, `dropIndexes`).
+  `distinct`, `aggregate` (`$out` and `$merge` too), `insertOne`, `insertMany`, `updateOne`, `updateMany` (by
+  operators or by a pipeline), `replaceOne`, `deleteOne`, `deleteMany`, `findOneAndUpdate`, `findOneAndReplace`,
+  `findOneAndDelete`, `bulkWrite`, `initializeOrderedBulkOp`, `initializeUnorderedBulkOp`, `rename`, `drop`, and its
+  indexes (`createIndex`, `createIndexes`, `indexes`, `dropIndex`, `dropIndexes`).
+- Cursors: `toArray`, `next`, `hasNext`, `forEach`, `map`, `rewind`, `stream` and `for await`. `maxTimeMS` limits the
+  time their reads take. A cursor that has not been read to the end times out after 10 minutes idle, as it would on a
+  MongoDB server, unless `noCursorTimeout` is set.
 - Indexes: ascending, descending and compound, unique, sparse, partial (`partialFilterExpression`), hashed, wildcard
-  and compound wildcard (`$**`, `wildcardProjection`), and hidden. The queries use them, and the index of the `_id`
-  for its ranges and its sorts; a query can name the index it uses (`hint`). Text and geospatial indexes and the
-  indexes with a collation are not supported: creating one fails.
-- `EmbeddedDuplicateKeyError` (code 11000), `EmbeddedBulkWriteError` (an `insertMany` of which documents were not
-  inserted) and `EmbeddedOperationError` (the other errors that MongoDB gives with a code, such as `IndexNotFound`),
-  all of them `MongoEmbeddedError`.
+  and compound wildcard (`$**`, `wildcardProjection`), hidden, with a collation, and TTL (`expireAfterSeconds`). The
+  queries use them, and the index of the `_id` for its ranges and its sorts; a query can name the index it uses
+  (`hint`). Text and geospatial indexes are not supported yet: creating one fails.
+- Collations: the `collation` option on queries, sorts, writes, aggregations and indexes compares strings by a
+  locale's rules (`{locale: 'en', strength: 2}` ignores case). The package ships its own ICU (77.1), so results are
+  identical on every platform.
+- `EmbeddedDuplicateKeyError` (code 11000), `EmbeddedBulkWriteError` (an `insertMany` or a `bulkWrite` in which some
+  writes failed, with the result of the others) and `EmbeddedOperationError` (the other errors that MongoDB reports
+  with a code, such as `IndexNotFound`), all of them `MongoEmbeddedError`.
 - `ObjectId`: the class of the ids the client adds.
