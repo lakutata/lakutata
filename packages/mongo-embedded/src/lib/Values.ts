@@ -1,3 +1,5 @@
+import { EmbeddedKeyEncoding } from './KeyEncoding.js'
+
 /**
  * a document of an embedded collection.
  */
@@ -13,10 +15,17 @@ const PROMOTED_LONG = 2 ** 53
  * and the serialization of the documents (their _id first, read without deserializing them).
  */
 export class EmbeddedValues {
+    /**
+     * The encoding of the keys of the _id of the documents and of the indexes
+     */
+    readonly keys: EmbeddedKeyEncoding
+
     constructor(
         readonly bson: any,
         readonly mingo: any
-    ) {}
+    ) {
+        this.keys = new EmbeddedKeyEncoding(this)
+    }
 
     /**
      * A copy of a value, as BSON stores it: the undefined fields dropped, the undefined items of the arrays null, the
@@ -88,45 +97,19 @@ export class EmbeddedValues {
     }
 
     /**
-     * The key of an _id: the bytes telling its value apart, as MongoDB does (1 and 1.0 are one key).
+     * The key of an _id: its encoding as a key of an index (EmbeddedKeyEncoding), ordered and told apart as MongoDB
+     * orders and compares the values (1, 1.0, Long(1) and Decimal128("1") are one key).
      *
      * @param id
      */
     idKey(id: any): Buffer {
-        if (id instanceof this.bson.ObjectId) {
-            const key = Buffer.allocUnsafe(13)
-            key[0] = 0x07
-            key.set(id.id, 1)
-            return key
-        }
-        if (typeof id === 'string') {
-            const key = Buffer.allocUnsafe(1 + Buffer.byteLength(id))
-            key[0] = 0x02
-            key.write(id, 1, 'utf8')
-            return key
-        }
-        if (typeof id === 'number') return this.numberKey(id)
-        // A Long beyond 2^53 that a number is exactly: the key of the number (MongoDB compares them by their values)
-        if (id?._bsontype === 'Long') {
-            const number = id.toNumber()
-            if (
-                Math.abs(number) < 2 ** 63 &&
-                this.bson.Long.fromNumber(number).equals(id)
-            )
-                return this.numberKey(number)
-        }
-        const text = Buffer.from(
-            this.bson.EJSON.stringify(id, { relaxed: false })
-        )
-        const key = Buffer.allocUnsafe(1 + text.length)
-        key[0] = 0xff
-        text.copy(key, 1)
-        return key
+        return this.keys.encode(id)
     }
 
     /**
-     * The key of the _id of a serialized document, read from its first element when it is its _id (the documents
-     * are serialized so), else from the document deserialized.
+     * The key of the _id of a serialized document (idKey), read from its first element when it is its _id (the
+     * documents are serialized so) and an ObjectId, a string or a number of 32 or 64 bits; else from the document
+     * deserialized.
      *
      * @param data
      * @param start the start of the document in the data
@@ -141,23 +124,16 @@ export class EmbeddedValues {
         ) {
             const value = start + 9
             switch (data[start + 4]) {
-                case 0x07: {
-                    const key = Buffer.allocUnsafe(13)
-                    key[0] = 0x07
-                    data.copy(key, 1, value, value + 12)
-                    return key
-                }
-                case 0x02: {
-                    const length = data.readInt32LE(value) - 1
-                    const key = Buffer.allocUnsafe(1 + length)
-                    key[0] = 0x02
-                    data.copy(key, 1, value + 4, value + 4 + length)
-                    return key
-                }
+                case 0x07:
+                    return this.keys.encode(new this.bson.ObjectId(data.subarray(value, value + 12)))
+                case 0x02:
+                    return this.keys.encode(data.toString('utf8', value + 4, value + 4 + data.readInt32LE(value) - 1))
                 case 0x01:
-                    return this.numberKey(data.readDoubleLE(value))
+                    return this.keys.encode(data.readDoubleLE(value))
                 case 0x10:
-                    return this.numberKey(data.readInt32LE(value))
+                    return this.keys.encode(data.readInt32LE(value))
+                case 0x12:
+                    return this.keys.encode(data.readBigInt64LE(value))
             }
         }
         const size = data.readInt32LE(start)
@@ -185,12 +161,5 @@ export class EmbeddedValues {
      */
     deserialize(data: Uint8Array): EmbeddedDocument {
         return this.bson.BSON.deserialize(data)
-    }
-
-    protected numberKey(value: number): Buffer {
-        const key = Buffer.allocUnsafe(9)
-        key[0] = 0x01
-        key.writeDoubleBE(value === 0 ? 0 : value, 1)
-        return key
     }
 }

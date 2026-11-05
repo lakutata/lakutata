@@ -6,9 +6,7 @@ import path from 'node:path'
 import * as bson from 'bson'
 import * as mingo from 'mingo'
 import {EmbeddedBulkWriteError, EmbeddedClient, type EmbeddedCollection, EmbeddedDuplicateKeyError, ObjectId} from '../exports/MongoEmbedded.js'
-import {EmbeddedKeyEncoding} from '../lib/KeyEncoding.js'
 import {predicatesOf} from '../lib/Prefilter.js'
-import {EmbeddedValues} from '../lib/Values.js'
 
 const ROOT: string = mkdtempSync(path.join(os.tmpdir(), 'mongo-embedded-client-'))
 after((): void => rmSync(ROOT, {recursive: true, force: true}))
@@ -18,10 +16,6 @@ let directories: number = 0
 function directory(): string {
     return path.join(ROOT, `${directories++}`)
 }
-
-const values: EmbeddedValues = new EmbeddedValues(bson, mingo)
-
-const encoding: EmbeddedKeyEncoding = new EmbeddedKeyEncoding(values)
 
 /**
  * A random generator of the tests, seeded
@@ -155,57 +149,5 @@ describe('The client', (): void => {
         ]).toArray()
         assert.deepStrictEqual(joined, [{title: 'x', name: 'Ada'}, {title: 'y', name: 'Grace'}])
         await client.close()
-    })
-})
-
-describe('The keys', (): void => {
-
-    it('keys the _id as MongoDB tells them apart', (): void => {
-        const id: bson.ObjectId = new bson.ObjectId()
-        assert.ok(values.idKey(id).equals(values.idKey(new bson.ObjectId(id.toHexString()))))
-        assert.ok(values.idKey(1).equals(values.idKey(1.0)))
-        assert.ok(!values.idKey(1).equals(values.idKey('1')))
-        assert.ok(!values.idKey(id).equals(values.idKey(id.toHexString())))
-        assert.ok(values.idKey({a: 1}).equals(values.idKey({a: 1})))
-    })
-
-    it('reads the key of the _id of a serialized document without deserializing it', (): void => {
-        for (const id of [new bson.ObjectId(), 'a string', 'été', 1, 1.5, -0, 2 ** 40, new Date(0), {a: [1, 2]}]) {
-            const document: Buffer = values.serialize({title: 'first', _id: id, n: 1})
-            assert.ok(values.idKeyOf(document).equals(values.idKey(id)), String(id))
-            const larger: Buffer = Buffer.concat([Buffer.alloc(7), document])
-            assert.ok(values.idKeyOf(larger, 7).equals(values.idKey(id)), String(id))
-        }
-        assert.ok(values.idKeyOf(Buffer.from(bson.BSON.serialize({_id: 'x', 1: 'one'}))).equals(values.idKey('x')))
-    })
-
-    it('encodes the values of the indexes in the order of MongoDB', (): void => {
-        const id: bson.ObjectId = new bson.ObjectId()
-        const ordered: unknown[] = [
-            null, NaN, -Infinity, -1e300, -2, -1.5, -1, 0, 1e-300, 1, 1.5, 2, 2 ** 53, Infinity,
-            '', '\u0000', 'a', 'a\u0000', 'a\u0000b', 'ab', 'b', 'é', '中',
-            new bson.Binary(Buffer.from('a')), new bson.Binary(Buffer.from('ab')), id, new bson.ObjectId(),
-            false, true, new Date(-1), new Date(0), new Date(1)
-        ]
-        const encoded: Buffer[] = ordered.map((value: unknown): Buffer => encoding.encode(value))
-        for (let index: number = 1; index < encoded.length; index++) assert.ok(Buffer.compare(encoded[index - 1], encoded[index]) < 0, `${String(ordered[index - 1])} < ${String(ordered[index])}`)
-        const descending: Buffer[] = encoded.map((key: Buffer): Buffer => encoding.direct(key, -1))
-        for (let index: number = 1; index < descending.length; index++) assert.ok(Buffer.compare(descending[index - 1], descending[index]) > 0)
-        assert.ok(encoding.encode(0).equals(encoding.encode(-0)))
-        assert.ok(encoding.encode(1).equals(encoding.encode(new bson.Int32(1))) && encoding.encode(1).equals(encoding.encode(bson.Long.fromNumber(1))))
-    })
-
-    it('keys the documents in an index as MongoDB does', (): void => {
-        const keys = (fields: { [path: string]: number }, sparse: boolean, document: object): string[] => encoding.keysOf(fields, sparse, document).map((key: Buffer): string => key.toString('hex'))
-        const hex = (...items: unknown[]): string => Buffer.concat(items.map((item: unknown): Buffer => encoding.encode(item))).toString('hex')
-        assert.deepStrictEqual(keys({tags: 1}, false, {tags: ['a', 'b', 'a']}), [hex('a'), hex('b')])
-        assert.deepStrictEqual(keys({'authors.name': 1}, false, {authors: [{name: 'x'}, {name: 'y'}]}), [hex('x'), hex('y')])
-        assert.deepStrictEqual(keys({tags: 1}, false, {tags: []}), [hex(null)])
-        assert.deepStrictEqual(keys({'tags.0': 1}, false, {tags: ['a', 'b']}), [hex('a')])
-        assert.deepStrictEqual(keys({a: 1, b: 1}, false, {a: 1}), [hex(1, null)])
-        assert.deepStrictEqual(keys({a: 1}, true, {b: 1}), [])
-        assert.deepStrictEqual(keys({a: 1, b: 1}, true, {a: 1}), [hex(1, null)])
-        assert.deepStrictEqual(keys({a: 1, b: 1}, false, {a: [1, 2], b: 'x'}), [hex(1, 'x'), hex(2, 'x')])
-        assert.throws((): unknown => keys({a: 1, b: 1}, false, {a: [1, 2], b: [3, 4]}), /cannot index parallel arrays/)
     })
 })

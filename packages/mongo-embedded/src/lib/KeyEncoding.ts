@@ -22,46 +22,95 @@ const Tag = {
 } as const
 
 /**
- * the bound of the integers of 64 bits (2^63).
+ * the end of the fields of a document or of the items of an array: before every tag.
  */
-const LONG_BOUND = 2n ** 63n
+const END = 0x00
 
 /**
- * the integer of a Decimal128 (its string) when it is one; undefined for a fraction, NaN or an infinity.
- *
- * @param text
+ * the remainder of a number whose double is its value, before the remainders above it and after the ones below it.
  */
-function integerOf(text: string): bigint | undefined {
-    const parts = /^(-?)(\d+)(?:\.(\d+))?(?:E([+-]\d+))?$/i.exec(text)
-    if (!parts) return undefined
-    const [, sign, whole, fraction = '', exponent = '0'] = parts
-    // The digits, and the power of 10 they are multiplied by
-    const shift = Number(exponent) - fraction.length
-    // An integer of more than 64 bits: rounded as a double (its digits not computed)
-    if (whole.length + Number(exponent) > 20) return undefined
-    let digits = BigInt(whole + fraction)
-    if (shift >= 0) digits *= 10n ** BigInt(shift)
-    else {
-        const divisor = 10n ** BigInt(-shift)
-        if (digits % divisor !== 0n) return undefined
-        digits /= divisor
-    }
-    return sign ? -digits : digits
+const EXACT = 0x80
+
+/**
+ * the tags of the values whose order in an index is not the one of MongoDB (encoded by their Extended JSON).
+ */
+export const UNORDERED_TAGS = new Set<number>([Tag.RegExp, Tag.Other])
+
+/**
+ * an exact number: its digits times 10 to the minus its scale.
+ */
+interface Exact {
+    digits: bigint
+    scale: number
 }
 
 /**
- * the types of the values whose encoding keeps their order (the ranges of an index may be used for them).
+ * the exact value of a finite double.
+ *
+ * @param value
  */
-export type EmbeddedOrderedValue = number | string | Date | boolean | object
+function exactOfDouble(value: number): Exact {
+    const view = new DataView(new ArrayBuffer(8))
+    view.setFloat64(0, value)
+    const bits = view.getBigUint64(0)
+    const exponent = Number((bits >> 52n) & 0x7ffn)
+    let mantissa = bits & 0xfffffffffffffn
+    if (exponent) mantissa |= 1n << 52n
+    const power = (exponent || 1) - 1075
+    const sign = bits >> 63n ? -1n : 1n
+    // m × 2^p: an integer, or m × 5^-p / 10^-p
+    return power >= 0
+        ? { digits: sign * (mantissa << BigInt(power)), scale: 0 }
+        : { digits: sign * mantissa * 5n ** BigInt(-power), scale: -power }
+}
 
 /**
- * encodes the values of the indexes as bytes whose order (compared as bytes) is the one of MongoDB for the
- * numbers, the strings, the dates, the booleans, the ObjectIds and the binaries; the other values are encoded by
- * their Extended JSON, equal when they are. Each value is self-delimiting (a string is terminated, its zero bytes
- * escaped): the keys of several fields are their values concatenated, those of a descending field inverted. A
- * number is its double, then the difference of an integer of 64 bits from it (the integers beyond 2^53 a double
- * rounds): the integers are exact (a Long, a bigint, a Decimal128 of an integer; 2^53 + 1 one key in all of them), the
- * Decimal128 of a fraction rounded to their double (more than 15 significant digits may share a key).
+ * the exact value of the text of a Decimal128 (its toString()), undefined for NaN and the infinities.
+ *
+ * @param text
+ */
+function exactOfDecimal(text: string): Exact | undefined {
+    const parts = /^(-?)(\d+)(?:\.(\d+))?(?:E([+-]\d+))?$/i.exec(text)
+    if (!parts) return undefined
+    const [, sign, whole, fraction = '', exponent = '0'] = parts
+    const digits = BigInt(whole + fraction)
+    return {
+        digits: sign ? -digits : digits,
+        scale: fraction.length - Number(exponent)
+    }
+}
+
+/**
+ * the ordered encoding of the 8 bytes of a double: the sign bit set for the positive ones, all of them inverted for
+ * the negative ones; NaN before all the numbers (-Infinity included), as MongoDB sorts it; -0 the key of 0.
+ *
+ * @param key the 9 bytes at least of the key, its tag first
+ * @param value
+ */
+function putDouble(key: Buffer, value: number): void {
+    if (Number.isNaN(value)) {
+        key.fill(0, 1, 9)
+        return
+    }
+    key.writeDoubleBE(value === 0 ? 0 : value, 1)
+    if (key[1] & 0x80) for (let index = 1; index < 9; index++) key[index] = ~key[index] & 0xff
+    else key[1] |= 0x80
+}
+
+/**
+ * encodes the values of the indexes (and the _id of the documents, the key of their table) as bytes whose order,
+ * compared as bytes, is the one of MongoDB, and whose equality is its equality. Each value is its tag (the type of
+ * MongoDB, in its order), then:
+ * - a number (a double, an Int32, a Long, a bigint, a Decimal128): its double, rounded as JavaScript rounds it (the
+ * largest finite one when the value is beyond), then the exact remainder of the value from it, so that 1, 1.0, Long(1)
+ * and Decimal128("1") are one key, and the double 0.1 and Decimal128("0.1") two;
+ * - a string: its UTF-8, its zero bytes escaped (0 then 1), terminated by two zero bytes;
+ * - a document: its fields, each one the tag of its value, its name (as a string), then its value; then a zero byte;
+ * - an array: its items, then a zero byte;
+ * - the regular expressions and the other values (Code...): their Extended JSON, equal when they are, not ordered as
+ * MongoDB orders them (UNORDERED_TAGS).
+ * Each value is self-delimiting: the keys of several fields are their values concatenated, those of a descending field
+ * inverted.
  */
 export class EmbeddedKeyEncoding {
     constructor(protected readonly values: EmbeddedValues) {}
@@ -75,16 +124,21 @@ export class EmbeddedKeyEncoding {
         if (value === null || value === undefined) return Buffer.of(Tag.Null)
         switch (typeof value) {
             case 'number':
-                return this.number(Tag.Number, value)
+                return this.number(value)
             case 'string':
                 return this.string(Tag.String, value)
             case 'boolean':
                 return Buffer.of(Tag.Boolean, value ? 1 : 0)
             case 'bigint':
-                return this.integer(value)
+                return this.exact({ digits: value, scale: 0 }, Number(value))
         }
-        if (value instanceof Date)
-            return this.number(Tag.Date, value.getTime())
+        if (value instanceof Date) {
+            const key = Buffer.allocUnsafe(9)
+            key[0] = Tag.Date
+            putDouble(key, value.getTime())
+            return key
+        }
+        if (Array.isArray(value)) return this.array(value)
         const bson = this.values.bson
         switch (value._bsontype) {
             case 'ObjectId': {
@@ -105,16 +159,17 @@ export class EmbeddedKeyEncoding {
                 key.set(bytes, 6)
                 return key
             }
-            case 'Long':
-                return this.integer(BigInt(value.toString()))
+            case 'Long': {
+                const integer = BigInt(value.toString())
+                return this.exact({ digits: integer, scale: 0 }, Number(integer))
+            }
             case 'Int32':
             case 'Double':
-                return this.number(Tag.Number, Number(value.valueOf()))
+                return this.number(Number(value.valueOf()))
             case 'Decimal128': {
-                const integer = integerOf(value.toString())
-                return integer === undefined
-                    ? this.number(Tag.Number, Number(value.toString()))
-                    : this.integer(integer)
+                const text: string = value.toString()
+                const exact = exactOfDecimal(text)
+                return exact ? this.exact(exact, Number(text)) : this.number(Number(text))
             }
             case 'Timestamp': {
                 const key = Buffer.allocUnsafe(9)
@@ -126,18 +181,22 @@ export class EmbeddedKeyEncoding {
                 return Buffer.of(Tag.MinKey)
             case 'MaxKey':
                 return Buffer.of(Tag.MaxKey)
+            case 'BSONSymbol':
+                // A symbol is compared as the string of its value
+                return this.string(Tag.String, String(value.valueOf()))
+            case 'DBRef':
+                return this.document(value.toJSON())
         }
+        if (this.isPlainObject(value)) return this.document(value)
         const text = bson.EJSON.stringify(value, { relaxed: false })
         if (value instanceof RegExp || value._bsontype === 'BSONRegExp')
             return this.string(Tag.RegExp, text)
-        if (Array.isArray(value)) return this.string(Tag.Array, text)
-        if (typeof value._bsontype === 'string')
-            return this.string(Tag.Other, text)
-        return this.string(Tag.Object, text)
+        return this.string(Tag.Other, text)
     }
 
     /**
-     * Whether an index keeps the order of a value: a range of it may be read in the index.
+     * Whether an index keeps the order of a value as the queries compare it (mingo): a range of it may be read in the
+     * index.
      *
      * @param value
      */
@@ -186,8 +245,11 @@ export class EmbeddedKeyEncoding {
             (items) => items !== undefined && items.length > 1
         )
         if (multiple.length > 1)
-            throw new MongoEmbeddedError(
-                `cannot index parallel arrays [${paths.join('] [')}]`
+            throw Object.assign(
+                new MongoEmbeddedError(
+                    `cannot index parallel arrays [${paths.join('] [')}]`
+                ),
+                { code: 171 }
             )
         let keys: Buffer[] = [Buffer.alloc(0)]
         paths.forEach((path, index) => {
@@ -256,42 +318,67 @@ export class EmbeddedKeyEncoding {
     }
 
     /**
-     * A double ordered as bytes (a number, a date): its tag, its 8 bytes; a number then the difference of its integer
-     * from the double (2 bytes, 0 for the doubles), ordering the integers a double rounds.
+     * A double (a number of JavaScript): its tag, its 8 bytes, its remainder 0.
      *
-     * @param tag
      * @param value
-     * @param difference the integer minus the double (|difference| <= 1024 for the integers of 64 bits)
      */
-    protected number(tag: number, value: number, difference = 0): Buffer {
-        const key = Buffer.allocUnsafe(tag === Tag.Number ? 11 : 9)
-        key[0] = tag
-        if (tag === Tag.Number) key.writeUInt16BE(difference + 0x8000, 9)
-        // NaN before all the numbers (-Infinity included), as MongoDB sorts it
-        if (Number.isNaN(value)) {
-            key.fill(0, 1, 9)
-            return key
-        }
-        // -0 and 0 one key, as MongoDB compares them
-        key.writeDoubleBE(value === 0 ? 0 : value, 1)
-        // The bits of a double ordered as bytes: the sign bit set for the positive ones, all of them inverted for the
-        // negative ones
-        if (key[1] & 0x80) for (let index = 1; index < 9; index++) key[index] = ~key[index] & 0xff
-        else key[1] |= 0x80
+    protected number(value: number): Buffer {
+        const key = Buffer.allocUnsafe(10)
+        key[0] = Tag.Number
+        putDouble(key, value)
+        key[9] = EXACT
         return key
     }
 
     /**
-     * An integer, exact up to 64 bits: its double, then its difference from it (the integers larger are rounded to
-     * their double).
+     * An exact number: its double (rounded by JavaScript, the largest finite one beyond it), then its remainder from
+     * it. The doubles ordered, a number between two doubles is after the first one (its remainder positive) and before
+     * the second one (or its remainder negative): the order of the keys is the one of the numbers.
      *
-     * @param value
+     * @param exact
+     * @param rounded its double, as Number() rounds it
      */
-    protected integer(value: bigint): Buffer {
-        const double = Number(value)
-        if (value < -LONG_BOUND || value > LONG_BOUND)
-            return this.number(Tag.Number, double)
-        return this.number(Tag.Number, double, Number(value - BigInt(double)))
+    protected exact(exact: Exact, rounded: number): Buffer {
+        const double = Number.isFinite(rounded)
+            ? rounded
+            : Math.sign(rounded) * Number.MAX_VALUE
+        const of = exactOfDouble(double)
+        const scale = Math.max(exact.scale, of.scale)
+        const difference =
+            exact.digits * 10n ** BigInt(scale - exact.scale) -
+            of.digits * 10n ** BigInt(scale - of.scale)
+        const head = Buffer.allocUnsafe(9)
+        head[0] = Tag.Number
+        putDouble(head, double)
+        return Buffer.concat([head, this.remainder(difference, scale)])
+    }
+
+    /**
+     * The remainder of a number from its double: EXACT for 0; else 0x81 for a positive one (0x7f for a negative one,
+     * its bytes after it inverted), then its exponent E (2 bytes, biased by 0x8000) and its digits d1...dn as the value
+     * 0.d1...dn × 10^E (d1 and dn not 0), a digit d a half byte d + 1, a half byte 0 after them. Self-delimiting, in
+     * the order of the remainders.
+     *
+     * @param digits the remainder times 10^scale
+     * @param scale
+     */
+    protected remainder(digits: bigint, scale: number): Buffer {
+        if (digits === 0n) return Buffer.of(EXACT)
+        const negative = digits < 0n
+        let text = (negative ? -digits : digits).toString()
+        const zeros = text.length - text.replace(/0+$/, '').length
+        text = text.slice(0, text.length - zeros)
+        const exponent = text.length + zeros - scale
+        const halves = text.length + 1
+        const key = Buffer.alloc(3 + Math.ceil(halves / 2))
+        key[0] = negative ? 0x7f : 0x81
+        key.writeUInt16BE(exponent + 0x8000, 1)
+        for (let index = 0; index < text.length; index++) {
+            const half = text.charCodeAt(index) - 47
+            key[3 + (index >> 1)] |= index & 1 ? half : half << 4
+        }
+        if (negative) for (let index = 1; index < key.length; index++) key[index] = ~key[index] & 0xff
+        return key
     }
 
     /**
@@ -314,6 +401,41 @@ export class EmbeddedKeyEncoding {
         key[position++] = 0
         key[position] = 0
         return key
+    }
+
+    /**
+     * A document: each field the tag of its value, its name, its value (as MongoDB compares the documents: the type,
+     * then the name, then the value of each field), then END.
+     *
+     * @param document
+     */
+    protected document(document: EmbeddedDocument): Buffer {
+        const parts: Buffer[] = [Buffer.of(Tag.Object)]
+        for (const name of Object.keys(document)) {
+            if (document[name] === undefined) continue
+            const value = this.encode(document[name])
+            const label = this.string(value[0], name)
+            parts.push(label, value.subarray(1))
+        }
+        parts.push(Buffer.of(END))
+        return Buffer.concat(parts)
+    }
+
+    /**
+     * An array: its items, then END.
+     *
+     * @param items
+     */
+    protected array(items: any[]): Buffer {
+        const parts: Buffer[] = [Buffer.of(Tag.Array)]
+        for (const item of items) parts.push(this.encode(item))
+        parts.push(Buffer.of(END))
+        return Buffer.concat(parts)
+    }
+
+    protected isPlainObject(value: any): boolean {
+        const prototype = Object.getPrototypeOf(value)
+        return prototype === Object.prototype || prototype === null
     }
 
     protected unique(keys: Buffer[]): Buffer[] {

@@ -1,7 +1,7 @@
 import {mkdirSync, readdirSync} from 'node:fs'
 import {addon} from './Addon.js'
 import {EmbeddedDuplicateKeyError, MongoEmbeddedError} from './Errors.js'
-import {EmbeddedKeyEncoding} from './KeyEncoding.js'
+import {type EmbeddedKeyEncoding} from './KeyEncoding.js'
 import {ChangeKind, type NativeChange, type NativeDatabase, NativeError, type NativePredicate} from './Native.js'
 import {type EmbeddedIndex, type EmbeddedPlannedCollection} from './Planner.js'
 import {type EmbeddedDocument, type EmbeddedValues} from './Values.js'
@@ -62,7 +62,7 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
     readonly encoding: EmbeddedKeyEncoding
 
     constructor(readonly name: string, values: EmbeddedValues) {
-        this.encoding = new EmbeddedKeyEncoding(values)
+        this.encoding = values.keys
     }
 }
 

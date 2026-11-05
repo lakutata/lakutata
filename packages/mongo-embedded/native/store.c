@@ -33,7 +33,8 @@
 
 #include "store.h"
 
-#define MDE_FORMAT 1
+/* The format of the file: 2 since the keys of the _id are the ones of the indexes (ordered) */
+#define MDE_FORMAT 2
 
 typedef struct Collection {
   int64_t id;
@@ -268,7 +269,12 @@ static int LoadCatalog(MdeStore *store) {
   }
   sqlite3_finalize(statement);
   if (rc != SQLITE_DONE) return FailSql(store, rc, "the catalog");
-  if (format != MDE_FORMAT) return Fail(store, SQLITE_CORRUPT, "the file is not a database of mongo-embedded (its format is not 1)");
+  if (format != MDE_FORMAT) {
+    snprintf(store->message, sizeof(store->message), format > 0 && format < MDE_FORMAT
+             ? "the file is a database of an earlier format of mongo-embedded (%d, not %d), which is not read"
+             : "the file is not a database of mongo-embedded (its format is %d, not %d)", format, MDE_FORMAT);
+    return SQLITE_CORRUPT;
+  }
   /* The counts and the definitions of the indexes, now the collections are known */
   rc = sqlite3_prepare_v2(store->db, "SELECT k, v FROM meta WHERE k >= x'6b' AND k < x'6c' OR k >= x'78' AND k < x'79'", -1, &statement, 0);
   if (rc != SQLITE_OK) return FailSql(store, rc, "the catalog");
@@ -370,7 +376,7 @@ int mde_open(const char *file, const MdeOptions *options, MdeStore **out, char *
   if (rc == SQLITE_OK && !options->checkpoints) {
     rc = Exec(store,
               "CREATE TABLE IF NOT EXISTS meta(k BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID;"
-              "INSERT OR IGNORE INTO meta(k, v) VALUES (x'66', x'00000001'), (x'6e', x'0000000000000001');",
+              "INSERT OR IGNORE INTO meta(k, v) VALUES (x'66', x'00000002'), (x'6e', x'0000000000000001');",
               "the catalog");
     if (rc == SQLITE_OK) rc = LoadCatalog(store);
     if (rc == SQLITE_OK) {
