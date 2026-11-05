@@ -1,6 +1,6 @@
 import {mkdirSync, readdirSync} from 'node:fs'
 import {addon} from './Addon.js'
-import {EmbeddedDuplicateKeyError, MongoEmbeddedError} from './Errors.js'
+import {EmbeddedDuplicateKeyError, EmbeddedOperationError, MongoEmbeddedError} from './Errors.js'
 import {type EmbeddedKeyEncoding} from './KeyEncoding.js'
 import {ChangeKind, type NativeChange, type NativeDatabase, type NativeEntry, NativeError, type NativePredicate, type NativeRange} from './Native.js'
 import {type EmbeddedIndex, type EmbeddedPlannedCollection} from './Planner.js'
@@ -81,7 +81,11 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
 
     readonly encoding: EmbeddedKeyEncoding
 
-    constructor(readonly name: string, readonly values: EmbeddedValues) {
+    /**
+     * @param name its name (changed when it is renamed)
+     * @param values
+     */
+    constructor(public name: string, readonly values: EmbeddedValues) {
         this.encoding = values.keys
     }
 
@@ -132,6 +136,11 @@ const SCAN_BATCH: number = 1000
  * The files of a collection of the format of mongo-embedded before its native storage: <name>.<hash>.log
  */
 const PREVIOUS_FORMAT: RegExp = /\.[0-9a-f]{8}\.log$/
+
+/**
+ * The names of the codes of MongoDB a rename fails with
+ */
+const RENAME_ERRORS: Record<number, string> = {20: 'IllegalOperation', 26: 'NamespaceNotFound', 48: 'NamespaceExists'}
 
 /**
  * The storage of a database: its collections in the file of a directory (or in memory), stored by the addon on a
@@ -209,7 +218,8 @@ export class EmbeddedStore {
     /**
      * Writes changes of documents of a collection and the entries of its indexes as one operation (all of them, or
      * none): a key of an insertion there, or a key of a unique index that another document holds, fails it with
-     * EmbeddedDuplicateKeyError, whose changeIndex tells the change failing. The entries of a change are removed before
+     * EmbeddedDuplicateKeyError, a document that an index cannot hold (parallel arrays, an array in a hashed index)
+     * with EmbeddedOperationError, whose changeIndex tells the change failing. The entries of a change are removed before
      * it and inserted after it, the changes written in their order (as MongoDB writes the documents one after the
      * other)
      * @param name
@@ -227,7 +237,7 @@ export class EmbeddedStore {
         if (collection) changes.forEach((change: EmbeddedChange, position: number): void => {
             for (const index of collection.indexes) {
                 const before: Buffer[] = change.previous ? collection.keysOf(index, change.previous) : []
-                const after: Buffer[] = change.next ? collection.keysOf(index, change.next) : []
+                const after: Buffer[] = change.next ? this.keysAt(collection, index, change.next, position) : []
                 if (after.length > 1 && !collection.multikey.has(index.name)) multikey.add(index.name)
                 const kept: Set<string> = new Set<string>(before.map((key: Buffer): string => key.toString('latin1')))
                 const now: Set<string> = new Set<string>(after.map((key: Buffer): string => key.toString('latin1')))
@@ -486,6 +496,28 @@ export class EmbeddedStore {
     }
 
     /**
+     * Renames a collection, its documents and its indexes kept; the collection of the new name dropped when dropTarget,
+     * in the same transaction. It fails with EmbeddedOperationError as MongoDB fails: its own name (IllegalOperation),
+     * no collection of the name (NamespaceNotFound), a collection of the new name without dropTarget (NamespaceExists)
+     * @param from
+     * @param to
+     * @param dropTarget
+     */
+    async rename(from: string, to: string, dropTarget: boolean): Promise<void> {
+        try {
+            await addon.renameCollection(this.database, from, to, dropTarget)
+        } catch (error) {
+            const code: number | undefined = (error as { code?: number }).code
+            const codeName: string | undefined = code === undefined ? undefined : RENAME_ERRORS[code]
+            throw codeName ? new EmbeddedOperationError(code!, codeName, (error as Error).message) : error
+        }
+        const collection: EmbeddedCollectionState = this.collections.get(from)!
+        this.collections.delete(from)
+        collection.name = to
+        this.collections.set(to, collection)
+    }
+
+    /**
      * Drops every collection
      */
     async clear(): Promise<void> {
@@ -509,6 +541,22 @@ export class EmbeddedStore {
         this.closed = true
         await this.writing
         await addon.close(this.database)
+    }
+
+    /**
+     * The keys of a document in an index, for a change of a write: a document the index cannot hold fails with
+     * EmbeddedOperationError, whose changeIndex tells the change
+     * @param collection
+     * @param index
+     * @param document
+     * @param position the index of the change in the write
+     */
+    protected keysAt(collection: EmbeddedCollectionState, index: EmbeddedIndex, document: EmbeddedDocument, position: number): Buffer[] {
+        try {
+            return collection.keysOf(index, document)
+        } catch (error) {
+            throw error instanceof EmbeddedOperationError ? Object.assign(error, {changeIndex: position}) : error
+        }
     }
 
     /**

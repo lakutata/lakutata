@@ -790,40 +790,101 @@ int mde_create_collection(MdeStore *store, const char *name, int64_t *id) {
   return LoadRoots(store);
 }
 
-int mde_drop_collection(MdeStore *store, int64_t id) {
-  Collection *collection = Find(store, id);
-  if (!collection) return Fail(store, MDE_NO_COLLECTION, "no collection of this id");
-  int length = (int)strlen(collection->name);
-  uint8_t *nameKey = malloc((size_t)length + 1);
-  uint8_t countKey[9], indexesKey[9];
+/* The key of the row of the name of a collection in the catalog ('c' + its name), malloc'ed: its size in *size */
+static uint8_t *NameKey(const char *name, int *size) {
+  int length = (int)strlen(name);
+  uint8_t *key = malloc((size_t)length + 1);
+  if (!key) return NULL;
+  key[0] = 'c';
+  memcpy(key + 1, name, length);
+  *size = length + 1;
+  return key;
+}
+
+/* The tables of a collection and its rows of the catalog dropped, in the transaction open */
+static int DropInTransaction(MdeStore *store, const Collection *collection) {
+  int nameSize = 0;
+  uint8_t *nameKey = NameKey(collection->name, &nameSize);
   if (!nameKey) return Fail(store, SQLITE_NOMEM, "out of memory");
-  nameKey[0] = 'c';
-  memcpy(nameKey + 1, collection->name, length);
+  uint8_t countKey[9], indexesKey[9];
   countKey[0] = 'k';
-  PutBigEndian(countKey + 1, id);
+  PutBigEndian(countKey + 1, collection->id);
   indexesKey[0] = 'x';
-  PutBigEndian(indexesKey + 1, id);
+  PutBigEndian(indexesKey + 1, collection->id);
   char sql[64];
-  snprintf(sql, sizeof(sql), "DROP TABLE c%lld", (long long)id);
-  int rc = Exec(store, "BEGIN IMMEDIATE", "the catalog");
-  if (rc == SQLITE_OK) rc = Exec(store, sql, "the table of a collection");
+  snprintf(sql, sizeof(sql), "DROP TABLE c%lld", (long long)collection->id);
+  int rc = Exec(store, sql, "the table of a collection");
   for (int i = 0; i < collection->tableCount && rc == SQLITE_OK; i++) {
-    snprintf(sql, sizeof(sql), "DROP TABLE i%lld_%lld", (long long)id, (long long)collection->tables[i]);
+    snprintf(sql, sizeof(sql), "DROP TABLE i%lld_%lld", (long long)collection->id, (long long)collection->tables[i]);
     rc = Exec(store, sql, "the table of an index");
   }
   if (rc == SQLITE_OK) {
     const uint8_t *blobs[] = {nameKey, countKey, indexesKey};
-    const int sizes[] = {length + 1, 9, 9};
+    const int sizes[] = {nameSize, 9, 9};
     rc = RunBlobs(store, "DELETE FROM meta WHERE k = ?1 OR k = ?2 OR k = ?3", blobs, sizes, 3);
   }
   free(nameKey);
+  return rc;
+}
+
+/* A collection taken out of the ones of the store (dropped) */
+static void Forget(MdeStore *store, Collection *collection) {
+  FreeCollection(collection);
+  *collection = store->collections[--store->collectionCount];
+}
+
+int mde_drop_collection(MdeStore *store, int64_t id) {
+  Collection *collection = Find(store, id);
+  if (!collection) return Fail(store, MDE_NO_COLLECTION, "no collection of this id");
+  int rc = Exec(store, "BEGIN IMMEDIATE", "the catalog");
+  if (rc == SQLITE_OK) rc = DropInTransaction(store, collection);
   if (rc == SQLITE_OK) rc = Exec(store, "COMMIT", "the catalog");
   if (rc != SQLITE_OK) {
     sqlite3_exec(store->db, "ROLLBACK", 0, 0, 0);
     return rc;
   }
-  FreeCollection(collection);
-  *collection = store->collections[--store->collectionCount];
+  Forget(store, collection);
+  return LoadRoots(store);
+}
+
+int mde_rename_collection(MdeStore *store, int64_t id, const char *name, int64_t dropped) {
+  Collection *collection = Find(store, id);
+  if (!collection) return Fail(store, MDE_NO_COLLECTION, "no collection of this id");
+  Collection *target = dropped ? Find(store, dropped) : NULL;
+  if (dropped && !target) return Fail(store, MDE_NO_COLLECTION, "no collection of this id");
+  char *renamed = malloc(strlen(name) + 1);
+  if (!renamed) return Fail(store, SQLITE_NOMEM, "out of memory");
+  strcpy(renamed, name);
+  int oldSize = 0, newSize = 0;
+  uint8_t *oldKey = NameKey(collection->name, &oldSize);
+  uint8_t *newKey = NameKey(name, &newSize);
+  uint8_t idValue[8];
+  PutBigEndian(idValue, id);
+  int rc = !oldKey || !newKey ? Fail(store, SQLITE_NOMEM, "out of memory") : Exec(store, "BEGIN IMMEDIATE", "the catalog");
+  if (rc == SQLITE_OK && target) rc = DropInTransaction(store, target);
+  if (rc == SQLITE_OK) {
+    const uint8_t *blobs[] = {oldKey};
+    const int sizes[] = {oldSize};
+    rc = RunBlobs(store, "DELETE FROM meta WHERE k = ?1", blobs, sizes, 1);
+  }
+  if (rc == SQLITE_OK) {
+    const uint8_t *blobs[] = {newKey, idValue};
+    const int sizes[] = {newSize, 8};
+    rc = RunBlobs(store, "INSERT INTO meta(k, v) VALUES (?1, ?2)", blobs, sizes, 2);
+  }
+  if (rc == SQLITE_OK) rc = Exec(store, "COMMIT", "the catalog");
+  free(oldKey);
+  free(newKey);
+  if (rc != SQLITE_OK) {
+    sqlite3_exec(store->db, "ROLLBACK", 0, 0, 0);
+    free(renamed);
+    return rc;
+  }
+  /* The collection found again by its id: the one dropped may have taken its place in the array */
+  if (target) Forget(store, target);
+  collection = Find(store, id);
+  free(collection->name);
+  collection->name = renamed;
   return LoadRoots(store);
 }
 

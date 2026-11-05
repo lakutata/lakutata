@@ -1,5 +1,16 @@
 import * as bson from 'bson'
 import * as mingo from './mingo/index.js'
+import { ImmutableFieldError } from './mingo/util/index.js'
+import {
+    checkedOperation,
+    checkReplacement,
+    checkUpdate,
+    EmbeddedBulkOperation,
+    type EmbeddedBulkWriteCounts,
+    type EmbeddedBulkWriteOperation,
+    EmbeddedBulkWriteResult,
+    statementOf
+} from './Bulk.js'
 import {
     EmbeddedBulkWriteError,
     EmbeddedDuplicateKeyError,
@@ -234,6 +245,78 @@ function yieldLoop(): Promise<void> {
  */
 function notSupported(method: string): MongoEmbeddedError {
     return new MongoEmbeddedError(`${method} is not supported by mongo-embedded`)
+}
+
+/**
+ * The stages of a pipeline of an update (the other ones MongoDB does not run in an update)
+ */
+const UPDATE_STAGES = new Set([
+    '$addFields',
+    '$set',
+    '$project',
+    '$unset',
+    '$replaceRoot',
+    '$replaceWith'
+])
+
+/**
+ * The options of createCollection that mongo-embedded does not have yet (capped collections, views, time series, the
+ * validation of the documents, a collation of the collection...)
+ */
+const COLLECTION_OPTIONS = [
+    'capped',
+    'size',
+    'max',
+    'timeseries',
+    'expireAfterSeconds',
+    'viewOn',
+    'pipeline',
+    'validator',
+    'validationLevel',
+    'validationAction',
+    'clusteredIndex',
+    'changeStreamPreAndPostImages',
+    'collation',
+    'storageEngine',
+    'indexOptionDefaults',
+    'encryptedFields'
+]
+
+/**
+ * Checks the name of a collection as the client of MongoDB checks it: a string, not empty, without "$", "..", a null
+ * character, or a "." at its start or at its end.
+ *
+ * @param name
+ */
+function checkName(name: unknown): asserts name is string {
+    if (typeof name !== 'string')
+        throw new MongoEmbeddedError('Collection name must be a String')
+    if (!name || name.includes('..'))
+        throw new MongoEmbeddedError('Collection names cannot be empty')
+    if (name.includes('$'))
+        throw new MongoEmbeddedError("Collection names must not contain '$'")
+    if (name.startsWith('.') || name.endsWith('.'))
+        throw new MongoEmbeddedError(
+            "Collection names must not start or end with '.'"
+        )
+    if (name.includes('\x00'))
+        throw new MongoEmbeddedError(
+            'Collection names cannot contain a null character'
+        )
+}
+
+/**
+ * The code of the error of a write that MongoDB tells as the error of its operation (a write error): a duplicate key,
+ * an error of MongoDB with a code (a document an index cannot hold, a changed _id...); undefined for the other errors,
+ * which end the operations.
+ *
+ * @param error
+ */
+function writeErrorCode(error: unknown): number | undefined {
+    return error instanceof EmbeddedDuplicateKeyError ||
+        error instanceof EmbeddedOperationError
+        ? error.code
+        : undefined
 }
 
 /**
@@ -884,8 +967,9 @@ export class EmbeddedCollection {
     /**
      * Inserts documents as MongoDB inserts them: their _id added when missing (to the documents given), written in
      * batches of 1000 (each one an operation, the event loop yielded between them). A document of which the key is a
-     * duplicate is not inserted: ordered (by default), the ones after it are not either; unordered (ordered: false),
-     * they are. The documents not inserted fail the insertMany (EmbeddedBulkWriteError) once the others are written.
+     * duplicate, or which an index cannot hold (parallel arrays, an array in a hashed index), is not inserted: ordered
+     * (by default), the ones after it are not either; unordered (ordered: false), they are. The documents not inserted
+     * fail the insertMany (EmbeddedBulkWriteError) once the others are written.
      *
      * @param documents the documents, their _id added when they have none
      * @param options ordered (true by default)
@@ -921,7 +1005,15 @@ export class EmbeddedCollection {
             throw new EmbeddedBulkWriteError(
                 writeErrors,
                 insertedCount,
-                insertedIds
+                insertedIds,
+                new EmbeddedBulkWriteResult(
+                    {
+                        ...this.noCounts(),
+                        insertedCount: insertedCount,
+                        insertedIds: insertedIds
+                    },
+                    writeErrors
+                )
             )
         return {
             acknowledged: true,
@@ -931,35 +1023,38 @@ export class EmbeddedCollection {
     }
 
     /**
-     * Updates the first document matching a filter by the operators of an update ($set, $inc...)
+     * Updates the first document matching a filter by the operators of an update ($set, $inc...), or by a pipeline
+     * ($set, $unset, $project, $replaceWith... stages)
      * @param query the filter
-     * @param update the operators
+     * @param update the operators, or the pipeline
      * @param options upsert, arrayFilters, hint
      */
     async updateOne(
         query: EmbeddedDocument,
-        update: EmbeddedDocument,
+        update: EmbeddedDocument | EmbeddedDocument[],
         options?: EmbeddedDocument
     ) {
         return this.update(query, update, options, false)
     }
 
     /**
-     * Updates the documents matching a filter by the operators of an update ($set, $inc...)
+     * Updates the documents matching a filter by the operators of an update ($set, $inc...), or by a pipeline ($set,
+     * $unset, $project, $replaceWith... stages)
      * @param query the filter
-     * @param update the operators
+     * @param update the operators, or the pipeline
      * @param options upsert, arrayFilters, hint
      */
     async updateMany(
         query: EmbeddedDocument,
-        update: EmbeddedDocument,
+        update: EmbeddedDocument | EmbeddedDocument[],
         options?: EmbeddedDocument
     ) {
         return this.update(query, update, options, true)
     }
 
     /**
-     * Replaces the first document matching a filter, its _id kept
+     * Replaces the first document matching a filter, its _id kept (not modified when the replacement is the same
+     * document)
      * @param query the filter
      * @param replacement the document replacing it
      * @param options upsert, hint
@@ -969,31 +1064,21 @@ export class EmbeddedCollection {
         replacement: EmbeddedDocument,
         options?: EmbeddedDocument
     ) {
-        if (Object.keys(replacement).some((key) => key.startsWith('$')))
-            throw new MongoEmbeddedError(
-                'Replacement document must not contain atomic operators'
-            )
+        checkReplacement(replacement)
         const filter = this.values.copy(query ?? {})
         const matches = this.matcherOf(filter)
         const [found] = await this.matching(filter, 1, options?.hint)
-        const replaced = found
+        const modified = found
             ? await this.store.exclusive(async () => {
                   const [current] = await this.currents(matches, [found])
-                  if (!current) return false
-                  const next = {
-                      _id: current._id,
-                      ...this.values.copy(replacement)
-                  }
-                  const key = this.values.idKey(current._id)
-                  if (!this.values.idKey(next._id).equals(key))
-                      throw this.immutableId()
-                  await this.store.write(this.collectionName, [
-                      { key: key, previous: current, next: next }
-                  ])
-                  return true
+                  if (!current) return undefined
+                  const change = this.replacementChange(current, replacement)
+                  if (change)
+                      await this.store.write(this.collectionName, [change])
+                  return change ? 1 : 0
               })
-            : false
-        if (replaced) return this.updateResult(1, 1)
+            : undefined
+        if (modified !== undefined) return this.updateResult(1, modified)
         if (!options?.upsert) return this.updateResult(0, 0)
         const document = this.values.copy(replacement)
         document._id ??= this.equalities(filter)._id
@@ -1153,52 +1238,230 @@ export class EmbeddedCollection {
     }
 
     /**
-     * Not supported: it fails
+     * Runs operations (insertOne, updateOne, updateMany, replaceOne, deleteOne, deleteMany) as MongoDB runs them: all of
+     * them checked first (an operation of another kind, an update without operators, a replacement with operators
+     * fail the bulkWrite before any runs), then run in their order, the insertions following each other written
+     * together. An operation failing as a write of MongoDB fails (a duplicate key, a document an index cannot hold, a
+     * changed _id) is not run: ordered (by default), the ones after it are not either; unordered (ordered: false), they
+     * are. The operations failing fail the bulkWrite (EmbeddedBulkWriteError, with the result of the others) once the
+     * others ran.
+     *
+     * @param operations the operations, the _id of the documents inserted added to them when they have none
+     * @param options ordered (true by default)
      */
-    async bulkWrite(): Promise<never> {
-        throw notSupported('bulkWrite')
+    async bulkWrite(
+        operations: EmbeddedBulkWriteOperation[],
+        options?: EmbeddedDocument
+    ): Promise<EmbeddedBulkWriteResult> {
+        if (!Array.isArray(operations))
+            throw new MongoEmbeddedError(
+                'Argument "operations" must be an array of documents'
+            )
+        if (!operations.length)
+            throw new MongoEmbeddedError(
+                'Invalid BulkOperation, Batch cannot be empty'
+            )
+        const ordered = options?.ordered !== false
+        const checked = operations.map((operation) =>
+            checkedOperation(operation)
+        )
+        const counts = this.noCounts()
+        const writeErrors: EmbeddedWriteError[] = []
+        let position = 0
+        while (position < checked.length && !(ordered && writeErrors.length)) {
+            const [kind, args] = checked[position]
+            if (kind === 'insertOne') {
+                // The insertions following each other: written together, a batch at a time
+                let end = position + 1
+                while (
+                    end < checked.length &&
+                    end - position < YIELD_EVERY &&
+                    checked[end][0] === 'insertOne'
+                )
+                    end++
+                const batch = checked.slice(position, end).map(([, args]) => {
+                    if (args.document._id === undefined)
+                        args.document._id = new this.values.bson.ObjectId()
+                    return this.values.copy(args.document)
+                })
+                const inserted = await this.writeInsertions(
+                    batch,
+                    ordered,
+                    writeErrors,
+                    position
+                )
+                for (const index of inserted)
+                    counts.insertedIds[position + index] = batch[index]._id
+                counts.insertedCount += inserted.length
+                position = end
+                continue
+            }
+            try {
+                const result: EmbeddedDocument =
+                    kind === 'replaceOne'
+                        ? await this.replaceOne(args.filter, args.replacement, args)
+                        : kind === 'updateOne' || kind === 'updateMany'
+                          ? await this.update(
+                                args.filter,
+                                args.update,
+                                args,
+                                kind === 'updateMany'
+                            )
+                          : await this.delete(
+                                args.filter,
+                                kind === 'deleteMany',
+                                args.hint
+                            )
+                counts.matchedCount += result.matchedCount ?? 0
+                counts.modifiedCount += result.modifiedCount ?? 0
+                counts.deletedCount += result.deletedCount ?? 0
+                if (result.upsertedId !== undefined && result.upsertedId !== null) {
+                    counts.upsertedIds[position] = result.upsertedId
+                    counts.upsertedCount++
+                }
+            } catch (error) {
+                const code = writeErrorCode(error)
+                if (code === undefined) throw error
+                writeErrors.push({
+                    index: position,
+                    code: code,
+                    errmsg: (error as Error).message,
+                    ...(error instanceof EmbeddedDuplicateKeyError
+                        ? { keyValue: error.keyValue }
+                        : {}),
+                    op: statementOf(kind, args)
+                })
+            }
+            position++
+        }
+        const result = new EmbeddedBulkWriteResult(counts, writeErrors)
+        if (writeErrors.length)
+            throw new EmbeddedBulkWriteError(
+                writeErrors,
+                counts.insertedCount,
+                counts.insertedIds,
+                result
+            )
+        return result
     }
 
     /**
-     * Not supported: it fails
+     * Deletes the first document matching a filter (the first one in the order of a sort) and gives it, as one
+     * operation: null when none matches; with includeResultMetadata, {value, ok, lastErrorObject: {n}}
+     * @param query the filter
+     * @param options sort, projection (of the document given), hint, includeResultMetadata
      */
-    async findOneAndDelete(): Promise<never> {
-        throw notSupported('findOneAndDelete')
+    async findOneAndDelete(
+        query: EmbeddedDocument,
+        options?: EmbeddedDocument
+    ) {
+        const outcome = await this.findAndModify(query, options, (current) => ({
+            key: this.values.idKey(current._id),
+            previous: current
+        }))
+        return this.modifyResult(outcome.before, options, {
+            n: outcome.before ? 1 : 0
+        })
     }
 
     /**
-     * Not supported: it fails
+     * Replaces the first document matching a filter (the first one in the order of a sort), its _id kept, and gives
+     * it as it was (returnDocument: "before", by default) or as it is ("after"), as one operation: null when none
+     * matches; with includeResultMetadata, {value, ok, lastErrorObject: {n, updatedExisting, upserted}}
+     * @param query the filter
+     * @param replacement the document replacing it
+     * @param options sort, projection (of the document given), returnDocument, upsert, hint, includeResultMetadata
      */
-    async findOneAndReplace(): Promise<never> {
-        throw notSupported('findOneAndReplace')
+    async findOneAndReplace(
+        query: EmbeddedDocument,
+        replacement: EmbeddedDocument,
+        options?: EmbeddedDocument
+    ) {
+        checkReplacement(replacement)
+        const outcome = await this.findAndModify(
+            query,
+            options,
+            (current) => this.replacementChange(current, replacement),
+            (filter) => {
+                const document = this.values.copy(replacement)
+                document._id ??= this.equalities(filter)._id
+                return document
+            }
+        )
+        return this.modifiedResult(outcome, options)
     }
 
     /**
-     * Not supported: it fails
+     * Updates the first document matching a filter (the first one in the order of a sort) by the operators of an
+     * update, or by a pipeline, and gives it as it was (returnDocument: "before", by default) or as it is ("after"),
+     * as one operation: null when none matches; with includeResultMetadata, {value, ok, lastErrorObject: {n,
+     * updatedExisting, upserted}}
+     * @param query the filter
+     * @param update the operators, or the pipeline
+     * @param options sort, projection (of the document given), returnDocument, upsert, arrayFilters, hint,
+     * includeResultMetadata
      */
-    async findOneAndUpdate(): Promise<never> {
-        throw notSupported('findOneAndUpdate')
+    async findOneAndUpdate(
+        query: EmbeddedDocument,
+        update: EmbeddedDocument | EmbeddedDocument[],
+        options?: EmbeddedDocument
+    ) {
+        const { modifier, setOnInsert } = this.modifierOf(update)
+        const outcome = await this.findAndModify(
+            query,
+            options,
+            (current) =>
+                this.updateChanges([current], modifier, options?.arrayFilters)[0],
+            (filter) =>
+                this.upsertedOf(filter, modifier, setOnInsert, options?.arrayFilters)
+        )
+        return this.modifiedResult(outcome, options)
     }
 
     /**
-     * Not supported: it fails
+     * A bulk operation of the collection, its operations run in their order, the ones after a failing one not run
+     * @param options its options (none used)
      */
-    initializeOrderedBulkOp(): never {
-        throw notSupported('initializeOrderedBulkOp')
+    initializeOrderedBulkOp(options?: EmbeddedDocument): EmbeddedBulkOperation {
+        void options
+        return new EmbeddedBulkOperation(this, true)
     }
 
     /**
-     * Not supported: it fails
+     * A bulk operation of the collection, its operations run in their order, the ones after a failing one run too
+     * @param options its options (none used)
      */
-    initializeUnorderedBulkOp(): never {
-        throw notSupported('initializeUnorderedBulkOp')
+    initializeUnorderedBulkOp(
+        options?: EmbeddedDocument
+    ): EmbeddedBulkOperation {
+        void options
+        return new EmbeddedBulkOperation(this, false)
     }
 
     /**
-     * Not supported: it fails
+     * Renames the collection, its documents and its indexes kept, and gives the collection of its new name; the
+     * collection of the new name dropped first when dropTarget, in the same transaction. It fails as MongoDB fails:
+     * EmbeddedOperationError of code 20 (IllegalOperation) for its own name, 26 (NamespaceNotFound) when the
+     * collection is not there, 48 (NamespaceExists) when the new name is taken and dropTarget is not given
+     * @param newName its new name
+     * @param options dropTarget
      */
-    async rename(): Promise<never> {
-        throw notSupported('rename')
+    async rename(
+        newName: string,
+        options?: EmbeddedDocument
+    ): Promise<EmbeddedCollection> {
+        checkName(newName)
+        await this.store.exclusive(() =>
+            this.store.rename(this.collectionName, newName, !!options?.dropTarget)
+        )
+        return new EmbeddedCollection(newName, this.store)
+    }
+
+    /**
+     * Drops the collection: false when it was not there
+     */
+    async drop(): Promise<boolean> {
+        return this.store.exclusive(() => this.store.drop(this.collectionName))
     }
 
     /**
@@ -1804,14 +2067,11 @@ export class EmbeddedCollection {
      */
     private async update(
         query: EmbeddedDocument,
-        update: EmbeddedDocument,
+        update: EmbeddedDocument | EmbeddedDocument[],
         options: EmbeddedDocument | undefined,
         many: boolean
     ) {
-        if (Array.isArray(update)) throw notSupported('An update pipeline')
-        if (!Object.keys(update).every((key) => key.startsWith('$')))
-            throw new MongoEmbeddedError('Update document requires atomic operators')
-        const { $setOnInsert, ...modifier } = this.values.copy(update)
+        const { modifier, setOnInsert } = this.modifierOf(update)
         const filter = this.values.copy(query ?? {})
         const matches = this.matcherOf(filter)
         // The keys of the documents updated: a scan meets again the ones it wrote
@@ -1837,10 +2097,12 @@ export class EmbeddedCollection {
             if (!many && matched) break
         }
         if (!matched && options?.upsert) {
-            const document = this.equalities(filter)
-            this.values.mingo.update(document, modifier, options.arrayFilters)
-            if ($setOnInsert)
-                this.values.mingo.update(document, { $set: $setOnInsert })
+            const document = this.upsertedOf(
+                filter,
+                modifier,
+                setOnInsert,
+                options.arrayFilters
+            )
             const [stored] = await this.insert([document])
             return this.updateResult(0, 0, stored._id)
         }
@@ -1848,8 +2110,8 @@ export class EmbeddedCollection {
     }
 
     /**
-     * The changes of documents updated together by mingo (once for all of them): the documents of which the BSON
-     * changed.
+     * The changes of documents updated together by mingo (once for all of them; by a pipeline, one at a time): the
+     * documents of which the BSON changed.
      *
      * @param documents
      * @param modifier
@@ -1857,13 +2119,20 @@ export class EmbeddedCollection {
      */
     private updateChanges(
         documents: EmbeddedDocument[],
-        modifier: EmbeddedDocument,
+        modifier: EmbeddedDocument | EmbeddedDocument[],
         arrayFilters: EmbeddedDocument[] | undefined
     ): EmbeddedChange[] {
-        const nexts = documents.map((document) => this.values.copy(document))
-        this.values.mingo.updateMany(nexts, {}, modifier, {
-            arrayFilters: arrayFilters
-        })
+        let nexts: EmbeddedDocument[]
+        if (Array.isArray(modifier))
+            nexts = documents.map((document) => this.pipelined(document, modifier))
+        else {
+            nexts = documents.map((document) => this.values.copy(document))
+            this.byMingo(() =>
+                this.values.mingo.updateMany(nexts, {}, modifier, {
+                    arrayFilters: arrayFilters
+                })
+            )
+        }
         const changes: EmbeddedChange[] = []
         documents.forEach((current, position) => {
             const next = nexts[position]
@@ -1913,9 +2182,9 @@ export class EmbeddedCollection {
 
     /**
      * Writes the insertions of a batch of documents as one operation (an exclusive operation of the store); when the
-     * key of one of them is a duplicate, the ones before it are written, it is told, and the ones after it are written
-     * the same way unless ordered: the indexes in the batch of the documents written. The other errors end the
-     * insertMany.
+     * key of one of them is a duplicate (or an index cannot hold it), the ones before it are written, it is told, and
+     * the ones after it are written the same way unless ordered: the indexes in the batch of the documents written.
+     * The other errors end the insertMany.
      *
      * @param batch
      * @param ordered
@@ -1941,8 +2210,9 @@ export class EmbeddedCollection {
                     inserted.push(...positions)
                     return inserted
                 } catch (error) {
-                    if (!(error instanceof EmbeddedDuplicateKeyError)) throw error
-                    const failing: number = (error as any).changeIndex
+                    const failing: number | undefined = (error as any).changeIndex
+                    const code = writeErrorCode(error)
+                    if (failing === undefined || code === undefined) throw error
                     if (failing > 0) {
                         await this.store.write(
                             this.collectionName,
@@ -1953,9 +2223,12 @@ export class EmbeddedCollection {
                     }
                     writeErrors.push({
                         index: start + positions[failing],
-                        code: error.code,
-                        errmsg: error.message,
-                        keyValue: error.keyValue
+                        code: code,
+                        errmsg: (error as Error).message,
+                        ...(error instanceof EmbeddedDuplicateKeyError
+                            ? { keyValue: error.keyValue }
+                            : {}),
+                        op: batch[positions[failing]]
                     })
                     if (ordered) return inserted
                     positions = positions.slice(failing + 1)
@@ -2014,9 +2287,225 @@ export class EmbeddedCollection {
     }
 
     private immutableId(): MongoEmbeddedError {
-        return new MongoEmbeddedError(
+        return new EmbeddedOperationError(
+            66,
+            'ImmutableField',
             "Performing an update on the path '_id' would modify the immutable field '_id'"
         )
+    }
+
+    /**
+     * Runs an update of mingo: a change of the _id it fails with is the error of MongoDB (ImmutableField, code 66).
+     *
+     * @param update
+     */
+    private byMingo(update: () => void): void {
+        try {
+            update()
+        } catch (error) {
+            throw error instanceof ImmutableFieldError ? this.immutableId() : error
+        }
+    }
+
+    /**
+     * The counts of a bulkWrite before its operations
+     */
+    private noCounts(): EmbeddedBulkWriteCounts {
+        return {
+            insertedCount: 0,
+            matchedCount: 0,
+            modifiedCount: 0,
+            deletedCount: 0,
+            upsertedCount: 0,
+            insertedIds: {},
+            upsertedIds: {}
+        }
+    }
+
+    /**
+     * The modifier of an update, checked (operators, or a pipeline) and copied, and its $setOnInsert apart.
+     *
+     * @param update
+     */
+    private modifierOf(update: EmbeddedDocument | EmbeddedDocument[]): {
+        modifier: EmbeddedDocument | EmbeddedDocument[]
+        setOnInsert?: EmbeddedDocument
+    } {
+        checkUpdate(update)
+        if (Array.isArray(update))
+            return { modifier: update.map((stage) => this.values.copy(stage)) }
+        const { $setOnInsert, ...modifier } = this.values.copy(update)
+        return { modifier: modifier, setOnInsert: $setOnInsert }
+    }
+
+    /**
+     * The document an update inserts when no document matches its filter (upsert): the equalities of the filter,
+     * updated by the operators, then by $setOnInsert (or by the pipeline).
+     *
+     * @param filter
+     * @param modifier
+     * @param setOnInsert
+     * @param arrayFilters
+     */
+    private upsertedOf(
+        filter: EmbeddedDocument,
+        modifier: EmbeddedDocument | EmbeddedDocument[],
+        setOnInsert: EmbeddedDocument | undefined,
+        arrayFilters: EmbeddedDocument[] | undefined
+    ): EmbeddedDocument {
+        const document = this.equalities(filter)
+        if (Array.isArray(modifier)) return this.pipelined(document, modifier)
+        this.byMingo(() => {
+            this.values.mingo.update(document, modifier, arrayFilters)
+            if (setOnInsert)
+                this.values.mingo.update(document, { $set: setOnInsert })
+        })
+        return document
+    }
+
+    /**
+     * A document updated by a pipeline (of the stages MongoDB runs in an update), its _id kept when the pipeline
+     * removes it.
+     *
+     * @param document
+     * @param pipeline
+     */
+    private pipelined(
+        document: EmbeddedDocument,
+        pipeline: EmbeddedDocument[]
+    ): EmbeddedDocument {
+        for (const stage of pipeline) {
+            const [name] = Object.keys(stage)
+            if (!UPDATE_STAGES.has(name))
+                throw new EmbeddedOperationError(
+                    72,
+                    'InvalidOptions',
+                    `${name} is not allowed to be used within an update`
+                )
+        }
+        const [next] = this.values.mingo.aggregate(
+            [this.values.copy(document)],
+            pipeline
+        )
+        return next._id === undefined && document._id !== undefined
+            ? { _id: document._id, ...next }
+            : next
+    }
+
+    /**
+     * The change of a document replaced, its _id kept: undefined when the replacement is the same document.
+     *
+     * @param current
+     * @param replacement
+     */
+    private replacementChange(
+        current: EmbeddedDocument,
+        replacement: EmbeddedDocument
+    ): EmbeddedChange | undefined {
+        const next = { _id: current._id, ...this.values.copy(replacement) }
+        const key = this.values.idKey(current._id)
+        if (!this.values.idKey(next._id).equals(key)) throw this.immutableId()
+        const data = this.values.serialize(next)
+        return data.equals(this.values.serialize(current))
+            ? undefined
+            : { key: key, previous: current, next: next, data: data }
+    }
+
+    /**
+     * Finds the first document matching a filter (in the order of a sort) and changes it, or inserts a document when
+     * none matches and upsert is given, as one operation (an exclusive operation of the store): the document as it was
+     * (before) and as it is (after: the same document when the change is none; none when it is deleted), or the
+     * document inserted (after, upsertedId).
+     *
+     * @param query
+     * @param options sort, hint, upsert
+     * @param changeOf the change of the document found (undefined: none)
+     * @param upserted the document inserted when none matches
+     */
+    private async findAndModify(
+        query: EmbeddedDocument,
+        options: EmbeddedDocument | undefined,
+        changeOf: (current: EmbeddedDocument) => EmbeddedChange | undefined,
+        upserted?: (filter: EmbeddedDocument) => EmbeddedDocument
+    ): Promise<{
+        before?: EmbeddedDocument
+        after?: EmbeddedDocument
+        upsertedId?: any
+    }> {
+        const filter = this.values.copy(query ?? {})
+        return this.store.exclusive(async () => {
+            const [found] = await this.find(filter, {
+                sort: options?.sort,
+                hint: options?.hint
+            })
+                .limit(1)
+                .toArray()
+            if (found) {
+                const change = changeOf(found)
+                if (change) await this.store.write(this.collectionName, [change])
+                return { before: found, after: change ? change.next : found }
+            }
+            if (!options?.upsert || !upserted) return {}
+            const document = upserted(filter)
+            if (document._id === undefined)
+                document._id = new this.values.bson.ObjectId()
+            await this.store.write(
+                this.collectionName,
+                [{ key: this.values.idKey(document._id), next: document }],
+                true
+            )
+            return { after: document, upsertedId: document._id }
+        })
+    }
+
+    /**
+     * The result of a findOneAndUpdate or of a findOneAndReplace: the document as it was or as it is (returnDocument),
+     * projected; with includeResultMetadata, {value, ok, lastErrorObject}.
+     *
+     * @param outcome
+     * @param options
+     */
+    private modifiedResult(
+        outcome: {
+            before?: EmbeddedDocument
+            after?: EmbeddedDocument
+            upsertedId?: any
+        },
+        options: EmbeddedDocument | undefined
+    ) {
+        const upserted = outcome.upsertedId !== undefined
+        return this.modifyResult(
+            options?.returnDocument === 'after' ? outcome.after : outcome.before,
+            options,
+            {
+                n: outcome.before || upserted ? 1 : 0,
+                updatedExisting: !!outcome.before,
+                ...(upserted ? { upserted: outcome.upsertedId } : {})
+            }
+        )
+    }
+
+    /**
+     * The result of a findOneAnd...: its document (null when none), projected; with includeResultMetadata,
+     * {value, ok, lastErrorObject}.
+     *
+     * @param document
+     * @param options
+     * @param lastErrorObject
+     */
+    private modifyResult(
+        document: EmbeddedDocument | undefined,
+        options: EmbeddedDocument | undefined,
+        lastErrorObject: EmbeddedDocument
+    ) {
+        const value = !document
+            ? null
+            : options?.projection
+              ? this.values.mingo.find([document], {}, options.projection).all()[0]
+              : document
+        return options?.includeResultMetadata
+            ? { value: value, ok: 1, lastErrorObject: lastErrorObject }
+            : value
     }
 }
 
@@ -2032,7 +2521,10 @@ export class EmbeddedCollection {
  * await database.dropCollection('items')
  */
 export class EmbeddedDb {
-    private readonly collections = new Map<string, EmbeddedCollection>()
+    /**
+     * The collections given, by their names
+     */
+    private readonly given = new Map<string, EmbeddedCollection>()
 
     /**
      * @param databaseName its name
@@ -2048,10 +2540,11 @@ export class EmbeddedDb {
      * @param name the name of the collection
      */
     collection(name: string): EmbeddedCollection {
-        let collection = this.collections.get(name)
+        checkName(name)
+        let collection = this.given.get(name)
         if (!collection) {
             collection = new EmbeddedCollection(name, this.store)
-            this.collections.set(name, collection)
+            this.given.set(name, collection)
         }
         return collection
     }
@@ -2070,6 +2563,78 @@ export class EmbeddedDb {
      */
     async dropCollection(name: string): Promise<boolean> {
         return this.store.exclusive(() => this.store.drop(name))
+    }
+
+    /**
+     * Creates a collection and gives it; the collection there given when it is (as MongoDB does for the same options).
+     * The options of the capped collections, the views, the time series, the validation of the documents and a
+     * collation of the collection are not supported yet: they fail
+     * @param name the name of the collection
+     * @param options its options
+     */
+    async createCollection(
+        name: string,
+        options?: EmbeddedDocument
+    ): Promise<EmbeddedCollection> {
+        checkName(name)
+        for (const option of COLLECTION_OPTIONS)
+            if (options?.[option] !== undefined)
+                throw notSupported(`The option ${option} of createCollection`)
+        await this.store.exclusive(() => this.store.create(name))
+        return this.collection(name)
+    }
+
+    /**
+     * The collections, as MongoDB lists them ({name, type, options, info, idIndex}; {name, type} when nameOnly), the
+     * ones matching a filter of their fields
+     * @param filter the filter of their fields (their name...)
+     * @param options nameOnly
+     */
+    listCollections(filter?: EmbeddedDocument, options?: EmbeddedDocument) {
+        return new EmbeddedArrayCursor(async () => {
+            const collections = this.store
+                .names()
+                .sort()
+                .map((name) =>
+                    options?.nameOnly
+                        ? { name: name, type: 'collection' }
+                        : {
+                              name: name,
+                              type: 'collection',
+                              options: {},
+                              info: { readOnly: false },
+                              idIndex: { v: 2, key: { _id: 1 }, name: '_id_' }
+                          }
+                )
+            return filter && Object.keys(filter).length
+                ? (new mingo.Query(filter).find(collections).all() as EmbeddedDocument[])
+                : collections
+        })
+    }
+
+    /**
+     * The collections
+     */
+    async collections(): Promise<EmbeddedCollection[]> {
+        return this.store
+            .names()
+            .sort()
+            .map((name) => this.collection(name))
+    }
+
+    /**
+     * Renames a collection (EmbeddedCollection.rename) and gives the collection of its new name
+     * @param from the name of the collection
+     * @param to its new name
+     * @param options dropTarget
+     */
+    async renameCollection(
+        from: string,
+        to: string,
+        options?: EmbeddedDocument
+    ): Promise<EmbeddedCollection> {
+        await this.collection(from).rename(to, options)
+        return this.collection(to)
     }
 }
 

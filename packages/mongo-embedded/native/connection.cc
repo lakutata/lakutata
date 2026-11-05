@@ -160,6 +160,30 @@ bool Connection::Drop(const std::string& name, std::string* message) {
   return true;
 }
 
+int Connection::Rename(const std::string& from, const std::string& to, bool dropTarget, std::string* message) {
+  if (from == to) {
+    *message = "Can't rename a collection to itself";
+    return 20;
+  }
+  const int64_t id = IdOf(from);
+  if (!id) {
+    *message = "source namespace does not exist";
+    return 26;
+  }
+  const int64_t target = IdOf(to);
+  if (target && !dropTarget) {
+    *message = "target namespace exists";
+    return 48;
+  }
+  if (mde_rename_collection(store_, id, to.c_str(), target) != 0) {
+    *message = mde_message(store_);
+    return -1;
+  }
+  names_.erase(from);
+  names_[to] = id;
+  return 0;
+}
+
 void Connection::Written() {
   const int frames = mde_frames(store_);
   if (!frames) return;

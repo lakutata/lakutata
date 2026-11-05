@@ -169,6 +169,12 @@ export interface NativeAddon {
     dropCollection(database: NativeDatabase, name: string): Promise<boolean>
 
     /**
+     * A collection renamed, the one of the new name dropped when dropTarget; rejected with the code of MongoDB
+     * (IllegalOperation 20, NamespaceNotFound 26, NamespaceExists 48)
+     */
+    renameCollection(database: NativeDatabase, from: string, to: string, dropTarget: boolean): Promise<void>
+
+    /**
      * Every collection dropped
      */
     dropDatabase(database: NativeDatabase): Promise<void>

@@ -173,6 +173,24 @@ Napi::Value DropCollection(const Napi::CallbackInfo& info) {
       [](napi_env env, Outcome& outcome) { return BooleanOf(env, outcome.done); });
 }
 
+// renameCollection(handle, from, to, dropTarget): a collection renamed, the one of the new name dropped when
+// dropTarget; rejected with the code of MongoDB (IllegalOperation 20, NamespaceNotFound 26, NamespaceExists 48)
+Napi::Value RenameCollection(const Napi::CallbackInfo& info) {
+  Connection* connection = HandleOf(info)->connection.get();
+  const std::string from = info[1].As<Napi::String>().Utf8Value();
+  const std::string to = info[2].As<Napi::String>().Utf8Value();
+  const bool dropTarget = info.Length() > 3 && info[3].ToBoolean().Value();
+  return HandleOf(info)->database->Submit(
+      info.Env(),
+      [connection, from, to, dropTarget](Outcome& outcome) {
+        std::string message;
+        const int code = connection->Rename(from, to, dropTarget, &message);
+        if (code != 0) return Fail(outcome, code, message);
+        connection->Written();
+      },
+      Undefined);
+}
+
 // dropDatabase(handle): every collection dropped
 Napi::Value DropDatabase(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
@@ -627,6 +645,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("dropIndex", Napi::Function::New(env, DropIndex, "dropIndex"));
   exports.Set("writeIndex", Napi::Function::New(env, WriteIndex, "writeIndex"));
   exports.Set("dropCollection", Napi::Function::New(env, DropCollection, "dropCollection"));
+  exports.Set("renameCollection", Napi::Function::New(env, RenameCollection, "renameCollection"));
   exports.Set("dropDatabase", Napi::Function::New(env, DropDatabase, "dropDatabase"));
   exports.Set("count", Napi::Function::New(env, Count, "count"));
   exports.Set("write", Napi::Function::New(env, Write, "write"));

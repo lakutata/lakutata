@@ -63,6 +63,10 @@ class Connection {
   int64_t IdOf(const std::string& name) const;
   int64_t Create(const std::string& name, std::string* message);
   bool Drop(const std::string& name, std::string* message);
+  // A collection renamed, the one of the new name dropped when dropTarget: 0, or the code of MongoDB of the failure
+  // (IllegalOperation 20 for its own name, NamespaceNotFound 26, NamespaceExists 48) with its message; -1 for a
+  // failure of the store
+  int Rename(const std::string& from, const std::string& to, bool dropTarget, std::string* message);
   const std::map<std::string, int64_t>& names() const { return names_; }
 
   // After a write: the thread of the checkpoints told; a WAL of 16384 frames checkpointed at once, the writes waiting

@@ -675,9 +675,20 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await container.destroy()
     })
 
+    it('runs the findOneAndUpdate and the bulkWrite of MongoDB', async (): Promise<void> => {
+        const dataSource: DataSource = await open(':memory:')
+        const posts: MongoRepository<Post> = dataSource.getMongoRepository(Post)
+        await savePosts(posts)
+        assert.strictEqual((await posts.findOneAndUpdate({title: 'hello'}, {$inc: {views: 1}}, {returnDocument: 'after'}))?.views, 2)
+        const result = await posts.bulkWrite([{updateMany: {filter: {views: {$gte: 5}}, update: {$set: {tags: ['z']}}}}, {deleteOne: {filter: {title: 'world'}}}])
+        assert.deepStrictEqual([result.matchedCount, result.modifiedCount, result.deletedCount], [2, 2, 1])
+        assert.deepStrictEqual((await posts.find({order: {views: 'ASC'}})).map((post: Post): unknown => [post.title, post.tags]), [['hello', ['x', 'y']], ['third', ['z']]])
+        await dataSource.destroy()
+    })
+
     it('tells the methods of MongoDB it does not have', async (): Promise<void> => {
         const dataSource: DataSource = await open(':memory:')
-        await assert.rejects(dataSource.getMongoRepository(Post).findOneAndUpdate({title: 'hello'}, {$set: {views: 1}}, {}), /findOneAndUpdate is not supported by mongo-embedded/)
+        assert.throws((): unknown => dataSource.mongoManager.watch(Post), /watch is not supported by mongo-embedded/)
         await dataSource.destroy()
     })
 })

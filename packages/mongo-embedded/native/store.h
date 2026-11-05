@@ -96,6 +96,9 @@ const char *mde_message(MdeStore *store);
 int mde_collections(MdeStore *store, MdeBuffer *out);
 int mde_create_collection(MdeStore *store, const char *name, int64_t *id);
 int mde_drop_collection(MdeStore *store, int64_t id);
+/* A collection renamed (its tables and its indexes kept), the collection of the new name dropped (dropped, its id; 0:
+** none) in the same transaction */
+int mde_rename_collection(MdeStore *store, int64_t id, const char *name, int64_t dropped);
 int mde_count(MdeStore *store, int64_t id, int64_t *count);
 
 /* The definitions of the indexes of a collection written (none: size 0) */
