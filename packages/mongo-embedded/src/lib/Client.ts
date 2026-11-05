@@ -251,6 +251,11 @@ function notSupported(method: string): MongoEmbeddedError {
 }
 
 /**
+ * The period of the deletions of the TTL indexes: 60 seconds, as the TTL monitor of MongoDB
+ */
+const TTL_PERIOD = 60000
+
+/**
  * The stages of a pipeline of an update (the other ones MongoDB does not run in an update)
  */
 const UPDATE_STAGES = new Set([
@@ -1921,6 +1926,25 @@ export class EmbeddedCollection {
     }
 
     /**
+     * Deletes the documents its TTL indexes expired, as the TTL monitor of MongoDB deletes them: the ones of which the
+     * field of a TTL index is a date (or an array of dates, by its earliest one) older than its expireAfterSeconds,
+     * found by the index (the documents of a partial index only); the number of them
+     * @param now the time of the expiration (now by default)
+     */
+    async expire(now: Date = new Date()): Promise<number> {
+        let deleted = 0
+        for (const index of this.store.collection(this.collectionName)?.indexes ?? []) {
+            if (index.expireAfterSeconds === undefined) continue
+            const [field] = Object.keys(index.key)
+            const filter = {
+                [field]: { $lt: new Date(now.getTime() - index.expireAfterSeconds * 1000) }
+            }
+            deleted += (await this.delete(filter, true, index as EmbeddedHint)).deletedCount
+        }
+        return deleted
+    }
+
+    /**
      * Drops the collection: false when it was not there
      */
     async drop(): Promise<boolean> {
@@ -2095,6 +2119,8 @@ export class EmbeddedCollection {
         hint: EmbeddedHint | undefined
     ): EmbeddedIndex | { $natural: number } | undefined {
         if (hint === undefined || hint === null) return undefined
+        // An index of the collection itself (the deletions of a TTL index, a hidden one too)
+        if (collection.indexes.includes(hint as EmbeddedIndex)) return hint as EmbeddedIndex
         if (this.isPlainObject(hint) && '$natural' in (hint as EmbeddedDocument))
             return { $natural: Number((hint as EmbeddedDocument).$natural) }
         const indexes = [planner.idIndex(), ...collection.indexes]
@@ -2225,8 +2251,23 @@ export class EmbeddedCollection {
                 throw cannot('The wildcardProjection of an index cannot mix the fields included and excluded')
             index.wildcardProjection = this.values.copy(projection)
         }
-        if (options.expireAfterSeconds !== undefined)
-            index.expireAfterSeconds = options.expireAfterSeconds
+        if (options.expireAfterSeconds !== undefined) {
+            // A TTL index: one field, not a wildcard one, a number of seconds within the range of MongoDB
+            const show = this.values.bson.EJSON.stringify({ key: key, ...options })
+            const seconds = Number(options.expireAfterSeconds)
+            if (
+                typeof options.expireAfterSeconds !== 'number' &&
+                !['Int32', 'Double', 'Long', 'Decimal128'].includes(options.expireAfterSeconds?._bsontype)
+            )
+                throw cannot(`TTL index 'expireAfterSeconds' option must be numeric, but received a type of '${typeof options.expireAfterSeconds}'. Index spec: ${show}`)
+            if (Number.isNaN(seconds) || seconds < 0 || seconds > 2147483647)
+                throw cannot(`TTL index 'expireAfterSeconds' option must be within an acceptable range, try a lower number. Index spec: ${show}`)
+            if (fields.length > 1)
+                throw cannot(`TTL indexes are single-field indexes, compound indexes do not support TTL. Index spec: ${show}`)
+            if (wildcards.length)
+                throw cannot(`Index type 'wildcard' does not support the 'expireAfterSeconds' option. Index spec: ${show}`)
+            index.expireAfterSeconds = seconds
+        }
         if (wildcards.length && (index.unique || index.sparse))
             throw cannot(`Index type 'wildcard' does not support the '${index.unique ? 'unique' : 'sparse'}' option`)
         // The other fields of a compound wildcard index outside its wildcard term (excluded by its projection)
@@ -3147,9 +3188,22 @@ export class EmbeddedClient {
     private database?: EmbeddedDb
 
     /**
+     * The timer of the deletions of the TTL indexes, which does not hold the process
+     */
+    private readonly expiring: ReturnType<typeof setInterval>
+
+    /**
+     * The deletions of the TTL indexes running, if any
+     */
+    private expiration?: Promise<number>
+
+    /**
      * @param store the storage of its database (connect opens it)
      */
-    constructor(readonly store: EmbeddedStore) {}
+    constructor(readonly store: EmbeddedStore) {
+        this.expiring = setInterval(() => void this.expire().catch(() => 0), TTL_PERIOD)
+        this.expiring.unref?.()
+    }
 
     /**
      * Opens a database: its directory created and locked.
@@ -3180,9 +3234,28 @@ export class EmbeddedClient {
     }
 
     /**
-     * Closes the database once the writes queued ran: its directory unlocked
+     * Deletes the documents the TTL indexes of its collections expired (EmbeddedCollection.expire): run every 60
+     * seconds while it is open, as the TTL monitor of MongoDB runs; the number of them. A call while they run waits
+     * for them
+     * @param now the time of the expiration (now by default)
+     */
+    async expire(now?: Date): Promise<number> {
+        this.expiration ??= (async () => {
+            let deleted = 0
+            for (const name of this.store.names())
+                deleted += await new EmbeddedCollection(name, this.store).expire(now)
+            return deleted
+        })().finally(() => (this.expiration = undefined))
+        return this.expiration
+    }
+
+    /**
+     * Closes the database once the writes queued ran (the deletions of the TTL indexes running too): its directory
+     * unlocked
      */
     async close(): Promise<void> {
+        clearInterval(this.expiring)
+        await this.expiration?.catch(() => 0)
         await this.store.close()
     }
 }

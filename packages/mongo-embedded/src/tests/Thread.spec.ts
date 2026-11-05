@@ -3,6 +3,7 @@ import assert from 'node:assert'
 import {spawnSync, type SpawnSyncReturns} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
 import {isMainThread, parentPort, Worker, workerData} from 'node:worker_threads'
+import {EmbeddedClient} from '../exports/MongoEmbedded.js'
 import {addon} from '../lib/Addon.js'
 import {type NativeDatabase} from '../lib/Native.js'
 
@@ -24,6 +25,12 @@ const CASES: Record<string, () => unknown> = {
         const database: NativeDatabase = await addon.open('')
         await addon.ping(database, Buffer.from('x'))
         console.log('idle')
+    },
+    //A client left open with a TTL index: its timer does not hold the process
+    async client(): Promise<void> {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        await client.db().collection('items').createIndex({at: 1}, {expireAfterSeconds: 60})
+        console.log('client')
     },
     //A call pending, not awaited, nothing else holding the process: it waits for the result
     async pending(): Promise<void> {
@@ -79,6 +86,9 @@ if (!isMainThread) {
             const idle: SpawnSyncReturns<string> = runCase('idle')
             assert.strictEqual(idle.status, 0, idle.stderr)
             assert.strictEqual(idle.stdout.trim(), 'idle')
+            const client: SpawnSyncReturns<string> = runCase('client')
+            assert.strictEqual(client.status, 0, client.stderr)
+            assert.strictEqual(client.stdout.trim(), 'client')
             const pending: SpawnSyncReturns<string> = runCase('pending')
             assert.strictEqual(pending.status, 0, pending.stderr)
             assert.strictEqual(pending.stdout.trim(), 'pending late')

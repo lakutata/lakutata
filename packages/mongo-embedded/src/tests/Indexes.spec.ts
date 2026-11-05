@@ -312,6 +312,34 @@ describe('The indexes', (): void => {
         await client.close()
     })
 
+    it('expire the documents of their TTL indexes, by their earliest date, as the TTL monitor of MongoDB does', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const items: EmbeddedCollection = client.db().collection('items')
+        const now: Date = new Date('2026-11-06T12:00:00Z')
+        const hours = (count: number): Date => new Date(now.getTime() + count * 3600000)
+        await items.insertMany([{_id: 1, at: hours(-2)}, {_id: 2, at: hours(2)}, {_id: 3, at: [hours(2), hours(-3)]}, {_id: 4, at: 'yesterday'}, {_id: 5}, {_id: 6, at: [hours(1)]}, {_id: 7, at: hours(-1)}])
+        await items.createIndex({at: 1}, {expireAfterSeconds: 3600})
+        assert.deepStrictEqual((await items.indexes())[1].expireAfterSeconds, 3600)
+        assert.strictEqual(await client.expire(now), 2)
+        const ids = (documents: Record<string, any>[]): number[] => documents.map((document: Record<string, any>): number => document._id)
+        assert.deepStrictEqual(ids(await items.find({}).toArray()), [2, 4, 5, 6, 7])
+        //A later expiration: the date of _id 7 passed too
+        assert.strictEqual(await items.expire(hours(1)), 1)
+        //A partial TTL index: the documents it holds only; a hidden one expires them too
+        const sessions: EmbeddedCollection = client.db().collection('sessions')
+        await sessions.insertMany([{_id: 1, kind: 'temporary', at: hours(-1)}, {_id: 2, kind: 'kept', at: hours(-1)}])
+        await sessions.createIndex({at: -1}, {expireAfterSeconds: 0, partialFilterExpression: {kind: 'temporary'}, hidden: true})
+        assert.strictEqual(await client.expire(now), 1)
+        assert.deepStrictEqual(ids(await sessions.find({}).toArray()), [2])
+        //The options MongoDB refuses
+        await assert.rejects(items.createIndex({at: 1, b: 1}, {expireAfterSeconds: 10}), failure(67))
+        await assert.rejects(items.createIndex({'$**': 1}, {expireAfterSeconds: 10}), failure(67))
+        await assert.rejects(items.createIndex({b: 1}, {expireAfterSeconds: -1}), failure(67))
+        await assert.rejects(items.createIndex({b: 1}, {expireAfterSeconds: '10'}), failure(67))
+        await assert.rejects(items.createIndex({_id: 1}, {expireAfterSeconds: 10}), failure(197))
+        await client.close()
+    })
+
     it('create, list and drop the indexes as MongoDB does, refusing the kinds and the options it does not support', async (): Promise<void> => {
         const where: string = directory()
         let client: EmbeddedClient = await EmbeddedClient.connect(where)
