@@ -1,7 +1,7 @@
 import { Any, AnyObject } from '../../types.js'
 import { MongoCodeError } from '../../util/index.js'
 import { isNumeric } from '../../util/_bson.js'
-import { multiply } from '../../util/_numeric.js'
+import { multiply, zeroOf } from '../../util/_numeric.js'
 import {
   applyUpdate,
   DEFAULT_OPTIONS,
@@ -40,7 +40,7 @@ export function $mul(
           queries,
           (o: AnyObject, k: string) => {
             const prev = o[k]
-            if (o[k] === undefined) o[k] = multiply(0, val)
+            if (o[k] === undefined) o[k] = zeroOf(val)
             else if (isNumeric(o[k])) o[k] = multiply(o[k], val)
             else
               throw new MongoCodeError(

@@ -245,6 +245,15 @@ export const subtract = (a: Any, b: Any): Any => binary(a, b, 'subtract')
 export const multiply = (a: Any, b: Any): Any => binary(a, b, 'multiply')
 
 /**
+ * The zero of the type of a number of MongoDB (a Decimal128 for a decimal).
+ *
+ * @param v
+ */
+export function zeroOf(v: Any): Any {
+  return kindOf(v) === NumberKind.Decimal ? Decimal128.fromString('0') : 0
+}
+
+/**
  * Whether a number of MongoDB is zero.
  *
  * @param v

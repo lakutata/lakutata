@@ -212,7 +212,8 @@ describe('The arithmetic (mingo, the numbers of every type as MongoDB computes t
         assert.strictEqual(show(found.n), show(Long.fromString('9007199254740994')))
         assert.strictEqual(show(found.d), show(decimal('2.30')))
         assert.strictEqual(found.missing, 5)
-        assert.strictEqual(show(found.zero), show(decimal('0.0')))
+        //A missing field: the zero of the type of the factor
+        assert.strictEqual(show(found.zero), show(decimal('0')))
         await assert.rejects(items.updateOne({_id: 1}, {$inc: {text: 1}}), (error: unknown): boolean => (error as {code?: number}).code === 14 && /non-numeric type/.test((error as Error).message))
         await assert.rejects(items.updateOne({_id: 1}, {$inc: {n: 'one'}}), (error: unknown): boolean => (error as {code?: number}).code === 14)
         //The sums of a $group run in batches too
