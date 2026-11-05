@@ -25,6 +25,7 @@ export {
   isRegExp,
   isString,
   isSymbol,
+  ImmutableFieldError,
   MingoError,
   normalize,
   removeValue,

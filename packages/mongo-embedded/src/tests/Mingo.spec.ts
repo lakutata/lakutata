@@ -3,6 +3,7 @@ import assert from 'node:assert'
 import * as bson from 'bson'
 import {EmbeddedClient, type EmbeddedCollection} from '../exports/MongoEmbedded.js'
 import * as mingo from '../lib/mingo/index.js'
+import {ImmutableFieldError} from '../lib/mingo/util/index.js'
 
 /**
  * The values of the field v of the documents a filter matches
@@ -82,6 +83,35 @@ describe('The queries (mingo, compared as MongoDB compares)', (): void => {
         assert.deepStrictEqual(groups.map((group: Record<string, unknown>): unknown => group.n), [5, 10])
         assert.deepStrictEqual((mingo.aggregate([{v: [1, bson.Long.fromNumber(1), 'x']}], [{$project: {_id: 0, v: {$setUnion: ['$v', []]}}}])[0].v as unknown[]).length, 2)
         assert.deepStrictEqual(mingo.aggregate([{v: 1}, {v: 'a'}, {v: true}], [{$group: {_id: null, max: {$max: '$v'}, min: {$min: '$v'}}}])[0], {_id: null, max: true, min: 1})
+    })
+})
+
+describe('The updates (mingo, the _id immutable as in MongoDB)', (): void => {
+
+    it('fail an update that changes the value of the _id, the document left as it was', (): void => {
+        const document: Record<string, any> = {_id: 1, n: 1, nested: {a: 1}}
+        //Its own value: kept, as MongoDB keeps it
+        mingo.update(document, {$set: {_id: 1, n: 2}})
+        assert.deepStrictEqual(document, {_id: 1, n: 2, nested: {a: 1}})
+        const modifiers: Record<string, any>[] = [{$set: {_id: 2, n: 3}}, {$unset: {_id: ''}}, {$inc: {_id: 1}}, {$rename: {n: '_id'}}, {$rename: {_id: 'x'}}]
+        for (const modifier of modifiers) {
+            assert.throws((): unknown => mingo.update(document, {...modifier, $set: {...modifier.$set, 'nested.a': 9}}), (error: unknown): boolean => error instanceof ImmutableFieldError && error.code === 66, JSON.stringify(modifier))
+            assert.deepStrictEqual(document, {_id: 1, n: 2, nested: {a: 1}}, JSON.stringify(modifier))
+        }
+        const compound: Record<string, any> = {_id: {a: 1, b: 2}}
+        mingo.update(compound, {$set: {'_id.a': 1}})
+        assert.throws((): unknown => mingo.update(compound, {$set: {'_id.a': 2}}), /the path '_id.a' would modify the immutable field '_id'/)
+        assert.deepStrictEqual(compound, {_id: {a: 1, b: 2}})
+    })
+
+    it('set the _id of a document without one (an upsert), and keep the _id a pipeline removes', (): void => {
+        const document: Record<string, any> = {}
+        mingo.update(document, {$set: {_id: 4, n: 1}})
+        assert.deepStrictEqual(document, {_id: 4, n: 1})
+        const documents: Record<string, any>[] = [{_id: 1, a: 1}, {_id: 2, a: 2}]
+        mingo.updateMany(documents, {}, [{$replaceWith: {b: '$a'}}])
+        assert.deepStrictEqual(documents, [{_id: 1, b: 1}, {_id: 2, b: 2}])
+        assert.throws((): unknown => mingo.updateMany(documents, {}, [{$set: {_id: 'x'}}]), ImmutableFieldError)
     })
 })
 

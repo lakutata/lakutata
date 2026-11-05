@@ -10,6 +10,14 @@ export { hashCode } from './_hash.js'
 /** Represents an error reported by the mingo library. */
 export class MingoError extends Error {}
 
+/**
+ * The error of an update changing the value of the _id of a document, which MongoDB fails with its code 66
+ * (ImmutableField).
+ */
+export class ImmutableFieldError extends MingoError {
+  readonly code = 66
+}
+
 // special value to identify missing items. treated differently from undefined
 export const MISSING = Symbol('missing')
 const ERR_CYCLE_FOUND = 'mingo: cycle detected while processing object/array'

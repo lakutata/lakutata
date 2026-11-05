@@ -11,7 +11,12 @@ import { $sort } from './operators/pipeline/sort.js'
 import { $unset } from './operators/pipeline/unset.js'
 import * as queryOperators from './operators/query/index.js'
 import * as updateOperators from './operators/update/index.js'
-import { buildParams, SingleKeyRecord } from './operators/update/_internal.js'
+import {
+  buildParams,
+  ERR_IMMUTABLE_FIELD,
+  isIdPath,
+  SingleKeyRecord
+} from './operators/update/_internal.js'
 import { Query } from './query.js'
 import {
   Any,
@@ -28,7 +33,9 @@ import {
   assert,
   cloneDeep,
   ensureArray,
+  has,
   hashCode,
+  ImmutableFieldError,
   isArray,
   isEqual,
   PathValidator,
@@ -220,6 +227,20 @@ function updateDocuments<T extends AnyObject>(
     .addQueryOps(queryOperators)
     .addPipelineOps(PIPELINE_OPERATORS)
 
+  const idKey = opts.idKey
+  /**
+   * A document updated by a pipeline as MongoDB keeps it: the id of the document it updates kept when the pipeline
+   * removes it; an id of another value fails it.
+   */
+  const keptId = (original: T, updated: T): T => {
+    if (!has(original, idKey)) return updated
+    if (!has(updated, idKey))
+      return { [idKey]: original[idKey], ...updated } as T
+    if (!isEqual(original[idKey], updated[idKey]))
+      throw new ImmutableFieldError(ERR_IMMUTABLE_FIELD(idKey, idKey))
+    return updated
+  }
+
   const filterExists = Object.keys(condition).length > 0
   const matchedDocs = new Map<T, number>()
   let docsIter = Lazy(documents)
@@ -302,16 +323,18 @@ function updateDocuments<T extends AnyObject>(
         'bug: indexes and result size must match.'
       )
       for (let i = 0; i < indexes.length; i++) {
-        if (hashCode(matches[i]) !== hashes[i]) {
-          documents[indexes[i]] = matches[i]
+        const updated = keptId(documents[indexes[i]], matches[i])
+        if (hashCode(updated) !== hashes[i]) {
+          documents[indexes[i]] = updated
           output.modifiedCount++
         }
       }
     } else {
       // update all documents where changes occurred
       for (let i = 0; i < documents.length; i++) {
-        if (hashCode(matches[i]) !== hashes[i]) {
-          documents[i] = matches[i]
+        const updated = keptId(documents[i], matches[i])
+        if (hashCode(updated) !== hashes[i]) {
+          documents[i] = updated
           output.modifiedCount++
         }
       }
@@ -359,6 +382,12 @@ function updateDocuments<T extends AnyObject>(
   const output = { matchedCount, modifiedCount: 0 }
   const modifiedFields: string[] = []
 
+  // the first path of the update in the id field: the id of each document checked once it is updated, the update
+  // failing when it changes its value (MongoDB immutability constraint), the document then left as it was
+  const idPath = updateExpressions
+    .flatMap(expr => Object.keys(expr))
+    .find(path => isIdPath(path, idKey))
+
   const fns: Callback<string[]>[] = []
   for (const op of Object.keys(modifier)) {
     const fn = UPDATE_OPERATORS[op] as Callback<(_: AnyObject) => string[]>
@@ -367,6 +396,7 @@ function updateDocuments<T extends AnyObject>(
   }
 
   for (const doc of foundDocs) {
+    const original = idPath !== undefined && has(doc, idKey) ? cloneDeep(doc) : undefined
     let modified = false
     for (const mutate of fns) {
       const fields = mutate(doc)
@@ -374,6 +404,11 @@ function updateDocuments<T extends AnyObject>(
         modified = true
         if (firstOnly) Array.prototype.push.apply(modifiedFields, fields)
       }
+    }
+    if (original && !(has(doc, idKey) && isEqual(original[idKey], doc[idKey]))) {
+      for (const key of Object.keys(doc)) delete (doc as AnyObject)[key]
+      Object.assign(doc, original)
+      throw new ImmutableFieldError(ERR_IMMUTABLE_FIELD(idPath!, idKey))
     }
     output.modifiedCount += +modified
   }
