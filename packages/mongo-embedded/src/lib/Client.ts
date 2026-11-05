@@ -2275,10 +2275,11 @@ export class EmbeddedCollection {
     }
 
     /**
-     * Drops the collection: false when it was not there
+     * Drops the collection: true, also when it was not there (as MongoDB 7.0 and later)
      */
     async drop(): Promise<boolean> {
-        return this.store.exclusive(() => this.store.drop(this.collectionName))
+        await this.store.exclusive(() => this.store.drop(this.collectionName))
+        return true
     }
 
     /**
@@ -3449,11 +3450,12 @@ export class EmbeddedDb {
     }
 
     /**
-     * Drops a collection: false when it was not there
+     * Drops a collection: true, also when it was not there (as MongoDB 7.0 and later)
      * @param name the name of the collection
      */
     async dropCollection(name: string): Promise<boolean> {
-        return this.store.exclusive(() => this.store.drop(name))
+        await this.store.exclusive(() => this.store.drop(name))
+        return true
     }
 
     /**

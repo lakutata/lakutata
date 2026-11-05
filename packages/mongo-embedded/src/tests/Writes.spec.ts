@@ -278,8 +278,10 @@ describe('The writes', (): void => {
             idIndex: {v: 2, key: {_id: 1}, name: '_id_'}
         })))
         assert.deepStrictEqual(await db.listCollections({name: 'b'}, {nameOnly: true}).toArray(), [{name: 'b', type: 'collection'}])
+        //Dropped, then not there: true, as MongoDB 7.0 and later
         assert.strictEqual(await created.drop(), true)
-        assert.strictEqual(await created.drop(), false)
+        assert.strictEqual(await created.drop(), true)
+        assert.strictEqual(await db.dropCollection('missing'), true)
         assert.deepStrictEqual((await db.collections()).map((collection: EmbeddedCollection): string => collection.collectionName), ['a'])
         await client.close()
     })
