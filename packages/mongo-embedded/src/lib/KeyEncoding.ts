@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { EmbeddedOperationError } from './Errors.js'
-import { type EmbeddedIndex, wildcardHolds, wildcardOf } from './Planner.js'
+import { type EmbeddedIndex, isWildcardField, wildcardHolds, wildcardOf } from './Planner.js'
 import type { EmbeddedDocument, EmbeddedValues } from './Values.js'
 
 /**
@@ -240,8 +240,9 @@ export class EmbeddedKeyEncoding {
     }
 
     /**
-     * The keys of a document in an index: the ones of its fields (keysOf), or of a wildcard index (each path it holds,
-     * then a value there).
+     * The keys of a document in an index: the ones of its fields (keysOf); of its wildcard term, each path it holds then
+     * a value there; of a compound wildcard index, the ones of its terms in their order (none when the document has none
+     * of its fields, its wildcard term MinKey when it has none of its paths).
      *
      * @param index
      * @param document
@@ -250,6 +251,46 @@ export class EmbeddedKeyEncoding {
         const wildcard = wildcardOf(index)
         if (wildcard === undefined)
             return this.keysOf(index.key, index.sparse, document)
+        const fields = Object.keys(index.key)
+        const term = fields.find(isWildcardField)!
+        const paths = this.wildcardKeysOf(index, wildcard, document).map((key) =>
+            this.direct(key, index.key[term])
+        )
+        if (fields.length === 1) return paths
+        const others = fields.filter((field) => field !== term)
+        const values = others.map((field) => this.valuesAt(document, field))
+        if (!paths.length && values.every((items) => items === undefined)) return []
+        if (values.filter((items) => items !== undefined && items.length > 1).length > 1)
+            throw new EmbeddedOperationError(
+                171,
+                'CannotIndexParallelArrays',
+                `cannot index parallel arrays [${others.join('] [')}]`
+            )
+        let keys: Buffer[] = [Buffer.alloc(0)]
+        for (const field of fields) {
+            const parts =
+                field === term
+                    ? paths.length
+                        ? paths
+                        : [this.direct(Buffer.of(Tag.MinKey), index.key[term])]
+                    : this.unique(
+                          (values[others.indexOf(field)] ?? [null]).map((item) =>
+                              this.direct(this.encode(item), index.key[field])
+                          )
+                      )
+            keys = keys.flatMap((key) => parts.map((part) => Buffer.concat([key, part])))
+        }
+        return this.unique(keys)
+    }
+
+    /**
+     * The keys of a document in the wildcard term of an index: each path it holds, then a value there.
+     *
+     * @param index
+     * @param wildcard the path of the term ("" for all the fields)
+     * @param document
+     */
+    protected wildcardKeysOf(index: EmbeddedIndex, wildcard: string, document: EmbeddedDocument): Buffer[] {
         const keys: Buffer[] = []
         const visit = (value: any, path: string) => {
             if (Array.isArray(value)) {

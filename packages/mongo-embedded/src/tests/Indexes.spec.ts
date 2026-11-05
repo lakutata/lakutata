@@ -217,7 +217,37 @@ describe('The indexes', (): void => {
         assert.deepStrictEqual(ns(await items.find({secret: 2}).toArray()), [3])
         assert.deepStrictEqual(ns(await items.find({'a.0.b': 2}).toArray()), [2])
         assert.strictEqual(await items.countDocuments({'a.b': {$gt: 0}}), 3)
+        //Compound: its other fields outside its wildcard term
         await assert.rejects(items.createIndex({'$**': 1, n: 1}), failure(67))
+        await assert.rejects(items.createIndex({'a.$**': 1, 'a.b': 1}), failure(67))
+        await assert.rejects(items.createIndex({'a.$**': 1, 'x.$**': 1}), failure(67))
+        await assert.rejects(items.createIndex({'a.$**': 1, h: 'hashed'}), failure(67))
+        await client.close()
+    })
+
+    it('hold in a compound wildcard index the documents with one of its fields at least, each path of its term with the other fields', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const items: EmbeddedCollection = client.db().collection('items')
+        await items.createIndex({tenant: 1, 'attrs.$**': 1}, {name: 'tenant_attrs'})
+        await items.createIndex({'$**': -1, tenant: 1}, {name: 'all_tenant', wildcardProjection: {tenant: 0, n: 0}})
+        await items.insertMany([
+            {n: 1, tenant: 1, attrs: {color: 'red', size: 2}},
+            {n: 2, tenant: 1, attrs: {color: 'blue'}},
+            {n: 3, tenant: 2, attrs: {color: 'red', tags: ['a', 'b']}},
+            {n: 4, tenant: 2},
+            {n: 5, attrs: {size: 3}},
+            {n: 6}
+        ])
+        const found = async (filter: Record<string, unknown>, hint: string): Promise<number[]> => ns(await items.find(filter, {hint: hint}).toArray())
+        assert.deepStrictEqual(await found({tenant: 2}, 'tenant_attrs'), [3, 4])
+        assert.deepStrictEqual(await found({tenant: {$gte: 1}, 'attrs.color': 'red'}, 'tenant_attrs'), [1, 3])
+        //Sparse: the document without its fields is not there
+        assert.deepStrictEqual(await found({}, 'tenant_attrs'), [1, 2, 3, 4, 5])
+        assert.deepStrictEqual(await found({'attrs.color': 'red'}, 'all_tenant'), [1, 3])
+        assert.deepStrictEqual(await found({'attrs.tags': 'b'}, 'all_tenant'), [3])
+        assert.deepStrictEqual(await found({'attrs.size': {$gt: 2}}, 'all_tenant'), [5])
+        assert.deepStrictEqual(ns(await items.find({'attrs.size': {$gte: 2}}).toArray()), [1, 5])
+        assert.strictEqual(await items.countDocuments({tenant: 1}), 2)
         await assert.rejects(items.createIndex({'a.$**': 1}, {wildcardProjection: {a: 1}}), failure(67))
         await assert.rejects(items.createIndex({'$**': 1}, {wildcardProjection: {a: 1, b: 0}, name: 'mixed'}), failure(67))
         await assert.rejects(items.createIndex({'x.$**': 1}, {unique: true}), failure(67))

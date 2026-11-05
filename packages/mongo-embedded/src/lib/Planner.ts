@@ -101,14 +101,24 @@ function after(bytes: Buffer): Buffer | undefined {
 }
 
 /**
- * The path of the field of a wildcard index ("" for all the fields), undefined when it is not one.
+ * Whether a field of an index is its wildcard term: "$**", or "<path>.$**".
+ *
+ * @param field
+ */
+export function isWildcardField(field: string): boolean {
+    return field === '$**' || field.endsWith('.$**')
+}
+
+/**
+ * The path of the wildcard term of an index ("" for all the fields), undefined when it has none: a wildcard index, or a
+ * compound one (its other terms fields).
  *
  * @param index
  */
 export function wildcardOf(index: EmbeddedIndex): string | undefined {
-    const [field] = Object.keys(index.key)
-    if (field === '$**') return ''
-    return field.endsWith('.$**') ? field.slice(0, -4) : undefined
+    const field = Object.keys(index.key).find(isWildcardField)
+    if (field === undefined) return undefined
+    return field === '$**' ? '' : field.slice(0, -4)
 }
 
 /**
@@ -284,11 +294,10 @@ export class EmbeddedPlanner {
         index: EmbeddedIndex,
         conditions: Map<string, Condition>
     ): [string, Condition] | undefined {
-        const wildcard = wildcardOf(index)
-        if (wildcard === undefined) {
-            const [path] = Object.keys(index.key)
-            const condition = conditions.get(path)
-            return condition ? [path, condition] : undefined
+        const [first] = Object.keys(index.key)
+        if (!isWildcardField(first)) {
+            const condition = conditions.get(first)
+            return condition ? [first, condition] : undefined
         }
         for (const [path, condition] of conditions)
             if (!path.split('.').some((name) => /^\d+$/.test(name)) && wildcardHolds(index, path))
@@ -310,21 +319,19 @@ export class EmbeddedPlanner {
         condition: Condition
     ): EmbeddedPlan | undefined {
         const encoding = this.collection.encoding
-        const direction = index.key[Object.keys(index.key)[0]]
+        const [first] = Object.keys(index.key)
+        const direction = index.key[first]
         const multikey = this.isMultikey(index)
         const wildcard = wildcardOf(index) !== undefined
-        // The entries of a wildcard index start with the path of their value
-        const prefix = wildcard ? encoding.encode(path) : Buffer.alloc(0)
+        // The entries of a wildcard term start with the path of their value
+        const prefix = isWildcardField(first) ? encoding.encode(path) : Buffer.alloc(0)
         const hashed = direction === 'hashed'
         if (condition.kind === 'equal') {
             const ranges: EmbeddedRange[] = []
             for (const value of condition.values) {
-                const key = Buffer.concat([
-                    prefix,
-                    hashed
-                        ? encoding.hash(value)
-                        : encoding.direct(encoding.encode(value), direction)
-                ])
+                const key = hashed
+                    ? encoding.hash(value)
+                    : encoding.direct(Buffer.concat([prefix, encoding.encode(value)]), direction)
                 const end = after(key)
                 ranges.push({
                     lower: { key: key, inclusive: true },

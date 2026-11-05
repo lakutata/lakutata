@@ -15,6 +15,8 @@ import {
     EmbeddedPlanner,
     type EmbeddedRange,
     ID_INDEX,
+    isWildcardField,
+    wildcardHolds,
     wildcardOf
 } from './Planner.js'
 import { predicatesOf } from './Prefilter.js'
@@ -1014,7 +1016,7 @@ export class EmbeddedCollection {
      * Creates an index, built from the documents there (in batches, the reads going on, the writes waiting for it), and
      * gives its name; nothing when the same index is there. It fails as MongoDB fails: an index of the same name or of
      * the same fields and another definition, a unique index on duplicate keys, the options and the kinds of indexes not
-     * supported (text, 2d, 2dsphere, a collation, a compound wildcard index)
+     * supported (text, 2d, 2dsphere, a collation)
      * @param keys its fields and their directions (1, -1, "hashed"; "$**" or "<path>.$**" for a wildcard index), or the
      * name of one field
      * @param options its name, unique, sparse, partialFilterExpression, hidden, wildcardProjection, expireAfterSeconds
@@ -1420,9 +1422,11 @@ export class EmbeddedCollection {
                 throw cannot(`${direction} indexes are not supported by mongo-embedded`)
             throw cannot(`Unknown index plugin '${direction}'`)
         }
-        const wildcards = fields.filter((field) => field === '$**' || field.endsWith('.$**'))
-        if (wildcards.length && fields.length > 1)
-            throw cannot('compound wildcard indexes are not supported by mongo-embedded')
+        const wildcards = fields.filter(isWildcardField)
+        if (wildcards.length > 1)
+            throw cannot('An index can have one wildcard term only')
+        if (wildcards.length && fields.some((field) => key[field] === 'hashed'))
+            throw cannot('A wildcard index cannot have a hashed field')
         if (fields.filter((field) => key[field] === 'hashed').length > 1)
             throw cannot('A maximum of one index field is allowed to be hashed')
         for (const option of Object.keys(options))
@@ -1481,6 +1485,14 @@ export class EmbeddedCollection {
             index.expireAfterSeconds = options.expireAfterSeconds
         if (wildcards.length && (index.unique || index.sparse))
             throw cannot(`Index type 'wildcard' does not support the '${index.unique ? 'unique' : 'sparse'}' option`)
+        // The other fields of a compound wildcard index outside its wildcard term (excluded by its projection)
+        const overlapping = fields.find(
+            (field) => wildcards.length && field !== wildcards[0] && wildcardHolds(index, field)
+        )
+        if (overlapping)
+            throw cannot(
+                `The wildcard term of a compound wildcard index cannot hold its field '${overlapping}': exclude it by its wildcardProjection`
+            )
         if (index.unique && fields.some((field) => key[field] === 'hashed'))
             throw cannot('Currently hashed indexes cannot guarantee uniqueness. Use a regular index.')
         return index
