@@ -245,11 +245,13 @@ describe('The storage of a database', (): void => {
             for (let commit: number = 0; commit < 300; commit++) {
                 await addon.write(database, 'items', Array.from({length: 10}, (_: unknown, index: number): NativeChange => [ChangeKind.Insert, keyOf(commit * 10 + index), documentOf(commit * 10 + index, {text: 'z'.repeat(3000)})]), true)
             }
-            //Idle (25 ms without a task): the WAL checkpointed, restarted by the next write and cut to 4 MiB
+            //Idle (25 ms without a task): the WAL checkpointed, restarted by the next write from its beginning (overwriting
+            //it, the file not growing; it is cut to 64 MiB once restarted, and holds less here)
+            const before: number = statSync(path.join(where, 'data.db-wal')).size
             await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 200))
             await addon.write(database, 'items', inserts([-1]))
             const wal: number = statSync(path.join(where, 'data.db-wal')).size
-            assert.ok(wal <= 4 * 1048576 + 65536, `${sync}: the WAL holds ${wal} bytes`)
+            assert.ok(before > 10 * 1048576 && wal <= before, `${sync}: the WAL holds ${wal} bytes, ${before} before`)
             assert.strictEqual(await addon.count(database, 'items'), 3001)
             await addon.close(database)
         }

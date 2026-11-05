@@ -429,7 +429,7 @@ int mde_open(const char *file, const MdeOptions *options, MdeStore **out, char *
   char pragmas[512];
   snprintf(pragmas, sizeof(pragmas),
            "PRAGMA auto_vacuum = NONE; PRAGMA journal_mode = WAL; PRAGMA wal_autocheckpoint = 0; PRAGMA synchronous = %s;"
-           "PRAGMA cache_size = -%lld; PRAGMA mmap_size = %lld; PRAGMA fullfsync = %d; PRAGMA journal_size_limit = 4194304;",
+           "PRAGMA cache_size = -%lld; PRAGMA mmap_size = %lld; PRAGMA fullfsync = %d; PRAGMA journal_size_limit = 67108864;",
            options->sync == MDE_SYNC_ALWAYS ? "FULL" : "NORMAL", (long long)(options->cacheBytes / 1024 > 0 ? options->cacheBytes / 1024 : 1),
            (long long)options->mmapBytes, options->sync == MDE_SYNC_ALWAYS ? 1 : 0);
   rc = Exec(store, pragmas, "the settings");
