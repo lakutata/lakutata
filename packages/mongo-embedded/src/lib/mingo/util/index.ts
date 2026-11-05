@@ -27,6 +27,7 @@ export {
   isSymbol,
   ImmutableFieldError,
   MingoError,
+  MongoCodeError,
   normalize,
   removeValue,
   resolve,

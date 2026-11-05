@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream'
 import * as bson from 'bson'
 import * as mingo from './mingo/index.js'
-import { ImmutableFieldError, resolve } from './mingo/util/index.js'
+import { ImmutableFieldError, MongoCodeError, resolve } from './mingo/util/index.js'
 import { withCollation } from './mingo/util/_bson.js'
 import {
     checkedOperation,
@@ -3169,7 +3169,8 @@ export class EmbeddedCollection {
     }
 
     /**
-     * Runs an update of mingo: a change of the _id it fails with is the error of MongoDB (ImmutableField, code 66).
+     * Runs an update of mingo: the errors it fails with a code of MongoDB (a changed _id, ImmutableField 66; a field of
+     * another type than a number, TypeMismatch 14...) are the errors of the client with that code.
      *
      * @param update
      */
@@ -3177,7 +3178,10 @@ export class EmbeddedCollection {
         try {
             update()
         } catch (error) {
-            throw error instanceof ImmutableFieldError ? this.immutableId() : error
+            if (error instanceof ImmutableFieldError) throw this.immutableId()
+            throw error instanceof MongoCodeError
+                ? new EmbeddedOperationError(error.code, error.codeName, error.message)
+                : error
         }
     }
 

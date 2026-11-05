@@ -22,6 +22,20 @@ export type SingleKeyRecord<K extends PropertyKey, V> = {
   [P in K]: Record<P, V>;
 }[K]
 
+/**
+ * The name of the type of a value, as MongoDB tells it in its errors.
+ *
+ * @param value
+ */
+export function typeName(value: Any): string {
+  if (value === null) return 'null'
+  if (Array.isArray(value)) return 'array'
+  if (value instanceof Date) return 'date'
+  if (typeof value === 'boolean') return 'bool'
+  if (typeof value === 'string') return 'string'
+  return typeof value === 'object' ? 'object' : typeof value
+}
+
 export const DEFAULT_OPTIONS = ComputeOptions.init({
   context: Context.init()
     .addQueryOps(queryOperators)

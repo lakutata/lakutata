@@ -1,21 +1,25 @@
 import { evalExpr } from '../../../core/_internal.js'
 import { Any, AnyObject, Options } from '../../../types.js'
-import { assert, isArray } from '../../../util/index.js'
-import { truncate } from './_internal.js'
+import { assert, isArray, isInteger, isNil } from '../../../util/index.js'
+import { isNumeric } from '../../../util/_bson.js'
+import { roundAt } from '../../../util/_numeric.js'
+import { errExpectInteger, errExpectNumber } from '../_internal.js'
 
 /**
- * Rounds a number to to a whole integer or to a specified decimal place.
+ * Rounds a number to a whole integer or to a specified decimal place, half to even, of its type (util/_numeric.ts).
+ *
+ * See {@link https://www.mongodb.com/docs/manual/reference/operator/aggregation/round/ usage}.
  */
-export const $round = (
-  obj: AnyObject,
-  expr: Any,
-  options: Options
-): number | null => {
+export const $round = (obj: AnyObject, expr: Any, options: Options): Any => {
   assert(isArray(expr), '$round expects array(2)')
-  const [n, precision] = evalExpr(obj, expr, options) as number[]
-  return truncate(n, precision ?? 0, {
-    name: '$round',
-    roundOff: true,
-    failOnError: options.failOnError
-  })
+  const [n, precision] = evalExpr(obj, expr, options) as [Any, number]
+  if (isNil(n)) return null
+  if (!isNumeric(n)) return errExpectNumber(options.failOnError, '$round arg1 <number>')
+  const places = precision ?? 0
+  if (!isInteger(places) || places < -20 || places > 100)
+    return errExpectInteger(options.failOnError, '$round arg2 <precision>', {
+      min: -20,
+      max: 100
+    })
+  return roundAt(n, places, 'round')
 }

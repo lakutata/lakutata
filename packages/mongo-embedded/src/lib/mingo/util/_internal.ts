@@ -17,11 +17,26 @@ export { hashCode } from './_hash.js'
 export class MingoError extends Error {}
 
 /**
+ * An error MongoDB gives with a code: its code and the name of the code.
+ */
+export class MongoCodeError extends MingoError {
+  constructor(
+    readonly code: number,
+    readonly codeName: string,
+    message: string
+  ) {
+    super(message)
+  }
+}
+
+/**
  * The error of an update changing the value of the _id of a document, which MongoDB fails with its code 66
  * (ImmutableField).
  */
-export class ImmutableFieldError extends MingoError {
-  readonly code = 66
+export class ImmutableFieldError extends MongoCodeError {
+  constructor(message: string) {
+    super(66, 'ImmutableField', message)
+  }
 }
 
 // special value to identify missing items. treated differently from undefined

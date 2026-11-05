@@ -1,20 +1,18 @@
 import { evalExpr } from '../../../core/_internal.js'
 import { Any, AnyObject, Options } from '../../../types.js'
 import { isNil } from '../../../util/index.js'
+import { isNumeric } from '../../../util/_bson.js'
+import { computed } from '../../../util/_numeric.js'
 import { errExpectNumber } from '../_internal.js'
 
 /**
- * Calculates the natural logarithm ln (i.e loge) of a number and returns the result as a double.
+ * Calculates the natural logarithm of a number: a double, a decimal for a decimal (util/_numeric.ts).
+ *
+ * See {@link https://www.mongodb.com/docs/manual/reference/operator/aggregation/ln/ usage}.
  */
-export const $ln = (
-  obj: AnyObject,
-  expr: Any,
-  options: Options
-): number | null => {
-  const n = evalExpr(obj, expr, options) as number
+export const $ln = (obj: AnyObject, expr: Any, options: Options): Any => {
+  const n = evalExpr(obj, expr, options)
   if (isNil(n)) return null
-  if (typeof n !== 'number') {
-    return errExpectNumber(options.failOnError, '$ln')
-  }
-  return Math.log(n)
+  if (!isNumeric(n)) return errExpectNumber(options.failOnError, '$ln')
+  return computed([n], Math.log)
 }

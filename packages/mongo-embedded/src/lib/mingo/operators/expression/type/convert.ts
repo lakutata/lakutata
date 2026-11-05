@@ -4,6 +4,7 @@ import { assert, has, isNil, isObject } from '../../../util/index.js'
 import { errInvalidArgs } from '../_internal.js'
 import { $toBool } from './toBool.js'
 import { $toDate } from './toDate.js'
+import { $toDecimal } from './toDecimal.js'
 import { $toDouble } from './toDouble.js'
 import { $toInt } from './toInt.js'
 import { $toLong } from './toLong.js'
@@ -51,11 +52,13 @@ export const $convert = (
         return $toDate(obj, input, options)
 
       case 1:
-      case 19:
       case 'double':
-      case 'decimal':
       case 'number':
         return $toDouble(obj, input, options)
+
+      case 19:
+      case 'decimal':
+        return $toDecimal(obj, input, options)
 
       case 16:
       case 'int':

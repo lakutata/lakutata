@@ -1,19 +1,34 @@
-import { AnyObject } from '../../types.js'
-import { assert, isNumber } from '../../util/index.js'
-import { applyUpdate, DEFAULT_OPTIONS, walkExpression } from './_internal.js'
+import { Any, AnyObject } from '../../types.js'
+import { MongoCodeError } from '../../util/index.js'
+import { isNumeric } from '../../util/_bson.js'
+import { add } from '../../util/_numeric.js'
+import {
+  applyUpdate,
+  DEFAULT_OPTIONS,
+  typeName,
+  walkExpression
+} from './_internal.js'
 
-/** Increments a field by a specified value. */
+/**
+ * Increments a field by a specified value, the numbers of every type added as MongoDB adds them (util/_numeric.ts);
+ * a field of another type fails it (TypeMismatch).
+ */
 export function $inc(
-  expr: Record<string, number>,
+  expr: Record<string, Any>,
   arrayFilters: AnyObject[] = [],
   options = DEFAULT_OPTIONS
 ) {
-  for (const amount of Object.values(expr)) {
-    assert(isNumber(amount), `Cannot increment with non-numeric argument.`)
+  for (const [field, amount] of Object.entries(expr)) {
+    if (!isNumeric(amount))
+      throw new MongoCodeError(
+        14,
+        'TypeMismatch',
+        `Cannot increment with non-numeric argument: {${field}: ${JSON.stringify(amount)}}`
+      )
   }
 
   return (obj: AnyObject) => {
-    return walkExpression<number>(
+    return walkExpression<Any>(
       expr,
       arrayFilters,
       options,
@@ -23,13 +38,19 @@ export function $inc(
           node,
           queries,
           (o: AnyObject, k: string) => {
-            if (isNumber(o[k]) || o[k] === undefined) {
-              const previous = o[k] as number | undefined
-              o[k] ||= 0;
-              (o[k] as number) += val
-              return o[k] !== previous
+            if (o[k] === undefined) {
+              o[k] = val
+              return true
             }
-            return false
+            if (!isNumeric(o[k]))
+              throw new MongoCodeError(
+                14,
+                'TypeMismatch',
+                `Cannot apply $inc to a value of non-numeric type. {_id: ${JSON.stringify(obj._id)}} has the field '${k}' of non-numeric type ${typeName(o[k])}`
+              )
+            const previous = o[k]
+            o[k] = add(o[k], val)
+            return o[k] !== previous
           },
           { buildGraph: true }
         )
