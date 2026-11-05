@@ -1,0 +1,7 @@
+export * from './allElementsTrue.js'
+export * from './anyElementTrue.js'
+export * from './setDifference.js'
+export * from './setEquals.js'
+export * from './setIntersection.js'
+export * from './setIsSubset.js'
+export * from './setUnion.js'

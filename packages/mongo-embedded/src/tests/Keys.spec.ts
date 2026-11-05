@@ -1,7 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import * as bson from 'bson'
-import * as mingo from 'mingo'
+import * as mingo from '../lib/mingo/index.js'
 import {EmbeddedKeyEncoding, UNORDERED_TAGS} from '../lib/KeyEncoding.js'
 import {EmbeddedValues} from '../lib/Values.js'
 

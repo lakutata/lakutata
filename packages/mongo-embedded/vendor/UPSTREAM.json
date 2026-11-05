@@ -13,5 +13,11 @@
         "sha256": "9e69a1353a4288450b0d5239ede11fc7f1f4c8e5eb07491fc8317eacb5b7de7e"
       }
     }
+  },
+  "mingo": {
+    "version": "7.2.4",
+    "archive": "https://github.com/kofrasa/mingo/archive/refs/tags/7.2.4.tar.gz",
+    "sha256": "14197486690c7b9703f19e3c32bc822e7413b21f65f750a55067e41c2843241b",
+    "into": "src/lib/mingo (its src, in the style of the repository: THIRD_PARTY_NOTICES.md)"
   }
 }

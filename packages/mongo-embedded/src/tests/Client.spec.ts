@@ -4,7 +4,7 @@ import {copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync
 import os from 'node:os'
 import path from 'node:path'
 import * as bson from 'bson'
-import * as mingo from 'mingo'
+import * as mingo from '../lib/mingo/index.js'
 import {EmbeddedBulkWriteError, EmbeddedClient, type EmbeddedCollection, EmbeddedDuplicateKeyError, ObjectId} from '../exports/MongoEmbedded.js'
 import {predicatesOf} from '../lib/Prefilter.js'
 

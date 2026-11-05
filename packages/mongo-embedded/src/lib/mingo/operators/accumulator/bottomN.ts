@@ -1,0 +1,24 @@
+import { ComputeOptions, evalExpr } from '../../core/_internal.js'
+import { Lazy } from '../../lazy.js'
+import { Any, Options, SortSpec } from '../../types.js'
+import { $sort } from '../pipeline/sort.js'
+import { $push } from './push.js'
+
+interface InputExpr {
+  n: Any
+  sortBy: SortSpec
+  output: string
+}
+
+/**
+ * Returns an aggregation of the bottom n elements within a group, according to the specified sort order.
+ * If the group contains fewer than n elements, $bottomN returns all elements in the group.
+ */
+export const $bottomN = (coll: Any[], expr: Any, options: Options) => {
+  const copts = options as ComputeOptions
+  const args = expr as InputExpr
+  const n = evalExpr(copts?.local?.groupId, args.n, copts) as number
+  const result = $sort(Lazy(coll), args.sortBy, options).collect()
+  const m = result.length
+  return $push(m <= n ? result : result.slice(m - n), args.output, copts)
+}

@@ -1,5 +1,5 @@
 import * as bson from 'bson'
-import * as mingo from 'mingo'
+import * as mingo from './mingo/index.js'
 import {
     EmbeddedBulkWriteError,
     EmbeddedDuplicateKeyError,
