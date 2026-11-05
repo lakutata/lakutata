@@ -359,26 +359,39 @@ export function isStreamed(
 const CURSOR_TIMEOUT = 600000
 
 /**
- * The cursors opened (read, not to their end nor closed), their idle ones timed out every minute (by a timer begun
- * with the first one, which does not hold the process)
+ * The cursors opened (read, not to their end nor closed, not of noCursorTimeout), their idle ones timed out every
+ * minute (by a timer begun with the first one, which does not hold the process); held weakly, a cursor dropped by its
+ * caller collected
  */
-const openCursors = new Set<EmbeddedResults>()
+const openCursors = new Set<WeakRef<EmbeddedResults>>()
 
 let watching = false
 
 /**
  * Adds a cursor to the open ones, the timer of their timeouts begun once.
  *
- * @param cursor
+ * @param reference the cursor, held weakly
  */
-function watchCursor(cursor: EmbeddedResults): void {
-    openCursors.add(cursor)
+function watchCursor(reference: WeakRef<EmbeddedResults>): void {
+    openCursors.add(reference)
     if (watching) return
     watching = true
     setInterval(() => {
         const now = Date.now()
-        for (const open of openCursors) open.timeOut(now)
+        for (const open of openCursors) {
+            const cursor = open.deref()
+            if (cursor) cursor.timeOut(now)
+            else openCursors.delete(open)
+        }
     }, 60000).unref?.()
+}
+
+/**
+ * The number of the cursors opened, which their timer watches
+ * @internal
+ */
+export function openCursorCount(): number {
+    return openCursors.size
 }
 
 /**
@@ -479,6 +492,11 @@ export abstract class EmbeddedResults {
     protected timedOut = false
 
     /**
+     * The cursor itself, held weakly among the open ones
+     */
+    protected readonly reference = new WeakRef<EmbeddedResults>(this)
+
+    /**
      * The documents not read yet, all of them
      */
     async toArray(): Promise<any[]> {
@@ -516,6 +534,7 @@ export abstract class EmbeddedResults {
     async hasNext(): Promise<boolean> {
         this.touch()
         await this.fill()
+        if (!this.buffer!.length && !this.pending) this.release()
         return this.buffer!.length > 0
     }
 
@@ -585,6 +604,7 @@ export abstract class EmbeddedResults {
      */
     noCursorTimeout(): this {
         this.timeless = true
+        this.release()
         return this
     }
 
@@ -594,7 +614,10 @@ export abstract class EmbeddedResults {
      * @param value its value
      */
     addCursorFlag(flag: string, value: boolean): this {
-        if (flag === 'noCursorTimeout') this.timeless = !!value
+        if (flag === 'noCursorTimeout') {
+            this.timeless = !!value
+            if (this.timeless) this.release()
+        }
         return this
     }
 
@@ -635,7 +658,10 @@ export abstract class EmbeddedResults {
      */
     timeOut(now = Date.now()): boolean {
         if (this.timeless || this.timedOut || this.buffer === undefined) return false
-        if (!this.buffer.length && !this.pending) return false
+        if (!this.buffer.length && !this.pending) {
+            this.release()
+            return false
+        }
         if (now - this.used < CURSOR_TIMEOUT) return false
         this.timedOut = true
         this.buffer = []
@@ -662,14 +688,14 @@ export abstract class EmbeddedResults {
         if (this.timedOut || this.timeOut())
             throw new EmbeddedOperationError(43, 'CursorNotFound', `cursor id ${this.id} not found`)
         this.used = Date.now()
-        watchCursor(this)
+        if (!this.timeless) watchCursor(this.reference)
     }
 
     /**
      * The cursor read to its end or closed: no longer among the open ones.
      */
     protected release(): void {
-        openCursors.delete(this)
+        openCursors.delete(this.reference)
     }
 
     /**

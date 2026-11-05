@@ -1,6 +1,7 @@
 import {describe, it} from 'node:test'
 import assert from 'node:assert'
 import {EmbeddedClient, type EmbeddedCollection, EmbeddedOperationError} from '../exports/MongoEmbedded.js'
+import {openCursorCount} from '../lib/Client.js'
 
 /**
  * Whether an error is the EmbeddedOperationError of a code
@@ -89,6 +90,20 @@ describe('The cursors', (): void => {
         const read = items.find({})
         await read.toArray()
         assert.strictEqual(read.timeOut(Date.now() + 60 * 60000), false)
+        //The cursors read to their end (by hasNext and next too), closed, or of noCursorTimeout: not watched
+        const before: number = openCursorCount()
+        const looped = items.find({})
+        while (await looped.hasNext()) await looped.next()
+        const closed = items.find({})
+        await closed.next()
+        await closed.close()
+        const timeless = items.find({}).noCursorTimeout()
+        await timeless.next()
+        assert.strictEqual(openCursorCount(), before)
+        const open = items.find({})
+        await open.next()
+        assert.strictEqual(openCursorCount(), before + 1)
+        await open.close()
         await client.close()
     })
 })
