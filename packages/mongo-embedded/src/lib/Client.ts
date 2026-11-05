@@ -1,6 +1,6 @@
 import * as bson from 'bson'
 import * as mingo from './mingo/index.js'
-import { ImmutableFieldError } from './mingo/util/index.js'
+import { ImmutableFieldError, resolve } from './mingo/util/index.js'
 import {
     checkedOperation,
     checkReplacement,
@@ -35,7 +35,8 @@ import {
     type EmbeddedChange,
     type EmbeddedCollectionState,
     EmbeddedStore,
-    type EmbeddedStoreOptions
+    type EmbeddedStoreOptions,
+    TEMPORARY_OUT
 } from './Store.js'
 import { type EmbeddedDocument, EmbeddedValues } from './Values.js'
 
@@ -687,6 +688,39 @@ function lookedUp(pipeline: unknown, names: Set<string> = new Set()): Set<string
 }
 
 /**
+ * The $lookup of a stage joining by a field (localField and foreignField, its pipeline reading no other collection),
+ * whose documents of the other collection are read by the values of the field; undefined for the other stages.
+ *
+ * @param stage
+ */
+function fieldLookupOf(stage: any): EmbeddedDocument | undefined {
+    const lookup =
+        isPlain(stage) && Object.keys(stage).length === 1 ? stage.$lookup : undefined
+    return isPlain(lookup) &&
+        typeof lookup.from === 'string' &&
+        typeof lookup.localField === 'string' &&
+        typeof lookup.foreignField === 'string' &&
+        !lookedUp(lookup.pipeline).size
+        ? lookup
+        : undefined
+}
+
+/**
+ * The names of the codes of MongoDB of the errors of the documents a $out inserts
+ */
+const OUT_ERRORS: Record<number, string> = {
+    11000: 'DuplicateKey',
+    171: 'CannotIndexParallelArrays',
+    16766: 'Location16766'
+}
+
+/**
+ * The values of whenMatched and whenNotMatched of a $merge (whenMatched may be a pipeline too)
+ */
+const WHEN_MATCHED = new Set(['replace', 'keepExisting', 'merge', 'fail'])
+const WHEN_NOT_MATCHED = new Set(['insert', 'discard', 'fail'])
+
+/**
  * A collection of an embedded MongoDB, with the methods of the collections of MongoDB that TypeORM calls. Its writes
  * find their documents a batch at a time (by their _id or a scan, the event loop yielded between the batches), then,
  * one write after the other (the exclusive operations of the store), read each document of a batch again, test it and
@@ -846,58 +880,422 @@ export class EmbeddedCollection {
     }
 
     /**
-     * The results of an aggregation pipeline, run by mingo
+     * The results of an aggregation pipeline, run by mingo. A $out or a $merge (the last stage) writes them to a
+     * collection, and the cursor gives none: $out replaces the documents of the collection by them at once (the
+     * collection keeping its indexes), as MongoDB does; $merge merges them into it a batch at a time, by the rules of
+     * MongoDB 8.0 (on, whenMatched, whenNotMatched, let). A $lookup joining by a field reads the documents of the
+     * other collection its values match, by its index, a batch of documents at a time
      * @param pipeline its stages
      * @param options its collation, variables (let) and hint (the index of its leading $match stages)
      */
     aggregate(pipeline: EmbeddedDocument[], options?: EmbeddedDocument) {
-        const { hint, ...rest } = options ?? {}
-        options = rest
+        const { hint, let: variables, ...rest } = options ?? {}
+        const aggregation: EmbeddedDocument =
+            variables === undefined ? rest : { ...rest, variables: variables }
         return new EmbeddedArrayCursor(async () => {
-            // The leading $match stages: the filter of the documents read, unless a collation or variables of the
-            // options change it
-            const filters: EmbeddedDocument[] = []
-            if (!options?.collation && !options?.let)
-                while (
-                    filters.length < pipeline.length &&
-                    this.isMatchStage(pipeline[filters.length])
+            const position = pipeline.findIndex(
+                (stage) => isPlain(stage) && ('$out' in stage || '$merge' in stage)
+            )
+            if (position >= 0 && position !== pipeline.length - 1)
+                throw new EmbeddedOperationError(
+                    40601,
+                    'Location40601',
+                    `${Object.keys(pipeline[position])[0]} can only be the final stage in the pipeline`
                 )
-                    filters.push(pipeline[filters.length].$match)
-            const filter = filters.length > 1 ? { $and: filters } : filters[0]
-            const stages = pipeline.slice(filters.length)
-            // The collections of $lookup, read at once before the pipeline runs (mingo resolves them at once)
+            const output = position >= 0 ? pipeline[position] : undefined
+            const documents = await this.aggregated(
+                output ? pipeline.slice(0, -1) : pipeline,
+                aggregation,
+                hint
+            )
+            if (!output) return documents
+            if (output.$out !== undefined) await this.out(documents, output.$out)
+            else await this.merge(documents, output.$merge, aggregation)
+            return []
+        })
+    }
+
+    /**
+     * The results of the stages of a pipeline: its leading $match stages the filter of the documents read (unless a
+     * collation or variables change them), a $group run in batches when it can be.
+     *
+     * @param pipeline
+     * @param options the options of mingo
+     * @param hint
+     */
+    private async aggregated(
+        pipeline: EmbeddedDocument[],
+        options: EmbeddedDocument,
+        hint?: EmbeddedHint
+    ): Promise<EmbeddedDocument[]> {
+        const changed = options.collation || options.variables
+        const filters: EmbeddedDocument[] = []
+        if (!changed)
+            while (
+                filters.length < pipeline.length &&
+                this.isMatchStage(pipeline[filters.length])
+            )
+                filters.push(pipeline[filters.length].$match)
+        const filter = filters.length > 1 ? { $and: filters } : filters[0]
+        const stages = pipeline.slice(filters.length)
+        // A $group (after stages of each document) run in batches: the memory of its groups, not of the documents
+        const batched = changed ? undefined : batchedGroupOf(stages)
+        if (batched)
+            return this.runStages(
+                await this.groupedInBatches(filter, batched, options, hint),
+                batched.rest,
+                options
+            )
+        return this.runStages(
+            await this.matching(filter, Infinity, hint),
+            stages,
+            options
+        )
+    }
+
+    /**
+     * Runs stages on documents by mingo: a $lookup joining by a field reads the documents of the other collection its
+     * values match (joined), the collections of the other stages ($lookup, $graphLookup, $unionWith) read at once
+     * before the stages up to the next $lookup joining by a field run (mingo resolves them at once).
+     *
+     * @param documents
+     * @param stages
+     * @param options the options of mingo
+     */
+    private async runStages(
+        documents: EmbeddedDocument[],
+        stages: EmbeddedDocument[],
+        options: EmbeddedDocument
+    ): Promise<EmbeddedDocument[]> {
+        let segment: EmbeddedDocument[] = []
+        const run = async () => {
+            if (!segment.length) return
             const looked = new Map<string, EmbeddedDocument[]>()
-            for (const name of lookedUp(stages)) {
-                const documents: EmbeddedDocument[] = []
+            for (const name of lookedUp(segment)) {
+                const read: EmbeddedDocument[] = []
                 for await (const batch of this.store.scan(name))
-                    for (const document of batch) documents.push(document)
-                looked.set(name, documents)
+                    for (const document of batch) read.push(document)
+                looked.set(name, read)
             }
-            const aggregation = {
+            documents = this.values.mingo.aggregate(documents, segment, {
                 ...options,
                 collectionResolver: (name: string) =>
                     (looked.get(name) ?? []).map((document) =>
                         this.values.copy(document)
                     )
+            })
+            segment = []
+        }
+        for (const stage of stages) {
+            const lookup = fieldLookupOf(stage)
+            if (!lookup) {
+                segment.push(stage)
+                continue
             }
-            // A $group (after stages of each document) run in batches: the memory of its groups, not of the documents
-            const batched =
-                options?.collation || options?.let
-                    ? undefined
-                    : batchedGroupOf(stages)
-            if (batched)
-                return this.groupedInBatches(filter, batched, aggregation, hint)
-            return this.values.mingo.aggregate(
-                await this.matching(filter, Infinity, hint),
-                stages,
-                aggregation
-            )
-        })
+            await run()
+            documents = await this.joined(documents, lookup, options)
+        }
+        await run()
+        return documents
     }
 
     /**
-     * The results of a pipeline whose $group runs in batches: each batch of the documents matching the filter grouped,
-     * the groups merged, then completed, then the rest of the pipeline run on them.
+     * Runs a $lookup joining by a field on documents, a batch at a time: the documents of the other collection read are
+     * the ones the values of the field of the batch match ($in of the values, of the items of the arrays too, null for
+     * a missing field: the ones the $lookup may join, in the order of their _id), by an index of the other collection;
+     * when it has none, all of them, read once.
+     *
+     * @param documents
+     * @param lookup
+     * @param options the options of mingo
+     */
+    private async joined(
+        documents: EmbeddedDocument[],
+        lookup: EmbeddedDocument,
+        options: EmbeddedDocument
+    ): Promise<EmbeddedDocument[]> {
+        const foreign = new EmbeddedCollection(lookup.from, this.store)
+        const state = this.store.collection(lookup.from)
+        let all: EmbeddedDocument[] | undefined = state ? undefined : []
+        const results: EmbeddedDocument[] = []
+        for (let start = 0; start < documents.length; start += YIELD_EVERY) {
+            if (start) await yieldLoop()
+            const batch = documents.slice(start, start + YIELD_EVERY)
+            let read = all
+            if (!read) {
+                const values: any[] = []
+                let regular = true
+                for (const document of batch) {
+                    const value = resolve(document, lookup.localField) ?? null
+                    for (const item of Array.isArray(value) ? [value, ...value] : [value]) {
+                        // A regular expression of $in matches strings: not the values $lookup tells equal
+                        if (item instanceof RegExp || item instanceof this.values.bson.BSONRegExp)
+                            regular = false
+                        values.push(item)
+                    }
+                }
+                const filter = { [lookup.foreignField]: { $in: values } }
+                if (regular && new EmbeddedPlanner(state!).plan(filter).kind !== 'scan') {
+                    read = await foreign.matching(filter)
+                    read.sort((a, b) =>
+                        Buffer.compare(this.values.idKey(a._id), this.values.idKey(b._id))
+                    )
+                } else read = all = await foreign.matching({})
+            }
+            const joining = read
+            for (const document of this.values.mingo.aggregate(
+                batch,
+                [{ $lookup: lookup }],
+                {
+                    ...options,
+                    collectionResolver: (name: string) =>
+                        name === lookup.from
+                            ? joining.map((document) => this.values.copy(document))
+                            : []
+                }
+            ))
+                results.push(document)
+        }
+        return results
+    }
+
+    /**
+     * Writes the results of a pipeline as the documents of a collection ($out), as MongoDB writes them: in a temporary
+     * collection with the indexes of the collection, then renamed to its name (the collection there dropped) in one
+     * transaction; a document failing (a duplicate key...) fails the $out, the collection unchanged.
+     *
+     * @param documents
+     * @param target the name of the collection, or {db, coll}
+     */
+    private async out(documents: EmbeddedDocument[], target: any): Promise<void> {
+        const name = typeof target === 'string' ? target : target?.coll
+        if (isPlain(target) && target.timeseries !== undefined)
+            throw notSupported('The option timeseries of $out')
+        checkName(name)
+        const indexes = this.store.collection(name)
+            ? await new EmbeddedCollection(name, this.store).indexes()
+            : []
+        const temporary = `${TEMPORARY_OUT}${new this.values.bson.ObjectId().toHexString()}`
+        const out = new EmbeddedCollection(temporary, this.store)
+        try {
+            await this.store.exclusive(() => this.store.create(temporary))
+            for (const index of indexes) {
+                if (index.name === '_id_') continue
+                const { key, v, ...rest } = index
+                void v
+                await out.createIndex(key, rest)
+            }
+            for (let start = 0; start < documents.length; start += YIELD_EVERY)
+                await out.insertMany(documents.slice(start, start + YIELD_EVERY))
+            await this.store.exclusive(() => this.store.rename(temporary, name, true))
+        } catch (error) {
+            await this.store
+                .exclusive(() => this.store.drop(temporary))
+                .catch(() => undefined)
+            const [writeError] =
+                error instanceof EmbeddedBulkWriteError ? error.writeErrors : []
+            throw writeError
+                ? new EmbeddedOperationError(
+                      writeError.code,
+                      OUT_ERRORS[writeError.code] ?? `Location${writeError.code}`,
+                      `insert for $out failed: ${writeError.errmsg}`
+                  )
+                : error
+        }
+    }
+
+    /**
+     * Merges the results of a pipeline into a collection ($merge, created when it is missing), a batch at a time (each
+     * one an exclusive operation of the store), by the rules of MongoDB 8.0: each document matched by the fields of on
+     * (the _id by default; other fields need a unique index of exactly them), then replaced, kept, merged (its fields
+     * set, by default), updated by a pipeline (the document of the results in $$new, the variables of let) or failing
+     * (whenMatched); inserted (by default), discarded or failing when none matches (whenNotMatched).
+     *
+     * @param documents
+     * @param spec the $merge: the name of the collection, or {into, on, whenMatched, whenNotMatched, let}
+     * @param options the options of mingo
+     */
+    private async merge(
+        documents: EmbeddedDocument[],
+        spec: any,
+        options: EmbeddedDocument
+    ): Promise<void> {
+        const merge: EmbeddedDocument = typeof spec === 'string' ? { into: spec } : spec
+        if (!isPlain(merge))
+            throw new EmbeddedOperationError(
+                2,
+                'BadValue',
+                '$merge requires a string or object argument'
+            )
+        const into = typeof merge.into === 'string' ? merge.into : merge.into?.coll
+        checkName(into)
+        const on: string[] =
+            merge.on === undefined
+                ? ['_id']
+                : Array.isArray(merge.on)
+                  ? merge.on
+                  : [merge.on]
+        const whenMatched = merge.whenMatched ?? 'merge'
+        const whenNotMatched = merge.whenNotMatched ?? 'insert'
+        if (!Array.isArray(whenMatched) && !WHEN_MATCHED.has(whenMatched))
+            throw new EmbeddedOperationError(
+                2,
+                'BadValue',
+                `Enumeration value '${whenMatched}' for field 'whenMatched' is not a valid value.`
+            )
+        if (!WHEN_NOT_MATCHED.has(whenNotMatched))
+            throw new EmbeddedOperationError(
+                2,
+                'BadValue',
+                `Enumeration value '${whenNotMatched}' for field 'whenNotMatched' is not a valid value.`
+            )
+        const byId = on.length === 1 && on[0] === '_id'
+        const unique = byId
+            ? undefined
+            : this.store
+                  .collection(into)
+                  ?.indexes.find(
+                      (index) =>
+                          index.unique &&
+                          !index.partialFilterExpression &&
+                          Object.keys(index.key).length === on.length &&
+                          on.every((field) => field in index.key)
+                  )
+        if (!byId && !unique)
+            throw new EmbeddedOperationError(
+                51183,
+                'Location51183',
+                'Cannot find index to verify that join fields will be unique'
+            )
+        const target = new EmbeddedCollection(into, this.store)
+        for (let start = 0; start < documents.length; start += YIELD_EVERY) {
+            if (start) await yieldLoop()
+            const batch = documents.slice(start, start + YIELD_EVERY)
+            await this.store.exclusive(async () => {
+                // The changes of the batch by the values of on: a document of the batch matching one changed before
+                // it in the batch changes that change
+                const changes = new Map<string, EmbeddedChange>()
+                for (const result of batch) {
+                    if (byId && result._id === undefined)
+                        result._id = new this.values.bson.ObjectId()
+                    const values = on.map((field) => resolve(result, field))
+                    if (
+                        values.some(
+                            (value) =>
+                                value === undefined || value === null || Array.isArray(value)
+                        )
+                    )
+                        throw new EmbeddedOperationError(
+                            51132,
+                            'Location51132',
+                            "$merge write error: 'on' field cannot be missing, null, undefined or an array"
+                        )
+                    const at = this.values.idKey(values).toString('latin1')
+                    const pending = changes.get(at)
+                    const matched =
+                        pending?.next ??
+                        (pending
+                            ? undefined
+                            : (
+                                  await target.matching(
+                                      Object.fromEntries(
+                                          on.map((field, position) => [field, values[position]])
+                                      ),
+                                      1
+                                  )
+                              )[0])
+                    if (!matched) {
+                        if (whenNotMatched === 'discard') continue
+                        if (whenNotMatched === 'fail')
+                            throw new EmbeddedOperationError(
+                                13113,
+                                'MergeStageNoMatchingDocument',
+                                '$merge could not find a matching document in the target collection for at least one document in the source collection'
+                            )
+                        const document = this.values.copy(result)
+                        document._id ??= new this.values.bson.ObjectId()
+                        changes.set(at, {
+                            key: this.values.idKey(document._id),
+                            next: document
+                        })
+                        continue
+                    }
+                    if (whenMatched === 'keepExisting') continue
+                    if (whenMatched === 'fail')
+                        throw new EmbeddedDuplicateKeyError(
+                            into,
+                            unique?.name ?? '_id_',
+                            Object.fromEntries(
+                                on.map((field, position) => [field, values[position]])
+                            )
+                        )
+                    let next: EmbeddedDocument
+                    if (Array.isArray(whenMatched))
+                        next = this.pipelined(matched, whenMatched, {
+                            new: result,
+                            ...this.letOf(merge.let, result, options)
+                        })
+                    else if (whenMatched === 'replace')
+                        next = { _id: matched._id, ...this.values.copy(result) }
+                    else next = { ...matched, ...this.values.copy(result) }
+                    if (!this.values.idKey(next._id).equals(this.values.idKey(matched._id)))
+                        throw new EmbeddedOperationError(
+                            66,
+                            'ImmutableField',
+                            '$merge failed to update the matching document, did you attempt to modify the _id field?'
+                        )
+                    changes.set(at, {
+                        key: this.values.idKey(matched._id),
+                        previous: pending ? pending.previous : matched,
+                        next: next
+                    })
+                }
+                await this.writeAll(into, [...changes.values()])
+            })
+        }
+    }
+
+    /**
+     * The variables of the let of a $merge: its expressions computed on a document of the results.
+     *
+     * @param variables
+     * @param document
+     * @param options
+     */
+    private letOf(
+        variables: EmbeddedDocument | undefined,
+        document: EmbeddedDocument,
+        options: EmbeddedDocument
+    ): EmbeddedDocument {
+        if (!variables || !Object.keys(variables).length) return {}
+        const [computed] = this.values.mingo.aggregate(
+            [document],
+            [{ $replaceWith: variables }],
+            options
+        )
+        return computed
+    }
+
+    /**
+     * Writes changes of a collection as one operation (the collection created when it is missing); when they fail, one
+     * at a time up to the one failing, then the error thrown. Run in an exclusive operation of the store.
+     *
+     * @param name
+     * @param changes
+     */
+    private async writeAll(name: string, changes: EmbeddedChange[]): Promise<void> {
+        try {
+            await this.store.write(name, changes, true)
+            return
+        } catch (error) {
+            if (changes.length === 1) throw error
+        }
+        for (const change of changes) await this.store.write(name, [change], true)
+    }
+
+    /**
+     * The groups of a pipeline whose $group runs in batches: each batch of the documents matching the filter grouped,
+     * the groups merged, then completed (the rest of the pipeline runs on them).
      *
      * @param filter
      * @param batched
@@ -923,16 +1321,13 @@ export class EmbeddedCollection {
                     merged = groups.length
                 }
             }
-        groups = groups.length
+        return groups.length
             ? mingo.aggregate(
                   groups,
                   [...batched.merge, ...batched.complete],
                   options
               )
             : batched.empty.map((document) => ({ ...document }))
-        return batched.rest.length
-            ? mingo.aggregate(groups, batched.rest, options)
-            : groups
     }
 
     /**
@@ -2369,10 +2764,12 @@ export class EmbeddedCollection {
      *
      * @param document
      * @param pipeline
+     * @param variables the variables of the pipeline
      */
     private pipelined(
         document: EmbeddedDocument,
-        pipeline: EmbeddedDocument[]
+        pipeline: EmbeddedDocument[],
+        variables?: EmbeddedDocument
     ): EmbeddedDocument {
         for (const stage of pipeline) {
             const [name] = Object.keys(stage)
@@ -2385,7 +2782,8 @@ export class EmbeddedCollection {
         }
         const [next] = this.values.mingo.aggregate(
             [this.values.copy(document)],
-            pipeline
+            pipeline,
+            variables ? { variables: variables } : undefined
         )
         return next._id === undefined && document._id !== undefined
             ? { _id: document._id, ...next }

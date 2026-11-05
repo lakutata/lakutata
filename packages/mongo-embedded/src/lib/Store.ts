@@ -138,6 +138,11 @@ const SCAN_BATCH: number = 1000
 const PREVIOUS_FORMAT: RegExp = /\.[0-9a-f]{8}\.log$/
 
 /**
+ * The start of the names of the temporary collections of $out, dropped when a database opens
+ */
+export const TEMPORARY_OUT: string = 'tmp.agg_out.'
+
+/**
  * The names of the codes of MongoDB a rename fails with
  */
 const RENAME_ERRORS: Record<number, string> = {20: 'IllegalOperation', 26: 'NamespaceNotFound', 48: 'NamespaceExists'}
@@ -571,7 +576,8 @@ export class EmbeddedStore {
 
     /**
      * The collections of the catalog and the definitions of their indexes; the tables of the indexes not in them (their
-     * build did not end) dropped
+     * build did not end) dropped, and the temporary collections of a $out that did not end (as MongoDB drops them when
+     * it starts)
      */
     protected async readCatalog(): Promise<void> {
         const listed: Buffer = await addon.collections(this.database)
@@ -599,5 +605,6 @@ export class EmbeddedStore {
             this.collections.set(name, collection)
         }
         for (const [name, table] of orphans) await addon.dropIndex(this.database, name, table)
+        for (const name of this.names()) if (name.startsWith(TEMPORARY_OUT)) await this.drop(name)
     }
 }
