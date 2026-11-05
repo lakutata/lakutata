@@ -1,5 +1,6 @@
 // The loading of the addon in each build (the build:addon script, after tsc): dist/*/lib/Addon.js written as a
-// require of build/Release/mongo_embedded.node by a path from the module, in the forms the builder of lakutata follows when it
+// require of build/Release/mongo_embedded.node by a path from the module (and the path of the data of the collations,
+// vendor/icu/icudt77l.dat), in the forms the builder of lakutata follows when it
 // packs an application (a URL from import.meta.url in the ES modules, a path from __dirname in CommonJS), so that the
 // addon is shipped in its native tree. The addon is built when the package is installed (node-gyp, binding.gyp), or
 // here when it was not.
@@ -36,10 +37,12 @@ try {
     throw error;
 }
 export const addon = loaded;
+export const collationData = fileURLToPath(new URL('../../../vendor/icu/icudt77l.dat', import.meta.url));
 `)
 await writeFile(path.join(root, 'dist/cjs/lib/Addon.js'), `"use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.addon = void 0;
+exports.collationData = require("node:path").join(__dirname, "..", "..", "..", "vendor", "icu", "icudt77l.dat");
 try {
     exports.addon = require(require("node:path").join(__dirname, "..", "..", "..", "build", "Release", "mongo_embedded.node"));
 } catch (error) {

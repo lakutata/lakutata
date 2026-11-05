@@ -215,6 +215,53 @@ export function canonicalNumber(v: Any): number | string {
 }
 
 /**
+ * The collation of the strings of an operation (a collator of ICU, given by the client): their order, and a key
+ * that the strings it tells equal share.
+ */
+export interface StringCollation {
+  compare(a: string, b: string): number
+  key(text: string): string
+}
+
+/** The collation of the operation running (withCollation), none for the order of the code points. */
+let current: StringCollation | undefined
+
+/**
+ * Runs a function with the strings compared, told equal and hashed by a collation (none: by their code points). mingo
+ * runs synchronously: the collation is the one of the function as long as it runs, then the previous one again.
+ *
+ * @param collation
+ * @param run
+ */
+export function withCollation<T>(
+  collation: StringCollation | undefined,
+  run: () => T
+): T {
+  const previous = current
+  current = collation
+  try {
+    return run()
+  } finally {
+    current = previous
+  }
+}
+
+/** The collation of the operation running, if any. */
+export function currentCollation(): StringCollation | undefined {
+  return current
+}
+
+/**
+ * Compares two strings by the collation of the operation running, by their code points without one.
+ *
+ * @param a
+ * @param b
+ */
+export function compareCollated(a: string, b: string): number {
+  return current ? current.compare(a, b) : compareStrings(a, b)
+}
+
+/**
  * Compares two strings by their code points (the order of their UTF-8 bytes, as MongoDB compares them).
  *
  * @param a
@@ -282,12 +329,13 @@ function hasOwnString(v: Any): boolean {
  *
  * @param a
  * @param b
- * @param strings compares the strings (a collation), by their code points by default
+ * @param strings compares the strings: by the collation of the operation running by default (withCollation), by
+ * their code points without one
  */
 export function compareBSON(
   a: Any,
   b: Any,
-  strings: (a: string, b: string) => number = compareStrings
+  strings: (a: string, b: string) => number = compareCollated
 ): number {
   if (a === b) return 0
   const bracketA = bracketOf(a)

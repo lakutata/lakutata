@@ -2,7 +2,13 @@
  * Utility constants and functions
  */
 import { Any, AnyObject, ArrayOrObject, Callback, Comparator } from '../types.js'
-import { bsonClassOf, canonicalNumber, compareBSON, isNumeric } from './_bson.js'
+import {
+  bsonClassOf,
+  canonicalNumber,
+  compareBSON,
+  currentCollation,
+  isNumeric
+} from './_bson.js'
 import { hashCode } from './_hash.js'
 
 export { hashCode } from './_hash.js'
@@ -61,7 +67,11 @@ export function isEqual(a: Any, b: Any): boolean {
   if (isNil(a) || isNil(b)) return false
   const typeA = typeof a
   const typeB = typeof b
-  if ((typeA === 'number' && typeB === 'number') || (typeA === 'string' && typeB === 'string')) return false
+  if (typeA === 'number' && typeB === 'number') return false
+  if (typeA === 'string' && typeB === 'string') {
+    const collation = currentCollation()
+    return !!collation && collation.compare(a as string, b as string) === 0
+  }
   if (typeA === 'function' || typeB === 'function' || typeA === 'symbol' || typeB === 'symbol') return false
   return compareBSON(a, b) === 0
 }
@@ -189,7 +199,17 @@ function canonicalKey(key: Any): Any {
     const value = canonicalNumber(key)
     return typeof value === 'number' ? value : `\u0000number:${value}`
   }
-  if (bsonClassOf(key) === 'BSONSymbol') return String((key as object).valueOf())
+  const text =
+    typeof key === 'string'
+      ? key
+      : bsonClassOf(key) === 'BSONSymbol'
+        ? String((key as object).valueOf())
+        : undefined
+  if (text !== undefined) {
+    // The strings a collation tells equal: one key
+    const collation = currentCollation()
+    return collation ? `\u0000string:${collation.key(text)}` : text
+  }
   return isPrimitive(key) ? key : NOT_PRIMITIVE
 }
 

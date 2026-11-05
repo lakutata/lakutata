@@ -7,3 +7,10 @@ import {type NativeAddon} from './Native.js'
  * @internal
  */
 export const addon: NativeAddon = undefined as unknown as NativeAddon
+
+/**
+ * The path of the data of the collations (vendor/icu/icudt77l.dat), written by the build with the addon: read once a
+ * collator is needed
+ * @internal
+ */
+export const collationData: string = ''

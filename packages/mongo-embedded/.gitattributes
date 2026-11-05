@@ -1,2 +1,5 @@
-# The amalgamation of SQLite, third-party code (vendor/UPSTREAM.json): left out of the languages of the repository
+# The amalgamation of SQLite and the part of ICU, third-party code (vendor/UPSTREAM.json): left out of the languages of
+# the repository; the data of ICU is binary
 native/engine/** linguist-vendored
+vendor/icu/** linguist-vendored
+*.dat binary

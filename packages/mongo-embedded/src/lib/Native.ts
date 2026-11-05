@@ -102,6 +102,29 @@ export enum NativeError {
 }
 
 /**
+ * A collator of ICU, closed once it is collected
+ * @internal
+ */
+export type NativeCollator = { readonly __collator: unique symbol }
+
+/**
+ * A collator opened and the attributes it takes
+ * @internal
+ */
+export interface NativeCollation {
+    collator: NativeCollator
+    strength: number
+    caseLevel: boolean
+    caseFirst: string
+    numericOrdering: boolean
+    alternate: string
+    maxVariable: string
+    normalization: boolean
+    backwards: boolean
+    version: string
+}
+
+/**
  * The options of a scan: the key it reads after (from the first document without it), the most documents it gives,
  * bytes of them and documents it reads, the predicates leaving out the documents
  * @internal
@@ -157,6 +180,32 @@ export interface NativeAddon {
      * of the entry whose key another document holds in a unique index
      */
     writeIndex(database: NativeDatabase, name: string, index: number, unique: boolean, keys: Buffer[], values: Buffer[]): Promise<void>
+
+    /**
+     * Whether the data of the collations was given (once for the process); with its bytes, given unless it was
+     */
+    collationData(bytes?: Buffer): boolean
+
+    /**
+     * The collator of a locale with the attributes given (checked by the client), and the attributes it takes (the
+     * ones of its locale when not given); a locale ICU does not know fails with the code 2 of MongoDB
+     */
+    collator(locale: string, attributes: Record<string, unknown>): NativeCollation
+
+    /**
+     * The sort key of a string: its bytes compared give the order of the collator (it ends with a 0, holds no other)
+     */
+    sortKey(collator: NativeCollator, text: string): Buffer
+
+    /**
+     * The sort keys of strings
+     */
+    sortKeys(collator: NativeCollator, texts: string[]): Buffer[]
+
+    /**
+     * The order of two strings by a collator: -1, 0 or 1
+     */
+    compareStrings(collator: NativeCollator, a: string, b: string): number
 
     /**
      * A collection created: false when it was there

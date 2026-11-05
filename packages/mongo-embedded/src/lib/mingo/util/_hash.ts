@@ -1,5 +1,5 @@
 // optimized-effective-hashcode.ts
-import { bsonClassOf, canonicalNumber } from './_bson.js'
+import { bsonClassOf, canonicalNumber, currentCollation } from './_bson.js'
 
 // FNV-1a 32-bit prime
 const MULTIPLIER = 0x01000193
@@ -110,7 +110,7 @@ function hashBson(value: unknown, seen: WeakSet<object>): number | undefined {
     case 'Decimal128':
       return hashCanonical(canonicalNumber(value))
     case 'BSONSymbol':
-      return mix(Tag.String, hashString(String(v.valueOf())))
+      return hashText(String(v.valueOf()))
     case 'ObjectId':
       return mix(Tag.Object, hashString(v.toHexString()))
     case 'Binary':
@@ -132,6 +132,17 @@ function hashBson(value: unknown, seen: WeakSet<object>): number | undefined {
       return mix(Tag.Object, hashObject(v.toJSON(), seen))
   }
   return undefined
+}
+
+/**
+ * The hash of a string: of its key in the collation of the operation running (the strings it tells equal have the
+ * same hash), of its code points without one.
+ *
+ * @param text
+ */
+function hashText(text: string): number {
+  const collation = currentCollation()
+  return mix(Tag.String, hashString(collation ? collation.key(text) : text))
 }
 
 // ------------------------------------------------------------
@@ -189,7 +200,7 @@ function internalHash(value: unknown, seen: WeakSet<object>): number {
     case 'number':
       return hashCanonical(value as number)
     case 'string':
-      return mix(Tag.String, hashString(value as string))
+      return hashText(value as string)
     case 'bigint':
       return hashCanonical(canonicalNumber(value))
     case 'function':

@@ -7,6 +7,7 @@
 #include <memory>
 #include <thread>
 
+#include "collation.h"
 #include "connection.h"
 #include "database.h"
 #include "prefilter.h"
@@ -655,6 +656,7 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("countRange", Napi::Function::New(env, CountRange, "countRange"));
   exports.Set("integrity", Napi::Function::New(env, Integrity, "integrity"));
   exports.Set("ping", Napi::Function::New(env, Ping, "ping"));
+  InitCollation(env, exports);
   return exports;
 }
 

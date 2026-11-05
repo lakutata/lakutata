@@ -1,0 +1,10 @@
+{
+  "strategy": "additive",
+  "featureFilters": {
+    "coll_ucadata": "include",
+    "coll_tree": "include",
+    "normalization": "include",
+    "unicore": "include",
+    "misc": "include"
+  }
+}
