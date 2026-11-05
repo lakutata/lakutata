@@ -281,14 +281,16 @@ export class EmbeddedStore {
      * predicates left out: the documents written while it reads are met when their keys are after the ones read
      * @param name
      * @param predicates
+     * @param first the documents of its first batch, when fewer are needed (a limit)
      */
-    async* scan(name: string, predicates: NativePredicate[] = []): AsyncGenerator<EmbeddedDocument[]> {
+    async* scan(name: string, predicates: NativePredicate[] = [], first: number = SCAN_BATCH): AsyncGenerator<EmbeddedDocument[]> {
         if (!this.collections.has(name)) return
         let after: Buffer | undefined
+        let limit: number = Math.max(1, Math.min(first, SCAN_BATCH))
         for (; ;) {
             const batch: { bytes: Buffer, last: Buffer | null, done: boolean } = await addon.scan(this.database, name, {
                 after: after,
-                limit: SCAN_BATCH,
+                limit: limit,
                 predicates: predicates.length ? predicates : undefined
             })
             const documents: EmbeddedDocument[] = []
@@ -298,6 +300,7 @@ export class EmbeddedStore {
             if (documents.length) yield documents
             if (batch.done || !batch.last) return
             after = batch.last
+            limit = SCAN_BATCH
         }
     }
 
@@ -309,19 +312,20 @@ export class EmbeddedStore {
      * @param name
      * @param table
      * @param ranges none: all the entries
-     * @param options
+     * @param options reversed, the predicates, the documents of its first batch when fewer are needed (a limit)
      */
-    async* scanRange(name: string, table: number, ranges: NativeRange[], options: { reverse?: boolean, predicates?: NativePredicate[] } = {}): AsyncGenerator<{ documents: EmbeddedDocument[], data: Buffer[] }> {
+    async* scanRange(name: string, table: number, ranges: NativeRange[], options: { reverse?: boolean, predicates?: NativePredicate[], first?: number } = {}): AsyncGenerator<{ documents: EmbeddedDocument[], data: Buffer[] }> {
         if (!this.collections.has(name)) return
         let after: Buffer | undefined
         let range: number = 0
+        let limit: number = Math.max(1, Math.min(options.first ?? SCAN_BATCH, SCAN_BATCH))
         for (; ;) {
             const batch: { bytes: Buffer, last: Buffer | null, range: number, done: boolean } = await addon.scanRange(this.database, name, table, {
                 ranges: ranges,
                 reverse: options.reverse,
                 range: range,
                 after: after,
-                limit: SCAN_BATCH,
+                limit: limit,
                 predicates: options.predicates?.length ? options.predicates : undefined
             })
             const documents: EmbeddedDocument[] = []
@@ -335,6 +339,7 @@ export class EmbeddedStore {
             if (batch.done || !batch.last) return
             after = batch.last
             range = batch.range
+            limit = SCAN_BATCH
         }
     }
 

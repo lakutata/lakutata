@@ -652,7 +652,7 @@ export class EmbeddedCollection {
         }
         const matcher = new this.values.mingo.Query(filter)
         const documents: EmbeddedDocument[] = []
-        for await (const batch of this.candidates(filter, hint))
+        for await (const batch of this.candidates(filter, hint, limit))
             for (const document of batch) {
                 if (!matcher.test(document)) continue
                 documents.push(document)
@@ -1233,7 +1233,7 @@ export class EmbeddedCollection {
             this.collectionName,
             this.tableOf(collection, walk.index),
             this.rangesOf(ranges),
-            { reverse: walk.reverse, predicates: predicatesOf(filter) }
+            { reverse: walk.reverse, predicates: predicatesOf(filter), first: count }
         ))
             for (const document of batch) {
                 if (UNORDERED_TAGS.has(this.values.keys.encode(this.values.valueAt(document, path))[0]))
@@ -1252,10 +1252,12 @@ export class EmbeddedCollection {
      *
      * @param filter
      * @param hint
+     * @param first the documents of the first batch of a scan, when fewer are needed (a limit)
      */
     private async *candidates(
         filter: EmbeddedDocument,
-        hint?: EmbeddedHint
+        hint?: EmbeddedHint,
+        first = Infinity
     ): AsyncGenerator<EmbeddedDocument[]> {
         const collection = this.store.collection(this.collectionName)
         if (!collection) return
@@ -1264,10 +1266,10 @@ export class EmbeddedCollection {
         const predicates = predicatesOf(filter)
         if (plan.kind === 'scan') {
             if (!plan.reverse) {
-                yield* this.store.scan(this.collectionName, predicates)
+                yield* this.store.scan(this.collectionName, predicates, first)
                 return
             }
-            for await (const { documents } of this.store.scanRange(this.collectionName, 0, [], { reverse: true, predicates: predicates }))
+            for await (const { documents } of this.store.scanRange(this.collectionName, 0, [], { reverse: true, predicates: predicates, first: first }))
                 yield documents
             return
         }
@@ -1300,7 +1302,7 @@ export class EmbeddedCollection {
             this.collectionName,
             this.tableOf(collection, plan.index),
             this.rangesOf(plan.ranges),
-            { predicates: predicates }
+            { predicates: predicates, first: first }
         )) {
             const unique = seen
                 ? documents.filter((_, position) => {
