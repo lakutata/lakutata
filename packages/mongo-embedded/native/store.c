@@ -106,6 +106,248 @@ void mde_buffer_free(MdeBuffer *buffer) {
   buffer->size = buffer->capacity = 0;
 }
 
+/*
+** The VFS of the databases ("mongo-embedded"): the default one of the system, but the writes of the frames of a WAL.
+** SQLite writes a frame as its header (24 bytes) then its page, two system calls; the header is held, then written with
+** the page following it as one write. Anything else on the file (another write, a read, a sync, a truncation, its size,
+** a control, its closing) writes the header held first: a frame is in the file once SQLite wrote it, before the index
+** of the WAL tells it, as without this VFS.
+*/
+#define MDE_FRAME_HEADER 24
+
+typedef struct MdeFile {
+  sqlite3_file base;
+  /* The file of the default VFS, allocated after this one */
+  sqlite3_file *real;
+  int wal;
+  /* The header of a frame held (size 0: none), and where it is written */
+  uint8_t header[MDE_FRAME_HEADER];
+  int held;
+  sqlite3_int64 heldAt;
+  /* The header and the page written together */
+  uint8_t *joined;
+  size_t joinedCapacity;
+} MdeFile;
+
+static sqlite3_vfs *mdeRealVfs;
+
+/* Writes the header held, if any */
+static int MdeFlush(MdeFile *file) {
+  if (!file->held) return SQLITE_OK;
+  file->held = 0;
+  return file->real->pMethods->xWrite(file->real, file->header, MDE_FRAME_HEADER, file->heldAt);
+}
+
+static int MdeClose(sqlite3_file *base) {
+  MdeFile *file = (MdeFile *)base;
+  int rc = MdeFlush(file);
+  int closed = file->real->pMethods->xClose(file->real);
+  free(file->joined);
+  file->joined = NULL;
+  return rc != SQLITE_OK ? rc : closed;
+}
+
+static int MdeRead(sqlite3_file *base, void *data, int amount, sqlite3_int64 offset) {
+  MdeFile *file = (MdeFile *)base;
+  int rc = MdeFlush(file);
+  return rc != SQLITE_OK ? rc : file->real->pMethods->xRead(file->real, data, amount, offset);
+}
+
+static int MdeWrite(sqlite3_file *base, const void *data, int amount, sqlite3_int64 offset) {
+  MdeFile *file = (MdeFile *)base;
+  if (file->wal && !file->held && amount == MDE_FRAME_HEADER) {
+    memcpy(file->header, data, MDE_FRAME_HEADER);
+    file->held = 1;
+    file->heldAt = offset;
+    return SQLITE_OK;
+  }
+  if (file->held && offset == file->heldAt + MDE_FRAME_HEADER) {
+    size_t size = (size_t)MDE_FRAME_HEADER + (size_t)amount;
+    if (Reserve(&file->joined, &file->joinedCapacity, size)) {
+      memcpy(file->joined, file->header, MDE_FRAME_HEADER);
+      memcpy(file->joined + MDE_FRAME_HEADER, data, (size_t)amount);
+      file->held = 0;
+      return file->real->pMethods->xWrite(file->real, file->joined, (int)size, file->heldAt);
+    }
+  }
+  int rc = MdeFlush(file);
+  return rc != SQLITE_OK ? rc : file->real->pMethods->xWrite(file->real, data, amount, offset);
+}
+
+static int MdeTruncate(sqlite3_file *base, sqlite3_int64 size) {
+  MdeFile *file = (MdeFile *)base;
+  int rc = MdeFlush(file);
+  return rc != SQLITE_OK ? rc : file->real->pMethods->xTruncate(file->real, size);
+}
+
+static int MdeSync(sqlite3_file *base, int flags) {
+  MdeFile *file = (MdeFile *)base;
+  int rc = MdeFlush(file);
+  return rc != SQLITE_OK ? rc : file->real->pMethods->xSync(file->real, flags);
+}
+
+static int MdeFileSize(sqlite3_file *base, sqlite3_int64 *size) {
+  MdeFile *file = (MdeFile *)base;
+  int rc = MdeFlush(file);
+  return rc != SQLITE_OK ? rc : file->real->pMethods->xFileSize(file->real, size);
+}
+
+static int MdeLock(sqlite3_file *base, int lock) {
+  MdeFile *file = (MdeFile *)base;
+  return file->real->pMethods->xLock(file->real, lock);
+}
+
+static int MdeUnlock(sqlite3_file *base, int lock) {
+  MdeFile *file = (MdeFile *)base;
+  int rc = MdeFlush(file);
+  int unlocked = file->real->pMethods->xUnlock(file->real, lock);
+  return rc != SQLITE_OK ? rc : unlocked;
+}
+
+static int MdeCheckReservedLock(sqlite3_file *base, int *reserved) {
+  MdeFile *file = (MdeFile *)base;
+  return file->real->pMethods->xCheckReservedLock(file->real, reserved);
+}
+
+static int MdeFileControl(sqlite3_file *base, int op, void *argument) {
+  MdeFile *file = (MdeFile *)base;
+  int rc = MdeFlush(file);
+  return rc != SQLITE_OK ? rc : file->real->pMethods->xFileControl(file->real, op, argument);
+}
+
+static int MdeSectorSize(sqlite3_file *base) {
+  MdeFile *file = (MdeFile *)base;
+  return file->real->pMethods->xSectorSize(file->real);
+}
+
+static int MdeDeviceCharacteristics(sqlite3_file *base) {
+  MdeFile *file = (MdeFile *)base;
+  return file->real->pMethods->xDeviceCharacteristics(file->real);
+}
+
+static int MdeShmMap(sqlite3_file *base, int region, int size, int extend, void volatile **memory) {
+  MdeFile *file = (MdeFile *)base;
+  return file->real->pMethods->xShmMap(file->real, region, size, extend, memory);
+}
+
+static int MdeShmLock(sqlite3_file *base, int offset, int count, int flags) {
+  MdeFile *file = (MdeFile *)base;
+  return file->real->pMethods->xShmLock(file->real, offset, count, flags);
+}
+
+static void MdeShmBarrier(sqlite3_file *base) {
+  MdeFile *file = (MdeFile *)base;
+  file->real->pMethods->xShmBarrier(file->real);
+}
+
+static int MdeShmUnmap(sqlite3_file *base, int deleteFlag) {
+  MdeFile *file = (MdeFile *)base;
+  return file->real->pMethods->xShmUnmap(file->real, deleteFlag);
+}
+
+static int MdeFetch(sqlite3_file *base, sqlite3_int64 offset, int amount, void **pointer) {
+  MdeFile *file = (MdeFile *)base;
+  int rc = MdeFlush(file);
+  return rc != SQLITE_OK ? rc : file->real->pMethods->xFetch(file->real, offset, amount, pointer);
+}
+
+static int MdeUnfetch(sqlite3_file *base, sqlite3_int64 offset, void *pointer) {
+  MdeFile *file = (MdeFile *)base;
+  return file->real->pMethods->xUnfetch(file->real, offset, pointer);
+}
+
+static const sqlite3_io_methods mdeMethods = {
+    3, MdeClose, MdeRead, MdeWrite, MdeTruncate, MdeSync, MdeFileSize, MdeLock, MdeUnlock, MdeCheckReservedLock,
+    MdeFileControl, MdeSectorSize, MdeDeviceCharacteristics, MdeShmMap, MdeShmLock, MdeShmBarrier, MdeShmUnmap,
+    MdeFetch, MdeUnfetch};
+
+static int MdeOpen(sqlite3_vfs *vfs, sqlite3_filename name, sqlite3_file *base, int flags, int *outFlags) {
+  (void)vfs;
+  MdeFile *file = (MdeFile *)base;
+  memset(file, 0, sizeof(MdeFile));
+  file->real = (sqlite3_file *)((uint8_t *)file + ((sizeof(MdeFile) + 7) & ~(size_t)7));
+  int rc = mdeRealVfs->xOpen(mdeRealVfs, name, file->real, flags, outFlags);
+  /* The methods of the default VFS for the files: the ones forwarded require its version 3 */
+  if (rc != SQLITE_OK || !file->real->pMethods || file->real->pMethods->iVersion < 3) {
+    if (rc == SQLITE_OK && file->real->pMethods) file->real->pMethods->xClose(file->real);
+    base->pMethods = NULL;
+    return rc != SQLITE_OK ? rc : SQLITE_CANTOPEN;
+  }
+  file->wal = (flags & SQLITE_OPEN_WAL) != 0;
+  base->pMethods = &mdeMethods;
+  return SQLITE_OK;
+}
+
+static int MdeDelete(sqlite3_vfs *vfs, const char *name, int syncDir) {
+  (void)vfs;
+  return mdeRealVfs->xDelete(mdeRealVfs, name, syncDir);
+}
+
+static int MdeAccess(sqlite3_vfs *vfs, const char *name, int flags, int *result) {
+  (void)vfs;
+  return mdeRealVfs->xAccess(mdeRealVfs, name, flags, result);
+}
+
+static int MdeFullPathname(sqlite3_vfs *vfs, const char *name, int size, char *out) {
+  (void)vfs;
+  return mdeRealVfs->xFullPathname(mdeRealVfs, name, size, out);
+}
+
+static int MdeRandomness(sqlite3_vfs *vfs, int size, char *out) {
+  (void)vfs;
+  return mdeRealVfs->xRandomness(mdeRealVfs, size, out);
+}
+
+static int MdeSleep(sqlite3_vfs *vfs, int microseconds) {
+  (void)vfs;
+  return mdeRealVfs->xSleep(mdeRealVfs, microseconds);
+}
+
+static int MdeCurrentTime(sqlite3_vfs *vfs, double *now) {
+  (void)vfs;
+  return mdeRealVfs->xCurrentTime(mdeRealVfs, now);
+}
+
+static int MdeGetLastError(sqlite3_vfs *vfs, int size, char *out) {
+  (void)vfs;
+  return mdeRealVfs->xGetLastError ? mdeRealVfs->xGetLastError(mdeRealVfs, size, out) : 0;
+}
+
+static int MdeCurrentTimeInt64(sqlite3_vfs *vfs, sqlite3_int64 *now) {
+  (void)vfs;
+  return mdeRealVfs->xCurrentTimeInt64(mdeRealVfs, now);
+}
+
+static sqlite3_vfs mdeVfs;
+
+/* The VFS registered once, by the first opening: the name to open the databases with */
+static const char *MdeVfs(void) {
+  static int registered = 0;
+  static sqlite3_mutex *mutex;
+  sqlite3_initialize();
+  mutex = sqlite3_mutex_alloc(SQLITE_MUTEX_STATIC_VFS1);
+  sqlite3_mutex_enter(mutex);
+  if (!registered) {
+    mdeRealVfs = sqlite3_vfs_find(0);
+    mdeVfs.iVersion = 2;
+    mdeVfs.szOsFile = (int)((sizeof(MdeFile) + 7) & ~(size_t)7) + mdeRealVfs->szOsFile;
+    mdeVfs.mxPathname = mdeRealVfs->mxPathname;
+    mdeVfs.zName = "mongo-embedded";
+    mdeVfs.xOpen = MdeOpen;
+    mdeVfs.xDelete = MdeDelete;
+    mdeVfs.xAccess = MdeAccess;
+    mdeVfs.xFullPathname = MdeFullPathname;
+    mdeVfs.xRandomness = MdeRandomness;
+    mdeVfs.xSleep = MdeSleep;
+    mdeVfs.xCurrentTime = MdeCurrentTime;
+    mdeVfs.xGetLastError = MdeGetLastError;
+    mdeVfs.xCurrentTimeInt64 = MdeCurrentTimeInt64;
+    registered = sqlite3_vfs_register(&mdeVfs, 0) == SQLITE_OK;
+  }
+  sqlite3_mutex_leave(mutex);
+  return registered ? mdeVfs.zName : NULL;
+}
+
 static int Fail(MdeStore *store, int rc, const char *message) {
   snprintf(store->message, sizeof(store->message), "%s", message);
   return rc;
@@ -416,7 +658,7 @@ int mde_open(const char *file, const MdeOptions *options, MdeStore **out, char *
     snprintf(message, size, "out of memory");
     return SQLITE_NOMEM;
   }
-  int rc = sqlite3_open_v2(file, &store->db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX, 0);
+  int rc = sqlite3_open_v2(file, &store->db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX, MdeVfs());
   if (rc != SQLITE_OK) {
     snprintf(message, size, "%s: %s", file, store->db ? sqlite3_errmsg(store->db) : "cannot open");
     sqlite3_close(store->db);
