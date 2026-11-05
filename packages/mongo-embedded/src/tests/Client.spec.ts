@@ -1,6 +1,6 @@
 import {after, describe, it} from 'node:test'
 import assert from 'node:assert'
-import {mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync} from 'node:fs'
+import {copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync} from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import * as bson from 'bson'
@@ -85,6 +85,16 @@ describe('The client', (): void => {
         writeFileSync(path.join(where, 'items.0123abcd.log'), '')
         await assert.rejects(EmbeddedClient.connect(where), /holds a database of the format of mongo-embedded before its native storage/)
         assert.deepStrictEqual(readdirSync(where), ['items.0123abcd.log'])
+    })
+
+    it('refuses a database of its format 1, keyed before the keys of the indexes', async (): Promise<void> => {
+        const where: string = directory()
+        mkdirSync(where)
+        //Written by the build of phase 1 (src/tests/fixtures/format-1: a collection, one document)
+        copyFileSync(new URL('../../../src/tests/fixtures/format-1/data.db', import.meta.url), path.join(where, 'data.db'))
+        await assert.rejects(EmbeddedClient.connect(where), /the file is a database of an earlier format of mongo-embedded \(1, not 2\), which is not read/)
+        //Its directory not left locked
+        await assert.rejects(EmbeddedClient.connect(where), /earlier format/)
     })
 
     it('leaves out of its scans only the documents mingo does not match (the prefilter)', async (): Promise<void> => {

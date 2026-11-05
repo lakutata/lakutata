@@ -116,6 +116,21 @@ describe('The indexes', (): void => {
         await client.close()
     })
 
+    it('sort in memory the documents of the values an index does not order as MongoDB does', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const plain: EmbeddedCollection = client.db().collection('plain')
+        const indexed: EmbeddedCollection = client.db().collection('indexed')
+        await indexed.createIndex({r: 1})
+        const documents = (): Record<string, unknown>[] => [{n: 1, r: /b/}, {n: 2, r: 'z'}, {n: 3, r: /a/i}, {n: 4, r: 5}, {n: 5, r: /a/}]
+        await plain.insertMany(documents())
+        await indexed.insertMany(documents())
+        for (const direction of [1, -1] as const) {
+            const sorted = async (collection: EmbeddedCollection): Promise<number[]> => (await collection.find({}).sort({r: direction}).limit(4).toArray()).map((document: Record<string, any>): number => document.n)
+            assert.deepStrictEqual(await sorted(indexed), await sorted(plain), String(direction))
+        }
+        await client.close()
+    })
+
     it('keep the keys of the unique indexes once, the missing fields one null, as MongoDB does', async (): Promise<void> => {
         const where: string = directory()
         let client: EmbeddedClient = await EmbeddedClient.connect(where)

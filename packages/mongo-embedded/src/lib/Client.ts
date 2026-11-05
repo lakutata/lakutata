@@ -29,7 +29,17 @@ import {
 import { type EmbeddedDocument, EmbeddedValues } from './Values.js'
 
 /**
- * an index hinted to a query: its name, its fields, or $natural (a scan in the order of the _id, 1, or reversed, -1).
+ * An index hinted to a query: its name, its fields, or {$natural: 1} for a scan in the order of the _id
+ * ({$natural: -1} reversed)
+ *
+ * @example
+ * import {EmbeddedClient, type EmbeddedHint} from '@lakutata/mongo-embedded'
+ *
+ * const client = await EmbeddedClient.connect()
+ * const items = client.db().collection('items')
+ * await items.createIndex({n: 1}, {name: 'n'})
+ * const hint: EmbeddedHint = {n: 1}
+ * console.log(await items.find({n: {$gte: 2}}).hint(hint).toArray())
  */
 export type EmbeddedHint = string | EmbeddedDocument
 

@@ -1,4 +1,4 @@
-export {EmbeddedClient, type EmbeddedDb, type EmbeddedCollection, type EmbeddedFindCursor, type EmbeddedArrayCursor} from '../lib/Client.js'
+export {EmbeddedClient, type EmbeddedDb, type EmbeddedCollection, type EmbeddedFindCursor, type EmbeddedArrayCursor, type EmbeddedHint} from '../lib/Client.js'
 export {MongoEmbeddedError, EmbeddedOperationError, EmbeddedDuplicateKeyError, EmbeddedBulkWriteError, type EmbeddedWriteError} from '../lib/Errors.js'
 export {type EmbeddedStoreOptions} from '../lib/Store.js'
 export {type EmbeddedDocument} from '../lib/Values.js'
