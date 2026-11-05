@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream'
 import * as bson from 'bson'
 import * as mingo from './mingo/index.js'
 import { ImmutableFieldError, resolve } from './mingo/util/index.js'
@@ -353,6 +354,80 @@ export function isStreamed(
 }
 
 /**
+ * The time a cursor idle stays open: 10 minutes, as the cursors of the server of MongoDB
+ */
+const CURSOR_TIMEOUT = 600000
+
+/**
+ * The cursors opened (read, not to their end nor closed), their idle ones timed out every minute (by a timer begun
+ * with the first one, which does not hold the process)
+ */
+const openCursors = new Set<EmbeddedResults>()
+
+let watching = false
+
+/**
+ * Adds a cursor to the open ones, the timer of their timeouts begun once.
+ *
+ * @param cursor
+ */
+function watchCursor(cursor: EmbeddedResults): void {
+    openCursors.add(cursor)
+    if (watching) return
+    watching = true
+    setInterval(() => {
+        const now = Date.now()
+        for (const open of openCursors) open.timeOut(now)
+    }, 60000).unref?.()
+}
+
+/**
+ * The number of the cursors made, which gives their ids
+ */
+let cursors = 0
+
+/**
+ * The time the reads of an operation may take (maxTimeMS): the time spent in them, counted while they run (not while
+ * the caller does not read); beyond it, they fail with EmbeddedOperationError of code 50 (MaxTimeMSExpired), as
+ * MongoDB fails them.
+ */
+export class EmbeddedTimeLimit {
+    private spent = 0
+
+    private since?: number
+
+    /**
+     * @param limit the milliseconds
+     */
+    constructor(readonly limit: number) {}
+
+    /**
+     * Its reads running: their time counted
+     */
+    start(): void {
+        this.since ??= performance.now()
+    }
+
+    /**
+     * Its reads waiting for the caller: their time not counted
+     */
+    stop(): void {
+        if (this.since === undefined) return
+        this.spent += performance.now() - this.since
+        this.since = undefined
+    }
+
+    /**
+     * Fails once the time spent passed the limit
+     */
+    check(): void {
+        const running = this.since === undefined ? 0 : performance.now() - this.since
+        if (this.spent + running > this.limit)
+            throw new EmbeddedOperationError(50, 'MaxTimeMSExpired', 'operation exceeded time limit')
+    }
+}
+
+/**
  * the results of a query of an embedded collection, read with the API of the cursors of MongoDB. TypeORM
  * sets their transform, applied to each document read. toArray() reads them at once; next() reads them a batch at a
  * time when they stream (batches()), else at once; toArray() after next() gives the ones not given yet.
@@ -364,6 +439,11 @@ export abstract class EmbeddedResults {
     transform?: (document: EmbeddedDocument) => any
 
     /**
+     * Its id, which the error of a cursor timed out tells
+     */
+    readonly id: bigint = BigInt(++cursors)
+
+    /**
      * The documents read and not given yet (transformed), none before a read.
      */
     protected buffer?: any[]
@@ -371,23 +451,51 @@ export abstract class EmbeddedResults {
     /**
      * The batches of the documents not read yet, while they stream.
      */
-    protected stream?: AsyncIterator<EmbeddedDocument[]>
+    protected pending?: AsyncIterator<EmbeddedDocument[]>
+
+    /**
+     * The most milliseconds its reads may take (maxTimeMS), 0 for no limit
+     */
+    protected maxTime = 0
+
+    /**
+     * The time its reads took, counted against maxTime
+     */
+    protected time?: EmbeddedTimeLimit
+
+    /**
+     * Whether it is never timed out when it is idle
+     */
+    protected timeless = false
+
+    /**
+     * When it was used last
+     */
+    protected used = Date.now()
+
+    /**
+     * Whether it was timed out, idle: its reads fail
+     */
+    protected timedOut = false
 
     /**
      * The documents not read yet, all of them
      */
     async toArray(): Promise<any[]> {
+        this.touch()
         if (this.buffer === undefined) {
             const documents = await this.read()
             this.buffer = []
+            this.release()
             return documents
         }
         const documents = this.buffer
         this.buffer = []
-        while (this.stream) {
+        while (this.pending) {
             const batch = await this.nextBatch()
             if (batch) for (const document of batch) documents.push(document)
         }
+        this.release()
         return documents
     }
 
@@ -395,16 +503,109 @@ export abstract class EmbeddedResults {
      * The next document, null after the last one
      */
     async next(): Promise<any | null> {
+        this.touch()
         await this.fill()
-        return this.buffer!.shift() ?? null
+        const document = this.buffer!.shift() ?? null
+        if (!this.buffer!.length && !this.pending) this.release()
+        return document
     }
 
     /**
      * Whether a document is left to read
      */
     async hasNext(): Promise<boolean> {
+        this.touch()
         await this.fill()
         return this.buffer!.length > 0
+    }
+
+    /**
+     * Calls a function with each document not read yet, in their order, until it returns false
+     * @param iterator the function
+     */
+    async forEach(iterator: (document: any) => boolean | void): Promise<void> {
+        let document: any
+        while ((document = await this.next()) !== null)
+            if (iterator(document) === false) return
+    }
+
+    /**
+     * A function applied to each document read, after the ones applied before
+     * @param transform the function
+     */
+    map(transform: (document: any) => any): this {
+        const previous = this.transform
+        this.transform = previous
+            ? (document) => transform(previous(document))
+            : transform
+        return this
+    }
+
+    /**
+     * Rewinds the cursor: its documents are read again from the start at the next read, by its options
+     */
+    rewind(): void {
+        const pending = this.pending
+        this.pending = undefined
+        this.buffer = undefined
+        this.time = undefined
+        this.timedOut = false
+        this.used = Date.now()
+        void pending?.return?.()
+    }
+
+    /**
+     * A readable stream (of objects) of the documents not read yet
+     * @param options a function applied to each document
+     */
+    stream(options?: { transform?: (document: any) => any }): Readable {
+        const transform = options?.transform
+        return Readable.from(
+            (async function* (cursor: EmbeddedResults) {
+                for await (const document of cursor)
+                    yield transform ? transform(document) : document
+            })(this)
+        )
+    }
+
+    /**
+     * The most milliseconds its reads may take, together (0: no limit): beyond, a read fails with
+     * EmbeddedOperationError of code 50 (MaxTimeMSExpired), as MongoDB fails it
+     * @param milliseconds the time
+     */
+    maxTimeMS(milliseconds: number): this {
+        if (typeof milliseconds !== 'number' || !(milliseconds >= 0) || milliseconds > 2147483647)
+            throw new EmbeddedOperationError(2, 'BadValue', `${milliseconds} value for maxTimeMS is out of range [0, 2147483647]`)
+        this.maxTime = milliseconds
+        return this
+    }
+
+    /**
+     * The cursor is never timed out when it is idle (by default, after 10 minutes)
+     */
+    noCursorTimeout(): this {
+        this.timeless = true
+        return this
+    }
+
+    /**
+     * Sets a flag of the cursor: noCursorTimeout (the other ones of MongoDB are kept, without effect)
+     * @param flag its name
+     * @param value its value
+     */
+    addCursorFlag(flag: string, value: boolean): this {
+        if (flag === 'noCursorTimeout') this.timeless = !!value
+        return this
+    }
+
+    /**
+     * The number of the documents of a batch of the server of MongoDB: kept, without effect (the cursor reads its own
+     * batches)
+     * @param size the number
+     */
+    batchSize(size: number): this {
+        void size
+        return this
     }
 
     /**
@@ -412,9 +613,10 @@ export abstract class EmbeddedResults {
      */
     async close(): Promise<void> {
         this.buffer = []
-        const stream = this.stream
-        this.stream = undefined
-        await stream?.return?.()
+        const pending = this.pending
+        this.pending = undefined
+        this.release()
+        await pending?.return?.()
     }
 
     /**
@@ -423,6 +625,51 @@ export abstract class EmbeddedResults {
     async *[Symbol.asyncIterator](): AsyncGenerator<any> {
         let document: any
         while ((document = await this.next()) !== null) yield document
+    }
+
+    /**
+     * Whether it is open, idle since its timeout: then its documents are dropped (as MongoDB kills its cursors idle for
+     * 10 minutes), unless it is never timed out
+     *
+     * @param now
+     */
+    timeOut(now = Date.now()): boolean {
+        if (this.timeless || this.timedOut || this.buffer === undefined) return false
+        if (!this.buffer.length && !this.pending) return false
+        if (now - this.used < CURSOR_TIMEOUT) return false
+        this.timedOut = true
+        this.buffer = []
+        const pending = this.pending
+        this.pending = undefined
+        void pending?.return?.()
+        this.release()
+        return true
+    }
+
+    /**
+     * The time limit of its reads (maxTimeMS), if any, begun at the first read.
+     */
+    protected timeLimit(): EmbeddedTimeLimit | undefined {
+        if (!this.maxTime) return undefined
+        this.time ??= new EmbeddedTimeLimit(this.maxTime)
+        return this.time
+    }
+
+    /**
+     * A read: it fails when the cursor timed out, idle; the cursor kept among the open ones, its use noted.
+     */
+    protected touch(): void {
+        if (this.timedOut || this.timeOut())
+            throw new EmbeddedOperationError(43, 'CursorNotFound', `cursor id ${this.id} not found`)
+        this.used = Date.now()
+        watchCursor(this)
+    }
+
+    /**
+     * The cursor read to its end or closed: no longer among the open ones.
+     */
+    protected release(): void {
+        openCursors.delete(this)
     }
 
     /**
@@ -440,10 +687,10 @@ export abstract class EmbeddedResults {
      */
     protected async fill(): Promise<void> {
         if (this.buffer === undefined) {
-            this.stream = this.batches()
-            this.buffer = this.stream ? [] : await this.read()
+            this.pending = this.batches()
+            this.buffer = this.pending ? [] : await this.read()
         }
-        while (!this.buffer.length && this.stream) {
+        while (!this.buffer.length && this.pending) {
             const batch = await this.nextBatch()
             if (batch) this.buffer = batch
         }
@@ -453,9 +700,9 @@ export abstract class EmbeddedResults {
      * The next batch of the stream, transformed; undefined once it ended.
      */
     protected async nextBatch(): Promise<any[] | undefined> {
-        const result = await this.stream!.next()
+        const result = await this.pending!.next()
         if (result.done) {
-            this.stream = undefined
+            this.pending = undefined
             return undefined
         }
         return this.transform
@@ -584,6 +831,23 @@ export class EmbeddedFindCursor extends EmbeddedResults {
     }
 
     protected async documents(): Promise<EmbeddedDocument[]> {
+        const time = this.timeLimit()
+        time?.start()
+        try {
+            const documents = await this.found(time)
+            time?.check()
+            return documents
+        } finally {
+            time?.stop()
+        }
+    }
+
+    /**
+     * Its documents, read in the time of its limit (maxTimeMS)
+     *
+     * @param time
+     */
+    private async found(time?: EmbeddedTimeLimit): Promise<EmbeddedDocument[]> {
         const collator = this.collator
         // Sorted by an index: the documents read in its order, up to the limit
         const ordered =
@@ -592,7 +856,8 @@ export class EmbeddedFindCursor extends EmbeddedResults {
                       this.query,
                       this.order,
                       this.skipped + this.limited,
-                      collator
+                      collator,
+                      time
                   )
                 : undefined
         if (ordered) return this.projected(ordered.slice(this.skipped))
@@ -603,7 +868,8 @@ export class EmbeddedFindCursor extends EmbeddedResults {
                 ? this.skipped + this.limited
                 : Infinity,
             this.hinted,
-            collator
+            collator,
+            time
         )
         // Without an order, a skip and a limit of counts (integers, not negative) cut the documents found, in their
         // order: mingo is not needed
@@ -652,10 +918,14 @@ export class EmbeddedFindCursor extends EmbeddedResults {
     private async *streamed(): AsyncGenerator<EmbeddedDocument[]> {
         let skip = this.skipped
         let left = this.limited || Infinity
+        // The time of the reads counted, not the one the caller takes between them
+        const time = this.timeLimit()
+        time?.start()
         for await (const batch of this.collection.matchingBatches(
             this.query,
             this.hinted,
-            this.collator
+            this.collator,
+            time
         )) {
             let documents = batch
             if (skip) {
@@ -665,9 +935,15 @@ export class EmbeddedFindCursor extends EmbeddedResults {
             }
             if (documents.length > left) documents = documents.slice(0, left)
             left -= documents.length
-            if (documents.length) yield this.projected(documents)
-            if (!left) return
+            if (documents.length) {
+                const projected = this.projected(documents)
+                time?.stop()
+                yield projected
+                time?.start()
+            }
+            if (!left) break
         }
+        time?.stop()
     }
 }
 
@@ -683,16 +959,24 @@ export class EmbeddedFindCursor extends EmbeddedResults {
  */
 export class EmbeddedArrayCursor extends EmbeddedResults {
     /**
-     * @param compute the documents, computed at the first read
+     * @param compute the documents, computed at the first read, in the time of its limit (maxTimeMS)
      */
     constructor(
-        protected readonly compute: () => Promise<EmbeddedDocument[]>
+        protected readonly compute: (time?: EmbeddedTimeLimit) => Promise<EmbeddedDocument[]>
     ) {
         super()
     }
 
-    protected documents(): Promise<EmbeddedDocument[]> {
-        return this.compute()
+    protected async documents(): Promise<EmbeddedDocument[]> {
+        const time = this.timeLimit()
+        time?.start()
+        try {
+            const documents = await this.compute(time)
+            time?.check()
+            return documents
+        } finally {
+            time?.stop()
+        }
     }
 }
 
@@ -798,12 +1082,14 @@ export class EmbeddedCollection {
      * @param limit the most documents given
      * @param hint the index they are found by
      * @param collator the collation of its strings, if any
+     * @param time the time its reads may take (maxTimeMS), if any
      */
     async matching(
         query?: EmbeddedDocument,
         limit = Infinity,
         hint?: EmbeddedHint,
-        collator?: EmbeddedCollator
+        collator?: EmbeddedCollator,
+        time?: EmbeddedTimeLimit
     ): Promise<EmbeddedDocument[]> {
         const filter = this.values.copy(query ?? {})
         if (limit <= 0) return []
@@ -819,7 +1105,7 @@ export class EmbeddedCollection {
         }
         const matches = this.matcherOf(filter, collator)
         const documents: EmbeddedDocument[] = []
-        for await (const batch of this.candidates(filter, hint, limit, collator))
+        for await (const batch of this.candidates(filter, hint, limit, collator, time))
             for (const document of batch) {
                 if (!matches(document)) continue
                 documents.push(document)
@@ -831,11 +1117,13 @@ export class EmbeddedCollection {
     /**
      * A cursor of the documents matching a filter
      * @param query the filter
-     * @param options its projection, sort, skip, limit, hint and collation
+     * @param options its projection, sort, skip, limit, hint, collation, maxTimeMS and noCursorTimeout
      */
     find(query?: EmbeddedDocument, options?: EmbeddedDocument) {
         const cursor = new EmbeddedFindCursor(this, query ?? {})
         if (options?.collation) cursor.collation(options.collation)
+        if (options?.maxTimeMS) cursor.maxTimeMS(options.maxTimeMS)
+        if (options?.noCursorTimeout) cursor.noCursorTimeout()
         if (options?.projection) cursor.project(options.projection)
         if (options?.sort) cursor.sort(options.sort)
         if (options?.skip) cursor.skip(options.skip)
@@ -870,8 +1158,9 @@ export class EmbeddedCollection {
         if (exact !== undefined)
             return Math.max(Math.min(exact, limit) - skip, 0)
         const matches = this.matcherOf(filter, collator)
+        const time = this.timeLimitOf(options)
         let count = 0
-        for await (const batch of this.candidates(filter, options?.hint, Infinity, collator))
+        for await (const batch of this.candidates(filter, options?.hint, Infinity, collator, time))
             for (const document of batch)
                 if (matches(document) && ++count >= limit)
                     return Math.max(count - skip, 0)
@@ -910,7 +1199,7 @@ export class EmbeddedCollection {
     ): Promise<any[]> {
         const values = new Map<string, any>()
         const collator = collatorOf(options?.collation)
-        for (const document of await this.matching(query, Infinity, options?.hint, collator)) {
+        for (const document of await this.matching(query, Infinity, options?.hint, collator, this.timeLimitOf(options))) {
             const value = this.values.valueAt(document, key)
             // Each value once, as MongoDB tells them equal (1, 1.0, Long(1) and Decimal128("1") one value; the strings
             // of a collation by it): by its key
@@ -934,10 +1223,10 @@ export class EmbeddedCollection {
      */
     aggregate(pipeline: EmbeddedDocument[], options?: EmbeddedDocument) {
         // The collation compares the strings of every stage (withCollation), not given to mingo
-        const { hint, let: variables, collation, ...rest } = options ?? {}
+        const { hint, let: variables, collation, maxTimeMS, ...rest } = options ?? {}
         const aggregation: EmbeddedDocument =
             variables === undefined ? rest : { ...rest, variables: variables }
-        return new EmbeddedArrayCursor(async () => {
+        const cursor = new EmbeddedArrayCursor(async (time) => {
             const collator = collatorOf(collation)
             const position = pipeline.findIndex(
                 (stage) => isPlain(stage) && ('$out' in stage || '$merge' in stage)
@@ -953,13 +1242,16 @@ export class EmbeddedCollection {
                 output ? pipeline.slice(0, -1) : pipeline,
                 aggregation,
                 hint,
-                collator
+                collator,
+                time
             )
             if (!output) return documents
             if (output.$out !== undefined) await this.out(documents, output.$out)
             else await this.merge(documents, output.$merge, aggregation, collator)
             return []
         })
+        if (maxTimeMS) cursor.maxTimeMS(maxTimeMS)
+        return cursor
     }
 
     /**
@@ -970,12 +1262,14 @@ export class EmbeddedCollection {
      * @param options the options of mingo
      * @param hint
      * @param collator the collation of its strings, if any
+     * @param time the time its reads may take (maxTimeMS), if any
      */
     private async aggregated(
         pipeline: EmbeddedDocument[],
         options: EmbeddedDocument,
         hint?: EmbeddedHint,
-        collator?: EmbeddedCollator
+        collator?: EmbeddedCollator,
+        time?: EmbeddedTimeLimit
     ): Promise<EmbeddedDocument[]> {
         const changed = options.variables
         const filters: EmbeddedDocument[] = []
@@ -991,16 +1285,18 @@ export class EmbeddedCollection {
         const batched = changed ? undefined : batchedGroupOf(stages)
         if (batched)
             return this.runStages(
-                await this.groupedInBatches(filter, batched, options, hint, collator),
+                await this.groupedInBatches(filter, batched, options, hint, collator, time),
                 batched.rest,
                 options,
-                collator
+                collator,
+                time
             )
         return this.runStages(
-            await this.matching(filter, Infinity, hint, collator),
+            await this.matching(filter, Infinity, hint, collator, time),
             stages,
             options,
-            collator
+            collator,
+            time
         )
     }
 
@@ -1013,12 +1309,14 @@ export class EmbeddedCollection {
      * @param stages
      * @param options the options of mingo
      * @param collator the collation of the strings, if any
+     * @param time the time its reads may take (maxTimeMS), if any: checked after each part of the stages
      */
     private async runStages(
         documents: EmbeddedDocument[],
         stages: EmbeddedDocument[],
         options: EmbeddedDocument,
-        collator?: EmbeddedCollator
+        collator?: EmbeddedCollator,
+        time?: EmbeddedTimeLimit
     ): Promise<EmbeddedDocument[]> {
         let segment: EmbeddedDocument[] = []
         const run = async () => {
@@ -1041,6 +1339,7 @@ export class EmbeddedCollection {
                         )
                 })
             )
+            time?.check()
             segment = []
         }
         for (const stage of stages) {
@@ -1051,6 +1350,7 @@ export class EmbeddedCollection {
             }
             await run()
             documents = await this.joined(documents, lookup, options, collator)
+            time?.check()
         }
         await run()
         return documents
@@ -1364,19 +1664,21 @@ export class EmbeddedCollection {
      * @param options
      * @param hint
      * @param collator the collation of the strings (the keys of the groups too), if any
+     * @param time the time its reads may take (maxTimeMS), if any
      */
     private async groupedInBatches(
         filter: EmbeddedDocument | undefined,
         batched: BatchedGroup,
         options: EmbeddedDocument,
         hint?: EmbeddedHint,
-        collator?: EmbeddedCollator
+        collator?: EmbeddedCollator,
+        time?: EmbeddedTimeLimit
     ): Promise<EmbeddedDocument[]> {
         const aggregate = (documents: EmbeddedDocument[], stages: EmbeddedDocument[]) =>
             withCollation(collator, () => this.values.mingo.aggregate(documents, stages, options))
         let groups: EmbeddedDocument[] = []
         let merged = 0
-        for await (const batch of this.matchingBatches(filter, hint, collator))
+        for await (const batch of this.matchingBatches(filter, hint, collator, time))
             for (const group of aggregate(batch, batched.batch)) {
                 groups.push(group)
                 // The groups merged stay before the ones of the batches after them, and a $group keeps the order of
@@ -1397,17 +1699,19 @@ export class EmbeddedCollection {
      * @param query the filter
      * @param hint the index they are found by
      * @param collator the collation of its strings, if any
+     * @param time the time its reads may take (maxTimeMS), if any
      */
     async *matchingBatches(
         query?: EmbeddedDocument,
         hint?: EmbeddedHint,
-        collator?: EmbeddedCollator
+        collator?: EmbeddedCollator,
+        time?: EmbeddedTimeLimit
     ): AsyncGenerator<EmbeddedDocument[]> {
         const filter = this.values.copy(query ?? {})
         const matches = Object.keys(filter).length
             ? this.matcherOf(filter, collator)
             : undefined
-        for await (const batch of this.candidates(filter, hint, Infinity, collator)) {
+        for await (const batch of this.candidates(filter, hint, Infinity, collator, time)) {
             const matched = matches ? batch.filter(matches) : batch
             if (matched.length) yield matched
         }
@@ -1969,12 +2273,14 @@ export class EmbeddedCollection {
      * @param count the most documents given
      * @param collator the collation of the strings of the filter and of the sort, if any (an index of the same one
      * gives their order)
+     * @param time the time its reads may take (maxTimeMS), if any
      */
     async ordered(
         query: EmbeddedDocument,
         sort: EmbeddedDocument,
         count: number,
-        collator?: EmbeddedCollator
+        collator?: EmbeddedCollator,
+        time?: EmbeddedTimeLimit
     ): Promise<EmbeddedDocument[] | undefined> {
         const collection = this.store.collection(this.collectionName)
         if (!collection) return []
@@ -1994,7 +2300,8 @@ export class EmbeddedCollection {
             this.tableOf(collection, walk.index),
             this.rangesOf(ranges),
             { reverse: walk.reverse, predicates: predicatesOf(filter), first: count }
-        ))
+        )) {
+            time?.check()
             for (const document of batch) {
                 if (UNORDERED_TAGS.has(this.values.keys.encode(this.values.valueAt(document, path))[0]))
                     return undefined
@@ -2002,6 +2309,7 @@ export class EmbeddedCollection {
                 documents.push(document)
                 if (documents.length >= count) return documents
             }
+        }
         return documents
     }
 
@@ -2015,13 +2323,23 @@ export class EmbeddedCollection {
      * @param first the documents of the first batch of a scan, when fewer are needed (a limit)
      * @param collator the collation of its strings, if any (an index of another one serves its conditions without
      * strings only)
+     * @param time the time its reads may take (maxTimeMS), if any: checked at each batch
      */
     private async *candidates(
         filter: EmbeddedDocument,
         hint?: EmbeddedHint,
         first = Infinity,
-        collator?: EmbeddedCollator
+        collator?: EmbeddedCollator,
+        time?: EmbeddedTimeLimit
     ): AsyncGenerator<EmbeddedDocument[]> {
+        if (time) {
+            for await (const batch of this.candidates(filter, hint, first, collator)) {
+                time.check()
+                yield batch
+            }
+            time.check()
+            return
+        }
         const collection = this.store.collection(this.collectionName)
         if (!collection) return
         const planner = new EmbeddedPlanner(collection, collator)
@@ -2834,6 +3152,20 @@ export class EmbeddedCollection {
         } catch (error) {
             throw error instanceof ImmutableFieldError ? this.immutableId() : error
         }
+    }
+
+    /**
+     * The time limit of an operation (its maxTimeMS), begun now; none without one.
+     *
+     * @param options
+     */
+    private timeLimitOf(options?: EmbeddedDocument): EmbeddedTimeLimit | undefined {
+        if (!options?.maxTimeMS) return undefined
+        if (typeof options.maxTimeMS !== 'number' || !(options.maxTimeMS > 0) || options.maxTimeMS > 2147483647)
+            throw new EmbeddedOperationError(2, 'BadValue', `${options.maxTimeMS} value for maxTimeMS is out of range [0, 2147483647]`)
+        const time = new EmbeddedTimeLimit(options.maxTimeMS)
+        time.start()
+        return time
     }
 
     /**
