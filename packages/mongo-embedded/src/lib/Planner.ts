@@ -1,11 +1,12 @@
-import type { EmbeddedKeyEncoding } from './KeyEncoding.js'
+import type { EmbeddedKeyEncoding, EmbeddedSortKeys } from './KeyEncoding.js'
 import type { EmbeddedDocument } from './Values.js'
 
 /**
  * An index of a collection, as MongoDB lists it: its fields and their directions (1, -1, "hashed"; a wildcard field
  * "$**" or "<path>.$**"), whether its keys are unique, whether the documents without its fields are left out of it,
  * the filter of the documents it holds (a partial index), whether the queries leave it out (hidden), the fields of a
- * wildcard index. Its expiration is kept, not applied.
+ * wildcard index, the collation of its strings (every field of it, as MongoDB lists it). Its expiration is kept, not
+ * applied.
  */
 export interface EmbeddedIndex {
     name: string
@@ -16,6 +17,7 @@ export interface EmbeddedIndex {
     hidden?: boolean
     wildcardProjection?: EmbeddedDocument
     expireAfterSeconds?: number
+    collation?: EmbeddedDocument
 }
 
 /**
@@ -34,6 +36,11 @@ export interface EmbeddedPlannedCollection {
     readonly indexes: EmbeddedIndex[]
     readonly multikey: Set<string>
     readonly encoding: EmbeddedKeyEncoding
+
+    /**
+     * The collator of an index with a collation, none for an index of the code points
+     */
+    collatorOf(index: EmbeddedIndex): EmbeddedSortKeys | undefined
 }
 
 /**
@@ -156,7 +163,15 @@ export function wildcardHolds(index: EmbeddedIndex, path: string): boolean {
  * paths of the items of arrays), its documents tested by the filter.
  */
 export class EmbeddedPlanner {
-    constructor(protected readonly collection: EmbeddedPlannedCollection) {}
+    /**
+     * @param collection
+     * @param collator the collation of the query, none for the code points: an index of another collation serves
+     * only its conditions without strings, as in MongoDB
+     */
+    constructor(
+        protected readonly collection: EmbeddedPlannedCollection,
+        protected readonly collator?: EmbeddedSortKeys
+    ) {}
 
     /**
      * The plan of a filter, by an index when one is hinted (its name, its fields, or $natural for a scan).
@@ -195,7 +210,8 @@ export class EmbeddedPlanner {
             return plan
         }
         const ids = conditions.get('_id')
-        if (ids && ids.kind === 'equal')
+        // The keys of the _id are the ones of the code points
+        if (ids && ids.kind === 'equal' && !(this.collator && this.hasStrings(ids)))
             return { kind: 'id', ids: ids.values, exact: alone && ids.complete }
         let best: { plan: EmbeddedPlan, score: number } | undefined
         for (const index of [this.idIndex(), ...this.collection.indexes]) {
@@ -238,12 +254,15 @@ export class EmbeddedPlanner {
         const fields = Object.keys(sort)
         if (fields.length !== 1) return undefined
         const direction = sort[fields[0]] === -1 || sort[fields[0]] === '-1' ? -1 : 1
-        if (fields[0] === '_id') return { index: ID_INDEX, reverse: direction !== 1 }
+        // The order of an index is the one of the strings of its collation: the one of the sort
+        if (fields[0] === '_id')
+            return this.collator ? undefined : { index: ID_INDEX, reverse: direction !== 1 }
         for (const index of this.collection.indexes) {
             const [path] = Object.keys(index.key)
             const indexDirection = this.directionOf(index.key[path])
             if (
                 path !== fields[0] ||
+                this.collection.collatorOf(index)?.id !== this.collator?.id ||
                 !indexDirection ||
                 index.sparse ||
                 index.partialFilterExpression ||
@@ -319,6 +338,9 @@ export class EmbeddedPlanner {
         condition: Condition
     ): EmbeddedPlan | undefined {
         const encoding = this.collection.encoding
+        const collator = this.collection.collatorOf(index)
+        // An index of another collation: the conditions without strings only (their keys the same)
+        if (collator?.id !== this.collator?.id && this.hasStrings(condition)) return undefined
         const [first] = Object.keys(index.key)
         const direction = index.key[first]
         const multikey = this.isMultikey(index)
@@ -332,8 +354,8 @@ export class EmbeddedPlanner {
             const ranges: EmbeddedRange[] = []
             for (const value of condition.values) {
                 const key = hashed
-                    ? encoding.hash(value)
-                    : encoding.direct(Buffer.concat([prefix, encoding.encode(value)]), direction)
+                    ? encoding.hash(value, collator)
+                    : encoding.direct(Buffer.concat([prefix, encoding.encode(value, collator)]), direction)
                 const end = after(key)
                 ranges.push({
                     lower: { key: key, inclusive: true },
@@ -370,13 +392,13 @@ export class EmbeddedPlanner {
         const tag = encoding.encode(bound)[0]
         const range: EmbeddedRange = {}
         if (lower) {
-            const key = Buffer.concat([prefix, encoding.encode(lower.value)])
+            const key = Buffer.concat([prefix, encoding.encode(lower.value, collator)])
             range.lower = lower.inclusive
                 ? { key: key, inclusive: true }
                 : { key: after(key)!, inclusive: true }
         } else range.lower = { key: Buffer.concat([prefix, Buffer.of(tag)]), inclusive: true }
         if (upper && encoding.encode(upper.value)[0] === tag) {
-            const key = Buffer.concat([prefix, encoding.encode(upper.value)])
+            const key = Buffer.concat([prefix, encoding.encode(upper.value, collator)])
             const end = after(key)
             range.upper = upper.inclusive
                 ? end
@@ -479,6 +501,17 @@ export class EmbeddedPlanner {
             }
         }
         return range.lower || range.upper ? range : undefined
+    }
+
+    /**
+     * Whether a condition compares strings (whose keys are the ones of a collation).
+     *
+     * @param condition
+     */
+    protected hasStrings(condition: Condition): boolean {
+        return condition.kind === 'equal'
+            ? condition.values.some((value) => typeof value === 'string')
+            : typeof condition.lower?.value === 'string' || typeof condition.upper?.value === 'string'
     }
 
     protected isPlainObject(value: any): boolean {

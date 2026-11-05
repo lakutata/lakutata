@@ -334,7 +334,6 @@ describe('The indexes', (): void => {
         await assert.rejects(items.createIndex({w: 1}, {name: 'v_1'}), failure(86, 'IndexKeySpecsConflict'))
         await assert.rejects(items.createIndex({v: 1}, {sparse: true, name: 'v_1'}), failure(85, 'IndexOptionsConflict'))
         for (const kind of ['text', '2d', '2dsphere', 'other']) await assert.rejects(items.createIndex({t: kind}), failure(67, 'CannotCreateIndex'))
-        await assert.rejects(items.createIndex({t: 1}, {collation: {locale: 'fr'}}), failure(67))
         assert.strictEqual(await items.createIndex({t: 1}, {collation: {locale: 'simple'}}), 't_1')
         await assert.rejects(items.createIndex({t: 1}, {weights: {t: 1}, name: 'weights'}), failure(197, 'InvalidIndexSpecificationOption'))
         await assert.rejects(items.createIndex({_id: 1}, {unique: true}), failure(197))

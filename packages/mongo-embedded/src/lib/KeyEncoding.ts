@@ -105,13 +105,30 @@ function putDouble(key: Buffer, value: number): void {
 }
 
 /**
+ * The sort keys of the strings of a collation (a collator of ICU): the keys of the strings of an index with a
+ * collation, whose bytes compared give its order and whose equality is its equality.
+ */
+export interface EmbeddedSortKeys {
+    /**
+     * The text of its collation, the same for the collations of the same rules
+     */
+    readonly id: string
+
+    /**
+     * The sort key of a string: it ends with a zero byte and holds no other (self-delimiting)
+     */
+    sortKey(text: string): Buffer
+}
+
+/**
  * encodes the values of the indexes (and the _id of the documents, the key of their table) as bytes whose order,
  * compared as bytes, is the one of MongoDB, and whose equality is its equality. Each value is its tag (the type of
  * MongoDB, in its order), then:
  * - a number (a double, an Int32, a Long, a bigint, a Decimal128): its double, rounded as JavaScript rounds it (the
  * largest finite one when the value is beyond), then the exact remainder of the value from it, so that 1, 1.0, Long(1)
  * and Decimal128("1") are one key, and the double 0.1 and Decimal128("0.1") two;
- * - a string: its UTF-8, its zero bytes escaped (0 then 1), terminated by two zero bytes;
+ * - a string: its UTF-8, its zero bytes escaped (0 then 1), terminated by two zero bytes; with a collation (the strings of
+ * an index with a collation), its sort key (terminated by a zero byte, holding no other);
  * - a document: its fields, each one the tag of its value, its name (as a string), then its value; then a zero byte;
  * - an array: its items, then a zero byte;
  * - the regular expressions and the other values (Code...): their Extended JSON, equal when they are, not ordered as
@@ -126,14 +143,15 @@ export class EmbeddedKeyEncoding {
      * Encodes a value.
      *
      * @param value
+     * @param collator the collation of its strings (an index with a collation), none for their code points
      */
-    encode(value: any): Buffer {
+    encode(value: any, collator?: EmbeddedSortKeys): Buffer {
         if (value === null || value === undefined) return Buffer.of(Tag.Null)
         switch (typeof value) {
             case 'number':
                 return this.number(value)
             case 'string':
-                return this.string(Tag.String, value)
+                return collator ? this.collated(value, collator) : this.string(Tag.String, value)
             case 'boolean':
                 return Buffer.of(Tag.Boolean, value ? 1 : 0)
             case 'bigint':
@@ -145,7 +163,7 @@ export class EmbeddedKeyEncoding {
             putDouble(key, value.getTime())
             return key
         }
-        if (Array.isArray(value)) return this.array(value)
+        if (Array.isArray(value)) return this.array(value, collator)
         const bson = this.values.bson
         switch (value._bsontype) {
             case 'ObjectId': {
@@ -190,11 +208,11 @@ export class EmbeddedKeyEncoding {
                 return Buffer.of(Tag.MaxKey)
             case 'BSONSymbol':
                 // A symbol is compared as the string of its value
-                return this.string(Tag.String, String(value.valueOf()))
+                return this.encode(String(value.valueOf()), collator)
             case 'DBRef':
-                return this.document(value.toJSON())
+                return this.document(value.toJSON(), collator)
         }
-        if (this.isPlainObject(value)) return this.document(value)
+        if (this.isPlainObject(value)) return this.document(value, collator)
         const text = bson.EJSON.stringify(value, { relaxed: false })
         if (value instanceof RegExp || value._bsontype === 'BSONRegExp')
             return this.string(Tag.RegExp, text)
@@ -236,11 +254,12 @@ export class EmbeddedKeyEncoding {
      * (the values MongoDB tells equal, equal; their order lost).
      *
      * @param value
+     * @param collator the collation of its strings (an index with a collation): the strings it tells equal, one hash
      */
-    hash(value: any): Buffer {
+    hash(value: any, collator?: EmbeddedSortKeys): Buffer {
         const key = Buffer.allocUnsafe(9)
         key[0] = Tag.Number
-        createHash('md5').update(this.encode(value)).digest().copy(key, 1, 0, 8)
+        createHash('md5').update(this.encode(value, collator)).digest().copy(key, 1, 0, 8)
         return key
     }
 
@@ -251,14 +270,15 @@ export class EmbeddedKeyEncoding {
      *
      * @param index
      * @param document
+     * @param collator the collation of the index, if any: its strings are their sort keys
      */
-    indexKeysOf(index: EmbeddedIndex, document: EmbeddedDocument): Buffer[] {
+    indexKeysOf(index: EmbeddedIndex, document: EmbeddedDocument, collator?: EmbeddedSortKeys): Buffer[] {
         const wildcard = wildcardOf(index)
         if (wildcard === undefined)
-            return this.keysOf(index.key, index.sparse, document)
+            return this.keysOf(index.key, index.sparse, document, collator)
         const fields = Object.keys(index.key)
         const term = fields.find(isWildcardField)!
-        const paths = this.wildcardKeysOf(index, wildcard, document).map((key) =>
+        const paths = this.wildcardKeysOf(index, wildcard, document, collator).map((key) =>
             this.direct(key, index.key[term])
         )
         if (fields.length === 1) return paths
@@ -280,7 +300,7 @@ export class EmbeddedKeyEncoding {
                         : [this.direct(Buffer.of(Tag.MinKey), index.key[term])]
                     : this.unique(
                           (values[others.indexOf(field)] ?? [null]).map((item) =>
-                              this.direct(this.encode(item), index.key[field])
+                              this.direct(this.encode(item, collator), index.key[field])
                           )
                       )
             keys = keys.flatMap((key) => parts.map((part) => Buffer.concat([key, part])))
@@ -294,20 +314,21 @@ export class EmbeddedKeyEncoding {
      * @param index
      * @param wildcard the path of the term ("" for all the fields)
      * @param document
+     * @param collator the collation of the index, if any (its values, not its paths)
      */
-    protected wildcardKeysOf(index: EmbeddedIndex, wildcard: string, document: EmbeddedDocument): Buffer[] {
+    protected wildcardKeysOf(index: EmbeddedIndex, wildcard: string, document: EmbeddedDocument, collator?: EmbeddedSortKeys): Buffer[] {
         const keys: Buffer[] = []
         const visit = (value: any, path: string) => {
             if (Array.isArray(value)) {
-                if (!value.length) keys.push(this.wildcardKey(path, value))
+                if (!value.length) keys.push(this.wildcardKey(path, value, collator))
                 // The documents of an array are followed, their paths without the index of their item
                 for (const item of value)
                     if (this.isDocument(item)) visit(item, path)
-                    else keys.push(this.wildcardKey(path, item))
+                    else keys.push(this.wildcardKey(path, item, collator))
             } else if (this.isDocument(value) && Object.keys(value).length)
                 for (const name of Object.keys(value))
                     visit(value[name], path ? `${path}.${name}` : name)
-            else keys.push(this.wildcardKey(path, value))
+            else keys.push(this.wildcardKey(path, value, collator))
         }
         if (wildcard) for (const value of this.valuesAt(document, wildcard, false) ?? []) visit(value, wildcard)
         else visit(document, '')
@@ -326,11 +347,13 @@ export class EmbeddedKeyEncoding {
      * @param fields the fields of the index and their directions
      * @param sparse
      * @param document
+     * @param collator the collation of the index, if any: its strings are their sort keys
      */
     keysOf(
         fields: { [path: string]: any },
         sparse: boolean | undefined,
-        document: EmbeddedDocument
+        document: EmbeddedDocument,
+        collator?: EmbeddedSortKeys
     ): Buffer[] {
         const paths = Object.keys(fields)
         const values = paths.map((path) => this.valuesAt(document, path))
@@ -353,14 +376,14 @@ export class EmbeddedKeyEncoding {
                         'Location16766',
                         `hashed indexes do not currently support array values. Found array at path: ${path}`
                     )
-                const hashed = this.hash(values[index]?.[0] ?? null)
+                const hashed = this.hash(values[index]?.[0] ?? null, collator)
                 keys = keys.map((key) => Buffer.concat([key, hashed]))
                 return
             }
             const items = values[index] ?? [null]
             const encoded = this.unique(
                 items.map((item) =>
-                    this.direct(this.encode(item), fields[path])
+                    this.direct(this.encode(item, collator), fields[path])
                 )
             )
             keys = keys.flatMap((key) =>
@@ -390,11 +413,12 @@ export class EmbeddedKeyEncoding {
      *
      * @param path
      * @param value
+     * @param collator the collation of the index, if any
      */
-    protected wildcardKey(path: string, value: any): Buffer {
+    protected wildcardKey(path: string, value: any, collator?: EmbeddedSortKeys): Buffer {
         return value === undefined || !path
             ? Buffer.alloc(0)
-            : Buffer.concat([this.string(Tag.String, path), this.encode(value)])
+            : Buffer.concat([this.string(Tag.String, path), this.encode(value, collator)])
     }
 
     /**
@@ -571,16 +595,27 @@ export class EmbeddedKeyEncoding {
     }
 
     /**
+     * A string of a collation: its tag, then its sort key (terminated by a zero byte, holding no other).
+     *
+     * @param value
+     * @param collator
+     */
+    protected collated(value: string, collator: EmbeddedSortKeys): Buffer {
+        return Buffer.concat([Buffer.of(Tag.String), collator.sortKey(value)])
+    }
+
+    /**
      * A document: each field the tag of its value, its name, its value (as MongoDB compares the documents: the type,
      * then the name, then the value of each field), then END.
      *
      * @param document
+     * @param collator the collation of its strings (not of its names), if any
      */
-    protected document(document: EmbeddedDocument): Buffer {
+    protected document(document: EmbeddedDocument, collator?: EmbeddedSortKeys): Buffer {
         const parts: Buffer[] = [Buffer.of(Tag.Object)]
         for (const name of Object.keys(document)) {
             if (document[name] === undefined) continue
-            const value = this.encode(document[name])
+            const value = this.encode(document[name], collator)
             const label = this.string(value[0], name)
             parts.push(label, value.subarray(1))
         }
@@ -592,10 +627,11 @@ export class EmbeddedKeyEncoding {
      * An array: its items, then END.
      *
      * @param items
+     * @param collator the collation of its strings, if any
      */
-    protected array(items: any[]): Buffer {
+    protected array(items: any[], collator?: EmbeddedSortKeys): Buffer {
         const parts: Buffer[] = [Buffer.of(Tag.Array)]
-        for (const item of items) parts.push(this.encode(item))
+        for (const item of items) parts.push(this.encode(item, collator))
         parts.push(Buffer.of(END))
         return Buffer.concat(parts)
     }

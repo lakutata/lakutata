@@ -1,7 +1,9 @@
 import {mkdirSync, readdirSync} from 'node:fs'
 import {addon} from './Addon.js'
+import {collatorOf, type EmbeddedCollator} from './Collation.js'
 import {EmbeddedDuplicateKeyError, EmbeddedOperationError, MongoEmbeddedError} from './Errors.js'
 import {type EmbeddedKeyEncoding} from './KeyEncoding.js'
+import {withCollation} from './mingo/util/_bson.js'
 import {ChangeKind, type NativeChange, type NativeDatabase, type NativeEntry, NativeError, type NativePredicate, type NativeRange} from './Native.js'
 import {type EmbeddedIndex, type EmbeddedPlannedCollection} from './Planner.js'
 import {type EmbeddedDocument, type EmbeddedValues} from './Values.js'
@@ -82,6 +84,11 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
     readonly encoding: EmbeddedKeyEncoding
 
     /**
+     * The collators of the indexes with a collation, by their definitions
+     */
+    protected readonly collators: WeakMap<EmbeddedIndex, EmbeddedCollator | undefined> = new WeakMap<EmbeddedIndex, EmbeddedCollator | undefined>()
+
+    /**
      * @param name its name (changed when it is renamed)
      * @param values
      */
@@ -103,16 +110,32 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
      * @param document
      */
     keysOf(index: EmbeddedIndex, document: EmbeddedDocument): Buffer[] {
+        const collator: EmbeddedCollator | undefined = this.collatorOf(index)
         if (index.partialFilterExpression) {
             let matches: ((document: EmbeddedDocument) => boolean) | undefined = this.partials.get(index.name)
             if (!matches) {
-                const query: any = new this.values.mingo.Query(index.partialFilterExpression)
-                matches = (document: EmbeddedDocument): boolean => query.test(document)
+                // The filter of a partial index compares its strings by the collation of the index
+                const query: any = withCollation(collator, (): any => new this.values.mingo.Query(index.partialFilterExpression))
+                matches = (document: EmbeddedDocument): boolean => withCollation(collator, (): boolean => query.test(document))
                 this.partials.set(index.name, matches)
             }
             if (!matches(document)) return []
         }
-        return this.encoding.indexKeysOf(index, document)
+        return this.encoding.indexKeysOf(index, document, collator)
+    }
+
+    /**
+     * The collator of an index with a collation, none for an index of the code points
+     * @param index
+     */
+    collatorOf(index: EmbeddedIndex): EmbeddedCollator | undefined {
+        if (!index.collation) return undefined
+        let collator: EmbeddedCollator | undefined = this.collators.get(index)
+        if (!collator) {
+            collator = collatorOf(index.collation)
+            this.collators.set(index, collator)
+        }
+        return collator
     }
 
     /**

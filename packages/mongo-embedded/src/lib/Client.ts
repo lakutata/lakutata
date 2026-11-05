@@ -1,6 +1,7 @@
 import * as bson from 'bson'
 import * as mingo from './mingo/index.js'
 import { ImmutableFieldError, resolve } from './mingo/util/index.js'
+import { withCollation } from './mingo/util/_bson.js'
 import {
     checkedOperation,
     checkReplacement,
@@ -11,6 +12,7 @@ import {
     EmbeddedBulkWriteResult,
     statementOf
 } from './Bulk.js'
+import { collatorOf, type EmbeddedCollation, type EmbeddedCollator } from './Collation.js'
 import {
     EmbeddedBulkWriteError,
     EmbeddedDuplicateKeyError,
@@ -492,6 +494,8 @@ export class EmbeddedFindCursor extends EmbeddedResults {
 
     private hinted?: EmbeddedHint
 
+    private collated?: EmbeddedCollation
+
     /**
      * @param collection the collection found in
      * @param query the filter of the find
@@ -558,14 +562,32 @@ export class EmbeddedFindCursor extends EmbeddedResults {
         return this
     }
 
+    /**
+     * The collation of the strings of the filter and of the sort ({locale: "simple"}: their code points)
+     * @param collation the collation
+     */
+    collation(collation: EmbeddedCollation): this {
+        this.collated = collation
+        return this
+    }
+
+    /**
+     * The collator of its collation, if any
+     */
+    protected get collator(): EmbeddedCollator | undefined {
+        return collatorOf(this.collated)
+    }
+
     protected async documents(): Promise<EmbeddedDocument[]> {
+        const collator = this.collator
         // Sorted by an index: the documents read in its order, up to the limit
         const ordered =
             this.order && this.limited && this.hinted === undefined
                 ? await this.collection.ordered(
                       this.query,
                       this.order,
-                      this.skipped + this.limited
+                      this.skipped + this.limited,
+                      collator
                   )
                 : undefined
         if (ordered) return this.projected(ordered.slice(this.skipped))
@@ -575,7 +597,8 @@ export class EmbeddedFindCursor extends EmbeddedResults {
             !this.order && this.limited
                 ? this.skipped + this.limited
                 : Infinity,
-            this.hinted
+            this.hinted,
+            collator
         )
         // Without an order, a skip and a limit of counts (integers, not negative) cut the documents found, in their
         // order: mingo is not needed
@@ -587,18 +610,23 @@ export class EmbeddedFindCursor extends EmbeddedResults {
             this.limited >= 0
         )
             return this.projected(matches.slice(this.skipped))
-        let cursor = this.collection.values.mingo.find(matches, {})
-        if (this.order) cursor = cursor.sort(this.order)
-        if (this.skipped) cursor = cursor.skip(this.skipped)
-        if (this.limited) cursor = cursor.limit(this.limited)
-        return this.projected(cursor.all())
+        const sorted = withCollation(collator, () => {
+            let cursor = this.collection.values.mingo.find(matches, {})
+            if (this.order) cursor = cursor.sort(this.order)
+            if (this.skipped) cursor = cursor.skip(this.skipped)
+            if (this.limited) cursor = cursor.limit(this.limited)
+            return cursor.all()
+        })
+        return this.projected(sorted)
     }
 
     private projected(documents: EmbeddedDocument[]): EmbeddedDocument[] {
         return this.projection
-            ? this.collection.values.mingo
-                  .find(documents, {}, this.projection)
-                  .all()
+            ? withCollation(this.collator, () =>
+                  this.collection.values.mingo
+                      .find(documents, {}, this.projection)
+                      .all()
+              )
             : documents
     }
 
@@ -619,7 +647,11 @@ export class EmbeddedFindCursor extends EmbeddedResults {
     private async *streamed(): AsyncGenerator<EmbeddedDocument[]> {
         let skip = this.skipped
         let left = this.limited || Infinity
-        for await (const batch of this.collection.matchingBatches(this.query, this.hinted)) {
+        for await (const batch of this.collection.matchingBatches(
+            this.query,
+            this.hinted,
+            this.collator
+        )) {
             let documents = batch
             if (skip) {
                 const skipped = Math.min(skip, documents.length)
@@ -760,28 +792,31 @@ export class EmbeddedCollection {
      * @param query the filter
      * @param limit the most documents given
      * @param hint the index they are found by
+     * @param collator the collation of its strings, if any
      */
     async matching(
         query?: EmbeddedDocument,
         limit = Infinity,
-        hint?: EmbeddedHint
+        hint?: EmbeddedHint,
+        collator?: EmbeddedCollator
     ): Promise<EmbeddedDocument[]> {
         const filter = this.values.copy(query ?? {})
         if (limit <= 0) return []
-        // A filter of the _id alone: the document of its key, not tested by mingo when its _id is the value itself
+        // A filter of the _id alone: the document of its key, not tested by mingo when its _id is the value itself (a
+        // string of a collation matches other keys too)
         const id = hint === undefined ? this.idOf(filter) : undefined
-        if (id !== undefined) {
+        if (id !== undefined && !(collator && typeof id === 'string')) {
             const [document] = await this.store.get(this.collectionName, [
                 this.values.idKey(id)
             ])
             if (!document) return []
             if (this.isId(document._id, id)) return [document]
         }
-        const matcher = new this.values.mingo.Query(filter)
+        const matches = this.matcherOf(filter, collator)
         const documents: EmbeddedDocument[] = []
-        for await (const batch of this.candidates(filter, hint, limit))
+        for await (const batch of this.candidates(filter, hint, limit, collator))
             for (const document of batch) {
-                if (!matcher.test(document)) continue
+                if (!matches(document)) continue
                 documents.push(document)
                 if (documents.length >= limit) return documents
             }
@@ -791,10 +826,11 @@ export class EmbeddedCollection {
     /**
      * A cursor of the documents matching a filter
      * @param query the filter
-     * @param options its projection, sort, skip, limit and hint
+     * @param options its projection, sort, skip, limit, hint and collation
      */
     find(query?: EmbeddedDocument, options?: EmbeddedDocument) {
         const cursor = new EmbeddedFindCursor(this, query ?? {})
+        if (options?.collation) cursor.collation(options.collation)
         if (options?.projection) cursor.project(options.projection)
         if (options?.sort) cursor.sort(options.sort)
         if (options?.skip) cursor.skip(options.skip)
@@ -824,14 +860,15 @@ export class EmbeddedCollection {
         const skip = options?.skip ?? 0
         const limit = options?.limit ? skip + options.limit : Infinity
         const filter = this.values.copy(query ?? {})
-        const exact = await this.exactCount(filter, options?.hint)
+        const collator = collatorOf(options?.collation)
+        const exact = await this.exactCount(filter, options?.hint, collator)
         if (exact !== undefined)
             return Math.max(Math.min(exact, limit) - skip, 0)
-        const matcher = new this.values.mingo.Query(filter)
+        const matches = this.matcherOf(filter, collator)
         let count = 0
-        for await (const batch of this.candidates(filter, options?.hint))
+        for await (const batch of this.candidates(filter, options?.hint, Infinity, collator))
             for (const document of batch)
-                if (matcher.test(document) && ++count >= limit)
+                if (matches(document) && ++count >= limit)
                     return Math.max(count - skip, 0)
         return Math.max(count - skip, 0)
     }
@@ -867,12 +904,14 @@ export class EmbeddedCollection {
         options?: EmbeddedDocument
     ): Promise<any[]> {
         const values = new Map<string, any>()
-        for (const document of await this.matching(query, Infinity, options?.hint)) {
+        const collator = collatorOf(options?.collation)
+        for (const document of await this.matching(query, Infinity, options?.hint, collator)) {
             const value = this.values.valueAt(document, key)
-            // Each value once, as MongoDB tells them equal (1, 1.0, Long(1) and Decimal128("1") one value): by its key
+            // Each value once, as MongoDB tells them equal (1, 1.0, Long(1) and Decimal128("1") one value; the strings
+            // of a collation by it): by its key
             for (const item of Array.isArray(value) ? value : [value])
                 if (item !== undefined) {
-                    const key = this.values.keys.encode(item).toString('latin1')
+                    const key = this.values.keys.encode(item, collator).toString('latin1')
                     if (!values.has(key)) values.set(key, item)
                 }
         }
@@ -889,10 +928,12 @@ export class EmbeddedCollection {
      * @param options its collation, variables (let) and hint (the index of its leading $match stages)
      */
     aggregate(pipeline: EmbeddedDocument[], options?: EmbeddedDocument) {
-        const { hint, let: variables, ...rest } = options ?? {}
+        // The collation compares the strings of every stage (withCollation), not given to mingo
+        const { hint, let: variables, collation, ...rest } = options ?? {}
         const aggregation: EmbeddedDocument =
             variables === undefined ? rest : { ...rest, variables: variables }
         return new EmbeddedArrayCursor(async () => {
+            const collator = collatorOf(collation)
             const position = pipeline.findIndex(
                 (stage) => isPlain(stage) && ('$out' in stage || '$merge' in stage)
             )
@@ -906,29 +947,32 @@ export class EmbeddedCollection {
             const documents = await this.aggregated(
                 output ? pipeline.slice(0, -1) : pipeline,
                 aggregation,
-                hint
+                hint,
+                collator
             )
             if (!output) return documents
             if (output.$out !== undefined) await this.out(documents, output.$out)
-            else await this.merge(documents, output.$merge, aggregation)
+            else await this.merge(documents, output.$merge, aggregation, collator)
             return []
         })
     }
 
     /**
-     * The results of the stages of a pipeline: its leading $match stages the filter of the documents read (unless a
-     * collation or variables change them), a $group run in batches when it can be.
+     * The results of the stages of a pipeline: its leading $match stages the filter of the documents read (unless
+     * variables change them), a $group run in batches when it can be.
      *
      * @param pipeline
      * @param options the options of mingo
      * @param hint
+     * @param collator the collation of its strings, if any
      */
     private async aggregated(
         pipeline: EmbeddedDocument[],
         options: EmbeddedDocument,
-        hint?: EmbeddedHint
+        hint?: EmbeddedHint,
+        collator?: EmbeddedCollator
     ): Promise<EmbeddedDocument[]> {
-        const changed = options.collation || options.variables
+        const changed = options.variables
         const filters: EmbeddedDocument[] = []
         if (!changed)
             while (
@@ -942,14 +986,16 @@ export class EmbeddedCollection {
         const batched = changed ? undefined : batchedGroupOf(stages)
         if (batched)
             return this.runStages(
-                await this.groupedInBatches(filter, batched, options, hint),
+                await this.groupedInBatches(filter, batched, options, hint, collator),
                 batched.rest,
-                options
+                options,
+                collator
             )
         return this.runStages(
-            await this.matching(filter, Infinity, hint),
+            await this.matching(filter, Infinity, hint, collator),
             stages,
-            options
+            options,
+            collator
         )
     }
 
@@ -961,11 +1007,13 @@ export class EmbeddedCollection {
      * @param documents
      * @param stages
      * @param options the options of mingo
+     * @param collator the collation of the strings, if any
      */
     private async runStages(
         documents: EmbeddedDocument[],
         stages: EmbeddedDocument[],
-        options: EmbeddedDocument
+        options: EmbeddedDocument,
+        collator?: EmbeddedCollator
     ): Promise<EmbeddedDocument[]> {
         let segment: EmbeddedDocument[] = []
         const run = async () => {
@@ -977,13 +1025,17 @@ export class EmbeddedCollection {
                     for (const document of batch) read.push(document)
                 looked.set(name, read)
             }
-            documents = this.values.mingo.aggregate(documents, segment, {
-                ...options,
-                collectionResolver: (name: string) =>
-                    (looked.get(name) ?? []).map((document) =>
-                        this.values.copy(document)
-                    )
-            })
+            const input = documents
+            const running = segment
+            documents = withCollation(collator, () =>
+                this.values.mingo.aggregate(input, running, {
+                    ...options,
+                    collectionResolver: (name: string) =>
+                        (looked.get(name) ?? []).map((document) =>
+                            this.values.copy(document)
+                        )
+                })
+            )
             segment = []
         }
         for (const stage of stages) {
@@ -993,7 +1045,7 @@ export class EmbeddedCollection {
                 continue
             }
             await run()
-            documents = await this.joined(documents, lookup, options)
+            documents = await this.joined(documents, lookup, options, collator)
         }
         await run()
         return documents
@@ -1009,11 +1061,13 @@ export class EmbeddedCollection {
      * @param documents
      * @param lookup
      * @param options the options of mingo
+     * @param collator the collation of the strings, if any
      */
     private async joined(
         documents: EmbeddedDocument[],
         lookup: EmbeddedDocument,
-        options: EmbeddedDocument
+        options: EmbeddedDocument,
+        collator?: EmbeddedCollator
     ): Promise<EmbeddedDocument[]> {
         const foreign = new EmbeddedCollection(lookup.from, this.store)
         const state = this.store.collection(lookup.from)
@@ -1036,26 +1090,24 @@ export class EmbeddedCollection {
                     }
                 }
                 const filter = { [lookup.foreignField]: { $in: values } }
-                if (ordered && values.length && new EmbeddedPlanner(state!).plan(filter).kind !== 'scan') {
-                    read = await foreign.matching(filter)
+                if (ordered && values.length && new EmbeddedPlanner(state!, collator).plan(filter).kind !== 'scan') {
+                    read = await foreign.matching(filter, Infinity, undefined, collator)
                     read.sort((a, b) =>
                         Buffer.compare(this.values.idKey(a._id), this.values.idKey(b._id))
                     )
                 } else read = all = await foreign.matching({})
             }
             const joining = read
-            for (const document of this.values.mingo.aggregate(
-                batch,
-                [{ $lookup: lookup }],
-                {
+            const output = withCollation(collator, () =>
+                this.values.mingo.aggregate(batch, [{ $lookup: lookup }], {
                     ...options,
                     collectionResolver: (name: string) =>
                         name === lookup.from
                             ? joining.map((document) => this.values.copy(document))
                             : []
-                }
-            ))
-                results.push(document)
+                })
+            )
+            for (const document of output) results.push(document)
         }
         return results
     }
@@ -1115,11 +1167,13 @@ export class EmbeddedCollection {
      * @param documents
      * @param spec the $merge: the name of the collection, or {into, on, whenMatched, whenNotMatched, let}
      * @param options the options of mingo
+     * @param collator the collation of the strings of its pipeline, if any
      */
     private async merge(
         documents: EmbeddedDocument[],
         spec: any,
-        options: EmbeddedDocument
+        options: EmbeddedDocument,
+        collator?: EmbeddedCollator
     ): Promise<void> {
         const merge: EmbeddedDocument = typeof spec === 'string' ? { into: spec } : spec
         if (!isPlain(merge))
@@ -1232,10 +1286,12 @@ export class EmbeddedCollection {
                         )
                     let next: EmbeddedDocument
                     if (Array.isArray(whenMatched))
-                        next = this.pipelined(matched, whenMatched, {
-                            new: result,
-                            ...this.letOf(merge.let, result, options)
-                        })
+                        next = withCollation(collator, () =>
+                            this.pipelined(matched, whenMatched, {
+                                new: result,
+                                ...this.letOf(merge.let, result, options)
+                            })
+                        )
                     else if (whenMatched === 'replace')
                         next = { _id: matched._id, ...this.values.copy(result) }
                     else next = { ...matched, ...this.values.copy(result) }
@@ -1302,32 +1358,31 @@ export class EmbeddedCollection {
      * @param batched
      * @param options
      * @param hint
+     * @param collator the collation of the strings (the keys of the groups too), if any
      */
     private async groupedInBatches(
         filter: EmbeddedDocument | undefined,
         batched: BatchedGroup,
         options: EmbeddedDocument,
-        hint?: EmbeddedHint
+        hint?: EmbeddedHint,
+        collator?: EmbeddedCollator
     ): Promise<EmbeddedDocument[]> {
-        const mingo = this.values.mingo
+        const aggregate = (documents: EmbeddedDocument[], stages: EmbeddedDocument[]) =>
+            withCollation(collator, () => this.values.mingo.aggregate(documents, stages, options))
         let groups: EmbeddedDocument[] = []
         let merged = 0
-        for await (const batch of this.matchingBatches(filter, hint))
-            for (const group of mingo.aggregate(batch, batched.batch, options)) {
+        for await (const batch of this.matchingBatches(filter, hint, collator))
+            for (const group of aggregate(batch, batched.batch)) {
                 groups.push(group)
                 // The groups merged stay before the ones of the batches after them, and a $group keeps the order of
                 // its documents: the $first and $last of the merge are the ones of the order of the documents
                 if (groups.length >= Math.max(2 * merged, MERGED_GROUPS)) {
-                    groups = mingo.aggregate(groups, batched.merge, options)
+                    groups = aggregate(groups, batched.merge)
                     merged = groups.length
                 }
             }
         return groups.length
-            ? mingo.aggregate(
-                  groups,
-                  [...batched.merge, ...batched.complete],
-                  options
-              )
+            ? aggregate(groups, [...batched.merge, ...batched.complete])
             : batched.empty.map((document) => ({ ...document }))
     }
 
@@ -1336,16 +1391,18 @@ export class EmbeddedCollection {
      *
      * @param query the filter
      * @param hint the index they are found by
+     * @param collator the collation of its strings, if any
      */
     async *matchingBatches(
         query?: EmbeddedDocument,
-        hint?: EmbeddedHint
+        hint?: EmbeddedHint,
+        collator?: EmbeddedCollator
     ): AsyncGenerator<EmbeddedDocument[]> {
         const filter = this.values.copy(query ?? {})
         const matches = Object.keys(filter).length
-            ? this.matcherOf(filter)
+            ? this.matcherOf(filter, collator)
             : undefined
-        for await (const batch of this.candidates(filter, hint)) {
+        for await (const batch of this.candidates(filter, hint, Infinity, collator)) {
             const matched = matches ? batch.filter(matches) : batch
             if (matched.length) yield matched
         }
@@ -1462,8 +1519,9 @@ export class EmbeddedCollection {
     ) {
         checkReplacement(replacement)
         const filter = this.values.copy(query ?? {})
-        const matches = this.matcherOf(filter)
-        const [found] = await this.matching(filter, 1, options?.hint)
+        const collator = collatorOf(options?.collation)
+        const matches = this.matcherOf(filter, collator)
+        const [found] = await this.matching(filter, 1, options?.hint, collator)
         const modified = found
             ? await this.store.exclusive(async () => {
                   const [current] = await this.currents(matches, [found])
@@ -1488,7 +1546,7 @@ export class EmbeddedCollection {
      * @param options its hint
      */
     async deleteOne(query?: EmbeddedDocument, options?: EmbeddedDocument) {
-        return this.delete(query, false, options?.hint)
+        return this.delete(query, false, options?.hint, collatorOf(options?.collation))
     }
 
     /**
@@ -1497,17 +1555,19 @@ export class EmbeddedCollection {
      * @param options its hint
      */
     async deleteMany(query?: EmbeddedDocument, options?: EmbeddedDocument) {
-        return this.delete(query, true, options?.hint)
+        return this.delete(query, true, options?.hint, collatorOf(options?.collation))
     }
 
     /**
      * Creates an index, built from the documents there (in batches, the reads going on, the writes waiting for it), and
      * gives its name; nothing when the same index is there. It fails as MongoDB fails: an index of the same name or of
      * the same fields and another definition, a unique index on duplicate keys, the options and the kinds of indexes not
-     * supported (text, 2d, 2dsphere, a collation)
+     * supported (text, 2d, 2dsphere). An index with a collation keeps its strings by it: the queries of the same
+     * collation use it for their strings, the other ones for their other values only
      * @param keys its fields and their directions (1, -1, "hashed"; "$**" or "<path>.$**" for a wildcard index), or the
      * name of one field
-     * @param options its name, unique, sparse, partialFilterExpression, hidden, wildcardProjection, expireAfterSeconds
+     * @param options its name, unique, sparse, partialFilterExpression, hidden, wildcardProjection, expireAfterSeconds,
+     * collation
      */
     async createIndex(keys: any, options?: EmbeddedDocument): Promise<string> {
         const index = this.indexOf(keys, options ?? {})
@@ -1706,7 +1766,8 @@ export class EmbeddedCollection {
                           : await this.delete(
                                 args.filter,
                                 kind === 'deleteMany',
-                                args.hint
+                                args.hint,
+                                collatorOf(args.collation)
                             )
                 counts.matchedCount += result.matchedCount ?? 0
                 counts.modifiedCount += result.modifiedCount ?? 0
@@ -1803,11 +1864,17 @@ export class EmbeddedCollection {
         options?: EmbeddedDocument
     ) {
         const { modifier, setOnInsert } = this.modifierOf(update)
+        const collator = collatorOf(options?.collation)
         const outcome = await this.findAndModify(
             query,
             options,
             (current) =>
-                this.updateChanges([current], modifier, options?.arrayFilters)[0],
+                this.updateChanges(
+                    [current],
+                    modifier,
+                    options?.arrayFilters,
+                    collator
+                )[0],
             (filter) =>
                 this.upsertedOf(filter, modifier, setOnInsert, options?.arrayFilters)
         )
@@ -1876,15 +1943,18 @@ export class EmbeddedCollection {
      * @param query the filter
      * @param sort the sort
      * @param count the most documents given
+     * @param collator the collation of the strings of the filter and of the sort, if any (an index of the same one
+     * gives their order)
      */
     async ordered(
         query: EmbeddedDocument,
         sort: EmbeddedDocument,
-        count: number
+        count: number,
+        collator?: EmbeddedCollator
     ): Promise<EmbeddedDocument[] | undefined> {
         const collection = this.store.collection(this.collectionName)
         if (!collection) return []
-        const planner = new EmbeddedPlanner(collection)
+        const planner = new EmbeddedPlanner(collection, collator)
         const walk = planner.sortIndex(sort)
         if (!walk) return undefined
         const filter = this.values.copy(query ?? {})
@@ -1893,7 +1963,7 @@ export class EmbeddedCollection {
             return undefined
         const ranges = plan.kind === 'index' && plan.ranges.length === 1 ? plan.ranges : []
         const [path] = Object.keys(sort)
-        const matcher = new this.values.mingo.Query(filter)
+        const matches = this.matcherOf(filter, collator)
         const documents: EmbeddedDocument[] = []
         for await (const { documents: batch } of this.store.scanRange(
             this.collectionName,
@@ -1904,7 +1974,7 @@ export class EmbeddedCollection {
             for (const document of batch) {
                 if (UNORDERED_TAGS.has(this.values.keys.encode(this.values.valueAt(document, path))[0]))
                     return undefined
-                if (!matcher.test(document)) continue
+                if (!matches(document)) continue
                 documents.push(document)
                 if (documents.length >= count) return documents
             }
@@ -1919,15 +1989,18 @@ export class EmbeddedCollection {
      * @param filter
      * @param hint
      * @param first the documents of the first batch of a scan, when fewer are needed (a limit)
+     * @param collator the collation of its strings, if any (an index of another one serves its conditions without
+     * strings only)
      */
     private async *candidates(
         filter: EmbeddedDocument,
         hint?: EmbeddedHint,
-        first = Infinity
+        first = Infinity,
+        collator?: EmbeddedCollator
     ): AsyncGenerator<EmbeddedDocument[]> {
         const collection = this.store.collection(this.collectionName)
         if (!collection) return
-        const planner = new EmbeddedPlanner(collection)
+        const planner = new EmbeddedPlanner(collection, collator)
         const plan = planner.plan(filter, this.hintOf(collection, planner, hint))
         const predicates = predicatesOf(filter)
         if (plan.kind === 'scan') {
@@ -2104,12 +2177,8 @@ export class EmbeddedCollection {
                     'InvalidIndexSpecificationOption',
                     `The field '${option}' is not valid for an index specification. Specification: ${this.values.bson.EJSON.stringify({ key: key, ...options })}`
                 )
-        const collation = options.collation
-        if (
-            collation !== undefined &&
-            !(this.isPlainObject(collation) && collation.locale === 'simple')
-        )
-            throw cannot('indexes with a collation are not supported by mongo-embedded')
+        // The collation of its strings, every field given ({locale: "simple"}: none, the code points)
+        const collator = collatorOf(options.collation)
         const name: string =
             options.name ??
             fields.map((field) => `${field}_${key[field]}`).join('_')
@@ -2125,9 +2194,16 @@ export class EmbeddedCollection {
                     'InvalidIndexSpecificationOption',
                     `The field '${invalid}' is not valid for an _id index specification. Specification: ${this.values.bson.EJSON.stringify({ key: key, ...options })}`
                 )
+            if (collator)
+                throw new EmbeddedOperationError(
+                    2,
+                    'BadValue',
+                    `The _id index must have the same collation as the collection. Index collation: ${JSON.stringify(collator.collation)}, collection collation: { locale: "simple" }`
+                )
             return { name: ID_INDEX, key: { _id: 1 } }
         }
         const index: EmbeddedIndex = { name: name, key: this.values.copy(key) }
+        if (collator) index.collation = { ...collator.collation }
         if (options.unique) index.unique = true
         if (options.sparse) index.sparse = true
         if (options.hidden) index.hidden = true
@@ -2194,7 +2270,8 @@ export class EmbeddedCollection {
                     !!item.hidden,
                     item.partialFilterExpression ?? null,
                     item.wildcardProjection ?? null,
-                    item.expireAfterSeconds ?? null
+                    item.expireAfterSeconds ?? null,
+                    item.collation ?? null
                 ])
             if (options(named) !== options(index))
                 throw new EmbeddedOperationError(
@@ -2204,14 +2281,15 @@ export class EmbeddedCollection {
                 )
             return named
         }
-        // The signature of an index (MongoDB 5.0 and later): the indexes of the same fields but unique, sparse, the filter
-        // or the projection of a wildcard index may be there together
+        // The signature of an index (MongoDB 5.0 and later): the indexes of the same fields but unique, sparse, the filter,
+        // the projection of a wildcard index or the collation may be there together
         const signature = (item: EmbeddedIndex) =>
             this.values.bson.EJSON.stringify([
                 !!item.unique,
                 !!item.sparse,
                 item.partialFilterExpression ?? null,
-                item.wildcardProjection ?? null
+                item.wildcardProjection ?? null,
+                item.collation ?? null
             ])
         const keyed = indexes.find(
             (item) => this.sameKeys(item.key, index.key) && signature(item) === signature(index)
@@ -2304,15 +2382,19 @@ export class EmbeddedCollection {
      * compiled for the documents of which the _id is its value.
      *
      * @param filter
+     * @param collator the collation of its strings, if any
      */
     private matcherOf(
-        filter: EmbeddedDocument
+        filter: EmbeddedDocument,
+        collator?: EmbeddedCollator
     ): (document: EmbeddedDocument) => boolean {
         const id = this.idOf(filter)
         let query: any
         return (document) =>
             (id !== undefined && this.isId(document._id, id)) ||
-            (query ??= new this.values.mingo.Query(filter)).test(document)
+            withCollation(collator, () =>
+                (query ??= new this.values.mingo.Query(filter)).test(document)
+            )
     }
 
     /**
@@ -2382,11 +2464,12 @@ export class EmbeddedCollection {
      */
     private async exactCount(
         filter: EmbeddedDocument,
-        hint?: EmbeddedHint
+        hint?: EmbeddedHint,
+        collator?: EmbeddedCollator
     ): Promise<number | undefined> {
         const collection = this.store.collection(this.collectionName)
         if (!collection) return 0
-        const planner = new EmbeddedPlanner(collection)
+        const planner = new EmbeddedPlanner(collection, collator)
         const plan: EmbeddedPlan = planner.plan(filter, this.hintOf(collection, planner, hint))
         if (!plan.exact) return undefined
         if (plan.kind === 'scan') return this.store.count(this.collectionName)
@@ -2469,12 +2552,13 @@ export class EmbeddedCollection {
     ) {
         const { modifier, setOnInsert } = this.modifierOf(update)
         const filter = this.values.copy(query ?? {})
-        const matches = this.matcherOf(filter)
+        const collator = collatorOf(options?.collation)
+        const matches = this.matcherOf(filter, collator)
         // The keys of the documents updated: a scan meets again the ones it wrote
         const updated = new Set<string>()
         let matched = 0
         let modified = 0
-        for await (const batch of this.candidates(filter, options?.hint)) {
+        for await (const batch of this.candidates(filter, options?.hint, Infinity, collator)) {
             const found = batch.filter(
                 (document) =>
                     !updated.has(this.values.idKey(document._id).toString('latin1'))
@@ -2486,7 +2570,7 @@ export class EmbeddedCollection {
                     updated.add(this.values.idKey(current._id).toString('latin1'))
                 matched += currents.length
                 return this.writeInOrder(currents, (documents) =>
-                    this.updateChanges(documents, modifier, options?.arrayFilters)
+                    this.updateChanges(documents, modifier, options?.arrayFilters, collator)
                 )
             })
             modified += written
@@ -2512,21 +2596,27 @@ export class EmbeddedCollection {
      * @param documents
      * @param modifier
      * @param arrayFilters
+     * @param collator the collation of the strings of the update (its array filters, $pull...), if any
      */
     private updateChanges(
         documents: EmbeddedDocument[],
         modifier: EmbeddedDocument | EmbeddedDocument[],
-        arrayFilters: EmbeddedDocument[] | undefined
+        arrayFilters: EmbeddedDocument[] | undefined,
+        collator?: EmbeddedCollator
     ): EmbeddedChange[] {
         let nexts: EmbeddedDocument[]
         if (Array.isArray(modifier))
-            nexts = documents.map((document) => this.pipelined(document, modifier))
+            nexts = withCollation(collator, () =>
+                documents.map((document) => this.pipelined(document, modifier))
+            )
         else {
             nexts = documents.map((document) => this.values.copy(document))
             this.byMingo(() =>
-                this.values.mingo.updateMany(nexts, {}, modifier, {
-                    arrayFilters: arrayFilters
-                })
+                withCollation(collator, () =>
+                    this.values.mingo.updateMany(nexts, {}, modifier, {
+                        arrayFilters: arrayFilters
+                    })
+                )
             )
         }
         const changes: EmbeddedChange[] = []
@@ -2642,19 +2732,21 @@ export class EmbeddedCollection {
      * @param query
      * @param many
      * @param hint
+     * @param collator the collation of the strings of the filter, if any
      */
     private async delete(
         query: EmbeddedDocument | undefined,
         many: boolean,
-        hint?: EmbeddedHint
+        hint?: EmbeddedHint,
+        collator?: EmbeddedCollator
     ) {
         const filter = this.values.copy(query ?? {})
-        const matches = this.matcherOf(filter)
+        const matches = this.matcherOf(filter, collator)
         if (!this.store.collection(this.collectionName))
             return { acknowledged: true, deletedCount: 0 }
         let deleted = 0
         // A document deleted leaves the collection: unlike an update, a scan does not meet it again
-        for await (const batch of this.candidates(filter, hint)) {
+        for await (const batch of this.candidates(filter, hint, Infinity, collator)) {
             deleted += await this.store.exclusive(async () => {
                 let currents = await this.currents(matches, batch)
                 if (!many) currents = currents.slice(0, 1)
@@ -2835,7 +2927,8 @@ export class EmbeddedCollection {
         return this.store.exclusive(async () => {
             const [found] = await this.find(filter, {
                 sort: options?.sort,
-                hint: options?.hint
+                hint: options?.hint,
+                collation: options?.collation
             })
                 .limit(1)
                 .toArray()
