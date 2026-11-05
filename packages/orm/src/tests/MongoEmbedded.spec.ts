@@ -158,7 +158,7 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     }))
 
-    it('keeps the unique index of the entity, also once reopened', {skip: 'phase 2: the indexes are defined, not built nor read yet'}, async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+    it('keeps the unique index of the entity, also once reopened', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         const file: string = path.join(directory, 'posts')
         let dataSource: DataSource = await open(file)
         let posts: MongoRepository<Post> = dataSource.getMongoRepository(Post)
@@ -182,7 +182,7 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await (await open(database)).destroy()
     }))
 
-    it('finds by its indexes the documents a scan finds', {skip: 'phase 2: the indexes are defined, not built nor read yet'}, async (): Promise<void> => {
+    it('finds by its indexes the documents a scan finds', async (): Promise<void> => {
         const dataSource: DataSource = await new DataSource({type: 'mongo-embedded'}).initialize()
         const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
         let seed: number = 11
@@ -240,7 +240,7 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
-    it('indexes the values of mixed sizes, each document found by them; a key too large fails its write before it is written', {skip: 'phase 2: the indexes are defined, not built nor read yet'}, async (): Promise<void> => {
+    it('indexes the values of mixed sizes, each document found by them, the large keys too', async (): Promise<void> => {
         const dataSource: DataSource = await new DataSource({type: 'mongo-embedded'}).initialize()
         const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
         await runner.createCollectionIndex('names', {n: 1}, {name: 'n'})
@@ -260,27 +260,23 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         assert.deepStrictEqual(found.sort(), [...names].sort(), label)
         for (const name of names.filter((_: string, index: number): boolean => index % 97 === 0)) assert.strictEqual(await runner.countDocuments('names', {name: name}), 1, label)
         await assert.rejects(runner.insertOne('names', {n: -1, name: names[1234]}), {code: 11000}, label)
-        //Not written, in none of the indexes
-        await assert.rejects(runner.insertOne('names', {n: -2, name: 'x'.repeat(1100)}), {code: 17280}, label)
-        assert.strictEqual(await runner.countDocuments('names', {}), names.length, label)
-        assert.strictEqual(await runner.countDocuments('names', {n: -2}), 0, label)
-        //An error of its document in an insertMany
-        await assert.rejects(runner.insertMany('names', [{n: -3, name: 'a'}, {n: -4, name: 'y'.repeat(1100)}, {n: -5, name: 'b'}]), (error: Record<string, any>): boolean => {
-            assert.strictEqual(error.code, 17280, label)
-            assert.strictEqual(error.insertedCount, 1, label)
-            assert.deepStrictEqual(error.writeErrors.map((writeError: Record<string, unknown>): unknown => writeError.index), [1], label)
-            return true
-        })
-        //An index of the documents there, one of their keys too large: not created, the writes going on
+        //The keys larger than a page (their cells overflow): written, found, unique
+        await runner.insertOne('names', {n: -2, name: 'x'.repeat(100000)})
+        await runner.insertMany('names', [{n: -3, name: 'a'}, {n: -4, name: 'y'.repeat(5000)}, {n: -5, name: 'b'}])
+        assert.strictEqual(await runner.countDocuments('names', {}), names.length + 4, label)
+        assert.strictEqual(await runner.countDocuments('names', {name: 'x'.repeat(100000)}), 1, label)
+        assert.deepStrictEqual((await runner.cursor('names', {name: {$gt: 'x'}}).toArray()).map((document: Record<string, any>): number => document.n), [-2, -4], label)
+        await assert.rejects(runner.insertOne('names', {n: -6, name: 'y'.repeat(5000)}), {code: 11000}, label)
+        //An index of the documents there, their keys large
         await runner.insertOne('texts', {text: 'z'.repeat(1100)})
-        await assert.rejects(runner.createCollectionIndex('texts', {text: 1}, {name: 'text'}), {code: 17280}, label)
-        assert.deepStrictEqual((await runner.collectionIndexes('texts')).map((index: Record<string, unknown>): unknown => index.name), ['_id_'], label)
+        await runner.createCollectionIndex('texts', {text: 1}, {name: 'text'})
         await runner.insertOne('texts', {text: 'short'})
+        assert.strictEqual(await runner.countDocuments('texts', {text: 'z'.repeat(1100)}), 1, label)
         assert.strictEqual(await runner.countDocuments('texts', {}), 2, label)
         await dataSource.destroy()
     })
 
-    it('keys the integers of 64 bits exactly in its indexes, as MongoDB compares the numbers', {skip: 'phase 2: the indexes are defined, not built nor read yet'}, async (): Promise<void> => {
+    it('keys the integers of 64 bits exactly in its indexes, as MongoDB compares the numbers', async (): Promise<void> => {
         const dataSource: DataSource = await new DataSource({type: 'mongo-embedded'}).initialize()
         const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
         await runner.createCollectionIndex('ids', {id: 1}, {name: 'id', unique: true})
@@ -428,7 +424,7 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
-    it('updates many documents up to the one failing a unique index, in the order of the scan', {skip: 'phase 2: the indexes are defined, not built nor read yet'}, async (): Promise<void> => {
+    it('updates many documents up to the one failing a unique index, in the order of the scan', async (): Promise<void> => {
         const dataSource: DataSource = await new DataSource({type: 'mongo-embedded'}).initialize()
         const runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
         //The values of u even, but the one of the document 2600: its $inc meets the one of the document 2601
@@ -474,7 +470,7 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
-    it('builds an index on the documents there in batches: the reads go on, the writes wait for it', {skip: 'phase 2: the indexes are defined, not built nor read yet'}, async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+    it('builds an index on the documents there in batches: the reads go on, the writes wait for it', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
         const database: string = path.join(directory, 'built')
         let dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: database}).initialize()
         let runner: MongoQueryRunner = dataSource.mongoManager.mongoQueryRunner
