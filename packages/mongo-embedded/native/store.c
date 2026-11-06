@@ -1952,6 +1952,17 @@ static int PutEntry(MdeStore *store, const Collection *collection, int64_t index
   return rc;
 }
 
+/* The order of two entries deferred (mde_write): by their indexes, their keys, then their places in the write */
+static int CompareEntries(const void *a, const void *b) {
+  const MdeEntry *x = *(const MdeEntry *const *)a, *y = *(const MdeEntry *const *)b;
+  if (x->index != y->index) return x->index < y->index ? -1 : 1;
+  const int size = x->keySize < y->keySize ? x->keySize : y->keySize;
+  const int order = memcmp(x->key, y->key, (size_t)size);
+  if (order) return order;
+  if (x->keySize != y->keySize) return x->keySize < y->keySize ? -1 : 1;
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+
 int mde_write(MdeStore *store, int64_t id, const MdeChange *changes, int count, const MdeEntry *entries, int entryCount,
               const uint8_t *definitions, int definitionsSize, int *failed, int64_t *failedIndex) {
   *failed = -1;
@@ -1970,15 +1981,25 @@ int mde_write(MdeStore *store, int64_t id, const MdeChange *changes, int count, 
   OpenCursor(store, store->cursor, collection->root, 1);
   int64_t delta = 0;
   int entry = 0, duplicate = 0;
+  /* The entries of the indexes neither unique nor prepared to be unique: written once the changes are, sorted by their
+  ** indexes and their keys, so that their b-trees take them in their order (their order does not matter otherwise:
+  ** their keys hold the _id of their documents; two of one key keep their order) */
+  const MdeEntry **deferred = entryCount > 1 ? malloc((size_t)entryCount * sizeof(*deferred)) : NULL;
+  int deferredCount = 0;
   for (int i = 0; i < count && rc == SQLITE_OK; i++) {
     const MdeChange *change = &changes[i];
     /* The entries of the change: removed before it, inserted after it */
     int first = entry;
     while (entry < entryCount && entries[entry].change == i) entry++;
-    for (int k = first; k < entry && rc == SQLITE_OK; k++)
+    for (int k = first; k < entry && rc == SQLITE_OK; k++) {
+      if (deferred && !entries[k].unique) {
+        if (entries[k].remove) deferred[deferredCount++] = &entries[k];
+        continue;
+      }
       if (entries[k].remove)
         rc = PutEntry(store, collection, entries[k].index, entries[k].unique, 1, entries[k].key, entries[k].keySize,
                       entries[k].value, entries[k].valueSize, &duplicate);
+    }
     if (rc != SQLITE_OK) break;
     int res = 0;
     rc = Seek(store, store->cursor, change->key, change->keySize, &res);
@@ -2016,6 +2037,10 @@ int mde_write(MdeStore *store, int64_t id, const MdeChange *changes, int count, 
     }
     for (int k = first; k < entry && rc == SQLITE_OK; k++) {
       if (entries[k].remove) continue;
+      if (deferred && !entries[k].unique) {
+        deferred[deferredCount++] = &entries[k];
+        continue;
+      }
       rc = PutEntry(store, collection, entries[k].index, entries[k].unique, 0, entries[k].key, entries[k].keySize,
                     entries[k].value, entries[k].valueSize, &duplicate);
       if (rc == SQLITE_OK && duplicate) {
@@ -2025,6 +2050,13 @@ int mde_write(MdeStore *store, int64_t id, const MdeChange *changes, int count, 
       }
     }
   }
+  if (rc == SQLITE_OK && deferredCount) {
+    qsort(deferred, (size_t)deferredCount, sizeof(*deferred), CompareEntries);
+    for (int k = 0; k < deferredCount && rc == SQLITE_OK; k++)
+      rc = PutEntry(store, collection, deferred[k]->index, 0, deferred[k]->remove, deferred[k]->key, deferred[k]->keySize,
+                    deferred[k]->value, deferred[k]->valueSize, &duplicate);
+  }
+  free(deferred);
   sqlite3BtreeCloseCursor(store->cursor);
   if (rc == SQLITE_OK && definitions) rc = PutDefinitions(store, id, definitions, definitionsSize);
   /* The first write of the connection: the counts not written from now on */

@@ -1,6 +1,6 @@
 /* The text of the text indexes (text.h): the words of a text split by the delimiters, folded, the stop words left out,
-** stemmed by the stemmer of their language (Snowball, vendor/libstemmer_c), their diacritics removed, with the tables
-** of tables.h (scripts/text-tables.mjs) */
+** stemmed by the stemmer of their language (Snowball's of April 2014, vendor/libstemmer_c), their diacritics removed,
+** with the tables of tables.h (scripts/text-tables.mjs) */
 #include "text.h"
 
 #include <stdlib.h>
@@ -26,7 +26,9 @@
 
 #define COUNT(table) (sizeof(table) / sizeof((table)[0]))
 
-/* The id of Turkish, whose case folding has its own rules (T) */
+/* The id of English, whose words keep their apostrophes (don't), and of Turkish, whose case folding has its own rules
+** (T) */
+#define LANGUAGE_ENGLISH 3
 #define LANGUAGE_TURKISH 15
 
 typedef struct SN_env *(*CreateStemmer)(void);
@@ -143,6 +145,12 @@ static int Room(Bytes *bytes) {
   return 1;
 }
 
+/* Whether a code point is a delimiter of the words of a language: the apostrophe in every language but English */
+static int IsDelimiter(uint32_t point, int language) {
+  if (point == 0x27) return language != LANGUAGE_ENGLISH;
+  return InRanges(kDelimiters, COUNT(kDelimiters), point);
+}
+
 /* The case folding of a code point (C and S; T first in Turkish) */
 static uint32_t Fold(uint32_t point, int turkish) {
   int found = 0;
@@ -204,7 +212,7 @@ int mde_text_terms(const char *text, size_t size, int language, int flags,
   size_t at = 0, length = 0;
   while (at < size && !failed) {
     uint32_t point = Decode(s + at, size - at, &length);
-    if (InRanges(kDelimiters, COUNT(kDelimiters), point)) {
+    if (IsDelimiter(point, language)) {
       at += length;
       continue;
     }
@@ -213,7 +221,7 @@ int mde_text_terms(const char *text, size_t size, int language, int flags,
     folded.size = 0;
     for (; at < size; at += length) {
       point = Decode(s + at, size - at, &length);
-      if (InRanges(kDelimiters, COUNT(kDelimiters), point)) break;
+      if (IsDelimiter(point, language)) break;
       if (!Room(&folded) || !Room(&word)) {
         failed = 1;
         break;

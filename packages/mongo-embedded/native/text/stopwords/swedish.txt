@@ -77,6 +77,7 @@ sedan
 sig
 sin
 sina
+sitta
 själv
 skulle
 som

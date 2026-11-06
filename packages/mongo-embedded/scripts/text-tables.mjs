@@ -1,8 +1,9 @@
 // The tables of the text indexes (native/text/tables.h), from the data of Unicode 8.0 (vendor/ucd, the version of the
 // text indexes of MongoDB, version 3) and the stop words (native/text/stopwords): the delimiters of the words (the
 // characters of Dash, Hyphen, Pattern_Syntax, Quotation_Mark, Terminal_Punctuation and White_Space, but the apostrophe,
-// which MongoDB 8.0 keeps in its words), the case folding (C and S, T for Turkish), the characters without their
-// diacritics (a character of Diacritic removed, a character decomposed into a letter and diacritics the letter), and the
+// which MongoDB 8.0 keeps in the words of English: native/text/text.c tells it apart), the case folding (C and S, T for
+// Turkish), the characters without their diacritics (a character of Diacritic removed, a character decomposed into a
+// letter and diacritics the letter), and the
 // stop words of each language, sorted by their bytes.
 //
 // Run: node scripts/text-tables.mjs

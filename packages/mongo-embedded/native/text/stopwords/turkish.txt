@@ -1,11 +1,14 @@
 acaba
+altý
 ama
 bana
+bazý
 belki
 ben
 benden
 beni
 benim
+beþ
 bin
 bir
 biri
@@ -49,10 +52,13 @@ kim
 kimden
 kime
 kimi
+kýrk
 milyar
 milyon
 mu
 mü
+mý
+nasýl
 ne
 neden
 nerde
@@ -65,6 +71,8 @@ ona
 ondan
 onlar
 onlardan
+onlari
+onlarýn
 onu
 otuz
 sanki
@@ -90,3 +98,8 @@ yüz
 çok
 çünkü
 üç
+þey
+þeyi
+þeyler
+þu
+þunu
