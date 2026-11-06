@@ -1893,9 +1893,11 @@ export class EmbeddedCollection {
             const open = (state.openBuckets ??= new Map<string, Buffer>())
             // The buckets the measurements go into: their measurements, their bytes, the document before them
             const touched = new Map<string, { key: Buffer, id: unknown, start: number, meta: unknown, rows: EmbeddedDocument[], size: number, previous?: EmbeddedDocument }>()
+            // The measurements of a meta field together (its canonical EJSON; none without one)
+            const groupOf = (meta: unknown) => meta === undefined ? '' : bson.EJSON.stringify({ meta: meta }, { relaxed: false })
             for (const [index, measurement] of valid) {
                 const meta = options.metaField === undefined ? undefined : measurement[options.metaField]
-                const grouped = meta === undefined ? '' : bson.EJSON.stringify({ meta: meta }, { relaxed: false })
+                const grouped = groupOf(meta)
                 const time: number = measurement[options.timeField].getTime()
                 const fields = { ...measurement }
                 if (options.metaField !== undefined) delete fields[options.metaField]
@@ -1904,7 +1906,7 @@ export class EmbeddedCollection {
                 let bucket = last ? touched.get(last.toString('latin1')) : undefined
                 if (last && !bucket) {
                     const [stored] = await this.store.get(name, [last])
-                    if (stored && bson.EJSON.stringify({ meta: stored.meta }, { relaxed: false }) === (meta === undefined ? bson.EJSON.stringify({}, { relaxed: false }) : grouped)) {
+                    if (stored && groupOf(stored.meta) === grouped) {
                         const rows = unpacked(stored as EmbeddedBucket, options).map((row) => {
                             if (options.metaField !== undefined) delete row[options.metaField]
                             return row

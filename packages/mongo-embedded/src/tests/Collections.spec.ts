@@ -623,6 +623,11 @@ describe('The time series collections', (): void => {
         // A $out making a time series collection
         await db.collection('sensors').aggregate([{$project: {_id: 0, sensor: '$_id', t: {$toDate: base}}}, {$out: {db: 'any', coll: 'copies', timeseries: {timeField: 't', metaField: 'sensor'}}}]).toArray()
         assert.deepStrictEqual((await db.collection('copies').find({}, {projection: {_id: 0}}).sort({sensor: 1}).toArray()), [{t: new Date(base), sensor: 'a'}, {t: new Date(base), sensor: 'b'}])
+        // Without a meta field: the measurements of one span in one bucket, over several insertions
+        await db.createCollection('plain', {timeseries: {timeField: 't'}})
+        for (const k of [0, 1, 2]) await db.collection('plain').insertOne({t: new Date(base + k * 1000), v: k})
+        await db.collection('plain').insertMany([{t: new Date(base + 3000)}, {t: new Date(base + 4000)}])
+        assert.strictEqual(await db.collection('system.buckets.plain').countDocuments(), 1)
         assert.strictEqual(await weather.drop(), true)
         assert.deepStrictEqual((await db.listCollections({}, {nameOnly: true}).toArray()).map((collection: EmbeddedDocument): string => collection.name).filter((name: string): boolean => name.includes('weather')), [])
         await client.close()
