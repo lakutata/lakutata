@@ -9396,8 +9396,8 @@
       "$date": "2026-01-01T00:00:02.000Z"
      },
      "m": "a",
-     "extra": 1,
-     "v": 2
+     "v": 2,
+     "extra": 1
     },
     {
      "ts": {
@@ -9531,6 +9531,127 @@
      }
     }
    ]
+  },
+  "the writes of the time series collections in transactions: one deletion only": {
+   "deleteMany": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "read": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    },
+    "after": 2
+   },
+   "deleteManyByMeta": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "read": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    },
+    "after": 2
+   },
+   "updateMany": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "read": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    },
+    "after": 2
+   },
+   "deleteOne": {
+    "step": {
+     "value": {
+      "acknowledged": true,
+      "deletedCount": 1
+     }
+    },
+    "read": {
+     "value": 1
+    },
+    "commit": {},
+    "after": 1
+   },
+   "findOneAndDelete": {
+    "step": {
+     "value": {
+      "t": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": 2,
+      "v": 2
+     }
+    },
+    "read": {
+     "value": 1
+    },
+    "commit": {},
+    "after": 1
+   },
+   "bulkWriteDeleteOne": {
+    "step": {
+     "value": {
+      "insertedCount": 0,
+      "matchedCount": 0,
+      "modifiedCount": 0,
+      "deletedCount": 1,
+      "upsertedCount": 0,
+      "upsertedIds": {},
+      "insertedIds": {}
+     }
+    },
+    "read": {
+     "value": 1
+    },
+    "commit": {},
+    "after": 1
+   }
   },
   "the commands of the database and the options of its collections": {
    "ping": {

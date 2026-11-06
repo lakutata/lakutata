@@ -1162,8 +1162,12 @@ export const SCENARIOS: Scenario[] = [
             await db.createCollection('w', {timeseries: {timeField: 'ts', metaField: 'm'}})
             const w: any = db.collection('w')
             await w.insertMany([{ts: new Date(BASE + 1000), m: 'a', v: 1}, {v: 2, m: 'a', ts: new Date(BASE + 2000), extra: 1}, {_id: 7, m: 'b', ts: new Date(BASE + 500), v: 3}])
-            //The fields of the measurements: the time field, the meta field, then the columns of their bucket
-            result.fields = (await w.find({}).toArray()).map((measurement: any): string[] => Object.keys(measurement))
+            //The fields of the measurements: the time field, the meta field, then the other ones (in an order MongoDB 8.0
+            //changes from a process to another: compared sorted)
+            result.fields = (await w.find({}).toArray()).map((measurement: any): string[] => {
+                const fields: string[] = Object.keys(measurement)
+                return [...fields.slice(0, 2), ...fields.slice(2).sort()]
+            })
             result.view = await db.collection('system.views').find({}, {projection: {_id: 0}}).toArray()
             await w.createIndex({v: 1})
             await w.createIndex({ts: -1})
@@ -1222,6 +1226,36 @@ export const SCENARIOS: Scenario[] = [
             }
             await stream.close()
             result.events = events
+            return result
+        }
+    },
+    {
+        group: 'timeseries',
+        name: 'the writes of the time series collections in transactions: one deletion only',
+        async run({client, db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            await db.createCollection('w', {timeseries: {timeField: 't', metaField: 'm'}})
+            const w: any = db.collection('w')
+            const writes: Record<string, (session: any) => unknown> = {
+                deleteMany: (session: any): unknown => w.deleteMany({v: 1}, {session: session}),
+                deleteManyByMeta: (session: any): unknown => w.deleteMany({m: 1}, {session: session}),
+                updateMany: (session: any): unknown => w.updateMany({m: 1}, {$set: {m: 3}}, {session: session}),
+                deleteOne: (session: any): unknown => w.deleteOne({v: 1}, {session: session}),
+                findOneAndDelete: (session: any): unknown => w.findOneAndDelete({v: 2}, {session: session, projection: {_id: 0}}),
+                bulkWriteDeleteOne: (session: any): unknown => w.bulkWrite([{deleteOne: {filter: {v: 1}}}], {session: session})
+            }
+            for (const [name, write] of Object.entries(writes)) {
+                await w.deleteMany({})
+                await w.insertMany([{t: new Date(BASE), m: 1, v: 1}, {t: new Date(BASE + 1000), m: 2, v: 2}])
+                const session: any = client.startSession()
+                session.startTransaction()
+                await w.findOne({}, {session: session})
+                const step: unknown = await outcome((): unknown => write(session))
+                const read: unknown = await outcome((): unknown => w.countDocuments({}, {session: session}))
+                const commit: unknown = await outcome((): unknown => session.commitTransaction())
+                await session.endSession()
+                result[name] = {step: step, read: read, commit: commit, after: await w.countDocuments({})}
+            }
             return result
         }
     },

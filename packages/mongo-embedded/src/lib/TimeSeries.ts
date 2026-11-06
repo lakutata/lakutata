@@ -185,9 +185,10 @@ export function unpacked(bucket: EmbeddedBucket, options: EmbeddedTimeSeriesOpti
 }
 
 /**
- * A bucket of measurements (its _id, its start and its meta kept): its columns in the order of their names (as MongoDB
- * 8.0 orders them for the writes that are not retryable: its measurements unpacked in that order), the smallest and the
- * largest value of each field (the one of the time field its start), as MongoDB packs them
+ * A bucket of measurements (its _id, its start and its meta kept): its columns in the order their fields first come (as
+ * the uncompressed buckets of MongoDB keep them; MongoDB 8.0 unpacks the fields after the time and the meta fields in an
+ * order of its own, which changes from a process to another), the smallest and the largest value of each field (the one
+ * of the time field its start), as MongoDB packs them
  *
  * @param id
  * @param start the start of the bucket (rounded)
@@ -217,13 +218,11 @@ export function packed(
         }
     })
     min[options.timeField] = start
-    const sorted: Record<string, Record<string, unknown>> = {}
-    for (const field of Object.keys(data).sort()) sorted[field] = data[field]
     return {
         _id: id,
         control: { version: 1, min: min, max: max, count: measurements.length },
         ...(meta !== undefined ? { meta: meta } : {}),
-        data: sorted
+        data: data
     }
 }
 
