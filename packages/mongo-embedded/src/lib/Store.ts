@@ -64,6 +64,22 @@ export const OPLOG_SIZE: number = 64 * 1024 * 1024
 export const RING_SIZE: number = 16 * 1024 * 1024
 
 /**
+ * The bytes of a chunk of the events kept in memory
+ */
+const RING_CHUNK: number = 1024 * 1024
+
+/**
+ * A chunk of the events kept in memory: their BSON one after the other ([u32 size][event] each), of the sequences
+ * from its first one
+ */
+interface RingChunk {
+    first: number
+    count: number
+    bytes: Buffer
+    used: number
+}
+
+/**
  * An event of the oplog: its key (its generation and its sequence, 8 bytes each, big endian) and its BSON
  */
 export interface EmbeddedOplogEvent {
@@ -260,9 +276,9 @@ export class EmbeddedStoreTransaction {
     session?: { lsid: EmbeddedDocument, txnNumber: unknown }
 
     /**
-     * Its events kept out of the oplog (oplogSize 0), added at its commit
+     * Its events kept out of the oplog (oplogSize 0), kept in memory by its commit
      */
-    readonly events: EmbeddedOplogEvent[] = []
+    readonly events: Buffer[] = []
 }
 
 /**
@@ -321,9 +337,9 @@ export class EmbeddedStore {
     protected oplogSize: number = OPLOG_SIZE
 
     /**
-     * The events kept in memory (oplogSize 0), and their bytes
+     * The events kept in memory (oplogSize 0), in chunks, and the bytes of the chunks
      */
-    protected readonly ring: EmbeddedOplogEvent[] = []
+    protected readonly ring: RingChunk[] = []
 
     protected ringBytes: number = 0
 
@@ -466,9 +482,8 @@ export class EmbeddedStore {
         }
         // Its events committed: the change streams told
         if (this.nextSeq - 1 > this.committedSeq) {
-            this.ring.push(...transaction.events)
+            if (transaction.events.length) this.keep(this.committedSeq + 1, transaction.events)
             this.committedSeq = this.nextSeq - 1
-            this.keep()
             this.notify()
         }
     }
@@ -876,20 +891,7 @@ export class EmbeddedStore {
      * @param limit
      */
     async readEvents(after: Buffer | undefined, limit: number = 1000): Promise<{ events: EmbeddedOplogEvent[], done: boolean }> {
-        if (this.oplogSize <= 0) {
-            let first: number = 0
-            if (after) {
-                // The first one after the key: the events are in the order of their keys
-                let high: number = this.ring.length
-                while (first < high) {
-                    const middle: number = (first + high) >> 1
-                    if (Buffer.compare(this.ring[middle].key, after) <= 0) first = middle + 1
-                    else high = middle
-                }
-            }
-            const events: EmbeddedOplogEvent[] = this.ring.slice(first, first + limit)
-            return {events: events, done: first + limit >= this.ring.length}
-        }
+        if (this.oplogSize <= 0) return this.readRing(after, limit)
         const read = await addon.oplogRead(this.database, {after: after, limit: limit})
         const events: EmbeddedOplogEvent[] = []
         for (let at: number = 0; at < read.bytes.length;) {
@@ -904,7 +906,7 @@ export class EmbeddedStore {
      * The key of the oldest event of the oplog, null when it has none
      */
     async oldestEvent(): Promise<Buffer | null> {
-        if (this.oplogSize <= 0) return this.ring.length ? this.ring[0].key : null
+        if (this.oplogSize <= 0) return this.ring.length ? this.eventKey(this.generation, this.ring[0].first) : null
         return (await addon.oplogState(this.database)).first
     }
 
@@ -999,24 +1001,64 @@ export class EmbeddedStore {
      */
     protected written(events: Buffer[]): void {
         if (!events.length) return
-        if (this.oplogSize <= 0)
-            (this.open ? this.open.events : this.ring).push(...events.map((data: Buffer, index: number): EmbeddedOplogEvent => ({key: this.eventKey(this.generation, this.nextSeq + index), data: data})))
+        if (this.oplogSize <= 0) {
+            if (this.open) this.open.events.push(...events)
+            else this.keep(this.nextSeq, events)
+        }
         this.nextSeq += events.length
         if (this.open) return
         this.committedSeq = this.nextSeq - 1
-        this.keep()
         this.notify()
     }
 
     /**
-     * The events kept in memory within their bytes (RING_SIZE), the oldest ones dropped
+     * Events kept in memory (oplogSize 0), of the sequences from a first one, in chunks: the oldest chunks dropped beyond
+     * RING_SIZE
+     * @param first
+     * @param events
      */
-    protected keep(): void {
-        if (this.oplogSize > 0) return
-        this.ringBytes = this.ring.reduce((bytes: number, event: EmbeddedOplogEvent): number => bytes + event.data.length + 16, 0)
-        let dropped: number = 0
-        while (this.ringBytes > RING_SIZE && dropped < this.ring.length) this.ringBytes -= this.ring[dropped++].data.length + 16
-        if (dropped) this.ring.splice(0, dropped)
+    protected keep(first: number, events: Buffer[]): void {
+        events.forEach((data: Buffer, index: number): void => {
+            let chunk: RingChunk | undefined = this.ring[this.ring.length - 1]
+            if (!chunk || chunk.used + 4 + data.length > chunk.bytes.length || chunk.first + chunk.count !== first + index) {
+                chunk = {first: first + index, count: 0, bytes: Buffer.allocUnsafe(Math.max(RING_CHUNK, 4 + data.length)), used: 0}
+                this.ring.push(chunk)
+                this.ringBytes += chunk.bytes.length
+            }
+            chunk.bytes.writeUInt32LE(data.length, chunk.used)
+            data.copy(chunk.bytes, chunk.used + 4)
+            chunk.used += 4 + data.length
+            chunk.count++
+        })
+        while (this.ringBytes > RING_SIZE && this.ring.length > 1) this.ringBytes -= this.ring.shift()!.bytes.length
+    }
+
+    /**
+     * The events kept in memory after a key (of this generation: the only one kept), up to a number of them
+     * @param after
+     * @param limit
+     */
+    protected readRing(after: Buffer | undefined, limit: number): { events: EmbeddedOplogEvent[], done: boolean } {
+        const generation: bigint = BigInt(this.generation)
+        let next: number = 0
+        if (after) {
+            const given: bigint = after.readBigUInt64BE(0)
+            if (given > generation) return {events: [], done: true}
+            if (given === generation) next = Number(after.readBigUInt64BE(8)) + 1
+        }
+        const events: EmbeddedOplogEvent[] = []
+        for (const chunk of this.ring) {
+            if (chunk.first + chunk.count <= next) continue
+            for (let at: number = 0, sequence: number = chunk.first; at < chunk.used; sequence++) {
+                const size: number = chunk.bytes.readUInt32LE(at)
+                if (sequence >= next) {
+                    if (events.length >= limit) return {events: events, done: false}
+                    events.push({key: this.eventKey(this.generation, sequence), data: chunk.bytes.subarray(at + 4, at + 4 + size)})
+                }
+                at += 4 + size
+            }
+        }
+        return {events: events, done: true}
     }
 
     /**
