@@ -3,6 +3,7 @@ import type { EntityTarget } from "../common/EntityTarget"
 
 import type { ObjectLiteral } from "../common/ObjectLiteral"
 import type { MongoQueryRunner } from "../driver/mongodb/MongoQueryRunner"
+import type { QueryRunner } from "../query-runner/QueryRunner"
 import type { MongoDriver } from "../driver/mongodb/MongoDriver"
 import { DocumentToEntityTransformer } from "../query-builder/transformer/DocumentToEntityTransformer"
 import type { FindManyOptions } from "../find-options/FindManyOptions"
@@ -72,17 +73,22 @@ export class MongoEntityManager extends EntityManager {
     readonly "@instanceof" = Symbol.for("MongoEntityManager")
 
     get mongoQueryRunner(): MongoQueryRunner {
-        return (this.dataSource.driver as MongoDriver)
-            .queryRunner as MongoQueryRunner
+        // lakutata: the query runner of the entity manager, if it has one (a transaction of mongo-embedded)
+        return ((this.queryRunner as MongoQueryRunner | undefined) ??
+            (this.dataSource.driver as MongoDriver)
+                .queryRunner) as MongoQueryRunner
     }
+
 
     // -------------------------------------------------------------------------
     // Constructor
     // -------------------------------------------------------------------------
 
-    constructor(dataSource: DataSource) {
-        super(dataSource)
+    // lakutata: the query runner of a transaction of mongo-embedded
+    constructor(dataSource: DataSource, queryRunner?: QueryRunner) {
+        super(dataSource, queryRunner)
     }
+
 
     // -------------------------------------------------------------------------
     // Overridden Methods

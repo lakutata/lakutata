@@ -156,8 +156,18 @@ export class EntityManager {
 
         try {
             await queryRunner.startTransaction(isolation)
-            const result = await runInTransaction(queryRunner.manager)
+            // lakutata: the function of a transaction of mongo-embedded in its scope (its writes without its entity
+            // manager fail, as they would wait for it)
+            const runner = queryRunner as QueryRunner & {
+                runInTransactionScope?: <T>(fn: () => Promise<T>) => Promise<T>
+            }
+            const result = runner.runInTransactionScope
+                ? await runner.runInTransactionScope(() =>
+                      runInTransaction(queryRunner.manager),
+                  )
+                : await runInTransaction(queryRunner.manager)
             await queryRunner.commitTransaction()
+
             return result
         } catch (err) {
             try {
@@ -1582,8 +1592,12 @@ export class EntityManager {
     getMongoRepository<Entity extends ObjectLiteral>(
         target: EntityTarget<Entity>,
     ): MongoRepository<Entity> {
+        // lakutata: the repository of this entity manager (of a transaction of mongo-embedded), as getRepository gives it
+        if (this.dataSource.driver.options.type === "mongo-embedded")
+            return this.getRepository(target) as MongoRepository<Entity>
         return this.dataSource.getMongoRepository<Entity>(target)
     }
+
 
     /**
      * Creates a new repository instance out of a given Repository and

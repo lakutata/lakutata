@@ -16,8 +16,13 @@ export class EntityManagerFactory {
      * @returns an EntityManager specialized for the driver
      */
     create(dataSource: dataSource, queryRunner?: QueryRunner): EntityManager {
-        if ((dataSource.driver.options.type === "mongodb" || dataSource.driver.options.type === "mongo-embedded")) // lakutata: mongo-embedded, a MongoDB driver
+        // lakutata: mongo-embedded, a MongoDB driver whose query runners are their own (their transactions)
+        if (dataSource.driver.options.type === "mongo-embedded")
+            return new MongoEntityManager(dataSource, queryRunner)
+
+        if (dataSource.driver.options.type === "mongodb")
             return new MongoEntityManager(dataSource)
+
 
         if (dataSource.driver.options.type === "sqljs")
             return new SqljsEntityManager(dataSource, queryRunner)

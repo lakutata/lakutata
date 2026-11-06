@@ -3,9 +3,10 @@ import { TypeORMError } from "../../error/TypeORMError"
 import { requireDriverPackage } from "../../platform/DriverPackages"
 import { ObjectUtils } from "../../util/ObjectUtils"
 import { MongoDriver } from "../mongodb/MongoDriver"
-import { MongoQueryRunner } from "../mongodb/MongoQueryRunner"
+import type { ReplicationMode } from "../types/ReplicationMode"
 import type { ReturningType } from "../types/ReturningType"
 import type { MongoEmbeddedDataSourceOptions } from "./MongoEmbeddedDataSourceOptions"
+import { MongoEmbeddedQueryRunner } from "./MongoEmbeddedQueryRunner"
 
 /**
  * lakutata: the options of mongo-embedded removed with its native storage (the package @lakutata/mongo-embedded):
@@ -51,11 +52,29 @@ export class MongoEmbeddedDriver extends MongoDriver {
                 mmapSize: options.mmapSize,
             },
         )
-        this.queryRunner = new MongoQueryRunner(this.dataSource, client as any)
+        this.queryRunner = new MongoEmbeddedQueryRunner(
+            this.dataSource,
+            client as any,
+        )
         ObjectUtils.assign(this.queryRunner, {
             manager: this.dataSource.manager,
         })
     }
+
+    /**
+     * A query runner of its own, on the client of the data source: its transactions are the ones of a session of the
+     * client (the one of the data source keeps none).
+     *
+     * @param mode
+     */
+    createQueryRunner(mode: ReplicationMode) {
+        void mode
+        return new MongoEmbeddedQueryRunner(
+            this.dataSource,
+            this.queryRunner!.databaseConnection,
+        )
+    }
+
 
     /**
      * Whether the persistence of the entities may insert them together: the embedded client inserts the documents of a

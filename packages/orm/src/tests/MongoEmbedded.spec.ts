@@ -686,6 +686,48 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
+    it('runs the transactions of its entity managers and query runners in the transactions of the embedded client', async (): Promise<void> => {
+        const dataSource: DataSource = await open(':memory:')
+        const posts: MongoRepository<Post> = dataSource.getMongoRepository(Post)
+        await savePosts(posts)
+        const author: Author = {name: 'Ada', city: 'London'}
+        //Committed: its reads see its writes, the reads beside it the last commit
+        await dataSource.transaction(async (manager): Promise<void> => {
+            const repository: MongoRepository<Post> = manager.getMongoRepository(Post)
+            await repository.updateOne({title: 'hello'}, {$set: {views: 100}})
+            await manager.save(Post, {title: 'fourth', tags: [], views: 0, author: author})
+            assert.strictEqual((await repository.findOneBy({title: 'hello'}))?.views, 100)
+            assert.strictEqual(await repository.count(), 4)
+            assert.strictEqual((await posts.findOneBy({title: 'hello'}))?.views, 1)
+            assert.strictEqual(await posts.count(), 3)
+        })
+        assert.strictEqual((await posts.findOneBy({title: 'hello'}))?.views, 100)
+        assert.strictEqual(await posts.count(), 4)
+        //Rolled back by an error (a duplicate key): none of its writes made
+        await assert.rejects(dataSource.transaction(async (manager): Promise<void> => {
+            await manager.getMongoRepository(Post).updateOne({title: 'world'}, {$set: {views: 50}})
+            await manager.save(Post, {title: 'hello', tags: [], views: 0, author: author})
+        }), /E11000/)
+        assert.strictEqual((await posts.findOneBy({title: 'world'}))?.views, 5)
+        //A write in it without its entity manager, once it began, fails at once: it would wait for the transaction to end
+        await assert.rejects(dataSource.transaction(async (manager): Promise<void> => {
+            await manager.getMongoRepository(Post).updateOne({title: 'world'}, {$set: {views: 60}})
+            await posts.save({title: 'outside', tags: [], views: 0, author: author})
+        }), /without the session of the transaction open/)
+        assert.strictEqual(await posts.countBy({title: 'outside'}), 0)
+        assert.strictEqual((await posts.findOneBy({title: 'world'}))?.views, 5)
+        //A query runner of its own, its transaction rolled back
+        const runner = dataSource.createQueryRunner()
+        await runner.startTransaction()
+        await runner.manager.save(Post, {title: 'fifth', tags: [], views: 0, author: author})
+        assert.strictEqual(await runner.manager.getMongoRepository(Post).count(), 5)
+        assert.strictEqual(await posts.count(), 4)
+        await runner.rollbackTransaction()
+        await runner.release()
+        assert.strictEqual(await posts.count(), 4)
+        await dataSource.destroy()
+    })
+
     it('tells the methods of MongoDB it does not have', async (): Promise<void> => {
         const dataSource: DataSource = await open(':memory:')
         assert.throws((): unknown => dataSource.mongoManager.watch(Post), /watch is not supported by mongo-embedded/)
