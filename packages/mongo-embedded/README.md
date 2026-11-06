@@ -64,6 +64,9 @@ A write concern with `j: true` (or `fsync: true`) syncs the WAL before the write
 ### Transactions
 
 ```typescript
+import {EmbeddedClient} from '@lakutata/mongo-embedded'
+
+const client = await EmbeddedClient.connect('./data/documents')
 const accounts = client.db().collection('accounts')
 const session = client.startSession()
 await session.withTransaction(async () => {
@@ -71,6 +74,7 @@ await session.withTransaction(async () => {
     await accounts.updateOne({_id: 'b'}, {$inc: {balance: 10}}, {session})
 })
 await session.endSession()
+await client.close()
 ```
 
 The database behaves like a MongoDB replica set with one member. A transaction sees its own writes and a snapshot of
@@ -81,21 +85,27 @@ aborts it. The ORM runs `EntityManager.transaction` and the transactions of its 
 ### Change streams
 
 ```typescript
+import {EmbeddedClient} from '@lakutata/mongo-embedded'
+
+const client = await EmbeddedClient.connect('./data/documents')
+const items = client.db().collection('items')
 const stream = items.watch([{$match: {operationType: 'insert'}}])
 for await (const change of stream) console.log(change.fullDocument)
 ```
 
-`watch` on a collection, on the database or on the client gives the events of the writes in MongoDB's format. They are
-kept in an oplog in the database file, 64 MiB by default (`oplogSize`); with `oplogSize: 0` only the last 16 MiB of
-them stay in memory. A stream resumes from its resume token, also after the database is reopened when the oplog is on
-disk. `changeStreamPreAndPostImages` on a collection keeps the documents before and after each change for
+`watch` on a collection, on the database or on the client gives the events of the writes in MongoDB's format. A
+database in a directory keeps them in an oplog in its file, 64 MiB by default (`oplogSize`), and a stream resumes from
+its resume token, also after the database is reopened. A database in memory keeps no oplog by default
+(`oplogSize: 0`): the writes build their events only while a change stream is open, and the last 16 MiB of them stay
+in memory, so a stream resuming across writes made while no stream was open fails with `ChangeStreamHistoryLost`. `changeStreamPreAndPostImages` on a collection keeps the documents before and after each change for
 `fullDocumentBeforeChange` and `fullDocument`.
 
 ## API
 
 - `EmbeddedClient.connect(directory?, options?)`: opens a database (`":memory:"` by default). Its options: `sync`,
   `syncInterval`, `cacheSize` (the page cache, 16 MiB by default), `mmapSize` (the bytes read through a memory map,
-  0 by default), `oplogSize`, `writeConcern` (the default of the writes) and `transactionLifetimeLimitSeconds`. While
+  0 by default), `oplogSize` (64 MiB in a directory, 0 in memory), `writeConcern` (the default of the writes) and
+  `transactionLifetimeLimitSeconds`. While
   it is open, the client deletes documents expired by TTL indexes every 60 seconds; `client.expire()` does it at once.
 - `client.startSession()` and `client.withSession()` for sessions and transactions; `client.watch()` for a change stream
   of the whole database.
