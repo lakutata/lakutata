@@ -56,6 +56,8 @@ typedef struct Collection {
 
 struct MdeStore {
   sqlite3 *db;
+  /* The name it opened: the path of its file, or the name of a database in memory */
+  char *file;
   Btree *bt;
   Pgno meta;
   KeyInfo *info;
@@ -117,10 +119,19 @@ void mde_buffer_free(MdeBuffer *buffer) {
 */
 #define MDE_FRAME_HEADER 24
 
+typedef struct MemoryNode MemoryNode;
+
 typedef struct MdeFile {
   sqlite3_file base;
-  /* The file of the default VFS, allocated after this one */
+  /* The file of the default VFS, allocated after this one; NULL for a file in memory */
   sqlite3_file *real;
+  /* A file in memory: its content, the lock this handle holds, the locks it holds on the shared memory (a bit for each
+  ** lock) and whether it maps it */
+  MemoryNode *memory;
+  int lock;
+  unsigned shmShared;
+  unsigned shmExclusive;
+  int shmMapped;
   int wal;
   /* The header of a frame held (size 0: none), and where it is written */
   uint8_t header[MDE_FRAME_HEADER];
@@ -263,10 +274,367 @@ static const sqlite3_io_methods mdeMethods = {
     MdeFileControl, MdeSectorSize, MdeDeviceCharacteristics, MdeShmMap, MdeShmLock, MdeShmBarrier, MdeShmUnmap,
     MdeFetch, MdeUnfetch};
 
+/*
+** The files of the databases in memory. A database in memory is opened under a name of its own (MDE_MEMORY and a
+** number, mde_open_memory), which the VFS keeps in memory with its WAL and the memory its connections share (the index
+** of the WAL): two connections to it (the one writing and the one reading beside the transaction of a session) share
+** them, as the connections to a file share its file. The locks of the files and of the shared memory are kept in
+** memory too, between the connections of this process (each file belongs to one database, which no other process
+** opens). A file is freed when its last handle closes: the database once its last connection is closed.
+*/
+#define MDE_MEMORY "mde-memory:"
+
+struct MemoryNode {
+  MemoryNode *next;
+  char *name;
+  uint8_t *data;
+  sqlite3_int64 size;
+  size_t capacity;
+  int handles;
+  /* The handles holding a shared lock; the ones holding the reserved, pending and exclusive locks */
+  int shared;
+  MdeFile *reserved;
+  MdeFile *pending;
+  MdeFile *exclusive;
+  /* The shared memory: its regions, the handles mapping it, and its locks: the handles holding each one shared, the
+  ** one holding it exclusive */
+  volatile void **regions;
+  int regionCount;
+  int mapped;
+  int shmShared[SQLITE_SHM_NLOCK];
+  MdeFile *shmExclusive[SQLITE_SHM_NLOCK];
+};
+
+/* The files in memory not deleted, and the mutex of all of them */
+static MemoryNode *memoryFiles;
+static sqlite3_mutex *memoryMutex;
+static sqlite3_int64 memoryNames;
+
+static int IsMemory(const char *name) { return name && strncmp(name, MDE_MEMORY, sizeof(MDE_MEMORY) - 1) == 0; }
+
+static MemoryNode *FindMemory(const char *name) {
+  for (MemoryNode *node = memoryFiles; node; node = node->next)
+    if (strcmp(node->name, name) == 0) return node;
+  return NULL;
+}
+
+/* A file taken out of the files not deleted */
+static void Unlink(MemoryNode *node) {
+  for (MemoryNode **at = &memoryFiles; *at; at = &(*at)->next) {
+    if (*at == node) {
+      *at = node->next;
+      return;
+    }
+  }
+}
+
+static void FreeMemory(MemoryNode *node) {
+  for (int i = 0; i < node->regionCount; i++) free((void *)node->regions[i]);
+  free((void *)node->regions);
+  free(node->data);
+  free(node->name);
+  free(node);
+}
+
+static int MemoryRead(sqlite3_file *base, void *data, int amount, sqlite3_int64 offset) {
+  MemoryNode *node = ((MdeFile *)base)->memory;
+  sqlite3_mutex_enter(memoryMutex);
+  sqlite3_int64 available = node->size > offset ? node->size - offset : 0;
+  int copied = available < amount ? (int)available : amount;
+  if (copied > 0) memcpy(data, node->data + offset, (size_t)copied);
+  sqlite3_mutex_leave(memoryMutex);
+  if (copied == amount) return SQLITE_OK;
+  memset((uint8_t *)data + copied, 0, (size_t)(amount - copied));
+  return SQLITE_IOERR_SHORT_READ;
+}
+
+static int MemoryWrite(sqlite3_file *base, const void *data, int amount, sqlite3_int64 offset) {
+  MemoryNode *node = ((MdeFile *)base)->memory;
+  int rc = SQLITE_OK;
+  sqlite3_mutex_enter(memoryMutex);
+  size_t end = (size_t)offset + (size_t)amount;
+  if (!Reserve(&node->data, &node->capacity, end)) {
+    rc = SQLITE_IOERR_NOMEM;
+  } else {
+    if (offset > node->size) memset(node->data + node->size, 0, (size_t)(offset - node->size));
+    memcpy(node->data + offset, data, (size_t)amount);
+    if ((sqlite3_int64)end > node->size) node->size = (sqlite3_int64)end;
+  }
+  sqlite3_mutex_leave(memoryMutex);
+  return rc;
+}
+
+static int MemoryTruncate(sqlite3_file *base, sqlite3_int64 size) {
+  MemoryNode *node = ((MdeFile *)base)->memory;
+  sqlite3_mutex_enter(memoryMutex);
+  if (size < node->size) node->size = size;
+  sqlite3_mutex_leave(memoryMutex);
+  return SQLITE_OK;
+}
+
+static int MemorySync(sqlite3_file *base, int flags) {
+  (void)base;
+  (void)flags;
+  return SQLITE_OK;
+}
+
+static int MemoryFileSize(sqlite3_file *base, sqlite3_int64 *size) {
+  MemoryNode *node = ((MdeFile *)base)->memory;
+  sqlite3_mutex_enter(memoryMutex);
+  *size = node->size;
+  sqlite3_mutex_leave(memoryMutex);
+  return SQLITE_OK;
+}
+
+/* Whether a lock is held by another handle than file */
+static int Other(const MdeFile *holder, const MdeFile *file) { return holder && holder != file; }
+
+/* The locks of SQLite on a file (shared, reserved, pending, exclusive), as the default VFS takes them */
+static int MemoryLock(sqlite3_file *base, int level) {
+  MdeFile *file = (MdeFile *)base;
+  MemoryNode *node = file->memory;
+  int rc = SQLITE_OK;
+  sqlite3_mutex_enter(memoryMutex);
+  if (file->lock < level) {
+    if (file->lock == SQLITE_LOCK_NONE) {
+      if (Other(node->pending, file) || Other(node->exclusive, file)) {
+        rc = SQLITE_BUSY;
+      } else {
+        node->shared++;
+        file->lock = SQLITE_LOCK_SHARED;
+      }
+    }
+    if (rc == SQLITE_OK && level == SQLITE_LOCK_RESERVED) {
+      if (Other(node->reserved, file) || Other(node->pending, file) || Other(node->exclusive, file)) {
+        rc = SQLITE_BUSY;
+      } else {
+        node->reserved = file;
+        file->lock = SQLITE_LOCK_RESERVED;
+      }
+    } else if (rc == SQLITE_OK && level == SQLITE_LOCK_EXCLUSIVE) {
+      if (Other(node->pending, file) || Other(node->exclusive, file)) {
+        rc = SQLITE_BUSY;
+      } else {
+        /* Pending: no new shared lock, until the other ones are released */
+        node->pending = file;
+        if (node->shared > 1) {
+          file->lock = SQLITE_LOCK_PENDING;
+          rc = SQLITE_BUSY;
+        } else {
+          node->exclusive = file;
+          file->lock = SQLITE_LOCK_EXCLUSIVE;
+        }
+      }
+    }
+  }
+  sqlite3_mutex_leave(memoryMutex);
+  return rc;
+}
+
+static int MemoryUnlock(sqlite3_file *base, int level) {
+  MdeFile *file = (MdeFile *)base;
+  MemoryNode *node = file->memory;
+  sqlite3_mutex_enter(memoryMutex);
+  if (file->lock > level) {
+    if (node->reserved == file) node->reserved = NULL;
+    if (node->pending == file) node->pending = NULL;
+    if (node->exclusive == file) node->exclusive = NULL;
+    if (level == SQLITE_LOCK_NONE) node->shared--;
+    file->lock = level;
+  }
+  sqlite3_mutex_leave(memoryMutex);
+  return SQLITE_OK;
+}
+
+static int MemoryCheckReservedLock(sqlite3_file *base, int *reserved) {
+  MemoryNode *node = ((MdeFile *)base)->memory;
+  sqlite3_mutex_enter(memoryMutex);
+  *reserved = node->reserved || node->pending || node->exclusive;
+  sqlite3_mutex_leave(memoryMutex);
+  return SQLITE_OK;
+}
+
+static int MemoryFileControl(sqlite3_file *base, int op, void *argument) {
+  (void)base;
+  (void)op;
+  (void)argument;
+  return SQLITE_NOTFOUND;
+}
+
+static int MemorySectorSize(sqlite3_file *base) {
+  (void)base;
+  return 4096;
+}
+
+static int MemoryDeviceCharacteristics(sqlite3_file *base) {
+  (void)base;
+  return SQLITE_IOCAP_POWERSAFE_OVERWRITE | SQLITE_IOCAP_SAFE_APPEND | SQLITE_IOCAP_SEQUENTIAL;
+}
+
+static int MemoryShmMap(sqlite3_file *base, int region, int size, int extend, void volatile **memory) {
+  MdeFile *file = (MdeFile *)base;
+  MemoryNode *node = file->memory;
+  int rc = SQLITE_OK;
+  *memory = NULL;
+  sqlite3_mutex_enter(memoryMutex);
+  if (!file->shmMapped) {
+    file->shmMapped = 1;
+    node->mapped++;
+  }
+  if (region >= node->regionCount && extend) {
+    volatile void **regions = realloc((void *)node->regions, sizeof(void *) * (size_t)(region + 1));
+    if (!regions) {
+      rc = SQLITE_IOERR_NOMEM;
+    } else {
+      node->regions = regions;
+      for (; node->regionCount <= region; node->regionCount++) {
+        node->regions[node->regionCount] = calloc(1, (size_t)size);
+        if (!node->regions[node->regionCount]) {
+          rc = SQLITE_IOERR_NOMEM;
+          break;
+        }
+      }
+    }
+  }
+  if (rc == SQLITE_OK && region < node->regionCount) *memory = node->regions[region];
+  sqlite3_mutex_leave(memoryMutex);
+  return rc;
+}
+
+/* The locks of the shared memory released by a handle */
+static void ReleaseShm(MdeFile *file, unsigned mask) {
+  MemoryNode *node = file->memory;
+  for (int i = 0; i < SQLITE_SHM_NLOCK; i++) {
+    if (!(mask & (1u << i))) continue;
+    if (file->shmShared & (1u << i)) node->shmShared[i]--;
+    if (node->shmExclusive[i] == file) node->shmExclusive[i] = NULL;
+  }
+  file->shmShared &= ~mask;
+  file->shmExclusive &= ~mask;
+}
+
+static int MemoryShmLock(sqlite3_file *base, int offset, int count, int flags) {
+  MdeFile *file = (MdeFile *)base;
+  MemoryNode *node = file->memory;
+  const unsigned mask = ((1u << (offset + count)) - 1u) & ~((1u << offset) - 1u);
+  int rc = SQLITE_OK;
+  sqlite3_mutex_enter(memoryMutex);
+  if (flags & SQLITE_SHM_UNLOCK) {
+    ReleaseShm(file, mask);
+  } else if (flags & SQLITE_SHM_SHARED) {
+    if (!((file->shmShared | file->shmExclusive) & mask)) {
+      if (Other(node->shmExclusive[offset], file)) {
+        rc = SQLITE_BUSY;
+      } else {
+        node->shmShared[offset]++;
+        file->shmShared |= mask;
+      }
+    }
+  } else {
+    for (int i = offset; i < offset + count && rc == SQLITE_OK; i++)
+      if (Other(node->shmExclusive[i], file) || node->shmShared[i] > ((file->shmShared & (1u << i)) ? 1 : 0)) rc = SQLITE_BUSY;
+    if (rc == SQLITE_OK) {
+      for (int i = offset; i < offset + count; i++) node->shmExclusive[i] = file;
+      file->shmExclusive |= mask;
+    }
+  }
+  sqlite3_mutex_leave(memoryMutex);
+  return rc;
+}
+
+static void MemoryShmBarrier(sqlite3_file *base) {
+  (void)base;
+  sqlite3MemoryBarrier();
+}
+
+static int MemoryShmUnmap(sqlite3_file *base, int deleteFlag) {
+  MdeFile *file = (MdeFile *)base;
+  MemoryNode *node = file->memory;
+  sqlite3_mutex_enter(memoryMutex);
+  ReleaseShm(file, (1u << SQLITE_SHM_NLOCK) - 1u);
+  if (file->shmMapped) {
+    file->shmMapped = 0;
+    node->mapped--;
+  }
+  if (deleteFlag && node->mapped == 0) {
+    for (int i = 0; i < node->regionCount; i++) free((void *)node->regions[i]);
+    free((void *)node->regions);
+    node->regions = NULL;
+    node->regionCount = 0;
+  }
+  sqlite3_mutex_leave(memoryMutex);
+  return SQLITE_OK;
+}
+
+static int MemoryFetch(sqlite3_file *base, sqlite3_int64 offset, int amount, void **pointer) {
+  (void)base;
+  (void)offset;
+  (void)amount;
+  *pointer = NULL;
+  return SQLITE_OK;
+}
+
+static int MemoryUnfetch(sqlite3_file *base, sqlite3_int64 offset, void *pointer) {
+  (void)base;
+  (void)offset;
+  (void)pointer;
+  return SQLITE_OK;
+}
+
+static int MemoryClose(sqlite3_file *base) {
+  MdeFile *file = (MdeFile *)base;
+  MemoryNode *node = file->memory;
+  MemoryShmUnmap(base, 0);
+  MemoryUnlock(base, SQLITE_LOCK_NONE);
+  sqlite3_mutex_enter(memoryMutex);
+  if (--node->handles == 0) {
+    Unlink(node);
+    FreeMemory(node);
+  }
+  sqlite3_mutex_leave(memoryMutex);
+  file->memory = NULL;
+  return SQLITE_OK;
+}
+
+static const sqlite3_io_methods memoryMethods = {
+    3, MemoryClose, MemoryRead, MemoryWrite, MemoryTruncate, MemorySync, MemoryFileSize, MemoryLock, MemoryUnlock,
+    MemoryCheckReservedLock, MemoryFileControl, MemorySectorSize, MemoryDeviceCharacteristics, MemoryShmMap,
+    MemoryShmLock, MemoryShmBarrier, MemoryShmUnmap, MemoryFetch, MemoryUnfetch};
+
+/* A file in memory opened: created when it is not there (and the flags tell to) */
+static int OpenMemory(const char *name, MdeFile *file, int flags, int *outFlags) {
+  int rc = SQLITE_OK;
+  sqlite3_mutex_enter(memoryMutex);
+  MemoryNode *node = FindMemory(name);
+  if (!node && !(flags & SQLITE_OPEN_CREATE)) {
+    rc = SQLITE_CANTOPEN;
+  } else if (!node) {
+    node = calloc(1, sizeof(MemoryNode));
+    if (node) node->name = malloc(strlen(name) + 1);
+    if (!node || !node->name) {
+      free(node);
+      node = NULL;
+      rc = SQLITE_NOMEM;
+    } else {
+      strcpy(node->name, name);
+      node->next = memoryFiles;
+      memoryFiles = node;
+    }
+  }
+  if (node) node->handles++;
+  sqlite3_mutex_leave(memoryMutex);
+  if (rc != SQLITE_OK) return rc;
+  file->memory = node;
+  file->base.pMethods = &memoryMethods;
+  if (outFlags) *outFlags = flags;
+  return SQLITE_OK;
+}
+
 static int MdeOpen(sqlite3_vfs *vfs, sqlite3_filename name, sqlite3_file *base, int flags, int *outFlags) {
   (void)vfs;
   MdeFile *file = (MdeFile *)base;
   memset(file, 0, sizeof(MdeFile));
+  if (IsMemory(name)) return OpenMemory(name, file, flags, outFlags);
   file->real = (sqlite3_file *)((uint8_t *)file + ((sizeof(MdeFile) + 7) & ~(size_t)7));
   int rc = mdeRealVfs->xOpen(mdeRealVfs, name, file->real, flags, outFlags);
   /* The methods of the default VFS for the files: the ones forwarded require its version 3 */
@@ -282,17 +650,34 @@ static int MdeOpen(sqlite3_vfs *vfs, sqlite3_filename name, sqlite3_file *base, 
 
 static int MdeDelete(sqlite3_vfs *vfs, const char *name, int syncDir) {
   (void)vfs;
-  return mdeRealVfs->xDelete(mdeRealVfs, name, syncDir);
+  if (!IsMemory(name)) return mdeRealVfs->xDelete(mdeRealVfs, name, syncDir);
+  /* Out of the files not deleted (its handles still reading it), freed with its last handle */
+  sqlite3_mutex_enter(memoryMutex);
+  MemoryNode *node = FindMemory(name);
+  if (node) {
+    Unlink(node);
+    if (node->handles == 0) FreeMemory(node);
+  }
+  sqlite3_mutex_leave(memoryMutex);
+  return SQLITE_OK;
 }
 
 static int MdeAccess(sqlite3_vfs *vfs, const char *name, int flags, int *result) {
   (void)vfs;
-  return mdeRealVfs->xAccess(mdeRealVfs, name, flags, result);
+  if (!IsMemory(name)) return mdeRealVfs->xAccess(mdeRealVfs, name, flags, result);
+  /* As the default VFS tells it: an empty file is not there */
+  sqlite3_mutex_enter(memoryMutex);
+  MemoryNode *node = FindMemory(name);
+  *result = node && (flags != SQLITE_ACCESS_EXISTS || node->size > 0);
+  sqlite3_mutex_leave(memoryMutex);
+  return SQLITE_OK;
 }
 
 static int MdeFullPathname(sqlite3_vfs *vfs, const char *name, int size, char *out) {
   (void)vfs;
-  return mdeRealVfs->xFullPathname(mdeRealVfs, name, size, out);
+  if (!IsMemory(name)) return mdeRealVfs->xFullPathname(mdeRealVfs, name, size, out);
+  snprintf(out, (size_t)size, "%s", name);
+  return SQLITE_OK;
 }
 
 static int MdeRandomness(sqlite3_vfs *vfs, int size, char *out) {
@@ -331,6 +716,8 @@ static const char *MdeVfs(void) {
   sqlite3_mutex_enter(mutex);
   if (!registered) {
     mdeRealVfs = sqlite3_vfs_find(0);
+    memoryMutex = sqlite3_mutex_alloc(SQLITE_MUTEX_STATIC_VFS2);
+
     mdeVfs.iVersion = 2;
     mdeVfs.szOsFile = (int)((sizeof(MdeFile) + 7) & ~(size_t)7) + mdeRealVfs->szOsFile;
     mdeVfs.mxPathname = mdeRealVfs->mxPathname;
@@ -705,17 +1092,32 @@ static int WriteCounts(MdeStore *store) {
 int mde_open(const char *file, const MdeOptions *options, MdeStore **out, char *message, size_t size) {
   *out = NULL;
   MdeStore *store = calloc(1, sizeof(MdeStore));
-  if (!store) {
+  const char *vfs = MdeVfs();
+  /* A database in memory: a file in memory of a name of its own (its connections share it) */
+  char memory[64];
+  if (strcmp(file, ":memory:") == 0) {
+    sqlite3_mutex_enter(memoryMutex);
+    snprintf(memory, sizeof(memory), "%s%lld", MDE_MEMORY, (long long)++memoryNames);
+    sqlite3_mutex_leave(memoryMutex);
+    file = memory;
+  }
+  if (store) store->file = malloc(strlen(file) + 1);
+  if (!store || !store->file) {
+    free(store);
     snprintf(message, size, "out of memory");
     return SQLITE_NOMEM;
   }
-  int rc = sqlite3_open_v2(file, &store->db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX, MdeVfs());
+  strcpy(store->file, file);
+  int rc = sqlite3_open_v2(file, &store->db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX, vfs);
   if (rc != SQLITE_OK) {
     snprintf(message, size, "%s: %s", file, store->db ? sqlite3_errmsg(store->db) : "cannot open");
     sqlite3_close(store->db);
+    free(store->file);
     free(store);
     return rc;
   }
+  /* A database in memory is gone with its last connection: no checkpoint at its closing */
+  if (IsMemory(file)) sqlite3_db_config(store->db, SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, 1, (int *)0);
   /* A lock held a moment by the other connection (the one of the checkpoints) is waited for */
   sqlite3_busy_timeout(store->db, 10000);
   /* The checkpoints of the addon only (precondition 4: none would run anyway from the writes of the b-tree layer) */
@@ -763,7 +1165,9 @@ void mde_close(MdeStore *store) {
   if (store->probe) sqlite3DbFree(store->db, store->probe);
   if (store->info) sqlite3KeyInfoUnref(store->info);
   sqlite3_close(store->db);
+  free(store->file);
   for (int i = 0; i < store->collectionCount; i++) FreeCollection(&store->collections[i]);
+
   free(store->collections);
   free(store->record);
   free(store->payload);
