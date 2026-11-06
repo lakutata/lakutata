@@ -129,6 +129,21 @@ export interface EmbeddedNaturalTables {
 }
 
 /**
+ * The collection of the definitions of the views of the database
+ */
+export const VIEWS: string = 'system.views'
+
+/**
+ * The definition of a view, as system.views keeps it: the collection (or the view) it is defined on, its pipeline, its
+ * collation (every field of it), if it has one
+ */
+export interface EmbeddedViewDefinition {
+    viewOn: string
+    pipeline: EmbeddedDocument[]
+    collation?: EmbeddedDocument
+}
+
+/**
  * The key of the sequence of an insertion in a capped collection: 8 bytes, big endian
  * @param sequence
  */
@@ -422,6 +437,13 @@ export class EmbeddedStore {
     protected readonly collections: Map<string, EmbeddedCollectionState> = new Map<string, EmbeddedCollectionState>()
 
     /**
+     * The views of the database (system.views), by their names: their definitions and the _id of their documents
+     */
+    readonly views: Map<string, EmbeddedViewDefinition> = new Map<string, EmbeddedViewDefinition>()
+
+    protected readonly viewIds: Map<string, string> = new Map<string, string>()
+
+    /**
      * The last write of the exclusive ones, which the next one awaits
      */
     protected writing: Promise<unknown> = Promise.resolve()
@@ -503,6 +525,7 @@ export class EmbeddedStore {
         const store: EmbeddedStore = new EmbeddedStore(directory, values, database)
         try {
             await store.readCatalog()
+            await store.readViews()
             const state = await addon.oplogState(database)
             store.generation = state.generation
             store.nextSeq = state.nextSeq
@@ -646,7 +669,7 @@ export class EmbeddedStore {
      * @param changes
      * @param create whether the collection is created when it is missing (an insertion)
      */
-    async write(name: string, changes: EmbeddedChange[], create: boolean = false): Promise<void> {
+    async write(name: string, changes: EmbeddedChange[], create: boolean = false, extra: Buffer[] = []): Promise<void> {
         if (!changes.length) return
         if (this.open && !this.transacting) throw new MongoEmbeddedError('A write outside the transaction open, which it does not wait for')
         const collection: EmbeddedCollectionState | undefined = this.collections.get(name)
@@ -689,7 +712,7 @@ export class EmbeddedStore {
         // The collection created by the write: its UUID given, its events written by the commit of its creation
         const created: EmbeddedCollectionState | undefined = create && !collection ? new EmbeddedCollectionState(name, this.values) : undefined
         const creationEvents: Buffer[] = created ? [this.creationEvent(created)] : []
-        const events: Buffer[] = this.changeEvents((collection ?? created)!, changes)
+        const events: Buffer[] = [...this.changeEvents((collection ?? created)!, changes), ...extra]
         const creation: NativeCreation | undefined = created ? {uuid: created.uuid, events: this.inOplog(creationEvents)} : undefined
         try {
             await addon.write(this.database, name, natives, create, entries, definitions, this.inOplog(events), creation)
@@ -1265,7 +1288,55 @@ export class EmbeddedStore {
         const dropped: boolean = await addon.dropCollection(this.database, name, this.inOplog(events))
         this.collections.delete(name)
         if (dropped) this.written(events)
+        // The definitions of the views dropped with their collection
+        if (name === VIEWS) {
+            this.views.clear()
+            this.viewIds.clear()
+        }
         return dropped
+    }
+
+    /**
+     * Writes the definition of a view (none: drops it) in system.views (created when it is missing), with its event:
+     * create (of the namespace type view), modify (its collection and its pipeline), drop
+     * @param name
+     * @param database the name of the database, for the _id of a new view (database.name)
+     * @param definition
+     */
+    async defineView(name: string, database: string, definition: EmbeddedViewDefinition | undefined): Promise<void> {
+        const before: EmbeddedViewDefinition | undefined = this.views.get(name)
+        if (!definition && !before) return
+        if (!this.collections.has(VIEWS)) await this.create(VIEWS)
+        const id: string = this.viewIds.get(name) ?? `${database}.${name}`
+        const event: Buffer = !definition
+            ? this.event(undefined, {o: 'drop', c: name})
+            : before
+                ? this.event(undefined, {o: 'modify', c: name, od: {viewOn: definition.viewOn, pipeline: definition.pipeline}})
+                : this.event(undefined, {o: 'create', c: name, od: {...definition}, nt: 'view'})
+        await this.write(VIEWS, [{key: this.values.idKey(id), previous: before ? {_id: id, ...before} : undefined, next: definition ? {_id: id, ...definition} : undefined}], false, [event])
+        if (definition) {
+            this.views.set(name, definition)
+            this.viewIds.set(name, id)
+        } else {
+            this.views.delete(name)
+            this.viewIds.delete(name)
+        }
+    }
+
+    /**
+     * The definitions of the views, read from system.views
+     */
+    protected async readViews(): Promise<void> {
+        this.views.clear()
+        this.viewIds.clear()
+        if (!this.collections.has(VIEWS)) return
+        for await (const documents of this.scan(VIEWS))
+            for (const {_id, ...definition} of documents) {
+                const id: string = String(_id)
+                const name: string = id.slice(id.indexOf('.') + 1)
+                this.views.set(name, definition as EmbeddedViewDefinition)
+                this.viewIds.set(name, id)
+            }
     }
 
     /**

@@ -910,7 +910,8 @@ export const SCENARIOS: Scenario[] = [
                 findOne: (): unknown => view.findOne({_id: 3}),
                 countDocuments: (): unknown => view.countDocuments(),
                 estimatedDocumentCount: (): unknown => view.estimatedDocumentCount(),
-                distinct: (): unknown => view.distinct('s'),
+                //The order of the values of a view is not defined (MongoDB gives the ones of a set of its aggregation)
+                distinct: async (): Promise<unknown> => (await view.distinct('s')).sort(),
                 aggregate: (): unknown => view.aggregate([{$group: {_id: null, n: {$sum: 1}}}]).toArray(),
                 insert: (): unknown => view.insertOne({a: 5}),
                 update: (): unknown => view.updateOne({}, {$set: {a: 1}}),
@@ -968,6 +969,77 @@ export const SCENARIOS: Scenario[] = [
             }
             for (const [name, step] of Object.entries(steps)) result[name] = await outcome(step)
             result.listed = (await db.listCollections({}).toArray()).sort((a: any, b: any): number => a.name < b.name ? -1 : 1)
+            return result
+        }
+    },
+    {
+        group: 'views',
+        name: 'the definitions of the views, their events, their collations and the operations they refuse',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const c: any = db.collection('c')
+            await c.insertMany([{_id: 1, a: 1, s: 'B'}, {_id: 2, a: 2, s: 'a'}])
+            const stream: any = db.watch([], {showExpandedEvents: true})
+            await stream.tryNext()
+            await db.createCollection('v', {viewOn: 'c', pipeline: [{$match: {a: {$gte: 2}}}]})
+            await db.createCollection('vc', {viewOn: 'c', pipeline: [], collation: {locale: 'en', strength: 2}})
+            const v: any = db.collection('v')
+            const steps: Record<string, () => unknown> = {
+                systemViews: (): unknown => db.collection('system.views').find().sort({_id: 1}).toArray(),
+                systemViewsInsert: (): unknown => db.collection('system.views').insertOne({_id: 'x.y', viewOn: 'c', pipeline: []}),
+                systemViewsDelete: (): unknown => db.collection('system.views').deleteMany({}),
+                collModPipeline: async (): Promise<unknown> => (await db.command({collMod: 'v', pipeline: [{$match: {a: 1}}]})).ok,
+                collModViewOn: async (): Promise<unknown> => (await db.command({collMod: 'v', viewOn: 'c'})).ok,
+                collModBoth: async (): Promise<unknown> => (await db.command({collMod: 'v', viewOn: 'c', pipeline: [{$match: {a: 2}}]})).ok,
+                collModValidator: (): unknown => db.command({collMod: 'v', validator: {a: 1}}),
+                collModIndex: (): unknown => db.command({collMod: 'v', index: {name: 'x', hidden: true}}),
+                collModCollection: (): unknown => db.command({collMod: 'c', viewOn: 'c', pipeline: []}),
+                collModCycle: (): unknown => db.command({collMod: 'v', viewOn: 'v', pipeline: []}),
+                collModOut: (): unknown => db.command({collMod: 'v', viewOn: 'c', pipeline: [{$out: 'z'}]}),
+                mergeInto: (): unknown => c.aggregate([{$merge: 'v'}]).toArray(),
+                sameCollation: (): unknown => db.collection('vc').find({s: 'b'}, {collation: {locale: 'en', strength: 2}}).toArray(),
+                simpleCollation: (): unknown => db.collection('vc').find({}, {collation: {locale: 'simple'}}).toArray(),
+                notTheCollationOfItsCollection: async (): Promise<unknown> => {
+                    await db.createCollection('cc', {collation: {locale: 'en', strength: 2}})
+                    await db.collection('cc').insertOne({_id: 1, s: 'X'})
+                    await db.createCollection('vcc', {viewOn: 'cc', pipeline: []})
+                    return db.collection('vcc').countDocuments({s: 'x'})
+                },
+                countSkipLimit: (): unknown => v.countDocuments({}, {skip: 0, limit: 1}),
+                distinctFilter: (): unknown => v.distinct('s', {a: 2}),
+                findOneAndUpdate: (): unknown => v.findOneAndUpdate({}, {$set: {a: 1}}),
+                bulkWrite: (): unknown => v.bulkWrite([{insertOne: {document: {}}}]),
+                dropIndex: (): unknown => v.dropIndex('x'),
+                dropIndexes: (): unknown => v.dropIndexes(),
+                replaceOne: (): unknown => v.replaceOne({}, {}),
+                renameToView: (): unknown => c.rename('v'),
+                createOverView: (): unknown => db.createCollection('v'),
+                viewOverCollection: (): unknown => db.createCollection('c', {viewOn: 'v', pipeline: []}),
+                viewOnNotString: (): unknown => db.createCollection('bad1', {viewOn: 1, pipeline: []}),
+                pipelineNotArray: (): unknown => db.createCollection('bad2', {viewOn: 'c', pipeline: {}}),
+                unknownStage: (): unknown => db.createCollection('bad3', {viewOn: 'c', pipeline: [{$nope: 1}]}),
+                otherOptionsLeftOut: async (): Promise<unknown> => {
+                    await db.createCollection('bad4', {viewOn: 'c', pipeline: [], capped: true, size: 100})
+                    return db.collection('bad4').options()
+                },
+                findOptions: (): unknown => v.find({}, {sort: {_id: -1}, skip: 0, limit: 5, projection: {s: 1}}).toArray(),
+                dropView: (): unknown => db.collection('vc').drop(),
+                dropAgain: (): unknown => db.collection('vc').drop()
+            }
+            for (const [name, step] of Object.entries(steps)) result[name] = await outcome(step)
+            const events: unknown[] = []
+            for (let k: number = 0; k < 20; k++) {
+                const event: any = await stream.tryNext()
+                if (!event) break
+                events.push(event.operationType === 'insert' ? `insert ${event.ns.coll}` : {operationType: event.operationType, ns: event.ns, operationDescription: event.operationDescription, nsType: event.nsType, stateBeforeChange: event.stateBeforeChange})
+            }
+            await stream.close()
+            result.events = events
+            result.listedNames = (await db.listCollections({}, {nameOnly: true}).toArray()).sort((a: any, b: any): number => a.name < b.name ? -1 : 1)
+            result.listedViews = (await db.listCollections({type: 'view'}, {nameOnly: true}).toArray()).map((view: any): string => view.name).sort()
+            result.collections = (await db.collections()).map((collection: any): string => collection.collectionName).sort()
+            await db.dropDatabase()
+            result.afterDropDatabase = await db.listCollections().toArray()
             return result
         }
     },

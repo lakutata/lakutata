@@ -54,7 +54,9 @@ import {
     EmbeddedStore,
     type EmbeddedStoreOptions,
     type EmbeddedStoreTransaction,
-    TEMPORARY_OUT
+    type EmbeddedViewDefinition,
+    TEMPORARY_OUT,
+    VIEWS
 } from './Store.js'
 import { type EmbeddedDocument, EmbeddedValues } from './Values.js'
 
@@ -495,8 +497,6 @@ const MODIFY_FIELDS = new Set([
     'cappedMax'
 ])
 const MODIFY_LATER = [
-    'viewOn',
-    'pipeline',
     'expireAfterSeconds',
     'timeseries',
     'timeseriesBucketsMayHaveMixedSchemaData'
@@ -508,6 +508,40 @@ const MODIFY_LATER = [
  */
 const INDEX_CHANGES = ['expireAfterSeconds', 'hidden', 'prepareUnique', 'unique']
 const INDEX_CHANGE_FIELDS = new Set(['name', 'keyPattern', ...INDEX_CHANGES])
+
+/**
+ * The stages of the pipelines of MongoDB 8.0 (a view refuses the others: Unrecognized pipeline stage name, 40324), and
+ * the ones writing (a view refuses them: OptionNotSupportedOnView, 167)
+ */
+const PIPELINE_STAGES = new Set([
+    '$addFields', '$bucket', '$bucketAuto', '$changeStream', '$changeStreamSplitLargeEvent', '$collStats', '$count',
+    '$currentOp', '$densify', '$documents', '$facet', '$fill', '$geoNear', '$graphLookup', '$group', '$indexStats',
+    '$limit', '$listLocalSessions', '$listSampledQueries', '$listSearchIndexes', '$listSessions', '$lookup', '$match',
+    '$merge', '$out', '$planCacheStats', '$project', '$querySettings', '$redact', '$replaceRoot', '$replaceWith',
+    '$sample', '$search', '$searchMeta', '$set', '$setWindowFields', '$skip', '$sort', '$sortByCount', '$unionWith',
+    '$unset', '$unwind', '$vectorSearch'
+])
+const WRITING_STAGES = new Set(['$out', '$merge'])
+
+/**
+ * Checks the pipeline of a view as MongoDB 8.0 checks it: its stages known (40324), none writing (167)
+ *
+ * @param namespace the namespace of the view
+ * @param pipeline
+ */
+function checkViewPipeline(namespace: string, pipeline: EmbeddedDocument[]): void {
+    pipeline.forEach((stage, position) => {
+        const [name] = isPlain(stage) ? Object.keys(stage) : []
+        if (!PIPELINE_STAGES.has(name))
+            throw new EmbeddedOperationError(40324, 'Location40324', `Unrecognized pipeline stage name: '${name}'`)
+        if (WRITING_STAGES.has(name))
+            throw new EmbeddedOperationError(
+                167,
+                'OptionNotSupportedOnView',
+                `Invalid pipeline for view ${namespace} :: caused by :: The aggregation stage ${name} in location ${position} of the pipeline cannot be used in the view definition of ${namespace} because it writes to disk`
+            )
+    })
+}
 
 /**
  * The options a collection keeps, in the order MongoDB 8.0 lists them
@@ -1426,6 +1460,14 @@ export class EmbeddedFindCursor extends EmbeddedResults {
         collection: EmbeddedCollection,
         time?: EmbeddedTimeLimit
     ): Promise<EmbeddedDocument[]> {
+        // A view: the documents of its pipeline, then filtered, sorted, skipped and limited (its hint left out)
+        if (collection.isView())
+            return this.projected(await collection.viewDocuments([
+                { $match: this.query },
+                ...(this.order ? [{ $sort: this.order }] : []),
+                ...(this.skipped ? [{ $skip: this.skipped }] : []),
+                ...(this.limited ? [{ $limit: Math.abs(this.limited) }] : [])
+            ], this.collated, {}, time))
         const collator = this.collator
         // Sorted by an index: the documents read in its order, up to the limit
         const ordered =
@@ -1488,7 +1530,7 @@ export class EmbeddedFindCursor extends EmbeddedResults {
     }
 
     protected batches(): AsyncIterator<EmbeddedDocument[]> | undefined {
-        return isStreamed(this.order, this.skipped, this.limited)
+        return isStreamed(this.order, this.skipped, this.limited) && !this.collection.isView()
             ? this.streamed()
             : undefined
     }
@@ -1739,6 +1781,84 @@ export class EmbeddedCollection {
     }
 
     /**
+     * Fails a write of a view (CommandNotSupportedOnView, 166) or of system.views (InvalidNamespace, 73), as MongoDB
+     * fails them; the error of the first operation of a bulk write (insertMany, bulkWrite) when bulk
+     *
+     * @param bulk whether the write is a bulk write
+     */
+    private writable(bulk = false): void {
+        const error = this.isView()
+            ? this.onView()
+            : this.collectionName === VIEWS
+              ? new EmbeddedOperationError(73, 'InvalidNamespace', `cannot write to ${this.namespace}`)
+              : undefined
+        if (!error) return
+        if (!bulk) throw error
+        const writeErrors = [{ index: 0, code: error.code, errmsg: error.message }]
+        throw new EmbeddedBulkWriteError(writeErrors, 0, {}, new EmbeddedBulkWriteResult(noCounts(), writeErrors))
+    }
+
+    /**
+     * The error of an operation a view does not allow (CommandNotSupportedOnView, 166)
+     */
+    private onView(): EmbeddedOperationError {
+        return new EmbeddedOperationError(166, 'CommandNotSupportedOnView', `Namespace ${this.namespace} is a view, not a collection`)
+    }
+
+    /**
+     * Whether its name is the one of a view
+     * @internal
+     */
+    isView(): boolean {
+        return this.store.views.has(this.collectionName)
+    }
+
+    /**
+     * The view of its name resolved down to the collection it reads: the collection, the pipelines of the views from the
+     * one defined on the collection, the collation of the view; undefined when it is not a view
+     */
+    private viewed(): { on: string, pipeline: EmbeddedDocument[], collation?: EmbeddedDocument } | undefined {
+        const own = this.store.views.get(this.collectionName)
+        if (!own) return undefined
+        const pipelines: EmbeddedDocument[][] = []
+        let on = this.collectionName
+        for (let definition: EmbeddedViewDefinition | undefined = own; definition; definition = this.store.views.get(on)) {
+            pipelines.unshift(definition.pipeline)
+            on = definition.viewOn
+        }
+        return { on: on, pipeline: pipelines.flat(), collation: own.collation }
+    }
+
+    /**
+     * The documents of the view: its pipeline (after the ones of the views it is defined on) run on its collection, then
+     * a pipeline, by the collation of the view (none: the code points, not the collation of the collection); another
+     * collation fails, as MongoDB fails it (OptionNotSupportedOnView, 167)
+     *
+     * @param pipeline the stages after the ones of the view
+     * @param collation the collation of the operation, if any
+     * @param options the options of mingo (the variables of let)
+     * @param time the time its reads may take (maxTimeMS), if any
+     * @internal
+     */
+    async viewDocuments(
+        pipeline: EmbeddedDocument[],
+        collation?: EmbeddedCollation,
+        options: EmbeddedDocument = {},
+        time?: EmbeddedTimeLimit
+    ): Promise<EmbeddedDocument[]> {
+        const view = this.viewed()!
+        if (collation !== undefined && collation !== null && collatorOf(collation)?.id !== collatorOf(view.collation)?.id)
+            throw new EmbeddedOperationError(167, 'OptionNotSupportedOnView', "Cannot override a view's default collation")
+        return this.sibling(view.on).aggregation(
+            [...view.pipeline, ...pipeline],
+            options,
+            undefined,
+            (view.collation as EmbeddedCollation | undefined) ?? { locale: 'simple' },
+            time
+        )
+    }
+
+    /**
      * The key of an _id in the collection: its strings by the collation of the collection, if it has one.
      *
      * @param id
@@ -1796,6 +1916,7 @@ export class EmbeddedCollection {
         unacknowledgedResult: (result?: T) => T,
         bulk = false
     ): Promise<T> {
+        this.writable()
         return writeByConcern(
             this.store,
             this.transaction ? undefined : writeConcernOf(options, this.writeConcern),
@@ -1895,6 +2016,12 @@ export class EmbeddedCollection {
         const skip = options?.skip ?? 0
         const limit = options?.limit ? skip + options.limit : Infinity
         const filter = this.values.copy(query ?? {})
+        if (this.isView())
+            return (await this.viewDocuments([
+                { $match: filter },
+                ...(skip ? [{ $skip: skip }] : []),
+                ...(options?.limit ? [{ $limit: options.limit }] : [])
+            ], options?.collation, {}, this.timeLimitOf(options))).length
         const collator = this.collatorFor(options?.collation)
         const exact = await this.exactCount(filter, options?.hint, collator)
         if (exact !== undefined)
@@ -1938,6 +2065,8 @@ export class EmbeddedCollection {
                 (collection) => collection.estimatedDocumentCount(options),
                 'count'
             )
+        // A view: the documents of its pipeline
+        if (this.isView()) return (await this.viewDocuments([])).length
         return this.store.count(this.collectionName, this.transaction)
     }
 
@@ -1957,8 +2086,12 @@ export class EmbeddedCollection {
                 collection.distinct(key, query, options)
             )
         const values = new Map<string, any>()
-        const collator = this.collatorFor(options?.collation)
-        for (const document of await this.matching(query, Infinity, options?.hint, collator, this.timeLimitOf(options))) {
+        const view = this.viewed()
+        const collator = view ? collatorOf(view.collation) : this.collatorFor(options?.collation)
+        const documents = view
+            ? await this.viewDocuments([{ $match: query ?? {} }], options?.collation, {}, this.timeLimitOf(options))
+            : await this.matching(query, Infinity, options?.hint, collator, this.timeLimitOf(options))
+        for (const document of documents) {
             const value = this.values.valueAt(document, key)
             // Each value once, as MongoDB tells them equal (1, 1.0, Long(1) and Decimal128("1") one value; the strings
             // of a collation by it): by its key
@@ -2017,6 +2150,7 @@ export class EmbeddedCollection {
         collation: EmbeddedCollation | undefined,
         time?: EmbeddedTimeLimit
     ): Promise<EmbeddedDocument[]> {
+        if (this.isView()) return this.viewDocuments(pipeline, collation, aggregation, time)
         const collator = this.collatorFor(collation)
         const position = pipeline.findIndex(
             (stage) => isPlain(stage) && ('$out' in stage || '$merge' in stage)
@@ -2115,6 +2249,11 @@ export class EmbeddedCollection {
             if (!segment.length) return
             const looked = new Map<string, EmbeddedDocument[]>()
             for (const name of lookedUp(segment)) {
+                // A view: the documents of its pipeline
+                if (this.store.views.has(name)) {
+                    looked.set(name, await this.sibling(name).viewDocuments([]))
+                    continue
+                }
                 const read: EmbeddedDocument[] = []
                 for await (const batch of this.store.scan(name, [], undefined, this.transaction))
                     for (const document of batch) read.push(document)
@@ -2168,7 +2307,8 @@ export class EmbeddedCollection {
     ): Promise<EmbeddedDocument[]> {
         const foreign = this.sibling(lookup.from)
         const state = this.store.collection(lookup.from, this.transaction)
-        let all: EmbeddedDocument[] | undefined = state ? undefined : []
+        // A view: the documents of its pipeline, read once
+        let all: EmbeddedDocument[] | undefined = foreign.isView() ? await foreign.viewDocuments([]) : state ? undefined : []
         const results: EmbeddedDocument[] = []
         for (let start = 0; start < documents.length; start += YIELD_EVERY) {
             if (start) await yieldLoop()
@@ -2222,6 +2362,7 @@ export class EmbeddedCollection {
         if (isPlain(target) && target.timeseries !== undefined)
             throw notSupported('The option timeseries of $out')
         checkName(name)
+        if (this.store.views.has(name)) throw this.sibling(name).onView()
         if (this.store.collection(name)?.capped)
             throw new EmbeddedOperationError(17152, 'Location17152', `namespace '${this.dbName}.${name}' is capped so it can't be used for $out`)
         const indexes = this.store.collection(name)
@@ -2287,6 +2428,7 @@ export class EmbeddedCollection {
             )
         const into = typeof merge.into === 'string' ? merge.into : merge.into?.coll
         checkName(into)
+        if (this.store.views.has(into)) throw this.sibling(into).onView()
         const on: string[] =
             merge.on === undefined
                 ? ['_id']
@@ -2560,6 +2702,7 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.insertMany(documents, options)
             )
+        this.writable(true)
         return this.concerned(
             options,
             () => this.insertDocuments(documents, options?.ordered !== false),
@@ -2869,6 +3012,8 @@ export class EmbeddedCollection {
             if (!collection) throw new EmbeddedOperationError(26, 'NamespaceNotFound', 'ns does not exist')
             for (const field of MODIFY_LATER)
                 if (command[field] !== undefined) throw notSupported(`The field ${field} of collMod`)
+            if (command.viewOn !== undefined || command.pipeline !== undefined)
+                throw invalid(`option only supported on a view: ${command.pipeline !== undefined ? 'pipeline' : 'viewOn'}`)
             if ((size !== undefined || max !== undefined) && !collection.capped) throw invalid('Collection must be capped.')
             if (command.dryRun && change?.unique !== true && change?.unique !== 1)
                 throw invalid('dry run mode requires an index modification with unique: true.')
@@ -3059,6 +3204,7 @@ export class EmbeddedCollection {
                 (collection) => collection.indexes(options),
                 'listIndexes'
             )
+        if (this.isView()) throw this.onView()
         const collation = this.store.collection(this.collectionName, this.transaction)?.collation
         return [
             { v: 2, key: { _id: 1 }, name: ID_INDEX, ...(collation ? { collation: collation } : {}) },
@@ -3206,6 +3352,8 @@ export class EmbeddedCollection {
                 (collection) => collection.options(options),
                 'listCollections'
             )
+        const view = this.store.views.get(this.collectionName)
+        if (view) return this.values.copy(view)
         const state = this.store.collection(this.collectionName, this.transaction)
         return state ? this.values.copy(state.options) : {}
     }
@@ -3230,6 +3378,7 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.bulkWrite(operations, options)
             )
+        this.writable(true)
         return this.concerned(
             options,
             () => this.runBulk(operations, options),
@@ -3503,6 +3652,8 @@ export class EmbeddedCollection {
                 'renameCollection'
             )
         checkName(newName)
+        if (this.store.views.has(newName))
+            throw new EmbeddedOperationError(48, 'NamespaceExists', `a view already exists with that name: ${this.dbName}.${newName}`)
         await this.concerned(
             options,
             () =>
@@ -3545,6 +3696,17 @@ export class EmbeddedCollection {
                 (collection) => collection.drop(options),
                 'drop'
             )
+        // A view: its definition dropped
+        if (this.isView())
+            return writeByConcern(
+                this.store,
+                writeConcernOf(options, this.writeConcern),
+                async () => {
+                    await this.store.exclusive(() => this.store.defineView(this.collectionName, this.dbName, undefined))
+                    return true
+                },
+                () => true
+            )
         return this.concerned(
             options,
             async () => {
@@ -3565,7 +3727,7 @@ export class EmbeddedCollection {
      */
     watch(pipeline: EmbeddedDocument[] = [], options: EmbeddedChangeStreamOptions = {}): EmbeddedChangeStream {
         const watched = { kind: 'collection' as const, db: this.dbName, collection: this.collectionName }
-        return new EmbeddedChangeStream(this.store, watched, pipeline, options, refusalOf(watched))
+        return new EmbeddedChangeStream(this.store, watched, pipeline, options, this.isView() ? this.onView() : refusalOf(watched))
     }
 
     /**
@@ -4800,17 +4962,21 @@ export class EmbeddedDb {
     }
 
     /**
-     * Creates a collection and gives it; the collection there given when it is (as MongoDB does for the same options).
-     * The options of the capped collections, the views, the time series, the validation of the documents and a
-     * collation of the collection are not supported yet: they fail
+     * Creates a collection and gives it; the collection there given when it is (as MongoDB does for the same options):
+     * its collation, its validation, a capped collection, a view (viewOn, pipeline, collation). The options of the time
+     * series are not supported yet: they fail
      * @param name the name of the collection
-     * @param options its options, the session (a transaction creates collections)
+     * @param options its options, the session (a transaction creates collections, not views)
      */
     async createCollection(
         name: string,
         options?: EmbeddedDocument
     ): Promise<EmbeddedCollection> {
         checkName(name)
+        if (options?.viewOn !== undefined) return this.createView(name, options)
+        const view = this.store.views.get(name)
+        if (view)
+            throw new EmbeddedOperationError(48, 'NamespaceExists', `namespace ${this.databaseName}.${name} already exists, but is a view on ${this.databaseName}.${view.viewOn}`)
         const kept = collectionOptionsOf(options, this.store.values.keys)
         return this.inSession(options, undefined, (transaction) =>
             writeByConcern(
@@ -4837,6 +5003,106 @@ export class EmbeddedDb {
     }
 
     /**
+     * Creates a view (createCollection with viewOn): a collection read through a pipeline, by its collation, as MongoDB
+     * 8.0 makes it (its definition in system.views, its event create); the view there given when it has the same
+     * definition
+     *
+     * @param name
+     * @param options viewOn, pipeline, collation, the session (a transaction does not allow it), writeConcern
+     */
+    private async createView(name: string, options: EmbeddedDocument): Promise<EmbeddedCollection> {
+        const namespace = `${this.databaseName}.${name}`
+        if (typeof options.viewOn !== 'string')
+            throw new EmbeddedOperationError(14, 'TypeMismatch', `BSON field 'create.viewOn' is the wrong type '${typeName(options.viewOn)}', expected type 'string'`)
+        const pipeline = options.pipeline ?? []
+        if (!Array.isArray(pipeline))
+            throw new EmbeddedOperationError(14, 'TypeMismatch', `BSON field 'create.pipeline' is the wrong type '${typeName(pipeline)}', expected type 'array'`)
+        checkViewPipeline(namespace, pipeline)
+        const collator = options.collation === undefined ? undefined : collatorOf(options.collation)
+        const definition: EmbeddedViewDefinition = {
+            viewOn: options.viewOn,
+            pipeline: this.store.values.copy(pipeline),
+            ...(collator ? { collation: { ...collator.collation } } : {})
+        }
+        const show = (value: unknown) => this.store.values.bson.EJSON.stringify(value)
+        return this.inSession(options, undefined, async (transaction) => {
+            if (transaction)
+                throw new EmbeddedOperationError(263, 'OperationNotSupportedInTransaction', 'Cannot create a view in a multi-document transaction')
+            return writeByConcern(
+                this.store,
+                writeConcernOf(options, this.writeConcern),
+                async () => {
+                    await this.store.exclusive(async () => {
+                        const state = this.store.collection(name)
+                        if (state)
+                            throw new EmbeddedOperationError(48, 'NamespaceExists', `namespace ${namespace} already exists, but with different options: ${show(state.options)}`)
+                        const existing = this.store.views.get(name)
+                        if (existing) {
+                            if (show(existing) !== show(definition))
+                                throw new EmbeddedOperationError(48, 'NamespaceExists', `namespace ${namespace} already exists, but with different options: ${show(existing)}`)
+                            return
+                        }
+                        this.checkViewCycle(name, definition.viewOn)
+                        await this.store.defineView(name, this.databaseName, definition)
+                    })
+                    return this.collection(name)
+                },
+                () => this.collection(name)
+            )
+        })
+    }
+
+    /**
+     * Fails a view defined on itself, through the views it is defined on (GraphContainsCycle, 5), as MongoDB fails it
+     *
+     * @param name
+     * @param viewOn
+     */
+    private checkViewCycle(name: string, viewOn: string): void {
+        const path = [name]
+        for (let on: string | undefined = viewOn; on !== undefined; on = this.store.views.get(on)?.viewOn) {
+            path.push(on)
+            if (on === name)
+                throw new EmbeddedOperationError(5, 'GraphContainsCycle', `View cycle detected: ${path.map((item) => `${this.databaseName}.${item}`).join(' => ')}`)
+            if (path.length > 100) return
+        }
+    }
+
+    /**
+     * Changes the definition of a view (collMod with viewOn, pipeline), as MongoDB 8.0 changes it: the other options
+     * fail (InvalidOptions, 72); its event modify
+     *
+     * @param command
+     */
+    private async modifyView(command: EmbeddedDocument): Promise<EmbeddedDocument> {
+        for (const field of Object.keys(command)) {
+            if (command[field] === undefined || ['collMod', 'viewOn', 'pipeline', 'comment', 'writeConcern', 'maxTimeMS'].includes(field)) continue
+            if (!MODIFY_FIELDS.has(field))
+                throw new EmbeddedOperationError(40415, 'IDLUnknownField', `BSON field 'collMod.${field}' is an unknown field.`)
+            throw new EmbeddedOperationError(72, 'InvalidOptions', `option not supported on a view: ${field}`)
+        }
+        const name = command.collMod
+        const namespace = `${this.databaseName}.${name}`
+        if (command.viewOn !== undefined && typeof command.viewOn !== 'string')
+            throw new EmbeddedOperationError(14, 'TypeMismatch', `BSON field 'collMod.viewOn' is the wrong type '${typeName(command.viewOn)}', expected type 'string'`)
+        if (command.pipeline !== undefined && !Array.isArray(command.pipeline))
+            throw new EmbeddedOperationError(14, 'TypeMismatch', `BSON field 'collMod.pipeline' is the wrong type '${typeName(command.pipeline)}', expected type 'array'`)
+        await this.store.exclusive(async () => {
+            const before = this.store.views.get(name)
+            if (!before) throw new EmbeddedOperationError(26, 'NamespaceNotFound', 'ns does not exist')
+            const definition: EmbeddedViewDefinition = {
+                viewOn: command.viewOn ?? before.viewOn,
+                pipeline: this.store.values.copy(command.pipeline ?? before.pipeline),
+                ...(before.collation ? { collation: before.collation } : {})
+            }
+            checkViewPipeline(namespace, definition.pipeline)
+            this.checkViewCycle(name, definition.viewOn)
+            await this.store.defineView(name, this.databaseName, definition)
+        })
+        return {}
+    }
+
+    /**
      * The collections, as MongoDB lists them ({name, type, options, info, idIndex}; {name, type} when nameOnly), the
      * ones matching a filter of their fields; a transaction does not allow it
      * @param filter the filter of their fields (their name...)
@@ -4844,7 +5110,7 @@ export class EmbeddedDb {
      */
     listCollections(filter?: EmbeddedDocument, options?: EmbeddedDocument) {
         return new EmbeddedArrayCursor(() => this.inSession(options, 'listCollections', async () => {
-            const collections = this.store
+            const collections: EmbeddedDocument[] = this.store
                 .names()
                 .sort()
                 .map((name) => {
@@ -4858,6 +5124,12 @@ export class EmbeddedDb {
                         idIndex: { v: 2, key: { _id: 1 }, name: '_id_', ...(state.collation ? { collation: state.collation } : {}) }
                     }
                 })
+            // The views, read only
+            for (const [name, definition] of this.store.views)
+                collections.push(options?.nameOnly
+                    ? { name: name, type: 'view' }
+                    : { name: name, type: 'view', options: this.store.values.copy(definition), info: { readOnly: true } })
+            collections.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
             return filter && Object.keys(filter).length
                 ? (new mingo.Query(filter).find(collections).all() as EmbeddedDocument[])
                 : collections
@@ -4870,8 +5142,7 @@ export class EmbeddedDb {
      */
     async collections(options?: EmbeddedDocument): Promise<EmbeddedCollection[]> {
         return this.inSession(options, 'listCollections', async () =>
-            this.store
-                .names()
+            [...this.store.names(), ...this.store.views.keys()]
                 .sort()
                 .map((name) => this.collection(name))
         )
@@ -4908,6 +5179,7 @@ export class EmbeddedDb {
             if (name === 'ping') return {}
             if (typeof command.collMod !== 'string')
                 throw new EmbeddedOperationError(14, 'TypeMismatch', `collection name has invalid type ${typeName(command.collMod)}`)
+            if (this.store.views.has(command.collMod)) return this.modifyView(command)
             const collection = this.collection(command.collMod)
             return writeByConcern(
                 this.store,

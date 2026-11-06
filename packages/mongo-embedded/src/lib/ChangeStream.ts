@@ -612,10 +612,12 @@ export class EmbeddedChangeStream extends EventEmitter {
             case 'modify':
                 change.ns = ns
                 change.operationDescription = record.od
-                change.stateBeforeChange = {
-                    collectionOptions: {uuid: new values.bson.UUID(Buffer.from(record.u.buffer ?? record.u)), ...record.sb.collectionOptions},
-                    ...(record.sb.indexOptions ? {indexOptions: record.sb.indexOptions} : {})
-                }
+                // The state before the change of a collection (a view has none)
+                if (record.sb)
+                    change.stateBeforeChange = {
+                        collectionOptions: {uuid: new values.bson.UUID(Buffer.from(record.u.buffer ?? record.u)), ...record.sb.collectionOptions},
+                        ...(record.sb.indexOptions ? {indexOptions: record.sb.indexOptions} : {})
+                    }
                 break
             default:
                 change.ns = ns

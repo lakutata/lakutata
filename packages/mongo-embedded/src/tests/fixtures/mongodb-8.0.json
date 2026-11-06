@@ -7486,8 +7486,8 @@
    },
    "distinct": {
     "value": [
-     "c",
-     "a"
+     "a",
+     "c"
     ]
    },
    "aggregate": {
@@ -7793,6 +7793,404 @@
      }
     }
    ]
+  },
+  "the definitions of the views, their events, their collations and the operations they refuse": {
+   "systemViews": {
+    "value": [
+     {
+      "_id": "compat.v",
+      "viewOn": "c",
+      "pipeline": [
+       {
+        "$match": {
+         "a": {
+          "$gte": 2
+         }
+        }
+       }
+      ]
+     },
+     {
+      "_id": "compat.vc",
+      "viewOn": "c",
+      "pipeline": [],
+      "collation": {
+       "locale": "en",
+       "caseLevel": false,
+       "caseFirst": "off",
+       "strength": 2,
+       "numericOrdering": false,
+       "alternate": "non-ignorable",
+       "maxVariable": "punct",
+       "normalization": false,
+       "backwards": false,
+       "version": "<ICU>"
+      }
+     }
+    ]
+   },
+   "systemViewsInsert": {
+    "error": {
+     "code": 73
+    }
+   },
+   "systemViewsDelete": {
+    "error": {
+     "code": 73
+    }
+   },
+   "collModPipeline": {
+    "value": 1
+   },
+   "collModViewOn": {
+    "value": 1
+   },
+   "collModBoth": {
+    "value": 1
+   },
+   "collModValidator": {
+    "error": {
+     "code": 72
+    }
+   },
+   "collModIndex": {
+    "error": {
+     "code": 72
+    }
+   },
+   "collModCollection": {
+    "error": {
+     "code": 72
+    }
+   },
+   "collModCycle": {
+    "error": {
+     "code": 5
+    }
+   },
+   "collModOut": {
+    "error": {
+     "code": 167
+    }
+   },
+   "mergeInto": {
+    "error": {
+     "code": 166
+    }
+   },
+   "sameCollation": {
+    "value": [
+     {
+      "_id": 1,
+      "a": 1,
+      "s": "B"
+     }
+    ]
+   },
+   "simpleCollation": {
+    "error": {
+     "code": 167
+    }
+   },
+   "notTheCollationOfItsCollection": {
+    "value": 0
+   },
+   "countSkipLimit": {
+    "value": 1
+   },
+   "distinctFilter": {
+    "value": [
+     "a"
+    ]
+   },
+   "findOneAndUpdate": {
+    "error": {
+     "code": 166
+    }
+   },
+   "bulkWrite": {
+    "error": {
+     "code": 166,
+     "writeErrors": [
+      {
+       "code": 166
+      }
+     ]
+    }
+   },
+   "dropIndex": {
+    "error": {
+     "code": 166
+    }
+   },
+   "dropIndexes": {
+    "value": false
+   },
+   "replaceOne": {
+    "error": {
+     "code": 166
+    }
+   },
+   "renameToView": {
+    "error": {
+     "code": 48
+    }
+   },
+   "createOverView": {
+    "error": {
+     "code": 48
+    }
+   },
+   "viewOverCollection": {
+    "error": {
+     "code": 48
+    }
+   },
+   "viewOnNotString": {
+    "error": {
+     "code": 14
+    }
+   },
+   "pipelineNotArray": {
+    "error": {
+     "code": 14
+    }
+   },
+   "unknownStage": {
+    "error": {
+     "code": 40324
+    }
+   },
+   "otherOptionsLeftOut": {
+    "value": {
+     "viewOn": "c",
+     "pipeline": []
+    }
+   },
+   "findOptions": {
+    "value": [
+     {
+      "_id": 2,
+      "s": "a"
+     }
+    ]
+   },
+   "dropView": {
+    "value": true
+   },
+   "dropAgain": {
+    "value": true
+   },
+   "events": [
+    {
+     "operationType": "create",
+     "ns": {
+      "db": "compat",
+      "coll": "v"
+     },
+     "operationDescription": {
+      "viewOn": "c",
+      "pipeline": [
+       {
+        "$match": {
+         "a": {
+          "$gte": 2
+         }
+        }
+       }
+      ]
+     },
+     "nsType": "view"
+    },
+    {
+     "operationType": "create",
+     "ns": {
+      "db": "compat",
+      "coll": "vc"
+     },
+     "operationDescription": {
+      "viewOn": "c",
+      "pipeline": [],
+      "collation": {
+       "locale": "en",
+       "caseLevel": false,
+       "caseFirst": "off",
+       "strength": 2,
+       "numericOrdering": false,
+       "alternate": "non-ignorable",
+       "maxVariable": "punct",
+       "normalization": false,
+       "backwards": false,
+       "version": "<ICU>"
+      }
+     },
+     "nsType": "view"
+    },
+    {
+     "operationType": "modify",
+     "ns": {
+      "db": "compat",
+      "coll": "v"
+     },
+     "operationDescription": {
+      "viewOn": "c",
+      "pipeline": [
+       {
+        "$match": {
+         "a": 1
+        }
+       }
+      ]
+     }
+    },
+    {
+     "operationType": "modify",
+     "ns": {
+      "db": "compat",
+      "coll": "v"
+     },
+     "operationDescription": {
+      "viewOn": "c",
+      "pipeline": [
+       {
+        "$match": {
+         "a": 1
+        }
+       }
+      ]
+     }
+    },
+    {
+     "operationType": "modify",
+     "ns": {
+      "db": "compat",
+      "coll": "v"
+     },
+     "operationDescription": {
+      "viewOn": "c",
+      "pipeline": [
+       {
+        "$match": {
+         "a": 2
+        }
+       }
+      ]
+     }
+    },
+    {
+     "operationType": "create",
+     "ns": {
+      "db": "compat",
+      "coll": "cc"
+     },
+     "operationDescription": {
+      "collation": {
+       "locale": "en",
+       "caseLevel": false,
+       "caseFirst": "off",
+       "strength": 2,
+       "numericOrdering": false,
+       "alternate": "non-ignorable",
+       "maxVariable": "punct",
+       "normalization": false,
+       "backwards": false,
+       "version": "<ICU>"
+      },
+      "idIndex": {
+       "v": 2,
+       "key": {
+        "_id": 1
+       },
+       "name": "_id_",
+       "collation": {
+        "locale": "en",
+        "caseLevel": false,
+        "caseFirst": "off",
+        "strength": 2,
+        "numericOrdering": false,
+        "alternate": "non-ignorable",
+        "maxVariable": "punct",
+        "normalization": false,
+        "backwards": false,
+        "version": "<ICU>"
+       }
+      }
+     },
+     "nsType": "collection"
+    },
+    "insert cc",
+    {
+     "operationType": "create",
+     "ns": {
+      "db": "compat",
+      "coll": "vcc"
+     },
+     "operationDescription": {
+      "viewOn": "cc",
+      "pipeline": []
+     },
+     "nsType": "view"
+    },
+    {
+     "operationType": "create",
+     "ns": {
+      "db": "compat",
+      "coll": "bad4"
+     },
+     "operationDescription": {
+      "viewOn": "c",
+      "pipeline": []
+     },
+     "nsType": "view"
+    },
+    {
+     "operationType": "drop",
+     "ns": {
+      "db": "compat",
+      "coll": "vc"
+     }
+    }
+   ],
+   "listedNames": [
+    {
+     "name": "bad4",
+     "type": "view"
+    },
+    {
+     "name": "c",
+     "type": "collection"
+    },
+    {
+     "name": "cc",
+     "type": "collection"
+    },
+    {
+     "name": "system.views",
+     "type": "collection"
+    },
+    {
+     "name": "v",
+     "type": "view"
+    },
+    {
+     "name": "vcc",
+     "type": "view"
+    }
+   ],
+   "listedViews": [
+    "bad4",
+    "v",
+    "vcc"
+   ],
+   "collections": [
+    "bad4",
+    "c",
+    "cc",
+    "system.views",
+    "v",
+    "vcc"
+   ],
+   "afterDropDatabase": []
   },
   "the options of the time series collections are checked as MongoDB checks them": {
    "noTimeField": {
