@@ -733,7 +733,10 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         const stream = dataSource.mongoManager.watch(Post, [{$match: {operationType: 'insert'}}])
         await savePosts(dataSource.getMongoRepository(Post))
         const titles: unknown[] = []
-        for (let count: number = 0; count < 3; count++) titles.push((await stream.next())?.fullDocument?.title)
+        for (let count: number = 0; count < 3; count++) {
+            const change = await stream.next()
+            titles.push(change?.operationType === 'insert' ? change.fullDocument.title : change?.operationType)
+        }
         assert.deepStrictEqual(titles, ['hello', 'world', 'third'])
         await stream.close()
         await dataSource.destroy()
