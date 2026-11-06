@@ -444,14 +444,14 @@ struct Change {
 struct Entry {
   int change;
   int64_t index;
-  bool unique;
+  int unique;
   bool remove;
   std::vector<uint8_t> key;
   std::vector<uint8_t> value;
 };
 
 // write(handle, name, changes, create, entries, definitions, events, creation): the changes ([kind, key, BSON]) of a
-// collection and the entries of its indexes ([change, index, unique, remove, key, value]) as one transaction, the
+// collection and the entries of its indexes ([change, index, unique (MdeEntry), remove, key, value]) as one transaction, the
 // definitions of its indexes written with them when they are given (a Buffer), and the events of the change streams;
 // the collection created when it is missing and create is true (of the UUID of the creation, with its events, in a
 // transaction before); rejected with the code, the index of the change failing and the table of the index of a
@@ -478,7 +478,7 @@ Napi::Value Write(const Napi::CallbackInfo& info) {
     for (uint32_t i = 0; i < list.Length(); i++) {
       Napi::Array entry = list.Get(i).As<Napi::Array>();
       entries->push_back({entry.Get(0u).As<Napi::Number>().Int32Value(), entry.Get(1u).As<Napi::Number>().Int64Value(),
-                          entry.Get(2u).ToBoolean().Value(), entry.Get(3u).ToBoolean().Value(), BytesOf(entry.Get(4u)),
+                          entry.Get(2u).ToNumber().Int32Value(), entry.Get(3u).ToBoolean().Value(), BytesOf(entry.Get(4u)),
                           BytesOf(entry.Get(5u))});
     }
   }
@@ -517,7 +517,7 @@ Napi::Value Write(const Napi::CallbackInfo& info) {
         std::vector<MdeEntry> written(entries->size());
         for (size_t i = 0; i < entries->size(); i++) {
           const Entry& entry = (*entries)[i];
-          written[i] = {entry.change, entry.index, entry.unique ? 1 : 0, entry.remove ? 1 : 0, entry.key.data(),
+          written[i] = {entry.change, entry.index, entry.unique, entry.remove ? 1 : 0, entry.key.data(),
                         static_cast<int>(entry.key.size()), entry.value.data(), static_cast<int>(entry.value.size())};
         }
         int failed = -1;
@@ -769,10 +769,11 @@ Napi::Value Scan(const Napi::CallbackInfo& info) {
       });
 }
 
-// scanRange(handle, name, index, {ranges, reverse, range, after, keysOnly, limit, maxBytes, maxScanned, predicates,
-// inTransaction}): the entries of ranges of a table (an index, or the collection: 0) in their order (reversed: the
-// ranges too), from the range given, after the key given in it; {bytes: their documents one after the other, left out
-// by the predicates, or the keys of their _id ([u32 size][key]) when keysOnly, last: the key of the last entry read
+// scanRange(handle, name, index, {ranges, reverse, range, after, keysOnly, entries, limit, maxBytes, maxScanned,
+// predicates, inTransaction}): the entries of ranges of a table (an index, or the collection: 0) in their order
+// (reversed: the ranges too), from the range given, after the key given in it; {bytes: their documents one after the
+// other, left out by the predicates, or the keys of their _id ([u32 size][key]) when keysOnly, or the entries of an
+// index ([u32 size][key][u32 size][value]) when entries, last: the key of the last entry read
 // (null when none was), range: the range it is in, done: whether the ranges were read to their end}
 Napi::Value ScanRange(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
@@ -781,7 +782,7 @@ Napi::Value ScanRange(const Napi::CallbackInfo& info) {
   Napi::Object options = info.Length() > 3 && info[3].IsObject() ? info[3].As<Napi::Object>() : Napi::Object::New(info.Env());
   auto ranges = RangesOf(options.Get("ranges"));
   const bool reverse = options.Get("reverse").ToBoolean().Value();
-  const bool keysOnly = options.Get("keysOnly").ToBoolean().Value();
+  const int keysOnly = options.Get("entries").ToBoolean().Value() ? 2 : options.Get("keysOnly").ToBoolean().Value() ? 1 : 0;
   const int start = static_cast<int>(NumberOf(options, "range", 0));
   auto after = std::make_shared<std::vector<uint8_t>>();
   const bool from = options.Get("after").IsBuffer();
@@ -812,7 +813,7 @@ Napi::Value ScanRange(const Napi::CallbackInfo& info) {
         int done = 1;
         int range = start;
         const int rc = mde_scan_range(store, id, index, list.data(), static_cast<int>(list.size()), reverse ? 1 : 0,
-                                      &range, from ? after->data() : nullptr, static_cast<int>(after->size()), keysOnly ? 1 : 0,
+                                      &range, from ? after->data() : nullptr, static_cast<int>(after->size()), keysOnly,
                                       limit, maxBytes, maxScanned, predicates->empty() ? nullptr : Accept, predicates.get(),
                                       &documents, &last, &done);
         if (rc != 0) {

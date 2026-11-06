@@ -270,7 +270,11 @@ describe('The writes', (): void => {
         await db.collection('a').insertOne({_id: 1})
         await assert.rejects(db.createCollection('c', {capped: true, size: 1024}), (error: unknown): boolean => error instanceof MongoEmbeddedError && /capped/.test(error.message))
         assert.throws((): unknown => db.collection(''), /cannot be empty/)
-        assert.deepStrictEqual(await db.listCollections().toArray(), ['a', 'b'].map((name: string): Record<string, unknown> => ({
+        //Each collection with a UUID of its own, as MongoDB lists it
+        const listed: any[] = await db.listCollections().toArray()
+        assert.ok(listed.every((collection: any): boolean => collection.info.uuid?._bsontype === 'Binary' && collection.info.uuid.sub_type === 4))
+        assert.notDeepStrictEqual(listed[0].info.uuid, listed[1].info.uuid)
+        assert.deepStrictEqual(listed.map((collection: any): unknown => ({...collection, info: {readOnly: collection.info.readOnly}})), ['a', 'b'].map((name: string): Record<string, unknown> => ({
             name: name,
             type: 'collection',
             options: {},

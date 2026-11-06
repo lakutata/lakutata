@@ -5,13 +5,14 @@ import type { EmbeddedDocument } from './Values.js'
  * An index of a collection, as MongoDB lists it: its fields and their directions (1, -1, "hashed"; a wildcard field
  * "$**" or "<path>.$**"), whether its keys are unique, whether the documents without its fields are left out of it,
  * the filter of the documents it holds (a partial index), whether the queries leave it out (hidden), the fields of a
- * wildcard index, the collation of its strings (every field of it, as MongoDB lists it). Its expiration is kept, not
- * applied.
+ * wildcard index, the collation of its strings (every field of it, as MongoDB lists it), its expiration (a TTL index),
+ * whether it refuses the new keys that another document holds (prepareUnique: before it is made unique by collMod).
  */
 export interface EmbeddedIndex {
     name: string
     key: { [field: string]: any }
     unique?: boolean
+    prepareUnique?: boolean
     sparse?: boolean
     partialFilterExpression?: EmbeddedDocument
     hidden?: boolean
@@ -38,6 +39,11 @@ export interface EmbeddedPlannedCollection {
     readonly encoding: EmbeddedKeyEncoding
 
     /**
+     * The index of the _id: of the collation of the collection, if it has one
+     */
+    readonly idIndex?: EmbeddedIndex
+
+    /**
      * The collator of an index with a collation, none for an index of the code points
      */
     collatorOf(index: EmbeddedIndex): EmbeddedSortKeys | undefined
@@ -55,6 +61,11 @@ export interface EmbeddedRange {
  * the name of the index of the _id: the table of the collection, ordered by the keys of the _id.
  */
 export const ID_INDEX = '_id_'
+
+/**
+ * The index of the _id of a collection without a collation
+ */
+const ID_INDEX_DEFINITION: EmbeddedIndex = { name: ID_INDEX, key: { _id: 1 }, unique: true }
 
 /**
  * how the documents a filter may match are found: by their _id, by the ranges of an index (the one of the _id: the
@@ -210,8 +221,8 @@ export class EmbeddedPlanner {
             return plan
         }
         const ids = conditions.get('_id')
-        // The keys of the _id are the ones of the code points
-        if (ids && ids.kind === 'equal' && !(this.collator && this.hasStrings(ids)))
+        // The keys of the _id are the ones of the collation of the collection (the code points without one)
+        if (ids && ids.kind === 'equal' && !(this.collection.collatorOf(this.idIndex())?.id !== this.collator?.id && this.hasStrings(ids)))
             return { kind: 'id', ids: ids.values, exact: alone && ids.complete }
         let best: { plan: EmbeddedPlan, score: number } | undefined
         for (const index of [this.idIndex(), ...this.collection.indexes]) {
@@ -256,7 +267,9 @@ export class EmbeddedPlanner {
         const direction = sort[fields[0]] === -1 || sort[fields[0]] === '-1' ? -1 : 1
         // The order of an index is the one of the strings of its collation: the one of the sort
         if (fields[0] === '_id')
-            return this.collator ? undefined : { index: ID_INDEX, reverse: direction !== 1 }
+            return this.collection.collatorOf(this.idIndex())?.id !== this.collator?.id
+                ? undefined
+                : { index: ID_INDEX, reverse: direction !== 1 }
         for (const index of this.collection.indexes) {
             const [path] = Object.keys(index.key)
             const indexDirection = this.directionOf(index.key[path])
@@ -276,10 +289,11 @@ export class EmbeddedPlanner {
     }
 
     /**
-     * The index of the _id, as the planner sees it: its table is the one of the collection.
+     * The index of the _id, as the planner sees it: its table is the one of the collection, its collation the one of the
+     * collection.
      */
     idIndex(): EmbeddedIndex {
-        return { name: ID_INDEX, key: { _id: 1 }, unique: true }
+        return this.collection.idIndex ?? ID_INDEX_DEFINITION
     }
 
     /**

@@ -1,4 +1,4 @@
-import { EmbeddedKeyEncoding } from './KeyEncoding.js'
+import { EmbeddedKeyEncoding, type EmbeddedSortKeys } from './KeyEncoding.js'
 
 /**
  * a document of an embedded collection.
@@ -101,9 +101,10 @@ export class EmbeddedValues {
      * orders and compares the values (1, 1.0, Long(1) and Decimal128("1") are one key).
      *
      * @param id
+     * @param collator the collation of the collection, if it has one (its strings are keyed by it)
      */
-    idKey(id: any): Buffer {
-        return this.keys.encode(id)
+    idKey(id: any, collator?: EmbeddedSortKeys): Buffer {
+        return this.keys.encode(id, collator)
     }
 
     /**
@@ -113,8 +114,9 @@ export class EmbeddedValues {
      *
      * @param data
      * @param start the start of the document in the data
+     * @param collator the collation of the collection, if it has one (its strings are keyed by it)
      */
-    idKeyOf(data: Buffer, start = 0): Buffer {
+    idKeyOf(data: Buffer, start = 0, collator?: EmbeddedSortKeys): Buffer {
         // The first element: its type, then its name "_id\0"
         if (
             data[start + 5] === 0x5f &&
@@ -127,7 +129,7 @@ export class EmbeddedValues {
                 case 0x07:
                     return this.keys.encode(new this.bson.ObjectId(data.subarray(value, value + 12)))
                 case 0x02:
-                    return this.keys.encode(data.toString('utf8', value + 4, value + 4 + data.readInt32LE(value) - 1))
+                    return this.keys.encode(data.toString('utf8', value + 4, value + 4 + data.readInt32LE(value) - 1), collator)
                 case 0x01:
                     return this.keys.encode(data.readDoubleLE(value))
                 case 0x10:
@@ -138,7 +140,8 @@ export class EmbeddedValues {
         }
         const size = data.readInt32LE(start)
         return this.idKey(
-            this.bson.BSON.deserialize(data.subarray(start, start + size))._id
+            this.bson.BSON.deserialize(data.subarray(start, start + size))._id,
+            collator
         )
     }
 

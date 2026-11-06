@@ -106,6 +106,8 @@ export function normalized(value: unknown): unknown {
     }
     //The resume token of an event
     if (typeof result._id === 'object' && result._id !== null && typeof (result._id as any)._data === 'string') result._id = '<token>'
+    //The version of ICU of a collation (MongoDB 8.0 has ICU 57.1, the embedded one 77.1)
+    if (typeof result.locale === 'string' && typeof result.version === 'string') result.version = '<ICU>'
     return result
 }
 
@@ -234,6 +236,49 @@ export const SCENARIOS: Scenario[] = [
             const result: Record<string, unknown> = {}
             for (const [name, step] of Object.entries(steps)) result[name] = await inTransaction(client, step)
             result.collections = (await db.listCollections({}, {nameOnly: true}).toArray()).map((collection: any): string => collection.name).sort()
+            return result
+        }
+    },
+    {
+        group: 'transactions',
+        name: 'a command a transaction does not allow keeps it once it began, an operation refused as it runs aborts it',
+        async run({client, db}: CompatContext): Promise<Record<string, unknown>> {
+            const items: any = db.collection('items')
+            await items.insertOne({_id: 1, v: 0})
+            await items.createIndex({v: 1})
+            const steps: Record<string, (session: any) => unknown> = {
+                count: (session: any): unknown => items.count({}, {session: session}),
+                estimatedDocumentCount: (session: any): unknown => items.estimatedDocumentCount({session: session}),
+                listCollections: (session: any): unknown => db.listCollections({}, {session: session}).toArray(),
+                listIndexes: (session: any): unknown => items.listIndexes({session: session}).toArray(),
+                drop: (session: any): unknown => db.collection('items').drop({session: session}),
+                dropIndexes: (session: any): unknown => items.dropIndexes({session: session}),
+                ping: (session: any): unknown => db.command({ping: 1}, {session: session}).then((): string => 'pinged'),
+                collMod: (session: any): unknown => db.command({collMod: 'items'}, {session: session}).then((): string => 'modified'),
+                createIndexOnExisting: (session: any): unknown => items.createIndex({w: 1}, {session: session}),
+                out: (session: any): unknown => items.aggregate([{$out: 'out'}], {session: session}).toArray(),
+                watch: async (session: any): Promise<unknown> => {
+                    const stream: any = items.watch([], {session: session})
+                    try {
+                        return await stream.tryNext()
+                    } finally {
+                        await stream.close()
+                    }
+                },
+                duplicate: (session: any): unknown => items.insertOne({_id: 1}, {session: session})
+            }
+            const result: Record<string, unknown> = {}
+            for (const [name, step] of Object.entries(steps)) {
+                const session: any = client.startSession()
+                session.startTransaction()
+                await items.updateOne({_id: 1}, {$inc: {v: 1}}, {session: session})
+                const refused: unknown = await outcome((): unknown => step(session))
+                const read: unknown = await outcome(async (): Promise<unknown> => (await items.findOne({_id: 1}, {session: session}))?.v)
+                const commit: unknown = await outcome((): unknown => session.commitTransaction())
+                await session.endSession()
+                result[name] = {step: refused, read: read, commit: commit}
+            }
+            result.committed = (await items.findOne({_id: 1}))?.v
             return result
         }
     },

@@ -313,6 +313,187 @@
     "items"
    ]
   },
+  "a command a transaction does not allow keeps it once it began, an operation refused as it runs aborts it": {
+   "count": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "read": {
+     "value": 1
+    },
+    "commit": {}
+   },
+   "estimatedDocumentCount": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "read": {
+     "value": 2
+    },
+    "commit": {}
+   },
+   "listCollections": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "read": {
+     "value": 3
+    },
+    "commit": {}
+   },
+   "listIndexes": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "read": {
+     "value": 4
+    },
+    "commit": {}
+   },
+   "drop": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "read": {
+     "value": 5
+    },
+    "commit": {}
+   },
+   "dropIndexes": {
+    "step": {
+     "value": false
+    },
+    "read": {
+     "value": 6
+    },
+    "commit": {}
+   },
+   "ping": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "read": {
+     "value": 7
+    },
+    "commit": {}
+   },
+   "collMod": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "read": {
+     "value": 8
+    },
+    "commit": {}
+   },
+   "createIndexOnExisting": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "read": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "out": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "read": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "watch": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "read": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "duplicate": {
+    "step": {
+     "error": {
+      "code": 11000
+     }
+    },
+    "read": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "committed": 8
+  },
   "the states of a session fail the calls out of order": {
    "commitWithout": {
     "error": {
@@ -5433,7 +5614,7 @@
        "maxVariable": "punct",
        "normalization": false,
        "backwards": false,
-       "version": "57.1"
+       "version": "<ICU>"
       }
      },
      "info": {
@@ -6514,7 +6695,7 @@
       "maxVariable": "punct",
       "normalization": false,
       "backwards": false,
-      "version": "57.1"
+      "version": "<ICU>"
      }
     },
     {
@@ -6533,7 +6714,7 @@
       "maxVariable": "punct",
       "normalization": false,
       "backwards": false,
-      "version": "57.1"
+      "version": "<ICU>"
      }
     },
     {
@@ -6553,7 +6734,7 @@
       "maxVariable": "punct",
       "normalization": false,
       "backwards": false,
-      "version": "57.1"
+      "version": "<ICU>"
      }
     }
    ],
@@ -6666,7 +6847,7 @@
       "maxVariable": "punct",
       "normalization": false,
       "backwards": false,
-      "version": "57.1"
+      "version": "<ICU>"
      }
     },
     "info": {
@@ -6689,7 +6870,7 @@
       "maxVariable": "punct",
       "normalization": false,
       "backwards": false,
-      "version": "57.1"
+      "version": "<ICU>"
      }
     }
    },
@@ -6710,7 +6891,7 @@
       "maxVariable": "punct",
       "normalization": false,
       "backwards": false,
-      "version": "57.1"
+      "version": "<ICU>"
      }
     },
     {
@@ -6730,7 +6911,7 @@
       "maxVariable": "punct",
       "normalization": false,
       "backwards": false,
-      "version": "57.1"
+      "version": "<ICU>"
      },
      "prepareUnique": true
     },
@@ -6751,7 +6932,7 @@
       "maxVariable": "punct",
       "normalization": false,
       "backwards": false,
-      "version": "57.1"
+      "version": "<ICU>"
      }
     }
    ],

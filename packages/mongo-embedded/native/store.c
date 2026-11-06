@@ -1773,8 +1773,43 @@ int mde_drop_index(MdeStore *store, int64_t id, int64_t index) {
   return LoadRoots(store);
 }
 
-/* An entry of an index written (removed or inserted) in the transaction open: *duplicate when its key is unique and
-** another document holds it */
+/* Whether the entry of an index not unique the cursor is on (its key, then the key of the _id: its value) holds a key
+** of the index (*holds) */
+static int HoldsKey(MdeStore *store, BtCursor *cursor, const uint8_t *key, int keySize, int *holds) {
+  *holds = 0;
+  u32 size;
+  const uint8_t *payload = PayloadOf(store, cursor, &size);
+  if (!payload) return Fail(store, SQLITE_NOMEM, "out of memory");
+  int keyLength = 0, valueLength = 0;
+  int keyOffset = Field(payload, (int)size, 0, &keyLength);
+  int valueOffset = Field(payload, (int)size, 1, &valueLength);
+  if (keyOffset < 0 || valueOffset < 0) return Fail(store, SQLITE_CORRUPT, "an entry of an index is not a key");
+  *holds = keyLength - valueLength == keySize && memcmp(payload + keyOffset, key, (size_t)keySize) == 0;
+  return SQLITE_OK;
+}
+
+/* Whether another document holds the key of a new entry of an index not unique (its key, then the key of the _id: its
+** value) prepared to be unique (prepareUnique), the cursor moved by Seek next to its place (res, not 0): the entries
+** of a key are next to each other, ordered by the keys of their _id, so another document holds it when an entry next
+** to the place holds it. The cursor is moved by Seek again (res) */
+static int PreparedDuplicate(MdeStore *store, BtCursor *cursor, const uint8_t *key, int keySize, int valueSize, int *res,
+                             int *duplicate) {
+  int prefix = keySize - valueSize;
+  int rc = SQLITE_OK;
+  if (!sqlite3BtreeEof(cursor)) rc = HoldsKey(store, cursor, key, prefix, duplicate);
+  if (rc != SQLITE_OK || *duplicate) return rc;
+  if (!sqlite3BtreeEof(cursor)) {
+    rc = *res < 0 ? sqlite3BtreeNext(cursor, 0) : sqlite3BtreePrevious(cursor, 0);
+    if (rc == SQLITE_OK) rc = HoldsKey(store, cursor, key, prefix, duplicate);
+    else if (rc == SQLITE_DONE) rc = SQLITE_OK;
+  }
+  if (rc != SQLITE_OK || *duplicate) return rc;
+  return Seek(store, cursor, key, keySize, res);
+}
+
+/* An entry of an index written (removed or inserted) in the transaction open: *duplicate when its key is unique (1)
+** or prepared to be unique (2, prepareUnique: an index not unique refusing new duplicates) and another document holds
+** it */
 static int PutEntry(MdeStore *store, const Collection *collection, int64_t index, int unique, int remove, const uint8_t *key,
                     int keySize, const uint8_t *value, int valueSize, int *duplicate) {
   *duplicate = 0;
@@ -1787,8 +1822,9 @@ static int PutEntry(MdeStore *store, const Collection *collection, int64_t index
     if (remove) {
       if (res == 0) rc = sqlite3BtreeDelete(store->entryCursor, 0);
     } else if (res != 0) {
-      rc = Insert(store, store->entryCursor, key, keySize, value, valueSize, res);
-    } else if (unique) {
+      if (unique == 2) rc = PreparedDuplicate(store, store->entryCursor, key, keySize, valueSize, &res, duplicate);
+      if (rc == SQLITE_OK && !*duplicate) rc = Insert(store, store->entryCursor, key, keySize, value, valueSize, res);
+    } else if (unique == 1) {
       /* The key held: by another document, a duplicate */
       u32 size;
       const uint8_t *payload = PayloadOf(store, store->entryCursor, &size);
@@ -2136,7 +2172,14 @@ int mde_scan_range(MdeStore *store, int64_t id, int64_t index, const MdeRange *r
           rc = Fail(store, SQLITE_NOMEM, "out of memory");
           break;
         }
-        if (keysOnly) {
+        if (keysOnly == 2) {
+          /* The entry: its key (kept in last), then its value */
+          uint32_t keySize = (uint32_t)keyLength, length = (uint32_t)valueLength;
+          if (!Append(out, &keySize, 4) || !Append(out, last->data, last->size) || !Append(out, &length, 4) ||
+              !Append(out, store->entryValue.data, store->entryValue.size))
+            rc = Fail(store, SQLITE_NOMEM, "out of memory");
+          else given++;
+        } else if (keysOnly) {
           uint32_t length = (uint32_t)valueLength;
           if (!Append(out, &length, 4) || !Append(out, store->entryValue.data, store->entryValue.size)) rc = Fail(store, SQLITE_NOMEM, "out of memory");
           else given++;

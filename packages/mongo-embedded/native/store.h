@@ -65,7 +65,9 @@ typedef struct MdeChange {
 
 /* An entry of an index written with a change of a write (the index of the change in the write): removed or inserted
 ** in the table of the index (the id of the table), its key (the key of the index, then the key of the _id when the
-** index is not unique) and its value (the key of the _id). A unique index refuses a key that another document holds */
+** index is not unique) and its value (the key of the _id). unique: 1 for a unique index, which refuses a key that
+** another document holds; 2 for an index not unique prepared to be unique (prepareUnique), which refuses new entries of a
+** key that another document holds; 0 otherwise */
 typedef struct MdeEntry {
   int change;
   int64_t index;
@@ -159,7 +161,8 @@ int mde_scan(MdeStore *store, int64_t id, const uint8_t *after, int afterSize, i
 
 /* The entries of ranges of a table (an index, or the collection: 0), in their order or reversed (the ranges too), from
 ** the range given (after the key given in it, when given): the documents of the entries (left out by the filter),
-** or the keys of their _id ([u32 size][the key] each) when keysOnly; up to maxDocuments given or maxBytes of them,
+** or the keys of their _id ([u32 size][the key] each) when keysOnly is 1, the entries of an index ([u32 size][the key]
+** [u32 size][the value] each) when it is 2; up to maxDocuments given or maxBytes of them,
 ** maxScanned read. The key of the last entry read in last, the range it is in in *range, *done when the ranges were read
 ** to their end. No range: all the entries */
 int mde_scan_range(MdeStore *store, int64_t id, int64_t index, const MdeRange *ranges, int rangeCount, int reverse,

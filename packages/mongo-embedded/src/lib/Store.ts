@@ -148,6 +148,11 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
     options: EmbeddedDocument = {}
 
     /**
+     * The index of its _id (of its collation, made once)
+     */
+    protected identity?: EmbeddedIndex
+
+    /**
      * The collators of the indexes with a collation, by their definitions
      */
     protected readonly collators: WeakMap<EmbeddedIndex, EmbeddedCollator | undefined> = new WeakMap<EmbeddedIndex, EmbeddedCollator | undefined>()
@@ -181,6 +186,36 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
      */
     get images(): boolean {
         return !!this.options.changeStreamPreAndPostImages?.enabled
+    }
+
+    /**
+     * Its default collation (of its queries and of its indexes not given one; of its _id), if it has one
+     */
+    get collation(): EmbeddedDocument | undefined {
+        return this.options.collation
+    }
+
+    /**
+     * The collator of its collation, if it has one
+     */
+    get collator(): EmbeddedCollator | undefined {
+        return this.collatorOf(this.idIndex)
+    }
+
+    /**
+     * The index of its _id: of its collation, if it has one
+     */
+    get idIndex(): EmbeddedIndex {
+        if (this.identity?.collation !== this.collation) this.identity = undefined
+        return this.identity ??= {name: '_id_', key: {_id: 1}, unique: true, ...(this.collation ? {collation: this.collation} : {})}
+    }
+
+    /**
+     * The key of an _id in the collection: its strings by its collation, if it has one
+     * @param id
+     */
+    keyOf(id: unknown): Buffer {
+        return this.values.idKey(id, this.collator)
     }
 
     /**
@@ -540,10 +575,12 @@ export class EmbeddedStore {
                 const now: Set<string> = new Set<string>(after.map((key: Buffer): string => key.toString('latin1')))
                 const table: number = collection.tables.get(index.name)!
                 const unique: boolean = !!index.unique
+                // A unique index, or an index prepared to be unique (prepareUnique: its new entries checked)
+                const kind: number = unique ? 1 : index.prepareUnique ? 2 : 0
                 for (const key of before)
-                    if (!now.has(key.toString('latin1'))) entries.push([position, table, unique, true, this.entryKey(key, change.key, unique), change.key])
+                    if (!now.has(key.toString('latin1'))) entries.push([position, table, kind, true, this.entryKey(key, change.key, unique), change.key])
                 for (const key of after)
-                    if (!kept.has(key.toString('latin1'))) entries.push([position, table, unique, false, this.entryKey(key, change.key, unique), change.key])
+                    if (!kept.has(key.toString('latin1'))) entries.push([position, table, kind, false, this.entryKey(key, change.key, unique), change.key])
             }
         })
         const definitions: Buffer | undefined = collection && multikey.size
@@ -699,6 +736,38 @@ export class EmbeddedStore {
     }
 
     /**
+     * The entries of a table of an index of a collection, in batches, in the order of their keys: their keys (the key of
+     * the index, then the key of the _id when the index is not unique) and their values (the keys of the _id)
+     * @param name
+     * @param table
+     */
+    async* entries(name: string, table: number): AsyncGenerator<{ keys: Buffer[], ids: Buffer[] }> {
+        if (!this.collections.has(name)) return
+        let after: Buffer | undefined
+        for (; ;) {
+            const batch: { bytes: Buffer, last: Buffer | null, range: number, done: boolean } = await addon.scanRange(this.database, name, table, {
+                ranges: [],
+                after: after,
+                entries: true,
+                limit: SCAN_BATCH * 10
+            })
+            const keys: Buffer[] = []
+            const ids: Buffer[] = []
+            for (let at: number = 0; at < batch.bytes.length;) {
+                const keySize: number = batch.bytes.readUInt32LE(at)
+                keys.push(batch.bytes.subarray(at + 4, at + 4 + keySize))
+                at += 4 + keySize
+                const idSize: number = batch.bytes.readUInt32LE(at)
+                ids.push(batch.bytes.subarray(at + 4, at + 4 + idSize))
+                at += 4 + idSize
+            }
+            if (keys.length) yield {keys: keys, ids: ids}
+            if (batch.done || !batch.last) return
+            after = batch.last
+        }
+    }
+
+    /**
      * The entries of ranges of a table of a collection (an index, or the collection itself: 0)
      * @param name
      * @param table
@@ -787,7 +856,10 @@ export class EmbeddedStore {
     async addIndex(name: string, index: EmbeddedIndex, table: number, multikey: boolean): Promise<void> {
         const collection: EmbeddedCollectionState = this.collections.get(name)!
         const definitions: EmbeddedDefinitions = collection.definitions()
-        const events: Buffer[] = [this.event(collection, {o: 'createIndexes', ix: [{v: 2, ...index}]})]
+        // prepareUnique: listed by the collection, not by the event (as MongoDB 8.0)
+        const {prepareUnique, ...created} = index
+        void prepareUnique
+        const events: Buffer[] = [this.event(collection, {o: 'createIndexes', ix: [{v: 2, ...created}]})]
         await addon.setIndexes(this.database, name, this.values.serialize({
             ...definitions,
             indexes: [...definitions.indexes, index],
@@ -798,6 +870,41 @@ export class EmbeddedStore {
         collection.tables.set(index.name, table)
         if (multikey) collection.multikey.add(index.name)
         this.written(events)
+    }
+
+    /**
+     * Changes the options of a collection or the definition of one of its indexes (collMod), with its event (modify:
+     * the changes, the options before them); the table of the index replaced when one is given (an index made unique),
+     * the one before dropped
+     * @param name
+     * @param modification its options (all of them), the definition of its index (of its name), the table of the index
+     * @param description the changes, as the event describes them
+     * @param indexBefore the options of the index changed before the change, as the event tells them
+     */
+    async modify(name: string, modification: { options?: EmbeddedDocument, index?: EmbeddedIndex, table?: number }, description: EmbeddedDocument, indexBefore?: EmbeddedDocument): Promise<void> {
+        const collection: EmbeddedCollectionState = this.collections.get(name)!
+        const changed: EmbeddedIndex | undefined = modification.index
+        const options: EmbeddedDocument = modification.options ?? collection.options
+        const indexes: EmbeddedIndex[] = changed
+            ? collection.indexes.map((index: EmbeddedIndex): EmbeddedIndex => index.name === changed.name ? changed : index)
+            : collection.indexes
+        const replaced: number | undefined = changed && modification.table !== undefined ? collection.tables.get(changed.name) : undefined
+        const definitions: EmbeddedDefinitions = {...collection.definitions(), indexes: indexes}
+        if (changed && modification.table !== undefined) definitions.tables = {...definitions.tables, [changed.name]: modification.table}
+        if (Object.keys(options).length) definitions.options = options
+        else delete definitions.options
+        const events: Buffer[] = [this.event(collection, {
+            o: 'modify',
+            od: description,
+            sb: {collectionOptions: this.values.copy(collection.options), ...(indexBefore ? {indexOptions: indexBefore} : {})}
+        })]
+        const defined: boolean = indexes.length > 0 || Object.keys(options).length > 0
+        await addon.setIndexes(this.database, name, defined ? this.values.serialize(definitions) : Buffer.alloc(0), this.inOplog(events))
+        collection.options = options
+        collection.indexes = indexes
+        if (changed && modification.table !== undefined) collection.tables.set(changed.name, modification.table)
+        this.written(events)
+        if (replaced !== undefined) await addon.dropIndex(this.database, name, replaced)
     }
 
     /**
@@ -911,6 +1018,13 @@ export class EmbeddedStore {
     }
 
     /**
+     * The cluster time of the last event (the operationTime of a command)
+     */
+    operationTime(): unknown {
+        return new this.values.bson.Timestamp({t: this.clusterTime.t, i: this.clusterTime.i})
+    }
+
+    /**
      * The key of an event of the oplog: its generation and its sequence, 8 bytes each, big endian
      * @param generation
      * @param sequence
@@ -964,7 +1078,9 @@ export class EmbeddedStore {
      * @param collection
      */
     protected creationEvent(collection: EmbeddedCollectionState): Buffer {
-        return this.event(collection, {o: 'create', od: {idIndex: {v: 2, key: {_id: 1}, name: '_id_'}, ...collection.options}, nt: 'collection'})
+        const {unique, ...idIndex} = collection.idIndex
+        void unique
+        return this.event(collection, {o: 'create', od: {...collection.options, idIndex: {v: 2, ...idIndex}}, nt: 'collection'})
     }
 
     /**

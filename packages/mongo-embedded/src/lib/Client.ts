@@ -13,7 +13,7 @@ import {
     EmbeddedBulkWriteResult,
     statementOf
 } from './Bulk.js'
-import { collatorOf, type EmbeddedCollation, type EmbeddedCollator } from './Collation.js'
+import { collatorOf, type EmbeddedCollation, type EmbeddedCollator, typeName } from './Collation.js'
 import {
     EmbeddedBulkWriteError,
     EmbeddedDuplicateKeyError,
@@ -87,7 +87,8 @@ const INDEX_OPTIONS = new Set([
     'collation',
     'v',
     'storageEngine',
-    'comment'
+    'comment',
+    'prepareUnique'
 ])
 
 /**
@@ -361,6 +362,34 @@ function noCounts(): EmbeddedBulkWriteCounts {
  */
 function collectionOptionsOf(options?: EmbeddedDocument): EmbeddedDocument {
     const kept: EmbeddedDocument = {}
+    for (const option of Object.keys(options ?? {}))
+        if (options![option] !== undefined && !CREATE_OPTIONS.has(option))
+            throw new EmbeddedOperationError(40415, 'IDLUnknownField', `BSON field 'create.${option}' is an unknown field.`)
+    if (options?.pipeline !== undefined && options.viewOn === undefined)
+        throw new EmbeddedOperationError(72, 'InvalidOptions', "'pipeline' requires 'viewOn' to also be specified")
+    if (options?.expireAfterSeconds !== undefined && options.timeseries === undefined && options.clusteredIndex === undefined)
+        throw new EmbeddedOperationError(72, 'InvalidOptions', "'expireAfterSeconds' is only supported on time-series collections or when the 'clusteredIndex' option is specified")
+    if (options?.autoIndexId === false)
+        throw new EmbeddedOperationError(50001, 'Location50001', 'autoIndexId:false is not allowed for a collection, as MongoDB 8.0 does not allow it')
+    for (const option of COLLECTION_OPTIONS)
+        if (options?.[option] !== undefined)
+            throw notSupported(`The option ${option} of createCollection`)
+    for (const option of ['storageEngine', 'indexOptionDefaults']) {
+        const value = options?.[option]
+        if (value === undefined) continue
+        if (!isPlain(value))
+            throw new EmbeddedOperationError(
+                14,
+                'TypeMismatch',
+                `BSON field 'create.${option}' is the wrong type '${typeof value}', expected type 'object'`
+            )
+        kept[option] = value
+    }
+    // Its collation, every field given (none for {locale: "simple"})
+    if (options?.collation !== undefined) {
+        const collator = collatorOf(options.collation)
+        if (collator) kept.collation = { ...collator.collation }
+    }
     const images = options?.changeStreamPreAndPostImages
     if (images !== undefined) {
         if (!isPlain(images))
@@ -377,7 +406,7 @@ function collectionOptionsOf(options?: EmbeddedDocument): EmbeddedDocument {
             )
         if (images.enabled) kept.changeStreamPreAndPostImages = { enabled: true }
     }
-    return kept
+    return orderedOptions(kept)
 }
 
 function notSupported(method: string): MongoEmbeddedError {
@@ -424,11 +453,103 @@ const COLLECTION_OPTIONS = [
     'validationLevel',
     'validationAction',
     'clusteredIndex',
+    'encryptedFields'
+]
+
+/**
+ * The fields of the command collMod: the changes, the fields of the call; the changes of later steps of the phase are
+ * refused for now (MODIFY_LATER)
+ */
+const MODIFY_FIELDS = new Set([
+    'collMod',
+    'index',
+    'changeStreamPreAndPostImages',
+    'dryRun',
+    'comment',
+    'writeConcern',
+    'maxTimeMS',
+    'validator',
+    'validationLevel',
+    'validationAction',
+    'viewOn',
+    'pipeline',
+    'expireAfterSeconds',
+    'timeseries',
+    'timeseriesBucketsMayHaveMixedSchemaData',
+    'cappedSize',
+    'cappedMax'
+])
+const MODIFY_LATER = [
+    'validator',
+    'validationLevel',
+    'validationAction',
+    'viewOn',
+    'pipeline',
+    'expireAfterSeconds',
+    'timeseries',
+    'timeseriesBucketsMayHaveMixedSchemaData',
+    'cappedSize',
+    'cappedMax'
+]
+
+/**
+ * The fields of the change of an index by collMod: the index (name or keyPattern), the options changed (in the order
+ * of their results)
+ */
+const INDEX_CHANGES = ['expireAfterSeconds', 'hidden', 'prepareUnique', 'unique']
+const INDEX_CHANGE_FIELDS = new Set(['name', 'keyPattern', ...INDEX_CHANGES])
+
+/**
+ * The options a collection keeps, in the order MongoDB 8.0 lists them
+ */
+const KEPT_OPTIONS = [
+    'clusteredIndex',
+    'capped',
+    'size',
+    'max',
+    'changeStreamPreAndPostImages',
+    'storageEngine',
+    'indexOptionDefaults',
+    'validator',
+    'validationLevel',
+    'validationAction',
+    'collation',
+    'viewOn',
+    'pipeline',
+    'timeseries',
+    'expireAfterSeconds'
+]
+
+/**
+ * The options of a collection in the order MongoDB 8.0 lists them
+ *
+ * @param options
+ */
+function orderedOptions(options: EmbeddedDocument): EmbeddedDocument {
+    const ordered: EmbeddedDocument = {}
+    for (const option of KEPT_OPTIONS) if (options[option] !== undefined) ordered[option] = options[option]
+    return ordered
+}
+
+/**
+ * The options of createCollection: the ones a collection keeps (listCollections), the ones of the call (not kept), and
+ * the ones of later steps of the phase (refused for now, COLLECTION_OPTIONS)
+ */
+const CREATE_OPTIONS = new Set([
+    'changeStreamPreAndPostImages',
     'collation',
     'storageEngine',
     'indexOptionDefaults',
-    'encryptedFields'
-]
+    'comment',
+    'writeConcern',
+    'session',
+    'w',
+    'j',
+    'wtimeoutMS',
+    'fsync',
+    'autoIndexId',
+    ...COLLECTION_OPTIONS
+])
 
 /**
  * Checks the name of a collection as the client of MongoDB checks it: a string, not empty, without "$", "..", a null
@@ -994,7 +1115,7 @@ export class EmbeddedFindCursor extends EmbeddedResults {
      * The collator of its collation, if any
      */
     protected get collator(): EmbeddedCollator | undefined {
-        return collatorOf(this.collated)
+        return this.collection.collatorFor(this.collated)
     }
 
     protected async documents(): Promise<EmbeddedDocument[]> {
@@ -1334,6 +1455,36 @@ export class EmbeddedCollection {
     }
 
     /**
+     * The key of an _id in the collection: its strings by the collation of the collection, if it has one.
+     *
+     * @param id
+     */
+    private idKey(id: any): Buffer {
+        return this.values.idKey(id, this.store.collection(this.collectionName, this.transaction)?.collator)
+    }
+
+    /**
+     * The key of the _id of a serialized document of the collection (idKey).
+     *
+     * @param data
+     */
+    private idKeyOf(data: Buffer): Buffer {
+        return this.values.idKeyOf(data, 0, this.store.collection(this.collectionName, this.transaction)?.collator)
+    }
+
+    /**
+     * The collator of an operation: of its collation, the one of the collection when it is given none
+     * ({locale: "simple"}: none, the code points)
+     *
+     * @param collation the collation of the operation
+     */
+    collatorFor(collation?: EmbeddedCollation): EmbeddedCollator | undefined {
+        return collation === undefined || collation === null
+            ? this.store.collection(this.collectionName, this.transaction)?.collator
+            : collatorOf(collation)
+    }
+
+    /**
      * The view of the collection whose writes not given a write concern have one (EmbeddedDb.collection).
      *
      * @param writeConcern the write concern, none for the view itself
@@ -1394,7 +1545,7 @@ export class EmbeddedCollection {
         if (id !== undefined && !(collator && typeof id === 'string')) {
             const [document] = await this.store.get(
                 this.collectionName,
-                [this.values.idKey(id)],
+                [this.idKey(id)],
                 this.transaction
             )
             if (!document) return []
@@ -1458,7 +1609,7 @@ export class EmbeddedCollection {
         const skip = options?.skip ?? 0
         const limit = options?.limit ? skip + options.limit : Infinity
         const filter = this.values.copy(query ?? {})
-        const collator = collatorOf(options?.collation)
+        const collator = this.collatorFor(options?.collation)
         const exact = await this.exactCount(filter, options?.hint, collator)
         if (exact !== undefined)
             return Math.max(Math.min(exact, limit) - skip, 0)
@@ -1520,7 +1671,7 @@ export class EmbeddedCollection {
                 collection.distinct(key, query, options)
             )
         const values = new Map<string, any>()
-        const collator = collatorOf(options?.collation)
+        const collator = this.collatorFor(options?.collation)
         for (const document of await this.matching(query, Infinity, options?.hint, collator, this.timeLimitOf(options))) {
             const value = this.values.valueAt(document, key)
             // Each value once, as MongoDB tells them equal (1, 1.0, Long(1) and Decimal128("1") one value; the strings
@@ -1577,7 +1728,7 @@ export class EmbeddedCollection {
         collation: EmbeddedCollation | undefined,
         time?: EmbeddedTimeLimit
     ): Promise<EmbeddedDocument[]> {
-        const collator = collatorOf(collation)
+        const collator = this.collatorFor(collation)
         const position = pipeline.findIndex(
             (stage) => isPlain(stage) && ('$out' in stage || '$merge' in stage)
         )
@@ -1750,7 +1901,7 @@ export class EmbeddedCollection {
                 if (ordered && values.length && new EmbeddedPlanner(state!, collator).plan(filter).kind !== 'scan') {
                     read = await foreign.matching(filter, Infinity, undefined, collator)
                     read.sort((a, b) =>
-                        Buffer.compare(this.values.idKey(a._id), this.values.idKey(b._id))
+                        Buffer.compare(foreign.idKey(a._id), foreign.idKey(b._id))
                     )
                 } else read = all = await foreign.matching({})
             }
@@ -1788,7 +1939,8 @@ export class EmbeddedCollection {
         const temporary = `${TEMPORARY_OUT}${new this.values.bson.ObjectId().toHexString()}`
         const out = this.sibling(temporary)
         try {
-            await this.store.exclusive(() => this.store.create(temporary))
+            // Of the options of the collection replaced, as MongoDB makes it
+            await this.store.exclusive(() => this.store.create(temporary, this.values.copy(this.store.collection(name)?.options ?? {})))
             for (const index of indexes) {
                 if (index.name === '_id_') continue
                 const { key, v, ...rest } = index
@@ -1927,7 +2079,7 @@ export class EmbeddedCollection {
                         const document = this.values.copy(result)
                         document._id ??= new this.values.bson.ObjectId()
                         changes.set(at, {
-                            key: this.values.idKey(document._id),
+                            key: target.idKey(document._id),
                             next: document
                         })
                         continue
@@ -1952,7 +2104,7 @@ export class EmbeddedCollection {
                     else if (whenMatched === 'replace')
                         next = { _id: matched._id, ...this.values.copy(result) }
                     else next = { ...matched, ...this.values.copy(result) }
-                    if (!this.values.idKey(next._id).equals(this.values.idKey(matched._id)))
+                    if (!target.idKey(next._id).equals(target.idKey(matched._id)))
                         throw new EmbeddedOperationError(
                             66,
                             'ImmutableField',
@@ -1965,7 +2117,7 @@ export class EmbeddedCollection {
                         ? { kind: 'replace' }
                         : this.describedUpdate(previous, next, Array.isArray(whenMatched) ? whenMatched : { $set: this.values.copy(result) }, undefined)
                     changes.set(at, {
-                        key: this.values.idKey(matched._id),
+                        key: target.idKey(matched._id),
                         previous: previous,
                         next: next,
                         ...described
@@ -2259,7 +2411,7 @@ export class EmbeddedCollection {
     ) {
         checkReplacement(replacement)
         const filter = this.values.copy(query ?? {})
-        const collator = collatorOf(options?.collation)
+        const collator = this.collatorFor(options?.collation)
         const matches = this.matcherOf(filter, collator)
         const [found] = await this.matching(filter, 1, options?.hint, collator)
         const modified = found
@@ -2292,7 +2444,7 @@ export class EmbeddedCollection {
             )
         return this.concerned(
             options,
-            () => this.delete(query, false, options?.hint, collatorOf(options?.collation)),
+            () => this.delete(query, false, options?.hint, this.collatorFor(options?.collation)),
             UNACKNOWLEDGED_DELETE
         )
     }
@@ -2309,7 +2461,7 @@ export class EmbeddedCollection {
             )
         return this.concerned(
             options,
-            () => this.delete(query, true, options?.hint, collatorOf(options?.collation)),
+            () => this.delete(query, true, options?.hint, this.collatorFor(options?.collation)),
             UNACKNOWLEDGED_DELETE
         )
     }
@@ -2372,6 +2524,191 @@ export class EmbeddedCollection {
     }
 
     /**
+     * Changes the options of the collection or one of its indexes, as the command collMod of MongoDB 8.0
+     * (EmbeddedDb.command): changeStreamPreAndPostImages; the expiration of an index (a single field: a TTL index),
+     * whether it is hidden, whether it refuses new duplicate keys (prepareUnique), whether it is unique (an index
+     * prepared, without duplicate keys: 359 with them, their documents in its field violations; dryRun only checks).
+     * Its result tells the option of the index changed ({<option>_old, <option>_new}); its event (modify) is written
+     * unless it is a dry run.
+     *
+     * @param command the command: collMod (the name of the collection), index (its name or keyPattern, and
+     * expireAfterSeconds, hidden, prepareUnique or unique), changeStreamPreAndPostImages, dryRun
+     * @internal
+     */
+    async modify(command: EmbeddedDocument): Promise<EmbeddedDocument> {
+        const invalid = (message: string) => new EmbeddedOperationError(72, 'InvalidOptions', message)
+        for (const field of Object.keys(command))
+            if (command[field] !== undefined && !MODIFY_FIELDS.has(field))
+                throw new EmbeddedOperationError(40415, 'IDLUnknownField', `BSON field 'collMod.${field}' is an unknown field.`)
+        const change = command.index
+        if (change !== undefined && !isPlain(change))
+            throw new EmbeddedOperationError(14, 'TypeMismatch', `BSON field 'collMod.index' is the wrong type '${typeName(change)}', expected type 'object'`)
+        for (const field of Object.keys(change ?? {}))
+            if (change[field] !== undefined && !INDEX_CHANGE_FIELDS.has(field))
+                throw new EmbeddedOperationError(40415, 'IDLUnknownField', `BSON field 'collMod.index.${field}' is an unknown field.`)
+        if (change?.name !== undefined && typeof change.name !== 'string')
+            throw new EmbeddedOperationError(14, 'TypeMismatch', `BSON field 'collMod.index.name' is the wrong type '${typeName(change.name)}', expected type 'string'`)
+        if (change?.keyPattern !== undefined && !isPlain(change.keyPattern))
+            throw new EmbeddedOperationError(14, 'TypeMismatch', `BSON field 'collMod.index.keyPattern' is the wrong type '${typeName(change.keyPattern)}', expected type 'object'`)
+        const expiration = change?.expireAfterSeconds
+        if (expiration !== undefined && typeof expiration !== 'number' && !['Int32', 'Double', 'Long', 'Decimal128'].includes(expiration?._bsontype))
+            throw new EmbeddedOperationError(14, 'TypeMismatch', `BSON field 'collMod.index.expireAfterSeconds' is the wrong type '${typeName(expiration)}', expected types '[double, int, decimal, long']`)
+        const images = command.changeStreamPreAndPostImages
+        if (images !== undefined) {
+            if (!isPlain(images))
+                throw new EmbeddedOperationError(14, 'TypeMismatch', `BSON field 'collMod.changeStreamPreAndPostImages' is the wrong type '${typeName(images)}', expected type 'object'`)
+            if (typeof images.enabled !== 'boolean')
+                throw new EmbeddedOperationError(40414, 'IDLFailedToParse', "BSON field 'collMod.changeStreamPreAndPostImages.enabled' is missing but a required field")
+        }
+        return this.store.exclusive(async () => {
+            const collection = this.store.collection(this.collectionName)
+            if (!collection) throw new EmbeddedOperationError(26, 'NamespaceNotFound', 'ns does not exist')
+            for (const field of MODIFY_LATER)
+                if (command[field] !== undefined) throw notSupported(`The field ${field} of collMod`)
+            if (command.dryRun && change?.unique !== true && change?.unique !== 1)
+                throw invalid('dry run mode requires an index modification with unique: true.')
+            const result: EmbeddedDocument = {}
+            const description: EmbeddedDocument = {}
+            let indexBefore: EmbeddedDocument | undefined
+            let index: EmbeddedIndex | undefined
+            let table: number | undefined
+            if (change) {
+                if (change.name !== undefined && change.keyPattern !== undefined)
+                    throw invalid('Cannot specify both key pattern and name.')
+                if (change.name === undefined && change.keyPattern === undefined)
+                    throw invalid('must specify either index name or key pattern')
+                const given = INDEX_CHANGES.filter((option) => change[option] !== undefined)
+                if (!given.length) throw invalid('no expireAfterSeconds, hidden, unique, or prepareUnique field')
+                if (change.prepareUnique !== undefined && given.length > 1)
+                    throw invalid('prepareUnique cannot be combined with any other modification.')
+                const ns = this.namespace
+                const all: EmbeddedIndex[] = [collection.idIndex, ...collection.indexes]
+                const matching = change.name !== undefined
+                    ? all.filter((item) => item.name === change.name)
+                    : all.filter((item) => this.sameKeys(item.key, change.keyPattern))
+                if (!matching.length)
+                    throw new EmbeddedOperationError(27, 'IndexNotFound', `cannot find index ${change.name ?? this.values.bson.EJSON.stringify(change.keyPattern)} for ns ${ns}`)
+                if (matching.length > 1)
+                    throw new EmbeddedOperationError(181, 'AmbiguousIndexKeyPattern', `index keyPattern ${this.values.bson.EJSON.stringify(change.keyPattern)} matches ${matching.length} indexes, must use index name. Conflicting indexes:${matching.map((item) => this.values.bson.EJSON.stringify({ v: 2, ...item })).join(', ')}`)
+                const found = matching[0]
+                const isId = found.name === ID_INDEX
+                if (isId && change.hidden !== undefined) throw new EmbeddedOperationError(2, 'BadValue', "can't hide _id index")
+                if (isId && expiration !== undefined) throw invalid('the _id field does not support TTL indexes')
+                const next: EmbeddedIndex = { ...found }
+                const before: EmbeddedDocument = {}
+                const after: EmbeddedDocument = {}
+                if (expiration !== undefined) {
+                    const seconds = Number(expiration)
+                    if (seconds < 0) throw invalid("TTL index 'expireAfterSeconds' option cannot be less than 0")
+                    if (Object.keys(found.key).length > 1)
+                        throw invalid('TTL indexes are single-field indexes, compound indexes do not support TTL')
+                    // Its seconds as an int, as MongoDB keeps them
+                    const kept = Math.min(Math.trunc(seconds), 2147483647)
+                    if (found.expireAfterSeconds !== kept) {
+                        if (found.expireAfterSeconds !== undefined) before.expireAfterSeconds = found.expireAfterSeconds
+                        after.expireAfterSeconds = next.expireAfterSeconds = kept
+                    }
+                }
+                if (change.hidden !== undefined && !!change.hidden !== !!found.hidden) {
+                    before.hidden = !!found.hidden
+                    after.hidden = !!change.hidden
+                    if (change.hidden) next.hidden = true
+                    else delete next.hidden
+                }
+                if (change.prepareUnique !== undefined && !found.unique && !!change.prepareUnique !== !!found.prepareUnique) {
+                    before.prepareUnique = !!found.prepareUnique
+                    after.prepareUnique = !!change.prepareUnique
+                    if (change.prepareUnique) next.prepareUnique = true
+                    else delete next.prepareUnique
+                }
+                if (change.unique !== undefined && !found.unique) {
+                    if (!change.unique) throw new EmbeddedOperationError(2, 'BadValue', 'Cannot make index non-unique')
+                    if (!found.prepareUnique)
+                        throw invalid("Cannot make index unique with 'prepareUnique=false'. Run collMod to set it first.")
+                    table = await this.uniqueTable(found, !!command.dryRun)
+                    if (command.dryRun) return {}
+                    after.unique = next.unique = true
+                    delete next.prepareUnique
+                } else if (change.unique !== undefined && !change.unique)
+                    throw new EmbeddedOperationError(2, 'BadValue', 'Cannot make index non-unique')
+                for (const option of INDEX_CHANGES) {
+                    if (after[option] === undefined) continue
+                    if (before[option] !== undefined) result[`${option}_old`] = before[option]
+                    result[`${option}_new`] = after[option]
+                }
+                if (Object.keys(after).length) {
+                    description.index = { name: found.name, ...after }
+                    indexBefore = before
+                    index = next
+                }
+            }
+            let options: EmbeddedDocument | undefined
+            if (images !== undefined) {
+                description.changeStreamPreAndPostImages = { enabled: images.enabled }
+                const { changeStreamPreAndPostImages, ...rest } = collection.options
+                void changeStreamPreAndPostImages
+                options = orderedOptions(images.enabled ? { ...rest, changeStreamPreAndPostImages: { enabled: true } } : rest)
+            }
+            await this.store.modify(this.collectionName, { options: options, index: index, table: table }, description, indexBefore)
+            return result
+        })
+    }
+
+    /**
+     * The table of an index prepared to be unique (prepareUnique) made unique (collMod): its entries copied, the keys of
+     * the index alone (no table on a dry run). Its keys that several documents hold fail it (CannotConvertIndexToUnique,
+     * 359), the _id of the documents of each key in its field violations ({ids}).
+     *
+     * @param index
+     * @param dryRun whether its keys are checked only
+     */
+    private async uniqueTable(index: EmbeddedIndex, dryRun: boolean): Promise<number | undefined> {
+        const from = this.store.collection(this.collectionName)!.tables.get(index.name)!
+        // The keys of the index that several documents hold: their entries are next to each other
+        const violations: Buffer[][] = []
+        let key: Buffer | undefined
+        let ids: Buffer[] = []
+        for await (const batch of this.store.entries(this.collectionName, from)) {
+            batch.keys.forEach((entry, position) => {
+                const id = batch.ids[position]
+                const prefix = entry.subarray(0, entry.length - id.length)
+                if (key && key.equals(prefix)) ids.push(id)
+                else {
+                    if (ids.length > 1) violations.push(ids)
+                    key = Buffer.from(prefix)
+                    ids = [id]
+                }
+            })
+        }
+        if (ids.length > 1) violations.push(ids)
+        if (violations.length) {
+            const listed: EmbeddedDocument[] = []
+            for (const group of violations)
+                listed.push({ ids: (await this.store.get(this.collectionName, group)).map((document) => document?._id) })
+            throw Object.assign(
+                new EmbeddedOperationError(359, 'CannotConvertIndexToUnique', 'Cannot convert the index to unique. Please resolve conflicting documents before running collMod again.'),
+                { violations: listed }
+            )
+        }
+        if (dryRun) return undefined
+        const table = await this.store.createIndexTable(this.collectionName)
+        try {
+            for await (const batch of this.store.entries(this.collectionName, from))
+                await this.store.writeIndex(
+                    this.collectionName,
+                    table,
+                    true,
+                    batch.keys.map((entry, position) => entry.subarray(0, entry.length - batch.ids[position].length)),
+                    batch.ids
+                )
+        } catch (error) {
+            await this.store.dropIndexTable(this.collectionName, table)
+            throw error
+        }
+        return table
+    }
+
+    /**
      * The indexes, as MongoDB lists them: the one of the _id first; a transaction does not allow it
      * @param options the session
      */
@@ -2382,8 +2719,9 @@ export class EmbeddedCollection {
                 (collection) => collection.indexes(options),
                 'listIndexes'
             )
+        const collation = this.store.collection(this.collectionName, this.transaction)?.collation
         return [
-            { v: 2, key: { _id: 1 }, name: ID_INDEX },
+            { v: 2, key: { _id: 1 }, name: ID_INDEX, ...(collation ? { collation: collation } : {}) },
             ...(this.store.collection(this.collectionName, this.transaction)?.indexes ?? []).map((index) => ({
                 v: 2,
                 ...index
@@ -2503,7 +2841,7 @@ export class EmbeddedCollection {
     }
 
     /**
-     * Whether the collection is capped: it never is; a transaction does not allow it
+     * Whether the collection is capped (createCollection); a transaction does not allow it
      * @param options the session
      */
     async isCapped(options?: EmbeddedDocument): Promise<boolean> {
@@ -2513,7 +2851,23 @@ export class EmbeddedCollection {
                 (collection) => collection.isCapped(options),
                 'listCollections'
             )
-        return false
+        return this.store.collection(this.collectionName, this.transaction)?.options.capped === true
+    }
+
+    /**
+     * The options of the collection (createCollection, collMod), as listCollections tells them: none when it is not
+     * there; a transaction does not allow it
+     * @param options the session
+     */
+    async options(options?: EmbeddedDocument): Promise<EmbeddedDocument> {
+        if (this.unbound(options))
+            return this.inSession(
+                options!.session,
+                (collection) => collection.options(options),
+                'listCollections'
+            )
+        const state = this.store.collection(this.collectionName, this.transaction)
+        return state ? this.values.copy(state.options) : {}
     }
 
     /**
@@ -2622,7 +2976,7 @@ export class EmbeddedCollection {
                                 args.filter,
                                 kind === 'deleteMany',
                                 args.hint,
-                                collatorOf(args.collation)
+                                this.collatorFor(args.collation)
                             )
                 counts.matchedCount += result.matchedCount ?? 0
                 counts.modifiedCount += result.modifiedCount ?? 0
@@ -2675,7 +3029,7 @@ export class EmbeddedCollection {
             options,
             async () => {
                 const outcome = await this.findAndModify(query, options, (current) => ({
-                    key: this.values.idKey(current._id),
+                    key: this.idKey(current._id),
                     previous: current
                 }))
                 return this.modifyResult(outcome.before, options, {
@@ -2744,7 +3098,7 @@ export class EmbeddedCollection {
                 collection.findOneAndUpdate(query, update, options)
             )
         const { modifier, setOnInsert } = this.modifierOf(update)
-        const collator = collatorOf(options?.collation)
+        const collator = this.collatorFor(options?.collation)
         return this.concerned(
             options,
             async () => {
@@ -2970,7 +3324,7 @@ export class EmbeddedCollection {
             const seen = new Set<string>()
             const keys: Buffer[] = []
             for (const id of plan.ids) {
-                const key = this.values.idKey(id)
+                const key = this.idKey(id)
                 const text = key.toString('latin1')
                 if (seen.has(text)) continue
                 seen.add(text)
@@ -2999,7 +3353,7 @@ export class EmbeddedCollection {
         )) {
             const unique = seen
                 ? documents.filter((_, position) => {
-                      const key = this.values.idKeyOf(data[position]).toString('latin1')
+                      const key = this.idKeyOf(data[position]).toString('latin1')
                       if (seen.has(key)) return false
                       seen.add(key)
                       return true
@@ -3133,8 +3487,9 @@ export class EmbeddedCollection {
                     'InvalidIndexSpecificationOption',
                     `The field '${option}' is not valid for an index specification. Specification: ${this.values.bson.EJSON.stringify({ key: key, ...options })}`
                 )
-        // The collation of its strings, every field given ({locale: "simple"}: none, the code points)
-        const collator = collatorOf(options.collation)
+        // The collation of its strings, every field given ({locale: "simple"}: none, the code points); the one of the
+        // collection when it is given none
+        const collator = this.collatorFor(options.collation)
         const name: string =
             options.name ??
             fields.map((field) => `${field}_${key[field]}`).join('_')
@@ -3150,17 +3505,19 @@ export class EmbeddedCollection {
                     'InvalidIndexSpecificationOption',
                     `The field '${invalid}' is not valid for an _id index specification. Specification: ${this.values.bson.EJSON.stringify({ key: key, ...options })}`
                 )
-            if (collator)
+            const collection = this.store.collection(this.collectionName, this.transaction)
+            if (collator?.id !== collection?.collator?.id)
                 throw new EmbeddedOperationError(
                     2,
                     'BadValue',
-                    `The _id index must have the same collation as the collection. Index collation: ${JSON.stringify(collator.collation)}, collection collation: { locale: "simple" }`
+                    `The _id index must have the same collation as the collection. Index collation: ${collator ? JSON.stringify(collator.collation) : '{ locale: "simple" }'}, collection collation: ${collection?.collation ? JSON.stringify(collection.collation) : '{ locale: "simple" }'}`
                 )
             return { name: ID_INDEX, key: { _id: 1 } }
         }
         const index: EmbeddedIndex = { name: name, key: this.values.copy(key) }
         if (collator) index.collation = { ...collator.collation }
         if (options.unique) index.unique = true
+        else if (options.prepareUnique) index.prepareUnique = true
         if (options.sparse) index.sparse = true
         if (options.hidden) index.hidden = true
         if (options.partialFilterExpression !== undefined) {
@@ -3237,6 +3594,7 @@ export class EmbeddedCollection {
             const options = (item: EmbeddedIndex) =>
                 this.values.bson.EJSON.stringify([
                     !!item.unique,
+                    !!item.prepareUnique,
                     !!item.sparse,
                     !!item.hidden,
                     item.partialFilterExpression ?? null,
@@ -3294,7 +3652,7 @@ export class EmbeddedCollection {
                 documents.forEach((document, position) => {
                     const found = collection.keysOf(index, document)
                     if (found.length > 1) multikey = true
-                    const id = this.values.idKeyOf(data[position])
+                    const id = this.idKeyOf(data[position])
                     for (const key of found) {
                         keys.push(key)
                         ids.push(id)
@@ -3340,7 +3698,7 @@ export class EmbeddedCollection {
     ): Promise<EmbeddedDocument[]> {
         const currents = await this.store.get(
             this.collectionName,
-            found.map((document) => this.values.idKey(document._id)),
+            found.map((document) => this.idKey(document._id)),
             this.transaction
         )
         return currents.filter(
@@ -3419,7 +3777,7 @@ export class EmbeddedCollection {
                 this.store.write(
                     this.collectionName,
                     stored.map((document) => ({
-                        key: this.values.idKey(document._id),
+                        key: this.idKey(document._id),
                         next: document
                     })),
                     true
@@ -3451,7 +3809,7 @@ export class EmbeddedCollection {
             const keys = [
                 ...new Map(
                     plan.ids.map((id) => {
-                        const key = this.values.idKey(id)
+                        const key = this.idKey(id)
                         return [key.toString('latin1'), key] as const
                     })
                 ).values()
@@ -3526,7 +3884,7 @@ export class EmbeddedCollection {
     ) {
         const { modifier, setOnInsert } = this.modifierOf(update)
         const filter = this.values.copy(query ?? {})
-        const collator = collatorOf(options?.collation)
+        const collator = this.collatorFor(options?.collation)
         const matches = this.matcherOf(filter, collator)
         // The keys of the documents updated: a scan meets again the ones it wrote
         const updated = new Set<string>()
@@ -3535,13 +3893,13 @@ export class EmbeddedCollection {
         for await (const batch of this.candidates(filter, options?.hint, Infinity, collator)) {
             const found = batch.filter(
                 (document) =>
-                    !updated.has(this.values.idKey(document._id).toString('latin1'))
+                    !updated.has(this.idKey(document._id).toString('latin1'))
             )
             const written = await this.store.exclusive(async () => {
                 let currents = await this.currents(matches, found)
                 if (!many) currents = currents.slice(0, 1)
                 for (const current of currents)
-                    updated.add(this.values.idKey(current._id).toString('latin1'))
+                    updated.add(this.idKey(current._id).toString('latin1'))
                 matched += currents.length
                 return this.writeInOrder(currents, (documents) =>
                     this.updateChanges(documents, modifier, options?.arrayFilters, collator, filter)
@@ -3601,8 +3959,8 @@ export class EmbeddedCollection {
         const changes: EmbeddedChange[] = []
         documents.forEach((current, position) => {
             const next = nexts[position]
-            const key = this.values.idKey(current._id)
-            if (!this.values.idKey(next._id).equals(key))
+            const key = this.idKey(current._id)
+            if (!this.idKey(next._id).equals(key))
                 throw this.immutableId()
             const data = this.values.serialize(next)
             if (!data.equals(this.values.serialize(current)))
@@ -3692,7 +4050,7 @@ export class EmbeddedCollection {
             let positions = batch.map((_, index) => index)
             while (positions.length) {
                 const changes = positions.map((position) => ({
-                    key: this.values.idKey(batch[position]._id),
+                    key: this.idKey(batch[position]._id),
                     next: batch[position]
                 }))
                 try {
@@ -3757,7 +4115,7 @@ export class EmbeddedCollection {
                 await this.store.write(
                     this.collectionName,
                     currents.map((current) => ({
-                        key: this.values.idKey(current._id),
+                        key: this.idKey(current._id),
                         previous: current
                     }))
                 )
@@ -3901,8 +4259,8 @@ export class EmbeddedCollection {
         replacement: EmbeddedDocument
     ): EmbeddedChange | undefined {
         const next = { _id: current._id, ...this.values.copy(replacement) }
-        const key = this.values.idKey(current._id)
-        if (!this.values.idKey(next._id).equals(key)) throw this.immutableId()
+        const key = this.idKey(current._id)
+        if (!this.idKey(next._id).equals(key)) throw this.immutableId()
         const data = this.values.serialize(next)
         return data.equals(this.values.serialize(current))
             ? undefined
@@ -3950,7 +4308,7 @@ export class EmbeddedCollection {
                 document._id = new this.values.bson.ObjectId()
             await this.store.write(
                 this.collectionName,
-                [{ key: this.values.idKey(document._id), next: document }],
+                [{ key: this.idKey(document._id), next: document }],
                 true
             )
             return { after: document, upsertedId: document._id }
@@ -4099,9 +4457,6 @@ export class EmbeddedDb {
         options?: EmbeddedDocument
     ): Promise<EmbeddedCollection> {
         checkName(name)
-        for (const option of COLLECTION_OPTIONS)
-            if (options?.[option] !== undefined)
-                throw notSupported(`The option ${option} of createCollection`)
         const kept = collectionOptionsOf(options)
         return this.inSession(options, undefined, (transaction) =>
             writeByConcern(
@@ -4138,17 +4493,17 @@ export class EmbeddedDb {
             const collections = this.store
                 .names()
                 .sort()
-                .map((name) =>
-                    options?.nameOnly
-                        ? { name: name, type: 'collection' }
-                        : {
-                              name: name,
-                              type: 'collection',
-                              options: {},
-                              info: { readOnly: false },
-                              idIndex: { v: 2, key: { _id: 1 }, name: '_id_' }
-                          }
-                )
+                .map((name) => {
+                    if (options?.nameOnly) return { name: name, type: 'collection' }
+                    const state = this.store.collection(name)!
+                    return {
+                        name: name,
+                        type: 'collection',
+                        options: this.store.values.copy(state.options),
+                        info: { readOnly: false, uuid: new bson.UUID(state.uuid) },
+                        idIndex: { v: 2, key: { _id: 1 }, name: '_id_', ...(state.collation ? { collation: state.collation } : {}) }
+                    }
+                })
             return filter && Object.keys(filter).length
                 ? (new mingo.Query(filter).find(collections).all() as EmbeddedDocument[])
                 : collections
@@ -4181,6 +4536,40 @@ export class EmbeddedDb {
     ): Promise<EmbeddedCollection> {
         await this.collection(from).rename(to, options)
         return this.collection(to)
+    }
+
+    /**
+     * Runs a command of the database, as db.command of the client of MongoDB does: ping; collMod (the options of a
+     * collection and of its indexes changed, as MongoDB 8.0 changes them: EmbeddedCollection.modify). The other commands
+     * fail with CommandNotFound (59). Its result has ok, $clusterTime and operationTime, as the ones of MongoDB; a
+     * transaction does not allow it (OperationNotSupportedInTransaction, 263)
+     * @param command the command, its name first ({ping: 1}, {collMod: name, ...}), and its writeConcern
+     * @param options the session
+     */
+    async command(command: EmbeddedDocument, options?: EmbeddedDocument): Promise<EmbeddedDocument> {
+        const name = Object.keys(command ?? {})[0] ?? ''
+        if (name !== 'ping' && name !== 'collMod')
+            throw new EmbeddedOperationError(59, 'CommandNotFound', `no such command: '${name}'`)
+        const result = await this.inSession(options, name, async () => {
+            if (name === 'ping') return {}
+            if (typeof command.collMod !== 'string')
+                throw new EmbeddedOperationError(14, 'TypeMismatch', `collection name has invalid type ${typeName(command.collMod)}`)
+            const collection = this.collection(command.collMod)
+            return writeByConcern(
+                this.store,
+                command.writeConcern ?? undefined,
+                () => collection.modify(command),
+                () => ({})
+            )
+        })
+        const bson = this.store.values.bson
+        const time = this.store.operationTime()
+        return {
+            ...result,
+            ok: 1,
+            $clusterTime: { clusterTime: time, signature: { hash: new bson.Binary(Buffer.alloc(20)), keyId: bson.Long.fromNumber(0) } },
+            operationTime: time
+        }
     }
 
     /**

@@ -113,8 +113,9 @@ function collationError(code: number, message: string): EmbeddedOperationError {
 /**
  * The type of a value as MongoDB names it in its errors
  * @param value
+ * @internal
  */
-function typeName(value: unknown): string {
+export function typeName(value: unknown): string {
     if (value === null) return 'null'
     if (Array.isArray(value)) return 'array'
     if (typeof value === 'number') return Number.isInteger(value) ? 'int' : 'double'

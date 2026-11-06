@@ -609,6 +609,14 @@ export class EmbeddedChangeStream extends EventEmitter {
                 change.ns = ns
                 change.operationDescription = {indexes: record.ix}
                 break
+            case 'modify':
+                change.ns = ns
+                change.operationDescription = record.od
+                change.stateBeforeChange = {
+                    collectionOptions: {uuid: new values.bson.UUID(Buffer.from(record.u.buffer ?? record.u)), ...record.sb.collectionOptions},
+                    ...(record.sb.indexOptions ? {indexOptions: record.sb.indexOptions} : {})
+                }
+                break
             default:
                 change.ns = ns
         }
@@ -629,7 +637,9 @@ export class EmbeddedChangeStream extends EventEmitter {
      */
     protected async fullDocument(record: EmbeddedDocument): Promise<EmbeddedDocument | null> {
         if (this.options.fullDocument === 'updateLookup') {
-            const [document] = await this.store.get(record.c, [this.store.values.idKey(record.k)])
+            const collection = this.store.collection(record.c)
+            if (!collection) return null
+            const [document] = await this.store.get(record.c, [collection.keyOf(record.k)])
             return document ?? null
         }
         if (record.a === undefined && this.options.fullDocument === 'required')

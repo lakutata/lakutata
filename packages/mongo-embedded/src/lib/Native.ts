@@ -47,11 +47,12 @@ export type NativeChange = [ChangeKind, Buffer, Buffer?]
 
 /**
  * An entry of an index written with a change of a write: the index of the change in the write, the id of the table of
- * the index, whether it is unique, whether the entry is removed (else inserted), its key (the key of the index, then
- * the key of the _id when the index is not unique) and its value (the key of the _id)
+ * the index, whether it is unique (1; 2 prepared to be unique, prepareUnique: its new keys checked; 0 otherwise), whether
+ * the entry is removed (else inserted), its key (the key of the index, then the key of the _id when the index is not
+ * unique) and its value (the key of the _id)
  * @internal
  */
-export type NativeEntry = [number, number, boolean, boolean, Buffer, Buffer]
+export type NativeEntry = [number, number, number, boolean, Buffer, Buffer]
 
 /**
  * A range of the keys of a table, compared as bytes: its lower and upper bounds (none: unbounded), each one in it unless
@@ -77,6 +78,10 @@ export interface NativeRangeOptions {
     range?: number
     after?: Buffer
     keysOnly?: boolean
+    /**
+     * Whether the entries of an index are given ([u32 size][key][u32 size][value] each) instead of the documents
+     */
+    entries?: boolean
     limit?: number
     maxBytes?: number
     maxScanned?: number
