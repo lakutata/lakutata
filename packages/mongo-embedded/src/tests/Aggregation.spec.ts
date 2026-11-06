@@ -66,12 +66,14 @@ describe('The aggregations', (): void => {
         await items.aggregate([{$match: {n: 99}}, {$out: 'empty'}]).toArray()
         assert.deepStrictEqual((await db.listCollections({}, {nameOnly: true}).toArray()).map((collection: Record<string, any>): string => collection.name), ['empty', 'items', 'totals'])
         await assert.rejects(items.aggregate([{$out: 'x'}, {$match: {}}]).toArray(), operationError(40601))
-        //A temporary collection of a $out that did not end: dropped when the database opens
-        await db.collection('tmp.agg_out.0123').insertOne({_id: 1})
+        //A temporary collection of a $out that did not end (its name the one $out gives): dropped when the database opens;
+        //a collection of another name of the same start kept
+        await db.collection('tmp.agg_out.6a0f0c1d2e3f405162738495').insertOne({_id: 1})
+        await db.collection('tmp.agg_out.mine').insertOne({_id: 1})
         await client.close()
         client = await EmbeddedClient.connect(where)
         db = client.db()
-        assert.deepStrictEqual((await db.collections()).map((collection: EmbeddedCollection): string => collection.collectionName), ['empty', 'items', 'totals'])
+        assert.deepStrictEqual((await db.collections()).map((collection: EmbeddedCollection): string => collection.collectionName), ['empty', 'items', 'tmp.agg_out.mine', 'totals'])
         await client.close()
     })
 

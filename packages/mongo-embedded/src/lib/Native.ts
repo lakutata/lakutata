@@ -293,15 +293,19 @@ export interface NativeAddon {
 
     /**
      * The events of the oplog after a key (the last commit): [u32 size][key, 16 bytes][event] each, the key of the last
-     * one read (null when none was), and whether the oplog was read to its end
+     * one read (null when none was), whether the oplog was read to its end, and the key of the last event it lost, as
+     * the read sees it (zeros when none)
      */
-    oplogRead(database: NativeDatabase, options?: { after?: Buffer, limit?: number, maxBytes?: number }): Promise<{ bytes: Buffer, last: Buffer | null, done: boolean }>
+    oplogRead(database: NativeDatabase, options?: { after?: Buffer, limit?: number, maxBytes?: number }): Promise<{ bytes: Buffer, last: Buffer | null, done: boolean, lost: Buffer }>
 
     /**
      * The state of the oplog: its generation, the sequence of its next event, the key of its oldest event (null when it
-     * has none), the UUID of the database
+     * has none), the UUID of the database, the key and the cluster time of the last event it lost (24 bytes, zeros when
+     * none, the time zeros when it is not known; for an opening keeping no events, the ones lost when it opened), the
+     * cluster time of its last event (null when it has none). A cluster time: its increment, then its time, 4 bytes
+     * each, little endian
      */
-    oplogState(database: NativeDatabase): Promise<{ generation: number, nextSeq: number, first: Buffer | null, database: Buffer }>
+    oplogState(database: NativeDatabase): Promise<{ generation: number, nextSeq: number, first: Buffer | null, database: Buffer, lost: Buffer, lastTime: Buffer | null }>
 
 
     /**

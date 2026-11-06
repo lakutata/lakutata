@@ -266,6 +266,78 @@ describe('The sessions and their transactions', (): void => {
         await client.close()
     })
 
+    it('keep a transaction whose commit fails on a write concern that does not parse, and arm its lifetime for it only', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect(undefined, {transactionLifetimeLimitSeconds: 1})
+        const items = client.db().collection('items')
+        const session: EmbeddedClientSession = client.startSession()
+        session.startTransaction({writeConcern: {w: -1}})
+        await items.insertOne({_id: 1}, {session: session})
+        await assert.rejects(session.commitTransaction(), (error: unknown): boolean => error instanceof EmbeddedOperationError && error.code === 9)
+        assert.strictEqual(session.inTransaction(), true)
+        await session.abortTransaction()
+        const started: number = Date.now()
+        await items.insertOne({_id: 2})
+        assert.ok(Date.now() - started < 500)
+        //A transaction aborted while its first operation waits for another one: its lifetime does not end a later one
+        const other: EmbeddedClientSession = client.startSession()
+        other.startTransaction()
+        await items.insertOne({_id: 3}, {session: other})
+        session.startTransaction()
+        const waiting = items.insertOne({_id: 4}, {session: session})
+        const aborting = session.abortTransaction()
+        await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 50))
+        await other.commitTransaction()
+        await waiting.catch((): undefined => undefined)
+        await aborting
+        await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 700))
+        session.startTransaction()
+        await items.insertOne({_id: 5}, {session: session})
+        await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 500))
+        await session.commitTransaction()
+        assert.deepStrictEqual((await items.find({}).toArray()).map((item: Record<string, unknown>): unknown => item._id), [2, 3, 5])
+        await session.endSession()
+        await other.endSession()
+        await client.close()
+    })
+
+    it('fail at once a write without the session made with one of the session in withTransaction', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const items = client.db().collection('items')
+        const logs = client.db().collection('logs')
+        const session: EmbeddedClientSession = client.startSession()
+        const started: number = Date.now()
+        await assert.rejects(session.withTransaction(async (): Promise<void> => {
+            await Promise.all([items.insertOne({_id: 1}, {session: session}), logs.insertOne({_id: 1})])
+        }), (error: unknown): boolean => error instanceof MongoEmbeddedError && /without the session of the transaction open/.test(error.message))
+        assert.ok(Date.now() - started < 5000)
+        assert.deepStrictEqual([await items.countDocuments({}), await logs.countDocuments({})], [0, 0])
+        await session.endSession()
+        await client.close()
+    })
+
+    it('refuse the writes of a capped collection before they read, and a tailable cursor, as MongoDB 8.0 refuses them', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const db = client.db()
+        await db.createCollection('capped', {capped: true, size: 4096})
+        await db.collection('capped').insertOne({_id: 1})
+        const session: EmbeddedClientSession = client.startSession()
+        const coded = (code: number) => (error: unknown): boolean => error instanceof EmbeddedOperationError && error.code === code
+        //A deletion with IllegalOperation, the other writes with OperationNotSupportedInTransaction
+        for (const [write, code] of [
+            [() => db.collection('capped').deleteMany({_id: 'none'}, {session: session}), 20],
+            [() => db.collection('capped').updateOne({_id: 'none'}, {$set: {a: 1}}, {session: session}), 263]
+        ] as [() => Promise<unknown>, number][]) {
+            session.startTransaction()
+            await assert.rejects(write(), coded(code))
+            await assert.rejects(session.commitTransaction(), coded(251))
+        }
+        session.startTransaction()
+        await assert.rejects(db.collection('capped').find({}, {tailable: true, session: session}).next(), coded(72))
+        await assert.rejects(session.commitTransaction(), coded(251))
+        await session.endSession()
+        await client.close()
+    })
+
     it('are refused by the other clients, and aborted by the closing of their client', async (): Promise<void> => {
         const at: string = directory()
         let client: EmbeddedClient = await EmbeddedClient.connect(at)

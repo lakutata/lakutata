@@ -294,7 +294,7 @@ Napi::Value AppendEvents(const Napi::CallbackInfo& info) {
 
 // oplogRead(handle, {after, limit, maxBytes}): the events of the oplog after a key (the last commit, read beside the
 // transaction of a session), {bytes: [u32 size][key, 16 bytes][event] each, last: the key of the last one (null when
-// none was read), done: whether the oplog was read to its end}
+// none was read), done: whether the oplog was read to its end, lost: the key of the last event it lost (zeros: none)}
 Napi::Value OplogRead(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   Napi::Object options = info.Length() > 1 && info[1].IsObject() ? info[1].As<Napi::Object>() : Napi::Object::New(info.Env());
@@ -309,12 +309,15 @@ Napi::Value OplogRead(const Napi::CallbackInfo& info) {
         MdeStore* store = connection->Reader(false);
         MdeBuffer events = {nullptr, 0, 0}, last = {nullptr, 0, 0};
         int done = 1;
-        const int rc = mde_oplog_read(store, from ? after->data() : nullptr, static_cast<int>(after->size()), limit, maxBytes, &events, &last, &done);
+        uint8_t lost[16];
+        const int rc = mde_oplog_read(store, from ? after->data() : nullptr, static_cast<int>(after->size()), limit, maxBytes, &events, &last, &done, lost);
         if (rc != 0) {
           Fail(outcome, rc, mde_message(store));
         } else {
           outcome.bytes.assign(events.data, events.data + events.size);
-          outcome.key.assign(last.data, last.data + last.size);
+          // The key lost, then the key of the last one read
+          outcome.key.assign(lost, lost + 16);
+          outcome.key.insert(outcome.key.end(), last.data, last.data + last.size);
           outcome.done = done != 0;
           outcome.number = last.data ? 1 : 0;
         }
@@ -323,15 +326,17 @@ Napi::Value OplogRead(const Napi::CallbackInfo& info) {
       },
       [](napi_env env, Outcome& outcome) {
         napi_value last = nullptr;
-        if (outcome.number) last = BufferOf(env, outcome.key.data(), outcome.key.size());
+        if (outcome.number) last = BufferOf(env, outcome.key.data() + 16, outcome.key.size() - 16);
         else napi_get_null(env, &last);
         return ObjectOf(env, {{"bytes", BufferOf(env, outcome.bytes.data(), outcome.bytes.size())}, {"last", last},
-                              {"done", BooleanOf(env, outcome.done)}});
+                              {"done", BooleanOf(env, outcome.done)}, {"lost", BufferOf(env, outcome.key.data(), 16)}});
       });
 }
 
 // oplogState(handle): {generation, nextSeq, first: the key of the oldest event of the oplog (null when it has none),
-// database: the UUID of the database}
+// database: the UUID of the database, lost: the key and the cluster time of the last event it lost (24 bytes, zeros:
+// none, the time zeros when not known), lastTime: the cluster time of its last event (8 bytes, null when it has none);
+// a cluster time its increment, then its time, 4 bytes each, little endian}
 Napi::Value OplogState(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   return HandleOf(info)->database->Submit(
@@ -339,20 +344,27 @@ Napi::Value OplogState(const Napi::CallbackInfo& info) {
       [connection](Outcome& outcome) {
         MdeStore* store = connection->store();
         int64_t generation = 0, nextSeq = 0;
-        uint8_t first[16], database[16];
-        int hasFirst = 0;
-        if (mde_oplog_state(store, &generation, &nextSeq, first, &hasFirst, database) != 0) return Fail(outcome, -1, mde_message(store));
+        uint8_t first[16], database[16], lost[24], lastTime[8];
+        int hasFirst = 0, hasLastTime = 0;
+        if (mde_oplog_state(store, &generation, &nextSeq, first, &hasFirst, database, lost, lastTime, &hasLastTime) != 0)
+          return Fail(outcome, -1, mde_message(store));
         outcome.number = static_cast<double>(generation);
         outcome.index = nextSeq;
+        // The UUID, the key lost, then the cluster time of the last event when there is one
         outcome.bytes.assign(database, database + 16);
+        outcome.bytes.insert(outcome.bytes.end(), lost, lost + 24);
+        if (hasLastTime) outcome.bytes.insert(outcome.bytes.end(), lastTime, lastTime + 8);
         if (hasFirst) outcome.key.assign(first, first + 16);
       },
       [](napi_env env, Outcome& outcome) {
-        napi_value first = nullptr;
+        napi_value first = nullptr, lastTime = nullptr;
         if (!outcome.key.empty()) first = BufferOf(env, outcome.key.data(), outcome.key.size());
         else napi_get_null(env, &first);
+        if (outcome.bytes.size() >= 48) lastTime = BufferOf(env, outcome.bytes.data() + 40, 8);
+        else napi_get_null(env, &lastTime);
         return ObjectOf(env, {{"generation", NumberValue(env, outcome.number)}, {"nextSeq", NumberValue(env, static_cast<double>(outcome.index))},
-                              {"first", first}, {"database", BufferOf(env, outcome.bytes.data(), outcome.bytes.size())}});
+                              {"first", first}, {"database", BufferOf(env, outcome.bytes.data(), 16)},
+                              {"lost", BufferOf(env, outcome.bytes.data() + 16, 24)}, {"lastTime", lastTime}});
       });
 }
 

@@ -10,6 +10,7 @@ import {withCollation} from './mingo/util/_bson.js'
 import {ChangeKind, type NativeChange, type NativeCreation, type NativeDatabase, type NativeEntry, NativeError, type NativePredicate, type NativeRange} from './Native.js'
 import {type EmbeddedIndex, type EmbeddedPlannedCollection} from './Planner.js'
 import {sessionInScope} from './Session.js'
+import {BUCKETS} from './TimeSeries.js'
 
 import {type EmbeddedDocument, type EmbeddedValues} from './Values.js'
 
@@ -88,6 +89,42 @@ interface RingChunk {
 export interface EmbeddedOplogEvent {
     key: Buffer
     data: Buffer
+}
+
+/**
+ * A cluster time: its time in seconds and its increment
+ */
+export interface EmbeddedClusterTime {
+    t: number
+    i: number
+}
+
+/**
+ * The last event the oplog lost (deleted beyond its size, dropped from memory, written without its event, deleted by an
+ * opening keeping none): its key (zeros when none was), and its cluster time when it is known. A position before it, or
+ * a time not after it, fails a change stream (ChangeStreamHistoryLost)
+ */
+export interface EmbeddedLostEvent {
+    key: Buffer
+    time?: EmbeddedClusterTime
+}
+
+/**
+ * The last event lost, as the addon tells it: its key, then its cluster time (its increment, then its time, 4 bytes
+ * each, little endian; zeros when it is not known)
+ * @param bytes
+ */
+function lostOf(bytes: Buffer): EmbeddedLostEvent {
+    const time: EmbeddedClusterTime = {t: bytes.readUInt32LE(20), i: bytes.readUInt32LE(16)}
+    return {key: Buffer.from(bytes.subarray(0, 16)), time: time.t || time.i ? time : undefined}
+}
+
+/**
+ * The cluster time of an event: its last field (t), before the end of its BSON
+ * @param event
+ */
+function timeOf(event: Buffer): EmbeddedClusterTime {
+    return {t: event.readUInt32LE(event.length - 5), i: event.readUInt32LE(event.length - 9)}
 }
 
 /**
@@ -404,9 +441,20 @@ const SCAN_BATCH: number = 1000
 const PREVIOUS_FORMAT: RegExp = /\.[0-9a-f]{8}\.log$/
 
 /**
- * The start of the names of the temporary collections of $out, dropped when a database opens
+ * The start of the names of the temporary collections of $out (an ObjectId after it): the ones of this form dropped
+ * when a database opens, a collection of another name of this start kept
  */
 export const TEMPORARY_OUT: string = 'tmp.agg_out.'
+
+const TEMPORARY_OUT_NAME: RegExp = /^tmp\.agg_out\.[0-9a-f]{24}$/
+
+/**
+ * The error of a collection of buckets of a time series created without the time series (by a write, an index), as
+ * MongoDB 8.0 refuses it
+ */
+function bucketsRefused(): EmbeddedOperationError {
+    return new EmbeddedOperationError(20, 'IllegalOperation', 'Creation of a timeseries bucket collection without timeseries options is not allowed')
+}
 
 /**
  * The names of the codes of MongoDB a rename fails with
@@ -442,6 +490,14 @@ export class EmbeddedStoreTransaction {
      * Its events kept out of the oplog (oplogSize 0), kept in memory by its commit
      */
     readonly events: Buffer[] = []
+
+    /**
+     * The cluster time of its events (one for all, as MongoDB commits them), and the one before it, put back by its
+     * abort
+     */
+    time?: EmbeddedClusterTime
+
+    timeBefore: EmbeddedClusterTime = {t: 0, i: 0}
 }
 
 /**
@@ -514,14 +570,26 @@ export class EmbeddedStore {
     protected ringBytes: number = 0
 
     /**
-     * The change streams open: the writes build their events for them when the oplog keeps none
+     * The change streams open: the writes build their events for them when the oplog keeps none; closed when the store
+     * closes
      */
-    protected streams: number = 0
+    protected readonly streams: Set<{ close(): Promise<void> }> = new Set<{ close(): Promise<void> }>()
+
+    /**
+     * The last event lost when the oplog keeps none (dropped from memory, written without its event, of the openings
+     * before)
+     */
+    protected lost: EmbeddedLostEvent = {key: Buffer.alloc(16)}
+
+    /**
+     * The change streams opened while a write without its event is made: told the key it takes (they start after it)
+     */
+    protected unrecordedWrite?: Set<(key: Buffer) => void>
 
     /**
      * The cluster time of the last event: the next ones after it, the one of the clock when it is later
      */
-    protected clusterTime: { t: number, i: number } = {t: 0, i: 0}
+    protected clusterTime: EmbeddedClusterTime = {t: 0, i: 0}
 
     /**
      * The functions told of each commit writing events (the change streams waiting for them)
@@ -563,6 +631,10 @@ export class EmbeddedStore {
             store.committedSeq = state.nextSeq - 1
             store.databaseId = state.database
             store.oplogSize = oplogSize
+            store.lost = lostOf(state.lost)
+            // The cluster time after the one of the last event of the openings before, which the clock may not be
+            if (state.lastTime) store.clusterTime = {t: state.lastTime.readUInt32LE(4), i: state.lastTime.readUInt32LE(0)}
+            await store.repair()
         } catch (error) {
             await addon.close(database)
             throw error
@@ -600,7 +672,7 @@ export class EmbeddedStore {
         if (transaction) return this.inTransaction(transaction, fn)
         // A write without the session in the function of the withTransaction holding the transaction would wait for its
         // end, which the function awaits
-        if (this.open && sessionInScope()?.holds(this.open))
+        if ((this.open && sessionInScope()?.holds(this.open)) || sessionInScope()?.holdsAny())
             return Promise.reject(new MongoEmbeddedError('A write without the session of the transaction open, in the function of its withTransaction: it would wait for the end of the transaction, which the function holds. Give the write the session, or make it after withTransaction'))
         const run: Promise<T> = this.writing.then(fn, fn)
         this.writing = run.catch((): void => undefined)
@@ -634,6 +706,7 @@ export class EmbeddedStore {
             throw error
         }
         this.open = transaction
+        transaction.timeBefore = this.clusterTime
         this.committed = new Map<string, EmbeddedCollectionState>(this.collections)
         this.saved = new Map<EmbeddedCollectionState, EmbeddedSavedState>([...this.collections.values()].map((state: EmbeddedCollectionState): [EmbeddedCollectionState, EmbeddedSavedState] => [state, {
             indexes: state.indexes,
@@ -658,9 +731,13 @@ export class EmbeddedStore {
         } finally {
             this.end(transaction)
         }
-        // Its events committed; the change streams and the tailable cursors told of the commit, with events or not
+        // Its events committed (without an oplog, kept in memory while a stream is open, else lost); the change streams
+        // and the tailable cursors told of the commit, with events or not
         if (this.nextSeq - 1 > this.committedSeq) {
-            if (transaction.events.length) this.keep(this.committedSeq + 1, transaction.events)
+            if (this.oplogSize <= 0) {
+                if (this.streams.size) this.keep(this.committedSeq + 1, transaction.events)
+                else this.lose(this.nextSeq - 1, transaction.time ?? this.clusterTime)
+            }
             this.committedSeq = this.nextSeq - 1
         }
         this.notify()
@@ -704,15 +781,15 @@ export class EmbeddedStore {
         if (!changes.length) return
         if (this.open && !this.transacting) throw new MongoEmbeddedError('A write outside the transaction open, which it does not wait for')
         const collection: EmbeddedCollectionState | undefined = this.collections.get(name)
+        if (!collection && create && name.startsWith(BUCKETS)) throw bucketsRefused()
         if (collection) this.validate(collection, changes)
         // A capped collection: not written in a transaction (as MongoDB 8.0), its oldest documents deleted beyond its size
         if (collection?.capped && this.open)
             throw new EmbeddedOperationError(263, 'OperationNotSupportedInTransaction', `Collection '${name}' is a capped collection. Writes in transactions are not allowed on capped collections.`)
         const capped: CappedWrite | undefined = collection?.capped ? await this.cappedWrite(collection, changes) : undefined
         if (capped) changes = capped.changes
-        // Its events, unless no oplog and no change stream needs them
+        // Its events, unless no oplog and no change stream needs them (the streams opened while it is made start after it)
         const evented: boolean = this.needsEvents()
-        if (!evented) this.dropRing()
         // The index of a change among the changes asked
         const asked = (position: number): number => capped ? capped.origin[position] : position
         // The BSON of a document written made once: its event holds it too
@@ -748,14 +825,16 @@ export class EmbeddedStore {
         const creationEvents: Buffer[] = created && evented ? [this.creationEvent(created)] : []
         const events: Buffer[] = evented ? [...this.changeEvents((collection ?? created)!, changes), ...extra] : []
         const creation: NativeCreation | undefined = created ? {uuid: created.uuid, events: this.inOplog(creationEvents)} : undefined
+        if (!evented) this.unrecordedWrite = new Set<(key: Buffer) => void>()
         try {
             await addon.write(this.database, name, natives, create, entries, definitions, this.inOplog(events), creation)
         } catch (error) {
             // Created before the write failed: the collection is there, its events written
             if (created && (error as { created?: boolean }).created) {
                 this.collections.set(name, created)
-                this.written(creationEvents)
+                this.written(creationEvents, evented)
             }
+            this.unrecordedWrite = undefined
             const failed: EmbeddedChange | undefined = changes[(error as { index?: number }).index ?? -1]
             if ((error as { code?: number }).code === NativeError.DuplicateKey && failed?.next) {
                 const table: number = (error as { table?: number }).table ?? 0
@@ -775,9 +854,7 @@ export class EmbeddedStore {
         }
         if (collection) for (const index of multikey) collection.multikey.add(index)
         if (created && !this.collections.has(name)) this.collections.set(name, created)
-        this.written([...creationEvents, ...events])
-        // Without events: the tailable cursors told of the commit all the same
-        if (!evented && !this.open) this.notify()
+        this.written([...creationEvents, ...events], evented)
     }
 
     /**
@@ -1176,6 +1253,7 @@ export class EmbeddedStore {
      * @param options its options (createCollection), written with it
      */
     async create(name: string, options: EmbeddedDocument = {}): Promise<boolean> {
+        if (name.startsWith(BUCKETS) && !options.timeseries && !this.collections.has(name)) throw bucketsRefused()
         const state: EmbeddedCollectionState = this.collections.get(name) ?? new EmbeddedCollectionState(name, this.values)
         if (!this.collections.has(name)) state.options = options
         const events: Buffer[] = [this.creationEvent(state)]
@@ -1196,6 +1274,7 @@ export class EmbeddedStore {
      */
     async createIndexTable(name: string): Promise<number> {
         const missing: boolean = !this.collections.has(name)
+        if (missing && name.startsWith(BUCKETS)) throw bucketsRefused()
         const state: EmbeddedCollectionState = this.collections.get(name) ?? new EmbeddedCollectionState(name, this.values)
         const events: Buffer[] = missing ? [this.creationEvent(state)] : []
         const table: number = await addon.createIndex(this.database, name, {uuid: state.uuid, events: this.inOplog(events)})
@@ -1406,15 +1485,18 @@ export class EmbeddedStore {
 
     /**
      * Drops every collection, one after the other (each one with its event, drop), then writes the event of the drop of
-     * the database (dropDatabase)
+     * the database (dropDatabase); nothing for a database without collections (MongoDB writes no event then)
      */
     async clear(): Promise<void> {
+        if (!this.collections.size) return
         for (const name of [...this.collections.keys()]) await this.drop(name)
         await this.appendEvents([this.event(undefined, {o: 'dropDatabase'})])
     }
 
     /**
-     * Writes events of the change streams to the oplog, in a transaction of their own (or in the transaction open)
+     * Writes events of the change streams to the oplog, in a transaction of their own (or in the transaction open): the
+     * events the store builds (event), their cluster time their last field (the oplog reads it there when it deletes
+     * them)
      * @param events
      */
     async appendEvents(events: Buffer[]): Promise<void> {
@@ -1429,8 +1511,8 @@ export class EmbeddedStore {
      * @param after
      * @param limit
      */
-    async readEvents(after: Buffer | undefined, limit: number = 1000): Promise<{ events: EmbeddedOplogEvent[], done: boolean }> {
-        if (this.oplogSize <= 0) return this.readRing(after, limit)
+    async readEvents(after: Buffer | undefined, limit: number = 1000): Promise<{ events: EmbeddedOplogEvent[], done: boolean, lost: Buffer }> {
+        if (this.oplogSize <= 0) return {...this.readRing(after, limit), lost: this.lost.key}
         const read = await addon.oplogRead(this.database, {after: after, limit: limit})
         const events: EmbeddedOplogEvent[] = []
         for (let at: number = 0; at < read.bytes.length;) {
@@ -1438,7 +1520,7 @@ export class EmbeddedStore {
             events.push({key: read.bytes.subarray(at + 4, at + 20), data: read.bytes.subarray(at + 20, at + 20 + size)})
             at += 20 + size
         }
-        return {events: events, done: read.done}
+        return {events: events, done: read.done, lost: read.lost}
     }
 
     /**
@@ -1450,17 +1532,31 @@ export class EmbeddedStore {
     }
 
     /**
-     * A change stream opened (EmbeddedChangeStream): the writes build their events for it from now on
+     * The last event the oplog lost (its key zeros when none was)
      */
-    streamOpened(): void {
-        this.streams++
+    async lostEvent(): Promise<EmbeddedLostEvent> {
+        if (this.oplogSize <= 0) return this.lost
+        return lostOf((await addon.oplogState(this.database)).lost)
+    }
+
+    /**
+     * A change stream opened (EmbeddedChangeStream): the writes build their events for it from now on, until it closes
+     * (by the store closing, at the latest). A write without its event made now calls a function with the key it takes,
+     * so that the stream starts after it
+     * @param stream
+     * @param moved
+     */
+    streamOpened(stream: { close(): Promise<void> }, moved?: (key: Buffer) => void): void {
+        this.streams.add(stream)
+        if (moved) this.unrecordedWrite?.add(moved)
     }
 
     /**
      * A change stream closed
+     * @param stream
      */
-    streamClosed(): void {
-        if (this.streams > 0) this.streams--
+    streamClosed(stream: { close(): Promise<void> }): void {
+        this.streams.delete(stream)
     }
 
     /**
@@ -1468,22 +1564,35 @@ export class EmbeddedStore {
      * drops the events kept in memory, so that a stream resuming across it fails (ChangeStreamHistoryLost)
      */
     needsEvents(): boolean {
-        return this.oplogSize > 0 || this.streams > 0
+        // A transaction builds them all: a stream may open before its commit
+        return this.oplogSize > 0 || this.streams.size > 0 || !!this.open
     }
 
     /**
-     * The events kept in memory dropped (a write without events)
+     * Events lost when the oplog keeps none: the ones kept in memory dropped, the last one lost of a sequence
+     * @param sequence
+     * @param time its cluster time
      */
-    protected dropRing(): void {
+    protected lose(sequence: number, time: EmbeddedClusterTime): void {
         this.ring.splice(0)
         this.ringBytes = 0
+        this.lost = {key: this.eventKey(this.generation, sequence), time: time}
     }
 
     /**
-     * The cluster time of the last event (the operationTime of a command)
+     * The cluster time of the last commit (the operationTime of a command): the one before the transaction open
      */
     operationTime(): unknown {
-        return new this.values.bson.Timestamp({t: this.clusterTime.t, i: this.clusterTime.i})
+        const time: EmbeddedClusterTime = this.open?.timeBefore ?? this.clusterTime
+        return new this.values.bson.Timestamp({t: time.t, i: time.i})
+    }
+
+    /**
+     * The cluster time of the next event: after the last one, the time of the clock when it is later
+     */
+    protected tick(): void {
+        const seconds: number = Math.floor(Date.now() / 1000)
+        this.clusterTime = seconds > this.clusterTime.t ? {t: seconds, i: 1} : {t: this.clusterTime.t, i: this.clusterTime.i + 1}
     }
 
     /**
@@ -1523,8 +1632,12 @@ export class EmbeddedStore {
      */
     protected event(collection: EmbeddedCollectionState | undefined, fields: EmbeddedDocument): Buffer {
         const now: number = Date.now()
-        const seconds: number = Math.floor(now / 1000)
-        this.clusterTime = seconds > this.clusterTime.t ? {t: seconds, i: 1} : {t: this.clusterTime.t, i: this.clusterTime.i + 1}
+        // The events of a transaction at the cluster time of its first one, as MongoDB commits them at one time
+        if (!this.open?.time) {
+            this.tick()
+            if (this.open) this.open.time = this.clusterTime
+        }
+        const time: EmbeddedClusterTime = this.open?.time ?? this.clusterTime
         const session = this.open?.session
         // Its fields, then the ones of every event as bytes: c and u (of its collection, made once), w, t
         const own: Buffer = this.values.bson.BSON.serialize(session ? {...fields, x: session} : fields)
@@ -1544,8 +1657,8 @@ export class EmbeddedStore {
         event[at + 11] = 0x11
         event[at + 12] = 0x74
         event[at + 13] = 0
-        event.writeUInt32LE(this.clusterTime.i, at + 14)
-        event.writeUInt32LE(this.clusterTime.t, at + 18)
+        event.writeUInt32LE(time.i, at + 14)
+        event.writeUInt32LE(time.t, at + 18)
         event[size - 1] = 0
         return event
     }
@@ -1582,23 +1695,26 @@ export class EmbeddedStore {
     }
 
     /**
-     * An event with a document added as its last field, of the BSON of the document (serialized once, for its write)
+     * An event with a document added before its time fields (w and t, which stay its last ones: the oplog reads the
+     * cluster time of an event at its end), of the BSON of the document (serialized once, for its write)
      * @param event
      * @param field
      * @param document
      */
     protected withDocument(event: Buffer, field: 'd' | 'a', document: Buffer): Buffer {
-        // [size][the fields of the event][0x03 field 0x00][the document][0x00]
+        // [size][the fields of the event][0x03 field 0x00][the document][w][t][0x00]: w and t 11 bytes each
+        const times: number = event.length - 23
         const size: number = event.length + 3 + document.length
         const joined: Buffer = Buffer.allocUnsafe(size)
         joined.writeInt32LE(size, 0)
-        event.copy(joined, 4, 4, event.length - 1)
-        let at: number = event.length - 1
+        event.copy(joined, 4, 4, times)
+        let at: number = times
         joined[at++] = 0x03
         joined[at++] = field.charCodeAt(0)
         joined[at++] = 0
         document.copy(joined, at)
-        joined[size - 1] = 0
+        at += document.length
+        event.copy(joined, at, times)
         return joined
     }
 
@@ -1615,21 +1731,35 @@ export class EmbeddedStore {
      * kept in memory when the oplog keeps none
      * @param events
      */
-    protected written(events: Buffer[]): void {
-        if (!events.length) return
-        // No oplog and no change stream: the events dropped, the ones kept in memory too
-        if (!this.needsEvents()) {
-            this.dropRing()
+    protected written(events: Buffer[], evented: boolean = true): void {
+        // In the transaction open: its events kept by its commit
+        if (this.open) {
+            if (this.oplogSize <= 0) this.open.events.push(...events)
+            this.nextSeq += events.length
             return
         }
-        if (this.oplogSize <= 0) {
-            if (this.open) this.open.events.push(...events)
-            else this.keep(this.nextSeq, events)
+        if (!evented) this.unrecorded()
+        else if (events.length) {
+            if (this.oplogSize <= 0) this.keep(this.nextSeq, events)
+            this.nextSeq += events.length
+            this.committedSeq = this.nextSeq - 1
         }
-        this.nextSeq += events.length
-        if (this.open) return
-        this.committedSeq = this.nextSeq - 1
+        // The change streams and the tailable cursors told of the commit, with events or not
         this.notify()
+    }
+
+    /**
+     * A write committed without its events (no oplog, no change stream open when it began): a sequence and a cluster
+     * time taken, lost (the events kept in memory dropped), so that a stream resuming across it fails
+     * (ChangeStreamHistoryLost); the streams opened while it was made start after it
+     */
+    protected unrecorded(): void {
+        this.tick()
+        this.nextSeq++
+        this.committedSeq = this.nextSeq - 1
+        this.lose(this.committedSeq, this.clusterTime)
+        for (const moved of this.unrecordedWrite ?? []) moved(this.committedKey())
+        this.unrecordedWrite = undefined
     }
 
     /**
@@ -1651,7 +1781,15 @@ export class EmbeddedStore {
             chunk.used += 4 + data.length
             chunk.count++
         })
-        while (this.ringBytes > RING_SIZE && this.ring.length > 1) this.ringBytes -= this.ring.shift()!.bytes.length
+        // The oldest chunks dropped beyond RING_SIZE: their last event lost
+        while (this.ringBytes > RING_SIZE && this.ring.length > 1) {
+            const dropped: RingChunk = this.ring.shift()!
+            this.ringBytes -= dropped.bytes.length
+            let last: number = 0
+            for (let at: number = 0; at < dropped.used; at += 4 + dropped.bytes.readUInt32LE(at)) last = at
+            const event: Buffer = dropped.bytes.subarray(last + 4, last + 4 + dropped.bytes.readUInt32LE(last))
+            this.lost = {key: this.eventKey(this.generation, dropped.first + dropped.count - 1), time: timeOf(event)}
+        }
     }
 
     /**
@@ -1712,6 +1850,8 @@ export class EmbeddedStore {
     async close(): Promise<void> {
         if (this.closed) return
         this.closed = true
+        // Its change streams closed: their reads waiting end
+        await Promise.all([...this.streams].map((stream: { close(): Promise<void> }): Promise<void> => stream.close()))
         if (this.open) await this.abort(this.open).catch((): void => undefined)
         await this.writing
         await addon.close(this.database)
@@ -1748,8 +1888,9 @@ export class EmbeddedStore {
      * The collections put back as they were when the transaction open began
      */
     protected restore(): void {
-        // Its events undone
+        // Its events undone, and their cluster time
         this.nextSeq = this.committedSeq + 1
+        if (this.open) this.clusterTime = this.open.timeBefore
         if (!this.committed || !this.saved) return
         this.collections.clear()
         for (const [name, state] of this.committed) this.collections.set(name, state)
@@ -1840,6 +1981,18 @@ export class EmbeddedStore {
             this.collections.set(name, collection)
         }
         for (const [name, table] of orphans) await addon.dropIndex(this.database, name, table)
-        for (const name of this.names()) if (name.startsWith(TEMPORARY_OUT)) await this.drop(name)
+    }
+
+    /**
+     * What a crash left halfway, finished once the oplog is read: the temporary collections of $out dropped; the time
+     * series collections whose creation or drop it stopped (made by their buckets, their index, then their view; dropped
+     * by their view first): buckets without their view dropped, a view of time series without its buckets dropped
+     */
+    protected async repair(): Promise<void> {
+        for (const name of this.names()) if (TEMPORARY_OUT_NAME.test(name)) await this.drop(name)
+        for (const name of this.names())
+            if (name.startsWith(BUCKETS) && !this.views.get(name.slice(BUCKETS.length))?.pipeline?.[0]?.$_internalUnpackBucket) await this.drop(name)
+        for (const [name, view] of [...this.views])
+            if (view.pipeline?.[0]?.$_internalUnpackBucket && !this.collections.has(view.viewOn)) await this.defineView(name, '', undefined)
     }
 }

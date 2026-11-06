@@ -179,6 +179,7 @@ export class EmbeddedClientSession {
         const given: EmbeddedTransactionOptions = {...this.options.defaultTransactionOptions, ...options}
         if (unacknowledged(given.writeConcern ?? this.writeConcern))
             throw new EmbeddedTransactionError('Transactions do not support unacknowledged write concern')
+        this.stopTimer()
         this.transaction.state = 'STARTING_TRANSACTION'
         this.transaction.options = given
         this.stored = undefined
@@ -202,12 +203,13 @@ export class EmbeddedClientSession {
                 if (this.aborted) throw this.noSuchTransaction()
                 return
         }
+        // A write concern failing to parse fails the commit before it: the transaction goes on, as the server keeps it
+        const concern: EmbeddedWriteConcern | undefined = this.transaction.options.writeConcern ?? this.writeConcern
+        if (concern && !this.aborted) checkWriteConcern(concern)
         try {
             if (this.aborted) throw this.noSuchTransaction()
             if (this.transaction.state === 'TRANSACTION_IN_PROGRESS') {
                 const stored: EmbeddedStoreTransaction = await this.beginning!
-                const concern: EmbeddedWriteConcern | undefined = this.transaction.options.writeConcern ?? this.writeConcern
-                if (concern) checkWriteConcern(concern)
                 this.stopTimer()
                 await this.store.commit(stored)
                 if (journaled(concern)) await this.store.journal()
@@ -335,6 +337,24 @@ export class EmbeddedClientSession {
     }
 
     /**
+     * Whether its transaction began, or is beginning (its first operation waiting for the transactions before it): a
+     * write without the session would wait for its end
+     */
+    holdsAny(): boolean {
+        return this.inTransaction() && this.beginning !== undefined && !this.aborted
+    }
+
+    /**
+     * Fails an operation of its transaction with an error, and aborts it (NoSuchTransaction when it was aborted)
+     * @param error the error of the operation
+     */
+    async abortWith(error: Error): Promise<never> {
+        if (this.aborted) throw this.noSuchTransaction()
+        await this.fail()
+        throw error
+    }
+
+    /**
      * Fails an operation of its transaction that the transaction does not allow once it runs (263), and aborts it
 
      * @param message the message of the error
@@ -355,14 +375,24 @@ export class EmbeddedClientSession {
                 return stored
             })
             this.transaction.state = 'TRANSACTION_IN_PROGRESS'
-            void this.beginning.then((stored: EmbeddedStoreTransaction): void => {
+            // The timer of its lifetime armed once it began, for this transaction only (not one ended meanwhile, nor a
+            // later one of the session)
+            const beginning: Promise<EmbeddedStoreTransaction> = this.beginning
+            const number: number = this.transactions
+            void beginning.then((stored: EmbeddedStoreTransaction): void => {
+                // A transaction the session no longer holds: aborted
+                if (this.beginning !== beginning || this.transactions !== number) {
+                    void this.store.abort(stored).catch((): void => undefined)
+                    return
+                }
                 this.stored = stored
                 if (this.aborted) {
                     void this.store.abort(stored).catch((): void => undefined)
                     return
                 }
+                if (this.transaction.state !== 'TRANSACTION_IN_PROGRESS') return
                 this.timer = setTimeout((): void => {
-                    void this.fail()
+                    if (this.transactions === number && this.beginning === beginning && this.inTransaction()) void this.fail()
                 }, this.lifetime * 1000)
                 this.timer.unref?.()
             }, (): void => undefined)
@@ -387,6 +417,8 @@ export class EmbeddedClientSession {
         const beginning: Promise<EmbeddedStoreTransaction> | undefined = this.beginning
         if (!beginning) return
         const stored: EmbeddedStoreTransaction | undefined = await beginning.catch((): undefined => undefined)
+        // Armed meanwhile by its beginning
+        this.stopTimer()
         if (stored) await this.store.abort(stored).catch((): void => undefined)
     }
 

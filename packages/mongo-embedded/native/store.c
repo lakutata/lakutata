@@ -110,6 +110,12 @@ struct MdeStore {
   int64_t pendingBytes;
   int marking;
   uint8_t database[16];
+  /* An opening keeping no events: the events lost when it opened, as the row 'l' tells them (zeros when the database
+  ** had none: else the start of its generation, the events of the openings before deleted, and the cluster time of the
+  ** last one), and the cluster time of the last event deleted (*hasOpenTime) */
+  uint8_t openLost[24];
+  uint8_t openTime[8];
+  int hasOpenTime;
   char message[512];
 };
 
@@ -944,16 +950,85 @@ static void EventKey(uint8_t *key, int64_t generation, int64_t sequence) {
   PutBigEndian(key + 8, sequence);
 }
 
-/* The oldest events of the oplog deleted, in the transaction open, until it holds its limit of bytes at most */
+/* The cluster time of an event (its increment, then its time, 4 bytes each, little endian): its last field (t, a
+** timestamp: 0x11 't' 0, then its 8 bytes), before the end of its BSON; the end of an event at least */
+static int EventTime(const uint8_t *event, int size, uint8_t *time) {
+  if (size < 12 || event[size - 12] != 0x11 || event[size - 11] != 't' || event[size - 10] != 0) return 0;
+  memcpy(time, event + size - 9, 8);
+  return 1;
+}
+
+/* The oldest events of the oplog deleted, in the transaction open, until it holds its limit of bytes at most: the key
+** and the cluster time of the last one deleted written (the row 'l'), so that a position or a time before it fails
+** (ChangeStreamHistoryLost) */
 static int Trim(MdeStore *store) {
+  uint8_t lost[24];
+  int deleted = 0;
   int rc = OpenCursor(store, store->entryCursor, store->oplog, 1);
   while (rc == SQLITE_OK && store->oplogBytes + store->pendingBytes > store->oplogLimit) {
     int empty = 0;
     rc = sqlite3BtreeFirst(store->entryCursor, &empty);
     if (rc != SQLITE_OK || empty) break;
     const int64_t size = (int64_t)sqlite3BtreePayloadSize(store->entryCursor);
+    /* Its key first in its record, in the part of its cell on the page */
+    u32 local = 0;
+    const uint8_t *payload = sqlite3BtreePayloadFetch(store->entryCursor, &local);
+    int keyLength = 0;
+    int keyOffset = payload ? Field(payload, (int)local, 0, &keyLength) : -1;
+    if (keyOffset < 0 || keyLength != 16) {
+      rc = Fail(store, SQLITE_CORRUPT, "a record of the oplog is not an event");
+      break;
+    }
+    memcpy(lost, payload + keyOffset, 16);
+    /* Its cluster time at the end of its record (the event its last field), read alone */
+    uint8_t tail[12];
+    if (size < 12 || sqlite3BtreePayload(store->entryCursor, (u32)size - 12, 12, tail) != SQLITE_OK || !EventTime(tail, 12, lost + 16))
+      memset(lost + 16, 0, 8);
+    deleted = 1;
     rc = sqlite3BtreeDelete(store->entryCursor, 0);
     if (rc == SQLITE_OK) store->pendingBytes -= size;
+  }
+  sqlite3BtreeCloseCursor(store->entryCursor);
+  if (rc == SQLITE_OK && deleted) {
+    const uint8_t key[1] = {'l'};
+    OpenCursor(store, store->metaCursor, store->meta, 1);
+    rc = Put(store, store->metaCursor, key, 1, lost, 24);
+    sqlite3BtreeCloseCursor(store->metaCursor);
+  }
+  return rc;
+}
+
+/* The key and the cluster time of the last event the oplog lost (the row 'l': deleted by its limit, or by an opening
+** keeping none, its time then zeros), 24 bytes, in the read or the transaction open: zeros when it lost none */
+static int ReadLost(MdeStore *store, uint8_t *lost) {
+  memset(lost, 0, 24);
+  const uint8_t key[1] = {'l'};
+  int res = 0;
+  OpenCursor(store, store->metaCursor, store->meta, 0);
+  int rc = Seek(store, store->metaCursor, key, 1, &res);
+  if (rc == SQLITE_OK && res == 0) {
+    u32 size;
+    const uint8_t *payload = PayloadOf(store, store->metaCursor, &size);
+    int length = 0;
+    int offset = payload ? Field(payload, (int)size, 1, &length) : -1;
+    if (offset >= 0 && (length == 16 || length == 24)) memcpy(lost, payload + offset, length);
+  }
+  sqlite3BtreeCloseCursor(store->metaCursor);
+  return rc;
+}
+
+/* The cluster time of the last event of the oplog, in the read or the transaction open: *has 0 when it has none */
+static int LastTime(MdeStore *store, uint8_t *time, int *has) {
+  *has = 0;
+  OpenCursor(store, store->entryCursor, store->oplog, 0);
+  int empty = 0;
+  int rc = sqlite3BtreeLast(store->entryCursor, &empty);
+  if (rc == SQLITE_OK && !empty) {
+    u32 size;
+    const uint8_t *payload = PayloadOf(store, store->entryCursor, &size);
+    int length = 0;
+    int offset = payload ? Field(payload, (int)size, 1, &length) : -1;
+    if (offset >= 0) *has = EventTime(payload + offset, length, time);
   }
   sqlite3BtreeCloseCursor(store->entryCursor);
   return rc;
@@ -1192,14 +1267,40 @@ static int OpenOplog(MdeStore *store, const MdeOptions *options) {
   const int sizes[] = {8, 16};
   rc = RunBlobs(store, "INSERT INTO meta(k, v) VALUES (x'67', ?1), (x'69', ?2) ON CONFLICT(k) DO UPDATE SET v = excluded.v", blobs, sizes, 2);
   /* An opening keeping no events (oplogSize 0): the events of the openings before deleted with their bytes, so that
-  ** their space is freed and a token of one of them fails (ChangeStreamHistoryLost) once an oplog is kept again, the
-  ** writes of this opening not being in it */
+  ** their space is freed; the row 'l' the end of this generation, so that a token of it or of one before it fails
+  ** (ChangeStreamHistoryLost) once an oplog is kept again, the writes of this opening not being in it. This opening
+  ** keeps the start of its generation as lost when the database had events (the cluster time of the last one) */
+  memset(store->openLost, 0, 24);
+  store->hasOpenTime = 0;
   if (rc == SQLITE_OK && options->oplogBytes <= 0) {
+    sqlite3_stmt *statement;
+    rc = sqlite3_prepare_v2(store->db, "SELECT (SELECT v FROM meta WHERE k = x'6c'), (SELECT v FROM oplog ORDER BY k DESC LIMIT 1)", -1, &statement, 0);
+    if (rc != SQLITE_OK) return FailSql(store, rc, "the oplog");
+    int history = 0;
+    if (sqlite3_step(statement) == SQLITE_ROW) {
+      const uint8_t *lost = sqlite3_column_blob(statement, 0);
+      const int lostSize = sqlite3_column_bytes(statement, 0);
+      for (int i = 0; lost && i < lostSize; i++) history |= lost[i] != 0;
+      const uint8_t *last = sqlite3_column_blob(statement, 1);
+      if (last) {
+        history = 1;
+        store->hasOpenTime = EventTime(last, sqlite3_column_bytes(statement, 1), store->openTime);
+      }
+    }
+    sqlite3_finalize(statement);
+    if (history) EventKey(store->openLost, store->generation, 0);
+    if (store->hasOpenTime) memcpy(store->openLost + 16, store->openTime, 8);
+    /* The time of the events of this opening not known: the openings after it fail the times before their oldest event */
+    uint8_t end[24] = {0};
+    EventKey(end, store->generation, INT64_MAX);
+    const uint8_t *ends[] = {end};
+    const int endSizes[] = {24};
     rc = Exec(store,
               "BEGIN IMMEDIATE; DELETE FROM oplog;"
-              "INSERT INTO meta(k, v) VALUES (x'6f', x'0000000000000000') ON CONFLICT(k) DO UPDATE SET v = excluded.v;"
-              "COMMIT;",
+              "INSERT INTO meta(k, v) VALUES (x'6f', x'0000000000000000') ON CONFLICT(k) DO UPDATE SET v = excluded.v;",
               "the oplog");
+    if (rc == SQLITE_OK) rc = RunBlobs(store, "INSERT INTO meta(k, v) VALUES (x'6c', ?1) ON CONFLICT(k) DO UPDATE SET v = excluded.v", ends, endSizes, 1);
+    if (rc == SQLITE_OK) rc = Exec(store, "COMMIT", "the oplog");
     if (rc == SQLITE_OK) store->oplogBytes = 0;
     else sqlite3_exec(store->db, "ROLLBACK", NULL, NULL, NULL);
   }
@@ -2314,12 +2415,21 @@ int mde_append_events(MdeStore *store) {
 }
 
 int mde_oplog_read(MdeStore *store, const uint8_t *after, int afterSize, int maxEvents, size_t maxBytes, MdeBuffer *out,
-                   MdeBuffer *last, int *done) {
+                   MdeBuffer *last, int *done, uint8_t *lost) {
   *done = 1;
+  memset(lost, 0, 16);
   store->message[0] = 0;
   if (!store->oplog) return SQLITE_OK;
   int rc = Begin(store, 0);
   if (rc != SQLITE_OK) return FailSql(store, rc, "a read of the oplog");
+  /* The events lost, as the read sees them */
+  uint8_t lostRow[24];
+  rc = ReadLost(store, lostRow);
+  memcpy(lost, lostRow, 16);
+  if (rc != SQLITE_OK) {
+    EndRead(store);
+    return FailSql(store, rc, "a read of the oplog");
+  }
   OpenCursor(store, store->entryCursor, store->oplog, 0);
   const MdeRange all = {NULL, 0, 0, NULL, 0, 0};
   int empty = 0, given = 0;
@@ -2363,15 +2473,25 @@ int mde_oplog_read(MdeStore *store, const uint8_t *after, int afterSize, int max
 }
 
 int mde_oplog_state(MdeStore *store, int64_t *generation, int64_t *nextSeq, uint8_t *first, int *hasFirst,
-                    uint8_t *database) {
+                    uint8_t *database, uint8_t *lost, uint8_t *lastTime, int *hasLastTime) {
   store->message[0] = 0;
   *generation = store->generation;
   *nextSeq = store->nextSeq;
   memcpy(database, store->database, 16);
   *hasFirst = 0;
-  if (!store->oplog) return SQLITE_OK;
+  /* An opening keeping no events: the ones lost when it opened */
+  memcpy(lost, store->openLost, 24);
+  memcpy(lastTime, store->openTime, 8);
+  *hasLastTime = store->hasOpenTime;
+  if (!store->oplog || store->oplogLimit <= 0) return SQLITE_OK;
   int rc = Begin(store, 0);
   if (rc != SQLITE_OK) return FailSql(store, rc, "a read of the oplog");
+  rc = ReadLost(store, lost);
+  if (rc == SQLITE_OK) rc = LastTime(store, lastTime, hasLastTime);
+  if (rc != SQLITE_OK) {
+    EndRead(store);
+    return FailSql(store, rc, "a read of the oplog");
+  }
   OpenCursor(store, store->entryCursor, store->oplog, 0);
   int empty = 0;
   rc = sqlite3BtreeFirst(store->entryCursor, &empty);

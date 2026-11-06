@@ -9982,6 +9982,179 @@
      "code": 48
     }
    }
+  },
+  "the starts of the change streams: after the event of a drop, conflicting options, the stage splitting the events": {
+   "dropEmpty": true,
+   "events": [
+    "insert",
+    "drop",
+    "invalidate"
+   ],
+   "databaseEvents": [
+    "insert",
+    "drop"
+   ],
+   "resumeAfter": {
+    "value": [
+     "invalidate",
+     true
+    ]
+   },
+   "startAfter": {
+    "value": [
+     "invalidate",
+     true
+    ]
+   },
+   "resumeAfterAndStartAfter": {
+    "error": {
+     "code": 50865
+    }
+   },
+   "resumeAfterAndTime": {
+    "error": {
+     "code": 40674
+    }
+   },
+   "splitNotLast": {
+    "error": {
+     "code": 7182802
+    }
+   },
+   "split": [
+    "insert",
+    {
+     "_id": 2
+    },
+    null
+   ]
+  },
+  "the collections of buckets: created, renamed and written by $out and $merge only as time series": {
+   "createBuckets": {
+    "error": {
+     "code": 20
+    }
+   },
+   "renameTimeSeries": {
+    "error": {
+     "code": 166
+    }
+   },
+   "renameOverTimeSeries": {
+    "error": {
+     "code": 48
+    }
+   },
+   "renameToBuckets": {
+    "error": {
+     "code": 20
+    }
+   },
+   "renameBuckets": {
+    "error": {
+     "code": 20
+    }
+   },
+   "outToBuckets": {
+    "error": {
+     "code": 17385
+    }
+   },
+   "outToSystem": {
+    "error": {
+     "code": 17385
+    }
+   },
+   "mergeToSystem": {
+    "error": {
+     "code": 31319
+    }
+   },
+   "measurements": 1,
+   "collections": [
+    "plain",
+    "system.buckets.ts",
+    "system.views",
+    "ts"
+   ]
+  },
+  "the capped collections and the tailable cursors in transactions": {
+   "deleteManyNone": {
+    "step": {
+     "error": {
+      "code": 20
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "updateOneNone": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "updateOneSame": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "deleteOne": {
+    "step": {
+     "error": {
+      "code": 20
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "tailable": {
+    "step": {
+     "error": {
+      "code": 72
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "documents": 1
   }
  }
 }

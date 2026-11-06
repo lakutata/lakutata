@@ -36,6 +36,9 @@ export async function outcome(fn: () => unknown): Promise<unknown> {
 }
 
 function errorOf(error: any): Record<string, unknown> {
+    //The client of MongoDB gives a write failing with IllegalOperation (20) as an error of its own (about retryable
+    //writes), the error of the server in originalError
+    if (error?.originalError && typeof error.code !== 'number') error = error.originalError
     if (typeof error?.code !== 'number') return {message: String(error?.message)}
     const labels: string[] = [...(error.errorLabels ?? [])].sort()
     const writeErrors: unknown[] | undefined = error.writeErrors?.map?.((writeError: any): unknown => ({
@@ -1320,6 +1323,95 @@ export const SCENARIOS: Scenario[] = [
             })
             result.createDifferentAgain = await outcome((): unknown => db.createCollection('again', {capped: true, size: 2000}))
             result.createPlainOverOptions = await outcome((): unknown => db.createCollection('collated'))
+            return result
+        }
+    },
+    {
+        group: 'changeStreams',
+        name: 'the starts of the change streams: after the event of a drop, conflicting options, the stage splitting the events',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            //The drop of a database without collections: no event
+            const watching: any = db.watch()
+            await watching.tryNext()
+            result.dropEmpty = await db.dropDatabase()
+            const items: any = db.collection('items')
+            const stream: any = items.watch()
+            await stream.tryNext()
+            await items.insertOne({_id: 1})
+            await items.drop()
+            const events: any[] = []
+            for (let event: any = await stream.next(); event; event = stream.closed ? null : await stream.next()) {
+                events.push(event)
+                if (event.operationType === 'invalidate') break
+            }
+            result.events = events.map((event: any): unknown => event.operationType)
+            result.databaseEvents = [(await watching.next())?.operationType, (await watching.next())?.operationType]
+            await watching.close()
+            const drop: any = events.find((event: any): boolean => event.operationType === 'drop')
+            await items.insertOne({_id: 'recreated'})
+            for (const option of ['resumeAfter', 'startAfter']) {
+                const resumed: any = items.watch([], {[option]: drop._id})
+                result[option] = await outcome(async (): Promise<unknown> => [(await resumed.next())?.operationType, resumed.closed])
+                await resumed.close()
+            }
+            result.resumeAfterAndStartAfter = await outcome((): unknown => items.watch([], {resumeAfter: drop._id, startAfter: drop._id}).tryNext())
+            result.resumeAfterAndTime = await outcome((): unknown => items.watch([], {resumeAfter: drop._id, startAtOperationTime: drop.clusterTime}).tryNext())
+            result.splitNotLast = await outcome((): unknown => items.watch([{$changeStreamSplitLargeEvent: {}}, {$match: {}}]).tryNext())
+            const split: any = items.watch([{$match: {operationType: 'insert'}}, {$changeStreamSplitLargeEvent: {}}])
+            await split.tryNext()
+            await items.insertOne({_id: 2})
+            const event: any = await split.next()
+            result.split = [event?.operationType, event?.documentKey, event?.splitEvent ?? null]
+            await split.close()
+            return result
+        }
+    },
+    {
+        group: 'timeseries',
+        name: 'the collections of buckets: created, renamed and written by $out and $merge only as time series',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            await db.createCollection('ts', {timeseries: {timeField: 't', metaField: 'm'}})
+            await db.collection('ts').insertOne({t: new Date(BASE), m: 1})
+            await db.collection('plain').insertOne({_id: 1})
+            result.createBuckets = await outcome((): unknown => db.createCollection('system.buckets.x'))
+            result.renameTimeSeries = await outcome((): unknown => db.collection('ts').rename('ts2'))
+            result.renameOverTimeSeries = await outcome((): unknown => db.collection('plain').rename('ts', {dropTarget: true}))
+            result.renameToBuckets = await outcome((): unknown => db.collection('plain').rename('system.buckets.zz'))
+            result.renameBuckets = await outcome((): unknown => db.collection('system.buckets.ts').rename('other'))
+            result.outToBuckets = await outcome((): unknown => db.collection('plain').aggregate([{$out: 'system.buckets.ts'}]).toArray())
+            result.outToSystem = await outcome((): unknown => db.collection('plain').aggregate([{$out: 'system.foo'}]).toArray())
+            result.mergeToSystem = await outcome((): unknown => db.collection('plain').aggregate([{$merge: {into: 'system.views'}}]).toArray())
+            result.measurements = await db.collection('ts').countDocuments({})
+            result.collections = (await db.listCollections({}, {nameOnly: true}).toArray()).map((collection: any): string => collection.name).sort()
+            return result
+        }
+    },
+    {
+        group: 'transactions',
+        name: 'the capped collections and the tailable cursors in transactions',
+        async run({client, db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            await db.createCollection('capped', {capped: true, size: 4096})
+            await db.collection('capped').insertOne({_id: 1})
+            const capped: any = db.collection('capped')
+            const steps: Record<string, (session: any) => unknown> = {
+                deleteManyNone: (session: any): unknown => capped.deleteMany({_id: 'none'}, {session: session}),
+                updateOneNone: (session: any): unknown => capped.updateOne({_id: 'none'}, {$set: {a: 1}}, {session: session}),
+                updateOneSame: (session: any): unknown => capped.updateOne({_id: 1}, {$set: {_id: 1}}, {session: session}),
+                deleteOne: (session: any): unknown => capped.deleteOne({_id: 1}, {session: session}),
+                tailable: (session: any): unknown => capped.find({}, {tailable: true, session: session}).next()
+            }
+            for (const [name, step] of Object.entries(steps)) {
+                const session: any = client.startSession()
+                session.startTransaction()
+                const first: unknown = await outcome((): unknown => step(session))
+                const commit: unknown = await outcome((): unknown => session.commitTransaction())
+                await session.endSession()
+                result[name] = {step: first, commit: commit}
+            }
+            result.documents = await capped.countDocuments({})
             return result
         }
     }

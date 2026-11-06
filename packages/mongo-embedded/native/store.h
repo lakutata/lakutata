@@ -202,14 +202,17 @@ void mde_drop_events(MdeStore *store);
 
 /* The events after a key (from the first one without it), in their order: [u32 size of the event][its key, 16
 ** bytes][the event] each, up to maxEvents or maxBytes of them; the key of the last one read in last, *done when the
-** oplog was read to its end */
+** oplog was read to its end; the key of the last event the oplog lost, as the read sees it (16 bytes, zeros when none) */
 int mde_oplog_read(MdeStore *store, const uint8_t *after, int afterSize, int maxEvents, size_t maxBytes, MdeBuffer *out,
-                   MdeBuffer *last, int *done);
+                   MdeBuffer *last, int *done, uint8_t *lost);
 
 /* The state of the oplog: its generation, the sequence of its next event, the key of its oldest event (*hasFirst 0 when
-** it has none), the UUID of the database (16 bytes) */
+** it has none), the UUID of the database (16 bytes), the key and the cluster time of the last event it lost (24 bytes,
+** zeros when none, the time zeros when it is not known; for an opening keeping no events, the ones lost when it
+** opened), the cluster time of its last event (8 bytes; *hasLastTime 0 when it has none). A cluster time: its
+** increment, then its time, 4 bytes each, little endian */
 int mde_oplog_state(MdeStore *store, int64_t *generation, int64_t *nextSeq, uint8_t *first, int *hasFirst,
-                    uint8_t *database);
+                    uint8_t *database, uint8_t *lost, uint8_t *lastTime, int *hasLastTime);
 
 
 /* The result of PRAGMA integrity_check ("ok" when the file is sound) */

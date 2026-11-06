@@ -1,10 +1,10 @@
 import {EventEmitter} from 'node:events'
 import {Readable} from 'node:stream'
 import {collatorOf} from './Collation.js'
-import {EmbeddedOperationError} from './Errors.js'
+import {EmbeddedOperationError, MongoEmbeddedError} from './Errors.js'
 import {withCollation} from './mingo/util/_bson.js'
 import {EmbeddedClientSession} from './Session.js'
-import {type EmbeddedOplogEvent, type EmbeddedStore} from './Store.js'
+import {type EmbeddedClusterTime, type EmbeddedOplogEvent, type EmbeddedStore} from './Store.js'
 import {type EmbeddedDocument} from './Values.js'
 
 /**
@@ -125,6 +125,30 @@ function fatal(message: string): EmbeddedOperationError {
 }
 
 /**
+ * The error of a change stream whose events after its position were lost (ChangeStreamHistoryLost 286,
+ * NonResumableChangeStreamError): deleted from the oplog beyond its size, dropped from memory, written without them
+ */
+function historyLost(): EmbeddedOperationError {
+    const error: EmbeddedOperationError = new EmbeddedOperationError(286, 'ChangeStreamHistoryLost', 'Resume of change stream was not possible, as the resume point may no longer be in the oplog.')
+    error.errorLabels = ['NonResumableChangeStreamError']
+    return error
+}
+
+/**
+ * Whether a cluster time is before another one
+ * @param time
+ * @param other
+ */
+function before(time: EmbeddedClusterTime, other: EmbeddedClusterTime): boolean {
+    return time.t < other.t || (time.t === other.t && time.i < other.i)
+}
+
+/**
+ * The key of no event (nothing lost)
+ */
+const NO_KEY: Buffer = Buffer.alloc(16)
+
+/**
  * A change stream of an embedded client, with the API of the ChangeStream of the client of MongoDB: the events of the
  * writes of a collection, of the database or of the client, in the order of their commits, as MongoDB 8.0 gives them on
  * a replica set (insert, update, replace, delete, drop, rename, dropDatabase, invalidate; create, createIndexes and
@@ -193,6 +217,17 @@ export class EmbeddedChangeStream extends EventEmitter {
     protected registered: boolean = false
 
     /**
+     * How it is read, as the client of MongoDB tells them apart: by its listeners of 'change' (emitter), or by next,
+     * tryNext, hasNext and for await (iterator)
+     */
+    protected mode?: 'emitter' | 'iterator'
+
+    /**
+     * The stages of its pipeline run on its events (without $changeStreamSplitLargeEvent)
+     */
+    protected stages: EmbeddedDocument[] = []
+
+    /**
      * @param store the storage of the database
      * @param watched what it watches
      * @param pipeline its stages
@@ -203,11 +238,13 @@ export class EmbeddedChangeStream extends EventEmitter {
         super()
         this.position = store.committedKey()
         this.failure = refusal
-        // The writes build their events for it (when the oplog keeps none) until it closes
+        // The writes build their events for it (when the oplog keeps none) until it closes; a write without them made now
+        // committed before it starts
         this.registered = !refusal
-        if (this.registered) store.streamOpened()
+        if (this.registered) store.streamOpened(this, (key: Buffer): void => this.moved(key))
         this.on('newListener', (event: string | symbol): void => {
             if (event === 'change' && !this.listening) {
+                this.setMode('emitter')
                 this.listening = true
                 queueMicrotask((): void => void this.listen())
             }
@@ -232,6 +269,14 @@ export class EmbeddedChangeStream extends EventEmitter {
      * The next event, once there is one; null once it is closed
      */
     async next(): Promise<EmbeddedDocument | null> {
+        this.setMode('iterator')
+        return this.nextEvent()
+    }
+
+    /**
+     * The next event, once there is one; null once it is closed
+     */
+    protected async nextEvent(): Promise<EmbeddedDocument | null> {
         for (; ;) {
             const event: EmbeddedDocument | null | undefined = await this.take()
             if (event !== undefined) return event
@@ -243,6 +288,7 @@ export class EmbeddedChangeStream extends EventEmitter {
      * The next event if there is one now, else null
      */
     async tryNext(): Promise<EmbeddedDocument | null> {
+        this.setMode('iterator')
         return (await this.take()) ?? null
     }
 
@@ -250,6 +296,7 @@ export class EmbeddedChangeStream extends EventEmitter {
      * Whether an event is there, once there is one; false once it is closed
      */
     async hasNext(): Promise<boolean> {
+        this.setMode('iterator')
         for (; ;) {
             await this.fill()
             if (this.buffer.length) return true
@@ -264,34 +311,76 @@ export class EmbeddedChangeStream extends EventEmitter {
     async close(): Promise<void> {
         if (this.ended) return
         this.ended = true
+        this.buffer = []
         if (this.registered) {
             this.registered = false
-            this.store.streamClosed()
+            this.store.streamClosed(this)
         }
         for (const wake of [...this.waiters]) wake()
         this.emit('close')
     }
 
     /**
-     * A readable stream (of objects) of its events
+     * A readable stream (of objects) of its events: destroyed, it closes the change stream
      * @param options a function applied to each event
      */
     stream(options?: { transform?: (event: EmbeddedDocument) => unknown }): Readable {
+        if (this.ended) throw new MongoEmbeddedError('ChangeStream is closed')
         const transform = options?.transform
-        return Readable.from((async function* (stream: EmbeddedChangeStream) {
-            for await (const event of stream) yield transform ? transform(event) : event
-        })(this))
+        const readable: Readable = new Readable({
+            objectMode: true,
+            read: (): void => {
+                this.nextEvent().then(
+                    (event: EmbeddedDocument | null): unknown => readable.push(event === null ? null : transform ? transform(event) : event),
+                    (error: Error): unknown => readable.destroy(error)
+                )
+            },
+            destroy: (error: Error | null, callback: (error?: Error | null) => void): void => {
+                this.close().then((): void => callback(error), callback)
+            }
+        })
+        return readable
     }
 
     /**
-     * Its events, as they come (for await), until it is closed
+     * Its events, as they come (for await), until it is closed: leaving the loop closes it, as the client of MongoDB
+     * closes it
      */
     async* [Symbol.asyncIterator](): AsyncGenerator<EmbeddedDocument> {
-        for (; ;) {
-            const event: EmbeddedDocument | null = await this.next()
-            if (event === null) return
-            yield event
+        if (this.ended) return
+        try {
+            for (; ;) {
+                const event: EmbeddedDocument | null = await this.next()
+                if (event === null) return
+                yield event
+            }
+        } finally {
+            await this.close()
         }
+    }
+
+    /**
+     * How it is read, which does not change: by its listeners of 'change', or by next, tryNext, hasNext and for await
+     * (another one fails, as the client of MongoDB fails it)
+     * @param mode how it is read
+     */
+    protected setMode(mode: 'emitter' | 'iterator'): void {
+        if (this.mode && this.mode !== mode)
+            throw new MongoEmbeddedError(mode === 'emitter'
+                ? 'ChangeStream cannot be used as an EventEmitter after being used as an iterator'
+                : 'ChangeStream cannot be used as an iterator after being used as an EventEmitter')
+        this.mode = mode
+    }
+
+    /**
+     * A write without its event, made when it opened, took a key: it starts after it (the write was committed when it
+     * began), unless it starts after a position given
+     * @param key the key the write took
+     */
+    protected moved(key: Buffer): void {
+        const {resumeAfter, startAfter, startAtOperationTime} = this.options
+        if (resumeAfter === undefined && startAfter === undefined && startAtOperationTime === undefined && Buffer.compare(key, this.position) > 0)
+            this.position = key
     }
 
     /**
@@ -342,15 +431,28 @@ export class EmbeddedChangeStream extends EventEmitter {
                 await this.close()
                 throw error
             }
+            // The invalidation after the event of its token
+            if (this.buffer.length) return
         }
         for (; ;) {
-            const {events, done} = await this.store.readEvents(this.position, BATCH)
+            const committed: Buffer = this.store.committedKey()
+            const start: Buffer = this.position
+            const {events, done, lost} = await this.store.readEvents(start, BATCH)
+            // Events after its position lost (deleted from the oplog beyond its size, dropped from memory): it cannot go
+            // on, as MongoDB fails a stream the oplog went past
+            if (Buffer.compare(lost, start) > 0) {
+                await this.close()
+                throw historyLost()
+            }
             for (const event of events) {
                 this.position = event.key
                 let given: EmbeddedDocument[]
                 try {
                     given = await this.eventsOf(event)
                 } catch (error) {
+                    // The events of the batch not given: its resume token before them, as the client of MongoDB keeps it
+                    this.position = start
+                    this.buffer = []
                     await this.close()
                     throw error
                 }
@@ -358,6 +460,8 @@ export class EmbeddedChangeStream extends EventEmitter {
                 // An invalidation: the stream ends with it
                 if (given.some((item: EmbeddedDocument): boolean => item.operationType === 'invalidate')) return
             }
+            // No event after it up to the last commit: it goes on after the commit (a position of an opening before)
+            if (!events.length && done && Buffer.compare(committed, this.position) > 0) this.position = committed
             if (this.buffer.length || done || !events.length) return
         }
     }
@@ -384,7 +488,7 @@ export class EmbeddedChangeStream extends EventEmitter {
     protected async listen(): Promise<void> {
         try {
             for (; ;) {
-                const event: EmbeddedDocument | null = await this.next()
+                const event: EmbeddedDocument | null = await this.nextEvent()
                 if (event === null) break
                 this.emit('change', event)
             }
@@ -409,18 +513,45 @@ export class EmbeddedChangeStream extends EventEmitter {
         if (fullDocumentBeforeChange !== undefined && !['off', 'whenAvailable', 'required'].includes(fullDocumentBeforeChange))
             throw new EmbeddedOperationError(2, 'BadValue', `Enumeration value '${fullDocumentBeforeChange}' for field '$changeStream.fullDocumentBeforeChange' is not a valid value.`)
         if (!Array.isArray(this.pipeline)) throw new EmbeddedOperationError(14, 'TypeMismatch', 'The pipeline of a change stream must be an array')
-        for (const stage of this.pipeline) {
+        this.pipeline.forEach((stage: EmbeddedDocument, index: number): void => {
             const [name] = Object.keys(stage ?? {})
             if (!STAGES.has(name)) throw new EmbeddedOperationError(20, 'IllegalOperation', `${name} is not permitted in a $changeStream pipeline`)
+            // The events are never as large as MongoDB splits them: the stage leaves them as they are
+            if (name === '$changeStreamSplitLargeEvent' && index !== this.pipeline.length - 1)
+                throw new EmbeddedOperationError(7182802, 'Location7182802', '$changeStreamSplitLargeEvent must be the last stage in the pipeline')
+        })
+        this.stages = this.pipeline.filter((stage: EmbeddedDocument): boolean => !('$changeStreamSplitLargeEvent' in (stage ?? {})))
+        // Its stages run once on an event, so that an invalid one fails it now, as MongoDB fails it when it opens
+        if (this.stages.length) {
+            const sample: EmbeddedDocument = {
+                _id: this.tokenOf(this.position, false),
+                operationType: 'insert',
+                clusterTime: this.store.operationTime(),
+                wallTime: new Date(),
+                ns: {db: this.watched.db, coll: this.watched.collection ?? ''},
+                documentKey: {_id: 0},
+                fullDocument: {_id: 0}
+            }
+            withCollation(collatorOf(this.options.collation as never), (): EmbeddedDocument[] => this.store.values.mingo.aggregate([sample], this.stages))
         }
         const {resumeAfter, startAfter, startAtOperationTime} = this.options
+        if (resumeAfter !== undefined && startAfter !== undefined)
+            throw new EmbeddedOperationError(50865, 'Location50865', "Do not specify both 'resumeAfter' and 'startAfter' in a $changeStream stage")
+        if ((resumeAfter !== undefined || startAfter !== undefined) && startAtOperationTime !== undefined)
+            throw new EmbeddedOperationError(40674, 'Location40674', 'Only one type of resume option is allowed, but multiple were found')
         const given = resumeAfter ?? startAfter
         if (given !== undefined) {
             const token: Token = this.decode(given)
             if (token.invalidate && resumeAfter !== undefined)
                 throw new EmbeddedOperationError(260, 'InvalidResumeToken', "Attempting to resume a change stream using 'resumeAfter' is not allowed from an invalidate notification")
-            await this.resumable(token)
+            const event: EmbeddedOplogEvent | undefined = await this.resumable(token)
             this.position = token.key
+            // After an event ending what it watches (a drop, a rename, a drop of the database): its invalidation next, as
+            // the token of the invalidation comes after the one of its event (the event itself not read again)
+            if (event && !token.invalidate) {
+                const record: EmbeddedDocument = this.store.values.deserialize(event.data)
+                if (this.ends(record)) this.buffer.push(this.invalidation(event, record))
+            }
         } else if (startAtOperationTime !== undefined) {
             this.position = await this.positionAt(startAtOperationTime)
         }
@@ -455,54 +586,70 @@ export class EmbeddedChangeStream extends EventEmitter {
      * oplog (older than its oldest one), or lost by a crash (after the last one of its generation), fails with
      * ChangeStreamHistoryLost (286)
      * @param token the resume token decoded
+     * @returns the event of the token, when it is not the start of a generation
      */
-    protected async resumable(token: Token): Promise<void> {
+    protected async resumable(token: Token): Promise<EmbeddedOplogEvent | undefined> {
         const notFound = (): Error => fatal(`cannot resume stream; the resume token was not found. {_data: "${this.tokenOf(token.key, token.invalidate)._data}"}`)
         if (!token.database.equals(this.store.databaseId)) throw notFound()
         const generation: bigint = token.key.readBigUInt64BE(0)
         const sequence: bigint = token.key.readBigUInt64BE(8)
         const current: bigint = BigInt(this.store.generation)
         if (generation > current || (generation === current && sequence > BigInt(this.store.committedSeq))) throw notFound()
+        // Events after it lost (deleted from the oplog, dropped from memory, written without them); none after the last
+        // one lost (a write without its event the position of a stream)
+        const lost: Buffer = (await this.store.lostEvent()).key
+        if (Buffer.compare(token.key, lost) < 0) throw historyLost()
+        if (token.key.equals(lost)) return undefined
         // The start of a generation, no event before it
-        if (sequence === 0n) return
+        if (sequence === 0n) return undefined
         const previous: Buffer = Buffer.from(token.key)
         previous.writeBigUInt64BE(sequence - 1n, 8)
         const {events} = await this.store.readEvents(previous, 1)
-        if (events.length && events[0].key.equals(token.key)) return
+        if (events.length && events[0].key.equals(token.key)) return events[0]
         const oldest: Buffer | null = await this.store.oldestEvent()
-        const lost = (): Error => {
-            const error: EmbeddedOperationError = new EmbeddedOperationError(286, 'ChangeStreamHistoryLost', 'Resume of change stream was not possible, as the resume point may no longer be in the oplog.')
-            error.errorLabels = ['NonResumableChangeStreamError']
-            return error
-        }
-        if (!oldest || Buffer.compare(token.key, oldest) < 0) throw lost()
+        if (!oldest || Buffer.compare(token.key, oldest) < 0) throw historyLost()
         // Its generation ended before its event (a crash lost it)
-        if (generation < current) throw lost()
+        if (generation < current) throw historyLost()
         throw notFound()
     }
 
     /**
-     * The position of a cluster time: after the events before it; a time older than the oldest event of a trimmed
-     * oplog fails with ChangeStreamHistoryLost (286)
+     * The position of a cluster time: after the events before it. A time not after an event lost, or before the oldest
+     * event kept when events were lost (deleted from the oplog, dropped from memory, written without them), fails with
+     * ChangeStreamHistoryLost (286), as MongoDB fails a time older than its oplog
      * @param time the cluster time (a Timestamp)
      */
     protected async positionAt(time: unknown): Promise<Buffer> {
         const given = time as { t?: number, i?: number, high?: number, low?: number }
-        const seconds: number = typeof given?.t === 'number' ? given.t : (given?.high ?? 0)
-        const increment: number = typeof given?.i === 'number' ? given.i : (given?.low ?? 0)
+        const asked: EmbeddedClusterTime = {
+            t: typeof given?.t === 'number' ? given.t : (given?.high ?? 0),
+            i: typeof given?.i === 'number' ? given.i : (given?.low ?? 0)
+        }
+        const lost = await this.store.lostEvent()
+        if (lost.time && !before(lost.time, asked)) throw historyLost()
+        const anyLost: boolean = !lost.key.equals(NO_KEY)
         let position: Buffer | undefined
         let last: Buffer | undefined
+        let oldest: EmbeddedClusterTime | undefined
         for (; ;) {
             const {events, done} = await this.store.readEvents(last, BATCH)
             for (const event of events) {
                 const record: EmbeddedDocument = this.store.values.deserialize(event.data)
-                const t = record.t as { t: number, i: number } | undefined
-                if (t && (t.t > seconds || (t.t === seconds && t.i >= increment))) return position ?? this.before(event.key)
+                const t = record.t as EmbeddedClusterTime | undefined
+                if (!t) continue
+                if (!oldest) {
+                    oldest = t
+                    if (anyLost && before(asked, t)) throw historyLost()
+                }
+                if (!before(t, asked)) return position ?? this.before(event.key)
                 position = event.key
             }
             if (done || !events.length) break
             last = events[events.length - 1].key
         }
+        // No event kept: a time not after the last commit may be the one of an event lost
+        const now = this.store.operationTime() as { t?: number, i?: number, high?: number, low?: number }
+        if (anyLost && !oldest && !before({t: now.t ?? now.high ?? 0, i: now.i ?? now.low ?? 0}, asked)) throw historyLost()
         return this.store.committedKey()
     }
 
@@ -538,11 +685,20 @@ export class EmbeddedChangeStream extends EventEmitter {
         const events: EmbeddedDocument[] = []
         const piped: EmbeddedDocument | undefined = this.piped(given)
         if (piped) events.push(piped)
-        const ends: boolean = watched.kind === 'collection'
-            ? operation === 'drop' || operation === 'rename'
-            : watched.kind === 'database' && operation === 'dropDatabase'
-        if (ends) events.push(this.invalidation(event, record))
+        if (this.ends(record)) events.push(this.invalidation(event, record))
         return events
+    }
+
+    /**
+     * Whether an event of the oplog ends what it watches: the drop or the rename of its collection (to it too), the drop
+     * of its database
+     * @param record the event decoded
+     */
+    protected ends(record: EmbeddedDocument): boolean {
+        const watched: EmbeddedWatched = this.watched
+        if (watched.kind === 'collection')
+            return record.o === 'dropDatabase' || ((record.o === 'drop' || record.o === 'rename') && (record.c === watched.collection || record.to === watched.collection))
+        return watched.kind === 'database' && record.o === 'dropDatabase'
     }
 
     /**
@@ -560,9 +716,9 @@ export class EmbeddedChangeStream extends EventEmitter {
      * @param change the event of the stream
      */
     protected piped(change: EmbeddedDocument): EmbeddedDocument | undefined {
-        if (!this.pipeline.length) return change
+        if (!this.stages.length) return change
         const [result] = withCollation(collatorOf(this.options.collation as never), (): EmbeddedDocument[] =>
-            this.store.values.mingo.aggregate([this.store.values.copy(change)], this.pipeline))
+            this.store.values.mingo.aggregate([this.store.values.copy(change)], this.stages))
         if (!result) return undefined
         if (result._id?._data !== change._id._data)
             throw fatal('Encountered an event whose _id field, which contains the resume token, was modified by the pipeline. Modifying the _id field of an event makes it impossible to resume the stream from that point. Only transformations that retain the unmodified _id field are allowed.')

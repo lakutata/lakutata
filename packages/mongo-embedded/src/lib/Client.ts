@@ -1348,6 +1348,9 @@ export class EmbeddedFindCursor extends EmbeddedResults {
         const store = this.collection.store
         if (!tailing.tailable)
             throw new EmbeddedOperationError(9, 'FailedToParse', "Cannot set 'awaitData' without also setting 'tailable'")
+        // Not in a transaction, which it fails (as MongoDB 8.0)
+        if (!tailing.uuid && this.session?.inTransaction())
+            await this.session.abortWith(new EmbeddedOperationError(72, 'InvalidOptions', 'It is illegal to open a tailable cursor in a transaction'))
         if (this.order) throw new MongoEmbeddedError('Tailable cursor does not support sorting')
         if (!tailing.uuid) {
             const state = store.collection(this.collection.collectionName)
@@ -1891,6 +1894,7 @@ export class EmbeddedCollection {
         await this.store.exclusive(async () => {
             const state = this.store.collection(name)!
             const open = (state.openBuckets ??= new Map<string, Buffer>())
+            const reopening = options.metaField !== undefined && state.indexes.some((index) => Object.keys(index.key)[0] === 'meta')
             // The buckets the measurements go into: their measurements, their bytes, the document before them
             const touched = new Map<string, { key: Buffer, id: unknown, start: number, meta: unknown, rows: EmbeddedDocument[], size: number, previous?: EmbeddedDocument }>()
             // The measurements of a meta field together (its canonical EJSON; none without one)
@@ -1902,6 +1906,12 @@ export class EmbeddedCollection {
                 const fields = { ...measurement }
                 if (options.metaField !== undefined) delete fields[options.metaField]
                 const size = bson.BSON.calculateObjectSize(fields)
+                // No bucket of its meta field open since the database opened: its last bucket stored reopened by the
+                // index of the meta field (as MongoDB 8.0 reopens them; without a meta field, a new bucket)
+                if (!open.has(grouped) && reopening) {
+                    const stored = await this.lastBucket(meta)
+                    if (stored && groupOf(stored.meta) === grouped) open.set(grouped, this.values.idKey(stored._id))
+                }
                 const last = open.get(grouped)
                 let bucket = last ? touched.get(last.toString('latin1')) : undefined
                 if (last && !bucket) {
@@ -1947,6 +1957,24 @@ export class EmbeddedCollection {
             )
         })
         return { inserted: inserted, errors: errors }
+    }
+
+    /**
+     * The bucket of a meta field starting last: the last entry of its value in the index of the meta field and the time
+     * (its keys after the meta field the start and the end of the buckets), read backwards
+     *
+     * @param meta the meta field (undefined: none)
+     */
+    private async lastBucket(meta: unknown): Promise<EmbeddedDocument | undefined> {
+        const buckets = this.buckets()
+        const state = this.store.collection(buckets.collectionName)
+        if (!state) return undefined
+        const plan = new EmbeddedPlanner(state, buckets.collatorFor()).plan({ meta: meta ?? null })
+        if (plan.kind !== 'index' || Object.keys(state.indexes.find((index) => index.name === plan.index)?.key ?? {})[0] !== 'meta')
+            return undefined
+        for await (const { documents } of this.store.scanRange(buckets.collectionName, state.tables.get(plan.index)!, buckets.rangesOf(plan.ranges), { reverse: true, first: 1 }))
+            return documents[0]
+        return undefined
     }
 
     /**
@@ -2210,6 +2238,20 @@ export class EmbeddedCollection {
      * fail
      * @param bulk whether its failure is the one of an insertMany (EmbeddedBulkWriteError)
      */
+    /**
+     * The refusal of a write of a capped collection in a transaction, before its documents are read, as MongoDB 8.0
+     * refuses it: a deletion with IllegalOperation (20), the other writes with OperationNotSupportedInTransaction
+     * (263); the transaction aborted. Undefined outside a transaction, or for another collection
+     *
+     * @param removing whether the write deletes documents
+     */
+    private cappedRefusal(removing: boolean): Promise<never> | undefined {
+        if (!this.transaction || !this.store.collection(this.collectionName, this.transaction)?.capped) return undefined
+        return removing
+            ? this.session!.abortWith(new EmbeddedOperationError(20, 'IllegalOperation', `Cannot remove from a capped collection in a multi-document transaction: ${this.namespace}`))
+            : this.session!.refuse(`Collection '${this.namespace}' is a capped collection. Writes in transactions are not allowed on capped collections.`)
+    }
+
     private concerned<T>(
         options: EmbeddedDocument | undefined,
         write: () => Promise<T>,
@@ -2217,6 +2259,8 @@ export class EmbeddedCollection {
         bulk = false
     ): Promise<T> {
         this.writable()
+        const refused = this.cappedRefusal(false)
+        if (refused) return refused
         return writeByConcern(
             this.store,
             this.transaction ? undefined : writeConcernOf(options, this.writeConcern),
@@ -2671,6 +2715,8 @@ export class EmbeddedCollection {
     private async out(documents: EmbeddedDocument[], target: any): Promise<void> {
         const name = typeof target === 'string' ? target : target?.coll
         checkName(name)
+        if (name.startsWith('system.'))
+            throw new EmbeddedOperationError(17385, 'Location17385', `Can't $out to special collection: ${name}`)
         // A new time series collection of its results
         if (isPlain(target) && target.timeseries !== undefined) {
             if (this.store.collection(name) || this.store.views.has(name))
@@ -2747,6 +2793,8 @@ export class EmbeddedCollection {
             )
         const into = typeof merge.into === 'string' ? merge.into : merge.into?.coll
         checkName(into)
+        if (into.startsWith('system.'))
+            throw new EmbeddedOperationError(31319, 'Location31319', `Cannot $merge to special collection: ${into}`)
         if (this.store.views.has(into)) throw this.sibling(into).onView()
         const on: string[] =
             merge.on === undefined
@@ -3200,6 +3248,8 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.deleteOne(query, options)
             )
+        const refused = this.cappedRefusal(true)
+        if (refused) return refused
         return this.concerned(
             options,
             () => this.delete(query, false, options?.hint, this.collatorFor(options?.collation)),
@@ -3217,6 +3267,8 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.deleteMany(query, options)
             )
+        const refused = this.cappedRefusal(true)
+        if (refused) return refused
         return this.concerned(
             options,
             () => this.delete(query, true, options?.hint, this.collatorFor(options?.collation)),
@@ -3268,6 +3320,19 @@ export class EmbeddedCollection {
             () => index.name
         )
 
+    }
+
+    /**
+     * Creates an index in an exclusive operation of the store held by the caller (the index of the buckets of a new time
+     * series collection, made with them)
+     *
+     * @param keys its fields and their directions
+     * @param options its options
+     * @internal
+     */
+    async createIndexHeld(keys: EmbeddedDocument, options: EmbeddedDocument): Promise<void> {
+        const index = this.indexOf(keys, options)
+        if (!this.existingIndex(index)) await this.buildIndex(index)
     }
 
     /**
@@ -3793,6 +3858,10 @@ export class EmbeddedCollection {
                 collection.bulkWrite(operations, options)
             )
         this.writable(true)
+        // Its first operation a deletion: refused as one
+        const [first] = Array.isArray(operations) ? operations : []
+        const refused = this.cappedRefusal(isPlain(first) && ('deleteOne' in first || 'deleteMany' in first))
+        if (refused) return refused
         return this.concerned(
             options,
             () => this.runBulk(operations, options),
@@ -3929,6 +3998,8 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.findOneAndDelete(query, options)
             )
+        const refused = this.cappedRefusal(true)
+        if (refused) return refused
         // A time series collection: the first measurement matching deleted from its bucket
         if (this.timeSeries())
             return this.concerned(
@@ -4083,6 +4154,15 @@ export class EmbeddedCollection {
         if (this.isView()) throw this.onView()
         if (this.store.views.has(newName))
             throw new EmbeddedOperationError(48, 'NamespaceExists', `a view already exists with that name: ${this.dbName}.${newName}`)
+        // The buckets of a time series stay with its view, as MongoDB 8.0 keeps them (to another name of buckets too:
+        // buckets without their view are dropped when the database opens)
+        const target = `${this.dbName}.${newName}`
+        if (this.collectionName.startsWith(BUCKETS))
+            throw new EmbeddedOperationError(20, 'IllegalOperation', newName.startsWith(BUCKETS)
+                ? `Cannot rename timeseries buckets collection '${this.namespace}' to another timeseries buckets namespace '${target}'.`
+                : `Cannot rename timeseries buckets collection '${this.namespace}' to a non timeseries buckets namespace '${target}'.`)
+        if (newName.startsWith(BUCKETS))
+            throw new EmbeddedOperationError(20, 'IllegalOperation', `Cannot rename non timeseries buckets collection '${this.namespace}' to a timeseries buckets namespace '${target}'.`)
         await this.concerned(
             options,
             () =>
@@ -5542,7 +5622,7 @@ export class EmbeddedDb {
                 this.store,
                 writeConcernOf(options, this.writeConcern),
                 async () => {
-                    const created = await this.store.exclusive(async () => {
+                    await this.store.exclusive(async () => {
                         if (this.store.collection(name))
                             throw new EmbeddedOperationError(48, 'NamespaceExists', `Collection ${namespace} already exists.`)
                         const view = this.store.views.get(name)
@@ -5550,17 +5630,21 @@ export class EmbeddedDb {
                             const existing = this.store.collection(BUCKETS + name)?.options
                             if (!view.pipeline[0]?.$_internalUnpackBucket || show(existing) !== show(kept))
                                 throw new EmbeddedOperationError(48, 'NamespaceExists', `namespace ${namespace} already exists, but with different options: ${show(existing ?? view)}`)
-                            return false
+                            return
                         }
+                        // Its buckets, their index of the meta field and the time, then its view: a crash before the view
+                        // leaves buckets that the next opening drops
                         await this.store.create(BUCKETS + name, kept)
+                        if (timeseries.metaField !== undefined)
+                            await this.collection(BUCKETS + name).createIndexHeld(
+                                { meta: 1, [`control.min.${timeseries.timeField}`]: 1, [`control.max.${timeseries.timeField}`]: 1 },
+                                { name: `${timeseries.metaField}_1_${timeseries.timeField}_1` }
+                            )
                         await this.store.defineView(name, this.databaseName, {
                             viewOn: BUCKETS + name,
                             pipeline: [{ $_internalUnpackBucket: { timeField: timeseries.timeField, ...(timeseries.metaField !== undefined ? { metaField: timeseries.metaField } : {}), bucketMaxSpanSeconds: timeseries.bucketMaxSpanSeconds } }]
                         }, 'timeseries')
-                        return true
                     })
-                    if (created && timeseries.metaField !== undefined)
-                        await this.collection(name).createIndex({ [timeseries.metaField]: 1, [timeseries.timeField]: 1 })
                     return this.collection(name)
                 },
                 () => this.collection(name)
@@ -5916,6 +6000,8 @@ export class EmbeddedClient {
      * @param options the write concern of its writes not given one (writeConcern)
      */
     db(name = 'embedded', options?: EmbeddedDocument): EmbeddedDb {
+        // A name with a dot fails, as the client of MongoDB fails it (the namespaces of its collections would be ambiguous)
+        if (typeof name === 'string' && name.includes('.')) throw new MongoEmbeddedError("Database names cannot contain the character '.'")
         this.database ??= new EmbeddedDb(name, this.store, this.options.writeConcern)
         return options?.writeConcern ? this.database.withWriteConcern(options.writeConcern) : this.database
     }

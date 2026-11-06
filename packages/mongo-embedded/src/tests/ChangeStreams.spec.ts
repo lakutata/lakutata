@@ -130,17 +130,30 @@ describe('The oplog of the change streams', (): void => {
         //Its size 0: the events kept in memory only, gone once the database is opened again
         const at: string = directory()
         let none: EmbeddedClient = await EmbeddedClient.connect(at, {oplogSize: 0})
-        //Built for a change stream open (none open: dropped)
-        await none.store.appendEvents([Buffer.from('dropped')])
+        //A write while no change stream is open: its event not built, its sequence lost
+        await none.db().collection('items').insertOne({_id: 1})
         const watching = none.watch()
         await none.store.appendEvents([Buffer.from('kept'), Buffer.from('in memory')])
         await watching.close()
-        assert.deepStrictEqual((await oplog(none.store, 1)).map((event: { sequence: number, text: string }): unknown => [event.sequence, event.text]), [[1, 'kept'], [2, 'in memory']])
+        assert.deepStrictEqual((await oplog(none.store, 1)).map((event: { sequence: number, text: string }): unknown => [event.sequence, event.text]), [[2, 'kept'], [3, 'in memory']])
         await none.close()
         none = await EmbeddedClient.connect(at, {oplogSize: 0})
         assert.deepStrictEqual(await oplog(none.store), [])
         assert.strictEqual(await none.store.oldestEvent(), null)
         await none.close()
+    })
+
+    it('goes on after the cluster time of its last event when the database opens again', async (): Promise<void> => {
+        const at: string = directory()
+        let client: EmbeddedClient = await EmbeddedClient.connect(at)
+        await client.db().collection('items').insertOne({_id: 1})
+        const before: bigint = BigInt((await client.db().command({ping: 1})).operationTime.toString())
+        await client.close()
+        client = await EmbeddedClient.connect(at)
+        assert.strictEqual(BigInt((await client.db().command({ping: 1})).operationTime.toString()), before)
+        await client.db().collection('items').insertOne({_id: 2})
+        assert.ok(BigInt((await client.db().command({ping: 1})).operationTime.toString()) > before)
+        await client.close()
     })
 
     it('keeps its events through a reopening, a new generation each time; a database in memory begins one of its own', async (): Promise<void> => {
@@ -459,5 +472,174 @@ describe('The change streams', (): void => {
         await assert.rejects(kept.watch([], {resumeAfter: token}).tryNext(), coded(286))
         assert.deepStrictEqual((await oplog(kept.store)).length, 1)
         await kept.close()
+    })
+
+    it('fail with ChangeStreamHistoryLost once events after their position were lost: a token before any event, a stream the oplog went past, a time older than it', async (): Promise<void> => {
+        //In memory (no oplog): the token of a stream that gave no event, across a write made while none was open
+        const memory: EmbeddedClient = await EmbeddedClient.connect()
+        const items = memory.db().collection('items')
+        const idle = items.watch()
+        const token = idle.resumeToken
+        await idle.close()
+        await items.insertOne({_id: 1})
+        await assert.rejects(items.watch([], {resumeAfter: token}).tryNext(), coded(286))
+        //The position of a stream at a write without its event: it resumes, nothing lost after it
+        const open = items.watch()
+        const position = open.resumeToken
+        await items.insertOne({_id: 2})
+        const resumed = items.watch([], {resumeAfter: position})
+        assert.deepStrictEqual((await resumed.next())?.documentKey, {_id: 2})
+        await resumed.close()
+        await open.close()
+        //The time of a write without its event
+        await items.insertOne({_id: 3})
+        const unrecorded = (await memory.db().command({ping: 1})).operationTime
+        await assert.rejects(items.watch([], {startAtOperationTime: unrecorded}).tryNext(), coded(286))
+        await memory.close()
+        //An oplog of 16 KiB: a stream behind it fails (closed), so do its first token and a time before the oldest event
+        const small: EmbeddedClient = await EmbeddedClient.connect(undefined, {oplogSize: 16 * 1024})
+        const kept = small.db().collection('items')
+        const behind = kept.watch()
+        const start = behind.resumeToken
+        await kept.insertOne({_id: 0})
+        const first = (await small.db().command({ping: 1})).operationTime
+        for (let batch: number = 0; batch < 20; batch++)
+            await kept.insertMany(Array.from({length: 100}, (_: unknown, n: number): Record<string, unknown> => ({_id: 1 + batch * 100 + n, text: 'x'.repeat(1000)})))
+        await assert.rejects(behind.next(), coded(286))
+        assert.strictEqual(behind.closed, true)
+        await assert.rejects(kept.watch([], {resumeAfter: start}).tryNext(), coded(286))
+        await assert.rejects(kept.watch([], {startAtOperationTime: first}).tryNext(), coded(286))
+        await small.close()
+    })
+
+    it('give a stream opened before the commit of a transaction all its events, at one cluster time, without an oplog', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const items = client.db().collection('items')
+        const session = client.startSession()
+        session.startTransaction()
+        await items.insertOne({_id: 'A'}, {session: session})
+        const stream = items.watch()
+        await items.insertOne({_id: 'B'}, {session: session})
+        await session.commitTransaction()
+        const events = [await stream.next(), await stream.next()]
+        assert.deepStrictEqual(events.map((event: Record<string, any> | null): unknown => event?.documentKey._id), ['A', 'B'])
+        assert.strictEqual(events[0]!.clusterTime.toString(), events[1]!.clusterTime.toString())
+        //A stream started at the time of its second event: the whole transaction
+        const again = items.watch([], {startAtOperationTime: events[1]!.clusterTime})
+        assert.deepStrictEqual([(await again.next())?.documentKey, (await again.next())?.documentKey], [{_id: 'A'}, {_id: 'B'}])
+        //An aborted transaction, or a write failing, loses no event: a stream resumes after the last one
+        session.startTransaction()
+        await items.insertOne({_id: 'C'}, {session: session})
+        await session.abortTransaction()
+        await assert.rejects(items.insertOne({_id: 'A'}), coded(11000))
+        await stream.close()
+        await again.close()
+        assert.strictEqual(await items.watch([], {resumeAfter: events[1]!._id}).tryNext(), null)
+        await session.endSession()
+        await client.close()
+    })
+
+    it('resume after the event of a drop with its invalidation, and check their options and their pipeline at their first read', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const items = client.db().collection('items')
+        const stream = items.watch()
+        await items.insertOne({_id: 1})
+        await items.drop()
+        await stream.next()
+        const drop = await stream.next()
+        assert.strictEqual(drop?.operationType, 'drop')
+        await items.insertOne({_id: 'recreated'})
+        for (const option of ['resumeAfter', 'startAfter']) {
+            const resumed = items.watch([], {[option]: drop!._id})
+            assert.strictEqual((await resumed.next())?.operationType, 'invalidate')
+            assert.strictEqual(resumed.closed, true)
+            assert.strictEqual(await resumed.next(), null)
+        }
+        await assert.rejects(items.watch([], {resumeAfter: drop!._id, startAfter: drop!._id}).tryNext(), coded(50865))
+        await assert.rejects(items.watch([], {resumeAfter: drop!._id, startAtOperationTime: drop!.clusterTime}).tryNext(), coded(40674))
+        await assert.rejects(items.watch([{$changeStreamSplitLargeEvent: {}}, {$match: {}}]).tryNext(), coded(7182802))
+        //$changeStreamSplitLargeEvent last: the events as they are
+        const split = items.watch([{$match: {operationType: 'insert'}}, {$changeStreamSplitLargeEvent: {}}])
+        assert.strictEqual(await split.tryNext(), null)
+        await items.insertOne({_id: 2})
+        assert.deepStrictEqual((await split.next())?.documentKey, {_id: 2})
+        await split.close()
+        //An invalid stage fails its first read, before any event
+        const invalid = items.watch([{$match: {a: {$nope: 1}}}])
+        await assert.rejects(invalid.tryNext())
+        assert.strictEqual(invalid.closed, true)
+        await client.close()
+        //The drop of a database without collections: no event
+        const empty: EmbeddedClient = await EmbeddedClient.connect()
+        const watching = empty.watch([], {showExpandedEvents: true})
+        assert.strictEqual(await watching.tryNext(), null)
+        assert.strictEqual(await empty.db().dropDatabase(), true)
+        await empty.db().collection('x').insertOne({_id: 1})
+        assert.deepStrictEqual([(await watching.next())?.operationType, (await watching.next())?.operationType], ['create', 'insert'])
+        await empty.close()
+    })
+
+    it('close with their client, when a loop leaves them or their readable stream is destroyed, and are read one way', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const items = client.db().collection('items')
+        const looped = items.watch()
+        await items.insertOne({_id: 1})
+        for await (const event of looped) {
+            assert.strictEqual(event.operationType, 'insert')
+            break
+        }
+        assert.strictEqual(looped.closed, true)
+        const streamed = items.watch()
+        const readable = streamed.stream()
+        await items.insertOne({_id: 2})
+        await new Promise((resolve: (value: unknown) => void): unknown => readable.once('data', resolve))
+        readable.destroy()
+        await new Promise((resolve: (value: unknown) => void): unknown => readable.once('close', resolve))
+        assert.strictEqual(streamed.closed, true)
+        //By the listeners of change, or by next (as the client of MongoDB tells them apart)
+        const emitter = items.watch()
+        emitter.on('change', (): void => undefined)
+        await assert.rejects(emitter.next(), /cannot be used as an iterator/)
+        const iterated = items.watch()
+        assert.strictEqual(await iterated.tryNext(), null)
+        assert.throws((): unknown => iterated.on('change', (): void => undefined), /cannot be used as an EventEmitter/)
+        //The closing of the client: their reads waiting end
+        const waiting = iterated.next()
+        await client.close()
+        assert.strictEqual(await waiting, null)
+        assert.strictEqual(emitter.closed, true)
+    })
+
+    it('give a resume token before the events of a batch failing, and wait for a commit after a token of an earlier opening', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const items = client.db().collection('items')
+        await items.insertOne({_id: 'before'})
+        const stream = items.watch([], {fullDocumentBeforeChange: 'required'})
+        assert.strictEqual(await stream.tryNext(), null)
+        await items.insertOne({_id: 'A'})
+        //No document before it kept: the event of the delete fails, the one of A not given
+        await items.deleteOne({_id: 'before'})
+        await assert.rejects(stream.tryNext(), coded(47))
+        assert.deepStrictEqual((await items.watch([], {resumeAfter: stream.resumeToken}).next())?.documentKey, {_id: 'A'})
+        await client.close()
+        const at: string = directory()
+        let reopened: EmbeddedClient = await EmbeddedClient.connect(at)
+        const first = reopened.db().collection('items').watch()
+        await reopened.db().collection('items').insertOne({_id: 1})
+        const token = (await first.next())!._id
+        await reopened.close()
+        reopened = await EmbeddedClient.connect(at)
+        const later = reopened.db().collection('items').watch([], {resumeAfter: token})
+        assert.strictEqual(await later.tryNext(), null)
+        assert.notStrictEqual(later.resumeToken._data, token._data)
+        //It waits, without running
+        const cpu = process.cpuUsage()
+        const next = later.next()
+        await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 200))
+        const used = process.cpuUsage(cpu)
+        assert.ok(used.user + used.system < 100000, `${used.user + used.system} µs`)
+        await reopened.db().collection('items').insertOne({_id: 2})
+        assert.deepStrictEqual((await next)?.documentKey, {_id: 2})
+        await reopened.close()
     })
 })
