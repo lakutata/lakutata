@@ -239,6 +239,11 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
     protected compiledValidation?: { options: EmbeddedDocument, validation?: EmbeddedValidation }
 
     /**
+     * The fields of its events naming it, for its name (eventFields)
+     */
+    protected namedEvents?: { name: string, fields: Buffer }
+
+    /**
      * The collators of the indexes with a collation, by their definitions
      */
     protected readonly collators: WeakMap<EmbeddedIndex, EmbeddedCollator | undefined> = new WeakMap<EmbeddedIndex, EmbeddedCollator | undefined>()
@@ -266,6 +271,17 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
      */
     defined(): boolean {
         return this.indexes.length > 0 || Object.keys(this.options).length > 0 || !!this.natural
+    }
+
+    /**
+     * The fields of its events naming it (c: its name, u: its UUID), as BSON elements, made once for its name
+     */
+    eventFields(): Buffer {
+        if (this.namedEvents?.name !== this.name) {
+            const document: Buffer = this.values.bson.BSON.serialize({c: this.name, u: new this.values.bson.Binary(this.uuid, 4)})
+            this.namedEvents = {name: this.name, fields: document.subarray(4, document.length - 1)}
+        }
+        return this.namedEvents.fields
     }
 
     /**
@@ -1466,13 +1482,28 @@ export class EmbeddedStore {
         const seconds: number = Math.floor(now / 1000)
         this.clusterTime = seconds > this.clusterTime.t ? {t: seconds, i: 1} : {t: this.clusterTime.t, i: this.clusterTime.i + 1}
         const session = this.open?.session
-        return this.values.serialize({
-            ...fields,
-            ...(collection ? {c: collection.name, u: new this.values.bson.Binary(collection.uuid, 4)} : {}),
-            w: new Date(now),
-            t: new this.values.bson.Timestamp({t: this.clusterTime.t, i: this.clusterTime.i}),
-            ...(session ? {x: session} : {})
-        })
+        // Its fields, then the ones of every event as bytes: c and u (of its collection, made once), w, t
+        const own: Buffer = this.values.bson.BSON.serialize(session ? {...fields, x: session} : fields)
+        const named: Buffer = collection ? collection.eventFields() : Buffer.alloc(0)
+        const size: number = own.length + named.length + 22
+        const event: Buffer = Buffer.allocUnsafe(size)
+        event.writeInt32LE(size, 0)
+        own.copy(event, 4, 4, own.length - 1)
+        let at: number = own.length - 1
+        named.copy(event, at)
+        at += named.length
+        // w: a date (0x09), t: a timestamp (0x11, its increment then its time)
+        event[at] = 0x09
+        event[at + 1] = 0x77
+        event[at + 2] = 0
+        event.writeBigInt64LE(BigInt(now), at + 3)
+        event[at + 11] = 0x11
+        event[at + 12] = 0x74
+        event[at + 13] = 0
+        event.writeUInt32LE(this.clusterTime.i, at + 14)
+        event.writeUInt32LE(this.clusterTime.t, at + 18)
+        event[size - 1] = 0
+        return event
     }
 
     /**
