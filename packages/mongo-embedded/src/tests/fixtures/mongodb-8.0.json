@@ -1,0 +1,6807 @@
+{
+ "version": "8.0.34",
+ "outcomes": {
+  "a transaction commits its writes at once, the reads outside it seeing none of them before": {
+   "inside": [
+    {
+     "_id": 1,
+     "n": 10
+    },
+    {
+     "_id": 3,
+     "n": 3
+    }
+   ],
+   "outside": [
+    {
+     "_id": 1,
+     "n": 1
+    },
+    {
+     "_id": 2,
+     "n": 2
+    }
+   ],
+   "counted": 2,
+   "distinct": [
+    3,
+    10
+   ],
+   "aggregated": [
+    {
+     "_id": null,
+     "sum": 13
+    }
+   ],
+   "committed": [
+    {
+     "_id": 1,
+     "n": 10
+    },
+    {
+     "_id": 3,
+     "n": 3
+    }
+   ],
+   "aborted": [
+    {
+     "_id": 1,
+     "n": 10
+    },
+    {
+     "_id": 3,
+     "n": 3
+    }
+   ]
+  },
+  "a write failing in a transaction aborts it": {
+   "duplicate": {
+    "error": {
+     "code": 11000
+    }
+   },
+   "after": {
+    "error": {
+     "code": 251,
+     "labels": [
+      "TransientTransactionError"
+     ]
+    }
+   },
+   "commit": {
+    "error": {
+     "code": 251,
+     "labels": [
+      "TransientTransactionError"
+     ]
+    }
+   },
+   "documents": [
+    {
+     "_id": 1
+    }
+   ]
+  },
+  "the operations a transaction does not allow fail it": {
+   "drop": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "rename": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "dropDatabase": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "estimatedDocumentCount": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "count": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "listCollections": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "listIndexes": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "dropIndex": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "createIndexOnExisting": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "out": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "merge": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "watch": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "createCollection": {
+    "step": {
+     "value": "created"
+    },
+    "commit": {}
+   },
+   "insertCreating": {
+    "step": {
+     "value": 1
+    },
+    "commit": {}
+   },
+   "createIndexOnNew": {
+    "step": {
+     "value": "x_1"
+    },
+    "commit": {}
+   },
+   "countDocuments": {
+    "step": {
+     "value": 1
+    },
+    "commit": {}
+   },
+   "distinct": {
+    "step": {
+     "value": [
+      1
+     ]
+    },
+    "commit": {}
+   },
+   "find": {
+    "step": {
+     "value": [
+      {
+       "_id": 1,
+       "v": 1
+      }
+     ]
+    },
+    "commit": {}
+   },
+   "collections": [
+    "created",
+    "implicit",
+    "indexed",
+    "items"
+   ]
+  },
+  "the states of a session fail the calls out of order": {
+   "commitWithout": {
+    "error": {
+     "message": "No transaction started"
+    }
+   },
+   "abortWithout": {
+    "error": {
+     "message": "No transaction started"
+    }
+   },
+   "startTwice": {
+    "error": {
+     "message": "Transaction already in progress"
+    }
+   },
+   "inTransaction": true,
+   "commit": {},
+   "commitAgain": {},
+   "abortAfterCommit": {
+    "error": {
+     "message": "Cannot call abortTransaction after calling commitTransaction"
+    }
+   },
+   "afterCommit": false,
+   "abort": {},
+   "abortAgain": {
+    "error": {
+     "message": "Cannot call abortTransaction twice"
+    }
+   },
+   "commitAfterAbort": {
+    "error": {
+     "message": "Cannot call commitTransaction after calling abortTransaction"
+    }
+   },
+   "emptyCommit": {},
+   "ended": true,
+   "useEnded": {
+    "error": {
+     "message": "Use of expired sessions is not permitted"
+    }
+   },
+   "documents": [
+    {
+     "_id": 1
+    }
+   ]
+  },
+  "withTransaction gives the value of its function, or aborts and gives its error": {
+   "value": {
+    "value": "value"
+   },
+   "thrown": {
+    "error": {
+     "message": "thrown by the function"
+    }
+   },
+   "duplicate": {
+    "error": {
+     "code": 11000
+    }
+   },
+   "calls": 3,
+   "documents": [
+    {
+     "_id": 1
+    }
+   ]
+  },
+  "the write concerns are those of a replica set of one member": {
+   "insertOne {\"w\":0}": {
+    "value": {
+     "acknowledged": false,
+     "insertedId": 1
+    }
+   },
+   "insertOne {\"w\":1}": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": 2
+    }
+   },
+   "insertOne {\"w\":\"majority\"}": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": 3
+    }
+   },
+   "insertOne {\"w\":2}": {
+    "error": {
+     "code": 100,
+     "errInfo": {
+      "writeConcern": {
+       "w": 2,
+       "wtimeout": 0,
+       "provenance": "clientSupplied"
+      }
+     }
+    }
+   },
+   "insertOne {\"w\":5}": {
+    "error": {
+     "code": 100,
+     "errInfo": {
+      "writeConcern": {
+       "w": 5,
+       "wtimeout": 0,
+       "provenance": "clientSupplied"
+      }
+     }
+    }
+   },
+   "insertOne {\"w\":\"tagged\"}": {
+    "error": {
+     "code": 79,
+     "errInfo": {
+      "writeConcern": {
+       "w": "tagged",
+       "wtimeout": 0,
+       "provenance": "clientSupplied"
+      }
+     }
+    }
+   },
+   "insertOne {\"j\":true}": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": 7
+    }
+   },
+   "insertOne {\"j\":false}": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": 8
+    }
+   },
+   "insertOne {\"w\":0,\"j\":true}": {
+    "value": {
+     "acknowledged": false,
+     "insertedId": 9
+    }
+   },
+   "insertOne {\"w\":1,\"wtimeoutMS\":10}": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": 10
+    }
+   },
+   "insertOne {\"w\":2,\"wtimeoutMS\":100}": {
+    "error": {
+     "code": 100,
+     "errInfo": {
+      "writeConcern": {
+       "w": 2,
+       "wtimeout": 100,
+       "provenance": "clientSupplied"
+      }
+     }
+    }
+   },
+   "insertOne {\"w\":-1}": {
+    "error": {
+     "code": 9
+    }
+   },
+   "insertOne {\"w\":\"majority\",\"j\":true}": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": 13
+    }
+   },
+   "insertOne {\"w\":{}}": {
+    "error": {
+     "code": 9
+    }
+   },
+   "insertMany": {
+    "error": {
+     "code": 100,
+     "writeErrors": []
+    }
+   },
+   "updateMany": {
+    "error": {
+     "code": 100,
+     "errInfo": {
+      "writeConcern": {
+       "w": 2,
+       "wtimeout": 0,
+       "provenance": "clientSupplied"
+      }
+     }
+    }
+   },
+   "bulkWrite": {
+    "error": {
+     "code": 100,
+     "writeErrors": []
+    }
+   },
+   "duplicate": {
+    "error": {
+     "code": 100,
+     "errInfo": {
+      "writeConcern": {
+       "w": 2,
+       "wtimeout": 0,
+       "provenance": "clientSupplied"
+      }
+     },
+     "writeErrors": [
+      {
+       "code": 11000
+      }
+     ]
+    }
+   },
+   "deleteOne": {
+    "error": {
+     "code": 100,
+     "errInfo": {
+      "writeConcern": {
+       "w": 2,
+       "wtimeout": 0,
+       "provenance": "clientSupplied"
+      }
+     }
+    }
+   },
+   "createIndex": {
+    "error": {
+     "code": 100,
+     "errInfo": {
+      "writeConcern": {
+       "w": 2,
+       "wtimeout": 0,
+       "provenance": "clientSupplied"
+      }
+     }
+    }
+   },
+   "drop": {
+    "error": {
+     "code": 100,
+     "errInfo": {
+      "writeConcern": {
+       "w": 2,
+       "wtimeout": 0,
+       "provenance": "clientSupplied"
+      }
+     }
+    }
+   },
+   "commit": {
+    "error": {
+     "code": 100,
+     "errInfo": {
+      "writeConcern": {
+       "w": 2,
+       "wtimeout": 10000,
+       "provenance": "clientSupplied"
+      }
+     }
+    }
+   },
+   "ids": [
+    1,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    13,
+    100,
+    101,
+    200,
+    300
+   ]
+  },
+  "the change streams of a collection, a database and the client give the events of the writes": {
+   "collection": [
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 1,
+      "a": 1,
+      "b": {
+       "c": 2,
+       "d": [
+        1,
+        2,
+        3
+       ]
+      },
+      "s": "x"
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 2
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 2
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 3
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 3
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": null,
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "a": 2,
+       "b.c": 3,
+       "b.d.1": 9
+      },
+      "removedFields": [
+       "s"
+      ],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     },
+     "fullDocumentBeforeChange": {
+      "_id": 1,
+      "a": 1,
+      "b": {
+       "c": 2,
+       "d": [
+        1,
+        2,
+        3
+       ]
+      },
+      "s": "x"
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": null,
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "b.d.3": 4
+      },
+      "removedFields": [],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     },
+     "fullDocumentBeforeChange": {
+      "_id": 1,
+      "a": 2,
+      "b": {
+       "c": 3,
+       "d": [
+        1,
+        9,
+        3
+       ]
+      }
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": null,
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "b.d": [
+        1,
+        9,
+        3
+       ]
+      },
+      "removedFields": [],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     },
+     "fullDocumentBeforeChange": {
+      "_id": 1,
+      "a": 2,
+      "b": {
+       "c": 3,
+       "d": [
+        1,
+        9,
+        3,
+        4
+       ]
+      }
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": null,
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "n": 1,
+       "z": 2
+      },
+      "removedFields": [
+       "a"
+      ],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     },
+     "fullDocumentBeforeChange": {
+      "_id": 1,
+      "a": 2,
+      "b": {
+       "c": 3,
+       "d": [
+        1,
+        9,
+        3
+       ]
+      }
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "replace",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 2,
+      "z": 1
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 2
+     },
+     "fullDocumentBeforeChange": {
+      "_id": 2
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "delete",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 3
+     },
+     "fullDocumentBeforeChange": {
+      "_id": 3
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 9,
+      "u": 1
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 9
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": null,
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "m": true
+      },
+      "removedFields": [],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     },
+     "fullDocumentBeforeChange": {
+      "_id": 1,
+      "b": {
+       "c": 3,
+       "d": [
+        1,
+        9,
+        3
+       ]
+      },
+      "n": 1,
+      "z": 2
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": null,
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 2
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "m": true
+      },
+      "removedFields": [],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     },
+     "fullDocumentBeforeChange": {
+      "_id": 2,
+      "z": 1
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": null,
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 9
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "f": 1
+      },
+      "removedFields": [],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     },
+     "fullDocumentBeforeChange": {
+      "_id": 9,
+      "u": 1
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "replace",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 9,
+      "g": 1
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 9
+     },
+     "fullDocumentBeforeChange": {
+      "_id": 9,
+      "u": 1,
+      "f": 1
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "delete",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 9
+     },
+     "fullDocumentBeforeChange": {
+      "_id": 9,
+      "g": 1
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "createIndexes",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "operationDescription": {
+      "indexes": [
+       {
+        "v": 2,
+        "key": {
+         "a": 1
+        },
+        "name": "a_1"
+       }
+      ]
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "dropIndexes",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "operationDescription": {
+      "indexes": [
+       {
+        "v": 2,
+        "key": {
+         "a": 1
+        },
+        "name": "a_1"
+       }
+      ]
+     }
+    },
+    {
+     "txnNumber": "<txnNumber>",
+     "lsid": "<lsid>",
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 10
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 10
+     }
+    },
+    {
+     "txnNumber": "<txnNumber>",
+     "lsid": "<lsid>",
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": null,
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 10
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "t": 1
+      },
+      "removedFields": [],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     },
+     "fullDocumentBeforeChange": {
+      "_id": 10
+     }
+    },
+    {
+     "to": {
+      "db": "compat",
+      "coll": "renamed"
+     },
+     "_id": "<token>",
+     "operationType": "rename",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "operationDescription": {
+      "to": {
+       "db": "compat",
+       "coll": "renamed"
+      }
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "invalidate",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>"
+    }
+   ],
+   "database": [
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 1,
+      "a": 1,
+      "b": {
+       "c": 2,
+       "d": [
+        1,
+        2,
+        3
+       ]
+      },
+      "s": "x"
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 2
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 2
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 3
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 3
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "a": 2,
+       "b.c": 3,
+       "b.d.1": 9
+      },
+      "removedFields": [
+       "s"
+      ],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "b.d.3": 4
+      },
+      "removedFields": [],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "b.d": [
+        1,
+        9,
+        3
+       ]
+      },
+      "removedFields": [],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "n": 1,
+       "z": 2
+      },
+      "removedFields": [
+       "a"
+      ],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "replace",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 2,
+      "z": 1
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 2
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "delete",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 3
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 9,
+      "u": 1
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 9
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "m": true
+      },
+      "removedFields": [],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 2
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "m": true
+      },
+      "removedFields": [],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 9
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "f": 1
+      },
+      "removedFields": [],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "replace",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 9,
+      "g": 1
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 9
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "delete",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 9
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "createIndexes",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "operationDescription": {
+      "indexes": [
+       {
+        "v": 2,
+        "key": {
+         "a": 1
+        },
+        "name": "a_1"
+       }
+      ]
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "dropIndexes",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "operationDescription": {
+      "indexes": [
+       {
+        "v": 2,
+        "key": {
+         "a": 1
+        },
+        "name": "a_1"
+       }
+      ]
+     }
+    },
+    {
+     "txnNumber": "<txnNumber>",
+     "lsid": "<lsid>",
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 10
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 10
+     }
+    },
+    {
+     "txnNumber": "<txnNumber>",
+     "lsid": "<lsid>",
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 10
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "t": 1
+      },
+      "removedFields": [],
+      "truncatedArrays": [],
+      "disambiguatedPaths": {}
+     }
+    },
+    {
+     "to": {
+      "db": "compat",
+      "coll": "renamed"
+     },
+     "_id": "<token>",
+     "operationType": "rename",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "operationDescription": {
+      "to": {
+       "db": "compat",
+       "coll": "renamed"
+      }
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "drop",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "renamed"
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "create",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "other"
+     },
+     "operationDescription": {
+      "idIndex": {
+       "v": 2,
+       "key": {
+        "_id": 1
+       },
+       "name": "_id_"
+      }
+     },
+     "nsType": "collection"
+    },
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 1
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "other"
+     },
+     "documentKey": {
+      "_id": 1
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "drop",
+     "clusterTime": "<Timestamp>",
+     "collectionUUID": "<UUID>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "other"
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "dropDatabase",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat"
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "invalidate",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>"
+    }
+   ],
+   "client": [
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 1,
+      "a": 1,
+      "b": {
+       "c": 2,
+       "d": [
+        1,
+        2,
+        3
+       ]
+      },
+      "s": "x"
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 2
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 2
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 3
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 3
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "a": 2,
+       "b.c": 3,
+       "b.d.1": 9
+      },
+      "removedFields": [
+       "s"
+      ],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "b.d.3": 4
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "b.d": [
+        1,
+        9,
+        3
+       ]
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "n": 1,
+       "z": 2
+      },
+      "removedFields": [
+       "a"
+      ],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "replace",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 2,
+      "z": 1
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 2
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "delete",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 3
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 9,
+      "u": 1
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 9
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "m": true
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 2
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "m": true
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 9
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "f": 1
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "replace",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 9,
+      "g": 1
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 9
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "delete",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 9
+     }
+    },
+    {
+     "txnNumber": "<txnNumber>",
+     "lsid": "<lsid>",
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 10
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 10
+     }
+    },
+    {
+     "txnNumber": "<txnNumber>",
+     "lsid": "<lsid>",
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 10
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "t": 1
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "to": {
+      "db": "compat",
+      "coll": "renamed"
+     },
+     "_id": "<token>",
+     "operationType": "rename",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "drop",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "renamed"
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "insert",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 1
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "other"
+     },
+     "documentKey": {
+      "_id": 1
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "drop",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "other"
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "dropDatabase",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat"
+     }
+    }
+   ]
+  },
+  "the updates of a pipeline and of every operator are described as MongoDB describes them": {
+   "events": [
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "a": 2
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {},
+      "removedFields": [],
+      "truncatedArrays": [
+       {
+        "field": "b.c",
+        "newSize": 2
+       }
+      ]
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "b.d": "y"
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {},
+      "removedFields": [
+       "e"
+      ],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "e": [
+        {
+         "f": 1
+        },
+        {
+         "f": 3
+        }
+       ],
+       "n": 1
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "e.1.f": 4
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "b.c": [
+        1
+       ]
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "b.c.1": 5
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {},
+      "removedFields": [
+       "b.d"
+      ],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "x": {
+        "y": {
+         "z": 1
+        }
+       }
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "a": 0
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "a": 10
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "a": 20
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "e": [
+        {
+         "f": 0
+        },
+        {
+         "f": 0
+        }
+       ]
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "update",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     },
+     "updateDescription": {
+      "updatedFields": {
+       "b": "flat"
+      },
+      "removedFields": [],
+      "truncatedArrays": []
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "replace",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "fullDocument": {
+      "_id": 1,
+      "only": true
+     },
+     "ns": {
+      "db": "compat",
+      "coll": "items"
+     },
+     "documentKey": {
+      "_id": 1
+     }
+    }
+   ]
+  },
+  "the change streams resume after their tokens, and fail the tokens they cannot resume after": {
+   "first": {
+    "_id": 1
+   },
+   "resumeTokenIsEventId": true,
+   "resumeAfter": [
+    {
+     "_id": 2
+    },
+    {
+     "_id": 1
+    }
+   ],
+   "startAfter": [
+    {
+     "_id": 2
+    },
+    {
+     "_id": 1
+    }
+   ],
+   "startAtOperationTime": [
+    {
+     "_id": 1
+    },
+    {
+     "_id": 2
+    },
+    {
+     "_id": 1
+    }
+   ],
+   "notString": {
+    "error": {
+     "code": 40647
+    }
+   },
+   "number": {
+    "error": {
+     "code": 40647
+    }
+   },
+   "invalidated": [
+    {
+     "_id": "<token>",
+     "operationType": "drop",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>",
+     "ns": {
+      "db": "compat",
+      "coll": "dropped"
+     }
+    },
+    {
+     "_id": "<token>",
+     "operationType": "invalidate",
+     "clusterTime": "<Timestamp>",
+     "wallTime": "<Date>"
+    }
+   ],
+   "closedByInvalidate": true,
+   "nextAfterInvalidate": {
+    "value": null
+   },
+   "resumeAfterInvalidate": {
+    "error": {
+     "code": 260
+    }
+   },
+   "startAfterInvalidate": [
+    "insert"
+   ]
+  },
+  "the pipelines of the change streams filter and change their events": {
+   "group": {
+    "opened": {
+     "error": {
+      "code": 20
+     }
+    },
+    "events": []
+   },
+   "sort": {
+    "opened": {
+     "error": {
+      "code": 20
+     }
+    },
+    "events": []
+   },
+   "limit": {
+    "opened": {
+     "error": {
+      "code": 20
+     }
+    },
+    "events": []
+   },
+   "lookup": {
+    "opened": {
+     "error": {
+      "code": 20
+     }
+    },
+    "events": []
+   },
+   "removeId": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "error": {
+       "code": 280,
+       "labels": [
+        "NonResumableChangeStreamError"
+       ]
+      }
+     }
+    ]
+   },
+   "replaceRoot": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "error": {
+       "code": 280,
+       "labels": [
+        "NonResumableChangeStreamError"
+       ]
+      }
+     }
+    ]
+   },
+   "project": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "insert"
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert"
+     }
+    ]
+   },
+   "match": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 16,
+       "p": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "items"
+      },
+      "documentKey": {
+       "_id": 16
+      }
+     }
+    ]
+   },
+   "addFields": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 17,
+       "p": 1
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "items"
+      },
+      "documentKey": {
+       "_id": 17
+      },
+      "added": 1
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 18,
+       "p": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "items"
+      },
+      "documentKey": {
+       "_id": 18
+      },
+      "added": 2
+     }
+    ]
+   },
+   "unset": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "fullDocument": {
+       "_id": 19,
+       "p": 1
+      },
+      "documentKey": {
+       "_id": 19
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "fullDocument": {
+       "_id": 20,
+       "p": 2
+      },
+      "documentKey": {
+       "_id": 20
+      }
+     }
+    ]
+   },
+   "redact": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 21,
+       "p": 1
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "items"
+      },
+      "documentKey": {
+       "_id": 21
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 22,
+       "p": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "items"
+      },
+      "documentKey": {
+       "_id": 22
+      }
+     }
+    ]
+   },
+   "set": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 23,
+       "p": 1,
+       "q": 1
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "items"
+      },
+      "documentKey": {
+       "_id": 23
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 24,
+       "p": 2,
+       "q": 1
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "items"
+      },
+      "documentKey": {
+       "_id": 24
+      }
+     }
+    ]
+   },
+   "replaceWithKeepingId": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "kind": "insert"
+     },
+     {
+      "_id": "<token>",
+      "kind": "insert"
+     }
+    ]
+   }
+  },
+  "the full documents and the pre-images are given as the options of the change streams ask": {
+   "plain none": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "update",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "updateDescription": {
+       "updatedFields": {
+        "n": 1
+       },
+       "removedFields": [],
+       "truncatedArrays": []
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "replace",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 1
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "delete",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     }
+    ]
+   },
+   "plain updateLookup": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "update",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "updateDescription": {
+       "updatedFields": {
+        "n": 101
+       },
+       "removedFields": [],
+       "truncatedArrays": []
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "replace",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 1
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "delete",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     }
+    ]
+   },
+   "plain whenAvailable": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "update",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": null,
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "updateDescription": {
+       "updatedFields": {
+        "n": 101
+       },
+       "removedFields": [],
+       "truncatedArrays": []
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "replace",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 1
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "delete",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     }
+    ]
+   },
+   "plain required": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "error": {
+       "code": 47
+      }
+     }
+    ]
+   },
+   "plain beforeWhenAvailable": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "update",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "updateDescription": {
+       "updatedFields": {
+        "n": 101
+       },
+       "removedFields": [],
+       "truncatedArrays": []
+      },
+      "fullDocumentBeforeChange": null
+     },
+     {
+      "_id": "<token>",
+      "operationType": "replace",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "fullDocumentBeforeChange": null
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "delete",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 2
+      },
+      "fullDocumentBeforeChange": null
+     }
+    ]
+   },
+   "plain beforeRequired": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "error": {
+       "code": 47
+      }
+     }
+    ]
+   },
+   "plain beforeOff": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "update",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "updateDescription": {
+       "updatedFields": {
+        "n": 101
+       },
+       "removedFields": [],
+       "truncatedArrays": []
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "replace",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 1
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "delete",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "plain"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     }
+    ]
+   },
+   "plain bad": {
+    "opened": {
+     "error": {
+      "code": 2
+     }
+    },
+    "events": []
+   },
+   "imaged none": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "update",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "updateDescription": {
+       "updatedFields": {
+        "n": 1
+       },
+       "removedFields": [],
+       "truncatedArrays": []
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "replace",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "delete",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     }
+    ]
+   },
+   "imaged updateLookup": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "update",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "updateDescription": {
+       "updatedFields": {
+        "n": 101
+       },
+       "removedFields": [],
+       "truncatedArrays": []
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "replace",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "delete",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     }
+    ]
+   },
+   "imaged whenAvailable": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "update",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 101
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "updateDescription": {
+       "updatedFields": {
+        "n": 101
+       },
+       "removedFields": [],
+       "truncatedArrays": []
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "replace",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "delete",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     }
+    ]
+   },
+   "imaged required": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "update",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 101
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "updateDescription": {
+       "updatedFields": {
+        "n": 101
+       },
+       "removedFields": [],
+       "truncatedArrays": []
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "replace",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "delete",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     }
+    ]
+   },
+   "imaged beforeWhenAvailable": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "update",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "updateDescription": {
+       "updatedFields": {
+        "n": 101
+       },
+       "removedFields": [],
+       "truncatedArrays": []
+      },
+      "fullDocumentBeforeChange": {
+       "_id": 1,
+       "n": 100
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "replace",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "fullDocumentBeforeChange": {
+       "_id": 1,
+       "n": 101
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "delete",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      },
+      "fullDocumentBeforeChange": {
+       "_id": 2
+      }
+     }
+    ]
+   },
+   "imaged beforeRequired": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "update",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "updateDescription": {
+       "updatedFields": {
+        "n": 101
+       },
+       "removedFields": [],
+       "truncatedArrays": []
+      },
+      "fullDocumentBeforeChange": {
+       "_id": 1,
+       "n": 100
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "replace",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "fullDocumentBeforeChange": {
+       "_id": 1,
+       "n": 101
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "delete",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      },
+      "fullDocumentBeforeChange": {
+       "_id": 2
+      }
+     }
+    ]
+   },
+   "imaged beforeOff": {
+    "opened": {
+     "value": null
+    },
+    "events": [
+     {
+      "_id": "<token>",
+      "operationType": "update",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      },
+      "updateDescription": {
+       "updatedFields": {
+        "n": 101
+       },
+       "removedFields": [],
+       "truncatedArrays": []
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "replace",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 1,
+       "n": 100
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 1
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "insert",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "fullDocument": {
+       "_id": 2
+      },
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     },
+     {
+      "_id": "<token>",
+      "operationType": "delete",
+      "clusterTime": "<Timestamp>",
+      "wallTime": "<Date>",
+      "ns": {
+       "db": "compat",
+       "coll": "imaged"
+      },
+      "documentKey": {
+       "_id": 2
+      }
+     }
+    ]
+   },
+   "imaged bad": {
+    "opened": {
+     "error": {
+      "code": 2
+     }
+    },
+    "events": []
+   }
+  },
+  "the options of the capped collections are checked as MongoDB checks them": {
+   "noSize": {
+    "error": {
+     "code": 72
+    }
+   },
+   "sizeZero": {
+    "error": {
+     "code": 2
+    }
+   },
+   "sizeNegative": {
+    "error": {
+     "code": 2
+    }
+   },
+   "sizeOnly": {
+    "error": {
+     "code": 72
+    }
+   },
+   "maxOnly": {
+    "error": {
+     "code": 72
+    }
+   },
+   "huge": {
+    "error": {
+     "code": 2
+    }
+   },
+   "withMax": {
+    "value": {
+     "capped": true,
+     "size": 100,
+     "max": 3
+    }
+   },
+   "isCapped": true,
+   "options": {
+    "capped": true,
+    "size": 100,
+    "max": 3
+   }
+  },
+  "the capped collections keep their last documents, in the order of their insertions": {
+   "natural": [
+    {
+     "_id": 7,
+     "i": 3
+    },
+    {
+     "_id": 6,
+     "i": 4
+    },
+    {
+     "_id": 5,
+     "i": 5
+    },
+    {
+     "_id": 4,
+     "i": 6
+    },
+    {
+     "_id": 3,
+     "i": 7
+    }
+   ],
+   "reversed": [
+    {
+     "_id": 3,
+     "i": 7
+    },
+    {
+     "_id": 4,
+     "i": 6
+    },
+    {
+     "_id": 5,
+     "i": 5
+    },
+    {
+     "_id": 6,
+     "i": 4
+    },
+    {
+     "_id": 7,
+     "i": 3
+    }
+   ],
+   "afterInsertMany": [
+    4,
+    3,
+    100,
+    101,
+    102
+   ],
+   "deleteOne": {
+    "value": {
+     "acknowledged": true,
+     "deletedCount": 1
+    }
+   },
+   "updateGrowing": {
+    "value": {
+     "acknowledged": true,
+     "modifiedCount": 1,
+     "upsertedId": null,
+     "upsertedCount": 0,
+     "matchedCount": 1
+    }
+   },
+   "afterUpdates": [
+    4,
+    3,
+    100,
+    102
+   ],
+   "sized": [
+    16,
+    17,
+    18,
+    19
+   ],
+   "grown": {
+    "value": {
+     "acknowledged": true,
+     "modifiedCount": 1,
+     "upsertedId": null,
+     "upsertedCount": 0,
+     "matchedCount": 1
+    }
+   },
+   "afterGrowing": [
+    16,
+    17,
+    18,
+    19
+   ],
+   "afterInsertion": [
+    18,
+    19,
+    50
+   ],
+   "largerThanItsSize": 1,
+   "writeInTransaction": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "readInTransaction": {
+    "step": {
+     "value": 4
+    },
+    "commit": {}
+   },
+   "index": {
+    "value": "i_1"
+   },
+   "out": {
+    "error": {
+     "code": 17152
+    }
+   },
+   "merge": {
+    "value": [
+     4,
+     3,
+     100,
+     102,
+     1000
+    ]
+   },
+   "collMod": {
+    "value": {
+     "capped": true,
+     "size": 2000,
+     "max": 3
+    }
+   },
+   "afterCollMod": [
+    102,
+    1000,
+    2000
+   ],
+   "renamed": {
+    "value": {
+     "capped": true,
+     "size": 2000,
+     "max": 3
+    }
+   }
+  },
+  "the tailable cursors of the capped collections wait for their next documents": {
+   "first": {
+    "_id": 1
+   },
+   "awaited": {
+    "_id": 2
+   },
+   "none": null,
+   "open": true,
+   "notCapped": {
+    "error": {
+     "code": 2
+    }
+   },
+   "notAwaiting": [
+    {
+     "_id": 2
+    },
+    null,
+    false
+   ],
+   "empty": [
+    null,
+    true
+   ]
+  },
+  "the validators of query expressions fail the documents breaking them, telling why": {
+   "valid": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": 1
+    }
+   },
+   "invalid": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 2,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$gt",
+          "specifiedAs": {
+           "a": {
+            "$gt": 5
+           }
+          },
+          "reason": "comparison failed",
+          "consideredValue": 1
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$type",
+          "specifiedAs": {
+           "b": {
+            "$type": "string"
+           }
+          },
+          "reason": "type did not match",
+          "consideredValue": 2,
+          "consideredType": "int"
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "missing": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 3,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$gt",
+          "specifiedAs": {
+           "a": {
+            "$gt": 5
+           }
+          },
+          "reason": "field was missing"
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$type",
+          "specifiedAs": {
+           "b": {
+            "$type": "string"
+           }
+          },
+          "reason": "field was missing"
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "update": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$gt",
+          "specifiedAs": {
+           "a": {
+            "$gt": 5
+           }
+          },
+          "reason": "comparison failed",
+          "consideredValue": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "insertMany": {
+    "error": {
+     "code": 121,
+     "writeErrors": [
+      {
+       "code": 121,
+       "errInfo": {
+        "failingDocumentId": 11,
+        "details": {
+         "operatorName": "$and",
+         "clausesNotSatisfied": [
+          {
+           "index": 0,
+           "details": {
+            "operatorName": "$gt",
+            "specifiedAs": {
+             "a": {
+              "$gt": 5
+             }
+            },
+            "reason": "comparison failed",
+            "consideredValue": 1
+           }
+          },
+          {
+           "index": 1,
+           "details": {
+            "operatorName": "$type",
+            "specifiedAs": {
+             "b": {
+              "$type": "string"
+             }
+            },
+            "reason": "field was missing"
+           }
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   },
+   "expr": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$expr",
+       "specifiedAs": {
+        "$expr": {
+         "$gt": [
+          "$a",
+          "$b"
+         ]
+        }
+       },
+       "reason": "expression did not match",
+       "expressionResult": false
+      }
+     }
+    }
+   },
+   "andOr": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$or",
+          "clausesNotSatisfied": [
+           {
+            "index": 0,
+            "details": {
+             "operatorName": "$lt",
+             "specifiedAs": {
+              "a": {
+               "$lt": 0
+              }
+             },
+             "reason": "comparison failed",
+             "consideredValue": 1
+            }
+           },
+           {
+            "index": 1,
+            "details": {
+             "operatorName": "$in",
+             "specifiedAs": {
+              "b": {
+               "$in": [
+                1,
+                2
+               ]
+              }
+             },
+             "reason": "no matching value found in array",
+             "consideredValue": 3
+            }
+           }
+          ]
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "nor": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$nor",
+       "clausesSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$eq",
+          "specifiedAs": {
+           "a": 1
+          },
+          "reason": "comparison succeeded",
+          "consideredValue": 1
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$exists",
+          "specifiedAs": {
+           "b": {
+            "$exists": true
+           }
+          },
+          "reason": "path does exist"
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "not": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$not",
+       "details": {
+        "operatorName": "$gt",
+        "specifiedAs": {
+         "a": {
+          "$gt": 0
+         }
+        },
+        "reason": "comparison succeeded",
+        "consideredValue": 1
+       }
+      }
+     }
+    }
+   },
+   "comparisons": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$gte",
+          "specifiedAs": {
+           "a": {
+            "$gte": 2
+           }
+          },
+          "reason": "comparison failed",
+          "consideredValue": 1
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$lte",
+          "specifiedAs": {
+           "a": {
+            "$lte": 0
+           }
+          },
+          "reason": "comparison failed",
+          "consideredValue": 1
+         }
+        },
+        {
+         "index": 2,
+         "details": {
+          "operatorName": "$eq",
+          "specifiedAs": {
+           "b": {
+            "$eq": "x"
+           }
+          },
+          "reason": "comparison failed",
+          "consideredValue": 3
+         }
+        },
+        {
+         "index": 3,
+         "details": {
+          "operatorName": "$nin",
+          "specifiedAs": {
+           "c": {
+            "$nin": [
+             1,
+             3
+            ]
+           }
+          },
+          "reason": "matching value found in array",
+          "consideredValue": 3
+         }
+        },
+        {
+         "index": 4,
+         "details": {
+          "operatorName": "$ne",
+          "specifiedAs": {
+           "d": {
+            "$ne": 1
+           }
+          },
+          "reason": "comparison succeeded",
+          "consideredValue": 1
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "arrays": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$all",
+          "specifiedAs": {
+           "tags": {
+            "$all": [
+             "a",
+             "b"
+            ]
+           }
+          },
+          "reason": "array did not contain all specified values",
+          "consideredValue": [
+           "a"
+          ]
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$size",
+          "specifiedAs": {
+           "list": {
+            "$size": 2
+           }
+          },
+          "reason": "array length was not equal to given size",
+          "consideredValue": [
+           1
+          ]
+         }
+        },
+        {
+         "index": 2,
+         "details": {
+          "operatorName": "$elemMatch",
+          "specifiedAs": {
+           "items": {
+            "$elemMatch": {
+             "n": {
+              "$gt": 5
+             }
+            }
+           }
+          },
+          "reason": "array did not satisfy the child predicate",
+          "consideredValue": [
+           {
+            "n": 1
+           }
+          ]
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "strings": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$regex",
+          "specifiedAs": {
+           "s": {
+            "$regex": "^a",
+            "$options": "i"
+           }
+          },
+          "reason": "regular expression did not match",
+          "consideredValue": "b"
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$regex",
+          "specifiedAs": {
+           "t": {
+            "$regex": "z$",
+            "$options": ""
+           }
+          },
+          "reason": "regular expression did not match",
+          "consideredValue": "y"
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "others": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$mod",
+          "specifiedAs": {
+           "m": {
+            "$mod": [
+             4,
+             1
+            ]
+           }
+          },
+          "reason": "$mod did not evaluate to expected remainder",
+          "consideredValue": 3
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$exists",
+          "specifiedAs": {
+           "e": {
+            "$exists": false
+           }
+          },
+          "reason": "path does exist"
+         }
+        },
+        {
+         "index": 2,
+         "details": {
+          "operatorName": "$type",
+          "specifiedAs": {
+           "f": {
+            "$type": [
+             "int",
+             "double"
+            ]
+           }
+          },
+          "reason": "type did not match",
+          "consideredValue": "s",
+          "consideredType": "string"
+         }
+        },
+        {
+         "index": 3,
+         "details": {
+          "operatorName": "$bitsAllSet",
+          "specifiedAs": {
+           "g": {
+            "$bitsAllSet": 3
+           }
+          },
+          "reason": "bitwise operator failed to match",
+          "consideredValue": 1
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "equality": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$eq",
+          "specifiedAs": {
+           "n.x": {
+            "y": 1
+           }
+          },
+          "reason": "comparison failed",
+          "consideredValue": {
+           "y": 2
+          }
+         }
+        }
+       ]
+      }
+     }
+    }
+   }
+  },
+  "the validators of $jsonSchema fail the documents breaking them, telling why": {
+   "valid": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": 1
+    }
+   },
+   "missingAndType": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 2,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "name",
+           "description": "must be a string",
+           "details": [
+            {
+             "operatorName": "bsonType",
+             "specifiedAs": {
+              "bsonType": "string"
+             },
+             "reason": "type did not match",
+             "consideredValue": 1,
+             "consideredType": "int"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "operatorName": "required",
+         "specifiedAs": {
+          "required": [
+           "name",
+           "age"
+          ]
+         },
+         "missingProperties": [
+          "age"
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "additional": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 3,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "additionalProperties",
+         "specifiedAs": {
+          "additionalProperties": false
+         },
+         "additionalProperties": [
+          "extra"
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "nested": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 4,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "tags",
+           "details": [
+            {
+             "operatorName": "maxItems",
+             "specifiedAs": {
+              "maxItems": 3
+             },
+             "reason": "array did not match specified length",
+             "consideredValue": [
+              "a",
+              "a",
+              1,
+              "b"
+             ],
+             "numberOfItems": 4
+            },
+            {
+             "operatorName": "uniqueItems",
+             "specifiedAs": {
+              "uniqueItems": true
+             },
+             "reason": "found a duplicate item",
+             "consideredValue": [
+              "a",
+              "a",
+              1,
+              "b"
+             ],
+             "duplicatedValue": "a"
+            },
+            {
+             "operatorName": "items",
+             "reason": "At least one item did not match the sub-schema",
+             "itemIndex": 2,
+             "details": [
+              {
+               "operatorName": "bsonType",
+               "specifiedAs": {
+                "bsonType": "string"
+               },
+               "reason": "type did not match",
+               "consideredValue": 1,
+               "consideredType": "int"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "propertyName": "address",
+           "details": [
+            {
+             "operatorName": "properties",
+             "propertiesNotSatisfied": [
+              {
+               "propertyName": "zip",
+               "details": [
+                {
+                 "operatorName": "pattern",
+                 "specifiedAs": {
+                  "pattern": "^[0-9]{5}$"
+                 },
+                 "reason": "regular expression did not match",
+                 "consideredValue": "abc"
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "propertyName": "kind",
+           "details": [
+            {
+             "operatorName": "enum",
+             "specifiedAs": {
+              "enum": [
+               "a",
+               "b"
+              ]
+             },
+             "reason": "value was not found in enum",
+             "consideredValue": "c"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "double": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 5,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "age",
+           "details": [
+            {
+             "operatorName": "bsonType",
+             "specifiedAs": {
+              "bsonType": [
+               "int",
+               "long"
+              ]
+             },
+             "reason": "type did not match",
+             "consideredValue": 3.5,
+             "consideredType": "double"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "ranges": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 6,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "name",
+           "description": "must be a string",
+           "details": [
+            {
+             "operatorName": "minLength",
+             "specifiedAs": {
+              "minLength": 2
+             },
+             "reason": "specified string length was not satisfied",
+             "consideredValue": "a"
+            }
+           ]
+          },
+          {
+           "propertyName": "age",
+           "details": [
+            {
+             "operatorName": "maximum",
+             "specifiedAs": {
+              "maximum": 150
+             },
+             "reason": "comparison failed",
+             "consideredValue": 200
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "lengths": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 7,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "name",
+           "description": "must be a string",
+           "details": [
+            {
+             "operatorName": "maxLength",
+             "specifiedAs": {
+              "maxLength": 10
+             },
+             "reason": "specified string length was not satisfied",
+             "consideredValue": "abcdefghijkl"
+            }
+           ]
+          },
+          {
+           "propertyName": "tags",
+           "details": [
+            {
+             "operatorName": "minItems",
+             "specifiedAs": {
+              "minItems": 1
+             },
+             "reason": "array did not match specified length",
+             "consideredValue": [],
+             "numberOfItems": 0
+            }
+           ]
+          },
+          {
+           "propertyName": "address",
+           "details": [
+            {
+             "operatorName": "maxProperties",
+             "specifiedAs": {
+              "maxProperties": 2
+             },
+             "reason": "specified number of properties was not satisfied",
+             "numberOfProperties": 3
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "combinations": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 8,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "score",
+           "details": [
+            {
+             "operatorName": "multipleOf",
+             "specifiedAs": {
+              "multipleOf": 5
+             },
+             "reason": "considered value is not a multiple of the specified value",
+             "consideredValue": 7
+            }
+           ]
+          },
+          {
+           "propertyName": "choice",
+           "details": [
+            {
+             "operatorName": "oneOf",
+             "schemasNotSatisfied": [
+              {
+               "index": 0,
+               "details": [
+                {
+                 "operatorName": "type",
+                 "specifiedAs": {
+                  "type": "string"
+                 },
+                 "reason": "type did not match",
+                 "consideredValue": true,
+                 "consideredType": "bool"
+                }
+               ]
+              },
+              {
+               "index": 1,
+               "details": [
+                {
+                 "operatorName": "type",
+                 "specifiedAs": {
+                  "type": "number"
+                 },
+                 "reason": "type did not match",
+                 "consideredValue": true,
+                 "consideredType": "bool"
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "propertyName": "any",
+           "details": [
+            {
+             "operatorName": "anyOf",
+             "schemasNotSatisfied": [
+              {
+               "index": 0,
+               "details": [
+                {
+                 "operatorName": "bsonType",
+                 "specifiedAs": {
+                  "bsonType": "bool"
+                 },
+                 "reason": "type did not match",
+                 "consideredValue": 1,
+                 "consideredType": "int"
+                }
+               ]
+              },
+              {
+               "index": 1,
+               "details": [
+                {
+                 "operatorName": "bsonType",
+                 "specifiedAs": {
+                  "bsonType": "null"
+                 },
+                 "reason": "type did not match",
+                 "consideredValue": 1,
+                 "consideredType": "int"
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "propertyName": "all",
+           "details": [
+            {
+             "operatorName": "allOf",
+             "schemasNotSatisfied": [
+              {
+               "index": 1,
+               "details": [
+                {
+                 "operatorName": "minimum",
+                 "specifiedAs": {
+                  "minimum": 3
+                 },
+                 "reason": "comparison failed",
+                 "consideredValue": 2
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "propertyName": "no",
+           "details": [
+            {
+             "operatorName": "not",
+             "reason": "child expression matched"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "tuples": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 9,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "pair",
+           "details": [
+            {
+             "operatorName": "items",
+             "details": [
+              {
+               "itemIndex": 1,
+               "details": [
+                {
+                 "operatorName": "bsonType",
+                 "specifiedAs": {
+                  "bsonType": "int"
+                 },
+                 "reason": "type did not match",
+                 "consideredValue": "b",
+                 "consideredType": "string"
+                }
+               ]
+              }
+             ]
+            },
+            {
+             "operatorName": "additionalItems",
+             "specifiedAs": {
+              "additionalItems": false
+             },
+             "reason": "found additional items",
+             "additionalItems": [
+              3
+             ]
+            }
+           ]
+          },
+          {
+           "propertyName": "map",
+           "details": [
+            {
+             "operatorName": "additionalProperties",
+             "reason": "at least one additional property did not match the subschema",
+             "failingProperty": "y",
+             "details": [
+              {
+               "operatorName": "bsonType",
+               "specifiedAs": {
+                "bsonType": "string"
+               },
+               "reason": "type did not match",
+               "consideredValue": 2,
+               "consideredType": "int"
+              }
+             ]
+            },
+            {
+             "operatorName": "patternProperties",
+             "details": [
+              {
+               "propertyName": "x1",
+               "regexMatched": "^x",
+               "details": [
+                {
+                 "operatorName": "bsonType",
+                 "specifiedAs": {
+                  "bsonType": "int"
+                 },
+                 "reason": "type did not match",
+                 "consideredValue": "s",
+                 "consideredType": "string"
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "propertyName": "depends",
+           "details": [
+            {
+             "operatorName": "dependencies",
+             "failingDependencies": [
+              {
+               "conditionalProperty": "a",
+               "missingProperties": [
+                "b"
+               ]
+              },
+              {
+               "conditionalProperty": "c",
+               "details": [
+                {
+                 "operatorName": "required",
+                 "specifiedAs": {
+                  "required": [
+                   "d"
+                  ]
+                 },
+                 "missingProperties": [
+                  "d"
+                 ]
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "schema ref": {
+    "error": {
+     "code": 9
+    }
+   },
+   "schema format": {
+    "error": {
+     "code": 9
+    }
+   },
+   "schema typeAndBsonType": {
+    "error": {
+     "code": 9
+    }
+   },
+   "schema unknownType": {
+    "error": {
+     "code": 2
+    }
+   },
+   "schema unknownKeyword": {
+    "error": {
+     "code": 9
+    }
+   }
+  },
+  "the levels and the actions of the validation, and the validators not allowed": {
+   "warn": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": 1
+    }
+   },
+   "moderateInvalid": {
+    "value": {
+     "acknowledged": true,
+     "modifiedCount": 1,
+     "upsertedId": null,
+     "upsertedCount": 0,
+     "matchedCount": 1
+    }
+   },
+   "moderateValid": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 2,
+      "details": {
+       "operatorName": "$exists",
+       "specifiedAs": {
+        "a": {
+         "$exists": true
+        }
+       },
+       "reason": "path does not exist"
+      }
+     }
+    }
+   },
+   "bypass": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": 3
+    }
+   },
+   "bypassUpdate": {
+    "value": {
+     "acknowledged": true,
+     "modifiedCount": 1,
+     "upsertedId": null,
+     "upsertedCount": 0,
+     "matchedCount": 1
+    }
+   },
+   "where": {
+    "error": {
+     "code": 2
+    }
+   },
+   "near": {
+    "error": {
+     "code": 5626500
+    }
+   },
+   "level": {
+    "error": {
+     "code": 2
+    }
+   },
+   "action": {
+    "error": {
+     "code": 2
+    }
+   },
+   "errorAndLog": {
+    "error": {
+     "code": 2
+    }
+   },
+   "notObject": {
+    "error": {
+     "code": 14
+    }
+   },
+   "listed": [
+    {
+     "name": "moderate",
+     "type": "collection",
+     "options": {
+      "validator": {
+       "a": {
+        "$exists": true
+       }
+      },
+      "validationLevel": "moderate",
+      "validationAction": "error"
+     },
+     "info": {
+      "readOnly": false,
+      "uuid": "<UUID>"
+     },
+     "idIndex": {
+      "v": 2,
+      "key": {
+       "_id": 1
+      },
+      "name": "_id_"
+     }
+    },
+    {
+     "name": "warned",
+     "type": "collection",
+     "options": {
+      "validator": {
+       "a": {
+        "$exists": true
+       }
+      },
+      "validationAction": "warn"
+     },
+     "info": {
+      "readOnly": false,
+      "uuid": "<UUID>"
+     },
+     "idIndex": {
+      "v": 2,
+      "key": {
+       "_id": 1
+      },
+      "name": "_id_"
+     }
+    }
+   ]
+  },
+  "the views are read through their pipelines, and not written": {
+   "find": {
+    "value": [
+     {
+      "_id": 2,
+      "s": "a"
+     },
+     {
+      "_id": 3,
+      "s": "c"
+     }
+    ]
+   },
+   "findFiltered": {
+    "value": [
+     {
+      "s": "c"
+     },
+     {
+      "s": "a"
+     }
+    ]
+   },
+   "findOne": {
+    "value": {
+     "_id": 3,
+     "s": "c"
+    }
+   },
+   "countDocuments": {
+    "value": 2
+   },
+   "estimatedDocumentCount": {
+    "value": 2
+   },
+   "distinct": {
+    "value": [
+     "c",
+     "a"
+    ]
+   },
+   "aggregate": {
+    "value": [
+     {
+      "_id": null,
+      "n": 2
+     }
+    ]
+   },
+   "insert": {
+    "error": {
+     "code": 166
+    }
+   },
+   "update": {
+    "error": {
+     "code": 166
+    }
+   },
+   "delete": {
+    "error": {
+     "code": 166
+    }
+   },
+   "createIndex": {
+    "error": {
+     "code": 166
+    }
+   },
+   "indexes": {
+    "error": {
+     "code": 166
+    }
+   },
+   "hint": {
+    "value": [
+     {
+      "_id": 2,
+      "s": "a"
+     },
+     {
+      "_id": 3,
+      "s": "c"
+     }
+    ]
+   },
+   "watch": {
+    "error": {
+     "code": 166
+    }
+   },
+   "isCapped": {
+    "value": false
+   },
+   "options": {
+    "value": {
+     "viewOn": "items",
+     "pipeline": [
+      {
+       "$match": {
+        "a": {
+         "$gte": 2
+        }
+       }
+      },
+      {
+       "$project": {
+        "s": 1
+       }
+      }
+     ]
+    }
+   },
+   "onView": {
+    "value": [
+     {
+      "_id": 3,
+      "s": "c"
+     }
+    ]
+   },
+   "onMissing": {
+    "value": []
+   },
+   "writing": {
+    "error": {
+     "code": 167
+    }
+   },
+   "cycle": {
+    "error": {
+     "code": 5
+    }
+   },
+   "collated": {
+    "value": [
+     "a",
+     "B",
+     "c"
+    ]
+   },
+   "otherCollation": {
+    "error": {
+     "code": 167
+    }
+   },
+   "rename": {
+    "error": {
+     "code": 166
+    }
+   },
+   "drop": {
+    "value": true
+   },
+   "createAgain": {
+    "error": {
+     "code": 48
+    }
+   },
+   "createSame": {
+    "value": "same"
+   },
+   "lookup": {
+    "value": [
+     {
+      "_id": 1,
+      "joined": []
+     },
+     {
+      "_id": 2,
+      "joined": [
+       {
+        "_id": 2,
+        "s": "a"
+       }
+      ]
+     },
+     {
+      "_id": 3,
+      "joined": [
+       {
+        "_id": 3,
+        "s": "c"
+       }
+      ]
+     }
+    ]
+   },
+   "outToView": {
+    "error": {
+     "code": 166
+    }
+   },
+   "lookingUp": {
+    "value": 3
+   },
+   "inTransaction": {
+    "value": {
+     "step": {
+      "value": [
+       {
+        "_id": 2,
+        "s": "a"
+       },
+       {
+        "_id": 3,
+        "s": "c"
+       }
+      ]
+     },
+     "commit": {}
+    }
+   },
+   "collMod": {
+    "value": [
+     {
+      "_id": 1,
+      "a": 1,
+      "s": "B"
+     }
+    ]
+   },
+   "listed": [
+    {
+     "name": "collated",
+     "type": "view",
+     "options": {
+      "viewOn": "items",
+      "pipeline": [
+       {
+        "$sort": {
+         "s": 1
+        }
+       }
+      ],
+      "collation": {
+       "locale": "en",
+       "caseLevel": false,
+       "caseFirst": "off",
+       "strength": 1,
+       "numericOrdering": false,
+       "alternate": "non-ignorable",
+       "maxVariable": "punct",
+       "normalization": false,
+       "backwards": false,
+       "version": "57.1"
+      }
+     },
+     "info": {
+      "readOnly": true
+     }
+    },
+    {
+     "name": "first",
+     "type": "view",
+     "options": {
+      "viewOn": "second",
+      "pipeline": []
+     },
+     "info": {
+      "readOnly": true
+     }
+    },
+    {
+     "name": "items",
+     "type": "collection",
+     "options": {},
+     "info": {
+      "readOnly": false,
+      "uuid": "<UUID>"
+     },
+     "idIndex": {
+      "v": 2,
+      "key": {
+       "_id": 1
+      },
+      "name": "_id_"
+     }
+    },
+    {
+     "name": "lookingUp",
+     "type": "view",
+     "options": {
+      "viewOn": "items",
+      "pipeline": [
+       {
+        "$lookup": {
+         "from": "items",
+         "localField": "_id",
+         "foreignField": "_id",
+         "as": "joined"
+        }
+       }
+      ]
+     },
+     "info": {
+      "readOnly": true
+     }
+    },
+    {
+     "name": "onMissing",
+     "type": "view",
+     "options": {
+      "viewOn": "missing",
+      "pipeline": []
+     },
+     "info": {
+      "readOnly": true
+     }
+    },
+    {
+     "name": "system.views",
+     "type": "collection",
+     "options": {},
+     "info": {
+      "readOnly": false,
+      "uuid": "<UUID>"
+     },
+     "idIndex": {
+      "v": 2,
+      "key": {
+       "_id": 1
+      },
+      "name": "_id_"
+     }
+    },
+    {
+     "name": "view",
+     "type": "view",
+     "options": {
+      "viewOn": "items",
+      "pipeline": [
+       {
+        "$match": {
+         "a": 1
+        }
+       }
+      ]
+     },
+     "info": {
+      "readOnly": true
+     }
+    }
+   ]
+  },
+  "the options of the time series collections are checked as MongoDB checks them": {
+   "noTimeField": {
+    "error": {
+     "code": 40414
+    }
+   },
+   "granularity": {
+    "error": {
+     "code": 2
+    }
+   },
+   "metaIsTime": {
+    "error": {
+     "code": 72
+    }
+   },
+   "spanOnly": {
+    "error": {
+     "code": 72
+    }
+   },
+   "spanAndGranularity": {
+    "error": {
+     "code": 72
+    }
+   },
+   "span": {
+    "value": "created"
+   },
+   "capped": {
+    "error": {
+     "code": 72
+    }
+   },
+   "validator": {
+    "error": {
+     "code": 72
+    }
+   },
+   "seconds": {
+    "value": "created"
+   },
+   "minutes": {
+    "value": "created"
+   },
+   "expireAlone": {
+    "error": {
+     "code": 72
+    }
+   },
+   "listed": [
+    {
+     "name": "minutes",
+     "type": "timeseries",
+     "options": {
+      "expireAfterSeconds": 3600,
+      "timeseries": {
+       "timeField": "t",
+       "granularity": "minutes",
+       "bucketMaxSpanSeconds": 86400
+      }
+     },
+     "readOnly": false
+    },
+    {
+     "name": "seconds",
+     "type": "timeseries",
+     "options": {
+      "timeseries": {
+       "timeField": "t",
+       "metaField": "m",
+       "granularity": "seconds",
+       "bucketMaxSpanSeconds": 3600
+      }
+     },
+     "readOnly": false
+    },
+    {
+     "name": "span",
+     "type": "timeseries",
+     "options": {
+      "timeseries": {
+       "timeField": "t",
+       "bucketRoundingSeconds": 100,
+       "bucketMaxSpanSeconds": 100
+      }
+     },
+     "readOnly": false
+    }
+   ],
+   "buckets": [
+    "system.buckets.minutes",
+    "system.buckets.seconds",
+    "system.buckets.span"
+   ],
+   "indexes": [
+    {
+     "v": 2,
+     "key": {
+      "m": 1,
+      "t": 1
+     },
+     "name": "m_1_t_1"
+    }
+   ]
+  },
+  "the time series collections hold their measurements, updated and deleted as MongoDB 8.0 allows": {
+   "all": [
+    {
+     "ts": {
+      "$date": "2026-01-01T00:00:01.000Z"
+     },
+     "m": {
+      "s": 1
+     },
+     "v": 1
+    },
+    {
+     "ts": {
+      "$date": "2026-01-01T00:00:02.000Z"
+     },
+     "m": {
+      "s": 0
+     },
+     "v": 2
+    },
+    {
+     "ts": {
+      "$date": "2026-01-01T00:00:03.000Z"
+     },
+     "m": {
+      "s": 1
+     },
+     "v": 3
+    },
+    {
+     "ts": {
+      "$date": "2026-01-01T00:00:04.000Z"
+     },
+     "m": {
+      "s": 0
+     },
+     "v": 4
+    }
+   ],
+   "byMeta": [
+    {
+     "ts": {
+      "$date": "2026-01-01T00:00:01.000Z"
+     },
+     "m": {
+      "s": 1
+     },
+     "v": 1
+    },
+    {
+     "ts": {
+      "$date": "2026-01-01T00:00:03.000Z"
+     },
+     "m": {
+      "s": 1
+     },
+     "v": 3
+    }
+   ],
+   "byTime": [
+    {
+     "ts": {
+      "$date": "2026-01-01T00:00:03.000Z"
+     },
+     "m": {
+      "s": 1
+     },
+     "v": 3
+    },
+    {
+     "ts": {
+      "$date": "2026-01-01T00:00:04.000Z"
+     },
+     "m": {
+      "s": 0
+     },
+     "v": 4
+    }
+   ],
+   "count": 3,
+   "estimated": 4,
+   "distinct": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "aggregated": [
+    {
+     "_id": 0,
+     "total": 6
+    },
+    {
+     "_id": 1,
+     "total": 4
+    }
+   ],
+   "missingTime": {
+    "error": {
+     "code": 2
+    }
+   },
+   "timeNotDate": {
+    "error": {
+     "code": 2
+    }
+   },
+   "timeArray": {
+    "error": {
+     "code": 2
+    }
+   },
+   "metaArray": {
+    "value": "inserted"
+   },
+   "updateManyMeta": {
+    "outcome": {
+     "value": {
+      "acknowledged": true,
+      "modifiedCount": 2,
+      "upsertedId": null,
+      "upsertedCount": 0,
+      "matchedCount": 2
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": {
+       "s": 1,
+       "k": 1
+      },
+      "v": 1
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:02.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 2
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:03.000Z"
+      },
+      "m": {
+       "s": 1,
+       "k": 1
+      },
+      "v": 3
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:04.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 4
+     }
+    ]
+   },
+   "updateManyAll": {
+    "outcome": {
+     "value": {
+      "acknowledged": true,
+      "modifiedCount": 4,
+      "upsertedId": null,
+      "upsertedCount": 0,
+      "matchedCount": 4
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": {
+       "s": 1,
+       "k": 2
+      },
+      "v": 1
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:02.000Z"
+      },
+      "m": {
+       "s": 0,
+       "k": 2
+      },
+      "v": 2
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:03.000Z"
+      },
+      "m": {
+       "s": 1,
+       "k": 2
+      },
+      "v": 3
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:04.000Z"
+      },
+      "m": {
+       "s": 0,
+       "k": 2
+      },
+      "v": 4
+     }
+    ]
+   },
+   "updateManyMeasurement": {
+    "outcome": {
+     "error": {
+      "code": 72
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 1
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:02.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 2
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:03.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 3
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:04.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 4
+     }
+    ]
+   },
+   "updateManyFilteringMeasurement": {
+    "outcome": {
+     "error": {
+      "code": 72
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 1
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:02.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 2
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:03.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 3
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:04.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 4
+     }
+    ]
+   },
+   "updateManyPipeline": {
+    "outcome": {
+     "error": {
+      "code": 72
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 1
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:02.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 2
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:03.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 3
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:04.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 4
+     }
+    ]
+   },
+   "updateOne": {
+    "outcome": {
+     "error": {
+      "code": 72
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 1
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:02.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 2
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:03.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 3
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:04.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 4
+     }
+    ]
+   },
+   "replaceOne": {
+    "outcome": {
+     "error": {
+      "code": 72
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 1
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:02.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 2
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:03.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 3
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:04.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 4
+     }
+    ]
+   },
+   "upsert": {
+    "outcome": {
+     "error": {
+      "code": 72
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 1
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:02.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 2
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:03.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 3
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:04.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 4
+     }
+    ]
+   },
+   "deleteOne": {
+    "outcome": {
+     "value": {
+      "acknowledged": true,
+      "deletedCount": 1
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 1
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:03.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 3
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:04.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 4
+     }
+    ]
+   },
+   "deleteMany": {
+    "outcome": {
+     "value": {
+      "acknowledged": true,
+      "deletedCount": 2
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 1
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:02.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 2
+     }
+    ]
+   },
+   "deleteManyMeta": {
+    "outcome": {
+     "value": {
+      "acknowledged": true,
+      "deletedCount": 2
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 1
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:03.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 3
+     }
+    ]
+   },
+   "findOneAndUpdate": {
+    "outcome": {
+     "error": {
+      "code": 72
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 1
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:02.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 2
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:03.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 3
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:04.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 4
+     }
+    ]
+   },
+   "findOneAndDelete": {
+    "outcome": {
+     "value": {
+      "ts": {
+       "$date": "2026-01-01T00:00:02.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 2
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:01.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 1
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:03.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 3
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:04.000Z"
+      },
+      "m": {
+       "s": 0
+      },
+      "v": 4
+     }
+    ]
+   },
+   "bulkWrite": {
+    "outcome": {
+     "value": {
+      "insertedCount": 0,
+      "matchedCount": 2,
+      "modifiedCount": 2,
+      "deletedCount": 1,
+      "upsertedCount": 0,
+      "upsertedIds": {},
+      "insertedIds": {}
+     }
+    },
+    "after": [
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:02.000Z"
+      },
+      "m": {
+       "s": 0,
+       "k": 7
+      },
+      "v": 2
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:03.000Z"
+      },
+      "m": {
+       "s": 1
+      },
+      "v": 3
+     },
+     {
+      "ts": {
+       "$date": "2026-01-01T00:00:04.000Z"
+      },
+      "m": {
+       "s": 0,
+       "k": 7
+      },
+      "v": 4
+     }
+    ]
+   },
+   "index meta": {
+    "value": "m.s_1"
+   },
+   "index measurement": {
+    "value": "v_1"
+   },
+   "index unique": {
+    "error": {
+     "code": 72
+    }
+   },
+   "index timeDescending": {
+    "value": "ts_-1"
+   },
+   "indexes": [
+    {
+     "v": 2,
+     "key": {
+      "m": 1,
+      "ts": 1
+     },
+     "name": "m_1_ts_1"
+    },
+    {
+     "v": 2,
+     "key": {
+      "m.s": 1
+     },
+     "name": "m.s_1"
+    },
+    {
+     "v": 2,
+     "key": {
+      "v": 1
+     },
+     "name": "v_1"
+    },
+    {
+     "v": 2,
+     "key": {
+      "ts": -1
+     },
+     "name": "ts_-1"
+    }
+   ],
+   "watch": {
+    "error": {
+     "code": 166
+    }
+   },
+   "insertInTransaction": {
+    "step": {
+     "error": {
+      "code": 263
+     }
+    },
+    "commit": {
+     "error": {
+      "code": 251,
+      "labels": [
+       "TransientTransactionError"
+      ]
+     }
+    }
+   },
+   "readInTransaction": {
+    "step": {
+     "value": 3
+    },
+    "commit": {}
+   },
+   "rename": {
+    "error": {
+     "code": 166
+    }
+   },
+   "collModGranularity": {
+    "value": 1
+   },
+   "collModGranularityBack": {
+    "error": {
+     "code": 72
+    }
+   },
+   "collModExpire": {
+    "value": 1
+   },
+   "options": {
+    "expireAfterSeconds": 60,
+    "timeseries": {
+     "timeField": "ts",
+     "metaField": "m",
+     "granularity": "hours",
+     "bucketMaxSpanSeconds": 2592000
+    }
+   },
+   "out": {
+    "value": {
+     "type": "timeseries",
+     "options": {
+      "timeseries": {
+       "timeField": "ts",
+       "granularity": "seconds",
+       "bucketMaxSpanSeconds": 3600
+      }
+     },
+     "documents": [
+      {
+       "ts": {
+        "$date": "2026-01-01T00:00:00.000Z"
+       },
+       "x": 1
+      }
+     ]
+    }
+   },
+   "drop": {
+    "value": true
+   },
+   "afterDrop": []
+  },
+  "the commands of the database and the options of its collections": {
+   "ping": {
+    "value": {
+     "ok": 1,
+     "$clusterTime": "<clusterTime>",
+     "operationTime": "<Timestamp>"
+    }
+   },
+   "unknown": {
+    "error": {
+     "code": 59
+    }
+   },
+   "collatedFind": 2,
+   "collatedSimple": 1,
+   "collatedSort": [
+    2,
+    1
+   ],
+   "collatedIdDuplicate": {
+    "error": {
+     "code": 11000
+    }
+   },
+   "collatedIndexes": [
+    {
+     "v": 2,
+     "key": {
+      "_id": 1
+     },
+     "name": "_id_",
+     "collation": {
+      "locale": "en",
+      "caseLevel": false,
+      "caseFirst": "off",
+      "strength": 2,
+      "numericOrdering": false,
+      "alternate": "non-ignorable",
+      "maxVariable": "punct",
+      "normalization": false,
+      "backwards": false,
+      "version": "57.1"
+     }
+    },
+    {
+     "v": 2,
+     "key": {
+      "s": 1
+     },
+     "name": "s_1",
+     "collation": {
+      "locale": "en",
+      "caseLevel": false,
+      "caseFirst": "off",
+      "strength": 2,
+      "numericOrdering": false,
+      "alternate": "non-ignorable",
+      "maxVariable": "punct",
+      "normalization": false,
+      "backwards": false,
+      "version": "57.1"
+     }
+    },
+    {
+     "v": 2,
+     "key": {
+      "d": 1
+     },
+     "name": "d_1",
+     "expireAfterSeconds": 100,
+     "collation": {
+      "locale": "en",
+      "caseLevel": false,
+      "caseFirst": "off",
+      "strength": 2,
+      "numericOrdering": false,
+      "alternate": "non-ignorable",
+      "maxVariable": "punct",
+      "normalization": false,
+      "backwards": false,
+      "version": "57.1"
+     }
+    }
+   ],
+   "collMod expire": {
+    "value": {
+     "expireAfterSeconds_old": 100,
+     "expireAfterSeconds_new": 200,
+     "ok": 1,
+     "$clusterTime": "<clusterTime>",
+     "operationTime": "<Timestamp>"
+    }
+   },
+   "collMod hide": {
+    "value": {
+     "hidden_old": false,
+     "hidden_new": true,
+     "ok": 1,
+     "$clusterTime": "<clusterTime>",
+     "operationTime": "<Timestamp>"
+    }
+   },
+   "collMod hideAgain": {
+    "value": {
+     "ok": 1,
+     "$clusterTime": "<clusterTime>",
+     "operationTime": "<Timestamp>"
+    }
+   },
+   "collMod missingIndex": {
+    "error": {
+     "code": 27
+    }
+   },
+   "collMod nameAndKeys": {
+    "error": {
+     "code": 72
+    }
+   },
+   "collMod nothing": {
+    "error": {
+     "code": 72
+    }
+   },
+   "collMod validator": {
+    "value": {
+     "ok": 1,
+     "$clusterTime": "<clusterTime>",
+     "operationTime": "<Timestamp>"
+    }
+   },
+   "collMod images": {
+    "value": {
+     "ok": 1,
+     "$clusterTime": "<clusterTime>",
+     "operationTime": "<Timestamp>"
+    }
+   },
+   "collMod unknown": {
+    "error": {
+     "code": 40415
+    }
+   },
+   "collMod missingCollection": {
+    "error": {
+     "code": 26
+    }
+   },
+   "collMod empty": {
+    "value": {
+     "ok": 1,
+     "$clusterTime": "<clusterTime>",
+     "operationTime": "<Timestamp>"
+    }
+   },
+   "collMod prepareUnique": {
+    "value": {
+     "prepareUnique_old": false,
+     "prepareUnique_new": true,
+     "ok": 1,
+     "$clusterTime": "<clusterTime>",
+     "operationTime": "<Timestamp>"
+    }
+   },
+   "collMod unique": {
+    "error": {
+     "code": 359
+    }
+   },
+   "collatedListed": {
+    "name": "collated",
+    "type": "collection",
+    "options": {
+     "changeStreamPreAndPostImages": {
+      "enabled": true
+     },
+     "validator": {
+      "s": {
+       "$exists": true
+      }
+     },
+     "validationLevel": "moderate",
+     "validationAction": "error",
+     "collation": {
+      "locale": "en",
+      "caseLevel": false,
+      "caseFirst": "off",
+      "strength": 2,
+      "numericOrdering": false,
+      "alternate": "non-ignorable",
+      "maxVariable": "punct",
+      "normalization": false,
+      "backwards": false,
+      "version": "57.1"
+     }
+    },
+    "info": {
+     "readOnly": false,
+     "uuid": "<UUID>"
+    },
+    "idIndex": {
+     "v": 2,
+     "key": {
+      "_id": 1
+     },
+     "name": "_id_",
+     "collation": {
+      "locale": "en",
+      "caseLevel": false,
+      "caseFirst": "off",
+      "strength": 2,
+      "numericOrdering": false,
+      "alternate": "non-ignorable",
+      "maxVariable": "punct",
+      "normalization": false,
+      "backwards": false,
+      "version": "57.1"
+     }
+    }
+   },
+   "collatedAfter": [
+    {
+     "v": 2,
+     "key": {
+      "_id": 1
+     },
+     "name": "_id_",
+     "collation": {
+      "locale": "en",
+      "caseLevel": false,
+      "caseFirst": "off",
+      "strength": 2,
+      "numericOrdering": false,
+      "alternate": "non-ignorable",
+      "maxVariable": "punct",
+      "normalization": false,
+      "backwards": false,
+      "version": "57.1"
+     }
+    },
+    {
+     "v": 2,
+     "key": {
+      "s": 1
+     },
+     "name": "s_1",
+     "hidden": true,
+     "collation": {
+      "locale": "en",
+      "caseLevel": false,
+      "caseFirst": "off",
+      "strength": 2,
+      "numericOrdering": false,
+      "alternate": "non-ignorable",
+      "maxVariable": "punct",
+      "normalization": false,
+      "backwards": false,
+      "version": "57.1"
+     },
+     "prepareUnique": true
+    },
+    {
+     "v": 2,
+     "key": {
+      "d": 1
+     },
+     "name": "d_1",
+     "expireAfterSeconds": 200,
+     "collation": {
+      "locale": "en",
+      "caseLevel": false,
+      "caseFirst": "off",
+      "strength": 2,
+      "numericOrdering": false,
+      "alternate": "non-ignorable",
+      "maxVariable": "punct",
+      "normalization": false,
+      "backwards": false,
+      "version": "57.1"
+     }
+    }
+   ],
+   "create storageEngine": {
+    "value": {
+     "storageEngine": {
+      "wiredTiger": {}
+     }
+    }
+   },
+   "create indexOptionDefaults": {
+    "value": {
+     "indexOptionDefaults": {
+      "storageEngine": {}
+     }
+    }
+   },
+   "create comment": {
+    "value": {}
+   },
+   "create writeConcern": {
+    "value": {}
+   },
+   "create imagesOff": {
+    "value": {}
+   },
+   "create pipelineAlone": {
+    "error": {
+     "code": 72
+    }
+   },
+   "create viewOnAlone": {
+    "value": {
+     "viewOn": "collated",
+     "pipeline": []
+    }
+   },
+   "createSameAgain": {
+    "value": "same"
+   },
+   "createDifferentAgain": {
+    "error": {
+     "code": 48
+    }
+   },
+   "createPlainOverOptions": {
+    "error": {
+     "code": 48
+    }
+   }
+  }
+ }
+}
