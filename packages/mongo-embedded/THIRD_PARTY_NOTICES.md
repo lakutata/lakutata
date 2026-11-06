@@ -39,7 +39,10 @@ overflows a double; a double combined with a decimal is first converted to a dec
 are rounded to 34 significant digits, half to even. `$round` and `$trunc` round a double through its 15-digit decimal,
 `$toDecimal` returns a Decimal128, and `$inc` or `$mul` on a non-numeric field fails with `MongoCodeError` (code 14).
 Strings are compared, hashed and grouped by the collation the client sets for the running operation (`withCollation`);
-the `collation` option is ignored, and `$sort` no longer uses `Intl.Collator`.
+the `collation` option is ignored, and `$sort` no longer uses `Intl.Collator`. Inside `withTypedResults`, a double
+result is a `Double` and a long result a `Long`, so that a write stores the types MongoDB stores. The `$type` expression
+gives MongoDB's type names (`int`, `long`, `decimal`, `missing`), and a query's `$jsonSchema` uses a default validator
+set by `useJsonSchemaValidator`.
 
 ```
 The MIT License (MIT)
