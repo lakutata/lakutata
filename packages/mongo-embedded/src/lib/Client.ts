@@ -34,11 +34,13 @@ import {
     wildcardOf
 } from './Planner.js'
 import { predicatesOf } from './Prefilter.js'
+import { EmbeddedClientSession, type EmbeddedSessionOptions } from './Session.js'
 import {
     type EmbeddedChange,
     type EmbeddedCollectionState,
     EmbeddedStore,
     type EmbeddedStoreOptions,
+    type EmbeddedStoreTransaction,
     TEMPORARY_OUT
 } from './Store.js'
 import { type EmbeddedDocument, EmbeddedValues } from './Values.js'
@@ -247,6 +249,19 @@ function yieldLoop(): Promise<void> {
  *
  * @param method
  */
+/**
+ * The session given to an operation: a session of an embedded client
+ *
+ * @param session
+ */
+function sessionOf(session: unknown): EmbeddedClientSession {
+    if (!(session instanceof EmbeddedClientSession))
+        throw new MongoEmbeddedError(
+            'The option session is not a session of an embedded client (EmbeddedClient.startSession)'
+        )
+    return session
+}
+
 function notSupported(method: string): MongoEmbeddedError {
     return new MongoEmbeddedError(`${method} is not supported by mongo-embedded`)
 }
@@ -777,10 +792,12 @@ export class EmbeddedFindCursor extends EmbeddedResults {
     /**
      * @param collection the collection found in
      * @param query the filter of the find
+     * @param session the session of its reads, if any
      */
     constructor(
         protected readonly collection: EmbeddedCollection,
-        protected query: EmbeddedDocument
+        protected query: EmbeddedDocument,
+        protected readonly session?: EmbeddedClientSession
     ) {
         super()
     }
@@ -860,7 +877,9 @@ export class EmbeddedFindCursor extends EmbeddedResults {
         const time = this.timeLimit()
         time?.start()
         try {
-            const documents = await this.found(time)
+            const documents = await this.collection.inSession(this.session, (collection) =>
+                this.found(collection, time)
+            )
             time?.check()
             return documents
         } finally {
@@ -871,14 +890,18 @@ export class EmbeddedFindCursor extends EmbeddedResults {
     /**
      * Its documents, read in the time of its limit (maxTimeMS)
      *
+     * @param collection the collection read (in the transaction of the session of the cursor)
      * @param time
      */
-    private async found(time?: EmbeddedTimeLimit): Promise<EmbeddedDocument[]> {
+    private async found(
+        collection: EmbeddedCollection,
+        time?: EmbeddedTimeLimit
+    ): Promise<EmbeddedDocument[]> {
         const collator = this.collator
         // Sorted by an index: the documents read in its order, up to the limit
         const ordered =
             this.order && this.limited && this.hinted === undefined
-                ? await this.collection.ordered(
+                ? await collection.ordered(
                       this.query,
                       this.order,
                       this.skipped + this.limited,
@@ -888,7 +911,7 @@ export class EmbeddedFindCursor extends EmbeddedResults {
                 : undefined
         if (ordered) return this.projected(ordered.slice(this.skipped))
         // Without an order, the documents after the limit are not read
-        const matches = await this.collection.matching(
+        const matches = await collection.matching(
             this.query,
             !this.order && this.limited
                 ? this.skipped + this.limited
@@ -947,7 +970,10 @@ export class EmbeddedFindCursor extends EmbeddedResults {
         // The time of the reads counted, not the one the caller takes between them
         const time = this.timeLimit()
         time?.start()
-        for await (const batch of this.collection.matchingBatches(
+        // The collection in the transaction of the session, if it started one (begun now)
+        const collection = await this.collection.inSession(this.session, async (bound) => bound)
+        for await (const batch of collection.matchingBatches(
+
             this.query,
             this.hinted,
             this.collator,
@@ -1086,6 +1112,16 @@ const WHEN_NOT_MATCHED = new Set(['insert', 'discard', 'fail'])
  */
 export class EmbeddedCollection {
     /**
+     * The session of the operations of this view of the collection (bound to it)
+     */
+    protected session?: EmbeddedClientSession
+
+    /**
+     * The transaction of the store the operations of this view run in, when its session started one
+     */
+    protected transaction?: EmbeddedStoreTransaction
+
+    /**
      * @param collectionName the name of the collection
      * @param store the storage of its database
      */
@@ -1099,6 +1135,63 @@ export class EmbeddedCollection {
      */
     get values(): EmbeddedValues {
         return this.store.values
+    }
+
+    /**
+     * Runs an operation given a session on the collection bound to it: in its transaction when it started one (the
+     * transaction aborted when the operation fails, and when it does not allow it); without a session, on the
+     * collection itself
+     *
+     * @param session the session given to the operation, if any
+     * @param fn the operation
+     * @param refused the name of the operation when a transaction does not allow it
+     */
+    inSession<T>(
+        session: unknown,
+        fn: (collection: EmbeddedCollection) => Promise<T>,
+        refused?: string
+    ): Promise<T> {
+        if (session === undefined || session === null || session === this.session) return fn(this)
+        return sessionOf(session).run(this.store, refused, (transaction) =>
+            fn(this.bound(sessionOf(session), transaction))
+        )
+    }
+
+    /**
+     * Whether an operation is given a session this view of the collection is not bound to (it runs on the one bound to
+     * it then)
+     *
+     * @param options the options of the operation
+     */
+    private unbound(options?: EmbeddedDocument): boolean {
+        return (
+            options?.session !== undefined &&
+            options.session !== null &&
+            options.session !== this.session
+        )
+    }
+
+    /**
+     * The view of the collection of the operations of a session, in a transaction of the store or not.
+     *
+     * @param session
+     * @param transaction
+     */
+    private bound(session: EmbeddedClientSession, transaction?: EmbeddedStoreTransaction): EmbeddedCollection {
+        const bound = Object.create(this) as EmbeddedCollection
+        bound.session = session
+        bound.transaction = transaction
+        return bound
+    }
+
+    /**
+     * Another collection of the database, bound to the session of this view (in its transaction).
+     *
+     * @param name
+     */
+    private sibling(name: string): EmbeddedCollection {
+        const collection = new EmbeddedCollection(name, this.store)
+        return this.session ? collection.bound(this.session, this.transaction) : collection
     }
 
     /**
@@ -1123,9 +1216,11 @@ export class EmbeddedCollection {
         // string of a collation matches other keys too)
         const id = hint === undefined ? this.idOf(filter) : undefined
         if (id !== undefined && !(collator && typeof id === 'string')) {
-            const [document] = await this.store.get(this.collectionName, [
-                this.values.idKey(id)
-            ])
+            const [document] = await this.store.get(
+                this.collectionName,
+                [this.values.idKey(id)],
+                this.transaction
+            )
             if (!document) return []
             if (this.isId(document._id, id)) return [document]
         }
@@ -1143,10 +1238,14 @@ export class EmbeddedCollection {
     /**
      * A cursor of the documents matching a filter
      * @param query the filter
-     * @param options its projection, sort, skip, limit, hint, collation, maxTimeMS and noCursorTimeout
+     * @param options its projection, sort, skip, limit, hint, collation, maxTimeMS, noCursorTimeout and session
      */
     find(query?: EmbeddedDocument, options?: EmbeddedDocument) {
-        const cursor = new EmbeddedFindCursor(this, query ?? {})
+        const cursor = new EmbeddedFindCursor(
+            this,
+            query ?? {},
+            this.unbound(options) ? sessionOf(options!.session) : undefined
+        )
         if (options?.collation) cursor.collation(options.collation)
         if (options?.maxTimeMS) cursor.maxTimeMS(options.maxTimeMS)
         if (options?.noCursorTimeout) cursor.noCursorTimeout()
@@ -1170,12 +1269,16 @@ export class EmbeddedCollection {
     /**
      * The number of the documents matching a filter
      * @param query the filter
-     * @param options its skip, limit and hint
+     * @param options its skip, limit, hint, collation, maxTimeMS and session
      */
     async countDocuments(
         query?: EmbeddedDocument,
         options?: EmbeddedDocument
     ): Promise<number> {
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.countDocuments(query, options)
+            )
         const skip = options?.skip ?? 0
         const limit = options?.limit ? skip + options.limit : Infinity
         const filter = this.values.copy(query ?? {})
@@ -1194,22 +1297,35 @@ export class EmbeddedCollection {
     }
 
     /**
-     * The number of the documents matching a filter (countDocuments)
+     * The number of the documents matching a filter (countDocuments); a transaction does not allow it
      * @param query the filter
-     * @param options its skip and limit
+     * @param options its skip, limit and session
      */
     async count(
         query?: EmbeddedDocument,
         options?: EmbeddedDocument
     ): Promise<number> {
+        if (this.unbound(options))
+            return this.inSession(
+                options!.session,
+                (collection) => collection.count(query, options),
+                'count'
+            )
         return this.countDocuments(query, options)
     }
 
     /**
-     * The number of the documents of the collection, kept by its storage
+     * The number of the documents of the collection, kept by its storage; a transaction does not allow it
+     * @param options its session
      */
-    async estimatedDocumentCount(): Promise<number> {
-        return this.store.count(this.collectionName)
+    async estimatedDocumentCount(options?: EmbeddedDocument): Promise<number> {
+        if (this.unbound(options))
+            return this.inSession(
+                options!.session,
+                (collection) => collection.estimatedDocumentCount(options),
+                'count'
+            )
+        return this.store.count(this.collectionName, this.transaction)
     }
 
     /**
@@ -1223,6 +1339,10 @@ export class EmbeddedCollection {
         query?: EmbeddedDocument,
         options?: EmbeddedDocument
     ): Promise<any[]> {
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.distinct(key, query, options)
+            )
         const values = new Map<string, any>()
         const collator = collatorOf(options?.collation)
         for (const document of await this.matching(query, Infinity, options?.hint, collator, this.timeLimitOf(options))) {
@@ -1235,7 +1355,9 @@ export class EmbeddedCollection {
                     if (!values.has(key)) values.set(key, item)
                 }
         }
-        return [...values.values()]
+        // In the order of MongoDB (its distinct gives a set ordered by its comparison): the order of their keys
+        return [...values.keys()].sort().map((key) => values.get(key))
+
     }
 
     /**
@@ -1245,40 +1367,68 @@ export class EmbeddedCollection {
      * MongoDB 8.0 (on, whenMatched, whenNotMatched, let). A $lookup joining by a field reads the documents of the
      * other collection its values match, by its index, a batch of documents at a time
      * @param pipeline its stages
-     * @param options its collation, variables (let) and hint (the index of its leading $match stages)
+     * @param options its collation, variables (let), hint (the index of its leading $match stages), maxTimeMS and
+     * session
      */
     aggregate(pipeline: EmbeddedDocument[], options?: EmbeddedDocument) {
         // The collation compares the strings of every stage (withCollation), not given to mingo
-        const { hint, let: variables, collation, maxTimeMS, ...rest } = options ?? {}
+        const { hint, let: variables, collation, maxTimeMS, session, ...rest } = options ?? {}
         const aggregation: EmbeddedDocument =
             variables === undefined ? rest : { ...rest, variables: variables }
-        const cursor = new EmbeddedArrayCursor(async (time) => {
-            const collator = collatorOf(collation)
-            const position = pipeline.findIndex(
-                (stage) => isPlain(stage) && ('$out' in stage || '$merge' in stage)
+        const cursor = new EmbeddedArrayCursor((time) =>
+            this.inSession(session, (collection) =>
+                collection.aggregation(pipeline, aggregation, hint, collation, time)
             )
-            if (position >= 0 && position !== pipeline.length - 1)
-                throw new EmbeddedOperationError(
-                    40601,
-                    'Location40601',
-                    `${Object.keys(pipeline[position])[0]} can only be the final stage in the pipeline`
-                )
-            const output = position >= 0 ? pipeline[position] : undefined
-            const documents = await this.aggregated(
-                output ? pipeline.slice(0, -1) : pipeline,
-                aggregation,
-                hint,
-                collator,
-                time
-            )
-            if (!output) return documents
-            if (output.$out !== undefined) await this.out(documents, output.$out)
-            else await this.merge(documents, output.$merge, aggregation, collator)
-            return []
-        })
+        )
         if (maxTimeMS) cursor.maxTimeMS(maxTimeMS)
         return cursor
     }
+
+    /**
+     * The results of an aggregation pipeline (aggregate): written to a collection by a $out or a $merge (a
+     * transaction does not allow them), none given then.
+     *
+     * @param pipeline
+     * @param aggregation the options of mingo
+     * @param hint
+     * @param collation
+     * @param time the time its reads may take (maxTimeMS), if any
+     */
+    private async aggregation(
+        pipeline: EmbeddedDocument[],
+        aggregation: EmbeddedDocument,
+        hint: EmbeddedHint | undefined,
+        collation: EmbeddedCollation | undefined,
+        time?: EmbeddedTimeLimit
+    ): Promise<EmbeddedDocument[]> {
+        const collator = collatorOf(collation)
+        const position = pipeline.findIndex(
+            (stage) => isPlain(stage) && ('$out' in stage || '$merge' in stage)
+        )
+        if (position >= 0 && position !== pipeline.length - 1)
+            throw new EmbeddedOperationError(
+                40601,
+                'Location40601',
+                `${Object.keys(pipeline[position])[0]} can only be the final stage in the pipeline`
+            )
+        const output = position >= 0 ? pipeline[position] : undefined
+        if (output && this.transaction)
+            await this.session!.refuse(
+                `${Object.keys(output)[0]} cannot be used in a transaction`
+            )
+        const documents = await this.aggregated(
+            output ? pipeline.slice(0, -1) : pipeline,
+            aggregation,
+            hint,
+            collator,
+            time
+        )
+        if (!output) return documents
+        if (output.$out !== undefined) await this.out(documents, output.$out)
+        else await this.merge(documents, output.$merge, aggregation, collator)
+        return []
+    }
+
 
     /**
      * The results of the stages of a pipeline: its leading $match stages the filter of the documents read (unless
@@ -1350,7 +1500,7 @@ export class EmbeddedCollection {
             const looked = new Map<string, EmbeddedDocument[]>()
             for (const name of lookedUp(segment)) {
                 const read: EmbeddedDocument[] = []
-                for await (const batch of this.store.scan(name))
+                for await (const batch of this.store.scan(name, [], undefined, this.transaction))
                     for (const document of batch) read.push(document)
                 looked.set(name, read)
             }
@@ -1400,8 +1550,8 @@ export class EmbeddedCollection {
         options: EmbeddedDocument,
         collator?: EmbeddedCollator
     ): Promise<EmbeddedDocument[]> {
-        const foreign = new EmbeddedCollection(lookup.from, this.store)
-        const state = this.store.collection(lookup.from)
+        const foreign = this.sibling(lookup.from)
+        const state = this.store.collection(lookup.from, this.transaction)
         let all: EmbeddedDocument[] | undefined = state ? undefined : []
         const results: EmbeddedDocument[] = []
         for (let start = 0; start < documents.length; start += YIELD_EVERY) {
@@ -1457,10 +1607,10 @@ export class EmbeddedCollection {
             throw notSupported('The option timeseries of $out')
         checkName(name)
         const indexes = this.store.collection(name)
-            ? await new EmbeddedCollection(name, this.store).indexes()
+            ? await this.sibling(name).indexes()
             : []
         const temporary = `${TEMPORARY_OUT}${new this.values.bson.ObjectId().toHexString()}`
-        const out = new EmbeddedCollection(temporary, this.store)
+        const out = this.sibling(temporary)
         try {
             await this.store.exclusive(() => this.store.create(temporary))
             for (const index of indexes) {
@@ -1553,7 +1703,7 @@ export class EmbeddedCollection {
                 'Location51183',
                 'Cannot find index to verify that join fields will be unique'
             )
-        const target = new EmbeddedCollection(into, this.store)
+        const target = this.sibling(into)
         for (let start = 0; start < documents.length; start += YIELD_EVERY) {
             if (start) await yieldLoop()
             const batch = documents.slice(start, start + YIELD_EVERY)
@@ -1746,8 +1896,13 @@ export class EmbeddedCollection {
     /**
      * Inserts a document, its _id added when it has none
      * @param document the document
+     * @param options its session
      */
-    async insertOne(document: EmbeddedDocument) {
+    async insertOne(document: EmbeddedDocument, options?: EmbeddedDocument) {
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.insertOne(document, options)
+            )
         const [stored] = await this.insert([document])
         return { acknowledged: true, insertedId: stored._id }
     }
@@ -1760,12 +1915,16 @@ export class EmbeddedCollection {
      * fail the insertMany (EmbeddedBulkWriteError) once the others are written.
      *
      * @param documents the documents, their _id added when they have none
-     * @param options ordered (true by default)
+     * @param options ordered (true by default), session
      */
     async insertMany(
         documents: EmbeddedDocument[],
         options?: EmbeddedDocument
     ) {
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.insertMany(documents, options)
+            )
         const ordered = options?.ordered !== false
         for (const document of documents)
             if (document._id === undefined)
@@ -1815,13 +1974,17 @@ export class EmbeddedCollection {
      * ($set, $unset, $project, $replaceWith... stages)
      * @param query the filter
      * @param update the operators, or the pipeline
-     * @param options upsert, arrayFilters, hint
+     * @param options upsert, arrayFilters, hint, collation, session
      */
     async updateOne(
         query: EmbeddedDocument,
         update: EmbeddedDocument | EmbeddedDocument[],
         options?: EmbeddedDocument
     ) {
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.updateOne(query, update, options)
+            )
         return this.update(query, update, options, false)
     }
 
@@ -1830,13 +1993,17 @@ export class EmbeddedCollection {
      * $unset, $project, $replaceWith... stages)
      * @param query the filter
      * @param update the operators, or the pipeline
-     * @param options upsert, arrayFilters, hint
+     * @param options upsert, arrayFilters, hint, collation, session
      */
     async updateMany(
         query: EmbeddedDocument,
         update: EmbeddedDocument | EmbeddedDocument[],
         options?: EmbeddedDocument
     ) {
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.updateMany(query, update, options)
+            )
         return this.update(query, update, options, true)
     }
 
@@ -1845,13 +2012,17 @@ export class EmbeddedCollection {
      * document)
      * @param query the filter
      * @param replacement the document replacing it
-     * @param options upsert, hint
+     * @param options upsert, hint, collation, session
      */
     async replaceOne(
         query: EmbeddedDocument,
         replacement: EmbeddedDocument,
         options?: EmbeddedDocument
     ) {
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.replaceOne(query, replacement, options)
+            )
         checkReplacement(replacement)
         const filter = this.values.copy(query ?? {})
         const collator = collatorOf(options?.collation)
@@ -1865,7 +2036,7 @@ export class EmbeddedCollection {
                   if (change)
                       await this.store.write(this.collectionName, [change])
                   return change ? 1 : 0
-              })
+              }, this.transaction)
             : undefined
         if (modified !== undefined) return this.updateResult(1, modified)
         if (!options?.upsert) return this.updateResult(0, 0)
@@ -1878,20 +2049,29 @@ export class EmbeddedCollection {
     /**
      * Deletes the first document matching a filter
      * @param query the filter
-     * @param options its hint
+     * @param options its hint, collation, session
      */
     async deleteOne(query?: EmbeddedDocument, options?: EmbeddedDocument) {
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.deleteOne(query, options)
+            )
         return this.delete(query, false, options?.hint, collatorOf(options?.collation))
     }
 
     /**
      * Deletes the documents matching a filter
      * @param query the filter
-     * @param options its hint
+     * @param options its hint, collation, session
      */
     async deleteMany(query?: EmbeddedDocument, options?: EmbeddedDocument) {
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.deleteMany(query, options)
+            )
         return this.delete(query, true, options?.hint, collatorOf(options?.collation))
     }
+
 
     /**
      * Creates an index, built from the documents there (in batches, the reads going on, the writes waiting for it), and
@@ -1902,36 +2082,60 @@ export class EmbeddedCollection {
      * @param keys its fields and their directions (1, -1, "hashed"; "$**" or "<path>.$**" for a wildcard index), or the
      * name of one field
      * @param options its name, unique, sparse, partialFilterExpression, hidden, wildcardProjection, expireAfterSeconds,
-     * collation
+     * collation; the session (a transaction allows the indexes of the collections it creates only)
      */
     async createIndex(keys: any, options?: EmbeddedDocument): Promise<string> {
-        const index = this.indexOf(keys, options ?? {})
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.createIndex(keys, options)
+            )
+        const { session, ...rest } = options ?? {}
+        void session
+        const index = this.indexOf(keys, rest)
+        // A transaction creates the indexes of the collections it creates, while they are empty
+        if (
+            this.transaction &&
+            (this.store.collection(this.collectionName) ||
+                (await this.store.count(this.collectionName, this.transaction)))
+        )
+            await this.session!.refuse(
+                `Cannot create new indexes on existing collection ${this.collectionName} in a multi-document transaction.`
+            )
         return this.store.exclusive(async () => {
             const existing = this.existingIndex(index)
             if (existing) return existing.name
             await this.buildIndex(index)
             return index.name
-        })
+        }, this.transaction)
+
     }
 
     /**
      * Creates indexes (createIndex): their names
      * @param specs their keys (key) and options
+     * @param options the session
      */
-    async createIndexes(specs: EmbeddedDocument[]): Promise<string[]> {
+    async createIndexes(specs: EmbeddedDocument[], options?: EmbeddedDocument): Promise<string[]> {
         const names: string[] = []
-        for (const { key, ...options } of specs)
-            names.push(await this.createIndex(key, options))
+        for (const { key, ...rest } of specs)
+            names.push(await this.createIndex(key, options?.session ? { ...rest, session: options.session } : rest))
         return names
     }
 
     /**
-     * The indexes, as MongoDB lists them: the one of the _id first
+     * The indexes, as MongoDB lists them: the one of the _id first; a transaction does not allow it
+     * @param options the session
      */
-    async indexes(): Promise<EmbeddedDocument[]> {
+    async indexes(options?: EmbeddedDocument): Promise<EmbeddedDocument[]> {
+        if (this.unbound(options))
+            return this.inSession(
+                options!.session,
+                (collection) => collection.indexes(options),
+                'listIndexes'
+            )
         return [
             { v: 2, key: { _id: 1 }, name: ID_INDEX },
-            ...(this.store.collection(this.collectionName)?.indexes ?? []).map((index) => ({
+            ...(this.store.collection(this.collectionName, this.transaction)?.indexes ?? []).map((index) => ({
                 v: 2,
                 ...index
             }))
@@ -1939,29 +2143,32 @@ export class EmbeddedCollection {
     }
 
     /**
-     * A cursor of the indexes
+     * A cursor of the indexes; a transaction does not allow it
+     * @param options the session
      */
-    listIndexes() {
-        return new EmbeddedArrayCursor(() => this.indexes())
+    listIndexes(options?: EmbeddedDocument) {
+        return new EmbeddedArrayCursor(() => this.indexes(options))
     }
 
     /**
-     * Whether indexes of names are there
+     * Whether indexes of names are there; a transaction does not allow it
      * @param names a name, or names
+     * @param options the session
      */
-    async indexExists(names: string | string[]): Promise<boolean> {
-        const existing = (await this.indexes()).map((index) => index.name)
+    async indexExists(names: string | string[], options?: EmbeddedDocument): Promise<boolean> {
+        const existing = (await this.indexes(options)).map((index) => index.name)
         return (Array.isArray(names) ? names : [names]).every((name) =>
             existing.includes(name)
         )
     }
 
     /**
-     * The fields of each index, by its name, as [field, direction] pairs
+     * The fields of each index, by its name, as [field, direction] pairs; a transaction does not allow it
+     * @param options the session
      */
-    async indexInformation(): Promise<EmbeddedDocument> {
+    async indexInformation(options?: EmbeddedDocument): Promise<EmbeddedDocument> {
         const information: EmbeddedDocument = {}
-        for (const index of await this.indexes())
+        for (const index of await this.indexes(options))
             information[index.name] = Object.keys(index.key).map((field) => [
                 field,
                 index.key[field]
@@ -1971,10 +2178,17 @@ export class EmbeddedCollection {
 
     /**
      * Drops an index, by its name or its fields ("*": every index but the one of the _id): it fails when it is not there
-     * (IndexNotFound) and for the index of the _id
+     * (IndexNotFound) and for the index of the _id; a transaction does not allow it
      * @param index the name of the index, or its fields
+     * @param options the session
      */
-    async dropIndex(index: string | EmbeddedDocument): Promise<EmbeddedDocument> {
+    async dropIndex(index: string | EmbeddedDocument, options?: EmbeddedDocument): Promise<EmbeddedDocument> {
+        if (this.unbound(options))
+            return this.inSession(
+                options!.session,
+                (collection) => collection.dropIndex(index, options),
+                'dropIndexes'
+            )
         return this.store.exclusive(async () => {
             const indexes = this.store.collection(this.collectionName)?.indexes ?? []
             const count = indexes.length + 1
@@ -2014,17 +2228,25 @@ export class EmbeddedCollection {
     }
 
     /**
-     * Drops the indexes but the one of the _id
+     * Drops the indexes but the one of the _id; a transaction does not allow it
+     * @param options the session
      */
-    async dropIndexes(): Promise<boolean> {
-        await this.dropIndex('*')
+    async dropIndexes(options?: EmbeddedDocument): Promise<boolean> {
+        await this.dropIndex('*', options)
         return true
     }
 
     /**
-     * Whether the collection is capped: it never is
+     * Whether the collection is capped: it never is; a transaction does not allow it
+     * @param options the session
      */
-    async isCapped(): Promise<boolean> {
+    async isCapped(options?: EmbeddedDocument): Promise<boolean> {
+        if (this.unbound(options))
+            return this.inSession(
+                options!.session,
+                (collection) => collection.isCapped(options),
+                'listCollections'
+            )
         return false
     }
 
@@ -2038,12 +2260,16 @@ export class EmbeddedCollection {
      * others ran.
      *
      * @param operations the operations, the _id of the documents inserted added to them when they have none
-     * @param options ordered (true by default)
+     * @param options ordered (true by default), session
      */
     async bulkWrite(
         operations: EmbeddedBulkWriteOperation[],
         options?: EmbeddedDocument
     ): Promise<EmbeddedBulkWriteResult> {
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.bulkWrite(operations, options)
+            )
         if (!Array.isArray(operations))
             throw new MongoEmbeddedError(
                 'Argument "operations" must be an array of documents'
@@ -2141,12 +2367,16 @@ export class EmbeddedCollection {
      * Deletes the first document matching a filter (the first one in the order of a sort) and gives it, as one
      * operation: null when none matches; with includeResultMetadata, {value, ok, lastErrorObject: {n}}
      * @param query the filter
-     * @param options sort, projection (of the document given), hint, includeResultMetadata
+     * @param options sort, projection (of the document given), hint, includeResultMetadata, session
      */
     async findOneAndDelete(
         query: EmbeddedDocument,
         options?: EmbeddedDocument
-    ) {
+    ): Promise<any> {
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.findOneAndDelete(query, options)
+            )
         const outcome = await this.findAndModify(query, options, (current) => ({
             key: this.values.idKey(current._id),
             previous: current
@@ -2162,13 +2392,18 @@ export class EmbeddedCollection {
      * matches; with includeResultMetadata, {value, ok, lastErrorObject: {n, updatedExisting, upserted}}
      * @param query the filter
      * @param replacement the document replacing it
-     * @param options sort, projection (of the document given), returnDocument, upsert, hint, includeResultMetadata
+     * @param options sort, projection (of the document given), returnDocument, upsert, hint, includeResultMetadata,
+     * session
      */
     async findOneAndReplace(
         query: EmbeddedDocument,
         replacement: EmbeddedDocument,
         options?: EmbeddedDocument
-    ) {
+    ): Promise<any> {
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.findOneAndReplace(query, replacement, options)
+            )
         checkReplacement(replacement)
         const outcome = await this.findAndModify(
             query,
@@ -2191,13 +2426,17 @@ export class EmbeddedCollection {
      * @param query the filter
      * @param update the operators, or the pipeline
      * @param options sort, projection (of the document given), returnDocument, upsert, arrayFilters, hint,
-     * includeResultMetadata
+     * includeResultMetadata, session
      */
     async findOneAndUpdate(
         query: EmbeddedDocument,
         update: EmbeddedDocument | EmbeddedDocument[],
         options?: EmbeddedDocument
-    ) {
+    ): Promise<any> {
+        if (this.unbound(options))
+            return this.inSession(options!.session, (collection) =>
+                collection.findOneAndUpdate(query, update, options)
+            )
         const { modifier, setOnInsert } = this.modifierOf(update)
         const collator = collatorOf(options?.collation)
         const outcome = await this.findAndModify(
@@ -2240,14 +2479,21 @@ export class EmbeddedCollection {
      * Renames the collection, its documents and its indexes kept, and gives the collection of its new name; the
      * collection of the new name dropped first when dropTarget, in the same transaction. It fails as MongoDB fails:
      * EmbeddedOperationError of code 20 (IllegalOperation) for its own name, 26 (NamespaceNotFound) when the
-     * collection is not there, 48 (NamespaceExists) when the new name is taken and dropTarget is not given
+     * collection is not there, 48 (NamespaceExists) when the new name is taken and dropTarget is not given; a
+     * transaction does not allow it
      * @param newName its new name
-     * @param options dropTarget
+     * @param options dropTarget, session
      */
     async rename(
         newName: string,
         options?: EmbeddedDocument
     ): Promise<EmbeddedCollection> {
+        if (this.unbound(options))
+            return this.inSession(
+                options!.session,
+                (collection) => collection.rename(newName, options),
+                'renameCollection'
+            )
         checkName(newName)
         await this.store.exclusive(() =>
             this.store.rename(this.collectionName, newName, !!options?.dropTarget)
@@ -2275,9 +2521,17 @@ export class EmbeddedCollection {
     }
 
     /**
-     * Drops the collection: true, also when it was not there (as MongoDB 7.0 and later)
+     * Drops the collection: true, also when it was not there (as MongoDB 7.0 and later); a transaction does not allow
+     * it
+     * @param options the session
      */
-    async drop(): Promise<boolean> {
+    async drop(options?: EmbeddedDocument): Promise<boolean> {
+        if (this.unbound(options))
+            return this.inSession(
+                options!.session,
+                (collection) => collection.drop(options),
+                'drop'
+            )
         await this.store.exclusive(() => this.store.drop(this.collectionName))
         return true
     }
@@ -2309,7 +2563,7 @@ export class EmbeddedCollection {
         collator?: EmbeddedCollator,
         time?: EmbeddedTimeLimit
     ): Promise<EmbeddedDocument[] | undefined> {
-        const collection = this.store.collection(this.collectionName)
+        const collection = this.store.collection(this.collectionName, this.transaction)
         if (!collection) return []
         const planner = new EmbeddedPlanner(collection, collator)
         const walk = planner.sortIndex(sort)
@@ -2326,7 +2580,7 @@ export class EmbeddedCollection {
             this.collectionName,
             this.tableOf(collection, walk.index),
             this.rangesOf(ranges),
-            { reverse: walk.reverse, predicates: predicatesOf(filter), first: count }
+            { reverse: walk.reverse, predicates: predicatesOf(filter), first: count, transaction: this.transaction }
         )) {
             time?.check()
             for (const document of batch) {
@@ -2367,17 +2621,17 @@ export class EmbeddedCollection {
             time.check()
             return
         }
-        const collection = this.store.collection(this.collectionName)
+        const collection = this.store.collection(this.collectionName, this.transaction)
         if (!collection) return
         const planner = new EmbeddedPlanner(collection, collator)
         const plan = planner.plan(filter, this.hintOf(collection, planner, hint))
         const predicates = predicatesOf(filter)
         if (plan.kind === 'scan') {
             if (!plan.reverse) {
-                yield* this.store.scan(this.collectionName, predicates, first)
+                yield* this.store.scan(this.collectionName, predicates, first, this.transaction)
                 return
             }
-            for await (const { documents } of this.store.scanRange(this.collectionName, 0, [], { reverse: true, predicates: predicates, first: first }))
+            for await (const { documents } of this.store.scanRange(this.collectionName, 0, [], { reverse: true, predicates: predicates, first: first, transaction: this.transaction }))
                 yield documents
             return
         }
@@ -2397,7 +2651,8 @@ export class EmbeddedCollection {
                 const documents = (
                     await this.store.get(
                         this.collectionName,
-                        keys.slice(start, start + YIELD_EVERY)
+                        keys.slice(start, start + YIELD_EVERY),
+                        this.transaction
                     )
                 ).filter((document) => document !== undefined)
                 if (documents.length) yield documents
@@ -2410,7 +2665,7 @@ export class EmbeddedCollection {
             this.collectionName,
             this.tableOf(collection, plan.index),
             this.rangesOf(plan.ranges),
-            { predicates: predicates, first: first }
+            { predicates: predicates, first: first, transaction: this.transaction }
         )) {
             const unique = seen
                 ? documents.filter((_, position) => {
@@ -2637,7 +2892,7 @@ export class EmbeddedCollection {
      * @param index
      */
     private existingIndex(index: EmbeddedIndex): EmbeddedIndex | undefined {
-        const indexes = this.store.collection(this.collectionName)?.indexes ?? []
+        const indexes = this.store.collection(this.collectionName, this.transaction)?.indexes ?? []
         const id: EmbeddedIndex = { name: ID_INDEX, key: { _id: 1 } }
         const show = (item: EmbeddedIndex) => this.values.bson.EJSON.stringify({ v: 2, ...item })
         const named =
@@ -2698,11 +2953,11 @@ export class EmbeddedCollection {
      */
     private async buildIndex(index: EmbeddedIndex): Promise<void> {
         const table = await this.store.createIndexTable(this.collectionName)
-        const collection = this.store.collection(this.collectionName)!
+        const collection = this.store.collection(this.collectionName, this.transaction)!
         collection.partials.delete(index.name)
         try {
             let multikey = false
-            for await (const { documents, data } of this.store.scanRange(this.collectionName, 0, [])) {
+            for await (const { documents, data } of this.store.scanRange(this.collectionName, 0, [], { transaction: this.transaction })) {
                 const keys: Buffer[] = []
                 const ids: Buffer[] = []
                 const owners: number[] = []
@@ -2755,7 +3010,8 @@ export class EmbeddedCollection {
     ): Promise<EmbeddedDocument[]> {
         const currents = await this.store.get(
             this.collectionName,
-            found.map((document) => this.values.idKey(document._id))
+            found.map((document) => this.values.idKey(document._id)),
+            this.transaction
         )
         return currents.filter(
             (current): current is EmbeddedDocument =>
@@ -2828,15 +3084,17 @@ export class EmbeddedCollection {
                 document._id = new this.values.bson.ObjectId()
             return this.values.copy(document)
         })
-        await this.store.exclusive(() =>
-            this.store.write(
-                this.collectionName,
-                stored.map((document) => ({
-                    key: this.values.idKey(document._id),
-                    next: document
-                })),
-                true
-            )
+        await this.store.exclusive(
+            () =>
+                this.store.write(
+                    this.collectionName,
+                    stored.map((document) => ({
+                        key: this.values.idKey(document._id),
+                        next: document
+                    })),
+                    true
+                ),
+            this.transaction
         )
         return stored
     }
@@ -2853,12 +3111,12 @@ export class EmbeddedCollection {
         hint?: EmbeddedHint,
         collator?: EmbeddedCollator
     ): Promise<number | undefined> {
-        const collection = this.store.collection(this.collectionName)
+        const collection = this.store.collection(this.collectionName, this.transaction)
         if (!collection) return 0
         const planner = new EmbeddedPlanner(collection, collator)
         const plan: EmbeddedPlan = planner.plan(filter, this.hintOf(collection, planner, hint))
         if (!plan.exact) return undefined
-        if (plan.kind === 'scan') return this.store.count(this.collectionName)
+        if (plan.kind === 'scan') return this.store.count(this.collectionName, this.transaction)
         if (plan.kind === 'id') {
             const keys = [
                 ...new Map(
@@ -2868,16 +3126,16 @@ export class EmbeddedCollection {
                     })
                 ).values()
             ]
-            return (await this.store.get(this.collectionName, keys)).filter(
+            return (await this.store.get(this.collectionName, keys, this.transaction)).filter(
                 (document) => document !== undefined
             ).length
         }
         const table = this.tableOf(collection, plan.index)
         const ranges = this.rangesOf(plan.ranges)
         if (!plan.multikey)
-            return this.store.countRange(this.collectionName, table, ranges)
+            return this.store.countRange(this.collectionName, table, ranges, this.transaction)
         const ids = new Set<string>()
-        for await (const keys of this.store.keysInRange(this.collectionName, table, ranges))
+        for await (const keys of this.store.keysInRange(this.collectionName, table, ranges, this.transaction))
             for (const key of keys) ids.add(key.toString('latin1'))
         return ids.size
     }
@@ -2958,7 +3216,7 @@ export class EmbeddedCollection {
                 return this.writeInOrder(currents, (documents) =>
                     this.updateChanges(documents, modifier, options?.arrayFilters, collator)
                 )
-            })
+            }, this.transaction)
             modified += written
             if (!many && matched) break
         }
@@ -3107,7 +3365,7 @@ export class EmbeddedCollection {
                 }
             }
             return inserted
-        })
+        }, this.transaction)
     }
 
     /**
@@ -3128,7 +3386,7 @@ export class EmbeddedCollection {
     ) {
         const filter = this.values.copy(query ?? {})
         const matches = this.matcherOf(filter, collator)
-        if (!this.store.collection(this.collectionName))
+        if (!this.store.collection(this.collectionName, this.transaction))
             return { acknowledged: true, deletedCount: 0 }
         let deleted = 0
         // A document deleted leaves the collection: unlike an update, a scan does not meet it again
@@ -3144,7 +3402,7 @@ export class EmbeddedCollection {
                     }))
                 )
                 return currents.length
-            })
+            }, this.transaction)
             if (!many && deleted) break
         }
         return { acknowledged: true, deletedCount: deleted }
@@ -3351,8 +3609,9 @@ export class EmbeddedCollection {
                 true
             )
             return { after: document, upsertedId: document._id }
-        })
+        }, this.transaction)
     }
+
 
     /**
      * The result of a findOneAndUpdate or of a findOneAndReplace: the document as it was or as it is (returnDocument),
@@ -3446,20 +3705,26 @@ export class EmbeddedDb {
     }
 
     /**
-     * Drops every collection
+     * Drops every collection; a transaction does not allow it
+     * @param options the session
      */
-    async dropDatabase(): Promise<boolean> {
-        await this.store.exclusive(() => this.store.clear())
-        return true
+    async dropDatabase(options?: EmbeddedDocument): Promise<boolean> {
+        return this.inSession(options, 'dropDatabase', async () => {
+            await this.store.exclusive(() => this.store.clear())
+            return true
+        })
     }
 
     /**
-     * Drops a collection: true, also when it was not there (as MongoDB 7.0 and later)
+     * Drops a collection: true, also when it was not there (as MongoDB 7.0 and later); a transaction does not allow it
      * @param name the name of the collection
+     * @param options the session
      */
-    async dropCollection(name: string): Promise<boolean> {
-        await this.store.exclusive(() => this.store.drop(name))
-        return true
+    async dropCollection(name: string, options?: EmbeddedDocument): Promise<boolean> {
+        return this.inSession(options, 'drop', async () => {
+            await this.store.exclusive(() => this.store.drop(name))
+            return true
+        })
     }
 
     /**
@@ -3467,7 +3732,7 @@ export class EmbeddedDb {
      * The options of the capped collections, the views, the time series, the validation of the documents and a
      * collation of the collection are not supported yet: they fail
      * @param name the name of the collection
-     * @param options its options
+     * @param options its options, the session (a transaction creates collections)
      */
     async createCollection(
         name: string,
@@ -3477,18 +3742,20 @@ export class EmbeddedDb {
         for (const option of COLLECTION_OPTIONS)
             if (options?.[option] !== undefined)
                 throw notSupported(`The option ${option} of createCollection`)
-        await this.store.exclusive(() => this.store.create(name))
-        return this.collection(name)
+        return this.inSession(options, undefined, async (transaction) => {
+            await this.store.exclusive(() => this.store.create(name), transaction)
+            return this.collection(name)
+        })
     }
 
     /**
      * The collections, as MongoDB lists them ({name, type, options, info, idIndex}; {name, type} when nameOnly), the
-     * ones matching a filter of their fields
+     * ones matching a filter of their fields; a transaction does not allow it
      * @param filter the filter of their fields (their name...)
-     * @param options nameOnly
+     * @param options nameOnly, session
      */
     listCollections(filter?: EmbeddedDocument, options?: EmbeddedDocument) {
-        return new EmbeddedArrayCursor(async () => {
+        return new EmbeddedArrayCursor(() => this.inSession(options, 'listCollections', async () => {
             const collections = this.store
                 .names()
                 .sort()
@@ -3506,17 +3773,20 @@ export class EmbeddedDb {
             return filter && Object.keys(filter).length
                 ? (new mingo.Query(filter).find(collections).all() as EmbeddedDocument[])
                 : collections
-        })
+        }))
     }
 
     /**
-     * The collections
+     * The collections; a transaction does not allow it
+     * @param options the session
      */
-    async collections(): Promise<EmbeddedCollection[]> {
-        return this.store
-            .names()
-            .sort()
-            .map((name) => this.collection(name))
+    async collections(options?: EmbeddedDocument): Promise<EmbeddedCollection[]> {
+        return this.inSession(options, 'listCollections', async () =>
+            this.store
+                .names()
+                .sort()
+                .map((name) => this.collection(name))
+        )
     }
 
     /**
@@ -3533,7 +3803,46 @@ export class EmbeddedDb {
         await this.collection(from).rename(to, options)
         return this.collection(to)
     }
+
+    /**
+     * Runs an operation of the database given a session (EmbeddedCollection.inSession)
+     *
+     * @param options the options of the operation
+     * @param refused the name of the operation when a transaction does not allow it
+     * @param fn the operation, given the transaction of the store it runs in
+     */
+    private inSession<T>(
+        options: EmbeddedDocument | undefined,
+        refused: string | undefined,
+        fn: (transaction?: EmbeddedStoreTransaction) => Promise<T>
+    ): Promise<T> {
+        const session = options?.session
+        if (session === undefined || session === null) return fn(undefined)
+        return sessionOf(session).run(this.store, refused, fn)
+    }
 }
+
+/**
+ * The options of an embedded client: the ones of the storage of its database, and the longest a transaction of a
+ * session may be open (transactionLifetimeLimitSeconds, 60 seconds by default, as the parameter of MongoDB of that
+ * name): beyond, it is aborted
+ *
+ * @example
+ * import {EmbeddedClient, type EmbeddedClientOptions} from '@lakutata/mongo-embedded'
+ *
+ * const options: EmbeddedClientOptions = {sync: 'always', transactionLifetimeLimitSeconds: 30}
+ * const client = await EmbeddedClient.connect('./data/documents', options)
+ * await client.close()
+ */
+export interface EmbeddedClientOptions extends EmbeddedStoreOptions {
+    /**
+     * The longest a transaction may be open, in seconds: beyond, it is aborted, its next operations and its commit
+     * failing with NoSuchTransaction (251)
+     * @default 60
+     */
+    transactionLifetimeLimitSeconds?: number
+}
+
 
 /**
  * The client of an embedded MongoDB, with the API of the client of MongoDB that TypeORM calls: its collections in the
@@ -3563,8 +3872,12 @@ export class EmbeddedClient {
 
     /**
      * @param store the storage of its database (connect opens it)
+     * @param options the longest a transaction may be open
      */
-    constructor(readonly store: EmbeddedStore) {
+    constructor(
+        readonly store: EmbeddedStore,
+        protected readonly options: EmbeddedClientOptions = {}
+    ) {
         this.expiring = setInterval(() => void this.expire().catch(() => 0), TTL_PERIOD)
         this.expiring.unref?.()
     }
@@ -3573,20 +3886,62 @@ export class EmbeddedClient {
      * Opens a database: its directory created and locked.
      *
      * @param directory the directory of the database, or ":memory:" (the default) for a database in memory
-     * @param options when its writes are written to the disk, the memory of its page cache and of its memory map
+     * @param options when its writes are written to the disk, the memory of its page cache and of its memory map, the
+     * longest a transaction may be open
      */
     static async connect(
         directory?: string,
-        options: EmbeddedStoreOptions = {}
+        options: EmbeddedClientOptions = {}
     ): Promise<EmbeddedClient> {
+        const { transactionLifetimeLimitSeconds, ...storage } = options
+        const lifetime = transactionLifetimeLimitSeconds ?? 60
+        if (typeof lifetime !== 'number' || !(lifetime > 0))
+            throw new MongoEmbeddedError(
+                `The option transactionLifetimeLimitSeconds must be a number of seconds above 0, not ${String(lifetime)}`
+            )
         return new EmbeddedClient(
             await EmbeddedStore.open(
                 directory && directory !== ':memory:' ? directory : undefined,
                 new EmbeddedValues(bson, mingo),
-                options
-            )
+                storage
+            ),
+            { transactionLifetimeLimitSeconds: lifetime }
         )
     }
+
+    /**
+     * Starts a session: its transactions, given to the operations by their option session
+     * (EmbeddedClientSession)
+     * @param options the default options of its transactions
+     */
+    startSession(options?: EmbeddedSessionOptions): EmbeddedClientSession {
+        return new EmbeddedClientSession(
+            this.store,
+            options,
+            this.options.transactionLifetimeLimitSeconds
+        )
+    }
+
+    /**
+     * Runs a function with a session, ended once the function ends: the value of the function
+     * @param options the options of the session, or the function
+     * @param fn the function, given the session
+     */
+    async withSession<T>(
+        options:
+            | EmbeddedSessionOptions
+            | ((session: EmbeddedClientSession) => Promise<T>),
+        fn?: (session: EmbeddedClientSession) => Promise<T>
+    ): Promise<T> {
+        const run = typeof options === 'function' ? options : fn!
+        const session = this.startSession(typeof options === 'function' ? undefined : options)
+        try {
+            return await run(session)
+        } finally {
+            await session.endSession()
+        }
+    }
+
 
     /**
      * Its database (one, whatever its name)

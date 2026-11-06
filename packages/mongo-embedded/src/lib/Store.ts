@@ -6,6 +6,8 @@ import {type EmbeddedKeyEncoding} from './KeyEncoding.js'
 import {withCollation} from './mingo/util/_bson.js'
 import {ChangeKind, type NativeChange, type NativeDatabase, type NativeEntry, NativeError, type NativePredicate, type NativeRange} from './Native.js'
 import {type EmbeddedIndex, type EmbeddedPlannedCollection} from './Planner.js'
+import {sessionInScope} from './Session.js'
+
 import {type EmbeddedDocument, type EmbeddedValues} from './Values.js'
 
 /**
@@ -289,6 +291,10 @@ export class EmbeddedStore {
      */
     exclusive<T>(fn: () => Promise<T>, transaction?: EmbeddedStoreTransaction): Promise<T> {
         if (transaction) return this.inTransaction(transaction, fn)
+        // A write without the session in the function of the withTransaction holding the transaction would wait for its
+        // end, which the function awaits
+        if (this.open && sessionInScope()?.holds(this.open))
+            return Promise.reject(new MongoEmbeddedError('A write without the session of the transaction open, in the function of its withTransaction: it would wait for the end of the transaction, which the function holds. Give the write the session, or make it after withTransaction'))
         const run: Promise<T> = this.writing.then(fn, fn)
         this.writing = run.catch((): void => undefined)
         return run

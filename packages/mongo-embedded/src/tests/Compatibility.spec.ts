@@ -12,7 +12,15 @@ const FIXTURES: { version: string, outcomes: Record<string, unknown> } = JSON.pa
 /**
  * The groups of the scenarios done (the steps of the phase): the others are still to do
  */
-const DONE: Set<string> = new Set<string>([])
+const DONE: Set<string> = new Set<string>(['transactions'])
+
+/**
+ * The steps of the scenarios of a group done that still wait for a step not done: left out of the comparison
+ */
+const WAITING: Record<string, string[]> = {
+    //watch in a transaction: the change streams (step 4)
+    'the operations a transaction does not allow fail it': ['watch']
+}
 
 describe(`The embedded MongoDB compared with MongoDB ${FIXTURES.version}`, (): void => {
     for (const scenario of SCENARIOS) {
@@ -23,8 +31,13 @@ describe(`The embedded MongoDB compared with MongoDB ${FIXTURES.version}`, (): v
         it(`${scenario.group}: ${scenario.name}`, async (): Promise<void> => {
             const client: EmbeddedClient = await EmbeddedClient.connect()
             try {
-                const outcome: unknown = normalized(await (scenario as Scenario).run({client: client, db: client.db('compat')}))
-                assert.deepStrictEqual(outcome, FIXTURES.outcomes[scenario.name])
+                const outcome: Record<string, unknown> = normalized(await (scenario as Scenario).run({client: client, db: client.db('compat')})) as Record<string, unknown>
+                const expected: Record<string, unknown> = {...FIXTURES.outcomes[scenario.name] as Record<string, unknown>}
+                for (const step of WAITING[scenario.name] ?? []) {
+                    delete outcome[step]
+                    delete expected[step]
+                }
+                assert.deepStrictEqual(outcome, expected)
             } finally {
                 await client.close()
             }

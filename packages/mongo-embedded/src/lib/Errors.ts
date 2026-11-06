@@ -16,13 +16,68 @@ import type {EmbeddedBulkWriteResult} from './Bulk.js'
  */
 export class MongoEmbeddedError extends Error {
     /**
+     * The labels of the error, as MongoDB labels its errors (TransientTransactionError: the transaction it failed may
+     * be run again)
+     */
+    errorLabels: string[] = []
+
+    /**
      * @param message the message of the error
      */
     constructor(message: string) {
         super(message)
         Object.defineProperty(this, 'name', {value: new.target.name, configurable: true, writable: true})
     }
+
+    /**
+     * Whether the error has a label
+     * @param label the label
+     */
+    hasErrorLabel(label: string): boolean {
+        return this.errorLabels.includes(label)
+    }
 }
+
+/**
+ * The error of a call out of the order of the states of a transaction of a session (committing a transaction never
+ * started, starting one twice...), with the message of the MongoTransactionError of the client of MongoDB
+ *
+ * @example
+ * import {EmbeddedClient, EmbeddedTransactionError} from '@lakutata/mongo-embedded'
+ *
+ * const client = await EmbeddedClient.connect()
+ * const session = client.startSession()
+ * try {
+ *     await session.commitTransaction()
+ * } catch (error) {
+ *     if (error instanceof EmbeddedTransactionError) console.log(error.message) // No transaction started
+ * }
+ */
+export class EmbeddedTransactionError extends MongoEmbeddedError {
+}
+
+/**
+ * The error of an operation given a session that ended, with the message of the MongoExpiredSessionError of the client
+ * of MongoDB
+ *
+ * @example
+ * import {EmbeddedClient, EmbeddedExpiredSessionError} from '@lakutata/mongo-embedded'
+ *
+ * const client = await EmbeddedClient.connect()
+ * const session = client.startSession()
+ * await session.endSession()
+ * try {
+ *     await client.db().collection('items').findOne({}, {session: session})
+ * } catch (error) {
+ *     if (error instanceof EmbeddedExpiredSessionError) console.log(error.message) // Use of expired sessions is not permitted
+ * }
+ */
+export class EmbeddedExpiredSessionError extends MongoEmbeddedError {
+    constructor() {
+        super('Use of expired sessions is not permitted')
+    }
+}
+
 
 /**
  * The error of an operation that MongoDB refuses as well, with its code and the name of its code (IndexNotFound 27,
