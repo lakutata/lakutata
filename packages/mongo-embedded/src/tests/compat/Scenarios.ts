@@ -776,6 +776,124 @@ export const SCENARIOS: Scenario[] = [
             return result
         }
     },
+    {
+        group: 'validation',
+        name: 'the details of the validation: the values of arrays, $not, $nor and $and, the keywords of $jsonSchema together',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const cases: Record<string, [Record<string, unknown>, Record<string, unknown>]> = {
+                stringOrder: [{$jsonSchema: {properties: {s: {pattern: '^x', maxLength: 2, minLength: 5, bsonType: 'string', enum: ['q'], not: {bsonType: 'string'}}}}}, {s: 'abcd'}],
+                numberOrder: [{$jsonSchema: {properties: {v: {maximum: 5, minimum: 10, multipleOf: 3, exclusiveMaximum: true, exclusiveMinimum: true, enum: [1], allOf: [{minimum: 100}], anyOf: [{bsonType: 'string'}], oneOf: [{bsonType: 'string'}], not: {bsonType: 'int'}}}}}, {v: 7}],
+                arrayOrder: [{$jsonSchema: {properties: {a: {additionalItems: {bsonType: 'int'}, items: [{bsonType: 'string'}], uniqueItems: true, maxItems: 1, minItems: 3}}}}, {a: [1, 1]}],
+                itemsSchema: [{$jsonSchema: {properties: {a: {items: {bsonType: 'string'}}}}}, {a: ['x', 1, 2]}],
+                objectOrder: [{$jsonSchema: {properties: {o: {dependencies: {x: ['w']}, additionalProperties: false, maxProperties: 1, minProperties: 3, required: ['z'], properties: {x: {bsonType: 'string'}}, patternProperties: {'^q': {bsonType: 'string'}}}}}}, {o: {x: 1, y: 2, q: 3}}],
+                topOrder: [{$jsonSchema: {required: ['zz'], minProperties: 10, properties: {a: {bsonType: 'string'}}, title: 'T'}}, {a: 1}],
+                oneOfMany: [{$jsonSchema: {properties: {v: {oneOf: [{bsonType: 'int'}, {minimum: 0}]}}}}, {v: 7}],
+                annotations: [{$jsonSchema: {properties: {v: {bsonType: 'string', description: 'D', title: 'T'}}}}, {v: 7}],
+                schemaAndField: [{$jsonSchema: {bsonType: 'object', description: 'top', title: 'T', properties: {a: {bsonType: 'int', title: 'A'}}}, b: 1}, {a: 's', b: 2}],
+                exclusiveBounds: [{$jsonSchema: {properties: {v: {maximum: 5, exclusiveMaximum: true}, w: {minimum: 5, exclusiveMinimum: true}}}}, {v: 5, w: 5}],
+                requiredMissing: [{$jsonSchema: {required: ['a', 'b']}}, {b: 1}],
+                nestedRequired: [{$jsonSchema: {properties: {o: {required: ['x']}}}}, {o: {}}],
+                notObject: [{$jsonSchema: {properties: {o: {bsonType: 'object', properties: {x: {bsonType: 'int'}}}}}}, {o: 5}],
+                enumObject: [{$jsonSchema: {properties: {e: {enum: [{x: 1}]}}}}, {e: {x: 2}}],
+                uniqueObjects: [{$jsonSchema: {properties: {u: {uniqueItems: true}}}}, {u: [{a: 1}, {a: 2}, {a: 1}]}],
+                additionalItemsTrue: [{$jsonSchema: {properties: {p: {items: [{bsonType: 'int'}], additionalItems: true}}}}, {p: ['x', 1]}],
+                additionalItemsSchema: [{$jsonSchema: {properties: {p: {items: [{bsonType: 'int'}], additionalItems: {bsonType: 'int'}}}}}, {p: [1, 'x', 'y']}],
+                typeArray: [{t: {$type: 'string'}}, {t: [1, 2]}],
+                inArray: [{t: {$in: [5]}}, {t: [1, 2]}],
+                eqArray: [{t: 3}, {t: [1, 2]}],
+                regexArray: [{t: /x/}, {t: ['a', 'b']}],
+                existsInArrayDocuments: [{'x.y': {$exists: true}}, {x: [{z: 1}]}],
+                eqWholeArray: [{t: [1, 3]}, {t: [1, 2]}],
+                nestedArrays: [{t: {$gt: 5}}, {t: [[1], 2]}],
+                arrayPath: [{'x.y': {$gt: 1}, arr: {$elemMatch: {$gt: 5}}}, {x: [{y: 0}, {y: 1}], arr: 's'}],
+                missingParent: [{'x.y': {$gt: 1}}, {x: 3}],
+                size: [{t: {$size: 3}}, {t: [1, 2]}],
+                sizeNotArray: [{$or: [{a: {$exists: true}}, {b: {$size: 2}}]}, {b: 's'}],
+                notNested: [{a: {$not: {$gt: 0, $lt: 10}}}, {a: 5}],
+                notRegex: [{a: {$not: /x/}}, {a: 'x'}],
+                notIn: [{a: {$not: {$in: [1, 2]}}, b: {$nin: [1]}, c: {$ne: null}}, {a: 1, b: 1}],
+                norNot: [{$nor: [{a: {$not: {$gt: 0}}}]}, {a: -1}],
+                andExplicit: [{$and: [{a: 1}, {b: 2}], c: 3}, {a: 1, b: 3, c: 4}],
+                andAlone: [{$and: [{a: 1}, {b: 2}]}, {a: 1, b: 3}],
+                andNested: [{$and: [{a: {$gt: 1, $lt: 0}}]}, {a: 1}],
+                elemMatchDocument: [{a: {$elemMatch: {b: 1}}}, {a: [{b: 2}]}],
+                comment: [{a: 1, $comment: 'c'}, {a: 2}],
+                bits: [{a: {$bitsAnySet: [1]}}, {a: 1}],
+                modArray: [{a: {$mod: [2, 1]}}, {a: [2, 4]}],
+                neArray: [{a: {$ne: 2}}, {a: [1, 2]}],
+                ninMissing: [{a: {$nin: [1]}, b: {$in: [null]}}, {a: 1}],
+                existsFalseArray: [{a: {$exists: false}}, {a: [1]}],
+                typeAliases: [{a: {$type: 'number'}, b: {$type: 2}}, {a: 's', b: 1}],
+                exprAndAll: [{$expr: {$eq: ['$a', 1]}, b: {$all: [1]}}, {a: 2}]
+            }
+            let created: number = 0
+            for (const [name, [validator, document]] of Object.entries(cases)) {
+                const collection: string = `c${created++}`
+                await db.createCollection(collection, {validator: validator})
+                result[name] = await outcome((): unknown => db.collection(collection).insertOne({_id: 1, ...document}))
+            }
+            return result
+        }
+    },
+    {
+        group: 'validation',
+        name: 'the writes validated, bypassDocumentValidation, the options of the validation and the validators refused',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const listed = async (name: string): Promise<unknown> => (await db.listCollections({name: name}).toArray())[0]?.options
+            await db.createCollection('v1', {validator: {a: 1}})
+            await db.createCollection('v2', {validationLevel: 'moderate'})
+            await db.createCollection('v3', {validator: {a: 1}, validationLevel: 'strict', validationAction: 'error'})
+            await db.createCollection('v4')
+            await db.command({collMod: 'v4', validator: {a: 1}})
+            await db.createCollection('v5')
+            await db.command({collMod: 'v5', validationAction: 'warn'})
+            result.listedAction = await listed('v5')
+            await db.command({collMod: 'v5', validator: {}})
+            await db.command({collMod: 'v1', validator: {}})
+            await db.createCollection('v6', {validator: {}})
+            for (const name of ['v1', 'v2', 'v3', 'v4', 'v5', 'v6']) result[`listed ${name}`] = await listed(name)
+            await db.createCollection('c', {validator: {a: {$gt: 5}, t: {$type: 'string'}}})
+            const c: any = db.collection('c')
+            await c.insertOne({_id: 3, a: 9, t: 's'})
+            const steps: Record<string, () => unknown> = {
+                nestedArrayAllowed: (): unknown => c.insertOne({_id: 2, a: 9, t: ['x', 1]}),
+                replaceOne: (): unknown => c.replaceOne({_id: 3}, {a: 1, t: 's'}),
+                upsert: (): unknown => c.updateOne({_id: 4}, {$set: {a: 1}}, {upsert: true}),
+                findOneAndUpdate: (): unknown => c.findOneAndUpdate({_id: 3}, {$set: {a: 0}}),
+                bulkWrite: (): unknown => c.bulkWrite([{insertOne: {document: {_id: 5, a: 9, t: 's'}}}, {insertOne: {document: {_id: 6, a: 1}}}, {updateOne: {filter: {_id: 3}, update: {$set: {a: 2}}}}], {ordered: false}),
+                insertMany: (): unknown => c.insertMany([{_id: 7, a: 1}, {_id: 8, a: 9, t: 's'}, {_id: 9}], {ordered: false}),
+                insertManyBypass: (): unknown => c.insertMany([{_id: 10}], {bypassDocumentValidation: true}),
+                bulkWriteBypass: (): unknown => c.bulkWrite([{insertOne: {document: {_id: 11}}}], {bypassDocumentValidation: true}),
+                findOneAndUpdateBypass: (): unknown => c.findOneAndUpdate({_id: 3}, {$set: {a: 0}}, {bypassDocumentValidation: true}),
+                merge: async (): Promise<unknown> => {
+                    await db.collection('src').insertMany([{_id: 20, a: 1}])
+                    return db.collection('src').aggregate([{$merge: 'c'}]).toArray()
+                },
+                mergeBypass: (): unknown => db.collection('src').aggregate([{$merge: 'c'}], {bypassDocumentValidation: true}).toArray(),
+                out: (): unknown => db.collection('src').aggregate([{$out: 'c'}]).toArray(),
+                listedAfterOut: (): unknown => listed('c'),
+                count: (): unknown => c.countDocuments()
+            }
+            for (const [name, step] of Object.entries(steps)) result[name] = await outcome(step)
+            const refused: Record<string, () => unknown> = {
+                text: (): unknown => db.createCollection('t1', {validator: {$text: {$search: 'x'}}}),
+                unknownOperator: (): unknown => db.createCollection('t2', {validator: {a: {$foo: 1}}}),
+                function: (): unknown => db.createCollection('t4', {validator: {$expr: {$function: {body: 'function(){return true}', args: [], lang: 'js'}}}}),
+                whereNested: (): unknown => db.createCollection('t5', {validator: {$and: [{$where: 'true'}]}}),
+                collModWhere: (): unknown => db.command({collMod: 'v4', validator: {$where: 'true'}}),
+                collModLevel: (): unknown => db.command({collMod: 'v4', validationLevel: 'x'}),
+                integer: (): unknown => db.createCollection('t6', {validator: {$jsonSchema: {type: 'integer'}}}),
+                exclusiveMinimumAlone: (): unknown => db.createCollection('t7', {validator: {$jsonSchema: {exclusiveMinimum: true}}})
+            }
+            for (const [name, step] of Object.entries(refused)) result[`refused ${name}`] = await outcome(async (): Promise<unknown> => {
+                await step()
+                return 'accepted'
+            })
+            return result
+        }
+    },
     //Views
     {
         group: 'views',

@@ -106,6 +106,32 @@ export class EmbeddedOperationError extends MongoEmbeddedError {
 }
 
 /**
+ * The error of a document failing the validation of its collection, as MongoDB fails it (DocumentValidationFailure,
+ * 121): errInfo tells the _id of the document (failingDocumentId) and why it fails (details, as MongoDB 8.0 tells it)
+ *
+ * @example
+ * import {EmbeddedClient, EmbeddedValidationError} from '@lakutata/mongo-embedded'
+ *
+ * const client = await EmbeddedClient.connect()
+ * const db = client.db()
+ * await db.createCollection('people', {validator: {age: {$gte: 0}}})
+ * try {
+ *     await db.collection('people').insertOne({age: -1})
+ * } catch (error) {
+ *     if (error instanceof EmbeddedValidationError) console.log(error.errInfo.details)
+ * }
+ * await client.close()
+ */
+export class EmbeddedValidationError extends EmbeddedOperationError {
+    /**
+     * @param errInfo the _id of the document (failingDocumentId) and the details of its failure
+     */
+    constructor(readonly errInfo: { failingDocumentId: unknown, details: Record<string, unknown> }) {
+        super(121, 'DocumentValidationFailure', 'Document failed validation')
+    }
+}
+
+/**
  * The error of a write concern that the database, a replica set of one member, cannot satisfy, as MongoDB fails it
  * once the write is made (the MongoWriteConcernError of the client of MongoDB): more members than one
  * (UnsatisfiableWriteConcern, 100), a mode of tags (UnknownReplWriteConcern, 79); errInfo tells the write concern, result
@@ -199,6 +225,11 @@ export interface EmbeddedWriteError {
      * The fields of its key
      */
     keyValue?: Record<string, any>
+
+    /**
+     * Why its document failed the validation of the collection (EmbeddedValidationError)
+     */
+    errInfo?: Record<string, any>
 
     /**
      * The operation failing, in a bulkWrite

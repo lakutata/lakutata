@@ -179,7 +179,7 @@ describe('The aggregations', (): void => {
         assert.strictEqual(scans, 0)
         ;(client.store as any).scan = scan
         //After a $group, and with the variables of let
-        const grouped: Record<string, any>[] = await db.collection('locals').aggregate([{$match: {ref: {$type: 'number'}}}, {$group: {_id: '$ref', count: {$sum: 1}}}, {$lookup: {from: 'foreigns', localField: '_id', foreignField: '_id', as: 'joined'}}, {$sort: {_id: 1}}, {$limit: 2}]).toArray()
+        const grouped: Record<string, any>[] = await db.collection('locals').aggregate([{$match: {$expr: {$isNumber: '$ref'}}}, {$group: {_id: '$ref', count: {$sum: 1}}}, {$lookup: {from: 'foreigns', localField: '_id', foreignField: '_id', as: 'joined'}}, {$sort: {_id: 1}}, {$limit: 2}]).toArray()
         assert.deepStrictEqual(grouped.map((group: Record<string, any>): unknown => [group._id, group.joined.map((document: Record<string, any>): number => document._id)]), [[0, [0]], [1, [1]]])
         assert.deepStrictEqual(await db.collection('locals').aggregate([{$match: {$expr: {$lt: ['$_id', '$$limit']}}}, {$project: {_id: 1}}], {let: {limit: 2}}).toArray(), [{_id: 0}, {_id: 1}])
         await client.close()

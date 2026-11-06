@@ -324,16 +324,19 @@ function compareType(a: Any, b: ConversionType, _?: Options): boolean {
 }
 
 /**
- * Selects documents if a field is of the specified type.
+ * Selects documents if a field is of the specified type: an array, also when one of its items is (as MongoDB matches
+ * them).
  */
 export function $type(
   a: Any,
   b: ConversionType | ConversionType[],
   options?: Options
 ): boolean {
-  return isArray(b)
-    ? b.findIndex(t => compareType(a, t, options)) >= 0
-    : compareType(a, b, options)
+  const matches = (value: Any) =>
+    isArray(b)
+      ? b.findIndex(t => compareType(value, t, options)) >= 0
+      : compareType(value, b, options)
+  return matches(a) || (isArray(a) && (a as Any[]).some(matches))
 }
 
 /**

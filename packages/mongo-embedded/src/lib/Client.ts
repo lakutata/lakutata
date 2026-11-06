@@ -18,11 +18,13 @@ import {
     EmbeddedBulkWriteError,
     EmbeddedDuplicateKeyError,
     EmbeddedOperationError,
+    EmbeddedValidationError,
     type EmbeddedWriteConcernError,
     type EmbeddedWriteError,
     MongoEmbeddedError
 } from './Errors.js'
-import { UNORDERED_TAGS } from './KeyEncoding.js'
+import { type EmbeddedKeyEncoding, UNORDERED_TAGS } from './KeyEncoding.js'
+import { bypassingValidation, EmbeddedValidator } from './Validation.js'
 import type { NativeRange } from './Native.js'
 import {
     type EmbeddedIndex,
@@ -360,7 +362,7 @@ function noCounts(): EmbeddedBulkWriteCounts {
  *
  * @param options
  */
-function collectionOptionsOf(options?: EmbeddedDocument): EmbeddedDocument {
+function collectionOptionsOf(options: EmbeddedDocument | undefined, keys: EmbeddedKeyEncoding): EmbeddedDocument {
     const kept: EmbeddedDocument = {}
     for (const option of Object.keys(options ?? {}))
         if (options![option] !== undefined && !CREATE_OPTIONS.has(option))
@@ -385,6 +387,14 @@ function collectionOptionsOf(options?: EmbeddedDocument): EmbeddedDocument {
         kept.size = cappedSize('size', cappedNumber('create.size', options!.size, '[long, double, int, decimal]'))
         if (options!.max !== undefined) kept.max = cappedMax('max', cappedNumber('create.max', options!.max, '[long, double, int, decimal]'))
     }
+    // Its validation: the validator (none for {}), its level and its action when they are given
+    if (options?.validator !== undefined) {
+        EmbeddedValidator.check(options.validator, keys, 'create.validator')
+        if (Object.keys(options.validator).length) kept.validator = options.validator
+    }
+    EmbeddedValidator.checkModes('create', options?.validationLevel, options?.validationAction)
+    if (options?.validationLevel !== undefined) kept.validationLevel = options.validationLevel
+    if (options?.validationAction !== undefined) kept.validationAction = options.validationAction
     for (const option of ['storageEngine', 'indexOptionDefaults']) {
         const value = options?.[option]
         if (value === undefined) continue
@@ -457,9 +467,6 @@ const COLLECTION_OPTIONS = [
     'expireAfterSeconds',
     'viewOn',
     'pipeline',
-    'validator',
-    'validationLevel',
-    'validationAction',
     'clusteredIndex',
     'encryptedFields'
 ]
@@ -488,9 +495,6 @@ const MODIFY_FIELDS = new Set([
     'cappedMax'
 ])
 const MODIFY_LATER = [
-    'validator',
-    'validationLevel',
-    'validationAction',
     'viewOn',
     'pipeline',
     'expireAfterSeconds',
@@ -557,6 +561,9 @@ const CREATE_OPTIONS = new Set([
     'capped',
     'size',
     'max',
+    'validator',
+    'validationLevel',
+    'validationAction',
     ...COLLECTION_OPTIONS
 ])
 
@@ -1792,7 +1799,7 @@ export class EmbeddedCollection {
         return writeByConcern(
             this.store,
             this.transaction ? undefined : writeConcernOf(options, this.writeConcern),
-            write,
+            () => bypassingValidation(options?.bypassDocumentValidation, write),
             unacknowledgedResult,
             bulk
         )
@@ -1978,12 +1985,15 @@ export class EmbeddedCollection {
      */
     aggregate(pipeline: EmbeddedDocument[], options?: EmbeddedDocument) {
         // The collation compares the strings of every stage (withCollation), not given to mingo
-        const { hint, let: variables, collation, maxTimeMS, session, ...rest } = options ?? {}
+        const { hint, let: variables, collation, maxTimeMS, session, bypassDocumentValidation, ...rest } = options ?? {}
         const aggregation: EmbeddedDocument =
             variables === undefined ? rest : { ...rest, variables: variables }
+        // The writes of its $out and its $merge validated unless bypassDocumentValidation
         const cursor = new EmbeddedArrayCursor((time) =>
             this.inSession(session, (collection) =>
-                collection.aggregation(pipeline, aggregation, hint, collation, time)
+                bypassingValidation(bypassDocumentValidation, () =>
+                    collection.aggregation(pipeline, aggregation, hint, collation, time)
+                )
             )
         )
         if (maxTimeMS) cursor.maxTimeMS(maxTimeMS)
@@ -2237,6 +2247,9 @@ export class EmbeddedCollection {
                 .catch(() => undefined)
             const [writeError] =
                 error instanceof EmbeddedBulkWriteError ? error.writeErrors : []
+            // A document failing the validation of the collection: its details, as MongoDB tells them
+            if (writeError?.code === 121 && writeError.errInfo)
+                throw new EmbeddedValidationError(writeError.errInfo as EmbeddedValidationError['errInfo'])
             throw writeError
                 ? new EmbeddedOperationError(
                       writeError.code,
@@ -2843,6 +2856,7 @@ export class EmbeddedCollection {
         const max = command.cappedMax === undefined
             ? undefined
             : cappedMax('cappedMax', cappedNumber('collMod.cappedMax', command.cappedMax, '[double, int, decimal, long]'))
+        EmbeddedValidator.checkModes('collMod', command.validationLevel, command.validationAction)
         const images = command.changeStreamPreAndPostImages
         if (images !== undefined) {
             if (!isPlain(images))
@@ -2943,6 +2957,27 @@ export class EmbeddedCollection {
                     ...collection.options,
                     ...(size !== undefined ? { size: size } : {}),
                     ...(max !== undefined ? { max: max } : {})
+                })
+            }
+            // Its validation: the validator (none for {}), its level and its action, both kept from then on (strict and
+            // error unless given), as MongoDB 8.0 keeps them
+            if (command.validator !== undefined || command.validationLevel !== undefined || command.validationAction !== undefined) {
+                if (command.validator !== undefined)
+                    try {
+                        EmbeddedValidator.check(command.validator, this.values.keys, 'collMod.validator')
+                    } catch (error) {
+                        if (!(error instanceof EmbeddedOperationError) || error.code === 14) throw error
+                        throw new EmbeddedOperationError(error.code, error.codeName, `Parsing of collection validator failed :: caused by :: ${error.message}`)
+                    }
+                for (const field of ['validator', 'validationLevel', 'validationAction'])
+                    if (command[field] !== undefined) description[field] = command[field]
+                const { validator, validationLevel, validationAction, ...rest } = options ?? collection.options
+                const next = command.validator === undefined ? validator : Object.keys(command.validator).length ? command.validator : undefined
+                options = orderedOptions({
+                    ...rest,
+                    ...(next ? { validator: next } : {}),
+                    validationLevel: command.validationLevel ?? validationLevel ?? 'strict',
+                    validationAction: command.validationAction ?? validationAction ?? 'error'
                 })
             }
             if (images !== undefined) {
@@ -3300,6 +3335,7 @@ export class EmbeddedCollection {
                     ...(error instanceof EmbeddedDuplicateKeyError
                         ? { keyValue: error.keyValue }
                         : {}),
+                    ...(error instanceof EmbeddedValidationError ? { errInfo: error.errInfo } : {}),
                     op: statementOf(kind, args)
                 })
             }
@@ -4393,6 +4429,7 @@ export class EmbeddedCollection {
                         ...(error instanceof EmbeddedDuplicateKeyError
                             ? { keyValue: error.keyValue }
                             : {}),
+                        ...(error instanceof EmbeddedValidationError ? { errInfo: error.errInfo } : {}),
                         op: batch[positions[failing]]
                     })
                     if (ordered) return inserted
@@ -4774,7 +4811,7 @@ export class EmbeddedDb {
         options?: EmbeddedDocument
     ): Promise<EmbeddedCollection> {
         checkName(name)
-        const kept = collectionOptionsOf(options)
+        const kept = collectionOptionsOf(options, this.store.values.keys)
         return this.inSession(options, undefined, (transaction) =>
             writeByConcern(
                 this.store,

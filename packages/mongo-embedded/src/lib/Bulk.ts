@@ -217,10 +217,17 @@ export class EmbeddedBulkWriteResult implements EmbeddedBulkWriteCounts {
     readonly upsertedIds: Record<number, any>
 
     /**
+     * The errors of the operations failing
+     */
+    declare private readonly writeErrors: EmbeddedWriteError[]
+
+    /**
      * @param counts its counts and _id
      * @param writeErrors the errors of the operations failing
      */
-    constructor(counts: EmbeddedBulkWriteCounts, private readonly writeErrors: EmbeddedWriteError[] = []) {
+    constructor(counts: EmbeddedBulkWriteCounts, writeErrors: EmbeddedWriteError[] = []) {
+        // Not a field of the result (its methods tell them), as in the result of MongoDB
+        Object.defineProperty(this, 'writeErrors', {value: writeErrors, enumerable: false})
         this.insertedCount = counts.insertedCount
         this.matchedCount = counts.matchedCount
         this.modifiedCount = counts.modifiedCount

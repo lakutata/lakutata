@@ -1,6 +1,6 @@
 export {EmbeddedClient, type EmbeddedClientOptions, type EmbeddedDb, type EmbeddedCollection, type EmbeddedFindCursor, type EmbeddedArrayCursor, type EmbeddedHint} from '../lib/Client.js'
 export {EmbeddedBulkWriteResult, type EmbeddedBulkOperation, type EmbeddedFindOperators, type EmbeddedBulkWriteOperation, type EmbeddedBulkWriteCounts} from '../lib/Bulk.js'
-export {MongoEmbeddedError, EmbeddedOperationError, EmbeddedDuplicateKeyError, EmbeddedBulkWriteError, EmbeddedTransactionError, EmbeddedExpiredSessionError, EmbeddedWriteConcernError, type EmbeddedWriteError} from '../lib/Errors.js'
+export {MongoEmbeddedError, EmbeddedOperationError, EmbeddedDuplicateKeyError, EmbeddedValidationError, EmbeddedBulkWriteError, EmbeddedTransactionError, EmbeddedExpiredSessionError, EmbeddedWriteConcernError, type EmbeddedWriteError} from '../lib/Errors.js'
 export {type EmbeddedWriteConcern} from '../lib/WriteConcern.js'
 export {EmbeddedChangeStream, type EmbeddedChangeStreamOptions} from '../lib/ChangeStream.js'
 export {EmbeddedClientSession, type EmbeddedSessionOptions, type EmbeddedTransactionOptions, type EmbeddedTransactionState} from '../lib/Session.js'

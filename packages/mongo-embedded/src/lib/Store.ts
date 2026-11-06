@@ -2,7 +2,8 @@ import {randomBytes} from 'node:crypto'
 import {mkdirSync, readdirSync} from 'node:fs'
 import {addon} from './Addon.js'
 import {collatorOf, type EmbeddedCollator} from './Collation.js'
-import {EmbeddedDuplicateKeyError, EmbeddedOperationError, MongoEmbeddedError} from './Errors.js'
+import {EmbeddedDuplicateKeyError, EmbeddedOperationError, EmbeddedValidationError, MongoEmbeddedError} from './Errors.js'
+import {type EmbeddedValidation, EmbeddedValidator, validationBypassed} from './Validation.js'
 import {type EmbeddedUpdateDescription} from './Events.js'
 import {type EmbeddedKeyEncoding} from './KeyEncoding.js'
 import {withCollation} from './mingo/util/_bson.js'
@@ -212,6 +213,11 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
     protected identity?: EmbeddedIndex
 
     /**
+     * Its validation, compiled from its options once
+     */
+    protected compiledValidation?: { options: EmbeddedDocument, validation?: EmbeddedValidation }
+
+    /**
      * The collators of the indexes with a collation, by their definitions
      */
     protected readonly collators: WeakMap<EmbeddedIndex, EmbeddedCollator | undefined> = new WeakMap<EmbeddedIndex, EmbeddedCollator | undefined>()
@@ -246,6 +252,22 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
      */
     get capped(): boolean {
         return this.options.capped === true
+    }
+
+    /**
+     * Its validation (its options validator, validationLevel, validationAction), when it validates its documents
+     */
+    get validation(): EmbeddedValidation | undefined {
+        if (this.compiledValidation?.options !== this.options) {
+            const level: string = this.options.validationLevel ?? 'strict'
+            this.compiledValidation = {
+                options: this.options,
+                validation: this.options.validator && level !== 'off'
+                    ? {validator: new EmbeddedValidator(this.options.validator, this.encoding, this.collator), level: level, action: this.options.validationAction ?? 'error'}
+                    : undefined
+            }
+        }
+        return this.compiledValidation.validation
     }
 
     /**
@@ -628,6 +650,7 @@ export class EmbeddedStore {
         if (!changes.length) return
         if (this.open && !this.transacting) throw new MongoEmbeddedError('A write outside the transaction open, which it does not wait for')
         const collection: EmbeddedCollectionState | undefined = this.collections.get(name)
+        if (collection) this.validate(collection, changes)
         // A capped collection: not written in a transaction (as MongoDB 8.0), its oldest documents deleted beyond its size
         if (collection?.capped && this.open)
             throw new EmbeddedOperationError(263, 'OperationNotSupportedInTransaction', `Collection '${name}' is a capped collection. Writes in transactions are not allowed on capped collections.`)
@@ -696,6 +719,24 @@ export class EmbeddedStore {
         if (collection) for (const index of multikey) collection.multikey.add(index)
         if (created && !this.collections.has(name)) this.collections.set(name, created)
         this.written([...creationEvents, ...events])
+    }
+
+    /**
+     * The documents of changes checked by the validation of their collection (unless the writes leave it out:
+     * bypassDocumentValidation), as MongoDB 8.0 checks them: the ones inserted, the ones replacing a document (moderate:
+     * a valid one only); a document failing it fails the write (DocumentValidationFailure, 121, its details in errInfo),
+     * changeIndex its change, unless the action of the validation is warn
+     * @param collection
+     * @param changes
+     */
+    protected validate(collection: EmbeddedCollectionState, changes: EmbeddedChange[]): void {
+        const validation: EmbeddedValidation | undefined = collection.validation
+        if (!validation || validation.action === 'warn' || validationBypassed()) return
+        changes.forEach((change: EmbeddedChange, position: number): void => {
+            if (!change.next || validation.validator.test(change.next)) return
+            if (validation.level === 'moderate' && change.previous && !validation.validator.test(change.previous)) return
+            throw Object.assign(new EmbeddedValidationError({failingDocumentId: change.next._id, details: validation.validator.details(change.next)}), {changeIndex: position})
+        })
     }
 
     /**

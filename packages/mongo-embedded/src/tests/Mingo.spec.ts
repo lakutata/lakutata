@@ -49,8 +49,10 @@ describe('The queries (mingo, compared as MongoDB compares)', (): void => {
         }
         const documents: Record<string, unknown>[] = Object.entries(values).map(([type, value]: [string, unknown]): Record<string, unknown> => ({type: type, v: value}))
         const typed = (type: unknown): string[] => mingo.find(documents, {v: {$type: type}}).all().map((document: Record<string, unknown>): string => document.type as string)
-        for (const type of Object.keys(values)) assert.deepStrictEqual(typed(type), type === 'array' ? ['array'] : [type], type)
-        assert.deepStrictEqual(typed('number'), ['double', 'int', 'long', 'decimal'])
+        //An array also by the types of its items (the array [1] is an int too)
+        for (const type of Object.keys(values)) assert.deepStrictEqual(typed(type), type === 'int' ? ['int', 'array'] : [type], type)
+        assert.deepStrictEqual(typed('number'), ['double', 'int', 'long', 'decimal', 'array'])
+        assert.deepStrictEqual(mingo.find([{v: ['a', 1]}, {v: [[1]]}, {v: []}], {v: {$type: 'string'}}).all(), [{v: ['a', 1]}])
         assert.deepStrictEqual(typed(2 ** 40 > 0 ? 18 : 0), ['long'])
         assert.deepStrictEqual(mingo.find([{v: 2 ** 40}], {v: {$type: 'double'}}).all().length, 1)
         assert.deepStrictEqual([7, 5, 17, -1, 127].map((code: number): string[] => typed(code)), [['objectId'], ['binData'], ['timestamp'], ['minKey'], ['maxKey']])

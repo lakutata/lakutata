@@ -5369,6 +5369,2086 @@
     }
    ]
   },
+  "the details of the validation: the values of arrays, $not, $nor and $and, the keywords of $jsonSchema together": {
+   "stringOrder": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "s",
+           "details": [
+            {
+             "operatorName": "pattern",
+             "specifiedAs": {
+              "pattern": "^x"
+             },
+             "reason": "regular expression did not match",
+             "consideredValue": "abcd"
+            },
+            {
+             "operatorName": "maxLength",
+             "specifiedAs": {
+              "maxLength": 2
+             },
+             "reason": "specified string length was not satisfied",
+             "consideredValue": "abcd"
+            },
+            {
+             "operatorName": "minLength",
+             "specifiedAs": {
+              "minLength": 5
+             },
+             "reason": "specified string length was not satisfied",
+             "consideredValue": "abcd"
+            },
+            {
+             "operatorName": "not",
+             "reason": "child expression matched"
+            },
+            {
+             "operatorName": "enum",
+             "specifiedAs": {
+              "enum": [
+               "q"
+              ]
+             },
+             "reason": "value was not found in enum",
+             "consideredValue": "abcd"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "numberOrder": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "v",
+           "details": [
+            {
+             "operatorName": "multipleOf",
+             "specifiedAs": {
+              "multipleOf": 3
+             },
+             "reason": "considered value is not a multiple of the specified value",
+             "consideredValue": 7
+            },
+            {
+             "operatorName": "maximum",
+             "specifiedAs": {
+              "maximum": 5,
+              "exclusiveMaximum": true
+             },
+             "reason": "comparison failed",
+             "consideredValue": 7
+            },
+            {
+             "operatorName": "minimum",
+             "specifiedAs": {
+              "minimum": 10,
+              "exclusiveMinimum": true
+             },
+             "reason": "comparison failed",
+             "consideredValue": 7
+            },
+            {
+             "operatorName": "allOf",
+             "schemasNotSatisfied": [
+              {
+               "index": 0,
+               "details": [
+                {
+                 "operatorName": "minimum",
+                 "specifiedAs": {
+                  "minimum": 100
+                 },
+                 "reason": "comparison failed",
+                 "consideredValue": 7
+                }
+               ]
+              }
+             ]
+            },
+            {
+             "operatorName": "anyOf",
+             "schemasNotSatisfied": [
+              {
+               "index": 0,
+               "details": [
+                {
+                 "operatorName": "bsonType",
+                 "specifiedAs": {
+                  "bsonType": "string"
+                 },
+                 "reason": "type did not match",
+                 "consideredValue": 7,
+                 "consideredType": "int"
+                }
+               ]
+              }
+             ]
+            },
+            {
+             "operatorName": "oneOf",
+             "schemasNotSatisfied": [
+              {
+               "index": 0,
+               "details": [
+                {
+                 "operatorName": "bsonType",
+                 "specifiedAs": {
+                  "bsonType": "string"
+                 },
+                 "reason": "type did not match",
+                 "consideredValue": 7,
+                 "consideredType": "int"
+                }
+               ]
+              }
+             ]
+            },
+            {
+             "operatorName": "not",
+             "reason": "child expression matched"
+            },
+            {
+             "operatorName": "enum",
+             "specifiedAs": {
+              "enum": [
+               1
+              ]
+             },
+             "reason": "value was not found in enum",
+             "consideredValue": 7
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "arrayOrder": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "a",
+           "details": [
+            {
+             "operatorName": "minItems",
+             "specifiedAs": {
+              "minItems": 3
+             },
+             "reason": "array did not match specified length",
+             "consideredValue": [
+              1,
+              1
+             ],
+             "numberOfItems": 2
+            },
+            {
+             "operatorName": "maxItems",
+             "specifiedAs": {
+              "maxItems": 1
+             },
+             "reason": "array did not match specified length",
+             "consideredValue": [
+              1,
+              1
+             ],
+             "numberOfItems": 2
+            },
+            {
+             "operatorName": "uniqueItems",
+             "specifiedAs": {
+              "uniqueItems": true
+             },
+             "reason": "found a duplicate item",
+             "consideredValue": [
+              1,
+              1
+             ],
+             "duplicatedValue": 1
+            },
+            {
+             "operatorName": "items",
+             "details": [
+              {
+               "itemIndex": 0,
+               "details": [
+                {
+                 "operatorName": "bsonType",
+                 "specifiedAs": {
+                  "bsonType": "string"
+                 },
+                 "reason": "type did not match",
+                 "consideredValue": 1,
+                 "consideredType": "int"
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "itemsSchema": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "a",
+           "details": [
+            {
+             "operatorName": "items",
+             "reason": "At least one item did not match the sub-schema",
+             "itemIndex": 1,
+             "details": [
+              {
+               "operatorName": "bsonType",
+               "specifiedAs": {
+                "bsonType": "string"
+               },
+               "reason": "type did not match",
+               "consideredValue": 1,
+               "consideredType": "int"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "objectOrder": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "o",
+           "details": [
+            {
+             "operatorName": "properties",
+             "propertiesNotSatisfied": [
+              {
+               "propertyName": "x",
+               "details": [
+                {
+                 "operatorName": "bsonType",
+                 "specifiedAs": {
+                  "bsonType": "string"
+                 },
+                 "reason": "type did not match",
+                 "consideredValue": 1,
+                 "consideredType": "int"
+                }
+               ]
+              }
+             ]
+            },
+            {
+             "operatorName": "additionalProperties",
+             "specifiedAs": {
+              "additionalProperties": false
+             },
+             "additionalProperties": [
+              "y"
+             ]
+            },
+            {
+             "operatorName": "patternProperties",
+             "details": [
+              {
+               "propertyName": "q",
+               "regexMatched": "^q",
+               "details": [
+                {
+                 "operatorName": "bsonType",
+                 "specifiedAs": {
+                  "bsonType": "string"
+                 },
+                 "reason": "type did not match",
+                 "consideredValue": 3,
+                 "consideredType": "int"
+                }
+               ]
+              }
+             ]
+            },
+            {
+             "operatorName": "required",
+             "specifiedAs": {
+              "required": [
+               "z"
+              ]
+             },
+             "missingProperties": [
+              "z"
+             ]
+            },
+            {
+             "operatorName": "maxProperties",
+             "specifiedAs": {
+              "maxProperties": 1
+             },
+             "reason": "specified number of properties was not satisfied",
+             "numberOfProperties": 3
+            },
+            {
+             "operatorName": "dependencies",
+             "failingDependencies": [
+              {
+               "conditionalProperty": "x",
+               "missingProperties": [
+                "w"
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "topOrder": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "title": "T",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "a",
+           "details": [
+            {
+             "operatorName": "bsonType",
+             "specifiedAs": {
+              "bsonType": "string"
+             },
+             "reason": "type did not match",
+             "consideredValue": 1,
+             "consideredType": "int"
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "operatorName": "required",
+         "specifiedAs": {
+          "required": [
+           "zz"
+          ]
+         },
+         "missingProperties": [
+          "zz"
+         ]
+        },
+        {
+         "operatorName": "minProperties",
+         "specifiedAs": {
+          "minProperties": 10
+         },
+         "reason": "specified number of properties was not satisfied",
+         "numberOfProperties": 2
+        }
+       ]
+      }
+     }
+    }
+   },
+   "oneOfMany": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "v",
+           "details": [
+            {
+             "operatorName": "oneOf",
+             "reason": "more than one subschema matched",
+             "matchingSchemaIndexes": [
+              0,
+              1
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "annotations": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "v",
+           "title": "T",
+           "description": "D",
+           "details": [
+            {
+             "operatorName": "bsonType",
+             "specifiedAs": {
+              "bsonType": "string"
+             },
+             "reason": "type did not match",
+             "consideredValue": 7,
+             "consideredType": "int"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "schemaAndField": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "title": "T",
+         "description": "top",
+         "details": {
+          "operatorName": "$jsonSchema",
+          "title": "T",
+          "description": "top",
+          "schemaRulesNotSatisfied": [
+           {
+            "operatorName": "properties",
+            "propertiesNotSatisfied": [
+             {
+              "propertyName": "a",
+              "title": "A",
+              "details": [
+               {
+                "operatorName": "bsonType",
+                "specifiedAs": {
+                 "bsonType": "int"
+                },
+                "reason": "type did not match",
+                "consideredValue": "s",
+                "consideredType": "string"
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$eq",
+          "specifiedAs": {
+           "b": 1
+          },
+          "reason": "comparison failed",
+          "consideredValue": 2
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "exclusiveBounds": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "v",
+           "details": [
+            {
+             "operatorName": "maximum",
+             "specifiedAs": {
+              "maximum": 5,
+              "exclusiveMaximum": true
+             },
+             "reason": "comparison failed",
+             "consideredValue": 5
+            }
+           ]
+          },
+          {
+           "propertyName": "w",
+           "details": [
+            {
+             "operatorName": "minimum",
+             "specifiedAs": {
+              "minimum": 5,
+              "exclusiveMinimum": true
+             },
+             "reason": "comparison failed",
+             "consideredValue": 5
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "requiredMissing": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "required",
+         "specifiedAs": {
+          "required": [
+           "a",
+           "b"
+          ]
+         },
+         "missingProperties": [
+          "a"
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "nestedRequired": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "o",
+           "details": [
+            {
+             "operatorName": "required",
+             "specifiedAs": {
+              "required": [
+               "x"
+              ]
+             },
+             "missingProperties": [
+              "x"
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "notObject": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "o",
+           "details": [
+            {
+             "operatorName": "bsonType",
+             "specifiedAs": {
+              "bsonType": "object"
+             },
+             "reason": "type did not match",
+             "consideredValue": 5,
+             "consideredType": "int"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "enumObject": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "e",
+           "details": [
+            {
+             "operatorName": "enum",
+             "specifiedAs": {
+              "enum": [
+               {
+                "x": 1
+               }
+              ]
+             },
+             "reason": "value was not found in enum",
+             "consideredValue": {
+              "x": 2
+             }
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "uniqueObjects": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "u",
+           "details": [
+            {
+             "operatorName": "uniqueItems",
+             "specifiedAs": {
+              "uniqueItems": true
+             },
+             "reason": "found a duplicate item",
+             "consideredValue": [
+              {
+               "a": 1
+              },
+              {
+               "a": 2
+              },
+              {
+               "a": 1
+              }
+             ],
+             "duplicatedValue": {
+              "a": 1
+             }
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "additionalItemsTrue": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "p",
+           "details": [
+            {
+             "operatorName": "items",
+             "details": [
+              {
+               "itemIndex": 0,
+               "details": [
+                {
+                 "operatorName": "bsonType",
+                 "specifiedAs": {
+                  "bsonType": "int"
+                 },
+                 "reason": "type did not match",
+                 "consideredValue": "x",
+                 "consideredType": "string"
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "additionalItemsSchema": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$jsonSchema",
+       "schemaRulesNotSatisfied": [
+        {
+         "operatorName": "properties",
+         "propertiesNotSatisfied": [
+          {
+           "propertyName": "p",
+           "details": [
+            {
+             "operatorName": "additionalItems",
+             "reason": "At least one additional item did not match the sub-schema",
+             "itemIndex": 1,
+             "details": [
+              {
+               "operatorName": "bsonType",
+               "specifiedAs": {
+                "bsonType": "int"
+               },
+               "reason": "type did not match",
+               "consideredValue": "x",
+               "consideredType": "string"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     }
+    }
+   },
+   "typeArray": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$type",
+       "specifiedAs": {
+        "t": {
+         "$type": "string"
+        }
+       },
+       "reason": "type did not match",
+       "consideredValues": [
+        1,
+        2
+       ],
+       "consideredType": "int"
+      }
+     }
+    }
+   },
+   "inArray": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$in",
+       "specifiedAs": {
+        "t": {
+         "$in": [
+          5
+         ]
+        }
+       },
+       "reason": "no matching value found in array",
+       "consideredValues": [
+        1,
+        2
+       ]
+      }
+     }
+    }
+   },
+   "eqArray": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$eq",
+       "specifiedAs": {
+        "t": 3
+       },
+       "reason": "comparison failed",
+       "consideredValues": [
+        1,
+        2
+       ]
+      }
+     }
+    }
+   },
+   "regexArray": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$regex",
+       "specifiedAs": {
+        "t": {
+         "$regex": "x",
+         "$options": ""
+        }
+       },
+       "reason": "regular expression did not match",
+       "consideredValues": [
+        "a",
+        "b"
+       ]
+      }
+     }
+    }
+   },
+   "existsInArrayDocuments": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$exists",
+       "specifiedAs": {
+        "x.y": {
+         "$exists": true
+        }
+       },
+       "reason": "path does not exist"
+      }
+     }
+    }
+   },
+   "eqWholeArray": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$eq",
+       "specifiedAs": {
+        "t": [
+         1,
+         3
+        ]
+       },
+       "reason": "comparison failed",
+       "consideredValues": [
+        1,
+        2
+       ]
+      }
+     }
+    }
+   },
+   "nestedArrays": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$gt",
+       "specifiedAs": {
+        "t": {
+         "$gt": 5
+        }
+       },
+       "reason": "comparison failed",
+       "consideredValues": [
+        [
+         1
+        ],
+        2
+       ]
+      }
+     }
+    }
+   },
+   "arrayPath": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$gt",
+          "specifiedAs": {
+           "x.y": {
+            "$gt": 1
+           }
+          },
+          "reason": "comparison failed",
+          "consideredValues": [
+           0,
+           1
+          ]
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$elemMatch",
+          "specifiedAs": {
+           "arr": {
+            "$elemMatch": {
+             "$gt": 5
+            }
+           }
+          },
+          "reason": "type did not match",
+          "consideredType": "string",
+          "expectedType": "array",
+          "consideredValue": "s"
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "missingParent": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$gt",
+       "specifiedAs": {
+        "x.y": {
+         "$gt": 1
+        }
+       },
+       "reason": "field was missing"
+      }
+     }
+    }
+   },
+   "size": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$size",
+       "specifiedAs": {
+        "t": {
+         "$size": 3
+        }
+       },
+       "reason": "array length was not equal to given size",
+       "consideredValue": [
+        1,
+        2
+       ]
+      }
+     }
+    }
+   },
+   "sizeNotArray": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$or",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$exists",
+          "specifiedAs": {
+           "a": {
+            "$exists": true
+           }
+          },
+          "reason": "path does not exist"
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$size",
+          "specifiedAs": {
+           "b": {
+            "$size": 2
+           }
+          },
+          "reason": "type did not match",
+          "consideredType": "string",
+          "expectedType": "array",
+          "consideredValue": "s"
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "notNested": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$not",
+       "details": {
+        "operatorName": "$and",
+        "clausesSatisfied": [
+         {
+          "index": 0,
+          "details": {
+           "operatorName": "$gt",
+           "specifiedAs": {
+            "a": {
+             "$gt": 0
+            }
+           },
+           "reason": "comparison succeeded",
+           "consideredValue": 5
+          }
+         },
+         {
+          "index": 1,
+          "details": {
+           "operatorName": "$lt",
+           "specifiedAs": {
+            "a": {
+             "$lt": 10
+            }
+           },
+           "reason": "comparison succeeded",
+           "consideredValue": 5
+          }
+         }
+        ]
+       }
+      }
+     }
+    }
+   },
+   "notRegex": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$not",
+       "details": {
+        "operatorName": "$regex",
+        "specifiedAs": {
+         "a": {
+          "$regex": "x",
+          "$options": ""
+         }
+        },
+        "reason": "regular expression did match",
+        "consideredValue": "x"
+       }
+      }
+     }
+    }
+   },
+   "notIn": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$not",
+          "details": {
+           "operatorName": "$in",
+           "specifiedAs": {
+            "a": {
+             "$in": [
+              1,
+              2
+             ]
+            }
+           },
+           "reason": "matching value found in array",
+           "consideredValue": 1
+          }
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$nin",
+          "specifiedAs": {
+           "b": {
+            "$nin": [
+             1
+            ]
+           }
+          },
+          "reason": "matching value found in array",
+          "consideredValue": 1
+         }
+        },
+        {
+         "index": 2,
+         "details": {
+          "operatorName": "$ne",
+          "specifiedAs": {
+           "c": {
+            "$ne": null
+           }
+          },
+          "reason": "field was missing"
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "norNot": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$nor",
+       "clausesSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$not",
+          "details": {
+           "operatorName": "$gt",
+           "specifiedAs": {
+            "a": {
+             "$gt": 0
+            }
+           },
+           "reason": "comparison failed",
+           "consideredValue": -1
+          }
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "andExplicit": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$and",
+          "clausesNotSatisfied": [
+           {
+            "index": 1,
+            "details": {
+             "operatorName": "$eq",
+             "specifiedAs": {
+              "b": 2
+             },
+             "reason": "comparison failed",
+             "consideredValue": 3
+            }
+           }
+          ]
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$eq",
+          "specifiedAs": {
+           "c": 3
+          },
+          "reason": "comparison failed",
+          "consideredValue": 4
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "andAlone": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$eq",
+          "specifiedAs": {
+           "b": 2
+          },
+          "reason": "comparison failed",
+          "consideredValue": 3
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "andNested": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$and",
+          "clausesNotSatisfied": [
+           {
+            "index": 0,
+            "details": {
+             "operatorName": "$gt",
+             "specifiedAs": {
+              "a": {
+               "$gt": 1
+              }
+             },
+             "reason": "comparison failed",
+             "consideredValue": 1
+            }
+           },
+           {
+            "index": 1,
+            "details": {
+             "operatorName": "$lt",
+             "specifiedAs": {
+              "a": {
+               "$lt": 0
+              }
+             },
+             "reason": "comparison failed",
+             "consideredValue": 1
+            }
+           }
+          ]
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "elemMatchDocument": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$elemMatch",
+       "specifiedAs": {
+        "a": {
+         "$elemMatch": {
+          "b": 1
+         }
+        }
+       },
+       "reason": "array did not satisfy the child predicate",
+       "consideredValue": [
+        {
+         "b": 2
+        }
+       ]
+      }
+     }
+    }
+   },
+   "comment": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$eq",
+       "specifiedAs": {
+        "a": 1
+       },
+       "reason": "comparison failed",
+       "consideredValue": 2
+      }
+     }
+    }
+   },
+   "bits": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$bitsAnySet",
+       "specifiedAs": {
+        "a": {
+         "$bitsAnySet": [
+          1
+         ]
+        }
+       },
+       "reason": "bitwise operator failed to match",
+       "consideredValue": 1
+      }
+     }
+    }
+   },
+   "modArray": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$mod",
+       "specifiedAs": {
+        "a": {
+         "$mod": [
+          2,
+          1
+         ]
+        }
+       },
+       "reason": "$mod did not evaluate to expected remainder",
+       "consideredValues": [
+        2,
+        4
+       ]
+      }
+     }
+    }
+   },
+   "neArray": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$ne",
+       "specifiedAs": {
+        "a": {
+         "$ne": 2
+        }
+       },
+       "reason": "comparison succeeded",
+       "consideredValues": [
+        1,
+        2
+       ]
+      }
+     }
+    }
+   },
+   "ninMissing": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$nin",
+          "specifiedAs": {
+           "a": {
+            "$nin": [
+             1
+            ]
+           }
+          },
+          "reason": "matching value found in array",
+          "consideredValue": 1
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "existsFalseArray": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$exists",
+       "specifiedAs": {
+        "a": {
+         "$exists": false
+        }
+       },
+       "reason": "path does exist"
+      }
+     }
+    }
+   },
+   "typeAliases": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$type",
+          "specifiedAs": {
+           "a": {
+            "$type": "number"
+           }
+          },
+          "reason": "type did not match",
+          "consideredValue": "s",
+          "consideredType": "string"
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$type",
+          "specifiedAs": {
+           "b": {
+            "$type": 2
+           }
+          },
+          "reason": "type did not match",
+          "consideredValue": 1,
+          "consideredType": "int"
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "exprAndAll": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 1,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$expr",
+          "specifiedAs": {
+           "$expr": {
+            "$eq": [
+             "$a",
+             1
+            ]
+           }
+          },
+          "reason": "expression did not match",
+          "expressionResult": false
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$all",
+          "specifiedAs": {
+           "b": {
+            "$all": [
+             1
+            ]
+           }
+          },
+          "reason": "field was missing"
+         }
+        }
+       ]
+      }
+     }
+    }
+   }
+  },
+  "the writes validated, bypassDocumentValidation, the options of the validation and the validators refused": {
+   "listedAction": {
+    "validationLevel": "strict",
+    "validationAction": "warn"
+   },
+   "listed v1": {
+    "validationLevel": "strict",
+    "validationAction": "error"
+   },
+   "listed v2": {
+    "validationLevel": "moderate"
+   },
+   "listed v3": {
+    "validator": {
+     "a": 1
+    },
+    "validationLevel": "strict",
+    "validationAction": "error"
+   },
+   "listed v4": {
+    "validator": {
+     "a": 1
+    },
+    "validationLevel": "strict",
+    "validationAction": "error"
+   },
+   "listed v5": {
+    "validationLevel": "strict",
+    "validationAction": "warn"
+   },
+   "listed v6": {},
+   "nestedArrayAllowed": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": 2
+    }
+   },
+   "replaceOne": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 3,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$gt",
+          "specifiedAs": {
+           "a": {
+            "$gt": 5
+           }
+          },
+          "reason": "comparison failed",
+          "consideredValue": 1
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "upsert": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 4,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$gt",
+          "specifiedAs": {
+           "a": {
+            "$gt": 5
+           }
+          },
+          "reason": "comparison failed",
+          "consideredValue": 1
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$type",
+          "specifiedAs": {
+           "t": {
+            "$type": "string"
+           }
+          },
+          "reason": "field was missing"
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "findOneAndUpdate": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 3,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$gt",
+          "specifiedAs": {
+           "a": {
+            "$gt": 5
+           }
+          },
+          "reason": "comparison failed",
+          "consideredValue": 0
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "bulkWrite": {
+    "error": {
+     "code": 121,
+     "writeErrors": [
+      {
+       "code": 121,
+       "errInfo": {
+        "failingDocumentId": 6,
+        "details": {
+         "operatorName": "$and",
+         "clausesNotSatisfied": [
+          {
+           "index": 0,
+           "details": {
+            "operatorName": "$gt",
+            "specifiedAs": {
+             "a": {
+              "$gt": 5
+             }
+            },
+            "reason": "comparison failed",
+            "consideredValue": 1
+           }
+          },
+          {
+           "index": 1,
+           "details": {
+            "operatorName": "$type",
+            "specifiedAs": {
+             "t": {
+              "$type": "string"
+             }
+            },
+            "reason": "field was missing"
+           }
+          }
+         ]
+        }
+       }
+      },
+      {
+       "code": 121,
+       "errInfo": {
+        "failingDocumentId": 3,
+        "details": {
+         "operatorName": "$and",
+         "clausesNotSatisfied": [
+          {
+           "index": 0,
+           "details": {
+            "operatorName": "$gt",
+            "specifiedAs": {
+             "a": {
+              "$gt": 5
+             }
+            },
+            "reason": "comparison failed",
+            "consideredValue": 2
+           }
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   },
+   "insertMany": {
+    "error": {
+     "code": 121,
+     "writeErrors": [
+      {
+       "code": 121,
+       "errInfo": {
+        "failingDocumentId": 7,
+        "details": {
+         "operatorName": "$and",
+         "clausesNotSatisfied": [
+          {
+           "index": 0,
+           "details": {
+            "operatorName": "$gt",
+            "specifiedAs": {
+             "a": {
+              "$gt": 5
+             }
+            },
+            "reason": "comparison failed",
+            "consideredValue": 1
+           }
+          },
+          {
+           "index": 1,
+           "details": {
+            "operatorName": "$type",
+            "specifiedAs": {
+             "t": {
+              "$type": "string"
+             }
+            },
+            "reason": "field was missing"
+           }
+          }
+         ]
+        }
+       }
+      },
+      {
+       "code": 121,
+       "errInfo": {
+        "failingDocumentId": 9,
+        "details": {
+         "operatorName": "$and",
+         "clausesNotSatisfied": [
+          {
+           "index": 0,
+           "details": {
+            "operatorName": "$gt",
+            "specifiedAs": {
+             "a": {
+              "$gt": 5
+             }
+            },
+            "reason": "field was missing"
+           }
+          },
+          {
+           "index": 1,
+           "details": {
+            "operatorName": "$type",
+            "specifiedAs": {
+             "t": {
+              "$type": "string"
+             }
+            },
+            "reason": "field was missing"
+           }
+          }
+         ]
+        }
+       }
+      }
+     ]
+    }
+   },
+   "insertManyBypass": {
+    "value": {
+     "acknowledged": true,
+     "insertedCount": 1,
+     "insertedIds": {
+      "0": 10
+     }
+    }
+   },
+   "bulkWriteBypass": {
+    "value": {
+     "insertedCount": 1,
+     "matchedCount": 0,
+     "modifiedCount": 0,
+     "deletedCount": 0,
+     "upsertedCount": 0,
+     "upsertedIds": {},
+     "insertedIds": {
+      "0": 11
+     }
+    }
+   },
+   "findOneAndUpdateBypass": {
+    "value": {
+     "_id": 3,
+     "a": 9,
+     "t": "s"
+    }
+   },
+   "merge": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 20,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$gt",
+          "specifiedAs": {
+           "a": {
+            "$gt": 5
+           }
+          },
+          "reason": "comparison failed",
+          "consideredValue": 1
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$type",
+          "specifiedAs": {
+           "t": {
+            "$type": "string"
+           }
+          },
+          "reason": "field was missing"
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "mergeBypass": {
+    "value": []
+   },
+   "out": {
+    "error": {
+     "code": 121,
+     "errInfo": {
+      "failingDocumentId": 20,
+      "details": {
+       "operatorName": "$and",
+       "clausesNotSatisfied": [
+        {
+         "index": 0,
+         "details": {
+          "operatorName": "$gt",
+          "specifiedAs": {
+           "a": {
+            "$gt": 5
+           }
+          },
+          "reason": "comparison failed",
+          "consideredValue": 1
+         }
+        },
+        {
+         "index": 1,
+         "details": {
+          "operatorName": "$type",
+          "specifiedAs": {
+           "t": {
+            "$type": "string"
+           }
+          },
+          "reason": "field was missing"
+         }
+        }
+       ]
+      }
+     }
+    }
+   },
+   "listedAfterOut": {
+    "value": {
+     "validator": {
+      "a": {
+       "$gt": 5
+      },
+      "t": {
+       "$type": "string"
+      }
+     }
+    }
+   },
+   "count": {
+    "value": 7
+   },
+   "refused text": {
+    "error": {
+     "code": 2
+    }
+   },
+   "refused unknownOperator": {
+    "error": {
+     "code": 2
+    }
+   },
+   "refused function": {
+    "error": {
+     "code": 4660800
+    }
+   },
+   "refused whereNested": {
+    "error": {
+     "code": 2
+    }
+   },
+   "refused collModWhere": {
+    "error": {
+     "code": 2
+    }
+   },
+   "refused collModLevel": {
+    "error": {
+     "code": 2
+    }
+   },
+   "refused integer": {
+    "error": {
+     "code": 9
+    }
+   },
+   "refused exclusiveMinimumAlone": {
+    "error": {
+     "code": 9
+    }
+   }
+  },
   "the views are read through their pipelines, and not written": {
    "find": {
     "value": [

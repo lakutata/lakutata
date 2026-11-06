@@ -4,7 +4,7 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import {BSON, Double} from 'bson'
-import {EmbeddedClient, type EmbeddedDocument} from '../exports/MongoEmbedded.js'
+import {EmbeddedBulkWriteError, EmbeddedClient, type EmbeddedDocument, EmbeddedValidationError} from '../exports/MongoEmbedded.js'
 
 const ROOT: string = mkdtempSync(path.join(os.tmpdir(), 'mongo-embedded-collections-'))
 after((): void => rmSync(ROOT, {recursive: true, force: true}))
@@ -477,6 +477,64 @@ describe('The tailable cursors', (): void => {
         await dropped.next()
         await log.drop()
         await assert.rejects(dropped.tryNext(), failsWith(175))
+        await client.close()
+    })
+})
+
+describe('The validation', (): void => {
+    it('checks the documents written by the validator of their collection, by its collation, after a reopening', async (): Promise<void> => {
+        const where: string = directory()
+        let client: EmbeddedClient = await EmbeddedClient.connect(where)
+        let db = client.db()
+        await db.createCollection('people', {collation: {locale: 'en', strength: 2}, validator: {kind: {$in: ['person', 'robot']}, $jsonSchema: {required: ['name']}}})
+        let people = db.collection('people')
+        await people.insertOne({_id: 1, kind: 'PERSON', name: 'Ann'})
+        await assert.rejects(people.insertOne({_id: 2, kind: 'cat', name: 'Tom'}), (error: unknown): boolean => {
+            assert.ok(error instanceof EmbeddedValidationError)
+            assert.strictEqual(error.code, 121)
+            assert.deepStrictEqual(error.errInfo, {failingDocumentId: 2, details: {operatorName: '$and', clausesNotSatisfied: [{index: 0, details: {operatorName: '$in', specifiedAs: {kind: {$in: ['person', 'robot']}}, reason: 'no matching value found in array', consideredValue: 'cat'}}]}})
+            return true
+        })
+        await client.close()
+        client = await EmbeddedClient.connect(where)
+        db = client.db()
+        people = db.collection('people')
+        await assert.rejects(people.updateOne({_id: 1}, {$unset: {name: 1}}), failsWith(121))
+        await assert.rejects(people.insertMany([{_id: 3, kind: 'robot', name: 'R'}, {_id: 4, kind: 'robot'}]), (error: unknown): boolean => {
+            assert.ok(error instanceof EmbeddedBulkWriteError)
+            assert.strictEqual(error.insertedCount, 1)
+            assert.deepStrictEqual(error.writeErrors[0].errInfo?.details.clausesNotSatisfied[0].details.operatorName, '$jsonSchema')
+            return true
+        })
+        // A transaction: the write failing aborts it
+        const session = client.startSession()
+        session.startTransaction()
+        await people.insertOne({_id: 5, kind: 'robot', name: 'S'}, {session: session})
+        await assert.rejects(people.insertOne({_id: 6, kind: 'dog', name: 'D'}, {session: session}), failsWith(121))
+        await assert.rejects(session.commitTransaction(), failsWith(251))
+        await session.endSession()
+        assert.deepStrictEqual((await people.find({}).toArray()).map((person: EmbeddedDocument): unknown => person._id), [1, 3])
+        // Changed by collMod, with its event; off: not checked
+        const stream = people.watch([], {showExpandedEvents: true})
+        await db.command({collMod: 'people', validator: {kind: 'robot'}, validationLevel: 'off'})
+        const event: EmbeddedDocument = (await stream.next())!
+        assert.deepStrictEqual(event.operationDescription, {validator: {kind: 'robot'}, validationLevel: 'off'})
+        assert.deepStrictEqual(Object.keys(await people.options()), ['validator', 'validationLevel', 'validationAction', 'collation'])
+        await people.insertOne({_id: 7, kind: 'cat'})
+        await db.command({collMod: 'people', validationLevel: 'strict'})
+        await assert.rejects(people.insertOne({_id: 8, kind: 'cat'}), failsWith(121))
+        assert.strictEqual((await people.insertOne({_id: 8, kind: 'cat'}, {bypassDocumentValidation: true})).insertedId, 8)
+        await stream.close()
+        await client.close()
+    })
+
+    it('matches the arrays by the types of their items ($type), as MongoDB matches them', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const items = client.db().collection('items')
+        await items.insertMany([{_id: 1, v: ['a', 1]}, {_id: 2, v: [[1]]}, {_id: 3, v: 2}, {_id: 4, v: []}])
+        assert.deepStrictEqual((await items.find({v: {$type: 'string'}}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [1])
+        assert.deepStrictEqual((await items.find({v: {$type: 'number'}}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [1, 3])
+        assert.deepStrictEqual((await items.find({v: {$type: 'array'}}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [1, 2, 4])
         await client.close()
     })
 })

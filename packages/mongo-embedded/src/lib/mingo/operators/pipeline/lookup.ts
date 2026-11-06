@@ -89,8 +89,8 @@ export function $lookup(
           // check that matches exist for this object.
           return [local.some(v => map.has(v)), []]
         }
-        // return entire result set.
-        const result = Array.from(new Set(flatten(local.map(v => map.get(v)))))
+        // return entire result set (the items without a match joining none).
+        const result = Array.from(new Set(flatten(local.map(v => map.get(v) ?? []))))
         return [result.length > 0, result]
       }
       const result = map.get(local) ?? null
