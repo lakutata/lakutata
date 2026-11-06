@@ -79,6 +79,8 @@ struct MdeStore {
   /* The counts not written (the row 'd' written): written at the closing; the counts to count again at the opening */
   int countsDirty;
   int recount;
+  /* The transaction of a session open (mde_begin) */
+  int transaction;
   char message[512];
 };
 
@@ -360,6 +362,47 @@ static int FailSql(MdeStore *store, int rc, const char *what) {
 
 const char *mde_message(MdeStore *store) { return store->message; }
 
+/*
+** The transactions of the functions. Each function runs in a transaction of its own (of the b-tree layer, or of SQL
+** for the ones changing the schema), unless the transaction of a session is open: it runs in that one then, which ends
+** by mde_commit or mde_abort, and a failure of the function leaves it to be aborted.
+*/
+
+/* The transaction of the b-tree layer of a function: a read, or a write */
+static int Begin(MdeStore *store, int write) {
+  return store->transaction ? SQLITE_OK : sqlite3BtreeBeginTrans(store->bt, write, 0);
+}
+
+/* The end of the transaction of a write: committed when rc is SQLITE_OK (the error of the commit given), else rolled
+** back (rc given) */
+static int End(MdeStore *store, int rc) {
+  if (store->transaction) return rc;
+  if (rc == SQLITE_OK) return sqlite3BtreeCommit(store->bt);
+  sqlite3BtreeRollback(store->bt, SQLITE_OK, 0);
+  return rc;
+}
+
+/* The end of the transaction of a read */
+static void EndRead(MdeStore *store) {
+  if (!store->transaction) sqlite3BtreeCommit(store->bt);
+}
+
+static int Exec(MdeStore *store, const char *sql, const char *what);
+
+/* The transaction of SQL of a function changing the schema */
+static int BeginSql(MdeStore *store) {
+  return store->transaction ? SQLITE_OK : Exec(store, "BEGIN IMMEDIATE", "the catalog");
+}
+
+/* The end of the transaction of SQL of a function: committed when rc is SQLITE_OK (the error of the commit given),
+** else rolled back (rc given) */
+static int EndSql(MdeStore *store, int rc) {
+  if (store->transaction) return rc;
+  if (rc == SQLITE_OK) rc = Exec(store, "COMMIT", "the catalog");
+  if (rc != SQLITE_OK) sqlite3_exec(store->db, "ROLLBACK", 0, 0, 0);
+  return rc;
+}
+
 static void PutBigEndian(uint8_t *out, int64_t value) {
   for (int i = 0; i < 8; i++) out[i] = (uint8_t)((uint64_t)value >> (56 - 8 * i));
 }
@@ -609,9 +652,17 @@ static int Exec(MdeStore *store, const char *sql, const char *what) {
   return rc == SQLITE_OK ? rc : FailSql(store, rc, what);
 }
 
+/* The frames of the WAL after a commit of SQL (a commit of the b-tree layer calls no hook: precondition 4) */
+static int WalHook(void *context, sqlite3 *db, const char *name, int frames) {
+  (void)db;
+  (void)name;
+  ((MdeStore *)context)->frames = frames;
+  return SQLITE_OK;
+}
+
 /* The documents of each collection counted (the connection before did not close): the counts stay to be written */
 static int Recount(MdeStore *store) {
-  int rc = sqlite3BtreeBeginTrans(store->bt, 0, 0);
+  int rc = Begin(store, 0);
   if (rc != SQLITE_OK) return FailSql(store, rc, "the counts");
   for (int i = 0; i < store->collectionCount && rc == SQLITE_OK; i++) {
     i64 count = 0;
@@ -620,7 +671,7 @@ static int Recount(MdeStore *store) {
     sqlite3BtreeCloseCursor(store->cursor);
     store->collections[i].count = count;
   }
-  sqlite3BtreeCommit(store->bt);
+  EndRead(store);
   if (rc != SQLITE_OK) return FailSql(store, rc, "the counts");
   store->countsDirty = 1;
   return SQLITE_OK;
@@ -682,7 +733,9 @@ int mde_open(const char *file, const MdeOptions *options, MdeStore **out, char *
               "the catalog");
     if (rc == SQLITE_OK) rc = LoadCatalog(store);
     if (rc == SQLITE_OK) {
+      sqlite3_wal_hook(store->db, WalHook, store);
       store->bt = store->db->aDb[0].pBt;
+
       store->info = sqlite3KeyInfoAlloc(store->db, 1, 1);
       store->probe = store->info ? sqlite3VdbeAllocUnpackedRecord(store->info) : NULL;
       store->cursor = sqlite3MallocZero(sqlite3BtreeCursorSize());
@@ -747,7 +800,7 @@ int mde_create_collection(MdeStore *store, const char *name, int64_t *id) {
   int length = (int)strlen(name);
   for (int i = 0; i < store->collectionCount; i++)
     if (strcmp(store->collections[i].name, name) == 0) return Fail(store, SQLITE_CONSTRAINT, "a collection of this name is there");
-  int rc = Exec(store, "BEGIN IMMEDIATE", "the catalog");
+  int rc = BeginSql(store);
   if (rc != SQLITE_OK) return rc;
   sqlite3_stmt *statement;
   int64_t next = 0;
@@ -758,8 +811,7 @@ int mde_create_collection(MdeStore *store, const char *name, int64_t *id) {
   }
   if (rc != SQLITE_OK || next <= 0) {
     rc = rc != SQLITE_OK ? FailSql(store, rc, "the catalog") : Fail(store, SQLITE_CORRUPT, "the catalog has no next id");
-    sqlite3_exec(store->db, "ROLLBACK", 0, 0, 0);
-    return rc;
+    return EndSql(store, rc);
   }
   char sql[128];
   snprintf(sql, sizeof(sql), "CREATE TABLE c%lld(k BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID", (long long)next);
@@ -779,11 +831,8 @@ int mde_create_collection(MdeStore *store, const char *name, int64_t *id) {
     rc = RunBlobs(store, "INSERT INTO meta(k, v) VALUES (?1, ?2), (?3, ?4), (x'6e', ?5) ON CONFLICT(k) DO UPDATE SET v = excluded.v", blobs, sizes, 5);
   }
   free(nameKey);
-  if (rc == SQLITE_OK) rc = Exec(store, "COMMIT", "the catalog");
-  if (rc != SQLITE_OK) {
-    sqlite3_exec(store->db, "ROLLBACK", 0, 0, 0);
-    return rc;
-  }
+  rc = EndSql(store, rc);
+  if (rc != SQLITE_OK) return rc;
   rc = AddCollection(store, next, name, length);
   if (rc != SQLITE_OK) return Fail(store, rc, "out of memory");
   *id = next;
@@ -836,13 +885,9 @@ static void Forget(MdeStore *store, Collection *collection) {
 int mde_drop_collection(MdeStore *store, int64_t id) {
   Collection *collection = Find(store, id);
   if (!collection) return Fail(store, MDE_NO_COLLECTION, "no collection of this id");
-  int rc = Exec(store, "BEGIN IMMEDIATE", "the catalog");
-  if (rc == SQLITE_OK) rc = DropInTransaction(store, collection);
-  if (rc == SQLITE_OK) rc = Exec(store, "COMMIT", "the catalog");
-  if (rc != SQLITE_OK) {
-    sqlite3_exec(store->db, "ROLLBACK", 0, 0, 0);
-    return rc;
-  }
+  int rc = BeginSql(store);
+  if (rc == SQLITE_OK) rc = EndSql(store, DropInTransaction(store, collection));
+  if (rc != SQLITE_OK) return rc;
   Forget(store, collection);
   return LoadRoots(store);
 }
@@ -860,7 +905,8 @@ int mde_rename_collection(MdeStore *store, int64_t id, const char *name, int64_t
   uint8_t *newKey = NameKey(name, &newSize);
   uint8_t idValue[8];
   PutBigEndian(idValue, id);
-  int rc = !oldKey || !newKey ? Fail(store, SQLITE_NOMEM, "out of memory") : Exec(store, "BEGIN IMMEDIATE", "the catalog");
+  const int began = !oldKey || !newKey ? Fail(store, SQLITE_NOMEM, "out of memory") : BeginSql(store);
+  int rc = began;
   if (rc == SQLITE_OK && target) rc = DropInTransaction(store, target);
   if (rc == SQLITE_OK) {
     const uint8_t *blobs[] = {oldKey};
@@ -872,11 +918,10 @@ int mde_rename_collection(MdeStore *store, int64_t id, const char *name, int64_t
     const int sizes[] = {newSize, 8};
     rc = RunBlobs(store, "INSERT INTO meta(k, v) VALUES (?1, ?2)", blobs, sizes, 2);
   }
-  if (rc == SQLITE_OK) rc = Exec(store, "COMMIT", "the catalog");
+  if (began == SQLITE_OK) rc = EndSql(store, rc);
   free(oldKey);
   free(newKey);
   if (rc != SQLITE_OK) {
-    sqlite3_exec(store->db, "ROLLBACK", 0, 0, 0);
     free(renamed);
     return rc;
   }
@@ -936,12 +981,8 @@ int mde_set_indexes(MdeStore *store, int64_t id, const uint8_t *data, int size) 
   int failed;
   uint8_t *copy = CopyOf(data, size, &failed);
   if (failed) return Fail(store, SQLITE_NOMEM, "out of memory");
-  int rc = sqlite3BtreeBeginTrans(store->bt, 1, 0);
-  if (rc == SQLITE_OK) {
-    rc = PutDefinitions(store, id, data, size);
-    if (rc == SQLITE_OK) rc = sqlite3BtreeCommit(store->bt);
-    else sqlite3BtreeRollback(store->bt, SQLITE_OK, 0);
-  }
+  int rc = Begin(store, 1);
+  if (rc == SQLITE_OK) rc = End(store, PutDefinitions(store, id, data, size));
   if (rc != SQLITE_OK) {
     free(copy);
     return FailSql(store, rc, "the indexes of a collection");
@@ -970,7 +1011,7 @@ static int NextId(MdeStore *store, int64_t *next) {
 int mde_create_index(MdeStore *store, int64_t id, int64_t *index) {
   Collection *collection = Find(store, id);
   if (!collection) return Fail(store, MDE_NO_COLLECTION, "no collection of this id");
-  int rc = Exec(store, "BEGIN IMMEDIATE", "the catalog");
+  int rc = BeginSql(store);
   if (rc != SQLITE_OK) return rc;
   int64_t next = 0;
   rc = NextId(store, &next);
@@ -979,11 +1020,8 @@ int mde_create_index(MdeStore *store, int64_t id, int64_t *index) {
     snprintf(sql, sizeof(sql), "CREATE TABLE i%lld_%lld(k BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID", (long long)id, (long long)next);
     rc = Exec(store, sql, "the table of an index");
   }
-  if (rc == SQLITE_OK) rc = Exec(store, "COMMIT", "the catalog");
-  if (rc != SQLITE_OK) {
-    sqlite3_exec(store->db, "ROLLBACK", 0, 0, 0);
-    return rc;
-  }
+  rc = EndSql(store, rc);
+  if (rc != SQLITE_OK) return rc;
   *index = next;
   return LoadRoots(store);
 }
@@ -1039,7 +1077,7 @@ int mde_write(MdeStore *store, int64_t id, const MdeChange *changes, int count, 
   int copyFailed;
   uint8_t *copy = definitions ? CopyOf(definitions, definitionsSize, &copyFailed) : NULL;
   if (definitions && copyFailed) return Fail(store, SQLITE_NOMEM, "out of memory");
-  int rc = sqlite3BtreeBeginTrans(store->bt, 1, 0);
+  int rc = Begin(store, 1);
   if (rc != SQLITE_OK) {
     free(copy);
     return FailSql(store, rc, "a write");
@@ -1111,12 +1149,11 @@ int mde_write(MdeStore *store, int64_t id, const MdeChange *changes, int count, 
     rc = Put(store, store->metaCursor, key, 1, value, 1);
     sqlite3BtreeCloseCursor(store->metaCursor);
   }
-  if (rc == SQLITE_OK) rc = sqlite3BtreeCommit(store->bt);
+  rc = End(store, rc);
   if (rc != SQLITE_OK) {
     if (rc == MDE_DUPLICATE_KEY) Fail(store, rc, "duplicate key");
     else if (rc == MDE_MISSING) Fail(store, rc, "the document replaced is not there");
     else if (!store->message[0]) FailSql(store, rc, "a write");
-    sqlite3BtreeRollback(store->bt, SQLITE_OK, 0);
     free(copy);
     return rc;
   }
@@ -1134,7 +1171,7 @@ int mde_write_index(MdeStore *store, int64_t id, int64_t index, int unique, cons
   store->message[0] = 0;
   Collection *collection = Find(store, id);
   if (!collection) return Fail(store, MDE_NO_COLLECTION, "no collection of this id");
-  int rc = sqlite3BtreeBeginTrans(store->bt, 1, 0);
+  int rc = Begin(store, 1);
   if (rc != SQLITE_OK) return FailSql(store, rc, "a write of an index");
   int duplicate = 0;
   for (int i = 0; i < count && rc == SQLITE_OK; i++) {
@@ -1144,10 +1181,9 @@ int mde_write_index(MdeStore *store, int64_t id, int64_t index, int unique, cons
       *failed = i;
     }
   }
-  if (rc == SQLITE_OK) rc = sqlite3BtreeCommit(store->bt);
+  rc = End(store, rc);
   if (rc != SQLITE_OK) {
     if (!store->message[0]) FailSql(store, rc, "a write of an index");
-    sqlite3BtreeRollback(store->bt, SQLITE_OK, 0);
     return rc;
   }
   store->frames = sqlite3PagerWalCallback(sqlite3BtreePager(store->bt));
@@ -1183,7 +1219,7 @@ int mde_get(MdeStore *store, int64_t id, const uint8_t *const *keys, const int *
     for (int i = 0; i < count; i++) offsets[i] = -1;
     return SQLITE_OK;
   }
-  int rc = sqlite3BtreeBeginTrans(store->bt, 0, 0);
+  int rc = Begin(store, 0);
   if (rc != SQLITE_OK) return FailSql(store, rc, "a read");
   OpenCursor(store, store->cursor, collection->root, 0);
   for (int i = 0; i < count && rc == SQLITE_OK; i++) {
@@ -1193,7 +1229,7 @@ int mde_get(MdeStore *store, int64_t id, const uint8_t *const *keys, const int *
     if (rc == SQLITE_OK && res == 0) offsets[i] = AppendDocument(store, store->cursor, out, &rc);
   }
   sqlite3BtreeCloseCursor(store->cursor);
-  sqlite3BtreeCommit(store->bt);
+  EndRead(store);
   return rc;
 }
 
@@ -1202,7 +1238,7 @@ int mde_scan(MdeStore *store, int64_t id, const uint8_t *after, int afterSize, i
   *done = 1;
   Collection *collection = Find(store, id);
   if (!collection) return SQLITE_OK;
-  int rc = sqlite3BtreeBeginTrans(store->bt, 0, 0);
+  int rc = Begin(store, 0);
   if (rc != SQLITE_OK) return FailSql(store, rc, "a read");
   OpenCursor(store, store->cursor, collection->root, 0);
   int empty = 0;
@@ -1261,7 +1297,7 @@ int mde_scan(MdeStore *store, int64_t id, const uint8_t *after, int afterSize, i
     }
   }
   sqlite3BtreeCloseCursor(store->cursor);
-  sqlite3BtreeCommit(store->bt);
+  EndRead(store);
   if (rc != SQLITE_OK && store->message[0] == 0) FailSql(store, rc, "a read");
   return rc;
 }
@@ -1320,7 +1356,7 @@ int mde_scan_range(MdeStore *store, int64_t id, int64_t index, const MdeRange *r
   if (!collection) return SQLITE_OK;
   Pgno root = RootOf(collection, index);
   if (!root) return Fail(store, SQLITE_CORRUPT, "an index of the collection has no table");
-  int rc = sqlite3BtreeBeginTrans(store->bt, 0, 0);
+  int rc = Begin(store, 0);
   if (rc != SQLITE_OK) return FailSql(store, rc, "a read");
   /* The walk on the table (entryCursor), the documents of an index read from the collection (cursor) */
   OpenCursor(store, store->entryCursor, root, 0);
@@ -1408,7 +1444,7 @@ int mde_scan_range(MdeStore *store, int64_t id, int64_t index, const MdeRange *r
   }
   sqlite3BtreeCloseCursor(store->entryCursor);
   if (index != 0) sqlite3BtreeCloseCursor(store->cursor);
-  sqlite3BtreeCommit(store->bt);
+  EndRead(store);
   if (rc != SQLITE_OK && !store->message[0]) FailSql(store, rc, "a read");
   return rc;
 }
@@ -1420,7 +1456,7 @@ int mde_count_range(MdeStore *store, int64_t id, int64_t index, const MdeRange *
   if (!collection) return SQLITE_OK;
   Pgno root = RootOf(collection, index);
   if (!root) return Fail(store, SQLITE_CORRUPT, "an index of the collection has no table");
-  int rc = sqlite3BtreeBeginTrans(store->bt, 0, 0);
+  int rc = Begin(store, 0);
   if (rc != SQLITE_OK) return FailSql(store, rc, "a read");
   OpenCursor(store, store->entryCursor, root, 0);
   const MdeRange all = {NULL, 0, 0, NULL, 0, 0};
@@ -1446,7 +1482,7 @@ int mde_count_range(MdeStore *store, int64_t id, int64_t index, const MdeRange *
     }
   }
   sqlite3BtreeCloseCursor(store->entryCursor);
-  sqlite3BtreeCommit(store->bt);
+  EndRead(store);
   if (rc != SQLITE_OK && !store->message[0]) FailSql(store, rc, "a read");
   return rc;
 }
