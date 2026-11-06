@@ -1603,9 +1603,10 @@ export class EmbeddedFindCursor extends EmbeddedResults {
         const scored = asksTextScore(this.order)
         if ((scored || asksTextScore(this.projection)) && !textOf(this.query))
             throw new EmbeddedOperationError(40218, 'Location40218', 'query requires text score metadata, but it is not available')
-        // Sorted by an index: the documents read in its order, up to the limit
+        // Sorted by an index: the documents read in its order, up to the limit (not the ones of a $text, found by its
+        // text index)
         const ordered =
-            this.order && this.limited && this.hinted === undefined && !scored
+            this.order && this.limited && this.hinted === undefined && !scored && !textOf(this.query)
                 ? await collection.ordered(
                       this.query,
                       this.order,

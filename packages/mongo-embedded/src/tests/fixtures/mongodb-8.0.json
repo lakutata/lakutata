@@ -10418,7 +10418,27 @@
       "_id": "accents"
      }
     ]
-   ]
+   ],
+   "language abbaye": [
+    "fr"
+   ],
+   "language ville": [
+    "fr"
+   ],
+   "language abbandono": [
+    "it"
+   ],
+   "language haz": [
+    "hu1"
+   ],
+   "language ko": [],
+   "language koról": [
+    "hu2"
+   ],
+   "language tuz": [],
+   "language esche": [],
+   "language bedra": [],
+   "language evoluir": []
   },
   "the $text queries: phrases, negations, languages, their places in a filter and in a pipeline, the text score": {
    "noIndex": {
@@ -10652,6 +10672,27 @@
    "scoreWithoutText": {
     "error": {
      "code": 40218
+    }
+   },
+   "sortedLimited": {
+    "value": [
+     1,
+     2
+    ]
+   },
+   "withId": [
+    {
+     "value": [
+      1
+     ]
+    },
+    {
+     "value": []
+    }
+   ],
+   "findOneAndUpdate": {
+    "value": {
+     "_id": 7
     }
    },
    "pipeline": {

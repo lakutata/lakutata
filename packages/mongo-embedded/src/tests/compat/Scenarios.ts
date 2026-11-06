@@ -1442,6 +1442,20 @@ export const SCENARIOS: Scenario[] = [
                 await items.find({$text: {$search: 'cafe', $diacriticSensitive: true}}, {projection: {_id: 1}}).toArray(),
                 await items.find({$text: {$search: 'café', $diacriticSensitive: true}}, {projection: {_id: 1}}).toArray()
             ]
+            //Other languages: their words split at an apostrophe, their stems (Hungarian ő and ű not the ones of its suffixes)
+            const languages: any = db.collection('languages')
+            await languages.createIndex({a: 'text'})
+            await languages.insertMany([
+                {_id: 'fr', a: "l'abbaye d'une ville", language: 'french'}, {_id: 'it', a: "dell'abbandono", language: 'italian'},
+                {_id: 'hu1', a: 'házról', language: 'hungarian'}, {_id: 'hu2', a: 'kőről tűzről', language: 'hungarian'},
+                {_id: 'ru', a: 'ещё бёдра', language: 'russian'}, {_id: 'pt', a: 'evolução', language: 'portuguese'}
+            ])
+            const words: Record<string, [string, string]> = {
+                abbaye: ['abbaye', 'french'], ville: ['ville', 'french'], abbandono: ['abbandono', 'italian'], haz: ['ház', 'hungarian'], ko: ['kő', 'hungarian'],
+                koról: ['kőről', 'hungarian'], tuz: ['tűz', 'hungarian'], esche: ['еще', 'russian'], bedra: ['бедра', 'russian'], evoluir: ['evoluir', 'portuguese']
+            }
+            for (const [name, [search, language]] of Object.entries(words))
+                result[`language ${name}`] = (await languages.find({$text: {$search: search, $language: language}}, {sort: {_id: 1}, projection: {_id: 1}}).toArray()).map((item: any): string => item._id)
             return result
         }
     },
@@ -1484,6 +1498,9 @@ export const SCENARIOS: Scenario[] = [
             result.scores = await outcome(async (): Promise<unknown> => (await items.find({$text: {$search: 'coffee cake'}}, {projection: {s: {$meta: 'textScore'}}, sort: {s: {$meta: 'textScore'}, _id: 1}}).toArray()))
             result.sortedByScore = await outcome(async (): Promise<unknown> => (await items.find({$text: {$search: 'coffee'}}).sort({s: {$meta: 'textScore'}, _id: 1}).toArray()).map((item: any): unknown => [item._id, Object.keys(item)]))
             result.scoreWithoutText = await outcome((): unknown => items.find({k: 1}, {projection: {s: {$meta: 'textScore'}}}).toArray())
+            result.sortedLimited = await outcome(async (): Promise<unknown> => (await items.find({$text: {$search: 'coffee'}}).sort({_id: 1}).limit(2).toArray()).map((item: any): number => item._id))
+            result.withId = [await ids({_id: 1, $text: {$search: 'coffee'}}), await ids({_id: 3, $text: {$search: 'coffee'}})]
+            result.findOneAndUpdate = await outcome((): unknown => items.findOneAndUpdate({$text: {$search: 'coffee'}}, {$set: {seen: true}}, {sort: {_id: -1}, projection: {_id: 1}}))
             result.pipeline = await outcome((): unknown => items.aggregate([{$match: {$text: {$search: 'coffee'}}}, {$project: {s: {$meta: 'textScore'}}}, {$sort: {s: -1, _id: 1}}]).toArray())
             result.pipelineNotFirst = await outcome((): unknown => items.aggregate([{$match: {k: 1}}, {$match: {$text: {$search: 'coffee'}}}]).toArray())
             result.pipelineAfterGroup = await outcome((): unknown => items.aggregate([{$match: {$text: {$search: 'coffee'}}}, {$group: {_id: null, n: {$sum: 1}}}, {$project: {s: {$meta: 'textScore'}, n: 1}}]).toArray())
