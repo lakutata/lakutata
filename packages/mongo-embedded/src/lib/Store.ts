@@ -697,8 +697,17 @@ export class EmbeddedStore {
     }
 
     /**
+     * Writes the WAL to the disk: the writes before made durable, as the write concern j asks (nothing for a database
+     * in memory)
+     */
+    async journal(): Promise<void> {
+        await addon.journal(this.database)
+    }
+
+    /**
      * The result of the check of the integrity of the file of the database: "ok" when it is sound
      */
+
     async integrity(): Promise<string> {
         return addon.integrity(this.database)
     }

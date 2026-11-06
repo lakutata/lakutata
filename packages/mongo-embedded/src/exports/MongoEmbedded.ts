@@ -1,6 +1,7 @@
 export {EmbeddedClient, type EmbeddedClientOptions, type EmbeddedDb, type EmbeddedCollection, type EmbeddedFindCursor, type EmbeddedArrayCursor, type EmbeddedHint} from '../lib/Client.js'
 export {EmbeddedBulkWriteResult, type EmbeddedBulkOperation, type EmbeddedFindOperators, type EmbeddedBulkWriteOperation, type EmbeddedBulkWriteCounts} from '../lib/Bulk.js'
-export {MongoEmbeddedError, EmbeddedOperationError, EmbeddedDuplicateKeyError, EmbeddedBulkWriteError, EmbeddedTransactionError, EmbeddedExpiredSessionError, type EmbeddedWriteError} from '../lib/Errors.js'
+export {MongoEmbeddedError, EmbeddedOperationError, EmbeddedDuplicateKeyError, EmbeddedBulkWriteError, EmbeddedTransactionError, EmbeddedExpiredSessionError, EmbeddedWriteConcernError, type EmbeddedWriteError} from '../lib/Errors.js'
+export {type EmbeddedWriteConcern} from '../lib/WriteConcern.js'
 export {EmbeddedClientSession, type EmbeddedSessionOptions, type EmbeddedTransactionOptions, type EmbeddedTransactionState} from '../lib/Session.js'
 export {type EmbeddedCollation} from '../lib/Collation.js'
 export {type EmbeddedStoreOptions} from '../lib/Store.js'

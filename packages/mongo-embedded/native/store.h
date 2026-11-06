@@ -170,7 +170,12 @@ int mde_frames(MdeStore *store);
 ** connection holds the checkpoint */
 int mde_checkpoint(MdeStore *store, int *frames, int *checkpointed);
 
+/* The WAL written to the disk (its frames committed made durable: a write of the write concern j); nothing for a
+** database in memory */
+int mde_sync_wal(MdeStore *store);
+
 /* The result of PRAGMA integrity_check ("ok" when the file is sound) */
+
 int mde_integrity(MdeStore *store, MdeBuffer *out);
 
 #ifdef __cplusplus

@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import {mkdtempSync, rmSync} from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {EmbeddedBulkWriteError, EmbeddedBulkWriteResult, EmbeddedClient, type EmbeddedCollection, EmbeddedOperationError, type EmbeddedWriteError, MongoEmbeddedError, ObjectId} from '../exports/MongoEmbedded.js'
+import {EmbeddedBulkWriteError, EmbeddedBulkWriteResult, EmbeddedClient, type EmbeddedClientSession, type EmbeddedCollection, EmbeddedOperationError, EmbeddedWriteConcernError, type EmbeddedWriteError, MongoEmbeddedError, ObjectId} from '../exports/MongoEmbedded.js'
 
 const ROOT: string = mkdtempSync(path.join(os.tmpdir(), 'mongo-embedded-writes-'))
 after((): void => rmSync(ROOT, {recursive: true, force: true}))
@@ -283,6 +283,74 @@ describe('The writes', (): void => {
         assert.strictEqual(await created.drop(), true)
         assert.strictEqual(await db.dropCollection('missing'), true)
         assert.deepStrictEqual((await db.collections()).map((collection: EmbeddedCollection): string => collection.collectionName), ['a'])
+        await client.close()
+    })
+})
+
+describe('The write concerns', (): void => {
+
+    it('write the WAL to the disk before a write of j is given, as the sync "always" does each write', async (): Promise<void> => {
+        const time = async (sync: 'interval' | 'always', options?: Record<string, unknown>): Promise<number> => {
+            const client: EmbeddedClient = await EmbeddedClient.connect(directory(), {sync: sync})
+            const items: EmbeddedCollection = client.db().collection('items')
+            await items.insertOne({_id: 0})
+            const start: number = performance.now()
+            for (let n: number = 1; n <= 20; n++) await items.insertOne({_id: n}, options)
+            const elapsed: number = performance.now() - start
+            await client.close()
+            return elapsed
+        }
+        const plain: number = await time('interval')
+        const always: number = await time('always')
+        const journaled: number = await time('interval', {writeConcern: {j: true}})
+        const fsynced: number = await time('interval', {writeConcern: {fsync: true}})
+        //Where a sync of the disk takes its time (not a file system in memory), j and fsync take it too
+        if (always > plain * 4) {
+            assert.ok(journaled > plain * 2, `j ${journaled} ms, interval ${plain} ms, always ${always} ms`)
+            assert.ok(fsynced > plain * 2, `fsync ${fsynced} ms, interval ${plain} ms, always ${always} ms`)
+        }
+        //A database in memory: nothing to sync
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        assert.deepStrictEqual(await client.db().collection('items').insertOne({_id: 1}, {writeConcern: {j: true}}), {acknowledged: true, insertedId: 1})
+        await client.close()
+    })
+
+    it('are inherited from the collection, the database and the client, the ones of the writes first', async (): Promise<void> => {
+        const unsatisfiable = (error: unknown): boolean => error instanceof EmbeddedWriteConcernError && error.code === 100
+        const client: EmbeddedClient = await EmbeddedClient.connect(undefined, {writeConcern: {w: 2}})
+        await assert.rejects(client.db().collection('items').insertOne({_id: 1}), unsatisfiable)
+        assert.deepStrictEqual(await client.db().collection('items').insertOne({_id: 2}, {writeConcern: {w: 1}}), {acknowledged: true, insertedId: 2})
+        assert.deepStrictEqual(await client.db('other', {writeConcern: {w: 'majority'}}).collection('items').insertOne({_id: 3}), {acknowledged: true, insertedId: 3})
+        const tagged = (error: unknown): boolean => error instanceof EmbeddedWriteConcernError && error.code === 79
+        await assert.rejects(client.db().collection('items', {writeConcern: {w: 'tagged'}}).deleteOne({_id: 3}), tagged)
+        //The writes were made
+        assert.deepStrictEqual((await client.db().collection('items').find({}).toArray()).map((item: Record<string, unknown>): unknown => item._id), [1, 2])
+        //A transaction: its commit by the write concern of the client, made; w 0 refused
+        const session: EmbeddedClientSession = client.startSession()
+        session.startTransaction()
+        await client.db().collection('items').insertOne({_id: 4}, {session: session})
+        await assert.rejects(session.commitTransaction(), (error: unknown): boolean => unsatisfiable(error) && (error as EmbeddedWriteConcernError).errInfo.writeConcern !== undefined)
+        assert.strictEqual(await client.db().collection('items').countDocuments({_id: 4}), 1)
+        assert.throws((): void => session.startTransaction({writeConcern: {w: 0}}), /Transactions do not support unacknowledged write concern/)
+        await session.endSession()
+        await client.close()
+    })
+
+    it('do not tell the errors of the writes not acknowledged (w 0)', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const items: EmbeddedCollection = client.db().collection('items')
+        await items.insertOne({_id: 1, n: 1})
+        const unacknowledged: Record<string, unknown> = {writeConcern: {w: 0}}
+        assert.deepStrictEqual(await items.insertOne({_id: 1}, unacknowledged), {acknowledged: false, insertedId: 1})
+        assert.deepStrictEqual(await items.insertMany([{_id: 2}, {_id: 1}, {_id: 3}], unacknowledged), {acknowledged: false, insertedCount: 0, insertedIds: {0: 2, 1: 1, 2: 3}})
+        assert.deepStrictEqual(await items.updateOne({_id: 1}, {$inc: {n: 'x'}}, unacknowledged), {acknowledged: false, upsertedId: null, upsertedCount: 0})
+        assert.deepStrictEqual(await items.deleteMany({_id: 2}, unacknowledged), {acknowledged: false})
+        assert.strictEqual(await items.findOneAndUpdate({_id: 1}, {$set: {m: 1}}, unacknowledged), null)
+        //Ordered: the documents after the one failing were not inserted
+        assert.deepStrictEqual(await items.find({}).toArray(), [{_id: 1, n: 1, m: 1}])
+        await assert.rejects(items.insertOne({_id: 9}, {writeConcern: {w: -1}}), (error: unknown): boolean => error instanceof EmbeddedOperationError && error.code === 9)
+        await assert.rejects(items.insertOne({_id: 9}, {writeConcern: {j: 'yes'}}), (error: unknown): boolean => error instanceof EmbeddedOperationError && error.code === 14)
+        assert.strictEqual(await items.countDocuments({_id: 9}), 0)
         await client.close()
     })
 })

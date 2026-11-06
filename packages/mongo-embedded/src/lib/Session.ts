@@ -2,6 +2,7 @@ import {AsyncLocalStorage} from 'node:async_hooks'
 import {UUID} from 'bson'
 import {EmbeddedExpiredSessionError, EmbeddedOperationError, EmbeddedTransactionError, MongoEmbeddedError} from './Errors.js'
 import {type EmbeddedStore, type EmbeddedStoreTransaction} from './Store.js'
+import {checkWriteConcern, type EmbeddedWriteConcern, journaled, unacknowledged, writeConcernFailure} from './WriteConcern.js'
 
 /**
  * The states of the transaction of a session, as the client of MongoDB names them
@@ -25,9 +26,9 @@ export interface EmbeddedTransactionOptions {
     readConcern?: Record<string, unknown>
 
     /**
-     * The write concern of its commit
+     * The write concern of its commit (not unacknowledged: w 0 fails the start of the transaction)
      */
-    writeConcern?: Record<string, unknown>
+    writeConcern?: EmbeddedWriteConcern
 
     /**
      * The read preference of MongoDB: kept, without effect
@@ -151,8 +152,14 @@ export class EmbeddedClientSession {
      * @param store the storage of the database of its client
      * @param options the default options of its transactions
      * @param lifetime the longest its transactions may be open, in seconds
+     * @param writeConcern the write concern of the commits of its transactions not given one (the one of the client)
      */
-    constructor(protected readonly store: EmbeddedStore, readonly options: EmbeddedSessionOptions = {}, protected readonly lifetime: number = 60) {
+    constructor(
+        protected readonly store: EmbeddedStore,
+        readonly options: EmbeddedSessionOptions = {},
+        protected readonly lifetime: number = 60,
+        protected readonly writeConcern?: EmbeddedWriteConcern
+    ) {
     }
 
     /**
@@ -169,8 +176,11 @@ export class EmbeddedClientSession {
     startTransaction(options?: EmbeddedTransactionOptions): void {
         if (this.hasEnded) throw new EmbeddedExpiredSessionError()
         if (this.inTransaction()) throw new EmbeddedTransactionError('Transaction already in progress')
+        const given: EmbeddedTransactionOptions = {...this.options.defaultTransactionOptions, ...options}
+        if (unacknowledged(given.writeConcern ?? this.writeConcern))
+            throw new EmbeddedTransactionError('Transactions do not support unacknowledged write concern')
         this.transaction.state = 'STARTING_TRANSACTION'
-        this.transaction.options = {...this.options.defaultTransactionOptions, ...options}
+        this.transaction.options = given
         this.stored = undefined
         this.beginning = undefined
         this.aborted = false
@@ -196,8 +206,15 @@ export class EmbeddedClientSession {
             if (this.aborted) throw this.noSuchTransaction()
             if (this.transaction.state === 'TRANSACTION_IN_PROGRESS') {
                 const stored: EmbeddedStoreTransaction = await this.beginning!
+                const concern: EmbeddedWriteConcern | undefined = this.transaction.options.writeConcern ?? this.writeConcern
+                if (concern) checkWriteConcern(concern)
                 this.stopTimer()
                 await this.store.commit(stored)
+                if (journaled(concern)) await this.store.journal()
+                // A write concern the database cannot satisfy fails the commit made (its time limit 10000 by default, as
+                // the client of MongoDB sets it for a commit)
+                const failure = writeConcernFailure(concern, 10000)
+                if (failure) throw failure
             }
         } finally {
             this.transaction.state = 'TRANSACTION_COMMITTED'

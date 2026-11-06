@@ -253,6 +253,12 @@ export interface NativeAddon {
     abort(database: NativeDatabase): Promise<void>
 
     /**
+     * The WAL written to the disk: the writes before made durable (the write concern j); nothing in memory
+     */
+    journal(database: NativeDatabase): Promise<void>
+
+
+    /**
      * The documents of a collection, 0 when it is not there
      */
     count(database: NativeDatabase, name: string, inTransaction?: boolean): Promise<number>

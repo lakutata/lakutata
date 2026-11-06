@@ -2023,7 +2023,19 @@ int mde_checkpoint(MdeStore *store, int *frames, int *checkpointed) {
   return rc == SQLITE_OK || rc == SQLITE_BUSY ? rc : FailSql(store, rc, "a checkpoint");
 }
 
+int mde_sync_wal(MdeStore *store) {
+  if (IsMemory(store->file)) return SQLITE_OK;
+  sqlite3_file *wal = NULL;
+  int rc = sqlite3_file_control(store->db, "main", SQLITE_FCNTL_JOURNAL_POINTER, &wal);
+  if (rc != SQLITE_OK) return FailSql(store, rc, "the WAL");
+  /* No WAL yet: nothing written to sync. SQLITE_SYNC_FULL: F_FULLFSYNC on the platforms of Apple */
+  if (!wal || !wal->pMethods) return SQLITE_OK;
+  rc = wal->pMethods->xSync(wal, SQLITE_SYNC_FULL);
+  return rc == SQLITE_OK ? rc : Fail(store, rc, "the WAL could not be synced");
+}
+
 int mde_integrity(MdeStore *store, MdeBuffer *out) {
+
   sqlite3_stmt *statement;
   int rc = sqlite3_prepare_v2(store->db, "PRAGMA integrity_check", -1, &statement, 0);
   if (rc != SQLITE_OK) return FailSql(store, rc, "the integrity check");

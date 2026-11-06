@@ -236,6 +236,17 @@ Napi::Value Commit(const Napi::CallbackInfo& info) {
       Undefined);
 }
 
+// journal(handle): the WAL written to the disk, the writes before made durable (the write concern j)
+Napi::Value Journal(const Napi::CallbackInfo& info) {
+  Connection* connection = HandleOf(info)->connection.get();
+  return HandleOf(info)->database->Submit(
+      info.Env(),
+      [connection](Outcome& outcome) {
+        if (mde_sync_wal(connection->store()) != 0) Fail(outcome, -1, mde_message(connection->store()));
+      },
+      Undefined);
+}
+
 // abort(handle): the transaction of a session aborted, if one is open
 Napi::Value Abort(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
@@ -704,6 +715,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("begin", Napi::Function::New(env, Begin, "begin"));
   exports.Set("commit", Napi::Function::New(env, Commit, "commit"));
   exports.Set("abort", Napi::Function::New(env, Abort, "abort"));
+  exports.Set("journal", Napi::Function::New(env, Journal, "journal"));
+
 
   InitCollation(env, exports);
   return exports;

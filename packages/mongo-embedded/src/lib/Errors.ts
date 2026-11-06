@@ -106,6 +106,46 @@ export class EmbeddedOperationError extends MongoEmbeddedError {
 }
 
 /**
+ * The error of a write concern that the database, a replica set of one member, cannot satisfy, as MongoDB fails it
+ * once the write is made (the MongoWriteConcernError of the client of MongoDB): more members than one
+ * (UnsatisfiableWriteConcern, 100), a mode of tags (UnknownReplWriteConcern, 79); errInfo tells the write concern, result
+ * the result of the write, writeErrors the errors of the write when it failed too
+ *
+ * @example
+ * import {EmbeddedClient, EmbeddedWriteConcernError} from '@lakutata/mongo-embedded'
+ *
+ * const client = await EmbeddedClient.connect()
+ * const items = client.db().collection('items')
+ * try {
+ *     await items.insertOne({_id: 1}, {writeConcern: {w: 2}})
+ * } catch (error) {
+ *     if (error instanceof EmbeddedWriteConcernError) console.log(error.code, error.codeName) // 100 UnsatisfiableWriteConcern
+ * }
+ * console.log(await items.countDocuments({})) // 1: the write was made
+ */
+export class EmbeddedWriteConcernError extends MongoEmbeddedError {
+    /**
+     * The result of the write
+     */
+    result?: unknown
+
+    /**
+     * The errors of the write, when it failed too
+     */
+    writeErrors?: EmbeddedWriteError[]
+
+    /**
+     * @param code the code of the error in MongoDB
+     * @param codeName the name of the code
+     * @param message the message of the error
+     * @param errInfo the write concern, as MongoDB tells it
+     */
+    constructor(readonly code: number, readonly codeName: string, message: string, readonly errInfo: Record<string, unknown>) {
+        super(message)
+    }
+}
+
+/**
  * The error of a duplicate key, with the code and the message of the one of MongoDB (E11000)
  *
  * @example
@@ -171,7 +211,8 @@ export interface EmbeddedWriteError {
  * the fields of the MongoBulkWriteError of MongoDB: the code and the message of its first error, its errors
  * (writeErrors), the number and the _id of the documents inserted (insertedCount, insertedIds by their indexes), and for
  * a bulkWrite its result (the operations written). Ordered, the documents (the operations) after the first one failing
- * are not written; unordered, the other ones are.
+ * are not written; unordered, the other ones are. A write concern the database cannot satisfy fails them too, once
+ * they are written (writeConcernError, its code the one of the error when no document failed).
  *
  * @example
  * import {EmbeddedClient, EmbeddedBulkWriteError} from '@lakutata/mongo-embedded'
@@ -220,10 +261,12 @@ export class EmbeddedBulkWriteError extends MongoEmbeddedError {
      * @param insertedCount the number of the documents inserted
      * @param insertedIds the _id of the documents inserted, by their indexes in the documents given
      * @param result the result of a bulkWrite: the operations written
+     * @param writeConcernError the error of the write concern, if it failed
      */
-    constructor(readonly writeErrors: EmbeddedWriteError[], readonly insertedCount: number, readonly insertedIds: Record<number, any>, readonly result?: EmbeddedBulkWriteResult) {
-        super(writeErrors[0].errmsg)
-        this.code = writeErrors[0].code
+    constructor(readonly writeErrors: EmbeddedWriteError[], readonly insertedCount: number, readonly insertedIds: Record<number, any>, readonly result?: EmbeddedBulkWriteResult, readonly writeConcernError?: EmbeddedWriteConcernError) {
+        super(writeErrors[0]?.errmsg ?? writeConcernError?.message ?? 'The bulk write failed')
+        this.code = writeErrors[0]?.code ?? writeConcernError?.code ?? 0
+
         this.matchedCount = result?.matchedCount ?? 0
         this.modifiedCount = result?.modifiedCount ?? 0
         this.deletedCount = result?.deletedCount ?? 0

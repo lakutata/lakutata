@@ -12,7 +12,7 @@ const FIXTURES: { version: string, outcomes: Record<string, unknown> } = JSON.pa
 /**
  * The groups of the scenarios done (the steps of the phase): the others are still to do
  */
-const DONE: Set<string> = new Set<string>(['transactions'])
+const DONE: Set<string> = new Set<string>(['transactions', 'writeConcern'])
 
 /**
  * The steps of the scenarios of a group done that still wait for a step not done: left out of the comparison

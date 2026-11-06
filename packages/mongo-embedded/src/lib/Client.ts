@@ -18,6 +18,7 @@ import {
     EmbeddedBulkWriteError,
     EmbeddedDuplicateKeyError,
     EmbeddedOperationError,
+    type EmbeddedWriteConcernError,
     type EmbeddedWriteError,
     MongoEmbeddedError
 } from './Errors.js'
@@ -35,6 +36,14 @@ import {
 } from './Planner.js'
 import { predicatesOf } from './Prefilter.js'
 import { EmbeddedClientSession, type EmbeddedSessionOptions } from './Session.js'
+import {
+    checkWriteConcern,
+    type EmbeddedWriteConcern,
+    journaled,
+    unacknowledged,
+    writeConcernFailure,
+    writeConcernOf
+} from './WriteConcern.js'
 import {
     type EmbeddedChange,
     type EmbeddedCollectionState,
@@ -262,6 +271,86 @@ function sessionOf(session: unknown): EmbeddedClientSession {
     return session
 }
 
+/**
+ * Runs a write by a write concern, as MongoDB runs it on a replica set of one member: checked before the write; not
+ * acknowledged (w 0), its errors not told and its result the one of MongoDB; journaled (j), the WAL on the disk before
+ * it is given; one the database cannot satisfy (w beyond 1, a mode of tags) failing once the write is made, the result
+ * (or the errors of the write) in its error.
+ *
+ * @param store
+ * @param concern the write concern, none for the default one
+ * @param write the write
+ * @param unacknowledgedResult the result of the write not acknowledged, given the one of the write when it did not fail
+ * @param bulk whether its failure is the one of an insertMany (EmbeddedBulkWriteError)
+ */
+async function writeByConcern<T>(
+    store: EmbeddedStore,
+    concern: EmbeddedWriteConcern | undefined,
+    write: () => Promise<T>,
+    unacknowledgedResult: (result?: T) => T,
+    bulk = false
+): Promise<T> {
+    if (!concern) return write()
+    checkWriteConcern(concern)
+    if (unacknowledged(concern))
+        return unacknowledgedResult(await write().catch(() => undefined))
+    const failure = writeConcernFailure(concern)
+    let result: T
+    try {
+        result = await write()
+    } catch (error) {
+        throw failure ? failedWrite(error, failure) : error
+    }
+    if (journaled(concern)) await store.journal()
+    if (!failure) return result
+    if (bulk) {
+        const { insertedCount, insertedIds } = result as EmbeddedDocument
+        throw new EmbeddedBulkWriteError(
+            [],
+            insertedCount,
+            insertedIds,
+            new EmbeddedBulkWriteResult({ ...noCounts(), insertedCount: insertedCount, insertedIds: insertedIds }, []),
+            failure
+        )
+    }
+    if (result instanceof EmbeddedBulkWriteResult)
+        throw new EmbeddedBulkWriteError([], result.insertedCount, result.insertedIds, result, failure)
+    failure.result = result
+    throw failure
+}
+
+/**
+ * The error of a write failing whose write concern fails too: the one of a bulk write with the error of the write
+ * concern; the error of the write concern with the error of the write among its errors (as MongoDB tells it) for an
+ * error of a code; the error itself otherwise.
+ *
+ * @param error
+ * @param failure
+ */
+function failedWrite(error: unknown, failure: EmbeddedWriteConcernError): unknown {
+    if (error instanceof EmbeddedBulkWriteError)
+        return new EmbeddedBulkWriteError(error.writeErrors, error.insertedCount, error.insertedIds, error.result, failure)
+    const code = (error as { code?: unknown })?.code
+    if (typeof code !== 'number') return error
+    failure.writeErrors = [{ index: 0, code: code, errmsg: (error as Error).message }]
+    return failure
+}
+
+/**
+ * The counts of a bulkWrite before its operations
+ */
+function noCounts(): EmbeddedBulkWriteCounts {
+    return {
+        insertedCount: 0,
+        matchedCount: 0,
+        modifiedCount: 0,
+        deletedCount: 0,
+        upsertedCount: 0,
+        insertedIds: {},
+        upsertedIds: {}
+    }
+}
+
 function notSupported(method: string): MongoEmbeddedError {
     return new MongoEmbeddedError(`${method} is not supported by mongo-embedded`)
 }
@@ -270,6 +359,13 @@ function notSupported(method: string): MongoEmbeddedError {
  * The period of the deletions of the TTL indexes: 60 seconds, as the TTL monitor of MongoDB
  */
 const TTL_PERIOD = 60000
+
+/**
+ * The results of an update (a replacement) and of a delete not acknowledged (w 0), as the client of MongoDB gives them
+ */
+const UNACKNOWLEDGED_UPDATE = (): any => ({ acknowledged: false, upsertedId: null, upsertedCount: 0 })
+
+const UNACKNOWLEDGED_DELETE = (): any => ({ acknowledged: false })
 
 /**
  * The stages of a pipeline of an update (the other ones MongoDB does not run in an update)
@@ -1122,6 +1218,12 @@ export class EmbeddedCollection {
     protected transaction?: EmbeddedStoreTransaction
 
     /**
+     * The write concern of the writes of this view not given one: the one of the collection, of its database or of the
+     * client
+     */
+    protected writeConcern?: EmbeddedWriteConcern
+
+    /**
      * @param collectionName the name of the collection
      * @param store the storage of its database
      */
@@ -1192,6 +1294,43 @@ export class EmbeddedCollection {
     private sibling(name: string): EmbeddedCollection {
         const collection = new EmbeddedCollection(name, this.store)
         return this.session ? collection.bound(this.session, this.transaction) : collection
+    }
+
+    /**
+     * The view of the collection whose writes not given a write concern have one (EmbeddedDb.collection).
+     *
+     * @param writeConcern the write concern, none for the view itself
+     */
+    withWriteConcern(writeConcern?: EmbeddedWriteConcern): EmbeddedCollection {
+        if (!writeConcern) return this
+        const view = Object.create(this) as EmbeddedCollection
+        view.writeConcern = writeConcern
+        return view
+    }
+
+    /**
+     * Runs a write by its write concern (its options, else the one of this view; none in a transaction, whose commit
+     * has one): writeByConcern.
+     *
+     * @param options the options of the write
+     * @param write the write
+     * @param unacknowledgedResult the result of the write not acknowledged, given the one of the write when it did not
+     * fail
+     * @param bulk whether its failure is the one of an insertMany (EmbeddedBulkWriteError)
+     */
+    private concerned<T>(
+        options: EmbeddedDocument | undefined,
+        write: () => Promise<T>,
+        unacknowledgedResult: (result?: T) => T,
+        bulk = false
+    ): Promise<T> {
+        return writeByConcern(
+            this.store,
+            this.transaction ? undefined : writeConcernOf(options, this.writeConcern),
+            write,
+            unacknowledgedResult,
+            bulk
+        )
     }
 
     /**
@@ -1903,8 +2042,14 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.insertOne(document, options)
             )
-        const [stored] = await this.insert([document])
-        return { acknowledged: true, insertedId: stored._id }
+        return this.concerned(
+            options,
+            async () => {
+                const [stored] = await this.insert([document])
+                return { acknowledged: true, insertedId: stored._id }
+            },
+            () => ({ acknowledged: false, insertedId: document._id })
+        )
     }
 
     /**
@@ -1925,7 +2070,25 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.insertMany(documents, options)
             )
-        const ordered = options?.ordered !== false
+        return this.concerned(
+            options,
+            () => this.insertDocuments(documents, options?.ordered !== false),
+            () => ({
+                acknowledged: false,
+                insertedCount: 0,
+                insertedIds: Object.fromEntries(documents.map((document, index) => [index, document._id]))
+            }),
+            true
+        )
+    }
+
+    /**
+     * Inserts documents (insertMany), ordered or not.
+     *
+     * @param documents
+     * @param ordered
+     */
+    private async insertDocuments(documents: EmbeddedDocument[], ordered: boolean) {
         for (const document of documents)
             if (document._id === undefined)
                 document._id = new this.values.bson.ObjectId()
@@ -1955,7 +2118,7 @@ export class EmbeddedCollection {
                 insertedIds,
                 new EmbeddedBulkWriteResult(
                     {
-                        ...this.noCounts(),
+                        ...noCounts(),
                         insertedCount: insertedCount,
                         insertedIds: insertedIds
                     },
@@ -1985,7 +2148,11 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.updateOne(query, update, options)
             )
-        return this.update(query, update, options, false)
+        return this.concerned(
+            options,
+            () => this.update(query, update, options, false),
+            UNACKNOWLEDGED_UPDATE
+        )
     }
 
     /**
@@ -2004,7 +2171,11 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.updateMany(query, update, options)
             )
-        return this.update(query, update, options, true)
+        return this.concerned(
+            options,
+            () => this.update(query, update, options, true),
+            UNACKNOWLEDGED_UPDATE
+        )
     }
 
     /**
@@ -2023,6 +2194,25 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.replaceOne(query, replacement, options)
             )
+        return this.concerned(
+            options,
+            () => this.replace(query, replacement, options),
+            UNACKNOWLEDGED_UPDATE
+        )
+    }
+
+    /**
+     * Replaces the first document matching a filter (replaceOne).
+     *
+     * @param query
+     * @param replacement
+     * @param options
+     */
+    private async replace(
+        query: EmbeddedDocument,
+        replacement: EmbeddedDocument,
+        options?: EmbeddedDocument
+    ) {
         checkReplacement(replacement)
         const filter = this.values.copy(query ?? {})
         const collator = collatorOf(options?.collation)
@@ -2056,7 +2246,11 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.deleteOne(query, options)
             )
-        return this.delete(query, false, options?.hint, collatorOf(options?.collation))
+        return this.concerned(
+            options,
+            () => this.delete(query, false, options?.hint, collatorOf(options?.collation)),
+            UNACKNOWLEDGED_DELETE
+        )
     }
 
     /**
@@ -2069,7 +2263,11 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.deleteMany(query, options)
             )
-        return this.delete(query, true, options?.hint, collatorOf(options?.collation))
+        return this.concerned(
+            options,
+            () => this.delete(query, true, options?.hint, collatorOf(options?.collation)),
+            UNACKNOWLEDGED_DELETE
+        )
     }
 
 
@@ -2089,8 +2287,9 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.createIndex(keys, options)
             )
-        const { session, ...rest } = options ?? {}
+        const { session, writeConcern, ...rest } = options ?? {}
         void session
+        void writeConcern
         const index = this.indexOf(keys, rest)
         // A transaction creates the indexes of the collections it creates, while they are empty
         if (
@@ -2101,12 +2300,17 @@ export class EmbeddedCollection {
             await this.session!.refuse(
                 `Cannot create new indexes on existing collection ${this.collectionName} in a multi-document transaction.`
             )
-        return this.store.exclusive(async () => {
-            const existing = this.existingIndex(index)
-            if (existing) return existing.name
-            await this.buildIndex(index)
-            return index.name
-        }, this.transaction)
+        return this.concerned(
+            options,
+            () =>
+                this.store.exclusive(async () => {
+                    const existing = this.existingIndex(index)
+                    if (existing) return existing.name
+                    await this.buildIndex(index)
+                    return index.name
+                }, this.transaction),
+            () => index.name
+        )
 
     }
 
@@ -2117,8 +2321,9 @@ export class EmbeddedCollection {
      */
     async createIndexes(specs: EmbeddedDocument[], options?: EmbeddedDocument): Promise<string[]> {
         const names: string[] = []
+        const { session, writeConcern } = options ?? {}
         for (const { key, ...rest } of specs)
-            names.push(await this.createIndex(key, options?.session ? { ...rest, session: options.session } : rest))
+            names.push(await this.createIndex(key, { ...rest, session: session, writeConcern: writeConcern }))
         return names
     }
 
@@ -2189,6 +2394,19 @@ export class EmbeddedCollection {
                 (collection) => collection.dropIndex(index, options),
                 'dropIndexes'
             )
+        return this.concerned(
+            options,
+            () => this.removeIndex(index),
+            (result) => result ?? { ok: 1 }
+        )
+    }
+
+    /**
+     * Drops an index (dropIndex).
+     *
+     * @param index
+     */
+    private removeIndex(index: string | EmbeddedDocument): Promise<EmbeddedDocument> {
         return this.store.exclusive(async () => {
             const indexes = this.store.collection(this.collectionName)?.indexes ?? []
             const count = indexes.length + 1
@@ -2270,6 +2488,34 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.bulkWrite(operations, options)
             )
+        return this.concerned(
+            options,
+            () => this.runBulk(operations, options),
+            () =>
+                new EmbeddedBulkWriteResult(
+                    {
+                        ...noCounts(),
+                        insertedIds: Object.fromEntries(
+                            operations.flatMap((operation: EmbeddedDocument, index) =>
+                                operation?.insertOne ? [[index, operation.insertOne.document?._id]] : []
+                            )
+                        )
+                    },
+                    []
+                )
+        )
+    }
+
+    /**
+     * Runs the operations of a bulkWrite.
+     *
+     * @param operations
+     * @param options
+     */
+    private async runBulk(
+        operations: EmbeddedBulkWriteOperation[],
+        options?: EmbeddedDocument
+    ): Promise<EmbeddedBulkWriteResult> {
         if (!Array.isArray(operations))
             throw new MongoEmbeddedError(
                 'Argument "operations" must be an array of documents'
@@ -2282,7 +2528,7 @@ export class EmbeddedCollection {
         const checked = operations.map((operation) =>
             checkedOperation(operation)
         )
-        const counts = this.noCounts()
+        const counts = noCounts()
         const writeErrors: EmbeddedWriteError[] = []
         let position = 0
         while (position < checked.length && !(ordered && writeErrors.length)) {
@@ -2377,13 +2623,19 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.findOneAndDelete(query, options)
             )
-        const outcome = await this.findAndModify(query, options, (current) => ({
-            key: this.values.idKey(current._id),
-            previous: current
-        }))
-        return this.modifyResult(outcome.before, options, {
-            n: outcome.before ? 1 : 0
-        })
+        return this.concerned(
+            options,
+            async () => {
+                const outcome = await this.findAndModify(query, options, (current) => ({
+                    key: this.values.idKey(current._id),
+                    previous: current
+                }))
+                return this.modifyResult(outcome.before, options, {
+                    n: outcome.before ? 1 : 0
+                })
+            },
+            () => null
+        )
     }
 
     /**
@@ -2405,17 +2657,23 @@ export class EmbeddedCollection {
                 collection.findOneAndReplace(query, replacement, options)
             )
         checkReplacement(replacement)
-        const outcome = await this.findAndModify(
-            query,
+        return this.concerned(
             options,
-            (current) => this.replacementChange(current, replacement),
-            (filter) => {
-                const document = this.values.copy(replacement)
-                document._id ??= this.equalities(filter)._id
-                return document
-            }
+            async () => {
+                const outcome = await this.findAndModify(
+                    query,
+                    options,
+                    (current) => this.replacementChange(current, replacement),
+                    (filter) => {
+                        const document = this.values.copy(replacement)
+                        document._id ??= this.equalities(filter)._id
+                        return document
+                    }
+                )
+                return this.modifiedResult(outcome, options)
+            },
+            () => null
         )
-        return this.modifiedResult(outcome, options)
     }
 
     /**
@@ -2439,20 +2697,26 @@ export class EmbeddedCollection {
             )
         const { modifier, setOnInsert } = this.modifierOf(update)
         const collator = collatorOf(options?.collation)
-        const outcome = await this.findAndModify(
-            query,
+        return this.concerned(
             options,
-            (current) =>
-                this.updateChanges(
-                    [current],
-                    modifier,
-                    options?.arrayFilters,
-                    collator
-                )[0],
-            (filter) =>
-                this.upsertedOf(filter, modifier, setOnInsert, options?.arrayFilters)
+            async () => {
+                const outcome = await this.findAndModify(
+                    query,
+                    options,
+                    (current) =>
+                        this.updateChanges(
+                            [current],
+                            modifier,
+                            options?.arrayFilters,
+                            collator
+                        )[0],
+                    (filter) =>
+                        this.upsertedOf(filter, modifier, setOnInsert, options?.arrayFilters)
+                )
+                return this.modifiedResult(outcome, options)
+            },
+            () => null
         )
-        return this.modifiedResult(outcome, options)
     }
 
     /**
@@ -2495,10 +2759,15 @@ export class EmbeddedCollection {
                 'renameCollection'
             )
         checkName(newName)
-        await this.store.exclusive(() =>
-            this.store.rename(this.collectionName, newName, !!options?.dropTarget)
+        await this.concerned(
+            options,
+            () =>
+                this.store.exclusive(() =>
+                    this.store.rename(this.collectionName, newName, !!options?.dropTarget)
+                ),
+            () => undefined
         )
-        return new EmbeddedCollection(newName, this.store)
+        return new EmbeddedCollection(newName, this.store).withWriteConcern(this.writeConcern)
     }
 
     /**
@@ -2532,8 +2801,14 @@ export class EmbeddedCollection {
                 (collection) => collection.drop(options),
                 'drop'
             )
-        await this.store.exclusive(() => this.store.drop(this.collectionName))
-        return true
+        return this.concerned(
+            options,
+            async () => {
+                await this.store.exclusive(() => this.store.drop(this.collectionName))
+                return true
+            },
+            () => true
+        )
     }
 
     /**
@@ -3458,21 +3733,6 @@ export class EmbeddedCollection {
     }
 
     /**
-     * The counts of a bulkWrite before its operations
-     */
-    private noCounts(): EmbeddedBulkWriteCounts {
-        return {
-            insertedCount: 0,
-            matchedCount: 0,
-            modifiedCount: 0,
-            deletedCount: 0,
-            upsertedCount: 0,
-            insertedIds: {},
-            upsertedIds: {}
-        }
-    }
-
-    /**
      * The modifier of an update, checked (operators, or a pipeline) and copied, and its $setOnInsert apart.
      *
      * @param update
@@ -3684,47 +3944,62 @@ export class EmbeddedDb {
     /**
      * @param databaseName its name
      * @param store its storage
+     * @param writeConcern the write concern of the writes not given one (of the database, or of the client)
      */
     constructor(
         readonly databaseName: string,
-        protected readonly store: EmbeddedStore
+        protected readonly store: EmbeddedStore,
+        protected readonly writeConcern?: EmbeddedWriteConcern
     ) {}
 
     /**
      * A collection (created by its first insertion or index)
      * @param name the name of the collection
+     * @param options the write concern of its writes not given one (writeConcern)
      */
-    collection(name: string): EmbeddedCollection {
+    collection(name: string, options?: EmbeddedDocument): EmbeddedCollection {
         checkName(name)
         let collection = this.given.get(name)
         if (!collection) {
-            collection = new EmbeddedCollection(name, this.store)
+            collection = new EmbeddedCollection(name, this.store).withWriteConcern(this.writeConcern)
             this.given.set(name, collection)
         }
-        return collection
+        return options?.writeConcern ? collection.withWriteConcern(options.writeConcern) : collection
+    }
+
+    /**
+     * The view of the database whose writes not given a write concern have one (EmbeddedClient.db)
+     * @param writeConcern the write concern
+     */
+    withWriteConcern(writeConcern?: EmbeddedWriteConcern): EmbeddedDb {
+        return writeConcern ? new EmbeddedDb(this.databaseName, this.store, writeConcern) : this
     }
 
     /**
      * Drops every collection; a transaction does not allow it
-     * @param options the session
+     * @param options the session, writeConcern
      */
     async dropDatabase(options?: EmbeddedDocument): Promise<boolean> {
-        return this.inSession(options, 'dropDatabase', async () => {
-            await this.store.exclusive(() => this.store.clear())
-            return true
-        })
+        return this.inSession(options, 'dropDatabase', () =>
+            writeByConcern(
+                this.store,
+                writeConcernOf(options, this.writeConcern),
+                async () => {
+                    await this.store.exclusive(() => this.store.clear())
+                    return true
+                },
+                () => true
+            )
+        )
     }
 
     /**
      * Drops a collection: true, also when it was not there (as MongoDB 7.0 and later); a transaction does not allow it
      * @param name the name of the collection
-     * @param options the session
+     * @param options the session, writeConcern
      */
     async dropCollection(name: string, options?: EmbeddedDocument): Promise<boolean> {
-        return this.inSession(options, 'drop', async () => {
-            await this.store.exclusive(() => this.store.drop(name))
-            return true
-        })
+        return this.collection(name).drop(options)
     }
 
     /**
@@ -3742,10 +4017,17 @@ export class EmbeddedDb {
         for (const option of COLLECTION_OPTIONS)
             if (options?.[option] !== undefined)
                 throw notSupported(`The option ${option} of createCollection`)
-        return this.inSession(options, undefined, async (transaction) => {
-            await this.store.exclusive(() => this.store.create(name), transaction)
-            return this.collection(name)
-        })
+        return this.inSession(options, undefined, (transaction) =>
+            writeByConcern(
+                this.store,
+                transaction ? undefined : writeConcernOf(options, this.writeConcern),
+                async () => {
+                    await this.store.exclusive(() => this.store.create(name), transaction)
+                    return this.collection(name)
+                },
+                () => this.collection(name)
+            )
+        )
     }
 
     /**
@@ -3836,6 +4118,11 @@ export class EmbeddedDb {
  */
 export interface EmbeddedClientOptions extends EmbeddedStoreOptions {
     /**
+     * The write concern of the writes not given one
+     */
+    writeConcern?: EmbeddedWriteConcern
+
+    /**
      * The longest a transaction may be open, in seconds: beyond, it is aborted, its next operations and its commit
      * failing with NoSuchTransaction (251)
      * @default 60
@@ -3893,7 +4180,7 @@ export class EmbeddedClient {
         directory?: string,
         options: EmbeddedClientOptions = {}
     ): Promise<EmbeddedClient> {
-        const { transactionLifetimeLimitSeconds, ...storage } = options
+        const { transactionLifetimeLimitSeconds, writeConcern, ...storage } = options
         const lifetime = transactionLifetimeLimitSeconds ?? 60
         if (typeof lifetime !== 'number' || !(lifetime > 0))
             throw new MongoEmbeddedError(
@@ -3905,7 +4192,7 @@ export class EmbeddedClient {
                 new EmbeddedValues(bson, mingo),
                 storage
             ),
-            { transactionLifetimeLimitSeconds: lifetime }
+            { transactionLifetimeLimitSeconds: lifetime, writeConcern: writeConcern }
         )
     }
 
@@ -3918,7 +4205,8 @@ export class EmbeddedClient {
         return new EmbeddedClientSession(
             this.store,
             options,
-            this.options.transactionLifetimeLimitSeconds
+            this.options.transactionLifetimeLimitSeconds,
+            this.options.writeConcern
         )
     }
 
@@ -3946,10 +4234,11 @@ export class EmbeddedClient {
     /**
      * Its database (one, whatever its name)
      * @param name the name it is given
+     * @param options the write concern of its writes not given one (writeConcern)
      */
-    db(name = 'embedded'): EmbeddedDb {
-        this.database ??= new EmbeddedDb(name, this.store)
-        return this.database
+    db(name = 'embedded', options?: EmbeddedDocument): EmbeddedDb {
+        this.database ??= new EmbeddedDb(name, this.store, this.options.writeConcern)
+        return options?.writeConcern ? this.database.withWriteConcern(options.writeConcern) : this.database
     }
 
     /**
