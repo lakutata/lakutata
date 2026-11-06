@@ -8,8 +8,10 @@
 ** sqlite_schema (again after each change of the schema).
 **
 ** The rows of the catalog: 'f' the format (u32), 'n' the next id (of a collection or an index), 'c' + its name the id
-** of a collection, 'k' + its id the count of its documents, 'x' + its id the definitions of its indexes (BSON, as the
-** client writes them; the ids and the counts as 8 bytes, big endian), 'd' while the counts are not written. The counts
+** of a collection, 'k' + its id the count of its documents, 'u' + its id its UUID (16 bytes), 'x' + its id the
+** definitions of its indexes (BSON, as the client writes them; the ids and the counts as 8 bytes, big endian), 'g' the
+** generation of the oplog (the last opening), 'i' the UUID of the database, 'o' the bytes of the oplog, 'd' while the
+** counts (and the bytes of the oplog) are not written. The counts
 ** are kept in memory and written at the closing: a write would write the page of the catalog too otherwise (a commit of
 ** one document costs 17 us, of two pages 29 us); the first write of a connection writes 'd', and an opening finding it
 ** (the connection before it did not close) counts the documents again (sqlite3BtreeCount, about 30 ms for 1,000,000
@@ -36,13 +38,18 @@
 
 #include "store.h"
 
-/* The format of the file: 2 since the keys of the _id are the ones of the indexes (ordered) */
-#define MDE_FORMAT 2
+/* The format of the file: 2 since the keys of the _id are the ones of the indexes (ordered), 3 since the UUID of the
+** collections and the oplog of the change streams */
+#define MDE_FORMAT 3
+
+/* The bytes the oplog may hold beyond its limit before its oldest events are deleted: its deletions made in batches */
+#define MDE_OPLOG_SLACK (1024 * 1024)
 
 typedef struct Collection {
   int64_t id;
   Pgno root;
   int64_t count;
+  uint8_t uuid[16];
   char *name;
   uint8_t *indexes;
   int indexesSize;
@@ -82,13 +89,30 @@ struct MdeStore {
   int countsDirty;
   int recount;
   /* The transaction of a session open (mde_begin), and the collections as they were when it began (their counts, the
-  ** definitions of their indexes, whether the counts were written), restored by its abort */
+  ** definitions of their indexes, whether the counts were written, the state of the oplog), restored by its abort */
   int transaction;
   Collection *saved;
   int savedCount;
   int savedDirty;
+  int64_t savedNextSeq;
+  int64_t savedOplogBytes;
+  /* The oplog: its root page, the generation of this opening, the sequence of its next event, its bytes and the most
+  ** of them (0: no event written); the events queued for the next commit, the ones it appended and their bytes; the
+  ** mark of the counts written by it (the row 'd'); the UUID of the database */
+  Pgno oplog;
+  int64_t generation;
+  int64_t nextSeq;
+  int64_t oplogBytes;
+  int64_t oplogLimit;
+  MdeBuffer queued;
+  int queuedCount;
+  int64_t pendingSeq;
+  int64_t pendingBytes;
+  int marking;
+  uint8_t database[16];
   char message[512];
 };
+
 
 static int Reserve(uint8_t **buffer, size_t *capacity, size_t size) {
   if (size <= *capacity) return 1;
@@ -756,8 +780,12 @@ const char *mde_message(MdeStore *store) { return store->message; }
 /*
 ** The transactions of the functions. Each function runs in a transaction of its own (of the b-tree layer, or of SQL
 ** for the ones changing the schema), unless the transaction of a session is open: it runs in that one then, which ends
-** by mde_commit or mde_abort, and a failure of the function leaves it to be aborted.
+** by mde_commit or mde_abort, and a failure of the function leaves it to be aborted. The end of a write writes the
+** events queued to the oplog first (AppendQueued), in its transaction.
 */
+
+static int AppendQueued(MdeStore *store);
+static void Settle(MdeStore *store, int rc);
 
 /* The transaction of the b-tree layer of a function: a read, or a write */
 static int Begin(MdeStore *store, int write) {
@@ -767,9 +795,12 @@ static int Begin(MdeStore *store, int write) {
 /* The end of the transaction of a write: committed when rc is SQLITE_OK (the error of the commit given), else rolled
 ** back (rc given) */
 static int End(MdeStore *store, int rc) {
-  if (store->transaction) return rc;
-  if (rc == SQLITE_OK) return sqlite3BtreeCommit(store->bt);
-  sqlite3BtreeRollback(store->bt, SQLITE_OK, 0);
+  if (rc == SQLITE_OK) rc = AppendQueued(store);
+  if (!store->transaction) {
+    if (rc == SQLITE_OK) rc = sqlite3BtreeCommit(store->bt);
+    else sqlite3BtreeRollback(store->bt, SQLITE_OK, 0);
+  }
+  Settle(store, rc);
   return rc;
 }
 
@@ -788,11 +819,15 @@ static int BeginSql(MdeStore *store) {
 /* The end of the transaction of SQL of a function: committed when rc is SQLITE_OK (the error of the commit given),
 ** else rolled back (rc given) */
 static int EndSql(MdeStore *store, int rc) {
-  if (store->transaction) return rc;
-  if (rc == SQLITE_OK) rc = Exec(store, "COMMIT", "the catalog");
-  if (rc != SQLITE_OK) sqlite3_exec(store->db, "ROLLBACK", 0, 0, 0);
+  if (rc == SQLITE_OK) rc = AppendQueued(store);
+  if (!store->transaction) {
+    if (rc == SQLITE_OK) rc = Exec(store, "COMMIT", "the catalog");
+    if (rc != SQLITE_OK) sqlite3_exec(store->db, "ROLLBACK", 0, 0, 0);
+  }
+  Settle(store, rc);
   return rc;
 }
+
 
 static void PutBigEndian(uint8_t *out, int64_t value) {
   for (int i = 0; i < 8; i++) out[i] = (uint8_t)((uint64_t)value >> (56 - 8 * i));
@@ -886,7 +921,89 @@ static const uint8_t *PayloadOf(MdeStore *store, BtCursor *cursor, u32 *size) {
   return store->payload;
 }
 
+/* The row 'd' written (the counts and the bytes of the oplog not written from now on) by the transaction open, when
+** it is not there: Settle marks them once it commits */
+static int MarkDirty(MdeStore *store) {
+  if (store->countsDirty || store->marking) return SQLITE_OK;
+  const uint8_t key[1] = {'d'}, value[1] = {1};
+  OpenCursor(store, store->metaCursor, store->meta, 1);
+  int rc = Put(store, store->metaCursor, key, 1, value, 1);
+  sqlite3BtreeCloseCursor(store->metaCursor);
+  if (rc == SQLITE_OK) store->marking = 1;
+  return rc;
+}
+
+/* The size of a record of two blobs (Record): the bytes of an event in the oplog, as its payload */
+static int64_t RecordSize(int a, int b) {
+  return 1 + sqlite3VarintLen((u64)a * 2 + 12) + sqlite3VarintLen((u64)b * 2 + 12) + (int64_t)a + b;
+}
+
+/* The key of an event of the oplog: its generation and its sequence, 8 bytes each, big endian */
+static void EventKey(uint8_t *key, int64_t generation, int64_t sequence) {
+  PutBigEndian(key, generation);
+  PutBigEndian(key + 8, sequence);
+}
+
+/* The oldest events of the oplog deleted, in the transaction open, until it holds its limit of bytes at most */
+static int Trim(MdeStore *store) {
+  int rc = OpenCursor(store, store->entryCursor, store->oplog, 1);
+  while (rc == SQLITE_OK && store->oplogBytes + store->pendingBytes > store->oplogLimit) {
+    int empty = 0;
+    rc = sqlite3BtreeFirst(store->entryCursor, &empty);
+    if (rc != SQLITE_OK || empty) break;
+    const int64_t size = (int64_t)sqlite3BtreePayloadSize(store->entryCursor);
+    rc = sqlite3BtreeDelete(store->entryCursor, 0);
+    if (rc == SQLITE_OK) store->pendingBytes -= size;
+  }
+  sqlite3BtreeCloseCursor(store->entryCursor);
+  return rc;
+}
+
+/* The events queued written to the oplog in the transaction open (none when it holds no event: its limit 0), each one
+** the next sequence of the generation; beyond its limit and its slack, its oldest events deleted */
+static int AppendQueued(MdeStore *store) {
+  if (!store->queuedCount || store->oplogLimit <= 0 || !store->oplog) return SQLITE_OK;
+  int rc = MarkDirty(store);
+  if (rc != SQLITE_OK) return rc;
+  OpenCursor(store, store->entryCursor, store->oplog, 1);
+  for (size_t at = 0; at + 4 <= store->queued.size && rc == SQLITE_OK;) {
+    uint32_t size;
+    memcpy(&size, store->queued.data + at, 4);
+    uint8_t key[16];
+    EventKey(key, store->generation, store->nextSeq + store->pendingSeq);
+    int res = 0;
+    rc = Seek(store, store->entryCursor, key, 16, &res);
+    if (rc == SQLITE_OK && res == 0) rc = Fail(store, SQLITE_CORRUPT, "an event of the oplog is there already");
+    if (rc == SQLITE_OK) rc = Insert(store, store->entryCursor, key, 16, store->queued.data + at + 4, (int)size, res);
+    if (rc == SQLITE_OK) {
+      store->pendingSeq++;
+      store->pendingBytes += RecordSize(16, (int)size);
+    }
+    at += 4 + size;
+  }
+  sqlite3BtreeCloseCursor(store->entryCursor);
+  if (rc == SQLITE_OK && store->oplogBytes + store->pendingBytes > store->oplogLimit + MDE_OPLOG_SLACK) rc = Trim(store);
+  return rc;
+}
+
+/* The outcome of the end of a write: the events it appended and their bytes counted, the counts marked as not
+** written when it wrote the row 'd' (when it was committed, or is in the transaction of a session: its abort restores
+** them); the events queued dropped */
+static void Settle(MdeStore *store, int rc) {
+  if (rc == SQLITE_OK) {
+    store->nextSeq += store->pendingSeq;
+    store->oplogBytes += store->pendingBytes;
+    if (store->marking) store->countsDirty = 1;
+  }
+  store->pendingSeq = 0;
+  store->pendingBytes = 0;
+  store->marking = 0;
+  store->queued.size = 0;
+  store->queuedCount = 0;
+}
+
 static Collection *Find(MdeStore *store, int64_t id) {
+
   for (int i = 0; i < store->collectionCount; i++)
     if (store->collections[i].id == id) return &store->collections[i];
   return NULL;
@@ -934,11 +1051,14 @@ static int LoadRoots(MdeStore *store) {
     store->collections[i].tableCount = 0;
   }
   store->meta = 0;
+  store->oplog = 0;
   while ((rc = sqlite3_step(statement)) == SQLITE_ROW) {
     const char *name = (const char *)sqlite3_column_text(statement, 0);
     Pgno root = (Pgno)sqlite3_column_int64(statement, 1);
     if (strcmp(name, "meta") == 0) {
       store->meta = root;
+    } else if (strcmp(name, "oplog") == 0) {
+      store->oplog = root;
     } else if (name[0] == 'c') {
       Collection *collection = Find(store, strtoll(name + 1, NULL, 10));
       if (collection) collection->root = root;
@@ -998,6 +1118,9 @@ static int LoadCatalog(MdeStore *store) {
     if (keySize < 1) continue;
     if (key[0] == 'f' && valueSize == 4) format = (int)(((u32)value[0] << 24) | ((u32)value[1] << 16) | ((u32)value[2] << 8) | value[3]);
     if (key[0] == 'd' && keySize == 1) store->recount = 1;
+    if (key[0] == 'g' && keySize == 1 && valueSize == 8) store->generation = BigEndian(value);
+    if (key[0] == 'o' && keySize == 1 && valueSize == 8) store->oplogBytes = BigEndian(value);
+    if (key[0] == 'i' && keySize == 1 && valueSize == 16) memcpy(store->database, value, 16);
     if (key[0] == 'c' && valueSize == 8 && AddCollection(store, BigEndian(value), (const char *)key + 1, keySize - 1) != SQLITE_OK) {
       sqlite3_finalize(statement);
       return Fail(store, SQLITE_NOMEM, "out of memory");
@@ -1011,8 +1134,8 @@ static int LoadCatalog(MdeStore *store) {
              : "the file is not a database of mongo-embedded (its format is %d, not %d)", format, MDE_FORMAT);
     return SQLITE_CORRUPT;
   }
-  /* The counts and the definitions of the indexes, now the collections are known */
-  rc = sqlite3_prepare_v2(store->db, "SELECT k, v FROM meta WHERE k >= x'6b' AND k < x'6c' OR k >= x'78' AND k < x'79'", -1, &statement, 0);
+  /* The counts, the UUID and the definitions of the indexes, now the collections are known */
+  rc = sqlite3_prepare_v2(store->db, "SELECT k, v FROM meta WHERE k >= x'6b' AND k < x'6c' OR k >= x'75' AND k < x'76' OR k >= x'78' AND k < x'79'", -1, &statement, 0);
   if (rc != SQLITE_OK) return FailSql(store, rc, "the catalog");
   while ((rc = sqlite3_step(statement)) == SQLITE_ROW) {
     const uint8_t *key = sqlite3_column_blob(statement, 0);
@@ -1023,6 +1146,8 @@ static int LoadCatalog(MdeStore *store) {
     if (!collection) continue;
     if (key[0] == 'k' && valueSize == 8) {
       collection->count = BigEndian(value);
+    } else if (key[0] == 'u' && valueSize == 16) {
+      memcpy(collection->uuid, value, 16);
     } else if (key[0] == 'x' && valueSize > 0) {
       collection->indexes = malloc((size_t)valueSize);
       if (!collection->indexes) {
@@ -1043,6 +1168,35 @@ static int Exec(MdeStore *store, const char *sql, const char *what) {
   return rc == SQLITE_OK ? rc : FailSql(store, rc, what);
 }
 
+static int RunBlobs(MdeStore *store, const char *sql, const uint8_t *const *blobs, const int *sizes, int count);
+
+/* The oplog of the connection writing: its table made when it is missing, a new generation (the last one plus one;
+** random for a database in memory, so that the tokens of another one never match), the UUID of the database made when
+** it has none, the limit of its bytes */
+static int OpenOplog(MdeStore *store, const MdeOptions *options) {
+  int rc = Exec(store, "CREATE TABLE IF NOT EXISTS oplog(k BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID", "the oplog");
+  if (rc == SQLITE_OK) rc = LoadRoots(store);
+  if (rc != SQLITE_OK) return rc;
+  if (IsMemory(store->file)) {
+    uint64_t random = 0;
+    sqlite3_randomness(sizeof(random), &random);
+    store->generation = (int64_t)(random >> 17) + 1;
+  } else {
+    store->generation++;
+  }
+  static const uint8_t none[16] = {0};
+  if (memcmp(store->database, none, 16) == 0) sqlite3_randomness(16, store->database);
+  uint8_t generation[8];
+  PutBigEndian(generation, store->generation);
+  const uint8_t *blobs[] = {generation, store->database};
+  const int sizes[] = {8, 16};
+  rc = RunBlobs(store, "INSERT INTO meta(k, v) VALUES (x'67', ?1), (x'69', ?2) ON CONFLICT(k) DO UPDATE SET v = excluded.v", blobs, sizes, 2);
+  store->nextSeq = 1;
+  store->oplogLimit = options->oplogBytes;
+  return rc;
+}
+
+
 /* The frames of the WAL after a commit of SQL (a commit of the b-tree layer calls no hook: precondition 4) */
 static int WalHook(void *context, sqlite3 *db, const char *name, int frames) {
   (void)db;
@@ -1051,7 +1205,8 @@ static int WalHook(void *context, sqlite3 *db, const char *name, int frames) {
   return SQLITE_OK;
 }
 
-/* The documents of each collection counted (the connection before did not close): the counts stay to be written */
+/* The documents of each collection counted, and the bytes of the oplog (the connection before did not close): the
+** counts stay to be written */
 static int Recount(MdeStore *store) {
   int rc = Begin(store, 0);
   if (rc != SQLITE_OK) return FailSql(store, rc, "the counts");
@@ -1061,6 +1216,21 @@ static int Recount(MdeStore *store) {
     rc = sqlite3BtreeCount(store->db, store->cursor, &count);
     sqlite3BtreeCloseCursor(store->cursor);
     store->collections[i].count = count;
+  }
+  store->oplogBytes = 0;
+  if (rc == SQLITE_OK && store->oplog) {
+    int empty = 0;
+    OpenCursor(store, store->cursor, store->oplog, 0);
+    rc = sqlite3BtreeFirst(store->cursor, &empty);
+    while (rc == SQLITE_OK && !empty) {
+      store->oplogBytes += (int64_t)sqlite3BtreePayloadSize(store->cursor);
+      rc = sqlite3BtreeNext(store->cursor, 0);
+      if (rc == SQLITE_DONE) {
+        rc = SQLITE_OK;
+        break;
+      }
+    }
+    sqlite3BtreeCloseCursor(store->cursor);
   }
   EndRead(store);
   if (rc != SQLITE_OK) return FailSql(store, rc, "the counts");
@@ -1079,6 +1249,12 @@ static int WriteCounts(MdeStore *store) {
     PutBigEndian(key + 1, store->collections[i].id);
     PutBigEndian(value, store->collections[i].count);
     rc = Put(store, store->metaCursor, key, 9, value, 8);
+  }
+  if (rc == SQLITE_OK) {
+    const uint8_t key[1] = {'o'};
+    uint8_t value[8];
+    PutBigEndian(value, store->oplogBytes);
+    rc = Put(store, store->metaCursor, key, 1, value, 8);
   }
   if (rc == SQLITE_OK) {
     const uint8_t key[1] = {'d'};
@@ -1137,9 +1313,12 @@ int mde_open(const char *file, const MdeOptions *options, MdeStore **out, char *
     if (!options->reader)
       rc = Exec(store,
                 "CREATE TABLE IF NOT EXISTS meta(k BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID;"
-                "INSERT OR IGNORE INTO meta(k, v) VALUES (x'66', x'00000002'), (x'6e', x'0000000000000001');",
+                "INSERT OR IGNORE INTO meta(k, v) VALUES (x'66', x'00000003'), (x'6e', x'0000000000000001');",
                 "the catalog");
     if (rc == SQLITE_OK) rc = LoadCatalog(store);
+    /* The oplog, made once the format is checked; a new generation for this opening (a random one in memory, where
+    ** a database is new each time), the UUID of the database made once */
+    if (rc == SQLITE_OK && !options->reader) rc = OpenOplog(store, options);
     if (rc == SQLITE_OK) {
       sqlite3_wal_hook(store->db, WalHook, store);
       store->bt = store->db->aDb[0].pBt;
@@ -1166,6 +1345,7 @@ void mde_close(MdeStore *store) {
   if (!store) return;
   mde_abort(store);
   if (store->bt && store->countsDirty) WriteCounts(store);
+  mde_buffer_free(&store->queued);
   sqlite3_free(store->cursor);
   sqlite3_free(store->metaCursor);
   sqlite3_free(store->entryCursor);
@@ -1224,6 +1404,8 @@ static int SaveCollections(MdeStore *store) {
     store->savedCount++;
   }
   store->savedDirty = store->countsDirty;
+  store->savedNextSeq = store->nextSeq;
+  store->savedOplogBytes = store->oplogBytes;
   return SQLITE_OK;
 }
 
@@ -1235,6 +1417,10 @@ static void RestoreCollections(MdeStore *store) {
   store->collectionCount = store->savedCount;
   store->collectionCapacity = store->savedCount + 1;
   store->countsDirty = store->savedDirty;
+  store->nextSeq = store->savedNextSeq;
+  store->oplogBytes = store->savedOplogBytes;
+  Settle(store, SQLITE_ABORT);
+
   store->saved = NULL;
   store->savedCount = 0;
 }
@@ -1302,7 +1488,8 @@ int mde_collections(MdeStore *store, MdeBuffer *out) {
     uint32_t indexesSize = (uint32_t)collection->indexesSize;
     uint32_t tableCount = (uint32_t)collection->tableCount;
     if (!Append(out, &length, 4) || !Append(out, collection->name, length) || !Append(out, &collection->id, 8) ||
-        !Append(out, &collection->count, 8) || !Append(out, &indexesSize, 4) || !Append(out, collection->indexes, indexesSize) ||
+        !Append(out, &collection->count, 8) || !Append(out, collection->uuid, 16) || !Append(out, &indexesSize, 4) ||
+        !Append(out, collection->indexes, indexesSize) ||
         !Append(out, &tableCount, 4) || !Append(out, collection->tables, sizeof(int64_t) * tableCount))
       return Fail(store, SQLITE_NOMEM, "out of memory");
   }
@@ -1320,8 +1507,12 @@ static int RunBlobs(MdeStore *store, const char *sql, const uint8_t *const *blob
   return rc == SQLITE_DONE ? SQLITE_OK : FailSql(store, rc, "the catalog");
 }
 
-int mde_create_collection(MdeStore *store, const char *name, int64_t *id) {
+int mde_create_collection(MdeStore *store, const char *name, const uint8_t *given, int64_t *id) {
   int length = (int)strlen(name);
+  /* A UUID of its own when none is given */
+  uint8_t uuid[16];
+  if (given) memcpy(uuid, given, 16);
+  else sqlite3_randomness(16, uuid);
   for (int i = 0; i < store->collectionCount; i++)
     if (strcmp(store->collections[i].name, name) == 0) return Fail(store, SQLITE_CONSTRAINT, "a collection of this name is there");
   int rc = BeginSql(store);
@@ -1341,7 +1532,7 @@ int mde_create_collection(MdeStore *store, const char *name, int64_t *id) {
   snprintf(sql, sizeof(sql), "CREATE TABLE c%lld(k BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID", (long long)next);
   rc = Exec(store, sql, "the table of a collection");
   uint8_t *nameKey = malloc((size_t)length + 1);
-  uint8_t idValue[8], countKey[9], zero[8] = {0}, nextValue[8];
+  uint8_t idValue[8], countKey[9], zero[8] = {0}, nextValue[8], uuidKey[9];
   if (!nameKey) rc = Fail(store, SQLITE_NOMEM, "out of memory");
   if (rc == SQLITE_OK) {
     nameKey[0] = 'c';
@@ -1350,15 +1541,18 @@ int mde_create_collection(MdeStore *store, const char *name, int64_t *id) {
     countKey[0] = 'k';
     PutBigEndian(countKey + 1, next);
     PutBigEndian(nextValue, next + 1);
-    const uint8_t *blobs[] = {nameKey, idValue, countKey, zero, nextValue};
-    const int sizes[] = {length + 1, 8, 9, 8, 8};
-    rc = RunBlobs(store, "INSERT INTO meta(k, v) VALUES (?1, ?2), (?3, ?4), (x'6e', ?5) ON CONFLICT(k) DO UPDATE SET v = excluded.v", blobs, sizes, 5);
+    uuidKey[0] = 'u';
+    PutBigEndian(uuidKey + 1, next);
+    const uint8_t *blobs[] = {nameKey, idValue, countKey, zero, nextValue, uuidKey, uuid};
+    const int sizes[] = {length + 1, 8, 9, 8, 8, 9, 16};
+    rc = RunBlobs(store, "INSERT INTO meta(k, v) VALUES (?1, ?2), (?3, ?4), (x'6e', ?5), (?6, ?7) ON CONFLICT(k) DO UPDATE SET v = excluded.v", blobs, sizes, 7);
   }
   free(nameKey);
   rc = EndSql(store, rc);
   if (rc != SQLITE_OK) return rc;
   rc = AddCollection(store, next, name, length);
   if (rc != SQLITE_OK) return Fail(store, rc, "out of memory");
+  memcpy(store->collections[store->collectionCount - 1].uuid, uuid, 16);
   *id = next;
   return LoadRoots(store);
 }
@@ -1379,11 +1573,13 @@ static int DropInTransaction(MdeStore *store, const Collection *collection) {
   int nameSize = 0;
   uint8_t *nameKey = NameKey(collection->name, &nameSize);
   if (!nameKey) return Fail(store, SQLITE_NOMEM, "out of memory");
-  uint8_t countKey[9], indexesKey[9];
+  uint8_t countKey[9], indexesKey[9], uuidKey[9];
   countKey[0] = 'k';
   PutBigEndian(countKey + 1, collection->id);
   indexesKey[0] = 'x';
   PutBigEndian(indexesKey + 1, collection->id);
+  uuidKey[0] = 'u';
+  PutBigEndian(uuidKey + 1, collection->id);
   char sql[64];
   snprintf(sql, sizeof(sql), "DROP TABLE c%lld", (long long)collection->id);
   int rc = Exec(store, sql, "the table of a collection");
@@ -1392,9 +1588,9 @@ static int DropInTransaction(MdeStore *store, const Collection *collection) {
     rc = Exec(store, sql, "the table of an index");
   }
   if (rc == SQLITE_OK) {
-    const uint8_t *blobs[] = {nameKey, countKey, indexesKey};
-    const int sizes[] = {nameSize, 9, 9};
-    rc = RunBlobs(store, "DELETE FROM meta WHERE k = ?1 OR k = ?2 OR k = ?3", blobs, sizes, 3);
+    const uint8_t *blobs[] = {nameKey, countKey, indexesKey, uuidKey};
+    const int sizes[] = {nameSize, 9, 9, 9};
+    rc = RunBlobs(store, "DELETE FROM meta WHERE k = ?1 OR k = ?2 OR k = ?3 OR k = ?4", blobs, sizes, 4);
   }
   free(nameKey);
   return rc;
@@ -1667,12 +1863,7 @@ int mde_write(MdeStore *store, int64_t id, const MdeChange *changes, int count, 
   sqlite3BtreeCloseCursor(store->cursor);
   if (rc == SQLITE_OK && definitions) rc = PutDefinitions(store, id, definitions, definitionsSize);
   /* The first write of the connection: the counts not written from now on */
-  if (rc == SQLITE_OK && delta != 0 && !store->countsDirty) {
-    const uint8_t key[1] = {'d'}, value[1] = {1};
-    OpenCursor(store, store->metaCursor, store->meta, 1);
-    rc = Put(store, store->metaCursor, key, 1, value, 1);
-    sqlite3BtreeCloseCursor(store->metaCursor);
-  }
+  if (rc == SQLITE_OK && delta != 0) rc = MarkDirty(store);
   rc = End(store, rc);
   if (rc != SQLITE_OK) {
     if (rc == MDE_DUPLICATE_KEY) Fail(store, rc, "duplicate key");
@@ -1683,7 +1874,6 @@ int mde_write(MdeStore *store, int64_t id, const MdeChange *changes, int count, 
   }
   if (definitions) KeepDefinitions(collection, copy, definitionsSize);
   collection->count += delta;
-  if (delta != 0) store->countsDirty = 1;
   /* Precondition 4: the frames of the WAL for the checkpoints */
   store->frames = sqlite3PagerWalCallback(sqlite3BtreePager(store->bt));
   return SQLITE_OK;
@@ -2023,7 +2213,114 @@ int mde_checkpoint(MdeStore *store, int *frames, int *checkpointed) {
   return rc == SQLITE_OK || rc == SQLITE_BUSY ? rc : FailSql(store, rc, "a checkpoint");
 }
 
+void mde_drop_events(MdeStore *store) {
+  store->queued.size = 0;
+  store->queuedCount = 0;
+}
+
+int mde_queue_events(MdeStore *store, const uint8_t *const *events, const int *sizes, int count) {
+
+  for (int i = 0; i < count; i++) {
+    uint32_t size = (uint32_t)sizes[i];
+    if (!Append(&store->queued, &size, 4) || !Append(&store->queued, events[i], size)) return Fail(store, SQLITE_NOMEM, "out of memory");
+    store->queuedCount++;
+  }
+  return SQLITE_OK;
+}
+
+int mde_append_events(MdeStore *store) {
+  store->message[0] = 0;
+  if (!store->queuedCount) return SQLITE_OK;
+  int rc = Begin(store, 1);
+  if (rc != SQLITE_OK) {
+    Settle(store, rc);
+    return FailSql(store, rc, "the oplog");
+  }
+  rc = End(store, SQLITE_OK);
+  if (rc != SQLITE_OK) return store->message[0] ? rc : FailSql(store, rc, "the oplog");
+  store->frames = sqlite3PagerWalCallback(sqlite3BtreePager(store->bt));
+  return SQLITE_OK;
+}
+
+int mde_oplog_read(MdeStore *store, const uint8_t *after, int afterSize, int maxEvents, size_t maxBytes, MdeBuffer *out,
+                   MdeBuffer *last, int *done) {
+  *done = 1;
+  store->message[0] = 0;
+  if (!store->oplog) return SQLITE_OK;
+  int rc = Begin(store, 0);
+  if (rc != SQLITE_OK) return FailSql(store, rc, "a read of the oplog");
+  OpenCursor(store, store->entryCursor, store->oplog, 0);
+  const MdeRange all = {NULL, 0, 0, NULL, 0, 0};
+  int empty = 0, given = 0;
+  rc = StartRange(store, store->entryCursor, &all, 0, after, afterSize, &empty);
+  while (rc == SQLITE_OK && !empty) {
+    u32 size;
+    const uint8_t *payload = PayloadOf(store, store->entryCursor, &size);
+    int keyLength = 0, valueLength = 0;
+    int keyOffset = payload ? Field(payload, (int)size, 0, &keyLength) : -1;
+    int valueOffset = payload ? Field(payload, (int)size, 1, &valueLength) : -1;
+    if (!payload) {
+      rc = Fail(store, SQLITE_NOMEM, "out of memory");
+      break;
+    }
+    if (keyOffset < 0 || valueOffset < 0 || keyLength != 16) {
+      rc = Fail(store, SQLITE_CORRUPT, "a record of the oplog is not an event");
+      break;
+    }
+    uint32_t length = (uint32_t)valueLength;
+    last->size = 0;
+    if (!Append(out, &length, 4) || !Append(out, payload + keyOffset, 16) || !Append(out, payload + valueOffset, valueLength) ||
+        !Append(last, payload + keyOffset, 16)) {
+      rc = Fail(store, SQLITE_NOMEM, "out of memory");
+      break;
+    }
+    given++;
+    rc = sqlite3BtreeNext(store->entryCursor, 0);
+    if (rc == SQLITE_DONE) {
+      rc = SQLITE_OK;
+      break;
+    }
+    if (rc == SQLITE_OK && (given >= maxEvents || out->size >= maxBytes)) {
+      *done = 0;
+      break;
+    }
+  }
+  sqlite3BtreeCloseCursor(store->entryCursor);
+  EndRead(store);
+  if (rc != SQLITE_OK && !store->message[0]) FailSql(store, rc, "a read of the oplog");
+  return rc;
+}
+
+int mde_oplog_state(MdeStore *store, int64_t *generation, int64_t *nextSeq, uint8_t *first, int *hasFirst,
+                    uint8_t *database) {
+  store->message[0] = 0;
+  *generation = store->generation;
+  *nextSeq = store->nextSeq;
+  memcpy(database, store->database, 16);
+  *hasFirst = 0;
+  if (!store->oplog) return SQLITE_OK;
+  int rc = Begin(store, 0);
+  if (rc != SQLITE_OK) return FailSql(store, rc, "a read of the oplog");
+  OpenCursor(store, store->entryCursor, store->oplog, 0);
+  int empty = 0;
+  rc = sqlite3BtreeFirst(store->entryCursor, &empty);
+  if (rc == SQLITE_OK && !empty) {
+    u32 size;
+    const uint8_t *payload = PayloadOf(store, store->entryCursor, &size);
+    int keyLength = 0;
+    int keyOffset = payload ? Field(payload, (int)size, 0, &keyLength) : -1;
+    if (keyOffset >= 0 && keyLength == 16) {
+      memcpy(first, payload + keyOffset, 16);
+      *hasFirst = 1;
+    }
+  }
+  sqlite3BtreeCloseCursor(store->entryCursor);
+  EndRead(store);
+  return rc == SQLITE_OK ? rc : FailSql(store, rc, "a read of the oplog");
+}
+
 int mde_sync_wal(MdeStore *store) {
+
   if (IsMemory(store->file)) return SQLITE_OK;
   sqlite3_file *wal = NULL;
   int rc = sqlite3_file_control(store->db, "main", SQLITE_FCNTL_JOURNAL_POINTER, &wal);

@@ -25,6 +25,8 @@ struct Settings {
   // cache of the files of the system)
   int64_t cacheBytes = 16 * 1024 * 1024;
   int64_t mmapBytes = 0;
+  // The most bytes of the oplog of the change streams (0: none written)
+  int64_t oplogBytes = 64 * 1024 * 1024;
 };
 
 // The thread of the checkpoints of a file with the sync "interval": a passive checkpoint every interval when frames
@@ -73,7 +75,9 @@ class Connection {
 
   // The id of a collection, or 0; a collection created when it is missing
   int64_t IdOf(const std::string& name) const;
-  int64_t Create(const std::string& name, std::string* message);
+  // A collection created, of a UUID (16 bytes): its id, 0 on a failure (its message given)
+  int64_t Create(const std::string& name, const uint8_t* uuid, std::string* message);
+
   bool Drop(const std::string& name, std::string* message);
   // A collection renamed, the one of the new name dropped when dropTarget: 0, or the code of MongoDB of the failure
   // (IllegalOperation 20 for its own name, NamespaceNotFound 26, NamespaceExists 48) with its message; -1 for a

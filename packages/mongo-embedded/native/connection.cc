@@ -84,7 +84,7 @@ std::string Connection::Open(const Settings& settings) {
     if (!Lock(settings.directory, &message)) return message;
     file = settings.directory + "/data.db";
   }
-  MdeOptions options = {settings.sync, settings.cacheBytes, settings.mmapBytes, 0, 0};
+  MdeOptions options = {settings.sync, settings.cacheBytes, settings.mmapBytes, 0, 0, settings.oplogBytes};
   char error[512] = {0};
   if (mde_open(file.c_str(), &options, &store_, error, sizeof(error)) != 0) {
     Unlock();
@@ -105,8 +105,9 @@ std::string Connection::Open(const Settings& settings) {
     std::memcpy(&id, collections.data + at + 4 + length, 8);
     names_[name] = id;
     uint32_t indexes, tables;
-    std::memcpy(&indexes, collections.data + at + 4 + length + 16, 4);
-    at += 4 + length + 20 + indexes;
+    // [u32 size][name][i64 id][i64 count][16 bytes of the UUID][u32 size of the definitions][definitions]...
+    std::memcpy(&indexes, collections.data + at + 4 + length + 32, 4);
+    at += 4 + length + 36 + indexes;
     std::memcpy(&tables, collections.data + at, 4);
     at += 4 + static_cast<size_t>(tables) * 8;
   }
@@ -141,10 +142,11 @@ int64_t Connection::IdOf(const std::string& name) const {
   return found == names_.end() ? 0 : found->second;
 }
 
-int64_t Connection::Create(const std::string& name, std::string* message) {
+int64_t Connection::Create(const std::string& name, const uint8_t* uuid, std::string* message) {
   int64_t id = IdOf(name);
   if (id) return id;
-  if (mde_create_collection(store_, name.c_str(), &id) != 0) {
+  if (mde_create_collection(store_, name.c_str(), uuid, &id) != 0) {
+
     *message = mde_message(store_);
     return 0;
   }
@@ -189,7 +191,7 @@ int Connection::Rename(const std::string& from, const std::string& to, bool drop
 
 int Connection::Begin(std::string* message) {
   if (!reader_) {
-    MdeOptions options = {settings_.sync, settings_.cacheBytes, settings_.mmapBytes, 0, 1};
+    MdeOptions options = {settings_.sync, settings_.cacheBytes, settings_.mmapBytes, 0, 1, 0};
     char error[512] = {0};
     if (mde_open(mde_file(store_), &options, &reader_, error, sizeof(error)) != 0) {
       *message = error;

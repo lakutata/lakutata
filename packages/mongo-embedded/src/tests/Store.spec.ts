@@ -65,7 +65,7 @@ function inserts(values: number[]): NativeChange[] {
 }
 
 /**
- * The collections listed by the addon: their names, and the ids of the tables of their indexes
+ * The collections listed by the addon (mde_collections): their names, and the ids of the tables of their indexes
  * @param listed
  */
 function collectionsOf(listed: Buffer): { name: string, tables: number[] }[] {
@@ -73,7 +73,8 @@ function collectionsOf(listed: Buffer): { name: string, tables: number[] }[] {
     for (let at: number = 0; at < listed.length;) {
         const length: number = listed.readUInt32LE(at)
         const name: string = listed.toString('utf8', at + 4, at + 4 + length)
-        at += 4 + length + 16
+        //Its id, its count and its UUID
+        at += 4 + length + 32
         at += 4 + listed.readUInt32LE(at)
         const count: number = listed.readUInt32LE(at)
         collections.push({name: name, tables: Array.from({length: count}, (_: unknown, index: number): number => Number(listed.readBigInt64LE(at + 4 + index * 8)))})

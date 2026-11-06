@@ -16,6 +16,17 @@ export interface NativeOptions {
     syncInterval?: number
     cacheSize?: number
     mmapSize?: number
+    oplogSize?: number
+}
+
+/**
+ * The creation of a collection a call may make: its UUID (16 bytes) and the events of the change streams written by the
+ * commit of the creation
+ * @internal
+ */
+export interface NativeCreation {
+    uuid: Buffer
+    events?: Buffer[]
 }
 
 /**
@@ -171,12 +182,12 @@ export interface NativeAddon {
      * The definitions of the indexes of a collection written (an empty Buffer: none), the collection created when it
      * is missing
      */
-    setIndexes(database: NativeDatabase, name: string, definitions: Buffer): Promise<void>
+    setIndexes(database: NativeDatabase, name: string, definitions: Buffer, events?: Buffer[], creation?: NativeCreation): Promise<void>
 
     /**
      * The id of the table of a new index of a collection, created when it is missing
      */
-    createIndex(database: NativeDatabase, name: string): Promise<number>
+    createIndex(database: NativeDatabase, name: string, creation?: NativeCreation): Promise<number>
 
     /**
      * The table of an index of a collection dropped
@@ -218,18 +229,18 @@ export interface NativeAddon {
     /**
      * A collection created: false when it was there
      */
-    createCollection(database: NativeDatabase, name: string): Promise<boolean>
+    createCollection(database: NativeDatabase, name: string, creation?: NativeCreation): Promise<boolean>
 
     /**
      * A collection dropped: false when it was not there
      */
-    dropCollection(database: NativeDatabase, name: string): Promise<boolean>
+    dropCollection(database: NativeDatabase, name: string, events?: Buffer[]): Promise<boolean>
 
     /**
      * A collection renamed, the one of the new name dropped when dropTarget; rejected with the code of MongoDB
      * (IllegalOperation 20, NamespaceNotFound 26, NamespaceExists 48)
      */
-    renameCollection(database: NativeDatabase, from: string, to: string, dropTarget: boolean): Promise<void>
+    renameCollection(database: NativeDatabase, from: string, to: string, dropTarget: boolean, events?: Buffer[]): Promise<void>
 
     /**
      * Every collection dropped
@@ -268,7 +279,25 @@ export interface NativeAddon {
      * of its indexes written with them when they are given: rejected with the code, the index of the change failing and
      * the table of the index of a duplicate key (0: the _id); the collection created when it is missing and create is true
      */
-    write(database: NativeDatabase, name: string, changes: NativeChange[], create?: boolean, entries?: NativeEntry[], definitions?: Buffer): Promise<void>
+    write(database: NativeDatabase, name: string, changes: NativeChange[], create?: boolean, entries?: NativeEntry[], definitions?: Buffer, events?: Buffer[], creation?: NativeCreation): Promise<void>
+
+    /**
+     * Events of the change streams written to the oplog (in the transaction of the session open, or in one of their own)
+     */
+    appendEvents(database: NativeDatabase, events: Buffer[]): Promise<void>
+
+    /**
+     * The events of the oplog after a key (the last commit): [u32 size][key, 16 bytes][event] each, the key of the last
+     * one read (null when none was), and whether the oplog was read to its end
+     */
+    oplogRead(database: NativeDatabase, options?: { after?: Buffer, limit?: number, maxBytes?: number }): Promise<{ bytes: Buffer, last: Buffer | null, done: boolean }>
+
+    /**
+     * The state of the oplog: its generation, the sequence of its next event, the key of its oldest event (null when it
+     * has none), the UUID of the database
+     */
+    oplogState(database: NativeDatabase): Promise<{ generation: number, nextSeq: number, first: Buffer | null, database: Buffer }>
+
 
     /**
      * The documents of keys: their BSON one after the other, and for each key the offset of its document (i32, little

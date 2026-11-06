@@ -37,6 +37,63 @@ std::vector<uint8_t> BytesOf(const Napi::Value& value) {
   return std::vector<uint8_t>(buffer.Data(), buffer.Data() + buffer.Length());
 }
 
+using Events = std::vector<std::vector<uint8_t>>;
+
+// The events of the change streams given to a call (BSON, an array of Buffers): none when not given
+std::shared_ptr<Events> EventsOf(const Napi::CallbackInfo& info, size_t at) {
+  auto events = std::make_shared<Events>();
+  if (info.Length() <= at || !info[at].IsArray()) return events;
+  Napi::Array list = info[at].As<Napi::Array>();
+  events->reserve(list.Length());
+  for (uint32_t i = 0; i < list.Length(); i++) events->push_back(BytesOf(list.Get(i)));
+  return events;
+}
+
+// Events queued for the next commit of the store (mde_queue_events): 0, or the code of the failure
+int QueueEvents(MdeStore* store, const Events& events) {
+  if (events.empty()) return 0;
+  std::vector<const uint8_t*> pointers(events.size());
+  std::vector<int> sizes(events.size());
+  for (size_t i = 0; i < events.size(); i++) {
+    pointers[i] = events[i].data();
+    sizes[i] = static_cast<int>(events[i].size());
+  }
+  return mde_queue_events(store, pointers.data(), sizes.data(), static_cast<int>(events.size()));
+}
+
+// The creation of a collection a call may make: its UUID (16 bytes; empty for a random one) and its events
+struct Creation {
+  std::vector<uint8_t> uuid;
+  Events events;
+};
+
+// The creation given to a call ({uuid, events}), none when not given
+std::shared_ptr<Creation> CreationOf(const Napi::CallbackInfo& info, size_t at) {
+  auto creation = std::make_shared<Creation>();
+  if (info.Length() <= at || !info[at].IsObject()) return creation;
+  Napi::Object given = info[at].As<Napi::Object>();
+  if (given.Get("uuid").IsBuffer()) creation->uuid = BytesOf(given.Get("uuid"));
+  if (given.Get("events").IsArray()) {
+    Napi::Array list = given.Get("events").As<Napi::Array>();
+    for (uint32_t i = 0; i < list.Length(); i++) creation->events.push_back(BytesOf(list.Get(i)));
+  }
+  return creation;
+}
+
+// The id of a collection, created when it is missing (of the UUID of the creation, its events written by the commit of
+// the creation); 0 on a failure, its message given
+int64_t Created(Connection* connection, const std::string& name, const Creation& creation, std::string* message) {
+  const int64_t id = connection->IdOf(name);
+  if (id) return id;
+  if (QueueEvents(connection->store(), creation.events) != 0) {
+    *message = mde_message(connection->store());
+    return 0;
+  }
+  const int64_t created = connection->Create(name, creation.uuid.size() == 16 ? creation.uuid.data() : nullptr, message);
+  if (!created) mde_drop_events(connection->store());
+  return created;
+}
+
 double NumberOf(const Napi::Object& object, const char* name, double fallback) {
   Napi::Value value = object.Get(name);
   return value.IsNumber() ? value.As<Napi::Number>().DoubleValue() : fallback;
@@ -86,6 +143,7 @@ Napi::Value Open(const Napi::CallbackInfo& info) {
     settings.syncInterval = static_cast<int64_t>(NumberOf(options, "syncInterval", 100));
     settings.cacheBytes = static_cast<int64_t>(NumberOf(options, "cacheSize", static_cast<double>(settings.cacheBytes)));
     settings.mmapBytes = static_cast<int64_t>(NumberOf(options, "mmapSize", 0));
+    settings.oplogBytes = static_cast<int64_t>(NumberOf(options, "oplogSize", static_cast<double>(settings.oplogBytes)));
   }
   Handle* handle = new Handle();
   handle->connection = std::make_unique<Connection>();
@@ -126,71 +184,175 @@ Napi::Value Collections(const Napi::CallbackInfo& info) {
       [](napi_env env, Outcome& outcome) { return BufferOf(env, outcome.bytes.data(), outcome.bytes.size()); });
 }
 
-// createCollection(handle, name): whether it was created (false when it was there)
+// createCollection(handle, name, creation): whether it was created (false when it was there), of the UUID of the
+// creation ({uuid, events}: its events written by the commit of the creation)
 Napi::Value CreateCollection(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   const std::string name = info[1].As<Napi::String>().Utf8Value();
+  auto creation = CreationOf(info, 2);
   return HandleOf(info)->database->Submit(
       info.Env(),
-      [connection, name](Outcome& outcome) {
+      [connection, name, creation](Outcome& outcome) {
         if (connection->IdOf(name)) return;
         std::string message;
-        if (!connection->Create(name, &message)) Fail(outcome, -1, message);
-        else outcome.done = true;
+        if (!Created(connection, name, *creation, &message)) return Fail(outcome, -1, message);
+        outcome.done = true;
+        connection->Written();
       },
       [](napi_env env, Outcome& outcome) { return BooleanOf(env, outcome.done); });
 }
 
-// setIndexes(handle, name, bson): the definitions of the indexes of a collection written (an empty Buffer: none), the
-// collection created when it is missing
+// setIndexes(handle, name, bson, events, creation): the definitions of the indexes of a collection written (an empty
+// Buffer: none) with the events of the change streams, the collection created when it is missing (creation)
 Napi::Value SetIndexes(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   const std::string name = info[1].As<Napi::String>().Utf8Value();
   auto bytes = std::make_shared<std::vector<uint8_t>>(BytesOf(info[2]));
+  auto events = EventsOf(info, 3);
+  auto creation = CreationOf(info, 4);
   return HandleOf(info)->database->Submit(
       info.Env(),
-      [connection, name, bytes](Outcome& outcome) {
+      [connection, name, bytes, events, creation](Outcome& outcome) {
         std::string message;
-        const int64_t id = connection->Create(name, &message);
+        const int64_t id = Created(connection, name, *creation, &message);
         if (!id) return Fail(outcome, -1, message);
-        if (mde_set_indexes(connection->store(), id, bytes->data(), static_cast<int>(bytes->size())) != 0)
-          return Fail(outcome, -1, mde_message(connection->store()));
+        MdeStore* store = connection->store();
+        if (QueueEvents(store, *events) != 0 || mde_set_indexes(store, id, bytes->data(), static_cast<int>(bytes->size())) != 0) {
+          mde_drop_events(store);
+          return Fail(outcome, -1, mde_message(store));
+        }
         connection->Written();
       },
       Undefined);
 }
 
-// dropCollection(handle, name): whether it was there
+// dropCollection(handle, name, events): whether it was there, its events written with its drop
 Napi::Value DropCollection(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   const std::string name = info[1].As<Napi::String>().Utf8Value();
+  auto events = EventsOf(info, 2);
   return HandleOf(info)->database->Submit(
       info.Env(),
-      [connection, name](Outcome& outcome) {
+      [connection, name, events](Outcome& outcome) {
+        if (!connection->IdOf(name)) return;
         std::string message;
+        if (QueueEvents(connection->store(), *events) != 0) return Fail(outcome, -1, mde_message(connection->store()));
         outcome.done = connection->Drop(name, &message);
-        if (!message.empty()) Fail(outcome, -1, message);
+        if (!message.empty()) {
+          mde_drop_events(connection->store());
+          return Fail(outcome, -1, message);
+        }
+        connection->Written();
       },
       [](napi_env env, Outcome& outcome) { return BooleanOf(env, outcome.done); });
 }
 
-// renameCollection(handle, from, to, dropTarget): a collection renamed, the one of the new name dropped when
-// dropTarget; rejected with the code of MongoDB (IllegalOperation 20, NamespaceNotFound 26, NamespaceExists 48)
+// renameCollection(handle, from, to, dropTarget, events): a collection renamed, the one of the new name dropped when
+// dropTarget, its events written with it; rejected with the code of MongoDB (IllegalOperation 20, NamespaceNotFound
+// 26, NamespaceExists 48)
 Napi::Value RenameCollection(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   const std::string from = info[1].As<Napi::String>().Utf8Value();
   const std::string to = info[2].As<Napi::String>().Utf8Value();
   const bool dropTarget = info.Length() > 3 && info[3].ToBoolean().Value();
+  auto events = EventsOf(info, 4);
   return HandleOf(info)->database->Submit(
       info.Env(),
-      [connection, from, to, dropTarget](Outcome& outcome) {
+      [connection, from, to, dropTarget, events](Outcome& outcome) {
         std::string message;
+        if (QueueEvents(connection->store(), *events) != 0) return Fail(outcome, -1, mde_message(connection->store()));
         const int code = connection->Rename(from, to, dropTarget, &message);
-        if (code != 0) return Fail(outcome, code, message);
+        if (code != 0) {
+          mde_drop_events(connection->store());
+          return Fail(outcome, code, message);
+        }
         connection->Written();
       },
       Undefined);
 }
+
+// appendEvents(handle, events): events of the change streams written to the oplog (in the transaction of the session
+// open, or in one of their own)
+Napi::Value AppendEvents(const Napi::CallbackInfo& info) {
+  Connection* connection = HandleOf(info)->connection.get();
+  auto events = EventsOf(info, 1);
+  return HandleOf(info)->database->Submit(
+      info.Env(),
+      [connection, events](Outcome& outcome) {
+        MdeStore* store = connection->store();
+        if (QueueEvents(store, *events) != 0 || mde_append_events(store) != 0) {
+          mde_drop_events(store);
+          return Fail(outcome, -1, mde_message(store));
+        }
+        connection->Written();
+      },
+      Undefined);
+}
+
+// oplogRead(handle, {after, limit, maxBytes}): the events of the oplog after a key (the last commit, read beside the
+// transaction of a session), {bytes: [u32 size][key, 16 bytes][event] each, last: the key of the last one (null when
+// none was read), done: whether the oplog was read to its end}
+Napi::Value OplogRead(const Napi::CallbackInfo& info) {
+  Connection* connection = HandleOf(info)->connection.get();
+  Napi::Object options = info.Length() > 1 && info[1].IsObject() ? info[1].As<Napi::Object>() : Napi::Object::New(info.Env());
+  auto after = std::make_shared<std::vector<uint8_t>>();
+  const bool from = options.Get("after").IsBuffer();
+  if (from) *after = BytesOf(options.Get("after"));
+  const int limit = static_cast<int>(NumberOf(options, "limit", 1000));
+  const size_t maxBytes = static_cast<size_t>(NumberOf(options, "maxBytes", 4 * 1024 * 1024));
+  return HandleOf(info)->database->Submit(
+      info.Env(),
+      [connection, after, from, limit, maxBytes](Outcome& outcome) {
+        MdeStore* store = connection->Reader(false);
+        MdeBuffer events = {nullptr, 0, 0}, last = {nullptr, 0, 0};
+        int done = 1;
+        const int rc = mde_oplog_read(store, from ? after->data() : nullptr, static_cast<int>(after->size()), limit, maxBytes, &events, &last, &done);
+        if (rc != 0) {
+          Fail(outcome, rc, mde_message(store));
+        } else {
+          outcome.bytes.assign(events.data, events.data + events.size);
+          outcome.key.assign(last.data, last.data + last.size);
+          outcome.done = done != 0;
+          outcome.number = last.data ? 1 : 0;
+        }
+        mde_buffer_free(&events);
+        mde_buffer_free(&last);
+      },
+      [](napi_env env, Outcome& outcome) {
+        napi_value last = nullptr;
+        if (outcome.number) last = BufferOf(env, outcome.key.data(), outcome.key.size());
+        else napi_get_null(env, &last);
+        return ObjectOf(env, {{"bytes", BufferOf(env, outcome.bytes.data(), outcome.bytes.size())}, {"last", last},
+                              {"done", BooleanOf(env, outcome.done)}});
+      });
+}
+
+// oplogState(handle): {generation, nextSeq, first: the key of the oldest event of the oplog (null when it has none),
+// database: the UUID of the database}
+Napi::Value OplogState(const Napi::CallbackInfo& info) {
+  Connection* connection = HandleOf(info)->connection.get();
+  return HandleOf(info)->database->Submit(
+      info.Env(),
+      [connection](Outcome& outcome) {
+        MdeStore* store = connection->store();
+        int64_t generation = 0, nextSeq = 0;
+        uint8_t first[16], database[16];
+        int hasFirst = 0;
+        if (mde_oplog_state(store, &generation, &nextSeq, first, &hasFirst, database) != 0) return Fail(outcome, -1, mde_message(store));
+        outcome.number = static_cast<double>(generation);
+        outcome.index = nextSeq;
+        outcome.bytes.assign(database, database + 16);
+        if (hasFirst) outcome.key.assign(first, first + 16);
+      },
+      [](napi_env env, Outcome& outcome) {
+        napi_value first = nullptr;
+        if (!outcome.key.empty()) first = BufferOf(env, outcome.key.data(), outcome.key.size());
+        else napi_get_null(env, &first);
+        return ObjectOf(env, {{"generation", NumberValue(env, outcome.number)}, {"nextSeq", NumberValue(env, static_cast<double>(outcome.index))},
+                              {"first", first}, {"database", BufferOf(env, outcome.bytes.data(), outcome.bytes.size())}});
+      });
+}
+
 
 // dropDatabase(handle): every collection dropped
 Napi::Value DropDatabase(const Napi::CallbackInfo& info) {
@@ -285,10 +447,12 @@ struct Entry {
   std::vector<uint8_t> value;
 };
 
-// write(handle, name, changes, create, entries, definitions): the changes ([kind, key, BSON]) of a collection and the
-// entries of its indexes ([change, index, unique, remove, key, value]) as one transaction, the definitions of its
-// indexes written with them when they are given (a Buffer); the collection created when it is missing and create is
-// true; rejected with the code, the index of the change failing and the table of the index of a duplicate key
+// write(handle, name, changes, create, entries, definitions, events, creation): the changes ([kind, key, BSON]) of a
+// collection and the entries of its indexes ([change, index, unique, remove, key, value]) as one transaction, the
+// definitions of its indexes written with them when they are given (a Buffer), and the events of the change streams;
+// the collection created when it is missing and create is true (of the UUID of the creation, with its events, in a
+// transaction before); rejected with the code, the index of the change failing and the table of the index of a
+// duplicate key
 Napi::Value Write(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   const std::string name = info[1].As<Napi::String>().Utf8Value();
@@ -318,15 +482,19 @@ Napi::Value Write(const Napi::CallbackInfo& info) {
   const bool define = info.Length() > 5 && info[5].IsBuffer();
   auto definitions = std::make_shared<std::vector<uint8_t>>();
   if (define) *definitions = BytesOf(info[5]);
+  auto events = EventsOf(info, 6);
+  auto creation = CreationOf(info, 7);
   return HandleOf(info)->database->Submit(
       info.Env(),
-      [connection, name, changes, create, entries, define, definitions](Outcome& outcome) {
+      [connection, name, changes, create, entries, define, definitions, events, creation](Outcome& outcome) {
         if (changes->empty() && !define) return;
         int64_t id = connection->IdOf(name);
         if (!id && create) {
           std::string message;
-          id = connection->Create(name, &message);
+          id = Created(connection, name, *creation, &message);
           if (!id) return Fail(outcome, -1, message);
+          // Told by an error of the write after it
+          outcome.done = true;
         }
         if (!id) {
           // Nothing to delete in a collection missing; a replacement there fails
@@ -351,10 +519,12 @@ Napi::Value Write(const Napi::CallbackInfo& info) {
         }
         int failed = -1;
         int64_t table = -1;
+        if (QueueEvents(connection->store(), *events) != 0) return Fail(outcome, -1, mde_message(connection->store()));
         const int rc = mde_write(connection->store(), id, list.data(), static_cast<int>(list.size()), written.data(),
                                  static_cast<int>(written.size()), define ? definitions->data() : nullptr,
                                  static_cast<int>(definitions->size()), &failed, &table);
         if (rc != 0) {
+          mde_drop_events(connection->store());
           outcome.index = failed;
           outcome.table = table;
           return Fail(outcome, rc, mde_message(connection->store()));
@@ -400,15 +570,17 @@ Napi::Value Get(const Napi::CallbackInfo& info) {
       });
 }
 
-// createIndex(handle, name): the id of the table of a new index of a collection, created when it is missing
+// createIndex(handle, name, creation): the id of the table of a new index of a collection, created when it is missing
+// (creation: its UUID and its events)
 Napi::Value CreateIndex(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   const std::string name = info[1].As<Napi::String>().Utf8Value();
+  auto creation = CreationOf(info, 2);
   return HandleOf(info)->database->Submit(
       info.Env(),
-      [connection, name](Outcome& outcome) {
+      [connection, name, creation](Outcome& outcome) {
         std::string message;
-        const int64_t id = connection->Create(name, &message);
+        const int64_t id = Created(connection, name, *creation, &message);
         if (!id) return Fail(outcome, -1, message);
         int64_t index = 0;
         if (mde_create_index(connection->store(), id, &index) != 0) return Fail(outcome, -1, mde_message(connection->store()));
@@ -716,6 +888,10 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("commit", Napi::Function::New(env, Commit, "commit"));
   exports.Set("abort", Napi::Function::New(env, Abort, "abort"));
   exports.Set("journal", Napi::Function::New(env, Journal, "journal"));
+  exports.Set("appendEvents", Napi::Function::New(env, AppendEvents, "appendEvents"));
+  exports.Set("oplogRead", Napi::Function::New(env, OplogRead, "oplogRead"));
+  exports.Set("oplogState", Napi::Function::New(env, OplogState, "oplogState"));
+
 
 
   InitCollation(env, exports);

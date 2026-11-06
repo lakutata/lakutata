@@ -130,6 +130,9 @@ static napi_value ErrorOf(napi_env env, const Outcome& outcome) {
   if (outcome.index >= 0 && napi_create_int64(env, outcome.index, &index) == napi_ok) napi_set_named_property(env, error, "index", index);
   napi_value table;
   if (outcome.table >= 0 && napi_create_int64(env, outcome.table, &table) == napi_ok) napi_set_named_property(env, error, "table", table);
+  // A write failing once it created its collection (in a transaction before it)
+  napi_value created;
+  if (outcome.done && napi_get_boolean(env, true, &created) == napi_ok) napi_set_named_property(env, error, "created", created);
   return error;
 }
 

@@ -1,10 +1,11 @@
+import {randomBytes} from 'node:crypto'
 import {mkdirSync, readdirSync} from 'node:fs'
 import {addon} from './Addon.js'
 import {collatorOf, type EmbeddedCollator} from './Collation.js'
 import {EmbeddedDuplicateKeyError, EmbeddedOperationError, MongoEmbeddedError} from './Errors.js'
 import {type EmbeddedKeyEncoding} from './KeyEncoding.js'
 import {withCollation} from './mingo/util/_bson.js'
-import {ChangeKind, type NativeChange, type NativeDatabase, type NativeEntry, NativeError, type NativePredicate, type NativeRange} from './Native.js'
+import {ChangeKind, type NativeChange, type NativeCreation, type NativeDatabase, type NativeEntry, NativeError, type NativePredicate, type NativeRange} from './Native.js'
 import {type EmbeddedIndex, type EmbeddedPlannedCollection} from './Planner.js'
 import {sessionInScope} from './Session.js'
 
@@ -41,6 +42,27 @@ export interface EmbeddedStoreOptions {
      * @default 0
      */
     mmapSize?: number
+
+    /**
+     * The most bytes the oplog of the change streams holds in the database (its oldest events deleted beyond, their
+     * resume tokens failing then with ChangeStreamHistoryLost): written with the writes, it resumes the change streams
+     * after a closing or a crash
+     * @default 67108864 (64 MiB)
+     */
+    oplogSize?: number
+}
+
+/**
+ * The bytes of the oplog by default (64 MiB)
+ */
+export const OPLOG_SIZE: number = 64 * 1024 * 1024
+
+/**
+ * An event of the oplog: its key (its generation and its sequence, 8 bytes each, big endian) and its BSON
+ */
+export interface EmbeddedOplogEvent {
+    key: Buffer
+    data: Buffer
 }
 
 /**
@@ -84,6 +106,11 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
     readonly partials: Map<string, (document: EmbeddedDocument) => boolean> = new Map<string, (document: EmbeddedDocument) => boolean>()
 
     readonly encoding: EmbeddedKeyEncoding
+
+    /**
+     * Its UUID (16 bytes), made when it is created
+     */
+    uuid: Buffer = randomBytes(16)
 
     /**
      * The collators of the indexes with a collation, by their definitions
@@ -231,6 +258,23 @@ export class EmbeddedStore {
      */
     protected transacting: boolean = false
 
+    /**
+     * The oplog of the change streams: the generation of this opening, the sequence of the next event written and of
+     * the last one committed (the one a change stream begun now starts after), the UUID of the database
+     */
+    generation: number = 0
+
+    protected nextSeq: number = 1
+
+    committedSeq: number = 0
+
+    databaseId: Buffer = Buffer.alloc(16)
+
+    /**
+     * The functions told of each commit writing events (the change streams waiting for them)
+     */
+    protected readonly committing: Set<() => void> = new Set<() => void>()
+
     protected constructor(readonly directory: string | undefined, readonly values: EmbeddedValues, protected readonly database: NativeDatabase) {
     }
 
@@ -251,11 +295,17 @@ export class EmbeddedStore {
             sync: options.sync,
             syncInterval: options.syncInterval,
             cacheSize: options.cacheSize,
-            mmapSize: options.mmapSize
+            mmapSize: options.mmapSize,
+            oplogSize: options.oplogSize ?? OPLOG_SIZE
         })
         const store: EmbeddedStore = new EmbeddedStore(directory, values, database)
         try {
             await store.readCatalog()
+            const state = await addon.oplogState(database)
+            store.generation = state.generation
+            store.nextSeq = state.nextSeq
+            store.committedSeq = state.nextSeq - 1
+            store.databaseId = state.database
         } catch (error) {
             await addon.close(database)
             throw error
@@ -351,6 +401,11 @@ export class EmbeddedStore {
         } finally {
             this.end(transaction)
         }
+        // Its events committed: the change streams told
+        if (this.nextSeq - 1 > this.committedSeq) {
+            this.committedSeq = this.nextSeq - 1
+            this.notify()
+        }
     }
 
     /**
@@ -386,8 +441,10 @@ export class EmbeddedStore {
      * @param name
      * @param changes
      * @param create whether the collection is created when it is missing (an insertion)
+     * @param events the events of the change streams of the write, written with it
+     * @param creationEvents the events of the creation of the collection, when the write creates it
      */
-    async write(name: string, changes: EmbeddedChange[], create: boolean = false): Promise<void> {
+    async write(name: string, changes: EmbeddedChange[], create: boolean = false, events: Buffer[] = [], creationEvents: Buffer[] = []): Promise<void> {
         if (!changes.length) return
         if (this.open && !this.transacting) throw new MongoEmbeddedError('A write outside the transaction open, which it does not wait for')
         const natives: NativeChange[] = changes.map((change: EmbeddedChange): NativeChange => change.next
@@ -414,9 +471,17 @@ export class EmbeddedStore {
         const definitions: Buffer | undefined = collection && multikey.size
             ? this.values.serialize({...collection.definitions(), multikey: [...collection.multikey, ...multikey]})
             : undefined
+        // The collection created by the write: its UUID given, its events written by the commit of its creation
+        const created: EmbeddedCollectionState | undefined = create && !collection ? new EmbeddedCollectionState(name, this.values) : undefined
+        const creation: NativeCreation | undefined = created ? {uuid: created.uuid, events: creationEvents} : undefined
         try {
-            await addon.write(this.database, name, natives, create, entries, definitions)
+            await addon.write(this.database, name, natives, create, entries, definitions, events, creation)
         } catch (error) {
+            // Created before the write failed: the collection is there, its events written
+            if (created && (error as { created?: boolean }).created) {
+                this.collections.set(name, created)
+                this.written(creationEvents.length)
+            }
             const failed: EmbeddedChange | undefined = changes[(error as { index?: number }).index ?? -1]
             if ((error as { code?: number }).code === NativeError.DuplicateKey && failed?.next) {
                 const table: number = (error as { table?: number }).table ?? 0
@@ -431,7 +496,8 @@ export class EmbeddedStore {
             throw error
         }
         if (collection) for (const index of multikey) collection.multikey.add(index)
-        if (create && !this.collections.has(name)) this.collections.set(name, new EmbeddedCollectionState(name, this.values))
+        if (created && !this.collections.has(name)) this.collections.set(name, created)
+        this.written(creationEvents.length * (created ? 1 : 0) + events.length)
     }
 
     /**
@@ -575,10 +641,13 @@ export class EmbeddedStore {
     /**
      * Creates a collection: false when it was there
      * @param name
+     * @param events the events of the change streams of its creation
      */
-    async create(name: string): Promise<boolean> {
-        const created: boolean = await addon.createCollection(this.database, name)
-        if (!this.collections.has(name)) this.collections.set(name, new EmbeddedCollectionState(name, this.values))
+    async create(name: string, events: Buffer[] = []): Promise<boolean> {
+        const state: EmbeddedCollectionState = this.collections.get(name) ?? new EmbeddedCollectionState(name, this.values)
+        const created: boolean = await addon.createCollection(this.database, name, {uuid: state.uuid, events: events})
+        if (!this.collections.has(name)) this.collections.set(name, state)
+        if (created) this.written(events.length)
         return created
     }
 
@@ -586,10 +655,16 @@ export class EmbeddedStore {
      * The table of a new index of a collection, created when it is missing: its id. The index is added once it is built
      * (addIndex)
      * @param name
+     * @param creationEvents the events of the creation of the collection, when it is missing
      */
-    async createIndexTable(name: string): Promise<number> {
-        const table: number = await addon.createIndex(this.database, name)
-        if (!this.collections.has(name)) this.collections.set(name, new EmbeddedCollectionState(name, this.values))
+    async createIndexTable(name: string, creationEvents: Buffer[] = []): Promise<number> {
+        const missing: boolean = !this.collections.has(name)
+        const state: EmbeddedCollectionState = this.collections.get(name) ?? new EmbeddedCollectionState(name, this.values)
+        const table: number = await addon.createIndex(this.database, name, {uuid: state.uuid, events: creationEvents})
+        if (missing) {
+            this.collections.set(name, state)
+            this.written(creationEvents.length)
+        }
         return table
     }
 
@@ -622,15 +697,17 @@ export class EmbeddedStore {
      * @param index
      * @param table
      * @param multikey whether a document has several keys in it
+     * @param events the events of the change streams of its creation
      */
-    async addIndex(name: string, index: EmbeddedIndex, table: number, multikey: boolean): Promise<void> {
+    async addIndex(name: string, index: EmbeddedIndex, table: number, multikey: boolean, events: Buffer[] = []): Promise<void> {
         const collection: EmbeddedCollectionState = this.collections.get(name)!
         const definitions: EmbeddedDefinitions = collection.definitions()
         await addon.setIndexes(this.database, name, this.values.serialize({
             indexes: [...definitions.indexes, index],
             tables: {...definitions.tables, [index.name]: table},
             multikey: multikey ? [...definitions.multikey!, index.name] : definitions.multikey
-        }))
+        }), events)
+        this.written(events.length)
         collection.indexes = [...collection.indexes, {...index}]
         collection.tables.set(index.name, table)
         if (multikey) collection.multikey.add(index.name)
@@ -640,8 +717,9 @@ export class EmbeddedStore {
      * Removes indexes from the definitions of a collection, then drops their tables
      * @param name
      * @param names the names of the indexes
+     * @param events the events of the change streams of their removal
      */
-    async removeIndexes(name: string, names: string[]): Promise<void> {
+    async removeIndexes(name: string, names: string[], events: Buffer[] = []): Promise<void> {
         const collection: EmbeddedCollectionState | undefined = this.collections.get(name)
         if (!collection) return
         const removed: Set<string> = new Set<string>(names)
@@ -652,17 +730,20 @@ export class EmbeddedStore {
             collection.multikey.delete(index)
             collection.partials.delete(index)
         }
-        await addon.setIndexes(this.database, name, collection.indexes.length ? this.values.serialize(collection.definitions()) : Buffer.alloc(0))
+        await addon.setIndexes(this.database, name, collection.indexes.length ? this.values.serialize(collection.definitions()) : Buffer.alloc(0), events)
+        this.written(events.length)
         for (const table of tables) await addon.dropIndex(this.database, name, table)
     }
 
     /**
      * Drops a collection: false when it was not there
      * @param name
+     * @param events the events of the change streams of its drop
      */
-    async drop(name: string): Promise<boolean> {
-        const dropped: boolean = await addon.dropCollection(this.database, name)
+    async drop(name: string, events: Buffer[] = []): Promise<boolean> {
+        const dropped: boolean = await addon.dropCollection(this.database, name, events)
         this.collections.delete(name)
+        if (dropped) this.written(events.length)
         return dropped
     }
 
@@ -673,10 +754,11 @@ export class EmbeddedStore {
      * @param from
      * @param to
      * @param dropTarget
+     * @param events the events of the change streams of the renaming
      */
-    async rename(from: string, to: string, dropTarget: boolean): Promise<void> {
+    async rename(from: string, to: string, dropTarget: boolean, events: Buffer[] = []): Promise<void> {
         try {
-            await addon.renameCollection(this.database, from, to, dropTarget)
+            await addon.renameCollection(this.database, from, to, dropTarget, events)
         } catch (error) {
             const code: number | undefined = (error as { code?: number }).code
             const codeName: string | undefined = code === undefined ? undefined : RENAME_ERRORS[code]
@@ -686,14 +768,99 @@ export class EmbeddedStore {
         this.collections.delete(from)
         collection.name = to
         this.collections.set(to, collection)
+        this.written(events.length)
     }
 
     /**
-     * Drops every collection
+     * Drops every collection, one after the other, each one with the events of its drop, then writes the events of
+     * the drop of the database
+     * @param eventsOf the events of the drop of a collection
+     * @param events the events of the drop of the database
      */
-    async clear(): Promise<void> {
-        await addon.dropDatabase(this.database)
-        this.collections.clear()
+    async clear(eventsOf: (state: EmbeddedCollectionState) => Buffer[] = (): Buffer[] => [], events: Buffer[] = []): Promise<void> {
+        for (const [name, state] of [...this.collections]) await this.drop(name, eventsOf(state))
+        if (events.length) await this.appendEvents(events)
+    }
+
+    /**
+     * Writes events of the change streams to the oplog, in a transaction of their own (or in the transaction open)
+     * @param events
+     */
+    async appendEvents(events: Buffer[]): Promise<void> {
+        if (!events.length) return
+        await addon.appendEvents(this.database, events)
+        this.written(events.length)
+    }
+
+    /**
+     * The events of the oplog after a key (from its oldest one), in their order, as the last commit has them: up to a
+     * number of them; whether it was read to its end
+     * @param after
+     * @param limit
+     */
+    async readEvents(after: Buffer | undefined, limit: number = 1000): Promise<{ events: EmbeddedOplogEvent[], done: boolean }> {
+        const read = await addon.oplogRead(this.database, {after: after, limit: limit})
+        const events: EmbeddedOplogEvent[] = []
+        for (let at: number = 0; at < read.bytes.length;) {
+            const size: number = read.bytes.readUInt32LE(at)
+            events.push({key: read.bytes.subarray(at + 4, at + 20), data: read.bytes.subarray(at + 20, at + 20 + size)})
+            at += 20 + size
+        }
+        return {events: events, done: read.done}
+    }
+
+    /**
+     * The key of the oldest event of the oplog, null when it has none
+     */
+    async oldestEvent(): Promise<Buffer | null> {
+        return (await addon.oplogState(this.database)).first
+    }
+
+    /**
+     * The key of an event of the oplog: its generation and its sequence, 8 bytes each, big endian
+     * @param generation
+     * @param sequence
+     */
+    eventKey(generation: number, sequence: number): Buffer {
+        const key: Buffer = Buffer.alloc(16)
+        key.writeBigUInt64BE(BigInt(generation), 0)
+        key.writeBigUInt64BE(BigInt(sequence), 8)
+        return key
+    }
+
+    /**
+     * The key of the last event committed: a change stream begun now starts after it
+     */
+    committedKey(): Buffer {
+        return this.eventKey(this.generation, this.committedSeq)
+    }
+
+    /**
+     * Calls a function after each commit writing events, until it is removed: the function removing it
+     * @param fn
+     */
+    onCommit(fn: () => void): () => void {
+        this.committing.add(fn)
+        return (): boolean => this.committing.delete(fn)
+    }
+
+    /**
+     * Events written (their sequences assigned in their order): committed now, or by the commit of the transaction open
+     * @param count
+     */
+    protected written(count: number): void {
+        if (!count) return
+        this.nextSeq += count
+        if (this.open) return
+        this.committedSeq = this.nextSeq - 1
+        this.notify()
+    }
+
+    /**
+     * The functions waiting for the commits told
+     */
+    protected notify(): void {
+        for (const fn of [...this.committing]) fn()
     }
 
     /**
@@ -755,6 +922,8 @@ export class EmbeddedStore {
      * The collections put back as they were when the transaction open began
      */
     protected restore(): void {
+        // Its events undone
+        this.nextSeq = this.committedSeq + 1
         if (!this.committed || !this.saved) return
         this.collections.clear()
         for (const [name, state] of this.committed) this.collections.set(name, state)
@@ -818,8 +987,10 @@ export class EmbeddedStore {
             const length: number = listed.readUInt32LE(at)
             const name: string = listed.toString('utf8', at + 4, at + 4 + length)
             at += 4 + length + 16
-            const indexesSize: number = listed.readUInt32LE(at)
             const collection: EmbeddedCollectionState = new EmbeddedCollectionState(name, this.values)
+            collection.uuid = Buffer.from(listed.subarray(at, at + 16))
+            at += 16
+            const indexesSize: number = listed.readUInt32LE(at)
             if (indexesSize) {
                 const definitions: EmbeddedDefinitions = this.values.deserialize(listed.subarray(at + 4, at + 4 + indexesSize)) as EmbeddedDefinitions
                 collection.indexes = definitions.indexes

@@ -92,7 +92,7 @@ describe('The client', (): void => {
         mkdirSync(where)
         //Written by the build of phase 1 (src/tests/fixtures/format-1: a collection, one document)
         copyFileSync(new URL('../../../src/tests/fixtures/format-1/data.db', import.meta.url), path.join(where, 'data.db'))
-        await assert.rejects(EmbeddedClient.connect(where), /the file is a database of an earlier format of mongo-embedded \(1, not 2\), which is not read/)
+        await assert.rejects(EmbeddedClient.connect(where), /the file is a database of an earlier format of mongo-embedded \(1, not 3\), which is not read/)
         //Its directory not left locked
         await assert.rejects(EmbeddedClient.connect(where), /earlier format/)
     })

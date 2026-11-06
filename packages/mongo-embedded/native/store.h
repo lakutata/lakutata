@@ -41,6 +41,8 @@ typedef struct MdeOptions {
   /* A connection reading beside the transaction of a session of the one writing (mde_refresh): its catalog read, not
   ** made, the counts of its collections not counted */
   int reader;
+  /* The most bytes of the events of the oplog (its oldest ones deleted beyond); 0: no event written to the oplog */
+  int64_t oplogBytes;
 } MdeOptions;
 
 /* A buffer of bytes growing as they are appended (malloc) */
@@ -112,10 +114,12 @@ int mde_in_transaction(MdeStore *store);
 int mde_refresh(MdeStore *reader, MdeStore *writer);
 
 
-/* The collections: for each one [u32 size of its name][its name][i64 id][i64 count of its documents][u32 size of the
-** definitions of its indexes][their BSON][u32 number of the tables of its indexes][their i64 ids] (little endian) */
+/* The collections: for each one [u32 size of its name][its name][i64 id][i64 count of its documents][16 bytes of its
+** UUID][u32 size of the definitions of its indexes][their BSON][u32 number of the tables of its indexes][their i64 ids]
+** (little endian) */
 int mde_collections(MdeStore *store, MdeBuffer *out);
-int mde_create_collection(MdeStore *store, const char *name, int64_t *id);
+/* A collection created, of a UUID (16 bytes; NULL: a random one) */
+int mde_create_collection(MdeStore *store, const char *name, const uint8_t *uuid, int64_t *id);
 int mde_drop_collection(MdeStore *store, int64_t id);
 /* A collection renamed (its tables and its indexes kept), the collection of the new name dropped (dropped, its id; 0:
 ** none) in the same transaction */
@@ -173,6 +177,35 @@ int mde_checkpoint(MdeStore *store, int *frames, int *checkpointed);
 /* The WAL written to the disk (its frames committed made durable: a write of the write concern j); nothing for a
 ** database in memory */
 int mde_sync_wal(MdeStore *store);
+
+/*
+** The oplog of the change streams: the events of the writes (BSON, made by the client), written in the transaction of
+** their write, each one under the key of its generation (the opening of the database: a new one each time) and of its
+** sequence in it (8 bytes each, big endian); its oldest events deleted once it holds more bytes than its limit.
+*/
+
+/* Events queued: the next commit of a function (its transaction, or the one of the session open) writes them to the
+** oplog, a failure dropping them */
+int mde_queue_events(MdeStore *store, const uint8_t *const *events, const int *sizes, int count);
+
+/* The events queued written to the oplog by a transaction of their own (or in the one of the session open) */
+int mde_append_events(MdeStore *store);
+
+/* The events queued dropped (the function they were queued for failed before its commit) */
+void mde_drop_events(MdeStore *store);
+
+
+/* The events after a key (from the first one without it), in their order: [u32 size of the event][its key, 16
+** bytes][the event] each, up to maxEvents or maxBytes of them; the key of the last one read in last, *done when the
+** oplog was read to its end */
+int mde_oplog_read(MdeStore *store, const uint8_t *after, int afterSize, int maxEvents, size_t maxBytes, MdeBuffer *out,
+                   MdeBuffer *last, int *done);
+
+/* The state of the oplog: its generation, the sequence of its next event, the key of its oldest event (*hasFirst 0 when
+** it has none), the UUID of the database (16 bytes) */
+int mde_oplog_state(MdeStore *store, int64_t *generation, int64_t *nextSeq, uint8_t *first, int *hasFirst,
+                    uint8_t *database);
+
 
 /* The result of PRAGMA integrity_check ("ok" when the file is sound) */
 
