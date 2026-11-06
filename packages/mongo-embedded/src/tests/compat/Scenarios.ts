@@ -5,6 +5,8 @@
  * fixtures/mongodb-8.0.json; Compatibility.spec compares the embedded one with them, scenario by scenario.
  */
 
+import {Decimal128, Double, Int32, Long} from 'bson'
+
 /**
  * The client (of MongoDB or embedded) and the database of a scenario, empty when it starts
  */
@@ -1323,6 +1325,62 @@ export const SCENARIOS: Scenario[] = [
             })
             result.createDifferentAgain = await outcome((): unknown => db.createCollection('again', {capped: true, size: 2000}))
             result.createPlainOverOptions = await outcome((): unknown => db.createCollection('collated'))
+            return result
+        }
+    },
+    {
+        group: 'numbers',
+        name: 'the types of the numbers: kept by the writes, given by the operators, matched by $type and $jsonSchema',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const items: any = db.collection('items')
+            //The types of the fields of a document, as $type tells them
+            const types = async (id: number): Promise<string> => (await items.aggregate([
+                {$match: {_id: id}},
+                {$project: {_id: 0, t: {$map: {input: {$objectToArray: '$$ROOT'}, as: 'f', in: {k: '$$f.k', t: {$type: '$$f.v'}}}}}}
+            ]).toArray())[0].t.filter((field: any): boolean => field.k !== '_id').map((field: any): string => `${field.k}:${field.t}`).join(' ')
+            const cases: Record<string, [Record<string, unknown>, unknown]> = {
+                incInt: [{i: new Int32(1)}, {$inc: {i: 1}}],
+                incIntByDouble: [{i: new Int32(1)}, {$inc: {i: 1.5}}],
+                incIntOverflow: [{i: new Int32(2147483647)}, {$inc: {i: 1}}],
+                incDouble: [{d: new Double(1)}, {$inc: {d: 1}}],
+                incLong: [{l: Long.fromNumber(1)}, {$inc: {l: 1}}],
+                incMissing: [{}, {$inc: {m: 1}}],
+                incMissingDouble: [{}, {$inc: {m: 1.5}}],
+                mulInt: [{i: new Int32(3)}, {$mul: {i: 2}}],
+                mulDouble: [{d: new Double(3)}, {$mul: {d: 2}}],
+                setOther: [{d: new Double(1), i: new Int32(2), l: Long.fromNumber(3)}, {$set: {x: 1}}],
+                setIntValue: [{d: new Double(1)}, {$set: {d: 2}}],
+                maxDouble: [{d: new Double(1)}, {$max: {d: 5}}],
+                minInt: [{i: new Int32(9)}, {$min: {i: 2.5}}],
+                pushArray: [{a: [new Double(1)]}, {$push: {a: 2}}],
+                incDecimal: [{x: Decimal128.fromString('1')}, {$inc: {x: 1}}],
+                pipeline: [{d: new Double(1), i: new Int32(1)}, [{$set: {s: {$add: ['$d', '$i']}, t: {$add: ['$i', 1]}}}]]
+            }
+            let id: number = 0
+            for (const [name, [document, update]] of Object.entries(cases)) {
+                id++
+                await items.insertOne({_id: id, ...document})
+                await items.updateOne({_id: id}, update)
+                result[name] = await types(id)
+            }
+            //A double of an integer value: matched as a double, kept by the other writes
+            await items.insertOne({_id: 100, v: new Double(1), w: new Double(2)})
+            result.typeDouble = await items.countDocuments({_id: 100, v: {$type: 'double'}})
+            result.typeInt = await items.countDocuments({_id: 100, v: {$type: 'int'}})
+            result.jsonSchema = await items.countDocuments({_id: 100, $jsonSchema: {properties: {v: {bsonType: 'double'}}}})
+            result.findType = await items.find({_id: 100, v: {$type: 'double'}}).toArray()
+            result.found = await items.findOneAndUpdate({_id: 100}, {$set: {x: 1}}, {returnDocument: 'after'})
+            result.afterFindOneAndUpdate = await types(100)
+            await items.replaceOne({_id: 100}, {v: new Double(2), n: 3})
+            result.afterReplace = await types(100)
+            await items.bulkWrite([{updateOne: {filter: {_id: 100}, update: {$inc: {n: 1}}}}])
+            result.afterBulk = await types(100)
+            //Written by $out and $merge
+            await items.aggregate([{$match: {_id: 100}}, {$out: 'copied'}]).toArray()
+            await items.aggregate([{$match: {_id: 100}}, {$merge: {into: 'merged'}}]).toArray()
+            result.out = (await db.collection('copied').aggregate([{$project: {_id: 0, v: {$type: '$v'}, n: {$type: '$n'}}}]).toArray())[0]
+            result.merge = (await db.collection('merged').aggregate([{$project: {_id: 0, v: {$type: '$v'}, n: {$type: '$n'}}}]).toArray())[0]
             return result
         }
     },

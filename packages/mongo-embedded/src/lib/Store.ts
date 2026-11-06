@@ -1067,13 +1067,14 @@ export class EmbeddedStore {
      * @param name
      * @param keys
      * @param transaction the transaction it reads in (none: it reads the last commit)
+     * @param typed whether its numbers keep their types (Int32, Double, Long), for the writes
      */
-    async get(name: string, keys: Buffer[], transaction?: EmbeddedStoreTransaction): Promise<(EmbeddedDocument | undefined)[]> {
+    async get(name: string, keys: Buffer[], transaction?: EmbeddedStoreTransaction, typed: boolean = false): Promise<(EmbeddedDocument | undefined)[]> {
         if (!keys.length || !this.view(transaction).has(name)) return keys.map((): undefined => undefined)
         const {bytes, offsets} = await addon.get(this.database, name, keys, this.isOpen(transaction))
         return keys.map((_: Buffer, index: number): EmbeddedDocument | undefined => {
             const offset: number = offsets.readInt32LE(index * 4)
-            return offset < 0 ? undefined : this.values.deserialize(bytes.subarray(offset, offset + bytes.readInt32LE(offset)))
+            return offset < 0 ? undefined : this.values.deserialize(bytes.subarray(offset, offset + bytes.readInt32LE(offset)), typed)
         })
     }
 
@@ -1084,12 +1085,13 @@ export class EmbeddedStore {
      * @param predicates
      * @param first the documents of its first batch, when fewer are needed (a limit)
      * @param transaction the transaction it reads in (none: it reads the last commit)
+     * @param typed whether its numbers keep their types (Int32, Double, Long), for the writes
      */
-    async* scan(name: string, predicates: NativePredicate[] = [], first: number = SCAN_BATCH, transaction?: EmbeddedStoreTransaction): AsyncGenerator<EmbeddedDocument[]> {
+    async* scan(name: string, predicates: NativePredicate[] = [], first: number = SCAN_BATCH, transaction?: EmbeddedStoreTransaction, typed: boolean = false): AsyncGenerator<EmbeddedDocument[]> {
         if (!this.view(transaction).has(name)) return
         // A capped collection in the order of its insertions
         if (this.view(transaction).get(name)!.natural) {
-            for await (const {documents} of this.scanRange(name, 0, [], {predicates: predicates, first: first, transaction: transaction})) yield documents
+            for await (const {documents} of this.scanRange(name, 0, [], {predicates: predicates, first: first, transaction: transaction, typed: typed})) yield documents
             return
         }
         let after: Buffer | undefined
@@ -1103,7 +1105,7 @@ export class EmbeddedStore {
             })
             const documents: EmbeddedDocument[] = []
             for (let at: number = 0; at < batch.bytes.length; at += batch.bytes.readInt32LE(at)) {
-                documents.push(this.values.deserialize(batch.bytes.subarray(at, at + batch.bytes.readInt32LE(at))))
+                documents.push(this.values.deserialize(batch.bytes.subarray(at, at + batch.bytes.readInt32LE(at)), typed))
             }
             if (documents.length) yield documents
             if (batch.done || !batch.last) return
@@ -1121,9 +1123,9 @@ export class EmbeddedStore {
      * @param table
      * @param ranges none: all the entries
      * @param options reversed, the predicates, the documents of its first batch when fewer are needed (a limit), the
-     * transaction it reads in (none: it reads the last commit)
+     * transaction it reads in (none: it reads the last commit), whether its numbers keep their types (typed)
      */
-    async* scanRange(name: string, table: number, ranges: NativeRange[], options: { reverse?: boolean, predicates?: NativePredicate[], first?: number, transaction?: EmbeddedStoreTransaction } = {}): AsyncGenerator<{ documents: EmbeddedDocument[], data: Buffer[] }> {
+    async* scanRange(name: string, table: number, ranges: NativeRange[], options: { reverse?: boolean, predicates?: NativePredicate[], first?: number, transaction?: EmbeddedStoreTransaction, typed?: boolean } = {}): AsyncGenerator<{ documents: EmbeddedDocument[], data: Buffer[] }> {
         if (!this.view(options.transaction).has(name)) return
         // All the documents of a capped collection: in the order of their insertions (its natural order)
         if (table === 0 && !ranges.length) table = this.view(options.transaction).get(name)!.natural?.order ?? 0
@@ -1145,7 +1147,7 @@ export class EmbeddedStore {
             for (let at: number = 0; at < batch.bytes.length; at += batch.bytes.readInt32LE(at)) {
                 const bytes: Buffer = batch.bytes.subarray(at, at + batch.bytes.readInt32LE(at))
                 data.push(bytes)
-                documents.push(this.values.deserialize(bytes))
+                documents.push(this.values.deserialize(bytes, options.typed))
             }
             if (documents.length) yield {documents: documents, data: data}
             if (batch.done || !batch.last) return
@@ -1358,7 +1360,7 @@ export class EmbeddedStore {
         const events: Buffer[] = [this.event(collection, {
             o: 'modify',
             od: description,
-            sb: {collectionOptions: this.values.copy(collection.options), ...(indexBefore ? {indexOptions: indexBefore} : {})}
+            sb: {collectionOptions: this.values.plain(collection.options), ...(indexBefore ? {indexOptions: indexBefore} : {})}
         })]
         const defined: boolean = indexes.length > 0 || Object.keys(options).length > 0
         await addon.setIndexes(this.database, name, defined ? this.values.serialize(definitions) : Buffer.alloc(0), this.inOplog(events))

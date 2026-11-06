@@ -6,7 +6,7 @@
  * long overflowing a double; a double with a decimal is converted to a decimal of 15 digits; a decimal is rounded to 34
  * digits, half to even. A long result is a number up to 2^53, a Long beyond; a decimal one a Decimal128.
  */
-import { Decimal128, Long } from 'bson'
+import { Decimal128, Double, Long } from 'bson'
 import { Any } from '../types.js'
 import { bsonClassOf, isNumeric } from './_bson.js'
 
@@ -27,6 +27,36 @@ const LONG_MIN = -(2n ** 63n)
 const LONG_MAX = 2n ** 63n - 1n
 const SAFE = BigInt(Number.MAX_SAFE_INTEGER)
 const DIGITS = 34
+
+/**
+ * Whether the results keep their types as values of bson (a double a Double, a long a Long), as the writes store them;
+ * else they are numbers, as bson reads them for the user
+ */
+let typedResults = false
+
+/**
+ * Runs a function whose numeric results keep their types (Double, Long), as the writes store them.
+ *
+ * @param fn
+ */
+export function withTypedResults<T>(fn: () => T): T {
+  const before = typedResults
+  typedResults = true
+  try {
+    return fn()
+  } finally {
+    typedResults = before
+  }
+}
+
+/**
+ * The result of a double: a Double when the results keep their types.
+ *
+ * @param value
+ */
+export function doubleResult(value: number): Any {
+  return typedResults ? new Double(value) : value
+}
 
 /**
  * The type of a number of MongoDB.
@@ -161,8 +191,8 @@ function decimalResult(d: Decimal | number): Decimal128 {
 function integerResult(value: bigint, kind: NumberKind): Any {
   if (kind === NumberKind.Int && value >= INT_MIN && value <= INT_MAX)
     return Number(value)
-  if (value < LONG_MIN || value > LONG_MAX) return Number(value)
-  return value >= -SAFE && value <= SAFE ? Number(value) : Long.fromBigInt(value)
+  if (value < LONG_MIN || value > LONG_MAX) return doubleResult(Number(value))
+  return value >= -SAFE && value <= SAFE && !typedResults ? Number(value) : Long.fromBigInt(value)
 }
 
 /**
@@ -201,7 +231,7 @@ type Operation = 'add' | 'subtract' | 'multiply'
  * @param operation
  */
 function binary(a: Any, b: Any, operation: Operation): Any {
-  if (typeof a === 'number' && typeof b === 'number') {
+  if (typeof a === 'number' && typeof b === 'number' && !typedResults) {
     const result =
       operation === 'add' ? a + b : operation === 'subtract' ? a - b : a * b
     // A double, or integers within the safe ones: the number itself
@@ -225,7 +255,7 @@ function binary(a: Any, b: Any, operation: Operation): Any {
   if (kind === NumberKind.Double) {
     const x = doubleOf(a)
     const y = doubleOf(b)
-    return operation === 'add' ? x + y : operation === 'subtract' ? x - y : x * y
+    return doubleResult(operation === 'add' ? x + y : operation === 'subtract' ? x - y : x * y)
   }
   const x = integerOf(a)
   const y = integerOf(b)
@@ -269,7 +299,7 @@ export function isZero(v: Any): boolean {
  * @param b
  */
 export function divide(a: Any, b: Any): Any {
-  if (widest(a, b) !== NumberKind.Decimal) return doubleOf(a) / doubleOf(b)
+  if (widest(a, b) !== NumberKind.Decimal) return doubleResult(doubleOf(a) / doubleOf(b))
   const x = decimalOf(a)
   const y = decimalOf(b)
   if (typeof x === 'number' || typeof y === 'number')
@@ -315,7 +345,7 @@ export function mod(a: Any, b: Any): Any {
     const [left, right, scale] = aligned(x, y)
     return decimalResult({ digits: left % right, scale: scale })
   }
-  if (kind === NumberKind.Double) return doubleOf(a) % doubleOf(b)
+  if (kind === NumberKind.Double) return doubleResult(doubleOf(a) % doubleOf(b))
   return integerResult(integerOf(a) % integerOf(b), kind)
 }
 
@@ -326,7 +356,7 @@ export function mod(a: Any, b: Any): Any {
  */
 export function abs(v: Any): Any {
   const kind = kindOf(v)
-  if (kind === NumberKind.Double) return Math.abs(doubleOf(v))
+  if (kind === NumberKind.Double) return doubleResult(Math.abs(doubleOf(v)))
   if (kind === NumberKind.Decimal) {
     const d = decimalOf(v)
     return decimalResult(
@@ -392,7 +422,7 @@ export function roundAt(v: Any, places: number, mode: Rounding): Any {
   const result = roundDigits(d.digits, d.scale, places, mode)
   if (kind === NumberKind.Decimal) return decimalResult(result)
   const double = Number(`${result.digits}e${-result.scale}`)
-  return double === 0 ? doubleOf(v) < 0 || Object.is(doubleOf(v), -0) ? -0 : 0 : double
+  return doubleResult(double === 0 ? doubleOf(v) < 0 || Object.is(doubleOf(v), -0) ? -0 : 0 : double)
 }
 
 /**
@@ -404,7 +434,7 @@ export function roundAt(v: Any, places: number, mode: Rounding): Any {
  */
 export function computed(values: Any[], fn: (...doubles: number[]) => number): Any {
   const result = fn(...values.map(doubleOf))
-  return values.some((v) => kindOf(v) === NumberKind.Decimal) ? decimalResult(result) : result
+  return values.some((v) => kindOf(v) === NumberKind.Decimal) ? decimalResult(result) : doubleResult(result)
 }
 
 /**
@@ -421,7 +451,7 @@ export function pow(base: Any, exponent: Any): Any {
     const value = integerOf(base)
     // Beyond 64 bits: a double
     if (value !== 0n && value !== 1n && value !== -1n && power > 64n)
-      return Math.pow(doubleOf(base), doubleOf(exponent))
+      return doubleResult(Math.pow(doubleOf(base), doubleOf(exponent)))
     return integerResult(value ** power, kind)
   }
   return computed([base, exponent], Math.pow)

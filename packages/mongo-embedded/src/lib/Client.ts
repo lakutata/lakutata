@@ -3,6 +3,7 @@ import * as bson from 'bson'
 import * as mingo from './mingo/index.js'
 import { ImmutableFieldError, MongoCodeError, resolve } from './mingo/util/index.js'
 import { withCollation } from './mingo/util/_bson.js'
+import { withTypedResults } from './mingo/util/_numeric.js'
 import {
     checkedOperation,
     checkReplacement,
@@ -659,6 +660,20 @@ function cappedMax(field: string, max: number): number {
     if (max > CAPPED_MAX)
         throw new EmbeddedOperationError(2, 'BadValue', `BSON field '${field}' value must be < 2147483648, actual value '${max}'`)
     return max > 0 ? max : CAPPED_MAX
+}
+
+/**
+ * Whether a filter or a pipeline tells the types of the numbers apart ($type, $jsonSchema): its documents are read
+ * with their types (Int32, Double, Long), as MongoDB matches them, and given as numbers.
+ *
+ * @param value
+ */
+function typeSensitive(value: unknown): boolean {
+    if (Array.isArray(value)) return value.some(typeSensitive)
+    if (!isPlain(value)) return false
+    for (const key of Object.keys(value as EmbeddedDocument))
+        if (key === '$type' || key === '$jsonSchema' || typeSensitive((value as EmbeddedDocument)[key])) return true
+    return false
 }
 
 /**
@@ -1915,7 +1930,7 @@ export class EmbeddedCollection {
                 const last = open.get(grouped)
                 let bucket = last ? touched.get(last.toString('latin1')) : undefined
                 if (last && !bucket) {
-                    const [stored] = await this.store.get(name, [last])
+                    const [stored] = await this.store.get(name, [last], undefined, true)
                     if (stored && groupOf(stored.meta) === grouped) {
                         const rows = unpacked(stored as EmbeddedBucket, options).map((row) => {
                             if (options.metaField !== undefined) delete row[options.metaField]
@@ -1972,7 +1987,7 @@ export class EmbeddedCollection {
         const plan = new EmbeddedPlanner(state, buckets.collatorFor()).plan({ meta: meta ?? null })
         if (plan.kind !== 'index' || Object.keys(state.indexes.find((index) => index.name === plan.index)?.key ?? {})[0] !== 'meta')
             return undefined
-        for await (const { documents } of this.store.scanRange(buckets.collectionName, state.tables.get(plan.index)!, buckets.rangesOf(plan.ranges), { reverse: true, first: 1 }))
+        for await (const { documents } of this.store.scanRange(buckets.collectionName, state.tables.get(plan.index)!, buckets.rangesOf(plan.ranges), { reverse: true, first: 1, typed: true }))
             return documents[0]
         return undefined
     }
@@ -1984,7 +1999,7 @@ export class EmbeddedCollection {
     private async measurements(): Promise<{ bucket: EmbeddedDocument, rows: EmbeddedDocument[] }[]> {
         const options = this.timeSeries()!
         const read: { bucket: EmbeddedDocument, rows: EmbeddedDocument[] }[] = []
-        for (const bucket of await this.buckets().matching({}, Infinity))
+        for (const bucket of await this.buckets().matching({}, Infinity, undefined, undefined, undefined, true))
             read.push({ bucket: bucket, rows: unpacked(bucket as EmbeddedBucket, options) })
         return read
     }
@@ -2072,7 +2087,7 @@ export class EmbeddedCollection {
             }
             const measurement = first.rows[first.row]
             await this.store.write(BUCKETS + this.collectionName, [this.rebuilt(first.bucket, first.rows.filter((_, position) => position !== first.row))])
-            return measurement
+            return this.values.promote(measurement)
         }, this.transaction)
     }
 
@@ -2128,7 +2143,7 @@ export class EmbeddedCollection {
                 if (!matches(before)) continue
                 matched += bucket.control.count
                 const after = this.values.copy(before)
-                this.byMingo(() => this.values.mingo.update(after, modifier))
+                this.byMingo(() => withTypedResults(() => this.values.mingo.update(after, modifier)))
                 if (show(after) === show(before)) continue
                 modified += bucket.control.count
                 const next = { ...bucket }
@@ -2278,16 +2293,22 @@ export class EmbeddedCollection {
      * @param hint the index they are found by
      * @param collator the collation of its strings, if any
      * @param time the time its reads may take (maxTimeMS), if any
+     * @param keep whether their numbers keep their types (Int32, Double, Long), for a write
      */
     async matching(
         query?: EmbeddedDocument,
         limit = Infinity,
         hint?: EmbeddedHint,
         collator?: EmbeddedCollator,
-        time?: EmbeddedTimeLimit
+        time?: EmbeddedTimeLimit,
+        keep = false
     ): Promise<EmbeddedDocument[]> {
         const filter = this.values.copy(query ?? {})
         if (limit <= 0) return []
+        // Read with the types of their numbers for a write (keep), or for a filter telling them apart (then given as
+        // numbers)
+        const typed = keep || typeSensitive(filter)
+        const given = (documents: EmbeddedDocument[]) => (typed && !keep ? documents.map((document) => this.values.promote(document)) : documents)
         // A filter of the _id alone: the document of its key, not tested by mingo when its _id is the value itself (a
         // string of a collation matches other keys too)
         const id = hint === undefined ? this.idOf(filter) : undefined
@@ -2295,20 +2316,21 @@ export class EmbeddedCollection {
             const [document] = await this.store.get(
                 this.collectionName,
                 [this.idKey(id)],
-                this.transaction
+                this.transaction,
+                typed
             )
             if (!document) return []
-            if (this.isId(document._id, id)) return [document]
+            if (this.isId(document._id, id)) return given([document])
         }
         const matches = this.matcherOf(filter, collator)
         const documents: EmbeddedDocument[] = []
-        for await (const batch of this.candidates(filter, hint, limit, collator, time))
+        for await (const batch of this.candidates(filter, hint, limit, collator, time, typed))
             for (const document of batch) {
                 if (!matches(document)) continue
                 documents.push(document)
-                if (documents.length >= limit) return documents
+                if (documents.length >= limit) return given(documents)
             }
-        return documents
+        return given(documents)
     }
 
     /**
@@ -2512,14 +2534,18 @@ export class EmbeddedCollection {
             await this.session!.refuse(
                 `${Object.keys(output)[0]} cannot be used in a transaction`
             )
+        // The types of the numbers kept when the results are written ($out, $merge) or the stages tell them apart
+        // ($type, $jsonSchema): the results given as numbers then
+        const typed = !!output || typeSensitive(pipeline)
         const documents = await this.aggregated(
             output ? pipeline.slice(0, -1) : pipeline,
             aggregation,
             hint,
             collator,
-            time
+            time,
+            typed
         )
-        if (!output) return documents
+        if (!output) return typed ? documents.map((document) => this.values.promote(document)) : documents
         if (output.$out !== undefined) await this.out(documents, output.$out)
         else await this.merge(documents, output.$merge, aggregation, collator)
         return []
@@ -2535,22 +2561,24 @@ export class EmbeddedCollection {
      * @param hint
      * @param collator the collation of its strings, if any
      * @param time the time its reads may take (maxTimeMS), if any
+     * @param typed whether the numbers keep their types (Int32, Double, Long)
      */
     private async aggregated(
         pipeline: EmbeddedDocument[],
         options: EmbeddedDocument,
         hint?: EmbeddedHint,
         collator?: EmbeddedCollator,
-        time?: EmbeddedTimeLimit
+        time?: EmbeddedTimeLimit,
+        typed = false
     ): Promise<EmbeddedDocument[]> {
         // The buckets of a time series collection unpacked into its measurements, in the order of the buckets
         const unpack = pipeline[0]?.$_internalUnpackBucket
         if (unpack) {
             const series: EmbeddedTimeSeriesOptions = this.store.collection(this.collectionName, this.transaction)?.options.timeseries ?? unpack
             const measurements: EmbeddedDocument[] = []
-            for (const bucket of await this.matching({}, Infinity, undefined, undefined, time))
+            for (const bucket of await this.matching({}, Infinity, undefined, undefined, time, typed))
                 for (const measurement of unpacked(bucket as EmbeddedBucket, series)) measurements.push(measurement)
-            return this.runStages(measurements, pipeline.slice(1), options, collator, time)
+            return this.runStages(measurements, pipeline.slice(1), options, collator, time, typed)
         }
         const changed = options.variables
         const filters: EmbeddedDocument[] = []
@@ -2566,18 +2594,20 @@ export class EmbeddedCollection {
         const batched = changed ? undefined : batchedGroupOf(stages)
         if (batched)
             return this.runStages(
-                await this.groupedInBatches(filter, batched, options, hint, collator, time),
+                await this.groupedInBatches(filter, batched, options, hint, collator, time, typed),
                 batched.rest,
                 options,
                 collator,
-                time
+                time,
+                typed
             )
         return this.runStages(
-            await this.matching(filter, Infinity, hint, collator, time),
+            await this.matching(filter, Infinity, hint, collator, time, typed),
             stages,
             options,
             collator,
-            time
+            time,
+            typed
         )
     }
 
@@ -2591,13 +2621,15 @@ export class EmbeddedCollection {
      * @param options the options of mingo
      * @param collator the collation of the strings, if any
      * @param time the time its reads may take (maxTimeMS), if any: checked after each part of the stages
+     * @param typed whether the numbers keep their types (Int32, Double, Long), the ones of the results too
      */
     private async runStages(
         documents: EmbeddedDocument[],
         stages: EmbeddedDocument[],
         options: EmbeddedDocument,
         collator?: EmbeddedCollator,
-        time?: EmbeddedTimeLimit
+        time?: EmbeddedTimeLimit,
+        typed = false
     ): Promise<EmbeddedDocument[]> {
         let segment: EmbeddedDocument[] = []
         const run = async () => {
@@ -2610,13 +2642,13 @@ export class EmbeddedCollection {
                     continue
                 }
                 const read: EmbeddedDocument[] = []
-                for await (const batch of this.store.scan(name, [], undefined, this.transaction))
+                for await (const batch of this.store.scan(name, [], undefined, this.transaction, typed))
                     for (const document of batch) read.push(document)
                 looked.set(name, read)
             }
             const input = documents
             const running = segment
-            documents = withCollation(collator, () =>
+            const aggregate = () =>
                 this.values.mingo.aggregate(input, running, {
                     ...options,
                     collectionResolver: (name: string) =>
@@ -2624,7 +2656,7 @@ export class EmbeddedCollection {
                             this.values.copy(document)
                         )
                 })
-            )
+            documents = withCollation(collator, () => (typed ? withTypedResults(aggregate) : aggregate()))
             time?.check()
             segment = []
         }
@@ -2737,7 +2769,7 @@ export class EmbeddedCollection {
         const out = this.sibling(temporary)
         try {
             // Of the options of the collection replaced, as MongoDB makes it
-            await this.store.exclusive(() => this.store.create(temporary, this.values.copy(this.store.collection(name)?.options ?? {})))
+            await this.store.exclusive(() => this.store.create(temporary, this.values.plain(this.store.collection(name)?.options ?? {})))
             for (const index of indexes) {
                 if (index.name === '_id_') continue
                 const { key, v, ...rest } = index
@@ -2868,7 +2900,11 @@ export class EmbeddedCollection {
                                       Object.fromEntries(
                                           on.map((field, position) => [field, values[position]])
                                       ),
-                                      1
+                                      1,
+                                      undefined,
+                                      undefined,
+                                      undefined,
+                                      true
                                   )
                               )[0])
                     if (!matched) {
@@ -2986,13 +3022,17 @@ export class EmbeddedCollection {
         options: EmbeddedDocument,
         hint?: EmbeddedHint,
         collator?: EmbeddedCollator,
-        time?: EmbeddedTimeLimit
+        time?: EmbeddedTimeLimit,
+        typed = false
     ): Promise<EmbeddedDocument[]> {
         const aggregate = (documents: EmbeddedDocument[], stages: EmbeddedDocument[]) =>
-            withCollation(collator, () => this.values.mingo.aggregate(documents, stages, options))
+            withCollation(collator, () => {
+                const run = () => this.values.mingo.aggregate(documents, stages, options)
+                return typed ? withTypedResults(run) : run()
+            })
         let groups: EmbeddedDocument[] = []
         let merged = 0
-        for await (const batch of this.matchingBatches(filter, hint, collator, time))
+        for await (const batch of this.matchingBatches(filter, hint, collator, time, typed))
             for (const group of aggregate(batch, batched.batch)) {
                 groups.push(group)
                 // The groups merged stay before the ones of the batches after them, and a $group keeps the order of
@@ -3014,20 +3054,23 @@ export class EmbeddedCollection {
      * @param hint the index they are found by
      * @param collator the collation of its strings, if any
      * @param time the time its reads may take (maxTimeMS), if any
+     * @param keep whether their numbers keep their types (Int32, Double, Long), for a write
      */
     async *matchingBatches(
         query?: EmbeddedDocument,
         hint?: EmbeddedHint,
         collator?: EmbeddedCollator,
-        time?: EmbeddedTimeLimit
+        time?: EmbeddedTimeLimit,
+        keep = false
     ): AsyncGenerator<EmbeddedDocument[]> {
         const filter = this.values.copy(query ?? {})
         const matches = Object.keys(filter).length
             ? this.matcherOf(filter, collator)
             : undefined
-        for await (const batch of this.candidates(filter, hint, Infinity, collator, time)) {
+        const typed = keep || typeSensitive(filter)
+        for await (const batch of this.candidates(filter, hint, Infinity, collator, time, typed)) {
             const matched = matches ? batch.filter(matches) : batch
-            if (matched.length) yield matched
+            if (matched.length) yield typed && !keep ? matched.map((document) => this.values.promote(document)) : matched
         }
     }
 
@@ -3347,7 +3390,7 @@ export class EmbeddedCollection {
     private async createMeasurementIndex(series: EmbeddedTimeSeriesOptions, keys: any, options?: EmbeddedDocument): Promise<string> {
         if (options?.unique || options?.prepareUnique)
             throw new EmbeddedOperationError(72, 'InvalidOptions', 'Unique indexes are not supported on time-series collections')
-        const given: EmbeddedDocument = typeof keys === 'string' ? { [keys]: 1 } : this.values.copy(keys)
+        const given: EmbeddedDocument = typeof keys === 'string' ? { [keys]: 1 } : this.values.plain(keys)
         const fields = Object.keys(given)
         const name = options?.name ?? fields.map((field) => `${field}_${given[field]}`).join('_')
         const translated: EmbeddedDocument = {}
@@ -3830,11 +3873,11 @@ export class EmbeddedCollection {
                 'listCollections'
             )
         // A time series collection: the options of its buckets (its timeseries, its expireAfterSeconds)
-        if (this.timeSeries()) return this.values.copy(this.store.collection(BUCKETS + this.collectionName)!.options)
+        if (this.timeSeries()) return this.values.plain(this.store.collection(BUCKETS + this.collectionName)!.options)
         const view = this.store.views.get(this.collectionName)
-        if (view) return this.values.copy(view)
+        if (view) return this.values.plain(view)
         const state = this.store.collection(this.collectionName, this.transaction)
-        return state ? this.values.copy(state.options) : {}
+        return state ? this.values.plain(state.options) : {}
     }
 
     /**
@@ -4309,16 +4352,18 @@ export class EmbeddedCollection {
      * @param collator the collation of its strings, if any (an index of another one serves its conditions without
      * strings only)
      * @param time the time its reads may take (maxTimeMS), if any: checked at each batch
+     * @param typed whether the numbers of the documents keep their types (Int32, Double, Long)
      */
     private async *candidates(
         filter: EmbeddedDocument,
         hint?: EmbeddedHint,
         first = Infinity,
         collator?: EmbeddedCollator,
-        time?: EmbeddedTimeLimit
+        time?: EmbeddedTimeLimit,
+        typed = typeSensitive(filter)
     ): AsyncGenerator<EmbeddedDocument[]> {
         if (time) {
-            for await (const batch of this.candidates(filter, hint, first, collator)) {
+            for await (const batch of this.candidates(filter, hint, first, collator, undefined, typed)) {
                 time.check()
                 yield batch
             }
@@ -4332,10 +4377,10 @@ export class EmbeddedCollection {
         const predicates = predicatesOf(filter)
         if (plan.kind === 'scan') {
             if (!plan.reverse) {
-                yield* this.store.scan(this.collectionName, predicates, first, this.transaction)
+                yield* this.store.scan(this.collectionName, predicates, first, this.transaction, typed)
                 return
             }
-            for await (const { documents } of this.store.scanRange(this.collectionName, 0, [], { reverse: true, predicates: predicates, first: first, transaction: this.transaction }))
+            for await (const { documents } of this.store.scanRange(this.collectionName, 0, [], { reverse: true, predicates: predicates, first: first, transaction: this.transaction, typed: typed }))
                 yield documents
             return
         }
@@ -4356,7 +4401,8 @@ export class EmbeddedCollection {
                     await this.store.get(
                         this.collectionName,
                         keys.slice(start, start + YIELD_EVERY),
-                        this.transaction
+                        this.transaction,
+                        typed
                     )
                 ).filter((document) => document !== undefined)
                 if (documents.length) yield documents
@@ -4369,7 +4415,7 @@ export class EmbeddedCollection {
             this.collectionName,
             this.tableOf(collection, plan.index),
             this.rangesOf(plan.ranges),
-            { predicates: predicates, first: first, transaction: this.transaction }
+            { predicates: predicates, first: first, transaction: this.transaction, typed: typed }
         )) {
             const unique = seen
                 ? documents.filter((_, position) => {
@@ -4534,12 +4580,12 @@ export class EmbeddedCollection {
                 )
             return { name: ID_INDEX, key: { _id: 1 } }
         }
-        const index: EmbeddedIndex = { name: name, key: this.values.copy(key) }
+        const index: EmbeddedIndex = { name: name, key: this.values.plain(key) }
         if (collator) index.collation = { ...collator.collation }
         if (options.unique) index.unique = true
         else if (options.prepareUnique) index.prepareUnique = true
         // The index of a time series collection it is on its buckets (its fields as the time series lists them)
-        if (options.originalSpec !== undefined) index.originalSpec = this.values.copy(options.originalSpec)
+        if (options.originalSpec !== undefined) index.originalSpec = this.values.plain(options.originalSpec)
         if (options.sparse) index.sparse = true
         if (options.hidden) index.hidden = true
         if (options.partialFilterExpression !== undefined) {
@@ -4547,7 +4593,7 @@ export class EmbeddedCollection {
                 throw cannot("'partialFilterExpression' for an index must be a document")
             if (options.sparse)
                 throw cannot('cannot mix "partialFilterExpression" and "sparse" options')
-            index.partialFilterExpression = this.values.copy(options.partialFilterExpression)
+            index.partialFilterExpression = this.values.plain(options.partialFilterExpression)
         }
         if (options.wildcardProjection !== undefined) {
             if (wildcards[0] !== '$**')
@@ -4558,7 +4604,7 @@ export class EmbeddedCollection {
                 .map((field) => !!projection[field] && projection[field] !== '0')
             if (!this.isPlainObject(projection) || new Set(shown).size > 1)
                 throw cannot('The wildcardProjection of an index cannot mix the fields included and excluded')
-            index.wildcardProjection = this.values.copy(projection)
+            index.wildcardProjection = this.values.plain(projection)
         }
         if (options.expireAfterSeconds !== undefined) {
             // A TTL index: one field, not a wildcard one, a number of seconds within the range of MongoDB
@@ -4722,7 +4768,8 @@ export class EmbeddedCollection {
         const currents = await this.store.get(
             this.collectionName,
             found.map((document) => this.idKey(document._id)),
-            this.transaction
+            this.transaction,
+            true
         )
         return currents.filter(
             (current): current is EmbeddedDocument =>
@@ -4962,7 +5009,7 @@ export class EmbeddedCollection {
                 options.arrayFilters
             )
             const [stored] = await this.insert([document])
-            return this.updateResult(0, 0, stored._id)
+            return this.updateResult(0, 0, this.values.promote(stored._id))
         }
         return this.updateResult(matched, modified)
     }
@@ -4996,9 +5043,9 @@ export class EmbeddedCollection {
             )
             this.byMingo(() =>
                 withCollation(collator, () =>
-                    this.values.mingo.updateMany(nexts, positional && filter ? filter : {}, modifier, {
+                    withTypedResults(() => this.values.mingo.updateMany(nexts, positional && filter ? filter : {}, modifier, {
                         arrayFilters: arrayFilters
-                    })
+                    }))
                 )
             )
         }
@@ -5265,11 +5312,11 @@ export class EmbeddedCollection {
     ): EmbeddedDocument {
         const document = this.equalities(filter)
         if (Array.isArray(modifier)) return this.pipelined(document, modifier)
-        this.byMingo(() => {
+        this.byMingo(() => withTypedResults(() => {
             this.values.mingo.update(document, modifier, arrayFilters)
             if (setOnInsert)
                 this.values.mingo.update(document, { $set: setOnInsert })
-        })
+        }))
         return document
     }
 
@@ -5295,11 +5342,11 @@ export class EmbeddedCollection {
                     `${name} is not allowed to be used within an update`
                 )
         }
-        const [next] = this.values.mingo.aggregate(
+        const [next] = withTypedResults(() => this.values.mingo.aggregate(
             [this.values.copy(document)],
             pipeline,
             variables ? { variables: variables } : undefined
-        )
+        ))
         return next._id === undefined && document._id !== undefined
             ? { _id: document._id, ...next }
             : next
@@ -5354,10 +5401,13 @@ export class EmbeddedCollection {
             })
                 .limit(1)
                 .toArray()
-            if (found) {
-                const change = changeOf(found)
+            // The document found read again with the types of its numbers, which its change keeps; the documents given
+            // with numbers once written
+            const [current] = found ? await this.store.get(this.collectionName, [this.idKey(found._id)], this.transaction, true) : []
+            if (current) {
+                const change = changeOf(current)
                 if (change) await this.store.write(this.collectionName, [change])
-                return { before: found, after: change ? change.next : found }
+                return { before: this.values.promote(current), after: change ? this.values.promote(change.next) : current }
             }
             if (!options?.upsert || !upserted) return {}
             const document = upserted(filter)
@@ -5368,7 +5418,7 @@ export class EmbeddedCollection {
                 [{ key: this.idKey(document._id), next: document }],
                 true
             )
-            return { after: document, upsertedId: document._id }
+            return { after: this.values.promote(document), upsertedId: document._id }
         }, this.transaction)
     }
 
@@ -5563,7 +5613,7 @@ export class EmbeddedDb {
         const collator = options.collation === undefined ? undefined : collatorOf(options.collation)
         const definition: EmbeddedViewDefinition = {
             viewOn: options.viewOn,
-            pipeline: this.store.values.copy(pipeline),
+            pipeline: this.store.values.plain(pipeline),
             ...(collator ? { collation: { ...collator.collation } } : {})
         }
         const show = (value: unknown) => this.store.values.bson.EJSON.stringify(value)
@@ -5728,7 +5778,7 @@ export class EmbeddedDb {
             if (!before) throw new EmbeddedOperationError(26, 'NamespaceNotFound', 'ns does not exist')
             const definition: EmbeddedViewDefinition = {
                 viewOn: command.viewOn ?? before.viewOn,
-                pipeline: this.store.values.copy(command.pipeline ?? before.pipeline),
+                pipeline: this.store.values.plain(command.pipeline ?? before.pipeline),
                 ...(before.collation ? { collation: before.collation } : {})
             }
             checkViewPipeline(namespace, definition.pipeline)
@@ -5755,7 +5805,7 @@ export class EmbeddedDb {
                     return {
                         name: name,
                         type: 'collection',
-                        options: this.store.values.copy(state.options),
+                        options: this.store.values.plain(state.options),
                         info: { readOnly: false, uuid: new bson.UUID(state.uuid) },
                         idIndex: { v: 2, key: { _id: 1 }, name: '_id_', ...(state.collation ? { collation: state.collation } : {}) }
                     }
@@ -5767,8 +5817,8 @@ export class EmbeddedDb {
                 collections.push(options?.nameOnly
                     ? { name: name, type: type }
                     : series
-                      ? { name: name, type: type, options: this.store.values.copy(series), info: { readOnly: false } }
-                      : { name: name, type: type, options: this.store.values.copy(definition), info: { readOnly: true } })
+                      ? { name: name, type: type, options: this.store.values.plain(series), info: { readOnly: false } }
+                      : { name: name, type: type, options: this.store.values.plain(definition), info: { readOnly: true } })
             }
             collections.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
             return filter && Object.keys(filter).length
@@ -5949,10 +5999,16 @@ export class EmbeddedClient {
             throw new MongoEmbeddedError(
                 `The option transactionLifetimeLimitSeconds must be a number of seconds above 0, not ${String(lifetime)}`
             )
+        const values = new EmbeddedValues(bson, mingo)
+        // The $jsonSchema of the queries checked as the validator of a collection checks it (as MongoDB 8.0 does)
+        mingo.useJsonSchemaValidator((schema: EmbeddedDocument) => {
+            const validator = new EmbeddedValidator({ $jsonSchema: schema }, values.keys)
+            return (document: EmbeddedDocument) => validator.test(document)
+        })
         return new EmbeddedClient(
             await EmbeddedStore.open(
                 directory && directory !== ':memory:' ? directory : undefined,
-                new EmbeddedValues(bson, mingo),
+                values,
                 storage
             ),
             { transactionLifetimeLimitSeconds: lifetime, writeConcern: writeConcern }

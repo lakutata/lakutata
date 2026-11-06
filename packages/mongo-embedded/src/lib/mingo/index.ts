@@ -9,7 +9,7 @@ import * as projectionOperators from './operators/projection/index.js'
 import * as queryOperators from './operators/query/index.js'
 import * as windowOperators from './operators/window/index.js'
 import { Query as QueryBase } from './query.js'
-import type { AnyObject, Criteria, Options, Projection } from './types.js'
+import type { AnyObject, Criteria, JsonSchemaValidator, Options, Projection } from './types.js'
 import * as updater from './updater.js'
 
 export { Context, ProcessingMode } from './core/index.js'
@@ -23,8 +23,21 @@ const CONTEXT = Context.init({
   window: windowOperators
 })
 
+/** The validator of the $jsonSchema of the queries not given one (their option jsonSchemaValidator). */
+let defaultJsonSchemaValidator: JsonSchemaValidator | undefined
+
+/**
+ * Sets the validator of the $jsonSchema of the queries not given one.
+ *
+ * @param validator
+ */
+export function useJsonSchemaValidator(validator: JsonSchemaValidator): void {
+  defaultJsonSchemaValidator = validator
+}
+
 const makeOpts = (options?: Partial<Options>) =>
   Object.assign({
+    jsonSchemaValidator: defaultJsonSchemaValidator,
     ...options,
     context: options?.context
       ? Context.from(CONTEXT, options?.context)

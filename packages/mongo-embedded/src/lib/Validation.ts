@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import * as mingo from './mingo/index.js'
-import { withCollation } from './mingo/util/_bson.js'
+import { bsonTypeName, withCollation } from './mingo/util/_bson.js'
 import { type EmbeddedCollator } from './Collation.js'
 import { EmbeddedOperationError } from './Errors.js'
 import { type EmbeddedKeyEncoding } from './KeyEncoding.js'
@@ -38,53 +38,9 @@ const ACTIONS = ['error', 'warn']
 
 /**
  * The BSON type of a value, as MongoDB names it (consideredType, $type, bsonType)
- *
- * @param value
  * @internal
  */
-export function bsonTypeName(value: unknown): string {
-    if (value === null) return 'null'
-    if (value === undefined) return 'undefined'
-    if (typeof value === 'number')
-        return Number.isInteger(value) && value >= -2147483648 && value <= 2147483647 ? 'int' : 'double'
-    if (typeof value === 'bigint') return 'long'
-    if (typeof value === 'string') return 'string'
-    if (typeof value === 'boolean') return 'bool'
-    if (Array.isArray(value)) return 'array'
-    if (value instanceof Date) return 'date'
-    if (value instanceof RegExp) return 'regex'
-    if (ArrayBuffer.isView(value)) return 'binData'
-    switch ((value as { _bsontype?: string })._bsontype) {
-        case 'Int32':
-            return 'int'
-        case 'Double':
-            return 'double'
-        case 'Long':
-            return 'long'
-        case 'Decimal128':
-            return 'decimal'
-        case 'ObjectId':
-        case 'ObjectID':
-            return 'objectId'
-        case 'Binary':
-            return 'binData'
-        case 'BSONRegExp':
-            return 'regex'
-        case 'Code':
-            return (value as { scope?: unknown }).scope ? 'javascriptWithScope' : 'javascript'
-        case 'Timestamp':
-            return 'timestamp'
-        case 'MinKey':
-            return 'minKey'
-        case 'MaxKey':
-            return 'maxKey'
-        case 'BSONSymbol':
-            return 'symbol'
-        case 'DBRef':
-            return 'object'
-    }
-    return 'object'
-}
+export {bsonTypeName}
 
 /**
  * Whether a value is a number of BSON (double, int, long, decimal)

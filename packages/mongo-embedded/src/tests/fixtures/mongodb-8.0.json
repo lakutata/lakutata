@@ -9396,8 +9396,8 @@
       "$date": "2026-01-01T00:00:02.000Z"
      },
      "m": "a",
-     "v": 2,
-     "extra": 1
+     "extra": 1,
+     "v": 2
     },
     {
      "ts": {
@@ -9981,6 +9981,51 @@
     "error": {
      "code": 48
     }
+   }
+  },
+  "the types of the numbers: kept by the writes, given by the operators, matched by $type and $jsonSchema": {
+   "incInt": "i:int",
+   "incIntByDouble": "i:double",
+   "incIntOverflow": "i:long",
+   "incDouble": "d:double",
+   "incLong": "l:long",
+   "incMissing": "m:int",
+   "incMissingDouble": "m:double",
+   "mulInt": "i:int",
+   "mulDouble": "d:double",
+   "setOther": "d:double i:int l:long x:int",
+   "setIntValue": "d:int",
+   "maxDouble": "d:int",
+   "minInt": "i:double",
+   "pushArray": "a:array",
+   "incDecimal": "x:decimal",
+   "pipeline": "d:double i:int s:double t:int",
+   "typeDouble": 1,
+   "typeInt": 0,
+   "jsonSchema": 1,
+   "findType": [
+    {
+     "_id": 100,
+     "v": 1,
+     "w": 2
+    }
+   ],
+   "found": {
+    "_id": 100,
+    "v": 1,
+    "w": 2,
+    "x": 1
+   },
+   "afterFindOneAndUpdate": "v:double w:double x:int",
+   "afterReplace": "v:double n:int",
+   "afterBulk": "v:double n:int",
+   "out": {
+    "v": "double",
+    "n": "int"
+   },
+   "merge": {
+    "v": "double",
+    "n": "int"
    }
   },
   "the starts of the change streams: after the event of a drop, conflicting options, the stage splitting the events": {

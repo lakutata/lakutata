@@ -4,6 +4,7 @@ import {
   add,
   divide,
   doubleOf,
+  doubleResult,
   kindOf,
   NumberKind
 } from '../../util/_numeric.js'
@@ -20,5 +21,5 @@ export const $avg = (coll: Any[], expr: Any, options: Options) => {
   for (let i = 0; i < data.length; i++) sum = add(sum, data[i])
   return kindOf(sum) === NumberKind.Decimal
     ? divide(sum, data.length)
-    : doubleOf(sum) / data.length
+    : doubleResult(doubleOf(sum) / data.length)
 }
