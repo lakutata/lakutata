@@ -12,15 +12,12 @@ const FIXTURES: { version: string, outcomes: Record<string, unknown> } = JSON.pa
 /**
  * The groups of the scenarios done (the steps of the phase): the others are still to do
  */
-const DONE: Set<string> = new Set<string>(['transactions', 'writeConcern'])
+const DONE: Set<string> = new Set<string>(['transactions', 'writeConcern', 'changeStreams'])
 
 /**
  * The steps of the scenarios of a group done that still wait for a step not done: left out of the comparison
  */
-const WAITING: Record<string, string[]> = {
-    //watch in a transaction: the change streams (step 4)
-    'the operations a transaction does not allow fail it': ['watch']
-}
+const WAITING: Record<string, string[]> = {}
 
 describe(`The embedded MongoDB compared with MongoDB ${FIXTURES.version}`, (): void => {
     for (const scenario of SCENARIOS) {

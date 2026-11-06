@@ -287,3 +287,128 @@ describe('The events of the writes', (): void => {
         await client.close()
     })
 })
+
+describe('The change streams', (): void => {
+
+    /**
+     * Whether an error is the one of a code
+     * @param code
+     */
+    const coded = (code: number) => (error: unknown): boolean => (error as { code?: number }).code === code
+
+    it('wait for the next commit, as a promise, an iterator, a stream or the events of an emitter', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const items = client.db().collection('items')
+        const stream = items.watch()
+        const waiting = stream.next()
+        setTimeout((): unknown => items.insertOne({_id: 1}), 20)
+        assert.deepStrictEqual((await waiting)?.documentKey, {_id: 1})
+        //An emitter: its events once a listener of change is there
+        const emitter = client.watch([{$match: {operationType: 'insert'}}])
+        const told: unknown[] = []
+        emitter.on('change', (event: Record<string, any>): void => {
+            told.push(event.documentKey._id)
+        })
+        await items.insertMany([{_id: 2}, {_id: 3}])
+        await items.deleteOne({_id: 2})
+        await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, 50))
+        assert.deepStrictEqual(told, [2, 3])
+        await emitter.close()
+        //An iterator, ended by the closing
+        const iterated: unknown[] = []
+        const iterating = (async (): Promise<void> => {
+            for await (const event of stream) {
+                iterated.push(event.operationType)
+                if (iterated.length === 3) await stream.close()
+            }
+        })()
+        await iterating
+        assert.deepStrictEqual(iterated, ['insert', 'insert', 'delete'])
+        assert.strictEqual(stream.closed, true)
+        assert.strictEqual(await stream.next(), null)
+        //A readable stream
+        const readable = items.watch().stream({transform: (event: Record<string, any>): unknown => event.operationType})
+        await items.insertOne({_id: 4})
+        for await (const operation of readable) {
+            assert.strictEqual(operation, 'insert')
+            break
+        }
+        //A transaction: its events once it commits, none when it aborts
+        const watching = items.watch()
+        const session = client.startSession()
+        await session.withTransaction(async (): Promise<void> => {
+            await items.insertOne({_id: 5}, {session: session})
+            assert.strictEqual(await watching.tryNext(), null)
+        })
+        assert.deepStrictEqual((await watching.tryNext())?.documentKey, {_id: 5})
+        session.startTransaction()
+        await items.insertOne({_id: 6}, {session: session})
+        await session.abortTransaction()
+        await items.insertOne({_id: 7})
+        assert.deepStrictEqual((await watching.tryNext())?.documentKey, {_id: 7})
+        await session.endSession()
+        await client.close()
+    })
+
+    it('resume after their tokens once the database is opened again, and after a crash', async (): Promise<void> => {
+        const at: string = directory()
+        let client: EmbeddedClient = await EmbeddedClient.connect(at)
+        let items = client.db().collection('items')
+        const stream = items.watch()
+        await items.insertOne({_id: 1})
+        const first = await stream.next()
+        await items.insertOne({_id: 2})
+        await client.close()
+        client = await EmbeddedClient.connect(at)
+        items = client.db().collection('items')
+        await items.insertOne({_id: 3})
+        const resumed = items.watch([], {resumeAfter: first!._id})
+        assert.deepStrictEqual([(await resumed.next())?.documentKey, (await resumed.next())?.documentKey], [{_id: 2}, {_id: 3}])
+        const position = resumed.resumeToken
+        await client.close()
+        //A process killed after its writes: the stream resumes after the last event it gave
+        const module: string = new URL('../exports/MongoEmbedded.js', import.meta.url).pathname
+        const {spawnSync} = await import('node:child_process')
+        const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
+            import {EmbeddedClient} from ${JSON.stringify(module)}
+            const client = await EmbeddedClient.connect(${JSON.stringify(at)})
+            await client.db().collection('items').insertMany([{_id: 4}, {_id: 5}])
+            process.kill(process.pid, 'SIGKILL')
+        `])
+        assert.strictEqual(child.signal, 'SIGKILL')
+        client = await EmbeddedClient.connect(at)
+        const afterCrash = client.db().collection('items').watch([], {resumeAfter: position})
+        assert.deepStrictEqual([(await afterCrash.next())?.documentKey, (await afterCrash.next())?.documentKey], [{_id: 4}, {_id: 5}])
+        //A token of another database: not found
+        const other: EmbeddedClient = await EmbeddedClient.connect()
+        await assert.rejects(other.watch([], {resumeAfter: position}).tryNext(), coded(280))
+        await other.close()
+        //A token of an event a crash lost (its generation ended before it): the history is lost
+        const lost: string = position._data.slice(0, 50) + '00000000000003e7' + position._data.slice(66)
+        await assert.rejects(client.watch([], {resumeAfter: {_data: lost}}).tryNext(), coded(286))
+        await client.close()
+    })
+
+    it('fail the tokens of the events their oplog deleted, or kept in memory only (oplogSize 0)', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect(undefined, {oplogSize: 16 * 1024})
+        const items = client.db().collection('items')
+        const stream = items.watch()
+        await items.insertOne({_id: 0, text: 'x'.repeat(100)})
+        const oldest = await stream.next()
+        for (let batch: number = 0; batch < 20; batch++)
+            await items.insertMany(Array.from({length: 100}, (_: unknown, n: number): Record<string, unknown> => ({_id: 1 + batch * 100 + n, text: 'x'.repeat(1000)})))
+        await assert.rejects(items.watch([], {resumeAfter: oldest!._id}).tryNext(), coded(286))
+        await client.close()
+        const at: string = directory()
+        let memory: EmbeddedClient = await EmbeddedClient.connect(at, {oplogSize: 0})
+        const watching = memory.db().collection('items').watch()
+        await memory.db().collection('items').insertOne({_id: 1})
+        await memory.db().collection('items').insertOne({_id: 2})
+        const event = await watching.next()
+        assert.deepStrictEqual((await memory.db().collection('items').watch([], {resumeAfter: event!._id}).next())?.documentKey, {_id: 2})
+        await memory.close()
+        memory = await EmbeddedClient.connect(at, {oplogSize: 0})
+        await assert.rejects(memory.watch([], {resumeAfter: event!._id}).tryNext(), coded(286))
+        await memory.close()
+    })
+})

@@ -26,13 +26,15 @@ const CASES: Record<string, () => unknown> = {
         await addon.ping(database, Buffer.from('x'))
         console.log('idle')
     },
-    //A client left open with a TTL index and a transaction open: their timers do not hold the process
+    //A client left open with a TTL index, a transaction open and a change stream waiting: they do not hold the process
     async client(): Promise<void> {
         const client: EmbeddedClient = await EmbeddedClient.connect()
         await client.db().collection('items').createIndex({at: 1}, {expireAfterSeconds: 60})
         const session = client.startSession()
         session.startTransaction()
         await client.db().collection('items').insertOne({at: new Date()}, {session: session})
+        //A change stream waiting for its next event does not hold it either
+        void client.watch().next()
         console.log('client')
     },
     //A call pending, not awaited, nothing else holding the process: it waits for the result

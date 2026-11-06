@@ -34,6 +34,7 @@ import {
     wildcardHolds,
     wildcardOf
 } from './Planner.js'
+import { EmbeddedChangeStream, type EmbeddedChangeStreamOptions, refusalOf } from './ChangeStream.js'
 import { describeModifier, describePipeline } from './Events.js'
 import { predicatesOf } from './Prefilter.js'
 import { EmbeddedClientSession, type EmbeddedSessionOptions } from './Session.js'
@@ -1253,11 +1254,20 @@ export class EmbeddedCollection {
     /**
      * @param collectionName the name of the collection
      * @param store the storage of its database
+     * @param dbName the name of its database (its events tell it)
      */
     constructor(
         readonly collectionName: string,
-        readonly store: EmbeddedStore
+        readonly store: EmbeddedStore,
+        readonly dbName: string = 'embedded'
     ) {}
+
+    /**
+     * Its namespace: the names of its database and of the collection
+     */
+    get namespace(): string {
+        return `${this.dbName}.${this.collectionName}`
+    }
 
     /**
      * The conversions of the values of the documents (BSON, mingo)
@@ -1319,7 +1329,7 @@ export class EmbeddedCollection {
      * @param name
      */
     private sibling(name: string): EmbeddedCollection {
-        const collection = new EmbeddedCollection(name, this.store)
+        const collection = new EmbeddedCollection(name, this.store, this.dbName)
         return this.session ? collection.bound(this.session, this.transaction) : collection
     }
 
@@ -2802,7 +2812,7 @@ export class EmbeddedCollection {
                 ),
             () => undefined
         )
-        return new EmbeddedCollection(newName, this.store).withWriteConcern(this.writeConcern)
+        return new EmbeddedCollection(newName, this.store, this.dbName).withWriteConcern(this.writeConcern)
     }
 
     /**
@@ -2847,10 +2857,16 @@ export class EmbeddedCollection {
     }
 
     /**
-     * Not supported: it fails
+     * A change stream of the writes of the collection (EmbeddedChangeStream): their events from now on (or after a
+     * resume token), filtered and changed by a pipeline; its drop and its renaming invalidate it. A transaction does not
+     * allow it
+     * @param pipeline its stages ($match, $project, $addFields, $set, $unset, $replaceRoot, $replaceWith, $redact)
+     * @param options resumeAfter, startAfter, startAtOperationTime, fullDocument, fullDocumentBeforeChange,
+     * showExpandedEvents
      */
-    watch(): never {
-        throw notSupported('watch')
+    watch(pipeline: EmbeddedDocument[] = [], options: EmbeddedChangeStreamOptions = {}): EmbeddedChangeStream {
+        const watched = { kind: 'collection' as const, db: this.dbName, collection: this.collectionName }
+        return new EmbeddedChangeStream(this.store, watched, pipeline, options, refusalOf(watched))
     }
 
     /**
@@ -4026,7 +4042,7 @@ export class EmbeddedDb {
         checkName(name)
         let collection = this.given.get(name)
         if (!collection) {
-            collection = new EmbeddedCollection(name, this.store).withWriteConcern(this.writeConcern)
+            collection = new EmbeddedCollection(name, this.store, this.databaseName).withWriteConcern(this.writeConcern)
             this.given.set(name, collection)
         }
         return options?.writeConcern ? collection.withWriteConcern(options.writeConcern) : collection
@@ -4161,6 +4177,15 @@ export class EmbeddedDb {
     ): Promise<EmbeddedCollection> {
         await this.collection(from).rename(to, options)
         return this.collection(to)
+    }
+
+    /**
+     * A change stream of the writes of the collections of the database (EmbeddedChangeStream); its drop invalidates it
+     * @param pipeline its stages
+     * @param options its options
+     */
+    watch(pipeline: EmbeddedDocument[] = [], options: EmbeddedChangeStreamOptions = {}): EmbeddedChangeStream {
+        return new EmbeddedChangeStream(this.store, { kind: 'database', db: this.databaseName }, pipeline, options)
     }
 
     /**
@@ -4316,6 +4341,15 @@ export class EmbeddedClient {
     db(name = 'embedded', options?: EmbeddedDocument): EmbeddedDb {
         this.database ??= new EmbeddedDb(name, this.store, this.options.writeConcern)
         return options?.writeConcern ? this.database.withWriteConcern(options.writeConcern) : this.database
+    }
+
+    /**
+     * A change stream of the writes of the collections of its database (EmbeddedChangeStream), never invalidated
+     * @param pipeline its stages
+     * @param options its options
+     */
+    watch(pipeline: EmbeddedDocument[] = [], options: EmbeddedChangeStreamOptions = {}): EmbeddedChangeStream {
+        return new EmbeddedChangeStream(this.store, { kind: 'client', db: this.db().databaseName }, pipeline, options)
     }
 
     /**

@@ -728,9 +728,14 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         await dataSource.destroy()
     })
 
-    it('tells the methods of MongoDB it does not have', async (): Promise<void> => {
+    it('watches the changes of the entities (the change streams of MongoDB)', async (): Promise<void> => {
         const dataSource: DataSource = await open(':memory:')
-        assert.throws((): unknown => dataSource.mongoManager.watch(Post), /watch is not supported by mongo-embedded/)
+        const stream = dataSource.mongoManager.watch(Post, [{$match: {operationType: 'insert'}}])
+        await savePosts(dataSource.getMongoRepository(Post))
+        const titles: unknown[] = []
+        for (let count: number = 0; count < 3; count++) titles.push((await stream.next())?.fullDocument?.title)
+        assert.deepStrictEqual(titles, ['hello', 'world', 'third'])
+        await stream.close()
         await dataSource.destroy()
     })
 })
