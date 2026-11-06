@@ -70,6 +70,10 @@ export interface NativeRangeOptions {
     maxBytes?: number
     maxScanned?: number
     predicates?: NativePredicate[]
+    /**
+     * Whether the read is in the transaction of a session open (else it sees the last commit)
+     */
+    inTransaction?: boolean
 }
 
 /**
@@ -135,6 +139,10 @@ export interface NativeScanOptions {
     maxBytes?: number
     maxScanned?: number
     predicates?: NativePredicate[]
+    /**
+     * Whether the read is in the transaction of a session open (else it sees the last commit)
+     */
+    inTransaction?: boolean
 }
 
 /**
@@ -229,9 +237,25 @@ export interface NativeAddon {
     dropDatabase(database: NativeDatabase): Promise<void>
 
     /**
+     * The transaction of a session begun: the reads in it (inTransaction) and the writes run in it, the other reads see
+     * the last commit
+     */
+    begin(database: NativeDatabase): Promise<void>
+
+    /**
+     * The transaction of a session committed (rejected and aborted when it cannot be)
+     */
+    commit(database: NativeDatabase): Promise<void>
+
+    /**
+     * The transaction of a session aborted, if one is open
+     */
+    abort(database: NativeDatabase): Promise<void>
+
+    /**
      * The documents of a collection, 0 when it is not there
      */
-    count(database: NativeDatabase, name: string): Promise<number>
+    count(database: NativeDatabase, name: string, inTransaction?: boolean): Promise<number>
 
     /**
      * Changes of a collection and the entries of its indexes as one transaction (all of them, or none), the definitions
@@ -244,7 +268,7 @@ export interface NativeAddon {
      * The documents of keys: their BSON one after the other, and for each key the offset of its document (i32, little
      * endian), -1 when it is not there
      */
-    get(database: NativeDatabase, name: string, keys: Buffer[]): Promise<{ bytes: Buffer, offsets: Buffer }>
+    get(database: NativeDatabase, name: string, keys: Buffer[], inTransaction?: boolean): Promise<{ bytes: Buffer, offsets: Buffer }>
 
     /**
      * The documents after a key, in the order of their keys: their BSON one after the other, the key of the last one
@@ -262,7 +286,8 @@ export interface NativeAddon {
     /**
      * The entries of ranges of a table (an index, or the collection: 0)
      */
-    countRange(database: NativeDatabase, name: string, index: number, ranges?: NativeRange[]): Promise<number>
+    countRange(database: NativeDatabase, name: string, index: number, ranges?: NativeRange[], inTransaction?: boolean): Promise<number>
+
 
     /**
      * The result of PRAGMA integrity_check: "ok" when the file is sound

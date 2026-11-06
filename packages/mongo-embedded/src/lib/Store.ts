@@ -171,8 +171,38 @@ export const TEMPORARY_OUT: string = 'tmp.agg_out.'
 const RENAME_ERRORS: Record<number, string> = {20: 'IllegalOperation', 26: 'NamespaceNotFound', 48: 'NamespaceExists'}
 
 /**
+ * The transaction of a session open on a store (EmbeddedStore.begin): the operations given it run in it, one after the
+ * other; the exclusive operations of the others wait for its end, their reads see the last commit
+ */
+export class EmbeddedStoreTransaction {
+    /**
+     * Its last operation, which the next one awaits
+     */
+    chain: Promise<unknown> = Promise.resolve()
+
+    /**
+     * Whether it ended (committed or aborted)
+     */
+    ended: boolean = false
+
+    /**
+     * Its end told: the exclusive operations of the others go on
+     */
+    release: () => void = (): void => undefined
+}
+
+/**
+ * The state of a collection kept when a transaction begins, put back by its abort
+ */
+interface EmbeddedSavedState {
+    indexes: EmbeddedIndex[]
+    tables: Map<string, number>
+    multikey: Set<string>
+}
+
+/**
  * The storage of a database: its collections in the file of a directory (or in memory), stored by the addon on a
- * thread of its own; its writes made one after the other (exclusive)
+ * thread of its own; its writes made one after the other (exclusive), or in the transaction of a session
  */
 export class EmbeddedStore {
     protected readonly collections: Map<string, EmbeddedCollectionState> = new Map<string, EmbeddedCollectionState>()
@@ -183,6 +213,21 @@ export class EmbeddedStore {
     protected writing: Promise<unknown> = Promise.resolve()
 
     protected closed: boolean = false
+
+    /**
+     * The transaction of a session open, the collections when it began (the reads beside it see them) and their
+     * states then, put back by its abort
+     */
+    protected open?: EmbeddedStoreTransaction
+
+    protected committed?: Map<string, EmbeddedCollectionState>
+
+    protected saved?: Map<EmbeddedCollectionState, EmbeddedSavedState>
+
+    /**
+     * Whether an operation of the transaction open runs (the only ones writing then)
+     */
+    protected transacting: boolean = false
 
     protected constructor(readonly directory: string | undefined, readonly values: EmbeddedValues, protected readonly database: NativeDatabase) {
     }
@@ -217,30 +262,112 @@ export class EmbeddedStore {
     }
 
     /**
-     * The names of the collections
+     * The names of the collections, as a transaction sees them (none: as the last commit tells them)
+     * @param transaction
      */
-    names(): string[] {
-        return [...this.collections.keys()]
+    names(transaction?: EmbeddedStoreTransaction): string[] {
+        return [...this.view(transaction).keys()]
     }
 
     /**
-     * A collection of the catalog, undefined when it is not there
+     * A collection of the catalog, undefined when it is not there, as a transaction sees it (none: as the last commit
+     * tells it)
      * @param name
+     * @param transaction
      */
-    collection(name: string): EmbeddedCollectionState | undefined {
-        return this.collections.get(name)
+    collection(name: string, transaction?: EmbeddedStoreTransaction): EmbeddedCollectionState | undefined {
+        return this.view(transaction).get(name)
     }
 
     /**
      * A function run once the exclusive ones before it ended, the next ones waiting for it: the reads of a write and
      * its write, which no other write changes between them. The function must not call an exclusive operation itself:
-     * the chain would wait for itself
+     * the chain would wait for itself. In a transaction open, it runs after the operations of the transaction before
+     * it; a transaction that ended fails it
      * @param fn
+     * @param transaction
      */
-    exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    exclusive<T>(fn: () => Promise<T>, transaction?: EmbeddedStoreTransaction): Promise<T> {
+        if (transaction) return this.inTransaction(transaction, fn)
         const run: Promise<T> = this.writing.then(fn, fn)
         this.writing = run.catch((): void => undefined)
         return run
+    }
+
+    /**
+     * Begins the transaction of a session, once the exclusive operations before it ended: the exclusive operations of
+     * the others wait for its end, their reads see the last commit
+     */
+    async begin(): Promise<EmbeddedStoreTransaction> {
+        const transaction: EmbeddedStoreTransaction = new EmbeddedStoreTransaction()
+        const ended: Promise<void> = new Promise<void>((resolve: () => void): void => {
+            transaction.release = resolve
+        })
+        let started: () => void = (): void => undefined
+        const turn: Promise<void> = new Promise<void>((resolve: () => void): void => {
+            started = resolve
+        })
+        void this.exclusive(async (): Promise<void> => {
+            started()
+            await ended
+        })
+        await turn
+        try {
+            if (this.closed) throw new MongoEmbeddedError('The database is closed')
+            await addon.begin(this.database)
+        } catch (error) {
+            transaction.ended = true
+            transaction.release()
+            throw error
+        }
+        this.open = transaction
+        this.committed = new Map<string, EmbeddedCollectionState>(this.collections)
+        this.saved = new Map<EmbeddedCollectionState, EmbeddedSavedState>([...this.collections.values()].map((state: EmbeddedCollectionState): [EmbeddedCollectionState, EmbeddedSavedState] => [state, {
+            indexes: state.indexes,
+            tables: new Map<string, number>(state.tables),
+            multikey: new Set<string>(state.multikey)
+        }]))
+        return transaction
+    }
+
+    /**
+     * Commits a transaction once its operations ended; a failure of the commit aborts it
+     * @param transaction
+     */
+    async commit(transaction: EmbeddedStoreTransaction): Promise<void> {
+        if (transaction !== this.open) throw new MongoEmbeddedError('The transaction is not open')
+        await transaction.chain
+        try {
+            await addon.commit(this.database)
+        } catch (error) {
+            this.restore()
+            throw error
+        } finally {
+            this.end(transaction)
+        }
+    }
+
+    /**
+     * Aborts a transaction once its operations ended (nothing when it ended): its writes undone
+     * @param transaction
+     */
+    async abort(transaction: EmbeddedStoreTransaction): Promise<void> {
+        if (transaction !== this.open) return
+        await transaction.chain
+        try {
+            await addon.abort(this.database)
+        } finally {
+            this.restore()
+            this.end(transaction)
+        }
+    }
+
+    /**
+     * Whether a transaction is the one open
+     * @param transaction
+     */
+    isOpen(transaction?: EmbeddedStoreTransaction): boolean {
+        return !!transaction && transaction === this.open
     }
 
     /**
@@ -256,6 +383,7 @@ export class EmbeddedStore {
      */
     async write(name: string, changes: EmbeddedChange[], create: boolean = false): Promise<void> {
         if (!changes.length) return
+        if (this.open && !this.transacting) throw new MongoEmbeddedError('A write outside the transaction open, which it does not wait for')
         const natives: NativeChange[] = changes.map((change: EmbeddedChange): NativeChange => change.next
             ? [change.previous ? ChangeKind.Replace : ChangeKind.Insert, change.key, change.data ?? this.values.serialize(change.next)]
             : [ChangeKind.Delete, change.key])
@@ -304,10 +432,11 @@ export class EmbeddedStore {
      * The documents of keys of a collection, undefined for the ones not there: the caller's own
      * @param name
      * @param keys
+     * @param transaction the transaction it reads in (none: it reads the last commit)
      */
-    async get(name: string, keys: Buffer[]): Promise<(EmbeddedDocument | undefined)[]> {
-        if (!keys.length || !this.collections.has(name)) return keys.map((): undefined => undefined)
-        const {bytes, offsets} = await addon.get(this.database, name, keys)
+    async get(name: string, keys: Buffer[], transaction?: EmbeddedStoreTransaction): Promise<(EmbeddedDocument | undefined)[]> {
+        if (!keys.length || !this.view(transaction).has(name)) return keys.map((): undefined => undefined)
+        const {bytes, offsets} = await addon.get(this.database, name, keys, this.isOpen(transaction))
         return keys.map((_: Buffer, index: number): EmbeddedDocument | undefined => {
             const offset: number = offsets.readInt32LE(index * 4)
             return offset < 0 ? undefined : this.values.deserialize(bytes.subarray(offset, offset + bytes.readInt32LE(offset)))
@@ -320,16 +449,18 @@ export class EmbeddedStore {
      * @param name
      * @param predicates
      * @param first the documents of its first batch, when fewer are needed (a limit)
+     * @param transaction the transaction it reads in (none: it reads the last commit)
      */
-    async* scan(name: string, predicates: NativePredicate[] = [], first: number = SCAN_BATCH): AsyncGenerator<EmbeddedDocument[]> {
-        if (!this.collections.has(name)) return
+    async* scan(name: string, predicates: NativePredicate[] = [], first: number = SCAN_BATCH, transaction?: EmbeddedStoreTransaction): AsyncGenerator<EmbeddedDocument[]> {
+        if (!this.view(transaction).has(name)) return
         let after: Buffer | undefined
         let limit: number = Math.max(1, Math.min(first, SCAN_BATCH))
         for (; ;) {
             const batch: { bytes: Buffer, last: Buffer | null, done: boolean } = await addon.scan(this.database, name, {
                 after: after,
                 limit: limit,
-                predicates: predicates.length ? predicates : undefined
+                predicates: predicates.length ? predicates : undefined,
+                inTransaction: this.isOpen(transaction)
             })
             const documents: EmbeddedDocument[] = []
             for (let at: number = 0; at < batch.bytes.length; at += batch.bytes.readInt32LE(at)) {
@@ -350,10 +481,11 @@ export class EmbeddedStore {
      * @param name
      * @param table
      * @param ranges none: all the entries
-     * @param options reversed, the predicates, the documents of its first batch when fewer are needed (a limit)
+     * @param options reversed, the predicates, the documents of its first batch when fewer are needed (a limit), the
+     * transaction it reads in (none: it reads the last commit)
      */
-    async* scanRange(name: string, table: number, ranges: NativeRange[], options: { reverse?: boolean, predicates?: NativePredicate[], first?: number } = {}): AsyncGenerator<{ documents: EmbeddedDocument[], data: Buffer[] }> {
-        if (!this.collections.has(name)) return
+    async* scanRange(name: string, table: number, ranges: NativeRange[], options: { reverse?: boolean, predicates?: NativePredicate[], first?: number, transaction?: EmbeddedStoreTransaction } = {}): AsyncGenerator<{ documents: EmbeddedDocument[], data: Buffer[] }> {
+        if (!this.view(options.transaction).has(name)) return
         let after: Buffer | undefined
         let range: number = 0
         let limit: number = Math.max(1, Math.min(options.first ?? SCAN_BATCH, SCAN_BATCH))
@@ -364,7 +496,8 @@ export class EmbeddedStore {
                 range: range,
                 after: after,
                 limit: limit,
-                predicates: options.predicates?.length ? options.predicates : undefined
+                predicates: options.predicates?.length ? options.predicates : undefined,
+                inTransaction: this.isOpen(options.transaction)
             })
             const documents: EmbeddedDocument[] = []
             const data: Buffer[] = []
@@ -387,9 +520,10 @@ export class EmbeddedStore {
      * @param name
      * @param table
      * @param ranges none: all the entries
+     * @param transaction the transaction it reads in (none: it reads the last commit)
      */
-    async* keysInRange(name: string, table: number, ranges: NativeRange[]): AsyncGenerator<Buffer[]> {
-        if (!this.collections.has(name)) return
+    async* keysInRange(name: string, table: number, ranges: NativeRange[], transaction?: EmbeddedStoreTransaction): AsyncGenerator<Buffer[]> {
+        if (!this.view(transaction).has(name)) return
         let after: Buffer | undefined
         let range: number = 0
         for (; ;) {
@@ -398,7 +532,8 @@ export class EmbeddedStore {
                 range: range,
                 after: after,
                 keysOnly: true,
-                limit: SCAN_BATCH * 10
+                limit: SCAN_BATCH * 10,
+                inTransaction: this.isOpen(transaction)
             })
             const keys: Buffer[] = []
             for (let at: number = 0; at < batch.bytes.length; at += 4 + batch.bytes.readUInt32LE(at)) {
@@ -416,17 +551,19 @@ export class EmbeddedStore {
      * @param name
      * @param table
      * @param ranges none: all the entries
+     * @param transaction the transaction it reads in (none: it reads the last commit)
      */
-    async countRange(name: string, table: number, ranges: NativeRange[]): Promise<number> {
-        return this.collections.has(name) ? addon.countRange(this.database, name, table, ranges) : 0
+    async countRange(name: string, table: number, ranges: NativeRange[], transaction?: EmbeddedStoreTransaction): Promise<number> {
+        return this.view(transaction).has(name) ? addon.countRange(this.database, name, table, ranges, this.isOpen(transaction)) : 0
     }
 
     /**
      * The documents of a collection, 0 when it is not there
      * @param name
+     * @param transaction the transaction it reads in (none: it reads the last commit)
      */
-    async count(name: string): Promise<number> {
-        return this.collections.has(name) ? addon.count(this.database, name) : 0
+    async count(name: string, transaction?: EmbeddedStoreTransaction): Promise<number> {
+        return this.view(transaction).has(name) ? addon.count(this.database, name, this.isOpen(transaction)) : 0
     }
 
     /**
@@ -567,9 +704,66 @@ export class EmbeddedStore {
     async close(): Promise<void> {
         if (this.closed) return
         this.closed = true
+        if (this.open) await this.abort(this.open).catch((): void => undefined)
         await this.writing
         await addon.close(this.database)
     }
+
+    /**
+     * The collections as a transaction sees them: the ones of the transaction open, or of the last commit
+     * @param transaction
+     */
+    protected view(transaction?: EmbeddedStoreTransaction): Map<string, EmbeddedCollectionState> {
+        return this.open && transaction !== this.open ? this.committed! : this.collections
+    }
+
+    /**
+     * An operation run in a transaction open, after its operations before it: a transaction that ended fails it
+     * @param transaction
+     * @param fn
+     */
+    protected inTransaction<T>(transaction: EmbeddedStoreTransaction, fn: () => Promise<T>): Promise<T> {
+        const run: Promise<T> = transaction.chain.then(async (): Promise<T> => {
+            if (transaction !== this.open) throw new MongoEmbeddedError('The transaction ended')
+            this.transacting = true
+            try {
+                return await fn()
+            } finally {
+                this.transacting = false
+            }
+        })
+        transaction.chain = run.catch((): void => undefined)
+        return run
+    }
+
+    /**
+     * The collections put back as they were when the transaction open began
+     */
+    protected restore(): void {
+        if (!this.committed || !this.saved) return
+        this.collections.clear()
+        for (const [name, state] of this.committed) this.collections.set(name, state)
+        for (const [state, saved] of this.saved) {
+            state.indexes = saved.indexes
+            state.tables.clear()
+            for (const [index, table] of saved.tables) state.tables.set(index, table)
+            state.multikey.clear()
+            for (const index of saved.multikey) state.multikey.add(index)
+        }
+    }
+
+    /**
+     * The end of the transaction open: the exclusive operations of the others go on
+     * @param transaction
+     */
+    protected end(transaction: EmbeddedStoreTransaction): void {
+        this.open = undefined
+        this.committed = undefined
+        this.saved = undefined
+        transaction.ended = true
+        transaction.release()
+    }
+
 
     /**
      * The keys of a document in an index, for a change of a write: a document the index cannot hold fails with

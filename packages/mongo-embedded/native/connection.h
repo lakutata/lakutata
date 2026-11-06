@@ -59,6 +59,18 @@ class Connection {
 
   MdeStore* store() const { return store_; }
 
+  // The store a read runs on: the one writing, or the one reading beside the transaction of a session open on it when
+  // the read is not in that transaction (it sees the last commit then)
+  MdeStore* Reader(bool inTransaction) const { return reader_ && !inTransaction && mde_in_transaction(store_) ? reader_ : store_; }
+
+  // The transaction of a session: begun (the connection reading beside it opened, or brought to the last commit),
+  // committed or aborted (the names of the collections as they were when it began). 0, or the code of a failure with
+  // its message
+  int Begin(std::string* message);
+  int Commit(std::string* message);
+  void Abort();
+  bool InTransaction() const { return store_ && mde_in_transaction(store_); }
+
   // The id of a collection, or 0; a collection created when it is missing
   int64_t IdOf(const std::string& name) const;
   int64_t Create(const std::string& name, std::string* message);
@@ -82,7 +94,13 @@ class Connection {
   bool Lock(const std::string& directory, std::string* message);
   void Unlock();
 
+  Settings settings_;
   MdeStore* store_ = nullptr;
+  // The connection reading beside the transaction of a session (opened by the first one), and the names of the
+  // collections when the transaction began
+  MdeStore* reader_ = nullptr;
+  std::map<std::string, int64_t> saved_;
+
   Checkpoints* checkpoints_ = nullptr;
   std::map<std::string, int64_t> names_;
   // The descriptor (a HANDLE on Windows) of the file LOCK held, or -1

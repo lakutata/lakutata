@@ -208,16 +208,52 @@ Napi::Value DropDatabase(const Napi::CallbackInfo& info) {
       Undefined);
 }
 
-// count(handle, name): the documents of a collection (0 when it is not there)
+// Whether a read is in the transaction of a session (an argument): false, a read beside it, which sees the last commit
+bool InTransaction(const Napi::CallbackInfo& info, size_t at) { return info.Length() > at && info[at].ToBoolean().Value(); }
+
+// begin(handle): the transaction of a session begun, the reads beside it seeing the last commit
+Napi::Value Begin(const Napi::CallbackInfo& info) {
+  Connection* connection = HandleOf(info)->connection.get();
+  return HandleOf(info)->database->Submit(
+      info.Env(),
+      [connection](Outcome& outcome) {
+        std::string message;
+        if (connection->Begin(&message) != 0) Fail(outcome, -1, message);
+      },
+      Undefined);
+}
+
+// commit(handle): the transaction of a session committed (aborted when it cannot be)
+Napi::Value Commit(const Napi::CallbackInfo& info) {
+  Connection* connection = HandleOf(info)->connection.get();
+  return HandleOf(info)->database->Submit(
+      info.Env(),
+      [connection](Outcome& outcome) {
+        std::string message;
+        if (connection->Commit(&message) != 0) Fail(outcome, -1, message);
+        else connection->Written();
+      },
+      Undefined);
+}
+
+// abort(handle): the transaction of a session aborted, if one is open
+Napi::Value Abort(const Napi::CallbackInfo& info) {
+  Connection* connection = HandleOf(info)->connection.get();
+  return HandleOf(info)->database->Submit(info.Env(), [connection](Outcome&) { connection->Abort(); }, Undefined);
+}
+
+// count(handle, name, inTransaction): the documents of a collection (0 when it is not there)
 Napi::Value Count(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   const std::string name = info[1].As<Napi::String>().Utf8Value();
+  const bool transaction = InTransaction(info, 2);
   return HandleOf(info)->database->Submit(
       info.Env(),
-      [connection, name](Outcome& outcome) {
+      [connection, name, transaction](Outcome& outcome) {
+        MdeStore* store = connection->Reader(transaction);
         const int64_t id = connection->IdOf(name);
         int64_t count = 0;
-        if (id && mde_count(connection->store(), id, &count) != 0) return Fail(outcome, -1, mde_message(connection->store()));
+        if (id && mde_count(store, id, &count) != 0) return Fail(outcome, -1, mde_message(store));
         outcome.number = static_cast<double>(count);
       },
       [](napi_env env, Outcome& outcome) { return NumberValue(env, outcome.number); });
@@ -317,18 +353,20 @@ Napi::Value Write(const Napi::CallbackInfo& info) {
       Undefined);
 }
 
-// get(handle, name, keys): the documents of keys, {bytes: their BSON one after the other, offsets: for each key the
-// offset of its document in bytes, -1 when it is not there (i32, little endian)}
+// get(handle, name, keys, inTransaction): the documents of keys, {bytes: their BSON one after the other, offsets: for
+// each key the offset of its document in bytes, -1 when it is not there (i32, little endian)}
 Napi::Value Get(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   const std::string name = info[1].As<Napi::String>().Utf8Value();
   Napi::Array given = info[2].As<Napi::Array>();
+  const bool transaction = InTransaction(info, 3);
   auto keys = std::make_shared<std::vector<std::vector<uint8_t>>>();
   keys->reserve(given.Length());
   for (uint32_t i = 0; i < given.Length(); i++) keys->push_back(BytesOf(given.Get(i)));
   return HandleOf(info)->database->Submit(
       info.Env(),
-      [connection, name, keys](Outcome& outcome) {
+      [connection, name, keys, transaction](Outcome& outcome) {
+        MdeStore* store = connection->Reader(transaction);
         const size_t count = keys->size();
         outcome.offsets.assign(count, -1);
         const int64_t id = connection->IdOf(name);
@@ -340,8 +378,8 @@ Napi::Value Get(const Napi::CallbackInfo& info) {
           sizes[i] = static_cast<int>((*keys)[i].size());
         }
         MdeBuffer buffer = {nullptr, 0, 0};
-        if (mde_get(connection->store(), id, pointers.data(), sizes.data(), static_cast<int>(count), &buffer, outcome.offsets.data()) != 0)
-          Fail(outcome, -1, mde_message(connection->store()));
+        if (mde_get(store, id, pointers.data(), sizes.data(), static_cast<int>(count), &buffer, outcome.offsets.data()) != 0)
+          Fail(outcome, -1, mde_message(store));
         else outcome.bytes.assign(buffer.data, buffer.data + buffer.size);
         mde_buffer_free(&buffer);
       },
@@ -461,21 +499,24 @@ std::vector<MdeRange> NativeRanges(const std::vector<Range>& ranges) {
   return list;
 }
 
-// countRange(handle, name, index, ranges): the entries of ranges of a table (an index, or the collection: 0)
+// countRange(handle, name, index, ranges, inTransaction): the entries of ranges of a table (an index, or the
+// collection: 0)
 Napi::Value CountRange(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   const std::string name = info[1].As<Napi::String>().Utf8Value();
   const int64_t index = info[2].As<Napi::Number>().Int64Value();
   auto ranges = RangesOf(info[3]);
+  const bool transaction = InTransaction(info, 4);
   return HandleOf(info)->database->Submit(
       info.Env(),
-      [connection, name, index, ranges](Outcome& outcome) {
+      [connection, name, index, ranges, transaction](Outcome& outcome) {
+        MdeStore* store = connection->Reader(transaction);
         const int64_t id = connection->IdOf(name);
         if (!id) return;
         std::vector<MdeRange> list = NativeRanges(*ranges);
         int64_t count = 0;
-        if (mde_count_range(connection->store(), id, index, list.data(), static_cast<int>(list.size()), &count) != 0)
-          return Fail(outcome, -1, mde_message(connection->store()));
+        if (mde_count_range(store, id, index, list.data(), static_cast<int>(list.size()), &count) != 0)
+          return Fail(outcome, -1, mde_message(store));
         outcome.number = static_cast<double>(count);
       },
       [](napi_env env, Outcome& outcome) { return NumberValue(env, outcome.number); });
@@ -486,10 +527,10 @@ int Accept(const uint8_t* document, size_t size, void* context) {
   return MayMatch(document, size, *static_cast<const std::vector<Predicate>*>(context)) ? 1 : 0;
 }
 
-// scan(handle, name, {after, limit, maxBytes, maxScanned, predicates}): the documents after a key in the order of
-// their keys, {bytes: their BSON one after the other, last: the key of the last one read (null when none was), done:
-// whether the collection was read to its end}; the predicates ([field, comparison, number]) leave out the documents
-// failing them (prefilter.h)
+// scan(handle, name, {after, limit, maxBytes, maxScanned, predicates, inTransaction}): the documents after a key in the
+// order of their keys, {bytes: their BSON one after the other, last: the key of the last one read (null when none was),
+// done: whether the collection was read to its end}; the predicates ([field, comparison, number]) leave out the
+// documents failing them (prefilter.h)
 Napi::Value Scan(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   const std::string name = info[1].As<Napi::String>().Utf8Value();
@@ -500,6 +541,7 @@ Napi::Value Scan(const Napi::CallbackInfo& info) {
   const int limit = static_cast<int>(NumberOf(options, "limit", 1000));
   const size_t maxBytes = static_cast<size_t>(NumberOf(options, "maxBytes", 4 * 1024 * 1024));
   const int maxScanned = static_cast<int>(NumberOf(options, "maxScanned", 10000));
+  const bool transaction = options.Get("inTransaction").ToBoolean().Value();
   auto predicates = std::make_shared<std::vector<Predicate>>();
   if (options.Get("predicates").IsArray()) {
     Napi::Array given = options.Get("predicates").As<Napi::Array>();
@@ -512,16 +554,17 @@ Napi::Value Scan(const Napi::CallbackInfo& info) {
   }
   return HandleOf(info)->database->Submit(
       info.Env(),
-      [connection, name, after, from, limit, maxBytes, maxScanned, predicates](Outcome& outcome) {
+      [connection, name, after, from, limit, maxBytes, maxScanned, predicates, transaction](Outcome& outcome) {
         outcome.done = true;
+        MdeStore* store = connection->Reader(transaction);
         const int64_t id = connection->IdOf(name);
         if (!id) return;
         MdeBuffer documents = {nullptr, 0, 0}, last = {nullptr, 0, 0};
         int done = 1;
-        const int rc = mde_scan(connection->store(), id, from ? after->data() : nullptr, static_cast<int>(after->size()), limit, maxBytes,
+        const int rc = mde_scan(store, id, from ? after->data() : nullptr, static_cast<int>(after->size()), limit, maxBytes,
                                 maxScanned, predicates->empty() ? nullptr : Accept, predicates.get(), &documents, &last, &done);
         if (rc != 0) {
-          Fail(outcome, rc, mde_message(connection->store()));
+          Fail(outcome, rc, mde_message(store));
         } else {
           outcome.bytes.assign(documents.data, documents.data + documents.size);
           outcome.key.assign(last.data, last.data + last.size);
@@ -540,11 +583,11 @@ Napi::Value Scan(const Napi::CallbackInfo& info) {
       });
 }
 
-// scanRange(handle, name, index, {ranges, reverse, range, after, keysOnly, limit, maxBytes, maxScanned, predicates}): the
-// entries of ranges of a table (an index, or the collection: 0) in their order (reversed: the ranges too), from the
-// range given, after the key given in it; {bytes: their documents one after the other, left out by the predicates, or
-// the keys of their _id ([u32 size][key]) when keysOnly, last: the key of the last entry read (null when none was),
-// range: the range it is in, done: whether the ranges were read to their end}
+// scanRange(handle, name, index, {ranges, reverse, range, after, keysOnly, limit, maxBytes, maxScanned, predicates,
+// inTransaction}): the entries of ranges of a table (an index, or the collection: 0) in their order (reversed: the
+// ranges too), from the range given, after the key given in it; {bytes: their documents one after the other, left out
+// by the predicates, or the keys of their _id ([u32 size][key]) when keysOnly, last: the key of the last entry read
+// (null when none was), range: the range it is in, done: whether the ranges were read to their end}
 Napi::Value ScanRange(const Napi::CallbackInfo& info) {
   Connection* connection = HandleOf(info)->connection.get();
   const std::string name = info[1].As<Napi::String>().Utf8Value();
@@ -560,6 +603,7 @@ Napi::Value ScanRange(const Napi::CallbackInfo& info) {
   const int limit = static_cast<int>(NumberOf(options, "limit", 1000));
   const size_t maxBytes = static_cast<size_t>(NumberOf(options, "maxBytes", 4 * 1024 * 1024));
   const int maxScanned = static_cast<int>(NumberOf(options, "maxScanned", 10000));
+  const bool transaction = options.Get("inTransaction").ToBoolean().Value();
   auto predicates = std::make_shared<std::vector<Predicate>>();
   if (options.Get("predicates").IsArray()) {
     Napi::Array given = options.Get("predicates").As<Napi::Array>();
@@ -572,20 +616,21 @@ Napi::Value ScanRange(const Napi::CallbackInfo& info) {
   }
   return HandleOf(info)->database->Submit(
       info.Env(),
-      [connection, name, index, ranges, reverse, keysOnly, start, after, from, limit, maxBytes, maxScanned, predicates](Outcome& outcome) {
+      [connection, name, index, ranges, reverse, keysOnly, start, after, from, limit, maxBytes, maxScanned, predicates, transaction](Outcome& outcome) {
         outcome.done = true;
+        MdeStore* store = connection->Reader(transaction);
         const int64_t id = connection->IdOf(name);
         if (!id) return;
         std::vector<MdeRange> list = NativeRanges(*ranges);
         MdeBuffer documents = {nullptr, 0, 0}, last = {nullptr, 0, 0};
         int done = 1;
         int range = start;
-        const int rc = mde_scan_range(connection->store(), id, index, list.data(), static_cast<int>(list.size()), reverse ? 1 : 0,
+        const int rc = mde_scan_range(store, id, index, list.data(), static_cast<int>(list.size()), reverse ? 1 : 0,
                                       &range, from ? after->data() : nullptr, static_cast<int>(after->size()), keysOnly ? 1 : 0,
                                       limit, maxBytes, maxScanned, predicates->empty() ? nullptr : Accept, predicates.get(),
                                       &documents, &last, &done);
         if (rc != 0) {
-          Fail(outcome, rc, mde_message(connection->store()));
+          Fail(outcome, rc, mde_message(store));
         } else {
           outcome.bytes.assign(documents.data, documents.data + documents.size);
           outcome.key.assign(last.data, last.data + last.size);
@@ -656,6 +701,10 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("countRange", Napi::Function::New(env, CountRange, "countRange"));
   exports.Set("integrity", Napi::Function::New(env, Integrity, "integrity"));
   exports.Set("ping", Napi::Function::New(env, Ping, "ping"));
+  exports.Set("begin", Napi::Function::New(env, Begin, "begin"));
+  exports.Set("commit", Napi::Function::New(env, Commit, "commit"));
+  exports.Set("abort", Napi::Function::New(env, Abort, "abort"));
+
   InitCollation(env, exports);
   return exports;
 }

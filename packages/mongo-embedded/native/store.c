@@ -81,8 +81,12 @@ struct MdeStore {
   /* The counts not written (the row 'd' written): written at the closing; the counts to count again at the opening */
   int countsDirty;
   int recount;
-  /* The transaction of a session open (mde_begin) */
+  /* The transaction of a session open (mde_begin), and the collections as they were when it began (their counts, the
+  ** definitions of their indexes, whether the counts were written), restored by its abort */
   int transaction;
+  Collection *saved;
+  int savedCount;
+  int savedDirty;
   char message[512];
 };
 
@@ -1128,16 +1132,17 @@ int mde_open(const char *file, const MdeOptions *options, MdeStore **out, char *
            options->sync == MDE_SYNC_ALWAYS ? "FULL" : "NORMAL", (long long)(options->cacheBytes / 1024 > 0 ? options->cacheBytes / 1024 : 1),
            (long long)options->mmapBytes, options->sync == MDE_SYNC_ALWAYS ? 1 : 0);
   rc = Exec(store, pragmas, "the settings");
+  if (rc == SQLITE_OK && options->reader) rc = Exec(store, "PRAGMA query_only = 1", "the settings");
   if (rc == SQLITE_OK && !options->checkpoints) {
-    rc = Exec(store,
-              "CREATE TABLE IF NOT EXISTS meta(k BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID;"
-              "INSERT OR IGNORE INTO meta(k, v) VALUES (x'66', x'00000002'), (x'6e', x'0000000000000001');",
-              "the catalog");
+    if (!options->reader)
+      rc = Exec(store,
+                "CREATE TABLE IF NOT EXISTS meta(k BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID;"
+                "INSERT OR IGNORE INTO meta(k, v) VALUES (x'66', x'00000002'), (x'6e', x'0000000000000001');",
+                "the catalog");
     if (rc == SQLITE_OK) rc = LoadCatalog(store);
     if (rc == SQLITE_OK) {
       sqlite3_wal_hook(store->db, WalHook, store);
       store->bt = store->db->aDb[0].pBt;
-
       store->info = sqlite3KeyInfoAlloc(store->db, 1, 1);
       store->probe = store->info ? sqlite3VdbeAllocUnpackedRecord(store->info) : NULL;
       store->cursor = sqlite3MallocZero(sqlite3BtreeCursorSize());
@@ -1145,7 +1150,8 @@ int mde_open(const char *file, const MdeOptions *options, MdeStore **out, char *
       store->entryCursor = sqlite3MallocZero(sqlite3BtreeCursorSize());
       if (!store->probe || !store->cursor || !store->metaCursor || !store->entryCursor) rc = Fail(store, SQLITE_NOMEM, "out of memory");
     }
-    if (rc == SQLITE_OK && store->recount) rc = Recount(store);
+    /* The counts of a reader are the ones of the connection writing (mde_refresh) */
+    if (rc == SQLITE_OK && store->recount && !options->reader) rc = Recount(store);
   }
   if (rc != SQLITE_OK) {
     snprintf(message, size, "%s", store->message);
@@ -1158,6 +1164,7 @@ int mde_open(const char *file, const MdeOptions *options, MdeStore **out, char *
 
 void mde_close(MdeStore *store) {
   if (!store) return;
+  mde_abort(store);
   if (store->bt && store->countsDirty) WriteCounts(store);
   sqlite3_free(store->cursor);
   sqlite3_free(store->metaCursor);
@@ -1175,7 +1182,120 @@ void mde_close(MdeStore *store) {
   free(store);
 }
 
+const char *mde_file(MdeStore *store) { return store->file; }
+
+/* A copy of a collection (its name, the definitions of its indexes, its tables): 0, or SQLITE_NOMEM */
+static int CopyCollection(Collection *to, const Collection *from) {
+  *to = *from;
+  to->name = malloc(strlen(from->name) + 1);
+  to->indexes = from->indexesSize > 0 ? malloc((size_t)from->indexesSize) : NULL;
+  to->tables = malloc(sizeof(int64_t) * (size_t)(from->tableCount + 1));
+  to->tableRoots = malloc(sizeof(Pgno) * (size_t)(from->tableCount + 1));
+  to->tableCapacity = from->tableCount + 1;
+  if (!to->name || (from->indexesSize > 0 && !to->indexes) || !to->tables || !to->tableRoots) {
+    FreeCollection(to);
+    return SQLITE_NOMEM;
+  }
+  strcpy(to->name, from->name);
+  if (to->indexes) memcpy(to->indexes, from->indexes, (size_t)from->indexesSize);
+  if (from->tableCount) {
+    memcpy(to->tables, from->tables, sizeof(int64_t) * (size_t)from->tableCount);
+    memcpy(to->tableRoots, from->tableRoots, sizeof(Pgno) * (size_t)from->tableCount);
+  }
+  return SQLITE_OK;
+}
+
+static void FreeSaved(MdeStore *store) {
+  for (int i = 0; i < store->savedCount; i++) FreeCollection(&store->saved[i]);
+  free(store->saved);
+  store->saved = NULL;
+  store->savedCount = 0;
+}
+
+/* The collections kept as they are, for an abort */
+static int SaveCollections(MdeStore *store) {
+  store->saved = malloc(sizeof(Collection) * (size_t)(store->collectionCount + 1));
+  if (!store->saved) return SQLITE_NOMEM;
+  for (int i = 0; i < store->collectionCount; i++) {
+    if (CopyCollection(&store->saved[i], &store->collections[i]) != SQLITE_OK) {
+      FreeSaved(store);
+      return SQLITE_NOMEM;
+    }
+    store->savedCount++;
+  }
+  store->savedDirty = store->countsDirty;
+  return SQLITE_OK;
+}
+
+/* The collections kept put back */
+static void RestoreCollections(MdeStore *store) {
+  for (int i = 0; i < store->collectionCount; i++) FreeCollection(&store->collections[i]);
+  free(store->collections);
+  store->collections = store->saved;
+  store->collectionCount = store->savedCount;
+  store->collectionCapacity = store->savedCount + 1;
+  store->countsDirty = store->savedDirty;
+  store->saved = NULL;
+  store->savedCount = 0;
+}
+
+int mde_begin(MdeStore *store) {
+  store->message[0] = 0;
+  if (store->transaction) return Fail(store, SQLITE_MISUSE, "a transaction is open");
+  if (SaveCollections(store) != SQLITE_OK) return Fail(store, SQLITE_NOMEM, "out of memory");
+  int rc = Exec(store, "BEGIN IMMEDIATE", "a transaction");
+  if (rc != SQLITE_OK) {
+    FreeSaved(store);
+    return rc;
+  }
+  store->transaction = 1;
+  return SQLITE_OK;
+}
+
+int mde_commit(MdeStore *store) {
+  store->message[0] = 0;
+  if (!store->transaction) return Fail(store, SQLITE_MISUSE, "no transaction is open");
+  int rc = Exec(store, "COMMIT", "a transaction");
+  if (rc != SQLITE_OK) {
+    /* Not committed: rolled back, its message kept */
+    char message[sizeof(store->message)];
+    memcpy(message, store->message, sizeof(message));
+    mde_abort(store);
+    memcpy(store->message, message, sizeof(message));
+    return rc;
+  }
+  FreeSaved(store);
+  store->transaction = 0;
+  return SQLITE_OK;
+}
+
+int mde_abort(MdeStore *store) {
+  if (!store->transaction) return SQLITE_OK;
+  sqlite3_exec(store->db, "ROLLBACK", 0, 0, 0);
+  store->transaction = 0;
+  RestoreCollections(store);
+  /* The tables made or dropped in it are not there, or there again (precondition 5) */
+  return LoadRoots(store);
+}
+
+int mde_in_transaction(MdeStore *store) { return store->transaction; }
+
+int mde_refresh(MdeStore *reader, MdeStore *writer) {
+  reader->message[0] = 0;
+  for (int i = 0; i < reader->collectionCount; i++) FreeCollection(&reader->collections[i]);
+  reader->collectionCount = 0;
+  int rc = LoadCatalog(reader);
+  if (rc == SQLITE_OK) rc = LoadRoots(reader);
+  if (rc != SQLITE_OK) return rc;
+  for (int i = 0; i < reader->collectionCount; i++) {
+    const Collection *source = Find(writer, reader->collections[i].id);
+    reader->collections[i].count = source ? source->count : 0;
+  }
+  return SQLITE_OK;
+}
+
 int mde_collections(MdeStore *store, MdeBuffer *out) {
+
   for (int i = 0; i < store->collectionCount; i++) {
     const Collection *collection = &store->collections[i];
     uint32_t length = (uint32_t)strlen(collection->name);

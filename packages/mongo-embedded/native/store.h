@@ -38,6 +38,9 @@ typedef struct MdeOptions {
   int64_t mmapBytes;
   /* A connection of the checkpoints only: no catalog */
   int checkpoints;
+  /* A connection reading beside the transaction of a session of the one writing (mde_refresh): its catalog read, not
+  ** made, the counts of its collections not counted */
+  int reader;
 } MdeOptions;
 
 /* A buffer of bytes growing as they are appended (malloc) */
@@ -90,6 +93,24 @@ typedef int (*MdeFilter)(const uint8_t *document, size_t size, void *context);
 int mde_open(const char *file, const MdeOptions *options, MdeStore **store, char *message, size_t size);
 void mde_close(MdeStore *store);
 const char *mde_message(MdeStore *store);
+
+/* The name a store opened: the path of its file, or the name of its database in memory (a connection reading beside it
+** opens it) */
+const char *mde_file(MdeStore *store);
+
+/* The transaction of a session: the functions called while it is open run in it (their writes seen by its reads only),
+** a failure of one of them leaving it to be aborted. An abort restores the collections, their counts and the
+** definitions of their indexes as they were when it began */
+int mde_begin(MdeStore *store);
+int mde_commit(MdeStore *store);
+int mde_abort(MdeStore *store);
+int mde_in_transaction(MdeStore *store);
+
+/* A connection reading beside the transaction of a session (opened with the option reader) brought to the last commit
+** of the one writing, before its transaction begins: its catalog read again, the counts of its collections those of
+** the one writing */
+int mde_refresh(MdeStore *reader, MdeStore *writer);
+
 
 /* The collections: for each one [u32 size of its name][its name][i64 id][i64 count of its documents][u32 size of the
 ** definitions of its indexes][their BSON][u32 number of the tables of its indexes][their i64 ids] (little endian) */

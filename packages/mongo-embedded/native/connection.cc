@@ -78,12 +78,13 @@ void Checkpoints::Run() {
 
 std::string Connection::Open(const Settings& settings) {
   std::string message;
+  settings_ = settings;
   std::string file = ":memory:";
   if (!settings.directory.empty()) {
     if (!Lock(settings.directory, &message)) return message;
     file = settings.directory + "/data.db";
   }
-  MdeOptions options = {settings.sync, settings.cacheBytes, settings.mmapBytes, 0};
+  MdeOptions options = {settings.sync, settings.cacheBytes, settings.mmapBytes, 0, 0};
   char error[512] = {0};
   if (mde_open(file.c_str(), &options, &store_, error, sizeof(error)) != 0) {
     Unlock();
@@ -124,9 +125,11 @@ std::string Connection::Open(const Settings& settings) {
 }
 
 void Connection::Close() {
-  // The connection of the checkpoints closed first: the last one closed checkpoints the WAL
+  // The connection of the checkpoints closed first, then the one reading: the last one closed checkpoints the WAL
   delete checkpoints_;
   checkpoints_ = nullptr;
+  if (reader_) mde_close(reader_);
+  reader_ = nullptr;
   if (store_) mde_close(store_);
   store_ = nullptr;
   names_.clear();
@@ -184,6 +187,45 @@ int Connection::Rename(const std::string& from, const std::string& to, bool drop
   return 0;
 }
 
+int Connection::Begin(std::string* message) {
+  if (!reader_) {
+    MdeOptions options = {settings_.sync, settings_.cacheBytes, settings_.mmapBytes, 0, 1};
+    char error[512] = {0};
+    if (mde_open(mde_file(store_), &options, &reader_, error, sizeof(error)) != 0) {
+      *message = error;
+      return -1;
+    }
+  }
+  if (mde_refresh(reader_, store_) != 0) {
+    *message = mde_message(reader_);
+    return -1;
+  }
+  if (mde_begin(store_) != 0) {
+    *message = mde_message(store_);
+    return -1;
+  }
+  saved_ = names_;
+  return 0;
+}
+
+int Connection::Commit(std::string* message) {
+  if (mde_commit(store_) != 0) {
+    // Not committed: aborted
+    *message = mde_message(store_);
+    names_ = saved_;
+    return -1;
+  }
+  saved_.clear();
+  return 0;
+}
+
+void Connection::Abort() {
+  if (!InTransaction()) return;
+  mde_abort(store_);
+  names_ = saved_;
+  saved_.clear();
+}
+
 void Connection::Written() {
   const int frames = mde_frames(store_);
   if (!frames) return;
@@ -193,7 +235,9 @@ void Connection::Written() {
 }
 
 void Connection::Idle() {
-  if (frames_ < kFullWal || !store_) return;
+  // Not while the transaction of a session is open: its frames are not committed
+  if (frames_ < kFullWal || !store_ || mde_in_transaction(store_)) return;
+
   int frames = 0, checkpointed = 0;
   // Busy (the thread of the checkpoints holding it): tried again at the next idle
   if (mde_checkpoint(store_, &frames, &checkpointed) == 0 && frames >= 0 && checkpointed == frames) frames_ = 0;
