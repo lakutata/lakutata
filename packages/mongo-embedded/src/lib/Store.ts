@@ -560,8 +560,9 @@ export class EmbeddedStore {
     async write(name: string, changes: EmbeddedChange[], create: boolean = false): Promise<void> {
         if (!changes.length) return
         if (this.open && !this.transacting) throw new MongoEmbeddedError('A write outside the transaction open, which it does not wait for')
+        // The BSON of a document written made once: its event holds it too
         const natives: NativeChange[] = changes.map((change: EmbeddedChange): NativeChange => change.next
-            ? [change.previous ? ChangeKind.Replace : ChangeKind.Insert, change.key, change.data ?? this.values.serialize(change.next)]
+            ? [change.previous ? ChangeKind.Replace : ChangeKind.Insert, change.key, change.data ??= this.values.serialize(change.next)]
             : [ChangeKind.Delete, change.key])
         const collection: EmbeddedCollectionState | undefined = this.collections.get(name)
         const entries: NativeEntry[] = []
@@ -1093,13 +1094,36 @@ export class EmbeddedStore {
         const images: boolean = collection.images
         return changes.map((change: EmbeddedChange): Buffer => {
             const key: unknown = (change.next ?? change.previous)!._id
-            if (!change.previous) return this.event(collection, {o: 'i', k: key, d: change.next})
+            if (!change.previous) return this.withDocument(this.event(collection, {o: 'i', k: key}), 'd', change.data!)
             const before: EmbeddedDocument = images ? {b: change.previous} : {}
             if (!change.next) return this.event(collection, {o: 'd', k: key, ...before})
-            if (change.kind === 'update' && change.description)
-                return this.event(collection, {o: 'u', k: key, ud: change.description, ...before, ...(images ? {a: change.next} : {})})
-            return this.event(collection, {o: 'r', k: key, d: change.next, ...before})
+            if (change.kind === 'update' && change.description) {
+                const event: Buffer = this.event(collection, {o: 'u', k: key, ud: change.description, ...before})
+                return images ? this.withDocument(event, 'a', change.data!) : event
+            }
+            return this.withDocument(this.event(collection, {o: 'r', k: key, ...before}), 'd', change.data!)
         })
+    }
+
+    /**
+     * An event with a document added as its last field, of the BSON of the document (serialized once, for its write)
+     * @param event
+     * @param field
+     * @param document
+     */
+    protected withDocument(event: Buffer, field: 'd' | 'a', document: Buffer): Buffer {
+        // [size][the fields of the event][0x03 field 0x00][the document][0x00]
+        const size: number = event.length + 3 + document.length
+        const joined: Buffer = Buffer.allocUnsafe(size)
+        joined.writeInt32LE(size, 0)
+        event.copy(joined, 4, 4, event.length - 1)
+        let at: number = event.length - 1
+        joined[at++] = 0x03
+        joined[at++] = field.charCodeAt(0)
+        joined[at++] = 0
+        document.copy(joined, at)
+        joined[size - 1] = 0
+        return joined
     }
 
     /**
