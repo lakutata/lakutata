@@ -2690,6 +2690,9 @@ export class EmbeddedCollection {
                 { violations: listed }
             )
         }
+        // Without conflicting documents, a hashed index fails (MongoDB 8.0 checks it then)
+        if (Object.values(index.key).includes('hashed'))
+            throw new EmbeddedOperationError(16764, 'Location16764', 'Currently hashed indexes cannot guarantee uniqueness. Use a regular index.')
         if (dryRun) return undefined
         const table = await this.store.createIndexTable(this.collectionName)
         try {
@@ -3602,7 +3605,8 @@ export class EmbeddedCollection {
                     item.expireAfterSeconds ?? null,
                     item.collation ?? null
                 ])
-            if (options(named) !== options(index))
+            // An index prepared to be unique (collMod) is another index than any requested, as MongoDB 8.0 compares them
+            if (options(named) !== options({ ...index, prepareUnique: false }))
                 throw new EmbeddedOperationError(
                     85,
                     'IndexOptionsConflict',
