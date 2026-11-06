@@ -7,6 +7,11 @@ import {EmbeddedClient} from '../exports/MongoEmbedded.js'
 import {type EmbeddedOplogEvent, type EmbeddedStore} from '../lib/Store.js'
 
 const ROOT: string = mkdtempSync(path.join(os.tmpdir(), 'mongo-embedded-change-streams-'))
+
+/**
+ * The size of an oplog given to a database in memory (which keeps none by default), 64 MiB
+ */
+const OPLOG: number = 64 * 1024 * 1024
 after((): void => rmSync(ROOT, {recursive: true, force: true}))
 
 let directories: number = 0
@@ -61,7 +66,7 @@ async function records(store: EmbeddedStore): Promise<Record<string, any>[]> {
 describe('The oplog of the change streams', (): void => {
 
     it('holds the events of the writes in their order, the ones of a transaction once it commits', async (): Promise<void> => {
-        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const client: EmbeddedClient = await EmbeddedClient.connect(undefined, {oplogSize: OPLOG})
         const store: EmbeddedStore = client.store
         const items = client.db().collection('items')
         await items.insertMany([{_id: 1}, {_id: 2}])
@@ -125,7 +130,11 @@ describe('The oplog of the change streams', (): void => {
         //Its size 0: the events kept in memory only, gone once the database is opened again
         const at: string = directory()
         let none: EmbeddedClient = await EmbeddedClient.connect(at, {oplogSize: 0})
+        //Built for a change stream open (none open: dropped)
+        await none.store.appendEvents([Buffer.from('dropped')])
+        const watching = none.watch()
         await none.store.appendEvents([Buffer.from('kept'), Buffer.from('in memory')])
+        await watching.close()
         assert.deepStrictEqual((await oplog(none.store, 1)).map((event: { sequence: number, text: string }): unknown => [event.sequence, event.text]), [[1, 'kept'], [2, 'in memory']])
         await none.close()
         none = await EmbeddedClient.connect(at, {oplogSize: 0})
@@ -205,7 +214,7 @@ describe('The events of the writes', (): void => {
     ]
 
     it('describe the updates as MongoDB 8.0 describes them', async (): Promise<void> => {
-        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const client: EmbeddedClient = await EmbeddedClient.connect(undefined, {oplogSize: OPLOG})
         const items = client.db().collection('items')
         for (const [name, document, update, expected, options, filter] of UPDATES) {
             await items.deleteMany({})
@@ -237,7 +246,7 @@ describe('The events of the writes', (): void => {
     })
 
     it('write the events of every write, and of the changes of the collections and of their indexes', async (): Promise<void> => {
-        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const client: EmbeddedClient = await EmbeddedClient.connect(undefined, {oplogSize: OPLOG})
         const db = client.db()
         await db.createCollection('imaged', {changeStreamPreAndPostImages: {enabled: true}})
         await assert.rejects(db.createCollection('imaged'), (error: unknown): boolean => (error as { code?: number }).code === 48)
@@ -386,6 +395,30 @@ describe('The change streams', (): void => {
         //A token of an event a crash lost (its generation ended before it): the history is lost
         const lost: string = position._data.slice(0, 50) + '00000000000003e7' + position._data.slice(66)
         await assert.rejects(client.watch([], {resumeAfter: {_data: lost}}).tryNext(), coded(286))
+        await client.close()
+    })
+
+    it('build the events of the writes only while a change stream is open, without an oplog (a database in memory)', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const items = client.db().collection('items')
+        //No stream open: no event, no sequence
+        await items.insertOne({_id: 1})
+        assert.deepStrictEqual(await oplog(client.store), [])
+        const stream = client.db().watch()
+        await items.insertOne({_id: 2})
+        await items.updateOne({_id: 2}, {$set: {a: 1}})
+        const first = await stream.next()
+        assert.deepStrictEqual([first?.operationType, first?.documentKey], ['insert', {_id: 2}])
+        assert.deepStrictEqual((await stream.next())?.updateDescription?.updatedFields, {a: 1})
+        await stream.close()
+        //A write while none is open: a stream resuming across it fails, its write not told
+        await items.insertOne({_id: 3})
+        await assert.rejects(items.watch([], {resumeAfter: first!._id}).tryNext(), coded(286))
+        //A stream opened after it: the writes after it
+        const later = items.watch()
+        await items.insertOne({_id: 4})
+        assert.deepStrictEqual((await later.next())?.documentKey, {_id: 4})
+        await later.close()
         await client.close()
     })
 

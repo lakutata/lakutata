@@ -4952,6 +4952,8 @@ export class EmbeddedCollection {
         modifier: EmbeddedDocument | EmbeddedDocument[],
         arrayFilters: EmbeddedDocument[] | undefined
     ): Pick<EmbeddedChange, 'kind' | 'description'> {
+        // No event built (no oplog, no change stream): no description
+        if (!this.store.needsEvents()) return { kind: 'update' }
         const description = Array.isArray(modifier)
             ? describePipeline(this.values, current, next)
             : describeModifier(this.values, current, next, modifier, arrayFilters)

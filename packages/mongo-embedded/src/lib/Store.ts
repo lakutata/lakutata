@@ -48,8 +48,10 @@ export interface EmbeddedStoreOptions {
     /**
      * The most bytes the oplog of the change streams holds in the database (its oldest events deleted beyond, their
      * resume tokens failing then with ChangeStreamHistoryLost): written with the writes, it resumes the change streams
-     * after a closing or a crash
-     * @default 67108864 (64 MiB)
+     * after a closing or a crash. 0: no oplog, the writes building their events only while a change stream is open
+     * (the last 16 MiB of them kept in memory; a stream resuming across a write made while none was open fails with
+     * ChangeStreamHistoryLost)
+     * @default 67108864 (64 MiB) for a database in a directory, 0 for a database in memory
      */
     oplogSize?: number
 }
@@ -512,6 +514,11 @@ export class EmbeddedStore {
     protected ringBytes: number = 0
 
     /**
+     * The change streams open: the writes build their events for them when the oplog keeps none
+     */
+    protected streams: number = 0
+
+    /**
      * The cluster time of the last event: the next ones after it, the one of the clock when it is later
      */
     protected clusterTime: { t: number, i: number } = {t: 0, i: 0}
@@ -537,12 +544,14 @@ export class EmbeddedStore {
             const previous: string | undefined = readdirSync(directory).find((name: string): boolean => PREVIOUS_FORMAT.test(name))
             if (previous) throw new MongoEmbeddedError(`The directory ${directory} holds a database of the format of mongo-embedded before its native storage (${previous}), which is not read`)
         }
+        // A database in memory keeps no oplog by default (it is not reopened)
+        const oplogSize: number = options.oplogSize ?? (directory === undefined ? 0 : OPLOG_SIZE)
         const database: NativeDatabase = await addon.open(directory ?? '', {
             sync: options.sync,
             syncInterval: options.syncInterval,
             cacheSize: options.cacheSize,
             mmapSize: options.mmapSize,
-            oplogSize: options.oplogSize ?? OPLOG_SIZE
+            oplogSize: oplogSize
         })
         const store: EmbeddedStore = new EmbeddedStore(directory, values, database)
         try {
@@ -553,7 +562,7 @@ export class EmbeddedStore {
             store.nextSeq = state.nextSeq
             store.committedSeq = state.nextSeq - 1
             store.databaseId = state.database
-            store.oplogSize = options.oplogSize ?? OPLOG_SIZE
+            store.oplogSize = oplogSize
         } catch (error) {
             await addon.close(database)
             throw error
@@ -649,12 +658,12 @@ export class EmbeddedStore {
         } finally {
             this.end(transaction)
         }
-        // Its events committed: the change streams told
+        // Its events committed; the change streams and the tailable cursors told of the commit, with events or not
         if (this.nextSeq - 1 > this.committedSeq) {
             if (transaction.events.length) this.keep(this.committedSeq + 1, transaction.events)
             this.committedSeq = this.nextSeq - 1
-            this.notify()
         }
+        this.notify()
     }
 
     /**
@@ -701,6 +710,9 @@ export class EmbeddedStore {
             throw new EmbeddedOperationError(263, 'OperationNotSupportedInTransaction', `Collection '${name}' is a capped collection. Writes in transactions are not allowed on capped collections.`)
         const capped: CappedWrite | undefined = collection?.capped ? await this.cappedWrite(collection, changes) : undefined
         if (capped) changes = capped.changes
+        // Its events, unless no oplog and no change stream needs them
+        const evented: boolean = this.needsEvents()
+        if (!evented) this.dropRing()
         // The index of a change among the changes asked
         const asked = (position: number): number => capped ? capped.origin[position] : position
         // The BSON of a document written made once: its event holds it too
@@ -733,8 +745,8 @@ export class EmbeddedStore {
             : undefined
         // The collection created by the write: its UUID given, its events written by the commit of its creation
         const created: EmbeddedCollectionState | undefined = create && !collection ? new EmbeddedCollectionState(name, this.values) : undefined
-        const creationEvents: Buffer[] = created ? [this.creationEvent(created)] : []
-        const events: Buffer[] = [...this.changeEvents((collection ?? created)!, changes), ...extra]
+        const creationEvents: Buffer[] = created && evented ? [this.creationEvent(created)] : []
+        const events: Buffer[] = evented ? [...this.changeEvents((collection ?? created)!, changes), ...extra] : []
         const creation: NativeCreation | undefined = created ? {uuid: created.uuid, events: this.inOplog(creationEvents)} : undefined
         try {
             await addon.write(this.database, name, natives, create, entries, definitions, this.inOplog(events), creation)
@@ -764,6 +776,8 @@ export class EmbeddedStore {
         if (collection) for (const index of multikey) collection.multikey.add(index)
         if (created && !this.collections.has(name)) this.collections.set(name, created)
         this.written([...creationEvents, ...events])
+        // Without events: the tailable cursors told of the commit all the same
+        if (!evented && !this.open) this.notify()
     }
 
     /**
@@ -1436,6 +1450,36 @@ export class EmbeddedStore {
     }
 
     /**
+     * A change stream opened (EmbeddedChangeStream): the writes build their events for it from now on
+     */
+    streamOpened(): void {
+        this.streams++
+    }
+
+    /**
+     * A change stream closed
+     */
+    streamClosed(): void {
+        if (this.streams > 0) this.streams--
+    }
+
+    /**
+     * Whether the writes build their events: an oplog keeps them, or a change stream is open. A write without them
+     * drops the events kept in memory, so that a stream resuming across it fails (ChangeStreamHistoryLost)
+     */
+    needsEvents(): boolean {
+        return this.oplogSize > 0 || this.streams > 0
+    }
+
+    /**
+     * The events kept in memory dropped (a write without events)
+     */
+    protected dropRing(): void {
+        this.ring.splice(0)
+        this.ringBytes = 0
+    }
+
+    /**
      * The cluster time of the last event (the operationTime of a command)
      */
     operationTime(): unknown {
@@ -1573,6 +1617,11 @@ export class EmbeddedStore {
      */
     protected written(events: Buffer[]): void {
         if (!events.length) return
+        // No oplog and no change stream: the events dropped, the ones kept in memory too
+        if (!this.needsEvents()) {
+            this.dropRing()
+            return
+        }
         if (this.oplogSize <= 0) {
             if (this.open) this.open.events.push(...events)
             else this.keep(this.nextSeq, events)

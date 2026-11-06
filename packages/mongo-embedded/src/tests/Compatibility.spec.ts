@@ -26,7 +26,8 @@ describe(`The embedded MongoDB compared with MongoDB ${FIXTURES.version}`, (): v
             continue
         }
         it(`${scenario.group}: ${scenario.name}`, async (): Promise<void> => {
-            const client: EmbeddedClient = await EmbeddedClient.connect()
+            //With an oplog (64 MiB), as MongoDB always has one: a database in memory keeps none by default
+            const client: EmbeddedClient = await EmbeddedClient.connect(undefined, {oplogSize: 64 * 1024 * 1024})
             try {
                 const outcome: Record<string, unknown> = normalized(await (scenario as Scenario).run({client: client, db: client.db('compat')})) as Record<string, unknown>
                 const expected: Record<string, unknown> = {...FIXTURES.outcomes[scenario.name] as Record<string, unknown>}

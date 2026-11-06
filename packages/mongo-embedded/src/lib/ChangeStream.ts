@@ -188,6 +188,11 @@ export class EmbeddedChangeStream extends EventEmitter {
     protected listening: boolean = false
 
     /**
+     * Whether the store counts it among the streams open (the writes building their events for it)
+     */
+    protected registered: boolean = false
+
+    /**
      * @param store the storage of the database
      * @param watched what it watches
      * @param pipeline its stages
@@ -198,6 +203,9 @@ export class EmbeddedChangeStream extends EventEmitter {
         super()
         this.position = store.committedKey()
         this.failure = refusal
+        // The writes build their events for it (when the oplog keeps none) until it closes
+        this.registered = !refusal
+        if (this.registered) store.streamOpened()
         this.on('newListener', (event: string | symbol): void => {
             if (event === 'change' && !this.listening) {
                 this.listening = true
@@ -256,6 +264,10 @@ export class EmbeddedChangeStream extends EventEmitter {
     async close(): Promise<void> {
         if (this.ended) return
         this.ended = true
+        if (this.registered) {
+            this.registered = false
+            this.store.streamClosed()
+        }
         for (const wake of [...this.waiters]) wake()
         this.emit('close')
     }
