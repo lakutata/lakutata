@@ -96,8 +96,11 @@ for await (const change of stream) console.log(change.fullDocument)
 `watch` on a collection, on the database or on the client gives the events of the writes in MongoDB's format. A
 database in a directory keeps them in an oplog in its file, 64 MiB by default (`oplogSize`), and a stream resumes from
 its resume token, also after the database is reopened. A database in memory keeps no oplog by default
-(`oplogSize: 0`): the writes build their events only while a change stream is open, and the last 16 MiB of them stay
-in memory, so a stream resuming across writes made while no stream was open fails with `ChangeStreamHistoryLost`. `changeStreamPreAndPostImages` on a collection keeps the documents before and after each change for
+(`oplogSize: 0`): the writes build their events only while a change stream is open (the writes of a transaction
+always build them, as a stream may open before the commit), and the last 16 MiB of them stay in memory. A stream fails with `ChangeStreamHistoryLost` when events it has not read are gone: deleted from a full
+oplog, or never built because no stream was open. A resume token or a `startAtOperationTime` older than the events
+kept fails the same way. A stream closes when its client is closed, or when a `for await` loop over it ends.
+`changeStreamPreAndPostImages` on a collection keeps the documents before and after each change for
 `fullDocumentBeforeChange` and `fullDocument`.
 
 ## API
