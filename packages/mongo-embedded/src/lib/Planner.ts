@@ -13,6 +13,11 @@ export interface EmbeddedIndex {
     key: { [field: string]: any }
     unique?: boolean
     prepareUnique?: boolean
+    /**
+     * The index of a time series collection an index of its buckets is: its name, its fields as the time series lists
+     * them
+     */
+    originalSpec?: EmbeddedDocument
     sparse?: boolean
     partialFilterExpression?: EmbeddedDocument
     hidden?: boolean

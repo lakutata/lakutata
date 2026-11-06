@@ -223,6 +223,12 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
     cappedBytes?: number
 
     /**
+     * The buckets of a collection of buckets of a time series collection where its next measurements go, by their meta
+     * fields (the canonical EJSON): the keys of their _id, kept in memory
+     */
+    openBuckets?: Map<string, Buffer>
+
+    /**
      * The index of its _id (of its collation, made once)
      */
     protected identity?: EmbeddedIndex
@@ -1302,8 +1308,9 @@ export class EmbeddedStore {
      * @param name
      * @param database the name of the database, for the _id of a new view (database.name)
      * @param definition
+     * @param type its type of namespace, as its event create tells it (view; timeseries for a time series collection)
      */
-    async defineView(name: string, database: string, definition: EmbeddedViewDefinition | undefined): Promise<void> {
+    async defineView(name: string, database: string, definition: EmbeddedViewDefinition | undefined, type: string = 'view'): Promise<void> {
         const before: EmbeddedViewDefinition | undefined = this.views.get(name)
         if (!definition && !before) return
         if (!this.collections.has(VIEWS)) await this.create(VIEWS)
@@ -1312,7 +1319,7 @@ export class EmbeddedStore {
             ? this.event(undefined, {o: 'drop', c: name})
             : before
                 ? this.event(undefined, {o: 'modify', c: name, od: {viewOn: definition.viewOn, pipeline: definition.pipeline}})
-                : this.event(undefined, {o: 'create', c: name, od: {...definition}, nt: 'view'})
+                : this.event(undefined, {o: 'create', c: name, od: {...definition}, nt: type})
         await this.write(VIEWS, [{key: this.values.idKey(id), previous: before ? {_id: id, ...before} : undefined, next: definition ? {_id: id, ...definition} : undefined}], false, [event])
         if (definition) {
             this.views.set(name, definition)

@@ -25,6 +25,19 @@ import {
 } from './Errors.js'
 import { type EmbeddedKeyEncoding, UNORDERED_TAGS } from './KeyEncoding.js'
 import { bypassingValidation, EmbeddedValidator } from './Validation.js'
+import {
+    BUCKET_MAX_COUNT,
+    BUCKET_MAX_SIZE,
+    BUCKETS,
+    changedTimeSeriesOptions,
+    checkMeasurement,
+    type EmbeddedBucket,
+    type EmbeddedTimeSeriesOptions,
+    packed,
+    roundingOf,
+    timeSeriesOptionsOf,
+    unpacked
+} from './TimeSeries.js'
 import type { NativeRange } from './Native.js'
 import {
     type EmbeddedIndex,
@@ -92,7 +105,8 @@ const INDEX_OPTIONS = new Set([
     'v',
     'storageEngine',
     'comment',
-    'prepareUnique'
+    'prepareUnique',
+    'originalSpec'
 ])
 
 /**
@@ -1787,7 +1801,7 @@ export class EmbeddedCollection {
      * @param bulk whether the write is a bulk write
      */
     private writable(bulk = false): void {
-        const error = this.isView()
+        const error = this.isView() && !this.timeSeries()
             ? this.onView()
             : this.collectionName === VIEWS
               ? new EmbeddedOperationError(73, 'InvalidNamespace', `cannot write to ${this.namespace}`)
@@ -1811,6 +1825,285 @@ export class EmbeddedCollection {
      */
     isView(): boolean {
         return this.store.views.has(this.collectionName)
+    }
+
+    /**
+     * The options of the time series collection of its name (its buckets in system.buckets.<name>), if it is one
+     * @internal
+     */
+    timeSeries(): EmbeddedTimeSeriesOptions | undefined {
+        const view = this.store.views.get(this.collectionName)
+        if (!view?.pipeline[0]?.$_internalUnpackBucket) return undefined
+        return this.store.collection(BUCKETS + this.collectionName, this.transaction)?.options.timeseries
+    }
+
+    /**
+     * The collection of the buckets of the time series collection of its name
+     */
+    private buckets(): EmbeddedCollection {
+        return this.sibling(BUCKETS + this.collectionName)
+    }
+
+    /**
+     * The order of the values, as MongoDB compares them
+     *
+     * @param a
+     * @param b
+     */
+    private compareValues(a: unknown, b: unknown): number {
+        return Buffer.compare(this.values.keys.encode(a), this.values.keys.encode(b))
+    }
+
+    /**
+     * Inserts measurements into the time series collection, in their order, as MongoDB 8.0 inserts them: each one into
+     * the bucket its meta field last went into when its time is in the span of the bucket and the bucket is not full
+     * (1000 measurements, about 125 KB), else into a new bucket starting at its time rounded; its time field a date
+     * (BadValue, 2). The ones inserted (their indexes), the errors of the others (ordered: the first one, the ones after
+     * it not inserted); a transaction does not allow it
+     *
+     * @param measurements the measurements (their _id given)
+     * @param ordered
+     */
+    private async insertMeasurements(
+        measurements: EmbeddedDocument[],
+        ordered: boolean
+    ): Promise<{ inserted: number[], errors: { index: number, error: unknown }[] }> {
+        const options = this.timeSeries()!
+        if (this.transaction)
+            await this.session!.refuse(`Cannot insert into a time-series collection in a multi-document transaction: ${this.namespace}`)
+        const inserted: number[] = []
+        const errors: { index: number, error: unknown }[] = []
+        const valid: [number, EmbeddedDocument][] = []
+        for (const [index, measurement] of measurements.entries()) {
+            try {
+                checkMeasurement(measurement, options)
+                valid.push([index, measurement])
+            } catch (error) {
+                errors.push({ index: index, error: error })
+                if (ordered) break
+            }
+        }
+        if (!valid.length) return { inserted: inserted, errors: errors }
+        const name = BUCKETS + this.collectionName
+        const rounding = roundingOf(options)
+        const span = options.bucketMaxSpanSeconds * 1000
+        const bson = this.values.bson
+        await this.store.exclusive(async () => {
+            const state = this.store.collection(name)!
+            const open = (state.openBuckets ??= new Map<string, Buffer>())
+            // The buckets the measurements go into: their measurements, their bytes, the document before them
+            const touched = new Map<string, { key: Buffer, id: unknown, start: number, meta: unknown, rows: EmbeddedDocument[], size: number, previous?: EmbeddedDocument }>()
+            for (const [index, measurement] of valid) {
+                const meta = options.metaField === undefined ? undefined : measurement[options.metaField]
+                const grouped = meta === undefined ? '' : bson.EJSON.stringify({ meta: meta }, { relaxed: false })
+                const time: number = measurement[options.timeField].getTime()
+                const fields = { ...measurement }
+                if (options.metaField !== undefined) delete fields[options.metaField]
+                const size = bson.BSON.calculateObjectSize(fields)
+                const last = open.get(grouped)
+                let bucket = last ? touched.get(last.toString('latin1')) : undefined
+                if (last && !bucket) {
+                    const [stored] = await this.store.get(name, [last])
+                    if (stored && bson.EJSON.stringify({ meta: stored.meta }, { relaxed: false }) === (meta === undefined ? bson.EJSON.stringify({}, { relaxed: false }) : grouped)) {
+                        const rows = unpacked(stored as EmbeddedBucket, options).map((row) => {
+                            if (options.metaField !== undefined) delete row[options.metaField]
+                            return row
+                        })
+                        bucket = {
+                            key: last,
+                            id: stored._id,
+                            start: (stored.control.min[options.timeField] as Date).getTime(),
+                            meta: stored.meta,
+                            rows: rows,
+                            size: bson.BSON.calculateObjectSize(stored),
+                            previous: stored
+                        }
+                        touched.set(last.toString('latin1'), bucket)
+                    }
+                }
+                if (!bucket || time < bucket.start || time >= bucket.start + span || bucket.rows.length >= BUCKET_MAX_COUNT || bucket.size + size > BUCKET_MAX_SIZE) {
+                    // A new bucket, from the time rounded: its _id of that time
+                    const start = Math.floor(time / rounding) * rounding
+                    const bytes = Buffer.from(new bson.ObjectId().id)
+                    bytes.writeUInt32BE(Math.floor(start / 1000) >>> 0, 0)
+                    const id = new bson.ObjectId(bytes)
+                    bucket = { key: this.values.idKey(id), id: id, start: start, meta: meta, rows: [], size: 0 }
+                    touched.set(bucket.key.toString('latin1'), bucket)
+                    open.set(grouped, bucket.key)
+                }
+                bucket.rows.push(fields)
+                bucket.size += size
+                inserted.push(index)
+            }
+            await this.store.write(
+                name,
+                [...touched.values()].map((bucket) => ({
+                    key: bucket.key,
+                    previous: bucket.previous,
+                    next: packed(bucket.id, new Date(bucket.start), bucket.meta, bucket.rows, options, (a, b) => this.compareValues(a, b)) as unknown as EmbeddedDocument
+                }))
+            )
+        })
+        return { inserted: inserted, errors: errors }
+    }
+
+    /**
+     * The measurements of the buckets of the time series collection, with their places: the key of their bucket, their
+     * index in it (in the order of the buckets)
+     */
+    private async measurements(): Promise<{ bucket: EmbeddedDocument, rows: EmbeddedDocument[] }[]> {
+        const options = this.timeSeries()!
+        const read: { bucket: EmbeddedDocument, rows: EmbeddedDocument[] }[] = []
+        for (const bucket of await this.buckets().matching({}, Infinity))
+            read.push({ bucket: bucket, rows: unpacked(bucket as EmbeddedBucket, options) })
+        return read
+    }
+
+    /**
+     * The change of a bucket some measurements of which are deleted: the bucket rebuilt of the other ones (its _id, its
+     * start and its meta kept), deleted when none is left
+     *
+     * @param bucket
+     * @param rows its measurements left
+     */
+    private rebuilt(bucket: EmbeddedDocument, rows: EmbeddedDocument[]): EmbeddedChange {
+        const options = this.timeSeries()!
+        const key = this.values.idKey(bucket._id)
+        if (!rows.length) return { key: key, previous: bucket }
+        const fields = rows.map((row) => {
+            const copy = { ...row }
+            if (options.metaField !== undefined) delete copy[options.metaField]
+            return copy
+        })
+        return {
+            key: key,
+            previous: bucket,
+            next: packed(bucket._id, bucket.control.min[options.timeField], bucket.meta, fields, options, (a, b) => this.compareValues(a, b)) as unknown as EmbeddedDocument
+        }
+    }
+
+    /**
+     * Deletes the measurements a filter matches (the first one, unless many), in the order of the buckets, as MongoDB
+     * 8.0 deletes them: any filter
+     *
+     * @param query
+     * @param many
+     * @param collator
+     */
+    private async deleteMeasurements(query: EmbeddedDocument | undefined, many: boolean, collator?: EmbeddedCollator) {
+        const matches = this.matcherOf(this.values.copy(query ?? {}), collator)
+        return this.store.exclusive(async () => {
+            const changes: EmbeddedChange[] = []
+            let deleted = 0
+            for (const { bucket, rows } of await this.measurements()) {
+                const kept = rows.filter((row) => {
+                    if ((!many && deleted) || !matches(row)) return true
+                    deleted++
+                    return false
+                })
+                if (kept.length !== rows.length) changes.push(this.rebuilt(bucket, kept))
+                if (!many && deleted) break
+            }
+            if (changes.length) await this.store.write(BUCKETS + this.collectionName, changes)
+            return { acknowledged: true, deletedCount: deleted }
+        })
+    }
+
+    /**
+     * Deletes the first measurement a filter matches, in the order of a sort (findOneAndDelete): the measurement, or
+     * none
+     *
+     * @param query
+     * @param options its sort and its collation
+     */
+    private async deleteMeasurement(query: EmbeddedDocument, options?: EmbeddedDocument): Promise<EmbeddedDocument | undefined> {
+        const collator = this.collatorFor(options?.collation)
+        const matches = this.matcherOf(this.values.copy(query ?? {}), collator)
+        return this.store.exclusive(async () => {
+            const found: { bucket: EmbeddedDocument, rows: EmbeddedDocument[], row: number }[] = []
+            for (const { bucket, rows } of await this.measurements())
+                rows.forEach((row, position) => {
+                    if (matches(row)) found.push({ bucket: bucket, rows: rows, row: position })
+                })
+            if (!found.length) return undefined
+            let first = found[0]
+            if (options?.sort) {
+                const [sorted] = withCollation(collator, () =>
+                    this.values.mingo
+                        .find(found.map((item, position) => ({ ...item.rows[item.row], __position: position })), {})
+                        .sort(options.sort)
+                        .limit(1)
+                        .all()
+                ) as EmbeddedDocument[]
+                first = found[sorted.__position]
+            }
+            const measurement = first.rows[first.row]
+            await this.store.write(BUCKETS + this.collectionName, [this.rebuilt(first.bucket, first.rows.filter((_, position) => position !== first.row))])
+            return measurement
+        })
+    }
+
+    /**
+     * Updates the meta field of the measurements a filter of their meta field matches (updateMany), as MongoDB 8.0
+     * updates them: a filter or an update of another field, a pipeline, an upsert or the update of one measurement fail
+     * (InvalidOptions, 72). The measurements matched and modified counted
+     *
+     * @param query
+     * @param update
+     * @param options its upsert and its collation
+     * @param many
+     */
+    private async updateMeasurements(
+        query: EmbeddedDocument,
+        update: EmbeddedDocument | EmbeddedDocument[],
+        options: EmbeddedDocument | undefined,
+        many: boolean
+    ) {
+        const ts = this.timeSeries()!
+        const metaField = ts.metaField
+        const invalid = (message: string) => new EmbeddedOperationError(72, 'InvalidOptions', message)
+        if (!many) throw invalid('Cannot perform a non-multi update on a time-series collection')
+        if (options?.upsert) throw invalid('Cannot perform an upsert on a time-series collection')
+        if (Array.isArray(update)) throw invalid('Cannot perform an update on a time-series collection using a pipeline update')
+        const onMeta = (path: string) => metaField !== undefined && (path === metaField || path.startsWith(`${metaField}.`))
+        const filterOnMeta = (filter: EmbeddedDocument): boolean =>
+            Object.entries(filter ?? {}).every(([key, value]) =>
+                key === '$and' || key === '$or' || key === '$nor'
+                    ? Array.isArray(value) && value.every((clause) => filterOnMeta(clause))
+                    : key === '$comment' || onMeta(key)
+            )
+        if (!filterOnMeta(query ?? {}))
+            throw invalid(`Cannot perform an update or delete on a time-series collection when querying on a field that is not the metaField '${metaField}'`)
+        const { modifier } = this.modifierOf(update)
+        // The fields it updates: the ones of its operators, the new names of $rename
+        const paths: string[] = Object.entries(modifier as EmbeddedDocument).flatMap(([operator, fields]) => [
+            ...Object.keys(fields ?? {}),
+            ...(operator === '$rename' ? Object.values(fields ?? {}).map(String) : [])
+        ])
+        if (!paths.every(onMeta))
+            throw invalid(`Cannot perform an update on a time-series collection which updates a field that is not the metaField '${metaField}'`)
+        const matches = this.matcherOf(this.values.copy(query ?? {}), this.collatorFor(options?.collation))
+        const show = (value: unknown) => this.values.bson.EJSON.stringify(value, { relaxed: false })
+        return this.store.exclusive(async () => {
+            const changes: EmbeddedChange[] = []
+            let matched = 0
+            let modified = 0
+            for (const bucket of await this.buckets().matching({}, Infinity)) {
+                const before: EmbeddedDocument = bucket.meta === undefined ? {} : { [metaField!]: bucket.meta }
+                if (!matches(before)) continue
+                matched += bucket.control.count
+                const after = this.values.copy(before)
+                this.byMingo(() => this.values.mingo.update(after, modifier))
+                if (show(after) === show(before)) continue
+                modified += bucket.control.count
+                const next = { ...bucket }
+                if (after[metaField!] === undefined) delete next.meta
+                else next.meta = after[metaField!]
+                changes.push({ key: this.values.idKey(bucket._id), previous: bucket, next: next })
+            }
+            if (changes.length) await this.store.write(BUCKETS + this.collectionName, changes)
+            return { acknowledged: true, matchedCount: matched, modifiedCount: modified, upsertedId: null, upsertedCount: 0 }
+        })
     }
 
     /**
@@ -2065,7 +2358,9 @@ export class EmbeddedCollection {
                 (collection) => collection.estimatedDocumentCount(options),
                 'count'
             )
-        // A view: the documents of its pipeline
+        // A time series collection: the measurements of its buckets; a view: the documents of its pipeline
+        if (this.timeSeries())
+            return (await this.buckets().matching({}, Infinity)).reduce((count, bucket) => count + bucket.control.count, 0)
         if (this.isView()) return (await this.viewDocuments([])).length
         return this.store.count(this.collectionName, this.transaction)
     }
@@ -2197,6 +2492,15 @@ export class EmbeddedCollection {
         collator?: EmbeddedCollator,
         time?: EmbeddedTimeLimit
     ): Promise<EmbeddedDocument[]> {
+        // The buckets of a time series collection unpacked into its measurements, in the order of the buckets
+        const unpack = pipeline[0]?.$_internalUnpackBucket
+        if (unpack) {
+            const series: EmbeddedTimeSeriesOptions = this.store.collection(this.collectionName, this.transaction)?.options.timeseries ?? unpack
+            const measurements: EmbeddedDocument[] = []
+            for (const bucket of await this.matching({}, Infinity, undefined, undefined, time))
+                for (const measurement of unpacked(bucket as EmbeddedBucket, series)) measurements.push(measurement)
+            return this.runStages(measurements, pipeline.slice(1), options, collator, time)
+        }
         const changed = options.variables
         const filters: EmbeddedDocument[] = []
         if (!changed)
@@ -2359,9 +2663,17 @@ export class EmbeddedCollection {
      */
     private async out(documents: EmbeddedDocument[], target: any): Promise<void> {
         const name = typeof target === 'string' ? target : target?.coll
-        if (isPlain(target) && target.timeseries !== undefined)
-            throw notSupported('The option timeseries of $out')
         checkName(name)
+        // A new time series collection of its results
+        if (isPlain(target) && target.timeseries !== undefined) {
+            if (this.store.collection(name) || this.store.views.has(name))
+                throw notSupported('$out with the option timeseries into a collection there')
+            await new EmbeddedDb(this.dbName, this.store).createCollection(name, { timeseries: target.timeseries })
+            const series = this.sibling(name)
+            for (let start = 0; start < documents.length; start += YIELD_EVERY)
+                await series.insertMany(documents.slice(start, start + YIELD_EVERY))
+            return
+        }
         if (this.store.views.has(name)) throw this.sibling(name).onView()
         if (this.store.collection(name)?.capped)
             throw new EmbeddedOperationError(17152, 'Location17152', `namespace '${this.dbName}.${name}' is capped so it can't be used for $out`)
@@ -2846,6 +3158,8 @@ export class EmbeddedCollection {
         replacement: EmbeddedDocument,
         options?: EmbeddedDocument
     ) {
+        if (this.timeSeries())
+            throw new EmbeddedOperationError(72, 'InvalidOptions', 'Cannot perform a non-multi update on a time-series collection')
         checkReplacement(replacement)
         const filter = this.values.copy(query ?? {})
         const collator = this.collatorFor(options?.collation)
@@ -2920,6 +3234,8 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.createIndex(keys, options)
             )
+        const series = this.timeSeries()
+        if (series) return this.createMeasurementIndex(series, keys, options)
         const { session, writeConcern, ...rest } = options ?? {}
         void session
         void writeConcern
@@ -2945,6 +3261,70 @@ export class EmbeddedCollection {
             () => index.name
         )
 
+    }
+
+    /**
+     * Creates an index of a time series collection, as MongoDB 8.0 creates it: on its buckets, its fields the ones of
+     * the buckets (the meta field: meta; the time field and the others: the smallest and the largest values of the
+     * bucket), as listed by originalSpec; a unique one fails (InvalidOptions, 72)
+     *
+     * @param series the options of the time series collection
+     * @param keys its fields and their directions
+     * @param options its options
+     */
+    private async createMeasurementIndex(series: EmbeddedTimeSeriesOptions, keys: any, options?: EmbeddedDocument): Promise<string> {
+        if (options?.unique || options?.prepareUnique)
+            throw new EmbeddedOperationError(72, 'InvalidOptions', 'Unique indexes are not supported on time-series collections')
+        const given: EmbeddedDocument = typeof keys === 'string' ? { [keys]: 1 } : this.values.copy(keys)
+        const fields = Object.keys(given)
+        const name = options?.name ?? fields.map((field) => `${field}_${given[field]}`).join('_')
+        const translated: EmbeddedDocument = {}
+        for (const field of fields) {
+            const direction = given[field]
+            if (series.metaField !== undefined && (field === series.metaField || field.startsWith(`${series.metaField}.`)))
+                translated[`meta${field.slice(series.metaField.length)}`] = direction
+            else if (direction === -1 || direction === '-1') {
+                translated[`control.max.${field}`] = direction
+                translated[`control.min.${field}`] = direction
+            } else {
+                translated[`control.min.${field}`] = direction
+                translated[`control.max.${field}`] = direction
+            }
+        }
+        const { session, writeConcern, name: givenName, ...rest } = options ?? {}
+        void givenName
+        // Its fields as the time series lists them kept when one is neither the meta field nor the time field, as MongoDB
+        // keeps them
+        const measured = fields.some((field) => field !== series.timeField && !(series.metaField !== undefined && (field === series.metaField || field.startsWith(`${series.metaField}.`))))
+        await this.buckets().createIndex(translated, {
+            ...rest,
+            session: session,
+            writeConcern: writeConcern,
+            name: name,
+            ...(measured ? { originalSpec: { name: name, key: given, v: 2 } } : {})
+        })
+        return name
+    }
+
+    /**
+     * The fields of an index of the buckets of a time series collection as the time series lists them: its originalSpec,
+     * else its fields translated back (meta: the meta field; the smallest and the largest values of a field: the field,
+     * ascending when the smallest comes first)
+     *
+     * @param series
+     * @param index
+     */
+    private measurementIndexKey(series: EmbeddedTimeSeriesOptions, index: EmbeddedDocument): EmbeddedDocument {
+        if (index.originalSpec) return index.originalSpec.key
+        const key: EmbeddedDocument = {}
+        for (const [field, direction] of Object.entries(index.key as EmbeddedDocument)) {
+            if (field === 'meta' || field.startsWith('meta.')) key[`${series.metaField}${field.slice(4)}`] = direction
+            else if (field.startsWith('control.min.') || field.startsWith('control.max.')) {
+                const name = field.slice(12)
+                if (key[name] === undefined) key[name] = direction
+            } else key[field] = direction
+        }
+        return key
     }
 
     /**
@@ -3204,8 +3584,20 @@ export class EmbeddedCollection {
                 (collection) => collection.indexes(options),
                 'listIndexes'
             )
+        // A time series collection: the indexes of its buckets, their fields as the time series lists them
+        const series = this.timeSeries()
+        if (series)
+            return (await this.buckets().indexes())
+                .filter((index) => index.name !== ID_INDEX)
+                .map(({ v, key, name, originalSpec, ...rest }) => {
+                    void v
+                    return { v: 2, key: this.measurementIndexKey(series, { key: key, originalSpec: originalSpec }), name: name, ...rest }
+                })
         if (this.isView()) throw this.onView()
         const collation = this.store.collection(this.collectionName, this.transaction)?.collation
+        // The buckets of a time series collection: clustered by their _id in MongoDB, without its index
+        if (this.collectionName.startsWith(BUCKETS))
+            return (this.store.collection(this.collectionName, this.transaction)?.indexes ?? []).map((index) => ({ v: 2, ...index }))
         return [
             { v: 2, key: { _id: 1 }, name: ID_INDEX, ...(collation ? { collation: collation } : {}) },
             ...(this.store.collection(this.collectionName, this.transaction)?.indexes ?? []).map((index) => ({
@@ -3262,6 +3654,19 @@ export class EmbeddedCollection {
                 (collection) => collection.dropIndex(index, options),
                 'dropIndexes'
             )
+        // A time series collection: the index of its buckets of the name or the fields given
+        const series = this.timeSeries()
+        if (series) {
+            const found = index === '*'
+                ? '*'
+                : typeof index === 'string'
+                  ? index
+                  : (this.store.collection(BUCKETS + this.collectionName)?.indexes ?? []).find((item) =>
+                        this.values.bson.EJSON.stringify(this.measurementIndexKey(series, item as EmbeddedDocument)) === this.values.bson.EJSON.stringify(index))?.name
+            if (found === undefined)
+                throw new EmbeddedOperationError(27, 'IndexNotFound', `can't find index with key: ${this.values.bson.EJSON.stringify(index)}`)
+            return this.buckets().dropIndex(found, options)
+        }
         return this.concerned(
             options,
             () => this.removeIndex(index),
@@ -3352,6 +3757,8 @@ export class EmbeddedCollection {
                 (collection) => collection.options(options),
                 'listCollections'
             )
+        // A time series collection: the options of its buckets (its timeseries, its expireAfterSeconds)
+        if (this.timeSeries()) return this.values.copy(this.store.collection(BUCKETS + this.collectionName)!.options)
         const view = this.store.views.get(this.collectionName)
         if (view) return this.values.copy(view)
         const state = this.store.collection(this.collectionName, this.transaction)
@@ -3515,6 +3922,16 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.findOneAndDelete(query, options)
             )
+        // A time series collection: the first measurement matching deleted from its bucket
+        if (this.timeSeries())
+            return this.concerned(
+                options,
+                async () => {
+                    const before = await this.deleteMeasurement(query, options)
+                    return this.modifyResult(before, options, { n: before ? 1 : 0 })
+                },
+                () => null
+            )
         return this.concerned(
             options,
             async () => {
@@ -3548,6 +3965,8 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.findOneAndReplace(query, replacement, options)
             )
+        if (this.timeSeries())
+            throw new EmbeddedOperationError(72, 'InvalidOptions', 'Cannot perform a non-multi update on a time-series collection')
         checkReplacement(replacement)
         return this.concerned(
             options,
@@ -3587,6 +4006,8 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.findOneAndUpdate(query, update, options)
             )
+        if (this.timeSeries())
+            throw new EmbeddedOperationError(72, 'InvalidOptions', 'Cannot perform a non-multi update on a time-series collection')
         const { modifier, setOnInsert } = this.modifierOf(update)
         const collator = this.collatorFor(options?.collation)
         return this.concerned(
@@ -3652,6 +4073,7 @@ export class EmbeddedCollection {
                 'renameCollection'
             )
         checkName(newName)
+        if (this.isView()) throw this.onView()
         if (this.store.views.has(newName))
             throw new EmbeddedOperationError(48, 'NamespaceExists', `a view already exists with that name: ${this.dbName}.${newName}`)
         await this.concerned(
@@ -3673,6 +4095,10 @@ export class EmbeddedCollection {
      */
     async expire(now: Date = new Date()): Promise<number> {
         let deleted = 0
+        // The buckets of a time series collection whose last measurements expired
+        const options = this.store.collection(this.collectionName)?.options
+        if (options?.timeseries && options.expireAfterSeconds !== undefined)
+            deleted += (await this.delete({ [`control.max.${options.timeseries.timeField}`]: { $lt: new Date(now.getTime() - options.expireAfterSeconds * 1000) } }, true)).deletedCount
         for (const index of this.store.collection(this.collectionName)?.indexes ?? []) {
             if (index.expireAfterSeconds === undefined) continue
             const [field] = Object.keys(index.key)
@@ -3696,13 +4122,17 @@ export class EmbeddedCollection {
                 (collection) => collection.drop(options),
                 'drop'
             )
-        // A view: its definition dropped
+        // A view: its definition dropped; a time series collection: its buckets too
         if (this.isView())
             return writeByConcern(
                 this.store,
                 writeConcernOf(options, this.writeConcern),
                 async () => {
-                    await this.store.exclusive(() => this.store.defineView(this.collectionName, this.dbName, undefined))
+                    const series = this.timeSeries()
+                    await this.store.exclusive(async () => {
+                        await this.store.defineView(this.collectionName, this.dbName, undefined)
+                        if (series) await this.store.drop(BUCKETS + this.collectionName)
+                    })
                     return true
                 },
                 () => true
@@ -4021,6 +4451,8 @@ export class EmbeddedCollection {
         if (collator) index.collation = { ...collator.collation }
         if (options.unique) index.unique = true
         else if (options.prepareUnique) index.prepareUnique = true
+        // The index of a time series collection it is on its buckets (its fields as the time series lists them)
+        if (options.originalSpec !== undefined) index.originalSpec = this.values.copy(options.originalSpec)
         if (options.sparse) index.sparse = true
         if (options.hidden) index.hidden = true
         if (options.partialFilterExpression !== undefined) {
@@ -4282,6 +4714,17 @@ export class EmbeddedCollection {
     private async insert(
         documents: EmbeddedDocument[]
     ): Promise<EmbeddedDocument[]> {
+        if (this.timeSeries()) {
+            // A time series collection: its measurements into its buckets, the first error failing
+            const measurements = documents.map((document) => {
+                if (document._id === undefined)
+                    document._id = new this.values.bson.ObjectId()
+                return this.values.copy(document)
+            })
+            const { errors } = await this.insertMeasurements(measurements, true)
+            if (errors.length) throw errors[0].error
+            return measurements
+        }
         const stored = documents.map((document) => {
             if (document._id === undefined)
                 document._id = new this.values.bson.ObjectId()
@@ -4397,6 +4840,7 @@ export class EmbeddedCollection {
         options: EmbeddedDocument | undefined,
         many: boolean
     ) {
+        if (this.timeSeries()) return this.updateMeasurements(query, update, options, many)
         const { modifier, setOnInsert } = this.modifierOf(update)
         const filter = this.values.copy(query ?? {})
         const collator = this.collatorFor(options?.collation)
@@ -4554,12 +4998,19 @@ export class EmbeddedCollection {
      * @param writeErrors the errors of the documents failing
      * @param start the index of the batch in the documents of the insertMany
      */
-    private writeInsertions(
+    private async writeInsertions(
         batch: EmbeddedDocument[],
         ordered: boolean,
         writeErrors: EmbeddedWriteError[],
         start: number
     ): Promise<number[]> {
+        // A time series collection: its measurements into its buckets
+        if (this.timeSeries()) {
+            const { inserted, errors } = await this.insertMeasurements(batch, ordered)
+            for (const { index, error } of errors)
+                writeErrors.push({ index: start + index, code: writeErrorCode(error) ?? 1, errmsg: (error as Error).message, op: batch[index] })
+            return inserted
+        }
         return this.store.exclusive(async () => {
             const inserted: number[] = []
             let positions = batch.map((_, index) => index)
@@ -4618,6 +5069,7 @@ export class EmbeddedCollection {
         hint?: EmbeddedHint,
         collator?: EmbeddedCollator
     ) {
+        if (this.timeSeries()) return this.deleteMeasurements(query, many, collator)
         const filter = this.values.copy(query ?? {})
         const matches = this.matcherOf(filter, collator)
         if (!this.store.collection(this.collectionName, this.transaction))
@@ -4973,6 +5425,7 @@ export class EmbeddedDb {
         options?: EmbeddedDocument
     ): Promise<EmbeddedCollection> {
         checkName(name)
+        if (options?.timeseries !== undefined) return this.createTimeSeries(name, options)
         if (options?.viewOn !== undefined) return this.createView(name, options)
         const view = this.store.views.get(name)
         if (view)
@@ -5053,6 +5506,96 @@ export class EmbeddedDb {
     }
 
     /**
+     * Creates a time series collection (createCollection with timeseries), as MongoDB 8.0 makes it: its measurements in
+     * buckets (system.buckets.<name>, its options kept there), its definition in system.views (a view unpacking the
+     * buckets: $_internalUnpackBucket), with its event create; an index of its meta field and its time field when it has
+     * a meta field. The time series collection there given when it has the same options
+     *
+     * @param name
+     * @param options timeseries, expireAfterSeconds, the session (a transaction does not allow it), writeConcern
+     */
+    private async createTimeSeries(name: string, options: EmbeddedDocument): Promise<EmbeddedCollection> {
+        const namespace = `${this.databaseName}.${name}`
+        const invalid = (message: string) => new EmbeddedOperationError(72, 'InvalidOptions', message)
+        if (options.capped) throw invalid('Time-series collections cannot be capped')
+        if (options.validator !== undefined) throw invalid('Time-series collections cannot have a validator')
+        if (options.viewOn !== undefined) throw invalid('Time-series collections cannot be a view')
+        const timeseries = timeSeriesOptionsOf(options.timeseries)
+        const expiration = options.expireAfterSeconds
+        if (expiration !== undefined && !(typeof expiration === 'number' && expiration >= 0))
+            throw invalid("'expireAfterSeconds' must be a number not below 0")
+        const kept: EmbeddedDocument = { timeseries: timeseries, ...(expiration !== undefined ? { expireAfterSeconds: Math.trunc(expiration) } : {}) }
+        const show = (value: unknown) => this.store.values.bson.EJSON.stringify(value)
+        return this.inSession(options, undefined, async (transaction) => {
+            if (transaction)
+                throw new EmbeddedOperationError(263, 'OperationNotSupportedInTransaction', 'Cannot create a time-series collection in a multi-document transaction')
+            return writeByConcern(
+                this.store,
+                writeConcernOf(options, this.writeConcern),
+                async () => {
+                    const created = await this.store.exclusive(async () => {
+                        if (this.store.collection(name))
+                            throw new EmbeddedOperationError(48, 'NamespaceExists', `Collection ${namespace} already exists.`)
+                        const view = this.store.views.get(name)
+                        if (view) {
+                            const existing = this.store.collection(BUCKETS + name)?.options
+                            if (!view.pipeline[0]?.$_internalUnpackBucket || show(existing) !== show(kept))
+                                throw new EmbeddedOperationError(48, 'NamespaceExists', `namespace ${namespace} already exists, but with different options: ${show(existing ?? view)}`)
+                            return false
+                        }
+                        await this.store.create(BUCKETS + name, kept)
+                        await this.store.defineView(name, this.databaseName, {
+                            viewOn: BUCKETS + name,
+                            pipeline: [{ $_internalUnpackBucket: { timeField: timeseries.timeField, ...(timeseries.metaField !== undefined ? { metaField: timeseries.metaField } : {}), bucketMaxSpanSeconds: timeseries.bucketMaxSpanSeconds } }]
+                        }, 'timeseries')
+                        return true
+                    })
+                    if (created && timeseries.metaField !== undefined)
+                        await this.collection(name).createIndex({ [timeseries.metaField]: 1, [timeseries.timeField]: 1 })
+                    return this.collection(name)
+                },
+                () => this.collection(name)
+            )
+        })
+    }
+
+    /**
+     * Changes the options of a time series collection (collMod with timeseries, expireAfterSeconds), as MongoDB 8.0
+     * changes them: a coarser granularity, a larger span; its expiration (off: none). The other options fail
+     * (InvalidOptions, 72)
+     *
+     * @param command
+     */
+    private async modifyTimeSeries(command: EmbeddedDocument): Promise<EmbeddedDocument> {
+        for (const field of Object.keys(command)) {
+            if (command[field] === undefined || ['collMod', 'timeseries', 'expireAfterSeconds', 'comment', 'writeConcern', 'maxTimeMS'].includes(field)) continue
+            if (!MODIFY_FIELDS.has(field))
+                throw new EmbeddedOperationError(40415, 'IDLUnknownField', `BSON field 'collMod.${field}' is an unknown field.`)
+            throw new EmbeddedOperationError(72, 'InvalidOptions', `option not supported on a time-series collection: ${field}`)
+        }
+        const expiration = command.expireAfterSeconds
+        if (expiration !== undefined && expiration !== 'off' && !(typeof expiration === 'number' && expiration >= 0))
+            throw new EmbeddedOperationError(72, 'InvalidOptions', "'expireAfterSeconds' must be a number not below 0, or 'off'")
+        const buckets = BUCKETS + command.collMod
+        await this.store.exclusive(async () => {
+            const state = this.store.collection(buckets)
+            if (!state) throw new EmbeddedOperationError(26, 'NamespaceNotFound', 'ns does not exist')
+            const { timeseries, expireAfterSeconds, ...rest } = state.options
+            const next: EmbeddedDocument = {
+                ...rest,
+                timeseries: command.timeseries === undefined ? timeseries : changedTimeSeriesOptions(timeseries, command.timeseries)
+            }
+            const expiring = expiration === undefined ? expireAfterSeconds : expiration === 'off' ? undefined : Math.trunc(expiration)
+            if (expiring !== undefined) next.expireAfterSeconds = expiring
+            const description: EmbeddedDocument = {}
+            for (const field of ['timeseries', 'expireAfterSeconds'])
+                if (command[field] !== undefined) description[field] = command[field]
+            await this.store.modify(buckets, { options: orderedOptions(next) }, description)
+        })
+        return {}
+    }
+
+    /**
      * Fails a view defined on itself, through the views it is defined on (GraphContainsCycle, 5), as MongoDB fails it
      *
      * @param name
@@ -5124,11 +5667,16 @@ export class EmbeddedDb {
                         idIndex: { v: 2, key: { _id: 1 }, name: '_id_', ...(state.collation ? { collation: state.collation } : {}) }
                     }
                 })
-            // The views, read only
-            for (const [name, definition] of this.store.views)
+            // The views, read only; the time series collections, their options the ones of their buckets
+            for (const [name, definition] of this.store.views) {
+                const series = definition.pipeline[0]?.$_internalUnpackBucket ? this.store.collection(BUCKETS + name)?.options : undefined
+                const type = series ? 'timeseries' : 'view'
                 collections.push(options?.nameOnly
-                    ? { name: name, type: 'view' }
-                    : { name: name, type: 'view', options: this.store.values.copy(definition), info: { readOnly: true } })
+                    ? { name: name, type: type }
+                    : series
+                      ? { name: name, type: type, options: this.store.values.copy(series), info: { readOnly: false } }
+                      : { name: name, type: type, options: this.store.values.copy(definition), info: { readOnly: true } })
+            }
             collections.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
             return filter && Object.keys(filter).length
                 ? (new mingo.Query(filter).find(collections).all() as EmbeddedDocument[])
@@ -5179,6 +5727,7 @@ export class EmbeddedDb {
             if (name === 'ping') return {}
             if (typeof command.collMod !== 'string')
                 throw new EmbeddedOperationError(14, 'TypeMismatch', `collection name has invalid type ${typeName(command.collMod)}`)
+            if (this.collection(command.collMod).timeSeries()) return this.modifyTimeSeries(command)
             if (this.store.views.has(command.collMod)) return this.modifyView(command)
             const collection = this.collection(command.collMod)
             return writeByConcern(

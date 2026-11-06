@@ -580,3 +580,51 @@ describe('The views', (): void => {
         await client.close()
     })
 })
+
+describe('The time series collections', (): void => {
+    it('keep their measurements in buckets, read, deleted and expired as MongoDB 8.0 does, after a reopening', async (): Promise<void> => {
+        const where: string = directory()
+        const base: number = Date.UTC(2026, 0, 1)
+        let client: EmbeddedClient = await EmbeddedClient.connect(where)
+        let db = client.db()
+        await db.createCollection('weather', {timeseries: {timeField: 't', metaField: 'sensor', granularity: 'minutes'}, expireAfterSeconds: 3600})
+        let weather = db.collection('weather')
+        // Ordered: the measurements before the one failing inserted
+        await assert.rejects(weather.insertMany([{t: new Date(base), sensor: 'a', v: 1}, {sensor: 'a', v: 2}, {t: new Date(base + 2000), sensor: 'a', v: 3}]), (error: unknown): boolean => {
+            assert.ok(error instanceof EmbeddedBulkWriteError)
+            assert.deepStrictEqual([error.insertedCount, error.writeErrors.map((writeError: any): unknown => [writeError.index, writeError.code])], [1, [[1, 2]]])
+            return true
+        })
+        await weather.insertMany([{t: new Date(base + 60000), sensor: 'b', v: 10}, {t: new Date(base + 1000), sensor: 'a', v: 4}], {ordered: false})
+        await client.close()
+        client = await EmbeddedClient.connect(where)
+        db = client.db()
+        weather = db.collection('weather')
+        await weather.insertOne({t: new Date(base + 5000), sensor: 'a', v: 5})
+        assert.strictEqual(await weather.estimatedDocumentCount(), 4)
+        assert.deepStrictEqual((await weather.find({sensor: 'a'}, {sort: {t: 1}, projection: {_id: 0, v: 1}}).toArray()), [{v: 1}, {v: 4}, {v: 5}])
+        assert.deepStrictEqual(await db.collection('system.buckets.weather').countDocuments(), 3)
+        // Read in a transaction, joined by a $lookup
+        const session = client.startSession()
+        session.startTransaction()
+        assert.strictEqual(await weather.countDocuments({v: {$gte: 4}}, {session: session}), 3)
+        await session.commitTransaction()
+        await session.endSession()
+        await db.collection('sensors').insertMany([{_id: 'a'}, {_id: 'b'}])
+        assert.deepStrictEqual((await db.collection('sensors').aggregate([{$lookup: {from: 'weather', localField: '_id', foreignField: 'sensor', as: 'm'}}, {$project: {n: {$size: '$m'}}}]).toArray()), [{_id: 'a', n: 3}, {_id: 'b', n: 1}])
+        // The first one of a sort deleted, its bucket rebuilt
+        assert.deepStrictEqual((await weather.findOneAndDelete({sensor: 'a'}, {sort: {v: -1}, projection: {_id: 0, v: 1}})), {v: 5})
+        assert.strictEqual((await weather.deleteMany({v: {$lt: 2}})).deletedCount, 1)
+        assert.deepStrictEqual((await weather.find({}, {projection: {_id: 0, v: 1}}).sort({v: 1}).toArray()), [{v: 4}, {v: 10}])
+        // Expired: the buckets of which the last measurement is older than expireAfterSeconds
+        assert.ok(await client.expire(new Date(base + 3600000 + 30000)) > 0)
+        assert.deepStrictEqual((await weather.find({}, {projection: {_id: 0, v: 1}}).toArray()), [{v: 10}])
+        assert.deepStrictEqual((await db.collections()).map((collection: any): string => collection.collectionName).sort(), ['sensors', 'system.buckets.weather', 'system.views', 'weather'])
+        // A $out making a time series collection
+        await db.collection('sensors').aggregate([{$project: {_id: 0, sensor: '$_id', t: {$toDate: base}}}, {$out: {db: 'any', coll: 'copies', timeseries: {timeField: 't', metaField: 'sensor'}}}]).toArray()
+        assert.deepStrictEqual((await db.collection('copies').find({}, {projection: {_id: 0}}).sort({sensor: 1}).toArray()), [{t: new Date(base), sensor: 'a'}, {t: new Date(base), sensor: 'b'}])
+        assert.strictEqual(await weather.drop(), true)
+        assert.deepStrictEqual((await db.listCollections({}, {nameOnly: true}).toArray()).map((collection: EmbeddedDocument): string => collection.name).filter((name: string): boolean => name.includes('weather')), [])
+        await client.close()
+    })
+})

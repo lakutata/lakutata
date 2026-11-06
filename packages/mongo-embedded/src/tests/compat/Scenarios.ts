@@ -1152,6 +1152,79 @@ export const SCENARIOS: Scenario[] = [
             return result
         }
     },
+    {
+        group: 'timeseries',
+        name: 'the buckets of the time series collections, the fields of their measurements, their indexes and their events',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const stream: any = db.watch([], {showExpandedEvents: true})
+            await stream.tryNext()
+            await db.createCollection('w', {timeseries: {timeField: 'ts', metaField: 'm'}})
+            const w: any = db.collection('w')
+            await w.insertMany([{ts: new Date(BASE + 1000), m: 'a', v: 1}, {v: 2, m: 'a', ts: new Date(BASE + 2000), extra: 1}, {_id: 7, m: 'b', ts: new Date(BASE + 500), v: 3}])
+            //The fields of the measurements: the time field, the meta field, then the columns of their bucket
+            result.fields = (await w.find({}).toArray()).map((measurement: any): string[] => Object.keys(measurement))
+            result.view = await db.collection('system.views').find({}, {projection: {_id: 0}}).toArray()
+            await w.createIndex({v: 1})
+            await w.createIndex({ts: -1})
+            await w.createIndex({'m.x': 1})
+            result.indexes = await w.indexes()
+            result.bucketIndexes = await db.collection('system.buckets.w').indexes()
+            result.dropIndexByKey = await outcome(async (): Promise<unknown> => {
+                await w.dropIndex({ts: -1})
+                return (await w.indexes()).map((index: any): string => index.name)
+            })
+            const control = async (name: string): Promise<unknown> => (await db.collection(`system.buckets.${name}`).find({}, {projection: {_id: 0, data: 0, 'control.version': 0}}).toArray())
+                .map((bucket: any): unknown => ({count: bucket.control.count, meta: bucket.meta, start: bucket.control.min.ts, end: bucket.control.max.ts}))
+            await db.createCollection('many', {timeseries: {timeField: 'ts', metaField: 'm'}})
+            await db.collection('many').insertMany(Array.from({length: 1005}, (_: unknown, k: number): Record<string, unknown> => ({ts: new Date(BASE + k), m: 1, v: k})))
+            result.manyBuckets = await control('many')
+            await db.createCollection('span', {timeseries: {timeField: 'ts', metaField: 'm'}})
+            await db.collection('span').insertMany([{ts: new Date(BASE), m: 1}, {ts: new Date(BASE + 3599000), m: 1}, {ts: new Date(BASE + 3600000), m: 1}, {ts: new Date(BASE - 1000), m: 1}])
+            result.spanBuckets = await control('span')
+            await db.collection('span').insertOne({ts: new Date(BASE + 10000), m: 1})
+            result.spanAfterInsertOne = await control('span')
+            result.spanOrder = (await db.collection('span').find({}, {projection: {_id: 0}}).toArray()).map((measurement: any): unknown => measurement.ts)
+            const updates: Record<string, () => unknown> = {
+                unsetMeta: (): unknown => w.updateMany({m: 'b'}, {$unset: {m: 1}}),
+                renameMeta: (): unknown => w.updateMany({m: 'a'}, {$rename: {m: 'n'}}),
+                setMetaGone: (): unknown => w.updateMany({m: 'b'}, {$set: {m: 'bb'}}),
+                updateOne: (): unknown => w.updateOne({m: 'a'}, {$set: {m: 'c'}}),
+                replaceOne: (): unknown => w.replaceOne({m: 'a'}, {ts: new Date(BASE), m: 'a'})
+            }
+            for (const [name, update] of Object.entries(updates)) result[name] = await outcome(update)
+            result.afterUpdates = await w.find({}, {projection: {_id: 0}}).toArray()
+            const modifications: Record<string, Record<string, unknown>> = {
+                expire: {collMod: 'w', expireAfterSeconds: 5},
+                expireOff: {collMod: 'w', expireAfterSeconds: 'off'},
+                span: {collMod: 'w', timeseries: {bucketMaxSpanSeconds: 7200, bucketRoundingSeconds: 7200}},
+                granularityAfterSpan: {collMod: 'w', timeseries: {granularity: 'seconds'}},
+                validator: {collMod: 'w', validator: {a: 1}}
+            }
+            for (const [name, command] of Object.entries(modifications))
+                result[`collMod ${name}`] = await outcome(async (): Promise<unknown> => {
+                    await db.command(command)
+                    return (await db.listCollections({name: 'w'}).toArray())[0].options
+                })
+            result.createOverTimeSeries = await outcome((): unknown => db.createCollection('w'))
+            result.timeSeriesOverCollection = await outcome(async (): Promise<unknown> => {
+                await db.collection('plain').insertOne({_id: 1})
+                return db.createCollection('plain', {timeseries: {timeField: 't'}})
+            })
+            result.mergeInto = await outcome((): unknown => db.collection('plain').aggregate([{$merge: 'w'}]).toArray())
+            await w.drop()
+            const events: unknown[] = []
+            for (let k: number = 0; k < 20; k++) {
+                const event: any = await stream.tryNext()
+                if (!event) break
+                if (['create', 'drop'].includes(event.operationType) && event.ns.coll !== 'plain')
+                    events.push({operationType: event.operationType, ns: event.ns, operationDescription: event.operationDescription, nsType: event.nsType})
+            }
+            await stream.close()
+            result.events = events
+            return result
+        }
+    },
     //Commands, the options of the collections
     {
         group: 'commands',

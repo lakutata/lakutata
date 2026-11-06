@@ -9132,6 +9132,406 @@
    },
    "afterDrop": []
   },
+  "the buckets of the time series collections, the fields of their measurements, their indexes and their events": {
+   "fields": [
+    [
+     "ts",
+     "m",
+     "_id",
+     "v"
+    ],
+    [
+     "ts",
+     "m",
+     "_id",
+     "extra",
+     "v"
+    ],
+    [
+     "ts",
+     "m",
+     "_id",
+     "v"
+    ]
+   ],
+   "view": [
+    {
+     "viewOn": "system.buckets.w",
+     "pipeline": [
+      {
+       "$_internalUnpackBucket": {
+        "timeField": "ts",
+        "metaField": "m",
+        "bucketMaxSpanSeconds": 3600
+       }
+      }
+     ]
+    }
+   ],
+   "indexes": [
+    {
+     "v": 2,
+     "key": {
+      "m": 1,
+      "ts": 1
+     },
+     "name": "m_1_ts_1"
+    },
+    {
+     "v": 2,
+     "key": {
+      "v": 1
+     },
+     "name": "v_1"
+    },
+    {
+     "v": 2,
+     "key": {
+      "ts": -1
+     },
+     "name": "ts_-1"
+    },
+    {
+     "v": 2,
+     "key": {
+      "m.x": 1
+     },
+     "name": "m.x_1"
+    }
+   ],
+   "bucketIndexes": [
+    {
+     "v": 2,
+     "key": {
+      "meta": 1,
+      "control.min.ts": 1,
+      "control.max.ts": 1
+     },
+     "name": "m_1_ts_1"
+    },
+    {
+     "v": 2,
+     "key": {
+      "control.min.v": 1,
+      "control.max.v": 1
+     },
+     "name": "v_1",
+     "originalSpec": {
+      "name": "v_1",
+      "key": {
+       "v": 1
+      },
+      "v": 2
+     }
+    },
+    {
+     "v": 2,
+     "key": {
+      "control.max.ts": -1,
+      "control.min.ts": -1
+     },
+     "name": "ts_-1"
+    },
+    {
+     "v": 2,
+     "key": {
+      "meta.x": 1
+     },
+     "name": "m.x_1"
+    }
+   ],
+   "dropIndexByKey": {
+    "value": [
+     "m_1_ts_1",
+     "v_1",
+     "m.x_1"
+    ]
+   },
+   "manyBuckets": [
+    {
+     "count": 1000,
+     "meta": 1,
+     "start": {
+      "$date": "2026-01-01T00:00:00.000Z"
+     },
+     "end": {
+      "$date": "2026-01-01T00:00:00.999Z"
+     }
+    },
+    {
+     "count": 5,
+     "meta": 1,
+     "start": {
+      "$date": "2026-01-01T00:00:00.000Z"
+     },
+     "end": {
+      "$date": "2026-01-01T00:00:01.004Z"
+     }
+    }
+   ],
+   "spanBuckets": [
+    {
+     "count": 1,
+     "meta": 1,
+     "start": {
+      "$date": "2025-12-31T23:59:00.000Z"
+     },
+     "end": {
+      "$date": "2025-12-31T23:59:59.000Z"
+     }
+    },
+    {
+     "count": 2,
+     "meta": 1,
+     "start": {
+      "$date": "2026-01-01T00:00:00.000Z"
+     },
+     "end": {
+      "$date": "2026-01-01T00:59:59.000Z"
+     }
+    },
+    {
+     "count": 1,
+     "meta": 1,
+     "start": {
+      "$date": "2026-01-01T01:00:00.000Z"
+     },
+     "end": {
+      "$date": "2026-01-01T01:00:00.000Z"
+     }
+    }
+   ],
+   "spanAfterInsertOne": [
+    {
+     "count": 2,
+     "meta": 1,
+     "start": {
+      "$date": "2025-12-31T23:59:00.000Z"
+     },
+     "end": {
+      "$date": "2026-01-01T00:00:10.000Z"
+     }
+    },
+    {
+     "count": 2,
+     "meta": 1,
+     "start": {
+      "$date": "2026-01-01T00:00:00.000Z"
+     },
+     "end": {
+      "$date": "2026-01-01T00:59:59.000Z"
+     }
+    },
+    {
+     "count": 1,
+     "meta": 1,
+     "start": {
+      "$date": "2026-01-01T01:00:00.000Z"
+     },
+     "end": {
+      "$date": "2026-01-01T01:00:00.000Z"
+     }
+    }
+   ],
+   "spanOrder": [
+    {
+     "$date": "2025-12-31T23:59:59.000Z"
+    },
+    {
+     "$date": "2026-01-01T00:00:10.000Z"
+    },
+    {
+     "$date": "2026-01-01T00:00:00.000Z"
+    },
+    {
+     "$date": "2026-01-01T00:59:59.000Z"
+    },
+    {
+     "$date": "2026-01-01T01:00:00.000Z"
+    }
+   ],
+   "unsetMeta": {
+    "value": {
+     "acknowledged": true,
+     "modifiedCount": 1,
+     "upsertedId": null,
+     "upsertedCount": 0,
+     "matchedCount": 1
+    }
+   },
+   "renameMeta": {
+    "error": {
+     "code": 72
+    }
+   },
+   "setMetaGone": {
+    "value": {
+     "acknowledged": true,
+     "modifiedCount": 0,
+     "upsertedId": null,
+     "upsertedCount": 0,
+     "matchedCount": 0
+    }
+   },
+   "updateOne": {
+    "error": {
+     "code": 72
+    }
+   },
+   "replaceOne": {
+    "error": {
+     "code": 72
+    }
+   },
+   "afterUpdates": [
+    {
+     "ts": {
+      "$date": "2026-01-01T00:00:01.000Z"
+     },
+     "m": "a",
+     "v": 1
+    },
+    {
+     "ts": {
+      "$date": "2026-01-01T00:00:02.000Z"
+     },
+     "m": "a",
+     "extra": 1,
+     "v": 2
+    },
+    {
+     "ts": {
+      "$date": "2026-01-01T00:00:00.500Z"
+     },
+     "v": 3
+    }
+   ],
+   "collMod expire": {
+    "value": {
+     "expireAfterSeconds": 5,
+     "timeseries": {
+      "timeField": "ts",
+      "metaField": "m",
+      "granularity": "seconds",
+      "bucketMaxSpanSeconds": 3600
+     }
+    }
+   },
+   "collMod expireOff": {
+    "value": {
+     "timeseries": {
+      "timeField": "ts",
+      "metaField": "m",
+      "granularity": "seconds",
+      "bucketMaxSpanSeconds": 3600
+     }
+    }
+   },
+   "collMod span": {
+    "value": {
+     "timeseries": {
+      "timeField": "ts",
+      "metaField": "m",
+      "bucketRoundingSeconds": 7200,
+      "bucketMaxSpanSeconds": 7200
+     }
+    }
+   },
+   "collMod granularityAfterSpan": {
+    "error": {
+     "code": 72
+    }
+   },
+   "collMod validator": {
+    "error": {
+     "code": 72
+    }
+   },
+   "createOverTimeSeries": {
+    "error": {
+     "code": 48
+    }
+   },
+   "timeSeriesOverCollection": {
+    "error": {
+     "code": 48
+    }
+   },
+   "mergeInto": {
+    "error": {
+     "code": 166
+    }
+   },
+   "events": [
+    {
+     "operationType": "create",
+     "ns": {
+      "db": "compat",
+      "coll": "w"
+     },
+     "operationDescription": {
+      "viewOn": "system.buckets.w",
+      "pipeline": [
+       {
+        "$_internalUnpackBucket": {
+         "timeField": "ts",
+         "metaField": "m",
+         "bucketMaxSpanSeconds": 3600
+        }
+       }
+      ]
+     },
+     "nsType": "timeseries"
+    },
+    {
+     "operationType": "create",
+     "ns": {
+      "db": "compat",
+      "coll": "many"
+     },
+     "operationDescription": {
+      "viewOn": "system.buckets.many",
+      "pipeline": [
+       {
+        "$_internalUnpackBucket": {
+         "timeField": "ts",
+         "metaField": "m",
+         "bucketMaxSpanSeconds": 3600
+        }
+       }
+      ]
+     },
+     "nsType": "timeseries"
+    },
+    {
+     "operationType": "create",
+     "ns": {
+      "db": "compat",
+      "coll": "span"
+     },
+     "operationDescription": {
+      "viewOn": "system.buckets.span",
+      "pipeline": [
+       {
+        "$_internalUnpackBucket": {
+         "timeField": "ts",
+         "metaField": "m",
+         "bucketMaxSpanSeconds": 3600
+        }
+       }
+      ]
+     },
+     "nsType": "timeseries"
+    },
+    {
+     "operationType": "drop",
+     "ns": {
+      "db": "compat",
+      "coll": "w"
+     }
+    }
+   ]
+  },
   "the commands of the database and the options of its collections": {
    "ping": {
     "value": {
