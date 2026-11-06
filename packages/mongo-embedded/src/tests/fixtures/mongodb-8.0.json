@@ -9396,8 +9396,8 @@
       "$date": "2026-01-01T00:00:02.000Z"
      },
      "m": "a",
-     "extra": 1,
-     "v": 2
+     "v": 2,
+     "extra": 1
     },
     {
      "ts": {
@@ -10122,6 +10122,130 @@
     "system.views",
     "ts"
    ]
+  },
+  "the results of $out written into a time series collection there": {
+   "plain": {
+    "value": {
+     "collections": [
+      "other",
+      "plain",
+      "ts"
+     ],
+     "options": {
+      "timeseries": {
+       "timeField": "t",
+       "metaField": "m",
+       "granularity": "hours",
+       "bucketMaxSpanSeconds": 2592000
+      }
+     },
+     "measurements": [
+      {
+       "t": {
+        "$date": "2026-01-01T00:00:02.000Z"
+       },
+       "m": 2,
+       "v": "new"
+      },
+      {
+       "t": {
+        "$date": "2026-01-01T00:00:03.000Z"
+       },
+       "m": 2,
+       "v": "new2"
+      }
+     ],
+     "indexes": [
+      "m_1_t_1",
+      "v_1"
+     ]
+    }
+   },
+   "sameOptions": {
+    "value": {
+     "collections": [
+      "other",
+      "plain",
+      "ts"
+     ],
+     "options": {
+      "timeseries": {
+       "timeField": "t",
+       "metaField": "m",
+       "granularity": "hours",
+       "bucketMaxSpanSeconds": 2592000
+      }
+     },
+     "measurements": [
+      {
+       "t": {
+        "$date": "2026-01-01T00:00:02.000Z"
+       },
+       "m": 2,
+       "v": "new"
+      },
+      {
+       "t": {
+        "$date": "2026-01-01T00:00:03.000Z"
+       },
+       "m": 2,
+       "v": "new2"
+      }
+     ],
+     "indexes": [
+      "m_1_t_1",
+      "v_1"
+     ]
+    }
+   },
+   "otherOptions": {
+    "error": {
+     "code": 7406103
+    }
+   },
+   "someOptions": {
+    "error": {
+     "code": 7406103
+    }
+   },
+   "intoCollection": {
+    "error": {
+     "code": 7268700
+    }
+   },
+   "withoutTime": {
+    "error": {
+     "code": 2
+    }
+   },
+   "unchanged": {
+    "collections": [
+     "other",
+     "plain",
+     "ts"
+    ],
+    "options": {
+     "timeseries": {
+      "timeField": "t",
+      "metaField": "m",
+      "granularity": "hours",
+      "bucketMaxSpanSeconds": 2592000
+     }
+    },
+    "measurements": [
+     {
+      "t": {
+       "$date": "2026-01-01T00:00:00.000Z"
+      },
+      "m": 1,
+      "v": "old"
+     }
+    ],
+    "indexes": [
+     "m_1_t_1",
+     "v_1"
+    ]
+   }
   },
   "the capped collections and the tailable cursors in transactions": {
    "deleteManyNone": {

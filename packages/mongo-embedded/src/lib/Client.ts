@@ -2737,6 +2737,58 @@ export class EmbeddedCollection {
     }
 
     /**
+     * Writes the results of a pipeline as the measurements of a time series collection there ($out), as MongoDB 8.0
+     * writes them: into a temporary time series collection of its options and of the indexes of its buckets, whose
+     * buckets then replace its buckets in one transaction (its view kept); a measurement failing (its time missing)
+     * fails the $out (BadValue, 2), the collection unchanged.
+     *
+     * @param documents
+     * @param name the name of the time series collection
+     * @param series its options
+     */
+    private async outToTimeSeries(documents: EmbeddedDocument[], name: string, series: EmbeddedTimeSeriesOptions): Promise<void> {
+        const temporary = `${TEMPORARY_OUT}${new this.values.bson.ObjectId().toHexString()}`
+        const { bucketMaxSpanSeconds, bucketRoundingSeconds, granularity, ...fields } = series
+        const timeseries = granularity !== undefined
+            ? { ...fields, granularity: granularity }
+            : { ...fields, bucketMaxSpanSeconds: bucketMaxSpanSeconds, bucketRoundingSeconds: bucketRoundingSeconds }
+        const expiration = this.store.collection(BUCKETS + name)?.options.expireAfterSeconds
+        const indexes = await this.sibling(BUCKETS + name).indexes()
+        const dropTemporary = () => this.store.exclusive(async () => {
+            await this.store.defineView(temporary, this.dbName, undefined)
+            await this.store.drop(BUCKETS + temporary)
+        })
+        try {
+            await new EmbeddedDb(this.dbName, this.store).createCollection(temporary, {
+                timeseries: timeseries,
+                ...(expiration !== undefined ? { expireAfterSeconds: expiration } : {})
+            })
+            const buckets = this.sibling(BUCKETS + temporary)
+            for (const index of indexes) {
+                const { key, v, name: indexName, ...rest } = index
+                void v
+                await buckets.createIndex(key, { name: indexName, ...rest })
+            }
+            const measurements = this.sibling(temporary)
+            for (let start = 0; start < documents.length; start += YIELD_EVERY)
+                await measurements.insertMany(documents.slice(start, start + YIELD_EVERY))
+        } catch (error) {
+            await dropTemporary().catch(() => undefined)
+            const [writeError] = error instanceof EmbeddedBulkWriteError ? error.writeErrors : []
+            throw writeError
+                ? new EmbeddedOperationError(
+                      writeError.code,
+                      OUT_ERRORS[writeError.code] ?? `Location${writeError.code}`,
+                      `time-series insert failed: ${this.dbName}.${BUCKETS}${temporary} :: caused by :: ${writeError.errmsg}`
+                  )
+                : error
+        }
+        // Its buckets replaced, its view kept
+        await this.store.exclusive(() => this.store.rename(BUCKETS + temporary, BUCKETS + name, true))
+        await dropTemporary()
+    }
+
+    /**
      * Writes the results of a pipeline as the documents of a collection ($out), as MongoDB writes them: in a temporary
      * collection with the indexes of the collection, then renamed to its name (the collection there dropped) in one
      * transaction; a document failing (a duplicate key...) fails the $out, the collection unchanged.
@@ -2749,16 +2801,25 @@ export class EmbeddedCollection {
         checkName(name)
         if (name.startsWith('system.'))
             throw new EmbeddedOperationError(17385, 'Location17385', `Can't $out to special collection: ${name}`)
-        // A new time series collection of its results
+        const existing = this.sibling(name).timeSeries()
         if (isPlain(target) && target.timeseries !== undefined) {
-            if (this.store.collection(name) || this.store.views.has(name))
-                throw notSupported('$out with the option timeseries into a collection there')
-            await new EmbeddedDb(this.dbName, this.store).createCollection(name, { timeseries: target.timeseries })
-            const series = this.sibling(name)
-            for (let start = 0; start < documents.length; start += YIELD_EVERY)
-                await series.insertMany(documents.slice(start, start + YIELD_EVERY))
-            return
+            // A time series collection there: of the same options only (as MongoDB 8.0 compares them)
+            if (existing) {
+                const show = (value: unknown) => this.values.bson.EJSON.stringify(value)
+                if (show(timeSeriesOptionsOf(target.timeseries)) !== show(existing))
+                    throw new EmbeddedOperationError(7406103, 'Location7406103', `Time-series options inputted must match the existing time-series collection. Received: ${show(target.timeseries)}Found: timeseries: ${show(existing)}`)
+            } else if (this.store.collection(name) || this.store.views.has(name))
+                throw new EmbeddedOperationError(7268700, 'Location7268700', 'Cannot create a time-series collection from a non time-series collection or view.')
+            else {
+                // A new time series collection of its results
+                await new EmbeddedDb(this.dbName, this.store).createCollection(name, { timeseries: target.timeseries })
+                const series = this.sibling(name)
+                for (let start = 0; start < documents.length; start += YIELD_EVERY)
+                    await series.insertMany(documents.slice(start, start + YIELD_EVERY))
+                return
+            }
         }
+        if (existing) return this.outToTimeSeries(documents, name, existing)
         if (this.store.views.has(name)) throw this.sibling(name).onView()
         if (this.store.collection(name)?.capped)
             throw new EmbeddedOperationError(17152, 'Location17152', `namespace '${this.dbName}.${name}' is capped so it can't be used for $out`)

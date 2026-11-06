@@ -1447,6 +1447,46 @@ export const SCENARIOS: Scenario[] = [
         }
     },
     {
+        group: 'timeseries',
+        name: 'the results of $out written into a time series collection there',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const reset = async (): Promise<void> => {
+                for (const name of ['ts', 'plain', 'other']) await db.collection(name).drop()
+                await db.createCollection('ts', {timeseries: {timeField: 't', metaField: 'm', granularity: 'hours'}})
+                await db.collection('ts').createIndex({v: 1})
+                await db.collection('ts').insertOne({t: new Date(BASE), m: 1, v: 'old'})
+                await db.collection('plain').insertMany([{_id: 1, t: new Date(BASE + 2000), m: 2, v: 'new'}, {_id: 2, t: new Date(BASE + 3000), m: 2, v: 'new2'}])
+                await db.collection('other').insertOne({_id: 1, x: 1})
+            }
+            const state = async (): Promise<unknown> => ({
+                collections: (await db.listCollections({}, {nameOnly: true}).toArray()).map((collection: any): string => collection.name).filter((name: string): boolean => !name.startsWith('system.')).sort(),
+                options: (await db.listCollections({name: 'ts'}).toArray())[0]?.options,
+                measurements: await db.collection('ts').find({}, {projection: {_id: 0}, sort: {t: 1}}).toArray(),
+                indexes: (await db.collection('ts').indexes()).map((index: any): string => index.name).sort()
+            })
+            const outs: Record<string, unknown> = {
+                plain: 'ts',
+                sameOptions: {db: db.databaseName, coll: 'ts', timeseries: {timeField: 't', metaField: 'm', granularity: 'hours'}},
+                otherOptions: {db: db.databaseName, coll: 'ts', timeseries: {timeField: 't', granularity: 'seconds'}},
+                someOptions: {db: db.databaseName, coll: 'ts', timeseries: {timeField: 't'}},
+                intoCollection: {db: db.databaseName, coll: 'other', timeseries: {timeField: 't'}}
+            }
+            for (const [name, out] of Object.entries(outs)) {
+                await reset()
+                result[name] = await outcome(async (): Promise<unknown> => {
+                    await db.collection('plain').aggregate([{$project: {_id: 0}}, {$out: out}]).toArray()
+                    return state()
+                })
+            }
+            //A measurement without its time: the collection unchanged
+            await reset()
+            result.withoutTime = await outcome((): unknown => db.collection('other').aggregate([{$out: 'ts'}]).toArray())
+            result.unchanged = await state()
+            return result
+        }
+    },
+    {
         group: 'transactions',
         name: 'the capped collections and the tailable cursors in transactions',
         async run({client, db}: CompatContext): Promise<Record<string, unknown>> {

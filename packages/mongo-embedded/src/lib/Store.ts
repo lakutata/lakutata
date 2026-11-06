@@ -1986,12 +1986,14 @@ export class EmbeddedStore {
     }
 
     /**
-     * What a crash left halfway, finished once the oplog is read: the temporary collections of $out dropped; the time
-     * series collections whose creation or drop it stopped (made by their buckets, their index, then their view; dropped
-     * by their view first): buckets without their view dropped, a view of time series without its buckets dropped
+     * What a crash left halfway, finished once the oplog is read: the temporary collections of $out dropped (time
+     * series too); the time series collections whose creation or drop it stopped (made by their buckets, their index,
+     * then their view; dropped by their view first): buckets without their view dropped, a view of time series without
+     * its buckets dropped
      */
     protected async repair(): Promise<void> {
         for (const name of this.names()) if (TEMPORARY_OUT_NAME.test(name)) await this.drop(name)
+        for (const name of [...this.views.keys()]) if (TEMPORARY_OUT_NAME.test(name)) await this.defineView(name, '', undefined)
         for (const name of this.names())
             if (name.startsWith(BUCKETS) && !this.views.get(name.slice(BUCKETS.length))?.pipeline?.[0]?.$_internalUnpackBucket) await this.drop(name)
         for (const [name, view] of [...this.views])
