@@ -1191,6 +1191,18 @@ static int OpenOplog(MdeStore *store, const MdeOptions *options) {
   const uint8_t *blobs[] = {generation, store->database};
   const int sizes[] = {8, 16};
   rc = RunBlobs(store, "INSERT INTO meta(k, v) VALUES (x'67', ?1), (x'69', ?2) ON CONFLICT(k) DO UPDATE SET v = excluded.v", blobs, sizes, 2);
+  /* An opening keeping no events (oplogSize 0): the events of the openings before deleted with their bytes, so that
+  ** their space is freed and a token of one of them fails (ChangeStreamHistoryLost) once an oplog is kept again, the
+  ** writes of this opening not being in it */
+  if (rc == SQLITE_OK && options->oplogBytes <= 0) {
+    rc = Exec(store,
+              "BEGIN IMMEDIATE; DELETE FROM oplog;"
+              "INSERT INTO meta(k, v) VALUES (x'6f', x'0000000000000000') ON CONFLICT(k) DO UPDATE SET v = excluded.v;"
+              "COMMIT;",
+              "the oplog");
+    if (rc == SQLITE_OK) store->oplogBytes = 0;
+    else sqlite3_exec(store->db, "ROLLBACK", NULL, NULL, NULL);
+  }
   store->nextSeq = 1;
   store->oplogLimit = options->oplogBytes;
   return rc;

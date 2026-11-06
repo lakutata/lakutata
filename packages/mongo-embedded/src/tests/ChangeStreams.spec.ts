@@ -410,5 +410,21 @@ describe('The change streams', (): void => {
         memory = await EmbeddedClient.connect(at, {oplogSize: 0})
         await assert.rejects(memory.watch([], {resumeAfter: event!._id}).tryNext(), coded(286))
         await memory.close()
+        // An opening keeping no events between two keeping them: a token of before it fails (its writes are not in the
+        // oplog), its events deleted with their bytes
+        const between: string = directory()
+        let kept: EmbeddedClient = await EmbeddedClient.connect(between)
+        const before = kept.db().collection('items').watch()
+        await kept.db().collection('items').insertOne({_id: 1})
+        const token = (await before.next())!._id
+        await kept.close()
+        const none: EmbeddedClient = await EmbeddedClient.connect(between, {oplogSize: 0})
+        await none.db().collection('items').insertOne({_id: 2})
+        await none.close()
+        kept = await EmbeddedClient.connect(between)
+        await kept.db().collection('items').insertOne({_id: 3})
+        await assert.rejects(kept.watch([], {resumeAfter: token}).tryNext(), coded(286))
+        assert.deepStrictEqual((await oplog(kept.store)).length, 1)
+        await kept.close()
     })
 })
