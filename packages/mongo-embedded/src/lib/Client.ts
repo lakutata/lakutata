@@ -2490,12 +2490,16 @@ export class EmbeddedCollection {
     }
 
     /**
-     * Drops the indexes but the one of the _id; a transaction does not allow it
+     * Drops the indexes but the one of the _id: false when it fails (a transaction does not allow it), as the client of
+     * MongoDB gives it
      * @param options the session
      */
     async dropIndexes(options?: EmbeddedDocument): Promise<boolean> {
-        await this.dropIndex('*', options)
-        return true
+        // false when it fails, as the client of MongoDB gives it
+        return this.dropIndex('*', options).then(
+            () => true,
+            () => false
+        )
     }
 
     /**

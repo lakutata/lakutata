@@ -301,8 +301,9 @@ export class EmbeddedClientSession {
 
     /**
      * Runs an operation given the session: in its transaction when it started one (begun by its first operation), which
-     * a failure of the operation aborts; an operation a transaction does not allow fails with
-     * OperationNotSupportedInTransaction (263), and aborts it
+     * a failure of the operation aborts; a command a transaction does not allow fails with
+     * OperationNotSupportedInTransaction (263) before it runs, as MongoDB 8.0 refuses it: the transaction kept once it
+     * began, else not begun (its next operations fail with NoSuchTransaction)
      * @param store the storage of the operation
      * @param refused the name of the operation when a transaction does not allow it
      * @param fn the operation, given the transaction of the store it runs in (none outside a transaction)
@@ -313,7 +314,7 @@ export class EmbeddedClientSession {
         if (!this.inTransaction()) return fn(undefined)
         if (this.aborted) throw this.noSuchTransaction()
         if (refused) {
-            await this.fail()
+            if (!this.beginning) await this.fail()
             throw new EmbeddedOperationError(263, 'OperationNotSupportedInTransaction', `Cannot run '${refused}' in a multi-document transaction.`)
         }
         const stored: EmbeddedStoreTransaction = await this.begin()
@@ -334,7 +335,7 @@ export class EmbeddedClientSession {
     }
 
     /**
-     * Fails an operation of its transaction that the transaction does not allow (263), and aborts it
+     * Fails an operation of its transaction that the transaction does not allow once it runs (263), and aborts it
 
      * @param message the message of the error
      */
