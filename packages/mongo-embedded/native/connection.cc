@@ -142,10 +142,10 @@ int64_t Connection::IdOf(const std::string& name) const {
   return found == names_.end() ? 0 : found->second;
 }
 
-int64_t Connection::Create(const std::string& name, const uint8_t* uuid, std::string* message) {
+int64_t Connection::Create(const std::string& name, const uint8_t* uuid, const std::vector<uint8_t>& definitions, std::string* message) {
   int64_t id = IdOf(name);
   if (id) return id;
-  if (mde_create_collection(store_, name.c_str(), uuid, &id) != 0) {
+  if (mde_create_collection(store_, name.c_str(), uuid, definitions.data(), static_cast<int>(definitions.size()), &id) != 0) {
 
     *message = mde_message(store_);
     return 0;

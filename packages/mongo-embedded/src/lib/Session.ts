@@ -1,5 +1,5 @@
 import {AsyncLocalStorage} from 'node:async_hooks'
-import {UUID} from 'bson'
+import {Long, UUID} from 'bson'
 import {EmbeddedExpiredSessionError, EmbeddedOperationError, EmbeddedTransactionError, MongoEmbeddedError} from './Errors.js'
 import {type EmbeddedStore, type EmbeddedStoreTransaction} from './Store.js'
 import {checkWriteConcern, type EmbeddedWriteConcern, journaled, unacknowledged, writeConcernFailure} from './WriteConcern.js'
@@ -348,7 +348,11 @@ export class EmbeddedClientSession {
      */
     protected begin(): Promise<EmbeddedStoreTransaction> {
         if (!this.beginning) {
-            this.beginning = this.store.begin()
+            // Its events tell the session and the number of the transaction (lsid, txnNumber)
+            this.beginning = this.store.begin().then((stored: EmbeddedStoreTransaction): EmbeddedStoreTransaction => {
+                stored.session = {lsid: {id: this.id.id}, txnNumber: Long.fromNumber(this.transactions)}
+                return stored
+            })
             this.transaction.state = 'TRANSACTION_IN_PROGRESS'
             void this.beginning.then((stored: EmbeddedStoreTransaction): void => {
                 this.stored = stored

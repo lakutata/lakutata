@@ -61,9 +61,11 @@ int QueueEvents(MdeStore* store, const Events& events) {
   return mde_queue_events(store, pointers.data(), sizes.data(), static_cast<int>(events.size()));
 }
 
-// The creation of a collection a call may make: its UUID (16 bytes; empty for a random one) and its events
+// The creation of a collection a call may make: its UUID (16 bytes; empty for a random one), its definitions (its
+// options; empty: none) and its events
 struct Creation {
   std::vector<uint8_t> uuid;
+  std::vector<uint8_t> definitions;
   Events events;
 };
 
@@ -73,6 +75,7 @@ std::shared_ptr<Creation> CreationOf(const Napi::CallbackInfo& info, size_t at) 
   if (info.Length() <= at || !info[at].IsObject()) return creation;
   Napi::Object given = info[at].As<Napi::Object>();
   if (given.Get("uuid").IsBuffer()) creation->uuid = BytesOf(given.Get("uuid"));
+  if (given.Get("definitions").IsBuffer()) creation->definitions = BytesOf(given.Get("definitions"));
   if (given.Get("events").IsArray()) {
     Napi::Array list = given.Get("events").As<Napi::Array>();
     for (uint32_t i = 0; i < list.Length(); i++) creation->events.push_back(BytesOf(list.Get(i)));
@@ -89,7 +92,7 @@ int64_t Created(Connection* connection, const std::string& name, const Creation&
     *message = mde_message(connection->store());
     return 0;
   }
-  const int64_t created = connection->Create(name, creation.uuid.size() == 16 ? creation.uuid.data() : nullptr, message);
+  const int64_t created = connection->Create(name, creation.uuid.size() == 16 ? creation.uuid.data() : nullptr, creation.definitions, message);
   if (!created) mde_drop_events(connection->store());
   return created;
 }

@@ -118,8 +118,10 @@ int mde_refresh(MdeStore *reader, MdeStore *writer);
 ** UUID][u32 size of the definitions of its indexes][their BSON][u32 number of the tables of its indexes][their i64 ids]
 ** (little endian) */
 int mde_collections(MdeStore *store, MdeBuffer *out);
-/* A collection created, of a UUID (16 bytes; NULL: a random one) */
-int mde_create_collection(MdeStore *store, const char *name, const uint8_t *uuid, int64_t *id);
+/* A collection created, of a UUID (16 bytes; NULL: a random one), its definitions written with it when they are
+** given (size 0: none) */
+int mde_create_collection(MdeStore *store, const char *name, const uint8_t *uuid, const uint8_t *definitions,
+                          int definitionsSize, int64_t *id);
 int mde_drop_collection(MdeStore *store, int64_t id);
 /* A collection renamed (its tables and its indexes kept), the collection of the new name dropped (dropped, its id; 0:
 ** none) in the same transaction */

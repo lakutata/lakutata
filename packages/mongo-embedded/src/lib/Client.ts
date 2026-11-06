@@ -34,6 +34,7 @@ import {
     wildcardHolds,
     wildcardOf
 } from './Planner.js'
+import { describeModifier, describePipeline } from './Events.js'
 import { predicatesOf } from './Prefilter.js'
 import { EmbeddedClientSession, type EmbeddedSessionOptions } from './Session.js'
 import {
@@ -351,6 +352,33 @@ function noCounts(): EmbeddedBulkWriteCounts {
     }
 }
 
+/**
+ * The options of createCollection kept by the collection (listed by listCollections), checked as MongoDB checks them:
+ * changeStreamPreAndPostImages when it is enabled
+ *
+ * @param options
+ */
+function collectionOptionsOf(options?: EmbeddedDocument): EmbeddedDocument {
+    const kept: EmbeddedDocument = {}
+    const images = options?.changeStreamPreAndPostImages
+    if (images !== undefined) {
+        if (!isPlain(images))
+            throw new EmbeddedOperationError(
+                14,
+                'TypeMismatch',
+                `BSON field 'create.changeStreamPreAndPostImages' is the wrong type '${typeof images}', expected type 'object'`
+            )
+        if (typeof images.enabled !== 'boolean')
+            throw new EmbeddedOperationError(
+                40414,
+                'IDLFailedToParse',
+                "BSON field 'create.changeStreamPreAndPostImages.enabled' is missing but a required field"
+            )
+        if (images.enabled) kept.changeStreamPreAndPostImages = { enabled: true }
+    }
+    return kept
+}
+
 function notSupported(method: string): MongoEmbeddedError {
     return new MongoEmbeddedError(`${method} is not supported by mongo-embedded`)
 }
@@ -395,7 +423,6 @@ const COLLECTION_OPTIONS = [
     'validationLevel',
     'validationAction',
     'clusteredIndex',
-    'changeStreamPreAndPostImages',
     'collation',
     'storageEngine',
     'indexOptionDefaults',
@@ -1921,10 +1948,17 @@ export class EmbeddedCollection {
                             'ImmutableField',
                             '$merge failed to update the matching document, did you attempt to modify the _id field?'
                         )
+                    const previous = pending ? pending.previous : matched
+                    // Its event: as MongoDB writes a merge (an update of $set of the fields of the result), a
+                    // replacement or an update by a pipeline
+                    const described: Pick<EmbeddedChange, 'kind' | 'description'> = !previous || whenMatched === 'replace'
+                        ? { kind: 'replace' }
+                        : this.describedUpdate(previous, next, Array.isArray(whenMatched) ? whenMatched : { $set: this.values.copy(result) }, undefined)
                     changes.set(at, {
                         key: this.values.idKey(matched._id),
-                        previous: pending ? pending.previous : matched,
-                        next: next
+                        previous: previous,
+                        next: next,
+                        ...described
                     })
                 }
                 await this.writeAll(into, [...changes.values()])
@@ -2708,7 +2742,8 @@ export class EmbeddedCollection {
                             [current],
                             modifier,
                             options?.arrayFilters,
-                            collator
+                            collator,
+                            query
                         )[0],
                     (filter) =>
                         this.upsertedOf(filter, modifier, setOnInsert, options?.arrayFilters)
@@ -3489,7 +3524,7 @@ export class EmbeddedCollection {
                     updated.add(this.values.idKey(current._id).toString('latin1'))
                 matched += currents.length
                 return this.writeInOrder(currents, (documents) =>
-                    this.updateChanges(documents, modifier, options?.arrayFilters, collator)
+                    this.updateChanges(documents, modifier, options?.arrayFilters, collator, filter)
                 )
             }, this.transaction)
             modified += written
@@ -3521,7 +3556,8 @@ export class EmbeddedCollection {
         documents: EmbeddedDocument[],
         modifier: EmbeddedDocument | EmbeddedDocument[],
         arrayFilters: EmbeddedDocument[] | undefined,
-        collator?: EmbeddedCollator
+        collator?: EmbeddedCollator,
+        filter?: EmbeddedDocument
     ): EmbeddedChange[] {
         let nexts: EmbeddedDocument[]
         if (Array.isArray(modifier))
@@ -3530,9 +3566,13 @@ export class EmbeddedCollection {
             )
         else {
             nexts = documents.map((document) => this.values.copy(document))
+            // The filter of the update resolves its positional operator ($): mingo finds the item it matched
+            const positional = Object.values(modifier).some(
+                (fields) => isPlain(fields) && Object.keys(fields).some((path) => /(^|\.)\$(\.|$)/.test(path))
+            )
             this.byMingo(() =>
                 withCollation(collator, () =>
-                    this.values.mingo.updateMany(nexts, {}, modifier, {
+                    this.values.mingo.updateMany(nexts, positional && filter ? filter : {}, modifier, {
                         arrayFilters: arrayFilters
                     })
                 )
@@ -3550,10 +3590,35 @@ export class EmbeddedCollection {
                     key: key,
                     previous: current,
                     next: next,
-                    data: data
+                    data: data,
+                    ...this.describedUpdate(current, next, modifier, arrayFilters)
                 })
         })
         return changes
+    }
+
+    /**
+     * The kind and the description of an update of a document, as its event of a change stream tells them: an update
+     * of operators logged as MongoDB logs them; an update by a pipeline diffed, a replacement when its diff is not
+     * smaller than the document.
+     *
+     * @param current
+     * @param next
+     * @param modifier
+     * @param arrayFilters
+     */
+    private describedUpdate(
+        current: EmbeddedDocument,
+        next: EmbeddedDocument,
+        modifier: EmbeddedDocument | EmbeddedDocument[],
+        arrayFilters: EmbeddedDocument[] | undefined
+    ): Pick<EmbeddedChange, 'kind' | 'description'> {
+        const description = Array.isArray(modifier)
+            ? describePipeline(this.values, current, next)
+            : describeModifier(this.values, current, next, modifier, arrayFilters)
+        return description === 'replace' || description === undefined
+            ? { kind: 'replace' }
+            : { kind: 'update', description: description }
     }
 
     /**
@@ -3821,7 +3886,7 @@ export class EmbeddedCollection {
         const data = this.values.serialize(next)
         return data.equals(this.values.serialize(current))
             ? undefined
-            : { key: key, previous: current, next: next, data: data }
+            : { key: key, previous: current, next: next, data: data, kind: 'replace' }
     }
 
     /**
@@ -4017,12 +4082,24 @@ export class EmbeddedDb {
         for (const option of COLLECTION_OPTIONS)
             if (options?.[option] !== undefined)
                 throw notSupported(`The option ${option} of createCollection`)
+        const kept = collectionOptionsOf(options)
         return this.inSession(options, undefined, (transaction) =>
             writeByConcern(
                 this.store,
                 transaction ? undefined : writeConcernOf(options, this.writeConcern),
                 async () => {
-                    await this.store.exclusive(() => this.store.create(name), transaction)
+                    await this.store.exclusive(async () => {
+                        // There: the same options (as MongoDB 7.0 and later), else NamespaceExists
+                        const existing = this.store.collection(name, transaction)
+                        if (!existing) return this.store.create(name, kept)
+                        if (this.store.values.bson.EJSON.stringify(existing.options) !== this.store.values.bson.EJSON.stringify(kept))
+                            throw new EmbeddedOperationError(
+                                48,
+                                'NamespaceExists',
+                                `namespace ${this.databaseName}.${name} already exists, but with different options: ${this.store.values.bson.EJSON.stringify(existing.options)}`
+                            )
+                        return false
+                    }, transaction)
                     return this.collection(name)
                 },
                 () => this.collection(name)

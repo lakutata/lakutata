@@ -10,6 +10,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "store.h"
 
@@ -75,8 +76,9 @@ class Connection {
 
   // The id of a collection, or 0; a collection created when it is missing
   int64_t IdOf(const std::string& name) const;
-  // A collection created, of a UUID (16 bytes): its id, 0 on a failure (its message given)
-  int64_t Create(const std::string& name, const uint8_t* uuid, std::string* message);
+  // A collection created, of a UUID (16 bytes) and of its definitions (none: empty): its id, 0 on a failure (its
+  // message given)
+  int64_t Create(const std::string& name, const uint8_t* uuid, const std::vector<uint8_t>& definitions, std::string* message);
 
   bool Drop(const std::string& name, std::string* message);
   // A collection renamed, the one of the new name dropped when dropTarget: 0, or the code of MongoDB of the failure

@@ -1507,7 +1507,25 @@ static int RunBlobs(MdeStore *store, const char *sql, const uint8_t *const *blob
   return rc == SQLITE_DONE ? SQLITE_OK : FailSql(store, rc, "the catalog");
 }
 
-int mde_create_collection(MdeStore *store, const char *name, const uint8_t *given, int64_t *id) {
+/* The copy of the definitions of the indexes of a collection replaced, once they are written */
+static void KeepDefinitions(Collection *collection, uint8_t *copy, int size) {
+  free(collection->indexes);
+  collection->indexes = copy;
+  collection->indexesSize = size;
+}
+
+/* A copy of definitions (NULL for none), *failed when it could not be made */
+static uint8_t *CopyOf(const uint8_t *data, int size, int *failed) {
+  *failed = 0;
+  if (size <= 0) return NULL;
+  uint8_t *copy = malloc((size_t)size);
+  if (!copy) *failed = 1;
+  else memcpy(copy, data, size);
+  return copy;
+}
+
+int mde_create_collection(MdeStore *store, const char *name, const uint8_t *given, const uint8_t *definitions,
+                          int definitionsSize, int64_t *id) {
   int length = (int)strlen(name);
   /* A UUID of its own when none is given */
   uint8_t uuid[16];
@@ -1532,7 +1550,7 @@ int mde_create_collection(MdeStore *store, const char *name, const uint8_t *give
   snprintf(sql, sizeof(sql), "CREATE TABLE c%lld(k BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID", (long long)next);
   rc = Exec(store, sql, "the table of a collection");
   uint8_t *nameKey = malloc((size_t)length + 1);
-  uint8_t idValue[8], countKey[9], zero[8] = {0}, nextValue[8], uuidKey[9];
+  uint8_t idValue[8], countKey[9], zero[8] = {0}, nextValue[8], uuidKey[9], definitionsKey[9];
   if (!nameKey) rc = Fail(store, SQLITE_NOMEM, "out of memory");
   if (rc == SQLITE_OK) {
     nameKey[0] = 'c';
@@ -1547,12 +1565,27 @@ int mde_create_collection(MdeStore *store, const char *name, const uint8_t *give
     const int sizes[] = {length + 1, 8, 9, 8, 8, 9, 16};
     rc = RunBlobs(store, "INSERT INTO meta(k, v) VALUES (?1, ?2), (?3, ?4), (x'6e', ?5), (?6, ?7) ON CONFLICT(k) DO UPDATE SET v = excluded.v", blobs, sizes, 7);
   }
+  /* Its definitions (its options), when given */
+  if (rc == SQLITE_OK && definitionsSize > 0) {
+    definitionsKey[0] = 'x';
+    PutBigEndian(definitionsKey + 1, next);
+    const uint8_t *blobs[] = {definitionsKey, definitions};
+    const int sizes[] = {9, definitionsSize};
+    rc = RunBlobs(store, "INSERT INTO meta(k, v) VALUES (?1, ?2) ON CONFLICT(k) DO UPDATE SET v = excluded.v", blobs, sizes, 2);
+  }
   free(nameKey);
   rc = EndSql(store, rc);
   if (rc != SQLITE_OK) return rc;
   rc = AddCollection(store, next, name, length);
   if (rc != SQLITE_OK) return Fail(store, rc, "out of memory");
-  memcpy(store->collections[store->collectionCount - 1].uuid, uuid, 16);
+  Collection *created = &store->collections[store->collectionCount - 1];
+  memcpy(created->uuid, uuid, 16);
+  if (definitionsSize > 0) {
+    int failed;
+    uint8_t *copy = CopyOf(definitions, definitionsSize, &failed);
+    if (failed) return Fail(store, SQLITE_NOMEM, "out of memory");
+    KeepDefinitions(created, copy, definitionsSize);
+  }
   *id = next;
   return LoadRoots(store);
 }
@@ -1676,23 +1709,6 @@ static int PutDefinitions(MdeStore *store, int64_t id, const uint8_t *data, int 
   }
   sqlite3BtreeCloseCursor(store->metaCursor);
   return rc;
-}
-
-/* The copy of the definitions of the indexes of a collection replaced, once they are written */
-static void KeepDefinitions(Collection *collection, uint8_t *copy, int size) {
-  free(collection->indexes);
-  collection->indexes = copy;
-  collection->indexesSize = size;
-}
-
-/* A copy of definitions (NULL for none), *failed when it could not be made */
-static uint8_t *CopyOf(const uint8_t *data, int size, int *failed) {
-  *failed = 0;
-  if (size <= 0) return NULL;
-  uint8_t *copy = malloc((size_t)size);
-  if (!copy) *failed = 1;
-  else memcpy(copy, data, size);
-  return copy;
 }
 
 int mde_set_indexes(MdeStore *store, int64_t id, const uint8_t *data, int size) {
