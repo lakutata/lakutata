@@ -59,21 +59,65 @@ None of them lets a crash or a power loss corrupt the database. On macOS and iOS
 that the order of the writes holds through the cache of the drive; `always` uses it for each write too. A directory is opened by one connection at a time: it is
 locked by its file `LOCK`.
 
+A write concern with `j: true` (or `fsync: true`) syncs the WAL before the write resolves, regardless of `sync`.
+
+### Transactions
+
+```typescript
+const accounts = client.db().collection('accounts')
+const session = client.startSession()
+await session.withTransaction(async () => {
+    await accounts.updateOne({_id: 'a'}, {$inc: {balance: -10}}, {session})
+    await accounts.updateOne({_id: 'b'}, {$inc: {balance: 10}}, {session})
+})
+await session.endSession()
+```
+
+The database behaves like a MongoDB replica set with one member. A transaction sees its own writes and a snapshot of
+the rest, and commits them at once. One transaction runs at a time: the writes outside it, and the next transaction,
+wait until it ends. A transaction is aborted after `transactionLifetimeLimitSeconds` (60 by default), as MongoDB
+aborts it. The ORM runs `EntityManager.transaction` and the transactions of its query runners this way.
+
+### Change streams
+
+```typescript
+const stream = items.watch([{$match: {operationType: 'insert'}}])
+for await (const change of stream) console.log(change.fullDocument)
+```
+
+`watch` on a collection, on the database or on the client gives the events of the writes in MongoDB's format. They are
+kept in an oplog in the database file, 64 MiB by default (`oplogSize`); with `oplogSize: 0` only the last 16 MiB of
+them stay in memory. A stream resumes from its resume token, also after the database is reopened when the oplog is on
+disk. `changeStreamPreAndPostImages` on a collection keeps the documents before and after each change for
+`fullDocumentBeforeChange` and `fullDocument`.
+
 ## API
 
 - `EmbeddedClient.connect(directory?, options?)`: opens a database (`":memory:"` by default). Its options: `sync`,
-  `syncInterval`, `cacheSize` (the page cache, 16 MiB by default) and `mmapSize` (the bytes read through a memory map,
-  0 by default). While it is open, the client deletes documents expired by TTL indexes every 60 seconds;
-  `client.expire()` does it at once.
+  `syncInterval`, `cacheSize` (the page cache, 16 MiB by default), `mmapSize` (the bytes read through a memory map,
+  0 by default), `oplogSize`, `writeConcern` (the default of the writes) and `transactionLifetimeLimitSeconds`. While
+  it is open, the client deletes documents expired by TTL indexes every 60 seconds; `client.expire()` does it at once.
+- `client.startSession()` and `client.withSession()` for sessions and transactions; `client.watch()` for a change stream
+  of the whole database.
 - `client.db()`: the database, with `collection(name)`, `createCollection`, `listCollections`, `collections`,
-  `renameCollection`, `dropCollection` and `dropDatabase`.
+  `renameCollection`, `dropCollection`, `dropDatabase`, `watch` and `command` (`ping`, and `collMod` to change the
+  options of a collection or of one of its indexes).
+- The kinds of collections `createCollection` makes in MongoDB 8.0, clustered collections excepted:
+  - with a default `collation`, used by their queries and their indexes, the `_id` included;
+  - capped (`capped`, `size`, `max`), read in the order of their insertions, with tailable cursors (`tailable`,
+    `awaitData`);
+  - validated (`validator` with query operators or `$jsonSchema`, `validationLevel`, `validationAction`): a document
+    breaking the rules fails with `EmbeddedValidationError`, its `errInfo` explaining why as MongoDB explains it;
+  - views (`viewOn`, `pipeline`), read through their pipelines;
+  - time series (`timeseries`, `expireAfterSeconds`), their measurements kept in buckets in `system.buckets.<name>`, in
+    the layout of MongoDB's uncompressed buckets. A query reads every bucket of the collection.
 - `client.db().collection(name)`: a collection, with `find`, `findOne`, `countDocuments`, `estimatedDocumentCount`,
   `distinct`, `aggregate` (`$out` and `$merge` too), `insertOne`, `insertMany`, `updateOne`, `updateMany` (by
   operators or by a pipeline), `replaceOne`, `deleteOne`, `deleteMany`, `findOneAndUpdate`, `findOneAndReplace`,
   `findOneAndDelete`, `bulkWrite`, `initializeOrderedBulkOp`, `initializeUnorderedBulkOp`, `rename`, `drop`, and its
   indexes (`createIndex`, `createIndexes`, `indexes`, `dropIndex`, `dropIndexes`).
-- Cursors: `toArray`, `next`, `hasNext`, `forEach`, `map`, `rewind`, `stream` and `for await`. `maxTimeMS` limits the
-  time their reads take. A cursor that has not been read to the end times out after 10 minutes idle, as it would on a
+- Cursors: `toArray`, `next`, `tryNext`, `hasNext`, `forEach`, `map`, `rewind`, `stream`, `closed` and `for await`.
+  `maxTimeMS` limits the time their reads take. A cursor that has not been read to the end times out after 10 minutes idle, as it would on a
   MongoDB server, unless `noCursorTimeout` is set.
 - Indexes: ascending, descending and compound, unique, sparse, partial (`partialFilterExpression`), hashed, wildcard
   and compound wildcard (`$**`, `wildcardProjection`), hidden, with a collation, and TTL (`expireAfterSeconds`). The
@@ -82,7 +126,10 @@ locked by its file `LOCK`.
 - Collations: the `collation` option on queries, sorts, writes, aggregations and indexes compares strings by a
   locale's rules (`{locale: 'en', strength: 2}` ignores case). The package ships its own ICU (77.1), so results are
   identical on every platform.
-- `EmbeddedDuplicateKeyError` (code 11000), `EmbeddedBulkWriteError` (an `insertMany` or a `bulkWrite` in which some
-  writes failed, with the result of the others) and `EmbeddedOperationError` (the other errors that MongoDB reports
-  with a code, such as `IndexNotFound`), all of them `MongoEmbeddedError`.
+- Errors, all of them `MongoEmbeddedError`: `EmbeddedDuplicateKeyError` (code 11000), `EmbeddedValidationError` (code
+  121), `EmbeddedBulkWriteError` (an `insertMany` or a `bulkWrite` in which some writes failed, with the result of the
+  others) and `EmbeddedOperationError` (the other errors that MongoDB reports with a code, such as `IndexNotFound`).
+- `EmbeddedWriteConcernError` reports a write concern that a single member cannot satisfy, such as `w: 2`, once the
+  write is made. `EmbeddedTransactionError` reports a call that the state of a transaction does not allow, such as the
+  commit of a transaction never started; `EmbeddedExpiredSessionError` reports the use of a session that has ended.
 - `ObjectId`: the class of the ids the client adds.
