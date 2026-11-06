@@ -12,14 +12,14 @@ const FIXTURES: { version: string, outcomes: Record<string, unknown> } = JSON.pa
 /**
  * The groups of the scenarios done (the steps of the phase): the others are still to do
  */
-const DONE: Set<string> = new Set<string>(['transactions', 'writeConcern', 'changeStreams', 'commands'])
+const DONE: Set<string> = new Set<string>(['transactions', 'writeConcern', 'changeStreams', 'commands', 'capped'])
 
 /**
  * The steps of the scenarios of a group done that still wait for a step not done: left out of the comparison
  */
 const WAITING: Record<string, string[]> = {
-    //Validation (step 7), capped collections (step 6), views (step 8)
-    'the commands of the database and the options of its collections': ['collMod validator', 'collatedListed', 'createSameAgain', 'createDifferentAgain', 'create viewOnAlone']
+    //Validation (step 7), views (step 8)
+    'the commands of the database and the options of its collections': ['collMod validator', 'collatedListed', 'create viewOnAlone']
 }
 
 describe(`The embedded MongoDB compared with MongoDB ${FIXTURES.version}`, (): void => {

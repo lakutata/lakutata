@@ -268,7 +268,7 @@ describe('The writes', (): void => {
         //There already, with the same options: given
         await db.createCollection('b')
         await db.collection('a').insertOne({_id: 1})
-        await assert.rejects(db.createCollection('c', {capped: true, size: 1024}), (error: unknown): boolean => error instanceof MongoEmbeddedError && /capped/.test(error.message))
+        await assert.rejects(db.createCollection('c', {encryptedFields: {fields: []}}), (error: unknown): boolean => error instanceof MongoEmbeddedError && /encryptedFields/.test(error.message))
         assert.throws((): unknown => db.collection(''), /cannot be empty/)
         //Each collection with a UUID of its own, as MongoDB lists it
         const listed: any[] = await db.listCollections().toArray()

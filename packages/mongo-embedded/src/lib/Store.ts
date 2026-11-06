@@ -107,13 +107,60 @@ export interface EmbeddedChange {
 
 /**
  * The definitions of the indexes of a collection as the catalog keeps them: the indexes as MongoDB lists them, the
- * table of each one, the ones of which a document has several keys
+ * table of each one, the ones of which a document has several keys; its options; the tables of its natural order (a
+ * capped collection)
  */
 interface EmbeddedDefinitions {
     indexes: EmbeddedIndex[]
     tables?: { [name: string]: number }
     multikey?: string[]
     options?: EmbeddedDocument
+    natural?: EmbeddedNaturalTables
+}
+
+/**
+ * The tables of the natural order of a capped collection (the order of the insertions of its documents): order, the
+ * keys of the _id by the sequences of their insertions (8 bytes, big endian); ids, the sequences by the keys of the _id
+ */
+export interface EmbeddedNaturalTables {
+    order: number
+    ids: number
+}
+
+/**
+ * The key of the sequence of an insertion in a capped collection: 8 bytes, big endian
+ * @param sequence
+ */
+function insertionKey(sequence: number): Buffer {
+    const key: Buffer = Buffer.allocUnsafe(8)
+    key.writeBigUInt64BE(BigInt(sequence))
+    return key
+}
+
+/**
+ * The changes of a write of a capped collection: the ones asked, each insertion followed by the deletions of the oldest
+ * documents beyond the size or the number of documents of the collection (as MongoDB 8.0 deletes them, each one with
+ * its event); the index of each one among the changes asked (-1 for those deletions), the entries of the natural order
+ * of each one ([table, remove, key, value]), the sequence of the next insertion and the bytes of the documents after
+ * the write
+ */
+interface CappedWrite {
+    changes: EmbeddedChange[]
+    origin: number[]
+    entries: [number, boolean, Buffer, Buffer][][]
+    insertion: number
+    bytes: number
+}
+
+/**
+ * A document of a capped collection in its natural order: the key of its sequence, the key of its _id, the document,
+ * its bytes (as it is stored)
+ */
+interface CappedDocument {
+    sequence: Buffer
+    key: Buffer
+    document: EmbeddedDocument
+    size: number
 }
 
 /**
@@ -148,6 +195,18 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
     options: EmbeddedDocument = {}
 
     /**
+     * The tables of its natural order, when it is capped (made at its first write)
+     */
+    natural?: EmbeddedNaturalTables
+
+    /**
+     * When it is capped: the sequence of its next insertion, and the bytes of its documents (their BSON), read at its
+     * first write after its opening
+     */
+    insertion?: number
+    cappedBytes?: number
+
+    /**
      * The index of its _id (of its collation, made once)
      */
     protected identity?: EmbeddedIndex
@@ -171,6 +230,7 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
     definitions(): EmbeddedDefinitions {
         const definitions: EmbeddedDefinitions = {indexes: this.indexes, tables: Object.fromEntries(this.tables), multikey: [...this.multikey]}
         if (Object.keys(this.options).length) definitions.options = this.options
+        if (this.natural) definitions.natural = this.natural
         return definitions
     }
 
@@ -178,7 +238,14 @@ export class EmbeddedCollectionState implements EmbeddedPlannedCollection {
      * Whether its definitions are written (its indexes, its options): none otherwise
      */
     defined(): boolean {
-        return this.indexes.length > 0 || Object.keys(this.options).length > 0
+        return this.indexes.length > 0 || Object.keys(this.options).length > 0 || !!this.natural
+    }
+
+    /**
+     * Whether it is capped (createCollection)
+     */
+    get capped(): boolean {
+        return this.options.capped === true
     }
 
     /**
@@ -560,17 +627,26 @@ export class EmbeddedStore {
     async write(name: string, changes: EmbeddedChange[], create: boolean = false): Promise<void> {
         if (!changes.length) return
         if (this.open && !this.transacting) throw new MongoEmbeddedError('A write outside the transaction open, which it does not wait for')
+        const collection: EmbeddedCollectionState | undefined = this.collections.get(name)
+        // A capped collection: not written in a transaction (as MongoDB 8.0), its oldest documents deleted beyond its size
+        if (collection?.capped && this.open)
+            throw new EmbeddedOperationError(263, 'OperationNotSupportedInTransaction', `Collection '${name}' is a capped collection. Writes in transactions are not allowed on capped collections.`)
+        const capped: CappedWrite | undefined = collection?.capped ? await this.cappedWrite(collection, changes) : undefined
+        if (capped) changes = capped.changes
+        // The index of a change among the changes asked
+        const asked = (position: number): number => capped ? capped.origin[position] : position
         // The BSON of a document written made once: its event holds it too
         const natives: NativeChange[] = changes.map((change: EmbeddedChange): NativeChange => change.next
             ? [change.previous ? ChangeKind.Replace : ChangeKind.Insert, change.key, change.data ??= this.values.serialize(change.next)]
             : [ChangeKind.Delete, change.key])
-        const collection: EmbeddedCollectionState | undefined = this.collections.get(name)
         const entries: NativeEntry[] = []
         const multikey: Set<string> = new Set<string>()
         if (collection) changes.forEach((change: EmbeddedChange, position: number): void => {
+            // The entries of the natural order of a capped collection
+            for (const [table, remove, key, value] of capped?.entries[position] ?? []) entries.push([position, table, 1, remove, key, value])
             for (const index of collection.indexes) {
                 const before: Buffer[] = change.previous ? collection.keysOf(index, change.previous) : []
-                const after: Buffer[] = change.next ? this.keysAt(collection, index, change.next, position) : []
+                const after: Buffer[] = change.next ? this.keysAt(collection, index, change.next, asked(position)) : []
                 if (after.length > 1 && !collection.multikey.has(index.name)) multikey.add(index.name)
                 const kept: Set<string> = new Set<string>(before.map((key: Buffer): string => key.toString('latin1')))
                 const now: Set<string> = new Set<string>(after.map((key: Buffer): string => key.toString('latin1')))
@@ -608,14 +684,205 @@ export class EmbeddedStore {
                     index
                         ? new EmbeddedDuplicateKeyError(name, index.name, collection!.keyValue(index, failed.next))
                         : new EmbeddedDuplicateKeyError(name, '_id_', {_id: failed.next._id}),
-                    {changeIndex: (error as { index: number }).index}
+                    {changeIndex: asked((error as { index: number }).index)}
                 )
             }
             throw error
         }
+        if (capped) {
+            collection!.insertion = capped.insertion
+            collection!.cappedBytes = capped.bytes
+        }
         if (collection) for (const index of multikey) collection.multikey.add(index)
         if (created && !this.collections.has(name)) this.collections.set(name, created)
         this.written([...creationEvents, ...events])
+    }
+
+    /**
+     * The changes of a write of a capped collection (CappedWrite): each insertion followed by the deletions of the
+     * oldest documents beyond the size (the bytes of their BSON) or the number of documents of the collection, the one
+     * inserted kept, as MongoDB 8.0 deletes them; the entries of its natural order (the sequences of the insertions)
+     * @param collection
+     * @param changes
+     */
+    protected async cappedWrite(collection: EmbeddedCollectionState, changes: EmbeddedChange[]): Promise<CappedWrite> {
+        const name: string = collection.name
+        const natural: EmbeddedNaturalTables = await this.naturalOf(collection)
+        if (collection.insertion === undefined) {
+            let next: number = 0
+            for await (const {keys} of this.entries(name, natural.order, {reverse: true, first: 1})) {
+                next = Number(keys[0].readBigUInt64BE(0)) + 1
+                break
+            }
+            collection.insertion = next
+        }
+        collection.cappedBytes ??= await this.storedBytes(name)
+        const size: number = Number(collection.options.size)
+        const max: number = collection.options.max === undefined ? Infinity : Number(collection.options.max)
+        let count: number = await this.count(name)
+        let bytes: number = collection.cappedBytes
+        let insertion: number = collection.insertion
+        // The bytes of the documents there the changes replace or delete (as they are stored), the sequences of the ones
+        // they delete
+        const stored: Map<string, number> = new Map<string, number>()
+        const sequences: Map<string, Buffer> = new Map<string, Buffer>()
+        const touched: Buffer[] = changes.filter((change: EmbeddedChange): boolean => !!change.previous).map((change: EmbeddedChange): Buffer => change.key)
+        if (touched.length) {
+            const {bytes: read, offsets} = await addon.get(this.database, name, touched, false)
+            touched.forEach((key: Buffer, position: number): void => {
+                const offset: number = offsets.readInt32LE(position * 4)
+                if (offset >= 0) stored.set(key.toString('latin1'), read.readInt32LE(offset))
+            })
+            const deleted: NativeRange[] = changes
+                .filter((change: EmbeddedChange): boolean => !!change.previous && !change.next)
+                .map((change: EmbeddedChange): NativeRange => ({lower: change.key, lowerInclusive: true, upper: change.key, upperInclusive: true}))
+            if (deleted.length)
+                for await (const {keys, ids} of this.entries(name, natural.ids, {ranges: deleted}))
+                    keys.forEach((key: Buffer, position: number): unknown => sequences.set(key.toString('latin1'), ids[position]))
+        }
+        // The oldest documents, in the order of their insertions: the ones there (read as the insertions need them), then
+        // the ones the write inserts
+        const inserted: CappedDocument[] = []
+        const gone: Set<string> = new Set<string>()
+        const replaced: Map<string, { document: EmbeddedDocument, size: number }> = new Map<string, { document: EmbeddedDocument, size: number }>()
+        const there: AsyncGenerator<CappedDocument> = this.oldestOf(name, natural)
+        let read: boolean = false
+        const oldest = async (): Promise<CappedDocument | undefined> => {
+            while (!read) {
+                const next: IteratorResult<CappedDocument> = await there.next()
+                if (next.done) {
+                    read = true
+                    break
+                }
+                const key: string = next.value.key.toString('latin1')
+                if (gone.has(key)) continue
+                gone.add(key)
+                const now: { document: EmbeddedDocument, size: number } | undefined = replaced.get(key)
+                return now ? {...next.value, document: now.document, size: now.size} : next.value
+            }
+            return inserted.shift()
+        }
+        const natives = (remove: boolean, sequence: Buffer, key: Buffer): [number, boolean, Buffer, Buffer][] => [[natural.order, remove, sequence, key], [natural.ids, remove, key, sequence]]
+        const write: CappedWrite = {changes: [], origin: [], entries: [], insertion: 0, bytes: 0}
+        try {
+            for (const [position, change] of changes.entries()) {
+                const key: string = change.key.toString('latin1')
+                const pending: number = inserted.findIndex((document: CappedDocument): boolean => document.key.equals(change.key))
+                if (!change.previous) {
+                    const data: Buffer = change.data ??= this.values.serialize(change.next!)
+                    const sequence: Buffer = insertionKey(insertion++)
+                    write.changes.push(change)
+                    write.origin.push(position)
+                    write.entries.push(natives(false, sequence, change.key))
+                    inserted.push({sequence: sequence, key: change.key, document: change.next!, size: data.length})
+                    count++
+                    bytes += data.length
+                    while ((count > max || bytes > size) && count > 1) {
+                        const victim: CappedDocument | undefined = await oldest()
+                        if (!victim) break
+                        write.changes.push({key: victim.key, previous: victim.document})
+                        write.origin.push(-1)
+                        write.entries.push(natives(true, victim.sequence, victim.key))
+                        count--
+                        bytes -= victim.size
+                    }
+                    continue
+                }
+                const before: number = pending >= 0 ? inserted[pending].size : replaced.get(key)?.size ?? stored.get(key) ?? 0
+                write.changes.push(change)
+                write.origin.push(position)
+                if (!change.next) {
+                    const sequence: Buffer | undefined = pending >= 0 ? inserted.splice(pending, 1)[0].sequence : sequences.get(key)
+                    gone.add(key)
+                    write.entries.push(sequence ? natives(true, sequence, change.key) : [])
+                    count--
+                    bytes -= before
+                    continue
+                }
+                // A replacement: in its place in the natural order, its bytes counted (beyond the size: deleted by the next
+                // insertion, as MongoDB deletes them)
+                const data: Buffer = change.data ??= this.values.serialize(change.next)
+                write.entries.push([])
+                bytes += data.length - before
+                if (pending >= 0) Object.assign(inserted[pending], {document: change.next, size: data.length})
+                else replaced.set(key, {document: change.next, size: data.length})
+            }
+        } finally {
+            await there.return(undefined)
+        }
+        write.insertion = insertion
+        write.bytes = bytes
+        return write
+    }
+
+    /**
+     * The documents of a capped collection there, in the order of their insertions (CappedDocument), read in batches
+     * growing from a few
+     * @param name
+     * @param natural
+     */
+    protected async* oldestOf(name: string, natural: EmbeddedNaturalTables): AsyncGenerator<CappedDocument> {
+        for await (const {keys, ids} of this.entries(name, natural.order, {first: 16})) {
+            const {bytes, offsets} = await addon.get(this.database, name, ids, false)
+            for (let position: number = 0; position < keys.length; position++) {
+                const offset: number = offsets.readInt32LE(position * 4)
+                if (offset < 0) continue
+                const size: number = bytes.readInt32LE(offset)
+                yield {sequence: keys[position], key: ids[position], document: this.values.deserialize(bytes.subarray(offset, offset + size)), size: size}
+            }
+        }
+    }
+
+    /**
+     * The bytes of the documents of a collection, as they are stored (their BSON)
+     * @param name
+     */
+    protected async storedBytes(name: string): Promise<number> {
+        let bytes: number = 0
+        let after: Buffer | undefined
+        for (; ;) {
+            const batch: { bytes: Buffer, last: Buffer | null, done: boolean } = await addon.scan(this.database, name, {after: after, limit: SCAN_BATCH * 10, inTransaction: false})
+            for (let at: number = 0; at < batch.bytes.length; at += batch.bytes.readInt32LE(at)) bytes += batch.bytes.readInt32LE(at)
+            if (batch.done || !batch.last) return bytes
+            after = batch.last
+        }
+    }
+
+    /**
+     * The tables of the natural order of a capped collection, made at its first write
+     * @param collection
+     */
+    protected async naturalOf(collection: EmbeddedCollectionState): Promise<EmbeddedNaturalTables> {
+        if (collection.natural) return collection.natural
+        const order: number = await addon.createIndex(this.database, collection.name, {uuid: collection.uuid, events: []})
+        const ids: number = await addon.createIndex(this.database, collection.name, {uuid: collection.uuid, events: []})
+        const natural: EmbeddedNaturalTables = {order: order, ids: ids}
+        await addon.setIndexes(this.database, collection.name, this.values.serialize({...collection.definitions(), natural: natural}), [])
+        collection.natural = natural
+        return natural
+    }
+
+    /**
+     * The documents of a capped collection after a position in its natural order (the key of the sequence of the last
+     * entry read; none: from the first one), up to a number of them, as a tailable cursor reads them: the documents, the
+     * key of the last entry read (the position given when none is), whether the entries were read to their end; lost when
+     * the document of the position is no longer there (deleted), dropped when the collection of the UUID is not
+     * @param name
+     * @param uuid the UUID of the collection when the cursor was made
+     * @param after
+     * @param limit
+     */
+    async tail(name: string, uuid: Buffer, after: Buffer | undefined, limit: number): Promise<{ documents: EmbeddedDocument[], last?: Buffer, done: boolean, lost?: boolean, dropped?: boolean }> {
+        const collection: EmbeddedCollectionState | undefined = this.collections.get(name)
+        if (!collection || !collection.uuid.equals(uuid)) return {documents: [], done: true, dropped: true}
+        if (!collection.natural) return {documents: [], last: after, done: true}
+        if (after && !await addon.countRange(this.database, name, collection.natural.order, [{lower: after, lowerInclusive: true, upper: after, upperInclusive: true}], false))
+            return {documents: [], done: true, lost: true}
+        const batch: { bytes: Buffer, last: Buffer | null, done: boolean } = await addon.scanRange(this.database, name, collection.natural.order, {ranges: [], after: after, limit: limit, inTransaction: false})
+        const documents: EmbeddedDocument[] = []
+        for (let at: number = 0; at < batch.bytes.length; at += batch.bytes.readInt32LE(at))
+            documents.push(this.values.deserialize(batch.bytes.subarray(at, at + batch.bytes.readInt32LE(at))))
+        return {documents: documents, last: batch.last ?? after, done: batch.done}
     }
 
     /**
@@ -643,6 +910,11 @@ export class EmbeddedStore {
      */
     async* scan(name: string, predicates: NativePredicate[] = [], first: number = SCAN_BATCH, transaction?: EmbeddedStoreTransaction): AsyncGenerator<EmbeddedDocument[]> {
         if (!this.view(transaction).has(name)) return
+        // A capped collection in the order of its insertions
+        if (this.view(transaction).get(name)!.natural) {
+            for await (const {documents} of this.scanRange(name, 0, [], {predicates: predicates, first: first, transaction: transaction})) yield documents
+            return
+        }
         let after: Buffer | undefined
         let limit: number = Math.max(1, Math.min(first, SCAN_BATCH))
         for (; ;) {
@@ -676,6 +948,8 @@ export class EmbeddedStore {
      */
     async* scanRange(name: string, table: number, ranges: NativeRange[], options: { reverse?: boolean, predicates?: NativePredicate[], first?: number, transaction?: EmbeddedStoreTransaction } = {}): AsyncGenerator<{ documents: EmbeddedDocument[], data: Buffer[] }> {
         if (!this.view(options.transaction).has(name)) return
+        // All the documents of a capped collection: in the order of their insertions (its natural order)
+        if (table === 0 && !ranges.length) table = this.view(options.transaction).get(name)!.natural?.order ?? 0
         let after: Buffer | undefined
         let range: number = 0
         let limit: number = Math.max(1, Math.min(options.first ?? SCAN_BATCH, SCAN_BATCH))
@@ -737,20 +1011,26 @@ export class EmbeddedStore {
     }
 
     /**
-     * The entries of a table of an index of a collection, in batches, in the order of their keys: their keys (the key of
-     * the index, then the key of the _id when the index is not unique) and their values (the keys of the _id)
+     * The entries of a table of an index of a collection, in batches, in the order of their keys (or reversed): their
+     * keys (the key of the index, then the key of the _id when the index is not unique) and their values (the keys of
+     * the _id; the keys of the sequences of the table of the _id of a capped collection)
      * @param name
      * @param table
+     * @param options its ranges (none: all the entries), reversed, the entries of its first batch when fewer are needed
      */
-    async* entries(name: string, table: number): AsyncGenerator<{ keys: Buffer[], ids: Buffer[] }> {
+    async* entries(name: string, table: number, options: { ranges?: NativeRange[], reverse?: boolean, first?: number } = {}): AsyncGenerator<{ keys: Buffer[], ids: Buffer[] }> {
         if (!this.collections.has(name)) return
         let after: Buffer | undefined
+        let range: number = 0
+        let limit: number = Math.max(1, Math.min(options.first ?? SCAN_BATCH * 10, SCAN_BATCH * 10))
         for (; ;) {
             const batch: { bytes: Buffer, last: Buffer | null, range: number, done: boolean } = await addon.scanRange(this.database, name, table, {
-                ranges: [],
+                ranges: options.ranges ?? [],
+                reverse: options.reverse,
+                range: range,
                 after: after,
                 entries: true,
-                limit: SCAN_BATCH * 10
+                limit: limit
             })
             const keys: Buffer[] = []
             const ids: Buffer[] = []
@@ -765,6 +1045,8 @@ export class EmbeddedStore {
             if (keys.length) yield {keys: keys, ids: ids}
             if (batch.done || !batch.last) return
             after = batch.last
+            range = batch.range
+            limit = Math.min(limit * 4, SCAN_BATCH * 10)
         }
     }
 
@@ -1342,10 +1624,15 @@ export class EmbeddedStore {
                 collection.options = definitions.options ?? {}
                 for (const [index, table] of Object.entries(definitions.tables ?? {})) collection.tables.set(index, Number(table))
                 for (const index of definitions.multikey ?? []) collection.multikey.add(index)
+                if (definitions.natural) collection.natural = {order: Number(definitions.natural.order), ids: Number(definitions.natural.ids)}
             }
             at += 4 + indexesSize
             const tableCount: number = listed.readUInt32LE(at)
             const kept: Set<number> = new Set<number>(collection.tables.values())
+            if (collection.natural) {
+                kept.add(collection.natural.order)
+                kept.add(collection.natural.ids)
+            }
             for (let position: number = 0; position < tableCount; position++) {
                 const table: number = Number(listed.readBigInt64LE(at + 4 + position * 8))
                 if (!kept.has(table)) orphans.push([name, table])

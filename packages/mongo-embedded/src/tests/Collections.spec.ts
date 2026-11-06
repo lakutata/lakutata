@@ -3,6 +3,7 @@ import assert from 'node:assert'
 import {mkdtempSync, rmSync} from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import {BSON, Double} from 'bson'
 import {EmbeddedClient, type EmbeddedDocument} from '../exports/MongoEmbedded.js'
 
 const ROOT: string = mkdtempSync(path.join(os.tmpdir(), 'mongo-embedded-collections-'))
@@ -290,6 +291,192 @@ describe('The commands of the database', (): void => {
         assert.strictEqual(await hidden.tryNext(), null)
         await stream.close()
         await hidden.close()
+        await client.close()
+    })
+})
+
+describe('The capped collections', (): void => {
+    it('keep their last documents in the order of their insertions, by their bytes as they are stored, after a reopening', async (): Promise<void> => {
+        const where: string = directory()
+        let client: EmbeddedClient = await EmbeddedClient.connect(where)
+        let db = client.db()
+        // Doubles of integers: 8 bytes each as they are stored (as numbers of JavaScript they would be 4)
+        const document = (id: number): EmbeddedDocument => ({_id: id, a: new Double(1), b: new Double(2)})
+        const size: number = BSON.serialize(document(0)).length
+        await db.createCollection('log', {capped: true, size: size * 3})
+        let log = db.collection('log')
+        for (const id of [5, 4, 3, 2]) await log.insertOne(document(id))
+        assert.deepStrictEqual((await log.find({}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [4, 3, 2])
+        await client.close()
+        client = await EmbeddedClient.connect(where)
+        db = client.db()
+        log = db.collection('log')
+        assert.deepStrictEqual((await log.find({}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [4, 3, 2])
+        await log.insertMany([document(10), document(11)])
+        assert.deepStrictEqual((await log.find({}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [2, 10, 11])
+        assert.deepStrictEqual((await log.find({}).sort({$natural: -1}).limit(2).toArray()).map((item: EmbeddedDocument): unknown => item._id), [11, 10])
+        assert.deepStrictEqual((await log.find({_id: {$gt: 2}}).hint({$natural: -1}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [11, 10])
+        // The first one in their natural order deleted, updated; a replacement in its place
+        await log.updateOne({}, {$set: {first: true}})
+        assert.strictEqual((await log.findOne({first: true}))?._id, 2)
+        await log.replaceOne({_id: 10}, {x: 1})
+        await log.deleteOne({})
+        assert.deepStrictEqual((await log.find({}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [10, 11])
+        // Renamed: its order and its size kept
+        await log.rename('moved')
+        const moved = db.collection('moved')
+        await moved.insertMany([document(20), document(21), document(22)])
+        assert.deepStrictEqual((await moved.find({}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [20, 21, 22])
+        assert.deepStrictEqual(await moved.options(), {capped: true, size: size * 3})
+        assert.strictEqual(await moved.isCapped(), true)
+        assert.strictEqual(await db.collection('missing').isCapped(), false)
+        await client.close()
+    })
+
+    it('delete the oldest documents after each insertion, with their events, the one inserted kept', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const db = client.db()
+        await db.createCollection('log', {capped: true, size: 100000, max: 2})
+        const log = db.collection('log')
+        await log.createIndex({n: 1})
+        await log.insertMany([{_id: 1, n: 1}, {_id: 2, n: 2}])
+        const stream = log.watch()
+        await log.insertMany([{_id: 3, n: 3}, {_id: 1, n: 4}, {_id: 5, n: 5}])
+        const events: string[] = []
+        for (let k = 0; k < 6; k++) {
+            const event: EmbeddedDocument = (await stream.next())!
+            events.push(`${event.operationType} ${event.documentKey._id}`)
+        }
+        // _id 1, deleted by the insertion of 3, inserted again
+        assert.deepStrictEqual(events, ['insert 3', 'delete 1', 'insert 1', 'delete 2', 'insert 5', 'delete 3'])
+        assert.deepStrictEqual((await log.find({}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [1, 5])
+        // The entries of its indexes deleted with them
+        assert.deepStrictEqual((await log.find({n: {$lte: 3}}).hint('n_1').toArray()), [])
+        // A duplicate _id: the documents before it written, the ones beyond its size deleted
+        await assert.rejects(log.insertMany([{_id: 6, n: 6}, {_id: 6, n: 7}, {_id: 8, n: 8}]), failsWith(11000))
+        assert.deepStrictEqual((await log.find({}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [5, 6])
+        // One larger than its size: kept alone
+        await db.createCollection('tiny', {capped: true, size: 10})
+        await db.collection('tiny').insertMany([{_id: 1}, {_id: 2, s: 'x'.repeat(100)}])
+        assert.deepStrictEqual((await db.collection('tiny').find({}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [2])
+        await stream.close()
+        await client.close()
+    })
+
+    it('are checked, changed by collMod, refused by the transactions and by $out', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const db = client.db()
+        await assert.rejects(db.createCollection('c', {capped: true}), failsWith(72))
+        await assert.rejects(db.createCollection('c', {capped: false, size: 100}), failsWith(72))
+        await assert.rejects(db.createCollection('c', {capped: true, size: 0}), failsWith(2))
+        await assert.rejects(db.createCollection('c', {capped: true, size: 2 ** 51}), failsWith(2))
+        await assert.rejects(db.createCollection('c', {capped: true, size: '100'}), failsWith(14))
+        await assert.rejects(db.createCollection('c', {capped: true, size: 100, max: 2 ** 40}), failsWith(2))
+        await db.createCollection('a', {capped: 1, size: 100.7, max: 0})
+        assert.deepStrictEqual(await db.collection('a').options(), {capped: true, size: 100, max: 2147483647})
+        await db.createCollection('b', {capped: false})
+        assert.deepStrictEqual(await db.collection('b').options(), {})
+        await db.createCollection('log', {capped: true, size: 4096, max: 5})
+        const log = db.collection('log')
+        await log.insertMany([1, 2, 3, 4, 5].map((id: number): EmbeddedDocument => ({_id: id})))
+        assert.strictEqual((await db.command({collMod: 'log', cappedSize: 2000, cappedMax: 2})).ok, 1)
+        assert.deepStrictEqual(await log.options(), {capped: true, size: 2000, max: 2})
+        // The documents beyond deleted by the next insertion
+        assert.strictEqual(await log.countDocuments(), 5)
+        await log.insertOne({_id: 6})
+        assert.deepStrictEqual((await log.find({}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [5, 6])
+        await db.command({collMod: 'log', cappedMax: -1})
+        assert.strictEqual((await log.options()).max, 2147483647)
+        await assert.rejects(db.command({collMod: 'log', cappedSize: 0}), failsWith(2))
+        await assert.rejects(db.command({collMod: 'log', cappedSize: '5'}), failsWith(14))
+        await assert.rejects(db.command({collMod: 'b', cappedSize: 2000}), failsWith(72))
+        // Written outside the transactions only, read in them
+        const session = client.startSession()
+        session.startTransaction()
+        assert.strictEqual((await log.find({}, {session: session}).toArray()).length, 2)
+        await assert.rejects(log.insertOne({_id: 7}, {session: session}), failsWith(263))
+        await assert.rejects(session.commitTransaction(), failsWith(251))
+        await session.endSession()
+        await assert.rejects(db.collection('b').aggregate([{$out: 'log'}]).toArray(), failsWith(17152))
+        await db.collection('b').insertMany([{_id: 10}, {_id: 11}])
+        await db.collection('b').aggregate([{$merge: 'log'}]).toArray()
+        assert.deepStrictEqual((await log.find({}).toArray()).map((item: EmbeddedDocument): unknown => item._id), [5, 6, 10, 11])
+        await client.close()
+    })
+})
+
+describe('The tailable cursors', (): void => {
+    it('read the documents of a capped collection, then the ones inserted after them', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const db = client.db()
+        await db.createCollection('log', {capped: true, size: 100000})
+        const log = db.collection('log')
+        await log.insertMany([{_id: 1, n: 1}, {_id: 2, n: 2}])
+        const cursor = log.find({n: {$gt: 1}}, {tailable: true, awaitData: true, maxAwaitTimeMS: 100, projection: {_id: 1}})
+        assert.deepStrictEqual(await cursor.next(), {_id: 2})
+        // Waiting up to maxAwaitTimeMS
+        const start: number = Date.now()
+        assert.strictEqual(await cursor.tryNext(), null)
+        assert.ok(Date.now() - start >= 90)
+        assert.strictEqual(cursor.closed, false)
+        // next waits for a document
+        setTimeout((): unknown => log.insertMany([{_id: 3, n: 0}, {_id: 4, n: 4}]), 50)
+        assert.deepStrictEqual(await cursor.next(), {_id: 4})
+        const pending: Promise<unknown> = cursor.next()
+        await cursor.close()
+        assert.strictEqual(await pending, null)
+        assert.strictEqual(cursor.closed, true)
+        // Without awaitData: tryNext does not wait
+        const plain = log.find({n: 4}, {tailable: true})
+        const started: number = Date.now()
+        assert.deepStrictEqual([await plain.tryNext(), await plain.tryNext(), plain.closed], [{_id: 4, n: 4}, null, false])
+        assert.ok(Date.now() - started < 50)
+        await plain.close()
+        // A limit ends it; an empty collection ends it at once
+        const limited = log.find({}, {tailable: true, limit: 2})
+        assert.deepStrictEqual([await limited.tryNext(), await limited.tryNext(), await limited.tryNext(), limited.closed], [{_id: 1, n: 1}, {_id: 2, n: 2}, null, true])
+        await db.createCollection('empty', {capped: true, size: 1000})
+        const empty = db.collection('empty').find({}, {tailable: true, awaitData: true})
+        assert.deepStrictEqual([await empty.tryNext(), empty.closed], [null, true])
+        // Its for await: the documents as they come
+        const iterated: unknown[] = []
+        const iterating = (async (): Promise<void> => {
+            for await (const item of log.find({}, {tailable: true, awaitData: true})) {
+                iterated.push(item._id)
+                if (iterated.length === 5) break
+            }
+        })()
+        await log.insertOne({_id: 5, n: 5})
+        await iterating
+        assert.deepStrictEqual(iterated, [1, 2, 3, 4, 5])
+        await client.close()
+    })
+
+    it('fail as MongoDB 8.0 fails them', async (): Promise<void> => {
+        const client: EmbeddedClient = await EmbeddedClient.connect()
+        const db = client.db()
+        await db.collection('plain').insertOne({_id: 1})
+        await assert.rejects(db.collection('plain').find({}, {tailable: true}).next(), failsWith(2))
+        await db.createCollection('log', {capped: true, size: 4096, max: 2})
+        const log = db.collection('log')
+        await assert.rejects(log.find({}, {awaitData: true}).toArray(), failsWith(9))
+        assert.throws((): unknown => log.find({}, {tailable: true}).sort({_id: 1}), /does not support sorting/)
+        await log.insertMany([{_id: 1}, {_id: 2}])
+        // The document of its position deleted beyond the size of the collection, or by a deletion
+        const trimmed = log.find({}, {tailable: true, awaitData: true, maxAwaitTimeMS: 50})
+        assert.deepStrictEqual([await trimmed.next(), await trimmed.next()], [{_id: 1}, {_id: 2}])
+        await log.insertMany([{_id: 3}, {_id: 4}, {_id: 5}])
+        await assert.rejects(trimmed.next(), failsWith(136))
+        assert.strictEqual(trimmed.closed, true)
+        const deleted = log.find({}, {tailable: true})
+        assert.deepStrictEqual([await deleted.next(), await deleted.next()], [{_id: 4}, {_id: 5}])
+        await log.deleteOne({_id: 5})
+        await assert.rejects(deleted.tryNext(), failsWith(136))
+        // Its collection dropped
+        const dropped = log.find({}, {tailable: true, awaitData: true, maxAwaitTimeMS: 50})
+        await dropped.next()
+        await log.drop()
+        await assert.rejects(dropped.tryNext(), failsWith(175))
         await client.close()
     })
 })

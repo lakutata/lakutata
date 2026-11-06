@@ -374,6 +374,17 @@ function collectionOptionsOf(options?: EmbeddedDocument): EmbeddedDocument {
     for (const option of COLLECTION_OPTIONS)
         if (options?.[option] !== undefined)
             throw notSupported(`The option ${option} of createCollection`)
+    // A capped collection: its size (bytes of BSON), its number of documents at most
+    const capped = !!options?.capped
+    if ((options?.size !== undefined || options?.max !== undefined) && !capped)
+        throw new EmbeddedOperationError(72, 'InvalidOptions', "the 'capped' field needs to be true when either the 'size' or 'max' fields are present")
+    if (capped) {
+        if (options!.size === undefined)
+            throw new EmbeddedOperationError(72, 'InvalidOptions', "the 'size' field is required when 'capped' is true")
+        kept.capped = true
+        kept.size = cappedSize('size', cappedNumber('create.size', options!.size, '[long, double, int, decimal]'))
+        if (options!.max !== undefined) kept.max = cappedMax('max', cappedNumber('create.max', options!.max, '[long, double, int, decimal]'))
+    }
     for (const option of ['storageEngine', 'indexOptionDefaults']) {
         const value = options?.[option]
         if (value === undefined) continue
@@ -442,9 +453,6 @@ const UPDATE_STAGES = new Set([
  * validation of the documents, a collation of the collection...)
  */
 const COLLECTION_OPTIONS = [
-    'capped',
-    'size',
-    'max',
     'timeseries',
     'expireAfterSeconds',
     'viewOn',
@@ -487,9 +495,7 @@ const MODIFY_LATER = [
     'pipeline',
     'expireAfterSeconds',
     'timeseries',
-    'timeseriesBucketsMayHaveMixedSchemaData',
-    'cappedSize',
-    'cappedMax'
+    'timeseriesBucketsMayHaveMixedSchemaData'
 ]
 
 /**
@@ -548,8 +554,57 @@ const CREATE_OPTIONS = new Set([
     'wtimeoutMS',
     'fsync',
     'autoIndexId',
+    'capped',
+    'size',
+    'max',
     ...COLLECTION_OPTIONS
 ])
+
+/**
+ * The largest size of a capped collection (2^50 bytes), and its largest number of documents (2^31 - 1, given to the
+ * ones not given a number above 0)
+ */
+const CAPPED_SIZE = 2 ** 50
+const CAPPED_MAX = 2147483647
+
+/**
+ * A number of an option of a capped collection (its size, its number of documents) checked as MongoDB 8.0 checks it,
+ * truncated: TypeMismatch (14) for another type
+ *
+ * @param field the field, as the error tells it (create.size)
+ * @param value
+ * @param types the numeric types, as the error tells them
+ */
+function cappedNumber(field: string, value: unknown, types: string): number {
+    if (typeof value !== 'number' && !['Int32', 'Double', 'Long', 'Decimal128'].includes((value as any)?._bsontype))
+        throw new EmbeddedOperationError(14, 'TypeMismatch', `BSON field '${field}' is the wrong type '${typeName(value)}', expected types '${types}'`)
+    return Math.trunc(Number(value))
+}
+
+/**
+ * The size of a capped collection, from 1 byte to 2^50 (BadValue, 2, beyond)
+ *
+ * @param field the field, as the error of its range tells it (size, cappedSize)
+ * @param size
+ */
+function cappedSize(field: string, size: number): number {
+    if (!(size >= 1)) throw new EmbeddedOperationError(2, 'BadValue', `BSON field '${field}' value must be >= 1, actual value '${size}'`)
+    if (size > CAPPED_SIZE)
+        throw new EmbeddedOperationError(2, 'BadValue', `BSON field '${field}' value must be <= ${CAPPED_SIZE}, actual value '${size}'`)
+    return size
+}
+
+/**
+ * The number of documents of a capped collection, below 2^31 (BadValue, 2, beyond): 2^31 - 1 for one not above 0
+ *
+ * @param field the field, as the error of its range tells it (max, cappedMax)
+ * @param max
+ */
+function cappedMax(field: string, max: number): number {
+    if (max > CAPPED_MAX)
+        throw new EmbeddedOperationError(2, 'BadValue', `BSON field '${field}' value must be < 2147483648, actual value '${max}'`)
+    return max > 0 ? max : CAPPED_MAX
+}
 
 /**
  * Checks the name of a collection as the client of MongoDB checks it: a string, not empty, without "$", "..", a null
@@ -757,6 +812,18 @@ export abstract class EmbeddedResults {
     protected readonly reference = new WeakRef<EmbeddedResults>(this)
 
     /**
+     * Whether it was closed
+     */
+    protected isClosed = false
+
+    /**
+     * Whether it was closed, or read to its end
+     */
+    get closed(): boolean {
+        return this.isClosed || (this.buffer !== undefined && !this.buffer.length && !this.pending)
+    }
+
+    /**
      * The documents not read yet, all of them
      */
     async toArray(): Promise<any[]> {
@@ -786,6 +853,14 @@ export abstract class EmbeddedResults {
         const document = this.buffer!.shift() ?? null
         if (!this.buffer!.length && !this.pending) this.release()
         return document
+    }
+
+    /**
+     * The next document, null after the last one (a tailable cursor gives null when no document comes, waiting for one
+     * up to its maxAwaitTimeMS when it awaits data)
+     */
+    async tryNext(): Promise<any | null> {
+        return this.next()
     }
 
     /**
@@ -895,6 +970,7 @@ export abstract class EmbeddedResults {
      * Closes the cursor: the documents not read are dropped
      */
     async close(): Promise<void> {
+        this.isClosed = true
         this.buffer = []
         const pending = this.pending
         this.pending = undefined
@@ -1035,6 +1111,24 @@ export class EmbeddedFindCursor extends EmbeddedResults {
     private collated?: EmbeddedCollation
 
     /**
+     * Of a tailable cursor (of a capped collection: its documents in their natural order, then the ones inserted after
+     * them): whether it is tailable, whether a read waits for the documents inserted (awaitData), the longest it waits
+     * (maxAwaitTimeMS), the UUID of its collection and its position in its natural order (the key of the last entry read)
+     * once it read, the documents skipped and given, whether it ended, the wake of its wait
+     */
+    private tailing?: {
+        tailable: boolean
+        awaitData: boolean
+        maxAwait: number
+        uuid?: Buffer
+        position?: Buffer
+        skipped: number
+        given: number
+        dead: boolean
+        wake?: () => void
+    }
+
+    /**
      * @param collection the collection found in
      * @param query the filter of the find
      * @param session the session of its reads, if any
@@ -1070,8 +1164,191 @@ export class EmbeddedFindCursor extends EmbeddedResults {
      * @param order the fields and their directions
      */
     sort(order: EmbeddedDocument): this {
+        if (this.tailing?.tailable) throw new MongoEmbeddedError('Tailable cursor does not support sorting')
+        // The natural order: a scan of the collection, as {$natural} hints it
+        if (this.isPlainOrder(order) && Object.keys(order).length === 1 && '$natural' in order) {
+            this.hinted = { $natural: Number(order.$natural) < 0 ? -1 : 1 }
+            this.order = undefined
+            return this
+        }
         this.order = order
         return this
+    }
+
+    /**
+     * Whether an order is a document of fields
+     *
+     * @param order
+     */
+    private isPlainOrder(order: unknown): order is EmbeddedDocument {
+        return isPlain(order)
+    }
+
+    /**
+     * Makes it tailable (find's options tailable, awaitData and maxAwaitTimeMS): it reads the documents of its capped
+     * collection in their natural order, then the ones inserted after them, waiting for them when it awaits data
+     *
+     * @param tailable whether it is tailable (else it fails at its first read)
+     * @param awaitData whether its reads wait for the documents inserted
+     * @param maxAwaitTimeMS the longest tryNext waits for them (1000 by default)
+     * @internal
+     */
+    tail(tailable: boolean, awaitData: boolean, maxAwaitTimeMS?: number): this {
+        this.tailing = {
+            tailable: tailable,
+            awaitData: awaitData,
+            maxAwait: maxAwaitTimeMS ?? this.tailing?.maxAwait ?? 1000,
+            skipped: 0,
+            given: 0,
+            dead: false
+        }
+        return this
+    }
+
+    /**
+     * The longest a read of a tailable cursor that awaits data waits for the documents inserted
+     * @param milliseconds the time
+     */
+    maxAwaitTimeMS(milliseconds: number): this {
+        if (this.tailing) this.tailing.maxAwait = milliseconds
+        else this.tail(false, false, milliseconds)
+        return this
+    }
+
+    /**
+     * Sets a flag of the cursor: tailable, awaitData, noCursorTimeout (the other ones of MongoDB are kept, without
+     * effect)
+     * @param flag its name
+     * @param value its value
+     */
+    addCursorFlag(flag: string, value: boolean): this {
+        if (flag === 'tailable' || flag === 'awaitData')
+            this.tail(
+                flag === 'tailable' ? !!value : !!this.tailing?.tailable,
+                flag === 'awaitData' ? !!value : !!this.tailing?.awaitData,
+                this.tailing?.maxAwait
+            )
+        return super.addCursorFlag(flag, value)
+    }
+
+    /**
+     * Whether it was closed, or read to its end (a tailable cursor: once it ended)
+     */
+    get closed(): boolean {
+        return this.tailing?.tailable ? this.isClosed || this.tailing.dead : super.closed
+    }
+
+    async next(): Promise<any | null> {
+        if (!this.tailing) return super.next()
+        this.touch()
+        this.buffer ??= []
+        while (!this.buffer.length && !this.tailing.dead && !this.isClosed) this.buffer = await this.readTail(Infinity)
+        return this.buffer.shift() ?? null
+    }
+
+    async tryNext(): Promise<any | null> {
+        if (!this.tailing) return super.tryNext()
+        this.touch()
+        this.buffer ??= []
+        if (!this.buffer.length && !this.tailing.dead && !this.isClosed)
+            this.buffer = await this.readTail(this.tailing.awaitData ? this.tailing.maxAwait : 0)
+        return this.buffer.shift() ?? null
+    }
+
+    async hasNext(): Promise<boolean> {
+        if (!this.tailing) return super.hasNext()
+        this.touch()
+        this.buffer ??= []
+        while (!this.buffer.length && !this.tailing.dead && !this.isClosed) this.buffer = await this.readTail(Infinity)
+        return this.buffer.length > 0
+    }
+
+    async toArray(): Promise<any[]> {
+        if (!this.tailing) return super.toArray()
+        // Its documents until it ends, as the client of MongoDB reads them
+        const documents: any[] = []
+        let document: any
+        while ((document = await this.next()) !== null) documents.push(document)
+        return documents
+    }
+
+    async close(): Promise<void> {
+        if (this.tailing) {
+            this.tailing.dead = true
+            this.tailing.wake?.()
+        }
+        await super.close()
+    }
+
+    /**
+     * The documents of a tailable cursor read after its position (projected and transformed), waiting up to a time for
+     * the ones inserted when there are none: it ends when its collection was empty at its first read, or after its limit;
+     * it fails when its collection was dropped (QueryPlanKilled, 175) or the document of its position deleted
+     * (CappedPositionLost, 136)
+     *
+     * @param wait the longest it waits for documents inserted, in milliseconds
+     */
+    private async readTail(wait: number): Promise<any[]> {
+        const tailing = this.tailing!
+        const store = this.collection.store
+        if (!tailing.tailable)
+            throw new EmbeddedOperationError(9, 'FailedToParse', "Cannot set 'awaitData' without also setting 'tailable'")
+        if (this.order) throw new MongoEmbeddedError('Tailable cursor does not support sorting')
+        if (!tailing.uuid) {
+            const state = store.collection(this.collection.collectionName)
+            if (!state?.capped)
+                throw new EmbeddedOperationError(2, 'BadValue', `error processing query: ns=${this.collection.namespace} tailable cursor requested on non capped collection`)
+            tailing.uuid = state.uuid
+        }
+        const matches = this.collection.matcherFor(this.query, this.collator)
+        for (; ;) {
+            const read = await store.tail(this.collection.collectionName, tailing.uuid, tailing.position, YIELD_EVERY)
+            if (read.dropped) {
+                tailing.dead = true
+                throw new EmbeddedOperationError(175, 'QueryPlanKilled', `collection dropped. UUID ${new this.collection.values.bson.UUID(tailing.uuid).toString()}`)
+            }
+            if (read.lost) {
+                tailing.dead = true
+                throw new EmbeddedOperationError(136, 'CappedPositionLost', 'CollectionScan died due to position in capped collection being deleted.')
+            }
+            // Its collection empty at its first read: it ends, as MongoDB ends it
+            if (!read.last) {
+                tailing.dead = true
+                return []
+            }
+            tailing.position = read.last
+            let documents = read.documents.filter(matches)
+            if (tailing.skipped < this.skipped) {
+                const skipped = Math.min(this.skipped - tailing.skipped, documents.length)
+                documents = documents.slice(skipped)
+                tailing.skipped += skipped
+            }
+            if (this.limited > 0) {
+                documents = documents.slice(0, this.limited - tailing.given)
+                if (tailing.given + documents.length >= this.limited) tailing.dead = true
+            }
+            tailing.given += documents.length
+            if (documents.length) {
+                const projected = this.projected(documents)
+                return this.transform ? projected.map((document) => this.transform!(document)) : projected
+            }
+            if (!read.done) continue
+            if (wait <= 0 || tailing.dead || this.isClosed) return []
+            // The documents inserted: after the next commit, up to the time of the wait
+            const woken = await new Promise<boolean>((resolve) => {
+                const timer = wait < Infinity ? setTimeout(() => finish(false), wait) : undefined
+                timer?.unref?.()
+                const stop = store.onCommit(() => finish(true))
+                const finish = (committed: boolean) => {
+                    stop()
+                    if (timer) clearTimeout(timer)
+                    tailing.wake = undefined
+                    resolve(committed)
+                }
+                tailing.wake = () => finish(false)
+            })
+            if (!woken && wait < Infinity) return []
+        }
     }
 
     /**
@@ -1581,6 +1858,8 @@ export class EmbeddedCollection {
         if (options?.skip) cursor.skip(options.skip)
         if (options?.limit) cursor.limit(options.limit)
         if (options?.hint !== undefined) cursor.hint(options.hint)
+        if (options?.tailable || options?.awaitData)
+            cursor.tail(!!options.tailable, !!options.awaitData, options.maxAwaitTimeMS)
         return cursor
     }
 
@@ -1933,6 +2212,8 @@ export class EmbeddedCollection {
         if (isPlain(target) && target.timeseries !== undefined)
             throw notSupported('The option timeseries of $out')
         checkName(name)
+        if (this.store.collection(name)?.capped)
+            throw new EmbeddedOperationError(17152, 'Location17152', `namespace '${this.dbName}.${name}' is capped so it can't be used for $out`)
         const indexes = this.store.collection(name)
             ? await this.sibling(name).indexes()
             : []
@@ -2525,14 +2806,16 @@ export class EmbeddedCollection {
 
     /**
      * Changes the options of the collection or one of its indexes, as the command collMod of MongoDB 8.0
-     * (EmbeddedDb.command): changeStreamPreAndPostImages; the expiration of an index (a single field: a TTL index),
+     * (EmbeddedDb.command): changeStreamPreAndPostImages; the size and the number of documents of a capped collection
+     * (cappedSize, cappedMax: the documents beyond them deleted by the next insertion); the expiration of an index (a
+     * single field: a TTL index),
      * whether it is hidden, whether it refuses new duplicate keys (prepareUnique), whether it is unique (an index
      * prepared, without duplicate keys: 359 with them, their documents in its field violations; dryRun only checks).
      * Its result tells the option of the index changed ({<option>_old, <option>_new}); its event (modify) is written
      * unless it is a dry run.
      *
      * @param command the command: collMod (the name of the collection), index (its name or keyPattern, and
-     * expireAfterSeconds, hidden, prepareUnique or unique), changeStreamPreAndPostImages, dryRun
+     * expireAfterSeconds, hidden, prepareUnique or unique), changeStreamPreAndPostImages, cappedSize, cappedMax, dryRun
      * @internal
      */
     async modify(command: EmbeddedDocument): Promise<EmbeddedDocument> {
@@ -2553,6 +2836,13 @@ export class EmbeddedCollection {
         const expiration = change?.expireAfterSeconds
         if (expiration !== undefined && typeof expiration !== 'number' && !['Int32', 'Double', 'Long', 'Decimal128'].includes(expiration?._bsontype))
             throw new EmbeddedOperationError(14, 'TypeMismatch', `BSON field 'collMod.index.expireAfterSeconds' is the wrong type '${typeName(expiration)}', expected types '[double, int, decimal, long']`)
+        // The size and the number of documents of a capped collection
+        const size = command.cappedSize === undefined
+            ? undefined
+            : cappedSize('cappedSize', cappedNumber('collMod.cappedSize', command.cappedSize, '[double, int, decimal, long]'))
+        const max = command.cappedMax === undefined
+            ? undefined
+            : cappedMax('cappedMax', cappedNumber('collMod.cappedMax', command.cappedMax, '[double, int, decimal, long]'))
         const images = command.changeStreamPreAndPostImages
         if (images !== undefined) {
             if (!isPlain(images))
@@ -2565,6 +2855,7 @@ export class EmbeddedCollection {
             if (!collection) throw new EmbeddedOperationError(26, 'NamespaceNotFound', 'ns does not exist')
             for (const field of MODIFY_LATER)
                 if (command[field] !== undefined) throw notSupported(`The field ${field} of collMod`)
+            if ((size !== undefined || max !== undefined) && !collection.capped) throw invalid('Collection must be capped.')
             if (command.dryRun && change?.unique !== true && change?.unique !== 1)
                 throw invalid('dry run mode requires an index modification with unique: true.')
             const result: EmbeddedDocument = {}
@@ -2643,9 +2934,20 @@ export class EmbeddedCollection {
                 }
             }
             let options: EmbeddedDocument | undefined
+            // Its size and its number of documents: the documents beyond them deleted by the next insertion, as MongoDB
+            // deletes them
+            if (size !== undefined || max !== undefined) {
+                if (size !== undefined) description.cappedSize = command.cappedSize
+                if (max !== undefined) description.cappedMax = command.cappedMax
+                options = orderedOptions({
+                    ...collection.options,
+                    ...(size !== undefined ? { size: size } : {}),
+                    ...(max !== undefined ? { max: max } : {})
+                })
+            }
             if (images !== undefined) {
                 description.changeStreamPreAndPostImages = { enabled: images.enabled }
-                const { changeStreamPreAndPostImages, ...rest } = collection.options
+                const { changeStreamPreAndPostImages, ...rest } = options ?? collection.options
                 void changeStreamPreAndPostImages
                 options = orderedOptions(images.enabled ? { ...rest, changeStreamPreAndPostImages: { enabled: true } } : rest)
             }
@@ -3718,6 +4020,17 @@ export class EmbeddedCollection {
      * @param filter
      * @param collator the collation of its strings, if any
      */
+    /**
+     * The test of the documents matching a filter (matcherOf), for a cursor
+     *
+     * @param filter the filter
+     * @param collator the collation of its strings, if any
+     * @internal
+     */
+    matcherFor(filter: EmbeddedDocument, collator?: EmbeddedCollator): (document: EmbeddedDocument) => boolean {
+        return this.matcherOf(filter, collator)
+    }
+
     private matcherOf(
         filter: EmbeddedDocument,
         collator?: EmbeddedCollator
