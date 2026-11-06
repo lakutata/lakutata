@@ -21,6 +21,7 @@ import {
   setValue,
   unique
 } from '../../util/_internal.js'
+import { withTextScore } from '../../util/_meta.js'
 import { validateProjection } from './_internal.js'
 
 const OP = '$project'
@@ -39,7 +40,8 @@ export function $project(
   if (isEmpty(expr)) return coll
   const meta = validateProjection(expr, options)
   const handler = createHandler(expr, ComputeOptions.init(options), meta)
-  return coll.map(handler)
+  // The text score of a document kept by its projection
+  return coll.map((obj: AnyObject) => withTextScore(obj, handler(obj)))
 }
 
 // handler for transforming the 'target' object based on the 'current'.
@@ -100,10 +102,11 @@ function createHandler(
         mergeInto(t, extractedVal)
       }
     } else if (!isObject(v)) {
+      // A value missing leaves its field out, as MongoDB leaves it out
       handlers[selector] = (t: AnyObject, o: AnyObject) => {
         options.update({ root: o })
         const newVal = evalExpr(o, v, options)
-        setValue(t, selector, newVal)
+        if (newVal !== undefined) setValue(t, selector, newVal)
       }
     } else {
       // value is an object so must be an operator.
@@ -127,7 +130,7 @@ function createHandler(
         handlers[selector] = (t: AnyObject, o: AnyObject) => {
           options.update({ root: o })
           const newval = evalExpr(o, v, options)
-          setValue(t, selector, newval)
+          if (newval !== undefined) setValue(t, selector, newval)
         }
       } else {
         // handle projection operator

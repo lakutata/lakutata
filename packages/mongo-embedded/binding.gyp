@@ -1,6 +1,7 @@
 # The build of the addon of @lakutata/mongo-embedded by node-gyp, when the package is installed: the storage
 # (native/store.c, which includes the amalgamation of SQLite, native/engine/engine.c, its functions kept inside it),
-# the collation of ICU (vendor/icu: the sources of common and i18n its collators use), then the thread of each database
+# the collation of ICU (vendor/icu: the sources of common and i18n its collators use), the text of the text indexes
+# (native/text, with the stemmers of Snowball), then the thread of each database
 # and the functions of the addon (native/), in C++17 through node-addon-api (the C functions of Node-API).
 {
   'variables': {
@@ -144,9 +145,28 @@
       'direct_dependent_settings': {'include_dirs': ['<@(icu_include_dirs)'], 'defines': ['<@(icu_defines)']}
     },
     {
+      # The text of the text indexes (native/text): the words, their case folding, the stop words and the diacritics of
+      # Unicode 8.0 (native/text/tables.h, scripts/text-tables.mjs), the stemmers of Snowball (vendor/libstemmer_c) of
+      # the languages of MongoDB, hidden
+      'target_name': 'text',
+      'type': 'static_library',
+      'sources': [
+        'native/text/text.c', 'vendor/libstemmer_c/runtime/api.c', 'vendor/libstemmer_c/runtime/utilities.c',
+        'vendor/libstemmer_c/src_c/stem_UTF_8_danish.c', 'vendor/libstemmer_c/src_c/stem_UTF_8_dutch.c', 'vendor/libstemmer_c/src_c/stem_UTF_8_english.c',
+        'vendor/libstemmer_c/src_c/stem_UTF_8_finnish.c', 'vendor/libstemmer_c/src_c/stem_UTF_8_french.c', 'vendor/libstemmer_c/src_c/stem_UTF_8_german.c',
+        'vendor/libstemmer_c/src_c/stem_UTF_8_hungarian.c', 'vendor/libstemmer_c/src_c/stem_UTF_8_italian.c', 'vendor/libstemmer_c/src_c/stem_UTF_8_norwegian.c',
+        'vendor/libstemmer_c/src_c/stem_UTF_8_portuguese.c', 'vendor/libstemmer_c/src_c/stem_UTF_8_romanian.c', 'vendor/libstemmer_c/src_c/stem_UTF_8_russian.c',
+        'vendor/libstemmer_c/src_c/stem_UTF_8_spanish.c', 'vendor/libstemmer_c/src_c/stem_UTF_8_swedish.c', 'vendor/libstemmer_c/src_c/stem_UTF_8_turkish.c'
+      ],
+      'include_dirs': ['native/text', 'vendor/libstemmer_c/runtime', 'vendor/libstemmer_c/src_c'],
+      'cflags': ['-w', '-fvisibility=hidden'],
+      'xcode_settings': {'WARNING_CFLAGS': ['-w'], 'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES', 'MACOSX_DEPLOYMENT_TARGET': '11.0'},
+      'msvs_settings': {'VCCLCompilerTool': {'WarningLevel': 0, 'AdditionalOptions': ['/utf-8']}}
+    },
+    {
       'target_name': 'mongo_embedded',
       'sources': ['native/addon.cc', 'native/collation.cc', 'native/connection.cc', 'native/database.cc', 'native/prefilter.cc'],
-      'dependencies': ['store', 'icu_i18n', 'icu_common'],
+      'dependencies': ['store', 'text', 'icu_i18n', 'icu_common'],
       'include_dirs': ['native', "<!(node -p \"require('node-addon-api').include_dir\")"],
       'defines': ['NAPI_VERSION=8', 'NAPI_CPP_EXCEPTIONS', 'NODE_API_SWALLOW_UNTHROWABLE_EXCEPTIONS', 'NODE_ADDON_API_DISABLE_DEPRECATED'],
       'cflags!': ['-fno-exceptions'],

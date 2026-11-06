@@ -10028,6 +10028,1181 @@
     "n": "int"
    }
   },
+  "the text indexes score their terms: their frequency, the words of their strings, the weights of their fields": {
+   "apple": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     1.5
+    ],
+    [
+     2,
+     1.75
+    ],
+    [
+     3,
+     0.75
+    ],
+    [
+     4,
+     0.6666666666666666
+    ],
+    [
+     5,
+     0.625
+    ],
+    [
+     6,
+     0.75
+    ],
+    [
+     7,
+     1.25
+    ],
+    [
+     8,
+     1
+    ],
+    [
+     11,
+     1
+    ],
+    [
+     12,
+     0.75
+    ],
+    [
+     13,
+     1.998046875
+    ],
+    [
+     14,
+     0.625
+    ],
+    [
+     15,
+     0.5714285714285714
+    ]
+   ],
+   "apple banana": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     1.5
+    ],
+    [
+     2,
+     1.75
+    ],
+    [
+     3,
+     1.5
+    ],
+    [
+     4,
+     1.3333333333333333
+    ],
+    [
+     5,
+     1.25
+    ],
+    [
+     6,
+     1.5
+    ],
+    [
+     7,
+     1.9166666666666665
+    ],
+    [
+     8,
+     1
+    ],
+    [
+     11,
+     1
+    ],
+    [
+     12,
+     0.75
+    ],
+    [
+     13,
+     1.998046875
+    ],
+    [
+     14,
+     0.625
+    ],
+    [
+     15,
+     0.5714285714285714
+    ]
+   ],
+   "run": [
+    [
+     10,
+     1.125
+    ]
+   ],
+   "apples": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     1.5
+    ],
+    [
+     2,
+     1.75
+    ],
+    [
+     3,
+     0.75
+    ],
+    [
+     4,
+     0.6666666666666666
+    ],
+    [
+     5,
+     0.625
+    ],
+    [
+     6,
+     0.75
+    ],
+    [
+     7,
+     1.25
+    ],
+    [
+     8,
+     1
+    ],
+    [
+     11,
+     1
+    ],
+    [
+     12,
+     0.75
+    ],
+    [
+     13,
+     1.998046875
+    ],
+    [
+     14,
+     0.625
+    ],
+    [
+     15,
+     0.5714285714285714
+    ]
+   ],
+   "cherry date": [
+    [
+     4,
+     0.6666666666666666
+    ],
+    [
+     5,
+     1.25
+    ]
+   ],
+   "eye": [
+    [
+     12,
+     0.75
+    ]
+   ],
+   "weighted": [
+    [
+     1,
+     12
+    ],
+    [
+     2,
+     10
+    ],
+    [
+     3,
+     2
+    ],
+    [
+     4,
+     9.5
+    ],
+    [
+     5,
+     17.5
+    ]
+   ],
+   "afterWrites": [
+    [
+     1,
+     12
+    ],
+    [
+     2,
+     13.333333333333332
+    ],
+    [
+     4,
+     9.5
+    ],
+    [
+     5,
+     17.5
+    ]
+   ]
+  },
+  "the words of the text indexes: their delimiters, their case, their diacritics, their stop words": {
+   "7": [
+    "digits"
+   ],
+   "89": [
+    "digits"
+   ],
+   "don't": [],
+   "don": [],
+   "stop": [
+    "apostrophe"
+   ],
+   "well": [
+    "hyphen"
+   ],
+   "known": [
+    "hyphen"
+   ],
+   "well-known": [
+    "hyphen"
+   ],
+   "beta": [
+    "dashes"
+   ],
+   "delta": [
+    "dashes"
+   ],
+   "green": [
+    "slash"
+   ],
+   "bar": [
+    "dot"
+   ],
+   "foo.bar": [
+    "dot"
+   ],
+   "snake": [],
+   "snake_case": [
+    "underscore"
+   ],
+   "example": [
+    "at"
+   ],
+   "x123": [
+    "digits"
+   ],
+   "中文分词测试": [
+    "cjk"
+   ],
+   "中文": [],
+   "istanbul": [],
+   "İstanbul": [
+    "turkish"
+   ],
+   "isi": [],
+   "ısı": [
+    "turkish"
+   ],
+   "cafe": [
+    "accents"
+   ],
+   "café": [
+    "accents"
+   ],
+   "naive": [
+    "accents"
+   ],
+   "resume": [],
+   "résumé": [
+    "accents"
+   ],
+   "strasse": [],
+   "straße": [
+    "german"
+   ],
+   "masse": [
+    "german"
+   ],
+   "quoted": [
+    "quotes"
+   ],
+   "guillemets": [
+    "quotes"
+   ],
+   "brack": [
+    "brackets"
+   ],
+   "happy": [],
+   "happy😀face": [
+    "emoji"
+   ],
+   "two": [
+    "punctuation"
+   ],
+   "four": [
+    "punctuation"
+   ],
+   "really": [
+    "punctuation"
+   ],
+   "c": [
+    "symbols"
+   ],
+   "c++": [
+    "symbols"
+   ],
+   "roll": [
+    "symbols"
+   ],
+   "a": [],
+   "b": [
+    "symbols"
+   ],
+   "hashtag": [
+    "symbols"
+   ],
+   "money": [
+    "symbols"
+   ],
+   "it": [],
+   "s": [
+    "curly"
+   ],
+   "σίσυφος": [
+    "greek"
+   ],
+   "ΣΊΣΥΦΟΣ": [
+    "greek"
+   ],
+   "fine": [],
+   "ﬁne": [
+    "ligature"
+   ],
+   "grüßen": [
+    "sharp"
+   ],
+   "grussen": [],
+   "caseSensitive": [
+    [
+     {
+      "_id": "german"
+     }
+    ],
+    []
+   ],
+   "diacriticSensitive": [
+    [],
+    [
+     {
+      "_id": "accents"
+     }
+    ]
+   ]
+  },
+  "the $text queries: phrases, negations, languages, their places in a filter and in a pipeline, the text score": {
+   "noIndex": {
+    "error": {
+     "code": 27
+    }
+   },
+   "term": {
+    "value": [
+     1,
+     2,
+     5,
+     7
+    ]
+   },
+   "terms": {
+    "value": [
+     1,
+     2,
+     3,
+     5,
+     7
+    ]
+   },
+   "phrase": {
+    "value": [
+     1,
+     5
+    ]
+   },
+   "phraseAndTerm": {
+    "value": [
+     1,
+     5
+    ]
+   },
+   "phrases": {
+    "value": [
+     2
+    ]
+   },
+   "negation": {
+    "value": [
+     1,
+     5,
+     7
+    ]
+   },
+   "onlyNegation": {
+    "value": []
+   },
+   "negatedPhrase": {
+    "value": [
+     2,
+     7
+    ]
+   },
+   "phraseCase": {
+    "value": [
+     1,
+     5
+    ]
+   },
+   "stopWord": {
+    "value": []
+   },
+   "empty": {
+    "value": []
+   },
+   "french": {
+    "value": []
+   },
+   "caseSensitivePhrase": {
+    "value": [
+     5
+    ]
+   },
+   "caseSensitiveTerm": {
+    "value": [
+     5
+    ]
+   },
+   "withFilter": {
+    "value": [
+     1,
+     7
+    ]
+   },
+   "inAnd": {
+    "value": [
+     1,
+     7
+    ]
+   },
+   "inOr": {
+    "error": {
+     "code": 291
+    }
+   },
+   "inOrAlone": {
+    "error": {
+     "code": 2
+    }
+   },
+   "inNor": {
+    "error": {
+     "code": 2
+    }
+   },
+   "inElemMatch": {
+    "error": {
+     "code": 2
+    }
+   },
+   "twice": {
+    "error": {
+     "code": 2
+    }
+   },
+   "badLanguage": {
+    "error": {
+     "code": 2
+    }
+   },
+   "languageNone": {
+    "value": []
+   },
+   "languageCode": {
+    "value": [
+     1,
+     2,
+     5,
+     7
+    ]
+   },
+   "searchNotString": {
+    "error": {
+     "code": 14
+    }
+   },
+   "extraField": {
+    "error": {
+     "code": 2
+    }
+   },
+   "noSearch": {
+    "error": {
+     "code": 4
+    }
+   },
+   "hint": {
+    "error": {
+     "code": 2
+    }
+   },
+   "scores": {
+    "value": [
+     {
+      "_id": 2,
+      "a": "coffee cake recipe",
+      "k": 2,
+      "s": 1.3333333333333333
+     },
+     {
+      "_id": 3,
+      "a": "the shop of cake",
+      "k": 1,
+      "s": 0.75
+     },
+     {
+      "_id": 5,
+      "a": "Coffee SHOP",
+      "k": 3,
+      "s": 0.75
+     },
+     {
+      "_id": 7,
+      "a": [
+       "coffee bean",
+       {
+        "nested": "coffee"
+       }
+      ],
+      "k": 1,
+      "s": 0.75
+     },
+     {
+      "_id": 1,
+      "a": "coffee shop downtown",
+      "k": 1,
+      "s": 0.6666666666666666
+     }
+    ]
+   },
+   "sortedByScore": {
+    "value": [
+     [
+      5,
+      [
+       "_id",
+       "a",
+       "k"
+      ]
+     ],
+     [
+      7,
+      [
+       "_id",
+       "a",
+       "k"
+      ]
+     ],
+     [
+      1,
+      [
+       "_id",
+       "a",
+       "k"
+      ]
+     ],
+     [
+      2,
+      [
+       "_id",
+       "a",
+       "k"
+      ]
+     ]
+    ]
+   },
+   "scoreWithoutText": {
+    "error": {
+     "code": 40218
+    }
+   },
+   "pipeline": {
+    "value": [
+     {
+      "_id": 5,
+      "s": 0.75
+     },
+     {
+      "_id": 7,
+      "s": 0.75
+     },
+     {
+      "_id": 1,
+      "s": 0.6666666666666666
+     },
+     {
+      "_id": 2,
+      "s": 0.6666666666666666
+     }
+    ]
+   },
+   "pipelineNotFirst": {
+    "error": {
+     "code": 17313
+    }
+   },
+   "pipelineAfterGroup": {
+    "value": [
+     {
+      "_id": null,
+      "n": 4
+     }
+    ]
+   },
+   "pipelineAfterProject": {
+    "value": [
+     {
+      "_id": 1,
+      "a": "coffee shop downtown",
+      "s": 0.6666666666666666
+     },
+     {
+      "_id": 2,
+      "a": "coffee cake recipe",
+      "s": 0.6666666666666666
+     },
+     {
+      "_id": 5,
+      "a": "Coffee SHOP",
+      "s": 0.75
+     },
+     {
+      "_id": 7,
+      "a": [
+       "coffee bean",
+       {
+        "nested": "coffee"
+       }
+      ],
+      "s": 0.75
+     }
+    ]
+   },
+   "count": {
+    "value": 4
+   },
+   "distinct": {
+    "value": [
+     1,
+     2,
+     3
+    ]
+   },
+   "update": {
+    "value": {
+     "acknowledged": true,
+     "modifiedCount": 2,
+     "upsertedId": null,
+     "upsertedCount": 0,
+     "matchedCount": 2
+    }
+   },
+   "delete": {
+    "value": {
+     "acknowledged": true,
+     "deletedCount": 1
+    }
+   },
+   "secondIndex": {
+    "error": {
+     "code": 85
+    }
+   },
+   "indexes": [
+    {
+     "v": 2,
+     "key": {
+      "_id": 1
+     },
+     "name": "_id_"
+    },
+    {
+     "v": 2,
+     "key": {
+      "_fts": "text",
+      "_ftsx": 1
+     },
+     "name": "a_text",
+     "weights": {
+      "a": 1
+     },
+     "default_language": "english",
+     "language_override": "language",
+     "textIndexVersion": 3
+    }
+   ]
+  },
+  "the text indexes created: their options, their compound fields, the languages of their documents": {
+   "plain": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "a_text",
+      "weights": {
+       "a": 1
+      },
+      "default_language": "english",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "weights": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "a_text_b_text",
+      "weights": {
+       "a": 3,
+       "b": 1
+      },
+      "default_language": "english",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "zero": {
+    "error": {
+     "code": 67
+    }
+   },
+   "tooHeavy": {
+    "error": {
+     "code": 67
+    }
+   },
+   "fraction": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "a_text",
+      "weights": {
+       "a": 1
+      },
+      "default_language": "english",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "otherField": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "a_text",
+      "weights": {
+       "a": 1,
+       "z": 2
+      },
+      "default_language": "english",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "notNumber": {
+    "error": {
+     "code": 67
+    }
+   },
+   "badLanguage": {
+    "error": {
+     "code": 67
+    }
+   },
+   "languageCode": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "a_text",
+      "weights": {
+       "a": 1
+      },
+      "default_language": "fr",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "none": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "a_text",
+      "weights": {
+       "a": 1
+      },
+      "default_language": "none",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "override": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "a_text",
+      "weights": {
+       "a": 1
+      },
+      "default_language": "english",
+      "language_override": "lang",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "version4": {
+    "error": {
+     "code": 67
+    }
+   },
+   "compound": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "x": 1,
+       "_fts": "text",
+       "_ftsx": 1,
+       "y": -1
+      },
+      "name": "x_1_a_text_y_-1",
+      "weights": {
+       "a": 1
+      },
+      "default_language": "english",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "notAdjacent": {
+    "error": {
+     "code": 67
+    }
+   },
+   "wildcard": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "$**_text",
+      "weights": {
+       "$**": 1
+      },
+      "default_language": "english",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "wildcardAndField": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "$**_text_a_text",
+      "weights": {
+       "$**": 1,
+       "a": 1
+      },
+      "default_language": "english",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "unique": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "a_text",
+      "unique": true,
+      "weights": {
+       "a": 1
+      },
+      "default_language": "english",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "sparse": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "a_text",
+      "sparse": true,
+      "weights": {
+       "a": 1
+      },
+      "default_language": "english",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "partial": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "a_text",
+      "partialFilterExpression": {
+       "k": {
+        "$gt": 1
+       }
+      },
+      "weights": {
+       "a": 1
+      },
+      "default_language": "english",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "collation": {
+    "error": {
+     "code": 67
+    }
+   },
+   "named": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "mine",
+      "weights": {
+       "a": 1
+      },
+      "default_language": "english",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "suffix": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1,
+       "b": 1
+      },
+      "name": "a_text_b_1",
+      "weights": {
+       "a": 1
+      },
+      "default_language": "english",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "hashed": {
+    "error": {
+     "code": 67
+    }
+   },
+   "ttl": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "_fts": "text",
+       "_ftsx": 1
+      },
+      "name": "a_text",
+      "expireAfterSeconds": 10,
+      "weights": {
+       "a": 1
+      },
+      "default_language": "english",
+      "language_override": "language",
+      "textIndexVersion": 3
+     }
+    ]
+   },
+   "badOverride": {
+    "error": {
+     "code": 17262
+    }
+   },
+   "overrideNotString": {
+    "error": {
+     "code": 17261
+    }
+   },
+   "noneThe": [
+    "none"
+   ],
+   "noneRunning": [
+    "none"
+   ],
+   "french": [
+    "fr"
+   ],
+   "english": [
+    "fr"
+   ],
+   "prefixEqual": {
+    "value": [
+     1
+    ]
+   },
+   "prefixMissing": {
+    "error": {
+     "code": 291
+    }
+   },
+   "prefixRange": {
+    "error": {
+     "code": 291
+    }
+   },
+   "prefixNull": {
+    "value": [
+     3
+    ]
+   },
+   "prefixArray": {
+    "error": {
+     "code": 201
+    }
+   },
+   "wildcardScores": [
+    {
+     "_id": 1,
+     "a": "coffee",
+     "b": {
+      "c": "tea coffee"
+     },
+     "s": 1.75
+    },
+    {
+     "_id": 2,
+     "z": [
+      "coffee",
+      "milk"
+     ],
+     "s": 1
+    }
+   ],
+   "dottedScores": [
+    {
+     "_id": 1,
+     "a": {
+      "b": "coffee"
+     },
+     "s": 1
+    },
+    {
+     "_id": 2,
+     "a": [
+      {
+       "b": "coffee"
+      },
+      {
+       "b": "coffee cake"
+      }
+     ],
+     "s": 1.75
+    }
+   ],
+   "dropped": [
+    "_id_"
+   ]
+  },
   "the starts of the change streams: after the event of a drop, conflicting options, the stage splitting the events": {
    "dropEmpty": true,
    "events": [

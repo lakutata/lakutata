@@ -808,7 +808,8 @@ export class EmbeddedStore {
                 const kept: Set<string> = new Set<string>(before.map((key: Buffer): string => key.toString('latin1')))
                 const now: Set<string> = new Set<string>(after.map((key: Buffer): string => key.toString('latin1')))
                 const table: number = collection.tables.get(index.name)!
-                const unique: boolean = !!index.unique
+                // A text index holds the terms of the documents with their _id, unique or not
+                const unique: boolean = !!index.unique && index.key._fts !== 'text'
                 // A unique index, or an index prepared to be unique (prepareUnique: its new entries checked)
                 const kind: number = unique ? 1 : index.prepareUnique ? 2 : 0
                 for (const key of before)
@@ -1195,10 +1196,11 @@ export class EmbeddedStore {
      * the _id; the keys of the sequences of the table of the _id of a capped collection)
      * @param name
      * @param table
-     * @param options its ranges (none: all the entries), reversed, the entries of its first batch when fewer are needed
+     * @param options its ranges (none: all the entries), reversed, the entries of its first batch when fewer are needed,
+     * the transaction it reads in (none: it reads the last commit)
      */
-    async* entries(name: string, table: number, options: { ranges?: NativeRange[], reverse?: boolean, first?: number } = {}): AsyncGenerator<{ keys: Buffer[], ids: Buffer[] }> {
-        if (!this.collections.has(name)) return
+    async* entries(name: string, table: number, options: { ranges?: NativeRange[], reverse?: boolean, first?: number, transaction?: EmbeddedStoreTransaction } = {}): AsyncGenerator<{ keys: Buffer[], ids: Buffer[] }> {
+        if (!this.view(options.transaction).has(name)) return
         let after: Buffer | undefined
         let range: number = 0
         let limit: number = Math.max(1, Math.min(options.first ?? SCAN_BATCH * 10, SCAN_BATCH * 10))
@@ -1209,7 +1211,8 @@ export class EmbeddedStore {
                 range: range,
                 after: after,
                 entries: true,
-                limit: limit
+                limit: limit,
+                inTransaction: this.isOpen(options.transaction)
             })
             const keys: Buffer[] = []
             const ids: Buffer[] = []

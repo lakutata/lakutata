@@ -11,6 +11,7 @@
 #include "connection.h"
 #include "database.h"
 #include "prefilter.h"
+#include "text/text.h"
 
 namespace mongo_embedded {
 namespace {
@@ -368,6 +369,47 @@ Napi::Value OplogState(const Napi::CallbackInfo& info) {
       });
 }
 
+
+// textTerms(text, language, flags): the terms of a text in a language (native/text/text.h), on the thread of
+// JavaScript: {terms: their strings in the order of the words, words: the number of the words, the stop words left out}
+Napi::Value TextTerms(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  const std::string text = info[0].As<Napi::String>().Utf8Value();
+  const int language = info[1].As<Napi::Number>().Int32Value();
+  const int flags = info[2].As<Napi::Number>().Int32Value();
+  std::vector<std::string> terms;
+  const int words = mde_text_terms(
+      text.data(), text.size(), language, flags,
+      [](void* context, const char* bytes, size_t size) { static_cast<std::vector<std::string>*>(context)->emplace_back(bytes, size); },
+      &terms);
+  if (words < 0) {
+    Napi::Error::New(env, "out of memory").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  Napi::Array array = Napi::Array::New(env, terms.size());
+  for (uint32_t i = 0; i < terms.size(); i++) array.Set(i, Napi::String::New(env, terms[i]));
+  Napi::Object result = Napi::Object::New(env);
+  result.Set("terms", array);
+  result.Set("words", Napi::Number::New(env, words));
+  return result;
+}
+
+// textNormalized(text, language, flags): a text case folded and its diacritics removed (unless flags tell them kept),
+// its words not split (native/text/text.h), on the thread of JavaScript
+Napi::Value TextNormalized(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  const std::string text = info[0].As<Napi::String>().Utf8Value();
+  std::string normalized;
+  const int rc = mde_text_normalized(
+      text.data(), text.size(), info[1].As<Napi::Number>().Int32Value(), info[2].As<Napi::Number>().Int32Value(),
+      [](void* context, const char* bytes, size_t size) { static_cast<std::string*>(context)->assign(bytes, size); },
+      &normalized);
+  if (rc < 0) {
+    Napi::Error::New(env, "out of memory").ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  return Napi::String::New(env, normalized);
+}
 
 // dropDatabase(handle): every collection dropped
 Napi::Value DropDatabase(const Napi::CallbackInfo& info) {
@@ -907,6 +949,8 @@ Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("appendEvents", Napi::Function::New(env, AppendEvents, "appendEvents"));
   exports.Set("oplogRead", Napi::Function::New(env, OplogRead, "oplogRead"));
   exports.Set("oplogState", Napi::Function::New(env, OplogState, "oplogState"));
+  exports.Set("textTerms", Napi::Function::New(env, TextTerms, "textTerms"));
+  exports.Set("textNormalized", Napi::Function::New(env, TextNormalized, "textNormalized"));
 
 
 

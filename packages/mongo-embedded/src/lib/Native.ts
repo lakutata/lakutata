@@ -307,6 +307,20 @@ export interface NativeAddon {
      */
     oplogState(database: NativeDatabase): Promise<{ generation: number, nextSeq: number, first: Buffer | null, database: Buffer, lost: Buffer, lastTime: Buffer | null }>
 
+    /**
+     * The terms of a text in a language (an id: 0 none, 1 to 15 the languages of MongoDB's text indexes), on the thread
+     * of JavaScript: its words split by the delimiters of Unicode 8.0, case folded (unless flags has 1), the stop words
+     * left out, stemmed, their diacritics removed (unless flags has 2); the number of its words, the stop words left out
+     */
+    textTerms(text: string, language: number, flags: number): { terms: string[], words: number }
+
+    /**
+     * A text case folded (unless flags has 1; by the rules of Turkish in Turkish) and its diacritics removed (unless
+     * flags has 2), its words not split, on the thread of JavaScript: the phrases of a $text and the texts they are looked
+     * for in
+     */
+    textNormalized(text: string, language: number, flags: number): string
+
 
     /**
      * The documents of keys: their BSON one after the other, and for each key the offset of its document (i32, little

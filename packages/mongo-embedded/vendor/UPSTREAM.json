@@ -307,5 +307,60 @@
       "into": "vendor/icu/icudt77l.dat",
       "built": "14fcc03522b51e9eb6bfa53175104524d39834302b4d070d2b61b03c1979dad3"
     }
+  },
+  "libstemmer_c": {
+    "version": "2.2.0",
+    "archive": "https://snowballstem.org/dist/libstemmer_c-2.2.0.tar.gz",
+    "sha256": "b941d9fe9cf36b4e2f8d3873cd4d8b8775bd94867a1df8d8c001bb8b688377c3",
+    "from": "libstemmer_c-2.2.0",
+    "into": "vendor/libstemmer_c (its runtime, and the stemmers of UTF-8 of the 15 languages of MongoDB's text indexes)",
+    "files": {
+      "COPYING": "f6f9e4c0e737728ca980de8595ded046d5e077017c1bb0ee05dc794a01434dae",
+      "runtime/api.c": "4eb0fbd9d9e20e201b8f063a6bfe6087a8131c7ba725589f2b261dd83f0f297b",
+      "runtime/api.h": "6c7618042b3e8e9579b7c9e476a2505c44d642d6203c98985b3593163dec2d10",
+      "runtime/header.h": "7fb82f663ae5922247b7047d89829a5634bd7955095b3b09ca4c2b5bf884b68f",
+      "runtime/utilities.c": "1c6ee17b7d0769977a1fe1ea1cdb439c786e7c5ae2986af0270090269a8f4290",
+      "src_c/stem_UTF_8_danish.c": "aec65ce8b91847ec3c2c4618882b55df46a4094d392607a9a75bc295089954fb",
+      "src_c/stem_UTF_8_danish.h": "a0cd23dde26592a496749895dc570b6ee6a53f2735da7267a7e227a4fb6c2266",
+      "src_c/stem_UTF_8_dutch.c": "59eacd3040a65450fb633c40fb537dc9c5cdfcb100112fe95e59db7946b1b9a2",
+      "src_c/stem_UTF_8_dutch.h": "8717eca68f8051854c7a15aa163a655eca49bce9c19277a082fb84a31496f8b0",
+      "src_c/stem_UTF_8_english.c": "d255d59978ad806fe7d84c9d590ad14e0a72a331d815dfb80893421cb7a95c65",
+      "src_c/stem_UTF_8_english.h": "f0a347c68d53149313b8f54bef077b5b8d1c0cf079699e5bfca1daf5161b9ee4",
+      "src_c/stem_UTF_8_finnish.c": "f351bd6abfc312e09d69eb27008215659cc0e8b7a71192e2a5a311296a81aa8e",
+      "src_c/stem_UTF_8_finnish.h": "298c058dcc9f315c429d775e7517d78dd5101c7854c787a1ada6e2d969e66464",
+      "src_c/stem_UTF_8_french.c": "cd15a0aeba27230fcdac549561941915e13d6eefc2e09d6d7e9fd259258476dd",
+      "src_c/stem_UTF_8_french.h": "c9f82d767a6af1d5ebd42d5d8a087c384cdae58d0c1d1697286288eb9c4097c7",
+      "src_c/stem_UTF_8_german.c": "d7e251b1d2afa9474a0abe9725895164c43d58c0dd03373e548be4506b15af94",
+      "src_c/stem_UTF_8_german.h": "0a9844339c303786d04a71e976de61642bd6657e8be98eb1e5889fd849fc2910",
+      "src_c/stem_UTF_8_hungarian.c": "2c790062c309b1a3a12bd5f7ece9625de083fccf539d2595334ee9a581466d25",
+      "src_c/stem_UTF_8_hungarian.h": "ca1e6120e75e85a96db3a30d23e96d0d3b516633b7b6cb840d6b7a59dfe36641",
+      "src_c/stem_UTF_8_italian.c": "63ff4a3bf71b5d503af518f4e2dd14afa8c2a7359f69639b6b1c8bdaf43114ea",
+      "src_c/stem_UTF_8_italian.h": "8713ee70a628fcc29326ffc5342e80e44d8c973b492104d67e1584568f4abf33",
+      "src_c/stem_UTF_8_norwegian.c": "e1f74920be34e4354567421d90c3df947024999b21b5fc32420146fa90c5344a",
+      "src_c/stem_UTF_8_norwegian.h": "d5a84ce45f1c8c73fbcf52e5b8c465746cb1a636223c7975a3c33a9a8be8ea8a",
+      "src_c/stem_UTF_8_portuguese.c": "2a9407d9f6d1d5c710319e5eae13491b434e149b4bcd9943d582984d26b0531c",
+      "src_c/stem_UTF_8_portuguese.h": "a58316f3a219278f3f6fc752e63a59ef1e18a376b98e3be8352b88cddd2ef948",
+      "src_c/stem_UTF_8_romanian.c": "141234610fdf596766638674c2861a06a7e4917078421ca92d10154f9d3a2eb3",
+      "src_c/stem_UTF_8_romanian.h": "fe96f58483ad480c2eeff858fc7628e17018ec3336d1b4373aa2530a7ada0e15",
+      "src_c/stem_UTF_8_russian.c": "477b9aeff1662d6cb966ed0298fd1c239dc381d3aea4d0038f21914406d14ff8",
+      "src_c/stem_UTF_8_russian.h": "69b0983e1ed5921b2dc24d1aa42d88b22d43d55b2d40630b82fcc536eeb43e88",
+      "src_c/stem_UTF_8_spanish.c": "6db0183a8efbbbd8702043b6f6ab7b1f25428ec86b457631204aa2923289a083",
+      "src_c/stem_UTF_8_spanish.h": "5b15898efac3b6d5c8ef1c4ae42b8402d908c901b9919df215e6dd7a5978b5a0",
+      "src_c/stem_UTF_8_swedish.c": "bdb0a3bbf6bdc74a01e2eace91e1e546e39ba5679b18dccc732f9ee18ac19bca",
+      "src_c/stem_UTF_8_swedish.h": "a885e580ed011d2e3be8265c9df011bc69e55c338747d6d31c944530a364f6de",
+      "src_c/stem_UTF_8_turkish.c": "dfe5f553b462d58d8537a6534c00481ef8856ca101630f93aa81e5b5c5ebe87e",
+      "src_c/stem_UTF_8_turkish.h": "7bde7dfb2adadf82c3678ab576c4831dfb324d4ef8cf10d48bb7150120cadf5e"
+    }
+  },
+  "ucd": {
+    "version": "8.0.0",
+    "archive": "https://www.unicode.org/Public/8.0.0/ucd/",
+    "into": "vendor/ucd (read by scripts/text-tables.mjs into native/text/tables.h)",
+    "files": {
+      "CaseFolding.txt": "86e075f2ede997b3fa5965516c75190b5a88bb82d302272d9c3179b7a57af03f",
+      "PropList.txt": "70d40297f1bf91397fbdab5a770c12100733e67c5c3398446c5e950715d5e535",
+      "UnicodeData.txt": "38b17e1118206489a7e0ab5d29d7932212d38838df7d3ec025ecb58e8798ec20"
+    },
+    "license": "https://www.unicode.org/license.txt"
   }
 }

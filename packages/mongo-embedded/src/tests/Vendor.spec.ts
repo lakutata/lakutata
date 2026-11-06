@@ -39,3 +39,19 @@ describe('The vendored ICU', (): void => {
         assert.strictEqual(hash(icu.data.into), icu.data.built)
     })
 })
+
+describe('The vendored Snowball and Unicode Character Database', (): void => {
+    it('are the files of their releases, unchanged (vendor/UPSTREAM.json)', (): void => {
+        type Upstream = { libstemmer_c: { version: string, files: Record<string, string> }, ucd: { version: string, files: Record<string, string> } }
+        const {libstemmer_c: snowball, ucd}: Upstream = JSON.parse(readFileSync(new URL('vendor/UPSTREAM.json', PACKAGE), 'utf8'))
+        const hash = (file: string): string => createHash('sha256').update(readFileSync(fileURLToPath(new URL(file, PACKAGE)))).digest('hex')
+        assert.deepStrictEqual([snowball.version, ucd.version], ['2.2.0', '8.0.0'])
+        const found: string[] = (readdirSync(fileURLToPath(new URL('vendor/libstemmer_c/', PACKAGE)), {recursive: true}) as string[])
+            .map((file: string): string => file.split(path.sep).join('/'))
+            .filter((file: string): boolean => /\.[ch]$|COPYING$/.test(file))
+            .sort()
+        assert.deepStrictEqual(found, Object.keys(snowball.files).sort())
+        for (const [file, sha256] of Object.entries(snowball.files)) assert.strictEqual(hash(`vendor/libstemmer_c/${file}`), sha256, file)
+        for (const [file, sha256] of Object.entries(ucd.files)) assert.strictEqual(hash(`vendor/ucd/${file}`), sha256, file)
+    })
+})

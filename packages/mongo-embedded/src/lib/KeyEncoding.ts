@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { EmbeddedOperationError } from './Errors.js'
 import { type EmbeddedIndex, isWildcardField, wildcardHolds, wildcardOf } from './Planner.js'
+import { isTextIndex, textKeysOf } from './Text.js'
 import type { EmbeddedDocument, EmbeddedValues } from './Values.js'
 
 /**
@@ -273,6 +274,8 @@ export class EmbeddedKeyEncoding {
      * @param collator the collation of the index, if any: its strings are their sort keys
      */
     indexKeysOf(index: EmbeddedIndex, document: EmbeddedDocument, collator?: EmbeddedSortKeys): Buffer[] {
+        // A text index: the terms of the document with their scores
+        if (isTextIndex(index)) return textKeysOf(index, document, (value, direction) => this.direct(this.encode(value), direction))
         const wildcard = wildcardOf(index)
         if (wildcard === undefined)
             return this.keysOf(index.key, index.sparse, document, collator)

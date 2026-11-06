@@ -2,6 +2,7 @@ import { evalExpr } from '../../core/_internal.js'
 import { Iterator } from '../../lazy.js'
 import { AnyObject, Options } from '../../types.js'
 import { removeValue, setValue } from '../../util/index.js'
+import { withTextScore } from '../../util/_meta.js'
 
 /**
  * Adds new fields to documents. $addFields outputs documents that contain
@@ -19,7 +20,7 @@ export function $addFields(
   if (newFields.length === 0) return coll
 
   return coll.map((obj: AnyObject) => {
-    const newObj = { ...obj }
+    const newObj = withTextScore(obj, { ...obj })
     for (const field of newFields) {
       const newValue = evalExpr(obj, expr[field], options)
       if (newValue !== undefined) {

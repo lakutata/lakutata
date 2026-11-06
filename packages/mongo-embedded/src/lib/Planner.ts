@@ -24,6 +24,14 @@ export interface EmbeddedIndex {
     wildcardProjection?: EmbeddedDocument
     expireAfterSeconds?: number
     collation?: EmbeddedDocument
+    /**
+     * A text index: the weights of its fields, the language of its documents, the field of the language of a document,
+     * its version (3)
+     */
+    weights?: Record<string, number>
+    default_language?: string
+    language_override?: string
+    textIndexVersion?: number
 }
 
 /**
@@ -112,8 +120,9 @@ const RANGE_OPERATORS = ['$gt', '$gte', '$lt', '$lte']
  * the smallest bytes greater than all the bytes starting with some (undefined when they are all 0xff).
  *
  * @param bytes
+ * @internal
  */
-function after(bytes: Buffer): Buffer | undefined {
+export function after(bytes: Buffer): Buffer | undefined {
     for (let index = bytes.length - 1; index >= 0; index--)
         if (bytes[index] !== 0xff) {
             const next = Buffer.from(bytes.subarray(0, index + 1))
@@ -231,7 +240,8 @@ export class EmbeddedPlanner {
             return { kind: 'id', ids: ids.values, exact: alone && ids.complete }
         let best: { plan: EmbeddedPlan, score: number } | undefined
         for (const index of [this.idIndex(), ...this.collection.indexes]) {
-            if (index.hidden || index.partialFilterExpression) continue
+            // A text index serves the $text queries only (their own reads)
+            if (index.hidden || index.partialFilterExpression || index.key._fts === 'text') continue
             const [path] = Object.keys(index.key)
             const [conditionPath, condition] = this.conditionOf(index, conditions) ?? []
             if (!condition) continue
@@ -276,6 +286,7 @@ export class EmbeddedPlanner {
                 ? undefined
                 : { index: ID_INDEX, reverse: direction !== 1 }
         for (const index of this.collection.indexes) {
+            if (index.key._fts === 'text') continue
             const [path] = Object.keys(index.key)
             const indexDirection = this.directionOf(index.key[path])
             if (

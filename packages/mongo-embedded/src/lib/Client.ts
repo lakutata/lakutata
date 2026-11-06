@@ -39,8 +39,11 @@ import {
     timeSeriesOptionsOf,
     unpacked
 } from './TimeSeries.js'
+import { isTextIndex, prefixFieldsOf, TEXT_SCORE, textIndexOf, textMatches, textQueryOf } from './Text.js'
+import { setTextScore } from './mingo/util/_meta.js'
 import type { NativeRange } from './Native.js'
 import {
+    after as keysAfter,
     type EmbeddedIndex,
     type EmbeddedPlan,
     EmbeddedPlanner,
@@ -93,6 +96,11 @@ export type EmbeddedHint = string | EmbeddedDocument
  * the options of an index MongoDB accepts (createIndex): the ones of the kinds of indexes not supported fail as their
  * kinds do; the others fail as MongoDB fails them (InvalidIndexSpecificationOption).
  */
+/**
+ * The options of the text indexes only
+ */
+const TEXT_OPTIONS = new Set(['weights', 'default_language', 'language_override', 'textIndexVersion'])
+
 const INDEX_OPTIONS = new Set([
     'name',
     'unique',
@@ -107,7 +115,11 @@ const INDEX_OPTIONS = new Set([
     'storageEngine',
     'comment',
     'prepareUnique',
-    'originalSpec'
+    'originalSpec',
+    'weights',
+    'default_language',
+    'language_override',
+    'textIndexVersion'
 ])
 
 /**
@@ -660,6 +672,92 @@ function cappedMax(field: string, max: number): number {
     if (max > CAPPED_MAX)
         throw new EmbeddedOperationError(2, 'BadValue', `BSON field '${field}' value must be < 2147483648, actual value '${max}'`)
     return max > 0 ? max : CAPPED_MAX
+}
+
+/**
+ * The $text of a filter, where MongoDB 8.0 allows it: at its top level or in its top-level $and, once (more fail with
+ * BadValue); in a $nor, under a field or beside other clauses of a $or it fails as MongoDB fails it. Undefined without
+ * one; else its value and the filter without it (its documents are tested by the rest)
+ *
+ * @param filter
+ */
+function textOf(filter: EmbeddedDocument): { text: unknown, rest: EmbeddedDocument } | undefined {
+    let found: { text: unknown, rest: EmbeddedDocument } | undefined
+    // The places of its $text ('top' at the top level or in its $and; 'or' in a $or of other clauses too)
+    const places: string[] = []
+    const walk = (value: unknown, place: 'top' | 'or' | 'nor' | 'field', alone: boolean): void => {
+        if (Array.isArray(value)) {
+            for (const item of value) walk(item, place, alone)
+            return
+        }
+        if (!isPlain(value)) return
+        for (const [key, item] of Object.entries(value as EmbeddedDocument)) {
+            if (key === '$text') places.push(place === 'or' && alone ? 'top' : place)
+            else if (place === 'field') walk(item, 'field', false)
+            else if (key === '$and') walk(item, place, alone)
+            else if (key === '$or') walk(item, place === 'top' ? 'or' : place, Array.isArray(item) && item.length === 1)
+            else if (key === '$nor') walk(item, 'nor', false)
+            else if (!key.startsWith('$')) walk(item, 'field', false)
+        }
+    }
+    walk(filter, 'top', true)
+    if (!places.length) return undefined
+    if (places.length > 1) throw new EmbeddedOperationError(2, 'BadValue', 'Too many text expressions')
+    if (places[0] === 'nor') throw new EmbeddedOperationError(2, 'BadValue', 'text expression not allowed in nor')
+    if (places[0] === 'field') throw new EmbeddedOperationError(2, 'BadValue', '$text can only be applied to the top-level document')
+    if (places[0] === 'or')
+        throw new EmbeddedOperationError(291, 'NoQueryExecutionPlans', 'error processing query: planner returned error :: caused by :: Failed to produce a solution for TEXT under OR - other non-TEXT clauses under OR have to be indexed as well.')
+    // The filter without its $text (at its top level, or in an item of its top-level $and, or of a $or of one item)
+    const without = (value: EmbeddedDocument): EmbeddedDocument => {
+        const rest: EmbeddedDocument = {}
+        for (const [key, item] of Object.entries(value)) {
+            if (key === '$text') found = { text: item, rest: {} }
+            else if ((key === '$and' || key === '$or') && Array.isArray(item)) rest[key] = item.map((clause) => (isPlain(clause) ? without(clause) : clause))
+            else rest[key] = item
+        }
+        return rest
+    }
+    const rest = without(filter)
+    return { text: found!.text, rest: rest }
+}
+
+/**
+ * The value of an equality of a field at the top level of a filter (or in its top-level $and): NO_EQUALITY when there
+ * is none
+ *
+ * @param filter
+ * @param field
+ */
+function equalityOf(filter: EmbeddedDocument, field: string): unknown {
+    if (Object.hasOwn(filter, field)) {
+        const condition = filter[field]
+        if (!isPlain(condition) || !Object.keys(condition).some((key) => key.startsWith('$'))) return condition
+        if (Object.keys(condition).length === 1 && Object.hasOwn(condition, '$eq')) return condition.$eq
+    }
+    for (const clause of Array.isArray(filter.$and) ? filter.$and : []) {
+        const value = isPlain(clause) ? equalityOf(clause, field) : NO_EQUALITY
+        if (value !== NO_EQUALITY) return value
+    }
+    return NO_EQUALITY
+}
+
+/**
+ * No equality of a field in a filter (equalityOf)
+ */
+const NO_EQUALITY = Symbol('none')
+
+/**
+ * The field the documents of a sort by the text score are given it in, while they are sorted
+ */
+const SCORE_FIELD = '\u0000textScore'
+
+/**
+ * Whether a sort or a projection asks the text score of the documents ({$meta: "textScore"})
+ *
+ * @param value
+ */
+function asksTextScore(value: unknown): boolean {
+    return isPlain(value) && Object.values(value as EmbeddedDocument).some((item) => isPlain(item) && item.$meta === 'textScore')
 }
 
 /**
@@ -1501,9 +1599,13 @@ export class EmbeddedFindCursor extends EmbeddedResults {
                 ...(this.limited ? [{ $limit: Math.abs(this.limited) }] : [])
             ], this.collated, {}, time))
         const collator = this.collator
+        // The text score ($meta) of the documents of a $text only
+        const scored = asksTextScore(this.order)
+        if ((scored || asksTextScore(this.projection)) && !textOf(this.query))
+            throw new EmbeddedOperationError(40218, 'Location40218', 'query requires text score metadata, but it is not available')
         // Sorted by an index: the documents read in its order, up to the limit
         const ordered =
-            this.order && this.limited && this.hinted === undefined
+            this.order && this.limited && this.hinted === undefined && !scored
                 ? await collection.ordered(
                       this.query,
                       this.order,
@@ -1534,23 +1636,41 @@ export class EmbeddedFindCursor extends EmbeddedResults {
         )
             return this.projected(matches.slice(this.skipped))
         const sorted = withCollation(collator, () => {
+            // A sort by the text score: by a field of its own, the highest first (as MongoDB sorts by it)
+            const order = scored
+                ? Object.fromEntries(Object.entries(this.order!).map(([field, direction]) => (isPlain(direction) ? [SCORE_FIELD, -1] : [field, direction])))
+                : this.order
+            if (scored) for (const document of matches) document[SCORE_FIELD] = (document as Record<symbol, unknown>)[TEXT_SCORE] ?? 0
             let cursor = this.collection.values.mingo.find(matches, {})
-            if (this.order) cursor = cursor.sort(this.order)
+            if (order) cursor = cursor.sort(order)
             if (this.skipped) cursor = cursor.skip(this.skipped)
             if (this.limited) cursor = cursor.limit(this.limited)
-            return cursor.all()
+            const all = cursor.all()
+            if (scored) for (const document of matches) delete document[SCORE_FIELD]
+            return all
         })
         return this.projected(sorted)
     }
 
     private projected(documents: EmbeddedDocument[]): EmbeddedDocument[] {
-        return this.projection
-            ? withCollation(this.collator, () =>
-                  this.collection.values.mingo
-                      .find(documents, {}, this.projection)
-                      .all()
-              )
-            : documents
+        if (!this.projection) return documents
+        // The fields of the text score ($meta) added after the others: alone (or with excluded fields) they leave the
+        // others in, as MongoDB projects them
+        const fields = Object.entries(this.projection)
+        const metas = fields.filter(([, value]) => isPlain(value) && value.$meta !== undefined)
+        const others = fields.filter(([, value]) => !(isPlain(value) && value.$meta !== undefined))
+        if (!metas.length || others.some(([field, value]) => field !== '_id' && !(value === 0 || value === false)))
+            return withCollation(this.collator, () =>
+                this.collection.values.mingo.find(documents, {}, this.projection).all()
+            )
+        const projected: EmbeddedDocument[] = others.length
+            ? withCollation(this.collator, () => this.collection.values.mingo.find(documents, {}, Object.fromEntries(others)).all())
+            : documents.map((document) => ({ ...document }))
+        projected.forEach((document, position) => {
+            const score = (documents[position] as Record<symbol, unknown>)[TEXT_SCORE]
+            if (score !== undefined) for (const [field] of metas) document[field] = score
+        })
+        return projected
     }
 
     /**
@@ -2389,7 +2509,7 @@ export class EmbeddedCollection {
                 ...(options?.limit ? [{ $limit: options.limit }] : [])
             ], options?.collation, {}, this.timeLimitOf(options))).length
         const collator = this.collatorFor(options?.collation)
-        const exact = await this.exactCount(filter, options?.hint, collator)
+        const exact = textOf(filter) ? undefined : await this.exactCount(filter, options?.hint, collator)
         if (exact !== undefined)
             return Math.max(Math.min(exact, limit) - skip, 0)
         const matches = this.matcherOf(filter, collator)
@@ -2519,6 +2639,10 @@ export class EmbeddedCollection {
         time?: EmbeddedTimeLimit
     ): Promise<EmbeddedDocument[]> {
         if (this.isView()) return this.viewDocuments(pipeline, collation, aggregation, time)
+        pipeline.forEach((stage, position) => {
+            if (position && isPlain(stage) && isPlain(stage.$match) && textOf(stage.$match))
+                throw new EmbeddedOperationError(17313, 'Location17313', '$match with $text is only allowed as the first pipeline stage')
+        })
         const collator = this.collatorFor(collation)
         const position = pipeline.findIndex(
             (stage) => isPlain(stage) && ('$out' in stage || '$merge' in stage)
@@ -4431,6 +4555,12 @@ export class EmbeddedCollection {
             time.check()
             return
         }
+        // A $text: the documents of its terms in the text index, given their scores
+        const text = textOf(filter)
+        if (text) {
+            yield* this.textCandidates(text.text, text.rest, hint, typed)
+            return
+        }
         const collection = this.store.collection(this.collectionName, this.transaction)
         if (!collection) return
         const planner = new EmbeddedPlanner(collection, collator)
@@ -4487,6 +4617,68 @@ export class EmbeddedCollection {
                   })
                 : documents
             if (unique.length) yield unique
+        }
+    }
+
+    /**
+     * The documents of a $text, as MongoDB 8.0 finds them: the ones of its terms in the text index of the collection
+     * (the fields before its text fields given by equalities of the filter), each term in the order of their bytes, its
+     * entries backwards (the highest scores first), each document once; the rest of the $text checked on them
+     * (textMatches), their scores (the ones of its terms added up) given as their text score ($meta: "textScore").
+     * Without a text index it fails with IndexNotFound (27), with a hint with BadValue
+     *
+     * @param value the value of $text
+     * @param rest the filter without it
+     * @param hint
+     * @param typed whether the numbers of the documents keep their types (Int32, Double, Long)
+     */
+    private async *textCandidates(
+        value: unknown,
+        rest: EmbeddedDocument,
+        hint: EmbeddedHint | undefined,
+        typed: boolean
+    ): AsyncGenerator<EmbeddedDocument[]> {
+        if (hint !== undefined) throw new EmbeddedOperationError(2, 'BadValue', 'text and hint not allowed in same query')
+        const collection = this.store.collection(this.collectionName, this.transaction)
+        const index = collection?.indexes.find(isTextIndex)
+        if (!collection || !index) throw new EmbeddedOperationError(27, 'IndexNotFound', 'text index required for $text query')
+        const query = textQueryOf(value, index)
+        const encoding = collection.encoding
+        const prefix = Buffer.concat(prefixFieldsOf(index).map((field) => {
+            const equal = equalityOf(rest, field)
+            if (equal === NO_EQUALITY)
+                throw new EmbeddedOperationError(291, 'NoQueryExecutionPlans', 'error processing query: planner returned error :: caused by :: failed to use text index to satisfy $text query (if text index is compound, are equality predicates given for all prefix fields?)')
+            return encoding.direct(encoding.encode(equal ?? null), index.key[field])
+        }))
+        const table = this.tableOf(collection, index.name)
+        const scores = new Map<string, { key: Buffer, score: number }>()
+        for (const term of [...query.terms].sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)))) {
+            const lower = Buffer.concat([prefix, encoding.encode(term)])
+            const upper = keysAfter(lower)
+            for await (const { keys, ids } of this.store.entries(this.collectionName, table, {
+                ranges: [{ lower: lower, lowerInclusive: true, upper: upper, upperInclusive: false }],
+                reverse: true,
+                transaction: this.transaction
+            }))
+                keys.forEach((key, position) => {
+                    const id = ids[position]
+                    const text = id.toString('latin1')
+                    const score = key.readDoubleBE(lower.length)
+                    const known = scores.get(text)
+                    if (known) known.score += score
+                    else scores.set(text, { key: Buffer.from(id), score: score })
+                })
+        }
+        const found = [...scores.values()]
+        for (let start = 0; start < found.length; start += YIELD_EVERY) {
+            if (start) await yieldLoop()
+            const batch = found.slice(start, start + YIELD_EVERY)
+            const documents = await this.store.get(this.collectionName, batch.map((item) => item.key), this.transaction, typed)
+            const kept: EmbeddedDocument[] = []
+            documents.forEach((document, position) => {
+                if (document && textMatches(query, index, document)) kept.push(setTextScore(document, batch[position].score))
+            })
+            if (kept.length) yield kept
         }
     }
 
@@ -4595,20 +4787,22 @@ export class EmbeddedCollection {
                 throw cannot(
                     `Values in v:2 index key pattern cannot be of type ${direction === null ? 'null' : typeof direction}. Only numbers > 0, numbers < 0, and strings are allowed.`
                 )
-            if (direction === 'hashed') continue
-            if (['text', '2d', '2dsphere'].includes(direction))
+            if (direction === 'hashed' || direction === 'text') continue
+            if (['2d', '2dsphere'].includes(direction))
                 throw cannot(`${direction} indexes are not supported by mongo-embedded`)
             throw cannot(`Unknown index plugin '${direction}'`)
         }
-        const wildcards = fields.filter(isWildcardField)
+        // The fields of a text index ($** too: all the strings) are its text fields, not a wildcard term
+        const wildcards = fields.filter((field) => isWildcardField(field) && key[field] !== 'text')
         if (wildcards.length > 1)
             throw cannot('An index can have one wildcard term only')
         if (wildcards.length && fields.some((field) => key[field] === 'hashed'))
             throw cannot('A wildcard index cannot have a hashed field')
         if (fields.filter((field) => key[field] === 'hashed').length > 1)
             throw cannot('A maximum of one index field is allowed to be hashed')
+        const texts = fields.some((field) => key[field] === 'text')
         for (const option of Object.keys(options))
-            if (options[option] !== undefined && !INDEX_OPTIONS.has(option))
+            if (options[option] !== undefined && (!INDEX_OPTIONS.has(option) || (!texts && TEXT_OPTIONS.has(option))))
                 throw new EmbeddedOperationError(
                     197,
                     'InvalidIndexSpecificationOption',
@@ -4641,8 +4835,11 @@ export class EmbeddedCollection {
                 )
             return { name: ID_INDEX, key: { _id: 1 } }
         }
-        const index: EmbeddedIndex = { name: name, key: this.values.plain(key) }
-        if (collator) index.collation = { ...collator.collation }
+        const spec = () => this.values.bson.EJSON.stringify({ key: key, ...options, name: name, v: 2 })
+        const text = textIndexOf(this.values.plain(key), this.values.plain(options), name, (message) =>
+            cannot(`Error in specification ${spec()} :: caused by :: ${message}`))
+        const index: EmbeddedIndex = text ?? { name: name, key: this.values.plain(key) }
+        if (collator && !text) index.collation = { ...collator.collation }
         if (options.unique) index.unique = true
         else if (options.prepareUnique) index.prepareUnique = true
         // The index of a time series collection it is on its buckets (its fields as the time series lists them)
@@ -4790,7 +4987,7 @@ export class EmbeddedCollection {
                     }
                 })
                 try {
-                    await this.store.writeIndex(this.collectionName, table, !!index.unique, keys, ids)
+                    await this.store.writeIndex(this.collectionName, table, !!index.unique && !isTextIndex(index), keys, ids)
                 } catch (error) {
                     const failed = (error as { index?: number }).index
                     if ((error as { code?: number }).code === 11000 && failed !== undefined && failed >= 0)
@@ -4860,6 +5057,8 @@ export class EmbeddedCollection {
         filter: EmbeddedDocument,
         collator?: EmbeddedCollator
     ): (document: EmbeddedDocument) => boolean {
+        // A $text: its documents found by it (candidates), tested by the rest of the filter
+        filter = textOf(filter)?.rest ?? filter
         const id = this.idOf(filter)
         let query: any
         return (document) =>

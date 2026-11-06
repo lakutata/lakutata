@@ -11,6 +11,7 @@ import {
   isString,
   resolve
 } from '../../util/index.js'
+import { withTextScore } from '../../util/_meta.js'
 import { filterDocumentsStage, resolveCollection } from './_internal.js'
 
 interface InputExpr {
@@ -99,7 +100,7 @@ export function $lookup(
 
     if (pipeline?.length === 0) {
       return coll.map((obj: AnyObject) => {
-        return { ...obj, [expr.as]: lookupEq(obj)[1] }
+        return withTextScore(obj, { ...obj, [expr.as]: lookupEq(obj)[1] })
       })
     }
   }
@@ -111,6 +112,6 @@ export function $lookup(
     const variables = evalExpr(obj, letExpr, options) as AnyObject
     opts.update({ root: null, variables })
     const [ok, res] = lookupEq(obj)
-    return { ...obj, [expr.as]: ok ? agg.run(joinColl, opts) : res }
+    return withTextScore(obj, { ...obj, [expr.as]: ok ? agg.run(joinColl, opts) : res })
   })
 }

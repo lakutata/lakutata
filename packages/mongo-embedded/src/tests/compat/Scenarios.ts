@@ -1385,6 +1385,172 @@ export const SCENARIOS: Scenario[] = [
         }
     },
     {
+        group: 'text',
+        name: 'the text indexes score their terms: their frequency, the words of their strings, the weights of their fields',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const items: any = db.collection('items')
+            await items.createIndex({a: 'text'})
+            const texts = [
+                'apple', 'apple apple', 'apple apple apple', 'apple banana', 'apple banana cherry', 'apple banana cherry date', 'banana apple',
+                'apple banana apple', 'apples', 'applied', 'running runs ran runner', 'the apple', 'The Apple of my eye', 'apple '.repeat(10).trim(),
+                'x y z apple', 'apple x y z w v u'
+            ]
+            await items.insertMany(texts.map((a: string, _id: number): unknown => ({_id: _id, a: a})))
+            for (const search of ['apple', 'apple banana', 'run', 'apples', 'cherry date', 'eye'])
+                result[search] = (await items.find({$text: {$search: search}}, {projection: {score: {$meta: 'textScore'}}, sort: {_id: 1}}).toArray())
+                    .map((item: any): unknown => [item._id, item.score])
+            const weighted: any = db.collection('weighted')
+            await weighted.createIndex({a: 'text', b: 'text'}, {weights: {a: 10, b: 2}})
+            await weighted.insertMany([{_id: 1, a: 'apple', b: 'apple'}, {_id: 2, a: 'apple'}, {_id: 3, b: 'apple'}, {_id: 4, a: 'apple pie', b: 'apple'}, {_id: 5, a: ['apple', 'apple pie']}])
+            result.weighted = (await weighted.find({$text: {$search: 'apple'}}, {projection: {score: {$meta: 'textScore'}}, sort: {_id: 1}}).toArray())
+                .map((item: any): unknown => [item._id, item.score])
+            //Updated: the scores of its terms follow the words of its strings
+            await weighted.updateOne({_id: 2}, {$set: {a: 'apple tart crumble'}})
+            await weighted.deleteOne({_id: 3})
+            result.afterWrites = (await weighted.find({$text: {$search: 'apple tart'}}, {projection: {score: {$meta: 'textScore'}}, sort: {_id: 1}}).toArray())
+                .map((item: any): unknown => [item._id, item.score])
+            return result
+        }
+    },
+    {
+        group: 'text',
+        name: 'the words of the text indexes: their delimiters, their case, their diacritics, their stop words',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const items: any = db.collection('items')
+            await items.createIndex({a: 'text'})
+            const texts: Record<string, string> = {
+                apostrophe: "don't stop", hyphen: 'well-known fact', dashes: 'alpha–beta gamma—delta', slash: 'red/green', dot: 'foo.bar baz', underscore: 'snake_case word',
+                at: 'mail@example.com', digits: 'x123 456 7.89', cjk: '中文分词测试 東京', turkish: 'İstanbul ısı', accents: 'café naïve résumé', german: 'Straße MASSE',
+                quotes: '"quoted" «guillemets»', brackets: '(paren) [brack] {brace}', emoji: 'happy😀face', punctuation: 'one,two;three:four wow! really?',
+                symbols: 'c++ c# rock&roll a~b #hashtag $money', curly: 'it’s curly', greek: 'ΣΊΣΥΦΟΣ', ligature: 'ﬁne', sharp: 'grüßen'
+            }
+            await items.insertMany(Object.entries(texts).map(([_id, a]: [string, string]): unknown => ({_id: _id, a: a})))
+            const searches = [
+                "don't", 'don', 'stop', 'well', 'known', 'well-known', 'beta', 'delta', 'green', 'bar', 'foo.bar', 'snake', 'snake_case', 'example', 'x123', '7', '89', '中文分词测试',
+                '中文', 'istanbul', 'İstanbul', 'isi', 'ısı', 'cafe', 'café', 'naive', 'resume', 'résumé', 'strasse', 'straße', 'masse', 'quoted', 'guillemets', 'brack', 'happy',
+                'happy😀face', 'two', 'four', 'really', 'c', 'c++', 'roll', 'a', 'b', 'hashtag', 'money', 'it', 's', 'σίσυφος', 'ΣΊΣΥΦΟΣ', 'fine', 'ﬁne', 'grüßen', 'grussen'
+            ]
+            for (const search of searches)
+                result[search] = (await items.find({$text: {$search: search}}, {sort: {_id: 1}, projection: {_id: 1}}).toArray()).map((item: any): string => item._id)
+            result.caseSensitive = [
+                await items.find({$text: {$search: 'Straße', $caseSensitive: true}}, {projection: {_id: 1}}).toArray(),
+                await items.find({$text: {$search: 'straße', $caseSensitive: true}}, {projection: {_id: 1}}).toArray()
+            ]
+            result.diacriticSensitive = [
+                await items.find({$text: {$search: 'cafe', $diacriticSensitive: true}}, {projection: {_id: 1}}).toArray(),
+                await items.find({$text: {$search: 'café', $diacriticSensitive: true}}, {projection: {_id: 1}}).toArray()
+            ]
+            return result
+        }
+    },
+    {
+        group: 'text',
+        name: 'the $text queries: phrases, negations, languages, their places in a filter and in a pipeline, the text score',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const items: any = db.collection('items')
+            result.noIndex = await outcome((): unknown => items.find({$text: {$search: 'x'}}).toArray())
+            await items.createIndex({a: 'text'})
+            await items.insertMany([
+                {_id: 1, a: 'coffee shop downtown', k: 1}, {_id: 2, a: 'coffee cake recipe', k: 2}, {_id: 3, a: 'the shop of cake', k: 1},
+                {_id: 4, a: 'Café du Monde', k: 2, language: 'french'}, {_id: 5, a: 'Coffee SHOP', k: 3}, {_id: 6, b: 'coffee', k: 1},
+                {_id: 7, a: ['coffee bean', {nested: 'coffee'}], k: 1}, {_id: 8, a: {x: 'coffee'}, k: 1}, {_id: 9, a: 42, k: 1}
+            ])
+            const ids = (filter: unknown, options: unknown = {}): Promise<unknown> => outcome(async (): Promise<unknown> =>
+                (await items.find(filter, {...(options as object), sort: {_id: 1}, projection: {_id: 1}}).toArray()).map((item: any): number => item._id))
+            const searches: Record<string, unknown> = {
+                term: 'coffee', terms: 'coffee cake', phrase: '"coffee shop"', phraseAndTerm: '"coffee shop" cake', phrases: '"coffee" "cake"', negation: 'coffee -cake',
+                onlyNegation: '-cake', negatedPhrase: 'coffee -"coffee shop"', phraseCase: '"COFFEE shop"', stopWord: 'the', empty: '', french: 'café'
+            }
+            for (const [name, search] of Object.entries(searches)) result[name] = await ids({$text: {$search: search}})
+            result.caseSensitivePhrase = await ids({$text: {$search: '"Coffee SHOP"', $caseSensitive: true}})
+            result.caseSensitiveTerm = await ids({$text: {$search: 'Coffee', $caseSensitive: true}})
+            result.withFilter = await ids({$text: {$search: 'coffee'}, k: 1})
+            result.inAnd = await ids({$and: [{$text: {$search: 'coffee'}}, {k: 1}]})
+            result.inOr = await ids({$or: [{$text: {$search: 'coffee'}}, {k: 3}]})
+            result.inOrAlone = await ids({$or: [{$text: {$search: 'coffee'}}, {$text: {$search: 'cake'}}]})
+            result.inNor = await ids({$nor: [{$text: {$search: 'coffee'}}]})
+            result.inElemMatch = await ids({a: {$elemMatch: {$text: {$search: 'coffee'}}}})
+            result.twice = await ids({$and: [{$text: {$search: 'coffee'}}, {$text: {$search: 'cake'}}]})
+            result.badLanguage = await ids({$text: {$search: 'coffee', $language: 'klingon'}})
+            result.languageNone = await ids({$text: {$search: 'the', $language: 'none'}})
+            result.languageCode = await ids({$text: {$search: 'coffee', $language: 'es'}})
+            result.searchNotString = await ids({$text: {$search: 5}})
+            result.extraField = await ids({$text: {$search: 'x', $foo: 1}})
+            result.noSearch = await ids({$text: {$language: 'english'}})
+            result.hint = await outcome((): unknown => items.find({$text: {$search: 'coffee'}}).hint({_id: 1}).toArray())
+            result.scores = await outcome(async (): Promise<unknown> => (await items.find({$text: {$search: 'coffee cake'}}, {projection: {s: {$meta: 'textScore'}}, sort: {s: {$meta: 'textScore'}, _id: 1}}).toArray()))
+            result.sortedByScore = await outcome(async (): Promise<unknown> => (await items.find({$text: {$search: 'coffee'}}).sort({s: {$meta: 'textScore'}, _id: 1}).toArray()).map((item: any): unknown => [item._id, Object.keys(item)]))
+            result.scoreWithoutText = await outcome((): unknown => items.find({k: 1}, {projection: {s: {$meta: 'textScore'}}}).toArray())
+            result.pipeline = await outcome((): unknown => items.aggregate([{$match: {$text: {$search: 'coffee'}}}, {$project: {s: {$meta: 'textScore'}}}, {$sort: {s: -1, _id: 1}}]).toArray())
+            result.pipelineNotFirst = await outcome((): unknown => items.aggregate([{$match: {k: 1}}, {$match: {$text: {$search: 'coffee'}}}]).toArray())
+            result.pipelineAfterGroup = await outcome((): unknown => items.aggregate([{$match: {$text: {$search: 'coffee'}}}, {$group: {_id: null, n: {$sum: 1}}}, {$project: {s: {$meta: 'textScore'}, n: 1}}]).toArray())
+            result.pipelineAfterProject = await outcome((): unknown => items.aggregate([{$match: {$text: {$search: 'coffee'}}}, {$project: {a: 1}}, {$addFields: {s: {$meta: 'textScore'}}}, {$sort: {_id: 1}}]).toArray())
+            result.count = await outcome((): unknown => items.countDocuments({$text: {$search: 'coffee'}}))
+            result.distinct = await outcome((): unknown => items.distinct('k', {$text: {$search: 'coffee'}}))
+            result.update = await outcome((): unknown => items.updateMany({$text: {$search: 'cake'}}, {$set: {hit: true}}))
+            result.delete = await outcome((): unknown => items.deleteOne({$text: {$search: 'downtown'}}))
+            result.secondIndex = await outcome((): unknown => items.createIndex({b: 'text'}))
+            result.indexes = await items.indexes()
+            return result
+        }
+    },
+    {
+        group: 'text',
+        name: 'the text indexes created: their options, their compound fields, the languages of their documents',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const specs: [string, Record<string, unknown>, Record<string, unknown>][] = [
+                ['plain', {a: 'text'}, {}], ['weights', {a: 'text', b: 'text'}, {weights: {a: 3}}], ['zero', {a: 'text'}, {weights: {a: 0}}], ['tooHeavy', {a: 'text'}, {weights: {a: 100000}}],
+                ['fraction', {a: 'text'}, {weights: {a: 1.5}}], ['otherField', {a: 'text'}, {weights: {z: 2}}], ['notNumber', {a: 'text'}, {weights: {a: 'x'}}],
+                ['badLanguage', {a: 'text'}, {default_language: 'klingon'}], ['languageCode', {a: 'text'}, {default_language: 'fr'}], ['none', {a: 'text'}, {default_language: 'none'}],
+                ['override', {a: 'text'}, {language_override: 'lang'}], ['version4', {a: 'text'}, {textIndexVersion: 4}], ['compound', {x: 1, a: 'text', y: -1}, {}],
+                ['notAdjacent', {a: 'text', x: 1, b: 'text'}, {}], ['wildcard', {'$**': 'text'}, {}], ['wildcardAndField', {'$**': 'text', a: 'text'}, {}],
+                ['unique', {a: 'text'}, {unique: true}], ['sparse', {a: 'text'}, {sparse: true}], ['partial', {a: 'text'}, {partialFilterExpression: {k: {$gt: 1}}}],
+                ['collation', {a: 'text'}, {collation: {locale: 'fr'}}], ['named', {a: 'text'}, {name: 'mine'}], ['suffix', {a: 'text', b: 1}, {}],
+                ['hashed', {a: 'text', b: 'hashed'}, {}], ['ttl', {a: 'text'}, {expireAfterSeconds: 10}]
+            ]
+            for (const [name, key, options] of specs)
+                result[name] = await outcome(async (): Promise<unknown> => {
+                    await db.collection(name).createIndex(key, options)
+                    return (await db.collection(name).indexes()).filter((index: any): boolean => index.name !== '_id_')
+                })
+            const items: any = db.collection('items')
+            await items.createIndex({a: 'text'})
+            result.badOverride = await outcome((): unknown => items.insertOne({a: 'hello', language: 'klingon'}))
+            result.overrideNotString = await outcome((): unknown => items.insertOne({a: 'hello', language: 5}))
+            await items.insertMany([{_id: 'none', a: 'the running', language: 'none'}, {_id: 'fr', a: 'les maisons', language: 'fr'}, {_id: 'nested', a: 'running dogs', sub: {language: 'spanish', a: 'perros'}}])
+            const ids = async (filter: unknown): Promise<unknown> => (await items.find(filter, {sort: {_id: 1}, projection: {_id: 1}}).toArray()).map((item: any): string => item._id)
+            result.noneThe = await ids({$text: {$search: 'the', $language: 'none'}})
+            result.noneRunning = await ids({$text: {$search: 'running', $language: 'none'}})
+            result.french = await ids({$text: {$search: 'maison', $language: 'french'}})
+            result.english = await ids({$text: {$search: 'maison'}})
+            const prefixed: any = db.collection('prefixed')
+            await prefixed.createIndex({x: 1, a: 'text'})
+            await prefixed.insertMany([{_id: 1, x: 1, a: 'coffee'}, {_id: 2, x: 2, a: 'coffee'}, {_id: 3, a: 'coffee'}])
+            const found = (filter: unknown): Promise<unknown> => outcome(async (): Promise<unknown> => (await prefixed.find(filter, {sort: {_id: 1}}).toArray()).map((item: any): number => item._id))
+            result.prefixEqual = await found({x: 1, $text: {$search: 'coffee'}})
+            result.prefixMissing = await found({$text: {$search: 'coffee'}})
+            result.prefixRange = await found({x: {$gt: 0}, $text: {$search: 'coffee'}})
+            result.prefixNull = await found({x: null, $text: {$search: 'coffee'}})
+            result.prefixArray = await outcome((): unknown => prefixed.insertOne({x: [1, 2], a: 'coffee'}))
+            const wildcard: any = db.collection('wildcard')
+            await wildcard.createIndex({'$**': 'text'})
+            await wildcard.insertMany([{_id: 1, a: 'coffee', b: {c: 'tea coffee'}}, {_id: 2, z: ['coffee', 'milk']}, {_id: 3, n: 5}])
+            result.wildcardScores = (await wildcard.find({$text: {$search: 'coffee'}}, {projection: {s: {$meta: 'textScore'}}, sort: {_id: 1}}).toArray())
+            const dotted: any = db.collection('dotted')
+            await dotted.createIndex({'a.b': 'text'})
+            await dotted.insertMany([{_id: 1, a: {b: 'coffee'}}, {_id: 2, a: [{b: 'coffee'}, {b: 'coffee cake'}]}, {_id: 3, a: [[{b: 'coffee'}]]}])
+            result.dottedScores = (await dotted.find({$text: {$search: 'coffee'}}, {projection: {s: {$meta: 'textScore'}}, sort: {_id: 1}}).toArray())
+            await dotted.createIndex({'a.b': 'text'})
+            await dotted.dropIndex('a.b_text')
+            result.dropped = (await dotted.indexes()).map((index: any): string => index.name)
+            return result
+        }
+    },
+    {
         group: 'changeStreams',
         name: 'the starts of the change streams: after the event of a drop, conflicting options, the stage splitting the events',
         async run({db}: CompatContext): Promise<Record<string, unknown>> {

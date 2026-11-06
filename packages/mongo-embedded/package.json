@@ -68,6 +68,7 @@
     "binding.gyp",
     "native",
     "vendor",
+    "!vendor/ucd",
     "*.md",
     "LICENSE",
     "package.json"
