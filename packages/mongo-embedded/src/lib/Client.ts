@@ -1993,6 +1993,9 @@ export class EmbeddedCollection {
      * @param collator
      */
     private async deleteMeasurements(query: EmbeddedDocument | undefined, many: boolean, collator?: EmbeddedCollator) {
+        // In a transaction: the deletion of one measurement only, as MongoDB 8.0 allows it
+        if (many && this.transaction)
+            await this.session!.refuse(`Cannot perform a multi delete inside of a multi-document transaction on a time-series collection: ${this.dbName}.${BUCKETS}${this.collectionName}`)
         const matches = this.matcherOf(this.values.copy(query ?? {}), collator)
         return this.store.exclusive(async () => {
             const changes: EmbeddedChange[] = []
@@ -2008,7 +2011,7 @@ export class EmbeddedCollection {
             }
             if (changes.length) await this.store.write(BUCKETS + this.collectionName, changes)
             return { acknowledged: true, deletedCount: deleted }
-        })
+        }, this.transaction)
     }
 
     /**
@@ -2042,7 +2045,7 @@ export class EmbeddedCollection {
             const measurement = first.rows[first.row]
             await this.store.write(BUCKETS + this.collectionName, [this.rebuilt(first.bucket, first.rows.filter((_, position) => position !== first.row))])
             return measurement
-        })
+        }, this.transaction)
     }
 
     /**
@@ -2065,6 +2068,8 @@ export class EmbeddedCollection {
         const metaField = ts.metaField
         const invalid = (message: string) => new EmbeddedOperationError(72, 'InvalidOptions', message)
         if (!many) throw invalid('Cannot perform a non-multi update on a time-series collection')
+        if (this.transaction)
+            await this.session!.refuse(`Cannot perform a multi update inside of a multi-document transaction on a time-series collection: ${this.dbName}.${BUCKETS}${this.collectionName}`)
         if (options?.upsert) throw invalid('Cannot perform an upsert on a time-series collection')
         if (Array.isArray(update)) throw invalid('Cannot perform an update on a time-series collection using a pipeline update')
         const onMeta = (path: string) => metaField !== undefined && (path === metaField || path.startsWith(`${metaField}.`))
