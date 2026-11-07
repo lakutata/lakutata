@@ -92,7 +92,30 @@
         'vendor/icu/source/common/util.cpp', 'vendor/icu/source/common/utrace.cpp',
         'vendor/icu/source/common/utrie2.cpp', 'vendor/icu/source/common/utypes.cpp',
         'vendor/icu/source/common/uvector.cpp', 'vendor/icu/source/common/uvectr32.cpp',
-        'vendor/icu/source/stubdata/stubdata.cpp'
+        'vendor/icu/source/common/wintz.cpp', 'vendor/icu/source/stubdata/stubdata.cpp'
+      ],
+      # The linker of Windows resolves the symbols of the functions the other linkers strip as unused: the files
+      # defining them (vendor/PATCHES.md)
+      'conditions': [
+        ['OS=="win"', {
+          'sources': [
+            'vendor/icu/source/common/appendable.cpp', 'vendor/icu/source/common/caniter.cpp',
+            'vendor/icu/source/common/errorcode.cpp', 'vendor/icu/source/common/loadednormalizer2impl.cpp',
+            'vendor/icu/source/common/localeprioritylist.cpp', 'vendor/icu/source/common/locresdata.cpp',
+            'vendor/icu/source/common/parsepos.cpp', 'vendor/icu/source/common/ruleiter.cpp',
+            'vendor/icu/source/common/stringtriebuilder.cpp', 'vendor/icu/source/common/ubidi.cpp',
+            'vendor/icu/source/common/ubidi_props.cpp', 'vendor/icu/source/common/ubidiwrt.cpp',
+            'vendor/icu/source/common/ucase.cpp', 'vendor/icu/source/common/uchar.cpp',
+            'vendor/icu/source/common/ucharstriebuilder.cpp', 'vendor/icu/source/common/ucol_swp.cpp',
+            'vendor/icu/source/common/udataswp.cpp', 'vendor/icu/source/common/ulist.cpp',
+            'vendor/icu/source/common/uniset_props.cpp', 'vendor/icu/source/common/unistr_case.cpp',
+            'vendor/icu/source/common/unistr_case_locale.cpp', 'vendor/icu/source/common/uscript_props.cpp',
+            'vendor/icu/source/common/uset_props.cpp', 'vendor/icu/source/common/ustrcase.cpp',
+            'vendor/icu/source/common/ustrcase_locale.cpp', 'vendor/icu/source/common/utrie.cpp',
+            'vendor/icu/source/common/utrie2_builder.cpp', 'vendor/icu/source/common/utrie_swap.cpp',
+            'vendor/icu/source/common/uvectr64.cpp'
+          ]
+        }]
       ],
       'include_dirs': ['<@(icu_include_dirs)'],
       'defines': ['<@(icu_defines)', 'U_COMMON_IMPLEMENTATION'],
@@ -106,7 +129,8 @@
         'CLANG_CXX_LANGUAGE_STANDARD': 'c++17',
         'MACOSX_DEPLOYMENT_TARGET': '11.0'
       },
-      'msvs_settings': {'VCCLCompilerTool': {'WarningLevel': 0, 'RuntimeTypeInfo': 'true', 'AdditionalOptions': ['/utf-8', '/std:c++17']}},
+      # RTTI for its dynamic_cast: the Release configuration of node-gyp turns it off (/GR-), /GR given last turns it on
+      'msvs_settings': {'VCCLCompilerTool': {'WarningLevel': 0, 'RuntimeTypeInfo': 'true', 'AdditionalOptions': ['/utf-8', '/std:c++17', '/GR']}},
       'direct_dependent_settings': {'include_dirs': ['<@(icu_include_dirs)'], 'defines': ['<@(icu_defines)']}
     },
     {
@@ -128,6 +152,17 @@
         'vendor/icu/source/i18n/uitercollationiterator.cpp', 'vendor/icu/source/i18n/utf16collationiterator.cpp',
         'vendor/icu/source/i18n/utf8collationiterator.cpp'
       ],
+      # The files the linker of Windows needs too (see icu_common)
+      'conditions': [
+        ['OS=="win"', {
+          'sources': [
+            'vendor/icu/source/i18n/collationdatabuilder.cpp', 'vendor/icu/source/i18n/collationdatawriter.cpp',
+            'vendor/icu/source/i18n/collationfastlatinbuilder.cpp', 'vendor/icu/source/i18n/collationrootelements.cpp',
+            'vendor/icu/source/i18n/collationweights.cpp', 'vendor/icu/source/i18n/decContext.cpp',
+            'vendor/icu/source/i18n/ucol_sit.cpp'
+          ]
+        }]
+      ],
       'dependencies': ['icu_common'],
       'include_dirs': ['<@(icu_include_dirs)'],
       'defines': ['<@(icu_defines)', 'U_I18N_IMPLEMENTATION'],
@@ -141,7 +176,8 @@
         'CLANG_CXX_LANGUAGE_STANDARD': 'c++17',
         'MACOSX_DEPLOYMENT_TARGET': '11.0'
       },
-      'msvs_settings': {'VCCLCompilerTool': {'WarningLevel': 0, 'RuntimeTypeInfo': 'true', 'AdditionalOptions': ['/utf-8', '/std:c++17']}},
+      # RTTI for its dynamic_cast: the Release configuration of node-gyp turns it off (/GR-), /GR given last turns it on
+      'msvs_settings': {'VCCLCompilerTool': {'WarningLevel': 0, 'RuntimeTypeInfo': 'true', 'AdditionalOptions': ['/utf-8', '/std:c++17', '/GR']}},
       'direct_dependent_settings': {'include_dirs': ['<@(icu_include_dirs)'], 'defines': ['<@(icu_defines)']}
     },
     {

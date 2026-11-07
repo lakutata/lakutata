@@ -456,7 +456,7 @@ describe('The change streams', (): void => {
         const position = resumed.resumeToken
         await client.close()
         //A process killed after its writes: the stream resumes after the last event it gave
-        const module: string = new URL('../exports/MongoEmbedded.js', import.meta.url).pathname
+        const module: string = new URL('../exports/MongoEmbedded.js', import.meta.url).href
         const {spawnSync} = await import('node:child_process')
         const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
             import {EmbeddedClient} from ${JSON.stringify(module)}
@@ -464,7 +464,8 @@ describe('The change streams', (): void => {
             await client.db().collection('items').insertMany([{_id: 4}, {_id: 5}])
             process.kill(process.pid, 'SIGKILL')
         `])
-        assert.strictEqual(child.signal, 'SIGKILL')
+        //Windows has no signals: a process killing itself ends with the code 1
+        assert.ok(process.platform === 'win32' ? child.status === 1 : child.signal === 'SIGKILL', `${child.status} ${child.signal} ${child.stderr}`)
         client = await EmbeddedClient.connect(at)
         const afterCrash = client.db().collection('items').watch([], {resumeAfter: position})
         assert.deepStrictEqual([(await afterCrash.next())?.documentKey, (await afterCrash.next())?.documentKey], [{_id: 4}, {_id: 5}])

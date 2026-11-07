@@ -4,7 +4,6 @@ import {spawn, type ChildProcess} from 'node:child_process'
 import {mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync} from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {fileURLToPath} from 'node:url'
 import {BSON} from 'bson'
 import {addon} from '../lib/Addon.js'
 import {ChangeKind, Comparison, type NativeChange, type NativeDatabase, NativeError} from '../lib/Native.js'
@@ -199,7 +198,7 @@ describe('The storage of a database', (): void => {
         await addon.write(database, 'items', inserts([1, 2, 3]), true)
         await addon.close(database)
         //A process writing a document at a time, killed while it writes
-        const module: string = fileURLToPath(new URL('../lib/Addon.js', import.meta.url))
+        const module: string = new URL('../lib/Addon.js', import.meta.url).href
         const child: ChildProcess = spawn(process.execPath, ['--input-type=module', '-e', `
             import {addon} from ${JSON.stringify(module)}
             const database = await addon.open(${JSON.stringify(where)})

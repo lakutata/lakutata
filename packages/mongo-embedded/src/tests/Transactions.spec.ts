@@ -4,7 +4,6 @@ import {type ChildProcess, spawn} from 'node:child_process'
 import {mkdtempSync, rmSync} from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {fileURLToPath} from 'node:url'
 import {EmbeddedClient, type EmbeddedClientSession, EmbeddedOperationError, MongoEmbeddedError} from '../exports/MongoEmbedded.js'
 import {type EmbeddedStore, type EmbeddedStoreTransaction} from '../lib/Store.js'
 
@@ -138,7 +137,7 @@ describe('The transactions of the store', (): void => {
 
     it('leave nothing of their writes when the process is killed before they commit', async (): Promise<void> => {
         const at: string = directory()
-        const module: string = fileURLToPath(new URL('../exports/MongoEmbedded.js', import.meta.url))
+        const module: string = new URL('../exports/MongoEmbedded.js', import.meta.url).href
         const child: ChildProcess = spawn(process.execPath, ['--input-type=module', '-e', `
             import {EmbeddedClient} from ${JSON.stringify(module)}
             const client = await EmbeddedClient.connect(${JSON.stringify(at)})

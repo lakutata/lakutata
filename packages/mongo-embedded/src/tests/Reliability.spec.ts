@@ -4,7 +4,6 @@ import {type ChildProcess, spawn} from 'node:child_process'
 import {mkdtempSync, rmSync} from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {fileURLToPath} from 'node:url'
 import {EmbeddedClient, type EmbeddedCollection} from '../exports/MongoEmbedded.js'
 
 const ROOT: string = mkdtempSync(path.join(os.tmpdir(), 'mongo-embedded-reliability-'))
@@ -29,7 +28,8 @@ const INDEXES: [Record<string, unknown>, Record<string, unknown>][] = [
  * @param seed
  */
 function writer(where: string, seed: number): ChildProcess {
-    const module: string = fileURLToPath(new URL('../exports/MongoEmbedded.js', import.meta.url))
+    //A URL: an ES module imports by its URL (a path of Windows is not one)
+    const module: string = new URL('../exports/MongoEmbedded.js', import.meta.url).href
     return spawn(process.execPath, ['--input-type=module', '-e', `
         import {EmbeddedClient} from ${JSON.stringify(module)}
         const client = await EmbeddedClient.connect(${JSON.stringify(where)})

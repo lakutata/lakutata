@@ -15,7 +15,8 @@ What the addon changes is outside these files:
 
 `vendor/icu/` holds the part of ICU 77.1 (the version Node.js 24 ships) that the collators use, unchanged:
 
-- `source/`: 99 source files and 168 headers from `common`, `i18n` and `stubdata` in the release's source archive.
+- `source/`: 136 source files and 184 headers from `common`, `i18n` and `stubdata` in the release's source archive
+  (36 of the source files, and 15 of the headers, compiled on Windows only: see below).
   `vendor/UPSTREAM.json` records the archive, its checksum and each file's checksum, which the tests verify.
 - `icudt77l.dat`: the collation data, built from the release's data archive (see below).
 - `LICENSE`: ICU's license, from the source archive.
@@ -23,7 +24,15 @@ What the addon changes is outside these files:
 The source files were chosen by compiling all of `common` and `i18n` with the defines in `binding.gyp` (targets
 `icu_common`, `icu_i18n`), linking them into a program that makes the same ICU calls as `native/collation.cc`, and
 stripping unused code (`-Wl,-dead_strip -Wl,-map`). The files whose objects survived are the ones vendored; the headers
-are those they include (`clang -MM`). Phase 6 checks that this list also builds on Linux and Windows.
+are those they include (`clang -MM`). `common/wintz.cpp` and `wintz.h` were added for Windows (the time zone of
+Windows, which `putil.cpp` includes there; empty elsewhere).
+
+The linker of Windows needs more: it resolves every symbol of the objects it links, the ones of the functions the other
+linkers strip as unused too (on macOS and Linux they stay undefined). The files defining them, and the files they need
+in turn, were found from the symbol tables: every file of `common` and `i18n` compiled with the same defines, then, from
+the objects of the vendored files, the files defining their undefined symbols added until none was missing. These 36
+files (`binding.gyp`, the conditions of `icu_common` and `icu_i18n`) are compiled on Windows only, so that the builds
+elsewhere stay the same.
 
 The data is built from `icu4c-77_1-src.tgz` and `icu4c-77_1-data.zip` (rebuilt on 2026-11-06, byte for byte the same):
 
