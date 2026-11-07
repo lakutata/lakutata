@@ -162,6 +162,25 @@ describe('The thermal printers', (): void => {
         }
     })
 
+    it('is one object for a name of the configuration, a new object for each device the manager opens', async (): Promise<void> => {
+        const container: Container = new Container()
+        try {
+            await container.setNamed('front', ThermalPrinter, {connection: {type: 'network', host: '127.0.0.1', port: 9101}, paper: 58})
+            const first: ThermalPrinter = await container.get<ThermalPrinter>('front')
+            assert.strictEqual(await container.get<ThermalPrinter>('front'), first)
+            const {class: type, ...rest} = buildThermalPrinterManagerOptions()
+            await container.setNamed('printers', type, rest)
+            const printers: ThermalPrinterManager = await container.get<ThermalPrinterManager>('printers')
+            const one: ThermalPrinter = await printers.open({connection: {type: 'network', host: '127.0.0.1', port: 9102}})
+            const two: ThermalPrinter = await printers.open({connection: {type: 'network', host: '127.0.0.1', port: 9103}})
+            assert.notStrictEqual(one, two)
+            assert.notStrictEqual(one, first)
+            assert.strictEqual(printers.openPrinters().length, 2)
+        } finally {
+            await container.destroy()
+        }
+    })
+
     it('refuses the definitions that are not ones, and media the engine refuses', async (): Promise<void> => {
         const {printers, container} = await manager({printers: {wrong: {connection: {type: 'network', host: 'localhost'}, paper: 33 as 58}}})
         try {

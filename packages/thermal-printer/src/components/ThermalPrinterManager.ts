@@ -102,7 +102,10 @@ export class ThermalPrinterManager extends Component {
             options.queues === false ? [] : queueCandidates(),
             options.serial === false ? [] : serialCandidates()
         ])
-        //One source failing (no CUPS, no addon) leaves the others
+        //An addon not built (its install script skipped) is told; another source failing leaves the others
+        for (const result of settled) {
+            if (result.status === 'rejected' && /is not built/.test(String((result.reason as Error)?.message))) throw result.reason
+        }
         return settled.flatMap((result): PrinterCandidate[] => result.status === 'fulfilled' ? result.value : [])
     }
 

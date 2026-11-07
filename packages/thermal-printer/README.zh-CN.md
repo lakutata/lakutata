@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-[lakutata](https://github.com/lakutata/lakutata) 框架的热敏打印机组件：用 [`@lakutata/thermal`](../thermal) 渲染用 HTML 编排的小票、标签和腕带，编码成每台打印机的指令（ESC/POS、TSPL 或 ZPL），再经网口、系统打印队列、串口、USB 或蓝牙发给打印机。每台打印机有一个任务队列：它的打印任务按调用的顺序一个接一个发出。`lakutata` 包不重新导出这个包，请从 `@lakutata/thermal-printer` 导入。
+[lakutata](https://github.com/lakutata/lakutata) 框架的热敏打印机包。管理器组件负责找到打印机（USB 打印机、系统打印队列、串口和蓝牙口），并按应用落盘的 JSON 定义打开它们。打开后的每台打印机都是一个对象：它用 [`@lakutata/thermal`](../thermal) 渲染用 HTML 编排的小票、标签和腕带，编码成这台打印机的指令（ESC/POS、TSPL 或 ZPL），按调用的顺序发出去。`lakutata` 包不重新导出这个包，请从 `@lakutata/thermal-printer` 导入。
 
 ## 安装
 
@@ -11,99 +11,149 @@ npm install @lakutata/thermal-printer
 ```
 
 - 它会安装 `@lakutata/thermal`，后者的原生插件在安装时编译（机器上需要什么见它的 README）。
+- 在 macOS 和 Windows 上，这个包还会编译一个自己的小插件，用于 USB 打印机和 Windows 的后台打印服务。Linux 上不需要：USB 打印机就是设备文件，打印队列用 CUPS 命令。
+- 串口和蓝牙打印机需要 `@lakutata/serial`（`npm install @lakutata/serial`）。没有安装时，打开这类打印机会失败，错误信息里写明需要这个包。
 - Node.js `>=18.10.0`，以及 `@lakutata/core`。
-- 串口和蓝牙连接由 `@lakutata/serial` 提供，USB 连接由 `@lakutata/usb` 提供，用到时再安装。没有安装对应的包时，发给这类打印机的打印会失败，错误信息里写明需要哪个包。
 
 ## 用法
 
-### 在配置里声明打印机
+### 管理器
 
 ```typescript
-import {Application, Component} from 'lakutata'
-import {Inject} from 'lakutata/decorator/di'
-import {buildThermalPrinterOptions, type ThermalPrinter} from '@lakutata/thermal-printer'
-
-class Counter extends Component {
-    @Inject('printers')
-    protected readonly printers: ThermalPrinter
-
-    public async receipt(order: {id: string, total: string}): Promise<void> {
-        await this.printers.print('front', `<h1>Order ${order.id}</h1><p>Total ${order.total}</p>`)
-    }
-}
+import {Application} from 'lakutata'
+import {buildThermalPrinterManagerOptions} from '@lakutata/thermal-printer'
 
 Application.run(() => ({
     id: 'shop',
     name: 'Shop',
     components: {
-        printers: buildThermalPrinterOptions({
+        printers: buildThermalPrinterManagerOptions({
             printers: {
                 front: {connection: {type: 'network', host: '192.168.1.50'}, model: 'TM-T88VI', commands: {cut: 'partial'}},
-                kitchen: {connection: {type: 'network', host: '192.168.1.51'}, paper: 80, commands: {language: 'escpos', cut: 'full'}},
-                labels: {connection: {type: 'queue', name: 'TSC_TDP_225'}, model: 'TDP-225', label: {width: 40, height: 30}},
-                ward: {connection: {type: 'usb', path: '/dev/usb/lp0'}, model: 'HC100', label: {width: 25, height: 250}, commands: {sensor: 'mark'}}
+                labels: {connection: {type: 'queue', name: 'TSC_TDP_225'}, model: 'TDP-225', label: {width: 40, height: 30}}
             }
-        }),
-        counter: {class: Counter}
+        })
     }
 }))
 ```
 
-一台打印机由这些部分组成：它的 `connection`；它的介质，写法和 `@lakutata/thermal` 的 `render()` 一样（`model`、`paper`、`label`、`width`、`dpi`、`rotate`、`page`）；它的 `commands` 选项，写法和 `encode()` 一样（没有型号时的 `language`、`feed`、`cut`、`drawer`、`sensor`、`density`、`copies`……）。`baseDir` 是它的 HTML 读取图片的目录，`textLanguage` 是它的文字的语言。
+配置里的打印机在第一次使用时才打开，应用启动时某台打印机不在也不会让应用启动失败。
+
+### 找到打印机并保存
+
+打印机一般是在程序运行时选择的，而不是写死在代码里：先找到打印机，打开用户选中的那台，再把它的定义存下来。
+
+```typescript
+import {writeFile} from 'node:fs/promises'
+import type {ThermalPrinterManager} from '@lakutata/thermal-printer'
+
+async function setUp(manager: ThermalPrinterManager): Promise<void> {
+    const candidates = await manager.discover()
+    //USB 打印机和打印队列一定是打印机；串口和蓝牙口上可能接着打印机
+    const chosen = candidates.find((candidate) => candidate.printer)
+    if (!chosen) return
+    const printer = await manager.open({connection: chosen.connection, model: chosen.model, paper: 80, commands: {language: chosen.language}}, 'front')
+    await writeFile('printer.json', JSON.stringify(printer.definition))
+}
+```
+
+下次启动时，再打开保存的定义：
+
+```typescript
+import {readFile} from 'node:fs/promises'
+import {validatePrinterDefinition, type ThermalPrinterManager} from '@lakutata/thermal-printer'
+
+async function restore(manager: ThermalPrinterManager): Promise<void> {
+    const definition = validatePrinterDefinition(JSON.parse(await readFile('printer.json', 'utf8')))
+    await manager.open(definition, 'front')
+}
+```
+
+- `discover()` 列出候选设备，每项都带一个可以直接打开、也可以直接保存的 `connection`。USB 打印机还会给出它上报的 IEEE 1284 ID（`deviceId`）、这个 ID 对应的 `printerModels()` 里的型号（`model`），以及它上报的指令语言（`language`）。网络打印机没法这样找到，需要用户填写地址。
+- `open(definition, name?)` 对每台设备只打开一次：同一台设备再次打开，返回的是同一个对象（定义仍是第一次的），这样一台打印机上不会有两个队列交错发送数据。
+- `get(name)` 按名字取打印机，`names()` 列出名字，`openPrinters()` 列出已打开的打印机，`close(printer)` 关闭一台打印机。
+- `validatePrinterDefinition()` 检查从文件读出的定义；介质在打开时由引擎检查。
 
 ### 打印
 
 ```typescript
-import type {ThermalPrinter} from '@lakutata/thermal-printer'
-import {render} from '@lakutata/thermal'
+import type {ThermalPrinterManager} from '@lakutata/thermal-printer'
 
-async function print(printers: ThermalPrinter): Promise<void> {
+async function print(manager: ThermalPrinterManager): Promise<void> {
+    const front = await manager.get('front')
     //HTML：按打印机的介质渲染，编码成它的指令
-    await printers.print('front', '<h1>Order 42</h1>', {commands: {drawer: true}})
-    //渲染结果：为这台打印机编码
-    await printers.print('kitchen', await render('<h2>Table 7</h2>', {paper: 80}))
+    await front.print('<h1>Order 42</h1>', {commands: {drawer: true}})
     //原始指令：原样发送
-    await printers.print('front', Buffer.from([0x1B, 0x40, 0x0A]))
-    //调用时直接给出打印机
-    await printers.print({connection: {type: 'network', host: '192.168.1.60'}, paper: 58, commands: {language: 'escpos'}}, '<p>Hello</p>')
+    await front.print(Buffer.from([0x1B, 0x40, 0x0A]))
+    //预览：和打印机印出来的点阵一样
+    const png: Buffer = (await front.preview('<h1>Order 42</h1>')).toPNG()
+    //一次调用，按名字或按定义
+    await manager.print('front', '<p>Thank you</p>')
+    console.log(png.length)
 }
 ```
 
-- `print()` 在指令发送完后完成（指令交给了连接，打印机可能还在打印），结果是打印的页数和发送的字节数。每次打印打开连接、发送指令、关闭连接。
-- 一次打印的 `commands` 选项覆盖打印机自己的（`{commands: {cut: false}}`），它的 `signal` 可以在它排队等候时取消它。
-- `preview(printer, html)` 只渲染不打印：得到的点阵和打印机印出来的一样，用 `toPNG()` 得到图片。`commands(printer, content)` 给出指令但不发送。
+- `print()` 在指令交给连接后完成（打印机可能还在打印），结果是打印的页数和发送的字节数。同一台打印机的打印按调用顺序一个接一个发出。
+- 一次打印的 `commands` 选项覆盖打印机自己的；它的 `signal` 可以在它排队等候或渲染时取消它。
+- 用定义调用 `manager.print()` 时会打开这台打印机（见 `open()`），打开后一直保持到被关闭：这样打印过一次的 USB、串口或蓝牙打印机会一直被应用占用，`close()` 之前其他程序打开它会得到 `'EBUSY'`。
+- `preview(html)` 只渲染不打印；`commandsOf(content)` 给出指令但不发送。
+
+### 打印机定义
+
+| 字段 | 说明 |
+|---|---|
+| `connection` | 连接方式（见[连接方式](#连接方式)） |
+| `model`、`paper`、`label`、`width`、`dpi`、`rotate`、`page` | 它的介质，写法和 `@lakutata/thermal` 的 `render()` 一样 |
+| `commands` | 它的指令选项，写法和 `encode()` 一样：没有型号时的 `language`、`feed`、`cut`、`drawer`、`sensor`、`density`、`copies`…… |
+| `baseDir` | 它的 HTML 读取图片的目录 |
+| `textLanguage` | 文字的语言，用于断行 |
+| `connectTimeout` | 打开连接最多可以花多长时间（10 秒） |
+| `stallTimeout` | 打印机多久不接收数据（缺纸、上盖打开、离线）就判这次打印失败（10 秒；设为 0 则一直等） |
+| `bytesPerSecond` | 每秒最多发送多少字节：用于慢速连接，数据来得太快或太慢时，这类连接上的打印机会卡顿或印出白线 |
+
+没有介质的打印机仍然可以打印原始指令和渲染结果。
 
 ### 连接方式
 
 | `type` | 选项 | 方式 |
 |---|---|---|
-| `'network'` | `host`、`port`（9100） | 连接原始打印端口的 TCP 连接，ESC/POS、TSPL、ZPL 打印机都一样 |
-| `'queue'` | `name` | 系统打印队列，指令原样发送：macOS 和 Linux 上是 CUPS 的 `lp -d <name> -o raw`。暂不支持 Windows |
+| `'network'` | `host`、`port`（9100） | 连接原始打印端口的 TCP 连接，ESC/POS、TSPL、ZPL 打印机都一样；每次打印连接一次 |
+| `'queue'` | `name` | 系统打印队列，指令原样发送：macOS 和 Linux 上是 CUPS 的 `lp -d <name> -o raw`，Windows 上是后台打印服务（RAW 文档；第 4 版驱动用 `XPS_PASS`） |
+| `'usb'` | `path`，或 `vendorId`、`productId` 和 `serialNumber` | USB 打印机：Linux 上是设备文件 `/dev/usb/lpN`（用户需要在 `lp` 组里），macOS 上按 ID 打开，Windows 上是它的打印机接口路径（用系统自带的驱动，不需要另装驱动） |
 | `'serial'` | `path`、`baudRate`（9600）、`flowControl`（`'rts/cts'`、`'dtr/dsr'`、`'xon/xoff'`） | 串口，由 `@lakutata/serial` 提供 |
-| `'usb'` | `vendorId`、`productId`、`serialNumber`，或 `path` | USB 打印机，由 `@lakutata/usb` 提供 |
 | `'bluetooth'` | `address`、`channel`（1，仅 Linux） | 经典蓝牙打印机（串口协议 SPP），需要先和系统配对，由 `@lakutata/serial` 提供 |
 
-- `connectTimeout`（10 秒）限制打开连接的时间。
-- `stallTimeout`（10 秒）：打印机这么久都不接收数据（缺纸、上盖打开、离线）时，这次打印以 `ThermalPrinterConnectionException` 失败；设为 0 则一直等。
-- `bytesPerSecond` 为慢速连接限速：蓝牙或低速串口上的打印机，数据来得比它打印得快或慢时，会卡顿或印出白线。
+- USB、串口和蓝牙打印机在对象存在期间一直保持连接：第一次打印时打开，出错后重新打开。网络打印机和打印队列每次打印连接一次，因为 9100 端口的打印机往往一次只接受一个客户端，打印队列每个任务对应一个文档。
+- `/dev/usb/lp0` 是 USB 打印机，不是串口：要写成 `'usb'` 连接，而不是 `'serial'`。
+- 在 macOS 上，某个 CUPS 队列正在用这台 USB 打印机打印时，它是被占用的，这时打开会以 `'EBUSY'` 失败。
+
+### 关闭
+
+- `manager.close(printer)` 关闭一台打印机：先把它队列里的打印发完（最多等 `drainTimeout`，10 秒），再关闭连接。配置里的打印机下次使用时会重新打开。
+- 应用停止（容器销毁）时，管理器关闭所有打印机。
+- 进程结束时，还开着的设备文件、套接字和句柄由系统关闭。进程被强杀时正在进行的打印，打印机只会收到前半段数据。
 
 ## API
 
 | 导出 | 说明 |
 |---|---|
-| `ThermalPrinter` | 组件：`print()`、`preview()`、`commands()`、`printerNames()` |
-| `buildThermalPrinterOptions`、`ThermalPrinterConfig` | 组件在配置里的选项（`printers`、`drainTimeout`） |
-| `PrinterDefinition`、`PrinterConnection`、`NetworkConnection`、`QueueConnection`、`SerialConnection`、`UsbConnection`、`BluetoothConnection` | 打印机和它的连接方式 |
+| `ThermalPrinterManager` | 管理器：`discover()`、`open()`、`get()`、`names()`、`openPrinters()`、`close()`、`print()`、`preview()` |
+| `buildThermalPrinterManagerOptions`、`ThermalPrinterManagerConfig` | 管理器在配置里的选项（`printers`、`drainTimeout`） |
+| `ThermalPrinter` | 打开的打印机：`print()`、`preview()`、`commandsOf()`、`definition` |
+| `validatePrinterDefinition` | 检查从文件读出的定义 |
+| `PrinterDefinition`、`PrinterConnection`、`NetworkConnection`、`QueueConnection`、`UsbConnection`、`SerialConnection`、`BluetoothConnection` | 打印机和它的连接方式 |
+| `PrinterCandidate`、`DiscoverOptions` | `discover()` 找到的设备 |
 | `PrintOptions`、`PrintResult` | 一次打印的选项和结果 |
-| `ThermalPrinterException`、`ThermalPrinterConnectionException` | 这个包的异常（见[错误](#错误)） |
+| `ThermalPrinterException`、`ThermalPrinterConnectionException`、`ThermalPrinterOptionException` | 这个包的异常（见[错误](#错误)） |
 
 ## 错误
 
 | 错误 | 什么时候 |
 |---|---|
-| `ThermalPrinterConnectionException` | 连不上打印机或指令发不出去：连接被拒绝或超时、打印队列出错、设备打不开 |
-| `ThermalPrinterException` | 没有这个名字的打印机、连接方式所需的包没有安装、当前平台不提供这种连接方式、组件已经销毁 |
-| `@lakutata/thermal` 的异常 | 渲染或编码失败（`ThermalOptionException`、`ThermalContentException`……） |
+| `ThermalPrinterConnectionException` | 连不上打印机或指令发不出去：连接被拒绝或超时、设备没接上或被占用、打印队列出错、打印机在停滞超时内一直不接收数据 |
+| `ThermalPrinterOptionException` | 不是合法的定义：缺少连接方式或连接方式不对、选项类型不对 |
+| `ThermalPrinterException` | 没有这个名字的打印机、连接方式所需的包没有安装、打印机或管理器已关闭 |
+| `@lakutata/thermal` 的异常 | 引擎不接受这个介质（`ThermalOptionException`），或渲染、编码失败 |
 
 ## 另见
 

@@ -1,5 +1,5 @@
 import {DTO, Provider} from '@lakutata/core'
-import {Configurable, Transient} from '@lakutata/core/decorator/di'
+import {Configurable} from '@lakutata/core/decorator/di'
 import {encode, type EncodeOptions, type MediaOptions, type PrintImage, render, type RenderOptions} from '@lakutata/thermal'
 import {ThermalPrinterConnectionException} from '../exceptions/ThermalPrinterConnectionException.js'
 import {ThermalPrinterException} from '../exceptions/ThermalPrinterException.js'
@@ -20,7 +20,8 @@ function sendFailure(error: unknown): Error {
  * order of the calls. A serial, USB or Bluetooth printer holds its connection while the object lives (opened at the
  * first print, opened again after a failure); a network printer and a print queue are connected for each print. Opened
  * by the manager (`ThermalPrinterManager.open()`, from a definition saved as JSON), or declared in the configuration
- * and injected; its destruction waits for its prints (`drainTimeout`), then closes its connection.
+ * and injected (one object for the name in its scope, as providers are); its destruction waits for its prints
+ * (`drainTimeout`), then closes its connection.
  * @example
  * ```typescript
  * import type {ThermalPrinter, ThermalPrinterManager} from '@lakutata/thermal-printer'
@@ -30,7 +31,6 @@ function sendFailure(error: unknown): Error {
  * }
  * ```
  */
-@Transient()
 export class ThermalPrinter extends Provider {
     /**
      * How the printer is reached.
