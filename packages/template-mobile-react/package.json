@@ -1,6 +1,6 @@
 {
   "name": "@lakutata/template-mobile-react",
-  "version": "3.1.6",
+  "version": "3.2.0",
   "description": "The mobile template of the lakutata projects with React Native: a lakutata application in a Node.js embedded in the mobile application, serving the actions of its controllers to the user interface of React Native, on Android, iOS and HarmonyOS (RNOH).",
   "homepage": "https://lakutata.com/guide/ProjectStructure",
   "bugs": {
