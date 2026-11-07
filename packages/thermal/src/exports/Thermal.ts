@@ -7,3 +7,5 @@ export {ThermalCancelledException} from '../exceptions/ThermalCancelledException
 export {type FontSource, type LabelSize, type Length, type MediaOptions, type PageOptions, type RenderOptions} from '../lib/Types.js'
 export {PrintImage, PrintPage} from '../lib/PrintImage.js'
 export {registerFont, render} from '../lib/Render.js'
+export {encode, type EncodeOptions} from '../lib/Encode.js'
+export {type EscPosRaster, type PrinterLanguage, type PrinterModel, printerModels} from '../lib/Models.js'

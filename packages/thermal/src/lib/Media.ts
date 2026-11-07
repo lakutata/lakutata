@@ -37,12 +37,18 @@ export interface ResolvedMedia {
 }
 
 /**
- * The media a model gives (its resolution, its print width, its fixed page if any), from the printer table
+ * The media a model gives (its resolution, its print width, a roll or labels, its rotation and lead), from the printer
+ * table
  */
 export interface ModelMedia {
     dpi: number
+    //The print width in dots
     width: number
-    page?: {length: number, lead?: number}
+    //A roll (its width the print width) or labels (their size given by the label option)
+    media: 'roll' | 'label'
+    rotate?: 0 | 90 | 180 | 270
+    //Millimetres
+    lead?: number
 }
 
 /**
@@ -107,8 +113,13 @@ export function dotsOf(length: Length, dotsPerMm: number, what: string): number 
  */
 export function resolveMedia(options: MediaOptions): ResolvedMedia {
     const given: string[] = (['model', 'paper', 'label', 'width'] as const).filter((name): boolean => options[name] !== undefined)
-    if (given.length !== 1) throw new ThermalOptionException(given.length ? `One media is given, not ${given.join(' and ')}` : 'A media is given: model, paper, label or width')
-    const rotate: 0 | 90 | 180 | 270 = options.rotate ?? 0
+    //A label printer's model gives its resolution and its habits, the label its size: the one pair allowed
+    const model: ModelMedia | undefined = options.model !== undefined ? models(options.model) : undefined
+    if (options.model !== undefined && !model) throw new ThermalOptionException(`Unknown model ${options.model} (printerModels() lists them)`)
+    const pair: boolean = given.length === 2 && model?.media === 'label' && options.label !== undefined
+    if (given.length !== 1 && !pair) throw new ThermalOptionException(given.length ? `One media is given, not ${given.join(' and ')}` : 'A media is given: model, paper, label or width')
+    if (model?.media === 'label' && options.label === undefined) throw new ThermalOptionException(`The model ${options.model} prints labels: give their size (label)`)
+    const rotate: 0 | 90 | 180 | 270 = options.rotate ?? model?.rotate ?? 0
     if (![0, 90, 180, 270].includes(rotate)) throw new ThermalOptionException('rotate is 0, 90, 180 or 270')
     const paginate: boolean = options.page?.overflow === 'paginate'
     if (options.page?.overflow !== undefined && !['clip', 'paginate'].includes(options.page.overflow)) throw new ThermalOptionException('page.overflow is \'clip\' or \'paginate\'')
@@ -117,14 +128,17 @@ export function resolveMedia(options: MediaOptions): ResolvedMedia {
     let width: number
     let length: number = 0
     let lead: number = 0
-    if (options.model !== undefined) {
-        const model: ModelMedia | undefined = models(options.model)
-        if (!model) throw new ThermalOptionException(`Unknown model ${options.model} (printerModels() lists them)`)
+    if (model) {
         if (options.dpi !== undefined && options.dpi !== model.dpi) throw new ThermalOptionException(`The model ${options.model} is ${model.dpi} dpi`)
         dpi = model.dpi
-        width = model.width
-        length = model.page?.length ?? 0
-        lead = model.page?.lead ?? 0
+        if (options.label !== undefined) {
+            width = dotsOf(options.label.width, dotsPerMmOf(dpi), 'label.width')
+            length = dotsOf(options.label.height, dotsPerMmOf(dpi), 'label.height')
+            if (width > model.width) throw new ThermalOptionException(`The label is ${width} dots wide, wider than the ${model.width} dots the model ${options.model} prints`)
+        } else {
+            width = model.width
+        }
+        if (model.lead) lead = dotsOf(model.lead, dotsPerMmOf(dpi), 'lead')
     } else if (options.paper !== undefined) {
         const printWidth: number | undefined = PAPERS[String(options.paper).replace(/mm$/i, '')]
         if (printWidth === undefined) throw new ThermalOptionException('paper is 58 or 80 (the 203 dpi receipt printers); other printers are given by model, or by width and dpi')
@@ -144,7 +158,7 @@ export function resolveMedia(options: MediaOptions): ResolvedMedia {
     }
     const dotsPerMm: number = dotsPerMmOf(dpi)
     if (options.page?.length !== undefined) {
-        if (options.label !== undefined || options.model !== undefined && length) throw new ThermalOptionException('page.length is given for a media of width or paper only (a label and a model give their own)')
+        if (options.label !== undefined) throw new ThermalOptionException('page.length is given for a media of width, paper or a roll model only (a label gives its own)')
         length = dotsOf(options.page.length, dotsPerMm, 'page.length')
     }
     if (options.page?.lead !== undefined) lead = dotsOf(options.page.lead, dotsPerMm, 'page.lead')

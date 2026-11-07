@@ -2,6 +2,8 @@ import {ThermalFontException} from '../exceptions/ThermalFontException.js'
 import {ThermalOptionException} from '../exceptions/ThermalOptionException.js'
 import {fontFiles} from './Addon.js'
 import {dotsOf, resolveMedia, type ResolvedMedia} from './Media.js'
+//The model table: the model option of the renderings
+import './Models.js'
 import {exceptionOf, native, type NativePage, runOperation} from './Native.js'
 import {PrintImage, PrintPage} from './PrintImage.js'
 import type {FontSource, RenderOptions} from './Types.js'
