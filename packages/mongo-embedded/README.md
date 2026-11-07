@@ -164,7 +164,8 @@ their coverings, and those cells are not MongoDB's (points conflict as they do i
 distance may come in a different order; a `$nearSphere` on a 2d index leaves out the documents across the antimeridian
 as MongoDB does, by a rule close to MongoDB's rings of the plane but not identical at their edges; a `$geoNear` in the
 pipeline of a `$lookup` or a `$unionWith` measures every document of the other collection instead of reading its index
-(the results are the same).
+(the results are the same). The distances can differ in their last digits on Bun and on other versions of V8 (Electron),
+whose math functions round differently.
 
 ## API
 
