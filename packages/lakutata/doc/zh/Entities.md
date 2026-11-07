@@ -175,7 +175,7 @@ class Transfers extends Component {
 
 - 隔离级别可以省略：`'READ UNCOMMITTED'`、`'READ COMMITTED'`、`'REPEATABLE READ'`、`'SERIALIZABLE'`。
 - `createQueryRunner()` 提供一个独占的连接，用来手动控制事务（`startTransaction()`、`commitTransaction()`、`rollbackTransaction()`，最后 `release()`）。
-- MongoDB 和嵌入式 MongoDB 没有事务：在它们上面，`transaction()` 会在没有事务的情况下执行函数。
+- 在 TypeORM 中 MongoDB 没有事务：在它上面，`transaction()` 会在没有事务的情况下执行函数。嵌入式 MongoDB 则在它自己的事务中执行（见 [MongoEmbedded](MongoEmbedded.md) 第 4 节）。
 
 ## 4. 需要注意的值
 

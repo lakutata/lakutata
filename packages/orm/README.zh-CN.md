@@ -24,27 +24,13 @@ TypeORM 1.1.2（MIT）的源码包含在这个包中（见 `THIRD_PARTY_NOTICES.
 | Microsoft SQL Server | `mssql` | `mssql`（12） |
 | Oracle | `oracle` | `oracledb` |
 | MongoDB | `mongodb` | `mongodb`（7） |
-| 嵌入进程内的 MongoDB | `mongo-embedded` | `mingo` 和 `bson`（7） |
+| 嵌入进程内的 MongoDB | `mongo-embedded` | `@lakutata/mongo-embedded`（安装时编译） |
 | SAP HANA | `sap` | `@sap/hana-client` |
 | Google Cloud Spanner | `spanner` | `@google-cloud/spanner`（8） |
 
 `sqljs` 驱动把整个数据库放在内存中。设置了 `location` 选项时，它在连接时从这个文件加载数据库；设置了 `autoSave: true` 时，每次变化后写回文件；调用它的实体管理器（`SqljsEntityManager`）的 `saveDatabase()` 时也会写回；`exportDatabase()` 以 `Uint8Array` 返回数据库。
 
-`mongo-embedded` 是 lakutata 添加的：它让 TypeORM 对 MongoDB 的支持（带 `@ObjectIdColumn` 的实体、查询选项中的 MongoDB 操作符、`MongoRepository`）运行在进程内的数据库上。文档写入 `database` 选项所指定目录中的文件（目录不存在时会创建；默认值 `':memory:'` 把文档保存在内存中）。每次写入都以一次操作追加到文件，文档通过保存在内存中（V8 堆之外）的索引按 `_id` 查找，mingo 按 MongoDB 的语义执行查询。
-
-`sync` 选项决定写入什么时候刷到磁盘：`'interval'`（默认）每隔 `syncInterval`（100 毫秒）刷一次，所以写入在进程崩溃后依然存在，但断电时可能丢失最后一个间隔内的写入；其他取值是 `'always'` 和 `'never'`。读过的文档会缓存在内存中（`cacheSize`，默认 64 MiB）：扫描一个文档全部已缓存的集合时，不会读取它的任何文件。写入被崩溃打断时，数据库会保持这次写入之前的样子。
-
-压缩集合的文件时，读写照常进行（`compaction` 选项：文件达到 16 MiB 之后，一旦是有效文档大小的两倍就压缩）。集合的索引在数据库关闭时保存到快照，在使用期间也会保存（`snapshot` 选项：自上次快照以来写入了 64 MiB，并且达到文件的四分之一时）。再次打开数据库时会读取快照，所以崩溃之后只需要读取快照之后写入的记录。只有一个进程能打开这个目录，打开它的进程会把它锁住。
-
-数据库运行在一个 worker 线程中（`worker` 选项，默认 `true`），所以它的查询、写入和文件操作都不会阻塞应用的事件循环。参数和结果以 BSON 格式在线程之间传递（每次调用大约 20 微秒）；worker 线程运行它自己的 mingo 和 bson 副本，它们已经打包进这个包。它的限制（`workerResourceLimits`，即 Node.js 的 `resourceLimits`）默认不设置，所以它沿用应用线程的限制（`--max-old-space-size`）。超出限制时，结束的是 worker 线程而不是进程：它的调用会失败，它的目录被解锁（在 Node.js 24 上，256 MB 或更小的堆可能让整个进程结束；Bun 会忽略这些限制）。`worker: false` 让数据库运行在应用的线程中，这时查询还可以使用 JavaScript 函数（`$where`、`$function`、`$accumulator`）。
-
-耗时的写入（`insertMany`、`updateMany`、`deleteMany`，以及在已有文档上创建索引）按每批 1000 个文档执行，批与批之间让出事件循环。某个文档写入失败时，它之前的文档已经写入，不会撤销，和不使用事务的 MongoDB 一样。与 MongoDB 相同，`insertMany` 在遇到第一个重复键时停止，设置 `ordered: false` 时则继续插入其他文档；最后都以失败结束，错误中带有这些文档的 `writeErrors`、`insertedCount` 和 `insertedIds`。
-
-位于管道开头的 `$group`（或 `$count` 阶段），如果它前面只有逐个处理文档的阶段（`$match`、`$project`、`$unwind`……），会每次处理一批文档，所以内存中只保留它的各个分组。用 `next()`、`hasNext()` 或 `for await` 读取的游标（`MongoRepository` 的 `createCursor` 和 `createEntityCursor`），在没有排序（也没有 1000 或更小的 limit）时每次读取 1000 个文档；`toArray()` 则一次读取全部。和 MongoDB 一样，游标读取期间写入的文档可能被漏掉（在游标读到之前被更新或删除，或者是新插入的），也可能被读到两次（集合正在压缩时）。有游标正在读取集合（或者正在创建集合的某个索引）时，不会开始压缩这个集合；已经在进行的压缩，要等读取它的文件的游标都结束后才完成。10 分钟没有读取的游标不再阻止压缩：压缩会关闭它，它的下一次读取会失败（在 worker 线程中，这样的游标无论如何都会在 10 分钟后关闭）。
-
-没有索引的排序会把参与排序的所有文档放在内存中，即使后面跟着 `limit` 也是如此：请给大型集合中用于排序的字段建索引。字段有索引时，带 `limit` 的排序按索引的顺序读取；其他情况下由 mingo 在内存中排序，超过 2^53 的整数（以 `Long` 保存）排在其他数字之后，按文本顺序排列。索引键最多大约 1000 字节（键的值和 `_id` 编码在一起：`_id` 是 `ObjectId` 时，字符串最多 995 字节）。会产生更大键的写入在写入之前就会失败，错误码是 MongoDB 在 4.2 之前使用的 17280（在 `insertMany` 中，作为该文档的错误）。
-
-和 `mongodb` 类型一样，不支持 TypeORM 的关系、查询构造器和事务（`transaction()` 会在没有事务的情况下执行它的函数），迁移需要手写（通过 `queryRunner.manager`，它是一个 `MongoEntityManager`），不能生成。`ObjectId` 和 `Binary` 值来自 `bson` 的 CommonJS 模块。`import {ObjectId} from 'lakutata/orm'` 得到的是实体 id 的类，也是 `@ObjectIdColumn()` 属性的类型。在 ES 模块中用 `import {ObjectId} from 'bson'` 得到的 `ObjectId` 是另一个类：对这些 id 做 `instanceof` 判断会得到 false，不过查询两者都接受。
+`mongo-embedded` 是 lakutata 添加的：它让 TypeORM 对 MongoDB 的支持（带 `@ObjectIdColumn` 的实体、查询选项中的 MongoDB 操作符、`MongoRepository`）运行在进程内的数据库上，也就是 `@lakutata/mongo-embedded` 包。它用原生插件里的 SQLite 保存文档，行为与以单成员副本集运行的 MongoDB 8.0 相同（事务、变更流、全文索引和地理空间索引、排序规则）。它的插件在安装时编译，需要 Python 3 和支持 C++17 的编译器。`database` 选项是它的目录（默认 `':memory:'`）；其他选项有 `sync`、`syncInterval`、`cacheSize`、`mmapSize`、`oplogSize`、`writeConcern` 和 `transactionLifetimeLimitSeconds`。`transaction()` 在数据库的事务中执行它的函数。和 `mongodb` 类型一样，不支持 TypeORM 的关系和查询构造器，迁移需要手写（通过 `queryRunner.manager`，它是一个 `MongoEntityManager`）。`import {ObjectId} from 'lakutata/orm'` 给出实体 id 的类，也是 `@ObjectIdColumn()` 属性的类型。详见指南[嵌入式 MongoDB](https://lakutata.com/zh/guide/MongoEmbedded)。
 
 存在 Redis 中的查询结果缓存（`cache: {type: 'redis'}` 或 `'ioredis'`）需要安装 `redis` 或 `ioredis` 包。
 

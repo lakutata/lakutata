@@ -91,6 +91,7 @@ Application.run(() => ({
 | [`@lakutata/math`](packages/math) | 数学计算：符号计算（解方程、求导、积分、极限、化简）和数值计算（矩阵、统计、任意精度的十进制数），由原生插件完成 | 否 |
 | [`@lakutata/barcode`](packages/barcode) | 条形码和二维码：生成（PNG、SVG、像素）和从图片识别 32 种码制，由原生插件完成 | 否 |
 | [`@lakutata/netif`](packages/netif) | 网口：服务器和 UDP 套接字按网口监听，不管网口的地址怎么变；列出本机的网口和它们的变化，由原生插件完成 | 否 |
+| [`@lakutata/mongo-embedded`](packages/mongo-embedded) | 嵌入式 MongoDB，`lakutata/orm` 中 `mongo-embedded` 类型的数据库：在 SQLite 上实现 MongoDB 8.0 的语义，由原生插件完成 | 否 |
 | [`@lakutata/cli`](packages/cli) | `lakutata` 命令：项目、工作区、迁移、打包 | 否 |
 | [`@lakutata/builder`](packages/builder) | 单文件包、可执行文件和安装包，由 `lakutata package` 使用 | 否 |
 

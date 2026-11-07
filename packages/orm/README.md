@@ -30,7 +30,7 @@ copy. The database driver is not a dependency: install the driver for the `type`
 | Microsoft SQL Server | `mssql` | `mssql` (12) |
 | Oracle | `oracle` | `oracledb` |
 | MongoDB | `mongodb` | `mongodb` (7) |
-| MongoDB embedded in the process | `mongo-embedded` | `mingo` and `bson` (7) |
+| MongoDB embedded in the process | `mongo-embedded` | `@lakutata/mongo-embedded` (compiled when installed) |
 | SAP HANA | `sap` | `@sap/hana-client` |
 | Google Cloud Spanner | `spanner` | `@google-cloud/spanner` (8) |
 
@@ -39,62 +39,16 @@ when it connects, and writes it back after each change with `autoSave: true`, or
 manager (`SqljsEntityManager`) is called; `exportDatabase()` returns the database as a `Uint8Array`.
 
 `mongo-embedded`, added by lakutata, is the MongoDB support of TypeORM (entities with an `@ObjectIdColumn`, the MongoDB
-operators in find options, the `MongoRepository`) running on a database inside the process. Its documents are written
-to files in the directory given by the `database` option (created when missing; `':memory:'`, the default, keeps them
-in memory). Each write is appended to a file in a single operation, documents are found by their `_id` through an
-index held in memory outside the V8 heap, and mingo runs the queries with the semantics of MongoDB.
-
-The `sync` option sets when writes are flushed to disk: `'interval'` (the default) flushes every `syncInterval`
-(100 ms), so a write survives a crash of the process but the last interval may be lost on a power failure; the other
-values are `'always'` and `'never'`. Documents that have been read are cached in memory (`cacheSize`, 64 MiB by
-default): scanning a collection whose documents are all cached reads none of its files. A write cut short by a crash
-leaves the database as it was before that write.
-
-The file of a collection is compacted while reads and writes go on (the `compaction` option: from 16 MiB, once the file
-is twice the size of its live documents). The indexes of a collection are saved to a snapshot when the database is
-closed, and also while it is in use (the `snapshot` option: once 64 MiB and a quarter of the file have been written
-since the last snapshot). Opening the database again reads the snapshot, so after a crash only the records written
-after the snapshot are read. Only one process can open the directory, which it locks.
-
-The database runs in a worker thread (the `worker` option, `true` by default), so its queries, writes and file
-operations do not block the event loop of the application. Arguments and results cross between the threads as BSON
-(about 20 µs per call); the worker thread runs its own copies of mingo and bson, bundled into the package. Its limits
-(`workerResourceLimits`, the `resourceLimits` of Node.js) are unset by default, so it has the limits of the
-application's thread (`--max-old-space-size`). Exceeding them ends the worker thread, not the process: its calls fail
-and its directory is unlocked (on Node.js 24, a heap of 256 MB or less may end the process; Bun does not apply the
-limits). `worker: false` runs the database in the application's thread, where queries can also use JavaScript functions
-(`$where`, `$function`, `$accumulator`).
-
-Long writes (`insertMany`, `updateMany`, `deleteMany`, building an index on existing documents) run in batches of 1000
-documents, yielding to the event loop between batches. A write that fails on a document leaves the documents before it
-written, as MongoDB does without a transaction. As in MongoDB, `insertMany` stops at its first duplicate key, or
-inserts the other documents with `ordered: false`, and then fails with the `writeErrors`, the `insertedCount` and the
-`insertedIds` of its documents.
-
-A `$group` (or a `$count` stage) at the start of a pipeline, with only stages that work on one document at a time
-before it (`$match`, `$project`, `$unwind`...), processes a batch of documents at a time, so it holds only its groups
-in memory. A cursor read with `next()`, `hasNext()` or `for await` (`createCursor` and `createEntityCursor` of the
-`MongoRepository`) reads 1000 documents at a time when it has no sort order (and no limit of 1000 or less); `toArray()`
-reads them all at once. As with MongoDB, documents written while a cursor is reading may be missed (updated or deleted
-before it reads them, or inserted) or read twice (while the collection is compacted). A compaction of the collection
-does not start while a cursor is reading it (or while one of its indexes is being built), and a compaction already
-running finishes once the cursors reading its files end. A cursor left unread for 10 minutes no longer holds a
-compaction back: the compaction closes it, and its next read fails (in the worker thread, such a cursor is closed after
-10 minutes in any case).
-
-A sort without an index holds all the documents it sorts in memory, even with a `limit` after it: index the fields that
-large collections are sorted on. A sort with a `limit` on an indexed field reads the order of the index; otherwise mingo
-sorts in memory, placing the integers beyond 2^53 (kept as `Long`) after the other numbers, in the order of their text.
-An index key holds about 1000 bytes at most (its values are encoded with the `_id`: with an `ObjectId` as `_id`, a
-string of 995 bytes at most). A write that would create a larger key fails before it is written, with the code 17280
-that MongoDB used before 4.2 (in an `insertMany`, as an error of that document).
-
-As with the `mongodb` type, TypeORM's relations, query builders and transactions are not supported (`transaction()`
-runs its function without a transaction), and migrations are written by hand (through `queryRunner.manager`, a
-`MongoEntityManager`), not generated. The `ObjectId` and `Binary` values are those of the CommonJS module of `bson`.
-`import {ObjectId} from 'lakutata/orm'` gives the class of the ids of the entities, and their type for the
-`@ObjectIdColumn()` properties. The `ObjectId` of `import {ObjectId} from 'bson'` in an ES module is a different class:
-`instanceof` is false for the ids, though the queries accept both.
+operators in find options, the `MongoRepository`) running on a database inside the process: the package
+`@lakutata/mongo-embedded`, which stores the documents with SQLite in a native addon and behaves like MongoDB 8.0 with
+one member (transactions, change streams, text and geospatial indexes, collations). Its addon is compiled when it is
+installed, which needs Python 3 and a C++17 compiler. The `database` option is its directory (`':memory:'` by default);
+its other options are `sync`, `syncInterval`, `cacheSize`, `mmapSize`, `oplogSize`, `writeConcern` and
+`transactionLifetimeLimitSeconds`. `transaction()` runs its function in a transaction of the database. As with the
+`mongodb` type, TypeORM's relations and query builders are not supported, and migrations are written by hand (through
+`queryRunner.manager`, a `MongoEntityManager`). `import {ObjectId} from 'lakutata/orm'` gives the class of the ids of
+the entities, and their type for the `@ObjectIdColumn()` properties. See the guide
+[Embedded MongoDB](https://lakutata.com/guide/MongoEmbedded).
 
 A query result cache in Redis (`cache: {type: 'redis'}` or `'ioredis'`) needs the `redis` or `ioredis` package.
 

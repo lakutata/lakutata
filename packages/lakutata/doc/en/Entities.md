@@ -187,7 +187,8 @@ class Transfers extends Component {
 - The isolation level is optional: `'READ UNCOMMITTED'`, `'READ COMMITTED'`, `'REPEATABLE READ'`, `'SERIALIZABLE'`.
 - `createQueryRunner()` gives a connection of its own, to control a transaction by hand (`startTransaction()`,
   `commitTransaction()`, `rollbackTransaction()`, then `release()`).
-- MongoDB and the embedded MongoDB have no transactions: there, `transaction()` runs the function without one.
+- MongoDB has no transactions in TypeORM: there, `transaction()` runs the function without one. The embedded MongoDB
+  runs it in a transaction of its own (see section 4 of [MongoEmbedded](MongoEmbedded.md)).
 
 ## 4. Values to watch
 

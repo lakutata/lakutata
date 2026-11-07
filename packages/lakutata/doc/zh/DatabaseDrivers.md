@@ -12,7 +12,7 @@
 | Microsoft SQL Server | `mssql` | `mssql`（12） |
 | Oracle | `oracle` | `oracledb`（6.3 或更高，或 7） |
 | MongoDB | `mongodb` | `mongodb`（7） |
-| 嵌入应用内的 MongoDB | `mongo-embedded` | `mingo`（7.2 或更高）和 `bson`（7）；见 [MongoEmbedded](MongoEmbedded.md) |
+| 嵌入应用内的 MongoDB | `mongo-embedded` | `@lakutata/mongo-embedded`，安装时编译（需要 Python 3 和支持 C++17 的编译器）；见 [MongoEmbedded](MongoEmbedded.md) |
 | SAP HANA | `sap` | `@sap/hana-client`（2.14 或更高） |
 | Google Cloud Spanner | `spanner` | `@google-cloud/spanner`（8） |
 | 通过 Data API 访问的 Amazon Aurora | `aurora-mysql`、`aurora-postgres` | `typeorm-aurora-data-api-driver`（3） |
@@ -276,7 +276,7 @@ export const db = buildDatabaseOptions({
 
 SQL Server 和 Oracle 还没有在手机上验证过。
 
-- `lakutata mobile stage` 用 NDK、Xcode 或 DevEco Studio 为每个系统从源码编译 `better-sqlite3`（见 `@lakutata/cli` README 中的 `lakutata mobile` 命令）。
+- `lakutata mobile stage` 用 NDK、Xcode 或 DevEco Studio 为每个系统从源码编译 `better-sqlite3` 和 `@lakutata/mongo-embedded`（见 `@lakutata/cli` README 中的 `lakutata mobile` 命令）。
 - 数据库文件需要长期保存，而 `os.tmpdir()` 是应用的缓存目录，系统可能清空它。模板的 `App.ts` 把应用的数据目录声明为别名 `@data`：Android 上是应用的 files 目录，iOS 上是 `Library/Application Support`，鸿蒙上是 `/data/storage/el2/base/files`，在开发用的电脑上是 `packages/app/data`。数据库的选项可以直接写那里的文件 `@data/app.sqlite`，数据库连接时会解析这个别名。
 - sql.js 的 asm.js 版本是编译成 JavaScript 的 SQLite：不需要 WebAssembly，也没有其他文件，所以在三个系统上都一样能运行。鸿蒙的 Node.js 没有 WebAssembly，iOS 的 Node.js 只有 nodejs-mobile 的 polyfill，慢得多：
 

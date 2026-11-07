@@ -100,6 +100,7 @@ Application.run(() => ({
 | [`@lakutata/math`](packages/math) | Mathematics: symbolic computation (equations, derivatives, integrals, limits, simplification) and numerical computation (matrices, statistics, decimals of any precision) in a native addon | no |
 | [`@lakutata/barcode`](packages/barcode) | Barcodes and QR codes: 32 formats generated (PNG, SVG, pixels) and read from images, in a native addon | no |
 | [`@lakutata/netif`](packages/netif) | Network interfaces: servers and UDP sockets listening on an interface whatever its addresses, the interfaces of the machine and their changes, in a native addon | no |
+| [`@lakutata/mongo-embedded`](packages/mongo-embedded) | An embedded MongoDB, the database of the `mongo-embedded` type of `lakutata/orm`: the semantics of MongoDB 8.0 on SQLite, in a native addon | no |
 | [`@lakutata/cli`](packages/cli) | The `lakutata` command: projects, workspaces, migrations, packaging | no |
 | [`@lakutata/builder`](packages/builder) | Bundles, executables and installers, used by `lakutata package` | no |
 

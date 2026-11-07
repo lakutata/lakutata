@@ -1,5 +1,7 @@
 # @lakutata/mongo-embedded
 
+English | [中文](README.zh-CN.md)
+
 An embedded MongoDB for Node.js, used by the `mongo-embedded` databases of `lakutata/orm`. The collections of a
 database live in one file in a directory (or in memory). SQLite stores them in a native addon, on a thread of its own,
 and [mingo](https://github.com/kofrasa/mingo) queries and updates them with the semantics of MongoDB. The client has the
@@ -17,7 +19,9 @@ npm install @lakutata/mongo-embedded
   `build-base` (Alpine) on Linux, the Build Tools of Visual Studio ("Desktop development with C++") on Windows. npm
   warns that the package has an install script. Bun runs the scripts of trusted packages only: allow it with
   `bun pm trust @lakutata/mongo-embedded`.
-- Node.js `>=20.19.0`, the main process of Electron, or Bun.
+- Node.js `>=20.19.0`, Bun, the main process of Electron, or NW.js. On Android, iOS and HarmonyOS it runs in the
+  applications of the `mobile-react` template, whose `lakutata mobile stage` compiles the addon for each system. The
+  applications packaged by `@lakutata/builder` carry the addon and its ICU data.
 - With `lakutata/orm`, a data source of the type `mongo-embedded` needs this package and asks for it when it is not
   installed.
 
@@ -53,11 +57,11 @@ The option `sync` of `EmbeddedClient.connect` (and of the data source):
   process loses nothing; a crash of the system or a power loss loses the writes of the last interval at most.
 - `always`: each write is synced before it resolves.
 - `never`: the WAL is synced when it is written back to the database (every 1000 pages, and at the closing). A
-  process that writes fewer pages and is not closed loses all of its writes on a power loss.
+  process that writes fewer than 1000 pages and is not closed loses all of its writes on a power loss.
 
 None of them lets a crash or a power loss corrupt the database. On macOS and iOS the writes back use `F_FULLFSYNC`, so
-that the order of the writes holds through the cache of the drive; `always` uses it for each write too. A directory is opened by one connection at a time: it is
-locked by its file `LOCK`.
+that the order of the writes holds through the cache of the drive; `always` uses it for each write too. A directory is
+opened by one connection at a time: it is locked by its file `LOCK`.
 
 A write concern with `j: true` (or `fsync: true`) syncs the WAL before the write resolves, regardless of `sync`.
 
@@ -194,8 +198,8 @@ whose math functions round differently.
   `findOneAndDelete`, `bulkWrite`, `initializeOrderedBulkOp`, `initializeUnorderedBulkOp`, `rename`, `drop`, and its
   indexes (`createIndex`, `createIndexes`, `indexes`, `dropIndex`, `dropIndexes`).
 - Cursors: `toArray`, `next`, `tryNext`, `hasNext`, `forEach`, `map`, `rewind`, `stream`, `closed` and `for await`.
-  `maxTimeMS` limits the time their reads take. A cursor that has not been read to the end times out after 10 minutes idle, as it would on a
-  MongoDB server, unless `noCursorTimeout` is set.
+  `maxTimeMS` limits the time their reads take. A cursor that has not been read to the end times out after 10 minutes
+  idle, as it would on a MongoDB server, unless `noCursorTimeout` is set.
 - Indexes: ascending, descending and compound, unique, sparse, partial (`partialFilterExpression`), hashed, wildcard
   and compound wildcard (`$**`, `wildcardProjection`), hidden, with a collation, and TTL (`expireAfterSeconds`). The
   queries use them, and the index of the `_id` for its ranges and its sorts; a query can name the index it uses

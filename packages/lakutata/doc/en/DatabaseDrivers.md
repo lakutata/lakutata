@@ -13,7 +13,7 @@ one for your database alongside it.
 | Microsoft SQL Server | `mssql` | `mssql` (12) |
 | Oracle | `oracle` | `oracledb` (6.3 or later, or 7) |
 | MongoDB | `mongodb` | `mongodb` (7) |
-| MongoDB embedded in the application | `mongo-embedded` | `mingo` (7.2 or later) and `bson` (7); see [MongoEmbedded](MongoEmbedded.md) |
+| MongoDB embedded in the application | `mongo-embedded` | `@lakutata/mongo-embedded`, compiled when installed (Python 3 and a C++17 compiler); see [MongoEmbedded](MongoEmbedded.md) |
 | SAP HANA | `sap` | `@sap/hana-client` (2.14 or later) |
 | Google Cloud Spanner | `spanner` | `@google-cloud/spanner` (8) |
 | Amazon Aurora through the Data API | `aurora-mysql`, `aurora-postgres` | `typeorm-aurora-data-api-driver` (3) |
@@ -310,8 +310,8 @@ Android (API 36), iOS (27.2) and HarmonyOS: a database written, closed, then ope
 
 SQL Server and Oracle have not been checked there.
 
-- `lakutata mobile stage` builds `better-sqlite3` from its sources for each system, with the NDK, Xcode or DevEco Studio
-  (see the `lakutata mobile` commands in the README of `@lakutata/cli`).
+- `lakutata mobile stage` builds `better-sqlite3` and `@lakutata/mongo-embedded` from their sources for each system,
+  with the NDK, Xcode or DevEco Studio (see the `lakutata mobile` commands in the README of `@lakutata/cli`).
 - The file of a database has to last, and `os.tmpdir()` is the cache of the application, which the system may empty. The
   `App.ts` of the template declares the data directory of the application as the alias `@data`: the `files` directory of
   the application on Android, `Library/Application Support` on iOS, `/data/storage/el2/base/files` on HarmonyOS, and
