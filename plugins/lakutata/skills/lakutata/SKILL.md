@@ -53,7 +53,8 @@ in an area this project does not use yet, read its guide, in this order:
    `Overview.md` lists the guides of the installed version; `examples/`, when present, holds whole applications.
    The separate packages (`@lakutata/nats`, `@lakutata/grpc`, `@lakutata/mcp`, `@lakutata/dbus`, `@lakutata/webrtc`,
    `@lakutata/ffi`, `@lakutata/math`, `@lakutata/barcode`, `@lakutata/netif`, `@lakutata/mongo-embedded`,
-   `@lakutata/cli`) have their README in their own directory of `node_modules`.
+   `@lakutata/thermal`, `@lakutata/thermal-printer`, `@lakutata/serial`, `@lakutata/cli`) have their README in their own
+   directory of `node_modules`.
 2. The type declarations of `lakutata` and `@lakutata/*` in `node_modules`: every export is documented there with an
    example. They are the reference for a signature or an option.
 3. When the package is not installed yet (a new project) or has no `doc/`: the same files on the website, as plain
@@ -82,6 +83,7 @@ website.
 | Security; time; helper functions | `Security.md`; `Time.md`; `HelperFunctions.md` |
 | Workspaces of several packages; native addons; C functions of native libraries | `Workspaces.md`; `NativeAddons.md`; `FFI.md` |
 | Barcodes and QR codes: generating, printing sizes, EAN/UPC/GS1, reading images (`@lakutata/barcode`) | `Barcode.md` |
+| Thermal printers: receipts and labels in HTML, choosing and saving printers, ESC/POS, TSPL, ZPL; serial ports and Bluetooth (`@lakutata/thermal`, `@lakutata/thermal-printer`, `@lakutata/serial`) | `Thermal.md` |
 | Mathematics: formulas, equations, decimals, matrices, statistics, numeric solutions, units (`@lakutata/math`) | `Math.md` |
 | Listening on a network interface whatever its addresses (the `interface` option of the entrypoints, or `@lakutata/netif` alone); the interfaces and their changes | `Netif.md` |
 | Bundles, executables, installers | `Packaging.md`, `Installers.md` |
@@ -135,7 +137,11 @@ functions, no component), `@lakutata/barcode` (barcodes and QR codes: 32 formats
 read from images; a component, `Barcode`), `@lakutata/netif` (servers and UDP sockets listening on a network interface
 whatever its addresses, the interfaces of the machine and their changes; plain classes, no component; the entrypoints
 that listen on a port use it through their `interface` option), `@lakutata/mongo-embedded` (the embedded MongoDB of
-the `mongo-embedded` databases of `lakutata/orm`, compiled when installed). The adapters and drivers need their library
+the `mongo-embedded` databases of `lakutata/orm`, compiled when installed), `@lakutata/thermal` (receipts, labels and
+wristbands written in HTML, rendered to a thermal printer's dots and encoded as ESC/POS, TSPL or ZPL; plain functions),
+`@lakutata/thermal-printer` (a component, `ThermalPrinterManager`, finding printers and opening them from definitions
+saved as JSON; a provider, `ThermalPrinter`, for each), `@lakutata/serial` (serial ports and classic Bluetooth devices
+as streams; plain functions). The adapters and drivers need their library
 installed (`express`, `fastify`, `commander`, `socket.io`, `ws`, `pg`, `mysql2`, `better-sqlite3`, `ioredis`…): they
 are optional peer dependencies.
 

@@ -92,6 +92,7 @@
     }
   },
   "devDependencies": {
+    "@lakutata/barcode": "~3.2.0",
     "@lakutata/serial": "~3.2.0"
   }
 }

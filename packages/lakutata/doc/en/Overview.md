@@ -52,8 +52,9 @@ Protocol), `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, a media ser
 (the C functions of native libraries), `@lakutata/math` (symbolic and numeric mathematics, as functions that need no
 lakutata application), `@lakutata/barcode` (barcodes and QR codes, generated and read in a native addon),
 `@lakutata/netif` (servers and UDP sockets listening on a network interface whatever its addresses, the interfaces of
-the machine and their changes) and `@lakutata/mongo-embedded` (the embedded MongoDB of the `mongo-embedded` databases,
-in a native addon).
+the machine and their changes), `@lakutata/mongo-embedded` (the embedded MongoDB of the `mongo-embedded` databases,
+in a native addon), `@lakutata/thermal` and `@lakutata/thermal-printer` (thermal printers: receipts and labels written
+in HTML, a manager component) and `@lakutata/serial` (serial ports and Bluetooth devices).
 
 ## The guides
 
@@ -99,6 +100,7 @@ in a native addon).
 | [WebRTC](WebRTC.md) | Peer-to-peer connections and a media server (`@lakutata/webrtc`): the signaling, the TURN server, browsers and applications, the actions of an application called through data channels, WHIP and WHEP |
 | [FFI](FFI.md) | The C functions of native libraries (`@lakutata/ffi`): declarations copied from headers, structs, callbacks, memory, packaging |
 | [Barcode](Barcode.md) | Barcodes and QR codes (`@lakutata/barcode`): generating them as PNG, SVG or pixels, sizes for print, EAN, UPC and GS1, reading them from images |
+| [Thermal](Thermal.md) | Thermal printers (`@lakutata/thermal`, `@lakutata/thermal-printer`, `@lakutata/serial`): receipts, labels and wristbands written in HTML, choosing and saving printers, cutting, connections, serial ports and Bluetooth |
 | [Math](Math.md) | Mathematics (`@lakutata/math`): formulas and exact results, equations, decimals of any precision, matrices, statistics, numeric solutions, units |
 | [Netif](Netif.md) | Network interfaces (`@lakutata/netif`): a server listening on an interface whatever its addresses, the connections of the other interfaces refused, the interfaces and their changes, UDP on one interface |
 | [Command](Command.md) | The `lakutata` command: creating projects, migrations, translations, environment variables |

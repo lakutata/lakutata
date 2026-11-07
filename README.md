@@ -101,6 +101,9 @@ Application.run(() => ({
 | [`@lakutata/barcode`](packages/barcode) | Barcodes and QR codes: 32 formats generated (PNG, SVG, pixels) and read from images, in a native addon | no |
 | [`@lakutata/netif`](packages/netif) | Network interfaces: servers and UDP sockets listening on an interface whatever its addresses, the interfaces of the machine and their changes, in a native addon | no |
 | [`@lakutata/mongo-embedded`](packages/mongo-embedded) | An embedded MongoDB, the database of the `mongo-embedded` type of `lakutata/orm`: the semantics of MongoDB 8.0 on SQLite, in a native addon | no |
+| [`@lakutata/thermal`](packages/thermal) | Receipts, labels and wristbands written in HTML and CSS, rendered to a thermal printer's dots and encoded as ESC/POS, TSPL or ZPL, in a native addon | no |
+| [`@lakutata/thermal-printer`](packages/thermal-printer) | Thermal printers: a manager component that finds them and opens them from saved definitions, printing over the network, a print queue, USB, a serial port or Bluetooth | no |
+| [`@lakutata/serial`](packages/serial) | Serial ports and classic Bluetooth devices as streams, their lines and their listing, in a native addon | no |
 | [`@lakutata/cli`](packages/cli) | The `lakutata` command: projects, workspaces, migrations, packaging | no |
 | [`@lakutata/builder`](packages/builder) | Bundles, executables and installers, used by `lakutata package` | no |
 
