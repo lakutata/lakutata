@@ -169,7 +169,7 @@ await check('CJS @lakutata/serial loads its addon and lists the ports', async ()
 // @lakutata/thermal-printer — the component over the engine
 await check('CJS @lakutata/thermal-printer loads', () => {
     const printer = requireCJS('../packages/thermal-printer/dist/cjs/exports/ThermalPrinter.js')
-    if (typeof printer.ThermalPrinter !== 'function' || typeof printer.buildThermalPrinterOptions !== 'function') throw new Error('ThermalPrinter missing')
+    if (typeof printer.ThermalPrinterManager !== 'function' || typeof printer.ThermalPrinter !== 'function' || typeof printer.buildThermalPrinterManagerOptions !== 'function') throw new Error('ThermalPrinterManager missing')
 })
 
 // @lakutata/mongo-embedded — its addon (built when the package is installed) and the data of its collations required by

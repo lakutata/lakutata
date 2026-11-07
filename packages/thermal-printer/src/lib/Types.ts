@@ -1,4 +1,4 @@
-import type {EncodeOptions, MediaOptions} from '@lakutata/thermal'
+import type {EncodeOptions, MediaOptions, PrinterLanguage} from '@lakutata/thermal'
 
 /**
  * A printer on the network, by its raw printing port (9100 for ESC/POS, TSPL and ZPL printers alike).
@@ -64,8 +64,8 @@ export interface SerialConnection {
 }
 
 /**
- * A printer on USB (by `@lakutata/usb`): its vendor and product (and serial number when several are plugged), or its
- * device path.
+ * A printer on USB (of the printer class): its vendor and product (and its serial number when several are plugged),
+ * or its device path (`/dev/usb/lp0` on Linux, the path of its printer interface on Windows; macOS names it by its ids).
  */
 export interface UsbConnection {
     /**
@@ -89,7 +89,7 @@ export interface UsbConnection {
     serialNumber?: string
 
     /**
-     * The path of its device (`/dev/usb/lp0` on Linux), in place of its ids.
+     * The path of its device (`/dev/usb/lp0` on Linux, `\\?\usb#vid_…` on Windows), in place of its ids.
      */
     path?: string
 }
@@ -195,4 +195,98 @@ export interface PrintResult {
      * The bytes sent to the printer.
      */
     bytes: number
+}
+
+/**
+ * A device found by the manager, ready to be opened and its connection saved.
+ */
+export interface PrinterCandidate {
+    /**
+     * What it is: a USB printer, a print queue of the system, a serial port, the serial port of a Bluetooth device.
+     */
+    kind: 'usb' | 'queue' | 'serial' | 'bluetooth'
+
+    /**
+     * Its connection, as a printer takes it (`manager.open({connection, …})`).
+     */
+    connection: PrinterConnection
+
+    /**
+     * A name to show: the product, the queue, the port.
+     */
+    name: string
+
+    /**
+     * Whether it is known to be a printer (a USB printer, a print queue), or only a port a printer may be on (a serial
+     * port, a Bluetooth device).
+     */
+    printer: boolean
+
+    /**
+     * The vendor id of its USB device.
+     */
+    vendorId?: number
+
+    /**
+     * The product id of its USB device.
+     */
+    productId?: number
+
+    /**
+     * The serial number of its USB device.
+     */
+    serialNumber?: string
+
+    /**
+     * Its manufacturer.
+     */
+    manufacturer?: string
+
+    /**
+     * Its product name.
+     */
+    product?: string
+
+    /**
+     * Where a print queue sends its jobs: a device URI of CUPS (`usb://…`, `socket://…`), a port of Windows.
+     */
+    device?: string
+
+    /**
+     * The IEEE 1284 id the printer reports (`MFG:EPSON;CMD:ESC/POS;MDL:TM-T88V;`).
+     */
+    deviceId?: string
+
+    /**
+     * The model of `printerModels()` its id names, for its `model` option.
+     */
+    model?: string
+
+    /**
+     * The command language its id reports, for its `commands.language` option when it has no model.
+     */
+    language?: PrinterLanguage
+}
+
+/**
+ * What the manager looks for.
+ */
+export interface DiscoverOptions {
+    /**
+     * USB printers.
+     * @default true
+     */
+    usb?: boolean
+
+    /**
+     * The print queues of the system.
+     * @default true
+     */
+    queues?: boolean
+
+    /**
+     * The serial ports and the serial ports of Bluetooth devices (with `@lakutata/serial` installed).
+     * @default true
+     */
+    serial?: boolean
 }
