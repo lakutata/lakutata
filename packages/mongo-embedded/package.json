@@ -57,7 +57,8 @@
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test --test-timeout=300000 \"dist/esm/tests/**/*.spec.js\"",
-    "test:bun": "sh test-env/bun.sh"
+    "test:bun": "sh test-env/bun.sh",
+    "test:electron": "electron test-env/electron/main.mjs"
   },
   "engines": {
     "node": ">=20.19.0"
