@@ -52,7 +52,8 @@ async function setUp(manager: ThermalPrinterManager): Promise<void> {
     //USB 打印机和打印队列一定是打印机；串口和蓝牙口上可能接着打印机
     const chosen = candidates.find((candidate) => candidate.printer)
     if (!chosen) return
-    const printer = await manager.open({connection: chosen.connection, model: chosen.model, paper: 80, commands: {language: chosen.language}}, 'front')
+    //带切刀的小票机：每张小票打完半切
+    const printer = await manager.open({connection: chosen.connection, model: chosen.model, paper: 80, commands: {language: chosen.language, cut: 'partial'}}, 'front')
     await writeFile('printer.json', JSON.stringify(printer.definition))
 }
 ```
@@ -98,13 +99,36 @@ async function print(manager: ThermalPrinterManager): Promise<void> {
 - 用定义调用 `manager.print()` 时会打开这台打印机（见 `open()`），打开后一直保持到被关闭：这样打印过一次的 USB、串口或蓝牙打印机会一直被应用占用，`close()` 之前其他程序打开它会得到 `'EBUSY'`。
 - `preview(html)` 只渲染不打印；`commandsOf(content)` 给出指令但不发送。
 
+### 图片和条码
+
+HTML 里的图片可以是 `data:` 地址（PNG、JPEG、GIF、BMP、SVG）、内联的 `<svg>` 元素，以及 `baseDir` 下的文件。[`@lakutata/barcode`](../barcode) 生成的条码可以直接放进去，不需要存文件：
+
+```typescript
+import type {Barcode} from '@lakutata/barcode'
+import type {ThermalPrinter} from '@lakutata/thermal-printer'
+
+async function label(printer: ThermalPrinter, barcode: Barcode): Promise<void> {
+    const svg: string = await barcode.generate('EAN13', '590123412345', {output: 'svg'})
+    const png: Buffer = await barcode.generate('Code128', 'ORDER-42')
+    await printer.print(`
+        <img style="width: 40mm" src="data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}">
+        <img style="width: 50mm" src="data:image/png;base64,${png.toString('base64')}#threshold">
+        <img style="width: 25mm" src="qrcode:ORDER-42">
+    `)
+}
+```
+
+- SVG 按打印机的分辨率画成黑白，条码最清晰。用 `<img>` 放进去并给 `<img>` 设尺寸：直接内联的 `<svg>` 会保持它自己声明的宽高，浏览器里也是这样。
+- 位图（PNG、JPEG……）默认做抖动，适合照片。条码的位图要加上 `#threshold`，线条才是实心的。
+- `qrcode:` 由引擎直接画二维码，模块落在整点上，不需要图片。
+
 ### 打印机定义
 
 | 字段 | 说明 |
 |---|---|
 | `connection` | 连接方式（见[连接方式](#连接方式)） |
 | `model`、`paper`、`label`、`width`、`dpi`、`rotate`、`page` | 它的介质，写法和 `@lakutata/thermal` 的 `render()` 一样 |
-| `commands` | 它的指令选项，写法和 `encode()` 一样：没有型号时的 `language`、`feed`、`cut`、`drawer`、`sensor`、`density`、`copies`…… |
+| `commands` | 每页或每次打印之后让打印机做的事：切纸、走纸、弹钱箱……（见[指令选项](#指令选项)） |
 | `baseDir` | 它的 HTML 读取图片的目录 |
 | `textLanguage` | 文字的语言，用于断行 |
 | `connectTimeout` | 打开连接最多可以花多长时间（10 秒） |
@@ -112,6 +136,21 @@ async function print(manager: ThermalPrinterManager): Promise<void> {
 | `bytesPerSecond` | 每秒最多发送多少字节：用于慢速连接，数据来得太快或太慢时，这类连接上的打印机会卡顿或印出白线 |
 
 没有介质的打印机仍然可以打印原始指令和渲染结果。
+
+### 指令选项
+
+`commands` 的写法和 `@lakutata/thermal` 的 `encode()` 一样。一次打印可以单独修改它们（`print(html, {commands: {cut: false}})`）。
+
+| 选项 | 作用 |
+|---|---|
+| `language` | 定义里没有 `model` 时的指令语言：`'escpos'`（小票机）、`'tspl'` 或 `'zpl'`（标签机） |
+| `cut` | 每页之后切纸（打印机要有切刀）：`'partial'` 半切，小票还连着一点；`'full'`（或 `true`）全切。`false` 关闭标签打印机的切刀。默认不切纸 |
+| `feed` | ESC/POS：每页打印完后再走出多少毫米的纸：写 `15` 就多走 15 毫米，用来把小票送过撕纸口（每台打印机到撕纸口的距离不一样，按自己的打印机填）。默认 0，不走纸。它和 `cut` 互不影响：两个都写时先走纸，再切纸（切纸指令会自己把纸送到切刀） |
+| `drawer` | ESC/POS：最后一页之后弹开钱箱：`true`（2 号引脚），第二个钱箱用 `{pin: 5}` |
+| `copies` | TSPL 和 ZPL：每张标签打几份 |
+| `sensor`、`gap` | TSPL 和 ZPL：打印机怎么找到标签的起点（标签间的间隙、黑标或连续纸）以及间隙的大小 |
+| `density`、`speed` | TSPL 和 ZPL：打印的浓度和速度 |
+| `raster`、`bandHeight`、`initialize`、`compress` | 点阵的发送方式：除非打印机工作不正常，保持默认即可（见 `@lakutata/thermal` 的 README） |
 
 ### 连接方式
 

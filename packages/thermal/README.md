@@ -173,6 +173,11 @@ console.log(escpos.length, zpl.length, tspl.length)
   and `gap`, `density` (0 to 15), `speed`, then each page a `BITMAP` printed in `copies`.
 - **ZPL** (Zebra and the printers that emulate it): each page a label of its width and length, its sensor (`^MN`),
   `density` (0 to 30, `~SD`), `speed` (`^PR`), the page a graphic field (`^GF`), compressed by default (`compress`).
+- **`cut`** cuts after each page in the three languages, on a printer with a cutter: `'full'` (or `true`) or
+  `'partial'` (a half cut). On TSPL it sets `SET CUTTER 1` or `SET PARTIAL_CUTTER 1`, and on ZPL the cutter mode
+  (`^MMC`, always a full cut). `false` turns the cutter of a label printer off (`SET CUTTER OFF`, `^MMT`): a label
+  printer keeps that setting from one job to the next. Without `cut`, nothing is cut and a label printer keeps its own
+  setting.
 
 ### The printer models
 

@@ -129,6 +129,7 @@ console.log(escpos.length, zpl.length, tspl.length)
 - **ESC/POS**（小票机）：每页编码成 `raster` 指定的位图指令：`'gsv0'`（`GS v 0`，默认）、`'gsl'`（`GS ( L`，Epson 推荐）或 `'esc*'`（`ESC *`，24 点一列，最老的）。每段最多 `bandHeight` 行（默认 255：小打印机的缓冲区小）。每页之后是 `feed`（毫米）和 `cut`（`'full'` 或 `'partial'`，先走纸到切刀）；最后一页之后，`drawer` 打开钱箱（`true` 表示 2 号引脚，或者 `{pin, on, off}`，单位毫秒）。走纸和 `ESC *` 的分段按打印机的纵向移动单位计数，所以编码器先用 `GS P` 把它设成一个点；这一点还没有在打印机上验证。
 - **TSPL**（TSC 和很多国产标签机）：标签尺寸、`sensor`（`'gap'`、`'mark'` 或 `'continuous'`）和 `gap`、`density`（0 到 15）、`speed`，然后每页一个 `BITMAP`，打印 `copies` 份。
 - **ZPL**（Zebra 和兼容它的打印机）：每页一张标签，带宽度和长度、传感器（`^MN`）、`density`（0 到 30，`~SD`）、`speed`（`^PR`），页面是一个图形字段（`^GF`），默认压缩（`compress`）。
+- **`cut`** 在三种语言里都表示每页之后切纸（打印机要有切刀）：`'full'`（或 `true`）全切，`'partial'` 半切。TSPL 上设置 `SET CUTTER 1` 或 `SET PARTIAL_CUTTER 1`，ZPL 上设置切刀模式（`^MMC`，总是全切）。`false` 关闭标签打印机的切刀（`SET CUTTER OFF`、`^MMT`）：标签打印机会把这个设置保留到后面的任务。不写 `cut` 时不切纸，标签打印机保持它原来的设置。
 
 ### 打印机型号
 

@@ -62,7 +62,8 @@ async function setUp(manager: ThermalPrinterManager): Promise<void> {
     //USB printers and print queues are printers; serial and Bluetooth ports may have one
     const chosen = candidates.find((candidate) => candidate.printer)
     if (!chosen) return
-    const printer = await manager.open({connection: chosen.connection, model: chosen.model, paper: 80, commands: {language: chosen.language}}, 'front')
+    //A receipt printer with a cutter: a half cut after each receipt
+    const printer = await manager.open({connection: chosen.connection, model: chosen.model, paper: 80, commands: {language: chosen.language, cut: 'partial'}}, 'front')
     await writeFile('printer.json', JSON.stringify(printer.definition))
 }
 ```
@@ -117,13 +118,39 @@ async function print(manager: ThermalPrinterManager): Promise<void> {
   `'EBUSY'` until `close()`.
 - `preview(html)` renders without printing. `commandsOf(content)` gives the commands without sending them.
 
+### Pictures and barcodes
+
+The HTML takes pictures as `data:` URLs (PNG, JPEG, GIF, BMP, SVG), inline `<svg>` elements, and files under
+`baseDir`. The barcodes of [`@lakutata/barcode`](../barcode) go straight in, without a file:
+
+```typescript
+import type {Barcode} from '@lakutata/barcode'
+import type {ThermalPrinter} from '@lakutata/thermal-printer'
+
+async function label(printer: ThermalPrinter, barcode: Barcode): Promise<void> {
+    const svg: string = await barcode.generate('EAN13', '590123412345', {output: 'svg'})
+    const png: Buffer = await barcode.generate('Code128', 'ORDER-42')
+    await printer.print(`
+        <img style="width: 40mm" src="data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}">
+        <img style="width: 50mm" src="data:image/png;base64,${png.toString('base64')}#threshold">
+        <img style="width: 25mm" src="qrcode:ORDER-42">
+    `)
+}
+```
+
+- SVG is drawn in black and white at the printer's resolution: the sharpest barcodes. Give it as an `<img>` and size the
+  `<img>`: an inline `<svg>` keeps the width and height it declares, as in a browser.
+- Pictures (PNG, JPEG…) are dithered, as photos want. Add `#threshold` to a barcode's picture so that its bars stay
+  solid.
+- `qrcode:` draws a QR code itself, its modules on whole dots, without a picture.
+
 ### A printer definition
 
 | Field | What it is |
 |---|---|
 | `connection` | How the printer is reached (see [Connections](#connections)) |
 | `model`, `paper`, `label`, `width`, `dpi`, `rotate`, `page` | Its media, as `render()` of `@lakutata/thermal` takes them |
-| `commands` | The options of its commands, as `encode()` takes them: the `language` when it has no model, `feed`, `cut`, `drawer`, `sensor`, `density`, `copies`… |
+| `commands` | What the printer is told after each page or each print: cut, feed, open the cash drawer… (see [The options of the commands](#the-options-of-the-commands)) |
 | `baseDir` | The directory its HTML reads its pictures from |
 | `textLanguage` | The language of its text, for the line breaking |
 | `connectTimeout` | How long the connection may take to open (10 seconds) |
@@ -131,6 +158,22 @@ async function print(manager: ThermalPrinterManager): Promise<void> {
 | `bytesPerSecond` | The most bytes a second sent to it: a slow link whose printer stalls or prints white lines when the data come too fast or too slow |
 
 A printer without media can still print raw commands and renderings.
+
+### The options of the commands
+
+`commands` takes the options of `encode()` of `@lakutata/thermal`. A print can change them for itself
+(`print(html, {commands: {cut: false}})`).
+
+| Option | What it does |
+|---|---|
+| `language` | The command language when the definition has no `model`: `'escpos'` (receipt printers), `'tspl'` or `'zpl'` (label printers) |
+| `cut` | Cut after each page, on a printer with a cutter: `'partial'` leaves the receipt hanging by a strip, `'full'` (or `true`) cuts it off. `false` turns the cutter of a label printer off. Nothing is cut by default |
+| `feed` | ESC/POS: the paper pushed out after each page, in millimetres: `15` pushes the receipt 15 mm further, past a tear bar that far away (each printer has its own distance). 0 by default: no feed. It does not depend on `cut`: with both, the paper is fed, then cut (the cut feeds the paper to the cutter by itself) |
+| `drawer` | ESC/POS: open the cash drawer after the last page: `true` (its pin 2), or `{pin: 5}` for the second drawer |
+| `copies` | TSPL and ZPL: the copies of each label |
+| `sensor`, `gap` | TSPL and ZPL: how the printer finds the start of a label (the gap between labels, a black mark, or continuous media) and the size of the gap |
+| `density`, `speed` | TSPL and ZPL: the darkness and the speed of the printing |
+| `raster`, `bandHeight`, `initialize`, `compress` | How the dots are sent: leave them at their defaults unless a printer misbehaves (see the README of `@lakutata/thermal`) |
 
 ### Connections
 

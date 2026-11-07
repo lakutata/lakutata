@@ -38,7 +38,8 @@ export interface EncodeOptions {
     initialize?: boolean
 
     /**
-     * ESC/POS: the paper pushed out after each page, before the cut: past the tear bar of a printer without a cutter.
+     * ESC/POS: the paper pushed out after each page, in millimetres (`15`: past a tear bar 15 mm away; each printer has
+     * its own distance). It does not depend on `cut`: with both, the paper is fed, then cut.
      * @default 0
      */
     feed?: Length
