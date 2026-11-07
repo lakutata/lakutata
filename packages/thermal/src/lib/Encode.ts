@@ -38,16 +38,19 @@ export interface EncodeOptions {
     initialize?: boolean
 
     /**
-     * ESC/POS: the paper fed after each page, before the cut.
+     * ESC/POS: the paper pushed out after each page, before the cut: past the tear bar of a printer without a cutter.
      * @default 0
      */
     feed?: Length
 
     /**
-     * ESC/POS: cut the paper after each page, the paper fed to the cutter first (`GS V`).
-     * @default false
+     * Cut after each page, on a printer with a cutter: `'full'` (or `true`), or `'partial'` (a half cut that keeps the
+     * receipts hanging). ESC/POS: the paper fed to the cutter first (`GS V`); TSPL: `SET CUTTER 1`, `SET PARTIAL_CUTTER 1`;
+     * ZPL: the cutter mode (`^MMC`, a full cut). `false` turns the cutter of a label printer off (`SET CUTTER OFF`,
+     * `^MMT`), as a label printer keeps the setting of the jobs before.
+     * @default no cut
      */
-    cut?: 'full' | 'partial' | false
+    cut?: 'full' | 'partial' | boolean
 
     /**
      * ESC/POS: open the cash drawer after the last page (`ESC p`): `true` for its pin 2, or the pin (2 or 5) and the
@@ -156,7 +159,7 @@ function encodeEscPos(image: PrintImage, options: EncodeOptions, raster: EscPosR
         //The feed in dots (ESC J n: n dots at most 255 a command)
         for (let left = feed; left > 0; left -= 255) chunks.push(Buffer.from([ESC, 0x4A, Math.min(255, left)]))
         //GS V 65/66 0: fed to the cutter, then cut (full, partial)
-        if (options.cut === 'full') chunks.push(Buffer.from([GS, 0x56, 0x41, 0x00]))
+        if (options.cut === 'full' || options.cut === true) chunks.push(Buffer.from([GS, 0x56, 0x41, 0x00]))
         else if (options.cut === 'partial') chunks.push(Buffer.from([GS, 0x56, 0x42, 0x00]))
     }
     if (options.drawer) {
@@ -194,6 +197,10 @@ function encodeTspl(image: PrintImage, options: EncodeOptions): Buffer {
     lines.push(sensor === 'mark' ? `BLINE ${gap} mm,0 mm` : `GAP ${gap} mm,0 mm`)
     if (options.density !== undefined) lines.push(`DENSITY ${options.density}`)
     if (options.speed !== undefined) lines.push(`SPEED ${options.speed}`)
+    //The cutter: after each label, or off (the printer keeps the setting of the jobs before)
+    if (options.cut === 'full' || options.cut === true) lines.push('SET CUTTER 1')
+    else if (options.cut === 'partial') lines.push('SET PARTIAL_CUTTER 1')
+    else if (options.cut === false) lines.push('SET CUTTER OFF')
     lines.push('DIRECTION 0')
     const chunks: Buffer[] = [Buffer.from(`${lines.join('\r\n')}\r\n`, 'latin1')]
     for (const page of image.pages) {
@@ -245,6 +252,8 @@ function encodeZpl(image: PrintImage, options: EncodeOptions): Buffer {
     checkInteger(options.speed, 'speed', 1, 14)
     checkInteger(options.copies, 'copies', 1, 99999999)
     const tracking: string = {gap: 'Y', mark: 'M', continuous: 'N'}[options.sensor ?? 'gap']
+    //The print mode: the cutter (a full cut after each label), the tear-off mode, or the printer's own
+    const mode: string = options.cut === undefined ? '' : options.cut === false ? '^MMT' : '^MMC'
     const parts: string[] = []
     if (options.density !== undefined) parts.push(`~SD${String(options.density).padStart(2, '0')}`)
     for (const page of image.pages) {
@@ -264,7 +273,7 @@ function encodeZpl(image: PrintImage, options: EncodeOptions): Buffer {
             data = rows.join('')
         }
         const total: number = bytes * page.height
-        parts.push(`^XA^PW${page.width}^LL${page.height}^MN${tracking}${options.speed !== undefined ? `^PR${options.speed}` : ''}^FO0,0^GFA,${total},${total},${bytes},${data}^FS^PQ${options.copies ?? 1}^XZ`)
+        parts.push(`^XA^PW${page.width}^LL${page.height}^MN${tracking}${mode}${options.speed !== undefined ? `^PR${options.speed}` : ''}^FO0,0^GFA,${total},${total},${bytes},${data}^FS^PQ${options.copies ?? 1}^XZ`)
     }
     return Buffer.from(parts.join('\n'), 'latin1')
 }
@@ -295,12 +304,12 @@ export function encode(image: PrintImage, options: EncodeOptions): Buffer {
     if (model && options.language !== undefined && options.language !== model.language) throw new ThermalOptionException(`The model ${model.name} speaks ${model.language}, not ${options.language}`)
     const language: PrinterLanguage | undefined = model?.language ?? options.language
     if (options.sensor !== undefined && !['gap', 'mark', 'continuous'].includes(options.sensor)) throw new ThermalOptionException('sensor is \'gap\', \'mark\' or \'continuous\'')
+    if (options.cut !== undefined && typeof options.cut !== 'boolean' && options.cut !== 'full' && options.cut !== 'partial') throw new ThermalOptionException('cut is \'full\', \'partial\', true or false')
     checkInteger(options.bandHeight, 'bandHeight', 1, 2303)
     switch (language) {
         case 'escpos': {
             const raster: EscPosRaster = options.raster ?? model?.raster ?? 'gsv0'
             if (!['gsv0', 'gsl', 'esc*'].includes(raster)) throw new ThermalOptionException('raster is \'gsv0\', \'gsl\' or \'esc*\'')
-            if (options.cut !== undefined && options.cut !== false && options.cut !== 'full' && options.cut !== 'partial') throw new ThermalOptionException('cut is \'full\', \'partial\' or false')
             return encodeEscPos(image, options, raster)
         }
         case 'tspl':

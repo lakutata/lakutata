@@ -81,6 +81,30 @@ describe('The encoders', (): void => {
         assert.match(decoded.commands[0]!, /\^MNN/)
     })
 
+    it('cuts after each page on the three languages, and turns the cutter of a label printer off', async (): Promise<void> => {
+        const receipt: PrintImage = await render('<p>one</p>', {paper: 58, page: {length: 20}})
+        const label: PrintImage = await render('<b>A-12</b>', {label: {width: 40, height: 30}, dpi: 203})
+        //ESC/POS: GS V after each page; true is a full cut
+        assert.deepStrictEqual(decodeEscPos(encode(receipt, {language: 'escpos', cut: true})).cuts, ['full'])
+        assert.deepStrictEqual(decodeEscPos(encode(receipt, {language: 'escpos'})).cuts, [])
+        //TSPL: the cutter set before the labels
+        const tspl = (cut?: 'full' | 'partial' | boolean): string[] => encode(label, {language: 'tspl', cut}).toString('latin1').split('\r\n').filter((line: string): boolean => /CUTTER/.test(line))
+        assert.deepStrictEqual(tspl(true), ['SET CUTTER 1'])
+        assert.deepStrictEqual(tspl('full'), ['SET CUTTER 1'])
+        assert.deepStrictEqual(tspl('partial'), ['SET PARTIAL_CUTTER 1'])
+        assert.deepStrictEqual(tspl(false), ['SET CUTTER OFF'])
+        assert.deepStrictEqual(tspl(), [])
+        //ZPL: the cutter mode in each label
+        const zpl = (cut?: 'full' | 'partial' | boolean): string[] => encode(label, {language: 'zpl', cut}).toString('latin1').match(/\^MM./g) ?? []
+        assert.deepStrictEqual(zpl('partial'), ['^MMC'])
+        assert.deepStrictEqual(zpl(false), ['^MMT'])
+        assert.deepStrictEqual(zpl(), [])
+        assert.strictEqual(decodeZpl(encode(label, {language: 'zpl', cut: true})).pages.length, 1)
+        assert.throws((): void => {
+            encode(label, {language: 'zpl', cut: 'half' as 'full'})
+        }, ThermalOptionException)
+    })
+
     it('knows the printers of its table by name, for the renderings and the encodings', async (): Promise<void> => {
         const models = printerModels()
         assert.ok(models.length >= 15)
