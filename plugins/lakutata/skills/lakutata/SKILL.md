@@ -52,8 +52,8 @@ in an area this project does not use yet, read its guide, in this order:
 1. `node_modules/lakutata/doc/en/` (in a workspace, the `node_modules` of the root or of the application package).
    `Overview.md` lists the guides of the installed version; `examples/`, when present, holds whole applications.
    The separate packages (`@lakutata/nats`, `@lakutata/grpc`, `@lakutata/mcp`, `@lakutata/dbus`, `@lakutata/webrtc`,
-   `@lakutata/ffi`, `@lakutata/math`, `@lakutata/barcode`, `@lakutata/netif`, `@lakutata/cli`) have their README in
-   their own directory of `node_modules`.
+   `@lakutata/ffi`, `@lakutata/math`, `@lakutata/barcode`, `@lakutata/netif`, `@lakutata/mongo-embedded`,
+   `@lakutata/cli`) have their README in their own directory of `node_modules`.
 2. The type declarations of `lakutata` and `@lakutata/*` in `node_modules`: every export is documented there with an
    example. They are the reference for a signature or an option.
 3. When the package is not installed yet (a new project) or has no `doc/`: the same files on the website, as plain
@@ -134,9 +134,10 @@ mathematics: equations, derivatives, integrals, limits, matrices, statistics, de
 functions, no component), `@lakutata/barcode` (barcodes and QR codes: 32 formats generated as PNG, SVG or pixels and
 read from images; a component, `Barcode`), `@lakutata/netif` (servers and UDP sockets listening on a network interface
 whatever its addresses, the interfaces of the machine and their changes; plain classes, no component; the entrypoints
-that listen on a port use it through their `interface` option). The adapters and drivers need their library installed
-(`express`, `fastify`, `commander`, `socket.io`, `ws`, `pg`, `mysql2`, `better-sqlite3`, `ioredis`…): they are optional
-peer dependencies.
+that listen on a port use it through their `interface` option), `@lakutata/mongo-embedded` (the embedded MongoDB of
+the `mongo-embedded` databases of `lakutata/orm`, compiled when installed). The adapters and drivers need their library
+installed (`express`, `fastify`, `commander`, `socket.io`, `ws`, `pg`, `mysql2`, `better-sqlite3`, `ioredis`…): they
+are optional peer dependencies.
 
 ## An application
 

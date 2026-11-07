@@ -50,9 +50,10 @@ applications, see [Command](Command.md)), `@lakutata/grpc` (a gRPC client, serve
 `@lakutata/nats` (a NATS component and service transport), `@lakutata/dbus` (D-Bus), `@lakutata/mcp` (the Model Context
 Protocol), `@lakutata/webrtc` (WebRTC: the signaling, a TURN server, a media server, peer connections), `@lakutata/ffi`
 (the C functions of native libraries), `@lakutata/math` (symbolic and numeric mathematics, as functions that need no
-lakutata application), `@lakutata/barcode` (barcodes and QR codes, generated and read in a native addon) and
+lakutata application), `@lakutata/barcode` (barcodes and QR codes, generated and read in a native addon),
 `@lakutata/netif` (servers and UDP sockets listening on a network interface whatever its addresses, the interfaces of
-the machine and their changes).
+the machine and their changes) and `@lakutata/mongo-embedded` (the embedded MongoDB of the `mongo-embedded` databases,
+in a native addon).
 
 ## The guides
 
@@ -83,7 +84,7 @@ the machine and their changes).
 | [Queue](Queue.md) | The message queues: producers, `@QueueAction` consumers, retries, dead letters, results |
 | [Database](Database.md) | The `Database` component and provider, the connection options, several databases |
 | [DatabaseDrivers](DatabaseDrivers.md) | The database drivers, one by one: what to install, their options, their limits |
-| [MongoEmbedded](MongoEmbedded.md) | A MongoDB inside the application, its documents in files |
+| [MongoEmbedded](MongoEmbedded.md) | A MongoDB inside the application (`@lakutata/mongo-embedded`), its documents in a file |
 | [Entities](Entities.md) | The entities, the queries, the transactions and the errors |
 | [Migrations](Migrations.md) | Writing, generating and running the migrations |
 | [Cache](Cache.md) | The `Cacher` component: `wrap()`, the stores and their tiers, what they keep |
