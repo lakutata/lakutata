@@ -20,6 +20,12 @@
     "sha256": "14197486690c7b9703f19e3c32bc822e7413b21f65f750a55067e41c2843241b",
     "into": "src/lib/mingo (its src, in the style of the repository: THIRD_PARTY_NOTICES.md)"
   },
+  "s2js": {
+    "version": "1.44.0",
+    "archive": "https://github.com/missinglink/s2js/archive/refs/tags/v1.44.0.tar.gz",
+    "sha256": "f26fefc7bee1f19c476d21ecfb008af51260cc99d378026870eef3b41b39ab43",
+    "into": "src/lib/s2 (its r1, r2, r3, s1 and s2, without their tests: scripts/s2-vendor.mjs, vendor/PATCHES.md)"
+  },
   "icu": {
     "version": "77.1",
     "archive": "https://github.com/unicode-org/icu/releases/download/release-77-1/icu4c-77_1-src.tgz",
