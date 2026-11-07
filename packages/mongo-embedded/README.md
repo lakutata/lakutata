@@ -128,6 +128,44 @@ contain each of its phrases (`"..."`) and none of its negated words and phrases 
 does. `{$meta: 'textScore'}` gives the score in a projection, a sort or a pipeline. As in MongoDB, Chinese, Japanese and
 other languages written without spaces are not split into words. Text indexes of versions 1 and 2 are not supported.
 
+### Geospatial queries
+
+```typescript
+import {EmbeddedClient} from '@lakutata/mongo-embedded'
+
+const client = await EmbeddedClient.connect()
+const places = client.db().collection('places')
+await places.createIndex({location: '2dsphere'})
+await places.insertMany([
+    {name: 'Louvre', location: {type: 'Point', coordinates: [2.3376, 48.8606]}},
+    {name: 'Eiffel Tower', location: {type: 'Point', coordinates: [2.2945, 48.8584]}}
+])
+const nearby = await places
+    .find({location: {$near: {$geometry: {type: 'Point', coordinates: [2.3522, 48.8566]}, $maxDistance: 5000}}})
+    .toArray()
+console.log(nearby.map((place) => place.name))
+await client.close()
+```
+
+Geospatial indexes and queries work like MongoDB 8.0's. A `2dsphere` index holds GeoJSON geometries (`Point`,
+`LineString`, `Polygon`, `MultiPoint`, `MultiLineString`, `MultiPolygon` and `GeometryCollection`) and legacy coordinate
+pairs on the sphere; a `2d` index holds coordinate pairs on a plane (`bits`, `min`, `max`). A geometry MongoDB refuses
+to index is refused with the same error code. `$geoWithin` (`$geometry` and `$centerSphere` on the sphere; `$box`,
+`$polygon` and `$center` on a plane), `$geoIntersects`, `$near`, `$nearSphere` and the `$geoNear` stage find the
+documents MongoDB finds, points on a boundary included as MongoDB includes them, and measure their distances as MongoDB
+does: in meters from a GeoJSON point, in radians from legacy coordinates on the sphere, in the units of the coordinates
+on a plane. `{$meta: 'geoNearDistance'}` and `{$meta: 'geoNearPoint'}` give the distance and the location measured.
+`$geoWithin` and `$geoIntersects` work without an index too; `$near` and `$geoNear` need one, as in MongoDB. The
+geometry of the sphere comes from s2js, a JavaScript port of Google's S2 library (`src/lib/s2`).
+
+A few details differ from MongoDB: in a `unique` 2dsphere index, lines and polygons conflict when they share a cell of
+their coverings, and those cells are not MongoDB's (points conflict as they do in MongoDB); `2dsphereIndexVersion` 1 and
+2 behave as 3, and `coarsestIndexedLevel` and `finestIndexedLevel` are accepted but not used; documents at the same
+distance may come in a different order; a `$nearSphere` on a 2d index leaves out the documents across the antimeridian
+as MongoDB does, by a rule close to MongoDB's rings of the plane but not identical at their edges; a `$geoNear` in the
+pipeline of a `$lookup` or a `$unionWith` measures every document of the other collection instead of reading its index
+(the results are the same).
+
 ## API
 
 - `EmbeddedClient.connect(directory?, options?)`: opens a database (`":memory:"` by default). Its options: `sync`,
@@ -160,7 +198,7 @@ other languages written without spaces are not split into words. Text indexes of
 - Indexes: ascending, descending and compound, unique, sparse, partial (`partialFilterExpression`), hashed, wildcard
   and compound wildcard (`$**`, `wildcardProjection`), hidden, with a collation, and TTL (`expireAfterSeconds`). The
   queries use them, and the index of the `_id` for its ranges and its sorts; a query can name the index it uses
-  (`hint`). Text indexes serve `$text` (see above). Geospatial indexes are not supported yet: creating one fails.
+  (`hint`). Text indexes serve `$text`, and `2dsphere` and `2d` indexes the geospatial queries (see above).
 - Collations: the `collation` option on queries, sorts, writes, aggregations and indexes compares strings by a
   locale's rules (`{locale: 'en', strength: 2}` ignores case). The package ships its own ICU (77.1), so results are
   identical on every platform.

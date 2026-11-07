@@ -75,3 +75,21 @@ What the addon changes is outside these files:
 `vendor/ucd/` holds `PropList.txt`, `CaseFolding.txt` and `UnicodeData.txt` of the Unicode Character Database 8.0.0
 (the version of MongoDB's text indexes of version 3), unchanged, and the Unicode license. They are not shipped with the
 package: `scripts/text-tables.mjs` reads them into `native/text/tables.h`, which is shipped.
+
+# The source of s2js
+
+`src/lib/s2/` holds part of the source of s2js 1.44.0 (`vendor/UPSTREAM.json` records its archive and checksum): its
+directories `r1`, `r2`, `r3`, `s1` and `s2`, without their tests (`*_test.ts`), their test helpers (`testing*.ts`) and
+their index modules (`_index.ts`), and its `LICENSE`. `scripts/s2-vendor.mjs` copies them from the extracted archive and
+changes them; each file changed starts with a line saying so. The changes:
+
+- the relative import specifiers end with `.js` (the modules of the package are ES modules resolved by Node.js);
+- `r3/PreciseVector.ts` imports `ExactFloat` (`r3/ExactFloat.ts`, written for the package) in place of `BigFloat32` of
+  bigfloat: the exact sums, differences and products of doubles that the predicates of S2 need, on BigInt;
+- `s2/Cap.ts` gives an empty array its type (`CellID[]`), which the package's compiler settings do not infer.
+
+The code keeps the style of s2js: the linter of the repository leaves it out, `r3/ExactFloat.ts` excepted.
+
+What the package adds is outside these files, in `src/lib/Geo.ts`: the parsing and the checks of the geometries as
+MongoDB 8.0 checks them, the crossing edges of a loop (s2js checks none), the distances as the S2 of MongoDB 8.0
+computes them, the keys of the indexes and the reads of `$near`.
