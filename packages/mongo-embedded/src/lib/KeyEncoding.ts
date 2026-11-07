@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { EmbeddedOperationError } from './Errors.js'
+import { geoKeysOf, isGeoIndex } from './Geo.js'
 import { type EmbeddedIndex, isWildcardField, wildcardHolds, wildcardOf } from './Planner.js'
 import { isTextIndex, textKeysOf } from './Text.js'
 import type { EmbeddedDocument, EmbeddedValues } from './Values.js'
@@ -251,6 +252,20 @@ export class EmbeddedKeyEncoding {
     }
 
     /**
+     * The key of bytes as the key of a Binary of them (its subtype 0): the bytes of the same length in their order
+     *
+     * @param bytes
+     */
+    binary(bytes: Buffer): Buffer {
+        const key = Buffer.allocUnsafe(6 + bytes.length)
+        key[0] = Tag.Binary
+        key.writeUInt32BE(bytes.length, 1)
+        key[5] = 0
+        bytes.copy(key, 6)
+        return key
+    }
+
+    /**
      * The key of a value in a hashed field of an index: its tag of a number, then 8 bytes of the MD5 of its encoding
      * (the values MongoDB tells equal, equal; their order lost).
      *
@@ -276,6 +291,17 @@ export class EmbeddedKeyEncoding {
     indexKeysOf(index: EmbeddedIndex, document: EmbeddedDocument, collator?: EmbeddedSortKeys): Buffer[] {
         // A text index: the terms of the document with their scores
         if (isTextIndex(index)) return textKeysOf(index, document, (value, direction) => this.direct(this.encode(value), direction))
+        // A geo index: the cells or the hashes of the geometries of the document, the keys of its other fields
+        if (isGeoIndex(index))
+            return geoKeysOf(
+                index,
+                document,
+                (field) => {
+                    const values = field ? this.valuesAt(document, field) : undefined
+                    return this.unique((values?.length ? values : [null]).map((item) => this.direct(this.encode(item, collator), index.key[field])))
+                },
+                (bytes) => this.binary(bytes)
+            )
         const wildcard = wildcardOf(index)
         if (wildcard === undefined)
             return this.keysOf(index.key, index.sparse, document, collator)

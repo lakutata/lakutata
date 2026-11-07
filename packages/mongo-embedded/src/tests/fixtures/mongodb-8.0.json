@@ -11540,6 +11540,3357 @@
     }
    },
    "documents": 1
+  },
+  "the geo indexes created: their kinds, their options, their failures": {
+   "sphere": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "loc": "2dsphere"
+      },
+      "name": "loc_2dsphere",
+      "2dsphereIndexVersion": 3
+     }
+    ]
+   },
+   "sphereCompound": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "loc": "2dsphere",
+       "k": 1
+      },
+      "name": "loc_2dsphere_k_1",
+      "2dsphereIndexVersion": 3
+     }
+    ]
+   },
+   "sphereSecond": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "k": 1,
+       "loc": "2dsphere"
+      },
+      "name": "k_1_loc_2dsphere",
+      "2dsphereIndexVersion": 3
+     }
+    ]
+   },
+   "twoSpheres": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "loc": "2dsphere",
+       "other": "2dsphere"
+      },
+      "name": "loc_2dsphere_other_2dsphere",
+      "2dsphereIndexVersion": 3
+     }
+    ]
+   },
+   "sphereVersion2": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "loc": "2dsphere"
+      },
+      "name": "loc_2dsphere",
+      "2dsphereIndexVersion": 2
+     }
+    ]
+   },
+   "sphereVersion4": {
+    "error": {
+     "code": 67
+    }
+   },
+   "sphereUnique": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "loc": "2dsphere"
+      },
+      "name": "loc_2dsphere",
+      "unique": true,
+      "2dsphereIndexVersion": 3
+     }
+    ]
+   },
+   "sphereSparse": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "loc": "2dsphere"
+      },
+      "name": "loc_2dsphere",
+      "sparse": true,
+      "2dsphereIndexVersion": 3
+     }
+    ]
+   },
+   "flat": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "loc": "2d"
+      },
+      "name": "loc_2d"
+     }
+    ]
+   },
+   "flatOptions": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "loc": "2d"
+      },
+      "name": "loc_2d",
+      "bits": 20,
+      "min": -100,
+      "max": 100
+     }
+    ]
+   },
+   "flatBits": {
+    "error": {
+     "code": 72
+    }
+   },
+   "flatBounds": {
+    "error": {
+     "code": 72
+    }
+   },
+   "flatCompound": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "loc": "2d",
+       "k": 1
+      },
+      "name": "loc_2d_k_1"
+     }
+    ]
+   },
+   "flatSecond": {
+    "error": {
+     "code": 16801
+    }
+   },
+   "twoFlat": {
+    "error": {
+     "code": 16800
+    }
+   },
+   "flatUnique": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "loc": "2d"
+      },
+      "name": "loc_2d",
+      "unique": true
+     }
+    ]
+   },
+   "haystack": {
+    "error": {
+     "code": 67
+    }
+   },
+   "sphereCollation": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "loc": "2dsphere"
+      },
+      "name": "loc_2dsphere",
+      "2dsphereIndexVersion": 3,
+      "collation": {
+       "locale": "fr",
+       "caseLevel": false,
+       "caseFirst": "off",
+       "strength": 3,
+       "numericOrdering": false,
+       "alternate": "non-ignorable",
+       "maxVariable": "punct",
+       "normalization": false,
+       "backwards": false,
+       "version": "<ICU>"
+      }
+     }
+    ]
+   },
+   "sphereText": {
+    "error": {
+     "code": 67
+    }
+   },
+   "sphereLevels": {
+    "value": [
+     {
+      "v": 2,
+      "key": {
+       "loc": "2dsphere"
+      },
+      "name": "loc_2dsphere",
+      "2dsphereIndexVersion": 3
+     }
+    ]
+   },
+   "sphereHashed": {
+    "error": {
+     "code": 67
+    }
+   },
+   "flatAndSphere": {
+    "error": {
+     "code": 67
+    }
+   }
+  },
+  "the geometries of the geo indexes: the ones written, the ones refused, on insert, update and createIndex": {
+   "point": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "point"
+    }
+   },
+   "legacyArray": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "legacyArray"
+    }
+   },
+   "legacyObject": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "legacyObject"
+    }
+   },
+   "legacyObjectXY": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "legacyObjectXY"
+    }
+   },
+   "outOfRange": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "latOutOfRange": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "legacyOutOfRange": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "string": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "number": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "nullValue": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "nullValue"
+    }
+   },
+   "emptyArray": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "emptyArray"
+    }
+   },
+   "emptyObject": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "emptyObject"
+    }
+   },
+   "bool": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "threeCoordinates": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "threeCoordinates"
+    }
+   },
+   "lineString": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "lineString"
+    }
+   },
+   "degenerateLine": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "emptyLine": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "repeatedLine": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "repeatedLine"
+    }
+   },
+   "antipodalLine": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "antipodalLine"
+    }
+   },
+   "lineOut": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "polygon": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "polygon"
+    }
+   },
+   "unclosed": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "selfIntersecting": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "clockwise": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "clockwise"
+    }
+   },
+   "withHole": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "withHole"
+    }
+   },
+   "holeOutside": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "holesOverlapping": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "holeTouching": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "holeTouching"
+    }
+   },
+   "shortRing": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "repeatedRing": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "repeatedRing"
+    }
+   },
+   "emptyPolygon": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "emptyRing": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "multiPoint": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "multiPoint"
+    }
+   },
+   "emptyMultiPoint": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "multiLine": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "multiLine"
+    }
+   },
+   "multiPolygon": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "multiPolygon"
+    }
+   },
+   "multiPolygonOverlapping": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "multiPolygonOverlapping"
+    }
+   },
+   "collection": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "collection"
+    }
+   },
+   "emptyCollection": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "nestedCollection": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "badType": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "lowerType": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "noCoordinates": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "strict": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "epsg": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "epsg"
+    }
+   },
+   "unknownCrs": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "arrayOfPoints": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "arrayOfPairs": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "stringCoordinates": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "numberTypes": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "numberTypes"
+    }
+   },
+   "decimal": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "decimal"
+    }
+   },
+   "infinite": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "legacyThree": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "legacyThree"
+    }
+   },
+   "legacyObjectString": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "legacyOne": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "pole": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "pole"
+    }
+   },
+   "antimeridian": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "antimeridian"
+    }
+   },
+   "nestedDocument": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "legacyObjectOne": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "missing": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "missing"
+    }
+   },
+   "updateOutOfRange": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "updateString": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "replaceOne": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "upsert": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "updatedKept": {
+    "_id": "updated",
+    "loc": {
+     "type": "Point",
+     "coordinates": [
+      0,
+      0
+     ]
+    }
+   },
+   "count": 29,
+   "createIndexOverInvalid": {
+    "error": {
+     "code": 16755
+    }
+   },
+   "indexesAfter": [
+    "_id_"
+   ],
+   "2d pair": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "pair"
+    }
+   },
+   "2d object": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "object"
+    }
+   },
+   "2d outOfRange": {
+    "error": {
+     "code": 13027
+    }
+   },
+   "2d max": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "max"
+    }
+   },
+   "2d geoJSON": {
+    "error": {
+     "code": 16804
+    }
+   },
+   "2d string": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "string"
+    }
+   },
+   "2d threeItems": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "threeItems"
+    }
+   },
+   "2d one": {
+    "error": {
+     "code": 13068
+    }
+   },
+   "2d pairs": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "pairs"
+    }
+   },
+   "2d empty": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "empty"
+    }
+   },
+   "2d nullValue": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "nullValue"
+    }
+   },
+   "unique a": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "a"
+    }
+   },
+   "unique same": {
+    "error": {
+     "code": 11000
+    }
+   },
+   "unique cm": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "cm"
+    }
+   },
+   "unique m": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "m"
+    }
+   },
+   "unique nullA": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "nullA"
+    }
+   },
+   "unique nullB": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "nullB"
+    }
+   },
+   "unique2d a": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "a"
+    }
+   },
+   "unique2d same": {
+    "error": {
+     "code": 11000
+    }
+   },
+   "unique2d close": {
+    "error": {
+     "code": 11000
+    }
+   },
+   "unique2d apart": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "apart"
+    }
+   },
+   "unique2dMissing": {
+    "value": {
+     "acknowledged": true,
+     "insertedId": "missingB"
+    }
+   }
+  },
+  "the $geoWithin and $geoIntersects queries: their shapes, the geometries they match, their failures, with an index or not": {
+   "withinSquare": {
+    "value": [
+     "array",
+     "collection",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "p",
+     "pairs",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinSquare 2dsphere": {
+    "value": [
+     "collection",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "p",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinSquare 2d": {
+    "value": [
+     "edge",
+     "legacy",
+     "object",
+     "pairs"
+    ]
+   },
+   "intersectsSquare": {
+    "value": [
+     "array",
+     "collection",
+     "crossing",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "multiOut",
+     "p",
+     "pairs",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "intersectsSquare 2dsphere": {
+    "value": [
+     "collection",
+     "crossing",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "multiOut",
+     "p",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "intersectsSquare 2d": {
+    "value": [
+     "edge",
+     "legacy",
+     "object",
+     "pairs"
+    ]
+   },
+   "withinClockwise": {
+    "value": [
+     "array",
+     "collection",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "p",
+     "pairs",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinClockwise 2dsphere": {
+    "value": [
+     "collection",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "p",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinClockwise 2d": {
+    "value": [
+     "edge",
+     "legacy",
+     "object",
+     "pairs"
+    ]
+   },
+   "withinBox": {
+    "value": [
+     "array",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "p",
+     "pairs",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinBox 2dsphere": {
+    "value": [
+     "edge",
+     "legacy",
+     "legacyObject",
+     "p",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinBox 2d": {
+    "value": [
+     "edge",
+     "legacy",
+     "object",
+     "pairs"
+    ]
+   },
+   "withinBoxReversed": {
+    "value": [
+     "array",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "p",
+     "pairs",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinBoxReversed 2dsphere": {
+    "value": [
+     "edge",
+     "legacy",
+     "legacyObject",
+     "p",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinBoxReversed 2d": {
+    "value": [
+     "edge",
+     "legacy",
+     "object",
+     "pairs"
+    ]
+   },
+   "withinWide": {
+    "value": [
+     "array",
+     "edge",
+     "farLegacy",
+     "legacy",
+     "legacyObject",
+     "p",
+     "pairs",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinWide 2dsphere": {
+    "value": [
+     "edge",
+     "legacy",
+     "legacyObject",
+     "p",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinWide 2d": {
+    "value": [
+     "edge",
+     "legacy",
+     "object",
+     "pairs"
+    ]
+   },
+   "withinPolygon": {
+    "value": [
+     "array",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "p",
+     "pairs",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinPolygon 2dsphere": {
+    "value": [
+     "edge",
+     "legacy",
+     "legacyObject",
+     "p",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinPolygon 2d": {
+    "value": [
+     "edge",
+     "legacy",
+     "object",
+     "pairs"
+    ]
+   },
+   "withinTriangle": {
+    "value": [
+     "edge",
+     "vertex"
+    ]
+   },
+   "withinTriangle 2dsphere": {
+    "value": [
+     "edge",
+     "vertex"
+    ]
+   },
+   "withinTriangle 2d": {
+    "value": [
+     "edge"
+    ]
+   },
+   "withinCenter": {
+    "value": [
+     "array",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "p",
+     "pairs",
+     "three"
+    ]
+   },
+   "withinCenter 2dsphere": {
+    "value": [
+     "edge",
+     "legacy",
+     "legacyObject",
+     "p",
+     "three"
+    ]
+   },
+   "withinCenter 2d": {
+    "value": [
+     "edge",
+     "legacy",
+     "object",
+     "pairs"
+    ]
+   },
+   "withinCenterSphere": {
+    "value": [
+     "array",
+     "collection",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "p",
+     "pairs",
+     "poly",
+     "three"
+    ]
+   },
+   "withinCenterSphere 2dsphere": {
+    "value": [
+     "collection",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "p",
+     "poly",
+     "three"
+    ]
+   },
+   "withinCenterSphere 2d": {
+    "value": [
+     "edge",
+     "legacy",
+     "object",
+     "pairs"
+    ]
+   },
+   "withinCenterSphereAll": {
+    "value": [
+     "array",
+     "collection",
+     "crossing",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "multiOut",
+     "out",
+     "p",
+     "pairs",
+     "pole",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinCenterSphereAll 2dsphere": {
+    "value": [
+     "collection",
+     "crossing",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "multiOut",
+     "out",
+     "p",
+     "pole",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinCenterSphereAll 2d": {
+    "value": [
+     "edge",
+     "far",
+     "legacy",
+     "object",
+     "out",
+     "pairs"
+    ]
+   },
+   "within": {
+    "value": [
+     "array",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "p",
+     "pairs",
+     "three",
+     "vertex"
+    ]
+   },
+   "within 2dsphere": {
+    "value": [
+     "edge",
+     "legacy",
+     "legacyObject",
+     "p",
+     "three",
+     "vertex"
+    ]
+   },
+   "within 2d": {
+    "value": [
+     "edge",
+     "legacy",
+     "object",
+     "pairs"
+    ]
+   },
+   "withinMultiPolygon": {
+    "value": [
+     "array",
+     "collection",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "multiOut",
+     "p",
+     "pairs",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinMultiPolygon 2dsphere": {
+    "value": [
+     "collection",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "multiOut",
+     "p",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinMultiPolygon 2d": {
+    "value": [
+     "edge",
+     "legacy",
+     "object",
+     "pairs"
+    ]
+   },
+   "withinBig": {
+    "value": [
+     "array",
+     "collection",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "p",
+     "pairs",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinBig 2dsphere": {
+    "value": [
+     "collection",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "p",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "withinBig 2d": {
+    "value": [
+     "edge",
+     "legacy",
+     "object",
+     "pairs"
+    ]
+   },
+   "withinBigComplement": {
+    "value": [
+     "array",
+     "edge",
+     "out",
+     "pairs",
+     "pole",
+     "vertex"
+    ]
+   },
+   "withinBigComplement 2dsphere": {
+    "value": [
+     "edge",
+     "out",
+     "pole",
+     "vertex"
+    ]
+   },
+   "withinBigComplement 2d": {
+    "value": [
+     "edge",
+     "far",
+     "out",
+     "pairs"
+    ]
+   },
+   "intersectsPoint": {
+    "value": [
+     "array",
+     "crossing",
+     "legacy",
+     "legacyObject",
+     "p",
+     "pairs",
+     "poly",
+     "three"
+    ]
+   },
+   "intersectsPoint 2dsphere": {
+    "value": [
+     "crossing",
+     "legacy",
+     "legacyObject",
+     "p",
+     "poly",
+     "three"
+    ]
+   },
+   "intersectsPoint 2d": {
+    "value": [
+     "legacy",
+     "object",
+     "pairs"
+    ]
+   },
+   "intersectsLine": {
+    "value": [
+     "crossing",
+     "line",
+     "poly"
+    ]
+   },
+   "intersectsLine 2dsphere": {
+    "value": [
+     "crossing",
+     "line",
+     "poly"
+    ]
+   },
+   "intersectsLine 2d": {
+    "value": []
+   },
+   "intersectsMultiPoint": {
+    "value": [
+     "multi",
+     "out",
+     "poly"
+    ]
+   },
+   "intersectsMultiPoint 2dsphere": {
+    "value": [
+     "multi",
+     "out",
+     "poly"
+    ]
+   },
+   "intersectsMultiPoint 2d": {
+    "value": [
+     "out"
+    ]
+   },
+   "intersectsAntimeridian": {
+    "value": []
+   },
+   "intersectsAntimeridian 2dsphere": {
+    "value": []
+   },
+   "intersectsAntimeridian 2d": {
+    "value": []
+   },
+   "intersectsBig": {
+    "value": [
+     "array",
+     "crossing",
+     "edge",
+     "multiOut",
+     "out",
+     "pairs",
+     "pole",
+     "vertex"
+    ]
+   },
+   "intersectsBig 2dsphere": {
+    "value": [
+     "crossing",
+     "edge",
+     "multiOut",
+     "out",
+     "pole",
+     "vertex"
+    ]
+   },
+   "intersectsBig 2d": {
+    "value": [
+     "edge",
+     "far",
+     "out",
+     "pairs"
+    ]
+   },
+   "not": {
+    "value": [
+     "bad",
+     "crossing",
+     "farLegacy",
+     "missing",
+     "multiOut",
+     "nested",
+     "number",
+     "out",
+     "pole",
+     "string"
+    ]
+   },
+   "not 2dsphere": {
+    "value": [
+     "crossing",
+     "missing",
+     "multiOut",
+     "out",
+     "pole"
+    ]
+   },
+   "not 2d": {
+    "value": [
+     "far",
+     "missing",
+     "out",
+     "string"
+    ]
+   },
+   "elemMatch": {
+    "value": [
+     "array",
+     "pairs"
+    ]
+   },
+   "elemMatch 2dsphere": {
+    "value": []
+   },
+   "elemMatch 2d": {
+    "value": [
+     "pairs"
+    ]
+   },
+   "or": {
+    "value": [
+     "array",
+     "collection",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "number",
+     "p",
+     "pairs",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "and": {
+    "value": [
+     "collection",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "hinted": {
+    "value": [
+     "collection",
+     "edge",
+     "legacy",
+     "legacyObject",
+     "line",
+     "multi",
+     "p",
+     "poly",
+     "three",
+     "vertex"
+    ]
+   },
+   "fails unclosed": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails selfIntersecting": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails withinPoint": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails withinLine": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails outOfRange": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails boxOnePoint": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails noShape": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails twoShapes": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails intersectsBox": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails polygonTwoPoints": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails polygonString": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails centerNegative": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails centerNoRadius": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails centerSphereNegative": {
+    "error": {
+     "code": 2
+    }
+   },
+   "fails centerSphereOut": {
+    "error": {
+     "code": 2
+    }
+   },
+   "failsOnEmpty": {
+    "error": {
+     "code": 2
+    }
+   },
+   "meridianWithin": {
+    "value": [
+     "m+0",
+     "m+1e-10",
+     "m+1e-8",
+     "m+1e-9"
+    ]
+   },
+   "meridianIntersects": {
+    "value": [
+     "m+0",
+     "m+1e-10",
+     "m+1e-8",
+     "m+1e-9"
+    ]
+   },
+   "geodesicWithin": {
+    "value": [
+     "g+0",
+     "g+1e-10",
+     "g+1e-8",
+     "g+1e-9",
+     "g+2e-8",
+     "g+4e-8",
+     "g-0",
+     "g-0.000001",
+     "g-1e-10",
+     "g-1e-7",
+     "g-1e-8",
+     "g-1e-9",
+     "g-2e-7",
+     "g-2e-8",
+     "g-4e-8",
+     "g-6e-8",
+     "g-8e-8"
+    ]
+   },
+   "geodesicIntersects": {
+    "value": [
+     "g+0",
+     "g+1e-10",
+     "g+1e-8",
+     "g+1e-9",
+     "g+2e-8",
+     "g+4e-8",
+     "g-0",
+     "g-0.000001",
+     "g-1e-10",
+     "g-1e-7",
+     "g-1e-8",
+     "g-1e-9",
+     "g-2e-7",
+     "g-2e-8",
+     "g-4e-8",
+     "g-6e-8",
+     "g-8e-8"
+    ]
+   },
+   "meridianIndexed": {
+    "value": [
+     "m+0",
+     "m+1e-10",
+     "m+1e-8",
+     "m+1e-9"
+    ]
+   },
+   "geodesicIndexed": {
+    "value": [
+     "g+0",
+     "g+1e-10",
+     "g+1e-8",
+     "g+1e-9",
+     "g+2e-8",
+     "g+4e-8",
+     "g-0",
+     "g-0.000001",
+     "g-1e-10",
+     "g-1e-7",
+     "g-1e-8",
+     "g-1e-9",
+     "g-2e-7",
+     "g-2e-8",
+     "g-4e-8",
+     "g-6e-8",
+     "g-8e-8"
+    ]
+   },
+   "plane square": {
+    "value": [
+     "beside",
+     "bottom",
+     "diagonal",
+     "inside",
+     "left",
+     "right",
+     "top",
+     "v00",
+     "v02",
+     "v20",
+     "v22"
+    ]
+   },
+   "plane closed": {
+    "value": [
+     "beside",
+     "bottom",
+     "diagonal",
+     "inside",
+     "left",
+     "right",
+     "top",
+     "v00",
+     "v02",
+     "v20",
+     "v22"
+    ]
+   },
+   "plane clockwise": {
+    "value": [
+     "beside",
+     "bottom",
+     "diagonal",
+     "inside",
+     "left",
+     "right",
+     "top",
+     "v00",
+     "v02",
+     "v20",
+     "v22"
+    ]
+   },
+   "plane triangle": {
+    "value": [
+     "beside",
+     "bottom",
+     "diagonal",
+     "right",
+     "v00",
+     "v20"
+    ]
+   },
+   "plane diagonal": {
+    "value": [
+     "bottom",
+     "diagonal",
+     "inside",
+     "v00",
+     "v20"
+    ]
+   },
+   "plane box": {
+    "value": [
+     "beside",
+     "bottom",
+     "diagonal",
+     "inside",
+     "left",
+     "right",
+     "top",
+     "v00",
+     "v02",
+     "v20",
+     "v22"
+    ]
+   },
+   "plane boxMixed": {
+    "value": [
+     "beside",
+     "bottom",
+     "diagonal",
+     "inside",
+     "left",
+     "right",
+     "top",
+     "v00",
+     "v02",
+     "v20",
+     "v22"
+    ]
+   },
+   "plane boxObject": {
+    "value": [
+     "beside",
+     "bottom",
+     "diagonal",
+     "inside",
+     "left",
+     "right",
+     "top",
+     "v00",
+     "v02",
+     "v20",
+     "v22"
+    ]
+   },
+   "plane center": {
+    "value": [
+     "beside",
+     "bottom",
+     "diagonal",
+     "inside",
+     "left",
+     "right",
+     "top"
+    ]
+   },
+   "plane centerObject": {
+    "value": [
+     "beside",
+     "bottom",
+     "diagonal",
+     "inside",
+     "left",
+     "right",
+     "top"
+    ]
+   },
+   "plane centerExact": {
+    "value": [
+     "below",
+     "beside",
+     "bottom",
+     "diagonal",
+     "exact",
+     "inside",
+     "left",
+     "out",
+     "right",
+     "top",
+     "v00",
+     "v02",
+     "v20",
+     "v22"
+    ]
+   },
+   "plane centerSphere": {
+    "value": [
+     "below",
+     "beside",
+     "bottom",
+     "diagonal",
+     "exact",
+     "inside",
+     "left",
+     "out",
+     "over",
+     "right",
+     "top",
+     "v00",
+     "v02",
+     "v20",
+     "v22"
+    ]
+   }
+  },
+  "the $near and $nearSphere queries: their order, their distances, their units, their places in a filter": {
+   "near": {
+    "value": [
+     "m",
+     "a",
+     "j",
+     "b",
+     "c",
+     "d",
+     "e",
+     "h",
+     "f",
+     "g",
+     "i"
+    ]
+   },
+   "max": {
+    "value": [
+     "m",
+     "a",
+     "j",
+     "b"
+    ]
+   },
+   "minMax": {
+    "value": [
+     "b",
+     "c",
+     "d"
+    ]
+   },
+   "nearSphere": {
+    "value": [
+     "m",
+     "a",
+     "j",
+     "b"
+    ]
+   },
+   "nearSphereLegacy": {
+    "value": [
+     "m",
+     "a",
+     "j",
+     "b"
+    ]
+   },
+   "nearLegacy": {
+    "error": {
+     "code": 291
+    }
+   },
+   "antimeridian": {
+    "value": [
+     "i",
+     "g",
+     "f"
+    ]
+   },
+   "pole": {
+    "value": [
+     "h"
+    ]
+   },
+   "filtered": {
+    "value": [
+     "b",
+     "c",
+     "e"
+    ]
+   },
+   "sorted": {
+    "value": [
+     "m",
+     "j",
+     "i",
+     "h",
+     "g",
+     "f",
+     "e",
+     "d",
+     "c",
+     "b",
+     "a"
+    ]
+   },
+   "skipLimit": {
+    "value": [
+     "a",
+     "j"
+    ]
+   },
+   "far": {
+    "value": [
+     "f",
+     "i",
+     "g",
+     "j",
+     "e",
+     "m",
+     "d",
+     "a",
+     "b",
+     "c",
+     "h"
+    ]
+   },
+   "and": {
+    "value": [
+     "m",
+     "a",
+     "j",
+     "b",
+     "c",
+     "d",
+     "e",
+     "h",
+     "f",
+     "g",
+     "i"
+    ]
+   },
+   "negativeMax": {
+    "error": {
+     "code": 2
+    }
+   },
+   "inOr": {
+    "error": {
+     "code": 2
+    }
+   },
+   "twice": {
+    "error": {
+     "code": 2
+    }
+   },
+   "line": {
+    "error": {
+     "code": 2
+    }
+   },
+   "inNot": {
+    "error": {
+     "code": 2
+    }
+   },
+   "inElemMatch": {
+    "error": {
+     "code": 2
+    }
+   },
+   "withText": {
+    "error": {
+     "code": 27
+    }
+   },
+   "noIndex": {
+    "error": {
+     "code": 291
+    }
+   },
+   "distances": {
+    "value": [
+     {
+      "_id": "m",
+      "loc": {
+       "type": "Polygon",
+       "coordinates": [
+        [
+         [
+          -2,
+          -2
+         ],
+         [
+          2,
+          -2
+         ],
+         [
+          2,
+          2
+         ],
+         [
+          -2,
+          2
+         ],
+         [
+          -2,
+          -2
+         ]
+        ]
+       ]
+      },
+      "d": 0,
+      "p": {
+       "type": "Polygon",
+       "coordinates": [
+        [
+         [
+          -2,
+          -2
+         ],
+         [
+          2,
+          -2
+         ],
+         [
+          2,
+          2
+         ],
+         [
+          -2,
+          2
+         ],
+         [
+          -2,
+          -2
+         ]
+        ]
+       ]
+      }
+     },
+     {
+      "_id": "a",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        0.05,
+        0
+       ]
+      },
+      "d": 5565.942251072517,
+      "p": {
+       "type": "Point",
+       "coordinates": [
+        0.05,
+        0
+       ]
+      }
+     },
+     {
+      "_id": "j",
+      "loc": {
+       "type": "MultiPoint",
+       "coordinates": [
+        [
+         40,
+         40
+        ],
+        [
+         0.5,
+         0.2
+        ]
+       ]
+      },
+      "d": 59946.9277095665,
+      "p": {
+       "type": "MultiPoint",
+       "coordinates": [
+        [
+         40,
+         40
+        ],
+        [
+         0.5,
+         0.2
+        ]
+       ]
+      }
+     },
+     {
+      "_id": "b",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        1
+       ]
+      },
+      "d": 111318.84502145034,
+      "p": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        1
+       ]
+      }
+     },
+     {
+      "_id": "c",
+      "loc": [
+       0,
+       2
+      ],
+      "d": 222637.69004290068,
+      "p": [
+       0,
+       2
+      ]
+     },
+     {
+      "_id": "d",
+      "loc": {
+       "type": "LineString",
+       "coordinates": [
+        [
+         3,
+         0
+        ],
+        [
+         3,
+         10
+        ]
+       ]
+      },
+      "d": 333956.53506435105,
+      "p": {
+       "type": "LineString",
+       "coordinates": [
+        [
+         3,
+         0
+        ],
+        [
+         3,
+         10
+        ]
+       ]
+      }
+     },
+     {
+      "_id": "e",
+      "loc": {
+       "type": "Polygon",
+       "coordinates": [
+        [
+         [
+          5,
+          -1
+         ],
+         [
+          6,
+          -1
+         ],
+         [
+          6,
+          1
+         ],
+         [
+          5,
+          1
+         ],
+         [
+          5,
+          -1
+         ]
+        ]
+       ]
+      },
+      "d": 556594.2251072518,
+      "p": {
+       "type": "Polygon",
+       "coordinates": [
+        [
+         [
+          5,
+          -1
+         ],
+         [
+          6,
+          -1
+         ],
+         [
+          6,
+          1
+         ],
+         [
+          5,
+          1
+         ],
+         [
+          5,
+          -1
+         ]
+        ]
+       ]
+      }
+     },
+     {
+      "_id": "h",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        89.9
+       ]
+      },
+      "d": 10007564.167428385,
+      "p": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        89.9
+       ]
+      }
+     },
+     {
+      "_id": "f",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        179.9,
+        0.1
+       ]
+      },
+      "d": 20021649.24581965,
+      "p": {
+       "type": "Point",
+       "coordinates": [
+        179.9,
+        0.1
+       ]
+      }
+     },
+     {
+      "_id": "g",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        -179.9,
+        0
+       ]
+      },
+      "d": 20026260.219358914,
+      "p": {
+       "type": "Point",
+       "coordinates": [
+        -179.9,
+        0
+       ]
+      }
+     },
+     {
+      "_id": "i",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        180,
+        0
+       ]
+      },
+      "d": 20037392.10386106,
+      "p": {
+       "type": "Point",
+       "coordinates": [
+        180,
+        0
+       ]
+      }
+     }
+    ]
+   },
+   "radians": {
+    "value": [
+     {
+      "_id": "m",
+      "d": 0
+     },
+     {
+      "_id": "a",
+      "d": 0.0008726646259971649
+     },
+     {
+      "_id": "j",
+      "d": 0.009398869210198413
+     },
+     {
+      "_id": "b",
+      "d": 0.017453292519943295
+     },
+     {
+      "_id": "c",
+      "d": 0.03490658503988659
+     },
+     {
+      "_id": "d",
+      "d": 0.0523598775598299
+     },
+     {
+      "_id": "e",
+      "d": 0.0872664625997165
+     },
+     {
+      "_id": "h",
+      "d": 1.5690509975429023
+     },
+     {
+      "_id": "f",
+      "d": 3.1391243859173814
+     },
+     {
+      "_id": "g",
+      "d": 3.1398473243377985
+     },
+     {
+      "_id": "i",
+      "d": 3.141592653589793
+     }
+    ]
+   },
+   "count": {
+    "error": {
+     "code": 5626500
+    }
+   },
+   "match": {
+    "error": {
+     "code": 5626500
+    }
+   },
+   "findOneAndUpdate": {
+    "value": {
+     "_id": "b"
+    }
+   },
+   "compoundNoEquality": {
+    "error": {
+     "code": 291
+    }
+   },
+   "compoundEquality": {
+    "value": [
+     4,
+     1
+    ]
+   },
+   "compoundHinted": {
+    "value": [
+     1,
+     4
+    ]
+   },
+   "2d near": {
+    "value": [
+     {
+      "_id": "a",
+      "loc": [
+       0,
+       0
+      ],
+      "d": 0
+     },
+     {
+      "_id": "f",
+      "loc": [
+       [
+        1,
+        0.2
+       ],
+       [
+        10,
+        10
+       ]
+      ],
+      "d": 1.019803902718557
+     },
+     {
+      "_id": "c",
+      "loc": {
+       "x": 1,
+       "y": 1.5
+      },
+      "d": 1.8027756377319946
+     },
+     {
+      "_id": "b",
+      "loc": [
+       3,
+       4
+      ],
+      "d": 5
+     },
+     {
+      "_id": "i",
+      "loc": [
+       0,
+       89
+      ],
+      "d": 89
+     },
+     {
+      "_id": "d",
+      "loc": [
+       -179,
+       0
+      ],
+      "d": 179
+     },
+     {
+      "_id": "e",
+      "loc": [
+       179,
+       0
+      ],
+      "d": 179
+     }
+    ]
+   },
+   "2d max": {
+    "value": [
+     {
+      "_id": "a",
+      "loc": [
+       0,
+       0
+      ],
+      "d": 0
+     },
+     {
+      "_id": "f",
+      "loc": [
+       [
+        1,
+        0.2
+       ],
+       [
+        10,
+        10
+       ]
+      ],
+      "d": 1.019803902718557
+     },
+     {
+      "_id": "c",
+      "loc": {
+       "x": 1,
+       "y": 1.5
+      },
+      "d": 1.8027756377319946
+     }
+    ]
+   },
+   "2d min": {
+    "value": [
+     {
+      "_id": "b",
+      "loc": [
+       3,
+       4
+      ],
+      "d": 5
+     },
+     {
+      "_id": "i",
+      "loc": [
+       0,
+       89
+      ],
+      "d": 89
+     },
+     {
+      "_id": "d",
+      "loc": [
+       -179,
+       0
+      ],
+      "d": 179
+     },
+     {
+      "_id": "e",
+      "loc": [
+       179,
+       0
+      ],
+      "d": 179
+     }
+    ]
+   },
+   "2d nearSphere": {
+    "value": [
+     {
+      "_id": "a",
+      "loc": [
+       0,
+       0
+      ],
+      "d": 0
+     },
+     {
+      "_id": "f",
+      "loc": [
+       [
+        1,
+        0.2
+       ],
+       [
+        10,
+        10
+       ]
+      ],
+      "d": 0.017798901070808087
+     },
+     {
+      "_id": "c",
+      "loc": {
+       "x": 1,
+       "y": 1.5
+      },
+      "d": 0.03146326454588251
+     },
+     {
+      "_id": "b",
+      "loc": [
+       3,
+       4
+      ],
+      "d": 0.08724092633726478
+     }
+    ]
+   },
+   "2d antimeridian": {
+    "value": [
+     {
+      "_id": "e",
+      "loc": [
+       179,
+       0
+      ],
+      "d": 1
+     }
+    ]
+   },
+   "2d sphereAntimeridian": {
+    "value": [
+     {
+      "_id": "e",
+      "loc": [
+       179,
+       0
+      ],
+      "d": 0.0174532925199431
+     }
+    ]
+   },
+   "2d geoJSON": {
+    "error": {
+     "code": 291
+    }
+   },
+   "2d sphereAcross": {
+    "value": [
+     {
+      "_id": "e",
+      "loc": [
+       179,
+       0
+      ],
+      "d": 0.0174532925199431
+     },
+     {
+      "_id": "i",
+      "loc": [
+       0,
+       89
+      ],
+      "d": 1.5882496193148399
+     },
+     {
+      "_id": "f",
+      "loc": [
+       [
+        1,
+        0.2
+       ],
+       [
+        10,
+        10
+       ]
+      ],
+      "d": 2.8953957368108605
+     },
+     {
+      "_id": "b",
+      "loc": [
+       3,
+       4
+      ],
+      "d": 3.0543517272525285
+     },
+     {
+      "_id": "c",
+      "loc": {
+       "x": 1,
+       "y": 1.5
+      },
+      "d": 3.1101293890439106
+     },
+     {
+      "_id": "a",
+      "loc": [
+       0,
+       0
+      ],
+      "d": 3.141592653589793
+     }
+    ]
+   },
+   "2d sphereAcrossNorth": {
+    "value": [
+     {
+      "_id": "i",
+      "loc": [
+       0,
+       89
+      ],
+      "d": 0.5410417469145458
+     },
+     {
+      "_id": "d",
+      "loc": [
+       -179,
+       0
+      ],
+      "d": 1.0472854822071709
+     },
+     {
+      "_id": "e",
+      "loc": [
+       179,
+       0
+      ],
+      "d": 1.0479886091124755
+     },
+     {
+      "_id": "f",
+      "loc": [
+       [
+        1,
+        0.2
+       ],
+       [
+        10,
+        10
+       ]
+      ],
+      "d": 1.9147672959038031
+     },
+     {
+      "_id": "b",
+      "loc": [
+       3,
+       4
+      ],
+      "d": 2.024497413114631
+     },
+     {
+      "_id": "c",
+      "loc": {
+       "x": 1,
+       "y": 1.5
+      },
+      "d": 2.06812854202258
+     },
+     {
+      "_id": "a",
+      "loc": [
+       0,
+       0
+      ],
+      "d": 2.0940434319025085
+     }
+    ]
+   }
+  },
+  "the $geoNear stage: its options, the index of its field, its place in a pipeline": {
+   "geoNear": {
+    "value": [
+     {
+      "_id": "a",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        0
+       ]
+      },
+      "dist": 0,
+      "where": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        0
+       ]
+      }
+     },
+     {
+      "_id": "b",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        1
+       ]
+      },
+      "k": 5,
+      "dist": 111318.84502145034,
+      "where": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        1
+       ]
+      }
+     },
+     {
+      "_id": "c",
+      "loc": [
+       0,
+       2
+      ],
+      "k": 5,
+      "dist": 222637.69004290068,
+      "where": [
+       0,
+       2
+      ]
+     },
+     {
+      "_id": "d",
+      "loc": {
+       "type": "LineString",
+       "coordinates": [
+        [
+         3,
+         0
+        ],
+        [
+         3,
+         10
+        ]
+       ]
+      },
+      "dist": 333956.53506435105,
+      "where": {
+       "type": "LineString",
+       "coordinates": [
+        [
+         3,
+         0
+        ],
+        [
+         3,
+         10
+        ]
+       ]
+      }
+     },
+     {
+      "_id": "e",
+      "loc": {
+       "type": "Polygon",
+       "coordinates": [
+        [
+         [
+          5,
+          -1
+         ],
+         [
+          6,
+          -1
+         ],
+         [
+          6,
+          1
+         ],
+         [
+          5,
+          1
+         ],
+         [
+          5,
+          -1
+         ]
+        ]
+       ]
+      },
+      "dist": 556594.2251072518,
+      "where": {
+       "type": "Polygon",
+       "coordinates": [
+        [
+         [
+          5,
+          -1
+         ],
+         [
+          6,
+          -1
+         ],
+         [
+          6,
+          1
+         ],
+         [
+          5,
+          1
+         ],
+         [
+          5,
+          -1
+         ]
+        ]
+       ]
+      }
+     },
+     {
+      "_id": "h",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        89.9
+       ]
+      },
+      "dist": 10007564.167428385,
+      "where": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        89.9
+       ]
+      }
+     }
+    ]
+   },
+   "sphericalLegacy": {
+    "value": [
+     {
+      "_id": "a",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        0
+       ]
+      },
+      "dist": 0
+     },
+     {
+      "_id": "b",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        1
+       ]
+      },
+      "k": 5,
+      "dist": 0.017453292519943295
+     },
+     {
+      "_id": "c",
+      "loc": [
+       0,
+       2
+      ],
+      "k": 5,
+      "dist": 0.03490658503988659
+     }
+    ]
+   },
+   "planeLegacy": {
+    "error": {
+     "code": 291
+    }
+   },
+   "geoJSONNotSpherical": {
+    "value": [
+     {
+      "_id": "a",
+      "dist": 0
+     },
+     {
+      "_id": "b",
+      "dist": 111318.84502145034
+     },
+     {
+      "_id": "c",
+      "dist": 222637.69004290068
+     },
+     {
+      "_id": "d",
+      "dist": 333956.53506435105
+     },
+     {
+      "_id": "e",
+      "dist": 556594.2251072518
+     },
+     {
+      "_id": "h",
+      "dist": 10007564.167428385
+     }
+    ]
+   },
+   "multiplier": {
+    "value": [
+     {
+      "_id": "b",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        1
+       ]
+      },
+      "k": 5,
+      "x": {
+       "d": 111.31884502145034
+      }
+     },
+     {
+      "_id": "c",
+      "loc": [
+       0,
+       2
+      ],
+      "k": 5,
+      "x": {
+       "d": 222.6376900429007
+      }
+     }
+    ]
+   },
+   "key": {
+    "value": [
+     {
+      "_id": "a",
+      "d": 0
+     },
+     {
+      "_id": "b",
+      "d": 111318.84502145034
+     },
+     {
+      "_id": "c",
+      "d": 222637.69004290068
+     },
+     {
+      "_id": "d",
+      "d": 333956.53506435105
+     },
+     {
+      "_id": "e",
+      "d": 556594.2251072518
+     },
+     {
+      "_id": "h",
+      "d": 10007564.167428385
+     }
+    ]
+   },
+   "badKey": {
+    "error": {
+     "code": 291
+    }
+   },
+   "afterEmptyMatch": {
+    "value": [
+     {
+      "_id": "a",
+      "d": 0
+     },
+     {
+      "_id": "b",
+      "d": 111318.84502145034
+     },
+     {
+      "_id": "c",
+      "d": 222637.69004290068
+     },
+     {
+      "_id": "d",
+      "d": 333956.53506435105
+     },
+     {
+      "_id": "e",
+      "d": 556594.2251072518
+     },
+     {
+      "_id": "h",
+      "d": 10007564.167428385
+     }
+    ]
+   },
+   "afterMatch": {
+    "error": {
+     "code": 40603
+    }
+   },
+   "inFacet": {
+    "error": {
+     "code": 40600
+    }
+   },
+   "noDistanceField": {
+    "error": {
+     "code": 25278
+    }
+   },
+   "noNear": {
+    "error": {
+     "code": 5860400
+    }
+   },
+   "unknownOption": {
+    "error": {
+     "code": 2
+    }
+   },
+   "num": {
+    "error": {
+     "code": 50857
+    }
+   },
+   "limitOption": {
+    "error": {
+     "code": 50858
+    }
+   },
+   "nearInQuery": {
+    "error": {
+     "code": 2
+    }
+   },
+   "badNear": {
+    "error": {
+     "code": 5860401
+    }
+   },
+   "latitudeOut": {
+    "error": {
+     "code": 2
+    }
+   },
+   "negativeMax": {
+    "error": {
+     "code": 2
+    }
+   },
+   "limited": {
+    "value": [
+     {
+      "_id": "a",
+      "d": 0
+     },
+     {
+      "_id": "b",
+      "d": 111318.84502145034
+     }
+    ]
+   },
+   "meta": {
+    "value": [
+     {
+      "_id": "a",
+      "d": 0,
+      "m": 0,
+      "p": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        0
+       ]
+      }
+     },
+     {
+      "_id": "b",
+      "d": 111318.84502145034,
+      "m": 111318.84502145034,
+      "p": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        1
+       ]
+      }
+     },
+     {
+      "_id": "c",
+      "d": 222637.69004290068,
+      "m": 222637.69004290068,
+      "p": [
+       0,
+       2
+      ]
+     },
+     {
+      "_id": "d",
+      "d": 333956.53506435105,
+      "m": 333956.53506435105,
+      "p": {
+       "type": "LineString",
+       "coordinates": [
+        [
+         3,
+         0
+        ],
+        [
+         3,
+         10
+        ]
+       ]
+      }
+     },
+     {
+      "_id": "e",
+      "d": 556594.2251072518,
+      "m": 556594.2251072518,
+      "p": {
+       "type": "Polygon",
+       "coordinates": [
+        [
+         [
+          5,
+          -1
+         ],
+         [
+          6,
+          -1
+         ],
+         [
+          6,
+          1
+         ],
+         [
+          5,
+          1
+         ],
+         [
+          5,
+          -1
+         ]
+        ]
+       ]
+      }
+     },
+     {
+      "_id": "h",
+      "d": 10007564.167428385,
+      "m": 10007564.167428385,
+      "p": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        89.9
+       ]
+      }
+     }
+    ]
+   },
+   "queried": {
+    "value": [
+     {
+      "_id": "b",
+      "d": 111318.84502145034
+     },
+     {
+      "_id": "c",
+      "d": 222637.69004290068
+     }
+    ]
+   },
+   "inLookup": {
+    "value": [
+     {
+      "_id": "a",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        0
+       ]
+      },
+      "x": [
+       {
+        "_id": "a",
+        "d": 0
+       },
+       {
+        "_id": "b",
+        "d": 111318.84502145034
+       },
+       {
+        "_id": "c",
+        "d": 222637.69004290068
+       },
+       {
+        "_id": "d",
+        "d": 333956.53506435105
+       },
+       {
+        "_id": "e",
+        "d": 556594.2251072518
+       },
+       {
+        "_id": "h",
+        "d": 10007564.167428385
+       }
+      ]
+     }
+    ]
+   },
+   "inUnionWith": {
+    "value": [
+     {
+      "_id": "a"
+     },
+     {
+      "_id": "a",
+      "d": 0
+     },
+     {
+      "_id": "b",
+      "d": 111318.84502145034
+     },
+     {
+      "_id": "c",
+      "d": 222637.69004290068
+     },
+     {
+      "_id": "d",
+      "d": 333956.53506435105
+     },
+     {
+      "_id": "e",
+      "d": 556594.2251072518
+     },
+     {
+      "_id": "h",
+      "d": 10007564.167428385
+     }
+    ]
+   },
+   "onView": {
+    "error": {
+     "code": 40603
+    }
+   },
+   "nearOnView": {
+    "error": {
+     "code": 5626500
+    }
+   },
+   "bothLegacy": {
+    "value": [
+     {
+      "_id": 1,
+      "loc": [
+       0,
+       0
+      ],
+      "loc2": [
+       0,
+       0
+      ],
+      "d": 0
+     },
+     {
+      "_id": 2,
+      "loc": [
+       1,
+       1
+      ],
+      "loc2": [
+       2,
+       2
+      ],
+      "d": 1.4142135623730951
+     }
+    ]
+   },
+   "bothKey": {
+    "value": [
+     {
+      "_id": 1,
+      "loc": [
+       0,
+       0
+      ],
+      "loc2": [
+       0,
+       0
+      ],
+      "d": 0
+     },
+     {
+      "_id": 2,
+      "loc": [
+       1,
+       1
+      ],
+      "loc2": [
+       2,
+       2
+      ],
+      "d": 0.04936035239379511
+     }
+    ]
+   },
+   "bothGeoJSON": {
+    "error": {
+     "code": 291
+    }
+   },
+   "sameFieldLegacy": {
+    "value": [
+     {
+      "_id": 1,
+      "loc": [
+       0,
+       0
+      ],
+      "loc2": [
+       0,
+       0
+      ],
+      "d": 0
+     },
+     {
+      "_id": 2,
+      "loc": [
+       1,
+       1
+      ],
+      "loc2": [
+       2,
+       2
+      ],
+      "d": 1.4142135623730951
+     }
+    ]
+   },
+   "sameFieldGeoJSON": {
+    "value": [
+     {
+      "_id": 1,
+      "loc": [
+       0,
+       0
+      ],
+      "loc2": [
+       0,
+       0
+      ],
+      "d": 0
+     },
+     {
+      "_id": 2,
+      "loc": [
+       1,
+       1
+      ],
+      "loc2": [
+       2,
+       2
+      ],
+      "d": 157424.6238723255
+     }
+    ]
+   },
+   "twoSpheres": {
+    "error": {
+     "code": 27
+    }
+   },
+   "twoSpheresKey": {
+    "value": [
+     {
+      "_id": 1,
+      "p": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        0
+       ]
+      },
+      "q": {
+       "type": "Point",
+       "coordinates": [
+        1,
+        1
+       ]
+      },
+      "d": 157424.6238723255
+     }
+    ]
+   },
+   "noIndex": {
+    "error": {
+     "code": 27
+    }
+   }
   }
  }
 }

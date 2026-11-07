@@ -41,6 +41,28 @@ import {
 } from './TimeSeries.js'
 import { isTextIndex, prefixFieldsOf, TEXT_SCORE, textIndexOf, textMatches, textQueryOf } from './Text.js'
 import { setTextScore } from './mingo/util/_meta.js'
+import {
+    type EmbeddedNear,
+    GEO_DISTANCE,
+    GEO_POINT,
+    geoClausesOf,
+    geoFieldsOf,
+    geoIndexOf,
+    type GeoIndexKind,
+    GEO_NEAR_KIND,
+    geoNearOf,
+    geoNearResult,
+    type GeoRange,
+    geoRangesOf,
+    GeoRings,
+    hasGeoQuery,
+    hasNear,
+    isGeoIndex,
+    nearDistanceOf,
+    nearHolds,
+    nearOf,
+    withGeoNear
+} from './Geo.js'
 import type { NativeRange } from './Native.js'
 import {
     after as keysAfter,
@@ -119,8 +141,36 @@ const INDEX_OPTIONS = new Set([
     'weights',
     'default_language',
     'language_override',
-    'textIndexVersion'
+    'textIndexVersion',
+    'bits',
+    'min',
+    'max',
+    '2dsphereIndexVersion',
+    'coarsestIndexedLevel',
+    'finestIndexedLevel'
 ])
+
+/**
+ * The options of the geo indexes only
+ */
+const GEO_OPTIONS = new Set(['bits', 'min', 'max', '2dsphereIndexVersion', 'coarsestIndexedLevel', 'finestIndexedLevel'])
+
+/**
+ * The symbols of the metadata of the documents, by their names in $meta
+ */
+const META_SYMBOLS: Record<string, symbol> = { textScore: TEXT_SCORE, geoNearDistance: GEO_DISTANCE, geoNearPoint: GEO_POINT }
+
+/**
+ * The failure of a $near, a $nearSphere or a $geoNear where MongoDB 8.0 does not sort by the distance (a count, a $match
+ * of a pipeline)
+ */
+function nearRefused(): EmbeddedOperationError {
+    return new EmbeddedOperationError(
+        5626500,
+        'Location5626500',
+        '$geoNear, $near, and $nearSphere are not allowed in this context, as these operators require sorting geospatial data. If you do not need sort, consider using $geoWithin instead. Check out https://dochub.mongodb.org/core/near-sort-operation and https://dochub.mongodb.org/core/nearSphere-sort-operation for more details.'
+    )
+}
 
 /**
  * the documents of a batch: read between two yields of the event loop (a scan, the ids of an index), written
@@ -1606,7 +1656,7 @@ export class EmbeddedFindCursor extends EmbeddedResults {
         // Sorted by an index: the documents read in its order, up to the limit (not the ones of a $text, found by its
         // text index)
         const ordered =
-            this.order && this.limited && this.hinted === undefined && !scored && !textOf(this.query)
+            this.order && this.limited && this.hinted === undefined && !scored && !textOf(this.query) && !hasNear(this.query)
                 ? await collection.ordered(
                       this.query,
                       this.order,
@@ -1668,8 +1718,10 @@ export class EmbeddedFindCursor extends EmbeddedResults {
             ? withCollation(this.collator, () => this.collection.values.mingo.find(documents, {}, Object.fromEntries(others)).all())
             : documents.map((document) => ({ ...document }))
         projected.forEach((document, position) => {
-            const score = (documents[position] as Record<symbol, unknown>)[TEXT_SCORE]
-            if (score !== undefined) for (const [field] of metas) document[field] = score
+            for (const [field, value] of metas) {
+                const meta = (documents[position] as Record<symbol, unknown>)[META_SYMBOLS[value.$meta] ?? TEXT_SCORE]
+                if (meta !== undefined) document[field] = meta
+            }
         })
         return projected
     }
@@ -2503,6 +2555,7 @@ export class EmbeddedCollection {
         const skip = options?.skip ?? 0
         const limit = options?.limit ? skip + options.limit : Infinity
         const filter = this.values.copy(query ?? {})
+        if (hasNear(filter)) throw nearRefused()
         if (this.isView())
             return (await this.viewDocuments([
                 { $match: filter },
@@ -2574,6 +2627,7 @@ export class EmbeddedCollection {
             return this.inSession(options!.session, (collection) =>
                 collection.distinct(key, query, options)
             )
+        if (hasNear(query ?? {})) throw nearRefused()
         const values = new Map<string, any>()
         const view = this.viewed()
         const collator = view ? collatorOf(view.collation) : this.collatorFor(options?.collation)
@@ -2643,6 +2697,16 @@ export class EmbeddedCollection {
         pipeline.forEach((stage, position) => {
             if (position && isPlain(stage) && isPlain(stage.$match) && textOf(stage.$match))
                 throw new EmbeddedOperationError(17313, 'Location17313', '$match with $text is only allowed as the first pipeline stage')
+            if (isPlain(stage) && isPlain(stage.$match) && hasNear(stage.$match)) throw nearRefused()
+            if (isPlain(stage) && isPlain(stage.$facet) && Object.values(stage.$facet as EmbeddedDocument).some((stages) => Array.isArray(stages) && stages.some((item) => isPlain(item) && '$geoNear' in item)))
+                throw new EmbeddedOperationError(40600, 'Location40600', '$geoNear is not allowed to be used within a $facet stage')
+        })
+        // A $geoNear first, the empty $match stages before it left out (MongoDB optimizes them out)
+        const leading = pipeline.findIndex((stage) => !(isPlain(stage) && isPlain(stage.$match) && !Object.keys(stage.$match).length))
+        if (leading > 0 && isPlain(pipeline[leading]) && '$geoNear' in pipeline[leading]) pipeline = pipeline.slice(leading)
+        pipeline.forEach((stage, position) => {
+            if (position && isPlain(stage) && '$geoNear' in stage)
+                throw new EmbeddedOperationError(40603, 'Location40603', '$geoNear was not the first stage in the pipeline after optimization. Is optimization disabled or inhibited?')
         })
         const collator = this.collatorFor(collation)
         const position = pipeline.findIndex(
@@ -2705,6 +2769,20 @@ export class EmbeddedCollection {
                 for (const measurement of unpacked(bucket as EmbeddedBucket, series)) measurements.push(measurement)
             return this.runStages(measurements, pipeline.slice(1), options, collator, time, typed)
         }
+        // A $geoNear: the documents of its near in the order of their distances, given them; the ones after its $skip
+        // and its $limit (the stages right after it) not read
+        if (isPlain(pipeline[0]) && '$geoNear' in pipeline[0]) {
+            let count = 0
+            let needed = Infinity
+            for (const stage of pipeline.slice(1)) {
+                if (isPlain(stage) && typeof stage.$skip === 'number' && stage.$skip >= 0) count += stage.$skip
+                else {
+                    if (isPlain(stage) && typeof stage.$limit === 'number' && stage.$limit > 0) needed = count + stage.$limit
+                    break
+                }
+            }
+            return this.runStages(await this.geoNearDocuments(pipeline[0].$geoNear, collator, time, typed, needed), pipeline.slice(1), options, collator, time, typed)
+        }
         const changed = options.variables
         const filters: EmbeddedDocument[] = []
         if (!changed)
@@ -2734,6 +2812,83 @@ export class EmbeddedCollection {
             time,
             typed
         )
+    }
+
+    /**
+     * The documents of a $geoNear stage, as MongoDB 8.0 gives them: its options checked (geoNearOf), its field the one
+     * of its key, else of the 2d index of the collection, else of its 2dsphere index (more than one of a kind, or none,
+     * fail with IndexNotFound, 27), the documents of its query in the order of their distances (nearCandidates), given
+     * their distances (times its multiplier) in its distance field and their locations in its includeLocs field
+     *
+     * @param spec
+     * @param collator
+     * @param time
+     * @param typed
+     * @param needed the documents the stages after it need at most
+     */
+    private async geoNearDocuments(spec: unknown, collator: EmbeddedCollator | undefined, time: EmbeddedTimeLimit | undefined, typed: boolean, needed = Infinity): Promise<EmbeddedDocument[]> {
+        const stage = this.geoNearStageOf(spec)
+        if (!this.store.collection(this.collectionName, this.transaction)) return []
+        const matches = this.matcherOf(stage.query, collator)
+        const results: EmbeddedDocument[] = []
+        for await (const batch of this.nearCandidates(stage.near, stage.query, typed)) {
+            time?.check()
+            for (const document of batch) {
+                const meta = document as Record<symbol, unknown>
+                if (matches(document)) results.push(geoNearResult(document, meta[GEO_DISTANCE] as number, meta[GEO_POINT], stage))
+                if (results.length >= needed) return results
+            }
+        }
+        return results
+    }
+
+    /**
+     * The options of a $geoNear stage on the collection (geoNearOf), its field the one of its key, else of the 2d index
+     * of the collection, else of its 2dsphere index (more than one of a kind, or none, fail with IndexNotFound, 27)
+     *
+     * @param spec
+     */
+    private geoNearStageOf(spec: unknown): ReturnType<typeof geoNearOf> {
+        const collection = this.store.collection(this.collectionName, this.transaction)
+        const geo = (collection?.indexes ?? []).filter((index) => !index.hidden && isGeoIndex(index))
+        const fieldOf = (kind: GeoIndexKind): string | undefined => {
+            const indexes = geo.filter((index) => geoFieldsOf(index).some(([, item]) => item === kind))
+            if (indexes.length > 1)
+                throw new EmbeddedOperationError(27, 'IndexNotFound', `There is more than one ${kind} index on ${this.namespace}; unsure which to use for $geoNear`)
+            return indexes.length ? geoFieldsOf(indexes[0]).find(([, item]) => item === kind)![0] : undefined
+        }
+        return geoNearOf(spec, () => {
+            const field = fieldOf('2d') ?? fieldOf('2dsphere')
+            if (field === undefined) throw new EmbeddedOperationError(27, 'IndexNotFound', '$geoNear requires a 2d or 2dsphere index, but none were found')
+            return field
+        })
+    }
+
+    /**
+     * Stages whose sub-pipelines ($lookup, $unionWith) start with a $geoNear: its options checked on the collection
+     * read, given its key and the kind of the index of its field (GEO_NEAR_KIND), for mingo to measure its documents
+     *
+     * @param stages
+     */
+    private withGeoNearKinds(stages: EmbeddedDocument[]): EmbeddedDocument[] {
+        const resolved = (name: unknown, pipeline: unknown): unknown => {
+            if (!Array.isArray(pipeline) || typeof name !== 'string' || this.store.views.has(name)) return pipeline
+            const sibling = this.sibling(name)
+            const [first, ...rest] = pipeline
+            const kept = sibling.withGeoNearKinds(rest)
+            if (!isPlain(first) || !('$geoNear' in first)) return [first, ...kept].slice(0, pipeline.length)
+            const stage = sibling.geoNearStageOf(first.$geoNear)
+            const { kind } = sibling.nearIndexOf(sibling.store.collection(name, sibling.transaction), stage.near, stage.query)
+            return [{ $geoNear: { ...first.$geoNear, key: stage.near.path, [GEO_NEAR_KIND]: kind } }, ...kept]
+        }
+        return stages.map((stage) => {
+            if (!isPlain(stage)) return stage
+            if (isPlain(stage.$lookup) && Array.isArray(stage.$lookup.pipeline))
+                return { ...stage, $lookup: { ...stage.$lookup, pipeline: resolved(stage.$lookup.from ?? this.collectionName, stage.$lookup.pipeline) } }
+            if (isPlain(stage.$unionWith) && Array.isArray(stage.$unionWith.pipeline))
+                return { ...stage, $unionWith: { ...stage.$unionWith, pipeline: resolved(stage.$unionWith.coll, stage.$unionWith.pipeline) } }
+            return stage
+        })
     }
 
     /**
@@ -2772,7 +2927,7 @@ export class EmbeddedCollection {
                 looked.set(name, read)
             }
             const input = documents
-            const running = segment
+            const running = this.withGeoNearKinds(segment)
             const aggregate = () =>
                 this.values.mingo.aggregate(input, running, {
                     ...options,
@@ -4558,12 +4713,30 @@ export class EmbeddedCollection {
         }
         // A $text: the documents of its terms in the text index, given their scores
         const text = textOf(filter)
+        const near = nearOf(filter)
+        if (text && near) {
+            if (!this.store.collection(this.collectionName, this.transaction)?.indexes.some(isTextIndex))
+                throw new EmbeddedOperationError(27, 'IndexNotFound', 'text index required for $text query')
+            throw new EmbeddedOperationError(2, 'BadValue', 'text and geoNear not allowed in same query')
+        }
         if (text) {
             yield* this.textCandidates(text.text, text.rest, hint, typed)
             return
         }
+        // A $near (or $nearSphere): the documents of its geo index from its point outwards, in the order of their
+        // distances
+        if (near) {
+            yield* this.nearCandidates(near.near, near.rest, typed)
+            return
+        }
         const collection = this.store.collection(this.collectionName, this.transaction)
         if (!collection) return
+        // A geo query a geo index serves: the documents of the cells (or the hashes) of its region
+        const geo = hint === undefined ? this.geoReadOf(collection, filter) : undefined
+        if (geo) {
+            yield* this.documentsOfEntries(geo.table, geo.ranges, typed)
+            return
+        }
         const planner = new EmbeddedPlanner(collection, collator)
         const plan = planner.plan(filter, this.hintOf(collection, planner, hint))
         const predicates = predicatesOf(filter)
@@ -4684,6 +4857,160 @@ export class EmbeddedCollection {
     }
 
     /**
+     * The keys of the fields of an index before one of its fields given by equalities of a filter (the prefix of the
+     * keys of the index), undefined when one is not (or when the index has a collation: its strings are sort keys)
+     *
+     * @param collection
+     * @param index
+     * @param field
+     * @param filter
+     */
+    private prefixOf(collection: EmbeddedCollectionState, index: EmbeddedIndex, field: string, filter: EmbeddedDocument): Buffer | undefined {
+        const fields = Object.keys(index.key)
+        const before = fields.slice(0, fields.indexOf(field))
+        if (before.length && index.collation) return undefined
+        const parts: Buffer[] = []
+        for (const name of before) {
+            const equal = equalityOf(filter, name)
+            if (equal === NO_EQUALITY || Array.isArray(equal)) return undefined
+            parts.push(collection.encoding.direct(collection.encoding.encode(equal ?? null), index.key[name]))
+        }
+        return Buffer.concat(parts)
+    }
+
+    /**
+     * The read of a geo index serving a geo query ($geoWithin, $within, $geoIntersects at the top level of a filter or
+     * in its top-level $and): its table and the ranges of the keys of the cells (2dsphere) or of the hashes (2d) of its
+     * region; undefined when no index serves it (a scan then). A hidden or a partial index is left out
+     *
+     * @param collection
+     * @param filter
+     */
+    private geoReadOf(collection: EmbeddedCollectionState, filter: EmbeddedDocument): { table: number, ranges: GeoRange[] } | undefined {
+        const clauses = geoClausesOf(filter)
+        if (!clauses.length) return undefined
+        const encoding = collection.encoding
+        for (const clause of clauses)
+            for (const index of collection.indexes) {
+                const kind = index.key[clause.path]
+                if (index.hidden || index.partialFilterExpression || (kind !== '2d' && kind !== '2dsphere')) continue
+                const prefix = this.prefixOf(collection, index, clause.path, filter)
+                if (!prefix) continue
+                const ranges = geoRangesOf(clause, kind, index, prefix, (bytes) => encoding.binary(bytes), keysAfter)
+                if (ranges) return { table: this.tableOf(collection, index.name), ranges: ranges }
+            }
+        return undefined
+    }
+
+    /**
+     * The documents of the entries of ranges of an index (undefined: all its entries), each once
+     *
+     * @param table
+     * @param ranges
+     * @param typed whether the numbers of the documents keep their types (Int32, Double, Long)
+     */
+    private async *documentsOfEntries(table: number, ranges: GeoRange[] | undefined, typed: boolean): AsyncGenerator<EmbeddedDocument[]> {
+        if (ranges && !ranges.length) return
+        const seen = new Set<string>()
+        for await (const { ids } of this.store.entries(this.collectionName, table, {
+            ranges: ranges?.map((range) => ({ lower: range.lower, lowerInclusive: true, upper: range.upper, upperInclusive: false })),
+            transaction: this.transaction
+        })) {
+            const keys: Buffer[] = []
+            for (const id of ids) {
+                const text = id.toString('latin1')
+                if (seen.has(text)) continue
+                seen.add(text)
+                keys.push(Buffer.from(id))
+            }
+            for (let start = 0; start < keys.length; start += YIELD_EVERY) {
+                if (start) await yieldLoop()
+                const documents = (await this.store.get(this.collectionName, keys.slice(start, start + YIELD_EVERY), this.transaction, typed)).filter((document) => document !== undefined)
+                if (documents.length) yield documents
+            }
+        }
+    }
+
+    /**
+     * The geo index of a near, as MongoDB 8.0 plans it: a 2dsphere index of its field (the fields before it given by
+     * equalities) for a near on the sphere; a 2d index of its field first for a near of legacy coordinates (on a plane,
+     * or on the sphere: $nearSphere). Without one it fails with NoQueryExecutionPlans (291)
+     *
+     * @param collection
+     * @param near
+     * @param filter the rest of the filter
+     */
+    private nearIndexOf(collection: EmbeddedCollectionState | undefined, near: EmbeddedNear, filter: EmbeddedDocument): { index: EmbeddedIndex, kind: GeoIndexKind, prefix: Buffer } {
+        const candidates = (collection?.indexes ?? []).filter((index) => !index.hidden && !index.partialFilterExpression)
+        // A legacy point: a 2d index first (MongoDB's order), a GeoJSON point: a 2dsphere index only
+        for (const kind of near.meters ? (['2dsphere'] as const) : near.sphere ? (['2d', '2dsphere'] as const) : (['2d'] as const))
+            for (const index of candidates) {
+                if (index.key[near.path] !== kind) continue
+                if (kind === '2d') return { index: index, kind: kind, prefix: Buffer.alloc(0) }
+                const prefix = this.prefixOf(collection!, index, near.path, filter)
+                if (prefix) return { index: index, kind: kind, prefix: prefix }
+            }
+        throw new EmbeddedOperationError(
+            291,
+            'NoQueryExecutionPlans',
+            `error processing query: ns=${this.namespace} planner returned error :: caused by :: unable to find index for $geoNear query`
+        )
+    }
+
+    /**
+     * The documents of a $near (or $nearSphere, or of a $geoNear), in the order of their distances (the closest first,
+     * the same distances by their _id), given their distances and their locations ($meta geoNearDistance,
+     * geoNearPoint): read in its 2dsphere index ring by ring from its point (GeoRings: the documents of a ring given
+     * once the ones closer are all read), in its 2d index at once; the ones out of its distances left out
+     *
+     * @param near
+     * @param filter the rest of the filter (the fields before its field in its index given by equalities)
+     * @param typed whether the numbers of the documents keep their types (Int32, Double, Long)
+     */
+    private async *nearCandidates(near: EmbeddedNear, filter: EmbeddedDocument, typed: boolean): AsyncGenerator<EmbeddedDocument[]> {
+        const collection = this.store.collection(this.collectionName, this.transaction)
+        const { index, kind, prefix } = this.nearIndexOf(collection, near, filter)
+        const table = this.tableOf(collection!, index.name)
+        const encoding = collection!.encoding
+        const seen = new Set<string>()
+        let pending: { document: EmbeddedDocument, distance: number, radians: number, location: unknown, key: Buffer }[] = []
+        // The documents read of the ranges of keys, their distances measured
+        const read = async (ranges: GeoRange[] | undefined) => {
+            for await (const batch of this.documentsOfEntries(table, ranges, typed))
+                for (const document of batch) {
+                    const key = this.idKey(document._id)
+                    const text = key.toString('latin1')
+                    if (seen.has(text)) continue
+                    seen.add(text)
+                    const found = nearDistanceOf(near, document, kind)
+                    if (found && nearHolds(near, found, kind)) pending.push({ document: document, ...found, key: key })
+                }
+        }
+        // The documents of the distances up to a bound (radians), in their order
+        const given = (bound: number) => {
+            pending.sort((a, b) => a.radians - b.radians || a.distance - b.distance || Buffer.compare(a.key, b.key))
+            const count = pending.findIndex((item) => item.radians > bound)
+            const out = count < 0 ? pending : pending.slice(0, count)
+            pending = count < 0 ? [] : pending.slice(count)
+            return out.map((item) => withGeoNear(item.document, item.distance, item.location))
+        }
+        const chunks = function* (documents: EmbeddedDocument[]) {
+            for (let start = 0; start < documents.length; start += YIELD_EVERY) yield documents.slice(start, start + YIELD_EVERY)
+        }
+        if (kind === '2d') {
+            await read(undefined)
+            yield* chunks(given(Infinity))
+            return
+        }
+        const rings = new GeoRings(near, prefix, (bytes) => encoding.binary(bytes), keysAfter)
+        for (let ring = rings.next(); ring; ring = rings.next()) {
+            await read(ring.ranges)
+            const documents = given(ring.last ? Infinity : ring.radius)
+            if (documents.length) yield* chunks(documents)
+        }
+    }
+
+    /**
      * The table of an index of a collection: 0 for the index of the _id (the table of the collection).
      *
      * @param collection
@@ -4788,9 +5115,8 @@ export class EmbeddedCollection {
                 throw cannot(
                     `Values in v:2 index key pattern cannot be of type ${direction === null ? 'null' : typeof direction}. Only numbers > 0, numbers < 0, and strings are allowed.`
                 )
-            if (direction === 'hashed' || direction === 'text') continue
-            if (['2d', '2dsphere'].includes(direction))
-                throw cannot(`${direction} indexes are not supported by mongo-embedded`)
+            if (['hashed', 'text', '2d', '2dsphere'].includes(direction)) continue
+            if (direction === 'geoHaystack') throw cannot('GeoHaystack indexes cannot be created in version 5.0 and above')
             throw cannot(`Unknown index plugin '${direction}'`)
         }
         // The fields of a text index ($** too: all the strings) are its text fields, not a wildcard term
@@ -4802,8 +5128,10 @@ export class EmbeddedCollection {
         if (fields.filter((field) => key[field] === 'hashed').length > 1)
             throw cannot('A maximum of one index field is allowed to be hashed')
         const texts = fields.some((field) => key[field] === 'text')
+        const geo = fields.some((field) => key[field] === '2d' || key[field] === '2dsphere')
+        if (geo && wildcards.length) throw cannot("Can't use more than one index plugin for a single index.")
         for (const option of Object.keys(options))
-            if (options[option] !== undefined && (!INDEX_OPTIONS.has(option) || (!texts && TEXT_OPTIONS.has(option))))
+            if (options[option] !== undefined && (!INDEX_OPTIONS.has(option) || (!texts && TEXT_OPTIONS.has(option)) || (!geo && GEO_OPTIONS.has(option))))
                 throw new EmbeddedOperationError(
                     197,
                     'InvalidIndexSpecificationOption',
@@ -4840,6 +5168,9 @@ export class EmbeddedCollection {
         const text = textIndexOf(this.values.plain(key), this.values.plain(options), name, (message) =>
             cannot(`Error in specification ${spec()} :: caused by :: ${message}`))
         const index: EmbeddedIndex = text ?? { name: name, key: this.values.plain(key) }
+        // A geo index: the options it lists (a 2dsphere index its version, a 2d index its bits and bounds given)
+        if (!text) Object.assign(index, geoIndexOf(this.values.plain(key), this.values.plain(options), (message) =>
+            cannot(`Error in specification ${spec()} :: caused by :: ${message}`)) ?? {})
         if (collator && !text) index.collation = { ...collator.collation }
         if (options.unique) index.unique = true
         else if (options.prepareUnique) index.prepareUnique = true
@@ -5058,10 +5389,13 @@ export class EmbeddedCollection {
         filter: EmbeddedDocument,
         collator?: EmbeddedCollator
     ): (document: EmbeddedDocument) => boolean {
-        // A $text: its documents found by it (candidates), tested by the rest of the filter
+        // A $text, a $near: its documents found by it (candidates), tested by the rest of the filter
         filter = textOf(filter)?.rest ?? filter
+        filter = nearOf(filter)?.rest ?? filter
         const id = this.idOf(filter)
         let query: any
+        // A geo query compiled at once: its shapes fail as MongoDB fails them, before any document is read
+        if (hasGeoQuery(filter)) query = new this.values.mingo.Query(filter)
         return (document) =>
             (id !== undefined && this.isId(document._id, id)) ||
             withCollation(collator, () =>

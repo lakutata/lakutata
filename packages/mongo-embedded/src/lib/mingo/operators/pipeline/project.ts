@@ -21,7 +21,7 @@ import {
   setValue,
   unique
 } from '../../util/_internal.js'
-import { withTextScore } from '../../util/_meta.js'
+import { withMetadata } from '../../util/_meta.js'
 import { validateProjection } from './_internal.js'
 
 const OP = '$project'
@@ -41,7 +41,7 @@ export function $project(
   const meta = validateProjection(expr, options)
   const handler = createHandler(expr, ComputeOptions.init(options), meta)
   // The text score of a document kept by its projection
-  return coll.map((obj: AnyObject) => withTextScore(obj, handler(obj)))
+  return coll.map((obj: AnyObject) => withMetadata(obj, handler(obj)))
 }
 
 // handler for transforming the 'target' object based on the 'current'.

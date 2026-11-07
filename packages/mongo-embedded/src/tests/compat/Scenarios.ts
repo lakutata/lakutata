@@ -1695,5 +1695,349 @@ export const SCENARIOS: Scenario[] = [
             result.documents = await capped.countDocuments({})
             return result
         }
+    },
+    {
+        group: 'geo',
+        name: 'the geo indexes created: their kinds, their options, their failures',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const specs: [string, unknown, unknown][] = [
+                ['sphere', {loc: '2dsphere'}, {}], ['sphereCompound', {loc: '2dsphere', k: 1}, {}], ['sphereSecond', {k: 1, loc: '2dsphere'}, {}],
+                ['twoSpheres', {loc: '2dsphere', other: '2dsphere'}, {}], ['sphereVersion2', {loc: '2dsphere'}, {'2dsphereIndexVersion': 2}],
+                ['sphereVersion4', {loc: '2dsphere'}, {'2dsphereIndexVersion': 4}], ['sphereUnique', {loc: '2dsphere'}, {unique: true}],
+                ['sphereSparse', {loc: '2dsphere'}, {sparse: true}], ['flat', {loc: '2d'}, {}], ['flatOptions', {loc: '2d'}, {bits: 20, min: -100, max: 100}],
+                ['flatBits', {loc: '2d'}, {bits: 33}], ['flatBounds', {loc: '2d'}, {min: 10, max: 5}], ['flatCompound', {loc: '2d', k: 1}, {}],
+                ['flatSecond', {k: 1, loc: '2d'}, {}], ['twoFlat', {loc: '2d', other: '2d'}, {}], ['flatUnique', {loc: '2d'}, {unique: true}],
+                ['haystack', {loc: 'geoHaystack', k: 1}, {bucketSize: 1}], ['sphereCollation', {loc: '2dsphere'}, {collation: {locale: 'fr'}}],
+                ['sphereText', {loc: '2dsphere', t: 'text'}, {}], ['sphereLevels', {loc: '2dsphere'}, {coarsestIndexedLevel: 5, finestIndexedLevel: 20}],
+                ['sphereHashed', {loc: '2dsphere', k: 'hashed'}, {}], ['flatAndSphere', {loc: '2d', other: '2dsphere'}, {}]
+            ]
+            for (const [name, key, options] of specs) {
+                const collection: any = db.collection(name)
+                result[name] = await outcome(async (): Promise<unknown> => {
+                    await collection.createIndex(key, options)
+                    return (await collection.indexes()).filter((index: any): boolean => index.name !== '_id_')
+                })
+            }
+            return result
+        }
+    },
+    {
+        group: 'geo',
+        name: 'the geometries of the geo indexes: the ones written, the ones refused, on insert, update and createIndex',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const sphere: any = db.collection('sphere')
+            await sphere.createIndex({loc: '2dsphere'})
+            const square = [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]
+            const values: Record<string, unknown> = {
+                point: {type: 'Point', coordinates: [1, 2]}, legacyArray: [1, 2], legacyObject: {lng: 1, lat: 2}, legacyObjectXY: {x: 1, y: 2},
+                outOfRange: {type: 'Point', coordinates: [181, 2]}, latOutOfRange: {type: 'Point', coordinates: [1, 91]}, legacyOutOfRange: [181, 2],
+                string: 'x', number: 5, nullValue: null, emptyArray: [], emptyObject: {}, bool: true, threeCoordinates: {type: 'Point', coordinates: [1, 2, 3]},
+                lineString: {type: 'LineString', coordinates: [[0, 0], [1, 1]]}, degenerateLine: {type: 'LineString', coordinates: [[0, 0], [0, 0]]},
+                emptyLine: {type: 'LineString', coordinates: []}, repeatedLine: {type: 'LineString', coordinates: [[0, 0], [0, 0], [1, 1]]},
+                antipodalLine: {type: 'LineString', coordinates: [[0, 0], [180, 0]]}, lineOut: {type: 'LineString', coordinates: [[0, 0], [190, 0]]},
+                polygon: {type: 'Polygon', coordinates: [square]}, unclosed: {type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1]]]},
+                selfIntersecting: {type: 'Polygon', coordinates: [[[0, 0], [1, 1], [1, 0], [0, 1], [0, 0]]]},
+                clockwise: {type: 'Polygon', coordinates: [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]]},
+                withHole: {type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]], [[2, 2], [3, 2], [3, 3], [2, 3], [2, 2]]]},
+                holeOutside: {type: 'Polygon', coordinates: [square, [[5, 5], [6, 5], [6, 6], [5, 6], [5, 5]]]},
+                holesOverlapping: {type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]], [[1, 1], [5, 1], [5, 5], [1, 5], [1, 1]], [[2, 2], [6, 2], [6, 6], [2, 6], [2, 2]]]},
+                holeTouching: {type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]], [[0, 0], [5, 1], [5, 5], [0, 0]]]},
+                shortRing: {type: 'Polygon', coordinates: [[[0, 0], [1, 1], [0, 0]]]}, repeatedRing: {type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 0], [1, 1], [0, 0]]]},
+                emptyPolygon: {type: 'Polygon', coordinates: []}, emptyRing: {type: 'Polygon', coordinates: [[]]},
+                multiPoint: {type: 'MultiPoint', coordinates: [[0, 0], [1, 1]]}, emptyMultiPoint: {type: 'MultiPoint', coordinates: []},
+                multiLine: {type: 'MultiLineString', coordinates: [[[0, 0], [1, 1]], [[2, 2], [3, 3]]]},
+                multiPolygon: {type: 'MultiPolygon', coordinates: [[square], [[[5, 5], [6, 5], [6, 6], [5, 6], [5, 5]]]]},
+                multiPolygonOverlapping: {type: 'MultiPolygon', coordinates: [[[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]], [[[1, 1], [3, 1], [3, 3], [1, 3], [1, 1]]]]},
+                collection: {type: 'GeometryCollection', geometries: [{type: 'Point', coordinates: [0, 0]}, {type: 'LineString', coordinates: [[0, 0], [1, 1]]}]},
+                emptyCollection: {type: 'GeometryCollection', geometries: []},
+                nestedCollection: {type: 'GeometryCollection', geometries: [{type: 'GeometryCollection', geometries: [{type: 'Point', coordinates: [0, 0]}]}]},
+                badType: {type: 'Circle', coordinates: [0, 0]}, lowerType: {type: 'point', coordinates: [0, 0]}, noCoordinates: {type: 'Point'},
+                strict: {type: 'Polygon', coordinates: [square], crs: {type: 'name', properties: {name: 'urn:x-mongodb:crs:strictwinding:EPSG:4326'}}},
+                epsg: {type: 'Point', coordinates: [0, 0], crs: {type: 'name', properties: {name: 'EPSG:4326'}}},
+                unknownCrs: {type: 'Point', coordinates: [0, 0], crs: {type: 'name', properties: {name: 'foo'}}},
+                arrayOfPoints: [{type: 'Point', coordinates: [1, 2]}, {type: 'Point', coordinates: [3, 4]}], arrayOfPairs: [[1, 2], [3, 4]],
+                stringCoordinates: {type: 'Point', coordinates: ['1', '2']}, numberTypes: {type: 'Point', coordinates: [Long.fromNumber(1), new Int32(2)]},
+                decimal: {type: 'Point', coordinates: [Decimal128.fromString('1.5'), 2]}, infinite: {type: 'Point', coordinates: [Infinity, 2]},
+                legacyThree: [1, 2, 3], legacyObjectString: {a: 1, b: 'x'}, legacyOne: [1], pole: [0, 90], antimeridian: [-180, 0],
+                nestedDocument: {a: {type: 'Point', coordinates: [0.5, 0.5]}}, legacyObjectOne: {a: 1}
+            }
+            for (const [name, loc] of Object.entries(values)) result[name] = await outcome((): unknown => sphere.insertOne({_id: name, loc: loc}))
+            result.missing = await outcome((): unknown => sphere.insertOne({_id: 'missing'}))
+            await sphere.insertOne({_id: 'updated', loc: {type: 'Point', coordinates: [0, 0]}})
+            result.updateOutOfRange = await outcome((): unknown => sphere.updateOne({_id: 'updated'}, {$set: {loc: {type: 'Point', coordinates: [500, 0]}}}))
+            result.updateString = await outcome((): unknown => sphere.updateOne({_id: 'updated'}, {$set: {loc: 'x'}}))
+            result.replaceOne = await outcome((): unknown => sphere.replaceOne({_id: 'updated'}, {loc: [1]}))
+            result.upsert = await outcome((): unknown => sphere.updateOne({_id: 'upserted'}, {$set: {loc: 5}}, {upsert: true}))
+            result.updatedKept = await sphere.findOne({_id: 'updated'})
+            result.count = await sphere.countDocuments({})
+            const before: any = db.collection('before')
+            await before.insertMany([{_id: 1, loc: {type: 'Point', coordinates: [0, 0]}}, {_id: 2, loc: 'bad'}])
+            result.createIndexOverInvalid = await outcome((): unknown => before.createIndex({loc: '2dsphere'}))
+            result.indexesAfter = (await before.indexes()).map((index: any): unknown => index.name)
+            const flat: any = db.collection('flat')
+            await flat.createIndex({loc: '2d'})
+            const locations: Record<string, unknown> = {
+                pair: [1, 2], object: {x: 1, y: 2}, outOfRange: [181, 2], max: [180, 180], geoJSON: {type: 'Point', coordinates: [1, 2]}, string: 'x',
+                threeItems: [1, 2, 3], one: [1], pairs: [[1, 0], [10, 10]], empty: [], nullValue: null
+            }
+            for (const [name, loc] of Object.entries(locations)) result[`2d ${name}`] = await outcome((): unknown => flat.insertOne({_id: name, loc: loc}))
+            //A unique 2dsphere index: the same point, points a centimeter apart; a unique 2d index: points closer than its hashes
+            const unique: any = db.collection('unique')
+            await unique.createIndex({loc: '2dsphere'}, {unique: true})
+            for (const [name, loc] of Object.entries({a: [10, 10], same: {type: 'Point', coordinates: [10, 10]}, cm: [10.0000001, 10], m: [10.00001, 10], nullA: null, nullB: null}))
+                result[`unique ${name}`] = await outcome((): unknown => unique.insertOne({_id: name, loc: loc}))
+            const unique2d: any = db.collection('unique2d')
+            await unique2d.createIndex({loc: '2d'}, {unique: true})
+            for (const [name, loc] of Object.entries({a: [10, 10], same: [10, 10], close: [10.000001, 10], apart: [10.00001, 10]}))
+                result[`unique2d ${name}`] = await outcome((): unknown => unique2d.insertOne({_id: name, loc: loc}))
+            await unique2d.insertOne({_id: 'missingA'})
+            result.unique2dMissing = await outcome((): unknown => unique2d.insertOne({_id: 'missingB'}))
+            return result
+        }
+    },
+    {
+        group: 'geo',
+        name: 'the $geoWithin and $geoIntersects queries: their shapes, the geometries they match, their failures, with an index or not',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const documents = [
+                {_id: 'p', loc: {type: 'Point', coordinates: [0.5, 0.5]}}, {_id: 'legacy', loc: [0.5, 0.5]}, {_id: 'legacyObject', loc: {x: 0.5, y: 0.5}},
+                {_id: 'edge', loc: {type: 'Point', coordinates: [1, 0.5]}}, {_id: 'vertex', loc: {type: 'Point', coordinates: [1, 1]}},
+                {_id: 'out', loc: {type: 'Point', coordinates: [5, 5]}}, {_id: 'line', loc: {type: 'LineString', coordinates: [[0.2, 0.2], [0.8, 0.8]]}},
+                {_id: 'crossing', loc: {type: 'LineString', coordinates: [[0.5, 0.5], [3, 3]]}},
+                {_id: 'poly', loc: {type: 'Polygon', coordinates: [[[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9], [0.1, 0.1]]]}},
+                {_id: 'multi', loc: {type: 'MultiPoint', coordinates: [[0.2, 0.2], [0.3, 0.3]]}},
+                {_id: 'multiOut', loc: {type: 'MultiPoint', coordinates: [[0.2, 0.2], [3, 3]]}},
+                {_id: 'collection', loc: {type: 'GeometryCollection', geometries: [{type: 'Point', coordinates: [0.4, 0.4]}, {type: 'LineString', coordinates: [[0.6, 0.6], [0.7, 0.7]]}]}},
+                {_id: 'three', loc: [0.5, 0.5, 9]}, {_id: 'missing'}, {_id: 'pole', loc: [0, 90]}
+            ]
+            const unindexed = [
+                {_id: 'nested', loc: {a: {type: 'Point', coordinates: [0.5, 0.5]}}}, {_id: 'string', loc: 'x'}, {_id: 'number', loc: 5}, {_id: 'bad', loc: {type: 'Point', coordinates: [500, 0]}},
+                {_id: 'array', loc: [{type: 'Point', coordinates: [0.5, 0.5]}, {type: 'Point', coordinates: [7, 7]}]}, {_id: 'pairs', loc: [[0.5, 0.5], [7, 7]]},
+                {_id: 'farLegacy', loc: [500, 0.5]}
+            ]
+            const square = {type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]}
+            const strict = {name: 'urn:x-mongodb:crs:strictwinding:EPSG:4326'}
+            const queries: Record<string, unknown> = {
+                withinSquare: {$geoWithin: {$geometry: square}}, intersectsSquare: {$geoIntersects: {$geometry: square}},
+                withinClockwise: {$geoWithin: {$geometry: {type: 'Polygon', coordinates: [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]]}}},
+                withinBox: {$geoWithin: {$box: [[0, 0], [1, 1]]}}, withinBoxReversed: {$geoWithin: {$box: [[1, 1], [0, 0]]}}, withinWide: {$geoWithin: {$box: [[0, 0], [600, 1]]}},
+                withinPolygon: {$geoWithin: {$polygon: [[0, 0], [1, 0], [1, 1], [0, 1]]}}, withinTriangle: {$geoWithin: {$polygon: [[0, 0], [1, 0], [1, 1]]}},
+                withinCenter: {$geoWithin: {$center: [[0.5, 0.5], 0.6]}}, withinCenterSphere: {$geoWithin: {$centerSphere: [[0.5, 0.5], 0.01]}},
+                withinCenterSphereAll: {$geoWithin: {$centerSphere: [[0.5, 0.5], 4]}}, within: {$within: {$box: [[0, 0], [1, 1]]}},
+                withinMultiPolygon: {$geoWithin: {$geometry: {type: 'MultiPolygon', coordinates: [square.coordinates, [[[2, 2], [4, 2], [4, 4], [2, 4], [2, 2]]]]}}},
+                withinBig: {$geoWithin: {$geometry: {...square, crs: {type: 'name', properties: strict}}}},
+                withinBigComplement: {$geoWithin: {$geometry: {type: 'Polygon', coordinates: [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]], crs: {type: 'name', properties: strict}}}},
+                intersectsPoint: {$geoIntersects: {$geometry: {type: 'Point', coordinates: [0.5, 0.5]}}},
+                intersectsLine: {$geoIntersects: {$geometry: {type: 'LineString', coordinates: [[0, 1], [1, 0]]}}},
+                intersectsMultiPoint: {$geoIntersects: {$geometry: {type: 'MultiPoint', coordinates: [[5, 5], [0.3, 0.3]]}}},
+                intersectsAntimeridian: {$geoIntersects: {$geometry: {type: 'Polygon', coordinates: [[[179, -1], [-179, -1], [-179, 1], [179, 1], [179, -1]]]}}},
+                intersectsBig: {$geoIntersects: {$geometry: {type: 'Polygon', coordinates: [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]], crs: {type: 'name', properties: strict}}}},
+                not: {$not: {$geoWithin: {$geometry: square}}}, elemMatch: {$elemMatch: {$geoWithin: {$geometry: square}}}
+            }
+            const failures: Record<string, unknown> = {
+                unclosed: {$geoWithin: {$geometry: {type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1]]]}}},
+                selfIntersecting: {$geoWithin: {$geometry: {type: 'Polygon', coordinates: [[[0, 0], [1, 1], [1, 0], [0, 1], [0, 0]]]}}},
+                withinPoint: {$geoWithin: {$geometry: {type: 'Point', coordinates: [0, 0]}}},
+                withinLine: {$geoWithin: {$geometry: {type: 'LineString', coordinates: [[0, 0], [1, 1]]}}},
+                outOfRange: {$geoWithin: {$geometry: {type: 'Polygon', coordinates: [[[0, 0], [200, 0], [200, 1], [0, 1], [0, 0]]]}}},
+                boxOnePoint: {$geoWithin: {$box: [[0, 0]]}}, noShape: {$geoWithin: {}}, twoShapes: {$geoWithin: {$box: [[0, 0], [1, 1]], $center: [[0, 0], 1]}},
+                intersectsBox: {$geoIntersects: {$box: [[0, 0], [1, 1]]}}, polygonTwoPoints: {$geoWithin: {$polygon: [[0, 0], [2, 0]]}},
+                polygonString: {$geoWithin: {$polygon: [[0, 0], [2, 0], 'x']}}, centerNegative: {$geoWithin: {$center: [[1, 1], -1]}},
+                centerNoRadius: {$geoWithin: {$center: [[1, 1]]}}, centerSphereNegative: {$geoWithin: {$centerSphere: [[1, 1], -1]}},
+                centerSphereOut: {$geoWithin: {$centerSphere: [[200, 1], 1]}}
+            }
+            const ids = async (collection: any, filter: unknown): Promise<unknown> =>
+                outcome(async (): Promise<unknown> => (await collection.find(filter).toArray()).map((item: any): unknown => item._id).sort())
+            const plain: any = db.collection('plain')
+            await plain.insertMany([...documents, ...unindexed])
+            const indexed: any = db.collection('indexed')
+            await indexed.createIndex({loc: '2dsphere'})
+            await indexed.insertMany(documents)
+            const flat: any = db.collection('flat')
+            await flat.createIndex({loc: '2d'})
+            await flat.insertMany([{_id: 'legacy', loc: [0.5, 0.5]}, {_id: 'object', loc: {x: 0.5, y: 0.5}}, {_id: 'edge', loc: [1, 0.5]}, {_id: 'out', loc: [5, 5]},
+                {_id: 'pairs', loc: [[0.5, 0.5], [7, 7]]}, {_id: 'far', loc: [170, 80]}, {_id: 'string', loc: 'x'}, {_id: 'missing'}])
+            for (const [name, query] of Object.entries(queries)) {
+                result[name] = await ids(plain, {loc: query})
+                result[`${name} 2dsphere`] = await ids(indexed, {loc: query})
+                result[`${name} 2d`] = await ids(flat, {loc: query})
+            }
+            result.or = await ids(plain, {$or: [{loc: {$geoWithin: {$geometry: square}}}, {_id: 'number'}]})
+            result.and = await ids(indexed, {$and: [{loc: {$geoWithin: {$geometry: square}}}, {_id: {$ne: 'p'}}]})
+            result.hinted = await ids(indexed, {loc: {$geoWithin: {$geometry: square}}})
+            for (const [name, query] of Object.entries(failures)) result[`fails ${name}`] = await ids(plain, {loc: query})
+            result.failsOnEmpty = await ids(db.collection('empty'), {loc: failures.selfIntersecting})
+            //The boundary: points just outside an edge of a meridian, around the edge of a great circle
+            const precision: any = db.collection('precision')
+            const offsets = [0, 1e-10, 1e-9, 1e-8, 2e-8, 4e-8, 6e-8, 8e-8, 1e-7, 2e-7, 1e-6]
+            const geodesic = Math.atan(Math.tan(Math.PI / 180) * Math.sin(0.5 * Math.PI / 180) / Math.sin(Math.PI / 180)) * 180 / Math.PI
+            const near: unknown[] = []
+            for (const offset of offsets) {
+                near.push({_id: `m+${offset}`, loc: {type: 'Point', coordinates: [1 + offset, 0.5]}})
+                near.push({_id: `g+${offset}`, loc: {type: 'Point', coordinates: [0.5, geodesic + offset]}})
+                near.push({_id: `g-${offset}`, loc: {type: 'Point', coordinates: [0.5, geodesic - offset]}})
+            }
+            await precision.insertMany(near)
+            const triangle = {type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]]}
+            result.meridianWithin = await ids(precision, {_id: /^m/, loc: {$geoWithin: {$geometry: square}}})
+            result.meridianIntersects = await ids(precision, {_id: /^m/, loc: {$geoIntersects: {$geometry: square}}})
+            result.geodesicWithin = await ids(precision, {_id: /^g/, loc: {$geoWithin: {$geometry: triangle}}})
+            result.geodesicIntersects = await ids(precision, {_id: /^g/, loc: {$geoIntersects: {$geometry: triangle}}})
+            await precision.createIndex({loc: '2dsphere'})
+            result.meridianIndexed = await ids(precision, {_id: /^m/, loc: {$geoWithin: {$geometry: square}}})
+            result.geodesicIndexed = await ids(precision, {_id: /^g/, loc: {$geoWithin: {$geometry: triangle}}})
+            //The shapes of a plane: their boundaries
+            const plane: any = db.collection('plane')
+            const points: Record<string, number[]> = {
+                inside: [1, 1], bottom: [1, 0], top: [1, 2], left: [0, 1], right: [2, 1], v00: [0, 0], v20: [2, 0], v22: [2, 2], v02: [0, 2], out: [3, 3],
+                diagonal: [1.5, 0.5], beside: [1.6, 0.5], below: [1, -0.0000001], exact: [3, 4], over: [3, 4.0000001]
+            }
+            await plane.insertMany(Object.entries(points).map(([_id, loc]): unknown => ({_id: _id, loc: loc})))
+            const shapes: Record<string, unknown> = {
+                square: {$polygon: [[0, 0], [2, 0], [2, 2], [0, 2]]}, closed: {$polygon: [[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]},
+                clockwise: {$polygon: [[0, 0], [0, 2], [2, 2], [2, 0]]}, triangle: {$polygon: [[0, 0], [2, 0], [2, 1]]}, diagonal: {$polygon: [[0, 0], [2, 0], [1, 1]]},
+                box: {$box: [[0, 0], [2, 2]]}, boxMixed: {$box: [[2, 0], [0, 2]]}, boxObject: {$box: {a: [0, 0], b: [2, 2]}},
+                center: {$center: [[1, 1], 1]}, centerObject: {$center: {c: [1, 1], r: 1}}, centerExact: {$center: [[0, 0], 5]},
+                centerSphere: {$centerSphere: [[0, 0], 5 * Math.PI / 180]}
+            }
+            for (const [name, shape] of Object.entries(shapes)) result[`plane ${name}`] = await ids(plane, {loc: {$geoWithin: shape}})
+            return result
+        }
+    },
+    {
+        group: 'geo',
+        name: 'the $near and $nearSphere queries: their order, their distances, their units, their places in a filter',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const point = (x: number, y: number): unknown => ({type: 'Point', coordinates: [x, y]})
+            const sphere: any = db.collection('sphere')
+            await sphere.createIndex({loc: '2dsphere'})
+            await sphere.insertMany([
+                {_id: 'a', loc: point(0.05, 0)}, {_id: 'b', loc: point(0, 1)}, {_id: 'c', loc: [0, 2]},
+                {_id: 'd', loc: {type: 'LineString', coordinates: [[3, 0], [3, 10]]}},
+                {_id: 'e', loc: {type: 'Polygon', coordinates: [[[5, -1], [6, -1], [6, 1], [5, 1], [5, -1]]]}},
+                {_id: 'f', loc: point(179.9, 0.1)}, {_id: 'g', loc: point(-179.9, 0)}, {_id: 'h', loc: point(0, 89.9)}, {_id: 'i', loc: point(180, 0)},
+                {_id: 'j', loc: {type: 'MultiPoint', coordinates: [[40, 40], [0.5, 0.2]]}}, {_id: 'k'}, {_id: 'l', loc: null},
+                {_id: 'm', loc: {type: 'Polygon', coordinates: [[[-2, -2], [2, -2], [2, 2], [-2, 2], [-2, -2]]]}}
+            ])
+            const ids = async (filter: unknown, options: unknown = {}): Promise<unknown> =>
+                outcome(async (): Promise<unknown> => (await sphere.find(filter, options).toArray()).map((item: any): unknown => item._id))
+            const steps: Record<string, [unknown, unknown?]> = {
+                near: [{loc: {$near: {$geometry: point(0, 0)}}}],
+                max: [{loc: {$near: {$geometry: point(0, 0), $maxDistance: 120000}}}],
+                minMax: [{loc: {$near: {$geometry: point(0, 0), $minDistance: 100000, $maxDistance: 400000}}}],
+                nearSphere: [{loc: {$nearSphere: {$geometry: point(0, 0), $maxDistance: 120000}}}],
+                nearSphereLegacy: [{loc: {$nearSphere: [0, 0], $maxDistance: 0.02}}],
+                nearLegacy: [{loc: {$near: [0, 0], $maxDistance: 0.02}}],
+                antimeridian: [{loc: {$near: {$geometry: point(180, 0), $maxDistance: 50000}}}],
+                pole: [{loc: {$near: {$geometry: point(45, 90), $maxDistance: 50000}}}],
+                filtered: [{loc: {$near: {$geometry: point(0, 0)}}, _id: {$in: ['b', 'c', 'e']}}],
+                sorted: [{loc: {$near: {$geometry: point(0, 0)}}}, {sort: {_id: -1}}],
+                skipLimit: [{loc: {$near: {$geometry: point(0, 0)}}}, {skip: 1, limit: 2}],
+                far: [{loc: {$near: {$geometry: point(100, -30)}}}],
+                and: [{$and: [{loc: {$near: {$geometry: point(0, 0)}}}]}],
+                negativeMax: [{loc: {$near: {$geometry: point(0, 0), $maxDistance: -1}}}],
+                inOr: [{$or: [{loc: {$near: {$geometry: point(0, 0)}}}, {_id: 'k'}]}],
+                twice: [{loc: {$near: {$geometry: point(0, 0)}}, x: {$near: [0, 0]}}],
+                line: [{loc: {$near: {$geometry: {type: 'LineString', coordinates: [[0, 0], [1, 1]]}}}}],
+                inNot: [{loc: {$not: {$near: {$geometry: point(0, 0)}}}}],
+                inElemMatch: [{loc: {$elemMatch: {$near: {$geometry: point(0, 0)}}}}],
+                withText: [{loc: {$near: {$geometry: point(0, 0)}}, $text: {$search: 'x'}}],
+                noIndex: [{other: {$near: {$geometry: point(0, 0)}}}]
+            }
+            for (const [name, [filter, options]] of Object.entries(steps)) result[name] = await ids(filter, options)
+            result.distances = await outcome(async (): Promise<unknown> => (await sphere.find({loc: {$near: {$geometry: point(0, 0)}}}, {projection: {d: {$meta: 'geoNearDistance'}, p: {$meta: 'geoNearPoint'}}}).toArray()))
+            result.radians = await outcome(async (): Promise<unknown> => (await sphere.find({loc: {$nearSphere: [0, 0]}}, {projection: {_id: 1, d: {$meta: 'geoNearDistance'}}}).toArray()))
+            result.count = await outcome((): unknown => sphere.countDocuments({loc: {$near: {$geometry: point(0, 0)}}}))
+            result.match = await outcome((): unknown => sphere.aggregate([{$match: {loc: {$near: {$geometry: point(0, 0)}}}}]).toArray())
+            result.findOneAndUpdate = await outcome((): unknown => sphere.findOneAndUpdate({loc: {$near: {$geometry: point(0.1, 1)}}, _id: {$ne: 'm'}}, {$set: {touched: true}}, {projection: {_id: 1}}))
+            //The fields before the geo field of a compound index given by equalities
+            const compound: any = db.collection('compound')
+            await compound.createIndex({k: 1, loc: '2dsphere'})
+            await compound.insertMany([{_id: 1, k: 5, loc: point(0, 0)}, {_id: 2, k: 5}, {_id: 3, k: 6, loc: point(1, 1)}, {_id: 4, k: 5, loc: point(2, 2)}])
+            result.compoundNoEquality = await outcome(async (): Promise<unknown> => (await compound.find({loc: {$near: {$geometry: point(0, 0)}}}).toArray()).map((item: any): unknown => item._id))
+            result.compoundEquality = await outcome(async (): Promise<unknown> => (await compound.find({k: 5, loc: {$near: {$geometry: point(3, 3)}}}).toArray()).map((item: any): unknown => item._id))
+            result.compoundHinted = await outcome(async (): Promise<unknown> => (await compound.find({k: 5}, {hint: 'k_1_loc_2dsphere'}).toArray()).map((item: any): unknown => item._id))
+            //A 2d index: a plane, the sphere for $nearSphere
+            const flat: any = db.collection('flat')
+            await flat.createIndex({loc: '2d'})
+            await flat.insertMany([{_id: 'a', loc: [0, 0]}, {_id: 'b', loc: [3, 4]}, {_id: 'c', loc: {x: 1, y: 1.5}}, {_id: 'd', loc: [-179, 0]}, {_id: 'e', loc: [179, 0]},
+                {_id: 'f', loc: [[1, 0.2], [10, 10]]}, {_id: 'g'}, {_id: 'h', loc: 'str'}, {_id: 'i', loc: [0, 89]}])
+            const flatSteps: Record<string, unknown> = {
+                near: {loc: {$near: [0, 0]}}, max: {loc: {$near: [0, 0], $maxDistance: 2}}, min: {loc: {$near: [0, 0], $minDistance: 2}},
+                nearSphere: {loc: {$nearSphere: [0, 0], $maxDistance: 0.1}}, antimeridian: {loc: {$near: [180, 0], $maxDistance: 5}},
+                sphereAntimeridian: {loc: {$nearSphere: [180, 0], $maxDistance: 0.1}}, geoJSON: {loc: {$near: {$geometry: point(0, 0)}}},
+                sphereAcross: {loc: {$nearSphere: [180, 0]}}, sphereAcrossNorth: {loc: {$nearSphere: [-178, 60]}}
+            }
+            for (const [name, filter] of Object.entries(flatSteps))
+                result[`2d ${name}`] = await outcome(async (): Promise<unknown> => (await flat.find(filter, {projection: {d: {$meta: 'geoNearDistance'}}}).toArray()))
+            return result
+        }
+    },
+    {
+        group: 'geo',
+        name: 'the $geoNear stage: its options, the index of its field, its place in a pipeline',
+        async run({db}: CompatContext): Promise<Record<string, unknown>> {
+            const result: Record<string, unknown> = {}
+            const point = (x: number, y: number): unknown => ({type: 'Point', coordinates: [x, y]})
+            const sphere: any = db.collection('sphere')
+            await sphere.createIndex({loc: '2dsphere'})
+            await sphere.insertMany([
+                {_id: 'a', loc: point(0, 0)}, {_id: 'b', loc: point(0, 1), k: 5}, {_id: 'c', loc: [0, 2], k: 5},
+                {_id: 'd', loc: {type: 'LineString', coordinates: [[3, 0], [3, 10]]}}, {_id: 'e', loc: {type: 'Polygon', coordinates: [[[5, -1], [6, -1], [6, 1], [5, 1], [5, -1]]]}},
+                {_id: 'h', loc: point(0, 89.9)}, {_id: 'z'}
+            ])
+            const stages: Record<string, unknown[]> = {
+                geoNear: [{$geoNear: {near: point(0, 0), distanceField: 'dist', includeLocs: 'where'}}],
+                sphericalLegacy: [{$geoNear: {near: [0, 0], distanceField: 'dist', spherical: true, maxDistance: 0.04}}],
+                planeLegacy: [{$geoNear: {near: [0, 0], distanceField: 'dist', maxDistance: 0.04}}],
+                geoJSONNotSpherical: [{$geoNear: {near: point(0, 0), distanceField: 'dist', spherical: false}}, {$project: {dist: 1}}],
+                multiplier: [{$geoNear: {near: point(0, 0), distanceField: 'x.d', distanceMultiplier: 0.001, query: {_id: {$ne: 'a'}}, maxDistance: 300000, minDistance: 1}}],
+                key: [{$geoNear: {near: point(0, 0), distanceField: 'd', key: 'loc'}}, {$project: {d: 1}}],
+                badKey: [{$geoNear: {near: point(0, 0), distanceField: 'd', key: 'nope'}}],
+                afterEmptyMatch: [{$match: {}}, {$geoNear: {near: point(0, 0), distanceField: 'd'}}, {$project: {d: 1}}],
+                afterMatch: [{$match: {k: 5}}, {$geoNear: {near: point(0, 0), distanceField: 'd'}}],
+                inFacet: [{$facet: {x: [{$geoNear: {near: point(0, 0), distanceField: 'd'}}]}}],
+                noDistanceField: [{$geoNear: {near: point(0, 0)}}], noNear: [{$geoNear: {distanceField: 'd'}}],
+                unknownOption: [{$geoNear: {near: point(0, 0), distanceField: 'd', foo: 1}}], num: [{$geoNear: {near: point(0, 0), distanceField: 'd', num: 1}}],
+                limitOption: [{$geoNear: {near: point(0, 0), distanceField: 'd', limit: 1}}],
+                nearInQuery: [{$geoNear: {near: point(0, 0), distanceField: 'd', query: {loc: {$near: [0, 0]}}}}],
+                badNear: [{$geoNear: {near: 'x', distanceField: 'd'}}], latitudeOut: [{$geoNear: {near: point(0, 100), distanceField: 'd'}}],
+                negativeMax: [{$geoNear: {near: point(0, 0), distanceField: 'd', maxDistance: -1}}],
+                limited: [{$geoNear: {near: point(0, 0), distanceField: 'd'}}, {$limit: 2}, {$project: {d: 1}}],
+                meta: [{$geoNear: {near: point(0, 0), distanceField: 'd'}}, {$project: {d: 1, m: {$meta: 'geoNearDistance'}, p: {$meta: 'geoNearPoint'}}}],
+                queried: [{$geoNear: {near: point(0, 0), distanceField: 'd', query: {k: 5}}}, {$project: {d: 1}}]
+            }
+            for (const [name, pipeline] of Object.entries(stages)) result[name] = await outcome((): unknown => sphere.aggregate(pipeline).toArray())
+            result.inLookup = await outcome((): unknown => sphere.aggregate([{$match: {_id: 'a'}}, {$lookup: {from: 'sphere', pipeline: [{$geoNear: {near: point(0, 0), distanceField: 'd'}}, {$project: {d: 1}}], as: 'x'}}]).toArray())
+            result.inUnionWith = await outcome((): unknown => sphere.aggregate([{$match: {_id: 'a'}}, {$project: {_id: 1}}, {$unionWith: {coll: 'sphere', pipeline: [{$geoNear: {near: point(0, 0), distanceField: 'd'}}, {$project: {d: 1}}]}}]).toArray())
+            await db.createCollection('view', {viewOn: 'sphere', pipeline: [{$match: {k: 5}}]})
+            result.onView = await outcome((): unknown => db.collection('view').aggregate([{$geoNear: {near: point(0, 0), distanceField: 'd'}}]).toArray())
+            result.nearOnView = await outcome((): unknown => db.collection('view').find({loc: {$near: {$geometry: point(0, 0)}}}).toArray())
+            //A 2d index and a 2dsphere index: the 2d one first without a key; two 2dsphere indexes need a key
+            const both: any = db.collection('both')
+            await both.insertMany([{_id: 1, loc: [0, 0], loc2: [0, 0]}, {_id: 2, loc: [1, 1], loc2: [2, 2]}])
+            await both.createIndex({loc: '2d'})
+            await both.createIndex({loc2: '2dsphere'})
+            result.bothLegacy = await outcome((): unknown => both.aggregate([{$geoNear: {near: [0, 0], distanceField: 'd'}}]).toArray())
+            result.bothKey = await outcome((): unknown => both.aggregate([{$geoNear: {near: [0, 0], distanceField: 'd', key: 'loc2', spherical: true}}]).toArray())
+            result.bothGeoJSON = await outcome((): unknown => both.aggregate([{$geoNear: {near: point(0, 0), distanceField: 'd'}}]).toArray())
+            await both.createIndex({loc: '2dsphere'})
+            result.sameFieldLegacy = await outcome((): unknown => both.aggregate([{$geoNear: {near: [0, 0], distanceField: 'd'}}]).toArray())
+            result.sameFieldGeoJSON = await outcome((): unknown => both.aggregate([{$geoNear: {near: point(0, 0), distanceField: 'd'}}]).toArray())
+            const two: any = db.collection('two')
+            await two.insertOne({_id: 1, p: point(0, 0), q: point(1, 1)})
+            await two.createIndex({p: '2dsphere'})
+            await two.createIndex({q: '2dsphere'})
+            result.twoSpheres = await outcome((): unknown => two.aggregate([{$geoNear: {near: point(0, 0), distanceField: 'd'}}]).toArray())
+            result.twoSpheresKey = await outcome((): unknown => two.aggregate([{$geoNear: {near: point(0, 0), distanceField: 'd', key: 'q'}}]).toArray())
+            const none: any = db.collection('none')
+            await none.insertOne({_id: 1, loc: [0, 0]})
+            result.noIndex = await outcome((): unknown => none.aggregate([{$geoNear: {near: point(0, 0), distanceField: 'd'}}]).toArray())
+            return result
+        }
     }
 ]

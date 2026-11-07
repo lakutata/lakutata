@@ -9,7 +9,7 @@ import {
   resolveGraph,
   setValue
 } from '../../util/_internal.js'
-import { withTextScore } from '../../util/_meta.js'
+import { withMetadata } from '../../util/_meta.js'
 
 /**
  * Deconstructs an array field from the input documents to output a document for each element. Each output document replaces the array with an element value.
@@ -69,7 +69,7 @@ export function $unwind(
         } else {
           // construct a lazy sequence for elements per value
           value = Lazy(value).map(((item, i: number) => {
-            const newObj = withTextScore(obj, resolveGraph(obj, field, {
+            const newObj = withMetadata(obj, resolveGraph(obj, field, {
               preserveKeys: true
             }) as AnyObject)
             setValue(newObj, field, item)

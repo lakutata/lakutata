@@ -1,4 +1,5 @@
 import type { EmbeddedKeyEncoding, EmbeddedSortKeys } from './KeyEncoding.js'
+import { geoFieldsOf, isGeoIndex } from './Geo.js'
 import type { EmbeddedDocument } from './Values.js'
 
 /**
@@ -32,6 +33,14 @@ export interface EmbeddedIndex {
     default_language?: string
     language_override?: string
     textIndexVersion?: number
+    /**
+     * A 2dsphere index: its version (3); a 2d index: the bits of its hashes and the bounds of its coordinates, when they
+     * are given
+     */
+    '2dsphereIndexVersion'?: number
+    bits?: number
+    min?: number
+    max?: number
 }
 
 /**
@@ -216,7 +225,9 @@ export class EmbeddedPlanner {
             }
         if (hint) {
             const [path] = Object.keys(hint.key)
-            const [conditionPath, condition] = this.conditionOf(hint, conditions) ?? []
+            // A hinted geo index of a geo field first: all its keys (its keys are cells, not values)
+            const geo = geoFieldsOf(hint).some(([field]) => field === path)
+            const [conditionPath, condition] = (geo ? undefined : this.conditionOf(hint, conditions)) ?? []
             const plan = (condition && this.indexPlan(hint, conditionPath!, condition)) || {
                 kind: 'index' as const,
                 index: hint.name,
@@ -240,8 +251,8 @@ export class EmbeddedPlanner {
             return { kind: 'id', ids: ids.values, exact: alone && ids.complete }
         let best: { plan: EmbeddedPlan, score: number } | undefined
         for (const index of [this.idIndex(), ...this.collection.indexes]) {
-            // A text index serves the $text queries only (their own reads)
-            if (index.hidden || index.partialFilterExpression || index.key._fts === 'text') continue
+            // A text index serves the $text queries only (their own reads), a geo index the geo queries only
+            if (index.hidden || index.partialFilterExpression || index.key._fts === 'text' || isGeoIndex(index)) continue
             const [path] = Object.keys(index.key)
             const [conditionPath, condition] = this.conditionOf(index, conditions) ?? []
             if (!condition) continue
@@ -286,7 +297,7 @@ export class EmbeddedPlanner {
                 ? undefined
                 : { index: ID_INDEX, reverse: direction !== 1 }
         for (const index of this.collection.indexes) {
-            if (index.key._fts === 'text') continue
+            if (index.key._fts === 'text' || isGeoIndex(index)) continue
             const [path] = Object.keys(index.key)
             const indexDirection = this.directionOf(index.key[path])
             if (
