@@ -28,10 +28,20 @@ export interface SerialLineOptions {
     parity?: 'none' | 'even' | 'odd' | 'mark' | 'space'
 
     /**
-     * Its flow control: by the RTS and CTS lines (hardware), by the XON and XOFF characters (software), or none.
+     * Its flow control: by the RTS and CTS lines (hardware), by the XON and XOFF characters (software), by the DTR
+     * and DSR lines (Windows and macOS; Linux has none), or none. With XON/XOFF a received 0x13 stops the output: a
+     * device that sends binary data (a printer's status) wants a hardware one. A printer set to DTR/DSR on a cable
+     * that wires its DTR to the CTS of the computer works with `'rts/cts'` too.
      * @default 'none'
      */
-    flowControl?: 'none' | 'rts/cts' | 'xon/xoff'
+    flowControl?: 'none' | 'rts/cts' | 'xon/xoff' | 'dtr/dsr'
+
+    /**
+     * How long the output may stop moving (a device holding CTS low, a printer out of paper) before a write or a
+     * drain fails with `'ETIMEDOUT'`, in milliseconds; 0 waits as long as it takes.
+     * @default 0
+     */
+    stallTimeout?: number
 }
 
 /**
@@ -48,6 +58,41 @@ export interface SerialPortOptions extends SerialLineOptions {
      * @default true
      */
     exclusive?: boolean
+
+    /**
+     * How long the opening may take, in milliseconds (a Bluetooth port connects to its device when it is opened).
+     * @default 30000
+     */
+    openTimeout?: number
+}
+
+/**
+ * The options of a drain.
+ */
+export interface SerialDrainOptions {
+    /**
+     * How long the output may stop moving before the drain fails with `'ETIMEDOUT'`, in milliseconds (0: no limit).
+     * @default the stallTimeout of the port
+     */
+    stallTimeout?: number
+
+    /**
+     * How long the drain may take in all before it fails with `'ETIMEDOUT'`, in milliseconds (0: no limit).
+     * @default 0
+     */
+    timeout?: number
+}
+
+/**
+ * The options of a closing.
+ */
+export interface SerialCloseOptions {
+    /**
+     * How long the output may stop moving before the closing gives up on it: the data not sent are discarded, the port
+     * is closed, and the closing rejects with `'ETIMEDOUT'`; in milliseconds (0: wait as long as it takes).
+     * @default 10000
+     */
+    stallTimeout?: number
 }
 
 /**
@@ -83,6 +128,12 @@ export interface SerialPortInfo {
      * Its product name (its friendly name on Windows).
      */
     product?: string
+
+    /**
+     * A path of the port that stays the same when the device is plugged again (Linux: its link in
+     * `/dev/serial/by-id`).
+     */
+    stablePath?: string
 }
 
 /**
@@ -115,7 +166,7 @@ export interface SerialSignals {
  */
 export interface SerialSignalOptions {
     /**
-     * Data Terminal Ready.
+     * Data Terminal Ready (not with the DTR/DSR flow control, which drives it).
      */
     dtr?: boolean
 

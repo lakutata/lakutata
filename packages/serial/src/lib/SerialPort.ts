@@ -1,22 +1,31 @@
 import {Duplex} from 'node:stream'
-import {setTimeout as sleep} from 'node:timers/promises'
 import {SerialException} from '../exceptions/SerialException.js'
-import {exceptionOf, type LineSettings, native, type NativePort, settingsOf} from './Native.js'
-import type {SerialLineOptions, SerialPortOptions, SerialSignalOptions, SerialSignals} from './Types.js'
+import {exceptionOf, invalid, type LineSettings, native, PortClient, settingsOf} from './Native.js'
+import type {
+    SerialCloseOptions,
+    SerialDrainOptions,
+    SerialLineOptions,
+    SerialPortOptions,
+    SerialSignalOptions,
+    SerialSignals
+} from './Types.js'
 
 /**
- * The size of the buffer of the reads
+ * How long a closing waits for an output that stopped moving, by default
  */
-const READ_SIZE: number = 16384
+const CLOSE_STALL: number = 10000
 
 /**
- * An open serial port: a stream whose writes are sent on the line and whose reads are what the line receives. Its
- * `end()` waits for its data to be sent (`'finish'`), its `close()` closes it, its `destroy()` closes it at once (the
- * data not sent yet discarded). Opened by {@link openSerialPort}.
+ * An open serial port: a stream whose writes are sent on the line and whose reads are what the line receives. Each
+ * port has a thread of its own for its reads, writes and settings. Its `end()` waits for its data to be sent
+ * (`'finish'`), its `close()` closes it once they are sent, its `destroy()` closes it at once (the data not sent
+ * discarded). When the device goes away the stream fails (`'error'`, a `SerialException` whose `disconnected` is true),
+ * so an `'error'` listener is needed. Opened by {@link openSerialPort}.
  * @example
  * ```typescript
  * import {openSerialPort} from '@lakutata/serial'
  * const port = await openSerialPort({path: '/dev/ttyUSB0', baudRate: 115200})
+ * port.on('error', (error: Error) => console.error(error))
  * port.on('data', (data: Buffer) => console.log(data))
  * port.write('AT\r')
  * ```
@@ -27,25 +36,36 @@ export class SerialPort extends Duplex {
      */
     public readonly path: string
 
-    readonly #port: NativePort
+    readonly #client: PortClient
 
     #settings: LineSettings
 
     #reading: boolean = false
 
-    #closed: Promise<void> | undefined
+    #closeStall: number | undefined
+
+    #closing: Promise<void> | undefined
 
     /**
-     * A port opened by the addon (opened by {@link openSerialPort}, not constructed directly).
+     * A port opened by its thread (opened by {@link openSerialPort}, not constructed directly).
      * @param path Its path.
-     * @param port The port of the addon.
+     * @param client The requests to its thread.
      * @param settings The settings of its line.
      */
-    constructor(path: string, port: object, settings: Required<SerialLineOptions>) {
+    constructor(path: string, client: object, settings: Required<SerialLineOptions>) {
         super({allowHalfOpen: true})
         this.path = path
-        this.#port = port
+        this.#client = client as PortClient
         this.#settings = settings
+        this.#client.onData = (data: Buffer): void => {
+            if (!this.push(data)) this.#read(false)
+        }
+        this.#client.onFatal = (error: unknown): void => {
+            this.destroy(exceptionOf(error, `The serial port ${this.path} failed`))
+        }
+        if (this.#client.fatal) process.nextTick((): void => {
+            this.destroy(exceptionOf(this.#client.fatal, `The serial port ${this.path} failed`))
+        })
     }
 
     /**
@@ -63,18 +83,19 @@ export class SerialPort extends Duplex {
     }
 
     /**
-     * Change the settings of its line (the ones given; the others stay).
+     * Change the settings of its line (the ones given; the others stay), after the writes before it are sent.
      * @param options The settings.
-     * @throws {SerialException} The port or the system refuses them.
+     * @returns Once they are set.
+     * @throws {SerialException} The port or the system refuses them (`'EINVAL'`).
      * @example
      * ```typescript
-     * port.update({baudRate: 38400})
+     * await port.update({baudRate: 38400})
      * ```
      */
-    public update(options: SerialLineOptions): void {
+    public async update(options: SerialLineOptions): Promise<void> {
         const settings: LineSettings = settingsOf(options, this.#settings)
         try {
-            native.configure(this.#port, settings)
+            await this.#client.request((id: number): void => native.configure(this.#client.port, id, settings))
         } catch (error) {
             throw exceptionOf(error, `The serial port ${this.path} refuses the settings`)
         }
@@ -84,15 +105,15 @@ export class SerialPort extends Duplex {
     /**
      * The input lines of its modem.
      * @returns CTS, DSR, DCD and RI.
-     * @throws {SerialException} The port has no modem lines (a pseudo-terminal).
+     * @throws {SerialException} The port has no modem lines (a pseudo-terminal, some USB devices).
      * @example
      * ```typescript
-     * const {cts, dsr} = port.getSignals()
+     * const {cts, dsr} = await port.getSignals()
      * ```
      */
-    public getSignals(): SerialSignals {
+    public async getSignals(): Promise<SerialSignals> {
         try {
-            return native.signals(this.#port)
+            return await this.#client.request<SerialSignals>((id: number): void => native.signals(this.#client.port, id))
         } catch (error) {
             throw exceptionOf(error, `The lines of the serial port ${this.path} cannot be read`)
         }
@@ -100,17 +121,18 @@ export class SerialPort extends Duplex {
 
     /**
      * Set output lines of its modem (the ones given).
-     * @param signals DTR, RTS, a break.
-     * @throws {SerialException} The port has no modem lines.
+     * @param signals DTR, RTS (not with the RTS/CTS flow control, which drives it), a break.
+     * @returns Once they are set.
+     * @throws {SerialException} The port has no modem lines, or RTS is driven by the flow control (`'EINVAL'`).
      * @example
      * ```typescript
-     * port.setSignals({dtr: false})
+     * await port.setSignals({dtr: false})
      * ```
      */
-    public setSignals(signals: SerialSignalOptions): void {
+    public async setSignals(signals: SerialSignalOptions): Promise<void> {
         const level = (value: boolean | undefined): number => value === undefined ? -1 : value ? 1 : 0
         try {
-            native.setSignals(this.#port, level(signals.dtr), level(signals.rts), level(signals.break))
+            await this.#client.request((id: number): void => native.setSignals(this.#client.port, id, level(signals.dtr), level(signals.rts), level(signals.break)))
         } catch (error) {
             throw exceptionOf(error, `The lines of the serial port ${this.path} cannot be set`)
         }
@@ -118,148 +140,174 @@ export class SerialPort extends Duplex {
 
     /**
      * Wait for the data written so far to be sent on the line.
+     * @param options How long the output may stop moving, and how long the wait may last.
      * @returns Once they are sent.
+     * @throws {SerialException} The output stopped moving, or took too long (`'ETIMEDOUT'`); the data stay queued.
      * @example
      * ```typescript
      * port.write(Buffer.from([0x1B, 0x40]))
-     * await port.drain()
+     * await port.drain({stallTimeout: 5000})
      * ```
      */
-    public async drain(): Promise<void> {
-        //The writes queued in the stream, then the output of the system
+    public async drain(options: SerialDrainOptions = {}): Promise<void> {
+        //The writes queued in the stream first
         if (this.writableLength > 0) {
             await new Promise<void>((resolve, reject): void => {
                 this.write(Buffer.alloc(0), (error?: Error | null): void => error ? reject(error) : resolve())
             })
         }
+        const stall: number = options.stallTimeout ?? this.#settings.stallTimeout
+        const limit: number = options.timeout ?? 0
+        if (!(stall >= 0) || !(limit >= 0)) throw invalid('The times of a drain are numbers of milliseconds')
         try {
-            await native.drain(this.#port)
+            await this.#client.request((id: number): void => native.drain(this.#client.port, id, stall, limit))
         } catch (error) {
-            throw exceptionOf(error, `The output of the serial port ${this.path} cannot be waited for`)
+            throw exceptionOf(error, `The output of the serial port ${this.path} was not sent`)
         }
     }
 
     /**
-     * Discard the data received and not read yet, and the data written and not sent yet.
+     * Discard the data received and not read yet, and the data handed to the system and not sent yet.
      * @param which What is discarded.
+     * @returns Once they are discarded.
      * @example
      * ```typescript
-     * port.flush('input')
+     * await port.flush('input')
      * ```
      */
-    public flush(which: 'input' | 'output' | 'both' = 'both'): void {
+    public async flush(which: 'input' | 'output' | 'both' = 'both'): Promise<void> {
         try {
-            native.flush(this.#port, which !== 'output', which !== 'input')
+            await this.#client.request((id: number): void => native.flush(this.#client.port, id, which !== 'output', which !== 'input'))
         } catch (error) {
             throw exceptionOf(error, `The serial port ${this.path} cannot be flushed`)
         }
     }
 
     /**
-     * Close it once its data are sent.
+     * Close it once its data are sent. When the output stops moving for longer than `stallTimeout` (a device holding
+     * CTS low, a printer out of paper), the data left are discarded, the port is closed, and the closing rejects.
+     * @param options How long the output may stop moving.
      * @returns Once it is closed.
+     * @throws {SerialException} The output had to be discarded (`'ETIMEDOUT'`), or the port failed; it is closed.
      * @example
      * ```typescript
      * port.write('bye\r')
      * await port.close()
      * ```
      */
-    public close(): Promise<void> {
-        return this.#closed ??= new Promise<void>((resolve, reject): void => {
+    public close(options: SerialCloseOptions = {}): Promise<void> {
+        const stall: number = options.stallTimeout ?? CLOSE_STALL
+        if (!(stall >= 0)) return Promise.reject(invalid('The stall timeout of a closing is a number of milliseconds'))
+        this.#closeStall = stall
+        //A write stuck on a stopped output never lets the stream reach its end (_final): a drain sent now bounds it, the
+        //write failing once the output stopped for that long
+        if (!this.destroyed && !this.#client.closed) this.#client.request((id: number): void => native.drain(this.#client.port, id, stall, 0)).catch((): void => undefined)
+        return this.#closing ??= new Promise<void>((resolve, reject): void => {
+            let failure: Error | undefined
+            const failed = (error: Error): void => {
+                failure = error
+            }
+            this.on('error', failed)
             const closed = (): void => {
                 this.off('error', failed)
-                resolve()
+                if (failure) reject(failure)
+                else resolve()
             }
-            const failed = (error: Error): void => {
-                this.off('close', closed)
-                reject(error)
-            }
+            if (this.closed) return closed()
             this.once('close', closed)
-            this.once('error', failed)
             if (this.destroyed) return
-            if (this.writableEnded) {
+            if (this.writableFinished) {
                 this.destroy()
                 return
             }
-            this.end((): void => {
-                this.destroy()
+            //Ended: closed; a failure (the output stopped, the device gone) destroys the stream with its error
+            this.end((error?: Error | null): void => {
+                if (!error) this.destroy()
             })
         })
     }
 
+    #read(wanted: boolean): void {
+        if (wanted === this.#reading || this.#client.closed) return
+        this.#reading = wanted
+        try {
+            native.read(this.#client.port, wanted)
+        } catch {
+            //Closed meanwhile
+        }
+    }
+
+    #write(data: Buffer, callback: (error?: Error | null) => void): void {
+        this.#client.request((id: number): void => native.write(this.#client.port, id, data)).then(
+            (): void => callback(),
+            (error: unknown): void => callback(exceptionOf(error, `The serial port ${this.path} cannot be written`))
+        )
+    }
+
     /**
-     * A write: sent in slices until all of it is taken
+     * A write: sent by the thread of the port
      * @param chunk
      * @param _encoding
      * @param callback
      * @protected
      */
     public _write(chunk: Buffer, _encoding: BufferEncoding, callback: (error?: Error | null) => void): void {
-        void (async (): Promise<void> => {
-            let offset: number = 0
-            while (offset < chunk.length) {
-                if (this.destroyed) throw new SerialException(`The serial port ${this.path} is closed`)
-                offset += await native.write(this.#port, chunk.subarray(offset))
-            }
-        })().then((): void => callback(), (error: unknown): void => callback(exceptionOf(error, `The serial port ${this.path} cannot be written`)))
+        this.#write(chunk, callback)
     }
 
     /**
-     * The end of the writes: once their data are sent on the line
+     * The writes queued meanwhile: sent as one
+     * @param chunks
+     * @param callback
+     * @protected
+     */
+    public _writev(chunks: Array<{chunk: Buffer, encoding: BufferEncoding}>, callback: (error?: Error | null) => void): void {
+        this.#write(Buffer.concat(chunks.map((entry: {chunk: Buffer}): Buffer => entry.chunk)), callback)
+    }
+
+    /**
+     * The end of the writes: once their data are sent on the line, or the output stopped for too long
      * @param callback
      * @protected
      */
     public _final(callback: (error?: Error | null) => void): void {
-        native.drain(this.#port).then((): void => callback(), (error: unknown): void => callback(exceptionOf(error, `The output of the serial port ${this.path} cannot be waited for`)))
+        const stall: number = this.#closeStall ?? this.#settings.stallTimeout
+        this.#client.request((id: number): void => native.drain(this.#client.port, id, stall, 0)).then(
+            (): void => callback(),
+            (error: unknown): void => callback(exceptionOf(error, `The output of the serial port ${this.path} was not sent`))
+        )
     }
 
     /**
-     * The reads: a loop of slices while the reader wants data
+     * The reads: the thread reads while the reader wants data
      * @protected
      */
     public _read(): void {
-        if (this.#reading) return
-        this.#reading = true
-        void (async (): Promise<void> => {
-            const buffer: Buffer = Buffer.allocUnsafe(READ_SIZE)
-            try {
-                while (!this.destroyed) {
-                    const started: number = Date.now()
-                    const length: number = await native.read(this.#port, buffer)
-                    if (this.destroyed) break
-                    if (length === 0) {
-                        //Nothing came within the slice; a slice ended early with nothing (the system woke it) waits a bit
-                        if (Date.now() - started < 20) await sleep(20)
-                        continue
-                    }
-                    if (!this.push(Buffer.from(buffer.subarray(0, length)))) break
-                }
-            } catch (error) {
-                if (!this.destroyed) this.destroy(exceptionOf(error, `The serial port ${this.path} cannot be read`))
-            } finally {
-                this.#reading = false
-            }
-        })()
+        this.#read(true)
     }
 
     /**
-     * The closing: the operations running end within their slice, the data not sent are discarded unless the writes
-     * ended
+     * The closing: by the thread of the port, the data not sent discarded unless the writes ended
      * @param error
      * @param callback
      * @protected
      */
     public _destroy(error: Error | null, callback: (error?: Error | null) => void): void {
-        native.close(this.#port, !this.writableFinished).then((): void => callback(error), (closing: unknown): void => callback(error ?? exceptionOf(closing, `The serial port ${this.path} cannot be closed`)))
+        if (this.#client.closed) return callback(error)
+        this.#client.request((id: number): void => native.close(this.#client.port, id, !this.writableFinished), true).then(
+            (): void => callback(error),
+            (closing: unknown): void => callback(error ?? exceptionOf(closing, `The serial port ${this.path} cannot be closed`))
+        )
     }
 }
 
 /**
  * Open a serial port, its line set as given.
- * @param options Its path and the settings of its line.
+ * @param options Its path, the settings of its line, the time the opening may take.
  * @returns The port, a stream.
  * @throws {SerialException} The port cannot be opened (`code`: `'ENOENT'` no such port, `'EBUSY'` open elsewhere,
- * `'EACCES'` not allowed, `'ENOTTY'` not a serial port) or refuses the settings (`'EINVAL'`).
+ * `'EACCES'` not allowed, `'ENOTTY'` not a serial port, `'ETIMEDOUT'` the opening took too long) or refuses the
+ * settings (`'EINVAL'`).
  * @example
  * ```typescript
  * import {openSerialPort} from '@lakutata/serial'
@@ -269,15 +317,34 @@ export class SerialPort extends Duplex {
  * ```
  */
 export async function openSerialPort(options: SerialPortOptions): Promise<SerialPort> {
-    if (!options || typeof options.path !== 'string' || !options.path) {
-        const exception: SerialException = new SerialException('A serial port is opened by its path')
-        exception.code = 'EINVAL'
-        throw exception
-    }
+    if (!options || typeof options.path !== 'string' || !options.path) throw invalid('A serial port is opened by its path')
     const settings: LineSettings = settingsOf(options)
+    const timeout: number = options.openTimeout ?? 30000
+    if (!(timeout >= 0)) throw invalid('The open timeout is a number of milliseconds')
+    let client: PortClient
     try {
-        return new SerialPort(options.path, await native.open(options.path, settings, options.exclusive ?? true), settings)
+        client = new PortClient(options.path, settings, options.exclusive ?? true)
     } catch (error) {
         throw exceptionOf(error, `The serial port ${options.path} cannot be opened`)
     }
+    let timer: NodeJS.Timeout | undefined
+    try {
+        await Promise.race([
+            client.ready,
+            new Promise<never>((_resolve, reject): void => {
+                if (timeout > 0) timer = setTimeout((): void => {
+                    const exception: SerialException = new SerialException(`The serial port ${options.path} did not open within ${timeout} ms`)
+                    exception.code = 'ETIMEDOUT'
+                    reject(exception)
+                }, timeout)
+            })
+        ])
+    } catch (error) {
+        //Its thread closes it once the opening returns
+        if (!client.closed) client.request((id: number): void => native.close(client.port, id, true), true).catch((): void => undefined)
+        throw exceptionOf(error, `The serial port ${options.path} cannot be opened`)
+    } finally {
+        clearTimeout(timer)
+    }
+    return new SerialPort(options.path, client, settings)
 }

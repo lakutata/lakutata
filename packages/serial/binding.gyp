@@ -1,11 +1,11 @@
-# The build of the addon of @lakutata/serial by node-gyp, when the package is installed: the settings of the line and the
-# reads and writes of the ports (termios on Linux and macOS, the communications API on Windows), their listing (IOKit on
-# macOS, SetupAPI on Windows; Linux lists them in JavaScript from sysfs).
+# The build of the addon of @lakutata/serial by node-gyp, when the package is installed: one thread for each open port,
+# its settings, reads and writes (termios and poll on Linux and macOS, overlapped operations on Windows), and the listing
+# of the ports (IOKit on macOS, SetupAPI on Windows; Linux lists them in JavaScript from sysfs).
 {
   'targets': [
     {
       'target_name': 'serial',
-      'sources': ['native/addon.cpp', 'native/Unix.cpp', 'native/Linux.cpp', 'native/Windows.cpp'],
+      'sources': ['native/addon.cpp', 'native/Session.cpp', 'native/Unix.cpp', 'native/Linux.cpp', 'native/Windows.cpp'],
       'include_dirs': ["<!(node -p \"require('node-addon-api').include_dir\")"],
       # A worker thread terminated while an error is thrown to it: node-addon-api would throw a C++ exception no one
       # catches (std::terminate) where the environment refuses the JavaScript one; it lets it go instead
@@ -31,7 +31,7 @@
               'AdditionalOptions': ['/utf-8']
             }
           },
-          'link_settings': {'libraries': ['setupapi.lib', 'advapi32.lib']}
+          'link_settings': {'libraries': ['setupapi.lib', 'cfgmgr32.lib', 'advapi32.lib']}
         }]
       ]
     }

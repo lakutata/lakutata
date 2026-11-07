@@ -159,6 +159,30 @@ describe('The thermal printer component', (): void => {
         }
     })
 
+    it('fails a print the printer stops taking (out of paper) within its stall timeout', async (): Promise<void> => {
+        //A printer that reads nothing: its buffers fill, then the connection takes no more
+        const sockets: Socket[] = []
+        const server: Server = createServer((socket: Socket): void => {
+            socket.pause()
+            sockets.push(socket)
+        })
+        await new Promise<void>((resolve): void => {
+            server.listen(0, '127.0.0.1', resolve)
+        })
+        const {printers, container} = await component({printers: {jammed: {connection: {type: 'network', host: '127.0.0.1', port: (server.address() as AddressInfo).port}, stallTimeout: 500}}})
+        try {
+            const started: number = Date.now()
+            await assert.rejects(printers.print('jammed', Buffer.alloc(64 * 1024 * 1024)), (error: Error): boolean => error instanceof ThermalPrinterConnectionException && /took no data/.test(error.message))
+            assert.ok(Date.now() - started < 10000, `failed in ${Date.now() - started} ms`)
+        } finally {
+            await container.destroy()
+            for (const socket of sockets) socket.destroy()
+            await new Promise<void>((resolve): void => {
+                server.close((): void => resolve())
+            })
+        }
+    })
+
     it('paces a slow link to its bytes a second', async (): Promise<void> => {
         const printer = await fakePrinter()
         const {printers, container} = await component({printers: {slow: {connection: {type: 'network', host: '127.0.0.1', port: printer.port}, bytesPerSecond: 20000}}})

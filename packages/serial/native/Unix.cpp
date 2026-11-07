@@ -1,11 +1,13 @@
 #ifndef _WIN32
 
 #include "Port.h"
+#include "Session.h"
 
 #include <cerrno>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
-#include <thread>
+#include <future>
 #include <fcntl.h>
 #include <poll.h>
 #include <termios.h>
@@ -26,11 +28,33 @@
 namespace serial {
 
     namespace {
-        //The slice of the reads and the writes: an operation returns within it, then its next one is queued
-        constexpr int SLICE = 100;
+        //The bytes a drain cannot see once the queue of the system is empty: the FIFO of a USB adapter's chip on Linux
+        //(its URBs are counted), the queue of the driver too on macOS (TIOCOUTQ counts the tty's queue only)
+#ifdef __APPLE__
+        constexpr size_t ALLOWANCE = 4096;
+#else
+        constexpr size_t ALLOWANCE = 1024;
+#endif
 
         [[noreturn]] void fail(const char *syscall, int code = errno) {
-            throw Failure{code, syscall, ""};
+            throw Failure{code, syscall, "", "", false};
+        }
+
+        /**
+         * A failure of a read or a write: the device gone for the errors of an unplugged adapter or a hang-up
+         */
+        Failure ioFailure(const char *syscall, int code) {
+            const bool gone = code == EIO || code == ENXIO || code == ENODEV || code == EBADF;
+            return Failure{code, syscall, gone ? "The device is gone (" + std::string(std::strerror(code)) + ")" : "", "", gone};
+        }
+
+        Failure hangUp() {
+            return Failure{EIO, "read", "The device is gone (the line hung up)", "", true};
+        }
+
+        void nonBlocking(int fd) {
+            fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+            fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
         }
 
         struct Speed {
@@ -91,207 +115,398 @@ namespace serial {
         }
 
         /**
-         * Wait for the port to be readable or writable within a time, ending early when it is closed
+         * The device of a port on Linux and macOS: a terminal (its settings by termios), opened without waiting for
+         * a carrier and kept non-blocking, its waits done by poll
          */
-        bool ready(Port &port, short events, int timeout) {
-            struct pollfd entry = {port.fd, events, 0};
-            int result;
-            do {
-                result = poll(&entry, 1, timeout);
-            } while (result < 0 && errno == EINTR);
-            if (result < 0) fail("poll");
-            if (result == 0) return false;
-            if (entry.revents & POLLNVAL) fail("poll", EBADF);
-            //A hang-up with data still to read: read them first
-            if ((entry.revents & (POLLERR | POLLHUP)) && !(entry.revents & events)) fail("poll", EIO);
-            return true;
-        }
-    }
+        class UnixDevice : public Device {
+        public:
+            explicit UnixDevice(Port &port) : port(port), options(port.options) {}
 
-    void openPort(Port &port, const LineOptions &options, bool exclusive) {
-        //Not waiting for the carrier (O_NONBLOCK), not becoming the terminal of the process (O_NOCTTY); the descriptor
-        //stays non-blocking, its reads and writes waited for by poll
-        int fd;
-        do {
-            fd = open(port.path.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC);
-        } while (fd < 0 && errno == EINTR);
-        if (fd < 0) fail("open");
-        port.fd = fd;
-        try {
-            if (!isatty(fd)) fail("open", ENOTTY);
-            if (exclusive) {
-                //Exclusive for the openings of the other programs (TIOCEXCL, which macOS ignores on pseudo-terminals)
-                //and for the ones that lock it too (flock: this package, the other libraries of serial ports)
+            void open() {
+                //Not waiting for the carrier (O_NONBLOCK), not becoming the terminal of the process (O_NOCTTY)
+                int fd;
+                do {
+                    fd = ::open(port.path.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC);
+                } while (fd < 0 && errno == EINTR);
+                if (fd < 0) fail("open");
+                port.fd = fd;
+                try {
+                    if (!isatty(fd)) fail("open", ENOTTY);
+                    if (port.exclusive) {
+                        //The lock first, before anything of the terminal changes (the other libraries of serial ports
+                        //lock it too), then the exclusive mode of the terminal for the programs that do not lock; a
+                        //system without locks for the device (some mounts of /dev) is left to the exclusive mode
+                        if (flock(fd, LOCK_EX | LOCK_NB) < 0 && errno == EWOULDBLOCK) fail("flock", EBUSY);
 #ifdef TIOCEXCL
-                if (ioctl(fd, TIOCEXCL) < 0) fail("ioctl");
+                        if (ioctl(fd, TIOCEXCL) == 0) port.locked = true;
+                        else if (errno != ENOTTY && errno != EINVAL) fail("ioctl");
 #endif
-                if (flock(fd, LOCK_EX | LOCK_NB) < 0) fail("flock", errno == EWOULDBLOCK ? EBUSY : errno);
+                    }
+                    configure(options);
+                    //What the adapter still held from before: some hand it over a few milliseconds after the opening
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                    tcflush(fd, TCIOFLUSH);
+                } catch (...) {
+                    release();
+                    ::close(fd);
+                    port.fd = -1;
+                    throw;
+                }
             }
-            configurePort(port, options);
-            tcflush(fd, TCIOFLUSH);
-        } catch (...) {
-            close(fd);
-            port.fd = -1;
-            throw;
-        }
-    }
 
-    void configurePort(Port &port, const LineOptions &options) {
-        struct termios settings;
-        if (tcgetattr(port.fd, &settings) < 0) fail("tcgetattr");
-        cfmakeraw(&settings);
-        settings.c_cflag |= CLOCAL | CREAD;
-        settings.c_cflag &= ~(CSIZE | CSTOPB | PARENB | PARODD);
+            void close(bool discard) {
+                if (port.fd < 0) return;
+                //The input left discarded (some drivers of macOS crash on a close with input unread), and the output
+                //when it is given up: a close would wait for it (up to 30 seconds on Linux)
+                tcflush(port.fd, discard ? TCIOFLUSH : TCIFLUSH);
+                release();
+                ::close(port.fd);
+                port.fd = -1;
+            }
+
+            void configure(const LineOptions &next) override {
+                struct termios settings;
+                if (tcgetattr(port.fd, &settings) < 0) fail("tcgetattr");
+                cfmakeraw(&settings);
+                //What cfmakeraw leaves of the input processing, and the flow controls by other lines of macOS
+                settings.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON | IXOFF | IXANY | INPCK | IGNPAR);
+#ifdef IUCLC
+                settings.c_iflag &= ~IUCLC;
+#endif
+#ifdef IMAXBEL
+                settings.c_iflag &= ~IMAXBEL;
+#endif
+                settings.c_cflag |= CLOCAL | CREAD;
+                settings.c_cflag &= ~(CSIZE | CSTOPB | PARENB | PARODD);
+#ifdef CIBAUD
+                //An input speed of its own (left by a custom speed) cleared: the input follows the output
+                settings.c_cflag &= ~CIBAUD;
+#endif
 #ifdef CMSPAR
-        settings.c_cflag &= ~CMSPAR;
+                settings.c_cflag &= ~CMSPAR;
 #endif
-        switch (options.dataBits) {
-            case 5:
-                settings.c_cflag |= CS5;
-                break;
-            case 6:
-                settings.c_cflag |= CS6;
-                break;
-            case 7:
-                settings.c_cflag |= CS7;
-                break;
-            default:
-                settings.c_cflag |= CS8;
-        }
-        if (options.stopBits == 15) throw Failure{EINVAL, "tcsetattr", "1.5 stop bits are offered on Windows only"};
-        if (options.stopBits == 2) settings.c_cflag |= CSTOPB;
-        switch (options.parity) {
-            case 'e':
-                settings.c_cflag |= PARENB;
-                break;
-            case 'o':
-                settings.c_cflag |= PARENB | PARODD;
-                break;
-            case 'm':
-            case 's':
+#ifdef CRTSCTS
+                settings.c_cflag &= ~CRTSCTS;
+#endif
+#ifdef CDTR_IFLOW
+                settings.c_cflag &= ~CDTR_IFLOW;
+#endif
+#ifdef CDSR_OFLOW
+                settings.c_cflag &= ~CDSR_OFLOW;
+#endif
+#ifdef CCAR_OFLOW
+                settings.c_cflag &= ~CCAR_OFLOW;
+#endif
+                switch (next.dataBits) {
+                    case 5:
+                        settings.c_cflag |= CS5;
+                        break;
+                    case 6:
+                        settings.c_cflag |= CS6;
+                        break;
+                    case 7:
+                        settings.c_cflag |= CS7;
+                        break;
+                    default:
+                        settings.c_cflag |= CS8;
+                }
+                if (next.stopBits == 15) throw Failure{EINVAL, "tcsetattr", "1.5 stop bits are offered on Windows only", "", false};
+                if (next.stopBits == 2) settings.c_cflag |= CSTOPB;
+                switch (next.parity) {
+                    case 'e':
+                        settings.c_cflag |= PARENB;
+                        break;
+                    case 'o':
+                        settings.c_cflag |= PARENB | PARODD;
+                        break;
+                    case 'm':
+                    case 's':
 #ifdef CMSPAR
-                settings.c_cflag |= PARENB | CMSPAR | (options.parity == 'm' ? PARODD : 0);
-                break;
+                        settings.c_cflag |= PARENB | CMSPAR | (next.parity == 'm' ? PARODD : 0);
+                        break;
 #else
-                throw Failure{EINVAL, "tcsetattr", "the mark and space parities are not offered on this system"};
+                        throw Failure{EINVAL, "tcsetattr", "The mark and space parities are not offered on this system", "", false};
 #endif
-            default:
-                break;
-        }
-        settings.c_iflag &= ~(IXON | IXOFF | IXANY);
+                    default:
+                        break;
+                }
+                if (next.flowControl == 1) {
 #ifdef CRTSCTS
-        settings.c_cflag &= ~CRTSCTS;
-#endif
-        if (options.flowControl == 1) {
-#ifdef CRTSCTS
-            settings.c_cflag |= CRTSCTS;
+                    settings.c_cflag |= CRTSCTS;
 #else
-            throw Failure{EINVAL, "tcsetattr", "the RTS/CTS flow control is not offered on this system"};
+                    throw Failure{EINVAL, "tcsetattr", "The RTS/CTS flow control is not offered on this system", "", false};
 #endif
-        } else if (options.flowControl == 2) {
-            settings.c_iflag |= IXON | IXOFF;
-            settings.c_cc[VSTART] = 0x11;
-            settings.c_cc[VSTOP] = 0x13;
-        }
-        settings.c_cc[VMIN] = 0;
-        settings.c_cc[VTIME] = 0;
-        speed_t constant;
-        const bool standard = constantOf(options.baudRate, constant);
-        if (standard) {
-            cfsetispeed(&settings, constant);
-            cfsetospeed(&settings, constant);
-        } else {
-#if !defined(__linux__) && !(defined(__APPLE__) && TARGET_OS_OSX)
-            throw Failure{EINVAL, "tcsetattr", "the speed is not one of the system"};
+                } else if (next.flowControl == 2) {
+                    settings.c_iflag |= IXON | IXOFF;
+                    settings.c_cc[VSTART] = 0x11;
+                    settings.c_cc[VSTOP] = 0x13;
+                } else if (next.flowControl == 3) {
+#if defined(CDSR_OFLOW) && defined(CDTR_IFLOW)
+                    settings.c_cflag |= CDSR_OFLOW | CDTR_IFLOW;
+#else
+                    throw Failure{EINVAL, "tcsetattr", "The DTR/DSR flow control is not offered on this system", "", false};
 #endif
-        }
-        if (tcsetattr(port.fd, TCSANOW, &settings) < 0) fail("tcsetattr");
-        if (!standard) {
+                }
+                //A read of an empty queue fails with EAGAIN (the descriptor is non-blocking), so that a read of 0 bytes
+                //only means a hang-up (with VMIN 0 an emptied queue, by a flush or another reader, reads 0 too)
+                settings.c_cc[VMIN] = 1;
+                settings.c_cc[VTIME] = 0;
+                speed_t constant;
+                const bool standard = constantOf(next.baudRate, constant);
+                if (standard) {
+                    if (cfsetispeed(&settings, constant) < 0 || cfsetospeed(&settings, constant) < 0) fail("cfsetspeed");
+                } else {
 #if defined(__APPLE__) && TARGET_OS_OSX
-            speed_t speed = options.baudRate;
-            if (ioctl(port.fd, IOSSIOSPEED, &speed) < 0) fail("ioctl");
+                    //The driver refuses a speed outside its table in tcsetattr, the custom one set by IOSSIOSPEED
+                    //included (tcgetattr reads it back): a speed of the table first, the custom one after
+                    if (cfsetispeed(&settings, B9600) < 0 || cfsetospeed(&settings, B9600) < 0) fail("cfsetspeed");
+#elif !defined(__linux__)
+                    throw Failure{EINVAL, "tcsetattr", "The speed is not one of the system", "", false};
+#endif
+                }
+                if (tcsetattr(port.fd, TCSANOW, &settings) < 0) fail("tcsetattr");
+                if (!standard) {
+#if defined(__APPLE__) && TARGET_OS_OSX
+                    speed_t speed = next.baudRate;
+                    if (ioctl(port.fd, IOSSIOSPEED, &speed) < 0) fail("ioctl");
 #elif defined(__linux__)
-            if (setLinuxSpeed(port.fd, options.baudRate) < 0) fail("ioctl");
+                    if (setLinuxSpeed(port.fd, next.baudRate) < 0) fail("ioctl");
 #endif
-        }
-    }
-
-    size_t writeSlice(Port &port, const uint8_t *data, size_t length) {
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(SLICE);
-        size_t written = 0;
-        while (written < length && !port.closing) {
-            const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now()).count();
-            if (left <= 0) break;
-            if (!ready(port, POLLOUT, static_cast<int>(left))) break;
-            const ssize_t result = write(port.fd, data + written, length - written);
-            if (result < 0) {
-                if (errno == EINTR || errno == EAGAIN) continue;
-                fail("write");
+                }
+                verify(settings, next.baudRate, standard);
+                options = next;
             }
-            written += static_cast<size_t>(result);
-        }
-        return written;
-    }
 
-    size_t readSlice(Port &port, uint8_t *data, size_t length) {
-        if (port.closing || !ready(port, POLLIN, SLICE)) return 0;
-        ssize_t result;
-        do {
-            result = read(port.fd, data, length);
-        } while (result < 0 && errno == EINTR);
-        if (result < 0) {
-            if (errno == EAGAIN) return 0;
-            fail("read");
-        }
-        //Readable, yet nothing to read: the other end is gone (a pseudo-terminal closed, a device unplugged)
-        if (result == 0) fail("read", EIO);
-        return static_cast<size_t>(result);
-    }
+            void flush(bool input, bool output) override {
+                if (!input && !output) return;
+                if (tcflush(port.fd, input && output ? TCIOFLUSH : input ? TCIFLUSH : TCOFLUSH) < 0) fail("tcflush");
+            }
 
-    void drainPort(Port &port) {
+            void signals(Event &event) override {
+                int lines = 0;
+                if (ioctl(port.fd, TIOCMGET, &lines) < 0) fail("ioctl");
+                event.cts = (lines & TIOCM_CTS) != 0;
+                event.dsr = (lines & TIOCM_DSR) != 0;
+                event.dcd = (lines & TIOCM_CAR) != 0;
+                event.ri = (lines & TIOCM_RNG) != 0;
+            }
+
+            void setSignals(int dtr, int rts, int brk) override {
+                if (rts >= 0 && options.flowControl == 1) throw Failure{EINVAL, "ioctl", "RTS is driven by the RTS/CTS flow control", "", false};
+                if (dtr >= 0 && options.flowControl == 3) throw Failure{EINVAL, "ioctl", "DTR is driven by the DTR/DSR flow control", "", false};
+                int set = 0;
+                int clear = 0;
+                if (dtr >= 0) (dtr ? set : clear) |= TIOCM_DTR;
+                if (rts >= 0) (rts ? set : clear) |= TIOCM_RTS;
+                if (set && ioctl(port.fd, TIOCMBIS, &set) < 0) fail("ioctl");
+                if (clear && ioctl(port.fd, TIOCMBIC, &clear) < 0) fail("ioctl");
+                if (brk >= 0) breakLine(brk != 0);
+            }
+
+            long queued() override {
 #ifdef TIOCOUTQ
-        //The output queue watched until empty, so that a closing ends the wait (tcdrain cannot be stopped)
-        while (!port.closing) {
-            int queued = 0;
-            if (ioctl(port.fd, TIOCOUTQ, &queued) < 0) break;
-            if (queued <= 0) break;
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        }
+                int count = 0;
+                if (ioctl(port.fd, TIOCOUTQ, &count) == 0) return count;
 #endif
-        if (port.closing) return;
-        if (tcdrain(port.fd) < 0 && errno != EINTR && errno != ENOTTY && errno != EINVAL) fail("tcdrain");
+                return 0;
+            }
+
+        private:
+            /**
+             * A break set or cleared on a thread of its own, on a copy of the descriptor: the system waits for the
+             * output to be sent first, without end when the flow control holds it (Linux), so the port's thread waits
+             * two seconds at most and leaves that thread to finish whenever the output moves
+             */
+            void breakLine(bool on) {
+                const int copy = fcntl(port.fd, F_DUPFD_CLOEXEC, 0);
+                if (copy < 0) fail("fcntl");
+                auto done = std::make_shared<std::promise<int>>();
+                std::future<int> result = done->get_future();
+                std::thread([copy, on, done]() -> void {
+                    const int code = ioctl(copy, on ? TIOCSBRK : TIOCCBRK) < 0 ? errno : 0;
+                    ::close(copy);
+                    done->set_value(code);
+                }).detach();
+                if (result.wait_for(std::chrono::seconds(2)) != std::future_status::ready)
+                    throw Failure{ETIMEDOUT, "ioctl", "The break waits for the output to be sent, held by the flow control", "ETIMEDOUT", false};
+                const int code = result.get();
+                if (code) fail("ioctl", code);
+            }
+
+            /**
+             * The settings read back: tcsetattr succeeds when any of them was taken, a driver may drop the others or
+             * run at another speed
+             */
+            void verify(const struct termios &wanted, uint32_t baudRate, bool standard) {
+                struct termios actual;
+                if (tcgetattr(port.fd, &actual) < 0) fail("tcgetattr");
+                //The speed: the one the kernel holds on Linux (the custom ones included), the one of termios elsewhere
+                //(a custom speed of macOS reads back unreliably); a driver may round it a little
+                uint32_t speed = 0;
+#ifdef __linux__
+                speed = linuxSpeed(port.fd);
+                (void) standard;
+#else
+                if (standard) {
+                    const speed_t constant = cfgetospeed(&actual);
+                    for (const Speed &entry: SPEEDS) {
+                        if (entry.constant == constant) speed = entry.rate;
+                    }
+                }
+#endif
+                if (speed && std::llabs(static_cast<long long>(speed) - static_cast<long long>(baudRate)) * 100 > static_cast<long long>(baudRate) * 3)
+                    throw Failure{EINVAL, "tcsetattr", "The device runs at " + std::to_string(speed) + " bits a second, not " + std::to_string(baudRate), "", false};
+                tcflag_t control = CSIZE | CSTOPB | PARENB | PARODD;
+#ifdef CMSPAR
+                control |= CMSPAR;
+#endif
+#if defined(__linux__) && defined(CRTSCTS)
+                control |= CRTSCTS;
+#endif
+                const tcflag_t input = IXON | IXOFF;
+                if ((actual.c_cflag & control) != (wanted.c_cflag & control) || (actual.c_iflag & input) != (wanted.c_iflag & input))
+                    throw Failure{EINVAL, "tcsetattr", "The device did not take all the settings of the line", "", false};
+            }
+
+            void release() {
+#ifdef TIOCNXCL
+                if (port.locked) ioctl(port.fd, TIOCNXCL);
+#endif
+                port.locked = false;
+            }
+
+            Port &port;
+            LineOptions options;
+        };
     }
 
-    void flushPort(Port &port, bool input, bool output) {
-        if (!input && !output) return;
-        if (tcflush(port.fd, input && output ? TCIOFLUSH : input ? TCIFLUSH : TCOFLUSH) < 0) fail("tcflush");
+    Port::Port() {
+        int pipes[2];
+        if (pipe(pipes) == 0) {
+            wakeRead = pipes[0];
+            wakeWrite = pipes[1];
+            nonBlocking(wakeRead);
+            nonBlocking(wakeWrite);
+        }
     }
 
-    void closePort(Port &port, bool discard) {
-        if (port.fd < 0) return;
-        //The output left discarded: a close would wait for it to be sent (up to 30 seconds on Linux)
-        if (discard) tcflush(port.fd, TCIOFLUSH);
-        close(port.fd);
-        port.fd = -1;
+    Port::~Port() {
+        if (thread.joinable()) {
+            if (thread.get_id() == std::this_thread::get_id()) thread.detach();
+            else thread.join();
+        }
+        if (fd >= 0) ::close(fd);
+        if (wakeRead >= 0) ::close(wakeRead);
+        if (wakeWrite >= 0) ::close(wakeWrite);
     }
 
-    void signalsOf(Port &port, bool &cts, bool &dsr, bool &dcd, bool &ri) {
-        int lines = 0;
-        if (ioctl(port.fd, TIOCMGET, &lines) < 0) fail("ioctl");
-        cts = (lines & TIOCM_CTS) != 0;
-        dsr = (lines & TIOCM_DSR) != 0;
-        dcd = (lines & TIOCM_CAR) != 0;
-        ri = (lines & TIOCM_RNG) != 0;
+    void Port::push(Command command) {
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            commands.push_back(std::move(command));
+        }
+        wake();
     }
 
-    void setSignals(Port &port, int dtr, int rts, int brk) {
-        int set = 0;
-        int clear = 0;
-        if (dtr >= 0) (dtr ? set : clear) |= TIOCM_DTR;
-        if (rts >= 0) (rts ? set : clear) |= TIOCM_RTS;
-        if (set && ioctl(port.fd, TIOCMBIS, &set) < 0) fail("ioctl");
-        if (clear && ioctl(port.fd, TIOCMBIC, &clear) < 0) fail("ioctl");
-        if (brk >= 0 && ioctl(port.fd, brk ? TIOCSBRK : TIOCCBRK) < 0) fail("ioctl");
+    void Port::wake() {
+        const char byte = 1;
+        if (wakeWrite >= 0) {
+            ssize_t result;
+            do {
+                result = ::write(wakeWrite, &byte, 1);
+            } while (result < 0 && errno == EINTR);
+        }
+    }
+
+    void run(Port &port) {
+        UnixDevice device(port);
+        try {
+            device.open();
+        } catch (const Failure &failure) {
+            auto *failed = new Event();
+            failed->kind = EventKind::Failed;
+            failed->id = 0;
+            failed->failure = failure;
+            port.post(failed);
+            auto *closed = new Event();
+            closed->kind = EventKind::Closed;
+            port.post(closed);
+            port.finished = true;
+            return;
+        }
+        auto *opened = new Event();
+        opened->kind = EventKind::Opened;
+        port.post(opened);
+        Session session(port, device, ALLOWANCE);
+        std::vector<uint8_t> buffer(65536);
+        //Writes that took nothing although the port was writable: a device that takes no data
+        int emptyWrites = 0;
+        //Data came while no read is wanted: not watched (it would wake the loop again and again) but checked every
+        //second for a hang-up, which macOS reports only to a watch for input
+        bool parked = false;
+        for (;;) {
+            session.process();
+            if (session.finished()) break;
+            const bool reading = session.reading();
+            if (reading) parked = false;
+            short events = 0;
+            size_t length = 0;
+            const uint8_t *pending = session.pending(length);
+            if (reading || !parked) events |= POLLIN;
+            if (pending) events |= POLLOUT;
+            int timeout = session.timeout();
+            if (parked && !session.dead() && (timeout < 0 || timeout > 1000)) timeout = 1000;
+            struct pollfd entries[2] = {{session.dead() ? -1 : port.fd, events, 0}, {port.wakeRead, POLLIN, 0}};
+            const int ready = poll(entries, 2, timeout);
+            if (ready < 0) {
+                if (errno == EINTR) continue;
+                session.fatal(ioFailure("poll", errno));
+                continue;
+            }
+            if (ready == 0 && parked && !session.dead()) {
+                struct pollfd probe = {port.fd, POLLIN, 0};
+                if (poll(&probe, 1, 0) > 0 && (probe.revents & (POLLHUP | POLLERR | POLLNVAL))) session.fatal(hangUp());
+            }
+            if (entries[1].revents) {
+                char drained[64];
+                while (::read(port.wakeRead, drained, sizeof(drained)) > 0) {}
+            }
+            const short revents = entries[0].revents;
+            if (!session.dead() && revents) {
+                if (revents & POLLNVAL) {
+                    session.fatal(ioFailure("poll", EBADF));
+                } else if ((revents & POLLIN) && !reading) {
+                    if (revents & (POLLHUP | POLLERR)) session.fatal(hangUp());
+                    else parked = true;
+                } else if (revents & POLLIN) {
+                    const ssize_t count = ::read(port.fd, buffer.data(), buffer.size());
+                    if (count > 0) session.received(buffer.data(), static_cast<size_t>(count));
+                    else if (count == 0) session.fatal(hangUp());
+                    else if (errno != EAGAIN && errno != EINTR) session.fatal(ioFailure("read", errno));
+                } else if (revents & (POLLHUP | POLLERR)) {
+                    //A hang-up with nothing left to read, seen even while no read is wanted (an adapter unplugged)
+                    session.fatal(hangUp());
+                }
+                if (!session.dead() && (revents & POLLOUT)) {
+                    pending = session.pending(length);
+                    if (pending) {
+                        const ssize_t count = ::write(port.fd, pending, length);
+                        if (count > 0) {
+                            emptyWrites = 0;
+                            session.wrote(static_cast<size_t>(count));
+                        } else if (count == 0) {
+                            if (++emptyWrites > 1000) session.fatal(Failure{EIO, "write", "The device is gone (it takes no data)", "", true});
+                        } else if (errno != EAGAIN && errno != EINTR) {
+                            session.fatal(ioFailure("write", errno));
+                        }
+                    }
+                }
+            }
+            session.tick();
+        }
+        device.close(session.discard());
+        session.closed();
+        port.finished = true;
     }
 
 #if defined(__APPLE__) && TARGET_OS_OSX
@@ -312,14 +527,40 @@ namespace serial {
             return result;
         }
 
-        /**
-         * A property of the port or of the devices above it (the USB device of an adapter)
-         */
-        CFTypeRef searched(io_object_t service, const char *key) {
+        std::string propertyString(io_object_t entry, const char *key) {
             const CFStringRef name = CFStringCreateWithCString(kCFAllocatorDefault, key, kCFStringEncodingUTF8);
-            const CFTypeRef value = IORegistryEntrySearchCFProperty(service, kIOServicePlane, name, kCFAllocatorDefault, kIORegistryIterateRecursively | kIORegistryIterateParents);
+            const CFTypeRef value = IORegistryEntryCreateCFProperty(entry, name, kCFAllocatorDefault, 0);
             CFRelease(name);
-            return value;
+            std::string result = stringOf(value);
+            if (value) CFRelease(value);
+            return result;
+        }
+
+        int propertyNumber(io_object_t entry, const char *key) {
+            const CFStringRef name = CFStringCreateWithCString(kCFAllocatorDefault, key, kCFStringEncodingUTF8);
+            const CFTypeRef value = IORegistryEntryCreateCFProperty(entry, name, kCFAllocatorDefault, 0);
+            CFRelease(name);
+            const int result = numberOf(value);
+            if (value) CFRelease(value);
+            return result;
+        }
+
+        /**
+         * The USB device above a port (its nearest ancestor with a vendor id), every property read from it alone, so
+         * that a device without a serial number does not take the one of a hub
+         */
+        io_object_t usbDeviceOf(io_object_t service) {
+            io_object_t current = service;
+            IOObjectRetain(current);
+            for (int depth = 0; depth < 16; depth++) {
+                io_object_t parent = 0;
+                if (IORegistryEntryGetParentEntry(current, kIOServicePlane, &parent) != KERN_SUCCESS) break;
+                IOObjectRelease(current);
+                current = parent;
+                if (propertyNumber(current, "idVendor") >= 0) return current;
+            }
+            IOObjectRelease(current);
+            return 0;
         }
     }
 
@@ -332,22 +573,20 @@ namespace serial {
         io_object_t service;
         while ((service = IOIteratorNext(iterator))) {
             PortInfo info;
-            const CFTypeRef path = IORegistryEntryCreateCFProperty(service, CFSTR(kIOCalloutDeviceKey), kCFAllocatorDefault, 0);
-            info.path = stringOf(path);
-            if (path) CFRelease(path);
-            const char *strings[] = {"USB Serial Number", "USB Vendor Name", "USB Product Name"};
-            std::string *targets[] = {&info.serialNumber, &info.manufacturer, &info.product};
-            for (int index = 0; index < 3; index++) {
-                const CFTypeRef value = searched(service, strings[index]);
-                *targets[index] = stringOf(value);
-                if (value) CFRelease(value);
+            info.path = propertyString(service, kIOCalloutDeviceKey);
+            const io_object_t usb = usbDeviceOf(service);
+            if (usb) {
+                info.vendorId = propertyNumber(usb, "idVendor");
+                info.productId = propertyNumber(usb, "idProduct");
+                //The strings of the device as it reports them; the older keys hold copies with - turned into _
+                const char *keys[3][2] = {{"kUSBSerialNumberString", "USB Serial Number"}, {"kUSBVendorString", "USB Vendor Name"}, {"kUSBProductString", "USB Product Name"}};
+                std::string *targets[] = {&info.serialNumber, &info.manufacturer, &info.product};
+                for (int index = 0; index < 3; index++) {
+                    *targets[index] = propertyString(usb, keys[index][0]);
+                    if (targets[index]->empty()) *targets[index] = propertyString(usb, keys[index][1]);
+                }
+                IOObjectRelease(usb);
             }
-            const CFTypeRef vendor = searched(service, "idVendor");
-            const CFTypeRef product = searched(service, "idProduct");
-            info.vendorId = numberOf(vendor);
-            info.productId = numberOf(product);
-            if (vendor) CFRelease(vendor);
-            if (product) CFRelease(product);
             IOObjectRelease(service);
             if (!info.path.empty()) ports.push_back(info);
         }
@@ -398,6 +637,14 @@ namespace serial {
                 return "EMFILE";
             case ENOMEM:
                 return "ENOMEM";
+            case EPIPE:
+                return "EPIPE";
+            case ENOTSUP:
+                return "ENOTSUP";
+#if defined(EOPNOTSUPP) && EOPNOTSUPP != ENOTSUP
+            case EOPNOTSUPP:
+                return "EOPNOTSUPP";
+#endif
             default:
                 return "EUNKNOWN";
         }

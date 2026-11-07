@@ -15,4 +15,10 @@ export class SerialException extends Exception {
      * (not allowed), `'ENOTTY'` (not a serial port), `'EIO'` (the device gone), `'EINVAL'` (options it refuses)…
      */
     public code?: string
+
+    /**
+     * Whether the device is gone (an adapter unplugged, the line hung up): the port is closed, opening it again needs
+     * the device back.
+     */
+    public disconnected?: boolean
 }

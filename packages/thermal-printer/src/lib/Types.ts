@@ -57,10 +57,10 @@ export interface SerialConnection {
     baudRate?: number
 
     /**
-     * Its flow control: `'rts/cts'`, `'xon/xoff'` or `'none'`.
+     * Its flow control: `'rts/cts'`, `'dtr/dsr'` (Windows and macOS), `'xon/xoff'` or `'none'`.
      * @default 'none'
      */
-    flowControl?: 'none' | 'rts/cts' | 'xon/xoff'
+    flowControl?: 'none' | 'rts/cts' | 'dtr/dsr' | 'xon/xoff'
 }
 
 /**
@@ -158,6 +158,13 @@ export interface PrinterDefinition extends MediaOptions {
      * @default 10000
      */
     connectTimeout?: number
+
+    /**
+     * How long the printer may take no data (out of paper, its cover open, offline) before the print fails, in
+     * milliseconds; 0 waits as long as it takes.
+     * @default 10000
+     */
+    stallTimeout?: number
 }
 
 /**

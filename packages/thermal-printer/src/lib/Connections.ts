@@ -10,8 +10,8 @@ import type {BluetoothConnection, PrinterConnection, SerialConnection, UsbConnec
  * An open connection to a printer: the commands written to it, then closed once they are sent
  */
 export interface Channel {
-    write(data: Buffer, bytesPerSecond?: number): Promise<void>
-    close(): Promise<void>
+    write(data: Buffer, bytesPerSecond?: number, stallTimeout?: number): Promise<void>
+    close(stallTimeout?: number): Promise<void>
 }
 
 /**
@@ -27,12 +27,21 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * Write data to a stream in chunks, waiting for it to drain, at most a number of bytes a second
+ * The failure of a printer that takes no data (out of paper, its cover open, offline)
+ */
+function stalled(stallTimeout: number): Error {
+    return new Error(`the printer took no data for ${stallTimeout} ms`)
+}
+
+/**
+ * Write data to a stream in chunks, waiting for it to drain (for stallTimeout milliseconds at most, 0: no limit), at
+ * most a number of bytes a second
  * @param stream
  * @param data
  * @param bytesPerSecond
+ * @param stallTimeout
  */
-async function writeStream(stream: Writable, data: Buffer, bytesPerSecond?: number): Promise<void> {
+async function writeStream(stream: Writable, data: Buffer, bytesPerSecond?: number, stallTimeout: number = 0): Promise<void> {
     let failure: Error | undefined
     const fail = (error: Error): void => {
         failure = error
@@ -48,7 +57,9 @@ async function writeStream(stream: Writable, data: Buffer, bytesPerSecond?: numb
             if (!stream.write(chunk)) {
                 //Drained, failed, or closed (an error emitted before this wait would never come again)
                 await new Promise<void>((resolve, reject): void => {
+                    const timer: NodeJS.Timeout | undefined = stallTimeout > 0 ? setTimeout((): void => settle(stalled(stallTimeout)), stallTimeout) : undefined
                     const settle = (error?: Error): void => {
+                        clearTimeout(timer)
                         stream.off('drain', drained)
                         stream.off('error', failed)
                         stream.off('close', closed)
@@ -76,20 +87,28 @@ async function writeStream(stream: Writable, data: Buffer, bytesPerSecond?: numb
 }
 
 /**
- * Close a stream after its data are written: ended, then finished (or failed)
+ * Close a stream after its data are written: ended, then finished (or failed, or no longer taking data for
+ * stallTimeout milliseconds)
  * @param stream
+ * @param stallTimeout
  */
-function endStream(stream: Writable): Promise<void> {
+function endStream(stream: Writable, stallTimeout: number = 0): Promise<void> {
     return new Promise<void>((resolve, reject): void => {
         //A stream closed already (by the other side): nothing more to send
         if (stream.destroyed) return resolve()
-        const closed = (): void => resolve()
-        stream.once('error', reject)
-        stream.once('close', closed)
-        stream.end((): void => {
+        let timer: NodeJS.Timeout | undefined
+        const settle = (error?: Error | null): void => {
+            clearTimeout(timer)
+            stream.off('error', settle)
             stream.off('close', closed)
-            resolve()
-        })
+            if (error) reject(error)
+            else resolve()
+        }
+        const closed = (): void => settle()
+        if (stallTimeout > 0) timer = setTimeout((): void => settle(stalled(stallTimeout)), stallTimeout)
+        stream.once('error', settle)
+        stream.once('close', closed)
+        stream.end((error?: Error | null): void => settle(error))
     })
 }
 
@@ -100,10 +119,13 @@ function endStream(stream: Writable): Promise<void> {
  */
 function streamChannel(stream: Duplex | Writable, close?: () => Promise<void>): Channel {
     return {
-        write: (data: Buffer, bytesPerSecond?: number): Promise<void> => writeStream(stream, data, bytesPerSecond),
-        close: async (): Promise<void> => {
-            await endStream(stream)
-            await close?.()
+        write: (data: Buffer, bytesPerSecond?: number, stallTimeout?: number): Promise<void> => writeStream(stream, data, bytesPerSecond, stallTimeout),
+        close: async (stallTimeout?: number): Promise<void> => {
+            try {
+                await endStream(stream, stallTimeout)
+            } finally {
+                await close?.()
+            }
         }
     }
 }
@@ -196,7 +218,7 @@ async function opened(what: string, open: () => Promise<Duplex>): Promise<Channe
  * @param connection
  * @param timeout the time limit of the opening, in milliseconds
  */
-export async function openChannel(connection: PrinterConnection, timeout: number): Promise<Channel> {
+export async function openChannel(connection: PrinterConnection, timeout: number, stallTimeout: number = 0): Promise<Channel> {
     switch (connection.type) {
         case 'network':
             return await openNetwork(connection.host, connection.port ?? 9100, timeout)
@@ -205,7 +227,7 @@ export async function openChannel(connection: PrinterConnection, timeout: number
         case 'serial': {
             const serial: SerialConnection = connection
             const module = await load('@lakutata/serial', (): Promise<typeof import('@lakutata/serial')> => import('@lakutata/serial'))
-            return await opened(`The serial port ${serial.path}`, (): Promise<Duplex> => module.openSerialPort({path: serial.path, baudRate: serial.baudRate ?? 9600, flowControl: serial.flowControl ?? 'none'}))
+            return await opened(`The serial port ${serial.path}`, (): Promise<Duplex> => module.openSerialPort({path: serial.path, baudRate: serial.baudRate ?? 9600, flowControl: serial.flowControl ?? 'none', stallTimeout, openTimeout: timeout}))
         }
         case 'usb': {
             const usb: UsbConnection = connection

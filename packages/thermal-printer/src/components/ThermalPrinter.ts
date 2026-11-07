@@ -29,7 +29,8 @@ const CONNECTION = DTO.Object({
 const PRINTER = DTO.Object({
     connection: CONNECTION.required(),
     bytesPerSecond: DTO.Number().positive().optional(),
-    connectTimeout: DTO.Number().positive().optional()
+    connectTimeout: DTO.Number().positive().optional(),
+    stallTimeout: DTO.Number().min(0).optional()
 }).unknown(true)
 
 /**
@@ -185,16 +186,17 @@ export class ThermalPrinter extends Component {
         const job: Promise<PrintResult> = previous.catch((): void => undefined).then(async (): Promise<PrintResult> => {
             if (options.signal?.aborted) throw new ThermalPrinterException('The print is cancelled')
             const {data, pages} = await this.#commandsOf(definition, content, options)
-            const channel: Channel = await openChannel(definition.connection, definition.connectTimeout ?? 10000)
+            const stallTimeout: number = definition.stallTimeout ?? 10000
+            const channel: Channel = await openChannel(definition.connection, definition.connectTimeout ?? 10000, stallTimeout)
             try {
-                await channel.write(data, definition.bytesPerSecond)
+                await channel.write(data, definition.bytesPerSecond, stallTimeout)
             } catch (error) {
                 //The write failed (the printer dropped the connection, lp ended early): its error, not the one of the closing
-                await channel.close().catch((): void => undefined)
+                await channel.close(1000).catch((): void => undefined)
                 throw error instanceof ThermalPrinterException ? error : new ThermalPrinterConnectionException(`The commands cannot be sent to the printer: ${error instanceof Error ? error.message : String(error)}`)
             }
             try {
-                await channel.close()
+                await channel.close(stallTimeout)
             } catch (error) {
                 throw error instanceof ThermalPrinterException ? error : new ThermalPrinterConnectionException(`The commands cannot be sent to the printer: ${error instanceof Error ? error.message : String(error)}`)
             }

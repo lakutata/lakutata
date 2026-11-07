@@ -1,5 +1,7 @@
 export {SerialException} from '../exceptions/SerialException.js'
 export {
+    type SerialCloseOptions,
+    type SerialDrainOptions,
     type SerialLineOptions,
     type SerialPortInfo,
     type SerialPortOptions,

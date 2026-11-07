@@ -1,4 +1,4 @@
-import {readdir, readFile, realpath} from 'node:fs/promises'
+import {access, readdir, readFile, realpath} from 'node:fs/promises'
 import path from 'node:path'
 import {exceptionOf, native} from './Native.js'
 import type {SerialPortInfo} from './Types.js'
@@ -25,8 +25,27 @@ async function linuxPorts(): Promise<SerialPortInfo[]> {
     } catch {
         return []
     }
+    //The stable links of udev, by the name of the port they point to
+    const stable: Map<string, string> = new Map()
+    try {
+        for (const link of await readdir('/dev/serial/by-id')) {
+            try {
+                stable.set(path.basename(await realpath(`/dev/serial/by-id/${link}`)), `/dev/serial/by-id/${link}`)
+            } catch {
+                //A link left dangling
+            }
+        }
+    } catch {
+        //No udev, or no USB serial device
+    }
     const ports: SerialPortInfo[] = []
     for (const name of names) {
+        //A port of sysfs without its device file (a container, a device being removed)
+        try {
+            await access(`/dev/${name}`)
+        } catch {
+            continue
+        }
         const base: string = `/sys/class/tty/${name}`
         let device: string
         try {
@@ -38,6 +57,8 @@ async function linuxPorts(): Promise<SerialPortInfo[]> {
         }
         if (/^ttyS\d+$/.test(name) && (await attribute(`${base}/type`)) === '0') continue
         const info: SerialPortInfo = {path: `/dev/${name}`}
+        const stablePath: string | undefined = stable.get(name)
+        if (stablePath) info.stablePath = stablePath
         for (let directory: string = device; directory.startsWith('/sys/devices/') && directory !== '/sys/devices'; directory = path.dirname(directory)) {
             const vendor: string | undefined = await attribute(`${directory}/idVendor`)
             if (vendor === undefined) continue
@@ -70,7 +91,7 @@ async function linuxPorts(): Promise<SerialPortInfo[]> {
 export async function listSerialPorts(): Promise<SerialPortInfo[]> {
     let listed: SerialPortInfo[] | null
     try {
-        listed = native.list()
+        listed = await native.list()
     } catch (error) {
         throw exceptionOf(error, 'The serial ports cannot be listed')
     }

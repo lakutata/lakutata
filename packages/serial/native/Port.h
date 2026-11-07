@@ -3,7 +3,11 @@
 
 #include <atomic>
 #include <cstdint>
+#include <deque>
+#include <functional>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #ifdef _WIN32
@@ -13,16 +17,19 @@
 namespace serial {
 
     /**
-     * A failure of the system: its error (errno, or the error of Windows) and the call that failed
+     * A failure: the error of the system (errno, or the error of Windows), the call that failed, a message in place of
+     * the system's, a name in place of the one of the code, and whether the device is gone
      */
     struct Failure {
         long code = 0;
         std::string syscall;
         std::string detail;
+        std::string name;
+        bool disconnected = false;
     };
 
     /**
-     * The settings of the line
+     * The settings of the line, and how long the output may stop before the writes and the drains fail
      */
     struct LineOptions {
         uint32_t baudRate = 9600;
@@ -31,25 +38,55 @@ namespace serial {
         int stopBits = 1;
         //'n'one, 'e'ven, 'o'dd, 'm'ark, 's'pace
         char parity = 'n';
-        //0 none, 1 RTS/CTS, 2 XON/XOFF
+        //0 none, 1 RTS/CTS, 2 XON/XOFF, 3 DTR/DSR
         int flowControl = 0;
+        //Milliseconds without progress of the output before a write fails (0: no limit)
+        int64_t stallTimeout = 0;
+    };
+
+    enum class CommandKind {
+        Write, Drain, Configure, Flush, Signals, SetSignals, Read, Close
     };
 
     /**
-     * An open port: its descriptor (its handle on Windows), closed once its operations are done
+     * A request of JavaScript to the thread of a port. Writes, drains and configurations run in their order (a
+     * configuration waits for the writes before it); the others run at once
      */
-    struct Port {
-#ifdef _WIN32
-        HANDLE handle = INVALID_HANDLE_VALUE;
-#else
-        int fd = -1;
-#endif
-        std::string path;
-        //Set by the closing: the operations running end at their next slice
-        std::atomic<bool> closing{false};
-        //The operations queued or running, which the closing waits for
-        std::atomic<int> busy{0};
-        std::atomic<bool> closed{false};
+    struct Command {
+        CommandKind kind = CommandKind::Read;
+        uint32_t id = 0;
+        std::vector<uint8_t> data;
+        LineOptions options;
+        bool input = false;
+        bool output = false;
+        int dtr = -1;
+        int rts = -1;
+        int brk = -1;
+        bool wanted = false;
+        bool discard = false;
+        //Drain: milliseconds without progress (0: none), and an absolute limit on the steady clock in milliseconds (0: none)
+        int64_t stall = 0;
+        int64_t deadline = 0;
+    };
+
+    enum class EventKind {
+        Opened, Result, Failed, Data, Fatal, Closed
+    };
+
+    /**
+     * What the thread of a port tells JavaScript: an open port, a request done or failed, data received, the port dead
+     * (the device gone), the port closed
+     */
+    struct Event {
+        EventKind kind = EventKind::Result;
+        uint32_t id = 0;
+        std::vector<uint8_t> data;
+        Failure failure;
+        bool hasSignals = false;
+        bool cts = false;
+        bool dsr = false;
+        bool dcd = false;
+        bool ri = false;
     };
 
     /**
@@ -64,40 +101,54 @@ namespace serial {
         std::string product;
     };
 
-    //The operations of the platform: each throws a Failure
+    /**
+     * An open port: its device and the thread that owns it. JavaScript queues commands; the thread opens the device,
+     * runs them, reads while JavaScript wants data, and tells what happened through post
+     */
+    struct Port {
+        std::string path;
+        LineOptions options;
+        bool exclusive = true;
+        //The events for JavaScript (a thread-safe function of the addon)
+        std::function<void(Event *)> post;
+        std::thread thread;
+        std::mutex mutex;
+        std::deque<Command> commands;
+        std::atomic<bool> finished{false};
+        //The environment ended without waiting for the thread: its events go nowhere
+        std::mutex postMutex;
+        bool silenced = false;
+#ifdef _WIN32
+        HANDLE handle = INVALID_HANDLE_VALUE;
+        HANDLE wakeEvent = nullptr;
+        //The levels of the output lines, written into every configuration
+        bool dtr = true;
+        bool rts = true;
+        COMMTIMEOUTS savedTimeouts = {};
+        bool timeoutsSaved = false;
+#else
+        int fd = -1;
+        int wakeRead = -1;
+        int wakeWrite = -1;
+        bool locked = false;
+#endif
 
-    void openPort(Port &port, const LineOptions &options, bool exclusive);
+        Port();
 
-    void configurePort(Port &port, const LineOptions &options);
+        ~Port();
+
+        /**
+         * Queue a command and wake the thread
+         */
+        void push(Command command);
+
+        void wake();
+    };
 
     /**
-     * Write within a slice of about 100 ms: the bytes written (0 when the port takes none in that time)
+     * The body of the thread of a port (one for each platform): open the device, run the commands, close it
      */
-    size_t writeSlice(Port &port, const uint8_t *data, size_t length);
-
-    /**
-     * Read within a slice of about 100 ms: the bytes read (0 when none came in that time)
-     */
-    size_t readSlice(Port &port, uint8_t *data, size_t length);
-
-    /**
-     * Wait for the output to be sent, ending early when the port is closed
-     */
-    void drainPort(Port &port);
-
-    void flushPort(Port &port, bool input, bool output);
-
-    void closePort(Port &port, bool discard);
-
-    /**
-     * The modem lines: cts, dsr, dcd, ri
-     */
-    void signalsOf(Port &port, bool &cts, bool &dsr, bool &dcd, bool &ri);
-
-    /**
-     * Set the lines given (-1 leaves one as it is)
-     */
-    void setSignals(Port &port, int dtr, int rts, int brk);
+    void run(Port &port);
 
     /**
      * The ports of the system (macOS and Windows; Linux lists them in JavaScript)
@@ -116,6 +167,11 @@ namespace serial {
      * A speed termios has no constant for: termios2 (BOTHER), in a file of its own (its headers clash with termios.h)
      */
     int setLinuxSpeed(int fd, uint32_t speed);
+
+    /**
+     * The output speed the kernel holds (termios2), 0 when it cannot tell
+     */
+    uint32_t linuxSpeed(int fd);
 #endif
 }
 
