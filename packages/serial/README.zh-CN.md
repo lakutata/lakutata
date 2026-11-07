@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-Node.js 的串口库，属于 [lakutata](https://github.com/lakutata/lakutata) 框架：把串口作为流打开，设置线路参数（波特率、数据位、校验位、停止位、流控），读写调制解调器信号线，列出系统里的串口和 USB 转接器的 ID。和系统打交道的部分由一个小型原生插件完成：Linux 和 macOS 上用 termios，Windows 上用通信 API。`lakutata` 包不重新导出这个包，请从 `@lakutata/serial` 导入。
+Node.js 的串口库，属于 [lakutata](https://github.com/lakutata/lakutata) 框架：把串口作为流打开，设置线路参数（波特率、数据位、校验位、停止位、流控），读写调制解调器信号线，列出系统里的串口和 USB 转接器的 ID。经典蓝牙设备（串口协议 SPP）可以按地址打开，得到同样的流。和系统打交道的部分由一个小型原生插件完成：Linux 和 macOS 上用 termios，Windows 上用通信 API。`lakutata` 包不重新导出这个包，请从 `@lakutata/serial` 导入。
 
 ## 安装
 
@@ -63,9 +63,26 @@ await port.close()
 
 最后一个字节交给系统之后，`drain()` 和 `close()` 还要等系统报告不了的那部分字节：在驱动和转接器芯片里的数据。等待的时长是这些字节按线路速度发完所需的时间，macOS 上最多按 4 KB 算（9600 波特率下约 4 秒，115200 下约 0.4 秒），Linux 和 Windows 上最多按 1 KB 算。
 
+### 蓝牙
+
+```typescript
+import {openBluetoothSerial} from '@lakutata/serial'
+
+const printer = await openBluetoothSerial({address: '00:11:22:33:44:55'})
+printer.on('error', (error: Error) => console.error(error))
+printer.write(Buffer.from([0x1B, 0x40, 0x0A]))
+await printer.close()
+```
+
+`openBluetoothSerial()` 通过串口协议（SPP）打开经典蓝牙设备，得到和串口一样的流。设备要先和系统配对。不支持低功耗蓝牙（BLE）设备。
+
+- Linux：通过 RFCOMM 套接字连接设备，使用给定的 `channel`（默认 1）。
+- macOS 和 Windows：系统会为配对的设备生成一个串口，这个函数打开地址匹配的那个；Windows 上是“传出”的那个串口。
+- 线路参数和调制解调器信号线对蓝牙连接不起作用：蓝牙连接有它自己的速度。
+
 ### 列出串口
 
-`listSerialPorts()` 给出每个串口的 `path`；USB 转接器还有它的 `vendorId`、`productId`、`serialNumber`、`manufacturer` 和 `product`。在 Linux 上，`stablePath` 是它在 `/dev/serial/by-id` 里的链接，转接器换个 USB 口插也不会变。串口的来源：Linux 上是 sysfs，macOS 上是 IOKit（`/dev/cu.*` 设备），Windows 上是设备管理器。
+`listSerialPorts()` 给出每个串口的 `path`；USB 转接器还有它的 `vendorId`、`productId`、`serialNumber`、`manufacturer` 和 `product`；macOS 和 Windows 上已配对的蓝牙设备的串口还有它的 `bluetoothAddress`，设备名放在 `product` 里。在 Linux 上，`stablePath` 是它在 `/dev/serial/by-id` 里的链接，转接器换个 USB 口插也不会变。串口的来源：Linux 上是 sysfs，macOS 上是 IOKit（`/dev/cu.*` 设备），Windows 上是设备管理器。
 
 ### 工作方式
 
@@ -78,9 +95,10 @@ await port.close()
 | 导出 | 说明 |
 |---|---|
 | `openSerialPort(options)` | 打开串口，得到 `SerialPort` |
+| `openBluetoothSerial(options)` | 按地址打开已配对的蓝牙设备，得到 `SerialPort` |
 | `SerialPort` | 打开的串口，是 `Duplex` 流：`path`、`baudRate`、`settings`、`update()`、`getSignals()`、`setSignals()`、`drain()`、`flush()`、`close()` |
 | `listSerialPorts()` | 系统里的串口，以及它们的 USB 设备的 ID |
-| `SerialPortOptions`、`SerialLineOptions`、`SerialDrainOptions`、`SerialCloseOptions`、`SerialPortInfo`、`SerialSignals`、`SerialSignalOptions` | 相关的类型 |
+| `SerialPortOptions`、`BluetoothSerialOptions`、`SerialLineOptions`、`SerialDrainOptions`、`SerialCloseOptions`、`SerialPortInfo`、`SerialSignals`、`SerialSignalOptions` | 相关的类型 |
 | `SerialException` | 这个包的异常（见[错误](#错误)） |
 
 ## 错误
@@ -95,6 +113,8 @@ await port.close()
 | `'ENOTTY'` | 这个路径不是串口（`/dev/usb/lp0` 是 USB 打印机，不是串口） |
 | `'EINVAL'` | 它不接受的选项，或设备没有接受的设置 |
 | `'ETIMEDOUT'` | 输出停止太久，或打开花的时间太长 |
+| `'EHOSTDOWN'`、`'ECONNREFUSED'` | 蓝牙设备没有响应，或拒绝连接（Linux） |
+| `'EAFNOSUPPORT'`、`'ENOTSUP'` | 系统不提供蓝牙套接字（比如容器里），或这个平台根本不支持蓝牙 |
 | `'EIO'` | 打开期间设备不在了（`disconnected` 是 `true`） |
 | `'ECANCELED'` | 向已经关闭的串口发出的请求 |
 

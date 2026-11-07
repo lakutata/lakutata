@@ -12,7 +12,7 @@ npm install @lakutata/thermal-printer
 
 - 它会安装 `@lakutata/thermal`，后者的原生插件在安装时编译（机器上需要什么见它的 README）。
 - Node.js `>=18.10.0`，以及 `@lakutata/core`。
-- 串口、USB 和蓝牙连接各在自己的包里，用到时再安装：`@lakutata/serial`、`@lakutata/usb`、`@lakutata/bluetooth`。没有安装对应的包时，发给这类打印机的打印会失败，错误信息里写明需要哪个包。
+- 串口和蓝牙连接由 `@lakutata/serial` 提供，USB 连接由 `@lakutata/usb` 提供，用到时再安装。没有安装对应的包时，发给这类打印机的打印会失败，错误信息里写明需要哪个包。
 
 ## 用法
 
@@ -81,7 +81,7 @@ async function print(printers: ThermalPrinter): Promise<void> {
 | `'queue'` | `name` | 系统打印队列，指令原样发送：macOS 和 Linux 上是 CUPS 的 `lp -d <name> -o raw`。暂不支持 Windows |
 | `'serial'` | `path`、`baudRate`（9600）、`flowControl`（`'rts/cts'`、`'dtr/dsr'`、`'xon/xoff'`） | 串口，由 `@lakutata/serial` 提供 |
 | `'usb'` | `vendorId`、`productId`、`serialNumber`，或 `path` | USB 打印机，由 `@lakutata/usb` 提供 |
-| `'bluetooth'` | `address`、`channel`（1） | 经典蓝牙打印机（串口协议 SPP），需要先由系统配对，由 `@lakutata/bluetooth` 提供 |
+| `'bluetooth'` | `address`、`channel`（1，仅 Linux） | 经典蓝牙打印机（串口协议 SPP），需要先和系统配对，由 `@lakutata/serial` 提供 |
 
 - `connectTimeout`（10 秒）限制打开连接的时间。
 - `stallTimeout`（10 秒）：打印机这么久都不接收数据（缺纸、上盖打开、离线）时，这次打印以 `ThermalPrinterConnectionException` 失败；设为 0 则一直等。
@@ -108,4 +108,4 @@ async function print(printers: ThermalPrinter): Promise<void> {
 ## 另见
 
 - [`@lakutata/thermal`](../thermal)：HTML 的渲染和打印机的指令。
-- `@lakutata/serial`、`@lakutata/usb`、`@lakutata/bluetooth`：设备的连接。
+- [`@lakutata/serial`](../serial)：串口和蓝牙设备。

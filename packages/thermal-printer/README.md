@@ -17,9 +17,8 @@ npm install @lakutata/thermal-printer
 - It installs `@lakutata/thermal`, whose native addon is compiled during the installation (see its README for what the
   machine needs).
 - Node.js `>=18.10.0`, with `@lakutata/core`.
-- The serial, USB and Bluetooth connections come from their own packages, installed when a printer uses them:
-  `@lakutata/serial`, `@lakutata/usb`, `@lakutata/bluetooth`. Without the package, a print to such a printer fails with
-  an error naming it.
+- The serial and Bluetooth connections come from `@lakutata/serial` and the USB connection from `@lakutata/usb`,
+  installed when a printer uses them. Without the package, a print to such a printer fails with an error naming it.
 
 ## Usage
 
@@ -94,7 +93,7 @@ async function print(printers: ThermalPrinter): Promise<void> {
 | `'queue'` | `name` | The system's print queue, the commands sent raw: CUPS's `lp -d <name> -o raw` on macOS and Linux. Not supported on Windows yet |
 | `'serial'` | `path`, `baudRate` (9600), `flowControl` (`'rts/cts'`, `'dtr/dsr'`, `'xon/xoff'`) | A serial port, by `@lakutata/serial` |
 | `'usb'` | `vendorId`, `productId`, `serialNumber`, or `path` | A USB printer, by `@lakutata/usb` |
-| `'bluetooth'` | `address`, `channel` (1) | A classic Bluetooth printer (its serial port profile), paired by the system first, by `@lakutata/bluetooth` |
+| `'bluetooth'` | `address`, `channel` (1, Linux) | A classic Bluetooth printer (its serial port profile), paired with the system first, by `@lakutata/serial` |
 
 - `connectTimeout` (10 seconds) limits the opening of a connection.
 - `stallTimeout` (10 seconds): a printer that takes no data for that long (out of paper, its cover open, offline)
@@ -123,4 +122,4 @@ async function print(printers: ThermalPrinter): Promise<void> {
 ## See also
 
 - [`@lakutata/thermal`](../thermal): the rendering of the HTML and the commands of the printers.
-- `@lakutata/serial`, `@lakutata/usb`, `@lakutata/bluetooth`: the connections to the devices.
+- [`@lakutata/serial`](../serial): serial ports and Bluetooth devices.

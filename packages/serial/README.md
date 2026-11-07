@@ -4,7 +4,8 @@ English | [中文](README.zh-CN.md)
 
 Serial ports for Node.js, part of the [lakutata](https://github.com/lakutata/lakutata) framework. You open a port as a
 stream, set its line (speed, data bits, parity, stop bits, flow control), read and set its modem lines, and list the
-ports of the system with the ids of their USB adapters. A small native addon does the system's part: termios on Linux
+ports of the system with the ids of their USB adapters. Classic Bluetooth devices (their serial port profile) open by
+their address as the same kind of stream. A small native addon does the system's part: termios on Linux
 and macOS, the communications API on Windows. The `lakutata` package does not re-export this package: import it from
 `@lakutata/serial`.
 
@@ -85,10 +86,30 @@ the ones in the driver and in the adapter's chip. The wait is the time those byt
 up to 4 KB on macOS (about 4 seconds at 9600 bits a second, 0.4 seconds at 115200) and up to 1 KB on Linux and
 Windows.
 
+### Bluetooth
+
+```typescript
+import {openBluetoothSerial} from '@lakutata/serial'
+
+const printer = await openBluetoothSerial({address: '00:11:22:33:44:55'})
+printer.on('error', (error: Error) => console.error(error))
+printer.write(Buffer.from([0x1B, 0x40, 0x0A]))
+await printer.close()
+```
+
+`openBluetoothSerial()` opens a classic Bluetooth device through its serial port profile (SPP), as the stream of a
+serial port. Pair the device with the system first. Bluetooth Low Energy devices are not supported.
+
+- Linux: the device is reached by an RFCOMM socket, on the `channel` given (1 by default).
+- macOS and Windows: the system makes a serial port for the paired device, and the function opens the one whose
+  address matches. On Windows that is the outgoing port.
+- The line settings and the modem lines do not apply to a Bluetooth link: the link has a speed of its own.
+
 ### Listing
 
 `listSerialPorts()` gives each port's `path`. For a USB adapter it also gives its `vendorId`, `productId`,
-`serialNumber`, `manufacturer` and `product`. On Linux, `stablePath` is its link in `/dev/serial/by-id`, which stays
+`serialNumber`, `manufacturer` and `product`. For the port of a paired Bluetooth device on macOS and Windows, it gives
+its `bluetoothAddress`, and its name as `product`. On Linux, `stablePath` is its link in `/dev/serial/by-id`, which stays
 the same when the adapter is plugged into another socket. Ports are listed from sysfs on Linux, from IOKit on macOS
 (the `/dev/cu.*` devices) and from the device manager on Windows.
 
@@ -107,9 +128,10 @@ worker or the process ends is closed, and its data not sent are discarded.
 | Export | What it is |
 |---|---|
 | `openSerialPort(options)` | Opens a port: a `SerialPort` |
+| `openBluetoothSerial(options)` | Opens a paired Bluetooth device by its address: a `SerialPort` |
 | `SerialPort` | An open port, a `Duplex` stream: `path`, `baudRate`, `settings`, `update()`, `getSignals()`, `setSignals()`, `drain()`, `flush()`, `close()` |
 | `listSerialPorts()` | The ports of the system, with the ids of their USB devices |
-| `SerialPortOptions`, `SerialLineOptions`, `SerialDrainOptions`, `SerialCloseOptions`, `SerialPortInfo`, `SerialSignals`, `SerialSignalOptions` | Their types |
+| `SerialPortOptions`, `BluetoothSerialOptions`, `SerialLineOptions`, `SerialDrainOptions`, `SerialCloseOptions`, `SerialPortInfo`, `SerialSignals`, `SerialSignalOptions` | Their types |
 | `SerialException` | The exception of the package (see [Errors](#errors)) |
 
 ## Errors
@@ -125,6 +147,8 @@ worker or the process ends is closed, and its data not sent are discarded.
 | `'ENOTTY'` | The path is not a serial port (`/dev/usb/lp0` is a USB printer, not a serial port) |
 | `'EINVAL'` | Options it refuses, or a setting the device did not take |
 | `'ETIMEDOUT'` | The output stopped moving for too long, or the opening took too long |
+| `'EHOSTDOWN'`, `'ECONNREFUSED'` | A Bluetooth device does not answer, or refuses the connection (Linux) |
+| `'EAFNOSUPPORT'`, `'ENOTSUP'` | The system offers no Bluetooth sockets (a container), or no Bluetooth at all on this platform |
 | `'EIO'` | The device went away while it was open (`disconnected` is `true`) |
 | `'ECANCELED'` | A request to a port that is closed |
 
