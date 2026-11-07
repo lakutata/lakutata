@@ -142,6 +142,19 @@ await check('@lakutata/netif loads under ESM', () => {
     if (typeof netifPackage.listInterfaces !== 'function' || !Array.isArray(netifPackage.listInterfaces())) throw new Error('listInterfaces missing')
 })
 
+// @lakutata/thermal — its addon and its bundled fonts required by paths from the CommonJS module
+await check('CJS @lakutata/thermal renders with its addon and fonts', async () => {
+    const thermal = requireCJS('../packages/thermal/dist/cjs/exports/Thermal.js')
+    if (typeof thermal.render !== 'function' || typeof thermal.encode !== 'function') throw new Error('render missing')
+    const image = await thermal.render('<p>热敏 Thermal</p>', {paper: 58})
+    if (image.width !== 384 || !image.pages[0].rows.some((byte) => byte !== 0)) throw new Error('the rendering of thermal')
+    if (thermal.encode(image, {language: 'escpos'})[0] !== 0x1B) throw new Error('the encoding of thermal')
+})
+const thermalPackage = await import('../packages/thermal/dist/esm/exports/Thermal.js')
+await check('@lakutata/thermal loads under ESM', () => {
+    if (typeof thermalPackage.render !== 'function' || !thermalPackage.printerModels().length) throw new Error('render missing')
+})
+
 // @lakutata/mongo-embedded — its addon (built when the package is installed) and the data of its collations required by
 // paths from the CommonJS module, the module TypeORM requires for the mongo-embedded databases
 await check('CJS @lakutata/mongo-embedded loads its addon', async () => {
