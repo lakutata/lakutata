@@ -155,6 +155,12 @@ await check('@lakutata/thermal loads under ESM', () => {
     if (typeof thermalPackage.render !== 'function' || !thermalPackage.printerModels().length) throw new Error('render missing')
 })
 
+// @lakutata/thermal-printer — the component over the engine
+await check('CJS @lakutata/thermal-printer loads', () => {
+    const printer = requireCJS('../packages/thermal-printer/dist/cjs/exports/ThermalPrinter.js')
+    if (typeof printer.ThermalPrinter !== 'function' || typeof printer.buildThermalPrinterOptions !== 'function') throw new Error('ThermalPrinter missing')
+})
+
 // @lakutata/mongo-embedded — its addon (built when the package is installed) and the data of its collations required by
 // paths from the CommonJS module, the module TypeORM requires for the mongo-embedded databases
 await check('CJS @lakutata/mongo-embedded loads its addon', async () => {
