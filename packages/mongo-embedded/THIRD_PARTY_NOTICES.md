@@ -2,8 +2,10 @@
 
 The addon of `@lakutata/mongo-embedded` is compiled, when the package is installed, from the source of SQLite in
 `native/engine` (`engine.c` and `engine.h`, its `sqlite3.c` and `sqlite3.h` renamed) and from part of ICU's source in
-`vendor/icu`. Their versions, archives and checksums are in `vendor/UPSTREAM.json`; neither is changed
-(`vendor/PATCHES.md`). The queries and the updates run on the source of mingo, in `src/lib/mingo`.
+`vendor/icu`, and the stemmers of Snowball in `vendor/libstemmer_c`. Their versions, archives and checksums are in
+`vendor/UPSTREAM.json`; none is changed (`vendor/PATCHES.md`). The queries and the updates run on the source of mingo,
+in `src/lib/mingo`. The tables of the text indexes (`native/text/tables.h`) are made from the Unicode Character Database
+8.0.
 
 ## SQLite 3.53.2
 
@@ -117,3 +119,52 @@ authorization of the copyright holder.
 
 SPDX-License-Identifier: Unicode-3.0
 ```
+
+## Snowball (libstemmer_c, April 2014)
+
+The stemmers of the text indexes (https://snowballstem.org): the runtime and the UTF-8 stemmers of Danish, Dutch,
+English, Finnish, French, German, Hungarian, Italian, Norwegian, Portuguese, Romanian, Russian, Spanish, Swedish and
+Turkish, in `vendor/libstemmer_c`. The stop words of `native/text/stopwords` start from Snowball's stop word lists
+(https://snowballstem.org/algorithms/), each cut down to the words MongoDB 8.0 also drops, then extended with the other
+words of Snowball's sample vocabularies that MongoDB 8.0 drops; the Romanian and Turkish lists, which Snowball does not
+have, are the common words MongoDB 8.0 was found to drop.
+
+```
+The C version of the Snowball stemmers (libstemmer_c), as distributed by the Snowball project at
+http://snowball.tartarus.org/dist/libstemmer_c.tgz (its release of April 2014). Its license, as the project states it
+(http://snowball.tartarus.org/license.php):
+
+  All the software given out on this Snowball site is covered by the BSD License (see
+  http://www.opensource.org/licenses/bsd-license.html), with Copyright (c) 2001, Dr Martin Porter,
+  and (for the Java developments) Copyright (c) 2002, Richard Boulton.
+
+The BSD License:
+
+Copyright (c) 2001, Dr Martin Porter
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided
+that the following conditions are met:
+
+  1. Redistributions of source code must retain the above copyright notice, this list of conditions and
+     the following disclaimer.
+  2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and
+     the following disclaimer in the documentation and/or other materials provided with the distribution.
+  3. Neither the name of the Snowball project nor the names of its contributors may be used to endorse or
+     promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+```
+
+## Unicode Character Database 8.0.0
+
+The delimiters of the words, their case folding and the characters without their diacritics in `native/text/tables.h`
+are made by `scripts/text-tables.mjs` from `PropList.txt`, `CaseFolding.txt` and `UnicodeData.txt` of the Unicode
+Character Database 8.0.0 (https://www.unicode.org/Public/8.0.0/ucd/), under the Unicode License V3 above.

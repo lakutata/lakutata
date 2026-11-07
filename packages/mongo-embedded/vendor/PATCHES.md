@@ -47,3 +47,31 @@ What the addon changes is outside these files:
   `vendor/icu/icudt77l.dat`.
 
 The version is not upgraded: collation indexes store sort keys, and another ICU version could order them differently.
+
+# The vendored Snowball
+
+`vendor/libstemmer_c/` holds part of the C version of the Snowball stemmers as the Snowball project distributed it in
+April 2014 (`http://snowball.tartarus.org/dist/libstemmer_c.tgz`, kept by the Internet Archive), unchanged: its
+runtime (`runtime/api.c`, `api.h`, `header.h`, `utilities.c`) and the UTF-8 stemmers of the 15 languages of MongoDB's
+text indexes (`src_c/stem_UTF_8_<language>.c` and `.h`). The release has no license file; `LICENSE` holds the BSD
+license the project states for it. `vendor/UPSTREAM.json` records the archive, its checksum and each file's checksum,
+which the tests verify.
+
+This is the release MongoDB 8.0 stems with: its 15 stemmers are byte for byte the ones of MongoDB 8.0's source, and the
+releases from 2010 to April 2014 all carry the same files. Later ones stem differently: the release of November 2014
+changes the Hungarian stemmer (ő and ű in place of õ and û), and Snowball 2.0 normalises ё in Russian and changes
+Portuguese, French and Finnish suffixes. Grouped by their stems, the words of Snowball's sample vocabularies (an English
+word list for English) fall into the same groups as MongoDB 8.0 puts them in, in all 15 languages. The version is not
+upgraded: the text indexes store the stems.
+
+What the addon changes is outside these files:
+
+- `native/text/text.c` calls each stemmer directly (`<language>_UTF_8_create_env`, `_stem`, `_close_env`), without
+  the dispatcher of libstemmer (`libstemmer.c`, not vendored);
+- `binding.gyp` compiles them in the target `text`, their symbols hidden.
+
+# The Unicode Character Database
+
+`vendor/ucd/` holds `PropList.txt`, `CaseFolding.txt` and `UnicodeData.txt` of the Unicode Character Database 8.0.0
+(the version of MongoDB's text indexes of version 3), unchanged, and the Unicode license. They are not shipped with the
+package: `scripts/text-tables.mjs` reads them into `native/text/tables.h`, which is shipped.

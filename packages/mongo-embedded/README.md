@@ -93,15 +93,40 @@ const stream = items.watch([{$match: {operationType: 'insert'}}])
 for await (const change of stream) console.log(change.fullDocument)
 ```
 
-`watch` on a collection, on the database or on the client gives the events of the writes in MongoDB's format. A
-database in a directory keeps them in an oplog in its file, 64 MiB by default (`oplogSize`), and a stream resumes from
-its resume token, also after the database is reopened. A database in memory keeps no oplog by default
-(`oplogSize: 0`): the writes build their events only while a change stream is open (the writes of a transaction
-always build them, as a stream may open before the commit), and the last 16 MiB of them stay in memory. A stream fails with `ChangeStreamHistoryLost` when events it has not read are gone: deleted from a full
-oplog, or never built because no stream was open. A resume token or a `startAtOperationTime` older than the events
-kept fails the same way. A stream closes when its client is closed, or when a `for await` loop over it ends.
-`changeStreamPreAndPostImages` on a collection keeps the documents before and after each change for
-`fullDocumentBeforeChange` and `fullDocument`.
+`watch` on a collection, on the database or on the client gives the events of the writes in MongoDB's format. A database
+in a directory keeps them in an oplog in its file, 64 MiB by default (`oplogSize`), and a stream resumes from its resume
+token, also after the database is reopened. A database in memory keeps no oplog by default (`oplogSize: 0`): the writes
+build their events only while a change stream is open (the writes of a transaction always build them, as a stream may
+open before the commit), and the last 16 MiB of them stay in memory. A stream fails with `ChangeStreamHistoryLost` when
+events it has not read are gone: deleted from a full oplog, or never built because no stream was open. A resume token or
+a `startAtOperationTime` older than the events kept fails the same way. A stream closes when its client is closed, or
+when a `for await` loop over it ends. `changeStreamPreAndPostImages` on a collection keeps the documents before and
+after each change for `fullDocumentBeforeChange` and `fullDocument`.
+
+### Text search
+
+```typescript
+import {EmbeddedClient} from '@lakutata/mongo-embedded'
+
+const client = await EmbeddedClient.connect()
+const articles = client.db().collection('articles')
+await articles.createIndex({title: 'text', body: 'text'}, {weights: {title: 10}})
+await articles.insertOne({title: 'Brewing coffee', body: 'Grind the beans just before brewing.'})
+const found = await articles
+    .find({$text: {$search: 'coffee -tea'}}, {projection: {score: {$meta: 'textScore'}}})
+    .sort({score: {$meta: 'textScore'}})
+    .toArray()
+console.log(found)
+await client.close()
+```
+
+Text indexes work like MongoDB 8.0's (version 3). Text is split into words at Unicode punctuation and spaces; each
+word's case is folded, the stop words of its language are left out, and the rest are stemmed by Snowball and stripped of
+their diacritics. An index has one of 15 languages, or `none` (no stop words, no stemming): `default_language` sets it,
+and a document's `language` field overrides it. `$text` finds the documents with any of its words, keeps those that
+contain each of its phrases (`"..."`) and none of its negated words and phrases (`-word`), and scores them as MongoDB
+does. `{$meta: 'textScore'}` gives the score in a projection, a sort or a pipeline. As in MongoDB, Chinese, Japanese and
+other languages written without spaces are not split into words. Text indexes of versions 1 and 2 are not supported.
 
 ## API
 
@@ -135,7 +160,7 @@ kept fails the same way. A stream closes when its client is closed, or when a `f
 - Indexes: ascending, descending and compound, unique, sparse, partial (`partialFilterExpression`), hashed, wildcard
   and compound wildcard (`$**`, `wildcardProjection`), hidden, with a collation, and TTL (`expireAfterSeconds`). The
   queries use them, and the index of the `_id` for its ranges and its sorts; a query can name the index it uses
-  (`hint`). Text and geospatial indexes are not supported yet: creating one fails.
+  (`hint`). Text indexes serve `$text` (see above). Geospatial indexes are not supported yet: creating one fails.
 - Collations: the `collation` option on queries, sorts, writes, aggregations and indexes compares strings by a
   locale's rules (`{locale: 'en', strength: 2}` ignores case). The package ships its own ICU (77.1), so results are
   identical on every platform.
