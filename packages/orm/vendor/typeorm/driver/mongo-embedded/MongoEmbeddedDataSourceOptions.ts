@@ -45,4 +45,29 @@ export interface MongoEmbeddedDataSourceOptions extends BaseDataSourceOptions {
      * @default 0
      */
     readonly mmapSize?: number
+
+    /**
+     * The most bytes the oplog of the change streams holds in the file of the database (its oldest events deleted
+     * beyond): it resumes the change streams after a closing or a crash. 0 keeps no oplog: the writes build their
+     * events only while a change stream is open.
+     * @default 67108864 (64 MiB) for a database in a directory, 0 for a database in memory
+     */
+    readonly oplogSize?: number
+
+    /**
+     * The write concern of the writes not given one: w (1 by default, "majority", 0 for none), j or fsync (the write on
+     * the disk before it is acknowledged, whatever the sync), wtimeoutMS (kept, without effect).
+     */
+    readonly writeConcern?: {
+        w?: number | string | boolean
+        j?: boolean
+        fsync?: boolean
+        wtimeoutMS?: number
+    }
+
+    /**
+     * The longest a transaction may be open, in seconds: beyond, it is aborted.
+     * @default 60
+     */
+    readonly transactionLifetimeLimitSeconds?: number
 }

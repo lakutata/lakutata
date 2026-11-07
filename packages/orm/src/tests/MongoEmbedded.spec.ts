@@ -667,6 +667,16 @@ describe('The embedded MongoDB (mongo-embedded)', (): void => {
         }
     })
 
+    it('gives the embedded client its oplog, its write concern and the lifetime of its transactions', async (): Promise<void> => inDirectory(async (directory: string): Promise<void> => {
+        const dataSource: DataSource = await new DataSource({type: 'mongo-embedded', database: directory, oplogSize: 0, writeConcern: {w: 2}}).initialize()
+        const client = dataSource.mongoManager.mongoQueryRunner.databaseConnection as unknown as {store: {oplogSize: number}}
+        assert.strictEqual(client.store.oplogSize, 0)
+        //A write concern a single member cannot satisfy: the write made, its acknowledgement failing
+        await assert.rejects(dataSource.mongoManager.mongoQueryRunner.insertOne('posts', {title: 'a'}), {code: 100})
+        await dataSource.destroy()
+        await assert.rejects(new DataSource({type: 'mongo-embedded', transactionLifetimeLimitSeconds: 0}).initialize(), /transactionLifetimeLimitSeconds must be a number of seconds above 0/)
+    }))
+
     it('connects the Database component', async (): Promise<void> => {
         const container: Container = new Container()
         const database: Database = await container.set(Database, {options: {type: 'mongo-embedded', entities: [Post], synchronize: true}})

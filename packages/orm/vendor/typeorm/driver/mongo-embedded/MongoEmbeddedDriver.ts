@@ -50,6 +50,10 @@ export class MongoEmbeddedDriver extends MongoDriver {
                 syncInterval: options.syncInterval,
                 cacheSize: options.cacheSize,
                 mmapSize: options.mmapSize,
+                oplogSize: options.oplogSize,
+                writeConcern: options.writeConcern,
+                transactionLifetimeLimitSeconds:
+                    options.transactionLifetimeLimitSeconds,
             },
         )
         this.queryRunner = new MongoEmbeddedQueryRunner(

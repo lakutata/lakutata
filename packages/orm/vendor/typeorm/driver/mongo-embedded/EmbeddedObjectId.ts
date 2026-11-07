@@ -4,16 +4,14 @@ import type { ObjectId as BSONObjectId } from "../mongodb/bson.typings"
 
 /**
  * lakutata: the class ObjectId of the embedded MongoDB, the one of the bson of the package @lakutata/mongo-embedded
- * (its CommonJS module, the module TypeORM requires); without it, the one of the package bson; without either, a class
- * whose construction tells the package is not installed.
+ * (its CommonJS module, the module TypeORM requires); without it, a class whose construction tells the package is not
+ * installed.
  */
 function loadObjectId(): typeof BSONObjectId {
-    for (const name of ["@lakutata/mongo-embedded", "bson"]) {
-        try {
-            return requireDriverPackage(name).ObjectId
-        } catch {
-            // The next one
-        }
+    try {
+        return requireDriverPackage("@lakutata/mongo-embedded").ObjectId
+    } catch {
+        // Not installed
     }
     return class ObjectId {
         constructor() {
