@@ -26,6 +26,7 @@ export interface EncodeOptions {
 
     /**
      * ESC/POS: the most rows of one raster command; a taller page is sent in bands. Small printers have small buffers.
+     * At most 2303 (`GS v 0`), 1662 (`GS ( L`, which also carries 65525 bytes at most).
      * @default 255
      */
     bandHeight?: number
@@ -137,8 +138,8 @@ function encodeEscPos(image: PrintImage, options: EncodeOptions, raster: EscPosR
             //The default line spacing back
             chunks.push(Buffer.from([ESC, 0x32]))
         } else {
-            //GS ( L carries 65525 bytes of data at most (its length on two bytes, 10 of them its header)
-            const most: number = raster === 'gsl' ? Math.min(options.bandHeight ?? 255, Math.floor(65525 / bytes)) : options.bandHeight ?? 255
+            //GS ( L carries 65525 bytes of data at most (its length on two bytes, 10 of them its header) and 1662 rows
+            const most: number = raster === 'gsl' ? Math.min(options.bandHeight ?? 255, 1662, Math.floor(65525 / bytes)) : options.bandHeight ?? 255
             for (let top = 0; top < page.height; top += most) {
                 const rows: number = Math.min(most, page.height - top)
                 const data: Buffer = rowsOf(page, top, top + rows)
@@ -178,7 +179,9 @@ function millimetres(dots: number, dotsPerMm: number): string {
 }
 
 /**
- * TSPL: the size of the labels, their sensor, the settings, then each page as a bitmap (1 a white dot in TSPL) printed
+ * TSPL: the size of the labels, their sensor, the settings, then each page as a bitmap printed. The bits of BITMAP are
+ * inverted (1 a white dot), as the community implementations of TSPL send them; the BITMAP entry of TSC's programming
+ * manual does not state it in its text (not verified on a printer yet)
  */
 function encodeTspl(image: PrintImage, options: EncodeOptions): Buffer {
     checkInteger(options.density, 'density', 0, 15)

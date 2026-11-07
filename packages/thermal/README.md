@@ -3,13 +3,15 @@
 English | [中文](README.zh-CN.md)
 
 Thermal printing for Node.js: receipts, labels and wristbands written in HTML and CSS, rendered by a native addon into
-the printer's own dot grid. The rendering is the print preview and the data of the printer at once: one picture of
-black dots, exported as PNG or sent as printer commands. No browser is involved: the layout is
-[litehtml](https://github.com/litehtml/litehtml), the glyphs [FreeType](https://freetype.org) in monochrome with
-hinting, the graphics [plutovg](https://github.com/sammycage/plutovg) and the SVG [lunasvg](https://github.com/sammycage/lunasvg).
-A receipt renders in about two milliseconds on a recent machine. The fonts are bundled: Noto Sans SC (Source Han Sans), regular and bold.
+the printer's own dot grid, then encoded as ESC/POS, TSPL or ZPL commands. The rendering is the print preview and the
+data of the printer at once: one picture of black dots, exported as PNG or sent as printer commands. No browser is
+involved: the layout is [litehtml](https://github.com/litehtml/litehtml), the glyphs [FreeType](https://freetype.org)
+in monochrome with hinting, the graphics [plutovg](https://github.com/sammycage/plutovg) and the SVG
+[lunasvg](https://github.com/sammycage/lunasvg). A receipt renders in about two milliseconds on a recent machine. The
+fonts are bundled: Noto Sans SC (Source Han Sans), regular and bold.
 
-The package renders and encodes; the `@lakutata/thermal-printer` package is the component that drives the printers.
+The package renders and encodes; the `@lakutata/thermal-printer` package is the component that sends the commands to
+the printers.
 
 ## Installation
 
@@ -119,17 +121,18 @@ borders with rounded corners, backgrounds with linear and radial gradients, `::b
 - Inline `<svg>` elements, and `<img>` sources: `data:` URLs (PNG, JPEG, GIF, BMP, SVG), and the files of the
   directory given by `baseDir` (`<img src="logo.png">`, `<link rel="stylesheet" href="receipt.css">`). A path outside
   that directory, a remote address (`https:`) and, without `baseDir`, any file are refused.
-- `qrcode:` sources draw a QR code on whole dots, as large as its box allows: the text after `qrcode:` is percent-encoded
-  (`encodeURIComponent`), the options follow `#`: `ec` (the error correction, `L`, `M`, `Q` or `H`, `M` by default) and
-  `quiet` (the modules of the quiet zone, 4 by default). `<img style="width: 25mm" src="qrcode:ORDER-42#ec=Q&quiet=2">`.
+- `qrcode:` sources draw a QR code on whole dots, as large as its box allows: the text after `qrcode:` is
+  percent-encoded (`encodeURIComponent`), the options follow `#`: `ec` (the error correction, `L`, `M`, `Q` or `H`, `M`
+  by default) and `quiet` (the modules of the quiet zone, 4 by default). For example
+  `<img style="width: 25mm" src="qrcode:ORDER-42#ec=Q&quiet=2">`.
 - Photographs are dithered; SVG and line art are thresholded. A fragment chooses for one picture:
   `<img src="logo.png#threshold">`, `<img src="photo.svg#dither">`.
 
 ### Fonts
 
 The bundled Noto Sans SC covers Chinese, Japanese kana, Latin, Greek and Cyrillic, in regular and bold (not Korean
-Hangul); it is the font of the generic families (`sans-serif`, `serif`…) and of the characters a registered font lacks. More fonts are registered once for the
-process:
+Hangul); it is the font of the generic families (`sans-serif`, `serif`…) and of the characters a registered font lacks.
+More fonts are registered once for the process:
 
 ```typescript
 import {registerFont, render} from '@lakutata/thermal'
@@ -141,6 +144,59 @@ console.log(image.height)
 
 A family registered without the weight or the style asked for is emboldened or slanted. Scripts that need shaping
 (Arabic, Thai, Devanagari) are not supported.
+
+### Printer commands
+
+`encode()` turns a rendering into the commands of a printer, by its language or its model:
+
+```typescript
+import {encode, render} from '@lakutata/thermal'
+
+const receipt = await render('<h1>Order 42</h1>', {paper: 80})
+const escpos: Buffer = encode(receipt, {language: 'escpos', feed: 3, cut: 'partial', drawer: true})
+
+const band = await render('<b>Ward 3 · Bed 12</b>', {model: 'HC100', label: {width: 25, height: 250}})
+const zpl: Buffer = encode(band, {model: 'HC100', sensor: 'mark'})
+
+const label = await render('<b>Shelf A-12</b>', {label: {width: 40, height: 30}, dpi: 203})
+const tspl: Buffer = encode(label, {language: 'tspl', gap: 2, density: 8})
+console.log(escpos.length, zpl.length, tspl.length)
+```
+
+- **ESC/POS** (receipt printers): each page as raster bands of `raster`: `'gsv0'` (`GS v 0`, the default),
+  `'gsl'` (`GS ( L`, which Epson recommends) or `'esc*'` (`ESC *`, 24-dot columns, the oldest). A band holds
+  `bandHeight` rows (255 by default: small printers have small buffers). After each page, `feed` (millimetres) and
+  `cut` (`'full'` or `'partial'`, the paper fed to the cutter first); after the last one, `drawer` opens the cash drawer
+  (`true` for pin 2, or `{pin, on, off}` in milliseconds). The feed and the `ESC *` bands count in the printer's
+  vertical motion unit, so the encoder first sets it to the dot pitch (`GS P`); this is not verified on a printer yet.
+- **TSPL** (TSC and many Chinese label printers): the label size, its `sensor` (`'gap'`, `'mark'` or `'continuous'`)
+  and `gap`, `density` (0 to 15), `speed`, then each page a `BITMAP` printed in `copies`.
+- **ZPL** (Zebra and the printers that emulate it): each page a label of its width and length, its sensor (`^MN`),
+  `density` (0 to 30, `~SD`), `speed` (`^PR`), the page a graphic field (`^GF`), compressed by default (`compress`).
+
+### The printer models
+
+`printerModels()` lists the printers known by name; `model` gives a rendering their resolution and print width, and an
+encoding their language and raster command. A label printer's model gives its resolution and its habits, and the
+`label` option the size of the label:
+
+| Model | Brand | dpi | Dots | Language | Media |
+|---|---|---|---|---|---|
+| `TM-T88V`, `TM-T88VI`, `TM-T88VII` | Epson | 180 | 512 | ESC/POS (`GS ( L`) | roll |
+| `TM-T20III`, `TM-m30` | Epson | 203 | 576 | ESC/POS | roll |
+| `SRP-350III`, `SRP-350plusIII` | Bixolon | 180 | 512 | ESC/POS | roll |
+| `Sunmi 58`, `Sunmi 80` | Sunmi | 203 | 384, 576 | ESC/POS | roll |
+| `XP-58IIH`, `XP-Q80K` | Xprinter | 203 | 384, 576 | ESC/POS | roll |
+| `GP-58130IVC` | Gprinter | 203 | 384 | ESC/POS | roll |
+| `TP80K` | HPRT | 203 | 576 | ESC/POS | roll |
+| `ZJ-5870` | Zjiang | 203 | 384 | ESC/POS | roll |
+| `TDP-225`, `TDP-225W` | TSC | 203 | 416 | TSPL | labels, wristbands |
+| `TDP-324`, `TDP-324W` | TSC | 300 | 576 | TSPL | labels, wristbands |
+| `HC100`, `ZD510-HC` | Zebra | 300 | 361 | ZPL | wristbands, printed along the band |
+
+The figures come from the makers' specifications and from the community profiles of
+[escpos-printer-db](https://github.com/receipt-print-hq/escpos-printer-db); `source` tells which. A printer not listed
+is given by its figures: `width` and `dpi` (or `label` and `dpi`) for the rendering, `language` for the encoding.
 
 ### How the dots are drawn
 
@@ -156,17 +212,20 @@ address, an order number of letters) can break anywhere.
 | Export | What it is |
 |---|---|
 | `render(html, options)` | Renders HTML into a `PrintImage` |
+| `encode(image, options)` | Encodes a rendering as ESC/POS, TSPL or ZPL commands |
+| `printerModels()` | The printers known by name |
 | `registerFont(font)` | Registers a font for the renderings |
 | `PrintImage` | A rendering: `pages`, `width`, `height`, `dpi`, `dotsPerMm`, `toPNG(page?)` |
 | `PrintPage` | A page of dots: `width`, `height`, `rows`, `bytesPerRow`, `dot(x, y)`, `toPNG()` |
-| `RenderOptions`, `MediaOptions`, `PageOptions`, `LabelSize`, `Length`, `FontSource` | The options |
+| `RenderOptions`, `MediaOptions`, `PageOptions`, `LabelSize`, `Length`, `FontSource`, `EncodeOptions` | The options |
+| `PrinterModel`, `PrinterLanguage`, `EscPosRaster` | A model of the table, the command languages, the ESC/POS raster commands |
 | `ThermalException`, `ThermalOptionException`, `ThermalFontException`, `ThermalContentException`, `ThermalTimeoutException`, `ThermalCancelledException` | The exceptions of the package (see [Errors](#errors)) |
 
 ## Errors
 
 | Error | When |
 |---|---|
-| `ThermalOptionException` | Options that are not valid: no media or more than one, a media without its resolution, a size out of range, a rotated page without a fixed length |
+| `ThermalOptionException` | Options that are not valid: no media or more than one, a media without its resolution, a size out of range, a rotated page without a fixed length, an unknown model, an encoding without its language |
 | `ThermalFontException` | A font file that cannot be read, or that FreeType does not open |
 | `ThermalContentException` | A picture or a style sheet that cannot be read or decoded (outside `baseDir`, remote, broken), a QR code with too much text, content longer than `maxLength` (2500 mm by default) |
 | `ThermalTimeoutException` | The rendering waited in the queue longer than its `timeout` |
@@ -175,6 +234,6 @@ address, an order number of letters) can break anywhere.
 
 ## See also
 
-- `@lakutata/thermal-printer`: the component that sends the renderings to the printers.
+- `@lakutata/thermal-printer`: the component that sends the commands to the printers.
 - `THIRD_PARTY_NOTICES.md`: the libraries compiled into the addon, the bundled fonts, and their licenses. The package
   itself is under the MIT license.

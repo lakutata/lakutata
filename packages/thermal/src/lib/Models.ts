@@ -83,8 +83,8 @@ const MODELS: readonly PrinterModel[] = [
     {name: 'TM-T88V', brand: 'Epson', dpi: 180, width: 512, language: 'escpos', raster: 'gsl', media: 'roll', source: 'documented'},
     {name: 'TM-T88VI', brand: 'Epson', dpi: 180, width: 512, language: 'escpos', raster: 'gsl', media: 'roll', source: 'documented'},
     {name: 'TM-T88VII', brand: 'Epson', dpi: 180, width: 512, language: 'escpos', raster: 'gsl', media: 'roll', source: 'documented'},
-    {name: 'TM-T20III', brand: 'Epson', dpi: 203, width: 576, language: 'escpos', raster: 'gsv0', media: 'roll', source: 'documented'},
-    {name: 'TM-m30', brand: 'Epson', dpi: 203, width: 576, language: 'escpos', raster: 'gsv0', media: 'roll', source: 'documented'},
+    {name: 'TM-T20III', brand: 'Epson', dpi: 203, width: 576, language: 'escpos', raster: 'gsv0', media: 'roll', source: 'reported'},
+    {name: 'TM-m30', brand: 'Epson', dpi: 203, width: 576, language: 'escpos', raster: 'gsv0', media: 'roll', source: 'reported'},
     //Bixolon: 180 dpi, 512 dots (the width derived from the resolution and the 72 mm print width)
     {name: 'SRP-350III', brand: 'Bixolon', dpi: 180, width: 512, language: 'escpos', raster: 'gsv0', media: 'roll', source: 'reported'},
     {name: 'SRP-350plusIII', brand: 'Bixolon', dpi: 180, width: 512, language: 'escpos', raster: 'gsv0', media: 'roll', source: 'reported'},
