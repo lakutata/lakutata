@@ -1961,6 +1961,16 @@ export const SCENARIOS: Scenario[] = [
             result.compoundNoEquality = await outcome(async (): Promise<unknown> => (await compound.find({loc: {$near: {$geometry: point(0, 0)}}}).toArray()).map((item: any): unknown => item._id))
             result.compoundEquality = await outcome(async (): Promise<unknown> => (await compound.find({k: 5, loc: {$near: {$geometry: point(3, 3)}}}).toArray()).map((item: any): unknown => item._id))
             result.compoundHinted = await outcome(async (): Promise<unknown> => (await compound.find({k: 5}, {hint: 'k_1_loc_2dsphere'}).toArray()).map((item: any): unknown => item._id))
+            result.compoundIn = await outcome(async (): Promise<unknown> => (await compound.find({k: {$in: [5, 6]}, loc: {$near: {$geometry: point(0, 0)}}}).toArray()).map((item: any): unknown => item._id))
+            result.compoundRange = await outcome(async (): Promise<unknown> => (await compound.find({k: {$gt: 1}, loc: {$near: {$geometry: point(0, 0)}}}).toArray()).map((item: any): unknown => item._id))
+            //A $text and a $near together: refused when the collection has a text index too
+            const texts: any = db.collection('texts')
+            await texts.createIndex({s: 'text'})
+            await texts.createIndex({loc: '2dsphere'})
+            await texts.insertOne({_id: 1, s: 'x', loc: point(0, 0)})
+            result.textAndNear = await outcome((): unknown => texts.find({loc: {$near: {$geometry: point(0, 0)}}, $text: {$search: 'x'}}).toArray())
+            result.textAndWithin = await outcome((): unknown => texts.find({loc: {$geoWithin: {$centerSphere: [[0, 0], 0.1]}}, $text: {$search: 'x'}}).toArray())
+            result.textInGeoNear = await outcome((): unknown => texts.aggregate([{$geoNear: {near: point(0, 0), distanceField: 'd', query: {$text: {$search: 'x'}}}}]).toArray())
             //A 2d index: a plane, the sphere for $nearSphere
             const flat: any = db.collection('flat')
             await flat.createIndex({loc: '2d'})

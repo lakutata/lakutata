@@ -2828,6 +2828,7 @@ export class EmbeddedCollection {
      */
     private async geoNearDocuments(spec: unknown, collator: EmbeddedCollator | undefined, time: EmbeddedTimeLimit | undefined, typed: boolean, needed = Infinity): Promise<EmbeddedDocument[]> {
         const stage = this.geoNearStageOf(spec)
+        if (textOf(stage.query)) throw new EmbeddedOperationError(2, 'BadValue', 'text and geoNear not allowed in same query')
         if (!this.store.collection(this.collectionName, this.transaction)) return []
         const matches = this.matcherOf(stage.query, collator)
         const results: EmbeddedDocument[] = []
@@ -4932,23 +4933,26 @@ export class EmbeddedCollection {
     }
 
     /**
-     * The geo index of a near, as MongoDB 8.0 plans it: a 2dsphere index of its field (the fields before it given by
-     * equalities) for a near on the sphere; a 2d index of its field first for a near of legacy coordinates (on a plane,
-     * or on the sphere: $nearSphere). Without one it fails with NoQueryExecutionPlans (291)
+     * The geo index of a near, as MongoDB 8.0 plans it: a 2dsphere index of its field (the fields before it given
+     * conditions by the filter) for a near on the sphere; a 2d index of its field first for a near of legacy coordinates
+     * (on a plane, or on the sphere: $nearSphere). Without one it fails with NoQueryExecutionPlans (291). The keys of the
+     * fields before its field when they are given by equalities (the prefix of its keys), else none (all its keys read)
      *
      * @param collection
      * @param near
      * @param filter the rest of the filter
      */
-    private nearIndexOf(collection: EmbeddedCollectionState | undefined, near: EmbeddedNear, filter: EmbeddedDocument): { index: EmbeddedIndex, kind: GeoIndexKind, prefix: Buffer } {
+    private nearIndexOf(collection: EmbeddedCollectionState | undefined, near: EmbeddedNear, filter: EmbeddedDocument): { index: EmbeddedIndex, kind: GeoIndexKind, prefix?: Buffer } {
         const candidates = (collection?.indexes ?? []).filter((index) => !index.hidden && !index.partialFilterExpression)
         // A legacy point: a 2d index first (MongoDB's order), a GeoJSON point: a 2dsphere index only
         for (const kind of near.meters ? (['2dsphere'] as const) : near.sphere ? (['2d', '2dsphere'] as const) : (['2d'] as const))
             for (const index of candidates) {
                 if (index.key[near.path] !== kind) continue
                 if (kind === '2d') return { index: index, kind: kind, prefix: Buffer.alloc(0) }
-                const prefix = this.prefixOf(collection!, index, near.path, filter)
-                if (prefix) return { index: index, kind: kind, prefix: prefix }
+                const fields = Object.keys(index.key)
+                const conditioned = new Set(Object.keys(filter).concat(...(Array.isArray(filter.$and) ? filter.$and.filter(isPlain).map(Object.keys) : [])))
+                if (fields.slice(0, fields.indexOf(near.path)).every((field) => conditioned.has(field)))
+                    return { index: index, kind: kind, prefix: this.prefixOf(collection!, index, near.path, filter) }
             }
         throw new EmbeddedOperationError(
             291,
@@ -4997,7 +5001,8 @@ export class EmbeddedCollection {
         const chunks = function* (documents: EmbeddedDocument[]) {
             for (let start = 0; start < documents.length; start += YIELD_EVERY) yield documents.slice(start, start + YIELD_EVERY)
         }
-        if (kind === '2d') {
+        // A 2d index, or fields before the field not given by equalities: all its keys
+        if (kind === '2d' || !prefix) {
             await read(undefined)
             yield* chunks(given(Infinity))
             return

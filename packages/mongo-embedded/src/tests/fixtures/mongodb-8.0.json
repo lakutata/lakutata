@@ -9396,8 +9396,8 @@
       "$date": "2026-01-01T00:00:02.000Z"
      },
      "m": "a",
-     "v": 2,
-     "extra": 1
+     "extra": 1,
+     "v": 2
     },
     {
      "ts": {
@@ -13830,6 +13830,45 @@
      1,
      4
     ]
+   },
+   "compoundIn": {
+    "value": [
+     1,
+     3,
+     4
+    ]
+   },
+   "compoundRange": {
+    "value": [
+     1,
+     3,
+     4
+    ]
+   },
+   "textAndNear": {
+    "error": {
+     "code": 2
+    }
+   },
+   "textAndWithin": {
+    "value": [
+     {
+      "_id": 1,
+      "s": "x",
+      "loc": {
+       "type": "Point",
+       "coordinates": [
+        0,
+        0
+       ]
+      }
+     }
+    ]
+   },
+   "textInGeoNear": {
+    "error": {
+     "code": 2
+    }
    },
    "2d near": {
     "value": [

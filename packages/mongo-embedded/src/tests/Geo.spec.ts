@@ -147,6 +147,28 @@ describe('The geo indexes and queries', (): void => {
             assert.deepStrictEqual(await ids(indexed, {loc: query}), expected, JSON.stringify(query))
         }
         assert.ok(found > 1000)
+        //Compound indexes: a field before the geo field (given by an equality), a field after it (the keys after a cell)
+        const before = db.collection('before')
+        const behind = db.collection('behind')
+        await before.createIndex({k: 1, loc: '2dsphere'})
+        await behind.createIndex({loc: '2dsphere', k: 1})
+        const keyed: Record<string, unknown>[] = documents.map((document: Record<string, unknown>, position: number): Record<string, unknown> => ({...document, k: position % 3}))
+        await before.insertMany(keyed.map((document: Record<string, unknown>): Record<string, unknown> => ({...document})))
+        await behind.insertMany(keyed.map((document: Record<string, unknown>): Record<string, unknown> => ({...document})))
+        const keyedPlain = db.collection('keyedPlain')
+        await keyedPlain.insertMany(keyed.map((document: Record<string, unknown>): Record<string, unknown> => ({...document})))
+        for (const query of queries.slice(0, 30)) {
+            assert.deepStrictEqual(await ids(before, {k: 1, loc: query}), await ids(keyedPlain, {k: 1, loc: query}), JSON.stringify(query))
+            assert.deepStrictEqual(await ids(behind, {loc: query}), await ids(keyedPlain, {loc: query}), JSON.stringify(query))
+            assert.deepStrictEqual(await ids(behind, {loc: query, k: {$ne: 2}}), await ids(keyedPlain, {loc: query, k: {$ne: 2}}), JSON.stringify(query))
+        }
+        const center = {$geometry: {type: 'Point', coordinates: [1, 1]}}
+        for (const [collection, filter] of [[before, {k: 2}], [before, {k: {$in: [0, 2]}}], [behind, {}], [behind, {k: {$gt: 0}}]] as [any, Record<string, unknown>][]) {
+            const near = (await collection.find({...filter, loc: {$near: center}}, {projection: {d: {$meta: 'geoNearDistance'}}}).toArray()) as Record<string, any>[]
+            const expected = (await keyedPlain.find(filter).toArray()).length
+            assert.strictEqual(near.length, expected, JSON.stringify(filter))
+            for (let i: number = 1; i < near.length; i++) assert.ok(near[i - 1].d <= near[i].d)
+        }
         //A 2d index: the shapes of a plane, and the regions of the sphere
         const flat = db.collection('flat')
         await flat.createIndex({loc: '2d'}, {bits: 18})
