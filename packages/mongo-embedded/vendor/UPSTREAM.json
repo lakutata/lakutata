@@ -24,7 +24,7 @@
     "version": "1.44.0",
     "archive": "https://github.com/missinglink/s2js/archive/refs/tags/v1.44.0.tar.gz",
     "sha256": "f26fefc7bee1f19c476d21ecfb008af51260cc99d378026870eef3b41b39ab43",
-    "into": "src/lib/s2 (its r1, r2, r3, s1 and s2, without their tests: scripts/s2-vendor.mjs, vendor/PATCHES.md)"
+    "into": "src/lib/s2 (r1, r2, r3, s1, s2 without tests, changed: scripts/s2-vendor.mjs, vendor/PATCHES.md)"
   },
   "icu": {
     "version": "77.1",
