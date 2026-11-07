@@ -1,22 +1,26 @@
 {
   "name": "@lakutata/thermal-printer",
   "version": "3.2.0",
-  "description": "Thermal printers for lakutata: a component that renders receipts, labels and wristbands written in HTML (by @lakutata/thermal), encodes them as ESC/POS, TSPL or ZPL, and sends them to the printers by the network, the system print queue, a serial port, USB or Bluetooth, one queue of jobs per printer.",
+  "description": "Thermal printers for lakutata: a manager component that finds the printers (USB, print queues, serial and Bluetooth ports), opens them from definitions an application saves as JSON, and a printer object for each, which renders receipts, labels and wristbands written in HTML (by @lakutata/thermal), encodes them as ESC/POS, TSPL or ZPL and sends them in the order of the calls.",
   "keywords": [
-    "lakutata",
-    "thermal",
-    "printer",
-    "receipt",
-    "label",
-    "wristband",
-    "escpos",
-    "esc-pos",
-    "tspl",
-    "zpl",
-    "pos",
     "cups",
+    "discovery",
+    "esc-pos",
+    "escpos",
+    "label",
+    "lakutata",
+    "manager",
+    "pos",
+    "printer",
     "raw",
-    "typescript"
+    "receipt",
+    "spooler",
+    "thermal",
+    "tspl",
+    "typescript",
+    "usb",
+    "wristband",
+    "zpl"
   ],
   "homepage": "https://lakutata.com/packages/thermal-printer",
   "bugs": {
@@ -46,12 +50,16 @@
     },
     "./package.json": "./package.json"
   },
+  "gypfile": true,
   "scripts": {
+    "install": "node scripts/install.mjs",
+    "build:native": "node-gyp rebuild",
     "clean": "node -e \"require('node:fs').rmSync('dist', {recursive: true, force: true})\"",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs-pkg": "node ../../scripts/package-build/cjs-package.mjs",
-    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
+    "build:addon": "node scripts/addon.mjs",
+    "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg && npm run build:addon",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test --test-timeout=120000 \"dist/esm/tests/**/*.spec.js\""
@@ -62,23 +70,24 @@
   "files": [
     "dist",
     "!dist/*/tests",
+    "binding.gyp",
+    "native",
+    "scripts/install.mjs",
+    "scripts/addon.mjs",
     "*.md",
     "LICENSE",
     "package.json"
   ],
   "dependencies": {
-    "@lakutata/thermal": "~3.2.0"
+    "@lakutata/thermal": "~3.2.0",
+    "node-addon-api": "^8.9.2"
   },
   "peerDependencies": {
     "@lakutata/core": "~3.2.0",
-    "@lakutata/serial": "~3.2.0",
-    "@lakutata/usb": "~3.2.0"
+    "@lakutata/serial": "~3.2.0"
   },
   "peerDependenciesMeta": {
     "@lakutata/serial": {
-      "optional": true
-    },
-    "@lakutata/usb": {
       "optional": true
     }
   },

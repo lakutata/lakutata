@@ -245,6 +245,18 @@ describe('The thermal printers', (): void => {
         }
     })
 
+    it('finds no USB printer where none is plugged, and fails the print of one not connected', async (): Promise<void> => {
+        const {printers, container} = await manager()
+        try {
+            const found = await printers.discover({queues: false, serial: false})
+            assert.ok(Array.isArray(found))
+            for (const candidate of found) assert.strictEqual(candidate.kind, 'usb')
+            await assert.rejects(printers.print({connection: {type: 'usb', vendorId: 0x1234, productId: 0x5678}}, Buffer.from([0x1B, 0x40])), ThermalPrinterConnectionException)
+        } finally {
+            await container.destroy()
+        }
+    })
+
     it('fails the prints it cannot send, and the next ones still go out', async (): Promise<void> => {
         const printer = await fakePrinter()
         const {printers, container} = await manager()
