@@ -10,7 +10,8 @@
 ** The rows of the catalog: 'f' the format (u32), 'n' the next id (of a collection or an index), 'c' + its name the id
 ** of a collection, 'k' + its id the count of its documents, 'u' + its id its UUID (16 bytes), 'x' + its id the
 ** definitions of its indexes (BSON, as the client writes them; the ids and the counts as 8 bytes, big endian), 'g' the
-** generation of the oplog (the last opening), 'i' the UUID of the database, 'o' the bytes of the oplog, 'd' while the
+** generation of the oplog (the last opening), 'i' the UUID of the database, 'o' the bytes of each segment of the oplog
+** (8 bytes each; 8 bytes in all: the one of a file of one segment), 'l' the last event the oplog lost, 'd' while the
 ** counts (and the bytes of the oplog) are not written. The counts
 ** are kept in memory and written at the closing: a write would write the page of the catalog too otherwise (a commit of
 ** one document costs 17 us, of two pages 29 us); the first write of a connection writes 'd', and an opening finding it
@@ -22,7 +23,8 @@
 ** unique index fails it), and their ranges walked to the documents.
 **
 ** The internal functions used: sqlite3BtreeBeginTrans, Commit, Rollback, Cursor, CursorSize, CursorZero, CloseCursor,
-** IndexMoveto, Insert, Delete, First, Last, Next, Previous, Eof, PayloadSize, Payload, PayloadFetch, Pager, Count;
+** IndexMoveto, Insert, Delete, First, Last, Next, Previous, Eof, PayloadSize, Payload, PayloadFetch, Pager, Count,
+** ClearTable (a segment of the oplog: its cursors closed first);
 ** sqlite3KeyInfoAlloc, sqlite3KeyInfoUnref, sqlite3VdbeAllocUnpackedRecord, sqlite3VdbeRecordUnpack, sqlite3PutVarint,
 ** sqlite3PagerWalCallback, and the macro getVarint32. Their preconditions found, each one checked by the tests:
 **  1. a varint of one byte is read by the macro getVarint32: the function sqlite3GetVarint32 takes it of two at least;
@@ -42,8 +44,18 @@
 ** collections and the oplog of the change streams */
 #define MDE_FORMAT 3
 
-/* The bytes the oplog may hold beyond its limit before its oldest events are deleted: its deletions made in batches */
-#define MDE_OPLOG_SLACK (1024 * 1024)
+/* The segments of the oplog, its tables used in turn (a ring): "oplog" (the table of the files of one segment) then
+** "oplog1" to "oplog7". The events are appended to the current one; once it holds its share of the limit (the limit
+** divided by the segments but one), the next one is current, its events (the oldest ones) deleted at once when it has
+** some (sqlite3BtreeClearTable: its pages freed, the events not deleted one by one). The oplog holds its limit at
+** most, its limit less a share at least once it is full */
+#define MDE_OPLOG_SEGMENTS 8
+
+/* The state of the segments of the oplog: the current one, and the bytes of the events of each one */
+typedef struct OplogState {
+  int current;
+  int64_t bytes[MDE_OPLOG_SEGMENTS];
+} OplogState;
 
 typedef struct Collection {
   int64_t id;
@@ -95,19 +107,22 @@ struct MdeStore {
   int savedCount;
   int savedDirty;
   int64_t savedNextSeq;
-  int64_t savedOplogBytes;
-  /* The oplog: its root page, the generation of this opening, the sequence of its next event, its bytes and the most
-  ** of them (0: no event written); the events queued for the next commit, the ones it appended and their bytes; the
-  ** mark of the counts written by it (the row 'd'); the UUID of the database */
+  OplogState savedOplog;
+  /* The oplog: the root pages of its segments (oplog: the one of the first, 0 without an oplog), the generation of
+  ** this opening, the sequence of its next event, the state of its segments and the most bytes it holds (0: no event
+  ** written); the events queued for the next commit, the ones it appended and the state of the segments they leave
+  ** (pendingOplog, while pendingActive) */
   Pgno oplog;
+  Pgno oplogRoots[MDE_OPLOG_SEGMENTS];
   int64_t generation;
   int64_t nextSeq;
-  int64_t oplogBytes;
+  OplogState oplogState;
   int64_t oplogLimit;
   MdeBuffer queued;
   int queuedCount;
   int64_t pendingSeq;
-  int64_t pendingBytes;
+  OplogState pendingOplog;
+  int pendingActive;
   int marking;
   uint8_t database[16];
   /* An opening keeping no events: the events lost when it opened, as the row 'l' tells them (zeros when the database
@@ -958,43 +973,88 @@ static int EventTime(const uint8_t *event, int size, uint8_t *time) {
   return 1;
 }
 
-/* The oldest events of the oplog deleted, in the transaction open, until it holds its limit of bytes at most: the key
-** and the cluster time of the last one deleted written (the row 'l'), so that a position or a time before it fails
-** (ChangeStreamHistoryLost) */
-static int Trim(MdeStore *store) {
+/* The bytes of the oplog, in a state */
+static int64_t OplogBytes(const OplogState *state) {
+  int64_t bytes = 0;
+  for (int i = 0; i < MDE_OPLOG_SEGMENTS; i++) bytes += state->bytes[i];
+  return bytes;
+}
+
+/* The key and the cluster time (24 bytes) of the entry a cursor of the oplog is on: 0, or SQLITE_CORRUPT when it is
+** not an event (its time zeros when its event has none) */
+static int EntryLost(MdeStore *store, BtCursor *cursor, uint8_t *lost) {
+  const int64_t size = (int64_t)sqlite3BtreePayloadSize(cursor);
+  /* Its key first in its record, in the part of its cell on the page */
+  u32 local = 0;
+  const uint8_t *payload = sqlite3BtreePayloadFetch(cursor, &local);
+  int keyLength = 0;
+  int keyOffset = payload ? Field(payload, (int)local, 0, &keyLength) : -1;
+  if (keyOffset < 0 || keyLength != 16) return Fail(store, SQLITE_CORRUPT, "a record of the oplog is not an event");
+  memcpy(lost, payload + keyOffset, 16);
+  /* Its cluster time at the end of its record (the event its last field), read alone */
+  uint8_t tail[12];
+  if (size < 12 || sqlite3BtreePayload(cursor, (u32)size - 12, 12, tail) != SQLITE_OK || !EventTime(tail, 12, lost + 16))
+    memset(lost + 16, 0, 8);
+  return SQLITE_OK;
+}
+
+/* The row 'l' written: the key and the cluster time of the last event the oplog lost */
+static int WriteLost(MdeStore *store, const uint8_t *lost) {
+  const uint8_t key[1] = {'l'};
+  OpenCursor(store, store->metaCursor, store->meta, 1);
+  int rc = Put(store, store->metaCursor, key, 1, lost, 24);
+  sqlite3BtreeCloseCursor(store->metaCursor);
+  return rc;
+}
+
+/* The events of a segment of the oplog all deleted at once, in the transaction open: its pages freed, its last event
+** kept as the last one lost (the row 'l') */
+static int ClearSegment(MdeStore *store, int segment) {
+  uint8_t lost[24];
+  int empty = 0;
+  int rc = OpenCursor(store, store->entryCursor, store->oplogRoots[segment], 0);
+  if (rc == SQLITE_OK) rc = sqlite3BtreeLast(store->entryCursor, &empty);
+  if (rc == SQLITE_OK && !empty) rc = EntryLost(store, store->entryCursor, lost);
+  sqlite3BtreeCloseCursor(store->entryCursor);
+  if (rc == SQLITE_OK) rc = sqlite3BtreeClearTable(store->bt, (int)store->oplogRoots[segment], 0);
+  if (rc == SQLITE_OK && !empty) rc = WriteLost(store, lost);
+  if (rc == SQLITE_OK) store->pendingOplog.bytes[segment] = 0;
+  return rc;
+}
+
+/* The oldest events of one segment (the only one holding events) deleted one by one, in the transaction open, until
+** the oplog holds its limit of bytes at most (a limit made smaller than a segment kept); the last one deleted kept as the
+** last one lost (the row 'l') */
+static int TrimSegment(MdeStore *store, int segment) {
   uint8_t lost[24];
   int deleted = 0;
-  int rc = OpenCursor(store, store->entryCursor, store->oplog, 1);
-  while (rc == SQLITE_OK && store->oplogBytes + store->pendingBytes > store->oplogLimit) {
+  int rc = OpenCursor(store, store->entryCursor, store->oplogRoots[segment], 1);
+  while (rc == SQLITE_OK && OplogBytes(&store->pendingOplog) > store->oplogLimit) {
     int empty = 0;
     rc = sqlite3BtreeFirst(store->entryCursor, &empty);
     if (rc != SQLITE_OK || empty) break;
     const int64_t size = (int64_t)sqlite3BtreePayloadSize(store->entryCursor);
-    /* Its key first in its record, in the part of its cell on the page */
-    u32 local = 0;
-    const uint8_t *payload = sqlite3BtreePayloadFetch(store->entryCursor, &local);
-    int keyLength = 0;
-    int keyOffset = payload ? Field(payload, (int)local, 0, &keyLength) : -1;
-    if (keyOffset < 0 || keyLength != 16) {
-      rc = Fail(store, SQLITE_CORRUPT, "a record of the oplog is not an event");
-      break;
-    }
-    memcpy(lost, payload + keyOffset, 16);
-    /* Its cluster time at the end of its record (the event its last field), read alone */
-    uint8_t tail[12];
-    if (size < 12 || sqlite3BtreePayload(store->entryCursor, (u32)size - 12, 12, tail) != SQLITE_OK || !EventTime(tail, 12, lost + 16))
-      memset(lost + 16, 0, 8);
+    rc = EntryLost(store, store->entryCursor, lost);
+    if (rc != SQLITE_OK) break;
     deleted = 1;
     rc = sqlite3BtreeDelete(store->entryCursor, 0);
-    if (rc == SQLITE_OK) store->pendingBytes -= size;
+    if (rc == SQLITE_OK) store->pendingOplog.bytes[segment] -= size;
   }
   sqlite3BtreeCloseCursor(store->entryCursor);
-  if (rc == SQLITE_OK && deleted) {
-    const uint8_t key[1] = {'l'};
-    OpenCursor(store, store->metaCursor, store->meta, 1);
-    rc = Put(store, store->metaCursor, key, 1, lost, 24);
-    sqlite3BtreeCloseCursor(store->metaCursor);
+  if (rc == SQLITE_OK && deleted) rc = WriteLost(store, lost);
+  return rc;
+}
+
+/* The oldest events of the oplog deleted, in the transaction open, until it holds its limit of bytes at most: its
+** oldest segments (the ones after the current one in the ring) cleared at once, the events of the current one deleted
+** one by one when it is the only one left */
+static int Trim(MdeStore *store) {
+  int rc = SQLITE_OK;
+  for (int step = 1; rc == SQLITE_OK && OplogBytes(&store->pendingOplog) > store->oplogLimit && step < MDE_OPLOG_SEGMENTS; step++) {
+    const int segment = (store->pendingOplog.current + step) % MDE_OPLOG_SEGMENTS;
+    if (store->pendingOplog.bytes[segment]) rc = ClearSegment(store, segment);
   }
+  if (rc == SQLITE_OK && OplogBytes(&store->pendingOplog) > store->oplogLimit) rc = TrimSegment(store, store->pendingOplog.current);
   return rc;
 }
 
@@ -1017,12 +1077,50 @@ static int ReadLost(MdeStore *store, uint8_t *lost) {
   return rc;
 }
 
+/* The segments of the oplog holding events in the order of their events, in the read or the transaction open: their
+** indexes (*count of them), their first keys (16 bytes each) */
+static int SegmentOrder(MdeStore *store, int *order, int *count, uint8_t (*firsts)[16]) {
+  *count = 0;
+  int rc = SQLITE_OK;
+  for (int segment = 0; segment < MDE_OPLOG_SEGMENTS && rc == SQLITE_OK; segment++) {
+    if (!store->oplogRoots[segment]) continue;
+    int empty = 0;
+    OpenCursor(store, store->entryCursor, store->oplogRoots[segment], 0);
+    rc = sqlite3BtreeFirst(store->entryCursor, &empty);
+    if (rc == SQLITE_OK && !empty) {
+      u32 size;
+      const uint8_t *payload = PayloadOf(store, store->entryCursor, &size);
+      int keyLength = 0;
+      int keyOffset = payload ? Field(payload, (int)size, 0, &keyLength) : -1;
+      if (keyOffset < 0 || keyLength != 16) rc = Fail(store, SQLITE_CORRUPT, "a record of the oplog is not an event");
+      else {
+        /* Inserted in the order of the first keys */
+        int at = *count;
+        while (at > 0 && memcmp(firsts[at - 1], payload + keyOffset, 16) > 0) {
+          memcpy(firsts[at], firsts[at - 1], 16);
+          order[at] = order[at - 1];
+          at--;
+        }
+        memcpy(firsts[at], payload + keyOffset, 16);
+        order[at] = segment;
+        (*count)++;
+      }
+    }
+    sqlite3BtreeCloseCursor(store->entryCursor);
+  }
+  return rc;
+}
+
 /* The cluster time of the last event of the oplog, in the read or the transaction open: *has 0 when it has none */
 static int LastTime(MdeStore *store, uint8_t *time, int *has) {
   *has = 0;
-  OpenCursor(store, store->entryCursor, store->oplog, 0);
+  int order[MDE_OPLOG_SEGMENTS], count = 0;
+  uint8_t firsts[MDE_OPLOG_SEGMENTS][16];
+  int rc = SegmentOrder(store, order, &count, firsts);
+  if (rc != SQLITE_OK || !count) return rc;
+  OpenCursor(store, store->entryCursor, store->oplogRoots[order[count - 1]], 0);
   int empty = 0;
-  int rc = sqlite3BtreeLast(store->entryCursor, &empty);
+  rc = sqlite3BtreeLast(store->entryCursor, &empty);
   if (rc == SQLITE_OK && !empty) {
     u32 size;
     const uint8_t *payload = PayloadOf(store, store->entryCursor, &size);
@@ -1035,15 +1133,32 @@ static int LastTime(MdeStore *store, uint8_t *time, int *has) {
 }
 
 /* The events queued written to the oplog in the transaction open (none when it holds no event: its limit 0), each one
-** the next sequence of the generation; beyond its limit and its slack, its oldest events deleted */
+** the next sequence of the generation, appended to the current segment: once it holds its share of the limit, the next
+** one is current, cleared first when it holds events; beyond its limit, its oldest events deleted (Trim) */
 static int AppendQueued(MdeStore *store) {
   if (!store->queuedCount || store->oplogLimit <= 0 || !store->oplog) return SQLITE_OK;
   int rc = MarkDirty(store);
   if (rc != SQLITE_OK) return rc;
-  OpenCursor(store, store->entryCursor, store->oplog, 1);
+  if (!store->pendingActive) {
+    store->pendingOplog = store->oplogState;
+    store->pendingActive = 1;
+  }
+  const int64_t share = store->oplogLimit / (MDE_OPLOG_SEGMENTS - 1) > 0 ? store->oplogLimit / (MDE_OPLOG_SEGMENTS - 1) : 1;
+  int open = 0;
   for (size_t at = 0; at + 4 <= store->queued.size && rc == SQLITE_OK;) {
     uint32_t size;
     memcpy(&size, store->queued.data + at, 4);
+    if (store->pendingOplog.bytes[store->pendingOplog.current] >= share) {
+      if (open) sqlite3BtreeCloseCursor(store->entryCursor);
+      open = 0;
+      store->pendingOplog.current = (store->pendingOplog.current + 1) % MDE_OPLOG_SEGMENTS;
+      if (store->pendingOplog.bytes[store->pendingOplog.current]) rc = ClearSegment(store, store->pendingOplog.current);
+      if (rc != SQLITE_OK) break;
+    }
+    if (!open) {
+      OpenCursor(store, store->entryCursor, store->oplogRoots[store->pendingOplog.current], 1);
+      open = 1;
+    }
     uint8_t key[16];
     EventKey(key, store->generation, store->nextSeq + store->pendingSeq);
     int res = 0;
@@ -1052,12 +1167,12 @@ static int AppendQueued(MdeStore *store) {
     if (rc == SQLITE_OK) rc = Insert(store, store->entryCursor, key, 16, store->queued.data + at + 4, (int)size, res);
     if (rc == SQLITE_OK) {
       store->pendingSeq++;
-      store->pendingBytes += RecordSize(16, (int)size);
+      store->pendingOplog.bytes[store->pendingOplog.current] += RecordSize(16, (int)size);
     }
     at += 4 + size;
   }
-  sqlite3BtreeCloseCursor(store->entryCursor);
-  if (rc == SQLITE_OK && store->oplogBytes + store->pendingBytes > store->oplogLimit + MDE_OPLOG_SLACK) rc = Trim(store);
+  if (open) sqlite3BtreeCloseCursor(store->entryCursor);
+  if (rc == SQLITE_OK && OplogBytes(&store->pendingOplog) > store->oplogLimit) rc = Trim(store);
   return rc;
 }
 
@@ -1067,11 +1182,11 @@ static int AppendQueued(MdeStore *store) {
 static void Settle(MdeStore *store, int rc) {
   if (rc == SQLITE_OK) {
     store->nextSeq += store->pendingSeq;
-    store->oplogBytes += store->pendingBytes;
+    if (store->pendingActive) store->oplogState = store->pendingOplog;
     if (store->marking) store->countsDirty = 1;
   }
   store->pendingSeq = 0;
-  store->pendingBytes = 0;
+  store->pendingActive = 0;
   store->marking = 0;
   store->queued.size = 0;
   store->queuedCount = 0;
@@ -1126,14 +1241,16 @@ static int LoadRoots(MdeStore *store) {
     store->collections[i].tableCount = 0;
   }
   store->meta = 0;
-  store->oplog = 0;
+  memset(store->oplogRoots, 0, sizeof(store->oplogRoots));
   while ((rc = sqlite3_step(statement)) == SQLITE_ROW) {
     const char *name = (const char *)sqlite3_column_text(statement, 0);
     Pgno root = (Pgno)sqlite3_column_int64(statement, 1);
     if (strcmp(name, "meta") == 0) {
       store->meta = root;
-    } else if (strcmp(name, "oplog") == 0) {
-      store->oplog = root;
+    } else if (strncmp(name, "oplog", 5) == 0) {
+      /* A segment of the oplog: "oplog" the first one, "oplog<n>" the others */
+      const int segment = name[5] ? atoi(name + 5) : 0;
+      if (segment >= 0 && segment < MDE_OPLOG_SEGMENTS) store->oplogRoots[segment] = root;
     } else if (name[0] == 'c') {
       Collection *collection = Find(store, strtoll(name + 1, NULL, 10));
       if (collection) collection->root = root;
@@ -1147,6 +1264,7 @@ static int LoadRoots(MdeStore *store) {
     }
   }
   sqlite3_finalize(statement);
+  store->oplog = store->oplogRoots[0];
   if (rc != SQLITE_DONE) return FailSql(store, rc, "the schema");
   if (!store->meta) return Fail(store, SQLITE_CORRUPT, "the database of mongo-embedded has no catalog");
   for (int i = 0; i < store->collectionCount; i++)
@@ -1194,7 +1312,10 @@ static int LoadCatalog(MdeStore *store) {
     if (key[0] == 'f' && valueSize == 4) format = (int)(((u32)value[0] << 24) | ((u32)value[1] << 16) | ((u32)value[2] << 8) | value[3]);
     if (key[0] == 'd' && keySize == 1) store->recount = 1;
     if (key[0] == 'g' && keySize == 1 && valueSize == 8) store->generation = BigEndian(value);
-    if (key[0] == 'o' && keySize == 1 && valueSize == 8) store->oplogBytes = BigEndian(value);
+    /* The bytes of the segments (8 bytes: a file of one segment, the first one) */
+    if (key[0] == 'o' && keySize == 1 && valueSize == 8) store->oplogState.bytes[0] = BigEndian(value);
+    if (key[0] == 'o' && keySize == 1 && valueSize == 8 * MDE_OPLOG_SEGMENTS)
+      for (int i = 0; i < MDE_OPLOG_SEGMENTS; i++) store->oplogState.bytes[i] = BigEndian(value + 8 * i);
     if (key[0] == 'i' && keySize == 1 && valueSize == 16) memcpy(store->database, value, 16);
     if (key[0] == 'c' && valueSize == 8 && AddCollection(store, BigEndian(value), (const char *)key + 1, keySize - 1) != SQLITE_OK) {
       sqlite3_finalize(statement);
@@ -1249,7 +1370,15 @@ static int RunBlobs(MdeStore *store, const char *sql, const uint8_t *const *blob
 ** random for a database in memory, so that the tokens of another one never match), the UUID of the database made when
 ** it has none, the limit of its bytes */
 static int OpenOplog(MdeStore *store, const MdeOptions *options) {
-  int rc = Exec(store, "CREATE TABLE IF NOT EXISTS oplog(k BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID", "the oplog");
+  /* Its segments (the first one there in a file of one segment) */
+  char sql[96 * MDE_OPLOG_SEGMENTS];
+  size_t length = 0;
+  for (int i = 0; i < MDE_OPLOG_SEGMENTS; i++) {
+    char name[16] = "oplog";
+    if (i) snprintf(name, sizeof(name), "oplog%d", i);
+    length += (size_t)snprintf(sql + length, sizeof(sql) - length, "CREATE TABLE IF NOT EXISTS %s(k BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID;", name);
+  }
+  int rc = Exec(store, sql, "the oplog");
   if (rc == SQLITE_OK) rc = LoadRoots(store);
   if (rc != SQLITE_OK) return rc;
   if (IsMemory(store->file)) {
@@ -1274,7 +1403,11 @@ static int OpenOplog(MdeStore *store, const MdeOptions *options) {
   store->hasOpenTime = 0;
   if (rc == SQLITE_OK && options->oplogBytes <= 0) {
     sqlite3_stmt *statement;
-    rc = sqlite3_prepare_v2(store->db, "SELECT (SELECT v FROM meta WHERE k = x'6c'), (SELECT v FROM oplog ORDER BY k DESC LIMIT 1)", -1, &statement, 0);
+    rc = sqlite3_prepare_v2(store->db,
+                            "SELECT (SELECT v FROM meta WHERE k = x'6c'), (SELECT v FROM (SELECT k, v FROM oplog UNION ALL SELECT k, v FROM oplog1"
+                            " UNION ALL SELECT k, v FROM oplog2 UNION ALL SELECT k, v FROM oplog3 UNION ALL SELECT k, v FROM oplog4 UNION ALL"
+                            " SELECT k, v FROM oplog5 UNION ALL SELECT k, v FROM oplog6 UNION ALL SELECT k, v FROM oplog7) ORDER BY k DESC LIMIT 1)",
+                            -1, &statement, 0);
     if (rc != SQLITE_OK) return FailSql(store, rc, "the oplog");
     int history = 0;
     if (sqlite3_step(statement) == SQLITE_ROW) {
@@ -1296,12 +1429,13 @@ static int OpenOplog(MdeStore *store, const MdeOptions *options) {
     const uint8_t *ends[] = {end};
     const int endSizes[] = {24};
     rc = Exec(store,
-              "BEGIN IMMEDIATE; DELETE FROM oplog;"
+              "BEGIN IMMEDIATE; DELETE FROM oplog; DELETE FROM oplog1; DELETE FROM oplog2; DELETE FROM oplog3; DELETE FROM oplog4;"
+              "DELETE FROM oplog5; DELETE FROM oplog6; DELETE FROM oplog7;"
               "INSERT INTO meta(k, v) VALUES (x'6f', x'0000000000000000') ON CONFLICT(k) DO UPDATE SET v = excluded.v;",
               "the oplog");
     if (rc == SQLITE_OK) rc = RunBlobs(store, "INSERT INTO meta(k, v) VALUES (x'6c', ?1) ON CONFLICT(k) DO UPDATE SET v = excluded.v", ends, endSizes, 1);
     if (rc == SQLITE_OK) rc = Exec(store, "COMMIT", "the oplog");
-    if (rc == SQLITE_OK) store->oplogBytes = 0;
+    if (rc == SQLITE_OK) memset(&store->oplogState, 0, sizeof(store->oplogState));
     else sqlite3_exec(store->db, "ROLLBACK", NULL, NULL, NULL);
   }
   store->nextSeq = 1;
@@ -1309,6 +1443,19 @@ static int OpenOplog(MdeStore *store, const MdeOptions *options) {
   return rc;
 }
 
+
+/* The current segment of the oplog, after its opening: the one of its last events (the first one when it has none) */
+static int FindCurrent(MdeStore *store) {
+  int rc = Begin(store, 0);
+  if (rc != SQLITE_OK) return FailSql(store, rc, "the oplog");
+  int order[MDE_OPLOG_SEGMENTS], count = 0;
+  uint8_t firsts[MDE_OPLOG_SEGMENTS][16];
+  rc = SegmentOrder(store, order, &count, firsts);
+  EndRead(store);
+  if (rc != SQLITE_OK) return store->message[0] ? rc : FailSql(store, rc, "the oplog");
+  store->oplogState.current = count ? order[count - 1] : 0;
+  return SQLITE_OK;
+}
 
 /* The frames of the WAL after a commit of SQL (a commit of the b-tree layer calls no hook: precondition 4) */
 static int WalHook(void *context, sqlite3 *db, const char *name, int frames) {
@@ -1330,13 +1477,14 @@ static int Recount(MdeStore *store) {
     sqlite3BtreeCloseCursor(store->cursor);
     store->collections[i].count = count;
   }
-  store->oplogBytes = 0;
-  if (rc == SQLITE_OK && store->oplog) {
+  for (int segment = 0; segment < MDE_OPLOG_SEGMENTS && rc == SQLITE_OK; segment++) {
+    store->oplogState.bytes[segment] = 0;
+    if (!store->oplogRoots[segment]) continue;
     int empty = 0;
-    OpenCursor(store, store->cursor, store->oplog, 0);
+    OpenCursor(store, store->cursor, store->oplogRoots[segment], 0);
     rc = sqlite3BtreeFirst(store->cursor, &empty);
     while (rc == SQLITE_OK && !empty) {
-      store->oplogBytes += (int64_t)sqlite3BtreePayloadSize(store->cursor);
+      store->oplogState.bytes[segment] += (int64_t)sqlite3BtreePayloadSize(store->cursor);
       rc = sqlite3BtreeNext(store->cursor, 0);
       if (rc == SQLITE_DONE) {
         rc = SQLITE_OK;
@@ -1365,9 +1513,9 @@ static int WriteCounts(MdeStore *store) {
   }
   if (rc == SQLITE_OK) {
     const uint8_t key[1] = {'o'};
-    uint8_t value[8];
-    PutBigEndian(value, store->oplogBytes);
-    rc = Put(store, store->metaCursor, key, 1, value, 8);
+    uint8_t value[8 * MDE_OPLOG_SEGMENTS];
+    for (int i = 0; i < MDE_OPLOG_SEGMENTS; i++) PutBigEndian(value + 8 * i, store->oplogState.bytes[i]);
+    rc = Put(store, store->metaCursor, key, 1, value, (int)sizeof(value));
   }
   if (rc == SQLITE_OK) {
     const uint8_t key[1] = {'d'};
@@ -1444,6 +1592,8 @@ int mde_open(const char *file, const MdeOptions *options, MdeStore **out, char *
     }
     /* The counts of a reader are the ones of the connection writing (mde_refresh) */
     if (rc == SQLITE_OK && store->recount && !options->reader) rc = Recount(store);
+    /* The current segment of the oplog: the one of its last events */
+    if (rc == SQLITE_OK && !options->reader && store->oplog) rc = FindCurrent(store);
   }
   if (rc != SQLITE_OK) {
     snprintf(message, size, "%s", store->message);
@@ -1518,7 +1668,7 @@ static int SaveCollections(MdeStore *store) {
   }
   store->savedDirty = store->countsDirty;
   store->savedNextSeq = store->nextSeq;
-  store->savedOplogBytes = store->oplogBytes;
+  store->savedOplog = store->oplogState;
   return SQLITE_OK;
 }
 
@@ -1531,7 +1681,7 @@ static void RestoreCollections(MdeStore *store) {
   store->collectionCapacity = store->savedCount + 1;
   store->countsDirty = store->savedDirty;
   store->nextSeq = store->savedNextSeq;
-  store->oplogBytes = store->savedOplogBytes;
+  store->oplogState = store->savedOplog;
   Settle(store, SQLITE_ABORT);
 
   store->saved = NULL;
@@ -2462,10 +2612,17 @@ int mde_oplog_read(MdeStore *store, const uint8_t *after, int afterSize, int max
     EndRead(store);
     return FailSql(store, rc, "a read of the oplog");
   }
-  OpenCursor(store, store->entryCursor, store->oplog, 0);
+  /* The segments in the order of their events, each one read from after the position */
+  int order[MDE_OPLOG_SEGMENTS], count = 0;
+  uint8_t firsts[MDE_OPLOG_SEGMENTS][16];
+  rc = SegmentOrder(store, order, &count, firsts);
   const MdeRange all = {NULL, 0, 0, NULL, 0, 0};
-  int empty = 0, given = 0;
-  rc = StartRange(store, store->entryCursor, &all, 0, after, afterSize, &empty);
+  int empty = 1, given = 0, segment = 0;
+  while (rc == SQLITE_OK && empty && segment < count) {
+    OpenCursor(store, store->entryCursor, store->oplogRoots[order[segment++]], 0);
+    rc = StartRange(store, store->entryCursor, &all, 0, after, afterSize, &empty);
+    if (empty) sqlite3BtreeCloseCursor(store->entryCursor);
+  }
   while (rc == SQLITE_OK && !empty) {
     u32 size;
     const uint8_t *payload = PayloadOf(store, store->entryCursor, &size);
@@ -2490,15 +2647,23 @@ int mde_oplog_read(MdeStore *store, const uint8_t *after, int afterSize, int max
     given++;
     rc = sqlite3BtreeNext(store->entryCursor, 0);
     if (rc == SQLITE_DONE) {
+      /* The next segment holding events, from its first one */
       rc = SQLITE_OK;
-      break;
+      sqlite3BtreeCloseCursor(store->entryCursor);
+      empty = 1;
+      while (rc == SQLITE_OK && empty && segment < count) {
+        OpenCursor(store, store->entryCursor, store->oplogRoots[order[segment++]], 0);
+        rc = sqlite3BtreeFirst(store->entryCursor, &empty);
+        if (empty) sqlite3BtreeCloseCursor(store->entryCursor);
+      }
+      if (empty) break;
     }
     if (rc == SQLITE_OK && (given >= maxEvents || out->size >= maxBytes)) {
       *done = 0;
       break;
     }
   }
-  sqlite3BtreeCloseCursor(store->entryCursor);
+  if (!empty) sqlite3BtreeCloseCursor(store->entryCursor);
   EndRead(store);
   if (rc != SQLITE_OK && !store->message[0]) FailSql(store, rc, "a read of the oplog");
   return rc;
@@ -2524,20 +2689,14 @@ int mde_oplog_state(MdeStore *store, int64_t *generation, int64_t *nextSeq, uint
     EndRead(store);
     return FailSql(store, rc, "a read of the oplog");
   }
-  OpenCursor(store, store->entryCursor, store->oplog, 0);
-  int empty = 0;
-  rc = sqlite3BtreeFirst(store->entryCursor, &empty);
-  if (rc == SQLITE_OK && !empty) {
-    u32 size;
-    const uint8_t *payload = PayloadOf(store, store->entryCursor, &size);
-    int keyLength = 0;
-    int keyOffset = payload ? Field(payload, (int)size, 0, &keyLength) : -1;
-    if (keyOffset >= 0 && keyLength == 16) {
-      memcpy(first, payload + keyOffset, 16);
-      *hasFirst = 1;
-    }
+  /* The first event: the first one of the oldest segment */
+  int order[MDE_OPLOG_SEGMENTS], count = 0;
+  uint8_t firsts[MDE_OPLOG_SEGMENTS][16];
+  rc = SegmentOrder(store, order, &count, firsts);
+  if (rc == SQLITE_OK && count) {
+    memcpy(first, firsts[0], 16);
+    *hasFirst = 1;
   }
-  sqlite3BtreeCloseCursor(store->entryCursor);
   EndRead(store);
   return rc == SQLITE_OK ? rc : FailSql(store, rc, "a read of the oplog");
 }

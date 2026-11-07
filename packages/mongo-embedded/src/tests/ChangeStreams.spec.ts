@@ -112,16 +112,17 @@ describe('The oplog of the change streams', (): void => {
         await client.close()
     })
 
-    it('deletes its oldest events beyond its size, in batches', async (): Promise<void> => {
+    it('deletes its oldest events beyond its size, a segment at a time', async (): Promise<void> => {
         const client: EmbeddedClient = await EmbeddedClient.connect(undefined, {oplogSize: 64 * 1024})
         const store: EmbeddedStore = client.store
         const text: string = 'x'.repeat(1000)
         for (let batch: number = 0; batch < 30; batch++)
             await store.appendEvents(Array.from({length: 100}, (_: unknown, n: number): Buffer => Buffer.from(`${batch * 100 + n} ${text}`)))
         const events = await oplog(store)
-        //3,000 events of about 1 KB: the oldest ones deleted once the slack (1 MiB) was passed, the newest ones kept
-        assert.ok(events.length < 1200, `${events.length} events`)
-        assert.ok(events.length >= 60, `${events.length} events`)
+        //3,000 events of about 1 KB: the oldest segments cleared, the newest events kept (64 KiB at most, 6/7 of it at
+        //least)
+        assert.ok(events.length <= 64, `${events.length} events`)
+        assert.ok(events.length >= 50, `${events.length} events`)
         assert.strictEqual(events[events.length - 1].sequence, 3000)
         assert.ok(events.every((event: { sequence: number }, index: number): boolean => index === 0 || event.sequence === events[index - 1].sequence + 1))
         const first: Buffer | null = await store.oldestEvent()
@@ -141,6 +142,72 @@ describe('The oplog of the change streams', (): void => {
         assert.deepStrictEqual(await oplog(none.store), [])
         assert.strictEqual(await none.store.oldestEvent(), null)
         await none.close()
+    })
+
+    it('keeps its segments in turn: read across them, the current one found again at an opening, restored by an abort', async (): Promise<void> => {
+        const at: string = directory()
+        let client: EmbeddedClient = await EmbeddedClient.connect(at, {oplogSize: 32 * 1024})
+        let store: EmbeddedStore = client.store
+        const text: string = 'y'.repeat(200)
+        const append = async (from: number, count: number): Promise<void> =>
+            store.appendEvents(Array.from({length: count}, (_: unknown, n: number): Buffer => Buffer.from(`${from + n} ${text}`)))
+        for (let n: number = 0; n < 1000; n += 10) await append(n, 10)
+        const sequences = async (after?: Buffer): Promise<number[]> => {
+            const found: number[] = []
+            let last: Buffer | undefined = after
+            for (; ;) {
+                const read = await store.readEvents(last, 7)
+                found.push(...read.events.map((event: EmbeddedOplogEvent): number => Number(event.key.readBigUInt64BE(8))))
+                if (read.done || !read.events.length) break
+                last = read.events[read.events.length - 1].key
+            }
+            return found
+        }
+        //The events kept: the newest ones, in order across the segments, from any position
+        const kept: number[] = await sequences()
+        assert.strictEqual(kept[kept.length - 1], 1000)
+        assert.ok(kept.every((sequence: number, index: number): boolean => index === 0 || sequence === kept[index - 1] + 1))
+        assert.ok(kept.length >= 100 && kept.length <= 160, `${kept.length} events`)
+        const generation: bigint = (await store.readEvents(undefined, 1)).events[0].key.readBigUInt64BE(0)
+        const key = (sequence: number): Buffer => {
+            const position: Buffer = Buffer.alloc(16)
+            position.writeBigUInt64BE(generation, 0)
+            position.writeBigUInt64BE(BigInt(sequence), 8)
+            return position
+        }
+        for (const from of [kept[0], kept[17], kept[kept.length - 2]]) assert.deepStrictEqual(await sequences(key(from)), kept.slice(kept.indexOf(from) + 1))
+        //The last event lost: the one before the oldest kept
+        assert.strictEqual(Number((await store.readEvents(undefined, 1)).lost.readBigUInt64BE(8)), kept[0] - 1)
+        //An aborted transaction appending events across segments leaves the segments as they were
+        const session = client.startSession()
+        session.startTransaction()
+        await client.db().collection('items').insertMany(Array.from({length: 300}, (_: unknown, n: number): Record<string, unknown> => ({_id: n, text: text})), {session: session})
+        await session.abortTransaction()
+        await session.endSession()
+        assert.deepStrictEqual(await sequences(), kept)
+        await append(1000, 10)
+        assert.deepStrictEqual((await sequences()).slice(-11), [...kept.slice(-1), ...Array.from({length: 10}, (_: unknown, n: number): number => n + 1001)])
+        await client.close()
+        //Opened again: the segments as they were, the events appended to the current one, the oldest deleted in turn
+        client = await EmbeddedClient.connect(at, {oplogSize: 32 * 1024})
+        store = client.store
+        const reopened: { generation: number, sequence: number }[] = (await oplog(store)).map(({generation, sequence}): { generation: number, sequence: number } => ({generation: generation, sequence: sequence}))
+        assert.strictEqual(reopened[reopened.length - 1].sequence, 1010)
+        for (let n: number = 0; n < 300; n += 10) await append(n, 10)
+        const after: { generation: number, sequence: number }[] = (await oplog(store)).map(({generation, sequence}): { generation: number, sequence: number } => ({generation: generation, sequence: sequence}))
+        assert.strictEqual(after[after.length - 1].sequence, 300)
+        assert.ok(after.length >= 100 && after.length <= 160, `${after.length} events`)
+        assert.ok(after.every((event: { generation: number, sequence: number }, index: number): boolean => index === 0 || event.generation > after[index - 1].generation || event.sequence === after[index - 1].sequence + 1))
+        await client.close()
+        //Opened with a smaller size: its first write deletes the oldest events down to it, in the current segment too
+        client = await EmbeddedClient.connect(at, {oplogSize: 4 * 1024})
+        store = client.store
+        await append(0, 1)
+        const small = await oplog(store)
+        assert.ok(small.length >= 1 && small.length <= 19, `${small.length} events`)
+        assert.strictEqual(small[small.length - 1].sequence, 1)
+        assert.strictEqual(await client.store.integrity(), 'ok')
+        await client.close()
     })
 
     it('goes on after the cluster time of its last event when the database opens again', async (): Promise<void> => {
