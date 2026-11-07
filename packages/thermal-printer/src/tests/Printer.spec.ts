@@ -369,9 +369,9 @@ describe('The thermal printers', (): void => {
     })
 
     it('finds the USB printers of Linux in sysfs, with the model their IEEE 1284 id names', async (): Promise<void> => {
-        //A sysfs: the usblp device lp0 of a USB printer, its interface, its device
+        //A sysfs: the usblp device lp0 of a USB printer, its interface, its device (names with colons: not on Windows)
         const root: string = mkdtempSync(path.join(tmpdir(), 'lakutata-sysfs-'))
-        try {
+        if (process.platform !== 'win32') try {
             const device: string = path.join(root, 'sys/devices/pci0000:00/0000:00:14.0/usb1/1-2')
             mkdirSync(path.join(device, '1-2:1.0'), {recursive: true})
             writeFileSync(path.join(device, 'idVendor'), '04b8\n')

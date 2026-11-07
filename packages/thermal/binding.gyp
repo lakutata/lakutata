@@ -37,8 +37,10 @@
                 'RuntimeTypeInfo': 'true',
                 'LanguageStandard': 'stdcpp17',
                 # The Release configuration of node-gyp turns RTTI off: the options given last win. litehtml's sources
-                # hold UTF-8 literals
-                'AdditionalOptions': ['/bigobj', '/utf-8', '/GR', '/std:c++17']
+                # hold UTF-8 literals. The common.gypi of Node.js compiles with /fp:strict, under which MSVC folds no
+                # floating-point constant (the static initializers of stb, 1.0f/2.2f, are refused in C): /fp:precise,
+                # given last, folds them
+                'AdditionalOptions': ['/bigobj', '/utf-8', '/GR', '/std:c++17', '/fp:precise']
               }
             }
           }]
@@ -82,7 +84,8 @@
       'include_dirs': ['vendor/litehtml/include', 'vendor/litehtml/include/litehtml', 'vendor/litehtml/src'],
       'cflags_cc': ['-w'],
       'xcode_settings': {'WARNING_CFLAGS': ['-w']},
-      'msvs_settings': {'VCCLCompilerTool': {'WarningLevel': 0}},
+      # litehtml writes not, and, or: MSVC takes these alternative tokens in its conforming mode only (/permissive-)
+      'msvs_settings': {'VCCLCompilerTool': {'WarningLevel': 0, 'AdditionalOptions': ['/permissive-']}},
       'direct_dependent_settings': {'include_dirs': ['vendor/litehtml/include']}
     },
     {

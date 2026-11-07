@@ -84,6 +84,19 @@ function failed(code: string): (error: unknown) => boolean {
     return (error: unknown): boolean => error instanceof SerialException && error.code === code
 }
 
+describe('The serial ports on every system', (): void => {
+    it('refuses what it cannot open, and the options it does not take', async (): Promise<void> => {
+        const missing: string = process.platform === 'win32' ? 'COM199' : '/dev/lakutata-no-such-port'
+        await assert.rejects(openSerialPort({path: missing}), failed('ENOENT'))
+        await assert.rejects(openSerialPort({path: missing, stopBits: 1.5, dataBits: 8}), failed('EINVAL'))
+        await assert.rejects(openSerialPort({path: missing, flowControl: 'rts/dtr' as 'rts/cts'}), failed('EINVAL'))
+        await assert.rejects(openBluetoothSerial({address: '00:11:22:33:44'}), failed('EINVAL'))
+        const ports = await listSerialPorts()
+        assert.ok(Array.isArray(ports))
+        for (const port of ports) assert.strictEqual(typeof port.path, 'string')
+    })
+})
+
 describe('The serial ports', {skip: process.platform === 'win32' && 'no pseudo-terminals on Windows'}, (): void => {
     it('sends and receives through a port: what it writes comes back from the echo', async (): Promise<void> => {
         const pair = await terminal()
