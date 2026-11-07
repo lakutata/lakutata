@@ -72,17 +72,13 @@
   "peerDependencies": {
     "@lakutata/core": "~3.2.0",
     "@lakutata/serial": "~3.2.0",
-    "@lakutata/usb": "~3.2.0",
-    "@lakutata/bluetooth": "~3.2.0"
+    "@lakutata/usb": "~3.2.0"
   },
   "peerDependenciesMeta": {
     "@lakutata/serial": {
       "optional": true
     },
     "@lakutata/usb": {
-      "optional": true
-    },
-    "@lakutata/bluetooth": {
       "optional": true
     }
   },

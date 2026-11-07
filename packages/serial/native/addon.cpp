@@ -147,6 +147,13 @@ namespace {
         port->path = info[0].As<Napi::String>().Utf8Value();
         port->options = optionsOf(info[1].As<Napi::Object>());
         port->exclusive = info[2].As<Napi::Boolean>().Value();
+        //A Bluetooth device reached by its address: {address, channel}
+        if (info.Length() > 4 && info[4].IsObject()) {
+            Napi::Object bluetooth = info[4].As<Napi::Object>();
+            port->rfcomm = true;
+            port->address = bluetooth.Get("address").As<Napi::String>().Utf8Value();
+            port->channel = bluetooth.Get("channel").As<Napi::Number>().Int32Value();
+        }
         auto *handle = new Handle();
         handle->port = port;
         handle->env = env;
@@ -276,6 +283,7 @@ namespace {
                 if (!port.serialNumber.empty()) entry.Set("serialNumber", port.serialNumber);
                 if (!port.manufacturer.empty()) entry.Set("manufacturer", port.manufacturer);
                 if (!port.product.empty()) entry.Set("product", port.product);
+                if (!port.bluetoothAddress.empty()) entry.Set("bluetoothAddress", port.bluetoothAddress);
                 result.Set(static_cast<uint32_t>(index), entry);
             }
             deferred.Resolve(result);

@@ -5,7 +5,7 @@ import {randomBytes} from 'node:crypto'
 import {once} from 'node:events'
 import {setTimeout as sleep} from 'node:timers/promises'
 import {Worker} from 'node:worker_threads'
-import {listSerialPorts, openSerialPort, SerialException, type SerialPort} from '../exports/Serial.js'
+import {listSerialPorts, openBluetoothSerial, openSerialPort, SerialException, type SerialPort} from '../exports/Serial.js'
 
 /**
  * A pseudo-terminal pair opened by Python: the path of its slave (the port) is printed, its master echoes what the port
@@ -321,6 +321,15 @@ describe('The serial ports', {skip: process.platform === 'win32' && 'no pseudo-t
         } finally {
             await pair.close()
         }
+    })
+
+    it('opens a Bluetooth device by its address, and refuses what it cannot open', async (): Promise<void> => {
+        await assert.rejects(openBluetoothSerial({address: 'printer'}), failed('EINVAL'))
+        await assert.rejects(openBluetoothSerial({address: '00:11:22:33:44:55', channel: 31}), failed('EINVAL'))
+        //No paired device of that address (macOS), no Bluetooth (a container), no device answering (Linux)
+        const started: number = Date.now()
+        await assert.rejects(openBluetoothSerial({address: '00-11-22-33-44-55', openTimeout: 3000}), (error: unknown): boolean => error instanceof SerialException && typeof error.code === 'string')
+        assert.ok(Date.now() - started < 6000, `failed in ${Date.now() - started} ms`)
     })
 
     it('lists the ports of the system', async (): Promise<void> => {

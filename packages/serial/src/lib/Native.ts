@@ -22,7 +22,7 @@ type EventKind = 'opened' | 'result' | 'failed' | 'data' | 'fatal' | 'closed'
  * The functions of the addon: the requests go to the thread of the port, their results come back as events
  */
 export interface NativeSerial {
-    open(path: string, settings: LineSettings, exclusive: boolean, onEvent: (kind: EventKind, id: number, value: unknown) => void): NativePort
+    open(path: string, settings: LineSettings, exclusive: boolean, onEvent: (kind: EventKind, id: number, value: unknown) => void, bluetooth?: {address: string, channel: number}): NativePort
     write(port: NativePort, id: number, data: Buffer): void
     drain(port: NativePort, id: number, stall: number, limit: number): void
     configure(port: NativePort, id: number, settings: LineSettings): void
@@ -122,12 +122,12 @@ export class PortClient {
 
     #opened: {resolve: () => void, reject: (error: unknown) => void} | undefined
 
-    constructor(path: string, settings: LineSettings, exclusive: boolean) {
+    constructor(path: string, settings: LineSettings, exclusive: boolean, bluetooth?: {address: string, channel: number}) {
         this.ready = new Promise<void>((resolve, reject): void => {
             this.#opened = {resolve, reject}
         })
         this.ready.catch((): void => undefined)
-        this.port = native.open(path, settings, exclusive, (kind: EventKind, id: number, value: unknown): void => this.#event(kind, id, value))
+        this.port = native.open(path, settings, exclusive, (kind: EventKind, id: number, value: unknown): void => this.#event(kind, id, value), bluetooth)
     }
 
     /**

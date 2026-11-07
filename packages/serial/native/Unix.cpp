@@ -5,6 +5,8 @@
 
 #include <cerrno>
 #include <chrono>
+#include <cstdio>
+#include <memory>
 #include <cstdlib>
 #include <cstring>
 #include <future>
@@ -14,6 +16,7 @@
 #include <unistd.h>
 #include <sys/file.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -41,10 +44,11 @@ namespace serial {
         }
 
         /**
-         * A failure of a read or a write: the device gone for the errors of an unplugged adapter or a hang-up
+         * A failure of a read or a write: the device gone for the errors of an unplugged adapter, a hang-up, a lost
+         * Bluetooth link
          */
         Failure ioFailure(const char *syscall, int code) {
-            const bool gone = code == EIO || code == ENXIO || code == ENODEV || code == EBADF;
+            const bool gone = code == EIO || code == ENXIO || code == ENODEV || code == EBADF || code == ECONNRESET || code == ENOTCONN || code == EPIPE || code == EHOSTDOWN;
             return Failure{code, syscall, gone ? "The device is gone (" + std::string(std::strerror(code)) + ")" : "", "", gone};
         }
 
@@ -115,14 +119,24 @@ namespace serial {
         }
 
         /**
+         * A device the thread opens and closes: a terminal, or a Bluetooth socket
+         */
+        class Endpoint : public Device {
+        public:
+            virtual void open() = 0;
+
+            virtual void close(bool discard) = 0;
+        };
+
+        /**
          * The device of a port on Linux and macOS: a terminal (its settings by termios), opened without waiting for
          * a carrier and kept non-blocking, its waits done by poll
          */
-        class UnixDevice : public Device {
+        class UnixDevice : public Endpoint {
         public:
             explicit UnixDevice(Port &port) : port(port), options(port.options) {}
 
-            void open() {
+            void open() override {
                 //Not waiting for the carrier (O_NONBLOCK), not becoming the terminal of the process (O_NOCTTY)
                 int fd;
                 do {
@@ -154,7 +168,7 @@ namespace serial {
                 }
             }
 
-            void close(bool discard) {
+            void close(bool discard) override {
                 if (port.fd < 0) return;
                 //The input left discarded (some drivers of macOS crash on a close with input unread), and the output
                 //when it is given up: a close would wait for it (up to 30 seconds on Linux)
@@ -378,6 +392,105 @@ namespace serial {
             Port &port;
             LineOptions options;
         };
+
+#ifdef __linux__
+        /**
+         * Whether JavaScript asked for the closing (while the thread still opens the device)
+         */
+        bool closeAsked(Port &port) {
+            std::lock_guard<std::mutex> lock(port.mutex);
+            for (const Command &command: port.commands) {
+                if (command.kind == CommandKind::Close) return true;
+            }
+            return false;
+        }
+
+        //The socket address of RFCOMM (as <bluetooth/rfcomm.h> declares it, without needing BlueZ's headers)
+        constexpr int RFCOMM_PROTOCOL = 3;
+
+        struct RfcommAddress {
+            sa_family_t family;
+            uint8_t address[6];
+            uint8_t channel;
+        };
+
+        /**
+         * A Bluetooth device on Linux: a socket of RFCOMM (its serial port profile), connected without blocking, then
+         * read and written by the same loop as a terminal; it has no line settings and no modem lines
+         */
+        class RfcommDevice : public Endpoint {
+        public:
+            explicit RfcommDevice(Port &port) : port(port) {}
+
+            void open() override {
+                RfcommAddress target = {};
+                target.family = AF_BLUETOOTH;
+                target.channel = static_cast<uint8_t>(port.channel);
+                unsigned int bytes[6];
+                if (std::sscanf(port.address.c_str(), "%2x:%2x:%2x:%2x:%2x:%2x", &bytes[0], &bytes[1], &bytes[2], &bytes[3], &bytes[4], &bytes[5]) != 6)
+                    throw Failure{EINVAL, "connect", "The Bluetooth address is not six bytes like 00:11:22:33:44:55", "", false};
+                //The address in the order of the radio (the last byte first)
+                for (int index = 0; index < 6; index++) target.address[index] = static_cast<uint8_t>(bytes[5 - index]);
+                const int fd = socket(AF_BLUETOOTH, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, RFCOMM_PROTOCOL);
+                if (fd < 0) fail("socket");
+                port.fd = fd;
+                try {
+                    if (connect(fd, reinterpret_cast<const sockaddr *>(&target), sizeof(target)) < 0) {
+                        if (errno != EINPROGRESS) fail("connect");
+                        //Connecting takes seconds: waited for in slices, given up when JavaScript closes the port
+                        for (;;) {
+                            if (closeAsked(port)) throw Failure{0, "connect", "The port is closed", "ECANCELED", false};
+                            struct pollfd entry = {fd, POLLOUT, 0};
+                            const int ready = poll(&entry, 1, 100);
+                            if (ready < 0 && errno != EINTR) fail("poll");
+                            if (ready > 0) break;
+                        }
+                        int code = 0;
+                        socklen_t length = sizeof(code);
+                        if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &code, &length) < 0) fail("getsockopt");
+                        if (code) fail("connect", code);
+                    }
+                } catch (...) {
+                    ::close(fd);
+                    port.fd = -1;
+                    throw;
+                }
+            }
+
+            void close(bool) override {
+                if (port.fd < 0) return;
+                ::close(port.fd);
+                port.fd = -1;
+            }
+
+            void configure(const LineOptions &) override {}
+
+            void flush(bool, bool) override {}
+
+            void signals(Event &) override {
+                throw Failure{ENOTSUP, "ioctl", "A Bluetooth link has no modem lines", "", false};
+            }
+
+            void setSignals(int, int, int) override {
+                throw Failure{ENOTSUP, "ioctl", "A Bluetooth link has no modem lines", "", false};
+            }
+
+            long queued() override {
+                //The socket reports its free space, not what is queued: the drains rely on the time of the bytes
+                return 0;
+            }
+
+        private:
+            Port &port;
+        };
+#endif
+
+        std::unique_ptr<Endpoint> endpointOf(Port &port) {
+#ifdef __linux__
+            if (port.rfcomm) return std::make_unique<RfcommDevice>(port);
+#endif
+            return std::make_unique<UnixDevice>(port);
+        }
     }
 
     Port::Port() {
@@ -419,7 +532,21 @@ namespace serial {
     }
 
     void run(Port &port) {
-        UnixDevice device(port);
+#ifndef __linux__
+        if (port.rfcomm) {
+            auto *failed = new Event();
+            failed->kind = EventKind::Failed;
+            failed->failure = Failure{ENOTSUP, "socket", "Bluetooth sockets are offered on Linux only; elsewhere the paired device is a serial port", "", false};
+            port.post(failed);
+            auto *closed = new Event();
+            closed->kind = EventKind::Closed;
+            port.post(closed);
+            port.finished = true;
+            return;
+        }
+#endif
+        std::unique_ptr<Endpoint> endpoint = endpointOf(port);
+        Endpoint &device = *endpoint;
         try {
             device.open();
         } catch (const Failure &failure) {
@@ -574,6 +701,22 @@ namespace serial {
         while ((service = IOIteratorNext(iterator))) {
             PortInfo info;
             info.path = propertyString(service, kIOCalloutDeviceKey);
+            //A port of a paired Bluetooth device: the name and the address its serial client holds
+            const CFTypeRef bluetoothName = IORegistryEntrySearchCFProperty(service, kIOServicePlane, CFSTR("BTName"), kCFAllocatorDefault, kIORegistryIterateRecursively | kIORegistryIterateParents);
+            if (bluetoothName) {
+                info.product = stringOf(bluetoothName);
+                CFRelease(bluetoothName);
+                const CFTypeRef address = IORegistryEntrySearchCFProperty(service, kIOServicePlane, CFSTR("BTAddress"), kCFAllocatorDefault, kIORegistryIterateRecursively | kIORegistryIterateParents);
+                if (address && CFGetTypeID(address) == CFDataGetTypeID() && CFDataGetLength(static_cast<CFDataRef>(address)) == 6) {
+                    const UInt8 *bytes = CFDataGetBytePtr(static_cast<CFDataRef>(address));
+                    char text[18];
+                    std::snprintf(text, sizeof(text), "%02X:%02X:%02X:%02X:%02X:%02X", bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]);
+                    info.bluetoothAddress = text;
+                } else if (address) {
+                    info.bluetoothAddress = stringOf(address);
+                }
+                if (address) CFRelease(address);
+            }
             const io_object_t usb = usbDeviceOf(service);
             if (usb) {
                 info.vendorId = propertyNumber(usb, "idVendor");
@@ -645,6 +788,18 @@ namespace serial {
             case EOPNOTSUPP:
                 return "EOPNOTSUPP";
 #endif
+            case EAFNOSUPPORT:
+                return "EAFNOSUPPORT";
+            case EHOSTDOWN:
+                return "EHOSTDOWN";
+            case EHOSTUNREACH:
+                return "EHOSTUNREACH";
+            case ECONNREFUSED:
+                return "ECONNREFUSED";
+            case ECONNRESET:
+                return "ECONNRESET";
+            case ENOTCONN:
+                return "ENOTCONN";
             default:
                 return "EUNKNOWN";
         }

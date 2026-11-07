@@ -318,14 +318,26 @@ export class SerialPort extends Duplex {
  */
 export async function openSerialPort(options: SerialPortOptions): Promise<SerialPort> {
     if (!options || typeof options.path !== 'string' || !options.path) throw invalid('A serial port is opened by its path')
-    const settings: LineSettings = settingsOf(options)
-    const timeout: number = options.openTimeout ?? 30000
+    return await openPort(options.path, settingsOf(options), options.exclusive ?? true, options.openTimeout ?? 30000, `The serial port ${options.path}`)
+}
+
+/**
+ * Open a port by its thread, within a time limit: a serial port, or a Bluetooth device by its socket
+ * @param path
+ * @param settings
+ * @param exclusive
+ * @param timeout
+ * @param what
+ * @param bluetooth
+ */
+export async function openPort(path: string, settings: LineSettings, exclusive: boolean, timeout: number, what: string, bluetooth?: {address: string, channel: number}): Promise<SerialPort> {
     if (!(timeout >= 0)) throw invalid('The open timeout is a number of milliseconds')
+    const options = {path}
     let client: PortClient
     try {
-        client = new PortClient(options.path, settings, options.exclusive ?? true)
+        client = new PortClient(path, settings, exclusive, bluetooth)
     } catch (error) {
-        throw exceptionOf(error, `The serial port ${options.path} cannot be opened`)
+        throw exceptionOf(error, `${what} cannot be opened`)
     }
     let timer: NodeJS.Timeout | undefined
     try {
@@ -333,7 +345,7 @@ export async function openSerialPort(options: SerialPortOptions): Promise<Serial
             client.ready,
             new Promise<never>((_resolve, reject): void => {
                 if (timeout > 0) timer = setTimeout((): void => {
-                    const exception: SerialException = new SerialException(`The serial port ${options.path} did not open within ${timeout} ms`)
+                    const exception: SerialException = new SerialException(`${what} did not open within ${timeout} ms`)
                     exception.code = 'ETIMEDOUT'
                     reject(exception)
                 }, timeout)
@@ -342,7 +354,7 @@ export async function openSerialPort(options: SerialPortOptions): Promise<Serial
     } catch (error) {
         //Its thread closes it once the opening returns
         if (!client.closed) client.request((id: number): void => native.close(client.port, id, true), true).catch((): void => undefined)
-        throw exceptionOf(error, `The serial port ${options.path} cannot be opened`)
+        throw exceptionOf(error, `${what} cannot be opened`)
     } finally {
         clearTimeout(timer)
     }

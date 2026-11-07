@@ -188,7 +188,7 @@ function openQueue(name: string): Channel {
  * A package of the connections, loaded when a printer needs it
  * @param name
  */
-async function load<T>(name: '@lakutata/serial' | '@lakutata/usb' | '@lakutata/bluetooth', importer: () => Promise<T>): Promise<T> {
+async function load<T>(name: '@lakutata/serial' | '@lakutata/usb', importer: () => Promise<T>): Promise<T> {
     try {
         return await importer()
     } catch (error) {
@@ -236,8 +236,8 @@ export async function openChannel(connection: PrinterConnection, timeout: number
         }
         case 'bluetooth': {
             const bluetooth: BluetoothConnection = connection
-            const module = await load('@lakutata/bluetooth', (): Promise<{openBluetoothSerial(options: object): Promise<Duplex>}> => import('@lakutata/bluetooth' as string))
-            return await opened(`The Bluetooth printer ${bluetooth.address}`, (): Promise<Duplex> => module.openBluetoothSerial({address: bluetooth.address, channel: bluetooth.channel ?? 1}))
+            const module = await load('@lakutata/serial', (): Promise<typeof import('@lakutata/serial')> => import('@lakutata/serial'))
+            return await opened(`The Bluetooth printer ${bluetooth.address}`, (): Promise<Duplex> => module.openBluetoothSerial({address: bluetooth.address, channel: bluetooth.channel ?? 1, stallTimeout, openTimeout: timeout}))
         }
         default:
             throw new ThermalPrinterException(`Unknown connection type ${(connection as {type: string}).type}`)

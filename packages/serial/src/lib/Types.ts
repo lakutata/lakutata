@@ -134,6 +134,41 @@ export interface SerialPortInfo {
      * `/dev/serial/by-id`).
      */
     stablePath?: string
+
+    /**
+     * The address of the paired Bluetooth device whose serial port profile it is (macOS, Windows): `'00:11:22:33:44:55'`.
+     */
+    bluetoothAddress?: string
+}
+
+/**
+ * The options of a Bluetooth device opened by its address (its serial port profile, classic Bluetooth).
+ */
+export interface BluetoothSerialOptions {
+    /**
+     * The address of the device: `'00:11:22:33:44:55'`. The device is paired with the system first.
+     */
+    address: string
+
+    /**
+     * Its RFCOMM channel (Linux, where the device is reached by a socket; elsewhere the system's serial port of the
+     * device chooses it).
+     * @default 1
+     */
+    channel?: number
+
+    /**
+     * How long the output may stop moving before a write or a drain fails with `'ETIMEDOUT'`, in milliseconds (0: no
+     * limit).
+     * @default 0
+     */
+    stallTimeout?: number
+
+    /**
+     * How long the connection may take, in milliseconds.
+     * @default 30000
+     */
+    openTimeout?: number
 }
 
 /**

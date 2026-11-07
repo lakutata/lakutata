@@ -95,7 +95,7 @@ export interface UsbConnection {
 }
 
 /**
- * A Bluetooth printer (by `@lakutata/bluetooth`): classic Bluetooth, its serial port profile (SPP).
+ * A Bluetooth printer (by `@lakutata/serial`): classic Bluetooth, its serial port profile (SPP).
  */
 export interface BluetoothConnection {
     /**
@@ -109,7 +109,7 @@ export interface BluetoothConnection {
     address: string
 
     /**
-     * Its RFCOMM channel.
+     * Its RFCOMM channel (Linux; elsewhere the serial port the system made for the device chooses it).
      * @default 1
      */
     channel?: number

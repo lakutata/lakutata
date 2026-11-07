@@ -99,6 +99,8 @@ namespace serial {
         std::string serialNumber;
         std::string manufacturer;
         std::string product;
+        //A port of a paired Bluetooth device (its serial port profile): the address of the device
+        std::string bluetoothAddress;
     };
 
     /**
@@ -109,6 +111,10 @@ namespace serial {
         std::string path;
         LineOptions options;
         bool exclusive = true;
+        //A Bluetooth device reached by an RFCOMM socket (Linux) in place of a port: its address and channel
+        bool rfcomm = false;
+        std::string address;
+        int channel = 1;
         //The events for JavaScript (a thread-safe function of the addon)
         std::function<void(Event *)> post;
         std::thread thread;

@@ -515,6 +515,20 @@ namespace serial {
                 const size_t semicolon = info.manufacturer.rfind(';');
                 if (semicolon != std::string::npos) info.manufacturer = info.manufacturer.substr(semicolon + 1);
                 const std::string id = instanceOf(device.DevInst);
+                //A port of a paired Bluetooth device: BTHENUM\{00001101-…}_LOCALMFG&0002\7&…&0&001122334455_C00000000,
+                //the address before _C (zeros on the incoming port, which has no device of its own)
+                if (id.rfind("BTHENUM\\", 0) == 0) {
+                    const size_t mark = id.rfind("_C");
+                    if (mark != std::string::npos && mark >= 12) {
+                        const std::string hex = id.substr(mark - 12, 12);
+                        if (hex.find_first_not_of("0123456789ABCDEFabcdef") == std::string::npos && hex != "000000000000") {
+                            for (size_t index = 0; index < 12; index += 2) {
+                                if (index) info.bluetoothAddress += ':';
+                                info.bluetoothAddress += hex.substr(index, 2);
+                            }
+                        }
+                    }
+                }
                 info.vendorId = hexAfter(id, "VID_");
                 info.productId = hexAfter(id, "PID_");
                 if (info.vendorId >= 0) {
