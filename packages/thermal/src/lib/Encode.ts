@@ -45,6 +45,16 @@ export interface EncodeOptions {
     feed?: Length
 
     /**
+     * ESC/POS and TSPL: the blank stretches of a page (a millimetre or more without a dot) are not sent: the paper is fed
+     * over them (ESC/POS: `ESC J`, after `GS P` sets the feed to the dot pitch) or the label is left white there (TSPL:
+     * one `BITMAP` for each stretch printed). Fewer bytes on a slow link (a serial port at 9600 bits a second takes about
+     * 960 bytes a second). ZPL compresses its blank rows already. `false` sends every row: for a printer whose feed does
+     * not follow `GS P`. ESC/POS over 255 dpi sends every row, as `GS P` cannot give the dot pitch there.
+     * @default true
+     */
+    skipBlank?: boolean
+
+    /**
      * Cut after each page, on a printer with a cutter: `'full'` (or `true`), or `'partial'` (a half cut that keeps the
      * receipts hanging). ESC/POS: the paper fed to the cutter first (`GS V`); TSPL: `SET CUTTER 1`, `SET PARTIAL_CUTTER 1`;
      * ZPL: the cutter mode (`^MMC`, a full cut). `false` turns the cutter of a label printer off (`SET CUTTER OFF`,
@@ -113,22 +123,81 @@ function rowsOf(page: PrintPage, from: number, to: number): Buffer {
 }
 
 /**
- * ESC/POS: each page as raster commands in bands, then the feed, the cut; the drawer after the last page
+ * Whether the rows of a page from one row to another hold no dot
+ */
+function blankRows(page: PrintPage, from: number, to: number): boolean {
+    const rows: Buffer = rowsOf(page, from, to)
+    for (let i = 0; i < rows.length; i++) if (rows[i]) return false
+    return true
+}
+
+/**
+ * The stretches of a page: the rows printed and the blank ones skipped, a blank stretch skipped when it is `least`
+ * rows or more (a shorter one stays in the rows printed: more bands would make the head stop and start more often)
+ * @param page
+ * @param least the rows a blank stretch skipped holds at least (0: none skipped)
+ * @param step the rows a stretch is made of (24 for the bands of ESC *, else 1)
+ */
+function stretchesOf(page: PrintPage, least: number, step: number = 1): Array<{blank: boolean, from: number, to: number}> {
+    const stretches: Array<{blank: boolean, from: number, to: number}> = []
+    const push = (blank: boolean, from: number, to: number): void => {
+        const last = stretches[stretches.length - 1]
+        if (last && last.blank === blank) last.to = to
+        else stretches.push({blank, from, to})
+    }
+    let top: number = 0
+    while (top < page.height) {
+        let end: number = top
+        while (end < page.height && blankRows(page, end, Math.min(end + step, page.height))) end = Math.min(end + step, page.height)
+        if (end > top && least > 0 && end - top >= least) {
+            push(true, top, end)
+            top = end
+            continue
+        }
+        //Printed: up to the next blank stretch long enough
+        push(false, top, Math.max(end, Math.min(top + step, page.height)))
+        top = stretches[stretches.length - 1]!.to
+    }
+    return stretches
+}
+
+/**
+ * ESC J: a feed of a number of dots (255 at most a command)
+ */
+function feedOf(dots: number): Buffer[] {
+    const chunks: Buffer[] = []
+    for (let left = dots; left > 0; left -= 255) chunks.push(Buffer.from([ESC, 0x4A, Math.min(255, left)]))
+    return chunks
+}
+
+/**
+ * ESC/POS: each page as raster commands in bands (its blank stretches fed over), then the feed, the cut; the drawer after
+ * the last page
  */
 function encodeEscPos(image: PrintImage, options: EncodeOptions, raster: EscPosRaster): Buffer {
     const chunks: Buffer[] = []
     if (options.initialize !== false) chunks.push(Buffer.from([ESC, 0x40]))
     const feed: number = options.feed === undefined ? 0 : dotsOf(options.feed, image.dotsPerMm, 'feed')
     //ESC J n (the feed) and ESC 3 n (the bands of ESC *) count in the vertical motion unit, not always a dot (1/360 inch
-    //on some Epson models): GS P sets it to the dot pitch (the horizontal one left as it is)
-    if ((feed > 0 || raster === 'esc*') && Math.round(image.dpi) <= 255) chunks.push(Buffer.from([GS, 0x50, 0x00, Math.round(image.dpi)]))
-    for (const page of image.pages) {
+    //on some Epson models): GS P sets it to the dot pitch (the horizontal one left as it is); the blank stretches are
+    //skipped only where it can be set
+    const unit: boolean = Math.round(image.dpi) <= 255
+    const least: number = options.skipBlank !== false && unit ? Math.max(1, Math.round(image.dotsPerMm)) : 0
+    const pages = image.pages.map((page: PrintPage) => ({page, stretches: stretchesOf(page, raster === 'esc*' ? (least ? 24 : 0) : least, raster === 'esc*' ? 24 : 1)}))
+    const skipping: boolean = pages.some((entry): boolean => entry.stretches.some((stretch): boolean => stretch.blank))
+    if ((feed > 0 || raster === 'esc*' || skipping) && unit) chunks.push(Buffer.from([GS, 0x50, 0x00, Math.round(image.dpi)]))
+    for (const {page, stretches} of pages) {
         const bytes: number = page.bytesPerRow
         if (raster === 'esc*') {
             //24-dot columns, double density (m = 33): 3 bytes a column, its top dot the high bit of its first byte; the
             //line spacing set to 24 dots, each band followed by a line feed
             chunks.push(Buffer.from([ESC, 0x33, 24]))
-            for (let top = 0; top < page.height; top += 24) {
+            for (const stretch of stretches) {
+                if (stretch.blank) {
+                    chunks.push(...feedOf(stretch.to - stretch.from))
+                    continue
+                }
+                for (let top = stretch.from; top < stretch.to; top += 24) {
                 const band: Buffer = Buffer.alloc(5 + page.width * 3 + 1)
                 band.set([ESC, 0x2A, 33, page.width & 0xFF, page.width >> 8])
                 for (let x = 0; x < page.width; x++) {
@@ -138,14 +207,20 @@ function encodeEscPos(image: PrintImage, options: EncodeOptions, raster: EscPosR
                 }
                 band[band.length - 1] = 0x0A
                 chunks.push(band)
+                }
             }
             //The default line spacing back
             chunks.push(Buffer.from([ESC, 0x32]))
         } else {
             //GS ( L carries 65525 bytes of data at most (its length on two bytes, 10 of them its header) and 1662 rows
             const most: number = raster === 'gsl' ? Math.min(options.bandHeight ?? 255, 1662, Math.floor(65525 / bytes)) : options.bandHeight ?? 255
-            for (let top = 0; top < page.height; top += most) {
-                const rows: number = Math.min(most, page.height - top)
+            for (const stretch of stretches) {
+                if (stretch.blank) {
+                    chunks.push(...feedOf(stretch.to - stretch.from))
+                    continue
+                }
+                for (let top = stretch.from; top < stretch.to; top += most) {
+                const rows: number = Math.min(most, stretch.to - top)
                 const data: Buffer = rowsOf(page, top, top + rows)
                 if (raster === 'gsv0') {
                     chunks.push(Buffer.from([GS, 0x76, 0x30, 0x00, bytes & 0xFF, bytes >> 8, rows & 0xFF, rows >> 8]), data)
@@ -155,10 +230,11 @@ function encodeEscPos(image: PrintImage, options: EncodeOptions, raster: EscPosR
                     chunks.push(Buffer.from([GS, 0x28, 0x4C, length & 0xFF, length >> 8, 0x30, 0x70, 0x30, 0x01, 0x01, 0x31, page.width & 0xFF, page.width >> 8, rows & 0xFF, rows >> 8]), data)
                     chunks.push(Buffer.from([GS, 0x28, 0x4C, 0x02, 0x00, 0x30, 0x32]))
                 }
+                }
             }
         }
-        //The feed in dots (ESC J n: n dots at most 255 a command)
-        for (let left = feed; left > 0; left -= 255) chunks.push(Buffer.from([ESC, 0x4A, Math.min(255, left)]))
+        //The feed in dots
+        chunks.push(...feedOf(feed))
         //GS V 65/66 0: fed to the cutter, then cut (full, partial)
         if (options.cut === 'full' || options.cut === true) chunks.push(Buffer.from([GS, 0x56, 0x41, 0x00]))
         else if (options.cut === 'partial') chunks.push(Buffer.from([GS, 0x56, 0x42, 0x00]))
@@ -204,10 +280,17 @@ function encodeTspl(image: PrintImage, options: EncodeOptions): Buffer {
     else if (options.cut === false) lines.push('SET CUTTER OFF')
     lines.push('DIRECTION 0')
     const chunks: Buffer[] = [Buffer.from(`${lines.join('\r\n')}\r\n`, 'latin1')]
+    //The blank stretches of a millimetre or more left white: a BITMAP for each stretch printed, at its row
+    const least: number = options.skipBlank !== false ? Math.max(1, Math.round(image.dotsPerMm)) : 0
     for (const page of image.pages) {
-        const inverted: Buffer = Buffer.from(page.rows)
-        for (let i = 0; i < inverted.length; i++) inverted[i] = ~inverted[i]! & 0xFF
-        chunks.push(Buffer.from(`CLS\r\nBITMAP 0,0,${page.bytesPerRow},${page.height},0,`, 'latin1'), inverted, Buffer.from(`\r\nPRINT 1,${options.copies ?? 1}\r\n`, 'latin1'))
+        chunks.push(Buffer.from('CLS\r\n', 'latin1'))
+        for (const stretch of stretchesOf(page, least)) {
+            if (stretch.blank) continue
+            const inverted: Buffer = Buffer.from(rowsOf(page, stretch.from, stretch.to))
+            for (let i = 0; i < inverted.length; i++) inverted[i] = ~inverted[i]! & 0xFF
+            chunks.push(Buffer.from(`BITMAP 0,${stretch.from},${page.bytesPerRow},${stretch.to - stretch.from},0,`, 'latin1'), inverted, Buffer.from('\r\n', 'latin1'))
+        }
+        chunks.push(Buffer.from(`PRINT 1,${options.copies ?? 1}\r\n`, 'latin1'))
     }
     return Buffer.concat(chunks)
 }

@@ -173,7 +173,7 @@ A printer without media can still print raw commands and renderings.
 | `copies` | TSPL and ZPL: the copies of each label |
 | `sensor`, `gap` | TSPL and ZPL: how the printer finds the start of a label (the gap between labels, a black mark, or continuous media) and the size of the gap |
 | `density`, `speed` | TSPL and ZPL: the darkness and the speed of the printing |
-| `raster`, `bandHeight`, `initialize`, `compress` | How the dots are sent: leave them at their defaults unless a printer misbehaves (see the README of `@lakutata/thermal`) |
+| `raster`, `bandHeight`, `initialize`, `compress`, `skipBlank` | How the dots are sent: leave them at their defaults unless a printer misbehaves (see the README of `@lakutata/thermal`) |
 
 ### Connections
 

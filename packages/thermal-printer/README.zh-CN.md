@@ -150,7 +150,7 @@ async function label(printer: ThermalPrinter, barcode: Barcode): Promise<void> {
 | `copies` | TSPL 和 ZPL：每张标签打几份 |
 | `sensor`、`gap` | TSPL 和 ZPL：打印机怎么找到标签的起点（标签间的间隙、黑标或连续纸）以及间隙的大小 |
 | `density`、`speed` | TSPL 和 ZPL：打印的浓度和速度 |
-| `raster`、`bandHeight`、`initialize`、`compress` | 点阵的发送方式：除非打印机工作不正常，保持默认即可（见 `@lakutata/thermal` 的 README） |
+| `raster`、`bandHeight`、`initialize`、`compress`、`skipBlank` | 点阵的发送方式：除非打印机工作不正常，保持默认即可（见 `@lakutata/thermal` 的 README） |
 
 ### 连接方式
 

@@ -166,6 +166,7 @@ async function label(printer: ThermalPrinter, barcode: Barcode): Promise<void> {
 | `cut` | Cut after each page, on a printer with a cutter: `'partial'` (a half cut) or `'full'` (or `true`); on ESC/POS, TSPL and ZPL. Nothing is cut by default |
 | `feed` | ESC/POS: the paper pushed out after each page, in millimetres (`15`: past a tear bar 15 mm away). 0 by default. It does not depend on `cut` |
 | `drawer` | ESC/POS: open the cash drawer after the last page |
+| `skipBlank` | ESC/POS and TSPL: blank stretches of a millimetre or more are not sent (ESC/POS feeds the paper over them), so a receipt takes fewer bytes. On by default; `false` for a printer whose gaps come out too short or too long |
 | `language` | The command language when there is no `model`: `'escpos'`, `'tspl'`, `'zpl'` |
 | `copies`, `sensor`, `gap`, `density`, `speed` | Label printers: copies, how labels are found (gap, black mark, continuous), darkness, speed |
 

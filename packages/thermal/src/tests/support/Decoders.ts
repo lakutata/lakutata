@@ -13,15 +13,15 @@ export interface EscPosDecoded {
     //The vertical motion unit set by GS P (dots per inch), 0 when not set
     motionUnit: number
     pages: DecodedPage[]
-    //The feeds in motion units, by page
+    //The feeds in motion units after the last rows of each page (a feed between rows is blank rows of its page)
     feeds: number[]
     cuts: ('full' | 'partial')[]
     drawer?: {pin: number, on: number, off: number}
 }
 
 /**
- * ESC/POS: the raster commands (GS v 0, GS ( L fn 112 and 50, ESC * 33 in 24-dot bands) joined into pages; a cut ends a
- * page
+ * ESC/POS: the raster commands (GS v 0, GS ( L fn 112 and 50, ESC * 33 in 24-dot bands) joined into pages, a feed
+ * between them blank rows (the blank stretches skipped, the motion unit being a dot); a cut ends a page
  */
 export function decodeEscPos(bytes: Buffer): EscPosDecoded {
     const result: EscPosDecoded = {initialized: false, motionUnit: 0, pages: [], feeds: [], cuts: []}
@@ -29,6 +29,12 @@ export function decodeEscPos(bytes: Buffer): EscPosDecoded {
     let rows: Buffer[] = []
     let feed: number = 0
     let pending: DecodedPage | undefined
+    //Rows coming: the feed before them as blank rows
+    const band = (data: Buffer): void => {
+        if (feed) rows.push(Buffer.alloc(((width + 7) >> 3) * feed))
+        feed = 0
+        rows.push(data)
+    }
     const endPage = (): void => {
         if (!rows.length) return
         const data: Buffer = Buffer.concat(rows)
@@ -51,7 +57,7 @@ export function decodeEscPos(bytes: Buffer): EscPosDecoded {
             const perRow: number = bytes[i + 4]! | bytes[i + 5]! << 8
             const count: number = bytes[i + 6]! | bytes[i + 7]! << 8
             width = width || perRow * 8
-            rows.push(bytes.subarray(i + 8, i + 8 + perRow * count))
+            band(bytes.subarray(i + 8, i + 8 + perRow * count))
             i += 8 + perRow * count
         } else if (byte === 0x1D && bytes[i + 1] === 0x28 && bytes[i + 2] === 0x4C) {
             const length: number = bytes[i + 3]! | bytes[i + 4]! << 8
@@ -66,7 +72,7 @@ export function decodeEscPos(bytes: Buffer): EscPosDecoded {
             } else {
                 assert.strictEqual(fn, 0x32, 'GS ( L fn 50 prints the graphics stored')
                 assert.ok(pending, 'GS ( L fn 50 after fn 112')
-                rows.push(pending!.rows)
+                band(pending!.rows)
                 pending = undefined
             }
             i += 5 + length
@@ -78,13 +84,13 @@ export function decodeEscPos(bytes: Buffer): EscPosDecoded {
             const columns: number = bytes[i + 3]! | bytes[i + 4]! << 8
             width = columns
             const perRow: number = (columns + 7) >> 3
-            const band: Buffer = Buffer.alloc(perRow * 24)
+            const columns24: Buffer = Buffer.alloc(perRow * 24)
             for (let x = 0; x < columns; x++) {
                 for (let y = 0; y < 24; y++) {
-                    if (bytes[i + 5 + x * 3 + (y >> 3)]! & (0x80 >> (y & 7))) band[y * perRow + (x >> 3)]! |= 0x80 >> (x & 7)
+                    if (bytes[i + 5 + x * 3 + (y >> 3)]! & (0x80 >> (y & 7))) columns24[y * perRow + (x >> 3)]! |= 0x80 >> (x & 7)
                 }
             }
-            rows.push(band)
+            band(columns24)
             assert.strictEqual(bytes[i + 5 + columns * 3], 0x0A, 'a line feed after each band')
             i += 6 + columns * 3
         } else if (byte === 0x1B && bytes[i + 1] === 0x32) {
@@ -121,23 +127,37 @@ export interface TsplDecoded {
 }
 
 /**
- * TSPL: its lines, each BITMAP a page (its data inverted back: 1 is white in TSPL)
+ * TSPL: its lines; the BITMAPs of a label (from CLS to PRINT) drawn at their rows into its page, up to the last row
+ * drawn (their data inverted back: 1 is white in TSPL)
  */
 export function decodeTspl(bytes: Buffer): TsplDecoded {
     const result: TsplDecoded = {commands: [], pages: []}
+    let bitmaps: Array<{y: number, perRow: number, height: number, data: Buffer}> = []
     let i: number = 0
     while (i < bytes.length) {
         const end: number = bytes.indexOf('\r\n', i, 'latin1')
         const line: string = bytes.subarray(i, end < 0 ? bytes.length : end).toString('latin1')
+        if (line === 'CLS') bitmaps = []
+        if (line.startsWith('PRINT ')) {
+            const perRow: number = bitmaps[0]?.perRow ?? 0
+            const height: number = Math.max(0, ...bitmaps.map((bitmap): number => bitmap.y + bitmap.height))
+            const rows: Buffer = Buffer.alloc(perRow * height)
+            for (const bitmap of bitmaps) {
+                assert.strictEqual(bitmap.perRow, perRow, 'the BITMAPs of a label are as wide')
+                bitmap.data.copy(rows, bitmap.y * perRow)
+            }
+            result.pages.push({width: perRow * 8, height, rows})
+        }
         if (line.startsWith('BITMAP ')) {
             const header: RegExpExecArray = /^BITMAP (\d+),(\d+),(\d+),(\d+),(\d+),/.exec(line)!
             assert.ok(header, 'BITMAP x,y,width,height,mode,')
+            assert.strictEqual(header[1], '0', 'a BITMAP at the left edge')
             const perRow: number = Number(header[3])
             const height: number = Number(header[4])
             const start: number = i + header[0].length
             const data: Buffer = Buffer.from(bytes.subarray(start, start + perRow * height))
             for (let j = 0; j < data.length; j++) data[j] = ~data[j]! & 0xFF
-            result.pages.push({width: perRow * 8, height, rows: data})
+            bitmaps.push({y: Number(header[2]), perRow, height, data})
             result.commands.push(header[0].slice(0, -1))
             i = start + perRow * height
             assert.strictEqual(bytes.subarray(i, i + 2).toString('latin1'), '\r\n')
@@ -191,4 +211,17 @@ export function decodeZpl(bytes: Buffer): {pages: (DecodedPage & {labelWidth: nu
         pages.push({width: perRow * 8, height: rows.length, rows: buffer, labelWidth: Number(/\^PW(\d+)/.exec(body)![1]), labelLength: Number(/\^LL(\d+)/.exec(body)![1])})
     }
     return {pages, commands}
+}
+
+/**
+ * Whether a decoded page holds the dots of a page: the rows it has the same, the rows of either beyond the other blank,
+ * and the page whole once the feed after it is counted (a page ending in blank rows sends them as a feed)
+ */
+export function sameDots(decoded: DecodedPage, feed: number, page: {height: number, rows: Buffer, bytesPerRow: number}): boolean {
+    const perRow: number = page.bytesPerRow
+    const common: number = Math.min(decoded.height, page.height)
+    if (!decoded.rows.subarray(0, common * perRow).equals(page.rows.subarray(0, common * perRow))) return false
+    const blank = (rows: Buffer): boolean => rows.every((byte: number): boolean => byte === 0)
+    if (!blank(decoded.rows.subarray(common * perRow)) || !blank(page.rows.subarray(common * perRow))) return false
+    return decoded.height + feed >= page.height
 }

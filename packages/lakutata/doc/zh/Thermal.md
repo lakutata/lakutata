@@ -144,6 +144,7 @@ async function label(printer: ThermalPrinter, barcode: Barcode): Promise<void> {
 | `cut` | 每页之后切纸（打印机要有切刀）：`'partial'` 半切，`'full'`（或 `true`）全切；ESC/POS、TSPL、ZPL 都支持。默认不切纸 |
 | `feed` | ESC/POS：每页打印完再走出多少毫米的纸（`15`：送过 15 毫米外的撕纸口）。默认 0；和 `cut` 互不影响 |
 | `drawer` | ESC/POS：最后一页之后弹开钱箱 |
+| `skipBlank` | ESC/POS 和 TSPL：1 毫米及以上的空白不发送（ESC/POS 用走纸跳过），一张小票的数据更少。默认开启；如果打印机打出来的空白偏短或偏长，设为 `false` |
 | `language` | 没有 `model` 时的指令语言：`'escpos'`、`'tspl'`、`'zpl'` |
 | `copies`、`sensor`、`gap`、`density`、`speed` | 标签打印机：份数、怎么找到标签（间隙、黑标、连续纸）、浓度、速度 |
 

@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import {readFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import {encode, printerModels, type PrintImage, render, ThermalOptionException} from '../exports/Thermal.js'
-import {decodeEscPos, decodeTspl, decodeZpl, trimmed} from './support/Decoders.js'
+import {decodeEscPos, decodeTspl, decodeZpl, sameDots, trimmed} from './support/Decoders.js'
 
 const FIXTURES: string = fileURLToPath(new URL('../../../src/tests/fixtures/', import.meta.url))
 const RECEIPT: string = readFileSync(`${FIXTURES}receipt.html`, 'utf8')
@@ -14,12 +14,17 @@ describe('The encoders', (): void => {
             const image: PrintImage = await render(RECEIPT, options)
             const page = image.pages[0]!
             for (const raster of ['gsv0', 'gsl', 'esc*'] as const) {
-                const decoded = decodeEscPos(encode(image, {language: 'escpos', raster}))
-                assert.ok(decoded.initialized)
-                assert.strictEqual(decoded.pages.length, 1)
-                const got = raster === 'esc*' ? trimmed(decoded.pages[0]!, page.height) : decoded.pages[0]!
+                //Every row sent
+                const every = decodeEscPos(encode(image, {language: 'escpos', raster, skipBlank: false}))
+                assert.ok(every.initialized)
+                assert.strictEqual(every.pages.length, 1)
+                const got = raster === 'esc*' ? trimmed(every.pages[0]!, page.height) : every.pages[0]!
                 assert.strictEqual(got.height, page.height, `${raster} ${JSON.stringify(options)}`)
                 assert.ok(got.rows.equals(page.rows), `${raster} ${JSON.stringify(options)}: the dots differ`)
+                //The blank stretches fed over (the default): the same dots
+                const skipped = decodeEscPos(encode(image, {language: 'escpos', raster}))
+                assert.ok(sameDots(skipped.pages[0]!, skipped.feeds[0]!, page), `${raster} ${JSON.stringify(options)}: the dots differ once skipped`)
+                assert.ok(raster === 'esc*' || skipped.pages[0]!.height + skipped.feeds[0]! === page.height)
             }
         }
     })
@@ -48,8 +53,12 @@ describe('The encoders', (): void => {
         const image: PrintImage = await render('<b>Ward 3 · Bed 12</b>', {label: {width: 25, height: 250}, dpi: 300, rotate: 90, page: {lead: 25.4}})
         const bytes: Buffer = encode(image, {language: 'tspl', density: 8, speed: 4, copies: 2})
         const decoded = decodeTspl(bytes)
-        assert.deepStrictEqual(decoded.commands, ['SIZE 25 mm,250 mm', 'GAP 2 mm,0 mm', 'DENSITY 8', 'SPEED 4', 'DIRECTION 0', 'CLS', 'BITMAP 0,0,38,3000,0', 'PRINT 1,2'])
-        assert.ok(decoded.pages[0]!.rows.equals(image.pages[0]!.rows))
+        assert.deepStrictEqual(decoded.commands.slice(0, 6), ['SIZE 25 mm,250 mm', 'GAP 2 mm,0 mm', 'DENSITY 8', 'SPEED 4', 'DIRECTION 0', 'CLS'])
+        assert.strictEqual(decoded.commands[decoded.commands.length - 1], 'PRINT 1,2')
+        //The blank lead (25.4 mm at 300 dpi) left white: the first BITMAP below it
+        assert.ok(Number(decoded.commands[6]!.split(',')[1]) >= 300, decoded.commands[6])
+        assert.ok(sameDots(decoded.pages[0]!, 3000, image.pages[0]!))
+        assert.deepStrictEqual(decodeTspl(encode(image, {language: 'tspl', skipBlank: false})).commands.filter((command: string): boolean => command.startsWith('BITMAP')), ['BITMAP 0,0,38,3000,0'])
         const mark = decodeTspl(encode(image, {language: 'tspl', sensor: 'mark', gap: 3}))
         assert.strictEqual(mark.commands[1], 'BLINE 3 mm,0 mm')
         assert.strictEqual(decodeTspl(encode(image, {language: 'tspl', sensor: 'continuous'})).commands[1], 'GAP 0 mm,0 mm')
@@ -58,7 +67,7 @@ describe('The encoders', (): void => {
         const three = decodeTspl(encode(paged, {language: 'tspl'}))
         assert.strictEqual(three.pages.length, 3)
         assert.strictEqual(three.commands.filter((command: string): boolean => command.startsWith('PRINT')).length, 3)
-        three.pages.forEach((page, index): void => assert.ok(page.rows.equals(paged.pages[index]!.rows)))
+        three.pages.forEach((page, index): void => assert.ok(sameDots(page, paged.pages[index]!.height, paged.pages[index]!)))
     })
 
     it('encode ZPL labels, the graphic field compressed or not, both decoding to the dots of the page', async (): Promise<void> => {
@@ -79,6 +88,38 @@ describe('The encoders', (): void => {
         const decoded = decodeZpl(encode(blocks, {language: 'zpl', sensor: 'continuous'}))
         assert.ok(decoded.pages[0]!.rows.equals(blocks.pages[0]!.rows))
         assert.match(decoded.commands[0]!, /\^MNN/)
+    })
+
+    it('feeds over the blank stretches of a page instead of sending them, the dots the same', async (): Promise<void> => {
+        //Black blocks of 5 mm: 20 mm blank between the first two, 0.5 mm between the last two
+        const block: string = '<div style="height: 5mm; background: #000"></div>'
+        const html: string = `${block}<div style="height: 20mm"></div>${block}<div style="height: 0.5mm"></div>${block}`
+        const image: PrintImage = await render(html, {paper: 58})
+        const page = image.pages[0]!
+        for (const raster of ['gsv0', 'gsl', 'esc*'] as const) {
+            const skipped: Buffer = encode(image, {language: 'escpos', raster})
+            const every: Buffer = encode(image, {language: 'escpos', raster, skipBlank: false})
+            //Most of the 160 blank rows of 48 bytes not sent (ESC *: its whole bands of 24 rows)
+            assert.ok(every.length - skipped.length > 140 * 48, `${raster}: ${every.length} → ${skipped.length}`)
+            const decoded = decodeEscPos(skipped)
+            //GS P first, the feeds in dots
+            assert.strictEqual(decoded.motionUnit, 203)
+            assert.ok(sameDots(decoded.pages[0]!, decoded.feeds[0]!, page), raster)
+        }
+        //A blank stretch under a millimetre stays in the rows sent: a band, then a feed of 20 mm, then one band
+        const bands: number = (encode(image, {language: 'escpos'}).toString('latin1').match(/\x1Dv0/g) ?? []).length
+        assert.strictEqual(bands, 2)
+        //Every row sent: no feed, no GS P
+        const every = decodeEscPos(encode(image, {language: 'escpos', skipBlank: false}))
+        assert.deepStrictEqual([every.motionUnit, every.feeds], [0, [0]])
+        //ESC/POS over 255 dpi: GS P cannot set the dot pitch, every row sent
+        const fine: PrintImage = await render(html, {width: 48, dpi: 300})
+        assert.strictEqual(decodeEscPos(encode(fine, {language: 'escpos'})).motionUnit, 0)
+        //TSPL: a BITMAP for each stretch printed, the label the same
+        const label: PrintImage = await render(html, {label: {width: 48, height: 60}, dpi: 203})
+        const tspl = decodeTspl(encode(label, {language: 'tspl'}))
+        assert.strictEqual(tspl.commands.filter((command: string): boolean => command.startsWith('BITMAP')).length, 2)
+        assert.ok(sameDots(tspl.pages[0]!, label.pages[0]!.height, label.pages[0]!))
     })
 
     it('cuts after each page on the three languages, and turns the cutter of a label printer off', async (): Promise<void> => {

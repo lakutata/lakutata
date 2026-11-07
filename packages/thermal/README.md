@@ -169,6 +169,11 @@ console.log(escpos.length, zpl.length, tspl.length)
   `cut` (`'full'` or `'partial'`, the paper fed to the cutter first); after the last one, `drawer` opens the cash drawer
   (`true` for pin 2, or `{pin, on, off}` in milliseconds). The feed and the `ESC *` bands count in the printer's
   vertical motion unit, so the encoder first sets it to the dot pitch (`GS P`).
+- **`skipBlank`** (ESC/POS and TSPL, on by default): a blank stretch of a millimetre or more is not sent. ESC/POS feeds
+  the paper over it, TSPL sends one `BITMAP` for each stretch printed. A receipt takes fewer bytes, which matters on a
+  slow link (a serial port at 9600 bits a second takes about 960 bytes a second). Set it to `false` on a printer whose
+  feed does not follow `GS P` (the gaps of the receipt come out too short or too long). ESC/POS over 255 dpi sends
+  every row; ZPL compresses its blank rows already.
 - **TSPL** (TSC and many Chinese label printers): the label size, its `sensor` (`'gap'`, `'mark'` or `'continuous'`)
   and `gap`, `density` (0 to 15), `speed`, then each page a `BITMAP` printed in `copies`.
 - **ZPL** (Zebra and the printers that emulate it): each page a label of its width and length, its sensor (`^MN`),
