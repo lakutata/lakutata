@@ -79,11 +79,12 @@ async function print(printers: ThermalPrinter): Promise<void> {
 |---|---|---|
 | `'network'` | `host`、`port`（9100） | 连接原始打印端口的 TCP 连接，ESC/POS、TSPL、ZPL 打印机都一样 |
 | `'queue'` | `name` | 系统打印队列，指令原样发送：macOS 和 Linux 上是 CUPS 的 `lp -d <name> -o raw`。暂不支持 Windows |
-| `'serial'` | `path`、`baudRate`（9600）、`flowControl` | 串口，由 `@lakutata/serial` 提供 |
+| `'serial'` | `path`、`baudRate`（9600）、`flowControl`（`'rts/cts'`、`'dtr/dsr'`、`'xon/xoff'`） | 串口，由 `@lakutata/serial` 提供 |
 | `'usb'` | `vendorId`、`productId`、`serialNumber`，或 `path` | USB 打印机，由 `@lakutata/usb` 提供 |
 | `'bluetooth'` | `address`、`channel`（1） | 经典蓝牙打印机（串口协议 SPP），需要先由系统配对，由 `@lakutata/bluetooth` 提供 |
 
 - `connectTimeout`（10 秒）限制打开连接的时间。
+- `stallTimeout`（10 秒）：打印机这么久都不接收数据（缺纸、上盖打开、离线）时，这次打印以 `ThermalPrinterConnectionException` 失败；设为 0 则一直等。
 - `bytesPerSecond` 为慢速连接限速：蓝牙或低速串口上的打印机，数据来得比它打印得快或慢时，会卡顿或印出白线。
 
 ## API

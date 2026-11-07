@@ -92,11 +92,13 @@ async function print(printers: ThermalPrinter): Promise<void> {
 |---|---|---|
 | `'network'` | `host`, `port` (9100) | A TCP connection to the raw printing port, the same for ESC/POS, TSPL and ZPL printers |
 | `'queue'` | `name` | The system's print queue, the commands sent raw: CUPS's `lp -d <name> -o raw` on macOS and Linux. Not supported on Windows yet |
-| `'serial'` | `path`, `baudRate` (9600), `flowControl` | A serial port, by `@lakutata/serial` |
+| `'serial'` | `path`, `baudRate` (9600), `flowControl` (`'rts/cts'`, `'dtr/dsr'`, `'xon/xoff'`) | A serial port, by `@lakutata/serial` |
 | `'usb'` | `vendorId`, `productId`, `serialNumber`, or `path` | A USB printer, by `@lakutata/usb` |
 | `'bluetooth'` | `address`, `channel` (1) | A classic Bluetooth printer (its serial port profile), paired by the system first, by `@lakutata/bluetooth` |
 
 - `connectTimeout` (10 seconds) limits the opening of a connection.
+- `stallTimeout` (10 seconds): a printer that takes no data for that long (out of paper, its cover open, offline)
+  fails the print with a `ThermalPrinterConnectionException`; 0 waits as long as it takes.
 - `bytesPerSecond` paces a slow link: printers on Bluetooth or a slow serial port stall, or print white lines, when the
   data come faster or slower than they print.
 
