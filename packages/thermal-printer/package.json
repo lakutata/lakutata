@@ -85,5 +85,8 @@
     "@lakutata/bluetooth": {
       "optional": true
     }
+  },
+  "devDependencies": {
+    "@lakutata/serial": "~3.2.0"
   }
 }

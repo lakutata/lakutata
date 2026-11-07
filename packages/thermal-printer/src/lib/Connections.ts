@@ -204,7 +204,7 @@ export async function openChannel(connection: PrinterConnection, timeout: number
             return openQueue(connection.name)
         case 'serial': {
             const serial: SerialConnection = connection
-            const module = await load('@lakutata/serial', (): Promise<{openSerialPort(options: object): Promise<Duplex>}> => import('@lakutata/serial' as string))
+            const module = await load('@lakutata/serial', (): Promise<typeof import('@lakutata/serial')> => import('@lakutata/serial'))
             return await opened(`The serial port ${serial.path}`, (): Promise<Duplex> => module.openSerialPort({path: serial.path, baudRate: serial.baudRate ?? 9600, flowControl: serial.flowControl ?? 'none'}))
         }
         case 'usb': {

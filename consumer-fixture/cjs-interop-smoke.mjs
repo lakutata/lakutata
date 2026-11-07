@@ -155,6 +155,17 @@ await check('@lakutata/thermal loads under ESM', () => {
     if (typeof thermalPackage.render !== 'function' || !thermalPackage.printerModels().length) throw new Error('render missing')
 })
 
+// @lakutata/serial — its addon
+await check('CJS @lakutata/serial loads its addon and lists the ports', async () => {
+    const serial = requireCJS('../packages/serial/dist/cjs/exports/Serial.js')
+    if (!Array.isArray(await serial.listSerialPorts())) throw new Error('listSerialPorts did not give an array')
+    await serial.openSerialPort({path: '/dev/lakutata-no-such-port'}).then(() => {
+        throw new Error('a missing port opened')
+    }, (error) => {
+        if (!(error instanceof serial.SerialException) || !['ENOENT', 'EINVAL'].includes(error.code)) throw error
+    })
+})
+
 // @lakutata/thermal-printer — the component over the engine
 await check('CJS @lakutata/thermal-printer loads', () => {
     const printer = requireCJS('../packages/thermal-printer/dist/cjs/exports/ThermalPrinter.js')

@@ -123,7 +123,10 @@ describe('The thermal printer component', (): void => {
         try {
             await assert.rejects(printers.print('closed', '<p>x</p>'), ThermalPrinterConnectionException)
             await assert.rejects(printers.print('nowhere', '<p>x</p>'), ThermalPrinterException)
-            await assert.rejects(printers.print('serial', '<p>x</p>'), (error: Error): boolean => error instanceof ThermalPrinterException && /@lakutata\/serial/.test(error.message))
+            //Not a serial port: the error of @lakutata/serial, as the one of the connection
+            await assert.rejects(printers.print('serial', '<p>x</p>'), (error: Error): boolean => error instanceof ThermalPrinterConnectionException && /ENOTTY|serial port/i.test(error.message))
+            //A connection whose package is not installed
+            await assert.rejects(printers.print({connection: {type: 'bluetooth', address: '00:11:22:33:44:55'}, paper: 58, commands: {language: 'escpos'}}, '<p>x</p>'), (error: Error): boolean => error instanceof ThermalPrinterException && /@lakutata\/bluetooth/.test(error.message))
             await printers.print('front', '<p>x</p>')
             assert.strictEqual(printer.jobs.length, 1)
             const controller: AbortController = new AbortController()
