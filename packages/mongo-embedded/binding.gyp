@@ -218,7 +218,7 @@
             'DEAD_CODE_STRIPPING': 'YES'
           }
         }],
-        ['OS=="linux" or OS=="android"', {'ldflags': ['-Wl,--gc-sections']}],
+        ['OS=="linux" or OS=="android" or OS=="openharmony"', {'ldflags': ['-Wl,--gc-sections']}],
         ['OS=="win"', {
           'defines': ['_HAS_EXCEPTIONS=1'],
           'msvs_settings': {
