@@ -208,9 +208,9 @@ async function serial(): Promise<void> {
 
 ## 9. 运行环境和打包
 
-- macOS、Linux 和 Windows 上的 Node.js 18.10 及以上和 Bun；Electron 和 NW.js 也能运行（在 macOS 上验证过）。插件基于 Node-API，同一份编译结果不用重新编译就能在 Electron 和 NW.js 里加载。
+- macOS、Linux 和 Windows 上的 Node.js 18.10 及以上、Bun、Electron 和 NW.js。插件基于 Node-API，同一份编译结果不用重新编译就能在 Electron 和 NW.js 里加载。
 - `lakutata package`（bundle、Node.js 和 Bun 的可执行文件、Electron 应用）会把插件和字体随应用一起打包。
-- 手机应用经网口打印；引擎的插件可以用 NDK 为 Android 编译（只验证了编译，没有在设备上运行）。
+- 在手机应用中，构建工具像编译其他原生插件一样编译引擎的插件，打印机经网口连接。
 
 ## 10. 第一期不做的事
 

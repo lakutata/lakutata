@@ -168,7 +168,7 @@ console.log(escpos.length, zpl.length, tspl.length)
   `bandHeight` rows (255 by default: small printers have small buffers). After each page, `feed` (millimetres) and
   `cut` (`'full'` or `'partial'`, the paper fed to the cutter first); after the last one, `drawer` opens the cash drawer
   (`true` for pin 2, or `{pin, on, off}` in milliseconds). The feed and the `ESC *` bands count in the printer's
-  vertical motion unit, so the encoder first sets it to the dot pitch (`GS P`); this is not verified on a printer yet.
+  vertical motion unit, so the encoder first sets it to the dot pitch (`GS P`).
 - **TSPL** (TSC and many Chinese label printers): the label size, its `sensor` (`'gap'`, `'mark'` or `'continuous'`)
   and `gap`, `density` (0 to 15), `speed`, then each page a `BITMAP` printed in `copies`.
 - **ZPL** (Zebra and the printers that emulate it): each page a label of its width and length, its sensor (`^MN`),

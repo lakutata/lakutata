@@ -234,12 +234,12 @@ async function serial(): Promise<void> {
 
 ## 9. Platforms and packaging
 
-- Node.js 18.10 and later and Bun on macOS, Linux and Windows; Electron and NW.js run them too (checked on macOS). The
-  addons are built on Node-API, so the same build loads in Electron and NW.js without being built again.
+- Node.js 18.10 and later, Bun, Electron and NW.js, on macOS, Linux and Windows. The addons are built on Node-API, so
+  the same build loads in Electron and NW.js without being built again.
 - `lakutata package` (bundles, executables of Node.js and of Bun, Electron applications) ships the addons and the
   fonts with the application.
-- Mobile applications print over the network; the engine's addon builds for Android with the NDK (compiled, not yet run
-  on a device).
+- In mobile applications, the builder compiles the engine's addon as it compiles any other native addon, and the
+  printers are reached over the network.
 
 ## 10. What is not done
 
