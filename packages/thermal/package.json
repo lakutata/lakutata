@@ -83,5 +83,8 @@
   },
   "peerDependencies": {
     "@lakutata/core": "~3.2.0"
+  },
+  "devDependencies": {
+    "@lakutata/barcode": "~3.2.0"
   }
 }

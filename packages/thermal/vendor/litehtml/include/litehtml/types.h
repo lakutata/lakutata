@@ -198,12 +198,11 @@ namespace litehtml
 			x = y = width = height = 0;
 		}
 
+		// lakutata: the positions stay fractional CSS pixels; the container of @lakutata/thermal snaps them to the
+		// printer's dots (a CSS pixel is about 2.1 dots at 203 dpi: rounding to whole pixels would move the drawing by
+		// up to a dot and open gaps between adjacent boxes)
 		void round()
 		{
-			x = std::round(x);
-			y = std::round(y);
-			width = std::round(width);
-			height = std::round(height);
 		}
 
 		void operator=(const size& sz)

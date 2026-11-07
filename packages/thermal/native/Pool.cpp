@@ -1,0 +1,113 @@
+#include "Pool.h"
+
+#include <cstdlib>
+#include <stdexcept>
+#include <thread>
+
+#ifdef _WIN32
+//node-gyp defines them already
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <pthread.h>
+#endif
+
+namespace thermal {
+
+namespace {
+
+unsigned poolSize()
+{
+    if (const char *configured = std::getenv("LAKUTATA_THERMAL_THREADS")) {
+        const long value = std::strtol(configured, nullptr, 10);
+        if (value > 0 && value <= 1024) return static_cast<unsigned>(value);
+    }
+    return 1;
+}
+
+}
+
+Pool &Pool::shared()
+{
+    //Never destroyed: its threads are detached, the process ends without waiting for an operation running
+    static Pool *pool = new Pool(poolSize());
+    return *pool;
+}
+
+Pool::Pool(unsigned size) : size_(size)
+{
+    for (unsigned i = 0; i < size; i++) start();
+}
+
+void Pool::start()
+{
+    //Reserved, not committed: the memory is used as the stack grows (litehtml recurses over the elements; the default
+    //stack of a thread of musl is 128 KiB)
+    const size_t stack = 8 * 1024 * 1024;
+#ifdef _WIN32
+    HANDLE thread = CreateThread(nullptr, stack, [](LPVOID pool) -> DWORD {
+        static_cast<Pool *>(pool)->work();
+        return 0;
+    }, this, STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr);
+    if (thread == nullptr) throw std::runtime_error("The threads of the addon cannot be started");
+    CloseHandle(thread);
+#else
+    pthread_attr_t attributes;
+    pthread_attr_init(&attributes);
+    pthread_attr_setstacksize(&attributes, stack);
+    pthread_attr_setdetachstate(&attributes, PTHREAD_CREATE_DETACHED);
+    pthread_t thread;
+    const int failed = pthread_create(&thread, &attributes, [](void *pool) -> void * {
+        static_cast<Pool *>(pool)->work();
+        return nullptr;
+    }, this);
+    pthread_attr_destroy(&attributes);
+    if (failed != 0) throw std::runtime_error("The threads of the addon cannot be started");
+#endif
+}
+
+unsigned Pool::size() const
+{
+    return size_;
+}
+
+void Pool::submit(std::function<void()> task)
+{
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        tasks_.push_back(std::move(task));
+    }
+    available_.notify_one();
+}
+
+void Pool::work()
+{
+    while (true) {
+        std::function<void()> task;
+        {
+            std::unique_lock<std::mutex> lock(mutex_);
+            available_.wait(lock, [this] { return !tasks_.empty(); });
+            task = std::move(tasks_.front());
+            tasks_.pop_front();
+        }
+        task();
+    }
+}
+
+void Token::cancel(Reason reason)
+{
+    int expected = 0;
+    reason_.compare_exchange_strong(expected, static_cast<int>(reason));
+}
+
+Token::Reason Token::reason() const
+{
+    return static_cast<Reason>(reason_.load());
+}
+
+}

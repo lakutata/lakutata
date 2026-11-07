@@ -2,7 +2,7 @@
 // <!@(node scripts/sources.mjs <target>) when the addon is built, so the lists follow the vendored libraries
 // (scripts/sync.mjs) without being written by hand. Run when the package is installed: Node.js only.
 //
-// Run: node scripts/sources.mjs <freetype|litehtml|gumbo|plutovg|lunasvg|unibreak|thermal>
+// Run: node scripts/sources.mjs <freetype|litehtml|gumbo|plutovg|lunasvg|unibreak|qrcodegen|thermal>
 
 import {readdirSync} from 'node:fs'
 import path from 'node:path'
@@ -32,7 +32,9 @@ const TARGETS = {
     gumbo: () => filesOf('vendor/litehtml/src/gumbo').filter((file) => file.endsWith('.c')),
     plutovg: () => filesOf('vendor/plutovg/source').filter((file) => file.endsWith('.c')),
     lunasvg: () => filesOf('vendor/lunasvg/source').filter((file) => file.endsWith('.cpp')),
-    unibreak: () => filesOf('vendor/libunibreak/src').filter((file) => file.endsWith('.c')),
+    //The tables its other sources #include (emojidata.c, graphemebreakdata.c...) are not compiled apart
+    unibreak: () => filesOf('vendor/libunibreak/src').filter((file) => file.endsWith('.c') && !/(emojidata|eastasianwidthdata|graphemebreakdata|indicconjunctbreakdata|linebreakauxdata)\.c$/.test(file)),
+    qrcodegen: () => ['vendor/qrcodegen/c/qrcodegen.c'],
     //The addon: the sources of native/, not of its subdirectories
     thermal: () => filesOf('native').filter((file) => file.endsWith('.cpp'))
 }

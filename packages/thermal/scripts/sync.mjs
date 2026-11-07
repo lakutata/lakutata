@@ -10,8 +10,8 @@
 //
 // Run: node scripts/sync.mjs <library> <version>            merge a newer release into the source of the package
 //      node scripts/sync.mjs <library> <version> --import   replace the source of the package by a release, as it is
-// The libraries: litehtml, freetype, plutovg, lunasvg, libunibreak (its version is the one of its tag: 8_0), noto (a
-// commit of notofonts/noto-cjk)
+// The libraries: litehtml, freetype, plutovg, lunasvg, libunibreak (its version is the one of its tag: 8_0), qrcodegen,
+// noto (a commit of notofonts/noto-cjk)
 
 import {execFileSync, spawnSync} from 'node:child_process'
 import {createHash} from 'node:crypto'
@@ -74,6 +74,14 @@ const LIBRARIES = {
         //The line and grapheme breaking (UAX #14, UAX #29) and the tables they read, not the word breaking, the tests
         //and the generators of the tables
         exclude: [/^src\/(tests\.c|test_skips\.h|wordbreak)/, /^src\/.*(?<!\.(c|h))$/]
+    },
+    'qrcodegen': {
+        directory: 'qrcodegen',
+        archive: (version) => `https://github.com/nayuki/QR-Code-generator/archive/refs/tags/v${version}.tar.gz`,
+        root: (version) => `QR-Code-generator-${version}`,
+        //Its C library; its license (MIT) is in its readme
+        include: ['c/qrcodegen.c', 'c/qrcodegen.h', 'Readme.markdown'],
+        exclude: []
     },
     'noto': {
         directory: 'noto',

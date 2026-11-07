@@ -1,8 +1,8 @@
 # The build of the addon of @lakutata/thermal by node-gyp, when the package is installed: FreeType (the modules of
-# native/config/ftmodule.h), litehtml and its bundled gumbo, plutovg, lunasvg and libunibreak compiled from their vendored
+# native/config/ftmodule.h), litehtml and its bundled gumbo, plutovg, lunasvg, libunibreak and qrcodegen compiled from their vendored
 # sources (vendor/, scripts/sync.mjs) as static libraries, then the addon (native/) linked with them. The lists of
-# sources come from scripts/sources.mjs. C++17 for litehtml, lunasvg and the addon; FreeType, gumbo, plutovg and
-# libunibreak are C.
+# sources come from scripts/sources.mjs. C++17 for litehtml, lunasvg and the addon; FreeType, gumbo, plutovg, libunibreak
+# and qrcodegen are C.
 {
   'targets': [
     {
@@ -127,10 +127,23 @@
       'direct_dependent_settings': {'include_dirs': ['vendor/libunibreak/src']}
     },
     {
+      # qrcodegen: the QR codes of the qrcode: pictures (C)
+      'target_name': 'qrcodegen',
+      'type': 'static_library',
+      'dependencies': ['cxx'],
+      'sources': ['<!@(node scripts/sources.mjs qrcodegen)'],
+      'include_dirs': ['vendor/qrcodegen/c'],
+      'cflags': ['-w'],
+      'xcode_settings': {'WARNING_CFLAGS': ['-w']},
+      'msvs_settings': {'VCCLCompilerTool': {'WarningLevel': 0}},
+      'direct_dependent_settings': {'include_dirs': ['vendor/qrcodegen/c']}
+    },
+    {
       'target_name': 'thermal',
       'sources': ['<!@(node scripts/sources.mjs thermal)'],
-      'dependencies': ['cxx', 'freetype', 'gumbo', 'litehtml', 'plutovg', 'lunasvg', 'unibreak'],
-      'include_dirs': ['native', "<!(node -p \"require('node-addon-api').include_dir\")"],
+      'dependencies': ['cxx', 'freetype', 'gumbo', 'litehtml', 'plutovg', 'lunasvg', 'unibreak', 'qrcodegen'],
+      # vendor/plutovg/source: the stb_image_write plutovg vendors, compiled static by native/Png.cpp
+      'include_dirs': ['native', 'vendor/plutovg/source', "<!(node -p \"require('node-addon-api').include_dir\")"],
       # A worker thread terminated while an error is thrown to it: node-addon-api would throw a C++ exception no one
       # catches (std::terminate) where the environment refuses the JavaScript one; it lets it go instead
       'defines': ['NAPI_VERSION=8', 'NAPI_CPP_EXCEPTIONS', 'NODE_API_SWALLOW_UNTHROWABLE_EXCEPTIONS', 'NODE_ADDON_API_DISABLE_DEPRECATED']
