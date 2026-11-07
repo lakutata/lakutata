@@ -142,6 +142,25 @@ await check('@lakutata/netif loads under ESM', () => {
     if (typeof netifPackage.listInterfaces !== 'function' || !Array.isArray(netifPackage.listInterfaces())) throw new Error('listInterfaces missing')
 })
 
+// @lakutata/mongo-embedded — its addon (built when the package is installed) and the data of its collations required by
+// paths from the CommonJS module, the module TypeORM requires for the mongo-embedded databases
+await check('CJS @lakutata/mongo-embedded loads its addon', async () => {
+    const {EmbeddedClient, ObjectId} = requireCJS('../packages/mongo-embedded/dist/cjs/exports/MongoEmbedded.js')
+    if (typeof EmbeddedClient !== 'function' || typeof ObjectId !== 'function') throw new Error('EmbeddedClient missing')
+    const client = await EmbeddedClient.connect()
+    try {
+        const items = client.db().collection('items')
+        await items.insertOne({name: 'Été'})
+        if (await items.countDocuments({name: 'ete'}, {collation: {locale: 'fr', strength: 1}}) !== 1) throw new Error('the collations of mongo-embedded')
+    } finally {
+        await client.close()
+    }
+})
+const mongoEmbeddedPackage = await import('../packages/mongo-embedded/dist/esm/exports/MongoEmbedded.js')
+await check('@lakutata/mongo-embedded loads under ESM', () => {
+    if (typeof mongoEmbeddedPackage.EmbeddedClient !== 'function' || typeof mongoEmbeddedPackage.ObjectId !== 'function') throw new Error('EmbeddedClient missing')
+})
+
 // @lakutata/grpc — the gRPC over HTTP/2 of containerd, BuildKit and the service actions
 await check('CJS @lakutata/grpc loads', () => {
     if (typeof requireCJS('../packages/grpc/dist/cjs/exports/GRPC.js').GRPCServer !== 'function') throw new Error('GRPCServer missing')
