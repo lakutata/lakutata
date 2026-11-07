@@ -135,6 +135,27 @@ describe('The thermal printer component', (): void => {
         }
     })
 
+    it('fails a print whose printer drops the connection while it is sent', async (): Promise<void> => {
+        //A printer that closes the connection at the first data it receives
+        const server: Server = createServer((socket: Socket): void => {
+            socket.once('data', (): void => {
+                socket.destroy()
+            })
+        })
+        await new Promise<void>((resolve): void => {
+            server.listen(0, '127.0.0.1', resolve)
+        })
+        const {printers, container} = await component({printers: {dropping: {connection: {type: 'network', host: '127.0.0.1', port: (server.address() as AddressInfo).port}, bytesPerSecond: 200000}}})
+        try {
+            await assert.rejects(printers.print('dropping', Buffer.alloc(2 * 1024 * 1024)), ThermalPrinterConnectionException)
+        } finally {
+            await container.destroy()
+            await new Promise<void>((resolve): void => {
+                server.close((): void => resolve())
+            })
+        }
+    })
+
     it('paces a slow link to its bytes a second', async (): Promise<void> => {
         const printer = await fakePrinter()
         const {printers, container} = await component({printers: {slow: {connection: {type: 'network', host: '127.0.0.1', port: printer.port}, bytesPerSecond: 20000}}})

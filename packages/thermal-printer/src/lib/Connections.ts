@@ -42,20 +42,26 @@ async function writeStream(stream: Writable, data: Buffer, bytesPerSecond?: numb
         const size: number = bytesPerSecond ? Math.max(1, Math.min(CHUNK, Math.floor(bytesPerSecond / 10))) : CHUNK
         for (let offset = 0; offset < data.length; offset += size) {
             if (failure) throw failure
+            if (stream.destroyed) throw new Error('the connection is closed')
             const started: number = Date.now()
             const chunk: Buffer = data.subarray(offset, offset + size)
             if (!stream.write(chunk)) {
+                //Drained, failed, or closed (an error emitted before this wait would never come again)
                 await new Promise<void>((resolve, reject): void => {
-                    const done = (): void => {
+                    const settle = (error?: Error): void => {
+                        stream.off('drain', drained)
                         stream.off('error', failed)
-                        resolve()
+                        stream.off('close', closed)
+                        if (error) reject(error)
+                        else resolve()
                     }
-                    const failed = (error: Error): void => {
-                        stream.off('drain', done)
-                        reject(error)
-                    }
-                    stream.once('drain', done)
+                    const drained = (): void => settle()
+                    const failed = (error: Error): void => settle(error)
+                    const closed = (): void => settle(failure ?? new Error('the connection is closed'))
+                    stream.once('drain', drained)
                     stream.once('error', failed)
+                    stream.once('close', closed)
+                    if (stream.destroyed) closed()
                 })
             }
             if (bytesPerSecond) {
@@ -75,8 +81,15 @@ async function writeStream(stream: Writable, data: Buffer, bytesPerSecond?: numb
  */
 function endStream(stream: Writable): Promise<void> {
     return new Promise<void>((resolve, reject): void => {
+        //A stream closed already (by the other side): nothing more to send
+        if (stream.destroyed) return resolve()
+        const closed = (): void => resolve()
         stream.once('error', reject)
-        stream.end((): void => resolve())
+        stream.once('close', closed)
+        stream.end((): void => {
+            stream.off('close', closed)
+            resolve()
+        })
     })
 }
 

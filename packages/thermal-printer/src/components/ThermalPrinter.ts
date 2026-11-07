@@ -1,6 +1,7 @@
 import {Component, type ComponentOptions, DTO} from '@lakutata/core'
 import {Autoload, Configurable, Singleton} from '@lakutata/core/decorator/di'
 import {encode, type EncodeOptions, type PrintImage, render, type RenderOptions} from '@lakutata/thermal'
+import {ThermalPrinterConnectionException} from '../exceptions/ThermalPrinterConnectionException.js'
 import {ThermalPrinterException} from '../exceptions/ThermalPrinterException.js'
 import {type Channel, openChannel} from '../lib/Connections.js'
 import type {PrinterDefinition, PrintOptions, PrintResult} from '../lib/Types.js'
@@ -187,8 +188,15 @@ export class ThermalPrinter extends Component {
             const channel: Channel = await openChannel(definition.connection, definition.connectTimeout ?? 10000)
             try {
                 await channel.write(data, definition.bytesPerSecond)
-            } finally {
+            } catch (error) {
+                //The write failed (the printer dropped the connection, lp ended early): its error, not the one of the closing
+                await channel.close().catch((): void => undefined)
+                throw error instanceof ThermalPrinterException ? error : new ThermalPrinterConnectionException(`The commands cannot be sent to the printer: ${error instanceof Error ? error.message : String(error)}`)
+            }
+            try {
                 await channel.close()
+            } catch (error) {
+                throw error instanceof ThermalPrinterException ? error : new ThermalPrinterConnectionException(`The commands cannot be sent to the printer: ${error instanceof Error ? error.message : String(error)}`)
             }
             return {pages, bytes: data.length}
         })
