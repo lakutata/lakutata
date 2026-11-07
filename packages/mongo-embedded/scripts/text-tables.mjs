@@ -79,6 +79,10 @@ for (const point of decompositions.keys()) {
     const kept = decomposed(point).filter((part) => !diacritic.has(part))
     if (kept.length === 1 && kept[0] !== point) stripped.push([point, kept[0]])
 }
+// Kept as they are, as MongoDB 8.0 keeps them (measured): the capital I with a dot (İ) and the combining Greek
+// ypogegrammeni
+const KEPT = new Set([0x130, 0x345])
+stripped.splice(0, stripped.length, ...stripped.filter(([point]) => !KEPT.has(point)))
 stripped.sort((a, b) => a[0] - b[0])
 
 const hex = (value) => `0x${value.toString(16).toUpperCase()}`
