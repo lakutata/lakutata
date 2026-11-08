@@ -48,3 +48,52 @@ export {
     type SubstringsFilter
 } from '../lib/filter/Filter.js'
 export {escapeFilterValue, filter, type FilterParseOptions} from '../lib/filter/FilterString.js'
+export {Ber, BerReader, type BerElement} from '../lib/ber/Ber.js'
+export {
+    AssertionControl,
+    EntryChangeNotificationControl,
+    type EntryChangeValue,
+    findControl,
+    ManageDsaITControl,
+    PagedResultsControl,
+    type PagedResultsValue,
+    type PasswordPolicyError,
+    PasswordPolicyRequestControl,
+    PasswordPolicyResponseControl,
+    type PasswordPolicyValue,
+    PersistentSearchChange,
+    PersistentSearchControl,
+    type PersistentSearchValue,
+    PostReadRequestControl,
+    PostReadResponseControl,
+    PreReadRequestControl,
+    PreReadResponseControl,
+    ProxiedAuthorizationControl,
+    type ReadEntryValue,
+    type SortKey,
+    SortRequestControl,
+    SortResponseControl,
+    type SortResultValue,
+    SyncDoneControl,
+    type SyncDoneValue,
+    SyncRequestControl,
+    type SyncRequestValue,
+    SyncStateControl,
+    type SyncStateValue,
+    TreeDeleteControl,
+    VLVRequestControl,
+    type VLVRequestValue,
+    VLVResponseControl,
+    type VLVResponseValue
+} from '../lib/controls/Controls.js'
+export {
+    CancelRequest,
+    ExtendedOperation,
+    PasswordModifyRequest,
+    type PasswordModifyRequestValue,
+    PasswordModifyResponse,
+    type PasswordModifyResponseValue,
+    SyncInfo,
+    type SyncInfoValue,
+    WhoAmIResponse
+} from '../lib/extended/Extended.js'

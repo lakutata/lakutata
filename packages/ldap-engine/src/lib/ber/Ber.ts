@@ -93,19 +93,40 @@ export function decodeUTF8(bytes: Buffer): string {
 }
 
 /**
- * A reader of the elements in a range of a buffer
+ * A reader of the BER elements in a range of a buffer: the tool of the codecs of the controls and of the values of the
+ * extended operations. It reads slices of the buffer, without copying, and throws on an element that cannot be read.
+ * @example
+ * ```typescript
+ * import {Ber, BerReader} from '@lakutata/ldap-engine'
+ *
+ * const bytes: Buffer = Ber.serialize(Ber.constructed(Ber.tag.sequence, [Ber.integer(5), Ber.octets('cookie')]))
+ * const sequence: BerReader = new BerReader(bytes).enter(Ber.tag.sequence)
+ * console.log(sequence.integer(), sequence.string()) //5 cookie
+ * ```
  */
 export class BerReader {
+    /**
+     * The offset of the next element
+     */
     public offset: number
 
+    /**
+     * Where the range ends
+     */
     public readonly end: number
+
+    /**
+     * The buffer
+     */
+    public readonly buffer: Buffer
 
     /**
      * @param buffer The buffer.
      * @param offset Where the elements start.
      * @param end Where they end.
      */
-    constructor(public readonly buffer: Buffer, offset: number = 0, end: number = buffer.length) {
+    constructor(buffer: Buffer, offset: number = 0, end: number = buffer.length) {
+        this.buffer = buffer
         this.offset = offset
         this.end = end
     }
@@ -254,10 +275,21 @@ export function integerOf(content: Buffer): number {
  * An element to write: a primitive one with its content, or a constructed one with its children
  */
 export interface BerElement {
+    /**
+     * Its tag
+     */
     tag: number
+    /**
+     * The content of a primitive element
+     */
     content?: Buffer
+    /**
+     * The children of a constructed element
+     */
     children?: BerElement[]
-    //The length of the content, set when the element is sized
+    /**
+     * The length of the content, set when the element is sized
+     */
     size?: number
 }
 
@@ -405,4 +437,86 @@ export function serialize(element: BerElement): Buffer {
     const target: Buffer = Buffer.allocUnsafe(measure(element))
     write(element, target, 0)
     return target
+}
+
+/**
+ * The functions writing BER elements, and the tags: the tool, with `BerReader`, of the codecs of the controls and of
+ * the values of the extended operations. The elements are built first, then `serialize()` sizes them and writes them
+ * into one buffer.
+ * @example
+ * ```typescript
+ * import {Ber} from '@lakutata/ldap-engine'
+ *
+ * //A value with an optional element of a context tag
+ * const bytes: Buffer = Ber.serialize(Ber.constructed(Ber.tag.sequence, [
+ *     Ber.integer(100),
+ *     Ber.octets('abc', Ber.CONTEXT | 0),
+ *     undefined
+ * ]))
+ * console.log(bytes.toString('hex')) //30080201648003616263
+ * ```
+ */
+export const Ber = {
+    /**
+     * The universal tags LDAP uses
+     */
+    tag: BerTag,
+    /**
+     * The bit of a constructed tag
+     */
+    CONSTRUCTED: CONSTRUCTED,
+    /**
+     * The bits of the application class
+     */
+    APPLICATION: APPLICATION,
+    /**
+     * The bits of the context-specific class
+     */
+    CONTEXT: CONTEXT,
+    /**
+     * A constructed element; the undefined children (the OPTIONAL elements absent) are left out
+     * @param tag Its tag.
+     * @param children Its children.
+     */
+    constructed: constructed,
+    /**
+     * A primitive element
+     * @param tag Its tag.
+     * @param content Its content.
+     */
+    primitive: primitive,
+    /**
+     * An INTEGER element
+     * @param value The integer.
+     * @param tag Its tag.
+     */
+    integer: integer,
+    /**
+     * An ENUMERATED element
+     * @param value The value.
+     * @param tag Its tag.
+     */
+    enumerated: enumerated,
+    /**
+     * A BOOLEAN element (TRUE written 0xFF)
+     * @param value The value.
+     * @param tag Its tag.
+     */
+    boolean: boolean,
+    /**
+     * An OCTET STRING element; a string is written in UTF-8
+     * @param value The bytes or the string.
+     * @param tag Its tag.
+     */
+    octets: octets,
+    /**
+     * A NULL element
+     * @param tag Its tag.
+     */
+    null: nullElement,
+    /**
+     * Write an element into a buffer of its own
+     * @param element The element.
+     */
+    serialize: serialize
 }

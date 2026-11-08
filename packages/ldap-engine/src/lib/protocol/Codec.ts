@@ -70,6 +70,14 @@ export function operationOfTag(tag: number): ProtocolOp['type'] | undefined {
 }
 
 /**
+ * The application tag of an operation type
+ * @param type The operation type.
+ */
+export function tagOfOperation(type: ProtocolOp['type']): number {
+    return TAGS[type]
+}
+
+/**
  * The elements of an LDAPResult
  * @param result The result.
  */
@@ -112,7 +120,7 @@ function authenticationElement(authentication: BindAuthentication): BerElement {
  * The element of an operation
  * @param operation The operation.
  */
-function operationElement(operation: ProtocolOp): BerElement {
+export function operationElement(operation: ProtocolOp): BerElement {
     const tag: number = TAGS[operation.type]
     switch (operation.type) {
         case 'bindRequest':
@@ -305,7 +313,7 @@ function enumValue<T>(values: T[], index: number, what: string): T {
  * @param tag Its tag.
  * @param reader The reader, at the operation.
  */
-function readOperation(type: ProtocolOp['type'], tag: number, reader: BerReader): ProtocolOp {
+export function readOperation(type: ProtocolOp['type'], tag: number, reader: BerReader): ProtocolOp {
     if (!(tag & CONSTRUCTED)) {
         switch (type) {
             case 'unbindRequest':
