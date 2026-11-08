@@ -12,6 +12,7 @@ import {
     LDAPNoSuchObjectException,
     LDAPNotAllowedOnNonLeafException,
     type LDAPPool,
+    PasswordSchemes,
     readSchema,
     type Schema
 } from '../../exports/LDAPEngine.js'
@@ -23,6 +24,7 @@ const ADMIN: string = process.env.LDAP_TEST_ADMIN ?? 'cn=admin,dc=example,dc=com
 const PASSWORD: string = process.env.LDAP_TEST_PASSWORD ?? 'secret'
 const PEOPLE: string = `ou=people-${process.pid},${BASE}`
 const TLS = {rejectUnauthorized: false}
+const CONFIG_PASSWORD: string = process.env.LDAP_TEST_CONFIG_PASSWORD ?? 'config'
 
 describe('against OpenLDAP', {skip: !URL}, () => {
     let admin: LDAPClientConnection
@@ -126,6 +128,30 @@ describe('against OpenLDAP', {skip: !URL}, () => {
         const again: LDAPClientConnection = await connectLDAP({url: URL!, startTLS: true, tls: TLS})
         await again.bind(dn, 'chosen')
         await again.close()
+    })
+
+    it('shares its {PBKDF2-SHA512} hashes with the pw-pbkdf2 module of OpenLDAP, both ways', async () => {
+        //The module of the image, loaded through cn=config
+        const config: LDAPClientConnection = await connectLDAP({url: URL!, startTLS: true, tls: TLS})
+        await config.bind('cn=admin,cn=config', CONFIG_PASSWORD)
+        const modules = await config.search('cn=config', {scope: 'one', filter: '(objectClass=olcModuleList)', attributes: ['olcModuleLoad']})
+        const loaded: boolean = modules.entries.some((entry) => entry.get('olcModuleLoad').some((value) => value.includes('pw-pbkdf2')))
+        if (!loaded) await config.modify(modules.entries[0].dn, {operation: 'add', attribute: 'olcModuleLoad', values: 'pw-pbkdf2'})
+        const schemes: PasswordSchemes = new PasswordSchemes({iterations: 10000})
+        const dn: string = `uid=pbkdf2,${PEOPLE}`
+        await admin.add(dn, {objectClass: 'inetOrgPerson', uid: 'pbkdf2', cn: 'PBKDF2', sn: 'Hash', userPassword: await schemes.hash('our-hash')})
+        const user: LDAPClientConnection = await connectLDAP({url: URL!, startTLS: true, tls: TLS})
+        await user.bind(dn, 'our-hash')
+        await user.close()
+        //A hash written by OpenLDAP, read back and verified by the engine
+        await config.modify('olcDatabase={-1}frontend,cn=config', {operation: 'replace', attribute: 'olcPasswordHash', values: '{PBKDF2-SHA512}'})
+        await admin.passwordModify({userIdentity: dn, newPassword: 'their-hash'})
+        const stored: string = (await admin.search(dn, {scope: 'base', attributes: ['userPassword']})).entries[0].getBuffers('userPassword')[0].toString()
+        assert.match(stored, /^\{PBKDF2-SHA512\}\d+\$/)
+        assert.equal(await schemes.verify(stored, 'their-hash'), true)
+        assert.equal(await schemes.verify(stored, 'our-hash'), false)
+        await config.modify('olcDatabase={-1}frontend,cn=config', {operation: 'delete', attribute: 'olcPasswordHash'})
+        await config.close()
     })
 
     it('authenticates users with a pool, and reads the schema of the server', async () => {

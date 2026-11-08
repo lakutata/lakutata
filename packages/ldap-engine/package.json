@@ -55,7 +55,7 @@
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test --test-timeout=60000 \"dist/esm/tests/**/*.spec.js\"",
     "test:fuzz": "npm run compile && node dist/esm/tests/support/FuzzRunner.js --iterations 200000",
-    "test:openldap": "npm run compile && sh test-env/openldap/run.sh"
+    "test:openldap": "npm run compile && sh test-env/openldap/run.sh && sh test-env/openldap/tools.sh"
   },
   "engines": {
     "node": ">=18.10.0"

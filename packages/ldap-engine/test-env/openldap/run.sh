@@ -37,4 +37,4 @@ LDAP_TEST_BASE="dc=example,dc=com" \
 LDAP_TEST_ADMIN="cn=admin,dc=example,dc=com" \
 LDAP_TEST_PASSWORD="secret" \
 LDAP_TEST_CONTAINER="$NAME" \
-node --test --test-timeout=120000 dist/esm/tests/servers/*.spec.js
+node --test --test-timeout=120000 dist/esm/tests/servers/OpenLDAP.spec.js
