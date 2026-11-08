@@ -101,12 +101,12 @@ await server.listen({port: 636, secure: true})
 - By default anonymous sessions read only the root DSE and the subschema, bound sessions read the directory, and the
   administrators of `access.admins` write; `access.check` decides first when given. Failed binds of a DN or an
   address are slowed down, then locked for a while, all answered with invalidCredentials.
-- The password policy of draft-behera-ldap-password-policy (`passwordPolicy`), with the attributes OpenLDAP's ppolicy
-  uses: a default policy (the DN of a pwdPolicy entry, or its rules) that a user's pwdPolicySubentry replaces; accounts
-  locked after too many failures, expiration with its warnings and grace binds, the password to change first after a
-  reset, the minimum age, length, quality (with a check of one's own) and history of new passwords. Its state is in the
-  operational attributes of the entries (pwdChangedTime, pwdAccountLockedTime…), so every backend keeps it. A locked
-  account is answered as a wrong password unless `revealLocked` is set.
+-  The password policy of draft-behera-ldap-password-policy (`passwordPolicy`, a plugin), with the attributes OpenLDAP's
+  ppolicy uses: a default policy (the DN of a pwdPolicy entry, or its rules) that a user's pwdPolicySubentry replaces;
+  accounts locked after too many failures, expiration with its warnings and grace binds, the password to change first
+  after a reset, the minimum age, length, quality (with a check of one's own) and history of new passwords. Its state is
+  in the operational attributes of the entries (pwdChangedTime, pwdAccountLockedTime…), so every backend keeps it. A
+  locked account is answered as a wrong password unless `revealLocked` is set.
 - A backend may bring the schema files of the attributes it computes, interceptors of its own, a store shared by the
   instances for the bind throttle, and `transaction()`, in which the interceptors' `beforeCommit()` and the write run
   together.
@@ -114,11 +114,13 @@ await server.listen({port: 636, secure: true})
 ### Plugins
 
 A plugin adds what an extension needs to the server, as the overlays of OpenLDAP do. Its interceptors run around the
-operations of the backends: before a request, around it, on each entry a search returns, or before a write is
-committed, placed before or after the server's own steps (`access`, `password`, `schema`, `operational`, `paging`).
-It may also bring schema files, controls, extended operations, SASL mechanisms and password schemes, which the root
-DSE and the subschema publish. Two plugins claiming one OID, or defining one attribute type or object class
-differently, stop the server at its start.
+operations of the backends: before a request, around it, on each entry a search returns, or before a write is committed,
+placed before or after the server's own steps (`access`, `password`, `schema`, `operational`, `paging`). It may also run
+around every request (`aroundRequest`, which sees the binds, the extended operations and the searches the server answers
+itself), around the check of a password (`authenticate`), and on the password changes, while the passwords are in clear
+(`passwordChange`). It may bring schema files, controls, extended operations, SASL mechanisms and password schemes,
+which the root DSE and the subschema publish. Two plugins claiming one OID, or defining one attribute type or object
+class differently, stop the server at its start.
 
 ```typescript
 import {createLDAPServer, MemberOfPlugin, MemoryBackend, ReferentialIntegrityPlugin, UniquePlugin} from '@lakutata/ldap-engine'
@@ -134,10 +136,11 @@ const server = createLDAPServer({
 | `MemberOfPlugin` | Keeps the memberOf of the members of the groups | memberof |
 | `ReferentialIntegrityPlugin` | Changes the DNs in values when entries are deleted, renamed or moved | refint |
 | `UniquePlugin` | Refuses a value another entry has | unique |
+| `PasswordPolicyPlugin` | The password policy, which the `passwordPolicy` option gives too | ppolicy |
 | `IdAllocationPlugin` | Gives uidNumber and gidNumber to the POSIX entries added without them | DNA of 389 Directory Server |
 | `LastBindPlugin` | Keeps the time of the last bind in authTimestamp | lastbind |
 | `SambaPasswordPlugin` | Writes the NT hash of a new password in sambaNTPassword (the schema of Samba loaded) | smbk5pwd |
-| `AuditPlugin` | Gives a record of each operation and its outcome to a function of one's own | accesslog, auditlog |
+| `AuditPlugin` | Gives a record of each request and its outcome to a function of one's own | accesslog, auditlog |
 | `ConstraintPlugin` | Refuses values breaking rules: a pattern, a size, a count, a check of one's own | constraint |
 | `GroupPresentationPlugin` | Shows each group as both groupOfNames and groupOfUniqueNames, as lldap does | |
 
@@ -147,6 +150,8 @@ const server = createLDAPServer({
 - `server.start()` runs the plugins' `start()`; `listen()` does it first.
 - A plugin reads and writes the directory on `context.server.connect({internal: true})`: its operations go through
   the chain and the schema checks, and the access control lets them through.
+- The plugins keep the relations within one backend, as OpenLDAP's overlays keep them within one database: a group and
+  its members, an entry and the values naming it, and the values kept unique belong in the same backend.
 - The plugins writing after a change (memberOf, the references, the time of the last bind) do it once the change is
   done, as OpenLDAP's overlays do. A backend doing their work itself declares it, and the plugin leaves its chain: the
   directory backend of `@lakutata/ldap` computes memberOf, keeps the references, gives the numbers and keeps the time
@@ -190,7 +195,9 @@ console.log(read.length)
   `LDAPDecodeException`.
 - `Filter` builds search filters, parses their text (RFC 4515) and writes it; the template `filter` escapes the values
   written into it, so a value cannot change the filter. `matchFilter()` evaluates a filter on an entry with the three
-  values of RFC 4511 (true, false, undefined).
+  values of RFC 4511 (true, false, undefined). An approximate match (`~=`) is an equality, except on a name and optional
+  UID (uniqueMember), where it compares the names alone, whatever the UIDs, as OpenLDAP's uniqueMemberMatch does
+  approximately.
 - The controls (paged results, sort, virtual list view, tree delete, password policy, read entry, proxied
   authorization, persistent search, content synchronization…) and the values of the extended operations (Password
   Modify, Who Am I, Cancel) have codecs; `Ber` and `BerReader` write and read BER, for codecs of one's own.
@@ -226,8 +233,8 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `LDAPInProcessConnection` | A connection in the same process |
 | `LDAPBackend`, `DirectoryEntry`, `OperationContext`, `SearchContext`… | The interface of the backends |
 | `MemoryBackend`, `createHandlerBackend(options)` | Backends ready |
-| `LDAPPlugin`, `LDAPPluginHost`, `PluginControl`, `BaseLDAPPlugin` | The plugins |
-| `MemberOfPlugin`, `ReferentialIntegrityPlugin`, `UniquePlugin`, `IdAllocationPlugin`, `LastBindPlugin`, `SambaPasswordPlugin`, `AuditPlugin`, `ConstraintPlugin`, `GroupPresentationPlugin` | The plugins ready |
+| `LDAPPlugin`, `LDAPPluginHost`, `PluginControl`, `PasswordChange`, `BaseLDAPPlugin` | The plugins |
+| `MemberOfPlugin`, `ReferentialIntegrityPlugin`, `UniquePlugin`, `PasswordPolicyPlugin`, `IdAllocationPlugin`, `LastBindPlugin`, `SambaPasswordPlugin`, `AuditPlugin`, `ConstraintPlugin`, `GroupPresentationPlugin` | The plugins ready |
 | `LDAPInterceptor`, `InterceptorPlacement`, `ServerRequest`… | The interceptors |
 | `AccessOptions`, `ServerLimits`, `BindThrottleOptions` | The access rules, the limits, the bind throttle |
 | `PasswordSchemes`, `PasswordScheme` | The password storage schemes |

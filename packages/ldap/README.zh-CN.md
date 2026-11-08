@@ -137,7 +137,7 @@ Application.run(() => ({
 | `plaintextBind` | `'all'` | 不用 TLS 时在哪里接受密码：`'all'`、`'loopback'`、`'none'` |
 | `allowUnauthenticatedBind` | `false` | 把带名字、不带密码的绑定当作匿名绑定接受 |
 | `passwords` | `{PBKDF2-SHA512}` | 写入密码用的格式，以及 PBKDF2 的迭代次数 |
-| `passwordPolicy` | | 密码策略：默认策略（pwdPolicy 条目的 DN，或者直接给出规则）、`quality`、`revealLocked` |
+| `passwordPolicy` | | 密码策略（排在其他插件之后的一个 `PasswordPolicyPlugin`）：默认策略（pwdPolicy 条目的 DN，或者直接给出规则）、`quality`、`revealLocked` |
 | `rehashOnBind` | `true` | 用较弱格式的密码绑定成功后，按服务器的格式重新哈希 |
 | `sasl` | PLAIN、EXTERNAL | SASL 机制 |
 | `extendedOperations` | | 自己的扩展操作 |

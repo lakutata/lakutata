@@ -73,12 +73,12 @@ await server.listen({port: 636, secure: true})
 - `createDirectory()` 用 LDAP 操作管理用户、组和组织单元，可以用在任何连接上：进程内连接、客户端，或者远程的 OpenLDAP，只要 profile 和那台服务器的 schema 对得上。
 - 密码以 `{PBKDF2-SHA512}` 写入，格式和 OpenLDAP 的 pw-pbkdf2 模块相同；绑定时也能验证 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、`{CRYPT}`，以及 node:crypto 能运行 argon2 时的 `{ARGON2}`：Node.js 24.7 及以后可以，Electron 不行），验证成功后再按服务器的格式重新哈希。任何人都读不到 `userPassword`。
 - 默认情况下，匿名会话只能读 rootDSE 和 subschema，已绑定的会话可以读整个目录，`access.admins` 里的管理员可以写；给了 `access.check` 时先由它决定。同一个 DN 或同一个地址连续绑定失败时，响应会被放慢，之后锁定一段时间，所有失败一律返回 invalidCredentials。
-- 密码策略按 draft-behera-ldap-password-policy 实现（`passwordPolicy`），和 OpenLDAP 的 ppolicy 用同一套属性：有一条默认策略（pwdPolicy 条目的 DN，或者直接给出规则），用户的 pwdPolicySubentry 可以换成别的策略；连续失败太多次就锁定账号，有过期、过期前提醒和宽限登录，管理员重置后必须先改密码，新密码有最短修改间隔、长度、复杂度（可以加自己的检查）和历史的限制。状态保存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime 等），所以任何后端都能保存。账号被锁定时默认和密码错误一样回答，除非设置 `revealLocked`。
+- 密码策略按 draft-behera-ldap-password-policy 实现（`passwordPolicy`，一个插件），和 OpenLDAP 的 ppolicy 用同一套属性：有一条默认策略（pwdPolicy 条目的 DN，或者直接给出规则），用户的 pwdPolicySubentry 可以换成别的策略；连续失败太多次就锁定账号，有过期、过期前提醒和宽限登录，管理员重置后必须先改密码，新密码有最短修改间隔、长度、复杂度（可以加自己的检查）和历史的限制。状态保存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime 等），所以任何后端都能保存。账号被锁定时默认和密码错误一样回答，除非设置 `revealLocked`。
 - 后端可以带上它计算的属性所需的 schema 文件、自己的拦截器、多个实例共用的绑定限速存储，以及 `transaction()`：拦截器的 `beforeCommit()` 和写操作在同一个事务里执行。
 
 ### 插件
 
-插件像 OpenLDAP 的 overlay 一样，给服务器加上一个扩展需要的东西。它的拦截器在后端的操作外面运行代码：在请求之前、包住请求、对搜索返回的每个条目，或者在写操作提交之前，排在服务器自带的步骤（`access`、`password`、`schema`、`operational`、`paging`）之前或之后。插件还可以带上 schema 文件、控制项、扩展操作、SASL 机制和密码格式，由 rootDSE 和 subschema 公布出去。两个插件认领同一个 OID，或者对同一个名字给出不同的定义时，服务器在启动时就会报错。
+插件像 OpenLDAP 的 overlay 一样，给服务器加上一个扩展需要的东西。它的拦截器在后端的操作外面运行代码：在请求之前、包住请求、对搜索返回的每个条目，或者在写操作提交之前，排在服务器自带的步骤（`access`、`password`、`schema`、`operational`、`paging`）之前或之后。插件还可以包住每一个请求（`aroundRequest`：包括绑定、扩展操作，以及服务器自己回答的搜索），包住密码的验证（`authenticate`），在密码还是明文时检查密码的修改（`passwordChange`）。插件可以带上 schema 文件、控制项、扩展操作、SASL 机制和密码格式，由 rootDSE 和 subschema 公布出去。两个插件认领同一个 OID，或者对同一个名字给出不同的定义时，服务器在启动时就会报错。
 
 ```typescript
 import {createLDAPServer, MemberOfPlugin, MemoryBackend, ReferentialIntegrityPlugin, UniquePlugin} from '@lakutata/ldap-engine'
@@ -94,16 +94,18 @@ const server = createLDAPServer({
 | `MemberOfPlugin` | 维护组成员的 memberOf | memberof |
 | `ReferentialIntegrityPlugin` | 条目删除、改名或移动时，修改值里的 DN | refint |
 | `UniquePlugin` | 拒绝和别的条目重复的值 | unique |
+| `PasswordPolicyPlugin` | 密码策略，`passwordPolicy` 选项给出的也是它 | ppolicy |
 | `IdAllocationPlugin` | 给新增时没有 uidNumber、gidNumber 的 POSIX 条目分配编号 | 389 Directory Server 的 DNA |
 | `LastBindPlugin` | 把最后一次绑定的时间记在 authTimestamp 里 | lastbind |
 | `SambaPasswordPlugin` | 把新密码的 NT 哈希写进 sambaNTPassword（需要加载 Samba 的 schema） | smbk5pwd |
-| `AuditPlugin` | 把每个操作及其结果的记录交给自己写的函数 | accesslog、auditlog |
+| `AuditPlugin` | 把每个请求及其结果的记录交给自己写的函数 | accesslog、auditlog |
 | `ConstraintPlugin` | 拒绝违反规则的值：格式、大小、个数，或者自己写的检查 | constraint |
 | `GroupPresentationPlugin` | 像 lldap 那样，让每个组同时以 groupOfNames 和 groupOfUniqueNames 呈现 | |
 
 - 插件可以是任何符合 `LDAPPlugin` 形状的对象。上面这些插件都继承 `BaseLDAPPlugin`，它提供名字和后缀（`{name, suffixes}`：同一个插件配两份，或者只对部分后端生效）。想改变某个插件的做法，就继承它。
 - `server.start()` 调用各插件的 `start()`；`listen()` 会先调用它。
 - 插件用 `context.server.connect({internal: true})` 读写目录：这些操作照样经过处理链和 schema 校验，访问控制放行。
+- 插件只维护同一个后端里的关系，和 OpenLDAP 的 overlay 只管一个数据库一样：组和它的成员、条目和指向它的值、要保持唯一的值，都要在同一个后端里。
 - 在修改之后还要写入的插件（memberOf、引用、最后绑定时间）都在修改完成后再写，和 OpenLDAP 的 overlay 一样。后端自己就做这些事时会声明出来，插件就不进它的处理链：`@lakutata/ldap` 的目录后端在数据库里计算 memberOf、维护引用、分配编号、记录最后绑定时间，都在写操作的事务里完成。
 - `interceptors` 选项可以单独给出拦截器，相当于只有拦截器的插件。
 
@@ -138,7 +140,7 @@ console.log(read.length)
 
 - `encodeMessage()` 和 `decodeMessage()` 把 LDAPv3（RFC 4511）的每种消息编码成字节，或从字节解码回来。解码出的消息里，DN 保持为文本，值保持为字节：除了编码本身，不做任何解析和检查，所以服务器可以对格式错误的 DN 回复相应的结果码。
 - `MessageReader` 从数据流的一个个数据块里读出完整的消息，并限制消息的大小。消息解码失败但已经知道它的 message ID 时，会作为错误返回，数据流可以继续；其他情况抛出致命的 `LDAPDecodeException`。
-- `Filter` 用来构造搜索过滤器、解析过滤器文本（RFC 4515）并把过滤器写成文本；模板 `filter` 会转义写进去的值，所以值无法改变过滤器的结构。`matchFilter()` 按 RFC 4511 的三值逻辑（真、假、未定义）对一个条目求过滤器的值。
+- `Filter` 用来构造搜索过滤器、解析过滤器文本（RFC 4515）并把过滤器写成文本；模板 `filter` 会转义写进去的值，所以值无法改变过滤器的结构。`matchFilter()` 按 RFC 4511 的三值逻辑（真、假、未定义）对一个条目求过滤器的值。近似匹配（`~=`）按相等处理，只有“名字加可选 UID”（uniqueMember）例外：它只比较名字，不管 UID，和 OpenLDAP 的 uniqueMemberMatch 做近似匹配时一样。
 - 控制项（分页、排序、虚拟列表视图、树删除、密码策略、读取条目、代理授权、持久搜索、内容同步等）和扩展操作的值（改密码、Who Am I、Cancel）都有编解码；`Ber` 和 `BerReader` 用来自己读写 BER。
 - `DN` 解析 DN（RFC 4514），把它转义后写回，并按规范化后的形式比较。
 - `Schema` 加载 schema 文件（OpenLDAP 的 `cn=config` LDIF、subschema 条目，或 `.schema` 格式），拒绝重复定义的名字或 OID，并提供 RFC 4517 中比较属性值的匹配规则。
@@ -171,8 +173,8 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `LDAPInProcessConnection` | 进程内连接 |
 | `LDAPBackend`、`DirectoryEntry`、`OperationContext`、`SearchContext` 等 | 后端接口 |
 | `MemoryBackend`、`createHandlerBackend(options)` | 现成的后端 |
-| `LDAPPlugin`、`LDAPPluginHost`、`PluginControl`、`BaseLDAPPlugin` | 插件 |
-| `MemberOfPlugin`、`ReferentialIntegrityPlugin`、`UniquePlugin`、`IdAllocationPlugin`、`LastBindPlugin`、`SambaPasswordPlugin`、`AuditPlugin`、`ConstraintPlugin`、`GroupPresentationPlugin` | 现成的插件 |
+| `LDAPPlugin`、`LDAPPluginHost`、`PluginControl`、`PasswordChange`、`BaseLDAPPlugin` | 插件 |
+| `MemberOfPlugin`、`ReferentialIntegrityPlugin`、`UniquePlugin`、`PasswordPolicyPlugin`、`IdAllocationPlugin`、`LastBindPlugin`、`SambaPasswordPlugin`、`AuditPlugin`、`ConstraintPlugin`、`GroupPresentationPlugin` | 现成的插件 |
 | `LDAPInterceptor`、`InterceptorPlacement`、`ServerRequest` 等 | 拦截器 |
 | `AccessOptions`、`ServerLimits`、`BindThrottleOptions` | 访问规则、各种上限、绑定限速 |
 | `PasswordSchemes`、`PasswordScheme` | 密码存储格式 |

@@ -166,7 +166,7 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | `plaintextBind` | `'all'` | Where a password is accepted without TLS: `'all'`, `'loopback'`, `'none'` |
 | `allowUnauthenticatedBind` | `false` | Accept a bind with a name and no password as anonymous |
 | `passwords` | `{PBKDF2-SHA512}` | The scheme passwords are written in, and the iterations of PBKDF2 |
-| `passwordPolicy` | | The password policy: its default policy (the DN of a pwdPolicy entry, or its rules), `quality`, `revealLocked` |
+| `passwordPolicy` | | The password policy (a `PasswordPolicyPlugin` after the plugins): its default policy (the DN of a pwdPolicy entry, or its rules), `quality`, `revealLocked` |
 | `rehashOnBind` | `true` | Hash a password again in the scheme of the server after a bind with a weaker one |
 | `sasl` | PLAIN, EXTERNAL | The SASL mechanisms |
 | `extendedOperations` | | Extended operations of one's own |

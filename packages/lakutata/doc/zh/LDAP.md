@@ -189,6 +189,7 @@ const options = buildLDAPServerOptions({
 - 新密码：谁能改、是否要提供旧密码（`safeModify`）、多久后才能再改（`minAge`）、长度、质量，以及用过的密码（`inHistory`）。
 - 状态存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime、pwdFailureTime……），所以每种后端都能保存，同一个数据库上的多个应用实例共享它。
 - 发送密码策略控制的客户端会在响应里收到提醒和原因。
+- 密码策略也是一个插件（第 9 节）：`passwordPolicy` 会在其他插件之后加上一个 `PasswordPolicyPlugin`。
 
 ## 8. 目录后端
 
@@ -221,10 +222,11 @@ const options = buildLDAPServerOptions({
 | `MemberOfPlugin` | 维护组成员的 memberOf |
 | `ReferentialIntegrityPlugin` | 条目删除、改名或移动时，修改值里的 DN |
 | `UniquePlugin` | 拒绝和别的条目重复的值 |
+| `PasswordPolicyPlugin` | 第 7 节的密码策略，`passwordPolicy` 选项给出的也是它 |
 | `IdAllocationPlugin` | 给新增时没有 uidNumber、gidNumber 的 POSIX 条目分配编号 |
 | `LastBindPlugin` | 把最后一次绑定的时间记在 authTimestamp 里 |
 | `SambaPasswordPlugin` | 把新密码的 NT 哈希写进 sambaNTPassword，NAS 设备的 SMB 读的就是它（需要加载 Samba 的 schema） |
-| `AuditPlugin` | 把每个操作及其结果的记录交给自己写的函数 |
+| `AuditPlugin` | 把每个请求及其结果的记录交给自己写的函数 |
 | `ConstraintPlugin` | 拒绝违反规则的值：格式、大小、个数，或者自己写的检查 |
 | `GroupPresentationPlugin` | 让每个组同时以 groupOfNames 和 groupOfUniqueNames 呈现，给只认识其中一种的客户端用 |
 
@@ -244,7 +246,8 @@ const options = buildLDAPServerOptions({
 
 - `MemberOfPlugin`、`ReferentialIntegrityPlugin`、`IdAllocationPlugin` 和 `LastBindPlugin` 做的事，目录后端自己就在每次写操作的事务里做了：这几个插件不进它的处理链，其他插件照常运行。
 - 每个插件的选项里都有 `name` 和 `suffixes`，用来把同一个插件配两份，或者只让它对部分后端生效。
-- 插件带着拦截器，还可以带上 schema 文件、控制项、扩展操作、SASL 机制和密码格式，由根 DSE 和 subschema 公布出去。两个插件认领同一个 OID 时，服务器在启动时就会报错。
+- 插件只维护同一个后端里的关系，和 OpenLDAP 的 overlay 只管一个数据库一样：组和它的成员、条目和指向它的值，要放在同一个后端里。
+- 插件带着拦截器，还可以包住每一个请求、包住密码的验证、检查密码的修改；也可以带上 schema 文件、控制项、扩展操作、SASL 机制和密码格式，由根 DSE 和 subschema 公布出去。两个插件认领同一个 OID 时，服务器在启动时就会报错。
 
 拦截器在后端的操作前后运行代码：`before()` 检查或修改请求，`around()` 包住后面的处理，`transformEntry()` 修改搜索返回的条目，`beforeCommit()` 在写操作的事务里执行。每个拦截器排在服务器自带的某个步骤（`access`、`password`、`schema`、`operational`、`paging`）之前或之后；排在 `password` 之前，就能看到明文密码。
 

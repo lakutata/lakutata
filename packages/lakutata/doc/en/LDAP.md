@@ -228,6 +228,7 @@ const options = buildLDAPServerOptions({
 - The state is in operational attributes of the entries (pwdChangedTime, pwdAccountLockedTime, pwdFailureTime…), so
   every backend keeps it, and the instances of an application on one database share it.
 - The clients sending the password policy control get the warnings and the reasons in the response.
+- The policy is a plugin (section 9): `passwordPolicy` adds a `PasswordPolicyPlugin` after the others.
 
 ## 8. The directory backend
 
@@ -268,10 +269,11 @@ them too:
 | `MemberOfPlugin` | Keeps the memberOf of the members of the groups |
 | `ReferentialIntegrityPlugin` | Changes the DNs in values when entries are deleted, renamed or moved |
 | `UniquePlugin` | Refuses a value another entry has |
+| `PasswordPolicyPlugin` | The password policy of section 7, which the `passwordPolicy` option gives too |
 | `IdAllocationPlugin` | Gives uidNumber and gidNumber to the POSIX entries added without them |
 | `LastBindPlugin` | Keeps the time of the last bind in authTimestamp |
 | `SambaPasswordPlugin` | Writes the NT hash of a new password in sambaNTPassword, which the SMB of NAS devices reads (the schema of Samba loaded) |
-| `AuditPlugin` | Gives a record of each operation and its outcome to a function of one's own |
+| `AuditPlugin` | Gives a record of each request and its outcome to a function of one's own |
 | `ConstraintPlugin` | Refuses values breaking rules: a pattern, a size, a count, a check of one's own |
 | `GroupPresentationPlugin` | Shows each group as both groupOfNames and groupOfUniqueNames, for the clients knowing only one of them |
 
@@ -291,10 +293,12 @@ const options = buildLDAPServerOptions({
 
 - The directory backend does the work of `MemberOfPlugin`, `ReferentialIntegrityPlugin`, `IdAllocationPlugin` and
   `LastBindPlugin` itself, in the transaction of each write: these plugins leave its chain, and the others run for it.
+- The plugins keep the relations within one backend, as the overlays of OpenLDAP keep them within one database: a group
+  and its members, an entry and the values naming it, belong in the same backend.
 - Every plugin takes `name` and `suffixes` among its options: to have it twice, or for some backends only.
-- A plugin brings interceptors, and may bring schema files, controls, extended operations, SASL mechanisms and password
-  schemes, which the root DSE and the subschema publish. Two plugins claiming the same OID stop the server at its
-  start.
+- A plugin brings interceptors, and may run around every request, around the check of a password and on the password
+  changes. It may bring schema files, controls, extended operations, SASL mechanisms and password schemes, which the
+  root DSE and the subschema publish. Two plugins claiming the same OID stop the server at its start.
 
 Interceptors run code around the operations of a backend: `before()` checks or changes a request, `around()` runs
 around the rest, `transformEntry()` changes the entries a search returns, `beforeCommit()` runs in the transaction of a
