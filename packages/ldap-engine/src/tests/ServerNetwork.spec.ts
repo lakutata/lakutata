@@ -7,8 +7,11 @@ import {
     createHandlerBackend,
     createLDAPServer,
     decodeMessage,
+    DN,
     encodeMessage,
     ExtendedOperation,
+    externalMechanism,
+    plainMechanism,
     type LDAPClientConnection,
     LDAPConnectionException,
     LDAPInvalidCredentialsException,
@@ -19,7 +22,8 @@ import {
     MessageReader,
     type SearchContext
 } from '../exports/LDAPEngine.js'
-import {CERTIFICATE, KEY} from './support/Certificate.js'
+import {X509Certificate} from 'node:crypto'
+import {CERTIFICATE, KEY, OTHER_CERTIFICATE, OTHER_KEY} from './support/Certificate.js'
 
 const BASE: string = 'dc=example,dc=com'
 const ADMIN: string = 'cn=admin,dc=example,dc=com'
@@ -105,6 +109,20 @@ describe('the server engine on the network', () => {
         assert.equal(await connection.whoAmI(), `dn:uid=user2,ou=people,${BASE}`)
         await assert.rejects(connection.saslBind('PLAIN', Buffer.from(`\u0000uid=user2,ou=people,${BASE}\u0000wrong`)), LDAPInvalidCredentialsException)
         await assert.rejects(connection.saslBind('EXTERNAL'), (error: unknown) => error instanceof LDAPResultException && error.code === 48)
+    })
+
+    it('binds with SASL EXTERNAL a client certificate that chains to its CA, and refuses one that does not', async () => {
+        const {url: own} = await serve({
+            tls: {cert: CERTIFICATE, key: KEY, ca: CERTIFICATE, requestCert: true},
+            sasl: [plainMechanism(), externalMechanism((certificate: Buffer) => new X509Certificate(certificate).subject === 'CN=localhost' ? DN.parse(ADMIN) : undefined)]
+        })
+        const trusted: LDAPClientConnection = await client({url: own, tls: {...TLS, cert: CERTIFICATE, key: KEY}, startTLS: true})
+        await trusted.saslBind('EXTERNAL')
+        assert.equal(await trusted.whoAmI(), `dn:${ADMIN}`)
+        const intruder: LDAPClientConnection = await client({url: own, tls: {...TLS, cert: OTHER_CERTIFICATE, key: OTHER_KEY}, startTLS: true})
+        await assert.rejects(intruder.saslBind('EXTERNAL'), LDAPInvalidCredentialsException)
+        const without: LDAPClientConnection = await client({url: own, tls: TLS, startTLS: true})
+        await assert.rejects(without.saslBind('EXTERNAL'), (error: unknown) => error instanceof LDAPResultException && error.code === 48)
     })
 
     it('serves LDAPS', async () => {

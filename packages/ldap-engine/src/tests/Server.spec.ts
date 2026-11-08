@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {before, describe, it} from 'node:test'
 import {
+    createDirectory,
     createHandlerBackend,
     createLDAPServer,
     type DirectoryEntry,
@@ -26,7 +27,8 @@ import {
     type Schema,
     SortRequestControl,
     SortResponseControl,
-    TreeDeleteControl
+    TreeDeleteControl,
+    type WriteContext
 } from '../exports/LDAPEngine.js'
 
 const BASE: string = 'dc=example,dc=com'
@@ -93,7 +95,6 @@ describe('the server engine', () => {
         await assert.rejects(admin.add(dn, {objectClass: 'inetOrgPerson', uid: 'bad', cn: 'Bad', sn: 'B', displayName: ['one', 'two']}), LDAPConstraintViolationException)
         await assert.rejects(admin.add(dn, {objectClass: 'inetOrgPerson', uid: 'bad', cn: ['Bad', 'BAD'], sn: 'B'}), LDAPAttributeOrValueExistsException)
         await assert.rejects(admin.add(dn, {objectClass: 'inetOrgPerson', uid: 'other', cn: 'Bad', sn: 'B'}), code(64))
-        await assert.rejects(admin.add(dn, {objectClass: 'inetOrgPerson', uid: 'bad', cn: 'Bad', sn: 'B', createTimestamp: '20200101000000Z'}), LDAPConstraintViolationException)
         await assert.rejects(admin.add(dn, {objectClass: ['organizationalUnit', 'inetOrgPerson'], uid: 'bad', cn: 'Bad', sn: 'B', ou: 'x'}), LDAPObjectClassViolationException)
         await assert.rejects(admin.add(`uid=user1,ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'user1', cn: 'x', sn: 'x'}), LDAPEntryAlreadyExistsException)
         await assert.rejects(admin.add(`uid=x,ou=nowhere,${BASE}`, {objectClass: 'inetOrgPerson', uid: 'x', cn: 'x', sn: 'x'}), (error: unknown) => error instanceof LDAPNoSuchObjectException && error.matchedDN === BASE)
@@ -316,6 +317,63 @@ describe('the server engine', () => {
         assert.deepEqual((await reader.search('ou=devices,dc=example,dc=com', {filter: '(description=10.0.0.6)'})).entries.map((entry) => entry.dn), ['cn=printer2,ou=devices,dc=example,dc=com'])
         assert.equal(await reader.compare('cn=printer1,ou=devices,dc=example,dc=com', 'cn', 'PRINTER1'), true)
         await assert.rejects(reader.add('cn=x,ou=devices,dc=example,dc=com', {objectClass: 'device', cn: 'x'}), LDAPInsufficientAccessException)
+    })
+
+    it('forgets the in-process connections it closes', async () => {
+        const before: number = server.inProcessCount
+        const connection: LDAPInProcessConnection = server.connect()
+        assert.equal(server.inProcessCount, before + 1)
+        await connection.close()
+        assert.equal(server.inProcessCount, before)
+        const directory = createDirectory(admin)
+        for (let index: number = 0; index < 5; index++) await directory.verifyPassword(`uid=user20,ou=people,${BASE}`, 'password20')
+        assert.equal(server.inProcessCount, before)
+    })
+
+    it('runs the interceptors before the commit and the write in a transaction of the backend', async () => {
+        const order: string[] = []
+        class TransactionalBackend extends MemoryBackend {
+            public async transaction(context: WriteContext, run: () => Promise<void>): Promise<void> {
+                context.transaction = 'transaction'
+                order.push('begin')
+                try {
+                    await run()
+                    order.push('commit')
+                } catch (error) {
+                    order.push('rollback')
+                    throw error
+                }
+            }
+
+            public async add(context: WriteContext, entry: DirectoryEntry): Promise<void> {
+                order.push(`add in ${String(context.transaction)}`)
+                return super.add(context, entry)
+            }
+        }
+        let refuse: boolean = false
+        const own = createLDAPServer({
+            backends: [new TransactionalBackend(BASE)],
+            access: {admins: [ADMIN]},
+            interceptors: [{name: 'check', operations: ['add'], beforeCommit: (context) => {
+                order.push(`beforeCommit in ${String((context as WriteContext).transaction)}`)
+                if (refuse) throw new LDAPUnwillingToPerformException('refused')
+            }}]
+        })
+        const connection: LDAPInProcessConnection = own.connect({as: ADMIN})
+        await connection.add(BASE, {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example'})
+        refuse = true
+        await assert.rejects(connection.add(`cn=x,${BASE}`, {objectClass: 'device', cn: 'x'}), LDAPUnwillingToPerformException)
+        assert.deepEqual(order, ['begin', 'beforeCommit in transaction', 'add in transaction', 'commit', 'begin', 'beforeCommit in transaction', 'rollback'])
+    })
+
+    it('keeps the operational attributes an administrator imports, and drops those the server computes', async () => {
+        const uuid: string = '5e4a7c2e-1f2b-4c3d-9e8f-0a1b2c3d4e5f'
+        await admin.add(`cn=imported-device,${BASE}`, {objectClass: 'device', cn: 'imported-device', entryUUID: uuid, createTimestamp: '20200102030405Z', creatorsName: 'cn=old,dc=example,dc=com', entryDN: 'cn=whatever', hasSubordinates: 'TRUE', structuralObjectClass: 'person'})
+        const entry = (await admin.search(`cn=imported-device,${BASE}`, {scope: 'base', attributes: ['+']})).entries[0]
+        assert.deepEqual([entry.first('entryUUID'), entry.first('createTimestamp'), entry.first('creatorsName'), entry.first('entryDN'), entry.first('structuralObjectClass'), entry.first('hasSubordinates')], [uuid, '20200102030405Z', 'cn=old,dc=example,dc=com', `cn=imported-device,${BASE}`, 'device', 'FALSE'])
+        const writer = createLDAPServer({backends: [new MemoryBackend(BASE)], access: {check: () => true}})
+        const user: LDAPInProcessConnection = writer.connect({as: `uid=someone,${BASE}`})
+        await assert.rejects(user.add(BASE, {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example', entryUUID: uuid}), LDAPConstraintViolationException)
     })
 
     it('shows the schema files as OpenLDAP does, when asked', async () => {

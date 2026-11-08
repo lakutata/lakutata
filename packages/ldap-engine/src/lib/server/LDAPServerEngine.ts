@@ -8,6 +8,7 @@ import {ResultCode} from '../protocol/ResultCode.js'
 import {type BundledSchemaName, BUNDLED_SCHEMAS} from '../schema/bundled/Bundled.js'
 import {Schema} from '../schema/Schema.js'
 import type {AccessOptions} from './Access.js'
+import {certificatesOf} from './ClientCertificate.js'
 import {LDAPInProcessConnection, sessionId} from './InProcessConnection.js'
 import {PasswordSchemes} from './Passwords.js'
 import {type ExtendedHandler, Pipeline, type ServerLimits, type SessionState} from './Pipeline.js'
@@ -300,6 +301,7 @@ export class LDAPServerEngine {
             limits: this.limits,
             secureContext: this.secureContext,
             requestCert: requestCert === true,
+            clientAuthorities: certificatesOf(options.tls?.ca),
             emit: (event: string, ...args: unknown[]): boolean => this.events.emit(event, ...args),
             forget: (connection: ServerConnection): boolean => this.connections.delete(connection)
         }
@@ -357,7 +359,7 @@ export class LDAPServerEngine {
     public connect(options: {as?: string | DN} = {}): LDAPInProcessConnection {
         const identity: DN | undefined = options.as === undefined || options.as === '' ? undefined : DN.from(options.as)
         const session: SessionState = {id: sessionId(), inProcess: true, secure: true, paged: new Map(), ...identity ? {identity: identity, authenticationMethod: 'internal'} : {}}
-        const connection: LDAPInProcessConnection = new LDAPInProcessConnection(this.pipeline, session, (): LDAPInProcessConnection => this.connect())
+        const connection: LDAPInProcessConnection = new LDAPInProcessConnection(this.pipeline, session, (): LDAPInProcessConnection => this.connect(), (closed: LDAPInProcessConnection): boolean => this.inProcess.delete(closed))
         this.inProcess.add(connection)
         return connection
     }
@@ -370,6 +372,13 @@ export class LDAPServerEngine {
     }
 
     /**
+     * The count of the in-process connections open
+     */
+    public get inProcessCount(): number {
+        return this.inProcess.size
+    }
+
+    /**
      * Stop listening, and close the connections: a Notice of Disconnection (unavailable) to each network connection
      */
     public async close(): Promise<void> {
@@ -379,7 +388,7 @@ export class LDAPServerEngine {
         this.servers.clear()
         for (const connection of [...this.connections]) connection.disconnect(ResultCode.unavailable, 'The server is shutting down')
         await Promise.all(closing)
-        for (const connection of this.inProcess) await connection.close()
+        for (const connection of [...this.inProcess]) await connection.close()
         this.inProcess.clear()
     }
 }

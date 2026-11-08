@@ -159,6 +159,7 @@ export interface SessionState extends ServerSession {
     authenticationMethod?: string
     secure: boolean
     peerCertificate?: Buffer
+    peerCertificateVerified?: boolean
     /**
      * The exchange of a SASL bind in progress
      */
@@ -207,6 +208,11 @@ const OPERATIONS: Partial<Record<LDAPRequest['type'], OperationType>> = {
     modifyDNRequest: 'modifyDN',
     extendedRequest: 'extended'
 }
+
+//The operational attributes an entry keeps, which an administrator adding an entry may give (an import keeps them)
+const STORED_OPERATIONAL: Set<string> = new Set(['createtimestamp', 'modifytimestamp', 'creatorsname', 'modifiersname', 'entryuuid'])
+//The operational attributes the engine computes: an administrator's add drops them (an export of another server has them)
+const COMPUTED_OPERATIONAL: Set<string> = new Set(['entrydn', 'subschemasubentry', 'hassubordinates', 'structuralobjectclass'])
 
 //The keys of the state of an operation
 const CURRENT: unique symbol = Symbol('the entry before the write')
@@ -655,15 +661,21 @@ export class Pipeline {
     }
 
     /**
-     * Run the interceptors before the commit of a write
+     * Run a write after the interceptors' `beforeCommit()`, both in a transaction of the backend when it has them
      * @param mount The backend.
      * @param context The context.
      * @param request The request.
+     * @param write The write.
      */
-    protected async beforeCommit(mount: Mount, context: WriteContext, request: ServerRequest): Promise<void> {
-        for (const interceptor of mount.chain) {
-            if (interceptor.beforeCommit && interceptor.operations.includes(context.operation)) await interceptor.beforeCommit(context, request)
+    protected async commit(mount: Mount, context: WriteContext, request: ServerRequest, write: () => Promise<void>): Promise<void> {
+        const run = async (): Promise<void> => {
+            for (const interceptor of mount.chain) {
+                if (interceptor.beforeCommit && interceptor.operations.includes(context.operation)) await interceptor.beforeCommit(context, request)
+            }
+            await write()
         }
+        if (mount.backend.transaction) await mount.backend.transaction(context, run)
+        else await run()
     }
 
     /**
@@ -733,15 +745,13 @@ export class Pipeline {
                     const parent: DN | undefined = request.entry.dn.parent()
                     if (!request.entry.dn.equals(mount.suffix, this.schema) && parent) await this.required(mount, write, parent)
                     if (!mount.backend.add) fail(ResultCode.unwillingToPerform, 'The backend does not add entries')
-                    await this.beforeCommit(mount, write, request)
-                    await mount.backend.add(write, request.entry)
+                    await this.commit(mount, write, request, (): Promise<void> => mount.backend.add!(write, request.entry))
                     return {resultCode: ResultCode.success}
                 }
                 case 'modify': {
                     if (!mount.backend.modify) fail(ResultCode.unwillingToPerform, 'The backend does not modify entries')
                     if (!write.state.has(CURRENT)) await this.required(mount, write, request.dn)
-                    await this.beforeCommit(mount, write, request)
-                    await mount.backend.modify(write, request.dn, request.changes as DirectoryChange[])
+                    await this.commit(mount, write, request, (): Promise<void> => mount.backend.modify!(write, request.dn, request.changes as DirectoryChange[]))
                     return {resultCode: ResultCode.success}
                 }
                 case 'delete': {
@@ -749,8 +759,7 @@ export class Pipeline {
                     const subtree: boolean = findControl(write.controls, TreeDeleteControl) !== undefined
                     if (!subtree && await this.hasChildren(mount, write, request.dn)) fail(ResultCode.notAllowedOnNonLeaf, `The entry ${request.dn.toString()} has entries below it`)
                     if (!mount.backend.delete) fail(ResultCode.unwillingToPerform, 'The backend does not delete entries')
-                    await this.beforeCommit(mount, write, request)
-                    await mount.backend.delete(write, request.dn, {subtree: subtree})
+                    await this.commit(mount, write, request, (): Promise<void> => mount.backend.delete!(write, request.dn, {subtree: subtree}))
                     return {resultCode: ResultCode.success}
                 }
                 case 'modifyDN': {
@@ -762,8 +771,7 @@ export class Pipeline {
                     }
                     if (!entry.dn.equals(request.dn, this.schema) && await this.exists(mount, write, entry.dn)) fail(ResultCode.entryAlreadyExists, `The entry ${entry.dn.toString()} exists`)
                     if (!mount.backend.modifyDN) fail(ResultCode.unwillingToPerform, 'The backend does not rename entries')
-                    await this.beforeCommit(mount, write, request)
-                    await mount.backend.modifyDN(write, request.dn, entry)
+                    await this.commit(mount, write, request, (): Promise<void> => mount.backend.modifyDN!(write, request.dn, entry))
                     return {resultCode: ResultCode.success}
                 }
                 default:
@@ -1101,7 +1109,9 @@ export class Pipeline {
             operations: ['add', 'modify', 'modifyDN'],
             before: async (context: OperationContext, request: ServerRequest): Promise<void> => {
                 if (request.type === 'add') {
-                    request.entry = checkEntry(request.entry, schema, {internal: context.internal})
+                    const admin: boolean = !context.internal && this.access.isAdmin(context.session.identity)
+                    const entry: DirectoryEntry = admin ? {dn: request.entry.dn, attributes: request.entry.attributes.filter((attribute: PartialAttribute): boolean => !COMPUTED_OPERATIONAL.has(schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase()))} : request.entry
+                    request.entry = checkEntry(entry, schema, {internal: context.internal, ...admin ? {importable: STORED_OPERATIONAL} : {}})
                     return
                 }
                 if (request.type === 'modify') {
@@ -1165,8 +1175,9 @@ export class Pipeline {
                 const now: string = timestamp()
                 if (request.type === 'add') {
                     const structural = structuralClassOf(objectClassesOf(request.entry, schema), schema)
-                    const own: Set<string> = new Set(['createtimestamp', 'modifytimestamp', 'creatorsname', 'modifiersname', 'entryuuid', 'structuralobjectclass'])
-                    const kept: PartialAttribute[] = context.internal ? request.entry.attributes.filter((attribute: PartialAttribute): boolean => own.has(schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase())) : []
+                    //What an internal write or an administrator's import gives is kept
+                    const own: Set<string> = new Set([...STORED_OPERATIONAL, 'structuralobjectclass'])
+                    const kept: PartialAttribute[] = context.internal || this.access.isAdmin(context.session.identity) ? request.entry.attributes.filter((attribute: PartialAttribute): boolean => own.has(schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase())) : []
                     const has = (name: string): boolean => kept.some((attribute: PartialAttribute): boolean => schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase() === name)
                     request.entry.attributes.push(...[
                         has('createtimestamp') ? undefined : text('createTimestamp', now),

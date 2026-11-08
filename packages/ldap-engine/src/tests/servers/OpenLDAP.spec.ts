@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {after, before, describe, it} from 'node:test'
 import {
     connectLDAP,
+    createDirectory,
     createLDAPClient,
     Filter,
     filter,
@@ -152,6 +153,27 @@ describe('against OpenLDAP', {skip: !URL}, () => {
         assert.equal(await schemes.verify(stored, 'our-hash'), false)
         await config.modify('olcDatabase={-1}frontend,cn=config', {operation: 'delete', attribute: 'olcPasswordHash'})
         await config.close()
+    })
+
+    it('manages the directory of OpenLDAP with the directory helper, an empty group included', async () => {
+        const client: LDAPPool = createLDAPClient({url: URL!, startTLS: true, tls: TLS, bindDN: ADMIN, password: PASSWORD})
+        const directory = createDirectory(client)
+        const unit: string = await directory.createOrganizationalUnit(BASE, {ou: `helper-${process.pid}`})
+        const user: string = await directory.createUser(unit, {uid: 'helper', cn: 'Helper', sn: 'H'}, 'helper-password')
+        assert.equal(await directory.verifyPassword(user, 'helper-password'), true)
+        assert.equal(await directory.verifyPassword(user, 'wrong'), false)
+        const group: string = await directory.createGroup(unit, {cn: 'helpers'})
+        await directory.addMember(group, user)
+        assert.deepEqual(await directory.groupsOf(unit, user), [group])
+        await directory.removeMember(group, user)
+        assert.deepEqual((await directory.find(group, {scope: 'base'}))[0].get('member'), [''])
+        const exported: string = await directory.exportLDIF(unit)
+        assert.match(exported, /dn: uid=helper,ou=helper-/)
+        await directory.delete(unit, {subtree: true}).catch(async () => {
+            //OpenLDAP refuses the tree delete control: the entries one by one
+            for (const dn of [user, group, unit]) await client.delete(dn)
+        })
+        await client.close()
     })
 
     it('authenticates users with a pool, and reads the schema of the server', async () => {

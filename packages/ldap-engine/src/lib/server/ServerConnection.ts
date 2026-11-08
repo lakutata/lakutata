@@ -7,6 +7,8 @@ import {encodeMessage} from '../protocol/Codec.js'
 import {MessageReader, type ReadMessage} from '../protocol/MessageReader.js'
 import type {LDAPMessage, LDAPRequest, LDAPResponse, SearchResultEntry} from '../protocol/Messages.js'
 import {ResultCode} from '../protocol/ResultCode.js'
+import type {X509Certificate} from 'node:crypto'
+import {clientCertificateTrusted} from './ClientCertificate.js'
 import {sessionId} from './InProcessConnection.js'
 import type {Pipeline, ServerLimits, SessionState} from './Pipeline.js'
 
@@ -18,6 +20,7 @@ export interface ConnectionHost {
     limits: Required<ServerLimits>
     secureContext?: tls.SecureContext
     requestCert: boolean
+    clientAuthorities: X509Certificate[]
     emit(event: string, ...args: unknown[]): void
     forget(connection: ServerConnection): void
 }
@@ -77,7 +80,7 @@ export class ServerConnection {
             secure: secure,
             paged: new Map()
         }
-        if (secure) this.session.peerCertificate = this.certificateOf(socket as tls.TLSSocket)
+        if (secure) this.certificateOf(socket as tls.TLSSocket)
         this.reader = new MessageReader({maxMessageSize: host.limits.anonymousMessageSize})
         this.attach(socket)
         if (host.limits.idleTimeout) socket.setTimeout(host.limits.idleTimeout)
@@ -86,12 +89,13 @@ export class ServerConnection {
     }
 
     /**
-     * The certificate a client gave over TLS, in DER
+     * Keep the certificate a client gave over TLS, in DER, and whether it chains to the CA of the server
      * @param socket The socket.
      */
-    protected certificateOf(socket: tls.TLSSocket): Buffer | undefined {
+    protected certificateOf(socket: tls.TLSSocket): void {
         const certificate: tls.PeerCertificate | undefined = socket.getPeerCertificate?.()
-        return certificate && certificate.raw ? certificate.raw : undefined
+        this.session.peerCertificate = certificate && certificate.raw ? certificate.raw : undefined
+        this.session.peerCertificateVerified = this.session.peerCertificate !== undefined && clientCertificateTrusted(socket, this.host.clientAuthorities)
     }
 
     /**
@@ -183,13 +187,19 @@ export class ServerConnection {
             case 'bindRequest':
                 //A bind ends what is outstanding (RFC 4511 §4.2.1)
                 for (const running of this.running.values()) {
+                    if (running.type === 'bindRequest') continue
                     running.abandoned = true
                     running.controller.abort(new Error('Abandoned by a bind'))
                 }
-                this.gate = this.process(message).finally((): void => {
-                    this.reader.maxMessageSize = this.session.identity ? this.host.limits.messageSize : this.host.limits.anonymousMessageSize
-                    this.gate = undefined
-                })
+                {
+                    //A bind waits for the bind in flight (clients must not send one, RFC 4511 §4.2.1)
+                    const previous: Promise<void> | undefined = this.gate
+                    const gate: Promise<void> = (previous ? previous.then((): Promise<void> => this.process(message)) : this.process(message)).finally((): void => {
+                        this.reader.maxMessageSize = this.session.identity ? this.host.limits.messageSize : this.host.limits.anonymousMessageSize
+                        if (this.gate === gate) this.gate = undefined
+                    })
+                    this.gate = gate
+                }
                 return
             default: {
                 const limit: number = this.session.identity ? this.host.limits.outstanding : this.host.limits.anonymousOutstanding
@@ -266,7 +276,7 @@ export class ServerConnection {
         this.reader = new MessageReader({maxMessageSize: this.reader.maxMessageSize})
         secure.once('secure', (): void => {
             this.session.secure = true
-            this.session.peerCertificate = this.certificateOf(secure)
+            this.certificateOf(secure)
             this.host.emit('startTLS', {session: this.session.id})
         })
         secure.on('data', this.onData)

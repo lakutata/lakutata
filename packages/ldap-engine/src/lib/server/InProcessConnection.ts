@@ -100,8 +100,9 @@ export class LDAPInProcessConnection extends LDAPOperations implements LDAPConne
      * @param pipeline The processing of the server.
      * @param session The session.
      * @param opener What opens another connection of the server.
+     * @param forget What the server runs when the connection closes.
      */
-    constructor(protected readonly pipeline: Pipeline, protected readonly session: SessionState, protected readonly opener?: () => LDAPInProcessConnection) {
+    constructor(protected readonly pipeline: Pipeline, protected readonly session: SessionState, protected readonly opener?: () => LDAPInProcessConnection, protected readonly forget?: (connection: LDAPInProcessConnection) => void) {
         super({schema: pipeline.schema})
     }
 
@@ -176,6 +177,7 @@ export class LDAPInProcessConnection extends LDAPOperations implements LDAPConne
         this.isClosed = true
         this.closing.abort(new LDAPConnectionException('The in-process connection is closed'))
         this.pipeline.closeSession(this.session)
+        this.forget?.(this)
     }
 }
 

@@ -224,6 +224,12 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
             if (vlvControl && !sortControl) fail(ResultCode.sortControlMissing, 'The virtual list view needs the sort control')
             if (vlvControl && pagedControl) fail(ResultCode.unwillingToPerform, 'The virtual list view and the paged results together')
             const states: PagedStates = options.pagedOf(context)
+            //A paged search not continued for ten minutes is closed
+            for (const [cookie, state] of states) {
+                if (Date.now() - state.used < 600000) continue
+                states.delete(cookie)
+                closePaged(state)
+            }
             const paged: PagedResultsValue | undefined = pagedControl ? PagedResultsControl.decode(pagedControl) : undefined
             const key: string = requestKey(search, context.controls, schema)
             if (paged && paged.cookie.length && !options.capabilities?.paging) {

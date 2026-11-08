@@ -121,7 +121,8 @@ async function verifyPlain(context: SASLContext, credentials: Buffer, identityOf
 
 /**
  * The EXTERNAL mechanism (RFC 4422): the identity is the certificate the client gave over TLS, as the function given
- * maps it to a DN (none by default, which refuses every bind)
+ * maps it to a DN (none by default, which refuses every bind). The certificate must chain to the CA of the server: its
+ * `tls` option needs `requestCert: true` and the CA of the client certificates in `ca`.
  * @param identityOf The DN of a certificate, in DER.
  * @example
  * ```typescript
@@ -138,6 +139,7 @@ export function externalMechanism(identityOf?: (certificate: Buffer, session: Se
         start: async (context: SASLContext, credentials?: Buffer): Promise<SASLStep> => {
             const certificate: Buffer | undefined = context.session.peerCertificate
             if (!certificate || !identityOf) fail(ResultCode.inappropriateAuthentication, 'No client certificate identifies the session')
+            if (!context.session.peerCertificateVerified) fail(ResultCode.invalidCredentials, 'The client certificate does not chain to the CA of the server')
             const dn: DN | undefined = await identityOf(certificate, context.session)
             if (!dn) fail(ResultCode.invalidCredentials, 'The client certificate is not mapped to an identity')
             const authzid: string = credentials?.toString('utf8') ?? ''

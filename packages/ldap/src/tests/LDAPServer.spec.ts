@@ -75,7 +75,7 @@ describe('the LDAPServer component', () => {
                 host: '127.0.0.1',
                 port: 0,
                 ldapsPort: 0,
-                tls: {cert: CERTIFICATE, key: KEY},
+                tls: {cert: Buffer.from(CERTIFICATE), key: Buffer.from(KEY)},
                 backends: [new MemoryBackend(BASE), {class: DevicesBackend, suffix: `ou=devices,${BASE}`}],
                 interceptors: [{class: DescribeInterceptor, text: 'added by the application', before: 'schema'}],
                 access: {admins: [ADMIN], anonymousRead: true},

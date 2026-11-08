@@ -4,8 +4,8 @@ English | [中文](README.zh-CN.md)
 
 LDAP for Node.js in TypeScript, part of the [lakutata](https://github.com/lakutata/lakutata) framework, with no native
 code and no dependencies. It holds the protocol (the messages of LDAPv3 and their controls, DNs, search filters, schemas
-and LDIF) and a client. It needs no application: the components that bring LDAP into a lakutata application are in
-`@lakutata/ldap`.
+and LDIF), a client and a server. It needs no application: the components that bring LDAP into a lakutata application
+are in `@lakutata/ldap`.
 
 ## Installation
 
@@ -59,6 +59,50 @@ await client.close()
 - A result that is not a success throws its exception: `LDAPNoSuchObjectException`, `LDAPInvalidCredentialsException`…
 - `readSchema()` reads the schema a server publishes. `guidToString()`, `sidToString()`, `parseUserAccountControl()`,
   `fileTimeToDate()` and `changeADPassword()` help with Active Directory.
+
+### The server
+
+```typescript
+import {readFileSync} from 'node:fs'
+import {createDirectory, createLDAPServer, MemoryBackend} from '@lakutata/ldap-engine'
+
+const server = createLDAPServer({
+    backends: [new MemoryBackend('dc=example,dc=com')],
+    access: {admins: ['cn=admin,dc=example,dc=com']},
+    tls: {cert: readFileSync('server.crt'), key: readFileSync('server.key')}
+})
+
+const directory = createDirectory(server.connect({as: 'cn=admin,dc=example,dc=com'}))
+await directory.add('dc=example,dc=com', {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example'})
+const people = await directory.createOrganizationalUnit('dc=example,dc=com', {ou: 'people'})
+await directory.createUser(people, {uid: 'alice', cn: 'Alice Liu', sn: 'Liu', mail: 'alice@example.com'}, 'secret')
+
+await server.listen({port: 389})
+await server.listen({port: 636, secure: true})
+```
+
+- `createLDAPServer()` serves the entries of its backends, each mounted at its suffix. A backend stores the entries
+  (`get()`, `search()`, and the writes it supports); the server does the rest: the protocol, StartTLS and LDAPS, the
+  schema checks on every write, the passwords, the access control, the limits, the root DSE and the subschema, and
+  sorting, the virtual list view and paged results when the backend does not do them itself. `MemoryBackend` keeps its entries in
+  memory; `createHandlerBackend()` makes a backend from handlers written operation by operation, as ldapjs servers are.
+- The schema is that of the RFCs (core, cosine, inetOrgPerson) by default; schema files of one's own (the LDIF of
+  OpenLDAP's `cn=config`, a subschema entry, the `.schema` form) are added with `schema.files`. A name or an OID
+  defined twice stops the server at its start.
+- `server.connect({as})` gives a connection in the same process, with the operations of the client: the application
+  reads and writes its directory without the network, through the same schema checks, password hashing and access
+  control as the network requests. It works without `listen()`.
+- `createDirectory()` manages users, groups and organizational units with LDAP operations, on any connection: the
+  in-process one, the client, or a remote OpenLDAP, as long as its profile fits the schema of the server.
+- Passwords are written as `{PBKDF2-SHA512}`, as the pw-pbkdf2 module of OpenLDAP writes them; a bind also checks the
+  other schemes of OpenLDAP (`{SSHA}`, the SHA-2 schemes, `{CRYPT}`, and `{ARGON2}` where Node.js has argon2, 24.7 and
+  later), then hashes the password again in the scheme of the server. Nobody reads `userPassword`.
+- By default anonymous sessions read only the root DSE and the subschema, bound sessions read the directory, and the
+  administrators of `access.admins` write; `access.check` decides first when given. Failed binds of a DN or an
+  address are slowed down, then locked for a while, all answered with invalidCredentials.
+- Interceptors run code around the operations of a backend, as the overlays of OpenLDAP do: before a request, around
+  it, on each entry a search returns, or before a write is committed. They are placed before or after the server's
+  own (`access`, `password`, `schema`, `operational`, `paging`).
 
 ### The protocol
 
@@ -129,6 +173,16 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `readSchema(connection)` | The schema a server publishes |
 | `parseLDAPURL(url)` | An LDAP URL (RFC 4516) |
 | `guidToString()`, `sidToString()`, `parseUserAccountControl()`, `fileTimeToDate()`, `changeADPassword()`, `resetADPassword()`… | Active Directory |
+| `createLDAPServer(options)`, `LDAPServerEngine` | A server: `listen()`, `handleConnection()`, `attach()`, `connect()`, `close()`, its `events` |
+| `LDAPInProcessConnection` | A connection in the same process |
+| `LDAPBackend`, `DirectoryEntry`, `OperationContext`, `SearchContext`… | The interface of the backends |
+| `MemoryBackend`, `createHandlerBackend(options)` | Backends ready |
+| `LDAPInterceptor`, `InterceptorPlacement`, `ServerRequest`… | The interceptors |
+| `AccessOptions`, `ServerLimits`, `BindThrottleOptions` | The access rules, the limits, the bind throttle |
+| `PasswordSchemes`, `PasswordScheme` | The password storage schemes |
+| `plainMechanism()`, `externalMechanism()`, `SASLMechanism` | SASL |
+| `createDirectory(connection, options)`, `Directory`, `DirectoryProfile` | The directory helper |
+| `bundledSchema(names)`, `BUNDLED_SCHEMAS` | The schema of the RFCs, bundled |
 | `encodeMessage(message)`, `decodeMessage(bytes)` | A message as bytes, and back |
 | `MessageReader` | The reader of the messages of a stream |
 | `Filter`, `filter`, `escapeFilterValue(value)`, `matchFilter(filter, entry, schema)` | Filters: building, text, the escaping template, evaluation |

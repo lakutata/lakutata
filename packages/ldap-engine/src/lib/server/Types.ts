@@ -54,6 +54,11 @@ export interface ServerSession {
      */
     readonly peerCertificate?: Buffer
     /**
+     * Whether the certificate of the client chains to the CA of the server's `tls.ca` (SASL EXTERNAL accepts only such
+     * a certificate)
+     */
+    readonly peerCertificateVerified?: boolean
+    /**
      * The identity the session is bound as; undefined while anonymous
      */
     readonly identity?: DN
@@ -305,6 +310,14 @@ export interface LDAPBackend {
      * @param entry The entry as it becomes.
      */
     modifyDN?(context: WriteContext, dn: DN, entry: DirectoryEntry): Promise<void>
+    /**
+     * Run a write in a transaction: the backend opens it, sets `context.transaction`, runs `run` (the interceptors'
+     * `beforeCommit()`, then the write itself, which finds the transaction in its context), and commits, or rolls back
+     * when `run` throws. Without it, the interceptors run before the write, outside of any transaction.
+     * @param context The context of the write.
+     * @param run What runs in the transaction.
+     */
+    transaction?(context: WriteContext, run: () => Promise<void>): Promise<void>
 }
 
 /**

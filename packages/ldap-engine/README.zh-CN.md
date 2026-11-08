@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-Node.js 的 LDAP 库，用 TypeScript 编写，属于 [lakutata](https://github.com/lakutata/lakutata) 框架，没有原生代码，也没有任何依赖。它包含协议本身（LDAPv3 的消息和控制项、DN、搜索过滤器、schema 和 LDIF）和一个客户端。它不需要应用；把 LDAP 接入 lakutata 应用的组件在 `@lakutata/ldap` 里。
+Node.js 的 LDAP 库，用 TypeScript 编写，属于 [lakutata](https://github.com/lakutata/lakutata) 框架，没有原生代码，也没有任何依赖。它包含协议本身（LDAPv3 的消息和控制项、DN、搜索过滤器、schema 和 LDIF）、一个客户端和一个服务器。它不需要应用；把 LDAP 接入 lakutata 应用的组件在 `@lakutata/ldap` 里。
 
 ## 安装
 
@@ -45,6 +45,35 @@ await client.close()
 - `authenticate()` 先找到用户的条目，再在单独的连接上以该用户身份绑定：空密码在发送任何请求之前就被拒绝；绑定失败时，结果会说明原因（`invalidCredentials`、`accountLocked`、`passwordExpired` 等），原因来自密码策略控制项或 Active Directory 的 data 代码。它只通过 TLS（`ldaps` URL 或 `startTLS`）或本机的 `ldapi` 套接字发送密码，除非设置 `requireTLS: false`。
 - 结果不是成功时会抛出对应的异常：`LDAPNoSuchObjectException`、`LDAPInvalidCredentialsException` 等。
 - `readSchema()` 读取服务器发布的 schema。`guidToString()`、`sidToString()`、`parseUserAccountControl()`、`fileTimeToDate()` 和 `changeADPassword()` 用于处理 Active Directory 的数据。
+
+### 服务器
+
+```typescript
+import {readFileSync} from 'node:fs'
+import {createDirectory, createLDAPServer, MemoryBackend} from '@lakutata/ldap-engine'
+
+const server = createLDAPServer({
+    backends: [new MemoryBackend('dc=example,dc=com')],
+    access: {admins: ['cn=admin,dc=example,dc=com']},
+    tls: {cert: readFileSync('server.crt'), key: readFileSync('server.key')}
+})
+
+const directory = createDirectory(server.connect({as: 'cn=admin,dc=example,dc=com'}))
+await directory.add('dc=example,dc=com', {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example'})
+const people = await directory.createOrganizationalUnit('dc=example,dc=com', {ou: 'people'})
+await directory.createUser(people, {uid: 'alice', cn: 'Alice Liu', sn: 'Liu', mail: 'alice@example.com'}, 'secret')
+
+await server.listen({port: 389})
+await server.listen({port: 636, secure: true})
+```
+
+- `createLDAPServer()` 提供各个后端里的条目，每个后端挂在自己的后缀上。后端负责存取条目（`get()`、`search()`，以及它支持的写操作），其余都由服务器负责：协议、StartTLS 和 LDAPS、每次写入时的 schema 校验、密码、访问控制、各种上限、rootDSE 和 subschema；后端自己不做排序、虚拟列表视图和分页时，也由服务器来做。`MemoryBackend` 把条目放在内存里；`createHandlerBackend()` 用 ldapjs 服务器那种按操作写处理函数的方式生成一个后端。
+- 默认的 schema 是 RFC 里的那些（core、cosine、inetOrgPerson）；自己的 schema 文件（OpenLDAP `cn=config` 格式的 LDIF、subschema 条目、`.schema` 格式）用 `schema.files` 加入。名字或 OID 重复定义时，服务器在启动时就会报错。
+- `server.connect({as})` 返回一个进程内连接，操作和客户端一样：应用不经过网络读写自己的目录，经过的 schema 校验、密码哈希和访问控制都和网络请求相同。不调用 `listen()` 也能用。
+- `createDirectory()` 用 LDAP 操作管理用户、组和组织单元，可以用在任何连接上：进程内连接、客户端，或者远程的 OpenLDAP，只要 profile 和那台服务器的 schema 对得上。
+- 密码以 `{PBKDF2-SHA512}` 写入，格式和 OpenLDAP 的 pw-pbkdf2 模块相同；绑定时也能验证 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、`{CRYPT}`，以及在 Node.js 24.7 及以后带有 argon2 时的 `{ARGON2}`），验证成功后再按服务器的格式重新哈希。任何人都读不到 `userPassword`。
+- 默认情况下，匿名会话只能读 rootDSE 和 subschema，已绑定的会话可以读整个目录，`access.admins` 里的管理员可以写；给了 `access.check` 时先由它决定。同一个 DN 或同一个地址连续绑定失败时，响应会被放慢，之后锁定一段时间，所有失败一律返回 invalidCredentials。
+- 拦截器像 OpenLDAP 的 overlay 一样，在后端的操作外面运行代码：在请求之前、包住请求、对搜索返回的每个条目，或者在写操作提交之前。拦截器放在服务器自带的拦截器（`access`、`password`、`schema`、`operational`、`paging`）之前或之后。
 
 ### 协议
 
@@ -106,6 +135,16 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `readSchema(connection)` | 服务器发布的 schema |
 | `parseLDAPURL(url)` | LDAP URL（RFC 4516） |
 | `guidToString()`、`sidToString()`、`parseUserAccountControl()`、`fileTimeToDate()`、`changeADPassword()`、`resetADPassword()` 等 | Active Directory |
+| `createLDAPServer(options)`、`LDAPServerEngine` | 服务器：`listen()`、`handleConnection()`、`attach()`、`connect()`、`close()`，以及它的 `events` |
+| `LDAPInProcessConnection` | 进程内连接 |
+| `LDAPBackend`、`DirectoryEntry`、`OperationContext`、`SearchContext` 等 | 后端接口 |
+| `MemoryBackend`、`createHandlerBackend(options)` | 现成的后端 |
+| `LDAPInterceptor`、`InterceptorPlacement`、`ServerRequest` 等 | 拦截器 |
+| `AccessOptions`、`ServerLimits`、`BindThrottleOptions` | 访问规则、各种上限、绑定限速 |
+| `PasswordSchemes`、`PasswordScheme` | 密码存储格式 |
+| `plainMechanism()`、`externalMechanism()`、`SASLMechanism` | SASL |
+| `createDirectory(connection, options)`、`Directory`、`DirectoryProfile` | 目录助手 |
+| `bundledSchema(names)`、`BUNDLED_SCHEMAS` | 自带的 RFC schema |
 | `encodeMessage(message)`、`decodeMessage(bytes)` | 把消息编码成字节，或从字节解码 |
 | `MessageReader` | 读取数据流里的消息 |
 | `Filter`、`filter`、`escapeFilterValue(value)`、`matchFilter(filter, entry, schema)` | 过滤器：构造、文本、转义模板、求值 |

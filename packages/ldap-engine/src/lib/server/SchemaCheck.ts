@@ -39,10 +39,11 @@ export function objectClassesOf(entry: DirectoryEntry, schema: Schema): ObjectCl
  * of the RDN missing, an attribute users cannot write (unless `internal`).
  * @param entry The entry.
  * @param schema The schema.
- * @param options Whether the engine writes for itself (it may write the attributes users cannot), and the attributes
- * the write changes (only those are checked for user modification).
+ * @param options Whether the engine writes for itself (it may write the attributes users cannot), the attributes the
+ * write changes (only those are checked for user modification), and the attributes users cannot write that this write
+ * may (the stored operational attributes an administrator imports).
  */
-export function checkEntry(entry: DirectoryEntry, schema: Schema, options: {internal: boolean, changed?: Set<string>}): DirectoryEntry {
+export function checkEntry(entry: DirectoryEntry, schema: Schema, options: {internal: boolean, changed?: Set<string>, importable?: Set<string>}): DirectoryEntry {
     const attributes: PartialAttribute[] = []
     const byKey: Map<string, PartialAttribute> = new Map()
     for (const attribute of entry.attributes) {
@@ -89,7 +90,7 @@ export function checkEntry(entry: DirectoryEntry, schema: Schema, options: {inte
         const name: string = schema.primaryName(type).toLowerCase()
         const operational: boolean = schema.isOperational(type)
         if (!operational && !extensible && !permitted.has(name)) fail(ResultCode.objectClassViolation, `The object classes of the entry do not allow the attribute ${attribute.type}`)
-        if (definition.noUserModification && !options.internal && (!options.changed || options.changed.has(name))) fail(ResultCode.constraintViolation, `${attribute.type}: users cannot write the attribute`)
+        if (definition.noUserModification && !options.internal && !options.importable?.has(name) && (!options.changed || options.changed.has(name))) fail(ResultCode.constraintViolation, `${attribute.type}: users cannot write the attribute`)
         if (definition.singleValue && attribute.values.length > 1) fail(ResultCode.constraintViolation, `${attribute.type}: the attribute has one value`)
         const keys: Set<string> = new Set()
         for (const value of attribute.values) {
