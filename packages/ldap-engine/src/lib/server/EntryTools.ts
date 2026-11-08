@@ -158,20 +158,35 @@ export function isSelected(type: string, selection: AttributeSelection, schema: 
 }
 
 /**
+ * Whether an attribute description is returned by a search, its answers kept for the entries of the search (the same
+ * descriptions come again): asked for, and not userPassword
+ * @param selection The attributes asked for.
+ * @param schema The schema.
+ */
+export function returnedBy(selection: AttributeSelection, schema: Schema): (description: string) => boolean {
+    const answers: Map<string, boolean> = new Map()
+    return (description: string): boolean => {
+        let answer: boolean | undefined = answers.get(description)
+        if (answer === undefined) {
+            const type: string = attributeTypeOf(description)
+            answer = schema.primaryName(type).toLowerCase() !== 'userpassword' && isSelected(type, selection, schema)
+            answers.set(description, answer)
+        }
+        return answer
+    }
+}
+
+/**
  * The attributes of an entry a search returns: those asked for, by the names they are stored under, without their
  * values when only the types are asked for; userPassword is never returned
  * @param entry The entry.
- * @param selection The attributes asked for.
+ * @param returned Whether an attribute description is returned (see `returnedBy()`).
  * @param typesOnly Whether only the types are asked for.
- * @param schema The schema.
  */
-export function selectAttributes(entry: DirectoryEntry, selection: AttributeSelection, typesOnly: boolean, schema: Schema): PartialAttribute[] {
+export function selectAttributes(entry: DirectoryEntry, returned: (description: string) => boolean, typesOnly: boolean): PartialAttribute[] {
     const selected: PartialAttribute[] = []
     for (const attribute of entry.attributes) {
-        const type: string = attributeTypeOf(attribute.type)
-        if (schema.primaryName(type).toLowerCase() === 'userpassword') continue
-        if (!isSelected(type, selection, schema)) continue
-        selected.push({type: attribute.type, values: typesOnly ? [] : attribute.values})
+        if (returned(attribute.type)) selected.push({type: attribute.type, values: typesOnly ? [] : attribute.values})
     }
     return selected
 }

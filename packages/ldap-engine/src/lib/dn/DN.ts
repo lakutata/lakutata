@@ -160,11 +160,20 @@ export class RDN {
      * @param normalizer What normalizes the types and the values.
      */
     public key(normalizer: DNNormalizer = DEFAULT_NORMALIZER): string {
-        return this.attributes
+        //The RDN does not change: its key is kept for the last normalizer (a schema does not change once used)
+        if (this.keyCache?.normalizer === normalizer) return this.keyCache.key
+        const key: string = this.attributes
             .map((attribute: AttributeTypeAndValue): string => `${normalizer.normalizeType(attribute.type)}=${escapeDNValue(normalizer.prepareValue(attribute.type, attribute) ?? attribute.value)}`)
             .sort()
             .join('+')
+        this.keyCache = {normalizer: normalizer, key: key}
+        return key
     }
+
+    /**
+     * The key of the RDN for the last normalizer it was computed with
+     */
+    protected keyCache: {normalizer: DNNormalizer, key: string} | undefined
 
     /**
      * Whether two RDNs are the same: the same attributes with values equal by their equality rules, in any order
@@ -385,10 +394,21 @@ export class DN {
      * @param normalizer What normalizes the types and the values; a `Schema`, for one.
      */
     public key(normalizer?: DNNormalizer): string {
-        if (normalizer) return this.rdns.map((rdn: RDN): string => rdn.key(normalizer)).join(',')
+        if (normalizer) {
+            //The DN does not change: its key is kept for the last normalizer (a schema does not change once used)
+            if (this.keyCache?.normalizer === normalizer) return this.keyCache.key
+            const key: string = this.rdns.map((rdn: RDN): string => rdn.key(normalizer)).join(',')
+            this.keyCache = {normalizer: normalizer, key: key}
+            return key
+        }
         this.defaultKey ??= this.rdns.map((rdn: RDN): string => rdn.key()).join(',')
         return this.defaultKey
     }
+
+    /**
+     * The key of the DN for the last normalizer it was computed with
+     */
+    protected keyCache: {normalizer: DNNormalizer, key: string} | undefined
 
     /**
      * Whether two DNs are the same (distinguishedNameMatch)

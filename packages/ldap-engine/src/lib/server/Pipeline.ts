@@ -33,6 +33,7 @@ import {
     inScope,
     isSelected,
     matchedDNOf,
+    returnedBy,
     selectAttributes,
     storedType,
     valuesOfType
@@ -568,6 +569,7 @@ export class Pipeline {
      */
     protected async output(context: SearchContext, outcome: ServerOutcome, selection: AttributeSelection, sizeLimit: number, deadline: number, responder: Responder): Promise<ServerOutcome> {
         if (!outcome.entries) return outcome
+        const returned: (description: string) => boolean = returnedBy(selection, this.schema)
         let count: number = 0
         for await (const entry of outcome.entries) {
             if (context.signal.aborted) throw context.signal.reason
@@ -579,7 +581,7 @@ export class Pipeline {
                 outcome.resultCode = ResultCode.sizeLimitExceeded
                 break
             }
-            await responder.entry({type: 'searchResultEntry', objectName: entry.dn.toString(), attributes: selectAttributes(entry, selection, context.typesOnly, this.schema)})
+            await responder.entry({type: 'searchResultEntry', objectName: entry.dn.toString(), attributes: selectAttributes(entry, returned, context.typesOnly)})
             count++
         }
         outcome.entries = undefined

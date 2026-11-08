@@ -25,6 +25,7 @@ import {
     VLVResponseControl,
     WhoAmIResponse
 } from '../exports/LDAPEngine.js'
+import {spawn} from 'node:child_process'
 import type {SrvRecord} from 'node:dns'
 import {rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
@@ -212,6 +213,21 @@ describe('the connection', () => {
         await pending
         await assert.rejects(connection.startTLS(), LDAPConnectionException)
         assert.equal(connection.closed, true)
+    })
+
+    it('keeps a process alive until close() settles, and lets it end once idle', async () => {
+        const started: TestServer = await server()
+        const engine: string = new URL('../exports/LDAPEngine.js', import.meta.url).href
+        const script: string = `const {connectLDAP} = await import(${JSON.stringify(engine)}); const c = await connectLDAP(${JSON.stringify(started.url)}); await c.bind('', ''); await c.close(); console.log('closed')`
+        const {stdout, code} = await new Promise<{stdout: string, code: number | null}>((resolve) => {
+            const child = spawn(process.execPath, ['--input-type=module', '-e', script])
+            let output: string = ''
+            child.stdout.on('data', (chunk: Buffer) => {
+                output += chunk.toString()
+            })
+            child.on('close', (exitCode) => resolve({stdout: output, code: exitCode}))
+        })
+        assert.deepEqual([stdout.trim(), code], ['closed', 0])
     })
 
     it('connects to ldaps', async () => {

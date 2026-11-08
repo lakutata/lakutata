@@ -455,6 +455,8 @@ export class LDAPClientConnection extends LDAPOperations {
             //The socket is gone already
         }
         this.fail(new LDAPConnectionException('The connection was closed'))
+        //Referenced again while it closes: an idle socket would let the process end before close() settles
+        socket.ref()
         await new Promise<void>((resolve: () => void): void => {
             if (socket.destroyed) return resolve()
             socket.once('close', (): void => resolve())

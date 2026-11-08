@@ -289,8 +289,23 @@ export class ServerConnection {
      */
     protected send(message: LDAPMessage): boolean {
         if (this.isClosed || this.socket.destroyed) return true
+        //The messages written before the next turn of the event loop go out together (an entry and its search result)
+        if (!this.corked) {
+            this.corked = true
+            const socket: Socket = this.socket
+            socket.cork()
+            setImmediate((): void => {
+                this.corked = false
+                socket.uncork()
+            })
+        }
         return this.socket.write(encodeMessage(message))
     }
+
+    /**
+     * Whether the socket holds the messages until the next turn of the event loop
+     */
+    protected corked: boolean = false
 
     /**
      * Send a message and wait while the socket cannot take more

@@ -18,6 +18,30 @@ export interface FilterEntry {
     attributes: PartialAttribute[]
 }
 
+//The asserted values as the rules prepare them, kept with the values of the filter: a filter evaluated on many entries
+//prepares each of its values once per rule
+const PREPARED: WeakMap<Buffer, Map<MatchingRule, string | undefined>> = new WeakMap()
+const PREPARED_SUBSTRINGS: WeakMap<Buffer, Map<MatchingRule, string | undefined>> = new WeakMap()
+
+/**
+ * An asserted value as a rule prepares it
+ * @param rule The rule.
+ * @param value The value of the filter.
+ * @param substring Whether it is a part of a substrings assertion.
+ */
+function asserted(rule: MatchingRule, value: Buffer, substring: boolean = false): string | undefined {
+    const cache: WeakMap<Buffer, Map<MatchingRule, string | undefined>> = substring ? PREPARED_SUBSTRINGS : PREPARED
+    let byRule: Map<MatchingRule, string | undefined> | undefined = cache.get(value)
+    if (!byRule) {
+        byRule = new Map()
+        cache.set(value, byRule)
+    }
+    if (byRule.has(rule)) return byRule.get(rule)
+    const prepared: string | undefined = substring ? rule.prepareSubstring!(value) : rule.prepare(value)
+    byRule.set(rule, prepared)
+    return prepared
+}
+
 const CASE_IGNORE: MatchingRule = STANDARD_RULES.find((rule: MatchingRule): boolean => rule.oid === '2.5.13.2')!
 const CASE_IGNORE_ORDERING: MatchingRule = STANDARD_RULES.find((rule: MatchingRule): boolean => rule.oid === '2.5.13.3')!
 const CASE_IGNORE_SUBSTRINGS: MatchingRule = STANDARD_RULES.find((rule: MatchingRule): boolean => rule.oid === '2.5.13.4')!
@@ -77,8 +101,8 @@ function assertion(filter: AssertionFilter, entry: FilterEntry, schema: Schema |
     }
     const rule: MatchingRule | undefined = schema ? (schema.attributeType(filter.attribute) ? schema.ordering(filter.attribute) : undefined) : CASE_IGNORE_ORDERING
     if (!rule?.compare) return undefined
-    const asserted: string | undefined = rule.prepare(filter.value)
-    if (asserted === undefined) return undefined
+    const assertedValue: string | undefined = asserted(rule, filter.value)
+    if (assertedValue === undefined) return undefined
     let undefinedValue: boolean = false
     for (const value of valuesOf(entry, filter.attribute, schema)) {
         const prepared: string | undefined = rule.prepare(value)
@@ -86,7 +110,7 @@ function assertion(filter: AssertionFilter, entry: FilterEntry, schema: Schema |
             undefinedValue = true
             continue
         }
-        const order: number = rule.compare(prepared, asserted)
+        const order: number = rule.compare(prepared, assertedValue)
         if (filter.type === 'greaterOrEqual' ? order >= 0 : order <= 0) return true
     }
     return undefinedValue ? undefined : false
@@ -99,13 +123,13 @@ function assertion(filter: AssertionFilter, entry: FilterEntry, schema: Schema |
  * @param values The values.
  */
 function matchEquality(rule: MatchingRule, value: Buffer, values: Buffer[]): boolean | undefined {
-    const asserted: string | undefined = rule.prepare(value)
-    if (asserted === undefined) return undefined
+    const assertedValue: string | undefined = asserted(rule, value)
+    if (assertedValue === undefined) return undefined
     let undefinedValue: boolean = false
     for (const candidate of values) {
         const prepared: string | undefined = rule.prepare(candidate)
         if (prepared === undefined) undefinedValue = true
-        else if (prepared === asserted) return true
+        else if (prepared === assertedValue) return true
     }
     return undefinedValue ? undefined : false
 }
@@ -119,9 +143,9 @@ function matchEquality(rule: MatchingRule, value: Buffer, values: Buffer[]): boo
 function substrings(filter: SubstringsFilter, entry: FilterEntry, schema: Schema | undefined): boolean | undefined {
     const rule: MatchingRule | undefined = schema ? (schema.attributeType(filter.attribute) ? schema.substrings(filter.attribute) : undefined) : CASE_IGNORE_SUBSTRINGS
     if (!rule?.prepareSubstring) return undefined
-    const initial: string | undefined = filter.initial === undefined ? undefined : rule.prepareSubstring(filter.initial)
-    const final: string | undefined = filter.final === undefined ? undefined : rule.prepareSubstring(filter.final)
-    const any: (string | undefined)[] = filter.any.map((part: Buffer): string | undefined => rule.prepareSubstring!(part))
+    const initial: string | undefined = filter.initial === undefined ? undefined : asserted(rule, filter.initial, true)
+    const final: string | undefined = filter.final === undefined ? undefined : asserted(rule, filter.final, true)
+    const any: (string | undefined)[] = filter.any.map((part: Buffer): string | undefined => asserted(rule, part, true))
     if ((filter.initial !== undefined && initial === undefined) || (filter.final !== undefined && final === undefined) || any.includes(undefined)) return undefined
     let undefinedValue: boolean = false
     for (const value of valuesOf(entry, filter.attribute, schema)) {

@@ -1,5 +1,6 @@
 import type {DN} from '../dn/DN.js'
 import type {PartialAttribute} from '../protocol/Messages.js'
+import {matchFilter} from '../filter/Evaluate.js'
 import type {Schema} from '../schema/Schema.js'
 import {cloneEntry, findAttribute} from './EntryTools.js'
 import type {BackendSearchResult, DirectoryChange, DirectoryEntry, LDAPBackend, OperationContext, SearchContext, WriteContext} from './Types.js'
@@ -15,7 +16,7 @@ interface Stored {
 /**
  * A backend keeping its entries in memory: for tests, small directories, and as the reference of the backend interface.
  * The entries are in a map by the normalized form of their DNs, with the children of each entry; a search walks the
- * scope and leaves the filter to the engine (`exact: false`). Nothing is kept when the process ends: `entries()` and
+ * scope and evaluates the filter by the matching rules of the schema (`exact: true`). Nothing is kept when the process ends: `entries()` and
  * `load()` export and import the entries.
  * @example
  * ```typescript
@@ -92,12 +93,13 @@ export class MemoryBackend implements LDAPBackend {
             const stored: Stored | undefined = this.stored.get(key)
             if (!stored) return
             const inScope: boolean = context.scope === 'base' ? depth === 0 : context.scope === 'one' ? depth === 1 : context.scope === 'children' ? depth > 0 : true
-            if (inScope) found.push(cloneEntry(stored.entry))
+            //Only the matching entries are copied
+            if (inScope && matchFilter(context.filter, stored.entry, context.schema) === true) found.push(cloneEntry(stored.entry))
             if (context.scope === 'base' || (context.scope === 'one' && depth === 1)) return
             for (const child of this.children.get(key) ?? []) visit(child, depth + 1)
         }
         visit(base, 0)
-        return {entries: found, exact: false}
+        return {entries: found, exact: true}
     }
 
     /**
