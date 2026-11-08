@@ -217,7 +217,8 @@ function fields(text: string): {oid: string, values: Map<string, string[]>} {
         } else if (takes && index < tokens.length - 1) {
             list.push(tokens[index++])
         }
-        values.set(keyword, list)
+        //An OID or a name written in quotes where RFC 4512 has none (MAY 'authPassword' in RFC 3112) is read as it
+        values.set(keyword, keyword === 'NAME' || keyword === 'DESC' || keyword.startsWith('X-') ? list : list.map((token: string): string => token.startsWith('\'') ? token.slice(1) : token))
     }
     return {oid: oid, values: values}
 }

@@ -42,11 +42,23 @@ const MODULES = [
         constant: 'INETORGPERSON_SCHEMA',
         description: 'The inetOrgPerson object class: RFC 2798',
         rfcs: [2798]
+    },
+    {
+        name: 'rfc2307bis',
+        constant: 'RFC2307BIS_SCHEMA',
+        description: 'The accounts, groups and other entities of the name services (POSIX accounts, shadow, hosts, netgroups, automount): draft-howard-rfc2307bis-02, with authPassword of RFC 3112 that it refers to',
+        rfcs: ['draft-howard-rfc2307bis-02', 3112]
+    },
+    {
+        name: 'ppolicy',
+        constant: 'PPOLICY_SCHEMA',
+        description: 'The password policy: draft-behera-ldap-password-policy-11',
+        rfcs: ['draft-behera-ldap-password-policy-11']
     }
 ]
 
-//The matching rules the RFCs define: built into the engine as code
-const MATCHING_RULES = /^(2\.5\.13\.|1\.3\.6\.1\.1\.16\.[23]$)/
+//The matching rules the RFCs define: built into the engine (as code, or as definitions)
+const MATCHING_RULES = /^(2\.5\.13\.|1\.3\.6\.1\.1\.16\.[23]$|1\.3\.6\.1\.4\.1\.4203\.1\.2\.)/
 
 //RFC 2079 writes its definitions as tables; these are the same definitions in the form of RFC 4512
 const RFC2079 = [
@@ -67,7 +79,21 @@ const AMENDMENTS = {
  * The lines of an RFC without its page breaks, headers and footers
  */
 function pageLines(text) {
-    return text.split('\n').filter((line) => !line.includes('\f') && !/^RFC \d+ .*\d{4}\s*$/.test(line) && !/\[Page \d+\]\s*$/.test(line))
+    return text.split('\n').filter((line) => !line.includes('\f') && !/^(RFC \d+|Internet-Draft)\s.*\d{4}\s*$/.test(line) && !/\[Page \d+\]\s*$/.test(line))
+}
+
+/**
+ * The file of a source: an RFC by its number, a draft by its name
+ */
+function fileOf(source) {
+    return join(directory, typeof source === 'number' ? `rfc${source}.txt` : `${source}.txt`)
+}
+
+/**
+ * The name of a source in the comments
+ */
+function labelOf(source) {
+    return typeof source === 'number' ? `RFC ${source}` : source
 }
 
 /**
@@ -75,7 +101,7 @@ function pageLines(text) {
  */
 function definitionsOf(number) {
     if (number === 2079) return RFC2079.map((definition) => ({...definition, rfc: number}))
-    const lines = pageLines(readFileSync(join(directory, `rfc${number}.txt`), 'utf8'))
+    const lines = pageLines(readFileSync(fileOf(number), 'utf8'))
     const definitions = []
     let section = ''
     let index = 0
@@ -88,13 +114,20 @@ function definitionsOf(number) {
             index++
             continue
         }
-        //Read to the parenthesis closing the definition, the quoted strings skipped
+        //Read to the parenthesis closing the definition, the quoted strings skipped; a definition still open when the
+        //next one starts is closed (draft-howard-rfc2307bis-02 leaves out the parenthesis closing nisObject)
         let text = ''
         let depth = 0
         let quoted = false
         let done = false
+        let closed = false
         while (index < lines.length && !done) {
             const current = lines[index].trim()
+            if (text && depth > 0 && !quoted && /^\(\s*\d+(?:\.\d+)+(\s|$)/.test(current)) {
+                text += ' )'.repeat(depth)
+                closed = true
+                break
+            }
             for (let position = 0; position < current.length && !done; position++) {
                 const character = current[position]
                 text += character
@@ -106,7 +139,7 @@ function definitionsOf(number) {
             index++
         }
         text = text.replace(/\s+/g, ' ').replace(/\(\s+/g, '( ').replace(/\s+\)/g, ' )').trim()
-        if (/\bNAME\b/.test(text)) definitions.push({rfc: number, section: section, text: text})
+        if (/\bNAME\b/.test(text)) definitions.push({rfc: number, section: section, text: text, ...closed ? {note: 'the closing parenthesis the text leaves out added'} : {}})
     }
     return definitions
 }
@@ -117,7 +150,7 @@ function definitionsOf(number) {
  */
 function registeredNames(number) {
     if (number === 2079) return new Map()
-    const lines = pageLines(readFileSync(join(directory, `rfc${number}.txt`), 'utf8'))
+    const lines = pageLines(readFileSync(fileOf(number), 'utf8'))
     const start = lines.findIndex((line) => /^\d+(\.\d+)*\.?\s+IANA Considerations/.test(line))
     const names = new Map()
     if (start < 0) return names
@@ -163,8 +196,8 @@ for (const module of MODULES) {
             const amendment = AMENDMENTS[oid]
             const named = withRegisteredNames(amendment ? amendment.text : definition.text, registered.get(oid))
             const text = named.text
-            const notes = [amendment?.note, named.added.length ? `${named.added.map((name) => `'${name}'`).join(', ')} from the IANA registrations of RFC ${rfc}` : undefined].filter(Boolean)
-            const comment = `# RFC ${definition.rfc}${definition.section ? ` ${definition.section}` : ''}${notes.length ? `; ${notes.join('; ')}` : ''}`
+            const notes = [amendment?.note, definition.note, named.added.length ? `${named.added.map((name) => `'${name}'`).join(', ')} from the IANA registrations of ${labelOf(rfc)}` : undefined].filter(Boolean)
+            const comment = `# ${labelOf(definition.rfc)}${definition.section ? ` ${definition.section}` : ''}${notes.length ? `; ${notes.join('; ')}` : ''}`
             entries.push({kind: isObjectClass(text) ? 'objectClasses' : 'attributeTypes', comment: comment, text: text})
         }
     }

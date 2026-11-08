@@ -379,7 +379,7 @@ describe('the server engine', () => {
     it('shows the schema files as OpenLDAP does, when asked', async () => {
         const viewing = createLDAPServer({backends: [new MemoryBackend(BASE)], schemaConfigView: true, access: {anonymousRead: true}})
         const {entries} = await viewing.connect().search('cn=schema,cn=config', {scope: 'one'})
-        assert.deepEqual(entries.map((entry) => entry.first('cn')), ['{0}system', '{1}core', '{2}cosine', '{3}inetorgperson'])
+        assert.deepEqual(entries.map((entry) => entry.first('cn')), ['{0}system', '{1}core', '{2}cosine', '{3}inetorgperson', '{4}rfc2307bis', '{5}openssh-lpk', '{6}ppolicy'])
         assert.ok(entries[1].get('olcAttributeTypes').some((definition) => definition.startsWith('{') && definition.includes('\'cn\'')))
     })
 })

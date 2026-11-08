@@ -37,9 +37,10 @@ THE SOFTWARE
 
 ## IETF RFCs (the bundled schema)
 
-The definitions of `src/lib/schema/bundled/` (system, core, cosine, inetorgperson) are taken from the RFCs named in the
-comment above each definition, by `scripts/schema/generate.mjs`; a few are amended as their comments say (names the
-RFCs register with IANA for the same OID, a syntax RFC 2798 leaves out).
+The definitions of `src/lib/schema/bundled/` (system, core, cosine, inetorgperson, rfc2307bis, ppolicy) are taken from
+the RFCs and Internet-Drafts named in the comment above each definition, by `scripts/schema/generate.mjs`; a few are
+amended as their comments say (names the RFCs register with IANA for the same OID, a syntax RFC 2798 leaves out, a
+closing parenthesis draft-howard-rfc2307bis-02 leaves out).
 
 RFC 4512, RFC 4519, RFC 4523, RFC 4524 and RFC 4530: Copyright (C) The Internet Society (2006). RFC 5020: Copyright (C)
 The IETF Trust (2007). These documents are subject to the rights, licenses and restrictions contained in BCP 78; the
@@ -66,11 +67,41 @@ Copyright (C) The Internet Society (2003). RFC 2798: Copyright (C) The Internet 
     The limited permissions granted above are perpetual and will not be
     revoked by the Internet Society or its successors or assigns.
 
+RFC 3112: Copyright (C) The Internet Society (2001). All Rights Reserved. The paragraph above applies to it too.
+
 RFC 2079 (January 1997, "Distribution of this memo is unlimited") describes labeledURI and labeledURIObject in tables;
 the engine writes the same definitions in the form of RFC 4512.
 
+draft-howard-rfc2307bis-02 (the rfc2307bis module): Copyright (c) 2009 IETF Trust and the persons identified as the
+document authors. All rights reserved. draft-behera-ldap-password-policy-11 (the ppolicy module): Copyright (c) 2022
+IETF Trust and the persons identified as the document authors. All rights reserved. These documents are subject to
+BCP 78 and the IETF Trust's Legal Provisions Relating to IETF Documents (https://trustee.ietf.org/license-info); the
+schema definitions are Code Components of them, used under the Revised BSD License set forth in Section 4.c of those
+Legal Provisions:
+
+    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
+    following conditions are met:
+    - Redistributions of source code must retain the above copyright notice, this list of conditions and the
+      following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the
+      following disclaimer in the documentation and/or other materials provided with the distribution.
+    - Neither the name of Internet Society, IETF or IETF Trust, nor the names of specific contributors, may be used
+      to endorse or promote products derived from this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+    WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+    USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The openssh-lpk module holds the two definitions the openssh-lpk project published (their OIDs and names), written for
+the engine.
+
 The RFCs: https://www.rfc-editor.org/rfc/rfc4512, rfc4519, rfc4523, rfc4524, rfc4530, rfc5020, rfc3045, rfc3296,
-rfc3672, rfc2798, rfc2079.
+rfc3672, rfc2798, rfc2079, rfc3112. The drafts: https://datatracker.ietf.org/doc/draft-howard-rfc2307bis/,
+https://datatracker.ietf.org/doc/draft-behera-ldap-password-policy/.
 
 ## bcrypt.js (bcryptjs) 3.0.3
 

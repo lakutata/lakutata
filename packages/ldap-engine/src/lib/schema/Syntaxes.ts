@@ -47,7 +47,7 @@ function ascii(pattern: RegExp): (value: Buffer) => boolean {
 const OID: RegExp = /^([0-9]+(\.[0-9]+)+|[A-Za-z][A-Za-z0-9-]*)$/
 
 /**
- * The syntaxes of RFC 4517, RFC 4523, RFC 3672 and RFC 4530 the package knows. The DNs and the names and optional UIDs are checked by
+ * The syntaxes of RFC 4517, RFC 4523, RFC 3672, RFC 3112 and RFC 4530 the package knows. The DNs and the names and optional UIDs are checked by
  * parsing them, which the schema does.
  */
 export const STANDARD_SYNTAXES: Syntax[] = [
@@ -105,5 +105,6 @@ export const STANDARD_SYNTAXES: Syntax[] = [
     {oid: '1.3.6.1.1.15.5', description: 'X.509 Certificate List Exact Assertion', binary: true},
     {oid: '1.3.6.1.1.15.6', description: 'X.509 Certificate List Assertion', binary: true},
     {oid: '1.3.6.1.1.15.7', description: 'X.509 Algorithm Identifier', binary: true},
+    {oid: '1.3.6.1.4.1.4203.1.1.2', description: 'authPassword', binary: false, validate: utf8},
     {oid: '1.3.6.1.1.16.1', description: 'UUID', binary: false, validate: ascii(/^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$/)}
 ]

@@ -5,7 +5,7 @@ import {LDAPUsageException} from '../../exceptions/LDAPUsageException.js'
 import {DN} from '../dn/DN.js'
 import type {PartialAttribute} from '../protocol/Messages.js'
 import {ResultCode} from '../protocol/ResultCode.js'
-import {type BundledSchemaName, BUNDLED_SCHEMAS} from '../schema/bundled/Bundled.js'
+import {BUNDLED_SCHEMA_NAMES, type BundledSchemaName, BUNDLED_SCHEMAS} from '../schema/bundled/Bundled.js'
 import {Schema} from '../schema/Schema.js'
 import type {AccessOptions} from './Access.js'
 import {certificatesOf} from './ClientCertificate.js'
@@ -23,7 +23,8 @@ import type {InterceptorPlacement, LDAPBackend, LDAPInterceptor} from './Types.j
  */
 export interface ServerSchemaOptions {
     /**
-     * The bundled files besides the system schema (all of them by default: core, cosine, inetorgperson)
+     * The bundled files besides the system schema (all of them by default: core, cosine, inetorgperson, rfc2307bis,
+     * openssh-lpk, ppolicy)
      */
     bundled?: BundledSchemaName[]
     /**
@@ -169,10 +170,10 @@ const LIMITS: Required<ServerLimits> = {
  */
 function schemaOf(option: Schema | ServerSchemaOptions | undefined): {schema: Schema, files: {name: string, schema: Schema}[]} {
     if (option instanceof Schema) return {schema: option, files: [{name: 'schema', schema: option}]}
-    const names: BundledSchemaName[] = ['system', ...(option?.bundled ?? ['core', 'cosine', 'inetorgperson']).filter((name: BundledSchemaName): boolean => name !== 'system')]
+    const names: BundledSchemaName[] = ['system', ...(option?.bundled ?? BUNDLED_SCHEMA_NAMES).filter((name: BundledSchemaName): boolean => name !== 'system')]
     const schema: Schema = new Schema()
     const files: {name: string, schema: Schema}[] = []
-    for (const name of (['system', 'core', 'cosine', 'inetorgperson'] as const).filter((item: BundledSchemaName): boolean => names.includes(item))) {
+    for (const name of (['system', ...BUNDLED_SCHEMA_NAMES] as const).filter((item: BundledSchemaName): boolean => names.includes(item))) {
         schema.load(BUNDLED_SCHEMAS[name], `the bundled schema ${name}`)
         files.push({name: name, schema: new Schema().load(BUNDLED_SCHEMAS[name], name)})
     }

@@ -267,6 +267,8 @@ export const DEFINED_RULES: {oid: string, names: string[], syntax: string}[] = [
     {oid: '2.5.13.38', names: ['certificateListExactMatch'], syntax: '1.3.6.1.1.15.5'},
     {oid: '2.5.13.39', names: ['certificateListMatch'], syntax: '1.3.6.1.1.15.6'},
     {oid: '2.5.13.40', names: ['algorithmIdentifierMatch'], syntax: '1.3.6.1.1.15.7'},
+    {oid: '1.3.6.1.4.1.4203.1.2.2', names: ['authPasswordExactMatch'], syntax: '1.3.6.1.4.1.4203.1.1.2'},
+    {oid: '1.3.6.1.4.1.4203.1.2.3', names: ['authPasswordMatch'], syntax: '1.3.6.1.4.1.1466.115.121.1.40'},
     {oid: '1.3.6.1.4.1.4203.666.4.12', names: ['authzMatch'], syntax: '1.3.6.1.4.1.4203.666.2.7'}
 ]
 

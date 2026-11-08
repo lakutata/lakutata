@@ -19,6 +19,18 @@ describe('the bundled schema', () => {
         assert.ok(DN.parse('commonName=Alice,organizationalUnitName=People,domainComponent=example').equals('cn=alice,ou=people,dc=example', schema))
     })
 
+    it('has the POSIX accounts and groups, the SSH public keys and the password policy', () => {
+        const schema: Schema = bundledSchema()
+        assert.deepEqual(schema.attributesOf(['posixAccount']).must.sort(), ['cn', 'gidNumber', 'homeDirectory', 'objectClass', 'uid', 'uidNumber'])
+        assert.equal(schema.objectClass('posixGroup')?.kind, 'auxiliary')
+        assert.ok(schema.objectClass('groupOfMembers')?.may?.includes('member'))
+        assert.equal(schema.ordering('uidNumber')?.names[0], 'integerOrderingMatch')
+        assert.ok(schema.attributesOf(['ldapPublicKey']).may.includes('sshPublicKey'))
+        assert.deepEqual(schema.attributesOf(['pwdPolicy']).must, ['pwdAttribute', 'objectClass'])
+        assert.ok(['pwdChangedTime', 'pwdAccountLockedTime', 'pwdFailureTime', 'pwdHistory', 'pwdReset', 'pwdPolicySubentry'].every((name) => schema.isOperational(name)))
+        assert.ok(schema.attributeType('authPassword'))
+    })
+
     it('reads the syntaxes and the operational attributes of the directory', () => {
         const schema: Schema = bundledSchema()
         assert.ok(schema.isBinary('jpegPhoto') && schema.isBinary('userCertificate') && schema.isBinary('photo'))
