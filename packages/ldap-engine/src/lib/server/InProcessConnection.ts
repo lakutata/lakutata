@@ -99,9 +99,19 @@ export class LDAPInProcessConnection extends LDAPOperations implements LDAPConne
      * A connection of a server
      * @param pipeline The processing of the server.
      * @param session The session.
+     * @param opener What opens another connection of the server.
      */
-    constructor(protected readonly pipeline: Pipeline, protected readonly session: SessionState) {
+    constructor(protected readonly pipeline: Pipeline, protected readonly session: SessionState, protected readonly opener?: () => LDAPInProcessConnection) {
         super({schema: pipeline.schema})
+    }
+
+    /**
+     * Another connection to the same server, anonymous, as `LDAPPool.connect()` gives one: for a bind of its own (the
+     * directory helper checks passwords so)
+     */
+    public async connect(): Promise<LDAPInProcessConnection> {
+        if (!this.opener) throw new LDAPConnectionException('The connection cannot open another one')
+        return this.opener()
     }
 
     /**

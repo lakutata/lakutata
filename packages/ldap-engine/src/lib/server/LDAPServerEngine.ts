@@ -357,7 +357,7 @@ export class LDAPServerEngine {
     public connect(options: {as?: string | DN} = {}): LDAPInProcessConnection {
         const identity: DN | undefined = options.as === undefined || options.as === '' ? undefined : DN.from(options.as)
         const session: SessionState = {id: sessionId(), inProcess: true, secure: true, paged: new Map(), ...identity ? {identity: identity, authenticationMethod: 'internal'} : {}}
-        const connection: LDAPInProcessConnection = new LDAPInProcessConnection(this.pipeline, session)
+        const connection: LDAPInProcessConnection = new LDAPInProcessConnection(this.pipeline, session, (): LDAPInProcessConnection => this.connect())
         this.inProcess.add(connection)
         return connection
     }
