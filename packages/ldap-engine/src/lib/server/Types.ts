@@ -1,9 +1,14 @@
+import type {EventEmitter} from 'node:events'
 import type {Control} from '../controls/Control.js'
 import type {SortKey} from '../controls/Controls.js'
 import type {DN, RDN} from '../dn/DN.js'
 import type {Filter} from '../filter/Filter.js'
 import type {DerefAliases, ModifyOperation, PartialAttribute, SearchScope} from '../protocol/Messages.js'
 import type {Schema} from '../schema/Schema.js'
+import type {LDAPInProcessConnection} from './InProcessConnection.js'
+import type {PasswordScheme} from './Passwords.js'
+import type {ExtendedHandler} from './Pipeline.js'
+import type {SASLMechanism} from './SASL.js'
 
 /**
  * An entry of a directory as the server engine and its backends handle it: its DN, and its attributes by their primary
@@ -108,9 +113,14 @@ export interface OperationContext {
     readonly state: Map<string | symbol, unknown>
     /**
      * Whether the operation is run by the engine for itself (a password rehashed after a bind, a password policy
-     * state): the access control lets it through
+     * state), or by a plugin on an internal connection: the access control lets it through
      */
     readonly internal: boolean
+    /**
+     * The server, for the plugins: its schema, its events, and its in-process connections (`connect({internal: true})`
+     * for their own reads and writes)
+     */
+    readonly server: LDAPPluginHost
 }
 
 /**
@@ -247,6 +257,14 @@ export interface BackendCapabilities {
      * Whether the backend runs the writes in transactions, given to the interceptors before the commit
      */
     transactions?: boolean
+    /**
+     * Whether the backend gives uidNumber and gidNumber to the POSIX entries added without them
+     */
+    idAllocation?: boolean
+    /**
+     * Whether the backend keeps the time of the last bind of an entry (authTimestamp)
+     */
+    lastBind?: boolean
 }
 
 /**
@@ -633,4 +651,104 @@ export interface InterceptorPlacement {
      * The suffixes of the backends it runs for; all of them by default
      */
     suffixes?: string[]
+}
+
+/**
+ * What a plugin may use of the server: its schema, its events, and its in-process connections
+ */
+export interface LDAPPluginHost {
+    /**
+     * The schema of the server
+     */
+    readonly schema: Schema
+    /**
+     * The events of the server (`error` for what a plugin fails to do after a write)
+     */
+    readonly events: EventEmitter
+    /**
+     * A connection in the same process: as an identity, or `internal` for the plugin's own reads and writes, which the
+     * access control lets through and whose contexts are `internal`; close it after use
+     * @param options The identity, a DN; whether it is internal.
+     */
+    connect(options?: {as?: string | DN, internal?: boolean}): LDAPInProcessConnection
+}
+
+/**
+ * A control a plugin handles, and the operations it may come with (a critical one with another is refused with
+ * unavailableCriticalExtension); every operation when none is given
+ */
+export interface PluginControl {
+    /**
+     * The OID of the control
+     */
+    oid: string
+    /**
+     * The operations it comes with
+     */
+    operations?: OperationType[]
+}
+
+/**
+ * The capabilities of a backend a plugin does the work of: a backend declaring one does it itself, and the plugin's
+ * interceptors are left out of its chain
+ */
+export type PluginCapability = 'memberOf' | 'referentialIntegrity' | 'idAllocation' | 'lastBind'
+
+/**
+ * A plugin of the server, like the overlays of OpenLDAP and the plugins of 389 Directory Server: interceptors around
+ * the operations of the backends, and what it adds to the server, which the root DSE and the subschema publish (schema
+ * files, controls, extended operations, SASL mechanisms, password schemes, attributes of the root DSE). A plugin is any
+ * object of this shape; `BaseLDAPPlugin` gives the name and the suffixes of the plugins of the engine.
+ */
+export interface LDAPPlugin {
+    /**
+     * Its name, unique among the plugins of a server, for the errors and the placement of interceptors
+     */
+    readonly name: string
+    /**
+     * The suffixes of the backends its interceptors run for; all of them by default
+     */
+    readonly suffixes?: readonly string[]
+    /**
+     * The capability of a backend that does its work: its interceptors are left out of the chains of the backends
+     * declaring it
+     */
+    readonly capability?: PluginCapability
+    /**
+     * Its interceptors, at the end of the chain or placed next to another
+     */
+    readonly interceptors?: readonly (LDAPInterceptor | InterceptorPlacement)[]
+    /**
+     * The schema files it needs, loaded after those of the server (a definition the same as one loaded is loaded once)
+     */
+    readonly schemaFiles?: readonly {name: string, text: string}[]
+    /**
+     * The controls it handles, published in the root DSE
+     */
+    readonly controls?: readonly PluginControl[]
+    /**
+     * The extended operations it handles, by their OIDs, published in the root DSE
+     */
+    readonly extendedOperations?: Readonly<Record<string, ExtendedHandler>>
+    /**
+     * The SASL mechanisms it adds
+     */
+    readonly saslMechanisms?: readonly SASLMechanism[]
+    /**
+     * The password schemes it adds, which a bind can check
+     */
+    readonly passwordSchemes?: readonly PasswordScheme[]
+    /**
+     * Attributes it adds to the root DSE
+     */
+    readonly rootDSEAttributes?: readonly PartialAttribute[]
+    /**
+     * Run once the server starts, before it listens
+     * @param host What the plugin may use of the server.
+     */
+    start?(host: LDAPPluginHost): Promise<void> | void
+    /**
+     * Run when the server closes
+     */
+    stop?(): Promise<void> | void
 }

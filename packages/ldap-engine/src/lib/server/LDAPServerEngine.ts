@@ -13,11 +13,11 @@ import {certificatesOf} from './ClientCertificate.js'
 import {LDAPInProcessConnection, sessionId} from './InProcessConnection.js'
 import type {PasswordPolicyOptions} from './PasswordPolicy.js'
 import {PasswordSchemes} from './Passwords.js'
-import {type ExtendedHandler, Pipeline, type ServerLimits, type SessionState} from './Pipeline.js'
+import {ENGINE_CONTROLS, ENGINE_EXTENSIONS, type ExtendedHandler, Pipeline, type PlacedInterceptor, type ServerLimits, type SessionState} from './Pipeline.js'
 import {externalMechanism, plainMechanism, type SASLMechanism} from './SASL.js'
 import {type ConnectionHost, ServerConnection} from './ServerConnection.js'
 import {BindThrottle, type BindThrottleOptions} from './Throttle.js'
-import type {InterceptorPlacement, LDAPBackend, LDAPInterceptor} from './Types.js'
+import type {InterceptorPlacement, LDAPBackend, LDAPInterceptor, LDAPPlugin, LDAPPluginHost, OperationType} from './Types.js'
 
 /**
  * The schema of a server: a `Schema` ready, or the bundled files to load and schema files of one's own (the LDIF of
@@ -58,7 +58,12 @@ export interface LDAPServerEngineOptions {
      */
     schema?: Schema | ServerSchemaOptions
     /**
-     * The interceptors, each placed in the chain, or put at its end
+     * The plugins: their interceptors, and the schema files, controls, extended operations, SASL mechanisms and
+     * password schemes they add
+     */
+    plugins?: LDAPPlugin[]
+    /**
+     * The interceptors, each placed in the chain, or put at its end: the plugins giving interceptors only
      */
     interceptors?: (InterceptorPlacement | LDAPInterceptor)[]
     /**
@@ -108,10 +113,6 @@ export interface LDAPServerEngineOptions {
      * Extended operations of one's own, by OID
      */
     extendedOperations?: Record<string, ExtendedHandler>
-    /**
-     * The OIDs of the controls the interceptors handle, published in the root DSE
-     */
-    controls?: string[]
     /**
      * The vendorName of the root DSE
      */
@@ -175,7 +176,7 @@ const LIMITS: Required<ServerLimits> = {
  * The schema of the options, with the files it is loaded from
  * @param option The schema option.
  */
-function schemaOf(option: Schema | ServerSchemaOptions | undefined, backends: LDAPBackend[]): {schema: Schema, files: {name: string, schema: Schema}[]} {
+function schemaOf(option: Schema | ServerSchemaOptions | undefined, backends: LDAPBackend[], plugins: LDAPPlugin[]): {schema: Schema, files: {name: string, schema: Schema}[]} {
     if (option instanceof Schema) return {schema: option, files: [{name: 'schema', schema: option}]}
     const names: BundledSchemaName[] = ['system', ...(option?.bundled ?? BUNDLED_SCHEMA_NAMES).filter((name: BundledSchemaName): boolean => name !== 'system')]
     const schema: Schema = new Schema()
@@ -188,8 +189,13 @@ function schemaOf(option: Schema | ServerSchemaOptions | undefined, backends: LD
         schema.load(file.text, file.name)
         files.push({name: file.name, schema: new Schema().load(file.text, file.name)})
     }
-    //The files of the backends: a definition the same as one loaded already (two backends of a class) is loaded once
-    for (const file of backends.flatMap((backend: LDAPBackend): readonly {name: string, text: string}[] => backend.schemaFiles ?? [])) {
+    //The files of the backends and the plugins: a definition the same as one loaded already (two backends of a class) is
+    //loaded once
+    const given: {name: string, text: string}[] = [
+        ...backends.flatMap((backend: LDAPBackend): readonly {name: string, text: string}[] => backend.schemaFiles ?? []),
+        ...plugins.flatMap((plugin: LDAPPlugin): {name: string, text: string}[] => (plugin.schemaFiles ?? []).map((file: {name: string, text: string}): {name: string, text: string} => ({name: `${file.name} (the plugin ${plugin.name})`, text: file.text})))
+    ]
+    for (const file of given) {
         const own: Schema = new Schema().load(file.text, file.name)
         const fresh: Schema = new Schema()
         for (const definition of own.attributeTypes()) {
@@ -208,6 +214,78 @@ function schemaOf(option: Schema | ServerSchemaOptions | undefined, backends: LD
     }
     schema.check()
     return {schema: schema, files: files}
+}
+
+/**
+ * What the plugins add, checked against the engine's own and each other: their interceptors placed, their controls with
+ * their operations, the extended operations, the SASL mechanisms, the password schemes, the attributes of the root DSE
+ * @param options The options of the server.
+ * @param passwords The password schemes, which the plugins' schemes join.
+ */
+function contributionsOf(options: LDAPServerEngineOptions, passwords: PasswordSchemes): {
+    interceptors: PlacedInterceptor[]
+    controls: Map<string, OperationType[] | undefined>
+    extendedOperations: Map<string, ExtendedHandler>
+    sasl: SASLMechanism[]
+    rootDSEAttributes: PartialAttribute[]
+} {
+    const plugins: LDAPPlugin[] = options.plugins ?? []
+    const conflict = (message: string): never => {
+        throw new LDAPUsageException(message)
+    }
+    const names: Set<string> = new Set()
+    for (const plugin of plugins) {
+        if (typeof plugin?.name !== 'string' || !plugin.name) conflict('A plugin needs a name')
+        if (names.has(plugin.name)) conflict(`Two plugins are named ${plugin.name}`)
+        names.add(plugin.name)
+        for (const suffix of plugin.suffixes ?? []) DN.parse(suffix)
+    }
+    const placementOf = (item: InterceptorPlacement | LDAPInterceptor): InterceptorPlacement => 'interceptor' in item ? item : {interceptor: item}
+    const interceptors: PlacedInterceptor[] = [
+        ...plugins.flatMap((plugin: LDAPPlugin): PlacedInterceptor[] => (plugin.interceptors ?? []).map((item: InterceptorPlacement | LDAPInterceptor): PlacedInterceptor => ({
+            ...placementOf(item),
+            ...plugin.suffixes ? {pluginSuffixes: plugin.suffixes} : {},
+            ...plugin.capability ? {capability: plugin.capability} : {}
+        }))),
+        ...(options.interceptors ?? []).map(placementOf)
+    ]
+    //The controls: not those of the engine, nor those of a backend, nor another plugin's
+    const owners: Map<string, string> = new Map([...ENGINE_CONTROLS.map((oid: string): [string, string] => [oid, 'the engine'])])
+    for (const backend of options.backends) for (const oid of backend.capabilities?.controls ?? []) owners.set(oid, `the backend of ${backend.suffix}`)
+    const controls: Map<string, OperationType[] | undefined> = new Map()
+    for (const plugin of plugins) {
+        for (const control of plugin.controls ?? []) {
+            const owner: string | undefined = owners.get(control.oid)
+            if (owner) conflict(`The control ${control.oid} of the plugin ${plugin.name} is handled by ${owner}`)
+            owners.set(control.oid, `the plugin ${plugin.name}`)
+            controls.set(control.oid, control.operations?.length ? [...control.operations] : undefined)
+        }
+    }
+    //The extended operations: those of the options, then those of the plugins
+    const extendedOperations: Map<string, ExtendedHandler> = new Map()
+    const extensionOwners: Map<string, string> = new Map(ENGINE_EXTENSIONS.map((oid: string): [string, string] => [oid, 'the engine']))
+    const addExtension = (oid: string, handler: ExtendedHandler, owner: string): void => {
+        const existing: string | undefined = extensionOwners.get(oid)
+        if (existing) conflict(`The extended operation ${oid} of ${owner} is handled by ${existing}`)
+        extensionOwners.set(oid, owner)
+        extendedOperations.set(oid, handler)
+    }
+    for (const [oid, handler] of Object.entries(options.extendedOperations ?? {})) addExtension(oid, handler, 'the options')
+    for (const plugin of plugins) for (const [oid, handler] of Object.entries(plugin.extendedOperations ?? {})) addExtension(oid, handler, `the plugin ${plugin.name}`)
+    //The SASL mechanisms and the password schemes, by their names
+    const sasl: SASLMechanism[] = [...options.sasl ?? [plainMechanism(), externalMechanism()]]
+    for (const plugin of plugins) {
+        for (const mechanism of plugin.saslMechanisms ?? []) {
+            if (sasl.some((item: SASLMechanism): boolean => item.name.toUpperCase() === mechanism.name.toUpperCase())) conflict(`The SASL mechanism ${mechanism.name} of the plugin ${plugin.name} is there already`)
+            sasl.push(mechanism)
+        }
+        for (const scheme of plugin.passwordSchemes ?? []) {
+            if (passwords.names().some((name: string): boolean => name.toUpperCase() === scheme.name.toUpperCase())) conflict(`The password scheme ${scheme.name} of the plugin ${plugin.name} is there already`)
+            passwords.register(scheme)
+        }
+    }
+    const rootDSEAttributes: PartialAttribute[] = [...options.rootDSEAttributes ?? [], ...plugins.flatMap((plugin: LDAPPlugin): readonly PartialAttribute[] => plugin.rootDSEAttributes ?? [])]
+    return {interceptors: interceptors, controls: controls, extendedOperations: extendedOperations, sasl: sasl, rootDSEAttributes: rootDSEAttributes}
 }
 
 /**
@@ -233,7 +311,7 @@ function schemaOf(option: Schema | ServerSchemaOptions | undefined, backends: LD
  * }
  * ```
  */
-export class LDAPServerEngine {
+export class LDAPServerEngine implements LDAPPluginHost {
     /**
      * The events of the server
      */
@@ -285,6 +363,21 @@ export class LDAPServerEngine {
     protected readonly host: ConnectionHost
 
     /**
+     * The plugins
+     */
+    protected readonly plugins: LDAPPlugin[]
+
+    /**
+     * The start of the plugins, once begun
+     */
+    protected starting: Promise<void> | undefined
+
+    /**
+     * The plugins started, to stop when the server closes
+     */
+    protected readonly startedPlugins: LDAPPlugin[] = []
+
+    /**
      * A server
      * @param options The backends, the schema, the access, the limits, the TLS and the rest.
      */
@@ -292,36 +385,39 @@ export class LDAPServerEngine {
         if (!options.backends?.length) throw new LDAPUsageException('A server needs at least one backend')
         //Errors are events: an error nobody listens to does not end the process
         this.events.on('error', (): void => undefined)
-        const {schema, files} = schemaOf(options.schema, options.backends)
+        this.plugins = [...options.plugins ?? []]
+        const passwords: PasswordSchemes = options.passwords instanceof PasswordSchemes ? options.passwords : new PasswordSchemes(options.passwords ?? {})
+        const contributions = contributionsOf(options, passwords)
+        const {schema, files} = schemaOf(options.schema, options.backends, this.plugins)
         this.schema = schema
         this.limits = {...LIMITS, ...options.limits}
         const {requestCert, ...secureOptions} = options.tls ?? {}
         this.secureOptions = options.tls ? secureOptions : undefined
         this.secureContext = options.tls ? tls.createSecureContext(secureOptions) : undefined
-        const placements: InterceptorPlacement[] = (options.interceptors ?? []).map((item: InterceptorPlacement | LDAPInterceptor): InterceptorPlacement => 'interceptor' in item ? item : {interceptor: item})
         this.pipeline = new Pipeline({
             schema: schema,
             schemaFiles: files,
             backends: options.backends,
-            interceptors: placements,
+            interceptors: contributions.interceptors,
             access: options.access ?? {},
-            passwords: options.passwords instanceof PasswordSchemes ? options.passwords : new PasswordSchemes(options.passwords ?? {}),
+            passwords: passwords,
             ...options.passwordPolicy ? {passwordPolicy: options.passwordPolicy} : {},
             rehashOnBind: options.rehashOnBind !== false,
             throttle: new BindThrottle({...options.bindThrottle, ...!options.bindThrottle?.store && options.backends.some((backend: LDAPBackend): boolean => backend.throttleStore !== undefined) ? {store: options.backends.find((backend: LDAPBackend): boolean => backend.throttleStore !== undefined)!.throttleStore} : {}}),
             plaintextBind: options.plaintextBind ?? 'all',
             allowUnauthenticatedBind: options.allowUnauthenticatedBind === true,
             limits: this.limits,
-            sasl: options.sasl ?? [plainMechanism(), externalMechanism()],
-            extendedOperations: new Map(Object.entries(options.extendedOperations ?? {})),
-            controls: options.controls ?? [],
+            sasl: contributions.sasl,
+            extendedOperations: contributions.extendedOperations,
+            controls: contributions.controls,
             vendorName: options.vendorName,
             vendorVersion: options.vendorVersion,
             defaultNamingContext: options.defaultNamingContext,
-            rootDSEAttributes: options.rootDSEAttributes,
+            rootDSEAttributes: contributions.rootDSEAttributes,
             schemaConfigView: options.schemaConfigView === true,
             tls: this.secureContext !== undefined,
-            events: this.events
+            events: this.events,
+            host: this
         })
         this.host = {
             pipeline: this.pipeline,
@@ -341,6 +437,7 @@ export class LDAPServerEngine {
      */
     public async listen(options: ListenOptions = {}): Promise<number> {
         if (options.secure && !this.secureContext) throw new LDAPUsageException('LDAPS needs the tls option')
+        await this.start()
         const server: Server = options.secure ? tls.createServer({...this.secureOptions, requestCert: this.host.requestCert, rejectUnauthorized: false}) : createServer()
         this.attach(server)
         await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
@@ -379,13 +476,28 @@ export class LDAPServerEngine {
     }
 
     /**
-     * A connection in the same process, with the operations of the network client: as an identity (trusted, without a
-     * password), or anonymous to bind like a client
-     * @param options The identity, a DN.
+     * Start the plugins, in their order, once; `listen()` does it first. Call it before serving in-process connections
+     * only when a plugin has a `start()`.
      */
-    public connect(options: {as?: string | DN} = {}): LDAPInProcessConnection {
+    public async start(): Promise<void> {
+        this.starting ??= (async (): Promise<void> => {
+            for (const plugin of this.plugins) {
+                if (plugin.start) await plugin.start(this)
+                this.startedPlugins.push(plugin)
+            }
+        })()
+        return this.starting
+    }
+
+    /**
+     * A connection in the same process, with the operations of the network client: as an identity (trusted, without a
+     * password), or anonymous to bind like a client; `internal` for the reads and writes of a plugin, which the access
+     * control lets through
+     * @param options The identity, a DN; whether it is internal.
+     */
+    public connect(options: {as?: string | DN, internal?: boolean} = {}): LDAPInProcessConnection {
         const identity: DN | undefined = options.as === undefined || options.as === '' ? undefined : DN.from(options.as)
-        const session: SessionState = {id: sessionId(), inProcess: true, secure: true, paged: new Map(), state: new Map(), ...identity ? {identity: identity, authenticationMethod: 'internal'} : {}}
+        const session: SessionState = {id: sessionId(), inProcess: true, secure: true, paged: new Map(), state: new Map(), ...identity ? {identity: identity, authenticationMethod: 'internal'} : {}, ...options.internal ? {internal: true} : {}}
         const connection: LDAPInProcessConnection = new LDAPInProcessConnection(this.pipeline, session, (): LDAPInProcessConnection => this.connect(), (closed: LDAPInProcessConnection): boolean => this.inProcess.delete(closed))
         this.inProcess.add(connection)
         return connection
@@ -417,6 +529,15 @@ export class LDAPServerEngine {
         await Promise.all(closing)
         for (const connection of [...this.inProcess]) await connection.close()
         this.inProcess.clear()
+        //The plugins started, the last first
+        for (const plugin of this.startedPlugins.splice(0).reverse()) {
+            try {
+                await plugin.stop?.()
+            } catch (error) {
+                this.events.emit('error', error)
+            }
+        }
+        this.starting = undefined
     }
 }
 

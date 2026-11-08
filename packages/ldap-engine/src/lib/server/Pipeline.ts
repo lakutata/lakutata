@@ -53,8 +53,10 @@ import type {
     InterceptorPlacement,
     LDAPBackend,
     LDAPInterceptor,
+    LDAPPluginHost,
     OperationContext,
     OperationType,
+    PluginCapability,
     SearchContext,
     ServerBindRequest,
     ServerModifyRequest,
@@ -126,13 +128,37 @@ export interface ServerLimits {
 export type ExtendedHandler = (context: OperationContext, value: Buffer | undefined) => Promise<{value?: Buffer, name?: string, resultCode?: number}> | {value?: Buffer, name?: string, resultCode?: number}
 
 /**
+ * An interceptor of a plugin or of the application, with what limits the chains it goes in
+ */
+export interface PlacedInterceptor extends InterceptorPlacement {
+    /**
+     * The suffixes of its plugin
+     */
+    pluginSuffixes?: readonly string[]
+    /**
+     * The capability of a backend that does the work of its plugin
+     */
+    capability?: PluginCapability
+}
+
+/**
+ * The OIDs of the controls the engine handles itself
+ */
+export const ENGINE_CONTROLS: readonly string[] = [PagedResultsControl.oid, SortRequestControl.oid, VLVRequestControl.oid, TreeDeleteControl.oid, ManageDsaITControl.oid, PasswordPolicyRequestControl.oid]
+
+/**
+ * The OIDs of the extended operations the engine handles itself
+ */
+export const ENGINE_EXTENSIONS: readonly string[] = [ExtendedOperation.whoAmI, ExtendedOperation.passwordModify, ExtendedOperation.startTLS]
+
+/**
  * The options of the processing of requests
  */
 export interface PipelineOptions {
     schema: Schema
     schemaFiles: {name: string, schema: Schema}[]
     backends: LDAPBackend[]
-    interceptors: InterceptorPlacement[]
+    interceptors: PlacedInterceptor[]
     access: AccessOptions
     passwords: PasswordSchemes
     passwordPolicy?: PasswordPolicyOptions
@@ -143,7 +169,10 @@ export interface PipelineOptions {
     limits: Required<ServerLimits>
     sasl: SASLMechanism[]
     extendedOperations: Map<string, ExtendedHandler>
-    controls: string[]
+    /**
+     * The controls of the plugins, with the operations they come with
+     */
+    controls: Map<string, OperationType[] | undefined>
     vendorName?: string
     vendorVersion?: string
     defaultNamingContext?: string
@@ -151,6 +180,7 @@ export interface PipelineOptions {
     schemaConfigView: boolean
     tls: boolean
     events: EventEmitter
+    host: LDAPPluginHost
 }
 
 /**
@@ -162,6 +192,10 @@ export interface SessionState extends ServerSession {
     secure: boolean
     peerCertificate?: Buffer
     peerCertificateVerified?: boolean
+    /**
+     * Whether its operations are internal (a connection of a plugin for its own reads and writes)
+     */
+    internal?: boolean
     /**
      * The exchange of a SASL bind in progress
      */
@@ -355,8 +389,13 @@ export class Pipeline {
                 pagedOf: (context: OperationContext): PagedStates => (context.session as SessionState).paged
             })
         ]
-        for (const placement of [...mount.backend.interceptors ?? [], ...this.options.interceptors]) {
-            if (placement.suffixes && !placement.suffixes.some((suffix: string): boolean => mount.suffix.equals(suffix, this.schema))) continue
+        const capabilities: Record<string, unknown> = {...mount.backend.capabilities}
+        const forMount = (suffixes: readonly string[] | undefined): boolean => !suffixes || suffixes.some((suffix: string): boolean => mount.suffix.equals(suffix, this.schema))
+        for (const placement of [...mount.backend.interceptors ?? [], ...this.options.interceptors] as PlacedInterceptor[]) {
+            if (!forMount(placement.suffixes) || !forMount(placement.pluginSuffixes)) continue
+            //A backend doing the work of a plugin itself
+            if (placement.capability && capabilities[placement.capability] === true) continue
+            if (chain.some((interceptor: LDAPInterceptor): boolean => interceptor.name === placement.interceptor.name)) throw new LDAPException('E_LDAP_SERVER_OPTIONS', `The chain of ${mount.suffix.toString()} has two interceptors named ${placement.interceptor.name}`)
             const anchor: string | undefined = placement.before ?? placement.after
             const index: number = anchor === undefined ? -1 : chain.findIndex((interceptor: LDAPInterceptor): boolean => interceptor.name === anchor)
             if (anchor !== undefined && index < 0) throw new LDAPException('E_LDAP_SERVER_OPTIONS', `The interceptor ${placement.interceptor.name} goes next to ${anchor}, which is not in the chain`)
@@ -389,8 +428,8 @@ export class Pipeline {
      * @param signal The signal.
      * @param internal Whether the engine runs it for itself.
      */
-    public context(session: ServerSession, operation: OperationType, controls: readonly Control[], signal: AbortSignal, internal: boolean = false): OperationContext {
-        return {operation: operation, session: session, controls: controls, signal: signal, schema: this.schema, responseControls: [], state: new Map(), internal: internal}
+    public context(session: ServerSession, operation: OperationType, controls: readonly Control[], signal: AbortSignal, internal: boolean = (session as SessionState).internal === true): OperationContext {
+        return {operation: operation, session: session, controls: controls, signal: signal, schema: this.schema, responseControls: [], state: new Map(), internal: internal, server: this.options.host}
     }
 
     /**
@@ -520,8 +559,10 @@ export class Pipeline {
         for (const control of controls) {
             if (!control.critical) continue
             const known: boolean = this.supportedControls().includes(control.oid)
+            const operations: OperationType[] | undefined = this.options.controls.get(control.oid)
             const fits: boolean = control.oid === TreeDeleteControl.oid ? operation === 'delete'
-                : [PagedResultsControl.oid, SortRequestControl.oid, VLVRequestControl.oid].includes(control.oid) ? operation === 'search' : true
+                : [PagedResultsControl.oid, SortRequestControl.oid, VLVRequestControl.oid].includes(control.oid) ? operation === 'search'
+                    : operations ? operations.includes(operation) : true
             if (!known || !fits) fail(ResultCode.unavailableCriticalExtension, `The critical control ${control.oid} is not supported`)
         }
     }
@@ -530,7 +571,7 @@ export class Pipeline {
      * The controls the server handles
      */
     public supportedControls(): string[] {
-        const controls: Set<string> = new Set([PagedResultsControl.oid, SortRequestControl.oid, VLVRequestControl.oid, TreeDeleteControl.oid, ManageDsaITControl.oid, PasswordPolicyRequestControl.oid, ...this.options.controls])
+        const controls: Set<string> = new Set([...ENGINE_CONTROLS, ...this.options.controls.keys()])
         for (const mount of this.mounts) for (const oid of mount.backend.capabilities?.controls ?? []) controls.add(oid)
         return [...controls]
     }
@@ -588,7 +629,8 @@ export class Pipeline {
         const {depth, elements} = complexity(request.filter)
         if (depth > this.options.limits.filterDepth || elements > this.options.limits.filterElements) fail(ResultCode.unwillingToPerform, `The filter is too complex (${depth} levels, ${elements} items)`)
         const search: ServerSearchRequest = {type: 'search', base: base, scope: request.scope, derefAliases: request.derefAliases, sizeLimit: request.sizeLimit, timeLimit: request.timeLimit, typesOnly: request.typesOnly, filter: request.filter, attributes: request.attributes}
-        const admin: boolean = this.access.isAdmin(context.session.identity)
+        //The administrators and the internal searches have no limits of the server
+        const admin: boolean = context.internal || this.access.isAdmin(context.session.identity)
         const serverSize: number = admin ? 0 : this.options.limits.sizeLimit
         const sizeLimit: number = Math.min(request.sizeLimit || Infinity, serverSize || Infinity)
         const timeLimit: number = Math.min(request.timeLimit || Infinity, (admin ? 0 : this.options.limits.timeLimit) || Infinity)
@@ -1283,7 +1325,13 @@ export class Pipeline {
                     return
                 }
                 if (request.type === 'modify') {
-                    (request.changes as DirectoryChange[]).push({operation: 'replace', attribute: text('modifyTimestamp', now)}, {operation: 'replace', attribute: text('modifiersName', modifier(context))})
+                    //An internal write of operational attributes only (the memberOf or the authTimestamp a plugin keeps)
+                    //is not a modification of the entry
+                    const operationalOnly: boolean = context.internal && request.changes.length > 0 && request.changes.every((change): boolean => {
+                        const usage: string | undefined = schema.attributeType(attributeTypeOf(change.attribute.type))?.usage
+                        return usage !== undefined && usage !== 'userApplications'
+                    })
+                    if (!operationalOnly) (request.changes as DirectoryChange[]).push({operation: 'replace', attribute: text('modifyTimestamp', now)}, {operation: 'replace', attribute: text('modifiersName', modifier(context))})
                     ;(request.changes as DirectoryChange[]).push(...(context.state.get(POLICY_STATE) as DirectoryChange[] | undefined) ?? [])
                     return
                 }

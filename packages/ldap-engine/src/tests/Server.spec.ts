@@ -7,7 +7,7 @@ import {
     type DirectoryEntry,
     Filter,
     findControl,
-    groupPresentationInterceptor,
+    GroupPresentationPlugin,
     LDAPAttributeOrValueExistsException,
     LDAPConstraintViolationException,
     LDAPEntryAlreadyExistsException,
@@ -378,7 +378,7 @@ describe('the server engine', () => {
     })
 
     it('shows the groups of one class as groups of the other too, when asked to', async () => {
-        const {admin: shown} = await directory({interceptors: [groupPresentationInterceptor()]})
+        const {admin: shown} = await directory({plugins: [new GroupPresentationPlugin()]})
         await shown.add(`cn=unique,ou=groups,${BASE}`, {objectClass: 'groupOfUniqueNames', cn: 'unique', uniqueMember: `uid=user3,ou=people,${BASE}`})
         const names = (await shown.search(`ou=groups,${BASE}`, {filter: '(objectClass=groupOfNames)', attributes: ['objectClass', 'member', 'uniqueMember']})).entries
         assert.deepEqual(names.map((entry) => entry.first('cn') ?? entry.dn).length, 2)

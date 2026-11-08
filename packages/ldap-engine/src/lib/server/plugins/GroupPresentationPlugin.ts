@@ -1,12 +1,14 @@
-import {type Filter} from '../filter/Filter.js'
-import type {PartialAttribute} from '../protocol/Messages.js'
-import {attributeTypeOf, type Schema} from '../schema/Schema.js'
-import type {DirectoryEntry, LDAPInterceptor, OperationContext, SearchContext, ServerRequest} from './Types.js'
+import {type Filter} from '../../filter/Filter.js'
+import type {PartialAttribute} from '../../protocol/Messages.js'
+import {attributeTypeOf, type Schema} from '../../schema/Schema.js'
+import type {DirectoryEntry, LDAPInterceptor, OperationContext, SearchContext, ServerRequest} from '../Types.js'
+import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
 
 /**
- * Two group classes a group is shown as, and their member attributes
+ * The options of a {@link GroupPresentationPlugin}: the two group classes a group is shown as, and their member
+ * attributes
  */
-export interface GroupPresentationOptions {
+export interface GroupPresentationOptions extends BasePluginOptions {
     /**
      * The first class and its member attribute (groupOfNames and member by default)
      */
@@ -18,24 +20,55 @@ export interface GroupPresentationOptions {
 }
 
 /**
- * An interceptor showing each group of one class as a group of the other too, as lldap does: a groupOfNames entry is
- * read with groupOfUniqueNames and its members in uniqueMember as well, and the reverse, and a filter on either class
- * or either member attribute finds both. For the clients knowing one class only; the entries are not changed. Off by
- * default: give it in the interceptors of the server.
- * @param options The two classes and their member attributes.
+ * Each group of one class shown as a group of the other too, as lldap shows them: a groupOfNames entry is read with
+ * groupOfUniqueNames and its members in uniqueMember as well, and the reverse, and a filter on either class or either
+ * member attribute finds both. For the clients knowing one class only; the entries are not changed.
  * @example
  * ```typescript
- * import {createLDAPServer, groupPresentationInterceptor, MemoryBackend} from '@lakutata/ldap-engine'
+ * import {createLDAPServer, GroupPresentationPlugin, MemoryBackend} from '@lakutata/ldap-engine'
  *
  * const server = createLDAPServer({
  *     backends: [new MemoryBackend('dc=example,dc=com')],
- *     interceptors: [groupPresentationInterceptor()]
+ *     plugins: [new GroupPresentationPlugin()]
  * })
  * ```
  */
-export function groupPresentationInterceptor(options: GroupPresentationOptions = {}): LDAPInterceptor {
-    const first: {objectClass: string, member: string} = options.first ?? {objectClass: 'groupOfNames', member: 'member'}
-    const second: {objectClass: string, member: string} = options.second ?? {objectClass: 'groupOfUniqueNames', member: 'uniqueMember'}
+export class GroupPresentationPlugin extends BaseLDAPPlugin {
+    /**
+     * The first class and its member attribute
+     */
+    protected readonly first: {objectClass: string, member: string}
+
+    /**
+     * The second class and its member attribute
+     */
+    protected readonly second: {objectClass: string, member: string}
+
+    /**
+     * The plugin
+     * @param options The two classes and their member attributes, the name and the suffixes.
+     */
+    constructor(options: GroupPresentationOptions = {}) {
+        super('group-presentation', options)
+        this.first = options.first ?? {objectClass: 'groupOfNames', member: 'member'}
+        this.second = options.second ?? {objectClass: 'groupOfUniqueNames', member: 'uniqueMember'}
+    }
+
+    /**
+     * Its interceptor, at the end of the chain
+     */
+    public get interceptors(): LDAPInterceptor[] {
+        return [presentation(this.name, this.first, this.second)]
+    }
+}
+
+/**
+ * The interceptor showing the groups of each class as groups of the other
+ * @param name Its name.
+ * @param first The first class and its member attribute.
+ * @param second The second class and its member attribute.
+ */
+function presentation(name: string, first: {objectClass: string, member: string}, second: {objectClass: string, member: string}): LDAPInterceptor {
     const same = (schema: Schema, left: string, right: string): boolean => schema.primaryName(left).toLowerCase() === schema.primaryName(right).toLowerCase()
     /**
      * The filter with its items on one class or member attribute also matching the other
@@ -67,7 +100,7 @@ export function groupPresentationInterceptor(options: GroupPresentationOptions =
         }
     }
     return {
-        name: 'group-presentation',
+        name: name,
         operations: ['search'],
         before: (context: OperationContext, request: ServerRequest): void => {
             if (request.type !== 'search') return
