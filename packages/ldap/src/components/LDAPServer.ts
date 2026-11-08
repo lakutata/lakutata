@@ -20,6 +20,7 @@ import {
     type LDAPInterceptor,
     type LDAPServerEngine,
     type PartialAttribute,
+    type PasswordPolicyOptions,
     type PasswordSchemes,
     type SASLMechanism,
     type ServerLimits,
@@ -118,6 +119,11 @@ export interface LDAPServerOptions extends InterfaceListeningOptions {
      * The scheme passwords are written in and the iterations of PBKDF2, or the schemes ready
      */
     passwords?: PasswordSchemes | {scheme?: string, iterations?: number}
+    /**
+     * The password policy (draft-behera-ldap-password-policy): the default policy (the DN of a pwdPolicy entry, or its
+     * rules), which a user's pwdPolicySubentry replaces; none by default
+     */
+    passwordPolicy?: PasswordPolicyOptions
     /**
      * Hash a password again in the scheme of the server after a bind with a weaker one (true by default)
      */
@@ -306,6 +312,12 @@ export class LDAPServer extends Component {
     protected readonly passwords?: LDAPServerOptions['passwords']
 
     /**
+     * The password policy
+     */
+    @Configurable(DTO.Object().unknown(true).optional())
+    protected readonly passwordPolicy?: PasswordPolicyOptions
+
+    /**
      * Whether weaker passwords are hashed again after a bind
      */
     @Configurable(DTO.Boolean().optional().default(true))
@@ -408,6 +420,7 @@ export class LDAPServer extends Component {
             plaintextBind: this.plaintextBind,
             allowUnauthenticatedBind: this.allowUnauthenticatedBind,
             ...this.passwords ? {passwords: this.passwords} : {},
+            ...this.passwordPolicy ? {passwordPolicy: this.passwordPolicy} : {},
             rehashOnBind: this.rehashOnBind,
             ...this.tls ? {tls: this.tls} : {},
             ...this.sasl ? {sasl: this.sasl} : {},

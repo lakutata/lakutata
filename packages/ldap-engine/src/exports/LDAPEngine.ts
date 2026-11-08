@@ -212,3 +212,4 @@ export type {AttributeSelection, BackendCapabilities, BackendSearchResult, BindO
 export {createDirectory, DEFAULT_DIRECTORY_PROFILE, Directory, type DirectoryAttributes, type DirectoryKind, type DirectoryOptions, type DirectoryProfile, type ImportOutcome} from '../lib/directory/Directory.js'
 export {type PasswordPolicyOptions, type PasswordPolicyRules, rulesOfEntry} from '../lib/server/PasswordPolicy.js'
 export {isUTF8} from '../lib/ber/Ber.js'
+export {groupPresentationInterceptor, type GroupPresentationOptions} from '../lib/server/GroupPresentation.js'

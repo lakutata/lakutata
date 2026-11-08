@@ -168,6 +168,37 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             await connection.close()
         })
 
+        it('keeps the state of the password policy in the database, for every instance', async () => {
+            const servers: Container[] = []
+            try {
+                const policy = async (): Promise<LDAPServer> => {
+                    const instance: Container = new Container()
+                    servers.push(instance)
+                    await instance.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities}})
+                    await instance.setNamed('ldap', LDAPServer, {
+                        port: 0,
+                        host: '127.0.0.1',
+                        backends: [{class: DirectoryBackend, suffix: BASE, database: 'database', sharedThrottle: false}],
+                        access: {admins: [ADMIN]},
+                        passwords: {iterations: 1000},
+                        bindThrottle: {maxFailures: 0, ipMaxFailures: 0, delay: 0},
+                        passwordPolicy: {default: {lockout: true, maxFailure: 2, lockoutDuration: 0}}
+                    })
+                    return instance.get<LDAPServer>('ldap')
+                }
+                const [first, second] = [await policy(), await policy()]
+                await admin.passwordModify({userIdentity: `uid=user12,${people}`, newPassword: 'password12'})
+                for (let index: number = 0; index < 2; index++) await assert.rejects(first.connect().bind(`uid=user12,${people}`, 'wrong'), LDAPInvalidCredentialsException)
+                await assert.rejects(second.connect().bind(`uid=user12,${people}`, 'password12'), LDAPInvalidCredentialsException)
+                assert.ok((await admin.search(`uid=user12,${people}`, {scope: 'base', attributes: ['pwdAccountLockedTime']})).entries[0].first('pwdAccountLockedTime'))
+                //A password an administrator sets unlocks the account, on an instance with the policy
+                await first.connect(ADMIN).passwordModify({userIdentity: `uid=user12,${people}`, newPassword: 'password12b'})
+                await second.connect().bind(`uid=user12,${people}`, 'password12b')
+            } finally {
+                for (const instance of servers) await instance.destroy()
+            }
+        })
+
         it('rolls a write back when an interceptor refuses it before the commit', async () => {
             const refusing: Container = new Container()
             try {

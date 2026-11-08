@@ -7,6 +7,7 @@ import {
     type DirectoryEntry,
     Filter,
     findControl,
+    groupPresentationInterceptor,
     LDAPAttributeOrValueExistsException,
     LDAPConstraintViolationException,
     LDAPEntryAlreadyExistsException,
@@ -374,6 +375,20 @@ describe('the server engine', () => {
         const writer = createLDAPServer({backends: [new MemoryBackend(BASE)], access: {check: () => true}})
         const user: LDAPInProcessConnection = writer.connect({as: `uid=someone,${BASE}`})
         await assert.rejects(user.add(BASE, {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example', entryUUID: uuid}), LDAPConstraintViolationException)
+    })
+
+    it('shows the groups of one class as groups of the other too, when asked to', async () => {
+        const {admin: shown} = await directory({interceptors: [groupPresentationInterceptor()]})
+        await shown.add(`cn=unique,ou=groups,${BASE}`, {objectClass: 'groupOfUniqueNames', cn: 'unique', uniqueMember: `uid=user3,ou=people,${BASE}`})
+        const names = (await shown.search(`ou=groups,${BASE}`, {filter: '(objectClass=groupOfNames)', attributes: ['objectClass', 'member', 'uniqueMember']})).entries
+        assert.deepEqual(names.map((entry) => entry.first('cn') ?? entry.dn).length, 2)
+        const unique = names.find((entry) => entry.dn.startsWith('cn=unique'))!
+        assert.deepEqual([unique.get('objectClass').includes('groupOfNames'), unique.get('member')], [true, [`uid=user3,ou=people,${BASE}`]])
+        assert.equal((await shown.search(`ou=groups,${BASE}`, {filter: `(uniqueMember=uid=user1,ou=people,${BASE})`})).entries[0].dn, `cn=developers,ou=groups,${BASE}`)
+        const developers = (await shown.search(`cn=developers,ou=groups,${BASE}`, {scope: 'base'})).entries[0]
+        assert.deepEqual(developers.get('uniqueMember').sort(), [`uid=user1,ou=people,${BASE}`, `uid=user2,ou=people,${BASE}`])
+        const plain = (await admin.search(`cn=developers,ou=groups,${BASE}`, {scope: 'base'})).entries[0]
+        assert.equal(plain.has('uniqueMember'), false)
     })
 
     it('shows the schema files as OpenLDAP does, when asked', async () => {
