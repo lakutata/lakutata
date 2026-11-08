@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict'
+import {existsSync, lstatSync, rmSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import {describe, it} from 'node:test'
 import {Component, Container, DTO} from '@lakutata/core'
 import {Configurable} from '@lakutata/core/decorator/di'
@@ -183,11 +186,34 @@ describe('the LDAPServer component', () => {
         await assert.rejects(connectLDAP({url: `ldap://127.0.0.1:${port}`, connectTimeout: 1000}), LDAPConnectionException)
     })
 
+    it('listens on a Unix socket alone, taking passwords over it, and removes it when destroyed', {skip: process.platform === 'win32' ? 'no Unix sockets' : false}, async () => {
+        const path: string = join(tmpdir(), `lakutata-ldapi-component-${process.pid}.sock`)
+        rmSync(path, {force: true})
+        const container: Container = new Container()
+        try {
+            await container.setNamed('ldap', LDAPServer, {port: false, ldapiPath: path, ldapiMode: 0o660, plaintextBind: 'none', backends: [new MemoryBackend(BASE)], access: {admins: [ADMIN]}, passwords: {iterations: 1000}})
+            const ldap: LDAPServer = await container.get<LDAPServer>('ldap')
+            assert.deepEqual(ldap.ports, {ldapi: path})
+            assert.equal(lstatSync(path).mode & 0o777, 0o660)
+            const directory = ldap.directory(ADMIN)
+            await directory.add(BASE, {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example'})
+            const alice: string = await directory.createUser(BASE, {uid: 'alice', cn: 'Alice', sn: 'Liu'}, 'secret')
+            const connection: LDAPClientConnection = await connectLDAP(`ldapi://${encodeURIComponent(path)}`)
+            await connection.bind(alice, 'secret')
+            assert.equal(await connection.whoAmI(), `dn:${alice}`)
+            await connection.close()
+        } finally {
+            await container.destroy()
+        }
+        assert.equal(existsSync(path), false)
+    })
+
     it('refuses options that do not go together', async () => {
         const container: Container = new Container()
         try {
             await assert.rejects(container.setNamed('ldap', LDAPServer, {port: 0, ldapsPort: 0, backends: [new MemoryBackend(BASE)]}), /needs its tls option/)
             await assert.rejects(container.setNamed('ldap2', LDAPServer, {host: '127.0.0.1', interface: LOOPBACK, port: 0, backends: [new MemoryBackend(BASE)]}), /host and interface/)
+            await assert.rejects(container.setNamed('ldap3', LDAPServer, {port: 0, ldapiMode: 0o666, backends: [new MemoryBackend(BASE)]}), /ldapiPath, which is not given/)
         } finally {
             await container.destroy()
         }

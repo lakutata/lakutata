@@ -92,13 +92,24 @@ export interface LDAPServerOptions extends InterfaceListeningOptions {
      */
     host?: string
     /**
-     * The port of LDAP (389 by default; 0 for a free one); StartTLS is offered on it when `tls` is given
+     * The port of LDAP (389 by default; 0 for a free one; false for none); StartTLS is offered on it when `tls` is given
      */
-    port?: number
+    port?: number | false
     /**
      * The port of LDAPS, with `tls`
      */
     ldapsPort?: number
+    /**
+     * The path of a Unix socket listened on as well (ldapi), for the clients of this machine (SSSD 2.9 and later,
+     * nslcd, OpenLDAP's tools): its connections never leave the machine, so passwords are taken over it as over TLS. Its
+     * directory must exist; a socket a stopped server left there is replaced.
+     */
+    ldapiPath?: string
+    /**
+     * The permissions of the Unix socket, which decide who may connect (`0o666`: every user of the machine); by default
+     * those the umask gives (the user of the process alone for the umask 022)
+     */
+    ldapiMode?: number
     /**
      * The certificate and the key (and the CA, `requestCert` for SASL EXTERNAL) of StartTLS and LDAPS
      */
@@ -133,7 +144,8 @@ export interface LDAPServerOptions extends InterfaceListeningOptions {
      */
     bindThrottle?: BindThrottleOptions
     /**
-     * Where a simple bind with a password is allowed without TLS: everywhere (by default), from the loopback, nowhere
+     * Where a simple bind with a password is allowed without TLS: everywhere (by default), from the loopback, nowhere;
+     * the Unix socket of `ldapiPath` takes passwords whatever it says
      */
     plaintextBind?: 'all' | 'loopback' | 'none'
     /**
@@ -258,16 +270,28 @@ export class LDAPServer extends Component {
     protected readonly host?: string
 
     /**
-     * The port of LDAP
+     * The port of LDAP, false for none
      */
-    @Configurable(DTO.Number().port().optional().default(389))
-    protected readonly port: number
+    @Configurable(DTO.Alternatives(DTO.Number().port(), DTO.Boolean().valid(false)).optional().default(389))
+    protected readonly port: number | false
 
     /**
      * The port of LDAPS
      */
     @Configurable(DTO.Number().port().optional())
     protected readonly ldapsPort?: number
+
+    /**
+     * The path of the Unix socket
+     */
+    @Configurable(DTO.String().optional())
+    protected readonly ldapiPath?: string
+
+    /**
+     * The permissions of the Unix socket
+     */
+    @Configurable(DTO.Number().integer().min(0).max(0o777).optional())
+    protected readonly ldapiMode?: number
 
     /**
      * The TLS
@@ -436,9 +460,9 @@ export class LDAPServer extends Component {
     #servers: Server[] = []
 
     /**
-     * The ports listened on
+     * The ports listened on, and the path of the Unix socket
      */
-    #ports: {ldap?: number, ldaps?: number} = {}
+    #ports: {ldap?: number, ldaps?: number, ldapi?: string} = {}
 
     /**
      * Build the backends and the interceptors, start the engine, listen
@@ -447,6 +471,7 @@ export class LDAPServer extends Component {
         const name: string = 'LDAPServer'
         const interfaces: boolean = listensOnInterfaces(name, {interface: this.interface, strict: this.strict, family: this.family, onError: this.onError, interfaceListening: this.interfaceListening, host: this.host})
         if (this.ldapsPort !== undefined && !this.tls) throw new InvalidValueException('The ldapsPort of an LDAP server needs its tls option')
+        if (this.ldapiMode !== undefined && this.ldapiPath === undefined) throw new InvalidValueException('The ldapiMode of an LDAP server is the mode of its ldapiPath, which is not given')
         const backends: LDAPBackend[] = await Promise.all(this.backends.map(async (item: LDAPBackend | ObjectSpecification): Promise<LDAPBackend> => {
             if (!isSpecification(item)) return item
             const {class: constructor, ...options} = item
@@ -496,11 +521,14 @@ export class LDAPServer extends Component {
         }
         if (interfaces) {
             const options: InterfaceListeningOptions = {interface: this.interface, strict: this.strict, family: this.family, onError: this.onError, interfaceListening: this.interfaceListening}
-            const plain: Server = createServer()
-            engine.attach(plain)
-            this.#servers.push(plain)
-            this.#listeners.push(...await listenOnInterfaces(name, plain, options, this.port, (error: unknown, message: string): void => this.report(error, message)))
-            this.#ports.ldap = this.#listeners[0]?.port
+            if (this.port !== false) {
+                const plain: Server = createServer()
+                engine.attach(plain)
+                this.#servers.push(plain)
+                const plainListeners: IInterfaceListener[] = await listenOnInterfaces(name, plain, options, this.port, (error: unknown, message: string): void => this.report(error, message))
+                this.#listeners.push(...plainListeners)
+                this.#ports.ldap = plainListeners[0]?.port
+            }
             if (this.ldapsPort !== undefined) {
                 const {requestCert, ...secure} = this.tls!
                 const secureServer: tls.Server = tls.createServer({...secure, requestCert: requestCert === true, rejectUnauthorized: false})
@@ -511,9 +539,10 @@ export class LDAPServer extends Component {
                 this.#ports.ldaps = secureListeners[0]?.port
             }
         } else {
-            this.#ports.ldap = await engine.listen({port: this.port, ...this.host ? {host: this.host} : {}})
+            if (this.port !== false) this.#ports.ldap = await engine.listen({port: this.port, ...this.host ? {host: this.host} : {}})
             if (this.ldapsPort !== undefined) this.#ports.ldaps = await engine.listen({port: this.ldapsPort, secure: true, ...this.host ? {host: this.host} : {}})
         }
+        if (this.ldapiPath !== undefined) this.#ports.ldapi = await engine.listen({path: this.ldapiPath, ...this.ldapiMode !== undefined ? {mode: this.ldapiMode} : {}})
     }
 
     /**
@@ -548,9 +577,9 @@ export class LDAPServer extends Component {
     }
 
     /**
-     * The ports listened on: LDAP, and LDAPS when it is
+     * The ports listened on: LDAP, and LDAPS when it is; and the path of the Unix socket (`ldapi`) when it listens on one
      */
-    public get ports(): {ldap?: number, ldaps?: number} {
+    public get ports(): {ldap?: number, ldaps?: number, ldapi?: string} {
         return {...this.#ports}
     }
 

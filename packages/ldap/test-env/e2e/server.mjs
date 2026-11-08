@@ -1,6 +1,6 @@
 //The LDAP server the end-to-end checks run against: the LDAPServer component with a directory backend on SQLite (a file
 //given as the first argument), a few POSIX users with passwords and SSH keys, a group; it writes `listening <port>`
-//once it listens on the loopback. Build the package first.
+//once it listens on the loopback, and on the Unix socket given as the second argument. Build the package first.
 import {Container} from '@lakutata/core'
 import {Database} from '@lakutata/orm/com/database'
 import {DirectoryBackend, directoryEntities, LDAPServer} from '../../dist/esm/exports/LDAP.js'
@@ -13,6 +13,8 @@ await container.setNamed('database', Database, {options: {type: 'better-sqlite3'
 await container.setNamed('ldap', LDAPServer, {
     host: '127.0.0.1',
     port: Number(process.env.LDAP_PORT ?? 0),
+    ldapiPath: process.argv[3],
+    ldapiMode: 0o666,
     backends: [{class: DirectoryBackend, suffix: BASE, unique: ['uid'], initialize: {admin: {dn: ADMIN, password: 'secret'}}}],
     access: {admins: [ADMIN], passwordAdmins: [ADMIN]},
     passwords: {iterations: 10000}
