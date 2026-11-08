@@ -203,7 +203,7 @@ export {type PasswordHashOptions, type PasswordScheme, PasswordSchemes} from '..
 export {type AccessOptions, type AccessRequest} from '../lib/server/Access.js'
 export {createHandlerBackend, type HandlerBackendOptions, type HandlerEntry} from '../lib/server/HandlerBackend.js'
 export {LDAPInProcessConnection} from '../lib/server/InProcessConnection.js'
-export {createLDAPServer, LDAPServerEngine, type LDAPServerOptions, type ListenOptions, type ServerSchemaOptions, type ServerTLSOptions} from '../lib/server/LDAPServerEngine.js'
+export {createLDAPServer, LDAPServerEngine, type LDAPServerEngineOptions, type ListenOptions, type ServerSchemaOptions, type ServerTLSOptions} from '../lib/server/LDAPServerEngine.js'
 export {MemoryBackend} from '../lib/server/MemoryBackend.js'
 export {type ExtendedHandler, type ServerLimits} from '../lib/server/Pipeline.js'
 export {externalMechanism, plainMechanism, type SASLContext, type SASLMechanism, type SASLStep} from '../lib/server/SASL.js'

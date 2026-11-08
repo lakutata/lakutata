@@ -109,7 +109,8 @@ await check('CJS @lakutata/ldap-engine loads', () => {
 // @lakutata/ldap — the components of LDAP, the engine re-exported
 await check('CJS @lakutata/ldap loads', () => {
     const ldap = requireCJS('../packages/ldap/dist/cjs/exports/LDAP.js')
-    if (typeof ldap.LDAPClient !== 'function' || typeof ldap.buildLDAPClientOptions !== 'function' || typeof ldap.connectLDAP !== 'function') throw new Error('LDAP components missing')
+    if (typeof ldap.LDAPClient !== 'function' || typeof ldap.LDAPServer !== 'function' || typeof ldap.buildLDAPServerOptions !== 'function' || typeof ldap.connectLDAP !== 'function') throw new Error('LDAP components missing')
+    if (typeof ldap.createLDAPServer !== 'function' || typeof ldap.bundledSchema().objectClass('inetOrgPerson') !== 'object') throw new Error('the LDAP server engine')
 })
 
 // @lakutata/ffi — the native libraries, koffi required from CommonJS

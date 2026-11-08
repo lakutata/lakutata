@@ -43,6 +43,9 @@
       ],
       "@lakutata/ldap-engine": [
         "../ldap-engine/dist/types/exports/LDAPEngine"
+      ],
+      "@lakutata/netif": [
+        "../netif/dist/types/exports/Netif"
       ]
     }
   },

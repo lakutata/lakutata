@@ -44,7 +44,7 @@ export interface ServerTLSOptions extends tls.SecureContextOptions {
 /**
  * The options of a server (see `createLDAPServer()`)
  */
-export interface LDAPServerOptions {
+export interface LDAPServerEngineOptions {
     /**
      * The backends, each holding the entries under its suffix
      */
@@ -261,7 +261,7 @@ export class LDAPServerEngine {
      * A server
      * @param options The backends, the schema, the access, the limits, the TLS and the rest.
      */
-    constructor(options: LDAPServerOptions) {
+    constructor(options: LDAPServerEngineOptions) {
         if (!options.backends?.length) throw new LDAPUsageException('A server needs at least one backend')
         //Errors are events: an error nobody listens to does not end the process
         this.events.on('error', (): void => undefined)
@@ -405,6 +405,6 @@ export class LDAPServerEngine {
  * }
  * ```
  */
-export function createLDAPServer(options: LDAPServerOptions): LDAPServerEngine {
+export function createLDAPServer(options: LDAPServerEngineOptions): LDAPServerEngine {
     return new LDAPServerEngine(options)
 }

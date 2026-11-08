@@ -1,7 +1,7 @@
 {
   "name": "@lakutata/ldap",
   "version": "3.2.1",
-  "description": "LDAP for lakutata applications: a client component (a pool of connections, authenticate(), Active Directory) on the engine @lakutata/ldap-engine, which it re-exports.",
+  "description": "LDAP for lakutata applications: a server component (backends, interceptors, the schema, access control, StartTLS and LDAPS, listening on network interfaces) and a client component, on the engine @lakutata/ldap-engine, which it re-exports.",
   "keywords": [
     "lakutata",
     "ldap",
@@ -65,6 +65,15 @@
     "@lakutata/ldap-engine": "3.2.1"
   },
   "peerDependencies": {
-    "@lakutata/core": "~3.2.0"
+    "@lakutata/core": "~3.2.0",
+    "@lakutata/netif": "~3.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@lakutata/netif": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@lakutata/netif": "~3.2.0"
   }
 }
