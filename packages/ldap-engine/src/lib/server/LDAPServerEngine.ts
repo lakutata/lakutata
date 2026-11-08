@@ -10,6 +10,7 @@ import {Schema} from '../schema/Schema.js'
 import type {AccessOptions} from './Access.js'
 import {certificatesOf} from './ClientCertificate.js'
 import {LDAPInProcessConnection, sessionId} from './InProcessConnection.js'
+import type {PasswordPolicyOptions} from './PasswordPolicy.js'
 import {PasswordSchemes} from './Passwords.js'
 import {type ExtendedHandler, Pipeline, type ServerLimits, type SessionState} from './Pipeline.js'
 import {externalMechanism, plainMechanism, type SASLMechanism} from './SASL.js'
@@ -69,6 +70,11 @@ export interface LDAPServerEngineOptions {
      * default), or the schemes ready
      */
     passwords?: PasswordSchemes | {scheme?: string, iterations?: number}
+    /**
+     * The password policy (draft-behera-ldap-password-policy): the default policy (the DN of a pwdPolicy entry, or its
+     * rules), which a user's pwdPolicySubentry replaces; none by default
+     */
+    passwordPolicy?: PasswordPolicyOptions
     /**
      * Hash a password again in the scheme of the server after a bind with it, when it is weaker (true by default)
      */
@@ -281,6 +287,7 @@ export class LDAPServerEngine {
             interceptors: placements,
             access: options.access ?? {},
             passwords: options.passwords instanceof PasswordSchemes ? options.passwords : new PasswordSchemes(options.passwords ?? {}),
+            ...options.passwordPolicy ? {passwordPolicy: options.passwordPolicy} : {},
             rehashOnBind: options.rehashOnBind !== false,
             throttle: new BindThrottle(options.bindThrottle),
             plaintextBind: options.plaintextBind ?? 'all',
@@ -359,7 +366,7 @@ export class LDAPServerEngine {
      */
     public connect(options: {as?: string | DN} = {}): LDAPInProcessConnection {
         const identity: DN | undefined = options.as === undefined || options.as === '' ? undefined : DN.from(options.as)
-        const session: SessionState = {id: sessionId(), inProcess: true, secure: true, paged: new Map(), ...identity ? {identity: identity, authenticationMethod: 'internal'} : {}}
+        const session: SessionState = {id: sessionId(), inProcess: true, secure: true, paged: new Map(), state: new Map(), ...identity ? {identity: identity, authenticationMethod: 'internal'} : {}}
         const connection: LDAPInProcessConnection = new LDAPInProcessConnection(this.pipeline, session, (): LDAPInProcessConnection => this.connect(), (closed: LDAPInProcessConnection): boolean => this.inProcess.delete(closed))
         this.inProcess.add(connection)
         return connection

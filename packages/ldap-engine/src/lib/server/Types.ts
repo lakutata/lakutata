@@ -66,6 +66,11 @@ export interface ServerSession {
      * How the session bound: `simple`, the SASL mechanism, `internal` for an in-process connection given an identity
      */
     readonly authenticationMethod?: string
+    /**
+     * What the engine and the interceptors keep for the session (the password policy notes there that the password
+     * must be changed first)
+     */
+    readonly state: Map<string | symbol, unknown>
 }
 
 /**

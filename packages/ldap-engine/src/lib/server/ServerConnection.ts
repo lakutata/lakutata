@@ -78,7 +78,8 @@ export class ServerConnection {
             remoteAddress: socket.remoteAddress,
             remotePort: socket.remotePort,
             secure: secure,
-            paged: new Map()
+            paged: new Map(),
+            state: new Map()
         }
         if (secure) this.certificateOf(socket as tls.TLSSocket)
         this.reader = new MessageReader({maxMessageSize: host.limits.anonymousMessageSize})

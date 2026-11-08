@@ -39,6 +39,7 @@ import {
     valuesOfType
 } from './EntryTools.js'
 import {closePaged, pagingInterceptor, type PagedStates} from './Paging.js'
+import {MUST_CHANGE, PasswordPolicy, type PasswordPolicyOptions} from './PasswordPolicy.js'
 import type {PasswordSchemes} from './Passwords.js'
 import {rootDSEEntry, schemaConfigEntries, subschemaEntry} from './RootDSE.js'
 import type {SASLContext, SASLMechanism, SASLStep} from './SASL.js'
@@ -134,6 +135,7 @@ export interface PipelineOptions {
     interceptors: InterceptorPlacement[]
     access: AccessOptions
     passwords: PasswordSchemes
+    passwordPolicy?: PasswordPolicyOptions
     rehashOnBind: boolean
     throttle: BindThrottle
     plaintextBind: 'all' | 'loopback' | 'none'
@@ -211,11 +213,17 @@ const OPERATIONS: Partial<Record<LDAPRequest['type'], OperationType>> = {
 
 //The operational attributes an entry keeps, which an administrator adding an entry may give (an import keeps them)
 const STORED_OPERATIONAL: Set<string> = new Set(['createtimestamp', 'modifytimestamp', 'creatorsname', 'modifiersname', 'entryuuid'])
+//The state of the password policy an administrator sets: the policy of a user, a lock, a reset, the validity
+const ADMIN_POLICY_STATE: Set<string> = new Set(['pwdpolicysubentry', 'pwdaccountlockedtime', 'pwdreset', 'pwdstarttime', 'pwdendtime'])
 //The operational attributes the engine computes: an administrator's add drops them (an export of another server has them)
 const COMPUTED_OPERATIONAL: Set<string> = new Set(['entrydn', 'subschemasubentry', 'hassubordinates', 'structuralobjectclass'])
 
 //The keys of the state of an operation
 const CURRENT: unique symbol = Symbol('the entry before the write')
+//The password change of a Password Modify: whether the user changes their own password, whether they gave the old one
+const PASSWORD_CHANGE: unique symbol = Symbol('the password change')
+//The changes of the password policy state a write makes, applied after the schema checks
+const POLICY_STATE: unique symbol = Symbol('the password policy state')
 const RESULT: unique symbol = Symbol('the entry as the write leaves it')
 //The attribute an unreadable attribute of a filter becomes: no schema defines it, so its items are Undefined
 const HIDDEN: string = 'x-hidden-attribute'
@@ -308,9 +316,21 @@ export class Pipeline {
 
     protected readonly started: Date = new Date()
 
+    /**
+     * The password policy, when the server has one
+     */
+    protected readonly policy: PasswordPolicy | undefined
+
     constructor(public readonly options: PipelineOptions) {
         this.schema = options.schema
         this.access = new AccessPolicy(options.access, options.schema)
+        this.policy = options.passwordPolicy ? new PasswordPolicy(options.passwordPolicy, options.schema, options.passwords, async (context: OperationContext, dn: DN): Promise<DirectoryEntry | undefined> => {
+            const mount: Mount | undefined = this.route(dn)
+            return mount ? mount.backend.get(context, dn) : undefined
+        }, async (context: OperationContext, dn: DN, changes: DirectoryChange[]): Promise<void> => {
+            const mount: Mount | undefined = this.route(dn)
+            if (mount?.backend.modify) await mount.backend.modify(this.context(context.session, 'modify', [], context.signal, true), dn, changes)
+        }) : undefined
         this.mounts = options.backends.map((backend: LDAPBackend): Mount => ({backend: backend, suffix: DN.parse(backend.suffix), chain: []}))
         //The longest suffix first
         this.mounts.sort((left: Mount, right: Mount): number => right.suffix.length - left.suffix.length)
@@ -412,6 +432,7 @@ export class Pipeline {
         let dn: string = ''
         try {
             this.checkControls(controls, operation)
+            this.policy?.guard(context, this.allowedBeforeChange(session, request))
             switch (request.type) {
                 case 'bindRequest':
                     dn = request.name
@@ -440,6 +461,42 @@ export class Pipeline {
         }
         if (operation === 'bind' && outcome.serverSaslCredentials) response.serverSaslCredentials = outcome.serverSaslCredentials
         return {response: response as unknown as LDAPResponse, controls: context.responseControls}
+    }
+
+    /**
+     * Whether a session that must change its password first may run a request: a bind, Who Am I, Password Modify, or a
+     * modify of its own password
+     * @param session The session.
+     * @param request The request.
+     */
+    protected allowedBeforeChange(session: SessionState, request: LDAPRequest): boolean {
+        if (!session.state.get(MUST_CHANGE)) return true
+        switch (request.type) {
+            case 'bindRequest':
+                return true
+            case 'extendedRequest':
+                return request.name === ExtendedOperation.passwordModify || request.name === ExtendedOperation.whoAmI
+            case 'modifyRequest':
+                return session.identity !== undefined && DN.isValid(request.object) && DN.parse(request.object).equals(session.identity, this.schema) && request.changes.every((change) => this.schema.primaryName(attributeTypeOf(change.modification.type)).toLowerCase() === 'userpassword')
+            default:
+                return false
+        }
+    }
+
+    /**
+     * A bind with a password: its verification, within the password policy when there is one; invalidCredentials when
+     * it fails
+     * @param session The session.
+     * @param context The context of the bind.
+     * @param dn The DN.
+     * @param password The password.
+     */
+    public async authenticate(session: SessionState, context: OperationContext, dn: DN, password: Buffer): Promise<void> {
+        const verify = async (): Promise<void> => {
+            if (!await this.verifyPassword(session, context, dn, password)) fail(ResultCode.invalidCredentials, 'Invalid credentials')
+        }
+        if (this.policy) await this.policy.authenticate(context, dn, verify)
+        else await verify()
     }
 
     /**
@@ -859,7 +916,7 @@ export class Pipeline {
         const bindRequest: ServerBindRequest = {type: 'bind', name: request.name, dn: dn, authentication: {type: 'simple', password: password}}
         const mount: Mount | undefined = this.route(dn)
         const verify = async (): Promise<ServerOutcome> => {
-            if (!await this.verifyPassword(session, context, dn, password)) fail(ResultCode.invalidCredentials, 'Invalid credentials')
+            await this.authenticate(session, context, dn, password)
             return {resultCode: ResultCode.success}
         }
         await (mount ? this.run(mount, context, bindRequest, verify) : verify())
@@ -934,7 +991,15 @@ export class Pipeline {
         const saslContext: SASLContext = {
             session: session,
             state: state,
-            verifyPassword: (dn: DN, password: Buffer): Promise<boolean> => this.verifyPassword(session, context, dn, password)
+            verifyPassword: async (dn: DN, password: Buffer): Promise<boolean> => {
+                try {
+                    await this.authenticate(session, context, dn, password)
+                    return true
+                } catch (error) {
+                    if (error instanceof LDAPResultException && error.code === ResultCode.invalidCredentials) return false
+                    throw error
+                }
+            }
         }
         let step: SASLStep
         try {
@@ -994,9 +1059,15 @@ export class Pipeline {
         if (request.oldPassword !== undefined && !await this.verifyPassword(context.session, context, target, request.oldPassword)) fail(ResultCode.invalidCredentials, 'The old password is not right')
         const generated: string | undefined = request.newPassword === undefined ? generatePassword() : undefined
         const password: Buffer = request.newPassword ?? Buffer.from(generated!, 'utf8')
-        const modify: OperationContext = this.context(context.session, 'modify', [], context.signal, true)
-        const outcome: ServerOutcome = await this.runWrite(modify, {type: 'modify', dn: target, changes: [{operation: 'replace', attribute: {type: 'userPassword', values: [password]}}]})
-        context.responseControls.push(...modify.responseControls)
+        //The modify keeps the password policy request control, and tells the policy who changes the password
+        const modify: OperationContext = this.context(context.session, 'modify', context.controls.filter((control: Control): boolean => control.oid === PasswordPolicyRequestControl.oid), context.signal, true)
+        modify.state.set(PASSWORD_CHANGE, {self: identity !== undefined && identity.equals(target, this.schema), oldGiven: request.oldPassword !== undefined})
+        let outcome: ServerOutcome
+        try {
+            outcome = await this.runWrite(modify, {type: 'modify', dn: target, changes: [{operation: 'replace', attribute: {type: 'userPassword', values: [password]}}]})
+        } finally {
+            context.responseControls.push(...modify.responseControls)
+        }
         if (outcome.resultCode !== ResultCode.success) return outcome
         return generated === undefined ? {resultCode: ResultCode.success} : {resultCode: ResultCode.success, responseValue: PasswordModifyResponse.encode({generatedPassword: Buffer.from(generated, 'utf8')})}
     }
@@ -1063,12 +1134,20 @@ export class Pipeline {
             operations: ['add', 'modify'],
             before: async (context: OperationContext, request: ServerRequest): Promise<void> => {
                 if (request.type === 'add') {
+                    const given: Buffer[] = request.entry.attributes.filter((attribute: PartialAttribute): boolean => isPassword(attribute.type)).flatMap((attribute: PartialAttribute): Buffer[] => attribute.values)
+                    //The password policy checks the passwords in clear, before they are hashed
+                    if (this.policy && given.length) {
+                        const state: DirectoryChange[] | undefined = await this.policy.check(context, request.entry.dn, undefined, given, {self: false, oldGiven: false, entryAttributes: request.entry.attributes})
+                        if (state) context.state.set(POLICY_STATE, state)
+                    }
                     request.entry = {dn: request.entry.dn, attributes: await Promise.all(request.entry.attributes.map(async (attribute: PartialAttribute): Promise<PartialAttribute> => isPassword(attribute.type) ? {type: attribute.type, values: await hashed(context, attribute.values)} : attribute))}
                     return
                 }
                 if (request.type !== 'modify' || !request.changes.some((change: {attribute: PartialAttribute}): boolean => isPassword(change.attribute.type))) return
                 let current: DirectoryEntry | undefined
+                let oldGiven: boolean = false
                 const changes: ServerModifyRequest['changes'] = []
+                const newPasswords: Buffer[] = request.changes.filter((change): boolean => isPassword(change.attribute.type) && (change.operation === 'add' || change.operation === 'replace')).flatMap((change): Buffer[] => change.attribute.values)
                 for (const change of request.changes) {
                     if (!isPassword(change.attribute.type) || !change.attribute.values.length) {
                         changes.push(change)
@@ -1085,12 +1164,22 @@ export class Pipeline {
                                 if (match) break
                                 if (await passwords.verify(item, value)) match = item
                             }
+                            if (match) oldGiven = true
                             values.push(match ?? value)
                         }
                         changes.push({operation: 'delete', attribute: {type: change.attribute.type, values: values}})
                     } else {
                         changes.push(change)
                     }
+                }
+                //The password policy checks the new passwords in clear; the engine's own writes (a rehash) are not changes
+                const passwordChange: {self: boolean, oldGiven: boolean} | undefined = context.state.get(PASSWORD_CHANGE) as {self: boolean, oldGiven: boolean} | undefined
+                if (this.policy && newPasswords.length && (!context.internal || passwordChange)) {
+                    current ??= await this.required(mount, context, request.dn)
+                    context.state.set(CURRENT, current)
+                    const identity: DN | undefined = context.session.identity
+                    const state: DirectoryChange[] | undefined = await this.policy.check(context, request.dn, current, newPasswords, passwordChange ?? {self: identity !== undefined && identity.equals(request.dn, schema), oldGiven: oldGiven})
+                    if (state) context.state.set(POLICY_STATE, state)
                 }
                 request.changes = changes
             }
@@ -1111,7 +1200,7 @@ export class Pipeline {
                 if (request.type === 'add') {
                     const admin: boolean = !context.internal && this.access.isAdmin(context.session.identity)
                     const entry: DirectoryEntry = admin ? {dn: request.entry.dn, attributes: request.entry.attributes.filter((attribute: PartialAttribute): boolean => !COMPUTED_OPERATIONAL.has(schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase()))} : request.entry
-                    request.entry = checkEntry(entry, schema, {internal: context.internal, ...admin ? {importable: STORED_OPERATIONAL} : {}})
+                    request.entry = checkEntry(entry, schema, {internal: context.internal, ...admin ? {importable: new Set([...STORED_OPERATIONAL, ...ADMIN_POLICY_STATE])} : {}})
                     return
                 }
                 if (request.type === 'modify') {
@@ -1119,7 +1208,8 @@ export class Pipeline {
                     context.state.set(CURRENT, current)
                     const applied: {entry: DirectoryEntry, changes: DirectoryChange[]} = applyChanges(current, request.changes, schema)
                     const changed: Set<string> = new Set(request.changes.map((change: {attribute: PartialAttribute}): string => schema.primaryName(attributeTypeOf(change.attribute.type)).toLowerCase()))
-                    const result: DirectoryEntry = checkEntry(applied.entry, schema, {internal: context.internal, changed: changed})
+                    const admin: boolean = !context.internal && this.access.isAdmin(context.session.identity)
+                    const result: DirectoryEntry = checkEntry(applied.entry, schema, {internal: context.internal, changed: changed, ...admin ? {importable: ADMIN_POLICY_STATE} : {}})
                     //The structural object class does not change (RFC 4512 §2.4.2)
                     if (changed.has('objectclass') && structuralClassOf(objectClassesOf(current, schema), schema)?.oid !== structuralClassOf(objectClassesOf(result, schema), schema)?.oid) fail(ResultCode.objectClassModsProhibited, 'The structural object class of an entry cannot change')
                     const added: Buffer[] = valuesOfType(result, 'objectClass', schema).filter((value: Buffer): boolean => !valuesOfType(applied.entry, 'objectClass', schema).some((item: Buffer): boolean => item.equals(value)))
@@ -1187,10 +1277,14 @@ export class Pipeline {
                         has('entryuuid') ? undefined : text('entryUUID', randomUUID()),
                         has('structuralobjectclass') || !structural ? undefined : text('structuralObjectClass', structural.names[0] ?? structural.oid)
                     ].filter((attribute: PartialAttribute | undefined): attribute is PartialAttribute => attribute !== undefined))
+                    //The state of the password policy: the attributes it sets
+                    const policyState: DirectoryChange[] = (context.state.get(POLICY_STATE) as DirectoryChange[] | undefined) ?? []
+                    for (const change of policyState) if (change.attribute.values.length) request.entry.attributes.push(change.attribute)
                     return
                 }
                 if (request.type === 'modify') {
                     (request.changes as DirectoryChange[]).push({operation: 'replace', attribute: text('modifyTimestamp', now)}, {operation: 'replace', attribute: text('modifiersName', modifier(context))})
+                    ;(request.changes as DirectoryChange[]).push(...(context.state.get(POLICY_STATE) as DirectoryChange[] | undefined) ?? [])
                     return
                 }
                 if (request.type === 'modifyDN') {
