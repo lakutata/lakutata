@@ -51,6 +51,11 @@ export interface ServerSession {
      */
     readonly remotePort?: number
     /**
+     * Whether the connection comes over a Unix socket of this machine (ldapi): it never leaves the machine, so a
+     * password is taken over it as over TLS
+     */
+    readonly local?: boolean
+    /**
      * Whether the connection runs over TLS (an in-process connection counts as secure)
      */
     readonly secure: boolean

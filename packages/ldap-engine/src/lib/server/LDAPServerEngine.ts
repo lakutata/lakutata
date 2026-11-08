@@ -1,5 +1,6 @@
 import {EventEmitter} from 'node:events'
-import {createServer, type Server, type Socket} from 'node:net'
+import {chmod, lstat, unlink} from 'node:fs/promises'
+import {createConnection, createServer, type Server, type Socket} from 'node:net'
 import * as tls from 'node:tls'
 import {LDAPUsageException} from '../../exceptions/LDAPUsageException.js'
 import {DN} from '../dn/DN.js'
@@ -156,6 +157,24 @@ export interface ListenOptions {
 }
 
 /**
+ * Where a server listens for the clients of this machine: a Unix socket (ldapi, which SSSD 2.9 and later, nslcd and
+ * OpenLDAP's tools connect to as `ldapi://%2Frun%2Fdirectory%2Fldapi`)
+ */
+export interface SocketListenOptions {
+    /**
+     * The path of the socket, in a directory that exists: at most 107 bytes on Linux, 103 elsewhere. A socket a stopped
+     * server left there is replaced; anything else there fails the listen.
+     */
+    path: string
+    /**
+     * The permissions of the socket, which decide who may connect (`0o666`: every user of the machine; `0o660`: the
+     * group of the process too), set once it listens; by default those the umask gives (`0o755` for the umask 022: the
+     * user of the process alone)
+     */
+    mode?: number
+}
+
+/**
  * The default limits
  */
 const LIMITS: Required<ServerLimits> = {
@@ -290,14 +309,37 @@ function contributionsOf(options: LDAPServerEngineOptions, passwords: PasswordSc
 }
 
 /**
+ * Remove the socket a stopped server left at a path: one that refuses connections. Anything else is left there, for the
+ * listen to fail on.
+ * @param path The path.
+ */
+async function removeStaleSocket(path: string): Promise<void> {
+    try {
+        if (!(await lstat(path)).isSocket()) return
+    } catch {
+        return
+    }
+    const refused: boolean = await new Promise<boolean>((resolve: (refused: boolean) => void): void => {
+        const probe: Socket = createConnection(path)
+        probe.once('connect', (): void => {
+            probe.destroy()
+            resolve(false)
+        })
+        probe.once('error', (error: NodeJS.ErrnoException): void => resolve(error.code === 'ECONNREFUSED'))
+    })
+    if (refused) await unlink(path)
+}
+
+/**
  * An LDAP server: the processing of the requests (the routing to the backends, the plugins and the interceptors, the
  * schema, the access control, the passwords, the root DSE and the subschema), its network connections (`listen()`, or
  * the sockets given to `handleConnection()`), and its in-process connections (`connect()`), which need no network.
  * `start()` starts the plugins, which `listen()` does first. Made by `createLDAPServer()`.
  *
- * Its `events`: `connection` and `disconnect` (a session ID), `bind` (a session, a DN, a method), `bindFailure`,
- * `operation` (a session, the operation, the DN, the result code, the milliseconds), `startTLS`, `connectionError`, and
- * `error` for an error of a backend or an interceptor that is not a result.
+ * Its `events`: `connection` (a session ID, the address of the client or `local`), `disconnect` (a session ID), `bind`
+ * (a session, a DN, a method), `bindFailure`, `operation` (a session, the operation, the DN, the result code, the
+ * milliseconds), `startTLS`, `connectionError`, and `error` for an error of a backend or an interceptor that is not a
+ * result.
  * @example
  * ```typescript
  * import {createLDAPServer, MemoryBackend, type LDAPServerEngine} from '@lakutata/ldap-engine'
@@ -439,11 +481,20 @@ export class LDAPServerEngine implements LDAPPluginHost {
     }
 
     /**
+     * Listen on a Unix socket (ldapi): its connections never leave the machine, so a password is taken over them as over
+     * TLS (whatever `plaintextBind` says), and SASL PLAIN is offered
+     * @param options The path of the socket, its permissions.
+     * @returns The path.
+     */
+    public async listen(options: SocketListenOptions): Promise<string>
+    /**
      * Listen on a port: LDAP (StartTLS when TLS is configured), or LDAPS with `secure`
      * @param options The port, the address, whether it is LDAPS.
      * @returns The port listened on (the one given, or the one chosen for 0).
      */
-    public async listen(options: ListenOptions = {}): Promise<number> {
+    public async listen(options?: ListenOptions): Promise<number>
+    public async listen(options: ListenOptions | SocketListenOptions = {}): Promise<number | string> {
+        if ('path' in options) return this.listenOnSocket(options as SocketListenOptions & ListenOptions)
         if (options.secure && !this.secureContext) throw new LDAPUsageException('LDAPS needs the tls option')
         await this.start()
         const server: Server = options.secure ? tls.createServer({...this.secureOptions, requestCert: this.host.requestCert, rejectUnauthorized: false}) : createServer()
@@ -461,26 +512,60 @@ export class LDAPServerEngine implements LDAPPluginHost {
     }
 
     /**
+     * Listen on a Unix socket
+     * @param options The path of the socket, its permissions.
+     */
+    protected async listenOnSocket(options: SocketListenOptions & ListenOptions): Promise<string> {
+        const path: string = options.path
+        if (options.port !== undefined || options.host !== undefined || options.secure !== undefined) throw new LDAPUsageException('A Unix socket is given by its path alone, without a port, a host or secure')
+        if (process.platform === 'win32') throw new LDAPUsageException('Unix sockets are not served on Windows, where a path names a pipe')
+        if (typeof path !== 'string' || !path) throw new LDAPUsageException('The path of a Unix socket must be a string')
+        const limit: number = process.platform === 'linux' ? 107 : 103
+        if (Buffer.byteLength(path) > limit) throw new LDAPUsageException(`The path of a Unix socket has at most ${limit} bytes here: ${path}`)
+        if (options.mode !== undefined && (!Number.isInteger(options.mode) || options.mode < 0 || options.mode > 0o777)) throw new LDAPUsageException('The mode of a Unix socket is a number from 0 to 0o777')
+        await this.start()
+        await removeStaleSocket(path)
+        const server: Server = createServer()
+        this.attach(server)
+        await new Promise<void>((resolve: () => void, reject: (error: Error) => void): void => {
+            server.once('error', reject)
+            server.listen(path, (): void => {
+                server.removeListener('error', reject)
+                resolve()
+            })
+        })
+        try {
+            if (options.mode !== undefined) await chmod(path, options.mode)
+        } catch (error) {
+            await new Promise((resolve: (value: unknown) => void): unknown => server.close(resolve))
+            throw error
+        }
+        this.servers.add(server)
+        return path
+    }
+
+    /**
      * Serve the connections of a server made elsewhere (a `net.Server`, or a `tls.Server` for LDAPS); the server is
-     * not closed by `close()`, its connections are
+     * not closed by `close()`, its connections are. The connections of a server listening on a path are local.
      * @param server The server.
      */
     public attach(server: Server): void {
-        server.on(server instanceof tls.Server ? 'secureConnection' : 'connection', (socket: Socket): void => this.handleConnection(socket))
+        server.on(server instanceof tls.Server ? 'secureConnection' : 'connection', (socket: Socket): void => this.handleConnection(socket, {local: typeof server.address() === 'string'}))
     }
 
     /**
      * Serve a socket accepted elsewhere (a `tls.TLSSocket` for LDAPS)
      * @param socket The socket.
+     * @param options Whether it comes over a Unix socket of this machine (`local`), which takes passwords as TLS does.
      */
-    public handleConnection(socket: Socket): void {
+    public handleConnection(socket: Socket, options: {local?: boolean} = {}): void {
         if (this.connections.size >= this.limits.connections) {
             socket.destroy()
             return
         }
-        const connection: ServerConnection = new ServerConnection(this.host, socket)
+        const connection: ServerConnection = new ServerConnection(this.host, socket, options.local === true)
         this.connections.add(connection)
-        this.events.emit('connection', {session: connection.session.id, remoteAddress: connection.session.remoteAddress})
+        this.events.emit('connection', {session: connection.session.id, ...connection.session.local ? {local: true} : {remoteAddress: connection.session.remoteAddress}})
     }
 
     /**

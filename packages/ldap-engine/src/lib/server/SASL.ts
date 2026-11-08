@@ -51,9 +51,14 @@ export interface SASLMechanism {
      */
     readonly name: string
     /**
-     * Whether it is offered only over TLS (true by default)
+     * Whether it is offered only over a connection nobody else reads: TLS, or a Unix socket of this machine (true by
+     * default)
      */
     readonly requiresTLS?: boolean
+    /**
+     * Whether it takes its identity from the certificate of the client, so it is offered over TLS only (EXTERNAL)
+     */
+    readonly requiresCertificate?: boolean
     /**
      * The first step, with the initial credentials of the client
      * @param context The context.
@@ -136,6 +141,7 @@ async function verifyPlain(context: SASLContext, credentials: Buffer, identityOf
 export function externalMechanism(identityOf?: (certificate: Buffer, session: ServerSession) => DN | undefined | Promise<DN | undefined>): SASLMechanism {
     return {
         name: 'EXTERNAL',
+        requiresCertificate: true,
         start: async (context: SASLContext, credentials?: Buffer): Promise<SASLStep> => {
             const certificate: Buffer | undefined = context.session.peerCertificate
             if (!certificate || !identityOf) fail(ResultCode.inappropriateAuthentication, 'No client certificate identifies the session')

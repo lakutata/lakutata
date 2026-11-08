@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
+import {spawn} from 'node:child_process'
 import {once} from 'node:events'
+import {existsSync, lstatSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {createConnection, createServer, type Server, type Socket} from 'node:net'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import {after, before, describe, it} from 'node:test'
 import {
     connectLDAP,
@@ -18,6 +22,7 @@ import {
     LDAPResultException,
     type LDAPServerEngine,
     LDAPTimeoutException,
+    LDAPUsageException,
     MemoryBackend,
     MessageReader,
     type SearchContext
@@ -32,9 +37,9 @@ const servers: LDAPServerEngine[] = []
 const clients: LDAPClientConnection[] = []
 
 /**
- * A server listening on a free port of the loopback, with a directory of a few people
+ * A server with a directory of a few people, not listening
  */
-async function serve(options: Partial<Parameters<typeof createLDAPServer>[0]> = {}, people: number = 5): Promise<{server: LDAPServerEngine, url: string, port: number}> {
+async function directory(options: Partial<Parameters<typeof createLDAPServer>[0]> = {}, people: number = 5): Promise<LDAPServerEngine> {
     const server: LDAPServerEngine = createLDAPServer({backends: [new MemoryBackend(BASE)], access: {admins: [ADMIN]}, passwords: {iterations: 1000}, bindThrottle: {delay: 0}, tls: {cert: CERTIFICATE, key: KEY}, ...options})
     servers.push(server)
     const admin = server.connect({as: ADMIN})
@@ -42,6 +47,14 @@ async function serve(options: Partial<Parameters<typeof createLDAPServer>[0]> = 
     await admin.add(`ou=people,${BASE}`, {objectClass: 'organizationalUnit', ou: 'people'})
     for (let index: number = 0; index < people; index++) await admin.add(`uid=user${index},ou=people,${BASE}`, {objectClass: 'inetOrgPerson', uid: `user${index}`, cn: `User ${index}`, sn: 'S', userPassword: `password${index}`})
     await admin.add(ADMIN.replace(`,${BASE}`, `,${BASE}`), {objectClass: ['organizationalRole', 'simpleSecurityObject'], cn: 'admin', userPassword: 'secret'})
+    return server
+}
+
+/**
+ * A server listening on a free port of the loopback, with a directory of a few people
+ */
+async function serve(options: Partial<Parameters<typeof createLDAPServer>[0]> = {}, people: number = 5): Promise<{server: LDAPServerEngine, url: string, port: number}> {
+    const server: LDAPServerEngine = await directory(options, people)
     const port: number = await server.listen({port: 0, host: '127.0.0.1'})
     return {server: server, url: `ldap://127.0.0.1:${port}`, port: port}
 }
@@ -168,6 +181,84 @@ describe('the server engine on the network', () => {
         const connection: LDAPClientConnection = await client(`ldap://127.0.0.1:${address.port}`)
         await connection.bind(`uid=user4,ou=people,${BASE}`, 'password4')
         assert.equal(await connection.whoAmI(), `dn:uid=user4,ou=people,${BASE}`)
+        await connection.close()
+        await new Promise<void>((resolve) => external.close(() => resolve()))
+    })
+})
+
+describe('the server on a Unix socket (ldapi)', {skip: process.platform === 'win32' ? 'no Unix sockets' : false}, () => {
+    after(closeAll)
+
+    let count: number = 0
+
+    /**
+     * A path for a socket, nothing there
+     */
+    function socketPath(): string {
+        const path: string = join(tmpdir(), `lakutata-ldapi-${process.pid}-${count++}.sock`)
+        rmSync(path, {force: true})
+        return path
+    }
+
+    it('takes a password over it whatever plaintextBind says, offers PLAIN there but not EXTERNAL, and removes it on close', async () => {
+        const server: LDAPServerEngine = await directory({plaintextBind: 'none'})
+        const connected: unknown[] = []
+        server.events.on('connection', (event: unknown) => connected.push(event))
+        const path: string = socketPath()
+        assert.equal(await server.listen({path: path, mode: 0o600}), path)
+        assert.equal(lstatSync(path).isSocket(), true)
+        assert.equal(lstatSync(path).mode & 0o777, 0o600)
+        const connection: LDAPClientConnection = await client(`ldapi://${encodeURIComponent(path)}`)
+        await connection.bind(`uid=user1,ou=people,${BASE}`, 'password1')
+        assert.equal(await connection.whoAmI(), `dn:uid=user1,ou=people,${BASE}`)
+        assert.deepEqual((await connection.search('', {scope: 'base', attributes: ['supportedSASLMechanisms']})).entries[0].get('supportedSASLMechanisms'), ['PLAIN'])
+        await connection.saslBind('PLAIN', Buffer.from(`\u0000uid=user2,ou=people,${BASE}\u0000password2`))
+        assert.equal(await connection.whoAmI(), `dn:uid=user2,ou=people,${BASE}`)
+        await assert.rejects(connection.saslBind('EXTERNAL'), (error: unknown) => error instanceof LDAPResultException && error.code === 7)
+        assert.equal((connected[0] as {local?: boolean}).local, true)
+        await connection.close()
+        await server.close()
+        assert.equal(existsSync(path), false)
+    })
+
+    it('replaces a socket a stopped server left, and leaves a live socket and other files alone', async () => {
+        const path: string = socketPath()
+        //A process listening on the path, killed: its socket stays
+        const child = spawn(process.execPath, ['-e', 'require("node:net").createServer().listen(process.argv[1], () => console.log("listening"))', path], {stdio: ['ignore', 'pipe', 'inherit'], env: {...process.env, ELECTRON_RUN_AS_NODE: '1'}})
+        await once(child.stdout!, 'data')
+        child.kill('SIGKILL')
+        await once(child, 'exit')
+        assert.equal(lstatSync(path).isSocket(), true)
+        const server: LDAPServerEngine = await directory()
+        await server.listen({path: path})
+        const connection: LDAPClientConnection = await client(`ldapi://${encodeURIComponent(path)}`)
+        await connection.bind(`uid=user3,ou=people,${BASE}`, 'password3')
+        const other: LDAPServerEngine = await directory()
+        await assert.rejects(other.listen({path: path}), (error: NodeJS.ErrnoException) => error.code === 'EADDRINUSE')
+        assert.equal(await connection.whoAmI(), `dn:uid=user3,ou=people,${BASE}`)
+        const file: string = socketPath()
+        writeFileSync(file, 'kept')
+        await assert.rejects(other.listen({path: file}), (error: NodeJS.ErrnoException) => error.code === 'EADDRINUSE')
+        assert.equal(readFileSync(file, 'utf8'), 'kept')
+        rmSync(file)
+        await other.close()
+    })
+
+    it('refuses a path too long, a path with a port, and a mode out of range', async () => {
+        const server: LDAPServerEngine = await directory()
+        await assert.rejects(server.listen({path: join(tmpdir(), 'x'.repeat(120))}), LDAPUsageException)
+        await assert.rejects(server.listen({path: socketPath(), port: 389} as never), LDAPUsageException)
+        await assert.rejects(server.listen({path: socketPath(), mode: 0o1777}), LDAPUsageException)
+    })
+
+    it('serves the connections of a server listening on a path made elsewhere as local', async () => {
+        const server: LDAPServerEngine = await directory({plaintextBind: 'none'})
+        const external: Server = createServer()
+        server.attach(external)
+        const path: string = socketPath()
+        await new Promise<void>((resolve) => external.listen(path, resolve))
+        const connection: LDAPClientConnection = await client(`ldapi://${encodeURIComponent(path)}`)
+        await connection.bind(`uid=user4,ou=people,${BASE}`, 'password4')
         await connection.close()
         await new Promise<void>((resolve) => external.close(() => resolve()))
     })

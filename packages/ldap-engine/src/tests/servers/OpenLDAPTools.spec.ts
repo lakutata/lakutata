@@ -1,5 +1,7 @@
 //The server against the command line tools of OpenLDAP, run in a container (test-env/openldap/tools.sh gives its name)
-//reaching the server on this machine as host.docker.internal; skipped without it
+//reaching the server on this machine as host.docker.internal; skipped without it. With LDAP_TOOLS_SOCKETS (a directory)
+//and LDAP_TOOLS_IMAGE, the server listens on a Unix socket there too, which containers of the image mount (Docker
+//Desktop passes on a socket mounted as a file, not one made later in a mounted directory)
 import assert from 'node:assert/strict'
 import {execFile} from 'node:child_process'
 import {after, before, describe, it} from 'node:test'
@@ -9,6 +11,8 @@ import {CERTIFICATE, KEY} from '../support/Certificate.js'
 const CONTAINER: string | undefined = process.env.LDAP_TOOLS_CONTAINER
 const HOST: string = process.env.LDAP_TOOLS_HOST ?? 'host.docker.internal'
 const LISTEN: string = process.env.LDAP_TOOLS_LISTEN ?? '127.0.0.1'
+const SOCKETS: string | undefined = process.env.LDAP_TOOLS_SOCKETS
+const IMAGE: string | undefined = process.env.LDAP_TOOLS_IMAGE
 const BASE: string = 'dc=example,dc=com'
 const ADMIN: string = 'cn=admin,dc=example,dc=com'
 
@@ -25,6 +29,19 @@ function run(tool: string, args: string[], input?: string): Promise<{code: numbe
             resolve({code: error ? (typeof (error as {code?: unknown}).code === 'number' ? (error as {code: number}).code : 1) : 0, stdout: stdout, stderr: stderr})
         })
         child.stdin?.end(input ?? '')
+    })
+}
+
+/**
+ * Run a tool in a container of its own mounting the Unix socket of the server as /run/ldapi: its exit code and its output
+ * @param tool The tool.
+ * @param args Its arguments.
+ */
+function runOnSocket(tool: string, args: string[]): Promise<{code: number, stdout: string, stderr: string}> {
+    return new Promise((resolve) => {
+        execFile('docker', ['run', '--rm', '-v', `${SOCKETS}/ldapi:/run/ldapi`, '--entrypoint', tool, IMAGE!, ...args], {timeout: 60000}, (error, stdout, stderr) => {
+            resolve({code: error ? (typeof (error as {code?: unknown}).code === 'number' ? (error as {code: number}).code : 1) : 0, stdout: stdout, stderr: stderr})
+        })
     })
 }
 
@@ -50,6 +67,7 @@ describe('against the command line tools of OpenLDAP', {skip: !CONTAINER}, () =>
         const securePort: number = await server.listen({port: 0, host: LISTEN, secure: true})
         ldap = `ldap://${HOST}:${port}`
         ldaps = `ldaps://${HOST}:${securePort}`
+        if (SOCKETS) await server.listen({path: `${SOCKETS}/ldapi`, mode: 0o666})
     })
 
     after(async () => {
@@ -141,5 +159,16 @@ describe('against the command line tools of OpenLDAP', {skip: !CONTAINER}, () =>
         //ldapexop exits with 1 whatever the result code, which it prints
         const unknown = await run('ldapexop', [...admin(), '1.2.3.4'])
         assert.match(unknown.stderr, /Protocol error \(2\)/)
+    })
+
+    it('serves the tools over a Unix socket (ldapi): a simple bind, SASL PLAIN, and no EXTERNAL offered', {skip: !SOCKETS || !IMAGE}, async () => {
+        const ldapi: string = 'ldapi://%2Frun%2Fldapi'
+        const simple = await runOnSocket('ldapwhoami', ['-x', '-H', ldapi, '-D', ADMIN, '-w', 'secret'])
+        assert.equal(simple.stdout.trim(), `dn:${ADMIN}`, simple.stderr)
+        const root = await runOnSocket('ldapsearch', ['-x', '-H', ldapi, '-LLL', '-b', '', '-s', 'base', 'supportedSASLMechanisms'])
+        assert.equal(root.code, 0, root.stderr)
+        assert.deepEqual(root.stdout.split('\n').filter((line) => line.startsWith('supportedSASLMechanisms:')), ['supportedSASLMechanisms: PLAIN'])
+        const plain = await runOnSocket('ldapwhoami', ['-H', ldapi, '-Y', 'PLAIN', '-U', `dn:${ADMIN}`, '-w', 'secret'])
+        assert.equal(plain.stdout.trim(), `dn:${ADMIN}`, plain.stderr)
     })
 })

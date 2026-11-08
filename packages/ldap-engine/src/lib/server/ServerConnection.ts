@@ -69,7 +69,13 @@ export class ServerConnection {
 
     protected readonly onData = (chunk: Buffer): void => this.read(chunk)
 
-    constructor(protected readonly host: ConnectionHost, socket: Socket) {
+    /**
+     * A connection
+     * @param host The server.
+     * @param socket The socket.
+     * @param local Whether it comes over a Unix socket of this machine.
+     */
+    constructor(protected readonly host: ConnectionHost, socket: Socket, local: boolean = false) {
         this.socket = socket
         const secure: boolean = socket instanceof tls.TLSSocket
         this.session = {
@@ -77,6 +83,7 @@ export class ServerConnection {
             inProcess: false,
             remoteAddress: socket.remoteAddress,
             remotePort: socket.remotePort,
+            ...local ? {local: true} : {},
             secure: secure,
             paged: new Map(),
             state: new Map()

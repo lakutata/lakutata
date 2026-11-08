@@ -610,7 +610,10 @@ export class Pipeline {
      * @param session The session.
      */
     public saslMechanisms(session: ServerSession | undefined): string[] {
-        return this.options.sasl.filter((mechanism: SASLMechanism): boolean => mechanism.requiresTLS === false || (session?.secure ?? false)).map((mechanism: SASLMechanism): string => mechanism.name)
+        return this.options.sasl.filter((mechanism: SASLMechanism): boolean => {
+            if (mechanism.requiresCertificate) return session?.secure === true
+            return mechanism.requiresTLS === false || session?.secure === true || session?.local === true
+        }).map((mechanism: SASLMechanism): string => mechanism.name)
     }
 
     /**
@@ -983,7 +986,7 @@ export class Pipeline {
             if (this.options.allowUnauthenticatedBind) return {resultCode: ResultCode.success}
             fail(ResultCode.unwillingToPerform, 'Unauthenticated binds are not allowed')
         }
-        if (!session.secure && !session.inProcess && (this.options.plaintextBind === 'none' || (this.options.plaintextBind === 'loopback' && !isLoopback(session.remoteAddress)))) fail(ResultCode.confidentialityRequired, 'A password is sent only over TLS')
+        if (!session.secure && !session.inProcess && !session.local && (this.options.plaintextBind === 'none' || (this.options.plaintextBind === 'loopback' && !isLoopback(session.remoteAddress)))) fail(ResultCode.confidentialityRequired, 'A password is sent only over TLS or a Unix socket of this machine')
         const bindRequest: ServerBindRequest = {type: 'bind', name: request.name, dn: dn, authentication: {type: 'simple', password: password}}
         const mount: Mount | undefined = this.route(dn)
         const verify = async (): Promise<ServerOutcome> => {
