@@ -38,6 +38,12 @@ export class BerError extends Error {
  * rather than by a fatal TextDecoder, which Node.js built without ICU does not have, nor buffer.isUtf8 (Node.js 18.14).
  * @param bytes The bytes.
  * @param start Where to start.
+ * @example
+ * ```typescript
+ * import {isUTF8} from '@lakutata/ldap-engine'
+ *
+ * console.log(isUTF8(Buffer.from('Grüße')), isUTF8(Buffer.from([0xc3, 0x28]))) //true false
+ * ```
  */
 export function isUTF8(bytes: Uint8Array, start: number = 0): boolean {
     const length: number = bytes.length

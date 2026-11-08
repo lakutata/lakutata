@@ -269,6 +269,19 @@ export interface LDAPBackend {
      */
     readonly capabilities?: BackendCapabilities
     /**
+     * Schema files the backend needs (the virtual attributes it gives, as memberOf), loaded after those of the server
+     */
+    readonly schemaFiles?: readonly {name: string, text: string}[]
+    /**
+     * Interceptors of the backend, in the chain of its suffix
+     */
+    readonly interceptors?: readonly InterceptorPlacement[]
+    /**
+     * Where the bind throttle keeps its states, shared by the instances of the server (the first backend having one
+     * gives it, unless the server is given its own)
+     */
+    readonly throttleStore?: import('./Throttle.js').ThrottleStore
+    /**
      * An entry by its DN, undefined when there is none
      * @param context The context of the operation.
      * @param dn The DN.

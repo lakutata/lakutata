@@ -421,6 +421,11 @@ export class LDAPServer extends Component {
         })
         this.#engine = engine
         engine.events.on('error', (error: unknown): void => this.report(error, 'An error of the LDAP server'))
+        //The backends creating their first entries (the directory backend's initialize)
+        for (const backend of backends) {
+            const initializing: {initializeWith?: (engine: LDAPServerEngine) => Promise<void>} = backend as {initializeWith?: (engine: LDAPServerEngine) => Promise<void>}
+            if (typeof initializing.initializeWith === 'function') await initializing.initializeWith(engine)
+        }
         if (interfaces) {
             const options: InterfaceListeningOptions = {interface: this.interface, strict: this.strict, family: this.family, onError: this.onError, interfaceListening: this.interfaceListening}
             const plain: Server = createServer()

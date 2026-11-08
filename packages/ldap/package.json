@@ -49,7 +49,8 @@
     "build:js": "npm run build:cjs && npm run build:esm && npm run build:cjs-pkg",
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
-    "test:unit": "npm run compile && node --test --test-timeout=60000 \"dist/esm/tests/**/*.spec.js\""
+    "test:unit": "npm run compile && node --test --test-timeout=60000 \"dist/esm/tests/*.spec.js\"",
+    "test:databases": "npm run compile && sh test-env/databases/run.sh"
   },
   "engines": {
     "node": ">=18.10.0"
@@ -66,6 +67,7 @@
   },
   "peerDependencies": {
     "@lakutata/core": "~3.2.0",
+    "@lakutata/orm": "~3.2.0",
     "@lakutata/netif": "~3.2.0"
   },
   "peerDependenciesMeta": {
@@ -74,6 +76,7 @@
     }
   },
   "devDependencies": {
-    "@lakutata/netif": "~3.2.0"
+    "@lakutata/netif": "~3.2.0",
+    "@lakutata/orm": "~3.2.0"
   }
 }

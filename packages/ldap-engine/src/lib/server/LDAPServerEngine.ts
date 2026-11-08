@@ -174,7 +174,7 @@ const LIMITS: Required<ServerLimits> = {
  * The schema of the options, with the files it is loaded from
  * @param option The schema option.
  */
-function schemaOf(option: Schema | ServerSchemaOptions | undefined): {schema: Schema, files: {name: string, schema: Schema}[]} {
+function schemaOf(option: Schema | ServerSchemaOptions | undefined, backends: LDAPBackend[]): {schema: Schema, files: {name: string, schema: Schema}[]} {
     if (option instanceof Schema) return {schema: option, files: [{name: 'schema', schema: option}]}
     const names: BundledSchemaName[] = ['system', ...(option?.bundled ?? BUNDLED_SCHEMA_NAMES).filter((name: BundledSchemaName): boolean => name !== 'system')]
     const schema: Schema = new Schema()
@@ -183,7 +183,7 @@ function schemaOf(option: Schema | ServerSchemaOptions | undefined): {schema: Sc
         schema.load(BUNDLED_SCHEMAS[name], `the bundled schema ${name}`)
         files.push({name: name, schema: new Schema().load(BUNDLED_SCHEMAS[name], name)})
     }
-    for (const file of option?.files ?? []) {
+    for (const file of [...option?.files ?? [], ...backends.flatMap((backend: LDAPBackend): readonly {name: string, text: string}[] => backend.schemaFiles ?? [])]) {
         schema.load(file.text, file.name)
         files.push({name: file.name, schema: new Schema().load(file.text, file.name)})
     }
@@ -273,7 +273,7 @@ export class LDAPServerEngine {
         if (!options.backends?.length) throw new LDAPUsageException('A server needs at least one backend')
         //Errors are events: an error nobody listens to does not end the process
         this.events.on('error', (): void => undefined)
-        const {schema, files} = schemaOf(options.schema)
+        const {schema, files} = schemaOf(options.schema, options.backends)
         this.schema = schema
         this.limits = {...LIMITS, ...options.limits}
         const {requestCert, ...secureOptions} = options.tls ?? {}
@@ -289,7 +289,7 @@ export class LDAPServerEngine {
             passwords: options.passwords instanceof PasswordSchemes ? options.passwords : new PasswordSchemes(options.passwords ?? {}),
             ...options.passwordPolicy ? {passwordPolicy: options.passwordPolicy} : {},
             rehashOnBind: options.rehashOnBind !== false,
-            throttle: new BindThrottle(options.bindThrottle),
+            throttle: new BindThrottle({...options.bindThrottle, ...!options.bindThrottle?.store && options.backends.some((backend: LDAPBackend): boolean => backend.throttleStore !== undefined) ? {store: options.backends.find((backend: LDAPBackend): boolean => backend.throttleStore !== undefined)!.throttleStore} : {}}),
             plaintextBind: options.plaintextBind ?? 'all',
             allowUnauthenticatedBind: options.allowUnauthenticatedBind === true,
             limits: this.limits,

@@ -355,7 +355,7 @@ export class Pipeline {
                 pagedOf: (context: OperationContext): PagedStates => (context.session as SessionState).paged
             })
         ]
-        for (const placement of this.options.interceptors) {
+        for (const placement of [...mount.backend.interceptors ?? [], ...this.options.interceptors]) {
             if (placement.suffixes && !placement.suffixes.some((suffix: string): boolean => mount.suffix.equals(suffix, this.schema))) continue
             const anchor: string | undefined = placement.before ?? placement.after
             const index: number = anchor === undefined ? -1 : chain.findIndex((interceptor: LDAPInterceptor): boolean => interceptor.name === anchor)
