@@ -27,7 +27,10 @@ export function valuesBytes(values: AttributeValue | AttributeValue[] | undefine
  */
 export function attributesOf(attributes: AttributeValues | PartialAttribute[]): PartialAttribute[] {
     if (Array.isArray(attributes)) return attributes
-    return Object.entries(attributes).map(([type, values]: [string, AttributeValue | AttributeValue[]]): PartialAttribute => ({type: type, values: valuesBytes(values)}))
+    //An attribute without a value (undefined, null, an empty array) is left out: an entry cannot have one
+    return Object.entries(attributes)
+        .filter(([, values]: [string, AttributeValue | AttributeValue[] | null | undefined]): boolean => values !== undefined && values !== null && !(Array.isArray(values) && !values.length))
+        .map(([type, values]: [string, AttributeValue | AttributeValue[]]): PartialAttribute => ({type: type, values: valuesBytes(values)}))
 }
 
 /**

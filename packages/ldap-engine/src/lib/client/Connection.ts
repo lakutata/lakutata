@@ -73,7 +73,8 @@ export interface SearchOptions extends OperationOptions {
     /**
      * The paged results control (RFC 2696), not critical: on by default with pages of 500 entries (Active Directory
      * returns at most 1000 entries without it); `false` to search in one request. A search of the base entry is not
-     * paged, nor one whose `sizeLimit` is not above the page size (servers ignore the paging at or above the limit).
+     * paged, nor one whose `sizeLimit` is not above the page size (servers ignore the paging at or above the limit), nor
+     * one whose `controls` hold a paged results control of the caller's own.
      */
     paged?: boolean | {pageSize?: number}
     /**

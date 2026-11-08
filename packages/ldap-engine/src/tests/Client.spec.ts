@@ -103,12 +103,16 @@ describe('the connection', () => {
         assert.equal((searches[0].protocolOp as SearchRequest).filter.type, 'equality')
     })
 
-    it('does not page a base search, nor one whose size limit is not above the page size', async () => {
+    it('does not page a base search, nor one whose size limit is not above the page size, nor one paged by the caller', async () => {
         const started: TestServer = await server({searchRequest: pagedSearch(3) as never})
         const connection: LDAPClientConnection = await connect(started.url)
         await connection.search('dc=example', {scope: 'base'})
         await connection.search('dc=example', {sizeLimit: 100})
         for (const message of started.received.filter((item) => item.protocolOp.type === 'searchRequest')) assert.equal(findControl(message.controls, PagedResultsControl), undefined)
+        await connection.search('dc=example', {controls: [PagedResultsControl.encode({size: 2, cookie: Buffer.alloc(0)})]})
+        const own = started.received.filter((item) => item.protocolOp.type === 'searchRequest').at(-1)!
+        assert.equal(own.controls?.filter((control) => control.oid === PagedResultsControl.oid).length, 1)
+        assert.equal(PagedResultsControl.decode(findControl(own.controls, PagedResultsControl)!).size, 2)
     })
 
     it('iterates the entries, and ends the paging on the server when the loop is left early', async () => {
@@ -237,13 +241,14 @@ describe('the connection', () => {
             compareRequest: (request, message, session) => session.reply(message.messageId, {type: 'compareResponse', resultCode: 5, matchedDN: '', diagnosticMessage: ''})
         })
         const connection: LDAPClientConnection = await connect(started.url)
-        await connection.add('cn=x,dc=example', {objectClass: ['top', 'device'], cn: 'x', serialNumber: 42, enabled: true})
+        await connection.add('cn=x,dc=example', {objectClass: ['top', 'device'], cn: 'x', serialNumber: 42, enabled: true, description: undefined as never, seeAlso: []})
         await connection.modify('cn=x,dc=example', [{operation: 'replace', attribute: 'description', values: 'a'}, {operation: 'delete', attribute: 'seeAlso'}])
         await assert.rejects(connection.delete('cn=y,dc=example'), (error: unknown) => error instanceof LDAPNoSuchObjectException && error.matchedDN === 'dc=example')
         await connection.modifyDN('cn=x,dc=example', 'cn=z', {newSuperior: 'ou=devices,dc=example'})
         assert.equal(await connection.compare('cn=x,dc=example', 'cn', 'y'), false)
         const add = started.received.find((message) => message.protocolOp.type === 'addRequest')!.protocolOp
         assert.ok(add.type === 'addRequest' && add.attributes.find((attribute) => attribute.type === 'enabled')!.values[0].toString() === 'TRUE')
+        assert.ok(add.type === 'addRequest' && !add.attributes.some((attribute) => attribute.type === 'description' || attribute.type === 'seeAlso'))
         const rename = started.received.find((message) => message.protocolOp.type === 'modifyDNRequest')!.protocolOp
         assert.ok(rename.type === 'modifyDNRequest' && rename.deleteOldRDN && rename.newSuperior === 'ou=devices,dc=example')
     })

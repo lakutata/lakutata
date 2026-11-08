@@ -202,6 +202,8 @@ export abstract class LDAPOperations implements LDAPConnection {
      * @param options The options.
      */
     protected pageSize(options: SearchOptions): number {
+        //A paged results control of the caller's own: the caller pages
+        if (findControl(options.controls, PagedResultsControl)) return 0
         if (options.paged === false || options.window || options.scope === 'base') return 0
         const size: number = typeof options.paged === 'object' && options.paged.pageSize ? options.paged.pageSize : DEFAULT_PAGE_SIZE
         //Servers ignore the paging at or above the size limit, and some answer sizeLimitExceeded instead of a cookie

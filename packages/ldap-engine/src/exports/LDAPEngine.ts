@@ -197,3 +197,4 @@ export {
     stringToSid,
     UserAccountControl
 } from '../lib/client/ActiveDirectory.js'
+export {readSchema} from '../lib/client/ReadSchema.js'
