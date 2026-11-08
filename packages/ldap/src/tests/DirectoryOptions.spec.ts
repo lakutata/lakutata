@@ -122,7 +122,8 @@ describe('the options of the directory backend', {skip: sqliteLoads() ? false : 
         try {
             await container.setNamed('database', Database, {options: {type: 'better-sqlite3', database: ':memory:', entities: [], synchronize: true}})
             await assert.rejects(container.setNamed('ldap', LDAPServer, {port: 0, host: '127.0.0.1', backends: [{class: DirectoryBackend, suffix: 'dc=example', database: 'database'}]}), /entities of the directory backend/)
-            await assert.rejects(container.setNamed('ldap2', LDAPServer, {port: 0, host: '127.0.0.1', backends: [{class: DirectoryBackend, suffix: 'dc=example'}]}), /database/)
+            await assert.rejects(container.setNamed('ldap2', LDAPServer, {port: 0, host: '127.0.0.1', backends: [{class: DirectoryBackend, suffix: 'dc=example'}]}), /needs its database option: the name the application's Database component is registered under/)
+            await assert.rejects(container.setNamed('ldap3', LDAPServer, {port: 0, host: '127.0.0.1', backends: [{class: DirectoryBackend, suffix: 'dc=example', database: 'mainDB'}]}), /finds no Database component named mainDB/)
         } finally {
             await container.destroy()
         }

@@ -186,9 +186,9 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     public readonly suffix: string
 
     /**
-     * The name of the Database component
+     * The name of the Database component, which init() requires
      */
-    @Configurable(DTO.String().required())
+    @Configurable(DTO.String().optional())
     protected readonly database: string
 
     /**
@@ -272,7 +272,12 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     protected async init(): Promise<void> {
         DN.parse(this.suffix)
-        this.#database = await this.getObject<Database>(this.database)
+        if (!this.database) throw new InvalidValueException(`The directory backend of ${this.suffix} needs its database option: the name the application's Database component is registered under (its key in components)`)
+        try {
+            this.#database = await this.getObject<Database>(this.database)
+        } catch (error) {
+            throw new InvalidValueException(`The directory backend of ${this.suffix} finds no Database component named ${this.database}: ${(error as Error).message}`)
+        }
         const type: string = String((this.#database.driver.options as {type?: string}).type)
         this.#valueEntity = this.#database.hasMetadata(LDAPMySQLValueRecord) ? LDAPMySQLValueRecord : LDAPValueRecord
         if (isMySQL(type) && this.#valueEntity !== LDAPMySQLValueRecord) throw new InvalidValueException(`The directory backend on ${type} needs the entities of directoryEntities('${type}')`)
