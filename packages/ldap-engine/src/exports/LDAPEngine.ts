@@ -97,3 +97,38 @@ export {
     type SyncInfoValue,
     WhoAmIResponse
 } from '../lib/extended/Extended.js'
+export {LDAPDNSyntaxException} from '../exceptions/LDAPDNSyntaxException.js'
+export {LDAPSchemaException} from '../exceptions/LDAPSchemaException.js'
+export {LDAPLDIFSyntaxException} from '../exceptions/LDAPLDIFSyntaxException.js'
+export {type AttributeTypeAndValue, DN, type DNNormalizer, type DNParseOptions, escapeDNValue, RDN} from '../lib/dn/DN.js'
+export {
+    type AttributeTypeDefinition,
+    type DefinitionExtensions,
+    type MatchingRuleDefinition,
+    type ObjectClassDefinition,
+    parseAttributeType,
+    parseMatchingRule,
+    parseObjectClass,
+    parseSyntax,
+    stringifyAttributeType,
+    stringifyMatchingRule,
+    stringifyObjectClass,
+    stringifySyntax,
+    type SyntaxDefinition
+} from '../lib/schema/Definitions.js'
+export {formatGeneralizedTime, type MatchingRule, parseGeneralizedTime} from '../lib/schema/MatchingRules.js'
+export type {Syntax} from '../lib/schema/Syntaxes.js'
+export {attributeTypeOf, Schema} from '../lib/schema/Schema.js'
+export {type FilterEntry, matchFilter} from '../lib/filter/Evaluate.js'
+export {
+    type LDIFAddRecord,
+    type LDIFContentRecord,
+    type LDIFDeleteRecord,
+    type LDIFModifyDNRecord,
+    type LDIFModifyRecord,
+    type LDIFParseOptions,
+    type LDIFRecord,
+    type LDIFStringifyOptions,
+    parseLDIF,
+    stringifyLDIF
+} from '../lib/ldif/LDIF.js'
