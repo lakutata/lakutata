@@ -15,7 +15,7 @@ await container.setNamed('ldap', LDAPServer, {
     port: Number(process.env.LDAP_PORT ?? 0),
     ldapiPath: process.argv[3],
     ldapiMode: 0o666,
-    backends: [{class: DirectoryBackend, suffix: BASE, unique: ['uid'], initialize: {admin: {dn: ADMIN, password: 'secret'}}}],
+    backends: [{class: DirectoryBackend, database: 'database', suffix: BASE, unique: ['uid'], initialize: {admin: {dn: ADMIN, password: 'secret'}}}],
     access: {admins: [ADMIN], passwordAdmins: [ADMIN]},
     passwords: {iterations: 10000}
 })

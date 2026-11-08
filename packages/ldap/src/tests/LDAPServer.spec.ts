@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import {existsSync, lstatSync, rmSync} from 'node:fs'
+import {existsSync, lstatSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, it} from 'node:test'
@@ -206,6 +206,23 @@ describe('the LDAPServer component', () => {
             await container.destroy()
         }
         assert.equal(existsSync(path), false)
+    })
+
+    it('loads the schema files of a directory in the order of their names', async () => {
+        const directory: string = mkdtempSync(join(tmpdir(), 'lakutata-schema-'))
+        const definition = (name: string, oid: string, attribute: string): string => `dn: cn=${name},cn=schema,cn=config\nobjectClass: olcSchemaConfig\ncn: ${name}\nolcAttributeTypes: ( 1.3.6.1.4.1.99999.${oid} NAME '${attribute}' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )\n`
+        const container: Container = new Container()
+        try {
+            writeFileSync(join(directory, 'cn={2}devices.ldif'), definition('devices', '2', 'deviceSerial'))
+            await container.setNamed('ldap', LDAPServer, {port: false, schema: {directory: directory}, backends: [new MemoryBackend(BASE)]})
+            assert.ok((await container.get<LDAPServer>('ldap')).engine.schema.attributeType('deviceSerial'))
+            //The same attribute again in a later file: {10} comes after {2}
+            writeFileSync(join(directory, 'cn={10}again.ldif'), definition('again', '10', 'deviceSerial'))
+            await assert.rejects(container.setNamed('ldap2', LDAPServer, {port: false, schema: {directory: directory}, backends: [new MemoryBackend(BASE)]}), /defined in devices and again in again/)
+        } finally {
+            await container.destroy()
+            rmSync(directory, {recursive: true, force: true})
+        }
     })
 
     it('refuses options that do not go together', async () => {

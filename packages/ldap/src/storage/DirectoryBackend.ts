@@ -85,9 +85,10 @@ export interface DirectoryBackendOptions {
      */
     suffix: string
     /**
-     * The name the application's Database component is registered under (`database` by default)
+     * The name the application's Database component is registered under (its key in the components of the
+     * application)
      */
-    database?: string
+    database: string
     /**
      * The group classes and their member attributes (groupOfNames/member, groupOfUniqueNames/uniqueMember and
      * groupOfMembers/member by default)
@@ -153,8 +154,8 @@ function descriptionKey(description: string, schema: Schema): string {
  * decides. It finds the entries with the indexes of the forms of the values (equality, substrings, numbers and
  * times), keeps the DNs that values name pointing at their entries (renamed with them, removed with them), computes
  * memberOf and memberUid when they are read, allocates uidNumber and gidNumber, keeps the time of the last bind, the
- * failed binds and the unique values in the database, and runs each write in a transaction. Add `directoryEntities()`
- * of the type of the database to its entities.
+ * failed binds and the unique values in the database, and runs each write in a transaction. `database` names the
+ * Database component of the application it uses; add `directoryEntities()` of the type of the database to its entities.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
@@ -168,7 +169,7 @@ function descriptionKey(description: string, schema: Schema): string {
  *         database: buildDatabaseOptions({type: 'postgres', url: process.env.DATABASE_URL, entities: directoryEntities('postgres')}),
  *         ldap: buildLDAPServerOptions({
  *             port: 389,
- *             backends: [{class: DirectoryBackend, suffix: 'dc=example,dc=com', initialize: {admin: {dn: 'cn=admin,dc=example,dc=com', password: process.env.LDAP_ADMIN_PASSWORD!}}}],
+ *             backends: [{class: DirectoryBackend, database: 'database', suffix: 'dc=example,dc=com', initialize: {admin: {dn: 'cn=admin,dc=example,dc=com', password: process.env.LDAP_ADMIN_PASSWORD!}}}],
  *             access: {admins: ['cn=admin,dc=example,dc=com']}
  *         })
  *     },
@@ -187,7 +188,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     /**
      * The name of the Database component
      */
-    @Configurable(DTO.String().optional().default('database'))
+    @Configurable(DTO.String().required())
     protected readonly database: string
 
     /**

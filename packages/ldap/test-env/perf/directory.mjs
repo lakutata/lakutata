@@ -17,7 +17,7 @@ await container.setNamed('database', Database, {options: {...database, entities:
 await container.setNamed('ldap', LDAPServer, {
     host: '127.0.0.1',
     port: 0,
-    backends: [{class: DirectoryBackend, suffix: BASE, lastBind: false, initialize: {admin: {dn: ADMIN, password: 'secret'}}}],
+    backends: [{class: DirectoryBackend, database: 'database', suffix: BASE, lastBind: false, initialize: {admin: {dn: ADMIN, password: 'secret'}}}],
     access: {admins: [ADMIN]},
     passwords: {scheme: 'SSHA'},
     rehashOnBind: false,

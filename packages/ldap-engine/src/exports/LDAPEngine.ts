@@ -199,6 +199,7 @@ export {
 } from '../lib/client/ActiveDirectory.js'
 export {readSchema} from '../lib/client/ReadSchema.js'
 export {BUNDLED_SCHEMA_NAMES, BUNDLED_SCHEMAS, bundledSchema, type BundledSchemaName} from '../lib/schema/bundled/Bundled.js'
+export {readSchemaDirectory} from '../lib/schema/SchemaDirectory.js'
 export {type PasswordHashOptions, type PasswordScheme, PasswordSchemes} from '../lib/server/Passwords.js'
 export {type AccessOptions, type AccessRequest} from '../lib/server/Access.js'
 export {createHandlerBackend, type HandlerBackendOptions, type HandlerEntry} from '../lib/server/HandlerBackend.js'

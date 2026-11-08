@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
+import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import {describe, it} from 'node:test'
-import {BUNDLED_SCHEMAS, bundledSchema, DN, Schema} from '../exports/LDAPEngine.js'
+import {BUNDLED_SCHEMAS, bundledSchema, DN, readSchemaDirectory, Schema} from '../exports/LDAPEngine.js'
 
 describe('the bundled schema', () => {
     it('defines everything it refers to, and loads the files asked for', () => {
@@ -38,5 +41,27 @@ describe('the bundled schema', () => {
         assert.ok(schema.isSingleValued('displayName') && !schema.isSingleValued('mail'))
         assert.equal(schema.equality('mail')?.names[0], 'caseIgnoreIA5Match')
         assert.equal(schema.objectClass('groupOfNames')?.must?.includes('member'), true)
+    })
+})
+
+describe('the schema files of a directory', () => {
+    it('reads the .ldif and .schema files in the order of their names, the numbers by their value', async () => {
+        const directory: string = mkdtempSync(join(tmpdir(), 'lakutata-schema-'))
+        try {
+            const definition = (name: string, oid: string): string => `dn: cn=${name},cn=schema,cn=config\nobjectClass: olcSchemaConfig\ncn: ${name}\nolcAttributeTypes: ( 1.3.6.1.4.1.99999.${oid} NAME '${name}Attribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )\n`
+            writeFileSync(join(directory, 'cn={10}late.ldif'), definition('late', '10'))
+            writeFileSync(join(directory, 'cn={2}early.ldif'), definition('early', '2'))
+            writeFileSync(join(directory, 'local.schema'), "attributetype ( 1.3.6.1.4.1.99999.3 NAME 'localAttribute' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )\n")
+            writeFileSync(join(directory, 'README.md'), 'not a schema')
+            writeFileSync(join(directory, '.hidden.ldif'), 'not read')
+            mkdirSync(join(directory, 'nested.ldif'))
+            const files = await readSchemaDirectory(directory)
+            assert.deepEqual(files.map((file) => file.name), ['early', 'late', 'local'])
+            const schema: Schema = bundledSchema()
+            for (const file of files) schema.load(file.text, file.name)
+            assert.ok(schema.attributeType('earlyAttribute') && schema.attributeType('lateAttribute') && schema.attributeType('localAttribute'))
+        } finally {
+            rmSync(directory, {recursive: true, force: true})
+        }
     })
 })

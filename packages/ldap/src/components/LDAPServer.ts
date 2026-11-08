@@ -23,6 +23,7 @@ import {
     type PartialAttribute,
     type PasswordPolicyOptions,
     type PasswordSchemes,
+    readSchemaDirectory,
     type SASLMechanism,
     type ServerLimits,
     type ServerTLSOptions
@@ -127,10 +128,12 @@ export interface LDAPServerOptions extends InterfaceListeningOptions {
      */
     interceptors?: InterceptorSpecification[]
     /**
-     * The schema: the bundled files to load (all of them by default) and schema files of one's own, by path or by
-     * name and text (the LDIF of OpenLDAP's `cn=config`, a subschema entry, or the `.schema` form)
+     * The schema: the bundled files to load (all of them by default), then the schema files of a directory (its `.ldif`
+     * and `.schema` files in the order of their names, the numbers in them by their value: `cn={2}nis.ldif` before
+     * `cn={10}ppolicy.ldif`), then schema files of one's own, by path or by name and text (the LDIF of OpenLDAP's
+     * `cn=config`, a subschema entry, or the `.schema` form)
      */
-    schema?: {bundled?: BundledSchemaName[], files?: (string | {name: string, text: string})[]}
+    schema?: {bundled?: BundledSchemaName[], directory?: string, files?: (string | {name: string, text: string})[]}
     /**
      * Who may do what
      */
@@ -488,7 +491,10 @@ export class LDAPServer extends Component {
             const {class: constructor, name, suffixes, ...options} = item
             return placed(await this.buildObject(constructor, options) as unknown as LDAPPlugin, name as string | undefined, suffixes as string[] | undefined)
         }))
-        const files: {name: string, text: string}[] = await Promise.all((this.schema?.files ?? []).map(async (file: string | {name: string, text: string}): Promise<{name: string, text: string}> => typeof file === 'string' ? {name: basename(file, extname(file)), text: await readFile(file, 'utf8')} : file))
+        const files: {name: string, text: string}[] = [
+            ...this.schema?.directory !== undefined ? await readSchemaDirectory(this.schema.directory) : [],
+            ...await Promise.all((this.schema?.files ?? []).map(async (file: string | {name: string, text: string}): Promise<{name: string, text: string}> => typeof file === 'string' ? {name: basename(file, extname(file)), text: await readFile(file, 'utf8')} : file))
+        ]
         const engine: LDAPServerEngine = createLDAPServer({
             backends: backends,
             plugins: plugins,
