@@ -55,10 +55,14 @@ async function connect(...args: Parameters<typeof connectLDAP>): Promise<LDAPCli
     return connection
 }
 
-after(async () => {
-    for (const connection of connections) connection.destroy()
-    for (const started of servers) await started.close()
-})
+/**
+ * Close the connections and the servers of the tests run so far, after each group (the hooks of a file run only once
+ * its handles are closed on the test runner of Node.js 18)
+ */
+async function closeAll(): Promise<void> {
+    for (const connection of connections.splice(0)) connection.destroy()
+    for (const started of servers.splice(0)) await started.close()
+}
 
 /**
  * Answer a search with entries numbered from 0, by pages of the paged results control
@@ -80,6 +84,8 @@ function pagedSearch(total: number) {
 }
 
 describe('the connection', () => {
+    after(closeAll)
+
     it('binds, and refuses an empty password with a DN before anything is sent', async () => {
         const started: TestServer = await server({
             bindRequest: (request, message, session) => {
@@ -331,6 +337,8 @@ describe('the connection', () => {
 })
 
 describe('the entries', () => {
+    after(closeAll)
+
     it('read text with get() and bytes with getBuffers(), the binary attributes refused by get()', () => {
         const entry: Entry = new Entry('cn=x', [{type: 'cn', values: [Buffer.from('Alice'), Buffer.from('Al')]}, {type: 'objectGUID', values: [Buffer.alloc(16, 1)]}, {type: 'userCertificate;binary', values: [Buffer.from([0x30])]}])
         assert.deepEqual(entry.get('CN'), ['Alice', 'Al'])
@@ -346,6 +354,8 @@ describe('the entries', () => {
 })
 
 describe('the pool', () => {
+    after(closeAll)
+
     it('opens connections when needed, bound as its identity, and runs operations on them', async () => {
         let binds: number = 0
         const started: TestServer = await server({

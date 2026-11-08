@@ -73,12 +73,18 @@ async function received(socket: Socket, milliseconds: number = 500): Promise<{me
     return {messages: messages, closed: closed}
 }
 
-after(async () => {
-    for (const connection of clients) connection.destroy()
-    for (const server of servers) await server.close()
-})
+/**
+ * Close the connections and the servers of the tests run so far, after each group (the hooks of a file run only once
+ * its handles are closed on the test runner of Node.js 18)
+ */
+async function closeAll(): Promise<void> {
+    for (const connection of clients.splice(0)) connection.destroy()
+    for (const server of servers.splice(0)) await server.close()
+}
 
 describe('the server engine on the network', () => {
+    after(closeAll)
+
     let url: string
     let port: number
 
@@ -168,6 +174,8 @@ describe('the server engine on the network', () => {
 })
 
 describe('the limits and the end of the server', () => {
+    after(closeAll)
+
     it('refuses a password in clear when asked to, and takes it over StartTLS', async () => {
         const {url} = await serve({plaintextBind: 'none'})
         const plain: LDAPClientConnection = await client(url)
