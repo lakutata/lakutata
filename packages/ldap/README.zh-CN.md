@@ -43,7 +43,7 @@ Application.run(() => ({
 })
 ```
 
-组件监听 LDAP（给了 `tls` 时同时提供 StartTLS）和 LDAPS，可以监听某个地址，也可以按网卡监听（`interface: 'eth1'`，不管网卡的地址是什么）。后端、插件和拦截器可以是对象（`@lakutata/ldap-engine` 的插件：`new MemberOfPlugin()`），也可以是带选项的 lakutata 类（`{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`），由组件在自己的容器里创建。`connect()` 返回一个进程内连接，操作和客户端相同；`directory()` 返回建在进程内连接上的目录助手；两者经过的 schema 校验、密码哈希和访问控制都和网络请求相同。服务器具体做什么（schema、密码、访问规则、插件）见 `@lakutata/ldap-engine` 的 README。
+组件监听 LDAP（给了 `tls` 时同时提供 StartTLS）和 LDAPS，可以监听某个地址，也可以按网卡监听（`interface: 'eth1'`，不管网卡的地址是什么）；给了 `ldapiPath` 时还监听一个 Unix socket，供同一台机器上的客户端使用（SSSD、nslcd），在这个 socket 上发送密码和用 TLS 一样被接受；`port: false` 表示不开 LDAP 端口。后端、插件和拦截器可以是对象（`@lakutata/ldap-engine` 的插件：`new MemberOfPlugin()`），也可以是带选项的 lakutata 类（`{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`），由组件在自己的容器里创建。`connect()` 返回一个进程内连接，操作和客户端相同；`directory()` 返回建在进程内连接上的目录助手；两者经过的 schema 校验、密码哈希和访问控制都和网络请求相同。服务器具体做什么（schema、密码、访问规则、插件）见 `@lakutata/ldap-engine` 的 README。
 
 ### 目录后端
 
@@ -123,8 +123,10 @@ Application.run(() => ({
 | 选项 | 默认值 | 说明 |
 |---|---|---|
 | `host` | 所有地址 | 监听的地址 |
-| `port` | `389` | LDAP 端口（`0` 表示任选一个空闲端口） |
+| `port` | `389` | LDAP 端口（`0` 表示任选一个空闲端口，`false` 表示不开） |
 | `ldapsPort` | | LDAPS 端口，需要同时给 `tls` |
+| `ldapiPath` | | 另外监听的 Unix socket（ldapi）路径，供同一台机器上的客户端使用；在上面发送密码和用 TLS 一样被接受 |
+| `ldapiMode` | 由 umask 决定 | socket 的权限，决定谁能连接（`0o666`：本机的所有用户） |
 | `tls` | | StartTLS 和 LDAPS 用的证书和私钥（`cert`、`key`）；用 SASL EXTERNAL 时还要 `requestCert: true`，并在 `ca` 里给出客户端证书的 CA |
 | `interface`、`strict`、`family`、`onError`、`interfaceListening` | | 按网卡监听，代替按地址监听 |
 | `backends` | | 后端：对象，或带选项的 lakutata 类 |
@@ -134,7 +136,7 @@ Application.run(() => ({
 | `access` | | `admins`、`passwordAdmins`、`anonymousRead`、`authenticatedRead`、`check` |
 | `limits` | | 条数、时间、消息大小、请求数和连接数的上限 |
 | `bindThrottle` | 连续失败 5 次后锁定 | 绑定失败的限制 |
-| `plaintextBind` | `'all'` | 不用 TLS 时在哪里接受密码：`'all'`、`'loopback'`、`'none'` |
+| `plaintextBind` | `'all'` | 不用 TLS 时在哪里接受密码：`'all'`、`'loopback'`、`'none'`（Unix socket 上不受它限制） |
 | `allowUnauthenticatedBind` | `false` | 把带名字、不带密码的绑定当作匿名绑定接受 |
 | `passwords` | `{PBKDF2-SHA512}` | 写入密码用的格式，以及 PBKDF2 的迭代次数 |
 | `passwordPolicy` | | 密码策略（排在其他插件之后的一个 `PasswordPolicyPlugin`）：默认策略（pwdPolicy 条目的 DN，或者直接给出规则）、`quality`、`revealLocked` |

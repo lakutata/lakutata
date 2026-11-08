@@ -65,11 +65,13 @@ await directory.createUser(people, {uid: 'alice', cn: 'Alice Liu', sn: 'Liu', ma
 
 await server.listen({port: 389})
 await server.listen({port: 636, secure: true})
+await server.listen({path: '/run/directory/ldapi', mode: 0o666})
 ```
 
 - `createLDAPServer()` 提供各个后端里的条目，每个后端挂在自己的后缀上。后端负责存取条目（`get()`、`search()`，以及它支持的写操作），其余都由服务器负责：协议、StartTLS 和 LDAPS、每次写入时的 schema 校验、密码、访问控制、各种上限、rootDSE 和 subschema；后端自己不做排序、虚拟列表视图和分页时，也由服务器来做。`MemoryBackend` 把条目放在内存里；`createHandlerBackend()` 用 ldapjs 服务器那种按操作写处理函数的方式生成一个后端。
 - 自带的 schema（core、cosine、inetOrgPerson、rfc2307bis、openssh-lpk、ppolicy）默认全部加载；自己的 schema 文件（OpenLDAP `cn=config` 格式的 LDIF、subschema 条目、`.schema` 格式）用 `schema.files` 加入。名字或 OID 重复定义时，服务器在启动时就会报错。
 - `server.connect({as})` 返回一个进程内连接，操作和客户端一样：应用不经过网络读写自己的目录，经过的 schema 校验、密码哈希和访问控制都和网络请求相同。不调用 `listen()` 也能用。
+- `listen({path})` 监听 Unix socket（ldapi），给同一台机器上的客户端用：SSSD 2.9 及以后、nslcd、OpenLDAP 的命令行工具（`ldapi://%2Frun%2Fdirectory%2Fldapi`）。这种连接不会离开本机，所以服务器像对待 TLS 一样接受从这里发来的密码，也会在这里提供 SASL PLAIN。EXTERNAL 仍然只在 TLS 上提供，因为服务器无法知道对端进程是以哪个用户运行的。`mode` 决定谁能连接（`0o666`：本机的所有用户；默认按 umask 决定，通常只有服务器进程所属的用户）。服务器停止后留下的 socket 文件会被替换。Windows 上不支持 Unix socket。
 - `createDirectory()` 用 LDAP 操作管理用户、组和组织单元，可以用在任何连接上：进程内连接、客户端，或者远程的 OpenLDAP，只要 profile 和那台服务器的 schema 对得上。
 - 密码以 `{PBKDF2-SHA512}` 写入，格式和 OpenLDAP 的 pw-pbkdf2 模块相同；绑定时也能验证 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、`{CRYPT}`，以及 node:crypto 能运行 argon2 时的 `{ARGON2}`：Node.js 24.7 及以后可以，Electron 不行），验证成功后再按服务器的格式重新哈希。任何人都读不到 `userPassword`。
 - 默认情况下，匿名会话只能读 rootDSE 和 subschema，已绑定的会话可以读整个目录，`access.admins` 里的管理员可以写；给了 `access.check` 时先由它决定。同一个 DN 或同一个地址连续绑定失败时，响应会被放慢，之后锁定一段时间，所有失败一律返回 invalidCredentials。

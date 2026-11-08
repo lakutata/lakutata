@@ -92,7 +92,8 @@ export interface LDAPServerEngineOptions {
      */
     bindThrottle?: BindThrottleOptions
     /**
-     * Where a simple bind with a password is allowed without TLS: everywhere (by default), from the loopback, nowhere
+     * Where a simple bind with a password is allowed without TLS: everywhere (by default), from the loopback, nowhere; a
+     * Unix socket (`listen({path})`) takes passwords whatever it says
      */
     plaintextBind?: 'all' | 'loopback' | 'none'
     /**

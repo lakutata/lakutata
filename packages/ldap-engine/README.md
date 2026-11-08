@@ -79,6 +79,7 @@ await directory.createUser(people, {uid: 'alice', cn: 'Alice Liu', sn: 'Liu', ma
 
 await server.listen({port: 389})
 await server.listen({port: 636, secure: true})
+await server.listen({path: '/run/directory/ldapi', mode: 0o666})
 ```
 
 - `createLDAPServer()` serves the entries of its backends, each mounted at its suffix. A backend stores the entries
@@ -92,6 +93,12 @@ await server.listen({port: 636, secure: true})
 - `server.connect({as})` gives a connection in the same process, with the operations of the client: the application
   reads and writes its directory without the network, through the same schema checks, password hashing and access
   control as the network requests. It works without `listen()`.
+- `listen({path})` listens on a Unix socket (ldapi) for the clients on the same machine: SSSD 2.9 and later, nslcd,
+  OpenLDAP's tools (`ldapi://%2Frun%2Fdirectory%2Fldapi`). Its connections never leave the machine, so the server takes
+  passwords over them as over TLS, and offers SASL PLAIN there. EXTERNAL stays on TLS:
+  the server cannot tell which user the process at the other end runs as. `mode` decides who may connect (`0o666`:
+  every user of the machine; by default, with the usual umask, the user of the server's process alone). A socket left
+  by a server that stopped is replaced. Unix sockets are not served on Windows.
 - `createDirectory()` manages users, groups and organizational units with LDAP operations, on any connection: the
   in-process one, the client, or a remote OpenLDAP, as long as its profile fits the schema of the server.
 - Passwords are written as `{PBKDF2-SHA512}`, as the pw-pbkdf2 module of OpenLDAP writes them; a bind also checks the

@@ -49,7 +49,8 @@ Application.run(() => ({
 ```
 
 The component listens for LDAP (with StartTLS when `tls` is given) and LDAPS, on an address or on network interfaces
-(`interface: 'eth1'`, whatever its addresses). A backend, a plugin or an interceptor can be an object (the plugins of
+(`interface: 'eth1'`, whatever its addresses). With `ldapiPath` it also listens on a Unix socket, which takes passwords
+as TLS does, for the clients on the same machine (SSSD, nslcd); `port: false` leaves out the port of LDAP. A backend, a plugin or an interceptor can be an object (the plugins of
 `@lakutata/ldap-engine`: `new MemberOfPlugin()`), or a lakutata class with its options
 (`{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`), built in the component's container.
 `connect()` gives a connection in the same process with the operations of the client, and `directory()` gives the
@@ -152,8 +153,10 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | Option | Default | What it is |
 |---|---|---|
 | `host` | all addresses | The address listened on |
-| `port` | `389` | The port of LDAP (`0` for a free one) |
+| `port` | `389` | The port of LDAP (`0` for a free one, `false` for none) |
 | `ldapsPort` | | The port of LDAPS, with `tls` |
+| `ldapiPath` | | The path of a Unix socket listened on as well (ldapi), for the clients on the same machine; passwords are taken over it as over TLS |
+| `ldapiMode` | from the umask | The permissions of the socket, which decide who may connect (`0o666`: every user of the machine) |
 | `tls` | | The certificate and key of StartTLS and LDAPS (`cert`, `key`); for SASL EXTERNAL, `requestCert: true` and the CA of the client certificates in `ca` |
 | `interface`, `strict`, `family`, `onError`, `interfaceListening` | | Listen on network interfaces instead of an address |
 | `backends` | | The backends: objects, or lakutata classes with their options |
@@ -163,7 +166,7 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | `access` | | `admins`, `passwordAdmins`, `anonymousRead`, `authenticatedRead`, `check` |
 | `limits` | | The size, time, message, request and connection limits |
 | `bindThrottle` | 5 failures lock the DN | The limits on failed binds |
-| `plaintextBind` | `'all'` | Where a password is accepted without TLS: `'all'`, `'loopback'`, `'none'` |
+| `plaintextBind` | `'all'` | Where a password is accepted without TLS: `'all'`, `'loopback'`, `'none'` (the Unix socket takes it whatever this says) |
 | `allowUnauthenticatedBind` | `false` | Accept a bind with a name and no password as anonymous |
 | `passwords` | `{PBKDF2-SHA512}` | The scheme passwords are written in, and the iterations of PBKDF2 |
 | `passwordPolicy` | | The password policy (a `PasswordPolicyPlugin` after the plugins): its default policy (the DN of a pwdPolicy entry, or its rules), `quality`, `revealLocked` |

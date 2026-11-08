@@ -108,6 +108,7 @@ Application.run(() => ({
 
 - `initialize` 在第一次启动时创建后缀条目（由后缀推出：`dc=example,dc=com` 对应 `dcObject` 和 `organization`）和管理员，只创建一次，多个实例同时启动也一样。
 - 服务器监听 LDAP，设置了 `tls` 时支持 StartTLS，并在 `ldapsPort` 上监听 LDAPS。安装 `@lakutata/netif` 后，`interface: 'eth1'` 按网卡监听，不管它的地址是什么。
+- `ldapiPath` 另外监听一个 Unix socket（ldapi），供同一台机器上的客户端使用；`ldapiMode` 决定谁能连接（`0o666`：本机的所有用户；默认按 umask 决定，通常只有服务器进程所属的用户）。`port: false` 表示不开 LDAP 端口，适合只给本机客户端用的服务器。
 - 目录后端的表和应用的其他实体一样由应用自己迁移：把 `directoryEntities(type)` 返回的实体加进数据库的实体，再生成迁移。
 
 ## 4. 在应用内使用目录
@@ -158,7 +159,7 @@ Schema 决定一个条目能存什么：它的对象类、对象类要求和允�
 
 给了 `access.check` 时由它先判断：返回 true 允许，false 拒绝，undefined 交给上表。
 
-- `plaintextBind`：不经 TLS 时在哪里接受密码：任何地方（默认）、只限回环地址，或任何地方都不接受。
+- `plaintextBind`：不经 TLS 时在哪里接受密码：任何地方（默认）、只限回环地址，或任何地方都不接受。`ldapiPath` 的 Unix socket 不受它限制，因为这种连接不会离开本机。
 - 有名字、密码为空的绑定会被拒绝（`allowUnauthenticatedBind` 把它当作匿名绑定接受）。
 - 同一个 DN 或地址的绑定失败后，回应一次比一次慢，再失败就拒绝一段时间（`bindThrottle`），回应的都是 invalidCredentials，分不出账号被锁定还是密码错误。
 - 限制：非管理员的会话每次搜索最多 500 个条目、3600 秒，以及消息的大小、未完成的请求数、过滤器的深度和大小、空闲时间（`limits`）。
@@ -304,7 +305,21 @@ export const deviceBackend: LDAPBackend = createHandlerBackend({
 
 ## 11. 接入其他软件
 
-- **SSSD 和 nslcd**：`ldap_schema = rfc2307bis`；按 `member` 查找组，memberUid 供 `rfc2307` 模式使用。SSSD 每次绑定都发送密码策略控制，服务器能处理。
+- **SSSD 和 nslcd**：`ldap_schema = rfc2307bis`；按 `member` 查找组，memberUid 供 `rfc2307` 模式使用。SSSD 每次绑定都发送密码策略控制，服务器能处理。在同一台机器上，它们连接 `ldapiPath` 的 Unix socket（SSSD 需要 2.9 及以后），SSSD 在上面不经 TLS 发送密码。SSSD 2.10 起默认先启动 TLS，走 socket 时不需要：
+
+  ```ini
+  [domain/example]
+  id_provider = ldap
+  auth_provider = ldap
+  ldap_uri = ldapi://%2Frun%2Fdirectory%2Fldapi
+  ldap_search_base = dc=example,dc=com
+  ldap_default_bind_dn = cn=sssd,dc=example,dc=com
+  ldap_default_authtok = …
+  ldap_schema = rfc2307bis
+  ldap_id_use_start_tls = false
+  ```
+
+  `ldapiMode` 要允许 SSSD 运行时所用的用户连接。通过网络连接时，给服务器配置 `tls`，并把 CA 交给 SSSD（`ldap_tls_cacert`）。
 - **Keycloak**：用户联合选供应商“Other”，`uid` 作为用户名和 RDN，`entryUUID` 作为 UUID 属性，打开“Use password modify extended operation”；组映射器用 `groupOfNames` 和 `member`。
 - **Gitea**：LDAP 认证源（via BindDN），用户过滤器写 `(&(objectClass=inetOrgPerson)(uid=%s))`；管理员过滤器按 memberOf；SSH 公钥在 `sshPublicKey` 里。
 - **Grafana**：`mailAlias: true` 提供它默认读取的 `email`。

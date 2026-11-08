@@ -127,6 +127,9 @@ Application.run(() => ({
   and the administrator on the first start, once, however many instances start together.
 - The server listens for LDAP, with StartTLS when `tls` is given, and LDAPS on `ldapsPort`. `interface: 'eth1'` listens
   on a network interface whatever its addresses, with `@lakutata/netif` installed.
+- `ldapiPath` listens on a Unix socket as well (ldapi), for the clients on the same machine; `ldapiMode` decides who may
+  connect (`0o666`: every user of the machine; by default, with the usual umask, the user of the server's process
+  alone). `port: false` leaves out the port of LDAP, for a server only the machine's own clients use.
 - The migrations of the tables of the directory backend are the application's, as for its other entities: add
   `directoryEntities(type)` to the entities of the database, then generate the migrations.
 
@@ -189,6 +192,7 @@ the matching rules. The server checks every write against it.
 `access.check` decides first when it is given: true allows, false refuses, undefined leaves it to the table.
 
 - `plaintextBind`: where a password is accepted without TLS: everywhere (by default), from the loopback, or nowhere.
+  The Unix socket of `ldapiPath` takes passwords whatever it says, since its connections never leave the machine.
 - A bind with a name and an empty password is refused (`allowUnauthenticatedBind` accepts it as anonymous).
 - Failed binds of a DN or an address are answered later and later, then refused for a while (`bindThrottle`), all with
   invalidCredentials, which does not tell a locked account from a wrong password.
@@ -365,7 +369,24 @@ component. A backend doing the work of a plugin itself declares it in its `capab
 ## 11. Connecting other software
 
 - **SSSD and nslcd**: `ldap_schema = rfc2307bis`; the groups are found by `member`, and memberUid is there for the
-  `rfc2307` mode. SSSD sends the password policy control with every bind, which the server answers.
+  `rfc2307` mode. SSSD sends the password policy control with every bind, which the server answers. On the same machine
+  they connect to the Unix socket of `ldapiPath` (SSSD 2.9 and later), and SSSD sends passwords over it without TLS.
+  SSSD 2.10 and later start TLS by default, which the socket does not need:
+
+  ```ini
+  [domain/example]
+  id_provider = ldap
+  auth_provider = ldap
+  ldap_uri = ldapi://%2Frun%2Fdirectory%2Fldapi
+  ldap_search_base = dc=example,dc=com
+  ldap_default_bind_dn = cn=sssd,dc=example,dc=com
+  ldap_default_authtok = …
+  ldap_schema = rfc2307bis
+  ldap_id_use_start_tls = false
+  ```
+
+  `ldapiMode` must let the user SSSD runs as connect. Over the network, give the server `tls`, and SSSD its CA
+  (`ldap_tls_cacert`).
 - **Keycloak**: user federation with the vendor "Other", `uid` as the user name and RDN, `entryUUID` as the UUID
   attribute, "Use password modify extended operation" on; a group mapper on `groupOfNames` and `member`.
 - **Gitea**: an LDAP source (via BindDN) with `(&(objectClass=inetOrgPerson)(uid=%s))` as the user filter; an
