@@ -113,6 +113,7 @@ Application.run(() => ({
             tls: {cert: readFileSync('/etc/directory/server.crt'), key: readFileSync('/etc/directory/server.key')},
             backends: [{
                 class: DirectoryBackend,
+                database: 'database',
                 suffix: 'dc=example,dc=com',
                 initialize: {admin: {dn: 'cn=admin,dc=example,dc=com', password: process.env.LDAP_ADMIN_PASSWORD!}}
             }],
@@ -175,7 +176,10 @@ the matching rules. The server checks every write against it.
 - Bundled: the schemas of the RFCs (core, cosine, inetOrgPerson), rfc2307bis (POSIX accounts and groups), openssh-lpk
   (SSH public keys) and ppolicy (the password policy), all loaded by default; `schema.bundled` loads fewer.
 - `schema.files` adds schema files of one's own, by path or text: the LDIF of OpenLDAP's `cn=config`, a subschema
-  entry, or the `.schema` form. A name or an OID defined twice stops the server at its start, naming both files.
+  entry, or the `.schema` form. `schema.directory` loads the `.ldif` and `.schema` files of a directory before them, in
+  the order of their names, the numbers in them by their value (`cn={2}nis.ldif` before `cn={10}ppolicy.ldif`, as
+  OpenLDAP numbers its files). A name or an OID defined twice stops the server at its start, naming both files. If the
+  directory holds the standard files too, leave the bundled ones out with `schema.bundled`.
 - The tree is the data's: the schema says what an entry holds, not where it goes.
 - Clients read the schema at `cn=Subschema`; `schemaConfigView: true` also shows the files read-only at
   `cn={N}<name>,cn=schema,cn=config`, as OpenLDAP does.
@@ -254,7 +258,7 @@ one row per value.
 | Option | Default | What it is |
 |---|---|---|
 | `suffix` | | The DN of the top entry |
-| `database` | `'database'` | The name of the Database component |
+| `database` | | The name of the application's Database component (its key in `components`); required |
 | `groups` | groupOfNames, groupOfUniqueNames, groupOfMembers | The group classes and their member attributes |
 | `memberOf`, `nestedGroups`, `memberUid` | `true`, `0`, `true` | The virtual attributes |
 | `unique` | | The attributes whose values are unique |

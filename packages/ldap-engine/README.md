@@ -88,7 +88,8 @@ await server.listen({path: '/run/directory/ldapi', mode: 0o666})
   sorting, the virtual list view and paged results when the backend does not do them itself. `MemoryBackend` keeps its entries in
   memory; `createHandlerBackend()` makes a backend from handlers written operation by operation, as ldapjs servers are.
 - The schema is bundled (core, cosine, inetOrgPerson, rfc2307bis, openssh-lpk and ppolicy) and loaded by default; schema files of one's own (the LDIF of
-  OpenLDAP's `cn=config`, a subschema entry, the `.schema` form) are added with `schema.files`. A name or an OID
+  OpenLDAP's `cn=config`, a subschema entry, the `.schema` form) are added with `schema.files`, and
+  `readSchemaDirectory()` reads those of a directory in the order of their names. A name or an OID
   defined twice stops the server at its start.
 - `server.connect({as})` gives a connection in the same process, with the operations of the client: the application
   reads and writes its directory without the network, through the same schema checks, password hashing and access
@@ -249,6 +250,7 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `plainMechanism()`, `externalMechanism()`, `SASLMechanism` | SASL |
 | `createDirectory(connection, options)`, `Directory`, `DirectoryProfile` | The directory helper |
 | `bundledSchema(names)`, `BUNDLED_SCHEMAS`, `BUNDLED_SCHEMA_NAMES` | The bundled schema (core, cosine, inetorgperson, rfc2307bis, openssh-lpk, ppolicy) |
+| `readSchemaDirectory(directory)` | The schema files of a directory, in the order of their names (the numbers in them by their value) |
 | `encodeMessage(message)`, `decodeMessage(bytes)` | A message as bytes, and back |
 | `MessageReader` | The reader of the messages of a stream |
 | `Filter`, `filter`, `escapeFilterValue(value)`, `matchFilter(filter, entry, schema)` | Filters: building, text, the escaping template, evaluation |

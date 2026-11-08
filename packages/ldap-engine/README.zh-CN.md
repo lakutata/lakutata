@@ -69,7 +69,7 @@ await server.listen({path: '/run/directory/ldapi', mode: 0o666})
 ```
 
 - `createLDAPServer()` 提供各个后端里的条目，每个后端挂在自己的后缀上。后端负责存取条目（`get()`、`search()`，以及它支持的写操作），其余都由服务器负责：协议、StartTLS 和 LDAPS、每次写入时的 schema 校验、密码、访问控制、各种上限、rootDSE 和 subschema；后端自己不做排序、虚拟列表视图和分页时，也由服务器来做。`MemoryBackend` 把条目放在内存里；`createHandlerBackend()` 用 ldapjs 服务器那种按操作写处理函数的方式生成一个后端。
-- 自带的 schema（core、cosine、inetOrgPerson、rfc2307bis、openssh-lpk、ppolicy）默认全部加载；自己的 schema 文件（OpenLDAP `cn=config` 格式的 LDIF、subschema 条目、`.schema` 格式）用 `schema.files` 加入。名字或 OID 重复定义时，服务器在启动时就会报错。
+- 自带的 schema（core、cosine、inetOrgPerson、rfc2307bis、openssh-lpk、ppolicy）默认全部加载；自己的 schema 文件（OpenLDAP `cn=config` 格式的 LDIF、subschema 条目、`.schema` 格式）用 `schema.files` 加入，`readSchemaDirectory()` 按文件名顺序读取一个目录里的这些文件。名字或 OID 重复定义时，服务器在启动时就会报错。
 - `server.connect({as})` 返回一个进程内连接，操作和客户端一样：应用不经过网络读写自己的目录，经过的 schema 校验、密码哈希和访问控制都和网络请求相同。不调用 `listen()` 也能用。
 - `listen({path})` 监听 Unix socket（ldapi），给同一台机器上的客户端用：SSSD 2.9 及以后、nslcd、OpenLDAP 的命令行工具（`ldapi://%2Frun%2Fdirectory%2Fldapi`）。这种连接不会离开本机，所以服务器像对待 TLS 一样接受从这里发来的密码，也会在这里提供 SASL PLAIN。EXTERNAL 仍然只在 TLS 上提供，因为服务器无法知道对端进程是以哪个用户运行的。`mode` 决定谁能连接（`0o666`：本机的所有用户；默认按 umask 决定，通常只有服务器进程所属的用户）。服务器停止后留下的 socket 文件会被替换。Windows 上不支持 Unix socket。
 - `createDirectory()` 用 LDAP 操作管理用户、组和组织单元，可以用在任何连接上：进程内连接、客户端，或者远程的 OpenLDAP，只要 profile 和那台服务器的 schema 对得上。
@@ -184,6 +184,7 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `plainMechanism()`、`externalMechanism()`、`SASLMechanism` | SASL |
 | `createDirectory(connection, options)`、`Directory`、`DirectoryProfile` | 目录助手 |
 | `bundledSchema(names)`、`BUNDLED_SCHEMAS`、`BUNDLED_SCHEMA_NAMES` | 自带的 schema（core、cosine、inetorgperson、rfc2307bis、openssh-lpk、ppolicy） |
+| `readSchemaDirectory(directory)` | 一个目录里的 schema 文件，按文件名顺序（文件名里的数字按数值比较） |
 | `encodeMessage(message)`、`decodeMessage(bytes)` | 把消息编码成字节，或从字节解码 |
 | `MessageReader` | 读取数据流里的消息 |
 | `Filter`、`filter`、`escapeFilterValue(value)`、`matchFilter(filter, entry, schema)` | 过滤器：构造、文本、转义模板、求值 |

@@ -61,6 +61,7 @@ Application.run(() => ({
             port: 389,
             backends: [{
                 class: DirectoryBackend,
+                database: 'database',
                 suffix: 'dc=example,dc=com',
                 unique: ['uid', 'mail'],
                 initialize: {admin: {dn: 'cn=admin,dc=example,dc=com', password: process.env.LDAP_ADMIN_PASSWORD!}}
@@ -132,7 +133,7 @@ Application.run(() => ({
 | `backends` | | 后端：对象，或带选项的 lakutata 类 |
 | `plugins` | | 插件：对象，或带选项的 lakutata 类（还可以给 `name`、`suffixes`） |
 | `interceptors` | | 单独给出的拦截器：对象、带位置的拦截器，或带选项的 lakutata 类 |
-| `schema` | 自带的文件 | `bundled`（要加载的自带文件）和 `files`（自己的 schema 文件，给路径或文本） |
+| `schema` | 自带的文件 | `bundled`（要加载的自带文件）、`directory`（schema 文件所在的目录，按文件名顺序加载）和 `files`（自己的 schema 文件，给路径或文本） |
 | `access` | | `admins`、`passwordAdmins`、`anonymousRead`、`authenticatedRead`、`check` |
 | `limits` | | 条数、时间、消息大小、请求数和连接数的上限 |
 | `bindThrottle` | 连续失败 5 次后锁定 | 绑定失败的限制 |
@@ -151,7 +152,7 @@ Application.run(() => ({
 | 选项 | 默认值 | 说明 |
 |---|---|---|
 | `suffix` | | 后端最上层条目的 DN |
-| `database` | `'database'` | Database 组件注册的名字 |
+| `database` | | 应用的 Database 组件注册的名字（它在 `components` 里的键），必须给出 |
 | `groups` | groupOfNames/member、groupOfUniqueNames/uniqueMember、groupOfMembers/member | 组类以及表示成员的属性 |
 | `memberOf` | `true` | 提供 memberOf；schema 自己定义了 memberOf 时，给出自己的名字和 OID，或者设为 `false` |
 | `nestedGroups` | `0` | memberOf 展开嵌套组的层数 |

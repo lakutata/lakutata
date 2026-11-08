@@ -96,6 +96,7 @@ Application.run(() => ({
             tls: {cert: readFileSync('/etc/directory/server.crt'), key: readFileSync('/etc/directory/server.key')},
             backends: [{
                 class: DirectoryBackend,
+                database: 'database',
                 suffix: 'dc=example,dc=com',
                 initialize: {admin: {dn: 'cn=admin,dc=example,dc=com', password: process.env.LDAP_ADMIN_PASSWORD!}}
             }],
@@ -144,7 +145,7 @@ export class Accounts extends Component {
 Schema 决定一个条目能存什么：它的对象类、对象类要求和允许的属性、语法和匹配规则。服务器按它检查每一次写入。
 
 - 自带：各 RFC 的 schema（core、cosine、inetOrgPerson）、rfc2307bis（POSIX 账号和组）、openssh-lpk（SSH 公钥）和 ppolicy（密码策略），默认全部加载；`schema.bundled` 可以少加载一些。
-- `schema.files` 按路径或文本加入自己的 schema 文件：OpenLDAP `cn=config` 的 LDIF、subschema 条目，或 `.schema` 格式。同一个名字或 OID 定义了两次时，服务器在启动时就停下，并指出两个文件。
+- `schema.files` 按路径或文本加入自己的 schema 文件：OpenLDAP `cn=config` 的 LDIF、subschema 条目，或 `.schema` 格式。`schema.directory` 在它们之前加载一个目录里的 `.ldif` 和 `.schema` 文件，按文件名排序，文件名里的数字按数值比较（`cn={2}nis.ldif` 排在 `cn={10}ppolicy.ldif` 前面，和 OpenLDAP 给文件编号的方式一致）。同一个名字或 OID 定义了两次时，服务器在启动时就停下，并指出两个文件；目录里也放了标准 schema 文件时，用 `schema.bundled` 把对应的自带文件去掉。
 - 目录树的结构由数据决定：schema 只规定条目存什么，不规定它放在哪里。
 - 客户端在 `cn=Subschema` 读取 schema；`schemaConfigView: true` 还会像 OpenLDAP 那样，在 `cn={N}<name>,cn=schema,cn=config` 以只读方式列出这些文件。
 
@@ -206,7 +207,7 @@ const options = buildLDAPServerOptions({
 | 选项 | 默认值 | 含义 |
 |---|---|---|
 | `suffix` | | 顶层条目的 DN |
-| `database` | `'database'` | Database 组件的名字 |
+| `database` | | 应用的 Database 组件的名字（它在 `components` 里的键），必须给出 |
 | `groups` | groupOfNames、groupOfUniqueNames、groupOfMembers | 组的对象类和它们的成员属性 |
 | `memberOf`、`nestedGroups`、`memberUid` | `true`、`0`、`true` | 虚拟属性 |
 | `unique` | | 值必须唯一的属性 |

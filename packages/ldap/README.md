@@ -74,6 +74,7 @@ Application.run(() => ({
             port: 389,
             backends: [{
                 class: DirectoryBackend,
+                database: 'database',
                 suffix: 'dc=example,dc=com',
                 unique: ['uid', 'mail'],
                 initialize: {admin: {dn: 'cn=admin,dc=example,dc=com', password: process.env.LDAP_ADMIN_PASSWORD!}}
@@ -162,7 +163,7 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | `backends` | | The backends: objects, or lakutata classes with their options |
 | `plugins` | | The plugins: objects, or lakutata classes with their options (and `name`, `suffixes`) |
 | `interceptors` | | The interceptors alone: objects, placements, or lakutata classes with their options |
-| `schema` | the bundled files | `bundled` (the bundled files to load) and `files` (schema files of one's own, by path or text) |
+| `schema` | the bundled files | `bundled` (the bundled files to load), `directory` (a directory of schema files, loaded in the order of their names) and `files` (schema files of one's own, by path or text) |
 | `access` | | `admins`, `passwordAdmins`, `anonymousRead`, `authenticatedRead`, `check` |
 | `limits` | | The size, time, message, request and connection limits |
 | `bindThrottle` | 5 failures lock the DN | The limits on failed binds |
@@ -181,7 +182,7 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | Option | Default | What it is |
 |---|---|---|
 | `suffix` | | The DN of the top entry of the backend |
-| `database` | `'database'` | The name the Database component is registered under |
+| `database` | | The name the Database component of the application is registered under (its key in `components`); required |
 | `groups` | groupOfNames/member, groupOfUniqueNames/uniqueMember, groupOfMembers/member | The group classes and their member attributes |
 | `memberOf` | `true` | Give memberOf; a name and an OID of one's own when the schema defines memberOf itself, or `false` |
 | `nestedGroups` | `0` | The levels of nested groups memberOf follows |
