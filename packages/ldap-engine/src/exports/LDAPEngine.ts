@@ -198,3 +198,4 @@ export {
     UserAccountControl
 } from '../lib/client/ActiveDirectory.js'
 export {readSchema} from '../lib/client/ReadSchema.js'
+export {BUNDLED_SCHEMAS, bundledSchema, type BundledSchemaName} from '../lib/schema/bundled/Bundled.js'

@@ -47,7 +47,7 @@ function ascii(pattern: RegExp): (value: Buffer) => boolean {
 const OID: RegExp = /^([0-9]+(\.[0-9]+)+|[A-Za-z][A-Za-z0-9-]*)$/
 
 /**
- * The syntaxes of RFC 4517 and RFC 4530 the package knows. The DNs and the names and optional UIDs are checked by
+ * The syntaxes of RFC 4517, RFC 4523, RFC 3672 and RFC 4530 the package knows. The DNs and the names and optional UIDs are checked by
  * parsing them, which the schema does.
  */
 export const STANDARD_SYNTAXES: Syntax[] = [
@@ -88,6 +88,7 @@ export const STANDARD_SYNTAXES: Syntax[] = [
     {oid: PREFIX + '42', description: 'Protocol Information', binary: false, validate: utf8},
     {oid: PREFIX + '43', description: 'Presentation Address', binary: false, validate: utf8},
     {oid: PREFIX + '44', description: 'Printable String', binary: false, validate: ascii(/^[A-Za-z0-9 '()+,./:=?-]+$/)},
+    {oid: PREFIX + '45', description: 'Subtree Specification', binary: false, validate: utf8},
     {oid: PREFIX + '49', description: 'Supported Algorithm', binary: true},
     {oid: PREFIX + '50', description: 'Telephone Number', binary: false, validate: ascii(/^[A-Za-z0-9 '()+,./:=?-]+$/)},
     {oid: PREFIX + '51', description: 'Teletex Terminal Identifier', binary: false, validate: utf8},
@@ -97,5 +98,12 @@ export const STANDARD_SYNTAXES: Syntax[] = [
     {oid: PREFIX + '58', description: 'Substring Assertion', binary: false, validate: utf8},
     //The authorization rules of OpenLDAP (olcAuthzRegexp and the authzTo/authzFrom attributes of its core schema)
     {oid: '1.3.6.1.4.1.4203.666.2.7', description: 'OpenLDAP authz', binary: false, validate: utf8},
+    {oid: '1.3.6.1.1.15.1', description: 'X.509 Certificate Exact Assertion', binary: true},
+    {oid: '1.3.6.1.1.15.2', description: 'X.509 Certificate Assertion', binary: true},
+    {oid: '1.3.6.1.1.15.3', description: 'X.509 Certificate Pair Exact Assertion', binary: true},
+    {oid: '1.3.6.1.1.15.4', description: 'X.509 Certificate Pair Assertion', binary: true},
+    {oid: '1.3.6.1.1.15.5', description: 'X.509 Certificate List Exact Assertion', binary: true},
+    {oid: '1.3.6.1.1.15.6', description: 'X.509 Certificate List Assertion', binary: true},
+    {oid: '1.3.6.1.1.15.7', description: 'X.509 Algorithm Identifier', binary: true},
     {oid: '1.3.6.1.1.16.1', description: 'UUID', binary: false, validate: ascii(/^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$/)}
 ]

@@ -1,7 +1,7 @@
 # Third-party notices
 
-Parts of the tests of `@lakutata/ldap-engine` are derived from the third-party projects listed below; the original
-copyright notices and license terms are reproduced here as required. The code of the package itself is written for it.
+Parts of `@lakutata/ldap-engine` are derived from the third-party works listed below; the original
+copyright notices and license terms are reproduced here as required. Everything else in the package is written for it.
 
 ## ldapjs
 
@@ -34,3 +34,40 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE
 ```
+
+## IETF RFCs (the bundled schema)
+
+The definitions of `src/lib/schema/bundled/` (system, core, cosine, inetorgperson) are taken from the RFCs named in the
+comment above each definition, by `scripts/schema/generate.mjs`; a few are amended as their comments say (names the
+RFCs register with IANA for the same OID, a syntax RFC 2798 leaves out).
+
+RFC 4512, RFC 4519, RFC 4523, RFC 4524 and RFC 4530: Copyright (C) The Internet Society (2006). RFC 5020: Copyright (C)
+The IETF Trust (2007). These documents are subject to the rights, licenses and restrictions contained in BCP 78; the
+schema definitions are code fragments of them, which BCP 78 (RFC 3978, section 3.3 (E)) allows to be extracted,
+modified and incorporated into other works for any purpose.
+
+RFC 3045: Copyright (C) The Internet Society (2001). RFC 3296: Copyright (C) The Internet Society (2002). RFC 3672:
+Copyright (C) The Internet Society (2003). RFC 2798: Copyright (C) The Internet Society (2000). All Rights Reserved.
+
+    This document and translations of it may be copied and furnished to
+    others, and derivative works that comment on or otherwise explain it
+    or assist in its implementation may be prepared, copied, published
+    and distributed, in whole or in part, without restriction of any
+    kind, provided that the above copyright notice and this paragraph are
+    included on all such copies and derivative works.  However, this
+    document itself may not be modified in any way, such as by removing
+    the copyright notice or references to the Internet Society or other
+    Internet organizations, except as needed for the purpose of
+    developing Internet standards in which case the procedures for
+    copyrights defined in the Internet Standards process must be
+    followed, or as required to translate it into languages other than
+    English.
+
+    The limited permissions granted above are perpetual and will not be
+    revoked by the Internet Society or its successors or assigns.
+
+RFC 2079 (January 1997, "Distribution of this memo is unlimited") describes labeledURI and labeledURIObject in tables;
+the engine writes the same definitions in the form of RFC 4512.
+
+The RFCs: https://www.rfc-editor.org/rfc/rfc4512, rfc4519, rfc4523, rfc4524, rfc4530, rfc5020, rfc3045, rfc3296,
+rfc3672, rfc2798, rfc2079.
