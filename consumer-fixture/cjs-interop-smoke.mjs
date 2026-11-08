@@ -99,6 +99,13 @@ await check('CJS @lakutata/webrtc loads', () => {
     if (typeof requireCJS('../packages/webrtc/dist/cjs/exports/Client.js').SignalingConnection !== 'function') throw new Error('SignalingConnection missing')
 })
 
+// @lakutata/ldap-engine — the protocol of LDAP, its messages encoded and decoded from CommonJS
+await check('CJS @lakutata/ldap-engine loads', () => {
+    const ldap = requireCJS('../packages/ldap-engine/dist/cjs/exports/LDAPEngine.js')
+    if (typeof ldap.encodeMessage !== 'function' || typeof ldap.MessageReader !== 'function' || typeof ldap.Filter.parse !== 'function') throw new Error('LDAP engine missing')
+    if (ldap.decodeMessage(ldap.encodeMessage({messageId: 1, protocolOp: {type: 'unbindRequest'}})).protocolOp.type !== 'unbindRequest') throw new Error('the codec of LDAP')
+})
+
 // @lakutata/ffi — the native libraries, koffi required from CommonJS
 await check('CJS @lakutata/ffi loads and calls the C library', () => {
     const ffi = requireCJS('../packages/ffi/dist/cjs/exports/FFI.js')
