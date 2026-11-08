@@ -39,7 +39,7 @@ export interface AuditRecord {
      */
     remoteAddress?: string
     /**
-     * Whether it was an internal operation (of the engine or a plugin)
+     * Whether it was an operation of the internal connection of a plugin
      */
     internal: boolean
     /**
@@ -91,7 +91,7 @@ export interface AuditPluginOptions extends BasePluginOptions {
      */
     operations?: Exclude<OperationType, 'extended'>[]
     /**
-     * Record the internal operations, of the engine and the plugins, too (false by default)
+     * Record the operations of the plugins' own connections too (the memberOf a plugin writes; false by default)
      */
     internal?: boolean
     /**
@@ -103,7 +103,9 @@ export interface AuditPluginOptions extends BasePluginOptions {
 /**
  * A record of each operation, its outcome included, as the accesslog and auditlog overlays of OpenLDAP keep them: the
  * plugin gives each record to `write`, which keeps it where the application wants (a file, a log, a table). It runs
- * first in the chain, so the refused operations are recorded too; the passwords are not.
+ * first in the chain, so the refused operations are recorded too; the passwords are not. A Password Modify is recorded
+ * as the modify it makes. What never reaches the chain of a backend is not recorded: anonymous binds, SASL binds,
+ * binds to a DN under no backend, the other extended operations.
  * @example
  * ```typescript
  * import {AuditPlugin, createLDAPServer, MemoryBackend} from '@lakutata/ldap-engine'
@@ -165,7 +167,7 @@ export class AuditPlugin extends BaseLDAPPlugin {
      * @param next The rest of the chain.
      */
     protected async around(context: OperationContext, request: ServerRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome> {
-        if (context.internal && !this.internal) return next()
+        if (context.session.internal && !this.internal) return next()
         //What the request was before the chain changes it (a password hashed)
         const record: AuditRecord = this.recordOf(context, request, context.schema)
         try {
@@ -207,7 +209,7 @@ export class AuditPlugin extends BaseLDAPPlugin {
             session: context.session.id,
             ...context.session.identity ? {identity: context.session.identity.toString()} : {},
             ...context.session.remoteAddress ? {remoteAddress: context.session.remoteAddress} : {},
-            internal: context.internal,
+            internal: context.session.internal === true,
             resultCode: ResultCode.success
         }
         switch (request.type) {

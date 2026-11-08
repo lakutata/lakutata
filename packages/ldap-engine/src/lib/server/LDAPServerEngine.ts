@@ -289,10 +289,10 @@ function contributionsOf(options: LDAPServerEngineOptions, passwords: PasswordSc
 }
 
 /**
- * An LDAP server: the processing of the requests (the routing to the backends, the interceptors, the schema, the
- * access control, the passwords, the root DSE and the subschema), its network connections (`listen()`, or the sockets
- * given to `handleConnection()`), and its in-process connections (`connect()`), which need no network. Made by
- * `createLDAPServer()`.
+ * An LDAP server: the processing of the requests (the routing to the backends, the plugins and the interceptors, the
+ * schema, the access control, the passwords, the root DSE and the subschema), its network connections (`listen()`, or
+ * the sockets given to `handleConnection()`), and its in-process connections (`connect()`), which need no network.
+ * `start()` starts the plugins, which `listen()` does first. Made by `createLDAPServer()`.
  *
  * Its `events`: `connection` and `disconnect` (a session ID), `bind` (a session, a DN, a method), `bindFailure`,
  * `operation` (a session, the operation, the DN, the result code, the milliseconds), `startTLS`, `connectionError`, and
@@ -542,9 +542,9 @@ export class LDAPServerEngine implements LDAPPluginHost {
 }
 
 /**
- * Create an LDAP server: backends holding the entries, the schema (the bundled files by default), the access rules,
- * the passwords, the limits and the TLS. It serves in-process connections at once (`connect()`), and the network once
- * it listens.
+ * Create an LDAP server: backends holding the entries, the plugins, the schema (the bundled files by default), the
+ * access rules, the passwords, the limits and the TLS. It serves in-process connections at once (`connect()`), and the
+ * network once it listens; `listen()` starts the plugins first (`start()` does it alone).
  * @param options The backends, the schema, the access, the limits, the TLS and the rest.
  * @example
  * ```typescript

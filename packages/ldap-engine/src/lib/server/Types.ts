@@ -76,6 +76,10 @@ export interface ServerSession {
      * must be changed first)
      */
     readonly state: Map<string | symbol, unknown>
+    /**
+     * Whether it is the internal connection of a plugin, for its own reads and writes
+     */
+    readonly internal?: boolean
 }
 
 /**

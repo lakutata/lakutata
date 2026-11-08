@@ -186,6 +186,20 @@ describe('the plugins of the engine', () => {
         assert.deepEqual(await valuesOf(admin, `cn=staff,${GROUPS}`, 'member'), [`uid=alice2,ou=people,ou=staff,${BASE}`])
     })
 
+    it('MemberOfPlugin, ReferentialIntegrityPlugin and UniquePlugin together keep the groups and their members', async () => {
+        const {admin} = await serve([new MemberOfPlugin(), new ReferentialIntegrityPlugin(), new UniquePlugin({attributes: ['uid', 'mail']})])
+        const group: string = `cn=staff,${GROUPS}`
+        await admin.add(group, {objectClass: 'groupOfNames', cn: 'staff', member: [`uid=alice,${PEOPLE}`, `uid=bob,${PEOPLE}`]})
+        await admin.modifyDN(`uid=alice,${PEOPLE}`, 'uid=alice2')
+        assert.deepEqual(await valuesOf(admin, group, 'member'), [`uid=alice2,${PEOPLE}`, `uid=bob,${PEOPLE}`])
+        assert.deepEqual(await valuesOf(admin, `uid=alice2,${PEOPLE}`, 'memberOf'), [group])
+        await admin.delete(`uid=bob,${PEOPLE}`)
+        assert.deepEqual(await valuesOf(admin, group, 'member'), [`uid=alice2,${PEOPLE}`])
+        await admin.modifyDN(group, 'cn=team')
+        assert.deepEqual(await valuesOf(admin, `uid=alice2,${PEOPLE}`, 'memberOf'), [`cn=team,${GROUPS}`])
+        await assert.rejects(admin.modifyDN(`uid=carol,${PEOPLE}`, 'uid=alice2'), (error: unknown) => error instanceof LDAPException)
+    })
+
     it('UniquePlugin refuses a value another entry has', async () => {
         const {admin} = await serve([new UniquePlugin({attributes: ['mail', 'uid']})])
         await assert.rejects(admin.add(`uid=dave,${PEOPLE}`, {objectClass: 'inetOrgPerson', uid: 'dave', cn: 'd', sn: 'd', mail: 'ALICE@example.com'}), LDAPConstraintViolationException)
@@ -261,10 +275,16 @@ describe('the plugins of the engine', () => {
         await admin.modify(`uid=alice,${PEOPLE}`, [{operation: 'replace', attribute: 'description', values: 'audited'}, {operation: 'replace', attribute: 'userPassword', values: 'new-password'}])
         await assert.rejects(server.connect().add(`uid=anonymous,${PEOPLE}`, {objectClass: 'account', uid: 'anonymous'}), LDAPInsufficientAccessException)
         await admin.delete(`uid=carol,${PEOPLE}`)
-        assert.deepEqual(records.map((record) => [record.operation, record.dn, record.resultCode]), [['modify', `uid=alice,${PEOPLE}`, 0], ['add', `uid=anonymous,${PEOPLE}`, 50], ['delete', `uid=carol,${PEOPLE}`, 0]])
+        //A Password Modify: the modify it makes
+        const bob: LDAPInProcessConnection = server.connect()
+        await bob.bind(`uid=bob,${PEOPLE}`, 'bob-password')
+        await bob.passwordModify({oldPassword: 'bob-password', newPassword: 'bob-new-password'})
+        assert.deepEqual(records.map((record) => [record.operation, record.dn, record.resultCode]), [['modify', `uid=alice,${PEOPLE}`, 0], ['add', `uid=anonymous,${PEOPLE}`, 50], ['delete', `uid=carol,${PEOPLE}`, 0], ['modify', `uid=bob,${PEOPLE}`, 0]])
         assert.equal(records[0].identity, ADMIN)
         assert.deepEqual(records[0].changes, [{operation: 'replace', attribute: 'description', values: ['audited']}, {operation: 'replace', attribute: 'userPassword', values: ['***']}])
         assert.ok(records[1].diagnosticMessage)
+        assert.equal(records[3].identity, `uid=bob,${PEOPLE}`)
+        assert.ok(records[3].changes!.every((change) => change.attribute !== 'userPassword' || change.values.every((value) => value === '***')))
     })
 
     it('ConstraintPlugin refuses the values breaking its rules', async () => {
