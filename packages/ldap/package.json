@@ -50,7 +50,8 @@
     "rebuild": "npm run clean && npm run build:js",
     "compile": "npm run rebuild",
     "test:unit": "npm run compile && node --test --test-timeout=60000 \"dist/esm/tests/*.spec.js\"",
-    "test:databases": "npm run compile && sh test-env/databases/run.sh"
+    "test:databases": "npm run compile && sh test-env/databases/run.sh",
+    "test:e2e": "npm run compile && sh test-env/e2e/run.sh"
   },
   "engines": {
     "node": ">=18.10.0"
