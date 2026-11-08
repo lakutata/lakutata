@@ -13,7 +13,7 @@ const database = process.argv[2] ? JSON.parse(process.argv[2]) : {type: 'better-
 const BASE = 'dc=example,dc=com'
 const ADMIN = `cn=admin,${BASE}`
 const container = new Container()
-await container.setNamed('database', Database, {options: {...database, entities: directoryEntities, synchronize: true}})
+await container.setNamed('database', Database, {options: {...database, entities: directoryEntities(database.type), synchronize: true}})
 await container.setNamed('ldap', LDAPServer, {
     host: '127.0.0.1',
     port: 0,

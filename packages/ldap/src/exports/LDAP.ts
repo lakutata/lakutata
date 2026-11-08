@@ -3,4 +3,4 @@ export {buildLDAPClientOptions, LDAPClient, type LDAPClientOptions} from '../com
 export {buildLDAPServerOptions, type InterceptorObjectSpecification, type InterceptorSpecification, type LDAPServerOptions, type ObjectSpecification, LDAPServer} from '../components/LDAPServer.js'
 export type {InterfaceListeningOptions} from '../lib/Interfaces.js'
 export {DirectoryBackend, type DirectoryBackendOptions, type DirectoryGroupClass, type DirectoryInitialization} from '../storage/DirectoryBackend.js'
-export {directoryEntities, LDAPBindStateRecord, LDAPEntryRecord, LDAPUniqueRecord, LDAPValueRecord} from '../storage/Entities.js'
+export {directoryEntities, LDAPBindStateRecord, LDAPEntryRecord, LDAPMySQLValueRecord, LDAPUniqueRecord, LDAPValueRecord} from '../storage/Entities.js'

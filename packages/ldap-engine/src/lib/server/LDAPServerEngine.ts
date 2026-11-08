@@ -6,6 +6,7 @@ import {DN} from '../dn/DN.js'
 import type {PartialAttribute} from '../protocol/Messages.js'
 import {ResultCode} from '../protocol/ResultCode.js'
 import {BUNDLED_SCHEMA_NAMES, type BundledSchemaName, BUNDLED_SCHEMAS} from '../schema/bundled/Bundled.js'
+import {stringifyAttributeType, stringifyObjectClass} from '../schema/Definitions.js'
 import {Schema} from '../schema/Schema.js'
 import type {AccessOptions} from './Access.js'
 import {certificatesOf} from './ClientCertificate.js'
@@ -183,9 +184,27 @@ function schemaOf(option: Schema | ServerSchemaOptions | undefined, backends: LD
         schema.load(BUNDLED_SCHEMAS[name], `the bundled schema ${name}`)
         files.push({name: name, schema: new Schema().load(BUNDLED_SCHEMAS[name], name)})
     }
-    for (const file of [...option?.files ?? [], ...backends.flatMap((backend: LDAPBackend): readonly {name: string, text: string}[] => backend.schemaFiles ?? [])]) {
+    for (const file of option?.files ?? []) {
         schema.load(file.text, file.name)
         files.push({name: file.name, schema: new Schema().load(file.text, file.name)})
+    }
+    //The files of the backends: a definition the same as one loaded already (two backends of a class) is loaded once
+    for (const file of backends.flatMap((backend: LDAPBackend): readonly {name: string, text: string}[] => backend.schemaFiles ?? [])) {
+        const own: Schema = new Schema().load(file.text, file.name)
+        const fresh: Schema = new Schema()
+        for (const definition of own.attributeTypes()) {
+            const existing = schema.attributeType(definition.oid)
+            if (existing && stringifyAttributeType(existing) === stringifyAttributeType(definition)) continue
+            schema.addAttributeType(definition, file.name)
+            fresh.addAttributeType(definition, file.name)
+        }
+        for (const definition of own.objectClasses()) {
+            const existing = schema.objectClass(definition.oid)
+            if (existing && stringifyObjectClass(existing) === stringifyObjectClass(definition)) continue
+            schema.addObjectClass(definition, file.name)
+            fresh.addObjectClass(definition, file.name)
+        }
+        if (fresh.attributeTypes().length || fresh.objectClasses().length) files.push({name: file.name, schema: fresh})
     }
     schema.check()
     return {schema: schema, files: files}

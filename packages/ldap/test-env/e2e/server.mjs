@@ -9,7 +9,7 @@ const file = process.argv[2]
 const BASE = 'dc=example,dc=com'
 const ADMIN = `cn=admin,${BASE}`
 const container = new Container()
-await container.setNamed('database', Database, {options: {type: 'better-sqlite3', database: file, entities: directoryEntities, synchronize: true}})
+await container.setNamed('database', Database, {options: {type: 'better-sqlite3', database: file, entities: directoryEntities('better-sqlite3'), synchronize: true}})
 await container.setNamed('ldap', LDAPServer, {
     host: '127.0.0.1',
     port: Number(process.env.LDAP_PORT ?? 0),

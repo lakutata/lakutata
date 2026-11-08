@@ -55,7 +55,7 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
         before(async () => {
             databaseOptions = await options!()
             container = new Container()
-            await container.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities, synchronize: true}})
+            await container.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type)), synchronize: true}})
             ldap = await start(container)
             admin = ldap.connect(ADMIN)
             directory = ldap.directory(ADMIN)
@@ -81,7 +81,7 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             //A second server on the same database creates nothing
             const second: Container = new Container()
             try {
-                await second.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities}})
+                await second.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
                 await start(second)
                 assert.equal((await admin.search(BASE, {filter: '(cn=admin)'})).entries.length, 1)
             } finally {
@@ -113,6 +113,13 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             assert.deepEqual(posix.get('memberUid').sort(), ['user1', 'user2'])
             assert.equal((await admin.search(groups, {filter: '(memberUid=user2)'})).entries[0].dn, group)
             await assert.rejects(admin.add(`uid=user1,${groups}`, {objectClass: 'account', uid: 'user1'}), LDAPConstraintViolationException)
+            //The gidNumber of a posixGroup is unique among the groups, not among the accounts
+            const gid: string = posix.first('gidNumber')!
+            await assert.rejects(directory.createGroup(groups, {objectClass: 'posixGroup', cn: 'same-gid', gidNumber: gid}), LDAPConstraintViolationException)
+            await admin.modify(`uid=user3,${people}`, {operation: 'replace', attribute: 'gidNumber', values: gid})
+            const allocated: string[] = []
+            for (const name of ['g1', 'g2', 'g3']) allocated.push((await admin.search(await directory.createGroup(groups, {objectClass: 'posixGroup', cn: name}), {scope: 'base', attributes: ['gidNumber']})).entries[0].first('gidNumber')!)
+            assert.equal(new Set([gid, ...allocated]).size, 4)
         })
 
         it('computes memberOf, nested groups included, and finds the members of a group by it', async () => {
@@ -174,7 +181,7 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                 const policy = async (): Promise<LDAPServer> => {
                     const instance: Container = new Container()
                     servers.push(instance)
-                    await instance.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities}})
+                    await instance.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
                     await instance.setNamed('ldap', LDAPServer, {
                         port: 0,
                         host: '127.0.0.1',
@@ -199,10 +206,37 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             }
         })
 
+        it('keeps large values, and serves two suffixes from one database with two backends', async () => {
+            const photo: Buffer = Buffer.alloc(100 * 1024, 7)
+            photo[0] = 0xff
+            await admin.modify(`uid=user11,${people}`, {operation: 'replace', attribute: 'jpegPhoto', values: photo})
+            assert.deepEqual((await admin.search(`uid=user11,${people}`, {scope: 'base', attributes: ['jpegPhoto']})).entries[0].getBuffers('jpegPhoto')[0], photo)
+            const two: Container = new Container()
+            try {
+                await two.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await two.setNamed('ldap', LDAPServer, {
+                    port: 0,
+                    host: '127.0.0.1',
+                    backends: [{class: DirectoryBackend, suffix: 'dc=first,dc=org', database: 'database'}, {class: DirectoryBackend, suffix: 'dc=second,dc=org', database: 'database'}],
+                    access: {admins: ['cn=admin,dc=first,dc=org']}
+                })
+                const server: LDAPServer = await two.get<LDAPServer>('ldap')
+                const writer: LDAPInProcessConnection = server.connect('cn=admin,dc=first,dc=org')
+                await writer.add('dc=first,dc=org', {objectClass: ['dcObject', 'organization'], dc: 'first', o: 'First'})
+                await writer.add('dc=second,dc=org', {objectClass: ['dcObject', 'organization'], dc: 'second', o: 'Second'})
+                await writer.add('cn=only-second,dc=second,dc=org', {objectClass: 'device', cn: 'only-second'})
+                assert.equal((await writer.search('dc=first,dc=org', {filter: '(cn=only-second)'})).entries.length, 0)
+                assert.equal((await writer.search('dc=second,dc=org', {filter: '(cn=only-second)'})).entries.length, 1)
+                assert.equal((await admin.search(BASE, {filter: '(cn=only-second)'})).entries.length, 0)
+            } finally {
+                await two.destroy()
+            }
+        })
+
         it('rolls a write back when an interceptor refuses it before the commit', async () => {
             const refusing: Container = new Container()
             try {
-            await refusing.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities}})
+            await refusing.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
             await refusing.setNamed('ldap', LDAPServer, {
                 port: 0,
                 host: '127.0.0.1',

@@ -68,12 +68,14 @@ await server.listen({port: 636, secure: true})
 ```
 
 - `createLDAPServer()` 提供各个后端里的条目，每个后端挂在自己的后缀上。后端负责存取条目（`get()`、`search()`，以及它支持的写操作），其余都由服务器负责：协议、StartTLS 和 LDAPS、每次写入时的 schema 校验、密码、访问控制、各种上限、rootDSE 和 subschema；后端自己不做排序、虚拟列表视图和分页时，也由服务器来做。`MemoryBackend` 把条目放在内存里；`createHandlerBackend()` 用 ldapjs 服务器那种按操作写处理函数的方式生成一个后端。
-- 默认的 schema 是 RFC 里的那些（core、cosine、inetOrgPerson）；自己的 schema 文件（OpenLDAP `cn=config` 格式的 LDIF、subschema 条目、`.schema` 格式）用 `schema.files` 加入。名字或 OID 重复定义时，服务器在启动时就会报错。
+- 自带的 schema（core、cosine、inetOrgPerson、rfc2307bis、openssh-lpk、ppolicy）默认全部加载；自己的 schema 文件（OpenLDAP `cn=config` 格式的 LDIF、subschema 条目、`.schema` 格式）用 `schema.files` 加入。名字或 OID 重复定义时，服务器在启动时就会报错。
 - `server.connect({as})` 返回一个进程内连接，操作和客户端一样：应用不经过网络读写自己的目录，经过的 schema 校验、密码哈希和访问控制都和网络请求相同。不调用 `listen()` 也能用。
 - `createDirectory()` 用 LDAP 操作管理用户、组和组织单元，可以用在任何连接上：进程内连接、客户端，或者远程的 OpenLDAP，只要 profile 和那台服务器的 schema 对得上。
 - 密码以 `{PBKDF2-SHA512}` 写入，格式和 OpenLDAP 的 pw-pbkdf2 模块相同；绑定时也能验证 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、`{CRYPT}`，以及在 Node.js 24.7 及以后带有 argon2 时的 `{ARGON2}`），验证成功后再按服务器的格式重新哈希。任何人都读不到 `userPassword`。
 - 默认情况下，匿名会话只能读 rootDSE 和 subschema，已绑定的会话可以读整个目录，`access.admins` 里的管理员可以写；给了 `access.check` 时先由它决定。同一个 DN 或同一个地址连续绑定失败时，响应会被放慢，之后锁定一段时间，所有失败一律返回 invalidCredentials。
-- 拦截器像 OpenLDAP 的 overlay 一样，在后端的操作外面运行代码：在请求之前、包住请求、对搜索返回的每个条目，或者在写操作提交之前。拦截器放在服务器自带的拦截器（`access`、`password`、`schema`、`operational`、`paging`）之前或之后。
+- 密码策略按 draft-behera-ldap-password-policy 实现（`passwordPolicy`），和 OpenLDAP 的 ppolicy 用同一套属性：有一条默认策略（pwdPolicy 条目的 DN，或者直接给出规则），用户的 pwdPolicySubentry 可以换成别的策略；连续失败太多次就锁定账号，有过期、过期前提醒和宽限登录，管理员重置后必须先改密码，新密码有最短修改间隔、长度、复杂度（可以加自己的检查）和历史的限制。状态保存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime 等），所以任何后端都能保存。账号被锁定时默认和密码错误一样回答，除非设置 `revealLocked`。
+- 拦截器像 OpenLDAP 的 overlay 一样，在后端的操作外面运行代码：在请求之前、包住请求、对搜索返回的每个条目，或者在写操作提交之前。拦截器放在服务器自带的拦截器（`access`、`password`、`schema`、`operational`、`paging`）之前或之后。`groupPresentationInterceptor()` 像 lldap 那样，让每个组同时以 groupOfNames 和 groupOfUniqueNames 两种组类呈现，给只认识其中一种的客户端用。
+- 后端可以带上它计算的属性所需的 schema 文件、自己的拦截器、多个实例共用的绑定限速存储，以及 `transaction()`：拦截器的 `beforeCommit()` 和写操作在同一个事务里执行。
 
 ### 协议
 
@@ -142,15 +144,17 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `LDAPInterceptor`、`InterceptorPlacement`、`ServerRequest` 等 | 拦截器 |
 | `AccessOptions`、`ServerLimits`、`BindThrottleOptions` | 访问规则、各种上限、绑定限速 |
 | `PasswordSchemes`、`PasswordScheme` | 密码存储格式 |
+| `PasswordPolicyOptions`、`PasswordPolicyRules`、`rulesOfEntry(entry, schema)` | 密码策略 |
+| `groupPresentationInterceptor(options)` | 让组同时以 groupOfNames 和 groupOfUniqueNames 呈现 |
 | `plainMechanism()`、`externalMechanism()`、`SASLMechanism` | SASL |
 | `createDirectory(connection, options)`、`Directory`、`DirectoryProfile` | 目录助手 |
-| `bundledSchema(names)`、`BUNDLED_SCHEMAS` | 自带的 RFC schema |
+| `bundledSchema(names)`、`BUNDLED_SCHEMAS`、`BUNDLED_SCHEMA_NAMES` | 自带的 schema（core、cosine、inetorgperson、rfc2307bis、openssh-lpk、ppolicy） |
 | `encodeMessage(message)`、`decodeMessage(bytes)` | 把消息编码成字节，或从字节解码 |
 | `MessageReader` | 读取数据流里的消息 |
 | `Filter`、`filter`、`escapeFilterValue(value)`、`matchFilter(filter, entry, schema)` | 过滤器：构造、文本、转义模板、求值 |
 | `PagedResultsControl`、`SortRequestControl`、`VLVRequestControl`、`PasswordPolicyResponseControl` 等，`findControl()` | 控制项的编解码 |
 | `ExtendedOperation`、`PasswordModifyRequest`、`PasswordModifyResponse`、`WhoAmIResponse`、`CancelRequest`、`SyncInfo` | 扩展操作的 OID 和值 |
-| `Ber`、`BerReader` | 读写 BER，用来自己写编解码 |
+| `Ber`、`BerReader`、`isUTF8(bytes)` | 读写 BER，用来自己写编解码；判断字节是否为 UTF-8 |
 | `DN`、`RDN`、`escapeDNValue(value)` | DN |
 | `Schema`、`parseAttributeType()`、`parseObjectClass()` 等，`parseGeneralizedTime()`、`formatGeneralizedTime()` | schema、schema 定义、时间 |
 | `parseLDIF(text)`、`stringifyLDIF(records)` | LDIF |

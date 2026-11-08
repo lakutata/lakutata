@@ -63,25 +63,11 @@ export class LDAPEntryRecord {
 }
 
 /**
- * A value of an attribute of an entry: its bytes (as text when they are UTF-8, else in base64), the hash of its form
+ * The columns of the values of the directory backend, but the value itself (TEXT, or LONGTEXT on MySQL): its bytes (as text when they are UTF-8, else in base64), the hash of its form
  * for equality, its form for substrings, its form for ordering when it is a number or a time, and the ID of the entry
  * a DN value names in the same backend
- * @example
- * ```typescript
- * import type {Database} from 'lakutata/com/database'
- * import {LDAPValueRecord} from '@lakutata/ldap'
- *
- * async function countValues(database: Database, attributeType: string): Promise<number> {
- *     return database.getRepository(LDAPValueRecord).countBy({attributeType: attributeType.toLowerCase()})
- * }
- * ```
  */
-@Entity('ldap_value')
-@Index('ldap_value_entry', ['entryId'])
-@Index('ldap_value_key', ['attributeType', 'valueHash'])
-@Index('ldap_value_sort', ['attributeType', 'sortKey'])
-@Index('ldap_value_target', ['target'])
-export class LDAPValueRecord {
+export abstract class LDAPValueColumns {
     /**
      * The ID of the value
      */
@@ -112,11 +98,6 @@ export class LDAPValueRecord {
     @Column({name: 'position', type: 'int'})
     public position: number
 
-    /**
-     * The value: its text, or its bytes in base64 when `binary`
-     */
-    @Column({name: 'value', type: 'text'})
-    public value: string
 
     /**
      * Whether the value is in base64
@@ -147,6 +128,33 @@ export class LDAPValueRecord {
      */
     @Column({name: 'target', type: 'varchar', length: 36, nullable: true})
     public target: string | null
+}
+
+/**
+ * A value of an attribute of an entry: its bytes (as text when they are UTF-8, else in base64), the hash of its form
+ * for equality, its form for substrings, its form for ordering when it is a number or a time, and the ID of the entry
+ * a DN value names in the same backend
+ * @example
+ * ```typescript
+ * import type {Database} from 'lakutata/com/database'
+ * import {LDAPValueRecord} from '@lakutata/ldap'
+ *
+ * async function countValues(database: Database, attributeType: string): Promise<number> {
+ *     return database.getRepository(LDAPValueRecord).countBy({attributeType: attributeType.toLowerCase()})
+ * }
+ * ```
+ */
+@Entity('ldap_value')
+@Index('ldap_value_entry', ['entryId'])
+@Index('ldap_value_key', ['attributeType', 'valueHash'])
+@Index('ldap_value_sort', ['attributeType', 'sortKey'])
+@Index('ldap_value_target', ['target'])
+export class LDAPValueRecord extends LDAPValueColumns {
+    /**
+     * The value: its text, or its bytes in base64 when `binary`
+     */
+    @Column({name: 'value', type: 'text'})
+    public value: string
 }
 
 /**
@@ -223,6 +231,54 @@ export class LDAPBindStateRecord {
 }
 
 /**
- * The entities of the directory backend, for the `entities` of the application's database
+ * A value of an attribute of an entry, on MySQL and MariaDB: its column holds up to 4 GB (LONGTEXT) rather than the
+ * 64 KB of TEXT, for the photos and the certificates
+ * @example
+ * ```typescript
+ * import type {Database} from 'lakutata/com/database'
+ * import {LDAPMySQLValueRecord} from '@lakutata/ldap'
+ *
+ * async function countValues(database: Database): Promise<number> {
+ *     return database.getRepository(LDAPMySQLValueRecord).count()
+ * }
+ * ```
  */
-export const directoryEntities: Function[] = [LDAPEntryRecord, LDAPValueRecord, LDAPUniqueRecord, LDAPBindStateRecord]
+@Entity('ldap_value')
+@Index('ldap_value_entry', ['entryId'])
+@Index('ldap_value_key', ['attributeType', 'valueHash'])
+@Index('ldap_value_sort', ['attributeType', 'sortKey'])
+@Index('ldap_value_target', ['target'])
+export class LDAPMySQLValueRecord extends LDAPValueColumns {
+    /**
+     * The value: its text, or its bytes in base64 when `binary`
+     */
+    @Column({name: 'value', type: 'longtext'})
+    public value: string
+}
+
+//The database types of the MySQL family
+const MYSQL_TYPES: string[] = ['mysql', 'mariadb', 'aurora-mysql']
+
+/**
+ * The entities of the directory backend, for the `entities` of the application's database: its type tells them apart
+ * (on MySQL and MariaDB the values are in a LONGTEXT column)
+ * @param type The type of the database (`postgres`, `mysql`, `better-sqlite3`…).
+ * @example
+ * ```typescript
+ * import {buildDatabaseOptions} from 'lakutata/com/database'
+ * import {directoryEntities} from '@lakutata/ldap'
+ *
+ * const database = buildDatabaseOptions({type: 'mysql', url: process.env.DATABASE_URL, entities: [...directoryEntities('mysql')]})
+ * ```
+ */
+export function directoryEntities(type: string): Function[] {
+    return [LDAPEntryRecord, MYSQL_TYPES.includes(type) ? LDAPMySQLValueRecord : LDAPValueRecord, LDAPUniqueRecord, LDAPBindStateRecord]
+}
+
+/**
+ * Whether a database type is of the MySQL family
+ * @param type The type.
+ */
+export function isMySQL(type: string): boolean {
+    return MYSQL_TYPES.includes(type)
+}

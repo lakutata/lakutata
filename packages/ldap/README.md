@@ -3,7 +3,8 @@
 English | [中文](README.zh-CN.md)
 
 LDAP for the [lakutata](https://www.npmjs.com/package/lakutata) framework. The `LDAPServer` component serves a directory
-from the application: its backends hold the entries, and the application reads and writes them without the network.
+from the application: its backends hold the entries (the `DirectoryBackend` keeps them in the application's database),
+and the application reads and writes them without the network.
 The `LDAPClient` component gives an application a pool of connections to an LDAP server (OpenLDAP, Active Directory,
 389 Directory Server…). Both are built on [`@lakutata/ldap-engine`](https://www.npmjs.com/package/@lakutata/ldap-engine),
 which this package re-exports.
@@ -54,6 +55,54 @@ its options (`{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`),
 directory helper on such a connection; both go through the same schema checks, password hashing and access control as the network requests.
 What the server does (the schema, the passwords, the access rules, the interceptors) is described in the README of
 `@lakutata/ldap-engine`.
+
+### The directory backend
+
+```typescript
+import {Application} from 'lakutata'
+import {buildDatabaseOptions} from 'lakutata/com/database'
+import {buildLDAPServerOptions, DirectoryBackend, directoryEntities} from '@lakutata/ldap'
+
+Application.run(() => ({
+    id: 'directory.app',
+    name: 'Directory',
+    components: {
+        database: buildDatabaseOptions({type: 'postgres', url: process.env.DATABASE_URL, entities: directoryEntities('postgres')}),
+        ldap: buildLDAPServerOptions({
+            port: 389,
+            backends: [{
+                class: DirectoryBackend,
+                suffix: 'dc=example,dc=com',
+                unique: ['uid', 'mail'],
+                initialize: {admin: {dn: 'cn=admin,dc=example,dc=com', password: process.env.LDAP_ADMIN_PASSWORD!}}
+            }],
+            access: {admins: ['cn=admin,dc=example,dc=com']},
+            passwordPolicy: {default: {lockout: true, maxFailure: 5, lockoutDuration: 900, maxAge: 7776000, expireWarning: 1209600}}
+        })
+    },
+    bootstrap: ['database', 'ldap']
+}))
+```
+
+The directory backend keeps the entries of its suffix in the database of the application (PostgreSQL, MySQL or
+SQLite): one table of entries and one row per value, whatever their object classes,
+so the schema of the server decides what an entry holds. Add `directoryEntities(type)`, given the type of the
+database (MySQL keeps the values in a LONGTEXT column), to the entities of the database; the
+migrations are the application's, as for its other entities.
+
+- Searches are run by the database: the filters become SQL on the forms of the values the matching rules compare by
+  (equality, substrings, integers and times), and the server checks what SQL cannot decide exactly.
+- The DN values of member, manager, seeAlso and the like point at their entries: they follow a rename, and go when the
+  entry is deleted (a required attribute left empty keeps a placeholder, the empty DN by default).
+- memberOf is computed when it is read, and a filter on it finds the members of a group; `nestedGroups` follows nested
+  groups. memberUid is computed for the posixGroup entries, for the clients of RFC 2307.
+- uidNumber and gidNumber are allocated to the posixAccount and posixGroup entries added without them (from 10000);
+  a uidNumber is unique, and so is the gidNumber of a posixGroup among the groups.
+- The values of the attributes of `unique` are unique in the suffix; the time of the last bind is given as
+  authTimestamp; the failed binds are kept in the database, so the instances of an application share them, as they
+  share the state of the password policy; `mailAlias` gives email as mail.
+- Each write runs in a transaction, with the interceptors' `beforeCommit()`.
+- `initialize` creates the entry of the suffix and an administrator on the first start (or imports LDIF), once.
 
 ### The client
 
@@ -112,11 +161,30 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | `plaintextBind` | `'all'` | Where a password is accepted without TLS: `'all'`, `'loopback'`, `'none'` |
 | `allowUnauthenticatedBind` | `false` | Accept a bind with a name and no password as anonymous |
 | `passwords` | `{PBKDF2-SHA512}` | The scheme passwords are written in, and the iterations of PBKDF2 |
+| `passwordPolicy` | | The password policy: its default policy (the DN of a pwdPolicy entry, or its rules), `quality`, `revealLocked` |
 | `rehashOnBind` | `true` | Hash a password again in the scheme of the server after a bind with a weaker one |
 | `sasl` | PLAIN, EXTERNAL | The SASL mechanisms |
 | `extendedOperations`, `controls` | | Extended operations and controls of one's own |
 | `vendorName`, `vendorVersion`, `defaultNamingContext`, `rootDSEAttributes` | `lakutata` | What the root DSE says |
 | `schemaConfigView` | `false` | Show the schema files read-only as OpenLDAP does (`cn=schema,cn=config`) |
+
+### DirectoryBackend
+
+| Option | Default | What it is |
+|---|---|---|
+| `suffix` | | The DN of the top entry of the backend |
+| `database` | `'database'` | The name the Database component is registered under |
+| `groups` | groupOfNames/member, groupOfUniqueNames/uniqueMember, groupOfMembers/member | The group classes and their member attributes |
+| `memberOf` | `true` | Give memberOf; a name and an OID of one's own when the schema defines memberOf itself, or `false` |
+| `nestedGroups` | `0` | The levels of nested groups memberOf follows |
+| `memberUid` | `true` | Give memberUid to the posixGroup entries |
+| `unique` | | The attributes whose values are unique in the suffix |
+| `idAllocation` | from 10000 | The first uidNumber and gidNumber allocated, or `false` |
+| `lastBind` | `true` | Give authTimestamp, the time of the last successful bind |
+| `mailAlias` | `false` | Give email, the values of mail |
+| `referencePlaceholder` | the empty DN | The value left in a required DN attribute whose last value named a deleted entry |
+| `sharedThrottle` | `true` | Keep the failed binds in the database |
+| `initialize` | | `root`, `ldif` and `admin`: what the first start creates |
 
 ### LDAPClient
 
@@ -140,5 +208,7 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 |---|---|
 | `LDAPServer`, `buildLDAPServerOptions(options)`, `LDAPServerOptions` | The server component and its options |
 | `LDAPClient`, `buildLDAPClientOptions(options)`, `LDAPClientOptions` | The client component and its options |
+| `DirectoryBackend`, `DirectoryBackendOptions`, `directoryEntities(type)` | The directory backend, its options, its entities for a type of database |
+| `LDAPEntryRecord`, `LDAPValueRecord`, `LDAPMySQLValueRecord`, `LDAPUniqueRecord`, `LDAPBindStateRecord` | The entities of the directory backend |
 | `ObjectSpecification`, `InterceptorSpecification`, `InterfaceListeningOptions` | The types of the options |
 | Everything `@lakutata/ldap-engine` exports | The protocol, the client, the server engine, the directory helper |

@@ -33,7 +33,7 @@ import {
     type ThrottleStore,
     type WriteContext
 } from '@lakutata/ldap-engine'
-import {LDAPBindStateRecord, LDAPEntryRecord, LDAPUniqueRecord, LDAPValueRecord} from './Entities.js'
+import {isMySQL, LDAPBindStateRecord, LDAPEntryRecord, LDAPMySQLValueRecord, LDAPUniqueRecord, LDAPValueRecord} from './Entities.js'
 import {FilterTranslator, memberOfAssertions, type Translation, type VirtualAttributes} from './FilterQuery.js'
 import {equalityForm, sha256, sortForm, storedValue, substringForm, valueBytes, valueHashOf} from './Keys.js'
 
@@ -148,13 +148,13 @@ function descriptionKey(description: string, schema: Schema): string {
 }
 
 /**
- * The directory backend: the entries of a suffix in the application's database (PostgreSQL, MySQL, SQLite…), stored
+ * The directory backend: the entries of a suffix in the application's database (PostgreSQL, MySQL or SQLite), stored
  * whatever their classes are (an entry table, a table of values, one row per value), as the schema of the server
  * decides. It finds the entries with the indexes of the forms of the values (equality, substrings, numbers and
  * times), keeps the DNs that values name pointing at their entries (renamed with them, removed with them), computes
  * memberOf and memberUid when they are read, allocates uidNumber and gidNumber, keeps the time of the last bind, the
- * failed binds and the unique values in the database, and runs each write in a transaction. Add `directoryEntities` to
- * the entities of the database.
+ * failed binds and the unique values in the database, and runs each write in a transaction. Add `directoryEntities()`
+ * of the type of the database to its entities.
  * @example
  * ```typescript
  * import {Application} from 'lakutata'
@@ -165,7 +165,7 @@ function descriptionKey(description: string, schema: Schema): string {
  *     id: 'directory.app',
  *     name: 'Directory',
  *     components: {
- *         database: buildDatabaseOptions({type: 'postgres', url: process.env.DATABASE_URL, entities: [...directoryEntities]}),
+ *         database: buildDatabaseOptions({type: 'postgres', url: process.env.DATABASE_URL, entities: directoryEntities('postgres')}),
  *         ldap: buildLDAPServerOptions({
  *             port: 389,
  *             backends: [{class: DirectoryBackend, suffix: 'dc=example,dc=com', initialize: {admin: {dn: 'cn=admin,dc=example,dc=com', password: process.env.LDAP_ADMIN_PASSWORD!}}}],
@@ -272,7 +272,16 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     protected async init(): Promise<void> {
         DN.parse(this.suffix)
         this.#database = await this.getObject<Database>(this.database)
+        const type: string = String((this.#database.driver.options as {type?: string}).type)
+        this.#valueEntity = this.#database.hasMetadata(LDAPMySQLValueRecord) ? LDAPMySQLValueRecord : LDAPValueRecord
+        if (isMySQL(type) && this.#valueEntity !== LDAPMySQLValueRecord) throw new InvalidValueException(`The directory backend on ${type} needs the entities of directoryEntities('${type}')`)
+        if (!this.#database.hasMetadata(this.#valueEntity) || !this.#database.hasMetadata(LDAPEntryRecord)) throw new InvalidValueException(`The database ${this.database} has not the entities of the directory backend: add directoryEntities('${type}') to its entities`)
     }
+
+    /**
+     * The entity of the values: LONGTEXT on MySQL
+     */
+    #valueEntity: typeof LDAPValueRecord | typeof LDAPMySQLValueRecord = LDAPValueRecord
 
     /**
      * The Database component
@@ -446,7 +455,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     protected async entries(manager: EntityManager, rows: {id: string, dn: string}[], schema: Schema, virtual: {memberOf: boolean, memberUid: boolean, email: boolean}): Promise<DirectoryEntry[]> {
         if (!rows.length) return []
         const ids: string[] = rows.map((row: {id: string}): string => row.id)
-        const values: LDAPValueRecord[] = await manager.createQueryBuilder(LDAPValueRecord, 'v').where('v.entryId IN (:...ids)', {ids: ids}).orderBy('v.id', 'ASC').getMany()
+        const values: LDAPValueRecord[] = await manager.createQueryBuilder(this.#valueEntity, 'v').where('v.entryId IN (:...ids)', {ids: ids}).orderBy('v.id', 'ASC').getMany()
         const byEntry: Map<string, Map<string, PartialAttribute>> = new Map(ids.map((id: string): [string, Map<string, PartialAttribute>] => [id, new Map()]))
         for (const value of values) {
             const attributes: Map<string, PartialAttribute> = byEntry.get(value.entryId)!
@@ -690,7 +699,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param rows The rows.
      */
     protected async insertValues(manager: EntityManager, rows: Partial<LDAPValueRecord>[]): Promise<void> {
-        for (let index: number = 0; index < rows.length; index += 100) await manager.insert(LDAPValueRecord, rows.slice(index, index + 100) as LDAPValueRecord[])
+        for (let index: number = 0; index < rows.length; index += 100) await manager.insert(this.#valueEntity, rows.slice(index, index + 100) as LDAPValueRecord[])
     }
 
     /**
@@ -712,18 +721,21 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     protected async keepUnique(manager: EntityManager, entryId: string, attributes: PartialAttribute[], schema: Schema): Promise<void> {
         const unique: Set<string> = this.uniqueTypes(schema)
-        if (!unique.size) return
+        //The gidNumber of a posixGroup is unique among the groups (the accounts share the gidNumbers of their groups)
+        const posixGroup: boolean = this.idAllocation !== false && attributes.some((attribute: PartialAttribute): boolean => schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase() === 'objectclass' && attribute.values.some((value: Buffer): boolean => schema.superclasses(value.toString().trim()).some((definition: ObjectClassDefinition): boolean => definition.names.some((name: string): boolean => name.toLowerCase() === 'posixgroup'))))
+        if (!unique.size && !posixGroup) return
         await manager.delete(LDAPUniqueRecord, {entryId: entryId})
         for (const attribute of attributes) {
             const type: string = schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase()
-            if (!unique.has(type)) continue
+            const key: string | undefined = unique.has(type) ? type : posixGroup && type === 'gidnumber' ? 'gidnumber;posixgroup' : undefined
+            if (!key) continue
             for (const value of attribute.values) {
                 const valueHash: string = valueHashOf(type, value, schema)
-                const taken: LDAPUniqueRecord | null = await manager.findOneBy(LDAPUniqueRecord, {suffix: this.suffixKey, attributeType: type, valueHash: valueHash})
+                const taken: LDAPUniqueRecord | null = await manager.findOneBy(LDAPUniqueRecord, {suffix: this.suffixKey, attributeType: key, valueHash: valueHash})
                 if (taken && taken.entryId !== entryId) throw new LDAPConstraintViolationException(`${attribute.type}: the value is used by another entry`)
                 if (taken) continue
                 try {
-                    await manager.insert(LDAPUniqueRecord, {suffix: this.suffixKey, attributeType: type, valueHash: valueHash, entryId: entryId})
+                    await manager.insert(LDAPUniqueRecord, {suffix: this.suffixKey, attributeType: key, valueHash: valueHash, entryId: entryId})
                 } catch {
                     throw new LDAPConstraintViolationException(`${attribute.type}: the value is used by another entry`)
                 }
@@ -776,7 +788,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         await this.keepUnique(manager, id, entry.attributes, schema)
         //The values naming this entry before it was added now point at it
         const dnTypes: string[] = this.dnTypes(schema)
-        if (dnTypes.length) await manager.createQueryBuilder().update(LDAPValueRecord).set({target: id}).where('target IS NULL').andWhere('attributeType IN (:...types)', {types: dnTypes}).andWhere('valueHash = :hash', {hash: sha256('rule:' + dnKey)}).execute()
+        if (dnTypes.length) await manager.createQueryBuilder().update(this.#valueEntity).set({target: id}).where('target IS NULL').andWhere('attributeType IN (:...types)', {types: dnTypes}).andWhere('valueHash = :hash', {hash: sha256('rule:' + dnKey)}).execute()
     }
 
     /**
@@ -810,10 +822,10 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             }
         }
         const descriptions: string[] = entry.attributes.filter((attribute: PartialAttribute): boolean => touched.has(descriptionKey(attribute.type, schema))).map((attribute: PartialAttribute): string => attribute.type)
-        if (descriptions.length) await manager.createQueryBuilder().delete().from(LDAPValueRecord).where('entryId = :id', {id: row.id}).andWhere('description IN (:...descriptions)', {descriptions: descriptions}).execute()
+        if (descriptions.length) await manager.createQueryBuilder().delete().from(this.#valueEntity).where('entryId = :id', {id: row.id}).andWhere('description IN (:...descriptions)', {descriptions: descriptions}).execute()
         const written: PartialAttribute[] = [...attributes.entries()].filter(([key]: [string, PartialAttribute]): boolean => touched.has(key)).map(([, attribute]: [string, PartialAttribute]): PartialAttribute => attribute)
         await this.insertValues(manager, await this.valueRows(manager, row.id, written, schema))
-        if ([...touched].some((key: string): boolean => this.uniqueTypes(schema).has(key.split(';')[0]))) await this.keepUnique(manager, row.id, [...attributes.values()], schema)
+        if ([...touched].some((key: string): boolean => this.uniqueTypes(schema).has(key.split(';')[0]) || ['gidnumber', 'objectclass'].includes(key.split(';')[0]))) await this.keepUnique(manager, row.id, [...attributes.values()], schema)
     }
 
     /**
@@ -833,7 +845,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             : [row.id]
         for (let index: number = 0; index < ids.length; index += 200) {
             const batch: string[] = ids.slice(index, index + 200)
-            const references: LDAPValueRecord[] = await manager.createQueryBuilder(LDAPValueRecord, 'v').where('v.target IN (:...ids)', {ids: batch}).getMany()
+            const references: LDAPValueRecord[] = await manager.createQueryBuilder(this.#valueEntity, 'v').where('v.target IN (:...ids)', {ids: batch}).getMany()
             const referring: Map<string, LDAPValueRecord[]> = new Map()
             for (const reference of references.filter((item: LDAPValueRecord): boolean => !ids.includes(item.entryId))) {
                 const list: LDAPValueRecord[] = referring.get(reference.entryId) ?? []
@@ -841,7 +853,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                 referring.set(reference.entryId, list)
             }
             for (const [entryId, removed] of referring) await this.removeReferences(manager, entryId, removed, schema)
-            await manager.createQueryBuilder().delete().from(LDAPValueRecord).where('entryId IN (:...ids)', {ids: batch}).execute()
+            await manager.createQueryBuilder().delete().from(this.#valueEntity).where('entryId IN (:...ids)', {ids: batch}).execute()
             await manager.createQueryBuilder().delete().from(LDAPUniqueRecord).where('entryId IN (:...ids)', {ids: batch}).execute()
             await manager.createQueryBuilder().delete().from(LDAPEntryRecord).where('id IN (:...ids)', {ids: batch}).execute()
         }
@@ -856,7 +868,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param schema The schema.
      */
     protected async removeReferences(manager: EntityManager, entryId: string, removed: LDAPValueRecord[], schema: Schema): Promise<void> {
-        await manager.createQueryBuilder().delete().from(LDAPValueRecord).where('id IN (:...ids)', {ids: removed.map((value: LDAPValueRecord): number => value.id)}).execute()
+        await manager.createQueryBuilder().delete().from(this.#valueEntity).where('id IN (:...ids)', {ids: removed.map((value: LDAPValueRecord): number => value.id)}).execute()
         const owner: LDAPEntryRecord | null = await manager.findOneBy(LDAPEntryRecord, {id: entryId})
         if (!owner) return
         const [entry] = await this.entries(manager, [owner], schema, {memberOf: false, memberUid: false, email: false})
@@ -901,17 +913,17 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             renamed.set(item.id, {dn: itemDN.toString(), dnKey: dnKey})
         }
         //The values of the entry, its RDN changed
-        await manager.createQueryBuilder().delete().from(LDAPValueRecord).where('entryId = :id', {id: row.id}).execute()
+        await manager.createQueryBuilder().delete().from(this.#valueEntity).where('entryId = :id', {id: row.id}).execute()
         await this.insertValues(manager, await this.valueRows(manager, row.id, entry.attributes, schema))
         await this.keepUnique(manager, row.id, entry.attributes, schema)
         //The values naming the moved entries
         const ids: string[] = [...renamed.keys()]
         for (let index: number = 0; index < ids.length; index += 200) {
-            const references: LDAPValueRecord[] = await manager.createQueryBuilder(LDAPValueRecord, 'v').where('v.target IN (:...ids)', {ids: ids.slice(index, index + 200)}).getMany()
+            const references: LDAPValueRecord[] = await manager.createQueryBuilder(this.#valueEntity, 'v').where('v.target IN (:...ids)', {ids: ids.slice(index, index + 200)}).getMany()
             for (const reference of references) {
                 const target: {dn: string, dnKey: string} = renamed.get(reference.target!)!
                 const bytes: Buffer = Buffer.from(target.dn)
-                await manager.update(LDAPValueRecord, {id: reference.id}, {value: target.dn, binary: false, valueHash: valueHashOf(reference.attributeType, bytes, schema), valueKey: substringForm(reference.attributeType, bytes, schema) ?? null})
+                await manager.update(this.#valueEntity, {id: reference.id}, {value: target.dn, binary: false, valueHash: valueHashOf(reference.attributeType, bytes, schema), valueKey: substringForm(reference.attributeType, bytes, schema) ?? null})
             }
         }
     }
@@ -929,7 +941,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const row: LDAPEntryRecord | null = await this.row(manager, dn, schema)
         if (!row) return
         const name: string = schema.primaryName(type).toLowerCase()
-        await manager.createQueryBuilder().delete().from(LDAPValueRecord).where('entryId = :id', {id: row.id}).andWhere('attributeType = :type', {type: name}).execute()
+        await manager.createQueryBuilder().delete().from(this.#valueEntity).where('entryId = :id', {id: row.id}).andWhere('attributeType = :type', {type: name}).execute()
         await this.insertValues(manager, await this.valueRows(manager, row.id, [{type: schema.primaryName(type), values: [Buffer.from(value)]}], schema))
     }
 
@@ -959,7 +971,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             try {
                 return await next()
             } catch (error) {
-                if (attempt >= 4 || !(error instanceof LDAPConstraintViolationException) || !/uidNumber/i.test(error.message)) throw error
+                if (attempt >= 4 || !(error instanceof LDAPConstraintViolationException) || !/uidNumber|gidNumber/i.test(error.message)) throw error
             }
         }
     }

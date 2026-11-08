@@ -86,7 +86,7 @@ await server.listen({port: 636, secure: true})
   schema checks on every write, the passwords, the access control, the limits, the root DSE and the subschema, and
   sorting, the virtual list view and paged results when the backend does not do them itself. `MemoryBackend` keeps its entries in
   memory; `createHandlerBackend()` makes a backend from handlers written operation by operation, as ldapjs servers are.
-- The schema is that of the RFCs (core, cosine, inetOrgPerson) by default; schema files of one's own (the LDIF of
+- The schema is bundled (core, cosine, inetOrgPerson, rfc2307bis, openssh-lpk and ppolicy) and loaded by default; schema files of one's own (the LDIF of
   OpenLDAP's `cn=config`, a subschema entry, the `.schema` form) are added with `schema.files`. A name or an OID
   defined twice stops the server at its start.
 - `server.connect({as})` gives a connection in the same process, with the operations of the client: the application
@@ -100,9 +100,19 @@ await server.listen({port: 636, secure: true})
 - By default anonymous sessions read only the root DSE and the subschema, bound sessions read the directory, and the
   administrators of `access.admins` write; `access.check` decides first when given. Failed binds of a DN or an
   address are slowed down, then locked for a while, all answered with invalidCredentials.
+- The password policy of draft-behera-ldap-password-policy (`passwordPolicy`), with the attributes OpenLDAP's ppolicy
+  uses: a default policy (the DN of a pwdPolicy entry, or its rules) that a user's pwdPolicySubentry replaces; accounts
+  locked after too many failures, expiration with its warnings and grace binds, the password to change first after a
+  reset, the minimum age, length, quality (with a check of one's own) and history of new passwords. Its state is in the
+  operational attributes of the entries (pwdChangedTime, pwdAccountLockedTime…), so every backend keeps it. A locked
+  account is answered as a wrong password unless `revealLocked` is set.
 - Interceptors run code around the operations of a backend, as the overlays of OpenLDAP do: before a request, around
   it, on each entry a search returns, or before a write is committed. They are placed before or after the server's
-  own (`access`, `password`, `schema`, `operational`, `paging`).
+  own (`access`, `password`, `schema`, `operational`, `paging`). `groupPresentationInterceptor()` shows each group as
+  both groupOfNames and groupOfUniqueNames, as lldap does, for the clients knowing one of them.
+- A backend may bring the schema files of the attributes it computes, interceptors of its own, a store shared by the
+  instances for the bind throttle, and `transaction()`, in which the interceptors' `beforeCommit()` and the write run
+  together.
 
 ### The protocol
 
@@ -180,15 +190,17 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `LDAPInterceptor`, `InterceptorPlacement`, `ServerRequest`… | The interceptors |
 | `AccessOptions`, `ServerLimits`, `BindThrottleOptions` | The access rules, the limits, the bind throttle |
 | `PasswordSchemes`, `PasswordScheme` | The password storage schemes |
+| `PasswordPolicyOptions`, `PasswordPolicyRules`, `rulesOfEntry(entry, schema)` | The password policy |
+| `groupPresentationInterceptor(options)` | Groups shown as both groupOfNames and groupOfUniqueNames |
 | `plainMechanism()`, `externalMechanism()`, `SASLMechanism` | SASL |
 | `createDirectory(connection, options)`, `Directory`, `DirectoryProfile` | The directory helper |
-| `bundledSchema(names)`, `BUNDLED_SCHEMAS` | The schema of the RFCs, bundled |
+| `bundledSchema(names)`, `BUNDLED_SCHEMAS`, `BUNDLED_SCHEMA_NAMES` | The bundled schema (core, cosine, inetorgperson, rfc2307bis, openssh-lpk, ppolicy) |
 | `encodeMessage(message)`, `decodeMessage(bytes)` | A message as bytes, and back |
 | `MessageReader` | The reader of the messages of a stream |
 | `Filter`, `filter`, `escapeFilterValue(value)`, `matchFilter(filter, entry, schema)` | Filters: building, text, the escaping template, evaluation |
 | `PagedResultsControl`, `SortRequestControl`, `VLVRequestControl`, `PasswordPolicyResponseControl`… `findControl()` | The codecs of the controls |
 | `ExtendedOperation`, `PasswordModifyRequest`, `PasswordModifyResponse`, `WhoAmIResponse`, `CancelRequest`, `SyncInfo` | The OIDs and the values of the extended operations |
-| `Ber`, `BerReader` | Writing and reading BER, for codecs of one's own |
+| `Ber`, `BerReader`, `isUTF8(bytes)` | Writing and reading BER, for codecs of one's own; whether bytes are UTF-8 |
 | `DN`, `RDN`, `escapeDNValue(value)` | DNs |
 | `Schema`, `parseAttributeType()`, `parseObjectClass()`… `parseGeneralizedTime()`, `formatGeneralizedTime()` | Schemas, their definitions, the times |
 | `parseLDIF(text)`, `stringifyLDIF(records)` | LDIF |
