@@ -1,5 +1,5 @@
 import {type AttributeTypeDefinition, attributeTypeOf, type Filter, type MatchingRule, type Schema} from '@lakutata/ldap-engine'
-import {ordersAsNumber, sha256, sortForm} from './Keys.js'
+import {ordersAsNumber, referenceForm, sha256, sortForm} from './Keys.js'
 
 /**
  * The virtual attributes the backend computes, which a filter may name
@@ -49,6 +49,8 @@ const TRUE: Translation = {sql: '1=1', exact: true}
 const FALSE: Translation = {sql: '1=0', exact: true}
 //An item the engine evaluates as Undefined: false here, but not exact (NOT of it is not true)
 const UNDEFINED: Translation = {sql: '1=0', exact: false}
+//The syntax of a name and optional UID (uniqueMember)
+const NAME_AND_OPTIONAL_UID: string = '1.3.6.1.4.1.1466.115.121.1.34'
 
 /**
  * A pattern of LIKE with `!` as its escape character
@@ -184,8 +186,9 @@ export class FilterTranslator {
             case 'present':
                 return this.present(filter.attribute)
             case 'equality':
-            case 'approx':
                 return this.equality(filter.attribute, filter.value)
+            case 'approx':
+                return this.approximate(filter.attribute, filter.value)
             case 'substrings':
                 return this.substrings(filter.attribute, filter.initial, filter.any, filter.final)
             case 'greaterOrEqual':
@@ -229,6 +232,22 @@ export class FilterTranslator {
         if (this.virtual.memberUid && name === 'memberuid') return {sql: `(${this.exists(type, `v.value_hash = :${this.parameter(hash)}`)} OR ${this.memberUid(hash)})`, exact: true}
         if (!this.sameRule(type, rule)) return {sql: this.exists(type), exact: false}
         return {sql: this.exists(type, `v.value_hash = :${this.parameter(hash)}`), exact: !description.includes(';')}
+    }
+
+    /**
+     * Translate an approximate assertion: a name and optional UID by the DN it names whatever its UID (kept in the key of
+     * its value), the other syntaxes as equality, as the engine evaluates them
+     * @param description The attribute description.
+     * @param value The asserted value.
+     */
+    protected approximate(description: string, value: Buffer): Translation {
+        const type: string = this.typeOf(description)
+        if (this.schema.syntaxOf(type) !== NAME_AND_OPTIONAL_UID) return this.equality(description, value)
+        const reference: string | undefined = referenceForm(type, value, this.schema)
+        if (reference === undefined) return UNDEFINED
+        //A DN too long for the key: the engine checks every value
+        if (reference.length > 1000) return {sql: this.exists(type), exact: false}
+        return {sql: this.exists(type, `v.value_key = :${this.parameter(reference)}`), exact: !description.includes(';')}
     }
 
     /**

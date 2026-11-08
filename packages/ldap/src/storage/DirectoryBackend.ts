@@ -35,7 +35,7 @@ import {
 } from '@lakutata/ldap-engine'
 import {isMySQL, LDAPBindStateRecord, LDAPEntryRecord, LDAPMySQLValueRecord, LDAPUniqueRecord, LDAPValueRecord} from './Entities.js'
 import {FilterTranslator, memberOfAssertions, type Translation, type VirtualAttributes} from './FilterQuery.js'
-import {equalityForm, sha256, sortForm, storedValue, substringForm, valueBytes, valueHashOf} from './Keys.js'
+import {keyForm, namesEntries, referenceForm, sha256, sortForm, storedValue, valueBytes, valueHashOf} from './Keys.js'
 
 //The syntax of the DNs
 const DN_SYNTAX: string = '1.3.6.1.4.1.1466.115.121.1.12'
@@ -644,7 +644,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     protected dnTypes(schema: Schema): string[] {
         return schema.attributeTypes()
-            .filter((definition: AttributeTypeDefinition): boolean => schema.syntaxOf(definition.names[0] ?? definition.oid) === DN_SYNTAX)
+            .filter((definition: AttributeTypeDefinition): boolean => namesEntries(definition.names[0] ?? definition.oid, schema))
             .map((definition: AttributeTypeDefinition): string => (definition.names[0] ?? definition.oid).toLowerCase())
     }
 
@@ -660,10 +660,10 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const targets: Map<string, string> = new Map()
         const dnValues: string[] = []
         for (const attribute of attributes) {
-            if (schema.syntaxOf(attributeTypeOf(attribute.type)) !== DN_SYNTAX) continue
+            if (!namesEntries(attribute.type, schema)) continue
             for (const value of attribute.values) {
-                const form: string | undefined = equalityForm(attribute.type, value, schema)
-                if (form !== undefined) dnValues.push(sha256(form.replace(/^rule:/, '')))
+                const form: string | undefined = referenceForm(attribute.type, value, schema)
+                if (form !== undefined) dnValues.push(sha256(form))
             }
         }
         if (dnValues.length) {
@@ -672,10 +672,10 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         }
         for (const attribute of attributes) {
             const type: string = schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase()
-            const isDN: boolean = schema.syntaxOf(type) === DN_SYNTAX
+            const naming: boolean = namesEntries(type, schema)
             attribute.values.forEach((value: Buffer, position: number): void => {
                 const stored: {value: string, binary: boolean} = storedValue(value)
-                const form: string | undefined = isDN ? equalityForm(type, value, schema) : undefined
+                const form: string | undefined = naming ? referenceForm(type, value, schema) : undefined
                 rows.push({
                     entryId: entryId,
                     attributeType: type,
@@ -684,9 +684,9 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                     value: stored.value,
                     binary: stored.binary,
                     valueHash: valueHashOf(type, value, schema),
-                    valueKey: substringForm(type, value, schema) ?? null,
+                    valueKey: keyForm(type, value, schema) ?? null,
                     sortKey: sortForm(type, value, schema) ?? null,
-                    target: form === undefined ? null : targets.get(sha256(form.replace(/^rule:/, ''))) ?? null
+                    target: form === undefined ? null : targets.get(sha256(form)) ?? null
                 })
             })
         }
@@ -788,7 +788,8 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         await this.keepUnique(manager, id, entry.attributes, schema)
         //The values naming this entry before it was added now point at it
         const dnTypes: string[] = this.dnTypes(schema)
-        if (dnTypes.length) await manager.createQueryBuilder().update(this.#valueEntity).set({target: id}).where('target IS NULL').andWhere('attributeType IN (:...types)', {types: dnTypes}).andWhere('valueHash = :hash', {hash: sha256('rule:' + dnKey)}).execute()
+        //(a DN by the hash of its form; a name and optional UID by the DN its key keeps, whatever its UID)
+        if (dnTypes.length) await manager.createQueryBuilder().update(this.#valueEntity).set({target: id}).where('target IS NULL').andWhere('attributeType IN (:...types)', {types: dnTypes}).andWhere('(valueHash = :hash OR valueKey = :key)', {hash: sha256('rule:' + dnKey), key: dnKey}).execute()
     }
 
     /**
@@ -922,8 +923,10 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             const references: LDAPValueRecord[] = await manager.createQueryBuilder(this.#valueEntity, 'v').where('v.target IN (:...ids)', {ids: ids.slice(index, index + 200)}).getMany()
             for (const reference of references) {
                 const target: {dn: string, dnKey: string} = renamed.get(reference.target!)!
-                const bytes: Buffer = Buffer.from(target.dn)
-                await manager.update(this.#valueEntity, {id: reference.id}, {value: target.dn, binary: false, valueHash: valueHashOf(reference.attributeType, bytes, schema), valueKey: substringForm(reference.attributeType, bytes, schema) ?? null})
+                //A name and optional UID keeps its UID
+                const value: string = target.dn + (/#'[01]*'B$/.exec(reference.value)?.[0] ?? '')
+                const bytes: Buffer = Buffer.from(value)
+                await manager.update(this.#valueEntity, {id: reference.id}, {value: value, binary: false, valueHash: valueHashOf(reference.attributeType, bytes, schema), valueKey: keyForm(reference.attributeType, bytes, schema) ?? null})
             }
         }
     }

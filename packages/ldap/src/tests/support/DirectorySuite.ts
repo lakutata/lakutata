@@ -144,6 +144,22 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             assert.deepEqual((await admin.search(group, {scope: 'base'})).entries[0].get('member'), [''])
         })
 
+        it('keeps groupOfUniqueNames as groupOfNames: memberOf, the references with their UIDs, the approximate match', async () => {
+            const group: string = `cn=uniques,${groups}`
+            //A member added after the group naming it
+            await admin.add(group, {objectClass: 'groupOfUniqueNames', cn: 'uniques', uniqueMember: [`uid=user10,${people}#'0101'B`, `uid=late,${people}#'1'B`]})
+            await admin.add(`uid=late,${people}`, {objectClass: 'account', uid: 'late'})
+            const memberOf = async (dn: string): Promise<string[]> => (await admin.search(dn, {scope: 'base', attributes: ['memberOf']})).entries[0].get('memberOf')
+            assert.ok((await memberOf(`uid=user10,${people}`)).includes(group))
+            assert.ok((await memberOf(`uid=late,${people}`)).includes(group))
+            assert.equal((await admin.search(groups, {filter: `(uniqueMember~=UID=User10,${people})`})).entries[0]?.dn, group)
+            assert.equal((await admin.search(groups, {filter: `(uniqueMember=uid=user10,${people})`})).entries.length, 0)
+            await admin.modifyDN(`uid=late,${people}`, 'uid=later')
+            assert.deepEqual((await admin.search(group, {scope: 'base'})).entries[0].get('uniqueMember').sort(), [`uid=later,${people}#'1'B`, `uid=user10,${people}#'0101'B`].sort())
+            await admin.delete(`uid=later,${people}`)
+            assert.deepEqual((await admin.search(group, {scope: 'base'})).entries[0].get('uniqueMember'), [`uid=user10,${people}#'0101'B`])
+        })
+
         it('moves and deletes subtrees, and pages a search of the network client', async () => {
             const unit: string = await directory.createOrganizationalUnit(BASE, {ou: 'temporary'})
             const inner: string = await directory.createOrganizationalUnit(unit, {ou: 'inner'})

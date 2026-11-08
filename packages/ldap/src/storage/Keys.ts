@@ -23,6 +23,50 @@ export function equalityForm(type: string, value: Buffer, schema: Schema): strin
     return prepared === undefined ? undefined : 'rule:' + prepared
 }
 
+//The syntaxes of the values naming entries: a DN, a name and optional UID (uniqueMember)
+const DN_SYNTAX: string = '1.3.6.1.4.1.1466.115.121.1.12'
+const NAME_AND_OPTIONAL_UID: string = '1.3.6.1.4.1.1466.115.121.1.34'
+
+/**
+ * The normalized DN a value names: a DN, or the name of a name and optional UID without its UID; undefined for the
+ * other syntaxes
+ * @param type The attribute type.
+ * @param value The value.
+ * @param schema The schema.
+ */
+export function referenceForm(type: string, value: Buffer, schema: Schema): string | undefined {
+    const syntax: string | undefined = schema.syntaxOf(attributeTypeOf(type))
+    if (syntax !== DN_SYNTAX && syntax !== NAME_AND_OPTIONAL_UID) return undefined
+    const form: string | undefined = equalityForm(type, value, schema)
+    if (form === undefined || !form.startsWith('rule:')) return undefined
+    return syntax === DN_SYNTAX ? form.slice(5) : form.slice(5).replace(/#'[01]*'B$/, '')
+}
+
+/**
+ * Whether the values of an attribute type name entries (a DN, or a name and optional UID)
+ * @param type The attribute type.
+ * @param schema The schema.
+ */
+export function namesEntries(type: string, schema: Schema): boolean {
+    const syntax: string | undefined = schema.syntaxOf(attributeTypeOf(type))
+    return syntax === DN_SYNTAX || syntax === NAME_AND_OPTIONAL_UID
+}
+
+/**
+ * The form a value is found by approximately, kept in its value_key: the substrings form, or for a name and optional UID
+ * (which has no substrings rule) the DN it names, whatever its UID
+ * @param type The attribute type.
+ * @param value The value.
+ * @param schema The schema.
+ */
+export function keyForm(type: string, value: Buffer, schema: Schema): string | undefined {
+    if (schema.syntaxOf(attributeTypeOf(type)) === NAME_AND_OPTIONAL_UID) {
+        const reference: string | undefined = referenceForm(type, value, schema)
+        return reference !== undefined && reference.length <= 1000 ? reference : undefined
+    }
+    return substringForm(type, value, schema)
+}
+
 /**
  * The hash a value is found by for equality
  * @param type The attribute type.
