@@ -45,9 +45,9 @@ export interface DNNormalizer {
  */
 export interface DNParseOptions {
     /**
-     * Refuse what RFC 4514 does not allow: spaces around the separators, unescaped trailing spaces, `"`, `;`, `<` and
-     * `>` in values, `_` in attribute names. By default they are accepted, as many directories write DNs with spaces
-     * after the commas (`cn=a, dc=example, dc=com`); the DN is written back strictly.
+     * Refuse what RFC 4514 does not allow: spaces around the separators, unescaped trailing spaces, `"`, `<` and `>` in
+     * values, `;` separating the RDNs (RFC 2253), `_` in attribute names. By default they are accepted, as many
+     * directories write DNs with spaces after the commas (`cn=a, dc=example, dc=com`); the DN is written back strictly.
      */
     strict?: boolean
 }
@@ -197,7 +197,8 @@ class Parser {
             }
             rdns.push(new RDN(attributes))
             if (this.position >= this.text.length) break
-            if (this.text[this.position] !== ',') this.fail('"," expected')
+            //RFC 2253 separated the RDNs by ";" too, as ldapjs still does
+            if (this.text[this.position] !== ',' && (this.strict || this.text[this.position] !== ';')) this.fail('"," expected')
             this.position++
         }
         return rdns
@@ -236,7 +237,7 @@ class Parser {
         const hex: string = this.text.slice(start, this.position)
         if (!hex.length || hex.length % 2) this.fail('A value of "#" and an odd or empty count of hex digits')
         this.spaces()
-        if (this.position < this.text.length && this.text[this.position] !== ',' && this.text[this.position] !== '+') this.fail('A character after a hex value')
+        if (this.position < this.text.length && !',+'.includes(this.text[this.position]) && (this.strict || this.text[this.position] !== ';')) this.fail('A character after a hex value')
         const binary: Buffer = Buffer.from(hex, 'hex')
         return {type: type, value: textOfBER(binary), binary: binary}
     }
@@ -248,7 +249,7 @@ class Parser {
         let significant: number = 0
         while (this.position < this.text.length) {
             const character: string = this.text[this.position]
-            if (character === ',' || character === '+') break
+            if (character === ',' || character === '+' || (!this.strict && character === ';')) break
             if (character === '\\') {
                 const hex: string = this.text.slice(this.position + 1, this.position + 3)
                 if (/^[0-9A-Fa-f]{2}$/.test(hex)) {
