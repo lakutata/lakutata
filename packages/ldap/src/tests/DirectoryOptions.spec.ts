@@ -62,6 +62,28 @@ describe('the options of the directory backend', {skip: sqliteLoads() ? false : 
         }
     })
 
+    it('creates the root and the administrator once when two instances start together', async () => {
+        const file: string = join(tmpdir(), `lakutata-ldap-options-${process.pid}-together.sqlite`)
+        const database: Record<string, unknown> = {type: 'better-sqlite3', database: file, entities: directoryEntities('better-sqlite3')}
+        //The tables made first, as the migrations of an application would
+        const tables: Container = new Container()
+        await tables.setNamed('database', Database, {options: {...database, synchronize: true}})
+        await tables.destroy()
+        const instances: Container[] = [new Container(), new Container()]
+        try {
+            await Promise.all(instances.map(async (instance: Container): Promise<void> => {
+                await instance.setNamed('database', Database, {options: database})
+                await instance.setNamed('ldap', LDAPServer, {port: 0, host: '127.0.0.1', backends: [{class: DirectoryBackend, database: 'database', suffix: 'dc=example', initialize: {admin: {dn: 'cn=admin,dc=example', password: 'secret'}}}], access: {admins: ['cn=admin,dc=example']}, passwords: {iterations: 1000}})
+            }))
+            const ldap: LDAPServer = await instances[1].get<LDAPServer>('ldap')
+            assert.deepEqual((await ldap.connect('cn=admin,dc=example').search('dc=example')).entries.map((entry) => entry.dn).sort(), ['cn=admin,dc=example', 'dc=example'])
+            await ldap.connect().bind('cn=admin,dc=example', 'secret')
+        } finally {
+            for (const instance of instances) await instance.destroy()
+            rmSync(file, {force: true})
+        }
+    })
+
     it('keeps the failed binds in the database', async () => {
         const {container, ldap, file} = await serve({suffix: 'dc=example', initialize: {admin: {dn: 'cn=admin,dc=example', password: 'secret'}}}, {access: {admins: ['cn=admin,dc=example']}, bindThrottle: {delay: 0}})
         try {
@@ -79,6 +101,27 @@ describe('the options of the directory backend', {skip: sqliteLoads() ? false : 
         try {
             await container.setNamed('database', Database, {options: {type: 'better-sqlite3', database: ':memory:', entities: [], synchronize: true}})
             await assert.rejects(container.setNamed('ldap', LDAPServer, {port: 0, host: '127.0.0.1', backends: [{class: DirectoryBackend, suffix: 'dc=example', database: 'database'}]}), /entities of the directory backend/)
+        } finally {
+            await container.destroy()
+        }
+    })
+})
+
+describe('the directory backend on sql.js', () => {
+    it('keeps a directory in the memory of one process', async () => {
+        const container: Container = new Container()
+        try {
+            await container.setNamed('database', Database, {options: {type: 'sqljs', entities: directoryEntities('sqljs'), synchronize: true}})
+            await container.setNamed('ldap', LDAPServer, {port: 0, host: '127.0.0.1', backends: [{class: DirectoryBackend, database: 'database', suffix: 'dc=example', initialize: {admin: {dn: 'cn=admin,dc=example', password: 'secret'}}}], access: {admins: ['cn=admin,dc=example']}, passwords: {iterations: 1000}})
+            const ldap: LDAPServer = await container.get<LDAPServer>('ldap')
+            const directory = ldap.directory('cn=admin,dc=example')
+            const user: string = await directory.createUser('dc=example', {uid: 'alice', cn: 'Alice', sn: 'A'}, 'alice-secret')
+            const group: string = await directory.createGroup('dc=example', {cn: 'staff'}, [user])
+            const renamed: string = await directory.rename(user, 'alice2')
+            const {entries} = await ldap.connect('cn=admin,dc=example').search('dc=example', {filter: `(&(uid=alice2)(memberOf=${group}))`, attributes: ['memberOf']})
+            assert.deepEqual(entries.map((entry) => [entry.dn, entry.get('memberOf')]), [[renamed, [group]]])
+            assert.deepEqual((await ldap.connect('cn=admin,dc=example').search(group, {scope: 'base', attributes: ['member']})).entries[0].get('member'), [renamed])
+            assert.equal(await directory.verifyPassword(renamed, 'alice-secret'), true)
         } finally {
             await container.destroy()
         }
