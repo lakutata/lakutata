@@ -577,7 +577,7 @@ export const SyncDoneControl: ControlCodec<SyncDoneValue> = define<SyncDoneValue
  * if (paged) console.log(PagedResultsControl.decode(paged).size) //100
  * ```
  */
-export function findControl(controls: Control[] | undefined, codec: ControlCodec<unknown> | string): Control | undefined {
+export function findControl(controls: readonly Control[] | undefined, codec: ControlCodec<unknown> | string): Control | undefined {
     const oid: string = typeof codec === 'string' ? codec : codec.oid
     return controls?.find((control: Control): boolean => control.oid === oid)
 }
