@@ -87,6 +87,7 @@ website.
 | LDAP: signing users in against a directory, reading and writing it, serving a directory from the application's database (to SSSD on the same machine over a Unix socket too), the password policy, plugins (memberOf, referential integrity, unique values, audit…; `@lakutata/ldap`, `@lakutata/ldap-engine`) | `LDAP.md` |
 | Mathematics: formulas, equations, decimals, matrices, statistics, numeric solutions, units (`@lakutata/math`) | `Math.md` |
 | Listening on a network interface whatever its addresses (the `interface` option of the entrypoints, or `@lakutata/netif` alone); the interfaces and their changes | `Netif.md` |
+| Serial ports and classic Bluetooth devices: opening a port as a stream, its line and modem lines, finding it by its USB ids, unplugged devices (`@lakutata/serial`) | `Serial.md` |
 | Bundles, executables, installers | `Packaging.md`, `Installers.md` |
 | A whole application of a kind (REST API, CLI tool, web, desktop or mobile application, calls between services, background jobs, MCP server, service on a device) | `examples/README.md` and its pages |
 | A 2.x project to bring to 3.x | `https://lakutata.com/doc/en/UpgradingFrom2.md` (the installed 2.x package does not have it) |

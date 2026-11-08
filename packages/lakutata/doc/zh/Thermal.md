@@ -187,7 +187,7 @@ console.log(escpos.length)
 
 ## 8. 串口和蓝牙设备
 
-`@lakutata/serial` 把串口作为流打开，用于打印机和其他任何串口设备：
+`@lakutata/serial` 把串口作为流打开，用于打印机和其他任何串口设备（它有单独的指南 [Serial](Serial.md)）：
 
 ```typescript
 import {listSerialPorts, openBluetoothSerial, openSerialPort} from '@lakutata/serial'

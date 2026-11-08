@@ -211,7 +211,8 @@ console.log(escpos.length)
 
 ## 8. Serial ports and Bluetooth devices
 
-`@lakutata/serial` opens a port as a stream, for printers and any other serial device:
+`@lakutata/serial` opens a port as a stream, for printers and any other serial device (its own guide is
+[Serial](Serial.md)):
 
 ```typescript
 import {listSerialPorts, openBluetoothSerial, openSerialPort} from '@lakutata/serial'

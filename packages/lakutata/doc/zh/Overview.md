@@ -85,6 +85,7 @@
 | [LDAP](LDAP.md) | LDAP（`@lakutata/ldap`、`@lakutata/ldap-engine`）：用目录验证用户登录，读写目录，用应用的数据库提供目录服务，schema，谁能做什么，密码策略，插件，接入 SSSD、Keycloak 和 Gitea |
 | [Math](Math.md) | 数学计算（`@lakutata/math`）：公式和精确结果、方程、任意精度的十进制数、矩阵、统计、数值解法、单位 |
 | [Netif](Netif.md) | 网口（`@lakutata/netif`）：服务器按网口监听，不管网口的地址怎么变；挡住别的网口的连接；网口和它们的变化；单个网口上的 UDP |
+| [Serial](Serial.md) | 串口（`@lakutata/serial`）：把串口作为流打开，线路参数和信号线，按 USB 转接器的 ID 找到串口，设备拔掉后的处理，经典蓝牙设备 |
 | [Command](Command.md) | `lakutata` 命令：创建项目、迁移、翻译、环境变量 |
 | [Workspaces](Workspaces.md) | 由多个包组成的项目：运行各个包的脚本、统一版本号、添加包 |
 | [NativeAddons](NativeAddons.md) | 用 C++ 或 Rust 编写的原生插件：创建、链接库、发布 |
