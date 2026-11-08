@@ -140,17 +140,33 @@ const CRYPT: PasswordScheme = {
 
 type Argon2 = (algorithm: string, parameters: {message: Buffer, nonce: Buffer, parallelism: number, tagLength: number, memory: number, passes: number}, callback: (error: Error | null, key: Buffer) => void) => void
 
+//The argon2 of node:crypto once tried: null when it is missing or refuses to run
+let supportedArgon2: Argon2 | null | undefined
+
 /**
- * The argon2 of node:crypto, from Node.js 24.7 on
+ * The argon2 of node:crypto, from Node.js 24.7 on, where it runs: Electron has the function, but its BoringSSL refuses
+ * the algorithm (ERR_CRYPTO_ARGON2_NOT_SUPPORTED)
  */
-function argon2Function(): Argon2 | undefined {
-    const argon2: unknown = (crypto as unknown as {argon2?: unknown}).argon2
-    return typeof argon2 === 'function' ? argon2 as Argon2 : undefined
+export function argon2Function(): Argon2 | undefined {
+    if (supportedArgon2 === undefined) {
+        const {argon2, argon2Sync} = crypto as unknown as {argon2?: unknown, argon2Sync?: (algorithm: string, parameters: Record<string, unknown>) => Buffer}
+        supportedArgon2 = null
+        if (typeof argon2 === 'function' && typeof argon2Sync === 'function') {
+            try {
+                //node-compat: crypto.argon2Sync (tried only where node:crypto has it); the smallest parameters
+                argon2Sync('argon2id', {message: Buffer.alloc(1), nonce: Buffer.alloc(8), parallelism: 1, tagLength: 4, memory: 8, passes: 1})
+                supportedArgon2 = argon2 as Argon2
+            } catch {
+                supportedArgon2 = null
+            }
+        }
+    }
+    return supportedArgon2 ?? undefined
 }
 
 /**
  * The `{ARGON2}` scheme of the pw-argon2 module of OpenLDAP (`$argon2id$v=19$m=65536,t=2,p=1$<salt>$<hash>`), where
- * node:crypto has argon2 (Node.js 24.7 and later)
+ * node:crypto runs argon2 (Node.js 24.7 and later, not Electron)
  */
 const ARGON2: PasswordScheme = {
     name: 'ARGON2',
@@ -174,7 +190,7 @@ const ARGON2: PasswordScheme = {
  * as the pw-pbkdf2 module of OpenLDAP writes it), and the schemes the binds verify: `{PBKDF2}`, `{PBKDF2-SHA1}`,
  * `{PBKDF2-SHA256}`, `{PBKDF2-SHA512}`, `{SSHA}`, `{SSHA256}`, `{SSHA384}`, `{SSHA512}`, `{SHA}`, `{SHA256}`,
  * `{SHA384}`, `{SHA512}`, `{SMD5}`, `{MD5}`, `{CRYPT}` (`$1$`, `$5$`, `$6$`, bcrypt) and `{ARGON2}` (where node:crypto
- * has argon2). A value without a scheme is a password in clear, which a bind compares as it is.
+ * runs argon2). A value without a scheme is a password in clear, which a bind compares as it is.
  * @example
  * ```typescript
  * import {PasswordSchemes} from '@lakutata/ldap-engine'

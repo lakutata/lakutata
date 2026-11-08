@@ -1,10 +1,10 @@
 //The hashes are test vectors of passlib 1.7.4 (passlib/tests/test_handlers*.py, BSD license), which takes many of them
 //from John the Ripper and from the hashes of the systems themselves
 import assert from 'node:assert/strict'
-import * as crypto from 'node:crypto'
 import {describe, it} from 'node:test'
 import {PasswordSchemes} from '../exports/LDAPEngine.js'
 import {md5Crypt, shaCrypt} from '../lib/server/Crypt.js'
+import {argon2Function} from '../lib/server/Passwords.js'
 
 const schemes: PasswordSchemes = new PasswordSchemes({iterations: 1000})
 
@@ -69,7 +69,7 @@ describe('the password schemes', () => {
         assert.equal(await schemes.verify('{CRYPT}$9$x', 'x'), false)
     })
 
-    it('verify argon2 where node:crypto has it', {skip: typeof (crypto as unknown as {argon2?: unknown}).argon2 === 'function' ? false : 'node:crypto has no argon2 here'}, async () => {
+    it('verify argon2 where node:crypto has it', {skip: argon2Function() ? false : 'node:crypto has no argon2 here'}, async () => {
         //From the reference implementation of argon2 (argon2id, the test of its README)
         const stored: string = '{ARGON2}$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc'
         assert.equal(await schemes.verify(stored, 'password'), true)

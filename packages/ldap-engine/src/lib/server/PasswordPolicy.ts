@@ -416,7 +416,9 @@ export class PasswordPolicy {
         if (rules.inHistory && entry) {
             const history: string[] = valuesOfType(entry, 'pwdHistory', this.schema).map((value: Buffer): string => value.toString('utf8'))
             const added: string[] = current.map((value: Buffer): string => `${time}#${HISTORY_SYNTAX}#${value.length}#${value.toString('utf8')}`)
-            changes.push(replace('pwdHistory', ...[...history, ...added].sort().slice(-rules.inHistory)))
+            //Oldest first by the time a value starts with; the values of one second stay in the order they were kept
+            const timeOfValue = (value: string): number => parseGeneralizedTime(value.slice(0, value.indexOf('#'))) ?? 0
+            changes.push(replace('pwdHistory', ...[...history, ...added].sort((left: string, right: string): number => timeOfValue(left) - timeOfValue(right)).slice(-rules.inHistory)))
         }
         changes.push(rules.mustChange && !change.self ? replace('pwdReset', 'TRUE') : replace('pwdReset'))
         //A password an administrator sets unlocks the account

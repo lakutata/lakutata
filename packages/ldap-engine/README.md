@@ -95,8 +95,9 @@ await server.listen({port: 636, secure: true})
 - `createDirectory()` manages users, groups and organizational units with LDAP operations, on any connection: the
   in-process one, the client, or a remote OpenLDAP, as long as its profile fits the schema of the server.
 - Passwords are written as `{PBKDF2-SHA512}`, as the pw-pbkdf2 module of OpenLDAP writes them; a bind also checks the
-  other schemes of OpenLDAP (`{SSHA}`, the SHA-2 schemes, `{CRYPT}`, and `{ARGON2}` where Node.js has argon2, 24.7 and
-  later), then hashes the password again in the scheme of the server. Nobody reads `userPassword`.
+  other schemes of OpenLDAP (`{SSHA}`, the SHA-2 schemes, `{CRYPT}`, and `{ARGON2}` where node:crypto runs argon2:
+  Node.js 24.7 and later, but not Electron), then hashes the password again in the scheme of the server. Nobody reads
+  `userPassword`.
 - By default anonymous sessions read only the root DSE and the subschema, bound sessions read the directory, and the
   administrators of `access.admins` write; `access.check` decides first when given. Failed binds of a DN or an
   address are slowed down, then locked for a while, all answered with invalidCredentials.
