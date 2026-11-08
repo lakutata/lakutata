@@ -106,6 +106,12 @@ await check('CJS @lakutata/ldap-engine loads', () => {
     if (ldap.decodeMessage(ldap.encodeMessage({messageId: 1, protocolOp: {type: 'unbindRequest'}})).protocolOp.type !== 'unbindRequest') throw new Error('the codec of LDAP')
 })
 
+// @lakutata/ldap — the components of LDAP, the engine re-exported
+await check('CJS @lakutata/ldap loads', () => {
+    const ldap = requireCJS('../packages/ldap/dist/cjs/exports/LDAP.js')
+    if (typeof ldap.LDAPClient !== 'function' || typeof ldap.buildLDAPClientOptions !== 'function' || typeof ldap.connectLDAP !== 'function') throw new Error('LDAP components missing')
+})
+
 // @lakutata/ffi — the native libraries, koffi required from CommonJS
 await check('CJS @lakutata/ffi loads and calls the C library', () => {
     const ffi = requireCJS('../packages/ffi/dist/cjs/exports/FFI.js')

@@ -94,7 +94,8 @@ export interface AuthenticateOptions extends OperationOptions {
      */
     bindName?: (username: string) => string
     /**
-     * Refuse to send the password over a connection without TLS (true by default)
+     * Refuse to send the password over a connection without TLS (true by default): use an `ldaps` URL, `startTLS`, or an
+     * `ldapi` socket, or set it to false
      */
     requireTLS?: boolean
 }
@@ -164,15 +165,16 @@ const AD_REASONS: Record<string, AuthenticationFailureReason> = {
  * Order the records of a DNS SRV lookup: by priority, and by a random draw weighted by their weight within a priority
  * (RFC 2782)
  * @param records The records.
+ * @param random The draw, between 0 and 1.
  */
-function orderSrv(records: SrvRecord[]): SrvRecord[] {
+export function orderSrv(records: SrvRecord[], random: () => number = Math.random): SrvRecord[] {
     const ordered: SrvRecord[] = []
     const priorities: number[] = [...new Set(records.map((record: SrvRecord): number => record.priority))].sort((a: number, b: number): number => a - b)
     for (const priority of priorities) {
         const group: SrvRecord[] = records.filter((record: SrvRecord): boolean => record.priority === priority)
         while (group.length) {
             const total: number = group.reduce((sum: number, record: SrvRecord): number => sum + record.weight, 0)
-            let draw: number = Math.random() * total
+            let draw: number = random() * total
             let index: number = group.findIndex((record: SrvRecord): boolean => (draw -= record.weight) < 0)
             if (index < 0) index = 0
             ordered.push(...group.splice(index, 1))
@@ -242,12 +244,20 @@ export class LDAPPool implements LDAPConnection {
     }
 
     /**
+     * The records of a DNS SRV name
+     * @param name The name.
+     */
+    protected resolveSrv(name: string): Promise<SrvRecord[]> {
+        return dns.resolveSrv(name)
+    }
+
+    /**
      * The URLs to try, in order
      */
     protected async urls(): Promise<string[]> {
         if (this.options.url) return Array.isArray(this.options.url) ? this.options.url : [this.options.url]
         const srv: {name: string, scheme?: 'ldap' | 'ldaps'} = typeof this.options.srv === 'string' ? {name: this.options.srv} : this.options.srv!
-        const records: SrvRecord[] = await dns.resolveSrv(srv.name)
+        const records: SrvRecord[] = await this.resolveSrv(srv.name)
         return orderSrv(records).map((record: SrvRecord): string => `${srv.scheme ?? 'ldap'}://${record.name.includes(':') ? `[${record.name}]` : record.name}:${record.port}`)
     }
 
@@ -512,7 +522,7 @@ export class LDAPPool implements LDAPConnection {
         }
         const connection: LDAPClientConnection = await this.connect()
         try {
-            if (options.requireTLS !== false && !connection.secure) throw new LDAPUsageException('authenticate() sends passwords over TLS only: use an ldaps URL or startTLS, or set requireTLS to false')
+            if (options.requireTLS !== false && !connection.secure && !connection.local) throw new LDAPUsageException('authenticate() sends passwords over TLS only: use an ldaps URL, startTLS or an ldapi socket, or set requireTLS to false')
             const controls: Control[] = [...options.controls ?? [], PasswordPolicyRequestControl.encode()]
             try {
                 const bound: OperationResult = await connection.bind(dn, password, {controls: controls, signal: options.signal, timeout: options.timeout})

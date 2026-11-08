@@ -3,8 +3,9 @@
 English | [中文](README.zh-CN.md)
 
 LDAP for Node.js in TypeScript, part of the [lakutata](https://github.com/lakutata/lakutata) framework, with no native
-code and no dependencies. It holds the protocol: the messages of LDAPv3 and their controls, DNs, search filters, schemas
-and LDIF. It needs no application: the components that bring LDAP into a lakutata application are in `@lakutata/ldap`.
+code and no dependencies. It holds the protocol (the messages of LDAPv3 and their controls, DNs, search filters, schemas
+and LDIF) and a client. It needs no application: the components that bring LDAP into a lakutata application are in
+`@lakutata/ldap`.
 
 ## Installation
 
@@ -15,6 +16,51 @@ npm install @lakutata/ldap-engine
 Node.js `>=18.10.0`, Bun, Electron and NW.js.
 
 ## Usage
+
+### The client
+
+```typescript
+import {createLDAPClient, filter, type LDAPPool} from '@lakutata/ldap-engine'
+
+const client: LDAPPool = createLDAPClient({
+    url: ['ldaps://ldap1.example.com', 'ldaps://ldap2.example.com'],
+    bindDN: 'cn=reader,dc=example,dc=com',
+    password: process.env.LDAP_PASSWORD
+})
+
+const name: string = 'alice'
+const {entries} = await client.search('ou=people,dc=example,dc=com', {
+    filter: filter`(&(objectClass=inetOrgPerson)(uid=${name}))`,
+    attributes: ['cn', 'mail', 'jpegPhoto']
+})
+console.log(entries[0]?.first('mail'), entries[0]?.getBuffers('jpegPhoto')[0])
+
+const result = await client.authenticate({username: 'alice', password: 'secret', base: 'ou=people,dc=example,dc=com'})
+console.log(result.ok ? result.dn : result.reason)
+
+await client.close()
+```
+
+- `createLDAPClient()` gives a pool of connections bound as one identity. It opens them when an operation needs one,
+  tries the servers in order (or those of a DNS SRV record), and closes the idle ones.
+- `connectLDAP()` opens one connection (`ldap://`, `ldaps://`, `ldapi://`, StartTLS) for a session of its own. Its
+  operations take a `timeout` and a `signal`; a search or a write that times out is abandoned on the server and the
+  connection goes on. A bind or StartTLS that times out closes the connection.
+- Searches are paged (500 entries a page) unless `paged: false`, so a server's own limit on a request does not cut them
+  short; `searchIterator()` gives the entries one by one and ends the paging on the server when the loop stops early.
+  `sort` with `window` reads a window of the sorted entries (virtual list view). The values Active Directory gives in
+  ranges (`member;range=0-1499`) are read to their end.
+- An entry reads text with `get()` and bytes with `getBuffers()`; `get()` throws on an attribute whose values are bytes
+  (`jpegPhoto`, `objectGUID`…), so bytes are never read as text.
+- `authenticate()` finds the user's entry, then binds as the user on a connection of its own: an empty password is
+  refused before anything is sent, and the result says why a bind failed (`invalidCredentials`, `accountLocked`,
+  `passwordExpired`…), read from the password policy control or the data codes of Active Directory. It sends passwords
+  only over TLS (an `ldaps` URL or `startTLS`) or a local `ldapi` socket, unless `requireTLS: false`.
+- A result that is not a success throws its exception: `LDAPNoSuchObjectException`, `LDAPInvalidCredentialsException`…
+- `readSchema()` reads the schema a server publishes. `guidToString()`, `sidToString()`, `parseUserAccountControl()`,
+  `fileTimeToDate()` and `changeADPassword()` help with Active Directory.
+
+### The protocol
 
 ```typescript
 import {decodeMessage, encodeMessage, filter, type LDAPMessage, MessageReader, type ReadMessage} from '@lakutata/ldap-engine'
@@ -76,6 +122,13 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 
 | Export | What it is |
 |---|---|
+| `createLDAPClient(options)`, `LDAPPool` | A pool of connections bound as one identity, with `authenticate()` |
+| `connectLDAP(options)`, `LDAPClientConnection` | One connection |
+| `LDAPConnection`, `LDAPOperations`, `SearchOptions`, `SearchResult`, `Change`… | The operations and their options |
+| `Entry` | An entry found by a search |
+| `readSchema(connection)` | The schema a server publishes |
+| `parseLDAPURL(url)` | An LDAP URL (RFC 4516) |
+| `guidToString()`, `sidToString()`, `parseUserAccountControl()`, `fileTimeToDate()`, `changeADPassword()`, `resetADPassword()`… | Active Directory |
 | `encodeMessage(message)`, `decodeMessage(bytes)` | A message as bytes, and back |
 | `MessageReader` | The reader of the messages of a stream |
 | `Filter`, `filter`, `escapeFilterValue(value)`, `matchFilter(filter, entry, schema)` | Filters: building, text, the escaping template, evaluation |
@@ -98,4 +151,8 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `LDAPDNSyntaxException` | The text of a DN that is not one, with the `position` of the error |
 | `LDAPSchemaException` | A schema definition that cannot be parsed, a name or an OID defined twice, a reference to what is not defined |
 | `LDAPLDIFSyntaxException` | An LDIF text that cannot be parsed, with the `line` of the error |
+| `LDAPResultException` and its subclasses (`LDAPNoSuchObjectException`, `LDAPInvalidCredentialsException`, `LDAPSizeLimitExceededException`…) | A result that is not a success, with its `code`, `matchedDN`, `diagnosticMessage` and the `adDataCode` of Active Directory |
+| `LDAPConnectionException` | A connection that cannot be opened, or closed while operations were waiting |
+| `LDAPTimeoutException` | An operation that took longer than its `timeout` |
+| `LDAPUsageException` | A call the client refuses before sending anything (an empty password, the text of an attribute whose values are bytes…) |
 | `LDAPException` | The base of all of them, with its `errno` |

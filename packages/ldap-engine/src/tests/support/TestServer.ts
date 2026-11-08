@@ -100,6 +100,8 @@ export class TestServer {
 
     public port: number = 0
 
+    public path: string | undefined
+
     constructor(public readonly handlers: Partial<Record<LDAPRequest['type'], Handler>> = {}, protected readonly ldaps: boolean = false) {
         const accept = (socket: Socket): void => {
             this.sessions.push(new TestSession(socket, this))
@@ -108,14 +110,20 @@ export class TestServer {
     }
 
     public get url(): string {
+        if (this.path) return `ldapi://${encodeURIComponent(this.path)}`
         return `${this.ldaps ? 'ldaps' : 'ldap'}://127.0.0.1:${this.port}`
     }
 
-    public async listen(): Promise<this> {
+    /**
+     * Listen on a free port of the loopback, or on a local socket
+     */
+    public async listen(path?: string): Promise<this> {
         await new Promise<void>((resolve: () => void): void => {
-            this.server.listen(0, '127.0.0.1', resolve)
+            if (path) this.server.listen(path, resolve)
+            else this.server.listen(0, '127.0.0.1', resolve)
         })
-        this.port = (this.server.address() as AddressInfo).port
+        if (path) this.path = path
+        else this.port = (this.server.address() as AddressInfo).port
         return this
     }
 
@@ -130,6 +138,6 @@ export class TestServer {
 /**
  * Start a test server
  */
-export function startTestServer(handlers: Partial<Record<LDAPRequest['type'], Handler>> = {}, ldaps: boolean = false): Promise<TestServer> {
-    return new TestServer(handlers, ldaps).listen()
+export function startTestServer(handlers: Partial<Record<LDAPRequest['type'], Handler>> = {}, ldaps: boolean = false, path?: string): Promise<TestServer> {
+    return new TestServer(handlers, ldaps).listen(path)
 }

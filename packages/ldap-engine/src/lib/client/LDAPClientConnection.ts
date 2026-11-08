@@ -186,6 +186,13 @@ export class LDAPClientConnection extends LDAPOperations {
     }
 
     /**
+     * Whether the connection is a local socket (`ldapi`), whose data never leaves the machine
+     */
+    public get local(): boolean {
+        return this.url.scheme === 'ldapi'
+    }
+
+    /**
      * The count of operations waiting for their answer
      */
     public get outstanding(): number {

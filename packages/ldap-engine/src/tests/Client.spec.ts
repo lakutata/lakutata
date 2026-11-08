@@ -25,6 +25,11 @@ import {
     VLVResponseControl,
     WhoAmIResponse
 } from '../exports/LDAPEngine.js'
+import type {SrvRecord} from 'node:dns'
+import {rmSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
+import {LDAPPool as Pool, orderSrv} from '../lib/client/Pool.js'
 import {CERTIFICATE} from './support/Certificate.js'
 import {startTestServer, type TestServer, type TestSession} from './support/TestServer.js'
 
@@ -354,6 +359,33 @@ describe('the pool', () => {
         await nowhere.close()
     })
 
+    it('orders the records of DNS SRV by priority, then by a draw weighted by their weight', () => {
+        const records: SrvRecord[] = [
+            {name: 'c', port: 389, priority: 20, weight: 0},
+            {name: 'a1', port: 389, priority: 10, weight: 10},
+            {name: 'a2', port: 389, priority: 10, weight: 30},
+            {name: 'b', port: 636, priority: 15, weight: 5}
+        ]
+        assert.deepEqual(orderSrv(records, () => 0).map((record) => record.name), ['a1', 'a2', 'b', 'c'])
+        assert.deepEqual(orderSrv(records, () => 0.5).map((record) => record.name), ['a2', 'a1', 'b', 'c'])
+        let first: number = 0
+        for (let index: number = 0; index < 4000; index++) if (orderSrv(records)[0].name === 'a2') first++
+        assert.ok(first > 2700 && first < 3300, `a2 first ${first} times of 4000, about 3000 expected`)
+    })
+
+    it('finds its servers in a DNS SRV record, an unreachable one passed over', async () => {
+        const started: TestServer = await server({searchRequest: pagedSearch(2) as never})
+        class FakeDNSPool extends Pool {
+            protected async resolveSrv(name: string): Promise<SrvRecord[]> {
+                assert.equal(name, '_ldap._tcp.example.com')
+                return [{name: '127.0.0.1', port: 1, priority: 0, weight: 0}, {name: '127.0.0.1', port: started.port, priority: 1, weight: 0}]
+            }
+        }
+        const client: LDAPPool = new FakeDNSPool({srv: '_ldap._tcp.example.com', connectTimeout: 500})
+        assert.equal((await client.search('dc=example')).entries.length, 2)
+        await client.close()
+    })
+
     it('authenticates: one entry found, a bind on a connection of its own, the password policy read', async () => {
         const started: TestServer = await server({
             bindRequest: (request, message, session) => {
@@ -389,6 +421,21 @@ describe('the pool', () => {
         assert.deepEqual(await client.authenticate({...options, username: 'alice', password: ''}), {ok: false, reason: 'invalidCredentials', detail: 'empty password'})
         assert.equal(started.received.length, empty)
         await assert.rejects(client.authenticate({base: 'dc=example', username: 'alice', password: 'good'}), LDAPUsageException)
+        await client.close()
+    })
+
+    it('authenticates over a local socket without TLS', {skip: process.platform === 'win32' ? 'no Unix sockets' : false}, async () => {
+        const path: string = join(tmpdir(), `lakutata-ldap-${process.pid}.sock`)
+        rmSync(path, {force: true})
+        const started: TestServer = await server({
+            searchRequest: (request, message, session) => {
+                session.reply(message.messageId, {type: 'searchResultEntry', objectName: 'uid=alice,dc=example', attributes: []})
+                session.reply(message.messageId, {type: 'searchResultDone', resultCode: 0, matchedDN: '', diagnosticMessage: ''})
+            }
+        }, false, path)
+        const client: LDAPPool = createLDAPClient({url: started.url})
+        const result = await client.authenticate({base: 'dc=example', username: 'alice', password: 'good'})
+        assert.deepEqual([result.ok, result.dn], [true, 'uid=alice,dc=example'])
         await client.close()
     })
 })
