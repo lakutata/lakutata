@@ -102,7 +102,7 @@ HTML, a manager component), `@lakutata/serial` (serial ports and Bluetooth devic
 | [FFI](FFI.md) | The C functions of native libraries (`@lakutata/ffi`): declarations copied from headers, structs, callbacks, memory, packaging |
 | [Barcode](Barcode.md) | Barcodes and QR codes (`@lakutata/barcode`): generating them as PNG, SVG or pixels, sizes for print, EAN, UPC and GS1, reading them from images |
 | [Thermal](Thermal.md) | Thermal printers (`@lakutata/thermal`, `@lakutata/thermal-printer`, `@lakutata/serial`): receipts, labels and wristbands written in HTML, choosing and saving printers, cutting, connections, serial ports and Bluetooth |
-| [LDAP](LDAP.md) | LDAP (`@lakutata/ldap`, `@lakutata/ldap-engine`): signing users in against a directory, reading and writing it, serving a directory from the application's database, the schema, who may do what, the password policy, connecting SSSD, Keycloak and Gitea |
+| [LDAP](LDAP.md) | LDAP (`@lakutata/ldap`, `@lakutata/ldap-engine`): signing users in against a directory, reading and writing it, serving a directory from the application's database, the schema, who may do what, the password policy, plugins, connecting SSSD, Keycloak and Gitea |
 | [Math](Math.md) | Mathematics (`@lakutata/math`): formulas and exact results, equations, decimals of any precision, matrices, statistics, numeric solutions, units |
 | [Netif](Netif.md) | Network interfaces (`@lakutata/netif`): a server listening on an interface whatever its addresses, the connections of the other interfaces refused, the interfaces and their changes, UDP on one interface |
 | [Command](Command.md) | The `lakutata` command: creating projects, migrations, translations, environment variables |

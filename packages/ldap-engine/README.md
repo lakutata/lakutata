@@ -107,13 +107,51 @@ await server.listen({port: 636, secure: true})
   reset, the minimum age, length, quality (with a check of one's own) and history of new passwords. Its state is in the
   operational attributes of the entries (pwdChangedTime, pwdAccountLockedTime…), so every backend keeps it. A locked
   account is answered as a wrong password unless `revealLocked` is set.
-- Interceptors run code around the operations of a backend, as the overlays of OpenLDAP do: before a request, around
-  it, on each entry a search returns, or before a write is committed. They are placed before or after the server's
-  own (`access`, `password`, `schema`, `operational`, `paging`). `groupPresentationInterceptor()` shows each group as
-  both groupOfNames and groupOfUniqueNames, as lldap does, for the clients knowing one of them.
 - A backend may bring the schema files of the attributes it computes, interceptors of its own, a store shared by the
   instances for the bind throttle, and `transaction()`, in which the interceptors' `beforeCommit()` and the write run
   together.
+
+### Plugins
+
+A plugin adds what an extension needs to the server, as the overlays of OpenLDAP do. Its interceptors run around the
+operations of the backends: before a request, around it, on each entry a search returns, or before a write is
+committed, placed before or after the server's own steps (`access`, `password`, `schema`, `operational`, `paging`).
+It may also bring schema files, controls, extended operations, SASL mechanisms and password schemes, which the root
+DSE and the subschema publish. Two plugins claiming one OID, or defining one attribute type or object class
+differently, stop the server at its start.
+
+```typescript
+import {createLDAPServer, MemberOfPlugin, MemoryBackend, ReferentialIntegrityPlugin, UniquePlugin} from '@lakutata/ldap-engine'
+
+const server = createLDAPServer({
+    backends: [new MemoryBackend('dc=example,dc=com')],
+    plugins: [new MemberOfPlugin(), new ReferentialIntegrityPlugin(), new UniquePlugin({attributes: ['uid', 'mail']})]
+})
+```
+
+| Plugin | What it does | Like OpenLDAP's |
+|---|---|---|
+| `MemberOfPlugin` | Keeps the memberOf of the members of the groups | memberof |
+| `ReferentialIntegrityPlugin` | Changes the DNs in values when entries are deleted, renamed or moved | refint |
+| `UniquePlugin` | Refuses a value another entry has | unique |
+| `IdAllocationPlugin` | Gives uidNumber and gidNumber to the POSIX entries added without them | DNA of 389 Directory Server |
+| `LastBindPlugin` | Keeps the time of the last bind in authTimestamp | lastbind |
+| `SambaPasswordPlugin` | Writes the NT hash of a new password in sambaNTPassword (the schema of Samba loaded) | smbk5pwd |
+| `AuditPlugin` | Gives a record of each operation and its outcome to a function of one's own | accesslog, auditlog |
+| `ConstraintPlugin` | Refuses values breaking rules: a pattern, a size, a count, a check of one's own | constraint |
+| `GroupPresentationPlugin` | Shows each group as both groupOfNames and groupOfUniqueNames, as lldap does | |
+
+- A plugin is any object of the `LDAPPlugin` shape; the plugins above extend `BaseLDAPPlugin`, which gives the name
+  and the suffixes (`{name, suffixes}`: a plugin twice, or for some backends only). Extend one to change what it
+  does.
+- `server.start()` runs the plugins' `start()`; `listen()` does it first.
+- A plugin reads and writes the directory on `context.server.connect({internal: true})`: its operations go through
+  the chain and the schema checks, and the access control lets them through.
+- The plugins writing after a change (memberOf, the references, the time of the last bind) do it once the change is
+  done, as OpenLDAP's overlays do. A backend doing their work itself declares it, and the plugin leaves its chain: the
+  directory backend of `@lakutata/ldap` computes memberOf, keeps the references, gives the numbers and keeps the time
+  of the last bind in its database, in the transaction of the write.
+- `interceptors` takes interceptors alone, for the plugins that are interceptors only.
 
 ### The protocol
 
@@ -184,15 +222,16 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `readSchema(connection)` | The schema a server publishes |
 | `parseLDAPURL(url)` | An LDAP URL (RFC 4516) |
 | `guidToString()`, `sidToString()`, `parseUserAccountControl()`, `fileTimeToDate()`, `changeADPassword()`, `resetADPassword()`… | Active Directory |
-| `createLDAPServer(options)`, `LDAPServerEngine` | A server: `listen()`, `handleConnection()`, `attach()`, `connect()`, `close()`, its `events` |
+| `createLDAPServer(options)`, `LDAPServerEngine` | A server: `listen()`, `handleConnection()`, `attach()`, `connect()`, `start()`, `close()`, its `events` |
 | `LDAPInProcessConnection` | A connection in the same process |
 | `LDAPBackend`, `DirectoryEntry`, `OperationContext`, `SearchContext`… | The interface of the backends |
 | `MemoryBackend`, `createHandlerBackend(options)` | Backends ready |
+| `LDAPPlugin`, `LDAPPluginHost`, `PluginControl`, `BaseLDAPPlugin` | The plugins |
+| `MemberOfPlugin`, `ReferentialIntegrityPlugin`, `UniquePlugin`, `IdAllocationPlugin`, `LastBindPlugin`, `SambaPasswordPlugin`, `AuditPlugin`, `ConstraintPlugin`, `GroupPresentationPlugin` | The plugins ready |
 | `LDAPInterceptor`, `InterceptorPlacement`, `ServerRequest`… | The interceptors |
 | `AccessOptions`, `ServerLimits`, `BindThrottleOptions` | The access rules, the limits, the bind throttle |
 | `PasswordSchemes`, `PasswordScheme` | The password storage schemes |
 | `PasswordPolicyOptions`, `PasswordPolicyRules`, `rulesOfEntry(entry, schema)` | The password policy |
-| `groupPresentationInterceptor(options)` | Groups shown as both groupOfNames and groupOfUniqueNames |
 | `plainMechanism()`, `externalMechanism()`, `SASLMechanism` | SASL |
 | `createDirectory(connection, options)`, `Directory`, `DirectoryProfile` | The directory helper |
 | `bundledSchema(names)`, `BUNDLED_SCHEMAS`, `BUNDLED_SCHEMA_NAMES` | The bundled schema (core, cosine, inetorgperson, rfc2307bis, openssh-lpk, ppolicy) |

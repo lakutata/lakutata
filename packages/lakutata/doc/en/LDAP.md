@@ -257,7 +257,84 @@ one row per value.
 | `lastBind`, `mailAlias` | `true`, `false` | authTimestamp, email |
 | `initialize` | | `root`, `ldif`, `admin`: what the first start creates |
 
-## 9. Backends and interceptors of one's own
+## 9. Plugins
+
+Plugins add to the server what the overlays of OpenLDAP add to slapd: code around the operations, and the schema,
+controls and extended operations that code needs. `@lakutata/ldap-engine` has these ready, and `@lakutata/ldap` exports
+them too:
+
+| Plugin | What it does |
+|---|---|
+| `MemberOfPlugin` | Keeps the memberOf of the members of the groups |
+| `ReferentialIntegrityPlugin` | Changes the DNs in values when entries are deleted, renamed or moved |
+| `UniquePlugin` | Refuses a value another entry has |
+| `IdAllocationPlugin` | Gives uidNumber and gidNumber to the POSIX entries added without them |
+| `LastBindPlugin` | Keeps the time of the last bind in authTimestamp |
+| `SambaPasswordPlugin` | Writes the NT hash of a new password in sambaNTPassword, which the SMB of NAS devices reads (the schema of Samba loaded) |
+| `AuditPlugin` | Gives a record of each operation and its outcome to a function of one's own |
+| `ConstraintPlugin` | Refuses values breaking rules: a pattern, a size, a count, a check of one's own |
+| `GroupPresentationPlugin` | Shows each group as both groupOfNames and groupOfUniqueNames, for the clients knowing only one of them |
+
+```typescript
+import {AuditPlugin, buildLDAPServerOptions, ConstraintPlugin, MemberOfPlugin, MemoryBackend} from '@lakutata/ldap'
+
+const options = buildLDAPServerOptions({
+    backends: [new MemoryBackend('dc=example,dc=com')],
+    access: {admins: ['cn=admin,dc=example,dc=com']},
+    plugins: [
+        new MemberOfPlugin(),
+        new ConstraintPlugin({rules: [{attribute: 'mail', pattern: /@example\.com$/}]}),
+        new AuditPlugin({write: (record) => console.log(record.operation, record.dn, record.resultCode)})
+    ]
+})
+```
+
+- The directory backend does the work of `MemberOfPlugin`, `ReferentialIntegrityPlugin`, `IdAllocationPlugin` and
+  `LastBindPlugin` itself, in the transaction of each write: these plugins leave its chain, and the others run for it.
+- Every plugin takes `name` and `suffixes` among its options: to have it twice, or for some backends only.
+- A plugin brings interceptors, and may bring schema files, controls, extended operations, SASL mechanisms and password
+  schemes, which the root DSE and the subschema publish. Two plugins claiming the same OID stop the server at its
+  start.
+
+Interceptors run code around the operations of a backend: `before()` checks or changes a request, `around()` runs
+around the rest, `transformEntry()` changes the entries a search returns, `beforeCommit()` runs in the transaction of a
+write. Each is placed before or after one of the server's own steps (`access`, `password`, `schema`, `operational`,
+`paging`); placed before `password`, it sees the passwords in clear.
+
+A plugin of one's own is a class. It extends `BaseLDAPPlugin`; or, to use the container of the component (its options
+declared with `@Configurable`, components injected), it extends `Component`, implements `LDAPPlugin`, and is listed
+with its options:
+
+```typescript
+import {Component, DTO} from 'lakutata'
+import {Configurable} from 'lakutata/decorator/di'
+import {buildLDAPServerOptions, type LDAPInterceptor, type LDAPPlugin, MemoryBackend} from '@lakutata/ldap'
+
+export class DepartmentPlugin extends Component implements LDAPPlugin {
+    @Configurable(DTO.String().required())
+    protected readonly department: string
+
+    public readonly name: string = 'department'
+
+    //The department of the new people who have none
+    public get interceptors(): LDAPInterceptor[] {
+        return [{name: 'department', operations: ['add'], before: (context, request) => {
+            if (request.type === 'add' && !request.entry.attributes.some((attribute) => attribute.type === 'departmentNumber')) {
+                request.entry.attributes.push({type: 'departmentNumber', values: [Buffer.from(this.department)]})
+            }
+        }}]
+    }
+}
+
+const options = buildLDAPServerOptions({
+    backends: [new MemoryBackend('dc=example,dc=com')],
+    plugins: [{class: DepartmentPlugin, department: 'R&D'}]
+})
+```
+
+The `interceptors` option takes interceptors alone, for the plugins that have nothing else.
+
+## 10. Backends of one's own
 
 An application that keeps its users in tables of its own serves them with a backend of its own: `get()` gives an entry
 by its DN, `search()` the entries of a search (a superset is fine: the server checks the scope and the filter), and the
@@ -277,14 +354,11 @@ export const deviceBackend: LDAPBackend = createHandlerBackend({
 })
 ```
 
-Interceptors run code around the operations of a backend, as the overlays of OpenLDAP do: `before()` checks or changes
-a request, `around()` runs around the rest, `transformEntry()` changes the entries a search returns, `beforeCommit()`
-runs in the transaction of a write. Each is placed before or after one of the server's own (`access`, `password`,
-`schema`, `operational`, `paging`). `groupPresentationInterceptor()` shows every group as both groupOfNames and
-groupOfUniqueNames, for the clients knowing only one of them. A backend or an interceptor may be a lakutata class with
-its options, `{class: MyBackend, suffix: '…'}`, built in the container of the component.
+A backend may be a lakutata class with its options, `{class: MyBackend, suffix: '…'}`, built in the container of the
+component. A backend doing the work of a plugin itself declares it in its `capabilities` (`memberOf`,
+`referentialIntegrity`, `idAllocation`, `lastBind`), and the plugin leaves its chain.
 
-## 10. Connecting other software
+## 11. Connecting other software
 
 - **SSSD and nslcd**: `ldap_schema = rfc2307bis`; the groups are found by `member`, and memberUid is there for the
   `rfc2307` mode. SSSD sends the password policy control with every bind, which the server answers.
@@ -294,13 +368,13 @@ its options, `{class: MyBackend, suffix: '…'}`, built in the container of the 
   administrator filter on memberOf; the SSH keys in `sshPublicKey`.
 - **Grafana**: `mailAlias: true` gives the `email` it reads by default.
 
-## 11. The engine alone
+## 12. The engine alone
 
 `@lakutata/ldap-engine` works in any Node.js program, without lakutata: `createLDAPClient()` and `connectLDAP()` for the
 client, `createLDAPServer()` for a server with `MemoryBackend` or a backend of one's own, `createDirectory()` on either.
 Its README describes it.
 
-## 12. Platforms
+## 13. Platforms
 
 Node.js `>=18.10.0`, Bun and Electron. The engine has no native code. The directory backend runs on the databases of
 `lakutata/orm`, with what their drivers need in Electron and Bun ([DatabaseDrivers](DatabaseDrivers.md)): in Bun, where

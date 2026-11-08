@@ -84,7 +84,7 @@ website.
 | Workspaces of several packages; native addons; C functions of native libraries | `Workspaces.md`; `NativeAddons.md`; `FFI.md` |
 | Barcodes and QR codes: generating, printing sizes, EAN/UPC/GS1, reading images (`@lakutata/barcode`) | `Barcode.md` |
 | Thermal printers: receipts and labels in HTML, choosing and saving printers, ESC/POS, TSPL, ZPL; serial ports and Bluetooth (`@lakutata/thermal`, `@lakutata/thermal-printer`, `@lakutata/serial`) | `Thermal.md` |
-| LDAP: signing users in against a directory, reading and writing it, serving a directory from the application's database, the password policy (`@lakutata/ldap`, `@lakutata/ldap-engine`) | `LDAP.md` |
+| LDAP: signing users in against a directory, reading and writing it, serving a directory from the application's database, the password policy, plugins (memberOf, referential integrity, unique values, audit…; `@lakutata/ldap`, `@lakutata/ldap-engine`) | `LDAP.md` |
 | Mathematics: formulas, equations, decimals, matrices, statistics, numeric solutions, units (`@lakutata/math`) | `Math.md` |
 | Listening on a network interface whatever its addresses (the `interface` option of the entrypoints, or `@lakutata/netif` alone); the interfaces and their changes | `Netif.md` |
 | Bundles, executables, installers | `Packaging.md`, `Installers.md` |

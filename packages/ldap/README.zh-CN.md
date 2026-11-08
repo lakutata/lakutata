@@ -43,7 +43,7 @@ Application.run(() => ({
 })
 ```
 
-组件监听 LDAP（给了 `tls` 时同时提供 StartTLS）和 LDAPS，可以监听某个地址，也可以按网卡监听（`interface: 'eth1'`，不管网卡的地址是什么）。后端和拦截器可以是对象，也可以是带选项的 lakutata 类（`{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`），由组件在自己的容器里创建。`connect()` 返回一个进程内连接，操作和客户端相同；`directory()` 返回建在进程内连接上的目录助手；两者经过的 schema 校验、密码哈希和访问控制都和网络请求相同。服务器具体做什么（schema、密码、访问规则、拦截器）见 `@lakutata/ldap-engine` 的 README。
+组件监听 LDAP（给了 `tls` 时同时提供 StartTLS）和 LDAPS，可以监听某个地址，也可以按网卡监听（`interface: 'eth1'`，不管网卡的地址是什么）。后端、插件和拦截器可以是对象（`@lakutata/ldap-engine` 的插件：`new MemberOfPlugin()`），也可以是带选项的 lakutata 类（`{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`），由组件在自己的容器里创建。`connect()` 返回一个进程内连接，操作和客户端相同；`directory()` 返回建在进程内连接上的目录助手；两者经过的 schema 校验、密码哈希和访问控制都和网络请求相同。服务器具体做什么（schema、密码、访问规则、插件）见 `@lakutata/ldap-engine` 的 README。
 
 ### 目录后端
 
@@ -81,6 +81,7 @@ Application.run(() => ({
 - 新增的 posixAccount 和 posixGroup 条目没有 uidNumber、gidNumber 时自动分配（从 10000 开始）；uidNumber 唯一，posixGroup 的 gidNumber 在各个组之间也唯一。
 - `unique` 里的属性，其值在整个后缀内唯一；最近一次成功绑定的时间作为 authTimestamp 返回；绑定失败的记录存在数据库里，应用的多个实例共用，密码策略的状态也是这样；`mailAlias` 让 email 等于 mail。
 - 每个写操作在一个事务里执行，拦截器的 `beforeCommit()` 也在其中。
+- `@lakutata/ldap-engine` 里，做的事目录后端自己已经做了的插件（`MemberOfPlugin`、`ReferentialIntegrityPlugin`、`IdAllocationPlugin`、`LastBindPlugin`）不进它的处理链；其他插件（`UniquePlugin`、`AuditPlugin`、`ConstraintPlugin` 等）和在别的后端上一样运行。
 - `initialize` 在第一次启动时建立后缀条目和管理员（或者导入 LDIF），只做一次。
 
 ### 客户端
@@ -127,7 +128,8 @@ Application.run(() => ({
 | `tls` | | StartTLS 和 LDAPS 用的证书和私钥（`cert`、`key`）；用 SASL EXTERNAL 时还要 `requestCert: true`，并在 `ca` 里给出客户端证书的 CA |
 | `interface`、`strict`、`family`、`onError`、`interfaceListening` | | 按网卡监听，代替按地址监听 |
 | `backends` | | 后端：对象，或带选项的 lakutata 类 |
-| `interceptors` | | 拦截器：对象、带位置的拦截器，或带选项的 lakutata 类 |
+| `plugins` | | 插件：对象，或带选项的 lakutata 类（还可以给 `name`、`suffixes`） |
+| `interceptors` | | 单独给出的拦截器：对象、带位置的拦截器，或带选项的 lakutata 类 |
 | `schema` | 自带的文件 | `bundled`（要加载的自带文件）和 `files`（自己的 schema 文件，给路径或文本） |
 | `access` | | `admins`、`passwordAdmins`、`anonymousRead`、`authenticatedRead`、`check` |
 | `limits` | | 条数、时间、消息大小、请求数和连接数的上限 |
@@ -138,7 +140,7 @@ Application.run(() => ({
 | `passwordPolicy` | | 密码策略：默认策略（pwdPolicy 条目的 DN，或者直接给出规则）、`quality`、`revealLocked` |
 | `rehashOnBind` | `true` | 用较弱格式的密码绑定成功后，按服务器的格式重新哈希 |
 | `sasl` | PLAIN、EXTERNAL | SASL 机制 |
-| `extendedOperations`、`controls` | | 自己的扩展操作和控制项 |
+| `extendedOperations` | | 自己的扩展操作 |
 | `vendorName`、`vendorVersion`、`defaultNamingContext`、`rootDSEAttributes` | `lakutata` | rootDSE 里的内容 |
 | `schemaConfigView` | `false` | 像 OpenLDAP 那样以只读方式公布 schema 文件（`cn=schema,cn=config`） |
 
@@ -184,5 +186,5 @@ Application.run(() => ({
 | `LDAPClient`、`buildLDAPClientOptions(options)`、`LDAPClientOptions` | 客户端组件及其选项 |
 | `DirectoryBackend`、`DirectoryBackendOptions`、`directoryEntities(type)` | 目录后端、它的选项、某种数据库用的实体 |
 | `LDAPEntryRecord`、`LDAPValueRecord`、`LDAPMySQLValueRecord`、`LDAPUniqueRecord`、`LDAPBindStateRecord` | 目录后端的实体 |
-| `ObjectSpecification`、`InterceptorSpecification`、`InterfaceListeningOptions` | 选项用到的类型 |
+| `ObjectSpecification`、`PluginSpecification`、`PluginObjectSpecification`、`InterceptorSpecification`、`InterfaceListeningOptions` | 选项用到的类型 |
 | `@lakutata/ldap-engine` 导出的全部内容 | 协议、客户端、服务器引擎、目录助手 |

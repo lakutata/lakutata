@@ -82,7 +82,7 @@
 | [FFI](FFI.md) | 调用动态库中的 C 函数（`@lakutata/ffi`）：从头文件复制的声明、结构体、回调、内存、打包 |
 | [Barcode](Barcode.md) | 条形码和二维码（`@lakutata/barcode`）：生成 PNG、SVG 或像素，打印尺寸，EAN、UPC 和 GS1，从图片识别 |
 | [Thermal](Thermal.md) | 热敏打印机（`@lakutata/thermal`、`@lakutata/thermal-printer`、`@lakutata/serial`）：用 HTML 编排小票、标签和腕带，选择并保存打印机，切纸，连接方式，串口和蓝牙 |
-| [LDAP](LDAP.md) | LDAP（`@lakutata/ldap`、`@lakutata/ldap-engine`）：用目录验证用户登录，读写目录，用应用的数据库提供目录服务，schema，谁能做什么，密码策略，接入 SSSD、Keycloak 和 Gitea |
+| [LDAP](LDAP.md) | LDAP（`@lakutata/ldap`、`@lakutata/ldap-engine`）：用目录验证用户登录，读写目录，用应用的数据库提供目录服务，schema，谁能做什么，密码策略，插件，接入 SSSD、Keycloak 和 Gitea |
 | [Math](Math.md) | 数学计算（`@lakutata/math`）：公式和精确结果、方程、任意精度的十进制数、矩阵、统计、数值解法、单位 |
 | [Netif](Netif.md) | 网口（`@lakutata/netif`）：服务器按网口监听，不管网口的地址怎么变；挡住别的网口的连接；网口和它们的变化；单个网口上的 UDP |
 | [Command](Command.md) | `lakutata` 命令：创建项目、迁移、翻译、环境变量 |

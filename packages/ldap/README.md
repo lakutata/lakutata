@@ -49,11 +49,12 @@ Application.run(() => ({
 ```
 
 The component listens for LDAP (with StartTLS when `tls` is given) and LDAPS, on an address or on network interfaces
-(`interface: 'eth1'`, whatever its addresses). A backend or an interceptor can be an object, or a lakutata class with
-its options (`{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`), built in the component's container.
+(`interface: 'eth1'`, whatever its addresses). A backend, a plugin or an interceptor can be an object (the plugins of
+`@lakutata/ldap-engine`: `new MemberOfPlugin()`), or a lakutata class with its options
+(`{class: DevicesBackend, suffix: 'ou=devices,dc=example,dc=com'}`), built in the component's container.
 `connect()` gives a connection in the same process with the operations of the client, and `directory()` gives the
 directory helper on such a connection; both go through the same schema checks, password hashing and access control as the network requests.
-What the server does (the schema, the passwords, the access rules, the interceptors) is described in the README of
+What the server does (the schema, the passwords, the access rules, the plugins) is described in the README of
 `@lakutata/ldap-engine`.
 
 ### The directory backend
@@ -102,6 +103,9 @@ migrations are the application's, as for its other entities.
   authTimestamp; the failed binds are kept in the database, so the instances of an application share them, as they
   share the state of the password policy; `mailAlias` gives email as mail.
 - Each write runs in a transaction, with the interceptors' `beforeCommit()`.
+- The plugins of `@lakutata/ldap-engine` doing what the backend does itself (`MemberOfPlugin`,
+  `ReferentialIntegrityPlugin`, `IdAllocationPlugin`, `LastBindPlugin`) leave its chain; the others (`UniquePlugin`,
+  `AuditPlugin`, `ConstraintPlugin`…) run for it as for any backend.
 - `initialize` creates the entry of the suffix and an administrator on the first start (or imports LDIF), once.
 
 ### The client
@@ -153,7 +157,8 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | `tls` | | The certificate and key of StartTLS and LDAPS (`cert`, `key`); for SASL EXTERNAL, `requestCert: true` and the CA of the client certificates in `ca` |
 | `interface`, `strict`, `family`, `onError`, `interfaceListening` | | Listen on network interfaces instead of an address |
 | `backends` | | The backends: objects, or lakutata classes with their options |
-| `interceptors` | | The interceptors: objects, placements, or lakutata classes with their options |
+| `plugins` | | The plugins: objects, or lakutata classes with their options (and `name`, `suffixes`) |
+| `interceptors` | | The interceptors alone: objects, placements, or lakutata classes with their options |
 | `schema` | the bundled files | `bundled` (the bundled files to load) and `files` (schema files of one's own, by path or text) |
 | `access` | | `admins`, `passwordAdmins`, `anonymousRead`, `authenticatedRead`, `check` |
 | `limits` | | The size, time, message, request and connection limits |
@@ -164,7 +169,7 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | `passwordPolicy` | | The password policy: its default policy (the DN of a pwdPolicy entry, or its rules), `quality`, `revealLocked` |
 | `rehashOnBind` | `true` | Hash a password again in the scheme of the server after a bind with a weaker one |
 | `sasl` | PLAIN, EXTERNAL | The SASL mechanisms |
-| `extendedOperations`, `controls` | | Extended operations and controls of one's own |
+| `extendedOperations` | | Extended operations of one's own |
 | `vendorName`, `vendorVersion`, `defaultNamingContext`, `rootDSEAttributes` | `lakutata` | What the root DSE says |
 | `schemaConfigView` | `false` | Show the schema files read-only as OpenLDAP does (`cn=schema,cn=config`) |
 
@@ -210,5 +215,5 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | `LDAPClient`, `buildLDAPClientOptions(options)`, `LDAPClientOptions` | The client component and its options |
 | `DirectoryBackend`, `DirectoryBackendOptions`, `directoryEntities(type)` | The directory backend, its options, its entities for a type of database |
 | `LDAPEntryRecord`, `LDAPValueRecord`, `LDAPMySQLValueRecord`, `LDAPUniqueRecord`, `LDAPBindStateRecord` | The entities of the directory backend |
-| `ObjectSpecification`, `InterceptorSpecification`, `InterfaceListeningOptions` | The types of the options |
+| `ObjectSpecification`, `PluginSpecification`, `PluginObjectSpecification`, `InterceptorSpecification`, `InterfaceListeningOptions` | The types of the options |
 | Everything `@lakutata/ldap-engine` exports | The protocol, the client, the server engine, the directory helper |

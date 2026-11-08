@@ -74,8 +74,38 @@ await server.listen({port: 636, secure: true})
 - 密码以 `{PBKDF2-SHA512}` 写入，格式和 OpenLDAP 的 pw-pbkdf2 模块相同；绑定时也能验证 OpenLDAP 的其他格式（`{SSHA}`、SHA-2 系列、`{CRYPT}`，以及 node:crypto 能运行 argon2 时的 `{ARGON2}`：Node.js 24.7 及以后可以，Electron 不行），验证成功后再按服务器的格式重新哈希。任何人都读不到 `userPassword`。
 - 默认情况下，匿名会话只能读 rootDSE 和 subschema，已绑定的会话可以读整个目录，`access.admins` 里的管理员可以写；给了 `access.check` 时先由它决定。同一个 DN 或同一个地址连续绑定失败时，响应会被放慢，之后锁定一段时间，所有失败一律返回 invalidCredentials。
 - 密码策略按 draft-behera-ldap-password-policy 实现（`passwordPolicy`），和 OpenLDAP 的 ppolicy 用同一套属性：有一条默认策略（pwdPolicy 条目的 DN，或者直接给出规则），用户的 pwdPolicySubentry 可以换成别的策略；连续失败太多次就锁定账号，有过期、过期前提醒和宽限登录，管理员重置后必须先改密码，新密码有最短修改间隔、长度、复杂度（可以加自己的检查）和历史的限制。状态保存在条目的操作属性里（pwdChangedTime、pwdAccountLockedTime 等），所以任何后端都能保存。账号被锁定时默认和密码错误一样回答，除非设置 `revealLocked`。
-- 拦截器像 OpenLDAP 的 overlay 一样，在后端的操作外面运行代码：在请求之前、包住请求、对搜索返回的每个条目，或者在写操作提交之前。拦截器放在服务器自带的拦截器（`access`、`password`、`schema`、`operational`、`paging`）之前或之后。`groupPresentationInterceptor()` 像 lldap 那样，让每个组同时以 groupOfNames 和 groupOfUniqueNames 两种组类呈现，给只认识其中一种的客户端用。
 - 后端可以带上它计算的属性所需的 schema 文件、自己的拦截器、多个实例共用的绑定限速存储，以及 `transaction()`：拦截器的 `beforeCommit()` 和写操作在同一个事务里执行。
+
+### 插件
+
+插件像 OpenLDAP 的 overlay 一样，给服务器加上一个扩展需要的东西。它的拦截器在后端的操作外面运行代码：在请求之前、包住请求、对搜索返回的每个条目，或者在写操作提交之前，排在服务器自带的步骤（`access`、`password`、`schema`、`operational`、`paging`）之前或之后。插件还可以带上 schema 文件、控制项、扩展操作、SASL 机制和密码格式，由 rootDSE 和 subschema 公布出去。两个插件认领同一个 OID，或者对同一个名字给出不同的定义时，服务器在启动时就会报错。
+
+```typescript
+import {createLDAPServer, MemberOfPlugin, MemoryBackend, ReferentialIntegrityPlugin, UniquePlugin} from '@lakutata/ldap-engine'
+
+const server = createLDAPServer({
+    backends: [new MemoryBackend('dc=example,dc=com')],
+    plugins: [new MemberOfPlugin(), new ReferentialIntegrityPlugin(), new UniquePlugin({attributes: ['uid', 'mail']})]
+})
+```
+
+| 插件 | 作用 | 对应 OpenLDAP 的 |
+|---|---|---|
+| `MemberOfPlugin` | 维护组成员的 memberOf | memberof |
+| `ReferentialIntegrityPlugin` | 条目删除、改名或移动时，修改值里的 DN | refint |
+| `UniquePlugin` | 拒绝和别的条目重复的值 | unique |
+| `IdAllocationPlugin` | 给新增时没有 uidNumber、gidNumber 的 POSIX 条目分配编号 | 389 Directory Server 的 DNA |
+| `LastBindPlugin` | 把最后一次绑定的时间记在 authTimestamp 里 | lastbind |
+| `SambaPasswordPlugin` | 把新密码的 NT 哈希写进 sambaNTPassword（需要加载 Samba 的 schema） | smbk5pwd |
+| `AuditPlugin` | 把每个操作及其结果的记录交给自己写的函数 | accesslog、auditlog |
+| `ConstraintPlugin` | 拒绝违反规则的值：格式、大小、个数，或者自己写的检查 | constraint |
+| `GroupPresentationPlugin` | 像 lldap 那样，让每个组同时以 groupOfNames 和 groupOfUniqueNames 呈现 | |
+
+- 插件可以是任何符合 `LDAPPlugin` 形状的对象。上面这些插件都继承 `BaseLDAPPlugin`，它提供名字和后缀（`{name, suffixes}`：同一个插件配两份，或者只对部分后端生效）。想改变某个插件的做法，就继承它。
+- `server.start()` 调用各插件的 `start()`；`listen()` 会先调用它。
+- 插件用 `context.server.connect({internal: true})` 读写目录：这些操作照样经过处理链和 schema 校验，访问控制放行。
+- 在修改之后还要写入的插件（memberOf、引用、最后绑定时间）都在修改完成后再写，和 OpenLDAP 的 overlay 一样。后端自己就做这些事时会声明出来，插件就不进它的处理链：`@lakutata/ldap` 的目录后端在数据库里计算 memberOf、维护引用、分配编号、记录最后绑定时间，都在写操作的事务里完成。
+- `interceptors` 选项可以单独给出拦截器，相当于只有拦截器的插件。
 
 ### 协议
 
@@ -137,15 +167,16 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `readSchema(connection)` | 服务器发布的 schema |
 | `parseLDAPURL(url)` | LDAP URL（RFC 4516） |
 | `guidToString()`、`sidToString()`、`parseUserAccountControl()`、`fileTimeToDate()`、`changeADPassword()`、`resetADPassword()` 等 | Active Directory |
-| `createLDAPServer(options)`、`LDAPServerEngine` | 服务器：`listen()`、`handleConnection()`、`attach()`、`connect()`、`close()`，以及它的 `events` |
+| `createLDAPServer(options)`、`LDAPServerEngine` | 服务器：`listen()`、`handleConnection()`、`attach()`、`connect()`、`start()`、`close()`，以及它的 `events` |
 | `LDAPInProcessConnection` | 进程内连接 |
 | `LDAPBackend`、`DirectoryEntry`、`OperationContext`、`SearchContext` 等 | 后端接口 |
 | `MemoryBackend`、`createHandlerBackend(options)` | 现成的后端 |
+| `LDAPPlugin`、`LDAPPluginHost`、`PluginControl`、`BaseLDAPPlugin` | 插件 |
+| `MemberOfPlugin`、`ReferentialIntegrityPlugin`、`UniquePlugin`、`IdAllocationPlugin`、`LastBindPlugin`、`SambaPasswordPlugin`、`AuditPlugin`、`ConstraintPlugin`、`GroupPresentationPlugin` | 现成的插件 |
 | `LDAPInterceptor`、`InterceptorPlacement`、`ServerRequest` 等 | 拦截器 |
 | `AccessOptions`、`ServerLimits`、`BindThrottleOptions` | 访问规则、各种上限、绑定限速 |
 | `PasswordSchemes`、`PasswordScheme` | 密码存储格式 |
 | `PasswordPolicyOptions`、`PasswordPolicyRules`、`rulesOfEntry(entry, schema)` | 密码策略 |
-| `groupPresentationInterceptor(options)` | 让组同时以 groupOfNames 和 groupOfUniqueNames 呈现 |
 | `plainMechanism()`、`externalMechanism()`、`SASLMechanism` | SASL |
 | `createDirectory(connection, options)`、`Directory`、`DirectoryProfile` | 目录助手 |
 | `bundledSchema(names)`、`BUNDLED_SCHEMAS`、`BUNDLED_SCHEMA_NAMES` | 自带的 schema（core、cosine、inetorgperson、rfc2307bis、openssh-lpk、ppolicy） |

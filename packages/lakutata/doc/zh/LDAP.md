@@ -212,7 +212,74 @@ const options = buildLDAPServerOptions({
 | `lastBind`、`mailAlias` | `true`、`false` | authTimestamp、email |
 | `initialize` | | `root`、`ldif`、`admin`：第一次启动时创建的内容 |
 
-## 9. 自己的后端和拦截器
+## 9. 插件
+
+插件给服务器加上的，就是 OpenLDAP 的 overlay 给 slapd 加上的东西：在操作前后运行的代码，以及它需要的 schema、控制项和扩展操作。`@lakutata/ldap-engine` 自带下面这些插件，`@lakutata/ldap` 也导出了它们：
+
+| 插件 | 作用 |
+|---|---|
+| `MemberOfPlugin` | 维护组成员的 memberOf |
+| `ReferentialIntegrityPlugin` | 条目删除、改名或移动时，修改值里的 DN |
+| `UniquePlugin` | 拒绝和别的条目重复的值 |
+| `IdAllocationPlugin` | 给新增时没有 uidNumber、gidNumber 的 POSIX 条目分配编号 |
+| `LastBindPlugin` | 把最后一次绑定的时间记在 authTimestamp 里 |
+| `SambaPasswordPlugin` | 把新密码的 NT 哈希写进 sambaNTPassword，NAS 设备的 SMB 读的就是它（需要加载 Samba 的 schema） |
+| `AuditPlugin` | 把每个操作及其结果的记录交给自己写的函数 |
+| `ConstraintPlugin` | 拒绝违反规则的值：格式、大小、个数，或者自己写的检查 |
+| `GroupPresentationPlugin` | 让每个组同时以 groupOfNames 和 groupOfUniqueNames 呈现，给只认识其中一种的客户端用 |
+
+```typescript
+import {AuditPlugin, buildLDAPServerOptions, ConstraintPlugin, MemberOfPlugin, MemoryBackend} from '@lakutata/ldap'
+
+const options = buildLDAPServerOptions({
+    backends: [new MemoryBackend('dc=example,dc=com')],
+    access: {admins: ['cn=admin,dc=example,dc=com']},
+    plugins: [
+        new MemberOfPlugin(),
+        new ConstraintPlugin({rules: [{attribute: 'mail', pattern: /@example\.com$/}]}),
+        new AuditPlugin({write: (record) => console.log(record.operation, record.dn, record.resultCode)})
+    ]
+})
+```
+
+- `MemberOfPlugin`、`ReferentialIntegrityPlugin`、`IdAllocationPlugin` 和 `LastBindPlugin` 做的事，目录后端自己就在每次写操作的事务里做了：这几个插件不进它的处理链，其他插件照常运行。
+- 每个插件的选项里都有 `name` 和 `suffixes`，用来把同一个插件配两份，或者只让它对部分后端生效。
+- 插件带着拦截器，还可以带上 schema 文件、控制项、扩展操作、SASL 机制和密码格式，由根 DSE 和 subschema 公布出去。两个插件认领同一个 OID 时，服务器在启动时就会报错。
+
+拦截器在后端的操作前后运行代码：`before()` 检查或修改请求，`around()` 包住后面的处理，`transformEntry()` 修改搜索返回的条目，`beforeCommit()` 在写操作的事务里执行。每个拦截器排在服务器自带的某个步骤（`access`、`password`、`schema`、`operational`、`paging`）之前或之后；排在 `password` 之前，就能看到明文密码。
+
+自己的插件写成一个类：继承 `BaseLDAPPlugin`；或者，要用组件的容器（用 `@Configurable` 声明选项、注入别的组件）时，继承 `Component` 并实现 `LDAPPlugin`，连同选项一起列出：
+
+```typescript
+import {Component, DTO} from 'lakutata'
+import {Configurable} from 'lakutata/decorator/di'
+import {buildLDAPServerOptions, type LDAPInterceptor, type LDAPPlugin, MemoryBackend} from '@lakutata/ldap'
+
+export class DepartmentPlugin extends Component implements LDAPPlugin {
+    @Configurable(DTO.String().required())
+    protected readonly department: string
+
+    public readonly name: string = 'department'
+
+    //没有部门的新员工，给他们填上部门
+    public get interceptors(): LDAPInterceptor[] {
+        return [{name: 'department', operations: ['add'], before: (context, request) => {
+            if (request.type === 'add' && !request.entry.attributes.some((attribute) => attribute.type === 'departmentNumber')) {
+                request.entry.attributes.push({type: 'departmentNumber', values: [Buffer.from(this.department)]})
+            }
+        }}]
+    }
+}
+
+const options = buildLDAPServerOptions({
+    backends: [new MemoryBackend('dc=example,dc=com')],
+    plugins: [{class: DepartmentPlugin, department: 'R&D'}]
+})
+```
+
+只有拦截器、没有别的东西的插件，可以直接放进 `interceptors` 选项。
+
+## 10. 自己的后端
 
 把用户存在自己表里的应用，用自己的后端提供它们：`get()` 按 DN 给出一个条目，`search()` 给出一次搜索的条目（多给一些也可以：服务器会再检查范围和过滤器），再加上它支持的写操作。`createHandlerBackend()` 用逐个操作写的处理函数构建后端：
 
@@ -230,20 +297,20 @@ export const deviceBackend: LDAPBackend = createHandlerBackend({
 })
 ```
 
-拦截器在后端的操作前后执行代码，和 OpenLDAP 的 overlay 一样：`before()` 检查或修改请求，`around()` 包住后面的处理，`transformEntry()` 修改搜索返回的条目，`beforeCommit()` 在写操作的事务里执行。每个拦截器放在服务器自带的某个拦截器（`access`、`password`、`schema`、`operational`、`paging`）之前或之后。`groupPresentationInterceptor()` 把每个组同时显示成 groupOfNames 和 groupOfUniqueNames，给只认识其中一种的客户端用。后端和拦截器也可以是带选项的 lakutata 类，`{class: MyBackend, suffix: '…'}`，在组件的容器里构建。
+后端也可以是带选项的 lakutata 类，`{class: MyBackend, suffix: '…'}`，在组件的容器里构建。后端自己就做某个插件的事时，在 `capabilities` 里声明（`memberOf`、`referentialIntegrity`、`idAllocation`、`lastBind`），这个插件就不进它的处理链。
 
-## 10. 接入其他软件
+## 11. 接入其他软件
 
 - **SSSD 和 nslcd**：`ldap_schema = rfc2307bis`；按 `member` 查找组，memberUid 供 `rfc2307` 模式使用。SSSD 每次绑定都发送密码策略控制，服务器能处理。
 - **Keycloak**：用户联合选供应商“Other”，`uid` 作为用户名和 RDN，`entryUUID` 作为 UUID 属性，打开“Use password modify extended operation”；组映射器用 `groupOfNames` 和 `member`。
 - **Gitea**：LDAP 认证源（via BindDN），用户过滤器写 `(&(objectClass=inetOrgPerson)(uid=%s))`；管理员过滤器按 memberOf；SSH 公钥在 `sshPublicKey` 里。
 - **Grafana**：`mailAlias: true` 提供它默认读取的 `email`。
 
-## 11. 单独使用引擎
+## 12. 单独使用引擎
 
 `@lakutata/ldap-engine` 可以用在任何 Node.js 程序里，不需要 lakutata：客户端用 `createLDAPClient()` 和 `connectLDAP()`，服务器用 `createLDAPServer()` 加 `MemoryBackend` 或自己的后端，`createDirectory()` 两边都能用。详见它的 README。
 
-## 12. 运行平台
+## 13. 运行平台
 
 Node.js `>=18.10.0`、Bun 和 Electron。引擎没有原生代码。目录后端运行在 `lakutata/orm` 的数据库上，各驱动在 Electron 和 Bun 里的要求见 [DatabaseDrivers](DatabaseDrivers.md)：Bun 加载不了 better-sqlite3，在 Bun 上它运行在 `sqljs`、PostgreSQL 或 MySQL 上。
 
