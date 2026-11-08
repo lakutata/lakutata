@@ -5,7 +5,7 @@ import {join} from 'node:path'
 import {describe, it} from 'node:test'
 import {Container} from '@lakutata/core'
 import {Database} from '@lakutata/orm/com/database'
-import {DirectoryBackend, directoryEntities, LDAPBindStateRecord, LDAPServer} from '../exports/LDAP.js'
+import {DirectoryBackend, directoryEntities, IdAllocationPlugin, LastBindPlugin, LDAPBindStateRecord, LDAPConstraintViolationException, LDAPServer, MemberOfPlugin, UniquePlugin} from '../exports/LDAP.js'
 import {sqliteLoads} from './support/SQLite.js'
 
 /**
@@ -80,6 +80,27 @@ describe('the options of the directory backend', {skip: sqliteLoads() ? false : 
             await ldap.connect().bind('cn=admin,dc=example', 'secret')
         } finally {
             for (const instance of instances) await instance.destroy()
+            rmSync(file, {force: true})
+        }
+    })
+
+    it('leaves out of its chain the plugins doing what it does itself', async () => {
+        const plugins = [new MemberOfPlugin(), new LastBindPlugin(), new IdAllocationPlugin({uidNumber: 50000}), new UniquePlugin({attributes: ['mail']})]
+        const {container, ldap, file} = await serve({suffix: 'dc=example', initialize: {admin: {dn: 'cn=admin,dc=example', password: 'secret'}}}, {access: {admins: ['cn=admin,dc=example']}, plugins: plugins})
+        try {
+            const admin = ldap.connect('cn=admin,dc=example')
+            await admin.add('uid=alice,dc=example', {objectClass: ['inetOrgPerson', 'posixAccount'], uid: 'alice', cn: 'Alice', sn: 'A', mail: 'alice@example.org', homeDirectory: '/home/alice', userPassword: 'alice-secret'})
+            await admin.add('cn=staff,dc=example', {objectClass: 'groupOfNames', cn: 'staff', member: 'uid=alice,dc=example'})
+            const alice = (await admin.search('uid=alice,dc=example', {scope: 'base', attributes: ['memberOf', 'uidNumber']})).entries[0]
+            //The backend's memberOf and numbers, not the plugins'
+            assert.deepEqual(alice.get('memberOf'), ['cn=staff,dc=example'])
+            assert.deepEqual(alice.get('uidNumber'), ['10000'])
+            await ldap.connect().bind('uid=alice,dc=example', 'alice-secret')
+            assert.equal((await admin.search('uid=alice,dc=example', {scope: 'base', attributes: ['authTimestamp']})).entries[0].get('authTimestamp').length, 1)
+            //A plugin the backend does not replace runs
+            await assert.rejects(admin.add('uid=bob,dc=example', {objectClass: 'inetOrgPerson', uid: 'bob', cn: 'Bob', sn: 'B', mail: 'ALICE@example.org'}), LDAPConstraintViolationException)
+        } finally {
+            await container.destroy()
             rmSync(file, {force: true})
         }
     })

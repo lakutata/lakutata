@@ -18,6 +18,7 @@ import {
     type LDAPBackend,
     type LDAPInProcessConnection,
     type LDAPInterceptor,
+    type LDAPPlugin,
     type LDAPServerEngine,
     type PartialAttribute,
     type PasswordPolicyOptions,
@@ -63,6 +64,26 @@ export type InterceptorObjectSpecification = ObjectSpecification & {
 export type InterceptorSpecification = LDAPInterceptor | InterceptorPlacement | InterceptorObjectSpecification
 
 /**
+ * A plugin written as a lakutata class (`extends Component implements LDAPPlugin`), with its options, and its name and
+ * suffixes in the server
+ */
+export type PluginObjectSpecification = ObjectSpecification & {
+    /**
+     * Its name in the server, to have a plugin twice (its own by default)
+     */
+    name?: string
+    /**
+     * The suffixes of the backends it runs for (its own by default)
+     */
+    suffixes?: string[]
+}
+
+/**
+ * A plugin of the component: a plugin object (those of `@lakutata/ldap-engine`), or a lakutata class with its options
+ */
+export type PluginSpecification = LDAPPlugin | PluginObjectSpecification
+
+/**
  * The options of an {@link LDAPServer} component (see {@link buildLDAPServerOptions})
  */
 export interface LDAPServerOptions extends InterfaceListeningOptions {
@@ -87,7 +108,11 @@ export interface LDAPServerOptions extends InterfaceListeningOptions {
      */
     backends: (LDAPBackend | ObjectSpecification)[]
     /**
-     * The interceptors of the application
+     * The plugins: objects (those of `@lakutata/ldap-engine`), or lakutata classes with their options
+     */
+    plugins?: PluginSpecification[]
+    /**
+     * The interceptors of the application: the plugins giving interceptors only
      */
     interceptors?: InterceptorSpecification[]
     /**
@@ -137,10 +162,6 @@ export interface LDAPServerOptions extends InterfaceListeningOptions {
      */
     extendedOperations?: Record<string, ExtendedHandler>
     /**
-     * The OIDs of the controls the interceptors handle
-     */
-    controls?: string[]
-    /**
      * The vendorName of the root DSE (`lakutata` by default)
      */
     vendorName?: string
@@ -171,9 +192,33 @@ function isSpecification(value: unknown): value is ObjectSpecification {
 }
 
 /**
- * An LDAP server for an application: the engine of `@lakutata/ldap-engine` with its backends and interceptors (objects,
- * or lakutata classes built in the component's container), listening on an address or on network interfaces, LDAP
- * with StartTLS and LDAPS. The application reaches its directory without the network with `connect()`, which gives the
+ * A plugin under the name and the suffixes its specification gives
+ * @param plugin The plugin.
+ * @param name Its name in the server.
+ * @param suffixes Its suffixes in the server.
+ */
+function placed(plugin: LDAPPlugin, name: string | undefined, suffixes: string[] | undefined): LDAPPlugin {
+    if (name === undefined && suffixes === undefined) return plugin
+    return {
+        name: name ?? plugin.name,
+        ...suffixes ?? plugin.suffixes ? {suffixes: suffixes ?? plugin.suffixes} : {},
+        ...plugin.capability ? {capability: plugin.capability} : {},
+        ...plugin.interceptors ? {interceptors: plugin.interceptors} : {},
+        ...plugin.schemaFiles ? {schemaFiles: plugin.schemaFiles} : {},
+        ...plugin.controls ? {controls: plugin.controls} : {},
+        ...plugin.extendedOperations ? {extendedOperations: plugin.extendedOperations} : {},
+        ...plugin.saslMechanisms ? {saslMechanisms: plugin.saslMechanisms} : {},
+        ...plugin.passwordSchemes ? {passwordSchemes: plugin.passwordSchemes} : {},
+        ...plugin.rootDSEAttributes ? {rootDSEAttributes: plugin.rootDSEAttributes} : {},
+        ...plugin.start ? {start: (host) => plugin.start!(host)} : {},
+        ...plugin.stop ? {stop: () => plugin.stop!()} : {}
+    }
+}
+
+/**
+ * An LDAP server for an application: the engine of `@lakutata/ldap-engine` with its backends, plugins and interceptors
+ * (objects, or lakutata classes built in the component's container), listening on an address or on network interfaces,
+ * LDAP with StartTLS and LDAPS. The application reaches its directory without the network with `connect()`, which gives the
  * operations of the client, and `directory()`, which manages users, groups and organizational units.
  * @example
  * ```typescript
@@ -264,6 +309,12 @@ export class LDAPServer extends Component {
     protected readonly backends: (LDAPBackend | ObjectSpecification)[]
 
     /**
+     * The plugins
+     */
+    @Configurable(DTO.Array().items(DTO.Any()).optional().default([]))
+    protected readonly plugins: PluginSpecification[]
+
+    /**
      * The interceptors
      */
     @Configurable(DTO.Array().items(DTO.Any()).optional().default([]))
@@ -335,11 +386,6 @@ export class LDAPServer extends Component {
     @Configurable(DTO.Object().unknown(true).optional())
     protected readonly extendedOperations?: Record<string, ExtendedHandler>
 
-    /**
-     * The controls the interceptors handle
-     */
-    @Configurable(DTO.Array().items(DTO.String()).optional())
-    protected readonly controls?: string[]
 
     /**
      * The vendorName of the root DSE
@@ -409,9 +455,15 @@ export class LDAPServer extends Component {
             const interceptor: LDAPInterceptor = await this.buildObject(constructor, options) as unknown as LDAPInterceptor
             return {interceptor: interceptor, ...before ? {before: before as string} : {}, ...after ? {after: after as string} : {}, ...suffixes ? {suffixes: suffixes as string[]} : {}}
         }))
+        const plugins: LDAPPlugin[] = await Promise.all(this.plugins.map(async (item: PluginSpecification): Promise<LDAPPlugin> => {
+            if (!isSpecification(item)) return item as LDAPPlugin
+            const {class: constructor, name, suffixes, ...options} = item
+            return placed(await this.buildObject(constructor, options) as unknown as LDAPPlugin, name as string | undefined, suffixes as string[] | undefined)
+        }))
         const files: {name: string, text: string}[] = await Promise.all((this.schema?.files ?? []).map(async (file: string | {name: string, text: string}): Promise<{name: string, text: string}> => typeof file === 'string' ? {name: basename(file, extname(file)), text: await readFile(file, 'utf8')} : file))
         const engine: LDAPServerEngine = createLDAPServer({
             backends: backends,
+            plugins: plugins,
             interceptors: interceptors,
             schema: {...this.schema?.bundled ? {bundled: this.schema.bundled} : {}, files: files},
             ...this.access ? {access: this.access} : {},
@@ -425,7 +477,6 @@ export class LDAPServer extends Component {
             ...this.tls ? {tls: this.tls} : {},
             ...this.sasl ? {sasl: this.sasl} : {},
             ...this.extendedOperations ? {extendedOperations: this.extendedOperations} : {},
-            ...this.controls ? {controls: this.controls} : {},
             vendorName: this.vendorName,
             ...this.vendorVersion ? {vendorVersion: this.vendorVersion} : {},
             ...this.defaultNamingContext ? {defaultNamingContext: this.defaultNamingContext} : {},
@@ -434,6 +485,7 @@ export class LDAPServer extends Component {
         })
         this.#engine = engine
         engine.events.on('error', (error: unknown): void => this.report(error, 'An error of the LDAP server'))
+        await engine.start()
         //The backends creating their first entries (the directory backend's initialize)
         for (const backend of backends) {
             const initializing: {initializeWith?: (engine: LDAPServerEngine) => Promise<void>} = backend as {initializeWith?: (engine: LDAPServerEngine) => Promise<void>}

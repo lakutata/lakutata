@@ -341,7 +341,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * The backend computes memberOf itself, and keeps the references and the transactions
      */
     public get capabilities(): BackendCapabilities {
-        return {memberOf: this.memberOf !== false, referentialIntegrity: true, transactions: true}
+        return {memberOf: this.memberOf !== false, referentialIntegrity: true, transactions: true, idAllocation: this.idAllocation !== false, lastBind: this.lastBind}
     }
 
     /**

@@ -12,7 +12,9 @@ import {
     type LDAPClientConnection,
     LDAPConnectionException,
     type LDAPInterceptor,
+    type LDAPPlugin,
     LDAPServer,
+    MemberOfPlugin,
     MemoryBackend,
     type OperationContext,
     type ServerRequest
@@ -67,7 +69,56 @@ class DescribeInterceptor extends Component implements LDAPInterceptor {
     }
 }
 
+/**
+ * A plugin written as a lakutata object, its text an option
+ */
+class StampPlugin extends Component implements LDAPPlugin {
+    @Configurable(DTO.String().required())
+    protected readonly text: string
+
+    public readonly name: string = 'stamp'
+
+    public started: boolean = false
+
+    public get interceptors(): LDAPInterceptor[] {
+        return [{name: `stamp-${this.text}`, operations: ['add'], before: (context: OperationContext, request: ServerRequest): void => {
+            if (request.type !== 'add') return
+            const description = request.entry.attributes.find((attribute) => attribute.type === 'description')
+            if (description) description.values.push(Buffer.from(this.text))
+            else request.entry.attributes.push({type: 'description', values: [Buffer.from(this.text)]})
+        }}]
+    }
+
+    public start(): void {
+        this.started = true
+    }
+}
+
 describe('the LDAPServer component', () => {
+    it('loads plugin objects, and lakutata classes with their options, names and suffixes', async () => {
+        const container: Container = new Container()
+        try {
+            await container.setNamed('ldap', LDAPServer, {
+                port: 0,
+                host: '127.0.0.1',
+                backends: [new MemoryBackend(BASE), new MemoryBackend('dc=other')],
+                plugins: [new MemberOfPlugin(), {class: StampPlugin, text: 'one', name: 'stamp-one'}, {class: StampPlugin, text: 'two', name: 'stamp-two', suffixes: ['dc=other']}],
+                access: {admins: [ADMIN]}
+            })
+            const ldap: LDAPServer = await container.get<LDAPServer>('ldap')
+            const admin = ldap.connect(ADMIN)
+            await admin.add(BASE, {objectClass: ['dcObject', 'organization'], dc: 'example', o: 'Example'})
+            await admin.add('dc=other', {objectClass: ['dcObject', 'organization'], dc: 'other', o: 'Other'})
+            assert.deepEqual((await admin.search(BASE, {scope: 'base', attributes: ['description']})).entries[0].get('description'), ['one'])
+            assert.deepEqual((await admin.search('dc=other', {scope: 'base', attributes: ['description']})).entries[0].get('description').sort(), ['one', 'two'])
+            await admin.add(`uid=alice,${BASE}`, {objectClass: 'account', uid: 'alice'})
+            await admin.add(`cn=staff,${BASE}`, {objectClass: 'groupOfNames', cn: 'staff', member: `uid=alice,${BASE}`})
+            assert.deepEqual((await admin.search(`uid=alice,${BASE}`, {scope: 'base', attributes: ['memberOf']})).entries[0].get('memberOf'), [`cn=staff,${BASE}`])
+        } finally {
+            await container.destroy()
+        }
+    })
+
     it('serves LDAP, StartTLS and LDAPS, and the directory in process, its backends and interceptors built in its container', async () => {
         const container: Container = new Container()
         try {
