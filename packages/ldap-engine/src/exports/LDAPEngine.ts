@@ -132,3 +132,68 @@ export {
     parseLDIF,
     stringifyLDIF
 } from '../lib/ldif/LDIF.js'
+export {LDAPConnectionException} from '../exceptions/LDAPConnectionException.js'
+export {LDAPTimeoutException} from '../exceptions/LDAPTimeoutException.js'
+export {LDAPUsageException} from '../exceptions/LDAPUsageException.js'
+export {
+    LDAPAttributeOrValueExistsException,
+    LDAPConstraintViolationException,
+    LDAPEntryAlreadyExistsException,
+    LDAPInsufficientAccessException,
+    LDAPInvalidAttributeSyntaxException,
+    LDAPInvalidCredentialsException,
+    LDAPInvalidDNSyntaxException,
+    LDAPNoSuchAttributeException,
+    LDAPNoSuchObjectException,
+    LDAPNotAllowedOnNonLeafException,
+    LDAPObjectClassViolationException,
+    LDAPProtocolErrorException,
+    LDAPReferralException,
+    type LDAPResultDetails,
+    LDAPResultException,
+    LDAPSizeLimitExceededException,
+    LDAPStrongerAuthRequiredException,
+    LDAPTimeLimitExceededException,
+    LDAPUnavailableCriticalExtensionException,
+    LDAPUnavailableException,
+    LDAPUnwillingToPerformException,
+    resultException
+} from '../exceptions/LDAPResultException.js'
+export {BINARY_ATTRIBUTES, Entry, type EntryOptions} from '../lib/client/Entry.js'
+export type {
+    AttributeValue,
+    AttributeValues,
+    BindOptions,
+    Change,
+    ExtendedResult,
+    LDAPConnection,
+    ModifyDNOptions,
+    OperationOptions,
+    OperationResult,
+    PasswordModifyOptions,
+    SearchOptions,
+    SearchResult
+} from '../lib/client/Connection.js'
+export {type LDAPURL, parseLDAPURL} from '../lib/client/URL.js'
+export {type Exchange, type ExchangeOptions, LDAPOperations} from '../lib/client/Operations.js'
+export {type ConnectionOptions, connectLDAP, LDAPClientConnection} from '../lib/client/LDAPClientConnection.js'
+export {
+    type AuthenticateOptions,
+    type AuthenticationFailureReason,
+    type AuthenticationResult,
+    type ClientOptions,
+    createLDAPClient,
+    LDAPPool
+} from '../lib/client/Pool.js'
+export {
+    adPasswordValue,
+    changeADPassword,
+    fileTimeToDate,
+    guidToString,
+    parseUserAccountControl,
+    resetADPassword,
+    sidToString,
+    stringToGuid,
+    stringToSid,
+    UserAccountControl
+} from '../lib/client/ActiveDirectory.js'
