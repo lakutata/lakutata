@@ -120,14 +120,15 @@ export class FilterTranslator {
     }
 
     /**
-     * An EXISTS on the values of an attribute and its subtypes
+     * The entries having a value of an attribute or its subtypes: an IN on the values, which the databases run from the
+     * index of the values rather than from the entries
      * @param type The attribute type.
      * @param condition A condition on the value `v`, or none.
      */
     protected exists(type: string, condition?: string): string {
         const alias: string = `v${this.counter++}`
         const types: string = this.parameter(this.typesOf(type))
-        return `EXISTS (SELECT 1 FROM ldap_value ${alias} WHERE ${alias}.entry_id = e.id AND ${alias}.attribute_type IN (:...${types})${condition ? ' AND ' + condition.replace(/\bv\./g, `${alias}.`) : ''})`
+        return `e.id IN (SELECT ${alias}.entry_id FROM ldap_value ${alias} WHERE ${alias}.attribute_type IN (:...${types})${condition ? ' AND ' + condition.replace(/\bv\./g, `${alias}.`) : ''})`
     }
 
     /**
@@ -138,10 +139,10 @@ export class FilterTranslator {
         const alias: string = `m${this.counter++}`
         const members: string = this.parameter(this.virtual.memberAttributes)
         const groups: string[] | undefined = this.virtual.nestedGroups?.get(hash)
-        if (groups) return groups.length ? `EXISTS (SELECT 1 FROM ldap_value ${alias} WHERE ${alias}.target = e.id AND ${alias}.attribute_type IN (:...${members}) AND ${alias}.entry_id IN (:...${this.parameter(groups)}))` : '1=0'
+        if (groups) return groups.length ? `e.id IN (SELECT ${alias}.target FROM ldap_value ${alias} WHERE ${alias}.attribute_type IN (:...${members}) AND ${alias}.entry_id IN (:...${this.parameter(groups)}) AND ${alias}.target IS NOT NULL)` : '1=0'
         const group: string = `g${this.counter++}`
         const classes: string = `c${this.counter++}`
-        return `EXISTS (SELECT 1 FROM ldap_value ${alias} JOIN ldap_entry ${group} ON ${group}.id = ${alias}.entry_id WHERE ${alias}.target = e.id AND ${alias}.attribute_type IN (:...${members}) AND ${group}.dn_hash = :${this.parameter(hash)} AND EXISTS (SELECT 1 FROM ldap_value ${classes} WHERE ${classes}.entry_id = ${group}.id AND ${classes}.attribute_type = 'objectclass' AND ${classes}.value_hash IN (:...${this.parameter(this.virtual.groupClassHashes)})))`
+        return `e.id IN (SELECT ${alias}.target FROM ldap_value ${alias} JOIN ldap_entry ${group} ON ${group}.id = ${alias}.entry_id WHERE ${alias}.attribute_type IN (:...${members}) AND ${alias}.target IS NOT NULL AND ${group}.dn_hash = :${this.parameter(hash)} AND EXISTS (SELECT 1 FROM ldap_value ${classes} WHERE ${classes}.entry_id = ${group}.id AND ${classes}.attribute_type = 'objectclass' AND ${classes}.value_hash IN (:...${this.parameter(this.virtual.groupClassHashes)})))`
     }
 
     /**
