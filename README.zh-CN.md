@@ -95,6 +95,8 @@ Application.run(() => ({
 | [`@lakutata/thermal`](packages/thermal) | 用 HTML 和 CSS 编排的小票、标签和腕带，渲染成热敏打印机的点阵，编码成 ESC/POS、TSPL 或 ZPL，由原生插件完成 | 否 |
 | [`@lakutata/thermal-printer`](packages/thermal-printer) | 热敏打印机：管理器组件负责找到打印机、按保存的定义打开它们，经网口、打印队列、USB、串口或蓝牙打印 | 否 |
 | [`@lakutata/serial`](packages/serial) | 把串口和经典蓝牙设备作为流打开，信号线和串口列表，由原生插件完成 | 否 |
+| [`@lakutata/ldap`](packages/ldap) | LDAP：用目录验证用户登录的客户端组件、服务器组件，以及存在应用数据库里的目录后端 | 否 |
+| [`@lakutata/ldap-engine`](packages/ldap-engine) | 不依赖应用的 LDAP：协议、客户端，以及由后端存放条目的服务器 | 否 |
 | [`@lakutata/cli`](packages/cli) | `lakutata` 命令：项目、工作区、迁移、打包 | 否 |
 | [`@lakutata/builder`](packages/builder) | 单文件包、可执行文件和安装包，由 `lakutata package` 使用 | 否 |
 

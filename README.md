@@ -104,6 +104,8 @@ Application.run(() => ({
 | [`@lakutata/thermal`](packages/thermal) | Receipts, labels and wristbands written in HTML and CSS, rendered to a thermal printer's dots and encoded as ESC/POS, TSPL or ZPL, in a native addon | no |
 | [`@lakutata/thermal-printer`](packages/thermal-printer) | Thermal printers: a manager component that finds them and opens them from saved definitions, printing over the network, a print queue, USB, a serial port or Bluetooth | no |
 | [`@lakutata/serial`](packages/serial) | Serial ports and classic Bluetooth devices as streams, their lines and their listing, in a native addon | no |
+| [`@lakutata/ldap`](packages/ldap) | LDAP: a client component signing users in against a directory, a server component, and a directory backend in the application's database | no |
+| [`@lakutata/ldap-engine`](packages/ldap-engine) | LDAP without an application: the protocol, a client, and a server whose backends store the entries | no |
 | [`@lakutata/cli`](packages/cli) | The `lakutata` command: projects, workspaces, migrations, packaging | no |
 | [`@lakutata/builder`](packages/builder) | Bundles, executables and installers, used by `lakutata package` | no |
 
