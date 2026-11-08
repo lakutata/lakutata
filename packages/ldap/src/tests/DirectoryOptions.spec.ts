@@ -6,6 +6,7 @@ import {describe, it} from 'node:test'
 import {Container} from '@lakutata/core'
 import {Database} from '@lakutata/orm/com/database'
 import {DirectoryBackend, directoryEntities, LDAPBindStateRecord, LDAPServer} from '../exports/LDAP.js'
+import {sqliteLoads} from './support/SQLite.js'
 
 /**
  * A server with a directory backend on a fresh SQLite file
@@ -20,7 +21,7 @@ async function serve(backend: Record<string, unknown>, server: Record<string, un
     return {container: container, ldap: await container.get<LDAPServer>('ldap'), file: file}
 }
 
-describe('the options of the directory backend', () => {
+describe('the options of the directory backend', {skip: sqliteLoads() ? false : 'better-sqlite3 does not load here'}, () => {
     it('creates a root of its own and imports LDIF, from its text or a file, on the first start', async () => {
         const ldif: string = 'dn: ou=imported,o=acme\nobjectClass: organizationalUnit\nou: imported\n\ndn: cn=printer,ou=imported,o=acme\nobjectClass: device\ncn: printer\n'
         const path: string = join(tmpdir(), `lakutata-ldap-options-${process.pid}.ldif`)

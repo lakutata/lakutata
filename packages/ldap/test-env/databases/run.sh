@@ -1,7 +1,8 @@
 #!/bin/sh
 # The directory backend on PostgreSQL and MySQL in Docker: each database in a container on a free port of the loopback,
 # its readiness checked with its own client, its URL given to the tests; the containers removed on exit. Build the
-# package first (npm run compile).
+# package first (npm run compile). LDAP_TEST_RUNTIME runs the tests in Node.js (node, by default), Bun (bun) or the main
+# process of Electron (electron).
 #
 #   sh test-env/databases/run.sh [postgres image] [mysql image]
 set -eu
@@ -30,6 +31,10 @@ done
 POSTGRES_PORT="$(docker port "$POSTGRES" 5432/tcp | head -1 | sed 's/.*://')"
 MYSQL_PORT="$(docker port "$MYSQL" 3306/tcp | head -1 | sed 's/.*://')"
 cd "$DIR"
-LDAP_TEST_POSTGRES_URL="postgres://postgres:lakutata@127.0.0.1:$POSTGRES_PORT/ldap" \
-LDAP_TEST_MYSQL_URL="mysql://root:lakutata@127.0.0.1:$MYSQL_PORT/ldap" \
-node --test --test-timeout=300000 dist/esm/tests/servers/Databases.spec.js
+export LDAP_TEST_POSTGRES_URL="postgres://postgres:lakutata@127.0.0.1:$POSTGRES_PORT/ldap"
+export LDAP_TEST_MYSQL_URL="mysql://root:lakutata@127.0.0.1:$MYSQL_PORT/ldap"
+case "${LDAP_TEST_RUNTIME:-node}" in
+    bun) bun test --timeout 300000 dist/esm/tests/servers/Databases.spec.js ;;
+    electron) npx electron test-env/electron/main.mjs dist/esm/tests/servers/Databases.spec.js ;;
+    *) node --test --test-timeout=300000 dist/esm/tests/servers/Databases.spec.js ;;
+esac
