@@ -210,6 +210,9 @@ function placed(plugin: LDAPPlugin, name: string | undefined, suffixes: string[]
         ...plugin.saslMechanisms ? {saslMechanisms: plugin.saslMechanisms} : {},
         ...plugin.passwordSchemes ? {passwordSchemes: plugin.passwordSchemes} : {},
         ...plugin.rootDSEAttributes ? {rootDSEAttributes: plugin.rootDSEAttributes} : {},
+        ...plugin.aroundRequest ? {aroundRequest: (context, request, next) => plugin.aroundRequest!(context, request, next)} : {},
+        ...plugin.authenticate ? {authenticate: (context, bind, verify) => plugin.authenticate!(context, bind, verify)} : {},
+        ...plugin.passwordChange ? {passwordChange: (context, change) => plugin.passwordChange!(context, change)} : {},
         ...plugin.start ? {start: (host) => plugin.start!(host)} : {},
         ...plugin.stop ? {stop: () => plugin.stop!()} : {}
     }

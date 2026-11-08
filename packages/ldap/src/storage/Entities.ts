@@ -112,7 +112,8 @@ export abstract class LDAPValueColumns {
     public valueHash: string
 
     /**
-     * The form the substrings rule compares by, when it is not too long
+     * The form the substrings rule compares by, when it is not too long; for a name and optional UID, which has no
+     * substrings rule, the DN it names, found by an approximate match
      */
     @Column({name: 'value_key', type: 'varchar', length: 1000, nullable: true})
     public valueKey: string | null

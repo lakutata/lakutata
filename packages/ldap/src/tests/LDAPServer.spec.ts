@@ -17,6 +17,7 @@ import {
     MemberOfPlugin,
     MemoryBackend,
     type OperationContext,
+    type ServerOutcome,
     type ServerRequest
 } from '../exports/LDAP.js'
 import {CERTIFICATE, KEY} from './support/Certificate.js'
@@ -80,6 +81,14 @@ class StampPlugin extends Component implements LDAPPlugin {
 
     public started: boolean = false
 
+    //The requests the plugins of the class saw
+    public static requests: number = 0
+
+    public async aroundRequest(context: OperationContext, request: unknown, next: () => Promise<ServerOutcome>): Promise<ServerOutcome> {
+        StampPlugin.requests++
+        return next()
+    }
+
     public get interceptors(): LDAPInterceptor[] {
         return [{name: `stamp-${this.text}`, operations: ['add'], before: (context: OperationContext, request: ServerRequest): void => {
             if (request.type !== 'add') return
@@ -114,6 +123,10 @@ describe('the LDAPServer component', () => {
             await admin.add(`uid=alice,${BASE}`, {objectClass: 'account', uid: 'alice'})
             await admin.add(`cn=staff,${BASE}`, {objectClass: 'groupOfNames', cn: 'staff', member: `uid=alice,${BASE}`})
             assert.deepEqual((await admin.search(`uid=alice,${BASE}`, {scope: 'base', attributes: ['memberOf']})).entries[0].get('memberOf'), [`cn=staff,${BASE}`])
+            //The hooks of the plugins renamed in the server: a request seen by both
+            const before: number = StampPlugin.requests
+            await admin.search(BASE, {scope: 'base'})
+            assert.equal(StampPlugin.requests - before, 2)
         } finally {
             await container.destroy()
         }

@@ -326,6 +326,20 @@ describe('the plugins of the engine', () => {
         assert.deepEqual(await valuesOf(admin, 'cn=h,dc=b', 'member'), ['uid=x,dc=a'])
     })
 
+    it('leave the backends mounted below their own suffix alone', async () => {
+        const server: LDAPServerEngine = createLDAPServer({backends: [new MemoryBackend('dc=a'), new MemoryBackend('ou=x,dc=a')], access: {admins: ['cn=admin']}, plugins: [new MemberOfPlugin(), new ReferentialIntegrityPlugin(), new UniquePlugin({attributes: ['uid']})]})
+        const admin: LDAPInProcessConnection = server.connect({as: 'cn=admin'})
+        await admin.add('dc=a', {objectClass: ['dcObject', 'organization'], dc: 'a', o: 'a'})
+        await admin.add('ou=x,dc=a', {objectClass: 'organizationalUnit', ou: 'x'})
+        await admin.add('uid=inner,ou=x,dc=a', {objectClass: 'account', uid: 'inner'})
+        await admin.add('cn=g,dc=a', {objectClass: 'groupOfNames', cn: 'g', member: 'uid=inner,ou=x,dc=a'})
+        assert.deepEqual(await valuesOf(admin, 'uid=inner,ou=x,dc=a', 'memberOf'), [])
+        //A uid of the inner backend is not taken in the outer one
+        await admin.add('uid=inner,dc=a', {objectClass: 'account', uid: 'inner'})
+        await admin.delete('uid=inner,ou=x,dc=a')
+        assert.deepEqual(await valuesOf(admin, 'cn=g,dc=a', 'member'), ['uid=inner,ou=x,dc=a'])
+    })
+
     it('find a name and optional UID approximately by its name, whatever its UID', async () => {
         const {admin} = await serve([])
         await admin.add(`cn=unique,${GROUPS}`, {objectClass: 'groupOfUniqueNames', cn: 'unique', uniqueMember: [`uid=alice,${PEOPLE}#'0101'B`, `uid=bob,${PEOPLE}`]})
