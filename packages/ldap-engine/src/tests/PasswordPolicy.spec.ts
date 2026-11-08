@@ -12,6 +12,7 @@ import {
     LDAPResultException,
     type LDAPServerEngine,
     MemoryBackend,
+    PasswordPolicyPlugin,
     type OperationContext,
     type PasswordPolicyOptions,
     PasswordPolicyRequestControl,
@@ -81,6 +82,14 @@ const ALICE: string = `uid=alice,ou=people,${BASE}`
 const BOB: string = `uid=bob,ou=people,${BASE}`
 
 describe('the password policy', () => {
+    it('is a plugin, publishing its control', async () => {
+        const {admin} = await serve({pwdLockout: 'TRUE'})
+        const root = (await admin.search('', {scope: 'base', attributes: ['supportedControl']})).entries[0]
+        assert.ok(root.get('supportedControl').includes('1.3.6.1.4.1.42.2.27.8.5.1'))
+        assert.throws(() => createLDAPServer({backends: [new MemoryBackend('dc=x')], passwordPolicy: {}, plugins: [new PasswordPolicyPlugin()]}), /Two plugins are named password-policy/)
+        await assert.rejects(createLDAPServer({backends: [new MemoryBackend('dc=x')], schema: {bundled: ['core']}, plugins: [new PasswordPolicyPlugin()]}).start(), /ppolicy/)
+    })
+
     it('locks an account after too many failures, for a while, without telling it unless asked to', async () => {
         const {server, admin} = await serve({pwdLockout: 'TRUE', pwdMaxFailure: '3', pwdLockoutDuration: '1'})
         const session: LDAPInProcessConnection = server.connect()

@@ -104,11 +104,3 @@ export function newDNOf(request: ServerModifyDNRequest): DN {
     const parent: DN = request.newSuperior ?? request.dn.parent() ?? DN.parse('')
     return parent.child(request.newRDN)
 }
-
-/**
- * The suffixes of the server, from its root DSE
- * @param connection An internal connection.
- */
-export async function namingContextsOf(connection: LDAPInProcessConnection): Promise<string[]> {
-    return (await connection.search('', {scope: 'base', attributes: ['namingContexts'], paged: false})).entries[0]?.get('namingContexts') ?? []
-}

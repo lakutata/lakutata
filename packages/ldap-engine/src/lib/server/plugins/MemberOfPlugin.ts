@@ -44,9 +44,11 @@ export interface MemberOfPluginOptions extends BasePluginOptions {
 
 /**
  * The groups an entry is a member of, kept in its memberOf, as the memberof overlay of OpenLDAP keeps them: a group
- * added, a change of its members, a group deleted or renamed changes the memberOf of its members. For the backends
- * without memberOf of their own (the directory backend of `@lakutata/ldap` computes it, and the plugin leaves its
- * chain); the members are written after the change of the group, as the overlay does. Users cannot write memberOf.
+ * added, a change of its members, a group deleted or renamed changes the memberOf of its members. As the overlay keeps
+ * them within one database, the plugin keeps them within one backend: the members in another backend are passed over.
+ * For the backends without memberOf of their own (the directory backend of `@lakutata/ldap` computes it, and the plugin
+ * leaves its chain); the members are written after the change of the group, as the overlay does. Users cannot write
+ * memberOf.
  * @example
  * ```typescript
  * import {createLDAPServer, MemberOfPlugin, MemoryBackend} from '@lakutata/ldap-engine'
@@ -123,7 +125,7 @@ export class MemberOfPlugin extends BaseLDAPPlugin {
             case 'add': {
                 const members: DN[] = this.membersIn(valuesIn(request.entry.attributes, 'objectClass', schema), (type: string): Buffer[] => valuesIn(request.entry.attributes, type, schema), schema)
                 const outcome: ServerOutcome = await next()
-                if (members.length) await this.afterwards(context, (): Promise<void> => this.internally(context, (connection: LDAPInProcessConnection): Promise<void> => this.give(connection, members, request.entry.dn)))
+                if (members.length) await this.afterwards(context, (): Promise<void> => this.internally(context, (connection: LDAPInProcessConnection): Promise<void> => this.give(context, connection, members, request.entry.dn)))
                 return outcome
             }
             case 'modify': {
@@ -133,8 +135,8 @@ export class MemberOfPlugin extends BaseLDAPPlugin {
                 await this.afterwards(context, (): Promise<void> => this.internally(context, async (connection: LDAPInProcessConnection): Promise<void> => {
                     const after: DN[] = this.membersOf(await readEntry(connection, request.dn, ['objectClass', ...this.memberTypes()]), schema)
                     const has = (list: DN[], dn: DN): boolean => list.some((item: DN): boolean => item.equals(dn, schema))
-                    await this.take(connection, before.filter((dn: DN): boolean => !has(after, dn)), request.dn)
-                    await this.give(connection, after.filter((dn: DN): boolean => !has(before, dn)), request.dn)
+                    await this.take(context, connection, before.filter((dn: DN): boolean => !has(after, dn)), request.dn)
+                    await this.give(context, connection, after.filter((dn: DN): boolean => !has(before, dn)), request.dn)
                 }))
                 return outcome
             }
@@ -147,14 +149,14 @@ export class MemberOfPlugin extends BaseLDAPPlugin {
                     await this.afterwards(context, (): Promise<void> => this.internally(context, async (connection: LDAPInProcessConnection): Promise<void> => {
                         for (const group of groups) {
                             if (request.type === 'delete') {
-                                await this.take(connection, group.members, group.dn)
+                                await this.take(context, connection, group.members, group.dn)
                                 continue
                             }
                             //The members and the group where the rename leaves them
                             const moved = (dn: DN): DN => dn.equals(request.dn, schema) || dn.isDescendantOf(request.dn, schema) ? rebase(dn, request.dn, newDNOf(request), schema) : dn
                             const members: DN[] = group.members.map(moved)
-                            await this.take(connection, members, group.dn)
-                            await this.give(connection, members, moved(group.dn))
+                            await this.take(context, connection, members, group.dn)
+                            await this.give(context, connection, members, moved(group.dn))
                         }
                     }))
                 }
@@ -220,13 +222,25 @@ export class MemberOfPlugin extends BaseLDAPPlugin {
     }
 
     /**
+     * The members in the backend of their group
+     * @param context The context.
+     * @param members The members.
+     * @param group The group.
+     */
+    protected ofBackend(context: OperationContext, members: DN[], group: DN): DN[] {
+        const home: string | undefined = context.server.suffixOf(group)
+        return members.filter((member: DN): boolean => context.server.suffixOf(member) === home)
+    }
+
+    /**
      * Give a group to the memberOf of members (a member that does not exist, or has it already, is passed over)
+     * @param context The context.
      * @param connection The connection.
      * @param members The members.
      * @param group The group.
      */
-    protected async give(connection: LDAPInProcessConnection, members: DN[], group: DN): Promise<void> {
-        for (const member of members) {
+    protected async give(context: OperationContext, connection: LDAPInProcessConnection, members: DN[], group: DN): Promise<void> {
+        for (const member of this.ofBackend(context, members, group)) {
             await connection.modify(member, {operation: 'add', attribute: this.attributeName, values: group.toString()}).catch((error: unknown): void => {
                 if (!(error instanceof LDAPAttributeOrValueExistsException) && !(error instanceof LDAPNoSuchObjectException)) throw error
             })
@@ -235,12 +249,13 @@ export class MemberOfPlugin extends BaseLDAPPlugin {
 
     /**
      * Take a group from the memberOf of members
+     * @param context The context.
      * @param connection The connection.
      * @param members The members.
      * @param group The group.
      */
-    protected async take(connection: LDAPInProcessConnection, members: DN[], group: DN): Promise<void> {
-        for (const member of members) {
+    protected async take(context: OperationContext, connection: LDAPInProcessConnection, members: DN[], group: DN): Promise<void> {
+        for (const member of this.ofBackend(context, members, group)) {
             await connection.modify(member, {operation: 'delete', attribute: this.attributeName, values: group.toString()}).catch((error: unknown): void => {
                 if (!(error instanceof LDAPNoSuchAttributeException) && !(error instanceof LDAPNoSuchObjectException)) throw error
             })

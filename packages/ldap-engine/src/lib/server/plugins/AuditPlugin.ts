@@ -1,11 +1,12 @@
 import {LDAPResultException} from '../../../exceptions/LDAPResultException.js'
 import {LDAPUsageException} from '../../../exceptions/LDAPUsageException.js'
 import {isUTF8} from '../../ber/Ber.js'
+import {ExtendedOperation, PasswordModifyRequest} from '../../extended/Extended.js'
 import {stringifyFilter} from '../../filter/FilterString.js'
-import type {PartialAttribute} from '../../protocol/Messages.js'
+import type {LDAPRequest, PartialAttribute} from '../../protocol/Messages.js'
 import {ResultCode} from '../../protocol/ResultCode.js'
 import type {Schema} from '../../schema/Schema.js'
-import type {LDAPInterceptor, OperationContext, OperationType, ServerOutcome, ServerRequest} from '../Types.js'
+import type {OperationContext, OperationType, ServerOutcome} from '../Types.js'
 import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
 import {isOfType} from './PluginTools.js'
 
@@ -74,6 +75,14 @@ export interface AuditRecord {
      * The filter of a search
      */
     filter?: string
+    /**
+     * The OID of an extended operation
+     */
+    name?: string
+    /**
+     * The SASL mechanism of a bind
+     */
+    mechanism?: string
 }
 
 /**
@@ -87,9 +96,10 @@ export interface AuditPluginOptions extends BasePluginOptions {
      */
     write: (record: AuditRecord) => Promise<void> | void
     /**
-     * The operations recorded (add, modify, delete and modifyDN by default; bind, search and compare as well when given)
+     * The operations recorded (add, modify, delete, modifyDN and extended, the Password Modify among them, by default;
+     * bind, search and compare as well when given)
      */
-    operations?: Exclude<OperationType, 'extended'>[]
+    operations?: OperationType[]
     /**
      * Record the operations of the plugins' own connections too (the memberOf a plugin writes; false by default)
      */
@@ -103,9 +113,8 @@ export interface AuditPluginOptions extends BasePluginOptions {
 /**
  * A record of each operation, its outcome included, as the accesslog and auditlog overlays of OpenLDAP keep them: the
  * plugin gives each record to `write`, which keeps it where the application wants (a file, a log, a table). It runs
- * first in the chain, so the refused operations are recorded too; the passwords are not. A Password Modify is recorded
- * as the modify it makes. What never reaches the chain of a backend is not recorded: anonymous binds, SASL binds,
- * binds to a DN under no backend, the other extended operations.
+ * around every request, before it goes to a backend, so the refused operations are recorded too, and the binds and the
+ * extended operations; the passwords are not.
  * @example
  * ```typescript
  * import {AuditPlugin, createLDAPServer, MemoryBackend} from '@lakutata/ldap-engine'
@@ -125,7 +134,7 @@ export class AuditPlugin extends BaseLDAPPlugin {
     /**
      * The operations recorded
      */
-    protected readonly operations: Exclude<OperationType, 'extended'>[]
+    protected readonly operations: OperationType[]
 
     /**
      * Whether the internal operations are recorded
@@ -146,28 +155,21 @@ export class AuditPlugin extends BaseLDAPPlugin {
         super('audit', options)
         if (typeof options?.write !== 'function') throw new LDAPUsageException(`The plugin ${this.name} needs a write function for its records`)
         this.write = options.write
-        this.operations = options.operations ?? ['add', 'modify', 'delete', 'modifyDN']
-        const known: string[] = ['bind', 'search', 'compare', 'add', 'modify', 'delete', 'modifyDN']
+        this.operations = options.operations ?? ['add', 'modify', 'delete', 'modifyDN', 'extended']
+        const known: string[] = ['bind', 'search', 'compare', 'add', 'modify', 'delete', 'modifyDN', 'extended']
         if (!Array.isArray(this.operations) || this.operations.some((operation: string): boolean => !known.includes(operation))) throw new LDAPUsageException(`The operations of the plugin ${this.name} are among ${known.join(', ')}`)
         this.internal = options.internal === true
         this.hidden = options.hidden ?? ['userPassword', 'sambaNTPassword', 'sambaLMPassword']
     }
 
     /**
-     * Its interceptor, first in the chain
-     */
-    public get interceptors(): {interceptor: LDAPInterceptor, before: string}[] {
-        return [{interceptor: {name: this.name, operations: this.operations, around: (context: OperationContext, request: ServerRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome> => this.around(context, request, next)}, before: 'access'}]
-    }
-
-    /**
      * Record an operation and its outcome
      * @param context The context.
      * @param request The request.
-     * @param next The rest of the chain.
+     * @param next The handling of the request.
      */
-    protected async around(context: OperationContext, request: ServerRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome> {
-        if (context.session.internal && !this.internal) return next()
+    public async aroundRequest(context: OperationContext, request: LDAPRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome> {
+        if (!this.operations.includes(context.operation) || (context.session.internal && !this.internal)) return next()
         //What the request was before the chain changes it (a password hashed)
         const record: AuditRecord = this.recordOf(context, request, context.schema)
         try {
@@ -201,7 +203,7 @@ export class AuditPlugin extends BaseLDAPPlugin {
      * @param request The request.
      * @param schema The schema.
      */
-    protected recordOf(context: OperationContext, request: ServerRequest, schema: Schema): AuditRecord {
+    protected recordOf(context: OperationContext, request: LDAPRequest, schema: Schema): AuditRecord {
         const record: AuditRecord = {
             time: new Date(),
             operation: context.operation,
@@ -213,30 +215,42 @@ export class AuditPlugin extends BaseLDAPPlugin {
             resultCode: ResultCode.success
         }
         switch (request.type) {
-            case 'bind':
+            case 'bindRequest':
                 record.dn = request.name
+                if (request.authentication.type === 'sasl') record.mechanism = request.authentication.mechanism
                 break
-            case 'search':
-                record.dn = request.base.toString()
+            case 'searchRequest':
+                record.dn = request.baseObject
                 record.filter = stringifyFilter(request.filter)
                 break
-            case 'add':
-                record.dn = request.entry.dn.toString()
-                record.attributes = request.entry.attributes.map((attribute: PartialAttribute): {type: string, values: string[]} => ({type: attribute.type, values: this.valuesOf(attribute, schema)}))
+            case 'addRequest':
+                record.dn = request.entry
+                record.attributes = request.attributes.map((attribute: PartialAttribute): {type: string, values: string[]} => ({type: attribute.type, values: this.valuesOf(attribute, schema)}))
                 break
-            case 'modify':
-                record.dn = request.dn.toString()
-                record.changes = request.changes.map((change): {operation: string, attribute: string, values: string[]} => ({operation: change.operation, attribute: change.attribute.type, values: this.valuesOf(change.attribute, schema)}))
+            case 'modifyRequest':
+                record.dn = request.object
+                record.changes = request.changes.map((change): {operation: string, attribute: string, values: string[]} => ({operation: change.operation, attribute: change.modification.type, values: this.valuesOf(change.modification, schema)}))
                 break
-            case 'modifyDN':
-                record.dn = request.dn.toString()
-                record.newRDN = request.newRDN.toString()
+            case 'modifyDNRequest':
+                record.dn = request.entry
+                record.newRDN = request.newRDN
                 record.deleteOldRDN = request.deleteOldRDN
-                if (request.newSuperior) record.newSuperior = request.newSuperior.toString()
+                if (request.newSuperior) record.newSuperior = request.newSuperior
                 break
-            case 'compare':
-            case 'delete':
-                record.dn = request.dn.toString()
+            case 'compareRequest':
+            case 'deleteRequest':
+                record.dn = request.entry
+                break
+            case 'extendedRequest':
+                record.name = request.name
+                //A Password Modify: the entry whose password it changes, without the passwords
+                if (request.name === ExtendedOperation.passwordModify) {
+                    try {
+                        record.dn = PasswordModifyRequest.decode(request.value ?? Buffer.alloc(0)).userIdentity?.replace(/^dn:/, '') ?? record.identity ?? ''
+                    } catch {
+                        record.dn = record.identity ?? ''
+                    }
+                }
                 break
         }
         return record

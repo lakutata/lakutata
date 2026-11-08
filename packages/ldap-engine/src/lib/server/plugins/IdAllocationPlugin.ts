@@ -3,11 +3,10 @@ import {LDAPNoSuchObjectException} from '../../../exceptions/LDAPResultException
 import {LDAPUsageException} from '../../../exceptions/LDAPUsageException.js'
 import {DN} from '../../dn/DN.js'
 import type {Schema} from '../../schema/Schema.js'
-import {atOrBelow} from '../EntryTools.js'
 import type {LDAPInProcessConnection} from '../InProcessConnection.js'
 import type {LDAPInterceptor, OperationContext, PluginCapability, ServerOutcome, ServerRequest} from '../Types.js'
 import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
-import {classesOf, namingContextsOf, valuesIn} from './PluginTools.js'
+import {classesOf, valuesIn} from './PluginTools.js'
 
 /**
  * The options of an {@link IdAllocationPlugin}
@@ -26,7 +25,7 @@ export interface IdAllocationPluginOptions extends BasePluginOptions {
 /**
  * uidNumber and gidNumber given to the POSIX entries added without them, as the DNA plugin of 389 Directory Server
  * gives them: a posixAccount gets a uidNumber, a posixAccount or a posixGroup a gidNumber, one more than the greatest
- * under the suffix of the entry, not below the first. The numbers of one server are given one after the other; with
+ * under the suffix of the backend of the entry, not below the first. The numbers of one server are given one after the other; with
  * several servers on one store, keep the numbers unique (a `UniquePlugin` on uidNumber refuses a number given twice),
  * or use a backend giving them itself (the directory backend of `@lakutata/ldap` does, and the plugin leaves its
  * chain).
@@ -96,7 +95,7 @@ export class IdAllocationPlugin extends BaseLDAPPlugin {
         if (!wanted.length) return next()
         const run = async (): Promise<ServerOutcome> => {
             await this.internally(context, async (connection: LDAPInProcessConnection): Promise<void> => {
-                const base: string | undefined = (await namingContextsOf(connection)).filter((suffix: string): boolean => atOrBelow(request.entry.dn, suffix, schema)).sort((left: string, right: string): number => DN.parse(right).length - DN.parse(left).length)[0]
+                const base: string | undefined = context.server.suffixOf(request.entry.dn)
                 for (const type of wanted) request.entry.attributes.push({type: type, values: [Buffer.from(String(await this.allocate(connection, base ?? '', type, schema)))]})
             })
             return next()

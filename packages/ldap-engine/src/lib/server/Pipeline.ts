@@ -39,7 +39,6 @@ import {
     valuesOfType
 } from './EntryTools.js'
 import {closePaged, pagingInterceptor, type PagedStates} from './Paging.js'
-import {MUST_CHANGE, PasswordPolicy, type PasswordPolicyOptions} from './PasswordPolicy.js'
 import type {PasswordSchemes} from './Passwords.js'
 import {rootDSEEntry, schemaConfigEntries, subschemaEntry} from './RootDSE.js'
 import type {SASLContext, SASLMechanism, SASLStep} from './SASL.js'
@@ -53,8 +52,10 @@ import type {
     InterceptorPlacement,
     LDAPBackend,
     LDAPInterceptor,
+    LDAPPlugin,
     LDAPPluginHost,
     OperationContext,
+    PasswordChange,
     OperationType,
     PluginCapability,
     SearchContext,
@@ -144,7 +145,7 @@ export interface PlacedInterceptor extends InterceptorPlacement {
 /**
  * The OIDs of the controls the engine handles itself
  */
-export const ENGINE_CONTROLS: readonly string[] = [PagedResultsControl.oid, SortRequestControl.oid, VLVRequestControl.oid, TreeDeleteControl.oid, ManageDsaITControl.oid, PasswordPolicyRequestControl.oid]
+export const ENGINE_CONTROLS: readonly string[] = [PagedResultsControl.oid, SortRequestControl.oid, VLVRequestControl.oid, TreeDeleteControl.oid, ManageDsaITControl.oid]
 
 /**
  * The OIDs of the extended operations the engine handles itself
@@ -161,7 +162,10 @@ export interface PipelineOptions {
     interceptors: PlacedInterceptor[]
     access: AccessOptions
     passwords: PasswordSchemes
-    passwordPolicy?: PasswordPolicyOptions
+    /**
+     * The plugins, for their hooks around the requests, the binds and the password changes
+     */
+    plugins: LDAPPlugin[]
     rehashOnBind: boolean
     throttle: BindThrottle
     plaintextBind: 'all' | 'loopback' | 'none'
@@ -256,8 +260,8 @@ const COMPUTED_OPERATIONAL: Set<string> = new Set(['entrydn', 'subschemasubentry
 const CURRENT: unique symbol = Symbol('the entry before the write')
 //The password change of a Password Modify: whether the user changes their own password, whether they gave the old one
 const PASSWORD_CHANGE: unique symbol = Symbol('the password change')
-//The changes of the password policy state a write makes, applied after the schema checks
-const POLICY_STATE: unique symbol = Symbol('the password policy state')
+//The changes the plugins give with a password change (the state of a password policy), applied after the schema checks
+const PASSWORD_STATE: unique symbol = Symbol('the changes given with a password change')
 const RESULT: unique symbol = Symbol('the entry as the write leaves it')
 //The attribute an unreadable attribute of a filter becomes: no schema defines it, so its items are Undefined
 const HIDDEN: string = 'x-hidden-attribute'
@@ -350,21 +354,9 @@ export class Pipeline {
 
     protected readonly started: Date = new Date()
 
-    /**
-     * The password policy, when the server has one
-     */
-    protected readonly policy: PasswordPolicy | undefined
-
     constructor(public readonly options: PipelineOptions) {
         this.schema = options.schema
         this.access = new AccessPolicy(options.access, options.schema)
-        this.policy = options.passwordPolicy ? new PasswordPolicy(options.passwordPolicy, options.schema, options.passwords, async (context: OperationContext, dn: DN): Promise<DirectoryEntry | undefined> => {
-            const mount: Mount | undefined = this.route(dn)
-            return mount ? mount.backend.get(context, dn) : undefined
-        }, async (context: OperationContext, dn: DN, changes: DirectoryChange[]): Promise<void> => {
-            const mount: Mount | undefined = this.route(dn)
-            if (mount?.backend.modify) await mount.backend.modify(this.context(context.session, 'modify', [], context.signal, true), dn, changes)
-        }) : undefined
         this.mounts = options.backends.map((backend: LDAPBackend): Mount => ({backend: backend, suffix: DN.parse(backend.suffix), chain: []}))
         //The longest suffix first
         this.mounts.sort((left: Mount, right: Mount): number => right.suffix.length - left.suffix.length)
@@ -469,27 +461,38 @@ export class Pipeline {
         const context: OperationContext = this.context(session, operation, controls, signal)
         let outcome: ServerOutcome
         let dn: string = ''
-        try {
-            this.checkControls(controls, operation)
-            this.policy?.guard(context, this.allowedBeforeChange(session, request))
+        const dispatch = async (): Promise<ServerOutcome> => {
             switch (request.type) {
                 case 'bindRequest':
                     dn = request.name
-                    outcome = await this.bind(session, context, request)
-                    break
+                    return this.bind(session, context, request)
                 case 'searchRequest':
                     dn = request.baseObject
-                    outcome = await this.search(context, request, responder)
-                    break
+                    return this.search(context, request, responder)
                 case 'extendedRequest':
-                    outcome = await this.extended(context, request.name, request.value)
-                    break
+                    return this.extended(context, request.name, request.value)
                 default:
                     dn = 'entry' in request ? request.entry : 'object' in request ? request.object : ''
-                    outcome = await this.write(context, request)
+                    return this.write(context, request)
             }
+        }
+        //The plugins' hooks around every request, the first outermost
+        let run: () => Promise<ServerOutcome> = dispatch
+        for (const plugin of [...this.options.plugins].reverse()) {
+            if (!plugin.aroundRequest) continue
+            const inner: () => Promise<ServerOutcome> = run
+            run = (): Promise<ServerOutcome> => plugin.aroundRequest!(context, request, inner)
+        }
+        try {
+            this.checkControls(controls, operation)
+            outcome = await run()
         } catch (error) {
             outcome = this.outcomeOf(error, signal)
+        }
+        //A bind a hook refused after it was checked leaves the session anonymous (RFC 4511 §4.2.1)
+        if (operation === 'bind' && outcome.resultCode !== ResultCode.success && outcome.resultCode !== ResultCode.saslBindInProgress) {
+            session.identity = undefined
+            session.authenticationMethod = undefined
         }
         this.options.events.emit('operation', {session: session.id, operation: operation, dn: dn, resultCode: outcome.resultCode, duration: Date.now() - started})
         const response: Record<string, unknown> = {type: RESPONSE_TYPES[operation], resultCode: outcome.resultCode, matchedDN: outcome.matchedDN ?? '', diagnosticMessage: outcome.diagnosticMessage ?? ''}
@@ -500,26 +503,6 @@ export class Pipeline {
         }
         if (operation === 'bind' && outcome.serverSaslCredentials) response.serverSaslCredentials = outcome.serverSaslCredentials
         return {response: response as unknown as LDAPResponse, controls: context.responseControls}
-    }
-
-    /**
-     * Whether a session that must change its password first may run a request: a bind, Who Am I, Password Modify, or a
-     * modify of its own password
-     * @param session The session.
-     * @param request The request.
-     */
-    protected allowedBeforeChange(session: SessionState, request: LDAPRequest): boolean {
-        if (!session.state.get(MUST_CHANGE)) return true
-        switch (request.type) {
-            case 'bindRequest':
-                return true
-            case 'extendedRequest':
-                return request.name === ExtendedOperation.passwordModify || request.name === ExtendedOperation.whoAmI
-            case 'modifyRequest':
-                return session.identity !== undefined && DN.isValid(request.object) && DN.parse(request.object).equals(session.identity, this.schema) && request.changes.every((change) => this.schema.primaryName(attributeTypeOf(change.modification.type)).toLowerCase() === 'userpassword')
-            default:
-                return false
-        }
     }
 
     /**
@@ -534,8 +517,54 @@ export class Pipeline {
         const verify = async (): Promise<void> => {
             if (!await this.verifyPassword(session, context, dn, password)) fail(ResultCode.invalidCredentials, 'Invalid credentials')
         }
-        if (this.policy) await this.policy.authenticate(context, dn, verify)
-        else await verify()
+        const mount: Mount | undefined = this.route(dn)
+        const hooks: LDAPPlugin[] = this.options.plugins.filter((plugin: LDAPPlugin): boolean => plugin.authenticate !== undefined && this.runsFor(plugin, mount))
+        if (!hooks.length) return verify()
+        //The plugins' hooks around the check, the first outermost, given the entry as it is
+        const entry: DirectoryEntry | undefined = mount ? await mount.backend.get(this.context(session, 'search', [], context.signal, true), dn) : undefined
+        let run: () => Promise<void> = verify
+        for (const plugin of [...hooks].reverse()) {
+            const inner: () => Promise<void> = run
+            run = (): Promise<void> => plugin.authenticate!(context, {dn: dn, entry: entry}, inner)
+        }
+        await run()
+    }
+
+    /**
+     * Whether a plugin runs for a backend: all of them, or those of its suffixes
+     * @param plugin The plugin.
+     * @param mount The backend.
+     */
+    protected runsFor(plugin: LDAPPlugin, mount: Mount | undefined): boolean {
+        return !plugin.suffixes || (mount !== undefined && plugin.suffixes.some((suffix: string): boolean => mount.suffix.equals(suffix, this.schema)))
+    }
+
+    /**
+     * Check a password change with the plugins, and keep the changes they give with it
+     * @param mount The backend.
+     * @param context The context of the write.
+     * @param change The change.
+     */
+    protected async checkPasswordChange(mount: Mount, context: OperationContext, change: PasswordChange): Promise<void> {
+        const state: DirectoryChange[] = []
+        for (const plugin of this.options.plugins) {
+            if (!plugin.passwordChange || !this.runsFor(plugin, mount)) continue
+            const given: DirectoryChange[] | void = await plugin.passwordChange(context, change)
+            if (given) state.push(...given)
+        }
+        if (state.length) context.state.set(PASSWORD_STATE, state)
+    }
+
+    /**
+     * Write changes to an entry straight to its backend, as the engine (the state the plugins keep)
+     * @param dn The DN of the entry.
+     * @param changes The changes.
+     */
+    public async writeState(dn: DN, changes: DirectoryChange[]): Promise<void> {
+        const mount: Mount | undefined = this.route(dn)
+        if (!mount?.backend.modify) return
+        const session: SessionState = {id: 'internal', inProcess: true, secure: true, internal: true, paged: new Map(), state: new Map()}
+        await mount.backend.modify(this.context(session, 'modify', [], new AbortController().signal, true), dn, changes)
     }
 
     /**
@@ -1177,11 +1206,8 @@ export class Pipeline {
             before: async (context: OperationContext, request: ServerRequest): Promise<void> => {
                 if (request.type === 'add') {
                     const given: Buffer[] = request.entry.attributes.filter((attribute: PartialAttribute): boolean => isPassword(attribute.type)).flatMap((attribute: PartialAttribute): Buffer[] => attribute.values)
-                    //The password policy checks the passwords in clear, before they are hashed
-                    if (this.policy && given.length) {
-                        const state: DirectoryChange[] | undefined = await this.policy.check(context, request.entry.dn, undefined, given, {self: false, oldGiven: false, entryAttributes: request.entry.attributes})
-                        if (state) context.state.set(POLICY_STATE, state)
-                    }
+                    //The plugins check the passwords in clear, before they are hashed
+                    if (given.length) await this.checkPasswordChange(mount, context, {dn: request.entry.dn, attributes: request.entry.attributes, passwords: given, self: false, oldGiven: false})
                     request.entry = {dn: request.entry.dn, attributes: await Promise.all(request.entry.attributes.map(async (attribute: PartialAttribute): Promise<PartialAttribute> => isPassword(attribute.type) ? {type: attribute.type, values: await hashed(context, attribute.values)} : attribute))}
                     return
                 }
@@ -1214,14 +1240,13 @@ export class Pipeline {
                         changes.push(change)
                     }
                 }
-                //The password policy checks the new passwords in clear; the engine's own writes (a rehash) are not changes
+                //The plugins check the new passwords in clear; the engine's own writes (a rehash) are not changes
                 const passwordChange: {self: boolean, oldGiven: boolean} | undefined = context.state.get(PASSWORD_CHANGE) as {self: boolean, oldGiven: boolean} | undefined
-                if (this.policy && newPasswords.length && (!context.internal || passwordChange)) {
+                if (newPasswords.length && (!context.internal || passwordChange) && this.options.plugins.some((plugin: LDAPPlugin): boolean => plugin.passwordChange !== undefined)) {
                     current ??= await this.required(mount, context, request.dn)
                     context.state.set(CURRENT, current)
                     const identity: DN | undefined = context.session.identity
-                    const state: DirectoryChange[] | undefined = await this.policy.check(context, request.dn, current, newPasswords, passwordChange ?? {self: identity !== undefined && identity.equals(request.dn, schema), oldGiven: oldGiven})
-                    if (state) context.state.set(POLICY_STATE, state)
+                    await this.checkPasswordChange(mount, context, {dn: request.dn, entry: current, changes: request.changes, passwords: newPasswords, ...passwordChange ?? {self: identity !== undefined && identity.equals(request.dn, schema), oldGiven: oldGiven}})
                 }
                 request.changes = changes
             }
@@ -1320,7 +1345,7 @@ export class Pipeline {
                         has('structuralobjectclass') || !structural ? undefined : text('structuralObjectClass', structural.names[0] ?? structural.oid)
                     ].filter((attribute: PartialAttribute | undefined): attribute is PartialAttribute => attribute !== undefined))
                     //The state of the password policy: the attributes it sets
-                    const policyState: DirectoryChange[] = (context.state.get(POLICY_STATE) as DirectoryChange[] | undefined) ?? []
+                    const policyState: DirectoryChange[] = (context.state.get(PASSWORD_STATE) as DirectoryChange[] | undefined) ?? []
                     for (const change of policyState) if (change.attribute.values.length) request.entry.attributes.push(change.attribute)
                     return
                 }
@@ -1332,7 +1357,7 @@ export class Pipeline {
                         return usage !== undefined && usage !== 'userApplications'
                     })
                     if (!operationalOnly) (request.changes as DirectoryChange[]).push({operation: 'replace', attribute: text('modifyTimestamp', now)}, {operation: 'replace', attribute: text('modifiersName', modifier(context))})
-                    ;(request.changes as DirectoryChange[]).push(...(context.state.get(POLICY_STATE) as DirectoryChange[] | undefined) ?? [])
+                    ;(request.changes as DirectoryChange[]).push(...(context.state.get(PASSWORD_STATE) as DirectoryChange[] | undefined) ?? [])
                     return
                 }
                 if (request.type === 'modifyDN') {

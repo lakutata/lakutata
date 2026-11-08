@@ -3,11 +3,11 @@ import type {PartialAttribute} from '../../protocol/Messages.js'
 import {ResultCode} from '../../protocol/ResultCode.js'
 import type {Schema} from '../../schema/Schema.js'
 import {fail} from '../EntryTools.js'
-import type {LDAPInProcessConnection} from '../InProcessConnection.js'
-import type {LDAPInterceptor, LDAPPluginHost, OperationContext, ServerRequest} from '../Types.js'
+import type {PasswordSchemes} from '../Passwords.js'
+import type {DirectoryChange, LDAPPluginHost, OperationContext, PasswordChange} from '../Types.js'
 import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
 import {md4} from './MD4.js'
-import {classesOf, isOfType, readEntry, valuesIn} from './PluginTools.js'
+import {classesOf, isOfType, valuesIn} from './PluginTools.js'
 
 /**
  * The options of a {@link SambaPasswordPlugin}
@@ -27,7 +27,7 @@ export interface SambaPasswordPluginOptions extends BasePluginOptions {
  * The NT hash of a new password in sambaNTPassword, as the smbk5pwd module of OpenLDAP writes it, for the SMB of NAS
  * devices and Samba using the directory: a password set in clear on an entry of sambaSamAccount (an add, a modify, a
  * Password Modify) gives its hash, and the time in sambaPwdLastSet. The hash can only be made while the password is in
- * clear, so the plugin runs before the server hashes it. The server needs the schema of Samba, a file of its own
+ * clear: the plugin checks the password changes, before the server hashes the passwords. The server needs the schema of Samba, a file of its own
  * (`schema.files`), as OpenLDAP does.
  * @example
  * ```typescript
@@ -64,13 +64,6 @@ export class SambaPasswordPlugin extends BaseLDAPPlugin {
     }
 
     /**
-     * Its interceptor, before the server hashes the passwords
-     */
-    public get interceptors(): {interceptor: LDAPInterceptor, before: string}[] {
-        return [{interceptor: {name: this.name, operations: ['add', 'modify'], before: (context: OperationContext, request: ServerRequest): Promise<void> => this.before(context, request)}, before: 'password'}]
-    }
-
-    /**
      * Check that the schema of Samba is there
      * @param host The server.
      */
@@ -80,37 +73,32 @@ export class SambaPasswordPlugin extends BaseLDAPPlugin {
     }
 
     /**
-     * Give the hash of a new password in clear
+     * Give the hash of a new password in clear, with the change
      * @param context The context.
-     * @param request The request.
+     * @param change The change.
      */
-    protected async before(context: OperationContext, request: ServerRequest): Promise<void> {
+    public passwordChange(context: OperationContext, change: PasswordChange): DirectoryChange[] | void {
         const schema: Schema = context.schema
-        if (request.type === 'add') {
-            const password: string | undefined = this.clearPassword(valuesIn(request.entry.attributes, 'userPassword', schema))
-            if (password === undefined || !classesOf(valuesIn(request.entry.attributes, 'objectClass', schema), schema).has(this.objectClass.toLowerCase())) return
-            this.requireSchema(schema)
-            const given = (type: string): boolean => valuesIn(request.entry.attributes, type, schema).length > 0
-            request.entry.attributes.push(...this.hashAttributes(password).filter((attribute: PartialAttribute): boolean => !given(attribute.type)))
-            return
-        }
-        if (request.type !== 'modify') return
-        const password: string | undefined = this.clearPassword(request.changes.filter((change): boolean => change.operation !== 'delete' && isOfType(change.attribute.type, 'userPassword', schema)).flatMap((change): Buffer[] => change.attribute.values))
+        const password: string | undefined = this.clearPassword(change.passwords, context.server.passwords)
         if (password === undefined) return
-        //The classes of the entry, with those the modify adds
-        const added: Buffer[] = request.changes.filter((change): boolean => change.operation !== 'delete' && isOfType(change.attribute.type, 'objectClass', schema)).flatMap((change): Buffer[] => change.attribute.values)
-        const current: string[] = await this.internally(context, async (connection: LDAPInProcessConnection): Promise<string[]> => (await readEntry(connection, request.dn, ['objectClass']))?.get('objectClass') ?? [])
-        if (!classesOf([...current, ...added], schema).has(this.objectClass.toLowerCase())) return
+        //The classes of the entry, with those a modify adds
+        const classes: (Buffer | string)[] = change.entry
+            ? [...valuesIn(change.entry.attributes, 'objectClass', schema), ...(change.changes ?? []).filter((item): boolean => item.operation !== 'delete' && isOfType(item.attribute.type, 'objectClass', schema)).flatMap((item): Buffer[] => item.attribute.values)]
+            : valuesIn(change.attributes ?? [], 'objectClass', schema)
+        if (!classesOf(classes, schema).has(this.objectClass.toLowerCase())) return
         this.requireSchema(schema)
-        for (const attribute of this.hashAttributes(password)) request.changes.push({operation: 'replace', attribute: attribute})
+        //An add giving a hash of its own keeps it
+        const given = (type: string): boolean => !change.entry && valuesIn(change.attributes ?? [], type, schema).length > 0
+        return this.hashAttributes(password).filter((attribute: PartialAttribute): boolean => !given(attribute.type)).map((attribute: PartialAttribute): DirectoryChange => ({operation: 'replace', attribute: attribute}))
     }
 
     /**
      * The last password in clear among values (a value already hashed cannot give the NT hash)
      * @param values The values of userPassword.
+     * @param passwords The password schemes of the server.
      */
-    protected clearPassword(values: Buffer[]): string | undefined {
-        const clear: Buffer[] = values.filter((value: Buffer): boolean => !/^\{[A-Za-z0-9.+_-]+\}/.test(value.toString('utf8')))
+    protected clearPassword(values: Buffer[], passwords: PasswordSchemes): string | undefined {
+        const clear: Buffer[] = values.filter((value: Buffer): boolean => !passwords.isHashed(value))
         return clear.length ? clear[clear.length - 1].toString('utf8') : undefined
     }
 

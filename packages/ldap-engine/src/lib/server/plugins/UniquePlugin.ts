@@ -5,11 +5,11 @@ import {DN} from '../../dn/DN.js'
 import {escapeFilterValue} from '../../filter/FilterString.js'
 import {ResultCode} from '../../protocol/ResultCode.js'
 import type {Schema} from '../../schema/Schema.js'
-import {atOrBelow, fail} from '../EntryTools.js'
+import {fail} from '../EntryTools.js'
 import type {LDAPInProcessConnection} from '../InProcessConnection.js'
 import type {LDAPInterceptor, OperationContext, ServerOutcome, ServerRequest} from '../Types.js'
 import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
-import {isOfType, namingContextsOf, valuesIn} from './PluginTools.js'
+import {isOfType, valuesIn} from './PluginTools.js'
 
 /**
  * The options of a {@link UniquePlugin}
@@ -20,14 +20,15 @@ export interface UniquePluginOptions extends BasePluginOptions {
      */
     attributes: string[]
     /**
-     * The DN under which the values are unique (the suffix of the entry by default)
+     * The DN under which the values are unique (the suffix of the backend of the entry by default)
      */
     base?: string
 }
 
 /**
  * Values no two entries share, as the unique overlay of OpenLDAP keeps them: an add, a modify or a rename giving an
- * entry a value another entry has is refused with constraintViolation (19). The writes of one server are checked one
+ * entry a value another entry has, under the suffix of its backend (or `base`), is refused with constraintViolation
+ * (19). The writes of one server are checked one
  * after the other; several servers on one store need a backend keeping the values unique itself (the `unique` option
  * of the directory backend of `@lakutata/ldap`, on a unique index).
  * @example
@@ -86,7 +87,7 @@ export class UniquePlugin extends BaseLDAPPlugin {
         if (!values.length) return next()
         const run = async (): Promise<ServerOutcome> => {
             const dn: DN = request.type === 'add' ? request.entry.dn : (request as {dn: DN}).dn
-            await this.internally(context, (connection: LDAPInProcessConnection): Promise<void> => this.check(connection, dn, values, context.schema))
+            await this.internally(context, (connection: LDAPInProcessConnection): Promise<void> => this.check(context, connection, dn, values))
             return next()
         }
         const turn: Promise<ServerOutcome> = this.queue.then(run, run)
@@ -113,13 +114,14 @@ export class UniquePlugin extends BaseLDAPPlugin {
 
     /**
      * Refuse values another entry has
+     * @param context The context.
      * @param connection The connection.
      * @param dn The DN of the entry written.
      * @param values The values.
-     * @param schema The schema.
      */
-    protected async check(connection: LDAPInProcessConnection, dn: DN, values: {attribute: string, value: Buffer}[], schema: Schema): Promise<void> {
-        const base: string | undefined = this.base ?? (await namingContextsOf(connection)).filter((suffix: string): boolean => atOrBelow(dn, suffix, schema)).sort((left: string, right: string): number => DN.parse(right).length - DN.parse(left).length)[0]
+    protected async check(context: OperationContext, connection: LDAPInProcessConnection, dn: DN, values: {attribute: string, value: Buffer}[]): Promise<void> {
+        const schema: Schema = context.schema
+        const base: string | undefined = this.base ?? context.server.suffixOf(dn)
         if (base === undefined) return
         for (const {attribute, value} of values) {
             let entries: Entry[]

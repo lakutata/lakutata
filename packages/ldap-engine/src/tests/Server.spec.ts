@@ -263,7 +263,8 @@ describe('the server engine', () => {
     it('publishes its root DSE and its schema', async () => {
         const root = (await admin.search('', {scope: 'base', attributes: ['+']})).entries[0]
         assert.ok(root.get('supportedControl').includes('1.2.840.113556.1.4.319'))
-        assert.ok(root.get('supportedControl').includes('1.3.6.1.4.1.42.2.27.8.5.1'))
+        //The control of the password policy comes with the policy
+        assert.ok(!root.get('supportedControl').includes('1.3.6.1.4.1.42.2.27.8.5.1'))
         assert.deepEqual(root.get('supportedExtension').sort(), ['1.3.6.1.4.1.4203.1.11.1', '1.3.6.1.4.1.4203.1.11.3'])
         assert.deepEqual(root.get('supportedLDAPVersion'), ['3'])
         assert.equal(root.first('subschemaSubentry'), 'cn=Subschema')

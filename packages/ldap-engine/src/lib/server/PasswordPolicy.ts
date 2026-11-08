@@ -232,15 +232,15 @@ export class PasswordPolicy {
      * @param options The options.
      * @param schema The schema.
      * @param passwords The password schemes.
-     * @param getEntry An entry by its DN, in any backend.
+     * @param getEntry An entry by its DN, in any backend (a pwdPolicy entry).
      * @param writeState Write state changes to an entry, as the engine.
      */
     constructor(
         protected readonly options: PasswordPolicyOptions,
         protected readonly schema: Schema,
         protected readonly passwords: PasswordSchemes,
-        protected readonly getEntry: (context: OperationContext, dn: DN) => Promise<DirectoryEntry | undefined>,
-        protected readonly writeState: (context: OperationContext, dn: DN, changes: DirectoryChange[]) => Promise<void>
+        protected readonly getEntry: (dn: DN) => Promise<DirectoryEntry | undefined>,
+        protected readonly writeState: (dn: DN, changes: DirectoryChange[]) => Promise<void>
     ) {
     }
 
@@ -254,7 +254,7 @@ export class PasswordPolicy {
         const source: string | PasswordPolicyRules | undefined = subentry ?? this.options.default
         if (source === undefined) return undefined
         if (typeof source !== 'string') return source
-        const policy: DirectoryEntry | undefined = await this.getEntry(context, DN.parse(source))
+        const policy: DirectoryEntry | undefined = await this.getEntry(DN.parse(source))
         return policy ? rulesOfEntry(policy, this.schema) : undefined
     }
 
@@ -302,10 +302,10 @@ export class PasswordPolicy {
      * grace binds and the warnings applied, the password to change first noted on the session (§8.1)
      * @param context The context of the bind.
      * @param dn The DN of the bind.
+     * @param entry Its entry, undefined when there is none.
      * @param verify The verification.
      */
-    public async authenticate(context: OperationContext, dn: DN, verify: () => Promise<void>): Promise<void> {
-        const entry: DirectoryEntry | undefined = await this.getEntry(context, dn)
+    public async authenticate(context: OperationContext, dn: DN, entry: DirectoryEntry | undefined, verify: () => Promise<void>): Promise<void> {
         const rules: PasswordPolicyRules | undefined = entry ? await this.rulesFor(context, entry) : undefined
         if (!entry || !rules) return verify()
         const now: number = Date.now()
@@ -322,7 +322,7 @@ export class PasswordPolicy {
             const changes: DirectoryChange[] = [replace('pwdFailureTime', ...kept)]
             const lockNow: boolean = rules.lockout === true && !!rules.maxFailure && kept.length >= rules.maxFailure
             if (lockNow) changes.push(replace('pwdAccountLockedTime', formatGeneralizedTime(now)))
-            await this.writeState(context, dn, changes)
+            await this.writeState(dn, changes)
             if (rules.minDelay) await new Promise((resolve: (value: unknown) => void): unknown => setTimeout(resolve, Math.min(rules.minDelay! * 2 ** (kept.length - 1), rules.maxDelay ?? rules.minDelay!) * 1000))
             refuse(context, ResultCode.invalidCredentials, 'Invalid credentials', lockNow && this.options.revealLocked ? 'accountLocked' : undefined)
         }
@@ -340,7 +340,7 @@ export class PasswordPolicy {
             const expiredAt: number = changed + rules.maxAge * 1000
             const remaining: number = rules.graceExpiry && now > expiredAt + rules.graceExpiry * 1000 ? 0 : Math.max((rules.graceAuthNLimit ?? 0) - used, 0)
             if (!remaining) {
-                await this.writeState(context, dn, changes.slice(0, 2))
+                await this.writeState(dn, changes.slice(0, 2))
                 refuse(context, ResultCode.invalidCredentials, 'Invalid credentials', 'passwordExpired')
             }
             changes.push({operation: 'add', attribute: {type: 'pwdGraceUseTime', values: [Buffer.from(formatGeneralizedTime(now))]}})
@@ -349,7 +349,7 @@ export class PasswordPolicy {
             const age: number = (now - changed) / 1000
             if (age >= rules.maxAge - rules.expireWarning) warning = {timeBeforeExpiration: Math.max(Math.floor(rules.maxAge - age), 0)}
         }
-        await this.writeState(context, dn, changes)
+        await this.writeState(dn, changes)
         if (warning) respond(context, warning)
     }
 

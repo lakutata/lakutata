@@ -8,7 +8,7 @@ import type {Schema} from '../../schema/Schema.js'
 import type {LDAPInProcessConnection} from '../InProcessConnection.js'
 import type {LDAPInterceptor, OperationContext, PluginCapability, ServerOutcome, ServerRequest} from '../Types.js'
 import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
-import {dnOfValue, namingContextsOf, newDNOf, rebase, uidOfValue} from './PluginTools.js'
+import {dnOfValue, newDNOf, rebase, uidOfValue} from './PluginTools.js'
 
 //The syntax of a name and optional UID (uniqueMember)
 const NAME_AND_OPTIONAL_UID: string = '1.3.6.1.4.1.1466.115.121.1.34'
@@ -31,9 +31,10 @@ export interface ReferentialIntegrityPluginOptions extends BasePluginOptions {
 
 /**
  * The references between entries kept, as the refint overlay of OpenLDAP keeps them: an entry deleted goes from the
- * values naming it, an entry renamed or moved is named by its new DN, with the entries below it. For the backends that
- * do not keep them themselves (the directory backend of `@lakutata/ldap` does, and the plugin leaves its chain); the
- * values are changed after the delete or the rename, as the overlay does.
+ * values naming it, an entry renamed or moved is named by its new DN, with the entries below it. As the overlay keeps
+ * them within one database, the plugin keeps them within the backend of the entry. For the backends that do not keep
+ * them themselves (the directory backend of `@lakutata/ldap` does, and the plugin leaves its chain); the values are
+ * changed after the delete or the rename, as the overlay does.
  * @example
  * ```typescript
  * import {createLDAPServer, MemoryBackend, ReferentialIntegrityPlugin} from '@lakutata/ldap-engine'
@@ -93,10 +94,12 @@ export class ReferentialIntegrityPlugin extends BaseLDAPPlugin {
         const changed: DN[] = subtree ? await this.internally(context, (connection: LDAPInProcessConnection): Promise<DN[]> => this.below(connection, request.dn)) : [request.dn]
         const outcome: ServerOutcome = await next()
         await this.afterwards(context, (): Promise<void> => this.internally(context, async (connection: LDAPInProcessConnection): Promise<void> => {
-            const bases: string[] = this.suffixes ? [...this.suffixes] : await namingContextsOf(connection)
+            //The references within the backend of the entry
+            const base: string | undefined = context.server.suffixOf(request.dn)
+            if (base === undefined) return
             for (const old of changed) {
                 const renamed: DN | undefined = request.type === 'modifyDN' ? rebase(old, request.dn, newDNOf(request), schema) : undefined
-                for (const base of bases) await this.replace(connection, base, old, renamed, schema)
+                await this.replace(connection, base, old, renamed, schema)
             }
         }))
         return outcome
@@ -126,9 +129,9 @@ export class ReferentialIntegrityPlugin extends BaseLDAPPlugin {
      */
     protected async replace(connection: LDAPInProcessConnection, base: string, old: DN, renamed: DN | undefined, schema: Schema): Promise<void> {
         const value: string = escapeFilterValue(old.toString())
-        //A name and optional UID with a UID does not match the DN alone (RFC 4517 §4.2.31): such attributes are read
-        //where they are present
-        const items: string[] = this.attributes.map((attribute: string): string => schema.syntaxOf(attribute) === NAME_AND_OPTIONAL_UID ? `(${attribute}=*)` : `(${attribute}=${value})`)
+        //A name and optional UID with a UID does not equal the DN alone (RFC 4517 §4.2.31): it is found approximately,
+        //by its name whatever its UID
+        const items: string[] = this.attributes.map((attribute: string): string => schema.syntaxOf(attribute) === NAME_AND_OPTIONAL_UID ? `(${attribute}~=${value})` : `(${attribute}=${value})`)
         let entries: Entry[]
         try {
             entries = (await connection.search(base, {filter: `(|${items.join('')})`, attributes: this.attributes, paged: false})).entries

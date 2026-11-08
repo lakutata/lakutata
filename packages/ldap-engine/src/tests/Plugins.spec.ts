@@ -279,12 +279,20 @@ describe('the plugins of the engine', () => {
         const bob: LDAPInProcessConnection = server.connect()
         await bob.bind(`uid=bob,${PEOPLE}`, 'bob-password')
         await bob.passwordModify({oldPassword: 'bob-password', newPassword: 'bob-new-password'})
-        assert.deepEqual(records.map((record) => [record.operation, record.dn, record.resultCode]), [['modify', `uid=alice,${PEOPLE}`, 0], ['add', `uid=anonymous,${PEOPLE}`, 50], ['delete', `uid=carol,${PEOPLE}`, 0], ['modify', `uid=bob,${PEOPLE}`, 0]])
+        assert.deepEqual(records.map((record) => [record.operation, record.dn, record.resultCode]), [['modify', `uid=alice,${PEOPLE}`, 0], ['add', `uid=anonymous,${PEOPLE}`, 50], ['delete', `uid=carol,${PEOPLE}`, 0], ['extended', `uid=bob,${PEOPLE}`, 0]])
         assert.equal(records[0].identity, ADMIN)
         assert.deepEqual(records[0].changes, [{operation: 'replace', attribute: 'description', values: ['audited']}, {operation: 'replace', attribute: 'userPassword', values: ['***']}])
         assert.ok(records[1].diagnosticMessage)
-        assert.equal(records[3].identity, `uid=bob,${PEOPLE}`)
-        assert.ok(records[3].changes!.every((change) => change.attribute !== 'userPassword' || change.values.every((value) => value === '***')))
+        assert.deepEqual([records[3].identity, records[3].name], [`uid=bob,${PEOPLE}`, '1.3.6.1.4.1.4203.1.11.1'])
+        assert.ok(!JSON.stringify(records).includes('bob-new-password'))
+        //The binds too, failed ones and anonymous ones, when asked for
+        const binds: AuditRecord[] = []
+        const {server: watched} = await serve([new AuditPlugin({operations: ['bind'], write: (record) => {
+            binds.push(record)
+        }})])
+        await assert.rejects(watched.connect().bind(`uid=alice,${PEOPLE}`, 'wrong'))
+        await watched.connect().bind('', '')
+        assert.deepEqual(binds.map((record) => [record.dn, record.resultCode]), [[`uid=alice,${PEOPLE}`, 49], ['', 0]])
     })
 
     it('ConstraintPlugin refuses the values breaking its rules', async () => {
@@ -301,6 +309,47 @@ describe('the plugins of the engine', () => {
         await assert.rejects(admin.modify(alice, {operation: 'replace', attribute: 'telephoneNumber', values: '010 1234'}), /An international number/)
         await admin.modify(alice, {operation: 'replace', attribute: 'telephoneNumber', values: '+86 10 1234'})
         await assert.rejects(admin.add(`uid=dave,${PEOPLE}`, {objectClass: 'inetOrgPerson', uid: 'dave', cn: 'd', sn: 'd', mail: 'dave@other.org'}), LDAPConstraintViolationException)
+    })
+
+    it('keep the relations within one backend, as the overlays of OpenLDAP keep them within one database', async () => {
+        const server: LDAPServerEngine = createLDAPServer({backends: [new MemoryBackend('dc=a'), new MemoryBackend('dc=b')], access: {admins: ['cn=admin']}, plugins: [new MemberOfPlugin(), new ReferentialIntegrityPlugin()]})
+        const admin: LDAPInProcessConnection = server.connect({as: 'cn=admin'})
+        for (const name of ['a', 'b']) await admin.add(`dc=${name}`, {objectClass: ['dcObject', 'organization'], dc: name, o: name})
+        await admin.add('uid=x,dc=a', {objectClass: 'account', uid: 'x'})
+        await admin.add('uid=y,dc=b', {objectClass: 'account', uid: 'y'})
+        await admin.add('cn=g,dc=a', {objectClass: 'groupOfNames', cn: 'g', member: ['uid=x,dc=a', 'uid=y,dc=b']})
+        assert.deepEqual(await valuesOf(admin, 'uid=x,dc=a', 'memberOf'), ['cn=g,dc=a'])
+        assert.deepEqual(await valuesOf(admin, 'uid=y,dc=b', 'memberOf'), [])
+        await admin.add('cn=h,dc=b', {objectClass: 'groupOfNames', cn: 'h', member: 'uid=x,dc=a'})
+        await admin.delete('uid=x,dc=a')
+        assert.deepEqual(await valuesOf(admin, 'cn=g,dc=a', 'member'), ['uid=y,dc=b'])
+        assert.deepEqual(await valuesOf(admin, 'cn=h,dc=b', 'member'), ['uid=x,dc=a'])
+    })
+
+    it('find a name and optional UID approximately by its name, whatever its UID', async () => {
+        const {admin} = await serve([])
+        await admin.add(`cn=unique,${GROUPS}`, {objectClass: 'groupOfUniqueNames', cn: 'unique', uniqueMember: [`uid=alice,${PEOPLE}#'0101'B`, `uid=bob,${PEOPLE}`]})
+        assert.equal((await admin.search(GROUPS, {filter: `(uniqueMember=uid=alice,${PEOPLE})`})).entries.length, 0)
+        assert.equal((await admin.search(GROUPS, {filter: `(uniqueMember~=UID=Alice,${PEOPLE})`})).entries.length, 1)
+        assert.equal((await admin.search(GROUPS, {filter: `(uniqueMember~=uid=bob,${PEOPLE}#'1'B)`})).entries.length, 1)
+        assert.equal((await admin.search(GROUPS, {filter: `(uniqueMember~=uid=carol,${PEOPLE})`})).entries.length, 0)
+    })
+
+    it('run around every request, a bind they refuse leaving the session anonymous', async () => {
+        const gate: LDAPPlugin = {
+            name: 'gate',
+            aroundRequest: async (context, request, next) => {
+                const outcome = await next()
+                if (request.type === 'bindRequest' && request.name.startsWith('uid=bob')) throw new LDAPException('E_TEST', 'refused after the check')
+                return outcome
+            }
+        }
+        const {server} = await serve([gate])
+        const session: LDAPInProcessConnection = server.connect()
+        await assert.rejects(session.bind(`uid=bob,${PEOPLE}`, 'bob-password'))
+        assert.equal(await session.whoAmI(), '')
+        await session.bind(`uid=alice,${PEOPLE}`, 'alice-password')
+        assert.equal(await session.whoAmI(), `dn:uid=alice,${PEOPLE}`)
     })
 
     it('BaseLDAPPlugin gives a plugin its name, its suffixes and internal connections', async () => {

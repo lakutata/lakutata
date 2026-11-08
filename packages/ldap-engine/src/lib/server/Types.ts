@@ -3,10 +3,10 @@ import type {Control} from '../controls/Control.js'
 import type {SortKey} from '../controls/Controls.js'
 import type {DN, RDN} from '../dn/DN.js'
 import type {Filter} from '../filter/Filter.js'
-import type {DerefAliases, ModifyOperation, PartialAttribute, SearchScope} from '../protocol/Messages.js'
+import type {DerefAliases, LDAPRequest, ModifyOperation, PartialAttribute, SearchScope} from '../protocol/Messages.js'
 import type {Schema} from '../schema/Schema.js'
 import type {LDAPInProcessConnection} from './InProcessConnection.js'
-import type {PasswordScheme} from './Passwords.js'
+import type {PasswordScheme, PasswordSchemes} from './Passwords.js'
 import type {ExtendedHandler} from './Pipeline.js'
 import type {SASLMechanism} from './SASL.js'
 
@@ -670,11 +670,63 @@ export interface LDAPPluginHost {
      */
     readonly events: EventEmitter
     /**
+     * The password schemes of the server, those of the plugins included
+     */
+    readonly passwords: PasswordSchemes
+    /**
      * A connection in the same process: as an identity, or `internal` for the plugin's own reads and writes, which the
      * access control lets through and whose contexts are `internal`; close it after use
      * @param options The identity, a DN; whether it is internal.
      */
     connect(options?: {as?: string | DN, internal?: boolean}): LDAPInProcessConnection
+    /**
+     * The suffix of the backend holding a DN; undefined when no backend holds it. The plugins keep the relations within
+     * one backend, as the overlays of OpenLDAP keep them within one database.
+     * @param dn The DN.
+     */
+    suffixOf(dn: string | DN): string | undefined
+    /**
+     * Write operational attributes of an entry (the state a plugin keeps, as the password policy does) straight to its
+     * backend, without the chain; the other attributes are refused
+     * @param dn The DN of the entry.
+     * @param changes The changes.
+     */
+    writeOperational(dn: string | DN, changes: DirectoryChange[]): Promise<void>
+}
+
+/**
+ * A change of passwords, as the plugins check it before the server hashes the passwords: an add giving a password, a
+ * modify replacing or adding one, a Password Modify
+ */
+export interface PasswordChange {
+    /**
+     * The DN of the entry
+     */
+    dn: DN
+    /**
+     * The entry as it is, its userPassword included; undefined for an entry being added
+     */
+    entry?: DirectoryEntry
+    /**
+     * The attributes of an entry being added
+     */
+    attributes?: PartialAttribute[]
+    /**
+     * The changes of a modify, as they were written
+     */
+    changes?: {operation: ModifyOperation, attribute: PartialAttribute}[]
+    /**
+     * The new passwords as they were written: in clear, or hashed by an administrator importing them
+     */
+    passwords: Buffer[]
+    /**
+     * Whether the user changes their own password
+     */
+    self: boolean
+    /**
+     * Whether the user gave the old password (deleted it in the modify, or gave it to the Password Modify)
+     */
+    oldGiven: boolean
 }
 
 /**
@@ -746,6 +798,29 @@ export interface LDAPPlugin {
      * Attributes it adds to the root DSE
      */
     readonly rootDSEAttributes?: readonly PartialAttribute[]
+    /**
+     * Run around every request, before it goes to a backend: the binds, the searches the server answers itself (the
+     * root DSE, the subschema) and the extended operations included; in the order of the plugins, the first outermost
+     * @param context The context of the operation.
+     * @param request The request as it was sent.
+     * @param next The handling of the request.
+     */
+    aroundRequest?(context: OperationContext, request: LDAPRequest, next: () => Promise<ServerOutcome>): Promise<ServerOutcome>
+    /**
+     * Run around the check of a password (a simple bind, a SASL PLAIN bind): `verify` throws invalidCredentials when
+     * it is wrong
+     * @param context The context of the bind.
+     * @param bind The DN, and its entry as it is (undefined when there is none).
+     * @param verify The check of the password.
+     */
+    authenticate?(context: OperationContext, bind: {dn: DN, entry: DirectoryEntry | undefined}, verify: () => Promise<void>): Promise<void>
+    /**
+     * Check a change of passwords before the server hashes them, and give the changes it makes to the entry with it
+     * (the state of a password policy, a hash of another scheme); throw to refuse it
+     * @param context The context of the write.
+     * @param change The change.
+     */
+    passwordChange?(context: OperationContext, change: PasswordChange): Promise<DirectoryChange[] | void> | DirectoryChange[] | void
     /**
      * Run once the server starts, before it listens
      * @param host What the plugin may use of the server.

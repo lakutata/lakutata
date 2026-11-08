@@ -22,6 +22,8 @@ export interface FilterEntry {
 //prepares each of its values once per rule
 const PREPARED: WeakMap<Buffer, Map<MatchingRule, string | undefined>> = new WeakMap()
 const PREPARED_SUBSTRINGS: WeakMap<Buffer, Map<MatchingRule, string | undefined>> = new WeakMap()
+//The syntax of a name and optional UID (uniqueMember)
+const NAME_AND_OPTIONAL_UID: string = '1.3.6.1.4.1.1466.115.121.1.34'
 
 /**
  * An asserted value as a rule prepares it
@@ -94,9 +96,12 @@ function equalityOf(attribute: string, schema: Schema | undefined): MatchingRule
  */
 function assertion(filter: AssertionFilter, entry: FilterEntry, schema: Schema | undefined): boolean | undefined {
     if (filter.type === 'equality' || filter.type === 'approx') {
-        //Without an approximate algorithm of its own, a server evaluates approx as equality (RFC 4511 §4.5.1.7.6)
         const rule: MatchingRule | undefined = equalityOf(filter.attribute, schema)
         if (!rule) return undefined
+        //The approximate match of a name and optional UID compares the names alone, whatever the UIDs, as OpenLDAP's
+        //uniqueMemberMatch does when it matches approximately; the other syntaxes have no approximate algorithm, and
+        //approx is evaluated as equality (RFC 4511 §4.5.1.7.6)
+        if (filter.type === 'approx' && schema?.syntaxOf(filter.attribute) === NAME_AND_OPTIONAL_UID) return matchEquality(rule, filter.value, valuesOf(entry, filter.attribute, schema), (prepared: string): string => prepared.replace(/#'[01]*'B$/, ''))
         return matchEquality(rule, filter.value, valuesOf(entry, filter.attribute, schema))
     }
     const rule: MatchingRule | undefined = schema ? (schema.attributeType(filter.attribute) ? schema.ordering(filter.attribute) : undefined) : CASE_IGNORE_ORDERING
@@ -121,15 +126,17 @@ function assertion(filter: AssertionFilter, entry: FilterEntry, schema: Schema |
  * @param rule The rule.
  * @param value The asserted value.
  * @param values The values.
+ * @param reduce What the prepared values are compared by (the names of names and optional UIDs, approximately).
  */
-function matchEquality(rule: MatchingRule, value: Buffer, values: Buffer[]): boolean | undefined {
-    const assertedValue: string | undefined = asserted(rule, value)
-    if (assertedValue === undefined) return undefined
+function matchEquality(rule: MatchingRule, value: Buffer, values: Buffer[], reduce: (prepared: string) => string = (prepared: string): string => prepared): boolean | undefined {
+    const preparedAssertion: string | undefined = asserted(rule, value)
+    if (preparedAssertion === undefined) return undefined
+    const assertedValue: string = reduce(preparedAssertion)
     let undefinedValue: boolean = false
     for (const candidate of values) {
         const prepared: string | undefined = rule.prepare(candidate)
         if (prepared === undefined) undefinedValue = true
-        else if (prepared === assertedValue) return true
+        else if (reduce(prepared) === assertedValue) return true
     }
     return undefinedValue ? undefined : false
 }

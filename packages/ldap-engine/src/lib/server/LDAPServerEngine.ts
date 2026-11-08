@@ -7,7 +7,7 @@ import type {PartialAttribute} from '../protocol/Messages.js'
 import {ResultCode} from '../protocol/ResultCode.js'
 import {BUNDLED_SCHEMA_NAMES, type BundledSchemaName, BUNDLED_SCHEMAS} from '../schema/bundled/Bundled.js'
 import {stringifyAttributeType, stringifyObjectClass} from '../schema/Definitions.js'
-import {Schema} from '../schema/Schema.js'
+import {attributeTypeOf, Schema} from '../schema/Schema.js'
 import type {AccessOptions} from './Access.js'
 import {certificatesOf} from './ClientCertificate.js'
 import {LDAPInProcessConnection, sessionId} from './InProcessConnection.js'
@@ -17,7 +17,8 @@ import {ENGINE_CONTROLS, ENGINE_EXTENSIONS, type ExtendedHandler, Pipeline, type
 import {externalMechanism, plainMechanism, type SASLMechanism} from './SASL.js'
 import {type ConnectionHost, ServerConnection} from './ServerConnection.js'
 import {BindThrottle, type BindThrottleOptions} from './Throttle.js'
-import type {InterceptorPlacement, LDAPBackend, LDAPInterceptor, LDAPPlugin, LDAPPluginHost, OperationType} from './Types.js'
+import {PasswordPolicyPlugin} from './plugins/PasswordPolicyPlugin.js'
+import type {DirectoryChange, InterceptorPlacement, LDAPBackend, LDAPInterceptor, LDAPPlugin, LDAPPluginHost, OperationType} from './Types.js'
 
 /**
  * The schema of a server: a `Schema` ready, or the bundled files to load and schema files of one's own (the LDIF of
@@ -78,7 +79,7 @@ export interface LDAPServerEngineOptions {
     passwords?: PasswordSchemes | {scheme?: string, iterations?: number}
     /**
      * The password policy (draft-behera-ldap-password-policy): the default policy (the DN of a pwdPolicy entry, or its
-     * rules), which a user's pwdPolicySubentry replaces; none by default
+     * rules), which a user's pwdPolicySubentry replaces; none by default. A `PasswordPolicyPlugin`, after the plugins.
      */
     passwordPolicy?: PasswordPolicyOptions
     /**
@@ -378,6 +379,11 @@ export class LDAPServerEngine implements LDAPPluginHost {
     protected readonly startedPlugins: LDAPPlugin[] = []
 
     /**
+     * The password schemes, those of the plugins included
+     */
+    public readonly passwords: PasswordSchemes
+
+    /**
      * A server
      * @param options The backends, the schema, the access, the limits, the TLS and the rest.
      */
@@ -385,9 +391,11 @@ export class LDAPServerEngine implements LDAPPluginHost {
         if (!options.backends?.length) throw new LDAPUsageException('A server needs at least one backend')
         //Errors are events: an error nobody listens to does not end the process
         this.events.on('error', (): void => undefined)
-        this.plugins = [...options.plugins ?? []]
+        //The password policy of the options: a plugin, inside the others
+        this.plugins = [...options.plugins ?? [], ...options.passwordPolicy ? [new PasswordPolicyPlugin(options.passwordPolicy)] : []]
         const passwords: PasswordSchemes = options.passwords instanceof PasswordSchemes ? options.passwords : new PasswordSchemes(options.passwords ?? {})
-        const contributions = contributionsOf(options, passwords)
+        this.passwords = passwords
+        const contributions = contributionsOf({...options, plugins: this.plugins}, passwords)
         const {schema, files} = schemaOf(options.schema, options.backends, this.plugins)
         this.schema = schema
         this.limits = {...LIMITS, ...options.limits}
@@ -401,7 +409,7 @@ export class LDAPServerEngine implements LDAPPluginHost {
             interceptors: contributions.interceptors,
             access: options.access ?? {},
             passwords: passwords,
-            ...options.passwordPolicy ? {passwordPolicy: options.passwordPolicy} : {},
+            plugins: this.plugins,
             rehashOnBind: options.rehashOnBind !== false,
             throttle: new BindThrottle({...options.bindThrottle, ...!options.bindThrottle?.store && options.backends.some((backend: LDAPBackend): boolean => backend.throttleStore !== undefined) ? {store: options.backends.find((backend: LDAPBackend): boolean => backend.throttleStore !== undefined)!.throttleStore} : {}}),
             plaintextBind: options.plaintextBind ?? 'all',
@@ -501,6 +509,27 @@ export class LDAPServerEngine implements LDAPPluginHost {
         const connection: LDAPInProcessConnection = new LDAPInProcessConnection(this.pipeline, session, (): LDAPInProcessConnection => this.connect(), (closed: LDAPInProcessConnection): boolean => this.inProcess.delete(closed))
         this.inProcess.add(connection)
         return connection
+    }
+
+    /**
+     * The suffix of the backend holding a DN; undefined when no backend holds it
+     * @param dn The DN.
+     */
+    public suffixOf(dn: string | DN): string | undefined {
+        return this.pipeline.route(DN.from(dn))?.suffix.toString()
+    }
+
+    /**
+     * Write operational attributes of an entry straight to its backend, as the plugins keep their state; the other
+     * attributes are refused
+     * @param dn The DN of the entry.
+     * @param changes The changes.
+     */
+    public async writeOperational(dn: string | DN, changes: DirectoryChange[]): Promise<void> {
+        for (const change of changes) {
+            if (!this.schema.isOperational(attributeTypeOf(change.attribute.type))) throw new LDAPUsageException(`${change.attribute.type} is not an operational attribute`)
+        }
+        await this.pipeline.writeState(DN.from(dn), changes)
     }
 
     /**
