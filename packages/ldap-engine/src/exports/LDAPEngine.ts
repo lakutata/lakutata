@@ -131,6 +131,7 @@ export {
     type LDIFModifyRecord,
     type LDIFParseOptions,
     type LDIFRecord,
+    type LDIFRecordOrigin,
     type LDIFStringifyOptions,
     parseLDIF,
     stringifyLDIF

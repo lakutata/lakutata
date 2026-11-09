@@ -33,9 +33,13 @@ describe('LDIF', () => {
                 {type: 'cn', values: [Buffer.from('Barbara Jensen'), Buffer.from('Barbara J Jensen')]},
                 {type: 'description', values: [Buffer.from('Babs is a big sailing fan, and travels extensively in search of perfect sailing conditions.')]},
                 {type: 'title', values: [Buffer.from('Product Manager, Rod and Reel Division')]}
-            ]
+            ],
+            comments: [' a comment'],
+            line: 3
         })
         assert.equal(records[1].dn, 'ou=営業部,o=Airius')
+        assert.deepEqual(records[1].comments, [' another', '  folded commentstill the comment'])
+        assert.equal(records[1].line, 15)
     })
 
     it('reads the changes of RFC 2849 example 6, with controls', () => {
@@ -96,7 +100,11 @@ describe('LDIF', () => {
         assert.ok(text.startsWith('version: 1\n\n'))
         assert.ok(text.split('\n').every((line: string): boolean => line.length <= 76))
         assert.ok(text.includes('cn:: 5YiY'))
-        assert.deepEqual(parseLDIF(text), records)
+        assert.deepEqual(parseLDIF(text).map(({line, ...record}) => (void line, record)), records)
+        //The comments before a record written back before it
+        const commented: string = stringifyLDIF([{...records[2], comments: [' renamed', ' by the migration']}], {version: false})
+        assert.ok(commented.startsWith('# renamed\n# by the migration\ndn: cn=a\n'))
+        assert.deepEqual(parseLDIF(commented)[0].comments, [' renamed', ' by the migration'])
     })
 
     it('refuses what it cannot read, with the line', () => {
@@ -105,6 +113,6 @@ describe('LDIF', () => {
         assert.throws(() => parseLDIF('dn: cn=a\njpegPhoto:< file:///etc/passwd\n'), LDAPLDIFSyntaxException)
         assert.throws(() => parseLDIF(' continuation\n'), LDAPLDIFSyntaxException)
         assert.throws(() => parseLDIF('version: 2\n\ndn: cn=a\ncn: a\n'), LDAPLDIFSyntaxException)
-        assert.deepEqual(parseLDIF('dn: cn=a\nphoto:< file:///p.jpg\n', {readURL: (url: string): Buffer => Buffer.from(url)})[0], {changeType: 'content', dn: 'cn=a', attributes: [{type: 'photo', values: [Buffer.from('file:///p.jpg')]}]})
+        assert.deepEqual(parseLDIF('dn: cn=a\nphoto:< file:///p.jpg\n', {readURL: (url: string): Buffer => Buffer.from(url)})[0], {changeType: 'content', dn: 'cn=a', attributes: [{type: 'photo', values: [Buffer.from('file:///p.jpg')]}], line: 1})
     })
 })

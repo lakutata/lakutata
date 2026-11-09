@@ -4,9 +4,24 @@ import type {Control} from '../controls/Control.js'
 import type {ModifyChange, ModifyOperation, PartialAttribute} from '../protocol/Messages.js'
 
 /**
+ * Where a record is in its text, kept by `parseLDIF()`; `stringifyLDIF()` writes its comments back before it
+ */
+export interface LDIFRecordOrigin {
+    /**
+     * The comment lines before it (since the record before it), each the text after its `#`; the comments inside a
+     * record are left out
+     */
+    comments?: string[]
+    /**
+     * The line it starts on (its dn), from 1
+     */
+    line?: number
+}
+
+/**
  * An entry of an LDIF file of entries (a content record)
  */
-export interface LDIFContentRecord {
+export interface LDIFContentRecord extends LDIFRecordOrigin {
     /**
      * The kind of record
      */
@@ -24,7 +39,7 @@ export interface LDIFContentRecord {
 /**
  * The addition of an entry (`changetype: add`)
  */
-export interface LDIFAddRecord {
+export interface LDIFAddRecord extends LDIFRecordOrigin {
     /**
      * The kind of record
      */
@@ -46,7 +61,7 @@ export interface LDIFAddRecord {
 /**
  * The deletion of an entry (`changetype: delete`)
  */
-export interface LDIFDeleteRecord {
+export interface LDIFDeleteRecord extends LDIFRecordOrigin {
     /**
      * The kind of record
      */
@@ -64,7 +79,7 @@ export interface LDIFDeleteRecord {
 /**
  * The changes of an entry (`changetype: modify`)
  */
-export interface LDIFModifyRecord {
+export interface LDIFModifyRecord extends LDIFRecordOrigin {
     /**
      * The kind of record
      */
@@ -86,7 +101,7 @@ export interface LDIFModifyRecord {
 /**
  * The renaming or the moving of an entry (`changetype: modrdn` or `moddn`)
  */
-export interface LDIFModifyDNRecord {
+export interface LDIFModifyDNRecord extends LDIFRecordOrigin {
     /**
      * The kind of record
      */
@@ -153,33 +168,46 @@ interface Line {
 }
 
 /**
- * The records of a text, as their unfolded lines (comments left out)
+ * The records of a text, as their unfolded lines, each with the comment lines before it (since the record before it);
+ * the comments inside a record left out
  * @param text The text.
  */
-function recordsOf(text: string): Line[][] {
-    const records: Line[][] = []
+function recordsOf(text: string): {lines: Line[], comments: string[]}[] {
+    const records: {lines: Line[], comments: string[]}[] = []
     let current: Line[] = []
+    let comments: string[] = []
+    //Whether the line before is a comment, and whether it is kept (before a record)
     let comment: boolean = false
+    let kept: boolean = false
     const lines: string[] = text.split(/\r?\n/)
     lines.forEach((raw: string, index: number): void => {
         const number: number = index + 1
         if (raw.startsWith(' ')) {
             //A folded line continues the previous one, a comment included
-            if (comment) return
+            if (comment) {
+                if (kept) comments[comments.length - 1] += raw.slice(1)
+                return
+            }
             if (!current.length) throw new LDAPLDIFSyntaxException('A continuation line without a line to continue', number)
             current[current.length - 1].text += raw.slice(1)
             return
         }
         comment = raw.startsWith('#')
-        if (comment) return
+        if (comment) {
+            //Before a record, or after the version line that may open the first one
+            kept = !current.length || (!records.length && current.length === 1 && /^version:/i.test(current[0].text))
+            if (kept) comments.push(raw.slice(1))
+            return
+        }
         if (!raw.length) {
-            if (current.length) records.push(current)
+            if (current.length) records.push({lines: current, comments: comments})
+            if (current.length) comments = []
             current = []
             return
         }
         current.push({text: raw, number: number})
     })
-    if (current.length) records.push(current)
+    if (current.length) records.push({lines: current, comments: comments})
     return records
 }
 
@@ -220,7 +248,8 @@ function addValue(attributes: PartialAttribute[], type: string, value: Buffer): 
 }
 
 /**
- * Parse an LDIF text (RFC 2849): a file of entries, or of changes
+ * Parse an LDIF text (RFC 2849): a file of entries, or of changes. Each record keeps its line and the comments before it
+ * (for an editor, and for `stringifyLDIF()` to write them back); the comments inside a record are left out.
  * @param text The text.
  * @param options How the values given by a URL are read.
  * @example
@@ -240,15 +269,23 @@ function addValue(attributes: PartialAttribute[], type: string, value: Buffer): 
  */
 export function parseLDIF(text: string, options: LDIFParseOptions = {}): LDIFRecord[] {
     const records: LDIFRecord[] = []
-    for (const [index, lines] of recordsOf(text).entries()) {
+    //The comments before the version line go with the first record
+    let carried: string[] = []
+    for (const [index, {lines, comments: own}] of recordsOf(text).entries()) {
         let position: number = 0
+        const comments: string[] = [...carried, ...own]
+        carried = []
         if (index === 0 && /^version:/i.test(lines[0].text)) {
             const version: string = lines[0].text.slice(lines[0].text.indexOf(':') + 1).trim()
             if (version !== '1') throw new LDAPLDIFSyntaxException(`Version ${version} of LDIF`, lines[0].number)
             position = 1
-            if (lines.length === 1) continue
+            if (lines.length === 1) {
+                carried = comments
+                continue
+            }
         }
         const first: Line = lines[position]
+        const origin: LDIFRecordOrigin = {...comments.length ? {comments: comments} : {}, line: first.number}
         const dn: {name: string, value: Buffer} = field(first, options)
         if (dn.name.toLowerCase() !== 'dn') throw new LDAPLDIFSyntaxException('A record starts with its dn', first.number)
         if (!isUTF8(dn.value)) throw new LDAPLDIFSyntaxException('A dn that is not UTF-8', first.number)
@@ -282,12 +319,12 @@ export function parseLDIF(text: string, options: LDIFParseOptions = {}): LDIFRec
                     addValue(attributes, type, value)
                 }
                 if (changeType === 'add' && !attributes.length) throw new LDAPLDIFSyntaxException('An add without attributes', first.number)
-                records.push(changeType === 'content' ? {changeType: 'content', dn: name, attributes: attributes} : {changeType: 'add', dn: name, attributes: attributes, ...withControls})
+                records.push(changeType === 'content' ? {changeType: 'content', dn: name, attributes: attributes, ...origin} : {changeType: 'add', dn: name, attributes: attributes, ...withControls, ...origin})
                 break
             }
             case 'delete':
                 if (rest.length) throw new LDAPLDIFSyntaxException('A delete with lines after its changetype', rest[0].number)
-                records.push({changeType: 'delete', dn: name, ...withControls})
+                records.push({changeType: 'delete', dn: name, ...withControls, ...origin})
                 break
             case 'modify': {
                 const changes: ModifyChange[] = []
@@ -309,7 +346,7 @@ export function parseLDIF(text: string, options: LDIFParseOptions = {}): LDIFRec
                     index++
                     changes.push(change)
                 }
-                records.push({changeType: 'modify', dn: name, changes: changes, ...withControls})
+                records.push({changeType: 'modify', dn: name, changes: changes, ...withControls, ...origin})
                 break
             }
             case 'modrdn':
@@ -322,7 +359,7 @@ export function parseLDIF(text: string, options: LDIFParseOptions = {}): LDIFRec
                 const newRDN: string | undefined = values.get('newrdn')
                 const deleteOldRDN: string | undefined = values.get('deleteoldrdn')
                 if (newRDN === undefined || (deleteOldRDN !== '0' && deleteOldRDN !== '1')) throw new LDAPLDIFSyntaxException('A modrdn needs newrdn and deleteoldrdn (0 or 1)', first.number)
-                const record: LDIFModifyDNRecord = {changeType: 'modifyDN', dn: name, newRDN: newRDN, deleteOldRDN: deleteOldRDN === '1', ...withControls}
+                const record: LDIFModifyDNRecord = {changeType: 'modifyDN', dn: name, newRDN: newRDN, deleteOldRDN: deleteOldRDN === '1', ...withControls, ...origin}
                 if (values.has('newsuperior')) record.newSuperior = values.get('newsuperior')
                 records.push(record)
                 break
@@ -369,7 +406,7 @@ function fold(line: string, width: number): string {
 
 /**
  * Write records as an LDIF text (RFC 2849); the values that are not safe as they are (not ASCII, starting with a
- * space…) are written in base64
+ * space…) are written in base64, the comments of a record before it
  * @param records The records.
  * @param options The width of the lines, and whether the text starts with its version.
  * @example
@@ -387,7 +424,7 @@ export function stringifyLDIF(records: LDIFRecord[], options: LDIFStringifyOptio
     const width: number = options.wrap ?? 76
     const blocks: string[] = []
     for (const record of records) {
-        const lines: string[] = [valueLine('dn', record.dn)]
+        const lines: string[] = [...(record.comments ?? []).map((comment: string): string => `#${comment}`), valueLine('dn', record.dn)]
         if (record.changeType !== 'content') {
             for (const control of record.controls ?? []) {
                 const head: string = `control: ${control.oid}${control.critical ? ' true' : ''}`
