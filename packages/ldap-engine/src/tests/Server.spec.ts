@@ -87,6 +87,14 @@ describe('the server engine', () => {
         assert.equal(entry.has('cn'), false)
     })
 
+    it('adds the entries of a structural class defined without a superclass, top added to their object classes', async () => {
+        const schema: string = 'attributetype ( 1.2.3.1 NAME \'deviceId\' EQUALITY caseExactMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )\nobjectclass ( 1.2.3.2 NAME \'appDevice\' STRUCTURAL MUST deviceId )'
+        const {admin: owner} = await directory({schema: {files: [{name: 'app', text: schema}]}})
+        await owner.add(`deviceId=d1,${BASE}`, {objectClass: 'appDevice', deviceId: 'd1'})
+        const {entries} = await owner.search(`deviceId=d1,${BASE}`, {scope: 'base'})
+        assert.deepEqual(entries[0].get('objectClass').sort(), ['appDevice', 'top'])
+    })
+
     it('refuses what the schema does not allow, with its result code', async () => {
         const dn: string = `uid=bad,ou=people,${BASE}`
         await assert.rejects(admin.add(dn, {objectClass: 'inetOrgPerson', uid: 'bad', cn: 'Bad'}), (error: unknown) => error instanceof LDAPObjectClassViolationException && /sn/.test(error.message))

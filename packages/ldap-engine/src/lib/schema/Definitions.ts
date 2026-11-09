@@ -197,6 +197,13 @@ function tokenize(text: string): string[] {
 function fields(text: string): {oid: string, values: Map<string, string[]>} {
     const tokens: string[] = tokenize(text)
     if (tokens[0] !== '(' || tokens[tokens.length - 1] !== ')') throw new LDAPSchemaException(`A definition is not in parentheses: ${JSON.stringify(text)}`)
+    //The parentheses pair up, the first closing at the end: a list left open would take the closing one of the definition
+    let depth: number = 0
+    tokens.forEach((token: string, index: number): void => {
+        depth += token === '(' ? 1 : token === ')' ? -1 : 0
+        if (depth < 0 || (depth === 0 && index < tokens.length - 1)) throw new LDAPSchemaException(`The parentheses of a definition do not pair up: ${JSON.stringify(text)}`)
+    })
+    if (depth !== 0) throw new LDAPSchemaException(`The parentheses of a definition do not pair up: ${JSON.stringify(text)}`)
     const oid: string = tokens[1]
     if (!oid || oid === ')' || oid.startsWith('\'')) throw new LDAPSchemaException(`A definition without its OID: ${JSON.stringify(text)}`)
     const values: Map<string, string[]> = new Map()

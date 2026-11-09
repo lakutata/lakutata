@@ -26,6 +26,7 @@ interface Defined<T> {
 
 const BUILT_IN: string = 'the built-in schema'
 const OID_SYNTAX: string = '1.3.6.1.4.1.1466.115.121.1.38'
+const TOP: string = '2.5.6.0'
 
 /**
  * The attribute type of an attribute description: the description without its options (`cn;lang-en` is `cn`)
@@ -464,7 +465,8 @@ export class Schema implements DNNormalizer {
     }
 
     /**
-     * An object class and its superclasses, up to `top`
+     * An object class and its superclasses, up to `top`: a structural or abstract class defined without a superclass
+     * derives from `top` (RFC 4512 §2.4.1), an auxiliary one does not
      * @param name The object class.
      */
     public superclasses(name: string): ObjectClassDefinition[] {
@@ -473,7 +475,8 @@ export class Schema implements DNNormalizer {
             const definition: ObjectClassDefinition | undefined = this.objectClass(current)
             if (!definition || found.includes(definition) || found.length > 64) return
             found.push(definition)
-            for (const superior of definition.superiors ?? []) visit(superior)
+            const superiors: string[] = definition.superiors?.length ? definition.superiors : definition.kind !== 'auxiliary' && definition.oid !== TOP ? [TOP] : []
+            for (const superior of superiors) visit(superior)
         }
         visit(name)
         return found

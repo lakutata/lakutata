@@ -79,6 +79,14 @@ describe('the schema definitions', () => {
         assert.throws(() => parseAttributeType('( 1.2.3 NAME \'x\' )'), LDAPSchemaException)
         assert.throws(() => parseAttributeType('1.2.3 NAME \'x\''), LDAPSchemaException)
     })
+
+    it('refuse a definition whose parentheses do not pair up, a list left open included', () => {
+        const unpaired = (error: unknown): boolean => error instanceof LDAPSchemaException && /parentheses/.test(error.message)
+        assert.throws(() => parseObjectClass('( 1.2.3 NAME \'device\' STRUCTURAL MUST ( cn $ sn )'), unpaired)
+        assert.throws(() => parseObjectClass('( 1.2.3 NAME \'device\' MUST cn ) MAY sn )'), unpaired)
+        assert.throws(() => parseObjectClass('( 1.2.3 NAME \'device\' MUST ( cn ) ) )'), unpaired)
+        assert.equal(parseObjectClass('( 1.2.3 NAME \'device\' DESC \'a (parenthesis\' MUST ( cn $ sn ) )').description, 'a (parenthesis')
+    })
 })
 
 describe('the schema', () => {
@@ -97,6 +105,20 @@ describe('the schema', () => {
         assert.ok(schema.isSingleValued('uidNumber'))
         assert.deepEqual(schema.attributesOf(['inetOrgPerson']), {must: ['sn', 'cn', 'objectClass'], may: ['uid', 'jpegPhoto', 'userPassword', 'description']})
         assert.deepEqual(schema.superclasses('inetOrgPerson').map((definition: ObjectClassDefinition): string => definition.names[0]), ['inetOrgPerson', 'person', 'top'])
+    })
+
+    it('derives a structural or abstract class defined without a superclass from top, not an auxiliary one', () => {
+        const schema: Schema = core().load([
+            'objectclass ( 1.2.3.1 NAME \'device\' STRUCTURAL MUST cn )',
+            'objectclass ( 1.2.3.2 NAME \'thing\' ABSTRACT MAY description )',
+            'objectclass ( 1.2.3.3 NAME \'tagged\' AUXILIARY MAY description )'
+        ].join('\n'), 'extra.schema')
+        const names = (name: string): string[] => schema.superclasses(name).map((definition: ObjectClassDefinition): string => definition.names[0])
+        assert.deepEqual(names('device'), ['device', 'top'])
+        assert.deepEqual(names('thing'), ['thing', 'top'])
+        assert.deepEqual(names('tagged'), ['tagged'])
+        assert.deepEqual(names('top'), ['top'])
+        assert.deepEqual(schema.attributesOf(['device']), {must: ['cn', 'objectClass'], may: []})
     })
 
     it('loads the .schema form of slapd.conf, with its OID macros', () => {
