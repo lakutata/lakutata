@@ -302,7 +302,7 @@ export class Schema implements DNNormalizer {
      * Load a schema file, or a schema document: LDIF (`olcAttributeTypes`/`olcObjectClasses`/`olcObjectIdentifier` of
      * OpenLDAP's `cn=config`, or the `attributeTypes`/`objectClasses` of a subschema entry), the `.schema` form of
      * slapd.conf (`attributetype ( … )`, `objectclass ( … )`, `objectidentifier`), or the document `parseSchemaFile()`
-     * makes of one (the bundled `CORE_SCHEMA`…). The definitions are taken in the order of the file, an OID macro
+     * makes of one (the bundled `CORE`… of `@lakutata/ldap-engine/schemas`). The definitions are taken in the order of the file, an OID macro
      * reaching those after it; the schema keeps its own copies, the document is not changed.
      * @param input The text of the file, or the document.
      * @param source Its name, given in the errors (the name of the document by default).

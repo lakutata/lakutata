@@ -202,21 +202,6 @@ export {
     UserAccountControl
 } from '../lib/client/ActiveDirectory.js'
 export {readSchema} from '../lib/client/ReadSchema.js'
-export {
-    BUNDLED_SCHEMA_NAMES,
-    BUNDLED_SCHEMAS,
-    bundledSchema,
-    type BundledSchemaName,
-    CORE_SCHEMA,
-    COSINE_SCHEMA,
-    DEFAULT_SCHEMA_NAMES,
-    DEFAULT_SCHEMAS,
-    INETORGPERSON_SCHEMA,
-    OPENSSH_LPK_SCHEMA,
-    PPOLICY_SCHEMA,
-    RFC2307BIS_SCHEMA,
-    SYSTEM_SCHEMA
-} from '../lib/schema/bundled/Bundled.js'
 export {readSchemaDirectory, readSchemaFile} from '../lib/schema/SchemaDirectory.js'
 export {type PasswordHashOptions, type PasswordScheme, PasswordSchemes} from '../lib/server/Passwords.js'
 export {type AccessOptions, type AccessRequest} from '../lib/server/Access.js'

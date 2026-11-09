@@ -23,7 +23,6 @@ const output = process.argv[3] ?? join(dirname(fileURLToPath(import.meta.url)), 
 const MODULES = [
     {
         name: 'system',
-        constant: 'SYSTEM_SCHEMA',
         description: 'The operational attributes and the object classes of the directory itself: RFC 4512 (the models), RFC 3045 (vendorName, vendorVersion), RFC 4530 (entryUUID), RFC 5020 (entryDN), RFC 3296 (referrals), RFC 3672 (subentries)',
         rfcs: [4512, 3045, 4530, 5020, 3296, 3672],
         //name and cn of RFC 4519, which subentry requires and the subschema subentry the engine gives holds: the system
@@ -32,31 +31,26 @@ const MODULES = [
     },
     {
         name: 'core',
-        constant: 'CORE_SCHEMA',
         description: 'The schema for user applications: RFC 4519, the certificates of RFC 4523, labeledURI of RFC 2079',
         rfcs: [4519, 4523, 2079]
     },
     {
         name: 'cosine',
-        constant: 'COSINE_SCHEMA',
         description: 'The COSINE schema: RFC 4524',
         rfcs: [4524]
     },
     {
         name: 'inetorgperson',
-        constant: 'INETORGPERSON_SCHEMA',
         description: 'The inetOrgPerson object class: RFC 2798',
         rfcs: [2798]
     },
     {
         name: 'rfc2307bis',
-        constant: 'RFC2307BIS_SCHEMA',
         description: 'The accounts, groups and other entities of the name services (POSIX accounts, shadow, hosts, netgroups, automount): draft-howard-rfc2307bis-02, with authPassword of RFC 3112 that it refers to',
         rfcs: ['draft-howard-rfc2307bis-02', 3112]
     },
     {
         name: 'ppolicy',
-        constant: 'PPOLICY_SCHEMA',
         description: 'The password policy: draft-behera-ldap-password-policy-11',
         rfcs: ['draft-behera-ldap-password-policy-11']
     }

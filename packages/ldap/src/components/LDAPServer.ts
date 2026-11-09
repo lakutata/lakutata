@@ -5,12 +5,8 @@ import {Configurable, Singleton} from '@lakutata/core/decorator/di'
 import {
     type AccessOptions,
     type BindThrottleOptions,
-    BUNDLED_SCHEMA_NAMES,
-    BUNDLED_SCHEMAS,
-    type BundledSchemaName,
     createDirectory,
     createLDAPServer,
-    DEFAULT_SCHEMA_NAMES,
     type Directory,
     type DirectoryProfile,
     type DN,
@@ -31,6 +27,7 @@ import {
     type ServerLimits,
     type ServerTLSOptions
 } from '@lakutata/ldap-engine'
+import {BUNDLED, BUNDLED_NAMES, type BundledSchemaName, DEFAULT_NAMES} from '@lakutata/ldap-engine/schemas'
 import {closeListeners, type InterfaceListeningOptions, listenOnInterfaces, listensOnInterfaces} from '../lib/Interfaces.js'
 
 /**
@@ -496,9 +493,9 @@ export class LDAPServer extends Component {
             const {class: constructor, name, suffixes, ...options} = item
             return placed(await this.buildObject(constructor, options) as unknown as LDAPPlugin, name as string | undefined, suffixes as string[] | undefined)
         }))
-        const bundled: readonly BundledSchemaName[] = this.schema?.bundled ?? DEFAULT_SCHEMA_NAMES
+        const bundled: readonly BundledSchemaName[] = this.schema?.bundled ?? DEFAULT_NAMES
         const sources: SchemaSource[] = [
-            ...BUNDLED_SCHEMA_NAMES.filter((name: BundledSchemaName): boolean => bundled.includes(name)).map((name: BundledSchemaName): SchemaSource => BUNDLED_SCHEMAS[name]),
+            ...BUNDLED_NAMES.filter((name: BundledSchemaName): boolean => bundled.includes(name)).map((name: BundledSchemaName): SchemaSource => BUNDLED[name]),
             ...this.schema?.directory !== undefined ? await readSchemaDirectory(this.schema.directory) : [],
             ...await Promise.all((this.schema?.files ?? []).map(async (file: string | SchemaSource): Promise<SchemaSource> => typeof file === 'string' ? readSchemaFile(file) : file))
         ]

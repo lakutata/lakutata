@@ -6,13 +6,14 @@ import type {SchemaDocument} from '../SchemaDocument.js'
  * The COSINE schema: RFC 4524 (25 attribute types, 9 object classes), as a document
  * @example
  * ```typescript
- * import {COSINE_SCHEMA, SYSTEM_SCHEMA, Schema} from '@lakutata/ldap-engine'
+ * import {Schema} from '@lakutata/ldap-engine'
+ * import {COSINE, SYSTEM} from '@lakutata/ldap-engine/schemas'
  *
- * const schema: Schema = new Schema().load(SYSTEM_SCHEMA).load(COSINE_SCHEMA)
- * console.log(COSINE_SCHEMA.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
+ * const schema: Schema = new Schema().load(SYSTEM).load(COSINE)
+ * console.log(COSINE.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
  * ```
  */
-export const COSINE_SCHEMA: SchemaDocument = {
+export const COSINE: SchemaDocument = {
     name: 'cosine',
     format: 'ldif',
     entry: {

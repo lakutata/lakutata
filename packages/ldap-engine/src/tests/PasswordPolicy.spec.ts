@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict'
 import {describe, it} from 'node:test'
 import {
-    bundledSchema,
     type Control,
     createLDAPServer,
-    DEFAULT_SCHEMAS,
     DN,
     findControl,
     formatGeneralizedTime,
@@ -19,9 +17,13 @@ import {
     PasswordPolicyPlugin,
     PasswordPolicyRequestControl,
     PasswordPolicyResponseControl,
-    type PasswordPolicyValue,
-    PPOLICY_SCHEMA
+    type PasswordPolicyValue
 } from '../exports/LDAPEngine.js'
+import {
+    bundledSchema,
+    DEFAULTS,
+    PPOLICY
+} from '../exports/Schemas.js'
 
 const BASE: string = 'dc=example,dc=com'
 const ADMIN: string = 'cn=admin,dc=example,dc=com'
@@ -91,7 +93,7 @@ describe('the password policy', () => {
         assert.ok(root.get('supportedControl').includes('1.3.6.1.4.1.42.2.27.8.5.1'))
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend('dc=x')], passwordPolicy: {}, plugins: [new PasswordPolicyPlugin()]}), /Two plugins are named password-policy/)
         //The plugin brings the schema ppolicy: loaded once when the server names it too; a Schema given ready must have it
-        for (const schema of [DEFAULT_SCHEMAS, [...DEFAULT_SCHEMAS, PPOLICY_SCHEMA]]) {
+        for (const schema of [DEFAULTS, [...DEFAULTS, PPOLICY]]) {
             const server: LDAPServerEngine = createLDAPServer({backends: [new MemoryBackend('dc=x')], schema: schema, plugins: [new PasswordPolicyPlugin()]})
             await server.start()
             assert.ok(server.schema.objectClass('pwdPolicy'))

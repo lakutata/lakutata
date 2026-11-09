@@ -6,7 +6,7 @@ import {ExtendedOperation} from '../../extended/Extended.js'
 import type {LDAPRequest} from '../../protocol/Messages.js'
 import {attributeTypeOf, type Schema} from '../../schema/Schema.js'
 import type {SchemaSource} from '../../schema/SchemaDocument.js'
-import {PPOLICY_SCHEMA} from '../../schema/bundled/Bundled.js'
+import {PPOLICY} from '../../schema/bundled/Bundled.js'
 import {MUST_CHANGE, PasswordPolicy, type PasswordPolicyOptions} from '../PasswordPolicy.js'
 import type {DirectoryChange, DirectoryEntry, LDAPPluginHost, OperationContext, PasswordChange, PluginControl, ServerOutcome} from '../Types.js'
 import {BaseLDAPPlugin, type BasePluginOptions} from './BaseLDAPPlugin.js'
@@ -67,7 +67,7 @@ export class PasswordPolicyPlugin extends BaseLDAPPlugin {
      * The schema of the password policy (the bundled ppolicy), which the server loads with the plugin
      */
     public get schemaFiles(): SchemaSource[] {
-        return [PPOLICY_SCHEMA]
+        return [PPOLICY]
     }
 
     /**
@@ -77,7 +77,7 @@ export class PasswordPolicyPlugin extends BaseLDAPPlugin {
      */
     public start(host: LDAPPluginHost): void {
         for (const type of ['pwdChangedTime', 'pwdAccountLockedTime', 'pwdFailureTime', 'pwdPolicySubentry']) {
-            if (!host.schema.attributeType(type)) throw new LDAPUsageException(`The plugin ${this.name} needs the schema ppolicy (PPOLICY_SCHEMA), which defines ${type}, in the Schema given to the server`)
+            if (!host.schema.attributeType(type)) throw new LDAPUsageException(`The plugin ${this.name} needs the schema ppolicy (PPOLICY), which defines ${type}, in the Schema given to the server`)
         }
     }
 

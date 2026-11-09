@@ -4,7 +4,8 @@ import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {describe, it} from 'node:test'
 import {fileURLToPath} from 'node:url'
-import {BUNDLED_SCHEMA_NAMES, BUNDLED_SCHEMAS, bundledSchema, CORE_SCHEMA, DEFAULT_SCHEMAS, DN, parseSchemaFile, readSchemaDirectory, Schema, type SchemaDocument, stringifySchemaFile} from '../exports/LDAPEngine.js'
+import {DN, parseSchemaFile, readSchemaDirectory, Schema, type SchemaDocument, stringifySchemaFile} from '../exports/LDAPEngine.js'
+import {BUNDLED, BUNDLED_NAMES, bundledSchema, CORE, DEFAULTS} from '../exports/Schemas.js'
 
 //The LDIF the bundled documents are made from
 const SOURCES: string = join(dirname(fileURLToPath(import.meta.url)), '../../../scripts/schema/source')
@@ -16,27 +17,27 @@ describe('the bundled schema', () => {
         assert.deepEqual(schema.attributesOf(['inetOrgPerson']).must.sort(), ['cn', 'objectClass', 'sn'])
         assert.ok(schema.attributesOf(['inetOrgPerson']).may.includes('jpegPhoto'))
         assert.equal(schema.objectClass('posixAccount'), undefined)
-        assert.deepEqual(DEFAULT_SCHEMAS.map((document: SchemaDocument): string => document.name), ['core', 'cosine', 'inetorgperson'])
+        assert.deepEqual(DEFAULTS.map((document: SchemaDocument): string => document.name), ['core', 'cosine', 'inetorgperson'])
         assert.equal(bundledSchema(['core']).objectClass('inetOrgPerson'), undefined)
         const system: Schema = bundledSchema([])
         system.check()
         assert.ok(system.isOperational('entryUUID') && system.objectClass('subentry') && system.attributeType('commonName'))
-        bundledSchema(BUNDLED_SCHEMA_NAMES).check()
+        bundledSchema(BUNDLED_NAMES).check()
     })
 
     it('are documents made from the LDIF of the RFCs, which a schema loads without changing them', () => {
-        const before: string = JSON.stringify(CORE_SCHEMA)
+        const before: string = JSON.stringify(CORE)
         bundledSchema(['core'])
-        new Schema().load(BUNDLED_SCHEMAS.system).load(CORE_SCHEMA)
-        assert.equal(JSON.stringify(CORE_SCHEMA), before)
-        assert.ok(CORE_SCHEMA.objectClasses.find((objectClass) => objectClass.names.includes('person'))?.comment?.startsWith('RFC 4519 §3.12'))
+        new Schema().load(BUNDLED.system).load(CORE)
+        assert.equal(JSON.stringify(CORE), before)
+        assert.ok(CORE.objectClasses.find((objectClass) => objectClass.names.includes('person'))?.comment?.startsWith('RFC 4519 §3.12'))
         //Each source written back as it was, and each document the same as its source (generated again when it changes)
         const strip = (definitions: {line?: number, span?: [number, number]}[]): unknown[] => definitions.map(({line, span, ...rest}) => (void line, void span, rest))
         for (const file of readdirSync(SOURCES).filter((name: string): boolean => name.endsWith('.ldif'))) {
             const text: string = readFileSync(join(SOURCES, file), 'utf8')
             const document: SchemaDocument = parseSchemaFile(text, file.replace(/\.ldif$/, ''))
             assert.equal(stringifySchemaFile(document), text, file)
-            const bundled: SchemaDocument | undefined = BUNDLED_SCHEMAS[document.name as keyof typeof BUNDLED_SCHEMAS]
+            const bundled: SchemaDocument | undefined = BUNDLED[document.name as keyof typeof BUNDLED]
             if (!bundled) continue
             assert.deepEqual(bundled.attributeTypes.slice(0, document.attributeTypes.length), strip(document.attributeTypes), file)
             assert.deepEqual(bundled.objectClasses.slice(0, document.objectClasses.length), strip(document.objectClasses), file)
@@ -50,7 +51,7 @@ describe('the bundled schema', () => {
     })
 
     it('has the POSIX accounts and groups, the SSH public keys and the password policy, when asked for', () => {
-        const schema: Schema = bundledSchema(BUNDLED_SCHEMA_NAMES)
+        const schema: Schema = bundledSchema(BUNDLED_NAMES)
         assert.deepEqual(schema.attributesOf(['posixAccount']).must.sort(), ['cn', 'gidNumber', 'homeDirectory', 'objectClass', 'uid', 'uidNumber'])
         assert.equal(schema.objectClass('posixGroup')?.kind, 'auxiliary')
         assert.ok(schema.objectClass('groupOfMembers')?.may?.includes('member'))

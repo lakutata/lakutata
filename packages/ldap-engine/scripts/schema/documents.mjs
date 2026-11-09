@@ -1,6 +1,6 @@
 //Turn the LDIF of the bundled schema (scripts/schema/source/, written by scripts/schema/generate.mjs from the RFCs, and
 //by hand for openssh-lpk and extensions) into the documents of src/lib/schema/bundled/, which the package exports
-//(CORE_SCHEMA…) and loads without parsing text. The first comment line of each file describes it; the comment before
+//(CORE…) and loads without parsing text. The first comment line of each file describes it; the comment before
 //each definition (its RFC and section) is kept in the document. Parsed by the engine built (npm run compile first).
 //
 //   node scripts/schema/documents.mjs
@@ -14,13 +14,13 @@ const output = join(here, '../../src/lib/schema/bundled')
 
 //The modules: their files (the definitions of the later files added to those of the first), their constants
 const MODULES = [
-    {name: 'system', files: ['system', 'extensions'], module: 'system', constant: 'SYSTEM_SCHEMA'},
-    {name: 'core', files: ['core'], module: 'core', constant: 'CORE_SCHEMA'},
-    {name: 'cosine', files: ['cosine'], module: 'cosine', constant: 'COSINE_SCHEMA'},
-    {name: 'inetorgperson', files: ['inetorgperson'], module: 'inetorgperson', constant: 'INETORGPERSON_SCHEMA'},
-    {name: 'rfc2307bis', files: ['rfc2307bis'], module: 'rfc2307bis', constant: 'RFC2307BIS_SCHEMA'},
-    {name: 'openssh-lpk', files: ['openssh-lpk'], module: 'opensshLpk', constant: 'OPENSSH_LPK_SCHEMA'},
-    {name: 'ppolicy', files: ['ppolicy'], module: 'ppolicy', constant: 'PPOLICY_SCHEMA'}
+    {name: 'system', files: ['system', 'extensions'], module: 'system', constant: 'SYSTEM'},
+    {name: 'core', files: ['core'], module: 'core', constant: 'CORE'},
+    {name: 'cosine', files: ['cosine'], module: 'cosine', constant: 'COSINE'},
+    {name: 'inetorgperson', files: ['inetorgperson'], module: 'inetorgperson', constant: 'INETORGPERSON'},
+    {name: 'rfc2307bis', files: ['rfc2307bis'], module: 'rfc2307bis', constant: 'RFC2307BIS'},
+    {name: 'openssh-lpk', files: ['openssh-lpk'], module: 'opensshLpk', constant: 'OPENSSH_LPK'},
+    {name: 'ppolicy', files: ['ppolicy'], module: 'ppolicy', constant: 'PPOLICY'}
 ]
 
 /**
@@ -78,9 +78,10 @@ for (const module of MODULES) {
         ` * ${description} (${counts}), as a document`,
         ' * @example',
         ' * ```typescript',
-        ` * import {${module.constant === 'SYSTEM_SCHEMA' ? 'SYSTEM_SCHEMA' : `${module.constant}, SYSTEM_SCHEMA`}, Schema} from '@lakutata/ldap-engine'`,
+        ' * import {Schema} from \'@lakutata/ldap-engine\'',
+        ` * import {${module.constant === 'SYSTEM' ? 'SYSTEM' : `${module.constant}, SYSTEM`}} from '@lakutata/ldap-engine/schemas'`,
         ' *',
-        ` * const schema: Schema = new Schema().load(SYSTEM_SCHEMA)${module.constant === 'SYSTEM_SCHEMA' ? '' : `.load(${module.constant})`}`,
+        ` * const schema: Schema = new Schema().load(SYSTEM)${module.constant === 'SYSTEM' ? '' : `.load(${module.constant})`}`,
         ` * console.log(${module.constant}.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)`,
         ' * ```',
         ' */',

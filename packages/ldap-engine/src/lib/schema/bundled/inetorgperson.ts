@@ -6,13 +6,14 @@ import type {SchemaDocument} from '../SchemaDocument.js'
  * The inetOrgPerson object class: RFC 2798 (13 attribute types, 1 object class), as a document
  * @example
  * ```typescript
- * import {INETORGPERSON_SCHEMA, SYSTEM_SCHEMA, Schema} from '@lakutata/ldap-engine'
+ * import {Schema} from '@lakutata/ldap-engine'
+ * import {INETORGPERSON, SYSTEM} from '@lakutata/ldap-engine/schemas'
  *
- * const schema: Schema = new Schema().load(SYSTEM_SCHEMA).load(INETORGPERSON_SCHEMA)
- * console.log(INETORGPERSON_SCHEMA.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
+ * const schema: Schema = new Schema().load(SYSTEM).load(INETORGPERSON)
+ * console.log(INETORGPERSON.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
  * ```
  */
-export const INETORGPERSON_SCHEMA: SchemaDocument = {
+export const INETORGPERSON: SchemaDocument = {
     name: 'inetorgperson',
     format: 'ldif',
     entry: {

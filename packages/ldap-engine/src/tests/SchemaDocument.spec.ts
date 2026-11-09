@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {describe, it} from 'node:test'
-import {bundledSchema, LDAPSchemaException, parseSchemaFile, Schema, type SchemaDocument, stringifySchemaFile} from '../exports/LDAPEngine.js'
+import {LDAPSchemaException, parseSchemaFile, Schema, type SchemaDocument, stringifySchemaFile} from '../exports/LDAPEngine.js'
+import {bundledSchema} from '../exports/Schemas.js'
 
 //An entry of cn=config as OpenLDAP writes it: numbered values, a folded line, comments, a value in base64
 const CONFIG: string = [

@@ -43,7 +43,7 @@ export interface SchemaDocumentEntry {
  * A schema file as data: its definitions as objects, the way the engine loads them (`Schema.load()`, the schema of
  * `createLDAPServer()`) and an editor shows them, made by `parseSchemaFile()` from the LDIF of OpenLDAP's `cn=config`,
  * a subschema entry in LDIF, or the `.schema` form of slapd.conf, and written back by `stringifySchemaFile()`. A plain
- * object: it goes through JSON as it is. The bundled schemas (`CORE_SCHEMA`…) are documents.
+ * object: it goes through JSON as it is. The bundled schemas (`CORE`…) are documents.
  */
 export interface SchemaDocument {
     /**
@@ -103,7 +103,7 @@ export interface SchemaText {
 }
 
 /**
- * A schema to load: a document (the bundled `CORE_SCHEMA`…, one made by `parseSchemaFile()`, `readSchemaFile()`), or
+ * A schema to load: a document (the bundled `CORE`…, one made by `parseSchemaFile()`, `readSchemaFile()`), or
  * the text of a schema file with its name
  */
 export type SchemaSource = SchemaDocument | SchemaText
@@ -521,10 +521,11 @@ function rewrite(document: SchemaDocument): string {
  * `cn=config` or in the `.schema` form).
  * @example
  * ```typescript
- * import {CORE_SCHEMA, stringifySchemaFile} from '@lakutata/ldap-engine'
+ * import {stringifySchemaFile} from '@lakutata/ldap-engine'
+ * import {CORE} from '@lakutata/ldap-engine/schemas'
  *
- * const ldif: string = stringifySchemaFile(CORE_SCHEMA)
- * const dotSchema: string = stringifySchemaFile(CORE_SCHEMA, {format: 'schema'})
+ * const ldif: string = stringifySchemaFile(CORE)
+ * const dotSchema: string = stringifySchemaFile(CORE, {format: 'schema'})
  * console.log(ldif.split('\n')[0], dotSchema.length > 0) //dn: cn=core,cn=schema true
  * ```
  */

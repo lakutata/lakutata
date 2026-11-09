@@ -31,12 +31,13 @@ export interface IdAllocationPluginOptions extends BasePluginOptions {
  * chain).
  * @example
  * ```typescript
- * import {createLDAPServer, DEFAULT_SCHEMAS, IdAllocationPlugin, MemoryBackend, RFC2307BIS_SCHEMA} from '@lakutata/ldap-engine'
+ * import {createLDAPServer, IdAllocationPlugin, MemoryBackend} from '@lakutata/ldap-engine'
+ * import {DEFAULTS, RFC2307BIS} from '@lakutata/ldap-engine/schemas'
  *
  * //The POSIX accounts and groups of rfc2307bis (or the nis.schema of OpenLDAP given as a file)
  * const server = createLDAPServer({
  *     backends: [new MemoryBackend('dc=example,dc=com')],
- *     schema: [...DEFAULT_SCHEMAS, RFC2307BIS_SCHEMA],
+ *     schema: [...DEFAULTS, RFC2307BIS],
  *     plugins: [new IdAllocationPlugin({uidNumber: 20000, gidNumber: 20000})]
  * })
  * ```

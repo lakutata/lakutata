@@ -39,6 +39,16 @@
         "default": "./dist/cjs/exports/LDAP.js"
       }
     },
+    "./schemas": {
+      "import": {
+        "types": "./dist/types/exports/Schemas.d.ts",
+        "default": "./dist/esm/exports/Schemas.js"
+      },
+      "require": {
+        "types": "./dist/cjs/exports/Schemas.d.ts",
+        "default": "./dist/cjs/exports/Schemas.js"
+      }
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

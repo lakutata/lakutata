@@ -97,7 +97,8 @@ const ORDERING_OF_EQUALITY: Record<string, string> = {
  * @returns The rule and whether it orders by code points; undefined when nothing orders the attribute.
  * @example
  * ```typescript
- * import {bundledSchema, sortOrderingOf} from '@lakutata/ldap-engine'
+ * import {sortOrderingOf} from '@lakutata/ldap-engine'
+ * import {bundledSchema} from '@lakutata/ldap-engine/schemas'
  *
  * const ordering = sortOrderingOf('uid', bundledSchema())
  * console.log(ordering?.rule.names[0], ordering?.codePoints) //caseIgnoreOrderingMatch true

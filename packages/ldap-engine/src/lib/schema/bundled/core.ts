@@ -6,13 +6,14 @@ import type {SchemaDocument} from '../SchemaDocument.js'
  * The schema for user applications: RFC 4519, the certificates of RFC 4523, labeledURI of RFC 2079 (49 attribute types, 23 object classes), as a document
  * @example
  * ```typescript
- * import {CORE_SCHEMA, SYSTEM_SCHEMA, Schema} from '@lakutata/ldap-engine'
+ * import {Schema} from '@lakutata/ldap-engine'
+ * import {CORE, SYSTEM} from '@lakutata/ldap-engine/schemas'
  *
- * const schema: Schema = new Schema().load(SYSTEM_SCHEMA).load(CORE_SCHEMA)
- * console.log(CORE_SCHEMA.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
+ * const schema: Schema = new Schema().load(SYSTEM).load(CORE)
+ * console.log(CORE.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
  * ```
  */
-export const CORE_SCHEMA: SchemaDocument = {
+export const CORE: SchemaDocument = {
     name: 'core',
     format: 'ldif',
     entry: {

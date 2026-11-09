@@ -4,7 +4,6 @@ import {after, before, describe, it} from 'node:test'
 import {Container} from '@lakutata/core'
 import {Database} from '@lakutata/orm/com/database'
 import {
-    type BundledSchemaName,
     connectLDAP,
     type Directory,
     DirectoryBackend,
@@ -23,6 +22,7 @@ import {
     VLVRequestControl,
     VLVResponseControl
 } from '../../exports/LDAP.js'
+import type {BundledSchemaName} from '../../exports/Schemas.js'
 
 const BASE: string = 'dc=example,dc=com'
 const ADMIN: string = 'cn=admin,dc=example,dc=com'

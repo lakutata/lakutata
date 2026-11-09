@@ -6,7 +6,6 @@ import {
     BaseLDAPPlugin,
     ConstraintPlugin,
     createLDAPServer,
-    DEFAULT_SCHEMAS,
     IdAllocationPlugin,
     LastBindPlugin,
     LDAPConstraintViolationException,
@@ -24,10 +23,13 @@ import {
     MemoryBackend,
     PagedResultsControl,
     ReferentialIntegrityPlugin,
-    RFC2307BIS_SCHEMA,
     SambaPasswordPlugin,
     UniquePlugin
 } from '../exports/LDAPEngine.js'
+import {
+    DEFAULTS,
+    RFC2307BIS
+} from '../exports/Schemas.js'
 
 const BASE: string = 'dc=example,dc=com'
 const ADMIN: string = 'cn=admin,dc=example,dc=com'
@@ -217,7 +219,7 @@ describe('the plugins of the engine', () => {
     })
 
     it('IdAllocationPlugin gives uidNumber and gidNumber to the POSIX entries added without them', async () => {
-        const {admin} = await serve([new IdAllocationPlugin({uidNumber: 5000, gidNumber: 7000})], {schema: [...DEFAULT_SCHEMAS, RFC2307BIS_SCHEMA]})
+        const {admin} = await serve([new IdAllocationPlugin({uidNumber: 5000, gidNumber: 7000})], {schema: [...DEFAULTS, RFC2307BIS]})
         const account = (name: string, extra: Record<string, string> = {}) => admin.add(`uid=${name},${PEOPLE}`, {objectClass: ['account', 'posixAccount'], uid: name, cn: name, homeDirectory: `/home/${name}`, ...extra})
         await account('p1')
         assert.deepEqual([await valuesOf(admin, `uid=p1,${PEOPLE}`, 'uidNumber'), await valuesOf(admin, `uid=p1,${PEOPLE}`, 'gidNumber')], [['5000'], ['7000']])
@@ -252,7 +254,7 @@ describe('the plugins of the engine', () => {
             'attributeTypes: ( 1.3.6.1.4.1.65000.8.2 NAME \'sambaPwdLastSet\' EQUALITY integerMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.27 SINGLE-VALUE )',
             'objectClasses: ( 1.3.6.1.4.1.65000.8.3 NAME \'sambaSamAccount\' AUXILIARY MAY ( sambaNTPassword $ sambaPwdLastSet ) )'
         ].join('\n') + '\n'
-        const {server, admin} = await serve([new SambaPasswordPlugin()], {schema: [...DEFAULT_SCHEMAS, {name: 'samba', text: samba}]})
+        const {server, admin} = await serve([new SambaPasswordPlugin()], {schema: [...DEFAULTS, {name: 'samba', text: samba}]})
         const dn: string = `uid=sam,${PEOPLE}`
         await admin.add(dn, {objectClass: ['inetOrgPerson', 'sambaSamAccount'], uid: 'sam', cn: 'sam', sn: 'sam', userPassword: 'password'})
         assert.deepEqual(await valuesOf(admin, dn, 'sambaNTPassword'), ['8846F7EAEE8FB117AD06BDD830B7586C'])

@@ -6,13 +6,14 @@ import type {SchemaDocument} from '../SchemaDocument.js'
  * The operational attributes and the object classes of the directory itself: RFC 4512 (the models), RFC 3045 (vendorName, vendorVersion), RFC 4530 (entryUUID), RFC 5020 (entryDN), RFC 3296 (referrals), RFC 3672 (subentries) (34 attribute types, 6 object classes), as a document
  * @example
  * ```typescript
- * import {SYSTEM_SCHEMA, Schema} from '@lakutata/ldap-engine'
+ * import {Schema} from '@lakutata/ldap-engine'
+ * import {SYSTEM} from '@lakutata/ldap-engine/schemas'
  *
- * const schema: Schema = new Schema().load(SYSTEM_SCHEMA)
- * console.log(SYSTEM_SCHEMA.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
+ * const schema: Schema = new Schema().load(SYSTEM)
+ * console.log(SYSTEM.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
  * ```
  */
-export const SYSTEM_SCHEMA: SchemaDocument = {
+export const SYSTEM: SchemaDocument = {
     name: 'system',
     format: 'ldif',
     entry: {

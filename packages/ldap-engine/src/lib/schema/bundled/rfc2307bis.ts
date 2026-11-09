@@ -6,13 +6,14 @@ import type {SchemaDocument} from '../SchemaDocument.js'
  * The accounts, groups and other entities of the name services (POSIX accounts, shadow, hosts, netgroups, automount): draft-howard-rfc2307bis-02, with authPassword of RFC 3112 that it refers to (35 attribute types, 16 object classes), as a document
  * @example
  * ```typescript
- * import {RFC2307BIS_SCHEMA, SYSTEM_SCHEMA, Schema} from '@lakutata/ldap-engine'
+ * import {Schema} from '@lakutata/ldap-engine'
+ * import {RFC2307BIS, SYSTEM} from '@lakutata/ldap-engine/schemas'
  *
- * const schema: Schema = new Schema().load(SYSTEM_SCHEMA).load(RFC2307BIS_SCHEMA)
- * console.log(RFC2307BIS_SCHEMA.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
+ * const schema: Schema = new Schema().load(SYSTEM).load(RFC2307BIS)
+ * console.log(RFC2307BIS.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
  * ```
  */
-export const RFC2307BIS_SCHEMA: SchemaDocument = {
+export const RFC2307BIS: SchemaDocument = {
     name: 'rfc2307bis',
     format: 'ldif',
     entry: {

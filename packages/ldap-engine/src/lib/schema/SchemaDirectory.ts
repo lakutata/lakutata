@@ -25,11 +25,12 @@ function nameOf(path: string): string {
  * @throws {LDAPSchemaException} A definition that is not valid, with its line.
  * @example
  * ```typescript
- * import {createLDAPServer, DEFAULT_SCHEMAS, MemoryBackend, readSchemaFile} from '@lakutata/ldap-engine'
+ * import {createLDAPServer, MemoryBackend, readSchemaFile} from '@lakutata/ldap-engine'
+ * import {DEFAULTS} from '@lakutata/ldap-engine/schemas'
  *
  * const server = createLDAPServer({
  *     backends: [new MemoryBackend('dc=example,dc=com')],
- *     schema: [...DEFAULT_SCHEMAS, await readSchemaFile('/etc/directory/schema/cn={4}devices.ldif')]
+ *     schema: [...DEFAULTS, await readSchemaFile('/etc/directory/schema/cn={4}devices.ldif')]
  * })
  * ```
  */
@@ -46,11 +47,12 @@ export async function readSchemaFile(path: string): Promise<SchemaDocument> {
  * @throws {LDAPSchemaException} A definition that is not valid, with its file and its line.
  * @example
  * ```typescript
- * import {createLDAPServer, DEFAULT_SCHEMAS, MemoryBackend, readSchemaDirectory} from '@lakutata/ldap-engine'
+ * import {createLDAPServer, MemoryBackend, readSchemaDirectory} from '@lakutata/ldap-engine'
+ * import {DEFAULTS} from '@lakutata/ldap-engine/schemas'
  *
  * const server = createLDAPServer({
  *     backends: [new MemoryBackend('dc=example,dc=com')],
- *     schema: [...DEFAULT_SCHEMAS, ...await readSchemaDirectory('/etc/directory/schema')]
+ *     schema: [...DEFAULTS, ...await readSchemaDirectory('/etc/directory/schema')]
  * })
  * ```
  */

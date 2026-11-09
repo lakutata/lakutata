@@ -4,7 +4,6 @@ import {
     createDirectory,
     createHandlerBackend,
     createLDAPServer,
-    DEFAULT_SCHEMAS,
     type DirectoryEntry,
     Filter,
     findControl,
@@ -26,13 +25,16 @@ import {
     LDAPUnwillingToPerformException,
     MemoryBackend,
     readSchema,
-    RFC2307BIS_SCHEMA,
     type Schema,
     SortRequestControl,
     SortResponseControl,
     TreeDeleteControl,
     type WriteContext
 } from '../exports/LDAPEngine.js'
+import {
+    DEFAULTS,
+    RFC2307BIS
+} from '../exports/Schemas.js'
 
 const BASE: string = 'dc=example,dc=com'
 const ADMIN: string = 'cn=admin,dc=example,dc=com'
@@ -91,7 +93,7 @@ describe('the server engine', () => {
 
     it('adds the entries of a structural class defined without a superclass, top added to their object classes', async () => {
         const schema: string = 'attributetype ( 1.2.3.1 NAME \'deviceId\' EQUALITY caseExactMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )\nobjectclass ( 1.2.3.2 NAME \'appDevice\' STRUCTURAL MUST deviceId )'
-        const {admin: owner} = await directory({schema: [...DEFAULT_SCHEMAS, {name: 'app', text: schema}]})
+        const {admin: owner} = await directory({schema: [...DEFAULTS, {name: 'app', text: schema}]})
         await owner.add(`deviceId=d1,${BASE}`, {objectClass: 'appDevice', deviceId: 'd1'})
         const {entries} = await owner.search(`deviceId=d1,${BASE}`, {scope: 'base'})
         assert.deepEqual(entries[0].get('objectClass').sort(), ['appDevice', 'top'])
@@ -428,7 +430,7 @@ describe('the server engine', () => {
     })
 
     it('shows the schema files as OpenLDAP does, when asked', async () => {
-        const viewing = createLDAPServer({backends: [new MemoryBackend(BASE)], schemaConfigView: true, access: {anonymousRead: true}, schema: [...DEFAULT_SCHEMAS, RFC2307BIS_SCHEMA]})
+        const viewing = createLDAPServer({backends: [new MemoryBackend(BASE)], schemaConfigView: true, access: {anonymousRead: true}, schema: [...DEFAULTS, RFC2307BIS]})
         const {entries} = await viewing.connect().search('cn=schema,cn=config', {scope: 'one'})
         assert.deepEqual(entries.map((entry) => entry.first('cn')), ['{0}system', '{1}core', '{2}cosine', '{3}inetorgperson', '{4}rfc2307bis'])
         assert.ok(entries[1].get('olcAttributeTypes').some((definition) => definition.startsWith('{') && definition.includes('\'sn\'')))

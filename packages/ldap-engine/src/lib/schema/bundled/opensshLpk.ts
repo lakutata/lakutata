@@ -6,13 +6,14 @@ import type {SchemaDocument} from '../SchemaDocument.js'
  * The SSH public keys of the accounts (openssh-lpk): sshPublicKey and ldapPublicKey (1 attribute type, 1 object class), as a document
  * @example
  * ```typescript
- * import {OPENSSH_LPK_SCHEMA, SYSTEM_SCHEMA, Schema} from '@lakutata/ldap-engine'
+ * import {Schema} from '@lakutata/ldap-engine'
+ * import {OPENSSH_LPK, SYSTEM} from '@lakutata/ldap-engine/schemas'
  *
- * const schema: Schema = new Schema().load(SYSTEM_SCHEMA).load(OPENSSH_LPK_SCHEMA)
- * console.log(OPENSSH_LPK_SCHEMA.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
+ * const schema: Schema = new Schema().load(SYSTEM).load(OPENSSH_LPK)
+ * console.log(OPENSSH_LPK.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
  * ```
  */
-export const OPENSSH_LPK_SCHEMA: SchemaDocument = {
+export const OPENSSH_LPK: SchemaDocument = {
     name: 'openssh-lpk',
     format: 'ldif',
     entry: {

@@ -6,13 +6,14 @@ import type {SchemaDocument} from '../SchemaDocument.js'
  * The password policy: draft-behera-ldap-password-policy-11 (31 attribute types, 1 object class), as a document
  * @example
  * ```typescript
- * import {PPOLICY_SCHEMA, SYSTEM_SCHEMA, Schema} from '@lakutata/ldap-engine'
+ * import {Schema} from '@lakutata/ldap-engine'
+ * import {PPOLICY, SYSTEM} from '@lakutata/ldap-engine/schemas'
  *
- * const schema: Schema = new Schema().load(SYSTEM_SCHEMA).load(PPOLICY_SCHEMA)
- * console.log(PPOLICY_SCHEMA.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
+ * const schema: Schema = new Schema().load(SYSTEM).load(PPOLICY)
+ * console.log(PPOLICY.objectClasses.map((objectClass) => objectClass.names[0]), schema.objectClasses().length)
  * ```
  */
-export const PPOLICY_SCHEMA: SchemaDocument = {
+export const PPOLICY: SchemaDocument = {
     name: 'ppolicy',
     format: 'ldif',
     entry: {

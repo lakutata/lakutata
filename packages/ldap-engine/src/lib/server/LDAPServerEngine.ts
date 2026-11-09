@@ -6,7 +6,7 @@ import {LDAPUsageException} from '../../exceptions/LDAPUsageException.js'
 import {DN} from '../dn/DN.js'
 import type {PartialAttribute} from '../protocol/Messages.js'
 import {ResultCode} from '../protocol/ResultCode.js'
-import {BUNDLED_SCHEMAS, DEFAULT_SCHEMAS, SYSTEM_SCHEMA} from '../schema/bundled/Bundled.js'
+import {BUNDLED, DEFAULTS, SYSTEM} from '../schema/bundled/Bundled.js'
 import type {SchemaDocument, SchemaSource} from '../schema/SchemaDocument.js'
 import {stringifyAttributeType, stringifyObjectClass} from '../schema/Definitions.js'
 import {attributeTypeOf, Schema} from '../schema/Schema.js'
@@ -42,8 +42,8 @@ export interface LDAPServerEngineOptions {
     backends: LDAPBackend[]
     /**
      * The schema: a `Schema` ready, or the schemas to load after the system schema, in order: documents (the bundled
-     * `CORE_SCHEMA`…, those of `parseSchemaFile()`, `readSchemaFile()`, `readSchemaDirectory()`) or texts of schema
-     * files (`DEFAULT_SCHEMAS` by default: core, cosine, inetorgperson; `[]` for the system schema alone)
+     * `CORE`…, those of `parseSchemaFile()`, `readSchemaFile()`, `readSchemaDirectory()`) or texts of schema
+     * files (`DEFAULTS` by default: core, cosine, inetorgperson; `[]` for the system schema alone)
      */
     schema?: Schema | readonly SchemaSource[]
     /**
@@ -185,7 +185,7 @@ const LIMITS: Required<ServerLimits> = {
  * @param source The schema.
  */
 function nameOfSource(source: SchemaSource): string {
-    const bundled: string | undefined = Object.entries(BUNDLED_SCHEMAS).find(([, document]: [string, SchemaDocument]): boolean => document === source)?.[0]
+    const bundled: string | undefined = Object.entries(BUNDLED).find(([, document]: [string, SchemaDocument]): boolean => document === source)?.[0]
     return bundled !== undefined ? `the bundled schema ${bundled}` : source.name
 }
 
@@ -207,7 +207,7 @@ function schemaOf(option: Schema | readonly SchemaSource[] | undefined, backends
     if (option instanceof Schema) return {schema: option, files: [{name: 'schema', schema: option}]}
     const schema: Schema = new Schema()
     const files: {name: string, schema: Schema}[] = []
-    for (const source of [SYSTEM_SCHEMA, ...option ?? DEFAULT_SCHEMAS]) {
+    for (const source of [SYSTEM, ...option ?? DEFAULTS]) {
         loadSource(schema, source, nameOfSource(source))
         files.push({name: source.name, schema: loadSource(new Schema(), source, source.name)})
     }

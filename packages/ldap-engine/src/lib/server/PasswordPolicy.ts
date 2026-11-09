@@ -135,7 +135,8 @@ const HISTORY_SYNTAX: string = '1.3.6.1.4.1.1466.115.121.1.40'
  * @param schema The schema.
  * @example
  * ```typescript
- * import {bundledSchema, DN, rulesOfEntry, type PasswordPolicyRules} from '@lakutata/ldap-engine'
+ * import {DN, type PasswordPolicyRules, rulesOfEntry} from '@lakutata/ldap-engine'
+ * import {bundledSchema} from '@lakutata/ldap-engine/schemas'
  *
  * const rules: PasswordPolicyRules = rulesOfEntry({
  *     dn: DN.parse('cn=default,ou=policies,dc=example,dc=com'),
