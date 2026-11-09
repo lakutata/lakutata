@@ -260,7 +260,16 @@ describe('the server engine', () => {
         assert.equal((await user.search(`ou=people,${BASE}`, {paged: {pageSize: 10}})).entries.length, 31)
         assert.equal((await small.admin.search(`ou=people,${BASE}`, {paged: false})).entries.length, 31)
         const filter = Filter.or(...Array.from({length: 1001}, (_, index) => Filter.equal('uid', `user${index}`)))
-        await assert.rejects(small.admin.search(BASE, {filter: filter}), LDAPUnwillingToPerformException)
+        await assert.rejects(user.search(BASE, {filter: filter, paged: {pageSize: 10}}), LDAPUnwillingToPerformException)
+        assert.equal((await small.admin.search(`ou=people,${BASE}`, {filter: filter, paged: false})).entries.length, 30)
+    })
+
+    it('fails a window it cannot sort rather than giving every entry', async () => {
+        const small = await directory({limits: {sortCandidates: 10}})
+        await assert.rejects(small.admin.search(`ou=people,${BASE}`, {scope: 'one', sort: [{attribute: 'cn'}], window: {offset: 1, limit: 5}}), LDAPUnavailableCriticalExtensionException)
+        const unsorted = await small.admin.search(`ou=people,${BASE}`, {scope: 'one', sort: [{attribute: 'cn'}], paged: false})
+        assert.equal(unsorted.entries.length, 30)
+        assert.equal(SortResponseControl.decode(findControl(unsorted.controls, SortResponseControl)!).result, 11)
     })
 
     it('refuses a critical control it does not know', async () => {

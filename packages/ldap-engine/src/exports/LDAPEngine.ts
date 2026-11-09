@@ -206,6 +206,7 @@ export {createHandlerBackend, type HandlerBackendOptions, type HandlerEntry} fro
 export {LDAPInProcessConnection} from '../lib/server/InProcessConnection.js'
 export {createLDAPServer, LDAPServerEngine, type LDAPServerEngineOptions, type ListenOptions, type ServerSchemaOptions, type ServerTLSOptions, type SocketListenOptions} from '../lib/server/LDAPServerEngine.js'
 export {MemoryBackend} from '../lib/server/MemoryBackend.js'
+export {sortSearchItems, type SortValues} from '../lib/server/Paging.js'
 export {type ExtendedHandler, type ServerLimits} from '../lib/server/Pipeline.js'
 export {externalMechanism, plainMechanism, type SASLContext, type SASLMechanism, type SASLStep} from '../lib/server/SASL.js'
 export {type BindThrottleOptions, type ThrottleState, type ThrottleStore} from '../lib/server/Throttle.js'

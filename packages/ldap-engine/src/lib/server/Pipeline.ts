@@ -82,11 +82,11 @@ export interface ServerLimits {
      */
     timeLimit?: number
     /**
-     * The deepest filter (12 by default)
+     * The deepest filter of a search, for every identity but the administrators (12 by default)
      */
     filterDepth?: number
     /**
-     * The most items of a filter (1000 by default)
+     * The most items of the filter of a search, for every identity but the administrators (1000 by default)
      */
     filterElements?: number
     /**
@@ -658,11 +658,13 @@ export class Pipeline {
      */
     protected async search(context: OperationContext, request: LDAPRequest & {type: 'searchRequest'}, responder: Responder): Promise<ServerOutcome> {
         const base: DN = this.parseDN(request.baseObject)
-        const {depth, elements} = complexity(request.filter)
-        if (depth > this.options.limits.filterDepth || elements > this.options.limits.filterElements) fail(ResultCode.unwillingToPerform, `The filter is too complex (${depth} levels, ${elements} items)`)
         const search: ServerSearchRequest = {type: 'search', base: base, scope: request.scope, derefAliases: request.derefAliases, sizeLimit: request.sizeLimit, timeLimit: request.timeLimit, typesOnly: request.typesOnly, filter: request.filter, attributes: request.attributes}
         //The administrators and the internal searches have no limits of the server
         const admin: boolean = context.internal || this.access.isAdmin(context.session.identity)
+        if (!admin) {
+            const {depth, elements} = complexity(request.filter)
+            if (depth > this.options.limits.filterDepth || elements > this.options.limits.filterElements) fail(ResultCode.unwillingToPerform, `The filter is too complex (${depth} levels, ${elements} items)`)
+        }
         const serverSize: number = admin ? 0 : this.options.limits.sizeLimit
         const sizeLimit: number = Math.min(request.sizeLimit || Infinity, serverSize || Infinity)
         const timeLimit: number = Math.min(request.timeLimit || Infinity, (admin ? 0 : this.options.limits.timeLimit) || Infinity)

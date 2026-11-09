@@ -109,17 +109,46 @@ function orderingOf(key: SortKey, schema: Schema): MatchingRule | undefined {
 }
 
 /**
- * Sort entries by keys (RFC 2891): an entry without a value of a key comes after those with one; of several values,
- * the least counts (the greatest in reverse)
- * @param entries The entries.
- * @param keys The keys with their rules.
+ * The values of an attribute of an item to sort: of an entry, or of what stands for an entry where a backend sorts
+ * itself (its ID with the values of the sort keys)
+ */
+export type SortValues<T> = (item: T, attribute: string) => Buffer[]
+
+/**
+ * A sort key with the rule ordering it
+ */
+interface OrderedKey {
+    key: SortKey
+    rule: MatchingRule
+}
+
+/**
+ * The keys of a sort control with their rules, up to the first key nothing orders
+ * @param keys The keys.
  * @param schema The schema.
  */
-function sortEntries(entries: DirectoryEntry[], keys: {key: SortKey, rule: MatchingRule}[], schema: Schema): DirectoryEntry[] {
-    const prepared: {entry: DirectoryEntry, values: (string | undefined)[]}[] = entries.map((entry: DirectoryEntry) => ({
-        entry: entry,
-        values: keys.map(({key, rule}: {key: SortKey, rule: MatchingRule}): string | undefined => {
-            const values: string[] = valuesOfType(entry, key.attribute, schema).map((value: Buffer): string | undefined => rule.prepare(value)).filter((value: string | undefined): value is string => value !== undefined)
+function orderedKeys(keys: SortKey[], schema: Schema): {ordered: OrderedKey[], unordered?: string} {
+    const ordered: OrderedKey[] = []
+    for (const key of keys) {
+        const rule: MatchingRule | undefined = orderingOf(key, schema)
+        if (!rule) return {ordered: ordered, unordered: key.attribute}
+        ordered.push({key: key, rule: rule})
+    }
+    return {ordered: ordered}
+}
+
+/**
+ * Sort items by keys (RFC 2891): an item without a value of a key comes after those with one; of several values, the
+ * least counts (the greatest in reverse)
+ * @param items The items.
+ * @param keys The keys with their rules.
+ * @param valuesOf The values of an attribute of an item.
+ */
+function sortItems<T>(items: T[], keys: OrderedKey[], valuesOf: SortValues<T>): T[] {
+    const prepared: {item: T, values: (string | undefined)[]}[] = items.map((item: T) => ({
+        item: item,
+        values: keys.map(({key, rule}: OrderedKey): string | undefined => {
+            const values: string[] = valuesOf(item, key.attribute).map((value: Buffer): string | undefined => rule.prepare(value)).filter((value: string | undefined): value is string => value !== undefined)
             if (!values.length) return undefined
             return values.reduce((chosen: string, value: string): string => (rule.compare!(value, chosen) < 0) !== (key.reverse === true) ? value : chosen)
         })
@@ -136,19 +165,19 @@ function sortEntries(entries: DirectoryEntry[], keys: {key: SortKey, rule: Match
         }
         return 0
     })
-    return prepared.map((item): DirectoryEntry => item.entry)
+    return prepared.map((entry): T => entry.item)
 }
 
 /**
- * The window of the virtual list view (draft-ietf-ldapext-ldapv3-vlv): around an offset, or the first entry not less
+ * The window of the virtual list view (draft-ietf-ldapext-ldapv3-vlv): around an offset, or the first item not less
  * than an assertion
- * @param sorted The sorted entries.
+ * @param sorted The sorted items.
  * @param value The request of the view.
  * @param first The first sort key and its rule.
- * @param schema The schema.
+ * @param valuesOf The values of an attribute of an item.
  * @param context The context, for the response control.
  */
-function vlvWindow(sorted: DirectoryEntry[], value: VLVRequestValue, first: {key: SortKey, rule: MatchingRule}, schema: Schema, context: OperationContext): DirectoryEntry[] {
+function vlvWindow<T>(sorted: T[], value: VLVRequestValue, first: OrderedKey, valuesOf: SortValues<T>, context: OperationContext): T[] {
     const count: number = sorted.length
     let target: number
     if (value.offset) {
@@ -159,8 +188,8 @@ function vlvWindow(sorted: DirectoryEntry[], value: VLVRequestValue, first: {key
         target = Math.min(target, count)
     } else {
         const assertion: string | undefined = first.rule.prepare(value.greaterThanOrEqual ?? Buffer.alloc(0))
-        target = sorted.findIndex((entry: DirectoryEntry): boolean => valuesOfType(entry, first.key.attribute, schema).some((item: Buffer): boolean => {
-            const prepared: string | undefined = first.rule.prepare(item)
+        target = sorted.findIndex((item: T): boolean => valuesOf(item, first.key.attribute).some((candidate: Buffer): boolean => {
+            const prepared: string | undefined = first.rule.prepare(candidate)
             return prepared !== undefined && assertion !== undefined && (first.rule.compare!(prepared, assertion) >= 0) !== (first.key.reverse === true)
         }))
         if (target < 0) target = count
@@ -169,6 +198,61 @@ function vlvWindow(sorted: DirectoryEntry[], value: VLVRequestValue, first: {key
     const end: number = Math.min(count, target + value.afterCount + 1)
     context.responseControls.push(VLVResponseControl.encode({targetPosition: Math.min(target + 1, count + 1), contentCount: count, result: 0, ...value.contextId ? {contextId: value.contextId} : {}}))
     return sorted.slice(start, end)
+}
+
+/**
+ * Sort items whose keys all have a rule, then take the window of the view when one is asked for; the response
+ * controls go to the context
+ * @param items The items.
+ * @param keys The keys with their rules.
+ * @param valuesOf The values of an attribute of an item.
+ * @param vlvControl The control of the view.
+ * @param context The context.
+ */
+function sortAndWindow<T>(items: T[], keys: OrderedKey[], valuesOf: SortValues<T>, vlvControl: Control | undefined, context: OperationContext): T[] {
+    const sorted: T[] = sortItems(items, keys, valuesOf)
+    context.responseControls.push(SortResponseControl.encode({result: ResultCode.success}))
+    return vlvControl ? vlvWindow(sorted, VLVRequestControl.decode(vlvControl), keys[0], valuesOf, context) : sorted
+}
+
+/**
+ * Sort the items of a search by its sort control and take the window its virtual list view asks for, as the engine
+ * does for a backend that does not sort: for a backend sorting itself (`capabilities.sort`), on items lighter than its
+ * entries (an entry's ID with the values of the sort keys), so that it reads only the entries of the window. The sort
+ * and view response controls go to the context. A key nothing orders fails the search when the sort control is
+ * critical; otherwise the items stay as given and the view is not applied (RFC 2891 §2). The items are those the
+ * filter matches: the backend checks the filter before (`exact` in its result).
+ * @param items The items.
+ * @param valuesOf The values of an attribute of an item, under its primary name and with its options (as
+ * `valuesOfType` gives them for an entry).
+ * @param context The context of the search.
+ * @param schema The schema.
+ * @returns The items sorted and windowed, or as given without a sort control.
+ * @throws {LDAPResultException} unavailableCriticalExtension for a critical sort with a key nothing orders;
+ * virtualListViewError for a negative offset or count.
+ * @example
+ * ```typescript
+ * import {sortSearchItems, type SearchContext} from '@lakutata/ldap-engine'
+ *
+ * //In the search of a backend whose capabilities have sort: true: the IDs of the entries the filter matches, each
+ * //with the values of the sort keys (by their primary names in lower case), sorted and windowed; then only those
+ * //entries are read
+ * function windowOf(context: SearchContext, items: {id: string, values: Map<string, Buffer[]>}[]): string[] {
+ *     const valuesOf = (item: {values: Map<string, Buffer[]>}, attribute: string): Buffer[] => item.values.get(context.schema.primaryName(attribute).toLowerCase()) ?? []
+ *     return sortSearchItems(items, valuesOf, context, context.schema).map((item) => item.id)
+ * }
+ * ```
+ */
+export function sortSearchItems<T>(items: T[], valuesOf: SortValues<T>, context: OperationContext, schema: Schema): T[] {
+    const sortControl: Control | undefined = findControl(context.controls, SortRequestControl)
+    if (!sortControl) return items
+    const {ordered, unordered} = orderedKeys(SortRequestControl.decode(sortControl), schema)
+    if (unordered !== undefined) {
+        context.responseControls.push(SortResponseControl.encode({result: ResultCode.inappropriateMatching, attribute: unordered}))
+        if (sortControl.critical) fail(ResultCode.unavailableCriticalExtension, `No ordering rule for ${unordered}`)
+        return items
+    }
+    return sortAndWindow(items, ordered, valuesOf, findControl(context.controls, VLVRequestControl), context)
 }
 
 /**
@@ -252,23 +336,14 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
             if (!outcome.entries) return outcome
             let iterator: AsyncIterator<DirectoryEntry> = outcome.entries[Symbol.asyncIterator]()
             if (sortControl && !options.capabilities?.sort) {
-                const keys: SortKey[] = SortRequestControl.decode(sortControl)
-                const ordered: {key: SortKey, rule: MatchingRule}[] = []
-                let problem: {result: number, attribute: string} | undefined
-                for (const sortKey of keys) {
-                    const rule: MatchingRule | undefined = orderingOf(sortKey, schema)
-                    if (!rule) {
-                        problem = {result: ResultCode.inappropriateMatching, attribute: sortKey.attribute}
-                        break
-                    }
-                    ordered.push({key: sortKey, rule: rule})
-                }
+                const {ordered, unordered} = orderedKeys(SortRequestControl.decode(sortControl), schema)
+                let problem: {result: number, attribute: string} | undefined = unordered === undefined ? undefined : {result: ResultCode.inappropriateMatching, attribute: unordered}
                 const collected: DirectoryEntry[] = []
                 if (!problem) {
                     for (let item: IteratorResult<DirectoryEntry> = await iterator.next(); !item.done; item = await iterator.next()) {
                         collected.push(item.value)
                         if (collected.length > options.sortCandidates) {
-                            problem = {result: ResultCode.adminLimitExceeded, attribute: keys[0].attribute}
+                            problem = {result: ResultCode.adminLimitExceeded, attribute: ordered[0].key.attribute}
                             break
                         }
                     }
@@ -286,10 +361,10 @@ export function pagingInterceptor(options: {schema: Schema, sortCandidates: numb
                         yield* fromIterator(rest)
                     })()
                 } else {
-                    const sorted: DirectoryEntry[] = sortEntries(collected, ordered, schema)
-                    context.responseControls.push(SortResponseControl.encode({result: ResultCode.success}))
+                    const valuesOf: SortValues<DirectoryEntry> = (entry: DirectoryEntry, attribute: string): Buffer[] => valuesOfType(entry, attribute, schema)
+                    const sorted: DirectoryEntry[] = sortAndWindow(collected, ordered, valuesOf, vlvControl, context)
                     if (vlvControl) {
-                        outcome.entries = fromArray(vlvWindow(sorted, VLVRequestControl.decode(vlvControl), ordered[0], schema, context))
+                        outcome.entries = fromArray(sorted)
                         return outcome
                     }
                     iterator = fromArray(sorted)[Symbol.asyncIterator]()

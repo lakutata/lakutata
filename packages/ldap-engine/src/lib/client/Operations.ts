@@ -307,7 +307,8 @@ export abstract class LDAPOperations implements LDAPConnection {
         const extra: Control[] = options.controls ?? []
         if (options.window) {
             if (!options.sort?.length) throw new LDAPUsageException('A window of the entries needs a sort')
-            const controls: Control[] = [...extra, SortRequestControl.encode(options.sort), VLVRequestControl.encode({beforeCount: 0, afterCount: Math.max(options.window.limit - 1, 0), offset: {offset: options.window.offset, contentCount: 0}})]
+            //Both critical: a server that cannot sort or window fails the search rather than giving every entry
+            const controls: Control[] = [...extra, SortRequestControl.encode(options.sort, true), VLVRequestControl.encode({beforeCount: 0, afterCount: Math.max(options.window.limit - 1, 0), offset: {offset: options.window.offset, contentCount: 0}}, true)]
             const page = await this.searchPage(request, controls, options)
             const truncated: boolean = await this.searchEnd(page.done, options, page.entries)
             const vlv: Control | undefined = findControl(page.done.controls, VLVResponseControl)
