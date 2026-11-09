@@ -1,6 +1,8 @@
 import {promises as dns, type SrvRecord} from 'node:dns'
 import {LDAPConnectionException} from '../../exceptions/LDAPConnectionException.js'
+import {LDAPDecodeException} from '../../exceptions/LDAPDecodeException.js'
 import {LDAPResultException} from '../../exceptions/LDAPResultException.js'
+import {LDAPTimeoutException} from '../../exceptions/LDAPTimeoutException.js'
 import {LDAPUsageException} from '../../exceptions/LDAPUsageException.js'
 import type {Control} from '../controls/Control.js'
 import {findControl, PasswordPolicyRequestControl, PasswordPolicyResponseControl, type PasswordPolicyValue} from '../controls/Controls.js'
@@ -355,9 +357,22 @@ export class LDAPPool implements LDAPConnection {
         const connection: LDAPClientConnection = await this.acquire()
         try {
             return await run(connection)
+        } catch (error) {
+            if (error instanceof LDAPTimeoutException || error instanceof LDAPDecodeException) this.retire(connection)
+            throw error
         } finally {
             this.release(connection)
         }
+    }
+
+    /**
+     * Take a connection out of the pool: one whose server did not answer in time, or answered what cannot be read, is
+     * not given to the operations after; it closes once its own have ended
+     * @param connection The connection.
+     */
+    protected retire(connection: LDAPClientConnection): void {
+        if (!this.connections.delete(connection)) return
+        void this.closeWhenIdle(connection).catch((): void => connection.destroy())
     }
 
     /**

@@ -81,6 +81,9 @@ export interface ExchangeOptions {
 
 const DEFAULT_PAGE_SIZE: number = 500
 
+//The pages without entries a search takes one after another before it takes the server for one that does not advance
+const EMPTY_PAGES: number = 100
+
 /**
  * The result of a response, which must be a success; another code rejects with its exception
  * @param exchange The exchange.
@@ -253,27 +256,59 @@ export abstract class LDAPOperations implements LDAPConnection {
     }
 
     /**
-     * Run one request of a search, its entries collected
+     * Run one request of a search, its entries collected: at most `limit` of them (0 for all), `beyond` when the server
+     * gave more
      * @param request The request.
      * @param controls Its controls.
      * @param options The options of the search.
+     * @param limit The entries kept at most.
      */
-    protected async searchPage(request: SearchRequest, controls: Control[], options: SearchOptions): Promise<{entries: SearchResultEntry[], references: string[], done: Exchange}> {
+    protected async searchPage(request: SearchRequest, controls: Control[], options: SearchOptions, limit: number = 0): Promise<{entries: SearchResultEntry[], references: string[], done: Exchange, beyond: boolean}> {
         const entries: SearchResultEntry[] = []
         const references: string[] = []
+        //The entries past the size limit of the search are the server's mistake: not kept
+        let beyond: boolean = false
         const done: Exchange = await this.exchange(request, {
             controls: controls,
             signal: options.signal,
             timeout: options.timeout,
             abandonable: true,
             onEntry: (entry: SearchResultEntry): void => {
-                entries.push(entry)
+                if (limit && entries.length >= limit) beyond = true
+                else entries.push(entry)
             },
             onReference: (uris: string[]): void => {
                 references.push(...uris)
             }
         })
-        return {entries: entries, references: references, done: done}
+        return {entries: entries, references: references, done: done, beyond: beyond}
+    }
+
+    /**
+     * Check that the paging of a search advances: a page without entries nor references that gives the cookie of the
+     * page before, or EMPTY_PAGES such pages one after another, is a server that does not (it would page for ever)
+     * @param page The page.
+     * @param previous The cookie of the page before.
+     * @param cookie The cookie of this page.
+     * @param empty The pages without entries so far, one after another.
+     * @returns The pages without entries, this one counted.
+     */
+    protected advancing(page: {entries: SearchResultEntry[], references: string[]}, previous: Buffer, cookie: Buffer, empty: number): number {
+        if (page.entries.length || page.references.length) return 0
+        if (previous.length && cookie.equals(previous)) throw resultException({resultCode: ResultCode.protocolError, matchedDN: '', diagnosticMessage: 'The server gave the same cookie again for a page without entries'})
+        if (empty + 1 >= EMPTY_PAGES) throw resultException({resultCode: ResultCode.protocolError, matchedDN: '', diagnosticMessage: `The server gave ${EMPTY_PAGES} pages without entries one after another`})
+        return empty + 1
+    }
+
+    /**
+     * End the paging of a search on the server: a page size of 0 with the cookie (RFC 2696 §3)
+     * @param request The search request.
+     * @param controls The controls of the search but the paging.
+     * @param cookie The cookie.
+     * @param options The options of the search.
+     */
+    protected async endPaging(request: SearchRequest, controls: Control[], cookie: Buffer, options: SearchOptions): Promise<void> {
+        await this.exchange(request, {controls: [...controls, PagedResultsControl.encode({size: 0, cookie: cookie})], timeout: options.timeout, abandonable: true}).catch((): undefined => undefined)
     }
 
     /**
@@ -321,18 +356,29 @@ export abstract class LDAPOperations implements LDAPConnection {
         const collected: SearchResultEntry[] = []
         const references: string[] = []
         let cookie: Buffer = Buffer.alloc(0)
+        let empty: number = 0
         for (; ;) {
             const controls: Control[] = [...extra, ...sort, ...(pageSize ? [PagedResultsControl.encode({size: pageSize, cookie: cookie})] : [])]
-            const page = await this.searchPage(request, controls, options)
+            const page = await this.searchPage(request, controls, options, options.sizeLimit ? options.sizeLimit - collected.length : 0)
             collected.push(...page.entries)
             references.push(...page.references)
-            const truncated: boolean = await this.searchEnd(page.done, options, collected)
+            let truncated: boolean = await this.searchEnd(page.done, options, collected)
             const paged: Control | undefined = pageSize ? findControl(page.done.controls, PagedResultsControl) : undefined
             const value: PagedResultsValue | undefined = paged ? PagedResultsControl.decode(paged) : undefined
+            //The size limit of the search reached while the server goes on: the search ends there
+            const full: boolean = Boolean(options.sizeLimit) && collected.length >= options.sizeLimit! && (page.beyond || Boolean(value?.cookie.length))
+            if (full && !truncated && value?.cookie.length) await this.endPaging(request, [...extra, ...sort], value.cookie, options)
+            truncated ||= full
             if (!value?.cookie.length || truncated) {
                 const entries: Entry[] = []
                 for (const entry of collected) entries.push(await this.entryOf(entry, options))
                 return {entries: entries, references: references, controls: page.done.controls, truncated: truncated}
+            }
+            try {
+                empty = this.advancing(page, cookie, value.cookie, empty)
+            } catch (error) {
+                await this.endPaging(request, [...extra, ...sort], value.cookie, options)
+                throw error
             }
             cookie = value.cookie
         }
@@ -353,23 +399,28 @@ export abstract class LDAPOperations implements LDAPConnection {
         const sort: Control[] = options.sort?.length ? [SortRequestControl.encode(options.sort)] : []
         let cookie: Buffer = Buffer.alloc(0)
         let finished: boolean = false
+        let given: number = 0
+        let empty: number = 0
         try {
             for (; ;) {
                 const controls: Control[] = [...options.controls ?? [], ...sort, ...(pageSize ? [PagedResultsControl.encode({size: pageSize, cookie: cookie})] : [])]
-                const page = await this.searchPage(request, controls, options)
+                const page = await this.searchPage(request, controls, options, options.sizeLimit ? options.sizeLimit - given : 0)
                 const truncated: boolean = await this.searchEnd(page.done, options, page.entries)
                 const paged: Control | undefined = pageSize ? findControl(page.done.controls, PagedResultsControl) : undefined
                 const value: PagedResultsValue | undefined = paged ? PagedResultsControl.decode(paged) : undefined
+                const previous: Buffer = cookie
                 cookie = value?.cookie ?? Buffer.alloc(0)
+                given += page.entries.length
+                //The size limit of the search reached: the search ends there, the paging ended on the server below
                 finished = !cookie.length || truncated
+                const full: boolean = Boolean(options.sizeLimit) && given >= options.sizeLimit!
+                if (!finished && !full) empty = this.advancing(page, previous, cookie, empty)
                 for (const entry of page.entries) yield await this.entryOf(entry, options)
-                if (finished) return
+                if (finished || full) return
             }
         } finally {
             //Left before the last page: a page size of 0 with the cookie ends the paging on the server (RFC 2696 §3)
-            if (!finished && cookie.length) {
-                await this.exchange(request, {controls: [...options.controls ?? [], ...sort, PagedResultsControl.encode({size: 0, cookie: cookie})], timeout: options.timeout, abandonable: true}).catch((): undefined => undefined)
-            }
+            if (!finished && cookie.length) await this.endPaging(request, [...options.controls ?? [], ...sort], cookie, options)
         }
     }
 

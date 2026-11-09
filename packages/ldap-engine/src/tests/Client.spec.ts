@@ -3,15 +3,18 @@ import {after, describe, it} from 'node:test'
 import {
     connectLDAP,
     createLDAPClient,
+    encodeMessage,
     Entry,
     ExtendedOperation,
     filter,
     findControl,
     type LDAPClientConnection,
     LDAPConnectionException,
+    LDAPDecodeException,
     LDAPInvalidCredentialsException,
     LDAPNoSuchObjectException,
     type LDAPPool,
+    LDAPProtocolErrorException,
     LDAPSizeLimitExceededException,
     LDAPTimeoutException,
     LDAPUsageException,
@@ -144,6 +147,50 @@ describe('the connection', () => {
         assert.equal(all.length, 25)
     })
 
+    it('stops at its own size limit when the server gives more, and ends the paging there', async () => {
+        let ended: boolean = false
+        const done = {type: 'searchResultDone', resultCode: 0, matchedDN: '', diagnosticMessage: ''} as const
+        const started: TestServer = await server({
+            searchRequest: (request, message, session) => {
+                const paged = findControl(message.controls, PagedResultsControl)
+                const value = paged ? PagedResultsControl.decode(paged) : undefined
+                if (value?.size === 0) {
+                    ended = true
+                    session.reply(message.messageId, done, [PagedResultsControl.encode({size: 0, cookie: Buffer.alloc(0)})])
+                    return
+                }
+                for (let index: number = 0; index < 3; index++) session.reply(message.messageId, {type: 'searchResultEntry', objectName: `cn=user${index},dc=example`, attributes: []})
+                session.reply(message.messageId, done, value ? [PagedResultsControl.encode({size: 0, cookie: Buffer.from('more')})] : [])
+            }
+        })
+        const connection: LDAPClientConnection = await connect(started.url)
+        const paged = await connection.search('dc=example', {sizeLimit: 5, paged: {pageSize: 2}})
+        assert.deepEqual([paged.entries.length, paged.truncated, ended], [5, true, true])
+        const whole = await connection.search('dc=example', {sizeLimit: 2, paged: false})
+        assert.deepEqual([whole.entries.length, whole.truncated], [2, true])
+        let given: number = 0
+        ended = false
+        for await (const entry of connection.searchIterator('dc=example', {sizeLimit: 4, paged: {pageSize: 2}})) given += entry ? 1 : 0
+        assert.deepEqual([given, ended], [4, true])
+    })
+
+    it('refuses paging that does not advance: the same cookie for a page without entries, pages without entries for ever', async () => {
+        let count: number = 0
+        const started: TestServer = await server({
+            searchRequest: (request, message, session) => {
+                const value = PagedResultsControl.decode(findControl(message.controls, PagedResultsControl)!)
+                const cookie: Buffer = value.size === 0 ? Buffer.alloc(0) : Buffer.from((request as SearchRequest).baseObject === 'o=same' ? 'same' : `c${count++}`)
+                session.reply(message.messageId, {type: 'searchResultDone', resultCode: 0, matchedDN: '', diagnosticMessage: ''}, [PagedResultsControl.encode({size: 0, cookie: cookie})])
+            }
+        })
+        const connection: LDAPClientConnection = await connect(started.url)
+        await assert.rejects(connection.search('o=same', {paged: {pageSize: 2}}), (error: unknown) => error instanceof LDAPProtocolErrorException && /same cookie/.test(error.message))
+        await assert.rejects(connection.search('o=new', {paged: {pageSize: 2}}), (error: unknown) => error instanceof LDAPProtocolErrorException && /100 pages/.test(error.message))
+        await assert.rejects((async (): Promise<void> => {
+            for await (const entry of connection.searchIterator('o=same', {paged: {pageSize: 2}})) void entry
+        })(), LDAPProtocolErrorException)
+    })
+
     it('gives the entries before a size limit it asked for, and throws for the server\'s own limit with them', async () => {
         const started: TestServer = await server({
             searchRequest: (request, message, session) => {
@@ -219,6 +266,35 @@ describe('the connection', () => {
         await pending
         await assert.rejects(connection.startTLS(), LDAPConnectionException)
         assert.equal(connection.closed, true)
+    })
+
+    it('fails StartTLS when the server sends more after agreeing in the same chunk, or never shakes hands', async () => {
+        const agreed = (messageId: number): Buffer => encodeMessage({messageId: messageId, protocolOp: {type: 'extendedResponse', resultCode: 0, matchedDN: '', diagnosticMessage: '', name: ExtendedOperation.startTLS}})
+        const together: TestServer = await server({
+            extendedRequest: (request, message, session) => {
+                session.socket.write(Buffer.concat([agreed(message.messageId), agreed(message.messageId + 1)]))
+            }
+        })
+        const first: LDAPClientConnection = await connect(together.url)
+        await assert.rejects(first.startTLS({rejectUnauthorized: false}), (error: unknown) => error instanceof LDAPConnectionException && /after agreeing/.test(error.message))
+        //Agreed, then deaf to the handshake
+        const silent: TestServer = await server({
+            extendedRequest: (request, message, session) => {
+                session.socket.removeAllListeners('data')
+                session.socket.write(agreed(message.messageId))
+            }
+        })
+        const second: LDAPClientConnection = await connect({url: silent.url, timeout: 300})
+        await assert.rejects(second.startTLS({rejectUnauthorized: false}), (error: unknown) => error instanceof LDAPTimeoutException && /handshake/.test(error.message))
+        assert.equal(second.closed, true)
+    })
+
+    it('fails an operation the server answers with the response of another', async () => {
+        const started: TestServer = await server({
+            searchRequest: (request, message, session) => session.reply(message.messageId, {type: 'compareResponse', resultCode: 6, matchedDN: '', diagnosticMessage: ''})
+        })
+        const connection: LDAPClientConnection = await connect(started.url)
+        await assert.rejects(connection.search('dc=example', {paged: false}), (error: unknown) => error instanceof LDAPDecodeException && /answered a searchRequest with a compareResponse/.test(error.message))
     })
 
     it('keeps a process alive until close() settles, and lets it end once idle', async () => {
@@ -372,6 +448,20 @@ describe('the pool', () => {
         assert.equal((await client.search('dc=example')).entries.length, 3)
         await Promise.all([client.compare('cn=a', 'b', 'c'), client.compare('cn=a', 'b', 'c'), client.compare('cn=a', 'b', 'c')])
         assert.equal(binds, 2)
+        await client.close()
+    })
+
+    it('takes a connection whose server did not answer in time out of the pool, the next operation on a new one', async () => {
+        let deaf: TestSession | undefined
+        const started: TestServer = await server({
+            extendedRequest: (request, message, session) => {
+                deaf ??= session
+                if (session !== deaf) session.reply(message.messageId, {type: 'extendedResponse', resultCode: 0, matchedDN: '', diagnosticMessage: '', value: Buffer.from('dn:cn=x')})
+            }
+        })
+        const client: LDAPPool = createLDAPClient({url: started.url, poolSize: 1, timeout: 200})
+        await assert.rejects(client.whoAmI(), LDAPTimeoutException)
+        assert.equal(await client.whoAmI(), 'dn:cn=x')
         await client.close()
     })
 

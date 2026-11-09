@@ -3,6 +3,7 @@ import {isIP, type Socket} from 'node:net'
 import * as net from 'node:net'
 import * as tls from 'node:tls'
 import {LDAPConnectionException} from '../../exceptions/LDAPConnectionException.js'
+import {LDAPDecodeException} from '../../exceptions/LDAPDecodeException.js'
 import {resultException} from '../../exceptions/LDAPResultException.js'
 import {LDAPTimeoutException} from '../../exceptions/LDAPTimeoutException.js'
 import {LDAPUsageException} from '../../exceptions/LDAPUsageException.js'
@@ -60,6 +61,18 @@ export interface ConnectionOptions {
      * A schema: the attributes of a binary syntax are bytes too
      */
     schema?: Schema
+}
+
+//The response that ends each request
+const RESPONSE_OF: Partial<Record<LDAPRequest['type'], LDAPResponse['type']>> = {
+    bindRequest: 'bindResponse',
+    searchRequest: 'searchResultDone',
+    modifyRequest: 'modifyResponse',
+    addRequest: 'addResponse',
+    deleteRequest: 'deleteResponse',
+    modifyDNRequest: 'modifyDNResponse',
+    compareRequest: 'compareResponse',
+    extendedRequest: 'extendedResponse'
 }
 
 /**
@@ -133,6 +146,11 @@ export class LDAPClientConnection extends LDAPOperations {
      * Why the connection closed, once it has
      */
     protected closedBy: Error | undefined
+
+    /**
+     * Set once the server agrees to StartTLS: whether it sent more in plain text after its answer
+     */
+    protected upgrade: {leftover: boolean} | undefined
 
     /**
      * Whether it is closed
@@ -231,7 +249,8 @@ export class LDAPClientConnection extends LDAPOperations {
             this.socket.destroy()
             return
         }
-        for (const item of messages) {
+        for (let index: number = 0; index < messages.length; index++) {
+            const item: ReadMessage = messages[index]
             if (item.error) {
                 //A response that cannot be decoded fails its operation; the others go on
                 const pending: Pending | undefined = item.error.messageId === undefined ? undefined : this.pending.get(item.error.messageId)
@@ -240,6 +259,11 @@ export class LDAPClientConnection extends LDAPOperations {
             }
             this.dispatch(item.message!)
             if (this.isClosed) return
+            //StartTLS agreed: nothing after its answer is read in plain text
+            if (this.upgrade) {
+                if (index < messages.length - 1) this.upgrade.leftover = true
+                return
+            }
         }
     }
 
@@ -271,9 +295,16 @@ export class LDAPClientConnection extends LDAPOperations {
             case 'intermediateResponse':
                 pending.options.onIntermediate?.(response)
                 return
-            default:
+            default: {
+                //The response of another operation: the server does not follow what was asked
+                const expected: LDAPResponse['type'] | undefined = RESPONSE_OF[pending.request.type]
+                if (expected && response.type !== expected) {
+                    this.settle(message.messageId, (): void => pending.reject(new LDAPDecodeException(`The server answered a ${pending.request.type} with a ${response.type}`, {fatal: false, malformed: true, messageId: message.messageId, operation: response.type})))
+                    return
+                }
                 pending.synchronous?.(response)
                 this.settle(message.messageId, (): void => pending.resolve({response: response, controls: controls}))
+            }
         }
     }
 
@@ -393,14 +424,15 @@ export class LDAPClientConnection extends LDAPOperations {
         if (this.secure) throw new LDAPUsageException('The connection runs over TLS already')
         if (this.pending.size) throw new LDAPUsageException('StartTLS waits for the outstanding operations to end')
         const plain: Socket = this.socket
-        let leftover: number = 0
         const exchange: Exchange = await this.exchange({type: 'extendedRequest', name: ExtendedOperation.startTLS}, {signal: options.signal, timeout: options.timeout, abandonable: false}, (response: LDAPResponse): void => {
             if ((response as ExtendedResponse).resultCode !== ResultCode.success) return
             //Nothing more is read in plain text: the next bytes are those of TLS
             plain.removeListener('data', this.onData)
             plain.pause()
-            leftover = this.reader.bufferedBytes
+            this.upgrade = {leftover: this.reader.bufferedBytes > 0}
         })
+        const leftover: boolean = this.upgrade?.leftover ?? false
+        this.upgrade = undefined
         const response: ExtendedResponse = exchange.response as ExtendedResponse
         if (response.resultCode !== ResultCode.success) throw resultException(response, exchange.controls)
         if (leftover) {
@@ -410,14 +442,23 @@ export class LDAPClientConnection extends LDAPOperations {
         }
         const {signal, timeout, controls, ...tlsOptions} = {...this.options.tls, ...options}
         void signal
-        void timeout
         void controls
+        const limit: number = timeout ?? this.options.timeout ?? 30000
         const servername: string | undefined = tlsOptions.servername ?? (this.url.host && !isIP(this.url.host) ? this.url.host : undefined)
         const secure: tls.TLSSocket = await new Promise<tls.TLSSocket>((resolve: (socket: tls.TLSSocket) => void, reject: (error: Error) => void): void => {
             const socket: tls.TLSSocket = tls.connect({...tlsOptions, socket: plain, ...(servername ? {servername: servername} : {})})
-            const onError = (error: Error & {code?: string}): void => reject(new LDAPConnectionException(`StartTLS with ${this.describe()} failed: ${error.message}`, error.code))
+            //A handshake takes as long as an operation may
+            const timer: NodeJS.Timeout = setTimeout((): void => {
+                socket.destroy()
+                reject(new LDAPTimeoutException(`The TLS handshake of StartTLS with ${this.describe()} took more than ${limit} ms`))
+            }, limit)
+            const onError = (error: Error & {code?: string}): void => {
+                clearTimeout(timer)
+                reject(new LDAPConnectionException(`StartTLS with ${this.describe()} failed: ${error.message}`, error.code))
+            }
             socket.once('error', onError)
             socket.once('secureConnect', (): void => {
+                clearTimeout(timer)
                 socket.removeListener('error', onError)
                 resolve(socket)
             })
