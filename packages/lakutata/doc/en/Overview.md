@@ -102,10 +102,11 @@ HTML, a manager component), `@lakutata/serial` (serial ports and Bluetooth devic
 | [FFI](FFI.md) | The C functions of native libraries (`@lakutata/ffi`): declarations copied from headers, structs, callbacks, memory, packaging |
 | [Barcode](Barcode.md) | Barcodes and QR codes (`@lakutata/barcode`): generating them as PNG, SVG or pixels, sizes for print, EAN, UPC and GS1, reading them from images |
 | [Thermal](Thermal.md) | Thermal printers (`@lakutata/thermal`, `@lakutata/thermal-printer`, `@lakutata/serial`): receipts, labels and wristbands written in HTML, choosing and saving printers, cutting, connections, serial ports and Bluetooth |
-| [LDAP](LDAP.md) | LDAP (`@lakutata/ldap`, `@lakutata/ldap-engine`): signing users in against a directory, reading and writing it, serving a directory from the application's database, the schema, who may do what, the password policy, plugins, connecting SSSD, Keycloak and Gitea |
+| [LDAP](LDAP.md) | The LDAP components (`@lakutata/ldap`): signing users in against a directory from a controller, reading and writing it, serving a directory from the application's database, its schema, access and password policy, plugins of one's own, connecting SSSD, Keycloak and Gitea |
 | [Math](Math.md) | Mathematics (`@lakutata/math`): formulas and exact results, equations, decimals of any precision, matrices, statistics, numeric solutions, units |
 | [Netif](Netif.md) | Network interfaces (`@lakutata/netif`): a server listening on an interface whatever its addresses, the connections of the other interfaces refused, the interfaces and their changes, UDP on one interface |
 | [Serial](Serial.md) | Serial ports (`@lakutata/serial`): a port as a stream, its line and modem lines, finding a port by the ids of its USB adapter, unplugged devices, classic Bluetooth devices |
+| [LDAPEngine](LDAPEngine.md) | LDAP without an application (`@lakutata/ldap-engine`): the client and its pool, signing users in, Active Directory, filters, DNs, schemas, LDIF, a server with backends of one's own, plugins, the protocol |
 | [Command](Command.md) | The `lakutata` command: creating projects, migrations, translations, environment variables |
 | [Workspaces](Workspaces.md) | Projects of several packages: running their scripts, giving them a version, adding packages |
 | [NativeAddons](NativeAddons.md) | Native addons in C++ or Rust: creating them, linking libraries, shipping them |

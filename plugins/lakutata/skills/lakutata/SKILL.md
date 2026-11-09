@@ -84,7 +84,8 @@ website.
 | Workspaces of several packages; native addons; C functions of native libraries | `Workspaces.md`; `NativeAddons.md`; `FFI.md` |
 | Barcodes and QR codes: generating, printing sizes, EAN/UPC/GS1, reading images (`@lakutata/barcode`) | `Barcode.md` |
 | Thermal printers: receipts and labels in HTML, choosing and saving printers, ESC/POS, TSPL, ZPL; serial ports and Bluetooth (`@lakutata/thermal`, `@lakutata/thermal-printer`, `@lakutata/serial`) | `Thermal.md` |
-| LDAP: signing users in against a directory, reading and writing it, serving a directory from the application's database (to SSSD on the same machine over a Unix socket too), the password policy, plugins (memberOf, referential integrity, unique values, audit…; `@lakutata/ldap`, `@lakutata/ldap-engine`) | `LDAP.md` |
+| LDAP in an application: signing users in against a directory, reading and writing it, serving a directory from the application's database (to SSSD on the same machine over a Unix socket too), its schema, access and password policy, plugins and backends as lakutata classes (`@lakutata/ldap`) | `LDAP.md` |
+| LDAP without an application: the client and its pool, Active Directory, filters, DNs, schemas as documents, LDIF, a server with backends of one's own, the plugins and interceptors, the protocol (`@lakutata/ldap-engine`) | `LDAPEngine.md` |
 | Mathematics: formulas, equations, decimals, matrices, statistics, numeric solutions, units (`@lakutata/math`) | `Math.md` |
 | Listening on a network interface whatever its addresses (the `interface` option of the entrypoints, or `@lakutata/netif` alone); the interfaces and their changes | `Netif.md` |
 | Serial ports and classic Bluetooth devices: opening a port as a stream, its line and modem lines, finding it by its USB ids, unplugged devices (`@lakutata/serial`) | `Serial.md` |
