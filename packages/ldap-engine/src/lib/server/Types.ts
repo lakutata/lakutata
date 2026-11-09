@@ -315,6 +315,13 @@ export interface LDAPBackend {
      */
     get(context: OperationContext, dn: DN): Promise<DirectoryEntry | undefined>
     /**
+     * Whether an entry exists, for a backend telling it without reading the entry (the engine checks the base of each
+     * search, the parent of an added entry…); without it, the engine calls `get()`
+     * @param context The context of the operation.
+     * @param dn The DN.
+     */
+    exists?(context: OperationContext, dn: DN): Promise<boolean>
+    /**
      * The entries of a search
      * @param context The search.
      */

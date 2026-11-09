@@ -112,6 +112,8 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
         it('gives the entries of an unsorted search parents first, siblings in the order they were added', async () => {
             const {entries} = await admin.search(people, {scope: 'one', paged: false})
             assert.deepEqual(entries.map((entry) => entry.first('uid')), Array.from({length: 30}, (_, index) => `user${index}`))
+            //A base that does not exist, told by the rows alone
+            await assert.rejects(admin.search(`ou=nowhere,${people}`), (error: unknown) => error instanceof LDAPNoSuchObjectException && error.matchedDN === people)
             //An entry moved under a parent added after it still comes after its parent
             const older: string = await directory.createOrganizationalUnit(BASE, {ou: 'older'})
             await admin.add(`cn=leaf,${older}`, {objectClass: 'device', cn: 'leaf'})

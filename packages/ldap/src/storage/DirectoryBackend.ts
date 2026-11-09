@@ -51,6 +51,8 @@ const DN_SYNTAX: string = '1.3.6.1.4.1.1466.115.121.1.12'
 const BATCH: number = 200
 //The IDs of the entries a search reads at a time
 const ID_BATCH: number = 20000
+//The rows exists() found during an operation, by the hashes of their DNs, in the state of the operation
+const FOUND_ROWS: unique symbol = Symbol('FOUND_ROWS')
 
 /**
  * An entry of a sorted search before it is read: its row and the values of the sort keys, by their types
@@ -465,6 +467,22 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     }
 
     /**
+     * Whether an entry exists, by its row alone; the row found is kept in the state of the operation, where the search
+     * whose base the engine checked takes it
+     * @param context The context.
+     * @param dn The DN.
+     */
+    public async exists(context: OperationContext, dn: DN): Promise<boolean> {
+        const schema: Schema = this.use(context)
+        const row: LDAPEntryRecord | null = await this.row(this.manager(context), dn, schema)
+        if (!row) return false
+        const found: Map<string, LDAPEntryRecord> = (context.state.get(FOUND_ROWS) as Map<string, LDAPEntryRecord> | undefined) ?? new Map()
+        found.set(row.dnHash, row)
+        context.state.set(FOUND_ROWS, found)
+        return true
+    }
+
+    /**
      * An entry by its DN, memberOf included
      * @param context The context.
      * @param dn The DN.
@@ -610,7 +628,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     public async search(context: SearchContext): Promise<BackendSearchResult> {
         const schema: Schema = this.use(context)
         const manager: EntityManager = this.manager(context)
-        const base: LDAPEntryRecord | null = await this.row(manager, context.base, schema)
+        const base: LDAPEntryRecord | null = (context.state.get(FOUND_ROWS) as Map<string, LDAPEntryRecord> | undefined)?.get(sha256(context.base.key(schema))) ?? await this.row(manager, context.base, schema)
         if (!base) return {entries: [], exact: true}
         const virtual: VirtualAttributes = this.virtual(schema)
         if (this.memberOfName && this.nestedGroups > 0) virtual.nestedGroups = await this.nestedGroupIds(manager, memberOfAssertions(context.filter, schema, this.memberOfName), schema)

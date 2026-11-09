@@ -432,7 +432,18 @@ export class Pipeline {
      * @param dn The DN.
      */
     protected async exists(mount: Mount, context: OperationContext, dn: DN): Promise<boolean> {
-        return (await mount.backend.get(context, dn)) !== undefined
+        return mount.backend.exists ? mount.backend.exists(context, dn) : (await mount.backend.get(context, dn)) !== undefined
+    }
+
+    /**
+     * Fail with noSuchObject and the matched DN unless an entry exists
+     * @param mount The backend.
+     * @param context The context.
+     * @param dn The DN.
+     */
+    protected async existing(mount: Mount, context: OperationContext, dn: DN): Promise<void> {
+        if (await this.exists(mount, context, dn)) return
+        fail(ResultCode.noSuchObject, `No entry ${dn.toString()}`, await matchedDNOf(dn, (parent: DN): Promise<boolean> => this.exists(mount, context, parent), mount.suffix))
     }
 
     /**
@@ -735,7 +746,7 @@ export class Pipeline {
      * @param request The request.
      */
     protected async backendSearch(mount: Mount, context: SearchContext, request: ServerSearchRequest): Promise<ServerOutcome> {
-        await this.required(mount, context, context.base)
+        await this.existing(mount, context, context.base)
         const pagedControl: Control | undefined = findControl(context.controls, PagedResultsControl)
         const sortControl: Control | undefined = findControl(context.controls, SortRequestControl)
         if (mount.backend.capabilities?.paging && pagedControl) {
@@ -877,7 +888,7 @@ export class Pipeline {
                 case 'add': {
                     if (await this.exists(mount, write, request.entry.dn)) fail(ResultCode.entryAlreadyExists, `The entry ${request.entry.dn.toString()} exists`)
                     const parent: DN | undefined = request.entry.dn.parent()
-                    if (!request.entry.dn.equals(mount.suffix, this.schema) && parent) await this.required(mount, write, parent)
+                    if (!request.entry.dn.equals(mount.suffix, this.schema) && parent) await this.existing(mount, write, parent)
                     if (!mount.backend.add) fail(ResultCode.unwillingToPerform, 'The backend does not add entries')
                     await this.commit(mount, write, request, (): Promise<void> => mount.backend.add!(write, request.entry))
                     return {resultCode: ResultCode.success}
