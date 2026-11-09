@@ -3,7 +3,7 @@ import {existsSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
 import {Component, DTO, InvalidValueException} from '@lakutata/core'
 import {Configurable, Singleton} from '@lakutata/core/decorator/di'
-import type {EntityManager} from '@lakutata/orm'
+import type {EntityManager, ObjectLiteral, SelectQueryBuilder} from '@lakutata/orm'
 import type {Database} from '@lakutata/orm/com/database'
 import {
     type AttributeTypeDefinition,
@@ -14,6 +14,7 @@ import {
     type DirectoryChange,
     type DirectoryEntry,
     DN,
+    findControl,
     formatGeneralizedTime,
     type InterceptorPlacement,
     type LDAPBackend,
@@ -22,6 +23,7 @@ import {
     type LDAPServerEngine,
     LDAPUnwillingToPerformException,
     LDAPEntryAlreadyExistsException,
+    matchFilter,
     type ObjectClassDefinition,
     type OperationContext,
     type PartialAttribute,
@@ -29,6 +31,9 @@ import {
     type SearchContext,
     type ServerOutcome,
     type ServerRequest,
+    type SortKey,
+    SortRequestControl,
+    sortSearchItems,
     type ThrottleState,
     type ThrottleStore,
     type WriteContext
@@ -41,6 +46,24 @@ import {keyForm, namesEntries, referenceForm, sha256, sortForm, storedValue, val
 const DN_SYNTAX: string = '1.3.6.1.4.1.1466.115.121.1.12'
 //How many entries a search reads at a time
 const BATCH: number = 200
+//The IDs of the entries a search reads at a time
+const ID_BATCH: number = 5000
+
+/**
+ * An entry of a sorted search before it is read: its row and the values of the sort keys, by their types
+ */
+interface SortItem {
+    row: {id: string, dn: string}
+    values: Map<string, Buffer[]>
+}
+
+/**
+ * Entries as an async iterable
+ * @param entries The entries.
+ */
+async function* fromArray(entries: DirectoryEntry[]): AsyncGenerator<DirectoryEntry> {
+    yield* entries
+}
 
 /**
  * A group class and the attribute holding its members
@@ -344,10 +367,11 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     }
 
     /**
-     * The backend computes memberOf itself, and keeps the references and the transactions
+     * The backend sorts (and windows) the entries and computes memberOf itself, and keeps the references and the
+     * transactions
      */
     public get capabilities(): BackendCapabilities {
-        return {memberOf: this.memberOf !== false, referentialIntegrity: true, transactions: true, idAllocation: this.idAllocation !== false, lastBind: this.lastBind}
+        return {sort: true, memberOf: this.memberOf !== false, referentialIntegrity: true, transactions: true, idAllocation: this.idAllocation !== false, lastBind: this.lastBind}
     }
 
     /**
@@ -461,14 +485,23 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     protected async entries(manager: EntityManager, rows: {id: string, dn: string}[], schema: Schema, virtual: {memberOf: boolean, memberUid: boolean, email: boolean}): Promise<DirectoryEntry[]> {
         if (!rows.length) return []
         const ids: string[] = rows.map((row: {id: string}): string => row.id)
-        const values: LDAPValueRecord[] = await manager.createQueryBuilder(this.#valueEntity, 'v').where('v.entryId IN (:...ids)', {ids: ids}).orderBy('v.id', 'ASC').getMany()
+        //The columns only, without making entities of the rows (most of the time of a large search)
+        const values: {vid: string, vdescription: string, vposition: number | string, vvalue: string, vbinary: boolean | number}[] = await manager.createQueryBuilder(this.#valueEntity, 'v')
+            .select('v.entryId', 'vid')
+            .addSelect('v.description', 'vdescription')
+            .addSelect('v.position', 'vposition')
+            .addSelect('v.value', 'vvalue')
+            .addSelect('v.binary', 'vbinary')
+            .where('v.entryId IN (:...ids)', {ids: ids})
+            .orderBy('v.id', 'ASC')
+            .getRawMany()
         const byEntry: Map<string, Map<string, PartialAttribute>> = new Map(ids.map((id: string): [string, Map<string, PartialAttribute>] => [id, new Map()]))
         for (const value of values) {
-            const attributes: Map<string, PartialAttribute> = byEntry.get(value.entryId)!
-            const key: string = value.description.toLowerCase()
-            const attribute: PartialAttribute = attributes.get(key) ?? {type: value.description, values: []}
+            const attributes: Map<string, PartialAttribute> = byEntry.get(value.vid)!
+            const key: string = value.vdescription.toLowerCase()
+            const attribute: PartialAttribute = attributes.get(key) ?? {type: value.vdescription, values: []}
             attributes.set(key, attribute)
-            attribute.values[value.position] = valueBytes(value.value, value.binary)
+            attribute.values[Number(value.vposition)] = valueBytes(value.vvalue, value.vbinary)
         }
         const memberOf: Map<string, string[]> = virtual.memberOf && this.memberOfName ? await this.groupsOf(manager, ids, schema) : new Map()
         const memberUids: Map<string, string[]> = virtual.memberUid && this.memberUid ? await this.memberUidsOf(manager, ids, schema) : new Map()
@@ -566,7 +599,9 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     }
 
     /**
-     * The entries of a search: the scope and the filter translated into SQL, the entries read by batches of their IDs
+     * The entries of a search: the scope and the filter translated into SQL, the entries read by batches of their IDs.
+     * A sorted search (the sort control, with or without the virtual list view) reads the IDs first with the values of
+     * the sort keys, sorts and windows them as the engine does, then reads only the entries of the window, in order.
      * @param context The search.
      */
     public async search(context: SearchContext): Promise<BackendSearchResult> {
@@ -584,29 +619,84 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                     : 'e.path LIKE :basePath'
         const wants = (name: string): boolean => context.attributes.allOperational || context.attributes.names.has(name) || JSON.stringify(context.filter).toLowerCase().includes(`"${name}"`)
         const virtualWanted = {memberOf: this.memberOfName !== undefined && wants(this.memberOfName), memberUid: this.memberUid && (context.attributes.allUser || wants('memberuid')), email: this.mailAlias && (context.attributes.allUser || wants('email'))}
+        //The entries in scope the filter (translated) matches
+        const candidates = (): SelectQueryBuilder<ObjectLiteral> => manager.createQueryBuilder()
+            .from('ldap_entry', 'e')
+            .where('e.suffix = :suffix', {suffix: this.suffixKey})
+            .andWhere(scope, {baseId: base.id, basePath: base.path + '%'})
+            .andWhere(translation.sql, translator.parameters)
         const signal: AbortSignal = context.signal
         const self: DirectoryBackend = this
         const entries = async function* (): AsyncGenerator<DirectoryEntry> {
+            //The IDs by thousands (each query of them evaluates the filter on the whole scope again), the entries by
+            //hundreds
             let last: string = ''
             for (;;) {
                 if (signal.aborted) return
-                const rows: {id: string, dn: string}[] = await manager.createQueryBuilder()
+                const rows: {id: string, dn: string}[] = await candidates()
                     .select(['e.id AS id', 'e.dn AS dn'])
-                    .from('ldap_entry', 'e')
-                    .where('e.suffix = :suffix', {suffix: self.suffixKey})
-                    .andWhere(scope, {baseId: base.id, basePath: base.path + '%'})
-                    .andWhere(translation.sql, translator.parameters)
                     .andWhere('e.id > :last', {last: last})
                     .orderBy('e.id', 'ASC')
-                    .limit(BATCH)
+                    .limit(ID_BATCH)
                     .getRawMany()
-                if (!rows.length) return
-                yield* await self.entries(manager, rows, schema, virtualWanted)
-                if (rows.length < BATCH) return
+                for (let start: number = 0; start < rows.length; start += BATCH) {
+                    if (signal.aborted) return
+                    yield* await self.entries(manager, rows.slice(start, start + BATCH), schema, virtualWanted)
+                }
+                if (rows.length < ID_BATCH) return
                 last = rows[rows.length - 1].id
             }
         }
+        if (findControl(context.controls, SortRequestControl)) return {entries: await this.sorted(manager, context, schema, {candidates: candidates, exact: translation.exact, all: entries, virtual: virtualWanted}), exact: true}
         return {entries: entries(), exact: translation.exact}
+    }
+
+    /**
+     * The entries of a sorted search, sorted and windowed by its sort and view controls as the engine sorts: when the
+     * filter translates exactly and the sort keys are stored values, the IDs in scope are read with the values of the
+     * keys, and only the entries of the window are read, in order; otherwise every entry in scope is read, checked
+     * against the filter, then sorted.
+     * @param manager The entity manager.
+     * @param context The search.
+     * @param schema The schema.
+     * @param search The query of the entries in scope the translated filter matches, whether it is exact, every such
+     * entry, and the virtual attributes to compute.
+     */
+    protected async sorted(manager: EntityManager, context: SearchContext, schema: Schema, search: {candidates: () => SelectQueryBuilder<ObjectLiteral>, exact: boolean, all: () => AsyncGenerator<DirectoryEntry>, virtual: {memberOf: boolean, memberUid: boolean, email: boolean}}): Promise<AsyncIterable<DirectoryEntry>> {
+        const typeOf = (attribute: string): string => schema.primaryName(attributeTypeOf(attribute)).toLowerCase()
+        const types: string[] = [...new Set(SortRequestControl.decode(findControl(context.controls, SortRequestControl)!).map((key: SortKey): string => typeOf(key.attribute)))]
+        const computed: (string | undefined)[] = [this.memberOfName, this.memberUid ? 'memberuid' : undefined, this.mailAlias ? 'email' : undefined]
+        if (!search.exact || types.some((type: string): boolean => computed.includes(type))) {
+            const entries: DirectoryEntry[] = []
+            for await (const entry of search.all()) if (search.exact || matchFilter(context.filter, entry, schema) === true) entries.push(entry)
+            const valuesOf = (entry: DirectoryEntry, attribute: string): Buffer[] => entry.attributes.filter((item: PartialAttribute): boolean => typeOf(item.type) === typeOf(attribute)).flatMap((item: PartialAttribute): Buffer[] => item.values)
+            return fromArray(sortSearchItems(entries, valuesOf, context, schema))
+        }
+        const rows: {id: string, dn: string}[] = await search.candidates().select(['e.id AS id', 'e.dn AS dn']).getRawMany()
+        const ids: SelectQueryBuilder<ObjectLiteral> = search.candidates().select('e.id')
+        const values: {vid: string, vtype: string, vvalue: string, vbinary: boolean | number}[] = await manager.createQueryBuilder(this.#valueEntity, 'v')
+            .select('v.entryId', 'vid')
+            .addSelect('v.attributeType', 'vtype')
+            .addSelect('v.value', 'vvalue')
+            .addSelect('v.binary', 'vbinary')
+            .where('v.attributeType IN (:...sortTypes)', {sortTypes: types})
+            .andWhere(`v.entryId IN (${ids.getQuery()})`)
+            .setParameters(ids.getParameters())
+            .getRawMany()
+        const items: Map<string, SortItem> = new Map(rows.map((row: {id: string, dn: string}): [string, SortItem] => [row.id, {row: row, values: new Map()}]))
+        for (const value of values) {
+            const item: SortItem | undefined = items.get(value.vid)
+            if (!item) continue
+            item.values.set(value.vtype, [...item.values.get(value.vtype) ?? [], valueBytes(value.vvalue, value.vbinary)])
+        }
+        const sorted: SortItem[] = sortSearchItems([...items.values()], (item: SortItem, attribute: string): Buffer[] => item.values.get(typeOf(attribute)) ?? [], context, schema)
+        const self: DirectoryBackend = this
+        return (async function* (): AsyncGenerator<DirectoryEntry> {
+            for (let start: number = 0; start < sorted.length; start += BATCH) {
+                if (context.signal.aborted) return
+                yield* await self.entries(manager, sorted.slice(start, start + BATCH).map((item: SortItem): {id: string, dn: string} => item.row), schema, search.virtual)
+            }
+        })()
     }
 
     /**

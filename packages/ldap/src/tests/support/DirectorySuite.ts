@@ -8,6 +8,7 @@ import {
     type Directory,
     DirectoryBackend,
     directoryEntities,
+    findControl,
     type LDAPClientConnection,
     LDAPConstraintViolationException,
     type LDAPInProcessConnection,
@@ -15,7 +16,11 @@ import {
     LDAPNoSuchObjectException,
     LDAPServer,
     LDAPUnwillingToPerformException,
-    TreeDeleteControl
+    SortRequestControl,
+    SortResponseControl,
+    TreeDeleteControl,
+    VLVRequestControl,
+    VLVResponseControl
 } from '../../exports/LDAP.js'
 
 const BASE: string = 'dc=example,dc=com'
@@ -102,6 +107,33 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             assert.equal((await admin.search(BASE, {scope: 'one'})).entries.length, 3)
             assert.equal((await admin.search(BASE, {scope: 'children', filter: '(objectClass=organizationalUnit)'})).entries.length, 2)
             assert.equal((await admin.search(BASE, {filter: '(shoeSize=42)'})).entries.length, 0)
+        })
+
+        it('sorts and windows in the database past the sort limit of the engine, the inexact filters checked first', async () => {
+            //A server sorting at most 5 entries in memory: the backend sorts the 30 users itself
+            const second: Container = new Container()
+            try {
+                await second.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
+                await second.setNamed('ldap', LDAPServer, {port: false, backends: [{class: DirectoryBackend, suffix: BASE, database: 'database', mailAlias: true}], access: {admins: [ADMIN]}, limits: {sortCandidates: 5}})
+                const connection: LDAPInProcessConnection = (await second.get<LDAPServer>('ldap')).connect(ADMIN)
+                const window = await connection.search(people, {scope: 'one', sort: [{attribute: 'cn', reverse: true}], window: {offset: 3, limit: 4}})
+                assert.deepEqual(window.entries.map((entry) => entry.first('cn')), ['User 27', 'User 26', 'User 25', 'User 24'])
+                assert.equal(window.total, 30)
+                assert.equal(window.entries[0].first('homeDirectory'), '/home/user27')
+                //A substring filter is checked on the entries before they are sorted; several keys
+                const sorted = await connection.search(people, {scope: 'one', filter: '(cn=User 1*)', sort: [{attribute: 'sn'}, {attribute: 'cn', reverse: true}], paged: false})
+                assert.deepEqual(sorted.entries.map((entry) => entry.first('cn')), ['User 18', 'User 15', 'User 12', 'User 19', 'User 16', 'User 13', 'User 10', 'User 17', 'User 14', 'User 11'])
+                assert.equal(SortResponseControl.decode(findControl(sorted.controls, SortResponseControl)!).result, 0)
+                //The view from the first value not less than an assertion
+                const from = await connection.search(people, {scope: 'one', paged: false, controls: [SortRequestControl.encode([{attribute: 'cn'}], true), VLVRequestControl.encode({beforeCount: 1, afterCount: 2, greaterThanOrEqual: Buffer.from('user 2')}, true)]})
+                assert.deepEqual(from.entries.map((entry) => entry.first('cn')), ['User 19', 'User 20', 'User 21', 'User 22'])
+                assert.deepEqual(VLVResponseControl.decode(findControl(from.controls, VLVResponseControl)!), {targetPosition: 21, contentCount: 30, result: 0})
+                //A virtual attribute (email, mail under another name) sorted on the entries themselves
+                const byEmail = await connection.search(people, {scope: 'one', sort: [{attribute: 'email'}], window: {offset: 1, limit: 3}})
+                assert.deepEqual(byEmail.entries.map((entry) => entry.first('uid')), ['user0', 'user10', 'user11'])
+            } finally {
+                await second.destroy()
+            }
         })
 
         it('allocates uidNumber and gidNumber, and keeps uid unique', async () => {
