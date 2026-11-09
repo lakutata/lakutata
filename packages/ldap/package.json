@@ -63,6 +63,7 @@
     "test:databases": "npm run compile && sh test-env/databases/run.sh",
     "test:e2e": "npm run compile && sh test-env/e2e/run.sh",
     "test:protos": "npm run compile && node test-env/protos/run.mjs",
+    "test:hostile": "npm run compile && node test-env/hostile/run.mjs",
     "test:bun": "npm run compile && sh test-env/bun.sh",
     "test:electron": "npm run compile && electron test-env/electron/main.mjs"
   },
