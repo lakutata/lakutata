@@ -109,6 +109,22 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             assert.equal((await admin.search(BASE, {filter: '(shoeSize=42)'})).entries.length, 0)
         })
 
+        it('gives the entries of an unsorted search parents first, siblings in the order they were added', async () => {
+            const {entries} = await admin.search(people, {scope: 'one', paged: false})
+            assert.deepEqual(entries.map((entry) => entry.first('uid')), Array.from({length: 30}, (_, index) => `user${index}`))
+            //An entry moved under a parent added after it still comes after its parent
+            const older: string = await directory.createOrganizationalUnit(BASE, {ou: 'older'})
+            await admin.add(`cn=leaf,${older}`, {objectClass: 'device', cn: 'leaf'})
+            const newer: string = await directory.createOrganizationalUnit(BASE, {ou: 'newer'})
+            await admin.modifyDN(older, 'ou=older', {newSuperior: newer})
+            try {
+                const tree = await admin.search(newer, {paged: false})
+                assert.deepEqual(tree.entries.map((entry) => entry.dn), [newer, `ou=older,${newer}`, `cn=leaf,ou=older,${newer}`])
+            } finally {
+                await admin.delete(newer, {controls: [TreeDeleteControl.encode()]})
+            }
+        })
+
         it('sorts and windows in the database past the sort limit of the engine, the inexact filters checked first', async () => {
             //A server sorting at most 5 entries in memory: the backend sorts the 30 users itself
             const second: Container = new Container()

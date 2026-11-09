@@ -95,6 +95,14 @@ describe('the server engine', () => {
         assert.deepEqual(entries[0].get('objectClass').sort(), ['appDevice', 'top'])
     })
 
+    it('gives entryUUIDs of version 7, in the order the entries were added', async () => {
+        const {entries} = await admin.search(`ou=people,${BASE}`, {scope: 'one', attributes: ['entryUUID', 'uid'], paged: false})
+        const byUid: Map<string, string> = new Map(entries.map((entry) => [entry.first('uid')!, entry.first('entryUUID')!]))
+        const uuids: string[] = Array.from({length: 30}, (_, index) => byUid.get(`user${index}`)!)
+        for (const uuid of uuids) assert.match(uuid, /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+        assert.deepEqual([...uuids].sort(), uuids)
+    })
+
     it('refuses what the schema does not allow, with its result code', async () => {
         const dn: string = `uid=bad,ou=people,${BASE}`
         await assert.rejects(admin.add(dn, {objectClass: 'inetOrgPerson', uid: 'bad', cn: 'Bad'}), (error: unknown) => error instanceof LDAPObjectClassViolationException && /sn/.test(error.message))

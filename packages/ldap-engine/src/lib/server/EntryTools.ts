@@ -1,3 +1,4 @@
+import {randomBytes} from 'node:crypto'
 import {resultException} from '../../exceptions/LDAPResultException.js'
 import {type AttributeTypeAndValue, DN} from '../dn/DN.js'
 import type {PartialAttribute, SearchScope} from '../protocol/Messages.js'
@@ -298,4 +299,32 @@ export async function matchedDNOf(dn: DN, exists: (dn: DN) => Promise<boolean>, 
         current = current.parent()
     }
     return ''
+}
+
+let lastTime: number = 0
+let sequence: number = 0
+
+/**
+ * A UUID of version 7 (RFC 9562), for entryUUID: the milliseconds of its time come first, so the UUIDs sort in the
+ * order they were made (a counter after the time keeps that order within a millisecond), as the time-based UUIDs of
+ * OpenLDAP give the order of creation
+ */
+export function timeOrderedUUID(): string {
+    let time: number = Date.now()
+    if (time > lastTime) {
+        lastTime = time
+        sequence = 0
+    } else if (++sequence > 0xfff) {
+        //The counter is full: the UUID takes the next millisecond
+        lastTime++
+        sequence = 0
+    }
+    time = lastTime
+    const bytes: Buffer = randomBytes(16)
+    bytes.writeUIntBE(time, 0, 6)
+    bytes[6] = 0x70 | (sequence >> 8)
+    bytes[7] = sequence & 0xff
+    bytes[8] = 0x80 | (bytes[8] & 0x3f)
+    const hex: string = bytes.toString('hex')
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }

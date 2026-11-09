@@ -628,15 +628,16 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const signal: AbortSignal = context.signal
         const self: DirectoryBackend = this
         const entries = async function* (): AsyncGenerator<DirectoryEntry> {
-            //The IDs by thousands (each query of them evaluates the filter on the whole scope again), the entries by
-            //hundreds
+            //In the order of their paths: an entry before the entries below it (moved ones too), siblings in the order
+            //of their IDs (entryUUID, made in time order). The IDs by thousands (each query of them evaluates the
+            //filter on the whole scope again), the entries by hundreds.
             let last: string = ''
             for (;;) {
                 if (signal.aborted) return
-                const rows: {id: string, dn: string}[] = await candidates()
-                    .select(['e.id AS id', 'e.dn AS dn'])
-                    .andWhere('e.id > :last', {last: last})
-                    .orderBy('e.id', 'ASC')
+                const rows: {id: string, dn: string, path: string}[] = await candidates()
+                    .select(['e.id AS id', 'e.dn AS dn', 'e.path AS path'])
+                    .andWhere('e.path > :last', {last: last})
+                    .orderBy('e.path', 'ASC')
                     .limit(ID_BATCH)
                     .getRawMany()
                 for (let start: number = 0; start < rows.length; start += BATCH) {
@@ -644,7 +645,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                     yield* await self.entries(manager, rows.slice(start, start + BATCH), schema, virtualWanted)
                 }
                 if (rows.length < ID_BATCH) return
-                last = rows[rows.length - 1].id
+                last = rows[rows.length - 1].path
             }
         }
         if (findControl(context.controls, SortRequestControl)) return {entries: await this.sorted(manager, context, schema, {candidates: candidates, exact: translation.exact, all: entries, virtual: virtualWanted}), exact: true}
@@ -672,7 +673,8 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             const valuesOf = (entry: DirectoryEntry, attribute: string): Buffer[] => entry.attributes.filter((item: PartialAttribute): boolean => typeOf(item.type) === typeOf(attribute)).flatMap((item: PartialAttribute): Buffer[] => item.values)
             return fromArray(sortSearchItems(entries, valuesOf, context, schema))
         }
-        const rows: {id: string, dn: string}[] = await search.candidates().select(['e.id AS id', 'e.dn AS dn']).getRawMany()
+        //In the order of the unsorted searches, which the entries with equal keys keep
+        const rows: {id: string, dn: string}[] = await search.candidates().select(['e.id AS id', 'e.dn AS dn']).orderBy('e.path', 'ASC').getRawMany()
         const ids: SelectQueryBuilder<ObjectLiteral> = search.candidates().select('e.id')
         const values: {vid: string, vtype: string, vvalue: string, vbinary: boolean | number}[] = await manager.createQueryBuilder(this.#valueEntity, 'v')
             .select('v.entryId', 'vid')

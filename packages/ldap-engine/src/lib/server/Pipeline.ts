@@ -1,4 +1,4 @@
-import {randomBytes, randomUUID} from 'node:crypto'
+import {randomBytes} from 'node:crypto'
 import type {EventEmitter} from 'node:events'
 import {LDAPException} from '../../exceptions/LDAPException.js'
 import {LDAPResultException} from '../../exceptions/LDAPResultException.js'
@@ -36,6 +36,7 @@ import {
     returnedBy,
     selectAttributes,
     storedType,
+    timeOrderedUUID,
     valuesOfType
 } from './EntryTools.js'
 import {closePaged, pagingInterceptor, type PagedStates} from './Paging.js'
@@ -1346,7 +1347,7 @@ export class Pipeline {
                         has('modifytimestamp') ? undefined : text('modifyTimestamp', now),
                         has('creatorsname') ? undefined : text('creatorsName', modifier(context)),
                         has('modifiersname') ? undefined : text('modifiersName', modifier(context)),
-                        has('entryuuid') ? undefined : text('entryUUID', randomUUID()),
+                        has('entryuuid') ? undefined : text('entryUUID', timeOrderedUUID()),
                         has('structuralobjectclass') || !structural ? undefined : text('structuralObjectClass', structural.names[0] ?? structural.oid)
                     ].filter((attribute: PartialAttribute | undefined): attribute is PartialAttribute => attribute !== undefined))
                     //The state of the password policy: the attributes it sets
