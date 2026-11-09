@@ -50,7 +50,7 @@ const DN_SYNTAX: string = '1.3.6.1.4.1.1466.115.121.1.12'
 //How many entries a search reads at a time
 const BATCH: number = 200
 //The IDs of the entries a search reads at a time
-const ID_BATCH: number = 5000
+const ID_BATCH: number = 20000
 
 /**
  * An entry of a sorted search before it is read: its row and the values of the sort keys, by their types
@@ -683,14 +683,30 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const vlv: Control | undefined = findControl(context.controls, VLVRequestControl)
         if (vlv && VLVRequestControl.decode(vlv).offset && keys.every((key: SortKey): boolean => !key.orderingRule && sortsInDatabase(key.attribute, schema))) {
             const [{count}] = await search.candidates().select('COUNT(*)', 'count').getRawMany()
-            //A key cut short orders the values with the same beginning by their path: sorted here instead
-            const [{longest}] = await manager.createQueryBuilder(this.#valueEntity, 'v')
-                .select('MAX(LENGTH(v.sortKey))', 'longest')
-                .where('v.attributeType IN (:...sortTypes)', {sortTypes: types})
-                .andWhere(`v.entryId IN (${ids.getQuery()})`)
-                .setParameters(ids.getParameters())
-                .getRawMany()
-            if (Number(longest ?? 0) < SORT_KEY_LENGTH) {
+            //The keys of a few entries are gathered through their IDs (an index), those of many by reading the values of
+            //the attribute once: through the IDs, 20 entries of 18,554 take 0.5 ms and the 18,554 170 ms, at once 30 and
+            //95 ms. A key cut short orders the values with the same beginning by their path: then sorted here instead
+            //(for many entries, any key of the attribute cut short, which costs one reading of the attribute)
+            let few: boolean = Number(count) <= 2000
+            let longest: number
+            if (few) {
+                const [row] = await manager.createQueryBuilder(this.#valueEntity, 'v')
+                    .select('MAX(LENGTH(v.sortKey))', 'longest')
+                    .where('v.attributeType IN (:...sortTypes)', {sortTypes: types})
+                    .andWhere(`v.entryId IN (${ids.getQuery()})`)
+                    .setParameters(ids.getParameters())
+                    .getRawMany()
+                longest = Number(row.longest ?? 0)
+            } else {
+                const [row] = await manager.createQueryBuilder(this.#valueEntity, 'v')
+                    .select('COUNT(*)', 'values')
+                    .addSelect('MAX(LENGTH(v.sortKey))', 'longest')
+                    .where('v.attributeType IN (:...sortTypes)', {sortTypes: types})
+                    .getRawMany()
+                few = Number(count) * 4 < Number(row.values)
+                longest = Number(row.longest ?? 0)
+            }
+            if (longest < SORT_KEY_LENGTH) {
                 const {start, end} = sortWindowRange(context, Number(count))!
                 if (start >= end) return fromArray([])
                 const page: SelectQueryBuilder<ObjectLiteral> = search.candidates().select(['e.id AS id', 'e.dn AS dn'])
@@ -698,12 +714,14 @@ export class DirectoryBackend extends Component implements LDAPBackend {
                     //The least value of an entry orders it, the greatest in reverse; an entry without one comes after the
                     //others in both directions
                     const alias: string = `sk${index}`
-                    page.leftJoin((query: SelectQueryBuilder<ObjectLiteral>): SelectQueryBuilder<ObjectLiteral> => query
-                        .select('s.entry_id', 'entry_id')
-                        .addSelect(`${key.reverse ? 'MAX' : 'MIN'}(s.sort_key)`, 'k')
-                        .from('ldap_value', 's')
-                        .where(`s.attribute_type = :sortType${index}`, {[`sortType${index}`]: typeOf(key.attribute)})
-                        .groupBy('s.entry_id'), alias, `${alias}.entry_id = e.id`)
+                    page.leftJoin((query: SelectQueryBuilder<ObjectLiteral>): SelectQueryBuilder<ObjectLiteral> => {
+                        query.select('s.entry_id', 'entry_id')
+                            .addSelect(`${key.reverse ? 'MAX' : 'MIN'}(s.sort_key)`, 'k')
+                            .from('ldap_value', 's')
+                            .where(`s.attribute_type = :sortType${index}`, {[`sortType${index}`]: typeOf(key.attribute)})
+                        if (few) query.andWhere(`s.entry_id IN (${ids.getQuery()})`).setParameters(ids.getParameters())
+                        return query.groupBy('s.entry_id')
+                    }, alias, `${alias}.entry_id = e.id`)
                     page.addOrderBy(`CASE WHEN ${alias}.k IS NULL THEN 1 ELSE 0 END`, 'ASC').addOrderBy(`${alias}.k`, key.reverse ? 'DESC' : 'ASC')
                 })
                 const rows: {id: string, dn: string}[] = await page.addOrderBy('e.path', 'ASC').offset(start).limit(end - start).getRawMany()
