@@ -38,7 +38,7 @@ console.log(result.ok ? result.dn : result.reason)
 await client.close()
 ```
 
-- `createLDAPClient()` 返回一个连接池，池里的连接都以同一个身份绑定。操作需要连接时它才打开连接，按顺序尝试各个服务器（或 DNS SRV 记录给出的服务器），并关闭空闲的连接。
+- `createLDAPClient()` 返回一个连接池，池里的连接都以同一个身份绑定。操作需要连接时它才打开连接，按顺序尝试各个服务器（或 DNS SRV 记录给出的服务器），并关闭空闲的连接。如果某个连接上的服务器没有按时回应，或者回应的内容无法读取，这个连接就不再接新的操作，等它上面的操作结束后关闭。
 - `connectLDAP()` 打开单独一个连接（`ldap://`、`ldaps://`、`ldapi://`、StartTLS），用于独立的会话。它的操作可以传 `timeout` 和 `signal`；搜索或写操作超时后，客户端会在服务器上放弃（abandon）这个操作，连接继续可用。绑定或 StartTLS 超时则会关闭连接。
 - 搜索默认分页（每页 500 条），除非传 `paged: false`，这样服务器对单个请求的条数限制不会把结果截断；`searchIterator()` 逐条给出条目，循环提前结束时会通知服务器结束分页。`sort` 加上 `window` 可以读取排序后条目中的一段（虚拟列表视图）；这两个控制项都标为关键，服务器排不了序或给不了窗口时搜索会失败，而不是返回全部条目。Active Directory 分段返回的值（`member;range=0-1499`）会一直读到最后。
 - 条目用 `get()` 读文本，用 `getBuffers()` 读字节；对值是字节的属性（`jpegPhoto`、`objectGUID` 等）调用 `get()` 会抛出异常，字节不会被转成乱码文本。

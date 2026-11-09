@@ -42,7 +42,9 @@ await client.close()
 ```
 
 - `createLDAPClient()` gives a pool of connections bound as one identity. It opens them when an operation needs one,
-  tries the servers in order (or those of a DNS SRV record), and closes the idle ones.
+  tries the servers in order (or those of a DNS SRV record), and closes the idle ones. A connection whose server did
+  not answer in time, or answered what cannot be read, gets no more operations and closes once the operations still
+  on it have ended.
 - `connectLDAP()` opens one connection (`ldap://`, `ldaps://`, `ldapi://`, StartTLS) for a session of its own. Its
   operations take a `timeout` and a `signal`; a search or a write that times out is abandoned on the server and the
   connection goes on. A bind or StartTLS that times out closes the connection.

@@ -114,7 +114,8 @@ export interface SearchResult {
      */
     controls: Control[]
     /**
-     * Whether the server stopped at the `sizeLimit` asked: the entries are those before it. A limit of the server's own
+     * Whether the search stopped at the `sizeLimit` asked (the server stopped there, or it gave more and only that many
+     * were kept): the entries are those before it. A limit of the server's own
      * (the search asked for none) rejects with an `LDAPSizeLimitExceededException` instead, its `partial` entries with
      * it, since the caller did not get what it asked for.
      */

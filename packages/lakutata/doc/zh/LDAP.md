@@ -73,7 +73,7 @@ async function rename(ldap: LDAPClient): Promise<void> {
 - 搜索默认分页（每页 500 个条目），服务器对单次请求的条数限制不会把结果截断；`searchIterator()` 逐个给出条目。`sort` 和 `window` 读取排序后条目中的一段。
 - `entry.get()` 以文本给出值，值是字节的属性（`jpegPhoto`、`objectGUID`）会被拒绝；`entry.getBuffers()` 给出字节。`guidToString()`、`sidToString()` 和 `parseUserAccountControl()` 读取 Active Directory 的值；`changeADPassword()` 在 Active Directory 上修改密码。
 - 结果不是成功时抛出对应的异常（见[异常](#异常)）。
-- 超过 `timeout`（默认 30 秒）的操作会在服务器上放弃，连接继续可用。
+- 超过 `timeout`（默认 30 秒）的操作会在服务器上放弃。连接池不再把新的操作分给这个连接，等它上面的操作结束后就关闭它，之后的操作使用新的连接。
 
 ## 3. 提供目录服务
 

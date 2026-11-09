@@ -88,8 +88,9 @@ async function rename(ldap: LDAPClient): Promise<void> {
   `entry.getBuffers()` gives the bytes. `guidToString()`, `sidToString()` and `parseUserAccountControl()` read the
   values of Active Directory; `changeADPassword()` changes a password there.
 - A result that is not a success throws its exception (see [Exceptions](#exceptions)).
-- An operation that takes longer than `timeout` (30 seconds by default) is abandoned on the server, and the connection
-  goes on.
+- An operation that takes longer than `timeout` (30 seconds by default) is abandoned on the server. The pool gives that
+  connection no more operations: it closes once the operations still on it have ended, and the next operations use a
+  new one.
 
 ## 3. Serving a directory
 

@@ -417,7 +417,8 @@ export class LDAPClientConnection extends LDAPOperations {
 
     /**
      * Upgrade the connection to TLS (StartTLS, RFC 4511 §4.14). It is refused while other operations are outstanding;
-     * once the server agrees, nothing more is read in plain text. `servername` is the host of the URL by default.
+     * once the server agrees, nothing more is read in plain text, and the handshake takes at most the timeout of the
+     * operation. `servername` is the host of the URL by default.
      * @param options The options of TLS, and of the operation.
      */
     public async startTLS(options: tls.ConnectionOptions & OperationOptions = {}): Promise<void> {

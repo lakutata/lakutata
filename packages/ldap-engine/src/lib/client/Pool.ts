@@ -187,8 +187,10 @@ export function orderSrv(records: SrvRecord[], random: () => number = Math.rando
 
 /**
  * A client: a pool of connections bound as one identity, opened when needed, each operation run on the least busy
- * one. A search with its pages runs on one connection. The pool's identity is that of `bindDN`; checking a user's
- * password is `authenticate()`, which binds on a connection of its own, so the pool's identity never changes.
+ * one. A search with its pages runs on one connection. A connection whose server did not answer in time, or answered
+ * what cannot be read, gets no more operations and closes once the operations still on it have ended. The pool's
+ * identity is that of `bindDN`; checking a user's password is `authenticate()`, which binds on a connection of its
+ * own, so the pool's identity never changes.
  * @example
  * ```typescript
  * import {createLDAPClient, type LDAPPool} from '@lakutata/ldap-engine'
