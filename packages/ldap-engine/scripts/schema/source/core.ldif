@@ -1,0 +1,148 @@
+# The schema for user applications: RFC 4519, the certificates of RFC 4523, labeledURI of RFC 2079
+dn: cn=core,cn=schema
+cn: core
+objectClass: subschema
+# RFC 4519 §2.1 'businessCategory'
+attributeTypes: ( 2.5.4.15 NAME 'businessCategory' EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+# RFC 4519 §2.2 'c'; 'countryName' from the IANA registrations of RFC 4519
+attributeTypes: ( 2.5.4.6 NAME ( 'c' 'countryName' ) SUP name SYNTAX 1.3.6.1.4.1.1466.115.121.1.11 SINGLE-VALUE )
+# RFC 4519 §2.4 'dc'; 'domainComponent' from the IANA registrations of RFC 4519
+attributeTypes: ( 0.9.2342.19200300.100.1.25 NAME ( 'dc' 'domainComponent' ) EQUALITY caseIgnoreIA5Match SUBSTR caseIgnoreIA5SubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.26 SINGLE-VALUE )
+# RFC 4519 §2.5 'description'
+attributeTypes: ( 2.5.4.13 NAME 'description' EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+# RFC 4519 §2.6 'destinationIndicator'
+attributeTypes: ( 2.5.4.27 NAME 'destinationIndicator' EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.44 )
+# RFC 4519 §2.7 'distinguishedName'
+attributeTypes: ( 2.5.4.49 NAME 'distinguishedName' EQUALITY distinguishedNameMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.12 )
+# RFC 4519 §2.8 'dnQualifier'
+attributeTypes: ( 2.5.4.46 NAME 'dnQualifier' EQUALITY caseIgnoreMatch ORDERING caseIgnoreOrderingMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.44 )
+# RFC 4519 §2.9 'enhancedSearchGuide'
+attributeTypes: ( 2.5.4.47 NAME 'enhancedSearchGuide' SYNTAX 1.3.6.1.4.1.1466.115.121.1.21 )
+# RFC 4519 §2.10 'facsimileTelephoneNumber'
+attributeTypes: ( 2.5.4.23 NAME 'facsimileTelephoneNumber' SYNTAX 1.3.6.1.4.1.1466.115.121.1.22 )
+# RFC 4519 §2.11 'generationQualifier'
+attributeTypes: ( 2.5.4.44 NAME 'generationQualifier' SUP name )
+# RFC 4519 §2.12 'givenName'
+attributeTypes: ( 2.5.4.42 NAME 'givenName' SUP name )
+# RFC 4519 §2.13 'houseIdentifier'
+attributeTypes: ( 2.5.4.51 NAME 'houseIdentifier' EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+# RFC 4519 §2.14 'initials'
+attributeTypes: ( 2.5.4.43 NAME 'initials' SUP name )
+# RFC 4519 §2.15 'internationalISDNNumber'
+attributeTypes: ( 2.5.4.25 NAME 'internationalISDNNumber' EQUALITY numericStringMatch SUBSTR numericStringSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.36 )
+# RFC 4519 §2.16 'l'; 'localityName' from the IANA registrations of RFC 4519
+attributeTypes: ( 2.5.4.7 NAME ( 'l' 'localityName' ) SUP name )
+# RFC 4519 §2.17 'member'
+attributeTypes: ( 2.5.4.31 NAME 'member' SUP distinguishedName )
+# RFC 4519 §2.19 'o'; 'organizationName' from the IANA registrations of RFC 4519
+attributeTypes: ( 2.5.4.10 NAME ( 'o' 'organizationName' ) SUP name )
+# RFC 4519 §2.20 'ou'; 'organizationalUnitName' from the IANA registrations of RFC 4519
+attributeTypes: ( 2.5.4.11 NAME ( 'ou' 'organizationalUnitName' ) SUP name )
+# RFC 4519 §2.21 'owner'
+attributeTypes: ( 2.5.4.32 NAME 'owner' SUP distinguishedName )
+# RFC 4519 §2.22 'physicalDeliveryOfficeName'
+attributeTypes: ( 2.5.4.19 NAME 'physicalDeliveryOfficeName' EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+# RFC 4519 §2.23 'postalAddress'
+attributeTypes: ( 2.5.4.16 NAME 'postalAddress' EQUALITY caseIgnoreListMatch SUBSTR caseIgnoreListSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.41 )
+# RFC 4519 §2.24 'postalCode'
+attributeTypes: ( 2.5.4.17 NAME 'postalCode' EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+# RFC 4519 §2.25 'postOfficeBox'
+attributeTypes: ( 2.5.4.18 NAME 'postOfficeBox' EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+# RFC 4519 §2.26 'preferredDeliveryMethod'
+attributeTypes: ( 2.5.4.28 NAME 'preferredDeliveryMethod' SYNTAX 1.3.6.1.4.1.1466.115.121.1.14 SINGLE-VALUE )
+# RFC 4519 §2.27 'registeredAddress'
+attributeTypes: ( 2.5.4.26 NAME 'registeredAddress' SUP postalAddress SYNTAX 1.3.6.1.4.1.1466.115.121.1.41 )
+# RFC 4519 §2.28 'roleOccupant'
+attributeTypes: ( 2.5.4.33 NAME 'roleOccupant' SUP distinguishedName )
+# RFC 4519 §2.29 'searchGuide'
+attributeTypes: ( 2.5.4.14 NAME 'searchGuide' SYNTAX 1.3.6.1.4.1.1466.115.121.1.25 )
+# RFC 4519 §2.30 'seeAlso'
+attributeTypes: ( 2.5.4.34 NAME 'seeAlso' SUP distinguishedName )
+# RFC 4519 §2.31 'serialNumber'
+attributeTypes: ( 2.5.4.5 NAME 'serialNumber' EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.44 )
+# RFC 4519 §2.32 'sn'; 'surname' from the IANA registrations of RFC 4519
+attributeTypes: ( 2.5.4.4 NAME ( 'sn' 'surname' ) SUP name )
+# RFC 4519 §2.33 'st'
+attributeTypes: ( 2.5.4.8 NAME 'st' SUP name )
+# RFC 4519 §2.34 'street'
+attributeTypes: ( 2.5.4.9 NAME 'street' EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+# RFC 4519 §2.35 'telephoneNumber'
+attributeTypes: ( 2.5.4.20 NAME 'telephoneNumber' EQUALITY telephoneNumberMatch SUBSTR telephoneNumberSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.50 )
+# RFC 4519 §2.36 'teletexTerminalIdentifier'
+attributeTypes: ( 2.5.4.22 NAME 'teletexTerminalIdentifier' SYNTAX 1.3.6.1.4.1.1466.115.121.1.51 )
+# RFC 4519 §2.37 'telexNumber'
+attributeTypes: ( 2.5.4.21 NAME 'telexNumber' SYNTAX 1.3.6.1.4.1.1466.115.121.1.52 )
+# RFC 4519 §2.38 'title'
+attributeTypes: ( 2.5.4.12 NAME 'title' SUP name )
+# RFC 4519 §2.39 'uid'; 'userid' from the IANA registrations of RFC 4519
+attributeTypes: ( 0.9.2342.19200300.100.1.1 NAME ( 'uid' 'userid' ) EQUALITY caseIgnoreMatch SUBSTR caseIgnoreSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+# RFC 4519 §2.40 'uniqueMember'
+attributeTypes: ( 2.5.4.50 NAME 'uniqueMember' EQUALITY uniqueMemberMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.34 )
+# RFC 4519 §2.41 'userPassword'
+attributeTypes: ( 2.5.4.35 NAME 'userPassword' EQUALITY octetStringMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.40 )
+# RFC 4519 §2.42 'x121Address'
+attributeTypes: ( 2.5.4.24 NAME 'x121Address' EQUALITY numericStringMatch SUBSTR numericStringSubstringsMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.36 )
+# RFC 4519 §2.43 'x500UniqueIdentifier'
+attributeTypes: ( 2.5.4.45 NAME 'x500UniqueIdentifier' EQUALITY bitStringMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.6 )
+# RFC 4523 §4.1 userCertificate
+attributeTypes: ( 2.5.4.36 NAME 'userCertificate' DESC 'X.509 user certificate' EQUALITY certificateExactMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.8 )
+# RFC 4523 §4.2 cACertificate
+attributeTypes: ( 2.5.4.37 NAME 'cACertificate' DESC 'X.509 CA certificate' EQUALITY certificateExactMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.8 )
+# RFC 4523 §4.3 crossCertificatePair
+attributeTypes: ( 2.5.4.40 NAME 'crossCertificatePair' DESC 'X.509 cross certificate pair' EQUALITY certificatePairExactMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.10 )
+# RFC 4523 §4.4 certificateRevocationList
+attributeTypes: ( 2.5.4.39 NAME 'certificateRevocationList' DESC 'X.509 certificate revocation list' EQUALITY certificateListExactMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.9 )
+# RFC 4523 §4.5 authorityRevocationList
+attributeTypes: ( 2.5.4.38 NAME 'authorityRevocationList' DESC 'X.509 authority revocation list' EQUALITY certificateListExactMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.9 )
+# RFC 4523 §4.6 deltaRevocationList
+attributeTypes: ( 2.5.4.53 NAME 'deltaRevocationList' DESC 'X.509 delta revocation list' EQUALITY certificateListExactMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.9 )
+# RFC 4523 §4.7 supportedAlgorithms
+attributeTypes: ( 2.5.4.52 NAME 'supportedAlgorithms' DESC 'X.509 supported algorithms' EQUALITY algorithmIdentifierMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.49 )
+# RFC 2079 Schema Definition of the labeledURI Attribute Type
+attributeTypes: ( 1.3.6.1.4.1.250.1.57 NAME 'labeledURI' DESC 'Uniform Resource Identifier with optional label' EQUALITY caseExactMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )
+# RFC 4519 §3.1 'applicationProcess'
+objectClasses: ( 2.5.6.11 NAME 'applicationProcess' SUP top STRUCTURAL MUST cn MAY ( seeAlso $ ou $ l $ description ) )
+# RFC 4519 §3.2 'country'
+objectClasses: ( 2.5.6.2 NAME 'country' SUP top STRUCTURAL MUST c MAY ( searchGuide $ description ) )
+# RFC 4519 §3.3 'dcObject'
+objectClasses: ( 1.3.6.1.4.1.1466.344 NAME 'dcObject' SUP top AUXILIARY MUST dc )
+# RFC 4519 §3.4 'device'
+objectClasses: ( 2.5.6.14 NAME 'device' SUP top STRUCTURAL MUST cn MAY ( serialNumber $ seeAlso $ owner $ ou $ o $ l $ description ) )
+# RFC 4519 §3.5 'groupOfNames'
+objectClasses: ( 2.5.6.9 NAME 'groupOfNames' SUP top STRUCTURAL MUST ( member $ cn ) MAY ( businessCategory $ seeAlso $ owner $ ou $ o $ description ) )
+# RFC 4519 §3.6 'groupOfUniqueNames'
+objectClasses: ( 2.5.6.17 NAME 'groupOfUniqueNames' SUP top STRUCTURAL MUST ( uniqueMember $ cn ) MAY ( businessCategory $ seeAlso $ owner $ ou $ o $ description ) )
+# RFC 4519 §3.7 'locality'
+objectClasses: ( 2.5.6.3 NAME 'locality' SUP top STRUCTURAL MAY ( street $ seeAlso $ searchGuide $ st $ l $ description ) )
+# RFC 4519 §3.8 'organization'
+objectClasses: ( 2.5.6.4 NAME 'organization' SUP top STRUCTURAL MUST o MAY ( userPassword $ searchGuide $ seeAlso $ businessCategory $ x121Address $ registeredAddress $ destinationIndicator $ preferredDeliveryMethod $ telexNumber $ teletexTerminalIdentifier $ telephoneNumber $ internationalISDNNumber $ facsimileTelephoneNumber $ street $ postOfficeBox $ postalCode $ postalAddress $ physicalDeliveryOfficeName $ st $ l $ description ) )
+# RFC 4519 §3.9 'organizationalPerson'
+objectClasses: ( 2.5.6.7 NAME 'organizationalPerson' SUP person STRUCTURAL MAY ( title $ x121Address $ registeredAddress $ destinationIndicator $ preferredDeliveryMethod $ telexNumber $ teletexTerminalIdentifier $ telephoneNumber $ internationalISDNNumber $ facsimileTelephoneNumber $ street $ postOfficeBox $ postalCode $ postalAddress $ physicalDeliveryOfficeName $ ou $ st $ l ) )
+# RFC 4519 §3.10 'organizationalRole'
+objectClasses: ( 2.5.6.8 NAME 'organizationalRole' SUP top STRUCTURAL MUST cn MAY ( x121Address $ registeredAddress $ destinationIndicator $ preferredDeliveryMethod $ telexNumber $ teletexTerminalIdentifier $ telephoneNumber $ internationalISDNNumber $ facsimileTelephoneNumber $ seeAlso $ roleOccupant $ preferredDeliveryMethod $ street $ postOfficeBox $ postalCode $ postalAddress $ physicalDeliveryOfficeName $ ou $ st $ l $ description ) )
+# RFC 4519 §3.11 'organizationalUnit'
+objectClasses: ( 2.5.6.5 NAME 'organizationalUnit' SUP top STRUCTURAL MUST ou MAY ( businessCategory $ description $ destinationIndicator $ facsimileTelephoneNumber $ internationalISDNNumber $ l $ physicalDeliveryOfficeName $ postalAddress $ postalCode $ postOfficeBox $ preferredDeliveryMethod $ registeredAddress $ searchGuide $ seeAlso $ st $ street $ telephoneNumber $ teletexTerminalIdentifier $ telexNumber $ userPassword $ x121Address ) )
+# RFC 4519 §3.12 'person'
+objectClasses: ( 2.5.6.6 NAME 'person' SUP top STRUCTURAL MUST ( sn $ cn ) MAY ( userPassword $ telephoneNumber $ seeAlso $ description ) )
+# RFC 4519 §3.13 'residentialPerson'
+objectClasses: ( 2.5.6.10 NAME 'residentialPerson' SUP person STRUCTURAL MUST l MAY ( businessCategory $ x121Address $ registeredAddress $ destinationIndicator $ preferredDeliveryMethod $ telexNumber $ teletexTerminalIdentifier $ telephoneNumber $ internationalISDNNumber $ facsimileTelephoneNumber $ preferredDeliveryMethod $ street $ postOfficeBox $ postalCode $ postalAddress $ physicalDeliveryOfficeName $ st $ l ) )
+# RFC 4519 §3.14 'uidObject'
+objectClasses: ( 1.3.6.1.1.3.1 NAME 'uidObject' SUP top AUXILIARY MUST uid )
+# RFC 4523 §5.1 pkiUser
+objectClasses: ( 2.5.6.21 NAME 'pkiUser' DESC 'X.509 PKI User' SUP top AUXILIARY MAY userCertificate )
+# RFC 4523 §5.2 pkiCA
+objectClasses: ( 2.5.6.22 NAME 'pkiCA' DESC 'X.509 PKI Certificate Authority' SUP top AUXILIARY MAY ( cACertificate $ certificateRevocationList $ authorityRevocationList $ crossCertificatePair ) )
+# RFC 4523 §5.3 cRLDistributionPoint
+objectClasses: ( 2.5.6.19 NAME 'cRLDistributionPoint' DESC 'X.509 CRL distribution point' SUP top STRUCTURAL MUST cn MAY ( certificateRevocationList $ authorityRevocationList $ deltaRevocationList ) )
+# RFC 4523 §5.4 deltaCRL
+objectClasses: ( 2.5.6.23 NAME 'deltaCRL' DESC 'X.509 delta CRL' SUP top AUXILIARY MAY deltaRevocationList )
+# RFC 4523 §5.5 strongAuthenticationUser
+objectClasses: ( 2.5.6.15 NAME 'strongAuthenticationUser' DESC 'X.521 strong authentication user' SUP top AUXILIARY MUST userCertificate )
+# RFC 4523 §5.6 userSecurityInformation
+objectClasses: ( 2.5.6.18 NAME 'userSecurityInformation' DESC 'X.521 user security information' SUP top AUXILIARY MAY ( supportedAlgorithms ) )
+# RFC 4523 §5.7 certificationAuthority
+objectClasses: ( 2.5.6.16 NAME 'certificationAuthority' DESC 'X.509 certificate authority' SUP top AUXILIARY MUST ( authorityRevocationList $ certificateRevocationList $ cACertificate ) MAY crossCertificatePair )
+# RFC 4523 §5.8 certificationAuthority-V2
+objectClasses: ( 2.5.6.16.2 NAME 'certificationAuthority-V2' DESC 'X.509 certificate authority, version 2' SUP certificationAuthority AUXILIARY MAY deltaRevocationList )
+# RFC 2079 Schema Definition of the labeledURIObject Object Class
+objectClasses: ( 1.3.6.1.4.1.250.3.15 NAME 'labeledURIObject' DESC 'object that contains the URI attribute type' SUP top AUXILIARY MAY labeledURI )

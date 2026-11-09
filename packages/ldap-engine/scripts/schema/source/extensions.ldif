@@ -1,0 +1,6 @@
+# The operational attributes the engine gives that come from X.500 rather than an LDAP RFC: hasSubordinates (X.501)
+dn: cn=extensions,cn=schema
+cn: extensions
+objectClass: subschema
+# X.501 (ITU-T Rec. X.501) hasSubordinates: whether the entry has entries below it
+attributeTypes: ( 2.5.18.9 NAME 'hasSubordinates' EQUALITY booleanMatch SYNTAX 1.3.6.1.4.1.1466.115.121.1.7 SINGLE-VALUE NO-USER-MODIFICATION USAGE directoryOperation )

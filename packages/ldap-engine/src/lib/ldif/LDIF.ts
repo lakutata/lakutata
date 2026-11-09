@@ -350,7 +350,7 @@ function safe(value: Buffer): boolean {
  * @param name The name.
  * @param value The value.
  */
-function valueLine(name: string, value: Buffer | string): string {
+export function valueLine(name: string, value: Buffer | string): string {
     const bytes: Buffer = typeof value === 'string' ? Buffer.from(value, 'utf8') : value
     return safe(bytes) ? `${name}: ${bytes.toString('latin1')}` : `${name}:: ${bytes.toString('base64')}`
 }

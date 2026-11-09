@@ -104,8 +104,10 @@ export {type AttributeTypeAndValue, DN, type DNNormalizer, type DNParseOptions, 
 export {
     type AttributeTypeDefinition,
     type DefinitionExtensions,
+    type DefinitionOrigin,
     type MatchingRuleDefinition,
     type ObjectClassDefinition,
+    type ObjectIdentifierDefinition,
     parseAttributeType,
     parseMatchingRule,
     parseObjectClass,
@@ -118,7 +120,8 @@ export {
 } from '../lib/schema/Definitions.js'
 export {formatGeneralizedTime, type MatchingRule, parseGeneralizedTime} from '../lib/schema/MatchingRules.js'
 export type {Syntax} from '../lib/schema/Syntaxes.js'
-export {attributeTypeOf, Schema} from '../lib/schema/Schema.js'
+export {attributeTypeOf, Schema, type SchemaProblem} from '../lib/schema/Schema.js'
+export {parseSchemaFile, type SchemaDocument, type SchemaDocumentEntry, type SchemaFileStringifyOptions, type SchemaSource, type SchemaText, stringifySchemaFile} from '../lib/schema/SchemaDocument.js'
 export {type FilterEntry, matchFilter} from '../lib/filter/Evaluate.js'
 export {
     type LDIFAddRecord,
@@ -198,13 +201,27 @@ export {
     UserAccountControl
 } from '../lib/client/ActiveDirectory.js'
 export {readSchema} from '../lib/client/ReadSchema.js'
-export {BUNDLED_SCHEMA_NAMES, BUNDLED_SCHEMAS, bundledSchema, type BundledSchemaName} from '../lib/schema/bundled/Bundled.js'
-export {readSchemaDirectory} from '../lib/schema/SchemaDirectory.js'
+export {
+    BUNDLED_SCHEMA_NAMES,
+    BUNDLED_SCHEMAS,
+    bundledSchema,
+    type BundledSchemaName,
+    CORE_SCHEMA,
+    COSINE_SCHEMA,
+    DEFAULT_SCHEMA_NAMES,
+    DEFAULT_SCHEMAS,
+    INETORGPERSON_SCHEMA,
+    OPENSSH_LPK_SCHEMA,
+    PPOLICY_SCHEMA,
+    RFC2307BIS_SCHEMA,
+    SYSTEM_SCHEMA
+} from '../lib/schema/bundled/Bundled.js'
+export {readSchemaDirectory, readSchemaFile} from '../lib/schema/SchemaDirectory.js'
 export {type PasswordHashOptions, type PasswordScheme, PasswordSchemes} from '../lib/server/Passwords.js'
 export {type AccessOptions, type AccessRequest} from '../lib/server/Access.js'
 export {createHandlerBackend, type HandlerBackendOptions, type HandlerEntry} from '../lib/server/HandlerBackend.js'
 export {LDAPInProcessConnection} from '../lib/server/InProcessConnection.js'
-export {createLDAPServer, LDAPServerEngine, type LDAPServerEngineOptions, type ListenOptions, type ServerSchemaOptions, type ServerTLSOptions, type SocketListenOptions} from '../lib/server/LDAPServerEngine.js'
+export {createLDAPServer, LDAPServerEngine, type LDAPServerEngineOptions, type ListenOptions, type ServerTLSOptions, type SocketListenOptions} from '../lib/server/LDAPServerEngine.js'
 export {MemoryBackend} from '../lib/server/MemoryBackend.js'
 export {sortOrderingOf, sortSearchItems, type SortValues, sortWindowRange} from '../lib/server/Paging.js'
 export {type ExtendedHandler, type ServerLimits} from '../lib/server/Pipeline.js'

@@ -6,7 +6,8 @@ import {LDAPUsageException} from '../../exceptions/LDAPUsageException.js'
 import {DN} from '../dn/DN.js'
 import type {PartialAttribute} from '../protocol/Messages.js'
 import {ResultCode} from '../protocol/ResultCode.js'
-import {BUNDLED_SCHEMA_NAMES, type BundledSchemaName, BUNDLED_SCHEMAS} from '../schema/bundled/Bundled.js'
+import {BUNDLED_SCHEMAS, DEFAULT_SCHEMAS, SYSTEM_SCHEMA} from '../schema/bundled/Bundled.js'
+import type {SchemaDocument, SchemaSource} from '../schema/SchemaDocument.js'
 import {stringifyAttributeType, stringifyObjectClass} from '../schema/Definitions.js'
 import {attributeTypeOf, Schema} from '../schema/Schema.js'
 import type {AccessOptions} from './Access.js'
@@ -20,22 +21,6 @@ import {type ConnectionHost, ServerConnection} from './ServerConnection.js'
 import {BindThrottle, type BindThrottleOptions} from './Throttle.js'
 import {PasswordPolicyPlugin} from './plugins/PasswordPolicyPlugin.js'
 import type {DirectoryChange, InterceptorPlacement, LDAPBackend, LDAPInterceptor, LDAPPlugin, LDAPPluginHost, OperationType} from './Types.js'
-
-/**
- * The schema of a server: a `Schema` ready, or the bundled files to load and schema files of one's own (the LDIF of
- * OpenLDAP's `cn=config`, a subschema entry, or the `.schema` form)
- */
-export interface ServerSchemaOptions {
-    /**
-     * The bundled files besides the system schema (all of them by default: core, cosine, inetorgperson, rfc2307bis,
-     * openssh-lpk, ppolicy)
-     */
-    bundled?: BundledSchemaName[]
-    /**
-     * Schema files of one's own, by name, loaded after the bundled ones in order
-     */
-    files?: {name: string, text: string}[]
-}
 
 /**
  * The TLS of a server: its certificate, for LDAPS and StartTLS
@@ -56,9 +41,11 @@ export interface LDAPServerEngineOptions {
      */
     backends: LDAPBackend[]
     /**
-     * The schema: a `Schema`, or the files to load (the bundled ones by default)
+     * The schema: a `Schema` ready, or the schemas to load after the system schema, in order: documents (the bundled
+     * `CORE_SCHEMA`…, those of `parseSchemaFile()`, `readSchemaFile()`, `readSchemaDirectory()`) or texts of schema
+     * files (`DEFAULT_SCHEMAS` by default: core, cosine, inetorgperson; `[]` for the system schema alone)
      */
-    schema?: Schema | ServerSchemaOptions
+    schema?: Schema | readonly SchemaSource[]
     /**
      * The plugins: their interceptors, and the schema files, controls, extended operations, SASL mechanisms and
      * password schemes they add
@@ -194,30 +181,44 @@ const LIMITS: Required<ServerLimits> = {
 }
 
 /**
+ * The name a schema is loaded under, named in the errors: a bundled one as such
+ * @param source The schema.
+ */
+function nameOfSource(source: SchemaSource): string {
+    const bundled: string | undefined = Object.entries(BUNDLED_SCHEMAS).find(([, document]: [string, SchemaDocument]): boolean => document === source)?.[0]
+    return bundled !== undefined ? `the bundled schema ${bundled}` : source.name
+}
+
+/**
+ * A schema loaded from a document or the text of a file
+ * @param schema The schema.
+ * @param source The document or the text.
+ * @param name The name it is loaded under.
+ */
+function loadSource(schema: Schema, source: SchemaSource, name: string): Schema {
+    return 'text' in source ? schema.load(source.text, name) : schema.load(source, name)
+}
+
+/**
  * The schema of the options, with the files it is loaded from
  * @param option The schema option.
  */
-function schemaOf(option: Schema | ServerSchemaOptions | undefined, backends: LDAPBackend[], plugins: LDAPPlugin[]): {schema: Schema, files: {name: string, schema: Schema}[]} {
+function schemaOf(option: Schema | readonly SchemaSource[] | undefined, backends: LDAPBackend[], plugins: LDAPPlugin[]): {schema: Schema, files: {name: string, schema: Schema}[]} {
     if (option instanceof Schema) return {schema: option, files: [{name: 'schema', schema: option}]}
-    const names: BundledSchemaName[] = ['system', ...(option?.bundled ?? BUNDLED_SCHEMA_NAMES).filter((name: BundledSchemaName): boolean => name !== 'system')]
     const schema: Schema = new Schema()
     const files: {name: string, schema: Schema}[] = []
-    for (const name of (['system', ...BUNDLED_SCHEMA_NAMES] as const).filter((item: BundledSchemaName): boolean => names.includes(item))) {
-        schema.load(BUNDLED_SCHEMAS[name], `the bundled schema ${name}`)
-        files.push({name: name, schema: new Schema().load(BUNDLED_SCHEMAS[name], name)})
+    for (const source of [SYSTEM_SCHEMA, ...option ?? DEFAULT_SCHEMAS]) {
+        loadSource(schema, source, nameOfSource(source))
+        files.push({name: source.name, schema: loadSource(new Schema(), source, source.name)})
     }
-    for (const file of option?.files ?? []) {
-        schema.load(file.text, file.name)
-        files.push({name: file.name, schema: new Schema().load(file.text, file.name)})
-    }
-    //The files of the backends and the plugins: a definition the same as one loaded already (two backends of a class) is
-    //loaded once
-    const given: {name: string, text: string}[] = [
-        ...backends.flatMap((backend: LDAPBackend): readonly {name: string, text: string}[] => backend.schemaFiles ?? []),
-        ...plugins.flatMap((plugin: LDAPPlugin): {name: string, text: string}[] => (plugin.schemaFiles ?? []).map((file: {name: string, text: string}): {name: string, text: string} => ({name: `${file.name} (the plugin ${plugin.name})`, text: file.text})))
+    //The schemas of the backends and the plugins: a definition the same as one loaded already (two backends of a class)
+    //is loaded once
+    const given: {name: string, source: SchemaSource}[] = [
+        ...backends.flatMap((backend: LDAPBackend): {name: string, source: SchemaSource}[] => (backend.schemaFiles ?? []).map((source: SchemaSource): {name: string, source: SchemaSource} => ({name: nameOfSource(source), source: source}))),
+        ...plugins.flatMap((plugin: LDAPPlugin): {name: string, source: SchemaSource}[] => (plugin.schemaFiles ?? []).map((source: SchemaSource): {name: string, source: SchemaSource} => ({name: `${nameOfSource(source)} (the plugin ${plugin.name})`, source: source})))
     ]
     for (const file of given) {
-        const own: Schema = new Schema().load(file.text, file.name)
+        const own: Schema = loadSource(new Schema(), file.source, file.name)
         const fresh: Schema = new Schema()
         for (const definition of own.attributeTypes()) {
             const existing = schema.attributeType(definition.oid)

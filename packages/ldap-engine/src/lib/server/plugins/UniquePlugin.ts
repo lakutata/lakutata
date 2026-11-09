@@ -33,10 +33,11 @@ export interface UniquePluginOptions extends BasePluginOptions {
  * of the directory backend of `@lakutata/ldap`, on a unique index).
  * @example
  * ```typescript
- * import {createLDAPServer, MemoryBackend, UniquePlugin} from '@lakutata/ldap-engine'
+ * import {createLDAPServer, DEFAULT_SCHEMAS, MemoryBackend, RFC2307BIS_SCHEMA, UniquePlugin} from '@lakutata/ldap-engine'
  *
  * const server = createLDAPServer({
  *     backends: [new MemoryBackend('dc=example,dc=com')],
+ *     schema: [...DEFAULT_SCHEMAS, RFC2307BIS_SCHEMA],
  *     plugins: [new UniquePlugin({attributes: ['uid', 'mail', 'uidNumber']})]
  * })
  * ```

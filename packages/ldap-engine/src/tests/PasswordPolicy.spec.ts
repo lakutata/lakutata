@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import {describe, it} from 'node:test'
 import {
+    bundledSchema,
     type Control,
     createLDAPServer,
+    DEFAULT_SCHEMAS,
     DN,
     findControl,
     formatGeneralizedTime,
@@ -12,12 +14,13 @@ import {
     LDAPResultException,
     type LDAPServerEngine,
     MemoryBackend,
-    PasswordPolicyPlugin,
     type OperationContext,
     type PasswordPolicyOptions,
+    PasswordPolicyPlugin,
     PasswordPolicyRequestControl,
     PasswordPolicyResponseControl,
-    type PasswordPolicyValue
+    type PasswordPolicyValue,
+    PPOLICY_SCHEMA
 } from '../exports/LDAPEngine.js'
 
 const BASE: string = 'dc=example,dc=com'
@@ -87,7 +90,14 @@ describe('the password policy', () => {
         const root = (await admin.search('', {scope: 'base', attributes: ['supportedControl']})).entries[0]
         assert.ok(root.get('supportedControl').includes('1.3.6.1.4.1.42.2.27.8.5.1'))
         assert.throws(() => createLDAPServer({backends: [new MemoryBackend('dc=x')], passwordPolicy: {}, plugins: [new PasswordPolicyPlugin()]}), /Two plugins are named password-policy/)
-        await assert.rejects(createLDAPServer({backends: [new MemoryBackend('dc=x')], schema: {bundled: ['core']}, plugins: [new PasswordPolicyPlugin()]}).start(), /ppolicy/)
+        //The plugin brings the schema ppolicy: loaded once when the server names it too; a Schema given ready must have it
+        for (const schema of [DEFAULT_SCHEMAS, [...DEFAULT_SCHEMAS, PPOLICY_SCHEMA]]) {
+            const server: LDAPServerEngine = createLDAPServer({backends: [new MemoryBackend('dc=x')], schema: schema, plugins: [new PasswordPolicyPlugin()]})
+            await server.start()
+            assert.ok(server.schema.objectClass('pwdPolicy'))
+            await server.close()
+        }
+        await assert.rejects(createLDAPServer({backends: [new MemoryBackend('dc=x')], schema: bundledSchema(), plugins: [new PasswordPolicyPlugin()]}).start(), /ppolicy/)
     })
 
     it('locks an account after too many failures, for a while, without telling it unless asked to', async () => {

@@ -31,12 +31,12 @@ export interface SambaPasswordPluginOptions extends BasePluginOptions {
  * (`schema.files`), as OpenLDAP does.
  * @example
  * ```typescript
- * import {readFileSync} from 'node:fs'
- * import {createLDAPServer, MemoryBackend, SambaPasswordPlugin} from '@lakutata/ldap-engine'
+ * import {createLDAPServer, DEFAULT_SCHEMAS, MemoryBackend, readSchemaFile, RFC2307BIS_SCHEMA, SambaPasswordPlugin} from '@lakutata/ldap-engine'
  *
+ * //The schema of Samba refers to the POSIX attributes (gidNumber)
  * const server = createLDAPServer({
  *     backends: [new MemoryBackend('dc=example,dc=com')],
- *     schema: {files: [{name: 'samba', text: readFileSync('/etc/ldap/schema/samba.ldif', 'utf8')}]},
+ *     schema: [...DEFAULT_SCHEMAS, RFC2307BIS_SCHEMA, await readSchemaFile('/etc/ldap/schema/samba.ldif')],
  *     plugins: [new SambaPasswordPlugin()]
  * })
  * ```

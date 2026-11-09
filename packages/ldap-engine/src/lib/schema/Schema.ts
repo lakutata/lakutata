@@ -1,11 +1,11 @@
 import {LDAPSchemaException} from '../../exceptions/LDAPSchemaException.js'
 import {isUTF8} from '../ber/Ber.js'
 import {type AttributeTypeAndValue, DN, type DNNormalizer} from '../dn/DN.js'
-import {type LDIFRecord, parseLDIF} from '../ldif/LDIF.js'
 import {
     type AttributeTypeDefinition,
     type MatchingRuleDefinition,
     type ObjectClassDefinition,
+    type ObjectIdentifierDefinition,
     parseAttributeType,
     parseMatchingRule,
     parseObjectClass,
@@ -13,6 +13,7 @@ import {
     type SyntaxDefinition
 } from './Definitions.js'
 import {DEFINED_RULES, type MatchingRule, STANDARD_RULES} from './MatchingRules.js'
+import {documentItems, parseSchemaFile, type SchemaDocument} from './SchemaDocument.js'
 import {prepareString} from './StringPrep.js'
 import {STANDARD_SYNTAXES, type Syntax} from './Syntaxes.js'
 
@@ -22,6 +23,35 @@ import {STANDARD_SYNTAXES, type Syntax} from './Syntaxes.js'
 interface Defined<T> {
     definition: T
     source: string
+}
+
+/**
+ * A reference of a schema to what it does not define
+ */
+export interface SchemaProblem {
+    /**
+     * What is missing and where (`the superior missing of the attribute type a`)
+     */
+    message: string
+    /**
+     * The file of the definition referring to it
+     */
+    source: string
+    /**
+     * The line of that definition in its file, when it was read from one
+     */
+    line?: number
+}
+
+/**
+ * A copy of a definition given as an object, the schema keeping its own (the expansion of the macros writes its OID);
+ * without the place of the definition in the text of a document
+ * @param definition The definition.
+ */
+function own<T extends {span?: [number, number]}>(definition: T): T {
+    const {span, ...rest} = definition
+    void span
+    return structuredClone(rest) as T
 }
 
 const BUILT_IN: string = 'the built-in schema'
@@ -216,7 +246,7 @@ export class Schema implements DNNormalizer {
      * @param source Where it comes from, named in the errors.
      */
     public addAttributeType(definition: AttributeTypeDefinition | string, source: string = 'the application'): this {
-        const parsed: AttributeTypeDefinition = typeof definition === 'string' ? parseAttributeType(definition) : definition
+        const parsed: AttributeTypeDefinition = typeof definition === 'string' ? parseAttributeType(definition) : own(definition)
         parsed.oid = this.expand(parsed.oid)
         if (parsed.syntax) parsed.syntax = this.expand(parsed.syntax)
         this.index(this.attributeTypeIndex, 'attribute type', parsed, source)
@@ -230,7 +260,7 @@ export class Schema implements DNNormalizer {
      * @param source Where it comes from, named in the errors.
      */
     public addObjectClass(definition: ObjectClassDefinition | string, source: string = 'the application'): this {
-        const parsed: ObjectClassDefinition = typeof definition === 'string' ? parseObjectClass(definition) : definition
+        const parsed: ObjectClassDefinition = typeof definition === 'string' ? parseObjectClass(definition) : own(definition)
         parsed.oid = this.expand(parsed.oid)
         this.index(this.objectClassIndex, 'object class', parsed, source)
         this.lists.objectClasses.push(parsed)
@@ -243,7 +273,7 @@ export class Schema implements DNNormalizer {
      * @param source Where it comes from.
      */
     public addSyntax(definition: SyntaxDefinition | string, source: string = 'the application'): this {
-        const parsed: SyntaxDefinition = typeof definition === 'string' ? parseSyntax(definition) : definition
+        const parsed: SyntaxDefinition = typeof definition === 'string' ? parseSyntax(definition) : own(definition)
         if (this.syntaxIndex.has(parsed.oid)) {
             if (this.syntaxIndex.get(parsed.oid)!.source === BUILT_IN) return this
             throw new LDAPSchemaException(`The syntax ${parsed.oid} is defined in ${this.syntaxIndex.get(parsed.oid)!.source} and again in ${source}`)
@@ -260,7 +290,7 @@ export class Schema implements DNNormalizer {
      * @param source Where it comes from.
      */
     public addMatchingRule(definition: MatchingRuleDefinition | string, source: string = 'the application'): this {
-        const parsed: MatchingRuleDefinition = typeof definition === 'string' ? parseMatchingRule(definition) : definition
+        const parsed: MatchingRuleDefinition = typeof definition === 'string' ? parseMatchingRule(definition) : own(definition)
         const existing: Defined<MatchingRuleDefinition> | undefined = this.matchingRuleIndex.get(parsed.oid.toLowerCase())
         if (existing?.source === BUILT_IN) return this
         this.index(this.matchingRuleIndex, 'matching rule', parsed, source)
@@ -269,51 +299,37 @@ export class Schema implements DNNormalizer {
     }
 
     /**
-     * Load a schema file: LDIF (`olcAttributeTypes`/`olcObjectClasses` of OpenLDAP's `cn=config`, or the
-     * `attributeTypes`/`objectClasses` of a subschema entry), or the `.schema` form of slapd.conf (`attributetype ( … )`,
-     * `objectclass ( … )`, `objectidentifier`)
-     * @param text The text of the file.
-     * @param source Its name, given in the errors.
+     * Load a schema file, or a schema document: LDIF (`olcAttributeTypes`/`olcObjectClasses`/`olcObjectIdentifier` of
+     * OpenLDAP's `cn=config`, or the `attributeTypes`/`objectClasses` of a subschema entry), the `.schema` form of
+     * slapd.conf (`attributetype ( … )`, `objectclass ( … )`, `objectidentifier`), or the document `parseSchemaFile()`
+     * makes of one (the bundled `CORE_SCHEMA`…). The definitions are taken in the order of the file, an OID macro
+     * reaching those after it; the schema keeps its own copies, the document is not changed.
+     * @param input The text of the file, or the document.
+     * @param source Its name, given in the errors (the name of the document by default).
      */
-    public load(text: string, source: string = 'a schema file'): this {
-        if (/^dn::?/im.test(text)) {
-            const records: LDIFRecord[] = parseLDIF(text)
-            const values: Map<string, string[]> = new Map()
-            for (const record of records) {
-                if (record.changeType !== 'content' && record.changeType !== 'add') continue
-                for (const attribute of record.attributes) {
-                    const type: string = attribute.type.toLowerCase().replace(/^olc/, '')
-                    if (!values.has(type)) values.set(type, [])
-                    //The {N} OpenLDAP puts before the values to keep their order
-                    for (const value of attribute.values) values.get(type)!.push(value.toString('utf8').replace(/^\{\d+\}\s*/, ''))
+    public load(input: string | SchemaDocument, source?: string): this {
+        const document: SchemaDocument = typeof input === 'string' ? parseSchemaFile(input, source ?? 'a schema file') : input
+        const name: string = source ?? document.name
+        for (const item of documentItems(document)) {
+            switch (item.kind) {
+                case 'objectIdentifier': {
+                    const macro: ObjectIdentifierDefinition = item.definition as ObjectIdentifierDefinition
+                    this.macros.set(macro.name, this.expand(macro.oid))
+                    break
                 }
+                case 'syntax':
+                    this.addSyntax(item.definition as SyntaxDefinition, name)
+                    break
+                case 'matchingRule':
+                    this.addMatchingRule(item.definition as MatchingRuleDefinition, name)
+                    break
+                case 'attributeType':
+                    this.addAttributeType(item.definition as AttributeTypeDefinition, name)
+                    break
+                default:
+                    this.addObjectClass(item.definition as ObjectClassDefinition, name)
             }
-            for (const value of values.get('ldapsyntaxes') ?? []) this.addSyntax(value, source)
-            for (const value of values.get('matchingrules') ?? []) this.addMatchingRule(value, source)
-            for (const value of values.get('attributetypes') ?? []) this.addAttributeType(value, source)
-            for (const value of values.get('objectclasses') ?? []) this.addObjectClass(value, source)
-            return this
         }
-        //The .schema form: a keyword, then a definition in parentheses, which may span lines
-        const lines: string[] = text.split(/\r?\n/).filter((line: string): boolean => !/^\s*#/.test(line))
-        const joined: string = lines.join('\n')
-        const pattern: RegExp = /^[ \t]*(attributetypes?|objectclass(?:es)?|ldapsyntax(?:es)?|objectidentifier)\b/gim
-        const starts: {keyword: string, index: number}[] = []
-        let match: RegExpExecArray | null
-        while ((match = pattern.exec(joined)) !== null) starts.push({keyword: match[1].toLowerCase(), index: match.index + match[0].length})
-        starts.forEach((start: {keyword: string, index: number}, position: number): void => {
-            const body: string = joined.slice(start.index, position + 1 < starts.length ? joined.lastIndexOf('\n', starts[position + 1].index) : undefined).trim()
-            if (start.keyword === 'objectidentifier') {
-                const [name, oid] = body.split(/\s+/)
-                this.macros.set(name, this.expand(oid))
-            } else if (start.keyword.startsWith('attributetype')) {
-                this.addAttributeType(body, source)
-            } else if (start.keyword.startsWith('objectclass')) {
-                this.addObjectClass(body, source)
-            } else {
-                this.addSyntax(body, source)
-            }
-        })
         return this
     }
 
@@ -505,19 +521,41 @@ export class Schema implements DNNormalizer {
      * the syntaxes the definitions name. The errors are all given together.
      */
     public check(): void {
-        const problems: string[] = []
+        const problems: SchemaProblem[] = this.problems()
+        if (problems.length) throw new LDAPSchemaException(`The schema refers to what it does not define: ${problems.map((problem: SchemaProblem): string => problem.message).join('; ')}`)
+    }
+
+    /**
+     * The references of the schema to what it does not define, each with the file and the line of the definition
+     * referring to it (for an editor of schema files); {@link check} throws them together
+     * @example
+     * ```typescript
+     * import {parseSchemaFile, Schema} from '@lakutata/ldap-engine'
+     *
+     * const schema: Schema = new Schema().load(parseSchemaFile('objectclass ( 1.2.3 NAME \'device\' MUST serial )', 'devices'))
+     * for (const problem of schema.problems()) console.log(`${problem.source}:${problem.line} ${problem.message}`)
+     * //devices:1 the attribute serial of the object class device
+     * ```
+     */
+    public problems(): SchemaProblem[] {
+        const problems: SchemaProblem[] = []
+        const add = (message: string, defined: Defined<{line?: number}> | undefined): void => {
+            problems.push({message: message, source: defined?.source ?? 'the application', ...defined?.definition.line !== undefined ? {line: defined.definition.line} : {}})
+        }
         for (const definition of this.lists.attributeTypes) {
             const name: string = definition.names[0] ?? definition.oid
-            if (definition.superior && !this.attributeType(definition.superior)) problems.push(`the superior ${definition.superior} of the attribute type ${name}`)
-            for (const rule of [definition.equality, definition.ordering, definition.substrings]) if (rule && !this.matchingRuleIndex.has(rule.toLowerCase())) problems.push(`the matching rule ${rule} of the attribute type ${name}`)
-            if (definition.syntax && !this.syntaxIndex.has(definition.syntax)) problems.push(`the syntax ${definition.syntax} of the attribute type ${name}`)
+            const defined: Defined<AttributeTypeDefinition> | undefined = this.attributeTypeIndex.get(definition.oid.toLowerCase())
+            if (definition.superior && !this.attributeType(definition.superior)) add(`the superior ${definition.superior} of the attribute type ${name}`, defined)
+            for (const rule of [definition.equality, definition.ordering, definition.substrings]) if (rule && !this.matchingRuleIndex.has(rule.toLowerCase())) add(`the matching rule ${rule} of the attribute type ${name}`, defined)
+            if (definition.syntax && !this.syntaxIndex.has(definition.syntax)) add(`the syntax ${definition.syntax} of the attribute type ${name}`, defined)
         }
         for (const definition of this.lists.objectClasses) {
             const name: string = definition.names[0] ?? definition.oid
-            for (const superior of definition.superiors ?? []) if (!this.objectClass(superior)) problems.push(`the superclass ${superior} of the object class ${name}`)
-            for (const attribute of [...definition.must ?? [], ...definition.may ?? []]) if (!this.attributeType(attribute)) problems.push(`the attribute ${attribute} of the object class ${name}`)
+            const defined: Defined<ObjectClassDefinition> | undefined = this.objectClassIndex.get(definition.oid.toLowerCase())
+            for (const superior of definition.superiors ?? []) if (!this.objectClass(superior)) add(`the superclass ${superior} of the object class ${name}`, defined)
+            for (const attribute of [...definition.must ?? [], ...definition.may ?? []]) if (!this.attributeType(attribute)) add(`the attribute ${attribute} of the object class ${name}`, defined)
         }
-        if (problems.length) throw new LDAPSchemaException(`The schema refers to what it does not define: ${problems.join('; ')}`)
+        return problems
     }
 
     /**

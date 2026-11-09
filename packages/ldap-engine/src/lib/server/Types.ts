@@ -5,6 +5,7 @@ import type {DN, RDN} from '../dn/DN.js'
 import type {Filter} from '../filter/Filter.js'
 import type {DerefAliases, LDAPRequest, ModifyOperation, PartialAttribute, SearchScope} from '../protocol/Messages.js'
 import type {Schema} from '../schema/Schema.js'
+import type {SchemaSource} from '../schema/SchemaDocument.js'
 import type {LDAPInProcessConnection} from './InProcessConnection.js'
 import type {PasswordScheme, PasswordSchemes} from './Passwords.js'
 import type {ExtendedHandler} from './Pipeline.js'
@@ -296,9 +297,9 @@ export interface LDAPBackend {
      */
     readonly capabilities?: BackendCapabilities
     /**
-     * Schema files the backend needs (the virtual attributes it gives, as memberOf), loaded after those of the server
+     * Schemas the backend needs (the virtual attributes it gives, as memberOf), loaded after those of the server
      */
-    readonly schemaFiles?: readonly {name: string, text: string}[]
+    readonly schemaFiles?: readonly SchemaSource[]
     /**
      * Interceptors of the backend, in the chain of its suffix
      */
@@ -787,9 +788,9 @@ export interface LDAPPlugin {
      */
     readonly interceptors?: readonly (LDAPInterceptor | InterceptorPlacement)[]
     /**
-     * The schema files it needs, loaded after those of the server (a definition the same as one loaded is loaded once)
+     * The schemas it needs, loaded after those of the server (a definition the same as one loaded is loaded once)
      */
-    readonly schemaFiles?: readonly {name: string, text: string}[]
+    readonly schemaFiles?: readonly SchemaSource[]
     /**
      * The controls it handles, published in the root DSE
      */

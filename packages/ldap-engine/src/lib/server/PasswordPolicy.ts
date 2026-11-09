@@ -140,7 +140,7 @@ const HISTORY_SYNTAX: string = '1.3.6.1.4.1.1466.115.121.1.40'
  * const rules: PasswordPolicyRules = rulesOfEntry({
  *     dn: DN.parse('cn=default,ou=policies,dc=example,dc=com'),
  *     attributes: [{type: 'pwdMaxAge', values: [Buffer.from('7776000')]}, {type: 'pwdLockout', values: [Buffer.from('TRUE')]}]
- * }, bundledSchema())
+ * }, bundledSchema(['core', 'ppolicy']))
  * console.log(rules.maxAge, rules.lockout) //7776000 true
  * ```
  */

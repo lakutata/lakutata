@@ -37,10 +37,11 @@ THE SOFTWARE
 
 ## IETF RFCs (the bundled schema)
 
-The definitions of `src/lib/schema/bundled/` (system, core, cosine, inetorgperson, rfc2307bis, ppolicy) are taken from
-the RFCs and Internet-Drafts named in the comment above each definition, by `scripts/schema/generate.mjs`; a few are
-amended as their comments say (names the RFCs register with IANA for the same OID, a syntax RFC 2798 leaves out, a
-closing parenthesis draft-howard-rfc2307bis-02 leaves out).
+The definitions of the bundled schema (system, core, cosine, inetorgperson, rfc2307bis, ppolicy) are taken from the
+RFCs and Internet-Drafts named in the comment of each definition, by `scripts/schema/generate.mjs` into
+`scripts/schema/source/`, and from there into the documents of `src/lib/schema/bundled/` by
+`scripts/schema/documents.mjs`; a few are amended as their comments say (names the RFCs register with IANA for the same
+OID, a syntax RFC 2798 leaves out, a closing parenthesis draft-howard-rfc2307bis-02 leaves out).
 
 RFC 4512, RFC 4519, RFC 4523, RFC 4524 and RFC 4530: Copyright (C) The Internet Society (2006). RFC 5020: Copyright (C)
 The IETF Trust (2007). These documents are subject to the rights, licenses and restrictions contained in BCP 78; the

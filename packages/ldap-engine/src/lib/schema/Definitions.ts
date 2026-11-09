@@ -6,9 +6,45 @@ import {LDAPSchemaException} from '../../exceptions/LDAPSchemaException.js'
 export type DefinitionExtensions = Record<string, string[]>
 
 /**
+ * Where a definition comes from in its schema file: kept by `parseSchemaFile()`, for an editor and to write the file
+ * back as it was; a schema ignores them
+ */
+export interface DefinitionOrigin {
+    /**
+     * The comment written just before it, its lines without their `#` (and the space after it)
+     */
+    comment?: string
+    /**
+     * The line of its file it starts on, from 1 (its comment not counted)
+     */
+    line?: number
+    /**
+     * Where it is in the text of its document (`SchemaDocument.source`), its comment included: the offset of its first
+     * character and of the character after its last. Only meaningful with that text: while the definition is unchanged,
+     * `stringifySchemaFile()` writes it back from there as it was
+     */
+    span?: [number, number]
+}
+
+/**
+ * An OID macro of OpenLDAP (`objectidentifier MyOID 1.3.6.1.4.1.99999` of the `.schema` form, `olcObjectIdentifier`
+ * of `cn=config`): a name standing for an OID in the definitions that follow it (`MyOID:1.2`)
+ */
+export interface ObjectIdentifierDefinition extends DefinitionOrigin {
+    /**
+     * The name
+     */
+    name: string
+    /**
+     * The OID it stands for, which may use a macro defined before it
+     */
+    oid: string
+}
+
+/**
  * An attribute type (RFC 4512 §4.1.2)
  */
-export interface AttributeTypeDefinition {
+export interface AttributeTypeDefinition extends DefinitionOrigin {
     /**
      * Its OID
      */
@@ -74,7 +110,7 @@ export interface AttributeTypeDefinition {
 /**
  * An object class (RFC 4512 §4.1.1)
  */
-export interface ObjectClassDefinition {
+export interface ObjectClassDefinition extends DefinitionOrigin {
     /**
      * Its OID
      */
@@ -116,7 +152,7 @@ export interface ObjectClassDefinition {
 /**
  * A syntax (RFC 4512 §4.1.5)
  */
-export interface SyntaxDefinition {
+export interface SyntaxDefinition extends DefinitionOrigin {
     /**
      * Its OID
      */
@@ -134,7 +170,7 @@ export interface SyntaxDefinition {
 /**
  * A matching rule (RFC 4512 §4.1.3)
  */
-export interface MatchingRuleDefinition {
+export interface MatchingRuleDefinition extends DefinitionOrigin {
     /**
      * Its OID
      */
