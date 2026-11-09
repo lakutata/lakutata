@@ -272,6 +272,14 @@ describe('the server engine', () => {
         assert.equal((await small.admin.search(`ou=people,${BASE}`, {filter: filter, paged: false})).entries.length, 30)
     })
 
+    it('sorts strings by their code points, a character above U+FFFF after U+FA0E', async () => {
+        const {admin: owner} = await directory()
+        await owner.add(`cn=astral,${BASE}`, {objectClass: 'device', cn: 'astral', description: '\u{20000}'})
+        await owner.add(`cn=bmp,${BASE}`, {objectClass: 'device', cn: 'bmp', description: '\uFA0E'})
+        const {entries} = await owner.search(BASE, {scope: 'one', filter: '(objectClass=device)', sort: [{attribute: 'description'}], paged: false})
+        assert.deepEqual(entries.map((entry) => entry.first('cn')), ['bmp', 'astral'])
+    })
+
     it('fails a window it cannot sort rather than giving every entry', async () => {
         const small = await directory({limits: {sortCandidates: 10}})
         await assert.rejects(small.admin.search(`ou=people,${BASE}`, {scope: 'one', sort: [{attribute: 'cn'}], window: {offset: 1, limit: 5}}), LDAPUnavailableCriticalExtensionException)

@@ -53,8 +53,18 @@ function text(value: Buffer): string | undefined {
  * @param left A string.
  * @param right Another one.
  */
-function byCodePoints(left: string, right: string): number {
-    return left < right ? -1 : left > right ? 1 : 0
+export function byCodePoints(left: string, right: string): number {
+    const length: number = Math.min(left.length, right.length)
+    for (let index: number = 0; index < length; index++) {
+        const [a, b] = [left.charCodeAt(index), right.charCodeAt(index)]
+        if (a === b) continue
+        //A surrogate stands for a code point above U+FFFF: greater than every unit that is not one (JavaScript compares
+        //the units, which puts U+E000-U+FFFF after those code points)
+        const [surrogateA, surrogateB] = [a >= 0xd800 && a <= 0xdfff, b >= 0xd800 && b <= 0xdfff]
+        if (surrogateA !== surrogateB) return surrogateA ? 1 : -1
+        return a < b ? -1 : 1
+    }
+    return left.length === right.length ? 0 : left.length < right.length ? -1 : 1
 }
 
 /**

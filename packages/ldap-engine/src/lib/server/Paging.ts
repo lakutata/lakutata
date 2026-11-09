@@ -3,7 +3,7 @@ import type {Control} from '../controls/Control.js'
 import {findControl, PagedResultsControl, type PagedResultsValue, type SortKey, SortRequestControl, SortResponseControl, VLVRequestControl, type VLVRequestValue, VLVResponseControl} from '../controls/Controls.js'
 import {stringifyFilter} from '../filter/FilterString.js'
 import {ResultCode} from '../protocol/ResultCode.js'
-import type {MatchingRule} from '../schema/MatchingRules.js'
+import {byCodePoints, type MatchingRule} from '../schema/MatchingRules.js'
 import type {Schema} from '../schema/Schema.js'
 import {fail, valuesOfType} from './EntryTools.js'
 import type {BackendCapabilities, DirectoryEntry, LDAPInterceptor, OperationContext, ServerOutcome, ServerRequest, ServerSearchRequest} from './Types.js'
@@ -88,9 +88,36 @@ const ORDERING_OF_EQUALITY: Record<string, string> = {
 }
 
 /**
- * The rule ordering a sort key: the rule it names, or the ordering rule of the attribute; for an attribute without one
+ * The rule ordering an attribute in a sort whose key names no rule: its ordering rule; for an attribute without one
  * (cn, sn and uid have none in RFC 4519), the ordering rule going with its equality rule, or the order of the values as
- * its equality rule prepares them. Undefined when nothing orders it.
+ * its equality rule prepares them. With it, whether that order is the order of the code points of the prepared values
+ * (the order of their UTF-8 bytes, which a database keeping them in hexadecimal follows); integers order by their value.
+ * @param attribute The attribute.
+ * @param schema The schema.
+ * @returns The rule and whether it orders by code points; undefined when nothing orders the attribute.
+ * @example
+ * ```typescript
+ * import {bundledSchema, sortOrderingOf} from '@lakutata/ldap-engine'
+ *
+ * const ordering = sortOrderingOf('uid', bundledSchema())
+ * console.log(ordering?.rule.names[0], ordering?.codePoints) //caseIgnoreOrderingMatch true
+ * ```
+ */
+export function sortOrderingOf(attribute: string, schema: Schema): {rule: MatchingRule, codePoints: boolean} | undefined {
+    const ordering: MatchingRule | undefined = schema.ordering(attribute)
+    let rule: MatchingRule | undefined = ordering?.compare ? ordering : undefined
+    if (!rule) {
+        const equality: MatchingRule | undefined = schema.equality(attribute)
+        if (!equality) return undefined
+        const paired: MatchingRule | undefined = ORDERING_OF_EQUALITY[equality.oid] ? schema.matchingRule(ORDERING_OF_EQUALITY[equality.oid]) : undefined
+        rule = paired?.compare ? paired : {...equality, kind: 'ordering', compare: byCodePoints}
+    }
+    return {rule: rule, codePoints: rule.compare === byCodePoints}
+}
+
+/**
+ * The rule ordering a sort key: the rule it names, or the rule ordering its attribute (see {@link sortOrderingOf}).
+ * Undefined when nothing orders it.
  * @param key The sort key.
  * @param schema The schema.
  */
@@ -99,13 +126,7 @@ function orderingOf(key: SortKey, schema: Schema): MatchingRule | undefined {
         const rule: MatchingRule | undefined = schema.matchingRule(key.orderingRule)
         return rule?.kind === 'ordering' && rule.compare ? rule : undefined
     }
-    const rule: MatchingRule | undefined = schema.ordering(key.attribute)
-    if (rule?.compare) return rule
-    const equality: MatchingRule | undefined = schema.equality(key.attribute)
-    if (!equality) return undefined
-    const paired: MatchingRule | undefined = ORDERING_OF_EQUALITY[equality.oid] ? schema.matchingRule(ORDERING_OF_EQUALITY[equality.oid]) : undefined
-    if (paired?.compare) return paired
-    return {...equality, kind: 'ordering', compare: (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0}
+    return sortOrderingOf(key.attribute, schema)?.rule
 }
 
 /**
@@ -181,11 +202,7 @@ function vlvWindow<T>(sorted: T[], value: VLVRequestValue, first: OrderedKey, va
     const count: number = sorted.length
     let target: number
     if (value.offset) {
-        const {offset, contentCount} = value.offset
-        if (offset < 0 || contentCount < 0) fail(ResultCode.virtualListViewError, 'A negative offset or count')
-        //The client's estimate scales its offset to the real count (§5)
-        target = offset === 0 ? 0 : contentCount === 0 ? offset - 1 : Math.round((offset - 1) * count / Math.max(contentCount, 1))
-        target = Math.min(target, count)
+        target = offsetTarget(value.offset, count)
     } else {
         const assertion: string | undefined = first.rule.prepare(value.greaterThanOrEqual ?? Buffer.alloc(0))
         target = sorted.findIndex((item: T): boolean => valuesOf(item, first.key.attribute).some((candidate: Buffer): boolean => {
@@ -194,10 +211,62 @@ function vlvWindow<T>(sorted: T[], value: VLVRequestValue, first: OrderedKey, va
         }))
         if (target < 0) target = count
     }
-    const start: number = Math.max(0, target - value.beforeCount)
-    const end: number = Math.min(count, target + value.afterCount + 1)
-    context.responseControls.push(VLVResponseControl.encode({targetPosition: Math.min(target + 1, count + 1), contentCount: count, result: 0, ...value.contextId ? {contextId: value.contextId} : {}}))
+    const {start, end} = windowAround(target, value, count, context)
     return sorted.slice(start, end)
+}
+
+/**
+ * The position of the target of the offset form of the view among so many entries
+ * @param offset The offset and the client's estimate of the count.
+ * @param count The count.
+ */
+function offsetTarget(offset: {offset: number, contentCount: number}, count: number): number {
+    if (offset.offset < 0 || offset.contentCount < 0) fail(ResultCode.virtualListViewError, 'A negative offset or count')
+    //The client's estimate scales its offset to the real count (§5)
+    const target: number = offset.offset === 0 ? 0 : offset.contentCount === 0 ? offset.offset - 1 : Math.round((offset.offset - 1) * count / Math.max(offset.contentCount, 1))
+    return Math.min(target, count)
+}
+
+/**
+ * The window around a target, its response control added to the context
+ * @param target The position of the target.
+ * @param value The request of the view.
+ * @param count The count of the entries.
+ * @param context The context.
+ */
+function windowAround(target: number, value: VLVRequestValue, count: number, context: OperationContext): {start: number, end: number} {
+    context.responseControls.push(VLVResponseControl.encode({targetPosition: Math.min(target + 1, count + 1), contentCount: count, result: 0, ...value.contextId ? {contextId: value.contextId} : {}}))
+    return {start: Math.max(0, target - value.beforeCount), end: Math.min(count, target + value.afterCount + 1)}
+}
+
+/**
+ * The range of the window a search asks for by the offset form of its virtual list view, among the `count` entries the
+ * filter matches: for a backend that sorts in its database and reads only that range of its sorted entries. The sort
+ * and view response controls go to the context, as {@link sortSearchItems} adds them. Undefined, with nothing added,
+ * when the search has no view or asks for it from an assertion (`greaterThanOrEqual`): the backend then sorts with
+ * {@link sortSearchItems}.
+ * @param context The context of the search.
+ * @param count The count of the entries the filter matches.
+ * @returns The first position and the position after the last, from 0.
+ * @throws {LDAPResultException} virtualListViewError for a negative offset or count.
+ * @example
+ * ```typescript
+ * import {sortWindowRange, type SearchContext} from '@lakutata/ldap-engine'
+ *
+ * //In the search of a backend whose capabilities have sort: true, the entries counted and ordered in its database
+ * function pageOf(context: SearchContext, count: number): {offset: number, limit: number} | undefined {
+ *     const range = sortWindowRange(context, count)
+ *     return range && {offset: range.start, limit: range.end - range.start}
+ * }
+ * ```
+ */
+export function sortWindowRange(context: OperationContext, count: number): {start: number, end: number} | undefined {
+    const vlvControl: Control | undefined = findControl(context.controls, VLVRequestControl)
+    const value: VLVRequestValue | undefined = vlvControl ? VLVRequestControl.decode(vlvControl) : undefined
+    if (!value?.offset) return undefined
+    const target: number = offsetTarget(value.offset, count)
+    context.responseControls.push(SortResponseControl.encode({result: ResultCode.success}))
+    return windowAround(target, value, count, context)
 }
 
 /**
