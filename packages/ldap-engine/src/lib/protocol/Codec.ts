@@ -1,5 +1,5 @@
 import {LDAPDecodeException} from '../../exceptions/LDAPDecodeException.js'
-import {APPLICATION, BerError, type BerElement, BerReader, BerTag, boolean, CONSTRUCTED, CONTEXT, constructed, enumerated, integer, integerContent, nullElement, octets, primitive, serialize} from '../ber/Ber.js'
+import {APPLICATION, BerError, type BerElement, BerReader, BerTag, BerValueError, boolean, CONSTRUCTED, CONTEXT, constructed, enumerated, integer, integerContent, nullElement, octets, primitive, readPastValues, refuseValue, serialize} from '../ber/Ber.js'
 import type {Control} from '../controls/Control.js'
 import {filterElement, readFilter} from '../filter/Filter.js'
 import type {
@@ -303,7 +303,10 @@ function readAuthentication(reader: BerReader): BindAuthentication {
  */
 function enumValue<T>(values: T[], index: number, what: string): T {
     const value: T | undefined = values[index]
-    if (value === undefined) throw new BerError(`${index} is not a ${what}`)
+    if (value === undefined) {
+        refuseValue(`${index} is not a ${what}`)
+        return values[0]
+    }
     return value
 }
 
@@ -353,7 +356,7 @@ export function readOperation(type: ProtocolOp['type'], tag: number, reader: Ber
             }
             const attributes: BerReader = inner.enter(BerTag.sequence)
             while (!attributes.atEnd()) operation.attributes.push(attributes.string())
-            if (operation.sizeLimit < 0 || operation.timeLimit < 0) throw new BerError('A negative limit')
+            if (operation.sizeLimit < 0 || operation.timeLimit < 0) refuseValue('A negative limit')
             return operation
         }
         case 'searchResultEntry': {
@@ -466,11 +469,24 @@ export function decodeMessage(bytes: Buffer): LDAPMessage {
     if (tag === undefined || type === undefined) {
         throw new LDAPDecodeException(tag === undefined ? 'The message has no operation' : `The operation of tag 0x${tag.toString(16)} is not known`, {fatal: true, messageId: messageId})
     }
-    try {
-        const message: LDAPMessage = {messageId: messageId, protocolOp: readOperation(type, tag, reader)}
-        if (reader.peek() === TAG_CONTROLS) message.controls = readControls(reader)
+    const read = (from: BerReader): LDAPMessage => {
+        const message: LDAPMessage = {messageId: messageId, protocolOp: readOperation(type, tag, from)}
+        if (from.peek() === TAG_CONTROLS) message.controls = readControls(from)
         return message
+    }
+    const operation: number = reader.offset
+    try {
+        return read(reader)
     } catch (error) {
-        throw new LDAPDecodeException(`The ${type} cannot be read: ${(error as Error).message}`, {fatal: false, messageId: messageId, operation: type})
+        let malformed: boolean = !(error instanceof BerValueError)
+        //A value that is not allowed: the message read again past such values, for an error of its encoding after it
+        if (!malformed) {
+            try {
+                readPastValues((): LDAPMessage => read(new BerReader(reader.buffer, operation, reader.end)))
+            } catch (later) {
+                malformed = !(later instanceof BerValueError)
+            }
+        }
+        throw new LDAPDecodeException(`The ${type} cannot be read: ${(error as Error).message}`, {fatal: false, malformed: malformed, messageId: messageId, operation: type})
     }
 }

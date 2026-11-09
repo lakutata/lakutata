@@ -227,7 +227,7 @@ for (const problem of schema.problems()) console.log(`${problem.source}:${proble
 
 | 异常 | 什么时候 |
 |---|---|
-| `LDAPDecodeException` | 消息无法解码；数据流无法继续时 `fatal` 为 true，否则带有它的 `messageId` 和 `operation` |
+| `LDAPDecodeException` | 消息无法解码；数据流无法继续时 `fatal` 为 true，否则带有它的 `messageId` 和 `operation`；如果错在操作本身的编码而不是某个取值，`malformed` 为 true（服务器会因此结束会话） |
 | `LDAPFilterSyntaxException` | 过滤器文本不合法，`position` 是出错的位置 |
 | `LDAPDNSyntaxException` | DN 文本不合法，`position` 是出错的位置 |
 | `LDAPSchemaException` | schema 定义无法解析、名字或 OID 重复定义，或引用了没有定义的内容 |

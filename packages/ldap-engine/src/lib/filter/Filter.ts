@@ -1,4 +1,4 @@
-import {BerError, type BerElement, type BerReader, boolean, CONSTRUCTED, CONTEXT, constructed, octets} from '../ber/Ber.js'
+import {BerError, type BerElement, type BerReader, refuseValue, boolean, CONSTRUCTED, CONTEXT, constructed, octets} from '../ber/Ber.js'
 import {escapeFilterValue, type FilterParseOptions, parseFilter, stringifyFilter} from './FilterString.js'
 
 /**
@@ -321,13 +321,29 @@ export function filterElement(filter: Filter): BerElement {
 }
 
 /**
+ * Whether a tag no kind of a CHOICE uses may be a kind added later (RFC 4511 §4: a CHOICE is extensible): one of the
+ * context class with a number after those of the known kinds. A known kind in another form, or a tag of another class,
+ * is an error of the encoding.
+ * @param tag The tag.
+ * @param last The last number of the known kinds.
+ */
+function laterKind(tag: number, last: number): boolean {
+    return (tag & 0xc0) === CONTEXT && (tag & 0x1f) > last
+}
+
+/**
  * Read a filter
  * @param reader The reader, at the filter.
  * @param depth How deep the filter may still nest.
  */
 export function readFilter(reader: BerReader, depth: number = 100): Filter {
-    if (depth <= 0) throw new BerError('A filter nested too deep')
+    if (depth <= 0) {
+        refuseValue('A filter nested too deep')
+        reader.skip()
+        return {type: 'present', attribute: 'objectClass'}
+    }
     const tag: number | undefined = reader.peek()
+    //The elements after the known ones of a SEQUENCE are extensions, ignored (RFC 4511 §4)
     switch (tag) {
         case TAG_AND:
         case TAG_OR: {
@@ -349,33 +365,34 @@ export function readFilter(reader: BerReader, depth: number = 100): Filter {
             const inner: BerReader = reader.enter(tag)
             const attribute: string = inner.string()
             const value: Buffer = inner.octets()
-            if (!inner.atEnd()) throw new BerError('An attribute value assertion with more than two elements')
             return {type: ASSERTION_TYPES.get(tag)!, attribute: attribute, value: value}
         }
         case TAG_SUBSTRINGS: {
             const inner: BerReader = reader.enter(TAG_SUBSTRINGS)
             const attribute: string = inner.string()
             const parts: BerReader = inner.enter(0x30)
-            if (!inner.atEnd()) throw new BerError('A substrings filter with more than two elements')
             const filter: SubstringsFilter = {type: 'substrings', attribute: attribute, any: []}
             let count: number = 0
             while (!parts.atEnd()) {
                 const part: number | undefined = parts.peek()
                 if (part === (CONTEXT | 0)) {
-                    if (count) throw new BerError('An initial substring not first')
+                    if (count) refuseValue('An initial substring not first')
                     filter.initial = parts.octets(CONTEXT | 0)
                 } else if (part === (CONTEXT | 1)) {
-                    if (filter.final !== undefined) throw new BerError('A substring after the final one')
+                    if (filter.final !== undefined) refuseValue('A substring after the final one')
                     filter.any.push(parts.octets(CONTEXT | 1))
                 } else if (part === (CONTEXT | 2)) {
-                    if (filter.final !== undefined) throw new BerError('Two final substrings')
+                    if (filter.final !== undefined) refuseValue('Two final substrings')
                     filter.final = parts.octets(CONTEXT | 2)
+                } else if (part !== undefined && laterKind(part, 2)) {
+                    refuseValue(`A substring of an unknown kind (tag 0x${part.toString(16)})`)
+                    parts.skip()
                 } else {
-                    throw new BerError('A substring of an unknown kind')
+                    throw new BerError(`A substring of an unknown kind (tag 0x${part?.toString(16)})`)
                 }
                 count++
             }
-            if (!count) throw new BerError('A substrings filter without substrings')
+            if (!count) refuseValue('A substrings filter without substrings')
             return filter
         }
         case TAG_PRESENT:
@@ -387,11 +404,14 @@ export function readFilter(reader: BerReader, depth: number = 100): Filter {
             if (inner.peek() === (CONTEXT | 2)) filter.attribute = inner.string(CONTEXT | 2)
             filter.value = inner.octets(CONTEXT | 3)
             if (inner.peek() === (CONTEXT | 4)) filter.dnAttributes = inner.boolean(CONTEXT | 4)
-            if (!inner.atEnd()) throw new BerError('An extensible filter with unknown elements')
-            if (filter.rule === undefined && filter.attribute === undefined) throw new BerError('An extensible filter without a rule nor an attribute')
+            if (filter.rule === undefined && filter.attribute === undefined) refuseValue('An extensible filter without a rule nor an attribute')
             return filter
         }
         default:
-            throw new BerError(tag === undefined ? 'A filter is missing' : `A filter of an unknown kind (tag 0x${tag.toString(16)})`)
+            if (tag === undefined) throw new BerError('A filter is missing')
+            if (!laterKind(tag, 9)) throw new BerError(`A filter of an unknown kind (tag 0x${tag.toString(16)})`)
+            refuseValue(`A filter of an unknown kind (tag 0x${tag.toString(16)})`)
+            reader.skip()
+            return {type: 'present', attribute: 'objectClass'}
     }
 }

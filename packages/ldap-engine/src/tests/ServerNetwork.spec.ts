@@ -15,6 +15,7 @@ import {
     encodeMessage,
     ExtendedOperation,
     externalMechanism,
+    Filter,
     plainMechanism,
     type LDAPClientConnection,
     LDAPConnectionException,
@@ -171,6 +172,33 @@ describe('the server engine on the network', () => {
         assert.equal(closed, true)
         assert.ok(messages.some((message) => message.messageId === 1 && 'resultCode' in message.protocolOp && message.protocolOp.resultCode === 2))
         socket.destroy()
+    })
+
+    it('answers a value it does not allow with protocolError, and ends the session on an operation whose encoding is wrong or that is not a request (RFC 4511 §4.1.1)', async () => {
+        const search: Buffer = encodeMessage({messageId: 2, protocolOp: {type: 'searchRequest', baseObject: '', scope: 'base', derefAliases: 'never', sizeLimit: 0, timeLimit: 0, typesOnly: false, filter: Filter.present('cn'), attributes: []}})
+        const notice = (message: ReturnType<typeof decodeMessage>): boolean => message.messageId === 0 && message.protocolOp.type === 'extendedResponse' && message.protocolOp.name === ExtendedOperation.noticeOfDisconnection && message.protocolOp.resultCode === 2
+        //A scope of 7: the encoding is right, the value is not
+        const value: Buffer = Buffer.from(search)
+        value[value.indexOf(Buffer.from([0x0a, 0x01, 0x00])) + 2] = 7
+        //typesOnly as an OCTET STRING: the encoding is wrong
+        const encoding: Buffer = Buffer.from(search)
+        encoding[encoding.indexOf(Buffer.from([0x01, 0x01, 0x00]))] = 0x04
+        const first: Socket = createConnection({port: port, host: '127.0.0.1'})
+        await once(first, 'connect')
+        first.write(value)
+        const answered = await received(first, 300)
+        assert.equal(answered.closed, false)
+        assert.ok(answered.messages.some((message) => message.messageId === 2 && message.protocolOp.type === 'searchResultDone' && message.protocolOp.resultCode === 2))
+        first.write(encoding)
+        const ended = await received(first)
+        assert.equal(ended.closed, true)
+        assert.ok(ended.messages.some(notice))
+        const second: Socket = createConnection({port: port, host: '127.0.0.1'})
+        await once(second, 'connect')
+        second.write(encodeMessage({messageId: 3, protocolOp: {type: 'bindResponse', resultCode: 0, matchedDN: '', diagnosticMessage: ''}}))
+        const response = await received(second)
+        assert.equal(response.closed, true)
+        assert.ok(response.messages.some(notice))
     })
 
     it('serves the connections of a server made elsewhere', async () => {

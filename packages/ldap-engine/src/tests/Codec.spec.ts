@@ -117,14 +117,55 @@ describe('the messages', () => {
         const bad: Buffer = Buffer.from(good)
         const scope: number = bad.indexOf(Buffer.from([0x0a, 0x01, 0x00]))
         bad[scope + 2] = 7
-        assert.throws(() => decodeMessage(bad), (error: unknown) => error instanceof LDAPDecodeException && !error.fatal && error.messageId === 9 && error.operation === 'searchRequest')
+        assert.throws(() => decodeMessage(bad), (error: unknown) => error instanceof LDAPDecodeException && !error.fatal && !error.malformed && error.messageId === 9 && error.operation === 'searchRequest')
+    })
+
+    it('tell a wrong encoding inside a known operation from a value that is not allowed', () => {
+        const good: Buffer = encodeMessage({
+            messageId: 6,
+            protocolOp: {type: 'searchRequest', baseObject: '', scope: 'base', derefAliases: 'never', sizeLimit: 0, timeLimit: 0, typesOnly: false, filter: Filter.present('a'), attributes: []}
+        })
+        //typesOnly as an OCTET STRING, then as a BOOLEAN of two bytes
+        const tag: Buffer = Buffer.from(good)
+        tag[tag.indexOf(Buffer.from([0x01, 0x01, 0x00]))] = 0x04
+        assert.throws(() => decodeMessage(tag), (error: unknown) => error instanceof LDAPDecodeException && !error.fatal && error.malformed && error.messageId === 6 && error.operation === 'searchRequest')
+        const at: number = good.indexOf(Buffer.from([0x01, 0x01, 0x00]))
+        const long: Buffer = Buffer.concat([good.subarray(0, at), Buffer.from([0x01, 0x02, 0x00, 0x00]), good.subarray(at + 3)])
+        long[1]++
+        long[long.indexOf(0x63) + 1]++
+        assert.throws(() => decodeMessage(long), (error: unknown) => error instanceof LDAPDecodeException && error.malformed && /BOOLEAN/.test(error.message))
+        //A filter of a kind that may come later (a context tag after [9]), a negative size limit: values
+        const kind: Buffer = Buffer.from(good)
+        kind[kind.indexOf(Buffer.from([0x87, 0x01]))] = 0x8a
+        assert.throws(() => decodeMessage(kind), (error: unknown) => error instanceof LDAPDecodeException && !error.malformed && /unknown kind/.test(error.message))
+        const limit: Buffer = Buffer.from(good)
+        limit[limit.indexOf(Buffer.from([0x02, 0x01, 0x00])) + 2] = 0xff
+        assert.throws(() => decodeMessage(limit), (error: unknown) => error instanceof LDAPDecodeException && !error.malformed && /negative/.test(error.message))
+        //A known kind in another form, a tag of another class: the encoding
+        for (const tag of [0xa7, 0x04]) {
+            const other: Buffer = Buffer.from(good)
+            other[other.indexOf(Buffer.from([0x87, 0x01]))] = tag
+            assert.throws(() => decodeMessage(other), (error: unknown) => error instanceof LDAPDecodeException && error.malformed && /unknown kind/.test(error.message))
+        }
+        //A size limit of seven bytes, padded: the encoding (X.690 §8.3.2); not padded: a value
+        for (const [bytes, malformed] of [[[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05], true], [[0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05], false]] as const) {
+            const at: number = good.indexOf(Buffer.from([0x02, 0x01, 0x00]))
+            const wide: Buffer = Buffer.concat([good.subarray(0, at), Buffer.from([0x02, 0x07, ...bytes]), good.subarray(at + 3)])
+            wide[1] += 6
+            wide[wide.indexOf(0x63) + 1] += 6
+            assert.throws(() => decodeMessage(wide), (error: unknown) => error instanceof LDAPDecodeException && error.malformed === malformed)
+        }
+        //A value that is not allowed, then an error of the encoding after it: the encoding
+        const both: Buffer = Buffer.from(tag)
+        both[both.indexOf(Buffer.from([0x0a, 0x01, 0x00])) + 2] = 7
+        assert.throws(() => decodeMessage(both), (error: unknown) => error instanceof LDAPDecodeException && error.malformed && /scope/.test(error.message))
     })
 
     it('refuse a DN that is not UTF-8, without being fatal', () => {
         const good: Buffer = encodeMessage({messageId: 4, protocolOp: {type: 'deleteRequest', entry: 'cn=ab'}})
         const bad: Buffer = Buffer.from(good)
         bad[bad.length - 1] = 0xff
-        assert.throws(() => decodeMessage(bad), (error: unknown) => error instanceof LDAPDecodeException && !error.fatal && error.messageId === 4)
+        assert.throws(() => decodeMessage(bad), (error: unknown) => error instanceof LDAPDecodeException && !error.fatal && !error.malformed && error.messageId === 4)
     })
 })
 

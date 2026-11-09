@@ -305,7 +305,7 @@ for (const problem of schema.problems()) console.log(`${problem.source}:${proble
 
 | Exception | When |
 |---|---|
-| `LDAPDecodeException` | A message that cannot be decoded; `fatal` when the stream cannot go on, otherwise with its `messageId` and `operation` |
+| `LDAPDecodeException` | A message that cannot be decoded; `fatal` when the stream cannot go on, otherwise with its `messageId` and `operation`, and `malformed` when the encoding of the operation is wrong rather than one of its values (a server then ends the session) |
 | `LDAPFilterSyntaxException` | The text of a filter that is not one, with the `position` of the error |
 | `LDAPDNSyntaxException` | The text of a DN that is not one, with the `position` of the error |
 | `LDAPSchemaException` | A schema definition that cannot be parsed, a name or an OID defined twice, a reference to what is not defined |

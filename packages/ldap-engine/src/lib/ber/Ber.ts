@@ -34,6 +34,40 @@ export class BerError extends Error {
 }
 
 /**
+ * A BER element read whole whose value is not allowed: the encoding is right, the value is not (a string that is not
+ * UTF-8, an enumeration out of its values…). A server answers the operation with protocolError, where an error of the
+ * encoding itself ends the session (RFC 4511 §4.1.1).
+ */
+export class BerValueError extends BerError {
+    public override readonly name: string = 'BerValueError'
+}
+
+//Whether the values that are not allowed are let through, while a message is read again past them
+let lenient: boolean = false
+
+/**
+ * Refuse a value that is not allowed with a BerValueError, unless the message is read again past such values (the
+ * caller then goes on with a value of its own)
+ * @param message What is not allowed.
+ */
+export function refuseValue(message: string): void {
+    if (!lenient) throw new BerValueError(message)
+}
+
+/**
+ * Read with the values that are not allowed let through: an error of the encoding after such a value comes out
+ * @param read The reading.
+ */
+export function readPastValues<T>(read: () => T): T {
+    lenient = true
+    try {
+        return read()
+    } finally {
+        lenient = false
+    }
+}
+
+/**
  * Whether bytes are valid UTF-8 (RFC 3629: no overlong forms, no surrogates, nothing above U+10FFFF). Checked here
  * rather than by a fatal TextDecoder, which Node.js built without ICU does not have, nor buffer.isUtf8 (Node.js 18.14).
  * @param bytes The bytes.
@@ -91,7 +125,7 @@ export function isUTF8(bytes: Uint8Array, start: number = 0): boolean {
 export function decodeUTF8(bytes: Buffer): string {
     for (let index: number = 0; index < bytes.length; index++) {
         if (bytes[index] >= 0x80) {
-            if (!isUTF8(bytes, index)) throw new BerError('A string is not valid UTF-8')
+            if (!isUTF8(bytes, index)) refuseValue('A string is not valid UTF-8')
             return bytes.toString('utf8')
         }
     }
@@ -271,7 +305,12 @@ export class BerReader {
  */
 export function integerOf(content: Buffer): number {
     if (!content.length) throw new BerError('An empty INTEGER')
-    if (content.length > 6) throw new BerError('An INTEGER of more than 6 bytes')
+    if (content.length > 6) {
+        //Bytes the value does not need are an error of the encoding (X.690 §8.3.2); a value past 6 bytes is not allowed
+        if ((content[0] === 0x00 && content[1] < 0x80) || (content[0] === 0xff && content[1] >= 0x80)) throw new BerError('An INTEGER longer than its value')
+        refuseValue('An INTEGER of more than 6 bytes')
+        return 0
+    }
     let value: number = content[0] & 0x80 ? content[0] - 256 : content[0]
     for (let index: number = 1; index < content.length; index++) value = value * 256 + content[index]
     return value

@@ -45,6 +45,9 @@ const RESPONSE_OF: Partial<Record<string, LDAPResponse['type']>> = {
     extendedRequest: 'extendedResponse'
 }
 
+//The operations a client sends: the others end the session (RFC 4511 §4.1.1)
+const REQUESTS: ReadonlySet<string> = new Set([...Object.keys(RESPONSE_OF), 'abandonRequest', 'unbindRequest'])
+
 /**
  * A network connection of a server: the messages read and dispatched, the binds run one at a time, Abandon, StartTLS,
  * the limits, the entries written as the socket takes them, the Notice of Disconnection
@@ -161,16 +164,17 @@ export class ServerConnection {
     }
 
     /**
-     * Answer a message that cannot be decoded: protocolError for its operation when it is known, else the end of the
-     * connection
+     * Answer a message that cannot be decoded (RFC 4511 §4.1.1): the end of the connection when its encoding is wrong or
+     * it is not a request, protocolError for its operation when only a value is not allowed (nothing for an abandon)
      * @param error The error.
      */
     protected decodeError(error: LDAPDecodeException): void {
-        const type: LDAPResponse['type'] | undefined = error.operation ? RESPONSE_OF[error.operation] : undefined
-        if (error.fatal || error.messageId === undefined || !type) {
-            if (error.operation !== 'abandonRequest' && error.operation !== 'unbindRequest') this.disconnect(ResultCode.protocolError, error.message)
+        if (error.malformed || error.messageId === undefined || !error.operation || !REQUESTS.has(error.operation)) {
+            this.disconnect(ResultCode.protocolError, error.message)
             return
         }
+        const type: LDAPResponse['type'] | undefined = RESPONSE_OF[error.operation]
+        if (!type) return
         this.send({messageId: error.messageId, protocolOp: {type: type, resultCode: ResultCode.protocolError, matchedDN: '', diagnosticMessage: error.message} as LDAPResponse})
     }
 
@@ -180,6 +184,10 @@ export class ServerConnection {
      */
     protected dispatch(message: LDAPMessage): void {
         const request: LDAPRequest = message.protocolOp as LDAPRequest
+        if (!REQUESTS.has(request.type)) {
+            this.disconnect(ResultCode.protocolError, `A ${request.type} is not a request`)
+            return
+        }
         switch (request.type) {
             case 'unbindRequest':
                 this.close()
