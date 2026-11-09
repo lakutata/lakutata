@@ -91,9 +91,9 @@ await server.listen({path: '/run/directory/ldapi', mode: 0o666})
   records, so it orders and windows as the server would). `MemoryBackend` keeps its entries in memory;
   `createHandlerBackend()` makes a backend from handlers written operation by operation, as ldapjs servers are.
 - The schema: the system schema (the operational attributes and the object classes of the directory itself) always,
-  then the schemas of the `schema` option in order, `DEFAULT_SCHEMAS` by default: core, cosine and inetOrgPerson, the
-  schemas of the RFCs that nearly every server has. The other bundled schemas are added when needed
-  (`[...DEFAULT_SCHEMAS, RFC2307BIS_SCHEMA]`): rfc2307bis for POSIX accounts and groups, openssh-lpk for SSH public
+  then the schemas of the `schema` option in order, `DEFAULTS` of `@lakutata/ldap-engine/schemas` by default: core,
+  cosine and inetOrgPerson, the schemas of the RFCs that nearly every server has. The other bundled schemas are added
+  when needed (`[...DEFAULTS, RFC2307BIS]`): rfc2307bis for POSIX accounts and groups, openssh-lpk for SSH public
   keys, ppolicy for the password policy (the password policy plugin loads it itself). Schemas of one's own are
   documents read from their files (`readSchemaFile()`, or `readSchemaDirectory()` for a directory, in the order of
   their names) or the texts of the files. A name or an OID defined twice stops the server at its start.
@@ -222,8 +222,8 @@ console.log(read.length)
   compare the values.
 - `parseSchemaFile()` turns a schema file into a document: its definitions as plain objects, with their comments and
   lines, which go through JSON as they are. `stringifySchemaFile()` writes it back, the definitions unchanged as they
-  were written, which is what an editor of schema files needs. The bundled schemas are documents too (`CORE_SCHEMA`…),
-  imported without parsing any text.
+  were written, which is what an editor of schema files needs. The bundled schemas are documents too (`CORE`… of
+  `@lakutata/ldap-engine/schemas`), imported without parsing any text.
 - `parseLDIF()` and `stringifyLDIF()` read and write LDIF (RFC 2849), entries and changes, with the comments before
   each record.
 
@@ -243,14 +243,15 @@ A schema file read, changed and written back, then loaded with the bundled schem
 
 ```typescript
 import {readFileSync, writeFileSync} from 'node:fs'
-import {CORE_SCHEMA, parseSchemaFile, Schema, type SchemaDocument, stringifySchemaFile, SYSTEM_SCHEMA} from '@lakutata/ldap-engine'
+import {parseSchemaFile, Schema, type SchemaDocument, stringifySchemaFile} from '@lakutata/ldap-engine'
+import {CORE, SYSTEM} from '@lakutata/ldap-engine/schemas'
 
 const devices: SchemaDocument = parseSchemaFile(readFileSync('devices.ldif', 'utf8'), 'devices')
 const device = devices.objectClasses[0]
 device.may = [...device.may ?? [], 'description']
 writeFileSync('devices.ldif', stringifySchemaFile(devices))
 
-const schema: Schema = new Schema().load(SYSTEM_SCHEMA).load(CORE_SCHEMA).load(devices)
+const schema: Schema = new Schema().load(SYSTEM).load(CORE).load(devices)
 for (const problem of schema.problems()) console.log(`${problem.source}:${problem.line} ${problem.message}`)
 ```
 
@@ -278,8 +279,6 @@ for (const problem of schema.problems()) console.log(`${problem.source}:${proble
 | `PasswordPolicyOptions`, `PasswordPolicyRules`, `rulesOfEntry(entry, schema)` | The password policy |
 | `plainMechanism()`, `externalMechanism()`, `SASLMechanism` | SASL |
 | `createDirectory(connection, options)`, `Directory`, `DirectoryProfile` | The directory helper |
-| `SYSTEM_SCHEMA`, `CORE_SCHEMA`, `COSINE_SCHEMA`, `INETORGPERSON_SCHEMA`, `RFC2307BIS_SCHEMA`, `OPENSSH_LPK_SCHEMA`, `PPOLICY_SCHEMA` | The bundled schemas, as documents |
-| `DEFAULT_SCHEMAS`, `DEFAULT_SCHEMA_NAMES`, `BUNDLED_SCHEMAS`, `BUNDLED_SCHEMA_NAMES`, `bundledSchema(names)` | The schemas a server loads by default (core, cosine, inetorgperson), the bundled ones by name, a `Schema` of them |
 | `parseSchemaFile(text, name)`, `stringifySchemaFile(document)`, `SchemaDocument` | A schema file as a document, and back |
 | `readSchemaFile(path)`, `readSchemaDirectory(directory)` | The documents of a schema file, and of the files of a directory in the order of their names (the numbers in them by their value) |
 | `encodeMessage(message)`, `decodeMessage(bytes)` | A message as bytes, and back |
@@ -294,6 +293,13 @@ for (const problem of schema.problems()) console.log(`${problem.source}:${proble
 | `ResultCode`, `resultCodeName(code)` | The result codes and their names |
 | `LDAPMessage`, `ProtocolOp`, `LDAPRequest`, `LDAPResponse`, `LDAPResult`, `Control`, the types of the operations, the filters, the controls and the records | Their types |
 | `LDAPException` and its subclasses | The exceptions of the package (see [Errors](#errors)) |
+
+`@lakutata/ldap-engine/schemas` exports the bundled schemas (`@lakutata/ldap/schemas` too):
+
+| Export | What it is |
+|---|---|
+| `SYSTEM`, `CORE`, `COSINE`, `INETORGPERSON`, `RFC2307BIS`, `OPENSSH_LPK`, `PPOLICY` | The bundled schemas, as documents |
+| `DEFAULTS`, `DEFAULT_NAMES`, `BUNDLED`, `BUNDLED_NAMES`, `bundledSchema(names)` | The schemas a server loads by default (core, cosine, inetorgperson), the bundled ones by name, a `Schema` of them |
 
 ## Errors
 

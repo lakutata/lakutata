@@ -193,3 +193,4 @@ Application.run(() => ({
 | `LDAPEntryRecord`、`LDAPValueRecord`、`LDAPMySQLValueRecord`、`LDAPUniqueRecord`、`LDAPBindStateRecord` | 目录后端的实体 |
 | `ObjectSpecification`、`PluginSpecification`、`PluginObjectSpecification`、`InterceptorSpecification`、`InterfaceListeningOptions` | 选项用到的类型 |
 | `@lakutata/ldap-engine` 导出的全部内容 | 协议、客户端、服务器引擎、目录助手 |
+| `@lakutata/ldap/schemas` | 自带的 schema 文档（`CORE`、`RFC2307BIS` 等，以及 `DEFAULTS`），即 `@lakutata/ldap-engine/schemas` 的内容 |

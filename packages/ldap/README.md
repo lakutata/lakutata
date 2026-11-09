@@ -231,3 +231,4 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | `LDAPEntryRecord`, `LDAPValueRecord`, `LDAPMySQLValueRecord`, `LDAPUniqueRecord`, `LDAPBindStateRecord` | The entities of the directory backend |
 | `ObjectSpecification`, `PluginSpecification`, `PluginObjectSpecification`, `InterceptorSpecification`, `InterfaceListeningOptions` | The types of the options |
 | Everything `@lakutata/ldap-engine` exports | The protocol, the client, the server engine, the directory helper |
+| `@lakutata/ldap/schemas` | The bundled schemas as documents (`CORE`, `RFC2307BIS`…, and `DEFAULTS`), those of `@lakutata/ldap-engine/schemas` |

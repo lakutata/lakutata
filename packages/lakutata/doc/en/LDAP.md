@@ -186,10 +186,10 @@ the matching rules. The server checks every write against it.
   it to `[]` when it holds them all); with the nis.schema of OpenLDAP (RFC 2307), leave out rfc2307bis, which has the
   same OIDs.
 - A schema file is also data. `readSchemaFile()` or `parseSchemaFile()` turns it into a document, its definitions as
-  plain objects with their comments and lines; `stringifySchemaFile()` writes it back with the definitions that did not
-  change as they were written; `Schema.problems()` gives the file and the line of each name a definition refers to
-  without defining it. The bundled schemas are such documents (`CORE_SCHEMA`…), and a document of one's own can be made
-  once at build time and imported.
+  plain objects with their comments and lines; `stringifySchemaFile()` writes it back with the definitions that did
+  not change as they were written; `Schema.problems()` gives the file and the line of each name a definition refers to
+  without defining it. The bundled schemas are such documents (`CORE`… of `@lakutata/ldap/schemas`), and a document of
+  one's own can be made once at build time and imported.
 - The tree is the data's: the schema says what an entry holds, not where it goes.
 - Clients read the schema at `cn=Subschema`; `schemaConfigView: true` also shows the files read-only at
   `cn={N}<name>,cn=schema,cn=config`, as OpenLDAP does.

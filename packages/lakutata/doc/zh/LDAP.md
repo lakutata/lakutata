@@ -147,7 +147,7 @@ Schema 决定一个条目能存什么：它的对象类、对象类要求和允�
 - 系统 schema（操作属性，以及目录自身的对象类）总是加载。
 - 自带的 schema 在 `schema.bundled` 里按名字选。core、cosine 和 inetOrgPerson 是几乎所有服务器都有的 RFC schema，默认加载；rfc2307bis（POSIX 账号和组，供 SSSD 和 nslcd 使用）、openssh-lpk（SSH 公钥）和 ppolicy（密码策略）写上名字才加载；`[]` 表示只留系统 schema。启用密码策略插件时会自动带上 ppolicy。
 - `schema.files` 加入自己的 schema：路径、文本，或文档（见下一条）。文件可以是 OpenLDAP `cn=config` 的 LDIF、subschema 条目，或 `.schema` 格式。`schema.directory` 在它们之前加载一个目录里的 `.ldif` 和 `.schema` 文件，按文件名排序，文件名里的数字按数值比较（`cn={2}nis.ldif` 排在 `cn={10}ppolicy.ldif` 前面，和 OpenLDAP 给文件编号的方式一致）。同一个名字或 OID 定义了两次时，服务器在启动时就停下，并指出两个文件：目录里也放了标准 schema 文件时，把 `schema.bundled` 里对应的几份去掉（全都放了就设为 `[]`）；使用 OpenLDAP 的 nis.schema（RFC 2307）时，去掉和它 OID 相同的 rfc2307bis。
-- schema 文件也可以当作数据处理。`readSchemaFile()` 或 `parseSchemaFile()` 把它转成文档，其中的定义都是普通对象，带着注释和行号；`stringifySchemaFile()` 把文档写回文件，没改动的定义保持原来的写法；`Schema.problems()` 给出每个“引用了却没有定义”的名字所在的文件和行。自带的 schema 就是这样的文档（`CORE_SCHEMA` 等），自己的 schema 也可以在构建时转好、直接 import。
+- schema 文件也可以当作数据处理。`readSchemaFile()` 或 `parseSchemaFile()` 把它转成文档，其中的定义都是普通对象，带着注释和行号；`stringifySchemaFile()` 把文档写回文件，没改动的定义保持原来的写法；`Schema.problems()` 给出每个“引用了却没有定义”的名字所在的文件和行。自带的 schema 就是这样的文档（`@lakutata/ldap/schemas` 里的 `CORE` 等），自己的 schema 也可以在构建时转好、直接 import。
 - 目录树的结构由数据决定：schema 只规定条目存什么，不规定它放在哪里。
 - 客户端在 `cn=Subschema` 读取 schema；`schemaConfigView: true` 还会像 OpenLDAP 那样，在 `cn={N}<name>,cn=schema,cn=config` 以只读方式列出这些文件。
 
