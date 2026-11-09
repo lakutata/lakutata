@@ -20,6 +20,7 @@ import {
     MemberOfPlugin,
     MemoryBackend,
     type OperationContext,
+    parseSchemaFile,
     type ServerOutcome,
     type ServerRequest
 } from '../exports/LDAP.js'
@@ -222,6 +223,24 @@ describe('the LDAPServer component', () => {
         } finally {
             await container.destroy()
             rmSync(directory, {recursive: true, force: true})
+        }
+    })
+
+    it('loads core, cosine and inetorgperson by default, the bundled schemas named, and documents of one\'s own', async () => {
+        const container: Container = new Container()
+        try {
+            await container.setNamed('plain', LDAPServer, {port: false, backends: [new MemoryBackend(BASE)]})
+            const plain = (await container.get<LDAPServer>('plain')).engine.schema
+            assert.ok(plain.objectClass('inetOrgPerson') && !plain.objectClass('posixAccount'))
+            const devices = parseSchemaFile('attributetype ( 1.3.6.1.4.1.99999.1 NAME \'deviceSerial\' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )', 'devices')
+            await container.setNamed('posix', LDAPServer, {port: false, schema: {bundled: ['core', 'cosine', 'rfc2307bis'], files: [devices]}, backends: [new MemoryBackend(BASE)]})
+            const posix = (await container.get<LDAPServer>('posix')).engine.schema
+            assert.ok(posix.objectClass('posixAccount') && posix.attributeType('deviceSerial') && !posix.objectClass('inetOrgPerson'))
+            await container.setNamed('bare', LDAPServer, {port: false, schema: {bundled: []}, backends: [new MemoryBackend(BASE)]})
+            const bare = (await container.get<LDAPServer>('bare')).engine.schema
+            assert.ok(bare.objectClass('subschema') && !bare.objectClass('person'))
+        } finally {
+            await container.destroy()
         }
     })
 

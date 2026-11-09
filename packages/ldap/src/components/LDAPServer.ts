@@ -1,15 +1,16 @@
-import {readFile} from 'node:fs/promises'
 import {createServer, type Server} from 'node:net'
-import {basename, extname} from 'node:path'
 import * as tls from 'node:tls'
 import {Component, type ComponentOptions, DTO, type IBaseObjectConstructor, type IInterfaceListener, InvalidValueException} from '@lakutata/core'
 import {Configurable, Singleton} from '@lakutata/core/decorator/di'
 import {
     type AccessOptions,
     type BindThrottleOptions,
+    BUNDLED_SCHEMA_NAMES,
+    BUNDLED_SCHEMAS,
     type BundledSchemaName,
     createDirectory,
     createLDAPServer,
+    DEFAULT_SCHEMA_NAMES,
     type Directory,
     type DirectoryProfile,
     type DN,
@@ -24,7 +25,9 @@ import {
     type PasswordPolicyOptions,
     type PasswordSchemes,
     readSchemaDirectory,
+    readSchemaFile,
     type SASLMechanism,
+    type SchemaSource,
     type ServerLimits,
     type ServerTLSOptions
 } from '@lakutata/ldap-engine'
@@ -128,12 +131,14 @@ export interface LDAPServerOptions extends InterfaceListeningOptions {
      */
     interceptors?: InterceptorSpecification[]
     /**
-     * The schema: the bundled files to load (all of them by default), then the schema files of a directory (its `.ldif`
+     * The schema, after the system schema: the bundled schemas by name (core, cosine and inetorgperson by default;
+     * rfc2307bis, openssh-lpk and ppolicy when named; `[]` for none), then the schema files of a directory (its `.ldif`
      * and `.schema` files in the order of their names, the numbers in them by their value: `cn={2}nis.ldif` before
-     * `cn={10}ppolicy.ldif`), then schema files of one's own, by path or by name and text (the LDIF of OpenLDAP's
-     * `cn=config`, a subschema entry, or the `.schema` form)
+     * `cn={10}ppolicy.ldif`), then schemas of one's own: by path, by name and text, or as documents
+     * (`readSchemaFile()`, `parseSchemaFile()`). The plugins and the backends add the schemas they need (the password
+     * policy brings ppolicy).
      */
-    schema?: {bundled?: BundledSchemaName[], directory?: string, files?: (string | {name: string, text: string})[]}
+    schema?: {bundled?: BundledSchemaName[], directory?: string, files?: (string | SchemaSource)[]}
     /**
      * Who may do what
      */
@@ -491,15 +496,17 @@ export class LDAPServer extends Component {
             const {class: constructor, name, suffixes, ...options} = item
             return placed(await this.buildObject(constructor, options) as unknown as LDAPPlugin, name as string | undefined, suffixes as string[] | undefined)
         }))
-        const files: {name: string, text: string}[] = [
+        const bundled: readonly BundledSchemaName[] = this.schema?.bundled ?? DEFAULT_SCHEMA_NAMES
+        const sources: SchemaSource[] = [
+            ...BUNDLED_SCHEMA_NAMES.filter((name: BundledSchemaName): boolean => bundled.includes(name)).map((name: BundledSchemaName): SchemaSource => BUNDLED_SCHEMAS[name]),
             ...this.schema?.directory !== undefined ? await readSchemaDirectory(this.schema.directory) : [],
-            ...await Promise.all((this.schema?.files ?? []).map(async (file: string | {name: string, text: string}): Promise<{name: string, text: string}> => typeof file === 'string' ? {name: basename(file, extname(file)), text: await readFile(file, 'utf8')} : file))
+            ...await Promise.all((this.schema?.files ?? []).map(async (file: string | SchemaSource): Promise<SchemaSource> => typeof file === 'string' ? readSchemaFile(file) : file))
         ]
         const engine: LDAPServerEngine = createLDAPServer({
             backends: backends,
             plugins: plugins,
             interceptors: interceptors,
-            schema: {...this.schema?.bundled ? {bundled: this.schema.bundled} : {}, files: files},
+            schema: sources,
             ...this.access ? {access: this.access} : {},
             ...this.limits ? {limits: this.limits} : {},
             ...this.bindThrottle ? {bindThrottle: this.bindThrottle} : {},

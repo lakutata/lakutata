@@ -4,6 +4,7 @@ import {after, before, describe, it} from 'node:test'
 import {Container} from '@lakutata/core'
 import {Database} from '@lakutata/orm/com/database'
 import {
+    type BundledSchemaName,
     connectLDAP,
     type Directory,
     DirectoryBackend,
@@ -41,6 +42,8 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
         let databaseOptions: Record<string, unknown>
         const people: string = `ou=people,${BASE}`
         const groups: string = `ou=groups,${BASE}`
+        //The POSIX accounts and the SSH public keys of the users, besides the default schemas
+        const schema = {bundled: ['core', 'cosine', 'inetorgperson', 'rfc2307bis', 'openssh-lpk'] as BundledSchemaName[]}
 
         /**
          * Start the server on the database
@@ -49,6 +52,7 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             await target.setNamed('ldap', LDAPServer, {
                 host: '127.0.0.1',
                 port: 0,
+                schema: schema,
                 backends: [{class: DirectoryBackend, suffix: BASE, database: 'database', unique: ['uid'], nestedGroups: 2, mailAlias: true, initialize: {admin: {dn: ADMIN, password: 'secret'}}}],
                 access: {admins: [ADMIN]},
                 passwords: {iterations: 1000},
@@ -132,7 +136,7 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             const second: Container = new Container()
             try {
                 await second.setNamed('database', Database, {options: {...databaseOptions, entities: directoryEntities(String(databaseOptions.type))}})
-                await second.setNamed('ldap', LDAPServer, {port: false, backends: [{class: DirectoryBackend, suffix: BASE, database: 'database', mailAlias: true}], access: {admins: [ADMIN]}, limits: {sortCandidates: 5}})
+                await second.setNamed('ldap', LDAPServer, {port: false, schema: schema, backends: [{class: DirectoryBackend, suffix: BASE, database: 'database', mailAlias: true}], access: {admins: [ADMIN]}, limits: {sortCandidates: 5}})
                 const connection: LDAPInProcessConnection = (await second.get<LDAPServer>('ldap')).connect(ADMIN)
                 const window = await connection.search(people, {scope: 'one', sort: [{attribute: 'cn', reverse: true}], window: {offset: 3, limit: 4}})
                 assert.deepEqual(window.entries.map((entry) => entry.first('cn')), ['User 27', 'User 26', 'User 25', 'User 24'])
@@ -277,6 +281,7 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
                     await instance.setNamed('ldap', LDAPServer, {
                         port: 0,
                         host: '127.0.0.1',
+                        schema: schema,
                         backends: [{class: DirectoryBackend, suffix: BASE, database: 'database', sharedThrottle: false}],
                         access: {admins: [ADMIN]},
                         passwords: {iterations: 1000},

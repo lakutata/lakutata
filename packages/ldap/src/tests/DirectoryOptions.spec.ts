@@ -86,7 +86,7 @@ describe('the options of the directory backend', {skip: sqliteLoads() ? false : 
 
     it('leaves out of its chain the plugins doing what it does itself', async () => {
         const plugins = [new MemberOfPlugin(), new LastBindPlugin(), new IdAllocationPlugin({uidNumber: 50000}), new UniquePlugin({attributes: ['mail']})]
-        const {container, ldap, file} = await serve({suffix: 'dc=example', initialize: {admin: {dn: 'cn=admin,dc=example', password: 'secret'}}}, {access: {admins: ['cn=admin,dc=example']}, plugins: plugins})
+        const {container, ldap, file} = await serve({suffix: 'dc=example', initialize: {admin: {dn: 'cn=admin,dc=example', password: 'secret'}}}, {access: {admins: ['cn=admin,dc=example']}, plugins: plugins, schema: {bundled: ['core', 'cosine', 'inetorgperson', 'rfc2307bis']}})
         try {
             const admin = ldap.connect('cn=admin,dc=example')
             await admin.add('uid=alice,dc=example', {objectClass: ['inetOrgPerson', 'posixAccount'], uid: 'alice', cn: 'Alice', sn: 'A', mail: 'alice@example.org', homeDirectory: '/home/alice', userPassword: 'alice-secret'})

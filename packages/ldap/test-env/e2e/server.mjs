@@ -15,6 +15,8 @@ await container.setNamed('ldap', LDAPServer, {
     port: Number(process.env.LDAP_PORT ?? 0),
     ldapiPath: process.argv[3],
     ldapiMode: 0o666,
+    //The POSIX accounts and groups (SSSD) and the SSH public keys (SSSD, Gitea), besides the default schemas
+    schema: {bundled: ['core', 'cosine', 'inetorgperson', 'rfc2307bis', 'openssh-lpk']},
     backends: [{class: DirectoryBackend, database: 'database', suffix: BASE, unique: ['uid'], initialize: {admin: {dn: ADMIN, password: 'secret'}}}],
     access: {admins: [ADMIN], passwordAdmins: [ADMIN]},
     passwords: {iterations: 10000}
