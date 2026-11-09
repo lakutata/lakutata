@@ -46,10 +46,11 @@ await client.close()
 - `connectLDAP()` opens one connection (`ldap://`, `ldaps://`, `ldapi://`, StartTLS) for a session of its own. Its
   operations take a `timeout` and a `signal`; a search or a write that times out is abandoned on the server and the
   connection goes on. A bind or StartTLS that times out closes the connection.
-- Searches are paged (500 entries a page) unless `paged: false`, so a server's own limit on a request does not cut them
-  short; `searchIterator()` gives the entries one by one and ends the paging on the server when the loop stops early.
-  `sort` with `window` reads a window of the sorted entries (virtual list view). The values Active Directory gives in
-  ranges (`member;range=0-1499`) are read to their end.
+- Searches are paged (500 entries a page) unless `paged: false`, so a server's own limit on a request does not cut
+  them short; `searchIterator()` gives the entries one by one and ends the paging on the server when the loop stops
+  early. `sort` with `window` reads a window of the sorted entries (virtual list view); both controls are sent as
+  critical, so a server that cannot sort or window fails the search rather than giving every entry. The values Active
+  Directory gives in ranges (`member;range=0-1499`) are read to their end.
 - An entry reads text with `get()` and bytes with `getBuffers()`; `get()` throws on an attribute whose values are bytes
   (`jpegPhoto`, `objectGUID`…), so bytes are never read as text.
 - `authenticate()` finds the user's entry, then binds as the user on a connection of its own: an empty password is
@@ -83,10 +84,12 @@ await server.listen({path: '/run/directory/ldapi', mode: 0o666})
 ```
 
 - `createLDAPServer()` serves the entries of its backends, each mounted at its suffix. A backend stores the entries
-  (`get()`, `search()`, and the writes it supports); the server does the rest: the protocol, StartTLS and LDAPS, the
-  schema checks on every write, the passwords, the access control, the limits, the root DSE and the subschema, and
-  sorting, the virtual list view and paged results when the backend does not do them itself. `MemoryBackend` keeps its entries in
-  memory; `createHandlerBackend()` makes a backend from handlers written operation by operation, as ldapjs servers are.
+  (`get()`, `search()`, the writes it supports, and `exists()` when it can tell an entry exists without reading it);
+  the server does the rest: the protocol, StartTLS and LDAPS, the schema checks on every write, the passwords, the
+  access control, the limits, the root DSE and the subschema, and sorting, the virtual list view and paged results
+  when the backend does not do them itself (a backend that sorts itself calls `sortSearchItems()` on its own lighter
+  records, so it orders and windows as the server would). `MemoryBackend` keeps its entries in memory;
+  `createHandlerBackend()` makes a backend from handlers written operation by operation, as ldapjs servers are.
 - The schema is bundled (core, cosine, inetOrgPerson, rfc2307bis, openssh-lpk and ppolicy) and loaded by default; schema files of one's own (the LDIF of
   OpenLDAP's `cn=config`, a subschema entry, the `.schema` form) are added with `schema.files`, and
   `readSchemaDirectory()` reads those of a directory in the order of their names. A name or an OID
@@ -241,6 +244,7 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `LDAPInProcessConnection` | A connection in the same process |
 | `LDAPBackend`, `DirectoryEntry`, `OperationContext`, `SearchContext`… | The interface of the backends |
 | `MemoryBackend`, `createHandlerBackend(options)` | Backends ready |
+| `sortSearchItems(items, valuesOf, context, schema)`, `sortWindowRange(context, count)`, `sortOrderingOf(attribute, schema)` | The sort and the window of a search, for a backend sorting itself: in memory, or in its database by the range of the window and the rule of each key |
 | `LDAPPlugin`, `LDAPPluginHost`, `PluginControl`, `PasswordChange`, `BaseLDAPPlugin` | The plugins |
 | `MemberOfPlugin`, `ReferentialIntegrityPlugin`, `UniquePlugin`, `PasswordPolicyPlugin`, `IdAllocationPlugin`, `LastBindPlugin`, `SambaPasswordPlugin`, `AuditPlugin`, `ConstraintPlugin`, `GroupPresentationPlugin` | The plugins ready |
 | `LDAPInterceptor`, `InterceptorPlacement`, `ServerRequest`… | The interceptors |

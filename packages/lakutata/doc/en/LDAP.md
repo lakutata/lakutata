@@ -200,8 +200,9 @@ the matching rules. The server checks every write against it.
 - A bind with a name and an empty password is refused (`allowUnauthenticatedBind` accepts it as anonymous).
 - Failed binds of a DN or an address are answered later and later, then refused for a while (`bindThrottle`), all with
   invalidCredentials, which does not tell a locked account from a wrong password.
-- The limits: 500 entries and 3600 seconds a search for the sessions that are not administrators, the size of the
-  messages, the requests outstanding, the depth and the size of the filters, the idle time (`limits`).
+- The limits (`limits`): for the sessions that are not administrators, 500 entries and 3600 seconds a search, and the
+  depth and size of its filter; for every session, the size of the messages, the requests outstanding and the idle
+  time.
 
 ## 7. Passwords and the password policy
 
@@ -245,6 +246,13 @@ one row per value.
 
 - The searches run in the database: the filters become SQL on the forms of the values the matching rules compare by
   (equality, substrings, integers and times); the server checks what SQL cannot decide exactly.
+- A sorted search is sorted by the backend, which reads only the entries of the window (`window`): a window by an
+  offset is ordered, counted and cut by the database on a sort key kept with each value; otherwise the backend reads the
+  values of the sort keys and orders the entries by them as the server would. After the schema changes the ordering
+  rule of an attribute, its values written before keep their old sort keys until they are written again.
+- The entries of a search come in a set order: an entry before the entries below it, siblings in the order they were
+  added (entryUUID is a UUID of version 7; an entry imported with its own entryUUID takes its place by that value).
+  Entries with equal sort keys keep this order.
 - The DN values (member, manager, seeAlso…) point at their entries: they follow a rename, and go when the entry is
   deleted; a required attribute left empty keeps a placeholder (the empty DN by default).
 - `memberOf` is computed when it is read, and a filter on it finds the members of a group (`nestedGroups` follows

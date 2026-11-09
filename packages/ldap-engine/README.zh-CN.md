@@ -40,7 +40,7 @@ await client.close()
 
 - `createLDAPClient()` 返回一个连接池，池里的连接都以同一个身份绑定。操作需要连接时它才打开连接，按顺序尝试各个服务器（或 DNS SRV 记录给出的服务器），并关闭空闲的连接。
 - `connectLDAP()` 打开单独一个连接（`ldap://`、`ldaps://`、`ldapi://`、StartTLS），用于独立的会话。它的操作可以传 `timeout` 和 `signal`；搜索或写操作超时后，客户端会在服务器上放弃（abandon）这个操作，连接继续可用。绑定或 StartTLS 超时则会关闭连接。
-- 搜索默认分页（每页 500 条），除非传 `paged: false`，这样服务器对单个请求的条数限制不会把结果截断；`searchIterator()` 逐条给出条目，循环提前结束时会通知服务器结束分页。`sort` 加上 `window` 可以读取排序后条目中的一段（虚拟列表视图）。Active Directory 分段返回的值（`member;range=0-1499`）会一直读到最后。
+- 搜索默认分页（每页 500 条），除非传 `paged: false`，这样服务器对单个请求的条数限制不会把结果截断；`searchIterator()` 逐条给出条目，循环提前结束时会通知服务器结束分页。`sort` 加上 `window` 可以读取排序后条目中的一段（虚拟列表视图）；这两个控制项都标为关键，服务器排不了序或给不了窗口时搜索会失败，而不是返回全部条目。Active Directory 分段返回的值（`member;range=0-1499`）会一直读到最后。
 - 条目用 `get()` 读文本，用 `getBuffers()` 读字节；对值是字节的属性（`jpegPhoto`、`objectGUID` 等）调用 `get()` 会抛出异常，字节不会被转成乱码文本。
 - `authenticate()` 先找到用户的条目，再在单独的连接上以该用户身份绑定：空密码在发送任何请求之前就被拒绝；绑定失败时，结果会说明原因（`invalidCredentials`、`accountLocked`、`passwordExpired` 等），原因来自密码策略控制项或 Active Directory 的 data 代码。它只通过 TLS（`ldaps` URL 或 `startTLS`）或本机的 `ldapi` 套接字发送密码，除非设置 `requireTLS: false`。
 - 结果不是成功时会抛出对应的异常：`LDAPNoSuchObjectException`、`LDAPInvalidCredentialsException` 等。
@@ -68,7 +68,7 @@ await server.listen({port: 636, secure: true})
 await server.listen({path: '/run/directory/ldapi', mode: 0o666})
 ```
 
-- `createLDAPServer()` 提供各个后端里的条目，每个后端挂在自己的后缀上。后端负责存取条目（`get()`、`search()`，以及它支持的写操作），其余都由服务器负责：协议、StartTLS 和 LDAPS、每次写入时的 schema 校验、密码、访问控制、各种上限、rootDSE 和 subschema；后端自己不做排序、虚拟列表视图和分页时，也由服务器来做。`MemoryBackend` 把条目放在内存里；`createHandlerBackend()` 用 ldapjs 服务器那种按操作写处理函数的方式生成一个后端。
+- `createLDAPServer()` 提供各个后端里的条目，每个后端挂在自己的后缀上。后端负责存取条目（`get()`、`search()`、它支持的写操作，以及不读条目就能判断条目是否存在时的 `exists()`），其余都由服务器负责：协议、StartTLS 和 LDAPS、每次写入时的 schema 校验、密码、访问控制、各种上限、rootDSE 和 subschema；后端自己不做排序、虚拟列表视图和分页时，也由服务器来做（自己排序的后端用 `sortSearchItems()` 给代表条目的轻量数据排序和取窗口，规则和服务器相同）。`MemoryBackend` 把条目放在内存里；`createHandlerBackend()` 用 ldapjs 服务器那种按操作写处理函数的方式生成一个后端。
 - 自带的 schema（core、cosine、inetOrgPerson、rfc2307bis、openssh-lpk、ppolicy）默认全部加载；自己的 schema 文件（OpenLDAP `cn=config` 格式的 LDIF、subschema 条目、`.schema` 格式）用 `schema.files` 加入，`readSchemaDirectory()` 按文件名顺序读取一个目录里的这些文件。名字或 OID 重复定义时，服务器在启动时就会报错。
 - `server.connect({as})` 返回一个进程内连接，操作和客户端一样：应用不经过网络读写自己的目录，经过的 schema 校验、密码哈希和访问控制都和网络请求相同。不调用 `listen()` 也能用。
 - `listen({path})` 监听 Unix socket（ldapi），给同一台机器上的客户端用：SSSD 2.9 及以后、nslcd、OpenLDAP 的命令行工具（`ldapi://%2Frun%2Fdirectory%2Fldapi`）。这种连接不会离开本机，所以服务器像对待 TLS 一样接受从这里发来的密码，也会在这里提供 SASL PLAIN。EXTERNAL 仍然只在 TLS 上提供，因为服务器无法知道对端进程是以哪个用户运行的。`mode` 决定谁能连接（`0o666`：本机的所有用户；默认按 umask 决定，通常只有服务器进程所属的用户）。服务器停止后留下的 socket 文件会被替换。Windows 上不支持 Unix socket。
@@ -175,6 +175,7 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `LDAPInProcessConnection` | 进程内连接 |
 | `LDAPBackend`、`DirectoryEntry`、`OperationContext`、`SearchContext` 等 | 后端接口 |
 | `MemoryBackend`、`createHandlerBackend(options)` | 现成的后端 |
+| `sortSearchItems(items, valuesOf, context, schema)`、`sortWindowRange(context, count)`、`sortOrderingOf(attribute, schema)` | 给自己排序的后端用的排序和窗口：在内存里排，或者按窗口的范围和每个键的规则在数据库里排 |
 | `LDAPPlugin`、`LDAPPluginHost`、`PluginControl`、`PasswordChange`、`BaseLDAPPlugin` | 插件 |
 | `MemberOfPlugin`、`ReferentialIntegrityPlugin`、`UniquePlugin`、`PasswordPolicyPlugin`、`IdAllocationPlugin`、`LastBindPlugin`、`SambaPasswordPlugin`、`AuditPlugin`、`ConstraintPlugin`、`GroupPresentationPlugin` | 现成的插件 |
 | `LDAPInterceptor`、`InterceptorPlacement`、`ServerRequest` 等 | 拦截器 |
