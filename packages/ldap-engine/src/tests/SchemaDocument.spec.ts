@@ -119,6 +119,11 @@ describe('the schema documents', () => {
         assert.equal(schema.attributeType('serial')?.oid, '1.3.6.1.4.1.99999.1.1')
         assert.equal(copy.attributeTypes[0].oid, 'Example:1.1')
         assert.equal(schema.objectClass('device')?.oid, '1.3.6.1.4.1.99999.2.1')
+        //A macro reaches the definitions after it in the file, not those before it
+        const ordered: Schema = new Schema().load(parseSchemaFile(DOT_SCHEMA.replace('objectidentifier ExampleClass Example:2', 'attributetype ( ExampleClass:9 NAME \'early\' SYNTAX 1.3.6.1.4.1.1466.115.121.1.15 )\n\nobjectidentifier ExampleClass Example:2'), 'devices'))
+        assert.equal(ordered.attributeType('early')?.oid, 'ExampleClass:9')
+        assert.equal(ordered.objectClass('device')?.oid, '1.3.6.1.4.1.99999.2.1')
+        assert.equal(ordered.attributeType('serial')?.oid, '1.3.6.1.4.1.99999.1.1')
         const asDotSchema: string = stringifySchemaFile(document, {format: 'schema'})
         assert.ok(asDotSchema.startsWith('objectidentifier Example 1.3.6.1.4.1.99999\n\n# The serial number\n# of a device\nattributetype ( Example:1.1 NAME \'serial\''))
         assert.deepEqual(new Schema().load(asDotSchema, 'again').objectClass('device')?.must, ['serial'])
