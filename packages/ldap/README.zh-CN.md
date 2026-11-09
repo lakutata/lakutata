@@ -81,7 +81,7 @@ Application.run(() => ({
 - 搜索结果的顺序是确定的：条目在它下级的条目之前，同级条目按添加的先后（entryUUID 是第 7 版 UUID，其顺序就是创建顺序；带着自己 entryUUID 导入的条目按那个值排位）。排序键相同的条目也保持这个顺序。
 - 值里写的 DN（member、manager、seeAlso 等）指向对应的条目：条目改名时跟着改，条目删除时被移除（必需属性因此变空时，留下一个占位值，默认是空 DN）。
 - memberOf 在读取时计算，用它做过滤器可以找到一个组的成员；`nestedGroups` 可以展开嵌套组。posixGroup 条目会算出 memberUid，供 RFC 2307 的客户端使用。
-- 新增的 posixAccount 和 posixGroup 条目没有 uidNumber、gidNumber 时自动分配（从 10000 开始）；uidNumber 唯一，posixGroup 的 gidNumber 在各个组之间也唯一。
+- 新增的 posixAccount 和 posixGroup 条目没有 uidNumber、gidNumber 时自动分配（从 10000 开始）；uidNumber 唯一，posixGroup 的 gidNumber 在各个组之间也唯一。POSIX 的对象类来自自带的 rfc2307bis，它默认不加载，要在 `schema.bundled` 里写上。
 - `unique` 里的属性，其值在整个后缀内唯一；最近一次成功绑定的时间作为 authTimestamp 返回；绑定失败的记录存在数据库里，应用的多个实例共用，密码策略的状态也是这样；`mailAlias` 让 email 等于 mail。
 - 每个写操作在一个事务里执行，拦截器的 `beforeCommit()` 也在其中。
 - `@lakutata/ldap-engine` 里，做的事目录后端自己已经做了的插件（`MemberOfPlugin`、`ReferentialIntegrityPlugin`、`IdAllocationPlugin`、`LastBindPlugin`）不进它的处理链；其他插件（`UniquePlugin`、`AuditPlugin`、`ConstraintPlugin` 等）和在别的后端上一样运行。
@@ -135,7 +135,7 @@ Application.run(() => ({
 | `backends` | | 后端：对象，或带选项的 lakutata 类 |
 | `plugins` | | 插件：对象，或带选项的 lakutata 类（还可以给 `name`、`suffixes`） |
 | `interceptors` | | 单独给出的拦截器：对象、带位置的拦截器，或带选项的 lakutata 类 |
-| `schema` | 自带的文件 | `bundled`（要加载的自带文件）、`directory`（schema 文件所在的目录，按文件名顺序加载）和 `files`（自己的 schema 文件，给路径或文本） |
+| `schema` | core、cosine、inetorgperson | `bundled`（按名字选自带的 schema；`rfc2307bis`、`openssh-lpk`、`ppolicy` 写上名字才加载，`[]` 表示只留系统 schema）、`directory`（schema 文件所在的目录，按文件名顺序加载）和 `files`（自己的 schema：路径、文本，或 `readSchemaFile()`、`parseSchemaFile()` 得到的文档） |
 | `access` | | `admins`、`passwordAdmins`、`anonymousRead`、`authenticatedRead`、`check` |
 | `limits` | | 条数、时间、消息大小、请求数和连接数的上限 |
 | `bindThrottle` | 连续失败 5 次后锁定 | 绑定失败的限制 |

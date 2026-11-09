@@ -109,7 +109,8 @@ migrations are the application's, as for its other entities.
 - memberOf is computed when it is read, and a filter on it finds the members of a group; `nestedGroups` follows nested
   groups. memberUid is computed for the posixGroup entries, for the clients of RFC 2307.
 - uidNumber and gidNumber are allocated to the posixAccount and posixGroup entries added without them (from 10000);
-  a uidNumber is unique, and so is the gidNumber of a posixGroup among the groups.
+  a uidNumber is unique, and so is the gidNumber of a posixGroup among the groups. The POSIX classes come with the
+  bundled schema rfc2307bis, which `schema.bundled` names (it is not loaded by default).
 - The values of the attributes of `unique` are unique in the suffix; the time of the last bind is given as
   authTimestamp; the failed binds are kept in the database, so the instances of an application share them, as they
   share the state of the password policy; `mailAlias` gives email as mail.
@@ -172,7 +173,7 @@ local `ldapi` socket, unless it is given `requireTLS: false`.
 | `backends` | | The backends: objects, or lakutata classes with their options |
 | `plugins` | | The plugins: objects, or lakutata classes with their options (and `name`, `suffixes`) |
 | `interceptors` | | The interceptors alone: objects, placements, or lakutata classes with their options |
-| `schema` | the bundled files | `bundled` (the bundled files to load), `directory` (a directory of schema files, loaded in the order of their names) and `files` (schema files of one's own, by path or text) |
+| `schema` | core, cosine, inetorgperson | `bundled` (the bundled schemas by name; `rfc2307bis`, `openssh-lpk` and `ppolicy` are added by naming them, `[]` leaves the system schema alone), `directory` (a directory of schema files, loaded in the order of their names) and `files` (schemas of one's own: paths, texts, or documents of `readSchemaFile()`/`parseSchemaFile()`) |
 | `access` | | `admins`, `passwordAdmins`, `anonymousRead`, `authenticatedRead`, `check` |
 | `limits` | | The size, time, message, request and connection limits |
 | `bindThrottle` | 5 failures lock the DN | The limits on failed binds |

@@ -69,7 +69,7 @@ await server.listen({path: '/run/directory/ldapi', mode: 0o666})
 ```
 
 - `createLDAPServer()` 提供各个后端里的条目，每个后端挂在自己的后缀上。后端负责存取条目（`get()`、`search()`、它支持的写操作，以及不读条目就能判断条目是否存在时的 `exists()`），其余都由服务器负责：协议、StartTLS 和 LDAPS、每次写入时的 schema 校验、密码、访问控制、各种上限、rootDSE 和 subschema；后端自己不做排序、虚拟列表视图和分页时，也由服务器来做（自己排序的后端用 `sortSearchItems()` 给代表条目的轻量数据排序和取窗口，规则和服务器相同）。`MemoryBackend` 把条目放在内存里；`createHandlerBackend()` 用 ldapjs 服务器那种按操作写处理函数的方式生成一个后端。
-- 自带的 schema（core、cosine、inetOrgPerson、rfc2307bis、openssh-lpk、ppolicy）默认全部加载；自己的 schema 文件（OpenLDAP `cn=config` 格式的 LDIF、subschema 条目、`.schema` 格式）用 `schema.files` 加入，`readSchemaDirectory()` 按文件名顺序读取一个目录里的这些文件。名字或 OID 重复定义时，服务器在启动时就会报错。
+- schema：系统 schema（操作属性和目录自身的对象类）总是加载，然后按顺序加载 `schema` 选项列出的 schema，默认是 `DEFAULT_SCHEMAS`，即 core、cosine 和 inetOrgPerson 这几套几乎所有服务器都有的 RFC schema。其余自带的 schema 需要时再加上（`[...DEFAULT_SCHEMAS, RFC2307BIS_SCHEMA]`）：rfc2307bis 用于 POSIX 账号和组，openssh-lpk 用于 SSH 公钥，ppolicy 用于密码策略（密码策略插件会自己加载它）。自己的 schema 可以是从文件读出的文档（`readSchemaFile()`，或用 `readSchemaDirectory()` 按文件名顺序读取一个目录），也可以直接给文件的文本。名字或 OID 重复定义时，服务器在启动时就会报错。
 - `server.connect({as})` 返回一个进程内连接，操作和客户端一样：应用不经过网络读写自己的目录，经过的 schema 校验、密码哈希和访问控制都和网络请求相同。不调用 `listen()` 也能用。
 - `listen({path})` 监听 Unix socket（ldapi），给同一台机器上的客户端用：SSSD 2.9 及以后、nslcd、OpenLDAP 的命令行工具（`ldapi://%2Frun%2Fdirectory%2Fldapi`）。这种连接不会离开本机，所以服务器像对待 TLS 一样接受从这里发来的密码，也会在这里提供 SASL PLAIN。EXTERNAL 仍然只在 TLS 上提供，因为服务器无法知道对端进程是以哪个用户运行的。`mode` 决定谁能连接（`0o666`：本机的所有用户；默认按 umask 决定，通常只有服务器进程所属的用户）。服务器停止后留下的 socket 文件会被替换。Windows 上不支持 Unix socket。
 - `createDirectory()` 用 LDAP 操作管理用户、组和组织单元，可以用在任何连接上：进程内连接、客户端，或者远程的 OpenLDAP，只要 profile 和那台服务器的 schema 对得上。
@@ -145,8 +145,9 @@ console.log(read.length)
 - `Filter` 用来构造搜索过滤器、解析过滤器文本（RFC 4515）并把过滤器写成文本；模板 `filter` 会转义写进去的值，所以值无法改变过滤器的结构。`matchFilter()` 按 RFC 4511 的三值逻辑（真、假、未定义）对一个条目求过滤器的值。近似匹配（`~=`）按相等处理，只有“名字加可选 UID”（uniqueMember）例外：它只比较名字，不管 UID，和 OpenLDAP 的 uniqueMemberMatch 做近似匹配时一样。
 - 控制项（分页、排序、虚拟列表视图、树删除、密码策略、读取条目、代理授权、持久搜索、内容同步等）和扩展操作的值（改密码、Who Am I、Cancel）都有编解码；`Ber` 和 `BerReader` 用来自己读写 BER。
 - `DN` 解析 DN（RFC 4514），把它转义后写回，并按规范化后的形式比较。
-- `Schema` 加载 schema 文件（OpenLDAP 的 `cn=config` LDIF、subschema 条目，或 `.schema` 格式），拒绝重复定义的名字或 OID，并提供 RFC 4517 中比较属性值的匹配规则。
-- `parseLDIF()` 和 `stringifyLDIF()` 读写 LDIF（RFC 2849），包括条目和变更。
+- `Schema` 加载 schema：文档，或 schema 文件的文本（OpenLDAP 的 `cn=config` LDIF、subschema 条目，或 `.schema` 格式）。它拒绝重复定义的名字或 OID，能列出定义里引用了却没有定义的东西，并给出每一处所在的文件和行（`problems()`），还提供 RFC 4517 中比较属性值的匹配规则。
+- `parseSchemaFile()` 把一个 schema 文件转成文档：其中的定义都是普通对象，带着各自的注释和行号，可以原样经过 JSON 序列化。`stringifySchemaFile()` 把文档写回文件，没改动的定义保持原来的写法，这正是做 schema 文件编辑器所需要的。自带的 schema 也是文档（`CORE_SCHEMA` 等），import 进来就能用，不用解析文本。
+- `parseLDIF()` 和 `stringifyLDIF()` 读写 LDIF（RFC 2849），包括条目和变更，每条记录前面的注释也会保留。
 
 ```typescript
 import {DN, Filter, matchFilter, Schema} from '@lakutata/ldap-engine'
@@ -158,6 +159,21 @@ const schema: Schema = new Schema().load([
 
 console.log(DN.parse('CN=Alice, DC=Example').equals('commonName=alice,dc=example', schema))
 console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', values: [Buffer.from('Alice')]}]}, schema))
+```
+
+读入一个 schema 文件，修改后写回，再和自带的 schema 一起加载：
+
+```typescript
+import {readFileSync, writeFileSync} from 'node:fs'
+import {CORE_SCHEMA, parseSchemaFile, Schema, type SchemaDocument, stringifySchemaFile, SYSTEM_SCHEMA} from '@lakutata/ldap-engine'
+
+const devices: SchemaDocument = parseSchemaFile(readFileSync('devices.ldif', 'utf8'), 'devices')
+const device = devices.objectClasses[0]
+device.may = [...device.may ?? [], 'description']
+writeFileSync('devices.ldif', stringifySchemaFile(devices))
+
+const schema: Schema = new Schema().load(SYSTEM_SCHEMA).load(CORE_SCHEMA).load(devices)
+for (const problem of schema.problems()) console.log(`${problem.source}:${problem.line} ${problem.message}`)
 ```
 
 ## API
@@ -184,8 +200,10 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `PasswordPolicyOptions`、`PasswordPolicyRules`、`rulesOfEntry(entry, schema)` | 密码策略 |
 | `plainMechanism()`、`externalMechanism()`、`SASLMechanism` | SASL |
 | `createDirectory(connection, options)`、`Directory`、`DirectoryProfile` | 目录助手 |
-| `bundledSchema(names)`、`BUNDLED_SCHEMAS`、`BUNDLED_SCHEMA_NAMES` | 自带的 schema（core、cosine、inetorgperson、rfc2307bis、openssh-lpk、ppolicy） |
-| `readSchemaDirectory(directory)` | 一个目录里的 schema 文件，按文件名顺序（文件名里的数字按数值比较） |
+| `SYSTEM_SCHEMA`、`CORE_SCHEMA`、`COSINE_SCHEMA`、`INETORGPERSON_SCHEMA`、`RFC2307BIS_SCHEMA`、`OPENSSH_LPK_SCHEMA`、`PPOLICY_SCHEMA` | 自带的 schema，以文档形式提供 |
+| `DEFAULT_SCHEMAS`、`DEFAULT_SCHEMA_NAMES`、`BUNDLED_SCHEMAS`、`BUNDLED_SCHEMA_NAMES`、`bundledSchema(names)` | 服务器默认加载的 schema（core、cosine、inetorgperson）、按名字取自带的 schema、由它们组成的 `Schema` |
+| `parseSchemaFile(text, name)`、`stringifySchemaFile(document)`、`SchemaDocument` | schema 文件和文档之间的转换 |
+| `readSchemaFile(path)`、`readSchemaDirectory(directory)` | 把一个 schema 文件、或一个目录里的文件按文件名顺序读成文档（文件名里的数字按数值比较） |
 | `encodeMessage(message)`、`decodeMessage(bytes)` | 把消息编码成字节，或从字节解码 |
 | `MessageReader` | 读取数据流里的消息 |
 | `Filter`、`filter`、`escapeFilterValue(value)`、`matchFilter(filter, entry, schema)` | 过滤器：构造、文本、转义模板、求值 |
@@ -194,7 +212,7 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `Ber`、`BerReader`、`isUTF8(bytes)` | 读写 BER，用来自己写编解码；判断字节是否为 UTF-8 |
 | `DN`、`RDN`、`escapeDNValue(value)` | DN |
 | `Schema`、`parseAttributeType()`、`parseObjectClass()` 等，`parseGeneralizedTime()`、`formatGeneralizedTime()` | schema、schema 定义、时间 |
-| `parseLDIF(text)`、`stringifyLDIF(records)` | LDIF |
+| `parseLDIF(text)`、`stringifyLDIF(records)` | LDIF，保留每条记录前面的注释 |
 | `ResultCode`、`resultCodeName(code)` | 结果码和它们的名字 |
 | `LDAPMessage`、`ProtocolOp`、`LDAPRequest`、`LDAPResponse`、`LDAPResult`、`Control`，以及各种操作、过滤器、控制项和记录的类型 | 相关的类型 |
 | `LDAPException` 及其子类 | 这个包的异常（见[错误](#错误)） |

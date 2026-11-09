@@ -173,13 +173,23 @@ none) and `organizationalUnit` units; a directory with classes of its own gives 
 The schema decides what an entry may hold: its object classes, the attributes they require and allow, the syntaxes and
 the matching rules. The server checks every write against it.
 
-- Bundled: the schemas of the RFCs (core, cosine, inetOrgPerson), rfc2307bis (POSIX accounts and groups), openssh-lpk
-  (SSH public keys) and ppolicy (the password policy), all loaded by default; `schema.bundled` loads fewer.
-- `schema.files` adds schema files of one's own, by path or text: the LDIF of OpenLDAP's `cn=config`, a subschema
-  entry, or the `.schema` form. `schema.directory` loads the `.ldif` and `.schema` files of a directory before them, in
-  the order of their names, the numbers in them by their value (`cn={2}nis.ldif` before `cn={10}ppolicy.ldif`, as
-  OpenLDAP numbers its files). A name or an OID defined twice stops the server at its start, naming both files. If the
-  directory holds the standard files too, leave the bundled ones out with `schema.bundled`.
+- The system schema (the operational attributes, and the object classes of the directory itself) is always loaded.
+- The bundled schemas are named in `schema.bundled`. core, cosine and inetOrgPerson, the schemas of the RFCs that
+  nearly every server has, are loaded by default; rfc2307bis (POSIX accounts and groups, for SSSD and nslcd),
+  openssh-lpk (SSH public keys) and ppolicy (the password policy) are loaded when named, and `[]` leaves the system
+  schema alone. The password policy plugin brings ppolicy itself.
+- `schema.files` adds schemas of one's own: paths, texts, or documents (below). Files are the LDIF of OpenLDAP's
+  `cn=config`, a subschema entry, or the `.schema` form. `schema.directory` loads the `.ldif` and `.schema` files of a
+  directory before them, in the order of their names, the numbers in them by their value (`cn={2}nis.ldif` before
+  `cn={10}ppolicy.ldif`, as OpenLDAP numbers its files). A name or an OID defined twice stops the server at its start,
+  naming both files: if the directory holds some of the standard files too, leave those out of `schema.bundled` (or set
+  it to `[]` when it holds them all); with the nis.schema of OpenLDAP (RFC 2307), leave out rfc2307bis, which has the
+  same OIDs.
+- A schema file is also data. `readSchemaFile()` or `parseSchemaFile()` turns it into a document, its definitions as
+  plain objects with their comments and lines; `stringifySchemaFile()` writes it back with the definitions that did not
+  change as they were written; `Schema.problems()` gives the file and the line of each name a definition refers to
+  without defining it. The bundled schemas are such documents (`CORE_SCHEMA`…), and a document of one's own can be made
+  once at build time and imported.
 - The tree is the data's: the schema says what an entry holds, not where it goes.
 - Clients read the schema at `cn=Subschema`; `schemaConfigView: true` also shows the files read-only at
   `cn={N}<name>,cn=schema,cn=config`, as OpenLDAP does.
@@ -380,10 +390,11 @@ component. A backend doing the work of a plugin itself declares it in its `capab
 
 ## 11. Connecting other software
 
-- **SSSD and nslcd**: `ldap_schema = rfc2307bis`; the groups are found by `member`, and memberUid is there for the
-  `rfc2307` mode. SSSD sends the password policy control with every bind, which the server answers. On the same machine
-  they connect to the Unix socket of `ldapiPath` (SSSD 2.9 and later), and SSSD sends passwords over it without TLS.
-  SSSD 2.10 and later start TLS by default, which the socket does not need:
+- **SSSD and nslcd**: the server loads rfc2307bis (and openssh-lpk for the SSH keys), named in `schema.bundled`, and
+  they use `ldap_schema = rfc2307bis`; the groups are found by `member`, and memberUid is there for the `rfc2307`
+  mode. SSSD sends the password policy control with every bind, which the server answers. On the same machine they
+  connect to the Unix socket of `ldapiPath` (SSSD 2.9 and later), and SSSD sends passwords over it without TLS. SSSD
+  2.10 and later start TLS by default, which the socket does not need:
 
   ```ini
   [domain/example]
@@ -402,7 +413,7 @@ component. A backend doing the work of a plugin itself declares it in its `capab
 - **Keycloak**: user federation with the vendor "Other", `uid` as the user name and RDN, `entryUUID` as the UUID
   attribute, "Use password modify extended operation" on; a group mapper on `groupOfNames` and `member`.
 - **Gitea**: an LDAP source (via BindDN) with `(&(objectClass=inetOrgPerson)(uid=%s))` as the user filter; an
-  administrator filter on memberOf; the SSH keys in `sshPublicKey`.
+  administrator filter on memberOf; the SSH keys in `sshPublicKey` (the server loads openssh-lpk).
 - **Grafana**: `mailAlias: true` gives the `email` it reads by default.
 
 ## 12. The engine alone

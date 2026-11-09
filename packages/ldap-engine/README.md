@@ -90,10 +90,13 @@ await server.listen({path: '/run/directory/ldapi', mode: 0o666})
   when the backend does not do them itself (a backend that sorts itself calls `sortSearchItems()` on its own lighter
   records, so it orders and windows as the server would). `MemoryBackend` keeps its entries in memory;
   `createHandlerBackend()` makes a backend from handlers written operation by operation, as ldapjs servers are.
-- The schema is bundled (core, cosine, inetOrgPerson, rfc2307bis, openssh-lpk and ppolicy) and loaded by default; schema files of one's own (the LDIF of
-  OpenLDAP's `cn=config`, a subschema entry, the `.schema` form) are added with `schema.files`, and
-  `readSchemaDirectory()` reads those of a directory in the order of their names. A name or an OID
-  defined twice stops the server at its start.
+- The schema: the system schema (the operational attributes and the object classes of the directory itself) always,
+  then the schemas of the `schema` option in order, `DEFAULT_SCHEMAS` by default: core, cosine and inetOrgPerson, the
+  schemas of the RFCs that nearly every server has. The other bundled schemas are added when needed
+  (`[...DEFAULT_SCHEMAS, RFC2307BIS_SCHEMA]`): rfc2307bis for POSIX accounts and groups, openssh-lpk for SSH public
+  keys, ppolicy for the password policy (the password policy plugin loads it itself). Schemas of one's own are
+  documents read from their files (`readSchemaFile()`, or `readSchemaDirectory()` for a directory, in the order of
+  their names) or the texts of the files. A name or an OID defined twice stops the server at its start.
 - `server.connect({as})` gives a connection in the same process, with the operations of the client: the application
   reads and writes its directory without the network, through the same schema checks, password hashing and access
   control as the network requests. It works without `listen()`.
@@ -213,9 +216,16 @@ console.log(read.length)
   authorization, persistent search, content synchronization…) and the values of the extended operations (Password
   Modify, Who Am I, Cancel) have codecs; `Ber` and `BerReader` write and read BER, for codecs of one's own.
 - `DN` parses DNs (RFC 4514), writes them back escaped, and compares them by their normalized form.
-- `Schema` loads schema files (the `cn=config` LDIF of OpenLDAP, a subschema entry, or the `.schema` form), refuses a
-  name or an OID defined twice, and gives the matching rules of RFC 4517 that compare the values.
-- `parseLDIF()` and `stringifyLDIF()` read and write LDIF (RFC 2849), entries and changes.
+- `Schema` loads schemas: documents, or the texts of schema files (the `cn=config` LDIF of OpenLDAP, a subschema
+  entry, or the `.schema` form). It refuses a name or an OID defined twice, lists the names the definitions refer to
+  without defining them, with the file and line of each (`problems()`), and gives the matching rules of RFC 4517 that
+  compare the values.
+- `parseSchemaFile()` turns a schema file into a document: its definitions as plain objects, with their comments and
+  lines, which go through JSON as they are. `stringifySchemaFile()` writes it back, the definitions unchanged as they
+  were written, which is what an editor of schema files needs. The bundled schemas are documents too (`CORE_SCHEMA`…),
+  imported without parsing any text.
+- `parseLDIF()` and `stringifyLDIF()` read and write LDIF (RFC 2849), entries and changes, with the comments before
+  each record.
 
 ```typescript
 import {DN, Filter, matchFilter, Schema} from '@lakutata/ldap-engine'
@@ -227,6 +237,21 @@ const schema: Schema = new Schema().load([
 
 console.log(DN.parse('CN=Alice, DC=Example').equals('commonName=alice,dc=example', schema))
 console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', values: [Buffer.from('Alice')]}]}, schema))
+```
+
+A schema file read, changed and written back, then loaded with the bundled schemas:
+
+```typescript
+import {readFileSync, writeFileSync} from 'node:fs'
+import {CORE_SCHEMA, parseSchemaFile, Schema, type SchemaDocument, stringifySchemaFile, SYSTEM_SCHEMA} from '@lakutata/ldap-engine'
+
+const devices: SchemaDocument = parseSchemaFile(readFileSync('devices.ldif', 'utf8'), 'devices')
+const device = devices.objectClasses[0]
+device.may = [...device.may ?? [], 'description']
+writeFileSync('devices.ldif', stringifySchemaFile(devices))
+
+const schema: Schema = new Schema().load(SYSTEM_SCHEMA).load(CORE_SCHEMA).load(devices)
+for (const problem of schema.problems()) console.log(`${problem.source}:${problem.line} ${problem.message}`)
 ```
 
 ## API
@@ -253,8 +278,10 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `PasswordPolicyOptions`, `PasswordPolicyRules`, `rulesOfEntry(entry, schema)` | The password policy |
 | `plainMechanism()`, `externalMechanism()`, `SASLMechanism` | SASL |
 | `createDirectory(connection, options)`, `Directory`, `DirectoryProfile` | The directory helper |
-| `bundledSchema(names)`, `BUNDLED_SCHEMAS`, `BUNDLED_SCHEMA_NAMES` | The bundled schema (core, cosine, inetorgperson, rfc2307bis, openssh-lpk, ppolicy) |
-| `readSchemaDirectory(directory)` | The schema files of a directory, in the order of their names (the numbers in them by their value) |
+| `SYSTEM_SCHEMA`, `CORE_SCHEMA`, `COSINE_SCHEMA`, `INETORGPERSON_SCHEMA`, `RFC2307BIS_SCHEMA`, `OPENSSH_LPK_SCHEMA`, `PPOLICY_SCHEMA` | The bundled schemas, as documents |
+| `DEFAULT_SCHEMAS`, `DEFAULT_SCHEMA_NAMES`, `BUNDLED_SCHEMAS`, `BUNDLED_SCHEMA_NAMES`, `bundledSchema(names)` | The schemas a server loads by default (core, cosine, inetorgperson), the bundled ones by name, a `Schema` of them |
+| `parseSchemaFile(text, name)`, `stringifySchemaFile(document)`, `SchemaDocument` | A schema file as a document, and back |
+| `readSchemaFile(path)`, `readSchemaDirectory(directory)` | The documents of a schema file, and of the files of a directory in the order of their names (the numbers in them by their value) |
 | `encodeMessage(message)`, `decodeMessage(bytes)` | A message as bytes, and back |
 | `MessageReader` | The reader of the messages of a stream |
 | `Filter`, `filter`, `escapeFilterValue(value)`, `matchFilter(filter, entry, schema)` | Filters: building, text, the escaping template, evaluation |
@@ -263,7 +290,7 @@ console.log(matchFilter(Filter.parse('(name=ali*)'), {attributes: [{type: 'cn', 
 | `Ber`, `BerReader`, `isUTF8(bytes)` | Writing and reading BER, for codecs of one's own; whether bytes are UTF-8 |
 | `DN`, `RDN`, `escapeDNValue(value)` | DNs |
 | `Schema`, `parseAttributeType()`, `parseObjectClass()`… `parseGeneralizedTime()`, `formatGeneralizedTime()` | Schemas, their definitions, the times |
-| `parseLDIF(text)`, `stringifyLDIF(records)` | LDIF |
+| `parseLDIF(text)`, `stringifyLDIF(records)` | LDIF, with the comments before each record |
 | `ResultCode`, `resultCodeName(code)` | The result codes and their names |
 | `LDAPMessage`, `ProtocolOp`, `LDAPRequest`, `LDAPResponse`, `LDAPResult`, `Control`, the types of the operations, the filters, the controls and the records | Their types |
 | `LDAPException` and its subclasses | The exceptions of the package (see [Errors](#errors)) |

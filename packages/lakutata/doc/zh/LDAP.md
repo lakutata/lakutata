@@ -144,8 +144,10 @@ export class Accounts extends Component {
 
 Schema 决定一个条目能存什么：它的对象类、对象类要求和允许的属性、语法和匹配规则。服务器按它检查每一次写入。
 
-- 自带：各 RFC 的 schema（core、cosine、inetOrgPerson）、rfc2307bis（POSIX 账号和组）、openssh-lpk（SSH 公钥）和 ppolicy（密码策略），默认全部加载；`schema.bundled` 可以少加载一些。
-- `schema.files` 按路径或文本加入自己的 schema 文件：OpenLDAP `cn=config` 的 LDIF、subschema 条目，或 `.schema` 格式。`schema.directory` 在它们之前加载一个目录里的 `.ldif` 和 `.schema` 文件，按文件名排序，文件名里的数字按数值比较（`cn={2}nis.ldif` 排在 `cn={10}ppolicy.ldif` 前面，和 OpenLDAP 给文件编号的方式一致）。同一个名字或 OID 定义了两次时，服务器在启动时就停下，并指出两个文件；目录里也放了标准 schema 文件时，用 `schema.bundled` 把对应的自带文件去掉。
+- 系统 schema（操作属性，以及目录自身的对象类）总是加载。
+- 自带的 schema 在 `schema.bundled` 里按名字选。core、cosine 和 inetOrgPerson 是几乎所有服务器都有的 RFC schema，默认加载；rfc2307bis（POSIX 账号和组，供 SSSD 和 nslcd 使用）、openssh-lpk（SSH 公钥）和 ppolicy（密码策略）写上名字才加载；`[]` 表示只留系统 schema。启用密码策略插件时会自动带上 ppolicy。
+- `schema.files` 加入自己的 schema：路径、文本，或文档（见下一条）。文件可以是 OpenLDAP `cn=config` 的 LDIF、subschema 条目，或 `.schema` 格式。`schema.directory` 在它们之前加载一个目录里的 `.ldif` 和 `.schema` 文件，按文件名排序，文件名里的数字按数值比较（`cn={2}nis.ldif` 排在 `cn={10}ppolicy.ldif` 前面，和 OpenLDAP 给文件编号的方式一致）。同一个名字或 OID 定义了两次时，服务器在启动时就停下，并指出两个文件：目录里也放了标准 schema 文件时，把 `schema.bundled` 里对应的几份去掉（全都放了就设为 `[]`）；使用 OpenLDAP 的 nis.schema（RFC 2307）时，去掉和它 OID 相同的 rfc2307bis。
+- schema 文件也可以当作数据处理。`readSchemaFile()` 或 `parseSchemaFile()` 把它转成文档，其中的定义都是普通对象，带着注释和行号；`stringifySchemaFile()` 把文档写回文件，没改动的定义保持原来的写法；`Schema.problems()` 给出每个“引用了却没有定义”的名字所在的文件和行。自带的 schema 就是这样的文档（`CORE_SCHEMA` 等），自己的 schema 也可以在构建时转好、直接 import。
 - 目录树的结构由数据决定：schema 只规定条目存什么，不规定它放在哪里。
 - 客户端在 `cn=Subschema` 读取 schema；`schemaConfigView: true` 还会像 OpenLDAP 那样，在 `cn={N}<name>,cn=schema,cn=config` 以只读方式列出这些文件。
 
@@ -308,7 +310,7 @@ export const deviceBackend: LDAPBackend = createHandlerBackend({
 
 ## 11. 接入其他软件
 
-- **SSSD 和 nslcd**：`ldap_schema = rfc2307bis`；按 `member` 查找组，memberUid 供 `rfc2307` 模式使用。SSSD 每次绑定都发送密码策略控制，服务器能处理。在同一台机器上，它们连接 `ldapiPath` 的 Unix socket（SSSD 需要 2.9 及以后），SSSD 在上面不经 TLS 发送密码。SSSD 2.10 起默认先启动 TLS，走 socket 时不需要：
+- **SSSD 和 nslcd**：服务器要在 `schema.bundled` 里加上 rfc2307bis（要用 SSH 公钥时再加上 openssh-lpk），客户端设置 `ldap_schema = rfc2307bis`；按 `member` 查找组，memberUid 供 `rfc2307` 模式使用。SSSD 每次绑定都发送密码策略控制，服务器能处理。在同一台机器上，它们连接 `ldapiPath` 的 Unix socket（SSSD 需要 2.9 及以后），SSSD 在上面不经 TLS 发送密码。SSSD 2.10 起默认先启动 TLS，走 socket 时不需要：
 
   ```ini
   [domain/example]
@@ -324,7 +326,7 @@ export const deviceBackend: LDAPBackend = createHandlerBackend({
 
   `ldapiMode` 要允许 SSSD 运行时所用的用户连接。通过网络连接时，给服务器配置 `tls`，并把 CA 交给 SSSD（`ldap_tls_cacert`）。
 - **Keycloak**：用户联合选供应商“Other”，`uid` 作为用户名和 RDN，`entryUUID` 作为 UUID 属性，打开“Use password modify extended operation”；组映射器用 `groupOfNames` 和 `member`。
-- **Gitea**：LDAP 认证源（via BindDN），用户过滤器写 `(&(objectClass=inetOrgPerson)(uid=%s))`；管理员过滤器按 memberOf；SSH 公钥在 `sshPublicKey` 里。
+- **Gitea**：LDAP 认证源（via BindDN），用户过滤器写 `(&(objectClass=inetOrgPerson)(uid=%s))`；管理员过滤器按 memberOf；SSH 公钥在 `sshPublicKey` 里（服务器要加载 openssh-lpk）。
 - **Grafana**：`mailAlias: true` 提供它默认读取的 `email`。
 
 ## 12. 单独使用引擎
