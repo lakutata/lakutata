@@ -3,13 +3,14 @@ import {existsSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
 import {Component, DTO, InvalidValueException} from '@lakutata/core'
 import {Configurable, Singleton} from '@lakutata/core/decorator/di'
-import type {EntityManager, ObjectLiteral, SelectQueryBuilder} from '@lakutata/orm'
+import type {EntityManager, ObjectLiteral, SelectQueryBuilder, UpdateQueryBuilder} from '@lakutata/orm'
 import type {Database} from '@lakutata/orm/com/database'
 import {
     type AttributeTypeDefinition,
     attributeTypeOf,
     type BackendCapabilities,
     type BackendSearchResult,
+    type Control,
     createDirectory,
     type DirectoryChange,
     type DirectoryEntry,
@@ -34,13 +35,15 @@ import {
     type SortKey,
     SortRequestControl,
     sortSearchItems,
+    sortWindowRange,
     type ThrottleState,
     type ThrottleStore,
+    VLVRequestControl,
     type WriteContext
 } from '@lakutata/ldap-engine'
 import {isMySQL, LDAPBindStateRecord, LDAPEntryRecord, LDAPMySQLValueRecord, LDAPUniqueRecord, LDAPValueRecord} from './Entities.js'
 import {FilterTranslator, memberOfAssertions, type Translation, type VirtualAttributes} from './FilterQuery.js'
-import {keyForm, namesEntries, referenceForm, sha256, sortForm, storedValue, valueBytes, valueHashOf} from './Keys.js'
+import {keyedByReference, keyForm, namesEntries, pathSegment, referenceForm, sha256, SORT_KEY_LENGTH, sortForm, sortsInDatabase, storedValue, subtreeOf, valueBytes, valueHashOf} from './Keys.js'
 
 //The syntax of the DNs
 const DN_SYNTAX: string = '1.3.6.1.4.1.1466.115.121.1.12'
@@ -613,17 +616,16 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         if (this.memberOfName && this.nestedGroups > 0) virtual.nestedGroups = await this.nestedGroupIds(manager, memberOfAssertions(context.filter, schema, this.memberOfName), schema)
         const translator: FilterTranslator = new FilterTranslator(schema, virtual)
         const translation: Translation = translator.translate(context.filter)
-        const scope: string = context.scope === 'base' ? 'e.id = :baseId'
-            : context.scope === 'one' ? 'e.parent_id = :baseId'
-                : context.scope === 'children' ? 'e.path LIKE :basePath AND e.id <> :baseId'
-                    : 'e.path LIKE :basePath'
+        const scope: {sql: string, parameters: Record<string, string>} = context.scope === 'base' ? {sql: 'e.id = :baseId', parameters: {baseId: base.id}}
+            : context.scope === 'one' ? {sql: 'e.parent_id = :baseId', parameters: {baseId: base.id}}
+                : subtreeOf(base.path, context.scope !== 'children')
         const wants = (name: string): boolean => context.attributes.allOperational || context.attributes.names.has(name) || JSON.stringify(context.filter).toLowerCase().includes(`"${name}"`)
         const virtualWanted = {memberOf: this.memberOfName !== undefined && wants(this.memberOfName), memberUid: this.memberUid && (context.attributes.allUser || wants('memberuid')), email: this.mailAlias && (context.attributes.allUser || wants('email'))}
         //The entries in scope the filter (translated) matches
         const candidates = (): SelectQueryBuilder<ObjectLiteral> => manager.createQueryBuilder()
             .from('ldap_entry', 'e')
             .where('e.suffix = :suffix', {suffix: this.suffixKey})
-            .andWhere(scope, {baseId: base.id, basePath: base.path + '%'})
+            .andWhere(scope.sql, scope.parameters)
             .andWhere(translation.sql, translator.parameters)
         const signal: AbortSignal = context.signal
         const self: DirectoryBackend = this
@@ -653,10 +655,13 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     }
 
     /**
-     * The entries of a sorted search, sorted and windowed by its sort and view controls as the engine sorts: when the
-     * filter translates exactly and the sort keys are stored values, the IDs in scope are read with the values of the
-     * keys, and only the entries of the window are read, in order; otherwise every entry in scope is read, checked
-     * against the filter, then sorted.
+     * The entries of a sorted search, sorted and windowed by its sort and view controls as the engine sorts. When the
+     * filter translates exactly and the sort keys are stored values: a window by an offset is ordered, counted and
+     * cut by the database on the sort keys of the values ({@link sortForm}), unless a key is cut short; otherwise the
+     * IDs in scope are read with the values of the keys and sorted here. Either way only the entries of the window are
+     * read, in order. Otherwise every entry in scope is read, checked against the filter, then sorted. Reading the IDs
+     * keeps the ID and the DN of every entry the filter matches in memory, so `sortCandidates` (a limit of the
+     * engine's own sorting) does not bound it.
      * @param manager The entity manager.
      * @param context The search.
      * @param schema The schema.
@@ -673,9 +678,40 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             const valuesOf = (entry: DirectoryEntry, attribute: string): Buffer[] => entry.attributes.filter((item: PartialAttribute): boolean => typeOf(item.type) === typeOf(attribute)).flatMap((item: PartialAttribute): Buffer[] => item.values)
             return fromArray(sortSearchItems(entries, valuesOf, context, schema))
         }
+        const ids: SelectQueryBuilder<ObjectLiteral> = search.candidates().select('e.id')
+        const keys: SortKey[] = SortRequestControl.decode(findControl(context.controls, SortRequestControl)!)
+        const vlv: Control | undefined = findControl(context.controls, VLVRequestControl)
+        if (vlv && VLVRequestControl.decode(vlv).offset && keys.every((key: SortKey): boolean => !key.orderingRule && sortsInDatabase(key.attribute, schema))) {
+            const [{count}] = await search.candidates().select('COUNT(*)', 'count').getRawMany()
+            //A key cut short orders the values with the same beginning by their path: sorted here instead
+            const [{longest}] = await manager.createQueryBuilder(this.#valueEntity, 'v')
+                .select('MAX(LENGTH(v.sortKey))', 'longest')
+                .where('v.attributeType IN (:...sortTypes)', {sortTypes: types})
+                .andWhere(`v.entryId IN (${ids.getQuery()})`)
+                .setParameters(ids.getParameters())
+                .getRawMany()
+            if (Number(longest ?? 0) < SORT_KEY_LENGTH) {
+                const {start, end} = sortWindowRange(context, Number(count))!
+                if (start >= end) return fromArray([])
+                const page: SelectQueryBuilder<ObjectLiteral> = search.candidates().select(['e.id AS id', 'e.dn AS dn'])
+                keys.forEach((key: SortKey, index: number): void => {
+                    //The least value of an entry orders it, the greatest in reverse; an entry without one comes after the
+                    //others in both directions
+                    const alias: string = `sk${index}`
+                    page.leftJoin((query: SelectQueryBuilder<ObjectLiteral>): SelectQueryBuilder<ObjectLiteral> => query
+                        .select('s.entry_id', 'entry_id')
+                        .addSelect(`${key.reverse ? 'MAX' : 'MIN'}(s.sort_key)`, 'k')
+                        .from('ldap_value', 's')
+                        .where(`s.attribute_type = :sortType${index}`, {[`sortType${index}`]: typeOf(key.attribute)})
+                        .groupBy('s.entry_id'), alias, `${alias}.entry_id = e.id`)
+                    page.addOrderBy(`CASE WHEN ${alias}.k IS NULL THEN 1 ELSE 0 END`, 'ASC').addOrderBy(`${alias}.k`, key.reverse ? 'DESC' : 'ASC')
+                })
+                const rows: {id: string, dn: string}[] = await page.addOrderBy('e.path', 'ASC').offset(start).limit(end - start).getRawMany()
+                return this.inOrder(manager, rows, schema, search.virtual, context.signal)
+            }
+        }
         //In the order of the unsorted searches, which the entries with equal keys keep
         const rows: {id: string, dn: string}[] = await search.candidates().select(['e.id AS id', 'e.dn AS dn']).orderBy('e.path', 'ASC').getRawMany()
-        const ids: SelectQueryBuilder<ObjectLiteral> = search.candidates().select('e.id')
         const values: {vid: string, vtype: string, vvalue: string, vbinary: boolean | number}[] = await manager.createQueryBuilder(this.#valueEntity, 'v')
             .select('v.entryId', 'vid')
             .addSelect('v.attributeType', 'vtype')
@@ -692,11 +728,23 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             item.values.set(value.vtype, [...item.values.get(value.vtype) ?? [], valueBytes(value.vvalue, value.vbinary)])
         }
         const sorted: SortItem[] = sortSearchItems([...items.values()], (item: SortItem, attribute: string): Buffer[] => item.values.get(typeOf(attribute)) ?? [], context, schema)
+        return this.inOrder(manager, sorted.map((item: SortItem): {id: string, dn: string} => item.row), schema, search.virtual, context.signal)
+    }
+
+    /**
+     * The entries of rows, read by batches in the order of the rows
+     * @param manager The entity manager.
+     * @param rows The rows.
+     * @param schema The schema.
+     * @param virtual The virtual attributes to compute.
+     * @param signal Ends the reading.
+     */
+    protected inOrder(manager: EntityManager, rows: {id: string, dn: string}[], schema: Schema, virtual: {memberOf: boolean, memberUid: boolean, email: boolean}, signal: AbortSignal): AsyncIterable<DirectoryEntry> {
         const self: DirectoryBackend = this
         return (async function* (): AsyncGenerator<DirectoryEntry> {
-            for (let start: number = 0; start < sorted.length; start += BATCH) {
-                if (context.signal.aborted) return
-                yield* await self.entries(manager, sorted.slice(start, start + BATCH).map((item: SortItem): {id: string, dn: string} => item.row), schema, search.virtual)
+            for (let start: number = 0; start < rows.length; start += BATCH) {
+                if (signal.aborted) return
+                yield* await self.entries(manager, rows.slice(start, start + BATCH), schema, virtual)
             }
         })()
     }
@@ -868,12 +916,12 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const uuid: string | undefined = entry.attributes.find((attribute: PartialAttribute): boolean => schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase() === 'entryuuid')?.values[0]?.toString()
         const id: string = uuid && /^[0-9a-f-]{36}$/i.test(uuid) ? uuid.toLowerCase() : randomUUID()
         let parentId: string = ''
-        let path: string = id + '/'
+        let path: string = pathSegment(id)
         if (!entry.dn.equals(this.suffix, schema)) {
             const parent: LDAPEntryRecord | null = await this.row(manager, entry.dn.parent()!, schema)
             if (!parent) throw new LDAPUnwillingToPerformException(`The parent of ${entry.dn.toString()} is not in the backend`)
             parentId = parent.id
-            path = parent.path + id + '/'
+            path = parent.path + pathSegment(id)
         }
         if (path.length > 760) throw new LDAPUnwillingToPerformException('The entry is too deep in the directory')
         const dnKey: string = entry.dn.key(schema)
@@ -886,8 +934,12 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         await this.keepUnique(manager, id, entry.attributes, schema)
         //The values naming this entry before it was added now point at it
         const dnTypes: string[] = this.dnTypes(schema)
-        //(a DN by the hash of its form; a name and optional UID by the DN its key keeps, whatever its UID)
-        if (dnTypes.length) await manager.createQueryBuilder().update(this.#valueEntity).set({target: id}).where('target IS NULL').andWhere('attributeType IN (:...types)', {types: dnTypes}).andWhere('(valueHash = :hash OR valueKey = :key)', {hash: sha256('rule:' + dnKey), key: dnKey}).execute()
+        //(a DN by the hash of its form; a name and optional UID by the DN its key keeps, whatever its UID: two queries,
+        //each served by the index of the types, where one with OR read every value of the DN types)
+        const backfill = (): UpdateQueryBuilder<ObjectLiteral> => manager.createQueryBuilder().update(this.#valueEntity).set({target: id}).where('target IS NULL')
+        if (dnTypes.length) await backfill().andWhere('attributeType IN (:...types)', {types: dnTypes}).andWhere('valueHash = :hash', {hash: sha256('rule:' + dnKey)}).execute()
+        const uidTypes: string[] = dnTypes.filter((type: string): boolean => keyedByReference(type, schema))
+        if (uidTypes.length) await backfill().andWhere('attributeType IN (:...types)', {types: uidTypes}).andWhere('valueKey = :key', {key: dnKey}).execute()
     }
 
     /**
@@ -940,7 +992,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const row: LDAPEntryRecord | null = await this.row(manager, dn, schema)
         if (!row) return
         const ids: string[] = options.subtree
-            ? (await manager.createQueryBuilder(LDAPEntryRecord, 'e').select('e.id', 'id').where('e.path LIKE :path', {path: row.path + '%'}).getRawMany()).map((item: {id: string}): string => item.id)
+            ? (await manager.createQueryBuilder(LDAPEntryRecord, 'e').select('e.id', 'id').where(subtreeOf(row.path, true).sql, subtreeOf(row.path, true).parameters).getRawMany()).map((item: {id: string}): string => item.id)
             : [row.id]
         for (let index: number = 0; index < ids.length; index += 200) {
             const batch: string[] = ids.slice(index, index + 200)
@@ -992,7 +1044,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const row: LDAPEntryRecord | null = await this.row(manager, dn, schema)
         if (!row) return
         let parentId: string = row.parentId
-        let parentPath: string = row.path.slice(0, row.path.length - row.id.length - 1)
+        let parentPath: string = row.path.slice(0, row.path.length - pathSegment(row.id).length)
         const newParent: DN | undefined = entry.dn.parent()
         if (newParent && !newParent.equals(dn.parent()!, schema)) {
             const parent: LDAPEntryRecord | null = await this.row(manager, newParent, schema)
@@ -1000,8 +1052,9 @@ export class DirectoryBackend extends Component implements LDAPBackend {
             parentId = parent.id
             parentPath = parent.path
         }
-        const newPath: string = parentPath + row.id + '/'
-        const moved: LDAPEntryRecord[] = await manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.path LIKE :path', {path: row.path + '%'}).getMany()
+        const newPath: string = parentPath + pathSegment(row.id)
+        const subtree: {sql: string, parameters: Record<string, string>} = subtreeOf(row.path, true)
+        const moved: LDAPEntryRecord[] = await manager.createQueryBuilder(LDAPEntryRecord, 'e').where(subtree.sql, subtree.parameters).getMany()
         const renamed: Map<string, {dn: string, dnKey: string}> = new Map()
         for (const item of moved) {
             const itemDN: DN = item.id === row.id ? entry.dn : new DN([...DN.parse(item.dn).rdns.slice(0, DN.parse(item.dn).length - dn.length), ...entry.dn.rdns])

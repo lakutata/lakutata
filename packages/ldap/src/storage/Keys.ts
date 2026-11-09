@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto'
-import {attributeTypeOf, isUTF8, type MatchingRule, parseGeneralizedTime, type Schema} from '@lakutata/ldap-engine'
+import {attributeTypeOf, isUTF8, type MatchingRule, parseGeneralizedTime, type Schema, sortOrderingOf} from '@lakutata/ldap-engine'
 
 /**
  * The SHA-256 of a text, in hex
@@ -68,6 +68,15 @@ export function keyForm(type: string, value: Buffer, schema: Schema): string | u
 }
 
 /**
+ * Whether the values of an attribute name entries with an optional UID (uniqueMember): their key keeps the DN they name
+ * @param type The attribute type.
+ * @param schema The schema.
+ */
+export function keyedByReference(type: string, schema: Schema): boolean {
+    return schema.syntaxOf(attributeTypeOf(type)) === NAME_AND_OPTIONAL_UID
+}
+
+/**
  * The hash a value is found by for equality
  * @param type The attribute type.
  * @param value The value.
@@ -105,23 +114,44 @@ export function orderedNumber(value: bigint): string {
     return 'p' + (value >= LIMIT ? LIMIT - 1n : value).toString().padStart(40, '0')
 }
 
+//The longest form of a value for ordering: the hexadecimal of 256 bytes of the prepared value (an index of MySQL takes
+//it with the attribute type, 4 bytes a character)
+export const SORT_KEY_LENGTH: number = 512
+
 /**
- * The form of a value for ordering, when its attribute orders as a number (an integer, a time): text whose order is
- * the same in every database; undefined otherwise
+ * The form of a value for ordering, by the rule that orders its attribute in a sort (the engine's
+ * `sortOrderingOf()`): text whose order is the same in every database. An integer or a time is its number in digits
+ * of fixed width; a value of a rule ordering by code points is the hexadecimal of its prepared form in UTF-8 (the
+ * order of the code points), cut at {@link SORT_KEY_LENGTH} characters. Undefined for a value the rule cannot prepare,
+ * and for the attributes the database cannot order. Only ASCII: `LENGTH()` counts the same in every database.
  * @param type The attribute type.
  * @param value The value.
  * @param schema The schema.
  */
 export function sortForm(type: string, value: Buffer, schema: Schema): string | undefined {
-    const rule: MatchingRule | undefined = schema.ordering(attributeTypeOf(type))
-    if (!rule) return undefined
-    const text: string = value.toString('latin1').trim()
-    if (rule.oid === INTEGER_ORDERING) return /^-?\d+$/.test(text) ? orderedNumber(BigInt(text)) : undefined
-    if (rule.oid === TIME_ORDERING) {
-        const time: number | undefined = parseGeneralizedTime(text)
+    const ordering: {rule: MatchingRule, codePoints: boolean} | undefined = sortOrderingOf(attributeTypeOf(type), schema)
+    if (!ordering) return undefined
+    if (ordering.rule.oid === INTEGER_ORDERING) {
+        const prepared: string | undefined = ordering.rule.prepare(value)
+        return prepared === undefined ? undefined : orderedNumber(BigInt(prepared))
+    }
+    if (ordering.rule.oid === TIME_ORDERING) {
+        const time: number | undefined = parseGeneralizedTime(value.toString('latin1').trim())
         return time === undefined ? undefined : orderedNumber(BigInt(time))
     }
-    return undefined
+    if (!ordering.codePoints) return undefined
+    const prepared: string | undefined = ordering.rule.prepare(value)
+    return prepared === undefined ? undefined : Buffer.from(prepared, 'utf8').toString('hex').slice(0, SORT_KEY_LENGTH)
+}
+
+/**
+ * Whether the database orders an attribute in a sort by the forms of its values ({@link sortForm})
+ * @param type The attribute type.
+ * @param schema The schema.
+ */
+export function sortsInDatabase(type: string, schema: Schema): boolean {
+    const ordering: {rule: MatchingRule, codePoints: boolean} | undefined = sortOrderingOf(attributeTypeOf(type), schema)
+    return ordering !== undefined && (ordering.codePoints || ordering.rule.oid === INTEGER_ORDERING || ordering.rule.oid === TIME_ORDERING)
 }
 
 /**
@@ -140,6 +170,25 @@ export function ordersAsNumber(type: string, schema: Schema): boolean {
  */
 export function storedValue(value: Buffer): {value: string, binary: boolean} {
     return isUTF8(value) && !value.includes(0) ? {value: value.toString('utf8'), binary: false} : {value: value.toString('base64'), binary: true}
+}
+
+/**
+ * The part of the path of an entry its ID makes: the ID without its hyphens
+ * @param id The ID of the entry.
+ */
+export function pathSegment(id: string): string {
+    return id.replace(/-/g, '').toLowerCase()
+}
+
+/**
+ * The condition of the entries below a path, and of the entry itself when `inclusive`: a range of paths, which an
+ * index serves in every database (the paths are hexadecimal, and `g` comes after every hexadecimal digit)
+ * @param path The path.
+ * @param inclusive Whether the entry of the path is included.
+ * @param alias The alias of the table of the entries.
+ */
+export function subtreeOf(path: string, inclusive: boolean, alias: string = 'e'): {sql: string, parameters: Record<string, string>} {
+    return {sql: `${alias}.path ${inclusive ? '>=' : '>'} :subtreeFrom AND ${alias}.path < :subtreeTo`, parameters: {subtreeFrom: path, subtreeTo: path + 'g'}}
 }
 
 /**

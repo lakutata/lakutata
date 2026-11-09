@@ -37,7 +37,9 @@ export class LDAPEntryRecord {
     public parentId: string
 
     /**
-     * The IDs from the entry of the suffix to this one, each followed by a slash
+     * The IDs from the entry of the suffix to this one, without their hyphens, one after the other: hexadecimal only, so
+     * that a subtree is a range of paths (`path >= P AND path < P || 'g'`) in the order of every collation, which an
+     * index serves where `LIKE 'P%'` would read the whole table (PostgreSQL outside the C collation)
      */
     @Index('ldap_entry_path')
     @Column({name: 'path', type: 'varchar', length: 760})
@@ -119,9 +121,10 @@ export abstract class LDAPValueColumns {
     public valueKey: string | null
 
     /**
-     * The form an integer or a time orders by, its digits of fixed width
+     * The form the value orders by in a sort: an integer or a time in digits of fixed width, a string as the
+     * hexadecimal of its prepared form (see `sortForm()`)
      */
-    @Column({name: 'sort_key', type: 'varchar', length: 64, nullable: true})
+    @Column({name: 'sort_key', type: 'varchar', length: 512, nullable: true})
     public sortKey: string | null
 
     /**

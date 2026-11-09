@@ -152,6 +152,32 @@ export function directorySuite(label: string, options: (() => Promise<Record<str
             }
         })
 
+        it('orders and windows in SQL by the forms of the values, as the engine sorts', async () => {
+            const unit: string = await directory.createOrganizationalUnit(BASE, {ou: 'sorting'})
+            try {
+                const devices: [string, string[]][] = [['d1', ['m', 'b']], ['d2', ['x']], ['d3', []], ['d4', ['n', 'a']], ['d5', ['\u{20000}']], ['d6', ['\uFA0E']]]
+                for (const [cn, description] of devices) await admin.add(`cn=${cn},${unit}`, {objectClass: 'device', cn: cn, ...description.length ? {description: description} : {}})
+                const order = async (reverse: boolean): Promise<(string | undefined)[]> => (await admin.search(unit, {scope: 'one', sort: [{attribute: 'description', reverse: reverse}], window: {offset: 1, limit: 10}})).entries.map((entry) => entry.first('cn'))
+                //The least value orders an entry, the greatest in reverse; without one, last both ways; by code points
+                assert.deepEqual(await order(false), ['d4', 'd1', 'd2', 'd6', 'd5', 'd3'])
+                assert.deepEqual(await order(true), ['d5', 'd6', 'd2', 'd4', 'd1', 'd3'])
+                const window = await admin.search(unit, {scope: 'one', sort: [{attribute: 'description'}], window: {offset: 2, limit: 2}})
+                assert.deepEqual(window.entries.map((entry) => entry.first('cn')), ['d1', 'd2'])
+                assert.equal(window.total, 6)
+                //Two values alike in their first 256 bytes: their keys are cut short, the entries sorted on their values
+                await admin.add(`cn=long1,${unit}`, {objectClass: 'device', cn: 'long1', description: 'y'.repeat(300) + 'b'})
+                await admin.add(`cn=long2,${unit}`, {objectClass: 'device', cn: 'long2', description: 'y'.repeat(300) + 'a'})
+                assert.deepEqual(await order(false), ['d4', 'd1', 'd2', 'long2', 'long1', 'd6', 'd5', 'd3'])
+                //Integers by their value
+                const numbers = await admin.search(people, {scope: 'one', sort: [{attribute: 'uidNumber', reverse: true}], window: {offset: 1, limit: 5}})
+                const values: number[] = numbers.entries.map((entry) => Number(entry.first('uidNumber')))
+                assert.deepEqual(values, [...values].sort((a, b) => b - a))
+                assert.equal(numbers.total, 30)
+            } finally {
+                await admin.delete(unit, {controls: [TreeDeleteControl.encode()]})
+            }
+        })
+
         it('allocates uidNumber and gidNumber, and keeps uid unique', async () => {
             const numbers: number[] = (await admin.search(people, {scope: 'one', attributes: ['uidNumber']})).entries.map((entry) => Number(entry.first('uidNumber'))).sort((a, b) => a - b)
             assert.deepEqual([numbers[0], numbers[29], new Set(numbers).size], [10000, 10029, 30])
