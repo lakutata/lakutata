@@ -62,6 +62,9 @@ const ID_BATCH: number = 20000
 const FOUND_ROWS: unique symbol = Symbol('FOUND_ROWS')
 //The databases locking the rows a transaction reads for an update (SELECT … FOR UPDATE)
 const ROW_LOCKS: string[] = ['postgres', 'aurora-postgres', 'cockroachdb', 'mysql', 'mariadb', 'aurora-mysql']
+//The databases locking rows, not the indexes read by (a row is locked in one statement, read again by its conditions
+//once a write holding it is done)
+const ROW_NOT_INDEX_LOCKS: string[] = ['postgres', 'aurora-postgres']
 /**
  * A write running in a transaction: its database, its entity manager, whether it still runs, and the last of the writes
  * it makes (in savepoints of its transaction, one after another)
@@ -368,6 +371,11 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     #type: string = ''
 
     /**
+     * The tasks run once transactions are committed, counted (their keys)
+     */
+    #tasks: number = 0
+
+    /**
      * Whether the transactions of the writes are set to READ COMMITTED (MySQL; PostgreSQL when it or the Database
      * component would give another level)
      */
@@ -574,6 +582,11 @@ export class DirectoryBackend extends Component implements LDAPBackend {
     protected async targetsOf(manager: EntityManager, hashes: string[]): Promise<Map<string, string>> {
         const targets: Map<string, string> = new Map()
         if (!hashes.length) return targets
+        if (ROW_NOT_INDEX_LOCKS.includes(this.#type)) {
+            //One statement, in the order of the IDs
+            for (const row of await manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.suffix = :suffix', {suffix: this.suffixKey}).andWhere('e.dnHash IN (:...hashes)', {hashes: hashes}).orderBy('e.id', 'ASC').setLock('pessimistic_read').getMany()) targets.set(row.dnHash, row.id)
+            return targets
+        }
         const found: LDAPEntryRecord[] = await manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.suffix = :suffix', {suffix: this.suffixKey}).andWhere('e.dnHash IN (:...hashes)', {hashes: hashes}).getMany()
         if (!ROW_LOCKS.includes(this.#type) || !found.length) {
             for (const row of found) targets.set(row.dnHash, row.id)
@@ -591,10 +604,13 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * while the values were written)
      * @param entryId The ID of the entry.
      * @param schema The schema.
+     * @param hashes The hashes of the keys of the DNs it named no entry by.
      */
-    protected async resolveReferences(entryId: string, schema: Schema): Promise<void> {
+    protected async resolveReferences(entryId: string, schema: Schema, hashes: string[]): Promise<void> {
         const dnTypes: string[] = this.dnTypes(schema)
-        if (!dnTypes.length) return
+        if (!dnTypes.length || !hashes.length) return
+        //Nothing to do while none of the DNs is an entry (most of the time): one read, no transaction
+        if (!(await this.db.manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.suffix = :suffix', {suffix: this.suffixKey}).andWhere('e.dnHash IN (:...hashes)', {hashes: hashes}).getExists())) return
         await this.#transaction(async (manager: EntityManager): Promise<void> => {
             const rows: LDAPValueRecord[] = await manager.createQueryBuilder(this.#valueEntity, 'v').where('v.entryId = :id', {id: entryId}).andWhere('v.target IS NULL').andWhere('v.attributeType IN (:...types)', {types: dnTypes}).getMany()
             const forms: Map<number, string> = new Map()
@@ -619,7 +635,7 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      */
     protected backfillOnceCommitted(entries: {id: string, dnKey: string}[], schema: Schema): void {
         if (!entries.length) return
-        this.afterCommit(`backfill:${entries[0].id}:${entries.length}`, async (): Promise<void> => {
+        this.afterCommit(`backfill:${entries[0].id}:${++this.#tasks}`, async (): Promise<void> => {
             if (!(await this.namedByWaitingValues(this.db.manager, entries.map((entry: {id: string, dnKey: string}): string => entry.dnKey), schema))) return
             await this.#transaction(async (manager: EntityManager): Promise<void> => {
                 const kept: {id: string, dnKey: string}[] = []
@@ -647,9 +663,10 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         const uidTypes: string[] = dnTypes.filter((type: string): boolean => keyedByReference(type, schema))
         for (let index: number = 0; index < dnKeys.length; index += 500) {
             const batch: string[] = dnKeys.slice(index, index + 500)
-            const waiting = (): SelectQueryBuilder<ObjectLiteral> => manager.createQueryBuilder(this.#valueEntity, 'v').where('v.target IS NULL')
-            if (await waiting().andWhere('v.attributeType IN (:...types)', {types: dnTypes}).andWhere('v.valueHash IN (:...hashes)', {hashes: batch.map((key: string): string => sha256('rule:' + key))}).getExists()) return true
-            if (uidTypes.length && await waiting().andWhere('v.attributeType IN (:...types)', {types: uidTypes}).andWhere('v.valueKey IN (:...keys)', {keys: batch}).getExists()) return true
+            //One statement: by the hash of the DN, or by its key for the types keyed by reference
+            const byHash: string = '(v.attributeType IN (:...dnTypes) AND v.valueHash IN (:...hashes))'
+            const condition: string = uidTypes.length ? `(${byHash} OR (v.attributeType IN (:...uidTypes) AND v.valueKey IN (:...keys)))` : byHash
+            if (await manager.createQueryBuilder(this.#valueEntity, 'v').where('v.target IS NULL').andWhere(condition, {dnTypes: dnTypes, hashes: batch.map((key: string): string => sha256('rule:' + key)), uidTypes: uidTypes, keys: batch}).getExists()) return true
         }
         return false
     }
@@ -704,6 +721,11 @@ export class DirectoryBackend extends Component implements LDAPBackend {
      * @param skipLocked Whether an entry another transaction has locked is skipped (null) instead of waited for.
      */
     protected async lockedRow(manager: EntityManager, dn: DN, schema: Schema, mode: 'pessimistic_write' | 'pessimistic_read' = 'pessimistic_write', skipLocked: boolean = false): Promise<LDAPEntryRecord | null> {
+        if (ROW_NOT_INDEX_LOCKS.includes(this.#type)) {
+            //One statement: renamed or deleted by a write it waited for, the row no longer matches and is not given
+            const query: SelectQueryBuilder<LDAPEntryRecord> = manager.createQueryBuilder(LDAPEntryRecord, 'e').where('e.suffix = :suffix', {suffix: this.suffixKey}).andWhere('e.dnHash = :hash', {hash: sha256(dn.key(schema))}).setLock(mode)
+            return (skipLocked ? query.setOnLocked('skip_locked') : query).getOne()
+        }
         const found: LDAPEntryRecord | null = await this.row(manager, dn, schema)
         if (!found || !ROW_LOCKS.includes(this.#type)) return found
         //Locked by its ID, as every entry is: MySQL locks the index it reads by, and two writes locking a row by two
@@ -1292,7 +1314,8 @@ export class DirectoryBackend extends Component implements LDAPBackend {
         if (dnValues.length) {
             for (const [hash, id] of await this.targetsOf(manager, [...new Set(dnValues)])) targets.set(hash, id)
             //A DN naming no entry: one being added meanwhile does not see this value, which is pointed at it once committed
-            if (dnValues.some((hash: string): boolean => !targets.has(hash))) this.afterCommit(`references:${entryId}`, (): Promise<void> => this.resolveReferences(entryId, schema))
+            const unresolved: string[] = [...new Set(dnValues.filter((hash: string): boolean => !targets.has(hash)))]
+            if (unresolved.length) this.afterCommit(`references:${entryId}:${++this.#tasks}`, (): Promise<void> => this.resolveReferences(entryId, schema, unresolved))
         }
         for (const attribute of attributes) {
             const type: string = schema.primaryName(attributeTypeOf(attribute.type)).toLowerCase()
